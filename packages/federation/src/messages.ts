@@ -25,6 +25,17 @@ export const FEDERATION_ERRORS = {
 			something that is not a peer. Return one of the peers \`federate({ peers })\` made, for
 			every request the page serves.
 		`
+	},
+	shared_state_not_plain: {
+		text: (a: { name: string; reason: string }): string => prose`
+			SharedState '${a.name}': values must be plain data (devalue-serializable — JSON, Date, Map,
+			Set, BigInt, RegExp). Functions, class instances, and DOM nodes do not cross build
+			boundaries — share facts, not live objects. (${a.reason})
+		`,
+		details: (): string => prose`
+			Shared state crosses between builds as data, so its values must serialize. Share plain
+			facts; keep live objects (functions, class instances, DOM nodes) on one side.
+		`
 	}
 };
 
@@ -43,6 +54,52 @@ export const FEDERATION_WARNINGS = {
 			Add each calling app as a peer with its public \`key\` (\`ogygia keys\` mints a pair). If
 			the endpoint is meant to be open, because something in front of it (mTLS, a service
 			mesh) already checks the caller, pass \`open: true\`.
+		`
+	},
+	federation_audience_missing: {
+		text: (a: { name: string }): string => prose`
+			federate({ name: '${a.name}' }) has peers that may call in, but no \`audience\` and no
+			\`ORIGIN\`, so every signed call to this app is refused. Set \`audience\` to the host this
+			app answers on, or set \`ORIGIN\`.
+		`,
+		details: (): string => prose`
+			A signed call names the app it was meant for, its audience, so a call made for one app
+			cannot be sent to another that trusts the same key. To check that, this app has to know
+			its own host. It is never taken from the request: a server that builds its URL from the
+			\`Host\` header would let the caller pick it.
+
+			Set \`audience\` in \`federate()\` to the host (or hosts) this app answers on, for example
+			\`audience: 'cms.example.com'\`. Without it, the host of the \`ORIGIN\` environment
+			variable is used (SvelteKit's Node adapter reads the same one). With neither, signed
+			calls to this app get a 401.
+		`
+	},
+	federation_peer_answer_invalid: {
+		text: (a: { peer: string; url: string; what: string }): string => prose`
+			The peer '${a.peer}' answered ${a.url} with ${a.what}, so the hop failed: a static widget
+			shows its boundary card, a page read or a post is a 502 (or the peer's own 503 or 504).
+		`,
+		details: (): string => prose`
+			A peer answers a fragment or widget request with a JSON document and an OK status (a page
+			it does not have is a 404 that still carries its document). This answer could not be
+			used. An error status means the peer failed, refused the call (a 401 or 403: check the
+			two apps' keys), or does not have that widget (a 404). A body that does not parse means
+			something between the apps changed it (a proxy or CDN error page, a cut-off response), or
+			the URL reached something that is not the peer's ogygia handle. Ask the URL yourself,
+			signed as this app, and see what comes back.
+		`
+	},
+	federation_peer_unreachable: {
+		text: (a: { peer: string; url: string }): string => prose`
+			The peer '${a.peer}' gave no answer to ${a.url} (down, unreachable, or slower than its
+			timeout), so the hop failed: a static widget shows its boundary card, a page read, a post
+			or a deferred region is a 504.
+		`,
+		details: (): string => prose`
+			The request to the peer got no response at all: the connection was refused or dropped, the
+			name did not resolve, or no answer came within the peer's \`timeout\`. Check that the peer
+			is up and reachable from this app's servers at its configured origin, and that its
+			\`timeout\` fits how long it takes to answer.
 		`
 	},
 	federation_deploy_thaw_undelivered: {

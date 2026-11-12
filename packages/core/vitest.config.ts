@@ -1,9 +1,13 @@
 import { defineConfig } from 'vitest/config';
 import { svelte } from '@sveltejs/vite-plugin-svelte';
-import { browser_runs, playwright_run } from '@ogygia/config/vitest';
-import { fileURLToPath } from 'node:url';
+import { browser_runs, playwright_run, stub_aliases } from '@ogygia/config/vitest';
 import { heisenbench_record } from '../../internal/heisenbench/src/record.ts';
-import type { BrowserCommand } from 'vitest/node';
+import type { BrowserCommand, BrowserCommandContext } from 'vitest/node';
+import type {} from '@vitest/browser-playwright';
+// (the compiler's build plugin, from its source, as core's tests read devtools' own)
+import { lazy_files } from '../compiler/src/vite/lazy-files.ts';
+
+type Frame = Awaited<ReturnType<BrowserCommandContext['frame']>>;
 
 /**
  * The network, for the browser tests (`commands` from `vitest/browser`), by the path each names:
@@ -16,32 +20,44 @@ import type { BrowserCommand } from 'vitest/node';
  *   stylesheet still loading, for real.
  * - `keep_downloads(path)` lifts either, and sends the held requests on.
  *
- * Test files run side by side in one browser page, so each lifts only what it named: lifting every
- * route let one file's held sheet load in the middle of another file's test.
+ * Test files run side by side in one browser page, each in its own frame, so a route touches only
+ * the requests of the frame that named it, and each file lifts only what it named: one file's drop
+ * spent on another file's download of the same module let both tests see the wrong network.
  */
 type Routed = { matches: (url: URL) => boolean; held: Array<() => Promise<void>> };
-const routed = new Map<string, Routed>();
-function route_of(path: string): Routed {
+const routed = new Map<Frame, Map<string, Routed>>();
+async function route_of(ctx: BrowserCommandContext, path: string): Promise<[Routed, Frame]> {
+	const frame = await ctx.frame();
 	const r: Routed = { matches: (url) => url.pathname.endsWith(path), held: [] };
-	routed.set(path, r);
-	return r;
+	let mine = routed.get(frame);
+	if (!mine) routed.set(frame, (mine = new Map()));
+	mine.set(path, r);
+	return [r, frame];
 }
 const drop_downloads: BrowserCommand<[path: string, times: number]> = async (ctx, path, times) => {
+	const [r, frame] = await route_of(ctx, path);
 	let left = times;
-	await ctx.page.route(route_of(path).matches, (route) =>
-		left-- > 0 ? route.abort('failed') : route.continue()
+	await ctx.page.route(r.matches, (route) =>
+		route.request().frame() !== frame
+			? route.fallback()
+			: left-- > 0
+				? route.abort('failed')
+				: route.continue()
 	);
 };
 const hold_downloads: BrowserCommand<[path: string]> = async (ctx, path) => {
-	const r = route_of(path);
-	await ctx.page.route(r.matches, (route) => void r.held.push(() => route.continue()));
+	const [r, frame] = await route_of(ctx, path);
+	await ctx.page.route(r.matches, (route) =>
+		route.request().frame() !== frame ? route.fallback() : void r.held.push(() => route.continue())
+	);
 };
 const keep_downloads: BrowserCommand<[path: string]> = async (ctx, path) => {
-	const r = routed.get(path);
+	const mine = routed.get(await ctx.frame());
+	const r = mine?.get(path);
 	if (!r) return;
-	routed.delete(path);
+	mine!.delete(path);
 	await ctx.page.unroute(r.matches);
-	for (const send of r.held.splice(0)) await send().catch(() => {});
+	for (const send of r.held.splice(0)) await send().catch(() => {}); // ok: a held request whose page closed has no one to answer
 };
 
 // Two projects, one config:
@@ -67,80 +83,9 @@ export default defineConfig({
 	// The browser tests' dependencies, bundled before the first test file loads: found during the
 	// run, Vite bundles again and changes the URLs a test file still imports.
 	optimizeDeps: { include: ['devalue', 'esm-env', 'fast-check'] },
-	resolve: {
-		alias: {
-			'$app/server': fileURLToPath(new URL('./test/_stubs/app-server.ts', import.meta.url)),
-			// The `ogygia/content` barrel now carries the site kit's shell components, whose graph
-			// reads `$app/state` and (via Doc → Region.svelte) the plugin's virtual modules — stub
-			// them so barrel-importing suites load without a Kit app or the Vite plugin.
-			'$app/state': fileURLToPath(new URL('./test/_stubs/app-state.ts', import.meta.url)),
-			'$app/paths': fileURLToPath(new URL('./test/_stubs/app-paths.ts', import.meta.url)),
-			'$app/env': fileURLToPath(new URL('./test/_stubs/app-env.ts', import.meta.url)),
-			'virtual:ogygia/runtime-url': fileURLToPath(
-				new URL('./test/_stubs/virtual-runtime-url.ts', import.meta.url)
-			),
-			'virtual:ogygia/router-config': fileURLToPath(
-				new URL('./test/_stubs/virtual-router-config.ts', import.meta.url)
-			),
-			'virtual:ogygia/profiler-config': fileURLToPath(
-				new URL('./test/_stubs/virtual-profiler-config.ts', import.meta.url)
-			),
-			'virtual:ogygia/profiler-maps': fileURLToPath(
-				new URL('./test/_stubs/virtual-profiler-maps.ts', import.meta.url)
-			),
-			'virtual:ogygia/dev-hmr-url': fileURLToPath(
-				new URL('./test/_stubs/virtual-dev-hmr-url.ts', import.meta.url)
-			),
-			'virtual:ogygia/island-deps': fileURLToPath(
-				new URL('./test/_stubs/virtual-island-deps.ts', import.meta.url)
-			),
-			'virtual:ogygia/devtools-meta': fileURLToPath(
-				new URL('./test/_stubs/virtual-devtools-meta.ts', import.meta.url)
-			),
-			'virtual:ogygia/hydrate-features': fileURLToPath(
-				new URL('./test/_stubs/virtual-hydrate-features.ts', import.meta.url)
-			),
-			'virtual:ogygia/runtime-flags': fileURLToPath(
-				new URL('./test/_stubs/virtual-runtime-flags.ts', import.meta.url)
-			),
-			'virtual:ogygia/transportables': fileURLToPath(
-				new URL('./test/_stubs/virtual-transportables.ts', import.meta.url)
-			),
-			'virtual:ogygia/kit-wire': fileURLToPath(
-				new URL('./test/_stubs/virtual-kit-wire.ts', import.meta.url)
-			),
-			'virtual:ogygia/region-endpoint': fileURLToPath(
-				new URL('./test/_stubs/virtual-region-endpoint.ts', import.meta.url)
-			),
-			'virtual:ogygia/request-event': fileURLToPath(
-				new URL('./test/_stubs/virtual-request-event.ts', import.meta.url)
-			),
-			'virtual:ogygia/route-csr': fileURLToPath(
-				new URL('./test/_stubs/virtual-route-csr.ts', import.meta.url)
-			),
-			// The server graph `ogygia/internal/server` loads (the region signer) — reached by the
-			// profiler's modules (packages/devtools) a suite here imports.
-			'virtual:ogygia/secret': fileURLToPath(
-				new URL('./test/_stubs/virtual-secret.ts', import.meta.url)
-			),
-			'virtual:ogygia/sign': fileURLToPath(
-				new URL('./test/_stubs/virtual-sign.ts', import.meta.url)
-			),
-			'virtual:ogygia/session-cookie': fileURLToPath(
-				new URL('./test/_stubs/virtual-session-cookie.ts', import.meta.url)
-			),
-			'virtual:ogygia/region-ttl': fileURLToPath(
-				new URL('./test/_stubs/virtual-region-ttl.ts', import.meta.url)
-			),
-			'virtual:ogygia/server-manifest': fileURLToPath(
-				new URL('./test/_stubs/virtual-server-manifest.ts', import.meta.url)
-			),
-			// The browser runtime (`runtime/core.ts` → `app-transport.ts`) reads the app's transport codecs.
-			'virtual:ogygia/transport': fileURLToPath(
-				new URL('./test/_stubs/virtual-transport.ts', import.meta.url)
-			)
-		}
-	},
+	// Kit's `$app/*` and ogygia's virtual modules (the realm modules and their entries), stubbed so
+	// suites load without a Kit app or the Vite plugin (test/_stubs, by file name)
+	resolve: { alias: stub_aliases() },
 	test: {
 		projects: [
 			{
@@ -156,10 +101,17 @@ export default defineConfig({
 			},
 			{
 				extends: true,
+				// each lazy loader's own file, as an app's build hands it over (the ogygia plugin
+				// always carries it): a dropped download is asked for again there
+				plugins: [lazy_files()],
+				// as an app with a plugin's browser half builds: the runtime boots the plugins a test hands it
+				define: { __OGYGIA_CLIENT_PLUGINS__: 'true' },
 				test: {
 					name: 'browser',
 					include: ['test/browser/**/*.test.ts'],
 					globalSetup: ['./test/browser/setup.ts'],
+					// a failing test prints its machine moves
+					setupFiles: ['@ogygia/tooling/vitest/trace-setup'],
 					browser: {
 						enabled: true,
 						headless: true,

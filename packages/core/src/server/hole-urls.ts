@@ -12,17 +12,17 @@
  * Absolute (`/…`) and scheme'd (foreign federation entries) values are left alone.
  */
 import { escape_amp } from '../escape.ts';
+import { Needle, next_tag, OGYGIA_REGION_CSS, value_at, type FoundTag } from '../wire-markup.ts';
+import { REGION_CSS_ANY_CASE } from './html-scan.ts';
 
 // The attribute sites ogygia writes URLs into hole HTML: an `<ogygia-region>`'s `entry` / `src` /
 // `endpoint`, a region-css `<link>`'s `href`, an inlined region sheet's `data-ogygia-region-css`
 // identity. Values are attribute-escaped (`&` → `&amp;`), so the resolver un-escapes, resolves, and
-// re-escapes. ONE forward walk over the tags (indexOf; it used to be three whole-body regex passes
-// on every hole answer), each rewritten only when it holds a relative value.
-const REGION_CSS_ATTR = 'data-ogygia-region-css';
-
-function is_word(c: number): boolean {
-	return (c >= 48 && c <= 57) || (c >= 65 && c <= 90) || (c >= 97 && c <= 122) || c === 95;
-}
+// re-escapes. Tags are read through the browser-faithful reader (wire-markup.ts), each value
+// rewritten only when it is relative.
+// (`src` too: an island's location, written beside its identity since locations — left relative,
+// an island inside a hole imported `/<page>/_app/…` and woke on a redirect to an HTML page)
+const REGION_URL_ATTRS = ['entry', 'src', 'endpoint'] as const;
 
 function resolve_attr(value: string, base: URL): string {
 	if (!value || !(value.startsWith('./') || value.startsWith('../'))) return value;
@@ -39,63 +39,66 @@ function resolve_attr(value: string, base: URL): string {
 	return escape_amp(resolved.pathname + resolved.search + resolved.hash);
 }
 
-/** Rewrite `name="…"` in `tag` (a word boundary before `name`; every occurrence, or the first). */
-function rewrite_attr(tag: string, name: string, base: URL, all: boolean): string {
-	const needle = name + '="';
-	let out = '';
-	let pos = 0;
-	for (let at = tag.indexOf(needle); at !== -1; at = tag.indexOf(needle, at + needle.length)) {
-		if (at > 0 && is_word(tag.charCodeAt(at - 1))) continue;
-		const start = at + needle.length;
-		const end = tag.indexOf('"', start);
-		if (end === -1) break;
-		out += tag.slice(pos, start) + resolve_attr(tag.slice(start, end), base);
-		pos = end;
-		if (!all) break;
-	}
-	return pos === 0 ? tag : out + tag.slice(pos);
+/** One value rewrite: `html[at, end)` becomes `text`. */
+interface Splice {
+	at: number;
+	end: number;
+	text: string;
 }
 
-/** Does a tag named `name` open at `lt` (`<name` then a non-word character)? */
-function opens(html: string, lt: number, name: string): boolean {
-	return html.startsWith(name, lt + 1) && !is_word(html.charCodeAt(lt + 1 + name.length));
+/** Queue the rewrite of `tag`'s `attr` value when it is relative. */
+function splice_value(
+	html: string,
+	tag: FoundTag,
+	name: string,
+	attr: string,
+	base: URL,
+	out: Splice[]
+): void {
+	const value = tag.attr(attr);
+	if (value === undefined) return;
+	const next = resolve_attr(value, base);
+	if (next === value) return;
+	const at = value_at(html, tag, name, attr);
+	if (at !== -1) out.push({ at, end: at + value.length, text: next });
 }
 
 /** Rewrite the relative `entry` / `src` / `endpoint` / region-css `href` values in `html` to root-absolute
  *  paths resolved against `base` (the endpoint request URL). */
 export function absolutize_hole_html(html: string, base: URL): string {
-	if (!html.includes('<ogygia-region') && !html.includes(REGION_CSS_ATTR)) return html;
+	const splices: Splice[] = [];
+	// (a relative value holds `./`: a region tag whose span has none is passed without a read)
+	const dot = new Needle(html, './');
+	if (dot.gone) return html;
+	for (
+		let t = next_tag(html, 'ogygia-region', 0);
+		t !== null;
+		t = next_tag(html, 'ogygia-region', t.next)
+	) {
+		const held = dot.holds(t);
+		if (dot.gone) break;
+		if (!held) continue;
+		for (const attr of REGION_URL_ATTRS)
+			splice_value(html, t, 'ogygia-region', attr, base, splices);
+	}
+	// region CSS: only a tag whose span holds the attribute's name gets an attribute read
+	for (const name of ['link', 'style'] as const) {
+		const mark = new Needle(html, REGION_CSS_ANY_CASE);
+		if (mark.gone) break;
+		for (let t = next_tag(html, name, 0); t !== null; t = next_tag(html, name, t.next)) {
+			const held = mark.holds(t);
+			if (mark.gone) break;
+			if (!held || t.attr(OGYGIA_REGION_CSS) === undefined) continue;
+			splice_value(html, t, name, name === 'link' ? 'href' : OGYGIA_REGION_CSS, base, splices);
+		}
+	}
+	if (splices.length === 0) return html;
+	splices.sort((a, b) => a.at - b.at);
 	let out = '';
 	let pos = 0;
-	for (let lt = html.indexOf('<'); lt !== -1; lt = html.indexOf('<', lt + 1)) {
-		const region = opens(html, lt, 'ogygia-region');
-		const link = !region && opens(html, lt, 'link');
-		const style = !region && !link && opens(html, lt, 'style');
-		if (!region && !link && !style) continue;
-		const gt = html.indexOf('>', lt);
-		if (gt === -1) break;
-		const tag = html.slice(lt, gt + 1);
-		let next = tag;
-		// (`src` too: an island's location, written beside its identity since locations — left relative,
-		// an island inside a hole imported `/<page>/_app/…` and woke on a redirect to an HTML page)
-		if (region)
-			next = rewrite_attr(
-				rewrite_attr(rewrite_attr(tag, 'entry', base, true), 'src', base, true),
-				'endpoint',
-				base,
-				true
-			);
-		else if (tag.indexOf(REGION_CSS_ATTR) !== -1)
-			next = link
-				? rewrite_attr(tag, 'href', base, false)
-				: tag.indexOf(REGION_CSS_ATTR + '="') !== -1
-					? rewrite_attr(tag, REGION_CSS_ATTR, base, false)
-					: tag;
-		if (next !== tag) {
-			out += html.slice(pos, lt) + next;
-			pos = gt + 1;
-		}
-		lt = gt;
+	for (const s of splices) {
+		out += html.slice(pos, s.at) + s.text;
+		pos = s.end;
 	}
-	return pos === 0 ? html : out + html.slice(pos);
+	return out + html.slice(pos);
 }
