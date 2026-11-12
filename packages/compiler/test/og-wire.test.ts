@@ -185,6 +185,27 @@ describe('a default-exported wire class is registered under `#default` (#1169)',
 		expect(out).toContain('__OGT("cart.ts#C", C);');
 		expect(out).not.toContain('#default');
 	});
+
+	it('an anonymous default wire class is a build error that asks for a name', () => {
+		const src = dedent`
+			import x from './x.ts';
+
+			export default class { ${WIRE_MEMBER} }
+		`;
+		let err: unknown;
+		try {
+			reg(src);
+		} catch (e) {
+			err = e;
+		}
+		expect((err as { code?: string } | undefined)?.code).toBe('wire_class_anonymous');
+		expect(String(err)).toContain('/app/cart.ts:3');
+		expect(String(err)).toContain('https://ogygiajs.dev/e/wire_class_anonymous');
+	});
+
+	it('an anonymous default class with no wire codec is left alone', () => {
+		expect(reg(`export default class { x = 1; }`)).toBe(null);
+	});
 });
 
 describe('runtime — explicit codec round-trip', () => {
