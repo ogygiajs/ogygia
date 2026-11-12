@@ -4,6 +4,7 @@ import { content } from '../src/index.ts';
 import type { Heading, Source, SourceEntry } from '../src/index.ts';
 import { site as siteRaw } from '../src/site/site.ts';
 import { dimensions, is_dimensioned } from '../src/site/dimensions.ts';
+import { build_docs } from '../src/site/search.ts';
 import type { NavGroup, NavLeaf, NavTree } from '../src/site/types.ts';
 
 type Meta = { headings: Heading[] };
@@ -108,6 +109,7 @@ describe('dimensions — fallback (render, never 404)', () => {
 		expect(doc).not.toBeNull();
 		expect(doc?.entry.data.title).toBe('C en'); // English content at the French URL
 		expect(doc?.fallback).toEqual({ axis: 'locale', from: 'fr', to: 'en' });
+		expect(doc?.slug).toBe('fr/guide/c'); // the URL's coordinate, not the one that served it
 	});
 
 	it('native page has fallback null', async () => {
@@ -165,7 +167,7 @@ describe('dimensions — switcher never dead-ends', () => {
 		expect(en_opt.missing).toBe(false);
 	});
 
-	it('a value where the page is missing points at that coordinate root, flagged missing', async () => {
+	it("a value where the page is missing points at that coordinate's home page, flagged missing", async () => {
 		// v1 has no page 'guide/c'; switching version on the C page must not dead-link.
 		const sw = await site().switcher('guide/c');
 		const version = sw!.find((a) => a.axis === 'version')!;
@@ -177,6 +179,38 @@ describe('dimensions — switcher never dead-ends', () => {
 	it('plain (non-dimensioned) site returns null switcher', async () => {
 		const plain = mint_site(en());
 		expect(await plain.switcher('guide/a')).toBeNull();
+	});
+});
+
+describe('dimensions — relations, aliases and failures', () => {
+	it("an entry's slug carries the prefix of the coordinate that places it", async () => {
+		const en_c = en();
+		const fr_c = fr();
+		const d = dimensions({
+			axes: { locale: { values: ['en', 'fr'], default: 'en' } },
+			resolve: ({ locale }) => (locale === 'fr' ? fr_c : en_c)
+		});
+		expect(await d.slug_for(fr_c, 'guide/b')).toBe('fr/guide/b');
+		expect(await d.slug_for(en_c, 'guide/c')).toBe('guide/c');
+	});
+
+	it('a resolve that throws at once is not kept: the next page builds', async () => {
+		let fails = 1;
+		const d = dimensions({
+			axes: { locale: { values: ['en', 'fr'], default: 'en' } },
+			resolve: ({ locale }) => {
+				if (locale === 'fr' && fails-- > 0) throw new Error('source blip');
+				return locale === 'fr' ? fr() : en();
+			}
+		});
+		const s = mint_site(d);
+		await expect(s.page('fr/guide/a')).rejects.toThrow('source blip');
+		expect((await s.page('fr/guide/a'))?.entry.data.title).toBe('A fr');
+	});
+
+	it('a default value written in the URL is not peeled as a coordinate', async () => {
+		expect(await site().page('en/guide/a')).toBeNull();
+		expect(dim().coordinateOf('fr/v1/guide/a')).toEqual({ version: 'v2', locale: 'fr' });
 	});
 });
 
@@ -211,5 +245,13 @@ describe('dimensions — site load/entries integration (the real mount)', () => 
 		expect(slugs.has('fr/guide/c')).toBe(true); // fallback page still prerenders
 		expect(slugs.has('v1/guide/a')).toBe(true);
 		expect(slugs.has('v1/guide/b')).toBe(false); // no page, no fallback
+	});
+});
+
+describe('dimensions — search', () => {
+	it('indexes the default coordinate only: a fallback page is never a second hit', async () => {
+		const docs = await build_docs(dim());
+		expect(docs.map((d) => d.slug).sort()).toEqual(['guide/a', 'guide/b', 'guide/c']);
+		expect(docs.map((d) => d.title).sort()).toEqual(['A en', 'B en', 'C en']);
 	});
 });

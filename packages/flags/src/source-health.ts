@@ -1,17 +1,15 @@
-/**
- * Whether the flag source is failing: a failure is said (`flags_source_failed`) once per failing
- * streak (`say()`), and the streak ends with a request the source served with no failure, like the
- * exposure sink's. `openfeature()` says a failure of one flag here while it still answers the others.
- */
 import { say } from '@ogygia/machine';
 import { warn } from './messages.ts';
 
-/** The source's one streak. */
 const STREAK = 'source';
 const streak = say({ max: 1 });
 let failures = 0;
 
-/** A failure of the source (all of it, or one flag): said unless its streak was already said. */
+/**
+ * A failure of the source (all of it, or one flag, which `openfeature()` reports while it still
+ * answers the others): `flags_source_failed` is said once per failing streak. The streak ends with a
+ * request the source served with no failure (`source_answered`).
+ */
 export function source_failed(error: unknown): void {
 	failures++;
 	streak.once(STREAK, () => warn('flags_source_failed', error));
