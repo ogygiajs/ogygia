@@ -10,8 +10,9 @@
  * is known, else the identity (on the dev server, the module itself; in a build, a name, no file).
  */
 import { import_file } from './import-again.ts';
-import { backoffAfter, cache, flights, scope, STALE } from '@ogygia/machine';
+import { backoffAfter, cache, flights, net, scope, STALE } from '@ogygia/machine';
 import { rollover } from '../policies.ts';
+import { OG_LOCATIONS } from '../wire-markup.ts';
 
 /** absolute identity → absolute location: the islands of the pages this document has seen (a build
  *  names a few hundred; the least recently read go first past this, and are found again) */
@@ -70,12 +71,14 @@ export function entry_location(entry: string, base?: string): string | undefined
  * (the dev server, a page that outlived its build): the identity is loaded, as before. A failed read
  * is not kept: the next identity-only load asks again (a blip must not cost the page every later one).
  */
-const BUILD_MAP_ATTR = 'data-og-locations';
+// (one local name for the five reads: the minifier keeps the string once)
+const BUILD_MAP_ATTR = OG_LOCATIONS;
 /** The map's read: whether it filled the locations. One read at a time, kept once it did. */
 const build_map = flights({
 	name: 'build location map',
 	run: (url: string) =>
-		fetch(url) // ok: a map that could not be read is not kept: the next load asks again, and loads keep their stable URLs meanwhile
+		net // ok: a map that could not be read is not kept: the next load asks again, and loads keep their stable URLs meanwhile
+			.fetch(url)
 			.then((res) => (res.ok ? (res.json() as Promise<Record<string, string>>) : null))
 			.catch(() => null)
 			.then((map) => {
@@ -155,7 +158,8 @@ export function island_entry_of(el: Element): string | null {
 const current_maps = flights({
 	name: 'current build map',
 	run: (file: string) =>
-		fetch(file, { cache: 'no-cache' }) // ok: a map that could not be read is not kept: the next ask reads again
+		net // ok: a map that could not be read is not kept: the next ask reads again
+			.fetch(file, { cache: 'no-cache' })
 			.then((res) => (res.ok ? (res.json() as Promise<Record<string, string>>) : null))
 			.catch(() => null),
 	// (a map that could not be read is not kept: the next ask reads again)
@@ -189,7 +193,7 @@ async function current_location(entry: string): Promise<string | null | undefine
 
 /** The host says this file is not there (it does not say so of a file that failed another way). */
 function is_gone(url: string): Promise<boolean> {
-	return fetch(url, { method: 'HEAD', cache: 'no-store' }).then(
+	return net.fetch(url, { method: 'HEAD', cache: 'no-store' }).then(
 		(res) => res.status === 404 || res.status === 410,
 		() => false
 	);

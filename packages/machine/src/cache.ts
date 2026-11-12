@@ -31,7 +31,7 @@
  *   replaces it.
  */
 import { DEV } from 'esm-env';
-import { clock } from './clock.ts';
+import { clock } from './ports.ts';
 import { bad_option, machine_error, report } from './messages.ts';
 import { DISPOSE, MAX_TIMEOUT_MS, scope, type Scope } from './scope.ts';
 import type { World } from './world.ts';

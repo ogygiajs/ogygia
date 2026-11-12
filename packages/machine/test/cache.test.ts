@@ -2,10 +2,12 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cache, clock, flights, MachineError, scope, world, type EvictWhy } from '../src/index.ts';
 import { DISPOSE } from './_dispose.ts';
 
-/** Steps the monotonic clock (the one ages are on) by `ms`, without running the timers due. */
+/** Steps the monotonic clock (the one ages are on) by `ms`, without running the timers due. (The
+ *  clock port reads the platform's `performance` at each call: a browser's ESM namespace cannot be
+ *  spied on, the platform can.) */
 function step_mono(ms: number): void {
 	const at = clock.mono() + ms;
-	vi.spyOn(clock, 'mono').mockImplementation(() => at);
+	vi.spyOn(performance, 'now').mockImplementation(() => at);
 }
 
 /** A cache's notices, as `key:value:why`. */
@@ -171,7 +173,7 @@ describe('cache: bounded', () => {
 
 	it('a set that must make room replaces the key’s own value past its age: noticed as a replace, never as its age', () => {
 		let now = 1_000_000;
-		vi.spyOn(clock, 'mono').mockImplementation(() => now);
+		vi.spyOn(performance, 'now').mockImplementation(() => now);
 		const n = noted();
 		const c = cache<string, number>({
 			max: 2,
