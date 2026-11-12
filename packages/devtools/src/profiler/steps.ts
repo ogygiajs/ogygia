@@ -1,10 +1,3 @@
-/**
- * THE RENDER, STEP BY STEP — the one window's timeline read as a sequence: this component
- * rendered for this long, then the server waited for that call, then the next component… Each
- * step carries the running totals (how far into the render, how much CPU so far) and, from the
- * stack index, the stack at its middle, so the report can be stepped through like a debugger
- * instead of read as a chart. Pure over the timeline (timeline.ts) and the index (analyze.ts).
- */
 import type { Segment, Timeline } from './timeline.ts';
 import type { StackIndex } from './analyze.ts';
 import { stack_at } from './stacks.ts';
@@ -45,11 +38,16 @@ export interface RenderSteps {
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
-/** `max` steps at most: the smallest consecutive steps fold into their neighbour, counted. */
+/**
+ * The window's timeline read as a sequence, to step through like a debugger: this component ran
+ * for this long, then the server waited for that call, then the next. Touching CPU segments of one
+ * owner are one step; a gap is a wait, named by what was pending. Each step carries the running
+ * totals and the stack at its middle. `max` steps at most: the smallest steps fold into their
+ * neighbour, counted.
+ */
 export function render_steps(t: Timeline, stacks?: StackIndex, max = 80): RenderSteps | undefined {
 	const segs = t.segments.filter((s) => s.kind === 'cpu' || s.kind === 'wait' || s.kind === 'gap');
 	if (!segs.length) return undefined;
-	// merge consecutive cpu segments of one owner; a gap is a wait for what was pending
 	const merged: (Segment & { folded: number })[] = [];
 	for (const s of segs) {
 		const kind = s.kind === 'gap' ? 'wait' : s.kind;
@@ -73,7 +71,6 @@ export function render_steps(t: Timeline, stacks?: StackIndex, max = 80): Render
 		}
 		merged.push({ ...s, kind, label, folded: 0 });
 	}
-	// fold the smallest into a neighbour until under `max`
 	while (merged.length > max) {
 		let min_i = 0;
 		for (let i = 1; i < merged.length; i++)
