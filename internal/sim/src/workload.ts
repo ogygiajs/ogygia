@@ -235,7 +235,10 @@ function name_of(el: Element, found: readonly Element[]): string {
 	const plain = (e: Element): string => {
 		const href = e.getAttribute('href');
 		if (href !== null) return `link ${href}`;
-		const entry = e.closest('ogygia-region')?.getAttribute('entry') ?? '?';
+		// (a region's entry by its file, without the build's hash: the next build names it the same)
+		const entry = (e.closest('ogygia-region')?.getAttribute('entry') ?? '?')
+			.replace(/^.*\//, '')
+			.replace(/\.[0-9a-f]{8,}\.js$/, '');
 		if (e.localName === 'ogygia-region') return `region ${entry}`;
 		return `${e.localName} ${entry} "${(e.textContent ?? '').trim().slice(0, 40)}"`;
 	};
