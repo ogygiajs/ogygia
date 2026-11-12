@@ -5,7 +5,7 @@
 // in an answer's inert fragment (sheets adopted after the insertion), and never into a root a
 // component's constructor made.
 import { afterEach, expect, test, vi } from 'vitest';
-import { check_script, transformMarkup } from '../../src/reversible.ts';
+import { check_script, STAND_IN_TAGS, transformMarkup } from '../../src/reversible.ts';
 import { restore, restore_adopt } from '../../src/restore.ts';
 import { fake_scoped } from '../fixtures/fake-scoped-render.ts';
 import { init_shadow_registries } from '../../../core/src/runtime/parse-html.ts';
@@ -76,6 +76,36 @@ test('a stand-in keeps the parser from splitting the page’s link, and becomes 
 	restore(document);
 	expect(document.querySelector('og-as')).toBeNull();
 	expect(document.querySelector('a[href="/card"] demo-link')).not.toBeNull();
+});
+
+test('a stand-in becomes only a tag the server pass writes as one, without on* attributes', async () => {
+	const w = window as { __og_ran?: number };
+	w.__og_ran = 0;
+	document.body.innerHTML =
+		'<div id="c">' +
+		'<og-as tag="script">window.__og_ran++</og-as>' +
+		'<og-as tag="iframe" src="about:blank"></og-as>' +
+		'<og-as tag="object"></og-as><og-as tag="embed"></og-as><og-as tag="base" href="/x/"></og-as>' +
+		'<og-as tag="meta"></og-as><og-as tag="link"></og-as><og-as tag="style"></og-as>' +
+		'<og-as tag="template"></og-as><og-as tag="svg"></og-as><og-as></og-as>' +
+		'<og-as tag="p" onclick="window.__og_ran++" class="kept">text</og-as>' +
+		'</div>';
+	restore(document);
+	await new Promise((r) => setTimeout(r, 50));
+	const c = document.getElementById('c')!;
+	expect(w.__og_ran).toBe(0);
+	expect([...c.children].map((e) => e.localName)).toEqual([...Array(11).fill('og-as'), 'p']);
+	const p = c.querySelector('p')!;
+	expect(p.getAttribute('class')).toBe('kept');
+	expect(p.hasAttribute('onclick')).toBe(false);
+	expect(p.textContent).toBe('text');
+});
+
+test('the restorer swaps back every tag the server pass may write as a stand-in', () => {
+	const tags = [...STAND_IN_TAGS];
+	document.body.innerHTML = `<div id="c">${tags.map((t) => `<og-as tag="${t}"></og-as>`).join('')}</div>`;
+	restore(document);
+	expect([...document.getElementById('c')!.children].map((e) => e.localName)).toEqual(tags);
 });
 
 test('an answer’s fragment: restored before insertion, its sheets adopted once the host is in the page', async () => {
@@ -462,6 +492,38 @@ test('a declarative shadow root parsed in an inert fragment gets the page’s re
 	document.body.appendChild(host);
 	init_shadow_registries(host);
 	expect(constructed).toBe(1);
+});
+
+test('putting attributes back never adds an event handler, a srcdoc or a javascript: URL', () => {
+	const w = window as { __og_ran?: number };
+	w.__og_ran = 0;
+	// (a host and a child of Svelte's, each with an attribute map; a URL parser drops the tab)
+	const host_r = JSON.stringify({ onclick: 'window.__og_ran++', title: 'kept' });
+	const child_r = JSON.stringify({
+		href: ' java\tscript:window.__og_ran++',
+		ONmouseover: 'window.__og_ran++',
+		srcdoc: '<script>window.__og_ran++</script>',
+		formaction: 'JavaScript:window.__og_ran++',
+		'data-x': 'y'
+	});
+	const attr = (s: string) => s.replace(/&/g, '&amp;').replace(/'/g, '&#39;');
+	document.body.innerHTML =
+		`<demo-card og-h="k1" og-r='${attr(host_r)}'>` +
+		`<a og-c="k1.0" og-r='${attr(child_r)}'>a</a></demo-card>`;
+	expect(restore(document)).toBe(1);
+	const host = document.querySelector<HTMLElement>('demo-card')!;
+	const a = host.querySelector('a')!;
+	expect(host.getAttribute('title')).toBe('kept');
+	expect(a.getAttribute('data-x')).toBe('y');
+	for (const el of [host, a])
+		expect(
+			[...el.attributes]
+				.map((x) => x.name)
+				.filter((n) => !n.startsWith('data-') && n !== 'title' && n !== 'class')
+		).toEqual([]);
+	host.click();
+	a.dispatchEvent(new MouseEvent('mouseover'));
+	expect(w.__og_ran).toBe(0);
 });
 
 test('self-contained: the function source runs on its own (the handle inlines it)', async () => {
