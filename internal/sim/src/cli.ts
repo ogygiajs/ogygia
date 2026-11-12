@@ -88,13 +88,16 @@ const BUILDS: readonly Build[] =
  * and `ORIGIN`; the keys drawn from the seed (`keys.ts`).
  */
 const NAME = arg('--name') ?? 'app';
-/** A generated app's plan (`src/lib/gen/plan.json`): a seed that drew a peer names it there, so its
- *  runs need no flags (`<app>-peer`, its pages mounted under `MOUNT`). */
-const GEN_PEER = ((): GenPeer | null => {
+/** A generated app's plan (`src/lib/gen/plan.json`), or null for an app nobody generated: its seed
+ *  (a plan file names it, so a run is played on the app it was found on), and a seed that drew a
+ *  peer names it there, so its runs need no flags (`<app>-peer`, its pages mounted under `MOUNT`). */
+const GEN = ((): { seed: number; peer: GenPeer | null } | null => {
 	const at = join(APP, 'src', 'lib', 'gen', 'plan.json');
 	if (!existsSync(at)) return null;
-	return (JSON.parse(readFileSync(at, 'utf8')) as { peer?: GenPeer | null }).peer ?? null;
+	const p = JSON.parse(readFileSync(at, 'utf8')) as { seed: number; peer?: GenPeer | null };
+	return { seed: p.seed, peer: p.peer ?? null };
 })();
+const GEN_PEER = GEN?.peer ?? null;
 const PEERS = (arg('--peers') ?? (GEN_PEER ? `peer=${APP}-peer` : ''))
 	.split(',')
 	.filter(Boolean)
@@ -509,12 +512,21 @@ const GUIDED = Number(arg('--guided') ?? 0);
 const PLANS = join(import.meta.dirname, '..', 'plans');
 
 /** A plan file (`--plan`, `--shrink`, and the real-browser tier's `SIM_PLANS`): the run's seed,
- *  workload and app, what the network did to its requests, and what it found. */
+ *  workload and app (a generated one's seed: `gen`), what the network did to its requests, and
+ *  what it found. */
 function plan_json(seed: number, plan: Plan, res: RunResult): string {
 	const found = res.broken.map((b) => `[${b.oracle}] ${b.detail.split('\n')[0]}`);
+	const gen = GEN?.seed;
 	return (
-		JSON.stringify({ seed, steps: plan.actions.length, plan, app: APP, wire: res.wire, found }) +
-		'\n'
+		JSON.stringify({
+			seed,
+			steps: plan.actions.length,
+			plan,
+			app: APP,
+			gen,
+			wire: res.wire,
+			found
+		}) + '\n'
 	);
 }
 
@@ -725,10 +737,7 @@ async function shrink(file: string): Promise<void> {
 	mkdirSync(PLANS, { recursive: true });
 	const plan_file = join(PLANS, `${name}.min.json`);
 	writeFileSync(plan_file, plan_json(seed, min, a.result));
-	const gen_plan = join(APP, 'src', 'lib', 'gen', 'plan.json');
-	const gen = existsSync(gen_plan)
-		? (JSON.parse(readFileSync(gen_plan, 'utf8')) as { seed: number }).seed
-		: null;
+	const gen = GEN?.seed ?? null;
 	const test_file = join(import.meta.dirname, '..', 'test', 'found', `${name}.test.ts`);
 	mkdirSync(join(test_file, '..'), { recursive: true });
 	if (!existsSync(test_file))

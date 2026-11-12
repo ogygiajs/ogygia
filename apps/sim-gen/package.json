@@ -5,7 +5,8 @@
 	"description": "The simulator's generated app: its pages and regions are written from a seed by internal/sim/src/gen.ts (nested islands, holes, lakes), then built and run by the simulator. Private tooling.",
 	"type": "module",
 	"scripts": {
-		"build": "vite build"
+		"build": "vite build",
+		"sim:browser": "playwright test"
 	},
 	"dependencies": {
 		"@ogygia/federation": "workspace:*",
@@ -14,6 +15,8 @@
 		"ogygia": "workspace:*"
 	},
 	"devDependencies": {
+		"@ogygia/tooling": "workspace:*",
+		"@playwright/test": "catalog:",
 		"@sveltejs/adapter-node": "catalog:",
 		"@sveltejs/kit": "catalog:",
 		"@sveltejs/vite-plugin-svelte": "catalog:",
