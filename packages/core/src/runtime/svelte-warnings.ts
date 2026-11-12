@@ -7,6 +7,7 @@
  * itself goes out unchanged. No regex: warnings are rare, read by string search.
  */
 import type { Scope } from '@ogygia/machine';
+import { OG_FP } from '../wire-markup.ts';
 
 export interface SvelteWarning {
 	code: string;
@@ -95,7 +96,7 @@ export function tap_svelte_warnings(): void {
 			if (typeof first === 'string' && first.includes('[svelte] hydration')) {
 				const p = parse_svelte_warning(args.filter((a) => typeof a === 'string').join('\n'));
 				if (p) {
-					const fp = hydrating?.getAttribute('data-og-fp') ?? undefined;
+					const fp = hydrating?.getAttribute(OG_FP) ?? undefined;
 					log.add({ ...p, ...(fp ? { fp } : {}), t: Math.round(performance.now() * 10) / 10 });
 				}
 			}
