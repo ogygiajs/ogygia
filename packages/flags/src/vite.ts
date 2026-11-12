@@ -6,5 +6,13 @@
 import { definePlugin, type OgygiaPlugin } from '@ogygia/compiler/vite';
 
 export function flags(): OgygiaPlugin {
-	return definePlugin({ name: '@ogygia/flags', server: import.meta.resolve('./server.ts') });
+	return definePlugin({
+		name: '@ogygia/flags',
+		server: import.meta.resolve('./server.ts'),
+		// each flag() call is owned by the run of the module that makes it (dev: core marks it), so a
+		// flag deleted from the code leaves when its module reloads
+		build(b) {
+			b.definers('@ogygia/flags', ['flag']);
+		}
+	});
 }

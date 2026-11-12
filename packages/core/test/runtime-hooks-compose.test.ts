@@ -10,7 +10,8 @@ const nav: NavigatedEvent = {
 	t: 1,
 	fetched: 2,
 	styled: 3,
-	swapped: 4
+	swapped: 4,
+	reconciled: true
 };
 let errors: unknown[][];
 beforeEach(() => {

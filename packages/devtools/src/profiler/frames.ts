@@ -8,7 +8,10 @@
  * frames are skipped by identity. Dependency-free and V8-guarded: `span.ts` (universal) registers
  * itself too, and on an engine without `captureStackTrace` it simply does nothing.
  */
-const profiler_files = new Set<string>();
+import { cache } from '@ogygia/machine';
+
+/** one per profiler module (a handful): the bound is a backstop */
+const profiler_files = cache<string, true>({ name: 'profiler files', max: 256 });
 
 /** Grab the structured call-sites WITHOUT triggering Node's stack-string formatter
  *  (`defaultPrepareStackTrace`). Reading `new Error().stack` on every I/O call formatted the
@@ -47,7 +50,7 @@ export function file_of(site: NodeJS.CallSite): string | undefined {
 export function register_profiler_file(): void {
 	const s = call_sites(register_profiler_file)[0];
 	const f = s ? file_of(s) : undefined;
-	if (f) profiler_files.add(f);
+	if (f) profiler_files.set(f, true);
 }
 
 export function is_profiler_file(file: string): boolean {
