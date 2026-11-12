@@ -43,7 +43,8 @@ export function page_reads(read: (file: string) => string | null = read_file_syn
 		/** per module, the `helper(page)` calls into imported helpers that `settle` follows */
 		page_pending: new Map<string, PendingCall[]>()
 	};
-	const kind_of = (id: string): 'svelte' | 'script' => (id.endsWith('.svelte') ? 'svelte' : 'script');
+	const kind_of = (id: string): 'svelte' | 'script' =>
+		id.endsWith('.svelte') ? 'svelte' : 'script';
 	return {
 		module(id, code) {
 			if (!mentions_page_store(code)) return;

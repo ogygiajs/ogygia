@@ -20,7 +20,8 @@
 			"@ogygia/router",
 			"@ogygia/machine",
 			"@ogygia/barrels",
-			"@ogygia/insights"
+			"@ogygia/insights",
+			"@ogygia/page-keys"
 		]
 	],
 	"format": "auto",

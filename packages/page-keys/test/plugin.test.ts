@@ -74,7 +74,9 @@ describe('pageKeys()', () => {
 			Symbol.for('ogygia.plugin')
 		];
 		const got: PageReads[] = [];
-		definition.build!({ pageReads: (r: PageReads) => got.push(r) } as Partial<BuildContext> as BuildContext);
+		definition.build!({
+			pageReads: (r: PageReads) => got.push(r)
+		} as Partial<BuildContext> as BuildContext);
 		expect(got).toHaveLength(1);
 		expect(typeof got[0].keys).toBe('function');
 	});
