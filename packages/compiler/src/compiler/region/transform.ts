@@ -7,6 +7,7 @@ import { foucCssVirtualId } from '../fouc-css.ts';
 import { collectCaptureInfo } from '../free-vars.ts';
 import { parse_module } from '../parse/oxc.ts';
 import { strategyKey, regionIdentity, regionId } from './identity.ts';
+import { parse_trigger, SCHEDULE, WAKE } from '@ogygia/core/contract';
 import { regionBindingVirtualId, region_family, wrapperVirtualId } from '../ids.ts';
 import { OGYGIA_SCHEME } from '../virtual/table.ts';
 import {
@@ -177,15 +178,18 @@ export type ImportKeys = {
 };
 
 /** The three delivery modes the `render` attribute accepts. */
+// static: the region `render` modes
 const RENDER_MODES = new Set(['static', 'deferred', 'live']);
 
 const JS_IDENT = /^[A-Za-z_$][\w$]*$/;
 
 // ── store-crossing detection (portable snippets) ────────────────────────────────────────────
 /** Store constructor callees marking a host declaration as store-like (best-effort signal). */
+// static: svelte/store's constructors
 const STORE_CTORS = new Set(['writable', 'readable', 'derived', 'toStore', 'fromStore']);
 /** `$name` subscription reads anywhere in a file (heuristic store signal; runes filtered out). */
 const STORE_SUB_RE = /\$([A-Za-z_][\w$]*)/g;
+// static: Svelte's runes
 const RUNE_NAMES = new Set(['state', 'derived', 'effect', 'props', 'bindable', 'inspect', 'host']);
 /** 1-based `line:col` for an offset — trace addresses in store-crossing warnings (cold path). */
 function line_col(src: string, offset: number): string {
@@ -206,17 +210,13 @@ function warn_once(key: string, speak: () => void): void {
 }
 
 // Invariant per-build — hoisted to module scope so they aren't reallocated on every transformHost.
-const KNOWN_STRATEGIES = new Set(['load', 'idle', 'visible']);
-// `interaction` on an island: first pointer/key/focus inside the region wakes it (with click
-// replay). On a deferred region it is an ON-DEMAND hole: the first hover/focus/touch/key inside
-// fetches the HTML, which is morphed in (the runtime's #on_demand). `none` is never a fetch timing.
-const HYDRATE_STRATEGIES = new Set([...KNOWN_STRATEGIES, 'interaction']);
-const DEFER_STRATEGIES = HYDRATE_STRATEGIES;
+// The wake, swap, prefetch and revalidate vocabulary is core's contract/trigger.ts: `WAKE` (with
+// `interaction`: on an island, the first pointer/key/focus wakes it with click replay; on a deferred
+// region, an ON-DEMAND hole) and `SCHEDULE` (a prefetch, a revalidation: never `interaction`, which
+// is the swap, and never `none`, which is no schedule).
 /** Inline attribute keys accepted after normalization (canonical internal names). */
+// static: the import attribute keys a region takes
 const ATTR_SCHEMA = new Set(['hydrate', 'defer', 'margin', 'keep', 'stitch', 'prefetch']);
-/** A deferred hole's `prefetch` schedule: the warm happens on one of these (never `interaction`,
- *  which is the swap — `wake`'s job — and never `none`, which is no schedule). */
-const PREFETCH_STRATEGIES = KNOWN_STRATEGIES;
 /** AST fragment child-key names walked when descending the template. */
 const CHILD_KEYS = [
 	'consequent',
@@ -372,12 +372,6 @@ export const CLIENT_BINDING_STUB: string = region_family('client_binding_stub');
 export { strategyKey, regionIdentity, regionId };
 export { regionBindingVirtualId, wrapperVirtualId };
 
-/** True if `val` looks like a CSS media query (must contain a balanced-ish `(…)`). */
-function is_media_query(val: string) {
-	const open = val.indexOf('(');
-	return open !== -1 && val.indexOf(')', open) !== -1;
-}
-
 /**
  * Is `node` the member expression `import.meta.og.<prop>` (the macro namespace head)? Used to spot an
  * `import.meta.og.asRegion(…)` call — the macro alternative to a `with { wake }` region import.
@@ -492,7 +486,7 @@ export function normalize_region_value(raw: string, where: string, regionKey = '
  */
 export function normalize_hydrate_value(raw: string, where: string, wakeKey = 'wake'): string {
 	const v = (raw ?? '').trim();
-	if (HYDRATE_STRATEGIES.has(v) || is_media_query(v)) return v;
+	if (parse_trigger(v, WAKE)) return v;
 	throw new OgygiaError('wake_strategy_unknown', { host: where, key: wakeKey, value: v });
 }
 
@@ -585,10 +579,10 @@ function script_lang_attr(scriptNode: SvelteNode) {
 	return '';
 }
 
+// static: the `remount` shorthands
 const REMOUNT_SHORTHANDS = new Set(['cache', 'empty', 'swr']);
+// static: what `remount.onExpire` takes
 const REMOUNT_ON_EXPIRE = new Set(['empty', 'fetch']);
-/** Schedule keywords shared by `hydrate`, `defer` and `remount.revalidate`. */
-const SCHEDULE_KEYWORDS = new Set(['load', 'idle', 'visible']);
 
 /**
  * Parse `remount.maxAge` — number (ms) or duration string (`30s` / `5m` / `1h` / `500ms`).
@@ -704,7 +698,7 @@ function parse_remount(raw: unknown, err: OptErr, names: string) {
 		);
 	} else {
 		const rev = String(ro.revalidate);
-		if (!SCHEDULE_KEYWORDS.has(rev) && !is_media_query(rev)) {
+		if (!parse_trigger(rev, SCHEDULE)) {
 			throw err(
 				names,
 				`unknown remount.revalidate '${rev}'. Use false | 'load' | 'idle' | 'visible' | a media query.`
@@ -740,6 +734,7 @@ function parse_remount(raw: unknown, err: OptErr, names: string) {
  * Svelte 5 event attributes (`onclick`, …) that cannot cross devalue for remount:swr.
  * Deliberately NOT `/^on[a-z]+$/` — that falsely rejects data props like `online={x}`.
  */
+// static: Svelte's event attributes
 const SWR_EVENT_ATTR = new Set([
 	'onclick',
 	'ondblclick',
@@ -1274,8 +1269,7 @@ class FileCompilation {
 		if (attrs.has('defer')) {
 			const dval = attrs.get('defer')!;
 			let when: string;
-			if (DEFER_STRATEGIES.has(dval)) when = dval;
-			else if (is_media_query(dval)) when = dval;
+			if (parse_trigger(dval, WAKE)) when = dval;
 			else
 				throw fail(
 					`\`${import_keys.render}: 'deferred'\` fetches on its \`${import_keys.fetch}\` timing, but '${dval}' is not one. Use \`${import_keys.fetch}: 'load' | 'idle' | 'visible' | 'interaction'\` or a media query (not 'none' — a hole must fetch).`
@@ -1290,7 +1284,7 @@ class FileCompilation {
 			if (attrs.has('prefetch')) {
 				// The warm schedule. Validated here (not at the preset) so the error names the import.
 				const p = attrs.get('prefetch')!;
-				if (p === 'interaction' || !(PREFETCH_STRATEGIES.has(p) || is_media_query(p))) {
+				if (!parse_trigger(p, SCHEDULE)) {
 					throw fail(
 						`\`prefetch: '${p}'\` — a hole prefetches its HTML on 'load' | 'idle' | 'visible' | a media query. Never 'interaction': that is the SWAP, \`${import_keys.fetch}\`'s job; prefetch only warms the bytes ahead of it.`
 					);
@@ -1340,8 +1334,7 @@ class FileCompilation {
 				);
 			}
 			let strategy: string;
-			if (HYDRATE_STRATEGIES.has(val)) strategy = val;
-			else if (is_media_query(val)) strategy = val;
+			if (parse_trigger(val, WAKE)) strategy = val;
 			else
 				throw fail(
 					`unknown ${import_keys.wake} strategy '${val}'. Use 'load' | 'idle' | 'visible' | 'interaction' | a media query.`
@@ -2807,8 +2800,7 @@ class TsRegionCompilation {
 			}
 			const dval = marker.fetch ?? marker.wake ?? 'load';
 			let when: string;
-			if (DEFER_STRATEGIES.has(dval)) when = dval;
-			else if (is_media_query(dval)) when = dval;
+			if (parse_trigger(dval, WAKE)) when = dval;
 			else
 				throw new OgygiaError('held_fetch_not_timing', {
 					host: this.#rel_host,

@@ -12,6 +12,7 @@
  */
 import { createHmac, hkdfSync, timingSafeEqual } from 'node:crypto';
 import { is_lower_hex } from './endpoint.ts';
+import { cache } from '@ogygia/machine';
 const MAC_INFO = Buffer.from('ogygia-mac-v1');
 const ID_SALT_INFO = Buffer.from('ogygia-id-salt-v1');
 const utf8 = new TextEncoder();
@@ -22,7 +23,7 @@ export const MIN_SECRET_BYTES = 16;
 // The secret is a process constant (env / build), so the derived key is too: derived once per
 // distinct secret, not once per sign and once per verify (an HKDF per island mint and per hole
 // request added up on a page of twenty). Bounded: a process sees one secret, tests a handful.
-const mac_keys = new Map<string, Buffer>();
+const mac_keys = cache<string, Buffer>({ name: 'mac keys', max: 16 });
 
 /** HKDF-SHA256 → 32-byte MAC key (hex for stable logging / tests; Buffer used internally). */
 export function derive_mac_key(secret: string): Buffer {
@@ -31,7 +32,6 @@ export function derive_mac_key(secret: string): Buffer {
 		key = Buffer.from(
 			hkdfSync('sha256', Buffer.from(secret, 'utf8'), Buffer.alloc(0), MAC_INFO, 32)
 		);
-		if (mac_keys.size >= 16) mac_keys.clear();
 		mac_keys.set(secret, key);
 	}
 	return key;
