@@ -13,7 +13,7 @@ const CODE_ID_META_STRIP_RE = /\s*ogygia-code-id=\S+/;
 
 import type { ShikiTransformer } from 'shiki';
 import { cache, flights, STALE, type Flights } from '@ogygia/machine';
-import { createHash } from '@ogygia/core/internal/compiler-browser';
+import { createHash } from 'node:crypto';
 import { attr } from '@ogygia/core/plugin/utils';
 import { render_fence, default_pipeline, type CodePipeline } from './code-render.ts';
 import { fence_key, fence_cache_get, fence_cache_set } from './fence-cache.ts';

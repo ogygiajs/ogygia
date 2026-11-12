@@ -277,6 +277,39 @@ export function shape(name: string, s: Shape) {
 - **A module's next run ends its last one.** A definition the new code makes again is set again; one deleted from the code is gone.
 - **Inert in a build.** Nothing is marked, so definitions live as long as the process.
 
+## Queues
+
+Work that waits for room: at most `max` jobs hold a place at once, first come, first served.
+
+```ts
+import { queue } from '@ogygia/machine';
+
+const renders = queue<Call>({
+	max: 4,
+	start: (call) => call.enter(), // its turn, in the step its place came free
+	stale: (call) => call.gone() // its deadline came, it was cancelled, or the owner closed
+});
+renders.push(call, Date.now() + 5_000);
+signal.addEventListener('abort', () => renders.cancel(call));
+// once the call's work is done:
+renders.release();
+```
+
+|                       |                                                                                              |
+| --------------------- | -------------------------------------------------------------------------------------------- |
+| `max`                 | The most jobs holding a place at once.                                                       |
+| `start(job)`          | Starts a job; its place is its until `release()`.                                            |
+| `stale(job)`          | Hears a job that will never start: its deadline came, it was cancelled, or the owner closed. |
+| `now`                 | The clock deadlines are read on. Default `performance.now()`.                                |
+| `owner`               | Closing it makes every waiting job stale, and any pushed after.                              |
+| `push(job, deadline)` | Queues a job, to start in turn or be stale at its deadline.                                  |
+| `cancel(job)`         | A waiting job leaves at once, stale; a started one is untouched.                             |
+| `release()`           | A started job's work is done: its place goes to the next job, in this step.                  |
+
+- **A place is handed on, never free in between.** A release starts the next job in the same step, so a job pushed meanwhile queues behind it. A `start` that pushes, cancels or releases is safe inside the drain.
+- **A wait never hangs.** A job still waiting at its deadline is stale and never starts; one whose deadline came is passed over at a release even before the timer runs. The deadlines share one timer, at the earliest one waiting, gone once none waits.
+- **No record per job.** The queue keeps the jobs themselves, in the order pushed. A `start` that throws is reported ([machine_queue_start_failed](https://ogygiajs.dev/e/machine_queue_start_failed)) and the jobs after it still start; a `stale` that throws is reported too ([machine_queue_stale_failed](https://ogygiajs.dev/e/machine_queue_stale_failed)), and the other waiting jobs still go stale.
+
 ## Outbox
 
 Work that must happen after the response (a notice to a peer, a batch of events to a sink) goes through one place that keeps it alive, tries it again, sends it once, and calls it done only when the other side applied it.
@@ -416,6 +449,10 @@ const token = recorder.take(); // null while held
 if (token !== null) try { /* … */ } finally { recorder.free(token); }
 await recorder.acquire(signal); // waits its turn
 ```
+
+## Clocks
+
+`clock.mono()` is milliseconds on the monotonic clock, for every duration inside one process: a TTL, a deadline, a budget. A wall-clock step (an NTP correction, a VM resume) never moves it. `clock.wall()` is `Date.now()`, for a timestamp that leaves the process. A `flights` keep and a `policy` deadline are measured on `mono`; a kept answer's `at` is a wall timestamp.
 
 ## Saying it once
 

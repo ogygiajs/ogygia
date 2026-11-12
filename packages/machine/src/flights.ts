@@ -70,6 +70,7 @@
  * flight's moves, under the flights' `name`.
  */
 import { cache, type Cache, type EvictWhy } from './cache.ts';
+import { clock } from './clock.ts';
 import { machine, type Machine } from './machine.ts';
 import { bad_option, report_thrown } from './messages.ts';
 import { under_policy, type Policy } from './policy.ts';
@@ -151,7 +152,7 @@ export interface InFlight {
 }
 
 /** What a key holds now: a flight with nothing kept yet, or a kept answer (`flying`: a fresh flight
- *  for it is out). `at` is when the answer landed (`Date.now()`). */
+ *  for it is out). `at` is when the answer landed, on the wall clock (`clock.wall()`). */
 export type FlightEntry<V> =
 	| { readonly kind: 'flying' }
 	| { readonly kind: 'kept'; readonly answer: V; readonly at: number; readonly flying: boolean };
@@ -176,7 +177,9 @@ export interface Flights<I, V, K = I> {
 
 type Kept = {
 	answer: unknown;
+	/** When it landed, on the wall clock (a timestamp a caller may show or compare outside). */
 	at: number;
+	/** When it expires, on the monotonic clock (`clock.mono()`): a wall step never moves it. */
 	until: number;
 	weight: number;
 	/** The settled promise every later `get` of it is handed (so `get() === get()`). */
@@ -404,7 +407,7 @@ class Flown<I, V, K> implements Flights<I, V, K> {
 			weigh: (m) => held_of(m)?.weight ?? 0,
 			keep: (m) => {
 				const k = held_of(m);
-				return k === null || k.until === Infinity ? Infinity : k.until - Date.now();
+				return k === null || k.until === Infinity ? Infinity : k.until - clock.mono();
 			},
 			onEvict: (key, m, why) => this._let_go(key, m, why),
 			// (an answer kept beside a refresh still out stays until the refresh lands)
@@ -484,7 +487,7 @@ class Flown<I, V, K> implements Flights<I, V, K> {
 
 	peek(key: K): FlightEntry<V> | undefined {
 		const m = this._entries.get(this._entry_key(key));
-		return m === undefined ? undefined : this._view(m, Date.now());
+		return m === undefined ? undefined : this._view(m, clock.mono());
 	}
 
 	drop(which: K | ((key: K, entry: FlightEntry<V>) => boolean)): void {
@@ -496,7 +499,7 @@ class Flown<I, V, K> implements Flights<I, V, K> {
 		}
 		const test = which as (key: K, entry: FlightEntry<V>) => boolean;
 		const keys = this._keys;
-		const now = Date.now();
+		const now = clock.mono();
 		// (a Map lets an entry be deleted while it is walked)
 		for (const [key, m] of this._entries) {
 			const view = this._view(m, now);
@@ -644,8 +647,9 @@ class Flown<I, V, K> implements Flights<I, V, K> {
 		}
 		// (a weight below 0, or not a number, would lower the total and let `max` cap nothing)
 		if (!(ms > 0) || !(weight >= 0 && weight <= this._max)) return this._back(key, m, prior);
-		const at = Date.now();
-		m.go('kept', { answer, at, until: ms === Infinity ? Infinity : at + ms, weight, promise });
+		const at = clock.wall();
+		const until = ms === Infinity ? Infinity : clock.mono() + ms; // (a duration: the monotonic clock)
+		m.go('kept', { answer, at, until, weight, promise });
 		// the newest use: the least recently used are first in line to go past `max`
 		if (!this._kept.set(key, m)) this._remove(key, m);
 	}

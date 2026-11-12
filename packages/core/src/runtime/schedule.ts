@@ -7,8 +7,8 @@
  * nobody can see yet racing the hero everybody can. Here every island that is ready to hydrate
  * asks for a TURN; turns are handed out one per task (`scheduler.yield()`, else a `MessageChannel`
  * hop — never a timer), so the browser paints, scrolls and handles input between islands, and the
- * next turn goes to a region that intersects the viewport NOW (one shared IntersectionObserver
- * snapshot, taken at connect) before any that does not, document order within each group.
+ * next turn goes to a region that is on screen NOW (the one viewport tracker's snapshot, taken at
+ * connect: ./viewport.ts) before any that is not, document order within each group.
  *
  * What a turn covers is the island's whole synchronous hydrate step (props parse, Svelte hydrate,
  * lake restore). Module imports are NOT serialized — every island's `import()` starts at its wake,
@@ -22,8 +22,8 @@
  * observer must not stall hydration), so the boot's first island is the right one, not merely the
  * first one.
  */
-import { observe } from './observe.ts';
-import { flights, machine, type Scope, type Stale } from '@ogygia/machine';
+import { watch_viewport } from './viewport.ts';
+import { clock, flights, machine, type Scope, type Stale } from '@ogygia/machine';
 
 type Turn = {
 	el: Element;
@@ -211,12 +211,12 @@ const B = new BackgroundStarts();
 const BACKGROUND_BUDGET_MS = 30;
 
 function drain_background(): void {
-	const until = performance.now() + BACKGROUND_BUDGET_MS;
+	const until = now() + BACKGROUND_BUDGET_MS;
 	let i = 0;
 	try {
 		while (i < B.starts.length) {
 			B.starts[i++]();
-			if (performance.now() >= until) break;
+			if (now() >= until) break;
 		}
 	} finally {
 		B.starts.splice(0, i);
@@ -312,7 +312,7 @@ export function reset_document_painted(): void {
 export function register_region(el: Element, owner: Scope): void {
 	if (!order_of.has(el)) order_of.set(el, next_order++);
 	if (snapshot_of.has(el) || owner.closed) return;
-	const stop = observe(el, '0px', (intersecting) => {
+	const stop = watch_viewport(el, '0px', (intersecting) => {
 		in_viewport.set(el, intersecting);
 		sync_loading(el);
 		refile(el);
@@ -391,9 +391,7 @@ export function hydrate_turn(el: Element): Promise<void> {
 	});
 }
 
-function now(): number {
-	return typeof performance !== 'undefined' && performance.now ? performance.now() : Date.now();
-}
+const now = clock.mono;
 
 function schedule_drain(): void {
 	if (drainer.now.kind === 'queued') return;

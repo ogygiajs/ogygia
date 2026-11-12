@@ -6,8 +6,8 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createServer, type RunnableDevEnvironment, type ViteDevServer } from 'vite';
-import { edit } from '../../core/test/_dev-edit.ts';
-import { definers_plugin } from '../../core/src/vite/definers.ts';
+import { edit } from '../../compiler/test/_dev-edit.ts';
+import { definers_plugin } from '../../compiler/src/vite/definers.ts';
 import { content_hmr } from '../src/vite/hmr.ts';
 
 const own = (rel: string) => fileURLToPath(new URL(rel, import.meta.url));
