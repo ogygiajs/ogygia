@@ -6,7 +6,9 @@
  *   signature) answered 200 twice in one document, but a content-hashed file (a browser's module
  *   map and cache keep it; the simulator has neither, so it may fetch one again) and a page (a
  *   navigation back asks again by design), and a remote query counted per router visit (a back is
- *   a new visit: a held region mounts and asks again, as its page is asked again);
+ *   a new visit: a held region mounts and asks again, as its page is asked again); a hole's answer,
+ *   by its own GET or a router batch's part, counts when asked again within the 60 s the frame
+ *   store keeps a left page's answers (later, it was let go by design);
  * - no POST the app refused (4xx): a batch to a path that answers none (#987);
  * - nothing alive after its owner: an observer still observing once every element it watches has
  *   left the document (`tab.orphans()`; test/orphans.node.test.ts);
@@ -27,20 +29,42 @@ import { answer_key, is_page_path, type World } from './world.ts';
  *  again (gen 187, seed 187004). */
 export function asked_twice(world: World, realm: string, swaps: readonly number[] = []): string[] {
 	const count = new Map<string, number>();
+	/** Each hole answer's asks (virtual ms), its own GETs' and the batches' that named it. */
+	const holes = new Map<string, number[]>();
 	for (const e of world.network.exchanges) {
-		if (e.from !== realm || e.method !== 'GET' || e.status !== 200) continue;
+		if (e.from !== realm || e.status !== 200) continue;
 		if (e.cut || e.lost === true || e.tampered || e.duplicated) continue;
+		if (e.method === 'POST') {
+			for (const k of e.holes ?? []) holes.set(k, [...(holes.get(k) ?? []), e.at]);
+			continue;
+		}
+		if (e.method !== 'GET') continue;
 		const url = new URL(e.url);
 		const path = decodeURIComponent(url.pathname);
 		if (path.startsWith('/_app/immutable/') || is_page_path(path)) continue;
+		if (path === '/__ogygia__') {
+			const k = answer_key(url);
+			holes.set(k, [...(holes.get(k) ?? []), e.at]);
+			continue;
+		}
 		const visit = path.startsWith('/_app/remote/') ? swaps.filter((t) => t <= e.at).length : 0;
 		const key = `${visit} ${answer_key(url)}`;
 		count.set(key, (count.get(key) ?? 0) + 1);
+	}
+	// a hole answer asked again within its linger after the one before: the store still held it (an
+	// ask later than that may be a page left longer and come back to, its answer let go by design)
+	for (const [k, asks] of holes) {
+		const again = asks.filter((t, i) => i > 0 && t - asks[i - 1] <= LINGER_MS).length;
+		if (again > 0) count.set(`0 ${k}`, again + 1);
 	}
 	return [...count]
 		.filter(([, n]) => n > 1)
 		.map(([k, n]) => `${k.slice(k.indexOf(' ') + 1)} ×${n}`);
 }
+
+/** How long core's frame store keeps a left page's hole answer for a quick return (its
+ *  `EVICT_TTL`, runtime/frame-store.ts). */
+const LINGER_MS = 60_000;
 
 /** The POSTs of a document the app refused (4xx): a batch or a call a correct page never sends. A
  *  refused GET is left out (a hole's expired capability renews with one, as designed). */

@@ -59,6 +59,8 @@ export interface Exchange {
 	lost?: boolean;
 	/** The build whose server gave the answer the client got (its {@link ANSWERED_BY} header). */
 	build?: string;
+	/** A batch of holes (`POST /__ogygia__`): the holes it asks for, by `answer_key` (world.ts). */
+	holes?: readonly string[];
 }
 
 /** The header the front door puts on each answer: the build that answered it (a cached copy says
@@ -68,6 +70,14 @@ export const ANSWERED_BY = 'x-sim-build';
 /** The document a server is answering, through all its async work: its own hops are on that
  *  document's behalf (a calm tab's reference load is calm all the way to a peer). */
 const asked_by = new AsyncLocalStorage<string>();
+
+/** The exchange a handler is answering now, through all its async work. */
+const answering = new AsyncLocalStorage<Exchange>();
+
+/** The exchange whose request is being answered now (the front door names what a batch asks). */
+export function answering_now(): Exchange | undefined {
+	return answering.getStore();
+}
 
 /** The client a server is answering: the visitor's address, or the reference load's. */
 const client = new AsyncLocalStorage<string>();
@@ -262,7 +272,9 @@ export class Network {
 					const copy = dup ? request.clone() : null;
 					const address = calm ? REFERENCE_ADDRESS : VISITOR_ADDRESS;
 					const answer = (r: Request) =>
-						asked_by.run(behalf, () => client.run(address, () => handler(r)));
+						answering.run(ex, () =>
+							asked_by.run(behalf, () => client.run(address, () => handler(r)))
+						);
 					void answer(request)
 						.then(async (response) => {
 							// the duplicate is answered too, and its answer thrown away (as a proxy's retry)

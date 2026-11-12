@@ -19,7 +19,7 @@ import {
 import { Cdn } from './cdn.ts';
 import { Loop } from './loop.ts';
 import { use_v8_modules } from './modules.ts';
-import { ANSWERED_BY, ELSEWHERE, Network, type FaultClass } from './network.ts';
+import { ANSWERED_BY, ELSEWHERE, Network, answering_now, type FaultClass } from './network.ts';
 import { install, platform } from './platform.ts';
 import { rng, type Rng } from './rng.ts';
 import {
@@ -522,8 +522,11 @@ export class World {
 					from,
 					holes.length > 0 ? holes[0] : key
 				);
-				if (holes.length > 0)
+				if (holes.length > 0) {
 					this.#batches.push({ from, keys: holes, build, at: this.network.exchanges.length });
+					const ex = answering_now();
+					if (ex !== undefined) ex.holes = holes;
+				}
 				const list = this.servers.get(build)!;
 				const answer = await list[this.rng.int(list.length)].handle(r);
 				// (the HTML a server sent, as it sent it, for the quality oracle: src/html.ts)
