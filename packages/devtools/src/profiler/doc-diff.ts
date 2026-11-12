@@ -5,6 +5,7 @@
  * the text inside a tag. A page the same but for a few such parts is a page to cache whole once
  * those parts stop changing. Hand-parsed (indexOf), no regex: a document can be megabytes.
  */
+import { OG_FP, OGYGIA_PROPS } from '@ogygia/core/internal/server';
 
 export interface DocDiffGroup {
 	/** what changes, for a reader: `data-track on <a>`, `the Price island's props`, `text in <p>` */
@@ -189,7 +190,7 @@ export function doc_diff(
 	for (const p of pb) {
 		if (!p.startsWith('<ogygia-region')) continue;
 		const { attrs } = parse(p);
-		const fp = attrs.get('data-og-fp');
+		const fp = attrs.get(OG_FP);
 		const entry = attrs.get('entry');
 		if (fp && entry) entry_of_fp.set(fp, entry);
 	}
@@ -226,11 +227,11 @@ export function doc_diff(
 		const py = parse(y);
 		const px = parse(x);
 		// an island: its region tag (a new fingerprint) and its props script change together
-		if (py.tag === 'ogygia-region' || (py.tag === 'script' && py.attrs.has('data-ogygia-props'))) {
+		if (py.tag === 'ogygia-region' || (py.tag === 'script' && py.attrs.has(OGYGIA_PROPS))) {
 			const entry =
 				py.tag === 'ogygia-region'
 					? py.attrs.get('entry')
-					: entry_of_fp.get(py.attrs.get('data-ogygia-props') ?? '');
+					: entry_of_fp.get(py.attrs.get(OGYGIA_PROPS) ?? '');
 			const name = (entry && island_of(entry)) || 'an';
 			// one place per island, not two (the region and its props are the same change)
 			if (py.tag === 'script') continue;
@@ -238,8 +239,8 @@ export function doc_diff(
 				what: `the ${name} island's props`,
 				tag: py.tag,
 				island: name,
-				a: clip(px.attrs.get('data-og-fp') ?? ''),
-				b: clip(py.attrs.get('data-og-fp') ?? '')
+				a: clip(px.attrs.get(OG_FP) ?? ''),
+				b: clip(py.attrs.get(OG_FP) ?? '')
 			});
 			continue;
 		}

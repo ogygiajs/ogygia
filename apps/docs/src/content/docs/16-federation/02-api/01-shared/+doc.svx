@@ -1,0 +1,8 @@
+---
+title: '@ogygia/federation/shared'
+summary: SharedState, one page-wide value that islands from separate builds share.
+---
+
+This page is generated from the package's own `.d.ts` files on every build, so the signatures, descriptions and examples below always match the source.
+
+> MODULE: @ogygia/federation/shared

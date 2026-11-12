@@ -8,11 +8,16 @@ import { under_policy } from '../src/policy.ts';
 
 const later = <T>(value: T, ms = 1) => new Promise<T>((r) => setTimeout(() => r(value), ms));
 
-/** A flight out for 5 ms, and its drop 1 ms in: its caller gets `STALE`. */
+/** A flight dropped 1 ms in, and only then answered: its caller gets `STALE`. (The answer waits on
+ *  the drop, so a busy machine can never land it first.) */
 function dropped_flight(): Promise<string | typeof STALE> {
-	const f = flights({ run: () => later('page', 5) });
+	let answer: ((v: string) => void) | undefined;
+	const f = flights({ run: () => new Promise<string>((r) => (answer = r)) });
 	const got = f.get();
-	setTimeout(() => f.drop(undefined as never), 1);
+	setTimeout(() => {
+		f.drop(undefined as never);
+		answer?.('page');
+	}, 1);
 	return got;
 }
 

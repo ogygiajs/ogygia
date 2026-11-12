@@ -7,14 +7,29 @@
  *   throw new OgygiaError('handle_secret_too_short', { min });
  *   warn('endpoint_bad_signature', { id });
  */
-import { define_messages, dev_or_prerender, type MessagesOf } from './define.ts';
-import { prose } from './prose.ts';
+import { define_messages, dev_or_prerender, type MessagesOf } from '../contract/messages.ts';
+import { prose } from '../contract/prose.ts';
 
 const SECRET_FIX =
 	'Set a stable `OGYGIA_SECRET` in the server environment, or pass one to `handle({ secret })`.';
 
 /** The errors: `throw new OgygiaError(code, args)`, or `console.error(new OgygiaError(…))`. */
 export const SERVER_ERRORS = {
+	remote_arg_not_data: {
+		text: (a: { kind: string }): string => prose`
+			a remote function's argument carried an ogygia ${a.kind} value. Arguments sent from the
+			browser must be plain data.
+		`,
+		details: (): string => prose`
+			A remote function was called from the browser with an argument that holds an ogygia value:
+			a region, a snippet, a function, a wired class instance, a store or a derived store. The
+			server refuses it with a 400 and runs nothing. Those values travel from the server to the
+			browser only.
+
+			Send the plain data the server needs instead (an id, the props, a slug), and build the
+			value on the server from it.
+		`
+	},
 	handle_secret_too_short: {
 		text: (a: { min: number }): string =>
 			`handle({ secret }) is too short for production (need ≥${a.min} UTF-8 bytes).`,
@@ -22,6 +37,22 @@ export const SERVER_ERRORS = {
 			A production build signs region capabilities with the secret passed to
 			\`handle({ secret })\`, and a short one can be guessed. Use a random secret at least as long
 			as the message says, from the server's environment.
+		`
+	},
+	handle_transform_moved: {
+		text: (): string => prose`
+			handle({ transform }) moved to @ogygia/reshape: list reshape() beside ogygia() in
+			vite.config, and pass the transform to reshape.handle(transform), before ogygia.handle()
+			in sequence().
+		`,
+		details: (): string => prose`
+			An app's own pass over the HTML ogygia sends (a web-component server render, say) is the
+			\`@ogygia/reshape\` package now, so apps without one ship none of its support.
+
+			In vite.config, list \`reshape()\` (from \`@ogygia/reshape/vite\`) beside \`ogygia()\`. In
+			hooks.server.ts, \`import * as reshape from '@ogygia/reshape'\` and export
+			\`sequence(reshape.handle(transform), ogygia.handle())\`. The transform itself is
+			unchanged: \`(html, { kind, csr, event })\` in, HTML out.
 		`
 	},
 	secret_conflict: {
@@ -87,6 +118,18 @@ export const SERVER_WARNINGS = {
 		details: (): string => prose`
 			Dev only. A region's server render threw, so the islands endpoint answered 500 and the page
 			keeps the region's fallback. The error follows the message.
+		`
+	},
+	rate_limit_shared_address: {
+		text: (a: { address: string }): string =>
+			`the region render budget is spent for ${a.address}, a proxy's address: every visitor behind it shares one budget`,
+		details: (): string => prose`
+			The islands endpoint's render budget (\`ogygia({ rateLimit })\`) is per client address, the
+			one your adapter gives (\`event.getClientAddress()\`). This address is private, loopback or
+			link-local, so no visitor has it: it is a reverse proxy's or a load balancer's, and every
+			visitor behind it shares one budget, so normal traffic gets 429s. Tell your adapter which
+			header holds the visitor's address (adapter-node: \`ADDRESS_HEADER\`, with \`XFF_DEPTH\` for
+			\`X-Forwarded-For\`). Said once per server.
 		`
 	},
 	region_render_abandoned: {
@@ -257,6 +300,27 @@ export const SERVER_WARNINGS = {
 			a cookie, a header, \`locals\`) for an anonymous visitor, or \`page.data\` with no page in
 			its key, was kept anyway, so other visitors get this visitor's answer. An ogygia bug,
 			please report it.
+		`
+	},
+	rule_region_answer_shared: {
+		text: (a: { detail: string }): string =>
+			`rule broken, a region answer left without its privacy headers: ${a.detail}`,
+		details: (): string => prose`
+			Dev and e2e builds only (a rule ogygia checks on itself). Every answer of the region
+			endpoint carries \`Referrer-Policy: no-referrer\` (its URL is a capability, and must not
+			reach another site in a Referer) and a \`Cache-Control\` that no shared cache keeps
+			(\`no-store\`, or \`private\`). This one did not: something between the endpoint and the
+			response (a plugin, a hook) changed its headers, or ogygia did. Please report it.
+		`
+	},
+	rule_capability_not_path: {
+		text: (a: { detail: string }): string =>
+			`rule broken, a region capability was minted with more than a path: ${a.detail}`,
+		details: (): string => prose`
+			Dev and e2e builds only (a rule ogygia checks on itself). A region capability URL is
+			always a path on the page's own origin (\`/…\`), so the browser fetches it from the same
+			server that signed it. This one had a scheme or host (often a \`paths.base\` set to a
+			full URL). An ogygia bug, or a configuration ogygia should refuse: please report it.
 		`
 	}
 };

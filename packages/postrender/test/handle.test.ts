@@ -21,6 +21,7 @@ import type { PostrenderEntry, PostrenderStore } from '../src/types.ts';
 const env = vi.hoisted(() => ({ dev: false }));
 vi.mock('$app/env', () => ({
 	building: false,
+	version: 'test',
 	get dev() {
 		return env.dev;
 	}
@@ -30,7 +31,9 @@ const page_entry = (html = '<html><head></head><body>stored</body></html>'): Pos
 	kind: 'page',
 	html,
 	headers: { 'content-type': 'text/html' },
-	created: Date.now()
+	created: Date.now(),
+	// (stored by this build: the mocked `version`)
+	build: 'test'
 });
 
 /** A store already holding `/a` and `/p`. */
@@ -203,13 +206,13 @@ describe('Kit’s `config` decides eligibility', () => {
 		expect(await server.page!(off)).toBeUndefined();
 	});
 
-	it('a value that is not a boolean warns once and leaves the default in charge', async () => {
+	it('a value that is not one of its three warns once and leaves the default in charge', async () => {
 		setPageRouteConfig({ '/p': { postrender: 'yes' } });
 		const ctx = start();
 		const handle = postrender.handle({ store: await seeded() });
 		const c = ctx('/p', '/p');
 		await run(handle, c.event);
 		expect(via(await server.page!(c))).toBe('hit'); // default on
-		expect(warned('`config.postrender` must be true or false')).toBe(1);
+		expect(warned("`config.postrender` must be true, false or 'with-credentials'")).toBe(1);
 	});
 });

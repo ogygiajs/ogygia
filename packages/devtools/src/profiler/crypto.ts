@@ -1,3 +1,5 @@
+import { OgygiaError } from '../messages/runtime.ts';
+
 const MAGIC = [0x4f, 0x47, 0x50, 0x31];
 const DEV_KEY = 'ogygia-profiler-dev-key';
 
@@ -13,9 +15,15 @@ async function node() {
 		zlib,
 		scrypt: p(crypto.scrypt) as (pw: string, salt: Uint8Array, len: number) => Promise<Buffer>,
 		brotli: p(zlib.brotliCompress) as (buf: Uint8Array, opts?: unknown) => Promise<Buffer>,
-		unbrotli: p(zlib.brotliDecompress) as (buf: Uint8Array) => Promise<Buffer>
+		unbrotli: p(zlib.brotliDecompress) as (
+			buf: Uint8Array,
+			opts: { maxOutputLength: number }
+		) => Promise<Buffer>
 	};
 }
+
+/** The most a `.ogp` may unpack to (bytes of JSON): far past any real profile, short of a bomb. */
+export const OGP_MAX_UNPACKED: number = 256 * 1_048_576;
 
 /** True when `bytes` starts with the `.ogp` magic (so import can tell it from legacy plain JSON). */
 export function is_ogp(bytes: Uint8Array): boolean {
@@ -82,9 +90,14 @@ export async function ogp_encode(dump: unknown, secret: string | undefined): Pro
 
 /**
  * Decrypt + decompress `.ogp` bytes back to the dump object. Throws on a wrong key or a tampered file
- * (the GCM tag fails to verify) — the caller turns that into a "wrong key" message.
+ * (the GCM tag fails to verify) — the caller turns that into a "wrong key" message. Unpacking stops
+ * at `max` bytes: past it, `devtools_profiler_upload_too_large`.
  */
-export async function ogp_decode(bytes: Uint8Array, secret: string | undefined): Promise<unknown> {
+export async function ogp_decode(
+	bytes: Uint8Array,
+	secret: string | undefined,
+	max: number = OGP_MAX_UNPACKED
+): Promise<unknown> {
 	const { crypto, scrypt, unbrotli } = await node();
 	const buf = Buffer.from(bytes);
 	if (!is_ogp(buf)) throw new Error('not an .ogp file');
@@ -96,5 +109,12 @@ export async function ogp_decode(bytes: Uint8Array, secret: string | undefined):
 	const decipher = crypto.createDecipheriv('aes-256-gcm', key, iv);
 	decipher.setAuthTag(tag);
 	const gz = Buffer.concat([decipher.update(ct), decipher.final()]);
-	return JSON.parse((await unbrotli(gz)).toString('utf8'));
+	let json: Buffer;
+	try {
+		json = await unbrotli(gz, { maxOutputLength: max });
+	} catch (e) {
+		if ((e as { code?: unknown })?.code !== 'ERR_BUFFER_TOO_LARGE') throw e;
+		throw new OgygiaError('devtools_profiler_upload_too_large', { limit: max });
+	}
+	return JSON.parse(json.toString('utf8'));
 }
