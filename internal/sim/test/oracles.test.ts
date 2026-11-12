@@ -138,6 +138,44 @@ describe('leaks', () => {
 		expect(visits([a], [a, a], [a, a, a])?.oracle).toBe('leak');
 	});
 
+	it("a page store's mark a stored visit brings is not growth (gen 61, seed 36)", async () => {
+		const { Window } = await import('happy-dom');
+		const w = new Window();
+		const d = w.document as unknown as Document;
+		d.write('<html><head><title>t</title></head><body><p>hi</p></body></html>');
+		const leaks = new Leaks();
+		const count = () => d.getElementsByTagName('*').length;
+		const tab = {
+			realm: 'tab-1#1',
+			name: 'tab-1',
+			platform: null,
+			page: { mainFrame: { url: 'https://app.test/', document: d } },
+			held: () => ({
+				listeners: 0,
+				intervals: 0,
+				observers: 0,
+				head: d.head.children.length,
+				elements: count()
+			}),
+			listening: () => []
+		} as unknown as Parameters<Leaks['check']>[0];
+		const visit = () => {
+			const found = leaks.check(tab);
+			(tab.page.mainFrame as { url: string }).url = 'https://app.test/other';
+			leaks.check(tab);
+			(tab.page.mainFrame as { url: string }).url = 'https://app.test/';
+			return found;
+		};
+		visit();
+		// (the router's announcer, once per document, then a stored copy's mark)
+		d.body.append(d.createElement('div'));
+		visit();
+		const mark = d.createElement('meta');
+		mark.setAttribute('name', 'ogygia-stored');
+		d.head.append(mark);
+		expect(visit()).toBeNull();
+	});
+
 	it('new code installed once on each visit is not (generated-app 6, seed 12)', () => {
 		expect(
 			visits(
