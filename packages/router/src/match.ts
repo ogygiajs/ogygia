@@ -11,8 +11,6 @@ export interface CompiledPattern {
 	pattern: string;
 	regex: RegExp;
 	params: ParamSpec[];
-	/** higher = more specific; used to order overlapping matches (static beats dynamic) */
-	score: number;
 }
 
 const REGEX_SPECIAL_G = /[.*+?^${}()|[\]\\]/g;
@@ -27,12 +25,10 @@ const has_stray_bracket = (seg: string) => {
 	return left.includes('[') || left.includes(']');
 };
 
-const SEGMENT_RANK = { static: 4, mixed: 3, param: 2, optional: 1, rest: 0 } as const;
-
 /**
  * Compiles a route pattern in Kit's grammar (`/docs/[slug]`, `/files/[...rest]`, `/[[lang]]/docs`,
- * and mixed segments like `/[id].json`) into a trailing-slash-insensitive regex, its params and a
- * specificity score (higher sorts first). Throws on a malformed pattern.
+ * and mixed segments like `/[id].json`) into a trailing-slash-insensitive regex and its params.
+ * Throws on a malformed pattern. A table's order is {@link compile_all}'s.
  */
 export function compile(pattern: string): CompiledPattern {
 	if (!pattern.startsWith('/')) {
@@ -42,7 +38,6 @@ export function compile(pattern: string): CompiledPattern {
 	}
 	const segs = pattern.split('/').filter((s) => s !== '');
 	const params: ParamSpec[] = [];
-	const ranks: number[] = [];
 	let rx = '';
 
 	segs.forEach((seg, i) => {
@@ -55,11 +50,9 @@ export function compile(pattern: string): CompiledPattern {
 			}
 			params.push({ name: m[1], rest: true });
 			rx = `${rx}(?:/(.*))?`;
-			ranks.push(SEGMENT_RANK.rest);
 		} else if ((m = seg.match(OPTIONAL))) {
 			params.push({ name: m[1], optional: true });
 			rx = `${rx}(?:/([^/]+))?`;
-			ranks.push(SEGMENT_RANK.optional);
 		} else {
 			const pieces: Array<{ text: string } | { name: string }> = [];
 			let last = 0;
@@ -100,29 +93,108 @@ export function compile(pattern: string): CompiledPattern {
 				throw new Error(`[@ogygia/router] malformed segment ${JSON.stringify(seg)} in ${pattern}`);
 			}
 			rx += inner;
-			ranks.push(
-				!has_param ? SEGMENT_RANK.static : has_static ? SEGMENT_RANK.mixed : SEGMENT_RANK.param
-			);
 		}
 	});
 
 	if (rx === '') rx = '/?';
 	const regex = new RegExp(`^${rx}/?$`);
-	const trailing_rest = params.length > 0 && params[params.length - 1].rest === true;
-	return { pattern, regex, params, score: specificity(ranks, trailing_rest) };
+	return { pattern, regex, params };
 }
 
-function specificity(ranks: number[], trailing_rest: boolean): number {
-	const depth_ranks = trailing_rest ? ranks.slice(0, -1) : ranks;
-	let score = 0;
-	for (const rank of depth_ranks) score = score * 5 + rank;
-	score = score * 64 + depth_ranks.length;
-	return trailing_rest ? score - 1 : score;
-}
-
-/** Compile a whole table's keys and sort most-specific-first, so the first match wins. */
+/** Compile a whole table's keys and sort them in Kit's route order, so the first match is the
+ *  route Kit would pick for the same files (test/router-route-order.test.ts). */
 export function compile_all(patterns: string[]): CompiledPattern[] {
-	return patterns.map(compile).sort((a, b) => b.score - a.score);
+	const segments = new Map(patterns.map((p) => [p, route_segments(p)]));
+	return patterns
+		.map(compile)
+		.sort((a, b) =>
+			kit_order(a.pattern, segments.get(a.pattern)!, b.pattern, segments.get(b.pattern)!)
+		);
+}
+
+type Part = { type: 'static' | 'required' | 'optional' | 'rest'; content: string };
+const EMPTY_PART: Part = { type: 'static', content: '' };
+const NON_FINAL_OPTIONAL_G = /\[\[[^\]]+\]\](?!$)/g;
+
+/** A pattern as Kit sorts it: its segments, each split into parts that alternate static (first,
+ *  maybe '') and dynamic. An `[[optional]]` that is not last counts for nothing. */
+function route_segments(pattern: string): Part[][] {
+	return pattern
+		.replace(NON_FINAL_OPTIONAL_G, '')
+		.split('/')
+		.filter(Boolean)
+		.map((segment) => {
+			const parts: Part[] = [];
+			let i = 0;
+			for (;;) {
+				const start = segment.indexOf('[', i);
+				if (start === -1) {
+					parts.push({ type: 'static', content: segment.slice(i) });
+					return parts;
+				}
+				parts.push({ type: 'static', content: segment.slice(i, start) });
+				const type =
+					segment[start + 1] === '['
+						? 'optional'
+						: segment[start + 1] === '.'
+							? 'rest'
+							: 'required';
+				i =
+					segment.indexOf(type === 'optional' ? ']]' : ']', start) + (type === 'optional' ? 2 : 1);
+				parts.push({ type, content: segment.slice(start, i) });
+			}
+		});
+}
+
+/** Kit's route comparator (`sort_routes`): segment by segment from the left, a static part beats a
+ *  dynamic one and a required param beats an optional one, a shallower path beats a deeper one
+ *  on a static difference, `[...rest]` ranks below anything with a static part after it, and a tie
+ *  goes by route id (never by table order). Negative: `a` first. */
+function kit_order(a_id: string, a: Part[][], b_id: string, b: Part[][]): number {
+	for (let i = 0; i < Math.max(a.length, b.length); i++) {
+		const seg_a = a[i] ?? [EMPTY_PART];
+		const seg_b = b[i] ?? [EMPTY_PART];
+		for (let j = 0; j < Math.max(seg_a.length, seg_b.length); j++) {
+			const pa = seg_a[j];
+			const pb = seg_b[j];
+			if (j % 2 === 1) {
+				if (!pa) return -1;
+				if (!pb) return 1;
+				// the next static chunk, for the [...rest] cases
+				const next_a = seg_a[j + 1].content || a[i + 1]?.[0].content;
+				const next_b = seg_b[j + 1].content || b[i + 1]?.[0].content;
+				if (pa.type === 'rest' && pb.type === 'rest') {
+					if (next_a && !next_b) return -1;
+					if (next_b && !next_a) return 1;
+					// (Kit answers "b first" both ways round when neither has a next part, so its pick
+					// follows file order; here the tie goes by id)
+					continue;
+				}
+				if (pa.type === 'rest') return next_a && !next_b ? -1 : 1;
+				if (pb.type === 'rest') return next_b && !next_a ? 1 : -1;
+				if (pa.type !== pb.type) {
+					if (pa.type === 'required') return -1;
+					if (pb.type === 'required') return 1;
+				}
+			} else if (pa.content !== pb.content) {
+				if (pa === EMPTY_PART) return -1;
+				if (pb === EMPTY_PART) return 1;
+				return static_order(pa.content, pb.content);
+			}
+		}
+	}
+	return a_id < b_id ? 1 : -1;
+}
+
+/** Lexicographic, except a longer static outranks its own prefix (`foobar` before `foo`). */
+function static_order(a: string, b: string): number {
+	for (let i = 0; ; i++) {
+		if (a[i] !== b[i]) {
+			if (a[i] === undefined) return 1;
+			if (b[i] === undefined) return -1;
+			return a[i] < b[i] ? -1 : 1;
+		}
+	}
 }
 
 export interface PathMatch {
