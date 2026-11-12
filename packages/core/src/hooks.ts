@@ -81,7 +81,7 @@ import {
 	MIN_SECRET_BYTES
 } from './server/hmac.ts';
 import { expiry_refusal, note_cache_control } from './server/shared-cache.ts';
-import { app_lifetime } from './server/region-endpoint.ts';
+import { app_lifetime, server_delta_on } from './server/region-endpoint.ts';
 import { render_cache_key, cached_render, type RenderKey } from './server/render-cache.ts';
 import { render as render_policy } from './policies.ts';
 import { install_server_rules, note_region_answer } from './server/rules.ts';
@@ -950,9 +950,12 @@ class OgygiaHandle {
 				}
 			// with the app's own pass a router-fetched page is rendered as an answer (`#pass_document`):
 			// a shared cache must keep the two forms apart
-			if (pass && (response.headers.get('content-type') ?? '').includes('text/html'))
+			// and with server-delta navigation, a router-fetched page skips the regions it names
+			// (`x-ogygia-known`): never the copy a visitor who asked for the whole page gets
+			const delta = server_delta_on();
+			if ((pass || delta) && (response.headers.get('content-type') ?? '').includes('text/html'))
 				try {
-					response.headers.append('vary', 'x-ogygia-spa');
+					response.headers.append('vary', delta ? 'x-ogygia-spa, x-ogygia-known' : 'x-ogygia-spa');
 				} catch {
 					// ok: immutable headers; the app's platform's headers win
 				}

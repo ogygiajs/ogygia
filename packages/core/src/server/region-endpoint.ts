@@ -82,7 +82,16 @@ function region_session(): string {
  */
 const KNOWN_FPS = new WeakMap<object, Set<string>>();
 const EMPTY_FPS: ReadonlySet<string> = new Set();
+
+/** Did the app opt into server-delta navigation (`router: { serverDelta: true }`)? A build constant
+ *  (Vite `define`, the SSR build's too); typeof-guarded, so a plain node import is off. Off, the
+ *  server never honors `x-ogygia-known`: any client can send it. */
+export function server_delta_on(): boolean {
+	return typeof __OGYGIA_SERVER_DELTA__ !== 'undefined' && __OGYGIA_SERVER_DELTA__ === true;
+}
+
 export function known_region_fps(): ReadonlySet<string> {
+	if (!server_delta_on()) return EMPTY_FPS;
 	let event;
 	try {
 		event = get_request_event();
