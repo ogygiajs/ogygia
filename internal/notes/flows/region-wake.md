@@ -43,7 +43,6 @@ So:
 stateDiagram-v2
     [*] --> cold
     cold --> armed
-    cold --> waking
     armed --> cold
     armed --> waking
     waking --> cold
