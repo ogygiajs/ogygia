@@ -529,6 +529,7 @@ const render_gate = new ConcurrencyGate(REGION_RENDER_CONCURRENCY);
 const told_abandoned = new WeakSet<Error>();
 
 /** The per-plugin contexts of an app with no plugins (shared: never written to). */
+// static: the empty list, shared and never written
 const NO_CTXS: readonly RequestContext<unknown, unknown>[] = [];
 
 /**
