@@ -3963,6 +3963,38 @@
 		{
 			"id": "packages/devtools/src/server.ts > defineServer:0~6ae004 > handle > next",
 			"reason": "SvelteKit's resolve for a beacon page in a build (a RequestEvent's resolve: not cloneable), then never_stored, constant work of its own"
+		},
+		{
+			"id": "packages/core/src/runtime/rules.ts > watch_frames",
+			"reason": "browser only, dev and e2e builds: hands the rule the frame store's peek, once; proven in packages/core/test/browser/rules.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/rules.ts > note_handed",
+			"reason": "browser only, dev and e2e builds: records a frame handed to a region element (DOM nodes, not cloneable), constant work; proven in packages/core/test/browser/rules.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/rules.ts > note_turn",
+			"reason": "browser only, dev and e2e builds: one counter per region element (DOM nodes, not cloneable); proven in packages/core/test/browser/rules.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/rules.ts > note_shown",
+			"reason": "browser only, dev and e2e builds: records the ticket a region element painted (DOM nodes, not cloneable); proven in packages/core/test/browser/rules.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/rules.ts > note_unbound",
+			"reason": "browser only, dev and e2e builds: forgets a region element (DOM nodes, not cloneable); proven in packages/core/test/browser/rules.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/rules.ts > regions_show_their_answers",
+			"reason": "browser only, dev and e2e builds: the rule over the page's bound region elements and the frame store, linear in bound regions; proven in packages/core/test/browser/rules.test.ts and read at the end of every e2e spec"
+		},
+		{
+			"id": "packages/core/src/messages/core.ts > WARNINGS > rule_region_answer_behind > details",
+			"reason": "a message's prose for its docs page and dev warning: constant text, printed once when the rule breaks"
+		},
+		{
+			"id": "packages/core/src/messages/core.ts > WARNINGS > rule_region_answer_behind > text",
+			"reason": "a message's one line for the dev warning: a template over the rule's detail, printed once when the rule breaks"
 		}
 	]
 }
