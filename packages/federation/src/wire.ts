@@ -12,6 +12,7 @@ import {
 	verify as ed_verify
 } from 'node:crypto';
 import { attr, decodeText, html, type Html } from '@ogygia/core/plugin/utils';
+import { capability, type Capability } from '@ogygia/machine';
 
 // ── paths the handle serves ──────────────────────────────────────────────────────────────────
 /** The exposed route table: `GET|POST|… /og/fragment/page?path=…&search=…`. */
@@ -26,6 +27,8 @@ const SIG_HEADER = 'x-og-sig';
 const TS_HEADER = 'x-og-ts';
 const USER_HEADER = 'x-og-user';
 const NONCE_HEADER = 'x-og-n';
+/** The call capability: `v1.<signed at + 1 ms>.<nonce>.<Ed25519 signature, base64url>`. */
+const CAP_HEADER = 'x-og-cap';
 export const DEFAULT_SKEW_MS = 120_000;
 /** Default cap on a forwarded fragment/notice body (form posts are small; 1 MiB is generous). */
 export const DEFAULT_MAX_BODY: number = 1024 * 1024;
@@ -56,6 +59,11 @@ function replay_seen(sig: string, expires_at: number, now: number): boolean {
 	seen_sigs.set(sig, expires_at);
 	return false;
 }
+
+/** Has a call with this nonce been accepted, by its capability or its legacy signature? Records
+ *  it when not: a call signed both ways carries one nonce (`sign_headers`). */
+const nonce_seen = (nonce: string, expires_at: number, now: number): boolean =>
+	nonce !== '' && replay_seen(`n:${nonce}`, expires_at, now);
 
 /** Visitor claims — who is BROWSING (the caller signature says who is CALLING). Bound into the
  *  signed payload: forging claims means forging the Ed25519 signature. They never transit the
@@ -108,6 +116,82 @@ function public_key(b64: string) {
 	return k;
 }
 
+// ── the call capability ──────────────────────────────────────────────────────────────────────
+// A signed call as a capability (@ogygia/machine): the method, path, body hash and claims as
+// length-prefixed fields, the audience, a nonce, and when it was signed. It is minted for 1 ms:
+// the receiver's `skewMs` is its whole window (signed within skewMs either way of its own clock),
+// as the legacy headers' was. Proved in test/federation.test.ts › "the call capability".
+const CALL = { name: 'federation.call', version: 1, ttl: { max: 1 } } as const;
+
+/** A token's nonce and expiry (`v<version>.<expiry ms>.<nonce>.<signature>`, @ogygia/machine). */
+const cap_nonce = (token: string): string => token.split('.')[2] ?? '';
+const cap_expiry = (token: string): number => Number(token.split('.')[1]);
+
+/** The mint side, one per private key (as cached as its KeyObject). */
+const minters = new Map<string, Capability>();
+function minter(b64: string): Capability {
+	let cap = minters.get(b64);
+	if (!cap) {
+		const key = private_key(b64);
+		cap = capability({
+			...CALL,
+			signer: {
+				sign: (m) => ed_sign(null, Buffer.from(m), key).toString('base64url'),
+				verify: () => false // (a minter checks nothing: the receiver brings its keys)
+			}
+		});
+		if (minters.size >= MAX_CACHED_KEYS) minters.clear();
+		minters.set(b64, cap);
+	}
+	return cap;
+}
+
+/** The check side, one per window (its replay memory is the process's, whatever keys a check
+ *  trusts): each token checks once, and a memory full of live ones refuses new calls rather than
+ *  forget one. */
+const checkers = new Map<number, Capability>();
+function checker(skew: number): Capability {
+	let cap = checkers.get(skew);
+	if (!cap) {
+		cap = capability({
+			...CALL,
+			skew,
+			replay: { max: MAX_SEEN_SIGS },
+			signer: { sign: () => '', verify: () => false } // (every check brings its keys)
+		});
+		if (checkers.size >= 8) checkers.clear();
+		checkers.set(skew, cap);
+	}
+	return cap;
+}
+
+const ED25519_SIG_B64URL = /^[A-Za-z0-9_-]{86}$/;
+
+/** Does any of `keys` verify `sig` (canonical base64url of 64 bytes) over `message`? */
+function any_key(keys: readonly string[]) {
+	return (message: string, sig: string): boolean => {
+		if (!ED25519_SIG_B64URL.test(sig)) return false;
+		const bytes = Buffer.from(sig, 'base64url');
+		if (bytes.toString('base64url') !== sig) return false;
+		const msg = Buffer.from(message);
+		for (const pk of keys) {
+			try {
+				if (ed_verify(null, msg, public_key(pk), bytes)) return true;
+			} catch {
+				// ok: a malformed key entry verifies nothing; the next is tried
+			}
+		}
+		return false;
+	};
+}
+
+const call_fields = (method: string, pathq: string, bhash: string, claims: string) => [
+	method.toUpperCase(),
+	pathq,
+	bhash,
+	claims
+];
+
 // The signed payload binds the AUDIENCE (the target host) so a hop signed for one peer cannot be
 // replayed at a sibling that trusts the same key. The NONCE makes every signature unique:
 // Ed25519 is deterministic, so two identical concurrent requests would otherwise collide with
@@ -134,15 +218,18 @@ export function sign_headers(
 ): Record<string, string> {
 	const key = private_key(privateKey);
 	const ts = String(Date.now()); // wall: signed, and checked by the peer's clock
-	const nonce = randomBytes(8).toString('hex');
 	const pathq = url.pathname + url.search;
 	const user_b64 = claims ? Buffer.from(JSON.stringify(claims)).toString('base64') : '';
-	const sig = ed_sign(
-		null,
-		sig_payload(ts, method, pathq, body_hash(body), user_b64, audience ?? url.host, nonce),
-		key
-	);
+	const bhash = body_hash(body);
+	const aud = audience ?? url.host;
+	const cap = minter(privateKey).mint(aud, call_fields(method, pathq, bhash, user_b64), 1);
+	// the legacy signature carries the capability's nonce: one call, one identity in the replay
+	// memory, whichever of its signatures a receiver checks (test/federation.test.ts › "#822")
+	const nonce = cap_nonce(cap);
+	const sig = ed_sign(null, sig_payload(ts, method, pathq, bhash, user_b64, aud, nonce), key);
 	return {
+		[CAP_HEADER]: cap,
+		// (the legacy headers, for a peer that does not read the capability yet)
 		[TS_HEADER]: ts,
 		[NONCE_HEADER]: nonce,
 		[SIG_HEADER]: sig.toString('base64'),
@@ -150,13 +237,48 @@ export function sign_headers(
 	};
 }
 
+// One spelling per signature, so the replay guard (keyed on the header text) sees every copy:
+// test/federation.test.ts › "a signature counts once however its base64 is spelled".
+const ED25519_SIG_B64 = /^[A-Za-z0-9+/]{86}==$/;
+
+/** The 64 signature bytes, or `null` when `sig` is not their canonical base64. */
+function signature_bytes(sig: string): Buffer | null {
+	if (!ED25519_SIG_B64.test(sig)) return null;
+	const bytes = Buffer.from(sig, 'base64');
+	return bytes.toString('base64') === sig ? bytes : null;
+}
+
 export interface VerifyConfig {
 	/** base64 SPKI DER Ed25519 public keys of AUTHORIZED callers (a list = rotation overlap). */
 	publicKeys: readonly string[];
 	/** Max clock skew / replay window in ms (default 120s). */
 	skewMs?: number;
-	/** The audience(s) THIS app answers to. Defaults to the request URL's host. */
+	/** The audience(s) THIS app answers to. Defaults to the host of the app's `ORIGIN`; with
+	 *  neither, every signed call is refused (the request's own Host is never trusted for it). */
 	audience?: string | string[];
+}
+
+/** The host of the `ORIGIN` the app is configured with (the variable SvelteKit's Node adapter
+ *  reads), or `undefined`: the audience an app answers to when it sets none. */
+export function configured_audience(): string | undefined {
+	const origin = (globalThis as { process?: { env?: Record<string, string | undefined> } }).process
+		?.env?.ORIGIN;
+	if (!origin) return undefined;
+	try {
+		return new URL(origin).host;
+	} catch {
+		return undefined; // ok: an ORIGIN that is not a URL configures nothing; federate() warns
+	}
+}
+
+/** A verified call's claims: none, the parsed ones, or null when signed but unparseable. */
+function claims_of(user_b64: string): { user?: Claims } | null {
+	if (!user_b64) return {};
+	try {
+		return { user: JSON.parse(Buffer.from(user_b64, 'base64').toString()) as Claims };
+	} catch {
+		return null; // signed but unparseable claims = reject
+	}
 }
 
 /** Receiver side: fresh, valid, non-replayed signature from an authorized caller, bound to THIS
@@ -167,20 +289,39 @@ export function verify_signed_request(
 	url: URL,
 	body?: ArrayBuffer | Uint8Array | null
 ): { user?: Claims } | null {
+	const own = cfg.audience ?? configured_audience();
+	if (own == null) return null;
+	const audiences = ([] as string[]).concat(own);
+	const skew = cfg.skewMs ?? DEFAULT_SKEW_MS;
+	const user_b64 = request.headers.get(USER_HEADER) ?? '';
+	const bhash = body_hash(body);
+	const pathq = url.pathname + url.search;
+	const token = request.headers.get(CAP_HEADER);
+	// A call with the capability is checked by it alone (a bad one is not saved by legacy headers)
+	if (token !== null) {
+		const fields = call_fields(request.method, pathq, bhash, user_b64);
+		const verify = any_key(cfg.publicKeys);
+		let checked = false;
+		for (const aud of audiences)
+			if (checker(skew).check(token, aud, fields, verify).ok) {
+				checked = true;
+				break;
+			}
+		if (!checked) return null;
+		// the same call, already accepted by its legacy signature (#822)
+		if (nonce_seen(cap_nonce(token), cap_expiry(token) + skew, Date.now())) return null;
+		return claims_of(user_b64);
+	}
 	const ts = request.headers.get(TS_HEADER);
 	const sig = request.headers.get(SIG_HEADER);
 	if (!ts || !sig) return null;
 	const ts_n = Number(ts);
-	const skew = cfg.skewMs ?? DEFAULT_SKEW_MS;
 	const now = Date.now(); // wall: against the sender's signed timestamp
 	// a non-numeric ts → NaN; guard it, else `NaN > window` is false and the freshness gate opens
 	if (!Number.isFinite(ts_n) || Math.abs(now - ts_n) > skew) return null;
-	const user_b64 = request.headers.get(USER_HEADER) ?? '';
 	const nonce = request.headers.get(NONCE_HEADER) ?? '';
-	const bhash = body_hash(body);
-	const pathq = url.pathname + url.search;
-	const audiences = cfg.audience == null ? [url.host] : ([] as string[]).concat(cfg.audience);
-	const sig_buf = Buffer.from(sig, 'base64');
+	const sig_buf = signature_bytes(sig);
+	if (!sig_buf) return null;
 	for (const aud of audiences) {
 		const payload = sig_payload(ts, request.method, pathq, bhash, user_b64, aud, nonce);
 		for (const pk of cfg.publicKeys) {
@@ -188,12 +329,9 @@ export function verify_signed_request(
 				const key = public_key(pk);
 				if (!ed_verify(null, payload, key, sig_buf)) continue;
 				if (replay_seen(sig, ts_n + skew, now)) return null;
-				if (!user_b64) return {};
-				try {
-					return { user: JSON.parse(Buffer.from(user_b64, 'base64').toString()) as Claims };
-				} catch {
-					return null; // signed but unparseable claims = reject
-				}
+				// the same call, already accepted by its capability (#822)
+				if (nonce_seen(nonce, ts_n + skew, now)) return null;
+				return claims_of(user_b64);
 			} catch {
 				// ok: a malformed key entry verifies nothing; the next is tried, and none verifying refuses the call
 			}
