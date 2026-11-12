@@ -1,21 +1,3 @@
-/**
- * REGION STYLESHEETS: the `<link>` (or inlined `<style>`) an answer lifted into the head, or one
- * already there with the same href.
- *
- * Its download, as a machine:
- *
- *   loading ─ loaded
- *          ╲ failed
- *
- * "In the head" is not "loaded", and a link whose download failed never loads, nor fires `load` or
- * `error` again. So an answer that finds the sheet waits only on a loading one, and puts a failed
- * one back with a fresh link, which asks for it again (#274).
- *
- * Who it is for: the regions whose answer on screen uses it, as well as the page whose server head
- * lists it. The server head never lists the sheet of an answer the server did not pick, so a
- * navigation takes a region sheet out only once the new page neither lists it nor has a region that
- * uses it: a hole kept across the navigation keeps its sheet (#275).
- */
 import { machine, type Machine } from '@ogygia/machine';
 import { connected_regions } from './connected.ts';
 import { head_owners } from '../head-owners.ts';
@@ -23,11 +5,8 @@ import { OG_FP, OG_OWNER, OGYGIA_REGION_CSS } from '../wire-markup.ts';
 import { runtime_session } from './session.ts';
 
 type SheetStates = {
-	/** Its download is in flight. */
 	loading: {};
-	/** In, and styling the page. */
 	loaded: {};
-	/** Its download failed. It stays failed: a fresh link asks again. */
 	failed: {};
 };
 
@@ -43,6 +22,13 @@ const sheet_definition = machine<SheetStates>()({
 	steps: sheet_steps
 });
 
+/**
+ * The download of a region stylesheet (the `<link>` an answer lifted into the head, or one already
+ * there with the same href): `loading`, then `loaded` or `failed`. "In the head" is not "loaded", and
+ * a link whose download failed never loads, nor fires `load` or `error` again, so it stays `failed`:
+ * an answer that finds the sheet waits only on a loading one, and puts a failed one back with a fresh
+ * link, which asks for it again (#274).
+ */
 export type RegionSheet = Machine<SheetStates, typeof sheet_steps>;
 
 const sheets = new WeakMap<HTMLLinkElement, RegionSheet>();
@@ -61,13 +47,10 @@ export function sheet_of(link: HTMLLinkElement): RegionSheet {
 	sheets.set(link, s);
 	s.scope.on(link, 'load', () => s.go('loaded'));
 	s.scope.on(link, 'error', () => s.go('failed'));
-	// attach, then check: `sheet` is set with the load event, so one that loaded before the listeners
-	// were on is seen here
 	if (link.sheet !== null) s.go('loaded');
 	return s;
 }
 
-/** The sheets in the head each region's answer on screen uses, by region. */
 const used_by = new WeakMap<Element, readonly Element[]>();
 
 /** `region` painted an answer that uses `sheets` (in place of the ones its answer before used). */
@@ -75,24 +58,18 @@ export function use_sheets(region: Element, sheets: readonly Element[]): void {
 	used_by.set(region, sheets);
 }
 
-/**
- * CODE SHEETS: the stylesheets an island file's load put in the head. A bundler's preloader adds the
- * CSS a file's chunks need as the file runs (Vite's `__vitePreload` appends a `<link rel="stylesheet"
- * crossorigin>`), and nothing marked them: a navigation kept them as a third party's (#966). They are
- * region sheets of the regions that run that file, by the same rule as an answer's sheets: in while
- * one is on the page, out after a navigation that leaves none.
- */
 const brought_by = new WeakMap<object, readonly Element[]>();
-/** Every code sheet (a load that overlapped another's counts the other's sheet as its own too). */
 const code_sheets = new WeakSet<Element>();
-/** The code sheets each region's file brought, by region. */
 const code_used_by = new WeakMap<Element, readonly Element[]>();
 const STYLESHEET_REL_RE = /(?:^|\s)stylesheet(?:\s|$)/i;
 
 /**
  * Note the stylesheets `loading` (the load of the island file at `url`) puts in the head: each new
  * link under the file's own folder (the build's, where its CSS assets live) that no one else owns
- * becomes a page-owned region sheet, for the regions that run the module it resolves to.
+ * becomes a page-owned region sheet, for the regions that run the module it resolves to. A bundler's
+ * preloader adds the CSS a file's chunks need as the file runs, and nothing else marks it (#966):
+ * these code sheets follow the rule of an answer's sheets, in while one region that runs the file is
+ * on the page, out after a navigation that leaves none.
  */
 export function note_code_sheets<T>(url: string, loading: Promise<T>): Promise<T> {
 	if (typeof document === 'undefined') return loading;
