@@ -949,9 +949,11 @@ export function document_faulted(world: World, tab: Tab): boolean {
  *  download failed (seeds 65, 425), and Kit's remote functions on an answer they cannot read
  *  ("Invalid query.live response": seed 193, a changed byte in a live query's stream), and an
  *  inline handler a changed byte broke (the runtime script's `onerror`, as the DOM library says
- *  it fails to compile: generated-app seed 88). An uncaught TypeError is never excused. */
+ *  it fails to compile: generated-app seed 88), and the JSON parser's bare message for a changed
+ *  byte in a JSON answer (a live query's client logs it without `SyntaxError`: palaestra seed 204).
+ *  An uncaught TypeError is never excused. */
 const EXPLAINED =
-	/ogygiajs\.dev\/e\/|Unable to preload CSS|Failed to fetch|network error|stream was cut|Failed to perform request|SyntaxError|Invalid or unexpected token|Unexpected token|Status [45]\d\d|offline|connection lost|Invalid [\w.]+ response|Failed to read the 'on\w+' property/;
+	/ogygiajs\.dev\/e\/|Unable to preload CSS|Failed to fetch|network error|stream was cut|Failed to perform request|SyntaxError|Invalid or unexpected token|Unexpected token|Status [45]\d\d|offline|connection lost|Invalid [\w.]+ response|Failed to read the 'on\w+' property| in JSON at position \d+/;
 
 /** How the browser, or ogygia with its code, says a module or file did not download. */
 const NOT_DOWNLOADED =
