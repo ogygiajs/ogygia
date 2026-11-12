@@ -21,6 +21,7 @@
 		"@ogygia/devtools": "workspace:*",
 		"@ogygia/reshape": "workspace:*",
 		"@ogygia/router": "workspace:*",
+		"@ogygia/testing": "workspace:*",
 		"devalue": "catalog:",
 		"ogygia": "workspace:*",
 		"valibot": "catalog:"
