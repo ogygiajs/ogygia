@@ -33,6 +33,7 @@ import {
 	type ChunkBarrel
 } from '@ogygia/core/contract';
 import { island_sourcemaps_plugin } from './sourcemaps.ts';
+import { lazy_files } from './lazy-files.ts';
 import { install_dev_client_maps, install_dev_maps, install_dev_page_keys } from './dev-maps.ts';
 import {
 	is_island_path,
@@ -90,6 +91,7 @@ import {
 	type TransformStage
 } from './plugin-api.ts';
 import MagicString from 'magic-string';
+import { definers_plugin } from './definers.ts';
 import type { ClientRealmFile, ServerRealm } from '../compiler/link/caps.ts';
 import { assert_no_legacy_options, validate_region_presets, resolve_options } from './options.ts';
 import {
@@ -233,6 +235,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 	let macros: ResolvedPlugins['macros'] = [];
 	let stage_transforms: ResolvedPlugins['transforms'] = [];
 	let markup: ResolvedPlugins['markup'] = [];
+	let definers: ResolvedPlugins['definers'] = [];
 	const import_keys = normalize_import_keys(options.importKeys);
 	// What the plugins asked of the build (their `build` hooks, run in `config` below): the build's
 	// measurement data (`b.measure()`, the profiler) and core's event emits (`b.events()`, devtools).
@@ -572,6 +575,9 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 	return [
 		// the plugins' `source` stage: on the module as written, before the region transform below
 		stage_host('source'),
+		// dev: the plugins' definer calls marked with their module's run (./definers.ts); a
+		// normal-order transform, so its place here among the pre-enforced ones does not matter
+		definers_plugin(() => definers),
 		{
 			name: 'ogygia',
 			enforce: 'pre',
@@ -607,7 +613,8 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 						route_config,
 						foreign_hydrate,
 						macros,
-						markup
+						markup,
+						definers
 					} = resolved);
 					measure = resolved.measure;
 					devtools_effective = resolved.events !== false;
@@ -1077,7 +1084,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 				}
 				if (__P) {
 					const keys = [...__outHash.keys()].sort();
-					let d = 0x811c9dc5;
+					let d = 0x811c9dc5; // hash: folds numbers (each file's hash), not a string
 					for (const k of keys) {
 						d ^= __outHash.get(k)!;
 						d = Math.imul(d, 0x01000193) >>> 0;
@@ -1615,7 +1622,8 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 		},
 		// the plugins' `post` stage: on what the region transform made of the module
 		stage_host('post'),
-		island_sourcemaps_plugin({ program, is_island_path })
+		island_sourcemaps_plugin({ program, is_island_path }),
+		lazy_files()
 	];
 }
 

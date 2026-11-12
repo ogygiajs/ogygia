@@ -1,5 +1,6 @@
 import { OWN_SPECIFIER_SOURCE } from '@ogygia/core/contract';
 import { dedent } from '../dedent.ts';
+import { file_token } from './file-token.ts';
 
 /**
  * `ogygia:region/transport` emitter — re-exports the app's universal `transport` hook (or an empty
@@ -103,8 +104,9 @@ export function source_crosses_wire(src: string): boolean {
  *   decodes signed props of any island; loaded once per process).
  * - CLIENT: NO eager import — every island page used to download every transportable class of the
  *   app. It exports `wire_loaders`, a class module's tag path (root-relative, the part of a tag
- *   before `#`) → a lazy import; the runtime loads just the ones an island's props carry (the server
- *   stamps them on its props sidecar) before it decodes them.
+ *   before `#`) → a lazy import, with the file it imports and the URL that file is relative to (a
+ *   failed download is asked for again there: vite/lazy-files.ts); the runtime loads just the ones
+ *   an island's props carry (the server stamps them on its props sidecar) before it decodes them.
  * `modules` is the Program's set of transportable module paths (absolute).
  */
 export function transportables_server_module(modules: Iterable<string>): string {
@@ -128,7 +130,9 @@ export function transportables_client_module(
 ): string {
 	const entries: string[] = [];
 	for (const abs of modules)
-		entries.push(`${JSON.stringify(rel(abs))}: () => import(${JSON.stringify(abs)})`);
+		entries.push(
+			`${JSON.stringify(rel(abs))}: [() => import(${JSON.stringify(abs)}), ${file_token(abs)}, import.meta.url]`
+		);
 	return dedent`
 		export const wire_loaders = {
 			${entries.join(',\n\t')}

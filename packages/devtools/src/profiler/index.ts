@@ -264,6 +264,7 @@ import {
 	machine,
 	outbox,
 	policy,
+	registry,
 	scope,
 	STALE,
 	type Flights,
@@ -1009,18 +1010,19 @@ function trap_state(loop: Loop): TrapStatus['state'] {
 /** The span recorders of the windows recording now, newest last. Spans go to the newest; a window
  *  that ends hands them back to the one before it, never to nothing while another still records
  *  (two profilers in one dev process). */
-const span_windows: SpanRecorder[] = [];
+const span_windows = registry<SpanRecorder>();
 
-function own_spans(r: SpanRecorder): void {
-	span_windows.push(r);
+/** The window's recorder takes the spans while `owner` (the window) is open; returns the hand-back,
+ *  which the window's end also does. */
+function own_spans(r: SpanRecorder, owner: Scope): () => void {
+	const gone = span_windows.add(r, owner);
 	set_span_recorder(r);
-}
-
-function disown_spans(r: SpanRecorder): void {
-	const at = span_windows.lastIndexOf(r);
-	if (at === -1) return;
-	span_windows.splice(at, 1);
-	set_span_recorder(span_windows.length > 0 ? span_windows[span_windows.length - 1] : null);
+	return () => {
+		gone();
+		let newest: SpanRecorder | null = null;
+		for (const w of span_windows) newest = w;
+		set_span_recorder(newest);
+	};
 }
 /** the heap's fill (of its limit) past which no timed render is made: one more could end the process */
 const HEAP_STOP = 0.85;
@@ -1036,6 +1038,7 @@ type DevIslandKeys = {
 };
 
 /** the main thread's work in a render: the code on the sampled stacks and the collector's pauses */
+// static: a fixed list of frame categories
 const MAIN_THREAD_CPU: ReadonlySet<string> = new Set([
 	'app',
 	'component',
@@ -1865,7 +1868,7 @@ class Profiler {
 		// capture the calling stack of each outbound I/O call for the duration of
 		// the window (off otherwise — it costs a stack per call)
 		if (!opts.light) netmod?.set_stack_capture(owner, true);
-		own_spans(window_spans);
+		const disown_spans = own_spans(window_spans, sampling);
 		try {
 			await session.post('Profiler.enable');
 			await session.post('Profiler.setSamplingInterval', { interval: interval_us });
@@ -2006,7 +2009,7 @@ class Profiler {
 		} finally {
 			sampling.close();
 			histogram.disable();
-			disown_spans(window_spans);
+			disown_spans();
 			span_als.disable(); // the recording's own nesting store: gone with the window
 			release_detail();
 			netmod?.set_stack_capture(owner, false);

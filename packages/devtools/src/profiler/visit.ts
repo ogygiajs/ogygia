@@ -302,6 +302,7 @@ const rect = (v: unknown): [number, number, number, number] | undefined => {
 		: undefined;
 };
 const FP_RE = /^[0-9a-f]{8,32}$/;
+// static: a fixed list of resource types
 const KNOWN_TYPES = new Set([
 	'layout-shift',
 	'longtask',

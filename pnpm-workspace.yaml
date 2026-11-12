@@ -30,7 +30,7 @@ allowBuilds:
 # `pnpm publish` writes the real range into the published package.json.
 catalog:
   # svelte + kit
-  svelte: 5.56.8
+  svelte: 5.57.3
   '@sveltejs/kit': ^2.70.2
   '@sveltejs/vite-plugin-svelte': ^7.2.0
   '@sveltejs/adapter-node': ^5.5.7
@@ -58,6 +58,8 @@ catalog:
   playwright: ^1.62.1
   axe-core: ^4.13.0
   fast-check: ^4.10.2
+  # the spec HTML parser the differential tests compare ogygia's own HTML readers against
+  parse5: ~8.0.1
   # runtime
   devalue: ^5.9.3
   esm-env: ^1.2.2

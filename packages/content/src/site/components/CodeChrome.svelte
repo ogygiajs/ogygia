@@ -82,6 +82,7 @@
 
 		// FNV-1a → base36 (mirrors the build-time `remark-code-ids` hash, so a fallback id matches).
 		function hash_code(text: string): string {
+			// hash: a client island's own copy of core's fnv1a32 (no server module in its bundle)
 			let h = 2166136261;
 			for (let i = 0; i < text.length; i++) {
 				h ^= text.charCodeAt(i);
