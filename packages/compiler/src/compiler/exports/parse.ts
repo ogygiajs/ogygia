@@ -138,6 +138,7 @@ export function analyze_imports(code: string, id: string): ImportDecl[] | null {
 }
 
 /** Declarations erased at runtime — they never make a module impure. (Enums have runtime shape.) */
+// static: the AST node types that declare only a type
 const TYPE_ONLY_DECLS = new Set([
 	'TSTypeAliasDeclaration',
 	'TSInterfaceDeclaration',
