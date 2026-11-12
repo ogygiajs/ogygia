@@ -138,7 +138,14 @@
 		"wire class: flying -> gone",
 		"wire class: flying -> kept"
 	],
-	"covered": [],
+	"covered": [
+		{
+			"step": "critical resources: kept -> gone",
+			"reason": "a page asks only before the gate settles, and the answer is kept only after it: no later get, no expiry, no max; only reset_load_scheduler() drops it, which a test's reset calls",
+			"test": "packages/core/test/browser/load-scheduler.test.ts",
+			"name": "no marked resource: code starts right after the paint"
+		}
+	],
 	"dead": [
 		{
 			"step": "batch-stream: sending -> ended",
@@ -152,23 +159,13 @@
 		},
 		{
 			"step": "hole: retrying -> failed",
-			"issue": 1023,
+			"issue": 1019,
 			"why": "the only go('failed') is in #fetch_failed, entered only from fetching"
 		},
 		{
 			"step": "hydrate-drain: waiting -> waiting",
 			"issue": 1023,
 			"why": "drain_after() is called only from drain(), which first moves the drainer to idle"
-		},
-		{
-			"step": "critical resources: kept -> gone",
-			"issue": 1023,
-			"why": "asked only before the gate settles, kept only after: no later get, no expiry, no max"
-		},
-		{
-			"step": "federation peer documents: flying -> flying",
-			"issue": 1023,
-			"why": "the only fresh get is guarded by !seen.flying; the other get joins the flight"
 		},
 		{
 			"step": "wake: cold -> waking",

@@ -79,6 +79,22 @@ function steps_of(n: unknown, consts: Map<string, unknown>): Record<string, stri
 	return out;
 }
 
+/** What a file's `fresh` asks of a flights can find: none made, only a kept answer, or anything. */
+type Fresh = 'never' | 'kept' | 'any';
+
+/** A test that holds only when no flight is out: `!x.flying`, alone or beside others under `&&`. */
+function no_flight_out(test: unknown): boolean {
+	if (is(test, 'LogicalExpression') && test.operator === '&&')
+		return no_flight_out(test.left) || no_flight_out(test.right);
+	return (
+		is(test, 'UnaryExpression') &&
+		test.operator === '!' &&
+		is(test.argument, 'MemberExpression') &&
+		is((test.argument as Node).property, 'Identifier') &&
+		((test.argument as Node).property as Node).name === 'flying'
+	);
+}
+
 function walk(n: unknown, visit: (n: Node) => void): void {
 	if (Array.isArray(n)) {
 		for (const c of n) walk(c, visit);
@@ -111,8 +127,8 @@ export function universe(root: string): Map<string, MachineDef> {
 		file: string;
 		/** `keep: 0`: it keeps no answer. */
 		keeps_none: boolean;
-		/** Its file asks a flights `fresh` (`.get(input, { fresh })`). */
-		fresh: boolean;
+		/** What its file's `fresh` asks (`.get(input, { fresh })`) can find. */
+		fresh: Fresh;
 	}> = [];
 	let flights_steps: Record<string, string[]> | null = null;
 	for (const pkg of PACKAGES)
@@ -127,8 +143,10 @@ export function universe(root: string): Map<string, MachineDef> {
 						if (is(d.id, 'Identifier')) consts.set(d.id.name as string, d.init);
 			const rel = file.slice(root.length + 1);
 			// (a forced run, `get(input, { fresh })`, anywhere in the file: the only way an entry goes
-			// flying -> flying or kept -> flying)
-			let fresh = false;
+			// flying -> flying or kept -> flying; one asked only under `!seen.flying`, a peek showing no
+			// flight out, runs a kept answer again and never replaces a flight)
+			const fresh_asks: Node[] = [];
+			const idle_only = new Set<Node>();
 			walk(ast, (n) => {
 				if (
 					is(n, 'CallExpression') &&
@@ -139,8 +157,16 @@ export function universe(root: string): Map<string, MachineDef> {
 						(a) => is(a, 'ObjectExpression') && prop(a, 'fresh') !== undefined
 					)
 				)
-					fresh = true;
+					fresh_asks.push(n);
+				if (is(n, 'IfStatement') && no_flight_out(n.test))
+					walk(n.consequent, (c) => void idle_only.add(c));
 			});
+			const fresh: Fresh =
+				fresh_asks.length === 0
+					? 'never'
+					: fresh_asks.every((n) => idle_only.has(n))
+						? 'kept'
+						: 'any';
 			const named_here = flights_named.length;
 			walk(ast, (n) => {
 				if (!is(n, 'CallExpression')) return;
@@ -180,7 +206,7 @@ export function universe(root: string): Map<string, MachineDef> {
 				if (name === null) return;
 				const keep = bare(prop(config, 'keep'));
 				const keeps_none = is(keep, 'Literal') && keep.value === 0;
-				flights_named.push({ name, pkg, file: rel, keeps_none, fresh: false });
+				flights_named.push({ name, pkg, file: rel, keeps_none, fresh: 'never' });
 			});
 			for (let i = named_here; i < flights_named.length; i++) flights_named[i].fresh = fresh;
 		}
@@ -189,13 +215,17 @@ export function universe(root: string): Map<string, MachineDef> {
 	if (generic !== null)
 		for (const { keeps_none, fresh, ...f } of flights_named) {
 			// (only the steps its options and its file's calls can take: no `fresh` ask, no forced run;
-			// `keep: 0`, no kept answer)
+			// one only when no flight is out, no flight replaced; `keep: 0`, no kept answer)
+			const forced_from = (from: string): boolean =>
+				fresh === 'any' || (fresh === 'kept' && from === 'kept');
 			const flights_steps = Object.fromEntries(
 				Object.entries(generic!).map(([from, tos]) => [
 					from,
 					keeps_none && from === 'kept'
 						? []
-						: tos.filter((to) => !(keeps_none && to === 'kept') && (fresh || !(to === 'flying')))
+						: tos.filter(
+								(to) => !(keeps_none && to === 'kept') && (to !== 'flying' || forced_from(from))
+							)
 				])
 			);
 			const same = out.get(f.name);
