@@ -144,6 +144,24 @@
 			"reason": "a page asks only before the gate settles, and the answer is kept only after it: no later get, no expiry, no max; only reset_load_scheduler() drops it, which a test's reset calls",
 			"test": "packages/core/test/browser/load-scheduler.test.ts",
 			"name": "no marked resource: code starts right after the paint"
+		},
+		{
+			"step": "document painted: kept -> gone",
+			"reason": "its one caller is the critical wait's run, once a document: no get finds it kept, and nothing lets it go; only reset_document_painted() drops it, which a test's reset calls",
+			"test": "packages/core/test/browser/document-painted-gate.test.ts",
+			"name": "a parsed document: resolves after the next painted frame, not before it"
+		},
+		{
+			"step": "stale-dep reload: flying -> gone",
+			"reason": "the dev server's stranded-tab watch: import.meta.env.DEV only, and the simulator runs built apps",
+			"test": "packages/core/test/browser/stale-deps.test.ts",
+			"name": "two islands that fail to import together reload the tab once"
+		},
+		{
+			"step": "stage: committing -> discarded",
+			"reason": "a commit throws only when the runtime's own swap does (a region's element callbacks report their errors, they do not throw into it): no app or fault the simulator plays makes it",
+			"test": "packages/machine/test/stage.test.ts",
+			"name": "a commit that throws puts back what it changed, gives back the build, and throws"
 		}
 	],
 	"dead": [
