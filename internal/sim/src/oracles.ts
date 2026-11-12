@@ -873,11 +873,21 @@ export function stuck(tab: Tab): Broken | null {
 }
 
 /** ogygia's own rules, in the page (`__ogygia_rules()`, built in with OGYGIA_RULES=1). */
-export function page_rules(tab: Tab): Broken | null {
+export function page_rules(tab: Tab, world?: World): Broken | null {
 	const w = tab.page.mainFrame.window as unknown as {
 		__ogygia_rules?: () => Array<{ code: string; detail: string }>;
 	};
-	const broken = w.__ogygia_rules?.() ?? [];
+	// (a marker no code wrote: a changed byte in what the document was sent made it; gen 195, seed
+	// 97, `data-ogygia-regiontcss`)
+	const changed =
+		world !== undefined &&
+		(document_faulted(world, tab) ||
+			world.network.exchanges.some(
+				(e) => e.tampered && (e.from === tab.realm || e.for === tab.realm)
+			));
+	const broken = (w.__ogygia_rules?.() ?? []).filter(
+		(b) => !(changed && b.code === 'rule_markup_known')
+	);
 	return broken.length === 0
 		? null
 		: { oracle: 'rules', detail: broken.map((b) => `${b.code}: ${b.detail}`).join('\n') };

@@ -358,7 +358,7 @@ export async function run(
 					page_errors(t, world, since),
 					hydrates_as_sent(t, world),
 					no_foreign_html(t),
-					page_rules(t),
+					page_rules(t, world),
 					leaks.check(t, pressed.get(t.name) === t.documents),
 					live_events(t, world)
 				])
@@ -443,7 +443,7 @@ export async function run(
 			for (const t of v.tabs)
 				for (const b of [
 					stuck(t),
-					page_rules(t),
+					page_rules(t, world),
 					// (and every region shows something, unless a press made the page the visitor's own)
 					pressed.get(t.name) === t.documents ? null : regions_show(t, world),
 					// (and no hole that wakes on its own still shows its fallback, pressed or not: a press
