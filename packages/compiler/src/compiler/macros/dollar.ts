@@ -48,6 +48,7 @@ const MARKER = 'import.meta.og.$';
 type Node = AstNode;
 
 /** Globals a hoisted factory may reference without binding (never captured). */
+// static: the platform's global names a `$` body may read
 const KNOWN_GLOBALS = new Set([
 	'undefined',
 	'null',

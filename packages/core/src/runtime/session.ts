@@ -1,10 +1,8 @@
 /**
- * Document-scoped runtime session: lake caches, seed flags, kit-page probe, server-island gate, and
- * the page visit. Cleared on SPA body swap via `reset()` so connecting regions never see the previous
- * page.
+ * Document-scoped runtime session: lake caches, seed flags, kit-page probe, and the page visit.
+ * Cleared on SPA body swap via `reset()` so connecting regions never see the previous page.
  */
 import { scope, type Scope } from '@ogygia/machine';
-import { ConcurrencyGate } from './concurrency.ts';
 import { FROZEN_SELECTOR } from './region-attrs.ts';
 import { note_visit } from './rules.ts';
 
@@ -194,7 +192,6 @@ export class RuntimeSession {
 	readonly lake_cache: Map<string, LakeCacheEntry> = new Map<string, LakeCacheEntry>();
 	readonly settled_lakes: WeakSet<Element> = new WeakSet<Element>();
 	readonly initialized_lakes: Set<string> = new Set<string>();
-	readonly server_gate: ConcurrencyGate = new ConcurrencyGate(3);
 
 	#visit: PageVisit = page_visit();
 	/** The visit of the page on screen (see {@link PageVisit}). */

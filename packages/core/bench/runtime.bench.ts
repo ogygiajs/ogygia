@@ -13,8 +13,8 @@ import { fingerprint_of, fnv1a, signature_of } from '../src/contract/hash.ts';
 import { morph_children } from '../src/runtime/morph.ts';
 import { parse_wire_text } from '../src/runtime/wire-format.ts';
 import {
-	failed_import_url,
 	import_again,
+	is_failed_import,
 	on_reload_needed,
 	retry_url
 } from '../src/runtime/import-again.ts';
@@ -81,7 +81,8 @@ bench(
 			// each chunk's first download fails as Chromium reports it; the retry gets a fresh URL
 			const load = import_again(
 				() => Promise.reject(new TypeError(`Failed to fetch dynamically imported module: ${url}`)),
-				async (fresh) => fresh
+				async (fresh) => fresh,
+				url
 			);
 			try {
 				await load();
@@ -90,8 +91,8 @@ bench(
 			}
 			const fresh = (await load()) as string;
 			if (fresh === retry_url(url, 1)) loaded++;
-			// a message that names no URL (Safari) or another origin is not retried under a new one
-			if (failed_import_url(new TypeError('Importing a module script failed.')) === null) loaded++;
+			// a message that names no URL (Safari) is read as a failed download too
+			if (is_failed_import(new TypeError('Importing a module script failed.'))) loaded++;
 		}
 		return loaded;
 	},
@@ -331,7 +332,7 @@ bench(
 				const leaving = frames.ensure(a, fetcher, { signal: leave.signal });
 				const twin = frames.ensure(a, fetcher);
 				leave.abort();
-				frames.write({ a, v: frames.ticket(a), html: `<p>batch ${i}</p>` });
+				frames.write({ a, v: frames.stamp(), html: `<p>batch ${i}</p>` });
 				settled.push(leaving, twin);
 				continue;
 			}
@@ -371,14 +372,14 @@ bench(
 		let applied = 0;
 		for (let i = 0; i < n; i++) {
 			const a = `w${i % 50}|p`;
-			const t = frames.ticket(a);
+			const t = frames.stamp();
 			// a refresh, then the slower answer of the request before it (dropped)
 			if (frames.write({ a, v: t, html: `<p>${i}</p>` })) applied++;
 			if (frames.write({ a, v: t - 1, html: `<p>late ${i}</p>` })) applied++;
 			// two commands' answers with data versions, decoded out of order (the older is dropped)
 			if (i % 4 === 0) {
-				if (frames.write({ a, v: frames.ticket(a), d: i + 2, html: `<p>v${i + 2}</p>` })) applied++;
-				if (frames.write({ a, v: frames.ticket(a), d: i + 1, html: `<p>v${i + 1}</p>` })) applied++;
+				if (frames.write({ a, v: frames.stamp(), d: i + 2, html: `<p>v${i + 2}</p>` })) applied++;
+				if (frames.write({ a, v: frames.stamp(), d: i + 1, html: `<p>v${i + 1}</p>` })) applied++;
 			}
 		}
 		let shown = 0;
