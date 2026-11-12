@@ -164,9 +164,20 @@ describe('one key (what once() was)', () => {
 			expect(() => flights({ run: () => 1, retry })).toThrow(/machine_bad_option/);
 		for (const keep of [-1, Number.NaN, '5' as unknown as number])
 			expect(() => flights({ run: () => 1, keep })).toThrow(/`keep` must be a time in ms/);
-		for (const max of [0, -1, Number.NaN])
-			expect(() => flights({ run: () => 1, max })).toThrow(/`max` must be more than 0/);
+		for (const max of [0, -1, Number.NaN, Infinity])
+			expect(() => flights({ run: () => 1, max })).toThrow(
+				/`max` must be a finite number more than 0/
+			);
 		expect(() => flights({ run: 'no' as never })).toThrow(/`run` must be a function/);
+	});
+
+	it('a weigh with no max is refused: the default max counts answers, not the weigh’s unit', () => {
+		expect(() => flights({ run: () => 'page', weigh: (h: string) => h.length })).toThrow(
+			/machine_bad_option/
+		);
+		expect(() =>
+			flights({ run: () => 'page', weigh: (h: string) => h.length, max: 5_000_000 })
+		).not.toThrow();
 	});
 
 	it('its own handling of a failure adds no unhandled rejection', async () => {
@@ -542,6 +553,30 @@ describe('keep, max and weigh', () => {
 		expect(pages.peek('/a')).toMatchObject({ kind: 'kept', answer: '/a new', flying: false });
 		const weight = (pages as unknown as { _weight: number })._weight;
 		expect(weight).toBe(1);
+	});
+
+	it('a refresh that lands past its prior’s age, into a full cache no sweep has reached yet, is kept', async () => {
+		let now = 1_000_000;
+		// (the clock port reads the platform's `performance` at each call)
+		const spy = vi.spyOn(performance, 'now').mockImplementation(() => now);
+		const d = deferred<string>();
+		let round = 0;
+		const pages = flights({
+			run: (k: string) => (k === '/a' && round++ === 1 ? d.promise : Promise.resolve(k)),
+			keep: 1000,
+			weigh: (answer) => answer.length,
+			max: 7
+		});
+		await pages.get('/a');
+		await pages.get('/b');
+		const refresh = pages.get('/a', { fresh: true });
+		// both answers pass their age while the refresh is out; the cache's sweep has not run
+		now += 2000;
+		d.resolve('/a new');
+		expect(await refresh).toBe('/a new');
+		expect(pages.peek('/a')).toMatchObject({ kind: 'kept', answer: '/a new', flying: false });
+		expect((pages as unknown as { _weight: number })._weight).toBe('/a new'.length);
+		spy.mockRestore();
 	});
 
 	it('a keep or weigh that throws fails the flight and keeps nothing', async () => {

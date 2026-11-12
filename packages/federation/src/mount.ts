@@ -5,11 +5,13 @@
  * `mount()` — the wire behavior (status/redirect/form translation, canary, streaming) is unchanged;
  * it just takes a `Peer` instead of a `client()`.
  */
+import { clock } from '@ogygia/machine';
 import { page, redirect, type PageDef, type ComponentPick, type Ctx } from '@ogygia/router';
 import { fed_app } from './app.ts';
 import { child_traceparent, moved_card, type Claims, type FragmentDocument } from './wire.ts';
 import type { Peer } from './types.ts';
 import { OgygiaError } from './messages.ts';
+import { OG_MOUNT_FAILED, OG_MOUNT_FALLBACK, OG_MOUNT_MOVED } from '@ogygia/core/internal/server';
 
 export interface MountOptions {
 	/** OVERRIDE the visitor claims for this mount. Default: the federation's `visitor` as it
@@ -31,10 +33,8 @@ function claims_for(c: Ctx, user_override?: (c: Ctx) => Claims | undefined): Cla
 	};
 }
 
-const SKELETON =
-	'<div data-og-mount-fallback style="min-height:6rem;border-radius:8px;background:linear-gradient(90deg,#f3f4f6,#e5e7eb,#f3f4f6)"></div>';
-const FAILED =
-	'<div data-og-mount-failed style="border:1px dashed #dc2626;border-radius:8px;padding:1rem;color:#dc2626">This section is temporarily unavailable.</div>';
+const SKELETON = `<div ${OG_MOUNT_FALLBACK} style="min-height:6rem;border-radius:8px;background:linear-gradient(90deg,#f3f4f6,#e5e7eb,#f3f4f6)"></div>`;
+const FAILED = `<div ${OG_MOUNT_FAILED} style="border:1px dashed #dc2626;border-radius:8px;padding:1rem;color:#dc2626">This section is temporarily unavailable.</div>`;
 
 /**
  * `'/cms/[...rest]': mount(cms)` where `cms` is a peer from `federate()`. A per-request resolver
@@ -79,7 +79,7 @@ function mount_fn(
 					child_traceparent(c.request.headers.get('traceparent')).traceparent
 				);
 				if (doc.location) {
-					yield String(moved_card('data-og-mount-moved', 'page', doc.location));
+					yield String(moved_card(OG_MOUNT_MOVED, 'page', doc.location));
 					return;
 				}
 				yield (doc.css?.join('') ?? '') + (doc.head ?? '') + doc.body;
@@ -111,14 +111,14 @@ function mount_fn(
 			const peer = resolve_peer(c);
 			const rest = (c.params as { rest?: string }).rest ?? '';
 			const trace = child_traceparent(c.request.headers.get('traceparent'));
-			const t0 = performance.now();
+			const t0 = clock.mono();
 			const doc = await peer.doc(
 				'/' + rest,
 				c.url.search,
 				claims_for(c, opts.user),
 				trace.traceparent
 			);
-			const hop_ms = Math.round((performance.now() - t0) * 10) / 10;
+			const hop_ms = Math.round((clock.mono() - t0) * 10) / 10;
 			if (doc.location) redirect(doc.status as 301 | 302 | 303 | 307 | 308, doc.location);
 			c.setHeaders?.({
 				'server-timing':
@@ -180,9 +180,9 @@ export function kit_mount(
 		load: async (e) => {
 			const rest = e.params[param] ?? '';
 			const trace = child_traceparent(e.request.headers.get('traceparent'));
-			const t0 = performance.now();
+			const t0 = clock.mono();
 			const doc = await peer.doc('/' + rest, e.url.search, opts.user?.(e), trace.traceparent);
-			const hop_ms = Math.round((performance.now() - t0) * 10) / 10;
+			const hop_ms = Math.round((clock.mono() - t0) * 10) / 10;
 			const { error: kit_error, redirect: kit_redirect } = await kit();
 			if (doc.location) kit_redirect(doc.status as 301, doc.location);
 			e.setHeaders?.({
