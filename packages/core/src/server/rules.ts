@@ -31,7 +31,7 @@ type ServerRule =
 
 /** The few breaks found so far (10 each, at most). */
 class Breaks {
-	/** The first region answers that left without their headers (CAPABILITY-URL, PRELOAD-CACHE). */
+	/** The first region answers that left without their headers (CAPABILITY-URL, HOLE-CACHE). */
 	readonly answers: string[] = [];
 	/** The first capability URLs minted with more than a path (CAPABILITY-URL, HOLE-TRUST). */
 	readonly mints: string[] = [];

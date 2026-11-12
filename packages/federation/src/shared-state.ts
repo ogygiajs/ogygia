@@ -16,6 +16,7 @@ import { tasks } from '@ogygia/machine';
 import { createSubscriber } from 'svelte/reactivity';
 import { parse, stringify } from 'devalue';
 import { OgygiaError } from './messages.ts';
+import { OG_SHARED } from '@ogygia/core/internal/instruments';
 
 interface Entry {
 	value: unknown;
@@ -38,7 +39,7 @@ function page_store(): Store {
 function read_seed(name: string): unknown | undefined {
 	if (typeof document === 'undefined') return undefined;
 	const el = document.querySelector(
-		`script[type="application/json"][data-og-shared=${JSON.stringify(name)}]`
+		`script[type="application/json"][${OG_SHARED}=${JSON.stringify(name)}]`
 	);
 	if (!el?.textContent) return undefined;
 	try {

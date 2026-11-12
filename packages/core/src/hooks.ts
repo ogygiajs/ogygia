@@ -55,9 +55,9 @@ import {
 	set_kit_event_reader,
 	set_render_page_port,
 	kit_page_ready,
-	kit_page_facts_tail,
-	kit_render_context
+	kit_page_facts_tail
 } from './server/kit-context.ts';
+import { hole_answer_context } from './server/answer-context.ts';
 import { PAGE_FACTS_HEADER, PAGE_FACTS_ROUTE_HEADER } from './server/page-facts.ts';
 import {
 	configure_render_page,
@@ -132,12 +132,21 @@ import { error_route_is_csr_true, route_is_csr_true, take_early_holes } from './
 import { early_holes_head } from './early-holes-head.ts';
 import { add_early_holes_csp, with_early_holes_meta_csp } from './server/early-holes-csp.ts';
 import { merge_seed_ask, shape_page_data, type SeedKeys } from './server/seed-shape.ts';
-import { html_has_kit_bootstrap } from './runtime/kit-boot.ts';
+import { html_has_kit_bootstrap } from './server/html-scan.ts';
 import { hole_head } from './server/hole-graph.ts';
 import { RateLimiter } from './server/rate-limit.ts';
 import { PageSeed } from './server/page-seed.ts';
 import { analyze, SeedIndex, set_measure_memo_reader, type MeasureMemo } from './seed-refs.ts';
-import { WIRE_FORMAT_ATTR, WIRE_FORMAT_JSON } from './server/props-wire.ts';
+import { WIRE_FORMAT_JSON } from './server/props-wire.ts';
+import {
+	OG_FORMAT,
+	OGYGIA_DEV_HMR,
+	OGYGIA_DEVTOOLS_BOOT,
+	OGYGIA_FNM,
+	OGYGIA_PAGE,
+	OGYGIA_PROVIDE_PAGE,
+	OGYGIA_SPECULATE
+} from './wire-markup.ts';
 import {
 	stage_deferred,
 	settle_deferred,
@@ -155,7 +164,7 @@ import { stringify } from 'devalue';
 import { serialize_provided_context } from './context-bridge.ts';
 import { escape_script_text } from './escape.ts';
 import { hole_copy_key } from './contract/hash.ts';
-import { PAGE_CTX_MARKER, set_ctx_recorder } from './context-registry.ts';
+import { set_ctx_recorder } from './context-registry.ts';
 import {
 	set_ask_scope_opener,
 	set_page_recorder,
@@ -491,6 +500,7 @@ set_page_route_config(route_config);
 const plugins = start_app_plugins(server_plugins, {
 	sign: (message) => sign(signing_key().secret, message),
 	verify: (message, signature) => verify(signing_key().secret, message, signature),
+	fingerprint: () => signing_key().fp,
 	lifetime: app_lifetime,
 	deny: region_denied
 });
@@ -543,7 +553,7 @@ const REGION_FRAME_HEADERS = {
 } as const;
 
 /** Every region response, with those headers. It says how it may be cached: `no-store` (a refusal,
- *  an error, a dynamic hole) unless the caller names the hole's own policy (PRELOAD-CACHE). */
+ *  an error, a dynamic hole) unless the caller names the hole's own policy (HOLE-CACHE). */
 function region_response(
 	body: BodyInit | null,
 	init: { status: number; headers?: Record<string, string> }
@@ -551,6 +561,15 @@ function region_response(
 	return new Response(body, {
 		status: init.status,
 		headers: { ...REGION_FRAME_HEADERS, 'cache-control': 'no-store', ...init.headers }
+	});
+}
+
+/** A visitor over a budget: the 429 says when its window resets, so a hole asks again after it
+ *  instead of spending its tries inside the window (#959, test/browser/hole-rate-limited.test.ts). */
+function over_budget(limiter: RateLimiter, ip: string): Response {
+	return region_response('Too Many Requests', {
+		status: 429,
+		headers: { 'retry-after': String(limiter.retry_after_s(ip)) }
 	});
 }
 
@@ -596,6 +615,8 @@ interface Capability {
 	payload: string;
 	exp: string;
 	ttl: string;
+	/** `'1'`: the hole's component hydrates over the answer (`w`, signed); '' when it does not */
+	wakes: string;
 	sig: string;
 	/** the minter's key fingerprint; null when minted before capabilities named their key */
 	k: string | null;
@@ -608,9 +629,15 @@ function capability_of(params: URLSearchParams): Capability {
 		payload: params.get('props') ?? '',
 		exp: params.get('exp') ?? '',
 		ttl: params.get('ttl') ?? '',
+		wakes: params.get('w') ?? '',
 		sig: params.get('sig') ?? '',
 		k: params.get('k')
 	};
+}
+
+/** The message a capability's MAC signs, at `exp`, for `session`: its every signed field. */
+function capability_message(cap: Capability, exp: string, session: string): string {
+	return region_mac_message(cap.id, exp, cap.payload, session, cap.ttl, cap.render, cap.wakes);
 }
 
 /**
@@ -747,7 +774,7 @@ function csr_page_of(
 function page_ctx_script(bag: RequestBag | undefined): string {
 	if (!bag?.ctx?.size) return '';
 	const payload = serialize_provided_context(bag.ctx);
-	return payload ? emit_ogygia_script('ctx', payload, PAGE_CTX_MARKER) : '';
+	return payload ? emit_ogygia_script('ctx', payload, OGYGIA_PROVIDE_PAGE) : '';
 }
 
 /** `inner` with the request's owner around it: made before `inner` runs, ended with its response
@@ -1163,8 +1190,8 @@ class OgygiaHandle {
 				// devtools is compiled in (`devtools_boot_url` is non-empty only then, dev-only), inject a
 				// standalone dock boot so the launcher is on EVERY dev page — on this csr=true page it
 				// renders a "csr=true — open a csr=false page" notice, since there are no islands here.
-				if (devtools_boot_url && !head.includes('data-ogygia-devtools-boot')) {
-					head_inject += `<script type="module" data-ogygia-devtools-boot src="${devtools_boot_url}"></script>`;
+				if (devtools_boot_url && !head.includes(OGYGIA_DEVTOOLS_BOOT)) {
+					head_inject += `<script type="module" ${OGYGIA_DEVTOOLS_BOOT} src="${devtools_boot_url}"></script>`;
 				}
 				if (bag) bag.kit_with_runtime = page_declares_runtime_script(head);
 			}
@@ -1228,7 +1255,7 @@ class OgygiaHandle {
 			// Firefox prefetches them, everything else ignores the JSON. Presence-checked so a page
 			// authoring its own rules wins; per-link opt-out via `data-ogygia-speculate="off"`.
 			if (!router_enabled && !page_declares_speculation_rules(probe)) {
-				head_inject += `<script type="speculationrules" data-ogygia-speculate>${this.#speculation_rules}</script>`;
+				head_inject += `<script type="speculationrules" ${OGYGIA_SPECULATE}>${this.#speculation_rules}</script>`;
 			}
 			if (router_enabled && !page_declares_router_meta(probe)) {
 				head_inject += `<meta name="ogygia-router" content="${view_transitions ? 'vt' : 'plain'}">`;
@@ -1253,7 +1280,7 @@ class OgygiaHandle {
 			// skips) kept a poisoned tab after a re-optimize until a manual reload, reporting only
 			// "hydration failed". `dev_hmr_url` is empty outside `vite serve`, so this stays dev-only.
 			if (dev_hmr_url && !page_declares_dev_hmr_script(probe)) {
-				head_inject += `<script type="module" data-ogygia-dev-hmr src="${kit_asset(dev_hmr_url)}"></script>`;
+				head_inject += `<script type="module" ${OGYGIA_DEV_HMR} src="${kit_asset(dev_hmr_url)}"></script>`;
 				// The page's sub-app scope (its route id's first segment) for the dev CSS bridge:
 				// a changed stylesheet joins this page only when the plugin derives the same scope
 				// among its owners — two route-group sub-apps never paint each other in dev.
@@ -1392,8 +1419,7 @@ class OgygiaHandle {
 				emit_ogygia_script(
 					'page',
 					page_payload.text,
-					'data-ogygia-page' +
-						(page_payload.json ? ` ${WIRE_FORMAT_ATTR}="${WIRE_FORMAT_JSON}"` : '')
+					OGYGIA_PAGE + (page_payload.json ? ` ${OG_FORMAT}="${WIRE_FORMAT_JSON}"` : '')
 				)
 			);
 			if (DEVTOOLS)
@@ -1432,7 +1458,7 @@ class OgygiaHandle {
 				const entries = Object.entries(fnm)
 					.map(([tag, src]) => `${JSON.stringify(tag)}:(${src})`)
 					.join(',');
-				fnm_script = `<script data-ogygia-fnm>globalThis.__OG_FNM=Object.assign(globalThis.__OG_FNM||{},{${entries}});</script>`;
+				fnm_script = `<script ${OGYGIA_FNM}>globalThis.__OG_FNM=Object.assign(globalThis.__OG_FNM||{},{${entries}});</script>`;
 				fnm_script_cache.set(fnm, fnm_script);
 			}
 			scripts.push(fnm_script);
@@ -1598,6 +1624,8 @@ class OgygiaHandle {
 	async #render_component(
 		load: () => Promise<{ default: unknown }>,
 		props: Record<string, unknown>,
+		/** the hole wakes (its capability's signed `w`): rendered inside an island, as it hydrates */
+		wakes: boolean,
 		cache?: { key: RenderKey; ttl: number },
 		/** the profiler's hole economics: what the cache did for this request */
 		report?: (outcome: 'hit' | 'miss' | 'none') => void,
@@ -1621,7 +1649,7 @@ class OgygiaHandle {
 			const mod = await load();
 			const rendered = render(mod.default as Component<Record<string, unknown>>, {
 				props,
-				context: kit_render_context()
+				context: hole_answer_context(wakes)
 			});
 			// (with what its islands wrote into the head — their graph and their CSS: the endpoint
 			// ships the body only — server/hole-graph.ts)
@@ -1688,6 +1716,7 @@ class OgygiaHandle {
 	#hole_cache(
 		id: string,
 		payload: string,
+		wakes: boolean,
 		event: RequestEvent,
 		ttl: number,
 		reads_page_data: boolean
@@ -1697,7 +1726,8 @@ class OgygiaHandle {
 			id,
 			payload,
 			this.#region_session(event),
-			reads_page_data ? page_url_of(event).href : null
+			reads_page_data ? page_url_of(event).href : null,
+			wakes
 		);
 		observe_reads(event, facts_of(event.request).reads);
 		return { key, ttl };
@@ -1728,7 +1758,8 @@ class OgygiaHandle {
 			!is_region_id(cap.id) ||
 			(cap.render !== '' && !is_region_id(cap.render)) ||
 			cap.payload.length > MAX_REGION_PROPS_LEN ||
-			!is_region_ttl(cap.ttl)
+			!is_region_ttl(cap.ttl) ||
+			(cap.wakes !== '' && cap.wakes !== '1')
 		)
 			return 'shape';
 		const expiry = expiry_refusal(
@@ -1753,19 +1784,12 @@ class OgygiaHandle {
 	#renew_capability(cap: Capability, event: RequestEvent): Capability | null {
 		if (this.#region_session(event) !== '') return null;
 		const { secret } = signing_key();
-		if (
-			!verify(
-				secret,
-				region_mac_message(cap.id, cap.exp, cap.payload, '', cap.ttl, cap.render),
-				cap.sig
-			)
-		)
-			return null;
+		if (!verify(secret, capability_message(cap, cap.exp, ''), cap.sig)) return null;
 		const exp = String(app_lifetime.renewed_expiry());
 		return {
 			...cap,
 			exp,
-			sig: sign(secret, region_mac_message(cap.id, exp, cap.payload, '', cap.ttl, cap.render)),
+			sig: sign(secret, capability_message(cap, exp, '')),
 			k: signing_key().fp
 		};
 	}
@@ -1774,11 +1798,7 @@ class OgygiaHandle {
 	#verify_region_mac(cap: Capability, event: RequestEvent): boolean {
 		// The capability seals the session cookie (if any) into the signed message.
 		const session = session_cookie ? (event.cookies.get(session_cookie) ?? '') : '';
-		return verify(
-			signing_key().secret,
-			region_mac_message(cap.id, cap.exp, cap.payload, session, cap.ttl, cap.render),
-			cap.sig
-		);
+		return verify(signing_key().secret, capability_message(cap, cap.exp, session), cap.sig);
 	}
 
 	/** Eval the island module (registers transportable codecs the reviver needs on a cold-start defer),
@@ -1846,7 +1866,8 @@ class OgygiaHandle {
 
 		const ttl = Number(cap.ttl) || 0;
 		const reads_page_data = hole_reads_page_data(target);
-		const cache = this.#hole_cache(target, payload, event, ttl, reads_page_data);
+		const wakes = cap.wakes === '1';
+		const cache = this.#hole_cache(target, payload, wakes, event, ttl, reads_page_data);
 		// (the profiler logs each batched hole as its own hole request — only when one listens)
 		const stats = batch && has_batch_hole_listener();
 		const t0 = stats ? clock.mono() : 0;
@@ -1855,6 +1876,7 @@ class OgygiaHandle {
 		const body = await this.#render_component(
 			load,
 			props,
+			wakes,
 			cache,
 			stats ? (o) => (outcome = o) : undefined,
 			stats ? timing : undefined,
@@ -1940,16 +1962,14 @@ class OgygiaHandle {
 		}
 
 		// Pre-HMAC probe — forged floods hit this, not render() (HMAC-CPU-DOS).
-		if (this.probe_rate.limited(ip)) {
-			return region_response('Too Many Requests', { status: 429 });
-		}
+		if (this.probe_rate.limited(ip)) return over_budget(this.probe_rate, ip);
 
 		if (renewal) {
 			const fresh = this.#renew_capability(cap, event);
 			if (!fresh)
 				return region_denied(this.#region_session(event) !== '' ? 'renew-session' : 'sig');
 			cap = fresh;
-			renewed = `${url.pathname}?id=${encodeURIComponent(id)}${cap.render ? `&r=${cap.render}` : ''}&props=${payload}&exp=${cap.exp}${ttl_raw ? `&ttl=${ttl_raw}` : ''}&sig=${cap.sig}&k=${cap.k}`;
+			renewed = `${url.pathname}?id=${encodeURIComponent(id)}${cap.render ? `&r=${cap.render}` : ''}&props=${payload}&exp=${cap.exp}${ttl_raw ? `&ttl=${ttl_raw}` : ''}${cap.wakes ? `&w=${cap.wakes}` : ''}&sig=${cap.sig}&k=${cap.k}`;
 		} else {
 			// Verify (session-bound) before consulting the manifest — bad MAC never distinguishes
 			// unknown vs known id.
@@ -1968,9 +1988,7 @@ class OgygiaHandle {
 		const renew_headers: Record<string, string> = renewed ? { 'x-ogygia-capability': renewed } : {};
 
 		// Valid capability — now charge the per-IP render budget.
-		if (this.render_rate.limited(ip)) {
-			return region_response('Too Many Requests', { status: 429 });
-		}
+		if (this.render_rate.limited(ip)) return over_budget(this.render_rate, ip);
 
 		// Its own id, or (minted by another build) an entry of this build rendering its component.
 		const target = capability_target(cap);
@@ -1993,12 +2011,14 @@ class OgygiaHandle {
 
 		const ttl = Number(ttl_raw) || 0;
 		const reads_page_data = hole_reads_page_data(target);
-		const cache = this.#hole_cache(target, payload, event, ttl, reads_page_data);
+		const wakes = cap.wakes === '1';
+		const cache = this.#hole_cache(target, payload, wakes, event, ttl, reads_page_data);
 		const timing: { queue_ms?: number; render_ms?: number } = {};
 		let outcome: 'hit' | 'miss' | 'none' = 'none';
 		const body = await this.#render_component(
 			load,
 			props,
+			wakes,
 			cache,
 			(o) => (outcome = o),
 			timing,
