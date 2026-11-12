@@ -4,7 +4,17 @@
  * `widget()`. The peer is request-agnostic: per-request facts (claims, traceparent) are call
  * arguments, so one instance is shared across requests.
  */
-import { buggify, clock, flights, net, STALE, timers, world, type Flights } from '@ogygia/machine';
+import {
+	buggify,
+	clock,
+	flights,
+	net,
+	noop,
+	STALE,
+	timers,
+	world,
+	type Flights
+} from '@ogygia/machine';
 import { error, isHttpError as is_http_error } from '@ogygia/router';
 import type { RegionValue } from '@ogygia/core';
 import { htmlRegion as og_html_region } from '@ogygia/core/plugin';
@@ -83,8 +93,6 @@ interface Fetched {
 }
 
 type SignedInit = RequestInit & { body?: ArrayBuffer };
-
-const noop = (): void => {};
 
 /**
  * One peer handle. `me` is the federating app's name (the tag prefix a consumed fragment's
