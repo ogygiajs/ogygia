@@ -22,7 +22,7 @@
  * - A visit is its own object: code that awaited checks `machine.now === mine` to know it still is
  *   the visit it started in.
  */
-import { machine, type Machine } from '@ogygia/machine';
+import { machine, type Machine, type MachineGraph } from '@ogygia/machine';
 import type { IslandHandle } from './hydrate-core.ts';
 
 type HoleStates = {
@@ -45,7 +45,7 @@ const hole_steps = {
 	idle: ['armed', 'fetching'],
 	armed: ['idle', 'fetching'],
 	fetching: ['idle', 'retrying', 'offline', 'failed'],
-	retrying: ['idle', 'armed', 'fetching', 'failed'],
+	retrying: ['idle', 'armed', 'fetching'],
 	offline: ['idle', 'armed', 'fetching'],
 	failed: ['idle', 'armed', 'fetching']
 } as const;
@@ -57,6 +57,11 @@ const hole_definition = machine<HoleStates>()({
 });
 
 export type Hole = Machine<HoleStates, typeof hole_steps>;
+
+/** The hole's fetch machine as data (internal/notes/flows/holes.md draws it). */
+export function hole_graph(): MachineGraph {
+	return hole_definition.graph();
+}
 
 /** A hole's fetch machine, idle. */
 export function create_hole(): Hole {
@@ -86,6 +91,11 @@ const answer_definition = machine<AnswerStates>()({
 });
 
 export type Answer = Machine<AnswerStates, typeof answer_steps>;
+
+/** The hole's answer machine as data (internal/notes/flows/holes.md draws it). */
+export function answer_graph(): MachineGraph {
+	return answer_definition.graph();
+}
 
 /** A hole's answer machine: nothing on screen yet. */
 export function create_answer(): Answer {
@@ -124,6 +134,11 @@ const wake_definition = machine<WakeStates>()({
 });
 
 export type Wake = Machine<WakeStates, typeof wake_steps>;
+
+/** The wake machine's states and steps, as data (internal/notes/flows/region-wake.md draws it). */
+export function wake_graph(): MachineGraph {
+	return wake_definition.graph();
+}
 
 /** An island's wake machine, cold. */
 export function create_wake(): Wake {
