@@ -35,7 +35,7 @@ function find_tag(
 ): FoundTag | null {
 	const held = new Needle(html, needle, from);
 	if (held.gone) return null;
-	for (let t = next_tag(html, name, from); t !== null; t = next_tag(html, name, t.end)) {
+	for (let t = next_tag(html, name, from); t !== null; t = next_tag(html, name, t.next)) {
 		if (held.holds(t) && test(t)) return t;
 		if (held.gone) return null;
 	}
@@ -110,7 +110,7 @@ export function dedupe_head_links(head: string): string {
 	// (the kept spans are joined once at the end, and only when a duplicate was dropped)
 	let out: string[] | null = null;
 	let kept = 0;
-	for (; t !== null; t = next_tag(head, 'link', t.end)) {
+	for (; t !== null; t = next_tag(head, 'link', t.next)) {
 		const rel = t.attr('rel');
 		const seen = rel === 'stylesheet' ? sheets : rel === 'modulepreload' ? hints : null;
 		if (seen === null) continue;

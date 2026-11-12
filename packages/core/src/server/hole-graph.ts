@@ -46,7 +46,7 @@ export function hole_graph_script(head: string, base: URL): string {
 	if (mark.gone) return '';
 	const graph = new Map<string, string[]>();
 	const locations = new Map<string, string>();
-	for (let t = next_tag(head, 'script', 0); t !== null; t = next_tag(head, 'script', t.end)) {
+	for (let t = next_tag(head, 'script', 0); t !== null; t = next_tag(head, 'script', t.next)) {
 		const held = mark.holds(t);
 		if (mark.gone) break;
 		if (!held || t.attr(OGYGIA_GRAPH) === undefined) continue;

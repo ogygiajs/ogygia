@@ -66,7 +66,7 @@ export function region_css_tags(head: string): string {
 		if (tag === link) {
 			if (held && link.attr(OGYGIA_REGION_CSS) !== undefined)
 				out += head.slice(link.start, link.end);
-			link = next_tag(head, 'link', link.end);
+			link = next_tag(head, 'link', link.next);
 			continue;
 		}
 		// a style's text is raw: a `<link>` written inside it is not a tag

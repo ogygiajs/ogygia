@@ -505,7 +505,7 @@ export function restoreRegions(shell: string, regions: readonly LiftedRegion[]):
 	const by_index = new Map(regions.map((r) => [r.index, r]));
 	let out = '';
 	let kept = 0;
-	for (let t = next_tag(shell, LIFT_TAG, 0); t !== null; t = next_tag(shell, LIFT_TAG, t.end)) {
+	for (let t = next_tag(shell, LIFT_TAG, 0); t !== null; t = next_tag(shell, LIFT_TAG, t.next)) {
 		const region = by_index.get(Number(t.attr('data-i')));
 		if (region === undefined) continue;
 		out += shell.slice(kept, t.start) + merge_marks(region, t.attrs);

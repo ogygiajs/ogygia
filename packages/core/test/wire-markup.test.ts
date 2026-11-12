@@ -4,7 +4,15 @@ import { readdirSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { is_marker, MARK, tags, text_of, unknown_markers, value_at } from '../src/wire-markup.ts';
+import {
+	is_marker,
+	MARK,
+	next_tag,
+	tags,
+	text_of,
+	unknown_markers,
+	value_at
+} from '../src/wire-markup.ts';
 import * as vocabulary from '../src/wire-markup.ts';
 
 const PACKAGES = fileURLToPath(new URL('../../', import.meta.url));
@@ -119,6 +127,60 @@ describe('tags', () => {
 		expect([...tags(html, 'link')].map((t) => Object.fromEntries(t.attrs))).toEqual([{ b: '2' }]);
 	});
 
+	const names = (html: string, name: string) =>
+		[...tags(html, name)].map((t) => html.slice(t.start, t.end));
+
+	it('finds no tag in the text of a script, style, textarea, title or other raw-text element', () => {
+		for (const raw of ['script', 'style', 'textarea', 'title', 'xmp', 'noscript', 'iframe']) {
+			const html = `<${raw.toUpperCase()} a="1"><meta name="in"></${raw}x></${raw} ><meta name="out">`;
+			expect(names(html, 'meta'), raw).toEqual(['<meta name="out">']);
+		}
+		expect(names('<script>"<script>"</script><script>', 'script')).toEqual([
+			'<script>',
+			'<script>'
+		]);
+	});
+
+	it('finds no tag in a bogus comment, a processing instruction or CDATA', () => {
+		expect(names('<?x <meta name="in">?><meta name="out">', 'meta')).toEqual(['<meta name="out">']);
+		expect(names('<!x <meta name="in">--><meta name="out">', 'meta')).toEqual([
+			'<meta name="out">'
+		]);
+		expect(names('<![CDATA[<meta name="in">]]><meta name="out">', 'meta')).toEqual([
+			'<meta name="out">'
+		]);
+		expect(names('</ <meta name="in">><meta name="out">', 'meta')).toEqual(['<meta name="out">']);
+	});
+
+	it('ends a comment where the browser does: <!-->, <!---> and --!> end it', () => {
+		expect(names('<!--><meta name="a"><!---><meta name="b">', 'meta')).toEqual([
+			'<meta name="a">',
+			'<meta name="b">'
+		]);
+		expect(names('<!-- x --!><meta name="c">', 'meta')).toEqual(['<meta name="c">']);
+	});
+
+	it('reads a script’s escaped text as the browser does: <!-- <script> runs past one </script>', () => {
+		expect(names('<script><!--<script></script><meta a></script><meta b>', 'meta')).toEqual([
+			'<meta b>'
+		]);
+		expect(names('<script><!--<script>--><meta a></script><meta b>', 'meta')).toEqual(['<meta b>']);
+		expect(names('<script><!--></script><meta b>', 'meta')).toEqual(['<meta b>']);
+	});
+
+	it('finds no tag inside a quoted attribute value of an end tag', () => {
+		expect(names('</div title="<meta name=in>"><meta name="out">', 'meta')).toEqual([
+			'<meta name="out">'
+		]);
+	});
+
+	it('next_tag goes on from a raw-text element’s next, past its text', () => {
+		const html = '<script>"<script>"</script><meta a><script></script>';
+		const first = next_tag(html, 'script', 0)!;
+		expect(first.next).toBe(html.indexOf('</script>'));
+		expect(next_tag(html, 'script', first.next)!.start).toBe(html.lastIndexOf('<script>'));
+	});
+
 	it('value_at: where a value starts, quoted or not; -1 when absent or bare', () => {
 		const html = `<meta A="x>1" b = 'two' c=three d>`;
 		const t = [...tags(html, 'meta')][0];
@@ -141,8 +203,18 @@ describe('text_of', () => {
 			text_of('<script>a</scripts></script>', [...tags('<script>', 'script')][0], 'script')
 		).toBe('a</scripts>');
 	});
-});
 
+	it('reads a script’s text past an escaped </script>, and a template’s up to its end tag', () => {
+		const html = '<script><!--<script></script>--></script>';
+		expect(text_of(html, tags(html, 'script').next().value!, 'script')).toBe(
+			'<!--<script></script>-->'
+		);
+		const t = '<template><!-- </template> --><p>x</p></template>';
+		expect(text_of(t, tags(t, 'template').next().value!, 'template')).toBe(
+			'<!-- </template> --><p>x</p>'
+		);
+	});
+});
 describe('unknown_markers', () => {
 	it('names a data-og* attribute no MARK entry declares, and passes the declared ones', () => {
 		expect(unknown_markers(['data-og-fp', 'data-ogygia-keep', 'class', 'data-og-typo'])).toEqual([

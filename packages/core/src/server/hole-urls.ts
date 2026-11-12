@@ -73,7 +73,7 @@ export function absolutize_hole_html(html: string, base: URL): string {
 	for (
 		let t = next_tag(html, 'ogygia-region', 0);
 		t !== null;
-		t = next_tag(html, 'ogygia-region', t.end)
+		t = next_tag(html, 'ogygia-region', t.next)
 	) {
 		const held = dot.holds(t);
 		if (dot.gone) break;
@@ -85,7 +85,7 @@ export function absolutize_hole_html(html: string, base: URL): string {
 	for (const name of ['link', 'style'] as const) {
 		const mark = new Needle(html, REGION_CSS_ANY_CASE);
 		if (mark.gone) break;
-		for (let t = next_tag(html, name, 0); t !== null; t = next_tag(html, name, t.end)) {
+		for (let t = next_tag(html, name, 0); t !== null; t = next_tag(html, name, t.next)) {
 			const held = mark.holds(t);
 			if (mark.gone) break;
 			if (!held || t.attr(OGYGIA_REGION_CSS) === undefined) continue;

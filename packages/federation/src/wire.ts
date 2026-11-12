@@ -465,7 +465,7 @@ function pin_graphs(html: string, origin: string): string {
 	if (mark.gone) return html;
 	let out = '';
 	let pos = 0;
-	for (let t = next_tag(html, 'script', 0); t !== null; t = next_tag(html, 'script', t.end)) {
+	for (let t = next_tag(html, 'script', 0); t !== null; t = next_tag(html, 'script', t.next)) {
 		const held = mark.holds(t);
 		if (mark.gone) break;
 		if (!held || t.attr(OGYGIA_GRAPH) === undefined) continue;
@@ -541,7 +541,7 @@ export function lift_document(html: string, origin: string): Omit<FragmentDocume
 	const head_tag = next_tag(html, 'head', 0);
 	const head = (head_tag && text_of(html, head_tag, 'head')) ?? '';
 	let runtime_src: string | undefined;
-	for (let t = next_tag(html, 'script', 0); t !== null; t = next_tag(html, 'script', t.end)) {
+	for (let t = next_tag(html, 'script', 0); t !== null; t = next_tag(html, 'script', t.next)) {
 		if (t.attr(OGYGIA_RUNTIME) === undefined) continue;
 		runtime_src = t.attr('src') || undefined;
 		if (runtime_src) break;
@@ -554,13 +554,13 @@ export function lift_document(html: string, origin: string): Omit<FragmentDocume
 	while (meta !== null || link !== null) {
 		if (link === null || (meta !== null && meta.start < link.start)) {
 			if (carried_meta(meta!)) head_meta += absolutize(head.slice(meta!.start, meta!.end), origin);
-			meta = next_tag(head, 'meta', meta!.end);
+			meta = next_tag(head, 'meta', meta!.next);
 			continue;
 		}
 		const rel = link.attr('rel') ?? '';
 		if (CANONICAL_REL.test(rel)) head_meta += absolutize(head.slice(link.start, link.end), origin);
 		if (STYLESHEET_REL.test(rel)) css.push(absolutize(head.slice(link.start, link.end), origin));
-		link = next_tag(head, 'link', link.end);
+		link = next_tag(head, 'link', link.next);
 	}
 	for (let t = next_tag(head, 'style', 0); t !== null;) {
 		const style = element_of(head, t, 'style');

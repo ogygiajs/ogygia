@@ -67,7 +67,7 @@ export function with_early_holes_meta_csp(head: string): string {
 	if (!HTTP_EQUIV_RE.test(head)) return head;
 	let out = '';
 	let kept = 0;
-	for (let t = next_tag(head, 'meta', 0); t !== null; t = next_tag(head, 'meta', t.end)) {
+	for (let t = next_tag(head, 'meta', 0); t !== null; t = next_tag(head, 'meta', t.next)) {
 		if (t.attr('http-equiv')?.toLowerCase() !== 'content-security-policy') continue;
 		const at = value_at(head, t, 'meta', 'content');
 		if (at === -1) continue;

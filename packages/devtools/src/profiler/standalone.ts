@@ -54,7 +54,7 @@ function apply(html: string, splices: Splice[]): string {
 /** Every `<name>` start tag of `html`, in order. */
 function all_tags(html: string, name: string): FoundTag[] {
 	const out: FoundTag[] = [];
-	for (let t = next_tag(html, name, 0); t !== null; t = next_tag(html, name, t.end)) out.push(t);
+	for (let t = next_tag(html, name, 0); t !== null; t = next_tag(html, name, t.next)) out.push(t);
 	return out;
 }
 

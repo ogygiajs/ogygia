@@ -119,7 +119,7 @@ export function byte_strip(html: string): ByteStrip {
 	const spans: StripSegment[] = [];
 	raw_spans(html, 'script', (t, end) => spans.push({ ...script_kind(t), start: t.start, end }));
 	raw_spans(html, 'style', (t, end) => spans.push({ kind: 'style', start: t.start, end }));
-	for (let t = next_tag(html, 'link', 0); t !== null; t = next_tag(html, 'link', t.end))
+	for (let t = next_tag(html, 'link', 0); t !== null; t = next_tag(html, 'link', t.next))
 		if (REL_STYLESHEET.test(t.attr('rel') ?? ''))
 			spans.push({
 				kind: 'css-link',
@@ -132,7 +132,7 @@ export function byte_strip(html: string): ByteStrip {
 	// (a template that is not a shadow root is passed by its start tag: one may sit inside it)
 	for (let t = next_tag(html, 'template', 0); t !== null;) {
 		if (t.attr('shadowrootmode') === undefined) {
-			t = next_tag(html, 'template', t.end);
+			t = next_tag(html, 'template', t.next);
 			continue;
 		}
 		const end = element_end(html, t, 'template');
