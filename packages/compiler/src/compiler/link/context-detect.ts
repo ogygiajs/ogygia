@@ -47,8 +47,10 @@ export function source_uses_ogygia_context(src: string): boolean {
 
 /** Modules whose `getContext` reads the Svelte/ogygia context map (both resolve the same map — ogygia
  *  re-exports Svelte's, and the drop-in is read with the unchanged `getContext`). */
+// static: the modules a context call can come from (Svelte and ogygia's own packages)
 const CTX_MODULES = new Set(['svelte', ...OWN_PACKAGE_NAMES]);
 /** AST back-references / positions the walk must not descend into. */
+// static: the AST node keys the walk never descends into
 const NODE_SKIP = new Set([
 	'start',
 	'end',

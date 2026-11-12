@@ -5,6 +5,7 @@
  * release lets go of its hold only, once.
  */
 import { describe, it, expect } from 'vitest';
+import { scope } from '@ogygia/machine';
 import { hold_request_stats_detail, request_stats_store } from '../src/profiler/request-stats.ts';
 
 /** what core's handle asks before it spends on the per-island rows */
@@ -32,6 +33,13 @@ describe('hold_request_stats_detail', () => {
 		const c = hold_request_stats_detail();
 		expect(request_stats_detailed()).toBe(true);
 		c();
+		expect(request_stats_detailed()).toBe(false);
+	});
+	it('a hold given an owner goes with it: a window that ends without its release lets go', () => {
+		const window_scope = scope();
+		hold_request_stats_detail(window_scope);
+		expect(request_stats_detailed()).toBe(true);
+		window_scope.close(); // the window ended (its recording failed before its own release)
 		expect(request_stats_detailed()).toBe(false);
 	});
 });
