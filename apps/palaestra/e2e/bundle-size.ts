@@ -46,6 +46,18 @@ const { generateRuntimeEntrySource, resolveFeatures } = (await import(
 )) as typeof import('../../../packages/compiler/dist/compiler/link/runtime-entry.js');
 
 const RUNTIME_DIR = join(CORE, 'dist/runtime');
+const CORE_VERSION = (
+	JSON.parse(readFileSync(join(CORE, 'package.json'), 'utf8')) as { version: string }
+).version;
+// Each runtime hook's build constant (on only when a plugin's browser half subscribes), as the plugin
+// defines them; a checkout from before the runtime hooks has none.
+const HOOKS_FILE = join(CORE, 'dist/contract/runtime-hooks.js');
+const HOOK_CONSTANTS: string[] = existsSync(HOOKS_FILE)
+	? Object.values(
+			((await import(pathToFileURL(HOOKS_FILE).href)) as { RUNTIME_HOOK_CONSTANTS: object })
+				.RUNTIME_HOOK_CONSTANTS
+		)
+	: [];
 /** A build constant's name (`__OGYGIA_X__`), as it is left in code when nothing defined it. */
 const BUILD_CONSTANT_RE = /\b__OGYGIA_[A-Z0-9_]+__\b/g;
 const SNAPSHOT = fileURLToPath(new URL('./bundle-size.snapshot.json', import.meta.url));
@@ -169,7 +181,11 @@ async function measure(
 				// the profiler's browser half and plugin hooks: on only for an app that configured the
 				// profiler or devtools, or installs a client plugin (the kitchen-sink profile does)
 				__OGYGIA_BEACON__: String(extras),
-				__OGYGIA_CLIENT_PLUGINS__: String(extras)
+				__OGYGIA_CLIENT_PLUGINS__: String(extras),
+				// the installed version the runtime discloses (`window.__ogygia.v`), as the plugin defines it
+				__OGYGIA_VERSION__: JSON.stringify(CORE_VERSION),
+				// every hook subscribed in the kitchen sink (the beacon's and a client plugin's), none elsewhere
+				...Object.fromEntries(HOOK_CONSTANTS.map((id) => [id, String(extras)]))
 			}
 		},
 		logLevel: 'silent'
