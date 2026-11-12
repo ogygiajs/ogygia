@@ -8,7 +8,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { ref_names, set_ref_names_reader, placed, type RefNames } from '../src/ref.ts';
 import { __register_transportable, wire } from '../src/live-transport.ts';
 import { plan_props_wire } from '../src/server/props-wire.ts';
-import { island_fingerprint } from '../src/server/fingerprint.ts';
+import { region_fingerprint } from '../src/server/fingerprint.ts';
 
 class Stamp {
 	label: string;
@@ -36,7 +36,7 @@ function request<T>(fn: (names: RefNames) => T): { out: T; names: RefNames } {
 /** A page: one island whose props carry a fresh instance, rendered in one request. */
 const render_page = () => {
 	const w = plan_props_wire({ stamp: new Stamp('kept'), label: 'near' }, '/islands/c.js');
-	return { fp: island_fingerprint('/islands/c.js', w.canonical), text: w.wire(null).text };
+	return { fp: region_fingerprint('/islands/c.js', w.canonical), text: w.wire(null).text };
 };
 
 afterEach(() => set_ref_names_reader(null));
