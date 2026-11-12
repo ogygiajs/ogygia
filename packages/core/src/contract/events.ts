@@ -19,13 +19,14 @@
  */
 
 import type { BarrelLeftReason } from './barrels.ts';
+import { OG_DT } from '../wire-markup.ts';
 
 /** Bump only on a breaking shape change; a trace stamps this so a reader can gate on it. */
 export const DEVTOOLS_SCHEMA_VERSION = 1;
 
 /** The attribute carrying a response's devtools mark, on its side channel and its head runtime
  *  script alike (internal markup: DEVTOOLS-FEED, events/sinks.ts `ingest_server_events`). */
-export const DT_MARK = 'data-og-dt';
+export const DT_MARK: typeof OG_DT = OG_DT;
 
 /** The six event domains (note's Schema-v1 table). */
 export type DevtoolsDomain = 'compile' | 'server' | 'wire' | 'runtime' | 'hub' | 'nav';

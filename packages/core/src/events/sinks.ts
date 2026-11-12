@@ -5,6 +5,7 @@
  */
 import { add_sink, snapshot, clear, ingest_page_events, type DevtoolsSink } from './bus.ts';
 import { DEVTOOLS_SCHEMA_VERSION, DT_MARK, type DevtoolsEvent } from '../contract/events.ts';
+import { OG_DT_INGESTED, OGYGIA_RUNTIME } from '../wire-markup.ts';
 
 /** The global the {@link install_window_sink window sink} publishes. Distinct from the compile-time
  *  `__OGYGIA_DEVTOOLS__` define (a bare identifier the bundler replaces) — this is a real runtime
@@ -110,14 +111,14 @@ export function to_trace(): DevtoolsTrace {
  */
 export function ingest_server_events(): number {
 	if (typeof document === 'undefined') return 0;
-	const mark = document.head?.querySelector('script[data-ogygia-runtime]')?.getAttribute(DT_MARK);
+	const mark = document.head?.querySelector(`script[${OGYGIA_RUNTIME}]`)?.getAttribute(DT_MARK);
 	if (!mark) return 0;
 	let total = 0;
 	for (const el of document.querySelectorAll(
-		'script[type="application/ogygia-devtools"]:not([data-og-dt-ingested])'
+		`script[type="application/ogygia-devtools"]:not([${OG_DT_INGESTED}])`
 	)) {
 		if (el.getAttribute(DT_MARK) !== mark) continue;
-		el.setAttribute('data-og-dt-ingested', '');
+		el.setAttribute(OG_DT_INGESTED, '');
 		const text = el.textContent;
 		if (!text) continue;
 		try {
