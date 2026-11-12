@@ -411,7 +411,7 @@ export async function run(
 			// answer): no machine left mid-work, and ogygia's rules hold
 			for (const t of v.tabs)
 				for (const b of [
-					stuck(t, world),
+					stuck(t),
 					page_rules(t),
 					// (and every region shows something, unless a press made the page the visitor's own)
 					pressed.get(t.name) === t.documents ? null : regions_show(t, world)

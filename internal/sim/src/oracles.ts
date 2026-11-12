@@ -111,20 +111,6 @@ export function normalize(root: {
 	return out.join('\n');
 }
 
-/** `<head>`'s children (blocks of a normalized DOM), each with its subtree, and where they sit. */
-function head_blocks(s: string): { before: string[]; blocks: string[][]; after: string[] } {
-	const lines = s.split('\n');
-	const at = lines.findIndex((l) => l === '  <head>');
-	if (at === -1) return { before: lines, blocks: [], after: [] };
-	const blocks: string[][] = [];
-	let i = at + 1;
-	for (; i < lines.length && lines[i].startsWith('    '); i++) {
-		if (!lines[i].startsWith('     ')) blocks.push([lines[i]]);
-		else blocks[blocks.length - 1]?.push(lines[i]);
-	}
-	return { before: lines.slice(0, at + 1), blocks, after: lines.slice(i) };
-}
-
 /**
  * Differences a filed bug explains: `applies` says the two normalized DOMs show it, `forgive`
  * takes it out of one (given the other, for a shape that is told by what the other side lacks). A
@@ -199,82 +185,8 @@ export const KNOWN: ReadonlyArray<{
 			}
 			return out.join('\n');
 		}
-	},
-	{
-		issue: 891,
-		what: 'a hole or an island that failed while offline never loads once the network is back',
-		// (a hole of the tab still shows its fallback, unanswered, or an island never woke, where the
-		// fresh load's same region answered or woke: the tab's block is taken as the fresh one's)
-		applies: (shown, fresh) => given_up(shown, fresh).size > 0,
-		seen: (world, tab) =>
-			world.network.exchanges.some(
-				(e) => e.from === tab.realm && (e.status === 'offline' || e.lost === true)
-			),
-		forgive: (s, other) => {
-			const gone = given_up(s, other);
-			if (gone.size === 0) return s;
-			// (and the answer's region sheets, which never came either: the other side's head, with
-			// what this side has beside it kept)
-			const mine = head_blocks(s);
-			const theirs = head_blocks(other).blocks.map((b) => b.join('\n'));
-			const have = new Set(mine.blocks.map((b) => b.join('\n')));
-			const head = [
-				...theirs.filter((b) => have.has(b) || b.includes('data-ogygia-region-css=')),
-				...[...have].filter((b) => !theirs.includes(b))
-			];
-			s = [...mine.before, ...head, ...mine.after].join('\n');
-			const lines = s.split('\n');
-			const out: string[] = [];
-			for (let i = 0; i < lines.length; i++) {
-				const block = region_at(lines, i);
-				const answer = block === null ? undefined : gone.get(lines[i]);
-				if (block === null || answer === undefined) out.push(lines[i]);
-				else {
-					out.push(answer);
-					i = block.end - 1;
-				}
-			}
-			return out.join('\n');
-		}
 	}
 ];
-
-/** The region whose opening line is `lines[at]`, with the line after its subtree; null if none. */
-function region_at(lines: string[], at: number): { text: string; end: number } | null {
-	const m = /^( *)<ogygia-region\b/.exec(lines[at]);
-	if (m === null) return null;
-	let end = at + 1;
-	while (end < lines.length && /^ */.exec(lines[end])![0].length > m[1].length) end++;
-	return { text: lines.slice(at, end).join('\n'), end };
-}
-
-/**
- * Holes of `s` still unanswered and islands never woken (a deferred region's or an island's opening
- * line without `data-hydrated`) whose same region in `other` answered or woke: each opening line,
- * with the answered block that stands for it.
- */
-function given_up(s: string, other: string): Map<string, string> {
-	// (by the hole's id: an answer writes its endpoint back resolved, the server's relative one
-	// reads another way before it; a region with none, a peer's frame hole or an island, by its
-	// line less the mark: gens 87 and 88)
-	const opener = (l: string) =>
-		/ data-og-hole="([^"]+)"/.exec(l)?.[1] ?? l.replace(' data-hydrated=""', '');
-	const waits = (l: string) => / render="defer"| wake="/.test(l);
-	const answered = new Map<string, string>();
-	const lines = other.split('\n');
-	for (let i = 0; i < lines.length; i++) {
-		const block = region_at(lines, i);
-		if (block === null || !waits(lines[i])) continue;
-		if (lines[i].includes(' data-hydrated=""')) answered.set(opener(lines[i]), block.text);
-	}
-	const out = new Map<string, string>();
-	for (const line of s.split('\n')) {
-		if (line.includes(' data-hydrated=""') || !waits(line)) continue;
-		const answer = answered.get(opener(line));
-		if (answer !== undefined) out.set(line, answer);
-	}
-	return out;
-}
 
 /**
  * Islands of the test app that keep their own client state across a navigation by design, as a
@@ -627,24 +539,6 @@ export function regions_show(tab: Tab, world: World): Broken | null {
 /** An empty region a filed bug explains, by its shape (as KNOWN is for an MPA difference). */
 const KNOWN_EMPTY: ReadonlyArray<{ issue: number; what: string; is: (r: Element) => boolean }> = [
 	{
-		issue: 901,
-		what: 'a server island inside a woken held region never shows',
-		// (adopted as an empty lake; the held region's `live` is "true" under an island host, and
-		// empty under a page host: gen 24, seed 3, a new tab at /p0)
-		is: (r) =>
-			r.getAttribute('wake') === 'none' &&
-			r.parentElement?.closest('ogygia-region[live][render="defer"]') != null
-	},
-	{
-		issue: 909,
-		what: "a peer's deferred widget never loads in an app with no deferred region",
-		// (its hole, armed and never fetched: the runtime has no frame store)
-		is: (r) =>
-			r.getAttribute('render') === 'defer' &&
-			!r.hasAttribute('data-hydrated') &&
-			(r.getAttribute('endpoint') ?? '').startsWith('/og/frag?')
-	},
-	{
 		issue: 937,
 		what: 'a deferred peer region whose peer failed is answered as an empty success',
 		// (its hole fetched and answered, with nothing: the shell's hop to the peer failed)
@@ -662,15 +556,6 @@ const KNOWN_EMPTY: ReadonlyArray<{ issue: number; what: string; is: (r: Element)
 			r.getAttribute('render') === 'defer' &&
 			r.closest('[data-gen="widget"], [data-gen="peer-page"]') != null &&
 			(r.getAttribute('endpoint') ?? '').startsWith('/__ogygia__?')
-	},
-	{
-		issue: 945,
-		what: "a held region inside a held region's island stays empty",
-		// (baked empty in the outer query's answer, `live=""`, and left so: gen 63, /p2)
-		is: (r) =>
-			r.getAttribute('live') === '' &&
-			r.hasAttribute('data-og-baked') &&
-			r.parentElement?.closest('ogygia-region[live]') != null
 	},
 	{
 		issue: 948,
@@ -692,7 +577,7 @@ const KNOWN_EMPTY: ReadonlyArray<{ issue: number; what: string; is: (r: Element)
  * Read from the page's machine moves (`__ogygia_moves()`, rules on): each machine's last move is
  * its state now (the trace lets the oldest lines go first, so a machine it still lists is current).
  */
-export function stuck(tab: Tab, world?: World): Broken | null {
+export function stuck(tab: Tab): Broken | null {
 	const w = tab.page.mainFrame.window as unknown as { __ogygia_moves?: () => string };
 	const last = new Map<string, string>();
 	for (const line of (w.__ogygia_moves?.() ?? '').split('\n')) {
@@ -702,22 +587,6 @@ export function stuck(tab: Tab, world?: World): Broken | null {
 	const held = [...last].filter(([, state]) => state.endsWith('ing'));
 	if (held.length === 0) return null;
 	const detail = `${tab.page.mainFrame.url}: at rest, still ${held.map(([id, s]) => `${id} ${s}`).join(', ')}`;
-	// #942: a live region whose island file can no longer load starts over on every tick, and is
-	// met mid-start (a file of the document's was cut or dropped)
-	if (
-		world !== undefined &&
-		held.every(([id, s]) => id.startsWith('live-region#') && s === 'hydrating') &&
-		world.network.exchanges.some(
-			(e) =>
-				e.from === tab.realm &&
-				new URL(e.url).pathname.startsWith('/_app/immutable/') &&
-				(e.cut || e.lost === true || e.status === 'dropped' || e.status === 'offline')
-		)
-	)
-		return {
-			oracle: 'known',
-			detail: `${detail}: #942 (a live region retries a file it can no longer load on every tick)`
-		};
 	return { oracle: 'stuck', detail };
 }
 
