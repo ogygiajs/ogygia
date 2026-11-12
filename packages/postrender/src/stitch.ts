@@ -15,18 +15,16 @@
  * Pure string functions (unit-tested); the handle threads its own `#render_capability`.
  */
 
-/** Cheap presence probe — the capture uses it to flag entries; serves use it to skip the scan. */
-export const STITCH_HOLE_RE: RegExp = /<ogygia-region\b[^>]*\bstitch\b[^>]*>/;
-
 import { escapeAttr as escape_amp_quot } from '@ogygia/core/plugin/utils';
+import { OG_STITCHED, read_tag, type FoundTag } from '@ogygia/core/internal/server';
 
-// Hoisted tokens for the balanced scan (regions NEST — a hole's fallback can contain regions).
-const REGION_TOKEN_RE = /<ogygia-region\b[^>]*>|<\/ogygia-region>/g;
-const STITCH_ATTR_RE = /\bstitch\b/;
-/** `stitch="edge"` — the ESI mode. Anything else that carries `stitch` (`"serve"`, or the bare
- *  attribute an older build emitted) is the origin-serve mode. */
-const STITCH_EDGE_RE = /\bstitch="edge"/;
-const ENDPOINT_ATTR_RE = /\bendpoint="([^"]*)"/;
+/** Cheap presence probe: a page without the attribute's name, in any case, has no stitch hole. */
+const STITCH_ANY_CASE = /stitch/i;
+/** The balanced scan's tokens (regions NEST — a hole's fallback can contain regions): a comment
+ *  (its contents are not markup), a region's end tag, or `<ogygia-region` where a tag name ends
+ *  (its start tag is read by `read_tag`). One pass. */
+const REGION_TOKEN_RE = /<!--|<\/ogygia-region>|<ogygia-region(?=[\t\n\f\r />]|$)/gi;
+const REGION_CLOSE = '</ogygia-region>';
 const AMP_RE = /&amp;/g;
 
 /** How a stitch hole fills: `'serve'` = the ORIGIN re-renders + splices on every serve (per-visitor
@@ -46,7 +44,6 @@ export interface StitchHole {
 /** Which stitch modes a stored page carries. One `'serve'` hole makes the WHOLE page per-visitor
  *  (serve taints); a page whose stitch holes are all `'edge'` stays edge-cacheable. */
 export function stitch_modes(html: string): { serve: boolean; edge: boolean } {
-	if (!STITCH_HOLE_RE.test(html)) return { serve: false, edge: false };
 	const holes = find_stitch_holes(html);
 	return {
 		serve: holes.some((h) => h.mode === 'serve'),
@@ -89,30 +86,46 @@ export function esi_rewrite(html: string, page_path = '/'): string {
 /** Find every TOP-LEVEL stitch-marked region block, balanced across nested regions. */
 export function find_stitch_holes(html: string): StitchHole[] {
 	const holes: StitchHole[] = [];
+	if (!STITCH_ANY_CASE.test(html)) return holes;
 	let depth = 0;
-	let open: { start: number; tag: string } | null = null;
+	let open: FoundTag | null = null;
 	REGION_TOKEN_RE.lastIndex = 0;
-	let m: RegExpExecArray | null;
-	while ((m = REGION_TOKEN_RE.exec(html))) {
+	for (let m = REGION_TOKEN_RE.exec(html); m !== null; m = REGION_TOKEN_RE.exec(html)) {
 		const token = m[0];
-		if (token[1] === '/') {
-			depth--;
-			if (depth === 0 && open) {
-				if (STITCH_ATTR_RE.test(open.tag)) {
-					const endpoint = ENDPOINT_ATTR_RE.exec(open.tag)?.[1]?.replace(AMP_RE, '&') ?? '';
-					if (endpoint)
-						holes.push({
-							start: open.start,
-							end: m.index + token.length,
-							endpoint,
-							mode: STITCH_EDGE_RE.test(open.tag) ? 'edge' : 'serve'
-						});
-				}
-				open = null;
-			}
-		} else {
-			if (depth === 0) open = { start: m.index, tag: token };
+		if (token === '<!--') {
+			const end = html.indexOf('-->', m.index + 4);
+			if (end === -1) break;
+			REGION_TOKEN_RE.lastIndex = end + 3;
+			continue;
+		}
+		if (token.length !== REGION_CLOSE.length) {
+			// (a start tag the HTML ends inside is dropped, as a browser drops it)
+			const tag = read_tag(html, m.index, REGION_TOKEN_RE.lastIndex);
+			if (tag === null) break;
+			if (depth === 0) open = tag;
 			depth++;
+			REGION_TOKEN_RE.lastIndex = tag.end;
+			continue;
+		}
+		// (the end tag as the server writes it: lower case, no space)
+		if (token !== REGION_CLOSE) continue;
+		const end = REGION_TOKEN_RE.lastIndex;
+		depth--;
+		if (depth === 0 && open !== null) {
+			// `stitch="edge"`: the ESI mode. Any other `stitch` (`"serve"`, or the bare attribute an
+			// older build emitted) is the origin-serve mode.
+			const stitch = open.attr('stitch');
+			if (stitch !== undefined) {
+				const endpoint = open.attr('endpoint')?.replace(AMP_RE, '&') ?? '';
+				if (endpoint)
+					holes.push({
+						start: open.start,
+						end,
+						endpoint,
+						mode: stitch === 'edge' ? 'edge' : 'serve'
+					});
+			}
+			open = null;
 		}
 	}
 	return holes;
@@ -136,7 +149,7 @@ export async function stitch_html(
 		const fill = rendered[i];
 		if (fill === null) continue; // fail-open: leave the block untouched
 		out += html.slice(last, holes[i].start);
-		out += `<div style="display:contents" data-og-stitched="">${fill}</div>`;
+		out += `<div style="display:contents" ${OG_STITCHED}="">${fill}</div>`;
 		last = holes[i].end;
 	}
 	out += html.slice(last);

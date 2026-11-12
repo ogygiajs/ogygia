@@ -104,6 +104,33 @@ describe('the early start script under a CSP', () => {
 		);
 	});
 
+	it('a <meta http-equiv> policy gets it however the browser would read the tag', () => {
+		// content before http-equiv, a `>` in a quoted value, upper case
+		expect(
+			with_early_holes_meta_csp(
+				'<META data-note="a>b" CONTENT="script-src \'self\'" HTTP-EQUIV="Content-Security-Policy">'
+			)
+		).toBe(
+			`<META data-note="a>b" CONTENT="script-src 'self' ${H}" HTTP-EQUIV="Content-Security-Policy">`
+		);
+		// a single-quoted or unquoted value comes back double-quoted, so the source's quotes fit
+		expect(
+			with_early_holes_meta_csp(
+				"<meta http-equiv=content-security-policy content='script-src https://a.example'>"
+			)
+		).toBe(`<meta http-equiv=content-security-policy content="script-src https://a.example ${H}">`);
+		expect(
+			with_early_holes_meta_csp('<meta http-equiv=content-security-policy content=default-src>')
+		).toBe(`<meta http-equiv=content-security-policy content="default-src ${H}">`);
+	});
+
+	it('a commented-out policy meta, or a report-only one (which a meta cannot carry), is left as is', () => {
+		const head =
+			'<!-- <meta http-equiv="content-security-policy" content="script-src \'self\'"> -->' +
+			'<meta http-equiv="content-security-policy-report-only" content="script-src \'self\'">';
+		expect(with_early_holes_meta_csp(head)).toBe(head);
+	});
+
 	it('a head with no policy meta is returned as is', () => {
 		const head = '<meta charset="utf-8"><title>x</title>';
 		expect(with_early_holes_meta_csp(head)).toBe(head);
