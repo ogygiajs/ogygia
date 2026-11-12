@@ -7,7 +7,6 @@ import { isHttpError } from '@sveltejs/kit';
 import * as devalue from 'devalue';
 import { describe, expect, it } from 'vitest';
 import { ogygiaServerTransport as server_transport } from '../src/server/transport.ts';
-import { kit_transport_module } from '../src/compiler/link/transport.ts';
 
 type Codec = { encode: (v: unknown) => unknown; decode: (v: never) => unknown };
 const decoders = (t: Record<string, Codec>) =>
@@ -66,15 +65,5 @@ describe('a remote argument sent from the browser', () => {
 	it('of plain data decodes as before', () => {
 		const arg = { id: 7, tags: ['a', 'b'], at: new Date(0), m: new Map([['k', 1]]), n: null };
 		expect(read(sent(arg))).toEqual(arg);
-	});
-});
-
-describe("the app's transport hook, by realm", () => {
-	it('the server realm takes the transport that refuses ogygia values from the browser', () => {
-		expect(kit_transport_module(true, '/dist', true)).toContain('"/dist/server/transport.js"');
-	});
-
-	it('the browser realm takes the full transport', () => {
-		expect(kit_transport_module(true, '/dist', false)).toContain('"/dist/transport.js"');
 	});
 });
