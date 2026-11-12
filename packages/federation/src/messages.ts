@@ -89,6 +89,19 @@ export const FEDERATION_WARNINGS = {
 			signed as this app, and see what comes back.
 		`
 	},
+	federation_peer_unreachable: {
+		text: (a: { peer: string; url: string }): string => prose`
+			The peer '${a.peer}' gave no answer to ${a.url} (down, unreachable, or slower than its
+			timeout), so the hop failed: a static widget shows its boundary card, a page read, a post
+			or a deferred region is a 504.
+		`,
+		details: (): string => prose`
+			The request to the peer got no response at all: the connection was refused or dropped, the
+			name did not resolve, or no answer came within the peer's \`timeout\`. Check that the peer
+			is up and reachable from this app's servers at its configured origin, and that its
+			\`timeout\` fits how long it takes to answer.
+		`
+	},
 	federation_deploy_thaw_undelivered: {
 		text: (a: { peers: string; rounds: number }): string =>
 			`federation: the deploy thaw never reached ${a.peers} (${a.rounds} tries), so it is given up`,
