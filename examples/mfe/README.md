@@ -28,7 +28,8 @@ cd shell && ORIGIN=http://localhost:5190 pnpm dev --port 5190
 
 Open http://localhost:5190 — the static KPI card came from dash at render time (baked into the
 shell's frozen page), the deferred card is a per-visitor hole fetched through the shell, and
-`/cms/*` is the whole cms app under shell chrome.
+`/cms/*` is the whole cms app under shell chrome. `/widget-down` asks dash for a widget it does
+not serve: that widget's place shows its boundary card, and the rest of the page still renders.
 
 ## The API surface it demos — all of it is `federate()`
 
