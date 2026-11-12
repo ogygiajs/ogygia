@@ -4705,6 +4705,10 @@
 			"reason": "a slot's maker: builds the slot's empty starting value, once per process, constant work"
 		},
 		{
+			"id": "packages/core/src/server/kit-context.ts > held_root_context",
+			"reason": "returns a Map holding Kit's page and stores contexts (not cloneable): kit_render_context plus two set() calls, constant work, once per held region render; proven in packages/core/test/held-region-runtime.test.ts"
+		},
+		{
 			"id": "packages/core/src/server/shared-cache.ts > shared:0~2c10ac > make",
 			"reason": "a slot's maker: builds the slot's empty starting value, once per process, constant work"
 		},
