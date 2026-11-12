@@ -46,7 +46,11 @@ install_hydrate_features();
 // module (./slots.ts `BootLink`: a module both import is split out of the runtime chunk).
 const kit_hydrates_page = () => boot_link().kit_hydrates_page();
 const props_sidecar_of = (region: Element) => boot_link().props_sidecar_of(region);
-const parse_region_html = (html: string) => boot_link().parse_region_html(html);
+// (the region's own server copy: the page's HTML, ./html-sink.ts `vouch_page_html`)
+const parse_own_html = (html: string) =>
+	boot_link().parse_region_html(boot_link().vouch_page_html(html));
+const set_own_inner_html = (el: Element, html: string) =>
+	boot_link().set_inner_html(el, boot_link().vouch_page_html(html));
 // DOM ownership (./ownership.ts), through the registry like every boot helper
 const walk_enters = (el: Element) => boot_link().walk_enters(el);
 const is_self_owned = (el: Element) => boot_link().is_self_owned(el);
@@ -349,14 +353,14 @@ export function repair_if_drifted(
 	region: HTMLElement,
 	ssr_html: string
 ): { repaired: boolean; reason: string | null; conflict: string | null } {
-	// Parse through the ONE DSD-aware parser (parse-html.ts): the content stays inert (a template's
+	// Parse through the ONE DSD-aware parser (html-sink.ts): the content stays inert (a template's
 	// content never upgrades — attaching a declarative shadow root is a parse step, not an upgrade), but
 	// a `<template shadowrootmode>` in the copy is consumed into a shadow root instead of lingering as an
 	// inert light-DOM child. That keeps `want`'s light-DOM sequence consistent with a live region whose
 	// hosts already carry shadow roots, so a server copy that happens to carry DSD can't trip
 	// sequence_differs. Today ssr_html is the region's own live innerHTML (never serialises a shadow), so
 	// this is belt-and-braces — but it means there is no second, DSD-unaware parse to drift.
-	const content = parse_region_html(ssr_html);
+	const content = parse_own_html(ssr_html);
 	// The copy under a region of its own — in the parse fragment's inert document, so the element never
 	// upgrades — lifted by the very routine that lifted the live island (what it leaves in a lake, it
 	// leaves in both).
@@ -400,7 +404,7 @@ function align_to(live: Element, want: Element | DocumentFragment): boolean {
 			if (is_self_owned(child)) note_conflict(child);
 			const morph = slots.morph;
 			if (morph) morph(child, Array.from(want_elements[i].childNodes), REPAIR_MORPH);
-			else child.innerHTML = (want_elements[i] as Element).innerHTML;
+			else set_own_inner_html(child, (want_elements[i] as Element).innerHTML);
 		}
 	}
 	// This level: drop every live text / comment node, then put the server's back around the
