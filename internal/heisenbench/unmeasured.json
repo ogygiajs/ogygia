@@ -2025,6 +2025,50 @@
 			"reason": "writes the request's prime state onto a Request (not cloneable), constant work; proven in packages/flags/test/prime-twice.test.ts"
 		},
 		{
+			"id": "packages/machine/src/slot.ts > slot",
+			"reason": "reads and writes the process-wide slot table on globalThis (hidden state), constant work per call; proven in packages/machine/test/slot.test.ts"
+		},
+		{
+			"id": "packages/content/src/graph.ts > slot:0~99f6b2 > make",
+			"reason": "a slot's maker: builds the slot's empty starting value, once per process, constant work"
+		},
+		{
+			"id": "packages/core/src/plugin/facts.ts > shared:0~10f321 > make",
+			"reason": "a slot's maker: builds the slot's empty starting value, once per process, constant work"
+		},
+		{
+			"id": "packages/core/src/plugin/hooks.ts > shared:0~9213e0 > make",
+			"reason": "a slot's maker: builds the slot's empty starting value, once per process, constant work"
+		},
+		{
+			"id": "packages/core/src/plugin/routes.ts > shared:0~e1c6f2 > make",
+			"reason": "a slot's maker: builds the slot's empty starting value, once per process, constant work"
+		},
+		{
+			"id": "packages/core/src/server/kit-context.ts > shared:0~04506e > make",
+			"reason": "a slot's maker: builds the slot's empty starting value, once per process, constant work"
+		},
+		{
+			"id": "packages/core/src/server/shared-cache.ts > shared:0~2c10ac > make",
+			"reason": "a slot's maker: builds the slot's empty starting value, once per process, constant work"
+		},
+		{
+			"id": "packages/devtools/src/app.ts > shared:0~a92432 > make",
+			"reason": "a slot's maker: builds the slot's empty starting value, once per process, constant work"
+		},
+		{
+			"id": "packages/federation/src/hole.ts > shared:0~9f6b81 > make",
+			"reason": "a slot's maker: builds the slot's empty starting value, once per process, constant work"
+		},
+		{
+			"id": "packages/federation/src/registry.ts > shared:0~e07cb9 > make",
+			"reason": "a slot's maker: builds the slot's empty starting value, once per process, constant work"
+		},
+		{
+			"id": "packages/postrender/src/app.ts > shared:0~2ec32d > make",
+			"reason": "a slot's maker: builds the slot's empty starting value, once per process, constant work"
+		},
+		{
 			"id": "packages/core/src/boundary.ts > BoundarySettings > configure",
 			"reason": "once per configure: refills the allow and deny sets, linear in the names the app configured"
 		},

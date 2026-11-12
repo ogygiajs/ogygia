@@ -43,6 +43,7 @@ export { registry, type KeyedRegistry, type Registry } from './registry.ts';
 export { defineRun, defining } from './define.ts';
 export { lock, type Lock, type LockToken } from './lock.ts';
 export { noop } from './noop.ts';
+export { slot, type SlotOptions } from './slot.ts';
 export { queue, type Queue, type QueueOptions } from './queue.ts';
 export { clock } from './clock.ts';
 export { mailbox, type Mailbox, type Turn } from './mailbox.ts';
