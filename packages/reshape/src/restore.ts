@@ -359,6 +359,7 @@ export function restore(root: Document | DocumentFragment | Element): number {
 		list.push({
 			kind,
 			host: host.localName,
+			// port-ok: inlined as text by restore.toString() (no imports)
 			t: Math.round(performance.now()),
 			...(diff ? { diff: diff.slice(0, 300) } : {}),
 			...(island ? { island } : {})
@@ -488,6 +489,7 @@ export function restore_adopt(): void {
 		__og_adopt?: { shadow: ShadowRoot; sheets: CSSStyleSheet[] }[];
 		__og_init?: ShadowRoot[];
 	};
+	// port-ok: inlined as text by restore_adopt.toString() (no imports)
 	const now = performance.now();
 	const waiting = (root: ShadowRoot & { __og_out?: number }) =>
 		now - (root.__og_out ??= now) < 30_000;
