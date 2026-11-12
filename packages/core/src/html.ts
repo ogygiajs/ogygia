@@ -1,23 +1,3 @@
-/**
- * HTML BUILT FROM PARTS, ESCAPED FOR WHERE EACH PART SITS. A plain `string` cannot say whether it
- * is text or markup, so a value was escaped zero times in one builder and twice in another (#435,
- * #436, #439). Here the type says it: an `Html` is markup that is safe to place as is, and every
- * other value is text, escaped by `html` for its place in the template:
- *
- * - between tags: `&`, `<`, `>` (escape_text);
- * - inside a double-quoted attribute: `&`, `"`, `<` (escape_attr); single-quoted: `&`, `'`, `<`;
- * - inside a URL attribute (`href`, `src`, `action`, …): the same, and a `javascript:`,
- *   `vbscript:` or `data:` URL becomes `about:invalid#unsafe`;
- * - anywhere else in a tag (an unquoted attribute, a tag name): refused, it throws.
- *
- * An `Html` value (from `html`, `attr` or `trusted_html`) is placed as is between tags, and escaped
- * like any text inside an attribute. It becomes its markup wherever a string is wanted (`String(h)`,
- * `'' + h`, a template literal).
- *
- *   html`<a href="${url}">${label}</a>`          // url and label escaped for their places
- *   html`<pre${attr('data-lang', lang)}>`        // an optional attribute: nothing when null
- *   trusted_html(highlighted, "the highlighter's own markup")
- */
 import { escape_attr, escape_text } from './escape.ts';
 
 const MADE_HERE: unique symbol = Symbol('html');
@@ -43,7 +23,6 @@ export class Html {
  *  (`null`, `undefined` and `false` place nothing). */
 export type HtmlValue = string | number | Html | null | undefined | false;
 
-/** Where a hole sits. */
 const TEXT = 0;
 const DOUBLE = 1;
 const SINGLE = 2;
@@ -52,8 +31,7 @@ const SINGLE_URL = 4;
 const TAG = 5;
 type Place = 0 | 1 | 2 | 3 | 4 | 5;
 
-/** Attributes whose value is a URL a browser follows or loads. */
-// static: a fixed list of attribute names
+// static: a fixed list of attribute names, those whose value is a URL a browser follows or loads
 const URL_ATTRS: ReadonlySet<string> = new Set([
 	'href',
 	'src',
@@ -71,8 +49,6 @@ const ATTR_NAME = /^[a-zA-Z_:][a-zA-Z0-9_:.-]*$/;
 const NAME_BEFORE_QUOTE = /([^\s"'<>/=]+)\s*=\s*$/;
 const TAG_START = /[a-zA-Z/!?]/;
 
-/** The place of each hole of a template, read once per template (its strings array is the same
- *  object on every call). */
 const places = new WeakMap<TemplateStringsArray, Place[]>();
 
 function places_of(parts: TemplateStringsArray): Place[] {
@@ -107,17 +83,13 @@ function escape_single(s: string): string {
 	return escape_attr(s).replaceAll("'", '&#39;');
 }
 
-/** A URL attribute's value: one a browser would run instead of follow is refused. (Read as the URL
- *  parser reads it: tab, LF and CR are dropped anywhere in it, the scheme included.) */
 function safe_url(s: string): string {
 	return UNSAFE_URL.test(s.replace(URL_DROPPED, '')) ? 'about:invalid#unsafe' : s;
 }
 
-/** One value of `html`, as it is placed. */
 function place(value: HtmlValue, at: Place): string {
 	if (value === null || value === undefined || value === false) return '';
 	if (at === TEXT) return value instanceof Html ? value.toString() : escape_text(String(value));
-	// (an Html inside a tag is placed as is only when it is whole attributes: attr())
 	if (at === TAG && value instanceof Html) return value.toString();
 	const s = String(value);
 	switch (at) {
@@ -136,7 +108,6 @@ function place(value: HtmlValue, at: Place): string {
 	}
 }
 
-/** HTML from a template, each value escaped for where it sits (see the module's comment). */
 function html_tag(parts: TemplateStringsArray, ...values: HtmlValue[]): Html {
 	const at = places_of(parts);
 	let out = parts[0]!;
@@ -147,12 +118,6 @@ function html_tag(parts: TemplateStringsArray, ...values: HtmlValue[]): Html {
 const BRACES_G = /[{}]/g;
 const brace = (c: string) => (c === '{' ? '&#123;' : '&#125;');
 
-/**
- * Markup written into a Svelte template (a `.svelte` / `.svx` source, read by Svelte's compiler):
- * `html`, and every placed value's `{` and `}` as `&#123;` / `&#125;`, so text an author wrote never
- * becomes an expression at compile time. An `Html` value between tags is placed as is, as by `html`;
- * one inside a tag (an `attr()`, or markup in a quoted attribute) has its braces escaped too.
- */
 function svelte_html(parts: TemplateStringsArray, ...values: HtmlValue[]): Html {
 	const at = places_of(parts);
 	let out = parts[0]!;
@@ -160,15 +125,39 @@ function svelte_html(parts: TemplateStringsArray, ...values: HtmlValue[]): Html 
 		const v = values[i];
 		const where = at[i]!;
 		const placed = place(v, where);
-		// (markup between tags is placed as is; anything inside a tag, attr() included, is escaped)
 		const kept = v instanceof Html && where === TEXT;
 		out += (kept ? placed : placed.replace(BRACES_G, brace)) + parts[i + 1]!;
 	}
 	return new Html(MADE_HERE, out);
 }
 
-/** HTML from a template, each value escaped for where it sits (see the module's comment).
- *  `html.svelte` is the same for markup written into a Svelte template. */
+/**
+ * HTML from a template, each value escaped for where it sits. A plain `string` cannot say whether it
+ * is text or markup, so a value was escaped zero times in one builder and twice in another (#435,
+ * #436, #439). Here the type says it: an `Html` is markup that is safe to place as is, and every
+ * other value is text, escaped for its place in the template:
+ *
+ * - between tags: `&`, `<`, `>`;
+ * - inside a double-quoted attribute: `&`, `"`, `<`; single-quoted: `&`, `'`, `<`;
+ * - inside a URL attribute (`href`, `src`, `action`, …): the same, and a `javascript:`,
+ *   `vbscript:` or `data:` URL becomes `about:invalid#unsafe` (read as a URL parser reads it: tab,
+ *   LF and CR dropped anywhere, the scheme included);
+ * - anywhere else in a tag (an unquoted attribute, a tag name): refused, it throws.
+ *
+ * An `Html` value (from `html`, `attr` or `trusted_html`) is placed as is between tags, and escaped
+ * like any text inside an attribute. It becomes its markup wherever a string is wanted (`String(h)`,
+ * `'' + h`, a template literal).
+ *
+ * `html.svelte` is for markup written into a Svelte template (a `.svelte` / `.svx` source): the
+ * same, and every placed value's `{` and `}` as `&#123;` / `&#125;`, so text an author wrote never
+ * becomes an expression at compile time. An `Html` value between tags is placed as is, braces
+ * included; one inside a tag (an `attr()`, or markup in a quoted attribute) has its braces escaped.
+ *
+ * @example
+ * html`<a href="${url}">${label}</a>`;   // url and label escaped for their places
+ * html`<pre${attr('data-lang', lang)}>`; // an optional attribute: nothing when null
+ * trusted_html(highlighted, "the highlighter's own markup");
+ */
 export const html: {
 	(parts: TemplateStringsArray, ...values: HtmlValue[]): Html;
 	svelte(parts: TemplateStringsArray, ...values: HtmlValue[]): Html;
