@@ -19,7 +19,17 @@ import { fnv1a32, type StandardSchemaV1 } from '@ogygia/core/plugin/utils';
 import { flags_app } from './app.ts';
 import { warn } from './messages.ts';
 import { source_answered, source_failed, source_mark, source_reset } from './source-health.ts';
-import { defining, machine, outbox, policy, registry, say, scope } from '@ogygia/machine';
+import {
+	clock,
+	defining,
+	machine,
+	outbox,
+	policy,
+	registry,
+	say,
+	scope,
+	timers
+} from '@ogygia/machine';
 
 export type CtxLike = {
 	request: Request;
@@ -216,8 +226,8 @@ function emit_exposure(e: ExposureEvent): void {
 	}
 	// the age cap, for this visit of `buffering` only: a send or a flush clears it
 	// oxlint-disable-next-line ogygia/owned-effects -- the buffering visit's (its scope clears it, below), but a bare timer: it holds the process open until the queued exposures are sent, which a scope's timer does not
-	const timer = setTimeout(() => void send(), _batch.ms); // ok: send never rejects
-	_exposures.scope.defer(() => clearTimeout(timer));
+	const timer = timers.keep(() => void send(), _batch.ms); // ok: send never rejects
+	_exposures.scope.defer(() => timers.cancel(timer));
 }
 
 /** Everything queued, as one batch into the outbox now (buffering → idle). Settles once the sink
@@ -550,7 +560,7 @@ export function flag(
  *  module never throws there — exposure timestamps are 0 in that case (and in dev). */
 function now(): number {
 	try {
-		return Date.now();
+		return clock.wall(); // wall: an exposure's timestamp, sent to the analytics sink
 	} catch {
 		return 0;
 	}

@@ -16,15 +16,12 @@
  */
 
 import { escapeAttr as escape_amp_quot } from '@ogygia/core/plugin/utils';
-import { OG_STITCHED, read_tag, type FoundTag } from '@ogygia/core/internal/server';
+import { next_open_or_close, OG_STITCHED, type FoundTag } from '@ogygia/core/internal/server';
 
 /** Cheap presence probe: a page without the attribute's name, in any case, has no stitch hole. */
 const STITCH_ANY_CASE = /stitch/i;
-/** The balanced scan's tokens (regions NEST — a hole's fallback can contain regions): a comment
- *  (its contents are not markup), a region's end tag, or `<ogygia-region` where a tag name ends
- *  (its start tag is read by `read_tag`). One pass. */
-const REGION_TOKEN_RE = /<!--|<\/ogygia-region>|<ogygia-region(?=[\t\n\f\r />]|$)/gi;
-const REGION_CLOSE = '</ogygia-region>';
+/** The element the balanced scan reads (regions NEST: a hole's fallback can contain regions). */
+const REGION = 'ogygia-region';
 const AMP_RE = /&amp;/g;
 
 /** How a stitch hole fills: `'serve'` = the ORIGIN re-renders + splices on every serve (per-visitor
@@ -89,27 +86,18 @@ export function find_stitch_holes(html: string): StitchHole[] {
 	if (!STITCH_ANY_CASE.test(html)) return holes;
 	let depth = 0;
 	let open: FoundTag | null = null;
-	REGION_TOKEN_RE.lastIndex = 0;
-	for (let m = REGION_TOKEN_RE.exec(html); m !== null; m = REGION_TOKEN_RE.exec(html)) {
-		const token = m[0];
-		if (token === '<!--') {
-			const end = html.indexOf('-->', m.index + 4);
-			if (end === -1) break;
-			REGION_TOKEN_RE.lastIndex = end + 3;
-			continue;
-		}
-		if (token.length !== REGION_CLOSE.length) {
-			// (a start tag the HTML ends inside is dropped, as a browser drops it)
-			const tag = read_tag(html, m.index, REGION_TOKEN_RE.lastIndex);
-			if (tag === null) break;
-			if (depth === 0) open = tag;
+	// (the region's tags as the browser reads them: none inside a comment or raw text, #975)
+	for (let t = next_open_or_close(html, REGION, 0); t !== null;) {
+		if ('tag' in t) {
+			if (depth === 0) open = t.tag;
 			depth++;
-			REGION_TOKEN_RE.lastIndex = tag.end;
+			t = next_open_or_close(html, REGION, t.tag.next);
 			continue;
 		}
-		// (the end tag as the server writes it: lower case, no space)
-		if (token !== REGION_CLOSE) continue;
-		const end = REGION_TOKEN_RE.lastIndex;
+		const end = t.end;
+		t = next_open_or_close(html, REGION, end);
+		// (an end tag with no region open closes nothing, as in the browser's tree)
+		if (depth === 0) continue;
 		depth--;
 		if (depth === 0 && open !== null) {
 			// `stitch="edge"`: the ESI mode. Any other `stitch` (`"serve"`, or the bare attribute an
