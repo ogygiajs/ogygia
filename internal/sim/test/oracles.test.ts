@@ -143,6 +143,29 @@ describe('known', () => {
 		expect(k.forgive(shown, fresh)).toBe(k.forgive(fresh, shown));
 	});
 
+	it("#1039's sheet link inside a held region, on one side (gen 194, seed 72)", () => {
+		const k = KNOWN.find((x) => x.issue === 1039)!;
+		const page = (sheet: string[]) =>
+			[
+				'title: ',
+				'<html>',
+				'  <body>',
+				'    <div data-gen="held-host">',
+				'      <ogygia-region data-og-baked="" live="">',
+				...sheet.map((l) => `        ${l}`),
+				'        <div data-gen="held">',
+				'          <span>',
+				'            "n3 #0"'
+			].join('\n');
+		const shown = page([
+			'<link data-ogygia-region-css="" href="/_app/immutable/assets/og-region.x.css" rel="stylesheet">'
+		]);
+		const fresh = page([]);
+		expect(k.applies(shown, fresh)).toBe(true);
+		expect(k.applies(fresh, fresh)).toBe(false);
+		expect(k.forgive(shown, fresh)).toBe(fresh);
+	});
+
 	it("#995's is seen in a document that sent a hole batch (gen 190, seed 190007)", () => {
 		const k = KNOWN.find((x) => x.issue === 995)!;
 		const world = (method: string) =>
