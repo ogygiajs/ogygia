@@ -1,7 +1,7 @@
 /**
- * THE MAPS THE BUILD WROTE INTO THE CODE (vite/profiler-maps.ts), read back: the module map and
+ * THE MAPS THE BUILD WROTE INTO THE CODE (build/profiler-maps.ts), read back: the module map and
  * every server chunk's sourcemap, by chunk file relative to the server output. Loaded once, on the
- * first resolve, from `virtual:ogygia/profiler-maps` — a dynamic import, so it ships with whatever
+ * first resolve, from `ogygia:server/profiler-maps` — a dynamic import, so it ships with whatever
  * the adapter ships and costs a request nothing. Null outside a profiler-on server build.
  */
 
@@ -16,8 +16,9 @@ export interface EmbeddedMaps {
 
 let ready: EmbeddedMaps | null = null;
 
-import { PROFILER_MAPS_GZ_PREFIX as GZ_PREFIX } from '@ogygia/core/internal/compiler-ids';
-import { flights, STALE } from '@ogygia/machine';
+import { PROFILER_MAPS_GZ_PREFIX as GZ_PREFIX } from '@ogygia/compiler/ids';
+import { cache, flights, STALE } from '@ogygia/machine';
+import { read_profiler_maps } from '#profiler-maps';
 
 export function load_embedded_maps(): Promise<EmbeddedMaps | null> {
 	// (nothing drops it, so it is never STALE)
@@ -28,9 +29,9 @@ export function load_embedded_maps(): Promise<EmbeddedMaps | null> {
 const loaded = flights({
 	name: 'profiler embedded maps',
 	run: () =>
-		import('virtual:ogygia/profiler-maps')
-			.then(async (m) => {
-				let raw = (m as { default?: unknown }).default;
+		read_profiler_maps()
+			.then(async (maps) => {
+				let raw: unknown = maps;
 				if (typeof raw === 'string' && raw.startsWith(GZ_PREFIX)) {
 					const zlib = await import('node:zlib');
 					raw = zlib
@@ -74,12 +75,12 @@ export function embedded_key(path: string): string | undefined {
 	}
 	// the app root this chunk path sits under: an absolute source path is the app's only below it
 	const kit = p.lastIndexOf('/.svelte-kit/', at);
-	if (kit !== -1 && kit + '/.svelte-kit'.length === at) roots.add(p.slice(0, kit));
+	if (kit !== -1 && kit + '/.svelte-kit'.length === at) roots.set(p.slice(0, kit), true);
 	return p.slice(at + '/output/server/'.length);
 }
 
 /** app roots seen in chunk paths (`<root>/.svelte-kit/output/server/…`) */
-const roots = new Set<string>();
+const roots = cache<string, true>({ name: 'profiler app roots', max: 64 });
 
 /** where the maps' relative sources are resolved from: the chunk's folder under a stand-in root */
 const VIRTUAL_ROOT = '/ROOT';
@@ -128,7 +129,7 @@ export function embedded_source(file: string): string | undefined {
 	if (f.startsWith('src/')) rel = f.slice(4);
 	else if (f.startsWith('/')) {
 		// only under an app root: another package's `src/` is not the app's
-		for (const r of [...roots, cwd()]) {
+		for (const r of [...[...roots.entries()].map(([root]) => root), cwd()]) {
 			if (r && f.startsWith(r + '/src/')) {
 				rel = f.slice(r.length + 5);
 				break;

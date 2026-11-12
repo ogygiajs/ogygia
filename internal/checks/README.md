@@ -1,13 +1,21 @@
 # internal checks
 
 Scripts we run by hand (or from an agent loop) to check ogygia's own tools and costs. None of them
-ship, and none of them run in CI. Each script's header says what it checks and how to run it; run
+ship, and only the ones under "Run in CI" run in CI. Each script's header says what it checks and how to run it; run
 them from the repository root, for example `node internal/checks/all-keys.ts`.
 
 The framework benchmark (ogygia against SvelteKit, Astro and Mochi, Lighthouse and bytes) no longer
 lives here. It moved to its own public repository,
 [ogygiajs/bench](https://github.com/ogygiajs/bench), which benchmarks every ogygia pull
 request and every push to `main`.
+
+## Run in CI
+
+`*.test.ts` files here run with `pnpm lint:test`, which CI runs.
+
+| script              | checks                                                                                  |
+| ------------------- | --------------------------------------------------------------------------------------- |
+| `attack-surface.ts` | `internal/notes/ATTACK-SURFACE.md` is the map the code makes now: run it after a change |
 
 ## Answer keys
 

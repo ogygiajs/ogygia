@@ -13,7 +13,8 @@
 // Usage: pnpm exec playwright test remote-seed-gate
 import { test, check, sleep } from '@ogygia/tooling/e2e';
 
-const REMOTE_SEED_RE = /<script type="application\/ogygia-remote">([^<]*)<\/script>/;
+// (the seed bears its response's mark: RESPONSE-MARK)
+const REMOTE_SEED_RE = /<script type="application\/ogygia-remote"[^>]*>([^<]*)<\/script>/;
 const KIT_DATA_RE = /__sveltekit_\w+\.data\s*=/;
 const REGION_RE = /<ogygia-region\b/g;
 const KIT_REMOTE_ENDPOINT = '/_app/remote/';
