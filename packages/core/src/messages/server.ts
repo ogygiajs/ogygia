@@ -108,6 +108,24 @@ export const SERVER_ERRORS = {
 
 			Pass plain data, give the class a codec, or move the logic inside the island.
 		`
+	},
+	island_deps_handoff_missing: {
+		text: (a: { kind: string; tried: string; error: string }): string => prose`
+			the client build's handoff (og-region-deps.json) is ${a.kind}${a.error ? ` (${a.error})` : ''}:
+			server-rendered regions go out without their CSS and preloads. Tried: ${a.tried}.
+		`,
+		details: (): string => prose`
+			The client build writes a handoff the server reads as it renders: each island's CSS
+			and code chunks, and what each reads of the page. It is inlined into the server bundle
+			when the build can, and otherwise read from \`og-region-deps.json\` beside the server
+			output. This server found none (\`missing\`), or found one that did not read or parse
+			(\`unreadable\`). Until it has one, a hole renders unstyled, no island code is preloaded
+			and every page ships its whole seed.
+
+			A missing file usually means the deploy dropped it: ship the server output whole, or
+			let the build inline it (an adapter whose file tracing drops runtime reads needs the
+			inlined copy). An unreadable one is tried again on the next request.
+		`
 	}
 };
 

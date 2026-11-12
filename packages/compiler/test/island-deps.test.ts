@@ -928,7 +928,7 @@ describe('remotes map', () => {
 describe('the virtual module’s handoff read', () => {
 	/** The server module beside its own handoff file (its first candidate), not inlined. */
 	const beside = async () => {
-		const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'og-handoff-'));
+		const dir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'og-handoff-')));
 		const file = path.join(dir, 'region-deps.mjs');
 		fs.writeFileSync(file, island_deps_module(true, false, '.no-such-out-dir'));
 		const handoff = path.join(dir, 'og-region-deps.json');
