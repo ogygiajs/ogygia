@@ -36,9 +36,13 @@ const FILES: Record<string, string> = {
 	'src/routes/shop/+page.svelte': '<h1>shop</h1>\n'
 };
 
-/** The app written to a fresh temporary directory (the compiler reads node:fs directly). */
+/** The app written to a fixed temporary directory (the compiler reads node:fs directly): fixed, as
+ *  Heisenbench replays the reads it recorded by their path. */
 function write_app(): string {
-	const root = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'og-virtual-bench-')));
+	const dir = path.join(os.tmpdir(), 'og-virtual-bench');
+	fs.rmSync(dir, { recursive: true, force: true });
+	fs.mkdirSync(dir, { recursive: true });
+	const root = fs.realpathSync(dir);
 	for (const [rel, text] of Object.entries(FILES)) {
 		fs.mkdirSync(path.dirname(path.join(root, rel)), { recursive: true });
 		fs.writeFileSync(path.join(root, rel), text);

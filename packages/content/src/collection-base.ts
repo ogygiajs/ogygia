@@ -12,6 +12,7 @@ import type { ContentRef, ContentRelations, Entry, RefEntry, SchemaLike } from '
 import type { GroupMeta, Source, SourceEntry, SourceRef } from './source.ts';
 import {
 	backoffAfter,
+	defining,
 	flights,
 	machine,
 	policy,
@@ -20,7 +21,7 @@ import {
 	type Policy,
 	type World
 } from '@ogygia/machine';
-import { GRAPH, type ModuleRun } from './graph.ts';
+import { GRAPH } from './graph.ts';
 import { parseSchema } from './schema.ts';
 import { OgygiaError } from './messages/runtime.ts';
 
@@ -164,8 +165,6 @@ export class Collection<
 		}
 	});
 	readonly #life: CollectionLife = collection_life.create();
-	/** Dev: the module run that built this collection (null outside the dev server). */
-	readonly #built_in: ModuleRun | null;
 	/** The live connection, while it is open: one per collection. A read that fails leaves it open
 	 *  (an async iterator's `return()` waits behind its pull, so it cannot be closed while the source
 	 *  is quiet), and the next read listens on it again instead of opening another. */
@@ -191,20 +190,12 @@ export class Collection<
 		this.#schema =
 			opts.schema == null ? [] : Array.isArray(opts.schema) ? opts.schema : [opts.schema];
 		this.#visible = opts.filter ?? (() => true);
-		// Dev: the module run whose content() call builds it (the dev plugin marks each call, see
-		// graph.ts). It replaces the collections older runs of that module built.
-		const built_in = GRAPH.building ?? null;
-		this.#built_in = built_in;
-		if (built_in)
-			for (const older of GRAPH.all)
-				if (older instanceof Collection && older.#replaced_by(built_in)) older.#dispose();
+		// Dev: the run of the module whose content() call builds it (core marks each call: `content` is
+		// this plugin's definer). The module's next run ends it, and the collection with it: the new
+		// run builds the one that replaces it, and one deleted from the code is gone. In the graph
+		// first: a run already ended disposes it at once, which takes it out again (lifecycle.test.ts).
 		GRAPH.all.add(this as unknown as Collection<Record<string, unknown>>);
-	}
-
-	/** Built by an older run of the module `run` is a run of. */
-	#replaced_by(run: ModuleRun): boolean {
-		const mine = this.#built_in;
-		return mine !== null && mine.module === run.module && mine.run < run.run;
+		defining()?.defer(() => this.#dispose());
 	}
 
 	/**

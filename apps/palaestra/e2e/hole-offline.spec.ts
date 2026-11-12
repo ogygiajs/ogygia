@@ -1,5 +1,5 @@
-// A HOLE THAT FAILED FOR THE NETWORK WAITS FOR THE NETWORK (#891). The connection drops as the
-// deferred region's first request goes out, and comes back a few seconds later (past every retry).
+// A HOLE THAT FAILED FOR THE NETWORK WAITS FOR THE NETWORK (#891). The connection drops while the
+// deferred region's first request is out, and comes back a few seconds later (past every retry).
 // The region loads once the browser is back online, instead of keeping its fallback for the life of
 // the page.
 //
@@ -18,12 +18,21 @@ test('a deferred region whose fetch failed offline loads once the network is bac
 	await page.route(
 		(url) => url.pathname === '/__ogygia__',
 		async (route) => {
-			if (!dropped) {
-				dropped = true;
-				await context.setOffline(true);
-				return route.abort('internetdisconnected');
-			}
-			return route.fallback();
+			if (dropped) return route.fallback();
+			dropped = true;
+			// The hole's request starts in the head, before the runtime's files are in: dropping the
+			// network then failed the runtime's own download (runtime_load_failed), and no hole waits
+			// for anything without it. The request is held until the runtime's hole is waiting on it.
+			await page.waitForFunction(
+				() =>
+					/hole\S* \S+ -> fetching/.test(
+						(globalThis as { __ogygia_moves?: () => string }).__ogygia_moves?.() ?? ''
+					),
+				null,
+				{ timeout: 8000 }
+			);
+			await context.setOffline(true);
+			return route.abort('internetdisconnected');
 		}
 	);
 	await page.goto('/server', { waitUntil: 'domcontentloaded' });
