@@ -74,7 +74,13 @@ module scripts. Its gaps are handled in the sim, with no patch to happy-dom:
 - It let a navigation land after the tab had started another: the first page's stalled body was
   written over the newer page, under the first page's URL. A navigation whose document has not
   come is called off when the tab navigates again (its realm is left, its failure unsaid;
-  `Browsers.navigate`, `test/superseded-navigation.node.test.ts`; palaestra seed 122).
+  `Browsers.#start`, `test/superseded-navigation.node.test.ts`; palaestra seed 122). The page's
+  own navigations too (`location.assign`, a form's submit: every start goes through
+  `navigation_starts`), and the one called off never was an entry: happy-dom adds a navigation's
+  entry as it starts, a browser once its document comes, so its history is put back and a back goes
+  back from the page on screen (the router handed a click to the browser, the visitor went back,
+  and the stalled page landed on the back's document: palaestra seed 20958,
+  `rule_address_bar_drift`).
 - It ran a copy of any script: a copy carries "already started" (a script that connected, or one a
   parser marked unexecutable), so the router's head merge ran the next page's early hole start
   again (`scripts_start_once`, `test/scripts.test.ts`; gen 191).
