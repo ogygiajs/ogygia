@@ -10,7 +10,9 @@
  * This is the single wiring mechanism — there is no service locator and no per-feature setter.
  */
 import type { Scope, Stale } from '@ogygia/machine';
-import type { Frame, FrameOrder } from '../frame.ts';
+import type { FrameOrder } from '../frame.ts';
+import type { FrameFetcher, StoredFrame } from './frame-store.ts';
+import type { VerifiedHtml } from './html-sink.ts';
 import { is_frozen } from './region-attrs.ts';
 
 // ── lakes ────────────────────────────────────────────────────────────────
@@ -113,18 +115,18 @@ export type PageOps = {
  * bundles the store. Null until the feature installs → core's frame calls are optional-chained.
  */
 export type FrameOps = {
-	subscribe(a: string, cb: (f: Frame) => void): () => void;
+	subscribe(a: string, cb: (f: StoredFrame) => void): () => void;
 	/** The frame applied at an address, if any. */
-	peek(a: string): (FrameOrder & { html: string }) | null;
+	peek(a: string): (FrameOrder & { html: VerifiedHtml }) | null;
 	/** The next request ticket: where an answer arriving now stands at the address. */
 	ticket(a: string): number;
 	/** `STALE` when its `signal` aborted: only that caller leaves the fetch. A join at a higher
 	 *  `priority` (a load class's, ./load-class.ts) raises the fetch it joins. */
 	ensure(
 		a: string,
-		fetcher: import('./frame-store.ts').FrameFetcher,
+		fetcher: FrameFetcher,
 		opts?: { force?: boolean; signal?: AbortSignal; priority?: number }
-	): Promise<string | Stale>;
+	): Promise<VerifiedHtml | Stale>;
 	/** A renewal answered a fresh capability for this address; and the one it answered, if any. */
 	renew(a: string, fresh: string): void;
 	renewal(a: string): string | null;
@@ -181,12 +183,20 @@ export type BootLink = {
 	warm_island_module: typeof import('./region-endpoint-url.ts').warm_island_module;
 	note_entry_location: typeof import('./entry-locations.ts').note_entry_location;
 	props_sidecar_of: typeof import('./sidecar.ts').props_sidecar_of;
-	parse_region_html: typeof import('./parse-html.ts').parse_region_html;
+	parse_region_html: typeof import('./html-sink.ts').parse_region_html;
+	parse_page_document: typeof import('./html-sink.ts').parse_page_document;
+	set_inner_html: typeof import('./html-sink.ts').set_inner_html;
+	vouch_page_answer: typeof import('./html-sink.ts').vouch_page_answer;
+	vouch_page_html: typeof import('./html-sink.ts').vouch_page_html;
 	runtime_session: typeof import('./session.ts').runtime_session;
 	regions_in_shadow: typeof import('./connected.ts').regions_in_shadow;
 	/** the region head nodes a navigation's head merge left, taken out but for those a region on
 	 *  the page uses or owns */
 	release_head_nodes: typeof import('./region-sheets.ts').release_head_nodes;
+	/** the islands a region head tag names as its owners, and adding to them (../head-owners.ts) */
+	head_owners: typeof import('../head-owners.ts').head_owners;
+	add_head_owners: typeof import('../head-owners.ts').add_head_owners;
+	adopt_owner_record: typeof import('../head-owners.ts').adopt_owner_record;
 	yield_task: typeof import('./schedule.ts').yield_task;
 	/** the `regionHydrate` subscribers around Svelte's hydrate over server markup (./client-plugins.ts) */
 	region_hydrate: typeof import('./client-plugins.ts').client_region_hydrate;
@@ -202,6 +212,9 @@ export type BootLink = {
 	record_server_body: typeof import('./ownership.ts').record_server_body;
 	server_body_attributes: typeof import('./ownership.ts').server_body_attributes;
 	server_body_child: typeof import('./ownership.ts').server_body_child;
+	/** a document's side channels, the server's own only (./response-mark.ts, RESPONSE-MARK) */
+	server_channel: typeof import('./response-mark.ts').server_channel;
+	adopt_mark: typeof import('./response-mark.ts').adopt_mark;
 	/** devalue, loaded when a page needs it (./devalue-lane.ts) */
 	load_devalue: typeof import('./devalue-lane.ts').load_devalue;
 	devalue: typeof import('./devalue-lane.ts').devalue;

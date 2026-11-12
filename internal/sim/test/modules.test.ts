@@ -4,6 +4,7 @@
 import { describe, expect, it } from 'vitest';
 import { Browser } from 'happy-dom';
 import { use_v8_modules } from '../src/modules.ts';
+import { modules_in_order } from '../src/happy.ts';
 
 const FILES: Record<string, string> = {
 	'/a.js': 'export let n = 0; export function bump() { n++; }',
@@ -14,7 +15,9 @@ const FILES: Record<string, string> = {
 		'export const nullish = globalThis.nope ?? import.meta.url;\n' +
 		'export const returned = where();',
 	'/shared.js': "import './slow.js'; export const shared = 'ran';",
-	'/slow.js': 'export const slow = 1;'
+	'/first.js': "import './slow.js'; (globalThis.order ??= []).push('first');",
+	'/slow.js': 'export const slow = 1;',
+	'/state.js': "import './slow.js'; globalThis.order.push('module ' + document.readyState);"
 };
 
 async function run(v8: boolean, content?: string): Promise<string> {
@@ -70,5 +73,71 @@ describe('modules of a simulated tab', () => {
 			"<script type=\"module\">import './shared.js'; import './gone.js';</script>" +
 			'<script type="module">import { shared } from \'./shared.js\'; document.body.textContent = shared;</script>';
 		expect(await run(true, page)).toBe('ran');
+	});
+
+	// /island-foreign-edit: an inline module ran before the runtime's module above it, so the
+	// foreign tool edited the islands before the runtime kept their server markup
+	it("the document's module scripts run in its order, an inline one after a slower one above it", async () => {
+		modules_in_order();
+		const page =
+			'<script type="module" src="/first.js"></script>' +
+			"<script type=\"module\">(globalThis.order ??= []).push('inline'); document.body.textContent = globalThis.order.join(' ');</script>";
+		expect(await run(true, page)).toBe('first inline');
+	});
+
+	// (happy-dom reads `interactive` from the start and never fires DOMContentLoaded: a third party's
+	// script waiting for it never ran, gen 192's repair mutants all survived, and ogygia's wake gate
+	// waited for `load`)
+	it('the document is loading while parsed, then fires DOMContentLoaded once its modules ran, then load', async () => {
+		modules_in_order();
+		const page =
+			'<script>globalThis.order = [document.readyState];' +
+			"document.addEventListener('DOMContentLoaded', () => order.push('dcl ' + document.readyState));" +
+			"addEventListener('load', () => { order.push('load ' + document.readyState); document.body.textContent = order.join(' '); });" +
+			'</script>' +
+			'<script type="module" src="/state.js"></script>';
+		expect(await run(true, page)).toBe('loading module interactive dcl interactive load complete');
+	});
+
+	// palaestra seed 270: a Kit page left just after its start script's body came still ran the
+	// script's `.then`, with an empty namespace: "kit.start is not a function", in no page
+	it("a left document's import() never settles: its code stops with it", async () => {
+		use_v8_modules();
+		let leave = (): void => {};
+		const browser = new Browser({
+			settings: {
+				enableJavaScriptEvaluation: true,
+				suppressInsecureJavaScriptEnvironmentWarning: true,
+				fetch: {
+					interceptor: {
+						beforeAsyncRequest: async ({ request, window }) => {
+							const W = window as unknown as { Response: typeof Response };
+							if (new URL(request.url).pathname !== '/start.js')
+								return new W.Response('<p>next</p>', {
+									headers: { 'content-type': 'text/html' }
+								}) as never;
+							// (the body has come; the tab moves on before the module runs)
+							leave();
+							return new W.Response('export function start() {}', {
+								headers: { 'content-type': 'text/javascript' }
+							}) as never;
+						}
+					}
+				}
+			}
+		});
+		try {
+			const page = browser.newPage();
+			page.url = 'https://example.com/';
+			const first = page.mainFrame.window as unknown as { settled?: string };
+			leave = () => void page.goto('https://example.com/next');
+			page.content =
+				"<script>import('./start.js').then((kit) => { window.settled = typeof kit.start; }, (e) => { window.settled = 'failed: ' + e.message; });</script>";
+			await new Promise((r) => setTimeout(r, 200));
+			expect(page.mainFrame.document.body.textContent).toBe('next');
+			expect(first.settled).toBeUndefined();
+		} finally {
+			await browser.close();
+		}
 	});
 });

@@ -8,7 +8,8 @@
  * @packageDocumentation
  */
 import { HOLES_SCRIPT_TYPE } from '../holes-record.ts';
-import { parse_region_html } from './parse-html.ts';
+import { parse_region_html, vouch_page_html } from './html-sink.ts';
+import { server_channel } from './response-mark.ts';
 
 export type HoleFacts = {
 	/** The signed capability URL the server minted. */
@@ -24,7 +25,7 @@ type RawRecord = Record<string, { endpoint?: unknown; sidecar?: unknown }>;
 const records = new WeakMap<Document, Map<string, HoleFacts> | null>();
 
 function parse_record(doc: Document): Map<string, HoleFacts> | null {
-	const el = doc.querySelector(HOLES_SELECTOR);
+	const el = server_channel(doc, HOLES_SELECTOR);
 	if (!el) return null;
 	let raw: RawRecord;
 	try {
@@ -46,7 +47,8 @@ function parse_record(doc: Document): Map<string, HoleFacts> | null {
 }
 
 function sidecar_element(html: string): HTMLScriptElement | null {
-	const el = parse_region_html(html).firstElementChild;
+	// @why the record is the page's own (its server wrote it) and the sidecar a data script, so it is vouched and parsed inert (test: test/browser/hole-facts.test.ts › a recorded sidecar never runs: a script in the record is parsed inert)
+	const el =parse_region_html(vouch_page_html(html)).firstElementChild;
 	return el && el.tagName === 'SCRIPT' ? (el as HTMLScriptElement) : null;
 }
 
