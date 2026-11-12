@@ -20,6 +20,10 @@ const OUT = '.lab-dock';
 const PORT = port(3106);
 const base = `http://127.0.0.1:${PORT}`;
 let server: SpawnedServer | undefined;
+// the same build served as an app without ogygia's handle (hooks.server.ts `LAB_NO_HANDLE`)
+const BARE_PORT = port(3107);
+const bare = `http://127.0.0.1:${BARE_PORT}`;
+let bare_server: SpawnedServer | undefined;
 
 test.use({ baseURL: base });
 test.beforeAll(async () => {
@@ -37,8 +41,16 @@ test.beforeAll(async () => {
 		env: { PORT: String(PORT), HOST: '127.0.0.1', ORIGIN: base },
 		url: `${base}/robots.txt`
 	});
+	bare_server = await spawn_server({
+		cmd: 'node',
+		args: [join(OUT, 'build')],
+		cwd: app,
+		env: { PORT: String(BARE_PORT), HOST: '127.0.0.1', ORIGIN: bare, LAB_NO_HANDLE: '1' },
+		url: `${bare}/robots.txt`
+	});
 });
 test.afterAll(async () => {
+	await bare_server?.kill();
 	await server?.kill();
 	rmSync(join(app, OUT), { recursive: true, force: true });
 });
@@ -197,5 +209,72 @@ test.describe('the dock in a build: turned off, nothing of it is left (#239)', (
 		check('no dock mounted', !after.hook, JSON.stringify(after));
 		check('no Alt+O listener is left', after.keys === 0, JSON.stringify(after));
 		check('no observer is left on the head', after.heads === 0, JSON.stringify(after));
+	});
+});
+
+const has_beacon = (page: Page) =>
+	page.evaluate(
+		() => !!(globalThis as unknown as Record<symbol, unknown>)[Symbol.for('ogygia.beacon')]
+	);
+const beacon_tag = (page: Page) =>
+	page.evaluate(() => document.querySelectorAll('script[data-ogygia-beacon]').length);
+
+/** The scripts the page downloads that carry the page beacon's code (chunk names are bare hashes,
+ *  so it is found by two strings only the beacon has together). */
+function beacon_scripts(page: Page): () => Promise<string[]> {
+	const found: string[] = [];
+	const reads: Promise<void>[] = [];
+	page.on('response', (r) => {
+		if (r.request().resourceType() !== 'script') return;
+		reads.push(
+			r.text().then(
+				(body) =>
+					void (
+						body.includes('ogygia.beacon.waiting') &&
+						body.includes('largest-contentful-paint') &&
+						found.push(r.url())
+					),
+				() => {} // ok: a body the browser dropped (a redirect) carries no code
+			)
+		);
+	});
+	return () => Promise.all(reads).then(() => found);
+}
+
+test.describe('the page beacon in a build with the dock on', () => {
+	test('an app without ogygia’s handle, devtools on: the dock starts the page beacon', async ({
+		page
+	}) => {
+		const asked = beacon_scripts(page);
+		await page.goto(`${bare}/dt-lab?og-devtools=on`, { waitUntil: 'load' });
+		await page.locator('[data-og-panel-toggle]').waitFor({ timeout: 10_000 });
+		check('no server put the beacon in the head', (await beacon_tag(page)) === 0);
+		await test.expect.poll(() => has_beacon(page), { timeout: 10_000 }).toBe(true);
+		const found = await asked();
+		check('its code came as one chunk', found.length === 1, found.join(', '));
+	});
+
+	test('an app without ogygia’s handle, devtools off: no beacon, and its code is never asked for', async ({
+		page
+	}) => {
+		const asked = beacon_scripts(page);
+		await page.goto(`${bare}/dt-lab`, { waitUntil: 'load' });
+		await page.waitForTimeout(1500);
+		check('no page beacon', !(await has_beacon(page)));
+		const found = await asked();
+		check('no script carries the beacon', found.length === 0, found.join(', '));
+	});
+
+	test('an app with the handle, devtools on: the server’s tag is the beacon, no chunk is asked for', async ({
+		page
+	}) => {
+		const asked = beacon_scripts(page);
+		await page.goto(`${base}/dt-lab?og-devtools=on`, { waitUntil: 'load' });
+		await page.locator('[data-og-panel-toggle]').waitFor({ timeout: 10_000 });
+		check('the server put the beacon in the head', (await beacon_tag(page)) === 1);
+		check('the page beacon runs', await has_beacon(page));
+		await page.waitForTimeout(1000);
+		const found = await asked();
+		check('no script carries the beacon', found.length === 0, found.join(', '));
 	});
 });

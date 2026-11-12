@@ -8,7 +8,7 @@
  * `defer_keys`, the Page tab's own reading). Pure; indexOf only.
  */
 import { PAGE_DEFER_GLOBAL, PAGE_DEFER_KEY } from '@ogygia/core/internal/instruments';
-import { defer_keys } from '@ogygia/core/insights';
+import { defer_keys } from '@ogygia/insights';
 import { left_at, type ByteStrip, type StripKind } from './byte-strip.ts';
 
 export interface StreamTail {
