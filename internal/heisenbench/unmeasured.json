@@ -3935,6 +3935,10 @@
 		{
 			"id": "packages/postrender/src/server.ts > credentialed",
 			"reason": "two header lookups on the request (a Request, not cloneable), once per request, constant work; proven in packages/postrender/test/plugin.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/core.ts > say_island_failed",
+			"reason": "browser only, an error path: says one coded console error for an island that could not start (an Error, not cloneable), constant work; proven in packages/core/test/browser/live-region-failed-file.test.ts (#942)"
 		}
 	]
 }
