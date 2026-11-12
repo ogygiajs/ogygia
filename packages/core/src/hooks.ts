@@ -1769,9 +1769,9 @@ class OgygiaHandle {
 				told_abandoned.add(e as Error);
 				warn('region_render_abandoned', { ms: RENDER_TIMEOUT_MS });
 			}
-			// The response is an opaque 500 ("Region render failed"); the reason belongs in the dev
-			// terminal — a hole that throws only on the dev server is otherwise a blind hunt.
-			if (import.meta.env.DEV) warn('region_render_failed', e);
+			// The response is an opaque 500 ("Region render failed"); the reason belongs in the
+			// server's log, in production as in dev (test/hole-throw-said.test.ts)
+			warn('region_render_failed', e);
 			return null;
 		}
 	}
