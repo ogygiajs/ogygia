@@ -7,29 +7,8 @@ import { import_file } from './import-again.ts';
  *  foreign-origin checks. */
 export const ABSOLUTE_URL_SCHEME: RegExp = /^[a-z][a-z0-9+.-]*:/i;
 
-/**
- * Defense-in-depth: only fetch region HTML from same-origin capability URLs.
- * Mint always emits a path-only URL (`resolve(DEFAULT_ISLANDS_ENDPOINT)?…`). Absolute /
- * protocol-relative endpoints would require prior HTML injection — still reject them so the
- * runtime is not an XSS amplifier. See INVARIANTS.md · HOLE-TRUST.
- */
-
-/** True when `endpoint` resolves to same-origin http(s). */
-export function is_allowed_region_endpoint(
-	endpoint: string,
-	page_origin: string = location.origin
-): boolean {
-	if (typeof endpoint !== 'string' || endpoint.length === 0) return false;
-	try {
-		const url = new URL(endpoint, page_origin);
-		if (url.protocol !== 'http:' && url.protocol !== 'https:') return false;
-		if (url.origin !== page_origin) return false;
-		// Reject if the final response could redirect cross-origin — checked by caller via res.url.
-		return true;
-	} catch {
-		return false;
-	}
-}
+// (the same-origin checks are the HTML sink's gate: ./html-sink.ts)
+export { is_allowed_region_endpoint, is_same_origin_response } from './html-sink.ts';
 
 /** How far this browser's clock may run behind the server's and still see an expiry. */
 const CLOCK_SKEW_SEC = 300;
@@ -126,19 +105,6 @@ export function deny_of(res: Response, endpoint: string): string {
 		// ok: the endpoint parsed to be fetched; the diagnosis goes without its key otherwise
 	}
 	return `foreign-key: signed by ${minted || '?'}, answered by ${res.headers.get('x-ogygia-key') ?? '?'}`;
-}
-
-/** After fetch: reject opaque redirects that left the page origin. */
-export function is_same_origin_response(
-	res: Response,
-	page_origin: string = location.origin
-): boolean {
-	if (!res.url) return true; // older environments — rely on request URL check
-	try {
-		return new URL(res.url).origin === page_origin;
-	} catch {
-		return false;
-	}
 }
 
 /**

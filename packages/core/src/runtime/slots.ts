@@ -10,7 +10,8 @@
  * This is the single wiring mechanism — there is no service locator and no per-feature setter.
  */
 import type { Scope, Stale } from '@ogygia/machine';
-import type { Frame } from '../frame.ts';
+import type { StoredFrame } from './frame-store.ts';
+import type { VerifiedHtml } from './html-sink.ts';
 import { is_frozen } from './region-attrs.ts';
 
 // ── lakes ────────────────────────────────────────────────────────────────
@@ -112,13 +113,13 @@ export type PageOps = {
  * bundles the store. Null until the feature installs → core's frame calls are optional-chained.
  */
 export type FrameOps = {
-	subscribe(a: string, cb: (f: Frame) => void): () => void;
+	subscribe(a: string, cb: (f: StoredFrame) => void): () => void;
 	/** `STALE` when its `signal` aborted: only that caller leaves the fetch. */
 	ensure(
 		a: string,
-		fetcher: (signal: AbortSignal) => Promise<string>,
+		fetcher: (signal: AbortSignal) => Promise<VerifiedHtml>,
 		opts?: { force?: boolean; signal?: AbortSignal }
-	): Promise<string | Stale>;
+	): Promise<VerifiedHtml | Stale>;
 	/** A renewal answered a fresh capability for this address; and the one it answered, if any. */
 	renew(a: string, fresh: string): void;
 	renewal(a: string): string | null;
@@ -169,7 +170,11 @@ export type BootLink = {
 	warm_island_module: typeof import('./region-endpoint-url.ts').warm_island_module;
 	note_entry_location: typeof import('./entry-locations.ts').note_entry_location;
 	props_sidecar_of: typeof import('./sidecar.ts').props_sidecar_of;
-	parse_region_html: typeof import('./parse-html.ts').parse_region_html;
+	parse_region_html: typeof import('./html-sink.ts').parse_region_html;
+	parse_page_document: typeof import('./html-sink.ts').parse_page_document;
+	set_inner_html: typeof import('./html-sink.ts').set_inner_html;
+	vouch_page_answer: typeof import('./html-sink.ts').vouch_page_answer;
+	vouch_page_html: typeof import('./html-sink.ts').vouch_page_html;
 	runtime_session: typeof import('./session.ts').runtime_session;
 	regions_in_shadow: typeof import('./connected.ts').regions_in_shadow;
 	/** the region sheets a navigation's head merge left, taken out but for those a region uses */

@@ -5,7 +5,7 @@
 import { afterEach, beforeEach, expect, test } from 'vitest';
 import { stringify } from 'devalue';
 import { link_boot } from '../../src/runtime/boot-link.ts';
-import { region_fragment } from '../../src/runtime/core.ts';
+import { region_fragment } from './_html.ts';
 import { install as install_morph } from '../../src/runtime/morph.ts';
 import { SpaRouter } from '../../src/runtime/router.ts';
 import { prepare_spa_document, seed_page_once } from '../../src/runtime/seeds.ts';

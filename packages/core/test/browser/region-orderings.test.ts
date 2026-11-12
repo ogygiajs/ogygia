@@ -10,7 +10,7 @@
 import { beforeAll, beforeEach, describe, it } from 'vitest';
 import { simulate, type Sim, type SimStep } from '@ogygia/config/sim';
 import { observe } from '@ogygia/machine';
-import { _reset, ticket, write } from '../../src/runtime/frame-store.ts';
+import { _reset, ticket, write } from '../_frames.ts';
 import { frameAddress } from '../../src/frame.ts';
 import {
 	COUNTER,

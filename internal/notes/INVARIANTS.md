@@ -11,7 +11,7 @@ with no line, or a line naming something that does not exist (`internal/checks/i
 
 ## HOLE-TRUST — signed same-origin HTML for deferred regions
 
-**What:** The runtime fetches a capability URL and inserts HTML via `createContextualFragment` + `replaceChildren`. Scripts in that HTML do **not** run; event-handler attributes would.
+**What:** The runtime fetches a capability URL and inserts the HTML it answered. Every string becomes DOM in one module, `packages/core/src/runtime/html-sink.ts`: region HTML is parsed with `setHTMLUnsafe` into a template of a document with no browsing context (inert: nothing in it is built or run until it is inserted), a fetched page with `DOMParser`. The sink takes only a `VerifiedHtml`, and only its vouchers make one, each named by what it checked (a same-origin endpoint whose answer stayed same-origin, a page fetch that landed on this origin, HTML the page itself holds, an answer of the app's own remote transport). Scripts in that HTML do **not** run; event-handler attributes would.
 
 **Why:** Deferred / SWR regions are MPA-equivalent: the HTML is produced by _our_ SSR under a verified HMAC. Trust root is the **server MAC**, not the client.
 
@@ -20,9 +20,9 @@ with no line, or a line naming something that does not exist (`internal/checks/i
 - Pipe hole HTML through a generic sanitizer (DOMPurify etc.) without allowing `ogygia-region` and lake structure — it silently breaks holes.
 - Treat absolute `endpoint` URLs as a primary XSS bug; mint always emits a **path-only** URL. The client same-origin check is defense-in-depth for prior HTML injection.
 
-**Client check:** `is_allowed_region_endpoint` + final `response.url` origin. Abort in-flight fetches on disconnect.
+**Client check:** `is_allowed_region_endpoint` + final `response.url` origin, for a hole's own fetch and for a batch of holes alike; a soft refresh merges only a page that landed on this origin. Abort in-flight fetches on disconnect.
 
-**Enforced by:** `packages/core/test/audit-fixes.test.ts > allows same-origin relative and absolute; rejects cross-origin`
+**Enforced by:** `ogygia/html-sink`, `internal/lint/html-sink.test.ts > package source that turns a string into DOM, or casts to VerifiedHtml, is refused`, `packages/core/test/audit-fixes.test.ts > allows same-origin relative and absolute; rejects cross-origin`, `packages/core/test/browser/batch-same-origin.test.ts`, `packages/core/test/browser/soft-refresh-foreign-landing.test.ts`
 
 ---
 
