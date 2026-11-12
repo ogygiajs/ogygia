@@ -21,6 +21,7 @@
  * scans (a tag walk, a rare-needle-first search), the engine's compiled matcher was 2–4× faster on
  * real heads, allocation-free either way. `dedupe_head_links` is hand-written: it won.
  */
+import { DT_MARK } from '../contract/events.ts';
 import { is_html_space } from './html-scan.ts';
 
 /** A real `<meta name="ogygia-router" …>` element — a page opting a route out of view transitions. */
@@ -188,7 +189,8 @@ function search_from(re: RegExp, s: string, from: number): number {
  * no earlier. `runtime` is the tag to place when the head has none yet (`null` = only reorder what
  * is there; the tag an island page emits sits wherever Kit's head slot is, after the app's own
  * scripts in `app.html`). With no JavaScript in the head it goes last in it. Returns `head` itself
- * when there is nothing to move.
+ * when there is nothing to move. `dt_mark`: a devtools response's mark, written on the tag it places
+ * (the same one its devtools side channel bears: DEVTOOLS-FEED).
  *
  * Why BEFORE THE JS: module and deferred scripts run in document order once parsing ends, and the
  * runtime's custom-element definition is what makes every `<ogygia-region>` connect and keep its
@@ -205,10 +207,13 @@ function search_from(re: RegExp, s: string, from: number): number {
  * other `<meta>`, the `<title>`, stylesheets, preconnects, image/font preloads — keeps its place in
  * front of it.
  */
-export function runtime_first(head: string, runtime: string | null): string {
+export function runtime_first(head: string, runtime: string | null, dt_mark = ''): string {
 	const found = RUNTIME_SCRIPT_ELEMENT_RE.exec(head);
-	const tag = found ? found[0] : runtime;
-	if (tag === null) return head;
+	const placed = found ? found[0] : runtime;
+	if (placed === null) return head;
+	// DEVTOOLS-FEED: the response's mark leads the tag's attributes (a repeated attribute keeps its
+	// first value, so a mark the markup put on the tag loses)
+	const tag = dt_mark ? '<script ' + DT_MARK + '="' + dt_mark + '"' + placed.slice(7) : placed;
 	const rest = found
 		? head.slice(0, found.index) + head.slice(found.index + found[0].length)
 		: head;
@@ -220,6 +225,6 @@ export function runtime_first(head: string, runtime: string | null): string {
 		const close = search_from(HEAD_CLOSE_G, rest, from);
 		at = close === -1 ? rest.length : close;
 	}
-	if (found && found.index === at) return head;
+	if (found && found.index === at && tag === placed) return head;
 	return rest.slice(0, at) + tag + rest.slice(at);
 }
