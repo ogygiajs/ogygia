@@ -1,12 +1,13 @@
 <!-- (its CSS injected into the dock's shadow root: see Devtools.svelte) -->
 <svelte:options css="injected" />
 
+<!--
+@component
+The Timeline tab: this page's client events on a time axis, one lane per region and one for the
+page and its navigations, with a bar from a region's first schedule to its hydration. Server events
+are left out: their clock has another origin.
+-->
 <script>
-	/**
-	 * The Timeline tab: CLIENT-realm events on a time axis, one lane per region (+ a page/nav lane), a
-	 * hydrate.start→done bar per region. Server events are excluded on purpose — their clock is a
-	 * different origin. The track width follows the window (bind:clientWidth), so it never overflows.
-	 */
 	import { snapshot } from '@ogygia/core/events';
 	import { last_nav } from './page.ts';
 	import { region_name, region_name_by_fp } from './regions.ts';
@@ -39,11 +40,7 @@
 	const trackW = $derived(Math.max(200, wrapW - LABEL_W - 12));
 
 	const model = $derived.by(() => {
-		void tick; // refresh with the panel tick
-		// THIS page: from the last in-app navigation on (the nav itself included). Every earlier page's
-		// islands stayed in the buffer: after a few navigations the axis spanned the whole session, one
-		// lane per island of every page visited, each squeezed to a dot.
-		// (a navigation that never swapped the page — a full load held back, one overtaken — starts nothing)
+		void tick;
 		const all = snapshot().filter((e) => e.realm === 'client' && MARK[e.name]);
 		const nav = last_nav();
 		const from = nav
@@ -52,22 +49,20 @@
 					all.findIndex((e) => e.t >= nav.t)
 				)
 			: 0;
+		// @why only this page, from the last navigation on: earlier pages' regions would squeeze every lane to a dot (test: test/devtools-timeline-tab.test.ts › draws only this page: the regions of the page before the last navigation are gone)
 		const events = all.slice(from);
 		if (events.length === 0) return { events: [], lanes: [], span: 0 };
 
-		// Group by region, keeping only the FIRST occurrence of each phase. A live region re-emits
-		// wake/hydrate on every tick — folding to first-per-phase keeps a 2-minute live tail from
-		// stretching the axis so the real initial-load hydrations collapse into a single dot.
 		const laneMap = new Map();
 		for (const e of events) {
 			const key = e.fp || 'page';
 			let lane = laneMap.get(key);
 			if (!lane) laneMap.set(key, (lane = { key, first: new Map(), entry: null }));
+			// @why a live region hydrates again on every tick: its later ones would stretch the axis (test: test/devtools-timeline-tab.test.ts › keeps a region's first event of each kind: a live region's later hydrations do not stretch the axis)
 			if (!lane.first.has(e.name)) lane.first.set(e.name, e);
 			if (e.entry && !lane.entry) lane.entry = e.entry;
 		}
 
-		// Axis spans only those first events — i.e. the initial hydration wave.
 		let t0 = Infinity;
 		let t1 = -Infinity;
 		for (const lane of laneMap.values())
@@ -87,8 +82,6 @@
 					: lane.entry
 						? region_name(lane.entry)
 						: region_name_by_fp(lane.key);
-			// Bar = schedule → done (or the earliest phase we saw → done). Open bar when hydrate hasn't
-			// finished yet, so a still-waking region reads differently from a done one.
 			const start =
 				lane.first.get('wake.scheduled') ||
 				lane.first.get('wake.fired') ||
@@ -98,6 +91,7 @@
 				? {
 						left: x(start.t),
 						width: done ? Math.max(3, x(done.t) - x(start.t)) : Math.max(3, trackW - x(start.t)),
+						// @why a region still waking reads apart from a done one (test: test/devtools-timeline-tab.test.ts › leaves the bar of a region still waking open)
 						open: !done,
 						failed: lane.first.has('region.hydrate.failed')
 					}

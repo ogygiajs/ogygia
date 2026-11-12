@@ -263,6 +263,7 @@ import {
 	clock,
 	lock,
 	machine,
+	noop,
 	outbox,
 	policy,
 	registry,
@@ -292,8 +293,6 @@ const SINK_POLICY = /* @__PURE__ */ policy({
 const SINK_TRY_MS = 5000;
 const error_text = (error: unknown): string =>
 	error instanceof Error ? error.message : String(error);
-const noop = (): void => {};
-
 // The span recorder's `begin` lives in this file: skip its frame when finding a span's caller.
 register_profiler_file();
 import { error, type Router, type Ctx as RouteCtx } from '@ogygia/router';

@@ -450,6 +450,16 @@ if (token !== null) try { /* … */ } finally { recorder.free(token); }
 await recorder.acquire(signal); // waits its turn
 ```
 
+## Slots
+
+`slot({ name, version, make })` is one value per process (or page), shared by every copy of a package it loads: dev serves the runtime twice, and an app can bundle a package twice.
+
+```ts
+const facts = slot({ name: 'ogygia.facts', version: 2, make: () => ({ by_request: new WeakMap() }) });
+```
+
+The value lives at `globalThis[Symbol.for(name)]`. A name starts with `ogygia.` and carries no version: `version` is the value's shape, raised when the shape changes. A copy that asks for another version of a held name is refused in dev ([machine_slot_version](https://ogygiajs.dev/e/machine_slot_version)); in production it keeps a private value, said once.
+
 ## Clocks
 
 `clock.mono()` is milliseconds on the monotonic clock, for every duration inside one process: a TTL, a deadline, a budget. A wall-clock step (an NTP correction, a VM resume) never moves it. `clock.wall()` is `Date.now()`, for a timestamp that leaves the process. A `flights` keep and a `policy` deadline are measured on `mono`; a kept answer's `at` is a wall timestamp.
