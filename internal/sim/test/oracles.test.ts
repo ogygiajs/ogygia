@@ -47,6 +47,20 @@ describe('normalize', () => {
 		);
 	});
 
+	it("drops a region's repair mark: a third party edited it before it woke on one load only (gen 192, seed 19)", async () => {
+		// (a third party's script waiting for DOMContentLoaded edits a document load's islands, never a
+		// router visit's: the region shows the same once repaired, and only the mark says it was)
+		const { Window } = await import('happy-dom');
+		const page = (mark: string) => {
+			const w = new Window();
+			w.document.write(
+				`<html><head><title>t</title></head><body><ogygia-region wake="idle"${mark}><p>hi</p></ogygia-region></body></html>`
+			);
+			return normalize(w.document as unknown as Document);
+		};
+		expect(page(' data-og-healed="children"')).toBe(page(''));
+	});
+
 	it("drops a page store's mark: a stored copy is the render it kept (gen 63, seed 26)", async () => {
 		const { Window } = await import('happy-dom');
 		const page = (head: string) => {
