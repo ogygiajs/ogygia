@@ -1,10 +1,9 @@
 /**
- * Flag/experiment INVENTORY — pure OBSERVATION during the prescan. Nothing is rewritten, so per
- * the macro law this is deliberately NOT an `import.meta.og.*` construct: the compiler only
- * REPORTS what it saw. The build writes the collected sites to
- * `node_modules/.ogygia/flags-manifest.json` — diff it in CI to catch flags that never die
- * (flag debt: the reason Uber built a whole refactoring bot; an inventory is the law-abiding
- * subset our file-local compiler can give for free).
+ * Flag/experiment INVENTORY — pure OBSERVATION during the prescan (`flags()`'s `b.prescan` hook).
+ * Nothing is rewritten, so per the macro law this is deliberately NOT an `import.meta.og.*`
+ * construct: the build only REPORTS what it saw. A `vite build` with `flags()` listed writes the
+ * collected sites to `node_modules/.ogygia/flags-manifest.json` — diff it in CI to catch flags
+ * that never die (flag debt; an inventory is the subset a file-local compiler can give for free).
  *
  * AST-walked, not text-matched (user ruling): `flag` is an ordinary function — a text sweep
  * would miss `import { flag as f }` and false-positive on any local function that happens to be
@@ -14,10 +13,9 @@
  * scope-analyzed.
  */
 import { walk } from 'estree-walker';
-import { parse_module } from './parse/oxc.ts';
+import { parse_module } from '@ogygia/compiler';
 
-/** The import a flag site comes through. (Moves into the flags plugin's compile facet once the
- *  compile port lands: internal/notes/packages.md.) */
+/** The import a flag site comes through. */
 export const FLAGS_SPEC = '@ogygia/flags';
 
 export interface FlagSite {

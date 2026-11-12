@@ -24,11 +24,26 @@ import {
 	transformHost,
 	islandVirtualId,
 	wrapperVirtualId,
-	CLIENT_BINDING_STUB,
-	collect_flag_sites,
-	flags_manifest,
-	type FlagSite
+	CLIENT_BINDING_STUB
 } from '@ogygia/compiler';
+
+/** One flag call site, as `@ogygia/flags`' inventory reads it. */
+type FlagSite = { name: string; kind: 'flag'; file: string; line: number };
+/** The flag inventory (`@ogygia/flags/internal/inventory`): the collector the build runs. */
+interface FlagInventory {
+	collect_flag_sites(code: string, id: string, file: string): FlagSite[];
+	flags_manifest(sites: readonly FlagSite[]): { flags: FlagSite[]; names: string[] };
+}
+/** The inventory, loaded from the project's own install: core does not depend on the plugin. */
+async function load_flag_inventory(root: string): Promise<FlagInventory | null> {
+	try {
+		const from_app = createRequire(path.join(root, 'package.json'));
+		const url = pathToFileURL(from_app.resolve('@ogygia/flags/internal/inventory')).href;
+		return (await import(url)) as FlagInventory;
+	} catch {
+		return null; // ok: no @ogygia/flags in the project; the tool says so
+	}
+}
 import { line } from './messages.ts';
 
 /** The profiler's report reading (`@ogygia/devtools/report`), as these tools use it: loaded from the
@@ -1910,9 +1925,15 @@ function walk_flag_files(dir: string, out: string[] = [], depth = 0): string[] {
 	return out;
 }
 
-function tool_flags(args: Attrs): ToolResult {
+async function tool_flags(args: Attrs): Promise<ToolResult> {
 	const dir = String(args.dir ?? '.');
 	const root = path.isAbsolute(dir) ? dir : path.resolve(process.cwd(), dir);
+	const inventory = await load_flag_inventory(root);
+	if (!inventory)
+		return text(
+			`@ogygia/flags is not installed in ${dir}, so there are no flags to inventory. Flags are defined with \`flag('name', …)\` from '@ogygia/flags'.`
+		);
+	const { collect_flag_sites, flags_manifest } = inventory;
 
 	// The last build's inventory, when this project has one (client build writes it).
 	let manifest: { flags: FlagSite[]; names: string[] } | null = null;

@@ -122,9 +122,6 @@ export class Program {
 	 *  component closure from (see link/router-css.ts). Filled during the prescan walk. */
 	readonly router_modules: Set<string> = new Set();
 	readonly module_specs: Map<string, string[]> = new Map();
-	/** flag()/experiment() call sites the prescan OBSERVED (modules importing 'ogygia' only) —
-	 *  written to node_modules/.ogygia/flags-manifest.json at build for CI flag-debt diffs. */
-	readonly flag_sites: import('./flags.ts').FlagSite[] = [];
 	/** SEED SHAPING: per module (query-less id, forward slashes), the top-level `page.data` keys its
 	 *  code reads — `'all'` when a read could not be pinned to a literal key. Recorded by the driver's
 	 *  transform for every module that imports Kit's page store (link/page-keys.ts); the client

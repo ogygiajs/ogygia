@@ -860,6 +860,16 @@ export const BUILD_WARNINGS = {
 			folder, fix the config so it loads.
 		`
 	},
+	plugin_not_listed: {
+		text: (a: { package: string; plugin: string; file: string }): string =>
+			`${a.file} imports ${a.package}, but its plugin \`${a.plugin}\` is not listed beside ogygia() in vite.config — its build half does not run.`,
+		details: (): string => prose`
+			This package has a part that runs in the build (for \`@ogygia/flags\`: the flag inventory,
+			\`node_modules/.ogygia/flags-manifest.json\`, and the server half that tells each request
+			which flags it read). That part runs only when the package's plugin is listed. Add it beside
+			\`ogygia()\` in vite.config \`plugins\`, before \`sveltekit()\`. Said once per build.
+		`
+	},
 
 	// ── the build's reports: printed at info level with `line(code, args)`, never warned ──────────
 	island_chunks_not_emitted: {
@@ -869,15 +879,6 @@ export const BUILD_WARNINGS = {
 			The client build found islands whose host components no route of this build renders, so
 			it left their chunks out. Nothing is wrong unless an island is missing from a page that
 			should have it: then check the route that renders its host is part of the build.
-		`
-	},
-	flags_manifest_written: {
-		text: (a: { count: number }): string =>
-			`flags manifest: ${a.count} flag(s) → node_modules/.ogygia/flags-manifest.json`,
-		details: (): string => prose`
-			The build wrote the inventory of every \`flag()\` it found, with where each is read, to
-			\`node_modules/.ogygia/flags-manifest.json\`. Tools (the devtools, a flag dashboard) read it
-			from there.
 		`
 	},
 	page_seed_report: {
