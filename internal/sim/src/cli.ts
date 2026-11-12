@@ -186,6 +186,7 @@ export async function run(
 						broken.push({ ...b, detail: `after ${what}: ${b.detail}` });
 				t.errors.length = 0;
 				t.console.length = 0;
+				t.said_by.clear();
 			}
 			since = world.network.exchanges.length;
 			const u = uncaught(world);

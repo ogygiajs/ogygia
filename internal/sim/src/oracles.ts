@@ -641,7 +641,9 @@ export async function mpa_equivalent(
  */
 export function regions_show(tab: Tab, world: World): Broken | null {
 	const url = tab.page.mainFrame.url;
-	if (!url.startsWith('http') || faulted(world, tab)) return null;
+	// (nor where a deploy or a missing secret failed an answer: a hole refused for another build's
+	// key keeps its fallback, as `secret_missing` warns; generated app 3, seed 53)
+	if (!url.startsWith('http') || faulted(world, tab) || world.skewed_for(tab.realm)) return null;
 	const doc = tab.page.mainFrame.document as unknown as Document;
 	const empty = [...doc.querySelectorAll('ogygia-region')].filter(
 		(r) =>
@@ -862,15 +864,25 @@ function deploy_took(world: World, tab: Tab, line: string): boolean {
 /** No uncaught error, unhandled rejection or console error in the page (beyond what a network
  *  fault on this document explains, or a deploy, when `world` is given). */
 export function page_errors(tab: Tab, world?: World, since?: number): Broken | null {
-	// (a fault on the shown document stays its fact: a module whose download was cut fails every
-	// later import of it in that document, as the module map keeps the failure)
-	const excused = world !== undefined && (faulted(world, tab) || faulted(world, tab, since));
-	// (a document whose own HTML was changed or cut on the way is not the page the server sent:
-	// what its scripts then do is the network's, a TypeError too. Seed 150: a flipped byte in
-	// `type="application/ogygia-page"` hid the page data, and the island read a missing field)
-	if (world !== undefined && document_faulted(world, tab)) return null;
+	// (each line judged by the document that said it: an action can show several; seed 78)
+	const said_in = (l: string): Tab => {
+		const realm = tab.said_by?.get(l) ?? tab.realm;
+		return realm === tab.realm ? tab : { ...tab, realm };
+	};
 	const errors = [...tab.errors, ...tab.console.filter((l) => l.startsWith('error:'))].filter(
-		(l) => !(excused && EXPLAINED.test(l)) && !(world !== undefined && deploy_took(world, tab, l))
+		(l) => {
+			if (world === undefined) return true;
+			const by = said_in(l);
+			// (a document whose own HTML was changed or cut on the way is not the page the server
+			// sent: what its scripts then do is the network's, a TypeError too. Seed 150: a flipped
+			// byte in `type="application/ogygia-page"` hid the page data, and the island read a
+			// missing field)
+			if (document_faulted(world, by)) return false;
+			// (a fault on the document stays its fact: a module whose download was cut fails every
+			// later import of it in that document, as the module map keeps the failure)
+			const excused = faulted(world, by) || faulted(world, by, since);
+			return !(excused && EXPLAINED.test(l)) && !deploy_took(world, by, l);
+		}
 	);
 	if (errors.length === 0) return null;
 	const known = KNOWN_SAID.filter((k) => errors.some((l) => k.said.test(l)));

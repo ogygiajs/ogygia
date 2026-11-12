@@ -33,6 +33,8 @@ export interface Tab {
 	/** What the page reported: uncaught errors, failed scripts, console errors. */
 	readonly errors: string[];
 	readonly console: string[];
+	/** The realm of the document that said each line of `errors` and `console`. */
+	readonly said_by: Map<string, string>;
 	/** The document's simulated platform (its outstanding timers, for the leak oracle). */
 	platform: ReturnType<typeof platform> | null;
 	/** What the shown document holds now (the leak oracle's sample). */
@@ -453,8 +455,18 @@ export class Browsers {
 			console: [],
 			platform: null,
 			held: () => ({ listeners: 0, intervals: 0, observers: 0, head: 0, elements: 0 }),
-			listening: () => []
+			listening: () => [],
+			said_by: new Map()
 		};
+		// (each line said is the document's that said it: one action can show several documents,
+		// and a line is judged by its own document's faults; generated app 10, seed 78)
+		for (const list of [tab.errors, tab.console]) {
+			const push = list.push.bind(list);
+			list.push = (...lines: string[]) => {
+				for (const l of lines) tab.said_by.set(l, tab.realm);
+				return push(...lines);
+			};
+		}
 		v.tabs.push(tab);
 		this.#windows.set(page.mainFrame.window, tab);
 		// (happy-dom reports a failed script or stylesheet here, then fires `error` on its element:
