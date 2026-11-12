@@ -3195,27 +3195,33 @@ class Profiler {
 		}
 		const origin = ctx.url.origin;
 		const page_url = `${origin}${this.base}/report/${stored.meta.id}`;
-		const headers: Record<string, string> = { 'x-og-profiler-internal': '1' };
-		if (this.secret) headers['x-profiler-key'] = this.secret;
 		// IN-PROCESS first: Kit's own fetch answers a same-site request inside this instance. A plain
 		// fetch to the origin goes back out through the host's CDN and, on a serverless host, lands on
 		// another instance that does not hold this report. The static chunks load either way.
-		const load = async (url: string): Promise<string | null> => {
-			for (const f of ctx.fetch === fetch ? [fetch] : [ctx.fetch, fetch]) {
-				try {
-					const res = await f(url, { headers });
-					if (res.ok) return await res.text();
-				} catch {
-					// ok: this way could not fetch it; the next way is tried
+		const loader =
+			(headers: Readonly<Record<string, string>>) =>
+			async (url: string): Promise<string | null> => {
+				for (const f of ctx.fetch === fetch ? [fetch] : [ctx.fetch, fetch]) {
+					try {
+						const res = await f(url, { headers });
+						if (res.ok) return await res.text();
+					} catch {
+						// ok: this way could not fetch it; the next way is tried
+					}
 				}
-			}
-			return null;
-		};
-		const html = await load(page_url);
+				return null;
+			};
+		const internal = { 'x-og-profiler-internal': '1' } as const;
+		// The key goes with the report page's own fetch only: the page is the profiler's, behind its
+		// login. The assets it names may be on another host (a CDN), so their loader is built from
+		// headers that never held the key (test: profiler-standalone-key).
+		const html = await loader(
+			this.secret ? { ...internal, 'x-profiler-key': this.secret } : internal
+		)(page_url);
 		if (html === null) return new Response('Could not render the report page.', { status: 502 });
 		const { build_standalone } = await import('./standalone.ts');
 		try {
-			const out = await build_standalone(html, { page_url, load });
+			const out = await build_standalone(html, { page_url, load: loader(internal) });
 			return new Response(out, {
 				headers: {
 					'content-type': 'text/html; charset=utf-8',
