@@ -38,6 +38,9 @@ export interface GenNode {
 	/** A held region's island host has a button: a command that changes the server's count and
 	 *  answers with the region rendered again (single flight). */
 	readonly command?: boolean;
+	/** Its command publishes too: it invalidates its page's stored copy (`postrender.invalidate`),
+	 *  which a federated app announces to its peers (a thaw notice, through an outbox). */
+	readonly publish?: boolean;
 	/** A held region on a page host shows a placeholder while it waits. */
 	readonly placeholder?: boolean;
 	/** A live region's ticks, this many ms apart. */
@@ -98,18 +101,22 @@ export function plan(seed: number): GenPage[] {
 	// (held and live regions draw from a stream of their own: a seed's tree, drawn before they
 	// existed, stays the same, with some of its regions held)
 	const h = rng(seed).fork('gen held');
+	// (and whether a command publishes, from its own: a seed's commands stay where they were)
+	const p = rng(seed).fork('gen publish');
 	const held = (n: GenNode): GenNode => {
 		if (n.kind === 'hole' || !h.chance(0.3)) return n;
 		const wake = h.chance(0.5) ? h.pick(WAKES) : undefined;
 		if (h.chance(0.3))
 			return { id: n.id, kind: 'live', wake, every: h.pick([700, 3000]), children: n.children };
 		const host = h.chance(0.5) ? 'island' : 'page';
+		const command = host === 'island' && h.chance(0.6);
 		return {
 			id: n.id,
 			kind: 'held',
 			wake,
 			host,
-			command: host === 'island' && h.chance(0.6),
+			command,
+			publish: command && p.chance(0.5),
 			placeholder: host === 'page' && h.chance(0.5),
 			children: n.children
 		};
@@ -150,6 +157,9 @@ export interface GenPeer {
 	/** The peer's own pages (`/q<i>`), at `/peer/q<i>` in the app. */
 	readonly pages: readonly GenPage[];
 	readonly slots: readonly GenSlot[];
+	/** The app keeps the peer's page documents this many ms (`cache: { ttl }`, served stale while
+	 *  one fetch refreshes them); 0: no cache. */
+	readonly ttl: number;
 }
 
 /** The peer a seed draws for its app of `pages`, or null (most seeds: one app alone). Its own
@@ -188,7 +198,17 @@ export function peer_plan(seed: number, pages: readonly GenPage[]): GenPeer | nu
 				placeholder: render === 'deferred' && r.chance(0.5)
 			});
 		}
-	return { mount: r.chance(0.7) ? 'router' : 'kit', widgets, pages: own, slots };
+	const mount = r.chance(0.7) ? 'router' : 'kit';
+	// (its own stream: a seed's peer stays what it was)
+	const ttl = rng(seed)
+		.fork('gen peer cache')
+		.weighted<number>([
+			[0, 2],
+			[300, 1],
+			[2000, 1],
+			[30_000, 1]
+		]);
+	return { mount, widgets, pages: own, slots, ttl };
 }
 
 /** How a parent imports `n`: its import attributes. */
@@ -227,12 +247,14 @@ function usage(n: GenNode, indent: string): string {
 }
 
 /** A held or live region's remote module: the query that returns it (and the command that changes
- *  it), importing its component with the schedule it bakes. */
-function remote(n: GenNode): string {
+ *  it), importing its component with the schedule it bakes. A command that publishes invalidates
+ *  `page`, the page the region is on. */
+function remote(n: GenNode, page: string): string {
 	const mark = n.wake ? `{ wake: '${n.wake}' }` : `{ region: 'raw' }`;
 	const lines = [
 		`import { ${n.kind === 'live' ? 'query' : 'command, query'} } from '$app/server';`,
 		`import { region } from 'ogygia';`,
+		...(n.publish ? [`import { postrender } from '@ogygia/postrender';`] : []),
 		`import N${n.id} from './N${n.id}.svelte' with ${mark};`,
 		''
 	];
@@ -256,6 +278,12 @@ function remote(n: GenNode): string {
 			'',
 			`export const bump${n.id} = command(async () => {`,
 			`\t(counts.__sim_gen_held ??= {})[${n.id}] = count() + 1;`,
+			...(n.publish
+				? [
+						`\t// (a publish: the page's stored copy goes, and the app's peers hear of it)`,
+						`\tawait postrender.invalidate('${page}');`
+					]
+				: []),
 			`\treturn await region(N${n.id}, { label: label() });`,
 			`});`
 		);
@@ -342,7 +370,8 @@ function slot_usage(s: GenSlot): string {
 }
 
 /** The app's federation (`src/lib/gen/federation.server.ts`): one identity, the peer it calls. */
-function app_federation(): string {
+function app_federation(peer: GenPeer): string {
+	const cache = peer.ttl > 0 ? `, cache: { ttl: ${peer.ttl} }` : '';
 	return [
 		`import { federate } from '@ogygia/federation';`,
 		`import { env } from '$env/dynamic/private';`,
@@ -352,7 +381,7 @@ function app_federation(): string {
 		`\tname: 'app',`,
 		`\tkey: env.APP_SIGNING_KEY,`,
 		`\tvisitor: () => ({ sub: 'visitor' }),`,
-		`\tpeers: { peer: { origin: env.PEER_ORIGIN ?? 'https://peer.test', key: env.PEER_PUBLIC_KEY } }`,
+		`\tpeers: { peer: { origin: env.PEER_ORIGIN ?? 'https://peer.test', key: env.PEER_PUBLIC_KEY${cache} } }`,
 		`});`,
 		''
 	].join('\n');
@@ -381,13 +410,13 @@ function app_mount(peer: GenPeer | null): string {
 	].join('\n');
 }
 
-/** Writes the region components of `roots` into `lib`. */
-function components(lib: string, roots: readonly GenNode[]): void {
+/** Writes the region components of `roots`, shown on `page`, into `lib`. */
+function components(lib: string, roots: readonly GenNode[], page: string): void {
 	const walk = (n: GenNode): void => {
 		writeFileSync(join(lib, `N${n.id}.svelte`), component(n));
 		if (n.kind === 'held' || n.kind === 'live') {
 			writeFileSync(join(lib, `H${n.id}.svelte`), host(n));
-			writeFileSync(join(lib, `h${n.id}.remote.ts`), remote(n));
+			writeFileSync(join(lib, `h${n.id}.remote.ts`), remote(n, page));
 		}
 		n.children.forEach(walk);
 	};
@@ -424,7 +453,7 @@ export function write(
 	writeFileSync(join(routes, '+page.svelte'), `<h1>generated app, seed ${seed}</h1>\n`);
 	writeFileSync(join(lib, 'mount.server.ts'), app_mount(peer));
 	if (peer) {
-		writeFileSync(join(lib, 'federation.server.ts'), app_federation());
+		writeFileSync(join(lib, 'federation.server.ts'), app_federation(peer));
 		if (peer.mount === 'kit') {
 			const dir = join(routes, MOUNT.slice(1), '[...rest]');
 			mkdirSync(dir, { recursive: true });
@@ -495,7 +524,7 @@ export function write(
 				''
 			].join('\n')
 		);
-		components(lib, page.roots);
+		components(lib, page.roots, page.path);
 	}
 	writeFileSync(join(lib, 'plan.json'), JSON.stringify({ seed, pages, peer }, null, '\t') + '\n');
 }
@@ -525,7 +554,8 @@ export function write_peer(dir: string, peer: GenPeer, seed: number): void {
 				''
 			].join('\n')
 		);
-		components(lib, w.children);
+		// (a widget shows on the app's pages: no page of the peer's own)
+		components(lib, w.children, '/');
 	}
 	for (const [i, p] of peer.pages.entries()) {
 		writeFileSync(
@@ -543,7 +573,7 @@ export function write_peer(dir: string, peer: GenPeer, seed: number): void {
 				''
 			].join('\n')
 		);
-		components(lib, p.roots);
+		components(lib, p.roots, MOUNT + p.path);
 	}
 	writeFileSync(
 		join(lib, 'router.ts'),
