@@ -398,6 +398,23 @@ function live_lines(before: string, after: string): string[] {
 	return out;
 }
 
+/** `a` and `b` with a line that moved on one side taken as the other side's same line: the moving
+ *  thing, masked where it moved, may not have moved in the other's look (a live region's tick every
+ *  3 s caught on one side only; generated app 6, seed 76). Text for text, an element for an element
+ *  of its tag, at the same place. */
+function live_aligned(a: string, b: string): [string, string] {
+	const [x, y] = [a.split('\n'), b.split('\n')];
+	if (x.length !== y.length) return [a, b];
+	const moved = (l: string) => / <live>>$|^ *"<live>"$/.test(l);
+	const kin = (l: string, m: string) =>
+		/^ *"/.test(l) ? /^ *"/.test(m) : tag_of(l) !== null && tag_of(l) === tag_of(m);
+	for (let i = 0; i < x.length; i++) {
+		if (moved(x[i]) && !moved(y[i]) && kin(x[i], y[i])) y[i] = x[i];
+		else if (moved(y[i]) && !moved(x[i]) && kin(y[i], x[i])) x[i] = y[i];
+	}
+	return [x.join('\n'), y.join('\n')];
+}
+
 /** `s` with each line that reads as one of `lines` replaced by a mark (indent kept; an element
  *  keeps its tag). */
 function mask(s: string, lines: ReadonlySet<string>): string {
@@ -580,7 +597,8 @@ export async function mpa_equivalent(
 	shown = bookkeeping_out(mask(shown, live));
 	const said = [...fresh.tab.errors, ...fresh.tab.console];
 	await world.browsers.close(fresh.visitor, fresh.tab);
-	if (first_difference(own_state_out(shown), own_state_out(again)) === '') return null;
+	if (first_difference(...live_aligned(own_state_out(shown), own_state_out(again))) === '')
+		return null;
 	// (what the server makes anew each render, a stamp, a counter, a fresh id, differs between two
 	// fresh loads as well: it is the render's, not the tab's state. A second fresh load, and what
 	// differs between the two is marked on every side: seeds 107, 188, 268, 280, 326, 340, 477)
@@ -597,11 +615,10 @@ export async function mpa_equivalent(
 			again = render(again);
 			shown = render(shown);
 		}
-		diff = first_difference(own_state_out(shown), own_state_out(again));
+		diff = first_difference(...live_aligned(own_state_out(shown), own_state_out(again)));
 		if (diff === '' || world.servers.get(world.live)!.length < 2) break;
 	}
-	again = own_state_out(again);
-	shown = own_state_out(shown);
+	[shown, again] = live_aligned(own_state_out(shown), own_state_out(again));
 	if (diff === '') return null;
 	// a difference a filed bug explains is that bug, counted apart until its fix lands
 	// (in order: each judged on what the ones before it left)
@@ -613,6 +630,9 @@ export async function mpa_equivalent(
 		known.push(k);
 		[a, b] = [k.forgive(a, b), k.forgive(b, a)];
 	}
+	// (what moved, lined up once more: a filed bug's lines set aside may have put them in place)
+	[a, b] = live_aligned(a, b);
+	if (a === b && known.length === 0) return null;
 	if (known.length > 0 && a === b)
 		return {
 			oracle: 'known',
