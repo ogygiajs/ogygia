@@ -394,7 +394,13 @@ export async function run(
 			)
 				for (const t of v.tabs)
 					if (!disturbed.has(t.realm)) disturbed.set(t.realm, world.network.exchanges.length);
-			await act(world, v, a, ORIGIN);
+			// (an eager press comes once the next document is in: the marks are that document's)
+			await act(world, v, a, ORIGIN, () => {
+				for (const t of v.tabs) {
+					if (!disturbed.has(t.realm)) disturbed.set(t.realm, world.network.exchanges.length);
+					pressed.set(t.name, t.documents);
+				}
+			});
 			// (a press changes an island's state: the document shows the visitor's own state from then
 			// on, kept across client navigations, which no fresh load has; its next document is clean.
 			// And it may change the server's (a cart, a counter a command bumps), which every other

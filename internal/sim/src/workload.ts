@@ -241,7 +241,9 @@ export async function act(
 	world: World,
 	visitor: Visitor,
 	a: Action,
-	origin: string
+	origin: string,
+	/** Called just before an `eager` press, in the document it presses in. */
+	pressing: () => void = () => {}
 ): Promise<void> {
 	const tab = 'tab' in a ? visitor.tabs[a.tab % Math.max(1, visitor.tabs.length)] : undefined;
 	switch (a.kind) {
@@ -299,6 +301,7 @@ export async function act(
 		case 'eager':
 			if (tab === undefined) return;
 			await world.start(tab, 'goto', a.path, a.after);
+			if (buttons(tab).length > 0) pressing();
 			press(world, tab, a.nth);
 			await world.quiesce();
 			return;
