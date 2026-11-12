@@ -987,13 +987,7 @@ export function uncaught(world: World): Broken | null {
 }
 
 /** A server rule a filed bug breaks, as KNOWN_SAID is for what a page says. */
-const KNOWN_SERVER_RULES: ReadonlyArray<{ issue: number; what: string; said: RegExp }> = [
-	{
-		issue: 925,
-		what: "a capability minted relative to the page, under Kit's default paths.relative",
-		said: /^\S+ rule_capability_not_path ((\.\.?\/)+__ogygia__(; |$))+$/
-	}
-];
+const KNOWN_SERVER_RULES: ReadonlyArray<{ issue: number; what: string; said: RegExp }> = [];
 
 /** No server said one of ogygia's server rules broken (core server/rules.ts: a scope left open, a
  *  kept failure, a region answer a shared cache may keep, a capability minted as more than a path).
