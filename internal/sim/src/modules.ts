@@ -67,6 +67,9 @@ function make_loader(window: Window): Loader {
 				} catch (error) {
 					// a download anywhere in its graph failed: the browser names the module asked for,
 					// not the dependency (Chromium: "Failed to fetch dynamically imported module: <url>")
+					// (in a document unloaded meanwhile it never settles, as below)
+					if ((window as unknown as { closed: boolean }).closed)
+						return new Promise<never>(() => {});
 					if (!download_failed(error)) throw error;
 					throw new (window as unknown as { TypeError: typeof TypeError }).TypeError(
 						`Failed to fetch dynamically imported module: ${href}`
@@ -233,13 +236,17 @@ export function use_v8_modules(): void {
 	};
 	const import_module = factory.importModule as (...a: unknown[]) => Promise<unknown>;
 	factory.importModule = async function (
-		this: { window: { TypeError: typeof TypeError }; parentURL: URL | string },
+		this: { window: { TypeError: typeof TypeError; closed: boolean }; parentURL: URL | string },
 		url: string,
 		...rest: unknown[]
 	) {
 		try {
 			return await import_module.call(this, url, ...rest);
 		} catch (error) {
+			// (a document unloaded as it navigated away: the unload failed the download, and its code
+			// never runs again, so its `import()` never settles; Kit's boot awaits its entries with no
+			// catch, and the host heard it: palaestra seed 20004, test/left-document.node.test.ts)
+			if (this.window.closed) return new Promise<never>(() => {});
 			if (!download_failed(error)) throw error;
 			throw new this.window.TypeError(
 				`Failed to fetch dynamically imported module: ${new URL(url, String(this.parentURL)).href}`
