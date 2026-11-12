@@ -11,8 +11,9 @@
  *   the middle does: signed payloads must be refused, never painted);
  * - `redirect`: a request to ogygia's region endpoint is sent to another origin, whose answer
  *   is HTML the page must never paint;
- * - `stall`: an answer is held 10 to 40 s before it starts coming (a stuck connection, an overloaded
- *   origin): longer than a client's own deadline for it;
+ * - `stall`: an answer is held 10 to 40 s before it starts coming, or, half the time, its body goes
+ *   quiet that long after its first piece (a stuck connection, an overloaded origin): longer than a
+ *   client's own deadline for it;
  * - `offline`: a tab's requests fail at once.
  *
  * A fault is on for a run when its class is in the run's swarm (search.ts picks a random subset per
@@ -272,6 +273,8 @@ export class Network {
 			// (drawn only in a run with stalls: every other run's draws stay as they were)
 			const stall = !calm && this.#on('stall') ? this.#rng.between(10_000, 40_000) : 0;
 			if (stall > 0) ex.stalled = true;
+			// (half of them midway: the head on time, then the body quiet after its first piece)
+			const midway = stall > 0 && this.#rng.chance(0.5) ? stall : 0;
 			// (until its answer comes, its tab going offline fails it: `offline`)
 			let lost = false;
 			this.#on_wire.set(ex, (why) => {
@@ -301,14 +304,14 @@ export class Network {
 								);
 							if (!lost) ex.status = response.status;
 							ex.build = response.headers.get(ANSWERED_BY) ?? undefined;
-							const leg = this.#latency(calm) + stall;
+							const leg = this.#latency(calm) + stall - midway;
 							loop.add('net', `response ${ex.id} ${response.status}`, leg, () => {
 								if (signal?.aborted || lost) {
 									void response.body?.cancel();
 									return;
 								}
 								this.#on_wire.delete(ex);
-								resolve(this.#deliver(ex, response, cut, tamper, signal, calm));
+								resolve(this.#deliver(ex, response, cut, tamper, signal, calm, midway));
 							});
 						})
 						.catch((error: unknown) => {
@@ -335,7 +338,8 @@ export class Network {
 		cut: boolean,
 		tamper: boolean,
 		signal: AbortSignal | undefined,
-		calm: boolean
+		calm: boolean,
+		midway = 0
 	): Response {
 		const headers = new Headers(response.headers);
 		headers.delete('content-length');
@@ -353,7 +357,8 @@ export class Network {
 		let last = loop.now;
 		let piece = 0;
 		const send = (label: string, deliver: () => void): void => {
-			const at = Math.max(last, loop.now + (piece === 0 ? 0 : this.#latency(calm)));
+			const quiet = piece === 1 ? midway : 0;
+			const at = Math.max(last, loop.now + (piece === 0 ? 0 : this.#latency(calm)) + quiet);
 			last = at;
 			loop.add('net', `${label} ${ex.id}.${piece++}`, at - loop.now, () => {
 				if (ended) return;
