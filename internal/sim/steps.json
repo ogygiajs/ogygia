@@ -27,6 +27,11 @@
 				"app": "palaestra",
 				"plan": "internal/sim/sweep-plans/palaestra-render-kept-gone.json",
 				"reaches": ["render cache: kept -> gone"]
+			},
+			{
+				"app": 192,
+				"plan": "internal/sim/sweep-plans/gen192-hole-failed-armed.json",
+				"reaches": ["hole: failed -> armed"]
 			}
 		]
 	},
