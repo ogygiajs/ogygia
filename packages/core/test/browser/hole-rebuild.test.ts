@@ -6,9 +6,16 @@
 // `data-og-hole`); the runtime hands them back the moment the rebuilt element connects: the
 // address, and a hydrating hole's props sidecar. e2e/hole-kit-rebuild runs the real thing; this
 // pins the runtime half with the record + the rebuilt element alone.
-import { expect, test } from 'vitest';
+import { afterEach, beforeEach, expect, test } from 'vitest';
 import { bootDev } from '../../src/runtime/full.ts';
 import { props_sidecar_of } from '../../src/runtime/sidecar.ts';
+import { mark_live_head, TEST_MARK_ATTR } from './_response-mark.ts';
+
+const unmark: Array<() => void> = [];
+beforeEach(() => void unmark.push(mark_live_head()));
+afterEach(() => {
+	for (const undo of unmark.splice(0)) undo();
+});
 
 const ENDPOINT = '/__ogygia__?id=feedface0001&props=W3t9XQ&exp=9999999999&sig=stub';
 const IDENTITY = 'a1b2c3d4e5f60718';
@@ -24,7 +31,7 @@ function html_response(html: string): Response {
 /** The document tail as the handle emits it: after Kit's root, `<` escaped inside the JSON. */
 function holes_record(record: Record<string, { endpoint: string; sidecar: string }>): string {
 	return (
-		'<script type="application/ogygia-holes" data-ogygia-holes>' +
+		`<script type="application/ogygia-holes" data-ogygia-holes${TEST_MARK_ATTR}>` +
 		JSON.stringify(record).replaceAll('<', '\\u003C') +
 		'</script>'
 	);
