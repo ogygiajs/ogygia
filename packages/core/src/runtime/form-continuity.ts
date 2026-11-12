@@ -12,6 +12,7 @@
 import { cache, machine } from '@ogygia/machine';
 import { element_address, resolve_address } from './interaction.ts';
 import { slots } from './slots.ts';
+import { OGYGIA_NO_KEEP } from '../wire-markup.ts';
 
 /** Feature entry: enable form-field survival across SPA nav (unless the build disabled it). */
 export function install(): void {
@@ -69,7 +70,7 @@ export function snapshot_forms(root: ParentNode, pathKey: string): void {
 			const f = el as HTMLInputElement;
 			// Per-field opt-out: mark a field (or an ancestor) `data-ogygia-no-keep` to never restore
 			// it — a fresh-message box, a one-time code, anything that should start blank each visit.
-			if (f.closest('[data-ogygia-no-keep]')) continue;
+			if (f.closest(`[${OGYGIA_NO_KEEP}]`)) continue;
 			const changed = is_checkable(f) ? f.checked !== f.defaultChecked : f.value !== f.defaultValue;
 			if (!changed) continue;
 			const addr = element_address(region, el);
