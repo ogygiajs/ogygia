@@ -4,7 +4,8 @@
  * page store). Every way ogygia learns of such a read notes it here, and nowhere else:
  *
  * - a flag decided for the visitor (`@ogygia/flags`), a streamed load, a plugin's `ctx.perVisitor`;
- * - a cookie, personal header or `locals` value the render saw ({@link observe_reads});
+ * - a cookie, personal header, `locals` value, client address, platform value or credentialed
+ *   `fetch` the render saw ({@link observe_reads});
  * - the `page.data` a hole's tree read (server/render-page.ts).
  *
  * A request's facts hold its read set (`facts.reads`). Work that may be kept (a cached hole render)
@@ -82,13 +83,36 @@ export function note_visitor_read(request_reads: Reads, input: string): void {
 const PERSONAL_HEADERS: ReadonlySet<string> = new Set([
 	'cookie',
 	'authorization',
+	'proxy-authorization',
 	'accept-language',
 	'user-agent',
 	'referer',
+	'forwarded',
+	'x-forwarded-for',
+	'x-forwarded-host',
+	'x-real-ip',
+	'x-client-ip',
+	'x-api-key',
 	'x-user',
 	'x-user-id',
 	'x-session',
 	'x-session-id'
+]);
+/** Headers a host or proxy adds per visitor by name: the client's address, where it is, who it is. */
+const PERSONAL_HEADER_RE =
+	/client-ip|connecting-ip|(?:^|-)ip(?:-|$)|country|city|geo|latitude|longitude|postal|timezone|session|auth|token|user-id/;
+
+function is_personal_header(name: string): boolean {
+	const n = name.toLowerCase();
+	return PERSONAL_HEADERS.has(n) || PERSONAL_HEADER_RE.test(n);
+}
+
+/** Members of `platform` that are the same for every request: the app's bindings, and the
+ *  platform's hand-off for work past the response. Everything else there is per request. */
+const SHARED_PLATFORM: ReadonlySet<string> = new Set(['env', 'caches']);
+const SHARED_PLATFORM_CONTEXT: ReadonlySet<string> = new Set([
+	'waitUntil',
+	'passThroughOnException'
 ]);
 
 /** Default-valued reads are the same for everyone: undefined/null/''/false, an empty plain object,
@@ -108,10 +132,14 @@ function is_default_value(value: unknown): boolean {
 const observed = new WeakSet<Request>();
 
 /**
- * Note the event's personal reads from now on: a cookie, a personal header or a `locals` value that
- * is not its default. Patches `event.cookies.get`/`getAll`, the request's `headers.get` and
- * `event.locals` in place (Kit and its WeakMap-keyed internals keep the same objects), once per
- * request. A read lands in the read set of the work running then, and in the request's.
+ * Note the event's personal reads from now on: a cookie, a personal header (by name, by `has`, or
+ * the headers read whole while one is there, a clone's too), a `locals` value that is not its
+ * default (a function there included), the client address, per-request `platform` data, and a
+ * `fetch` Kit sends the visitor's credentials with. Patches `event.cookies.get`/`getAll`, the
+ * request's headers and `clone`, and `event.locals`/`fetch`/`getClientAddress`/`platform` in place
+ * (Kit and its WeakMap-keyed internals keep the same objects), once per request. A read lands in the
+ * read set of the work running then, and in the request's. Every kind is a case in
+ * packages/postrender/test/postrender.test.ts › "every way a render reaches the visitor …".
  *
  * Blind spots: reads made before this runs (an upstream handle that primes `locals`: the render's
  * read of `locals` is seen instead), and the clock or randomness.
@@ -135,22 +163,145 @@ export function observe_reads(event: RequestEvent, request_reads: Reads): void {
 		return all;
 	}) as typeof cookies.getAll;
 
-	const headers = event.request.headers;
-	const header = headers.get.bind(headers);
-	headers.get = ((name: string) => {
-		const value = header(name);
-		if (value !== null && PERSONAL_HEADERS.has(name.toLowerCase()))
-			note(`header:${name.toLowerCase()}`);
-		return value;
-	}) as typeof headers.get;
+	watch_request(event.request, note);
 
 	// (SvelteKit 3 types `locals` as readonly; at runtime it is a plain property on both 2 and 3)
 	(event as { locals: App.Locals }).locals = new Proxy(event.locals, {
 		get(target, prop, receiver) {
 			const value = Reflect.get(target, prop, receiver);
-			if (typeof prop === 'string' && !is_default_value(value) && typeof value !== 'function')
-				note(`locals.${prop}`);
+			// (a function there is a getter of the visitor's data: a session's `auth()`)
+			if (typeof prop === 'string' && !is_default_value(value)) note(`locals.${prop}`);
 			return value;
+		},
+		has(target, prop) {
+			const there = Reflect.has(target, prop);
+			if (there && typeof prop === 'string' && !is_default_value(Reflect.get(target, prop)))
+				note(`locals.${prop}`);
+			return there;
+		},
+		ownKeys(target) {
+			const keys = Reflect.ownKeys(target);
+			for (const k of keys)
+				if (typeof k === 'string' && !is_default_value(Reflect.get(target, k))) {
+					note(`locals.${k}`);
+					break;
+				}
+			return keys;
+		}
+	});
+
+	const fetch = event.fetch;
+	const credentialed = has_personal(event.request.headers, ['cookie', 'authorization']);
+	if (typeof fetch === 'function')
+		(event as { fetch: typeof fetch }).fetch = ((input, init) => {
+			// Kit's fetch sends the visitor's cookies to its own origin and its subdomains
+			if (credentialed && carries_cookies(event.url, input)) note('fetch:credentials');
+			return fetch(input, init);
+		}) as typeof fetch;
+
+	const address = event.getClientAddress;
+	if (typeof address === 'function')
+		(event as { getClientAddress: () => string }).getClientAddress = () => {
+			note('client-address');
+			return address();
+		};
+
+	const platform = event.platform as Record<string, unknown> | undefined;
+	if (platform && typeof platform === 'object')
+		(event as { platform: unknown }).platform = per_request(
+			platform,
+			SHARED_PLATFORM,
+			(key) => {
+				if (key === 'context' || key === 'ctx') return SHARED_PLATFORM_CONTEXT;
+				return null;
+			},
+			'platform',
+			note
+		);
+}
+
+/** `headers` holds any of `names` (or, with none given, any personal header). */
+function has_personal(headers: Headers, names?: readonly string[]): boolean {
+	const has = Headers.prototype.has;
+	if (names) return names.some((n) => has.call(headers, n));
+	for (const [name] of Headers.prototype.entries.call(headers))
+		if (is_personal_header(name)) return true;
+	return false;
+}
+
+/** A request `fetch(input)` makes from a render at `page`: Kit sends it the visitor's cookies. */
+function carries_cookies(page: URL, input: RequestInfo | URL): boolean {
+	let target: URL;
+	try {
+		target = new URL(input instanceof Request ? input.url : String(input), page);
+	} catch {
+		return false; // ok: a URL Kit cannot fetch carries nothing
+	}
+	if (target.origin === page.origin) return true;
+	return target.protocol === page.protocol && target.hostname.endsWith(`.${page.hostname}`);
+}
+
+/** Watch `request`'s headers, and those of every clone of it. */
+function watch_request(request: Request, note: (input: string) => void): void {
+	const headers = request.headers;
+	const get = headers.get.bind(headers);
+	const has = headers.has.bind(headers);
+	headers.get = ((name: string) => {
+		const value = get(name);
+		if (value !== null && is_personal_header(name)) note(`header:${name.toLowerCase()}`);
+		return value;
+	}) as typeof headers.get;
+	headers.has = ((name: string) => {
+		const there = has(name);
+		if (there && is_personal_header(name)) note(`header:${name.toLowerCase()}`);
+		return there;
+	}) as typeof headers.has;
+	// reading them all (a copy into a new Headers or Request, entries, a loop) reads the personal ones
+	const all = () => {
+		if (has_personal(headers)) note('headers');
+	};
+	for (const method of ['entries', 'keys', 'values', 'forEach', Symbol.iterator] as const) {
+		const original = (headers as unknown as Record<PropertyKey, (...a: unknown[]) => unknown>)[
+			method
+		].bind(headers);
+		(headers as unknown as Record<PropertyKey, unknown>)[method] = (...a: unknown[]) => {
+			all();
+			return original(...a);
+		};
+	}
+	const clone = request.clone.bind(request);
+	request.clone = () => {
+		const copy = clone();
+		watch_request(copy, note);
+		return copy;
+	};
+}
+
+/** A view of `target` that notes a read of a member that is not its default and not `shared`;
+ *  `inner(key)` names the shared members of a nested object to watch the same way. Functions are
+ *  bound to their own object (a platform's methods check their receiver). */
+function per_request(
+	target: Record<string, unknown>,
+	shared: ReadonlySet<string>,
+	inner: (key: string) => ReadonlySet<string> | null,
+	path: string,
+	note: (input: string) => void
+): Record<string, unknown> {
+	return new Proxy(target, {
+		get(t, prop) {
+			const value = Reflect.get(t, prop, t);
+			if (typeof prop !== 'string') return value;
+			const nested = inner(prop);
+			if (nested && value && typeof value === 'object')
+				return per_request(
+					value as Record<string, unknown>,
+					nested,
+					() => null,
+					`${path}.${prop}`,
+					note
+				);
+			if (!shared.has(prop) && !is_default_value(value)) note(`${path}.${prop}`);
+			return typeof value === 'function' ? (value as (...a: unknown[]) => unknown).bind(t) : value;
 		}
 	});
 }

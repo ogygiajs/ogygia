@@ -14,22 +14,25 @@ import {
 	region_render,
 	region_css
 } from 'ogygia:server';
-// (`resolve('/__ogygia__')` reads the same on Kit 2, which wants the leading slash, and Kit 3, which
-// takes it as a route ID with no params — the same pathname)
-import { resolve } from '$app/paths';
+import { app_path } from '../kit-paths.ts';
 import { building } from '$app/env';
 import { islands_endpoint, MAX_REGION_PROPS_LEN } from './endpoint.ts';
 import { capability_lifetime, type CapabilityLifetime } from './capability-lifetime.ts';
 import { encode_region_props } from './region-props.ts';
 import { stringify } from 'devalue';
 import { record_server_event } from '../events/server-registry.ts';
+import { KNOWN_COPIES_CAP, KNOWN_HEADER_CAP } from '../contract/known-copies.ts';
 
 // DEVTOOLS gate — server realm; off → folds out.
 const DEVTOOLS = typeof __OGYGIA_DEVTOOLS__ !== 'undefined' ? __OGYGIA_DEVTOOLS__ : false;
+// the server's rules (./rules.ts): dev and OGYGIA_RULES=1 builds only, folds out of any other
+const RULES =
+	import.meta.env?.DEV || (typeof __OGYGIA_RULES__ !== 'undefined' ? __OGYGIA_RULES__ : false);
 import { B64Url } from './payload.ts';
-import { REF_WIRE_KEY, ref_reducer } from '../ref.ts';
+import { REF_WIRE_KEY, placed, ref_reducer } from '../ref.ts';
 import { ensure_prop_kinds } from './region-props.ts';
 import { OgygiaError, warn } from '../messages/server.ts';
+import { note_minted_capability } from './rules.ts';
 
 /** A hole's own stylesheet hrefs, by region id — the list its endpoint answer links (hooks.ts
  *  `region_css_links`), for a render that inlines the hole in the page instead (Region.svelte). */
@@ -70,33 +73,56 @@ function region_session(): string {
 }
 
 /**
- * SERVER-DELTA NAV (D3) — the set of region fingerprints the CLIENT already has live, sent on an
- * SPA nav via `x-ogygia-known`. Region.svelte consults this to SKIP re-rendering an island the
- * client is keeping. Honored ONLY on an SPA nav (`x-ogygia-spa`); a full page load has no header →
- * empty set → everything renders. Memoized per request-event (parsed once). Client-stubbed to empty.
- * A missing/oversized header is always the SAFE full render — this is a pure optimization signal.
+ * SERVER-DELTA NAV (D3) — the region copies the CLIENT already has live, sent on an SPA nav via
+ * `x-ogygia-known`: one fingerprint per live copy it can reuse (a fingerprint repeats for twins).
+ * Honored ONLY on an SPA nav (`x-ogygia-spa`); a full page load has no header → nothing is reused →
+ * everything renders. Parsed once per request-event. A missing/oversized header is always the SAFE
+ * full render — this is a pure optimization signal.
  */
-const KNOWN_FPS = new WeakMap<object, Set<string>>();
-const EMPTY_FPS: ReadonlySet<string> = new Set();
-export function known_region_fps(): ReadonlySet<string> {
+const KNOWN_COPIES = new WeakMap<object, Map<string, number>>();
+
+/** Did the app opt into server-delta navigation (`router: { serverDelta: true }`)? A build constant
+ *  (Vite `define`, the SSR build's too); typeof-guarded, so a plain node import is off. Off, the
+ *  server never honors `x-ogygia-known`: any client can send it. */
+export function server_delta_on(): boolean {
+	return typeof __OGYGIA_SERVER_DELTA__ !== 'undefined' && __OGYGIA_SERVER_DELTA__ === true;
+}
+
+/**
+ * Whether the region with fingerprint `fp` may be skipped in this response: the app opted into
+ * server-delta, and the client holds a live copy of it that no earlier region of this response took.
+ * Each call takes one copy, so a page with more copies than the client holds gets the rest rendered
+ * (#846): the client pairs each skipped placeholder with one live copy, in document order
+ * (runtime/reconcile.ts `stamp_region_keys`). Region.svelte calls it once per region, in render
+ * order. Client-stubbed to `false`.
+ */
+export function reuse_known_region(fp: string): boolean {
+	if (!server_delta_on()) return false;
 	let event;
 	try {
 		event = get_request_event();
 	} catch {
-		return EMPTY_FPS; // no request scope (prerender / off-request) → render all
+		return false; // no request scope (prerender / off-request) → render all
 	}
-	const cached = KNOWN_FPS.get(event);
-	if (cached !== undefined) return cached;
-	let set: Set<string>;
-	try {
-		const spa = event.request.headers.get('x-ogygia-spa');
-		const known = spa ? event.request.headers.get('x-ogygia-known') : null;
-		set = known ? new Set(known.split(',')) : new Set();
-	} catch {
-		set = new Set();
+	let copies = KNOWN_COPIES.get(event);
+	if (copies === undefined) {
+		copies = new Map();
+		try {
+			const spa = event.request.headers.get('x-ogygia-spa');
+			const known = spa ? event.request.headers.get('x-ogygia-known') : null;
+			// over a cap the browser never passes (contract/known-copies.ts): no claim
+			const named = known && known.length <= KNOWN_HEADER_CAP ? known.split(',') : [];
+			if (named.length <= KNOWN_COPIES_CAP)
+				for (const k of named) copies.set(k, (copies.get(k) ?? 0) + 1);
+		} catch {
+			// ok: an unreadable header is no claim: everything renders
+		}
+		KNOWN_COPIES.set(event, copies);
 	}
-	KNOWN_FPS.set(event, set);
-	return set;
+	const left = copies.get(fp) ?? 0;
+	if (left === 0) return false;
+	copies.set(fp, left - 1);
+	return true;
 }
 
 /**
@@ -130,7 +156,10 @@ export function mint_region_capability(entry: string, payload: string, ttl = 0):
 	if (DEVTOOLS)
 		record_server_event({ domain: 'server', name: 'server.capability.minted', id: entry, ttl });
 	// `k`: the minter's key fingerprint, outside the MAC (server/signing-key.ts)
-	return `${resolve(islands_endpoint())}?id=${encodeURIComponent(entry)}${render ? `&r=${render}` : ''}&props=${payload}&exp=${exp}${ttl_param}&sig=${sig}&k=${key.fp}`;
+	// a path from the app's root, never page-relative: the HTML that carries it moves
+	const url = `${app_path(islands_endpoint())}?id=${encodeURIComponent(entry)}${render ? `&r=${render}` : ''}&props=${payload}&exp=${exp}${ttl_param}&sig=${sig}&k=${key.fp}`;
+	if (RULES) note_minted_capability(url);
+	return url;
 }
 
 /**
@@ -142,7 +171,10 @@ export function mint_region_capability(entry: string, payload: string, ttl = 0):
  */
 export function mint_server_region(entry: string, props: Record<string, unknown>, ttl = 0): string {
 	ensure_prop_kinds();
-	const payload = B64Url.encode(stringify(props, { [REF_WIRE_KEY]: ref_reducer(PROP_FAMILIES) }));
+	// (decoded fresh at the endpoint, never by id: place form keeps the address the same per render)
+	const payload = B64Url.encode(
+		placed(stringify(props, { [REF_WIRE_KEY]: ref_reducer(PROP_FAMILIES) }))
+	);
 	if (payload.length > MAX_REGION_PROPS_LEN) {
 		throw new OgygiaError('hole_props_too_large', {
 			entry,
