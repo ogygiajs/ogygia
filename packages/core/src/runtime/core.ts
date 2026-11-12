@@ -15,6 +15,7 @@ import {
 } from '@ogygia/machine';
 import { frameAddress } from '../frame.ts';
 import { import_again, is_failed_import, on_reload_needed } from './import-again.ts';
+import { browser_offline, no_response } from './network.ts';
 // Build-time constants (compiler/link/runtime-entry.ts `generateRuntimeFlagsSource`): `FRAMES` is
 // off in a build where no region streams HTML, and the bundler drops the element's fetch / apply /
 // morph / renew path with it — that path works on the element's own state, so it cannot be a
@@ -68,7 +69,15 @@ import {
 } from './region-machines.ts';
 import { KEEP_FALLBACK_HTML } from '../keep-fallback-marker.ts';
 import { download, region_fetch } from '../policies.ts';
-import { install_rules, note_mount, note_unmount } from './rules.ts';
+import {
+	install_rules,
+	note_handed,
+	note_mount,
+	note_shown,
+	note_turn,
+	note_unbound,
+	note_unmount
+} from './rules.ts';
 import { PAGE_FACTS_SELECTOR } from '../page-facts-script.ts';
 import { link_boot } from './boot-link.ts';
 import {
@@ -1094,7 +1103,8 @@ class OgygiaRegion extends HTMLElement {
 			this.#visitor = replayed;
 			return Promise.resolve(fire()).then(() => {
 				const s = this.#wake.now;
-				if (s.kind === 'failed') throw s.error;
+				// (offline: the visitor's input cannot wait for the network; the island wakes later)
+				if (s.kind === 'failed' || s.kind === 'offline') throw s.error;
 			});
 		};
 	}
@@ -1150,12 +1160,17 @@ class OgygiaRegion extends HTMLElement {
 		this.#frame_address = address;
 		binding.defer(() => {
 			if (this.#binding === binding) this.#frame_address = null;
+			if (RULES) note_unbound(this);
 		});
 		// (each frame a turn of its own: one the store hands over while this turn binds lands after it)
 		const box = this.#box;
 		const off = slots.frames?.subscribe(address, (f) => {
 			this.#frames_in++;
-			box.post((turn) => this.#apply(f.html, turn));
+			if (RULES) note_handed(this, address, f.v, () => this.#paint.now.kind === 'painting');
+			box.post((turn) => {
+				if (RULES) note_turn(this);
+				return this.#apply(f.html, turn, f.v);
+			});
 		});
 		if (off) binding.defer(off);
 		return address;
@@ -1219,7 +1234,8 @@ class OgygiaRegion extends HTMLElement {
 	#answered(kind: 'answered' | 'kept'): void {
 		this.#answer.go(kind);
 		const hole = this.#hole.now.kind;
-		if (hole === 'armed' || hole === 'retrying' || hole === 'failed') this.#hole.go('idle');
+		if (hole === 'armed' || hole === 'retrying' || hole === 'offline' || hole === 'failed')
+			this.#hole.go('idle');
 	}
 
 	/** A frame landed: it starts its paint visit (a frame still waiting for its sheets is older, and
@@ -1242,7 +1258,7 @@ class OgygiaRegion extends HTMLElement {
 	 * offline before custom elements connect, then swap, mark, event. HOLE-TRUST: the HTML is our own
 	 * signed same-origin SSR.
 	 */
-	async #apply(html: string, turn: Turn) {
+	async #apply(html: string, turn: Turn, v?: number) {
 		if (!this.isConnected) return;
 		// The newest frame: one still waiting for its sheets is older, and never paints over this one.
 		const painting = this.#paint_next();
@@ -1250,6 +1266,7 @@ class OgygiaRegion extends HTMLElement {
 		// marker parcel in a batch): keep what the page rendered, mark the region done, wake nothing.
 		if (html === KEEP_FALLBACK_HTML) {
 			this.#painted(painting);
+			if (RULES && v !== undefined) note_shown(this, v);
 			use_sheets(this, []); // (the fallback's sheets are the page's)
 			this.#answered('kept');
 			if (!is_awake(this)) this.setAttribute('data-hydrated', '');
@@ -1267,6 +1284,7 @@ class OgygiaRegion extends HTMLElement {
 		// region left the page meanwhile; a newer frame came meanwhile: it paints, this one never does.
 		if ((await turn.wait(ready)) === STALE || this.#paint.now !== painting) return;
 		this.#painted(painting);
+		if (RULES && v !== undefined) note_shown(this, v);
 		use_sheets(this, sheets);
 		this.#shown = html;
 		slots.lakes.settle_in(frag);
@@ -1498,7 +1516,12 @@ class OgygiaRegion extends HTMLElement {
 		const refused = err instanceof RegionAnswerRefused;
 		// (a refused capability's reason travels as the failure's message)
 		const deny = refused && err.reason === 'forbidden' ? err.deny || 'no reason given' : undefined;
-		if (import.meta.env.DEV) {
+		// No response while the browser is offline: the network's failure, not the server's. It waits
+		// for the network, however many tries are left (#891, ./network.ts).
+		const offline = !refused && this.isConnected && no_response(err) && browser_offline();
+		const final = !offline && (refused || !this.isConnected || attempts >= region_fetch.attempts);
+		// (each failure in dev; in a production build the give-up, once, by its code)
+		if (import.meta.env.DEV || final) {
 			if (deny !== undefined) {
 				warn('region_answer_denied', { endpoint, deny });
 			} else if (refused) {
@@ -1511,7 +1534,6 @@ class OgygiaRegion extends HTMLElement {
 				warn('region_fetch_failed', { endpoint }, err);
 			}
 		}
-		const final = refused || !this.isConnected || attempts >= region_fetch.attempts;
 		// the profiler's browser half: the hole that kept its fallback, by its island id
 		if (HOOK_HOLE_FAILED && final && slots.hooks?.holeFailed) {
 			let id = '';
@@ -1564,6 +1586,19 @@ class OgygiaRegion extends HTMLElement {
 			if (this.#answer.now.kind !== 'none') {
 				this.#hole.go('idle');
 				return;
+			}
+			if (offline) {
+				// (its listener is the state's: an answer another way, or the region leaving, drops it)
+				this.#hole.go('offline', { revalidate });
+				const waiting = this.#hole.scope;
+				const back = await turn.wait(
+					waiting.task(
+						() => new Promise<void>((resolve) => waiting.on(window, 'online', () => resolve()))
+					)
+				);
+				if (back === STALE) return;
+				if (revalidate) return this.#fetch_html(turn, true);
+				return this.#connect(turn);
 			}
 			this.#hole.go('retrying', { attempts, revalidate });
 			const retrying = this.#hole.scope;
@@ -1644,6 +1679,8 @@ class OgygiaRegion extends HTMLElement {
 		 *  visit is over. Checked after every wait before the turn. */
 		const gone = (back?: unknown) => back === STALE || !this.isConnected || this.#wake.now !== mine;
 		let failure: { error: unknown } | null = null;
+		/** Its code failed to download while offline: it waits for the network, no failure. */
+		let offline: { error: unknown } | null = null;
 		const t0 = now_ms();
 		const dt_t0 = DEVTOOLS ? t0 : 0;
 		let t_loaded = t0;
@@ -1757,6 +1794,12 @@ class OgygiaRegion extends HTMLElement {
 			// A run whose visit is over fails quietly: the region left while it loaded, and what stands
 			// now (the region put back) is a new visit, which loads, fails or wakes on its own.
 			if (this.#wake.now !== mine) return;
+			// Its code did not download while the browser is offline: the network's failure. It wakes
+			// again once the browser is back online (below), the file asked for afresh (#891).
+			if (is_failed_import(err) && browser_offline()) {
+				offline = { error: err };
+				return;
+			}
 			failure = { error: err };
 			// (a failed island stops being watched; its copy, if kept, counts as changed from here)
 			if (this.#watching) mark_region_changed(this);
@@ -1785,9 +1828,20 @@ class OgygiaRegion extends HTMLElement {
 			if (this.#wake.now === mine) {
 				hydrate_settled(this);
 				if (failure) this.#wake.go('failed', failure);
+				else if (offline) this.#wake_online(offline.error);
 				else this.#wake.go(this.#app ? 'awake' : 'cold');
 			}
 		}
+	}
+
+	/** Its code failed to download offline: in `offline` until the browser is back online, then it
+	 *  wakes again (the listener is the state's: the region leaving drops it). */
+	#wake_online(error: unknown): void {
+		this.#wake.go('offline', { error });
+		this.#wake.scope.on(window, 'online', () => {
+			this.#wake.go('armed');
+			void this.#fire_hydrate(); // ok: a wake; its hydrate says its own failure
+		});
 	}
 
 	/**
