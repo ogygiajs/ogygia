@@ -82,6 +82,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { signature } from '../../src/ci.ts';
+import type { Plan } from '../../src/cli.ts';
 
 const APP = fileURLToPath(new URL('../../../../${o.app}', import.meta.url));
 const GEN: number | null = ${o.gen};
@@ -94,7 +95,7 @@ const ready = ((): boolean => {
 })();
 
 const SEED = ${o.seed};
-const PLAN = ${JSON.stringify(o.plan)};
+const PLAN: Plan = ${JSON.stringify(o.plan)};
 
 describe.skipIf(!ready)('found: ${o.name}', () => {
 	it(${JSON.stringify(`no ${o.oracle} (${o.signature})`)}, async () => {
