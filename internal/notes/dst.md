@@ -92,6 +92,9 @@ module scripts. Its gaps are handled in the sim, with no patch to happy-dom:
   back from the page on screen (the router handed a click to the browser, the visitor went back,
   and the stalled page landed on the back's document: palaestra seed 20958,
   `rule_address_bar_drift`).
+- It called only a window's bubbling `load` listeners (one that captures never heard it) and never
+  fired `pageshow`: both reach the window, capturing then not, the document their target
+  (`window_load_events`, `test/modules.test.ts`; found by the differential).
 - It ran a copy of any script: a copy carries "already started" (a script that connected, or one a
   parser marked unexecutable), so the router's head merge ran the next page's early hole start
   again (`scripts_start_once`, `test/scripts.test.ts`; gen 191).
