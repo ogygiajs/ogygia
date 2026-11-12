@@ -13,22 +13,22 @@ Every package beside `ogygia` (content, flags, postrender, federation, the serve
 The packages are built on the API described below. It is public so that you can read how they work, but it is **first-party only for now**, and its shape can change in any release without notice, so don't build a published plugin on it yet.
 :::
 
-The first-party packages import it from `@ogygia/core`, which they take as a peer dependency. `ogygia` re-exports the same modules subpath for subpath, so `ogygia/plugin` and `@ogygia/core/plugin` are one module, and the examples below work with either.
+The first-party packages import it from `@ogygia/core`, and `definePlugin` from `@ogygia/compiler`; they take both as peer dependencies. `ogygia` re-exports the same modules subpath for subpath, so `ogygia/plugin` and `@ogygia/core/plugin` are one module, and the examples below work with either.
 
 A plugin consists of three pieces, each in its own file, so that server code never reaches a browser bundle:
 
-| Piece                | Where                                                                  | Made with                                                            |
-| -------------------- | ---------------------------------------------------------------------- | -------------------------------------------------------------------- |
-| The **plugin**       | the package's `./vite` export, listed beside `ogygia()` in vite.config | `definePlugin` from `@ogygia/core/vite`, which returns a Vite plugin |
-| The **server half**  | a module the plugin names in `server`                                  | `defineServer` from `@ogygia/core/plugin`                            |
-| The **browser half** | a module the plugin names in `client`                                  | `defineClient` from `@ogygia/core/plugin/client`                     |
+| Piece                | Where                                                                  | Made with                                                                |
+| -------------------- | ---------------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| The **plugin**       | the package's `./vite` export, listed beside `ogygia()` in vite.config | `definePlugin` from `@ogygia/compiler/vite`, which returns a Vite plugin |
+| The **server half**  | a module the plugin names in `server`                                  | `defineServer` from `@ogygia/core/plugin`                                |
+| The **browser half** | a module the plugin names in `client`                                  | `defineClient` from `@ogygia/core/plugin/client`                         |
 
 The plugin **names its halves**: `server` and `client` hold each module's location, resolved relative to the plugin's own file with `import.meta.resolve`, and either one may be omitted. They are files inside the package itself, so each module exists only once, and they need no entry in the package's `exports`, which remain yours to name. The build imports them statically, so nothing is looked up at run time, and a feature whose plugin is not listed costs zero bytes.
 
 ## The plugin: `definePlugin`
 
 ```ts title=src/vite.ts
-import { definePlugin, type OgygiaPlugin } from '@ogygia/core/vite';
+import { definePlugin, type OgygiaPlugin } from '@ogygia/compiler/vite';
 
 export function postrender(options: { ttl?: number } = {}): OgygiaPlugin<{ ttl: number }> {
   return definePlugin({
@@ -58,7 +58,7 @@ export function postrender(options: { ttl?: number } = {}): OgygiaPlugin<{ ttl: 
 A plugin that needs its own Vite hooks returns an array containing its `definePlugin(...)` and a plain Vite plugin. Vite flattens the array, so the app still lists a single `yaml()`. `content()` and `devtools()` work this way.
 
 ```ts title=src/vite.ts
-import { definePlugin } from '@ogygia/core/vite';
+import { definePlugin } from '@ogygia/compiler/vite';
 
 export function yaml() {
   return [

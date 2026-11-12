@@ -12,7 +12,7 @@
 import fs from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import path from 'node:path';
-import { BuildCache, configure_build_cache } from '@ogygia/core/internal/compiler';
+import { BuildCache, configure_build_cache } from '@ogygia/compiler';
 import { OgygiaError } from '../messages/build.ts';
 
 // git's own corners of the shared build cache: resolved shas (kv) + the checkout trees (a dir).

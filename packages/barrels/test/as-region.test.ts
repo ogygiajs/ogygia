@@ -8,8 +8,8 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { fixture, type Fixture } from './_fixture.ts';
 import { svelte } from '@sveltejs/vite-plugin-svelte';
-import { transformTsRegions, asRegionLocals } from '@ogygia/core/internal/compiler';
-import { ogygia } from '@ogygia/core/vite';
+import { transformTsRegions, asRegionLocals } from '@ogygia/compiler';
+import { ogygia } from '@ogygia/compiler/vite';
 import { barrels } from '../src/index.ts';
 
 let f: Fixture;
