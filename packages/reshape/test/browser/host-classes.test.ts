@@ -57,6 +57,17 @@ test('Svelte’s own tokens are never put back; unrestored and replaced elements
 	expect(c.className).toBe('c own');
 });
 
+test('an element hydration replaced gets nothing put back: the element left the page', () => {
+	const r = region('<x-hero class="relative ds-theme-dark">a</x-hero>');
+	const host = r.firstElementChild!;
+	restored(host, 'relative');
+	const noted = note_host_classes(r);
+	host.className = 'relative';
+	host.remove(); // hydration replaced it with a fresh element
+	keep_host_classes(noted);
+	expect(host.className).toBe('relative');
+});
+
 test('through a real Svelte hydrate: the class write happens, and the component’s token survives it', () => {
 	// the server HTML Svelte would hydrate (class "relative"), with the component's token already on it
 	const r = region('<!--[--><x-hero class="relative ds-theme-dark">a</x-hero><!--]-->');
