@@ -92,8 +92,11 @@ export function normalize(root: {
 			for (const child of el.childNodes) walk(child, depth + 1, out);
 			return;
 		}
-		// stylesheets in their order, then the rest of the head, sorted
+		// stylesheets in their order, then the region sheets answers lifted, sorted (each went in as
+		// its answer landed: which came first is the network's, and a region's scoped rules never
+		// meet another's), then the rest of the head, sorted
 		const sheets: string[] = [];
+		const lifted: string[] = [];
 		const rest: string[] = [];
 		for (const child of el.children) {
 			const one: string[] = [];
@@ -102,9 +105,11 @@ export function normalize(root: {
 			const sheet =
 				child.tagName === 'STYLE' ||
 				(child.tagName === 'LINK' && /\bstylesheet\b/.test(child.getAttribute('rel') ?? ''));
-			(sheet ? sheets : rest).push(one.join('\n'));
+			(!sheet ? rest : child.hasAttribute('data-ogygia-region-css') ? lifted : sheets).push(
+				one.join('\n')
+			);
 		}
-		out.push(...sheets, ...rest.sort());
+		out.push(...sheets, ...lifted.sort(), ...rest.sort());
 	};
 	const out: string[] = [`title: ${root.title}`];
 	if (root.documentElement) walk(root.documentElement, 0, out);
