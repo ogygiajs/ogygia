@@ -21,6 +21,7 @@ import { rewrite_store, auto_brand_stores } from './store.ts';
 // never loads bake.js (or rolldown) at all.
 import type { AliasEntry } from './bake.ts';
 import type { Profiler } from '../driver.ts';
+import { OgygiaError } from '../messages.ts';
 
 /** A plugin's `import.meta.og.<name>` macro (registered with `b.macro`). */
 export interface PluginMacro {
@@ -46,6 +47,9 @@ export interface MacroPipelineCtx {
 	dollarHoists: Map<string, string>;
 	/** The plugins' macros, in plugin order (after core's, before `bake`). */
 	macros?: readonly PluginMacro[];
+	/** Is `id` the app's own source, or a file a package declares in `ogygia.files`? Only those may
+	 *  use a macro: anywhere else one fails the build (`macro_outside_app`), and a `bake` never runs. */
+	ownSource: (id: string) => boolean;
 }
 
 /**
@@ -61,6 +65,12 @@ export async function run_module_macros(
 ): Promise<{ code: string; touched: boolean }> {
 	let out = source;
 	let touched = false;
+	// (an installed file a package did not declare: a macro that WOULD rewrite it fails the build;
+	// a marker it only names, in a string or a comment, rewrites nothing; test/macros-own-source.test.ts)
+	const own = ctx.ownSource(id.split('?')[0]!);
+	const refuse = (macro: string): never => {
+		throw new OgygiaError('macro_outside_app', { file: id.split('?')[0]!, macro });
+	};
 
 	// `import.meta.og.wire` — the transportable-codec key, rewritten to `Symbol.for('ogygia.wire')`
 	// BEFORE either branch (island transform / svelte compile / ts region minting) sees the code,
@@ -69,6 +79,7 @@ export async function run_module_macros(
 	if (out.includes('import.meta.og.wire')) {
 		const rewritten = rewrite_wire(out, id, CONSTRUCT_MARKUP_EXTS);
 		if (rewritten !== out) {
+			if (!own) refuse('wire');
 			out = rewritten;
 			touched = true;
 		}
@@ -80,6 +91,7 @@ export async function run_module_macros(
 		const rel_dollar = path.relative(ctx.root, id.split('?')[0]).split(path.sep).join('/');
 		const res = rewrite_dollar(out, id, rel_dollar, CONSTRUCT_MARKUP_EXTS);
 		if (res.code !== out) {
+			if (!own) refuse('$');
 			out = res.code;
 			touched = true;
 			for (const h of res.hoists) ctx.dollarHoists.set(h.tag, h.factory_src);
@@ -93,6 +105,7 @@ export async function run_module_macros(
 		const rel_source = path.relative(ctx.root, id.split('?')[0]).split(path.sep).join('/');
 		const rewritten = rewrite_source(out, id, rel_source, CONSTRUCT_MARKUP_EXTS);
 		if (rewritten !== out) {
+			if (!own) refuse('source');
 			out = rewritten;
 			touched = true;
 		}
@@ -104,6 +117,7 @@ export async function run_module_macros(
 		const rel_store = path.relative(ctx.root, id.split('?')[0]).split(path.sep).join('/');
 		const rewritten = rewrite_store(out, id, rel_store, CONSTRUCT_MARKUP_EXTS);
 		if (rewritten !== out) {
+			if (!own) refuse('store');
 			out = rewritten;
 			touched = true;
 		}
@@ -136,6 +150,7 @@ export async function run_module_macros(
 				markupExts: CONSTRUCT_MARKUP_EXTS
 			});
 			if (rewritten !== out) {
+				if (!own) refuse(macro.name);
 				out = rewritten;
 				touched = true;
 			}
@@ -148,7 +163,9 @@ export async function run_module_macros(
 	// Runs before the island transform so downstream sees plain data, not a call.
 	if (out.includes('import.meta.og.bake')) {
 		const __bk = profiler.P ? performance.now() : 0;
-		const { rewrite_bake } = await import('./bake.ts'); // lazy — keeps bake's node-only graph out of the worker
+		const { rewrite_bake, has_bake_call } = await import('./bake.ts'); // lazy — keeps bake's node-only graph out of the worker
+		// (found, never run: a bake outside the app's own source executes nothing)
+		if (!own && has_bake_call(out, id, CONSTRUCT_MARKUP_EXTS)) refuse('bake');
 		const rewritten = await rewrite_bake(out, id, {
 			alias: ctx.resolveAlias as AliasEntry[],
 			root: ctx.root,

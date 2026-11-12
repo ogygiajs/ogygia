@@ -49,6 +49,19 @@ export const ERRORS = {
 			deploy, ogygia retries the current build's file first.
 		`
 	},
+	kit_boot_failed: {
+		text: (a: { url: string }): string => prose`
+			SvelteKit's client code failed to load (${a.url}), so Kit cannot start on this page. The
+			islands waiting for it stay as their server HTML.
+		`,
+		details: (): string => prose`
+			On a csr=true page, an island inside a lake or a hole answer waits for SvelteKit to start
+			before it hydrates. One of the files Kit's own boot script imports failed to download (the
+			network dropped it, or the file is missing after a deploy), and the browser keeps that
+			failure for the life of the page: Kit will not start. The waiting islands stop waiting and
+			fail, and keep their server HTML. Reloading the page loads Kit again. Said once per file.
+		`
+	},
 	chunk_reload_needed: {
 		text: (a: { url: string }): string =>
 			`a file this page needs cannot load until the page reloads: ${a.url}`,
@@ -94,14 +107,6 @@ export const ERRORS = {
 		details: (): string => prose`
 			An island waking on interaction threw while it hydrated, so it stays as its server HTML.
 			The click that woke it is replayed on that HTML. The error follows the message.
-		`
-	},
-	restore_markup_broken: {
-		text: (a: { diff: string }): string => `the transform broke hydration markup: ${a.diff}`,
-		details: (): string => prose`
-			A transform rewrote a restored region's markup so that its hydration markers no longer
-			match. \`diff\` names the first difference. (The restore runs as a self-contained script,
-			so it prints this code's link itself.)
 		`
 	},
 	client_hooks_init_failed: {
@@ -887,19 +892,16 @@ export const WARNINGS = {
 			registry. ${BUG}
 		`
 	},
-	restore_late: {
-		text: (a: { host: string }): string =>
-			`<${a.host}> was upgraded before the restore reached it; its own root is kept and the server's copy of its render dropped.`,
+	rule_head_adopted: {
+		text: (a: { detail: string }): string =>
+			`rule broken, the head gains no <base> or refresh, CSP or cookie meta: ${a.detail}`,
 		details: (): string => prose`
-			A custom element of a reversible transform (an \`og-h\` host) already had a shadow root when
-			the restore reached it: a component runtime upgraded it first. The restore keeps the root
-			the component made, puts its light DOM back into Svelte's form (its children, its
-			attributes) and drops the server's rendered copy, which would otherwise show a second time
-			through the slot. Until the component renders, that part of the page is empty.
-
-			Load the component runtime after ogygia's restore (the handle inlines it at the end of the
-			body), or let it hydrate a declarative root instead of attaching its own in the
-			constructor. Said once per page and element name.
+			Dev and e2e only (a rule ogygia checks on itself). A \`<base>\` re-points every relative
+			fetch on the page, and a \`meta[http-equiv]\` that refreshes, sets a content security policy
+			or sets a cookie acts the moment it lands, so a navigation never adopts one from a fetched
+			page: only the first document's own count. One came into the head later. If the app adds it
+			itself, set it in the first document's head or as an HTTP header (a CSP header cannot be
+			loosened by a meta); else ${BUG}
 		`
 	}
 };

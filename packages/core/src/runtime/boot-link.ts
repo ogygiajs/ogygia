@@ -23,6 +23,7 @@ import { regions_in_shadow } from './connected.ts';
 import { release_head_nodes } from './region-sheets.ts';
 import { yield_task } from './schedule.ts';
 import { beacon_nav } from './beacon.ts';
+import { CLIENT_PLUGINS, client_region_hydrate } from './client-plugins.ts';
 import {
 	is_self_owned,
 	record_server_body,
@@ -38,6 +39,7 @@ import { OgygiaError, warn } from '../messages/core.ts';
 // plain import of dist/ without the define keeps it)
 const BEACON = typeof __OGYGIA_BEACON__ !== 'undefined' ? __OGYGIA_BEACON__ : true;
 const no_beacon_nav: typeof beacon_nav = () => {};
+const no_region_hydrate: typeof client_region_hydrate = () => null;
 
 export function link_boot(): void {
 	slots.boot ??= {
@@ -55,6 +57,7 @@ export function link_boot(): void {
 		release_head_nodes,
 		yield_task,
 		beacon_nav: BEACON ? beacon_nav : no_beacon_nav,
+		region_hydrate: CLIENT_PLUGINS ? client_region_hydrate : no_region_hydrate,
 		walk_enters,
 		is_self_owned,
 		record_server_body,

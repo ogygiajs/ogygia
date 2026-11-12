@@ -91,7 +91,8 @@ export type RemoteSeedOps = {
 	seed_once(): void;
 	seed_query_responses(text: string): void;
 	clear_remote_seeds(): void;
-	clear_remote_instances(): void;
+	/** destroy the query instances only departed islands held (shims/kit-remote/remote-cache.ts) */
+	release_remote_instances(): void;
 };
 
 /** The page as island code sees it, filled by the `page` feature (./seeds.ts). Null when no island
@@ -178,6 +179,8 @@ export type BootLink = {
 	yield_task: typeof import('./schedule.ts').yield_task;
 	/** the router's navigation, timed for the profiler's beacon (a no-op without it) */
 	beacon_nav: typeof import('./beacon.ts').beacon_nav;
+	/** the plugins around Svelte's hydrate over server markup (./client-plugins.ts) */
+	region_hydrate: typeof import('./client-plugins.ts').client_region_hydrate;
 	/** the load scheduler's queue (./load-scheduler.ts) */
 	LoadSlot: typeof import('./load-scheduler.ts').LoadSlot;
 	/** DOM ownership (./ownership.ts): which children Svelte's walk enters, and self-owned elements */
