@@ -3,17 +3,19 @@
  *
  *   const renders = queue<Call>({
  *     max: 4,
- *     start: (call) => call.enter(),     // its turn: in the step its place came free
+ *     start: (call, place) => call.enter(place), // its turn: in the step its place came free
  *     stale: (call) => call.gone()       // its deadline came, it was cancelled, or the owner closed
  *   });
  *   renders.push(call, Date.now() + 5_000);
  *   signal.addEventListener('abort', () => renders.cancel(call));
  *   // … once the call's work is done:
- *   renders.release();
+ *   place.release();
  *
- * - `start` starts a job in the step its place comes free: a `release` hands its place to the next
- *   job at once, so a job pushed meanwhile queues behind it instead of starting beside it. One that
- *   throws is reported (machine_queue_start_failed); the jobs after it still start.
+ * - `start` starts a job in the step its place comes free, and hands it its `place`: the job's own,
+ *   given back once by `place.release()` (a second release does nothing, so it never frees another
+ *   job's place). A release hands the place to the next job at once, so a job pushed meanwhile
+ *   queues behind it instead of starting beside it. A start that throws is reported
+ *   (machine_queue_start_failed) and its place goes back; the jobs after it still start.
  * - A wait never hangs. A job still waiting at its deadline (by `now`) is `stale` and never starts;
  *   one whose deadline came is passed over even before the timer runs. The deadlines share one timer,
  *   at the earliest one waiting, and it goes once none waits.
@@ -32,8 +34,8 @@ export interface QueueOptions<J> {
 	name?: string;
 	/** The most jobs holding a place at once. */
 	max: number;
-	/** Starts a job: its place is its until `release()`. */
-	start: (job: J) => void;
+	/** Starts a job: `place` is its until `place.release()`. */
+	start: (job: J, place: Place) => void;
 	/** Hears a job that will never start: its deadline came, it was cancelled, or the owner closed. */
 	stale?: (job: J) => void;
 	/** The clock deadlines are read on (ms). `clock.mono()` when left out. */
@@ -47,12 +49,17 @@ export interface Queue<J> {
 	push(job: J, deadline?: number): void;
 	/** A waiting `job` leaves at once, stale. A started one is untouched. */
 	cancel(job: J): void;
-	/** A started job's work is done: its place goes to the next job, in this step. */
-	release(): void;
 	/** Jobs waiting to start. */
 	readonly waiting: number;
 	/** Started jobs holding a place, not yet released. */
 	readonly holding: number;
+}
+
+/** A started job's place in the queue: its own, given back once. */
+export interface Place {
+	/** The job's work is done: its place goes to the next job, in this step. Once: a second call
+	 *  does nothing. */
+	release(): void;
 }
 
 /** A place in the list a job left (cancelled, or past its deadline). */
@@ -61,7 +68,7 @@ const GONE: unique symbol = Symbol('gone');
 class QueueImpl<J> implements Queue<J> {
 	readonly #name: string;
 	readonly #max: number;
-	readonly #start: (job: J) => void;
+	readonly #start: (job: J, place: Place) => void;
 	readonly #stale: ((job: J) => void) | null;
 	readonly #now: () => number;
 	readonly #owner: Scope | null;
@@ -111,10 +118,18 @@ class QueueImpl<J> implements Queue<J> {
 		if (at !== -1) this.#leave(at);
 	}
 
-	release(): void {
-		if (this.#holding === 0) return;
-		this.#holding--;
-		this.#drain();
+	/** A place for a job starting now: given back once, by its job or by a start that threw. */
+	#place(): Place & { held: boolean } {
+		const place = {
+			held: true,
+			release: () => {
+				if (!place.held) return;
+				place.held = false;
+				this.#holding--;
+				this.#drain();
+			}
+		};
+		return place;
 	}
 
 	/** Starts jobs from the front while there is room. */
@@ -135,10 +150,16 @@ class QueueImpl<J> implements Queue<J> {
 				}
 			}
 			this.#holding++;
+			const place = this.#place();
 			try {
-				this.#start(job);
+				this.#start(job, place);
 			} catch (error) {
 				report_thrown('machine_queue_start_failed', { name: this.#name }, error);
+				// (its place goes back; the loop goes on to fill it)
+				if (place.held) {
+					place.held = false;
+					this.#holding--;
+				}
 			}
 		}
 		this.#compact();

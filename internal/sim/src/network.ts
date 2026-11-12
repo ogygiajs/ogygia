@@ -50,6 +50,9 @@ export interface NetworkOptions {
 
 export type Handler = (request: Request) => Promise<Response>;
 
+/** Hears a response's body end: all of it came (`whole`), or it broke off on the way. */
+export type Ended = (whole: boolean, status: number) => void;
+
 /** What the network saw, for the oracles and the trace. */
 export interface Exchange {
 	readonly id: number;
@@ -251,8 +254,10 @@ export class Network {
 		return (pace !== null && long ? 5 + (ms % 116) : ms) + (pace ?? 0);
 	}
 
-	/** Sends `request` from `realm` to `handler`; the answer comes when the loop says. */
-	send(realm: string, request: Request, handler: Handler): Promise<Response> {
+	/** Sends `request` from `realm` to `handler`; the answer comes when the loop says. `ended` hears
+	 *  when its body has all come (`true`) or broke off on the way (`false`): a browser's resource
+	 *  timing entry lands then. */
+	send(realm: string, request: Request, handler: Handler, ended?: Ended): Promise<Response> {
 		// (the document this request is for: its own, or, for a server's hop, the document whose
 		// request the server was answering)
 		const asked = asked_by.getStore();
@@ -363,7 +368,7 @@ export class Network {
 									return;
 								}
 								this.#on_wire.delete(ex);
-								resolve(this.#deliver(ex, response, cut, tamper, signal, pace, midway));
+								resolve(this.#deliver(ex, response, cut, tamper, signal, pace, midway, ended));
 							});
 						})
 						.catch((error: unknown) => {
@@ -391,14 +396,18 @@ export class Network {
 		tamper: boolean,
 		signal: AbortSignal | undefined,
 		pace: number | null,
-		midway = 0
+		midway = 0,
+		heard?: Ended
 	): Response {
 		const headers = new Headers(response.headers);
 		headers.delete('content-length');
 		const init = { status: response.status, statusText: response.statusText, headers };
+		const done = (whole: boolean) => heard?.(whole, response.status);
 		const source = response.body?.getReader();
-		if (source === undefined || response.status === 204 || response.status === 304)
+		if (source === undefined || response.status === 204 || response.status === 304) {
+			done(true);
 			return new Response(null, init);
+		}
 		// (only an answer made for this request is changed: a build's static files travel over TLS
 		// from immutable URLs, and a broken byte in one is a broken script, which no app can defend;
 		// a page or a region's answer is what the app must refuse when it does not verify)
@@ -433,6 +442,7 @@ export class Network {
 			send('cut', () => {
 				to.error(new TypeError(`network error: ${why}`));
 				ended = true;
+				done(false);
 			});
 			void source.cancel().catch(() => {});
 		};
@@ -450,6 +460,7 @@ export class Network {
 					return send('end', () => {
 						to.close();
 						ended = true;
+						done(true);
 					});
 				}
 				let bytes = read.value;

@@ -8,6 +8,7 @@ import { STALE } from '@ogygia/machine';
 import { bootDev } from '../../src/runtime/full.ts';
 import {
 	note_handed,
+	note_left,
 	note_mount,
 	note_shown,
 	note_turn,
@@ -16,6 +17,7 @@ import {
 	watch_frames,
 	watch_router
 } from '../../src/runtime/rules.ts';
+import { busy_machines, type RegionMachinesNow } from '../../src/runtime/region-machines.ts';
 import { _reset, peek, ticket, write } from '../_frames.ts';
 import { runtime_session } from '../../src/runtime/session.ts';
 
@@ -116,6 +118,34 @@ test("a region shows its address's answer: handed the newest, and painted it onc
 	expect(behind()).toEqual([]);
 	el.remove();
 	_reset();
+});
+
+test('a region that left the page is at rest: one of its machines still mid-visit is reported (#1132)', () => {
+	const busy = () => rules().filter((b) => b.code === 'rule_region_left_busy');
+	const el = document.createElement('ogygia-region');
+	el.setAttribute('entry', 'left.svelte');
+	const now: RegionMachinesNow = {
+		hole: 'idle',
+		wake: 'cold',
+		'live-region': 'idle',
+		'region-paint': 'painting'
+	};
+	note_left(el, () => busy_machines(now));
+	expect(busy()).toEqual([
+		{
+			code: 'rule_region_left_busy',
+			detail: 'left.svelte left the page with region-paint painting'
+		}
+	]);
+	// back at rest: no finding, and the region is let go
+	now['region-paint'] = 'idle';
+	expect(busy()).toEqual([]);
+	// put back on the page: its machines are the page's again
+	now['region-paint'] = 'painting';
+	note_left(el, () => busy_machines(now));
+	document.body.append(el);
+	expect(busy()).toEqual([]);
+	el.remove();
 });
 
 test('nothing of an old page open: a visit before the one on screen still open', () => {
