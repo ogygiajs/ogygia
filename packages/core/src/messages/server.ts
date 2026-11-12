@@ -120,6 +120,18 @@ export const SERVER_WARNINGS = {
 			keeps the region's fallback. The error follows the message.
 		`
 	},
+	rate_limit_shared_address: {
+		text: (a: { address: string }): string =>
+			`the region render budget is spent for ${a.address}, a proxy's address: every visitor behind it shares one budget`,
+		details: (): string => prose`
+			The islands endpoint's render budget (\`ogygia({ rateLimit })\`) is per client address, the
+			one your adapter gives (\`event.getClientAddress()\`). This address is private, loopback or
+			link-local, so no visitor has it: it is a reverse proxy's or a load balancer's, and every
+			visitor behind it shares one budget, so normal traffic gets 429s. Tell your adapter which
+			header holds the visitor's address (adapter-node: \`ADDRESS_HEADER\`, with \`XFF_DEPTH\` for
+			\`X-Forwarded-For\`). Said once per server.
+		`
+	},
 	region_render_abandoned: {
 		text: (a: { ms: number }): string =>
 			`a region render ran past ${a.ms} ms and was abandoned: its hole kept its fallback`,

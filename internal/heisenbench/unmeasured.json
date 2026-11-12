@@ -4851,6 +4851,22 @@
 		{
 			"id": "packages/core/src/runtime/code-origins.ts > import_code",
 			"reason": "one browser import() of a module URL (a real module load, not replayable), constant work; run by packages/core/test/browser/code-origins.test.ts and dev-region-css-import.test.ts"
+		},
+		{
+			"id": "packages/core/src/hooks.ts > OgygiaHandle > #render_over",
+			"reason": "one render-budget charge and, when it is spent, one address check (a handle instance, not cloneable), constant work; proven in packages/core/test/rate-limit-shared-address.test.ts and batch-render-budget.test.ts (#894)"
+		},
+		{
+			"id": "packages/core/src/hooks.ts > OgygiaHandle > #render_over > once:1~9fd48d",
+			"reason": "says the shared-address warning once (a console write, not replayable), constant work; proven in packages/core/test/rate-limit-shared-address.test.ts (#894)"
+		},
+		{
+			"id": "packages/core/src/messages/server.ts > SERVER_WARNINGS > rate_limit_shared_address > text",
+			"reason": "a message table entry: wording only; said in packages/core/test/rate-limit-shared-address.test.ts"
+		},
+		{
+			"id": "packages/core/src/messages/server.ts > SERVER_WARNINGS > rate_limit_shared_address > details",
+			"reason": "a message table entry: wording only"
 		}
 	]
 }
