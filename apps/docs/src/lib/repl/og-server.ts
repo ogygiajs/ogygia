@@ -7,7 +7,7 @@
  * INLINE path (region.ts:219): `region()` with a plain component builds an inline region, the signer is
  * never touched, and no node:crypto / ALS is reached. So held-raw regions are fully renderable in-worker
  * as zero-JS server HTML. The only piece that can't run here is the real `Region.svelte` (it imports
- * `virtual:ogygia/*` the worker can't resolve), so we render its INLINE branch faithfully — the region
+ * `ogygia:*` the worker can't resolve), so we render its INLINE branch faithfully — the region
  * value and its component are the real ones; only the one-line dispatch (`<Component {...props}/>`,
  * Region.svelte:610) runs here.
  */
@@ -15,7 +15,7 @@
 // runtime (which reference `window` and can't load in a Web Worker). See packages/core/src/region-core.ts.
 import { region, isRegion, og_html_region } from 'ogygia/internal/region-core';
 // The compiler appends `import { … } from 'ogygia/internal/register'` to any module with an exported
-// class / createContext / `import.meta.og.$` / `.store` (see compiler/content/transportables.ts +
+// class / createContext / `import.meta.og.$` / `.store` (see compiler/transportables.ts +
 // macros/browser.ts). That seam is Region-free, so it's safe to pull the REAL registration + macro
 // runtime into the worker's SSR eval — user code registers its codec / fn / store exactly as a real
 // build would (`__og_$` returns the live fn, `__og_store` the branded store).
@@ -41,7 +41,7 @@ let region_seq = 0;
 
 /** Render the DRIVER's real island wrapper (`<Region __mode="island|lake|server" …>`) into the `<ogygia-
  *  region>` markup the runtime hydrates — the worker-safe stand-in for `Region.svelte`'s server half
- *  (which can't run here: it imports `$app/*` + `virtual:ogygia/*`). Matches the shape the Harness links
+ *  (which can't run here: it imports `$app/*` + `ogygia:*`). Matches the shape the Harness links
  *  (`entry="__ISLAND__:<id>"`) and the runtime reads (`wake`, `<script data-ogygia-props>`). The island
  *  SSR is rendered INLINE (a nested `svelte/server` render inside the host render isn't re-entrant-safe —
  *  the same reason the hand-built path captures-then-replaces). */
@@ -49,10 +49,10 @@ function render_driver_island(r: ServerRenderer, p: Record<string, unknown>, mod
 	const comp = p.__component as ServerComponent | undefined;
 	const inner = (p.__props as Record<string, unknown>) ?? {};
 	// The Harness links `entry="__ISLAND__:<id>"` → the client module map. The wrapper's `__entry` is
-	// `/@id/virtual:ogygia/island/<id>.js` — the island's content-hashed id, which driver_preview keys its
+	// `/@id/ogygia:region/entry/<id>.js` — the island's content-hashed id, which driver_preview keys its
 	// client modules by (from the registry's componentPath). (`__css` is the component VALUE, not a path.)
 	const entry = String(p.__entry ?? '');
-	const id = (entry.match(/island\/([0-9a-f]+)\.js/)?.[1] ?? entry).replace(/[^\w]/g, '');
+	const id = (entry.match(/entry\/([0-9a-f]+)\.js/)?.[1] ?? entry).replace(/[^\w]/g, '');
 	const wake = mode === 'lake' ? 'none' : (WAKE_KEYS.find((k) => p[k]) ?? 'load');
 	// Props that cross by value (children/functions/`$$` never cross), devalue-encoded.
 	const crossing: Record<string, unknown> = {};
