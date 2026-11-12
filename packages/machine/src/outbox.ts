@@ -3,6 +3,11 @@ import { mailbox, type Mailbox } from './mailbox.ts';
 import { scope } from './scope.ts';
 import { machine_error, report } from './messages.ts';
 import { policy, under_policy, type Policy } from './policy.ts';
+import { buggify } from './ports.ts';
+
+/** Dev and rules builds (buggify points); folded out of any other (../rules-env.d.ts). */
+const RULES =
+	import.meta.env?.DEV || (typeof __OGYGIA_RULES__ !== 'undefined' ? __OGYGIA_RULES__ : false);
 
 export interface OutboxOptions<T> {
 	/** Names the outbox in messages. Default `outbox`. */
@@ -102,7 +107,18 @@ class Box<T> implements Outbox<T> {
 
 	async _deliver(item: T): Promise<boolean> {
 		try {
-			await under_policy(this._retry, (signal) => this._send(item, signal));
+			await under_policy(
+				this._retry,
+				RULES
+					? async (signal) => {
+							await this._send(item, signal);
+							// (buggify: the receiver applied it and its reply was lost: the send is tried
+							// again, and the receiver sees the same work twice)
+							if (buggify.fires('outbox.reply-lost'))
+								throw new Error('buggify: the reply was lost');
+						}
+					: (signal) => this._send(item, signal)
+			);
 			return true;
 		} catch (error) {
 			this._gave_up(item, error);

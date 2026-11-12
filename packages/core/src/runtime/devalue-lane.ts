@@ -11,9 +11,10 @@
  * A download that fails is tried again at once, and a failure is never kept: the next read loads it
  * afresh (one dropped request must not leave every later wake, and every streamed value, unreadable).
  */
-import { backoffAfter, flights, STALE, type Stale } from '@ogygia/machine';
+import { backoffAfter, flights, STALE, timers, type Stale } from '@ogygia/machine';
 import { import_again } from './import-again.ts';
 import { devalue_download, download } from '../policies.ts';
+import { OG_FORMAT, OGYGIA_PROPS } from '../wire-markup.ts';
 
 type Devalue = typeof import('devalue');
 
@@ -49,15 +50,15 @@ export function with_devalue(fn: (d: Devalue) => void, tried = 0): void {
 				const failed = tried + 1;
 				if (failed >= devalue_download.attempts) return;
 				// oxlint-disable-next-line ogygia/owned-effects -- the document's download retry, doubling and capped (it ends itself): the read it serves runs once and outlives any page, so no visit owns it
-				setTimeout(() => with_devalue(fn, failed), backoffAfter(devalue_download, failed));
+				timers.keep(() => with_devalue(fn, failed), backoffAfter(devalue_download, failed));
 			}
 		);
 }
 
 /** Every side-channel a read may parse with devalue: props sidecars, the page seed, page facts. */
 const DEVALUE_LANE_SELECTOR =
-	'script[data-ogygia-props]:not([data-og-format="json"]),' +
-	'script[type="application/ogygia-page"]:not([data-og-format="json"]),' +
+	`script[${OGYGIA_PROPS}]:not([${OG_FORMAT}="json"]),` +
+	`script[type="application/ogygia-page"]:not([${OG_FORMAT}="json"]),` +
 	'script[type="application/ogygia-page-facts"]';
 
 /** Does this document (or fragment) hold a script only devalue can read? */

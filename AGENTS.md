@@ -52,6 +52,7 @@ The primitives exist so that whole families of bugs cannot be written:
 | Freshness ("is this answer still about the current thing?") | `world()` stamps                     | comparing stale ids by hand. A `world` is about freshness; a `scope` is about lifetime |
 | Events on one owner handled one at a time                   | `mailbox()`                          | two handlers seeing each other's half-done work                                        |
 | Exclusive access                                            | `lock()`                             | two owners writing at once                                                             |
+| A cap on work in flight, first come first served            | `queue()`                            | hand-written semaphores; a freed place taken out of turn; a waiter that waits forever  |
 
 Rules for using them:
 
