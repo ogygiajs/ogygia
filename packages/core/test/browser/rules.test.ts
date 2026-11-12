@@ -16,7 +16,7 @@ import {
 	watch_frames,
 	watch_router
 } from '../../src/runtime/rules.ts';
-import { _reset, peek, ticket, write } from '../../src/runtime/frame-store.ts';
+import { _reset, peek, ticket, write } from '../_frames.ts';
 import { runtime_session } from '../../src/runtime/session.ts';
 
 type Broken = Array<{ code: string; detail: string }>;

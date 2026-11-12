@@ -4,7 +4,11 @@
 // it as `foreign-key`, with the advice that goes with it, not as a bad signature.
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
-import { plugin_capabilities, type CapabilitySigner } from '../src/plugin/capability.ts';
+import {
+	plugin_capabilities,
+	plugin_signer,
+	type CapabilitySigner
+} from '../src/plugin/capability.ts';
 import { capability_lifetime } from '../src/server/capability-lifetime.ts';
 import { RENEW_WINDOW_SEC } from '../src/server/shared-cache.ts';
 
@@ -36,8 +40,12 @@ const address = (minted: Record<string, string>) =>
 	new URL(`http://app.test/og/frag?peer=peer&${new URLSearchParams(minted)}`);
 
 describe('a plugin capability', () => {
-	const v1 = plugin_capabilities('@ogygia/federation', signer('key-of-v1', 'aaaaaaaa'));
-	const v2 = plugin_capabilities('@ogygia/federation', signer('key-of-v2', 'bbbbbbbb'));
+	const v1 = plugin_capabilities(
+		plugin_signer('@ogygia/federation', signer('key-of-v1', 'aaaaaaaa'))
+	);
+	const v2 = plugin_capabilities(
+		plugin_signer('@ogygia/federation', signer('key-of-v2', 'bbbbbbbb'))
+	);
 
 	it('opens on the deployment that minted it', () => {
 		expect(v1.open(address(v1.mint(message)), message).ok).toBe(true);
