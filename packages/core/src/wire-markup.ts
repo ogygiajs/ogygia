@@ -311,6 +311,7 @@ function is_letter(c: number): boolean {
 
 /** The elements whose text the tokenizer reads raw, up to their own end tag: no tag, no comment
  *  inside. (`script` has its own escape rules: `skip_script`.) */
+// static: the raw-text element names
 const RAW_TEXT = new Set([
 	'style',
 	'textarea',
