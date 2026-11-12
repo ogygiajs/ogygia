@@ -75,6 +75,30 @@ describe('macros/source — strict position law', () => {
 			rewrite_source(`export const f = import.meta.og.source();\n`, '/app/x.ts', 'x.ts', MARKUP)
 		).toThrow(/args/);
 	});
+
+	it('in a .svelte <script module>, the import goes inside the script, and no line moves', () => {
+		const src = [
+			`<script module lang="ts">`,
+			`\texport const loadDoc = import.meta.og.source(async (slug: string) => slug);`,
+			`</script>`,
+			``,
+			`<p>hi</p>`,
+			``
+		].join('\n');
+		const out = rewrite_source(src, '/app/src/lib/Doc.svelte', 'src/lib/Doc.svelte', MARKUP);
+		expect(
+			out.startsWith(`<script module lang="ts">import { __og_source } from 'ogygia/internal';`)
+		).toBe(true);
+		expect(out.split('\n').length).toBe(src.split('\n').length);
+		expect(out.split('\n')[1]).toContain(`__og_source("src/lib/Doc.svelte#loadDoc"`);
+	});
+
+	it('in a .ts module, the export stays on its own line', () => {
+		const src = `// cms\nexport const loadDoc = import.meta.og.source(async (slug) => slug);\n`;
+		const out = rewrite_source(src, '/app/x.ts', 'x.ts', MARKUP);
+		expect(out.split('\n').length).toBe(src.split('\n').length);
+		expect(out.split('\n')[1]).toContain(`__og_source("x.ts#loadDoc"`);
+	});
 });
 
 // ── the runtime ────────────────────────────────────────────────────────────────────────────────
