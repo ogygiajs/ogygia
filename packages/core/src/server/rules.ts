@@ -14,9 +14,13 @@
  * Each area tells this module what it holds (`note_response_end`) only when rules are on: every call
  * site folds out of a build without them.
  */
-import { observe, timers, type AnyMachine, type Scope } from '@ogygia/machine';
+import { cache, observe, timers, type AnyMachine, type Scope } from '@ogygia/machine';
 import { Rules } from '../rules.ts';
 import { warn } from '../messages/server.ts';
+
+/** What the rules track at once, at most (a server in dev, a simulated run): far past one
+ *  process's requests in flight. One past it is not checked, never held. */
+const RULE_ROWS_MAX = 10_000;
 
 type ServerRule =
 	| 'rule_request_scope_open'
@@ -25,10 +29,14 @@ type ServerRule =
 	| 'rule_region_answer_shared'
 	| 'rule_capability_not_path';
 
-/** The first few region answers that left without their headers (CAPABILITY-URL, PRELOAD-CACHE). */
-const unsafe_answers: string[] = [];
-/** The first few capability URLs minted with more than a path (CAPABILITY-URL, HOLE-TRUST). */
-const unsafe_mints: string[] = [];
+/** The few breaks found so far (10 each, at most). */
+class Breaks {
+	/** The first region answers that left without their headers (CAPABILITY-URL, PRELOAD-CACHE). */
+	readonly answers: string[] = [];
+	/** The first capability URLs minted with more than a path (CAPABILITY-URL, HOLE-TRUST). */
+	readonly mints: string[] = [];
+}
+const B = new Breaks();
 
 /** Why a region endpoint answer is unsafe to send, or null: it must keep its capability out of
  *  every Referer (`no-referrer`) and out of every shared cache (`no-store`, or `private`). */
@@ -55,7 +63,7 @@ export function note_region_answer(path: string, res: Response): void {
 	if (!installed) return;
 	const why = region_answer_unsafe(res);
 	if (why === null) return;
-	if (unsafe_answers.length < 10) unsafe_answers.push(`${path} (${res.status}): ${why}`);
+	if (B.answers.length < 10) B.answers.push(`${path} (${res.status}): ${why}`);
 	check_soon();
 }
 
@@ -64,7 +72,7 @@ export function note_minted_capability(url: string): void {
 	if (!installed) return;
 	if (url.startsWith('/') && !url.startsWith('//') && !url.startsWith('/\\')) return;
 	// (the address only: the query is the capability)
-	if (unsafe_mints.length < 10) unsafe_mints.push(url.split('?')[0]!);
+	if (B.mints.length < 10) B.mints.push(url.split('?')[0]!);
 	check_soon();
 }
 
@@ -72,19 +80,19 @@ export function note_minted_capability(url: string): void {
 export const server_rules: Rules<ServerRule> = /* @__PURE__ */ new Rules<ServerRule>();
 
 /** Request scopes whose response has ended, until a check sees them closed. */
-const ended = new Set<Scope>();
+const ended = cache<Scope, true>({ name: 'ended request scopes', max: RULE_ROWS_MAX });
 
 /** A response ended (its body read to the end, cancelled, or none): its request's scope must be
  *  closed by the time the next check runs. */
 export function note_response_end(owner: Scope): void {
 	if (!installed) return;
-	ended.add(owner);
+	ended.set(owner, true);
 	check_soon();
 }
 
 function request_scopes_closed(): string | null {
 	let open = 0;
-	for (const owner of ended) {
+	for (const [owner] of ended.entries()) {
 		if (owner.closed) ended.delete(owner);
 		else open++;
 	}
@@ -94,20 +102,34 @@ function request_scopes_closed(): string | null {
 /** The flights' entries that keep an error as their answer now, each with what it keeps. An entry
  *  leaves when it moves on (dropped, or a fresh answer kept): the rule is about what is kept now, so
  *  a check (a simulated run, the next response in dev) sees its own breaks, not an earlier one's. */
-const kept_failures = new Map<AnyMachine, string>();
+const kept_failures = cache<AnyMachine, string>({
+	name: 'kept flight failures',
+	max: RULE_ROWS_MAX
+});
 
 function no_kept_failure(): string | null {
 	if (kept_failures.size === 0) return null;
-	return [...kept_failures.values()].slice(0, 10).join('; ');
+	return kept_failures
+		.entries()
+		.slice(0, 10)
+		.map(([, said]) => said)
+		.join('; ');
 }
 
 /** Kept answers that read what their key does not cover (server/render-cache.ts `unkeyed_read`),
  *  each with that read, while they stay kept. */
-const kept_unkeyed = new Map<AnyMachine, string>();
+const kept_unkeyed = cache<AnyMachine, string>({
+	name: 'kept unkeyed reads',
+	max: RULE_ROWS_MAX
+});
 
 function no_kept_unkeyed_read(): string | null {
 	if (kept_unkeyed.size === 0) return null;
-	return [...kept_unkeyed.values()].slice(0, 10).join('; ');
+	return kept_unkeyed
+		.entries()
+		.slice(0, 10)
+		.map(([, said]) => said)
+		.join('; ');
 }
 
 /** The read a kept answer made that its key does not cover, or null. */
@@ -139,11 +161,9 @@ export function install_server_rules(): void {
 	server_rules.add('rule_flight_kept_failure', no_kept_failure);
 	server_rules.add('rule_kept_unkeyed_read', no_kept_unkeyed_read);
 	server_rules.add('rule_region_answer_shared', () =>
-		unsafe_answers.length ? unsafe_answers.join('; ') : null
+		B.answers.length ? B.answers.join('; ') : null
 	);
-	server_rules.add('rule_capability_not_path', () =>
-		unsafe_mints.length ? unsafe_mints.join('; ') : null
-	);
+	server_rules.add('rule_capability_not_path', () => (B.mints.length ? B.mints.join('; ') : null));
 	// a flight's entry moving to `kept` with an error, or a render that read what its key does not
 	// cover, for its answer (flights' machine, @ogygia/machine), and out of it again
 	observe((name, _from, to, machine) => {
