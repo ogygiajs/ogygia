@@ -54,7 +54,9 @@ function signed_at(endpoint: string, exp: number): string {
 		p.get('props') ?? '',
 		'',
 		p.get('ttl') ?? '',
-		p.get('r') ?? ''
+		p.get('r') ?? '',
+		// (the claim's sixth field: a hole that wakes, the URL's `w=1`; server/hmac.ts `claim_fields`)
+		p.get('w') ?? ''
 	];
 	const sig = Hmac.sha256(
 		derive_mac_key(SECRET),
