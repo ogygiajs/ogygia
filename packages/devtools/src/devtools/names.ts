@@ -1,19 +1,19 @@
 /**
  * The islands' component names for the dock and the testing API: a build carries them in
- * `virtual:ogygia/devtools-meta`; the dev server serves them live (`/__ogygia_devtools_meta`, the
+ * `ogygia:boot/devtools-meta`; the dev server serves them live (`/__ogygia_devtools_meta`, the
  * registry as it is now). Both land on `window.__ogygia_region_names`, which regions.ts reads.
  * Once per page; best effort (a hash stands in for a name it cannot find). A fetch that failed (the
  * network, not an answer) is not kept: the next ask fetches again.
  */
 import { flights } from '@ogygia/machine';
-import { names as built_names } from 'virtual:ogygia/devtools-meta';
+import { region_names } from 'ogygia:boot';
 
 const loading = flights({
 	name: 'devtools region names',
 	run: async () => {
 		if (typeof window === 'undefined') return;
-		if (built_names && Object.keys(built_names).length) {
-			window.__ogygia_region_names = { ...built_names, ...window.__ogygia_region_names };
+		if (region_names && Object.keys(region_names).length) {
+			window.__ogygia_region_names = { ...region_names, ...window.__ogygia_region_names };
 			return;
 		}
 		const r = await fetch('/__ogygia_devtools_meta');
