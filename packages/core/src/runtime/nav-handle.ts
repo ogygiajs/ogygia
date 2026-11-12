@@ -24,6 +24,7 @@
  */
 import { flights, STALE } from '@ogygia/machine';
 import { import_again } from './import-again.ts';
+import { code_url_or_refuse, import_code } from './code-origins.ts';
 import { speculate_url } from './speculate-hint.ts';
 import { OgygiaError, warn } from '../messages/core.ts';
 import { download } from '../policies.ts';
@@ -44,10 +45,11 @@ const load_refresh = flights({
 	name: 'soft refresh',
 	run: import_again(
 		() => import('./router-nav.ts').then(({ invalidate_all }) => ({ invalidate_all })),
+		// (a retry asks under a fresh URL: only one on the page's code origins, ./code-origins.ts)
 		(url) =>
-			(import(/* @vite-ignore */ url) as Promise<typeof import('./router-nav.ts')>).then(
-				({ invalidate_all }) => ({ invalidate_all })
-			)
+			Promise.resolve()
+				.then(() => import_code<typeof import('./router-nav.ts')>(code_url_or_refuse(url)))
+				.then(({ invalidate_all }) => ({ invalidate_all }))
 	),
 	retry: download
 });

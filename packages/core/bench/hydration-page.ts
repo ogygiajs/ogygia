@@ -145,19 +145,20 @@ function header_html(menus: number): string {
 	);
 }
 
-/** Where an island's code is (`src`, the location the server names): the stand-in island module,
- *  one module instance per entry. */
-const ISLAND_MODULE = new URL('../test/_stubs/island-module.ts', import.meta.url).href;
+/** Where an island's code is (`src`, the location the server names): the identity's built file on
+ *  the page's origin, as a browser loads it (runtime/code-origins.ts `is_location_of`). The bench
+ *  preload serves each as its own instance of the stand-in island module
+ *  (internal/heisenbench/src/preload.ts). */
+export const src_of = (entry: string): string =>
+	`${location.origin}${entry.slice(0, -3)}.0bench0.js`;
 
-const src_of = (entry: string): string => `${ISLAND_MODULE}?entry=${entry.slice(-11, -3)}`;
-
-/** Every island location the pages below name: the header's, the blocks' 24, the footer's, the grid's. */
-export const ISLAND_SRCS: string[] = [
+/** Every island the pages below name: the header's, the blocks' 24, the footer's, the grid's. */
+export const ISLAND_ENTRIES: string[] = [
 	0,
 	...Array.from({ length: 24 }, (_, i) => i + 1),
 	30,
 	50
-].map((i) => src_of(island_entry(i)));
+].map(island_entry);
 
 const region_open = (i: number, wake: Wake, entry: string): string =>
 	`<ogygia-region entry="${entry}" src="${src_of(entry)}" wake="${wake}" data-og-fp="${fp(i)}">`;

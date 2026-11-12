@@ -102,7 +102,8 @@ const RUNTIME_LOAD_FAILED = "console.error('[ogygia] https://ogygiajs.dev/e/runt
  * runtime instead of one round trip after it. Normal priority — the runtime cannot run without
  * them. `data-ogygia-runtime-dep` keeps them attached to the script when the handle moves it
  * (head-presence.ts `runtime_first`). `locations`: the build's location map, which the runtime reads
- * for a load that arrives with an identity alone (runtime/entry-locations.ts).
+ * for a load that arrives with an identity alone (runtime/entry-locations.ts). Its code origins are
+ * written at head time (head-presence.ts `runtime_first`).
  *
  * The runtime cannot say that it failed to load: when its file or one of its static imports fails to
  * download, none of it runs, every island stays server markup, and nothing of ogygia's was logged
@@ -148,7 +149,7 @@ export function island_graph_script(
 }
 
 /** The holes record (`hole()`), read by runtime/hole-facts.ts. */
-const HOLES_SCRIPT_OPEN = `<script type="${HOLES_SCRIPT_TYPE}" ${OGYGIA_HOLES}>`;
+const HOLES_SCRIPT_OPEN = `<script type="${HOLES_SCRIPT_TYPE}" ${OGYGIA_HOLES}`;
 const HOLES_SCRIPT_CLOSE = '</script>';
 
 /** A sidecar as the tail keeps it: the plan, and the facts the profiler reads after the render. */
@@ -307,8 +308,9 @@ export class DocumentTail {
 	/** The tail's HTML: hints, the island graph, then props (each rendered now, against `seed`), then
 	 *  the holes record (one script, JSON, `<`-escaped). Empty string when nothing was recorded. With
 	 *  `detail`, the per-island rows (bytes, lane, references, the devalue culprit) are kept for
-	 *  the profiler — a little extra work, only while it records. */
-	render(seed: SeedIndex | null = null, detail = false): string {
+	 *  the profiler — a little extra work, only while it records. `mark`: the response's mark
+	 *  attribute, on the holes record (server/response-mark.ts `mark_attr`, RESPONSE-MARK). */
+	render(seed: SeedIndex | null = null, detail = false, mark = ''): string {
 		let out = '';
 		for (const href of this.#hints) out += modulepreload_tag(href);
 		out += island_graph_script(this.#graph, this.#locations);
@@ -342,7 +344,12 @@ export class DocumentTail {
 		if (this.#holes.size) {
 			const record: Record<string, HoleRecord> = {};
 			for (const [identity, facts] of this.#holes) record[identity] = facts;
-			out += HOLES_SCRIPT_OPEN + escape_script_text(JSON.stringify(record)) + HOLES_SCRIPT_CLOSE;
+			out +=
+				HOLES_SCRIPT_OPEN +
+				mark +
+				'>' +
+				escape_script_text(JSON.stringify(record)) +
+				HOLES_SCRIPT_CLOSE;
 		}
 		if (this.#sheet_owners.size) {
 			const record: Record<string, string[]> = {};

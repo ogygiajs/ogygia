@@ -34,6 +34,7 @@ import {
 	STALE,
 	type Scope
 } from '@ogygia/machine';
+import { code_url_or_refuse, import_code, type CodeUrl } from './code-origins.ts';
 
 // dev and rules builds (a buggify point); folded out of any other
 const RULES =
@@ -198,7 +199,9 @@ export function on_file_load(note: <T>(url: string, loading: Promise<T>) => Prom
  */
 export function import_again<T>(
 	load: () => Promise<T>,
-	fresh: (url: string) => Promise<unknown> = (url) => import(/* @vite-ignore */ url),
+	// (a retry asks under a fresh URL: only one on the page's code origins, ./code-origins.ts)
+	fresh: (url: string) => Promise<unknown> = (url) =>
+		Promise.resolve().then(() => import_code(code_url_or_refuse(url))),
 	/** The file `load` imports, resolved against `base`: the build hands each lazy loader its own
 	 *  (@ogygia/compiler vite/lazy-files.ts), and an island's caller knows its file. `null` or left out: not known
 	 *  (a module that shares its chunk with others), and a failure is loaded the same way again. */
@@ -304,7 +307,8 @@ const file_loads = flights({
 		if (!again)
 			file_loaders.set(
 				url,
-				(again = import_again(() => import(/* @vite-ignore */ url), undefined, url))
+				// (the key is `import_file`'s CodeUrl: flights keys are plain strings)
+				(again = import_again(() => import_code(url as CodeUrl), undefined, url))
 			);
 		const load = again;
 		// (the sheets the file's load puts in the head are the regions' that run it: region-sheets.ts)
@@ -327,9 +331,10 @@ const file_loads = flights({
  * asked for again at once under a fresh URL, and by every later load of that file. A plain
  * `import()` of it once left an island whose file dropped one download dead for the tab (#261). A
  * file the server answered for (a 404 after a deploy) is not asked for again at once: the caller's
- * own recovery (./entry-locations.ts, the current build's file) is what helps there.
+ * own recovery (./entry-locations.ts, the current build's file) is what helps there. Only a URL on
+ * an allowed code origin (./code-origins.ts) is taken.
  */
-export function import_file<T>(url: string): Promise<T> {
+export function import_file<T>(url: CodeUrl): Promise<T> {
 	// (nothing drops a file's load, so it is never STALE; were it, it is asked for again)
 	return file_loads.get(url).then((m) => (m === STALE ? import_file<T>(url) : (m as T)));
 }

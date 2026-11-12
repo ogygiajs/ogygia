@@ -62,6 +62,7 @@ export type MarkKey =
 	| 'ledgerTwice'
 	| 'len'
 	| 'locations'
+	| 'mark'
 	| 'mountFailed'
 	| 'mountFallback'
 	| 'mountMoved'
@@ -69,6 +70,7 @@ export type MarkKey =
 	| 'noReconcile'
 	| 'opaque'
 	| 'opaquen'
+	| 'origins'
 	| 'overlay'
 	| 'overlayToggle'
 	| 'owner'
@@ -191,6 +193,7 @@ export const OG_LEDGER_SHARED = 'data-og-ledger-shared';
 export const OG_LEDGER_TWICE = 'data-og-ledger-twice';
 export const OG_LEN = 'data-og-len';
 export const OG_LOCATIONS = 'data-og-locations';
+export const OG_MARK = 'data-og-mark';
 export const OG_MOUNT_FAILED = 'data-og-mount-failed';
 export const OG_MOUNT_FALLBACK = 'data-og-mount-fallback';
 export const OG_MOUNT_MOVED = 'data-og-mount-moved';
@@ -198,6 +201,7 @@ export const OG_MOVED = 'data-og-moved';
 export const OG_NO_RECONCILE = 'data-og-no-reconcile';
 export const OG_OPAQUE = 'data-og-opaque';
 export const OG_OPAQUEN = 'data-og-opaquen';
+export const OG_ORIGINS = 'data-og-origins';
 export const OG_OVERLAY = 'data-og-overlay';
 export const OG_OVERLAY_TOGGLE = 'data-og-overlay-toggle';
 export const OG_OWNER = 'data-og-owner';
@@ -316,6 +320,7 @@ export const MARK: { readonly [K in MarkKey]: Mark } = {
 	ledgerTwice: { attr: OG_LEDGER_TWICE, by: 'devtools' },
 	len: { attr: OG_LEN, by: 'page' },
 	locations: { attr: OG_LOCATIONS, by: 'page' },
+	mark: { attr: OG_MARK, by: 'page' },
 	mountFailed: { attr: OG_MOUNT_FAILED, by: 'page' },
 	mountFallback: { attr: OG_MOUNT_FALLBACK, by: 'page' },
 	mountMoved: { attr: OG_MOUNT_MOVED, by: 'page' },
@@ -323,6 +328,7 @@ export const MARK: { readonly [K in MarkKey]: Mark } = {
 	noReconcile: { attr: OG_NO_RECONCILE, by: 'page' },
 	opaque: { attr: OG_OPAQUE, by: 'page' },
 	opaquen: { attr: OG_OPAQUEN, by: 'page' },
+	origins: { attr: OG_ORIGINS, by: 'page' },
 	overlay: { attr: OG_OVERLAY, by: 'devtools' },
 	overlayToggle: { attr: OG_OVERLAY_TOGGLE, by: 'devtools' },
 	owner: { attr: OG_OWNER, by: 'page' },

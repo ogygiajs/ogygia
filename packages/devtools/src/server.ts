@@ -7,7 +7,6 @@
  */
 import {
 	defineServer,
-	type Handle,
 	type ResolveOptions,
 	type ServerApp,
 	type ServerPlugin
@@ -24,7 +23,7 @@ import { is_document_request } from './document-request.ts';
 import { set_devtools_app } from './app.ts';
 import { install_request_stats } from './profiler/request-stats.ts';
 import { flights, say, STALE } from '@ogygia/machine';
-import type { ProfilerOptions } from './profiler/index.ts';
+import type { ProfilerHandle, ProfilerOptions } from './profiler/index.ts';
 import { profiler_demand_skip } from './profiler/on-demand.ts';
 import { OgygiaError } from './messages/runtime.ts';
 
@@ -37,7 +36,7 @@ export interface DevtoolsServerOptions {
 }
 
 /** the mounted profiler, once a mount succeeded */
-let mounted: Handle | null = null;
+let mounted: ProfilerHandle | null = null;
 
 /** The process's one profiler mount: the first requests that arrive together share it. A mount
  *  that fails (an edge runtime without node:inspector, a dev server mid-edit) is not kept, so the
@@ -63,7 +62,7 @@ const mounting = flights.keyed<{ options: ProfilerOptions }>()({
 /** a failed mount was said (once for the process: an edge runtime fails every request the same way) */
 const mount_failure = say({ max: 1 });
 
-async function mount(options: ProfilerOptions): Promise<Handle | null> {
+async function mount(options: ProfilerOptions): Promise<ProfilerHandle | null> {
 	// (nothing drops the mount, so it is never STALE)
 	return mounting.get({ options }).then(
 		(m) => (m === STALE ? null : m),
@@ -152,6 +151,11 @@ const server: ServerPlugin<DevtoolsServerOptions> = defineServer<DevtoolsServerO
 			event,
 			resolve: (_event, opts) => next(beacon ? after(opts, beacon) : opts)
 		});
+	},
+	// SHARED HOOK: the profiler's logged-in user measures (core's `server-timing` on region answers).
+	// Not mounted yet: nobody has logged in to it in this process.
+	measures(event) {
+		return mounted?.measures(event);
 	}
 });
 
