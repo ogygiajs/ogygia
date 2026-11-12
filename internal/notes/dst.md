@@ -1,0 +1,519 @@
+# Deterministic simulation (DST)
+
+One seed drives a whole ogygia app: its servers, its visitors' tabs, the network between them, the
+CDN, deploys and time. A failing seed replays the same run, step for step. This note says how it
+works, what is built, and how to add to it.
+
+## The layers
+
+1. **Ports** (`packages/machine/src/ports.ts`). Every source of nondeterminism a package reaches
+   goes through a port: `clock` (mono, wall), `timers`, `tasks` (micro, frame, idle), `random`,
+   `net` (fetch, stream), `seen` (IntersectionObserver), `storage`. The lint rule `ogygia/ports`
+   (internal/lint/plugin.ts) refuses a raw call in package source. A raw call that must stay says
+   why: `// port-ok: <why>`. Build-time code (compiler, Vite plugins, CLI, test tooling) is out of
+   scope (`.oxlintrc.json`), and so is devtools for now (an instrument the simulated apps do not
+   turn on; to fold in).
+   - A port reads its realm's platform when called. The simulator gives each realm (a tab's
+     document, the server host) a simulated platform, so ogygia's calls and Svelte's and Kit's
+     beside them all play the seed. A port that swapped only ogygia's calls would leave Kit's real.
+   - `Platform` (ports.ts) is the contract; `internal/sim/src/platform.ts` implements it.
+   - Dynamic `import()` is not a port: a tab's module loader fetches chunks over the simulated
+     network.
+2. **The world** (`internal/sim`, private, never published; it is a workspace member under
+   `internal/` like the other repo tooling, not a package anyone installs).
+   - `rng.ts`: sfc32 streams, forked by name, so a new draw in one place does not move the others.
+   - `loop.ts`: one event loop on virtual time for every realm. Tasks due at once in several realms
+     run in the seed's order; inside one realm they keep FIFO order. `settle()` lets real work that
+     the simulator does not own (a module compile, a server's file read) finish between tasks.
+   - `platform.ts`: a realm's simulated time (epoch + virtual ms + skew), timers, frames (16 ms),
+     idle callbacks, randomness, crypto bytes, and a MessageChannel on the loop.
+   - `network.ts`: in memory, on the loop, adversarial: delay, reorder, drop, duplicate, cut a body
+     midway, tamper with bytes, redirect a region's request to another origin, stall an answer 10 to
+     40 s before it starts or, half the time, after its body's first piece (past a client's own
+     deadline; its own swarm stream, 30% of runs), offline.
+   - `server.ts`: a built Kit app (`.svelte-kit/output`) served in process, static files plus
+     `Server.respond`. Each instance loads its own copy of the output (its own module graph), placed
+     beside the app's output so it resolves the app's dependencies.
+   - `browser.ts`: happy-dom browsers, one per visitor (own cookies), with tabs, back, forward,
+     reload. Each document is its own realm (`tab-2#3`), so its timers die with it, and a
+     document the tab has left hears nothing more from the network (`Network.leave`: a browser
+     calls off its fetches as it unloads it; a left document's stalled chunk once ran over its
+     closed window, gen 192, seed 11).
+   - `world.ts`: ties it together. `World.make({ seed, builds })`, `world.go(tab, 'goto', '/')`.
+
+## Why happy-dom
+
+It is the only usable DOM library that has tabs, history, a cookie jar, a fetch we can intercept,
+a hook before a document's first script (where the simulated platform is installed), and runs
+module scripts with dynamic `import()`. jsdom is closer to the spec in its parser but runs no
+module scripts. Its gaps are handled in the sim, with no patch to happy-dom:
+
+- Its module compiler is regex-based: it turns imports into copies, not live bindings (Svelte's
+  `component_context`, read across chunks, goes stale and islands fail to hydrate), and leaves
+  `import.meta` raw after `return` or `?`. So a simulated document's modules run in V8 instead
+  (`src/modules.ts`): each is a `vm.SourceTextModule` in the window's own context, its source
+  fetched over the simulated network. Only happy-dom's compile step is replaced, in the sim's
+  process. `test/modules.test.ts` holds both cases (happy-dom's compiler gives `"0   "`, V8 gives
+  the live `1` and three URLs). Needs `node --experimental-vm-modules`.
+- It has no MessageChannel: the sim gives each document one on the loop.
+- A module graph is fetched whole before V8 links it (a failed download fails that graph and
+  leaves its other modules usable, as in a browser; `test/modules.test.ts`).
+- Its parser cut a run of text at a bare `>` into two text nodes, and Svelte's hydration found a
+  node left over: a run is one node (`whole_text_runs`, `test/parser.test.ts`).
+- It hands an intercepted answer back as it is: the sim follows a redirect itself, each leg a
+  request on the network, and the answer carries its URL (`test/redirect.test.ts`).
+- It ran an inline module script at once and an external one when its file came: a document's
+  module scripts run in its order (`modules_in_order`, `test/modules.test.ts`).
+- It read `interactive` from the start, never fired DOMContentLoaded, and fired `load` before a
+  document's module script had run: a document reads `loading` while its parser runs, then
+  `interactive`, fires DOMContentLoaded (a task of its own) once the module scripts its parser put
+  in it ran, and only then `load` (`content_loaded`, `test/modules.test.ts`). A script waiting for
+  DOMContentLoaded never ran (gen third party's repair mutants all survived), and ogygia's wake
+  gate waited for `load`.
+- It let a navigation land after the tab had started another: the first page's stalled body was
+  written over the newer page, under the first page's URL. A navigation whose document has not
+  come is called off when the tab navigates again (its realm is left, its failure unsaid;
+  `Browsers.navigate`, `test/superseded-navigation.node.test.ts`; palaestra seed 122).
+- It ran a copy of any script: a copy carries "already started" (a script that connected, or one a
+  parser marked unexecutable), so the router's head merge ran the next page's early hole start
+  again (`scripts_start_once`, `test/scripts.test.ts`; gen 191).
+- Its console's methods read private fields, so a document's own console (which tells one
+  document's words from another's) runs each on the page's console (`test/console.test.ts`).
+- Its `document.getElementsByTagNameNS` read the document's owner document (it has none) and
+  threw: the search from a document reads the document as its own owner
+  (`documents_by_namespace`, `test/document.test.ts`).
+- It records no resource timing (its `PerformanceObserver` is the host's, which hears none of a
+  page's downloads), so ogygia's import-again never learned whether a failed chunk's own file came.
+  Each document gets its own timeline and observer (`src/timeline.ts`), fed by its downloads on
+  the simulated network, read the seed's engine's way (`timeline engine`): `status` (Chromium,
+  Firefox: every download an entry with its `responseStatus`, a dropped one 0) or `start` (WebKit:
+  no status, no entry for a dropped download). Observer callbacks are tasks of the document.
+- It loads no image by default: every image read `complete` at once, and the critical wait (an
+  incomplete `img[fetchpriority=high]`) was never seen. Images load over the simulated network
+  (`enableImageFileLoading`, `test/images.test.ts`); the waste oracle leaves them out, as the
+  document's image cache keeps one.
+- `element.click()` sends only the click: a visitor's click (`user_click`) sends pointerdown,
+  mousedown, pointerup and mouseup first, as a browser does (the critical gate listens for the first
+  input; `test/workload.test.ts`). The real-browser player's clicks send the same.
+
+Differences in the DOM engine cancel out for the MPA-equivalence oracle (both sides run in it);
+the real-browser tier reruns interesting seeds in Chromium, Firefox and WebKit.
+
+## Known limits
+
+- Server instances of one world share this process's globals, except the `Symbol.for` registry:
+  each instance has its own (`own_symbols`), so ogygia's slots there (its request context, signing
+  key, caches, plugin hooks) are each instance's, as on two machines. One registry for all once
+  let one instance's hooks answer for the other's renders (a hole's `pv=` came and went). State
+  pinned to `globalThis` under a string is still shared. What a world's servers pin there is taken
+  off when the world ends, so the next world in the process starts from nothing. A server's timer
+  runs in the context it was set in (its instance, its clock skew), as Node's own do.
+- A built app is loaded with Node's own `require` (of ESM), not `import()`, so vitest's module
+  runner does not load it a second way (under it, the server's first request never answered).
+- Nothing is garbage collected in a run (`WeakRef` holds, no finalizer runs): collection happens
+  on the host's real schedule, so it would not replay.
+
+## Waiting for real work
+
+The loop never waits a fixed number of turns. `settle()` turns the host's own loop until
+`process.getActiveResourcesInfo()` shows nothing in flight (no immediate, no file or crypto
+request; the host's own real timers are counted, not waited on). A settle that gives up after
+10,000 turns is counted (`loop.stalls`). Everything else a page waits on is a loop task, so the
+world is AT REST when nothing is on the network and nothing is due within 2 s (`World.quiesce`).
+A server's own `fetch` goes through the world too (its own origin to the front door, any other
+host fails), so no run touches the real network.
+
+## Replay
+
+`pnpm sim --seed X` replays one seed; `--step N` stops after action N and prints the loop's log.
+Every seed runs twice, the second time in another worker process, and the two traces (every loop
+task, every action, each tab's URL, DOM fingerprint and what it holds, what broke) must be equal
+byte for byte: a difference is a nondeterminism leak, fixed before any finding is trusted.
+`SIM_SITES=1` labels each timer and listener with the code that set it, to find one.
+`SIM_STACKS=1` puts the stack of each uncaught error, console warning and console error in what the
+page said. `SIM_DUMP=<dir>` writes both sides of an MPA difference whole, past its first hunk.
+
+## A run
+
+Each seed draws its own world (swarm testing): a subset of the fault classes, and one server or
+two behind the front door (each request to the seed's pick), their clocks up to 5 s apart. The
+visitor's workload (`workload.ts`): click links, go to a path, back, forward, reload, open a tab,
+go offline and back, wait, and press a button in a region (woken or not yet: a press before an
+island's code came is replayed once it wakes). And three shapes: `away` (follow a link, stay 10 to 50
+s, go back: under the 60 s the frame store keeps a left page's answers), `hurry` (click a link, then
+another 0 to 300 ms later: a navigation called off midway), `hover` (point at a link or a region:
+the router warms the link's page, an island's code is warmed on intent) and `eager` (go to a page
+and press a button 0 to 300 ms after its document is in, `World.start`: an input before the first
+paint or during the wait for the page's critical resources; the document it presses in is the
+visitor's, as a press's). A press makes every tab's document the visitor's
+own state, so the MPA check skips each such document (its next one is clean), and the element
+count leaves it out of the leak check.
+
+## Deploys
+
+`pnpm sim:builds` builds the app twice (`src/builds.ts`, both rules builds) into
+`.svelte-kit/sim-builds/{v1,v2}`; palaestra's Counter renders `VITE_SIM_BUILD`, so the two differ
+in code and HTML as two releases do. With both there, a run starts on v1 and the workload may
+`deploy` v2 (rarely: it is the operator's action, not a visitor's). Without them a run has its
+one build and never deploys. How a deploy goes out is the seed's (`Rollover`): at once, or rolling
+(for 10 s a request reaches either build, by even odds); the old build's content-hashed files kept
+by the host or gone with it; the CDN purged or not. And whether the app set a stable
+`OGYGIA_SECRET` (most runs): without one each build signs with its own key.
+
+What is not a file (a page, a hole, an endpoint) is answered by whichever build is live when it is
+asked: a hole an old page fetches after a deploy is the new release's. The front door marks each
+answer with the build that gave it (a cached copy carries the mark), each document keeps what
+answered its requests, and the MPA check's fresh load sends each of the same requests to that
+build (`World.answers_of`, `answer_key`: path and query, less a hole's expiry and signature).
+
+A download a deploy failed is the deploy's, counted per document (`World.skewed`): a file asked of
+a build that does not have it, or a hole refused for the other build's key
+(`x-ogygia-deny: foreign-key`) when the app has no secret, as ogygia's `secret_missing` warns. In
+such a document, the browser's own words for a failed download and ogygia's coded ones are
+excused, nothing ogygia says without a code is, and the MPA check sets it aside as it does a
+faulted one. Every other page is compared with a fresh load from the build that answered it
+(`World.as_of`, past the CDN): a page of the old release is that release's, whole.
+
+A page's unhandled rejection reaches its own window (`unhandledrejection`), as in a browser; it
+went to the host process, where nothing told it from the simulator's own.
+
+## Outages
+
+The `outage` action is a whole flow: the visitor follows a link, presses a button, or does
+nothing (a stream or a hole's fetch already on its way); some ms in (0 to 500) the connection
+drops, for 1 s to 2 min, then comes back. Going offline fails what the tab has on the wire, as a
+lost connection does: a request not yet answered fails to fetch, a body still coming (a page, a
+live stream) breaks off (`Exchange.lost`). The document hears it as in a browser: its
+`navigator.onLine` reads the tab's network, and `offline`, then `online`, fire on its window as
+tasks of its realm (`Network.tell`; a page that waits for the network to come back never heard it
+before, gen 88).
+
+THE OUTAGE OVER, THE PAGE RECOVERS: a document only an outage touched (no other fault) is
+MPA-checked at rest like any other (`outage-recovery`): an answer it gave up on while offline is
+owed once the network is back (#891). Set aside: a document whose own load failed (the browser's
+error page, an empty document), one a script or stylesheet of which failed to load (a browser
+never loads one again; ogygia says `runtime_load_failed`), and one ogygia says needs a reload
+(`chunk_reload_needed`: a module's dependency failed, and the browser keeps it failed, #262).
+
+Rest waits for requests a server is still working on (a hole that renders in 3 s): its answer is
+not a loop task until it comes.
+
+## Federation
+
+A world may hold peer apps (`WorldOptions.peers`), each at its own origin with one build and one
+server instance, behind no CDN. The app's servers reach a peer over the simulated network (a
+signed hop is an exchange from `server-0` like any other, so faults hit it too), and a tab loads a
+peer's islands from the peer's origin, its content-hashed files answering any origin
+(`access-control-allow-origin: *`, as a peer's CDN does). Each build carries its own environment
+(`Build.env`, Kit's `$env/dynamic/private`): every app gets its own `<NAME>_SIGNING_KEY`, every
+app's `<NAME>_PUBLIC_KEY` and `<NAME>_ORIGIN`, and `ORIGIN`, the keys drawn from the seed
+(`keys.ts`: Ed25519 signs deterministically, so a run's signatures replay).
+
+    pnpm sim --app ../../examples/mfe/shell --name shell \
+      --peers cms=../../examples/mfe/cms,dash=../../examples/mfe/dash \
+      --paths /cms,/cms/lab,/cms/posts/1,/cms/posts/2
+
+`--paths` adds pages no route file names (a mounted peer's). Build the three first
+(`pnpm turbo run build --filter=mfe-shell... --filter=mfe-cms... --filter=mfe-dash...`).
+
+## The random app
+
+`apps/sim-gen` is an app nobody wrote by hand: `pnpm sim:gen --seed N` (`src/gen.ts`) writes its
+pages and regions from a seed. Islands on every schedule, holes (some woken once they land, some
+slow on the server, some with a fallback, and some of a page's root holes keep it: `keepFallback()`,
+its own stream `gen keep`), lakes and plain components, nested up to 3 deep, on 3
+to 6 pages that link to each other (router on, csr=false). Each region is a component of its own
+that imports its children with their import attributes; the tree is in
+`src/lib/gen/plan.json`. Then `pnpm sim:builds --app ../../apps/sim-gen` and
+`pnpm sim --app ../../apps/sim-gen`.
+
+About half the seeds draw a peer (`peer_plan`, its own stream `gen peer`): another team's app,
+written into `apps/sim-gen-peer`. It serves widgets (`federate({ widgets })`, each a root holding
+a region tree, imported `with { region: 'raw' }`) and pages (`expose:` a server router, base
+`/peer`). The app gets `src/lib/gen/federation.server.ts` (one `federate()`, the peer at
+`PEER_ORIGIN`), slots on its pages (a `+page.server.ts` load returning
+`peer.widget(name, props, { render: 'static' | 'deferred' })`, rendered with `<Region of>`, some
+deferred ones with a placeholder), and the peer's pages mounted under `/peer`: by a server router's
+`mount(peer)` in `src/lib/gen/mount.server.ts` (the app's hooks sequence it after ogygia's), or by a
+Kit catchall's `mount.kit(peer)`. The peer's regions are numbered from 1000, so its `n1003` is never
+the app's `n3`. Build the peer once (`OGYGIA_RULES=1 vite build` in apps/sim-gen-peer); the CLI reads
+the peer from the app's `plan.json`, so `pnpm sim --app ../../apps/sim-gen` runs it with no flags
+(`--peers peer=../../apps/sim-gen-peer`, `/peer/q<i>` added to the paths).
+
+Some regions are held: a remote query returns `region(N, props)` (`src/lib/gen/h<k>.remote.ts`,
+its schedule baked on the import: a wake, or `region: 'raw'`), and a host renders it with
+`<Region of>`: plain server markup awaiting the query (some with a placeholder), or an island
+reading the query's `.current` (some with a button: a command that bumps the server's count and
+answers with the region, single flight). Some are live: a `query.live` yields the region anew on
+each tick (every 0.7 s or 3 s), in an island host. Held and live regions draw from a stream of
+their own (`gen held`), so a seed's tree is what it was before they existed.
+
+Some commands publish (`gen publish`): the command also calls `postrender.invalidate(<its page>)`.
+The app lists `postrender({ default: false })` (opt-in: no page is stored unless it says so) and
+`postrender.handle({ store })` with one `MemoryStore` for every instance and build of a run, as a
+shared cache is. Some pages opt in (`config = { postrender: true }`, stream `gen postrender`, 30%),
+so the store holds pages and a publish has something to invalidate. And some islands change their
+markup in the next release (stream `gen release`, 30%: an element only build v2 renders), so the two
+builds differ as releases do and one build's HTML hydrated with the other's code shows (#947).
+Four more streams reach machines no run touched before: `gen style` (a region with a scoped
+`<style>`: an answer lifts its sheet into the head, `region-sheet`), `gen max age` (a hole whose
+render the server keeps, `maxAge` 2 s or 30 s through a preset of apps/sim-gen's vite config, since
+the compiler refuses it inline: `render cache`), `gen devalue` (an island given a `Date` prop: its
+props cross in devalue's lane) and `gen page data` (a page with a server load whose regions read
+`page.data.who`: a hole or held region looks its page up, `page facts`; some islands that read it
+have a refresh button, `invalidateAll()`: the `soft refresh`). In a federated app the invalidation is announced to the peer: a thaw notice
+through federation's outbox, which the peer applies and passes back on (hop + 1). The same store
+makes a deploy's first federation request send the deploy thaw. And some seeds keep the peer's
+page documents (`gen peer cache`: `cache: { ttl }` of 300 ms, 2 s or 30 s), served stale while one
+fetch refreshes them.
+
+Two more streams: `gen layout` (40% of seeds) puts a region tree in the layout, after the nav on every
+page: a hole with a stylesheet of its own (ids from 500), some with a styled island inside. A router
+navigation keeps it on screen while the next page's head does not list its sheet (#275): what the
+region-sheet bookkeeping is for (mutation testing: two survivors there died once it was in). `gen hero`
+(40% of pages) opens a page with `<img src="/hero.png" fetchpriority="high">`, served by the app's
+`hero.png/+server.ts`: the page's critical resource, which island code and background downloads wait
+for (the load scheduler's `critical-gate`).
+
+Some islands that wake on their own are changed by a third party's script while they sleep (`gen third
+party`, 30%): once the document is parsed, it prepends an element of its own, or (`gen third party
+kind`) swaps the island's first `<span>` for a `<b>`, so the repair puts the server's markup back
+before the island hydrates. A third kind, from a stream of its own (`gen third party text`, on islands
+the first stream left alone) adds a text node only: every element lines up, so the repair walks into
+each one, and the island holds a `<details>` (an element whose children are partly its own). A repair
+that lined up names no ownership conflict there; the app's client plugin (`apps/sim-gen/src/sim-client.ts`,
+`regionMismatched`) says any conflict named on the console, where the page-errors oracle hears it
+(mutation: `align_to` saying a level that lined up failed).
+
+A build's boot runtime comes from `packages/core/dist/runtime` (the prebuilt runtime a published
+package ships), not from `src`: after a change to core's runtime, `pnpm build:lib` before
+`pnpm sim:builds`, or the app boots the old one (its import-again had no buggify point, while the
+chunks Vite built from `src` did).
+
+## Running many
+
+`pnpm sim --runs 200 [--from 41] [--steps 30] [--jobs N]`: seeds run in a pool of worker
+processes (default: cores - 1; a worker is replaced after 25 runs). A run that has not ended after
+`--hang-ms` (60 s real) is reported `hung`, with where it stood (queued tasks, requests on the
+wire, the trace's tail, each tab's machine moves), and its worker is replaced; a worker that dies
+is a `crash` finding. Virtual time is bounded by the run's horizon ((actions + 2) minutes);
+reaching it is reported `horizon`. The summary goes to `internal/sim/results.json`.
+
+## Buggify
+
+A rare branch the code can take on purpose in a simulated run: `buggify.fires(point)` from
+`@ogygia/machine`, behind the file's own RULES constant, so a production build folds it out
+(`packages/core/test/rules-stripped.node.test.ts`). Only a simulated platform answers it. Each run
+turns each point on or off (30%, its own stream `buggify swarm <point>`), and an on point fires at
+20% of its asks, from the realm's own stream. A firing is in the trace. `--no-buggify` turns them
+all off. Points: `flights.not-kept` (an answer not kept), `flights.evicted-early` (a kept answer's keep
+runs out at its next read: the entry goes, `kept -> gone`, and the caller runs the work again), `outbox.reply-lost` (the receiver applied
+a send and its reply was lost: sent again), `import-again.entry-missed` (a download's timing entry
+never comes, as WebKit gives a dropped one none), `federation.doc-stale` (a peer document's ttl just
+ran out), `hole.fetch-lost` (a hole's answer lost on the way: it tries again, or gives up, as it
+would; it reaches the hole's `retrying` steps without a drop fault), `postrender.store-down` (a
+page store call fails, a shared store's blip: the page renders fresh and is not kept; the `postrender
+store` machine's `ok <-> failing`).
+
+## Coverage
+
+What runs reached, for a search to steer by (`src/coverage.ts`). The targets are every step of
+every machine the packages define (`paths()` is one path per step), read from their source:
+`machine()({ name, initial, steps })` with a literal name, and each `flights({ name })` with
+flights' entry steps. A run's steps come from each document's moves (`__ogygia_moves()`, read after
+every action: the log keeps only its last lines). Each run also reports each buggify point: asked,
+on, fired. The summary prints one line, and `results.json` holds per machine what was reached and
+what is still missing, the machines no run touched, and steps a run took that no definition names.
+It also lists the RECOVERY STEPS no run reached (`unreached_recovery`: into or out of a state a
+failure leads to, a retry, an offline wait, a failure, a stall, a give-up, and a keep running out,
+`kept -> gone`), and the always-on run puts the ones every batch missed in its job summary: a new
+recovery step nothing reaches shows at once, and each wants a buggify point, a fault or an app shape.
+A server's moves too: in a rules build core's server rules keep its last 5000 under
+`Symbol.for('ogygia.server.moves')`, which the simulator reads from each instance's own registry.
+Every document's log is read, by realm, a left one's too (`Tab.moves_by`): a hard navigation inside
+one action replaced the document before it was looked at, and the steps it took last were lost.
+A flights' targets are only the entry steps its options and its file can take: `keep: 0` keeps
+nothing, and with no `get(input, { fresh })` in its file an entry is never forced (`flying -> flying`,
+`kept -> flying`); a fresh ask made only under `!x.flying` (a peek showing no flight out) runs a kept
+answer again but never replaces a flight (`flying -> flying` is no target: federation peer documents).
+
+EVERY STEP ACCOUNTED FOR (`src/steps.ts`, test/steps.test.ts). The ledger `internal/sim/steps.json`
+puts each step in exactly one bucket: `reached` (the standard sweep reaches it), `covered` (the fake
+browser cannot; a named real test does, and the check finds that test in its file) or `dead` (no code
+takes it; an issue asks for its removal). A step in no bucket fails. `node src/steps.ts` is the static
+check (the PR check job, once the ledger is complete); `node src/sweep.ts` runs the standard sweep (the
+ledger's `sweep`: palaestra and generated apps' seeds) and fails when a `reached` step was not reached,
+a `dead` one was, or a step is in no bucket; `--write` sets `reached` to what it reached. A step only a
+lucky seed reaches is not covered: the sweep's `plans` (saved runs in `internal/sim/sweep-plans/`, each
+on its app, the same run every time) name the steps each must reach, and the sweep fails when one no
+longer does. dst.yml runs
+the sweep before its seeds and fails the job after them when it failed.
+
+MUTATION, DAILY: dst.yml's `mutate` job (cron `43 3 * * *`) runs `src/mutate.ts` over
+`internal/sim/mutants.json` on main's code, over gens 188 (an empty island that wakes: it kills the
+repair's `> 0` mutant), 191, 192 and 193, with `--budget-min 60` (no mutant starts after an hour; the last line says
+how many it judged of the list, and when) and uploads it (`dst-mutation`). The always-on job's batch
+log line and summary say both numbers: steps accounted, and the latest finished mutation run's kill
+rate with its date.
+
+`--guided N` searches by coverage: a run that reaches a step or fires a point no run before it had
+is kept (its seed and its actions); most next runs mutate a kept one (its first actions up to a
+random cut, then a new tail from a stream of its own, half the time under a new mix of action kinds:
+a swarm over what the visitor does), the rest are fresh seeds. A run's workload can be spelled out
+(`Plan`: actions, then a tail stream, a mix); a failure's plan goes to `internal/sim/plans/` and
+`pnpm sim --plan <file>` replays it (the search checks that it gives the same trace). The search's
+own choices hang on which run ends first, so it does not replay as a whole; each run in it does.
+
+## Shrinking
+
+`pnpm sim --app <app> --shrink <plan file>` (a search's plan, or `{ "seed": 4, "steps": 30 }` for
+a seed's own workload; `--known` takes a filed bug's finding when there is no new one): delta
+debugging over the actions (`src/shrink.ts`), several candidates side by side in the pool, keeping
+a candidate only while it fails with the same signature (`ci.ts` `signature`). The shrunk run is
+replayed twice (equal traces, or the shrink says so), and its actions, finding and the trace's
+tail are printed. It writes `plans/<name>.min.json` (`--plan <file> --step N` prints the whole
+trace) and `test/found/<name>.test.ts`, a regression test that runs the plan and expects the
+finding gone: it fails while the bug stands, and skips when the app on disk is not the one it was
+found on (a generated app's seed, from its plan.json). Rename it to say the behavior, and put it
+on the finding's `sim/found-<name>` branch.
+
+## The real-browser tier
+
+A plan file carries its app (a generated one's seed too: `gen`), the run's wire faults (each
+request of a tab's the network dropped or cut, as the `nth` of its `method path` on that tab) and
+what the run found. A search writes each run it keeps to `plans/kept/` (and each failure to
+`plans/`). The player (`@ogygia/tooling/e2e/sim-replay.ts`) plays plans in a real browser, one
+spec per app: on the palaestra's build,
+
+    SIM_PLANS=<plan.json>,... E2E_NO_BUILD=1 OGYGIA_SECRET=sim-secret \
+      npx playwright test e2e/sim-replay --project chromium
+
+and on the generated app on disk (its own rules build, served by `vite preview`; a `sim:browser`
+script, not `e2e`, since the app's pages are not in git):
+
+    SIM_PLANS=<plan.json>,... pnpm --filter sim-gen sim:browser [--project chromium]
+
+A plan of another app is skipped, and so is a generated app's plan when the app on disk is
+another seed's, or has a peer (a second server, not played yet). Gen 60's 8 kept plans pass in
+Chromium, Firefox and WebKit. Offline is the context's (every tab's): a navigation it fails shows
+the browser's error page, as in the simulator, and the run goes on.
+
+The page's clock is Playwright's fake one (`context.clock`), moved on in slices with real time
+between for the network; each wire fault is done again to the same request (`context.route`: a drop
+aborts, a cut resets the connection, as the simulator's cut fails the body's read); offline is the
+context's (every tab's, where the simulator's is one tab's). At rest (nothing on the wire, 20 s real
+at most, then 5 s of the clock): no page error and no coded error on a tab the network did not
+fail, no machine left in a state of work under way, and ogygia's rules (the `page` fixture). What the
+simulator found is attached. Not played: deploys.
+
+In Chromium the player also measures (`perf_watch`, an init script in every document): each layout
+shift no input caused (none within 500 ms of an action) that came within 100 ms of a region's content
+changing after the page was parsed, and each script a `long-animation-frame` entry names that ran
+over 50 ms. A document whose region-caused shifts add up to 0.1, and a long task in ogygia's code (its
+runtime file, or a file that holds its coded messages), fail the run; the rest is attached. Times are
+a `new PerformanceMark()`'s: the fake clock moves `performance.now` and an event's `timeStamp`, not
+the entries'. A timer's callback runs inside the clock's own `runFor`, so a long timer task is not
+seen (its entry point is Playwright's); a fetch's answer, an event and a module's evaluation are. The palaestra's 9 kept plans of a 60-run search
+pass in Chromium.
+
+## Findings
+
+A real bug gets a GitHub issue (labels `bug`, `dst`) and a failing test on its own branch
+`sim/found-<name>` (`internal/sim/test/found/`). Until its fix lands, its shape is in `KNOWN`
+(oracles.ts): a seed whose only difference a filed bug explains is counted `known`, not failed.
+An empty region a filed bug explains is in `KNOWN_EMPTY` (by the region's shape), and a line a
+page says because of one in `KNOWN_SAID`.
+
+## Adding an oracle
+
+Write a function (or class) in `internal/sim/src/oracles.ts` that returns `Broken | null`, say in
+its comment what it normalizes away and why, and call it from `cli.ts` (after each action, or at
+rest). Oracles now: page errors and uncaught errors (excused only by a fault on that document;
+anything, when the document's own HTML was changed or cut), ogygia's rules (`__ogygia_rules`), MPA
+equivalence against an unfaulted fresh load (text that moves by itself at rest is masked, and so
+is what differs between two fresh loads: a stamp, a counter, a fresh id the server makes each
+render), a region hydrates the HTML the server sent (`ssr-hydrate`: no `hydration_mismatch`, no
+`hydration_discarded`), no page paints HTML another origin answered (`foreign-html`), cache
+isolation, leaks and bounded memory (a document's listeners, intervals, observers, `<head>`
+children and elements must not grow visit after visit of one URL; for listeners, the same code
+must be what grows: ogygia's wake delegation and Svelte's event delegation are installed once per
+document, the first time a page of that kind is visited, and the leak report names what each visit
+added; for observers too, by kind and callback: import-again's timing observer and the viewport
+tracker's are each made once for the document, gen 195), every wait settles (`stuck`: at rest, no machine is left in a state of work under way,
+any state whose name ends in `ing`), every region shows something (`empty-region`: at rest, no
+`<ogygia-region>` is left with nothing in it, but a hole with no fallback still waiting to be seen
+or touched), no hole that wakes on its own (`load`, `idle`) still shows its fallback at rest
+(`fallback-stands`: in a document a fault touched, only one never asked for; the MPA check cannot see
+it, the fresh load runs the same code; a fallback the app keeps on purpose is marked
+`data-gen-kept`; found by mutation testing: a mutant whose holes never fetched survived), the
+rules once more at rest, and the watchdog (`hung`).
+
+Each line a page says is judged by the document that said it (`Tab.said_by`): one action can show
+several documents, and an old page's failed download is not the next page's. The first document is
+looked at before the visitor acts. What moves by itself in the MPA check (a ticking text, a live
+region's tick in its endpoint) is masked by its content, looked at for 4 s, and lined up with the
+other side's same line where it moved on one side only.
+
+The fresh load is calm (`Network.calm`): no fault but short delays, on its own requests and on the
+hops its server makes for it (a peer's fragment). A calm leg is never a long one: two long legs on
+a peer hop passed the peer's 5 s timeout, and the app rightly answered 504 (gen 23, seed 23023).
+It reaches the app from a client address of its own (`client_address`, Kit's `getClientAddress`):
+it once met the rate limit the run's own hole retries had used up (gen 78). It asks each hole of
+the build that last answered it in the tab, a batch's too (`POST /__ogygia__`, gen 77), and a file
+of the build that gave it to the tab (one the old build gave in a rolling deploy's window is the
+old build's, gen 88), else of the build that has it (the live one, or any when the host keeps old
+files; gens 63, 65). A page store's mark (`<meta name="ogygia-stored">`) is delivery: the MPA and
+leak checks set it aside. A copy the store served is of the build that rendered it, read off its
+etag when it was stored (`x-ogygia-postrender: stored`), not of the server that handed it out: after
+a deploy the store may still hold the old release's page (#947, gen 90). A document's page is the
+build its answer names, a CDN copy's too (gen 131). A reference load pinned to an old build that the
+store answered with a newer build's copy (the deploy dropped the old one's, #949) is no reference:
+the world says it went `astray` and the check sets it aside. Region sheets an answer lifted into the
+head are compared in any order (each went in as its answer landed; gen 143), the page's own in theirs.
+
+## Good HTML, no waste
+
+`src/html.ts`: every HTML answer a server of the app gave (`World.html`, as the server sent it)
+through parse5 and through the tree its source says before a parser repairs it, and every document
+at rest as code built it: the content model (no block in a `<p>`, nested `<a>`/`<form>`, nothing
+interactive in a `<button>`, a table's own children, no id twice, no head-only element in the body,
+no empty `<title>`) and end tags that close another element (`html-sent`, `html-kept`). What the app
+writes badly on purpose carries `data-gen-messy` (the random app's `gen messy` stream: odd text, big
+props, throwing holes, bad `{@html}` in lakes) and is the app's. Some leaves render nothing at all
+(`gen empty`: an island, hole or lake with no element and no text), each used inside
+`<div data-gen-empty>`, which the region oracle leaves to the app.
+
+`src/waste.ts` (`waste`): every document of a run (a left one too), each up to what first disturbed
+it (a press, a deploy, a fault on one of its exchanges), asks no answer twice (`asked_twice_each`;
+judged only at rest, a document was nearly always set aside by then). A hole's answer counts by its
+own GET or a router batch's part (the front door tags a batch's exchange with its holes), when asked
+again within the 60 s the frame store keeps it; a router visit's batch asking it again is #1020's. At
+rest, in a document no fault, deploy or press touched: no answer asked
+for twice (content-hashed files and pages left out: a browser's module map keeps a file, and the
+simulator has no HTTP cache; a remote query is counted per router visit, `og:before-swap` to the
+next: a back is a new visit, and its held region asks again as its page does, gen 187), no POST the app refused (a batch to a path that answers none, #987),
+nothing held twice (a stylesheet, a style, a module preload, a page seed, an island's props within
+one answer: a region fetched apart carries its own, gen 173) and no warning said. `KNOWN_WASTE` there
+is KNOWN's twin. Long tasks and layout shift need a layout engine: the real-browser tier measures
+them (below).
+
+A server's hop the network tampered with puts bytes no server wrote into the page it made: html-sent
+sets that document's answers aside (gen 178). An answer buggify lost on the way
+(`hole.fetch-lost`) faults its document as a dropped request does (`World.fired_in`; palaestra seed
+85: a hole gave up after three lost answers, as it should).
+
+## Always on
+
+`.github/workflows/dst.yml` (schedule every 6 h and dispatch only, never a PR) runs
+`internal/sim/src/ci.ts`: batches of seeds until 20 minutes before its 350-minute timeout, yielding
+to CI while more than 50 runs are queued. Findings are grouped by signature (`signature()`: the
+oracle and what it is about, run-specific numbers and hashes out). An open `dst` issue that names
+the signature (`dst-signature: <sig>`, in its body or a comment) gets a count comment at most once
+a day (a stack frame's file and position are left out of a signature: a rebuilt app, a mutant's,
+moves them all); a new one gets an issue and a `sim/found-<sig>` branch with a seeded test. The results file
+(`dst-results.json`, an artifact) holds seeds run, rate and findings, for the tests page.
+
+## Status
+
+Stages 1 (ports) and 2 (the world) work and replay exactly; see the latest handoff note for what
+is next.

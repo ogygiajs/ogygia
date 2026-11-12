@@ -31,6 +31,7 @@ const SINGLE_URL = 4;
 const TAG = 5;
 type Place = 0 | 1 | 2 | 3 | 4 | 5;
 
+// static: a fixed list of attribute names, those whose value is a URL a browser follows or loads
 const URL_ATTRS: ReadonlySet<string> = new Set([
 	'href',
 	'src',

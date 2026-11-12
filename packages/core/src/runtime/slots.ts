@@ -10,7 +10,9 @@
  * This is the single wiring mechanism — there is no service locator and no per-feature setter.
  */
 import type { Scope, Stale } from '@ogygia/machine';
-import type { Frame } from '../frame.ts';
+import type { FrameOrder } from '../frame.ts';
+import type { FrameFetcher, StoredFrame } from './frame-store.ts';
+import type { VerifiedHtml } from './html-sink.ts';
 import { is_frozen } from './region-attrs.ts';
 
 // ── lakes ────────────────────────────────────────────────────────────────
@@ -91,7 +93,8 @@ export type RemoteSeedOps = {
 	seed_once(): void;
 	seed_query_responses(text: string): void;
 	clear_remote_seeds(): void;
-	clear_remote_instances(): void;
+	/** destroy the query instances only departed islands held (shims/kit-remote/remote-cache.ts) */
+	release_remote_instances(): void;
 };
 
 /** The page as island code sees it, filled by the `page` feature (./seeds.ts). Null when no island
@@ -112,13 +115,18 @@ export type PageOps = {
  * bundles the store. Null until the feature installs → core's frame calls are optional-chained.
  */
 export type FrameOps = {
-	subscribe(a: string, cb: (f: Frame) => void): () => void;
-	/** `STALE` when its `signal` aborted: only that caller leaves the fetch. */
+	subscribe(a: string, cb: (f: StoredFrame) => void): () => void;
+	/** The frame applied at an address, if any. */
+	peek(a: string): (FrameOrder & { html: VerifiedHtml }) | null;
+	/** The next request ticket: where an answer arriving now stands at the address. */
+	ticket(a: string): number;
+	/** `STALE` when its `signal` aborted: only that caller leaves the fetch. A join at a higher
+	 *  `priority` (a load class's, ./load-class.ts) raises the fetch it joins. */
 	ensure(
 		a: string,
-		fetcher: (signal: AbortSignal) => Promise<string>,
-		opts?: { force?: boolean; signal?: AbortSignal }
-	): Promise<string | Stale>;
+		fetcher: FrameFetcher,
+		opts?: { force?: boolean; signal?: AbortSignal; priority?: number }
+	): Promise<VerifiedHtml | Stale>;
 	/** A renewal answered a fresh capability for this address; and the one it answered, if any. */
 	renew(a: string, fresh: string): void;
 	renewal(a: string): string | null;
@@ -128,8 +136,14 @@ export type FrameOps = {
 	 * — hence no `frames` feature — never bundles the frame store. The router optional-chains this: no
 	 * frames feature ⇒ no `render="defer"` holes to batch ⇒ the call never fires anyway. `visit`: the
 	 * scope of the page the holes are for (./session.ts `PageVisit`); the batch stops when it ends.
+	 * Grouped as the page's first holes are (frame-nav.ts `send_batches`, #987), and naming `page`,
+	 * the page they are for, as their referrer (#995).
 	 */
-	stream(endpoints: string[], visit: import('@ogygia/machine').Scope): Promise<void>;
+	stream(
+		endpoints: string[],
+		visit: import('@ogygia/machine').Scope,
+		page: string
+	): Promise<unknown>;
 	/** Holes that start fetching in the same task go out as one batch (frame-nav.ts `join_batch`);
 	 *  await it, then `ensure` joins the batch's reservation. */
 	join?(endpoint: string): Promise<void>;
@@ -169,16 +183,28 @@ export type BootLink = {
 	warm_island_module: typeof import('./region-endpoint-url.ts').warm_island_module;
 	note_entry_location: typeof import('./entry-locations.ts').note_entry_location;
 	props_sidecar_of: typeof import('./sidecar.ts').props_sidecar_of;
-	parse_region_html: typeof import('./parse-html.ts').parse_region_html;
+	parse_region_html: typeof import('./html-sink.ts').parse_region_html;
+	parse_page_document: typeof import('./html-sink.ts').parse_page_document;
+	set_inner_html: typeof import('./html-sink.ts').set_inner_html;
+	vouch_page_answer: typeof import('./html-sink.ts').vouch_page_answer;
+	vouch_page_html: typeof import('./html-sink.ts').vouch_page_html;
 	runtime_session: typeof import('./session.ts').runtime_session;
 	regions_in_shadow: typeof import('./connected.ts').regions_in_shadow;
-	/** the region sheets a navigation's head merge left, taken out but for those a region uses */
-	release_sheets: typeof import('./region-sheets.ts').release_sheets;
+	/** the region head nodes a navigation's head merge left, taken out but for those a region on
+	 *  the page uses or owns */
+	release_head_nodes: typeof import('./region-sheets.ts').release_head_nodes;
+	/** the islands a region head tag names as its owners, and adding to them (../head-owners.ts) */
+	head_owners: typeof import('../head-owners.ts').head_owners;
+	add_head_owners: typeof import('../head-owners.ts').add_head_owners;
+	adopt_owner_record: typeof import('../head-owners.ts').adopt_owner_record;
 	yield_task: typeof import('./schedule.ts').yield_task;
-	/** the router's navigation, timed for the profiler's beacon (a no-op without it) */
-	beacon_nav: typeof import('./beacon.ts').beacon_nav;
-	/** the load scheduler's queue (./load-scheduler.ts) */
+	/** the `regionHydrate` subscribers around Svelte's hydrate over server markup (./client-plugins.ts) */
+	region_hydrate: typeof import('./client-plugins.ts').client_region_hydrate;
+	/** the load scheduler's queue (./load-scheduler.ts), and a load class as a flight priority and
+	 *  as a fetch priority (./load-class.ts) */
 	LoadSlot: typeof import('./load-scheduler.ts').LoadSlot;
+	PRIORITY: typeof import('./load-class.ts').PRIORITY;
+	fetch_priority_of: typeof import('./load-class.ts').fetch_priority_of;
 	/** DOM ownership (./ownership.ts): which children Svelte's walk enters, and self-owned elements */
 	walk_enters: typeof import('./ownership.ts').walk_enters;
 	is_self_owned: typeof import('./ownership.ts').is_self_owned;
@@ -186,6 +212,9 @@ export type BootLink = {
 	record_server_body: typeof import('./ownership.ts').record_server_body;
 	server_body_attributes: typeof import('./ownership.ts').server_body_attributes;
 	server_body_child: typeof import('./ownership.ts').server_body_child;
+	/** a document's side channels, the server's own only (./response-mark.ts, RESPONSE-MARK) */
+	server_channel: typeof import('./response-mark.ts').server_channel;
+	adopt_mark: typeof import('./response-mark.ts').adopt_mark;
 	/** devalue, loaded when a page needs it (./devalue-lane.ts) */
 	load_devalue: typeof import('./devalue-lane.ts').load_devalue;
 	devalue: typeof import('./devalue-lane.ts').devalue;
@@ -198,6 +227,8 @@ export type BootLink = {
 	STALE: typeof import('@ogygia/machine').STALE;
 	/** keyed shared async work (`@ogygia/machine`): the router's page fetches */
 	flights: typeof import('@ogygia/machine').flights;
+	/** a bounded, owned store (`@ogygia/machine`): the router's per-address memos */
+	cache: typeof import('@ogygia/machine').cache;
 	/** a change built off to the side and switched in at once (`@ogygia/machine`): the router's
 	 *  swap and the soft refresh */
 	stage: typeof import('@ogygia/machine').stage;
@@ -244,6 +275,9 @@ export type Slots = {
 	interaction_link: InteractionLink | null;
 	/** Morph's attribute sync, for the navigation's body reconcile. */
 	sync_attributes: typeof import('./morph.ts').sync_attributes | null;
+	/** The runtime hooks the plugins' browser halves subscribe to, set at boot only when one does
+	 *  (./client-plugins.ts). */
+	hooks?: Partial<import('../contract/runtime-hooks.ts').RuntimeHooks>;
 };
 
 /** The live registry. A feature's `install()` assigns its slot; core/router read them. */

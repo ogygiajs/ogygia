@@ -20,8 +20,13 @@
  * No top-level side effect: the global is created lazily on first `emit`/`configure`, so an unused
  * import is fully shakeable.
  */
-import { DEVTOOLS_SCHEMA_VERSION, type DevtoolsEvent, type DevtoolsEventInput } from './schema.ts';
+import {
+	DEVTOOLS_SCHEMA_VERSION,
+	type DevtoolsEvent,
+	type DevtoolsEventInput
+} from '../contract/events.ts';
 import { report_thrown } from '../report-thrown.ts';
+import { clock } from '@ogygia/machine';
 
 /** Compile-time gate (Vite `define`). Exported for the public surface + tests; seam modules declare
  *  their OWN local `const DEVTOOLS` from the same token so DCE never depends on cross-module folding. */
@@ -79,13 +84,8 @@ function bus(): BusState {
 	});
 }
 
-/** High-resolution monotonic clock where available; wall-clock otherwise. */
-function now(): number {
-	if (typeof performance !== 'undefined' && typeof performance.now === 'function') {
-		return performance.now();
-	}
-	return Date.now();
-}
+/** The monotonic clock (@ogygia/machine `clock`). */
+const now = clock.mono;
 
 /** Sampling gate: keep 1-in-N for a name that opted in, else keep all. */
 function passes_sample(b: BusState, name: string): boolean {
@@ -128,17 +128,59 @@ export function emit(input: DevtoolsEventInput): void {
 	}
 }
 
+// static: the event domains the bus stamps, the ones ingest takes
+const DOMAINS: ReadonlySet<unknown> = new Set([
+	'compile',
+	'server',
+	'wire',
+	'runtime',
+	'hub',
+	'nav'
+]);
+const finite = (n: unknown): boolean => typeof n === 'number' && Number.isFinite(n);
+
+/** `e` is an event with the envelope the bus stamps (v, seq, t), a realm (`only`, when given), a
+ *  domain and a name. */
+function is_event(e: unknown, only?: 'server'): e is DevtoolsEvent {
+	if (e === null || typeof e !== 'object' || Array.isArray(e)) return false;
+	const o = e as Record<string, unknown>;
+	return (
+		(only ? o.realm === only : o.realm === 'server' || o.realm === 'client') &&
+		DOMAINS.has(o.domain) &&
+		typeof o.name === 'string' &&
+		finite(o.v) &&
+		finite(o.seq) &&
+		finite(o.t)
+	);
+}
+
 /**
- * Push ALREADY-STAMPED events into the buffer + sinks WITHOUT re-stamping — the ingest path for the
- * server realm's events, which arrive from the `application/ogygia-devtools` side-channel carrying
- * their own envelope (v / seq / t / realm:'server'). This is what unifies the server render stream
- * and the client wake stream into ONE `window.__ogygia_devtools` timeline, correlated by fingerprint.
+ * Push ALREADY-STAMPED events into the buffer + sinks WITHOUT re-stamping: a saved trace, or
+ * another realm's events, each carrying its own envelope (v / seq / t / realm). Only well-formed
+ * events of either realm go in (test/property-devtools-ingest.test.ts).
  */
-export function ingest(events: DevtoolsEvent[]): void {
-	if (!DEVTOOLS) return;
+export function ingest(events: readonly unknown[]): number {
+	return push_stamped(events);
+}
+
+/**
+ * The page's side channel (`application/ogygia-devtools`, ./sinks.ts): the server realm's events for
+ * this document, folded into the same `window.__ogygia_devtools` timeline as the client wake,
+ * correlated by fingerprint. The page carries it as JSON, so only well-formed SERVER events go in.
+ * @internal
+ */
+export function ingest_page_events(events: readonly unknown[]): number {
+	return push_stamped(events, 'server');
+}
+
+function push_stamped(events: readonly unknown[], only?: 'server'): number {
+	if (!DEVTOOLS) return 0;
 	const b = bus();
-	if (!b.active) return;
+	if (!b.active) return 0;
+	let kept = 0;
 	for (const event of events) {
+		if (!is_event(event, only)) continue;
+		kept++;
 		b.ring[b.write] = event;
 		b.write = (b.write + 1) % b.cap;
 		if (b.count < b.cap) b.count++;
@@ -153,6 +195,7 @@ export function ingest(events: DevtoolsEvent[]): void {
 			}
 		}
 	}
+	return kept;
 }
 
 /** Buffered events in emission order (oldest → newest). Copies out — safe to hold/serialize. */
