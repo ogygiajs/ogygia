@@ -106,6 +106,7 @@ interface BatchOut {
 	findings?: Finding[];
 	steps_per_second: number;
 	replay_leaks: number[];
+	coverage?: { unreached_recovery?: string[] };
 }
 
 /**
@@ -126,10 +127,21 @@ export function batch_result(
 	return JSON.parse(text) as BatchOut;
 }
 
+/** The recovery steps every batch missed: one any batch reached is reached. */
+export function unreached_in_every(lists: readonly (readonly string[])[]): string[] {
+	if (lists.length === 0) return [];
+	return lists[0].filter((s) => lists.every((l) => l.includes(s))).sort();
+}
+
 /** One batch of seeds through the pool; its findings, or why it failed. */
-function batch(
-	from: number
-): { findings: Finding[]; seeds: number; steps_per_second: number } | { failed: string } {
+function batch(from: number):
+	| {
+			findings: Finding[];
+			seeds: number;
+			steps_per_second: number;
+			unreached_recovery: string[];
+	  }
+	| { failed: string } {
 	const file = join(SIM, 'results.json');
 	rmSync(file, { force: true });
 	const r = spawnSync(
@@ -154,7 +166,12 @@ function batch(
 	if ('failed' in out) return out;
 	if (out.replay_leaks.length)
 		log(`replay leaks (the simulator's to fix): ${out.replay_leaks.join(', ')}`);
-	return { findings: out.findings ?? [], seeds: BATCH, steps_per_second: out.steps_per_second };
+	return {
+		findings: out.findings ?? [],
+		seeds: BATCH,
+		steps_per_second: out.steps_per_second,
+		unreached_recovery: out.coverage?.unreached_recovery ?? []
+	};
 }
 
 /** The seeded test a found branch carries: fails while the finding stands. */
@@ -390,7 +407,37 @@ function file_one(open: Open[]): (sig: string, list: Finding[]) => Filed {
 	};
 }
 
+/** The two quality numbers: the machine steps the ledger accounts for (this run's sweep), and the
+ *  latest finished mutation run's kill rate, its date and how far through its list it got. */
+export function quality_line(
+	sweep: { accounted: number; total: number } | null,
+	mutation: { killed: number; judged: number; total: number; rate: number; at: string } | null
+): string {
+	const steps =
+		sweep === null
+			? 'no sweep this run'
+			: `${sweep.accounted}/${sweep.total} (${Math.round((sweep.accounted / sweep.total) * 1000) / 10}%)`;
+	const kill =
+		mutation === null
+			? 'no finished run yet'
+			: `${mutation.rate}% (${mutation.killed}/${mutation.judged} judged of ${mutation.total}, ${mutation.at.slice(0, 10)})`;
+	return `steps accounted: ${steps}; mutation kill rate: ${kill}`;
+}
+
+/** A JSON file's value, or null when it is not there or not JSON (its last line, for a .jsonl). */
+function read_json<T>(file: string | undefined): T | null {
+	if (file === undefined || !existsSync(file)) return null;
+	try {
+		const lines = readFileSync(file, 'utf8').trim().split('\n');
+		return JSON.parse(file.endsWith('.jsonl') ? lines[lines.length - 1] : lines.join('\n')) as T;
+	} catch {
+		return null; // ok: a broken file reads as none, and the line says so
+	}
+}
+
 async function main(): Promise<void> {
+	const quality = quality_line(read_json(env.DST_SWEEP), read_json(env.DST_MUTATION));
+	log(quality);
 	const started = Date.now();
 	let from = Number(env.DST_FROM ?? (Number(env.GITHUB_RUN_ID ?? 0) % 1_000_000) * 1000 + 1);
 	let seeds = 0;
@@ -398,6 +445,8 @@ async function main(): Promise<void> {
 	let stopped_early = false;
 	let failed: string | null = null;
 	const all: Finding[] = [];
+	/** Each batch's recovery steps no run of it reached. */
+	const unreached: string[][] = [];
 	// (a results file is this run's or none: one a run before left is never read as this one's)
 	rmSync(RESULTS, { force: true });
 	while (Date.now() < DEADLINE) {
@@ -417,7 +466,8 @@ async function main(): Promise<void> {
 		seeds += b.seeds;
 		rate = b.steps_per_second;
 		all.push(...b.findings);
-		log(`${seeds} seeds, ${all.length} findings`);
+		unreached.push(b.unreached_recovery);
+		log(`${seeds} seeds, ${all.length} findings; ${quality}`);
 	}
 	const groups = new Map<string, Finding[]>();
 	for (const f of all) {
@@ -435,8 +485,9 @@ async function main(): Promise<void> {
 		steps_per_second: rate,
 		stopped_early,
 		failed,
-		// (machine (name, state, event) coverage arrives with the coverage-guided search)
-		coverage: null,
+		quality,
+		// (the recovery steps no batch reached: each wants a point, a fault or an app shape)
+		coverage: { unreached_recovery: unreached_in_every(unreached) },
 		findings: [...groups].map(([sig, list]) => ({
 			sig,
 			oracle: list[0].oracle,
@@ -455,6 +506,8 @@ async function main(): Promise<void> {
 				'',
 				`${seeds} seeds × ${STEPS} actions in ${results.minutes} min (${rate} loop steps/s)${stopped_early ? ', stopped early to leave the runners to CI' : ''}.`,
 				'',
+				`${quality.charAt(0).toUpperCase()}${quality.slice(1)}.`,
+				'',
 				failed ? `**A batch failed** (${failed}): the run stopped there.\n` : '',
 				results.findings.length === 0
 					? 'No new findings.'
@@ -465,6 +518,16 @@ async function main(): Promise<void> {
 								(f) =>
 									`| ${f.sig} | ${f.oracle} | ${f.seeds.length} (first ${f.seeds[0]}) | ${f.issue ? `#${f.issue}` : f.filing_error ? 'filing failed' : 'not filed'} |`
 							)
+						].join('\n'),
+				'',
+				results.coverage.unreached_recovery.length === 0
+					? 'Every recovery step was reached.'
+					: [
+							`### Recovery steps no run reached (${results.coverage.unreached_recovery.length})`,
+							'',
+							'Each wants a buggify point, a fault or an app shape that leads there.',
+							'',
+							...results.coverage.unreached_recovery.map((s) => `- \`${s}\``)
 						].join('\n'),
 				''
 			].join('\n')

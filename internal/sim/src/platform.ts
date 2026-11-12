@@ -13,6 +13,7 @@
  * - `fetch`, `EventSource`, `IntersectionObserver` and storage are given by the world (the network,
  *   the tab's viewport, the tab's origin storage): `install` takes them.
  */
+import { AsyncResource } from 'node:async_hooks';
 import type { Platform } from '@ogygia/machine';
 import type { Loop, Task } from './loop.ts';
 import type { Rng } from './rng.ts';
@@ -23,10 +24,10 @@ export const EPOCH = Date.UTC(2026, 0, 1);
 const FRAME_MS = 16;
 
 /** `SIM_SITES=1`: each timer's trace line names the code that set it (to find a replay leak). */
-const SITES = process.env.SIM_SITES === '1';
+export const SITES = process.env.SIM_SITES === '1';
 
 /** The first caller outside the simulator, as `file:line` (its path after the last `/`). */
-function site(): string {
+export function site(): string {
 	const lines = (new Error().stack ?? '').split('\n').slice(1);
 	const at = lines.find((l) => !l.includes('/internal/sim/src/')) ?? '';
 	return at
@@ -45,6 +46,8 @@ export interface RealmOptions {
 	skew?: number | (() => number);
 	/** Hand out Node-shaped timer handles (the host realm, where the servers run). */
 	node?: boolean;
+	/** Whether this realm takes the rare branch `point` now (the world's buggify swarm); none: never. */
+	buggify?: (realm: string, point: string) => boolean;
 }
 
 export interface SimPlatform extends Platform {
@@ -77,6 +80,7 @@ export function platform(
 	| 'Date'
 	| 'Math'
 	| 'crypto'
+	| 'buggify'
 > {
 	const { name, loop } = options;
 	const rng = options.rng.fork(name);
@@ -88,6 +92,9 @@ export function platform(
 
 	const arm = (label: string, ms: number, fn: () => void, id = ++ids): number => {
 		if (SITES) label = `${label} @ ${site()}`;
+		// (a host timer runs in the context it was set in, as Node's own do: a server's timer is still
+		// that server's, its clock skew and its own symbols with it)
+		if (options.node) fn = AsyncResource.bind(fn);
 		const task = loop.add(name, label, ms, () => {
 			live.delete(id);
 			fn();
@@ -174,6 +181,7 @@ export function platform(
 		},
 		cancelIdleCallback: (id) => clear(id),
 		performance: { now: () => loop.now - born },
+		buggify: (point) => options.buggify?.(name, point) ?? false,
 		Date: SimDate,
 		Math: math,
 		crypto: {
@@ -286,7 +294,8 @@ export function install(target: object, p: ReturnType<typeof platform>): () => v
 		'requestIdleCallback',
 		'cancelIdleCallback',
 		'Date',
-		'Math'
+		'Math',
+		'buggify'
 	] as const) {
 		save(t, key);
 		Object.defineProperty(t, key, { value: p[key], writable: true, configurable: true });

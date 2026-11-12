@@ -529,6 +529,21 @@
 	const outer_owner = typeof window === 'undefined' ? head_owner() : '';
 	const tag_owner = outer_owner || (typeof window === 'undefined' ? untrack(() => island_fp) : '');
 	if (!outer_owner && tag_owner) set_head_owner(tag_owner);
+	/**
+	 * This region's sheets as head tags: each one this request has not linked yet, named for its
+	 * owner. A sheet another outer island linked first gets this owner listed in the tail (#854,
+	 * test/shared-sheet-owners.test.ts). Server-only: `claim_region_css` is [] on the client.
+	 * @param {string[]} hrefs
+	 */
+	const sheet_tags = (hrefs) => {
+		const shared = tail
+			? (/** @type {string} */ href) => tail.sheet_owner(kit_asset(href), tag_owner)
+			: undefined;
+		let html = '';
+		for (const href of claim_region_css(hrefs, tag_owner, shared))
+			html += region_css_tag(href, kit_asset(href), tag_owner);
+		return html;
+	};
 	// SERVER-DELTA (D3): SKIP rendering a NON-cached island the client already has live (a copy of its
 	// fp the SPA nav's x-ogygia-known lists, not taken by an earlier twin). Emit the region's identifying
 	// attrs + props script but NO component content — the reconciler keeps the live node (same
@@ -767,10 +782,7 @@
 	// link them as its endpoint answer would (server-only; the client hoists `data-ogygia-region-css`)
 	const hole_css_html = $derived.by(() => {
 		if (!is_server || !nested) return '';
-		let html = '';
-		for (const href of claim_region_css(hole_css(__entry || '')))
-			html += region_css_tag(href, kit_asset(href), tag_owner);
-		return html;
+		return sheet_tags(hole_css(__entry || ''));
 	});
 	// On a KIT-HYDRATED document the facts ride the document tail too (server/document-tail.ts
 	// `hole()`): Kit's root can be cleared and mounted fresh, the tail outside it cannot. Decided once
@@ -889,10 +901,7 @@
 	// `claim_region_css` returns [] on the client (SSR already emitted them).
 	const region_css_html = $derived.by(() => {
 		if (!resolved || resolved.kind !== 'dual' || !resolved.module) return '';
-		let html = '';
-		for (const href of claim_region_css(region_css(resolved.module)))
-			html += region_css_tag(href, kit_asset(href), tag_owner);
-		return html;
+		return sheet_tags(region_css(resolved.module));
 	});
 	// A PLACED client island's CSS is ASSUMED to already sit in the page's own stylesheet (Kit links
 	// a route's static import graph). But Rollup can chunk-split the marked component's CSS — notably
@@ -912,10 +921,7 @@
 		// never imports them at all). Claims are per request, so a sheet the parent already linked
 		// is not linked twice.
 		if (__mode !== 'island' || !island_entry) return '';
-		let html = '';
-		for (const href of claim_region_css(region_css(island_entry)))
-			html += region_css_tag(href, kit_asset(href), tag_owner);
-		return html;
+		return sheet_tags(region_css(island_entry));
 	});
 	// The RENDERED stamp for an inline island (a csr=true document, or nested in a woken island):
 	// `<meta name="ogygia-kit-island" content="<entry>">`, once per entry per request. The client
@@ -934,10 +940,7 @@
 	// plugin emitted, the SAME `data-ogygia-region-css` channel, deduped per-request by `claim_region_css`.
 	const content_css_html = $derived.by(() => {
 		if (resolved?.kind !== 'inline' || !resolved.content_id) return '';
-		let html = '';
-		for (const href of claim_region_css(content_css(resolved.content_id)))
-			html += region_css_tag(href, kit_asset(href), tag_owner);
-		return html;
+		return sheet_tags(content_css(resolved.content_id));
 	});
 
 	// THE HEAD IS SERVER OUTPUT. Every piece of it is a fact only the render knows (the build's
