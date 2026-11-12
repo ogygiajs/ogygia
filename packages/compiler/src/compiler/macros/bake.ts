@@ -24,6 +24,7 @@ import { parse_module, type AstNode } from '../parse/oxc.ts';
 import { og_js_regions } from '../parse/scan.ts';
 import { BuildCache } from '../build-cache.ts';
 import { OgygiaError } from '../messages.ts';
+import { id64 } from '@ogygia/core/contract';
 
 // ── regexes
 const REGEX_SPECIAL_G = /[.*+?^${}()|[\]\\]/g;
@@ -405,12 +406,6 @@ export async function rewrite_bake(
 	return out;
 }
 
-/** Stable non-crypto hash (FNV-1a) → hex. Enough to address a bundle by its inputs. */
-function hash_of(s: string): string {
-	let h = 0x811c9dc5;
-	for (let i = 0; i < s.length; i++) {
-		h ^= s.charCodeAt(i);
-		h = Math.imul(h, 0x01000193);
-	}
-	return (h >>> 0).toString(16).padStart(8, '0');
-}
+/** A bundle's address by its inputs: identity, so 64 bits (a collision would serve another module's
+ *  baked values, #484). */
+const hash_of = id64;

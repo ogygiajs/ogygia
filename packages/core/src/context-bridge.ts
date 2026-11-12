@@ -36,9 +36,11 @@ import { escape_script_text } from './escape.ts';
 import { warn } from './messages/island.ts';
 
 /** The `<Provide>` seam carries classes, stores AND snippets (a snippet freezes/travels live). */
+// static: the value families a provided context carries
 const PROVIDE_FAMILIES = new Set(['wire', 'store', 'snippet', 'fn', 'derived']);
 /** The drop-in page-marker seam deliberately EXCLUDES snippets: there, a bare function must
  *  THROW (and be dropped with a dev explanation) rather than be silently frozen as one. */
+// static: the value families the bridge carries
 const BRIDGE_FAMILIES = new Set(['wire', 'store', 'fn', 'derived']);
 
 /** Serialize a context value for the DOM — same codec as island props (one hub key). */
