@@ -16,10 +16,12 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { isMainThread } from 'node:worker_threads';
 import type { Plugin as VitePlugin, UserConfig } from 'vite';
-import { definePlugin, type OgygiaPlugin } from '@ogygia/core/vite';
+import { definePlugin, type OgygiaPlugin, type RegionsSeam } from '@ogygia/core/vite';
 import type { ProfilerOptions } from './profiler/index.ts';
 import type { DevtoolsServerOptions } from './server.ts';
 import { warn } from './messages/build.ts';
+import { profiler_maps_plugins } from './build/maps-plugin.ts';
+import { dev_meta_plugin } from './build/dev-meta.ts';
 
 export type { ProfilerOptions };
 
@@ -40,13 +42,14 @@ const PROFILER_IMPORT_RE = /import\((['"])\.\/profiler\/index\.(ts|js)\1\)/;
 
 export function devtools(
 	options: DevtoolsOptions = {}
-): [OgygiaPlugin<DevtoolsServerOptions>, VitePlugin] {
+): [OgygiaPlugin<DevtoolsServerOptions>, ...VitePlugin[]] {
 	const dock = options.dock !== false;
 	const profiler: ProfilerOptions | null = options.profiler
 		? options.profiler === true
 			? {}
 			: { ...options.profiler }
 		: null;
+	let regions: RegionsSeam | null = null;
 	const plugin = definePlugin<DevtoolsServerOptions>({
 		name: '@ogygia/devtools',
 		server: import.meta.resolve('./server.ts'),
@@ -54,6 +57,7 @@ export function devtools(
 		options: { profiler },
 		build(b) {
 			if (dock) b.events({ lazy: !b.dev });
+			if (dock && b.dev) regions = b.regions;
 			if (profiler) {
 				b.measure();
 				// the profiler UI: real islands, rendered only from its handle (no app file marks them), and
@@ -71,7 +75,12 @@ export function devtools(
 			}
 		}
 	});
-	return [plugin, devtools_vite(dock, profiler)];
+	return [
+		plugin,
+		devtools_vite(dock, profiler),
+		dev_meta_plugin(() => regions),
+		...(profiler ? profiler_maps_plugins() : [])
+	];
 }
 
 /** The plugin's own Vite side: its client dependencies for the dev optimizer, the build warnings, and

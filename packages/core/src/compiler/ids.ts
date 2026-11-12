@@ -18,7 +18,7 @@ export const V_TRANSPORTABLES: string = specifier('region', 'transportables');
 /** the string the profiler maps module exports until the build fills it (build-time only: never in
  *  runtime code, so the one literal in the output is the one to replace) */
 export const PROFILER_MAPS_PLACEHOLDER = '__ogygia_profiler_maps_placeholder__';
-/** the filled maps payload's mark: gzipped JSON, base64 (vite/profiler-maps.ts writes it, the
+/** the filled maps payload's mark: gzipped JSON, base64 (devtools' build/profiler-maps.ts writes it, the
  *  profiler's embedded-maps reads it) */
 export const PROFILER_MAPS_GZ_PREFIX = 'gz:';
 
