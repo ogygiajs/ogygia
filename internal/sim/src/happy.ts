@@ -16,6 +16,7 @@ import HTMLParser from 'happy-dom/lib/html-parser/HTMLParser.js';
 import Document from 'happy-dom/lib/nodes/document/Document.js';
 import HTMLElement from 'happy-dom/lib/nodes/html-element/HTMLElement.js';
 import * as PropertySymbol from 'happy-dom/lib/PropertySymbol.js';
+import XMLEncodeUtility from 'happy-dom/lib/utilities/XMLEncodeUtility.js';
 import WindowBrowserContext from 'happy-dom/lib/window/WindowBrowserContext.js';
 import type { Loop, Task } from './loop.ts';
 
@@ -111,6 +112,51 @@ export function inert_custom_elements(): void {
 		return without(registry_of(this), PropertySymbol.callbacks, undefined, () =>
 			connected.apply(this, a)
 		);
+	};
+}
+
+/**
+ * A run of text is one text node, as a browser's parser makes it. happy-dom's parser hands a bare
+ * `>` in text (`() => x`) to a text node of its own, so the run became two nodes, and Svelte,
+ * hydrating the server's one text, found a node left over (seed 477). A run the parser goes on
+ * with joins the text node it just made. Idempotent. Without it until now: test/parser.test.ts.
+ */
+export function whole_text_runs(): void {
+	const parser = HTMLParser.prototype as unknown as {
+		__runs?: boolean;
+		parsePlainText(this: Parsing, text: string): void;
+	};
+	if (parser.__runs) return;
+	parser.__runs = true;
+	type Parsing = {
+		currentNode: Node | null;
+		rootNode: Node;
+		documentStructure: { nodes: { documentElement: Node; head: Node } } | null;
+	};
+	const plain = parser.parsePlainText;
+	// (the text nodes a parse made: a node that was there before it, as at `insertAdjacentHTML`,
+	// stays apart, as in a browser)
+	const made = new WeakSet<Node>();
+	parser.parsePlainText = function (text) {
+		const node = this.currentNode;
+		const top = this.documentStructure?.nodes;
+		const last = node?.lastChild;
+		// (in an element of the page: around <html> and <head>, happy-dom's own rules place text)
+		if (
+			node !== null &&
+			(top === undefined || node !== this.rootNode) &&
+			node !== top?.documentElement &&
+			node !== top?.head &&
+			last != null &&
+			made.has(last)
+		) {
+			const run = last as unknown as Record<symbol, string>;
+			run[PropertySymbol.data] += XMLEncodeUtility.decodeHTMLEntities(text);
+			return;
+		}
+		plain.call(this, text);
+		const now = node?.lastChild;
+		if (now?.nodeType === 3) made.add(now);
 	};
 }
 

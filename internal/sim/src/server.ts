@@ -122,10 +122,14 @@ export async function start_server(
 			current_server.run(instance, async () => {
 				const url = new URL(request.url);
 				const path = decodeURIComponent(url.pathname);
-				const asset = request.method === 'GET' ? files.client.get(path) : undefined;
+				// (a static host answers HEAD as it does GET, without the body: a page asks whether a
+				// file is still there, runtime/entry-locations.ts's `is_gone`)
+				const read = request.method === 'GET' || request.method === 'HEAD';
+				const head = request.method === 'HEAD';
+				const asset = read ? files.client.get(path) : undefined;
 				if (asset !== undefined) {
 					const immutable = path.includes('/immutable/');
-					return new Response(asset.slice(), {
+					return new Response(head ? null : asset.slice(), {
 						headers: {
 							'content-type': TYPES[extname(path)] ?? 'application/octet-stream',
 							'cache-control': immutable
@@ -134,13 +138,14 @@ export async function start_server(
 						}
 					});
 				}
-				const page =
-					request.method === 'GET'
-						? (files.pages.get(path === '/' ? '/index.html' : path + '.html') ??
-							files.pages.get(join(path, 'index.html')))
-						: undefined;
+				const page = read
+					? (files.pages.get(path === '/' ? '/index.html' : path + '.html') ??
+						files.pages.get(join(path, 'index.html')))
+					: undefined;
 				if (page !== undefined)
-					return new Response(page.slice(), { headers: { 'content-type': TYPES['.html'] } });
+					return new Response(head ? null : page.slice(), {
+						headers: { 'content-type': TYPES['.html'] }
+					});
 				return kit.respond(request, { getClientAddress: () => '10.0.0.1', platform: {} });
 			}),
 		stop: () => rmSync(dir, { recursive: true, force: true })

@@ -10,7 +10,8 @@ import {
 	completion_on_the_loop,
 	history_by_document,
 	inert_custom_elements,
-	inert_parsed_documents
+	inert_parsed_documents,
+	whole_text_runs
 } from './happy.ts';
 import { Cdn } from './cdn.ts';
 import { Loop } from './loop.ts';
@@ -79,6 +80,7 @@ export class World {
 		use_v8_modules();
 		inert_parsed_documents();
 		inert_custom_elements();
+		whole_text_runs();
 		history_by_document();
 		const w = new World(o);
 		completion_on_the_loop(w.loop);
