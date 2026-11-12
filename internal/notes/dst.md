@@ -70,6 +70,10 @@ module scripts. Its gaps are handled in the sim, with no patch to happy-dom:
   in it ran, and only then `load` (`content_loaded`, `test/modules.test.ts`). A script waiting for
   DOMContentLoaded never ran (gen third party's repair mutants all survived), and ogygia's wake
   gate waited for `load`.
+- It let a navigation land after the tab had started another: the first page's stalled body was
+  written over the newer page, under the first page's URL. A navigation whose document has not
+  come is called off when the tab navigates again (its realm is left, its failure unsaid;
+  `Browsers.navigate`, `test/superseded-navigation.node.test.ts`; palaestra seed 122).
 - It ran a copy of any script: a copy carries "already started" (a script that connected, or one a
   parser marked unexecutable), so the router's head merge ran the next page's early hole start
   again (`scripts_start_once`, `test/scripts.test.ts`; gen 191).
