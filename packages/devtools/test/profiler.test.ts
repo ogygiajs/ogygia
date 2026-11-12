@@ -6172,7 +6172,8 @@ describe('profiler handle', () => {
 	// THE BEACON: an authed document gets the meta tag; the runtime POSTs its hydration timings to
 	// `/beacon`; the report joins them to its island rows by fingerprint. Dev here (open UI).
 	it('beacon: the tag rides an authed document, /beacon is bounded, the report joins by fingerprint', async () => {
-		const { record_request_stats } = await import('@ogygia/core/internal/server');
+		const { request_stats_store } = await import('../src/profiler/request-stats.ts');
+		const record_request_stats = request_stats_store.page;
 		const handle = profiler({ secret: 'prof-key' });
 		// a document request gets the tag at the end of <head>; a fetch (no document dest) does not
 		// (dev: the tag needs no flag cookie; production reads `og_profiler_beacon`, set at login)
