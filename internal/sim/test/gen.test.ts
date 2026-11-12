@@ -4,7 +4,15 @@ import { mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { peer_plan, plan, write, write_peer, type GenNode } from '../src/gen.ts';
+import {
+	LAYOUT_FIRST,
+	layout_plan,
+	peer_plan,
+	plan,
+	write,
+	write_peer,
+	type GenNode
+} from '../src/gen.ts';
 
 const all = (ns: readonly GenNode[]): GenNode[] => ns.flatMap((n) => [n, ...all(n.children)]);
 
@@ -288,6 +296,43 @@ describe('the random app', () => {
 				expect(src.includes('data-gen-messy')).toBe(n.bad === true);
 				expect(src.includes('throw new Error')).toBe(n.throws === true);
 			}
+		} finally {
+			rmSync(app, { recursive: true, force: true });
+		}
+	});
+
+	it('draws a layout region tree for some seeds, from its own stream: a styled hole on every page, which a router navigation keeps', () => {
+		const seeds = Array.from({ length: 30 }, (_, i) => i + 1);
+		const drawn = seeds.map((s) => layout_plan(s));
+		expect(drawn.some((l) => l === null)).toBe(true);
+		expect(drawn.some((l) => l !== null)).toBe(true);
+		for (const l of drawn) {
+			if (l === null) continue;
+			// (a hole whose answer lifts its sheet into the head, numbered apart from the pages' regions)
+			expect([l.kind, l.style, l.id]).toEqual(['hole', true, LAYOUT_FIRST]);
+			for (const n of all([l])) expect(n.id).toBeGreaterThanOrEqual(LAYOUT_FIRST);
+		}
+		const seed = seeds.find((s) => {
+			const l = layout_plan(s);
+			return l !== null && l.children.length > 0;
+		})!;
+		const app = mkdtempSync(join(tmpdir(), 'sim-gen-'));
+		try {
+			const layout = layout_plan(seed)!;
+			write(app, plan(seed), seed, null, layout);
+			const src = readFileSync(join(app, 'src', 'routes', '+layout.svelte'), 'utf8');
+			expect(src).toContain(
+				`import N${layout.id} from '$lib/gen/N${layout.id}.svelte'${layout.wake ? ` with { render: 'deferred', wake: '${layout.wake}' }` : ` with { render: 'deferred' }`};`
+			);
+			// (after the nav, before the page: the same element on every page)
+			expect(src.indexOf(`<N${layout.id} `)).toBeGreaterThan(src.indexOf('</nav>'));
+			expect(src.indexOf(`<N${layout.id} `)).toBeLessThan(src.indexOf('{@render children()}'));
+			const lib = join(app, 'src', 'lib', 'gen');
+			for (const n of all([layout]))
+				expect(readFileSync(join(lib, `N${n.id}.svelte`), 'utf8').includes('<style>')).toBe(
+					n.style === true
+				);
+			expect(JSON.parse(readFileSync(join(lib, 'plan.json'), 'utf8')).layout).toEqual(layout);
 		} finally {
 			rmSync(app, { recursive: true, force: true });
 		}
