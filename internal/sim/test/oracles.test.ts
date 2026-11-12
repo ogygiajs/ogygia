@@ -6,6 +6,7 @@ import { describe, expect, it } from 'vitest';
 import { World } from '../src/world.ts';
 import {
 	document_faulted,
+	fallback_stands,
 	faulted,
 	hydrates_as_sent,
 	KNOWN,
@@ -126,6 +127,43 @@ describe('every region shows something', () => {
 		expect(found?.oracle).toBe('empty-region');
 		expect(found?.detail).toContain('entry="e2"');
 		expect(found?.detail).not.toContain('entry="e1"');
+	});
+});
+
+describe("a hole's fallback does not stand", () => {
+	const at_rest = async (body: string) => {
+		const { Window } = await import('happy-dom');
+		const w = new Window({ url: 'https://app.test/p1' });
+		w.document.write(`<html><body>${body}</body></html>`);
+		const tab = {
+			realm: 'tab-1#1',
+			name: 'tab-1',
+			documents: 1,
+			page: { mainFrame: { url: 'https://app.test/p1', document: w.document } }
+		} as unknown as Parameters<typeof fallback_stands>[0];
+		const world = {
+			fired_in: new Map(),
+			network: { exchanges: [] },
+			skewed_for: () => false
+		} as unknown as Parameters<typeof fallback_stands>[1];
+		return fallback_stands(tab, world);
+	};
+	const hole = (when: string, fallback: string) =>
+		`<ogygia-region render="defer" when="${when}" endpoint="/__ogygia__?id=a"><p ${fallback}>loading n1…</p></ogygia-region>`;
+
+	it('finds a load or idle hole still showing its fallback at rest (a mutant that never fetched survived)', async () => {
+		expect((await at_rest(hole('idle', 'data-gen-fallback')))?.oracle).toBe('fallback-stands');
+		expect((await at_rest(hole('load', 'data-gen-fallback')))?.oracle).toBe('fallback-stands');
+	});
+
+	it('passes one that keeps it by design, one waiting for the visitor, and an answered one', async () => {
+		expect(await at_rest(hole('load', 'data-gen-fallback data-gen-kept'))).toBeNull();
+		expect(await at_rest(hole('interaction', 'data-gen-fallback'))).toBeNull();
+		expect(
+			await at_rest(
+				'<ogygia-region render="defer" when="load" endpoint="/__ogygia__?id=a"><div>n1</div></ogygia-region>'
+			)
+		).toBeNull();
 	});
 });
 
