@@ -22,13 +22,26 @@ type Wake = 'load' | 'idle' | 'visible' | 'interaction';
 export interface GenNode {
 	readonly id: number;
 	/** island: a woken region; hole: a deferred one (`wake`: woken once it lands); lake: frozen
-	 *  server HTML (`wake: 'none'`); plain: a component with no region of its own. */
-	readonly kind: 'island' | 'hole' | 'lake' | 'plain';
+	 *  server HTML (`wake: 'none'`); plain: a component with no region of its own; held: a region
+	 *  a remote query returns (`region(N, props)`), rendered by a host with `<Region of>` (`wake`:
+	 *  its baked schedule, none for `region: 'raw'`); live: one a `query.live` yields anew on each
+	 *  tick, rendered by an island host. */
+	readonly kind: 'island' | 'hole' | 'lake' | 'plain' | 'held' | 'live';
 	readonly wake?: Wake;
 	/** A hole whose server render waits this many ms. */
 	readonly slow?: number;
 	/** A hole the page gives a fallback. */
 	readonly fallback?: boolean;
+	/** A held region's host: plain server markup awaiting the query in the page's render
+	 *  (`'page'`), or an island reading the query's `.current` (`'island'`). */
+	readonly host?: 'page' | 'island';
+	/** A held region's island host has a button: a command that changes the server's count and
+	 *  answers with the region rendered again (single flight). */
+	readonly command?: boolean;
+	/** A held region on a page host shows a placeholder while it waits. */
+	readonly placeholder?: boolean;
+	/** A live region's ticks, this many ms apart. */
+	readonly every?: number;
 	readonly children: readonly GenNode[];
 }
 
@@ -42,7 +55,26 @@ const WAKES: readonly Wake[] = ['load', 'idle', 'visible', 'interaction'];
 /** The plan a seed draws: pages, each a forest of regions up to 3 deep. */
 export function plan(seed: number): GenPage[] {
 	const r = rng(seed).fork('gen');
+	// (held and live regions draw from a stream of their own: a seed's tree, drawn before they
+	// existed, stays the same, with some of its regions held)
+	const h = rng(seed).fork('gen held');
 	let ids = 0;
+	const held = (n: GenNode): GenNode => {
+		if (n.kind === 'hole' || !h.chance(0.3)) return n;
+		const wake = h.chance(0.5) ? h.pick(WAKES) : undefined;
+		if (h.chance(0.3))
+			return { id: n.id, kind: 'live', wake, every: h.pick([700, 3000]), children: n.children };
+		const host = h.chance(0.5) ? 'island' : 'page';
+		return {
+			id: n.id,
+			kind: 'held',
+			wake,
+			host,
+			command: host === 'island' && h.chance(0.6),
+			placeholder: host === 'page' && h.chance(0.5),
+			children: n.children
+		};
+	};
 	const node = (depth: number): GenNode => {
 		const kind = r.weighted<GenNode['kind']>([
 			['island', 4],
@@ -60,7 +92,7 @@ export function plan(seed: number): GenPage[] {
 					]);
 		const children = Array.from({ length: n }, () => node(depth + 1));
 		const id = ids++;
-		if (kind === 'island') return { id, kind, wake: r.pick(WAKES), children };
+		if (kind === 'island') return held({ id, kind, wake: r.pick(WAKES), children });
 		if (kind === 'hole')
 			return {
 				id,
@@ -70,7 +102,7 @@ export function plan(seed: number): GenPage[] {
 				fallback: r.chance(0.6),
 				children
 			};
-		return { id, kind, children };
+		return held({ id, kind, children });
 	};
 	const pages = r.between(3, 6);
 	return Array.from({ length: pages }, (_, i) => ({
@@ -92,22 +124,112 @@ function attributes(n: GenNode): string {
 				: ` with { render: 'deferred' }`;
 		case 'plain':
 			return '';
+		// (the parent imports the region's host: a plain component, or an island)
+		case 'held':
+			return n.host === 'island' ? ` with { wake: 'load' }` : '';
+		case 'live':
+			return ` with { wake: 'load' }`;
 	}
+}
+
+/** The component a parent imports for `n`: the region's own, or a held region's host. */
+function name(n: GenNode): string {
+	return n.kind === 'held' || n.kind === 'live' ? `H${n.id}` : `N${n.id}`;
 }
 
 /** Where `n` is used: its tag, with a fallback for a hole that has one. */
 function usage(n: GenNode, indent: string): string {
 	if (n.kind === 'hole' && n.fallback)
 		return `${indent}<N${n.id} label="n${n.id}">\n${indent}\t{#snippet ogygiaFallback()}<p data-gen-fallback>loading n${n.id}…</p>{/snippet}\n${indent}</N${n.id}>`;
-	return `${indent}<N${n.id} label="n${n.id}" />`;
+	return n.kind === 'held' || n.kind === 'live'
+		? `${indent}<${name(n)} />`
+		: `${indent}<N${n.id} label="n${n.id}" />`;
+}
+
+/** A held or live region's remote module: the query that returns it (and the command that changes
+ *  it), importing its component with the schedule it bakes. */
+function remote(n: GenNode): string {
+	const mark = n.wake ? `{ wake: '${n.wake}' }` : `{ region: 'raw' }`;
+	const lines = [
+		`import { ${n.kind === 'live' ? 'query' : 'command, query'} } from '$app/server';`,
+		`import { region } from 'ogygia';`,
+		`import N${n.id} from './N${n.id}.svelte' with ${mark};`,
+		''
+	];
+	if (n.kind === 'live')
+		lines.push(
+			`export const live${n.id} = query.live(async function* () {`,
+			`\tfor (let n = 0; ; n++) {`,
+			`\t\tyield await region(N${n.id}, { label: \`n${n.id} tick \${n}\` });`,
+			`\t\tawait new Promise((r) => setTimeout(r, ${n.every}));`,
+			`\t}`,
+			`});`
+		);
+	else
+		lines.push(
+			`// (the server's count of this region's commands: what a command changes)`,
+			`const counts = globalThis as unknown as { __sim_gen_held?: Record<number, number> };`,
+			`const count = () => (counts.__sim_gen_held ??= {})[${n.id}] ?? 0;`,
+			`const label = () => \`n${n.id} #\${count()}\`;`,
+			'',
+			`export const held${n.id} = query(async () => await region(N${n.id}, { label: label() }));`,
+			'',
+			`export const bump${n.id} = command(async () => {`,
+			`\t(counts.__sim_gen_held ??= {})[${n.id}] = count() + 1;`,
+			`\treturn await region(N${n.id}, { label: label() });`,
+			`});`
+		);
+	return lines.join('\n') + '\n';
+}
+
+/** A held or live region's host. */
+function host(n: GenNode): string {
+	const call = n.kind === 'live' ? `live${n.id}` : `held${n.id}`;
+	const imports = n.kind === 'held' && n.command ? `${call}, bump${n.id}` : call;
+	const lines = [
+		'<script lang="ts">',
+		`\timport { Region } from 'ogygia';`,
+		`\timport { ${imports} } from './h${n.id}.remote';`
+	];
+	if (n.kind === 'held' && n.host === 'page')
+		return [
+			...lines,
+			'</script>',
+			'',
+			`<div data-gen="held-host">`,
+			n.placeholder
+				? `\t<Region of={${call}()}>\n\t\t{#snippet placeholder()}<p data-gen-placeholder>waiting for n${n.id}…</p>{/snippet}\n\t</Region>`
+				: `\t<Region of={${call}()} />`,
+			'</div>',
+			''
+		].join('\n');
+	return [
+		...lines,
+		`\tconst value = ${call}();`,
+		'</script>',
+		'',
+		`<div data-gen="${n.kind}-host">`,
+		'\t{#if value.current}',
+		'\t\t<Region of={value.current} />',
+		'\t{:else}',
+		`\t\t<span data-gen-pending>connecting n${n.id}…</span>`,
+		'\t{/if}',
+		...(n.kind === 'held' && n.command
+			? [`\t<button onclick={() => bump${n.id}()}>bump n${n.id}</button>`]
+			: []),
+		'</div>',
+		''
+	].join('\n');
 }
 
 /** The component file of `n`. */
 function component(n: GenNode): string {
-	const interactive = n.kind === 'island' || (n.kind === 'hole' && n.wake !== undefined);
+	const interactive =
+		n.kind === 'island' ||
+		((n.kind === 'hole' || n.kind === 'held' || n.kind === 'live') && n.wake !== undefined);
 	const lines = ['<script lang="ts">', "\timport type { Snippet } from 'svelte';"];
 	for (const c of n.children)
-		lines.push(`\timport N${c.id} from './N${c.id}.svelte'${attributes(c)};`);
+		lines.push(`\timport ${name(c)} from './${name(c)}.svelte'${attributes(c)};`);
 	lines.push(
 		"\tlet { label = '' }: { label?: string; ogygiaFallback?: Snippet } = $props();",
 		...(interactive ? ['\tlet count = $state(0);'] : []),
@@ -147,13 +269,17 @@ export function write(app: string, pages: readonly GenPage[], seed: number): voi
 	writeFileSync(join(routes, '+page.svelte'), `<h1>generated app, seed ${seed}</h1>\n`);
 	const walk = (n: GenNode): void => {
 		writeFileSync(join(lib, `N${n.id}.svelte`), component(n));
+		if (n.kind === 'held' || n.kind === 'live') {
+			writeFileSync(join(lib, `H${n.id}.svelte`), host(n));
+			writeFileSync(join(lib, `h${n.id}.remote.ts`), remote(n));
+		}
 		n.children.forEach(walk);
 	};
 	for (const page of pages) {
 		const dir = join(routes, page.path.slice(1));
 		mkdirSync(dir, { recursive: true });
 		const imports = page.roots.map(
-			(n) => `\timport N${n.id} from '$lib/gen/N${n.id}.svelte'${attributes(n)};`
+			(n) => `\timport ${name(n)} from '$lib/gen/${name(n)}.svelte'${attributes(n)};`
 		);
 		writeFileSync(
 			join(dir, '+page.svelte'),

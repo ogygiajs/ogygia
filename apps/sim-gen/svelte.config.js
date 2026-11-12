@@ -5,7 +5,8 @@ import { vitePreprocess } from '@sveltejs/vite-plugin-svelte';
 const config = {
 	preprocess: [vitePreprocess()],
 	compilerOptions: { experimental: { async: true } },
-	kit: { adapter: adapter() }
+	// (remote functions: a held region is a query's answer, a live one a live query's ticks)
+	kit: { adapter: adapter(), experimental: { remoteFunctions: true } }
 };
 
 export default config;
