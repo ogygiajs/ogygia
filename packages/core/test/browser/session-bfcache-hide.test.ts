@@ -1,5 +1,5 @@
 // A recording goes on across a full page load even when the browser keeps the page it left in its
-// back-forward cache (WebKit does on every load; the pagehide then says `persisted`). The page's
+// back-forward cache (the pagehide then says `persisted`). The page's
 // part is saved for the next document either way, and a page restored from that cache with the
 // session still unclaimed takes it back.
 import { afterEach, expect, test } from 'vitest';
