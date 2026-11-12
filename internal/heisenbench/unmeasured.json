@@ -2145,6 +2145,10 @@
 			"reason": "writes the request's prime state onto a Request (not cloneable), constant work; proven in packages/flags/test/prime-twice.test.ts"
 		},
 		{
+			"id": "packages/content/src/markdown/shiki.ts > cache:0~7f893a > onEvict",
+			"reason": "disposes one highlighter past the cap (a Shiki object, never ran in tests: the cap is never reached), constant work of its own"
+		},
+		{
 			"id": "packages/core/src/runtime/router-nav.ts > resolve_head_urls",
 			"reason": "browser only: a fetched page's parsed head (DOMParser), linear in its URL attributes (a few dozen); head-urls.test.ts runs it in three engines"
 		},
@@ -4187,10 +4191,6 @@
 		{
 			"id": "packages/postrender/src/server.ts > deploy_check > flights:0~68fab5 > run > store_call:2~fa5e01",
 			"reason": "the marker write, one store put (I/O, the live store: not cloneable), constant work (#947)"
-		},
-		{
-			"id": "packages/content/src/markdown/shiki.ts > cache:0~7f893a > onEvict",
-			"reason": "disposes one highlighter past the cap (a Shiki object, never ran in tests: the cap is never reached), constant work of its own"
 		},
 		{
 			"id": "packages/content/src/collection-base.ts > Collection > constructor > defer:0~2dc470",
