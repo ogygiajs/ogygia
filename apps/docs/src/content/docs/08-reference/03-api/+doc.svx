@@ -145,15 +145,22 @@ ogygia({ router: false })                      // opt out of the SPA router enti
 
 `router: false` tree-shakes the router out of the generated runtime, so a load-only app never ships it. It also removes [form continuity](/docs/data-state/state-context#continuity-surviving-navigation), since there is then no SPA navigation for form fields to survive. A single page can opt out of view transitions with `<meta name="ogygia-router" content="plain">` in its head, and the page's tag takes precedence over the global default.
 
-### `barrels`
+### `barrels()`
 
-This option turns barrel imports into leaf imports at transform time. A barrel is a module that only re-exports other modules (an `index.ts`, a package's `components.ts`, an `export * from` fan-out). Importing one name from it drags in the whole graph: in dev every module behind it is transformed and served, in a build the chunk graph follows the import graph before tree-shaking, and a package that is not `sideEffects: false` keeps all of it. With `barrels` on, `import { Button } from '$lib/components'` is rewritten to `import Button from '…/components/Button.svelte'` before Svelte or ogygia see the file, so the graph contains only the leaves the file actually uses.
+The barrel rewrite is a plugin, `barrels()` from `@ogygia/barrels`, listed beside `ogygia()`. The old `ogygia({ barrels })` option is a build error that names it, and the standalone `debarrel()` from `ogygia/vite` is gone.
 
 ```ts
-ogygia({ barrels: true })                                  // every pure barrel in the project
-ogygia({ barrels: { packages: ['@acme/ui'] } })            // dependencies too, by name / glob / regex
-ogygia({ barrels: { force: ['$lib/registry'] } })          // an impure barrel: leaves moved, `import 'barrel'` kept
-ogygia({ barrels: { keep: [/stores\/index\.ts$/] } })      // never touch these
+import { barrels } from '@ogygia/barrels';
+export default defineConfig({ plugins: [ogygia(), barrels(), sveltekit()] });
+```
+
+It turns barrel imports into leaf imports at transform time. A barrel is a module that only re-exports other modules (an `index.ts`, a package's `components.ts`, an `export * from` fan-out). Importing one name from it drags in the whole graph: in dev every module behind it is transformed and served, in a build the chunk graph follows the import graph before tree-shaking, and a package that is not `sideEffects: false` keeps all of it. With `barrels()` listed, `import { Button } from '$lib/components'` is rewritten to `import Button from '…/components/Button.svelte'` before Svelte or ogygia's region transform see the file, so the graph contains only the leaves the file actually uses.
+
+```ts
+barrels()                                        // every pure barrel in the project
+barrels({ packages: ['@acme/ui'] })              // dependencies too, by name / glob / regex
+barrels({ force: ['$lib/registry'] })            // an impure barrel: leaves moved, `import 'barrel'` kept
+barrels({ keep: [/stores\/index\.ts$/] })        // never touch these
 ```
 
 What it does and does not do:
@@ -162,17 +169,10 @@ What it does and does not do:
 - **Dependencies are opt-in** through `packages`, because Vite pre-bundles bare imports in dev, and a leaf import that skips the optimizer while another importer gets the pre-bundled copy produces two instances of one module. List a package when you know it is safe (for example an ESM component library that is excluded from `optimizeDeps`).
 - **Nested barrels, `export *` fan-outs, rename chains and `import … ; export { … }` bindings** are followed to the real leaf. A name that two `export *` statements disagree on, a name the barrel does not export, and a name behind something that cannot be parsed (JSON, CommonJS, a `?raw` import) stay on the barrel import.
 - **Import attributes and `type` modifiers are carried over** (`with { type: 'json' }`, `import { type T }`), and sourcemaps are emitted.
-- **Islands are left untouched.** An import that carries region marks (`with { wake }`, `render`, `preset`, `region`, or the app's `importKeys`) is never rewritten, so a marked import means exactly what it meant before. A barrel binding is marked through `asRegion` or a mark in the barrel, as before, and an import whose binding feeds `import.meta.og.asRegion(X)` is also left alone, because the island is keyed on that import.
+- **Regions are left untouched.** An import that carries region marks (`with { wake }`, `render`, `preset`, `region`, or the app's `importKeys`) is never rewritten, so a marked import means exactly what it meant before. A barrel binding is marked through `asRegion` or a mark in the barrel, and an import whose binding feeds `import.meta.og.asRegion(X)` is also left alone, because the region is keyed on that import.
 - `import * as ns from 'barrel'`, `import 'barrel'` and dynamic imports are left as written.
 
 Options: `packages`, `force`, `keep` (matchers: a package name or specifier prefix, a `*` glob, a regex, or a function of the resolved id), `importers: { include, exclude }` (which files are rewritten; default project files), `followPackages` (walk `export *` into dependencies while mapping a barrel; default `true`), `report` (the end-of-build report: `true` = the eight biggest barrels and a count of the rest, `'all'` = every barrel, `false` = silent), `debug` (log every rewrite).
-
-The same pass is also exported as a standalone Vite plugin that any app can use, whether or not it uses ogygia:
-
-```ts
-import { debarrel } from 'ogygia/vite';
-export default defineConfig({ plugins: [debarrel({ packages: ['@acme/ui'] }), svelte()] });
-```
 
 ### `presets`
 
@@ -287,25 +287,29 @@ export const handle = ogygia.handle();
 
 `handle(options)` is the SvelteKit server handle. It serves the signed region endpoint (per-hole loads and the single-flight navigation batch) and injects client seeds.
 
-| Option                                  | What it does                                                                                                                                                                                                                           |
-| --------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `endpoint`                              | The region endpoint's path. Default `/__ogygia__`.                                                                                                                                                                                     |
-| `secret`                                | The secret that signs capability URLs. Takes precedence over `OGYGIA_SECRET`; see [`OGYGIA_SECRET`](#ogygiavite-ogygia-secret).                                                                                                        |
-| `transform(html, { kind, csr, event })` | Post-processes every document (`kind: 'document'`) and every region answer (`kind: 'region'`), and may reshape Svelte-owned markup: ogygia restores it before anything hydrates. See [Server transforms](/docs/app/server-transforms). |
+| Option     | What it does                                                                                                                    |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| `endpoint` | The region endpoint's path. Default `/__ogygia__`.                                                                              |
+| `secret`   | The secret that signs capability URLs. Takes precedence over `OGYGIA_SECRET`; see [`OGYGIA_SECRET`](#ogygiavite-ogygia-secret). |
 
-## `ogygia/markup`
+An app's own pass over the HTML (a web-component server render) is not an option here: it is `reshape.handle(transform)` from the `@ogygia/reshape` package. See [Server transforms](/docs/app/server-transforms).
+
+## `@ogygia/reshape`
 
 ```ts
-import { scanRegions, liftRegions, restoreRegions, transformMarkup, restore } from 'ogygia/markup';
+import { handle, scanRegions, liftRegions, restoreRegions, transformMarkup, restore } from '@ogygia/reshape';
+import type { ReshapeTransform } from '@ogygia/reshape';
 ```
 
-This entry point has no dependency on Kit and no imports, so it runs in the non-SvelteKit half of a monorepo or in a test.
+A package of its own (`pnpm add @ogygia/reshape`); it replaces `ogygia/markup`, which is gone. Its `reshape()` Vite plugin comes from `@ogygia/reshape/vite`. The markup helpers need no Kit, so they run in the non-SvelteKit half of a monorepo or in a test.
 
 | Export                                                 | What it is                                                                                                               |
 | ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------ |
+| `handle(transform)`                                    | The app's own pass, as a Kit handle before `ogygia.handle()`. See [Server transforms](/docs/app/server-transforms).      |
+| `ReshapeTransform`                                     | The type of the function `handle()` takes, for a transform written in a module of its own.                               |
 | `scanRegions(html)`                                    | Yields every region in a document (island, lake or hole), with its span and attributes.                                  |
 | `liftRegions(html)` · `restoreRegions(shell, regions)` | Lift the regions out around a foreign SSR pass, and splice them back with the marks the pass stamped.                    |
-| `transformMarkup(html, transform, { kind, csr, dev })` | The server round trip of `handle({ transform })`: mark, your transform, settle.                                          |
+| `transformMarkup(html, transform, { kind, csr, dev })` | The server round trip of `handle(transform)`: mark, your transform, settle.                                              |
 | `checkScript(check)`                                   | The dev check's payload (`settled.check` with `dev: true`), to put in front of the markup so `restore` checks each host. |
 | `localizeMarks(block)`                                 | Renumbers a block's marks from 0 for a render cache key; `.back(rendered)` puts the document's ids back.                 |
 | `restore(root)`                                        | The browser half, on a parsed document or fragment (jsdom included).                                                     |
@@ -318,9 +322,9 @@ Replacements for `$app/navigation` that are safe to use in islands, because a cs
 
 Use these instead of `$app/navigation` inside islands. See [SPA router](/docs/app/spa-router).
 
-## `ogygia/events` · `ogygia/insights`
+## `ogygia/events`
 
-`ogygia/events` is the event layer: the typed stream of what the framework did (island wakes, server renders, navigations), plus the bus and sink helpers (`add_sink`, `snapshot`, `clear`). It is compiled in only when a plugin asks for it, as the devtools plugin does. `ogygia/insights` is the analysis engine shared by the dock, the profiler and the test helpers.
+`ogygia/events` is the event layer: the typed stream of what the framework did (island wakes, server renders, navigations), plus the bus and sink helpers (`add_sink`, `snapshot`, `clear`). It is compiled in only when a plugin asks for it, as the devtools plugin does. The analysis engine shared by the dock, the profiler and the test helpers is its own package, `@ogygia/insights` (there is no `ogygia/insights`): install it and import from it.
 
 ## Plugin packages
 

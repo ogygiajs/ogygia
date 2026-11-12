@@ -21,7 +21,7 @@ import { record_page } from '../src/page-seed-registry.ts';
 import { facts_of } from '../src/plugin/facts.ts';
 import { SeedIndex, json_culprit, plan_seed_refs } from '../src/seed-refs.ts';
 import { DocumentTail, document_tail } from '../src/server/document-tail.ts';
-import { island_fingerprint } from '../src/server/fingerprint.ts';
+import { region_fingerprint } from '../src/server/fingerprint.ts';
 import {
 	__heisenbench as page_stream,
 	settle_deferred,
@@ -31,13 +31,13 @@ import {
 } from '../src/server/page-stream.ts';
 import { plan_props_wire } from '../src/server/props-wire.ts';
 import {
-	hold_request_stats_detail,
 	request_stats_detailed,
-	want_request_stats
+	set_request_stats_sink,
+	type RequestStatsSink
 } from '../src/server/request-stats.ts';
 import { merge_seed_ask, shape_page_data, type SeedAsk } from '../src/server/seed-shape.ts';
-import { set_island_deps } from '../test/_stubs/virtual-island-deps.ts';
-import { csr_true_routes } from '../test/_stubs/virtual-route-csr.ts';
+import { set_island_deps } from '../test/_stubs/server.region-deps.ts';
+import { csr_true_routes } from '../test/_stubs/server.route-csr.ts';
 import {
 	content_data,
 	content_document,
@@ -59,7 +59,6 @@ const { with_request_store } = kit_server as unknown as {
 
 type Handle = InstanceType<typeof hooks.OgygiaHandle>;
 type Bag = NonNullable<Parameters<Handle['inject_client_seeds']>[3]>;
-type Transform = NonNullable<ConstructorParameters<typeof hooks.OgygiaHandle>[0]>['transform'];
 
 interface Request_ {
 	handle: Handle;
@@ -86,8 +85,6 @@ interface PageOptions {
 	function_leaf?: boolean;
 	/** remote queries resolved during the render, two of them callable by the page's islands */
 	remotes?: boolean;
-	/** the app's server transform (`handle({ transform })`) */
-	transform?: Transform;
 }
 
 const CSR_FALSE_ROUTE = '/[...path]';
@@ -196,7 +193,7 @@ function render_island(
 	record_page({ data, form: null, error: null, status: 200 }, ask, remotes, entry);
 	const tail = document_tail()!;
 	const wire = plan_props_wire(props, entry);
-	const fp = island_fingerprint(entry, wire.canonical);
+	const fp = region_fingerprint(entry, wire.canonical);
 	tail.props(fp, wire, { entry, name: 'Block', module_url: entry, wake: 'visible' });
 	const hrefs = tail.graph_of(entry) ?? graph;
 	tail.graph(entry, hrefs, fp, entry);
@@ -252,7 +249,7 @@ function content_request(blocks: number, o: PageOptions = {}): Request_ {
 		bag.ctx.set('locale', { code: 'en', dir: 'ltr', currency: 'USD' });
 		bag.ctx.set('nav', { active: '/', crumbs: ['Home'] });
 	}
-	const handle = new hooks.OgygiaHandle(o.transform ? { transform: o.transform } : {});
+	const handle = new hooks.OgygiaHandle({});
 	return { handle, html: content_document(blocks), state, event, bag };
 }
 
@@ -306,26 +303,27 @@ bench('inject_client_seeds: a streamed load the router fetched, the promise sett
 	setup: () => content_request(250, { streamed: true, navigate: false })
 });
 
-/** The recording case's hold on the stats detail, let go at its teardown. */
-let release_detail: (() => void) | null = null;
+/** A profiler recording, as the handle sees it: a store that keeps nothing and wants detail. */
+const RECORDING: RequestStatsSink = {
+	page: () => {},
+	hole: () => {},
+	batchHole: () => {},
+	wantsBatchHoles: () => false,
+	detailed: () => true
+};
 bench(
 	'inject_client_seeds: the profiler recording (island rows, the seed explainer)',
 	async (r) => (await transform(r)).length,
 	{
 		setup: () => {
-			want_request_stats();
-			release_detail ??= hold_request_stats_detail();
+			set_request_stats_sink(RECORDING);
 			return content_request(250, { rich: true });
 		},
 		scale: (_ctx, k) => {
-			want_request_stats();
-			release_detail ??= hold_request_stats_detail();
+			set_request_stats_sink(RECORDING);
 			return content_request(25 * k, { rich: true });
 		},
-		teardown: () => {
-			release_detail?.();
-			release_detail = null;
-		}
+		teardown: () => set_request_stats_sink(null)
 	}
 );
 
@@ -398,13 +396,6 @@ bench('handle: the CMS page, from resolve to the last byte sent', through_handle
 bench('handle: a streamed load, the resolve script sent after the document', through_handle, {
 	setup: () => handled(250, { streamed: true })
 });
-
-bench(
-	'handle: the CMS page through the app’s transform (marked, then settled)',
-	through_handle,
-	// (no `scale`: the marking and settling passes grow with the document in markup.bench.ts)
-	{ setup: () => handled(250, { transform: (html) => html }) }
-);
 
 // THE HELPERS on their own, each on the input its loops walk.
 
