@@ -1011,6 +1011,13 @@ interface Worker {
 	said: string;
 }
 
+/** A worker's arguments: the batch's own, every one (a worker reads its options as the batch
+ *  does: a list of the ones it needs left out `--paths`, `--name` and `--peers`), the batch's
+ *  working directory its own. test/pool.test.ts. */
+export function worker_args(batch: readonly string[]): string[] {
+	return ['--worker', ...batch];
+}
+
 /** Worker processes, each running one world at a time. */
 class Pool {
 	readonly #queue: Job[] = [];
@@ -1037,14 +1044,7 @@ class Pool {
 	}
 
 	#spawn(): Worker {
-		const passed = [
-			...(arg('--app') !== undefined ? ['--app', APP] : []),
-			...(arg('--hang-ms') !== undefined ? ['--hang-ms', arg('--hang-ms')!] : []),
-			...(BUGGIFY ? [] : ['--no-buggify']),
-			...(CALM ? ['--calm'] : []),
-			...(OBSERVE !== undefined ? ['--observe', OBSERVE] : [])
-		];
-		const child = fork(import.meta.filename, ['--worker', ...passed], {
+		const child = fork(import.meta.filename, worker_args(process.argv.slice(2)), {
 			execArgv: ['--experimental-vm-modules', '--no-warnings'],
 			stdio: ['ignore', 'ignore', 'pipe', 'ipc']
 		});
