@@ -15,7 +15,6 @@
  * way.
  */
 import { boot_link, router_link, slots } from './slots.ts';
-import { fragment_target } from './fragment.ts';
 import { clock, net } from '@ogygia/machine';
 import { dispose_scope } from '../ref.ts';
 import {
@@ -1296,7 +1295,8 @@ function reset_focus(hash: string, kept: string | null = null) {
 	// back or forward to a page whose entry kept the element that had focus when it was left
 	const was = kept ? document.getElementById(kept) : null;
 	if (was) return focus_reset(was);
-	const target = fragment_target(hash);
+	// (the boot's reading of a fragment, through the router's link: ./fragment.ts is a boot module)
+	const target = router_link().fragment_target(hash);
 	if (target instanceof HTMLElement || target instanceof SVGElement) return focus_reset(target);
 	const autofocus = document.querySelector<HTMLElement>('[autofocus]');
 	if (autofocus) {
