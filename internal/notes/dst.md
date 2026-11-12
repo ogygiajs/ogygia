@@ -371,9 +371,10 @@ added; for observers too, by kind and callback: import-again's timing observer a
 tracker's are each made once for the document, gen 195), every wait settles (`stuck`: at rest, no machine is left in a state of work under way,
 any state whose name ends in `ing`), every region shows something (`empty-region`: at rest, no
 `<ogygia-region>` is left with nothing in it, but a hole with no fallback still waiting to be seen
-or touched), no hole that wakes on its own (`load`, `idle`) still shows its fallback at rest in an
-untouched document (`fallback-stands`: the MPA check cannot see it, the fresh load runs the same
-code; a fallback the app keeps on purpose is marked `data-gen-kept`; found by mutation testing), the
+or touched), no hole that wakes on its own (`load`, `idle`) still shows its fallback at rest
+(`fallback-stands`: in a document a fault touched, only one never asked for; the MPA check cannot see
+it, the fresh load runs the same code; a fallback the app keeps on purpose is marked
+`data-gen-kept`; found by mutation testing: a mutant whose holes never fetched survived), the
 rules once more at rest, and the watchdog (`hung`).
 
 Each line a page says is judged by the document that said it (`Tab.said_by`): one action can show
