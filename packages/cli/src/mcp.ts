@@ -66,7 +66,6 @@ export async function load_profiler_reading(): Promise<ProfilerReading | null> {
 // ── regexes
 const TRAILING_SLASH_RE = /\/$/;
 const HTTP_URL_RE = /^https?:\/\//i;
-const LOGIN_FORM_RE = /id="og-login"/;
 const HTML_TAG_G = /<[^>]+>/g;
 const WS_G = /\s+/g;
 const BACKSLASH_G = /\\/g;
@@ -1472,6 +1471,15 @@ const NOT_MOUNTED = (base: string, where: string) =>
 	`  plugins: [ogygia(), devtools({ profiler: true /* or { secret, path, … } */ }), sveltekit()]\n\n` +
 	`ogygia.handle() mounts it for you — no hooks wiring needed. Restart the server, then retry.`;
 
+/** A locked profiler sends a visitor without a session to `<base>/login` (devtools profiler
+ *  `#auth_guard`): is `res` that redirect? Proved by test/mcp-profile-locked.test.ts. */
+function sends_to_login(res: Response, base: string): boolean {
+	if (res.status < 300 || res.status >= 400) return false;
+	const to = res.headers.get('location');
+	if (!to) return false;
+	return new URL(to, base).pathname === new URL(base + '/login').pathname;
+}
+
 /** Who holds the profiler's recorder, as its 409 says (devtools profiler `#busy`). */
 type BusyHolder = { kind: string; age_ms: number; stale: boolean };
 
@@ -1531,8 +1539,8 @@ async function tool_profile(args: Attrs): Promise<ToolResult> {
 	}
 
 	// Confirm the profiler is mounted AND we're authed — clean messages beat a cryptic failure. A locked
-	// profiler serves its login PAGE at 200 (not 401), so sniff for it: no key → ask for one, wrong key
-	// → say so, before we bother recording.
+	// profiler redirects to its login page (not 401), so look for that: no key → ask for one, wrong
+	// key → say so, before we bother recording.
 	{
 		const key_h: Record<string, string> = key ? { 'x-profiler-key': key } : {};
 		let pre: Response;
@@ -1548,8 +1556,8 @@ async function tool_profile(args: Attrs): Promise<ToolResult> {
 			);
 		}
 		if (pre.status === 404) return fail(NOT_MOUNTED(profiler_base, origin));
-		const pre_body = await pre.text().catch(() => '');
-		if (LOGIN_FORM_RE.test(pre_body))
+		await pre.body?.cancel().catch(() => {}); // ok: only the status and Location are read
+		if (sends_to_login(pre, origin + profiler_base))
 			return fail(
 				key
 					? `The profiler on ${origin} rejected that \`key\` (still locked). Confirm its secret with the user.`
@@ -1969,8 +1977,30 @@ async function tool_fragment(args: Attrs): Promise<ToolResult> {
 	);
 }
 
+/** A JSON value's type, in a tool schema's words. */
+const json_type = (v: unknown): string =>
+	Array.isArray(v) ? 'array' : v === null ? 'null' : typeof v;
+
+/** The tool's error for the first argument that is not what its schema declares; null when all are.
+ *  Checked once here, so a tool reads a declared string as a string (test/property-mcp-tools.test.ts). */
+function wrong_args(name: string, args: unknown): ToolResult | null {
+	if (json_type(args) !== 'object')
+		return fail(`\`arguments\` must be an object, not ${json_type(args)}.`);
+	const props = TOOLS.find((t) => t.name === name)?.inputSchema.properties as
+		| Record<string, { type: string }>
+		| undefined;
+	for (const [k, p] of Object.entries(props ?? {})) {
+		const v = (args as Attrs)[k];
+		if (v != null && json_type(v) !== p.type)
+			return fail(`\`${k}\` must be a ${p.type}, not ${json_type(v)}.`);
+	}
+	return null;
+}
+
 /** Run one tool, as the server does for a `tools/call`. @internal Exported for tests. */
 export async function dispatch_tool(name: string, args: Attrs): Promise<ToolResult> {
+	const wrong = wrong_args(name, args);
+	if (wrong) return wrong;
 	switch (name) {
 		case 'ogygia_compile':
 			return tool_compile(args);
@@ -2014,7 +2044,13 @@ function log(...parts: unknown[]): void {
 }
 
 function handle(msg: Rpc): void {
-	const { id, method, params } = msg;
+	const { id, params } = msg;
+	const method = typeof msg.method === 'string' ? msg.method : undefined;
+	if (method === undefined) {
+		if (id != null)
+			send({ jsonrpc: '2.0', id, error: { code: -32600, message: 'Invalid Request: no method' } });
+		return;
+	}
 	if (method === 'initialize') {
 		send({
 			jsonrpc: '2.0',
@@ -2032,7 +2068,7 @@ function handle(msg: Rpc): void {
 		return;
 	}
 	if (method === 'tools/call') {
-		const name = String(params?.name ?? '');
+		const name = typeof params?.name === 'string' ? params.name : '';
 		const args = (params?.arguments as Attrs) ?? {};
 		dispatch_tool(name, args)
 			.then((result) => send({ jsonrpc: '2.0', id, result }))
@@ -2049,8 +2085,9 @@ function handle(msg: Rpc): void {
 		send({ jsonrpc: '2.0', id, result: {} });
 		return;
 	}
-	// Notifications (no id) — nothing to answer.
-	if (method?.startsWith('notifications/') || id == null) return;
+	// Notifications (no id): nothing to answer. A message with an id is a request, whatever its
+	// method says.
+	if (id == null) return;
 	send({ jsonrpc: '2.0', id, error: { code: -32601, message: `Method not found: ${method}` } });
 }
 
@@ -2070,10 +2107,23 @@ export async function runMcp(): Promise<void> {
 			log('dropped non-JSON line');
 			continue;
 		}
+		// (not one message: nothing to answer, and no id to answer it with)
+		if (!msg || typeof msg !== 'object' || Array.isArray(msg)) {
+			log('dropped a line that is not one JSON-RPC message');
+			continue;
+		}
 		try {
 			handle(msg);
 		} catch (e) {
-			log('handler threw:', e instanceof Error ? e.message : String(e));
+			// every request is answered once: a client waits for its id (test/mcp-every-request.test.ts)
+			const message = e instanceof Error ? e.message : String(e);
+			log('handler threw:', message);
+			if (msg.id != null)
+				send({
+					jsonrpc: '2.0',
+					id: msg.id,
+					error: { code: -32603, message: `Internal error: ${message}` }
+				});
 		}
 	}
 }

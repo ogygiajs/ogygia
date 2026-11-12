@@ -87,3 +87,4 @@ internal/repro-ogygia-footer/
 # The simulator's run summaries (internal/sim: `pnpm sim` and the scheduled run write them)
 /internal/sim/results.json
 /internal/sim/dst-results.json
+/internal/sim/plans/
