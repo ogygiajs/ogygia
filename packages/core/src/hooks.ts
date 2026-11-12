@@ -285,11 +285,10 @@ type RequestBag = {
 	/** The `load` hole endpoints this page's head started early (early-holes.ts): its response's
 	 *  policy then needs the early start's hash. */
 	early_holes?: string[];
-	/** Some region on the page reads `$page` on the client (Region.svelte × `islandReadsPage`), so
-	 *  the `application/ogygia-page` seed must ship. The snapshot itself is recorded regardless. */
-	seed_wanted: boolean;
 	/** SEED SHAPING: the union of the regions' asks — the `page.data` keys to ship, or `'all'`
-	 *  (some region's reads could not be pinned). `null` until a region asks (then `seed_wanted`). */
+	 *  (some region's reads could not be pinned). `null` until a region reads `$page` on the client
+	 *  (Region.svelte × `islandReadsPage`): not null, the `application/ogygia-page` seed must ship.
+	 *  The snapshot itself is recorded regardless. */
 	seed_keys: import('./server/seed-shape.ts').SeedKeys | null;
 	/** each region's own ask, by entry — the seed explainer's "who reads what" (detail only) */
 	seed_asks: Map<string, SeedAsk> | null;
@@ -354,7 +353,8 @@ set_ctx_recorder((key, value) => {
 // THE SERVER ROUTER'S DOCUMENT asks too: a router page (the profiler's own, an app's) is answered
 // before a Kit page bag exists, so its regions' asks are collected here, off the same `Request` (the
 // one stable identity, and no second ALS). The document reads them back and seeds like a Kit page.
-const doc_asks = new WeakMap<Request, { wanted: boolean; keys: SeedKeys | null }>();
+// (the asks' keys, `null` until one asks: present once the document opened its ask scope)
+const doc_asks = new WeakMap<Request, SeedKeys | null>();
 const request_of = () =>
 	(try_get_request_store() as { event?: RequestEvent } | undefined)?.event?.request;
 // THE NAMES OF A RENDER (ref.ts RefNames): every ref one request mints is named by it, off the same
@@ -370,15 +370,16 @@ set_ref_names_reader(() => {
 set_ask_scope_opener(() => {
 	const request = request_of();
 	if (request && !bags.has(request) && !doc_asks.has(request))
-		doc_asks.set(request, { wanted: false, keys: null });
+		doc_asks.set(request, null);
 });
 // the regions' asks so far, for the server router's document (it builds its own seed)
 set_seed_ask_reader(() => {
 	const bag = bag_of();
-	if (bag) return { wanted: bag.seed_wanted, keys: bag.seed_keys };
+	if (bag) return { wanted: bag.seed_keys !== null, keys: bag.seed_keys };
 	const request = request_of();
-	const d = request ? doc_asks.get(request) : undefined;
-	return d ? { wanted: d.wanted, keys: d.keys } : undefined;
+	if (!request || !doc_asks.has(request)) return undefined;
+	const keys = doc_asks.get(request) ?? null;
+	return { wanted: keys !== null, keys };
 });
 set_page_recorder((snapshot, seed, remotes, entry) => {
 	// a render FOR a page (a hole, a remote call): its islands' asks are the render-page model's —
@@ -389,11 +390,8 @@ set_page_recorder((snapshot, seed, remotes, entry) => {
 	if (!bag) {
 		// a router document's render: only the asks matter (it builds its own seed from its snapshot)
 		const request = request_of();
-		const d = request ? doc_asks.get(request) : undefined;
-		if (d && seed !== false) {
-			d.wanted = true;
-			d.keys = merge_seed_ask(d.keys, seed);
-		}
+		if (request && doc_asks.has(request) && seed !== false)
+			doc_asks.set(request, merge_seed_ask(doc_asks.get(request) ?? null, seed));
 		return;
 	}
 	// MERGE: the routeless document root records url/params/route from the router's seed first;
@@ -401,10 +399,7 @@ set_page_recorder((snapshot, seed, remotes, entry) => {
 	bag.page = { ...bag.page, ...snapshot };
 	// SEED ONLY WHEN READ, AND ONLY WHAT IS READ: one island whose client code reads `$page` is
 	// enough to ship the seed; the union of the islands' key asks decides how much of `page.data`.
-	if (seed !== false) {
-		bag.seed_wanted = true;
-		bag.seed_keys = merge_seed_ask(bag.seed_keys, seed);
-	}
+	if (seed !== false) bag.seed_keys = merge_seed_ask(bag.seed_keys, seed);
 	// the profiler's seed explainer: who asked for what (detail only — a Map write per region)
 	if (bag.seed_asks && entry && seed !== false) bag.seed_asks.set(entry, seed);
 	// REMOTE SEED ONLY WHEN REACHABLE: union the remotes this region's client can call; one
@@ -964,7 +959,6 @@ class OgygiaHandle {
 			const bag: RequestBag = {
 				ctx: new Map(),
 				page: null,
-				seed_wanted: false,
 				seed_keys: null,
 				seed_asks: request_stats_detailed() ? new Map() : null,
 				remotes_wanted: new Set(),
@@ -1363,7 +1357,7 @@ class OgygiaHandle {
 		const page_snap = bag!.page!;
 		// SEED ONLY WHEN READ (the rule is spelled out at the seed payload below): no reader → no
 		// seed → the sidecars serialize self-contained, and nothing below stages or settles.
-		const seed_wanted = bag!.seed_wanted;
+		const seed_wanted = bag!.seed_keys !== null;
 		// THE DOCUMENT TAIL (server/document-tail.ts): the regions' module-preload hints, then their
 		// props sidecars — after the content, before the seeds. Rendered ONCE, now that the request
 		// knows whether the seed ships: only then does a sidecar serialize relative to it (seed-refs.ts)
