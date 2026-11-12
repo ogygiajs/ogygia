@@ -9,6 +9,8 @@
  * - `cut`: a response body stops partway (an aborted stream);
  * - `tamper`: a response body's bytes are changed on the way (what a broken proxy or an attacker in
  *   the middle does: signed payloads must be refused, never painted);
+ * - `redirect`: a request to ogygia's region endpoint is sent to another origin, whose answer
+ *   is HTML the page must never paint;
  * - `offline`: a tab's requests fail at once.
  *
  * A fault is on for a run when its class is in the run's swarm (search.ts picks a random subset per
@@ -17,7 +19,10 @@
 import type { Loop } from './loop.ts';
 import type { Rng } from './rng.ts';
 
-export type FaultClass = 'delay' | 'drop' | 'duplicate' | 'cut' | 'tamper' | 'reorder';
+export type FaultClass = 'delay' | 'drop' | 'duplicate' | 'cut' | 'tamper' | 'reorder' | 'redirect';
+
+/** The rest of the web, where a `redirect` fault sends a request (world.ts answers it). */
+export const ELSEWHERE = 'https://elsewhere.test';
 
 export interface NetworkOptions {
 	loop: Loop;
@@ -26,6 +31,9 @@ export interface NetworkOptions {
 	faults: ReadonlySet<FaultClass>;
 	/** Each fault's chance when it is on (per request). */
 	rates?: Partial<Record<FaultClass, number>>;
+	/** The requests a `redirect` fault may send to another origin (default: ogygia's region
+	 *  endpoint, whose HTML a page paints). */
+	redirectable?: (url: URL) => boolean;
 }
 
 export type Handler = (request: Request) => Promise<Response>;
@@ -40,6 +48,8 @@ export interface Exchange {
 	cut: boolean;
 	tampered: boolean;
 	duplicated: boolean;
+	/** Answered with a redirect to another origin (`ELSEWHERE`). */
+	redirected: boolean;
 }
 
 const RATES: Record<FaultClass, number> = {
@@ -48,7 +58,8 @@ const RATES: Record<FaultClass, number> = {
 	drop: 0.03,
 	duplicate: 0.05,
 	cut: 0.03,
-	tamper: 0.01
+	tamper: 0.01,
+	redirect: 0.3
 };
 
 export class Network {
@@ -65,7 +76,10 @@ export class Network {
 		this.#rng = options.rng.fork('net');
 		this.#faults = options.faults;
 		this.#rates = { ...RATES, ...options.rates };
+		this.#redirectable = options.redirectable ?? ((url) => url.pathname.startsWith('/__ogygia__'));
 	}
+
+	readonly #redirectable: (url: URL) => boolean;
 
 	/** Takes `realm` off the network (or puts it back). */
 	offline(realm: string, off: boolean): void {
@@ -105,7 +119,8 @@ export class Network {
 			status: 'pending',
 			cut: false,
 			tampered: false,
-			duplicated: false
+			duplicated: false,
+			redirected: false
 		};
 		this.exchanges.push(ex);
 		const loop = this.#loop;
@@ -125,6 +140,18 @@ export class Network {
 			if (!calm && this.#on('drop')) {
 				ex.status = 'dropped';
 				loop.add('net', `drop ${ex.id}`, this.#latency(), () => fail('connection lost'));
+				return;
+			}
+			// an edge or proxy that sends a region's request to another origin (an open redirect, a
+			// misrouted CDN): the page must never paint what comes back (INVARIANTS.md HOLE-TRUST)
+			const target = new URL(request.url);
+			if (!calm && this.#redirectable(target) && this.#on('redirect')) {
+				ex.status = 302;
+				ex.redirected = true;
+				const location = ELSEWHERE + target.pathname + target.search;
+				loop.add('net', `redirect ${ex.id}`, this.#latency(), () =>
+					resolve(new Response(null, { status: 302, headers: { location } }))
+				);
 				return;
 			}
 			const dup = !calm && this.#on('duplicate');

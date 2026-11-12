@@ -80,20 +80,19 @@ describe('page errors', () => {
 			console: [],
 			page: { mainFrame: { url: 'https://app.test/split-brain' } }
 		}) as unknown as Parameters<typeof page_errors>[0];
+	// (the document's own load is its realm's first request)
 	const world = (tampered: string) =>
 		({
 			network: {
-				exchanges: [
-					{
-						id: 1,
-						from: 'tab-1#6',
-						method: 'GET',
-						url: tampered,
-						status: 200,
-						cut: false,
-						tampered: true
-					}
-				]
+				exchanges: ['https://app.test/split-brain', 'https://app.test/_app/x.js'].map((url, i) => ({
+					id: i + 1,
+					from: 'tab-1#6',
+					method: 'GET',
+					url,
+					status: 200,
+					cut: false,
+					tampered: url === tampered
+				}))
 			}
 		}) as unknown as Parameters<typeof page_errors>[1];
 	const said = ["error: Cannot read properties of undefined (reading 'toLowerCase')"];

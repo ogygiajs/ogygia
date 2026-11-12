@@ -3,7 +3,7 @@
  * found broken, or null. Each is precise about what it normalizes away, and why.
  */
 import type { Tab, Visitor } from './browser.ts';
-import type { World } from './world.ts';
+import { FOREIGN_MARK, type World } from './world.ts';
 
 /** What an oracle found broken. */
 export interface Broken {
@@ -549,18 +549,19 @@ export function faulted(world: World, tab: Tab, since?: number): boolean {
 				mine(e.from) &&
 				(e.cut ||
 					e.tampered ||
+					e.redirected ||
 					e.status === 'dropped' ||
 					e.status === 'offline' ||
 					(typeof e.status === 'number' && e.status >= 500))
 		);
 }
 
-/** Was the HTML of the document `tab` shows changed or cut on its way? */
+/** Was the HTML of the document `tab` shows changed or cut on its way? (Its own load is the first
+ *  request of its realm, whatever URL the router has moved it to since: seed 471, a changed byte
+ *  in `/` and a click to /static.) */
 export function document_faulted(world: World, tab: Tab): boolean {
-	const url = tab.page.mainFrame.url.split('#')[0];
-	return world.network.exchanges.some(
-		(e) => e.from === tab.realm && e.method === 'GET' && e.url === url && (e.tampered || e.cut)
-	);
+	const own = world.network.exchanges.find((e) => e.from === tab.realm);
+	return own !== undefined && (own.tampered || own.cut);
 }
 
 /** What a page may say when the network failed it: ogygia's coded reports, the network's own
@@ -592,6 +593,61 @@ export function page_errors(tab: Tab, world?: World, since?: number): Broken | n
 			detail: `${tab.page.mainFrame.url}: ${known.map((k) => `#${k.issue} (${k.what})`).join(', ')}`
 		};
 	return { oracle: 'page-errors', detail: errors.join('\n') };
+}
+
+/**
+ * NO FOREIGN HTML: a page never paints HTML another origin answered. Region HTML is trusted
+ * because the app's own server made it (INVARIANTS.md HOLE-TRUST); a `redirect` fault sends a
+ * region's request elsewhere, and what comes back is marked. Read from the tab's document.
+ */
+export function no_foreign_html(tab: Tab): Broken | null {
+	const doc = tab.page.mainFrame.document as unknown as Document;
+	const painted = [...doc.querySelectorAll(`[${FOREIGN_MARK}]`)];
+	if (painted.length === 0) return null;
+	return {
+		oracle: 'foreign-html',
+		detail: `${tab.page.mainFrame.url}: ${painted.map((e) => e.outerHTML.slice(0, 200)).join('\n')}`
+	};
+}
+
+/** Svelte's and ogygia's words for a region whose server HTML did not hydrate as it was. */
+const UNHYDRATED = /svelte\.dev\/e\/hydration_mismatch|ogygiajs\.dev\/e\/hydration_discarded/;
+
+/** Pages of the test app that serve HTML their islands do not hydrate as it is, on purpose, each
+ *  with its reason. Never add one for HTML ogygia itself got wrong. */
+const UNHYDRATED_BY_DESIGN: ReadonlyArray<{ path: RegExp; why: string }> = [
+	{
+		path: /^\/detector$/,
+		why: "its hooks strip one region's hydration anchors, for the foreign-mutation detector's e2e"
+	}
+];
+
+/**
+ * THE SERVER'S HTML IS THE LIVE PAGE: a region hydrates the HTML the server sent as it is. Svelte
+ * says `hydration_mismatch` when the DOM is not what its code expects, and ogygia then discards
+ * the server's HTML and renders anew (`hydration_discarded`): what the visitor saw first was not
+ * what the page is. Excused when the document's own HTML was changed or cut on the way.
+ */
+export function hydrates_as_sent(tab: Tab, world?: World): Broken | null {
+	const said = tab.console.filter((l) => UNHYDRATED.test(l));
+	if (said.length === 0) return null;
+	if (world !== undefined && document_faulted(world, tab)) return null;
+	const url = tab.page.mainFrame.url;
+	if (UNHYDRATED_BY_DESIGN.some((d) => d.path.test(new URL(url).pathname))) return null;
+	const detail = `${url}: ${said.map((l) => l.split('\n')[0]).join('\n')}`;
+	// #831: a region module asked for again (`og-retry`) after a nested island's download failed
+	// stands in for the outer region's module, which then hydrates the wrong component
+	const retried =
+		world !== undefined &&
+		world.network.exchanges.some(
+			(e) => e.from === tab.realm && /\/og-region\.[^/?]+\?og-retry=/.test(e.url)
+		);
+	if (retried)
+		return {
+			oracle: 'known',
+			detail: `${detail}: #831 (a retried import hands back the file its error named)`
+		};
+	return { oracle: 'ssr-hydrate', detail };
 }
 
 /** What a page says because of a filed bug, as KNOWN is for a DOM difference: a seed that says
