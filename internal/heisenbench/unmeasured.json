@@ -4771,6 +4771,22 @@
 		{
 			"id": "packages/core/src/hooks.ts > claim_of",
 			"reason": "copies five fields of a parsed capability into the claim it signs, constant work; the handle runs only inside a Kit server build, and the signing it feeds is benched (packages/core/bench/region-capability.bench.ts)"
+		},
+		{
+			"id": "packages/core/src/hooks.ts > OgygiaHandle > #capability_parcel",
+			"reason": "one batched hole's steps (precheck, verify, charge, render) on a Kit request event nothing can clone; the handle runs only inside a Kit server build, its moves are benched (packages/core/bench/region-capability.bench.ts `region_request`) and its order is proven in packages/core/test/region-request-order.test.ts and the e2e hole suites"
+		},
+		{
+			"id": "packages/core/src/hooks.ts > OgygiaHandle > #capability_parcel > render_component:3~077289",
+			"reason": "the batched hole's render call handed to the component render (Svelte's server render, not replayable); run by the e2e hole-batch suites"
+		},
+		{
+			"id": "packages/core/src/hooks.ts > OgygiaHandle > #region_answer",
+			"reason": "one region GET's steps (precheck, verify, charge, render) on a Kit request event nothing can clone; the handle runs only inside a Kit server build, its moves are benched (packages/core/bench/region-capability.bench.ts `region_request`) and its order is proven in packages/core/test/region-request-order.test.ts and the e2e hole suites"
+		},
+		{
+			"id": "packages/core/src/hooks.ts > OgygiaHandle > #region_answer > render_component:3~077289",
+			"reason": "the hole's render call handed to the component render (Svelte's server render, not replayable); run by the e2e hole suites"
 		}
 	]
 }
