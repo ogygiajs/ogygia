@@ -51,6 +51,20 @@ export interface GenNode {
 	/** An island whose markup the next release changes (an element only build v2 renders), as a
 	 *  release changes a component: what hydrates one build's HTML with the other's code meets. */
 	readonly changes?: boolean;
+	/** The region has a stylesheet of its own (a scoped `<style>`): an answer that brings it lifts
+	 *  its sheet into the head. */
+	readonly style?: boolean;
+	/** A hole whose render the server keeps this long (`maxAge`, a duration string): every visitor's
+	 *  same call is answered from the render cache. */
+	readonly maxAge?: string;
+	/** The region reads its page's data (`page.data.who` from `$app/state`): a hole or a held region
+	 *  rendered outside its page looks its page up. Only on a page that has data. */
+	readonly reads?: boolean;
+	/** An island that reads its page's data has a button that refreshes it in place
+	 *  (`invalidateAll()` from `ogygia/app`: the soft refresh). */
+	readonly refresh?: boolean;
+	/** An island its parent gives a `Date` prop: its props cross in devalue's lane, not JSON's. */
+	readonly dated?: boolean;
 	readonly children: readonly GenNode[];
 }
 
@@ -60,6 +74,8 @@ export interface GenPage {
 	/** The page opts in to postrender (`config = { postrender: true }`): its HTML is stored and
 	 *  served again until a publish invalidates it. */
 	readonly postrender?: boolean;
+	/** The page has a server load (`{ who }`), which some of its regions read. */
+	readonly data?: boolean;
 }
 
 const WAKES: readonly Wake[] = ['load', 'idle', 'visible', 'interaction'];
@@ -116,7 +132,13 @@ export function plan(seed: number): GenPage[] {
 		if (n.kind === 'hole' || !h.chance(0.3)) return n;
 		const wake = h.chance(0.5) ? h.pick(WAKES) : undefined;
 		if (h.chance(0.3))
-			return { id: n.id, kind: 'live', wake, every: h.pick([700, 3000]), children: n.children };
+			return {
+				id: n.id,
+				kind: 'live',
+				wake,
+				every: h.pick([700, 3000]),
+				children: n.children
+			};
 		const host = h.chance(0.5) ? 'island' : 'page';
 		const command = host === 'island' && h.chance(0.6);
 		return {
@@ -144,6 +166,33 @@ export function plan(seed: number): GenPage[] {
 			? { ...n, children, changes: true }
 			: { ...n, children };
 	};
+	// (and a region's stylesheet, a hole's render cache and an island's dated props, each from its
+	// own)
+	const st = rng(seed).fork('gen style');
+	const ma = rng(seed).fork('gen max age');
+	const dv = rng(seed).fork('gen devalue');
+	const extras = (n: GenNode): GenNode => {
+		const children = n.children.map(extras);
+		const style = st.chance(0.25);
+		const max_age =
+			n.kind === 'hole' && !n.keep && ma.chance(0.3) ? ma.pick(['2s', '30s']) : undefined;
+		const dated = n.kind === 'island' && dv.chance(0.25);
+		return {
+			...n,
+			children,
+			...(style ? { style } : {}),
+			...(max_age ? { maxAge: max_age } : {}),
+			...(dated ? { dated } : {})
+		};
+	};
+	// (and whether a page has data its regions read, from its own)
+	const d = rng(seed).fork('gen page data');
+	const reading = (n: GenNode): GenNode => {
+		const children = n.children.map(reading);
+		if (!d.chance(0.4)) return { ...n, children };
+		const refresh = n.kind === 'island' && d.chance(0.5);
+		return { ...n, children, reads: true, ...(refresh ? { refresh } : {}) };
+	};
 	const node = trees(r, held);
 	const pages = r.between(3, 6);
 	return Array.from({ length: pages }, (_, i) => ({
@@ -151,7 +200,11 @@ export function plan(seed: number): GenPage[] {
 		roots: Array.from({ length: r.between(1, 4) }, () => node(0)).map(keep)
 	}))
 		.map((page) => (s.chance(0.3) ? { ...page, postrender: true } : page))
-		.map((page) => ({ ...page, roots: page.roots.map(release) }));
+		.map((page) => ({ ...page, roots: page.roots.map(release) }))
+		.map((page) => ({ ...page, roots: page.roots.map(extras) }))
+		.map((page) =>
+			d.chance(0.4) ? { ...page, data: true, roots: page.roots.map(reading) } : page
+		);
 }
 
 /** A widget the peer app serves (`federate({ widgets })`): a root holding a region tree. */
@@ -244,6 +297,8 @@ function attributes(n: GenNode): string {
 		case 'lake':
 			return ` with { wake: 'none' }`;
 		case 'hole':
+			// (a kept render is a preset's: apps/sim-gen/vite.config.ts)
+			if (n.maxAge) return ` with { preset: 'hole-${n.maxAge}${n.wake ? `-${n.wake}` : ''}' }`;
 			return n.wake
 				? ` with { render: 'deferred', wake: '${n.wake}' }`
 				: ` with { render: 'deferred' }`;
@@ -266,8 +321,10 @@ function name(n: GenNode): string {
 function usage(n: GenNode, indent: string): string {
 	if (n.kind === 'hole' && n.fallback)
 		return `${indent}<N${n.id} label="n${n.id}">\n${indent}\t{#snippet ogygiaFallback()}<p data-gen-fallback>loading n${n.id}…</p>{/snippet}\n${indent}</N${n.id}>`;
-	return n.kind === 'held' || n.kind === 'live'
-		? `${indent}<${name(n)} />`
+	if (n.kind === 'held' || n.kind === 'live') return `${indent}<${name(n)} />`;
+	// (a fixed instant: what devalue carries, the same in every render)
+	return n.dated
+		? `${indent}<N${n.id} label="n${n.id}" since={new Date(${n.id * 86_400_000})} />`
 		: `${indent}<N${n.id} label="n${n.id}" />`;
 }
 
@@ -365,12 +422,16 @@ function component(n: GenNode): string {
 	const lines = [
 		'<script lang="ts">',
 		"\timport type { Snippet } from 'svelte';",
-		...(n.keep ? ["\timport { keepFallback } from 'ogygia';"] : [])
+		...(n.keep ? ["\timport { keepFallback } from 'ogygia';"] : []),
+		...(n.reads ? ["\timport { page } from '$app/state';"] : []),
+		...(n.refresh ? ["\timport { invalidateAll } from 'ogygia/app';"] : [])
 	];
 	for (const c of n.children)
 		lines.push(`\timport ${name(c)} from './${name(c)}.svelte'${attributes(c)};`);
 	lines.push(
-		"\tlet { label = '' }: { label?: string; ogygiaFallback?: Snippet } = $props();",
+		n.dated
+			? "\tlet { label = '', since }: { label?: string; since?: Date; ogygiaFallback?: Snippet } = $props();"
+			: "\tlet { label = '' }: { label?: string; ogygiaFallback?: Snippet } = $props();",
 		...(interactive ? ['\tlet count = $state(0);'] : []),
 		...(n.keep
 			? ['\tkeepFallback();']
@@ -379,16 +440,28 @@ function component(n: GenNode): string {
 				: []),
 		'</script>',
 		'',
-		`<div data-gen="${n.kind}" data-build={import.meta.env.VITE_SIM_BUILD}>`,
+		`<div data-gen="${n.kind}"${n.style ? ` class="g${n.id}"` : ''} data-build={import.meta.env.VITE_SIM_BUILD}>`,
 		...(n.changes
 			? ["\t{#if import.meta.env.VITE_SIM_BUILD === 'v2'}<em data-gen-new>new in v2</em>{/if}"]
 			: []),
 		'\t<span>{label}</span>',
+		...(n.dated ? ['\t<time>{since?.toISOString()}</time>'] : []),
+		...(n.reads ? ['\t<i data-gen-page>{page.data.who}</i>'] : []),
 		...(interactive
 			? ['\t<button onclick={() => (count += 1)}>{label} pressed {count}</button>']
 			: []),
+		...(n.refresh ? [`\t<button onclick={() => invalidateAll()}>refresh n${n.id}</button>`] : []),
 		...n.children.map((c) => usage(c, '\t')),
 		'</div>',
+		...(n.style
+			? [
+					'',
+					'<style>',
+					`\t.g${n.id} { border-left: ${(n.id % 4) + 1}px solid; }`,
+					`\t.g${n.id} > span { font-weight: ${n.id % 2 ? 'bold' : 'normal'}; }`,
+					'</style>'
+				]
+			: []),
 		''
 	);
 	return lines.join('\n');
@@ -532,17 +605,18 @@ export function write(
 		);
 		// (a stored page says so in Kit's own `config`, in the page's server load when it has one)
 		const config = page.postrender ? ['export const config = { postrender: true };', ''] : [];
-		if (slots.length === 0 && config.length > 0)
+		if (slots.length === 0 && !page.data && config.length > 0)
 			writeFileSync(join(dir, '+page.ts'), config.join('\n'));
-		if (slots.length > 0) {
+		if (slots.length > 0)
 			imports.push(`\timport { Region } from 'ogygia';`, `\tlet { data } = $props();`);
+		if (slots.length > 0 || page.data)
 			writeFileSync(
 				join(dir, '+page.server.ts'),
 				[
-					`import { peer } from '$lib/gen/federation.server';`,
-					'',
+					...(slots.length > 0 ? [`import { peer } from '$lib/gen/federation.server';`, ''] : []),
 					...config,
 					`export const load = async () => ({`,
+					...(page.data ? [`\twho: '${page.path.slice(1)} data',`] : []),
 					...slots.map(
 						(s) =>
 							`\tr${s.id}: await peer.widget('${s.widget}', { label: 'r${s.id}' }, { render: '${s.render}' }),`
@@ -551,7 +625,6 @@ export function write(
 					''
 				].join('\n')
 			);
-		}
 		writeFileSync(
 			join(dir, '+page.svelte'),
 			[
