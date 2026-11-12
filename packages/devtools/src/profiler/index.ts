@@ -28,6 +28,7 @@
  */
 
 import type { RequestEvent } from '@sveltejs/kit';
+import { mac_hex, mac_key, random_id, same_key, same_text } from './key-check.ts';
 import type { Handle } from '@ogygia/core/plugin';
 import {
 	analyze,
@@ -1180,8 +1181,8 @@ class Profiler {
 	/** Sessions ended by a logout before their expiry (session id → its expiry), at most
 	 *  {@link MAX_REVOKED}; each is dropped once it would have expired anyway. */
 	readonly #revoked = new Map<string, number>();
-	#session_key: Buffer | null = null;
-	#flag_key: Buffer | null = null;
+	#session_key: Promise<CryptoKey> | null = null;
+	#flag_key: Promise<CryptoKey> | null = null;
 
 	// ---- state ------------------------------------------------------------
 	readonly #ring: RequestEntry[] = [];
@@ -2760,15 +2761,13 @@ class Profiler {
 	/** The beacon flag for one session: `f1.<session id>.<its expiry>.<MAC>`, under a key derived
 	 *  for flags alone, so it ends when the session does (expiry, logout, a changed secret). */
 	async #flag_value(nonce: string, exp: string): Promise<string> {
-		return `f1.${nonce}.${exp}.${(await this.#flag_mac(nonce, exp)).toString('hex')}`;
+		return `f1.${nonce}.${exp}.${await this.#flag_mac(nonce, exp)}`;
 	}
 
-	async #flag_mac(nonce: string, exp: string): Promise<Buffer> {
-		const { createHmac, hkdfSync } = await import('node:crypto');
-		this.#flag_key ??= Buffer.from(
-			hkdfSync('sha256', this.secret, '', 'ogygia-profiler-flag-v1', 32)
-		);
-		return createHmac('sha256', this.#flag_key).update(`f1|${nonce}|${exp}`).digest();
+	/** The flag MAC (hex): HMAC-SHA256 under a key derived from the secret for flags alone. */
+	async #flag_mac(nonce: string, exp: string): Promise<string> {
+		this.#flag_key ??= mac_key(this.secret, 'ogygia-profiler-flag-v1');
+		return mac_hex(await this.#flag_key, `f1|${nonce}|${exp}`);
 	}
 
 	/** The session id of the live beacon flag the request carries, or null: signed by this
@@ -2781,14 +2780,7 @@ class Profiler {
 		const now = Date.now();
 		const at = Number(exp);
 		if (!(at > now && at <= now + SESSION_MS) || this.#revoked.has(nonce)) return null;
-		try {
-			const { timingSafeEqual } = await import('node:crypto');
-			return timingSafeEqual(await this.#flag_mac(nonce, exp), Buffer.from(mac, 'hex'))
-				? nonce
-				: null;
-		} catch {
-			return null; // ok: no node:crypto, no sessions, so no flag either
-		}
+		return same_text(await this.#flag_mac(nonce, exp), mac) ? nonce : null;
 	}
 
 	/** Does the request carry a live beacon flag? */
@@ -2812,33 +2804,22 @@ class Profiler {
 		if (!this.secret || !this.#secret_ok || !provided) return false;
 		const ip = this.#address(event);
 		if (this.#key_fails.over(ip)) return false;
-		let ok: boolean;
-		try {
-			const { createHash, timingSafeEqual } = await import('node:crypto');
-			const h = (str: string) => createHash('sha256').update(str).digest();
-			ok = timingSafeEqual(h(provided), h(this.secret));
-		} catch {
-			ok = provided === this.secret; // ok: a runtime without node:crypto compares plainly
-		}
+		const ok = await same_key(provided, this.secret);
 		if (!ok) this.#key_fails.limited(ip);
 		return ok;
 	}
 
-	/** The session MAC: HMAC-SHA256 under a key derived from the secret for sessions alone. */
-	async #session_mac(nonce: string, exp: string): Promise<Buffer> {
-		const { createHmac, hkdfSync } = await import('node:crypto');
-		this.#session_key ??= Buffer.from(
-			hkdfSync('sha256', this.secret, '', 'ogygia-profiler-session-v1', 32)
-		);
-		return createHmac('sha256', this.#session_key).update(`s1|${nonce}|${exp}`).digest();
+	/** The session MAC (hex): HMAC-SHA256 under a key derived from the secret for sessions alone. */
+	async #session_mac(nonce: string, exp: string): Promise<string> {
+		this.#session_key ??= mac_key(this.secret, 'ogygia-profiler-session-v1');
+		return mac_hex(await this.#session_key, `s1|${nonce}|${exp}`);
 	}
 
 	/** A new session id: random, expiring after {@link SESSION_MS}, signed. */
 	async #new_session(): Promise<string> {
-		const { randomBytes } = await import('node:crypto');
-		const nonce = randomBytes(18).toString('base64url');
+		const nonce = random_id(18);
 		const exp = String(Date.now() + SESSION_MS);
-		return `s1.${nonce}.${exp}.${(await this.#session_mac(nonce, exp)).toString('hex')}`;
+		return `s1.${nonce}.${exp}.${await this.#session_mac(nonce, exp)}`;
 	}
 
 	/** A session id this profiler signed, not expired, not logged out. */
@@ -2850,12 +2831,7 @@ class Profiler {
 		const now = Date.now();
 		const at = Number(exp);
 		if (!(at > now && at <= now + SESSION_MS) || this.#revoked.has(nonce)) return false;
-		try {
-			const { timingSafeEqual } = await import('node:crypto');
-			return timingSafeEqual(await this.#session_mac(nonce, exp), Buffer.from(mac, 'hex'));
-		} catch {
-			return false; // ok: no node:crypto, no sessions (the key headers still work)
-		}
+		return same_text(await this.#session_mac(nonce, exp), mac);
 	}
 
 	/** Logout: every session the request carried ends now, on this instance (another instance
