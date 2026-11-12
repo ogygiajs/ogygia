@@ -66,7 +66,8 @@ export interface CompileCtxInit {
 	 *  route files and baked into `ogygia:server/route-config`. Optional (default none). */
 	route_config?: readonly string[];
 	/** A plugin asked island entries to keep their foreign-hydrate exports (`b.foreignHydrate()`:
-	 *  another app's runtime wakes this app's islands). Optional (default off). */
+	 *  another app's runtime wakes this app's islands, and this app's pages carry other apps' regions:
+	 *  the `foreign` runtime mark). Optional (default off). */
 	foreign_hydrate?: boolean;
 	/** Dependency packages that DECLARED their ogygia compile surface (`"ogygia": { "files": […] }`
 	 *  in THEIR package.json) — prescanned + transformed like app source, node_modules gates lifted

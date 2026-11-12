@@ -126,7 +126,7 @@ describe('page mark', () => {
 describe('foreign regions', () => {
 	const island = script(`\timport { untrack } from 'svelte';`);
 
-	test("an app with no deferred region of its own does not ship the frame store", () => {
+	test('an app with no deferred region of its own does not ship the frame store', () => {
 		const marks = marks_for(island);
 		expect(resolveFeatures(marks)).not.toContain('frames');
 		expect(generateRuntimeFlagsSource(marks)).toContain('FRAMES = false');

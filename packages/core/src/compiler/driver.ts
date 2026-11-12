@@ -665,8 +665,10 @@ export class Compiler implements CoreApp {
 		// The page seed and the MPA navigation handle are for island code that reaches Kit's page world
 		// (the closure walk above). Islands the walk never saw count as readers: a federated peer's,
 		// hydrated by this app's runtime against this page, and whatever a plugin's browser half wakes.
+		// A federated app's page carries a peer's regions, whatever its own are (`foreign`).
+		runtime_marks.foreign = ctx.foreign_hydrate;
 		runtime_marks.page =
-			program.island_reads_page || ctx.foreign_hydrate || ctx.client_plugins.length > 0;
+			program.island_reads_page || runtime_marks.foreign || ctx.client_plugins.length > 0;
 		// prescan walked every host — the capability marks are now COMPLETE, so the generated sticky
 		// runtime entry can bundle only the features this app uses (else it stays kitchen-sink).
 		runtime_marks.complete = true;
