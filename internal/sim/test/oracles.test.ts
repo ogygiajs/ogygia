@@ -503,6 +503,55 @@ describe('hydrates as sent', () => {
 	});
 });
 
+describe('page rules', () => {
+	// (gen 195, seed 97: a changed byte in the reloaded page's HTML made `data-ogygia-region-css`
+	// read `data-ogygia-regiontcss`, a marker nobody declared)
+	const broken = [
+		{
+			code: 'rule_markup_known',
+			detail: 'the page carries undeclared markers: data-ogygia-regiontcss'
+		}
+	];
+	const tab = (rules: Array<{ code: string; detail: string }>) =>
+		({
+			realm: 'tab-1#3',
+			name: 'tab-1',
+			documents: 3,
+			page: {
+				mainFrame: { url: 'https://app.test/p1', window: { __ogygia_rules: () => rules } }
+			}
+		}) as unknown as Parameters<typeof page_rules>[0];
+	const world = (tampered: boolean) =>
+		({
+			fired_in: new Map(),
+			network: {
+				exchanges: [
+					{
+						id: 1,
+						from: 'tab-1#3',
+						method: 'GET',
+						url: 'https://app.test/p1',
+						status: 200,
+						cut: false,
+						tampered
+					}
+				]
+			}
+		}) as unknown as Parameters<typeof page_rules>[1];
+
+	it("a marker a changed byte made is the network's, not the page's", () => {
+		expect(page_rules(tab(broken), world(true))).toBeNull();
+		expect(page_rules(tab(broken), world(false))?.oracle).toBe('rules');
+	});
+
+	it('a changed byte excuses no other rule', () => {
+		const drift = [{ code: 'rule_address_bar_drift', detail: 'the address bar is /' }];
+		expect(page_rules(tab([...broken, ...drift]), world(true))?.detail).toBe(
+			'rule_address_bar_drift: the address bar is /'
+		);
+	});
+});
+
 describe('page errors', () => {
 	const tab = (errors: string[]) =>
 		({
