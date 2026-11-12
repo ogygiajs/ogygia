@@ -6,7 +6,7 @@ its pull request says why it is safe (or which INVARIANTS.md section covers it).
 
 ## Request inputs: headers, query, cookies and bodies read from a request
 
-123 entries.
+121 entries.
 
 | file | in | what | n |
 | --- | --- | --- | --- |
@@ -29,8 +29,6 @@ its pull request says why it is safe (or which INVARIANTS.md section covers it).
 | `packages/core/src/plugin/request-scope.ts` | `body_unread` | `headers.get('etag')` | 1 |
 | `packages/core/src/plugin/request-scope.ts` | `body_unread` | `headers.get('if-none-match')` | 1 |
 | `packages/core/src/region-snippet.ts` | `next_slot_id` | `searchParams('id')` | 1 |
-| `packages/core/src/runtime/core.ts` | `#fetch_html` | `searchParams('id')` | 1 |
-| `packages/core/src/runtime/core.ts` | `#fetch_html` | `searchParams('id')` | 1 |
 | `packages/core/src/runtime/core.ts` | `#fetch_html` | `searchParams('id')` | 1 |
 | `packages/core/src/runtime/hole-fetch.ts` | `(module)` | `headers.get('x-ogygia-capability')` | 1 |
 | `packages/core/src/runtime/region-endpoint-url.ts` | `(module)` | `searchParams('exp')` | 1 |
