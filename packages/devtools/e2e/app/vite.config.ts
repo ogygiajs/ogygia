@@ -1,6 +1,7 @@
 import { sveltekit } from '@sveltejs/kit/vite';
 import { ogygia } from 'ogygia/vite';
 import { devtools } from '@ogygia/devtools/vite';
+import { reshape } from '@ogygia/reshape/vite';
 import { barrels } from '@ogygia/barrels';
 import { defineConfig } from 'vite';
 
@@ -28,6 +29,8 @@ export default defineConfig({
 				cachedRecs: { render: 'deferred', maxAge: '5m' }
 			}
 		}),
+		// the restore lab's pass (hooks.server.ts, OGYGIA_RESTORE_LAB=1)
+		reshape(),
 		// devtools: the SSR profiler, always (its UI islands build, its handle mounts it; secret from
 		// OGYGIA_PROFILER_SECRET at runtime; + the background recorders the hell page exercises: a trap
 		// for any request over 400 ms, a 1 s coarse sample every 20 s; serverTiming on in the built
