@@ -9,10 +9,11 @@
  * SURVIVED: the simulator missed it, which names a missing oracle or app shape. test/mutate.test.ts.
  *
  *   node src/mutate.ts --mutants <file.json> [--gens 191,192,193] [--palaestra] [--seeds 20]
- *     [--jobs 4] [--sandbox <dir>] [--out <file.jsonl>]
+ *     [--jobs 4] [--sandbox <dir>] [--out <file.jsonl>] [--budget-min <minutes>]
  *
  * One line per mutant goes to `--out` as it is judged (what it was, killed or survived, by what),
- * and the kill rate at the end.
+ * and at the end the kill rate, how many of the list were judged (a time budget stops it starting
+ * more) and when.
  */
 import { spawnSync } from 'node:child_process';
 import {
@@ -114,6 +115,25 @@ export function verdict(
 	return { killed: by.length > 0, by };
 }
 
+/** The command that clones `from` to `to` copy-on-write (built packages and installed modules
+ *  included): APFS's clone on macOS, a reflink where the Linux filesystem has one (else a copy). */
+export function clone_command(platform: string, from: string, to: string): string {
+	return platform === 'darwin'
+		? `cp -cR '${from}' '${to}'`
+		: `cp -a --reflink=auto '${from}' '${to}'`;
+}
+
+/** A run's last line: what it judged of `total` (a time budget may stop it early), and when. */
+export function tally(
+	judged: ReadonlyArray<{ killed: boolean }>,
+	total: number,
+	at: string
+): { killed: number; judged: number; total: number; rate: number; at: string } {
+	const killed = judged.filter((j) => j.killed).length;
+	const rate = judged.length === 0 ? 0 : Math.round((killed / judged.length) * 1000) / 10;
+	return { killed, judged: judged.length, total, rate, at };
+}
+
 function name(m: Mutant): string {
 	return m.id ?? `${m.file}:${m.line}:${m.operator}`;
 }
@@ -202,6 +222,8 @@ function main(): void {
 	];
 	const seeds = Number(arg('--seeds') ?? 20);
 	const jobs = Number(arg('--jobs') ?? 4);
+	// (no mutant starts once the budget is spent: the daily job's is about an hour)
+	const deadline = Date.now() + Number(arg('--budget-min') ?? Infinity) * 60_000;
 	const box = resolve(arg('--sandbox') ?? join(tmpdir(), 'ogygia-mutants'));
 	if (box === REPO || box.startsWith(REPO + '/'))
 		throw new Error('the sandbox must be outside the repo');
@@ -211,7 +233,7 @@ function main(): void {
 	// (a copy-on-write clone of the tree as it is: built packages and installed modules included)
 	rmSync(box, { recursive: true, force: true });
 	mkdirSync(dirname(box), { recursive: true });
-	if (!sh(dirname(box), `cp -cR '${REPO}' '${box}'`, log))
+	if (!sh(dirname(box), clone_command(process.platform, REPO, box), log))
 		throw new Error(`could not clone the repo (${log})`);
 	console.log(`sandbox ${box}; log ${log}; results ${out}`);
 
@@ -225,9 +247,12 @@ function main(): void {
 		);
 	}
 
-	let killed = 0;
-	let judged = 0;
+	const judged: Array<{ killed: boolean }> = [];
 	for (const m of mutants) {
+		if (Date.now() > deadline) {
+			console.log(`time budget spent: ${judged.length} of ${mutants.length} mutants judged`);
+			break;
+		}
 		const file = join(box, m.file);
 		const original = join(REPO, m.file);
 		let text: string;
@@ -257,8 +282,7 @@ function main(): void {
 				if (v.killed) break;
 			}
 		if (failed !== undefined) v = verdict(base, now, failed);
-		judged++;
-		if (v.killed) killed++;
+		judged.push(v);
 		appendFileSync(
 			out,
 			JSON.stringify({ mutant: m, killed: v.killed, by: v.by.slice(0, 10) }) + '\n'
@@ -270,9 +294,11 @@ function main(): void {
 		copyFileSync(original, file);
 		if (!build_packages(box, pkg, log)) throw new Error(`could not build ${pkg} back (${log})`);
 	}
-	const rate = judged === 0 ? 0 : Math.round((killed / judged) * 1000) / 10;
-	console.log(`\n${killed}/${judged} killed (${rate}%)`);
-	appendFileSync(out, JSON.stringify({ killed, judged, rate }) + '\n');
+	const t = tally(judged, mutants.length, new Date().toISOString());
+	console.log(
+		`\n${t.killed}/${t.judged} killed (${t.rate}%), ${t.judged} of ${t.total} mutants judged`
+	);
+	appendFileSync(out, JSON.stringify(t) + '\n');
 }
 
 if (process.argv[1] === import.meta.filename) main();
