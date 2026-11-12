@@ -15,6 +15,21 @@ const SECRET_FIX =
 
 /** The errors: `throw new OgygiaError(code, args)`, or `console.error(new OgygiaError(…))`. */
 export const SERVER_ERRORS = {
+	remote_arg_not_data: {
+		text: (a: { kind: string }): string => prose`
+			a remote function's argument carried an ogygia ${a.kind} value. Arguments sent from the
+			browser must be plain data.
+		`,
+		details: (): string => prose`
+			A remote function was called from the browser with an argument that holds an ogygia value:
+			a region, a snippet, a function, a wired class instance, a store or a derived store. The
+			server refuses it with a 400 and runs nothing. Those values travel from the server to the
+			browser only.
+
+			Send the plain data the server needs instead (an id, the props, a slug), and build the
+			value on the server from it.
+		`
+	},
 	handle_secret_too_short: {
 		text: (a: { min: number }): string =>
 			`handle({ secret }) is too short for production (need ≥${a.min} UTF-8 bytes).`,

@@ -39,6 +39,7 @@ export type MarkKey =
 	| 'detailSession'
 	| 'detailTop'
 	| 'detailTwice'
+	| 'dt'
 	| 'dtIngested'
 	| 'exp'
 	| 'format'
@@ -69,6 +70,7 @@ export type MarkKey =
 	| 'noReconcile'
 	| 'opaque'
 	| 'opaquen'
+	| 'origins'
 	| 'overlay'
 	| 'overlayToggle'
 	| 'owner'
@@ -168,6 +170,7 @@ export const OG_DETAIL_SERVER = 'data-og-detail-server';
 export const OG_DETAIL_SESSION = 'data-og-detail-session';
 export const OG_DETAIL_TOP = 'data-og-detail-top';
 export const OG_DETAIL_TWICE = 'data-og-detail-twice';
+export const OG_DT = 'data-og-dt';
 export const OG_DT_INGESTED = 'data-og-dt-ingested';
 export const OG_EXP = 'data-og-exp';
 export const OG_FORMAT = 'data-og-format';
@@ -198,6 +201,7 @@ export const OG_MOVED = 'data-og-moved';
 export const OG_NO_RECONCILE = 'data-og-no-reconcile';
 export const OG_OPAQUE = 'data-og-opaque';
 export const OG_OPAQUEN = 'data-og-opaquen';
+export const OG_ORIGINS = 'data-og-origins';
 export const OG_OVERLAY = 'data-og-overlay';
 export const OG_OVERLAY_TOGGLE = 'data-og-overlay-toggle';
 export const OG_OWNER = 'data-og-owner';
@@ -293,6 +297,7 @@ export const MARK: { readonly [K in MarkKey]: Mark } = {
 	detailSession: { attr: OG_DETAIL_SESSION, by: 'devtools' },
 	detailTop: { attr: OG_DETAIL_TOP, by: 'devtools' },
 	detailTwice: { attr: OG_DETAIL_TWICE, by: 'devtools' },
+	dt: { attr: OG_DT, by: 'page' },
 	dtIngested: { attr: OG_DT_INGESTED, by: 'page' },
 	exp: { attr: OG_EXP, by: 'page' },
 	format: { attr: OG_FORMAT, by: 'page' },
@@ -323,6 +328,7 @@ export const MARK: { readonly [K in MarkKey]: Mark } = {
 	noReconcile: { attr: OG_NO_RECONCILE, by: 'page' },
 	opaque: { attr: OG_OPAQUE, by: 'page' },
 	opaquen: { attr: OG_OPAQUEN, by: 'page' },
+	origins: { attr: OG_ORIGINS, by: 'page' },
 	overlay: { attr: OG_OVERLAY, by: 'devtools' },
 	overlayToggle: { attr: OG_OVERLAY_TOGGLE, by: 'devtools' },
 	owner: { attr: OG_OWNER, by: 'page' },
