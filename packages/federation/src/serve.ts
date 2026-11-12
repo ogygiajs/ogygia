@@ -7,7 +7,15 @@
  * handle owns all of it, so a `federate()` in hooks.server.ts is the whole wiring.
  */
 import { version } from '$app/env';
-import { backoffAfter, flights, machine, policy, type Policy } from '@ogygia/machine';
+import {
+	backoffAfter,
+	clock,
+	flights,
+	machine,
+	policy,
+	random,
+	type Policy
+} from '@ogygia/machine';
 import type { RequestEvent } from '@sveltejs/kit';
 import type { ServerApp } from '@ogygia/core/plugin';
 import { OG_MOVED } from '@ogygia/core/internal/server';
@@ -123,7 +131,7 @@ export function deploy_thaw_check(fed: Federation): Promise<void> {
 	if (fed.deploy !== 'auto') return Promise.resolve();
 	const s = deploy.now;
 	if (s.kind === 'checking') return s.run;
-	if (s.kind === 'done' || Date.now() < s.after) return Promise.resolve();
+	if (s.kind === 'done' || clock.mono() < s.after) return Promise.resolve();
 	const run = check_deploy(fed, s.owed).then(checked);
 	deploy.move('unchecked', 'checking', { run });
 	return run;
@@ -135,7 +143,8 @@ type Checked = { done: true } | { done: false; owed: Owed | null };
 /** A check ended: done, or tried again by a request after DEPLOY_RETRY_MS. */
 function checked(c: Checked): void {
 	if (c.done) deploy.move('checking', 'done');
-	else deploy.move('checking', 'unchecked', { after: Date.now() + DEPLOY_RETRY_MS, owed: c.owed });
+	else
+		deploy.move('checking', 'unchecked', { after: clock.mono() + DEPLOY_RETRY_MS, owed: c.owed });
 }
 
 /** One check (it never throws). `owed`: the thaw an earlier check found due, still owed. */
@@ -148,7 +157,7 @@ async function check_deploy(fed: Federation, owed: Owed | null): Promise<Checked
 			// (throws when the store cannot answer: a check to try again, not "no store")
 			const seen = await app.ask.lastBuild(version);
 			if (seen === undefined || seen === version) return { done: true };
-			owed = { id: crypto.randomUUID(), peers: new Set(fed.peers.keys()), rounds: 0 };
+			owed = { id: random.uuid(), peers: new Set(fed.peers.keys()), rounds: 0 };
 		}
 		const missed = await broadcast_thaw(
 			fed,
@@ -209,7 +218,7 @@ function expose_target(origin: string, base: string, path: string, search: strin
 async function serve_expose(fed: Federation, event: RequestEvent): Promise<Response | null> {
 	if (!fed.expose) return json_error(404, 'this app exposes no route table (federate({ expose }))');
 	const { url, request } = event;
-	const t0 = performance.now();
+	const t0 = clock.mono();
 	const trace = child_traceparent(request.headers.get('traceparent'));
 	const path = url.searchParams.get('path') ?? '/';
 	const search = url.searchParams.get('search') ?? '';
@@ -242,7 +251,7 @@ async function serve_expose(fed: Federation, event: RequestEvent): Promise<Respo
 	}
 
 	const doc = (d: Record<string, unknown>) => {
-		const ms = Math.round((performance.now() - t0) * 10) / 10;
+		const ms = Math.round((clock.mono() - t0) * 10) / 10;
 		return json_response(
 			{
 				...d,
@@ -289,7 +298,7 @@ async function serve_widget(fed: Federation, event: RequestEvent, name: string):
 	const def = fed.widgets.get(name);
 	if (!def) return json_error(404, `unknown fragment '${name}'`);
 	const trace = child_traceparent(request.headers.get('traceparent'));
-	const t0 = performance.now();
+	const t0 = clock.mono();
 	const props: Record<string, string> = {};
 	for (const [k, v] of url.searchParams) props[k] = v;
 
@@ -302,7 +311,7 @@ async function serve_widget(fed: Federation, event: RequestEvent, name: string):
 		capture.end();
 	}
 	if (baked?.html == null) return json_error(500, 'fragment did not bake');
-	const ms = Math.round((performance.now() - t0) * 10) / 10;
+	const ms = Math.round((clock.mono() - t0) * 10) / 10;
 	return json_response(
 		{
 			html: absolutize(baked.html, url.origin),
@@ -433,7 +442,7 @@ async function apply_thaw(n: Received): Promise<number> {
 	// chain: tell MY consumers, with the tags I just applied, hop+1 (an outbox send, kept alive past
 	// this answer; a consumer that never took it is said)
 	void broadcast_thaw(n.fed, {
-		id: n.id || crypto.randomUUID(),
+		id: n.id || random.uuid(),
 		hop: n.hop + 1,
 		tags: n.tags === 'all' ? 'all' : local
 	}); // ok: broadcast_thaw never rejects (an outbox put never does)

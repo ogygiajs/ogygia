@@ -6,6 +6,7 @@ import {
 	registry,
 	scope,
 	STALE,
+	tasks,
 	type Mailbox,
 	type Scope,
 	type Stale,
@@ -1360,7 +1361,7 @@ class OgygiaRegion extends HTMLElement {
 				revalidate,
 				// the first answer: how long the fallback showed, from the fetch's start (retries included)
 				...(!revalidate && this.#fetch_started
-					? { wait_ms: Math.round(performance.now() - this.#fetch_started) }
+					? { wait_ms: Math.round(clock.mono() - this.#fetch_started) }
 					: {})
 			});
 		// (whichever copy's fetch renewed the capability: this one moves onto it too)
@@ -1462,7 +1463,7 @@ class OgygiaRegion extends HTMLElement {
 		}
 		const frames = slots.frames;
 		if (!frames) return;
-		if (!this.#fetch_started) this.#fetch_started = performance.now();
+		if (!this.#fetch_started) this.#fetch_started = clock.mono();
 		// Bind if we haven't (SWR/lake remount reaches #fetch_html without going through #server);
 		// a re-minted hole (a refreshed region: new props, new page facts) answers at its NEW address.
 		const address = this.#bind(endpoint);
@@ -1583,7 +1584,7 @@ class OgygiaRegion extends HTMLElement {
 							}),
 					...(deny !== undefined ? { message: deny.slice(0, 200) } : {}),
 					attempts,
-					t: Math.round(performance.now())
+					t: Math.round(clock.mono())
 				});
 		}
 		if (DEVTOOLS)
@@ -2114,7 +2115,7 @@ class OgygiaRegion extends HTMLElement {
 	disconnectedCallback() {
 		if (this.#leaving) return;
 		this.#leaving = true;
-		queueMicrotask(() => {
+		tasks.micro(() => {
 			this.#leaving = false;
 			if (!this.isConnected) this.#teardown();
 		});

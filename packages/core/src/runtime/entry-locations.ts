@@ -11,7 +11,7 @@
  */
 import { import_file } from './import-again.ts';
 import { code_url_or_refuse, is_location_of } from './code-origins.ts';
-import { backoffAfter, cache, flights, scope, STALE } from '@ogygia/machine';
+import { backoffAfter, cache, flights, net, scope, STALE } from '@ogygia/machine';
 import { rollover } from '../policies.ts';
 import { OG_LOCATIONS } from '../wire-markup.ts';
 
@@ -86,7 +86,8 @@ const BUILD_MAP_ATTR = OG_LOCATIONS;
 const build_map = flights({
 	name: 'build location map',
 	run: (url: string) =>
-		fetch(url) // ok: a map that could not be read is not kept: the next load asks again, and loads keep their stable URLs meanwhile
+		net // ok: a map that could not be read is not kept: the next load asks again, and loads keep their stable URLs meanwhile
+			.fetch(url)
 			.then((res) => (res.ok ? (res.json() as Promise<Record<string, string>>) : null))
 			.catch(() => null)
 			.then((map) => {
@@ -164,7 +165,8 @@ export function island_entry_of(el: Element): string | null {
 const current_maps = flights({
 	name: 'current build map',
 	run: (file: string) =>
-		fetch(file, { cache: 'no-cache' }) // ok: a map that could not be read is not kept: the next ask reads again
+		net // ok: a map that could not be read is not kept: the next ask reads again
+			.fetch(file, { cache: 'no-cache' })
 			.then((res) => (res.ok ? (res.json() as Promise<Record<string, string>>) : null))
 			.catch(() => null),
 	// (a map that could not be read is not kept: the next ask reads again)
@@ -201,7 +203,7 @@ async function current_location(entry: string): Promise<string | null | undefine
 
 /** The host says this file is not there (it does not say so of a file that failed another way). */
 function is_gone(url: string): Promise<boolean> {
-	return fetch(url, { method: 'HEAD', cache: 'no-store' }).then(
+	return net.fetch(url, { method: 'HEAD', cache: 'no-store' }).then(
 		(res) => res.status === 404 || res.status === 410,
 		() => false
 	);

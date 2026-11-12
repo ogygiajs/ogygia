@@ -6,6 +6,7 @@
  * is handed to `renewed` (the frame store keeps it for the address). No DOM, no store, no scheduler:
  * the caller decides when it may go out.
  */
+import { net } from '@ogygia/machine';
 import { KEEP_FALLBACK_HTML } from '../keep-fallback-marker.ts';
 import { warn } from '../messages/lazy.ts';
 import {
@@ -48,7 +49,7 @@ export function start_hole(
 	endpoint: string,
 	{ revalidate = false, priority = 'auto', signal }: HoleFetch = {}
 ): Promise<Response> {
-	return fetch(endpoint, {
+	return net.fetch(endpoint, {
 		credentials: 'same-origin',
 		cache: revalidate ? 'no-store' : 'default',
 		priority,

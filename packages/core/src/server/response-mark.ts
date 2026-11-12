@@ -5,14 +5,14 @@
  * one mark, whichever code path writes them (the handle, `document()`). Random, so markup authored
  * before the response cannot carry it.
  */
+import { random } from '@ogygia/machine';
 import { RESPONSE_MARK } from '../contract/response-mark.ts';
 
 const marks = new WeakMap<object, string>();
 
 function new_mark(): string {
-	const bytes = crypto.getRandomValues(new Uint8Array(12));
 	let hex = '';
-	for (const b of bytes) hex += b.toString(16).padStart(2, '0');
+	for (const b of random.bytes(12)) hex += b.toString(16).padStart(2, '0');
 	return hex;
 }
 
