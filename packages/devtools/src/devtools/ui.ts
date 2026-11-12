@@ -22,13 +22,12 @@ import {
 	without_switch,
 	write_switch
 } from '@ogygia/insights';
-import { TESTING_ENGINE_VERSION } from '@ogygia/insights';
 import {
 	import_again,
 	OG_PANEL_TOGGLE,
 	OGYGIA_DEVTOOLS_HOST
 } from '@ogygia/core/internal/instruments';
-import { flights, machine, STALE, type Machine, type Scope } from '@ogygia/machine';
+import { machine, STALE, type Machine, type Scope } from '@ogygia/machine';
 import { OgygiaError } from '../messages/runtime.ts';
 
 /** The dock's code: after a failed download, asked for again under a fresh URL. */
@@ -82,7 +81,6 @@ export function install_devtools_ui(opts?: { csr_true?: boolean }): void {
 	// x-raying its own tooling (and a launcher inside the iframe is nonsense).
 	if (document.querySelector('meta[name="ogygia-devtools"][content="off"]')) return;
 	launch_opts = opts;
-	install_testing_api();
 	install_console_api();
 	// A BUILD: nothing shows until this browser turns devtools on (switch.ts) — a QA or preview
 	// deploy's visitors never see the launcher. The dev server always has it.
@@ -90,7 +88,7 @@ export function install_devtools_ui(opts?: { csr_true?: boolean }): void {
 		apply_url_switch();
 		if (!devtools_switched_on()) return;
 	}
-	// LEAN TESTING (switch.ts): the testing API above, and nothing to see or load
+	// LEAN TESTING (switch.ts): the injected testing engine, and nothing of the dock to see or load
 	if (testing_lean()) return;
 	mount_launcher(opts);
 }
@@ -214,63 +212,6 @@ function after_load_idle(s: Scope, fn: () => void): void {
 	};
 	if (document.readyState === 'complete') s.timeout(idle, 500);
 	else s.on(globalThis, 'load', () => s.timeout(idle, 500), { once: true });
-}
-
-/**
- * `window.__ogygia_testing` — what ogygia/playwright drives through `page.evaluate`: the page report,
- * each island's hydration, a recorded session, "settled". Tiny here: each call loads the engine
- * (testing-engine.ts) on first use, like the dock. Version-stamped so the fixture can refuse a
- * mismatch.
- */
-export interface OgygiaTestingApi {
-	/** the report shape (testing-version.ts) */
-	version: number;
-	/** `cpu_fns`: how many of the page load's hottest functions (default 15) */
-	page(cpu_fns?: number): Promise<unknown>;
-	/** `key_attr`: the attribute that names an island instance; `ignore`: attribute changes to leave out
-	 *  (see testing-engine.ts) */
-	hydration(key_attr?: string, ignore?: unknown[]): Promise<unknown>;
-	record_start(): Promise<boolean>;
-	/** `blocked`: the navigations the test's driver held back during the recording */
-	record_stop(blocked?: { url: string; t: number | null }[]): Promise<unknown>;
-	settled(quiet?: number, timeout?: number): Promise<boolean>;
-}
-declare global {
-	interface Window {
-		__ogygia_testing?: OgygiaTestingApi;
-	}
-}
-function install_testing_api(): void {
-	if (window.__ogygia_testing) return;
-	// The engine, loaded once, on the first call that needs it. A failed download is never kept: the
-	// next call asks for it again, under a fresh URL (core's import-again.ts: the browser keeps the
-	// failed one). It once failed every call for the life of the page. The engine's own files, as
-	// they load, are what `page().self.bytes` counts: the resources fetched while its import ran.
-	const import_engine = import_again(() => import('./testing-engine.ts'));
-	const load_engine = flights({
-		name: 'testing engine',
-		run: async () => {
-			const from = performance.now();
-			const m = await import_engine();
-			m.note_engine_files(from, performance.now());
-			return m;
-		}
-	});
-	// (nothing drops it, so it is never STALE; were it, it is asked for again)
-	type Engine = Awaited<ReturnType<typeof import_engine>>;
-	const engine = async (): Promise<Engine> => {
-		const m = await load_engine.get();
-		return m === STALE ? engine() : m;
-	};
-	window.__ogygia_testing = {
-		version: TESTING_ENGINE_VERSION,
-		page: async (cpu_fns) => (await engine()).page_json(cpu_fns),
-		hydration: async (key_attr, ignore) =>
-			(await engine()).hydration_json(key_attr, ignore as never),
-		record_start: async () => (await engine()).record_start(),
-		record_stop: async (blocked) => (await engine()).record_stop(blocked),
-		settled: async (quiet, timeout) => (await engine()).settled(quiet, timeout)
-	};
 }
 
 /** Has this browser opened the dock before (from then on the page is measured from the start). */

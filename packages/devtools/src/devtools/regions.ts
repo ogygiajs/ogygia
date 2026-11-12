@@ -1,12 +1,10 @@
 /**
  * Pure, UI-free helpers the devtools components share — region classification off the DOM attributes
- * the compiler already emits, resource-timing byte lookups, and event queries over the bus buffer.
+ * the compiler already emits, and resource-timing byte lookups.
  * No Svelte, no styling: the `.svelte` components own all presentation.
  */
-import { snapshot } from '@ogygia/core/events';
 import { OG_FP, props_sidecar_of } from '@ogygia/core/internal/instruments';
 import { tool_made } from '@ogygia/core/internal/instruments';
-import type { DevtoolsEvent } from '@ogygia/core/events';
 import type { IslandBarrel, IslandHazard } from '@ogygia/insights';
 
 // ── regexes
@@ -66,7 +64,13 @@ export function all_regions(): RegionInfo[] {
  */
 export function region_props_sidecar(el: Element): string | null {
 	// Keyed at the end of the body (by `data-og-fp`) or adjacent — the runtime's own lookup.
-	return props_sidecar_of(el)?.textContent ?? null;
+	return sidecar_of(el)?.textContent ?? null;
+}
+
+let sidecar_of = props_sidecar_of;
+// @why the runtime remembers restored sidecars in its own module; a copy not built with the app asks the realm's (test: devtools-leftovers-ledger)
+export function use_sidecar_lookup(lookup: typeof props_sidecar_of): void {
+	sidecar_of = lookup;
 }
 
 /** basename of a URL/path (drops query + directory). */
@@ -167,11 +171,4 @@ export function chunk_bytes(entry: string): { wire: number; raw: number; loaded:
 	const wire = t.encodedBodySize || t.transferSize || t.decodedBodySize || 0;
 	const raw = t.decodedBodySize || wire;
 	return { wire, raw, loaded: true };
-}
-
-/** Latest buffered event matching a predicate (newest wins), or null. */
-export function latest_event(pred: (e: DevtoolsEvent) => boolean): DevtoolsEvent | null {
-	const events = snapshot();
-	for (let i = events.length - 1; i >= 0; i--) if (pred(events[i])) return events[i];
-	return null;
 }

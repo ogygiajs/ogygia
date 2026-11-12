@@ -12,6 +12,7 @@
  * internal/checks/cache-bust-check.ts)
  */
 import { describe, it, expect, afterEach, beforeAll, afterAll } from 'vitest';
+import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -80,6 +81,18 @@ describe('the location maps: one map, named by its content and at the one fixed 
 
 	it('nothing to map, no file', () => {
 		expect(location_map_files('_app', [], hash)).toEqual([]);
+	});
+
+	it('the same pairs in another order write byte-identical maps under the same names (#490)', () => {
+		const sha = (s: string) => createHash('sha256').update(s).digest('hex').slice(0, 12);
+		const three = [
+			['_app/ogygia/og-region.ccc.js', '_app/immutable/og-region.ccc.C3.js'],
+			['_app/ogygia/og-region.aaa.js', '_app/immutable/og-region.aaa.A1.js'],
+			['_app/ogygia/og-region.bbb.js', '_app/immutable/og-region.bbb.B2.js']
+		] as const;
+		expect(location_map_files('_app', [...three].reverse(), sha)).toEqual(
+			location_map_files('_app', three, sha)
+		);
 	});
 });
 
@@ -511,6 +524,25 @@ describe('the driver: entries emitted by name, mapped, and shimmed', () => {
 			'_app/immutable/chunks/C.js',
 			'_app/immutable/chunks/W.js'
 		]);
+	});
+	it('two builds that emit the islands in another order write the same maps and handoff entries (#490)', () => {
+		const built = (reverse: boolean) => {
+			const compiler = make();
+			const { emit } = fake_emit();
+			compiler.emit_build_chunks(emit, { emitRuntime: true });
+			// the bundler's transform order is not stable from build to build
+			if (reverse) {
+				const refs = [...compiler.island_entry_refs].reverse();
+				compiler.island_entry_refs.clear();
+				for (const [rid, ref] of refs) compiler.island_entry_refs.set(rid, ref);
+			}
+			const name = (ref: string) => `_app/immutable/chunks/${ref}.js`;
+			return {
+				maps: compiler.location_maps(name),
+				entries: JSON.stringify(compiler.entry_locations(name).locations)
+			};
+		};
+		expect(built(true)).toEqual(built(false));
 	});
 	it('the location maps name every island entry; the handoff learns the hashed one’s path; no other file', () => {
 		const compiler = make();

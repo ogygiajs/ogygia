@@ -16,6 +16,7 @@ export * from './messages.ts';
 export * from './own-package.ts';
 export * from './prose.ts';
 export * from './runtime-hooks.ts';
+export * from './trigger.ts';
 export * from './unscoped-css.ts';
 export type * from './virtual-modules.ts';
 /** The region endpoint's defaults the dev server and the build agree on. */

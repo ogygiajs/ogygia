@@ -74,6 +74,21 @@ export const FEDERATION_WARNINGS = {
 			calls to this app get a 401.
 		`
 	},
+	federation_peer_answer_invalid: {
+		text: (a: { peer: string; url: string; what: string }): string => prose`
+			The peer '${a.peer}' answered ${a.url} with ${a.what}, so the hop failed: a static widget
+			shows its boundary card, a page read or a post is a 502 (or the peer's own 503 or 504).
+		`,
+		details: (): string => prose`
+			A peer answers a fragment or widget request with a JSON document and an OK status (a page
+			it does not have is a 404 that still carries its document). This answer could not be
+			used. An error status means the peer failed, refused the call (a 401 or 403: check the
+			two apps' keys), or does not have that widget (a 404). A body that does not parse means
+			something between the apps changed it (a proxy or CDN error page, a cut-off response), or
+			the URL reached something that is not the peer's ogygia handle. Ask the URL yourself,
+			signed as this app, and see what comes back.
+		`
+	},
 	federation_deploy_thaw_undelivered: {
 		text: (a: { peers: string; rounds: number }): string =>
 			`federation: the deploy thaw never reached ${a.peers} (${a.rounds} tries), so it is given up`,
