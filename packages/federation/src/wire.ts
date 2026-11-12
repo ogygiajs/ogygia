@@ -45,7 +45,7 @@ const seen_sigs = cache<string, number>({
 	name: 'federation replay guard',
 	max: MAX_SEEN_SIGS,
 	// wall: a signature's expiry is a wall timestamp the signer set
-	keep: (expires_at) => expires_at - Date.now()
+	keep: (expires_at) => expires_at - clock.wall()
 });
 function replay_seen(sig: string, expires_at: number, now: number): boolean {
 	if (seen_sigs.has(sig)) return true;
