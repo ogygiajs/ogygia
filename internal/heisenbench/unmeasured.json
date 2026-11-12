@@ -4151,6 +4151,22 @@
 		{
 			"id": "packages/postrender/src/server.ts > deploy_check > flights:0~68fab5 > run > store_call:2~fa5e01",
 			"reason": "the marker write, one store put (I/O, the live store: not cloneable), constant work (#947)"
+		},
+		{
+			"id": "packages/core/src/messages/core.ts > WARNINGS > rule_markup_known > details",
+			"reason": "dev and e2e only: one rule's message text, constant work"
+		},
+		{
+			"id": "packages/core/src/messages/core.ts > WARNINGS > rule_markup_known > text",
+			"reason": "dev and e2e only: one rule's message text, constant work"
+		},
+		{
+			"id": "packages/core/src/runtime/rules.ts > markup_known",
+			"reason": "dev and e2e only (folds out of production): reads the live DOM's attributes, linear in the page's elements; proven in packages/core/test/browser/rules.test.ts"
+		},
+		{
+			"id": "packages/core/src/wire-markup.ts > map:0~d4bdfe",
+			"reason": "once at module load: every declared marker's name, linear in MARK's entries (fixed)"
 		}
 	]
 }
