@@ -4467,6 +4467,10 @@
 		{
 			"id": "packages/postrender/src/server.ts > deploy_check > flights:0~68fab5 > run > store_call:2~fa5e01",
 			"reason": "the marker write, one store put (I/O, the live store: not cloneable), constant work (#947)"
+		},
+		{
+			"id": "packages/federation/src/serve.ts > thaw_notice > every:0~b2197b",
+			"reason": "one typeof check per tag (an inline callback, not replayable on its own), constant work; run by packages/federation/test/thaw-notice-shape.test.ts"
 		}
 	]
 }
