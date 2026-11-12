@@ -50,8 +50,9 @@ export interface ServerApp<Options = undefined> {
 	 *  set of the render running now and in the request's (`facts.reads`), so no cache keeps that
 	 *  render for another visitor. The first reason names it. */
 	perVisitor(request: Request, reason: string): void;
-	/** Note `event`'s personal reads from now on (a cookie, a personal header, a `locals` value that
-	 *  is not its default) the same way. Once per request. */
+	/** Note `event`'s personal reads from now on (a cookie, a personal header or the headers whole, a
+	 *  `locals` value that is not its default, the client address, per-request `platform` data, a
+	 *  `fetch` that carries the visitor's cookies) the same way. Once per request. */
 	observeReads(event: RequestEvent): void;
 	/** Sign `message` with the app's region key (HMAC): a capability only this app can mint. */
 	sign(message: string): string;
@@ -97,6 +98,9 @@ export interface RequestContext<Options = undefined, State = undefined> {
 	readonly event: RequestEvent;
 	/** The decoded pathname. */
 	readonly path: string;
+	/** This request renders on behalf of a page it is not (a remote function call, the islands
+	 *  endpoint): its URL may be that page's, but it is not a request for the page. */
+	readonly forPage: boolean;
 	/** This plugin's per-request state, from its `state()`. */
 	readonly state: State;
 	readonly options: Options;
