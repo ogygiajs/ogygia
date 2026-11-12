@@ -45,7 +45,8 @@ import { emit as dt_emit } from '../events/bus.ts';
 
 const KitBoot = { document_has: (doc: ParentNode) => boot_link().KitBoot.document_has(doc) };
 const regions_in_shadow = () => boot_link().regions_in_shadow();
-const release_sheets = (unlisted: readonly Element[]) => boot_link().release_sheets(unlisted);
+const release_head_nodes = (unlisted: readonly Element[]) =>
+	boot_link().release_head_nodes(unlisted);
 const session = () => boot_link().runtime_session;
 type Scope = import('@ogygia/machine').Scope;
 type Stale = import('@ogygia/machine').Stale;
@@ -889,7 +890,7 @@ export async function navigate(
 		announcer?.remove();
 		// LIFECYCLE (Astro-parity DOM events): last chance to read the OUTGOING page's DOM.
 		document.dispatchEvent(new Event('og:before-swap'));
-		const unlisted_sheets = merge_head(doc.head); // keeps our runtime module script alive across swaps
+		const unlisted = merge_head(doc.head); // keeps our runtime module script alive across swaps
 		// the next page's sheets, loaded while it was built, style it from now on (#267)
 		for (const sheet of built.sheets) apply_sheet(sheet);
 		// CONTINUITY: snapshot the LEAVING page's changed island form fields (session-scoped) so
@@ -932,9 +933,9 @@ export async function navigate(
 		// and the merge above put the next page's server copy of the same content in beside it — retire
 		// that copy now that the reconcile has settled which islands stayed (runtime/session.ts).
 		session().retire_page_head_copies();
-		// the region sheets the new page does not list go now, but for those a region kept across the
-		// swap still uses (#275)
-		release_sheets(unlisted_sheets);
+		// the region head nodes the new page does not list go now, but for those a region kept across
+		// the swap still uses (#275) or owns (#806)
+		release_head_nodes(unlisted);
 		// STREAMED pages fetched over SPA nav arrive COMPLETE (fetch buffers the stream), so any
 		// late templates still inert in the parsed doc apply now — the inline boot script that
 		// handles them on a full load never executes across a body swap.
@@ -1183,8 +1184,8 @@ export async function invalidate_all(on_screen?: URL | null): Promise<void> {
 		},
 		commit: (doc) => {
 			if (doc === null) return;
-			// (the page's regions all stay: their sheets go once no region uses them)
-			release_sheets(merge_head(doc.head));
+			// (the page's regions all stay: their head nodes go once no region uses or owns them)
+			release_head_nodes(merge_head(doc.head));
 			apply_soft_invalidate_doc(doc);
 		}
 	});
@@ -1261,8 +1262,9 @@ function reset_focus(hash: string, kept: string | null = null) {
 
 /**
  * Merge <head>: keep nodes present in both, remove stale, add new. Keeps runtime scripts alive.
- * Returns the region sheets the new head does not list: they are for the regions that use them too
- * (./region-sheets.ts), so they go only after the swap, once it is settled which regions stayed.
+ * Returns the region head nodes the new head does not list (region sheets, and tags naming an owning
+ * region): they are for the regions that use or own them too (./region-sheets.ts), so they go only
+ * after the swap, once it is settled which regions stayed.
  */
 function merge_head(new_head: HTMLHeadElement): Element[] {
 	const current = document.head;
@@ -1287,7 +1289,8 @@ function merge_head(new_head: HTMLHeadElement): Element[] {
 	for (const [key, node] of current_nodes) {
 		if (next_keys.has(key)) continue;
 		if (keep_head_node_across_spa(node)) continue;
-		if (node.hasAttribute('data-ogygia-region-css')) unlisted.push(node);
+		if (node.hasAttribute('data-ogygia-region-css') || node.hasAttribute('data-og-owner'))
+			unlisted.push(node);
 		else node.remove();
 	}
 	// add / replace nodes (skip dangerous head policy tags)

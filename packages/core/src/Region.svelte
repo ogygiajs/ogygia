@@ -51,7 +51,8 @@
 		region_fingerprint,
 		hole_css,
 		runtime_bootstrap,
-		region_css_tag
+		region_css_tag,
+		head_owner_attr
 	} from '#region-server';
 	import { hole_copy_of } from './contract/hash.ts';
 	// Kit's `asset()`, taking ogygia's base-less `/…` URLs on Kit 2 and Kit 3 alike (kit-paths.ts)
@@ -74,6 +75,8 @@
 		claimRuntimeEmit,
 		claim_region_css,
 		claim_kit_island,
+		head_owner,
+		set_head_owner,
 		note_early_hole
 	} from './context.ts';
 	import {
@@ -518,6 +521,13 @@
 	const island_fp = $derived(
 		island_wire ? region_fingerprint(island_module_url, island_wire.canonical) : ''
 	);
+	// WHO THIS REGION'S HEAD TAGS BELONG TO (#806): the outermost island around it, or itself when it
+	// is one. The server skips an island the browser already has, and every tag its inner regions
+	// write goes with it; the router keeps a tag naming a region it keeps (region-css.ts
+	// `head_owner_attr`). Server only, read once: the SSR pass renders each region once.
+	const outer_owner = typeof window === 'undefined' ? head_owner() : '';
+	const tag_owner = outer_owner || (typeof window === 'undefined' ? untrack(() => island_fp) : '');
+	if (!outer_owner && tag_owner) set_head_owner(tag_owner);
 	// SERVER-DELTA (D3): SKIP rendering a NON-cached island the client already has live (its fp is
 	// in the SPA nav's x-ogygia-known set). Emit the region's identifying attrs + props script but NO
 	// component content — the reconciler keeps the live node (same data-key). Safe: known_region_fps()
@@ -769,7 +779,7 @@
 		if (!is_server || !nested) return '';
 		let html = '';
 		for (const href of claim_region_css(hole_css(__entry || '')))
-			html += region_css_tag(href, kit_asset(href));
+			html += region_css_tag(href, kit_asset(href), tag_owner);
 		return html;
 	});
 	// On a KIT-HYDRATED document the facts ride the document tail too (server/document-tail.ts
@@ -898,7 +908,7 @@
 		if (!resolved || resolved.kind !== 'dual' || !resolved.module) return '';
 		let html = '';
 		for (const href of claim_region_css(region_css(resolved.module)))
-			html += region_css_tag(href, kit_asset(href));
+			html += region_css_tag(href, kit_asset(href), tag_owner);
 		return html;
 	});
 	// A PLACED client island's CSS is ASSUMED to already sit in the page's own stylesheet (Kit links
@@ -921,7 +931,7 @@
 		if (__mode !== 'island' || !island_entry) return '';
 		let html = '';
 		for (const href of claim_region_css(region_css(island_entry)))
-			html += region_css_tag(href, kit_asset(href));
+			html += region_css_tag(href, kit_asset(href), tag_owner);
 		return html;
 	});
 	// The RENDERED stamp for an inline island (a csr=true document, or nested in a woken island):
@@ -931,7 +941,14 @@
 	const kit_island_meta = $derived.by(() => {
 		if (!is_island || !island_inline || !island_entry || !claim_kit_island(island_entry)) return '';
 		const content = escape_amp_quot(String(island_entry));
-		return LT + 'meta name="ogygia-kit-island" content="' + content + '"' + GT;
+		return (
+			LT +
+			'meta name="ogygia-kit-island" content="' +
+			content +
+			'"' +
+			head_owner_attr(tag_owner) +
+			GT
+		);
 	});
 
 	// A content BODY (an inline region from a `.svx`/`.md`) carries its own scoped `<style>`, but the
@@ -943,7 +960,7 @@
 		if (resolved?.kind !== 'inline' || !resolved.content_id) return '';
 		let html = '';
 		for (const href of claim_region_css(content_css(resolved.content_id)))
-			html += region_css_tag(href, kit_asset(href));
+			html += region_css_tag(href, kit_asset(href), tag_owner);
 		return html;
 	});
 
