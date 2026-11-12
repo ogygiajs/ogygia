@@ -468,7 +468,7 @@ export const server_plugins: Family<ServerPluginsModule> = virtual.family({
 export const profiler_maps: Value<{ profiler_maps: string | null }> = virtual.value({
 	realm: 'server',
 	id: 'profiler-maps',
-	// a placeholder the build fills with the maps (vite/profiler-maps.ts); anything else: none
+	// a placeholder the build fills with the maps (devtools' build/profiler-maps.ts); anything else: none
 	from: ({ ctx }: CoreApp, { ssr }) => ({
 		profiler_maps: ssr && ctx.is_build && ctx.measure ? PROFILER_MAPS_PLACEHOLDER : null
 	})

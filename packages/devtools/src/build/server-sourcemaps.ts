@@ -11,7 +11,7 @@
  * of its output the moment it has written it — into `.svelte-kit/ogygia-client-maps/`, which no
  * adapter copies. The server build (whose writeBundle ran this client build, and whose closeBundle
  * comes before Kit's adapter) then embeds the app's own ones into the profiler's maps module
- * (vite/profiler-maps.ts): the browser's CPU traces name the app's functions by their source line.
+ * (profiler-maps.ts): the browser's CPU traces name the app's functions by their source line.
  * An app's own `build.sourcemap` choice wins both ways (its maps are its to serve, or not to make).
  */
 import fs from 'node:fs';
