@@ -47,10 +47,12 @@ export function configure_render_page(o: { warn: ((message: string) => void) | n
 export { renders_for_a_page };
 
 /** The page a request renders for: the same-origin Referer of a request rendering for a page, else
- *  the request's own url. */
+ *  the request's own url. The page is the render's identity, not a read about the visitor: a
+ *  render that sees it is keyed by it, or not kept (test/render-cache-page-identity.test.ts). */
 export function page_url_of(event: RequestEvent): URL {
 	if (!renders_for_a_page(event)) return event.url;
-	const referer = event.request.headers.get('referer');
+	// (past the instance's watched `get`, plugin/reads.ts: the render's own read of it still counts)
+	const referer = Headers.prototype.get.call(event.request.headers, 'referer');
 	if (!referer) return event.url;
 	try {
 		const page = new URL(referer);
@@ -140,8 +142,13 @@ export function render_page(
 		// FOR A PAGE: the Referer's page — its looked-up facts, else its url alone
 		const facts = facts_of(event.request);
 		const data = facts && warn ? watched_data(facts, warn) : (facts?.data ?? {});
+		const url = facts?.url ?? page_url_of(event);
 		return {
-			url: facts?.url ?? page_url_of(event),
+			// (its page's url: a read of it is in the render's read set too)
+			get url() {
+				open_reads()?.page();
+				return url;
+			},
 			params: facts?.params ?? {},
 			route: facts?.route ?? { id: null },
 			status: 200,
