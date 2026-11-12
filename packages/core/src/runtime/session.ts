@@ -3,7 +3,7 @@
  * belongs to one page (its lake caches, seed flags, kit-page probe) lives on its visit, and the next
  * page's swap (`reset()`) ends it, so connecting regions never see the previous page.
  */
-import { cache, scope, type Cache, type Scope } from '@ogygia/machine';
+import { cache, machine, scope, type Cache, type Scope } from '@ogygia/machine';
 import { FROZEN_SELECTOR } from './region-attrs.ts';
 import { note_visit } from './rules.ts';
 
@@ -23,6 +23,24 @@ export type LakeCacheEntry = {
 	/** Client TTL in ms; `0` = no expiry. */
 	maxAgeMs: number;
 };
+
+/**
+ * A LAKE'S CONTENT, as the regions authored in it see it. `open`: its content is not in yet, and no
+ * region waits. `waited`: not in, and regions connected in it wait. `settling`: in (the swap that
+ * brought it is about to land), the ones that waited are not woken yet: woken before the swap, they
+ * would run with no content. `settled`: in, and nobody waits.
+ */
+const LAKE = machine<{ open: {}; waited: {}; settling: {}; settled: {} }>()({
+	name: 'lake',
+	initial: 'open',
+	steps: {
+		open: ['waited', 'settled'],
+		waited: ['settling', 'settled'],
+		settling: ['settled'],
+		settled: []
+	}
+});
+type LakeMachine = ReturnType<typeof LAKE.create>;
 
 /**
  * WHO OWNS EACH NODE IN `<head>` — the rule every head write and removal follows.
@@ -207,7 +225,48 @@ export class RuntimeSession {
 		}
 	}
 
-	readonly settled_lakes: WeakSet<Element> = new WeakSet<Element>();
+	/** Each lake element's {@link LAKE} machine, made the first time it is asked about. */
+	#lakes = new WeakMap<Element, LakeMachine>();
+	#lake(el: Element): LakeMachine {
+		let m = this.#lakes.get(el);
+		if (m === undefined) this.#lakes.set(el, (m = LAKE.create()));
+		return m;
+	}
+
+	/** May the regions authored in this lake run (its content is in, or it never gets any)? */
+	lake_settled(el: Element): boolean {
+		const kind = this.#lakes.get(el)?.now.kind;
+		return kind === 'settled' || kind === 'settling';
+	}
+
+	/** The lake's content is in: the regions that connect in it from now on run. Ones that already
+	 *  waited are woken by {@link wake_lake} after the swap that brings their content. */
+	settle_lake(el: Element): void {
+		const m = this.#lake(el);
+		if (m.now.kind === 'open') m.go('settled');
+		else if (m.now.kind === 'waited') m.go('settling');
+	}
+
+	/** A region in an unsettled lake waits on it: `true` when it must (the lake is not settled). */
+	wait_on_lake(el: Element): boolean {
+		const m = this.#lake(el);
+		if (m.now.kind === 'open') m.go('waited');
+		return m.now.kind === 'waited';
+	}
+
+	/** After the lake's swap: `true` when regions waited on it and are to be woken now. */
+	wake_lake(el: Element): boolean {
+		const m = this.#lakes.get(el);
+		if (m === undefined || (m.now.kind !== 'settling' && m.now.kind !== 'waited')) return false;
+		m.go('settled');
+		return true;
+	}
+
+	/** The lake gives up on new content (its refresh failed for good): settled as it stands. */
+	settle_lake_now(el: Element): void {
+		const m = this.#lake(el);
+		if (m.now.kind !== 'settled') m.go('settled');
+	}
 
 	#visit: PageVisit = page_visit();
 	/** The visit of the page on screen (see {@link PageVisit}). */
@@ -252,12 +311,8 @@ export class RuntimeSession {
 	}
 
 	settle_lakes_in(root: ParentNode): void {
-		if (root instanceof Element && root.matches?.(FROZEN_SELECTOR)) {
-			this.settled_lakes.add(root);
-		}
-		for (const lake of root.querySelectorAll(FROZEN_SELECTOR)) {
-			this.settled_lakes.add(lake);
-		}
+		if (root instanceof Element && root.matches?.(FROZEN_SELECTOR)) this.settle_lake(root);
+		for (const lake of root.querySelectorAll(FROZEN_SELECTOR)) this.settle_lake(lake);
 	}
 
 	/** The next page takes over (its visit, made by its navigation; a new one when none is given),
