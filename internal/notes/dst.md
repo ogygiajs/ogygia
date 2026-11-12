@@ -243,7 +243,8 @@ turns each point on or off (30%, its own stream `buggify swarm <point>`), and an
 all off. Points: `flights.not-kept` (an answer not kept), `outbox.reply-lost` (the receiver applied
 a send and its reply was lost: sent again), `import-again.entry-missed` (a download's timing entry
 never comes, as WebKit gives a dropped one none), `federation.doc-stale` (a peer document's ttl just
-ran out).
+ran out), `hole.fetch-lost` (a hole's answer lost on the way: it tries again, or gives up, as it
+would; it reaches the hole's `retrying` steps without a drop fault).
 
 ## Coverage
 

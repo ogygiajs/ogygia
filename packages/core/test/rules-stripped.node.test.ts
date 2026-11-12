@@ -90,7 +90,7 @@ describe('rules never ship in a production build', () => {
 
 // Buggify points (@ogygia/machine `buggify`): the rare branches a simulated run takes on purpose.
 // Each sits behind the rules gate, so a production build carries no call and no point's name.
-const RUNTIME_POINTS = ['flights.not-kept', 'import-again.entry-missed'];
+const RUNTIME_POINTS = ['flights.not-kept', 'import-again.entry-missed', 'hole.fetch-lost'];
 const SERVER_POINTS = ['flights.not-kept', 'outbox.reply-lost', 'federation.doc-stale'];
 const SERVER_POINTS_ENTRY =
 	SERVER_ENTRY +
