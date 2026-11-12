@@ -4153,10 +4153,6 @@
 			"reason": "a getter, one read"
 		},
 		{
-			"id": "packages/machine/src/queue.ts > clock",
-			"reason": "the default clock (performance.now), one read; every test and bench passes its own"
-		},
-		{
 			"id": "packages/core/src/runtime/router.ts > SpaRouter > scan_preload_links > on_idle:1~4ff29d > once_on_screen:2~719a25",
 			"reason": "browser only: a viewport-preload link came on screen, one warm of its page (fetch_page, measured by the router benches)"
 		},
