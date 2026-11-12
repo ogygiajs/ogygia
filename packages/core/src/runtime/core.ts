@@ -14,7 +14,7 @@ import {
 	type Stale,
 	type Turn
 } from '@ogygia/machine';
-import { frameAddress } from '../frame.ts';
+import { frameAddress, older_by, type FrameOrder } from '../frame.ts';
 import { import_again, is_failed_import, on_reload_needed } from './import-again.ts';
 import { browser_offline, no_response } from './network.ts';
 // Build-time constants (compiler/link/runtime-entry.ts `generateRuntimeFlagsSource`): `FRAMES` is
@@ -365,6 +365,9 @@ type LiveTick = {
 	url?: string;
 	hydrate?: string;
 	hydrateMargin?: string;
+	/** The order its HTML was written at its address with as it was decoded; absent when it never
+	 *  went through the frame store. */
+	written?: FrameOrder | undefined;
 };
 
 /** A download slot (load-scheduler.ts) asked for by a step whose element then left: its turn still
@@ -684,6 +687,9 @@ class OgygiaRegion extends HTMLElement {
 	#live_props: Record<string, unknown> | null = null;
 	/** A static live region's subscription to its address, while it is static. */
 	#live_unsub: (() => void) | null = null;
+	/** Where the HTML a static tick painted itself stands in its address's order (`older_by`): a frame
+	 *  not newer than it is older than what is on screen. */
+	#live_painted: FrameOrder | null = null;
 	// The two wake targets, bound once per element (not per connect): `#arm` hands them to a
 	// schedule, and `load` calls them straight — no closure built on the connect path. Each returns
 	// its promise: the interaction feature awaits it to know when the island is live (replay).
@@ -1901,11 +1907,11 @@ class OgygiaRegion extends HTMLElement {
 		const last = this.#live_last;
 		if (last === null || this.#live.now.kind !== 'idle') return;
 		// (in the connect's turn: the turn is the tick's until it ends)
-		return this.#apply_live(last, turn, true);
+		return this.#apply_live(last, turn);
 	}
 
-	/** One live tick, in its turn. `again`: its last tick, gone on with as it is put back. */
-	async #apply_live(desc: LiveTick, turn: Turn, again = false): Promise<void> {
+	/** One live tick, in its turn (or its last tick, gone on with as it is put back). */
+	async #apply_live(desc: LiveTick, turn: Turn): Promise<void> {
 		// Keep the element self-describing so the fallback fetch path still works if ever needed.
 		this.setAttribute('render', 'defer');
 		this.setAttribute('entry', desc.module || desc.id);
@@ -1925,19 +1931,15 @@ class OgygiaRegion extends HTMLElement {
 		// `static` disposes an island an interactive tick hydrated.
 		if (!interactive) {
 			if (this.#live.now.kind !== 'static') this.#live.go('static');
-			let replayed = false;
+			const frames = slots.frames;
 			if (desc.url && !this.#live_unsub) {
-				// (each later frame a turn of its own. The one the store hands over as it binds is older
-				// than this tick, which paints instead — unless this is its last tick gone on with as it
-				// is put back: then the store's frame is the newest it has)
+				// (each frame a turn of its own, the one the store hands over as it binds too)
 				const box = this.#box;
-				let binding = true;
-				const off = slots.frames?.subscribe(frameAddress(desc.url), (f) => {
-					if (binding && !again) return;
-					replayed ||= binding;
-					box.post((t) => this.#morph_live(f.html, t));
+				const off = frames?.subscribe(frameAddress(desc.url), (f) => {
+					box.post((t) =>
+						older_by(f, this.#live_painted) === null ? this.#morph_live(f.html, t) : undefined
+					);
 				});
-				binding = false;
 				if (off) {
 					this.#live_unsub = off;
 					this.#live.scope.defer(() => {
@@ -1946,7 +1948,21 @@ class OgygiaRegion extends HTMLElement {
 					});
 				}
 			}
-			if (!replayed) await this.#morph_live(desc.html, turn);
+			// The store's one ordering (`older_by`) decides: when the answer it holds is this tick's
+			// write or newer, the subscription paints it. A tick the store holds no such answer for (its
+			// HTML never went through the store, or the answer there is older) paints its own —
+			// test/browser/region-orderings.test.ts. Painted, it stands where the store would have put
+			// it: a frame the subscription hands over later (as it binds again, put back) paints only
+			// if newer than that.
+			const held = desc.url ? frames?.peek(frameAddress(desc.url)) : null;
+			const mine = desc.written;
+			if (!held || mine === undefined || older_by(mine, held) === null) {
+				this.#live_painted =
+					mine === undefined
+						? (held ?? null)
+						: { v: held && held.v > mine.v ? held.v : mine.v, d: mine.d };
+				await this.#morph_live(desc.html, turn);
+			}
 			return;
 		}
 
