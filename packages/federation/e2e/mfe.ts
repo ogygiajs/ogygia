@@ -1,11 +1,29 @@
 // Worker fixture: the three examples/mfe apps as `vite dev` servers (the shell mounts cms, cms
 // stitches dash), with throwaway Ed25519 keys so the signature gate stays on. Boots once per worker,
-// torn down after the last test. Dev mode on purpose: dev-only warnings ship stripped from a
-// production island bundle.
-import { spawn, type ChildProcess } from 'node:child_process';
+// torn down after the last test. Dev mode by default: dev-only warnings ship stripped from a
+// production island bundle. `OGYGIA_MFE_BUILD=1`: each app built (`vite build`, rules on) and served
+// from its adapter-node build (`examples/mfe/serve.ts`), as production runs it. Dev turns every
+// runtime feature on, so a feature a production build leaves out is only seen there (#909).
+import { spawn, spawnSync, type ChildProcess } from 'node:child_process';
 import { generateKeyPairSync } from 'node:crypto';
 import { test as base } from '@playwright/test';
 import { REPO as repo } from '@ogygia/tooling/e2e';
+
+/** The apps run as production builds (see the header); a spec skips what only dev says. */
+export const BUILT = process.env.OGYGIA_MFE_BUILD === '1';
+
+/** Build each app as production does, rules on (a build failure fails the suite, with its log). */
+function build_apps(apps: readonly App[]): void {
+	for (const app of apps) {
+		const r = spawnSync('pnpm', ['--filter', `mfe-${app}`, 'exec', 'vite', 'build'], {
+			cwd: repo,
+			env: { ...process.env, OGYGIA_RULES: '1' },
+			encoding: 'utf8'
+		});
+		if (r.status !== 0)
+			throw new Error(`mfe-${app}: vite build failed\n${(r.stdout + r.stderr).slice(-4000)}`);
+	}
+}
 
 export const HOST = '127.0.0.1';
 export const PORTS = { shell: 5190, dash: 5191, cms: 5192 } as const;
@@ -77,27 +95,32 @@ export const test = base.extend<Record<never, never>, { mfe: MfeServers }>({
 			const logs: Record<App, string[]> = { shell: [], dash: [], cms: [] };
 			// detached = own process GROUP so teardown kills the real vite child (killing the pnpm
 			// wrapper alone orphans vite on the port); `--host 127.0.0.1` pins IPv4.
-			for (const app of ['dash', 'cms', 'shell'] as App[]) {
-				const p = spawn(
-					'pnpm',
-					[
-						'--filter',
-						`mfe-${app}`,
-						'exec',
-						'vite',
-						'dev',
-						'--port',
-						String(PORTS[app]),
-						'--host',
-						HOST
-					],
-					{
-						cwd: repo,
-						env: { ...process.env, ...env_for[app] },
-						stdio: ['ignore', 'pipe', 'pipe'],
-						detached: true
-					}
-				);
+			const apps = ['dash', 'cms', 'shell'] as const;
+			if (BUILT) build_apps(apps);
+			for (const app of apps) {
+				const [cmd, args, cwd] = BUILT
+					? ['node', ['serve.ts', app, String(PORTS[app])], `${repo}/examples/mfe`]
+					: [
+							'pnpm',
+							[
+								'--filter',
+								`mfe-${app}`,
+								'exec',
+								'vite',
+								'dev',
+								'--port',
+								String(PORTS[app]),
+								'--host',
+								HOST
+							],
+							repo
+						];
+				const p = spawn(cmd, args, {
+					cwd,
+					env: { ...process.env, ...env_for[app] },
+					stdio: ['ignore', 'pipe', 'pipe'],
+					detached: true
+				});
 				p.stdout?.on('data', (d) => logs[app].push(String(d)));
 				p.stderr?.on('data', (d) => logs[app].push(String(d)));
 				procs[app] = p;
@@ -123,7 +146,7 @@ export const test = base.extend<Record<never, never>, { mfe: MfeServers }>({
 						.map((a) => `--- ${a} ---\n${logs[a].join('').split('\n').slice(-12).join('\n')}`)
 						.join('\n');
 					throw new Error(
-						`mfe dev servers did not come up (dash/cms/shell = ${up.join('/')})\n${tails}`
+						`mfe servers did not come up (dash/cms/shell = ${up.join('/')})\n${tails}`
 					);
 				}
 				await use({ origin, logs, keys });
@@ -131,7 +154,8 @@ export const test = base.extend<Record<never, never>, { mfe: MfeServers }>({
 				kill_all();
 			}
 		},
-		{ scope: 'worker', timeout: 240_000 }
+		// (three production builds take longer than three dev servers)
+		{ scope: 'worker', timeout: BUILT ? 600_000 : 240_000 }
 	]
 });
 
