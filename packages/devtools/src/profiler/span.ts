@@ -1,36 +1,6 @@
-/**
- * `span` + `tag` — the two things a profile cannot learn on its own, written into the app.
- *
- *   • `span(name, fn)` names a stretch of a request the sampler cannot see: a database driver on
- *     its own socket pool, a queue, a cache lookup, a promise chain. It is recorded like an
- *     outbound call — start and end on the profiler's clock, the request it ran in, the caller's
- *     file and line, its parent span — and the report treats it as one: a named block on the
- *     timeline (a gap inside it reads "in db.users" instead of "nothing recorded"), a row in the
- *     Spans table, a link in the awaits-in-a-row detector, a finding when it repeats or fails.
- *   • `tag(key, value)` stamps the current request's log entry, so slow routes can be split by
- *     tenant, locale, variant — whatever the app knows and the profiler does not.
- *
- * Universal and dependency-free: the profiler host installs the recorder for the duration of a
- * recording; everywhere else (the client, a universal load in the browser, a server with no
- * recording running) `span` runs the function and returns it, and `tag` does nothing. One `if`.
- *
- * ```ts
- * import { span, tag } from '@ogygia/devtools/profiler';
- *
- * export const load = async ({ params, locals }) => {
- *   tag('tenant', locals.tenant);
- *   const user = await span('db.user', () => db.users.find(params.id));
- *   const orders = await span('db.orders', () => db.orders.byUser(user.id), (r) => ({ rows: r.length }));
- *   return { user, orders };
- * };
- * ```
- */
 import type { CallerSite } from './net.ts';
 import { register_profiler_file } from './frames.ts';
 
-// This file's frames are the profiler's, not the app's: the caller of a span is the frame ABOVE
-// `span()`. Registered by identity because a workspace link bundles this file into the app's
-// own chunk, where no '/profiler/' path substring survives.
 register_profiler_file();
 
 export type SpanAttrs = Record<string, string | number | boolean>;
@@ -94,7 +64,26 @@ const is_thenable = (v: unknown): v is PromiseLike<unknown> =>
 	!!v && typeof (v as { then?: unknown }).then === 'function';
 
 /**
- * Run `fn` as a named span. Sync in, sync out; a promise in, a promise out — the wrapper never
+ * Names a stretch of a request the sampler cannot see: a database driver on its own socket pool,
+ * a queue, a cache lookup, a promise chain. While a recording runs it is recorded like an outbound
+ * call (start and end, the request it ran in, the caller's file and line, its parent span), and the
+ * report shows it as a named block on the timeline (a gap inside it reads "in db.user", not
+ * "nothing recorded"), a row in the Spans table, and a finding when it repeats or fails. With no
+ * recording (the client, a universal load in the browser, a server not recording) it runs `fn` and
+ * returns what it returns: one `if`.
+ *
+ * ```ts
+ * import { span, tag } from '@ogygia/devtools/profiler';
+ *
+ * export const load = async ({ params, locals }) => {
+ *   tag('tenant', locals.tenant);
+ *   const user = await span('db.user', () => db.users.find(params.id));
+ *   const orders = await span('db.orders', () => db.orders.byUser(user.id), (r) => ({ rows: r.length }));
+ *   return { user, orders };
+ * };
+ * ```
+ *
+ * Sync in, sync out; a promise in, a promise out — the wrapper never
  * changes the shape of what it wraps. A throw (or rejection) is recorded on the span and rethrown.
  * `attrs` is a plain record, or a function of the result for what is only known afterwards
  * (`(r) => ({ cache: r.fromCache ? 'hit' : 'miss', rows: r.length })`). Reserved keys the report
@@ -143,11 +132,11 @@ export function span<T>(
 }
 
 export declare namespace span {
+	/** Open a span by hand; close it with `end` / `fail`. A span opened while another span's `fn`
+	 *  runs records it as its parent. */
 	export var start: (name: string, attrs?: SpanAttrs) => SpanHandle;
 }
 
-/** Open a span by hand; close it with `end` / `fail`. Nesting: spans started while another span's
- *  `fn` runs record it as their parent; a bare `span.start` at the top level has none. */
 span.start = function start(name: string, attrs?: SpanAttrs): SpanHandle {
 	const r = recorder;
 	if (r === null) return NOOP_HANDLE;
@@ -179,6 +168,16 @@ export function tag(key: string, value: string | number | boolean): void {
 	r.tag(String(key).slice(0, 64), String(value).slice(0, 64));
 }
 
+/** The attrs callback of `instrument`: the result, then the call's arguments. Declared method-style
+ *  so a callback naming fewer arguments than the function takes (`(r, tag) => …` for a two-argument
+ *  renderer) is accepted, and so it never narrows the wrapped signature. `NoInfer` wraps the whole
+ *  callback, not its rest argument: on the rest tuple alone it made a shorter callback a tuple-length
+ *  mismatch, so the `(r, tag) => …` form above did not type-check. */
+export type InstrumentAttrs<A extends unknown[], R> = NoInfer<
+	{
+		bivariant(result: Awaited<R>, ...args: A): SpanAttrs | undefined;
+	}['bivariant']
+>;
 /**
  * INSTRUMENT a function once, so every call is a `span` — for a renderer or a client you call
  * from many places and cannot wrap at each site: a design system's `renderToString`, a database
@@ -200,16 +199,6 @@ export function tag(key: string, value: string | number | boolean): void {
  * const renderToString = instrument(core, 'ds.render', (r, tag) => ({ tag, bytes: r.html.length }));
  * ```
  */
-/** The attrs callback of `instrument`: the result, then the call's arguments. Declared method-style
- *  so a callback naming fewer arguments than the function takes (`(r, tag) => …` for a two-argument
- *  renderer) is accepted, and so it never narrows the wrapped signature. `NoInfer` wraps the whole
- *  callback, not its rest argument: on the rest tuple alone it made a shorter callback a tuple-length
- *  mismatch, so the `(r, tag) => …` form above did not type-check. */
-export type InstrumentAttrs<A extends unknown[], R> = NoInfer<
-	{
-		bivariant(result: Awaited<R>, ...args: A): SpanAttrs | undefined;
-	}['bivariant']
->;
 export function instrument<A extends unknown[], R>(
 	fn: (...args: A) => R,
 	name: string,
