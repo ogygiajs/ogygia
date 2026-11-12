@@ -6,7 +6,9 @@ import { generateKeyPairSync } from 'node:crypto';
 import { bench } from '@bench/heisenbench/bench';
 import {
 	absolutize,
+	fragment_document,
 	lift_document,
+	widget_document,
 	sign_headers,
 	verify_signed_request,
 	__heisenbench as wire
@@ -54,6 +56,31 @@ bench(
 	{
 		setup: () => ({ html: remote_document(150) }),
 		scale: (_ctx, k) => ({ html: remote_document(150 * k) })
+	}
+);
+
+/** A peer's page answer as it arrives: `css` stylesheets, `sources` receipt tags, a trace. */
+function answer(css: number, sources: number): unknown {
+	return JSON.parse(
+		JSON.stringify({
+			status: 200,
+			title: 'Catalog',
+			css: Array.from({ length: css }, (_, i) => `<link rel="stylesheet" href="/s${i}.css">`),
+			body: '<p>catalog</p>',
+			path: '/catalog',
+			sources: Array.from({ length: sources }, (_, i) => `s:${i}:abcdef`),
+			trace: { trace_id: 'a'.repeat(32), span_id: 'b'.repeat(16) },
+			server_ms: 12.5
+		})
+	);
+}
+
+bench(
+	"a peer's answer read as its document (each field its own type)",
+	({ v, w }) => (fragment_document(v) !== null) === (widget_document(w) !== null),
+	{
+		setup: () => ({ v: answer(12, 40), w: { html: '<p>kpis</p>', sources: ['s:1:abc'] } }),
+		scale: (ctx, k) => ({ ...ctx, v: answer(12 * k, 40 * k) })
 	}
 );
 

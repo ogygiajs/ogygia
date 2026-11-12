@@ -399,6 +399,56 @@ export interface WidgetDocument {
 	server_ms?: number;
 }
 
+const TRACE_ID_RE = /^[0-9a-f]{32}$/;
+const SPAN_ID_RE = /^[0-9a-f]{16}$/;
+const is_str = (v: unknown): v is string => typeof v === 'string';
+const opt = (v: unknown, is: (v: unknown) => boolean): boolean => v === undefined || is(v);
+const is_strs = (v: unknown): boolean => Array.isArray(v) && v.every(is_str);
+const is_trace = (v: unknown): boolean =>
+	typeof v === 'object' &&
+	v !== null &&
+	TRACE_ID_RE.test((v as { trace_id?: unknown }).trace_id as string) &&
+	SPAN_ID_RE.test((v as { span_id?: unknown }).span_id as string);
+const is_ms = (v: unknown): boolean => typeof v === 'number' && Number.isFinite(v);
+
+/** The fields a page and a widget document share, each its own type or left out. */
+function common_fields(d: Record<string, unknown>): boolean {
+	return (
+		opt(d.sources, is_strs) &&
+		opt(d.build, is_str) &&
+		opt(d.trace, is_trace) &&
+		opt(d.server_ms, is_ms)
+	);
+}
+
+/** A parsed peer answer as the page document it is, or null when any field is another type (a
+ *  proxy's JSON, a broken peer): a failed hop, never a TypeError later (test/property-peer-answer). */
+export function fragment_document(v: unknown): FragmentDocument | null {
+	if (typeof v !== 'object' || v === null || Array.isArray(v)) return null;
+	const d = v as Record<string, unknown>;
+	const ok =
+		Number.isInteger(d.status) &&
+		(d.status as number) >= 100 &&
+		(d.status as number) <= 599 &&
+		is_str(d.body) &&
+		opt(d.location, is_str) &&
+		opt(d.title, is_str) &&
+		opt(d.css, is_strs) &&
+		opt(d.head, is_str) &&
+		opt(d.runtime, is_str) &&
+		opt(d.path, is_str) &&
+		common_fields(d);
+	return ok ? (d as unknown as FragmentDocument) : null;
+}
+
+/** A parsed peer answer as the widget document it is, or null (as {@link fragment_document}). */
+export function widget_document(v: unknown): WidgetDocument | null {
+	if (typeof v !== 'object' || v === null || Array.isArray(v)) return null;
+	const d = v as Record<string, unknown>;
+	const ok = is_str(d.html) && opt(d.origin, is_str) && common_fields(d);
+	return ok ? (d as unknown as WidgetDocument) : null;
+}
+
 // ── W3C trace context ────────────────────────────────────────────────────────────────────────
 const TRACEPARENT_RE = /^00-([0-9a-f]{32})-([0-9a-f]{16})-([0-9a-f]{2})$/;
 const hex = (n: number) => Buffer.from(random.bytes(n)).toString('hex');
