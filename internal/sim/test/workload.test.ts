@@ -24,4 +24,19 @@ describe('the workload', () => {
 			'tab 0: follow link #3, come back 20000 ms later'
 		);
 	});
+
+	it('clicks a second link before the first navigation lands (a navigation called off midway)', () => {
+		const r = rng(11);
+		const hurried: Action[] = [];
+		for (let i = 0; i < 2000; i++) {
+			const a = next_action(r, 1, ['/', '/a']);
+			if (a.kind === 'hurry') hurried.push(a);
+		}
+		expect(hurried.length).toBeGreaterThan(0);
+		for (const a of hurried) if (a.kind === 'hurry') expect(a.after).toBeLessThanOrEqual(300);
+		expect(ACTION_KINDS).toContain('hurry');
+		expect(say({ kind: 'hurry', tab: 0, nth: 3, then: 7, after: 20 })).toBe(
+			'tab 0: click link #3, then link #7 20 ms later'
+		);
+	});
 });
