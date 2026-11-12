@@ -44,13 +44,15 @@ function is_letter(c: number): boolean {
 
 /** Where a tag name that starts at `from` ends (whitespace, `/`, `>` or the end). */
 function name_end(html: string, from: number): number {
-	const n = html.length;
 	let j = from;
-	for (; j < n; j++) {
+	for (; ; j++) {
 		const c = html.charCodeAt(j);
-		if (c === 62 || c === 47 || (c <= 32 && is_space(c))) break;
+		// (a name's letters, digits and `-` are all past `>`: one test each)
+		if (c > 62) continue;
+		// (`c !== c`: NaN, the end of the input)
+		if (c === 62 || c === 47 || c === 32 || c === 9 || c === 10 || c === 12 || c === 13 || c !== c)
+			return j;
 	}
-	return j;
 }
 
 /** Is `html[from, to)` the lower-case ASCII `name`, in any case? */
@@ -64,38 +66,40 @@ function name_is(html: string, from: number, to: number, name: string): boolean 
 	return true;
 }
 
-/** The elements whose text the tokenizer reads raw, up to their own end tag. */
-// static: the raw-text element names
-const RAW_TEXT = [
-	'script',
-	'style',
-	'textarea',
-	'title',
-	'xmp',
-	'iframe',
-	'noembed',
-	'noframes',
-	'noscript',
-	'plaintext'
-];
-
-/** The raw-text element named `html[from, to)`, or null. */
+/** The raw-text element named `html[from, to)`, or null: the elements whose text the tokenizer
+ *  reads raw, up to their own end tag (script, style, textarea, title, xmp, iframe, noembed,
+ *  noframes, noscript, plaintext), told apart by their first letter, then their length. */
 function raw_name(html: string, from: number, to: number): string | null {
-	const len = to - from;
-	if (len < 3 || len > 9) return null;
-	// (only s, t, x, i, n and p start one: most names are out at their first letter)
-	const first = html.charCodeAt(from) | 32;
-	if (
-		first !== 115 &&
-		first !== 116 &&
-		first !== 120 &&
-		first !== 105 &&
-		first !== 110 &&
-		first !== 112
-	)
-		return null;
-	for (const r of RAW_TEXT) if (name_is(html, from, to, r)) return r;
-	return null;
+	switch (html.charCodeAt(from) | 32) {
+		case 115 /* s */:
+			return name_is(html, from, to, 'script')
+				? 'script'
+				: name_is(html, from, to, 'style')
+					? 'style'
+					: null;
+		case 116 /* t */:
+			return name_is(html, from, to, 'title')
+				? 'title'
+				: name_is(html, from, to, 'textarea')
+					? 'textarea'
+					: null;
+		case 120 /* x */:
+			return name_is(html, from, to, 'xmp') ? 'xmp' : null;
+		case 105 /* i */:
+			return name_is(html, from, to, 'iframe') ? 'iframe' : null;
+		case 110 /* n */:
+			return name_is(html, from, to, 'noscript')
+				? 'noscript'
+				: name_is(html, from, to, 'noembed')
+					? 'noembed'
+					: name_is(html, from, to, 'noframes')
+						? 'noframes'
+						: null;
+		case 112 /* p */:
+			return name_is(html, from, to, 'plaintext') ? 'plaintext' : null;
+		default:
+			return null;
+	}
 }
 
 /** Does `</name` (any case) followed by whitespace, `/` or `>` start at `at`? */
@@ -183,15 +187,26 @@ type AttrSink = (ns: number, ne: number, vs: number, ve: number, vq: number) => 
  */
 function read_attrs(html: string, j: number, sink: AttrSink | null): number {
 	const n = html.length;
+	// (whitespace tested in line, the space first: a call per character is the read's dearest step)
 	for (;;) {
 		let c = html.charCodeAt(j);
-		while (c === 47 || (c <= 32 && is_space(c))) c = html.charCodeAt(++j);
+		while (c === 32 || c === 47 || (c <= 13 && c >= 9 && c !== 11)) c = html.charCodeAt(++j);
 		if (j >= n) return -1;
 		if (c === 62) return j + 1;
 		const ns = j++;
-		for (; j < n; j++) {
+		for (; ; j++) {
 			c = html.charCodeAt(j);
-			if (c === 61 || c === 62 || c === 47 || (c <= 32 && is_space(c))) break;
+			// (a name's letters are all past `>`: one test each; `c !== c` is NaN, the end)
+			if (c > 62) continue;
+			if (
+				c === 61 ||
+				c === 32 ||
+				c === 62 ||
+				c === 47 ||
+				c !== c ||
+				(c <= 13 && c >= 9 && c !== 11)
+			)
+				break;
 		}
 		const ne = j;
 		while (c <= 32 && is_space(c)) c = html.charCodeAt(++j);
@@ -213,7 +228,7 @@ function read_attrs(html: string, j: number, sink: AttrSink | null): number {
 				vs = j;
 				for (; j < n; j++) {
 					c = html.charCodeAt(j);
-					if (c === 62 || (c <= 32 && is_space(c))) break;
+					if (c <= 62 && (c === 62 || c === 32 || (c <= 13 && c >= 9 && c !== 11))) break;
 				}
 				ve = j;
 			}
@@ -222,75 +237,20 @@ function read_attrs(html: string, j: number, sink: AttrSink | null): number {
 	}
 }
 
-/**
- * Where a tag whose attributes start at `j` ends: `read_attrs(html, j, null)`, by jumps (#1037). Only
- * a quoted value can hold a `>`, and a value starts only at an `=` that follows a name: so from each
- * attribute boundary the next `=` and `>` are found by search, and the text between, names and bare
- * attributes, is never stepped through. An `=` is a name's first character (not a value's start)
- * when nothing but whitespace stands between it and the boundary, or a `/` does just before it.
- * Pinned to `read_attrs` by test/markup-walk-twin.test.ts.
- */
-/** The last `=` search: `indexOf('=', from)` of `html` was `at`. A walk goes forward, and a tag with
- *  no `=` would search far past its own `>`: the next search from a later point reuses the answer
- *  while it still lies ahead (or there is none). */
-const EQ = { html: '', from: 0, at: -1 };
-
-/** `html.indexOf('=', j)`, the last answer reused when it holds. */
-function next_eq(html: string, j: number): number {
-	if (html === EQ.html && j >= EQ.from && (EQ.at === -1 || EQ.at >= j)) return EQ.at;
-	EQ.html = html;
-	EQ.from = j;
-	return (EQ.at = html.indexOf('=', j));
+/** Where the tag whose name ends at `ne` ends (-1: the input ends inside it): just past the name
+ *  when it ends at the `>` (an end tag, a tag with no attributes), else past its attributes. (Read
+ *  a character at a time, not searched for: Heisenbench counts a search's start as dearer than most
+ *  names, #1037.) */
+function tag_end(html: string, ne: number): number {
+	return html.charCodeAt(ne) === 62 ? ne + 1 : read_attrs(html, ne, null);
 }
-
-function tag_end(html: string, j: number): number {
-	const n = html.length;
-	// (`bound`: where the attributes being read began, after the tag's name or the last value)
-	let bound = j;
-	for (;;) {
-		const gt = html.indexOf('>', j);
-		if (gt === -1) return -1;
-		const eq = next_eq(html, j);
-		if (eq === -1 || eq > gt) return gt + 1;
-		let p = eq - 1;
-		while (p >= bound && is_space(html.charCodeAt(p))) p--;
-		if (p < bound || html.charCodeAt(p) === 47) {
-			// (a name that starts with `=`: the `=` is its first character, so the next `=` after it
-			// ends it as any name)
-			bound = eq;
-			j = eq + 1;
-			continue;
-		}
-		// a value: quoted, it may hold `>`; unquoted, it runs to whitespace or `>`
-		j = eq + 1;
-		let c = html.charCodeAt(j);
-		while (c <= 32 && is_space(c)) c = html.charCodeAt(++j);
-		if (j >= n) return -1;
-		if (c === 34 || c === 39) {
-			const close = html.indexOf(c === 34 ? '"' : "'", j + 1);
-			if (close === -1) return -1;
-			j = close + 1;
-		} else {
-			for (; j < n; j++) {
-				c = html.charCodeAt(j);
-				if (c === 62 || (c <= 32 && is_space(c))) break;
-			}
-		}
-		bound = j;
-	}
-}
-
-/** TEST: `tag_end` and the step-by-step read it must agree with (test/markup-walk-twin.test.ts). */
-export const __tag_end_twin = {
-	jumps: tag_end,
-	steps: (html: string, j: number): number => read_attrs(html, j, null)
-};
 
 class Tag implements FoundTag {
 	readonly start: number;
 	readonly end: number;
 	readonly next: number;
 	readonly #html: string;
+	/** just past the tag's name: where its attributes start */
 	readonly #after: number;
 	#all: Map<string, string> | null = null;
 	constructor(start: number, end: number, next: number, html: string, after: number) {
@@ -299,6 +259,12 @@ class Tag implements FoundTag {
 		this.next = next;
 		this.#html = html;
 		this.#after = after;
+	}
+
+	/** Where the attributes of `tag`, a start tag of `html`, start: read already when the walk
+	 *  found it. */
+	static attrs_from(html: string, tag: FoundTag): number {
+		return #after in tag && tag.#html === html ? tag.#after : name_end(html, tag.start + 1);
 	}
 
 	get attrs(): Map<string, string> {
@@ -344,6 +310,25 @@ function step(html: string, i: number): boolean {
 		const lt = html.indexOf('<', i);
 		if (lt === -1) return false;
 		const c = html.charCodeAt(lt + 1);
+		// (a start tag first: most `<` open one)
+		if ((c >= 97 && c <= 122) || (c >= 65 && c <= 90)) {
+			// (`name_end` and `tag_end` in line: the walk's one step per tag)
+			let ne = lt + 2;
+			let e = html.charCodeAt(ne);
+			while (
+				e > 62 ||
+				!(e === 62 || e === 32 || e === 47 || e !== e || (e <= 13 && e >= 9 && e !== 11))
+			)
+				e = html.charCodeAt(++ne);
+			const end = e === 62 ? ne + 1 : read_attrs(html, ne, null);
+			if (end === -1) return false;
+			TOKEN.kind = 1;
+			TOKEN.lt = lt;
+			TOKEN.ns = lt + 1;
+			TOKEN.ne = ne;
+			TOKEN.end = end;
+			return true;
+		}
 		if (c === 33 /* ! */ && html.startsWith('<!--', lt)) {
 			// (`<!-->` and `<!--->` are whole comments; else the first `-->` or `--!>` ends it)
 			if (html.charCodeAt(lt + 4) === 62) i = lt + 5;
@@ -395,19 +380,7 @@ function step(html: string, i: number): boolean {
 			i = gt + 1;
 			continue;
 		}
-		if (!is_letter(c)) {
-			i = lt + 1;
-			continue;
-		}
-		const ne = name_end(html, lt + 2);
-		const end = tag_end(html, ne);
-		if (end === -1) return false;
-		TOKEN.kind = 1;
-		TOKEN.lt = lt;
-		TOKEN.ns = lt + 1;
-		TOKEN.ne = ne;
-		TOKEN.end = end;
-		return true;
+		i = lt + 1;
 	}
 	return false;
 }
@@ -418,6 +391,19 @@ function after_start(html: string): number {
 	const raw = raw_name(html, TOKEN.ns, TOKEN.ne);
 	if (raw === null) return TOKEN.end;
 	return raw_close(html, TOKEN.end, raw);
+}
+
+/** Each attribute of `tag`, a start tag of `html`, in source order, as spans: its name
+ *  `html[ns, ne)` (as written: any case, repeats included) and its value `html[vs, ve)` (`vq` the
+ *  quote's char code, 0 when unquoted, -1 when bare). `visit` returning true stops the read. For a
+ *  rewrite that reads every attribute of many tags without building `attrs` (federation's asset
+ *  pinning). */
+export function each_attr(
+	html: string,
+	tag: FoundTag,
+	visit: (ns: number, ne: number, vs: number, ve: number, vq: number) => boolean | void
+): void {
+	read_attrs(html, Tag.attrs_from(html, tag), visit);
 }
 
 /** Where the attribute `attr` (lower case) of `tag`, a `<name …>` start tag of `html`, has its value
@@ -436,16 +422,18 @@ export function value_at(html: string, tag: FoundTag, name: string, attr: string
 
 /** The start tag whose name ends at `after` (its `<` at `lt`), up to its `>`. Null when the HTML
  *  ends inside it (an unclosed tag or quoted value), as a browser drops it. */
-export function read_tag(
-	html: string,
-	lt: number,
-	after: number,
-	/** just past its `>`, when the walk already read it (`TOKEN.end`): not read again */
-	known_end = -1
-): FoundTag | null {
-	const end = known_end === -1 ? tag_end(html, after) : known_end;
+export function read_tag(html: string, lt: number, after: number): FoundTag | null {
+	const end = tag_end(html, after);
 	if (end === -1) return null;
-	const raw = raw_name(html, lt + 1, after);
+	return found(html, lt, end, raw_name(html, lt + 1, after), after);
+}
+
+/** The start tag the walk read into `TOKEN`. */
+function found_token(html: string): FoundTag {
+	return found(html, TOKEN.lt, TOKEN.end, raw_name(html, TOKEN.ns, TOKEN.ne), TOKEN.ne);
+}
+
+function found(html: string, lt: number, end: number, raw: string | null, after: number): FoundTag {
 	let next = end;
 	if (raw !== null) {
 		next = raw_close(html, end, raw);
@@ -465,8 +453,7 @@ export function next_tag(html: string, name: string, from: number): FoundTag | n
 			i = TOKEN.end;
 			continue;
 		}
-		if (name_is(html, TOKEN.ns, TOKEN.ne, name))
-			return read_tag(html, TOKEN.lt, TOKEN.ne, TOKEN.end);
+		if (name_is(html, TOKEN.ns, TOKEN.ne, name)) return found_token(html);
 		i = after_start(html);
 		if (i === -1) return null;
 	}
@@ -489,10 +476,7 @@ export function next_open_or_close(
 			i = TOKEN.end;
 			continue;
 		}
-		if (name_is(html, TOKEN.ns, TOKEN.ne, name)) {
-			const tag = read_tag(html, TOKEN.lt, TOKEN.ne, TOKEN.end);
-			return tag === null ? null : { tag };
-		}
+		if (name_is(html, TOKEN.ns, TOKEN.ne, name)) return { tag: found_token(html) };
 		i = after_start(html);
 		if (i === -1) return null;
 	}
@@ -515,7 +499,7 @@ export function next_any_tag(html: string, from: number): FoundTag | null {
 			i = TOKEN.end;
 			continue;
 		}
-		return read_tag(html, TOKEN.lt, TOKEN.ne, TOKEN.end);
+		return found_token(html);
 	}
 	return null;
 }
