@@ -54,7 +54,7 @@ describe('normalize', () => {
 	it("takes the region sheets answers lifted into the head in any order, and the page's own in theirs (gen 143, seed 143019)", async () => {
 		const { Window } = await import('happy-dom');
 		const page = (...hrefs: string[]) => {
-			const w = new Window();
+			const w = new Window({ url: 'https://app.test/' });
 			w.document.write(
 				`<html><head>${hrefs.map((h) => (h.startsWith('og:') ? `<link rel="stylesheet" data-ogygia-region-css="" href="/${h.slice(3)}">` : `<link rel="stylesheet" href="/${h}">`)).join('')}</head><body></body></html>`
 			);
