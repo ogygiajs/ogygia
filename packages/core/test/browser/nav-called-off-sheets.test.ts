@@ -9,7 +9,7 @@
 import { afterEach, beforeEach, expect, vi } from 'vitest';
 import { commands } from 'vitest/browser';
 import { it_with_network_routes } from './_browsers.ts';
-import { in_head } from './_in-head.ts';
+import { in_head, within } from './_in-head.ts';
 import { link_boot } from '../../src/runtime/boot-link.ts';
 import { SpaRouter } from '../../src/runtime/router.ts';
 
@@ -53,7 +53,7 @@ it_with_network_routes(
 		expect(r.nav.now.kind).toBe('loading');
 		// back to the page on screen (popstate on the same document): the navigation is called off
 		r.supersede();
-		await went;
+		await within('the navigation, once called off', went, 3000);
 		expect(document.querySelector('p')?.textContent).not.toBe('next');
 		expect(sheet()).toBeNull();
 	}

@@ -10,7 +10,7 @@
 import { afterEach, beforeEach, expect, vi } from 'vitest';
 import { commands } from 'vitest/browser';
 import { it_with_network_routes } from './_browsers.ts';
-import { in_head } from './_in-head.ts';
+import { in_head, sheet_loaded, within } from './_in-head.ts';
 import { link_boot } from '../../src/runtime/boot-link.ts';
 import { install as install_morph } from '../../src/runtime/morph.ts';
 import { SpaRouter } from '../../src/runtime/router.ts';
@@ -58,13 +58,13 @@ it_with_network_routes(
 		const went = r.navigate(new URL('/nav-sheets-inert-next', location.href));
 		// the fast sheet is in and loaded; the navigation still waits for the held one
 		const fast = (await in_head(`link[href="${FAST}"]`)) as HTMLLinkElement;
-		if (!fast.sheet) await new Promise((loaded) => fast.addEventListener('load', loaded));
+		await sheet_loaded(fast, 3000);
 		expect(r.nav.now.kind).toBe('loading');
 		expect(document.querySelector('p')?.textContent).not.toBe('next');
 		expect(next_page().trim()).toBe('');
 		// the held sheet arrives: the page goes in, and its sheets style it
 		await commands.keep_downloads(HELD);
-		await went;
+		await within('the navigation, once the held sheet came', went, 3000);
 		expect(document.querySelector('p')?.textContent).toBe('next');
 		expect(next_page().trim()).toBe('on');
 	}
