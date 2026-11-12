@@ -11,6 +11,8 @@
  * plain module singleton can be two instances across that boundary (the config may bundle the package
  * or externalize it), so the bridge lives on a `Symbol.for` global slot shared by the whole process.
  */
+import { registry, type Registry, type Scope } from '@ogygia/machine';
+
 export type ContentBridge = {
 	/** Rewrite marked imports in already-preprocessed svelte + register the islands (`b.markup()`'s
 	 *  transform). The code, or null when nothing changed / ogygia isn't configured yet. */
@@ -32,19 +34,24 @@ export type ContentBridge = {
 	 */
 	contentPresets: Record<string, { markdown?: Record<string, unknown> }> | null;
 	/**
-	 * Every content module (`.svx`/`.md`), absolute path → its post-mdsvex Svelte source. Handed to
-	 * ogygia as the markup source's `modules`: the build ships each one's CSS (its own `<style>` and
-	 * its imports') as a client asset, since the leak-free corpus never enters the client graph.
+	 * Every content module (`.svx`/`.md`) the last scan read, as [absolute path, its post-mdsvex
+	 * Svelte source]. Handed to ogygia as the markup source's `modules`: the build ships each one's
+	 * CSS (its own `<style>` and its imports') as a client asset, since the leak-free corpus never
+	 * enters the client graph. Each is held under the scan that read it: the next scan ends it.
 	 */
-	contentModules: Map<string, string>;
+	contentModules: Registry<readonly [string, string]>;
+	/** The last scan's lifetime (its modules are held under it), until the next scan ends it. */
+	contentScan: Scope | null;
 };
 
-const KEY = Symbol.for('ogygia.content-bridge.v1');
+// (v2: the modules are a registry, the shape a copy from before could not read)
+const KEY = Symbol.for('ogygia.content-bridge.v2');
 const g = globalThis as unknown as Record<symbol, ContentBridge>;
 export const bridge: ContentBridge = (g[KEY] ??= {
 	transform: null,
 	scan: null,
 	markdownConfig: null,
 	contentPresets: null,
-	contentModules: new Map<string, string>()
+	contentModules: registry(),
+	contentScan: null
 });

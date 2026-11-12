@@ -33,6 +33,7 @@ import {
 	type VerifyConfig
 } from './wire.ts';
 import type { Federation, Peer } from './types.ts';
+import { hop_failure_status } from './peer.ts';
 
 const HOLE_PATH = '/og/frag';
 
@@ -341,7 +342,7 @@ async function serve_hole(fed: Federation, event: RequestEvent): Promise<Respons
 	});
 	const traceparent = child_traceparent(event.request.headers.get('traceparent')).traceparent;
 	// (a renewal's answer carries the fresh capability, which the runtime adopts for later fetches)
-	const answer = (html: string) => hole_html(html, opened.headers);
+	const answer = (html: string, status = 200) => hole_html(html, opened.headers, status);
 	try {
 		if (kind === 'widget') {
 			const props: Record<string, string> = {};
@@ -352,15 +353,19 @@ async function serve_hole(fed: Federation, event: RequestEvent): Promise<Respons
 		const doc = await peer.doc(target, search, claims, traceparent);
 		if (doc.location) return answer(String(moved_card('data-og-moved', 'section', doc.location)));
 		return answer((doc.css?.join('') ?? '') + (doc.head ?? '') + doc.body);
-	} catch {
-		return answer('');
+	} catch (e) {
+		// a failed hop is an error status, never an empty success: the region keeps its fallback and
+		// the runtime asks again (test/hole-peer-failure.test.ts, #937). A bad answer was said by the
+		// peer's reader.
+		return answer('', hop_failure_status(e));
 	}
 }
 
-/** A hole response: the runtime swaps this HTML into the region element and its islands wake. */
-function hole_html(html: string, headers: Record<string, string>): Response {
+/** A hole response: the runtime swaps this HTML into the region element and its islands wake (an
+ *  error status: it keeps the fallback and tries again). */
+function hole_html(html: string, headers: Record<string, string>, status = 200): Response {
 	return new Response(html, {
-		status: 200,
+		status,
 		headers: {
 			'content-type': 'text/html; charset=utf-8',
 			'cache-control': 'no-store',
