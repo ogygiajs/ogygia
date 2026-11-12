@@ -99,6 +99,13 @@ export function inline_markup_names() {
 			const program = this.parse(code) as Node & { body: Node[] };
 			const local = new Map<string, string>();
 			const edits: { start: number; end: number; text: string }[] = [];
+			// the names this module exports from its own scope (`export { OG_X }`): an entry that
+			// re-exports a marker keeps it, as a local constant of its value
+			const exported = new Set<string>();
+			for (const decl of program.body)
+				if (decl.type === 'ExportNamedDeclaration' && !decl.source)
+					for (const s of decl.specifiers as Node[])
+						exported.add((s.local as { name: string }).name);
 			for (const decl of program.body) {
 				if (decl.type !== 'ImportDeclaration') continue;
 				const from = (decl.source as { value: string }).value;
@@ -116,8 +123,14 @@ export function inline_markup_names() {
 				if (kept.length + named.length === specifiers.length) continue;
 				if (named.length > 0) kept.push(`{ ${named.join(', ')} }`);
 				// (none left: the import goes, as core's modules carry no side effects)
-				const text =
+				let text =
 					kept.length === 0 ? '' : `import ${kept.join(', ')} from ${JSON.stringify(from)};`;
+				for (const s of specifiers) {
+					const name = (s.local as { name: string }).name;
+					const value = local.get(name);
+					if (value !== undefined && exported.has(name))
+						text += `const ${name} = ${JSON.stringify(value)};`;
+				}
 				const end = text === '' && code[decl.end] === '\n' ? decl.end + 1 : decl.end;
 				edits.push({ start: decl.start, end, text });
 			}
