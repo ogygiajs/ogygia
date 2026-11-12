@@ -20,7 +20,6 @@ import { region_css_tags } from '../src/server/html-scan.ts';
 import { next_tag, read_tag, tags, text_of } from '../src/wire-markup.ts';
 import { document, head, hole_answer } from './fixtures.ts';
 import { attr, decode_text, html, trusted_html } from '../src/html.ts';
-import { tags } from '../src/wire-markup.ts';
 
 bench(
 	'head: dedupe repeated hints and sheets, then put the runtime first',
@@ -162,29 +161,6 @@ bench(
 		setup: () => ({ rows: cards(40) }),
 		scale: (_ctx, k) => ({ rows: cards(40 * k) })
 	}
-);
-
-bench(
-	'tags: every region start tag of a document, read past its scripts, styles and comments',
-	({ html }) => {
-		let n = 0;
-		for (const t of tags(html, 'ogygia-region')) n += t.attrs.size;
-		return n;
-	},
-	{
-		setup: () => ({ html: document(300) }),
-		scale: (_ctx, k) => ({ html: document(300 * k) })
-	}
-);
-
-bench(
-	'tags: the head links of a page with forty islands',
-	({ h }) => {
-		let n = 0;
-		for (const t of tags(h, 'link')) n += t.end - t.start;
-		return n;
-	},
-	{ setup: () => ({ h: head(40) }) }
 );
 
 /** `n` rows of author text, one in three full of the characters that need escaping. */
