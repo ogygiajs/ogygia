@@ -429,6 +429,37 @@ the entries'. A timer's callback runs inside the clock's own `runFor`, so a long
 seen (its entry point is Playwright's); a fetch's answer, an event and a module's evaluation are. The palaestra's 9 kept plans of a 60-run search
 pass in Chromium.
 
+## The differential
+
+The fake browser's gaps were found by luck (DOMContentLoaded never fired, `load` came before the
+module scripts ran, history entries came at the wrong time, a left document's downloads went on),
+each after hundreds of runs. The differential looks for them on purpose (`src/differ.ts`): the same
+calm runs played in the simulator and in Chromium, Firefox and WebKit, and what ogygia observably
+did put side by side after every action.
+
+    node --experimental-vm-modules src/differ.ts [--app <dir>] [--from 1] [--runs 10] [--steps 8] \
+      [--browsers chromium,firefox,webkit] [--out <dir>] [--reuse]
+    node src/differ.ts --compare <dir>
+
+A calm run (`cli.ts --calm`) is one both worlds can play alike: no fault, no buggify point, one
+server with a stable secret, the app's own build (the one its player serves), and no deploy, offline
+or outage (`NOT_CALM`, left out on both sides). `--observe <dir>` writes each run's plan with what it
+saw (`<app>-<seed>.sim.json`); the player plays that plan with `SIM_OBSERVE=<dir>` and writes
+`<app>-<seed>.sim.<browser>.json`. After each action each side waits for rest and looks at every tab
+(`@ogygia/tooling/e2e/sim-observe.ts`, the same code on both sides): the document (`snapshot`: the
+MPA oracle's normalization, which a page can run), what each document heard from before its first
+script (`ear`: readystatechange, DOMContentLoaded, load, pageshow, pagehide, popstate, hashchange,
+`og:*` and `ogygia:*`, capturing on the window), its machine moves, its errors and warnings, and
+the requests the tabs made to the app.
+
+Compared (`differences`): the address, the document's first differing hunk, the lifecycle's order
+(a region's own events as a count: their order is the network's), each machine's steps by name and
+the states left mid-work, what was said, and the requests as a multiset. What differs by
+construction is masked (`plain`): the origin, content hashes, a hole's `exp=` and `sig=` (its
+server's clock). A difference every browser shows alike is the simulator's (`sim-only`, the report's
+first list); one only some show is `engines` (an engine's way, or timing). dst.yml's `differ` job
+runs 12 seeds a day (a new range each day) in all three and puts the report in its summary.
+
 ## Findings
 
 A real bug gets a GitHub issue (labels `bug`, `dst`) and a failing test on its own branch
