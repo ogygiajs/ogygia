@@ -385,7 +385,8 @@ export class Network {
 									},
 									() => {}
 								);
-							if (!lost) ex.status = response.status;
+							// (called off before it came, it stays `aborted`: the client never got it)
+							if (!lost && !signal?.aborted) ex.status = response.status;
 							ex.build = response.headers.get(ANSWERED_BY) ?? undefined;
 							const leg = this.#latency(pace) + stall - midway;
 							loop.add('net', `response ${ex.id} ${response.status}`, leg, () => {
