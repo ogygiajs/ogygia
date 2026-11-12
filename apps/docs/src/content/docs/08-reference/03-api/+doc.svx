@@ -322,9 +322,9 @@ Replacements for `$app/navigation` that are safe to use in islands, because a cs
 
 Use these instead of `$app/navigation` inside islands. See [SPA router](/docs/app/spa-router).
 
-## `ogygia/events` · `ogygia/insights`
+## `ogygia/events`
 
-`ogygia/events` is the event layer: the typed stream of what the framework did (island wakes, server renders, navigations), plus the bus and sink helpers (`add_sink`, `snapshot`, `clear`). It is compiled in only when a plugin asks for it, as the devtools plugin does. `ogygia/insights` is the analysis engine shared by the dock, the profiler and the test helpers.
+`ogygia/events` is the event layer: the typed stream of what the framework did (island wakes, server renders, navigations), plus the bus and sink helpers (`add_sink`, `snapshot`, `clear`). It is compiled in only when a plugin asks for it, as the devtools plugin does. The analysis engine shared by the dock, the profiler and the test helpers is its own package, `@ogygia/insights` (there is no `ogygia/insights`): install it and import from it.
 
 ## Plugin packages
 

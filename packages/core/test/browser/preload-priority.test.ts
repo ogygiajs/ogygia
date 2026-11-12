@@ -14,6 +14,8 @@ import {
 	reset_load_scheduler
 } from '../../src/runtime/load-scheduler.ts';
 import { reset_document_painted } from '../../src/runtime/schedule.ts';
+import { PRIORITY } from '../../src/runtime/load-class.ts';
+import { flights } from '@ogygia/machine';
 import { island_graph_script } from '../../src/server/document-tail.ts';
 
 const priorities = () =>
@@ -54,9 +56,16 @@ test('a click wake raises it to high, and a later guess never lowers it', () => 
 });
 
 test('a download lifted to a class is never lowered by a later, lesser join', () => {
-	const slot = new LoadSlot({ kind: 'code', cls: 'speculative' });
-	slot.promote('user');
-	slot.promote('ahead');
+	let slot!: LoadSlot;
+	const downloads = flights({
+		run: (_key: string, _signal, flight) => {
+			slot = new LoadSlot({ kind: 'code', cls: 'speculative', flight });
+			return slot.ready;
+		}
+	});
+	void downloads.get('a', { priority: PRIORITY.speculative });
+	void downloads.get('a', { priority: PRIORITY.user });
+	void downloads.get('a', { priority: PRIORITY.ahead });
 	expect(slot.cls()).toBe('user');
 });
 
