@@ -54,7 +54,8 @@ export class RateLimiter {
 		const now = clock.mono();
 		const b = this.#buckets.get(ip);
 		if (!b || now - b.t >= this.#windowMs) {
-			this.#buckets.set(ip, { n: 1, t: now });
+			// (a new window is a use too: to the end, test/rate-limit-lru.test.ts)
+			this.#touch(ip, { n: 1, t: now });
 			this.#maybe_prune(now);
 			return false;
 		}
