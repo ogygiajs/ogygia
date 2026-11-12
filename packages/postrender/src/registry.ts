@@ -186,13 +186,8 @@ function store_answered(mark: Health): void {
 	if (store_health.now === mark && mark.kind === 'failing') store_health.go('ok');
 }
 
-/** `work` against the store: its failure is said and answered `fallback`. */
-async function guarded<T>(
-	op: string,
-	key: string,
-	work: () => Promise<T>,
-	fallback: T
-): Promise<T> {
+/** `work` against the store: its failure is said, then thrown (for a caller that tries again). */
+export async function store_call<T>(op: string, key: string, work: () => Promise<T>): Promise<T> {
 	const mark = store_health.now;
 	try {
 		// (buggify: the store is down for this call, a shared store's blip: the page renders fresh
@@ -203,7 +198,21 @@ async function guarded<T>(
 		return out;
 	} catch (error) {
 		store_failed(op, key, error);
-		return fallback;
+		throw error;
+	}
+}
+
+/** `work` against the store: its failure is said and answered `fallback`. */
+async function guarded<T>(
+	op: string,
+	key: string,
+	work: () => Promise<T>,
+	fallback: T
+): Promise<T> {
+	try {
+		return await store_call(op, key, work);
+	} catch {
+		return fallback; // ok: store_call said it
 	}
 }
 
