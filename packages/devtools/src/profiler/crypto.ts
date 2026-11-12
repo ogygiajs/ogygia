@@ -1,18 +1,6 @@
-/**
- * The `.ogp` codec — a profiler dump Brotli-compressed, then AES-256-GCM encrypted with the key.
- * A downloaded trace exposes server internals (source paths, component names, outbound URLs), so the
- * file can only be reopened by a profiler holding the same key. Node-only (dynamic `node:crypto` +
- * `node:zlib`), kept out of the edge-safe report renderer.
- *
- * Self-describing layout:  'OGP1' (4)  ·  salt (16)  ·  iv (12)  ·  ciphertext  ·  GCM tag (16)
- *
- * The AES key is `scrypt(secret, salt, 32)` — a fresh salt per file. `secret` is the profiler auth
- * secret; with none (dev) a fixed dev key is used so dev exports still open in dev.
- */
-
 import { OgygiaError } from '../messages/runtime.ts';
 
-const MAGIC = [0x4f, 0x47, 0x50, 0x31]; // 'OGP1'
+const MAGIC = [0x4f, 0x47, 0x50, 0x31];
 const DEV_KEY = 'ogygia-profiler-dev-key';
 
 async function node() {
@@ -22,8 +10,6 @@ async function node() {
 		import('node:util')
 	]);
 	const p = util.promisify;
-	// The slow parts (KDF + Brotli) run ASYNC off the libuv threadpool — NEVER block the event loop
-	// (the web server's single thread). AES-GCM itself is fast and stays inline.
 	return {
 		crypto,
 		zlib,
@@ -63,13 +49,11 @@ const BASE64_RE = /^[A-Za-z0-9+/=\s]+$/;
  */
 export function recover_ogp_bytes(bytes: Uint8Array): Uint8Array {
 	if (is_ogp(bytes)) return bytes;
-	// Leading UTF-8 BOM from a text-editor round-trip.
 	if (bytes.length >= 3 && bytes[0] === 0xef && bytes[1] === 0xbb && bytes[2] === 0xbf) {
 		const stripped = bytes.subarray(3);
 		if (is_ogp(stripped)) return stripped;
 		bytes = stripped;
 	}
-	// Base64-encoded in transit (sent as text). Only attempt when it actually looks like base64.
 	try {
 		const text = new TextDecoder('utf-8', { fatal: false }).decode(bytes).trim();
 		if (text.length > 8 && BASE64_RE.test(text)) {
@@ -82,10 +66,16 @@ export function recover_ogp_bytes(bytes: Uint8Array): Uint8Array {
 	return bytes;
 }
 
-/** Compress + encrypt a dump object into `.ogp` bytes. Async — never blocks the event loop. */
+/**
+ * A profiler dump as `.ogp` bytes: Brotli-compressed, then AES-256-GCM encrypted, so a downloaded
+ * trace (source paths, component names, outbound URLs) opens only in a profiler with the same
+ * `secret`. The layout is `'OGP1'`, a 16-byte salt, a 12-byte iv, the ciphertext and the 16-byte GCM
+ * tag; the key is `scrypt(secret, salt, 32)`, with a fresh salt and iv per file. With no `secret`
+ * (dev) a fixed dev key is used, so dev exports open in dev. The key derivation and Brotli run off
+ * the event loop.
+ */
 export async function ogp_encode(dump: unknown, secret: string | undefined): Promise<Uint8Array> {
 	const { crypto, zlib, scrypt, brotli } = await node();
-	// Brotli (quality 5 — a good speed/ratio point for JSON this size) beats gzip on these traces.
 	const gz = await brotli(Buffer.from(JSON.stringify(dump), 'utf8'), {
 		params: { [zlib.constants.BROTLI_PARAM_QUALITY]: 5 }
 	});
@@ -94,14 +84,14 @@ export async function ogp_encode(dump: unknown, secret: string | undefined): Pro
 	const key = await scrypt(secret || DEV_KEY, salt, 32);
 	const cipher = crypto.createCipheriv('aes-256-gcm', key, iv);
 	const ct = Buffer.concat([cipher.update(gz), cipher.final()]);
-	const tag = cipher.getAuthTag(); // 16 bytes
+	const tag = cipher.getAuthTag();
 	return Buffer.concat([Buffer.from(MAGIC), salt, iv, ct, tag]);
 }
 
 /**
- * Decrypt + gunzip `.ogp` bytes back to the dump object. Throws on a wrong key or a tampered file
+ * Decrypt + decompress `.ogp` bytes back to the dump object. Throws on a wrong key or a tampered file
  * (the GCM tag fails to verify) — the caller turns that into a "wrong key" message. Unpacking stops
- * at `max` bytes: past it, `devtools_profiler_upload_too_large` (test/profiler-crypto.test.ts).
+ * at `max` bytes: past it, `devtools_profiler_upload_too_large`.
  */
 export async function ogp_decode(
 	bytes: Uint8Array,
@@ -118,7 +108,7 @@ export async function ogp_decode(
 	const key = await scrypt(secret || DEV_KEY, salt, 32);
 	const decipher = crypto.createDecipheriv('aes-256-gcm', key, iv);
 	decipher.setAuthTag(tag);
-	const gz = Buffer.concat([decipher.update(ct), decipher.final()]); // throws on wrong key / tamper
+	const gz = Buffer.concat([decipher.update(ct), decipher.final()]);
 	let json: Buffer;
 	try {
 		json = await unbrotli(gz, { maxOutputLength: max });

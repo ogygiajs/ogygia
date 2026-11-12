@@ -36,9 +36,9 @@ export class SinkBuffer {
 	constructor(max_bytes: number = 512 * 1024) {
 		this.max_bytes = max_bytes;
 	}
+	/** Adds `row`; a full buffer drops its oldest request rows first, never a window or a catch. */
 	push(row: SinkRow): void {
 		const line = JSON.stringify(row);
-		// a full buffer drops the OLDEST request rows first, never a window or a catch
 		while (this.#bytes + line.length > this.max_bytes && this.#rows.length) {
 			const i = this.#rows.findIndex((r) => r.k === 'req');
 			const [gone] = this.#rows.splice(i === -1 ? 0 : i, 1);

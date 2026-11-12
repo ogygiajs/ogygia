@@ -27,7 +27,8 @@ interface Store {
 	target: EventTarget;
 }
 
-const STORE_KEY = Symbol.for('ogygia.shared.v1');
+// (island-side: no machine here, so not a `slot()`: the page's one store, by name)
+const STORE_KEY = Symbol.for('ogygia.shared');
 
 function page_store(): Store {
 	const g = globalThis as Record<PropertyKey, unknown>;
