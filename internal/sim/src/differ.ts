@@ -291,6 +291,9 @@ const arg = (flag: string): string | undefined => {
 };
 
 function main(): void {
+	/** What made the run check nothing (it fails), and what made it check less (said first). */
+	const failed: string[] = [];
+	const notes: string[] = [];
 	const compare_only = arg('--compare');
 	const out = resolve(compare_only ?? arg('--out') ?? join(tmpdir(), 'ogygia-differ'));
 	if (compare_only === undefined) {
@@ -312,19 +315,26 @@ function main(): void {
 		// (`--reuse`: the simulator's runs already in `--out`, played in more browsers)
 		if (!process.argv.includes('--reuse')) {
 			console.log(`[differ] the simulator: ${runs} calm seeds from ${from}, ${steps} actions`);
-			sh(
-				sim,
-				`nice -n 10 node --experimental-vm-modules --no-warnings src/cli.ts --app '${app}' --from ${from} --runs ${runs} --steps ${steps} --calm --no-replay --jobs ${jobs} --observe '${out}'`
-			);
+			// (a seed's finding exits non-zero too: what was written is what counts, below)
+			if (
+				!sh(
+					sim,
+					`nice -n 10 node --experimental-vm-modules --no-warnings src/cli.ts --app '${app}' --from ${from} --runs ${runs} --steps ${steps} --calm --no-replay --jobs ${jobs} --observe '${out}'`
+				)
+			)
+				notes.push('the simulator exited non-zero (a finding, or a crash: differ.log)');
 		}
 		const plans = readdirSync(out)
 			.filter((f) => f.startsWith(`${basename(app)}-`) && f.endsWith('.sim.json'))
 			.map((f) => join(out, f));
+		// A RUN THAT CHECKED NOTHING FAILS: no plan, or a browser that played none of them, is a
+		// broken differential, never a clean report
+		if (plans.length === 0) failed.push(`the simulator wrote no plan (differ.log)`);
 		// (a generated app's spec serves its own rules build; the palaestra's the one on disk)
 		const generated = existsSync(join(app, 'src', 'lib', 'gen', 'plan.json'));
 		for (const b of browsers) {
 			console.log(`[differ] ${b}: ${plans.length} plans`);
-			sh(
+			const ok = sh(
 				app,
 				`nice -n 10 npx playwright test ${generated ? '' : 'e2e/sim-replay '}--project ${b} --workers 1 --reporter line`,
 				{
@@ -335,10 +345,20 @@ function main(): void {
 					PORT: String(arg('--port') ?? 3151)
 				}
 			);
+			const played = plans.filter((p) => existsSync(p.replace(/\.json$/, `.${b}.json`))).length;
+			if (played === 0 && plans.length > 0)
+				failed.push(`${b} played none of the plans (differ.log)`);
+			else if (played < plans.length)
+				notes.push(`${b} played ${played} of ${plans.length} plans (differ.log)`);
+			if (!ok) notes.push(`${b}: the player's own checks failed on a plan (differ.log)`);
 		}
 	}
 	const c = compare(out);
-	const text = report(c);
+	const text = [
+		...failed.map((f) => `**BROKEN: ${f}**`),
+		...notes.map((n) => `> ${n}`),
+		report(c)
+	].join('\n');
 	writeFileSync(join(out, 'differ.md'), text);
 	writeFileSync(
 		join(out, 'differ.json'),
@@ -350,6 +370,7 @@ function main(): void {
 	);
 	console.log(text);
 	console.log(`[differ] report: ${join(out, 'differ.md')}`);
+	if (failed.length > 0) process.exit(1);
 }
 
 if (import.meta.main) main();
