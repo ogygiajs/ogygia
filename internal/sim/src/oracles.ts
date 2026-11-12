@@ -730,10 +730,25 @@ export function document_faulted(world: World, tab: Tab): boolean {
 /** What a page may say when the network failed it: ogygia's coded reports, the network's own
  *  failures (a script cut midway fails to parse), Vite's preload helper on a sheet whose
  *  download failed (seeds 65, 425), and Kit's remote functions on an answer they cannot read
- *  ("Invalid query.live response": seed 193, a changed byte in a live query's stream). An uncaught
- *  TypeError is never excused. */
+ *  ("Invalid query.live response": seed 193, a changed byte in a live query's stream), and an
+ *  inline handler a changed byte broke (the runtime script's `onerror`, as the DOM library says
+ *  it fails to compile: generated-app seed 88). An uncaught TypeError is never excused. */
 const EXPLAINED =
-	/ogygiajs\.dev\/e\/|Unable to preload CSS|Failed to fetch|network error|stream was cut|Failed to perform request|SyntaxError|Invalid or unexpected token|Unexpected token|Status [45]\d\d|offline|connection lost|Invalid [\w.]+ response/;
+	/ogygiajs\.dev\/e\/|Unable to preload CSS|Failed to fetch|network error|stream was cut|Failed to perform request|SyntaxError|Invalid or unexpected token|Unexpected token|Status [45]\d\d|offline|connection lost|Invalid [\w.]+ response|Failed to read the 'on\w+' property/;
+
+/** How the browser, or ogygia with its code, says a module or file did not download. */
+const NOT_DOWNLOADED =
+	/ogygiajs\.dev\/e\/|Failed to fetch dynamically imported module|^error: <(script|link)> \S+ failed|Failed to perform request/;
+
+/**
+ * A failure a deploy explains: the tab asked a build for a content-hashed file only another build
+ * has (an old page's file after its build is gone, or one build's file asked of the other's
+ * servers in a rolling deploy), said as the browser says a download failed, or by ogygia with its
+ * code. ogygia's own words without a code are never excused.
+ */
+function deploy_took(world: World, tab: Tab, line: string): boolean {
+	return NOT_DOWNLOADED.test(line) && world.skewed_for(tab.realm);
+}
 
 /** How the browser, or ogygia with its code, says a module or file did not download. */
 const NOT_DOWNLOADED =
@@ -883,6 +898,9 @@ const LEAK_VISITS = 3;
  */
 export class Leaks {
 	readonly #samples = new Map<string, Array<Record<string, number>>>();
+	/** Each document met, numbered. */
+	readonly #docs = new WeakMap<object, number>();
+	#docs_made = 0;
 	/** Each tab's last sample's key: the same key twice running is one visit. */
 	readonly #at = new Map<string, string>();
 	/** Notes `tab`'s sample now; what grew, if it has grown visit after visit. `pressed`: the
@@ -891,7 +909,12 @@ export class Leaks {
 	check(tab: Tab, pressed = false): Broken | null {
 		const url = tab.page.mainFrame.url;
 		if (!url.startsWith('http')) return null;
-		const key = `${tab.realm} ${url.split('#')[0]}`;
+		// (by the document itself too: a navigation that failed swaps the document in the DOM
+		// library's same window, where a browser would make a new one; generated-app seed 71)
+		const doc = tab.page.mainFrame.document as unknown as object;
+		let n = this.#docs.get(doc);
+		if (n === undefined) this.#docs.set(doc, (n = this.#docs_made++));
+		const key = `${tab.realm}.${n} ${url.split('#')[0]}`;
 		const list = this.#samples.get(key) ?? [];
 		const held = tab.held();
 		// (a module preload stays in the head once added, as Vite's own do: one per chunk the app

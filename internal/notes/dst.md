@@ -147,6 +147,16 @@ never loads one again; ogygia says `runtime_load_failed`).
 Rest waits for requests a server is still working on (a hole that renders in 3 s): its answer is
 not a loop task until it comes.
 
+## The random app
+
+`apps/sim-gen` is an app nobody wrote by hand: `pnpm sim:gen --seed N` (`src/gen.ts`) writes its
+pages and regions from a seed. Islands on every schedule, holes (some woken once they land, some
+slow on the server, some with a fallback), lakes and plain components, nested up to 3 deep, on 3
+to 6 pages that link to each other (router on, csr=false). Each region is a component of its own
+that imports its children with their import attributes; the tree is in
+`src/lib/gen/plan.json`. Then `pnpm sim:builds --app ../../apps/sim-gen` and
+`pnpm sim --app ../../apps/sim-gen`. Federation is not generated yet (it needs two apps).
+
 ## Running many
 
 `pnpm sim --runs 200 [--from 41] [--steps 30] [--jobs N]`: seeds run in a pool of worker
