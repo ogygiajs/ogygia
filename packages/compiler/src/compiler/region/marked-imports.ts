@@ -264,6 +264,8 @@ function misuse_of(node: SvelteNode, ancestors: SvelteNode[]): string | null {
 		case 'SpreadAttribute':
 			return 'spread';
 		case 'UnaryExpression':
+			// `void X` keeps an import referenced and `!X` asks whether it is there: neither uses it
+			if (parent.operator === 'void' || parent.operator === '!') return null;
 			return parent.operator === 'typeof' ? 'read with typeof' : `an operand of ${parent.operator}`;
 		case 'UpdateExpression':
 			return 'assigned';

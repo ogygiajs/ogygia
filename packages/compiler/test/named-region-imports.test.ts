@@ -200,6 +200,18 @@ describe('a marked named import in a .svelte host is a region', () => {
 		expect(r.islands).toHaveLength(1);
 	});
 
+	test('`void X` (kept referenced, never placed) and `!X` are not misuses', () => {
+		const r = host(
+			dedent`
+				import { Card } from '@acme/ui' with { wake: 'load' };
+				void Card;
+				const missing = !Card;
+			`,
+			'<p>{missing}</p>'
+		);
+		expect(r.islands).toHaveLength(1);
+	});
+
 	test('a shadowing local of the same name is never read as a misuse', () => {
 		const r = host(
 			dedent`
