@@ -17,9 +17,7 @@ afterEach(() => {
 /** the page's slots, then what the snippet revived for `id` renders */
 function render_slot(id: string): HTMLElement {
 	const page = document.createElement('div');
-	page.innerHTML =
-		'<ogygia-slot data-og-slot="og1">one</ogygia-slot>' +
-		'<ogygia-slot data-og-slot="a&quot;]">quoted</ogygia-slot>';
+	page.innerHTML = `<ogygia-slot data-og-slot="og1">one</ogygia-slot><ogygia-slot data-og-slot="a&quot;]">quoted</ogygia-slot>`;
 	document.body.appendChild(page);
 	const s = revive_region_snippet({ m: 'slot', id });
 	host = document.createElement('div');
