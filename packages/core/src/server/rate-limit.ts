@@ -72,7 +72,7 @@ export class RateLimiter {
 	over(ip: string): boolean {
 		if (this.#max <= 0) return false;
 		const b = this.#buckets.get(ip);
-		return b !== undefined && Date.now() - b.t < this.#windowMs && b.n >= this.#max;
+		return b !== undefined && clock.mono() - b.t < this.#windowMs && b.n >= this.#max;
 	}
 
 	get size(): number {
