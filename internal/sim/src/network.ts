@@ -133,7 +133,8 @@ export class Network {
 
 	readonly #calm = new Set<string>();
 
-	/** Spares `tab` (each of its documents) every fault but delay: an oracle's reference load. */
+	/** Spares `tab` (each of its documents) every fault but short delay: an oracle's reference
+	 *  load. */
 	calm(tab: string): void {
 		this.#calm.add(tab);
 	}
@@ -143,10 +144,14 @@ export class Network {
 	}
 
 	/** One leg's latency: 1 ms with no delay faults; with them, mostly short and sometimes long. */
-	#latency(): number {
+	#latency(calm = false): number {
 		if (!this.#faults.has('delay')) return 1;
 		const long = this.#faults.has('reorder') && this.#rng.chance(this.#rates.reorder);
-		return long ? this.#rng.between(200, 3000) : this.#rng.between(5, 120);
+		const ms = long ? this.#rng.between(200, 3000) : this.#rng.between(5, 120);
+		// (a calm leg is never a long one: two long legs on a reference load's peer hop passed the
+		// peer's 5 s timeout, and the app rightly answered 504; gen 23, seed 23023. The same draws
+		// either way, so every other leg of a run replays as it did)
+		return calm && long ? 5 + (ms % 116) : ms;
 	}
 
 	/** Sends `request` from `realm` to `handler`; the answer comes when the loop says. */
@@ -219,7 +224,7 @@ export class Network {
 			loop.add(
 				'net',
 				`request ${ex.id} ${request.method} ${new URL(request.url).pathname}`,
-				this.#latency(),
+				this.#latency(calm),
 				() => {
 					const copy = dup ? request.clone() : null;
 					void asked_by
@@ -235,20 +240,20 @@ export class Network {
 									);
 							if (!lost) ex.status = response.status;
 							ex.build = response.headers.get(ANSWERED_BY) ?? undefined;
-							loop.add('net', `response ${ex.id} ${response.status}`, this.#latency(), () => {
+							loop.add('net', `response ${ex.id} ${response.status}`, this.#latency(calm), () => {
 								if (signal?.aborted || lost) {
 									void response.body?.cancel();
 									return;
 								}
 								this.#on_wire.delete(ex);
-								resolve(this.#deliver(ex, response, cut, tamper, signal));
+								resolve(this.#deliver(ex, response, cut, tamper, signal, calm));
 							});
 						})
 						.catch((error: unknown) => {
 							if (lost) return;
 							this.#on_wire.delete(ex);
 							ex.status = 500;
-							loop.add('net', `error ${ex.id}`, this.#latency(), () =>
+							loop.add('net', `error ${ex.id}`, this.#latency(calm), () =>
 								fail(error instanceof Error ? error.message : String(error))
 							);
 						});
@@ -267,7 +272,8 @@ export class Network {
 		response: Response,
 		cut: boolean,
 		tamper: boolean,
-		signal: AbortSignal | undefined
+		signal: AbortSignal | undefined,
+		calm: boolean
 	): Response {
 		const headers = new Headers(response.headers);
 		headers.delete('content-length');
@@ -285,7 +291,7 @@ export class Network {
 		let last = loop.now;
 		let piece = 0;
 		const send = (label: string, deliver: () => void): void => {
-			const at = Math.max(last, loop.now + (piece === 0 ? 0 : this.#latency()));
+			const at = Math.max(last, loop.now + (piece === 0 ? 0 : this.#latency(calm)));
 			last = at;
 			loop.add('net', `${label} ${ex.id}.${piece++}`, at - loop.now, () => {
 				if (ended) return;

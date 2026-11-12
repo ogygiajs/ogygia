@@ -101,6 +101,26 @@ describe('the network', () => {
 		expect(out.sort()).toEqual([0, 1, 2, 3, 4, 5].map((i) => `answer /r/${i}`));
 	});
 
+	it("a calm tab's request is never held long: its legs stay short under reorder", async () => {
+		const loop = new Loop(rng(3));
+		const net = new Network({
+			loop,
+			rng: rng(3),
+			faults: new Set(['delay', 'reorder']),
+			rates: { reorder: 1 }
+		});
+		net.calm('tab-9');
+		let at = -1;
+		void net
+			.send('tab-9', new Request('https://app.test/'), async () => new Response('x'))
+			.then((r) => r.text())
+			.then(() => (at = loop.now));
+		await loop.run();
+		// (request leg, response leg, one chunk and the end, each at most 120 ms)
+		expect(at).toBeGreaterThan(0);
+		expect(at).toBeLessThanOrEqual(4 * 120);
+	});
+
 	it('offline fails at once', async () => {
 		const loop = new Loop(rng(1));
 		const net = new Network({ loop, rng: rng(1), faults: new Set() });
