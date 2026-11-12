@@ -278,6 +278,10 @@ flights' entry steps. A run's steps come from each document's moves (`__ogygia_m
 every action: the log keeps only its last lines). Each run also reports each buggify point: asked,
 on, fired. The summary prints one line, and `results.json` holds per machine what was reached and
 what is still missing, the machines no run touched, and steps a run took that no definition names.
+It also lists the RECOVERY STEPS no run reached (`unreached_recovery`: into or out of a state a
+failure leads to, a retry, an offline wait, a failure, a stall, a give-up, and a keep running out,
+`kept -> gone`), and the always-on run puts the ones every batch missed in its job summary: a new
+recovery step nothing reaches shows at once, and each wants a buggify point, a fault or an app shape.
 A server's moves too: in a rules build core's server rules keep its last 5000 under
 `Symbol.for('ogygia.server.moves')`, which the simulator reads from each instance's own registry.
 

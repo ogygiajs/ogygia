@@ -106,6 +106,7 @@ interface BatchOut {
 	findings?: Finding[];
 	steps_per_second: number;
 	replay_leaks: number[];
+	coverage?: { unreached_recovery?: string[] };
 }
 
 /**
@@ -126,10 +127,21 @@ export function batch_result(
 	return JSON.parse(text) as BatchOut;
 }
 
+/** The recovery steps every batch missed: one any batch reached is reached. */
+export function unreached_in_every(lists: readonly (readonly string[])[]): string[] {
+	if (lists.length === 0) return [];
+	return lists[0].filter((s) => lists.every((l) => l.includes(s))).sort();
+}
+
 /** One batch of seeds through the pool; its findings, or why it failed. */
-function batch(
-	from: number
-): { findings: Finding[]; seeds: number; steps_per_second: number } | { failed: string } {
+function batch(from: number):
+	| {
+			findings: Finding[];
+			seeds: number;
+			steps_per_second: number;
+			unreached_recovery: string[];
+	  }
+	| { failed: string } {
 	const file = join(SIM, 'results.json');
 	rmSync(file, { force: true });
 	const r = spawnSync(
@@ -154,7 +166,12 @@ function batch(
 	if ('failed' in out) return out;
 	if (out.replay_leaks.length)
 		log(`replay leaks (the simulator's to fix): ${out.replay_leaks.join(', ')}`);
-	return { findings: out.findings ?? [], seeds: BATCH, steps_per_second: out.steps_per_second };
+	return {
+		findings: out.findings ?? [],
+		seeds: BATCH,
+		steps_per_second: out.steps_per_second,
+		unreached_recovery: out.coverage?.unreached_recovery ?? []
+	};
 }
 
 /** The seeded test a found branch carries: fails while the finding stands. */
@@ -394,6 +411,8 @@ async function main(): Promise<void> {
 	let stopped_early = false;
 	let failed: string | null = null;
 	const all: Finding[] = [];
+	/** Each batch's recovery steps no run of it reached. */
+	const unreached: string[][] = [];
 	// (a results file is this run's or none: one a run before left is never read as this one's)
 	rmSync(RESULTS, { force: true });
 	while (Date.now() < DEADLINE) {
@@ -413,6 +432,7 @@ async function main(): Promise<void> {
 		seeds += b.seeds;
 		rate = b.steps_per_second;
 		all.push(...b.findings);
+		unreached.push(b.unreached_recovery);
 		log(`${seeds} seeds, ${all.length} findings`);
 	}
 	const groups = new Map<string, Finding[]>();
@@ -431,8 +451,8 @@ async function main(): Promise<void> {
 		steps_per_second: rate,
 		stopped_early,
 		failed,
-		// (machine (name, state, event) coverage arrives with the coverage-guided search)
-		coverage: null,
+		// (the recovery steps no batch reached: each wants a point, a fault or an app shape)
+		coverage: { unreached_recovery: unreached_in_every(unreached) },
 		findings: [...groups].map(([sig, list]) => ({
 			sig,
 			oracle: list[0].oracle,
@@ -461,6 +481,16 @@ async function main(): Promise<void> {
 								(f) =>
 									`| ${f.sig} | ${f.oracle} | ${f.seeds.length} (first ${f.seeds[0]}) | ${f.issue ? `#${f.issue}` : f.filing_error ? 'filing failed' : 'not filed'} |`
 							)
+						].join('\n'),
+				'',
+				results.coverage.unreached_recovery.length === 0
+					? 'Every recovery step was reached.'
+					: [
+							`### Recovery steps no run reached (${results.coverage.unreached_recovery.length})`,
+							'',
+							'Each wants a buggify point, a fault or an app shape that leads there.',
+							'',
+							...results.coverage.unreached_recovery.map((s) => `- \`${s}\``)
 						].join('\n'),
 				''
 			].join('\n')

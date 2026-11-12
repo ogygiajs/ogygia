@@ -495,11 +495,13 @@ const ROOT = resolve(import.meta.dirname, '..', '..', '..');
 /** What runs reached, against every machine step of the packages: a line to print, and the numbers
  *  for results.json (each machine a run touched, with the steps it still misses). */
 function coverage_summary(covered: Coverage) {
-	const r = covered.report(universe(ROOT));
+	const machines = universe(ROOT);
+	const r = covered.report(machines);
+	const unreached_recovery = covered.unreached_recovery(machines);
 	const points = [...covered.points].map(([point, c]) => ({ point, ...c }));
 	const fired = points.filter((p) => p.fired > 0).length;
 	return {
-		line: `coverage: ${r.reached}/${r.total} machine steps (${Math.round((r.reached / r.total) * 100)}%), ${r.machines_touched}/${r.per_machine.length} machines touched; buggify: ${fired}/${points.length} points fired (${points.map((p) => `${p.point} ${p.fired}/${p.asked}`).join(', ') || 'none asked'})`,
+		line: `coverage: ${r.reached}/${r.total} machine steps (${Math.round((r.reached / r.total) * 100)}%), ${r.machines_touched}/${r.per_machine.length} machines touched, ${unreached_recovery.length} recovery steps unreached; buggify: ${fired}/${points.length} points fired (${points.map((p) => `${p.point} ${p.fired}/${p.asked}`).join(', ') || 'none asked'})`,
 		reached: r.reached,
 		total: r.total,
 		machines_touched: r.machines_touched,
@@ -508,6 +510,9 @@ function coverage_summary(covered: Coverage) {
 			.map((m) => ({ name: m.name, reached: m.reached, total: m.total, missing: m.missing })),
 		untouched: r.per_machine.filter((m) => m.reached === 0).map((m) => `${m.pkg}/${m.name}`),
 		unknown: r.unknown,
+		/** Recovery steps (a retry, an offline wait, a failure, a give-up, a keep running out) no run
+		 *  reached: each wants a buggify point, a fault or an app shape that leads there. */
+		unreached_recovery,
 		points
 	};
 }

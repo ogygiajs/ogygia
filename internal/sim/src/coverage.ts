@@ -275,4 +275,23 @@ export class Coverage {
 			unknown: [...this.steps.keys()].filter((s) => !every.has(s)).sort()
 		};
 	}
+
+	/** The recovery steps of `machines` no run reached: into, out of or between the states a failure
+	 *  leads to (a retry, an offline wait, a failure, a stall, a give-up), and a kept answer's keep
+	 *  running out (`kept -> gone`). Listed so a new one nothing reaches shows at once. */
+	unreached_recovery(machines: Map<string, MachineDef>): string[] {
+		const out: string[] = [];
+		for (const m of machines.values())
+			for (const [from, tos] of Object.entries(m.steps))
+				for (const to of tos) {
+					const key = step_key(m.name, from, to);
+					if (this.steps.has(key)) continue;
+					if (RECOVERY.test(from) || RECOVERY.test(to) || (from === 'kept' && to === 'gone'))
+						out.push(key);
+				}
+		return out.sort();
+	}
 }
+
+/** A state a failure leads to, by its name. */
+const RECOVERY = /retry|offline|fail|stall|stuck|timed|timeout|gave|give|lost|refus|expired|again/;
