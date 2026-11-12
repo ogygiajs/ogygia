@@ -34,7 +34,7 @@ import { join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, act, next_action, ACTION_KINDS, type Action, type Mix } from './workload.ts';
 import { html_kept, html_sent } from './html.ts';
-import { waste } from './waste.ts';
+import { asked_twice_each, waste } from './waste.ts';
 import {
 	document_faulted,
 	faulted,
@@ -303,6 +303,8 @@ export async function run(
 	const broken: Broken[] = [];
 	/** The document each tab had when it was last pressed in (by tab name). */
 	const pressed = new Map<string, number>();
+	/** Each document's exchange count when a press or a deploy first came (by realm). */
+	const disturbed = new Map<string, number>();
 	const leaks = new Leaks();
 	const log = world.loop;
 	/** Machine steps the pages took, with how often. */
@@ -386,6 +388,14 @@ export async function run(
 						);
 			actions.push(a);
 			log.note(`action ${i + 1}: ${describe(a)}`);
+			// (what a press or a deploy does is on purpose: each document's asks are judged up to it)
+			if (
+				a.kind === 'press' ||
+				a.kind === 'deploy' ||
+				(a.kind === 'outage' && a.during === 'press')
+			)
+				for (const t of v.tabs)
+					if (!disturbed.has(t.realm)) disturbed.set(t.realm, world.network.exchanges.length);
 			await act(world, v, a, ORIGIN);
 			// (a press changes an island's state: the document shows the visitor's own state from then
 			// on, kept across client navigations, which no fresh load has; its next document is clean.
@@ -449,6 +459,13 @@ export async function run(
 				if (b)
 					broken.push(outage && b.oracle !== 'known' ? { ...b, oracle: 'outage-recovery' } : b);
 			}
+			// (NO WASTE in any document of the run, a left one's too, each up to what disturbed it)
+			const asked = asked_twice_each(
+				world,
+				new Map(v.tabs.flatMap((t) => [...t.swaps_by])),
+				disturbed
+			);
+			if (asked) broken.push(asked);
 			const c = no_cross_visitor_cache(world);
 			if (c) broken.push(c);
 			// GOOD HTML: what the servers sent, and what each tab's document is at rest (one the network

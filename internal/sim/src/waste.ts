@@ -27,11 +27,17 @@ import { answer_key, is_page_path, type World } from './world.ts';
  *  swapped the document's page (`og:before-swap`, virtual ms): a remote query (`/_app/remote/`) is
  *  counted per visit, since a visit's regions mount and ask anew, a back's too, as a page is asked
  *  again (gen 187, seed 187004). */
-export function asked_twice(world: World, realm: string, swaps: readonly number[] = []): string[] {
+export function asked_twice(
+	world: World,
+	realm: string,
+	swaps: readonly number[] = [],
+	until = Infinity
+): string[] {
 	const count = new Map<string, number>();
 	/** Each hole answer's asks (virtual ms), its own GETs' and the batches' that named it. */
 	const holes = new Map<string, number[]>();
-	for (const e of world.network.exchanges) {
+	for (const [i, e] of world.network.exchanges.entries()) {
+		if (i >= until) break;
 		if (e.from !== realm || e.status !== 200) continue;
 		if (e.cut || e.lost === true || e.tampered || e.duplicated) continue;
 		if (e.method === 'POST') {
@@ -60,6 +66,39 @@ export function asked_twice(world: World, realm: string, swaps: readonly number[
 	return [...count]
 		.filter(([, n]) => n > 1)
 		.map(([k, n]) => `${k.slice(k.indexOf(' ') + 1)} ×${n}`);
+}
+
+/**
+ * Asked twice, in EVERY document of the run (`swaps`: each one's router swaps, by realm), each up
+ * to what first disturbed it: a press or a deploy (`disturbed`: the exchange count when it came), or
+ * a fault on one of its exchanges (a retry asks again by design). A document a deploy skewed, or
+ * one buggify lost an answer of, is set aside whole. Judged only at the end of a run, a document
+ * was nearly always set aside by then, and a re-ask the frame store should have saved went unseen.
+ */
+export function asked_twice_each(
+	world: World,
+	swaps: ReadonlyMap<string, readonly number[]>,
+	disturbed: ReadonlyMap<string, number>
+): Broken | null {
+	const found: string[] = [];
+	const exchanges = world.network.exchanges;
+	for (const [realm, s] of swaps) {
+		if (world.skewed_for(realm) || world.fired_in.has(realm)) continue;
+		const fault = exchanges.findIndex(
+			(e) =>
+				(e.from === realm || e.for === realm) &&
+				(e.cut ||
+					e.tampered ||
+					e.redirected ||
+					e.lost === true ||
+					e.status === 'dropped' ||
+					e.status === 'offline' ||
+					(typeof e.status === 'number' && e.status >= 500))
+		);
+		const until = Math.min(disturbed.get(realm) ?? Infinity, fault === -1 ? Infinity : fault);
+		for (const k of asked_twice(world, realm, s, until)) found.push(`${realm}: asked twice: ${k}`);
+	}
+	return found.length === 0 ? null : { oracle: 'waste', detail: found.join('\n') };
 }
 
 /** How long core's frame store keeps a left page's hole answer for a quick return (its
@@ -182,7 +221,6 @@ export function waste(world: World, tab: Tab): Broken | null {
 	const held = known_waste(doc, held_twice(doc));
 	const asked = known_waste(doc, refused(world, tab.realm));
 	const found = [
-		...asked_twice(world, tab.realm, tab.swaps).map((k) => `asked twice: ${k}`),
 		...asked.left.map((k) => `refused: ${k}`),
 		...held.left.map((k) => `held twice: ${k}`),
 		...tab.orphans().map((o) => `alive after its owner: ${o}`),

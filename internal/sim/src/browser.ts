@@ -53,6 +53,8 @@ export interface Tab {
 	/** When the router swapped the shown document's page (`og:before-swap`, virtual ms): where one
 	 *  visit of the document ends and the next begins. */
 	swaps: number[];
+	/** Each document's {@link swaps}, by realm, a left one's too. */
+	readonly swaps_by: Map<string, number[]>;
 }
 
 /** What a document holds that outlives a page visit if nobody lets it go. */
@@ -308,6 +310,7 @@ export class Browsers {
 		// (heard before the listener count starts: the simulator's own ear, not the page's; on the
 		// window while capturing, as writing the document's content drops the document's listeners)
 		const swaps: number[] = (tab.swaps = []);
+		tab.swaps_by.set(tab.realm, swaps);
 		const loop = this.#o.loop;
 		window.addEventListener('og:before-swap', () => swaps.push(loop.now), { capture: true });
 		this.#count_held(window, tab);
@@ -565,6 +568,7 @@ export class Browsers {
 			watching: () => [],
 			orphans: () => [],
 			swaps: [],
+			swaps_by: new Map(),
 			said_by: new Map()
 		};
 		// (each line said is the document's that said it: one action can show several documents,
