@@ -401,12 +401,13 @@ async function load_fresh(
 		(
 			b.browser.defaultContext as unknown as {
 				cookieContainer: {
-					getCookies(u: URL | null, http: boolean): unknown[];
+					getCookies(u: URL | null, client_side: boolean): unknown[];
 					addCookies(c: unknown[]): void;
 				};
 			}
 		).cookieContainer;
-	jar(visitor).addCookies(jar(v).getCookies(null, true));
+	// (every cookie, httpOnly ones too: a request carries them all; `true` would be a script's view)
+	jar(visitor).addCookies(jar(v).getCookies(null, false));
 	const tab = world.tab(visitor);
 	world.network.calm(tab.name, pace);
 	const path = new URL(url);
