@@ -21,11 +21,9 @@
  * their own evaluation of this module — a module-local map would split the seam.
  */
 import { PRERENDER_REGION_TTL_SEC } from './endpoint.ts';
+import { RENEW_WINDOW_SEC } from '../contract/capability.ts';
 
-/** The default for how long after expiry a capability can still be renewed
- *  (`maxPageAge`): the longest a stale document is expected to live in a shared cache (a
- *  week of `s-maxage` plus a day of revalidation). */
-export const RENEW_WINDOW_SEC: number = 8 * 24 * 3600;
+export { RENEW_WINDOW_SEC };
 
 /**
  * How long shared caches may serve a document with this `cache-control`, in seconds: its freshness

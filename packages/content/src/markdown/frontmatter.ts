@@ -301,8 +301,7 @@ function read_flow_map(p: Cursor): Record<string, unknown> {
 		}
 		skip_ws(p);
 		if (p.s[p.i] === ':') p.i++;
-		const value = read_flow_node(p);
-		obj[key] = value;
+		set_key(obj, key, read_flow_node(p));
 		skip_ws(p);
 		const c = p.s[p.i];
 		if (c === ',') {
@@ -502,15 +501,29 @@ function parse_mapping(ctx: Ctx, indent: number): Record<string, unknown> {
 		ctx.i++;
 		const clean = strip_comment(value_part).trim();
 
-		if (is_block_scalar_indicator(clean)) {
-			obj[key] = parse_block_scalar(ctx, indent, clean);
-		} else if (clean === '') {
-			obj[key] = parse_child(ctx, indent);
-		} else {
-			obj[key] = parse_scalar(clean);
-		}
+		set_key(
+			obj,
+			key,
+			is_block_scalar_indicator(clean)
+				? parse_block_scalar(ctx, indent, clean)
+				: clean === ''
+					? parse_child(ctx, indent)
+					: parse_scalar(clean)
+		);
 	}
 	return obj;
+}
+
+function set_key(obj: Record<string, unknown>, key: string, value: unknown): void {
+	// @why a parsed key is the object's own, as JSON.parse makes it: `__proto__` never sets the prototype (test: test/frontmatter.test.ts › a `__proto__` key is a plain key)
+	if (key === '__proto__')
+		Object.defineProperty(obj, key, {
+			value,
+			writable: true,
+			enumerable: true,
+			configurable: true
+		});
+	else obj[key] = value;
 }
 
 function parse_block(ctx: Ctx, indent: number): unknown {
@@ -572,6 +585,14 @@ export type FrontmatterResult = {
 	body: string;
 };
 
+function reason_of(e: unknown): string {
+	const message = e instanceof Error ? e.message : String(e);
+	if (!(e instanceof OgygiaError)) return message;
+	const link = message.lastIndexOf('\nhttps://ogygiajs.dev/e/');
+	const words = link === -1 ? message : message.slice(0, link);
+	return words.startsWith('[ogygia] ') ? words.slice('[ogygia] '.length) : words;
+}
+
 /**
  * Split a file into its `---` frontmatter data and its body. With no opening or no closing fence
  * there is no data and the whole text is the body. A list or scalar block gives no data; a block
@@ -595,9 +616,9 @@ export function parseFrontmatter(source: string): FrontmatterResult {
 			data = parsed as Record<string, unknown>;
 		}
 	} catch (e) {
+		// (the parser's own invalid-frontmatter error is already the answer: wrapped, it would say so twice)
 		if (e instanceof OgygiaError && e.code === 'content_frontmatter_invalid') throw e;
-		const msg = e instanceof Error ? e.message : String(e);
-		throw new OgygiaError('content_frontmatter_invalid', { reason: msg });
+		throw new OgygiaError('content_frontmatter_invalid', { reason: reason_of(e) });
 	}
 	return { data, body: after };
 }
