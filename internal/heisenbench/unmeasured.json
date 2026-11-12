@@ -2045,8 +2045,48 @@
 			"reason": "writes the request's prime state onto a Request (not cloneable), constant work; proven in packages/flags/test/prime-twice.test.ts"
 		},
 		{
-			"id": "packages/core/src/markup-walk.ts > tags",
-			"reason": "a generator (not recorded): one pattern jump per tag, the tag itself read by read_tag (benched in packages/core/bench/markup.bench.ts, a scan of a whole document too); proven in packages/core/test/wire-markup.test.ts"
+			"id": "packages/machine/src/slot.ts > slot",
+			"reason": "reads and writes the process-wide slot table on globalThis (hidden state), constant work per call; proven in packages/machine/test/slot.test.ts"
+		},
+		{
+			"id": "packages/content/src/graph.ts > slot:0~99f6b2 > make",
+			"reason": "a slot's maker: builds the slot's empty starting value, once per process, constant work"
+		},
+		{
+			"id": "packages/core/src/plugin/facts.ts > shared:0~10f321 > make",
+			"reason": "a slot's maker: builds the slot's empty starting value, once per process, constant work"
+		},
+		{
+			"id": "packages/core/src/plugin/hooks.ts > shared:0~9213e0 > make",
+			"reason": "a slot's maker: builds the slot's empty starting value, once per process, constant work"
+		},
+		{
+			"id": "packages/core/src/plugin/routes.ts > shared:0~e1c6f2 > make",
+			"reason": "a slot's maker: builds the slot's empty starting value, once per process, constant work"
+		},
+		{
+			"id": "packages/core/src/server/kit-context.ts > shared:0~04506e > make",
+			"reason": "a slot's maker: builds the slot's empty starting value, once per process, constant work"
+		},
+		{
+			"id": "packages/core/src/server/shared-cache.ts > shared:0~2c10ac > make",
+			"reason": "a slot's maker: builds the slot's empty starting value, once per process, constant work"
+		},
+		{
+			"id": "packages/devtools/src/app.ts > shared:0~a92432 > make",
+			"reason": "a slot's maker: builds the slot's empty starting value, once per process, constant work"
+		},
+		{
+			"id": "packages/federation/src/hole.ts > shared:0~9f6b81 > make",
+			"reason": "a slot's maker: builds the slot's empty starting value, once per process, constant work"
+		},
+		{
+			"id": "packages/federation/src/registry.ts > shared:0~e07cb9 > make",
+			"reason": "a slot's maker: builds the slot's empty starting value, once per process, constant work"
+		},
+		{
+			"id": "packages/postrender/src/app.ts > shared:0~2ec32d > make",
+			"reason": "a slot's maker: builds the slot's empty starting value, once per process, constant work"
 		},
 		{
 			"id": "packages/core/src/boundary.ts > BoundarySettings > configure",
@@ -4625,6 +4665,10 @@
 			"reason": "reads or makes the process-wide defining host on globalThis (not cloneable), constant work"
 		},
 		{
+			"id": "packages/core/src/markup-walk.ts > tags",
+			"reason": "a generator (not recorded): one pattern jump per tag, the tag itself read by read_tag (benched in packages/core/bench/markup.bench.ts, a scan of a whole document too); proven in packages/core/test/wire-markup.test.ts"
+		},
+		{
 			"id": "packages/core/src/head-owners.ts > head_owners",
 			"reason": "browser only: one head tag's data-og-owner split (a DOM element, not cloneable), linear in its owners (a few); proven in packages/core/test/browser/head-owner-release.test.ts and property-head-owner.test.ts"
 		},
@@ -4877,6 +4921,10 @@
 			"reason": "writes the devtools ring (hidden state: the page's event bus), linear in the events handed in; proven in packages/core/test/browser/devtools-feed-own-render.test.ts and side-channel-seeds.test.ts"
 		},
 		{
+			"id": "packages/core/src/runtime/response-mark.ts > server_channels",
+			"reason": "browser only: the devtools channels of the live document bearing its mark (a DOM query, not recorded), linear in the channels; proven in packages/core/test/browser/devtools-feed-own-render.test.ts (#893)"
+		},
+		{
 			"id": "packages/core/src/runtime/router-nav.ts > adopt_response",
 			"reason": "browser only: hands the head merge's next document to the boot's adopt_response (one registry read), constant work; proven in packages/core/test/browser/page-facts-visit.test.ts, soft-refresh-page-on-screen.test.ts and nav-code-origins.test.ts (#893, #1045)"
 		},
@@ -4887,10 +4935,6 @@
 		{
 			"id": "packages/core/src/runtime/code-origins.ts > forget_code_origins",
 			"reason": "browser only: drops the page's read code origins (one write), constant work; proven in packages/core/test/browser/nav-code-origins.test.ts (#1045)"
-		},
-		{
-			"id": "packages/core/src/runtime/response-mark.ts > server_channels",
-			"reason": "browser only: the devtools channels of the live document bearing its mark (a DOM query, not recorded), linear in the channels; proven in packages/core/test/browser/devtools-feed-own-render.test.ts (#893)"
 		}
 	]
 }
