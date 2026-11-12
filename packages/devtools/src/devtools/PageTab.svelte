@@ -77,14 +77,17 @@
 	const LABEL_W = 132;
 	const trackW = $derived(Math.max(160, wrapW - LABEL_W - 70));
 
-	const view = $derived.by(() => {
+	// THE READ: measured (the view), not measured (null), or failed (its message, said as a failure:
+	// "not measured" would send the reader to reload, test/devtools-page-tab-read.test.ts)
+	const read = $derived.by(() => {
 		void tick;
 		try {
-			return read_page();
-		} catch {
-			return null;
+			return { view: read_page(), failed: /** @type {string | null} */ (null) };
+		} catch (error) {
+			return { view: null, failed: error instanceof Error ? error.message : String(error) };
 		}
 	});
+	const view = $derived(read.view);
 
 	const axis = $derived.by(() => {
 		if (!view) return null;
@@ -208,7 +211,12 @@
 </script>
 
 <div class="pg" bind:clientWidth={wrapW}>
-	{#if !view}
+	{#if read.failed !== null}
+		<p class="muted" data-og-page-read-failed>
+			Devtools could not read this page load's measurements: <code>{read.failed}</code>. A devtools
+			bug: please report it with this message.
+		</p>
+	{:else if !view}
 		<p class="muted" data-og-page-unmeasured>
 			This page load was not measured: in a build, devtools measures only for a browser that opened
 			it before the page loaded (so other visitors pay nothing). <b>Reload</b> and it is measured from
