@@ -931,11 +931,19 @@ export function hydrate_live(
 	const provided_ctx = capture_region_ids(region, () => slots.context?.(region));
 	const after_hydrate = boot_link().region_hydrate(region);
 	const pushed = new slots.Pushable(prop_guard.wrap(props, entry));
-	const app = hydrate(mod.default, {
-		target: region,
-		props: pushed.props,
-		context: nested_context(provided_ctx)
-	});
+	// (the region hydrating now: what its island reads while it hydrates is its own, e.g. the Kit
+	// queries it holds, shims/kit-remote/remote-cache.ts)
+	set_current_region(region);
+	let app: unknown;
+	try {
+		app = hydrate(mod.default, {
+			target: region,
+			props: pushed.props,
+			context: nested_context(provided_ctx)
+		});
+	} finally {
+		set_current_region(null);
+	}
 	after_hydrate?.();
 	return handle(app, unmount_app, entry, pushed);
 }

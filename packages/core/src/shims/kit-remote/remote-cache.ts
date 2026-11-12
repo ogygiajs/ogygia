@@ -1,4 +1,6 @@
 /** SSR-resolved remote response maps shared by Kit remote-functions + ogygia SPA reset. */
+import { current_region } from '../../current-region.ts';
+
 type RemoteNode = { v?: unknown; e?: [number, unknown] };
 
 type RemoteResource = {
@@ -8,26 +10,61 @@ type RemoteResource = {
 };
 type RemoteEntry = { resource?: RemoteResource };
 
+/** The regions whose islands read each Kit query entry while they hydrated: its holders. */
+const holders = new WeakMap<RemoteEntry, Set<Element>>();
+
+/** Record the region hydrating now (if any) as a holder of `entry`. */
+function hold(entry: RemoteEntry): void {
+	const region = current_region();
+	if (region === null) return;
+	let set = holders.get(entry);
+	if (set === undefined) holders.set(entry, (set = new Set()));
+	set.add(region);
+}
+
+/**
+ * One query function's entries (payload → entry). Kit makes this map itself (`ensure_entry`), and
+ * {@link QueryMap} adopts it, so every lookup and insert passes through here: an island's proxy is
+ * built during its hydrate, and that lookup or insert names the island's region a holder.
+ * The same shape in Kit 2 and Kit 3 (`remote-functions/cache.svelte.js`).
+ */
+class QueryEntries extends Map<string, RemoteEntry> {
+	override get(payload: string): RemoteEntry | undefined {
+		const entry = super.get(payload);
+		if (entry !== undefined) hold(entry);
+		return entry;
+	}
+	override set(payload: string, entry: RemoteEntry): this {
+		hold(entry);
+		return super.set(payload, entry);
+	}
+}
+
+/** Kit's `query_map` / `live_query_map` (id → entries), adopting each inner map Kit stores. */
+class QueryMap extends Map<string, Map<string, RemoteEntry>> {
+	override set(id: string, entries: Map<string, RemoteEntry>): this {
+		// (Kit keeps its own reference to the map it made and inserts into it, so the map itself
+		// becomes a QueryEntries: same entries, same identity)
+		if (!(entries instanceof QueryEntries)) Object.setPrototypeOf(entries, QueryEntries.prototype);
+		return super.set(id, entries);
+	}
+}
+
 /**
  * Kit remote-function response + instance cache.
  *
- * SSR seeds (`query_responses`) are cleared in `prepare_spa_document` (before
- * replaceWith). Instance maps are cleared in `finish_spa_document` (after
- * replaceWith, before async island hydrate) so a new page never reuses a
- * LiveQuery whose `#start` is already spent — Kit's `once()` wrapper would
- * never open SSE again, leaving `query.live` on "connecting…".
+ * SSR seeds (`query_responses`) are cleared in `prepare_spa_document` (before replaceWith). After
+ * the swap, `finish_spa_document` releases the instances the departed islands held: an entry whose
+ * holders all left the page is destroyed, so the next page builds a fresh one (a LiveQuery's
+ * `#start` is `once()`). One a kept island still holds keeps running (#817). One no island held
+ * while it hydrated (made in an event handler or at module scope) lives as long as Kit's own
+ * references to it say.
  */
 export class RemoteCache {
 	readonly query_responses: Record<string, RemoteNode> = {};
 	readonly prerender_responses: Record<string, RemoteNode> = {};
-	readonly query_map: Map<string, Map<string, RemoteEntry>> = new Map<
-		string,
-		Map<string, RemoteEntry>
-	>();
-	readonly live_query_map: Map<string, Map<string, RemoteEntry>> = new Map<
-		string,
-		Map<string, RemoteEntry>
-	>();
+	readonly query_map: Map<string, Map<string, RemoteEntry>> = new QueryMap();
+	readonly live_query_map: Map<string, Map<string, RemoteEntry>> = new QueryMap();
 
 	/** Drop SSR seed bags only (safe while old islands are still connected). */
 	clear_seeds(): void {
@@ -36,14 +73,12 @@ export class RemoteCache {
 	}
 
 	/**
-	 * Destroy leftover query/live instances and clear the maps.
-	 * Call only after the previous body has disconnected.
+	 * Destroy the query/live instances whose holders have all left the page, and drop them from the
+	 * maps. Call after the swap, once the reconcile has settled which regions stay.
 	 */
-	clear_instances(): void {
-		destroy_map(this.query_map);
-		destroy_map(this.live_query_map);
-		this.query_map.clear();
-		this.live_query_map.clear();
+	release_instances(): void {
+		release_departed(this.query_map);
+		release_departed(this.live_query_map);
 	}
 
 	/**
@@ -64,15 +99,26 @@ export class RemoteCache {
 	}
 }
 
-function destroy_map(map: Map<string, Map<string, RemoteEntry>>) {
-	for (const entries of map.values()) {
-		for (const entry of entries.values()) {
+/** Has every region that held `entry` left the page? False for an entry no region held. */
+function departed(entry: RemoteEntry): boolean {
+	const set = holders.get(entry);
+	if (set === undefined) return false;
+	for (const region of set) if (region.isConnected) return false;
+	return true;
+}
+
+function release_departed(map: Map<string, Map<string, RemoteEntry>>) {
+	for (const [id, entries] of map) {
+		for (const [payload, entry] of entries) {
+			if (!departed(entry)) continue;
 			try {
 				entry.resource?.destroy?.();
 			} catch {
 				// ok: already torn down, which is what this was for
 			}
+			entries.delete(payload);
 		}
+		if (entries.size === 0) map.delete(id);
 	}
 }
 
@@ -102,8 +148,8 @@ export function clear_remote_seeds(): void {
 	remote_cache.clear_seeds();
 }
 
-export function clear_remote_instances(): void {
-	remote_cache.clear_instances();
+export function release_remote_instances(): void {
+	remote_cache.release_instances();
 }
 
 export function refresh_remote_instances(): Promise<void> {
