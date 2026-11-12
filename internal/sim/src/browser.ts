@@ -55,6 +55,9 @@ export interface Tab {
 	swaps: number[];
 	/** Each document's {@link swaps}, by realm, a left one's too. */
 	readonly swaps_by: Map<string, number[]>;
+	/** Each document's machine move log (`__ogygia_moves()`, rules builds), by realm, a left one's
+	 *  too: a hard navigation inside one action replaces a document before it is looked at. */
+	readonly moves_by: Map<string, () => string>;
 }
 
 /** What a document holds that outlives a page visit if nobody lets it go. */
@@ -311,6 +314,14 @@ export class Browsers {
 		// window while capturing, as writing the document's content drops the document's listeners)
 		const swaps: number[] = (tab.swaps = []);
 		tab.swaps_by.set(tab.realm, swaps);
+		const page_window = window as unknown as { __ogygia_moves?: () => string };
+		tab.moves_by.set(tab.realm, () => {
+			try {
+				return page_window.__ogygia_moves?.() ?? '';
+			} catch {
+				return ''; // ok: a closed document's log may be gone with it; what was read stays counted
+			}
+		});
 		const loop = this.#o.loop;
 		window.addEventListener('og:before-swap', () => swaps.push(loop.now), { capture: true });
 		this.#count_held(window, tab);
@@ -569,6 +580,7 @@ export class Browsers {
 			orphans: () => [],
 			swaps: [],
 			swaps_by: new Map(),
+			moves_by: new Map(),
 			said_by: new Map()
 		};
 		// (each line said is the document's that said it: one action can show several documents,

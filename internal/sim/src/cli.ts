@@ -317,12 +317,10 @@ export async function run(
 		 *  so it is read after every action. */
 		const moves_read = new Map<string, number>();
 		const hear_moves = (): void => {
-			const logs: Array<[string, string]> = v.tabs.map((t) => [
-				t.realm,
-				(
-					t.page.mainFrame.window as unknown as { __ogygia_moves?: () => string }
-				).__ogygia_moves?.() ?? ''
-			]);
+			// (every document's, a left one's too: one replaced inside an action took steps too)
+			const logs: Array<[string, string]> = v.tabs.flatMap((t) =>
+				[...t.moves_by].map(([realm, read]): [string, string] => [realm, read()])
+			);
 			// (and each server's, the app's and its peers')
 			for (const s of [...[...world.servers.values()].flat(), ...world.peers.values()])
 				logs.push([`server ${s.build.id} ${s.name}`, s.moves()]);
