@@ -40,7 +40,10 @@ export interface Broken {
  *   region (`data-key`);
  * - a hole's `data-revalidated` mark: its answer was fetched again once its cached copy went
  *   stale, which a tab that stayed long enough sees and a fresh load does not (the answer itself
- *   is compared).
+ *   is compared);
+ * - a page store's mark (`<meta name="ogygia-stored">`): the copy came from the store, where the
+ *   render that filled it did not say so; the page itself is compared (delivery, as a CDN's
+ *   header is).
  *
  * Kept on purpose: every element, attribute and text a visitor can see or a script can read,
  * including ogygia's region attributes, because a region that differs after a navigation from a
@@ -70,6 +73,7 @@ export function normalize(root: {
 		if (tag === 'link' && /\b(modulepreload|preload|prefetch)\b/.test(el.getAttribute('rel') ?? ''))
 			return;
 		if (el.hasAttribute('data-ogygia-announcer')) return;
+		if (tag === 'meta' && el.getAttribute('name') === 'ogygia-stored') return;
 		const attrs = [...el.attributes]
 			.filter(
 				(a) =>
