@@ -98,4 +98,46 @@ describe('modules of a simulated tab', () => {
 			'<script type="module" src="/state.js"></script>';
 		expect(await run(true, page)).toBe('loading module interactive dcl interactive load complete');
 	});
+
+	// palaestra seed 270: a Kit page left just after its start script's body came still ran the
+	// script's `.then`, with an empty namespace: "kit.start is not a function", in no page
+	it("a left document's import() never settles: its code stops with it", async () => {
+		use_v8_modules();
+		let leave = (): void => {};
+		const browser = new Browser({
+			settings: {
+				enableJavaScriptEvaluation: true,
+				suppressInsecureJavaScriptEnvironmentWarning: true,
+				fetch: {
+					interceptor: {
+						beforeAsyncRequest: async ({ request, window }) => {
+							const W = window as unknown as { Response: typeof Response };
+							if (new URL(request.url).pathname !== '/start.js')
+								return new W.Response('<p>next</p>', {
+									headers: { 'content-type': 'text/html' }
+								}) as never;
+							// (the body has come; the tab moves on before the module runs)
+							leave();
+							return new W.Response('export function start() {}', {
+								headers: { 'content-type': 'text/javascript' }
+							}) as never;
+						}
+					}
+				}
+			}
+		});
+		try {
+			const page = browser.newPage();
+			page.url = 'https://example.com/';
+			const first = page.mainFrame.window as unknown as { settled?: string };
+			leave = () => void page.goto('https://example.com/next');
+			page.content =
+				"<script>import('./start.js').then((kit) => { window.settled = typeof kit.start; }, (e) => { window.settled = 'failed: ' + e.message; });</script>";
+			await new Promise((r) => setTimeout(r, 200));
+			expect(page.mainFrame.document.body.textContent).toBe('next');
+			expect(first.settled).toBeUndefined();
+		} finally {
+			await browser.close();
+		}
+	});
 });
