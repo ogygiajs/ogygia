@@ -14,6 +14,22 @@ export function is_frozen(el: Element): boolean {
 	return el.getAttribute('wake') === 'none';
 }
 
+/** A region's attributes as read: off an element, or off a tag in HTML not parsed (router-nav.ts). */
+export interface RegionAttrs {
+	getAttribute(name: string): string | null;
+}
+
+/**
+ * True when the browser runs this region's `entry` as a module: an island (`wake` absent wakes on
+ * `load`), and a hole with a `wake` (its island after the answer). A lake's (`wake="none"`) and a
+ * server-only hole's entry is the region's identity, never a file (#1050).
+ */
+export function runs_entry(el: RegionAttrs): boolean {
+	const wake = el.getAttribute('wake');
+	if (wake === 'none') return false;
+	return wake !== null || el.getAttribute('render') !== 'defer';
+}
+
 /** True if this region fetches HTML later (`render="defer"`). */
 export function is_deferred(el: Element): boolean {
 	return el.getAttribute('render') === 'defer';

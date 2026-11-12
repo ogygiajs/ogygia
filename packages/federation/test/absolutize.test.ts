@@ -35,6 +35,13 @@ describe('absolutize', () => {
 		);
 	});
 
+	it('pins each attribute whose names differ past ASCII, each in its own value (#1115)', () => {
+		// (the browser lower-cases ASCII only: `data-Äsrc` and `data-äsrc` are two attributes)
+		expect(absolutize(`<x-widget data-Äsrc="/og/a.js" data-äsrc="/og/b.js">`, O)).toBe(
+			`<x-widget data-Äsrc="https://peer.example/og/a.js" data-äsrc="https://peer.example/og/b.js">`
+		);
+	});
+
 	it('changes nothing outside the start tags the browser reads, on any page', () => {
 		fuzz(
 			html_arb({
