@@ -30,6 +30,7 @@ import { look_up_page, type PageFacts } from './page-facts.ts';
 import { merge_seed_ask, shape_page_data, type SeedAsk, type SeedKeys } from './seed-shape.ts';
 import { PAGE_FACTS_SCRIPT_TYPE } from '../page-facts-script.ts';
 import { line } from '../messages/server.ts';
+import { note_hole_page_read } from './rules.ts';
 import { bucket32 } from '../contract/hash.ts';
 
 type Transport = Record<
@@ -38,6 +39,14 @@ type Transport = Record<
 >;
 
 let warn: ((message: string) => void) | null = null;
+
+// the server's rules (./rules.ts): dev and OGYGIA_RULES=1 builds only, folds out of any other
+const RULES =
+	import.meta.env?.DEV || (typeof __OGYGIA_RULES__ !== 'undefined' ? __OGYGIA_RULES__ : false);
+
+/** Rules only: requests that skipped the page look-up because the build said their tree reads no
+ *  `page.data` (the seed-shaping plugin's answer). A read of it there breaks a rule. */
+const skipped_look_up = new WeakSet<Request>();
 
 /** Where a dev warning goes (the handle's setting). */
 export function configure_render_page(o: { warn: ((message: string) => void) | null }): void {
@@ -114,6 +123,7 @@ export function prepare_render_page(
 	reads_data: boolean | null
 ): Promise<void> | void {
 	if (!event || !renders_for_a_page(event)) return;
+	if (RULES && reads_data === false) skipped_look_up.add(event.request);
 	if (!(reads_data ?? (event as { isRemoteRequest?: boolean }).isRemoteRequest === true)) return;
 	const page = page_url_of(event);
 	if (page === event.url) return;
@@ -141,8 +151,12 @@ export function render_page(
 	if (event && renders_for_a_page(event)) {
 		// FOR A PAGE: the Referer's page — its looked-up facts, else its url alone
 		const facts = facts_of(event.request);
-		const data = facts && warn ? watched_data(facts, warn) : (facts?.data ?? {});
 		const url = facts?.url ?? page_url_of(event);
+		const data =
+			facts && warn
+				? watched_data(facts, warn)
+				: (facts?.data ??
+					(RULES && skipped_look_up.has(event.request) ? unpredicted_data(url.pathname) : {}));
 		return {
 			// (its page's url: a read of it is in the render's read set too)
 			get url() {
@@ -188,6 +202,17 @@ const NOT_A_KEY = new Set([
 	'nodeType'
 ]);
 const warned_keys = new WeakMap<PageFacts, Set<string>>();
+
+/** Rules only: the empty `page.data` of a render whose look-up the build skipped. A key read from it
+ *  is one the build said this tree never reads (`rule_hole_page_read_unpredicted`). */
+function unpredicted_data(path: string): Record<string, unknown> {
+	return new Proxy({} as Record<string, unknown>, {
+		get(target, key, receiver) {
+			if (typeof key === 'string' && !NOT_A_KEY.has(key)) note_hole_page_read(path, key);
+			return Reflect.get(target, key, receiver);
+		}
+	});
+}
 
 /**
  * DEV: a render for a page reading a `page.data` key the page's server loads did not produce — most

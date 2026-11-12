@@ -137,7 +137,12 @@ import { locate, assemble } from './server/document-assembly.ts';
 import { error_route_is_csr_true, route_is_csr_true, take_early_holes } from './context.ts';
 import { early_holes_head } from './early-holes-head.ts';
 import { add_early_holes_csp, with_early_holes_meta_csp } from './server/early-holes-csp.ts';
-import { merge_seed_ask, shape_page_data, type SeedKeys } from './server/seed-shape.ts';
+import {
+	merge_seed_ask,
+	shape_page_data,
+	unshipped_attr,
+	type SeedKeys
+} from './server/seed-shape.ts';
 import { html_has_kit_bootstrap } from './server/html-scan.ts';
 import { hole_head } from './server/hole-graph.ts';
 import { RateLimiter, is_shared_address } from './server/rate-limit.ts';
@@ -1469,7 +1474,7 @@ class OgygiaHandle {
 				emit_ogygia_script(
 					'page',
 					page_payload.text,
-					`${OGYGIA_PAGE}${page_payload.json ? ` ${OG_FORMAT}="${WIRE_FORMAT_JSON}"` : ''}${mark_attr(bag!.request)}`
+					`${OGYGIA_PAGE}${page_payload.json ? ` ${OG_FORMAT}="${WIRE_FORMAT_JSON}"` : ''}${mark_attr(bag!.request)}${RULES ? unshipped_attr(page_snap.data, seed_keys) : ''}`
 				)
 			);
 			if (DEVTOOLS)

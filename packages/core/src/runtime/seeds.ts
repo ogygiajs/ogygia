@@ -36,6 +36,7 @@ import { kit_page_thread } from './kit-page-thread.svelte.ts';
 import { boot_link, slots } from './slots.ts';
 import { warn } from '../messages/lazy.ts';
 import { PAGE_SEED_SELECTOR } from '../page-seed-selector.ts';
+import { OGYGIA_PAGE_UNSHIPPED } from '../wire-markup.ts';
 
 // The boot's session and hint-set reset, handed over through the registry — this lazy module (the
 // hydrate core's and the navigation's) never imports a boot module (./slots.ts `BootLink`).
@@ -45,6 +46,9 @@ const server_channel = (doc: Document, selector: string) =>
 
 // DEVTOOLS gate — module-local const from the Vite `define` (proven DCE pattern); off → folds out.
 const DEVTOOLS = typeof __OGYGIA_DEVTOOLS__ !== 'undefined' ? __OGYGIA_DEVTOOLS__ : false;
+// the runtime's rules (./rules.ts): in dev and OGYGIA_RULES=1 builds only; folds out of any other
+const RULES =
+	import.meta.env?.DEV || (typeof __OGYGIA_RULES__ !== 'undefined' ? __OGYGIA_RULES__ : false);
 
 export { PAGE_SEED_SELECTOR };
 const REMOTE_SEED_SELECTOR = 'script[type="application/ogygia-remote"]';
@@ -81,10 +85,30 @@ function parse_page_seed(el: Element): PageSeed | null {
 		install_page_defer(transport_decoders);
 		const raw = parse_sidecar_text(el, page_defer_revivers(transport_decoders)) as PageSeed;
 		if (slots.nav && !DEVTOOLS) el.textContent = '';
+		if (RULES) watch_unshipped(raw, el.getAttribute(OGYGIA_PAGE_UNSHIPPED));
 		return raw;
 	} catch {
 		return null;
 	}
+}
+
+/** Rules only: the seed's `page.data` tells the rules (`rule_seed_key_unshipped`, ./rules.ts) when
+ *  island code reads a key the server had and the shaped seed left out (its attribute names them). */
+function watch_unshipped(raw: PageSeed | null, attr: string | null): void {
+	if (!raw || !attr || raw.data === null || typeof raw.data !== 'object') return;
+	let left: Set<string>;
+	try {
+		left = new Set(JSON.parse(attr) as string[]);
+	} catch {
+		return; // ok: the attribute is ours; one that does not parse names nothing to watch
+	}
+	raw.data = new Proxy(raw.data as Record<string, unknown>, {
+		get(target, key, receiver) {
+			if (typeof key === 'string' && left.has(key) && !(key in target))
+				(globalThis as { __og_unshipped_read?: (key: string) => void }).__og_unshipped_read?.(key);
+			return Reflect.get(target, key, receiver);
+		}
+	});
 }
 
 /** Feed a parsed seed into the `$app/state` page store (the devalue href string becomes a `URL`). */

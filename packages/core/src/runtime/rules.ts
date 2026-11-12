@@ -20,6 +20,8 @@
  *   is out.
  * - `rule_head_adopted`: the head never gains a `<base>` or a refresh / CSP / cookie meta after the
  *   first document (SPA-HEAD, ./head-deny.ts).
+ * - `rule_seed_key_unshipped`: island code reads no `page.data` key the server had and the shaped
+ *   page seed left out (seed shaping, `pageKeys()`; the seed names what it left out in rules builds).
  *
  * Each area tells this module what it holds (`note_mount`, `note_visit`, `watch_router`) only when
  * rules are on (`RULES`): every call site folds out of a build without them.
@@ -37,7 +39,8 @@ type RuntimeRule =
 	| 'rule_parse_upgraded'
 	| 'rule_markup_known'
 	| 'rule_region_answer_behind'
-	| 'rule_head_adopted';
+	| 'rule_head_adopted'
+	| 'rule_seed_key_unshipped';
 
 /** The runtime's rules. */
 export const runtime_rules: Rules<RuntimeRule> = /* @__PURE__ */ new Rules<RuntimeRule>();
@@ -54,6 +57,7 @@ class RuleRows {
 	readonly visits: Array<{ visit: Visit; n: number }> = [];
 	readonly uncoded: string[] = [];
 	readonly parsed_built: string[] = [];
+	readonly unshipped_reads: string[] = [];
 }
 const R = new RuleRows();
 
@@ -261,6 +265,20 @@ function note_parse(fragment: DocumentFragment): void {
 const no_parse_upgraded = (): string | null =>
 	R.parsed_built.length === 0 ? null : R.parsed_built.join('; ');
 
+// ── every page.data key read was shipped ──
+
+/** The rule's ear on the page seed (./seeds.ts calls it): island code read a `page.data` key the
+ *  server had and the shaped seed left out. */
+function note_unshipped_read(key: string): void {
+	const said = `page.data.${key} on ${location.pathname}`;
+	if (R.unshipped_reads.length < 10 && !R.unshipped_reads.includes(said))
+		R.unshipped_reads.push(said);
+	check_soon();
+}
+
+const no_unshipped_read = (): string | null =>
+	R.unshipped_reads.length === 0 ? null : R.unshipped_reads.join('; ');
+
 // ── the head gains no <base>, refresh, CSP or cookie meta (SPA-HEAD) ──
 
 type HeadDeny = (node: Element) => boolean;
@@ -326,6 +344,9 @@ export function install_rules(dev: boolean): void {
 	runtime_rules.add('rule_region_answer_behind', regions_show_their_answers);
 	watch_head();
 	(globalThis as { __og_parsed?: (f: DocumentFragment) => void }).__og_parsed = note_parse;
+	runtime_rules.add('rule_seed_key_unshipped', no_unshipped_read);
+	(globalThis as { __og_unshipped_read?: (key: string) => void }).__og_unshipped_read =
+		note_unshipped_read;
 	(globalThis as { __ogygia_rules?: () => BrokenRule[] }).__ogygia_rules = () =>
 		runtime_rules.broken();
 	const moves = trace();

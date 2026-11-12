@@ -8,6 +8,9 @@
  * a function) — then the seed ships whole, exactly as before shaping existed.
  */
 
+import { escape_attr } from '../escape.ts';
+import { OGYGIA_PAGE_UNSHIPPED } from '../wire-markup.ts';
+
 /** What a region asks of the page seed: nothing, everything, or these keys of `page.data`. */
 export type SeedAsk = false | 'all' | readonly string[];
 
@@ -21,6 +24,23 @@ export function merge_seed_ask(current: SeedKeys | null, ask: SeedAsk): SeedKeys
 	const next = current ?? new Set<string>();
 	for (const k of ask) next.add(k);
 	return next;
+}
+
+/** Rules builds: the top-level keys of `page.data` the shaped seed leaves out, sorted (none when it
+ *  ships whole). The page names them so a read of one in the browser breaks a rule
+ *  (`rule_seed_key_unshipped`, ../runtime/rules.ts). */
+export function unshipped_keys(data: unknown, keys: SeedKeys | null): string[] {
+	if (keys === null || keys === 'all') return [];
+	if (data === null || typeof data !== 'object' || Array.isArray(data)) return [];
+	return Object.keys(data)
+		.filter((k) => !keys.has(k))
+		.sort();
+}
+
+/** Rules builds: the seed script's attribute naming {@link unshipped_keys} (`''` when none). */
+export function unshipped_attr(data: unknown, keys: SeedKeys | null): string {
+	const left = unshipped_keys(data, keys);
+	return left.length ? ` ${OGYGIA_PAGE_UNSHIPPED}="${escape_attr(JSON.stringify(left))}"` : '';
 }
 
 /**
