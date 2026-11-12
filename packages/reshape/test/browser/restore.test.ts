@@ -69,6 +69,38 @@ test('Svelte’s children put back into a host are known render output (a later 
 	expect(made?.has(host.shadowRoot!.querySelector('b')!)).toBe(false);
 });
 
+test('a host’s attribute reset (`og-r`) never sets an on* handler or a javascript: URL', async () => {
+	await served('<demo-card class="own"> hi </demo-card>');
+	const host = document.querySelector('demo-card')!;
+	host.setAttribute(
+		'og-r',
+		JSON.stringify({
+			onclick: 'window.__og_ran++',
+			ONFOCUS: 'window.__og_ran++',
+			href: ' \tjavascript:window.__og_ran++',
+			formaction: 'JaVaScRiPt:window.__og_ran++',
+			srcdoc: '<script>window.__og_ran++</script>',
+			title: 'kept',
+			src: '/ok.png',
+			// (names that only begin with "on" are no handlers: a component's own attributes)
+			online: '',
+			once: 'true',
+			onfoo: 'x'
+		})
+	);
+	restore(document);
+	expect(host.hasAttribute('onclick')).toBe(false);
+	expect(host.hasAttribute('onfocus')).toBe(false);
+	expect(host.hasAttribute('href')).toBe(false);
+	expect(host.hasAttribute('formaction')).toBe(false);
+	expect(host.hasAttribute('srcdoc')).toBe(false);
+	expect(host.getAttribute('title')).toBe('kept');
+	expect(host.getAttribute('src')).toBe('/ok.png');
+	expect(host.getAttribute('online')).toBe('');
+	expect(host.getAttribute('once')).toBe('true');
+	expect(host.getAttribute('onfoo')).toBe('x');
+});
+
 test('a stand-in keeps the parser from splitting the page’s link, and becomes a real <a> in the tree', async () => {
 	await served('<a href="/card"><demo-link>Go</demo-link></a>');
 	// as parsed: the page's link still holds the host (the tree's link is a stand-in)
