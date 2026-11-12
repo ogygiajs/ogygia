@@ -38,7 +38,8 @@ works, what is built, and how to add to it.
      reload. Each document is its own realm (`tab-2#3`), so its timers die with it, and a
      document the tab has left hears nothing more from the network (`Network.leave`: a browser
      calls off its fetches as it unloads it; a left document's stalled chunk once ran over its
-     closed window, gen 192, seed 11).
+     closed window, gen 192, seed 11). An `import()` its unload failed never settles (Kit's boot
+     awaits its entry files with no catch, and the host heard the failure; palaestra seed 20004).
    - `world.ts`: ties it together. `World.make({ seed, builds })`, `world.go(tab, 'goto', '/')`.
 
 ## Why happy-dom
@@ -120,6 +121,9 @@ The loop never waits a fixed number of turns. `settle()` turns the host's own lo
 request; the host's own real timers are counted, not waited on). A settle that gives up after
 10,000 turns is counted (`loop.stalls`). Everything else a page waits on is a loop task, so the
 world is AT REST when nothing is on the network and nothing is due within 2 s (`World.quiesce`).
+A live answer (a body still coming 30 s after its head, each piece within 2 s of the last) is not
+work in flight: rest waited budget after budget on one, once to the run's horizon (palaestra seed
+20003, `Network.busy`).
 A server's own `fetch` goes through the world too (its own origin to the front door, any other
 host fails), so no run touches the real network.
 
@@ -456,6 +460,11 @@ several documents, and an old page's failed download is not the next page's. The
 looked at before the visitor acts. What moves by itself in the MPA check (a ticking text, a live
 region's tick in its endpoint) is masked by its content, looked at for 4 s, and lined up with the
 other side's same line where it moved on one side only.
+
+The fresh load carries every cookie of the visitor's, httpOnly ones too (Kit's `cookies.set` is
+httpOnly by default; palaestra seed 20004). The second and third fresh loads go at their own speed
+(`Network.calm(tab, pace)`: each leg 7 or 14 ms slower), so a stamp of the render's moment differs
+between them and is masked even in a run with no delay fault.
 
 The fresh load is calm (`Network.calm`): no fault but short delays, on its own requests and on the
 hops its server makes for it (a peer's fragment). A calm leg is never a long one: two long legs on
