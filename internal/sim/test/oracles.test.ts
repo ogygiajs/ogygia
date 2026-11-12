@@ -260,6 +260,38 @@ describe('leaks', () => {
 		expect(visits([a], [a, a], [a, a, a])?.oracle).toBe('leak');
 	});
 
+	it('observers made once each for the document, as each visit first needs one, are not growth (gen 195, seed 195005)', () => {
+		// (import-again's timing observer, the viewport tracker's, then its children's: one of each)
+		const watched = (...lists: string[][]) => {
+			const leaks = new Leaks();
+			let now: string[] = [];
+			const tab = {
+				realm: 'tab-1#1',
+				name: 'tab-1',
+				platform: null,
+				page: { mainFrame: { url: 'https://app.test/', document: doc } },
+				held: () => ({ listeners: 0, intervals: 0, observers: now.length, head: 0, elements: 0 }),
+				listening: () => [],
+				watching: () => now
+			} as unknown as Parameters<Leaks['check']>[0];
+			let found: ReturnType<Leaks['check']> = null;
+			for (const list of lists) {
+				now = list;
+				found = leaks.check(tab);
+				(tab.page.mainFrame as { url: string }).url = 'https://app.test/other';
+				leaks.check(tab);
+				(tab.page.mainFrame as { url: string }).url = 'https://app.test/';
+			}
+			return found;
+		};
+		const po = 'PerformanceObserver f1';
+		const io = 'IntersectionObserver f2';
+		const mo = 'MutationObserver f3';
+		expect(watched([po], [po, io], [po, io, mo])).toBeNull();
+		// (the same code observing once more on every visit is a leak)
+		expect(watched([io], [io, io], [io, io, io])?.oracle).toBe('leak');
+	});
+
 	it("a page store's mark a stored visit brings is not growth (gen 61, seed 36)", async () => {
 		const { Window } = await import('happy-dom');
 		const w = new Window();
