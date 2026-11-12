@@ -419,8 +419,9 @@ export async function run(
 					page_rules(t),
 					// (and every region shows something, unless a press made the page the visitor's own)
 					pressed.get(t.name) === t.documents ? null : regions_show(t, world),
-					// (and no hole that wakes on its own still shows its fallback)
-					pressed.get(t.name) === t.documents ? null : fallback_stands(t, world)
+					// (and no hole that wakes on its own still shows its fallback, pressed or not: a press
+					// changes what a region shows, never whether a hole is owed its answer)
+					fallback_stands(t, world)
 				])
 					if (b) broken.push({ ...b, detail: `at rest: ${b.detail}` });
 			for (const t of v.tabs) {

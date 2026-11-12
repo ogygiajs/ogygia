@@ -4,7 +4,7 @@
  */
 import { writeFileSync } from 'node:fs';
 import type { Tab, Visitor } from './browser.ts';
-import { FOREIGN_MARK, is_page_path, type World } from './world.ts';
+import { answer_key, FOREIGN_MARK, is_page_path, type World } from './world.ts';
 
 /** `SIM_DUMP=<dir>`: an MPA difference writes both sides whole there (`<tab>-<path>-shown.txt`,
  *  `-fresh.txt`), to read past its first hunk. */
@@ -581,12 +581,24 @@ export function regions_show(tab: Tab, world: World): Broken | null {
  */
 export function fallback_stands(tab: Tab, world: World): Broken | null {
 	const url = tab.page.mainFrame.url;
-	if (!url.startsWith('http') || faulted(world, tab) || world.skewed_for(tab.realm)) return null;
+	if (!url.startsWith('http') || world.skewed_for(tab.realm)) return null;
+	// (in a document a fault touched, only a hole never asked for at all: its own request may have
+	// failed, but none to fail is no fault's; a batch's body is not seen, so a document that sent one
+	// is judged only untouched)
+	const touched = faulted(world, tab);
+	const mine = world.network.exchanges.filter((e) => e.from === tab.realm);
+	if (touched && mine.some((e) => e.method === 'POST')) return null;
+	const asked = new Set(
+		mine.filter((e) => e.method === 'GET').map((e) => answer_key(new URL(e.url)))
+	);
 	const doc = tab.page.mainFrame.document as unknown as Document;
 	const standing = [...doc.querySelectorAll('ogygia-region[render="defer"]')].filter((r) => {
 		if (!/^(load|idle|)$/.test(r.getAttribute('when') ?? '')) return false;
 		const fallback = r.querySelector(':scope > [data-gen-fallback]');
-		return fallback !== null && !fallback.hasAttribute('data-gen-kept');
+		if (fallback === null || fallback.hasAttribute('data-gen-kept')) return false;
+		if (!touched) return true;
+		const endpoint = r.getAttribute('endpoint');
+		return endpoint !== null && !asked.has(answer_key(new URL(endpoint, url)));
 	});
 	if (standing.length === 0) return null;
 	return {
