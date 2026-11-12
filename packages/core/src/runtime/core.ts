@@ -65,7 +65,15 @@ import {
 } from './region-machines.ts';
 import { KEEP_FALLBACK_HTML } from '../keep-fallback-marker.ts';
 import { download, region_fetch } from '../policies.ts';
-import { install_rules, note_mount, note_unmount } from './rules.ts';
+import {
+	install_rules,
+	note_handed,
+	note_mount,
+	note_shown,
+	note_turn,
+	note_unbound,
+	note_unmount
+} from './rules.ts';
 import { PAGE_FACTS_SELECTOR } from '../page-facts-script.ts';
 import { link_boot } from './boot-link.ts';
 import {
@@ -1144,12 +1152,17 @@ class OgygiaRegion extends HTMLElement {
 		this.#frame_address = address;
 		binding.defer(() => {
 			if (this.#binding === binding) this.#frame_address = null;
+			if (RULES) note_unbound(this);
 		});
 		// (each frame a turn of its own: one the store hands over while this turn binds lands after it)
 		const box = this.#box;
 		const off = slots.frames?.subscribe(address, (f) => {
 			this.#frames_in++;
-			box.post((turn) => this.#apply(f.html, turn));
+			if (RULES) note_handed(this, address, f.v, () => this.#paint.now.kind === 'painting');
+			box.post((turn) => {
+				if (RULES) note_turn(this);
+				return this.#apply(f.html, turn, f.v);
+			});
 		});
 		if (off) binding.defer(off);
 		return address;
@@ -1236,7 +1249,7 @@ class OgygiaRegion extends HTMLElement {
 	 * offline before custom elements connect, then swap, mark, event. HOLE-TRUST: the HTML is our own
 	 * signed same-origin SSR.
 	 */
-	async #apply(html: string, turn: Turn) {
+	async #apply(html: string, turn: Turn, v?: number) {
 		if (!this.isConnected) return;
 		// The newest frame: one still waiting for its sheets is older, and never paints over this one.
 		const painting = this.#paint_next();
@@ -1244,6 +1257,7 @@ class OgygiaRegion extends HTMLElement {
 		// marker parcel in a batch): keep what the page rendered, mark the region done, wake nothing.
 		if (html === KEEP_FALLBACK_HTML) {
 			this.#painted(painting);
+			if (RULES && v !== undefined) note_shown(this, v);
 			use_sheets(this, []); // (the fallback's sheets are the page's)
 			this.#answered('kept');
 			if (!is_awake(this)) this.setAttribute('data-hydrated', '');
@@ -1261,6 +1275,7 @@ class OgygiaRegion extends HTMLElement {
 		// region left the page meanwhile; a newer frame came meanwhile: it paints, this one never does.
 		if ((await turn.wait(ready)) === STALE || this.#paint.now !== painting) return;
 		this.#painted(painting);
+		if (RULES && v !== undefined) note_shown(this, v);
 		use_sheets(this, sheets);
 		this.#shown = html;
 		slots.lakes.settle_in(frag);
