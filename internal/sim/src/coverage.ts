@@ -141,20 +141,35 @@ export function universe(root: string): Map<string, MachineDef> {
 					out.set(name, { name, pkg, file: rel, initial, steps });
 					return;
 				}
-				// flights({ name }) and flights.keyed<I>()({ name })
+				// flights({ name }), flights.keyed<I>()({ name }), link().flights.keyed<I>()({ name })
+				const names_flights = (n: unknown): boolean =>
+					(is(n, 'Identifier') && n.name === 'flights') ||
+					(is(n, 'MemberExpression') &&
+						is(n.property, 'Identifier') &&
+						n.property.name === 'flights');
 				const is_flights =
-					(is(callee, 'Identifier') && callee.name === 'flights') ||
+					names_flights(callee) ||
 					(is(callee, 'CallExpression') &&
 						is(callee.callee, 'MemberExpression') &&
-						is((callee.callee as Node).object, 'Identifier') &&
-						((callee.callee as Node).object as Node).name === 'flights');
+						names_flights((callee.callee as Node).object));
 				const name = is_flights ? literal(prop(config, 'name')) : null;
 				if (name !== null) flights_named.push({ name, pkg, file: rel });
 			});
 		}
 	if (flights_steps !== null)
-		for (const f of flights_named)
-			if (!out.has(f.name)) out.set(f.name, { ...f, initial: 'flying', steps: flights_steps });
+		for (const f of flights_named) {
+			const same = out.get(f.name);
+			// (a flights named as a machine is: one name in the moves, so its steps are both's)
+			const steps = same
+				? Object.fromEntries(
+						[...new Set([...Object.keys(same.steps), ...Object.keys(flights_steps)])].map((k) => [
+							k,
+							[...new Set([...(same.steps[k] ?? []), ...(flights_steps![k] ?? [])])]
+						])
+					)
+				: flights_steps;
+			out.set(f.name, same ? { ...same, steps } : { ...f, initial: 'flying', steps });
+		}
 	return out;
 }
 

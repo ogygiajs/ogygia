@@ -26,13 +26,13 @@
  * no finding from that seed is trusted until it is fixed.
  */
 import { fork, type ChildProcess } from 'node:child_process';
-import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { availableParallelism } from 'node:os';
 // (the host's real timers: a run replaces the global ones with its simulated ones)
 import { clearTimeout as clearRealTimeout, setTimeout as real_timeout } from 'node:timers';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { describe, act, next_action, type Action } from './workload.ts';
+import { describe, act, next_action, ACTION_KINDS, type Action, type Mix } from './workload.ts';
 import {
 	faulted,
 	outage_only,
@@ -50,7 +50,7 @@ import {
 	uncaught,
 	type Broken
 } from './oracles.ts';
-import { rng } from './rng.ts';
+import { rng, type Rng } from './rng.ts';
 import type { FaultClass } from './network.ts';
 import type { Visitor } from './browser.ts';
 import { ORIGIN, World, type Rollover, type WorldOptions } from './world.ts';
@@ -125,9 +125,16 @@ function federation(seed: number): { env: Record<string, string>; peers: WorldOp
 		}))
 	};
 }
-const FIRST = Number(arg('--seed') ?? arg('--from') ?? 1);
-const RUNS = arg('--seed') !== undefined ? 1 : Number(arg('--runs') ?? (LONG ? 500 : 20));
-const STEPS = Number(arg('--steps') ?? (LONG ? 40 : 12));
+/** `--plan <file>`: one run of a seed with its workload spelled out (a search's or a shrink's run,
+ *  as it wrote it: `{ seed, steps, plan }`). */
+const PLANNED = ((): { seed: number; steps: number; plan: Plan } | null => {
+	const at = arg('--plan');
+	return at === undefined ? null : JSON.parse(readFileSync(at, 'utf8'));
+})();
+const FIRST = PLANNED?.seed ?? Number(arg('--seed') ?? arg('--from') ?? 1);
+const RUNS =
+	arg('--seed') !== undefined || PLANNED ? 1 : Number(arg('--runs') ?? (LONG ? 500 : 20));
+const STEPS = PLANNED?.steps ?? Number(arg('--steps') ?? (LONG ? 40 : 12));
 const STOP_AT = arg('--step') === undefined ? Infinity : Number(arg('--step'));
 
 /** Real elapsed ms (the run replaces `performance.now` and `Date` with virtual time). */
@@ -180,13 +187,32 @@ export interface RunResult {
 	readonly coverage: RunCoverage;
 }
 
+/**
+ * A run's workload spelled out, in place of the seed's own: these actions first, then (with a
+ * `tail`) actions drawn from the stream `workload <tail>`, weighed by `mix`, up to the run's steps.
+ * The world (faults, servers, deploys, buggify) is still the seed's. A search mutates a run this
+ * way (its first actions, then a new tail), and a shrink drops actions from it.
+ */
+export interface Plan {
+	readonly actions: readonly Action[];
+	readonly tail?: string;
+	readonly mix?: Mix;
+}
+
+/** `a`, on a tab the world has (a shrunk plan may have dropped the action that opened its tab). */
+function on_a_tab(a: Action, tabs: number): Action {
+	return 'tab' in a && a.tab >= tabs ? { ...a, tab: a.tab % Math.max(1, tabs) } : a;
+}
+
 /** One seeded run. */
 export async function run(
 	seed: number,
 	steps = STEPS,
 	stop_at = Infinity,
 	/** Called once the world is at rest, before the end checks (a found bug's test looks here). */
-	at_rest?: (world: World, visitor: Visitor) => Promise<void>
+	at_rest?: (world: World, visitor: Visitor) => Promise<void>,
+	/** The workload, spelled out (default: the seed's). */
+	plan?: Plan
 ): Promise<RunResult> {
 	const r = rng(seed).fork('swarm');
 	// swarm testing: each run turns on its own subset of fault classes
@@ -289,9 +315,20 @@ export async function run(
 		// by its own faults, not the next document's; generated-app seed 88, a cut runtime whose
 		// changed onerror text no longer read as ogygia's code)
 		look('the first load');
-		const wr = world.rng.fork('workload');
-		for (let i = 0; i < steps && i < stop_at && !broken.some((b) => b.oracle !== 'known'); i++) {
-			const a = next_action(wr, v.tabs.length, PATHS, world.deployed.length < BUILDS.length - 1);
+		const wr = world.rng.fork(plan?.tail === undefined ? 'workload' : `workload ${plan.tail}`);
+		const given = plan?.actions ?? [];
+		const total = plan === undefined || plan.tail !== undefined ? steps : given.length;
+		for (let i = 0; i < total && i < stop_at && !broken.some((b) => b.oracle !== 'known'); i++) {
+			const a =
+				i < given.length
+					? on_a_tab(given[i], v.tabs.length)
+					: next_action(
+							wr,
+							v.tabs.length,
+							PATHS,
+							world.deployed.length < BUILDS.length - 1,
+							plan?.mix
+						);
 			actions.push(a);
 			log.note(`action ${i + 1}: ${describe(a)}`);
 			await act(world, v, a, ORIGIN);
@@ -413,10 +450,152 @@ function coverage_summary(covered: Coverage) {
 }
 
 /** A run, timed in real ms. */
-async function timed(seed: number, steps: number, stop_at: number): Promise<RunResult> {
+async function timed(
+	seed: number,
+	steps: number,
+	stop_at: number,
+	plan?: Plan
+): Promise<RunResult> {
 	const t = wall();
-	const res = await run(seed, steps, stop_at);
+	const res = await run(seed, steps, stop_at, undefined, plan);
 	return { ...res, ms: wall() - t };
+}
+
+/** `--guided N`: a coverage-guided search of N runs (else: seeds in order). */
+const GUIDED = Number(arg('--guided') ?? 0);
+/** Where a search writes each failing run's plan (`--plan` replays it). */
+const PLANS = join(import.meta.dirname, '..', 'plans');
+
+/** A run the search keeps: it reached something no run before it had. */
+interface Kept {
+	readonly seed: number;
+	readonly plan: Plan;
+	/** How much it reached first (steps, fired points): a parent is picked by it. */
+	readonly found: number;
+}
+
+/** A swarm over the workload: some kinds of action off for the run, some heavy. */
+function swarm_mix(g: Rng): Mix {
+	const mix: Partial<Record<Action['kind'], number>> = {};
+	for (const kind of ACTION_KINDS)
+		mix[kind] =
+			kind === 'wait'
+				? 1
+				: g.weighted<number>([
+						[0, 1],
+						[1, 2],
+						[3, 1]
+					]);
+	return mix;
+}
+
+/**
+ * THE COVERAGE-GUIDED SEARCH. A run that reaches a machine step or fires a buggify point no run
+ * before it had is kept, as its seed and its actions. Most next runs mutate a kept one: its world
+ * (the seed's), its first actions up to a random cut, then a new tail drawn from a stream of its
+ * own, half the time under a new mix of actions (a swarm over what the visitor does). The rest are
+ * fresh seeds. A failure's plan is written to `internal/sim/plans/` and run again from the plan
+ * alone (`--plan` replays it, and must give the same trace). The search's choices depend on which
+ * run ends first, so the search itself does not replay; each run in it does.
+ */
+async function guided(): Promise<void> {
+	mkdirSync(PLANS, { recursive: true });
+	const started = wall();
+	const pool = new Pool(JOBS);
+	const g = rng(FIRST).fork('guided');
+	const covered = new Coverage();
+	const kept: Kept[] = [];
+	const fresh_first = Math.min(GUIDED, Math.max(JOBS, 8));
+	let next_seed = FIRST;
+	let made = 0;
+	let ran = 0;
+	let failed = 0;
+	let leaks = 0;
+	const next = (): { seed: number; plan?: Plan; label: string } => {
+		made++;
+		if (made <= fresh_first || kept.length === 0 || g.chance(0.25)) {
+			const seed = next_seed++;
+			return { seed, label: `seed ${seed}` };
+		}
+		const parent = g.weighted<Kept>(kept.map((k) => [k, 1 + k.found]));
+		const cut = g.int(parent.plan.actions.length + 1);
+		const tail = `m${made}`;
+		const mix = g.chance(0.5) ? swarm_mix(g) : parent.plan.mix;
+		return {
+			seed: parent.seed,
+			plan: { actions: parent.plan.actions.slice(0, cut), tail, mix },
+			label: `seed ${parent.seed} ${tail} (${cut} kept${mix ? ', mixed' : ''})`
+		};
+	};
+	const done = async (
+		c: { seed: number; plan?: Plan; label: string },
+		res: RunResult,
+		worker: number
+	): Promise<void> => {
+		ran++;
+		const plan: Plan = { actions: res.actions, mix: c.plan?.mix };
+		const fresh = covered.add(res.coverage);
+		if (fresh.length > 0) kept.push({ seed: c.seed, plan, found: fresh.length });
+		const bad = res.broken.filter((b) => b.oracle !== 'known');
+		if (fresh.length > 0 || bad.length > 0)
+			console.log(
+				`${bad.length ? 'FAIL' : 'new '} ${c.label}: ${res.actions.length} actions${fresh.length ? `, ${fresh.length} new: ${fresh.slice(0, 4).join('; ')}${fresh.length > 4 ? '; …' : ''}` : ''}`
+			);
+		if (bad.length === 0) return;
+		failed++;
+		const file = join(PLANS, `${c.label.replace(/[^\w]+/g, '-').replace(/-$/, '')}.json`);
+		writeFileSync(file, JSON.stringify({ seed: c.seed, steps: res.actions.length, plan }) + '\n');
+		for (const b of bad) console.log(`  [${b.oracle}] ${b.detail.split('\n').join('\n    ')}`);
+		// (its plan alone gives the same run: what `--plan` replays)
+		const again = await pool.run(c.seed, res.actions.length, Infinity, worker, plan);
+		const diff = trace_difference(res.log, again.result.log);
+		if (diff !== '') leaks++;
+		console.log(
+			`  plan: ${file}${diff === '' ? ' (replays the same)' : `\n  the plan's replay DIFFERS:\n    ${diff.split('\n').join('\n    ')}`}`
+		);
+	};
+	await new Promise<void>((all_done) => {
+		let flying = 0;
+		const pump = (): void => {
+			while (flying < JOBS && made < GUIDED) {
+				const c = next();
+				flying++;
+				void pool.run(c.seed, STEPS, Infinity, -1, c.plan).then(async ({ result, worker }) => {
+					await done(c, result, worker);
+					flying--;
+					if (ran % 50 === 0) console.log(`[${ran} runs] ${coverage_summary(covered).line}`);
+					if (flying === 0 && made >= GUIDED) all_done();
+					else pump();
+				});
+			}
+		};
+		pump();
+	});
+	pool.end();
+	const coverage = coverage_summary(covered);
+	const seconds = Math.round((wall() - started) / 100) / 10;
+	writeFileSync(
+		join(import.meta.dirname, '..', 'results.json'),
+		JSON.stringify(
+			{
+				app: APP,
+				guided: GUIDED,
+				from: FIRST,
+				failed,
+				plan_leaks: leaks,
+				seconds,
+				kept: kept.length,
+				coverage
+			},
+			null,
+			'\t'
+		) + '\n'
+	);
+	console.log(
+		`\n${GUIDED} guided runs (${next_seed - FIRST} fresh seeds, ${kept.length} kept), ${failed} failed, ${leaks} plan replay leaks, ${seconds} s`
+	);
+	console.log(coverage.line);
+	process.exitCode = failed || leaks ? 1 : 0;
 }
 
 async function main(): Promise<void> {
@@ -427,13 +606,15 @@ async function main(): Promise<void> {
 		process.exit(2);
 	}
 	if (BUILDS.length === 1) console.log('[sim] one build: no deploys (`pnpm sim:builds` makes two)');
+	if (GUIDED > 0) return guided();
 	const started = wall();
 	const pool = new Pool(JOBS);
 	const seeds = Array.from({ length: RUNS }, (_, i) => FIRST + i);
 	// each seed's first run, and its replay (on another worker where there are two)
 	const runs = seeds.map(async (seed): Promise<[RunResult, RunResult | null]> => {
-		const first = await pool.run(seed, STEPS, STOP_AT);
-		const again = REPLAY ? await pool.run(seed, STEPS, STOP_AT, first.worker) : null;
+		const plan = PLANNED?.plan;
+		const first = await pool.run(seed, STEPS, STOP_AT, -1, plan);
+		const again = REPLAY ? await pool.run(seed, STEPS, STOP_AT, first.worker, plan) : null;
 		return [first.result, again?.result ?? null];
 	});
 	const results: RunResult[] = [];
@@ -537,6 +718,7 @@ interface Job {
 	seed: number;
 	steps: number;
 	stop_at: number;
+	plan?: Plan;
 	/** A worker not to use (the one that ran the seed first), when another is free. */
 	avoid: number;
 	resolve(r: { result: RunResult; worker: number }): void;
@@ -566,10 +748,11 @@ class Pool {
 		seed: number,
 		steps: number,
 		stop_at: number,
-		avoid = -1
+		avoid = -1,
+		plan?: Plan
 	): Promise<{ result: RunResult; worker: number }> {
 		return new Promise((resolve) => {
-			this.#queue.push({ seed, steps, stop_at, avoid, resolve });
+			this.#queue.push({ seed, steps, stop_at, plan, avoid, resolve });
 			this.#pump();
 		});
 	}
@@ -652,7 +835,7 @@ class Pool {
 		};
 		w.child.once('message', done);
 		w.child.once('exit', died);
-		w.child.send({ seed: job.seed, steps: job.steps, stop_at: job.stop_at });
+		w.child.send({ seed: job.seed, steps: job.steps, stop_at: job.stop_at, plan: job.plan });
 	}
 
 	end(): void {
@@ -665,14 +848,14 @@ class Pool {
 function worker(): void {
 	// (the pool went away: nothing more will come)
 	process.on('disconnect', () => process.exit(0));
-	process.on('message', (job: { seed: number; steps: number; stop_at: number }) => {
+	process.on('message', (job: { seed: number; steps: number; stop_at: number; plan?: Plan }) => {
 		// THE WATCHDOG: a run that has not ended after HANG_MS of real time is hung (a wait nobody
 		// will ever end: the simulator's, or the app's). What it was waiting on goes back as its
 		// finding, and the worker ends: its host is in a state no next run should meet.
 		const watchdog = real_timeout(() => {
 			process.send!({ hung: hung_report(job.seed) }, () => process.exit(3));
 		}, HANG_MS);
-		timed(job.seed, job.steps, job.stop_at ?? Infinity).then(
+		timed(job.seed, job.steps, job.stop_at ?? Infinity, job.plan).then(
 			(result) => {
 				clearRealTimeout(watchdog);
 				process.send!({ result });

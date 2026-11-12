@@ -73,16 +73,51 @@ export function buttons(tab: Tab): HTMLButtonElement[] {
 	) as HTMLButtonElement[];
 }
 
+/** A workload's mix: each kind of action's weight, times this (a swarm over what visitors do: a
+ *  run that never presses, one that mostly goes back and forth). Unnamed kinds keep theirs. */
+export type Mix = Readonly<Partial<Record<Action['kind'], number>>>;
+
+/** The kinds a mix weighs. */
+export const ACTION_KINDS: readonly Action['kind'][] = [
+	'click',
+	'press',
+	'goto',
+	'back',
+	'forward',
+	'reload',
+	'open',
+	'offline',
+	'online',
+	'wait',
+	'deploy',
+	'outage'
+];
+
 /** The seed's next action for a world with `tabs` tabs (`deploys`: a deploy may be drawn; the
- *  operator's, not a visitor's, and as rare as one in a session should be). */
+ *  operator's, not a visitor's, and as rare as one in a session should be), weighed by `mix`. */
 export function next_action(
 	rng: Rng,
 	tabs: number,
 	paths: readonly string[],
-	deploys = false
+	deploys = false,
+	mix?: Mix
 ): Action {
 	const tab = rng.int(Math.max(1, tabs));
-	return rng.weighted<Action>([
+	return rng.weighted<Action>(
+		choices(rng, tab, tabs, paths, deploys).map(([a, w]) => [a, w * (mix?.[a.kind] ?? 1)])
+	);
+}
+
+/** Every action the next could be, with its weight (each drawn in full: the draws stay the same
+ *  whatever the weights). */
+function choices(
+	rng: Rng,
+	tab: number,
+	tabs: number,
+	paths: readonly string[],
+	deploys: boolean
+): Array<[Action, number]> {
+	return [
 		[{ kind: 'click', tab, nth: rng.int(1000) }, 8],
 		[{ kind: 'press', tab, nth: rng.int(1000) }, 4],
 		[{ kind: 'goto', tab, path: rng.pick(paths) }, 2],
@@ -107,7 +142,7 @@ export function next_action(
 			},
 			1
 		]
-	]);
+	];
 }
 
 /** Clicks link `nth` (of the tab's links, wrapping); false when it has none. */
