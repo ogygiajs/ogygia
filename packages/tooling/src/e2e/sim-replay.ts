@@ -62,6 +62,37 @@ export interface BrowserPlan {
 	readonly wire?: readonly WireFault[];
 	/** What the simulator found on the run. */
 	readonly found?: readonly string[];
+	/** What the simulator saw after each action (a calm run's plan, for the differential). */
+	readonly seen?: readonly Seen[];
+}
+
+/**
+ * The moment of its document's load an eager press (action `i`) waits for: `settled` when the
+ * simulator's press came after the critical wait had settled (its moves for the new document show
+ * the gate settled and never touched), else null (press `after` ms from the commit, as planned).
+ * The simulator loads a page in a few virtual ms, with no CPU time, and a browser takes longer: the
+ * same ms would test another moment of the load on each side.
+ */
+export function eager_waits_for(p: BrowserPlan, i: number): 'settled' | null {
+	const a = p.plan.actions[i];
+	if (a?.kind !== 'eager') return null;
+	const moves = p.seen?.[i + 1]?.tabs[a.tab]?.moves ?? '';
+	const gate = moves.split('\n').filter((m) => m.startsWith('critical-gate#'));
+	return gate.some((m) => m.endsWith(' -> settled')) && !gate.some((m) => m.includes('touched'))
+		? 'settled'
+		: null;
+}
+
+/** Until `tab`'s critical wait settles (its machine's move, rules builds), at most `ms` on the
+ *  page's clock. */
+async function until_settled(context: BrowserContext, tab: Page, ms: number): Promise<void> {
+	for (let left = ms; left > 0; left -= 10) {
+		const moves = await tab
+			.evaluate(() => (window as unknown as { __ogygia_moves?: () => string }).__ogygia_moves?.())
+			.catch(() => ''); // ok: a document between loads reads as not settled yet
+		if (/^critical-gate#\d+ \S+ -> settled$/m.test(moves ?? '')) return;
+		await pass(context, 10);
+	}
 }
 
 /** What a page's performance observers reported (Chromium only): a layout shift that came right
@@ -497,7 +528,8 @@ async function play(
 				// (the document is in, still loading: the press comes before its first paint, or during
 				// the wait for its critical resources)
 				await navigated(tab.goto(a.path, { waitUntil: 'commit' }));
-				await pass(context, a.after);
+				if (eager_waits_for(p, i) === 'settled') await until_settled(context, tab, 10_000);
+				else await pass(context, a.after);
 				await nth_of(tab, BUTTONS, a.nth);
 				break;
 			case 'twice':
