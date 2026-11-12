@@ -5,7 +5,7 @@
  */
 import fs from 'node:fs';
 import type { Plugin as VitePlugin } from 'vite';
-import type { RegionsSeam } from '@ogygia/core/vite';
+import type { RegionsSeam } from '@ogygia/compiler/vite';
 import { island_subgraph_bytes, type ByteGraphModule } from './region-bytes.ts';
 
 const META_PATH = '/__ogygia_devtools_meta';
