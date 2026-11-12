@@ -7,11 +7,24 @@ import {
 	createPrivateKey,
 	createPublicKey,
 	createHash,
-	randomBytes,
 	sign as ed_sign,
 	verify as ed_verify
 } from 'node:crypto';
+import {
+	Needle,
+	next_any_tag,
+	next_tag,
+	OG_MOUNT_MOVED,
+	OG_MOVED,
+	OGYGIA_GRAPH,
+	OGYGIA_RUNTIME,
+	text_of,
+	value_at,
+	type FoundTag
+} from '@ogygia/core/internal/server';
+import { cache } from '@ogygia/machine';
 import { attr, decodeText, html, type Html } from '@ogygia/core/plugin/utils';
+import { capability, clock, random, type Capability } from '@ogygia/machine';
 
 // ── paths the handle serves ──────────────────────────────────────────────────────────────────
 /** The exposed route table: `GET|POST|… /og/fragment/page?path=…&search=…`. */
@@ -21,11 +34,16 @@ export const FRAGMENT_BASE = '/og/fragment/';
 /** Thaw notices: `POST /og/thaw` (signed, JSON `{ id, hop, build, tags }`). */
 export const THAW_PATH = '/og/thaw';
 
+/** A path that would leave the origin it is set on (`//host`, `/\host`, `\host`). */
+export const OFF_SITE_PATH_RE: RegExp = /^(?:[/\\]{2}|\\)/;
+
 // ── headers ──────────────────────────────────────────────────────────────────────────────────
 const SIG_HEADER = 'x-og-sig';
 const TS_HEADER = 'x-og-ts';
 const USER_HEADER = 'x-og-user';
 const NONCE_HEADER = 'x-og-n';
+/** The call capability: `v1.<signed at + 1 ms>.<nonce>.<Ed25519 signature, base64url>`. */
+const CAP_HEADER = 'x-og-cap';
 export const DEFAULT_SKEW_MS = 120_000;
 /** Default cap on a forwarded fragment/notice body (form posts are small; 1 MiB is generous). */
 export const DEFAULT_MAX_BODY: number = 1024 * 1024;
@@ -33,29 +51,28 @@ export const DEFAULT_MAX_BODY: number = 1024 * 1024;
 // ── replay defense ───────────────────────────────────────────────────────────────────────────
 // A signature is unique per (key, payload) and the payload carries `ts`, so a byte-identical
 // REPLAY reuses the same signature — reject one already seen inside its freshness window. Only
-// VERIFIED signatures are recorded (an attacker can't grow this without the private key); expired
-// entries sweep on write, so the map stays bounded to (legit rate × window). Process-local by
-// design: audience binding is the cross-instance guarantee, this is the same-instance backstop.
-const seen_sigs = new Map<string, number>();
+// VERIFIED signatures are recorded (an attacker can't grow this without the private key); each is
+// kept until its freshness window closes, and at most MAX_SEEN_SIGS (the oldest go first), so it
+// stays bounded to (legit rate × window). Process-local by design: audience binding is the
+// cross-instance guarantee, this is the same-instance backstop.
 const MAX_SEEN_SIGS = 100_000;
+const seen_sigs = cache<string, number>({
+	name: 'federation replay guard',
+	max: MAX_SEEN_SIGS,
+	// wall: a signature's expiry is a wall timestamp the signer set
+	keep: (expires_at) => expires_at - clock.wall()
+});
 function replay_seen(sig: string, expires_at: number, now: number): boolean {
-	if (seen_sigs.size > 0) {
-		for (const [k, exp] of seen_sigs) {
-			if (exp <= now) seen_sigs.delete(k);
-			else break; // insertion order ≈ expiry order (uniform window) — stop at the first live one
-		}
-	}
 	if (seen_sigs.has(sig)) return true;
-	if (seen_sigs.size >= MAX_SEEN_SIGS) {
-		for (const [k, exp] of seen_sigs) if (exp <= now) seen_sigs.delete(k);
-		while (seen_sigs.size >= MAX_SEEN_SIGS) {
-			const oldest = seen_sigs.keys().next().value as string;
-			seen_sigs.delete(oldest);
-		}
-	}
-	seen_sigs.set(sig, expires_at);
+	// (a signature whose window already closed is not kept: no replay of it can pass the ts check)
+	if (expires_at > now) seen_sigs.set(sig, expires_at);
 	return false;
 }
+
+/** Has a call with this nonce been accepted, by its capability or its legacy signature? Records
+ *  it when not: a call signed both ways carries one nonce (`sign_headers`). */
+const nonce_seen = (nonce: string, expires_at: number, now: number): boolean =>
+	nonce !== '' && replay_seen(`n:${nonce}`, expires_at, now);
 
 /** Visitor claims — who is BROWSING (the caller signature says who is CALLING). Bound into the
  *  signed payload: forging claims means forging the Ed25519 signature. They never transit the
@@ -85,15 +102,21 @@ const body_hash = (body?: ArrayBuffer | Uint8Array | null) =>
 
 // ── KeyObject caches ─────────────────────────────────────────────────────────────────────────
 // DER parsing dominates the crypto (sign ~48μs fresh vs ~17μs cached). Keys are few and static,
-// so cache parsed KeyObjects by their base64 string, hard-capped as a safety valve.
+// so cache parsed KeyObjects by their base64 string, capped as a safety valve (the least recently
+// used goes first).
 const MAX_CACHED_KEYS = 64;
-const private_keys = new Map<string, ReturnType<typeof createPrivateKey>>();
-const public_keys = new Map<string, ReturnType<typeof createPublicKey>>();
+const private_keys = cache<string, ReturnType<typeof createPrivateKey>>({
+	name: 'federation private keys',
+	max: MAX_CACHED_KEYS
+});
+const public_keys = cache<string, ReturnType<typeof createPublicKey>>({
+	name: 'federation public keys',
+	max: MAX_CACHED_KEYS
+});
 function private_key(b64: string) {
 	let k = private_keys.get(b64);
 	if (!k) {
 		k = createPrivateKey({ key: Buffer.from(b64, 'base64'), format: 'der', type: 'pkcs8' });
-		if (private_keys.size >= MAX_CACHED_KEYS) private_keys.clear();
 		private_keys.set(b64, k);
 	}
 	return k;
@@ -102,11 +125,84 @@ function public_key(b64: string) {
 	let k = public_keys.get(b64);
 	if (!k) {
 		k = createPublicKey({ key: Buffer.from(b64, 'base64'), format: 'der', type: 'spki' });
-		if (public_keys.size >= MAX_CACHED_KEYS) public_keys.clear();
 		public_keys.set(b64, k);
 	}
 	return k;
 }
+
+// ── the call capability ──────────────────────────────────────────────────────────────────────
+// A signed call as a capability (@ogygia/machine): the method, path, body hash and claims as
+// length-prefixed fields, the audience, a nonce, and when it was signed. It is minted for 1 ms:
+// the receiver's `skewMs` is its whole window (signed within skewMs either way of its own clock),
+// as the legacy headers' was. Proved in test/federation.test.ts › "the call capability".
+const CALL = { name: 'federation.call', version: 1, ttl: { max: 1 } } as const;
+
+/** A token's nonce and expiry (`v<version>.<expiry ms>.<nonce>.<signature>`, @ogygia/machine). */
+const cap_nonce = (token: string): string => token.split('.')[2] ?? '';
+const cap_expiry = (token: string): number => Number(token.split('.')[1]);
+
+/** The mint side, one per private key (as cached as its KeyObject). */
+const minters = cache<string, Capability>({ name: 'federation minters', max: MAX_CACHED_KEYS });
+function minter(b64: string): Capability {
+	let cap = minters.get(b64);
+	if (!cap) {
+		const key = private_key(b64);
+		cap = capability({
+			...CALL,
+			signer: {
+				sign: (m) => ed_sign(null, Buffer.from(m), key).toString('base64url'),
+				verify: () => false // (a minter checks nothing: the receiver brings its keys)
+			}
+		});
+		minters.set(b64, cap);
+	}
+	return cap;
+}
+
+/** The check side, one per window (its replay memory is the process's, whatever keys a check
+ *  trusts): each token checks once, and a memory full of live ones refuses new calls rather than
+ *  forget one. */
+const checkers = cache<number, Capability>({ name: 'federation checkers', max: 8 });
+function checker(skew: number): Capability {
+	let cap = checkers.get(skew);
+	if (!cap) {
+		cap = capability({
+			...CALL,
+			skew,
+			replay: { max: MAX_SEEN_SIGS },
+			signer: { sign: () => '', verify: () => false } // (every check brings its keys)
+		});
+		checkers.set(skew, cap);
+	}
+	return cap;
+}
+
+const ED25519_SIG_B64URL = /^[A-Za-z0-9_-]{86}$/;
+
+/** Does any of `keys` verify `sig` (canonical base64url of 64 bytes) over `message`? */
+function any_key(keys: readonly string[]) {
+	return (message: string, sig: string): boolean => {
+		if (!ED25519_SIG_B64URL.test(sig)) return false;
+		const bytes = Buffer.from(sig, 'base64url');
+		if (bytes.toString('base64url') !== sig) return false;
+		const msg = Buffer.from(message);
+		for (const pk of keys) {
+			try {
+				if (ed_verify(null, msg, public_key(pk), bytes)) return true;
+			} catch {
+				// ok: a malformed key entry verifies nothing; the next is tried
+			}
+		}
+		return false;
+	};
+}
+
+const call_fields = (method: string, pathq: string, bhash: string, claims: string) => [
+	method.toUpperCase(),
+	pathq,
+	bhash,
+	claims
+];
 
 // The signed payload binds the AUDIENCE (the target host) so a hop signed for one peer cannot be
 // replayed at a sibling that trusts the same key. The NONCE makes every signature unique:
@@ -133,16 +229,19 @@ export function sign_headers(
 	audience?: string
 ): Record<string, string> {
 	const key = private_key(privateKey);
-	const ts = String(Date.now());
-	const nonce = randomBytes(8).toString('hex');
+	const ts = String(clock.wall()); // wall: signed, and checked by the peer's clock
 	const pathq = url.pathname + url.search;
 	const user_b64 = claims ? Buffer.from(JSON.stringify(claims)).toString('base64') : '';
-	const sig = ed_sign(
-		null,
-		sig_payload(ts, method, pathq, body_hash(body), user_b64, audience ?? url.host, nonce),
-		key
-	);
+	const bhash = body_hash(body);
+	const aud = audience ?? url.host;
+	const cap = minter(privateKey).mint(aud, call_fields(method, pathq, bhash, user_b64), 1);
+	// the legacy signature carries the capability's nonce: one call, one identity in the replay
+	// memory, whichever of its signatures a receiver checks (test/federation.test.ts › "#822")
+	const nonce = cap_nonce(cap);
+	const sig = ed_sign(null, sig_payload(ts, method, pathq, bhash, user_b64, aud, nonce), key);
 	return {
+		[CAP_HEADER]: cap,
+		// (the legacy headers, for a peer that does not read the capability yet)
 		[TS_HEADER]: ts,
 		[NONCE_HEADER]: nonce,
 		[SIG_HEADER]: sig.toString('base64'),
@@ -150,13 +249,48 @@ export function sign_headers(
 	};
 }
 
+// One spelling per signature, so the replay guard (keyed on the header text) sees every copy:
+// test/federation.test.ts › "a signature counts once however its base64 is spelled".
+const ED25519_SIG_B64 = /^[A-Za-z0-9+/]{86}==$/;
+
+/** The 64 signature bytes, or `null` when `sig` is not their canonical base64. */
+function signature_bytes(sig: string): Buffer | null {
+	if (!ED25519_SIG_B64.test(sig)) return null;
+	const bytes = Buffer.from(sig, 'base64');
+	return bytes.toString('base64') === sig ? bytes : null;
+}
+
 export interface VerifyConfig {
 	/** base64 SPKI DER Ed25519 public keys of AUTHORIZED callers (a list = rotation overlap). */
 	publicKeys: readonly string[];
 	/** Max clock skew / replay window in ms (default 120s). */
 	skewMs?: number;
-	/** The audience(s) THIS app answers to. Defaults to the request URL's host. */
+	/** The audience(s) THIS app answers to. Defaults to the host of the app's `ORIGIN`; with
+	 *  neither, every signed call is refused (the request's own Host is never trusted for it). */
 	audience?: string | string[];
+}
+
+/** The host of the `ORIGIN` the app is configured with (the variable SvelteKit's Node adapter
+ *  reads), or `undefined`: the audience an app answers to when it sets none. */
+export function configured_audience(): string | undefined {
+	const origin = (globalThis as { process?: { env?: Record<string, string | undefined> } }).process
+		?.env?.ORIGIN;
+	if (!origin) return undefined;
+	try {
+		return new URL(origin).host;
+	} catch {
+		return undefined; // ok: an ORIGIN that is not a URL configures nothing; federate() warns
+	}
+}
+
+/** A verified call's claims: none, the parsed ones, or null when signed but unparseable. */
+function claims_of(user_b64: string): { user?: Claims } | null {
+	if (!user_b64) return {};
+	try {
+		return { user: JSON.parse(Buffer.from(user_b64, 'base64').toString()) as Claims };
+	} catch {
+		return null; // signed but unparseable claims = reject
+	}
 }
 
 /** Receiver side: fresh, valid, non-replayed signature from an authorized caller, bound to THIS
@@ -167,20 +301,39 @@ export function verify_signed_request(
 	url: URL,
 	body?: ArrayBuffer | Uint8Array | null
 ): { user?: Claims } | null {
+	const own = cfg.audience ?? configured_audience();
+	if (own == null) return null;
+	const audiences = ([] as string[]).concat(own);
+	const skew = cfg.skewMs ?? DEFAULT_SKEW_MS;
+	const user_b64 = request.headers.get(USER_HEADER) ?? '';
+	const bhash = body_hash(body);
+	const pathq = url.pathname + url.search;
+	const token = request.headers.get(CAP_HEADER);
+	// A call with the capability is checked by it alone (a bad one is not saved by legacy headers)
+	if (token !== null) {
+		const fields = call_fields(request.method, pathq, bhash, user_b64);
+		const verify = any_key(cfg.publicKeys);
+		let checked = false;
+		for (const aud of audiences)
+			if (checker(skew).check(token, aud, fields, verify).ok) {
+				checked = true;
+				break;
+			}
+		if (!checked) return null;
+		// the same call, already accepted by its legacy signature (#822)
+		if (nonce_seen(cap_nonce(token), cap_expiry(token) + skew, clock.wall())) return null;
+		return claims_of(user_b64);
+	}
 	const ts = request.headers.get(TS_HEADER);
 	const sig = request.headers.get(SIG_HEADER);
 	if (!ts || !sig) return null;
 	const ts_n = Number(ts);
-	const skew = cfg.skewMs ?? DEFAULT_SKEW_MS;
-	const now = Date.now();
+	const now = clock.wall(); // wall: against the sender's signed timestamp
 	// a non-numeric ts → NaN; guard it, else `NaN > window` is false and the freshness gate opens
 	if (!Number.isFinite(ts_n) || Math.abs(now - ts_n) > skew) return null;
-	const user_b64 = request.headers.get(USER_HEADER) ?? '';
 	const nonce = request.headers.get(NONCE_HEADER) ?? '';
-	const bhash = body_hash(body);
-	const pathq = url.pathname + url.search;
-	const audiences = cfg.audience == null ? [url.host] : ([] as string[]).concat(cfg.audience);
-	const sig_buf = Buffer.from(sig, 'base64');
+	const sig_buf = signature_bytes(sig);
+	if (!sig_buf) return null;
 	for (const aud of audiences) {
 		const payload = sig_payload(ts, request.method, pathq, bhash, user_b64, aud, nonce);
 		for (const pk of cfg.publicKeys) {
@@ -188,12 +341,9 @@ export function verify_signed_request(
 				const key = public_key(pk);
 				if (!ed_verify(null, payload, key, sig_buf)) continue;
 				if (replay_seen(sig, ts_n + skew, now)) return null;
-				if (!user_b64) return {};
-				try {
-					return { user: JSON.parse(Buffer.from(user_b64, 'base64').toString()) as Claims };
-				} catch {
-					return null; // signed but unparseable claims = reject
-				}
+				// the same call, already accepted by its capability (#822)
+				if (nonce_seen(nonce, ts_n + skew, now)) return null;
+				return claims_of(user_b64);
 			} catch {
 				// ok: a malformed key entry verifies nothing; the next is tried, and none verifying refuses the call
 			}
@@ -251,7 +401,7 @@ export interface WidgetDocument {
 
 // ── W3C trace context ────────────────────────────────────────────────────────────────────────
 const TRACEPARENT_RE = /^00-([0-9a-f]{32})-([0-9a-f]{16})-([0-9a-f]{2})$/;
-const hex = (n: number) => randomBytes(n).toString('hex');
+const hex = (n: number) => Buffer.from(random.bytes(n)).toString('hex');
 
 /** Continue the caller's trace (same trace-id, fresh span) or mint one. */
 export function child_traceparent(incoming?: string | null): {
@@ -267,7 +417,11 @@ export function child_traceparent(incoming?: string | null): {
 
 // ── asset absolutizing ───────────────────────────────────────────────────────────────────────
 const ABSOLUTE_RE = /^[a-z][a-z0-9+.-]*:|^\/\//i;
-const ASSET_ATTR_RE = /\b(entry|endpoint|href|src)="([^"]+)"/g;
+/** An attribute that holds an asset ref (its name in lower case): `entry`, `endpoint`, `href`,
+ *  `src`, or a name ending in one after a non-word character (`data-src`, `xlink:href`). */
+const ASSET_ATTR_NAME = /(?:^|[^a-z0-9_])(?:entry|endpoint|href|src)$/;
+// (those names in any case: where an asset ref can be; a tag without one is not read)
+const ASSET_ATTR_ANY_CASE = /entry|endpoint|href|src/gi;
 const ASSET_PATH_RE = /(?:^|\/)(_app|og)\//;
 const ASSET_EXT_RE = /\.(js|css|woff2?)(\?|$)/;
 
@@ -278,8 +432,8 @@ function pin_asset(value: string, origin: string): string {
 	return new URL(value, origin + '/').href;
 }
 
-const GRAPH_SCRIPT_RE =
-	/(<script type="application\/json" data-ogygia-graph>)([\s\S]*?)(<\/script>)/g;
+// (the attribute's name in any case: where a graph script can be; a script without it is not read)
+const GRAPH_ANY_CASE = new RegExp(OGYGIA_GRAPH, 'gi');
 
 /** An island graph's JSON (core island-graph.ts: `{h, e, s}`), every chunk, entry and location in
  *  it pinned to `origin`: the shell's runtime resolves them against ITS page otherwise, so a remote
@@ -311,36 +465,106 @@ function pin_graph(json: string, origin: string): string {
 	return JSON.stringify(wire).replaceAll('<', '\\u003C');
 }
 
-/** Pin ASSET refs (island entries, stylesheets, chunks, the island graph) to `origin`; app-local
- *  LINKS stay path-relative — the consuming shell owns the address space they resolve in. */
+/** A region's `endpoint`, pinned to `origin` whatever its path: it is always the answering app's own
+ *  (a server island's hole, a lake's), never a link the consumer resolves in its address space. */
+function pin_endpoint(value: string, origin: string): string {
+	return ABSOLUTE_RE.test(value) ? value : new URL(value, origin + '/').href;
+}
+
+/** `html` with the JSON of every `script[data-ogygia-graph]` (as the runtime selects them) pinned. */
+function pin_graphs(html: string, origin: string): string {
+	const mark = new Needle(html, GRAPH_ANY_CASE);
+	if (mark.gone) return html;
+	let out = '';
+	let pos = 0;
+	for (let t = next_tag(html, 'script', 0); t !== null; t = next_tag(html, 'script', t.next)) {
+		const held = mark.holds(t);
+		if (mark.gone) break;
+		if (!held || t.attr(OGYGIA_GRAPH) === undefined) continue;
+		const json = text_of(html, t, 'script');
+		if (json === null) break;
+		out += html.slice(pos, t.end) + pin_graph(json, origin);
+		pos = t.end + json.length;
+	}
+	return pos === 0 ? html : out + html.slice(pos);
+}
+
+/** `html` with the asset refs in the attribute values of its real tags pinned (as the browser
+ *  reads the tags: text that looks like one, in a comment, a code sample or script text, is the
+ *  page's text, #974). */
+function pin_attrs(html: string, origin: string): string {
+	const mark = new Needle(html, ASSET_ATTR_ANY_CASE);
+	if (mark.gone) return html;
+	let out = '';
+	let pos = 0;
+	for (let t = next_any_tag(html, 0); t !== null; t = next_any_tag(html, t.tag.next)) {
+		const held = mark.holds(t.tag);
+		if (mark.gone) break;
+		if (!held) continue;
+		// (in source order: a tag's attributes are read first to last)
+		for (const [name, value] of t.tag.attrs) {
+			if (value === '' || !ASSET_ATTR_NAME.test(name)) continue;
+			const pinned = name.endsWith('endpoint')
+				? pin_endpoint(value, origin)
+				: pin_asset(value, origin);
+			if (pinned === value) continue;
+			const at = value_at(html, t.tag, t.name, name);
+			if (at === -1) continue;
+			out += html.slice(pos, at) + pinned;
+			pos = at + value.length;
+		}
+	}
+	return pos === 0 ? html : out + html.slice(pos);
+}
+
+/** Pin ASSET refs (island entries, stylesheets, chunks, the island graph) and region ENDPOINTS to
+ *  `origin`; app-local LINKS stay path-relative — the consuming shell owns the address space they
+ *  resolve in. */
 export function absolutize(html: string, origin: string): string {
-	return html
-		.replace(
-			ASSET_ATTR_RE,
-			(_m, attr: string, value: string) => `${attr}="${pin_asset(value, origin)}"`
-		)
-		.replace(
-			GRAPH_SCRIPT_RE,
-			(_m, open: string, json: string, close: string) => open + pin_graph(json, origin) + close
-		);
+	return pin_graphs(pin_attrs(html, origin), origin);
 }
 
 // ── document lifting (an app's full HTML → the wire document) ────────────────────────────────
-const HEAD_RE = /<head[^>]*>([\s\S]*?)<\/head>/i;
-const TITLE_RE = /<title[^>]*>([\s\S]*?)<\/title>/i;
-const STYLESHEET_LINK_RE = /<link\b[^>]*rel="stylesheet"[^>]*>/gi;
-const STYLE_TAG_RE = /<style[\s\S]*?<\/style>/gi;
-const BODY_RE = /<body[^>]*>([\s\S]*)<\/body>/i;
-const RUNTIME_SCRIPT_RE = /<script[^>]*data-ogygia-runtime[^>]*src="([^"]+)"/i;
-// HEAD CHANNEL: the meta tags worth carrying (SEO/social); charset/viewport/http-equiv stay the
-// shell's — it owns the document.
-const META_TAG_RE = /<meta\b[^>]*>|<link\b[^>]*rel="canonical"[^>]*>/gi;
-const SHELL_OWNED_META_RE = /\bcharset\b|http-equiv|name="viewport"/i;
+// (a `rel` holds a token as a browser reads it: split on spaces, in any case)
+const STYLESHEET_REL = /(?:^|[\t\n\f\r ])stylesheet(?:[\t\n\f\r ]|$)/i;
+const CANONICAL_REL = /(?:^|[\t\n\f\r ])canonical(?:[\t\n\f\r ]|$)/i;
+
+/** The element `tag` (a `<name …>` of `html`) through its end tag: its raw text up to the first
+ *  `</name`, then that end tag. Null when it never closes. */
+function element_of(html: string, tag: FoundTag, name: string): string | null {
+	const text = text_of(html, tag, name);
+	if (text === null) return null;
+	const gt = html.indexOf('>', tag.end + text.length);
+	return gt === -1 ? null : html.slice(tag.start, gt + 1);
+}
+
+/** Where the document's last `</body` end tag starts, at or after `from`, or -1. */
+function last_body_close(html: string, from: number): number {
+	for (let i = html.lastIndexOf('</'); i >= from && i !== -1; i = html.lastIndexOf('</', i - 1)) {
+		if (html.slice(i + 2, i + 6).toLowerCase() === 'body') {
+			const c = html.charCodeAt(i + 6);
+			// (the name ends there: whitespace, `/`, `>`)
+			if (c === 62 || c === 47 || c === 32 || (c >= 9 && c <= 13)) return i;
+		}
+		if (i === 0) break;
+	}
+	return -1;
+}
+
+/** A head meta the fragment carries: SEO/social; charset/viewport/http-equiv stay the shell's
+ *  (it owns the document). */
+function carried_meta(t: FoundTag): boolean {
+	return (
+		t.attr('charset') === undefined &&
+		t.attr('http-equiv') === undefined &&
+		(t.attr('name') ?? '').toLowerCase() !== 'viewport'
+	);
+}
 
 /** The card a fragment answers with when its peer redirected after the status was sent (a hole,
  *  a streamed mount): a link to the peer's `location`, escaped into its `href` (#439). */
 export function moved_card(
-	marker: 'data-og-moved' | 'data-og-mount-moved',
+	marker: typeof OG_MOVED | typeof OG_MOUNT_MOVED,
 	what: 'section' | 'page',
 	location: string
 ): Html {
@@ -349,19 +573,44 @@ export function moved_card(
 
 /** Lift a full HTML document into the wire shape (title, css, head channel, body, runtime). */
 export function lift_document(html: string, origin: string): Omit<FragmentDocument, 'status'> {
-	const head = html.match(HEAD_RE)?.[1] ?? '';
-	const runtime_src = html.match(RUNTIME_SCRIPT_RE)?.[1];
-	const head_meta = (head.match(META_TAG_RE) ?? [])
-		.filter((t) => !SHELL_OWNED_META_RE.test(t))
-		.map((t) => absolutize(t, origin))
-		.join('');
+	const head_tag = next_tag(html, 'head', 0);
+	const head = (head_tag && text_of(html, head_tag, 'head')) ?? '';
+	let runtime_src: string | undefined;
+	for (let t = next_tag(html, 'script', 0); t !== null; t = next_tag(html, 'script', t.next)) {
+		if (t.attr(OGYGIA_RUNTIME) === undefined) continue;
+		runtime_src = t.attr('src') || undefined;
+		if (runtime_src) break;
+	}
+	// HEAD CHANNEL: the metas and the canonical link, in the head's order; the stylesheets beside
+	let head_meta = '';
+	const css: string[] = [];
+	let meta = next_tag(head, 'meta', 0);
+	let link = next_tag(head, 'link', 0);
+	while (meta !== null || link !== null) {
+		if (link === null || (meta !== null && meta.start < link.start)) {
+			if (carried_meta(meta!)) head_meta += absolutize(head.slice(meta!.start, meta!.end), origin);
+			meta = next_tag(head, 'meta', meta!.next);
+			continue;
+		}
+		const rel = link.attr('rel') ?? '';
+		if (CANONICAL_REL.test(rel)) head_meta += absolutize(head.slice(link.start, link.end), origin);
+		if (STYLESHEET_REL.test(rel)) css.push(absolutize(head.slice(link.start, link.end), origin));
+		link = next_tag(head, 'link', link.next);
+	}
+	for (let t = next_tag(head, 'style', 0); t !== null;) {
+		const style = element_of(head, t, 'style');
+		if (style === null) break;
+		css.push(absolutize(style, origin));
+		t = next_tag(head, 'style', t.start + style.length);
+	}
+	const title_tag = next_tag(head, 'title', 0);
+	const body_tag = next_tag(html, 'body', 0);
+	const body_end = body_tag === null ? -1 : last_body_close(html, body_tag.end);
 	return {
-		title: decodeText(head.match(TITLE_RE)?.[1] ?? ''),
-		css: [...(head.match(STYLESHEET_LINK_RE) ?? []), ...(head.match(STYLE_TAG_RE) ?? [])].map((t) =>
-			absolutize(t, origin)
-		),
+		title: decodeText((title_tag && text_of(head, title_tag, 'title')) ?? ''),
+		css,
 		...(head_meta ? { head: head_meta } : {}),
-		body: absolutize(html.match(BODY_RE)?.[1] ?? html, origin),
+		body: absolutize(body_end === -1 ? html : html.slice(body_tag!.end, body_end), origin),
 		...(runtime_src ? { runtime: new URL(runtime_src, origin + '/').href } : {})
 	};
 }
