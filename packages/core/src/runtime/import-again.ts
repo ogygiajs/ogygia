@@ -19,7 +19,11 @@
  * imports nothing of the boot (only `@ogygia/machine`, which the boot runs on); the boot hands it
  * its message (`on_reload_needed`).
  */
-import { flights, machine, say, scope, STALE, type Scope } from '@ogygia/machine';
+import { buggify, flights, machine, say, scope, STALE, type Scope } from '@ogygia/machine';
+
+// dev and rules builds (a buggify point); folded out of any other
+const RULES =
+	import.meta.env?.DEV || (typeof __OGYGIA_RULES__ !== 'undefined' ? __OGYGIA_RULES__ : false);
 
 /** How long a failed import waits for its file's timing entry before it reads as "no response". */
 const ENTRY_WAIT_MS = 1000;
@@ -58,6 +62,9 @@ function hear_responses(): void {
 }
 
 function heard(url: string, status: number | null): void {
+	// (buggify: the entry never comes, as WebKit gives a dropped download none: a wait for it runs
+	// out, and the import reads as one with no response)
+	if (RULES && buggify.fires('import-again.entry-missed')) return;
 	// (a response heard for a URL is kept over a later entry with none)
 	const known = responses.get(url);
 	responses.delete(url);

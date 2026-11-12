@@ -87,3 +87,35 @@ describe('rules never ship in a production build', () => {
 		expect(on).not.toBe(off);
 	}, 60_000);
 });
+
+// Buggify points (@ogygia/machine `buggify`): the rare branches a simulated run takes on purpose.
+// Each sits behind the rules gate, so a production build carries no call and no point's name.
+const RUNTIME_POINTS = ['flights.not-kept', 'import-again.entry-missed'];
+const SERVER_POINTS = ['flights.not-kept', 'outbox.reply-lost', 'federation.doc-stale'];
+const SERVER_POINTS_ENTRY =
+	SERVER_ENTRY +
+	// (by path: a bare name does not resolve from the entry's temporary folder)
+	`export { outbox } from ${JSON.stringify(SRC + '../../machine/src/outbox.ts')};\n` +
+	`export { PeerHandle } from ${JSON.stringify(SRC + '../../federation/src/peer.ts')};\n`;
+
+describe('buggify points never ship in a production build', () => {
+	it('the runtime boot: none of them off, every one on', async () => {
+		const off = await build(RUNTIME_ENTRY, false);
+		const on = await build(RUNTIME_ENTRY, true);
+		for (const point of RUNTIME_POINTS) {
+			expect(off, point).not.toContain(point);
+			expect(on, point).toContain(point);
+		}
+	}, 60_000);
+
+	it("the server's response path, with an outbox and a federation peer: none off, every one on", async () => {
+		const off = await build(SERVER_POINTS_ENTRY, false);
+		const on = await build(SERVER_POINTS_ENTRY, true);
+		for (const point of SERVER_POINTS) {
+			expect(off, point).not.toContain(point);
+			expect(on, point).toContain(point);
+		}
+		// (nor the platform hook it asks)
+		expect(off).not.toContain('buggify');
+	}, 60_000);
+});

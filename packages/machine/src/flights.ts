@@ -68,13 +68,17 @@
  * its place) is what aborts the work and turns its answer into STALE. `observe()` hears every
  * flight's moves, under the flights' `name`.
  */
-import { clock } from './ports.ts';
+import { buggify, clock } from './ports.ts';
 import { machine, type Machine } from './machine.ts';
 import { machine_error, report_thrown } from './messages.ts';
 import { under_policy, type Policy } from './policy.ts';
 import { DISPOSE } from './scope.ts';
 import { STALE, type Fresh, type Stale } from './stale.ts';
 import { watch_world, type World } from './world.ts';
+
+/** Dev and rules builds (buggify points); folded out of any other (../rules-env.d.ts). */
+const RULES =
+	import.meta.env?.DEV || (typeof __OGYGIA_RULES__ !== 'undefined' ? __OGYGIA_RULES__ : false);
 
 /** What every flights takes; `R` is what `run` (and `keep`, `weigh`) may read of an input. */
 interface FlightsCommon<R, V, W> {
@@ -624,6 +628,8 @@ class Flown<I, V, K> implements Flights<I, V, K> {
 		}
 		// (a weight below 0, or not a number, would lower the total and let `max` cap nothing)
 		if (!(ms > 0) || !(weight >= 0 && weight <= this._max)) return this._back(key, m, prior);
+		// (buggify: an answer not kept, as one too heavy for `max` is: the next caller runs again)
+		if (RULES && buggify.fires('flights.not-kept')) return this._back(key, m, prior);
 		const at = clock.wall();
 		this._weight += weight - (prior?.weight ?? 0);
 		const until = ms === Infinity ? Infinity : clock.mono() + ms; // (a duration: the monotonic clock)

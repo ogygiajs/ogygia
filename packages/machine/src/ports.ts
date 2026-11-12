@@ -42,6 +42,9 @@ export interface Platform {
 	) => IntersectionObserver;
 	localStorage?: Storage;
 	sessionStorage?: Storage;
+	/** Whether the rare branch `point` is taken now. Only a simulated platform has it (a seeded
+	 *  choice); no real one does. */
+	buggify?(point: string): boolean;
 }
 
 declare const TIMER: unique symbol;
@@ -64,3 +67,5 @@ export * as net from './ports/net.ts';
 export * as seen from './ports/seen.ts';
 /** Storage: `local`, `session` (null where there is none or it is blocked). */
 export * as storage from './ports/storage.ts';
+/** Rare branches a simulated run takes on purpose: `fires(point)`. Rules builds only. */
+export * as buggify from './ports/buggify.ts';

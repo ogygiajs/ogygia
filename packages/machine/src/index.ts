@@ -40,6 +40,7 @@ export {
 } from './scope.ts';
 export { lock, type Lock, type LockToken } from './lock.ts';
 export {
+	buggify,
 	clock,
 	net,
 	random,
