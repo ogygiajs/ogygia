@@ -48,7 +48,7 @@ function parse_record(doc: Document): Map<string, HoleFacts> | null {
 
 function sidecar_element(html: string): HTMLScriptElement | null {
 	// @why the record is the page's own (its server wrote it) and the sidecar a data script, so it is vouched and parsed inert (test: test/browser/hole-facts.test.ts › a recorded sidecar never runs: a script in the record is parsed inert)
-	const el =parse_region_html(vouch_page_html(html)).firstElementChild;
+	const el = parse_region_html(vouch_page_html(html)).firstElementChild;
 	return el && el.tagName === 'SCRIPT' ? (el as HTMLScriptElement) : null;
 }
 
