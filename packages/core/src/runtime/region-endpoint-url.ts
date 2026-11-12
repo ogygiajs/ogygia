@@ -6,6 +6,7 @@ import { class_at, fetch_priority_of, PRIORITY, type LoadClass } from './load-cl
 import { flights, STALE, type Flights } from '@ogygia/machine';
 import { entry_location } from './entry-locations.ts';
 import { import_file } from './import-again.ts';
+import { code_url, type CodeUrl } from './code-origins.ts';
 import { cache } from '@ogygia/machine';
 
 /** Hoisted (hot paths — connectedCallback/hydrate run per region); shared with core's
@@ -168,7 +169,7 @@ const module_urls = cache<string, string>({ name: 'island module urls', max: 400
 // (`import()` is idempotent, but re-parsing the specifier on every hover isn't free). A failed
 // warm is not kept, so the real wake — or a later warm — retries; warming is never fatal.
 /** A warm's ask: the module's key, and the file it names as the caller that started it spelled it. */
-type Warm = { key: string; entry: string; base: string | undefined; url: string };
+type Warm = { key: string; entry: string; base: string | undefined; url: CodeUrl };
 /** One warm per module, kept once it landed: a warm with a more urgent class joining one raises it
  *  (#437: still queued, it starts now at that class; started, its graph links are raised). Made at
  *  the first warm: a module that only checks an endpoint makes none. */
@@ -234,7 +235,10 @@ export function warm_island_module(
 	if (!url) return;
 	// a build's identity with no known location names no file: the load finds it (import_entry)
 	if (!entry_location(entry, base) && url.includes('/ogygia/og-region.')) return;
-	void warms().get({ key: warm_key(url), entry, base, url }, { priority: PRIORITY[cls] }); // ok: a warm that failed answers STALE, never rejects: nothing to hear
+	// (code on an origin the page loads none from is not warmed: its load says why, ./code-origins.ts)
+	const code = code_url(url);
+	if (code === null) return;
+	void warms().get({ key: warm_key(url), entry, base, url: code }, { priority: PRIORITY[cls] }); // ok: a warm that failed answers STALE, never rejects: nothing to hear
 }
 
 /** Has this island module already been warmed (or imported through the warmer)? `entry` resolves
