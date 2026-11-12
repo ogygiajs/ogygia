@@ -21,10 +21,16 @@ async function until<T>(read: () => T | null | undefined): Promise<T> {
 const query = async (): Promise<SearchHit[]> => [];
 const field = () => document.querySelector('input');
 
+const mounted: Array<ReturnType<typeof mount>> = [];
+
 function search(mode: 'dialog' | 'inline' = 'dialog') {
 	const target = document.createElement('div');
+	// (off screen: a pointer the driver left resting where the link renders is a hover, an intent
+	// that loads the palette)
+	target.style.cssText = 'position:fixed;left:-10000px;top:0';
 	document.body.append(target);
 	const app = mount(Search, { target, props: { base: '/docs', query, mode } });
+	mounted.push(app);
 	flushSync();
 	return { target, app };
 }
@@ -36,7 +42,9 @@ function key(init: KeyboardEventInit, from: EventTarget = window): boolean {
 	return e.defaultPrevented;
 }
 
-afterEach(() => {
+afterEach(async () => {
+	// (a test that failed before its own unmount left its window key listener to the next test)
+	for (const app of mounted.splice(0)) await unmount(app);
 	document.body.replaceChildren();
 });
 
@@ -52,18 +60,16 @@ describe('Search', () => {
 			.getEntriesByType('resource')
 			.some((r) => r.name.includes('SearchPalette.svelte'));
 		expect(loaded).toBe(false);
-		await unmount(s.app);
 	});
 
 	it('opens the palette on Ctrl+K', async () => {
-		const s = search();
+		search();
 		expect(key({ key: 'k', ctrlKey: true })).toBe(true);
 		await until(field);
-		await unmount(s.app);
 	});
 
 	it('leaves a slash typed in a text field or an editor alone', async () => {
-		const s = search();
+		search();
 		const input = document.createElement('input');
 		const editor = document.createElement('div');
 		editor.contentEditable = 'true';
@@ -74,14 +80,12 @@ describe('Search', () => {
 		flushSync();
 		expect(document.querySelector('[role="dialog"]')).toBe(null);
 		expect(key({ key: '/' }, document.body)).toBe(true);
-		await unmount(s.app);
 	});
 
 	it('in a sheet, mounts the palette at once and leaves the keys to the page', async () => {
-		const s = search('inline');
+		search('inline');
 		await until(field);
 		expect(key({ key: 'k', ctrlKey: true })).toBe(false);
 		expect(key({ key: '/' }, document.body)).toBe(false);
-		await unmount(s.app);
 	});
 });
