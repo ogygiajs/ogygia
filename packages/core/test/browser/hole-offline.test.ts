@@ -4,6 +4,7 @@
 // caused, while the browser says it is offline, waits for the `online` event and asks again. A
 // failure the server caused (an error status, a refusal) gives up as before.
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
+import { observe } from '@ogygia/machine';
 import { bootDev } from '../../src/runtime/full.ts';
 import { _reset } from '../../src/runtime/frame-store.ts';
 
@@ -65,6 +66,41 @@ test('a hole whose fetch failed while offline loads once the browser is back onl
 		})
 		.toBe(true);
 	expect(calls).toBeGreaterThan(asked_offline);
+});
+
+test('an island whose code failed to download while offline wakes again once the browser is back online', async () => {
+	const moves: string[] = [];
+	const stop = observe((name, from, to) => {
+		if (name === 'wake' && to) moves.push(`${from.kind} -> ${to.kind}`);
+	});
+	try {
+		online = false;
+		// (a file that cannot load: offline, its failure is the network's)
+		const el = insert(
+			'<ogygia-region wake="load" entry="/__og_missing__/island.js"><p>server markup</p></ogygia-region>'
+		);
+		bootDev();
+		await expect
+			.poll(() => moves.includes('waking -> offline'), {
+				timeout: 5_000,
+				message: 'its failed download waits for the network'
+			})
+			.toBe(true);
+		expect(moves).not.toContain('waking -> failed');
+		online = true;
+		window.dispatchEvent(new Event('online'));
+		await expect
+			.poll(() => moves.filter((m) => m === '-> waking' || m.endsWith('-> waking')).length, {
+				timeout: 5_000,
+				message: 'it woke again once the network was back'
+			})
+			.toBeGreaterThan(1);
+		// online, the file still cannot load: now that is a failure
+		await expect.poll(() => moves.includes('waking -> failed'), { timeout: 5_000 }).toBe(true);
+		expect(el.textContent).toContain('server markup');
+	} finally {
+		stop();
+	}
 });
 
 test('a hole the server failed still gives up, and the network coming back asks nothing', async () => {
