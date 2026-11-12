@@ -157,7 +157,6 @@ describe('core’s session parts', () => {
 			'runtime_chunk_url',
 			'region_names',
 			'router_css_roots',
-			'note_server_ids',
 			'routes_dir',
 			'plugins'
 		];

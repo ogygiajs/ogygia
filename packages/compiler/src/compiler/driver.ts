@@ -54,7 +54,7 @@ import { context_string_keys, source_uses_ogygia_context } from './link/context-
 import { collect_flag_sites, FLAGS_SPEC } from './flags.ts';
 import { router_css_roots } from './link/router-css.ts';
 import { source_crosses_wire } from './link/transport.ts';
-import { server_island_ids, PAGE_DATA_READS_TOKEN } from './link/server-manifest.ts';
+import { PAGE_DATA_READS_TOKEN } from './link/server-manifest.ts';
 import { same_module_path, island_vpaths_affected_by_file } from './dev/hmr.ts';
 import { VirtualTable } from './virtual/resolver.ts';
 import { CORE_VALUE_NAMES } from './virtual/value-names.ts';
@@ -219,30 +219,38 @@ export class Compiler implements CoreApp {
 	/** `prescan()` is once-per-session — guarded so the adapter can call it from any hook. */
 	#scanned = false;
 
-	/**
-	 * DEV: the server-island ids the last emitted `ogygia:server/server-manifest` carried. A HOST edit
-	 * drops its islands' rows (`invalidate_for_file`) and invalidates the manifest; Kit re-imports the
-	 * handle BEFORE the page transform re-registers them, so that manifest is emitted WITHOUT the ids —
-	 * and nothing re-invalidated it afterwards: every hole answered 403 until a restart. The adapter
-	 * asks `server_manifest_stale()` after each transform and invalidates again when a registered
-	 * server id is missing from this set. `null` until the first emit (nothing to compare).
-	 */
-	#emitted_server_ids: Set<string> | null = null;
+	/** DEV: a registration since the last `regions_moved()` changed the registry or the marks. */
+	#regions_moved = false;
 
-	/** True (once) when a server island registered since the last manifest emit — re-invalidate it. */
-	server_manifest_stale(): boolean {
-		const emitted = this.#emitted_server_ids;
-		if (!emitted) return false;
-		for (const id of server_island_ids(this.program)) {
-			if (!emitted.has(id)) {
-				this.#emitted_server_ids = null; // the next emit records the fresh set
-				return true;
-			}
-		}
-		return false;
+	/**
+	 * DEV, after each transform: the virtual modules whose last load read a registry or runtime marks
+	 * that a registration has since changed, for the adapter to invalidate. One rule for every reader:
+	 * the server manifest emitted while a host's rows were dropped for its edit (every hole answered
+	 * 403 until a restart), and the runtime entry chosen before a page's first `idle` region (it never
+	 * woke: test/dev-regions-reload.test.ts).
+	 */
+	regions_moved(): string[] {
+		if (!this.#regions_moved) return [];
+		this.#regions_moved = false;
+		return this.#virtuals.bump('regions');
 	}
-	note_server_ids(ids: Set<string>): void {
-		this.#emitted_server_ids = ids;
+
+	/** Register a transform's regions; in dev, note whether that moved what `regions` readers read. */
+	#register(result: TransformResult, host: string): void {
+		if (!this.#ctx!.is_dev) return this.program.register(result, host);
+		const before = this.#regions_print(host);
+		this.program.register(result, host);
+		if (this.#regions_print(host) !== before) this.#regions_moved = true;
+	}
+
+	/** The marks and one host's rows, as text (dev only: the change check above). */
+	#regions_print(host: string): string {
+		const { registry, host_index, runtime_marks } = this.program;
+		const rows = [...(host_index.get(host_key(host))?.vpaths ?? [])].sort().map((vpath) => {
+			const e = registry.get(vpath);
+			return [vpath, e?.hostPath, e?.server, e?.source, e?.ssrSource, e?.clientSource];
+		});
+		return JSON.stringify([runtime_marks, rows]);
 	}
 	#ctx: CompileCtx | null = null;
 	/** The resolved compile context (set by `configure`). */
@@ -349,7 +357,7 @@ export class Compiler implements CoreApp {
 			linkVirtual: true
 		}) as TransformResult | null;
 		if (!result || !result.islands?.length) return null;
-		this.program.register(result, filename);
+		this.#register(result, filename);
 		return result.code;
 	}
 
@@ -1532,7 +1540,7 @@ export class Compiler implements CoreApp {
 			// stayed un-rewritten and exploded at runtime as `undefined.code`).
 			const result = this.transform(out, id_n, { ssr }) as TransformResult | null;
 			if (result) {
-				program.register(result, id_n);
+				this.#register(result, id_n);
 				this.#mark_registered_closures(result);
 				out = result.code;
 				map = result.map;
@@ -1590,7 +1598,7 @@ export class Compiler implements CoreApp {
 		if (nm_ts !== null && (nm_ts === false || ctx.in_declared_pkg(id_n)) && !is_island_path(id_n)) {
 			const result = this.ts_regions(out, id_n) as TransformResult | null;
 			if (result) {
-				program.register(result, id_n);
+				this.#register(result, id_n);
 				this.#mark_registered_closures(result);
 				out = result.code;
 				map = result.map;

@@ -75,7 +75,7 @@ function dev_compiler() {
 async function dev_transform(compiler: Compiler, file: string, text: string): Promise<string[]> {
 	await compiler.transform_module(text, file, { ssr: true, emitFile: () => '' });
 	const out: string[] = [];
-	if (compiler.server_manifest_stale()) out.push(...compiler.changed('regions'));
+	out.push(...compiler.regions_moved());
 	out.push(...compiler.drain_closure_marks());
 	return out;
 }
