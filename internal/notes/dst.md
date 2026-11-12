@@ -29,7 +29,8 @@ works, what is built, and how to add to it.
      idle callbacks, randomness, crypto bytes, and a MessageChannel on the loop.
    - `network.ts`: in memory, on the loop, adversarial: delay, reorder, drop, duplicate, cut a body
      midway, tamper with bytes, redirect a region's request to another origin, stall an answer 10 to
-     40 s (past a client's own deadline; its own swarm stream, 30% of runs), offline.
+     40 s before it starts or, half the time, after its body's first piece (past a client's own
+     deadline; its own swarm stream, 30% of runs), offline.
    - `server.ts`: a built Kit app (`.svelte-kit/output`) served in process, static files plus
      `Server.respond`. Each instance loads its own copy of the output (its own module graph), placed
      beside the app's output so it resolves the app's dependencies.
