@@ -1,17 +1,3 @@
-/**
- * THE PAGE'S STYLES, as the browser holds them: every stylesheet (linked or inline), its rules,
- * its size, whether it held the first paint, and two things only the live page can answer:
- *
- * - **unscoped components**: the build marks a component whose scoped CSS it could not compile
- *   (unscoped-css.ts). Its rules then apply page-wide. The CSSOM drops comments, so the marker is
- *   read from the sheet's text (inline: the node; linked: one fetch, from the HTTP cache).
- * - **rules that match nothing here**: each style rule's selector, with states and pseudo-elements
- *   taken off (`:hover`, `::before`), tried against the document. Content that appears later (a
- *   menu, a dialog, an island not yet rendered) counts as matching nothing, so it is a hint.
- *
- * Devtools' own UI lives in a shadow root and never shows here. Runs on demand (the Page tab), not
- * on a hot path.
- */
 import {
 	find_unscoped,
 	unscoped_finding,
@@ -62,7 +48,6 @@ export interface StylesFinding {
 	fix?: string;
 }
 
-// states a selector depends on that the page is not in right now; taken off before matching
 const STATES = [
 	':hover',
 	':focus-visible',
@@ -97,12 +82,12 @@ export function split_selectors(list: string): string[] {
 	return out.filter(Boolean);
 }
 
-/** A selector with its pseudo-elements and momentary states taken off, ready to try against the
- *  document. `''` when nothing is left to match (a bare `::selection`): that one counts as used. */
+/** A selector with its pseudo-elements (`::before`, `::part(x)`, cut to the next space or
+ *  combinator) and momentary states (`:hover`, `:focus`, whole names only) taken off, ready to try
+ *  against the document. A compound that lost everything (`a > :hover`) leaves what is before it.
+ *  `''` when nothing is left to match (a bare `::selection`): that one counts as used. */
 export function matchable(sel: string): string {
 	let s = sel;
-	// pseudo-elements: `::before`, `::part(x)`, `::-webkit-scrollbar` — cut each to the next space,
-	// combinator or end (they sit at the end of a compound)
 	let at = s.indexOf('::');
 	while (at !== -1) {
 		let end = at + 2;
@@ -122,7 +107,6 @@ export function matchable(sel: string): string {
 		let i = s.indexOf(st);
 		while (i !== -1) {
 			const next = s[i + st.length];
-			// a whole pseudo-class only (`:focus` must not eat the start of `:focus-visible`)
 			if (next === undefined || !(next === '-' || (next >= 'a' && next <= 'z')))
 				s = s.slice(0, i) + s.slice(i + st.length);
 			else i += st.length;
@@ -130,7 +114,6 @@ export function matchable(sel: string): string {
 		}
 	}
 	s = s.trim();
-	// a compound that lost everything (`a > :hover` → `a >`): match what is left of the chain
 	while (s.endsWith('>') || s.endsWith('+') || s.endsWith('~')) s = s.slice(0, -1).trim();
 	return s;
 }
@@ -140,11 +123,8 @@ function file_of(href: string): string {
 	return path.slice(path.lastIndexOf('/') + 1) || href;
 }
 
-/** Devtools' own component styles: on the dev server Vite injects them into the page's <head>
- *  (the panel's markup lives in a shadow root, so every one of their rules matches nothing here). */
 function own_sheet(node: Element | null): boolean {
 	const id = node?.getAttribute('data-vite-dev-id');
-	// (this package's own source in the workspace: `packages/devtools/src/devtools/…`, no "ogygia" in it)
 	return (
 		!!id &&
 		(id.includes('ogygia') || id.includes('/devtools/src/devtools/')) &&
@@ -152,10 +132,6 @@ function own_sheet(node: Element | null): boolean {
 	);
 }
 
-/** A sheet that styles the devtools panel and nothing on the page: in a build the panel's CSS is a
- *  linked file in the document, whatever its name. Its rules match inside the panel's shadow root
- *  and never in the document. Every rule is tried (which of the panel's parts are showing depends
- *  on its open tab), stopping at the first one the page itself uses. */
 function styles_the_panel(
 	rules: CSSRuleList,
 	doc: Document,
@@ -189,13 +165,25 @@ function each_style_rule(list: CSSRuleList, fn: Walk) {
 	for (let i = 0; i < list.length; i++) {
 		const r = list[i];
 		if ('selectorText' in r) fn(r);
-		// @media / @supports / @layer / @container blocks, and nested rules
 		const inner = (r as CSSGroupingRule).cssRules;
 		if (inner && inner.length) each_style_rule(inner, fn);
 	}
 }
 
-/** Read the page's stylesheets. `match: true` also tries every selector against the document. */
+/**
+ * Read the page's stylesheets as the browser holds them: each one's rules (inside `@media`,
+ * `@supports` and nested blocks too), its size, and whether it held the first paint. A dev
+ * server's injected `<style>` is named by its file.
+ *
+ * Devtools' own styles never show: the sheets a dev server injects for its components (from the
+ * package, or its source in the workspace), and in a build a linked sheet whose rules match only
+ * inside the panel's shadow root (one the page uses too is kept).
+ *
+ * `match: true` also tries every selector against the document, with states and pseudo-elements
+ * taken off ({@link matchable}). A nested rule's `&` and a selector this browser cannot query (a
+ * vendor pseudo) count as used. Content that appears later (a menu, a dialog, a region not yet
+ * rendered) counts as matching nothing, so the count is a hint.
+ */
 export function read_styles(
 	doc: Document = document,
 	opts: { match?: boolean } = {}
@@ -222,7 +210,6 @@ export function read_styles(
 		if (styles_the_panel(rules, doc, panel)) continue;
 		const r = href ? res.get(href) : undefined;
 		const row: SheetRow = {
-			// (a dev server's injected <style> says which file it came from)
 			label: href
 				? file_of(href)
 				: node?.getAttribute('data-vite-dev-id')
@@ -244,7 +231,6 @@ export function read_styles(
 			row.rules++;
 			if (!opts.match) return;
 			const text = (rule as CSSStyleRule).selectorText;
-			// a nested rule's `&` needs its parent to mean anything: count it as used
 			if (text.includes('&')) return;
 			let hit = false;
 			for (const part of split_selectors(text)) {
@@ -259,7 +245,6 @@ export function read_styles(
 						break;
 					}
 				} catch {
-					// a selector this browser cannot query (a vendor pseudo): do not call it unused
 					hit = true;
 					break;
 				}
@@ -288,8 +273,10 @@ export function read_styles(
 	};
 }
 
-/** The build's unscoped-fallback markers in the page's sheets. Inline sheets read their node's
- *  text; linked ones one same-origin fetch each (the HTTP cache answers it). */
+/** The build's unscoped-fallback markers in the page's sheets: a component whose scoped CSS the
+ *  build could not compile, whose rules then apply page-wide. The CSSOM drops comments, so the
+ *  marker is read from the text: inline sheets their node's, linked ones one same-origin fetch
+ *  each (the HTTP cache answers it). Devtools' own sheets are left out. */
 export async function scan_unscoped(
 	doc: Document = document
 ): Promise<(UnscopedStyles & { sheet: string })[]> {
@@ -319,13 +306,15 @@ export async function scan_unscoped(
 	return out;
 }
 
+/** What the styles report says: an unscoped component first, as a warning; rules that match
+ *  nothing only once checked, and only when they are a real share (half the rules) of real bytes
+ *  (20 KB of rule text). */
 export function styles_findings(s: StylesReport): StylesFinding[] {
 	const out: StylesFinding[] = [];
 	if (s.unscoped.length) {
 		const f = unscoped_finding(s.unscoped);
 		out.push({ ...f, severity: 'warn' });
 	}
-	// rules that match nothing: only once checked, and only when it is a real share of real bytes
 	if (s.unmatched_bytes >= 20 * 1024 && s.rules && s.unmatched / s.rules >= 0.5) {
 		const kb = Math.round(s.unmatched_bytes / 1024);
 		const worst = s.sheets
