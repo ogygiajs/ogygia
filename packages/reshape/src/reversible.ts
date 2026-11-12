@@ -432,6 +432,7 @@ const TRACKED = new Map(
 );
 /** Every tag `implied_close` acts on: the only tags settle ever writes as a stand-in, and the only
  *  ones the restorer swaps one back to (./restore.ts keeps its own copy; a test holds them equal). */
+// static: the tags settle writes as stand-ins
 export const STAND_IN_TAGS: ReadonlySet<string> = new Set([
 	...TRACKED.keys(),
 	...P_CLOSERS,
