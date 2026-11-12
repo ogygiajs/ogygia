@@ -750,6 +750,20 @@ function deploy_took(world: World, tab: Tab, line: string): boolean {
 	return NOT_DOWNLOADED.test(line) && world.skewed_for(tab.realm);
 }
 
+/** How the browser, or ogygia with its code, says a module or file did not download. */
+const NOT_DOWNLOADED =
+	/ogygiajs\.dev\/e\/|Failed to fetch dynamically imported module|^error: <(script|link)> \S+ failed|Failed to perform request/;
+
+/**
+ * A failure a deploy explains: the tab asked a build for a content-hashed file only another build
+ * has (an old page's file after its build is gone, or one build's file asked of the other's
+ * servers in a rolling deploy), said as the browser says a download failed, or by ogygia with its
+ * code. ogygia's own words without a code are never excused.
+ */
+function deploy_took(world: World, tab: Tab, line: string): boolean {
+	return NOT_DOWNLOADED.test(line) && world.skewed_for(tab.realm);
+}
+
 /** No uncaught error, unhandled rejection or console error in the page (beyond what a network
  *  fault on this document explains, or a deploy, when `world` is given). */
 export function page_errors(tab: Tab, world?: World, since?: number): Broken | null {
