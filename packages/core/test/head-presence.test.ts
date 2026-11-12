@@ -90,6 +90,23 @@ describe('page_declares_speculation_rules', () => {
 			true
 		);
 	});
+
+	it('reads the type the way a browser does: any case, spaces around it trimmed', () => {
+		expect(page_declares_speculation_rules('<script type=" SpeculationRules ">{}</script>')).toBe(
+			true
+		);
+	});
+});
+
+describe('attribute names in any case', () => {
+	it('finds a marker spelled in upper case, as a browser does', () => {
+		expect(page_declares_runtime_script('<script DATA-OGYGIA-RUNTIME src="/r.js"></script>')).toBe(
+			true
+		);
+		expect(page_declares_dev_hmr_script('<script Data-Ogygia-Dev-Hmr src="/h.js"></script>')).toBe(
+			true
+		);
+	});
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -141,6 +158,16 @@ describe('runtime_first — before all of the page’s JavaScript, not first in 
 		expect(runtime_first(head_start + css + preload + design_system + runtime, null)).toBe(
 			head_start + css + runtime + preload + design_system
 		);
+	});
+
+	it('reads rel as a browser does: tokens in any case, so any modulepreload counts', () => {
+		const css = '<link rel="stylesheet" href="/a.css">';
+		for (const rel of ['ModulePreload', 'preload modulepreload']) {
+			const preload = `<link rel="${rel}" href="/_app/start.js">`;
+			expect(runtime_first(head_start + css + preload + design_system + runtime, null)).toBe(
+				head_start + css + runtime + preload + design_system
+			);
+		}
 	});
 
 	it('moves the runtime’s own modulepreload hints WITH it, as one unit', () => {
