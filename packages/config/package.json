@@ -24,7 +24,7 @@
 		"@types/node": "catalog:",
 		"@typescript/native": "catalog:tsgo",
 		"fast-check": "catalog:",
-		"parse5": "catalog:",
+		"ogygia-internal-html-fuzz": "workspace:*",
 		"svelte": "catalog:",
 		"typescript": "catalog:",
 		"vitest": "catalog:"
