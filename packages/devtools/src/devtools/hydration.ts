@@ -4,7 +4,7 @@
  * the Hydration tab and the testing API (`window.__ogygia_testing.hydration()`).
  */
 import { hook_entries } from './hook-entries.ts';
-import type { AttrChange } from '@ogygia/core/internal/instruments';
+import { OG_RECOVERED, type AttrChange } from '@ogygia/core/internal/instruments';
 import { beacon_page } from '../profiler/beacon.ts';
 import { all_regions, region_name } from './regions.ts';
 import { html_diff, type HtmlDiff } from '@ogygia/insights';
@@ -53,7 +53,7 @@ export function hydration_rows(): { rows: IslandHydration[]; measured: boolean }
 	for (const r of all_regions()) {
 		if (r.kind !== 'island' || !r.fp) continue;
 		const w = why.get(r.fp);
-		const attr = r.el.getAttribute('data-og-recovered');
+		const attr = r.el.getAttribute(OG_RECOVERED);
 		const status: HydrationStatus =
 			w?.status ??
 			(attr !== null
