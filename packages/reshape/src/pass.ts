@@ -5,15 +5,17 @@
  */
 import type { RequestEvent } from '@sveltejs/kit';
 import type { HtmlPass } from '@ogygia/core/plugin';
+import { closeSafe } from '@ogygia/core/plugin/utils';
 import { DEV as dev } from 'esm-env';
 import { OG_RESTORE, OG_STAND_INS } from '@ogygia/core/internal/server';
 import { check_script, mark, settle, STAND_IN_CSS } from './reversible.ts';
 import { restore, restore_adopt } from './restore.ts';
 import type { ReshapeTransform } from './requests.ts';
 
-/** The restorer, inline (./restore.ts — self-contained, so its source runs as is): restores the
- *  document now, and stays as `__og_restore` / `__og_restore_adopt` for hole answers and router swaps. */
-const RESTORER_SCRIPT = `<script ${OG_RESTORE}>(function(){var r=${restore.toString()};window.__og_restore=r;window.__og_restore_adopt=${restore_adopt.toString()};r(document)})()</script>`;
+/** @internal The restorer, inline (./restore.ts — self-contained, so its source runs as is): restores
+ *  the document now, and stays as `__og_restore` / `__og_restore_adopt` for hole answers and router
+ *  swaps. Its text closed-safe like every inline code ogygia writes (test/restorer-inline-safe.test.ts). */
+export const RESTORER_SCRIPT: string = `<script ${OG_RESTORE}>${closeSafe(`(function(){var r=${restore.toString()};window.__og_restore=r;window.__og_restore_adopt=${restore_adopt.toString()};r(document)})()`)}</script>`;
 
 export function reshape_pass(transform: ReshapeTransform, event: RequestEvent): HtmlPass {
 	return {

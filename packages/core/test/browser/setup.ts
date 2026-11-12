@@ -12,6 +12,7 @@ import type { TestProject } from 'vitest/node';
 import { render } from 'svelte/server';
 import type { Component } from 'svelte';
 import { stringify } from 'devalue';
+import { TEST_MARK_ATTR } from './_response-mark.ts';
 import Counter from './fixtures/Counter.svelte';
 import Heavy from './fixtures/Heavy.svelte';
 import Label from './fixtures/Label.svelte';
@@ -74,7 +75,7 @@ function island_tail(
 /** The seed script as the handle emits it (devalue), or on the JSON lane (`data-og-format="json"`). */
 function seed_script(seed: Record<string, unknown>, json = false) {
 	const text = json ? JSON.stringify(seed) : stringify(seed);
-	return `<script type="application/ogygia-page" data-ogygia-page${json ? ' data-og-format="json"' : ''}>${text}</script>`;
+	return `<script type="application/ogygia-page" data-ogygia-page${json ? ' data-og-format="json"' : ''}${TEST_MARK_ATTR}>${text}</script>`;
 }
 
 /** SEED REFERENCES: the region's props sidecar is ONE reference into the page seed (the whole
@@ -112,7 +113,8 @@ function island_seed_ref(
  *  carries `counter.start = start`, under its own fingerprint — page A and page B of a nav. */
 function seed_nav_document(body: string, start: number, fp: string) {
 	return (
-		`<!doctype html><html><head><meta name="ogygia-router" content="plain"><title>page ${start}</title></head><body>` +
+		`<!doctype html><html><head><meta name="ogygia-router" content="plain"><title>page ${start}</title>` +
+		`<script type="application/x-runtime-stand-in" data-ogygia-runtime${TEST_MARK_ATTR}></script></head><body>` +
 		`<h1 data-page-title>page ${start}</h1>` +
 		island_seed_ref(COUNTER, body, { counter: { start } }, ['counter'], fp) +
 		`</body></html>`
