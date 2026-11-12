@@ -7,7 +7,7 @@ import { snapshot } from '@ogygia/core/events';
 import { props_sidecar_of } from '@ogygia/core/internal/instruments';
 import { tool_made } from '@ogygia/core/internal/instruments';
 import type { DevtoolsEvent } from '@ogygia/core/events';
-import type { IslandBarrel, IslandHazard } from '@ogygia/core/insights';
+import type { IslandBarrel, IslandHazard } from '@ogygia/insights';
 
 // ── regexes
 const JS_EXT_RE = /\.js$/;
