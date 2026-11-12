@@ -21,7 +21,7 @@ import { regionBindingVirtualId, lazyEntryVirtualId } from '../ids.ts';
  */
 function render_html_source(moduleUrl: string): string {
 	// (the render itself is ogygia's one shared helper — never a copy per binding in the server bundle)
-	return `(props) => __ogRegionHtml(__ogRegionComp, ${JSON.stringify(moduleUrl)}, props)`;
+	return `(props, wakes) => __ogRegionHtml(__ogRegionComp, ${JSON.stringify(moduleUrl)}, props, wakes)`;
 }
 
 /**
