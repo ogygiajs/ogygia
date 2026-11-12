@@ -7,7 +7,6 @@
  */
 import {
 	defineServer,
-	type Handle,
 	type ResolveOptions,
 	type ServerApp,
 	type ServerPlugin
