@@ -76,6 +76,7 @@ export const HAZARD_TEXTS: readonly string[] = [
 ];
 
 /** Elements whose text the tokenizer reads raw (no tags inside), and the void ones (no end tag). */
+// static: the raw-text element names
 const RAW_TEXT = new Set([
 	'script',
 	'style',
@@ -87,6 +88,7 @@ const RAW_TEXT = new Set([
 	'noframes',
 	'noscript'
 ]);
+// static: the void element names
 const VOID = new Set([
 	'area',
 	'base',
