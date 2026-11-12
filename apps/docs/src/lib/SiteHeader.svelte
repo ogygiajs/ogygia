@@ -29,6 +29,7 @@
 			<div class="site-search"><SearchBox base="/docs" placeholder="Search docs" /></div>
 			<nav class="site-links" aria-label="Primary">
 				<a href="/docs/start/install">Docs</a>
+				<a href="/releases">Releases</a>
 				<a href="/playground/getting-started/installation">Playground</a>
 			</nav>
 			<Theme />
