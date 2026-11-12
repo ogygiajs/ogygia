@@ -26,6 +26,7 @@ const is_node = (v: unknown): v is Span =>
 	typeof (v as Span).end === 'number';
 
 /** keys that hold a type, never a value: cut the whole span and do not look inside */
+// static: the AST's type-holding keys, a fixed list
 const TYPE_KEYS: ReadonlySet<string> = new Set([
 	'typeAnnotation',
 	'typeArguments',

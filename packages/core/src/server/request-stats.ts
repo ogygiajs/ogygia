@@ -3,15 +3,10 @@
  * how many islands' sidecars and hints went to the tail, and the bytes of every side-channel
  * (page seed, remote seed, props tail, fn manifest, context bridge).
  *
- * The handle (hooks.ts) writes one record per page request; the profiler reads it back when it
- * finalizes the request's log entry, so a report can say "ogygia: 4 ms, seed 292 KB, props 131 KB
- * over 21 islands" and a finding can point at an oversized seed. Keyed by the `Request` in a
- * WeakMap — the record dies with the request, nothing is deleted, and the two modules never
- * import each other (hooks.ts imports the profiler lazily; the profiler must not import hooks).
- *
- * DETAIL is opt-in (`hold_request_stats_detail`): the profiler holds it on for the length of a
- * recording, and only then does the handle spend anything on the per-island rows, the seed
- * explainer and the hole notes below. Off, a request pays one WeakMap write of the totals.
+ * The handle (hooks.ts) hands one record per page request to the installed sink; the profiler's
+ * store (`@ogygia/devtools`) keeps it and reads it back when it finalizes the request's log entry,
+ * so a report can say "ogygia: 4 ms, seed 292 KB, props 131 KB over 21 islands". Core keeps only
+ * the record shapes and the emit points.
  */
 
 /** One island's row in the report's Islands table. */
@@ -95,7 +90,7 @@ export interface HoleStat {
 	/** response cache max-age in seconds (0 = no-store) */
 	ttl: number;
 	count: number;
-	/** each copy by its key (runtime/hash.ts `hole_copy_key`) with its props preview — what the
+	/** each copy by its key (contract/hash.ts `hole_copy_key`) with its props preview — what the
 	 *  browser's report and the hole's requests name a copy by (at most 12) */
 	copies?: { p: string; props: string }[];
 }
@@ -144,39 +139,8 @@ export interface HoleRequestStats {
 	queue_ms?: number;
 	/** its component's name (the server manifest's): names the hole where no page row does */
 	name?: string;
-	/** which copy (runtime/hash.ts `hole_copy_key` of its props payload): copies share the id */
+	/** which copy (contract/hash.ts `hole_copy_key` of its props payload): copies share the id */
 	p?: string;
-}
-
-const stats = new WeakMap<Request, OgygiaRequestStats>();
-const hole_stats = new WeakMap<Request, HoleRequestStats>();
-let detailed = false;
-let wanted = false;
-
-/** A reader of these stats is installed (the profiler, from `@ogygia/devtools`): the handle records
- *  each request's totals. Off, it records nothing — no stats object per request in an app without one. */
-export function want_request_stats(): void {
-	wanted = true;
-}
-
-export function request_stats_wanted(): boolean {
-	return wanted;
-}
-
-export function record_request_stats(request: Request, s: OgygiaRequestStats): void {
-	stats.set(request, s);
-}
-
-export function request_stats_of(request: Request): OgygiaRequestStats | undefined {
-	return stats.get(request);
-}
-
-export function record_hole_stats(request: Request, s: HoleRequestStats): void {
-	hole_stats.set(request, s);
-}
-
-export function hole_stats_of(request: Request): HoleRequestStats | undefined {
-	return hole_stats.get(request);
 }
 
 /** One hole rendered inside a BATCH request (the page's first-load holes, a navigation's): the
@@ -188,46 +152,46 @@ export interface BatchHoleStats extends HoleRequestStats {
 	status: number;
 }
 
-/** The batch streams: its holes settle AFTER the handle returned (and the profiler logged the
- *  request), so each is handed on as it lands — to the profiler that asked, or nowhere. */
-let batch_listener: ((request: Request, s: BatchHoleStats) => void) | null = null;
+/** Where the handle hands each request's stats: the profiler's store (`@ogygia/devtools`). With
+ *  none installed the handle records nothing, so an app without a profiler builds no stats object. */
+export interface RequestStatsSink {
+	page(request: Request, s: OgygiaRequestStats): void;
+	hole(request: Request, s: HoleRequestStats): void;
+	/** A batch's holes settle after the handle returned, so each is handed on as it lands. */
+	batchHole(request: Request, s: BatchHoleStats): void;
+	/** A recorder wants batch holes now (the handle times them only then). */
+	wantsBatchHoles(): boolean;
+	/** A recording wants detail: the per-island rows, the seed explainer and the hole notes. */
+	detailed(): boolean;
+}
 
-export function set_batch_hole_listener(
-	fn: ((request: Request, s: BatchHoleStats) => void) | null
-): void {
-	batch_listener = fn;
+let sink: RequestStatsSink | null = null;
+
+/** The profiler's server realm installs its store here; `null` takes it away. */
+export function set_request_stats_sink(next: RequestStatsSink | null): void {
+	sink = next;
+}
+
+export function request_stats_wanted(): boolean {
+	return sink !== null;
+}
+
+export function request_stats_detailed(): boolean {
+	return sink !== null && sink.detailed();
+}
+
+export function record_request_stats(request: Request, s: OgygiaRequestStats): void {
+	sink?.page(request, s);
+}
+
+export function record_hole_stats(request: Request, s: HoleRequestStats): void {
+	sink?.hole(request, s);
 }
 
 export function has_batch_hole_listener(): boolean {
-	return batch_listener !== null;
+	return sink !== null && sink.wantsBatchHoles();
 }
 
 export function record_batch_hole_stats(request: Request, s: BatchHoleStats): void {
-	batch_listener?.(request, s);
-}
-
-/**
- * The profiler asks for detail for a recording; with nobody asking, the handle records totals only.
- * HELD, not a switch: the flag is the process's, while a recorder lock is one profiler instance's —
- * and two can live at once (the dev server re-runs the app's hooks on an edit and `ogygia.handle()`
- * builds a new profiler, while the old one's sample and trap timers still record). The first window
- * to end once turned detail off under the other's render: its report kept no island rows ("islands
- * 1, rows 0") and named its islands by their files. On while any hold stands; each hold is its
- * caller's, and its release lets go of that hold only, once (a second call does nothing), so an
- * extra "off" can never end someone else's.
- */
-export function hold_request_stats_detail(): () => void {
-	const hold = {};
-	detail_holds.add(hold);
-	detailed = true;
-	return () => {
-		if (!detail_holds.delete(hold)) return;
-		detailed = detail_holds.size > 0;
-	};
-}
-/** Who asked for detail, each until its own release. */
-const detail_holds = new Set<object>();
-
-export function request_stats_detailed(): boolean {
-	return detailed;
+	sink?.batchHole(request, s);
 }
