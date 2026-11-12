@@ -73,6 +73,8 @@ const jump_to_hash = (hash: string) => router_link().jump_to_hash(hash);
 const DEVTOOLS = typeof __OGYGIA_DEVTOOLS__ !== 'undefined' ? __OGYGIA_DEVTOOLS__ : false;
 const HOOK_NAVIGATED =
 	typeof __OGYGIA_HOOK_NAVIGATED__ !== 'undefined' ? __OGYGIA_HOOK_NAVIGATED__ : true;
+const HOOK_NAV_STARTED =
+	typeof __OGYGIA_HOOK_NAV_STARTED__ !== 'undefined' ? __OGYGIA_HOOK_NAV_STARTED__ : true;
 /** The monotonic clock, for devtools nav timings (dead when off). */
 const dt_now = clock.mono;
 
@@ -760,6 +762,12 @@ export async function navigate(
 			to: url.pathname + url.search,
 			type
 		});
+	if (HOOK_NAV_STARTED)
+		slots.hooks?.navStarted?.({
+			from: `${from.pathname}${from.search}`,
+			to: `${url.pathname}${url.search}`,
+			type
+		});
 
 	// This navigation's visit: only it may apply a body swap (P2). A newer click starts a new visit:
 	// every step below checks it is still `mine`, and its fetch (a task of the visit) is aborted.
@@ -1036,7 +1044,8 @@ export async function navigate(
 			fetched: built.fetched,
 			styled: built.styled,
 			swapped: performance.now(),
-			href: url.href
+			href: url.href,
+			reconciled: built.reconciled
 		});
 	if (DEVTOOLS)
 		dt_emit({
