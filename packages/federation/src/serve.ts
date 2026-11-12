@@ -28,6 +28,7 @@ import {
 	USER_HEADER_NAME,
 	FRAGMENT_ROUTES_PATH,
 	FRAGMENT_BASE,
+	OFF_SITE_PATH_RE,
 	THAW_PATH,
 	type Claims,
 	type VerifyConfig
@@ -188,15 +189,13 @@ export async function serve_federation(event: RequestEvent): Promise<Response | 
 	return null;
 }
 
-const OFF_SITE_PATH = /^(?:[/\\]{2}|\\)/;
-
 /**
  * The URL an exposed table is asked at: always on the app's own origin. Path and search are set
  * apart, so neither can re-home it; a path that would (`//host`, `/\host`) is refused (null).
  * Test: serve-expose.test.ts.
  */
 function expose_target(origin: string, base: string, path: string, search: string): URL | null {
-	if (OFF_SITE_PATH.test(path)) return null;
+	if (OFF_SITE_PATH_RE.test(path)) return null;
 	const target = new URL(origin);
 	target.pathname = base + (path.startsWith('/') ? path : '/' + path);
 	target.search = search;

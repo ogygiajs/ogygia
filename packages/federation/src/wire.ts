@@ -21,6 +21,9 @@ export const FRAGMENT_BASE = '/og/fragment/';
 /** Thaw notices: `POST /og/thaw` (signed, JSON `{ id, hop, build, tags }`). */
 export const THAW_PATH = '/og/thaw';
 
+/** A path that would leave the origin it is set on (`//host`, `/\host`, `\host`). */
+export const OFF_SITE_PATH_RE: RegExp = /^(?:[/\\]{2}|\\)/;
+
 // ── headers ──────────────────────────────────────────────────────────────────────────────────
 const SIG_HEADER = 'x-og-sig';
 const TS_HEADER = 'x-og-ts';

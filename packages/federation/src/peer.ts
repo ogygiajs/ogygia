@@ -17,6 +17,7 @@ import {
 	child_traceparent,
 	FRAGMENT_ROUTES_PATH,
 	FRAGMENT_BASE,
+	OFF_SITE_PATH_RE,
 	type Claims,
 	type FragmentDocument,
 	type WidgetDocument
@@ -28,8 +29,6 @@ const HOST_UNSAFE_G = /[^a-zA-Z0-9_-]/g;
 /** A region element's opening tag, and the `endpoint` in it. */
 const REGION_OPEN_RE = /<ogygia-region\b[^>]*>/g;
 const ENDPOINT_ATTR_RE = /(\sendpoint=")([^"]*)(")/;
-/** A path that would leave the origin it is resolved on (`//host`, `/\host`, `\host`). */
-const OFF_SITE_PATH_RE = /^(?:[/\\]{2}|\\)/;
 
 /** The one rule for what the document cache keeps, on the first fill and on every refresh: a
  *  successful answer that is not a redirect. */
