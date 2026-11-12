@@ -1,11 +1,3 @@
-/**
- * `routes(table, opts?)` — the router. A flat table of `pattern → page()/get()` values (layout chains
- * ride on each page entry via `layout(...)()`); at construction we compile the keys into a match
- * table. A request matches one entry, runs its branch loads CONCURRENTLY (memoized — see load()),
- * merges their data (Kit's cascade), then renders the page through its layout chain via `document()`,
- * or runs the endpoint. Control flow is the throwable `redirect`/`error` and returnable `fail`
- * (respond.ts). The whole table is exposed as a typed `$infer` map. See internal/notes/router-v2.md.
- */
 import type { RequestEvent } from '@sveltejs/kit';
 import type { Component } from 'svelte';
 import { document } from '@ogygia/core/server';
@@ -114,9 +106,7 @@ export interface Router<T extends TableShape = RouteTable> {
 
 interface Leaf {
 	pattern: string;
-	/** a page value, or an endpoint object compiled to its method map at construction */
 	def: PageDef | EndpointDef;
-	/** `when()` gate — off means the route does not exist for this request. */
 	when?: (c: Ctx) => boolean;
 }
 
@@ -139,10 +129,15 @@ export function when<T extends object>(gate: (c: Ctx) => boolean, entry: T): T {
 }
 
 const HEAD_AS_GET = (m: string) => (m === 'HEAD' ? 'GET' : m);
-// A mounted document's title lands in a RAW head string — escape it (every text-into-markup
-// emitter escapes; the wire is trusted federation, the law is unconditional).
 const LAST_SLASH_RE = /\/$/;
 
+/**
+ * The router: a flat table of `pattern → page()` or endpoint values, with layouts wrapped around
+ * page entries by `layout(...)(table)`. A request matches one entry. A page runs its loads at the
+ * same time (each load once per request), merges their data outermost first, and renders through
+ * its layouts; an endpoint runs its verb. `redirect()` and `error()` throw, `fail()` returns.
+ * `typeof app.$infer` types the whole table.
+ */
 export function routes<const T extends KeyedTable<T>>(
 	typed: T,
 	opts: RoutesOptions = {}
@@ -152,7 +147,6 @@ export function routes<const T extends KeyedTable<T>>(
 	const slash = opts.slash ?? 'ignore';
 	const root_load = to_load(opts.load);
 
-	// Validate layout-name uniqueness across the whole table (a layout is keyed by name in `$infer`).
 	const seen_layout = new Map<string, AnyComponent>();
 	for (const key in table) {
 		const def = table[key];
@@ -170,9 +164,8 @@ export function routes<const T extends KeyedTable<T>>(
 
 	const leaves: Leaf[] = Object.keys(table).map((pattern) => {
 		const raw = table[pattern];
-		// A `when()` gate rides the raw entry; endpoint compilation would drop it, so lift it here.
+		// @why compile_endpoint drops `__ogwhen`, so an endpoint's gate is read off the raw entry (test: packages/federation/test/router-when.test.ts › endpoint: off → fall-through (null, no base); on via ?og-exp → served)
 		const gate = (raw as { __ogwhen?: (c: Ctx) => boolean }).__ogwhen;
-		// Endpoint objects (`{ GET, POST, … }`) compile to their method map once here; pages pass through.
 		return {
 			pattern,
 			def: is_page(raw) ? raw : compile_endpoint(raw as Endpoint),
@@ -182,11 +175,6 @@ export function routes<const T extends KeyedTable<T>>(
 	const compiled: CompiledPattern[] = compile_all(leaves.map((l) => l.pattern));
 	const by_pattern = new Map(leaves.map((l) => [l.pattern, l]));
 
-	// ROUTE CONFIG (plugin/routes.ts), merged like Kit's `config`: the table, then each layout
-	// outermost → innermost (`layouts` is OUTERMOST-first), then the page; a later level replaces a
-	// key, top level only. Static, so merged once per leaf. Endpoints are never pages → `{}` ("mine,
-	// nothing set" — the plugin applies its default). Registered under a key so a dev re-evaluation of
-	// hooks.server.ts REPLACES this table's matcher instead of shadowing it.
 	const NO_CONFIG: RouteConfig = {};
 	const config_of = new Map<string, RouteConfig>();
 	for (const leaf of leaves) {

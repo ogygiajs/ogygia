@@ -1,16 +1,14 @@
+<!--
+@component
+Theme cycler: system → light → dark → system, on the root element's `data-theme` (the theme.css
+contract). The choice is kept in localStorage under `key`; where storage refuses, it holds for the
+page. Where View Transitions exist and motion is not reduced, the flip runs inside one, and the root
+carries `data-ph-switching` until it ends, so a theme can mute its own transitions under it.
+
+Pair it with a head script that applies the stored theme before first paint, with the same key:
+`{@html script((k) => { try { var t = localStorage.getItem(k); if (t === 'light' || t === 'dark') document.documentElement.setAttribute('data-theme', t); } catch (e) {} }, 'og-theme')}`
+-->
 <script lang="ts">
-	/**
-	 * Theme cycler — system → light → dark → system. Sets `data-theme` on the root element (the
-	 * theme.css contract) and persists to localStorage.
-	 *
-	 * An ISLAND (a shell imports it `with { wake: 'load' }`): the `onclick` handler is wired at hydrate
-	 * time and re-wired every SPA nav, so it never goes stale. (A one-shot inline `script()` would,
-	 * since inline scripts don't re-run on a body-swap.)
-	 *
-	 * Pair with a no-flash head script that applies the stored theme before first paint (a shell like
-	 * the Shell includes it; standalone users add it once in their layout):
-	 * `{@html script((k) => { try { var t = localStorage.getItem(k); if (t === 'light' || t === 'dark') document.documentElement.setAttribute('data-theme', t); } catch (e) {} }, 'og-theme')}`
-	 */
 	import { storage } from '@ogygia/machine';
 
 	let {
@@ -38,10 +36,6 @@
 			}
 		};
 		const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
-		// View Transitions give ONE smooth cross-fade of the whole page between palettes. Under it,
-		// `data-ph-switching` mutes every element's own color transition so the live DOM snaps to the
-		// new theme in a single frame — the fade is the only motion. No support / reduced motion → a
-		// plain instant flip.
 		const doc = document as unknown as {
 			startViewTransition?: (cb: () => void) => { finished: Promise<void> };
 		};

@@ -1,12 +1,3 @@
-/**
- * EVERY MESSAGE THE FLAGS PACKAGE PRINTS, in one place: its code, its wording, what to do about it
- * (core's `@ogygia/core/internal/messages` says how the system works).
- *
- *   warn('flags_plugin_not_running');
- *
- * Flag reads run in the app's server and its pages, so the wording is only passed in dev: a
- * production build prints the code's page alone.
- */
 import {
 	define_messages,
 	dev_or_prerender,
@@ -83,8 +74,6 @@ export const FLAGS_WARNINGS = {
 };
 
 type Own = MessagesOf<typeof FLAGS_ERRORS, typeof FLAGS_WARNINGS>;
-// (the tables reach a dev build and the server's — a prerender words them too; a production browser
-// bundle drops them)
 const own: Own = /* @__PURE__ */ define_messages(
 	DEV || !BROWSER ? FLAGS_ERRORS : null,
 	DEV || !BROWSER ? FLAGS_WARNINGS : null,

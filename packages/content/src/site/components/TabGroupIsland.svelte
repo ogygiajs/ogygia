@@ -1,17 +1,11 @@
+<!--
+@component
+The interactive half of TabGroup, an island. The panels arrive as frozen server HTML; on mount it
+builds the tab bar from the panels' own `data-label`s and wires the tablist keyboard (arrows move
+focus, a click or Space/Enter selects). One choice per group is shared by every block on the page and
+saved for the next one (./tab-groups.svelte.ts).
+-->
 <script lang="ts">
-	/**
-	 * The interactive half of TabGroup — an ISLAND (TabGroup wraps it `with { wake: 'load' }`). The tab
-	 * PANELS arrive as `children` frozen to static server HTML (a region snippet crossed the island
-	 * boundary), so they never re-render. This island renders ONLY the panels on the server — clean,
-	 * mismatch-free — then on mount BUILDS the bar from the panels' own `data-label`s and wires the full
-	 * WCAG tablist keyboard (roving tabindex, arrow wrap, Home/End, MANUAL activation — arrows rove,
-	 * Space/Enter select). Because the
-	 * labels come from the panels, hand-authored `<Tab label>` and injected `:::` blocks work identically,
-	 * with no `labels` prop to thread. Site-wide memory rides {@link ./tab-groups.svelte.ts}.
-	 *
-	 * (Bits `Tabs` was tried for the bar, but its SSR/client id generation mismatches when hydrated inside
-	 * the frozen-children island; the tablist pattern is small and fully verified here.)
-	 */
 	import { untrack } from 'svelte';
 	import { on } from 'svelte/events';
 	import { roving } from './roving.ts';
@@ -43,7 +37,7 @@
 			bar.appendChild(btn);
 			return btn;
 		});
-		root.insertBefore(bar, root.firstChild); // CSS `order` lifts it above the panels
+		root.insertBefore(bar, root.firstChild);
 
 		const place = (i: number) => {
 			const b = btns[i];
@@ -58,9 +52,6 @@
 				marker.style.transition = '';
 			}
 		};
-		// DOM-only state application — never writes the store. The attachment must not depend on
-		// `g.value`: a tracked read would re-run the whole attachment on every selection (teardown +
-		// rebuild), which destroys the marker mid-flight and kills its slide animation.
 		const apply = (i: number, focus = false) => {
 			panels.forEach((p, j) => (p.hidden = j !== i));
 			btns.forEach((b, j) => {
@@ -73,7 +64,7 @@
 		const activate = (i: number, focus = false) => {
 			apply(i, focus);
 			try {
-				g.value = labels[i]; // shared store: every same-group block follows + persists
+				g.value = labels[i];
 			} catch {
 				// ok: the store's set only fails on storage, which it already handles; the tabs above are switched
 			}
@@ -83,24 +74,20 @@
 			const t = (e.target as Element).closest('.og-tabs-tab');
 			if (t) activate(btns.indexOf(t as HTMLButtonElement), true);
 		});
-		// MANUAL activation (WAI-ARIA tablist): the SHARED roving primitive moves focus on
-		// arrows/Home/End (focus-only — it seeds the tab stop from `aria-selected`); Space/Enter select
-		// via the native `<button>` click above. Selecting on arrow would yank the panel out from under
-		// someone just browsing the tab names.
+		// @why arrows only move focus: selecting on an arrow would swap the panel under someone just reading the tab names (test: test/browser/tab-group-island.test.ts › moves focus with the arrows without selecting; a click selects)
 		const off2 = roving({ selector: '.og-tabs-tab', orientation: 'horizontal' })(bar) ?? (() => {});
 		const off3 = on(window, 'resize', () =>
 			place(btns.findIndex((b) => b.getAttribute('aria-selected') === 'true'))
 		);
 
-		// Initial state, UNTRACKED — the attachment stays dependency-free (see `apply`).
+		// @why untracked: a tracked read of the choice would rebuild the bar on every selection and cut the marker's glide (test: test/browser/tab-group-island.test.ts › keeps the same bar and marker across a selection)
 		untrack(() => {
-			hydrate_group(group, labels[0]); // restore a saved choice post-hydration
+			hydrate_group(group, labels[0]);
 			const start = Math.max(0, labels.indexOf(g.value ?? labels[0]));
 			activate(start);
 			if (document.fonts?.ready) document.fonts.ready.then(() => place(start));
 		});
-		// Site-wide group sync WITH the slide: a nested effect tracks ONLY `g.value` and applies it to
-		// the existing DOM — the bar is never rebuilt, so the marker glides here too.
+		// @why a nested effect: other blocks of the group follow on the bar they have, so their marker glides too (test: test/browser/tab-group-island.test.ts › a choice in one block moves every block of the same group, and is saved)
 		$effect(() => {
 			const v = g.value;
 			untrack(() => {
