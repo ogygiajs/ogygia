@@ -413,6 +413,26 @@
 			"reason": "reads the module's store writes in flight (hidden state), a walk of the few out; proven in packages/postrender/test/plugin.test.ts and packages/postrender/test/sim.test.ts"
 		},
 		{
+			"id": "packages/postrender/src/registry.ts > store_call",
+			"reason": "one call against the app's store (I/O, nothing to replay) and the store-health step around it, constant work; proven in packages/postrender/test/store-failed.test.ts and packages/postrender/test/deploy.test.ts (#947)"
+		},
+		{
+			"id": "packages/postrender/src/server.ts > deploy_check",
+			"reason": "once per boot per store runtime: the shared deploy check keyed on the runtime (a WeakMap of live runtimes, not cloneable), constant work; proven in packages/postrender/test/deploy.test.ts (#947)"
+		},
+		{
+			"id": "packages/postrender/src/server.ts > deploy_check > flights:0~68fab5 > run",
+			"reason": "once per boot: reads the build marker, evicts the old build's tags, writes the marker (I/O against the app's store, nothing to replay); proven in packages/postrender/test/deploy.test.ts (#947)"
+		},
+		{
+			"id": "packages/postrender/src/server.ts > deploy_check > flights:0~68fab5 > run > store_call:2~4a3dd5",
+			"reason": "the marker read, one store get (I/O, the live store: not cloneable), constant work (#947)"
+		},
+		{
+			"id": "packages/postrender/src/server.ts > deploy_check > flights:0~68fab5 > run > store_call:2~fa5e01",
+			"reason": "the marker write, one store put (I/O, the live store: not cloneable), constant work (#947)"
+		},
+		{
 			"id": "packages/postrender/src/registry.ts > store_render",
 			"reason": "a store write and the outbox evict after it: I/O against the app's store, nothing to replay; proven in packages/postrender/test/plugin.test.ts and packages/postrender/test/sim.test.ts"
 		},
