@@ -76,4 +76,36 @@ describe.skipIf(builds.length === 0)('a deploy that drops old files', () => {
 			await world.end();
 		}
 	});
+
+	// (gen 88, seed 88020: in a rolling deploy's window a new page's hole and its island file came
+	// from the old build; the fresh load, past the window, asked the new build for that file, got a
+	// 404, and ogygia rightly ran the new build's island in its place)
+	it('a load pinned to the tab\'s answers gets a file from the build that gave it to the tab', async () => {
+		const world = await World.make({
+			seed: 1,
+			builds,
+			rollover: { window: 0, old_files: false, purge: true }
+		});
+		try {
+			const tab = world.tab(world.visitor('v'));
+			await world.go(tab, 'goto', '/');
+			const doc = tab.page.mainFrame.document as unknown as Document;
+			await world.deploy_next();
+			const v2 = world.servers.get('v2')![0];
+			const old = [...doc.querySelectorAll('script[src], link[href]')]
+				.map(
+					(el) => new URL(el.getAttribute('src') ?? el.getAttribute('href')!, 'https://x/').pathname
+				)
+				.find((p) => p.startsWith('/_app/immutable/') && !v2.serves(p));
+			expect(old).toBeDefined();
+			const pinned = world.tab(world.visitor('x'));
+			await world.as_of('v2', () => world.go(pinned, 'goto', old!), world.answers_of(tab.realm));
+			const got = world.network.exchanges
+				.filter((e) => e.from === pinned.realm && e.url.endsWith(old!))
+				.at(-1)?.status;
+			expect(got).toBe(200);
+		} finally {
+			await world.end();
+		}
+	});
 });
