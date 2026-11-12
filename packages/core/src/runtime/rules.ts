@@ -12,6 +12,9 @@
  *   its code's page, and a `STALE` never escapes as a rejection.
  * - `rule_parse_upgraded`: a parsed answer is inert (./parse-html.ts, #382): no element of it was
  *   built by a component's constructor before the restore reached it.
+ * - `rule_region_answer_behind`: a region bound to a frame-store address shows the answer the
+ *   address holds (./frame-store.ts tickets): it was handed the newest, and painted it once no paint
+ *   is out.
  * - `rule_head_adopted`: the head never gains a `<base>` or a refresh / CSP / cookie meta after the
  *   first document (SPA-HEAD, ./head-deny.ts).
  *
@@ -28,6 +31,7 @@ type RuntimeRule =
 	| 'rule_old_page_open'
 	| 'rule_failure_uncoded'
 	| 'rule_parse_upgraded'
+	| 'rule_region_answer_behind'
 	| 'rule_head_adopted';
 
 /** The runtime's rules. */
@@ -132,6 +136,76 @@ function failure(reason: unknown): void {
 
 const no_failure_uncoded = (): string | null => (uncoded.length === 0 ? null : uncoded.join('; '));
 
+// ── a region shows the answer its address holds ──
+
+/** What a bound region was handed at its frame-store address, what it painted of it, and how many
+ *  handed answers wait for their turn. */
+type Shows = {
+	address: string;
+	handed: number;
+	shown: number;
+	out: number;
+	painting: () => boolean;
+};
+
+/** The regions bound to a frame-store address now. */
+const shows = new Map<Element, Shows>();
+/** The frame store's applied answer at an address (./frames.ts hands it over when it installs). */
+let held_at: ((address: string) => { v: number } | null) | null = null;
+
+/** The frame store is on the page: the rule reads what each address holds from it. */
+export function watch_frames(peek: (address: string) => { v: number } | null): void {
+	held_at = peek;
+}
+
+/** The store handed `region` the answer with ticket `v` at `address` (`painting`: one of its
+ *  answers is being painted now). */
+export function note_handed(
+	region: Element,
+	address: string,
+	v: number,
+	painting: () => boolean
+): void {
+	const s = shows.get(region);
+	if (s && s.address === address) {
+		s.handed = v;
+		s.out++;
+	} else shows.set(region, { address, handed: v, shown: 0, out: 1, painting });
+}
+
+/** A handed answer's turn came (its paint starts, or it is dropped as older). */
+export function note_turn(region: Element): void {
+	const s = shows.get(region);
+	if (s) s.out--;
+}
+
+/** `region` painted the answer with ticket `v`. */
+export function note_shown(region: Element, v: number): void {
+	const s = shows.get(region);
+	if (s) s.shown = v;
+}
+
+/** `region` let its address go. */
+export function note_unbound(region: Element): void {
+	shows.delete(region);
+}
+
+function regions_show_their_answers(): string | null {
+	if (held_at === null) return null;
+	for (const [region, s] of shows) {
+		if (!region.isConnected) continue;
+		const held = held_at(s.address);
+		// (the store let it go: what the region shows is its own last answer, #336)
+		if (held === null) continue;
+		const name = region.getAttribute('entry') || s.address;
+		if (held.v !== s.handed)
+			return `${name} was last handed answer #${s.handed}, its address holds #${held.v}`;
+		if (s.shown !== s.handed && s.out === 0 && !s.painting())
+			return `${name} shows answer #${s.shown}, its address holds #${held.v}`;
+	}
+	return null;
+}
+
 // ── a parsed answer is inert ──
 
 /** What parses built that they should not have, as found (a few). */
@@ -219,6 +293,7 @@ export function install_rules(dev: boolean): void {
 	runtime_rules.add('rule_old_page_open', no_old_page_open);
 	runtime_rules.add('rule_failure_uncoded', no_failure_uncoded);
 	runtime_rules.add('rule_parse_upgraded', no_parse_upgraded);
+	runtime_rules.add('rule_region_answer_behind', regions_show_their_answers);
 	watch_head();
 	(globalThis as { __og_parsed?: (f: DocumentFragment) => void }).__og_parsed = note_parse;
 	(globalThis as { __ogygia_rules?: () => BrokenRule[] }).__ogygia_rules = () =>

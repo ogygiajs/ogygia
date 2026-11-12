@@ -23,7 +23,7 @@
  * first one.
  */
 import { observe } from './observe.ts';
-import { flights, machine, type Scope, type Stale } from '@ogygia/machine';
+import { clock, flights, machine, type Scope, type Stale } from '@ogygia/machine';
 
 type Turn = {
 	el: Element;
@@ -194,12 +194,12 @@ let background_armed = false;
 const BACKGROUND_BUDGET_MS = 30;
 
 function drain_background(): void {
-	const until = performance.now() + BACKGROUND_BUDGET_MS;
+	const until = now() + BACKGROUND_BUDGET_MS;
 	let i = 0;
 	try {
 		while (i < background_queue.length) {
 			background_queue[i++]();
-			if (performance.now() >= until) break;
+			if (now() >= until) break;
 		}
 	} finally {
 		background_queue.splice(0, i);
@@ -374,9 +374,7 @@ export function hydrate_turn(el: Element): Promise<void> {
 	});
 }
 
-function now(): number {
-	return typeof performance !== 'undefined' && performance.now ? performance.now() : Date.now();
-}
+const now = clock.mono;
 
 function schedule_drain(): void {
 	if (drainer.now.kind === 'queued') return;

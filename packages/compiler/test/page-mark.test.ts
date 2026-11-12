@@ -7,7 +7,10 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { Compiler, Program, CompileCtx, normalize_import_keys } from '../dist/compiler/index.js';
-import { resolveFeatures } from '../dist/compiler/link/runtime-entry.js';
+import {
+	generateRuntimeFlagsSource,
+	resolveFeatures
+} from '../dist/compiler/link/runtime-entry.js';
 import { partial_ctx_init } from './_compile-ctx.ts';
 
 const roots: string[] = [];
@@ -119,5 +122,49 @@ describe('page mark', () => {
 				{ client_plugins: [{ name: '@x/plugin', module: '/x/plugin/client.js' }] }
 			).page
 		).toBe(true);
+	});
+});
+
+// A FEDERATED APP's page carries regions its own build never compiled: a peer's fragment brings its
+// islands, its holes, its lakes. The features those need are in the build whatever the app's own
+// regions are (#909: a peer's deferred widget, in a shell with no deferred region of its own, never
+// loaded in production — the frame store and the element's fetch path were folded out).
+describe('foreign regions', () => {
+	const island = script(`\timport { untrack } from 'svelte';`);
+
+	test('an app with no deferred region of its own does not ship the frame store', () => {
+		const marks = marks_for(island);
+		expect(resolveFeatures(marks)).not.toContain('frames');
+		expect(generateRuntimeFlagsSource(marks)).toContain('FRAMES = false');
+	});
+
+	test("a federated app ships what a peer's regions need, with no region of its own needing it", () => {
+		const marks = marks_for(island, {}, { foreign_hydrate: true });
+		expect(resolveFeatures(marks)).toEqual(
+			expect.arrayContaining(['frames', 'morph', 'lakes', 'interaction'])
+		);
+		expect(generateRuntimeFlagsSource(marks)).toContain('FRAMES = true');
+	});
+});
+
+// A FEDERATED APP's page carries regions its own build never compiled: a peer's fragment brings its
+// islands, its holes, its lakes. The features those need are in the build whatever the app's own
+// regions are (#909: a peer's deferred widget, in a shell with no deferred region of its own, never
+// loaded in production — the frame store and the element's fetch path were folded out).
+describe('foreign regions', () => {
+	const island = script(`\timport { untrack } from 'svelte';`);
+
+	test('an app with no deferred region of its own does not ship the frame store', () => {
+		const marks = marks_for(island);
+		expect(resolveFeatures(marks)).not.toContain('frames');
+		expect(generateRuntimeFlagsSource(marks)).toContain('FRAMES = false');
+	});
+
+	test("a federated app ships what a peer's regions need, with no region of its own needing it", () => {
+		const marks = marks_for(island, {}, { foreign_hydrate: true });
+		expect(resolveFeatures(marks)).toEqual(
+			expect.arrayContaining(['frames', 'morph', 'lakes', 'interaction'])
+		);
+		expect(generateRuntimeFlagsSource(marks)).toContain('FRAMES = true');
 	});
 });
