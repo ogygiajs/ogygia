@@ -1,12 +1,12 @@
+import type { Plugin as VitePlugin } from 'vite';
+import { definePlugin, type OgygiaPlugin } from '@ogygia/compiler/vite';
+
 /**
- * `federation()` — fragment federation, listed beside `ogygia()` in vite.config `plugins`.
+ * `federation()`: fragment federation, listed beside `ogygia()` in vite.config `plugins`.
  * Its server realm serves the federation protocol from the handle; `federate({ … })` in
  * hooks.server.ts declares the app's identity and peers. This app's island entries keep their
  * foreign-hydrate exports, so a peer's page can host and wake them.
  */
-import type { Plugin as VitePlugin } from 'vite';
-import { definePlugin, type OgygiaPlugin } from '@ogygia/compiler/vite';
-
 export function federation(): [OgygiaPlugin, VitePlugin] {
 	return [
 		definePlugin({
@@ -16,8 +16,7 @@ export function federation(): [OgygiaPlugin, VitePlugin] {
 				b.foreignHydrate();
 			}
 		}),
-		// federation is built on the server router, which ships `.svelte`: server-inlined like a listed
-		// plugin even when the app does not list `router()` itself
+		// @why Vite's server build leaves a dependency external unless told, and Node cannot import the `.svelte` files @ogygia/router ships (test: test/vite.test.ts › inlines @ogygia/router in the server build, as it ships .svelte files, even when the app does not list router())
 		{ name: 'ogygia:federation', config: () => ({ ssr: { noExternal: ['@ogygia/router'] } }) }
 	];
 }
