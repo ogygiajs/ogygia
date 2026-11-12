@@ -15,7 +15,7 @@
  * way.
  */
 import { boot_link, router_link, slots } from './slots.ts';
-import { clock } from '@ogygia/machine';
+import { clock, net } from '@ogygia/machine';
 import { dispose_scope } from '../ref.ts';
 import {
 	NO_RECONCILE_SELECTOR,
@@ -34,6 +34,21 @@ import { spa_html_cacheable } from './spa-cacheable.ts';
 import { is_dangerous_head_node } from './head-deny.ts';
 import { pin_region_urls } from './entry-locations.ts';
 import { emit as dt_emit } from '../events/bus.ts';
+import {
+	OG_FP,
+	OG_LATE,
+	OG_LOCATIONS,
+	OG_OWNER,
+	OG_SLOT,
+	OGYGIA_ANNOUNCER,
+	OGYGIA_DEV_HMR,
+	OGYGIA_GRAPH,
+	OGYGIA_KEEP,
+	OGYGIA_REGION_CSS,
+	OGYGIA_RUNTIME,
+	tags,
+	text_of
+} from '../wire-markup.ts';
 import { KNOWN_HEADER_CAP } from '../contract/known-copies.ts';
 
 // What this lazy chunk uses from the boot and from the router, handed over through the registry — it
@@ -116,8 +131,8 @@ function known_copies(doc: Document): string[] {
 	const out: string[] = [];
 	/** Fingerprints whose run of hydrated copies ended. */
 	const ended = new Set<string>();
-	for (const el of doc.querySelectorAll('ogygia-region[data-og-fp]')) {
-		const fp = el.getAttribute('data-og-fp');
+	for (const el of doc.querySelectorAll(`ogygia-region[${OG_FP}]`)) {
+		const fp = el.getAttribute(OG_FP);
 		if (!fp || ended.has(fp)) continue;
 		if (el.hasAttribute('data-hydrated')) out.push(fp);
 		else ended.add(fp);
@@ -201,23 +216,6 @@ const STYLESHEET_WAIT_MS = 2_000;
 const ATTACHMENT = /^\s*attachment\b/i;
 /** Kit remote-function POSTs live under `…/_app/remote/…` (or custom `appDir`). */
 const REMOTE_MUTATION_PATH = /\/remote(?:\/|$|\?)/;
-/** An `<ogygia-region>` open tag's attributes (shared `g` regex — reset `lastIndex` per scan). */
-const REGION_OPEN_TAG_G = /<ogygia-region\b([^>]*)>/g;
-
-/** One attribute's value in an open tag's attribute text (our own SSR: `name="value"`, no quotes
- *  inside a value). Null when absent. @internal Exported for unit tests. */
-export function tag_attr(attrs: string, name: string): string | null {
-	const key = ' ' + name + '="';
-	const at = attrs.indexOf(key);
-	if (at === -1) return null;
-	const from = at + key.length;
-	const to = attrs.indexOf('"', from);
-	return to === -1 ? null : attrs.slice(from, to);
-}
-/** The island graph scripts in our own SSR output (island-graph.ts; the JSON is `<`-escaped, so
- *  its text never holds a `<`). */
-const ISLAND_GRAPH_SCRIPT_G =
-	/<script type="application\/json" data-ogygia-graph>([^<]*)<\/script>/g;
 
 /** The address the server's head was written for. This module loads before a navigation first moves
  *  the address (the router awaits it before any history write), so it is still the load's. */
@@ -347,7 +345,7 @@ export function head_node_key(node: Element): string {
 			if (node.hasAttribute('data-sveltekit')) return 'STYLE:data-sveltekit';
 			// An INLINED region sheet (server/region-css.ts): keyed by the href it stands for, so
 			// the same sheet on the next document is one node, kept, never stacked.
-			const region_css = node.getAttribute('data-ogygia-region-css');
+			const region_css = node.getAttribute(OGYGIA_REGION_CSS);
 			if (region_css) return `STYLE:og-css:${region_css}`;
 			const vite_id = node.getAttribute('data-vite-dev-id');
 			if (vite_id) return `STYLE:vite:${vite_id}`;
@@ -367,7 +365,7 @@ export function keep_head_node_across_spa(node: Element): boolean {
 	if (
 		node.tagName === 'SCRIPT' &&
 		node.getAttribute('type') === 'module' &&
-		(node.hasAttribute('data-ogygia-runtime') || node.hasAttribute('data-ogygia-dev-hmr'))
+		(node.hasAttribute(OGYGIA_RUNTIME) || node.hasAttribute(OGYGIA_DEV_HMR))
 	) {
 		return true;
 	}
@@ -410,9 +408,9 @@ export function install_head_style(
  *  script in the streamed head does this progressively during parse — this is the swap-path
  *  twin. Islands inside the adopted content are custom elements: they connect and wake alone. */
 export function apply_late_templates(root: ParentNode): void {
-	for (const tpl of Array.from(root.querySelectorAll('template[data-og-late]'))) {
-		const id = tpl.getAttribute('data-og-late') ?? '';
-		const slot = document.querySelector(`og-late-slot[data-og-slot="${CSS.escape(id)}"]`);
+	for (const tpl of Array.from(root.querySelectorAll(`template[${OG_LATE}]`))) {
+		const id = tpl.getAttribute(OG_LATE) ?? '';
+		const slot = document.querySelector(`og-late-slot[${OG_SLOT}="${CSS.escape(id)}"]`);
 		if (slot) {
 			const content = (tpl as HTMLTemplateElement).content;
 			for (const sheet of Array.from(content.querySelectorAll('link[rel="stylesheet"], style'))) {
@@ -596,7 +594,7 @@ async function run_page_fetch(
 	flight: import('@ogygia/machine').InFlight
 ): Promise<Fetched> {
 	const go = (priority?: 'high' | 'auto' | 'low') =>
-		fetch(href, {
+		net.fetch(href, {
 			signal,
 			headers: nav_headers(purpose),
 			...(priority ? { priority } : {})
@@ -649,21 +647,19 @@ async function run_page_fetch(
 function warm_modules(href: string, html: string) {
 	if (warmed_pages().has(href)) return;
 	warmed_pages().set(href, true);
-	// Match `entry="…"` on ogygia-region open tags in our own SSR output (module URLs never contain
-	// a double-quote), collecting the distinct client-island module specifiers. URL-level dedupe +
-	// failure-retry live in the shared warmer (one scheme for router/visible/interaction warms).
-	// The page's island graph first, so each warm below preloads its island's whole graph with it.
-	ISLAND_GRAPH_SCRIPT_G.lastIndex = 0;
-	let g: RegExpExecArray | null;
-	while ((g = ISLAND_GRAPH_SCRIPT_G.exec(html)))
-		register_island_graph(g[1], new URL(href, location.href).href);
+	// URL-level dedupe + failure-retry live in the shared warmer (one scheme for
+	// router/visible/interaction warms). The page's island graph first, so each warm below preloads
+	// its island's whole graph with it.
+	for (const t of tags(html, 'script')) {
+		if (t.attrs.get('type') !== 'application/json' || !t.attrs.has(OGYGIA_GRAPH)) continue;
+		const json = text_of(html, t, 'script');
+		if (json !== null) register_island_graph(json, new URL(href, location.href).href);
+	}
 	// Each region's identity, and its location beside it (the file the warm then fetches)
-	REGION_OPEN_TAG_G.lastIndex = 0; // shared `g` regex — start each scan at 0
-	let m: RegExpExecArray | null;
-	while ((m = REGION_OPEN_TAG_G.exec(html))) {
-		const entry = tag_attr(m[1], 'entry');
+	for (const t of tags(html, 'ogygia-region')) {
+		const entry = t.attrs.get('entry');
 		if (!entry) continue;
-		note_entry_location(entry, tag_attr(m[1], 'src'), href);
+		note_entry_location(entry, t.attrs.get('src') ?? null, href);
 		warm_island_module(entry, href);
 	}
 }
@@ -692,10 +688,10 @@ function preflight(doc: Document, dest: URL) {
  * page reads the same from any address. Null: the document names no runtime (no island on it).
  */
 function build_of(d: Document): string | null {
-	const s = d.querySelector('script[data-ogygia-runtime]');
+	const s = d.querySelector(`script[${OGYGIA_RUNTIME}]`);
 	if (!s) return null;
 	const file = (v: string | null) => (v ? v.slice(v.lastIndexOf('/') + 1) : '');
-	return file(s.getAttribute('src')) + ' ' + file(s.getAttribute('data-og-locations'));
+	return file(s.getAttribute('src')) + ' ' + file(s.getAttribute(OG_LOCATIONS));
 }
 
 /** A next page's stylesheet, loaded before its commit and styling nothing until then: the link,
@@ -756,7 +752,7 @@ export async function navigate(
 	// THE NAVIGATION'S OWN CLOCK (the beacon's: a slow in-app navigation is a page's cost the
 	// document timing never sees): its start, the page fetched and its styles in (the build's), the
 	// swap committed
-	const nav_t0 = performance.now();
+	const nav_t0 = clock.mono();
 	if (DEVTOOLS)
 		dt_emit({
 			domain: 'nav',
@@ -813,7 +809,7 @@ export async function navigate(
 		const page = await fetch_page(url.href, signal, purpose);
 		if (page === null || signal.aborted) return null;
 		const { html } = page;
-		const fetched = performance.now();
+		const fetched = clock.mono();
 		// one-shot; always fresh on real navigation (a fetch already out again for it is left be)
 		pages().drop(({ href }, entry) => href === url.href && entry.kind === 'kept' && !entry.flying);
 
@@ -893,7 +889,7 @@ export async function navigate(
 		const sheets: InertSheet[] = [];
 		await preload_stylesheets(doc.head, attempt, sheets, discard);
 		if (signal.aborted) return null;
-		const styled = performance.now();
+		const styled = clock.mono();
 		// The transition starts in a task of its own: everything above is a finished task by then, and
 		// the frame it captures is not the one that parsed 2 MB of HTML.
 		await yield_task();
@@ -1046,7 +1042,7 @@ export async function navigate(
 			t: nav_t0,
 			fetched: built.fetched,
 			styled: built.styled,
-			swapped: performance.now(),
+			swapped: clock.mono(),
 			href: url.href,
 			reconciled: built.reconciled
 		});
@@ -1248,7 +1244,7 @@ function announce(dest: URL) {
 	let el = announcer;
 	if (!el) {
 		el = document.createElement('div');
-		el.setAttribute('data-ogygia-announcer', '');
+		el.setAttribute(OGYGIA_ANNOUNCER, '');
 		el.setAttribute('aria-live', 'assertive');
 		el.setAttribute('aria-atomic', 'true');
 		// Visually hidden but readable by AT (the standard sr-only recipe — NOT display:none).
@@ -1277,7 +1273,7 @@ function reset_focus(hash: string, kept: string | null = null) {
 		active &&
 		active !== document.body &&
 		active.isConnected &&
-		active.closest('[data-ogygia-keep],[data-persist]')
+		active.closest(`[${OGYGIA_KEEP}],[data-persist]`)
 	) {
 		return; // focus is on surviving persistent chrome — don't yank it to the top
 	}
@@ -1332,8 +1328,7 @@ function merge_head(new_head: HTMLHeadElement): Element[] {
 	for (const [key, node] of current_nodes) {
 		if (next_keys.has(key)) continue;
 		if (keep_head_node_across_spa(node)) continue;
-		if (node.hasAttribute('data-ogygia-region-css') || node.hasAttribute('data-og-owner'))
-			unlisted.push(node);
+		if (node.hasAttribute(OGYGIA_REGION_CSS) || node.hasAttribute(OG_OWNER)) unlisted.push(node);
 		else node.remove();
 	}
 	// add / replace nodes (skip dangerous head policy tags), each in its fresh-load place (`head_slot`)

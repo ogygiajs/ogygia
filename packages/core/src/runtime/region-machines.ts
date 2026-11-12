@@ -119,7 +119,7 @@ type WakeStates = {
 };
 
 const wake_steps = {
-	cold: ['armed', 'waking'],
+	cold: ['armed'],
 	armed: ['cold', 'waking'],
 	waking: ['cold', 'awake', 'offline', 'failed'],
 	awake: ['cold'],
