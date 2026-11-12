@@ -15,6 +15,7 @@
  * way.
  */
 import { boot_link, router_link, slots } from './slots.ts';
+import { clock, net } from '@ogygia/machine';
 import { dispose_scope } from '../ref.ts';
 import {
 	NO_RECONCILE_SELECTOR,
@@ -30,17 +31,46 @@ import {
 } from './seeds.ts';
 import type { HistoryEntry, HistoryMove, SpaRouter } from './router.ts';
 import { spa_html_cacheable } from './spa-cacheable.ts';
+import { is_dangerous_head_node } from './head-deny.ts';
 import { pin_region_urls } from './entry-locations.ts';
 import { emit as dt_emit } from '../events/bus.ts';
+import {
+	OG_FP,
+	OG_LATE,
+	OG_LOCATIONS,
+	OG_OWNER,
+	OG_SLOT,
+	OGYGIA_ANNOUNCER,
+	OGYGIA_DEV_HMR,
+	OGYGIA_GRAPH,
+	OGYGIA_KEEP,
+	OGYGIA_REGION_CSS,
+	OGYGIA_RUNTIME,
+	tags,
+	text_of
+} from '../wire-markup.ts';
+import { KNOWN_HEADER_CAP } from '../contract/known-copies.ts';
 
 // What this lazy chunk uses from the boot and from the router, handed over through the registry — it
 // never imports a boot module (./slots.ts `BootLink`: a module both import is split out of the runtime
 // chunk). The router's helpers exist only with the router feature; the MPA `invalidateAll` path (no
 // router) touches none of them.
+// (rules on: `rule_head_adopted` checks the head with this chunk's own deny, ./rules.ts)
+(globalThis as { __og_head_deny?: (deny: typeof is_dangerous_head_node) => void }).__og_head_deny?.(
+	is_dangerous_head_node
+);
+
 const KitBoot = { document_has: (doc: ParentNode) => boot_link().KitBoot.document_has(doc) };
 const regions_in_shadow = () => boot_link().regions_in_shadow();
-const release_sheets = (unlisted: readonly Element[]) => boot_link().release_sheets(unlisted);
+const release_head_nodes = (unlisted: readonly Element[]) =>
+	boot_link().release_head_nodes(unlisted);
+const head_owners = (node: Element) => boot_link().head_owners(node);
+const add_head_owners = (node: Element, more: Iterable<string>) =>
+	boot_link().add_head_owners(node, more);
+const adopt_owner_record = (doc: ParentNode, head: ParentNode) =>
+	boot_link().adopt_owner_record(doc, head);
 const session = () => boot_link().runtime_session;
+const adopt_mark = (next: Document) => boot_link().adopt_mark(next);
 type Scope = import('@ogygia/machine').Scope;
 type Stale = import('@ogygia/machine').Stale;
 type Staging = import('@ogygia/machine').Staging;
@@ -62,21 +92,20 @@ const jump_to_hash = (hash: string) => router_link().jump_to_hash(hash);
 
 // DEVTOOLS gate — module-local const from the Vite `define` (proven DCE pattern); off → folds out.
 const DEVTOOLS = typeof __OGYGIA_DEVTOOLS__ !== 'undefined' ? __OGYGIA_DEVTOOLS__ : false;
-/** High-res clock for devtools nav timings (guarded — dead when off). */
-const dt_now = () =>
-	typeof performance !== 'undefined' && performance.now ? performance.now() : Date.now();
+const HOOK_NAVIGATED =
+	typeof __OGYGIA_HOOK_NAVIGATED__ !== 'undefined' ? __OGYGIA_HOOK_NAVIGATED__ : true;
+const HOOK_NAV_STARTED =
+	typeof __OGYGIA_HOOK_NAV_STARTED__ !== 'undefined' ? __OGYGIA_HOOK_NAV_STARTED__ : true;
+/** The monotonic clock, for devtools nav timings (dead when off). */
+const dt_now = clock.mono;
 
 /** RECONCILER R1: when on (and morph is installed), a nav diffs the body IN PLACE — matched regions
  *  keep their live islands, changed regions re-mount, the shell morphs — instead of a full-body
  *  replaceWith. Flip to `false` to fall back to the legacy full-swap path (the e2e safety net). */
 const RECONCILE_NAV = true;
 
-/** Max bytes for the `x-ogygia-known` header — past this we OMIT it, so the server renders every
- *  region (the safe full-render fallback). Keeps request headers well under proxy/server limits. */
-const KNOWN_HEADER_CAP = 6144;
-
 /** SERVER-DELTA NAV is OPT-IN for the first release (a new client↔server protocol). Off → the client
- *  never sends `x-ogygia-known`, so `known_region_fps()` is always empty server-side and every region
+ *  never sends `x-ogygia-known`, so `reuse_known_region()` never skips server-side and every region
  *  full-renders (the documented safe fallback). Compile-time constant (Vite `define`); typeof-guarded
  *  so a plain node import of dist/ without the define falls back to OFF. */
 const SERVER_DELTA =
@@ -98,10 +127,31 @@ export type NavPurpose = 'nav' | 'prefetch' | 'history';
 export const DOCUMENT_ACCEPT = 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8';
 
 /**
+ * The live region copies the server may skip (#846): one fingerprint per copy, so twins repeat it.
+ * The server skips the first copies of a fingerprint in document order, and the morph pairs each
+ * skipped placeholder with the live copy of the same place (runtime/reconcile.ts keys the n-th copy
+ * of an identity `<identity> <n>`). So a fingerprint's copies are claimed only up to the first one
+ * not hydrated: a placeholder paired with a copy that is still server markup would empty it.
+ */
+function known_copies(doc: Document): string[] {
+	const out: string[] = [];
+	/** Fingerprints whose run of hydrated copies ended. */
+	const ended = new Set<string>();
+	for (const el of doc.querySelectorAll(`ogygia-region[${OG_FP}]`)) {
+		const fp = el.getAttribute(OG_FP);
+		if (!fp || ended.has(fp)) continue;
+		if (el.hasAttribute('data-hydrated')) out.push(fp);
+		else ended.add(fp);
+	}
+	return out;
+}
+
+/**
  * SERVER-DELTA NAV (D2): headers for a nav/prefetch fetch. Always `x-ogygia-spa`. When `purpose` is
  * not a plain nav, `x-ogygia-purpose` names it (see {@link NavPurpose}). Plus, when the current
- * document has HYDRATED islands carrying a `data-og-fp`, `x-ogygia-known` lists their fingerprints so
- * the server can SKIP re-rendering the ones this page already has live. Only data-hydrated regions
+ * document has HYDRATED islands carrying a `data-og-fp`, `x-ogygia-known` lists their fingerprints, one
+ * per live copy ({@link known_copies}), so the server can SKIP re-rendering as many copies as this page
+ * already has live. Only data-hydrated regions
  * are claimed (never assert a region we don't actually have), and the header is omitted past a size
  * cap → the server renders everything (progressive enhancement: every header here is an optimization
  * the server may ignore, and its absence is always correct).
@@ -114,13 +164,9 @@ function nav_headers(purpose: NavPurpose = 'nav'): Record<string, string> {
 	const headers: Record<string, string> = { accept: DOCUMENT_ACCEPT, 'x-ogygia-spa': '1' };
 	if (purpose !== 'nav') headers['x-ogygia-purpose'] = purpose;
 	if (!SERVER_DELTA || typeof document === 'undefined') return headers;
-	const seen = new Set<string>();
-	for (const el of document.querySelectorAll('ogygia-region[data-og-fp][data-hydrated]')) {
-		const fp = el.getAttribute('data-og-fp');
-		if (fp) seen.add(fp);
-	}
-	if (seen.size === 0) return headers;
-	const joined = [...seen].join(',');
+	const live = known_copies(document);
+	if (live.length === 0) return headers;
+	const joined = live.join(',');
 	if (joined.length <= KNOWN_HEADER_CAP) headers['x-ogygia-known'] = joined;
 	return headers;
 }
@@ -176,32 +222,25 @@ const STYLESHEET_WAIT_MS = 2_000;
 const ATTACHMENT = /^\s*attachment\b/i;
 /** Kit remote-function POSTs live under `…/_app/remote/…` (or custom `appDir`). */
 const REMOTE_MUTATION_PATH = /\/remote(?:\/|$|\?)/;
-/** An `<ogygia-region>` open tag's attributes (shared `g` regex — reset `lastIndex` per scan). */
-const REGION_OPEN_TAG_G = /<ogygia-region\b([^>]*)>/g;
 
-/** One attribute's value in an open tag's attribute text (our own SSR: `name="value"`, no quotes
- *  inside a value). Null when absent. @internal Exported for unit tests. */
-export function tag_attr(attrs: string, name: string): string | null {
-	const key = ' ' + name + '="';
-	const at = attrs.indexOf(key);
-	if (at === -1) return null;
-	const from = at + key.length;
-	const to = attrs.indexOf('"', from);
-	return to === -1 ? null : attrs.slice(from, to);
-}
-/** The island graph scripts in our own SSR output (island-graph.ts; the JSON is `<`-escaped, so
- *  its text never holds a `<`). */
-const ISLAND_GRAPH_SCRIPT_G =
-	/<script type="application\/json" data-ogygia-graph>([^<]*)<\/script>/g;
+/** The address the server's head was written for. This module loads before a navigation first moves
+ *  the address (the router awaits it before any history write), so it is still the load's. */
+const DOCUMENT_BASE = typeof document === 'undefined' ? '' : document.baseURI;
 
-/** A node's URL attribute as the address it names: resolved against the page the node belongs to
- *  (a live node's, the document; a fetched page's, its own address, set by `resolve_head_urls`).
- *  `../a.css` on `/x/y` and `/a.css` are one file, so one key. Empty when absent. */
+/** A node's URL attribute as the address it names: resolved against the page the node came from
+ *  (the server's head: the address it was written for, not the one a navigation moved to since,
+ *  #821; a fetched page's: its own address, set by `resolve_head_urls`). `../a.css` on `/x/y` and
+ *  `/a.css` are one file, so one key. Empty when absent. */
 function url_of(node: Element, attr: string): string {
 	const value = node.getAttribute(attr);
 	if (!value) return '';
+	// (only a node in the live head can be the server's: a fetched page's or a detached one never is)
+	const base =
+		DOCUMENT_BASE !== '' && node.parentNode === document.head && session().page_head.has(node)
+			? DOCUMENT_BASE
+			: node.baseURI;
 	try {
-		return new URL(value, node.baseURI).href;
+		return new URL(value, base).href;
 	} catch {
 		return value; // (not a URL: compared as written)
 	}
@@ -312,7 +351,7 @@ export function head_node_key(node: Element): string {
 			if (node.hasAttribute('data-sveltekit')) return 'STYLE:data-sveltekit';
 			// An INLINED region sheet (server/region-css.ts): keyed by the href it stands for, so
 			// the same sheet on the next document is one node, kept, never stacked.
-			const region_css = node.getAttribute('data-ogygia-region-css');
+			const region_css = node.getAttribute(OGYGIA_REGION_CSS);
 			if (region_css) return `STYLE:og-css:${region_css}`;
 			const vite_id = node.getAttribute('data-vite-dev-id');
 			if (vite_id) return `STYLE:vite:${vite_id}`;
@@ -332,7 +371,7 @@ export function keep_head_node_across_spa(node: Element): boolean {
 	if (
 		node.tagName === 'SCRIPT' &&
 		node.getAttribute('type') === 'module' &&
-		(node.hasAttribute('data-ogygia-runtime') || node.hasAttribute('data-ogygia-dev-hmr'))
+		(node.hasAttribute(OGYGIA_RUNTIME) || node.hasAttribute(OGYGIA_DEV_HMR))
 	) {
 		return true;
 	}
@@ -375,9 +414,9 @@ export function install_head_style(
  *  script in the streamed head does this progressively during parse — this is the swap-path
  *  twin. Islands inside the adopted content are custom elements: they connect and wake alone. */
 export function apply_late_templates(root: ParentNode): void {
-	for (const tpl of Array.from(root.querySelectorAll('template[data-og-late]'))) {
-		const id = tpl.getAttribute('data-og-late') ?? '';
-		const slot = document.querySelector(`og-late-slot[data-og-slot="${CSS.escape(id)}"]`);
+	for (const tpl of Array.from(root.querySelectorAll(`template[${OG_LATE}]`))) {
+		const id = tpl.getAttribute(OG_LATE) ?? '';
+		const slot = document.querySelector(`og-late-slot[${OG_SLOT}="${CSS.escape(id)}"]`);
 		if (slot) {
 			const content = (tpl as HTMLTemplateElement).content;
 			for (const sheet of Array.from(content.querySelectorAll('link[rel="stylesheet"], style'))) {
@@ -428,23 +467,6 @@ function focus_reset(el: HTMLElement) {
 /** The elements whose `tabindex` a navigation's focus lent until they blur, with their own value. */
 const lent = new WeakMap<HTMLElement, string | null>();
 
-/** Head nodes that must never be adopted from SPA HTML (rewrite relative fetches / CSP). */
-function is_dangerous_head_node(node: Element): boolean {
-	const tag = node.tagName;
-	if (tag === 'BASE') return true;
-	if (tag === 'META') {
-		const http_equiv = (node.getAttribute('http-equiv') || '').toLowerCase();
-		if (
-			http_equiv === 'refresh' ||
-			http_equiv === 'content-security-policy' ||
-			http_equiv === 'content-security-policy-report-only'
-		) {
-			return true;
-		}
-	}
-	return false;
-}
-
 // ── navigation state (one per document lifetime, module-level: this chunk loads once) ──────────
 /** A page as a fetch got it: its HTML and the address it belongs to (where the fetch landed, after
  *  the server's redirects; the requested href when there were none). */
@@ -469,18 +491,19 @@ const pages = (): Pages =>
 		name: 'router pages',
 		key: ['href'],
 		ignore: { purpose: 'a navigation joins the prefetch out for its address: how, not what' },
-		run: (ask, signal): Promise<Fetched> => run_page_fetch(ask, signal),
+		run: (ask, signal, flight): Promise<Fetched> => run_page_fetch(ask, signal, flight),
 		world: (page_world = boot_link().world()),
 		keep: (answer) => (answer.page !== null && answer.cacheable ? PREFETCH_TTL_MS : 0),
 		max: PAGE_CACHE_MAX_BYTES,
 		weigh: (answer) =>
 			Math.max((answer.page?.html.length ?? 0) * 2, PAGE_CACHE_MAX_BYTES / PAGE_CACHE_MAX_ENTRIES)
 	}));
-/** Prefetches still waiting in the load scheduler's queue, by href (a click promotes its one). */
-const queued_prefetch = new Map<string, { promote(cls: 'user'): void }>();
-/** Hrefs whose prefetched HTML was already scanned for island entries — parse once. (URL-level
- *  import dedupe lives in the shared `warm_island_module`.) */
-const warmed_pages = new Set<string>();
+type Memo<K, V> = import('@ogygia/machine').Cache<K, V>;
+/** Hrefs whose prefetched HTML was already scanned for island entries — parse once (the least
+ *  recently warmed go first). (URL-level import dedupe lives in the shared `warm_island_module`.) */
+let warmed_pages_memo: Memo<string, true> | undefined;
+const warmed_pages = () =>
+	(warmed_pages_memo ??= boot_link().cache({ name: 'warmed pages', max: 512 }));
 /** (Hard SPA navigations are the router's own machine, `r.nav` (./navigation.ts), so a "same
  *  document" decision there can stop one in flight: SpaRouter.supersede. The soft refresh is its
  *  machine too, `boot_link().soft` (./soft-refresh.ts): the boot holds it, as a page without the
@@ -549,10 +572,11 @@ export async function fetch_page(
 	// the kept page after use (one-shot — see navigate()), so the next visit is still fresh.
 	// PREFETCH-HIT.
 	const ask: PageAsk = { href, purpose };
+	// a guess, or the visitor's: a click joining a prefetch out for the page raises it to theirs
+	const { PRIORITY } = boot_link();
+	const priority = purpose === 'prefetch' ? PRIORITY.speculative : PRIORITY.user;
 	for (;;) {
-		// a click joining a prefetch the load scheduler still holds: it is the visitor's now
-		if (purpose !== 'prefetch') queued_prefetch.get(href)?.promote('user');
-		const answer = await pages().get(ask, { signal });
+		const answer = await pages().get(ask, { signal, priority });
 		if (answer !== boot_link().STALE) {
 			// Warm the destination's island JS during the hover/idle runway, so the click path is
 			// swap + hydrate with no first-time import() per island — the module graph is already
@@ -568,29 +592,31 @@ export async function fetch_page(
 	}
 }
 
-/** One page fetch (a flight's work): a prefetch waits for its turn in the load scheduler first. */
-async function run_page_fetch({ href, purpose }: PageAsk, signal: AbortSignal): Promise<Fetched> {
-	const go = () =>
-		fetch(href, {
+/** One page fetch (a flight's work): a prefetch waits for its turn in the load scheduler first, at
+ *  its flight's priority (a click joining it raises it: it goes at once, at the visitor's). */
+async function run_page_fetch(
+	{ href, purpose }: PageAsk,
+	signal: AbortSignal,
+	flight: import('@ogygia/machine').InFlight
+): Promise<Fetched> {
+	const go = (priority?: 'high' | 'auto' | 'low') =>
+		net.fetch(href, {
 			signal,
 			headers: nav_headers(purpose),
-			...(purpose === 'prefetch' ? { priority: 'low' } : {})
+			...(priority ? { priority } : {})
 		} as RequestInit);
 	// A prefetch is a guess: it waits for the page's critical resources and shares the background
 	// window (load-scheduler.ts). A navigation never waits.
 	let res: Response;
 	try {
 		if (purpose === 'prefetch') {
-			const { LoadSlot } = boot_link();
-			const slot = new LoadSlot({ kind: 'content', cls: 'speculative', label: href });
-			queued_prefetch.set(href, slot);
+			const { LoadSlot, fetch_priority_of } = boot_link();
+			const slot = new LoadSlot({ kind: 'content', cls: 'speculative', label: href, flight });
 			const release = await slot.ready;
-			// only its own entry: after a cache clear a newer prefetch of the page holds the address
-			if (queued_prefetch.get(href) === slot) queued_prefetch.delete(href);
 			try {
 				// a cache clear ended it while it waited: its turn is given back without a fetch
 				if (signal.aborted) return { page: null, cacheable: false };
-				res = await go();
+				res = await go(fetch_priority_of(slot.cls()));
 			} finally {
 				release();
 			}
@@ -625,23 +651,21 @@ async function run_page_fetch({ href, purpose }: PageAsk, signal: AbortSignal): 
  * A cheap attribute scan avoids building a whole detached Document during the hover window.
  */
 function warm_modules(href: string, html: string) {
-	if (warmed_pages.has(href)) return;
-	warmed_pages.add(href);
-	// Match `entry="…"` on ogygia-region open tags in our own SSR output (module URLs never contain
-	// a double-quote), collecting the distinct client-island module specifiers. URL-level dedupe +
-	// failure-retry live in the shared warmer (one scheme for router/visible/interaction warms).
-	// The page's island graph first, so each warm below preloads its island's whole graph with it.
-	ISLAND_GRAPH_SCRIPT_G.lastIndex = 0;
-	let g: RegExpExecArray | null;
-	while ((g = ISLAND_GRAPH_SCRIPT_G.exec(html)))
-		register_island_graph(g[1], new URL(href, location.href).href);
+	if (warmed_pages().has(href)) return;
+	warmed_pages().set(href, true);
+	// URL-level dedupe + failure-retry live in the shared warmer (one scheme for
+	// router/visible/interaction warms). The page's island graph first, so each warm below preloads
+	// its island's whole graph with it.
+	for (const t of tags(html, 'script')) {
+		if (t.attrs.get('type') !== 'application/json' || !t.attrs.has(OGYGIA_GRAPH)) continue;
+		const json = text_of(html, t, 'script');
+		if (json !== null) register_island_graph(json, new URL(href, location.href).href);
+	}
 	// Each region's identity, and its location beside it (the file the warm then fetches)
-	REGION_OPEN_TAG_G.lastIndex = 0; // shared `g` regex — start each scan at 0
-	let m: RegExpExecArray | null;
-	while ((m = REGION_OPEN_TAG_G.exec(html))) {
-		const entry = tag_attr(m[1], 'entry');
+	for (const t of tags(html, 'ogygia-region')) {
+		const entry = t.attrs.get('entry');
 		if (!entry) continue;
-		note_entry_location(entry, tag_attr(m[1], 'src'), href);
+		note_entry_location(entry, t.attrs.get('src') ?? null, href);
 		warm_island_module(entry, href);
 	}
 }
@@ -670,10 +694,10 @@ function preflight(doc: Document, dest: URL) {
  * page reads the same from any address. Null: the document names no runtime (no island on it).
  */
 function build_of(d: Document): string | null {
-	const s = d.querySelector('script[data-ogygia-runtime]');
+	const s = d.querySelector(`script[${OGYGIA_RUNTIME}]`);
 	if (!s) return null;
 	const file = (v: string | null) => (v ? v.slice(v.lastIndexOf('/') + 1) : '');
-	return file(s.getAttribute('src')) + ' ' + file(s.getAttribute('data-og-locations'));
+	return file(s.getAttribute('src')) + ' ' + file(s.getAttribute(OG_LOCATIONS));
 }
 
 /** A next page's stylesheet, loaded before its commit and styling nothing until then: the link,
@@ -734,13 +758,19 @@ export async function navigate(
 	// THE NAVIGATION'S OWN CLOCK (the beacon's: a slow in-app navigation is a page's cost the
 	// document timing never sees): its start, the page fetched and its styles in (the build's), the
 	// swap committed
-	const nav_t0 = performance.now();
+	const nav_t0 = clock.mono();
 	if (DEVTOOLS)
 		dt_emit({
 			domain: 'nav',
 			name: 'nav.start',
 			from: from.pathname + from.search,
 			to: url.pathname + url.search,
+			type
+		});
+	if (HOOK_NAV_STARTED)
+		slots.hooks?.navStarted?.({
+			from: `${from.pathname}${from.search}`,
+			to: `${url.pathname}${url.search}`,
 			type
 		});
 
@@ -785,7 +815,7 @@ export async function navigate(
 		const page = await fetch_page(url.href, signal, purpose);
 		if (page === null || signal.aborted) return null;
 		const { html } = page;
-		const fetched = performance.now();
+		const fetched = clock.mono();
 		// one-shot; always fresh on real navigation (a fetch already out again for it is left be)
 		pages().drop(({ href }, entry) => href === url.href && entry.kind === 'kept' && !entry.flying);
 
@@ -806,7 +836,10 @@ export async function navigate(
 		if (dest.origin !== location.origin) return null;
 
 		// ── TASK ONE: parse + facts + preflight — no live DOM change ──
-		const doc = new DOMParser().parseFromString(html, 'text/html');
+		// (the sink's gate, ./html-sink.ts: the page landed on this origin)
+		const own = boot_link().vouch_page_answer(dest, html);
+		if (own === null) return null;
+		const doc = boot_link().parse_page_document(own);
 		// (its head's URLs are its address's, not the page on screen's: #449)
 		resolve_head_urls(doc.head, dest);
 
@@ -850,7 +883,7 @@ export async function navigate(
 		// them ALL in one batch request, kicked off now (before the swap). Each region binder joins the
 		// batch via the store when it connects — no per-region fetch waterfall on navigation. Fired
 		// synchronously so every reservation is in place before the body swap connects any binder.
-		batch_regions(doc, next.scope);
+		batch_regions(doc, next.scope, dest);
 		// (the incoming page's seed and sidecars parse in its preflight and wakes: devalue first, when
 		// one of them is in its lane — ./devalue-lane.ts)
 		await devalue_for(doc);
@@ -865,7 +898,7 @@ export async function navigate(
 		const sheets: InertSheet[] = [];
 		await preload_stylesheets(doc.head, attempt, sheets, discard);
 		if (signal.aborted) return null;
-		const styled = performance.now();
+		const styled = clock.mono();
 		// The transition starts in a task of its own: everything above is a finished task by then, and
 		// the frame it captures is not the one that parsed 2 MB of HTML.
 		await yield_task();
@@ -900,7 +933,7 @@ export async function navigate(
 		announcer?.remove();
 		// LIFECYCLE (Astro-parity DOM events): last chance to read the OUTGOING page's DOM.
 		document.dispatchEvent(new Event('og:before-swap'));
-		const unlisted_sheets = merge_head(doc.head); // keeps our runtime module script alive across swaps
+		const unlisted = merge_head(doc.head); // keeps our runtime module script alive across swaps
 		// the next page's sheets, loaded while it was built, style it from now on (#267)
 		for (const sheet of built.sheets) apply_sheet(sheet);
 		// CONTINUITY: snapshot the LEAVING page's changed island form fields (session-scoped) so
@@ -919,7 +952,7 @@ export async function navigate(
 			// only REMOVED regions' hub ids happens inside reconcile_body.
 			reconcile_body(document.body, doc.body, slots.morph!);
 			built.reconciled = true;
-			document.title = doc.title;
+			adopt_title(doc);
 			session().settle_lakes_in(document.body);
 		} else {
 			// FALLBACK (reconcile off, or a region nested in an open shadow root morph can't pierce):
@@ -933,7 +966,7 @@ export async function navigate(
 					reason: !slots.morph ? 'no-morph' : 'shadow-region'
 				});
 			swap_body(document.body, doc.body);
-			document.title = doc.title;
+			adopt_title(doc);
 			session().settle_lakes_in(document.body);
 			dispose_scope('page');
 		}
@@ -943,9 +976,9 @@ export async function navigate(
 		// and the merge above put the next page's server copy of the same content in beside it — retire
 		// that copy now that the reconcile has settled which islands stayed (runtime/session.ts).
 		session().retire_page_head_copies();
-		// the region sheets the new page does not list go now, but for those a region kept across the
-		// swap still uses (#275)
-		release_sheets(unlisted_sheets);
+		// the region head nodes the new page does not list go now, but for those a region kept across
+		// the swap still uses (#275) or owns (#806)
+		release_head_nodes(unlisted);
 		// STREAMED pages fetched over SPA nav arrive COMPLETE (fetch buffers the stream), so any
 		// late templates still inert in the parsed doc apply now — the inline boot script that
 		// handles them on a full load never executes across a body swap.
@@ -1010,18 +1043,18 @@ export async function navigate(
 	// applied: a later same-address click is a refresh, not a duplicate
 	r.nav.move('loading', 'settling', { href: url.href });
 	const settled = r.nav.now;
-	// (the profiler's browser half, through the boot's link — this lazy chunk imports no boot
-	// module; a no-op without the profiler's tag or devtools)
-	boot_link().beacon_nav({
-		from: from.pathname + from.search,
-		to: dest.pathname + dest.search,
-		type,
-		t: nav_t0,
-		fetched: built.fetched,
-		styled: built.styled,
-		swapped: performance.now(),
-		href: url.href
-	});
+	if (HOOK_NAVIGATED)
+		slots.hooks?.navigated?.({
+			from: `${from.pathname}${from.search}`,
+			to: `${dest.pathname}${dest.search}`,
+			type,
+			t: nav_t0,
+			fetched: built.fetched,
+			styled: built.styled,
+			swapped: clock.mono(),
+			href: url.href,
+			reconciled: built.reconciled
+		});
 	if (DEVTOOLS)
 		dt_emit({
 			domain: 'nav',
@@ -1184,9 +1217,13 @@ export async function invalidate_all(on_screen?: URL | null): Promise<void> {
 		build: async ({ signal }) => {
 			const fetched = await fetch_page(url.href, signal);
 			if (fetched === null || signal.aborted) return null;
-			const doc = new DOMParser().parseFromString(fetched.html, 'text/html');
+			// (the sink's gate, ./html-sink.ts: only a page that landed on this origin is merged)
+			const landed = new URL(fetched.url, url);
+			const own = boot_link().vouch_page_answer(landed, fetched.html);
+			if (own === null) return null;
+			const doc = boot_link().parse_page_document(own);
 			// (its head's URLs are its address's: #449)
-			resolve_head_urls(doc.head, new URL(fetched.url, url));
+			resolve_head_urls(doc.head, landed);
 			if (KitBoot.document_has(doc) || !doc.querySelector('meta[name="ogygia-router"]'))
 				return null;
 			await devalue_for(doc);
@@ -1194,8 +1231,8 @@ export async function invalidate_all(on_screen?: URL | null): Promise<void> {
 		},
 		commit: (doc) => {
 			if (doc === null) return;
-			// (the page's regions all stay: their sheets go once no region uses them)
-			release_sheets(merge_head(doc.head));
+			// (the page's regions all stay: their head nodes go once no region uses or owns them)
+			release_head_nodes(merge_head(doc.head));
 			apply_soft_invalidate_doc(doc);
 		}
 	});
@@ -1220,7 +1257,7 @@ function announce(dest: URL) {
 	let el = announcer;
 	if (!el) {
 		el = document.createElement('div');
-		el.setAttribute('data-ogygia-announcer', '');
+		el.setAttribute(OGYGIA_ANNOUNCER, '');
 		el.setAttribute('aria-live', 'assertive');
 		el.setAttribute('aria-atomic', 'true');
 		// Visually hidden but readable by AT (the standard sr-only recipe — NOT display:none).
@@ -1249,7 +1286,7 @@ function reset_focus(hash: string, kept: string | null = null) {
 		active &&
 		active !== document.body &&
 		active.isConnected &&
-		active.closest('[data-ogygia-keep],[data-persist]')
+		active.closest(`[${OGYGIA_KEEP}],[data-persist]`)
 	) {
 		return; // focus is on surviving persistent chrome — don't yank it to the top
 	}
@@ -1272,9 +1309,19 @@ function reset_focus(hash: string, kept: string | null = null) {
 
 /**
  * Merge <head>: keep nodes present in both, remove stale, add new. Keeps runtime scripts alive.
- * Returns the region sheets the new head does not list: they are for the regions that use them too
- * (./region-sheets.ts), so they go only after the swap, once it is settled which regions stayed.
+ * Returns the region head nodes the new head does not list (region sheets, and tags naming an owning
+ * region): they are for the regions that use or own them too (./region-sheets.ts), so they go only
+ * after the swap, once it is settled which regions stayed.
  */
+/** The next page's title, as a fresh load of it has one: only when it carries a `<title>`. Setting
+ *  `document.title` makes a `<title>` where there is none (test/browser/nav-no-title.test.ts); the
+ *  head merge already took the leaving page's own out. */
+function adopt_title(next: Document): void {
+	// (an HTML <title>, as the `title` getter reads: an SVG one in the body does not count)
+	if (next.getElementsByTagNameNS('http://www.w3.org/1999/xhtml', 'title').length > 0)
+		document.title = next.title;
+}
+
 function merge_head(new_head: HTMLHeadElement): Element[] {
 	const current = document.head;
 	// Only the PAGE's nodes take part (runtime/session.ts — who owns each node in <head>). An island's
@@ -1283,11 +1330,9 @@ function merge_head(new_head: HTMLHeadElement): Element[] {
 	// for the next page's copy either (the island may be torn down in the reconcile that follows —
 	// the copy the page needs goes in, and the one-copy rule retires it again if the island stays).
 	// Nodes that are not ours at all (a third-party inject) stay, as under Kit's own router.
-	const owned = session().page_head;
-	const current_nodes = new Map<string, Element>();
-	for (const node of Array.from(current.children)) {
-		if (owned.has(node)) current_nodes.set(head_node_key(node), node);
-	}
+	// (the owners the page being left listed for its shared sheets: its tail is still in the body)
+	adopt_owner_record(document, current);
+	const current_nodes = live_page_head();
 	const next_keys = new Set<string>();
 	for (const node of Array.from(new_head.children)) {
 		if (is_dangerous_head_node(node)) continue;
@@ -1298,42 +1343,65 @@ function merge_head(new_head: HTMLHeadElement): Element[] {
 	for (const [key, node] of current_nodes) {
 		if (next_keys.has(key)) continue;
 		if (keep_head_node_across_spa(node)) continue;
-		if (node.hasAttribute('data-ogygia-region-css')) unlisted.push(node);
+		if (node.hasAttribute(OGYGIA_REGION_CSS) || node.hasAttribute(OG_OWNER)) unlisted.push(node);
 		else node.remove();
 	}
-	// add / replace nodes (skip dangerous head policy tags)
-	// A `<style>` the next document carries goes at the TOP of <head>, in document order — exactly
-	// where `preload_stylesheets` puts an SPA `<link>`, and for the same reason: an island's
-	// `<svelte:head>` hydration on the new page reclaims a TRAILING head-node range, so a sheet
-	// appended at the end goes with it. Kit inlines a route's small sheets as `<style>` under
-	// `kit.inlineStyleThreshold`, and ogygia inlines small region sheets the same way; one such
-	// destination page lost its `ogygia-region{display:block}` and the layout collapsed
-	// (e2e/context, "Context after SPA navigation"). `anchor` is the head's first child BEFORE this
-	// merge, so the new sheets land above everything old and keep their own order.
-	let anchor = current.firstChild;
+	// add / replace nodes (skip dangerous head policy tags), each in its fresh-load place (`head_slot`)
+	const live = new Map(current_nodes);
 	for (const node of Array.from(new_head.children)) {
 		if (is_dangerous_head_node(node)) continue;
 		const key = head_node_key(node);
 		const existing = current_nodes.get(key);
 		// Kit FOUC bag: always refresh content (same key every page, different CSS). The new bag goes
-		// in first, then the old one comes out. After one navigation the old bag is the head's first
-		// child, so it is `anchor` itself: what comes after it goes where it was.
+		// in, then the old one comes out.
 		if (key === 'STYLE:data-sveltekit') {
-			install_head_style(node, current, anchor);
-			if (existing) {
-				if (existing === anchor) anchor = existing.nextSibling;
-				existing.remove();
-			}
+			live.delete(key);
+			if (existing) existing.remove();
+			live.set(key, install_head_style(node, current, head_slot(node, live)));
 			continue;
 		}
-		if (existing) continue;
+		if (existing) {
+			// the node it has stays, owned also by the islands the next page's copy names (#854)
+			if (node.hasAttribute(OG_OWNER)) add_head_owners(existing, head_owners(node));
+			continue;
+		}
+		const at = head_slot(node, live);
 		if (node.tagName === 'STYLE') {
-			install_head_style(node, current, anchor);
+			live.set(key, install_head_style(node, current, at));
 		} else {
-			session().claim_page_head(current.appendChild(node.cloneNode(true)));
+			const copy = node.cloneNode(true) as Element;
+			session().claim_page_head(current.insertBefore(copy, at));
+			live.set(key, copy);
 		}
 	}
+	// (the kept runtime script takes the next response's mark: RESPONSE-MARK)
+	adopt_mark(new_head.ownerDocument);
 	return unlisted;
+}
+
+/** The page's own nodes in the live <head>, by key (runtime/session.ts — who owns each node). */
+function live_page_head(): Map<string, Element> {
+	const owned = session().page_head;
+	const out = new Map<string, Element>();
+	for (const node of Array.from(document.head.children))
+		if (owned.has(node)) out.set(head_node_key(node), node);
+	return out;
+}
+
+/**
+ * Where a next-page head node goes in the live <head>: right after the live copy of the nearest node
+ * before it in the next head, or at the head's top when none is live. So the page's own nodes keep
+ * the next document's order, the cascade order a fresh load has (test/browser/nav-head-order.test.ts,
+ * #794). It always follows a node of the PAGE, never an island's: an island's live head block (Svelte
+ * removes its range on teardown) is never split by a page node going in.
+ */
+function head_slot(node: Element, live: ReadonlyMap<string, Element>): Node | null {
+	for (let p = node.previousElementSibling; p !== null; p = p.previousElementSibling) {
+		if (is_dangerous_head_node(p)) continue;
+		const at = live.get(head_node_key(p));
+		if (at !== undefined && at.parentNode === document.head) return at.nextSibling;
+	}
+	return document.head.firstChild;
 }
 
 /**
@@ -1364,6 +1432,7 @@ function preload_stylesheets(
 			present.add(head_node_key(node));
 		}
 	}
+	const live = live_page_head();
 	const pending: Promise<void>[] = [];
 	for (const node of Array.from(new_head.children)) {
 		if (node.tagName !== 'LINK' || node.getAttribute('rel') !== 'stylesheet') continue;
@@ -1388,10 +1457,9 @@ function preload_stylesheets(
 				attempt.on(link, 'error', () => resolve(), { once: true });
 			})
 		);
-		// Insert at the TOP of <head>, not the end: an island's `<svelte:head>` hydration removes a
-		// trailing node range, so a stylesheet appended after the island head blocks gets reclaimed.
 		session().claim_page_head(link); // the next page's own sheet (runtime/session.ts)
-		document.head.insertBefore(link, document.head.firstChild);
+		document.head.insertBefore(link, head_slot(node, live));
+		live.set(key, link);
 		sheets.push(sheet);
 		discard(() => link.remove());
 	}
@@ -1413,8 +1481,9 @@ function preload_stylesheets(
  * irrelevant. Only `when="load"` (or unset) is batched: a region scheduled `visible`/`idle`/media
  * stays lazy and fetches on its own trigger, so dynamic schedules are preserved, not eagerly pulled.
  */
-/** `visit`: the scope of the page's visit, the batch's owner (a navigation called off stops it). */
-function batch_regions(doc: Document, visit: Scope) {
+/** `visit`: the scope of the page's visit, the batch's owner (a navigation called off stops it).
+ *  `dest`: the page the holes are for, which the batch names (it leaves from the page being left). */
+function batch_regions(doc: Document, visit: Scope, dest: URL) {
 	const endpoints: string[] = [];
 	for (const el of Array.from(doc.querySelectorAll('ogygia-region[render="defer"][endpoint]'))) {
 		const when = el.getAttribute('when') || 'load';
@@ -1428,5 +1497,5 @@ function batch_regions(doc: Document, visit: Scope) {
 	// Through the seam, never a static `frame-nav` import: an app with `router` but no
 	// deferred/live/lake region has no `frames` feature (and no `render="defer"` holes — so
 	// `endpoints` is empty above and we already returned). Optional-chain keeps that honest.
-	void slots.frames?.stream?.(endpoints, visit);
+	void slots.frames?.stream?.(endpoints, visit, dest.href);
 }
