@@ -27,12 +27,34 @@ export function setNested(value = true): void {
 	setContext(NESTED_KEY, value);
 }
 
+/** The island's region element, in its context (one `Symbol.for` key across graphs, as above). */
+const ISLAND_REGION_KEY = Symbol.for('ogygia.island-region');
+
 /** The context an island is hydrated with: `base` (a `<Provide>` above it), marked "inside an
- *  island" — what a wrapper's `setNested()` gave its children, with no wrapper in the tree. */
-export function nested_context(base?: Map<unknown, unknown> | null): Map<unknown, unknown> {
+ *  island" — what a wrapper's `setNested()` gave its children, with no wrapper in the tree — and
+ *  naming `region`, the island's element, for every component it mounts (now or later). */
+export function nested_context(
+	base?: Map<unknown, unknown> | null,
+	region?: Element | null
+): Map<unknown, unknown> {
 	const context = new Map(base ?? undefined);
 	context.set(NESTED_KEY, true);
+	if (region) context.set(ISLAND_REGION_KEY, region);
 	return context;
+}
+
+/**
+ * The region of the island whose component is running now: any component it mounted, also one
+ * mounted long after it hydrated (#853). Null outside a component (an event handler, module scope)
+ * or outside an island.
+ */
+export function island_region(): Element | null {
+	try {
+		return (getContext(ISLAND_REGION_KEY) as Element | undefined) ?? null;
+	} catch {
+		// ok: not inside a component's run: no island to name
+		return null;
+	}
 }
 
 /**

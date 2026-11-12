@@ -67,13 +67,15 @@
 		"prepublishOnly": "pnpm run build",
 		"check": "tsc -p . && tsc -p test && tsc -p e2e && vitest run",
 		"test": "vitest run",
-		"e2e": "playwright test"
+		"e2e": "playwright test",
+		"e2e:built": "OGYGIA_MFE_BUILD=1 playwright test"
 	},
 	"dependencies": {
 		"@ogygia/machine": "workspace:^",
 		"devalue": "catalog:"
 	},
 	"devDependencies": {
+		"@ogygia/compiler": "workspace:*",
 		"@ogygia/config": "workspace:*",
 		"@ogygia/core": "workspace:*",
 		"@ogygia/flags": "workspace:*",
@@ -91,6 +93,7 @@
 		"vitest": "catalog:"
 	},
 	"peerDependencies": {
+		"@ogygia/compiler": "workspace:^",
 		"@ogygia/core": "workspace:^",
 		"@ogygia/router": "workspace:^",
 		"svelte": "catalog:peers",

@@ -14,19 +14,20 @@ import {
 	type SessionReport,
 	type TimelineItem,
 	type TimelineLane
-} from '@ogygia/core/insights';
+} from '@ogygia/insights';
 import { region_name_by_fp } from './regions.ts';
 import { snapshot } from '@ogygia/core/events';
 import { scope, type Scope } from '@ogygia/machine';
 import { ensure_region_names } from './names.ts';
-import { TESTING_ENGINE_VERSION } from '@ogygia/core/insights';
+import { TESTING_ENGINE_VERSION } from '@ogygia/insights';
 import { nearest_attr } from '@ogygia/core/internal/instruments';
 import { charge, own_cost } from '@ogygia/core/internal/instruments';
-import { apply_attr_rules, type AttrRule } from '@ogygia/core/insights';
-import { testing_lean } from '@ogygia/core/insights';
-import type { PageFinding, PageReport } from '@ogygia/core/insights';
-import type { CpuSummary } from '@ogygia/core/insights';
-import type { BeaconPage, AttrChange } from '@ogygia/core/internal/instruments';
+import { apply_attr_rules, type AttrRule } from '@ogygia/insights';
+import { testing_lean } from '@ogygia/insights';
+import type { PageFinding, PageReport } from '@ogygia/insights';
+import type { CpuSummary } from '@ogygia/insights';
+import type { AttrChange } from '@ogygia/core/internal/instruments';
+import type { BeaconPage } from '../profiler/beacon.ts';
 
 type EngineStamp = { version: number; lean: boolean };
 type HydrationIsland = ReturnType<typeof hydration_report>['islands'][number];
