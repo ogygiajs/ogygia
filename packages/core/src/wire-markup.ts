@@ -39,6 +39,7 @@ export type MarkKey =
 	| 'detailSession'
 	| 'detailTop'
 	| 'detailTwice'
+	| 'dt'
 	| 'dtIngested'
 	| 'exp'
 	| 'format'
@@ -168,6 +169,7 @@ export const OG_DETAIL_SERVER = 'data-og-detail-server';
 export const OG_DETAIL_SESSION = 'data-og-detail-session';
 export const OG_DETAIL_TOP = 'data-og-detail-top';
 export const OG_DETAIL_TWICE = 'data-og-detail-twice';
+export const OG_DT = 'data-og-dt';
 export const OG_DT_INGESTED = 'data-og-dt-ingested';
 export const OG_EXP = 'data-og-exp';
 export const OG_FORMAT = 'data-og-format';
@@ -293,6 +295,7 @@ export const MARK: { readonly [K in MarkKey]: Mark } = {
 	detailSession: { attr: OG_DETAIL_SESSION, by: 'devtools' },
 	detailTop: { attr: OG_DETAIL_TOP, by: 'devtools' },
 	detailTwice: { attr: OG_DETAIL_TWICE, by: 'devtools' },
+	dt: { attr: OG_DT, by: 'page' },
 	dtIngested: { attr: OG_DT_INGESTED, by: 'page' },
 	exp: { attr: OG_EXP, by: 'page' },
 	format: { attr: OG_FORMAT, by: 'page' },
