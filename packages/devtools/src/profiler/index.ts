@@ -4,8 +4,8 @@
  *
  *     ogygia({ profiler: true })          // or { profiler: { secret, path, … } }
  *
- * `ogygia.handle()` reads that config (through the `virtual:ogygia/profiler-config`
- * module) and dynamically imports + mounts this internally, so hooks.server.ts stays
+ * `ogygia.handle()` reads that config (through the plugins' server halves,
+ * `ogygia:server/server-plugins`) and dynamically imports + mounts this internally, so hooks.server.ts stays
  * a plain `sequence(...)`. This module is NOT a public entry point — it is reached
  * only through the handle's lazy import.
  *
@@ -28,6 +28,7 @@
  */
 
 import type { RequestEvent } from '@sveltejs/kit';
+import { mac_hex, mac_key, random_id, same_key, same_text } from './key-check.ts';
 import type { Handle } from '@ogygia/core/plugin';
 import {
 	analyze,
@@ -74,6 +75,8 @@ import {
 
 /** Set on the login page's URL when a login just succeeded and the session still did not arrive. */
 const LOGIN_FAILED_PARAM = 'session';
+/** A region entry's id prefix on the dev server (core's ids.ts `islandVirtualId`). */
+const REGION_ENTRY_ID = 'ogygia:region/entry/';
 import {
 	derive_findings,
 	island_rows_of,
@@ -96,7 +99,7 @@ import {
 	type ClientWindows,
 	type InteractionCpu
 } from './client-windows.ts';
-import { byte_strip, type ByteStrip } from './byte-strip.ts';
+import { byte_strip, page_seed, type ByteStrip } from './byte-strip.ts';
 import { stream_tail } from './stream-tail.ts';
 import {
 	weigh_assets,
@@ -104,8 +107,9 @@ import {
 	type PageAssets,
 	type Weight,
 	type AssetRef
-} from '@ogygia/core/insights';
-import { BEACON_STANDALONE_TAG } from './beacon-standalone.ts';
+} from '@ogygia/insights';
+import { BEACON_STANDALONE_TAG } from './beacon-tag.ts';
+import { is_document_request } from '../document-request.ts';
 import { build_river, load_return_keys, seed_key_bytes, type River } from './river.ts';
 import { SinkBuffer, type SinkRow } from './sink.ts';
 import {
@@ -143,10 +147,10 @@ import {
 import { module_imports, route_imports } from './route-imports.ts';
 import { app_relative } from './app-path.ts';
 import { fnv1a32 } from '@ogygia/core/plugin/utils';
-import { mark_personal } from '@ogygia/core/internal/server';
+import { mark_personal, MIN_SECRET_BYTES, RateLimiter } from '@ogygia/core/internal/server';
 import { attr_sites, doc_diff } from './doc-diff.ts';
 import { almost_same_document_pattern } from './patterns.ts';
-import { hydration_hazards } from '@ogygia/core/insights';
+import { hydration_hazards } from '@ogygia/insights';
 import type { IslandHazard } from './report.ts';
 import {
 	constant_work,
@@ -227,35 +231,41 @@ import {
 	vitals_moved,
 	type Since
 } from './compare.ts';
-import { engine_of, vital_parts, type PageInput } from '@ogygia/core/insights';
+import { engine_of, vital_parts, type ChunkBarrel, type PageInput } from '@ogygia/insights';
 import { label_call, phase_of_frame } from './timeline.ts';
 import { gzip_large } from './compress.ts';
 import { io_kind, mark_left_each_run } from './async-io.ts';
 import {
 	current_request_scope,
-	hole_stats_of,
 	request_scope,
-	request_stats_of,
-	set_batch_hole_listener,
-	hold_request_stats_detail,
 	type BatchHoleStats
 } from '@ogygia/core/internal/server';
 import {
-	chunkBarrels,
-	chunkContents,
-	chunkDuplicates,
-	chunkHeavy,
-	islandHazards,
-	islandPageKeys,
-	islandPageWhy
-} from 'virtual:ogygia/island-deps';
+	hole_stats_of,
+	install_request_stats,
+	request_stats_of,
+	set_batch_hole_listener,
+	hold_request_stats_detail
+} from './request-stats.ts';
+import {
+	chunk_barrels,
+	chunk_contents,
+	chunk_duplicates,
+	chunk_heavy,
+	region_hazards,
+	region_page_keys,
+	region_page_why
+} from 'ogygia:server';
 import { set_span_recorder, type SpanAttrs, type SpanRecord, type SpanRecorder } from './span.ts';
+import type { WindowIds } from './window-id.ts';
 import {
 	flights,
+	clock,
 	lock,
 	machine,
 	outbox,
 	policy,
+	registry,
 	scope,
 	STALE,
 	type Flights,
@@ -485,7 +495,7 @@ export interface StoredReport {
 	/** what is inside each of those chunks (the build's handoff), for the same hrefs */
 	contents?: Record<string, string[]>;
 	heavy?: Record<string, { total: number; top: { name: string; bytes: number }[] }>;
-	barrels?: Record<string, { name: string; fanout: number }[]>;
+	barrels?: Record<string, ChunkBarrel[]>;
 	/** each island entry's lines that draw differently in the browser (its own `.svelte` sources) */
 	hazards?: Record<string, IslandHazard[]>;
 	/** browser hydration timings carried by an uploaded dump (a live report joins the ring instead) */
@@ -1001,18 +1011,19 @@ function trap_state(loop: Loop): TrapStatus['state'] {
 /** The span recorders of the windows recording now, newest last. Spans go to the newest; a window
  *  that ends hands them back to the one before it, never to nothing while another still records
  *  (two profilers in one dev process). */
-const span_windows: SpanRecorder[] = [];
+const span_windows = registry<SpanRecorder>();
 
-function own_spans(r: SpanRecorder): void {
-	span_windows.push(r);
+/** The window's recorder takes the spans while `owner` (the window) is open; returns the hand-back,
+ *  which the window's end also does. */
+function own_spans(r: SpanRecorder, owner: Scope): () => void {
+	const gone = span_windows.add(r, owner);
 	set_span_recorder(r);
-}
-
-function disown_spans(r: SpanRecorder): void {
-	const at = span_windows.lastIndexOf(r);
-	if (at === -1) return;
-	span_windows.splice(at, 1);
-	set_span_recorder(span_windows.length > 0 ? span_windows[span_windows.length - 1] : null);
+	return () => {
+		gone();
+		let newest: SpanRecorder | null = null;
+		for (const w of span_windows) newest = w;
+		set_span_recorder(newest);
+	};
 }
 /** the heap's fill (of its limit) past which no timed render is made: one more could end the process */
 const HEAP_STOP = 0.85;
@@ -1028,6 +1039,7 @@ type DevIslandKeys = {
 };
 
 /** the main thread's work in a render: the code on the sampled stacks and the collector's pauses */
+// static: a fixed list of frame categories
 const MAIN_THREAD_CPU: ReadonlySet<string> = new Set([
 	'app',
 	'component',
@@ -1053,8 +1065,6 @@ const ANSWER_RENDERS = 3;
 const INSPECTOR_ERR = /inspector/;
 const WIN_DRIVE_RE = /^[A-Za-z]:[\\/]/;
 const QUERY_SUFFIX_RE = /\?.*$/;
-/** the seed script in a rendered document (report time, one document: not a hot path) */
-const SEED_SCRIPT_RE = /<script\b[^>]*type="application\/ogygia-page"[^>]*>([\s\S]*?)<\/script>/i;
 const SRC_RELATIVE_RE = /(?:^|[/\\])src[/\\](.*)$/;
 const BACKSLASH_G = /\\/g;
 const PATH_SEP_RE = /[/\\]/;
@@ -1109,7 +1119,14 @@ function serverless_work_budget_ms(): number {
 	return Math.max(req - SERVERLESS_RESERVE_MS, Math.floor(req * 0.5));
 }
 
-type HashFn = (algo: string) => { update(s: string): { digest(enc: 'hex'): string } };
+/** A profiler session's life: a login lasts a working day. */
+const SESSION_MS = 12 * 60 * 60 * 1000;
+/** The most logouts remembered at once (each until its session would have expired). */
+const MAX_REVOKED = 4096;
+/** A session id: `s1.<random id>.<expiry, ms>.<HMAC of the three>`. */
+const SESSION_RE = /^s1\.([A-Za-z0-9_-]{24})\.(\d{13})\.([0-9a-f]{64})$/;
+/** The beacon flag: `f1.<its session's id>.<that session's expiry>.<HMAC of the three>`. */
+const FLAG_RE = /^f1\.([A-Za-z0-9_-]{24})\.(\d{13})\.([0-9a-f]{64})$/;
 
 /**
  * Page mode renders the SAME page N times, so its outbound calls are the same handful repeated N
@@ -1155,6 +1172,16 @@ class Profiler {
 	readonly secret: string;
 	readonly ui_enabled: boolean;
 	readonly #disabled: boolean;
+	/** The secret meets the production floor (dev: always): only then does a key or session count. */
+	readonly #secret_ok: boolean;
+	/** Wrong keys per address (the login form and the key headers): a spent budget is refused
+	 *  before any compare; a right key spends nothing. */
+	readonly #key_fails = new RateLimiter({ max: 10, windowMs: 15 * 60_000 });
+	/** Sessions ended by a logout before their expiry (session id → its expiry), at most
+	 *  {@link MAX_REVOKED}; each is dropped once it would have expired anyway. */
+	readonly #revoked = new Map<string, number>();
+	#session_key: Promise<CryptoKey> | null = null;
+	#flag_key: Promise<CryptoKey> | null = null;
 
 	// ---- state ------------------------------------------------------------
 	readonly #ring: RequestEntry[] = [];
@@ -1200,6 +1227,7 @@ class Profiler {
 		inOrder: true,
 		giveUp: (post, error) => {
 			// (kept for the site view, as every post's outcome is; the rows themselves are gone)
+			// wall: shown as a time
 			this.#sink_last = { at: Date.now(), ok: false, rows: post.rows, error: error_text(error) };
 			warn('devtools_profiler_sink_undelivered', { rows: String(post.rows) }, error);
 		},
@@ -1271,7 +1299,13 @@ class Profiler {
 		// default it ON in dev but OFF in production unless explicitly enabled.
 		this.want_server_timing = options.serverTiming ?? this.dev;
 		this.secret = options.secret ?? process.env.OGYGIA_PROFILER_SECRET ?? '';
-		this.ui_enabled = options.enabled !== false && (this.dev || this.secret !== '');
+		// (production: a secret under the floor opens nothing; test/profiler-login-guard.test.ts)
+		const bytes = Buffer.byteLength(this.secret, 'utf8');
+		this.#secret_ok = this.dev || bytes >= MIN_SECRET_BYTES;
+		if (!this.#secret_ok && bytes > 0 && options.enabled !== false)
+			console.error(new OgygiaError('devtools_profiler_secret_short', { bytes }));
+		this.ui_enabled =
+			options.enabled !== false && (this.dev || (this.secret !== '' && this.#secret_ok));
 		this.#disabled = options.enabled === false;
 		this.#trap = options.trap && options.trap.over > 0 ? options.trap : null;
 		if (options.store) {
@@ -1304,8 +1338,12 @@ class Profiler {
 		// recording — sampling the process twice, and windows of two recorder locks overlapping
 		// (request-stats' detail is counted for that). An older one's timers stand down at their next tick.
 		(globalThis as Record<symbol, unknown>)[LIVE_PROFILER] = this;
-		// the holes a batch request renders land after the request is logged: each joins the log as it lands
-		if (!this.#disabled) set_batch_hole_listener((request, s) => this.#batch_hole(request, s));
+		if (!this.#disabled) {
+			// a live profiler is what the handle's stats are for, with the plugin or without it (#805)
+			install_request_stats();
+			// the holes a batch request renders land after the request is logged: each joins the log as it lands
+			set_batch_hole_listener((request, s) => this.#batch_hole(request, s));
+		}
 	}
 
 	/** Logged requests by their Request (a batch's holes find their request here), and the holes that
@@ -1633,6 +1671,7 @@ class Profiler {
 	#recording_active(): boolean {
 		// (by its start too: a process frozen mid-profile and thawed may answer before its timer runs)
 		const s = this.#holder.now;
+		// wall: a frozen process's monotonic clock does not advance, and the freeze is what this catches
 		return s.kind === 'recording' && Date.now() - s.since < RECORDING_MAX_MS;
 	}
 
@@ -1646,7 +1685,7 @@ class Profiler {
 	#take(kind: 'background' | 'recording'): LockToken | null {
 		const token = this.#recorder.take();
 		if (token === null) return null;
-		this.#holder.go(kind, { token, since: Date.now() });
+		this.#holder.go(kind, { token, since: Date.now() }); // wall: read across a freeze (above)
 		// (leaving it, to `cut` or `free`, detaches the attribution context)
 		this.#holder.scope.defer(() => this.#release_als());
 		return token;
@@ -1666,7 +1705,7 @@ class Profiler {
 				? null
 				: {
 						kind: this.#win.now.kind !== 'idle' ? 'window' : s.kind,
-						age_ms: Date.now() - s.since,
+						age_ms: Date.now() - s.since, // wall: `since` is a wall time (a freeze counts)
 						stale: s.kind === 'cut' || (s.kind === 'recording' && !this.#recording_active())
 					};
 		return new Response(JSON.stringify({ busy: true, message, holder }), {
@@ -1767,11 +1806,13 @@ class Profiler {
 		}
 
 		const mem: MemSample[] = [];
-		const t0 = Date.now();
+		// (the window's t0 and t1 are matched against the request ring's epoch `ts`, and become the
+		// report's `created`)
+		const t0 = Date.now(); // wall: see above
 		const sample_mem = () => {
 			const m = process.memoryUsage();
 			mem.push({
-				t: Date.now() - t0,
+				t: Date.now() - t0, // wall: on the window's own t0 (above)
 				rss: Math.round(m.rss / 1048576),
 				heap_used: Math.round(m.heapUsed / 1048576)
 			});
@@ -1830,7 +1871,7 @@ class Profiler {
 		// capture the calling stack of each outbound I/O call for the duration of
 		// the window (off otherwise — it costs a stack per call)
 		if (!opts.light) netmod?.set_stack_capture(owner, true);
-		own_spans(window_spans);
+		const disown_spans = own_spans(window_spans, sampling);
 		try {
 			await session.post('Profiler.enable');
 			await session.post('Profiler.setSamplingInterval', { interval: interval_us });
@@ -1906,7 +1947,7 @@ class Profiler {
 					heap_head = null;
 				}
 			}
-			const t1 = Date.now();
+			const t1 = Date.now(); // wall: matched against the request ring's epoch `ts` (t0, above)
 			sample_mem();
 			// drain entries the observer buffered but hasn't delivered to its
 			// callback yet (deferred batching would otherwise lose the last GCs)
@@ -1971,7 +2012,7 @@ class Profiler {
 		} finally {
 			sampling.close();
 			histogram.disable();
-			disown_spans(window_spans);
+			disown_spans();
 			span_als.disable(); // the recording's own nesting store: gone with the window
 			release_detail();
 			netmod?.set_stack_capture(owner, false);
@@ -2178,7 +2219,8 @@ class Profiler {
 				// markup is not its source text: the chunk line stays), not generated code
 				(chunk, line) => {
 					const id = this.#module_find(chunk, line);
-					if (!id || id.startsWith('\0') || id.startsWith('virtual:')) return undefined;
+					if (!id || id.startsWith('\0') || id.startsWith('virtual:') || id.startsWith('ogygia:'))
+						return undefined;
 					if (id.startsWith('src/')) {
 						if (!SCRIPT_MODULE_EXTS.some((e) => id.endsWith(e))) return undefined;
 						return { source: path.resolve(process.cwd(), id), text: true };
@@ -2540,7 +2582,7 @@ class Profiler {
 		let heavy:
 			| Record<string, { total: number; top: { name: string; bytes: number }[] }>
 			| undefined;
-		let barrels: Record<string, { name: string; fanout: number }[]> | undefined;
+		let barrels: Record<string, ChunkBarrel[]> | undefined;
 		let hazards: Record<string, IslandHazard[]> | undefined;
 		if (fetch_url && !this.dev) {
 			const urls: string[] = [];
@@ -2549,11 +2591,11 @@ class Profiler {
 			// the readable source list behind each hashed chunk (the build's handoff), and its
 			// heaviest modules with their rendered bytes
 			for (const u of new Set(urls)) {
-				const inside = chunkContents(u);
+				const inside = chunk_contents(u);
 				if (inside?.length) (contents ??= {})[u] = inside;
-				const h = chunkHeavy(u);
+				const h = chunk_heavy(u);
 				if (h?.top.length) (heavy ??= {})[u] = h;
-				const b = chunkBarrels(u);
+				const b = chunk_barrels(u);
 				if (b?.length) (barrels ??= {})[u] = b;
 			}
 			// WHAT DRAWS DIFFERENTLY IN THE BROWSER: each island's own components — the lines a mismatch
@@ -2561,7 +2603,7 @@ class Profiler {
 			// rendering). The build scanned them (the site kit's too); an older build's handoff has
 			// none, and the app's `.svelte` files in its chunks are read and scanned here instead
 			for (const r of island_rows_of(meta)) {
-				const built = islandHazards(r.entry);
+				const built = region_hazards(r.entry);
 				if (built?.length) (hazards ??= {})[r.entry] = built;
 			}
 			if (contents) {
@@ -2693,25 +2735,123 @@ class Profiler {
 	}
 
 	// ---- auth -------------------------------------------------------------
-	async #key_matches(provided: string | null | undefined): Promise<boolean> {
+	/** Is this request's visitor the profiler's logged-in user? Its session cookie stays on the
+	 *  profiler's path, so a region request carries only the site-wide beacon flag: signed for that
+	 *  one session (`#flag_value`), it ends with it. */
+	async measures(event: RequestEvent): Promise<boolean> {
 		if (this.dev) return true;
-		if (!this.secret || !provided) return false;
+		return this.#flag_ok(event);
+	}
+
+	/** Does the request carry a live session (any of its `og_profiler` values)? Dev: always. */
+	async #has_session(event: RequestEvent): Promise<boolean> {
+		if (this.dev) return true;
+		for (const value of session_cookie_values(event))
+			if (await this.#session_ok(value)) return true;
+		return false;
+	}
+
+	/** The live session the request carries (its id and expiry), or null. Dev: none needed. */
+	async #live_session(event: RequestEvent): Promise<{ nonce: string; exp: string } | null> {
+		for (const value of session_cookie_values(event)) {
+			if (!(await this.#session_ok(value))) continue;
+			const [, nonce, exp] = SESSION_RE.exec(value!)!;
+			return { nonce: nonce!, exp: exp! };
+		}
+		return null;
+	}
+
+	/** The beacon flag for one session: `f1.<session id>.<its expiry>.<MAC>`, under a key derived
+	 *  for flags alone, so it ends when the session does (expiry, logout, a changed secret). */
+	async #flag_value(nonce: string, exp: string): Promise<string> {
+		return `f1.${nonce}.${exp}.${await this.#flag_mac(nonce, exp)}`;
+	}
+
+	/** The flag MAC (hex): HMAC-SHA256 under a key derived from the secret for flags alone. */
+	async #flag_mac(nonce: string, exp: string): Promise<string> {
+		this.#flag_key ??= mac_key(this.secret, 'ogygia-profiler-flag-v1');
+		return mac_hex(await this.#flag_key, `f1|${nonce}|${exp}`);
+	}
+
+	/** The session id of the live beacon flag the request carries, or null: signed by this
+	 *  profiler, not expired, its session not logged out. */
+	async #flag_session(event: RequestEvent): Promise<string | null> {
+		if (!this.secret || !this.#secret_ok) return null;
+		const m = FLAG_RE.exec(event.cookies.get('og_profiler_beacon') ?? '');
+		if (!m) return null;
+		const [, nonce, exp, mac] = m as unknown as [string, string, string, string];
+		const now = Date.now();
+		const at = Number(exp);
+		if (!(at > now && at <= now + SESSION_MS) || this.#revoked.has(nonce)) return null;
+		return same_text(await this.#flag_mac(nonce, exp), mac) ? nonce : null;
+	}
+
+	/** Does the request carry a live beacon flag? */
+	async #flag_ok(event: RequestEvent): Promise<boolean> {
+		return (await this.#flag_session(event)) !== null;
+	}
+
+	/** The address a key attempt is charged to (one shared budget where the platform has none). */
+	#address(event: RequestEvent): string {
 		try {
-			const { createHash, timingSafeEqual } = await import('node:crypto');
-			const h = (str: string) => createHash('sha256').update(str).digest();
-			return (
-				timingSafeEqual(h(provided), h(this.secret)) ||
-				timingSafeEqual(h(provided), h(this.#cookie_token(createHash)))
-			);
+			return event.getClientAddress();
 		} catch {
-			return provided === this.secret;
+			return ''; // ok: no address on this platform: every attempt shares one budget
 		}
 	}
 
-	#cookie_token(createHash: HashFn): string {
-		return createHash('sha256')
-			.update('og-profiler:' + this.secret)
-			.digest('hex');
+	/** Is this the secret (the login form, `x-profiler-key`, `x-profile`)? A wrong key spends the
+	 *  address's budget; once it is spent, nothing is compared until the window passes. */
+	async #key_ok(provided: string | null | undefined, event: RequestEvent): Promise<boolean> {
+		if (this.dev) return true;
+		if (!this.secret || !this.#secret_ok || !provided) return false;
+		const ip = this.#address(event);
+		if (this.#key_fails.over(ip)) return false;
+		const ok = await same_key(provided, this.secret);
+		if (!ok) this.#key_fails.limited(ip);
+		return ok;
+	}
+
+	/** The session MAC (hex): HMAC-SHA256 under a key derived from the secret for sessions alone. */
+	async #session_mac(nonce: string, exp: string): Promise<string> {
+		this.#session_key ??= mac_key(this.secret, 'ogygia-profiler-session-v1');
+		return mac_hex(await this.#session_key, `s1|${nonce}|${exp}`);
+	}
+
+	/** A new session id: random, expiring after {@link SESSION_MS}, signed. */
+	async #new_session(): Promise<string> {
+		const nonce = random_id(18);
+		const exp = String(Date.now() + SESSION_MS);
+		return `s1.${nonce}.${exp}.${await this.#session_mac(nonce, exp)}`;
+	}
+
+	/** A session id this profiler signed, not expired, not logged out. */
+	async #session_ok(value: string | null | undefined): Promise<boolean> {
+		if (!this.secret || !this.#secret_ok || !value) return false;
+		const m = SESSION_RE.exec(value);
+		if (!m) return false;
+		const [, nonce, exp, mac] = m as unknown as [string, string, string, string];
+		const now = Date.now();
+		const at = Number(exp);
+		if (!(at > now && at <= now + SESSION_MS) || this.#revoked.has(nonce)) return false;
+		return same_text(await this.#session_mac(nonce, exp), mac);
+	}
+
+	/** Logout: every session the request carried ends now, on this instance (another instance
+	 *  still has it until it expires; changing the secret ends every session everywhere). */
+	async #revoke_sessions(event: RequestEvent): Promise<void> {
+		const now = Date.now();
+		for (const [nonce, exp] of this.#revoked) if (exp <= now) this.#revoked.delete(nonce);
+		for (const value of session_cookie_values(event)) {
+			if (!(await this.#session_ok(value))) continue;
+			const [, nonce, exp] = SESSION_RE.exec(value)!;
+			this.#revoked.set(nonce!, Number(exp));
+		}
+		while (this.#revoked.size > MAX_REVOKED) {
+			const oldest = this.#revoked.keys().next().value;
+			if (oldest === undefined) break;
+			this.#revoked.delete(oldest);
+		}
 	}
 
 	/** Cookie header that starts / clears a profiler session (Set-Cookie value). */
@@ -2721,8 +2861,8 @@ class Profiler {
 		// SameSite=Lax (not Strict): the login POST is a fetch and the follow-up to the profiler is a
 		// navigation; behind a proxy/CDN (Amplify) a Strict cookie can be dropped on that hop, which
 		// looked like "the password does nothing". Lax still isn't sent cross-site, and it's HttpOnly.
-		// A one-year Max-Age so the session survives (it was a session cookie, lost on some setups).
-		const age = token === '' ? '' : '; Max-Age=31536000';
+		// A Max-Age (not a browser-session cookie, lost on some setups) as long as the session lives.
+		const age = token === '' ? '' : `; Max-Age=${SESSION_MS / 1000}`;
 		return `${SESSION_COOKIE}=${token}; Path=${this.base}; HttpOnly; SameSite=Lax${secure}${clear}${age}`;
 	}
 
@@ -2730,9 +2870,15 @@ class Profiler {
 	 *  "this browser is the profiler's user, put the beacon tag in its documents". The session
 	 *  cookie stays scoped to the profiler's own path (the `/beacon` POST is under it, so the
 	 *  runtime's post still carries the real session). Set with the session, cleared with it. */
-	#beacon_cookie(on: boolean, event: RequestEvent): string {
+	async #beacon_cookie(
+		session: { nonce: string; exp: string } | null,
+		event: RequestEvent
+	): Promise<string> {
 		const secure = event.url.protocol === 'https:' ? '; Secure' : '';
-		return `og_profiler_beacon=${on ? '1' : ''}; Path=/; HttpOnly; SameSite=Lax${secure}${on ? '' : '; Max-Age=0'}`;
+		if (!session) return `og_profiler_beacon=; Path=/; HttpOnly; SameSite=Lax${secure}; Max-Age=0`;
+		const value = await this.#flag_value(session.nonce, session.exp);
+		const age = Math.max(0, Math.floor((Number(session.exp) - Date.now()) / 1000));
+		return `og_profiler_beacon=${value}; Path=/; HttpOnly; SameSite=Lax${secure}; Max-Age=${age}`;
 	}
 
 	/**
@@ -2748,8 +2894,10 @@ class Profiler {
 		} | null;
 		const key = String(body?.key ?? '');
 		const next = this.#safe_next(String(body?.next ?? this.base)); // no open redirect
-		if (!(await this.#key_matches(key))) return ctx.json({ ok: false }, { status: 401 });
-		const { createHash } = await import('node:crypto');
+		// (an address that spent its wrong keys waits out the window, whatever it sends now)
+		if (!this.dev && this.#key_fails.over(this.#address(ctx.event!)))
+			return ctx.json({ ok: false }, { status: 429, headers: { 'retry-after': '900' } });
+		if (!(await this.#key_ok(key, ctx.event!))) return ctx.json({ ok: false }, { status: 401 });
 		// `next` carries the after-login marker: if the navigation it drives still arrives without a
 		// session, the guard explains why instead of looping back here (#auth_guard).
 		const res = ctx.json({
@@ -2763,10 +2911,7 @@ class Profiler {
 		// into a plain object) keep only the last of several, and with the beacon flag last, the
 		// session was the one lost ("logged in, but no og_profiler arrived"). The flag follows on the
 		// next response (#flag_cookie).
-		res.headers.append(
-			'set-cookie',
-			this.#session_cookie(this.#cookie_token(createHash), ctx.event!)
-		);
+		res.headers.append('set-cookie', this.#session_cookie(await this.#new_session(), ctx.event!));
 		return res;
 	}
 
@@ -2779,10 +2924,9 @@ class Profiler {
 		// Every `og_profiler` value the browser sent, not only the one Kit's parser picked: a real
 		// browser session can carry a large cookie jar from the app it is logged into, and a parser
 		// that keeps the FIRST of two same-named cookies, or trips on a neighbour, must not lock the
-		// profiler's user out. Any value that matches is a session.
-		for (const value of session_cookie_values(event))
-			if (await this.#key_matches(value)) return true;
-		return this.#key_matches(event.request.headers.get('x-profiler-key'));
+		// profiler's user out. Any value that is a live session counts.
+		if (await this.#has_session(event)) return true;
+		return this.#key_ok(event.request.headers.get('x-profiler-key'), event);
 	}
 
 	/**
@@ -2820,13 +2964,12 @@ class Profiler {
 	 *  that keeps one per response must not lose the session for it. */
 	async #flag_cookie(event: RequestEvent, res: Response): Promise<Response> {
 		if (this.dev || !this.secret || res.headers.has('set-cookie')) return res;
-		const flag = event.cookies.get('og_profiler_beacon') === '1';
-		const values = session_cookie_values(event);
-		let session = false;
-		for (const v of values) if (await this.#key_matches(v)) session = true;
-		if (session === flag) return res;
+		// (a flag for another session, an ended one, or an older form is replaced on the next response)
+		const session = await this.#live_session(event);
+		const flag = await this.#flag_session(event);
+		if (session ? flag === session.nonce : !event.cookies.get('og_profiler_beacon')) return res;
 		const out = new Response(res.body, res);
-		out.headers.append('set-cookie', this.#beacon_cookie(session, event));
+		out.headers.append('set-cookie', await this.#beacon_cookie(session, event));
 		return out;
 	}
 
@@ -3160,15 +3303,15 @@ class Profiler {
 			if (dev) keys = dev.keys === 'all' ? null : (dev.keys ?? []);
 			else
 				try {
-					keys = islandPageKeys(r.entry);
+					keys = region_page_keys(r.entry);
 				} catch {
 					keys = null;
 				}
 			by_entry.set(r.entry, { name: island_name(r), keys });
 		}
 		// the seed's bytes per key (JSON lane; a devalue seed measures as nothing per key)
-		const seed_m = SEED_SCRIPT_RE.exec(body);
-		const seed = seed_m ? seed_key_bytes(seed_m[1]) : {};
+		const seed_text = page_seed(body);
+		const seed = seed_text !== null ? seed_key_bytes(seed_text) : {};
 		if (!calls.length && !Object.keys(seed).length && !by_entry.size) return undefined;
 		return build_river({ calls, lanes: river_lanes, islands: [...by_entry.values()], seed });
 	}
@@ -3924,16 +4067,16 @@ class Profiler {
 	/** A reader of app sources at report time (a file relative to `src/` or the cwd, or absolute);
 	 *  undefined where there is no file system, or when the file is not on this machine. */
 	/** THE DEV SERVER: which page.data keys an island's code reads, from the plugin's run of the build's
-	 *  analysis (vite/dev-maps.ts), by the island id in its entry (`…/virtual:ogygia/island/<id>.js`).
+	 *  analysis (vite/dev-maps.ts), by the region id in its entry (`…/ogygia:region/entry/<id>.js`).
 	 *  Undefined off the dev server or when the plugin cannot say */
 	async #dev_island_keys(entry: string): Promise<DevIslandKeys | undefined> {
 		if (!this.dev) return undefined;
 		const ask = (globalThis as Record<symbol, unknown>)[
 			Symbol.for('ogygia.profiler.dev-page-keys')
 		] as ((iid: string) => Promise<DevIslandKeys | undefined>) | undefined;
-		const at = entry.indexOf('virtual:ogygia/island/');
+		const at = entry.indexOf(REGION_ENTRY_ID);
 		if (!ask || at === -1) return undefined;
-		const rest = entry.slice(at + 'virtual:ogygia/island/'.length);
+		const rest = entry.slice(at + REGION_ENTRY_ID.length);
 		const dot = rest.indexOf('.');
 		try {
 			return await ask(dot === -1 ? rest : rest.slice(0, dot));
@@ -4107,7 +4250,7 @@ class Profiler {
 				if (seed_stats.whole_by.includes(name)) keys.push('*');
 			} else {
 				try {
-					keys = islandPageKeys(r.entry);
+					keys = region_page_keys(r.entry);
 				} catch {
 					keys = undefined;
 				}
@@ -4148,7 +4291,7 @@ class Profiler {
 				// helper it imports, a shared component), with the line — that is the line to fix
 				if (!whole_line) {
 					const whys = [
-						...(islandPageWhy(r.entry) ?? []),
+						...(region_page_why(r.entry) ?? []),
 						// (the dev server's answer names absolute files)
 						...(dev?.why ?? []).map((w) => ({ ...w, file: app_relative(w.file) ?? w.file }))
 					];
@@ -4177,8 +4320,8 @@ class Profiler {
 			return { name: info.name, file, island: false, reads: data_reads(src, data_prop_names(src)) };
 		});
 		if (!components.length && !islands.length) return undefined;
-		const seed_m = SEED_SCRIPT_RE.exec(body);
-		const seed = seed_m ? seed_key_bytes(seed_m[1]) : {};
+		const seed_text = page_seed(body);
+		const seed = seed_text !== null ? seed_key_bytes(seed_text) : {};
 		const lineage = build_lineage({
 			components: [...components, ...islands],
 			lanes: lineage_lanes,
@@ -4233,8 +4376,8 @@ class Profiler {
 				// `until`: the time this check may use. Three renders are the least a verdict reads from
 				// (and the halfway read, at most the third, is already in); past that, another render that
 				// would end after `until` is not started
-				if (i >= 3 && Date.now() + last > until) break;
-				const t = Date.now();
+				if (i >= 3 && clock.mono() + last > until) break;
+				const t = clock.mono();
 				await render();
 				series.push(await settled());
 				// FLAT AFTER THREE: the verdict's line is 64 KB a render; well under half of it, with the
@@ -4253,7 +4396,7 @@ class Profiler {
 							profile?: { head?: HeapNode };
 						}
 					).profile?.head;
-				last = Date.now() - t;
+				last = clock.mono() - t;
 			}
 			const res = (await session.post('HeapProfiler.getSamplingProfile')) as {
 				profile?: { head?: HeapNode };
@@ -4443,7 +4586,8 @@ class Profiler {
 	}
 
 	/** Clear the session cookie and bounce to the dashboard. */
-	#logout(ctx: RouteCtx): Response {
+	async #logout(ctx: RouteCtx): Promise<Response> {
+		await this.#revoke_sessions(ctx.event!);
 		const res = ctx.redirect(this.base);
 		// (one Set-Cookie: the beacon flag is cleared on the next response, #flag_cookie)
 		res.headers.append('set-cookie', this.#session_cookie('', ctx.event!));
@@ -4559,22 +4703,25 @@ class Profiler {
 	// every instance writes such a request to the shared store (its visit rows, under the window's own
 	// key) BEFORE it answers — a frozen instance never finishes a write after; and stop, on whichever
 	// instance, gathers them. The CPU profile stays the starting instance's: sampling is per process.
-	async #window_sign(nonce: string): Promise<string> {
-		const { createHmac } = await import('node:crypto');
-		return createHmac('sha256', this.secret || 'ogygia-dev-window')
-			.update('window:' + nonce)
-			.digest('hex')
-			.slice(0, 20);
+	// (the ids are a capability, ./window-id.ts: a production profiler with no secret has none)
+	readonly #window_ids = flights({
+		name: 'profiler window ids',
+		run: () =>
+			import('./window-id.ts').then((m) =>
+				m.window_ids(this.secret, this.dev, 'profiler:' + this.base)
+			)
+	});
+	async #ids(): Promise<WindowIds | null> {
+		const ids = await this.#window_ids.get();
+		// (never dropped, so never STALE; if it were, no ids: a window id is refused, never trusted)
+		return ids === STALE ? null : ids;
 	}
 
-	/** A window id from a request, when its signature holds; else null. */
+	/** A window id from a request, when it checks; else null. */
 	async #window_id_of(request: Request): Promise<string | null> {
 		const raw = request.headers.get(WINDOW_HEADER);
-		if (!raw || raw.length > 80) return null;
-		const dot = raw.indexOf('.');
-		if (dot <= 0) return null;
-		const nonce = raw.slice(0, dot);
-		return (await this.#window_sign(nonce)) === raw.slice(dot + 1) ? raw : null;
+		if (!raw) return null;
+		return (await this.#ids())?.check(raw) ?? null;
 	}
 
 	/** A request in a window: written to the store, awaited (see above). */
@@ -4591,7 +4738,7 @@ class Profiler {
 			cpu_ms: entry.cpu_ms,
 			net_ms: entry.net_ms ?? null,
 			net_count: entry.net_count ?? 0,
-			at: Date.now(),
+			at: Date.now(), // wall: stored, and read by other instances
 			instance: this.#instance_id
 		};
 		const store = await this.#store_ready();
@@ -4642,8 +4789,10 @@ class Profiler {
 		// a BACKGROUND window (the trap, the always-on sampler) holding the recorder is short: wait
 		// for it (as a page profile does); another page profile is the real conflict
 		await this.#wait_for_background();
-		const nonce = Math.random().toString(36).slice(2, 12) + Date.now().toString(36);
-		const id = `${nonce}.${await this.#window_sign(nonce)}`;
+		const ids = await this.#ids();
+		if (ids === null)
+			return busy('A window needs the profiler’s secret: set OGYGIA_PROFILER_SECRET.');
+		const id = ids.mint();
 		// (a window started meanwhile holds the recorder: this take fails)
 		const token = this.#take('background');
 		if (token === null) return busy('Another recording holds the recorder. Try again in a moment.');
@@ -4893,18 +5042,18 @@ class Profiler {
 			const requests_before = Math.max(0, this.#requests_seen - 1);
 			// Cap the run at the hard limit even on a real server (Infinity budget): a page recording must
 			// never outlive RECORDING_HARD_CAP_MS, because it holds the site-wide attribution context open.
-			const budget_deadline = Number.isFinite(work_budget) ? Date.now() + work_budget : Infinity;
+			const budget_deadline = Number.isFinite(work_budget) ? clock.mono() + work_budget : Infinity;
 			// when the platform itself cuts the request (Amplify: 30 s from now): the store write at the
 			// end may only wait for what is left of it
-			const request_deadline = Date.now() + detect_request_budget_ms();
-			const deadline = Math.min(budget_deadline, Date.now() + RECORDING_HARD_CAP_MS);
+			const request_deadline = clock.mono() + detect_request_budget_ms();
+			const deadline = Math.min(budget_deadline, clock.mono() + RECORDING_HARD_CAP_MS);
 			// Each render is raced against a timeout so a single hung upstream can't pin the recording (and
 			// the site) — the smaller of PER_RENDER_TIMEOUT_MS and whatever budget is left.
 			const fetch_render = (p: string, extra?: Record<string, string>) => {
 				// a reset took the recorder: this run renders nothing more under the next owner
 				if (!this.#holds(token))
 					return Promise.reject(new Error('the recording was reset before it finished'));
-				const left = deadline - Date.now();
+				const left = deadline - clock.mono();
 				const ms = Number.isFinite(left)
 					? Math.max(1, Math.min(PER_RENDER_TIMEOUT_MS, left))
 					: PER_RENDER_TIMEOUT_MS;
@@ -5082,7 +5231,7 @@ class Profiler {
 						// costs little, and what a render leaves behind is the finding that matters most.
 						if (
 							i > 0 &&
-							Date.now() + slowest + retention_reserve() + coverage_reserve() > deadline
+							clock.mono() + slowest + retention_reserve() + coverage_reserve() > deadline
 						) {
 							// which limit it was: the platform's (serverless) or the recording's own cap (any
 							// server: a recording holds the site-wide attribution open, so it never runs longer)
@@ -5213,6 +5362,7 @@ class Profiler {
 			let answers: ReportMeta['answers'];
 			if (stable.size && this.#kept) {
 				const state = {
+					// wall: unique across restarts
 					token: `${fnv1a32(`${Math.random()}:${Date.now()}`).toString(36)}${fnv1a32(String(performance.now())).toString(36)}`,
 					keys: stable
 				};
@@ -5220,7 +5370,7 @@ class Profiler {
 				try {
 					const ms: number[] = [];
 					for (let i = 0; i < ANSWER_RENDERS; i++) {
-						if (Date.now() + slowest + retention_reserve() + coverage_reserve() > deadline) break;
+						if (clock.mono() + slowest + retention_reserve() + coverage_reserve() > deadline) break;
 						const t = performance.now();
 						const res = await fetch_render(target, { [ANSWERS_HEADER]: state.token });
 						await res.text();
@@ -5329,14 +5479,14 @@ class Profiler {
 				gc_attr &&
 				this.want_heap &&
 				heap_ok &&
-				Date.now() + retention_reserve() + coverage_reserve() < deadline
+				clock.mono() + retention_reserve() + coverage_reserve() < deadline
 			) {
 				try {
-					const t = Date.now();
+					const t = clock.mono();
 					retained = await this.#retention_pass(async () => {
 						await fetch_render(target).then((r) => r.text());
 					});
-					retain_ms = Date.now() - t;
+					retain_ms = clock.mono() - t;
 				} catch {
 					retained = undefined;
 				}
@@ -5351,7 +5501,7 @@ class Profiler {
 				// the coverage render's time (the call counts come after it), and it stops by the clock,
 				// not only by count; each render is priced by the retention pass's real wall time
 				const each = Math.max(retain_ms, slowest + 300);
-				const room = deadline - Date.now() - coverage_reserve() - 1500;
+				const room = deadline - clock.mono() - coverage_reserve() - 1500;
 				// (and by the heap's room: each render keeps what the retention render measured)
 				const s = v8_stats?.();
 				const heap_n = s
@@ -5369,7 +5519,7 @@ class Profiler {
 								await fetch_render(target).then((r) => r.text());
 							},
 							n,
-							Date.now() + room
+							clock.mono() + room
 						);
 					} catch {
 						growth = undefined;
@@ -5527,8 +5677,8 @@ class Profiler {
 							// serverless one, what the request has left), so the totals do not vary run to run
 							budget_ms:
 								q.get('weigh') === 'full'
-									? Math.max(500, Math.min(120_000, request_deadline - Date.now() - 4000))
-									: Math.max(500, Math.min(6000, request_deadline - Date.now() - 8000)),
+									? Math.max(500, Math.min(120_000, request_deadline - clock.mono() - 4000))
+									: Math.max(500, Math.min(6000, request_deadline - clock.mono() - 8000)),
 							...(q.get('weigh') === 'full' ? { max_files: 2000 } : {}),
 							extra,
 							// the build's readable list of what a hashed chunk holds (keyed by its served path)
@@ -5536,7 +5686,7 @@ class Profiler {
 								try {
 									const path = new URL(u).pathname;
 									const rel = app_asset_rel(path);
-									return chunkContents(rel ? '/' + rel : path);
+									return chunk_contents(rel ? '/' + rel : path);
 								} catch {
 									return null;
 								}
@@ -5569,7 +5719,7 @@ class Profiler {
 			// (never into the platform's own cut: what is left of it, less a margin for the answer)
 			const persist_wait = Math.max(
 				200,
-				Math.min(PERSIST_WAIT_MS, request_deadline - Date.now() - 2_000)
+				Math.min(PERSIST_WAIT_MS, request_deadline - clock.mono() - 2_000)
 			);
 			// (the bound's timer is the request's, and goes the moment the write lands)
 			const bound = scope(current_request_scope() ?? undefined);
@@ -5659,7 +5809,9 @@ class Profiler {
 				return ctx.json({ error: 'That file is not an ogygia profiler dump.' }, { status: 400 });
 			}
 			return ctx.json({ url: ctx.href('/report/[id]', { id: this.#store_uploaded(dump) }) });
-		} catch {
+		} catch (e) {
+			if (e instanceof OgygiaError && e.code === 'devtools_profiler_upload_too_large')
+				return ctx.json({ error: e.message }, { status: 413 });
 			return ctx.json(
 				{ error: "That file isn't a profile, or it was made with a different key." },
 				{ status: 400 }
@@ -6231,7 +6383,7 @@ class Profiler {
 						.at(-1)
 				: undefined;
 		// (the modules the build shipped twice: the report names the ones this page loads both copies of)
-		const dupes = chunkDuplicates();
+		const dupes = chunk_duplicates();
 		return {
 			...(visit ? { visit } : {}),
 			...(other_screen_visit ? { other_screen_visit } : {}),
@@ -6432,7 +6584,7 @@ class Profiler {
 			// the handoff keys chunks by their served path; a rewritten local file still carries it
 			const rel = app_asset_rel(path);
 			if (rel) path = '/' + rel;
-			const inside = chunkContents(path);
+			const inside = chunk_contents(path);
 			if (inside) {
 				if (inside.every((s) => s === 'svelte runtime')) return 'svelte';
 				// a chunk with none of the app's own files in it (runtimes, packages) is a dependency,
@@ -6461,7 +6613,7 @@ class Profiler {
 			const rel = app_asset_rel(p);
 			return rel ? '/' + rel : p;
 		};
-		const renamer = chunk_component_renamer((p) => chunkContents(served(p)));
+		const renamer = chunk_component_renamer((p) => chunk_contents(served(p)));
 		const run = (p: CpuProfile) => analyze(p, resolver, undefined, undefined, renamer, url_hint);
 		// AN INTERACTION'S TRACE: only its two spans are read, and the load's analysis stays as it was
 		if (interaction) {
@@ -6469,7 +6621,7 @@ class Profiler {
 				this.#interaction_cpus.delete(this.#interaction_cpus.keys().next().value!);
 			this.#interaction_cpus.set(page, {
 				...interaction_windows(profile, interaction, run),
-				at: Date.now()
+				at: Date.now() // wall: stored with the report, shown as a time
 			});
 			return true;
 		}
@@ -6477,11 +6629,12 @@ class Profiler {
 		// CUT BY ISLAND: the same load's visit (the trace goes out 8–20 s after the page started, the
 		// visit before it) gives each island's hydrate window — what ran inside it, by name
 		const visit = this.#visits.get(page)?.at(-1);
-		const windows =
-			visit && Date.now() - visit.at < 120_000 ? client_windows(profile, visit, run) : undefined;
+		// wall: a visit's `at` is the page's epoch time, as its beacon sent it
+		const recent = visit !== undefined && Date.now() - visit.at < 120_000;
+		const windows = recent ? client_windows(profile, visit, run) : undefined;
 		// a slow interaction DURING the load (the load trace holds it; the interaction sampler starts
 		// only once this trace is out): its spans are cut from this trace
-		const i = visit && Date.now() - visit.at < 120_000 ? visit.interaction : undefined;
+		const i = recent ? visit.interaction : undefined;
 		if (
 			i &&
 			i.ms >= 200 &&
@@ -6497,14 +6650,14 @@ class Profiler {
 					{ t: i.t, wait: [i.t, at], handler: [at, at + i.processing] },
 					run
 				),
-				at: Date.now()
+				at: Date.now() // wall: stored with the report, shown as a time
 			});
 		}
 		if (this.#client_cpus.size >= 50 && !this.#client_cpus.has(page))
 			this.#client_cpus.delete(this.#client_cpus.keys().next().value!);
 		this.#client_cpus.set(page, {
 			analysis,
-			at: Date.now(),
+			at: Date.now(), // wall: stored with the report, shown as a time
 			sample_ms: analysis.duration_ms,
 			...(windows ? { windows } : {})
 		});
@@ -6604,7 +6757,7 @@ class Profiler {
 			if (!(await this.#ingest_client_cpu(page, cpu, ctx.url.origin, spans)))
 				return new Response(null, { status: 400 });
 		}
-		const now = Date.now();
+		const now = clock.mono();
 		// THE APP'S MARKS (`mark()` from ogygia/profiler/client): per page, per name, bounded
 		if (
 			Array.isArray(marks) &&
@@ -6733,20 +6886,11 @@ class Profiler {
 		if (!this.ui_enabled) return null;
 		// (never in the profiler's own renders: they ask as a page navigation, and the tag is not the page's)
 		if (event.request.headers.get('x-og-profiler-internal') === '1') return null;
-		const dest = event.request.headers.get('sec-fetch-dest');
-		if (
-			dest
-				? dest !== 'document'
-				: !(event.request.headers.get('accept') ?? '').includes('text/html')
-		)
-			return null;
+		if (!is_document_request(event.request)) return null;
 		if (!this.dev) {
 			const key = event.request.headers.get('x-profiler-key');
-			if (key ? !(await this.#key_matches(key)) : event.cookies.get('og_profiler_beacon') !== '1')
-				return null;
+			if (key ? !(await this.#key_ok(key, event)) : !(await this.#flag_ok(event))) return null;
 		}
-		// (with the standalone beacon for a page that never boots the ogygia runtime: a Kit-hydrated
-		// page reports its vitals, long tasks and CPU too — it steps aside when the runtime is there)
 		return `<meta name="${BEACON_META}" content="${this.base}/beacon">${BEACON_STANDALONE_TAG}`;
 	}
 
@@ -6791,7 +6935,7 @@ class Profiler {
 				remote_url = null;
 			}
 		const entry: RequestEntry = {
-			ts: Date.now(),
+			ts: Date.now(), // wall: a request's time, shown and stored
 			method: event.request.method,
 			path: remote_url ? remote_url.pathname : event.url.pathname,
 			...(remote ? { remote: true as const } : {}),
@@ -6824,7 +6968,8 @@ class Profiler {
 		// Header-triggered single-request profile? Decided FIRST, because it is one of the three
 		// reasons a request gets a network-attribution context at all.
 		const profile_header = event.request.headers.get('x-profile');
-		const key_ok = !!profile_header && this.ui_enabled && (await this.#key_matches(profile_header));
+		const key_ok =
+			!!profile_header && this.ui_enabled && (await this.#key_ok(profile_header, event));
 		// Take the recorder slot atomically (no await between the check and the take): two concurrent
 		// header-profiled requests must not both start a recording and collide on the one process-wide
 		// inspector. If it's busy, this request just renders un-profiled rather than waiting.
@@ -7128,8 +7273,9 @@ class Profiler {
 				signal: AbortSignal.any([signal, AbortSignal.timeout(SINK_TRY_MS)])
 			});
 			if (!res.ok) throw new Error(`the sink answered ${res.status}`);
-			this.#sink_last = { at: Date.now(), ok: true, rows: post.rows };
+			this.#sink_last = { at: Date.now(), ok: true, rows: post.rows }; // wall: shown as a time
 		} catch (error) {
+			// wall: shown as a time
 			this.#sink_last = { at: Date.now(), ok: false, rows: post.rows, error: error_text(error) };
 			throw error;
 		}
@@ -7198,10 +7344,15 @@ class Profiler {
  * See the class doc and README for what it captures. Visit `<path>` (default
  * /__profiler) — in prod, log in (or send the x-profiler-key header).
  */
-export function profiler(options: ProfilerOptions = {}): Handle {
+export function profiler(options: ProfilerOptions = {}): ProfilerHandle {
 	const instance = new Profiler(options);
-	return (args) => instance.handle(args);
+	return Object.assign((args: Parameters<Handle>[0]) => instance.handle(args), {
+		measures: (event: RequestEvent) => instance.measures(event)
+	});
 }
+
+/** The profiler's handle, and the shared `measures` hook's answer (../server.ts). */
+export type ProfilerHandle = Handle & { measures(event: RequestEvent): Promise<boolean> };
 
 // ---------------------------------------------------------------------------
 

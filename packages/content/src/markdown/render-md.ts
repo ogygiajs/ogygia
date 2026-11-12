@@ -1,6 +1,6 @@
 import type { PreprocessorGroup } from 'svelte/compiler';
 import { ogygiaPreprocess, type MarkdownOptions } from './index.ts';
-import { try_region_emit } from './region-emit.ts';
+import { component_tag_in, try_region_emit } from './region-emit.ts';
 import { OgygiaError } from '../messages/build.ts';
 
 const groups = new WeakMap<object, PreprocessorGroup>();
@@ -25,7 +25,8 @@ export async function render_markdown(
 	const out = (await group.markup?.({ content: text, filename: 'og-md-snippet.md' })) as
 		| { code?: string }
 		| undefined;
-	const emitted = try_region_emit(out?.code ?? text, []);
+	const code = out?.code ?? text;
+	const emitted = component_tag_in(code) === null ? try_region_emit(code, []) : null;
 	if (!emitted) {
 		throw new OgygiaError('content_md_dynamic');
 	}

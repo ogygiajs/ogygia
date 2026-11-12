@@ -7,7 +7,7 @@
  * Messages out: { type: 'ready' } | { type: 'error', message } (the index failed to load)
  *             | { type: 'result', id, hits } | { type: 'error', id, message } (that query failed)
  */
-import { flights, STALE } from '@ogygia/machine';
+import { flights, net, STALE } from '@ogygia/machine';
 import { orama_engine, type SearchIndex } from './search.ts';
 import { OgygiaError } from '../messages/runtime.ts';
 
@@ -16,7 +16,7 @@ import { OgygiaError } from '../messages/runtime.ts';
 const indexes = flights({
 	name: 'content search worker index',
 	run: async (url: string): Promise<SearchIndex> => {
-		const res = await fetch(url);
+		const res = await net.fetch(url);
 		if (!res.ok) {
 			throw new OgygiaError('content_search_index_fetch_failed', { url, status: res.status });
 		}
