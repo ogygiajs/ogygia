@@ -340,7 +340,7 @@ test('the inline beacon names a preload the browser downloaded again (a Kit page
 	const doc = {
 		visibilityState: 'hidden',
 		querySelector: (s: string) =>
-			s.startsWith('meta') ? { getAttribute: () => '/__profiler/beacon' } : null,
+			s.startsWith('head > meta') ? { getAttribute: () => '/__profiler/beacon' } : null,
 		querySelectorAll: () => links,
 		addEventListener: (t: string, f: () => void) => (listeners[t] = f)
 	};
@@ -378,7 +378,7 @@ test('the inline beacon names a preload the browser downloaded again (a Kit page
 		perf,
 		PO,
 		{ userAgent: 'test', sendBeacon: (_: string, b: string) => (sent.push(b), true) },
-		{ pathname: '/p', origin: 'https://a.test' },
+		{ pathname: '/p', origin: 'https://a.test', href: 'https://a.test/p' },
 		1,
 		1,
 		() => {},

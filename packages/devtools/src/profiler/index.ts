@@ -63,7 +63,7 @@ import {
 	type RequestEntry,
 	type RouteAgg
 } from './report.ts';
-import { ogp_encode, ogp_decode, is_ogp, recover_ogp_bytes } from './crypto.ts';
+import { ogp_encode, ogp_decode, is_ogp, recover_ogp_bytes, OGP_MAX_UNPACKED } from './crypto.ts';
 import {
 	AFTER_LOGIN_PARAM,
 	SESSION_COOKIE,
@@ -75,6 +75,8 @@ import {
 
 /** Set on the login page's URL when a login just succeeded and the session still did not arrive. */
 const LOGIN_FAILED_PARAM = 'session';
+/** The origin a login's `next` is read against: one it keeps never names another. */
+const SAME_ORIGIN = 'http://same.origin';
 /** A region entry's id prefix on the dev server (core's ids.ts `islandVirtualId`). */
 const REGION_ENTRY_ID = 'ogygia:region/entry/';
 import {
@@ -3231,12 +3233,22 @@ class Profiler {
 					return new Response('That is not an ogygia .ogp report.', { status: 400 });
 				dump = await ogp_decode(bytes, this.secret);
 			} else if (ctx.request.headers.get('x-og-encoding') === 'gzip') {
+				// (under the .ogp lane's cap: test/profiler-report-gzip-cap.test.ts)
 				const { gunzipSync } = await import('node:zlib');
-				dump = JSON.parse(new TextDecoder().decode(gunzipSync(raw)));
+				let json: Uint8Array;
+				try {
+					json = gunzipSync(raw, { maxOutputLength: OGP_MAX_UNPACKED });
+				} catch (e) {
+					if ((e as { code?: unknown })?.code !== 'ERR_BUFFER_TOO_LARGE') throw e;
+					throw new OgygiaError('devtools_profiler_upload_too_large', { limit: OGP_MAX_UNPACKED });
+				}
+				dump = JSON.parse(new TextDecoder().decode(json));
 			} else {
 				dump = JSON.parse(new TextDecoder().decode(raw));
 			}
-		} catch {
+		} catch (e) {
+			if (e instanceof OgygiaError && e.code === 'devtools_profiler_upload_too_large')
+				return new Response(e.message, { status: 413 });
 			return new Response('The request carried no report this server can open.', { status: 400 });
 		}
 		if (!is_dump(dump))
@@ -4575,10 +4587,22 @@ class Profiler {
 		}
 	}
 
-	/** No open redirect — a `next` only bounces back into the profiler. */
+	/** No open redirect: a `next` only bounces back into the profiler. It is read as the browser
+	 *  reads it (a URL against this origin) and kept, as read, only on this origin and under the base,
+	 *  at the root too (test/property-login-next.test.ts). */
 	#safe_next(next: string | null): string {
-		const n = next ?? this.base;
-		return n.startsWith(this.base) ? n : this.base;
+		const fallback = this.base || '/';
+		let u: URL;
+		try {
+			u = new URL(next ?? fallback, SAME_ORIGIN);
+		} catch {
+			return fallback; // ok: not a URL is no place to go back to
+		}
+		// (a path that reads `//host` once set as an address would leave the origin again)
+		if (u.origin !== SAME_ORIGIN || u.pathname.startsWith('//')) return fallback;
+		if (u.pathname !== this.base && !u.pathname.startsWith(`${this.base}/`) && this.base !== '')
+			return fallback;
+		return u.pathname + u.search;
 	}
 
 	/** Clear the session cookie and bounce to the dashboard. */
