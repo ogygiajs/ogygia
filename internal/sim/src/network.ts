@@ -118,6 +118,7 @@ export class Network {
 	 * (a page, a live stream) breaks off. (They used to go on arriving while the tab was offline.)
 	 */
 	offline(realm: string, off: boolean): void {
+		if (off !== this.#offline.has(realm)) for (const told of this.#told) told(realm, !off);
 		if (!off) {
 			this.#offline.delete(realm);
 			return;
@@ -129,6 +130,19 @@ export class Network {
 				this.#on_wire.delete(ex);
 				fail('offline');
 			}
+	}
+
+	/** Whether `realm` (a tab) has the network: what its documents' `navigator.onLine` reads. */
+	online(realm: string): boolean {
+		return !this.#offline.has(realm);
+	}
+
+	/** Who hears a tab lose or get back the network (its documents: `offline`, `online`). */
+	readonly #told: Array<(realm: string, online: boolean) => void> = [];
+
+	/** Calls `told` each time a tab loses the network or gets it back. */
+	tell(told: (realm: string, online: boolean) => void): void {
+		this.#told.push(told);
 	}
 
 	/** Requests a server is still working on (sent, no answer yet): work in flight, however long it

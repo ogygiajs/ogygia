@@ -86,6 +86,17 @@ export class Browsers {
 
 	constructor(options: BrowsersOptions) {
 		this.#o = options;
+		options.network.tell((name, online) => this.#line(name, online));
+	}
+
+	/** A tab lost the network or got it back: its document hears it, as a task of its own
+	 *  (`offline` or `online` on its window; `navigator.onLine` reads the network: `#arrive`). */
+	#line(name: string, online: boolean): void {
+		const tab = this.visitors.flatMap((v) => v.tabs).find((t) => t.name === name);
+		if (tab === undefined) return;
+		const window = tab.page.mainFrame.window as unknown as Window & { Event: typeof Event };
+		const type = online ? 'online' : 'offline';
+		this.#o.loop.add(tab.realm, type, 0, () => window.dispatchEvent(new window.Event(type)));
 	}
 
 	/** A new visitor: their own browser, cookies and storage. */
@@ -270,6 +281,12 @@ export class Browsers {
 			});
 		}
 		install_timeline(window);
+		// (the tab's network, as a browser's `navigator.onLine` reads its own: test/online.node.test.ts)
+		const network = this.#o.network;
+		Object.defineProperty(window.navigator, 'onLine', {
+			get: () => network.online(tab.name),
+			configurable: true
+		});
 		tab.platform = p;
 		this.#windows.set(window, tab);
 		this.#count_held(window, tab);
