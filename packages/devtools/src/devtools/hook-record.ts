@@ -1,3 +1,4 @@
+import { OG_FP } from '@ogygia/core/internal/instruments';
 import type { RuntimeHookName, RuntimeHooks } from '@ogygia/core/plugin/client';
 import type { HookEntry } from '@ogygia/insights';
 import type { HookRecord, RealmFacts } from './hook-record-type.ts';
@@ -17,7 +18,7 @@ export function record_hook<K extends RuntimeHookName>(
 ): void {
 	// @why the record outlives the regions an in-app navigation removes: it holds them weakly and keeps no server markup (test: devtools-hook-record › holds a region only weakly)
 	const { el, ssrHtml: _markup, ...rest } = payload as { el?: Element; ssrHtml?: unknown };
-	const fp = el?.getAttribute('data-og-fp');
+	const fp = el?.getAttribute(OG_FP);
 	const entry = el?.getAttribute('entry');
 	const endpoint = el?.getAttribute('endpoint');
 	const e = {
