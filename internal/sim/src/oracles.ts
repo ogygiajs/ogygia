@@ -147,30 +147,8 @@ export const KNOWN: ReadonlyArray<{
 			for (const i of baked_sheet_lines(s).reverse()) out.splice(i, 1);
 			return out.join('\n');
 		}
-	},
-	{
-		issue: 1067,
-		what: "a kept island keeps the last page's data-og-fp after a client navigation",
-		// (a kept region's opening line, its fingerprint set aside: palaestra /props-tail, /formkeep)
-		applies: (shown, fresh) => kept_fps(shown).join('\n') !== kept_fps(fresh).join('\n'),
-		forgive: (s) =>
-			s
-				.split('\n')
-				.map((l) => (KEPT_REGION.test(l) ? l.replace(/ data-og-fp="[^"]*"/, '') : l))
-				.join('\n')
 	}
 ];
-
-/** The opening line of a region the router keeps across navigations (`keep`). */
-const KEPT_REGION = /^ *<ogygia-region [^>]*data-ogygia-keep=/;
-
-/** Each kept region's `data-og-fp`. */
-function kept_fps(s: string): string[] {
-	return s
-		.split('\n')
-		.filter((l) => KEPT_REGION.test(l))
-		.map((l) => / data-og-fp="([^"]*)"/.exec(l)?.[1] ?? '');
-}
 
 /** The lines (by number) of region sheet links right inside a baked held region. */
 function baked_sheet_lines(s: string): number[] {

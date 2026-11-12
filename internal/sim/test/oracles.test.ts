@@ -205,20 +205,6 @@ describe('known', () => {
 		expect(k.applies(fresh, fresh)).toBe(false);
 		expect(k.forgive(shown, fresh)).toBe(fresh);
 	});
-
-	it("#1067's kept island with the last page's fingerprint (palaestra /props-tail, /formkeep)", () => {
-		const k = KNOWN.find((x) => x.issue === 1067)!;
-		const page = (fp: string, kept = ' data-ogygia-keep="player"') =>
-			`title: ${''}
-<html>
-  <body>
-    <ogygia-region data-hydrated="" data-og-fp="${fp}"${kept} wake="load">
-      <div class="island">`;
-		expect(k.applies(page('aaa'), page('bbb'))).toBe(true);
-		expect(k.forgive(page('aaa'), page('bbb'))).toBe(k.forgive(page('bbb'), page('aaa')));
-		// (only a kept region's: another region's fingerprint is still a finding)
-		expect(excused(page('aaa', ''), page('bbb', ''))).toEqual([]);
-	});
 });
 
 describe('every region shows something', () => {
