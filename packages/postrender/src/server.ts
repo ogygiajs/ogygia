@@ -171,6 +171,29 @@ function runtime_of(ctx: Ctx): Runtime {
  *  requests (RFC 9110), which is what makes a CDN or browser revalidation of a stored page cost
  *  zero body bytes. Validators live on the ENTRY, never in edge adapters: they are the render's
  *  identity, not a CDN dialect. */
+/** One entity tag of an If-None-Match list (`[W/]"opaque"`), and the comma or end after it. */
+const ENTITY_TAG_RE = /\s*(?:W\/)?"([^"]*)"\s*(?:,|$)/y;
+
+/**
+ * Does an If-None-Match value match the stored `etag`? RFC 9110 §13.1.2: `*` matches any stored
+ * page, and each listed tag is compared WEAKLY (`W/"x"` matches `"x"`: a compressing CDN weakens the
+ * etag the browser then revalidates with). A list that does not read as entity tags matches nothing
+ * (test/property-conditional.test.ts).
+ */
+function none_match(inm: string, etag: string): boolean {
+	if (inm.trim() === '*') return true;
+	const want = etag.startsWith('W/') ? etag.slice(2) : etag;
+	ENTITY_TAG_RE.lastIndex = 0;
+	for (;;) {
+		while (inm[ENTITY_TAG_RE.lastIndex] === ',' || inm[ENTITY_TAG_RE.lastIndex] === ' ')
+			ENTITY_TAG_RE.lastIndex++;
+		if (ENTITY_TAG_RE.lastIndex >= inm.length) return false;
+		const m = ENTITY_TAG_RE.exec(inm);
+		if (!m) return false;
+		if (`"${m[1]}"` === want) return true;
+	}
+}
+
 export function postrender_response(
 	entry: PostrenderEntry,
 	via: 'hit' | 'join' | 'stored',
@@ -187,7 +210,7 @@ export function postrender_response(
 		const inm = request.headers.get('if-none-match');
 		const ims = request.headers.get('if-modified-since');
 		const last_modified = entry.headers['last-modified'];
-		const etag_match = !!etag && !!inm && inm.split(',').some((t) => t.trim() === etag);
+		const etag_match = !!etag && !!inm && none_match(inm, etag);
 		// If-None-Match wins when present (RFC 9110 §13.1.3); IMS compares against store time.
 		const ims_match =
 			!inm && !!ims && !!last_modified && Date.parse(ims) >= Date.parse(last_modified);
