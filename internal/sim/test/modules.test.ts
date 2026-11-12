@@ -4,6 +4,7 @@
 import { describe, expect, it } from 'vitest';
 import { Browser } from 'happy-dom';
 import { use_v8_modules } from '../src/modules.ts';
+import { modules_in_order } from '../src/happy.ts';
 
 const FILES: Record<string, string> = {
 	'/a.js': 'export let n = 0; export function bump() { n++; }',
@@ -14,6 +15,7 @@ const FILES: Record<string, string> = {
 		'export const nullish = globalThis.nope ?? import.meta.url;\n' +
 		'export const returned = where();',
 	'/shared.js': "import './slow.js'; export const shared = 'ran';",
+	'/first.js': "import './slow.js'; (globalThis.order ??= []).push('first');",
 	'/slow.js': 'export const slow = 1;'
 };
 
@@ -70,5 +72,15 @@ describe('modules of a simulated tab', () => {
 			"<script type=\"module\">import './shared.js'; import './gone.js';</script>" +
 			'<script type="module">import { shared } from \'./shared.js\'; document.body.textContent = shared;</script>';
 		expect(await run(true, page)).toBe('ran');
+	});
+
+	// /island-foreign-edit: an inline module ran before the runtime's module above it, so the
+	// foreign tool edited the islands before the runtime kept their server markup
+	it("the document's module scripts run in its order, an inline one after a slower one above it", async () => {
+		modules_in_order();
+		const page =
+			'<script type="module" src="/first.js"></script>' +
+			"<script type=\"module\">(globalThis.order ??= []).push('inline'); document.body.textContent = globalThis.order.join(' ');</script>";
+		expect(await run(true, page)).toBe('first inline');
 	});
 });

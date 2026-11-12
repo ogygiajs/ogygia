@@ -4,7 +4,7 @@
  * `widget()`. The peer is request-agnostic: per-request facts (claims, traceparent) are call
  * arguments, so one instance is shared across requests.
  */
-import { clock, flights, net, STALE, timers, world, type Flights } from '@ogygia/machine';
+import { buggify, clock, flights, net, STALE, timers, world, type Flights } from '@ogygia/machine';
 import { error, isHttpError as is_http_error } from '@ogygia/router';
 import type { RegionValue } from '@ogygia/core';
 import { htmlRegion as og_html_region } from '@ogygia/core/plugin';
@@ -22,6 +22,11 @@ import {
 } from './wire.ts';
 import { mint_hole } from './hole.ts';
 import type { Peer, PeerConfig, RemoteDials } from './types.ts';
+
+declare const __OGYGIA_RULES__: boolean | undefined;
+/** Dev and rules builds (a buggify point); folded out of any other. */
+const RULES =
+	import.meta.env?.DEV || (typeof __OGYGIA_RULES__ !== 'undefined' ? __OGYGIA_RULES__ : false);
 
 const HOST_UNSAFE_G = /[^a-zA-Z0-9_-]/g;
 
@@ -139,7 +144,12 @@ export class PeerHandle implements Peer {
 		for (;;) {
 			const seen = docs.peek(key);
 			// wall: a flights entry's `at` is a wall timestamp
-			if (seen?.kind === 'kept' && clock.wall() - seen.at >= this.#ttl) {
+			if (
+				seen?.kind === 'kept' &&
+				(clock.wall() - seen.at >= this.#ttl ||
+					// (buggify: its ttl just ran out, so it is served stale while a fresh flight runs)
+					(RULES && buggify.fires('federation.doc-stale')))
+			) {
 				// stale: served as it is while one fresh flight refreshes it (an error answer, or a
 				// failure, leaves the good copy kept, and the next stale read tries again)
 				if (!seen.flying) docs.get(read, { fresh: true }).then(undefined, noop); // ok: the good copy stays served and the next stale read tries again; a read with no copy throws the failure
