@@ -15,7 +15,9 @@ import {
 	live_events,
 	mpa_equivalent,
 	normalize,
+	live_regions_out,
 	page_errors,
+	reshaped_live,
 	page_rules,
 	regions_show,
 	styled_regions
@@ -25,6 +27,40 @@ const OUTPUT = fileURLToPath(
 	new URL('../../../apps/palaestra/.svelte-kit/output', import.meta.url)
 );
 const built = existsSync(OUTPUT + '/server/index.js');
+
+describe('a live region whose tick changes its shape', () => {
+	// (gen 194: a switching live region cycles its own region, another interactive one and a static
+	// one; each side, looked at again 4 s later, had moved on to another shape, and nothing was
+	// masked: seeds 25, 26, 42, 43, 45, 64)
+	const page = (inside: string[], live = 'true') =>
+		[
+			'<body>',
+			'  <ogygia-region wake="load">',
+			`    <ogygia-region live="${live}" endpoint="/__ogygia__?props=x">`,
+			...inside.map((l) => `      ${l}`),
+			'  <p>',
+			'    "after"'
+		].join('\n');
+	const other = ['<div data-gen="live-other">', '  <span>', '    "n1 tick 211"', '  <button>'];
+	const still = ['<div data-gen="live-static">', '  <span>', '    "n1 tick 212"'];
+	const own = ['<div data-gen="live">', '  <span>', '    "n1 tick 41"', '  <i>'];
+
+	it('is set aside whole on both sides when either side moved to another shape', () => {
+		const moving = new Set([
+			...reshaped_live(page(other), page(still)),
+			...reshaped_live(page(own), page(own))
+		]);
+		expect([...moving]).toEqual([0]);
+		expect(live_regions_out(page(other), moving)).toBe(live_regions_out(page(own), moving));
+		expect(live_regions_out(page(other), moving)).toContain('"after"');
+	});
+
+	it('is compared as it is when neither side moved to another shape', () => {
+		expect(reshaped_live(page(other), page(other)).size).toBe(0);
+		// (a region that is not live never moves by itself)
+		expect(reshaped_live(page(other, 'false'), page(still, 'false')).size).toBe(0);
+	});
+});
 
 describe('normalize', () => {
 	it('drops scripts, comments, nonces and blank text; keeps attributes and text', async () => {
