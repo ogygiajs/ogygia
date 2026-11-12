@@ -235,6 +235,10 @@ export interface OgygiaDriver {
 	 *  out, and a method, so its parameters compare both ways), so `page.evaluate` of any driver fits
 	 *  without a cast */
 	evaluate(fn: (arg: unknown) => unknown, arg?: unknown): Promise<unknown>;
+	/** run `source` in every page before the page's own scripts (Playwright's `addInitScript`,
+	 *  Puppeteer's `evaluateOnNewDocument`): ogygia hands it the testing engine once, as the `Ogygia`
+	 *  is made, so make it before the first page load. Without it, the page must load the engine itself */
+	addInitScript?(source: string): Promise<unknown>;
 	/** GET a URL relative to the app (for `profile()`); default: `fetch` inside the page */
 	get?(url: string, headers: Record<string, string>): Promise<{ status: number; body: string }>;
 	/** POST to a URL relative to the app (the server window of `record(…, { server: true })`);
@@ -291,10 +295,16 @@ export class Ogygia {
 	#options: OgygiaOptions;
 	// the page's engine version, from the last call (an older site's engine answers less)
 	#engine: OgygiaEngine = { version: TESTING_ENGINE_VERSION };
+	// the engine handed to the driver's init scripts as the Ogygia is made, before a page loads
+	#injected: Promise<unknown>;
 
 	constructor(driver: OgygiaDriver, options: OgygiaOptions = {}) {
 		this.#driver = driver;
 		this.#options = options;
+		this.#injected = driver.addInitScript
+			? driver.addInitScript(engine_script())
+			: Promise.resolve();
+		this.#injected.catch(() => {}); // ok: its failure is the first call's error (#call awaits it)
 	}
 
 	async page(): Promise<OgygiaPageReport> {
@@ -536,6 +546,7 @@ export class Ogygia {
 	}
 
 	async #call<T>(name: string, ...args: unknown[]): Promise<T> {
+		await this.#injected;
 		const until = Date.now() + (this.#options.timeout ?? 15_000);
 		while (
 			!(await this.#in_page(() => {
@@ -629,6 +640,7 @@ export function playwrightDriver(
 ): OgygiaDriver {
 	return {
 		evaluate: (fn, arg) => page.evaluate(fn, arg),
+		addInitScript: (content) => page.addInitScript({ content }),
 		wait: (ms) => page.waitForTimeout(ms),
 		async blockNavigation() {
 			const held: HeldNavigation[] = [];
@@ -741,8 +753,14 @@ export function withOgygia<
 		ogygiaOptions: [{}, { option: true }],
 		ogygia: async ({ page, baseURL, ogygiaOptions }, use, testInfo) => {
 			await turnOnDevtools(page, baseURL, { lean: ogygiaOptions.lean });
-			await page.addInitScript({ content: engine_script() });
-			const o = new Ogygia(playwrightDriver(page, { baseURL }), ogygiaOptions);
+			const driver = playwrightDriver(page, { baseURL });
+			// (the engine goes in before the test's first load: awaited here, so no goto can pass it)
+			let injecting: Promise<unknown> = Promise.resolve();
+			const o = new Ogygia(
+				{ ...driver, addInitScript: (s) => (injecting = driver.addInitScript!(s)) },
+				ogygiaOptions
+			);
+			await injecting;
 			await use(o);
 			if (ogygiaOptions.attach !== false && o.reports.length)
 				await testInfo.attach('ogygia.json', {

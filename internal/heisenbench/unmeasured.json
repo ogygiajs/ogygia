@@ -2353,10 +2353,6 @@
 			"reason": "the injected engine only (a page in a test): hands the call to settled, whose work it is"
 		},
 		{
-			"id": "packages/devtools/src/client.ts > plugin > boot > record_realm:0~ef831d > lend",
-			"reason": "a dynamic import of the realm's loan chunk, asked once per page by a reader not built with the app; the import is the bundler's"
-		},
-		{
 			"id": "packages/devtools/src/devtools/regions.ts > use_sidecar_lookup",
 			"reason": "keeps the realm's lookup (a function: not cloneable), once per page, constant work"
 		},
@@ -3041,6 +3037,18 @@
 			"reason": "browser only: the injected engine's DOMContentLoaded listener, once per document, constant work of its own; proven by packages/testing/e2e/ogygia-testing.spec.ts"
 		},
 		{
+			"id": "packages/testing/src/index.ts > Ogygia > constructor > catch:0~a1b2d0",
+			"reason": "a no-op for an injection that failed (its error is the first call's, which awaits it), constant work"
+		},
+		{
+			"id": "packages/testing/src/index.ts > playwrightDriver > addInitScript",
+			"reason": "hands one script to Playwright's page.addInitScript (a live Page: not recorded), once per test; proven by packages/testing/e2e/ogygia-testing.spec.ts"
+		},
+		{
+			"id": "packages/testing/src/index.ts > withOgygia > extend:0~40fb42 > ogygia > Ogygia:0~36a362 > addInitScript",
+			"reason": "keeps the driver's injection to await before the test's first load (a live Page: not recorded), once per test; proven by packages/testing/e2e/ogygia-testing.spec.ts"
+		},
+		{
 			"id": "packages/devtools/src/messages/runtime.ts > DEVTOOLS_WARNINGS > devtools_page_beacon_load_failed > text",
 			"reason": "a message table entry: wording only"
 		},
@@ -3063,6 +3071,10 @@
 		{
 			"id": "packages/devtools/src/page-beacon-start.ts > start_page_beacon > then:1~491fd5",
 			"reason": "browser only: a failed chunk download, said once per page (a module flag), constant work"
+		},
+		{
+			"id": "packages/devtools/src/client.ts > plugin > boot > record_realm:0~ef831d > lend",
+			"reason": "a dynamic import of the realm's loan chunk, asked once per page by a reader not built with the app; the import is the bundler's"
 		},
 		{
 			"id": "packages/devtools/src/client-beacon.ts > plugin > boot",

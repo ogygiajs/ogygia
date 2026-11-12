@@ -198,14 +198,20 @@ import { expect } from 'vitest';
 import { Ogygia, ogygiaMatchers } from '@ogygia/testing';
 
 expect.extend(ogygiaMatchers);
-const ogygia = new Ogygia({ evaluate: (fn, arg) => page.evaluate(fn, arg) });
+const ogygia = new Ogygia({
+	evaluate: (fn, arg) => page.evaluate(fn, arg),
+	addInitScript: (source) => page.evaluateOnNewDocument(source)
+});
 ```
+
+Make the `Ogygia` before the page's first load: it hands the testing engine to `addInitScript` right away, so the engine is in every page the driver loads after that.
 
 The driver is an `OgygiaDriver`, and only `evaluate` is required. The other members let a driver do what the defaults cannot:
 
 | Member                       | What it does                                                                                                                                                                           | Without it                                    |
 | ---------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------- |
 | `evaluate(fn, arg)`          | Runs `fn(arg)` in the page and returns its JSON result.                                                                                                                                | required                                      |
+| `addInitScript(source)`      | Runs `source` in every page before the page's own scripts (Puppeteer's `evaluateOnNewDocument`). ogygia passes it the testing engine once, when the `Ogygia` is made.                  | the page must load the engine itself          |
 | `get(url, headers)`          | Makes a GET request relative to the app, for `profile()`. Returns `{ status, body }`.                                                                                                  | `fetch` inside the page                       |
 | `post(url, headers)`         | Makes a POST request relative to the app, for the server window of `record(…, { server: true })`.                                                                                      | `fetch` inside the page                       |
 | `wait(ms)`                   | Waits.                                                                                                                                                                                 | a timer                                       |
