@@ -25,6 +25,15 @@ describe('the workload', () => {
 		);
 	});
 
+	it('points at a link or a region without clicking (a router prefetch, an island warmed on intent)', () => {
+		const r = rng(13);
+		let hovers = 0;
+		for (let i = 0; i < 2000; i++) if (next_action(r, 1, ['/']).kind === 'hover') hovers++;
+		expect(hovers).toBeGreaterThan(0);
+		expect(ACTION_KINDS).toContain('hover');
+		expect(say({ kind: 'hover', tab: 0, nth: 4 })).toBe('tab 0: point at link or region #4');
+	});
+
 	it('clicks a second link before the first navigation lands (a navigation called off midway)', () => {
 		const r = rng(11);
 		const hurried: Action[] = [];
