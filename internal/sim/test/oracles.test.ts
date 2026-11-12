@@ -55,6 +55,31 @@ describe('a live region whose tick changes its shape', () => {
 		expect(live_regions_out(page(other), moving)).toContain('"after"');
 	});
 
+	it('inside a live held region, sets aside the outer one whole and nothing after it (gen 235, seed 15)', () => {
+		const held = (inside: string[]) =>
+			[
+				'<body>',
+				'  <ogygia-region wake="load">',
+				'    <ogygia-region live="true" endpoint="/__ogygia__?props=held">',
+				'      <div data-gen="held">',
+				'        <ogygia-region live="true" endpoint="/__ogygia__?props=x">',
+				...inside.map((l) => `          ${l}`),
+				'        <div data-gen="island">',
+				'  <div data-gen="island">',
+				'    <span>',
+				'      "n10"'
+			].join('\n');
+		const moving = new Set([...reshaped_live(held(other), held(still))]);
+		expect([...moving].sort()).toEqual([0, 1]);
+		const out = live_regions_out(held(other), moving);
+		expect(out).toBe(live_regions_out(held(still), moving));
+		expect(out.split('\n').slice(-3)).toEqual([
+			'  <div data-gen="island">',
+			'    <span>',
+			'      "n10"'
+		]);
+	});
+
 	it('is compared as it is when neither side moved to another shape', () => {
 		expect(reshaped_live(page(other), page(other)).size).toBe(0);
 		// (a region that is not live never moves by itself)
