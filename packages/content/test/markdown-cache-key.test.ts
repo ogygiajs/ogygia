@@ -7,7 +7,7 @@ import { afterAll, describe, expect, it } from 'vitest';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { __set_build_cache_root } from '@ogygia/core/internal/compiler';
+import { __set_build_cache_root } from '@ogygia/compiler';
 import { ogygiaPreprocess } from '../src/markdown/index.ts';
 
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'og-md-cache-key-'));
