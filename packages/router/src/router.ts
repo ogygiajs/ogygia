@@ -446,8 +446,6 @@ export function routes<const T extends KeyedTable<T>>(
 		return res;
 	}
 
-	// A thrown redirect/error/fail from a load, action, or handler. redirect → 303/…; error →
-	// nearest layout boundary component (or root `opts.error`), else JSON; anything else re-throws.
 	async function handle_thrown(
 		thrown: unknown,
 		def: PageDef | EndpointDef,
@@ -458,36 +456,27 @@ export function routes<const T extends KeyedTable<T>>(
 		if (!is_http_error(thrown)) throw thrown;
 
 		const { status, message } = thrown;
-		// Endpoints (and pages with no boundary) → JSON error.
 		if ((def as { __ogkind?: string }).__ogkind === 'endpoint')
 			return json_response({ error: message, status }, { status });
 		const pnode = def as PageDef;
 
-		// The failing DEPTH is knowable: loads are memoized on ctx, so re-awaiting settles
-		// instantly for anything that already ran (and runs the rest — an action's throw still
-		// wants live chrome, exactly like Kit rendering +error under working layouts). The
-		// shallowest REJECTED load names the failing layer; everything above it has real data.
+		// @why an error page renders only inside layouts whose loads ended well; the memoized loads, awaited again, name the one that failed (test: packages/router/test/router-dispatch.test.ts › a layout load’s error skips that layout’s own error page: the one above renders, without the failed layout)
 		const load_defs: (LoadDef | undefined)[] = [
 			root_load,
 			...pnode.layouts.map((l) => l.load),
 			pnode.load
 		];
-		// async-wrapped: a load that throws SYNCHRONOUSLY (plain `error(404)` body) must become a
-		// rejection here, not escape the map — allSettled can only see promises that exist
 		const settled = await Promise.allSettled(
 			load_defs.map(async (l) => (l ? await l(ctx) : undefined))
 		);
-		let failing = settled.length; // nothing rejected → the throw came from an action/handler
+		let failing = settled.length;
 		for (let i = 0; i < settled.length; i++) {
 			if (settled[i].status === 'rejected') {
 				failing = i;
 				break;
 			}
 		}
-		// layouts whose loads SUCCEEDED (index 0 = the table-wide load, i+1 = layouts[i]):
-		// the failing layout's own chrome cannot render — it has no data
 		const renderable = failing === 0 ? 0 : Math.min(failing - 1, pnode.layouts.length);
-		// merged data of every fulfilled load — the surviving chrome (and the boundary) read it
 		const data: Record<string, unknown> = {};
 		for (const s of settled) {
 			if (
@@ -499,9 +488,6 @@ export function routes<const T extends KeyedTable<T>>(
 				Object.assign(data, s.value);
 		}
 
-		// Nearest boundary whose OWN layout still has data — its error page renders INSIDE that
-		// layout's chrome (Kit's shape: +error.svelte lives inside its layout). A failure in
-		// layout k can only use a boundary above k; a page-load failure can use the innermost.
 		let boundary = -1;
 		for (let i = renderable - 1; i >= 0; i--) {
 			if (pnode.layouts[i].error) {
@@ -512,7 +498,6 @@ export function routes<const T extends KeyedTable<T>>(
 		const err_component = boundary >= 0 ? pnode.layouts[boundary].error! : opts.error;
 		if (!err_component) return json_response({ error: message, status }, { status });
 
-		// chrome INCLUDES the boundary's own layout — the error page renders inside it
 		const chrome = (boundary >= 0 ? pnode.layouts.slice(0, boundary + 1) : []).map(
 			(l) => l.component
 		);

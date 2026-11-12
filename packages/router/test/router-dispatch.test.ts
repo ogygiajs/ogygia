@@ -269,6 +269,88 @@ describe('href — rename-safe links off the table keys', () => {
 	});
 });
 
+describe('pages — a thrown error finds its boundary', () => {
+	/** /p under two layouts (shell outside inner), each with its own error page and load. */
+	async function branch(over: {
+		inner_load?: () => unknown;
+		page_load?: () => unknown;
+		action?: () => unknown;
+		boundaries?: boolean;
+	}) {
+		const { page, layout } = await import('../src/index.ts');
+		const { default: Shell } = await import('./fixtures/Shell.svelte');
+		const { default: Inner } = await import('./fixtures/Inner.svelte');
+		const { default: Oops } = await import('./fixtures/Oops.svelte');
+		const err = over.boundaries === false ? {} : { error: Oops as never };
+		const shell = layout('shell', Shell as never, { load: () => ({ s: 1 }), ...err });
+		const inner = layout('inner', Inner as never, {
+			load: over.inner_load ?? (() => ({ i: 1 })),
+			...err
+		});
+		return routes(
+			shell(
+				inner({
+					'/p': page(
+						async function* () {
+							yield '<p data-page>page</p>';
+						},
+						{
+							load: over.page_load ?? (() => ({ p: 1 })),
+							...(over.action ? { actions: { default: over.action } } : {})
+						}
+					)
+				})
+			)
+		);
+	}
+	const get = (path: string) => req(path, { headers: { accept: 'text/html' } });
+	/** The markup without Svelte's hydration markers. */
+	const bare = (html: string) => html.replace(/<!--[\s\S]*?-->/g, '');
+
+	it('a page load’s error renders the innermost error page inside every layout, with their data', async () => {
+		const app = await branch({ page_load: async () => error(404, 'gone') });
+		const res = (await app.fetch(get('/p')))!;
+		const html = await res.text();
+		expect(res.status).toBe(404);
+		expect(bare(html)).toMatch(/<div data-shell[^>]*><section data-inner[^>]*><p data-oops/);
+		expect(html).toContain('404 gone {"s":1,"i":1}');
+	});
+
+	it('a layout load’s error skips that layout’s own error page: the one above renders, without the failed layout', async () => {
+		const app = await branch({ inner_load: async () => error(500, 'down') });
+		const res = (await app.fetch(get('/p')))!;
+		const html = await res.text();
+		expect(res.status).toBe(500);
+		expect(bare(html)).toMatch(/<div data-shell[^>]*><p data-oops/);
+		expect(html).not.toContain('data-inner');
+		// (every load that ended well gives its data, the page's too)
+		expect(html).toContain('500 down {"s":1,"p":1}');
+	});
+
+	it('a layout load that throws synchronously is found as the failed layer too', async () => {
+		const app = await branch({ inner_load: () => error(500, 'sync') });
+		const html = await (await app.fetch(get('/p')))!.text();
+		expect(html).not.toContain('data-inner');
+		expect(html).toContain('500 sync');
+	});
+
+	it('an action’s error renders the innermost error page, every layout’s load having run', async () => {
+		const app = await branch({ action: () => error(400, 'bad') });
+		const res = (await app.fetch(req('/p', { method: 'POST', body: new FormData() })))!;
+		const html = await res.text();
+		expect(res.status).toBe(400);
+		expect(bare(html)).toMatch(/<div data-shell[^>]*><section data-inner[^>]*><p data-oops/);
+		expect(html).toContain('400 bad');
+	});
+
+	it('with no error page anywhere, a page’s error answers JSON', async () => {
+		const app = await branch({ page_load: async () => error(404, 'gone'), boundaries: false });
+		const res = (await app.fetch(get('/p')))!;
+		expect(res.status).toBe(404);
+		expect(await res.json()).toEqual({ error: 'gone', status: 404 });
+	});
+});
+
 describe('layout names — one name, one layout, across the table', () => {
 	const A = (() => null) as never;
 	const B = (() => null) as never;
