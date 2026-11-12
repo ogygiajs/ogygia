@@ -50,6 +50,20 @@ describe('normalize', () => {
 		};
 		expect(page('<meta name="ogygia-stored" content="hit">')).toBe(page(''));
 	});
+
+	it("takes the region sheets answers lifted into the head in any order, and the page's own in theirs (gen 143, seed 143019)", async () => {
+		const { Window } = await import('happy-dom');
+		const page = (...hrefs: string[]) => {
+			const w = new Window();
+			w.document.write(
+				`<html><head>${hrefs.map((h) => (h.startsWith('og:') ? `<link rel="stylesheet" data-ogygia-region-css="" href="/${h.slice(3)}">` : `<link rel="stylesheet" href="/${h}">`)).join('')}</head><body></body></html>`
+			);
+			return normalize(w.document as unknown as Document);
+		};
+		// (each answer's sheets go in as it lands: which hole answered first is the network's)
+		expect(page('a.css', 'og:x.css', 'og:y.css')).toBe(page('a.css', 'og:y.css', 'og:x.css'));
+		expect(page('a.css', 'b.css')).not.toBe(page('b.css', 'a.css'));
+	});
 });
 
 describe('hydrates as sent', () => {
