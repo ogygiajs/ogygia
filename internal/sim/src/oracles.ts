@@ -637,7 +637,7 @@ const KNOWN_EMPTY: ReadonlyArray<{ issue: number; what: string; is: (r: Element)
  * Read from the page's machine moves (`__ogygia_moves()`, rules on): each machine's last move is
  * its state now (the trace lets the oldest lines go first, so a machine it still lists is current).
  */
-export function stuck(tab: Tab): Broken | null {
+export function stuck(tab: Tab, world?: World): Broken | null {
 	const w = tab.page.mainFrame.window as unknown as { __ogygia_moves?: () => string };
 	const last = new Map<string, string>();
 	for (const line of (w.__ogygia_moves?.() ?? '').split('\n')) {
@@ -647,6 +647,22 @@ export function stuck(tab: Tab): Broken | null {
 	const held = [...last].filter(([, state]) => state.endsWith('ing'));
 	if (held.length === 0) return null;
 	const detail = `${tab.page.mainFrame.url}: at rest, still ${held.map(([id, s]) => `${id} ${s}`).join(', ')}`;
+	// #942: a live region whose island file can no longer load starts over on every tick, and is
+	// met mid-start (a file of the document's was cut or dropped)
+	if (
+		world !== undefined &&
+		held.every(([id, s]) => id.startsWith('live-region#') && s === 'hydrating') &&
+		world.network.exchanges.some(
+			(e) =>
+				e.from === tab.realm &&
+				new URL(e.url).pathname.startsWith('/_app/immutable/') &&
+				(e.cut || e.lost === true || e.status === 'dropped' || e.status === 'offline')
+		)
+	)
+		return {
+			oracle: 'known',
+			detail: `${detail}: #942 (a live region retries a file it can no longer load on every tick)`
+		};
 	return { oracle: 'stuck', detail };
 }
 
