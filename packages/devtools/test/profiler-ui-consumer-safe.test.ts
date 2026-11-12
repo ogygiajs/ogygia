@@ -70,14 +70,16 @@ describe('shipped .svelte is consumer-compilable (no TS in template markup)', ()
 	}
 
 	// A `<style>…</style>` literal anywhere in a <script> block gets regex-scanned as a real style
-	// element by some preprocess pipelines, which then feed its (non-CSS) contents to postcss. Keep the
-	// substring out of scripts entirely (Shell.svelte builds the tag from a variable).
+	// element by some preprocess pipelines, which then feed its (non-CSS) contents to postcss, and the
+	// type build (svelte2tsx) reports the script left open. Comments included, `lang` forms too.
 	for (const abs of files) {
 		const f = name_of(abs);
 		it(`${f} has no <style> literal inside a <script> block`, () => {
 			const scripts = readFileSync(abs, 'utf8').match(/<script\b[^>]*>[\s\S]*?<\/script>/g) ?? [];
 			for (const block of scripts) {
-				expect(block, `${f} script block contains a literal <style> tag`).not.toMatch(/<\/?style>/);
+				expect(block, `${f} script block contains a literal <style> tag`).not.toMatch(
+					/<\/?style\b/
+				);
 			}
 		});
 	}

@@ -1,24 +1,20 @@
+<!--
+@component
+One whole doc page, a pure function of a `PageView`: crumbs, section eyebrow, title, the body region
+(islands inside hydrate normally), suggested reading, pager, and the on-page outline. Every piece is
+removable by prop; the first page is `<Doc view={await docs.page(slug)} />`. The document title is
+"Page — Site" when the shell names a site, else the page alone.
+-->
 <script lang="ts">
-	/**
-	 * One whole doc page — a pure function of a `PageView`: crumbs, section eyebrow, title, the body
-	 * region (islands inside hydrate normally), suggested reading, pager, and the on-page toc. Every
-	 * piece removable by prop; the day-1 page is literally `<Doc view={await docs.page(slug)} />`.
-	 */
 	import { Region } from '@ogygia/core';
 	import Pager from './Pager.svelte';
-	// An island (`wake: 'load'`) so its scrollspy hydrates per page and RE-hydrates after every SPA
-	// navigation — the fix for "no active outline until reload". Only `headings` (plain data) crosses.
 	import OnThisPage from './OnThisPage.svelte' with { wake: 'load' };
-	// Island so the copy buttons re-attach after every SPA navigation (the observer version died with
-	// the old `.og-body`). No props cross the boundary.
 	import CodeChrome from './CodeChrome.svelte' with { wake: 'load' };
 	import { get_shell_context } from '../context.ts';
 	import type { PageView, NavRef } from '../types.ts';
 
 	let {
 		view,
-		// Off by default: the section eyebrow ("GUIDES") already names the category, so a "Guides / Intro"
-		// trail on top of it just repeats it. Opt in with `crumbs` for deep trees that need the path.
 		crumbs = false,
 		toc = true,
 		pager = true,
@@ -28,6 +24,8 @@
 		footer
 	}: {
 		view: PageView;
+		/** The breadcrumb trail. Off by default: the section eyebrow already names the section; turn it
+		 *  on for deep trees that need the path. */
 		crumbs?: boolean;
 		toc?: boolean;
 		pager?: boolean;
@@ -42,13 +40,10 @@
 		footer?: import('svelte').Snippet;
 	} = $props();
 
-	// The user's schema owns `data`; the default chrome reads the two conventional display fields.
 	const data = $derived(view.entry.data as { title?: string; summary?: string });
 	const title = $derived(data.title ?? view.slug);
 	const reading = $derived(keepReading ?? view.trail.suggested);
 
-	// Per-page document metadata. `<title>` is "Page — Site" when the shell names a site, else just the
-	// page. Removable by not rendering <Doc>, but every doc should carry a title, so it's on by default.
 	const shell = get_shell_context();
 	const doc_title = $derived(shell?.title ? `${title} — ${shell.title}` : title);
 </script>

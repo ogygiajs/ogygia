@@ -1,11 +1,3 @@
-/**
- * Server side of streaming `$page.data` promises into islands (see `../page-defer.ts` for the why).
- *
- * `stage_deferred` walks the captured page `data`/`form`, swaps every promise for a serializable
- * DEFER MARKER, and hands back the promise-free clone plus the promises to await. The clone goes into
- * the page seed (each marker becomes a real pending Promise on the client); as each promise settles we
- * stream a `<script>__ogygia_page_resolve(id, ok, encoded)</script>` chunk that resolves it live.
- */
 import { stringify } from 'devalue';
 import type { Scope } from '@ogygia/machine';
 import { PAGE_DEFER_GLOBAL, PAGE_DEFER_KEY, PAGE_SETTLED_KEY } from '../page-defer.ts';
@@ -40,12 +32,13 @@ export class SettledRef {
 	}
 }
 
-// devalue reducers for the page seed. A DeferRef serializes to `[id]` and a SettledRef to `[ok, value]`
-// (arrays — NEVER a bare id, which for id 0 is falsy and devalue would read as "not handled", silently
-// dropping the marker). `value` is walked recursively by devalue so nested Date/Map survive.
+/** The devalue reducer for a streamed value: a {@link DeferRef} encodes to `[id]`, an array, never
+ *  a bare id (devalue reads a falsy `0` as "not handled" and drops the marker). */
 export const defer_reducer: Record<string, (v: unknown) => unknown> = {
 	[PAGE_DEFER_KEY]: (v: unknown) => (v instanceof DeferRef ? [v.id] : undefined)
 };
+/** The page seed's devalue reducers: {@link defer_reducer}'s `[id]`, and a {@link SettledRef} as
+ *  `[ok, value]`, whose `value` devalue walks too (a nested `Date` or `Map` survives). */
 export const page_seed_reducers: Record<string, (v: unknown) => unknown> = {
 	[PAGE_DEFER_KEY]: (v: unknown) => (v instanceof DeferRef ? [v.id] : undefined),
 	[PAGE_SETTLED_KEY]: (v: unknown) => (v instanceof SettledRef ? [v.ok, v.value] : undefined)
@@ -53,24 +46,11 @@ export const page_seed_reducers: Record<string, (v: unknown) => unknown> = {
 
 export type Deferred = { id: number; promise: PromiseLike<unknown> };
 
-/**
- * Clone the plain part of `value` (plain objects and arrays, holes kept), putting `swap(thenable)` in
- * place of every thenable at any depth. Class instances and primitives pass through. An object met
- * again inside its own walk (a cycle) is its clone, so the clone keeps the cycle and every promise is
- * swapped once; an object reached by two separate paths is cloned twice. A promise left in place would
- * go unserialized and unhandled, so there is no depth cap: the seed's `analyze` walk, which decided
- * there is a promise to find, has none either.
- *
- * Most data is shallow and has no cycle, so the first walk tracks nothing and stops at
- * {@link UNTRACKED_DEPTH}; only then is the value walked again with every open object tracked. The
- * first walk swaps nothing until it is done, so a value walked twice swaps each thenable once.
- */
 function swap_thenables(
 	value: unknown,
 	swap: (thenable: PromiseLike<unknown>) => unknown
 ): unknown {
 	if (is_thenable(value)) return swap(value);
-	// (flat triples: a clone, a key in it, the thenable that key holds until it is swapped)
 	const found: unknown[] = [];
 	let clone: unknown;
 	try {
@@ -86,12 +66,9 @@ function swap_thenables(
 	return clone;
 }
 
-/** Depth at which the untracked walk gives up: the value is deep, or it holds a cycle. */
 const UNTRACKED_DEPTH = 64;
 const TOO_DEEP = Symbol('too deep');
 
-/** `swap_thenables`' first walk: clones `v` (never a thenable) and records each thenable's slot in
- *  `found`, in walk order. Throws {@link TOO_DEEP} at {@link UNTRACKED_DEPTH}. */
 function clone_untracked(v: unknown, depth: number, found: unknown[]): unknown {
 	if (Array.isArray(v)) {
 		if (depth === UNTRACKED_DEPTH) throw TOO_DEEP;
@@ -122,9 +99,7 @@ function clone_untracked(v: unknown, depth: number, found: unknown[]): unknown {
 	return v;
 }
 
-/** `swap_thenables` for a deep or cyclic value: every object whose walk is open is tracked. */
 function swap_tracked(value: unknown, swap: (thenable: PromiseLike<unknown>) => unknown): unknown {
-	// (each object whose walk is open, to its clone)
 	const open = new Map<object, unknown>();
 	const walk = (v: unknown): unknown => {
 		if (is_thenable(v)) return swap(v);
@@ -157,6 +132,12 @@ function swap_tracked(value: unknown, swap: (thenable: PromiseLike<unknown>) => 
  * Replace every promise in `value` with a {@link DeferRef}, returning the promise-free clone plus the
  * deferred promises (id + promise to await), in walk order. Ids continue from `start_id` so `data` and
  * `form` share one id space across the whole seed.
+ *
+ * Plain objects and arrays are cloned (holes kept); class instances and primitives pass through. A
+ * promise is found at any depth: one left in place would go unserialized and unhandled, and the
+ * seed's `analyze` walk, which decided there is one to find, has no depth cap either. An object met
+ * again inside its own walk (a cycle) is its clone, so the clone keeps the cycle and every promise
+ * is swapped once.
  */
 export function stage_deferred(
 	value: unknown,
@@ -178,7 +159,8 @@ export function stage_deferred(
  * thrown, so the render can't crash). Nested promises inside a resolved value are settled too. The
  * client revives each SettledRef as a resolved/rejected Promise, so `page.data.x` stays a Promise on
  * this path exactly as on the streaming path, and `{#await …:catch}` works. The clone is built in one
- * walk before anything settles, so its keys keep the data's order.
+ * walk before anything settles, so its keys keep the data's order. Promises are found at any depth,
+ * and a cycle is kept, as by {@link stage_deferred}.
  */
 export async function settle_deferred(value: unknown): Promise<unknown> {
 	const settling: Array<Promise<void>> = [];
@@ -219,7 +201,6 @@ export function resolve_script(
 	try {
 		encoded = stringify(ok ? settled.value : normalize_error(settled.value), reducers);
 	} catch {
-		// Non-serializable resolution — surface a typed error rather than hang the island's `{#await}`.
 		encoded = stringify({ message: 'ogygia: streamed value is not serializable' });
 		ok = false;
 	}
@@ -234,11 +215,8 @@ export function normalize_error(err: unknown): { message: string } {
 	return { message: String(err) };
 }
 
-/** `</body>` as bytes (ASCII: the same in every UTF-8 document). */
 const BODY_CLOSE_BYTES = [60, 47, 98, 111, 100, 121, 62];
 
-/** Does `</body>` end in `chunk` — searched backwards from its end, where it sits — or straddle the
- *  boundary with the previous chunk's last bytes (`carry`, at most 6)? No decode. */
 function has_body_close(carry: Uint8Array, chunk: Uint8Array): boolean {
 	const at_bytes = (buf: Uint8Array, i: number) => {
 		for (let k = 0; k < 7; k++) if (buf[i + k] !== BODY_CLOSE_BYTES[k]) return false;
@@ -247,7 +225,6 @@ function has_body_close(carry: Uint8Array, chunk: Uint8Array): boolean {
 	for (let i = chunk.lastIndexOf(60); i !== -1; i = i === 0 ? -1 : chunk.lastIndexOf(60, i - 1))
 		if (at_bytes(chunk, i)) return true;
 	if (!carry.length) return false;
-	// the seam: the carry, then the chunk's first bytes
 	const seam = new Uint8Array(carry.length + Math.min(6, chunk.length));
 	seam.set(carry);
 	seam.set(chunk.subarray(0, seam.length - carry.length), carry.length);
@@ -258,10 +235,16 @@ function has_body_close(carry: Uint8Array, chunk: Uint8Array): boolean {
 /**
  * Stream the captured `$page.data` promises into islands (csr=false, real browser load). The
  * document — carrying the pending seed + resolve-global bootstrap — is already built by `resolve`;
- * here we (1) forward it, (2) DRAIN Kit's own dead csr=false resolve tail so its
- * `__sveltekit_<hash> is not defined` never reaches the browser, and (3) emit one
- * `<script>__ogygia_page_resolve(id, ok, value)</script>` per promise AS IT SETTLES — completion
- * order, non-blocking. Each island's `{#await page.data.x}` flips pending → resolved live.
+ * here we (1) forward it through `</body>` (found even when split over two chunks), (2) DRAIN Kit's
+ * own dead csr=false resolve tail so its `__sveltekit_<hash> is not defined` never reaches the
+ * browser, and (3) emit one `<script>__ogygia_page_resolve(id, ok, value)</script>` per promise AS
+ * IT SETTLES — completion order, non-blocking. Each island's `{#await page.data.x}` flips pending →
+ * resolved live. A Kit stream that breaks still gets every resolve script.
+ *
+ * A promise that resolves to a value holding promises is re-staged, like Kit's own recursion: its
+ * nested promises stream too, with ids past every id given so far, and the stream closes only once
+ * the whole tree has settled. A value that cannot be staged (a getter that throws) is that
+ * promise's failure. The status and headers are kept, without `content-length`.
  *
  * The stream is the request's (`request`, its owner): the visitor leaving, or the body cancelled,
  * stops Kit's reader and drops what settles after.
@@ -281,12 +264,6 @@ export function stream_page_deferred(
 	owner.defer(() => void reader.cancel().catch(() => {})); // ok: the request ended; a failed cancel of its source has nothing left to stop
 	const stream = new ReadableStream<Uint8Array>({
 		async start(controller) {
-			// 1. Forward Kit's document through `</body></html>` (one enqueue in practice). Kit streams
-			//    its (dead) resolve scripts only AFTER this, as separate chunks. Carry the last six
-			//    decoded characters across reads so a `</body>` split over a chunk boundary is still
-			//    detected — never the whole document (a second 2.6 MB copy, rescanned per chunk).
-			// (searched as BYTES, backwards from the chunk's end, where `</body>` sits: decoding a whole
-			// document just to look at its last bytes was a 2.4 MB string per streamed page)
 			let carry: Uint8Array = new Uint8Array(0);
 			try {
 				for (;;) {
@@ -299,8 +276,6 @@ export function stream_page_deferred(
 			} catch {
 				// ok: Kit's stream broke; the resolution streaming below still runs
 			}
-			// 2. Read + discard Kit's dead resolve tail so it never reaches the client and Kit's own
-			//    stream closes cleanly (best-effort, runs alongside our resolution streaming).
 			void (async () => {
 				try {
 					for (;;) {
@@ -311,12 +286,6 @@ export function stream_page_deferred(
 					// ok: Kit's dead tail is discarded; a read that fails has nothing left to discard
 				}
 			})(); // ok: never rejects, its body is caught
-			// 3. Our resolve script per promise, streamed as each settles; close once all have.
-			//    A promise may RESOLVE to a value that itself holds promises (Kit re-defers those
-			//    recursively). We mirror it: re-stage each settled value, stream the staged value
-			//    (nested markers and all), and stream those nested promises too — ids continue past
-			//    the initial set. `pending` grows as nested promises appear, so the stream stays open
-			//    until the whole tree has settled. `next_id` is the initial contiguous count.
 			let pending = deferred.length;
 			let next_id = initial_next_id;
 			let closed = false;
@@ -331,7 +300,7 @@ export function stream_page_deferred(
 				}
 			};
 			const push = (id: number, ok: boolean, value: unknown) => {
-				if (owner.closed) return; // the visitor left
+				if (owner.closed) return;
 				try {
 					controller.enqueue(
 						encoder.encode(resolve_script(PAGE_DEFER_GLOBAL, id, { ok, value }, reducers))
@@ -340,7 +309,6 @@ export function stream_page_deferred(
 					// ok: the client is gone and the stream closed; nobody reads this script
 				}
 			};
-			// One promise settled, either way: its script is out, and it no longer holds the stream.
 			const settled = (id: number, ok: boolean, value: unknown) => {
 				push(id, ok, value);
 				pending -= 1;
@@ -349,8 +317,6 @@ export function stream_page_deferred(
 			const stream_one = (id: number, promise: PromiseLike<unknown>) => {
 				Promise.resolve(promise).then(
 					(value) => {
-						// a value that cannot be staged (a getter that throws as it is walked) is this
-						// promise's failure, not a stream that never closes (#367)
 						let staged: ReturnType<typeof stage_deferred>;
 						try {
 							staged = stage_deferred(value, next_id);
