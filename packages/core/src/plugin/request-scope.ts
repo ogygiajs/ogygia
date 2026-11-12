@@ -23,7 +23,7 @@
  * One global slot, not module scope: a plugin package and core can end up as two module instances
  * of this file (src beside dist, a dual install), and both must find the same owner.
  */
-import { scope, type Scope } from '@ogygia/machine';
+import { noop, scope, type Scope } from '@ogygia/machine';
 import { current_request } from './facts.ts';
 import { warn } from '../messages/server.ts';
 import { note_response_end } from '../server/rules.ts';
@@ -95,8 +95,6 @@ export function end_request_scope(owner: Scope): void {
 		cleanup_failed(error);
 	}
 }
-
-const noop = (): void => {};
 
 /**
  * Will the platform answer `request` with `response` without reading its body? A HEAD answer sends
