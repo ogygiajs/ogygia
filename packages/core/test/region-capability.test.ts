@@ -18,7 +18,8 @@ vi.mock('ogygia:server/server-manifest', () => ({
 vi.mock('ogygia:server/sign', async () => await import('../src/server/hmac.ts'));
 
 const hmac = await import('../src/server/hmac.ts');
-const { mint_server_region } = await import('../src/server/region-endpoint.ts');
+const { mint_region_capability, mint_server_region } =
+	await import('../src/server/region-endpoint.ts');
 const { signing_key } = await import('../src/server/signing-key.ts');
 const { configure_islands_endpoint } = await import('../src/server/endpoint.ts');
 
@@ -40,7 +41,8 @@ const claim_of = (p: URLSearchParams, session = '') => ({
 	payload: p.get('props') ?? '',
 	session,
 	ttl: p.get('ttl') ?? '',
-	render: p.get('r') ?? ''
+	render: p.get('r') ?? '',
+	wakes: p.get('w') ?? ''
 });
 
 describe('region capability, signed through capability()', () => {
@@ -87,14 +89,73 @@ describe('region capability, signed through capability()', () => {
 	it('URLs signed before v3 (v1, without a render identity) still verify', () => {
 		const { secret } = signing_key();
 		const exp = String(WINDOW_START + 3600);
-		const c = { id: 'abcdef012345', payload: 'W3t9XQ', session: '', ttl: '', render: '' };
+		const c = {
+			id: 'abcdef012345',
+			payload: 'W3t9XQ',
+			session: '',
+			ttl: '',
+			render: '',
+			wakes: ''
+		};
 		const v1 = hmac.sign(secret, hmac.region_mac_message(c.id, exp, c.payload));
 		expect(hmac.region_verify(secret, '/__ogygia__', '', exp, c, v1)).toBe(true);
 	});
 
+	it('a hole that wakes signs it: its w=1 rides the URL, and stripping or adding it breaks the signature', () => {
+		const p = params(mint_region_capability('abcdef012345', 'W3t9XQ', 0, true));
+		expect(p.get('w')).toBe('1');
+		const { secret } = signing_key();
+		const c = claim_of(p);
+		const sig = p.get('sig')!;
+		expect(hmac.region_verify(secret, '/__ogygia__', '3', p.get('exp')!, c, sig)).toBe(true);
+		expect(
+			hmac.region_verify(secret, '/__ogygia__', '3', p.get('exp')!, { ...c, wakes: '' }, sig)
+		).toBe(false);
+		const still = params(mint_region_capability('abcdef012345', 'W3t9XQ', 0, false));
+		const c2 = claim_of(still);
+		expect(
+			hmac.region_verify(
+				secret,
+				'/__ogygia__',
+				'3',
+				still.get('exp')!,
+				{ ...c2, wakes: '1' },
+				still.get('sig')!
+			)
+		).toBe(false);
+	});
+
+	it('a hole that wakes, signed before v3 (its v3| MAC, #906), still verifies', () => {
+		const { secret } = signing_key();
+		const exp = String(WINDOW_START + 3600);
+		const c = {
+			id: 'abcdef012345',
+			payload: 'W3t9XQ',
+			session: '',
+			ttl: '',
+			render: 'r1',
+			wakes: '1'
+		};
+		const mac = hmac.sign(
+			secret,
+			hmac.region_mac_message(c.id, exp, c.payload, '', '', c.render, c.wakes)
+		);
+		expect(hmac.region_verify(secret, '/__ogygia__', '', exp, c, mac)).toBe(true);
+		expect(hmac.region_verify(secret, '/__ogygia__', '', exp, { ...c, wakes: '' }, mac)).toBe(
+			false
+		);
+	});
+
 	it('a v3 capability claiming more than the longest lifetime the app mints is refused', () => {
 		const { secret } = signing_key();
-		const c = { id: 'abcdef012345', payload: 'W3t9XQ', session: '', ttl: '', render: '' };
+		const c = {
+			id: 'abcdef012345',
+			payload: 'W3t9XQ',
+			session: '',
+			ttl: '',
+			render: '',
+			wakes: ''
+		};
 		const key = hmac.derive_mac_key(secret);
 		const forged_lifetime = capability({
 			name: 'region',
@@ -109,7 +170,7 @@ describe('region capability, signed through capability()', () => {
 		const far = Math.floor(Date.now() / 1000) + 20 * 365 * 24 * 3600;
 		const token = forged_lifetime.mintUntil(
 			'/__ogygia__',
-			[c.id, c.payload, '', '', ''],
+			[c.id, c.payload, '', '', '', ''],
 			far * 1000
 		);
 		const sig = token.slice(token.lastIndexOf('.') + 1);

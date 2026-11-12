@@ -137,8 +137,15 @@ export function reuse_known_region(fp: string): boolean {
  * @param ttl response cache max-age in **seconds** (`0` = no-store, the default). Signed into the MAC
  *   and echoed as a `ttl` query param so the handle sets `Cache-Control` from it — a harvested URL
  *   can't be re-pointed at a longer browser cache.
+ * @param wakes the hole's component hydrates over its answer: signed as `w=1`, so the endpoint
+ *   renders the answer inside an island, as the hydrate does (#906)
  */
-export function mint_region_capability(entry: string, payload: string, ttl = 0): string {
+export function mint_region_capability(
+	entry: string,
+	payload: string,
+	ttl = 0,
+	wakes = false
+): string {
 	const session = region_session();
 	// The app's one lifetime rule (server/capability-lifetime.ts): prerender-grade on a stored or
 	// prerendered page (props are public in the HTML; session sealed empty there), past the shared
@@ -152,7 +159,7 @@ export function mint_region_capability(entry: string, payload: string, ttl = 0):
 	// (another schedule, preset or salt) still answers it (compiler/region/identity.ts `renderId`)
 	const render = region_render[entry] ?? '';
 	// for the app's islands endpoint (its audience), without the base: the handle matches by suffix
-	const claim = { id: entry, payload, session, ttl: ttl_field, render };
+	const claim = { id: entry, payload, session, ttl: ttl_field, render, wakes: wakes ? '1' : '' };
 	const sig = region_sign(key.secret, islands_endpoint(), exp, claim);
 	if (DEVTOOLS)
 		record_server_event({ domain: 'server', name: 'server.capability.minted', id: entry, ttl });
@@ -169,7 +176,13 @@ export function mint_region_capability(entry: string, payload: string, ttl = 0):
  * `ogygia:server/region-endpoint` virtual so the client build stubs it to `''` (server islands never
  * mint on the client — the runtime fetches the endpoint). Mirrors the old `ServerIsland.svelte`.
  */
-export function mint_server_region(entry: string, props: Record<string, unknown>, ttl = 0): string {
+export function mint_server_region(
+	entry: string,
+	props: Record<string, unknown>,
+	ttl = 0,
+	/** the hole wakes (`wake` on a `render: 'deferred'` mark) */
+	wakes = false
+): string {
 	ensure_prop_kinds();
 	// (decoded fresh at the endpoint, never by id: place form keeps the address the same per render)
 	const payload = B64Url.encode(
@@ -182,11 +195,16 @@ export function mint_server_region(entry: string, props: Record<string, unknown>
 			max: MAX_REGION_PROPS_LEN
 		});
 	}
-	return mint_region_capability(entry, payload, ttl);
+	return mint_region_capability(entry, payload, ttl, wakes);
 }
 
 /** HMAC-signed `<endpoint>?id&props&exp&sig` (`handle({ endpoint })`, default `/__ogygia__`) for re-rendering `entry` with `props`. */
-export function make_region_endpoint(entry: string, props: Record<string, unknown> = {}): string {
+export function make_region_endpoint(
+	entry: string,
+	props: Record<string, unknown> = {},
+	/** the held region wakes (its schedule: the binding's, or the `region()` call's) */
+	wakes = false
+): string {
 	const payload = encode_region_props(props);
 	if (payload == null) {
 		// Non-serializable or oversized props. Degrading to "no endpoint" makes the region behave
@@ -194,7 +212,7 @@ export function make_region_endpoint(entry: string, props: Record<string, unknow
 		warn('live_props_not_serializable', { entry, max: MAX_REGION_PROPS_LEN });
 		return '';
 	}
-	return mint_region_capability(entry, payload);
+	return mint_region_capability(entry, payload, 0, wakes);
 }
 
 export { encode_region_props } from './region-props.ts';
