@@ -18,10 +18,17 @@ vi.mock('node:crypto', async (real) => {
 			if (host.no_node_crypto) throw new Error('no node:crypto on this host');
 			return f(...a);
 		};
-	return { ...mod, createHash: gone(mod.createHash), timingSafeEqual: gone(mod.timingSafeEqual) };
+	return {
+		...mod,
+		createHash: gone(mod.createHash),
+		createHmac: gone(mod.createHmac),
+		hkdfSync: gone(mod.hkdfSync),
+		randomBytes: gone(mod.randomBytes),
+		timingSafeEqual: gone(mod.timingSafeEqual)
+	};
 });
 
-const SECRET = 'prof-key';
+const SECRET = 'prof-key-of-16-bytes-or-more';
 
 function event(path: string, init: RequestInit = {}, cookie?: string): RequestEvent {
 	const url = new URL('http://localhost' + path);
@@ -66,7 +73,8 @@ it('with no node:crypto, login seats a session, the session opens the profiler, 
 	const token = /^og_profiler=([^;]*)/.exec(
 		ok.headers.getSetCookie().find((c) => c.startsWith('og_profiler='))!
 	)![1];
-	expect(token).toMatch(/^[0-9a-f]{64}$/);
+	// (a signed session: `s1.<random id>.<expiry>.<MAC>`, made and checked with Web Crypto)
+	expect(token).toMatch(/^s1\.[A-Za-z0-9_-]{24}\.\d{13}\.[0-9a-f]{64}$/);
 
 	const opened = await run(event('/__profiler', {}, token));
 	expect(opened.headers.get('location'), 'the session opens the profiler').toBeNull();

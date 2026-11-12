@@ -37,3 +37,7 @@ export {
 	request_scope
 } from './plugin/request-scope.ts';
 export { islands_endpoint } from './server/endpoint.ts';
+/** The per-address budget the region endpoint charges; the profiler's login spends one too. */
+export { RateLimiter } from './server/rate-limit.ts';
+/** The production floor for a signing secret (UTF-8 bytes). */
+export { MIN_SECRET_BYTES } from './server/hmac.ts';
