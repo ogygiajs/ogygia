@@ -3,8 +3,11 @@
  * failed in its module map for the life of the page: a second `import()` of the same URL fails at
  * once, without a request (Chromium and Firefox both do; the e2e lazy-chunk-retry spec proves it).
  * Retrying the same `import()` therefore does nothing. What works is the same file under a new URL:
- * the failed import's error names the URL, so the next attempt imports it with an `og-retry` query
- * (a static server ignores it; a module never evaluated, so no second copy of its state exists).
+ * the next attempt imports it with an `og-retry` query (a static server ignores it; a module never
+ * evaluated, so no second copy of its state exists). The file is the one ASKED for when the caller
+ * knows it (an island's own file): the error can name another file, one the asked module imports as
+ * it loads, and that module must never come back in the asked one's place (#831). A caller that
+ * knows no file retries the file the error names.
  *
  * Safari's error names no URL: there the retry is the plain import again (it fails the same way),
  * so a dropped chunk stays dropped until the page reloads, as before.
@@ -111,8 +114,10 @@ export function is_failed_import(error: unknown): boolean {
 }
 
 /**
- * The URL a failed dynamic import names, if it names one we can load again (http(s), this origin).
- * WebKit names none: there `known`, the file the caller imported, is it (#383).
+ * The URL a failed dynamic import names, if it names one we can load again: http(s), on an origin
+ * code was already asked from, the page's own or the one of `known` (the file the caller imported:
+ * a peer's island lives on the peer's origin, #956). An origin only an error's text names is never
+ * one: a retry goes only where a first load went. WebKit names none: there `known` is it (#383).
  */
 export function failed_import_url(error: unknown, known?: string): string | null {
 	const message = error instanceof Error ? error.message : typeof error === 'string' ? error : '';
@@ -123,14 +128,28 @@ export function failed_import_url(error: unknown, known?: string): string | null
 			? known
 			: null;
 	if (named === null) return null;
+	const url = loadable(named);
+	if (url === null) return null;
+	if (typeof location !== 'undefined' && url.origin !== location.origin) {
+		const asked = own_file(known);
+		if (asked === null || new URL(asked).origin !== url.origin) return null;
+	}
+	return url.href;
+}
+
+/** `href` as an absolute http(s) URL, or `null`. */
+function loadable(href: string): URL | null {
 	try {
-		const url = new URL(named, typeof location !== 'undefined' ? location.href : undefined);
-		if (url.protocol !== 'http:' && url.protocol !== 'https:') return null;
-		if (typeof location !== 'undefined' && url.origin !== location.origin) return null;
-		return url.href;
+		const url = new URL(href, typeof location !== 'undefined' ? location.href : undefined);
+		return url.protocol === 'http:' || url.protocol === 'https:' ? url : null;
 	} catch {
 		return null;
 	}
+}
+
+/** `known` (a caller's own file) as an absolute URL we can load again, or `null`. */
+function own_file(known: string | undefined): string | null {
+	return known === undefined ? null : (loadable(known)?.href ?? null);
 }
 
 /** `url` with its retry mark: a URL the module map has not seen. */
@@ -213,7 +232,11 @@ export function import_again<T>(
 			});
 		} else {
 			run = load().catch((error: unknown) => {
-				const url = failed_import_url(error, known);
+				// The file asked for, when the caller knows it: a failure can name ANOTHER file (a module
+				// the asked one imports as it loads), and that module handed back as the asked one stood
+				// in for it (#831). The asked file under a fresh URL imports its own dependencies again.
+				const named = failed_import_url(error, known);
+				const url = named === null ? null : (own_file(known) ?? named);
 				// (a failure that names no URL: the next call loads the same way again)
 				if (url !== null) file.move('fresh', 'failed', { url, attempt: 0 });
 				throw error;

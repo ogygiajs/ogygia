@@ -42,7 +42,7 @@ import type {
 	SessionReport,
 	HydrationStatus,
 	HtmlDiff
-} from '@ogygia/core/insights';
+} from '@ogygia/insights';
 import {
 	assets_diff,
 	DEVTOOLS_COOKIE,
@@ -50,7 +50,7 @@ import {
 	TESTING_COOKIE,
 	TESTING_LEAN,
 	TESTING_ENGINE_VERSION
-} from '@ogygia/core/insights';
+} from '@ogygia/insights';
 import type {
 	TestType,
 	Expect,
