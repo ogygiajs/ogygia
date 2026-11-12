@@ -17,6 +17,22 @@ import { ask, notify } from '../src/plugin/hooks.ts';
 import { facts_of } from '../src/plugin/facts.ts';
 import { observe_reads, open_reads } from '../src/plugin/reads.ts';
 import type { RequestContext, ServerApp } from '../src/plugin/index.ts';
+import { ref_names, set_ref_names_reader } from '../src/ref.ts';
+import { __register_transportable, wire } from '../src/live-transport.ts';
+import { hole_identity } from '../src/server/props-wire.ts';
+
+/** A wired instance a hole's props can hold (a ref: named by its place, #816). */
+class BenchBadge {
+	label: string;
+	constructor(label = '') {
+		this.label = label;
+	}
+	static [wire] = {
+		encode: (b: BenchBadge) => b.label,
+		decode: (label: string) => new BenchBadge(label)
+	};
+}
+__register_transportable('bench/badge.ts#BenchBadge', BenchBadge);
 
 const tick = () => new Promise<void>((r) => setTimeout(r, 0));
 
@@ -91,6 +107,50 @@ bench(
 		}
 		render_cache_clear();
 		return bytes;
+	},
+	{ setup: () => ({ n: 40 }), scale: (_ctx, k) => ({ n: 40 * k }) }
+);
+
+bench(
+	"reads: a render that asks locals, fetches, the visitor's address, the platform and a copy of the request",
+	async ({ n }) => {
+		let seen = 0;
+		const fetched: typeof fetch = async () => new Response('');
+		for (let i = 0; i < n; i++) {
+			const headers: Record<string, string> = { 'accept-language': 'en' };
+			if (i % 2) headers.cookie = `vid=v${i}`;
+			const request = new Request('http://app.example.com/page', { headers });
+			const event = {
+				url: new URL(request.url),
+				request,
+				cookies: { get: () => undefined, getAll: () => [] },
+				locals: (i % 3 ? { user: { id: i } } : {}) as Record<string, unknown>,
+				fetch: fetched,
+				getClientAddress: () => '203.0.113.7',
+				platform: {
+					env: { KEY: 'k' },
+					context: { waitUntil: () => {} },
+					region: i % 2 ? 'eu' : ''
+				}
+			};
+			observe_reads(event as never, facts_of(request).reads);
+			seen += 'user' in event.locals ? 1 : 0;
+			seen += Object.keys(event.locals).length;
+			// its own origin, a subdomain, another site, and a URL Kit cannot fetch
+			await event.fetch('/api/own');
+			await event.fetch('https://cdn.app.example.com/x');
+			await event.fetch('https://elsewhere.example.org/y');
+			await event.fetch('http://[bad');
+			event.getClientAddress();
+			void event.platform.env.KEY;
+			event.platform.context.waitUntil();
+			void event.platform.region;
+			seen += request.headers.has('cookie') ? 1 : 0;
+			for (const [name] of request.headers) seen += name.length;
+			const copy = request.clone();
+			seen += copy.headers.get('cookie') ? 1 : 0;
+		}
+		return seen;
 	},
 	{ setup: () => ({ n: 40 }), scale: (_ctx, k) => ({ n: 40 * k }) }
 );
@@ -193,4 +253,24 @@ bench(
 		return answered;
 	},
 	{ setup: () => ({ n: 40, plugins: 6 }), scale: (_ctx, k) => ({ n: 40 * k, plugins: 6 }) }
+);
+
+bench(
+	"a request's holes: each one's identity, a third holding a wired instance (named by its place in the hole's props)",
+	({ n }) => {
+		const names = ref_names();
+		set_ref_names_reader(() => names);
+		let out = '';
+		try {
+			for (let i = 0; i < n; i++) {
+				const shared = new BenchBadge(`b${i}`);
+				const props = i % 3 === 0 ? { a: shared, b: shared, id: i } : { id: i, label: `hole ${i}` };
+				out = hole_identity(`/holes/h${i % 8}.js`, props);
+			}
+		} finally {
+			set_ref_names_reader(null);
+		}
+		return out.length;
+	},
+	{ setup: () => ({ n: 200 }), scale: (_ctx, k) => ({ n: 200 * k }) }
 );
