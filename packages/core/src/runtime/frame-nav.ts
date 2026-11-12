@@ -13,6 +13,7 @@ import { cache, machine, STALE, type Scope } from '@ogygia/machine';
 import { frameAddress } from '../frame.ts';
 import { stream } from '../policies.ts';
 import { is_idle, reserve, release, stamp, write } from './frame-store.ts';
+import { is_allowed_region_endpoint, vouch_region_answer } from './html-sink.ts';
 import { runtime_session } from './session.ts';
 import { emit as dt_emit } from '../events/bus.ts';
 import { slots } from './slots.ts';
@@ -142,6 +143,9 @@ export async function streamFrames(
 	const first = endpoints[0];
 	const q = first.indexOf('?');
 	const path = q === -1 ? first : first.slice(0, q);
+	// (HOLE-TRUST: a batch goes only to a same-origin endpoint; its holes fetch on their own, and
+	// refuse the same way)
+	if (!is_allowed_region_endpoint(path)) return;
 
 	// slot (sig) → store address, so an arriving parcel routes to the right call. RESERVE each address
 	// up front: a region binder that connects (body swap) before its frame lands joins this batch via
@@ -238,7 +242,10 @@ export async function streamFrames(
 						const ep = endpoint_of!.get(p.slot)!;
 						batched.set(ep, { left, at: performance.now(), size: reserved.length });
 					}
-					write({ ...part, html: p.html });
+					// (the sink's gate, ./html-sink.ts: the batch's answer stayed same-origin)
+					const html = vouch_region_answer(path, res, p.html);
+					if (html === null) return;
+					write({ ...part, html });
 					delivered++;
 					if (DEVTOOLS)
 						dt_emit({
