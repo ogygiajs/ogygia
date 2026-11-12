@@ -25,6 +25,10 @@
 			"reason": "the holes of one task sorted into batches: a DOM read and the frame store (not recorded), linear in the holes that joined; run by packages/core/test/browser/hole-batch.test.ts"
 		},
 		{
+			"id": "packages/core/src/runtime/frame-nav.ts > send_batches",
+			"reason": "browser only: a set of holes grouped by endpoint path into batch POSTs over the frame store (not recorded), linear in the holes; run by packages/core/test/browser/hole-batch.test.ts and nav-batch-page.test.ts"
+		},
+		{
 			"id": "packages/core/src/runtime/frame-store.ts > live",
 			"reason": "reads the hub's watcher count and the store's flights (module state by design: one store per document), constant work; run by packages/core/test/frame-store.test.ts"
 		},
@@ -3799,10 +3803,6 @@
 		{
 			"id": "packages/machine/src/queue.ts > QueueImpl > get holding",
 			"reason": "a getter, one read"
-		},
-		{
-			"id": "packages/machine/src/queue.ts > clock",
-			"reason": "the default clock (performance.now), one read; every test and bench passes its own"
 		},
 		{
 			"id": "packages/core/src/runtime/router.ts > SpaRouter > scan_preload_links > on_idle:1~4ff29d > once_on_screen:2~719a25",
