@@ -15,6 +15,7 @@ import { stream } from '../policies.ts';
 import { is_idle, reserve, release, stamp, write } from './frame-store.ts';
 import { runtime_session } from './session.ts';
 import { emit as dt_emit } from '../events/bus.ts';
+import { OG_LEN, OGYGIA_SLOT } from '../wire-markup.ts';
 import { slots } from './slots.ts';
 
 // DEVTOOLS gate — module-local const from the Vite `define` (proven DCE pattern); off → folds out.
@@ -44,8 +45,8 @@ export function batch_times(
 }
 
 const STREAM_DONE_SLOT = '__ogygia_done__';
-const OPEN = '<template data-ogygia-slot="';
-const LEN = '" data-og-len="';
+const OPEN = `<template ${OGYGIA_SLOT}="`;
+const LEN = `" ${OG_LEN}="`;
 const CLOSE = '</template>';
 
 type Parcel = { slot: string; html: string; end: number };
