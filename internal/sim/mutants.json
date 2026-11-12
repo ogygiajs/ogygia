@@ -1,0 +1,18 @@
+[
+	{
+		"id": "hole-fetch-once-negated",
+		"file": "packages/core/src/runtime/core.ts",
+		"line": 1452,
+		"operator": "equality",
+		"from": "!== 'none'",
+		"to": "=== 'none'"
+	},
+	{
+		"id": "evict-ttl-shorter",
+		"file": "packages/core/src/runtime/frame-store.ts",
+		"line": 104,
+		"operator": "literal",
+		"from": "60_000",
+		"to": "6_000"
+	}
+]
