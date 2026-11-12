@@ -612,6 +612,9 @@ export function fallback_stands(tab: Tab, world: World): Broken | null {
 	const touched = faulted(world, tab);
 	const mine = world.network.exchanges.filter((e) => e.from === tab.realm);
 	if (touched && mine.some((e) => e.method === 'POST')) return null;
+	// (nor one whose runtime, or another script, failed to load: the runtime may never have run, and
+	// the page stays its server HTML, as runtime_load_failed says; gen 12, seed 22)
+	if (touched && world.browsers.lacks_a_file(tab.realm)) return null;
 	const asked = new Set(
 		mine.filter((e) => e.method === 'GET').map((e) => answer_key(new URL(e.url)))
 	);

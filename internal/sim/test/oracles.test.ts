@@ -307,6 +307,7 @@ describe("a hole's fallback does not stand", () => {
 		} as unknown as Parameters<typeof fallback_stands>[0];
 		const world = {
 			fired_in: new Map(),
+			browsers: { lacks_a_file: () => lacks_a_file },
 			network: {
 				exchanges: wire.map(([url, status], i) => ({
 					id: i + 1,
