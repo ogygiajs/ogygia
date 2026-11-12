@@ -72,6 +72,7 @@ export const { shell } = federate({
   name: 'cms',
   key: env.CMS_SIGNING_KEY,
   peers: { shell: { origin: 'https://www.example.com', key: env.SHELL_PUBLIC_KEY } },
+  audience: 'cms.example.com',                        // the host calls to me are signed for
   expose: cms_router,                                 // serve my whole route table as fragments
   base: '/cms',                                       // the mount base the exposed table renders under
   widgets: {
@@ -80,7 +81,7 @@ export const { shell } = federate({
 });
 ```
 
-**The peers map is symmetric.** Every app lists every app it talks to, in either direction. `peers.X.key`, the peer's **public** key or keys, verifies inbound calls _from_ X, and the top-level `key`, this app's **private** key, signs outbound calls _to_ anyone. That one map is the whole trust configuration. A list of keys gives you overlap during rotation. Extra origins on a peer are **replicas** of the same build, tried in order for reads; POSTs stay on the first origin, because retrying a mutation risks writing twice. The audience defaults to the peer's origin host, and you set `audience` per peer only when a reverse proxy rewrites `Host` between the hops.
+**The peers map is symmetric.** Every app lists every app it talks to, in either direction. `peers.X.key`, the peer's **public** key or keys, verifies inbound calls _from_ X, and the top-level `key`, this app's **private** key, signs outbound calls _to_ anyone. That one map is the whole trust configuration. A list of keys gives you overlap during rotation. Extra origins on a peer are **replicas** of the same build, tried in order for reads; POSTs stay on the first origin, because retrying a mutation risks writing twice. The audience defaults to the peer's origin host, and you set `audience` per peer only when a reverse proxy rewrites `Host` between the hops. An app that peers call into names its own host with the top-level `audience`, or with the `ORIGIN` environment variable. It is never read from the request.
 
 **`visitor` is the identity for deferred regions.** It reads the live event (cookies, locals), and the shell runs it at hole time, when the browser fetches a deferred remote region, so those claims always come from the shell's own session. The other kinds of hop take their identity from where they run:
 
@@ -313,7 +314,7 @@ Every server-to-server hop is **Ed25519-signed by the caller**, and peers hold o
 
 Beyond authenticity, the signature gives you three properties:
 
-- **Audience binding.** The target host is part of the signature, so a hop signed for `cms.internal` is rejected at `dash.internal` even though both trust the same shell key. This blocks the confused-deputy attack that a shared key plus a fixed fragment path would otherwise allow. The audience defaults to the destination host; set the same `audience` on both ends only when a reverse proxy rewrites `Host` between the hops.
+- **Audience binding.** The target host is part of the signature, so a hop signed for `cms.internal` is rejected at `dash.internal` even though both trust the same shell key. This blocks the confused-deputy attack that a shared key plus a fixed fragment path would otherwise allow. The caller signs for the destination's host. The receiver checks against its own `audience`, or the host of its `ORIGIN` environment variable when `audience` is not set, and never against the `Host` the request names (a server that builds its URL from that header would let the caller choose it). With neither, `federate()` warns (`federation_audience_missing`) and every signed call gets a 401. Set the same `audience` on both ends when a reverse proxy rewrites `Host` between the hops.
 - **Replay rejection.** A byte-identical redelivery of a captured signed hop is refused within its freshness window (±120 s, adjustable with `skewMs`), so a mutating POST cannot be replayed. This protection is per process, and audience binding is the guarantee that holds across instances.
 - **Failing closed.** Exposing a table or widgets with no peer keys warns loudly and needs `open: true` to acknowledge an intentionally open endpoint (behind mTLS or a mesh), so it never serves unauthenticated requests silently.
 
@@ -344,7 +345,7 @@ A foreign island's JavaScript is loaded by **a page on another origin**, through
 
 ## What crosses, what doesn't
 
-Fragment props are **plain data**, and snippets and children do not cross the boundary. A wired class that arrives from another _build_ throws loudly instead of half-reviving into a foreign Svelte instance. For state shared between two teams' islands on one page, a small contracts package that exports a `SharedState` works across builds: values cross as devalue snapshots, live references never do, and any server that can print a JSON script tag can seed it.
+Fragment props are **plain data**, and snippets and children do not cross the boundary. A wired class that arrives from another _build_ throws loudly instead of half-reviving into a foreign Svelte instance. For state shared between two teams' islands on one page, a small contracts package that exports a `SharedState` (from `@ogygia/federation/shared`) works across builds: values cross as devalue snapshots, live references never do, and any server that can print a JSON script tag can seed it.
 
 **`page` does not cross either.** On the MFE's server, `$app/state` is the MFE's page. In the browser, though, a mounted island hydrates inside the shell's document, and the same read returns the **shell's** page, with the same URL but the shell's route, params and `page.data`. The MFE's own page seed stops at the fragment boundary. An island that reads `page.data` therefore paints the MFE's value on the server and repaints with the shell's value after hydration. In dev, ogygia warns once per island, naming the entry and the MFE origin. Pass the value as a prop instead, or read it with a remote function.
 
@@ -369,10 +370,10 @@ A host that is not an ogygia app calls the producer's endpoints directly. It nee
 | `path and query` | the pathname and search of the URL you call, such as `/og/fragment/page?path=%2Fsolar` |
 | `body hash`      | the base64 SHA-256 of the body bytes, or of zero bytes for a `GET`                     |
 | `claims`         | base64 of the visitor claims as JSON, or empty for an anonymous call                   |
-| `audience`       | the producer's host as it sees the request, or the `audience` it is configured with    |
+| `audience`       | the producer's `audience`, or the host of its `ORIGIN` when it sets none               |
 | `nonce`          | a random hex string, new for every request                                             |
 
-The request carries `x-og-ts` (the `ts`), `x-og-n` (the nonce), `x-og-sig` (the base64 signature) and, when there are claims, `x-og-user` (the same base64 claims). The private key is base64 PKCS#8 DER and the public key is base64 SPKI DER, which is what `npx ogygia keys` prints. In Node, with no ogygia dependency:
+The request carries `x-og-ts` (the `ts`), `x-og-n` (the nonce), `x-og-sig` (the base64 signature) and, when there are claims, `x-og-user` (the same base64 claims). An ogygia peer also sends `x-og-cap`, one token over the same parts with length-prefixed fields; a producer checks a call that carries it by that token alone, and still accepts these headers without it. The private key is base64 PKCS#8 DER and the public key is base64 SPKI DER, which is what `npx ogygia keys` prints. In Node, with no ogygia dependency:
 
 ```ts
 import { createPrivateKey, createHash, randomBytes, sign } from 'node:crypto';
@@ -393,7 +394,7 @@ const doc = await (await fetch(url, { headers: signHeaders(process.env.LEGACY_SI
 
 `examples/mfe/foreign-hosts` in the repository has complete hosts in plain Node and in PHP, including form posts and redirects.
 
-**Inside an ogygia app**, the same two halves are exported from `@ogygia/federation`. `sign_headers(privateKey, method, url, body?, claims?, audience?)` returns the headers above, and `verify_signed_request({ publicKeys, audience?, skewMs? }, request, url, body?)` checks a signed call in your own endpoint and returns `{ user? }` for a fresh, valid, not replayed signature from one of `publicKeys`, or `null`. The package imports ogygia's build-time modules, so these work only in an app built with Vite and ogygia; a plain server signs with code like the example above.
+**Inside an ogygia app**, the same two halves are exported from `@ogygia/federation`. `sign_headers(privateKey, method, url, body?, claims?, audience?)` returns the headers above, and `verify_signed_request({ publicKeys, audience?, skewMs? }, request, url, body?)` checks a signed call in your own endpoint and returns `{ user? }` for a fresh, valid, not replayed signature from one of `publicKeys`, or `null`. Without `audience` it checks against the host of `ORIGIN`, and with neither it returns `null`. The package imports ogygia's build-time modules, so these work only in an app built with Vite and ogygia; a plain server signs with code like the example above.
 
 **Without signing.** Behind mTLS or a service mesh, the producer can set `open: true` and accept unsigned calls. Nothing then proves who is calling, so the producer ignores any claims a caller sends, and `user(c)` is always `undefined`.
 
@@ -414,10 +415,10 @@ Each entry of `federate({ peers })` takes these options:
 
 The rest of `federate()` takes these options besides `name`, `key`, `peers`, `visitor`, `expose`, `base` and `widgets`:
 
-| Option         | Default            | What it does                                                                                                 |
-| -------------- | ------------------ | ------------------------------------------------------------------------------------------------------------ |
-| `audience`     | the request's host | The audience, or list of audiences, this app verifies inbound calls against.                                 |
-| `skewMs`       | `120000`           | The clock skew and replay window for inbound signatures, in milliseconds.                                    |
-| `open`         | `false`            | Accept unsigned calls to `expose` and `widgets`, for an endpoint behind mTLS or a mesh.                      |
-| `maxBodyBytes` | `1048576` (1 MiB)  | The largest request body this app accepts on `/og/fragment/page` and `/og/thaw`; a larger one gets a 413.    |
-| `deploy`       | `'auto'`           | `'auto'` sends a thaw-all after a deploy ([Cross-app thaw](#cross-app-thaw)); `'manual'` leaves that to you. |
+| Option         | Default              | What it does                                                                                                         |
+| -------------- | -------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| `audience`     | the host of `ORIGIN` | The audience, or list of audiences, this app verifies inbound calls against. With neither, signed calls are refused. |
+| `skewMs`       | `120000`             | The clock skew and replay window for inbound signatures, in milliseconds.                                            |
+| `open`         | `false`              | Accept unsigned calls to `expose` and `widgets`, for an endpoint behind mTLS or a mesh.                              |
+| `maxBodyBytes` | `1048576` (1 MiB)    | The largest request body this app accepts on `/og/fragment/page` and `/og/thaw`; a larger one gets a 413.            |
+| `deploy`       | `'auto'`             | `'auto'` sends a thaw-all after a deploy ([Cross-app thaw](#cross-app-thaw)); `'manual'` leaves that to you.         |

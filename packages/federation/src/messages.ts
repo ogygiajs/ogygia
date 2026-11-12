@@ -25,6 +25,17 @@ export const FEDERATION_ERRORS = {
 			something that is not a peer. Return one of the peers \`federate({ peers })\` made, for
 			every request the page serves.
 		`
+	},
+	shared_state_not_plain: {
+		text: (a: { name: string; reason: string }): string => prose`
+			SharedState '${a.name}': values must be plain data (devalue-serializable — JSON, Date, Map,
+			Set, BigInt, RegExp). Functions, class instances, and DOM nodes do not cross build
+			boundaries — share facts, not live objects. (${a.reason})
+		`,
+		details: (): string => prose`
+			Shared state crosses between builds as data, so its values must serialize. Share plain
+			facts; keep live objects (functions, class instances, DOM nodes) on one side.
+		`
 	}
 };
 
@@ -43,6 +54,24 @@ export const FEDERATION_WARNINGS = {
 			Add each calling app as a peer with its public \`key\` (\`ogygia keys\` mints a pair). If
 			the endpoint is meant to be open, because something in front of it (mTLS, a service
 			mesh) already checks the caller, pass \`open: true\`.
+		`
+	},
+	federation_audience_missing: {
+		text: (a: { name: string }): string => prose`
+			federate({ name: '${a.name}' }) has peers that may call in, but no \`audience\` and no
+			\`ORIGIN\`, so every signed call to this app is refused. Set \`audience\` to the host this
+			app answers on, or set \`ORIGIN\`.
+		`,
+		details: (): string => prose`
+			A signed call names the app it was meant for, its audience, so a call made for one app
+			cannot be sent to another that trusts the same key. To check that, this app has to know
+			its own host. It is never taken from the request: a server that builds its URL from the
+			\`Host\` header would let the caller pick it.
+
+			Set \`audience\` in \`federate()\` to the host (or hosts) this app answers on, for example
+			\`audience: 'cms.example.com'\`. Without it, the host of the \`ORIGIN\` environment
+			variable is used (SvelteKit's Node adapter reads the same one). With neither, signed
+			calls to this app get a 401.
 		`
 	},
 	federation_deploy_thaw_undelivered: {

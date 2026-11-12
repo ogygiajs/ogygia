@@ -32,7 +32,7 @@
 import { og_js_regions, type JsRegion } from '../parse/scan.ts';
 import { find_og_calls } from '../parse/scan.ts';
 import { parse_module, type AstNode } from '../parse/oxc.ts';
-import { OgygiaError } from '../../messages/build.ts';
+import { OgygiaError } from '../messages.ts';
 
 // ── regexes
 const STATIC_WIRE_TAIL_RE = /\bstatic\s+wire\s*=\s*$/;

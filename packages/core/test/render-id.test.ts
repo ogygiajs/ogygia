@@ -7,7 +7,7 @@
 import { describe, it, expect } from 'vitest';
 import { renderId, regionIdentity, regionId } from '../src/compiler/region/identity.ts';
 import {
-	server_islands_module,
+	server_regions_module,
 	server_manifest_module
 } from '../src/compiler/link/server-manifest.ts';
 
@@ -68,7 +68,7 @@ describe('the server manifest maps render identities', () => {
 		expect(src).toContain('"bbbbbbbbbbbb": "r00000000001"');
 		expect(src).toContain('"aaaaaaaaaaaa": "r00000000001"');
 		expect(src).toMatch(
-			/render_island = \{\n\t"r00000000001": "aaaaaaaaaaaa",\n\t"r00000000002": "cccccccccccc"\n\}/
+			/render_region = \{\n\t"r00000000001": "aaaaaaaaaaaa",\n\t"r00000000002": "cccccccccccc"\n\}/
 		);
 	});
 
@@ -82,13 +82,13 @@ describe('the server manifest maps render identities', () => {
 			() => ''
 		);
 		expect(manifest).toContain(
-			`export const load_islands = () => import("virtual:ogygia/server-islands");`
+			`export const load_server_regions = () => import("ogygia:server/server-regions");`
 		);
 		expect(manifest).not.toContain('import("virtual:aaaaaaaaaaaa")');
-		expect(server_islands_module(true, p)).toContain(
+		expect(server_regions_module(true, p)).toContain(
 			'"aaaaaaaaaaaa": () => import("virtual:aaaaaaaaaaaa")'
 		);
-		expect(server_islands_module(false, p)).toBe('export const islands = {\n\t\n};');
+		expect(server_regions_module(false, p)).toBe('export const regions = {\n\t\n};');
 	});
 
 	it('the browser leg carries none of it', () => {
@@ -99,7 +99,7 @@ describe('the server manifest maps render identities', () => {
 			() => '',
 			() => ''
 		);
-		expect(src).toContain('export const island_render = {};');
-		expect(src).toContain('export const render_island = {};');
+		expect(src).toContain('export const region_render = {};');
+		expect(src).toContain('export const render_region = {};');
 	});
 });
