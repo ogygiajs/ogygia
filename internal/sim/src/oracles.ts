@@ -86,11 +86,16 @@ export function normalize(root: {
 						(a.name === 'data-key' || a.name === 'data-revalidated' || a.name === 'data-og-healed')
 					)
 			)
-			.map((a) =>
-				(tag === 'link' && a.name === 'href') || /^\.\.?\//.test(a.value)
-					? `${a.name}="${new URL(a.value, root.baseURI ?? 'https://app.test/').pathname}"`
-					: `${a.name}="${a.value}"`
-			)
+			.map((a) => {
+				const base = root.baseURI ?? 'https://app.test/';
+				// (one no URL can be made of, a tampered byte in its host, stays as it is: gen 45, seed 32)
+				const address =
+					((tag === 'link' && a.name === 'href') || /^\.\.?\//.test(a.value)) &&
+					URL.canParse(a.value, base);
+				return address
+					? `${a.name}="${new URL(a.value, base).pathname}"`
+					: `${a.name}="${a.value}"`;
+			})
 			.sort()
 			.join(' ');
 		out.push(`${'  '.repeat(depth)}<${tag}${attrs ? ` ${attrs}` : ''}>`);
