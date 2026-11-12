@@ -1,11 +1,15 @@
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { sveltekit } from '@sveltejs/kit/vite';
 import { ogygia } from 'ogygia/vite';
 import { content } from '@ogygia/content/vite';
 import { devtools } from '@ogygia/devtools/vite';
 import { diff_markers, inline_markers } from '@ogygia/content/markdown';
-import { defineConfig } from 'vite';
+import { defineConfig, type Plugin } from 'vite';
 import { load_ogygia_themes } from './src/lib/code/shiki-themes.ts';
 import { remarkChangelog } from './src/lib/remark-changelog.ts';
+import { release_dates } from './src/lib/releases/dates.ts';
 import {
 	expandApi,
 	expandApiCacheKey,
@@ -15,6 +19,34 @@ import {
 // Custom site Shiki themes (forest neutrals + green) — the same ogygia-light / ogygia-dark used by
 // the snippets highlighter, so .svx fences match hand-highlighted code.
 const themes = await load_ogygia_themes();
+
+// The Releases pages' dates, once at build into `virtual:release-dates`: when npm published each
+// version (the registry's `time`, fetched once per package and kept in Vite's cache dir, so dev does
+// not fetch again), the release tags' dates when the registry is out of reach (src/lib/releases/dates.ts).
+const releaseDates = (): Plugin => {
+	const ID = 'virtual:release-dates';
+	let cache_dir = '';
+	/** The published packages: each with a changelog, not private. */
+	const published = (): string[] => {
+		const root = fileURLToPath(new URL('../../packages/', import.meta.url));
+		const names: string[] = [];
+		for (const dir of readdirSync(root)) {
+			if (!existsSync(path.join(root, dir, 'CHANGELOG.md'))) continue;
+			const pkg = JSON.parse(readFileSync(path.join(root, dir, 'package.json'), 'utf8'));
+			if (!pkg.private) names.push(pkg.name);
+		}
+		return names;
+	};
+	return {
+		name: 'docs-release-dates',
+		configResolved: (config) => void (cache_dir = config.cacheDir),
+		resolveId: (id) => (id === ID ? '\0' + ID : null),
+		async load(id) {
+			if (id !== '\0' + ID) return null;
+			return `export default ${JSON.stringify(await release_dates(published(), cache_dir))};`;
+		}
+	};
+};
 
 // Plugins live here; Kit config (adapter, extensions, preprocess) lives in svelte.config.js — the
 // Kit v2 home that `svelte-check` and the editor's Svelte language server read. The content() plugin
@@ -39,6 +71,7 @@ export default defineConfig(({ command }) => ({
 	// names for anonymous functions. The site targets modern browsers only (`esnext`).
 	build: { target: 'esnext', ...(process.env.PROFILER_SOURCEMAPS ? { sourcemap: true } : {}) },
 	plugins: [
+		releaseDates(),
 		ogygia({
 			visible: { margin: '120px' },
 			presets: {
