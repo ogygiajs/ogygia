@@ -4305,6 +4305,86 @@
 			"reason": "the marker write, one store put (I/O, the live store: not cloneable), constant work (#947)"
 		},
 		{
+			"id": "packages/core/src/runtime/nav-handle.ts > flights:0~bc1a2c > import_again:1~6d4297",
+			"reason": "browser only: a retry of the soft refresh's download imports its file by URL (a network load, not recorded), only after the first download failed; proven in packages/core/test/browser/nav-handle-routerless-retry.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/nav-handle.ts > flights:0~bc1a2c > import_again:1~6d4297 > then:0~5fb513",
+			"reason": "browser only: reads invalidate_all off the retried module, one property read; proven in packages/core/test/browser/nav-handle-routerless-retry.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/stale-deps.ts > make_watch",
+			"reason": "dev only, browser only: builds the page's one stale-dep watch on first use (a flights definition, not cloneable), constant work; proven in packages/core/test/browser/stale-deps.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/stale-deps.ts > make_watch > call:0~5cbf83 > run",
+			"reason": "dev only, browser only: the watch's run, one call into confirm_and_reload, constant work; proven in packages/core/test/browser/stale-deps.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/stale-deps.ts > recover_from_stale_deps",
+			"reason": "dev only, browser only: an island entry failed to import; joins the page's one watch (module state, not cloneable), constant work; proven in packages/core/test/browser/stale-deps.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/stale-deps.ts > recover_from_stale_deps > reload",
+			"reason": "dev only, browser only: the default reload, location.reload() (the live tab), constant work"
+		},
+		{
+			"id": "packages/core/src/runtime/stale-deps.ts > confirm_and_reload",
+			"reason": "dev only, browser only, an error path: reads sessionStorage and fetches the entry once per stale tab (the network and the live tab, not recorded), constant work; proven in packages/core/test/browser/stale-deps.test.ts"
+		},
+		{
+			"id": "packages/compiler/src/vite/lazy-files.ts > dev_url",
+			"reason": "dev only: a module id to its /@fs/ URL, one replace, once per loader per transform (the plugin's build path is proven in packages/compiler/test/lazy-files.test.ts)"
+		},
+		{
+			"id": "packages/compiler/src/vite/lazy-files.ts > lazy_files",
+			"reason": "builds one Vite plugin object per config (closure state: not cloneable), constant work"
+		},
+		{
+			"id": "packages/compiler/src/vite/lazy-files.ts > lazy_files > configResolved",
+			"reason": "Vite's configResolved hook, once per config: reads config.command, constant work"
+		},
+		{
+			"id": "packages/compiler/src/vite/lazy-files.ts > lazy_files > transform",
+			"reason": "a live Vite transform hook (its this.resolve is the plugin context, not recorded); returns at once for a module without import_again or a file token; proven in packages/compiler/test/lazy-files.test.ts"
+		},
+		{
+			"id": "packages/compiler/src/vite/lazy-files.ts > lazy_files > renderChunk",
+			"reason": "build only: Vite's renderChunk hook over a rendered chunk and its bundle (not cloneable), linear in the chunk's file tokens; proven in packages/compiler/test/lazy-files.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/import-again.ts > import_again > next > catch:0~df975d",
+			"reason": "browser only: a failed retry's import (an Error: not replayable): starts the wait for its verdict, constant work of its own; proven in packages/core/test/import-again.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/import-again.ts > import_again > next > catch:0~df975d > wait",
+			"reason": "browser only: holds (or clears) the verdict on the loader's failed state (machine state: not replayable), one state move; proven in packages/core/test/import-again.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/import-again.ts > import_again > next > catch:0~df975d > then:0~ef5058",
+			"reason": "browser only: the retry's verdict once its timing entry lands (the loader's machine state: not replayable), one state move; proven in packages/core/test/import-again.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/import-again.ts > import_again > next > catch:0~df975d > then:0~ef5058 > once:1~b3964f",
+			"reason": "browser only: says once per page that a reload is needed (a dependency's failure no URL fixes), constant work; proven in packages/core/test/import-again.test.ts"
+		},
+		{
+			"id": "packages/core/src/messages/core.ts > WARNINGS > rule_markup_known > details",
+			"reason": "dev and e2e only: one rule's message text, constant work"
+		},
+		{
+			"id": "packages/core/src/messages/core.ts > WARNINGS > rule_markup_known > text",
+			"reason": "dev and e2e only: one rule's message text, constant work"
+		},
+		{
+			"id": "packages/core/src/runtime/rules.ts > markup_known",
+			"reason": "dev and e2e only (folds out of production): reads the live DOM's attributes, linear in the page's elements; proven in packages/core/test/browser/rules.test.ts"
+		},
+		{
+			"id": "packages/core/src/wire-markup.ts > map:0~d4bdfe",
+			"reason": "once at module load: every declared marker's name, linear in MARK's entries (fixed)"
+		},
+		{
 			"id": "packages/devtools/src/devtools/hook-entries.ts > built_dev",
 			"reason": "reads one field of the page's hook record (a global: hidden state), constant work"
 		},

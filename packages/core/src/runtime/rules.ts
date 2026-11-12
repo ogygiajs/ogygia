@@ -12,6 +12,9 @@
  *   its code's page, and a `STALE` never escapes as a rejection.
  * - `rule_parse_upgraded`: a parsed answer is inert (./parse-html.ts, #382): no element of it was
  *   built by a component's constructor before the restore reached it.
+ * - `rule_markup_known`: every ogygia marker on the page (`data-ogygia-*`, and `data-og-*` on an
+ *   `ogygia-*` element) is declared in `MARK` (../wire-markup.ts, #479): a renamed or misspelled
+ *   marker is caught, not read as missing. An app's own `data-og-*` is left alone.
  * - `rule_region_answer_behind`: a region bound to a frame-store address shows the answer the
  *   address holds (./frame-store.ts tickets): it was handed the newest, and painted it once no paint
  *   is out.
@@ -24,6 +27,7 @@
 import { observe, STALE, trace } from '@ogygia/machine';
 import { Rules, type BrokenRule } from '../rules.ts';
 import { warn } from '../messages/core.ts';
+import { unknown_markers } from '../wire-markup.ts';
 
 type RuntimeRule =
 	| 'rule_region_mounted_twice'
@@ -31,6 +35,7 @@ type RuntimeRule =
 	| 'rule_old_page_open'
 	| 'rule_failure_uncoded'
 	| 'rule_parse_upgraded'
+	| 'rule_markup_known'
 	| 'rule_region_answer_behind'
 	| 'rule_head_adopted';
 
@@ -75,6 +80,24 @@ function one_mount_per_region(): string | null {
 			return `${entry_of(region)} left the page with its island still mounted`;
 	}
 	return null;
+}
+
+// ── every marker on the page is declared ──
+
+/** The page's markers that `MARK` (../wire-markup.ts) does not declare: any `data-ogygia-*` (that
+ *  namespace is ogygia's), and a `data-og-*` on an `ogygia-*` element. `data-og-` elsewhere may be
+ *  the app's own (Open Graph tooling, say); ogygia's spellings of it are held to `MARK` by
+ *  test/wire-markup.test.ts, which reads the sources. */
+function markup_known(): string | null {
+	if (typeof document === 'undefined') return null;
+	const names = new Set<string>(); // (one per check)
+	for (const el of document.querySelectorAll('*')) {
+		const own = el.localName.startsWith('ogygia-');
+		for (const name of el.getAttributeNames())
+			if (name.startsWith('data-ogygia-') || (own && name.startsWith('data-og-'))) names.add(name);
+	}
+	const unknown = unknown_markers(names);
+	return unknown.length ? `the page carries undeclared markers: ${unknown.join(', ')}` : null;
 }
 
 // ── nothing of an old page still open ──
@@ -299,6 +322,7 @@ export function install_rules(dev: boolean): void {
 	runtime_rules.add('rule_old_page_open', no_old_page_open);
 	runtime_rules.add('rule_failure_uncoded', no_failure_uncoded);
 	runtime_rules.add('rule_parse_upgraded', no_parse_upgraded);
+	runtime_rules.add('rule_markup_known', markup_known);
 	runtime_rules.add('rule_region_answer_behind', regions_show_their_answers);
 	watch_head();
 	(globalThis as { __og_parsed?: (f: DocumentFragment) => void }).__og_parsed = note_parse;
