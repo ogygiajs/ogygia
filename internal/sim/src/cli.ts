@@ -34,6 +34,7 @@ import { join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, act, next_action, ACTION_KINDS, type Action, type Mix } from './workload.ts';
 import { html_kept, html_sent } from './html.ts';
+import { waste } from './waste.ts';
 import {
 	document_faulted,
 	faulted,
@@ -430,6 +431,9 @@ export async function run(
 					world.skewed_for(t.realm)
 				)
 					continue;
+				// (NO WASTE: a document the network or an outage touched asks again on purpose)
+				const w = faulted(world, t) ? null : waste(world, t);
+				if (w) broken.push(w);
 				const b = await mpa_equivalent(world, v, t);
 				if (b)
 					broken.push(outage && b.oracle !== 'known' ? { ...b, oracle: 'outage-recovery' } : b);

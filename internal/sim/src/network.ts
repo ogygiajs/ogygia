@@ -47,6 +47,8 @@ export interface Exchange {
 	readonly for?: string;
 	readonly method: string;
 	readonly url: string;
+	/** When it was sent (virtual ms). */
+	readonly at: number;
 	status: number | 'dropped' | 'offline' | 'aborted' | 'pending';
 	cut: boolean;
 	tampered: boolean;
@@ -194,6 +196,7 @@ export class Network {
 			...(asked !== undefined && { for: asked }),
 			method: request.method,
 			url: request.url,
+			at: this.#loop.now,
 			status: 'pending',
 			cut: false,
 			tampered: false,
