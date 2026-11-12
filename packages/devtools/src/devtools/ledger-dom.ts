@@ -11,7 +11,7 @@ import {
 	decode_island_graph
 } from '@ogygia/core/internal/instruments';
 import { byte_ledger, type Ledger } from './bytes.ts';
-import { dynamic_imports, static_imports } from '@ogygia/core/insights';
+import { dynamic_imports, static_imports } from '@ogygia/insights';
 import { all_regions, region_name } from './regions.ts';
 import { tool_fetch, tool_made } from '@ogygia/core/internal/instruments';
 import { flights, STALE } from '@ogygia/machine';

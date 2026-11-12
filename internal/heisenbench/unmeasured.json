@@ -1681,14 +1681,6 @@
 			"reason": "wraps the handle with the request's owner (a Kit request event nothing can clone); its parts are proven in packages/core/test/request-scope.test.ts"
 		},
 		{
-			"id": "packages/core/src/insights/page-assets.ts > weigh_one > Promise:0~9ee1b9 > timeout:0~e7251f",
-			"reason": "a file's budget race timer on its own scope (a fetched Response, not cloneable), constant work; run by packages/core/test/profiler-page-assets.test.ts"
-		},
-		{
-			"id": "packages/core/src/insights/page-assets.ts > weigh_one > finally:0~4a8350",
-			"reason": "a file's budget race timer on its own scope (a fetched Response, not cloneable), constant work; run by packages/core/test/profiler-page-assets.test.ts"
-		},
-		{
 			"id": "packages/core/src/messages/server.ts > SERVER_WARNINGS > request_cleanup_failed > details",
 			"reason": "a message table entry: wording only"
 		},
@@ -2103,14 +2095,6 @@
 		{
 			"id": "packages/core/src/runtime/router-nav.ts > release_sheets",
 			"reason": "browser only: hands the head merge's unlisted sheets to the boot's release_sheets (live elements, not cloneable), one call; proven in apps/palaestra/e2e/hole-kept-sheet.spec.ts (#275)"
-		},
-		{
-			"id": "packages/core/src/server/request-stats.ts > hold_request_stats_detail",
-			"reason": "returns a release closure (a function, not cloneable), constant work; proven in packages/core/test/request-stats-detail.test.ts"
-		},
-		{
-			"id": "packages/core/src/server/request-stats.ts > hold_request_stats_detail > <anonymous>~4ba179",
-			"reason": "lets go of one hold in a module-level set (not replayable: process state), constant work; proven in packages/core/test/request-stats-detail.test.ts"
 		},
 		{
 			"id": "packages/devtools/src/profiler/index.ts > Profiler > #busy",
@@ -2701,26 +2685,6 @@
 			"reason": "signs with the process's key and the request's session (hidden state; mintServerIsland before the region rename, unmeasured on that base); the signing it wraps is sign's, benched"
 		},
 		{
-			"id": "packages/core/src/compiler/virtual/core.ts > family:0~04bf59 > load > server_manifest_module:3~e7ea15",
-			"reason": "the server manifest's dev URL of one registered region (a lambda handed to the generator), constant work; the bench session registers no region"
-		},
-		{
-			"id": "packages/core/src/compiler/virtual/core.ts > family:0~04bf59 > load > server_manifest_module:4~126d93",
-			"reason": "the server manifest's public URL of one registered region (a lambda handed to the generator), constant work; the bench session registers no region"
-		},
-		{
-			"id": "packages/core/src/compiler/virtual/core.ts > family:0~359af7 > load > router_css_module:1~4ebdf0 > read_file",
-			"reason": "one file read for the server router's CSS, a pass-through to the host fs (the router-css generator's own tests read real routes)"
-		},
-		{
-			"id": "packages/core/src/compiler/messages.ts > BUILD_ERRORS > virtual_wrong_realm > details",
-			"reason": "a message table entry: wording only"
-		},
-		{
-			"id": "packages/core/src/compiler/messages.ts > BUILD_ERRORS > virtual_wrong_realm > text",
-			"reason": "a message table entry: wording only"
-		},
-		{
 			"id": "packages/core/src/messages/core.ts > ERRORS > request_event_server_only > details",
 			"reason": "a message table entry: wording only (the browser stand-in prints the bare link; test/region-server-browser.test.ts)"
 		},
@@ -2741,26 +2705,6 @@
 			"reason": "reads the one export of the server build's profiler-maps module, which exists only inside a built app; constant work"
 		},
 		{
-			"id": "packages/core/src/compiler/messages.ts > BUILD_ERRORS > virtual_unknown > details",
-			"reason": "a message table entry: wording only"
-		},
-		{
-			"id": "packages/core/src/compiler/messages.ts > BUILD_ERRORS > virtual_duplicate > details",
-			"reason": "a message table entry: wording only"
-		},
-		{
-			"id": "packages/core/src/compiler/virtual/core.ts > map:0~fa4377",
-			"reason": "declares the six driver-resolved families once, as core.ts loads; constant, never per build"
-		},
-		{
-			"id": "packages/core/src/compiler/virtual/table.ts > virtual > family",
-			"reason": "a table constructor: called once per entry as core.ts loads, returns its argument with its kind"
-		},
-		{
-			"id": "packages/core/src/compiler/virtual/table.ts > virtual > request",
-			"reason": "a table constructor: called once per entry as core.ts loads, returns its argument with its kind"
-		},
-		{
 			"id": "packages/barrels/src/index.ts > barrels > log",
 			"reason": "the console fallback before configResolved hands the plugin Vite's logger (never reached in a build: configResolved runs first); the logger path is benched in packages/barrels/bench/barrels.bench.ts"
 		},
@@ -2769,112 +2713,12 @@
 			"reason": "the escape callback of one character (a table lookup, constant work); quote's escapes are proven in packages/barrels/test/rewrite.test.ts"
 		},
 		{
-			"id": "packages/core/src/compiler/messages.ts > BUILD_ERRORS > barrels_option_removed > details",
-			"reason": "a message table entry: wording only"
-		},
-		{
-			"id": "packages/core/src/compiler/messages.ts > BUILD_ERRORS > barrels_option_removed > text",
-			"reason": "a message table entry: wording only"
-		},
-		{
-			"id": "packages/core/src/vite/index.ts > ogygia > seams > exports > map",
-			"reason": "a plugin's export index for one environment (a Map get or create over ogygia()'s closure: not replayable); the index's work is benched in packages/core/bench/compiler.bench.ts; proven through barrels() against a real Vite dev server in packages/barrels/test/plugin.test.ts"
-		},
-		{
-			"id": "packages/core/src/vite/index.ts > ogygia > seams > exports > map > ExportIndex:0~b7ee02",
-			"reason": "the index's resolver: the transformed module's own resolve (a live Vite plugin context, not recorded); proven in packages/barrels/test/plugin.test.ts"
-		},
-		{
-			"id": "packages/core/src/vite/index.ts > ogygia > seams > pinned_imports",
-			"reason": "the app's import keys and asRegion locals over ogygia()'s closure (not replayable); asRegionLocals is benched with the region transform; proven through barrels() in packages/barrels/test/plugin.test.ts and packages/barrels/test/as-region.test.ts"
-		},
-		{
-			"id": "packages/core/src/vite/index.ts > ogygia > barrels_left_of",
-			"reason": "one table per environment and stage in ogygia()'s closure, made once (a map lookup); the table itself is benched in packages/core/bench/compiler.bench.ts"
-		},
-		{
-			"id": "packages/core/src/vite/index.ts > ogygia > barrel_why",
-			"reason": "the client tables' why for one barrel row, over ogygia()'s closure (not replayable), at most two lookups; the join is benched in packages/core/bench/compiler.bench.ts and proven in packages/core/test/barrel-left.test.ts"
-		},
-		{
-			"id": "packages/core/src/vite/index.ts > ogygia > barrel_why > filter:0~cf3029",
-			"reason": "orders at most nine reasons (constant work); the same filter in the table is benched in packages/core/bench/compiler.bench.ts"
-		},
-		{
 			"id": "packages/core/src/compiler/dev/region-bytes.ts > island_subgraph_bytes > map:0~c49ee0",
 			"reason": "a barrel row's importers to their ids (one property read each), only with the dev server's live module graph; proven in packages/core/test/region-bytes.test.ts"
 		},
 		{
 			"id": "packages/devtools/src/profiler/report.ts > ogygia_findings > flatMap:0~283e13",
 			"reason": "the reasons of at most three listed barrels (constant work); proven in packages/devtools/test/profiler.test.ts"
-		},
-		{
-			"id": "packages/core/src/vite/index.ts > ogygia > seams > pinned_imports > <anonymous>~a269ad",
-			"reason": "one declaration against the pinned keys and locals (constant work over ogygia()'s closure); proven in packages/barrels/test/plugin.test.ts and packages/barrels/test/as-region.test.ts"
-		},
-		{
-			"id": "packages/core/src/vite/index.ts > ogygia > seams > pinned_imports > <anonymous>~a269ad > some:0~d4dbd6",
-			"reason": "one specifier's local against the asRegion locals (a Set has); proven in packages/barrels/test/as-region.test.ts"
-		},
-		{
-			"id": "packages/core/src/vite/index.ts > ogygia > seams > pinned_imports > <anonymous>~a269ad > some:0~e91cb2",
-			"reason": "one attribute key against the app's import keys (a Set has); proven in packages/barrels/test/plugin.test.ts"
-		},
-		{
-			"id": "packages/core/src/vite/index.ts > ogygia > stage_host",
-			"reason": "builds one Vite plugin object per stage (constant work, over ogygia()'s closure); the stage's transforms are benched in packages/barrels/bench/barrels.bench.ts"
-		},
-		{
-			"id": "packages/core/src/vite/index.ts > ogygia > stage_host > transform",
-			"reason": "a live Vite transform hook (its this.resolve and this.addWatchFile are the plugin context, not recorded); a stage's work is the plugins' transforms, benched in packages/barrels/bench/barrels.bench.ts; proven against a real Vite dev server and build in packages/barrels/test/plugin.test.ts"
-		},
-		{
-			"id": "packages/core/src/vite/index.ts > ogygia > stage_host > transform > filter:0~18c7ef",
-			"reason": "each stage transform's own filter on the module id (constant work per plugin); proven in packages/barrels/test/plugin.test.ts"
-		},
-		{
-			"id": "packages/core/src/vite/index.ts > ogygia > stage_host > transform > t > resolve",
-			"reason": "one specifier through the host's this.resolve (a live Vite plugin context, not recorded); its throw and external cases are proven in packages/barrels/test/plugin.test.ts"
-		},
-		{
-			"id": "packages/core/src/vite/index.ts > ogygia > stage_host > transform > t > watch",
-			"reason": "the host's this.addWatchFile (a live Vite plugin context, not recorded); proven by the barrel-edit case in packages/barrels/test/plugin.test.ts"
-		},
-		{
-			"id": "packages/core/src/vite/plugin-api.ts > NO_SEAMS > exports > map",
-			"reason": "a constant rejection for a plugin list resolved outside ogygia(); proven in packages/core/test/plugins.test.ts"
-		},
-		{
-			"id": "packages/core/src/vite/plugin-api.ts > NO_SEAMS > pinned_imports",
-			"reason": "a constant throw for a plugin list resolved outside ogygia(); proven in packages/core/test/plugins.test.ts"
-		},
-		{
-			"id": "packages/core/src/vite/plugin-api.ts > resolve_plugins > build:0~4ffc6b > transform",
-			"reason": "one push of a plugin's stage transform (a function: not replayable), constant work; proven in packages/core/test/plugins.test.ts"
-		},
-		{
-			"id": "packages/core/src/compiler/exports/index.ts > EVERY_BARREL > forced",
-			"reason": "a constant answer (false) of the allow-everything policy"
-		},
-		{
-			"id": "packages/core/src/compiler/exports/parse.ts > attribute_keys > map:0~781359",
-			"reason": "one attribute node to its key name (an oxc AST node: not replayable), constant work; the parse is benched in packages/core/bench/compiler.bench.ts"
-		},
-		{
-			"id": "packages/core/src/vite/index.ts > ogygia > Shapes:0~f72d16",
-			"reason": "the app's file read for its shared shapes (a BOM-stripped read over the plugin's closure: not replayable); the shapes are benched in packages/core/bench/compiler.bench.ts"
-		},
-		{
-			"id": "packages/core/src/compiler/fouc-css.ts > through_caller",
-			"reason": "hands one specifier to the walk's resolver (a function argument: not cloneable); proven in packages/core/test/exports-index.test.ts"
-		},
-		{
-			"id": "packages/core/src/compiler/fouc-css.ts > collectFoucCssReachable > Shapes:0~3bebf5",
-			"reason": "the walk's own file read for a fresh index's shapes (a pass-through to the caller's reader: not replayable); proven in packages/core/test/exports-index.test.ts"
-		},
-		{
-			"id": "packages/core/src/vite/index.ts > ogygia > css_walk_index",
-			"reason": "the CSS walk's export index for one environment (a Map get or create over the plugin's closure), constant work; the index's work is benched in packages/core/bench/compiler.bench.ts"
 		},
 		{
 			"id": "packages/config/src/vitest.ts > exact",
@@ -2923,6 +2767,1230 @@
 		{
 			"id": "packages/content/src/vite/leaks.ts > warn_content_leaks > warn:1~cd9197 > map:0~a95637",
 			"reason": "build only: relative paths of at most five leaked modules, inside the warning"
+		},
+		{
+			"id": "packages/devtools/src/profiler/request-stats.ts > hold_request_stats_detail",
+			"reason": "returns a release closure (a function, not cloneable), constant work; proven in packages/devtools/test/request-stats-detail.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/request-stats.ts > hold_request_stats_detail > <anonymous>~4ba179",
+			"reason": "lets go of one hold in a module-level set (not replayable: process state), constant work; proven in packages/devtools/test/request-stats-detail.test.ts"
+		},
+		{
+			"id": "packages/core/src/server/request-stats.ts > set_request_stats_sink",
+			"reason": "sets one module slot, once per profiler setup (constant work)"
+		},
+		{
+			"id": "packages/devtools/src/profiler/request-stats.ts > install_request_stats",
+			"reason": "sets core's stats sink, once per profiler setup (constant work)"
+		},
+		{
+			"id": "packages/devtools/src/profiler/request-stats.ts > request_stats_of",
+			"reason": "one WeakMap read keyed by a live Request (not cloneable), constant work"
+		},
+		{
+			"id": "packages/devtools/src/profiler/request-stats.ts > hole_stats_of",
+			"reason": "one WeakMap read keyed by a live Request (not cloneable), constant work"
+		},
+		{
+			"id": "packages/devtools/src/profiler/request-stats.ts > set_batch_hole_listener",
+			"reason": "stores one listener function (not cloneable), constant work"
+		},
+		{
+			"id": "packages/devtools/src/profiler/request-stats.ts > request_stats_store > page",
+			"reason": "one WeakMap write keyed by a live Request (not cloneable), constant work"
+		},
+		{
+			"id": "packages/devtools/src/profiler/request-stats.ts > request_stats_store > hole",
+			"reason": "one WeakMap write keyed by a live Request (not cloneable), constant work"
+		},
+		{
+			"id": "packages/devtools/src/profiler/request-stats.ts > request_stats_store > batchHole",
+			"reason": "hands one record to the recording profiler's listener, constant work"
+		},
+		{
+			"id": "packages/devtools/src/profiler/request-stats.ts > request_stats_store > wantsBatchHoles",
+			"reason": "reads one module slot (process state), constant work"
+		},
+		{
+			"id": "packages/devtools/src/profiler/request-stats.ts > request_stats_store > detailed",
+			"reason": "reads the size of a module-level set (process state), constant work; proven in packages/devtools/test/request-stats-detail.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/build/dev-meta.ts > dev_meta_plugin",
+			"reason": "dev only: builds one Vite plugin object, once per server, constant work"
+		},
+		{
+			"id": "packages/devtools/src/build/dev-meta.ts > dev_meta_plugin > configureServer",
+			"reason": "dev only: installs two middlewares on the dev server, once per server, constant work"
+		},
+		{
+			"id": "packages/devtools/src/build/dev-meta.ts > dev_meta_plugin > configureServer > use:0~2175f9",
+			"reason": "dev only: sets one response header and passes on, constant work"
+		},
+		{
+			"id": "packages/devtools/src/build/dev-meta.ts > dev_meta_plugin > configureServer > use:0~56d04b",
+			"reason": "dev only: the dock's meta endpoint over the dev server's module graph (not recorded); its work is island_subgraph_bytes, measured in core"
+		},
+		{
+			"id": "packages/devtools/src/build/dev-meta.ts > dev_meta_plugin > configureServer > use:0~56d04b > island_subgraph_bytes:2~0b61a8",
+			"reason": "dev only: hands one barrel question to the regions seam, constant work of its own"
+		},
+		{
+			"id": "packages/devtools/src/build/dev-meta.ts > dev_meta_plugin > configureServer > use:0~56d04b > read",
+			"reason": "dev only: reads one component source once per request (a file read, not recorded), constant work of its own"
+		},
+		{
+			"id": "packages/devtools/src/vite.ts > devtools > dev_meta_plugin:0~479109",
+			"reason": "dev only: hands the build's regions seam to the dev meta plugin, constant work"
+		},
+		{
+			"id": "packages/devtools/src/build/maps-plugin.ts > profiler_maps_plugins",
+			"reason": "build only: makes the two map plugin objects, once per build, constant work"
+		},
+		{
+			"id": "packages/devtools/src/build/maps-plugin.ts > profiler_maps_plugins > maps > closeBundle > handler",
+			"reason": "build only: fills the maps module once per server build (files on disk, not recorded); its work is fill_profiler_maps"
+		},
+		{
+			"id": "packages/devtools/src/build/maps-plugin.ts > profiler_maps_plugins > maps > configResolved",
+			"reason": "build only: reads three fields of Vite's resolved config, once per build, constant work"
+		},
+		{
+			"id": "packages/devtools/src/build/maps-plugin.ts > profiler_maps_plugins > maps > writeBundle",
+			"reason": "build only: writes the server leg's module map beside its chunks (files on disk, not recorded); its work is write_module_map"
+		},
+		{
+			"id": "packages/devtools/src/build/maps-plugin.ts > profiler_maps_plugins > server_sourcemaps_plugin:0~8b94d4",
+			"reason": "build only: the hidden-sourcemaps switch, always on in a build with the profiler, constant work"
+		},
+		{
+			"id": "packages/core/src/runtime/router-nav.ts > live_page_head",
+			"reason": "browser only: reads the live <head>'s page-owned nodes (not cloneable), linear in the head; proven in packages/core/test/browser/nav-head-order.test.ts (#794)"
+		},
+		{
+			"id": "packages/core/src/runtime/router-nav.ts > head_slot",
+			"reason": "browser only: walks a parsed head node's earlier siblings against the live <head> (not cloneable), linear in the head; proven in packages/core/test/browser/nav-head-order.test.ts (#794)"
+		},
+		{
+			"id": "packages/core/src/runtime/router-nav.ts > adopt_title",
+			"reason": "browser only: reads the parsed document's title and writes the live document's (not cloneable), constant work; proven in packages/core/test/browser/nav-no-title.test.ts"
+		},
+		{
+			"id": "packages/federation/src/messages.ts > FEDERATION_WARNINGS > federation_audience_missing > text",
+			"reason": "a warning's wording, constant text; said in packages/federation/test/federation.test.ts"
+		},
+		{
+			"id": "packages/federation/src/messages.ts > FEDERATION_WARNINGS > federation_audience_missing > details",
+			"reason": "a warning's longer wording for its error page, constant text"
+		},
+		{
+			"id": "packages/federation/src/wire.ts > checker > capability:0~070b09 > signer > sign",
+			"reason": "the check side's signer stub: it never signs (every check brings its own keys), no work"
+		},
+		{
+			"id": "packages/federation/src/wire.ts > checker > capability:0~070b09 > signer > verify",
+			"reason": "the check side's signer stub: every check brings its own keys, so this always refuses, no work"
+		},
+		{
+			"id": "packages/federation/src/wire.ts > minter > capability:0~81c9d6 > signer > verify",
+			"reason": "the mint side's verify stub: a minter checks nothing (the receiver brings its keys), no work"
+		},
+		{
+			"id": "packages/federation/src/wire.ts > configured_audience",
+			"reason": "reads the process's ORIGIN once per federate() (hidden state: the environment), one URL parse, constant work; proven in packages/federation/test/federation.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/index.ts > Profiler > #ids",
+			"reason": "the profiler's window ids, made once per instance (a profiler instance, not cloneable): one lazy import and one call of window_ids, which packages/devtools/bench/window-id.bench.ts measures; proven in packages/devtools/test/profiler-window-id.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/index.ts > Profiler > #ids > then:0~2b15d2",
+			"reason": "hands the loaded module's window_ids the profiler's secret, mode and audience (a module namespace, not cloneable), constant work; window_ids is benched in packages/devtools/bench/window-id.bench.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/window-id.ts > hmac_signer",
+			"reason": "wraps a derived key (a Buffer, not cloneable) in a sign/verify pair, once per profiler; the mint and check it serves are benched in packages/devtools/bench/window-id.bench.ts"
+		},
+		{
+			"id": "packages/core/src/compiler/macros/pipeline.ts > run_module_macros > refuse",
+			"reason": "throws the coded build error (not replayable), constant work; proven in packages/core/test/macros-own-source.test.ts"
+		},
+		{
+			"id": "packages/core/src/compiler/driver.ts > Compiler > macros > run_module_macros:2~cee8e9 > ownSource",
+			"reason": "forwards to CompileCtx.is_own_source, one call; proven in packages/core/test/macros-own-source.test.ts"
+		},
+		{
+			"id": "packages/core/src/compiler/ctx.ts > CompileCtx > is_own_source",
+			"reason": "one substring test and the declared-package lookup (a CompileCtx, hidden state), constant work per declared root"
+		},
+		{
+			"id": "packages/core/src/compiler/messages.ts > BUILD_ERRORS > macro_outside_app > text",
+			"reason": "a message's wording, constant text; said in packages/core/test/macros-own-source.test.ts"
+		},
+		{
+			"id": "packages/core/src/compiler/messages.ts > BUILD_ERRORS > macro_outside_app > details",
+			"reason": "a message's wording, constant text; said in packages/core/test/macros-own-source.test.ts"
+		},
+		{
+			"id": "packages/postrender/src/server.ts > credentialed",
+			"reason": "two header lookups on the request (a Request, not cloneable), once per request, constant work; proven in packages/postrender/test/plugin.test.ts"
+		},
+		{
+			"id": "packages/core/src/vite/package-files.ts > discover_package_files > inside",
+			"reason": "a closure over the package's real root (not replayable), one prefix compare; proven in packages/core/test/package-files.test.ts"
+		},
+		{
+			"id": "packages/core/src/server/rules.ts > note_region_answer",
+			"reason": "dev and e2e builds only: reads a live Response (not cloneable) into module state, constant work; proven in packages/core/test/server-rules-region.test.ts"
+		},
+		{
+			"id": "packages/core/src/server/rules.ts > note_minted_capability",
+			"reason": "dev and e2e builds only: two prefix tests into module state (hidden state), constant work; proven in packages/core/test/server-rules-region.test.ts"
+		},
+		{
+			"id": "packages/core/src/server/rules.ts > install_server_rules > add:1~32ab66",
+			"reason": "dev and e2e builds only: the region-answer rule joins its module list (hidden state), linear in the unsafe answers seen; proven in packages/core/test/server-rules-region.test.ts"
+		},
+		{
+			"id": "packages/core/src/server/rules.ts > install_server_rules > add:1~dd5fc5",
+			"reason": "dev and e2e builds only: the minted-capability rule joins its module list (hidden state), linear in the unsafe mints seen; proven in packages/core/test/server-rules-region.test.ts"
+		},
+		{
+			"id": "packages/core/src/server/rules.ts > region_answer_unsafe",
+			"reason": "dev and e2e builds only: reads a live Response's headers (not cloneable), constant work; proven in packages/core/test/server-rules-region.test.ts"
+		},
+		{
+			"id": "packages/core/src/messages/server.ts > SERVER_WARNINGS > rule_region_answer_shared > text",
+			"reason": "a rule's message wording (dev and e2e only), constant text; said in packages/core/test/server-rules-region.test.ts"
+		},
+		{
+			"id": "packages/core/src/messages/server.ts > SERVER_WARNINGS > rule_region_answer_shared > details",
+			"reason": "a rule's message wording (dev and e2e only), constant text; said in packages/core/test/server-rules-region.test.ts"
+		},
+		{
+			"id": "packages/core/src/messages/server.ts > SERVER_WARNINGS > rule_capability_not_path > text",
+			"reason": "a rule's message wording (dev and e2e only), constant text; said in packages/core/test/server-rules-region.test.ts"
+		},
+		{
+			"id": "packages/core/src/messages/server.ts > SERVER_WARNINGS > rule_capability_not_path > details",
+			"reason": "a rule's message wording (dev and e2e only), constant text; said in packages/core/test/server-rules-region.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/rules.ts > head_candidates",
+			"reason": "browser only, dev and e2e builds: one query of the live head (DOM nodes, not cloneable), linear in its base and http-equiv nodes; proven in packages/core/test/browser/spa-head-deny.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/rules.ts > head_not_adopted",
+			"reason": "browser only, dev and e2e builds: the rule's answer over the live head (DOM nodes, not cloneable), linear in its base and http-equiv nodes; proven in packages/core/test/browser/spa-head-deny.test.ts and read at the end of every palaestra e2e spec"
+		},
+		{
+			"id": "packages/core/src/runtime/rules.ts > watch_head",
+			"reason": "browser only, dev and e2e builds: takes the first document's head once (DOM nodes, not cloneable) and installs the rule; proven in packages/core/test/browser/spa-head-deny.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/rules.ts > watch_head > map:0~7d8330",
+			"reason": "browser only, dev and e2e builds: one head node's outerHTML (a DOM node, not cloneable), constant work; proven in packages/core/test/browser/spa-head-deny.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/rules.ts > watch_head > __og_head_deny",
+			"reason": "browser only, dev and e2e builds: the router's lazy chunk hands its deny in (one assignment), constant work; proven in packages/core/test/browser/spa-head-deny.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/head-deny.ts > is_dangerous_head_node",
+			"reason": "browser only: a tag name and one attribute of a head node (a DOM element, not cloneable), constant work; proven in packages/core/test/browser/spa-head-deny.test.ts in three engines"
+		},
+		{
+			"id": "packages/core/src/messages/core.ts > WARNINGS > rule_head_adopted > details",
+			"reason": "a rule's message wording (dev and e2e only), constant text; said in packages/core/test/browser/spa-head-deny.test.ts"
+		},
+		{
+			"id": "packages/core/src/messages/core.ts > WARNINGS > rule_head_adopted > text",
+			"reason": "a rule's message wording (dev and e2e only), constant text; said in packages/core/test/browser/spa-head-deny.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/rules.ts > watch_frames",
+			"reason": "browser only, dev and e2e builds: hands the rule the frame store's peek, once; proven in packages/core/test/browser/rules.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/rules.ts > note_handed",
+			"reason": "browser only, dev and e2e builds: records a frame handed to a region element (DOM nodes, not cloneable), constant work; proven in packages/core/test/browser/rules.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/rules.ts > note_turn",
+			"reason": "browser only, dev and e2e builds: one counter per region element (DOM nodes, not cloneable); proven in packages/core/test/browser/rules.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/rules.ts > note_shown",
+			"reason": "browser only, dev and e2e builds: records the ticket a region element painted (DOM nodes, not cloneable); proven in packages/core/test/browser/rules.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/rules.ts > note_unbound",
+			"reason": "browser only, dev and e2e builds: forgets a region element (DOM nodes, not cloneable); proven in packages/core/test/browser/rules.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/rules.ts > regions_show_their_answers",
+			"reason": "browser only, dev and e2e builds: the rule over the page's bound region elements and the frame store, linear in bound regions; proven in packages/core/test/browser/rules.test.ts and read at the end of every e2e spec"
+		},
+		{
+			"id": "packages/core/src/messages/core.ts > WARNINGS > rule_region_answer_behind > details",
+			"reason": "a message's prose for its docs page and dev warning: constant text, printed once when the rule breaks"
+		},
+		{
+			"id": "packages/core/src/messages/core.ts > WARNINGS > rule_region_answer_behind > text",
+			"reason": "a message's one line for the dev warning: a template over the rule's detail, printed once when the rule breaks"
+		},
+		{
+			"id": "packages/core/src/runtime/core.ts > say_island_failed",
+			"reason": "browser only, an error path: says one coded console error for an island that could not start (an Error, not cloneable), constant work; proven in packages/core/test/browser/live-region-failed-file.test.ts (#942)"
+		},
+		{
+			"id": "packages/compiler/src/compiler/virtual/core.ts > family:0~04bf59 > load > server_manifest_module:3~e7ea15",
+			"reason": "the server manifest's dev URL of one registered region (a lambda handed to the generator), constant work; the bench session registers no region"
+		},
+		{
+			"id": "packages/compiler/src/compiler/virtual/core.ts > family:0~04bf59 > load > server_manifest_module:4~126d93",
+			"reason": "the server manifest's public URL of one registered region (a lambda handed to the generator), constant work; the bench session registers no region"
+		},
+		{
+			"id": "packages/compiler/src/compiler/virtual/core.ts > family:0~359af7 > load > router_css_module:1~4ebdf0 > read_file",
+			"reason": "one file read for the server router's CSS, a pass-through to the host fs (the router-css generator's own tests read real routes)"
+		},
+		{
+			"id": "packages/compiler/src/compiler/messages.ts > BUILD_ERRORS > virtual_wrong_realm > details",
+			"reason": "a message table entry: wording only"
+		},
+		{
+			"id": "packages/compiler/src/compiler/messages.ts > BUILD_ERRORS > virtual_wrong_realm > text",
+			"reason": "a message table entry: wording only"
+		},
+		{
+			"id": "packages/compiler/src/compiler/messages.ts > BUILD_ERRORS > virtual_unknown > details",
+			"reason": "a message table entry: wording only"
+		},
+		{
+			"id": "packages/compiler/src/compiler/messages.ts > BUILD_ERRORS > virtual_duplicate > details",
+			"reason": "a message table entry: wording only"
+		},
+		{
+			"id": "packages/compiler/src/compiler/virtual/core.ts > map:0~fa4377",
+			"reason": "declares the six driver-resolved families once, as core.ts loads; constant, never per build"
+		},
+		{
+			"id": "packages/compiler/src/compiler/virtual/table.ts > virtual > family",
+			"reason": "a table constructor: called once per entry as core.ts loads, returns its argument with its kind"
+		},
+		{
+			"id": "packages/compiler/src/compiler/virtual/table.ts > virtual > request",
+			"reason": "a table constructor: called once per entry as core.ts loads, returns its argument with its kind"
+		},
+		{
+			"id": "packages/compiler/src/compiler/messages.ts > BUILD_ERRORS > barrels_option_removed > details",
+			"reason": "a message table entry: wording only"
+		},
+		{
+			"id": "packages/compiler/src/compiler/messages.ts > BUILD_ERRORS > barrels_option_removed > text",
+			"reason": "a message table entry: wording only"
+		},
+		{
+			"id": "packages/compiler/src/vite/index.ts > ogygia > seams > exports > map",
+			"reason": "a plugin's export index for one environment (a Map get or create over ogygia()'s closure: not replayable); the index's work is benched in packages/core/bench/compiler.bench.ts; proven through barrels() against a real Vite dev server in packages/barrels/test/plugin.test.ts"
+		},
+		{
+			"id": "packages/compiler/src/vite/index.ts > ogygia > seams > exports > map > ExportIndex:0~b7ee02",
+			"reason": "the index's resolver: the transformed module's own resolve (a live Vite plugin context, not recorded); proven in packages/barrels/test/plugin.test.ts"
+		},
+		{
+			"id": "packages/compiler/src/vite/index.ts > ogygia > seams > pinned_imports",
+			"reason": "the app's import keys and asRegion locals over ogygia()'s closure (not replayable); asRegionLocals is benched with the region transform; proven through barrels() in packages/barrels/test/plugin.test.ts and packages/barrels/test/as-region.test.ts"
+		},
+		{
+			"id": "packages/compiler/src/vite/index.ts > ogygia > barrels_left_of",
+			"reason": "one table per environment and stage in ogygia()'s closure, made once (a map lookup); the table itself is benched in packages/core/bench/compiler.bench.ts"
+		},
+		{
+			"id": "packages/compiler/src/vite/index.ts > ogygia > barrel_why",
+			"reason": "the client tables' why for one barrel row, over ogygia()'s closure (not replayable), at most two lookups; the join is benched in packages/core/bench/compiler.bench.ts and proven in packages/core/test/barrel-left.test.ts"
+		},
+		{
+			"id": "packages/compiler/src/vite/index.ts > ogygia > barrel_why > filter:0~cf3029",
+			"reason": "orders at most nine reasons (constant work); the same filter in the table is benched in packages/core/bench/compiler.bench.ts"
+		},
+		{
+			"id": "packages/compiler/src/vite/index.ts > ogygia > seams > pinned_imports > <anonymous>~a269ad",
+			"reason": "one declaration against the pinned keys and locals (constant work over ogygia()'s closure); proven in packages/barrels/test/plugin.test.ts and packages/barrels/test/as-region.test.ts"
+		},
+		{
+			"id": "packages/compiler/src/vite/index.ts > ogygia > seams > pinned_imports > <anonymous>~a269ad > some:0~d4dbd6",
+			"reason": "one specifier's local against the asRegion locals (a Set has); proven in packages/barrels/test/as-region.test.ts"
+		},
+		{
+			"id": "packages/compiler/src/vite/index.ts > ogygia > seams > pinned_imports > <anonymous>~a269ad > some:0~e91cb2",
+			"reason": "one attribute key against the app's import keys (a Set has); proven in packages/barrels/test/plugin.test.ts"
+		},
+		{
+			"id": "packages/compiler/src/vite/index.ts > ogygia > stage_host",
+			"reason": "builds one Vite plugin object per stage (constant work, over ogygia()'s closure); the stage's transforms are benched in packages/barrels/bench/barrels.bench.ts"
+		},
+		{
+			"id": "packages/compiler/src/vite/index.ts > ogygia > stage_host > transform",
+			"reason": "a live Vite transform hook (its this.resolve and this.addWatchFile are the plugin context, not recorded); a stage's work is the plugins' transforms, benched in packages/barrels/bench/barrels.bench.ts; proven against a real Vite dev server and build in packages/barrels/test/plugin.test.ts"
+		},
+		{
+			"id": "packages/compiler/src/vite/index.ts > ogygia > stage_host > transform > filter:0~18c7ef",
+			"reason": "each stage transform's own filter on the module id (constant work per plugin); proven in packages/barrels/test/plugin.test.ts"
+		},
+		{
+			"id": "packages/compiler/src/vite/index.ts > ogygia > stage_host > transform > t > resolve",
+			"reason": "one specifier through the host's this.resolve (a live Vite plugin context, not recorded); its throw and external cases are proven in packages/barrels/test/plugin.test.ts"
+		},
+		{
+			"id": "packages/compiler/src/vite/index.ts > ogygia > stage_host > transform > t > watch",
+			"reason": "the host's this.addWatchFile (a live Vite plugin context, not recorded); proven by the barrel-edit case in packages/barrels/test/plugin.test.ts"
+		},
+		{
+			"id": "packages/compiler/src/vite/plugin-api.ts > NO_SEAMS > exports > map",
+			"reason": "a constant rejection for a plugin list resolved outside ogygia(); proven in packages/core/test/plugins.test.ts"
+		},
+		{
+			"id": "packages/compiler/src/vite/plugin-api.ts > NO_SEAMS > pinned_imports",
+			"reason": "a constant throw for a plugin list resolved outside ogygia(); proven in packages/core/test/plugins.test.ts"
+		},
+		{
+			"id": "packages/compiler/src/vite/plugin-api.ts > resolve_plugins > build:0~4ffc6b > transform",
+			"reason": "one push of a plugin's stage transform (a function: not replayable), constant work; proven in packages/core/test/plugins.test.ts"
+		},
+		{
+			"id": "packages/compiler/src/compiler/exports/index.ts > EVERY_BARREL > forced",
+			"reason": "a constant answer (false) of the allow-everything policy"
+		},
+		{
+			"id": "packages/compiler/src/compiler/exports/parse.ts > attribute_keys > map:0~781359",
+			"reason": "one attribute node to its key name (an oxc AST node: not replayable), constant work; the parse is benched in packages/core/bench/compiler.bench.ts"
+		},
+		{
+			"id": "packages/compiler/src/vite/index.ts > ogygia > Shapes:0~f72d16",
+			"reason": "the app's file read for its shared shapes (a BOM-stripped read over the plugin's closure: not replayable); the shapes are benched in packages/core/bench/compiler.bench.ts"
+		},
+		{
+			"id": "packages/compiler/src/compiler/fouc-css.ts > through_caller",
+			"reason": "hands one specifier to the walk's resolver (a function argument: not cloneable); proven in packages/core/test/exports-index.test.ts"
+		},
+		{
+			"id": "packages/compiler/src/compiler/fouc-css.ts > collectFoucCssReachable > Shapes:0~3bebf5",
+			"reason": "the walk's own file read for a fresh index's shapes (a pass-through to the caller's reader: not replayable); proven in packages/core/test/exports-index.test.ts"
+		},
+		{
+			"id": "packages/compiler/src/vite/index.ts > ogygia > css_walk_index",
+			"reason": "the CSS walk's export index for one environment (a Map get or create over the plugin's closure), constant work; the index's work is benched in packages/core/bench/compiler.bench.ts"
+		},
+		{
+			"id": "packages/insights/src/page-assets.ts > weigh_one > Promise:0~9ee1b9 > timeout:0~e7251f",
+			"reason": "a file's budget race timer on its own scope (a fetched Response, not cloneable), constant work; run by packages/insights/test/profiler-page-assets.test.ts"
+		},
+		{
+			"id": "packages/insights/src/page-assets.ts > weigh_one > finally:0~4a8350",
+			"reason": "a file's budget race timer on its own scope (a fetched Response, not cloneable), constant work; run by packages/insights/test/profiler-page-assets.test.ts"
+		},
+		{
+			"id": "packages/compiler/src/vite/index.ts > ogygia > seams > regions > barrelWhy",
+			"reason": "dev only: the regions seam hands the dock one barrel answer from the build's index, constant work of its own"
+		},
+		{
+			"id": "packages/compiler/src/vite/index.ts > ogygia > seams > regions > names",
+			"reason": "dev only: the regions seam lists the build's region entries, linear in the regions"
+		},
+		{
+			"id": "packages/compiler/src/vite/plugin-api.ts > NO_SEAMS > regions > barrelWhy",
+			"reason": "the empty seam a plugin sees before the build is set up: answers nothing, constant work"
+		},
+		{
+			"id": "packages/compiler/src/vite/plugin-api.ts > NO_SEAMS > regions > names",
+			"reason": "the empty seam a plugin sees before the build is set up: answers nothing, constant work"
+		},
+		{
+			"id": "packages/compiler/src/vite/index.ts > ogygia > closeBundle",
+			"reason": "build only: Vite's closeBundle hook, once per build leg, constant work of its own"
+		},
+		{
+			"id": "packages/compiler/src/vite/paths.ts > runtime_content_hash",
+			"reason": "build only: hashes the runtime's files on disk (file reads, not recorded), once per build leg"
+		},
+		{
+			"id": "packages/compiler/src/vite/paths.ts > scan_entry_pattern",
+			"reason": "dev only: one island file to an optimizeDeps pattern (a realpath and one replace), constant work per file"
+		},
+		{
+			"id": "packages/core/src/contract/core-files.ts > built",
+			"reason": "one path.join into core's dist, run as the module loads (never per request or per build)"
+		},
+		{
+			"id": "packages/core/src/contract/core-files.ts > id_dir",
+			"reason": "real_posix and one trailing slash, run as the module loads (CORE_ROOT_ID), constant work"
+		},
+		{
+			"id": "packages/core/src/contract/core-files.ts > real_posix",
+			"reason": "one realpath on the file system (not replayable) and one replace, constant work"
+		},
+		{
+			"id": "packages/compiler/src/compiler/messages.ts > BUILD_ERRORS > plugin_client_hook_unknown > text",
+			"reason": "a message table entry: wording only"
+		},
+		{
+			"id": "packages/compiler/src/compiler/messages.ts > BUILD_ERRORS > plugin_client_hook_unknown > details",
+			"reason": "a message table entry: wording only"
+		},
+		{
+			"id": "packages/compiler/src/compiler/messages.ts > BUILD_ERRORS > plugin_client_hooks_unread > text",
+			"reason": "a message table entry: wording only"
+		},
+		{
+			"id": "packages/compiler/src/compiler/messages.ts > BUILD_ERRORS > plugin_client_hooks_unread > details",
+			"reason": "a message table entry: wording only"
+		},
+		{
+			"id": "packages/core/src/messages/core.ts > ERRORS > client_hook_failed > text",
+			"reason": "a message table entry: wording only"
+		},
+		{
+			"id": "packages/core/src/messages/core.ts > ERRORS > client_hook_failed > details",
+			"reason": "a message table entry: wording only"
+		},
+		{
+			"id": "packages/compiler/src/compiler/virtual/core.ts > hook_gate",
+			"reason": "declares one hook constant (its from is a lambda: not cloneable), once per hook as core.ts loads; constant, never per build"
+		},
+		{
+			"id": "packages/core/src/runtime/client-plugins.ts > joined",
+			"reason": "browser only: builds one hook's subscriber list once at boot, linear in the client plugins (a handful)"
+		},
+		{
+			"id": "packages/core/src/runtime/client-plugins.ts > joined > report",
+			"reason": "browser only: reports one plugin's failed hook once (a Set has and add, one console.error); proven in packages/core/test/runtime-hooks-compose.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/client-plugins.ts > joined > <anonymous>~76c203",
+			"reason": "browser only: one hook event to each subscriber in turn, linear in the subscribers (a handful); each subscriber's own work is its plugin's"
+		},
+		{
+			"id": "packages/core/src/runtime/client-plugins.ts > joined > <anonymous>~76c203 > catch:0~d63084",
+			"reason": "browser only: a subscriber's rejected promise to report, constant work"
+		},
+		{
+			"id": "packages/compiler/src/vite/plugin-api.ts > client_hook_names > unread",
+			"reason": "builds one OgygiaError for an unreadable realm, constant work"
+		},
+		{
+			"id": "packages/compiler/src/vite/plugin-api.ts > client_hook_names > unwrap",
+			"reason": "one oxc AST node through its type wrappers (not replayable), at most a few steps; proven in packages/core/test/plugins.test.ts"
+		},
+		{
+			"id": "packages/compiler/src/vite/plugin-api.ts > client_hook_names > key_of",
+			"reason": "one oxc AST property to its key name (not replayable), constant work; proven in packages/core/test/plugins.test.ts"
+		},
+		{
+			"id": "packages/compiler/src/vite/plugin-api.ts > client_hook_names > filter:0~a8d4cb",
+			"reason": "one top-level statement against the export form (an oxc AST node: not replayable), once per realm per build; proven in packages/core/test/plugins.test.ts"
+		},
+		{
+			"id": "packages/compiler/src/vite/plugin-api.ts > client_hook_names > flatMap:0~9d68c8",
+			"reason": "one export statement to its specifiers (an oxc AST node: not replayable), once per realm per build; proven in packages/core/test/plugins.test.ts"
+		},
+		{
+			"id": "packages/compiler/src/vite/plugin-api.ts > client_hook_names > find:0~9b241a",
+			"reason": "one export specifier against the name default (an oxc AST node: not replayable), constant work; proven in packages/core/test/plugins.test.ts"
+		},
+		{
+			"id": "packages/compiler/src/vite/plugin-api.ts > client_hook_names > find:0~de07eb",
+			"reason": "one top-level statement against export default (an oxc AST node: not replayable), constant work; proven in packages/core/test/plugins.test.ts"
+		},
+		{
+			"id": "packages/compiler/src/vite/plugin-api.ts > client_hook_names > filter:0~08f42a",
+			"reason": "one top-level statement against a const declaration (an oxc AST node: not replayable), constant work; proven in packages/core/test/plugins.test.ts"
+		},
+		{
+			"id": "packages/compiler/src/vite/plugin-api.ts > client_hook_names > flatMap:0~15075b",
+			"reason": "one const declaration to its declarators (an oxc AST node: not replayable), constant work; proven in packages/core/test/plugins.test.ts"
+		},
+		{
+			"id": "packages/compiler/src/vite/plugin-api.ts > client_hook_names > find:0~e53b3e",
+			"reason": "one declarator against the exported name (an oxc AST node: not replayable), constant work; proven in packages/core/test/plugins.test.ts"
+		},
+		{
+			"id": "packages/compiler/src/vite/plugin-api.ts > client_hook_names > some:0~21370e",
+			"reason": "one property of the realm's object for a key it cannot read (an oxc AST node: not replayable), constant work; proven in packages/core/test/plugins.test.ts"
+		},
+		{
+			"id": "packages/compiler/src/vite/plugin-api.ts > client_hook_names > find:0~4d8122",
+			"reason": "one property of the realm's object against the key hooks (an oxc AST node: not replayable), constant work; proven in packages/core/test/plugins.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon.ts > beacon_critical",
+			"reason": "browser only: keeps the critical wait's three numbers for the visit (module state: not replayable), constant work"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > _restart_page_beacon",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: not cloneable); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > addEventListener:1~dfd6f3",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: never ran); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > api > changed",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: not replayable); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > api > hydrated",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: not replayable); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > api > input_on",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: not replayable); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > api > join",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: not cloneable); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > api > keep_traces",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: never ran); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > api > nav_at",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: not replayable); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > api > page",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: not replayable); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > api > record_cpu",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: not recorded); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > api > record_cpu > Promise:0~ae73a0",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: never ran); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > api > send",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: not replayable); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > api > shift",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: never ran); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > api > shift > room:2~73a327",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: never ran); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > api > state",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: not replayable); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > attr_changes",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: not replayable); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > bare",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: not replayable); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > beacon_mark",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: not replayable); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > build_visit",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: not replayable); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > build_visit_now",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: not replayable); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > build_visit_now > filter:0~8f06f4",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: not replayable); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > build_visit_now > filter:0~a73cb8",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: not replayable); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > build_visit_now > find:0~0a6610",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: never ran); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > build_visit_now > find:0~bc3069",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: never ran); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > build_visit_now > find:0~e3ec81",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: never ran); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > build_visit_now > map:0~2193e7",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: not replayable); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > build_visit_now > map:0~65cce3",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: not replayable); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > build_visit_now > map:0~c1fd37",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: not recorded); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > build_visit_now > nav > map:0~f96977",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: never ran); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > build_visit_now > sort:0~4c8f5b",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: never ran); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > build_visit_now > sort:0~573645",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: never ran); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > build_visit_now > sort:0~b014bc",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: not replayable); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > build_visit_now > type_of",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: not replayable); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > charge",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: not replayable); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > copy_of",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: not replayable); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > describe_target",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: never ran); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > dom_shape",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: never ran); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > dom_shape > brief",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: never ran); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > dom_shape > sort:0~5ea730",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: never ran); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > ext_of",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: not replayable); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > flush",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: never ran); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > flush_cpu",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: not recorded); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > flush_visit",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: never ran); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > flush_visit > send:1~6c0c97",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: never ran); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > font_faces_of",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: not replayable); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > font_faces_of > filter:0~f6e8db",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: never ran); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > font_faces_of > map:0~6868ce",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: never ran); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > font_urls",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: never ran); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > fp_of",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: never ran); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > images_eager_below",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: never ran); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > images_unsized",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: never ran); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > interaction_seen",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: never ran); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > interaction_seen > setTimeout:0~60830c",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: never ran); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > interaction_with_scripts",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: never ran); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > interaction_with_scripts > sort:0~573645",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: never ran); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > keep_trace",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: never ran); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > make_profiler",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: not replayable); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > nav_entry",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: not replayable); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > nav_phases",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: not replayable); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > nav_phases > put",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: not replayable); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > observe",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: not replayable); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > observe > addEventListener:1~be19cd",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: never ran); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > observe > first",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: not cloneable); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > observe > first > <anonymous>~289846",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: never ran); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > observe > note_input",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: not cloneable); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > observe > note_input > <anonymous>~2e916d",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: never ran); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > observe > watch:1~39305c",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: never ran); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > observe > watch:1~501833",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: never ran); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > observe > watch:1~501833 > room:2~72d4ff",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: never ran); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > observe > watch:1~9b53b9",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: never ran); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > observe > watch:1~a64809",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: never ran); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > observe > watch:1~a64809 > push:0~c17dba > map:0~36304b",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: never ran); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > observe > watch:1~a64809 > push:0~c17dba > sort:0~e31e69",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: never ran); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > observe > watch:1~a64809 > push:0~ea2ba0 > map:0~e32754",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: never ran); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > observe > watch:1~a64809 > room:2~1b81bf",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: never ran); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > observe > watch:1~a64809 > room:2~4aabdf",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: never ran); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > observe > watch:1~a64809 > some:0~f26c7b",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: never ran); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > observe > watch:1~c38d55",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: not replayable); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > observe > watch:1~c7b584",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: never ran); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > observe > watch:1~c7b584 > room:2~3a8aa2",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: never ran); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > observe > watch:1~e7079f",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: never ran); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > open_db",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: never ran); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > open_db > Promise:0~9a7258",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: never ran); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > open_db > Promise:0~9a7258 > onblocked",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: never ran); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > open_db > Promise:0~9a7258 > onerror",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: never ran); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > open_db > Promise:0~9a7258 > onsuccess",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: never ran); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > open_db > Promise:0~9a7258 > onupgradeneeded",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: never ran); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > oversized_images",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: never ran); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > paint_blocker",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: not replayable); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > paint_blocker > <anonymous>~824531",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: never ran); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > paint_blocker > <anonymous>~e89c1b",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: not replayable); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > post_trace",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: never ran); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > preloads_never_used",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: never ran); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > preloads_never_used > read_sheets",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: never ran); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > preloads_never_used > some:0~de3412",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: never ran); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > rect_of",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: never ran); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > resend_soon",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: not replayable); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > resend_soon > setTimeout:0~e2c5ea",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: never ran); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > resource_type",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: not replayable); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > room",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: not replayable); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > room > findIndex:0~9d1681",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: not replayable); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > schedule",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: not replayable); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > send_after_preload_check",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: never ran); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > send_after_preload_check > addEventListener:1~32c758",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: never ran); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > start_cpu",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: not replayable); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > start_cpu > check",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: never ran); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > start_interaction_cpu",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: never ran); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > start_interaction_cpu > setTimeout:0~60830c",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: never ran); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > stop",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: not replayable); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > stop > catch:0~a1b2d0",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: never ran); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > stop_interaction_cpu",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: not recorded); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > store_visit",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: not recorded); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > store_visit > onsuccess",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: never ran); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > store_visit > onsuccess > arr",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: never ran); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > store_visit > onsuccess > onsuccess",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: never ran); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > store_visit > onsuccess > rec > union:2~90267e",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: never ran); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > store_visit > onsuccess > rec > visit > union:2~0564b0",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: never ran); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > store_visit > onsuccess > rec > visit > union:2~3b3bc2",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: never ran); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > store_visit > onsuccess > rec > visit > union:2~8ba958",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: never ran); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > store_visit > onsuccess > rec > visit > union:2~9ce3d0",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: never ran); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > store_visit > onsuccess > rec > visit > union:2~bd1f02",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: never ran); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > store_visit > onsuccess > union",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: never ran); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > supports",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: not replayable); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > tag_attrs",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: not replayable); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > tag_name",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: not replayable); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > tool_made",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: not replayable); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > unquote",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: never ran); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > unsupported_types",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: not replayable); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > unsupported_types > filter:0~b0de67",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: not replayable); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > watch_frame_gaps",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: not replayable); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > watch_frame_gaps > tick",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: never ran); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > watch_frame_gaps > tick > room:2~3a8aa2",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: never ran); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/document-request.ts > is_document_request",
+			"reason": "two header reads of a Request (not cloneable), constant work, once per request"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon.ts > page",
+			"reason": "browser only: the page beacon on a globalThis key (hidden state), one property read"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon.ts > beacon_warning > room:2~73a327",
+			"reason": "browser only: one warning's time for the page beacon's room check, constant work"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon.ts > island_record > room:2~e000b1",
+			"reason": "browser only: one island's start time for the page beacon's room check, constant work"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon.ts > describe_region",
+			"reason": "browser only: a DOM element to a short label (not replayable), at most a 30-character slice"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon.ts > part > visit",
+			"reason": "browser only: copies the regions' visit lists for the page beacon (module state: not replayable), linear in the kept entries; proven in packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon.ts > part > snapshots",
+			"reason": "browser only: the hydrated snapshots, re-read from the DOM on the final send (not replayable), linear in the kept snapshots"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon.ts > part > waking",
+			"reason": "browser only: whether a region is still waking (a DOM query: not replayable), one querySelectorAll"
+		},
+		{
+			"id": "packages/devtools/src/server.ts > dock_measures",
+			"reason": "a RequestEvent (not cloneable) to whether the dock measures it: a header read and a cookie read, once per request"
+		},
+		{
+			"id": "packages/devtools/src/server.ts > WITH_PAGE_BEACON > transformPageChunk",
+			"reason": "SvelteKit's page transform (an async hook: not recorded): two indexOf calls and one join over the head, once per document"
+		},
+		{
+			"id": "packages/devtools/src/server.ts > after",
+			"reason": "joins two resolve options into one, once per request, constant work"
+		},
+		{
+			"id": "packages/devtools/src/server.ts > after > transformPageChunk",
+			"reason": "SvelteKit's page transform (an async hook: not recorded): runs the inner then the outer transform, constant work of its own"
+		},
+		{
+			"id": "packages/tooling/src/e2e/packed.ts > pack_ogygia > map:0~dfb3e5",
+			"reason": "e2e tooling: one `pnpm pack` per released-together package (a child process), run once per suite by apps/palaestra/e2e/adapters.spec.ts and kit3.spec.ts"
+		},
+		{
+			"id": "packages/tooling/src/e2e/packed.ts > use_packed > map:0~59ea86",
+			"reason": "e2e tooling: one override line per released-together package (three), run once per suite by apps/palaestra/e2e/adapters.spec.ts and kit3.spec.ts"
+		},
+		{
+			"id": "packages/devtools/src/messages/runtime.ts > DEVTOOLS_WARNINGS > devtools_page_beacon_load_failed > text",
+			"reason": "a message table entry: wording only"
+		},
+		{
+			"id": "packages/devtools/src/messages/runtime.ts > DEVTOOLS_WARNINGS > devtools_page_beacon_load_failed > details",
+			"reason": "a message table entry: wording only"
+		},
+		{
+			"id": "packages/devtools/src/page-beacon-start.ts > start_page_beacon",
+			"reason": "browser only, a build's switched-on dock: loads and starts the page beacon once per document (its loader, a function: not cloneable); proven in packages/devtools/e2e/dock-switch.spec.ts"
+		},
+		{
+			"id": "packages/devtools/src/page-beacon-start.ts > start_page_beacon > load",
+			"reason": "browser only: the default loader, one dynamic import of the beacon's chunk, once per document"
+		},
+		{
+			"id": "packages/devtools/src/page-beacon-start.ts > start_page_beacon > then:0~6c8c0d",
+			"reason": "browser only: starts the loaded beacon (a module: not cloneable), constant work of its own"
+		},
+		{
+			"id": "packages/devtools/src/page-beacon-start.ts > start_page_beacon > then:1~491fd5",
+			"reason": "browser only: a failed chunk download, said once per page (a module flag), constant work"
+		},
+		{
+			"id": "packages/devtools/src/client.ts > plugin > hooks > regionMount",
+			"reason": "browser only: hands one hook event (a DOM element: not replayable) to the leftovers watch, constant work of its own"
+		},
+		{
+			"id": "packages/devtools/src/client.ts > plugin > hooks > regionUnmount",
+			"reason": "browser only: hands one hook event (a DOM element: not replayable) to the leftovers watch, constant work of its own"
+		},
+		{
+			"id": "packages/devtools/src/client.ts > plugin > hooks > regionHydrated",
+			"reason": "browser only: hands one hook event (a DOM element: not replayable) to beacon_hydrated, constant work of its own"
+		},
+		{
+			"id": "packages/devtools/src/client.ts > plugin > hooks > regionFailed",
+			"reason": "browser only: hands one hook event (a DOM element: not replayable) to beacon_failed, constant work of its own"
+		},
+		{
+			"id": "packages/devtools/src/client.ts > plugin > hooks > holeAnswered",
+			"reason": "browser only: hands one hook event (a DOM element: not replayable) to beacon_hole_answered, constant work of its own"
+		},
+		{
+			"id": "packages/devtools/src/client.ts > plugin > hooks > holeFailed",
+			"reason": "browser only: renames one field of a hook event for beacon_hole_failed, constant work of its own"
+		},
+		{
+			"id": "packages/devtools/src/client.ts > plugin > hooks > holeBatchMissed",
+			"reason": "browser only: renames one field of a hook event for beacon_hole_batch_missed, constant work of its own"
+		},
+		{
+			"id": "packages/devtools/src/client.ts > plugin > hooks > entryFallback",
+			"reason": "browser only: hands one hook event to beacon_entry_fallback, constant work of its own"
+		},
+		{
+			"id": "packages/devtools/src/client.ts > plugin > hooks > navigated",
+			"reason": "browser only: hands one hook event to beacon_nav, constant work of its own"
+		},
+		{
+			"id": "packages/devtools/src/client.ts > plugin > hooks > criticalSettled",
+			"reason": "browser only: hands one hook event to beacon_critical, constant work of its own"
+		},
+		{
+			"id": "packages/devtools/src/client.ts > plugin > hooks > warning",
+			"reason": "browser only: hands one hook event to beacon_warning, constant work of its own"
+		},
+		{
+			"id": "packages/devtools/src/client.ts > plugin > boot",
+			"reason": "browser only: the dock's boot, once per page: installs the beacon and, with the dock on, the dock UI and the leftovers watch"
+		},
+		{
+			"id": "packages/devtools/src/server.ts > never_stored",
+			"reason": "sets one header on a Response (not cloneable), or copies its headers once when they are immutable; once per document that carries the beacon in a build; proven in packages/devtools/test/devtools-cache-headers.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/server.ts > defineServer:0~6ae004 > handle > next",
+			"reason": "SvelteKit's resolve for a beacon page in a build (a RequestEvent's resolve: not cloneable), then never_stored, constant work of its own"
 		}
 	]
 }

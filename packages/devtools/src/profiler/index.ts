@@ -106,8 +106,9 @@ import {
 	type PageAssets,
 	type Weight,
 	type AssetRef
-} from '@ogygia/core/insights';
-import { BEACON_STANDALONE_TAG } from './beacon-standalone.ts';
+} from '@ogygia/insights';
+import { BEACON_STANDALONE_TAG } from './beacon-tag.ts';
+import { is_document_request } from '../document-request.ts';
 import { build_river, load_return_keys, seed_key_bytes, type River } from './river.ts';
 import { SinkBuffer, type SinkRow } from './sink.ts';
 import {
@@ -148,7 +149,7 @@ import { fnv1a32 } from '@ogygia/core/plugin/utils';
 import { mark_personal } from '@ogygia/core/internal/server';
 import { attr_sites, doc_diff } from './doc-diff.ts';
 import { almost_same_document_pattern } from './patterns.ts';
-import { hydration_hazards } from '@ogygia/core/insights';
+import { hydration_hazards } from '@ogygia/insights';
 import type { IslandHazard } from './report.ts';
 import {
 	constant_work,
@@ -229,19 +230,22 @@ import {
 	vitals_moved,
 	type Since
 } from './compare.ts';
-import { engine_of, vital_parts, type ChunkBarrel, type PageInput } from '@ogygia/core/insights';
+import { engine_of, vital_parts, type ChunkBarrel, type PageInput } from '@ogygia/insights';
 import { label_call, phase_of_frame } from './timeline.ts';
 import { gzip_large } from './compress.ts';
 import { io_kind, mark_left_each_run } from './async-io.ts';
 import {
 	current_request_scope,
-	hole_stats_of,
 	request_scope,
-	request_stats_of,
-	set_batch_hole_listener,
-	hold_request_stats_detail,
 	type BatchHoleStats
 } from '@ogygia/core/internal/server';
+import {
+	hole_stats_of,
+	install_request_stats,
+	request_stats_of,
+	set_batch_hole_listener,
+	hold_request_stats_detail
+} from './request-stats.ts';
 import {
 	chunk_barrels,
 	chunk_contents,
@@ -252,6 +256,7 @@ import {
 	region_page_why
 } from 'ogygia:server';
 import { set_span_recorder, type SpanAttrs, type SpanRecord, type SpanRecorder } from './span.ts';
+import type { WindowIds } from './window-id.ts';
 import {
 	flights,
 	lock,
@@ -1304,8 +1309,12 @@ class Profiler {
 		// recording — sampling the process twice, and windows of two recorder locks overlapping
 		// (request-stats' detail is counted for that). An older one's timers stand down at their next tick.
 		(globalThis as Record<symbol, unknown>)[LIVE_PROFILER] = this;
-		// the holes a batch request renders land after the request is logged: each joins the log as it lands
-		if (!this.#disabled) set_batch_hole_listener((request, s) => this.#batch_hole(request, s));
+		if (!this.#disabled) {
+			// a live profiler is what the handle's stats are for, with the plugin or without it (#805)
+			install_request_stats();
+			// the holes a batch request renders land after the request is logged: each joins the log as it lands
+			set_batch_hole_listener((request, s) => this.#batch_hole(request, s));
+		}
 	}
 
 	/** Logged requests by their Request (a batch's holes find their request here), and the holes that
@@ -4560,22 +4569,25 @@ class Profiler {
 	// every instance writes such a request to the shared store (its visit rows, under the window's own
 	// key) BEFORE it answers — a frozen instance never finishes a write after; and stop, on whichever
 	// instance, gathers them. The CPU profile stays the starting instance's: sampling is per process.
-	async #window_sign(nonce: string): Promise<string> {
-		const { createHmac } = await import('node:crypto');
-		return createHmac('sha256', this.secret || 'ogygia-dev-window')
-			.update('window:' + nonce)
-			.digest('hex')
-			.slice(0, 20);
+	// (the ids are a capability, ./window-id.ts: a production profiler with no secret has none)
+	readonly #window_ids = flights({
+		name: 'profiler window ids',
+		run: () =>
+			import('./window-id.ts').then((m) =>
+				m.window_ids(this.secret, this.dev, 'profiler:' + this.base)
+			)
+	});
+	async #ids(): Promise<WindowIds | null> {
+		const ids = await this.#window_ids.get();
+		// (never dropped, so never STALE; if it were, no ids: a window id is refused, never trusted)
+		return ids === STALE ? null : ids;
 	}
 
-	/** A window id from a request, when its signature holds; else null. */
+	/** A window id from a request, when it checks; else null. */
 	async #window_id_of(request: Request): Promise<string | null> {
 		const raw = request.headers.get(WINDOW_HEADER);
-		if (!raw || raw.length > 80) return null;
-		const dot = raw.indexOf('.');
-		if (dot <= 0) return null;
-		const nonce = raw.slice(0, dot);
-		return (await this.#window_sign(nonce)) === raw.slice(dot + 1) ? raw : null;
+		if (!raw) return null;
+		return (await this.#ids())?.check(raw) ?? null;
 	}
 
 	/** A request in a window: written to the store, awaited (see above). */
@@ -4643,8 +4655,10 @@ class Profiler {
 		// a BACKGROUND window (the trap, the always-on sampler) holding the recorder is short: wait
 		// for it (as a page profile does); another page profile is the real conflict
 		await this.#wait_for_background();
-		const nonce = Math.random().toString(36).slice(2, 12) + Date.now().toString(36);
-		const id = `${nonce}.${await this.#window_sign(nonce)}`;
+		const ids = await this.#ids();
+		if (ids === null)
+			return busy('A window needs the profiler’s secret: set OGYGIA_PROFILER_SECRET.');
+		const id = ids.mint();
 		// (a window started meanwhile holds the recorder: this take fails)
 		const token = this.#take('background');
 		if (token === null) return busy('Another recording holds the recorder. Try again in a moment.');
@@ -6734,20 +6748,12 @@ class Profiler {
 		if (!this.ui_enabled) return null;
 		// (never in the profiler's own renders: they ask as a page navigation, and the tag is not the page's)
 		if (event.request.headers.get('x-og-profiler-internal') === '1') return null;
-		const dest = event.request.headers.get('sec-fetch-dest');
-		if (
-			dest
-				? dest !== 'document'
-				: !(event.request.headers.get('accept') ?? '').includes('text/html')
-		)
-			return null;
+		if (!is_document_request(event.request)) return null;
 		if (!this.dev) {
 			const key = event.request.headers.get('x-profiler-key');
 			if (key ? !(await this.#key_matches(key)) : event.cookies.get('og_profiler_beacon') !== '1')
 				return null;
 		}
-		// (with the standalone beacon for a page that never boots the ogygia runtime: a Kit-hydrated
-		// page reports its vitals, long tasks and CPU too — it steps aside when the runtime is there)
 		return `<meta name="${BEACON_META}" content="${this.base}/beacon">${BEACON_STANDALONE_TAG}`;
 	}
 

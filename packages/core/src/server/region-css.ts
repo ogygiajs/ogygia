@@ -11,23 +11,36 @@
  */
 import { region_css_inline } from 'ogygia:server';
 import { escape_attr as attr } from '../escape.ts';
-import { OGYGIA_REGION_CSS } from '../wire-markup.ts';
+import { OG_OWNER, OGYGIA_REGION_CSS } from '../wire-markup.ts';
 
 /**
  * @param href the handoff's public href (the `islandCss()` value — the inline lookup key)
  * @param resolved the same href through `asset()` (base / assets applied) — what the tag carries
+ * @param owner the fingerprint of the region that wrote it (context.ts `head_owner_attr`), or ''
  */
-export function region_css_tag(href: string, resolved: string): string {
+export function region_css_tag(href: string, resolved: string, owner = ''): string {
+	const own = head_owner_attr(owner);
 	const text = region_css_inline(href);
-	if (text !== null) return `<style ${OGYGIA_REGION_CSS}="${attr(resolved)}">${text}</style>`;
+	if (text !== null) return `<style ${OGYGIA_REGION_CSS}="${attr(resolved)}"${own}>${text}</style>`;
 	// DEV: the href is the island's module (Vite serves component CSS only inside it; the runtime
 	// imports it for its styles). As a stylesheet link the browser fetched the JS a second time as
 	// CSS — an empty sheet, and an error per island in engines that are strict about the MIME type.
 	// As a modulepreload, the fetch is the one the runtime's import() uses. (Every runtime path finds
 	// these tags by `data-ogygia-region-css`, whatever their rel; a built app's hrefs are `.css`.)
 	if (!is_css_href(href))
-		return `<link rel="modulepreload" href="${attr(resolved)}" ${OGYGIA_REGION_CSS}>`;
-	return `<link rel="stylesheet" href="${attr(resolved)}" ${OGYGIA_REGION_CSS}>`;
+		return `<link rel="modulepreload" href="${attr(resolved)}" ${OGYGIA_REGION_CSS}${own}>`;
+	return `<link rel="stylesheet" href="${attr(resolved)}" ${OGYGIA_REGION_CSS}${own}>`;
+}
+
+/**
+ * THE HEAD-TAG OWNER: a head tag a region writes names the region it belongs to by its fingerprint
+ * (`data-og-owner`), the outermost island around it. A navigation that keeps that region keeps the
+ * tag even when the next page's head lacks it: the server skips rendering a region the browser
+ * already has (`x-ogygia-known`), and with it every tag its inner islands write (#806,
+ * runtime/region-sheets.ts `release_head_nodes`). '' (no owner): no attribute.
+ */
+export function head_owner_attr(owner: string): string {
+	return owner ? ` ${OG_OWNER}="${attr(owner)}"` : '';
 }
 
 /** `….css` or `….css?…` (string search: one per region CSS tag). */
