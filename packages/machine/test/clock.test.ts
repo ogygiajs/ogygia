@@ -78,3 +78,32 @@ describe('a wall-clock step moves no duration', () => {
 		expect(tries).toBe(2);
 	});
 });
+
+describe('a retry deadline is counted from the run’s start', () => {
+	it('not from the clock’s zero: a process up for days still retries', async () => {
+		vi.spyOn(clock, 'mono').mockReturnValue(1e9);
+		let tries = 0;
+		const p = policy({ attempts: 2, backoff: 5, jitter: 0, deadline: 1_000 });
+		const answer = await under_policy(p, async () => {
+			if (++tries === 1) throw new Error('blip');
+			return 'ok';
+		});
+		expect(answer).toBe('ok');
+	});
+
+	it('a wait that would end exactly at the deadline is out of time at once', async () => {
+		vi.spyOn(clock, 'mono').mockReturnValue(1e9);
+		const p = policy({ attempts: 2, backoff: 1_000, jitter: 0, deadline: 1_000 });
+		const run = under_policy(p, async () => {
+			throw new Error('blip');
+		});
+		const first = await Promise.race([
+			run.then(
+				() => 'answered',
+				(error: Error) => error.name
+			),
+			new Promise((r) => setTimeout(() => r('still waiting'), 200))
+		]);
+		expect(first).toBe('TimeoutError');
+	});
+});
