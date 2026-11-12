@@ -146,7 +146,9 @@ export class World {
 			network: this.network,
 			route: (request, from) => this.#route(request, from),
 			origin: ORIGIN,
-			buggify: (realm, point) => this.#buggify(realm, point)
+			buggify: (realm, point) => this.#buggify(realm, point),
+			// (the seed's browser engine, as its resource timing reads: most report each status)
+			timeline: this.rng.fork('timeline engine').chance(0.7) ? 'status' : 'start'
 		});
 		this.live = o.builds[0].id;
 	}
