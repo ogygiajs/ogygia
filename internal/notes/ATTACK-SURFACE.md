@@ -139,7 +139,7 @@ its pull request says why it is safe (or which INVARIANTS.md section covers it).
 
 ## Decoders: text turned into values (JSON, devalue, base64, URI escapes)
 
-94 entries.
+95 entries.
 
 | file | in | what | n |
 | --- | --- | --- | --- |
@@ -165,6 +165,7 @@ its pull request says why it is safe (or which INVARIANTS.md section covers it).
 | `packages/core/src/island-graph.ts` | `decode_island_graph` | `JSON.parse` | 1 |
 | `packages/core/src/island-graph.ts` | `decode_island_locations` | `JSON.parse` | 1 |
 | `packages/core/src/runtime/hole-facts.ts` | `parse_record` | `JSON.parse` | 1 |
+| `packages/core/src/runtime/kit-page-thread.svelte.ts` | `kit_boot_imports` | `JSON.parse` | 1 |
 | `packages/core/src/runtime/page-defer.ts` | `(module)` | `devalue parse` | 1 |
 | `packages/core/src/runtime/router-nav.ts` | `reset_focus` | `decodeURIComponent` | 1 |
 | `packages/core/src/runtime/router.ts` | `hash_target_exists` | `decodeURIComponent` | 1 |
@@ -178,8 +179,8 @@ its pull request says why it is safe (or which INVARIANTS.md section covers it).
 | `packages/core/src/vite/index.ts` | `ogygia` | `JSON.parse` | 1 |
 | `packages/core/src/vite/package-files.ts` | `read_manifest` | `JSON.parse` | 1 |
 | `packages/core/src/vite/paths.ts` | `(module)` | `JSON.parse` | 1 |
-| `packages/core/src/vite/profiler-maps.ts` | `maps_app_code` | `JSON.parse` | 1 |
-| `packages/core/src/vite/profiler-maps.ts` | `slim_map` | `JSON.parse` | 1 |
+| `packages/devtools/src/build/profiler-maps.ts` | `maps_app_code` | `JSON.parse` | 1 |
+| `packages/devtools/src/build/profiler-maps.ts` | `slim_map` | `JSON.parse` | 1 |
 | `packages/devtools/src/devtools/Devtools.svelte` | `load_layout` | `JSON.parse` | 1 |
 | `packages/devtools/src/devtools/IslandDetail.svelte` | `decode_props` | `devalue parse` | 1 |
 | `packages/devtools/src/devtools/page.ts` | `fp_drift` | `JSON.parse` | 1 |
@@ -305,7 +306,7 @@ its pull request says why it is safe (or which INVARIANTS.md section covers it).
 | `packages/cli/src/cli.ts` | `fragments_stub` | `/og/fragment/__catalog` | 1 |
 | `packages/core/src/server/endpoint.ts` | `DEFAULT_ISLANDS_ENDPOINT` | `/__ogygia__` | 1 |
 | `packages/core/src/server/speculation.ts` | `mpaSpeculationRules` | `/__ogygia__` | 1 |
-| `packages/core/src/vite/index.ts` | `ogygia` | `/__ogygia_devtools_meta` | 1 |
+| `packages/devtools/src/build/dev-meta.ts` | `META_PATH` | `/__ogygia_devtools_meta` | 1 |
 | `packages/devtools/src/devtools/Devtools.svelte` | `(module)` | `/__ogygia_devtools_meta` | 1 |
 | `packages/devtools/src/devtools/names.ts` | `loading` | `/__ogygia_devtools_meta` | 1 |
 | `packages/devtools/src/devtools/session.ts` | `start_session` | `/__ogygia_devtools` | 1 |
