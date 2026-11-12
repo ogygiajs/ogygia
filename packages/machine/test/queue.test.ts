@@ -144,6 +144,53 @@ describe('deadline', () => {
 		expect(vi.getTimerCount()).toBe(0);
 	});
 
+	it('a job with a deadline still goes stale on time after another waiting job is cancelled', async () => {
+		vi.useFakeTimers();
+		// a job with no deadline cancelled: the timer stays for the one with a deadline
+		const a = heard({ max: 1, now: () => Date.now() });
+		a.q.push('first');
+		a.q.push('plain');
+		a.q.push('later', Date.now() + 40);
+		a.q.cancel('plain');
+		// a job with an earlier deadline cancelled: the timer moves on to the later one
+		const b = heard({ max: 1, now: () => Date.now() });
+		b.q.push('first');
+		b.q.push('later', Date.now() + 40);
+		b.q.push('sooner', Date.now() + 20);
+		b.q.cancel('sooner');
+		await vi.advanceTimersByTimeAsync(50);
+		expect(a.log).toEqual(['first', 'stale plain', 'stale later']);
+		expect(b.log).toEqual(['first', 'stale sooner', 'stale later']);
+		expect(vi.getTimerCount()).toBe(0);
+	});
+
+	it('a deadline pushed after the timer went (cancelled or expired) arms a new one', async () => {
+		vi.useFakeTimers();
+		const { q, log } = heard({ max: 1, now: () => Date.now() });
+		q.push('first');
+		q.push('cancelled', Date.now() + 10);
+		q.cancel('cancelled');
+		q.push('after a cancel', Date.now() + 30);
+		await vi.advanceTimersByTimeAsync(35);
+		expect(log).toEqual(['first', 'stale cancelled', 'stale after a cancel']);
+		q.push('after an expiry', Date.now() + 30);
+		await vi.advanceTimersByTimeAsync(35);
+		expect(log.at(-1)).toBe('stale after an expiry');
+		expect(vi.getTimerCount()).toBe(0);
+	});
+
+	it('after the list compacts, a job past its deadline is still passed over', () => {
+		let clock = 0;
+		const { q, log } = heard({ max: 1, now: () => clock });
+		for (let i = 0; i < 40; i++) q.push(`job ${i}`);
+		q.push('late', 100);
+		q.push('next');
+		for (let i = 0; i < 39; i++) q.release(); // (the started front is compacted away)
+		clock = 200;
+		q.release();
+		expect(log.slice(-3)).toEqual(['job 39', 'stale late', 'next']);
+	});
+
 	it('the timer goes once no job with a deadline waits', async () => {
 		vi.useFakeTimers();
 		const { q } = heard({ max: 1, now: () => Date.now() });
