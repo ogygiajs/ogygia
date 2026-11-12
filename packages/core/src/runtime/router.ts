@@ -327,7 +327,7 @@ const load_nav = flights({
 function nav(): Promise<Nav | Stale> {
 	// Link what the navigation chunk uses from this module right where the chunk is loaded
 	// (./slots.ts `BootLink`: it never imports this module, or both would be split out of the runtime).
-	slots.router_link ??= { jump_to_hash };
+	slots.router_link ??= { jump_to_hash, fragment_target };
 	return load_nav.get().then((m) => (m === STALE ? m : (loaded_nav = m)));
 }
 
