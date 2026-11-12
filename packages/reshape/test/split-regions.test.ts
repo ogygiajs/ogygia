@@ -264,6 +264,23 @@ describe('liftRegions / restoreRegions — the round-trip for a third-party SSR 
 		);
 	});
 
+	it('reads a placeholder as a browser does: a quoted `>`, a comment, a longer name', () => {
+		const { regions } = liftRegions('<ogygia-region wake="load">x</ogygia-region>');
+		expect(restoreRegions('<og-lift data-i="0" title="a>b"></og-lift>', regions)).toBe(
+			'<ogygia-region wake="load" title="a>b">x</ogygia-region>'
+		);
+		const kept = '<!-- <og-lift data-i="0"></og-lift> --><og-lift-x data-i="0"></og-lift-x>';
+		expect(restoreRegions(kept, regions)).toBe(kept);
+	});
+
+	it('unions the class into the region’s class attribute, not a value that spells one', () => {
+		const html = '<ogygia-region data-note=" class=x" class="mine" wake="none">x</ogygia-region>';
+		const { regions } = liftRegions(html);
+		expect(restoreRegions('<og-lift data-i="0" class="sc-x"></og-lift>', regions)).toBe(
+			'<ogygia-region data-note=" class=x" class="mine sc-x" wake="none">x</ogygia-region>'
+		);
+	});
+
 	it('returns the html untouched when there are no regions', () => {
 		const html = '<div><p>plain</p></div>';
 		const { shell, regions } = liftRegions(html);
