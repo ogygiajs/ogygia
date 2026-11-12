@@ -1,7 +1,7 @@
 // The always-on runner (src/ci.ts): a batch that did not run is never counted, a found branch never
 // needs a forced push, and no error it reports carries the token.
 import { describe, expect, it } from 'vitest';
-import { batch_result, free_branch, redact } from '../src/ci.ts';
+import { batch_result, free_branch, redact, unreached_in_every } from '../src/ci.ts';
 
 const OUT = JSON.stringify({ findings: [], steps_per_second: 10, replay_leaks: [] });
 
@@ -44,5 +44,17 @@ describe('an error', () => {
 			undefined
 		]);
 		expect(said).toBe('push https://x-access-token:***@github.com failed (***)');
+	});
+});
+
+describe('recovery steps no batch reached', () => {
+	it('are the ones every batch missed (a step one batch reached is reached)', () => {
+		expect(
+			unreached_in_every([
+				['hole: offline -> idle', 'hole: retrying -> fetching'],
+				['hole: retrying -> fetching', 'wake: offline -> cold']
+			])
+		).toEqual(['hole: retrying -> fetching']);
+		expect(unreached_in_every([])).toEqual([]);
 	});
 });
