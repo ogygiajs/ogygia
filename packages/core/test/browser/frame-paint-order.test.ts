@@ -4,7 +4,7 @@
 // the newer one paints, and the older one, its wait over, never paints over it.
 import { afterEach, expect, test } from 'vitest';
 import { bootDev } from '../../src/runtime/full.ts';
-import { _reset, stamp, write } from '../../src/runtime/frame-store.ts';
+import { _reset, stamp, write } from '../_frames.ts';
 import { frameAddress } from '../../src/frame.ts';
 
 /** A sheet that arrives in 300 ms; each test its own (a module loads once per page). */

@@ -5,10 +5,10 @@
 // scheduler says. The rule is the batches one: an answer may only land ahead of an earlier pending
 // one, never be painted over by it. What a region bound there sees only ever moves forward in the
 // order its requests went out, whatever order the answers come back in.
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { fc, simulate } from '@ogygia/config/sim';
 import { STALE } from '@ogygia/machine';
-import { _reset, ensure, subscribe } from '../../src/runtime/frame-store.ts';
+import { _reset, ensure, subscribe } from '../_frames.ts';
 import { streamFrames } from '../../src/runtime/frame-nav.ts';
 import { frameAddress } from '../../src/frame.ts';
 import { done_parcel } from '../../src/server/stream-regions.ts';
@@ -19,7 +19,12 @@ const ADDRESS = frameAddress(ENDPOINT);
 
 type Step = 'fetch' | 'refresh' | 'batch' | 'wait';
 
-afterEach(() => _reset());
+// (the page's origin: a batch posts only to a region endpoint of this origin, src/runtime/html-sink.ts)
+beforeEach(() => vi.stubGlobal('location', new URL('http://localhost/page')));
+afterEach(() => {
+	_reset();
+	vi.unstubAllGlobals();
+});
 
 describe('one address, every channel, simulated', () => {
 	it('what is on screen moves forward in the order the requests went out', async () => {

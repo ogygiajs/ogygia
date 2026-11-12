@@ -15,6 +15,7 @@
  * `&lt;`, never a bare `<`, so it is not a tag; a tag's attributes end at its own `>` (quotes kept),
  * so a `<script>` whose BODY mentions the attribute (inline JS) can't false-match either.
  */
+import { DT_MARK } from '../contract/events.ts';
 import {
 	Needle,
 	next_tag,
@@ -156,7 +157,8 @@ function runtime_unit(head: string): { start: number; end: number } | null {
  * no earlier. `runtime` is the tag to place when the head has none yet (`null` = only reorder what
  * is there; the tag an island page emits sits wherever Kit's head slot is, after the app's own
  * scripts in `app.html`). With no JavaScript in the head it goes last in it. Returns `head` itself
- * when there is nothing to move.
+ * when there is nothing to move. `dt_mark`: a devtools response's mark, written on the tag it places
+ * (the same one its devtools side channel bears: DEVTOOLS-FEED).
  *
  * Why BEFORE THE JS: module and deferred scripts run in document order once parsing ends, and the
  * runtime's custom-element definition is what makes every `<ogygia-region>` connect and keep its
@@ -176,12 +178,16 @@ function runtime_unit(head: string): { start: number; end: number } | null {
 export function runtime_first(
 	head: string,
 	runtime: string | null,
-	code_origins: readonly string[] = []
+	code_origins: readonly string[] = [],
+	dt_mark = ''
 ): string {
 	const found = runtime_unit(head);
 	const was = found ? head.slice(found.start, found.end) : runtime;
 	if (was === null) return head;
-	const tag = with_code_origins(was, code_origins);
+	const placed = with_code_origins(was, code_origins);
+	// DEVTOOLS-FEED: the response's mark leads the tag's attributes (a repeated attribute keeps its
+	// first value, so a mark the markup put on the tag loses)
+	const tag = dt_mark ? '<script ' + DT_MARK + '="' + dt_mark + '"' + placed.slice(7) : placed;
 	const rest = found ? head.slice(0, found.start) + head.slice(found.end) : head;
 	// no `<head>` in this slice (a routeless document's inner head): search the whole content
 	const from = next_tag(rest, 'head', 0)?.end ?? 0;

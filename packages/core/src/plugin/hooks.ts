@@ -14,6 +14,7 @@
  *
  * One global slot: every module instance dispatches over the same implementations.
  */
+import type { RequestEvent } from '@sveltejs/kit';
 import { warn } from '../messages/server.ts';
 import { current_facts } from './facts.ts';
 
@@ -25,6 +26,10 @@ export interface ServerHooks {
 	invalidated(tags: string[] | 'all'): void | Promise<void>;
 	/** Record `version` as the build the shared store last saw; answer the one before (or undefined). */
 	lastBuild(version: string): string | undefined | Promise<string | undefined>;
+	/** Is this request's visitor one the plugin measures for, proved by its own credentials (the
+	 *  profiler: its logged-in user)? Such a visitor's region answers say how loaded the server is
+	 *  (`server-timing`). A plugin that cannot tell answers `undefined`. */
+	measures(event: RequestEvent): boolean | undefined | Promise<boolean | undefined>;
 	/** The origins island code on this app's pages may load from besides its own (a federation
 	 *  shell's peers). Sync, and every implementation's answers count: read through
 	 *  {@link code_origins}, written on the runtime's script (runtime/code-origins.ts). */
