@@ -7,17 +7,13 @@
  * @internal
  */
 /** Signer for deferred regions — SSR-only (the client region binding never imports this). */
-export { makeRegionEndpoint } from './server/region-endpoint.ts';
+export { make_region_endpoint } from './server/region-endpoint.ts';
 /** A held region's server render to HTML — the one copy every region binding calls. */
 export { render_region_html } from './server/render-region-html.ts';
-/** What the profiler (`@ogygia/devtools`) reads off a request ogygia served. */
+/** Where the handle hands each request's stats: the profiler's store (`@ogygia/devtools`). */
 export {
-	hole_stats_of,
-	record_request_stats,
-	request_stats_of,
-	set_batch_hole_listener,
-	hold_request_stats_detail,
-	want_request_stats,
+	set_request_stats_sink,
+	type RequestStatsSink,
 	type BatchHoleStats,
 	type HoleRequestStats,
 	type HoleStat,
@@ -37,4 +33,9 @@ export {
 	request_scope
 } from './plugin/request-scope.ts';
 export { islands_endpoint } from './server/endpoint.ts';
-export { scanRegions } from './server/split-regions.ts';
+/** The per-address budget the region endpoint charges; the profiler's login spends one too. */
+export { RateLimiter } from './server/rate-limit.ts';
+/** The production floor for a signing secret (UTF-8 bytes). */
+export { MIN_SECRET_BYTES } from './server/hmac.ts';
+// the page markup's vocabulary and its tag reader
+export * from './wire-markup.ts';

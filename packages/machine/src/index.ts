@@ -38,7 +38,23 @@ export {
 	type Watcher,
 	type When
 } from './scope.ts';
+export { cache, type Cache, type CacheOptions, type EvictWhy, type SetOptions } from './cache.ts';
+export { registry, type KeyedRegistry, type Registry } from './registry.ts';
+export { defineRun, defining } from './define.ts';
 export { lock, type Lock, type LockToken } from './lock.ts';
+export {
+	buggify,
+	clock,
+	net,
+	random,
+	seen,
+	storage,
+	tasks,
+	timers,
+	type Platform,
+	type TimerHandle
+} from './ports.ts';
+export { queue, type Queue, type QueueOptions } from './queue.ts';
 export { mailbox, type Mailbox, type Turn } from './mailbox.ts';
 export type { Fresh } from './stale.ts';
 export { outbox, type Outbox, type OutboxOptions } from './outbox.ts';
@@ -46,4 +62,13 @@ export { policy, backoffAfter, type Policy } from './policy.ts';
 export { stage, type Stage, type StageOptions, type Staging } from './stage.ts';
 export { world, type World } from './world.ts';
 export { say, type Say, type SayOptions } from './say.ts';
+export {
+	capability,
+	type Capability,
+	type CapabilityCheck,
+	type CapabilityOptions,
+	type CapabilityRefusal,
+	type Signer
+} from './capability.ts';
+export { trace, type Trace, type TraceOptions } from './trace.ts';
 export { MachineError, MACHINE_ERRORS, MACHINE_WARNINGS } from './messages.ts';

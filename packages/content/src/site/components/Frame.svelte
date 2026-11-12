@@ -53,7 +53,8 @@
 	// doesn't cross). Only computed for the built-in path; an overriding `sidebar` component reads
 	// `site` from context itself. On a dimensions() site the slug selects the coordinate.
 	// svelte-ignore state_referenced_locally
-	const tree: NavTree = await site.nav({ base: the_base, slug: page.params.slug ?? '' });
+	const tree: NavTree =
+		sidebar === undefined ? await site.nav({ base: the_base, slug: page.params.slug ?? '' }) : [];
 </script>
 
 <div class="og-shell">
