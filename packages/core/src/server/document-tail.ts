@@ -94,7 +94,8 @@ const RUNTIME_LOAD_FAILED = "console.error('[ogygia] https://ogygiajs.dev/e/runt
  * runtime instead of one round trip after it. Normal priority — the runtime cannot run without
  * them. `data-ogygia-runtime-dep` keeps them attached to the script when the handle moves it
  * (head-presence.ts `runtime_first`). `locations`: the build's location map, which the runtime reads
- * for a load that arrives with an identity alone (runtime/entry-locations.ts).
+ * for a load that arrives with an identity alone (runtime/entry-locations.ts). Its code origins are
+ * written at head time (head-presence.ts `runtime_first`).
  *
  * The runtime cannot say that it failed to load: when its file or one of its static imports fails to
  * download, none of it runs, every island stays server markup, and nothing of ogygia's was logged

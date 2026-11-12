@@ -50,6 +50,7 @@ import {
 	page_declares_dev_hmr_script,
 	runtime_first
 } from './server/head-presence.ts';
+import { code_origins } from './plugin/hooks.ts';
 import type { RegionValue } from './region.ts';
 
 export interface DocumentOptions {
@@ -208,8 +209,10 @@ export async function document(
 		`<!doctype html>\n<html lang="${escape_text(options.lang ?? 'en')}">` +
 		`<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">` +
 		(early.length
-			? with_early_holes_meta_csp(runtime_first(head.join(''), null, response_mark(mark_key)))
-			: runtime_first(head.join(''), null, response_mark(mark_key))) +
+			? with_early_holes_meta_csp(
+					runtime_first(head.join(''), null, code_origins(), response_mark(mark_key))
+				)
+			: runtime_first(head.join(''), null, code_origins(), response_mark(mark_key))) +
 		`</head><body>${r.body}</body></html>`;
 
 	const headers = new Headers({ 'content-type': 'text/html; charset=utf-8' });

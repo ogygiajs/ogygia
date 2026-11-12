@@ -207,13 +207,13 @@ describe('runtime_first — the response’s mark on the tag it places (RESPONSE
 		'<script data-og-mark="m1" type="module" data-ogygia-runtime src="/_app/og-runtime.js"></script>';
 
 	it('writes the mark on a moved tag, an injected tag and a tag already in place', () => {
-		expect(runtime_first(head_start + design_system + runtime, null, 'm1')).toBe(
+		expect(runtime_first(head_start + design_system + runtime, null, [], 'm1')).toBe(
 			head_start + marked + design_system
 		);
-		expect(runtime_first(head_start + design_system, runtime, 'm1')).toBe(
+		expect(runtime_first(head_start + design_system, runtime, [], 'm1')).toBe(
 			head_start + marked + design_system
 		);
-		expect(runtime_first(head_start + runtime + design_system, null, 'm1')).toBe(
+		expect(runtime_first(head_start + runtime + design_system, null, [], 'm1')).toBe(
 			head_start + marked + design_system
 		);
 	});
@@ -221,9 +221,17 @@ describe('runtime_first — the response’s mark on the tag it places (RESPONSE
 	it('leads the attributes, so a mark the markup put on the tag loses', () => {
 		const forged =
 			'<script type="module" data-og-mark="m2" data-ogygia-runtime src="/x.js"></script>';
-		const out = runtime_first(head_start + forged, null, 'm1');
+		const out = runtime_first(head_start + forged, null, [], 'm1');
 		const el = out.slice(head_start.length);
 		expect(el.indexOf('data-og-mark="m1"')).toBeLessThan(el.indexOf('data-og-mark="m2"'));
+	});
+
+	it('writes the mark and the code origins on the same tag, the mark first', () => {
+		const out = runtime_first(head_start + runtime, null, ['https://peer.example/x.js'], 'm1');
+		expect(out).toBe(
+			head_start +
+				'<script data-og-mark="m1" type="module" data-ogygia-runtime data-og-origins="https://peer.example" src="/_app/og-runtime.js"></script>'
+		);
 	});
 
 	it('leaves the head alone with no mark (no request: nothing to mark)', () => {

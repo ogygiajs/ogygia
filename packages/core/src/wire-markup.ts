@@ -71,6 +71,7 @@ export type MarkKey =
 	| 'noReconcile'
 	| 'opaque'
 	| 'opaquen'
+	| 'origins'
 	| 'overlay'
 	| 'overlayToggle'
 	| 'owner'
@@ -196,6 +197,7 @@ export const MARK: { readonly [K in MarkKey]: Mark } = {
 	noReconcile: { attr: 'data-og-no-reconcile', by: 'page' },
 	opaque: { attr: 'data-og-opaque', by: 'page' },
 	opaquen: { attr: 'data-og-opaquen', by: 'page' },
+	origins: { attr: 'data-og-origins', by: 'page' },
 	overlay: { attr: 'data-og-overlay', by: 'devtools' },
 	overlayToggle: { attr: 'data-og-overlay-toggle', by: 'devtools' },
 	owner: { attr: 'data-og-owner', by: 'page' },
