@@ -3,6 +3,7 @@ import { ogygia } from 'ogygia/vite';
 import { devtools } from '@ogygia/devtools/vite';
 import { reshape } from '@ogygia/reshape/vite';
 import { barrels } from '@ogygia/barrels';
+import { testing } from '@ogygia/testing/vite';
 import { defineConfig } from 'vite';
 
 // THE DEVTOOLS LAB: @ogygia/devtools' e2e fixture app. Its pages plant known problems (the dt-* labs,
@@ -44,6 +45,9 @@ export default defineConfig({
 				serverTiming: true
 			}
 		}),
+		// @ogygia/testing's suite (OGYGIA_TESTING=1, the dock off): the runtime's hooks reach the testing
+		// engine the test injects, with no devtools in the page
+		...(process.env.OGYGIA_TESTING ? testing() : []),
 		// as the palaestra lists it
 		barrels(),
 		sveltekit()
