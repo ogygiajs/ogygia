@@ -298,14 +298,15 @@ export function stream_page_deferred(
 				}
 			};
 			// One promise, as it settles, then the nested ones its value re-staged: done when its whole
-			// tree is. A task of the stream's owner: the visitor leaving makes it STALE at once.
+			// tree is. A task of the stream's owner: the visitor leaving makes it STALE at once. Its
+			// outcome is read before the task, so a closed owner (whose task never runs its work)
+			// still leaves no rejection unhandled.
 			const stream_one = async (id: number, promise: PromiseLike<unknown>): Promise<void> => {
-				const out = await owner.task(() =>
-					Promise.resolve(promise).then(
-						(value) => ({ ok: true as const, value }),
-						(error: unknown) => ({ ok: false as const, error })
-					)
+				const settled = Promise.resolve(promise).then(
+					(value) => ({ ok: true as const, value }),
+					(error: unknown) => ({ ok: false as const, error })
 				);
+				const out = await owner.task(() => settled);
 				if (out === STALE) return;
 				if (!out.ok) return push(id, false, out.error);
 				let staged: ReturnType<typeof stage_deferred>;
