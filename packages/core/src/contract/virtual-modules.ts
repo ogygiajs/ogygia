@@ -251,6 +251,9 @@ export interface VirtualConstants {
 	__OGYGIA_HOOK_NAVIGATED__: boolean;
 	__OGYGIA_HOOK_CRITICAL_SETTLED__: boolean;
 	__OGYGIA_HOOK_WARNING__: boolean;
+	__OGYGIA_HOOK_REGION_HYDRATE__: boolean;
+	__OGYGIA_HOOK_ANSWER_PARSED__: boolean;
+	__OGYGIA_HOOK_ANSWER_PLACED__: boolean;
 	__OGYGIA_KIT_MAJOR__: number | null;
 	__OGYGIA_VERSION__: string;
 	__OGYGIA_DEV_HMR_URL__: string;
