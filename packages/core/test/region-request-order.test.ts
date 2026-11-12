@@ -58,7 +58,7 @@ describe('a region request, as a machine', () => {
 		const into = (to: string) =>
 			region_request
 				.graph()
-				.states.filter((s) => s.steps.includes(to))
+				.states.filter((s) => (s.steps as readonly string[]).includes(to))
 				.map((s) => s.kind);
 		expect(into('rendering')).toEqual(['charged']);
 		expect(into('charged')).toEqual(['verified']);

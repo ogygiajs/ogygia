@@ -6,6 +6,9 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 vi.mock('ogygia:server/sign', () => import('../src/server/hmac.ts'));
 vi.mock('ogygia:server/rate-limit', () => ({ rate_limit: { max: 2, windowMs: 60_000 } }));
+vi.mock('ogygia:server/server-plugins', () => ({ plugins: [] }));
+vi.mock('ogygia:server/route-config', () => ({ route_config: {} }));
+vi.mock('ogygia:server/devtools-boot-url', () => ({ devtools_boot_url: '' }));
 const ID = 'abcdef012345';
 let renders = 0;
 // a Svelte 5 server component, by hand: counts how often the endpoint really renders it
