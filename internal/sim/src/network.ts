@@ -20,7 +20,7 @@
  * run), and then fires with its probability.
  */
 import { AsyncLocalStorage } from 'node:async_hooks';
-import type { Loop } from './loop.ts';
+import type { Loop, Task } from './loop.ts';
 import type { Rng } from './rng.ts';
 
 export type FaultClass =
@@ -96,6 +96,11 @@ export function answering_now(): Exchange | undefined {
 const client = new AsyncLocalStorage<string>();
 const VISITOR_ADDRESS = '10.0.0.1';
 const REFERENCE_ADDRESS = '10.0.0.2';
+
+/** A body still coming this long after its head (a quiesce's budget), each piece within
+ *  `LIVE_GAP_MS` of the one before, is a live answer (a live query, server-sent events). */
+const LIVE_AFTER_MS = 30_000;
+const LIVE_GAP_MS = 2_000;
 
 /** The address of the client whose request a server is answering now (Kit's `getClientAddress`).
  *  An oracle's reference load is a client of its own: it shares no per-client budget (a rate
@@ -197,6 +202,18 @@ export class Network {
 
 	/** Exchanges that were pending when last looked at (`unanswered` prunes it). */
 	readonly #open = new Set<Exchange>();
+
+	/** Pieces of live answers on their way (`#deliver`). */
+	readonly #live = new WeakSet<Task>();
+
+	/** Whether work is on the wire: a request not answered yet, or a piece of a body on its way that
+	 *  is not a live answer's (test/rest.node.test.ts). */
+	busy(): boolean {
+		return (
+			this.unanswered() > 0 ||
+			this.#loop.queued().some((t) => t.realm === 'net' && !this.#live.has(t))
+		);
+	}
 
 	isOffline(realm: string): boolean {
 		return this.#offline.has(realm);
@@ -389,13 +406,18 @@ export class Network {
 		const loop = this.#loop;
 		let to!: ReadableStreamDefaultController<Uint8Array>;
 		let ended = false;
+		const opened = loop.now;
 		let last = loop.now;
 		let piece = 0;
 		const send = (label: string, deliver: () => void): void => {
 			const quiet = piece === 1 ? midway : 0;
 			const at = Math.max(last, loop.now + (piece === 0 ? 0 : this.#latency(pace)) + quiet);
+			// (a body still coming LIVE_AFTER_MS after its head, each piece soon after the one before,
+			// is a live answer: it never ends, and rest does not wait on it. A stalled body's quiet
+			// piece is written with its head, so it is never one)
+			const live = loop.now - opened >= LIVE_AFTER_MS && at - last <= LIVE_GAP_MS;
 			last = at;
-			loop.add('net', `${label} ${ex.id}.${piece++}`, at - loop.now, () => {
+			const task = loop.add('net', `${label} ${ex.id}.${piece++}`, at - loop.now, () => {
 				if (ended) return;
 				try {
 					deliver();
@@ -403,6 +425,7 @@ export class Network {
 					// ok: the client cancelled the body; what is still on the way is dropped
 				}
 			});
+			if (live) this.#live.add(task);
 		};
 		const stop = (why: string, offline = false): void => {
 			if (offline) ex.lost = true;
