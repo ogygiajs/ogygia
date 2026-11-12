@@ -11,11 +11,13 @@
  */
 import { Browser, type BrowserPage, type BrowserWindow } from 'happy-dom';
 import CookieStringUtility from 'happy-dom/lib/cookie/urilities/CookieStringUtility.js';
+import * as PropertySymbol from 'happy-dom/lib/PropertySymbol.js';
 import WindowBrowserContext from 'happy-dom/lib/window/WindowBrowserContext.js';
 import type { Loop } from './loop.ts';
 import type { Network } from './network.ts';
-import { install, message_channel, platform, type RealmOptions } from './platform.ts';
-import type { Rng } from './rng.ts';
+import { install, message_channel, platform, site, SITES, type RealmOptions } from './platform.ts';
+import { hash, type Rng } from './rng.ts';
+import { install_timeline, record_download, type Engine } from './timeline.ts';
 
 /** `SIM_STACKS=1`: a page's uncaught error carries its stack (to triage a seed). */
 const STACKS = process.env.SIM_STACKS === '1';
@@ -33,10 +35,29 @@ export interface Tab {
 	/** What the page reported: uncaught errors, failed scripts, console errors. */
 	readonly errors: string[];
 	readonly console: string[];
+	/** The realm of the document that said each line of `errors` and `console`. */
+	readonly said_by: Map<string, string>;
 	/** The document's simulated platform (its outstanding timers, for the leak oracle). */
 	platform: ReturnType<typeof platform> | null;
 	/** What the shown document holds now (the leak oracle's sample). */
 	held(): Held;
+	/** The listeners it holds, each as `window|document <type> <its code's hash>` (with
+	 *  `SIM_SITES=1`, and the line that added it): the leak oracle's per-listener counts. */
+	listening(): string[];
+	/** The observers observing, each as `<Name> <its callback's code hash>`: the leak oracle's
+	 *  per-observer counts. */
+	watching(): string[];
+	/** Observers still observing whose every watched element has left the document (their owner
+	 *  ended and nothing disconnected them), each as `<Name> watching <the first one's tag>`. */
+	orphans(): string[];
+	/** When the router swapped the shown document's page (`og:before-swap`, virtual ms): where one
+	 *  visit of the document ends and the next begins. */
+	swaps: number[];
+	/** Each document's {@link swaps}, by realm, a left one's too. */
+	readonly swaps_by: Map<string, number[]>;
+	/** Each document's machine move log (`__ogygia_moves()`, rules builds), by realm, a left one's
+	 *  too: a hard navigation inside one action replaces a document before it is looked at. */
+	readonly moves_by: Map<string, () => string>;
 }
 
 /** What a document holds that outlives a page visit if nobody lets it go. */
@@ -49,7 +70,8 @@ export interface Held {
 	readonly observers: number;
 	/** `<head>`'s children (each client navigation merges a head in: one that only grows leaks). */
 	readonly head: number;
-	/** Elements in the document (the same page, visited again, shows the same page). */
+	/** Elements in the document, less what its regions show (the same page, visited again, shows
+	 *  the same page). */
 	readonly elements: number;
 }
 
@@ -66,6 +88,10 @@ export interface BrowsersOptions {
 	route: Route;
 	/** The app's origin (`https://app.test`). */
 	origin: string;
+	/** The world's buggify swarm, for each tab's platform. */
+	buggify?: (realm: string, point: string) => boolean;
+	/** How each document's resource timing reads (./timeline.ts). Default `status`. */
+	timeline?: Engine;
 }
 
 export class Browsers {
@@ -75,6 +101,17 @@ export class Browsers {
 
 	constructor(options: BrowsersOptions) {
 		this.#o = options;
+		options.network.tell((name, online) => this.#line(name, online));
+	}
+
+	/** A tab lost the network or got it back: its document hears it, as a task of its own
+	 *  (`offline` or `online` on its window; `navigator.onLine` reads the network: `#arrive`). */
+	#line(name: string, online: boolean): void {
+		const tab = this.visitors.flatMap((v) => v.tabs).find((t) => t.name === name);
+		if (tab === undefined) return;
+		const window = tab.page.mainFrame.window as unknown as Window & { Event: typeof Event };
+		const type = online ? 'online' : 'offline';
+		this.#o.loop.add(tab.realm, type, 0, () => window.dispatchEvent(new window.Event(type)));
 	}
 
 	/** A new visitor: their own browser, cookies and storage. */
@@ -89,6 +126,8 @@ export class Browsers {
 				disableJavaScriptFileLoading: false,
 				// (stylesheets load over the simulated network: the router moves them between pages)
 				enableCSSFileLoading: true,
+				// (and images: one not yet come is not `complete`, which the critical wait reads)
+				enableImageFileLoading: true,
 				navigator: {
 					userAgent: 'Mozilla/5.0 (ogygia-sim) AppleWebKit/537.36 Chrome/140.0 Safari/537.36'
 				},
@@ -105,49 +144,93 @@ export class Browsers {
 									: tab !== undefined
 										? `${tab.name}#${tab.documents + 1}`
 										: 'browser';
-							const url = new URL(request.url);
-							const headers = new Headers();
-							request.headers.forEach((v: string, k: string) => headers.set(k, v));
-							const jar = this.#context_of(browser);
-							const cookies = jar.cookieContainer.getCookies(url, false);
-							if (cookies.length > 0)
-								headers.set('cookie', CookieStringUtility.cookiesToString(cookies));
-							// a browser sends its document's origin with every request that is not a GET
-							// or HEAD (happy-dom does not; Kit refuses a remote call without it: 403)
-							if (request.method !== 'GET' && request.method !== 'HEAD' && !headers.has('origin'))
-								headers.set(
-									'origin',
-									new URL((window as unknown as { location: { href: string } }).location.href)
-										.origin
-								);
-							const body =
-								request.method === 'GET' || request.method === 'HEAD'
+							const W = window as unknown as {
+								Response: typeof Response;
+								Headers: typeof Headers;
+								TypeError: typeof TypeError;
+							};
+							let url = new URL(request.url);
+							let method = request.method;
+							let body =
+								method === 'GET' || method === 'HEAD'
 									? undefined
 									: new Uint8Array(await request.arrayBuffer());
-							const sent = new Request(url, { method: request.method, headers, body });
-							let answer: Response;
-							try {
-								answer = await o.network.send(from, sent, (r) => o.route(r, from));
-							} catch (error) {
-								throw new (window as unknown as { TypeError: typeof TypeError }).TypeError(
-									error instanceof Error ? error.message : String(error)
-								);
+							const jar = this.#context_of(browser);
+							// (a shown document's download is in its resource timing, with what it got)
+							const timed = known !== undefined ? window : null;
+							const started = timed
+								? (window as unknown as { performance: { now(): number } }).performance.now()
+								: 0;
+							const timing = (status: number | null) => {
+								if (timed)
+									record_download(timed, o.timeline ?? 'status', request.url, status, started);
+							};
+							// a browser follows a redirect itself (happy-dom hands an intercepted answer back as
+							// it is): each leg is a request on the network, with its cookies, and the answer
+							// carries the URL it came from (a document's address is that URL)
+							for (let hops = 0; ; hops++) {
+								const headers = new Headers();
+								request.headers.forEach((v: string, k: string) => headers.set(k, v));
+								if (body === undefined) headers.delete('content-type');
+								const cookies = jar.cookieContainer.getCookies(url, false);
+								if (cookies.length > 0)
+									headers.set('cookie', CookieStringUtility.cookiesToString(cookies));
+								// the page it came from, by the request's policy (happy-dom works it out before
+								// the interceptor and adds the header after it: test/referer.test.ts)
+								const referrer = (request as unknown as Record<symbol, unknown>)[
+									PropertySymbol.referrer
+								];
+								if (referrer instanceof URL) headers.set('referer', referrer.href);
+								// a browser sends its document's origin with every request that is not a GET
+								// or HEAD (happy-dom does not; Kit refuses a remote call without it: 403)
+								if (method !== 'GET' && method !== 'HEAD' && !headers.has('origin'))
+									headers.set(
+										'origin',
+										new URL((window as unknown as { location: { href: string } }).location.href)
+											.origin
+									);
+								const sent = new Request(url, { method, headers, body });
+								let answer: Response;
+								try {
+									answer = await o.network.send(from, sent, (r) => o.route(r, from));
+								} catch (error) {
+									timing(null);
+									throw new W.TypeError(error instanceof Error ? error.message : String(error));
+								}
+								for (const c of answer.headers.getSetCookie()) {
+									const cookie = CookieStringUtility.stringToCookie(url, c);
+									if (cookie) jar.cookieContainer.addCookies([cookie]);
+								}
+								const location = answer.headers.get('location');
+								const redirect = [301, 302, 303, 307, 308].includes(answer.status);
+								if (redirect && location !== null && request.redirect !== 'manual') {
+									void answer.body?.cancel();
+									if (request.redirect === 'error' || hops === 20) {
+										timing(null);
+										throw new W.TypeError('Failed to fetch (redirect)');
+									}
+									url = new URL(location, url);
+									// (303, and 301/302 after a POST, go on as a GET without the body)
+									if (answer.status === 303 || (answer.status < 303 && method === 'POST')) {
+										method = method === 'HEAD' ? 'HEAD' : 'GET';
+										body = undefined;
+									}
+									continue;
+								}
+								const out = new W.Headers();
+								answer.headers.forEach((v, k) => {
+									if (k === 'set-cookie') return;
+									out.append(k, v);
+								});
+								const response = new W.Response(answer.body, {
+									status: answer.status,
+									statusText: answer.statusText,
+									headers: out
+								}) as Response & { url: string; redirected: boolean };
+								Object.assign(response, { url: url.href, redirected: hops > 0 });
+								timing(answer.status);
+								return response as never;
 							}
-							const out = new (window as unknown as { Headers: typeof Headers }).Headers();
-							answer.headers.forEach((v, k) => {
-								if (k === 'set-cookie') return;
-								out.append(k, v);
-							});
-							for (const c of answer.headers.getSetCookie()) {
-								const cookie = CookieStringUtility.stringToCookie(url, c);
-								if (cookie) jar.cookieContainer.addCookies([cookie]);
-							}
-							const W = window as unknown as { Response: typeof Response };
-							return new W.Response(answer.body, {
-								status: answer.status,
-								statusText: answer.statusText,
-								headers: out
-							}) as never;
 						}
 					}
 				},
@@ -164,6 +247,15 @@ export class Browsers {
 	readonly #windows = new WeakMap<object, Tab>();
 	/** The last error happy-dom wrote to a tab's page console (why an element's load failed). */
 	readonly #said = new WeakMap<Tab, string>();
+	/** Documents (realms) a script or stylesheet of which failed to load, or a module ogygia says
+	 *  needs a reload (`chunk_reload_needed`): a browser never loads it again, so the page stays
+	 *  without it whatever the network does next. */
+	readonly #unloaded = new Set<string>();
+
+	/** Whether a script or stylesheet of document `realm` failed to load. */
+	lacks_a_file(realm: string): boolean {
+		return this.#unloaded.has(realm);
+	}
 
 	#context_of(browser: Browser) {
 		return browser.defaultContext as unknown as {
@@ -182,7 +274,12 @@ export class Browsers {
 		this.#o.loop.drop(tab.realm);
 		tab.documents++;
 		tab.realm = `${tab.name}#${tab.documents}`;
-		const options: RealmOptions = { name: tab.realm, loop: this.#o.loop, rng: this.#o.rng };
+		const options: RealmOptions = {
+			name: tab.realm,
+			loop: this.#o.loop,
+			rng: this.#o.rng,
+			buggify: this.#o.buggify
+		};
 		const p = platform(options);
 		install(window, p);
 		if ((window as unknown as { MessageChannel?: unknown }).MessageChannel === undefined)
@@ -206,8 +303,29 @@ export class Browsers {
 				configurable: true
 			});
 		}
+		install_timeline(window);
+		// (the tab's network, as a browser's `navigator.onLine` reads its own: test/online.node.test.ts)
+		const network = this.#o.network;
+		Object.defineProperty(window.navigator, 'onLine', {
+			get: () => network.online(tab.name),
+			configurable: true
+		});
 		tab.platform = p;
 		this.#windows.set(window, tab);
+		// (heard before the listener count starts: the simulator's own ear, not the page's; on the
+		// window while capturing, as writing the document's content drops the document's listeners)
+		const swaps: number[] = (tab.swaps = []);
+		tab.swaps_by.set(tab.realm, swaps);
+		const page_window = window as unknown as { __ogygia_moves?: () => string };
+		tab.moves_by.set(tab.realm, () => {
+			try {
+				return page_window.__ogygia_moves?.() ?? '';
+			} catch {
+				return ''; // ok: a closed document's log may be gone with it; what was read stays counted
+			}
+		});
+		const loop = this.#o.loop;
+		window.addEventListener('og:before-swap', () => swaps.push(loop.now), { capture: true });
 		this.#count_held(window, tab);
 		const w = window as unknown as {
 			addEventListener(
@@ -235,6 +353,7 @@ export class Browsers {
 					return;
 				const why = this.#said.get(tab) ?? '';
 				this.#said.delete(tab);
+				if (shown()) this.#unloaded.add(tab.realm);
 				if (shown())
 					tab.errors.push(
 						`error: <${el.localName}> ${el.getAttribute('src') ?? el.getAttribute('href') ?? ''} failed${why ? `: ${why}` : ''}`
@@ -243,18 +362,34 @@ export class Browsers {
 			true
 		);
 		w.addEventListener('unhandledrejection', (e) => {
-			if (shown()) tab.errors.push(`unhandled: ${String(e.reason)}`);
+			const stack = STACKS ? `\n${String((e.reason as Error | undefined)?.stack)}` : '';
+			if (shown()) tab.errors.push(`unhandled: ${String(e.reason)}${stack}`);
 		});
 		// (happy-dom gives every document of a page the page's one console: each gets its own here,
 		// so what a left document's code still says is told apart from the shown one's)
 		const page_console = w.console;
 		const own = Object.create(page_console) as Record<string, (...a: unknown[]) => void>;
+		// (every other method runs on the page's console itself: happy-dom's reads its own private
+		// fields, and called on this one it threw, `Cannot read private member #printer`, the first
+		// time an island logged on a press)
+		for (
+			let p: object | null = page_console;
+			p !== null && p !== Object.prototype;
+			p = Object.getPrototypeOf(p)
+		)
+			for (const key of Object.getOwnPropertyNames(p)) {
+				const f = (page_console as Record<string, unknown>)[key];
+				if (key !== 'constructor' && typeof f === 'function' && !Object.hasOwn(own, key))
+					own[key] = (...args: unknown[]) => f.apply(page_console, args);
+			}
 		for (const level of ['error', 'warn'] as const) {
 			own[level] = (...args: unknown[]) => {
 				if (!shown()) return;
-				tab.console.push(
-					`${level}: ${args.map((a) => (a instanceof Error || (a as { stack?: string })?.stack ? `${String(a)}\n${(a as Error).stack}` : String(a))).join(' ')}${STACKS ? `\n${new Error('said at').stack}` : ''}`
-				);
+				const line = `${level}: ${args.map((a) => (a instanceof Error || (a as { stack?: string })?.stack ? `${String(a)}\n${(a as Error).stack}` : String(a))).join(' ')}`;
+				// (ogygia's own word that a chunk's dependency failed: the browser keeps it failed, and
+				// no retry loads it until the page reloads, as a script that failed to load: #262)
+				if (line.includes('/e/chunk_reload_needed')) this.#unloaded.add(tab.realm);
+				tab.console.push(`${line}${STACKS ? `\n${new Error('said at').stack}` : ''}`);
 				page_console[level]?.call(page_console, ...args);
 			};
 		}
@@ -267,7 +402,8 @@ export class Browsers {
 	 * observers between `observe()` and `disconnect()`.
 	 */
 	#count_held(window: BrowserWindow, tab: Tab): void {
-		const listeners = new Set<string>();
+		/** Each listener's key, to its label. */
+		const listeners = new Map<string, string>();
 		const ids = new WeakMap<object, number>();
 		let next = 0;
 		const key = (type: string, fn: unknown, options: unknown): string => {
@@ -277,6 +413,16 @@ export class Browsers {
 			let id = ids.get(fn as object);
 			if (id === undefined) ids.set(fn as object, (id = ++next));
 			return `${type} ${id} ${capture}`;
+		};
+		// (a listener's code, as a hash of its source: a closure made again each visit is the same
+		// code each time, where a listener installed once for the document is code met once)
+		const codes = new WeakMap<object, string>();
+		const code_of = (fn: unknown): string => {
+			if (typeof fn !== 'function') return 'object';
+			let c = codes.get(fn);
+			if (c === undefined)
+				codes.set(fn, (c = hash(Function.prototype.toString.call(fn)).toString(36)));
+			return c;
 		};
 		const doc = (window as unknown as { document: object }).document;
 		for (const [name, target] of [
@@ -292,7 +438,11 @@ export class Browsers {
 			t.addEventListener = function (type, fn, options) {
 				// (a `once` listener or one with a signal lets itself go: counted while it may still fire)
 				const k = key(type, fn, options);
-				if (k) listeners.add(`${name} ${k}`);
+				if (k)
+					listeners.set(
+						`${name} ${k}`,
+						`${name} ${type} ${code_of(fn)}${SITES ? ` @ ${site()}` : ''}`
+					);
 				const signal = (options as { signal?: AbortSignal } | undefined)?.signal;
 				signal?.addEventListener('abort', () => listeners.delete(`${name} ${k}`), { once: true });
 				return add.call(this, type, fn, options);
@@ -303,6 +453,10 @@ export class Browsers {
 			};
 		}
 		const observing = new Set<object>();
+		/** What each observer watches (an element; a PerformanceObserver watches none). */
+		const watched = new WeakMap<object, { name: string; targets: Set<Element> }>();
+		/** Each observer as its kind and its callback's code (the leak check's per-observer counts). */
+		const made_by = new WeakMap<object, string>();
 		const w = window as unknown as Record<string, unknown>;
 		for (const name of [
 			'IntersectionObserver',
@@ -313,12 +467,29 @@ export class Browsers {
 			const Real = w[name] as (new (...a: unknown[]) => object) | undefined;
 			if (typeof Real !== 'function') continue;
 			const Counted = class extends Real {
+				constructor(...a: unknown[]) {
+					super(...a);
+					made_by.set(this, `${name} ${code_of(a[0])}`);
+				}
 				observe(...a: unknown[]): unknown {
 					observing.add(this);
+					if (a[0] !== null && typeof a[0] === 'object' && 'isConnected' in a[0]) {
+						let mine = watched.get(this);
+						if (mine === undefined) watched.set(this, (mine = { name, targets: new Set() }));
+						mine.targets.add(a[0] as Element);
+					}
 					return (Real.prototype as { observe(...a: unknown[]): unknown }).observe.apply(this, a);
+				}
+				unobserve(...a: unknown[]): unknown {
+					watched.get(this)?.targets.delete(a[0] as Element);
+					return (Real.prototype as { unobserve(...a: unknown[]): unknown }).unobserve.apply(
+						this,
+						a
+					);
 				}
 				disconnect(): unknown {
 					observing.delete(this);
+					watched.delete(this);
 					return (Real.prototype as { disconnect(): unknown }).disconnect.call(this);
 				}
 			};
@@ -335,8 +506,53 @@ export class Browsers {
 			intervals: p?.pending().filter((l) => l.startsWith('interval')).length ?? 0,
 			observers: observing.size,
 			head: d.head?.children.length ?? 0,
-			elements: d.getElementsByTagName('*').length
+			// (a region counts, what it shows does not: a live query that failed on one visit and
+			// shows its region on the next is not a leak, gen 25 seed 10; what a region shows is
+			// judged against a fresh load by the MPA check)
+			elements:
+				d.getElementsByTagName('*').length -
+				(d as unknown as Document).querySelectorAll('ogygia-region *').length
 		});
+		tab.listening = () => [...listeners.values()].sort();
+		tab.watching = () => [...observing].map((o) => made_by.get(o) ?? 'observer').sort();
+		tab.orphans = () => {
+			const out: string[] = [];
+			for (const o of observing) {
+				const mine = watched.get(o);
+				if (mine === undefined || mine.targets.size === 0) continue;
+				const targets = [...mine.targets];
+				if (targets.some((t) => t.isConnected)) continue;
+				const t = targets[0];
+				const id = t.getAttribute?.('id');
+				out.push(
+					`${mine.name} watching <${t.tagName?.toLowerCase() ?? t.nodeName}${id ? ` id="${id}"` : ''}>`
+				);
+			}
+			return out.sort();
+		};
+	}
+
+	/**
+	 * A rejection nobody handled, from a promise of a shown document's realm: the page's, as in a
+	 * browser, which fires `unhandledrejection` on that window (the tab's listener records it, and
+	 * ogygia's rules hear it). A vm context's promise reaches the host's process otherwise. False
+	 * when no shown document made it (the host's, or a document already left).
+	 */
+	reject_in_page(reason: unknown, promise: Promise<unknown>): boolean {
+		for (const v of this.visitors)
+			for (const t of v.tabs) {
+				const w = t.page.mainFrame.window as unknown as {
+					Promise: PromiseConstructor;
+					Event: typeof Event;
+					dispatchEvent(e: Event): boolean;
+				};
+				if (!(promise instanceof w.Promise)) continue;
+				const e = new w.Event('unhandledrejection', { cancelable: true });
+				Object.assign(e, { reason, promise });
+				w.dispatchEvent(e);
+				return true;
+			}
+		return false;
 	}
 
 	#find(window: BrowserWindow): Tab | undefined {
@@ -360,8 +576,24 @@ export class Browsers {
 			errors: [],
 			console: [],
 			platform: null,
-			held: () => ({ listeners: 0, intervals: 0, observers: 0, head: 0, elements: 0 })
+			held: () => ({ listeners: 0, intervals: 0, observers: 0, head: 0, elements: 0 }),
+			listening: () => [],
+			watching: () => [],
+			orphans: () => [],
+			swaps: [],
+			swaps_by: new Map(),
+			moves_by: new Map(),
+			said_by: new Map()
 		};
+		// (each line said is the document's that said it: one action can show several documents,
+		// and a line is judged by its own document's faults; generated app 10, seed 78)
+		for (const list of [tab.errors, tab.console]) {
+			const push = list.push.bind(list);
+			list.push = (...lines: string[]) => {
+				for (const l of lines) tab.said_by.set(l, tab.realm);
+				return push(...lines);
+			};
+		}
 		v.tabs.push(tab);
 		this.#windows.set(page.mainFrame.window, tab);
 		// (happy-dom reports a failed script or stylesheet here, then fires `error` on its element:
