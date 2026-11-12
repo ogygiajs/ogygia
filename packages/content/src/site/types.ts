@@ -80,7 +80,8 @@ export type PageView<
 	fallback?: { axis: string; from: string; to: string } | null;
 };
 
-/** How "keep reading" is chosen. `'graph'` = content relations, order fallback. */
+/** How "keep reading" is chosen. `'graph'` = content relations, else the next page; `'order'` = the
+ *  next page; `false` = none. */
 export type PrevNext = 'graph' | 'order' | false;
 
 /** Per-render href option — the mount prefix the outline is served under. */
