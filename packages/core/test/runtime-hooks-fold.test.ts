@@ -54,8 +54,10 @@ describe('runtime hooks', () => {
 			expect(none, hook).not.toMatch(named(hook));
 			expect(all, hook).toMatch(named(hook));
 		}
-		for (const fan_out of ['client_hook_failed', '.hooks', 'tLoaded:', 'finalPath:', 'finalUrl:'])
+		for (const fan_out of ['.hooks', 'tLoaded:', 'finalPath:', 'finalUrl:'])
 			expect(none, fan_out).not.toContain(fan_out);
+		// (a plugin's boot is isolated as a hook is: a throw is reported, the regions still wake)
+		expect(none).toContain('client_hook_failed');
 		expect(all).toContain('client_hook_failed');
 		const freezes = (s: string) => s.split('Object.freeze').length;
 		expect(freezes(all)).toBe(freezes(none));
