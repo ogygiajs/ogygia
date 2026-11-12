@@ -32,6 +32,10 @@ export type Action =
 	/** Press button `nth`, then the same one again `after` ms later: two refreshes or two commands
 	 *  under way at once. */
 	| { kind: 'twice'; tab: number; nth: number; after: number }
+	/** `n` other visitors (each a browser, cookies and client address of its own) open `path`, their
+	 *  arrivals spread over `spread` ms: their requests reach the servers among each other's and the
+	 *  visitor's. Their tabs stay (`World.crowd`), judged as the visitor's are. */
+	| { kind: 'crowd'; path: string; n: number; spread: number }
 	| {
 			kind: 'outage';
 			tab: number;
@@ -68,6 +72,8 @@ export function describe(a: Action): string {
 			return `tab ${a.tab}: go to ${a.path}, press button #${a.nth} ${a.after} ms in`;
 		case 'twice':
 			return `tab ${a.tab}: press button #${a.nth}, then again ${a.after} ms later`;
+		case 'crowd':
+			return `a crowd of ${a.n} visitors opens ${a.path} within ${a.spread} ms`;
 		case 'outage':
 			return `tab ${a.tab}: ${a.during === 'wait' ? 'an outage' : `${a.during} #${a.nth}, then an outage`} ${a.after} ms in, for ${a.lasts} ms`;
 		default:
@@ -124,18 +130,29 @@ export const ACTION_KINDS: readonly Action['kind'][] = [
 ];
 
 /** The seed's next action for a world with `tabs` tabs (`deploys`: a deploy may be drawn; the
- *  operator's, not a visitor's, and as rare as one in a session should be), weighed by `mix`. */
+ *  operator's, not a visitor's, and as rare as one in a session should be), weighed by `mix`.
+ *  `crowds`: a crowd of other visitors may be drawn (a run without draws as it did before). */
 export function next_action(
 	rng: Rng,
 	tabs: number,
 	paths: readonly string[],
 	deploys = false,
-	mix?: Mix
+	mix?: Mix,
+	crowds = false
 ): Action {
 	const tab = rng.int(Math.max(1, tabs));
-	return rng.weighted<Action>(
-		choices(rng, tab, tabs, paths, deploys).map(([a, w]) => [a, w * (mix?.[a.kind] ?? 1)])
-	);
+	const all = choices(rng, tab, tabs, paths, deploys);
+	if (crowds)
+		all.push([
+			{
+				kind: 'crowd',
+				path: rng.pick(paths),
+				n: rng.between(2, 6),
+				spread: rng.pick([0, 50, 200, 1000])
+			},
+			1
+		]);
+	return rng.weighted<Action>(all.map(([a, w]) => [a, w * (mix?.[a.kind] ?? 1)]));
 }
 
 /** Every action the next could be, with its weight (each drawn in full: the draws stay the same
@@ -341,6 +358,20 @@ export async function act(
 			return;
 		case 'deploy':
 			if (await world.deploy_next()) await world.quiesce(1000);
+			return;
+		case 'crowd':
+			for (let k = 0; k < a.n; k++) {
+				const n = world.crowd.length + 1;
+				const other = world.visitor(`crowd-${n}`);
+				world.crowd.push(other);
+				const t = world.tab(other);
+				world.network.address(t.name, `10.0.${1 + Math.floor(n / 250)}.${1 + (n % 250)}`);
+				const at = a.n > 1 ? Math.round((a.spread * k) / (a.n - 1)) : 0;
+				world.loop.add('crowd', `${t.name} (crowd-${n}) opens ${a.path}`, at, () => {
+					void world.browsers.navigate(t, 'goto', a.path);
+				});
+			}
+			await world.quiesce();
 			return;
 	}
 }

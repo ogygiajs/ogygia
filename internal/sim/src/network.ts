@@ -73,6 +73,8 @@ export interface Exchange {
 	lost?: boolean;
 	/** Its answer was held 10 to 40 s on the way (a `stall`): its page may have given up on it. */
 	stalled?: boolean;
+	/** The client address the server saw it from (a server's hop: the document's it was for). */
+	address?: string;
 	/** The build whose server gave the answer the client got (its {@link ANSWERED_BY} header). */
 	build?: string;
 	/** A batch of holes (`POST /__ogygia__`): the holes it asks for, by `answer_key` (world.ts). */
@@ -145,6 +147,14 @@ export class Network {
 	/** Each exchange still on the wire (its request out, or its body still coming): how it ends
 	 *  when its tab loses the network (`offline`), or its document is left (`left`). */
 	readonly #on_wire = new Map<Exchange, (why: 'offline' | 'left') => void>();
+
+	/** Each tab's client address, when it is not the visitor's (a crowd's visitor: `address`). */
+	readonly #addresses = new Map<string, string>();
+
+	/** Tab `tab`'s requests come from client address `address`: a visitor of its own. */
+	address(tab: string, address: string): void {
+		this.#addresses.set(tab, address);
+	}
 
 	/** Documents their tab has left: nothing reaches them any more. */
 	readonly #left = new Set<string>();
@@ -356,7 +366,10 @@ export class Network {
 					const copy_line = dup ? new AbortController() : null;
 					const copy =
 						copy_line !== null ? new Request(request.clone(), { signal: copy_line.signal }) : null;
-					const address = calm ? REFERENCE_ADDRESS : VISITOR_ADDRESS;
+					const address = calm
+						? REFERENCE_ADDRESS
+						: (this.#addresses.get(behalf.split('#')[0]) ?? VISITOR_ADDRESS);
+					ex.address = address;
 					const answer = (r: Request) =>
 						answering.run(ex, () =>
 							asked_by.run(behalf, () => client.run(address, () => handler(r)))

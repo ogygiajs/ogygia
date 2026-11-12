@@ -137,6 +137,8 @@ export class World {
 	readonly network: Network;
 	readonly cdn: Cdn;
 	readonly browsers: Browsers;
+	/** Other visitors a crowd brought (workload.ts `crowd`), each with its tab, in order. */
+	readonly crowd: Visitor[] = [];
 	/** Live instances by build id. */
 	readonly servers = new Map<string, ServerInstance[]>();
 	/** Each peer app's instance, by origin. */
