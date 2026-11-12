@@ -6,11 +6,10 @@
  * then the compiler's `.ts` region transform on its output.
  */
 import { afterEach, describe, expect, it } from 'vitest';
-import path from 'node:path';
 import { fixture, type Fixture } from './_fixture.ts';
 import { svelte } from '@sveltejs/vite-plugin-svelte';
-import { transformTsRegions, asRegionLocals } from '@ogygia/core/internal/compiler';
-import { ogygia } from '@ogygia/core/vite';
+import { transformTsRegions, asRegionLocals } from '@ogygia/compiler';
+import { ogygia } from '@ogygia/compiler/vite';
 import { barrels } from '../src/index.ts';
 
 let f: Fixture;
@@ -19,7 +18,6 @@ afterEach(() => f?.dispose());
 const ctx = (root: string): Parameters<typeof transformTsRegions>[2] => ({
 	root,
 	libDir: root + '/lib',
-	pathModule: path,
 	dev: false,
 	virtualPathFor: (_host: string, iid: string) => `ogygia:region/entry/${iid}.js`,
 	wrapperPathFor: (_host: string, iid: string) => `ogygia:region/wrapper/${iid}.svelte`,

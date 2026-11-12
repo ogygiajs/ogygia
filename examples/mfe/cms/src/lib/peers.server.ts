@@ -14,6 +14,8 @@ export const { dash } = federate({
 	name: 'cms',
 	key: env.CMS_SIGNING_KEY,
 	base: '/cms',
+	// the host peers sign their calls to cms for (a call made for another app is refused)
+	audience: new URL(env.CMS_ORIGIN ?? 'http://localhost:5192').host,
 	expose: cms_router,
 	peers: {
 		dash: { origin: env.DASH_ORIGIN ?? 'http://localhost:5191', key: env.DASH_PUBLIC_KEY },

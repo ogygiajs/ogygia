@@ -3,9 +3,10 @@
  * element kept beside each other (core.ts `OgygiaRegion`), as they run side by side:
  *
  *   hole    idle ─ armed ─ fetching ─ idle            a deferred region's own fetch of its answer
- *                     ↖ retrying ↙   ╲ failed
+ *                     ↖ retrying ↙   ╲ failed | offline (asks again online)
  *   answer  none ─ answered ⇄ kept                    what is on screen from the hole's answers
  *   wake    cold ─ armed ─ waking ─ awake | failed    an island's hydration
+ *                              ╲ offline ─ armed      (its code failed offline: wakes online)
  *   live    idle ─ static | hydrating ─ live          a live region, driven by `applyLive`
  *   paint   idle ─ painting ⟲                         the frame waiting for its sheets to paint
  *
@@ -33,6 +34,9 @@ type HoleStates = {
 	fetching: { attempts: number; revalidate: boolean };
 	/** A fetch failed, and it waits to try again. */
 	retrying: { attempts: number; revalidate: boolean };
+	/** A fetch failed for the network while the browser is offline: it asks again, with fresh tries,
+	 *  once the browser is back online (#891). */
+	offline: { revalidate: boolean };
 	/** It gave up: refused, or out of tries. The fallback (or the answer before) stands. */
 	failed: {};
 };
@@ -40,8 +44,9 @@ type HoleStates = {
 const hole_steps = {
 	idle: ['armed', 'fetching'],
 	armed: ['idle', 'fetching'],
-	fetching: ['idle', 'retrying', 'failed'],
+	fetching: ['idle', 'retrying', 'offline', 'failed'],
 	retrying: ['idle', 'armed', 'fetching', 'failed'],
+	offline: ['idle', 'armed', 'fetching'],
 	failed: ['idle', 'armed', 'fetching']
 } as const;
 
@@ -96,6 +101,9 @@ type WakeStates = {
 	waking: {};
 	/** Hydrated: the island is live. */
 	awake: {};
+	/** Its code failed to download while the browser is offline: it wakes again once the browser is
+	 *  back online (#891). Its server markup stays meanwhile. `error`: the failed download. */
+	offline: { error: unknown };
 	/** Hydrating threw: its server markup stays as it is. */
 	failed: { error: unknown };
 };
@@ -103,8 +111,9 @@ type WakeStates = {
 const wake_steps = {
 	cold: ['armed', 'waking'],
 	armed: ['cold', 'waking'],
-	waking: ['cold', 'awake', 'failed'],
+	waking: ['cold', 'awake', 'offline', 'failed'],
 	awake: ['cold'],
+	offline: ['cold', 'armed'],
 	failed: ['cold']
 } as const;
 
@@ -135,13 +144,17 @@ type LiveStates = {
 	hydrating: { module: string };
 	/** Its island is live: a tick of the same module pushes props. Leaving disposes it. */
 	live: { module: string; app: IslandHandle };
+	/** Its island's file could not load (said once, coded): a tick of the same module shows its HTML
+	 *  and loads nothing; another module, or a static tick, starts afresh (#942). */
+	failed: { module: string; error: unknown };
 };
 
 const live_steps = {
 	idle: ['static', 'hydrating'],
 	static: ['idle', 'hydrating'],
-	hydrating: ['idle', 'static', 'hydrating', 'live'],
-	live: ['idle', 'static', 'hydrating']
+	hydrating: ['idle', 'static', 'hydrating', 'live', 'failed'],
+	live: ['idle', 'static', 'hydrating'],
+	failed: ['idle', 'static', 'hydrating']
 } as const;
 
 const live_definition = machine<LiveStates>()({
