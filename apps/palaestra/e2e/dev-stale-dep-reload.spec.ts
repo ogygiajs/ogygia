@@ -67,9 +67,11 @@ test.describe('dev: a stale-dep entry-fetch failure recovers the tab', () => {
 			r.request().resourceType() !== 'fetch' && documents < 2 ? r.abort() : r.continue()
 		);
 
-		await page.goto(`${base}/interaction`, { waitUntil: 'networkidle' });
-		await page.locator('[data-i-btn]').click(); // wakes the interaction island → import fails
-		// watchdog: confirm-fetch + one reload; the click goes to the new document, once it has loaded
+		// The page's `wake: 'load'` island fails as the page loads, with no click: a click here could
+		// land on either document (the watchdog may already have reloaded), and one on the new one
+		// counted too (count 2 on a slow runner).
+		await page.goto(`${base}/interaction`, { waitUntil: 'load' });
+		// watchdog: confirm-fetch + one reload
 		await expect.poll(() => documents, { timeout: 15_000 }).toBe(2);
 		await page.waitForLoadState('load');
 		// the reloaded page works: the island wakes and counts a click
