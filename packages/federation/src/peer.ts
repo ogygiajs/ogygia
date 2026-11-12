@@ -460,7 +460,7 @@ export class PeerHandle implements Peer {
 			out += `${html.slice(kept, at - quoted)}"${escapeAttr(url)}"`;
 			kept = at + value.length + quoted;
 		}
-		return kept === 0 ? html : out + html.slice(kept);
+		return kept === 0 ? html : `${out}${html.slice(kept)}`;
 	}
 
 	/** The path and query `url` names on one of this peer's origins (a relative one, on its first),
