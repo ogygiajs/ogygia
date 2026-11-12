@@ -24,7 +24,7 @@
  * cancels or releases runs inside the drain safely: each start takes its job off the front first.
  */
 import { machine_error, report_thrown } from './messages.ts';
-import { mono } from './ports/clock.ts';
+import { clock } from './ports.ts';
 import { MAX_TIMEOUT_MS, scope, type Scope } from './scope.ts';
 
 export interface QueueOptions<J> {
@@ -83,7 +83,7 @@ class QueueImpl<J> implements Queue<J> {
 		this.#max = o.max;
 		this.#start = o.start;
 		this.#stale = o.stale ?? null;
-		this.#now = o.now ?? mono;
+		this.#now = o.now ?? clock.mono;
 		this.#owner = o.owner ?? null;
 		this.#owner?.defer(() => this.#leave_where(() => true));
 	}
