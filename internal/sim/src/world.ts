@@ -35,6 +35,14 @@ export const ORIGIN = 'https://app.test';
 /** The attribute on every element of HTML another origin answers (`no_foreign_html` looks for it). */
 export const FOREIGN_MARK = 'data-sim-foreign';
 
+/** Whether a request of a tab's is for a page (its Kit data too): not a build's file or Kit's
+ *  remote functions (`/_app/`), not a region's answer (ogygia's endpoint, `/__ogygia__`, and
+ *  federation's, `/og/`: a peer frame's hole asked after a deploy is not the page's build; gen 54,
+ *  seed 54024). */
+export function is_page_path(path: string): boolean {
+	return !path.startsWith('/_app/') && !path.startsWith('/__ogygia__') && !path.startsWith('/og/');
+}
+
 /** A request's key among a document's answers: its path and query, less what a render signs anew
  *  each time (a hole's expiry and signature), so a fresh load's same request is the same key. */
 export function answer_key(url: URL): string {
@@ -384,9 +392,7 @@ export class World {
 				}
 			}
 		}
-		// (a page: not a file, not the region endpoint; its Kit data is the page's too)
-		if (!path.startsWith('/_app/') && !path.startsWith('/__ogygia__'))
-			this.#page_build.set(from, id);
+		if (is_page_path(path)) this.#page_build.set(from, id);
 		return id;
 	}
 

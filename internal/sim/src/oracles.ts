@@ -4,7 +4,7 @@
  */
 import { writeFileSync } from 'node:fs';
 import type { Tab, Visitor } from './browser.ts';
-import { FOREIGN_MARK, type World } from './world.ts';
+import { FOREIGN_MARK, is_page_path, type World } from './world.ts';
 
 /** `SIM_DUMP=<dir>`: an MPA difference writes both sides whole there (`<tab>-<path>-shown.txt`,
  *  `-fresh.txt`), to read past its first hunk. */
@@ -768,7 +768,7 @@ export function document_faulted(world: World, tab: Tab): boolean {
 		// a mounted peer page)
 		if (e.for === tab.realm && e.tampered) return true;
 		const path = new URL(e.url).pathname;
-		if (e.from === tab.realm) return !path.startsWith('/_app/') && !path.startsWith('/__ogygia__');
+		if (e.from === tab.realm) return is_page_path(path);
 		return e.from.startsWith(`${tab.name}#`) && path === here;
 	});
 }

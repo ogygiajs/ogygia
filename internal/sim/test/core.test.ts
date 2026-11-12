@@ -63,6 +63,21 @@ describe('the loop and a realm platform', () => {
 	});
 });
 
+describe('a page request', () => {
+	it("is not a file, Kit's remote functions, nor a region's answer, ogygia's or federation's", async () => {
+		const { is_page_path } = await import('../src/world.ts');
+		expect(['/', '/p4', '/p4/__data.json', '/peer/q0'].every(is_page_path)).toBe(true);
+		for (const p of [
+			'/_app/immutable/chunks/a.js',
+			'/_app/remote/x/held1',
+			'/__ogygia__',
+			'/og/frag',
+			'/og/fragment/page'
+		])
+			expect(is_page_path(p)).toBe(false);
+	});
+});
+
 describe('the network', () => {
 	const run = async (seed: number, faults: FaultClass[]) => {
 		const loop = new Loop(rng(seed));
