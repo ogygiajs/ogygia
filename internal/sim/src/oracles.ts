@@ -616,6 +616,52 @@ export async function mpa_equivalent(
 }
 
 /**
+ * EVERY REGION SHOWS SOMETHING: at rest, no `<ogygia-region>` of the page is empty (no element, no
+ * text): a region is a piece of the page, and one left with nothing in it never showed (its answer,
+ * its fallback or its server render). Set aside where the document was faulted (a fault may leave
+ * a region without its answer; the MPA check judges those) and inside an element the visitor's own
+ * press changed. A filed bug's shape is `known`.
+ */
+export function regions_show(tab: Tab, world: World): Broken | null {
+	const url = tab.page.mainFrame.url;
+	if (!url.startsWith('http') || faulted(world, tab)) return null;
+	const doc = tab.page.mainFrame.document as unknown as Document;
+	const empty = [...doc.querySelectorAll('ogygia-region')].filter(
+		(r) =>
+			r.children.length === 0 &&
+			(r.textContent ?? '').trim() === '' &&
+			// (a hole with no fallback still waiting for its moment: seen, or the visitor's intent)
+			!(
+				r.getAttribute('render') === 'defer' &&
+				!r.hasAttribute('data-hydrated') &&
+				/^(visible|interaction)$/.test(r.getAttribute('when') ?? '')
+			)
+	);
+	if (empty.length === 0) return null;
+	// #901: a server island inside a woken held region is adopted as an empty lake
+	const held = (r: Element) =>
+		r.getAttribute('wake') === 'none' &&
+		r.parentElement?.closest('ogygia-region[live="true"][render="defer"]') != null;
+	const open = (r: Element) =>
+		`<${r.localName}${[...r.attributes]
+			.filter((a) => a.name !== 'endpoint')
+			.map((a) => ` ${a.name}="${a.value}"`)
+			.join('')}>`;
+	if (empty.every(held))
+		return {
+			oracle: 'known',
+			detail: `${url}: #901 (a server island inside a woken held region never shows)`
+		};
+	return {
+		oracle: 'empty-region',
+		detail: `${url}: ${empty
+			.filter((r) => !held(r))
+			.map(open)
+			.join('\n')}`
+	};
+}
+
+/**
  * EVERY WAIT SETTLES: once the world is at rest (nothing on the wire, nothing due within 2 s), no
  * machine of the page is still in a state of work under way (`loading`, `fetching`, `waking`,
  * `refreshing`, ...: every ogygia state whose name ends in `ing` is one, and each has its way out

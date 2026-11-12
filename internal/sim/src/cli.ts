@@ -44,6 +44,7 @@ import {
 	normalize,
 	page_errors,
 	page_rules,
+	regions_show,
 	stuck,
 	uncaught,
 	type Broken
@@ -227,7 +228,12 @@ export async function run(
 			// AT REST, every tab (a faulted one too: a failure must end a wait as surely as an
 			// answer): no machine left mid-work, and ogygia's rules hold
 			for (const t of v.tabs)
-				for (const b of [stuck(t, world), page_rules(t)])
+				for (const b of [
+					stuck(t, world),
+					page_rules(t),
+					// (and every region shows something, unless a press made the page the visitor's own)
+					pressed.get(t.name) === t.documents ? null : regions_show(t, world)
+				])
 					if (b) broken.push({ ...b, detail: `at rest: ${b.detail}` });
 			for (const t of v.tabs) {
 				// (a document a deploy failed a download of is degraded as a faulted one is: by the host.
