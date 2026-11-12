@@ -46,6 +46,8 @@ export interface RealmOptions {
 	skew?: number | (() => number);
 	/** Hand out Node-shaped timer handles (the host realm, where the servers run). */
 	node?: boolean;
+	/** Whether this realm takes the rare branch `point` now (the world's buggify swarm); none: never. */
+	buggify?: (realm: string, point: string) => boolean;
 }
 
 export interface SimPlatform extends Platform {
@@ -78,6 +80,7 @@ export function platform(
 	| 'Date'
 	| 'Math'
 	| 'crypto'
+	| 'buggify'
 > {
 	const { name, loop } = options;
 	const rng = options.rng.fork(name);
@@ -178,6 +181,7 @@ export function platform(
 		},
 		cancelIdleCallback: (id) => clear(id),
 		performance: { now: () => loop.now - born },
+		buggify: (point) => options.buggify?.(name, point) ?? false,
 		Date: SimDate,
 		Math: math,
 		crypto: {
@@ -290,7 +294,8 @@ export function install(target: object, p: ReturnType<typeof platform>): () => v
 		'requestIdleCallback',
 		'cancelIdleCallback',
 		'Date',
-		'Math'
+		'Math',
+		'buggify'
 	] as const) {
 		save(t, key);
 		Object.defineProperty(t, key, { value: p[key], writable: true, configurable: true });

@@ -71,6 +71,8 @@ export interface BrowsersOptions {
 	route: Route;
 	/** The app's origin (`https://app.test`). */
 	origin: string;
+	/** The world's buggify swarm, for each tab's platform. */
+	buggify?: (realm: string, point: string) => boolean;
 }
 
 export class Browsers {
@@ -221,7 +223,12 @@ export class Browsers {
 		this.#o.loop.drop(tab.realm);
 		tab.documents++;
 		tab.realm = `${tab.name}#${tab.documents}`;
-		const options: RealmOptions = { name: tab.realm, loop: this.#o.loop, rng: this.#o.rng };
+		const options: RealmOptions = {
+			name: tab.realm,
+			loop: this.#o.loop,
+			rng: this.#o.rng,
+			buggify: this.#o.buggify
+		};
 		const p = platform(options);
 		install(window, p);
 		if ((window as unknown as { MessageChannel?: unknown }).MessageChannel === undefined)
