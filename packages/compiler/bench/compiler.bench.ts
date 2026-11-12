@@ -104,7 +104,7 @@ bench(
 	async ({ app, foreign, missing }) => {
 		const ctx = (own: boolean) => ({
 			root: '/app',
-			resolveAlias: [],
+			alias: [],
 			pkgRoot: '/og',
 			dollarHoists: new Map<string, string>(),
 			macros: [{ name: 'code', handler: (code: string) => code.split('og.code').join('og_code') }],

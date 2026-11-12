@@ -16,16 +16,19 @@
  * violations surface as build-voice errors naming the file and line. Node-only.
  */
 import fs from 'node:fs';
-import { dedent } from '@ogygia/core/contract';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { uneval } from 'devalue';
-import { og_member } from './wire.ts';
-import { parse_module, type AstNode } from '../parse/oxc.ts';
-import { og_js_regions } from '../parse/scan.ts';
-import { BuildCache } from '../build-cache.ts';
-import { OgygiaError } from '../messages.ts';
+import {
+	BuildCache,
+	dedent,
+	og_js_regions,
+	og_member,
+	parse_module,
+	type AstNode
+} from '@ogygia/compiler';
 import { id64 } from '@ogygia/core/contract';
+import { OgygiaError } from './messages.ts';
 
 // ── regexes
 const REGEX_SPECIAL_G = /[.*+?^${}()|[\]\\]/g;
@@ -191,7 +194,7 @@ function bake_plugin(
 	entry_code: string,
 	module_dir: string,
 	root: string,
-	aliases: AliasEntry[]
+	aliases: readonly AliasEntry[]
 ) {
 	return {
 		name: 'ogygia-bake-entry',
@@ -258,7 +261,7 @@ async function evaluate(entry_code: string, id: string, opts: BakeOptions): Prom
 	// than a direct `rolldown` dependency of ogygia's own — the plugin below is a plain Rollup/Vite
 	// plugin, so it drops straight into `rollupOptions`. SSR/node build; TS in the eval entry is
 	// handled by Vite's own transform.
-	// The specifier is a VARIABLE (not a literal) so no bundler that bundles the compiler pulls `vite`
+	// The specifier is a VARIABLE (not a literal) so no bundler that bundles this package pulls `vite`
 	// into it: bake loads the app's own Vite at the moment it runs.
 	const vite_spec = 'vite';
 	const { build } = (await import(/* @vite-ignore */ vite_spec)) as typeof import('vite');
@@ -322,21 +325,10 @@ export type BakeOptions = {
 	/** Content hash of the eval entry — names/isolates the bundle in the cache. */
 	hash: string;
 	/** `resolve.alias` entries so a baked `fn` can import `$lib/…`. */
-	alias: AliasEntry[];
+	alias: readonly AliasEntry[];
 	/** Project root — anchors the `$lib` convention fallback. */
 	root: string;
 };
-
-/** Does `src` hold a real `import.meta.og.bake(…)` call (not a marker in a string or comment)?
- *  Reads only: nothing is bundled or run. A malformed call counts as a call. */
-export function has_bake_call(src: string, id: string, markupExts: readonly string[]): boolean {
-	if (!src.includes(MARKER)) return false;
-	try {
-		return (scan(src, id, markupExts)?.calls.length ?? 0) > 0;
-	} catch {
-		return true; // ok: scan throws only on a bake call of the wrong shape: still a call
-	}
-}
 
 /**
  * Rewrite every `import.meta.og.bake(fn)` in `src` to its inlined, devalue-serialized result. ASYNC

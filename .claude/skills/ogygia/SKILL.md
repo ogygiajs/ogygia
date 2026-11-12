@@ -261,7 +261,7 @@ Package `@ogygia/content`, plugin `content({ markdown, presets })` from `'@ogygi
 
 Compile constructs — rewritten by the Vite plugin, no runtime object exists. Family: `loader.*`, `code`, `md`, `regions`, `wire`, `bake`, `asRegion`, `$`, `source`. Shared laws: **literal arguments** (a `${…}` interpolation is a build error), AST-detected, loud `[ogygia]` build errors, zero runtime cost.
 
-- `bake(fn)` runs `fn` at build (self-contained: may use module imports, not other locals; no `$app/*`; result devalue-serializable) and inlines the answer — imports that only fed it are dropped from the output.
+- `bake(fn)` needs `bake()` from `@ogygia/bake` beside `ogygia()` (types: `@ogygia/bake/types`; without it the build fails with `macro_needs_plugin`). It runs `fn` at build (self-contained: may use module imports, not other locals; no `$app/*`; result devalue-serializable) and inlines the answer — imports that only fed it are dropped from the output.
 - `asRegion(Comp, 'load')` marks a barrel/named import as a region where import attributes can't reach (re-exports, named exports).
 - `$(fn)` brands a function so a REF can cross context into an island and rebind on the far side (bound captures).
 

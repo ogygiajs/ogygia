@@ -32,12 +32,7 @@ import {
 import { run_module_macros } from './macros/pipeline.ts';
 import { is_script_request } from './script-request.ts';
 import { resolveFeatures } from './link/runtime-entry.ts';
-import {
-	resolveFoucImportSpec,
-	FOUC_CSS_PREFIX,
-	FOUC_SCOPED_PREFIX,
-	type FoucAlias
-} from './fouc-css.ts';
+import { resolveFoucImportSpec, FOUC_CSS_PREFIX, FOUC_SCOPED_PREFIX } from './fouc-css.ts';
 import {
 	moduleHasTransportable,
 	svelteModuleHasTransportable,
@@ -103,8 +98,9 @@ export interface Profiler {
 		transformN: number;
 		transformHit: number;
 		prescanMs: number;
-		bakeMs: number;
-		bakeN: number;
+		/** time in plugin macros (`b.macro`), and how many calls */
+		macroMs: number;
+		macroN: number;
 		resolveMs: number;
 		loadMs: number;
 	};
@@ -314,8 +310,8 @@ export class Compiler implements CoreApp {
 	}
 
 	/**
-	 * Run the module-macro passes (`wire`/`$`/`source`/`store`/auto-brand, the plugins' macros, then
-	 * `bake`) over one module — the leg that must land before the island transform / svelte compile /
+	 * Run the module-macro passes (`wire`/`$`/`source`/`store`/auto-brand, then the plugins' macros)
+	 * over one module — the leg that must land before the island transform / svelte compile /
 	 * ts-region minting sees it. `source` is the CURRENT text (a plugin's pre-transform may already have
 	 * edited it). Returns `{ code, touched }`; the caller nulls its own sourcemap when `touched`.
 	 */
@@ -326,7 +322,7 @@ export class Compiler implements CoreApp {
 			id,
 			{
 				root: ctx.root,
-				resolveAlias: ctx.resolve_alias,
+				alias: ctx.resolve_alias,
 				pkgRoot: ctx.pkg_root,
 				dollarHoists: this.dollar_hoists,
 				macros: ctx.macros,
@@ -728,7 +724,7 @@ export class Compiler implements CoreApp {
 	mark_island_closure(componentAbs: string): string[] {
 		const ctx = this.#ctx!;
 		const { island_graph } = this.program;
-		const aliases = ctx.resolve_alias as readonly FoucAlias[];
+		const aliases = ctx.resolve_alias;
 		const added: string[] = [];
 		const resolve_dep = (spec: string, importerAbs: string): string | null => {
 			const base = resolveFoucImportSpec(spec, importerAbs, ctx.libDir, aliases);
@@ -1490,11 +1486,12 @@ export class Compiler implements CoreApp {
 		let map: unknown = null;
 		let touched = false;
 
-		// The `import.meta.og.*` module macros — `wire`/`$`/`source`/`store`/auto-brand, the plugins'
-		// macros, then `bake` — all landing BEFORE either branch (island transform / svelte compile / ts
-		// region minting) sees the code, so a computed codec key is a real symbol, a hoisted fn is
-		// a ref, a baked call is plain data, and an inlined snippet flows through as a region. Each
-		// pass is a no-op unless its exact marker is present. Fills `dollar_hoists` + records bake timing.
+		// The `import.meta.og.*` module macros — `wire`/`$`/`source`/`store`/auto-brand, then the
+		// plugins' macros (`bake` last) — all landing BEFORE either branch (island transform / svelte
+		// compile / ts region minting) sees the code, so a computed codec key is a real symbol, a
+		// hoisted fn is a ref, a baked call is plain data, and an inlined snippet flows through as a
+		// region. Each pass is a no-op unless its exact marker is present. Fills `dollar_hoists` +
+		// records plugin macro timing.
 		const macroed = await this.macros(out, id_n);
 		if (macroed.touched) {
 			out = macroed.code;

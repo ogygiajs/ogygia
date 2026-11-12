@@ -9,7 +9,7 @@ const NO_PROFILE = { P: false } as unknown as Profiler;
 const APP = '/app/src/lib/x.ts';
 const ctx = (macros: MacroPipelineCtx['macros'] = []): MacroPipelineCtx => ({
 	root: '/app',
-	resolveAlias: [],
+	alias: [],
 	pkgRoot: '/og',
 	dollarHoists: new Map(),
 	macros,
@@ -27,6 +27,17 @@ describe('a plugin macro without its plugin', () => {
 			await expect(
 				run_module_macros(`export const v = ${call};`, APP, ctx(), NO_PROFILE)
 			).rejects.toThrow(/macro_needs_plugin.*@ogygia\/content|content\(\).*@ogygia\/content/s);
+	});
+
+	it('bake() without @ogygia/bake fails the build, and its function never runs', async () => {
+		await expect(
+			run_module_macros(
+				`export const v = import.meta.og.bake(() => { throw new Error('ran'); });`,
+				APP,
+				ctx(),
+				NO_PROFILE
+			)
+		).rejects.toThrow(/macro_needs_plugin|bake\(\).*@ogygia\/bake/s);
 	});
 
 	it('a marker in a string or comment is no call; an unknown macro is not this error', async () => {
