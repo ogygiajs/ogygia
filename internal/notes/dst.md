@@ -61,6 +61,9 @@ module scripts. Its gaps are handled in the sim, with no patch to happy-dom:
   module scripts run in its order (`modules_in_order`, `test/modules.test.ts`).
 - Its console's methods read private fields, so a document's own console (which tells one
   document's words from another's) runs each on the page's console (`test/console.test.ts`).
+- Its `document.getElementsByTagNameNS` read the document's owner document (it has none) and
+  threw: the search from a document reads the document as its own owner
+  (`documents_by_namespace`, `test/document.test.ts`).
 - It records no resource timing (its `PerformanceObserver` is the host's, which hears none of a
   page's downloads), so ogygia's import-again never learned whether a failed chunk's own file came.
   Each document gets its own timeline and observer (`src/timeline.ts`), fed by its downloads on
@@ -330,6 +333,10 @@ several documents, and an old page's failed download is not the next page's. The
 looked at before the visitor acts. What moves by itself in the MPA check (a ticking text, a live
 region's tick in its endpoint) is masked by its content, looked at for 4 s, and lined up with the
 other side's same line where it moved on one side only.
+
+The fresh load is calm (`Network.calm`): no fault but short delays, on its own requests and on the
+hops its server makes for it (a peer's fragment). A calm leg is never a long one: two long legs on
+a peer hop passed the peer's 5 s timeout, and the app rightly answered 504 (gen 23, seed 23023).
 
 ## Always on
 
