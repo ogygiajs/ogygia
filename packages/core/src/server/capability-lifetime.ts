@@ -8,6 +8,7 @@
  * Pure: the app's settings come in (server/region-endpoint.ts binds them from the virtuals), so the
  * plugin test harness (plugin/testing.ts) runs the same rule without a Kit app.
  */
+import { clock } from '@ogygia/machine';
 import { current_facts } from '../plugin/facts.ts';
 import { capability_expiry } from './endpoint.ts';
 import { document_shared_lifetime, mint_ttl_sec } from './shared-cache.ts';
@@ -42,7 +43,7 @@ export interface CapabilityLifetime {
 }
 
 export function capability_lifetime(app: LifetimeSettings): CapabilityLifetime {
-	const now_sec = () => Math.floor(Date.now() / 1000);
+	const now_sec = () => Math.floor(clock.wall() / 1000); // wall: epoch expiries signed into URLs
 	return {
 		mint_expiry(session) {
 			const stored = app.building || current_facts()?.storable === true;

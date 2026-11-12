@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { STALE } from '@ogygia/machine';
-import * as frames from '../src/runtime/frame-store.ts';
+import { observe, STALE } from '@ogygia/machine';
+import * as frames from './_frames.ts';
 
 afterEach(() => frames._reset());
 
@@ -59,10 +59,22 @@ describe('frame-store: dedupe', () => {
 });
 
 describe('frame-store: staleness', () => {
-	it('drops a write older than what was applied', () => {
-		expect(frames.write({ a: '/x', v: 5, html: 'new' })).toBe(true);
-		expect(frames.write({ a: '/x', v: 3, html: 'old' })).toBe(false);
-		expect(frames.peek('/x')).toEqual({ v: 5, html: 'new' });
+	it('an older answer never replaces a newer one, nor does one of the same stamp', () => {
+		const older = frames.stamp();
+		const newer = frames.stamp();
+		expect(frames.write({ a: '/x', v: newer, html: 'new' })).toBe(true);
+		expect(frames.write({ a: '/x', v: older, html: 'old' })).toBe(false);
+		expect(frames.write({ a: '/x', v: newer, html: 'again' })).toBe(false);
+		expect(frames.peek('/x')?.html).toBe('new');
+	});
+
+	it('a request that started before a streamed frame cannot overwrite it', async () => {
+		const own = deferred('OWN-old');
+		const fetching = frames.ensure('/r?sig=1', own.fetcher); // its stamp: taken at its start
+		frames.write({ a: '/r?sig=1', v: frames.stamp(), html: 'STREAMED' }); // a later write
+		own.resolve();
+		expect(await fetching).toBe('STREAMED');
+		expect(frames.peek('/r?sig=1')?.html).toBe('STREAMED');
 	});
 
 	it('a slow response that started earlier cannot overwrite a newer one', async () => {
@@ -80,6 +92,69 @@ describe('frame-store: staleness', () => {
 		slow.resolve('SLOW-old'); // ticket 1 arrives late — dropped
 		expect(await pSlow).toBe('FAST-new');
 		expect(frames.peek('/r?sig=1')?.html).toBe('FAST-new');
+	});
+});
+
+describe('frame-store: every answer at an address is a move', () => {
+	/** The stored-answer moves heard while `run` writes, one line each. */
+	function moves_of(run: () => void): string[] {
+		const heard: string[] = [];
+		const off = observe((name, from, to) => {
+			if (name === 'stored-answer') heard.push(`${from.kind} -> ${to ? to.kind : 'stopped'}`);
+		});
+		try {
+			run();
+		} finally {
+			off();
+		}
+		return heard;
+	}
+
+	it('an applied answer, a newer one, and each dropped one are moves of the address’s stored answer', () => {
+		const heard = moves_of(() => {
+			frames.write({ a: '/x', v: 1, html: 'a' });
+			frames.write({ a: '/x', v: 2, html: 'b' });
+			frames.write({ a: '/x', v: 1, html: 'older request' });
+			frames.write({ a: '/x', v: 3, d: 5, html: 'c' });
+			frames.write({ a: '/x', v: 4, d: 4, html: 'older data' });
+		});
+		expect(heard).toEqual([
+			'empty -> shown',
+			'shown -> shown',
+			'shown -> kept',
+			'kept -> shown',
+			'shown -> kept'
+		]);
+		expect(frames.peek('/x')).toEqual({ v: 3, d: 5, html: 'c' });
+	});
+
+	it('a dropped answer’s move names what was dropped and why, and keeps what is shown', () => {
+		const states: object[] = [];
+		const off = observe((name, _from, to) => {
+			if (name === 'stored-answer' && to) states.push(to);
+		});
+		frames.write({ a: '/y', v: 2, d: 7, html: 'shown' });
+		frames.write({ a: '/y', v: 3, d: 6, html: 'older data' });
+		frames.write({ a: '/y', v: 1, d: 7, html: 'older request' });
+		off();
+		expect(states).toEqual([
+			{ kind: 'shown', v: 2, d: 7, html: 'shown' },
+			{ kind: 'kept', v: 2, d: 7, html: 'shown', dropped: { v: 3, d: 6, why: 'older data' } },
+			{ kind: 'kept', v: 2, d: 7, html: 'shown', dropped: { v: 1, d: 7, why: 'older request' } }
+		]);
+	});
+
+	it('an address the store lets go ends its stored answer', () => {
+		vi.useFakeTimers();
+		try {
+			const heard = moves_of(() => {
+				frames.write({ a: '/gone', v: 1, html: 'x' });
+				vi.advanceTimersByTime(60_000);
+			});
+			expect(heard).toEqual(['empty -> shown', 'shown -> stopped']);
+		} finally {
+			vi.useRealTimers();
+		}
 	});
 });
 
@@ -166,10 +241,10 @@ describe('frame-store: lifecycle', () => {
 	it('subscribers are notified on apply and stop after unsubscribe', () => {
 		const seen: string[] = [];
 		const off = frames.subscribe('/x', (f) => seen.push(f.html));
-		frames.write({ a: '/x', v: 1, html: 'a' });
-		frames.write({ a: '/x', v: 2, html: 'b' });
+		frames.write({ a: '/x', v: frames.stamp(), html: 'a' });
+		frames.write({ a: '/x', v: frames.stamp(), html: 'b' });
 		off();
-		frames.write({ a: '/x', v: 3, html: 'c' });
+		frames.write({ a: '/x', v: frames.stamp(), html: 'c' });
 		expect(seen).toEqual(['a', 'b']);
 	});
 });
@@ -190,30 +265,44 @@ describe('frame-store: eviction (no leak)', () => {
 		vi.useFakeTimers();
 		// A single-flight mutation (or a live tick whose address changes) writes an address nothing is
 		// bound to. It must not linger forever — nothing ever subscribes to trigger cleanup.
-		frames.write({ a: '/orphan', v: 1, html: 'x' });
-		expect(frames.peek('/orphan')).toEqual({ v: 1, html: 'x' }); // still here for a late binder
+		frames.write({ a: '/orphan', v: frames.stamp(), html: 'x' });
+		expect(frames.peek('/orphan')?.html).toBe('x'); // still here for a late binder
 		vi.advanceTimersByTime(60_000);
 		expect(frames.peek('/orphan')).toBeNull(); // dropped
 	});
 
 	it('a late binder within the TTL window still catches an unbound write (prefetch semantics)', () => {
 		vi.useFakeTimers();
-		frames.write({ a: '/warm', v: 1, html: 'seeded' });
+		frames.write({ a: '/warm', v: frames.stamp(), html: 'seeded' });
 		vi.advanceTimersByTime(30_000); // half the window
 		const seen: string[] = [];
 		frames.subscribe('/warm', (f) => seen.push(f.html)); // mounts late — replays current content
 		expect(seen).toEqual(['seeded']);
 		vi.advanceTimersByTime(60_000); // subscribing cancelled the evict; still held while bound
-		expect(frames.peek('/warm')).toEqual({ v: 1, html: 'seeded' });
+		expect(frames.peek('/warm')?.html).toBe('seeded');
+	});
+
+	it('the store keeps at most 2000 addresses, but never lets a bound or fetched one go', () => {
+		const seen: string[] = [];
+		frames.subscribe('/bound', (f) => seen.push(f.html));
+		frames.write({ a: '/bound', v: frames.stamp(), html: 'kept' });
+		void frames.ensure('/fetching', deferred().fetcher);
+		for (let i = 0; i < 2100; i++) frames.write({ a: '/idle' + i, v: frames.stamp(), html: 'x' });
+		expect(frames.peek('/bound')?.html).toBe('kept'); // bound: never evicted
+		expect(frames.is_idle('/fetching')).toBe(false); // its fetch is still out
+		expect(frames.peek('/idle0')).toBeNull(); // the oldest idle ones went
+		expect(frames.peek('/idle2099')?.html).toBe('x');
+		frames.write({ a: '/bound', v: frames.stamp(), html: 'again' });
+		expect(seen).toEqual(['kept', 'again']);
 	});
 
 	it('a subscribed address is NOT evicted by its own writes', () => {
 		vi.useFakeTimers();
 		frames.subscribe('/live', () => {});
-		frames.write({ a: '/live', v: 1, html: 'a' });
-		frames.write({ a: '/live', v: 2, html: 'b' });
+		frames.write({ a: '/live', v: frames.stamp(), html: 'a' });
+		frames.write({ a: '/live', v: frames.stamp(), html: 'b' });
 		vi.advanceTimersByTime(120_000);
-		expect(frames.peek('/live')).toEqual({ v: 2, html: 'b' }); // bound → kept
+		expect(frames.peek('/live')?.html).toBe('b'); // bound → kept
 	});
 });
 
@@ -224,9 +313,9 @@ describe('frame-store: reservation (single-flight navigation)', () => {
 		const spy = vi.fn(deferred().fetcher);
 		const joined = frames.ensure('/r?sig=1', spy);
 		expect(spy).not.toHaveBeenCalled(); // joined the batch — no per-region fetch
-		frames.write({ a: '/r?sig=1', v: 5, html: 'FROM-BATCH' }); // frame lands
+		frames.write({ a: '/r?sig=1', v: frames.stamp(), html: 'FROM-BATCH' }); // frame lands
 		expect(await joined).toBe('FROM-BATCH');
-		expect(frames.peek('/r?sig=1')).toEqual({ v: 5, html: 'FROM-BATCH' });
+		expect(frames.peek('/r?sig=1')?.html).toBe('FROM-BATCH');
 	});
 
 	it('release() fails an undelivered reservation so the binder falls back to its own fetch', async () => {
@@ -249,7 +338,7 @@ describe('frame-store: reservation (single-flight navigation)', () => {
 		const spy = vi.fn(deferred().fetcher);
 		const later = frames.ensure('/r?sig=1', spy);
 		expect(spy).not.toHaveBeenCalled(); // the batch is still coming
-		frames.write({ a: '/r?sig=1', v: 9, html: 'FROM-BATCH' });
+		frames.write({ a: '/r?sig=1', v: frames.stamp(), html: 'FROM-BATCH' });
 		expect(await later).toBe('FROM-BATCH');
 	});
 
@@ -258,8 +347,8 @@ describe('frame-store: reservation (single-flight navigation)', () => {
 		const joined = frames.ensure('a', deferred().fetcher);
 		const forced = deferred('<p>refresh</p>');
 		const refresh = frames.ensure('a', forced.fetcher, { force: true }); // a lake revalidates
-		frames.write({ a: 'a', v: frames.ticket('a'), html: '<p>batch</p>' }); // the batch's part lands
-		forced.resolve(); // (its ticket is older than the batch's part: not written)
+		frames.write({ a: 'a', v: frames.stamp(), html: '<p>batch</p>' }); // the batch's part lands
+		forced.resolve(); // (its stamp is older than the batch's part: not written)
 		expect(await refresh).toBe('<p>batch</p>');
 		expect(await joined).toBe('<p>batch</p>');
 	});
@@ -294,13 +383,13 @@ describe('frame-store: reservation (single-flight navigation)', () => {
 
 	it('release() is a no-op once the frame has landed', () => {
 		frames.reserve('/r?sig=1');
-		frames.write({ a: '/r?sig=1', v: 1, html: 'HAVE-IT' });
+		frames.write({ a: '/r?sig=1', v: frames.stamp(), html: 'HAVE-IT' });
 		frames.release('/r?sig=1'); // must not clobber delivered content
-		expect(frames.peek('/r?sig=1')).toEqual({ v: 1, html: 'HAVE-IT' });
+		expect(frames.peek('/r?sig=1')?.html).toBe('HAVE-IT');
 	});
 
 	it('reserve() is a no-op when content or a fetch is already present', () => {
-		frames.write({ a: '/have', v: 1, html: 'x' });
+		frames.write({ a: '/have', v: frames.stamp(), html: 'x' });
 		frames.reserve('/have'); // has content — nothing to reserve
 		const spy = vi.fn(deferred('Y').fetcher);
 		void frames.ensure('/have', spy);

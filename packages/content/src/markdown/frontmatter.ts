@@ -282,6 +282,11 @@ function read_flow_plain(p: Cursor, is_key: boolean): string {
 		const c = p.s[p.i];
 		if (c === ',' || c === ']' || c === '}') break;
 		if (is_key && c === ':') break;
+		// @why YAML has no `[` or `{` inside a plain flow item (`[see [a, b]]` is an error there, not a list) (test: frontmatter-flow › a bracket or brace inside a plain item)
+		if (c === '[' || c === '{')
+			throw new OgygiaError('content_frontmatter_invalid', {
+				reason: `a \`${c}\` inside a list or map item (\`${p.s.trim()}\`): quote the item, or the whole value`
+			});
 		p.i++;
 	}
 	return p.s.slice(start, p.i).trim();
@@ -361,8 +366,7 @@ function read_flow_map(p: Cursor): Record<string, unknown> {
 		}
 		skip_ws(p);
 		if (p.s[p.i] === ':') p.i++;
-		const value = read_flow_node(p);
-		obj[key] = value;
+		set_key(obj, key, read_flow_node(p));
 		skip_ws(p);
 		const c = p.s[p.i];
 		if (c === ',') {
@@ -388,11 +392,10 @@ function parse_flow(text: string): unknown {
 	return read_flow_node(p);
 }
 
-/** True if a `{…}` is really a mapping — empty (`{}`), or holding a top-level (`depth === 1`) `:` —
- *  as opposed to a brace-wrapped token like `{@const}`. Quotes are skipped. */
-/** A `{…}` is a real mapping only if it's empty or holds a top-level (`depth === 1`) `:`; a `[…]` is
- *  a real sequence only if it's empty or holds a top-level `,`. Otherwise the brace/bracket value is
- *  a plain string (`title: {@const}` / `title: [create your own]`) — frontmatter is text first. */
+/** A `{…}` is a real mapping only if it's empty or holds a top-level (`depth === 1`) `:`, so
+ *  `title: {@const}` stays a string. A `[…]` is a sequence as YAML reads it when it is the whole
+ *  value (`[svelte]` is a one-item list), or when it is empty or holds a top-level `,`; a value that
+ *  only starts with one (`[docs](/docs)`) stays a string. Quotes are skipped. */
 function is_flow_collection(text: string, open: '{' | '[', sep: ':' | ','): boolean {
 	const close = open === '{' ? '}' : ']';
 	if (text.slice(text.indexOf(open) + 1, text.lastIndexOf(close)).trim() === '') return true;
@@ -405,8 +408,11 @@ function is_flow_collection(text: string, open: '{' | '[', sep: ':' | ','): bool
 			continue;
 		}
 		if (ch === '{' || ch === '[') depth++;
-		else if (ch === '}' || ch === ']') depth--;
-		else if (ch === sep && depth === 1) return true;
+		else if (ch === '}' || ch === ']') {
+			depth--;
+			// (the opening `[` must close at the end: `[docs][ref]` stays text)
+			if (depth === 0 && open === '[') return i === text.length - 1;
+		} else if (ch === sep && depth === 1) return true;
 	}
 	return false;
 }
@@ -415,9 +421,6 @@ function is_flow_collection(text: string, open: '{' | '[', sep: ':' | ','): bool
 function parse_scalar(text: string): unknown {
 	if (text === '') return null;
 	const c = text[0];
-	// Frontmatter is TEXT first; we don't chase full YAML flow semantics. `{…}` / `[…]` values are only
-	// real collections when they actually hold pairs / multiple items — svelte docs title pages with
-	// `{@const}`, `{#if ...}`, or `[create your own]`, which look like flow but are just the STRING.
 	if (c === '{') return is_flow_collection(text, '{', ':') ? parse_flow(text) : text;
 	if (c === '[') return is_flow_collection(text, '[', ',') ? parse_flow(text) : text;
 	if (c === '"') return read_double_quoted(text, 0).value;
@@ -584,15 +587,30 @@ function parse_mapping(ctx: Ctx, indent: number): Record<string, unknown> {
 		ctx.i++;
 		const clean = strip_comment(value_part).trim();
 
-		if (is_block_scalar_indicator(clean)) {
-			obj[key] = parse_block_scalar(ctx, indent, clean);
-		} else if (clean === '') {
-			obj[key] = parse_child(ctx, indent);
-		} else {
-			obj[key] = parse_scalar(clean);
-		}
+		set_key(
+			obj,
+			key,
+			is_block_scalar_indicator(clean)
+				? parse_block_scalar(ctx, indent, clean)
+				: clean === ''
+					? parse_child(ctx, indent)
+					: parse_scalar(clean)
+		);
 	}
 	return obj;
+}
+
+/** Sets a parsed key as the object's own, as `JSON.parse` does: a `__proto__` key never sets its
+ *  prototype (test: frontmatter.test.ts › a `__proto__` key is a plain key). */
+function set_key(obj: Record<string, unknown>, key: string, value: unknown): void {
+	if (key === '__proto__')
+		Object.defineProperty(obj, key, {
+			value,
+			writable: true,
+			enumerable: true,
+			configurable: true
+		});
+	else obj[key] = value;
 }
 
 /** Dispatch a block node at column `indent`: sequence, mapping, or scalar. */
@@ -637,6 +655,16 @@ export type FrontmatterResult = {
  * Minimal `---` YAML frontmatter split. Body is unused for glob catalogs
  * (Content comes from the Vite module); data is schema-validated.
  */
+/** What the parser stopped at, as words: a coded parser error without its own `[ogygia] ` prefix
+ *  and link line, so the outer error prints them once. */
+function reason_of(e: unknown): string {
+	const message = e instanceof Error ? e.message : String(e);
+	if (!(e instanceof OgygiaError)) return message;
+	const link = message.lastIndexOf('\nhttps://ogygiajs.dev/e/');
+	const words = link === -1 ? message : message.slice(0, link);
+	return words.startsWith('[ogygia] ') ? words.slice('[ogygia] '.length) : words;
+}
+
 export function parseFrontmatter(source: string): FrontmatterResult {
 	const text = source.replace(BOM, '');
 	if (!text.startsWith('---')) {
@@ -655,8 +683,9 @@ export function parseFrontmatter(source: string): FrontmatterResult {
 			data = parsed as Record<string, unknown>;
 		}
 	} catch (e) {
-		const msg = e instanceof Error ? e.message : String(e);
-		throw new OgygiaError('content_frontmatter_invalid', { reason: msg });
+		// (the parser's own invalid-frontmatter error is already the answer: wrapped, it would say so twice)
+		if (e instanceof OgygiaError && e.code === 'content_frontmatter_invalid') throw e;
+		throw new OgygiaError('content_frontmatter_invalid', { reason: reason_of(e) });
 	}
 	return { data, body: after };
 }
