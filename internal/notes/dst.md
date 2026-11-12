@@ -304,6 +304,21 @@ check sees a `<style>` held twice when it does not). Mutation: hydrate-core's he
 place, or the page copy kept, died on gen 262. The order those styles stand in after a return is
 #1107 (`KNOWN`).
 
+## Tabs behind, and engines without idle callbacks
+
+The visitor looks at the tab they act in, and their other tabs go behind it (`Browsers.focus`): a
+tab behind reads `document.visibilityState` `hidden`, hears `visibilitychange` on each change, and
+its animation frames wait until it is shown (`platform.ts` parks them; a document's first frame is
+happy-dom's own, which writes the content, and is never parked). The `background` action opens a
+tab behind the one looked at. A tab brought to the front is looked at 300 ms before the visitor acts
+in it (gen 193, seed 8: a reload at once counted the old document's late requests as the next
+one's). A document loaded behind and never shown owes its wakes after every action (`islands-wake`);
+one shown before it went behind is set aside: a frame it asked for then waits, as a browser's does.
+Mutation: the paint gate's hidden branch (schedule.ts) died on gen 262.
+
+Some seeds' engine has no `requestIdleCallback` (stream `idle engine`, 30%: Safari's), so code that
+waits for an idle moment takes its own fallback (core's `#on_idle` pause; mutation: died on gen 262).
+
 A build's boot runtime comes from `packages/core/dist/runtime` (the prebuilt runtime a published
 package ships), not from `src`: after a change to core's runtime, `pnpm build:lib` before
 `pnpm sim:builds`, or the app boots the old one (its import-again had no buggify point, while the
