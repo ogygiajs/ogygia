@@ -1,8 +1,8 @@
 /**
  * HMAC-SHA256 for region capability URLs — Node `createHmac` (sync).
  *
- * Used by `ogygiaHandle` and by SSR `virtual:ogygia/sign`. The client never imports this
- * module: ServerIsland goes through `virtual:ogygia/sign`, which is a no-op on the client
+ * Used by `ogygiaHandle` and by SSR `ogygia:server/sign`. The client never imports this
+ * module: ServerIsland goes through `ogygia:server/sign`, which is a no-op on the client
  * (secret is already empty there). Web Crypto is not used — browsers must not mint with a
  * real secret.
  *

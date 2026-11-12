@@ -2,7 +2,7 @@
  * THE TRANSPORTABLE CLASSES AN ISLAND NEEDS, loaded before it decodes its props. An `[ogygia.wire]`
  * class revives through its registered codec, and its module registers it when it loads. Every island
  * page used to load every transportable class of the app up front (each island entry imported them
- * all); now the client build carries only a map of lazy loaders (`virtual:ogygia/transportables`), and
+ * all); now the client build carries only a map of lazy loaders (`ogygia:region/transportables`), and
  * an island loads just what it carries:
  * - its props: the server stamped the classes on the props sidecar (`data-og-wire`, tag paths);
  * - the context it reads: the `<ogygia-provide>` payloads around it and the page's context root;
@@ -20,7 +20,7 @@
  * module, so this code shipped to every island page for a lookup that always found nothing.
  */
 import { flights } from '@ogygia/machine';
-import { wire_loaders, wire_all } from 'virtual:ogygia/transportables';
+import { wire_loaders, wire_all } from 'ogygia:region';
 import { import_again } from './import-again.ts';
 import { props_sidecar_of } from './sidecar.ts';
 import { yield_task } from './schedule.ts';

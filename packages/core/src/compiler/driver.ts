@@ -10,7 +10,7 @@
  * recomputes on its own; the linker's `unregister_host` deliberately does NOT clear it.
  */
 import { fs, path, createHash, dir_entries } from './host.ts';
-import { fnv1a32 } from '../runtime/hash.ts';
+import { fnv1a32 } from '../contract/hash.ts';
 // `performance` is a global in both Node (≥16) and the browser — no import, so the driver graph loads
 // in the browser compiler (Observatory REPL) without pulling node:perf_hooks.
 const performance = globalThis.performance;
@@ -32,12 +32,7 @@ import {
 } from './kit.ts';
 import { run_module_macros } from './macros/pipeline.ts';
 import { is_script_request } from './script-request.ts';
-import {
-	generateHydrateFeaturesSource,
-	generateRuntimeEntrySource,
-	generateRuntimeFlagsSource,
-	resolveFeatures
-} from './link/runtime-entry.ts';
+import { resolveFeatures } from './link/runtime-entry.ts';
 import {
 	resolveFoucImportSpec,
 	FOUC_CSS_PREFIX,
@@ -49,95 +44,45 @@ import {
 	svelteModuleHasTransportable,
 	appendSvelteModuleRegistrations,
 	appendTransportRegistrations
-} from './content/transportables.ts';
+} from './transportables.ts';
 import {
 	rewrite_lake_import_to_placeholder,
 	APP_SHIM_IMPORT,
 	FOREIGN_HYDRATE_MARK
 } from './region/emit.ts';
-import { island_deps_module } from './link/island-deps.ts';
 import { location_map_files } from './link/location-map.ts';
 import { context_string_keys, source_uses_ogygia_context } from './link/context-detect.ts';
 import { collect_flag_sites, FLAGS_SPEC } from './flags.ts';
-import { router_css_roots, router_css_module } from './link/router-css.ts';
-import {
-	secret_module,
-	sign_module,
-	server_plugins_module,
-	rate_limit_module,
-	session_cookie_module,
-	region_ttl_module,
-	route_csr_module,
-	route_config_module
-} from './link/caps.ts';
-import { router_config_module } from './link/router-config.ts';
-import {
-	transport_module,
-	transportables_module,
-	kit_transport_module,
-	source_crosses_wire
-} from './link/transport.ts';
-import {
-	server_manifest_module,
-	server_islands_module,
-	server_island_ids,
-	PAGE_DATA_READS_TOKEN
-} from './link/server-manifest.ts';
-import { manifest_module } from './link/manifest.ts';
-import { dev_hmr_client_source } from './dev/dev-hmr.ts';
+import { router_css_roots } from './link/router-css.ts';
+import { source_crosses_wire } from './link/transport.ts';
+import { server_island_ids, PAGE_DATA_READS_TOKEN } from './link/server-manifest.ts';
 import { same_module_path, island_vpaths_affected_by_file } from './dev/hmr.ts';
+import { VirtualTable } from './virtual/resolver.ts';
+import { CORE_VALUE_NAMES } from './virtual/value-names.ts';
 import {
-	RESOLVED,
-	V_RUNTIME_URL,
-	V_RUNTIME,
-	V_FN_MANIFEST,
-	V_RUNTIME_ENTRY,
-	V_HYDRATE_FEATURES,
-	V_RUNTIME_FLAGS,
-	V_DEV_HMR,
-	V_DEV_HMR_URL,
-	V_DEVTOOLS_BOOT,
-	V_DEVTOOLS_BOOT_URL,
-	V_DEVTOOLS_META,
-	V_ISLAND_DEPS,
-	V_TRANSPORT,
-	V_KIT_TRANSPORT,
-	V_ROUTER_CSS,
-	V_SECRET,
-	V_SIGN,
-	V_REQUEST_EVENT,
-	V_ROUTE_CSR,
-	V_REGION_ENDPOINT,
-	V_SERVER_PLUGINS,
-	V_PROFILER_MAPS,
-	PROFILER_MAPS_PLACEHOLDER,
-	V_RATE_LIMIT,
-	V_ROUTER_CONFIG,
-	V_SESSION_COOKIE,
-	V_REGION_TTL,
-	V_SERVER_MANIFEST,
-	V_SERVER_ISLANDS,
-	V_MANIFEST,
-	V_TRANSPORTABLES,
-	V_TRANSPORTABLES_EAGER,
-	V_ROUTE_CONFIG
-} from './ids.ts';
+	CORE_PARTS,
+	CORE_VIRTUALS,
+	core_path,
+	type CoreApp,
+	type CorePlugins
+} from './virtual/core.ts';
+import type { Leg, Part } from './virtual/table.ts';
 import { strip_id, host_key } from './program.ts';
 import { mentions_page_store, page_data_keys_answer } from './link/page-keys.ts';
 import {
 	export_names,
-	is_registry_stub_id,
 	registry_client_id,
 	registry_client_path,
 	registry_client_source,
-	registry_stub_names,
 	registry_stub_source,
 	static_script_specs
 } from './link/registry-stub.ts';
 import { island_host_loaded } from './link/emit-gate.ts';
 import { stamp_opaque } from './ownership-stamps.ts';
 import { strip_bom } from './bom.ts';
-import { OgygiaError, warn, line } from '../messages/build.ts';
+import { RESOLVED, V_RUNTIME_ENTRY, region_family } from './ids.ts';
+import { is_generated_specifier } from './virtual/table.ts';
+import { OgygiaError, warn } from './messages.ts';
 import type { Program, RegisterResult } from './program.ts';
 import type { CompileCtx } from './ctx.ts';
 
@@ -169,15 +114,14 @@ export interface Profiler {
 }
 
 const LEADING_SLASH = /^\//;
-const BACKSLASH_G = /\\/g;
 const COMPONENT_EXT_RE = /\.(svelte|js|ts)$/;
 /** A Kit route option module (`+page.ts`, `+layout.js`, …) — the page node's own client modules
  *  beside its component (kit.ts `is_route_component`). */
 const ROUTE_HOST_FILE_RE = /^\+(page|layout)\.(ts|js|mjs)$/;
 /** The real binding modules a host imports for a marked region (ids.ts `regionBindingVirtualId`,
- *  transform.ts `wrapperVirtualId`). */
-const REGION_BINDING_PREFIX = 'virtual:ogygia/region/';
-const WRAPPER_PREFIX = 'virtual:ogygia/wrapper/';
+ *  `wrapperVirtualId`). */
+const REGION_BINDING_PREFIX = region_family('binding');
+const WRAPPER_PREFIX = region_family('wrapper');
 /** A `.ts`/`.js` module that can be a region registry (a minted `.ts` region host). */
 const TS_REGISTRY_EXT_RE = /\.(ts|js|mjs)$/;
 /** A Svelte rune module (`.svelte.ts` / `.svelte.js`). */
@@ -249,7 +193,7 @@ function extract_module_specs(src: string): string[] {
 	return specs;
 }
 
-// one shared FNV-1a-32 (runtime/hash.ts is the pure, import-anywhere home)
+// one shared FNV-1a-32 (contract/hash.ts is the pure, import-anywhere home)
 const fnv = fnv1a32;
 
 /** Once per module id: a dependency file carries ogygia marks but its package declares no
@@ -262,56 +206,7 @@ function warn_undeclared_pkg_marks(id: string): void {
 	warn('package_marks_undeclared', { file: id });
 }
 
-/** The client-hooks boot snippet for a generated runtime entry: an import of the runtime runner and
- *  a call that dynamic-imports the app's `hooks.client.*` — empty when the app has none. Runs the
- *  file's `init` on boot for csr=false pages (the runner skips a csr=true document). */
-/**
- * DEV: the folder `ogygia/runtime` resolves to — this package's own `exports["./runtime"]` (the
- * dev boot imports that specifier). A published package points it at `dist/runtime` (= the
- * prebuilt `runtime_dir`); this repo's workspace points it at `src/runtime` (`.ts` files). Null
- * when it cannot be read (then `runtime_dir` stands). Once per runtime dir.
- */
-const dev_runtimes = new Map<string, { dir: string; ts: boolean } | null>();
-function dev_runtime_of(runtime_dir: string): { dir: string; ts: boolean } | null {
-	if (dev_runtimes.has(runtime_dir)) return dev_runtimes.get(runtime_dir)!;
-	let out: { dir: string; ts: boolean } | null = null;
-	try {
-		const pkg_dir = path.dirname(path.dirname(runtime_dir));
-		const pkg = JSON.parse(fs.readFileSync(path.join(pkg_dir, 'package.json'), 'utf8'));
-		const exp = pkg?.exports?.['./runtime'];
-		const rel = typeof exp === 'string' ? exp : exp?.default;
-		if (typeof rel === 'string') {
-			const file = path.join(pkg_dir, rel);
-			if (fs.existsSync(file)) out = { dir: path.dirname(file), ts: file.endsWith('.ts') };
-		}
-	} catch {
-		out = null;
-	}
-	dev_runtimes.set(runtime_dir, out);
-	return out;
-}
-
-/** The plugins' browser halves for a generated boot: one static import each, and the list to pass. */
-function client_plugins_boot(ctx: CompileCtx): { imports: string; list: string } {
-	if (!ctx.client_plugins.length) return { imports: '', list: '' };
-	return {
-		imports: ctx.client_plugins
-			.map((spec, i) => `import __og_client_${i} from ${JSON.stringify(spec)};\n`)
-			.join(''),
-		list: `[${ctx.client_plugins.map((_, i) => `__og_client_${i}`).join(', ')}]`
-	};
-}
-
-function client_hooks_boot(ctx: CompileCtx): { imports: string; call: string } {
-	if (!ctx.client_hooks) return { imports: '', call: '' };
-	const runner = `${ctx.runtime_dir}/client-hooks.js`.replace(BACKSLASH_G, '/');
-	return {
-		imports: `import { run_app_client_hooks as __og_run_client_hooks } from ${JSON.stringify(runner)};\n`,
-		call: `__og_run_client_hooks(() => import(${JSON.stringify(ctx.client_hooks)}));\n`
-	};
-}
-
-export class Compiler {
+export class Compiler implements CoreApp {
 	readonly program: Program;
 	readonly transform_cache: Map<string, { code: string; result: unknown }> = new Map();
 	readonly profiler: Profiler;
@@ -322,7 +217,7 @@ export class Compiler {
 	#scanned = false;
 
 	/**
-	 * DEV: the server-island ids the last emitted `virtual:ogygia/server-manifest` carried. A HOST edit
+	 * DEV: the server-island ids the last emitted `ogygia:server/server-manifest` carried. A HOST edit
 	 * drops its islands' rows (`invalidate_for_file`) and invalidates the manifest; Kit re-imports the
 	 * handle BEFORE the page transform re-registers them, so that manifest is emitted WITHOUT the ids —
 	 * and nothing re-invalidated it afterwards: every hole answered 403 until a restart. The adapter
@@ -343,7 +238,47 @@ export class Compiler {
 		}
 		return false;
 	}
+	note_server_ids(ids: Set<string>): void {
+		this.#emitted_server_ids = ids;
+	}
 	#ctx: CompileCtx | null = null;
+	/** The resolved compile context (set by `configure`). */
+	get ctx(): CompileCtx {
+		return this.#ctx!;
+	}
+	/** Every virtual module this session serves (./virtual/table.ts). */
+	readonly #virtuals = new VirtualTable<CoreApp>(
+		CORE_VIRTUALS,
+		core_path,
+		CORE_VALUE_NAMES,
+		CORE_PARTS
+	);
+	/** The app's Kit routes directory (a virtual module that reads it reloads on a route change). */
+	routes_dir(): string {
+		return kit_dirs(this.#ctx!.root).routes_dir;
+	}
+	/** The plugins listed beside `ogygia()`. */
+	plugins(): CorePlugins {
+		const ctx = this.#ctx!;
+		return {
+			server: ctx.server_plugins,
+			client: ctx.client_plugins,
+			route_config: ctx.route_config
+		};
+	}
+	/** The modules of one leg's built output that its realms may not hold (./virtual/resolver.ts). */
+	misplaced_modules(module_ids: Iterable<string>, ssr: boolean): [string, string][] {
+		return this.#virtuals.misplaced(module_ids, { ssr, dev: false });
+	}
+	/** A module's named imports of a realm module, per entry (./virtual/resolver.ts). */
+	split_realm_imports(code: string): string | null {
+		return this.#virtuals.split_realm_imports(code);
+	}
+	/** A dev change to a part of the session: the resolved ids of the virtual modules whose last load
+	 *  read it, for the caller to invalidate. */
+	changed(part: Part): string[] {
+		return this.#virtuals.bump(part);
+	}
 
 	constructor(program: Program, profiler: Profiler) {
 		this.program = program;
@@ -358,7 +293,7 @@ export class Compiler {
 	/**
 	 * Devtools: the `island id → component name` map, read at call time off the live registry (so a
 	 * dev-server middleware serves a COMPLETE, current map — no stale virtual-module snapshot). Keys
-	 * are the island id (`<hash>` in `virtual:ogygia/island/<hash>.js`); values the component's
+	 * are the island id (`<hash>` in `ogygia:region/entry/<hash>.js`); values the component's
 	 * basename. A held/generated island with no source file is skipped (the tab keeps its short hash).
 	 */
 	region_names(): Record<string, string> {
@@ -391,7 +326,8 @@ export class Compiler {
 				resolveAlias: ctx.resolve_alias,
 				pkgRoot: ctx.pkg_root,
 				dollarHoists: this.dollar_hoists,
-				macros: ctx.macros
+				macros: ctx.macros,
+				ownSource: (file) => ctx.is_own_source(file)
 			},
 			this.profiler
 		);
@@ -421,7 +357,7 @@ export class Compiler {
 	 */
 	/**
 	 * The REAL source file a module derives from. A real file is its own origin. A generated entry
-	 * (a portable-snippet synth, re-processed under its `virtual:ogygia/island/<iid>.svelte` id)
+	 * (a portable-snippet synth, re-processed under its `ogygia:region/entry/<iid>.svelte` id)
 	 * resolves through the registry's `hostPath` — transitively, so an entry minted while re-processing
 	 * another entry still lands on the file the outermost slice was cut from. This is the ONE rule
 	 * `resolve_id` already applies to an entry's plain imports; threading it into the transform keeps
@@ -835,7 +771,7 @@ export class Compiler {
 					if (!PAGE_FREE_APP_MODULES.has(spec)) this.program.island_reads_page = true;
 					continue;
 				}
-				if (spec.startsWith('$env/') || spec.startsWith('virtual:')) continue;
+				if (spec.startsWith('$env/') || is_generated_specifier(spec)) continue;
 				const dep = resolve_dep(spec, norm);
 				if (dep) walk(dep);
 				// A package or an import this walk cannot resolve may read the page; Svelte and assets cannot.
@@ -1097,279 +1033,23 @@ export class Compiler {
 	 */
 	emit(
 		id: string,
-		{
-			ssr,
-			universalHooks,
-			resolve,
-			kitCodec = null
-		}: {
-			ssr: boolean;
-			universalHooks: string | null;
-			/** the bundler's resolver (the router-CSS tree walk: compiler/fouc-css.ts) */
-			resolve?: (spec: string, importer: string) => Promise<string | null>;
-			/** Kit 3's own codec module (`#app/internal/transport`), when the app's Kit has one */
-			kitCodec?: string | null;
-		}
-	): string | Promise<string> | null {
+		leg: Leg
+	): string | { code: string; moduleSideEffects: false } | Promise<string> | null {
 		const ctx = this.#ctx!;
 		const program = this.program;
-		const is_dev = ctx.is_dev;
+		const { ssr } = leg;
 
-		// A csr=false route host's registry import on the client leg (link/registry-stub.ts): the
-		// registry's export names as `undefined`, so the host links and ships none of the registry.
-		if (is_registry_stub_id(id)) return registry_stub_source(registry_stub_names(id));
 		const registry_client = registry_client_path(id);
 		if (registry_client) return this.#registry_client_emit(registry_client);
 
-		if (id === RESOLVED(V_RUNTIME_URL)) {
-			// The runtime's IDENTITY — dev: the vite dev URL; build: its stable URL. The server bundle
-			// is built before the client's, so the content-hashed file the page loads is looked up at
-			// render time through the build handoff (`entryLocation`, virtual:ogygia/island-deps).
-			// Ensure prescan ran so `runtime_feature_hash` matches the client emit's stable name (both
-			// legs prescan the same source → same feature set → same name).
-			if (!is_dev) this.prescan();
-			const url = is_dev ? '/@id/__x00__' + V_RUNTIME : this.runtime_chunk_url();
-			return `export default ${JSON.stringify(url)};`;
+		const declared = this.#virtuals.load(id, this, leg);
+		if (declared !== null) {
+			// (a module of definitions only: unused, the bundler drops it and what it imports)
+			if (typeof declared === 'string' && this.#virtuals.side_effect_free(id))
+				return { code: declared, moduleSideEffects: false };
+			return declared;
 		}
-		if (id === RESOLVED(V_FN_MANIFEST)) {
-			// og.$ factories, registered pre-hydration. Self-contained by the capture law, so
-			// emitting source is a pure text move. DEV: `dollar_hoists` is complete by the time
-			// the browser requests this virtual (SSR transformed the hosts first) — emit directly.
-			// BUILD: this module loads BEFORE all client transforms ran (the ordering trap), so
-			// emit a rename-proof PLACEHOLDER — a globalThis bridge + a token that `renderChunk`
-			// patches once every transform has contributed (registrations then use the bridge,
-			// immune to bundler identifier renaming). Strict-CSP apps get a real manifest this
-			// way; the payload-source eval fallback becomes the exception, not the path.
-			const regs = () =>
-				[...this.dollar_hoists.entries()]
-					.map(([tag, src]) => `globalThis.__og_reg_fn(${JSON.stringify(tag)}, (${src}));`)
-					.join('\n');
-			const bridge = `import { __register_fn } from 'ogygia/internal';\nglobalThis.__og_reg_fn = __register_fn;\n`;
-			if (is_dev) return bridge + regs();
-			return bridge + `/*__OGYGIA_FN_MANIFEST__*/`;
-		}
-		if (id === RESOLVED(V_RUNTIME_ENTRY)) {
-			// Ensure every host was walked (marks complete) before selecting features.
-			this.prescan();
-			const { code } = generateRuntimeEntrySource(
-				program.runtime_marks,
-				ctx.runtime_dir,
-				ctx.client_plugins
-			);
-			const ch = client_hooks_boot(ctx);
-			return ch.imports + code + ch.call;
-		}
-		if (id === RESOLVED(V_RUNTIME_FLAGS)) {
-			// Dev runs the kitchen-sink boot: every flag on, like every feature.
-			if (!ctx.is_build) return generateRuntimeFlagsSource({}, true);
-			this.prescan();
-			return generateRuntimeFlagsSource(program.runtime_marks);
-		}
-		if (id === RESOLVED(V_HYDRATE_FEATURES)) {
-			// The hydrate core's feature phase, from the same marks as the boot entry. Dev runs the
-			// kitchen-sink boot (`bootDev`), so it gets every hydrate-phase feature to match.
-			if (!ctx.is_build) {
-				// …from the runtime the dev boot actually runs (`ogygia/runtime`, as the app resolves
-				// it): a second copy would install the wire into slots the hydrate core never reads
-				const rt = dev_runtime_of(ctx.runtime_dir);
-				const code = generateHydrateFeaturesSource({}, rt?.dir ?? ctx.runtime_dir, true).code;
-				return rt?.ts ? code.split('.js";').join('.ts";') : code;
-			}
-			this.prescan();
-			// og.$ factories register before any island's props are revived (sync fn-ref resolution),
-			// i.e. with the hydrate core — not in the boot: the manifest reaches `ogygia/internal`, which
-			// island code imports too, and a module the boot shares with island code splits the boot.
-			// A factory is only ever looked up by a decoder that revives a fn ref: the wire hub (props),
-			// the context bridge, or the app's Kit transport. With none of them in this build no ref can
-			// arrive, and the manifest would only ship the fn kind and the hub (~2 kB) to every page.
-			const marks = program.runtime_marks;
-			const fn_refs_decode = marks.wire === true || marks.context === true || program.crosses_wire;
-			return (
-				(fn_refs_decode ? `import ${JSON.stringify(V_FN_MANIFEST)};\n` : '') +
-				generateHydrateFeaturesSource(marks, ctx.runtime_dir).code
-			);
-		}
-		if (id === RESOLVED(V_RUNTIME)) {
-			// Dev sticky: kitchen-sink package entry. Build uses the hashed emitFile chunk. An EXPLICIT
-			// `bootDev()` call (not a bare side-effect import) so Vite's dep prebundler can't tree-shake
-			// the boot away — the bug that left `sideEffects:false` apps with a runtime that never woke.
-			{
-				const ch = client_hooks_boot(ctx);
-				const cp = client_plugins_boot(ctx);
-				return `import { bootDev } from 'ogygia/runtime';\n${ch.imports}${cp.imports}bootDev(${cp.list});\n${ch.call}`;
-			}
-		}
-		if (id === RESOLVED(V_DEV_HMR)) {
-			// Dev-only soft HMR bridge under csr=false (no Kit client entry):
-			// join /src/**/*.css into the browser graph + strip Kit's FOUC bag.
-			// Failures fall through to a full document reload (see vite:error handler).
-			if (!is_dev) return `export {}`;
-			return dev_hmr_client_source();
-		}
-		if (id === RESOLVED(V_DEV_HMR_URL)) {
-			// Empty in build/preview; vite-dev URL during `vite dev`. Consumed by wrappers
-			// compiled by the app's Vite (not pre-frozen like a package-level import.meta.env).
-			if (!is_dev) return `export default '';`;
-			return `export default ${JSON.stringify('/@id/__x00__' + V_DEV_HMR)};`;
-		}
-		if (id === RESOLVED(V_DEVTOOLS_BOOT)) {
-			// The plugins' browser halves on a csr=true (Kit-owned) page: the ogygia runtime never boots
-			// there (Kit owns navigation, no island wakes), so ONLY they boot, told it is a Kit page (the
-			// devtools dock shows what the browser saw — the Page tab, fed by the beacon started here — and
-			// says why the island tools are absent). Empty with no client realm (never injected then).
-			if (!ctx.client_plugins.length) return `export {}`;
-			const cp = client_plugins_boot(ctx);
-			return (
-				// the dev server hands `define`s (the plugins' gates among them) to the page as globals from
-				// Vite's env module: it must run before they read them. Kit's own client (which loads it)
-				// comes later in the page, and a gate read before it saw "off"
-				(is_dev ? `import '/@vite/env';\n` : '') +
-				cp.imports +
-				`import { boot_client_plugins } from ${JSON.stringify(`${ctx.runtime_dir}/client-plugins.js`.replace(BACKSLASH_G, '/'))};\n` +
-				// the beacon's observers from boot: vitals, resources, long tasks, the CPU sampler (the
-				// browser buffers most of it, but the sampler and interaction timing start here)
-				`import { beacon_watch } from ${JSON.stringify(`${ctx.runtime_dir}/beacon.js`.replace(BACKSLASH_G, '/'))};\n` +
-				`beacon_watch();\n` +
-				`boot_client_plugins(${cp.list}, true);\n`
-			);
-		}
-		if (id === RESOLVED(V_DEVTOOLS_META)) {
-			// a build: every island's component name, from the prescan (the dev server serves them live)
-			if (is_dev) return `export const names = {};`;
-			this.prescan();
-			return `export const names = ${JSON.stringify(this.region_names())};`;
-		}
-		if (id === RESOLVED(V_DEVTOOLS_BOOT_URL)) {
-			// The served URL the handle injects on csr=true pages. Empty in build/preview and with no
-			// plugin's client realm; the vite-dev `/@id/` URL otherwise (dev only).
-			if (!ctx.client_plugins.length || !is_dev) return `export default '';`;
-			return `export default ${JSON.stringify('/@id/__x00__' + V_DEVTOOLS_BOOT)};`;
-		}
-		if (id === RESOLVED(V_ISLAND_DEPS)) {
-			return island_deps_module(ssr, is_dev, path.relative(ctx.root, kit_dirs(ctx.root).out_dir));
-		}
-		if (id === RESOLVED(V_TRANSPORT)) {
-			return transport_module(universalHooks, ssr ? null : kitCodec);
-		}
-		if (id === RESOLVED(V_KIT_TRANSPORT)) {
-			// `ogygia.transport` — the codec cluster only when the app crosses a region/wired value over
-			// Kit's wire (wire mark, or a remote/region/content producer); an empty map for a pure-island
-			// app. transport.js sits one level up from the runtime dir (dist/transport.js).
-			const crosses = this.program.runtime_marks.wire === true || this.program.crosses_wire;
-			const transport_spec = `${ctx.runtime_dir}/../transport.js`.replace(BACKSLASH_G, '/');
-			return kit_transport_module(crosses, transport_spec);
-		}
-		if (id === RESOLVED(V_ROUTER_CSS)) {
-			// Server-router component→CSS registrations (link/router-css.ts). `export {}` for apps
-			// without a server router — the router's dynamic import then costs nothing.
-			return router_css_module(this.router_css_roots(), {
-				root: ctx.root,
-				lib_dir: ctx.libDir,
-				is_dev,
-				read_file: (p) => ctx.read_file(p),
-				resolve
-			});
-		}
-		if (id === RESOLVED(V_SECRET)) {
-			// (ids are salted only from a build-time OGYGIA_SECRET: a salt means the build had one)
-			return secret_module(ssr, ctx.build_secret, ctx.id_salt !== '');
-		}
-		if (id === RESOLVED(V_SIGN)) {
-			return sign_module(ssr, ctx.hmac_module);
-		}
-		if (id === RESOLVED(V_REQUEST_EVENT)) {
-			// ServerIsland may appear in a transformed page module that Kit's client guard scans.
-			// Real getRequestEvent only on SSR; client stub never runs (holes fetch HTML).
-			// (the message is written in whole: the stub imports nothing)
-			if (!ssr) {
-				return `export function getRequestEvent() { throw new Error(${JSON.stringify(line('request_event_server_only'))}); }`;
-			}
-			return `export { getRequestEvent } from '$app/server';`;
-		}
-		if (id === RESOLVED(V_REGION_ENDPOINT)) {
-			// Region.svelte imports this for its lake (`makeRegionEndpoint`, swr) and server-island
-			// (`mintServerIsland`) branches. SSR mints signed URLs; client returns '' — lakes reuse the
-			// endpoint cached from the first SSR restore, and server islands never mint on the client
-			// (the runtime fetches the endpoint). Routing minting through this client-stubbed virtual is
-			// what lets one `Region` live in the main `ogygia` graph without leaking `$app/server`.
-			if (!ssr) {
-				return (
-					`export function makeRegionEndpoint(_entry, _props) { return ''; }\n` +
-					`export function mintServerIsland(_entry, _props, _ttl) { return ''; }\n` +
-					// The known-fingerprints set is a server-only nav signal; the client always sees empty.
-					`export function known_region_fps() { return new Set(); }\n` +
-					// An island's `data-og-fp` is minted on the server only (a native digest); the
-					// client reads the attribute and never computes one.
-					`export function islandFingerprint(_entry, _canonical) { return ''; }\n` +
-					// A hole's stylesheets are linked by the server render; the client links none.
-					`export function holeCss(_entry) { return []; }`
-				);
-			}
-			return `export { makeRegionEndpoint, mintServerIsland, known_region_fps, islandFingerprint, holeCss } from ${JSON.stringify(ctx.region_endpoint_module)};`;
-		}
-		if (id === RESOLVED(V_RATE_LIMIT)) {
-			return rate_limit_module(ssr, ctx.rate_limit);
-		}
-		if (id === RESOLVED(V_SERVER_PLUGINS)) {
-			return server_plugins_module(ssr, ctx.server_plugins);
-		}
-		if (id === RESOLVED(V_PROFILER_MAPS)) {
-			// a placeholder the build fills with the maps (vite/profiler-maps.ts); anything else: none
-			return ssr && ctx.is_build && ctx.measure
-				? `export default ${JSON.stringify(PROFILER_MAPS_PLACEHOLDER)};`
-				: 'export default null;';
-		}
-		if (id === RESOLVED(V_ROUTER_CONFIG)) {
-			return router_config_module(ctx.router_enabled, ctx.router_view_transitions);
-		}
-		if (id === RESOLVED(V_SESSION_COOKIE)) {
-			return session_cookie_module(ssr, ctx.session_cookie);
-		}
-		if (id === RESOLVED(V_REGION_TTL)) {
-			return region_ttl_module(ssr, ctx.region_ttl, ctx.renew_window);
-		}
-		if (id === RESOLVED(V_ROUTE_CSR)) {
-			return route_csr_module(ssr, kit_dirs(ctx.root).routes_dir);
-		}
-		if (id === RESOLVED(V_ROUTE_CONFIG)) {
-			return route_config_module(ssr, kit_dirs(ctx.root).routes_dir, ctx.route_config);
-		}
-		if (id === RESOLVED(V_SERVER_MANIFEST)) {
-			// Populated in BOTH dev and build (unlike the client manifest, which dev fills from URLs).
-			if (ssr) this.prescan();
-			if (ssr && is_dev) this.#emitted_server_ids = new Set(server_island_ids(program));
-			return server_manifest_module(
-				ssr,
-				program,
-				is_dev,
-				(vp: string) => ctx.dev_url_for(vp),
-				(iid: string) => ctx.island_public_url(iid)
-			);
-		}
-		if (id === RESOLVED(V_SERVER_ISLANDS)) {
-			if (ssr) this.prescan();
-			return server_islands_module(ssr, program);
-		}
-		if (id === RESOLVED(V_MANIFEST)) {
-			return manifest_module(is_dev);
-		}
-		if (id === RESOLVED(V_TRANSPORTABLES_EAGER)) {
-			// an island entry's codecs: eager on the server, nothing in the browser (see the ids)
-			if (!ssr) return 'export {};\n';
-			this.prescan();
-			return transportables_module(program.transportable_modules, true, (abs) => abs);
-		}
-		if (id === RESOLVED(V_TRANSPORTABLES)) {
-			// Transportable-class modules (prescan-discovered): eager on the server, lazy loaders on the
-			// client (tag paths are root-relative, as the registration writes them).
-			this.prescan();
-			return transportables_module(
-				program.transportable_modules,
-				!!ssr,
-				(abs) => path.relative(ctx.root, abs).split(path.sep).join('/'),
-				program.crosses_wire
-			);
-		}
+
 		const srcEntry = program.registry.get(id);
 		if (srcEntry && srcEntry.role === 'region') {
 			// Leg-split: SSR gets the signer-carrying descriptor, client gets metadata only.
@@ -1431,35 +1111,10 @@ export class Compiler {
 		const ctx = this.#ctx!;
 		const { registry, island_graph } = this.program;
 
-		if (source === V_FN_MANIFEST) return RESOLVED(V_FN_MANIFEST);
-		if (source === V_RUNTIME_URL) return RESOLVED(V_RUNTIME_URL);
-		if (source === V_MANIFEST) return RESOLVED(V_MANIFEST);
-		if (source === V_RUNTIME) return RESOLVED(V_RUNTIME);
-		if (source === V_RUNTIME_ENTRY) return RESOLVED(V_RUNTIME_ENTRY);
-		if (source === V_HYDRATE_FEATURES) return RESOLVED(V_HYDRATE_FEATURES);
-		if (source === V_RUNTIME_FLAGS) return RESOLVED(V_RUNTIME_FLAGS);
-		if (source === V_DEV_HMR) return RESOLVED(V_DEV_HMR);
-		if (source === V_DEV_HMR_URL) return RESOLVED(V_DEV_HMR_URL);
-		if (source === V_DEVTOOLS_BOOT) return RESOLVED(V_DEVTOOLS_BOOT);
-		if (source === V_DEVTOOLS_BOOT_URL) return RESOLVED(V_DEVTOOLS_BOOT_URL);
-		if (source === V_DEVTOOLS_META) return RESOLVED(V_DEVTOOLS_META);
-		if (source === V_ISLAND_DEPS) return RESOLVED(V_ISLAND_DEPS);
-		if (source === V_KIT_TRANSPORT) return RESOLVED(V_KIT_TRANSPORT);
-		if (source === V_ROUTER_CSS) return RESOLVED(V_ROUTER_CSS);
-		if (source === V_SECRET) return RESOLVED(V_SECRET);
-		if (source === V_SIGN) return RESOLVED(V_SIGN);
-		if (source === V_RATE_LIMIT) return RESOLVED(V_RATE_LIMIT);
-		if (source === V_SERVER_PLUGINS) return RESOLVED(V_SERVER_PLUGINS);
-		if (source === V_PROFILER_MAPS) return RESOLVED(V_PROFILER_MAPS);
-		if (source === V_ROUTER_CONFIG) return RESOLVED(V_ROUTER_CONFIG);
-		if (source === V_SESSION_COOKIE) return RESOLVED(V_SESSION_COOKIE);
-		if (source === V_REGION_TTL) return RESOLVED(V_REGION_TTL);
-		if (source === V_ROUTE_CSR) return RESOLVED(V_ROUTE_CSR);
-		if (source === V_ROUTE_CONFIG) return RESOLVED(V_ROUTE_CONFIG);
-		if (source === V_SERVER_MANIFEST) return RESOLVED(V_SERVER_MANIFEST);
-		if (source === V_SERVER_ISLANDS) return RESOLVED(V_SERVER_ISLANDS);
-		if (source === V_REQUEST_EVENT) return RESOLVED(V_REQUEST_EVENT);
-		if (source === V_REGION_ENDPOINT) return RESOLVED(V_REGION_ENDPOINT);
+		// the declared modules (./virtual/core.ts); an undeclared id in the namespace fails here, and
+		// so does a module of a realm this leg may not import
+		const declared = this.#virtuals.resolve(source, { ssr, dev: ctx.is_dev });
+		if (declared) return declared;
 		// csr=false client hosts rewrite marked bindings here — not a hydrate entry.
 		if (source === CLIENT_BINDING_STUB) return ctx.client_binding_stub_file;
 		// …and so does a csr=false route host that could not pick its leg itself: a markup source
@@ -1481,10 +1136,6 @@ export class Compiler {
 		if (source.startsWith(FOUC_CSS_PREFIX) || source.startsWith(FOUC_SCOPED_PREFIX)) {
 			return RESOLVED(source);
 		}
-		if (source === V_TRANSPORT) return RESOLVED(V_TRANSPORT);
-		if (source === V_TRANSPORTABLES) return RESOLVED(V_TRANSPORTABLES);
-		if (source === V_TRANSPORTABLES_EAGER) return RESOLVED(V_TRANSPORTABLES_EAGER);
-		if (is_registry_stub_id(source)) return RESOLVED(source);
 
 		// csr=false CLIENT leg of a BUILD: a route host's import of a `.ts`/`.js` REGION REGISTRY
 		// resolves to the registry with its MARKS blanked (link/registry-stub.ts). The marked wrappers
@@ -1506,7 +1157,7 @@ export class Compiler {
 			if (shim) return shim;
 		}
 
-		// Portable wrappers import `virtual:ogygia/island/<id>` (and hosts import wrappers).
+		// Portable wrappers import `ogygia:region/entry/<id>` (and hosts import wrappers).
 		// Resolve those BEFORE the "relative to hostPath" branch — that branch uses skipSelf
 		// and would bypass this handler, failing to resolve virtual entry ids.
 		if (is_island_path(source)) {
@@ -1542,7 +1193,7 @@ export class Compiler {
 				!resolved &&
 				!source.startsWith('.') &&
 				!source.startsWith('\0') &&
-				!source.startsWith('virtual:') &&
+				!is_generated_specifier(source) &&
 				!path.isAbsolute(source)
 			) {
 				throw new OgygiaError('island_import_unresolved', {
@@ -1587,7 +1238,7 @@ export class Compiler {
 	): Promise<string | null> {
 		const ctx = this.#ctx!;
 		if (ssr || ctx.is_dev || !ctx.is_build || !importer) return null;
-		if (source.startsWith('\0') || source.startsWith('virtual:') || source.startsWith('$app/'))
+		if (source.startsWith('\0') || is_generated_specifier(source) || source.startsWith('$app/'))
 			return null;
 		if (registry_client_path(importer) == null && !this.#is_csr_false_route_host(importer))
 			return null;
@@ -2136,9 +1787,7 @@ export class Compiler {
 		if (affected.size === 0) return false;
 
 		for (const vpath of affected) invalidate(vpath);
-		invalidate(RESOLVED(V_SERVER_MANIFEST));
-		invalidate(RESOLVED(V_SERVER_ISLANDS));
-		invalidate(RESOLVED(V_MANIFEST));
+		for (const id of this.#virtuals.bump('regions')) invalidate(id);
 		return true;
 	}
 }

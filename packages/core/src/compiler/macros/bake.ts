@@ -21,8 +21,8 @@ import { uneval } from 'devalue';
 import { og_member } from './wire.ts';
 import { parse_module, type AstNode } from '../parse/oxc.ts';
 import { og_js_regions } from '../parse/scan.ts';
-import { BuildCache } from '../../build-cache.ts';
-import { OgygiaError } from '../../messages/build.ts';
+import { BuildCache } from '../build-cache.ts';
+import { OgygiaError } from '../messages.ts';
 
 // ── regexes
 const REGEX_SPECIAL_G = /[.*+?^${}()|[\]\\]/g;
@@ -325,6 +325,17 @@ export type BakeOptions = {
 	/** Project root — anchors the `$lib` convention fallback. */
 	root: string;
 };
+
+/** Does `src` hold a real `import.meta.og.bake(…)` call (not a marker in a string or comment)?
+ *  Reads only: nothing is bundled or run. A malformed call counts as a call. */
+export function has_bake_call(src: string, id: string, markupExts: readonly string[]): boolean {
+	if (!src.includes(MARKER)) return false;
+	try {
+		return (scan(src, id, markupExts)?.calls.length ?? 0) > 0;
+	} catch {
+		return true; // ok: scan throws only on a bake call of the wrong shape: still a call
+	}
+}
 
 /**
  * Rewrite every `import.meta.og.bake(fn)` in `src` to its inlined, devalue-serialized result. ASYNC

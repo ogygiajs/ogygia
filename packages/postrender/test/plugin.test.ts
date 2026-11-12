@@ -4,7 +4,7 @@
  * the shared hooks it calls (`invalidated`) and answers (`lastBuild`).
  */
 import { describe, it, expect, afterEach, vi } from 'vitest';
-import { startPlugin } from '@ogygia/core/plugin/testing';
+import { clearRouteConfig, setPageRouteConfig, startPlugin } from '@ogygia/core/plugin/testing';
 import { register_hooks, ask } from '../../core/src/plugin/hooks.ts';
 import type { PluginDefinition } from '@ogygia/core/vite';
 import { postrender as postrenderPlugin } from '../src/vite.ts';
@@ -48,7 +48,10 @@ describe('postrender() — the vite value', () => {
 			events: () => {},
 			measure: () => {},
 			files: () => {},
-			pageModules: () => {}
+			pageModules: () => {},
+			transform: () => {},
+			exports: { map: () => Promise.resolve(null) },
+			pinnedImports: () => () => false
 		});
 		expect(keys).toEqual(['postrender']);
 	});
@@ -192,5 +195,86 @@ describe('the server realm, started', () => {
 		} finally {
 			now.mockRestore();
 		}
+	});
+});
+
+describe('a page rendered for one visitor is never served to another', () => {
+	const options: PostrenderServerOptions = { ttl: 60, default: true };
+	const { ctx } = startPlugin(server, { name: '@ogygia/postrender', options });
+	afterEach(() => {
+		reset_for_tests();
+		clearRouteConfig();
+	});
+
+	const jar = (cookies: Record<string, string>) => ({
+		get: (n: string) => cookies[n],
+		getAll: () => Object.entries(cookies).map(([name, value]) => ({ name, value })),
+		set: () => {},
+		delete: () => {}
+	});
+	/** One visitor's request for /account/: the render runs `render` against the event, answers its
+	 *  HTML, and the request ends. What the plugin answered first (a stored page, or nothing). */
+	async function visit(
+		runtime: ReturnType<typeof install>,
+		who: { cookie?: string; auth?: () => Promise<{ name: string } | null> },
+		render: (event: { locals: Record<string, unknown> }) => Promise<string>
+	) {
+		const request = new Request('http://x.test/account/', {
+			headers: who.cookie ? { cookie: who.cookie } : {}
+		});
+		const session = who.cookie ? Object.fromEntries([who.cookie.split('=')]) : {};
+		const c = ctx(request, {
+			cookies: jar(session) as never,
+			locals: { auth: who.auth ?? (async () => null) } as never,
+			route: { id: '/account' } as never
+		});
+		mark_handled(c.event, runtime);
+		const answered = await server.page?.(c);
+		if (answered) {
+			server.done?.(c);
+			return answered;
+		}
+		const html = `<html><head></head><body>${await render(c.event as never)}</body></html>`;
+		await server.response?.(c, new Response(html, { headers: { 'content-type': 'text/html' } }));
+		server.done?.(c);
+		return undefined;
+	}
+	const greeting = async (event: { locals: Record<string, unknown> }) => {
+		const user = await (event.locals.auth as () => Promise<{ name: string } | null>)();
+		return `<p>hello ${user?.name ?? 'guest'}</p>`;
+	};
+
+	it('two visitors: Alice’s signed-in page never reaches Bob', async () => {
+		const runtime = install({ store: new MemoryStore() });
+		const alice = { cookie: 'session=alice', auth: async () => ({ name: 'Alice' }) };
+		expect(await visit(runtime, alice, greeting)).toBeUndefined();
+		const bob = await visit(runtime, {}, greeting);
+		const body = bob ? await bob.text() : '';
+		expect(body).not.toContain('Alice');
+	});
+
+	it('a request with a cookie or authorization is not stored, even when the render read nothing', async () => {
+		const store = new MemoryStore();
+		const runtime = install({ store });
+		const plain = async () => '<p>same for all</p>';
+		await visit(runtime, { cookie: 'consent=yes' }, plain);
+		expect(await store.get('/account/')).toBeNull();
+	});
+
+	it("a route that sets `config.postrender = 'with-credentials'` is stored from such a request", async () => {
+		setPageRouteConfig({ '/account': { postrender: 'with-credentials' } });
+		const store = new MemoryStore();
+		const runtime = install({ store });
+		await visit(runtime, { cookie: 'consent=yes' }, async () => '<p>same for all</p>');
+		expect(await store.get('/account/')).not.toBeNull();
+	});
+
+	it('the opt-in never stores a render that read the visitor', async () => {
+		setPageRouteConfig({ '/account': { postrender: 'with-credentials' } });
+		const store = new MemoryStore();
+		const runtime = install({ store });
+		const alice = { cookie: 'session=alice', auth: async () => ({ name: 'Alice' }) };
+		await visit(runtime, alice, greeting);
+		expect(await store.get('/account/')).toBeNull();
 	});
 });
