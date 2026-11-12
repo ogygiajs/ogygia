@@ -4,7 +4,7 @@
 import { describe, expect, it } from 'vitest';
 import { Browser } from 'happy-dom';
 import { use_v8_modules } from '../src/modules.ts';
-import { modules_in_order } from '../src/happy.ts';
+import { modules_in_order, window_load_events } from '../src/happy.ts';
 
 const FILES: Record<string, string> = {
 	'/a.js': 'export let n = 0; export function bump() { n++; }',
@@ -90,6 +90,17 @@ describe('modules of a simulated tab', () => {
 		modules_in_order();
 		const page = `<script>globalThis.order = [document.readyState];document.addEventListener('DOMContentLoaded', () => order.push('dcl ' + document.readyState));addEventListener('load', () => { order.push('load ' + document.readyState); document.body.textContent = order.join(' '); });\x3C/script><script type="module" src="/state.js">\x3C/script>`;
 		expect(await run(true, page)).toBe('loading module interactive dcl interactive load complete');
+	});
+
+	// the differential (src/differ.ts): Chromium, Firefox and WebKit all heard `load` and then
+	// `pageshow` on a window listener that captures; the simulator heard neither (happy-dom fires
+	// `load` to the window's bubbling listeners only, and never fires `pageshow`)
+	it('load, then pageshow, reach the window capturing and not, their target the document', async () => {
+		window_load_events();
+		const page = `<script>globalThis.order = [];for (const type of ['load', 'pageshow']) for (const capture of [true, false]) addEventListener(type, (e) => { order.push(type + (capture ? ' capture' : '') + (e.target === document ? ' document' : '')); document.body.textContent = order.join(', '); }, capture);\x3C/script>`;
+		expect(await run(true, page)).toBe(
+			'load capture document, load document, pageshow capture document, pageshow document'
+		);
 	});
 
 	// the differential (src/differ.ts): Chromium asked for each of the runtime's chunks once, the
