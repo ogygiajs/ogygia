@@ -155,7 +155,13 @@ both skipped under reduced motion.
 		class="og-sheet-swap"
 		bind:this={swap_el}
 		onclick={(e) => {
-			if (e.target instanceof Element && e.target.closest('a[href]')) open = false;
+			// (only a click that navigates this tab: one that opens elsewhere, or that a handler
+			// prevented, leaves the visitor here with the menu still open)
+			if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey)
+				return;
+			const a = e.target instanceof Element ? e.target.closest('a[href]') : null;
+			if (a && !a.hasAttribute('download') && (a.getAttribute('target') ?? '_self') === '_self')
+				open = false;
 		}}
 	>
 		{#key view}
