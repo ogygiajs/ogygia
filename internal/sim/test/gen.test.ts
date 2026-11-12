@@ -91,7 +91,10 @@ describe('the random app', () => {
 			const lib = (dir: string, f: string) =>
 				readFileSync(join(dir, 'src', 'lib', 'gen', f), 'utf8');
 			const fed = lib(`${app}-peer`, 'federation.server.ts');
-			for (const w of peer.widgets) expect(fed).toContain(`with { region: 'raw' }`);
+			for (const w of peer.widgets)
+				expect(fed).toContain(
+					`import W${w.name} from './W${w.name}.svelte' with { region: 'raw' }`
+				);
 			expect(fed).toContain('expose: router');
 			for (const p of peer.pages) expect(lib(`${app}-peer`, 'router.ts')).toContain(`'${p.path}'`);
 			const slot = peer.slots[0];
