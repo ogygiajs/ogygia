@@ -354,6 +354,11 @@ other side's same line where it moved on one side only.
 The fresh load is calm (`Network.calm`): no fault but short delays, on its own requests and on the
 hops its server makes for it (a peer's fragment). A calm leg is never a long one: two long legs on
 a peer hop passed the peer's 5 s timeout, and the app rightly answered 504 (gen 23, seed 23023).
+It reaches the app from a client address of its own (`client_address`, Kit's `getClientAddress`):
+it once met the rate limit the run's own hole retries had used up (gen 78). It asks each hole of
+the build that last answered it in the tab, a batch's too (`POST /__ogygia__`, gen 77), and a file
+of the build that has it (the live one, or any when the host keeps old files; gens 63, 65). A page
+store's mark (`<meta name="ogygia-stored">`) is delivery: the MPA and leak checks set it aside.
 
 ## Always on
 
