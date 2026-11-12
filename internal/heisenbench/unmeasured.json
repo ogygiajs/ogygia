@@ -1,6 +1,26 @@
 {
 	"exempt": [
 		{
+			"id": "packages/devtools/src/devtools/highlight.ts > highlight > defer:0~248bad",
+			"reason": "browser only: the highlight layer's scope takes its layer out as it closes, constant work"
+		},
+		{
+			"id": "packages/devtools/src/devtools/leftovers.ts > watched",
+			"reason": "browser only: the page's leftovers record, made at its first use, constant work"
+		},
+		{
+			"id": "packages/devtools/src/devtools/profile-store.ts > set_profile > map:0~39039e",
+			"reason": "one profile out of each kept entry (64 at most) while the newest 8 are saved, constant work per entry; devtools-profile-store.test.ts runs it"
+		},
+		{
+			"id": "packages/devtools/src/devtools/source-lines.ts > flights:0~fc7528 > run",
+			"reason": "browser only: one app file's read through the dev server (tool_fetch), once per file"
+		},
+		{
+			"id": "packages/devtools/src/devtools/source-lines.ts > read_table",
+			"reason": "browser only: a dev server fetch of one app file, then the map parse (lines_of_map, measured on its own)"
+		},
+		{
 			"id": "packages/machine/src/cache.ts > Store > get size",
 			"reason": "a cache's count of what it holds: one Map size read, constant work; run by packages/machine/test/cache.test.ts"
 		},
@@ -75,6 +95,14 @@
 		{
 			"id": "packages/content/src/markdown/shiki.ts > normalize_shiki > named",
 			"reason": "names an unnamed theme object for Shiki: a spread of a theme object, constant work; proven in packages/content/test/shiki-highlighters.test.ts"
+		},
+		{
+			"id": "packages/content/src/markdown/shiki.ts > render_code_region > replace:1~7326ff",
+			"reason": "the replacement for the multi-variant id attribute: one concatenation, constant work; proven in packages/content/test/fence-escaping.test.ts"
+		},
+		{
+			"id": "packages/content/src/markdown/shiki.ts > render_code_region > replace:1~ca1204",
+			"reason": "the replacement for the pre's attributes: one concatenation, constant work; proven in packages/content/test/fence-escaping.test.ts"
 		},
 		{
 			"id": "packages/core/src/server/page-stream.ts > stream_page_deferred > ReadableStream:0~352846 > cancel",
@@ -371,30 +399,6 @@
 		{
 			"id": "packages/core/src/server/rules.ts > request_scopes_closed",
 			"reason": "dev and e2e builds only: timers and a machine observer over module state; proven in packages/core/test/server-rules.test.ts"
-		},
-		{
-			"id": "packages/core/src/server/rules.ts > no_kept_unkeyed_read",
-			"reason": "dev and e2e builds only: timers and a machine observer over module state; proven in packages/core/test/server-rules.test.ts"
-		},
-		{
-			"id": "packages/core/src/messages/server.ts > SERVER_WARNINGS > rule_kept_unkeyed_read > details",
-			"reason": "a rule's message wording (dev and e2e only), constant text; said in packages/core/test/server-rules.test.ts"
-		},
-		{
-			"id": "packages/core/src/messages/server.ts > SERVER_WARNINGS > rule_kept_unkeyed_read > text",
-			"reason": "a rule's message wording (dev and e2e only), constant text; said in packages/core/test/server-rules.test.ts"
-		},
-		{
-			"id": "packages/core/src/hooks.ts > OgygiaHandle > #hole_cache",
-			"reason": "a hole's cache key and the start of its read observation (a RequestEvent, not cloneable), constant work; run by packages/flags/test/hole-cache.test.ts through cached_render and the e2e hole suites"
-		},
-		{
-			"id": "packages/core/src/plugin/reads.ts > set_open_reads",
-			"reason": "installs the read-set reader once, at module load, constant work"
-		},
-		{
-			"id": "packages/core/src/server/render-page.ts > render_page > get data",
-			"reason": "notes a page.data read into the running render's read set and returns the data, constant work"
 		},
 		{
 			"id": "packages/machine/src/policy.ts > out_of_time",
@@ -2157,24 +2161,8 @@
 			"reason": "awaits the app's flag source (an async call out, not recorded), linear in the registered flags; proven in packages/flags/test/prime-twice.test.ts and packages/flags/test/source-failed.test.ts"
 		},
 		{
-			"id": "packages/flags/src/index.ts > outbox:0~05e47f > giveUp > once:1~de49a5",
-			"reason": "prints one warning (console output, not replayable), constant work"
-		},
-		{
-			"id": "packages/machine/src/say.ts > say > get size",
-			"reason": "reads a Map's size, constant work; proven in packages/machine/test/say.test.ts"
-		},
-		{
 			"id": "packages/flags/src/index.ts > set_prime",
 			"reason": "writes the request's prime state onto a Request (not cloneable), constant work; proven in packages/flags/test/prime-twice.test.ts"
-		},
-		{
-			"id": "packages/devtools/src/profiler/embedded-maps.ts > embedded_source > map:0~31820d",
-			"reason": "profiler only: lists the known app roots for one source path, linear in the roots (one per app)"
-		},
-		{
-			"id": "packages/devtools/src/profiler/net.ts > keeping",
-			"reason": "profiler only: reads the module's kept-answers state (hidden state), constant work"
 		},
 		{
 			"id": "packages/core/src/runtime/router-nav.ts > resolve_head_urls",
@@ -2249,8 +2237,44 @@
 			"reason": "the wait runs out (a dropped download in WebKit): resolves null, constant work"
 		},
 		{
-			"id": "packages/content/src/markdown/frontmatter.ts > reason_of",
-			"reason": "a thrown error to its words (an OgygiaError's class identity does not replay), two string slices, only on a frontmatter error; proven in packages/content/test/frontmatter-errors.test.ts"
+			"id": "packages/core/src/server/rules.ts > no_kept_unkeyed_read",
+			"reason": "dev and e2e builds only: timers and a machine observer over module state; proven in packages/core/test/server-rules.test.ts"
+		},
+		{
+			"id": "packages/core/src/messages/server.ts > SERVER_WARNINGS > rule_kept_unkeyed_read > details",
+			"reason": "a rule's message wording (dev and e2e only), constant text; said in packages/core/test/server-rules.test.ts"
+		},
+		{
+			"id": "packages/core/src/messages/server.ts > SERVER_WARNINGS > rule_kept_unkeyed_read > text",
+			"reason": "a rule's message wording (dev and e2e only), constant text; said in packages/core/test/server-rules.test.ts"
+		},
+		{
+			"id": "packages/core/src/hooks.ts > OgygiaHandle > #hole_cache",
+			"reason": "a hole's cache key and the start of its read observation (a RequestEvent, not cloneable), constant work; run by packages/flags/test/hole-cache.test.ts through cached_render and the e2e hole suites"
+		},
+		{
+			"id": "packages/core/src/plugin/reads.ts > set_open_reads",
+			"reason": "installs the read-set reader once, at module load, constant work"
+		},
+		{
+			"id": "packages/core/src/server/render-page.ts > render_page > get data",
+			"reason": "notes a page.data read into the running render's read set and returns the data, constant work"
+		},
+		{
+			"id": "packages/core/src/plugin/server.ts > start_plugins > map:0~9f66ac > app > observeReads",
+			"reason": "forwards a RequestEvent (not cloneable) to observe_reads, constant work; packages/core/bench/server.bench.ts runs observe_reads"
+		},
+		{
+			"id": "packages/core/src/plugin/server.ts > start_plugins > map:0~9f66ac > app > warn > once:1~c9a4aa",
+			"reason": "prints one warning (console output, not replayable), constant work; proven in packages/core/test/plugins.test.ts"
+		},
+		{
+			"id": "packages/flags/src/index.ts > outbox:0~05e47f > giveUp > once:1~de49a5",
+			"reason": "prints one warning (console output, not replayable), constant work"
+		},
+		{
+			"id": "packages/machine/src/say.ts > say > get size",
+			"reason": "reads a Map's size, constant work; proven in packages/machine/test/say.test.ts"
 		},
 		{
 			"id": "packages/content/src/vite/index.ts > warn_placement > once:1~daa8fe",
@@ -2311,118 +2335,6 @@
 		{
 			"id": "packages/postrender/src/registry.ts > install > once:1~4af86e",
 			"reason": "say(): one setup warning for the process, constant work"
-		},
-		{
-			"id": "packages/core/src/server/page-stream.ts > swap_tracked",
-			"reason": "the fallback walk for a page value too deep or cyclic for the untracked one, handed a swap function (not cloneable); linear in the value, one Map entry per open object; proven in packages/core/test/page-defer.test.ts (the cyclic cases)"
-		},
-		{
-			"id": "packages/core/src/server/page-stream.ts > swap_tracked > walk",
-			"reason": "one node of swap_tracked's walk over a closure (its Map and swap: not cloneable), constant work per node; proven in packages/core/test/page-defer.test.ts (the cyclic cases)"
-		},
-		{
-			"id": "packages/content/src/markdown/shiki.ts > render_code_region > replace:1~7326ff",
-			"reason": "the replacement for the multi-variant id attribute: one concatenation, constant work; proven in packages/content/test/fence-escaping.test.ts"
-		},
-		{
-			"id": "packages/content/src/markdown/shiki.ts > render_code_region > replace:1~ca1204",
-			"reason": "the replacement for the pre's attributes: one concatenation, constant work; proven in packages/content/test/fence-escaping.test.ts"
-		},
-		{
-			"id": "packages/core/src/plugin/server.ts > start_plugins > map:0~9f66ac > app > observeReads",
-			"reason": "forwards a RequestEvent (not cloneable) to observe_reads, constant work; packages/core/bench/server.bench.ts runs observe_reads"
-		},
-		{
-			"id": "packages/core/src/plugin/server.ts > start_plugins > map:0~9f66ac > app > warn > once:1~c9a4aa",
-			"reason": "prints one warning (console output, not replayable), constant work; proven in packages/core/test/plugins.test.ts"
-		},
-		{
-			"id": "packages/content/src/messages/runtime.ts > CONTENT_ERRORS > content_site_context_failed > text",
-			"reason": "a message table entry: wording only"
-		},
-		{
-			"id": "packages/content/src/messages/runtime.ts > CONTENT_ERRORS > content_site_context_failed > details",
-			"reason": "a message table entry: wording only"
-		},
-		{
-			"id": "packages/machine/src/trace.ts > trace",
-			"reason": "test and devtools tool, never on a page's path: one observe() subscription and a bounded ring of lines (max, default 500)"
-		},
-		{
-			"id": "packages/machine/src/trace.ts > trace > observe:0~38d8f1",
-			"reason": "test tool: one line formatted and pushed per machine move while a trace is on, oldest dropped past max, constant work per move"
-		},
-		{
-			"id": "packages/machine/src/trace.ts > trace > stop",
-			"reason": "test tool: ends the observe subscription, once"
-		},
-		{
-			"id": "packages/machine/src/trace.ts > trace > lines",
-			"reason": "test tool: a copy of the bounded ring (at most max lines), read when a test fails"
-		},
-		{
-			"id": "packages/machine/src/trace.ts > trace > text",
-			"reason": "test tool: the bounded ring joined, read when a test fails"
-		},
-		{
-			"id": "packages/machine/src/trace.ts > trace > clear",
-			"reason": "test tool: empties the ring, constant work"
-		},
-		{
-			"id": "packages/tooling/src/e2e/index.ts > moves",
-			"reason": "e2e fixture only (never shipped): reads the page's trace text once when a test fails"
-		},
-		{
-			"id": "packages/tooling/src/e2e/index.ts > moves > evaluate:0~b28489",
-			"reason": "e2e fixture only: one page.evaluate reading the trace text in the browser"
-		},
-		{
-			"id": "packages/tooling/src/vitest/trace-setup.ts > beforeEach:0~efb4a4",
-			"reason": "test setup only (never shipped): starts one trace per test"
-		},
-		{
-			"id": "packages/tooling/src/vitest/trace.ts > trace_on_failure",
-			"reason": "test setup only (never shipped): registers one onTestFailed per test"
-		},
-		{
-			"id": "packages/tooling/src/vitest/trace.ts > trace_on_failure > onTestFailed:0~8bf46a",
-			"reason": "test setup only: prints the trace once when a test fails"
-		},
-		{
-			"id": "packages/tooling/src/vitest/trace.ts > trace_on_failure > <anonymous>~1f95d7",
-			"reason": "test setup only: stops the trace at the test's end, once"
-		},
-		{
-			"id": "packages/core/src/messages/core.ts > ERRORS > region_version_invalid > text",
-			"reason": "a message's one-line text: one template string, on the error path only (an app passed a version that is not a time)"
-		},
-		{
-			"id": "packages/core/src/messages/core.ts > ERRORS > region_version_invalid > details",
-			"reason": "a message's details: one constant string, on the error path only"
-		},
-		{
-			"id": "packages/core/src/messages/core.ts > WARNINGS > region_answer_older > text",
-			"reason": "a dev warning's one-line text: one template string, only when an older answer is dropped"
-		},
-		{
-			"id": "packages/core/src/messages/core.ts > WARNINGS > region_answer_older > details",
-			"reason": "a dev warning's details: one constant string, only when an older answer is dropped"
-		},
-		{
-			"id": "packages/core/src/region.ts > to_version",
-			"reason": "one region's version to milliseconds: a typeof check and at most one Date.parse, once per held region render (not per element), constant work"
-		},
-		{
-			"id": "packages/core/src/transport.ts > dropped_older",
-			"reason": "one Map read and one compare per decoded versioned answer; the warning and devtools event only in dev or with devtools on, constant work"
-		},
-		{
-			"id": "packages/core/src/runtime/frame-store.ts > shown_version",
-			"reason": "one Map read of the shown answer's version at an address, constant work"
-		},
-		{
-			"id": "packages/core/src/runtime/frame-store.ts > answer_definition",
-			"reason": "builds the stored-answer machine definition (plain data: three states, their steps), once per address entry; its moves are measured by the frame-store bench, the definition itself is not cloneable"
 		},
 		{
 			"id": "packages/core/src/hooks.ts > OgygiaHandle > #pass_document",
@@ -2687,6 +2599,106 @@
 		{
 			"id": "packages/reshape/src/restore-report.ts > report_restores > __og_restore",
 			"reason": "moved from packages/core/src/runtime/restore-report.ts with reshape (#608): never ran here, browser state; the gate on this base does not follow a file across packages, and the moved tests (packages/reshape/test) prove it"
+		},
+		{
+			"id": "packages/core/src/server/page-stream.ts > swap_tracked",
+			"reason": "the fallback walk for a page value too deep or cyclic for the untracked one, handed a swap function (not cloneable); linear in the value, one Map entry per open object; proven in packages/core/test/page-defer.test.ts (the cyclic cases)"
+		},
+		{
+			"id": "packages/core/src/server/page-stream.ts > swap_tracked > walk",
+			"reason": "one node of swap_tracked's walk over a closure (its Map and swap: not cloneable), constant work per node; proven in packages/core/test/page-defer.test.ts (the cyclic cases)"
+		},
+		{
+			"id": "packages/content/src/messages/runtime.ts > CONTENT_ERRORS > content_site_context_failed > text",
+			"reason": "a message table entry: wording only"
+		},
+		{
+			"id": "packages/content/src/messages/runtime.ts > CONTENT_ERRORS > content_site_context_failed > details",
+			"reason": "a message table entry: wording only"
+		},
+		{
+			"id": "packages/content/src/markdown/frontmatter.ts > reason_of",
+			"reason": "a thrown error to its words (an OgygiaError's class identity does not replay), two string slices, only on a frontmatter error; proven in packages/content/test/frontmatter-errors.test.ts"
+		},
+		{
+			"id": "packages/machine/src/trace.ts > trace",
+			"reason": "test and devtools tool, never on a page's path: one observe() subscription and a bounded ring of lines (max, default 500)"
+		},
+		{
+			"id": "packages/machine/src/trace.ts > trace > observe:0~38d8f1",
+			"reason": "test tool: one line formatted and pushed per machine move while a trace is on, oldest dropped past max, constant work per move"
+		},
+		{
+			"id": "packages/machine/src/trace.ts > trace > stop",
+			"reason": "test tool: ends the observe subscription, once"
+		},
+		{
+			"id": "packages/machine/src/trace.ts > trace > lines",
+			"reason": "test tool: a copy of the bounded ring (at most max lines), read when a test fails"
+		},
+		{
+			"id": "packages/machine/src/trace.ts > trace > text",
+			"reason": "test tool: the bounded ring joined, read when a test fails"
+		},
+		{
+			"id": "packages/machine/src/trace.ts > trace > clear",
+			"reason": "test tool: empties the ring, constant work"
+		},
+		{
+			"id": "packages/tooling/src/e2e/index.ts > moves",
+			"reason": "e2e fixture only (never shipped): reads the page's trace text once when a test fails"
+		},
+		{
+			"id": "packages/tooling/src/e2e/index.ts > moves > evaluate:0~b28489",
+			"reason": "e2e fixture only: one page.evaluate reading the trace text in the browser"
+		},
+		{
+			"id": "packages/tooling/src/vitest/trace-setup.ts > beforeEach:0~efb4a4",
+			"reason": "test setup only (never shipped): starts one trace per test"
+		},
+		{
+			"id": "packages/tooling/src/vitest/trace.ts > trace_on_failure",
+			"reason": "test setup only (never shipped): registers one onTestFailed per test"
+		},
+		{
+			"id": "packages/tooling/src/vitest/trace.ts > trace_on_failure > onTestFailed:0~8bf46a",
+			"reason": "test setup only: prints the trace once when a test fails"
+		},
+		{
+			"id": "packages/tooling/src/vitest/trace.ts > trace_on_failure > <anonymous>~1f95d7",
+			"reason": "test setup only: stops the trace at the test's end, once"
+		},
+		{
+			"id": "packages/core/src/messages/core.ts > ERRORS > region_version_invalid > text",
+			"reason": "a message's one-line text: one template string, on the error path only (an app passed a version that is not a time)"
+		},
+		{
+			"id": "packages/core/src/messages/core.ts > ERRORS > region_version_invalid > details",
+			"reason": "a message's details: one constant string, on the error path only"
+		},
+		{
+			"id": "packages/core/src/messages/core.ts > WARNINGS > region_answer_older > text",
+			"reason": "a dev warning's one-line text: one template string, only when an older answer is dropped"
+		},
+		{
+			"id": "packages/core/src/messages/core.ts > WARNINGS > region_answer_older > details",
+			"reason": "a dev warning's details: one constant string, only when an older answer is dropped"
+		},
+		{
+			"id": "packages/core/src/region.ts > to_version",
+			"reason": "one region's version to milliseconds: a typeof check and at most one Date.parse, once per held region render (not per element), constant work"
+		},
+		{
+			"id": "packages/core/src/transport.ts > dropped_older",
+			"reason": "one Map read and one compare per decoded versioned answer; the warning and devtools event only in dev or with devtools on, constant work"
+		},
+		{
+			"id": "packages/core/src/runtime/frame-store.ts > shown_version",
+			"reason": "one Map read of the shown answer's version at an address, constant work"
+		},
+		{
+			"id": "packages/core/src/runtime/frame-store.ts > answer_definition",
+			"reason": "builds the stored-answer machine definition (plain data: three states, their steps), once per address entry; its moves are measured by the frame-store bench, the definition itself is not cloneable"
 		},
 		{
 			"id": "packages/core/src/server/region-endpoint.ts > hole_css",
@@ -4195,6 +4207,14 @@
 		{
 			"id": "packages/postrender/src/server.ts > deploy_check > flights:0~68fab5 > run > store_call:2~fa5e01",
 			"reason": "the marker write, one store put (I/O, the live store: not cloneable), constant work (#947)"
+		},
+		{
+			"id": "packages/devtools/src/profiler/embedded-maps.ts > embedded_source > map:0~31820d",
+			"reason": "profiler only: lists the known app roots for one source path, linear in the roots (one per app)"
+		},
+		{
+			"id": "packages/devtools/src/profiler/net.ts > keeping",
+			"reason": "profiler only: reads the module's kept-answers state (hidden state), constant work"
 		},
 		{
 			"id": "packages/content/src/markdown/shiki.ts > cache:0~7f893a > onEvict",
