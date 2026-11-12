@@ -4,7 +4,14 @@ import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { World } from '../src/world.ts';
-import { Leaks, mpa_equivalent, normalize, page_errors, page_rules } from '../src/oracles.ts';
+import {
+	hydrates_as_sent,
+	Leaks,
+	mpa_equivalent,
+	normalize,
+	page_errors,
+	page_rules
+} from '../src/oracles.ts';
 
 const OUTPUT = fileURLToPath(
 	new URL('../../../apps/palaestra/.svelte-kit/output', import.meta.url)
@@ -40,6 +47,35 @@ describe('normalize', () => {
 			return normalize(w.document as unknown as Document);
 		};
 		expect(page('<meta name="ogygia-stored" content="hit">')).toBe(page(''));
+	});
+});
+
+describe('hydrates as sent', () => {
+	it("a changed byte in a peer's deferred widget excuses its mismatch (gen 87, seed 34)", () => {
+		const tab = {
+			realm: 'tab-2#1',
+			name: 'tab-2',
+			documents: 1,
+			errors: [],
+			console: ['warn: https://svelte.dev/e/hydration_mismatch'],
+			page: { mainFrame: { url: 'https://app.test/p1' } }
+		} as unknown as Parameters<typeof hydrates_as_sent>[0];
+		const world = {
+			network: {
+				exchanges: [
+					{ url: 'https://app.test/p1', tampered: false },
+					{ url: 'https://app.test/og/frag?peer=peer&kind=widget&target=w0', tampered: true }
+				].map((e, i) => ({
+					id: i + 1,
+					from: 'tab-2#1',
+					method: 'GET',
+					status: 200,
+					cut: false,
+					...e
+				}))
+			}
+		} as unknown as Parameters<typeof hydrates_as_sent>[1];
+		expect(hydrates_as_sent(tab, world)).toBeNull();
 	});
 });
 
