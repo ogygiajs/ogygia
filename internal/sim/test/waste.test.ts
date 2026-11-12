@@ -244,7 +244,7 @@ describe('held twice', () => {
 });
 
 describe('known waste', () => {
-	it("counts #984's second link to a chunk, the graph preload's, as known", async () => {
+	it("finds a second link to a chunk, the graph preload's too: #984 is fixed", async () => {
 		const { Window } = await import('happy-dom');
 		const doc = (second: string) => {
 			const w = new Window({ url: 'https://app.test/' });
@@ -255,8 +255,13 @@ describe('known waste', () => {
 		};
 		const ours = '<link rel="modulepreload" href="/m.js" data-ogygia-graph-preload="">';
 		expect(known_waste(doc(ours), held_twice(doc(ours)))).toEqual({
-			left: [],
-			known: [984]
+			left: ['module preload https://app.test/m.js'],
+			known: []
+		});
+		// (#987: a router navigation's hole batch posted to a peer widget's path, refused)
+		expect(known_waste(doc(''), ['POST /og/frag 403'])).toEqual({
+			left: ['POST /og/frag 403'],
+			known: []
 		});
 		const html = '<link rel="modulepreload" href="/m.js">';
 		expect(known_waste(doc(html), held_twice(doc(html)))).toEqual({
