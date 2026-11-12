@@ -5,8 +5,8 @@
  * - `reached`: the standard sweep (the ledger's `sweep`: palaestra seeds and generated apps' seeds,
  *   src/sweep.ts) reaches it;
  * - `dead`: no code takes it, filed for removal (`issue`);
- * - `covered`: the fake browser cannot reach it (`reason`), and a real test does: `test` (a file
- *   from the repo root) holds a test named `name`, which the check finds.
+ * - `covered`: the sweep cannot reach it, or only by luck (`reason`), and a real test does: `test`
+ *   (a file from the repo root) holds a test named `name`, which the check finds.
  *
  * A step in no bucket fails, so a new step nothing reaches or tests fails the build.
  *
