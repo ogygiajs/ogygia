@@ -15,7 +15,7 @@ import { MemoryStore } from '../src/memory-store.ts';
 import { server_rules_hold } from '../../core/test/sim/_server.ts';
 
 // the server half reads Kit's `$app/env`: no build, no dev server
-vi.mock('$app/env', () => ({ building: false, dev: false }));
+vi.mock('$app/env', () => ({ building: false, dev: false, version: 'test' }));
 
 type Url = '/a/' | '/b/';
 type Step = { kind: 'get' | 'publish' | 'post'; url: Url };
