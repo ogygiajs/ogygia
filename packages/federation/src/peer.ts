@@ -10,6 +10,7 @@ import type { RegionValue } from '@ogygia/core';
 import { htmlRegion as og_html_region } from '@ogygia/core/plugin';
 import { current_request_scope } from '@ogygia/core/internal/server';
 import { fed_app } from './app.ts';
+import { warn } from './messages.ts';
 import {
 	sign_headers,
 	child_traceparent,
@@ -28,6 +29,32 @@ const RULES =
 	import.meta.env?.DEV || (typeof __OGYGIA_RULES__ !== 'undefined' ? __OGYGIA_RULES__ : false);
 
 const HOST_UNSAFE_G = /[^a-zA-Z0-9_-]/g;
+
+/** A failed hop, said once with its code: an answer that can't be used (an error status, or not its
+ *  JSON document: `federation_peer_answer_invalid`), or no answer at all (`federation_peer_unreachable`).
+ *  `status` is what a page read, a post or a hole answers: the peer's own 503 or 504 (busy or down,
+ *  worth trying later), 504 for no answer, else a 502. */
+class HopFailed extends Error {
+	override name = 'HopFailed';
+	readonly status: 502 | 503 | 504;
+	constructor(what: string, status: number) {
+		// (the message is what a visitor's error page may show: no peer name, no URL)
+		super(`fragment app ${what}`);
+		this.status = status === 503 || status === 504 ? status : 502;
+	}
+}
+
+/** The status a failed hop answers with, whatever read it: a {@link HopFailed} says its own, an error
+ *  a page read already threw keeps its status, and anything else (a request that ended its own
+ *  hop) is a 504, as a page read's is. Test: test/hole-peer-failure.test.ts (#937). */
+export function hop_failure_status(e: unknown): number {
+	if (e instanceof HopFailed || is_http_error(e)) return e.status;
+	return 504;
+}
+
+/** What a static widget shows when its peer's answer could not be read: the page still renders. */
+const FRAGMENT_FAILED =
+	'<div data-og-fragment-failed style="border:1px dashed #dc2626;border-radius:8px;padding:1rem;color:#dc2626">This section is temporarily unavailable.</div>';
 
 /** The one rule for what the document cache keeps, on the first fill and on every refresh: a
  *  successful answer that is not a redirect. */
@@ -192,9 +219,41 @@ export class PeerHandle implements Peer {
 			}
 			if (res.status < 500 || i === origins.length - 1) break;
 		}
-		if (!res) throw last_err instanceof Error ? last_err : new Error(String(last_err));
-		if (!res.ok) throw new Error(`fragment '${widget_name}' answered ${res.status}`);
-		return (await res.json()) as WidgetDocument;
+		return this.#answer<WidgetDocument>(res, 'widget', { error: last_err, signal });
+	}
+
+	/** Every hop's answer, read as the JSON document it should be. No answer at all (down,
+	 *  unreachable, past the timeout) or one that can't be used (an error status, or a body that does
+	 *  not parse: a byte changed on the way, a proxy's error page) is said with its code and thrown as
+	 *  a {@link HopFailed}; a hop the asking request ended itself throws its own error, unsaid. A
+	 *  page's 404 is a document: the peer's own not-found page. test/peer-answer-invalid.test.ts
+	 *  (#929, #931), test/peer-unreachable.test.ts (#933). */
+	async #answer<T>(
+		res: Response | undefined,
+		kind: 'page' | 'widget',
+		none: { error: unknown; signal?: AbortSignal }
+	): Promise<T> {
+		if (!res) {
+			if (none.signal?.aborted)
+				throw none.error instanceof Error ? none.error : new Error(String(none.error));
+			warn('federation_peer_unreachable', { peer: this.name, url: this.origin });
+			throw new HopFailed('gave no answer', 504);
+		}
+		const url = res.url || this.origin;
+		if (!res.ok && !(kind === 'page' && res.status === 404)) {
+			res.body?.cancel().then(undefined, noop); // ok: the answer is not read, only let go
+			const what = `a ${res.status}`;
+			warn('federation_peer_answer_invalid', { peer: this.name, url, what });
+			throw new HopFailed(`answered ${what}`, res.status);
+		}
+		const text = await res.text();
+		try {
+			return JSON.parse(text) as T;
+		} catch {
+			const what = 'something that is not its JSON document';
+			warn('federation_peer_answer_invalid', { peer: this.name, url, what });
+			throw new HopFailed('answered no document', res.status);
+		}
 	}
 
 	async page(path: string, dials: RemoteDials & { search?: string } = {}): Promise<RegionValue> {
@@ -218,7 +277,15 @@ export class PeerHandle implements Peer {
 				new URLSearchParams(props).toString(),
 				dials.claims
 			);
-		const doc = await this.widgetDoc(widget_name, props, { claims: dials.claims });
+		let doc: WidgetDocument;
+		try {
+			doc = await this.widgetDoc(widget_name, props, { claims: dials.claims });
+		} catch (e) {
+			// (said already: the page renders, the card stands in the widget's place)
+			if (e instanceof HopFailed)
+				return { ...og_html_region(FRAGMENT_FAILED), html: FRAGMENT_FAILED };
+			throw e;
+		}
 		return this.#bake_static({ body: doc.html, sources: doc.sources });
 	}
 
@@ -296,9 +363,12 @@ export class PeerHandle implements Peer {
 			}
 			if (res.status < 500 || i === pool.length - 1) break;
 		}
-		if (!res) throw last_err;
-		if (!res.ok && res.status !== 404) error(502, `fragment app answered ${res.status}`);
-		return (await res.json()) as FragmentDocument;
+		try {
+			return await this.#answer<FragmentDocument>(res, 'page', { error: last_err, signal });
+		} catch (e) {
+			if (e instanceof HopFailed) error(e.status, e.message);
+			throw e;
+		}
 	}
 
 	/** Prefix a remote fragment's own receipt tags with THIS peer's name, so the consuming page's
