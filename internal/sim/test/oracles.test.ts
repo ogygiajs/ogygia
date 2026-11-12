@@ -13,7 +13,8 @@ import {
 	mpa_equivalent,
 	normalize,
 	page_errors,
-	page_rules
+	page_rules,
+	regions_show
 } from '../src/oracles.ts';
 
 const OUTPUT = fileURLToPath(
@@ -99,6 +100,32 @@ describe('known', () => {
 		const tab = { realm: 'tab-1#1' } as unknown as Parameters<NonNullable<typeof k.seen>>[1];
 		expect(k.seen!(world('POST'), tab)).toBe(true);
 		expect(k.seen!(world('GET'), tab)).toBe(false);
+	});
+});
+
+describe('every region shows something', () => {
+	it("passes a region the app's empty component left empty, in its marked element", async () => {
+		const { Window } = await import('happy-dom');
+		const w = new Window({ url: 'https://app.test/p0' });
+		w.document.write(
+			'<html><body><div data-gen-empty><ogygia-region entry="e1"></ogygia-region></div><div><ogygia-region entry="e2"></ogygia-region></div></body></html>'
+		);
+		const tab = {
+			realm: 'tab-1#1',
+			name: 'tab-1',
+			documents: 1,
+			page: { mainFrame: { url: 'https://app.test/p0', document: w.document } }
+		} as unknown as Parameters<typeof regions_show>[0];
+		const world = {
+			fired_in: new Map(),
+			network: { exchanges: [] },
+			skewed_for: () => false,
+			frag_refused: new Set()
+		} as unknown as Parameters<typeof regions_show>[1];
+		const found = regions_show(tab, world);
+		expect(found?.oracle).toBe('empty-region');
+		expect(found?.detail).toContain('entry="e2"');
+		expect(found?.detail).not.toContain('entry="e1"');
 	});
 });
 
