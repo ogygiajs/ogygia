@@ -5,6 +5,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { generateKeyPairSync } from 'node:crypto';
 import type { RequestEvent } from '@sveltejs/kit';
+import { observe } from '@ogygia/machine';
 import { startPlugin } from '@ogygia/core/plugin/testing';
 import { federate } from '../src/federate.ts';
 import { sign_headers, THAW_PATH } from '../src/wire.ts';
@@ -87,6 +88,42 @@ describe('a thaw notice whose evict fails (#287)', () => {
 			};
 			expect(again.deduped).toBe(true);
 		} finally {
+			leave();
+		}
+	});
+});
+
+describe('a notice id past its keep', () => {
+	it('is forgotten after 10 minutes: the same notice again is applied again', async () => {
+		vi.stubGlobal('fetch', async () => new Response('{}'));
+		federate({
+			name: 'shell',
+			audience: 'shell.test',
+			peers: { cms: { origin: 'http://cms.test', key: cms_pub } }
+		});
+		const applied: string[][] = [];
+		const leave = register_hooks({
+			invalidate(tags: string[]) {
+				applied.push(tags);
+			}
+		});
+		const moves: string[] = [];
+		const off = observe((name, from, to) => {
+			if (name === 'federation thaws applied' && to) moves.push(`${from.kind} -> ${to.kind}`);
+		});
+		const start = performance.now();
+		const now = vi.spyOn(performance, 'now').mockReturnValue(start);
+		try {
+			const notice = { id: 'n-kept', hop: 0, tags: ['s:doc:3'] };
+			expect((await serve_federation(thaw_event(notice)))!.ok).toBe(true);
+			now.mockReturnValue(start + 11 * 60_000);
+			const later = await serve_federation(thaw_event(notice));
+			const answer = (await later!.json()) as { ok: boolean; deduped?: boolean };
+			expect(answer.deduped).toBeUndefined();
+			expect(applied).toEqual([['r:cms:s:doc:3'], ['r:cms:s:doc:3']]);
+			expect(moves).toContain('kept -> gone');
+		} finally {
+			off();
 			leave();
 		}
 	});
