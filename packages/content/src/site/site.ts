@@ -1,17 +1,3 @@
-/**
- * `site()` — mints a docs site over an outline (or a bare collection, which it auto-wraps). Returns
- * BRAINS ONLY: `load` / `entries` for the mount, `nav()` for the sidebar, `page()` for the page. Every
- * one returns plain serializable data — no components, nothing global, nothing registered. A weird
- * route can ignore the site entirely; the ceiling is the app.
- *
- * ```ts
- * export const site = site(nav, { prevNext: 'graph' });   // site(docs) wraps a single collection
- *
- * // (docs)/[...slug]/+page.ts
- * export const prerender = true;
- * export const { load, entries } = site;
- * ```
- */
 import { error, redirect } from '@sveltejs/kit';
 import type { Component } from 'svelte';
 import type { Entry, ContentRef } from '../index.ts';
@@ -44,7 +30,6 @@ import {
 import type { BaseOption, PageView, Heading, NavRef, NavTree, PrevNext } from './types.ts';
 import { OgygiaError, warn } from '../messages/runtime.ts';
 
-// ── regexes
 const TRAILING_SLASHES_RE = /\/+$/;
 const EDGE_SLASHES_G = /^\/+|\/+$/g;
 
@@ -105,10 +90,8 @@ export type SiteOptions = {
 	redirects?: (entry: ContentRef) => string[] | string | undefined;
 };
 
-/** The minimal SvelteKit `load` event shape the guard reads (kept narrow so it stays isomorphic). */
 type LoadLike = { params: Record<string, string | undefined>; url: URL | { pathname: string } };
 
-/** The minimal request-event shape an emission handler reads. Assignable from Kit's `RequestEvent`. */
 type EmitEvent = { url: URL };
 /** A GET handler an emission mounts as. `export const GET = site.emit.sitemap({ base })`. */
 export type EmitHandler = (event: EmitEvent) => Promise<Response>;
@@ -191,10 +174,6 @@ function is_outline(x: unknown): x is Outline {
 	);
 }
 
-/**
- * The site brains as a class — state (outline, prevNext, checks, search) as fields, each brain a
- * method. `site()` mints one; nothing here is global or registered.
- */
 class OgygiaSite implements Site {
 	readonly outline: Outline;
 	readonly data?: SiteData;
@@ -224,13 +203,11 @@ class OgygiaSite implements Site {
 		this.search = create_search(this.outline, opts.search?.engine ?? orama_engine());
 	}
 
-	// `load`/`entries` are arrow FIELDS (bound) because the three-file mount detaches them —
-	// `export const { load, entries } = site` — so a plain method would lose `this`.
+	// @why load and entries are bound fields: a route file destructures them, `export const { load, entries } = site` (test: test/site-reads.test.ts › load and entries work detached from the site, as a route file destructures them)
 	load = async (event: LoadLike) => {
 		const { params, url } = event;
 		const ol = this.outline;
 		const slug = params.slug ?? '';
-		// Derive the request context (preview, roles) here — this is the one place holding the event.
 		const ctx = this.#deriveCtx(event);
 		const hit = await ol.resolve(slug, ctx);
 		if (hit) {
@@ -249,13 +226,11 @@ class OgygiaSite implements Site {
 			}
 			return;
 		}
-		// A declared old address: serve the redirect (prerender bakes it — aliases are in entries()).
 		const canonical = await ol.alias(slug, ctx);
 		if (canonical) redirect(308, href_of(mountBase(url, slug), canonical));
 		error(404, 'Not found');
 	};
 
-	/** Run the `context` derivation over a request-ish event, defensively (missing fields → `{}`). */
 	#deriveCtx(event: unknown): ReadContext {
 		if (!this.#context) return {};
 		try {
@@ -269,7 +244,6 @@ class OgygiaSite implements Site {
 	entries = async () => {
 		const ol = this.outline;
 		const slugs = (await ol.addresses()).map((slug) => ({ slug }));
-		// Old addresses prerender too — each becomes a baked redirect artifact.
 		const aliases = await ol.aliases();
 		return [...slugs, ...[...aliases.keys()].map((slug) => ({ slug }))];
 	};
@@ -370,7 +344,6 @@ class OgygiaSite implements Site {
 					return new Response(body, { headers: { 'content-type': 'text/plain; charset=utf-8' } });
 				},
 			search: () => async () => {
-				// Mount-independent section documents; the client worker applies base + indexes them.
 				const docs = await build_docs(ol);
 				return new Response(JSON.stringify(docs), {
 					headers: { 'content-type': 'application/json' }
@@ -395,11 +368,10 @@ class OgygiaSite implements Site {
 					return entry?.source ? entry.source() : null;
 				};
 				return {
-					// Only prerender slugs whose entry carries source — a data-only collection (JSON) woven
-					// into the same site has no `.md`, and must not be crawled into a 404.
 					entries: async () => {
 						const out: Array<{ slug: string }> = [];
 						for (const slug of await ol.addresses())
+							// @why a data-only entry (JSON) has no `.md`: prerendering its address crawls into a 404 (test: test/site.test.ts › entries() lists only slugs whose entry has source; unknown or source-less → 404)
 							if ((await source_of(slug)) != null) out.push({ slug });
 						return out;
 					},
@@ -416,12 +388,23 @@ class OgygiaSite implements Site {
 	}
 }
 
-/** Mint the site brains. `site({ outline })` is the only required key; a bare collection auto-arranges. */
+/**
+ * Mint a docs site over an outline (a bare collection is arranged by convention). It returns brains
+ * only: `load` / `entries` for the mount, `nav()` for the sidebar, `page()` for the page. Nothing is
+ * global or registered; a route can ignore the site entirely.
+ *
+ * ```ts
+ * export const docs = site({ outline: nav, prevNext: 'graph' });
+ *
+ * // (docs)/[...slug]/+page.ts
+ * export const prerender = true;
+ * export const { load, entries } = docs;
+ * ```
+ */
 export function site(opts: SiteOptions): Site {
 	return new OgygiaSite(opts);
 }
 
-/** Pull `headings` off a source-derived meta (`markdown` supplies it), defensively. */
 function extract_headings(meta: unknown): Heading[] {
 	if (meta && typeof meta === 'object' && 'headings' in meta) {
 		const h = (meta as { headings: unknown }).headings;
@@ -430,7 +413,6 @@ function extract_headings(meta: unknown): Heading[] {
 	return [];
 }
 
-/** Resolve an entry's content-graph `related` refs to nav refs (address + display fields). */
 async function resolve_related(
 	entry: Entry<Record<string, unknown>, unknown>,
 	collection: Collection,
@@ -454,7 +436,6 @@ async function resolve_related(
 	return out;
 }
 
-/** Apply the `prevNext` policy: graph = related else next; order = next; false = none. */
 function choose_suggested(policy: PrevNext, related: NavRef[], next: NavRef | undefined): NavRef[] {
 	if (policy === false) return [];
 	if (policy === 'graph' && related.length) return related;
@@ -471,7 +452,7 @@ export function mountBase(url: URL | string | { pathname: string }, slug: string
 	const pathname = typeof url === 'string' ? url : url.pathname;
 	const path = pathname.replace(TRAILING_SLASHES_RE, '');
 	const s = slug.replace(EDGE_SLASHES_G, '');
-	if (!s) return path; // index page: the whole path is the base
+	if (!s) return path;
 	if (path.endsWith('/' + s)) return path.slice(0, path.length - s.length - 1);
 	if (path.endsWith(s))
 		return path.slice(0, path.length - s.length).replace(TRAILING_SLASHES_RE, '');
