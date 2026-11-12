@@ -5,6 +5,8 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { World } from '../src/world.ts';
 import {
+	document_faulted,
+	faulted,
 	hydrates_as_sent,
 	Leaks,
 	mpa_equivalent,
@@ -139,6 +141,37 @@ describe('page errors', () => {
 
 	it('a cut hop is a failure the app answers, and excuses nothing', () => {
 		expect(page_errors(tab(said), hop('cut'))?.oracle).toBe('page-errors');
+	});
+
+	// (gen 125, seed 125013: the changed peer page was fetched for another document, and the app
+	// kept it, `cache: { ttl }`: this document, and the MPA check's fresh load, may be shown it)
+	it("a changed byte in a peer's page the server fetched for another document is this one's too", () => {
+		const world = {
+			network: {
+				exchanges: [
+					{ id: 1, from: 'tab-0#2', url: 'https://app.test/peer/q0', status: 200 },
+					{
+						id: 2,
+						from: 'server-1',
+						for: 'tab-0#2',
+						url: 'https://peer.test/og/fragment/page?path=%2Fq0',
+						status: 200,
+						tampered: true
+					},
+					{ id: 3, from: 'tab-1#6', url: 'https://app.test/peer/q0', status: 200 }
+				].map((e) => ({ method: 'GET', cut: false, tampered: false, ...e }))
+			}
+		} as unknown as World;
+		const t = {
+			realm: 'tab-1#6',
+			name: 'tab-1',
+			documents: 6,
+			errors: [],
+			console: [],
+			page: { mainFrame: { url: 'https://app.test/peer/q0' } }
+		} as unknown as Parameters<typeof faulted>[1];
+		expect(document_faulted(world, t)).toBe(true);
+		expect(faulted(world, t)).toBe(true);
 	});
 });
 
