@@ -3,6 +3,7 @@
  * the compiler already emits, and resource-timing byte lookups.
  * No Svelte, no styling: the `.svelte` components own all presentation.
  */
+import { cache, type Cache } from '@ogygia/machine';
 import { OG_FP, props_sidecar_of } from '@ogygia/core/internal/instruments';
 import { tool_made } from '@ogygia/core/internal/instruments';
 import type { IslandBarrel, IslandHazard } from '@ogygia/insights';
@@ -149,14 +150,21 @@ export function timing_for(entry: string): PerformanceResourceTiming | undefined
 	return timing_index().get(base);
 }
 
+/** The most resource entries indexed: the page's timeline is bounded by the browser (250 entries
+ *  by default; a page may raise it), so this only bounds a page that raised it past this. */
+const INDEX_MAX = 4000;
+
 // the resource list by basename, rebuilt only when it grows: every island asked on every tick, and
 // each ask split every resource's URL (18 ms per 3 s on a page with 64 files and 30 islands)
 let index_len = -1;
-let index = new Map<string, PerformanceResourceTiming>();
-function timing_index(): Map<string, PerformanceResourceTiming> {
+const index = cache<string, PerformanceResourceTiming>({
+	name: 'devtools resource index',
+	max: INDEX_MAX
+});
+function timing_index(): Cache<string, PerformanceResourceTiming> {
 	const res = performance.getEntriesByType('resource') as PerformanceResourceTiming[];
 	if (res.length !== index_len) {
-		index = new Map();
+		index.clear();
 		// last match wins (a re-fetch), the devtools' own reads left out (a HEAD's empty body is no size)
 		for (const r of res) if (!tool_made(r)) index.set(basename(r.name), r);
 		index_len = res.length;
