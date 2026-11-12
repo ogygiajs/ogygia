@@ -13,26 +13,6 @@
 			"reason": "signs with the process's key and the request's session (hidden state; mintServerIsland before the region rename, unmeasured on that base); the signing it wraps is sign's, benched"
 		},
 		{
-			"id": "packages/compiler/src/compiler/virtual/core.ts > family:0~04bf59 > load > server_manifest_module:3~e7ea15",
-			"reason": "the server manifest's dev URL of one registered region (a lambda handed to the generator), constant work; the bench session registers no region"
-		},
-		{
-			"id": "packages/compiler/src/compiler/virtual/core.ts > family:0~04bf59 > load > server_manifest_module:4~126d93",
-			"reason": "the server manifest's public URL of one registered region (a lambda handed to the generator), constant work; the bench session registers no region"
-		},
-		{
-			"id": "packages/compiler/src/compiler/virtual/core.ts > family:0~359af7 > load > router_css_module:1~4ebdf0 > read_file",
-			"reason": "one file read for the server router's CSS, a pass-through to the host fs (the router-css generator's own tests read real routes)"
-		},
-		{
-			"id": "packages/compiler/src/compiler/messages.ts > BUILD_ERRORS > virtual_wrong_realm > details",
-			"reason": "a message table entry: wording only"
-		},
-		{
-			"id": "packages/compiler/src/compiler/messages.ts > BUILD_ERRORS > virtual_wrong_realm > text",
-			"reason": "a message table entry: wording only"
-		},
-		{
 			"id": "packages/core/src/messages/core.ts > ERRORS > request_event_server_only > details",
 			"reason": "a message table entry: wording only (the browser stand-in prints the bare link; test/region-server-browser.test.ts)"
 		},
@@ -51,26 +31,6 @@
 		{
 			"id": "packages/devtools/src/profiler/maps-server.ts > read_profiler_maps > then:0~09dfc9",
 			"reason": "reads the one export of the server build's profiler-maps module, which exists only inside a built app; constant work"
-		},
-		{
-			"id": "packages/compiler/src/compiler/messages.ts > BUILD_ERRORS > virtual_unknown > details",
-			"reason": "a message table entry: wording only"
-		},
-		{
-			"id": "packages/compiler/src/compiler/messages.ts > BUILD_ERRORS > virtual_duplicate > details",
-			"reason": "a message table entry: wording only"
-		},
-		{
-			"id": "packages/compiler/src/compiler/virtual/core.ts > map:0~fa4377",
-			"reason": "declares the six driver-resolved families once, as core.ts loads; constant, never per build"
-		},
-		{
-			"id": "packages/compiler/src/compiler/virtual/table.ts > virtual > family",
-			"reason": "a table constructor: called once per entry as core.ts loads, returns its argument with its kind"
-		},
-		{
-			"id": "packages/compiler/src/compiler/virtual/table.ts > virtual > request",
-			"reason": "a table constructor: called once per entry as core.ts loads, returns its argument with its kind"
 		},
 		{
 			"id": "packages/core/src/runtime/entry-locations.ts > recover_location > task:0~d0bd46",
@@ -1013,112 +973,12 @@
 			"reason": "the escape callback of one character (a table lookup, constant work); quote's escapes are proven in packages/barrels/test/rewrite.test.ts"
 		},
 		{
-			"id": "packages/compiler/src/compiler/messages.ts > BUILD_ERRORS > barrels_option_removed > details",
-			"reason": "a message table entry: wording only"
-		},
-		{
-			"id": "packages/compiler/src/compiler/messages.ts > BUILD_ERRORS > barrels_option_removed > text",
-			"reason": "a message table entry: wording only"
-		},
-		{
-			"id": "packages/compiler/src/vite/index.ts > ogygia > seams > exports > map",
-			"reason": "a plugin's export index for one environment (a Map get or create over ogygia()'s closure: not replayable); the index's work is benched in packages/core/bench/compiler.bench.ts; proven through barrels() against a real Vite dev server in packages/barrels/test/plugin.test.ts"
-		},
-		{
-			"id": "packages/compiler/src/vite/index.ts > ogygia > seams > exports > map > ExportIndex:0~b7ee02",
-			"reason": "the index's resolver: the transformed module's own resolve (a live Vite plugin context, not recorded); proven in packages/barrels/test/plugin.test.ts"
-		},
-		{
-			"id": "packages/compiler/src/vite/index.ts > ogygia > seams > pinned_imports",
-			"reason": "the app's import keys and asRegion locals over ogygia()'s closure (not replayable); asRegionLocals is benched with the region transform; proven through barrels() in packages/barrels/test/plugin.test.ts and packages/barrels/test/as-region.test.ts"
-		},
-		{
-			"id": "packages/compiler/src/vite/index.ts > ogygia > barrels_left_of",
-			"reason": "one table per environment and stage in ogygia()'s closure, made once (a map lookup); the table itself is benched in packages/core/bench/compiler.bench.ts"
-		},
-		{
-			"id": "packages/compiler/src/vite/index.ts > ogygia > barrel_why",
-			"reason": "the client tables' why for one barrel row, over ogygia()'s closure (not replayable), at most two lookups; the join is benched in packages/core/bench/compiler.bench.ts and proven in packages/core/test/barrel-left.test.ts"
-		},
-		{
-			"id": "packages/compiler/src/vite/index.ts > ogygia > barrel_why > filter:0~cf3029",
-			"reason": "orders at most nine reasons (constant work); the same filter in the table is benched in packages/core/bench/compiler.bench.ts"
-		},
-		{
 			"id": "packages/core/src/compiler/dev/region-bytes.ts > island_subgraph_bytes > map:0~c49ee0",
 			"reason": "a barrel row's importers to their ids (one property read each), only with the dev server's live module graph; proven in packages/core/test/region-bytes.test.ts"
 		},
 		{
 			"id": "packages/devtools/src/profiler/report.ts > ogygia_findings > flatMap:0~283e13",
 			"reason": "the reasons of at most three listed barrels (constant work); proven in packages/devtools/test/profiler.test.ts"
-		},
-		{
-			"id": "packages/compiler/src/vite/index.ts > ogygia > seams > pinned_imports > <anonymous>~a269ad",
-			"reason": "one declaration against the pinned keys and locals (constant work over ogygia()'s closure); proven in packages/barrels/test/plugin.test.ts and packages/barrels/test/as-region.test.ts"
-		},
-		{
-			"id": "packages/compiler/src/vite/index.ts > ogygia > seams > pinned_imports > <anonymous>~a269ad > some:0~d4dbd6",
-			"reason": "one specifier's local against the asRegion locals (a Set has); proven in packages/barrels/test/as-region.test.ts"
-		},
-		{
-			"id": "packages/compiler/src/vite/index.ts > ogygia > seams > pinned_imports > <anonymous>~a269ad > some:0~e91cb2",
-			"reason": "one attribute key against the app's import keys (a Set has); proven in packages/barrels/test/plugin.test.ts"
-		},
-		{
-			"id": "packages/compiler/src/vite/index.ts > ogygia > stage_host",
-			"reason": "builds one Vite plugin object per stage (constant work, over ogygia()'s closure); the stage's transforms are benched in packages/barrels/bench/barrels.bench.ts"
-		},
-		{
-			"id": "packages/compiler/src/vite/index.ts > ogygia > stage_host > transform",
-			"reason": "a live Vite transform hook (its this.resolve and this.addWatchFile are the plugin context, not recorded); a stage's work is the plugins' transforms, benched in packages/barrels/bench/barrels.bench.ts; proven against a real Vite dev server and build in packages/barrels/test/plugin.test.ts"
-		},
-		{
-			"id": "packages/compiler/src/vite/index.ts > ogygia > stage_host > transform > filter:0~18c7ef",
-			"reason": "each stage transform's own filter on the module id (constant work per plugin); proven in packages/barrels/test/plugin.test.ts"
-		},
-		{
-			"id": "packages/compiler/src/vite/index.ts > ogygia > stage_host > transform > t > resolve",
-			"reason": "one specifier through the host's this.resolve (a live Vite plugin context, not recorded); its throw and external cases are proven in packages/barrels/test/plugin.test.ts"
-		},
-		{
-			"id": "packages/compiler/src/vite/index.ts > ogygia > stage_host > transform > t > watch",
-			"reason": "the host's this.addWatchFile (a live Vite plugin context, not recorded); proven by the barrel-edit case in packages/barrels/test/plugin.test.ts"
-		},
-		{
-			"id": "packages/compiler/src/vite/plugin-api.ts > NO_SEAMS > exports > map",
-			"reason": "a constant rejection for a plugin list resolved outside ogygia(); proven in packages/core/test/plugins.test.ts"
-		},
-		{
-			"id": "packages/compiler/src/vite/plugin-api.ts > NO_SEAMS > pinned_imports",
-			"reason": "a constant throw for a plugin list resolved outside ogygia(); proven in packages/core/test/plugins.test.ts"
-		},
-		{
-			"id": "packages/compiler/src/vite/plugin-api.ts > resolve_plugins > build:0~4ffc6b > transform",
-			"reason": "one push of a plugin's stage transform (a function: not replayable), constant work; proven in packages/core/test/plugins.test.ts"
-		},
-		{
-			"id": "packages/compiler/src/compiler/exports/index.ts > EVERY_BARREL > forced",
-			"reason": "a constant answer (false) of the allow-everything policy"
-		},
-		{
-			"id": "packages/compiler/src/compiler/exports/parse.ts > attribute_keys > map:0~781359",
-			"reason": "one attribute node to its key name (an oxc AST node: not replayable), constant work; the parse is benched in packages/core/bench/compiler.bench.ts"
-		},
-		{
-			"id": "packages/compiler/src/vite/index.ts > ogygia > Shapes:0~f72d16",
-			"reason": "the app's file read for its shared shapes (a BOM-stripped read over the plugin's closure: not replayable); the shapes are benched in packages/core/bench/compiler.bench.ts"
-		},
-		{
-			"id": "packages/compiler/src/compiler/fouc-css.ts > through_caller",
-			"reason": "hands one specifier to the walk's resolver (a function argument: not cloneable); proven in packages/core/test/exports-index.test.ts"
-		},
-		{
-			"id": "packages/compiler/src/compiler/fouc-css.ts > collectFoucCssReachable > Shapes:0~3bebf5",
-			"reason": "the walk's own file read for a fresh index's shapes (a pass-through to the caller's reader: not replayable); proven in packages/core/test/exports-index.test.ts"
-		},
-		{
-			"id": "packages/compiler/src/vite/index.ts > ogygia > css_walk_index",
-			"reason": "the CSS walk's export index for one environment (a Map get or create over the plugin's closure), constant work; the index's work is benched in packages/core/bench/compiler.bench.ts"
 		},
 		{
 			"id": "packages/cli/src/perf/cli.ts > group_alive",
@@ -2421,22 +2281,6 @@
 			"reason": "reads the size of a module-level set (process state), constant work; proven in packages/devtools/test/request-stats-detail.test.ts"
 		},
 		{
-			"id": "packages/compiler/src/vite/index.ts > ogygia > seams > regions > barrelWhy",
-			"reason": "dev only: the regions seam hands the dock one barrel answer from the build's index, constant work of its own"
-		},
-		{
-			"id": "packages/compiler/src/vite/index.ts > ogygia > seams > regions > names",
-			"reason": "dev only: the regions seam lists the build's region entries, linear in the regions"
-		},
-		{
-			"id": "packages/compiler/src/vite/plugin-api.ts > NO_SEAMS > regions > barrelWhy",
-			"reason": "the empty seam a plugin sees before the build is set up: answers nothing, constant work"
-		},
-		{
-			"id": "packages/compiler/src/vite/plugin-api.ts > NO_SEAMS > regions > names",
-			"reason": "the empty seam a plugin sees before the build is set up: answers nothing, constant work"
-		},
-		{
 			"id": "packages/devtools/src/build/dev-meta.ts > dev_meta_plugin",
 			"reason": "dev only: builds one Vite plugin object, once per server, constant work"
 		},
@@ -2465,10 +2309,6 @@
 			"reason": "dev only: hands the build's regions seam to the dev meta plugin, constant work"
 		},
 		{
-			"id": "packages/compiler/src/vite/index.ts > ogygia > closeBundle",
-			"reason": "build only: Vite's closeBundle hook, once per build leg, constant work of its own"
-		},
-		{
 			"id": "packages/devtools/src/build/maps-plugin.ts > profiler_maps_plugins",
 			"reason": "build only: makes the two map plugin objects, once per build, constant work"
 		},
@@ -2489,40 +2329,96 @@
 			"reason": "build only: the hidden-sourcemaps switch, always on in a build with the profiler, constant work"
 		},
 		{
-			"id": "packages/compiler/src/vite/paths.ts > runtime_content_hash",
-			"reason": "build only: hashes the runtime's files on disk (file reads, not recorded), once per build leg"
+			"id": "packages/devtools/src/devtools/hook-entries.ts > built_dev",
+			"reason": "reads one field of the page's hook record (a global: hidden state), constant work"
 		},
 		{
-			"id": "packages/compiler/src/vite/paths.ts > scan_entry_pattern",
-			"reason": "dev only: one island file to an optimizeDeps pattern (a realpath and one replace), constant work per file"
+			"id": "packages/devtools/src/devtools/hook-record.ts > record",
+			"reason": "the page's hook record from its global, made once (hidden state), constant work"
 		},
 		{
-			"id": "packages/core/src/contract/core-files.ts > built",
-			"reason": "one path.join into core's dist, run as the module loads (never per request or per build)"
+			"id": "packages/devtools/src/devtools/testing-script.ts > api > get live",
+			"reason": "the injected engine only (a page in a test): one field read of the hook record, constant work"
 		},
 		{
-			"id": "packages/core/src/contract/core-files.ts > id_dir",
-			"reason": "real_posix and one trailing slash, run as the module loads (CORE_ROOT_ID), constant work"
+			"id": "packages/devtools/src/devtools/testing-script.ts > api > page",
+			"reason": "the injected engine only (a page in a test): hands the call to page_json, whose work it is"
 		},
 		{
-			"id": "packages/core/src/contract/core-files.ts > real_posix",
-			"reason": "one realpath on the file system (not replayable) and one replace, constant work"
+			"id": "packages/devtools/src/devtools/testing-script.ts > api > hydration",
+			"reason": "the injected engine only (a page in a test): hands the call to hydration_json, whose work it is"
 		},
 		{
-			"id": "packages/compiler/src/compiler/messages.ts > BUILD_ERRORS > plugin_client_hook_unknown > text",
-			"reason": "a message table entry: wording only"
+			"id": "packages/devtools/src/devtools/testing-script.ts > api > record_start",
+			"reason": "the injected engine only (a page in a test): hands the call to record_start, whose work it is"
 		},
 		{
-			"id": "packages/compiler/src/compiler/messages.ts > BUILD_ERRORS > plugin_client_hook_unknown > details",
-			"reason": "a message table entry: wording only"
+			"id": "packages/devtools/src/devtools/testing-script.ts > api > record_stop",
+			"reason": "the injected engine only (a page in a test): hands the call to record_stop, whose work it is"
 		},
 		{
-			"id": "packages/compiler/src/compiler/messages.ts > BUILD_ERRORS > plugin_client_hooks_unread > text",
-			"reason": "a message table entry: wording only"
+			"id": "packages/devtools/src/devtools/testing-script.ts > api > settled",
+			"reason": "the injected engine only (a page in a test): hands the call to settled, whose work it is"
 		},
 		{
-			"id": "packages/compiler/src/compiler/messages.ts > BUILD_ERRORS > plugin_client_hooks_unread > details",
-			"reason": "a message table entry: wording only"
+			"id": "packages/devtools/src/devtools/regions.ts > use_sidecar_lookup",
+			"reason": "keeps the realm's lookup (a function: not cloneable), once per page, constant work"
+		},
+		{
+			"id": "packages/testing/src/index.ts > engine_script",
+			"reason": "the test process reads the built engine file once (a file on disk, not recorded), then the cached text"
+		},
+		{
+			"id": "packages/devtools/src/client-beacon.ts > on_region_hydrated",
+			"reason": "browser only: hands one hook event (a DOM element: not replayable) to beacon_hydrated, constant work of its own"
+		},
+		{
+			"id": "packages/devtools/src/client-beacon.ts > on_region_failed",
+			"reason": "browser only: hands one hook event (a DOM element: not replayable) to beacon_failed, constant work of its own"
+		},
+		{
+			"id": "packages/devtools/src/client-beacon.ts > on_hole_answered",
+			"reason": "browser only: hands one hook event (a DOM element: not replayable) to beacon_hole_answered, constant work of its own"
+		},
+		{
+			"id": "packages/devtools/src/client-beacon.ts > on_hole_failed",
+			"reason": "browser only: renames one field of a hook event for beacon_hole_failed, constant work of its own"
+		},
+		{
+			"id": "packages/devtools/src/client-beacon.ts > on_hole_batch_missed",
+			"reason": "browser only: renames one field of a hook event for beacon_hole_batch_missed, constant work of its own"
+		},
+		{
+			"id": "packages/devtools/src/devtools/hook-entries.ts > state",
+			"reason": "the page's one hook record on a globalThis symbol (hidden state), a get-or-create; proven in packages/devtools/test/devtools-hook-record.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/devtools/hook-entries.ts > hook_entries",
+			"reason": "reads the global hook record's entries (hidden state), constant work; proven in packages/devtools/test/devtools-hook-record.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/devtools/hook-entries.ts > on_hook",
+			"reason": "adds one listener (a function: not cloneable) to the global hook record, constant work"
+		},
+		{
+			"id": "packages/devtools/src/devtools/hook-entries.ts > on_hook > <anonymous>~55fa77",
+			"reason": "removes one listener from a Set (process state: not replayable), constant work"
+		},
+		{
+			"id": "packages/devtools/src/devtools/page.ts > last_nav > flatMap:0~408dbd",
+			"reason": "one hook entry to its navStarted start or nothing, inside last_nav's one pass, constant work; proven in packages/devtools/test/devtools-last-nav.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/devtools/session.ts > start_session > on_hook:0~0806a1",
+			"reason": "browser only: the session's hook listener, one push and on navStarted one region-name pass, linear in the regions"
+		},
+		{
+			"id": "packages/insights/src/session-insights.ts > analyze_session > flatMap:0~2b7bc1",
+			"reason": "one hook entry to its load wait or nothing, inside analyze_session's pass, constant work"
+		},
+		{
+			"id": "packages/insights/src/session-insights.ts > analyze_session > push:0~e8d6d3 > flatMap:0~0d228a",
+			"reason": "one woke entry to its island fp or nothing, inside analyze_session's pass, constant work"
 		},
 		{
 			"id": "packages/core/src/messages/core.ts > ERRORS > client_hook_failed > text",
@@ -2531,10 +2427,6 @@
 		{
 			"id": "packages/core/src/messages/core.ts > ERRORS > client_hook_failed > details",
 			"reason": "a message table entry: wording only"
-		},
-		{
-			"id": "packages/compiler/src/compiler/virtual/core.ts > hook_gate",
-			"reason": "declares one hook constant (its from is a lambda: not cloneable), once per hook as core.ts loads; constant, never per build"
 		},
 		{
 			"id": "packages/core/src/runtime/client-plugins.ts > joined",
@@ -2551,54 +2443,6 @@
 		{
 			"id": "packages/core/src/runtime/client-plugins.ts > joined > <anonymous>~76c203 > catch:0~d63084",
 			"reason": "browser only: a subscriber's rejected promise to report, constant work"
-		},
-		{
-			"id": "packages/compiler/src/vite/plugin-api.ts > client_hook_names > unread",
-			"reason": "builds one OgygiaError for an unreadable realm, constant work"
-		},
-		{
-			"id": "packages/compiler/src/vite/plugin-api.ts > client_hook_names > unwrap",
-			"reason": "one oxc AST node through its type wrappers (not replayable), at most a few steps; proven in packages/core/test/plugins.test.ts"
-		},
-		{
-			"id": "packages/compiler/src/vite/plugin-api.ts > client_hook_names > key_of",
-			"reason": "one oxc AST property to its key name (not replayable), constant work; proven in packages/core/test/plugins.test.ts"
-		},
-		{
-			"id": "packages/compiler/src/vite/plugin-api.ts > client_hook_names > filter:0~a8d4cb",
-			"reason": "one top-level statement against the export form (an oxc AST node: not replayable), once per realm per build; proven in packages/core/test/plugins.test.ts"
-		},
-		{
-			"id": "packages/compiler/src/vite/plugin-api.ts > client_hook_names > flatMap:0~9d68c8",
-			"reason": "one export statement to its specifiers (an oxc AST node: not replayable), once per realm per build; proven in packages/core/test/plugins.test.ts"
-		},
-		{
-			"id": "packages/compiler/src/vite/plugin-api.ts > client_hook_names > find:0~9b241a",
-			"reason": "one export specifier against the name default (an oxc AST node: not replayable), constant work; proven in packages/core/test/plugins.test.ts"
-		},
-		{
-			"id": "packages/compiler/src/vite/plugin-api.ts > client_hook_names > find:0~de07eb",
-			"reason": "one top-level statement against export default (an oxc AST node: not replayable), constant work; proven in packages/core/test/plugins.test.ts"
-		},
-		{
-			"id": "packages/compiler/src/vite/plugin-api.ts > client_hook_names > filter:0~08f42a",
-			"reason": "one top-level statement against a const declaration (an oxc AST node: not replayable), constant work; proven in packages/core/test/plugins.test.ts"
-		},
-		{
-			"id": "packages/compiler/src/vite/plugin-api.ts > client_hook_names > flatMap:0~15075b",
-			"reason": "one const declaration to its declarators (an oxc AST node: not replayable), constant work; proven in packages/core/test/plugins.test.ts"
-		},
-		{
-			"id": "packages/compiler/src/vite/plugin-api.ts > client_hook_names > find:0~e53b3e",
-			"reason": "one declarator against the exported name (an oxc AST node: not replayable), constant work; proven in packages/core/test/plugins.test.ts"
-		},
-		{
-			"id": "packages/compiler/src/vite/plugin-api.ts > client_hook_names > some:0~21370e",
-			"reason": "one property of the realm's object for a key it cannot read (an oxc AST node: not replayable), constant work; proven in packages/core/test/plugins.test.ts"
-		},
-		{
-			"id": "packages/compiler/src/vite/plugin-api.ts > client_hook_names > find:0~4d8122",
-			"reason": "one property of the realm's object against the key hooks (an oxc AST node: not replayable), constant work; proven in packages/core/test/plugins.test.ts"
 		},
 		{
 			"id": "packages/devtools/src/profiler/beacon.ts > beacon_critical",
@@ -3189,6 +3033,206 @@
 			"reason": "e2e tooling: one override line per released-together package (three), run once per suite by apps/palaestra/e2e/adapters.spec.ts and kit3.spec.ts"
 		},
 		{
+			"id": "packages/devtools/src/devtools/session.ts > take_saved_session",
+			"reason": "browser only: one sessionStorage read and remove (hidden state), once per document; proven by packages/testing/e2e/ogygia-testing.spec.ts (record() across a full page load)"
+		},
+		{
+			"id": "packages/devtools/src/devtools/session.ts > resume_session",
+			"reason": "browser only: starts the recorder on the saved parts (module state, the document's body), once per document; proven by packages/testing/e2e/ogygia-testing.spec.ts (record() across a full page load)"
+		},
+		{
+			"id": "packages/devtools/src/devtools/testing-script.ts > on:2~955b4d",
+			"reason": "browser only: the injected engine's DOMContentLoaded listener, once per document, constant work of its own; proven by packages/testing/e2e/ogygia-testing.spec.ts"
+		},
+		{
+			"id": "packages/devtools/src/client-beacon.ts > BEACON_HOOKS > holeAnswered",
+			"reason": "browser only: one hook event to its beacon function (a DOM element in the event: not replayable), constant work of its own"
+		},
+		{
+			"id": "packages/devtools/src/client-beacon.ts > BEACON_HOOKS > holeBatchMissed",
+			"reason": "browser only: one hook event to its beacon function (a DOM element in the event: not replayable), constant work of its own"
+		},
+		{
+			"id": "packages/devtools/src/client-beacon.ts > BEACON_HOOKS > holeFailed",
+			"reason": "browser only: one hook event to its beacon function (a DOM element in the event: not replayable), constant work of its own"
+		},
+		{
+			"id": "packages/devtools/src/client-beacon.ts > BEACON_HOOKS > regionFailed",
+			"reason": "browser only: one hook event to its beacon function (a DOM element in the event: not replayable), constant work of its own"
+		},
+		{
+			"id": "packages/devtools/src/client-beacon.ts > BEACON_HOOKS > regionHydrated",
+			"reason": "browser only: one hook event to its beacon function (a DOM element in the event: not replayable), constant work of its own"
+		},
+		{
+			"id": "packages/devtools/src/client-beacon.ts > beacon_hook",
+			"reason": "browser only: one hook call to the beacon, once per page (first_handling), a switch on the hook name (a DOM element in the event: not cloneable)"
+		},
+		{
+			"id": "packages/devtools/src/client-beacon.ts > plugin > hooks > criticalSettled",
+			"reason": "browser only: hands one hook event on to the realm or beacon that records it (a DOM element in the event: not replayable), constant work of its own"
+		},
+		{
+			"id": "packages/devtools/src/client-beacon.ts > plugin > hooks > entryFallback",
+			"reason": "browser only: hands one hook event on to the realm or beacon that records it (a DOM element in the event: not replayable), constant work of its own"
+		},
+		{
+			"id": "packages/devtools/src/client-beacon.ts > plugin > hooks > holeAnswered",
+			"reason": "browser only: hands one hook event on to the realm or beacon that records it (a DOM element in the event: not replayable), constant work of its own"
+		},
+		{
+			"id": "packages/devtools/src/client-beacon.ts > plugin > hooks > holeBatchMissed",
+			"reason": "browser only: hands one hook event on to the realm or beacon that records it (a DOM element in the event: not replayable), constant work of its own"
+		},
+		{
+			"id": "packages/devtools/src/client-beacon.ts > plugin > hooks > holeFailed",
+			"reason": "browser only: hands one hook event on to the realm or beacon that records it (a DOM element in the event: not replayable), constant work of its own"
+		},
+		{
+			"id": "packages/devtools/src/client-beacon.ts > plugin > hooks > navigated",
+			"reason": "browser only: hands one hook event on to the realm or beacon that records it (a DOM element in the event: not replayable), constant work of its own"
+		},
+		{
+			"id": "packages/devtools/src/client-beacon.ts > plugin > hooks > regionFailed",
+			"reason": "browser only: hands one hook event on to the realm or beacon that records it (a DOM element in the event: not replayable), constant work of its own"
+		},
+		{
+			"id": "packages/devtools/src/client-beacon.ts > plugin > hooks > regionHydrated",
+			"reason": "browser only: hands one hook event on to the realm or beacon that records it (a DOM element in the event: not replayable), constant work of its own"
+		},
+		{
+			"id": "packages/devtools/src/client-beacon.ts > plugin > hooks > warning",
+			"reason": "browser only: hands one hook event on to the realm or beacon that records it (a DOM element in the event: not replayable), constant work of its own"
+		},
+		{
+			"id": "packages/devtools/src/client.ts > plugin > boot > realm_boot:1~ef831d > lend",
+			"reason": "browser only: lends the app's own chunk of names to the realm, one dynamic import, once per page"
+		},
+		{
+			"id": "packages/devtools/src/client.ts > plugin > boot > then:0~26dd7e",
+			"reason": "browser only, a build's switched-on dock: joins the regions' half to the page beacon once it started, once per document, constant work of its own"
+		},
+		{
+			"id": "packages/devtools/src/devtools/hook-once.ts > first_handling",
+			"reason": "browser only: one WeakSet has/add on a page-wide set under a globalThis symbol (hidden state), constant work"
+		},
+		{
+			"id": "packages/devtools/src/realm.ts > realm_boot",
+			"reason": "browser only: the realm's start at the runtime's boot, once per page: records its facts, installs the beacon, starts the leftovers watch"
+		},
+		{
+			"id": "packages/devtools/src/realm.ts > realm_hook",
+			"reason": "browser only: one hook call into the record, the leftovers watch and the beacon (a DOM element in the event: not cloneable), constant work of its own"
+		},
+		{
+			"id": "packages/testing/src/client.ts > defineClient:0~c5530d > boot",
+			"reason": "browser only: hands the runtime's boot to the injected engine, once per page; a visitor has no engine and it reads one global"
+		},
+		{
+			"id": "packages/testing/src/client.ts > defineClient:0~c5530d > boot > boot:1~53c81c > lend",
+			"reason": "browser only: lends the app's own chunk of names to the realm, one dynamic import, once per page"
+		},
+		{
+			"id": "packages/testing/src/client.ts > defineClient:0~c5530d > hooks > criticalSettled",
+			"reason": "browser only: hands one hook event on to the realm or beacon that records it (a DOM element in the event: not replayable), constant work of its own"
+		},
+		{
+			"id": "packages/testing/src/client.ts > defineClient:0~c5530d > hooks > entryFallback",
+			"reason": "browser only: hands one hook event on to the realm or beacon that records it (a DOM element in the event: not replayable), constant work of its own"
+		},
+		{
+			"id": "packages/testing/src/client.ts > defineClient:0~c5530d > hooks > holeAnswered",
+			"reason": "browser only: hands one hook event on to the realm or beacon that records it (a DOM element in the event: not replayable), constant work of its own"
+		},
+		{
+			"id": "packages/testing/src/client.ts > defineClient:0~c5530d > hooks > holeBatchMissed",
+			"reason": "browser only: hands one hook event on to the realm or beacon that records it (a DOM element in the event: not replayable), constant work of its own"
+		},
+		{
+			"id": "packages/testing/src/client.ts > defineClient:0~c5530d > hooks > holeFailed",
+			"reason": "browser only: hands one hook event on to the realm or beacon that records it (a DOM element in the event: not replayable), constant work of its own"
+		},
+		{
+			"id": "packages/testing/src/client.ts > defineClient:0~c5530d > hooks > loadStarted",
+			"reason": "browser only: hands one hook event on to the realm or beacon that records it (a DOM element in the event: not replayable), constant work of its own"
+		},
+		{
+			"id": "packages/testing/src/client.ts > defineClient:0~c5530d > hooks > navStarted",
+			"reason": "browser only: hands one hook event on to the realm or beacon that records it (a DOM element in the event: not replayable), constant work of its own"
+		},
+		{
+			"id": "packages/testing/src/client.ts > defineClient:0~c5530d > hooks > navigated",
+			"reason": "browser only: hands one hook event on to the realm or beacon that records it (a DOM element in the event: not replayable), constant work of its own"
+		},
+		{
+			"id": "packages/testing/src/client.ts > defineClient:0~c5530d > hooks > regionFailed",
+			"reason": "browser only: hands one hook event on to the realm or beacon that records it (a DOM element in the event: not replayable), constant work of its own"
+		},
+		{
+			"id": "packages/testing/src/client.ts > defineClient:0~c5530d > hooks > regionHydrated",
+			"reason": "browser only: hands one hook event on to the realm or beacon that records it (a DOM element in the event: not replayable), constant work of its own"
+		},
+		{
+			"id": "packages/testing/src/client.ts > defineClient:0~c5530d > hooks > regionMismatched",
+			"reason": "browser only: hands one hook event on to the realm or beacon that records it (a DOM element in the event: not replayable), constant work of its own"
+		},
+		{
+			"id": "packages/testing/src/client.ts > defineClient:0~c5530d > hooks > regionMount",
+			"reason": "browser only: hands one hook event on to the realm or beacon that records it (a DOM element in the event: not replayable), constant work of its own"
+		},
+		{
+			"id": "packages/testing/src/client.ts > defineClient:0~c5530d > hooks > regionUnmount",
+			"reason": "browser only: hands one hook event on to the realm or beacon that records it (a DOM element in the event: not replayable), constant work of its own"
+		},
+		{
+			"id": "packages/testing/src/client.ts > defineClient:0~c5530d > hooks > regionWoke",
+			"reason": "browser only: hands one hook event on to the realm or beacon that records it (a DOM element in the event: not replayable), constant work of its own"
+		},
+		{
+			"id": "packages/testing/src/client.ts > defineClient:0~c5530d > hooks > warning",
+			"reason": "browser only: hands one hook event on to the realm or beacon that records it (a DOM element in the event: not replayable), constant work of its own"
+		},
+		{
+			"id": "packages/testing/src/client.ts > realm",
+			"reason": "browser only: the injected engine's realm, one globalThis read"
+		},
+		{
+			"id": "packages/testing/src/vite.ts > names_plugin",
+			"reason": "builds one dev-only Vite plugin object, once per config"
+		},
+		{
+			"id": "packages/testing/src/vite.ts > names_plugin > configureServer",
+			"reason": "dev only: Vite's configureServer hook, once per dev server: adds one middleware"
+		},
+		{
+			"id": "packages/testing/src/vite.ts > names_plugin > configureServer > use:0~9a1d51",
+			"reason": "dev only: the names endpoint middleware over a live Node request (not recorded): one path compare, and on its path one JSON answer of the regions' names"
+		},
+		{
+			"id": "packages/testing/src/vite.ts > testing",
+			"reason": "the plugin factory: one definePlugin and one Vite plugin, once per config"
+		},
+		{
+			"id": "packages/testing/src/vite.ts > testing > definePlugin:0~5a0f45 > build",
+			"reason": "the build hook, once per build: keeps the regions seam in dev, constant work"
+		},
+		{
+			"id": "packages/testing/src/vite.ts > testing > names_plugin:0~479109",
+			"reason": "hands the names plugin the regions seam it reads, one closure read"
+		},
+		{
+			"id": "packages/testing/src/index.ts > Ogygia > constructor > catch:0~a1b2d0",
+			"reason": "a no-op for an injection that failed (its error is the first call's, which awaits it), constant work"
+		},
+		{
+			"id": "packages/testing/src/index.ts > playwrightDriver > addInitScript",
+			"reason": "hands one script to Playwright's page.addInitScript (a live Page: not recorded), once per test; proven by packages/testing/e2e/ogygia-testing.spec.ts"
+		},
+		{
+			"id": "packages/testing/src/index.ts > withOgygia > extend:0~40fb42 > ogygia > Ogygia:0~36a362 > addInitScript",
+			"reason": "keeps the driver's injection to await before the test's first load (a live Page: not recorded), once per test; proven by packages/testing/e2e/ogygia-testing.spec.ts"
+		},
+		{
 			"id": "packages/devtools/src/messages/runtime.ts > DEVTOOLS_WARNINGS > devtools_page_beacon_load_failed > text",
 			"reason": "a message table entry: wording only"
 		},
@@ -3211,6 +3255,30 @@
 		{
 			"id": "packages/devtools/src/page-beacon-start.ts > start_page_beacon > then:1~491fd5",
 			"reason": "browser only: a failed chunk download, said once per page (a module flag), constant work"
+		},
+		{
+			"id": "packages/devtools/src/client.ts > plugin > boot > record_realm:0~ef831d > lend",
+			"reason": "a dynamic import of the realm's loan chunk, asked once per page by a reader not built with the app; the import is the bundler's"
+		},
+		{
+			"id": "packages/devtools/src/client-beacon.ts > plugin > boot",
+			"reason": "browser only: installs the beacon once per page (install_beacon), constant work of its own"
+		},
+		{
+			"id": "packages/devtools/src/client.ts > plugin > hooks > regionWoke",
+			"reason": "browser only: one record_hook of a hook event (a DOM element: not replayable), constant work of its own"
+		},
+		{
+			"id": "packages/devtools/src/client.ts > plugin > hooks > regionMismatched",
+			"reason": "browser only: one record_hook of a hook event (a DOM element: not replayable), constant work of its own"
+		},
+		{
+			"id": "packages/devtools/src/client.ts > plugin > hooks > navStarted",
+			"reason": "browser only: one record_hook of a hook event, constant work of its own"
+		},
+		{
+			"id": "packages/devtools/src/client.ts > plugin > hooks > loadStarted",
+			"reason": "browser only: one record_hook of a hook event, constant work of its own"
 		},
 		{
 			"id": "packages/devtools/src/client.ts > plugin > hooks > regionMount",
@@ -3791,6 +3859,254 @@
 		{
 			"id": "packages/reshape/src/restore-report.ts > report_restores > __og_restore",
 			"reason": "moved from packages/core/src/runtime/restore-report.ts with reshape (#608): never ran here, browser state; the gate on this base does not follow a file across packages, and the moved tests (packages/reshape/test) prove it"
+		},
+		{
+			"id": "packages/compiler/src/compiler/virtual/core.ts > family:0~04bf59 > load > server_manifest_module:3~e7ea15",
+			"reason": "the server manifest's dev URL of one registered region (a lambda handed to the generator), constant work; the bench session registers no region"
+		},
+		{
+			"id": "packages/compiler/src/compiler/virtual/core.ts > family:0~04bf59 > load > server_manifest_module:4~126d93",
+			"reason": "the server manifest's public URL of one registered region (a lambda handed to the generator), constant work; the bench session registers no region"
+		},
+		{
+			"id": "packages/compiler/src/compiler/virtual/core.ts > family:0~359af7 > load > router_css_module:1~4ebdf0 > read_file",
+			"reason": "one file read for the server router's CSS, a pass-through to the host fs (the router-css generator's own tests read real routes)"
+		},
+		{
+			"id": "packages/compiler/src/compiler/messages.ts > BUILD_ERRORS > virtual_wrong_realm > details",
+			"reason": "a message table entry: wording only"
+		},
+		{
+			"id": "packages/compiler/src/compiler/messages.ts > BUILD_ERRORS > virtual_wrong_realm > text",
+			"reason": "a message table entry: wording only"
+		},
+		{
+			"id": "packages/compiler/src/compiler/messages.ts > BUILD_ERRORS > virtual_unknown > details",
+			"reason": "a message table entry: wording only"
+		},
+		{
+			"id": "packages/compiler/src/compiler/messages.ts > BUILD_ERRORS > virtual_duplicate > details",
+			"reason": "a message table entry: wording only"
+		},
+		{
+			"id": "packages/compiler/src/compiler/virtual/core.ts > map:0~fa4377",
+			"reason": "declares the six driver-resolved families once, as core.ts loads; constant, never per build"
+		},
+		{
+			"id": "packages/compiler/src/compiler/virtual/table.ts > virtual > family",
+			"reason": "a table constructor: called once per entry as core.ts loads, returns its argument with its kind"
+		},
+		{
+			"id": "packages/compiler/src/compiler/virtual/table.ts > virtual > request",
+			"reason": "a table constructor: called once per entry as core.ts loads, returns its argument with its kind"
+		},
+		{
+			"id": "packages/compiler/src/compiler/messages.ts > BUILD_ERRORS > barrels_option_removed > details",
+			"reason": "a message table entry: wording only"
+		},
+		{
+			"id": "packages/compiler/src/compiler/messages.ts > BUILD_ERRORS > barrels_option_removed > text",
+			"reason": "a message table entry: wording only"
+		},
+		{
+			"id": "packages/compiler/src/vite/index.ts > ogygia > seams > exports > map",
+			"reason": "a plugin's export index for one environment (a Map get or create over ogygia()'s closure: not replayable); the index's work is benched in packages/core/bench/compiler.bench.ts; proven through barrels() against a real Vite dev server in packages/barrels/test/plugin.test.ts"
+		},
+		{
+			"id": "packages/compiler/src/vite/index.ts > ogygia > seams > exports > map > ExportIndex:0~b7ee02",
+			"reason": "the index's resolver: the transformed module's own resolve (a live Vite plugin context, not recorded); proven in packages/barrels/test/plugin.test.ts"
+		},
+		{
+			"id": "packages/compiler/src/vite/index.ts > ogygia > seams > pinned_imports",
+			"reason": "the app's import keys and asRegion locals over ogygia()'s closure (not replayable); asRegionLocals is benched with the region transform; proven through barrels() in packages/barrels/test/plugin.test.ts and packages/barrels/test/as-region.test.ts"
+		},
+		{
+			"id": "packages/compiler/src/vite/index.ts > ogygia > barrels_left_of",
+			"reason": "one table per environment and stage in ogygia()'s closure, made once (a map lookup); the table itself is benched in packages/core/bench/compiler.bench.ts"
+		},
+		{
+			"id": "packages/compiler/src/vite/index.ts > ogygia > barrel_why",
+			"reason": "the client tables' why for one barrel row, over ogygia()'s closure (not replayable), at most two lookups; the join is benched in packages/core/bench/compiler.bench.ts and proven in packages/core/test/barrel-left.test.ts"
+		},
+		{
+			"id": "packages/compiler/src/vite/index.ts > ogygia > barrel_why > filter:0~cf3029",
+			"reason": "orders at most nine reasons (constant work); the same filter in the table is benched in packages/core/bench/compiler.bench.ts"
+		},
+		{
+			"id": "packages/compiler/src/vite/index.ts > ogygia > seams > pinned_imports > <anonymous>~a269ad",
+			"reason": "one declaration against the pinned keys and locals (constant work over ogygia()'s closure); proven in packages/barrels/test/plugin.test.ts and packages/barrels/test/as-region.test.ts"
+		},
+		{
+			"id": "packages/compiler/src/vite/index.ts > ogygia > seams > pinned_imports > <anonymous>~a269ad > some:0~d4dbd6",
+			"reason": "one specifier's local against the asRegion locals (a Set has); proven in packages/barrels/test/as-region.test.ts"
+		},
+		{
+			"id": "packages/compiler/src/vite/index.ts > ogygia > seams > pinned_imports > <anonymous>~a269ad > some:0~e91cb2",
+			"reason": "one attribute key against the app's import keys (a Set has); proven in packages/barrels/test/plugin.test.ts"
+		},
+		{
+			"id": "packages/compiler/src/vite/index.ts > ogygia > stage_host",
+			"reason": "builds one Vite plugin object per stage (constant work, over ogygia()'s closure); the stage's transforms are benched in packages/barrels/bench/barrels.bench.ts"
+		},
+		{
+			"id": "packages/compiler/src/vite/index.ts > ogygia > stage_host > transform",
+			"reason": "a live Vite transform hook (its this.resolve and this.addWatchFile are the plugin context, not recorded); a stage's work is the plugins' transforms, benched in packages/barrels/bench/barrels.bench.ts; proven against a real Vite dev server and build in packages/barrels/test/plugin.test.ts"
+		},
+		{
+			"id": "packages/compiler/src/vite/index.ts > ogygia > stage_host > transform > filter:0~18c7ef",
+			"reason": "each stage transform's own filter on the module id (constant work per plugin); proven in packages/barrels/test/plugin.test.ts"
+		},
+		{
+			"id": "packages/compiler/src/vite/index.ts > ogygia > stage_host > transform > t > resolve",
+			"reason": "one specifier through the host's this.resolve (a live Vite plugin context, not recorded); its throw and external cases are proven in packages/barrels/test/plugin.test.ts"
+		},
+		{
+			"id": "packages/compiler/src/vite/index.ts > ogygia > stage_host > transform > t > watch",
+			"reason": "the host's this.addWatchFile (a live Vite plugin context, not recorded); proven by the barrel-edit case in packages/barrels/test/plugin.test.ts"
+		},
+		{
+			"id": "packages/compiler/src/vite/plugin-api.ts > NO_SEAMS > exports > map",
+			"reason": "a constant rejection for a plugin list resolved outside ogygia(); proven in packages/core/test/plugins.test.ts"
+		},
+		{
+			"id": "packages/compiler/src/vite/plugin-api.ts > NO_SEAMS > pinned_imports",
+			"reason": "a constant throw for a plugin list resolved outside ogygia(); proven in packages/core/test/plugins.test.ts"
+		},
+		{
+			"id": "packages/compiler/src/vite/plugin-api.ts > resolve_plugins > build:0~4ffc6b > transform",
+			"reason": "one push of a plugin's stage transform (a function: not replayable), constant work; proven in packages/core/test/plugins.test.ts"
+		},
+		{
+			"id": "packages/compiler/src/compiler/exports/index.ts > EVERY_BARREL > forced",
+			"reason": "a constant answer (false) of the allow-everything policy"
+		},
+		{
+			"id": "packages/compiler/src/compiler/exports/parse.ts > attribute_keys > map:0~781359",
+			"reason": "one attribute node to its key name (an oxc AST node: not replayable), constant work; the parse is benched in packages/core/bench/compiler.bench.ts"
+		},
+		{
+			"id": "packages/compiler/src/vite/index.ts > ogygia > Shapes:0~f72d16",
+			"reason": "the app's file read for its shared shapes (a BOM-stripped read over the plugin's closure: not replayable); the shapes are benched in packages/core/bench/compiler.bench.ts"
+		},
+		{
+			"id": "packages/compiler/src/compiler/fouc-css.ts > through_caller",
+			"reason": "hands one specifier to the walk's resolver (a function argument: not cloneable); proven in packages/core/test/exports-index.test.ts"
+		},
+		{
+			"id": "packages/compiler/src/compiler/fouc-css.ts > collectFoucCssReachable > Shapes:0~3bebf5",
+			"reason": "the walk's own file read for a fresh index's shapes (a pass-through to the caller's reader: not replayable); proven in packages/core/test/exports-index.test.ts"
+		},
+		{
+			"id": "packages/compiler/src/vite/index.ts > ogygia > css_walk_index",
+			"reason": "the CSS walk's export index for one environment (a Map get or create over the plugin's closure), constant work; the index's work is benched in packages/core/bench/compiler.bench.ts"
+		},
+		{
+			"id": "packages/compiler/src/vite/index.ts > ogygia > seams > regions > barrelWhy",
+			"reason": "dev only: the regions seam hands the dock one barrel answer from the build's index, constant work of its own"
+		},
+		{
+			"id": "packages/compiler/src/vite/index.ts > ogygia > seams > regions > names",
+			"reason": "dev only: the regions seam lists the build's region entries, linear in the regions"
+		},
+		{
+			"id": "packages/compiler/src/vite/plugin-api.ts > NO_SEAMS > regions > barrelWhy",
+			"reason": "the empty seam a plugin sees before the build is set up: answers nothing, constant work"
+		},
+		{
+			"id": "packages/compiler/src/vite/plugin-api.ts > NO_SEAMS > regions > names",
+			"reason": "the empty seam a plugin sees before the build is set up: answers nothing, constant work"
+		},
+		{
+			"id": "packages/compiler/src/vite/index.ts > ogygia > closeBundle",
+			"reason": "build only: Vite's closeBundle hook, once per build leg, constant work of its own"
+		},
+		{
+			"id": "packages/compiler/src/vite/paths.ts > runtime_content_hash",
+			"reason": "build only: hashes the runtime's files on disk (file reads, not recorded), once per build leg"
+		},
+		{
+			"id": "packages/compiler/src/vite/paths.ts > scan_entry_pattern",
+			"reason": "dev only: one island file to an optimizeDeps pattern (a realpath and one replace), constant work per file"
+		},
+		{
+			"id": "packages/core/src/contract/core-files.ts > built",
+			"reason": "one path.join into core's dist, run as the module loads (never per request or per build)"
+		},
+		{
+			"id": "packages/core/src/contract/core-files.ts > id_dir",
+			"reason": "real_posix and one trailing slash, run as the module loads (CORE_ROOT_ID), constant work"
+		},
+		{
+			"id": "packages/core/src/contract/core-files.ts > real_posix",
+			"reason": "one realpath on the file system (not replayable) and one replace, constant work"
+		},
+		{
+			"id": "packages/compiler/src/compiler/messages.ts > BUILD_ERRORS > plugin_client_hook_unknown > text",
+			"reason": "a message table entry: wording only"
+		},
+		{
+			"id": "packages/compiler/src/compiler/messages.ts > BUILD_ERRORS > plugin_client_hook_unknown > details",
+			"reason": "a message table entry: wording only"
+		},
+		{
+			"id": "packages/compiler/src/compiler/messages.ts > BUILD_ERRORS > plugin_client_hooks_unread > text",
+			"reason": "a message table entry: wording only"
+		},
+		{
+			"id": "packages/compiler/src/compiler/messages.ts > BUILD_ERRORS > plugin_client_hooks_unread > details",
+			"reason": "a message table entry: wording only"
+		},
+		{
+			"id": "packages/compiler/src/compiler/virtual/core.ts > hook_gate",
+			"reason": "declares one hook constant (its from is a lambda: not cloneable), once per hook as core.ts loads; constant, never per build"
+		},
+		{
+			"id": "packages/compiler/src/vite/plugin-api.ts > client_hook_names > unread",
+			"reason": "builds one OgygiaError for an unreadable realm, constant work"
+		},
+		{
+			"id": "packages/compiler/src/vite/plugin-api.ts > client_hook_names > unwrap",
+			"reason": "one oxc AST node through its type wrappers (not replayable), at most a few steps; proven in packages/core/test/plugins.test.ts"
+		},
+		{
+			"id": "packages/compiler/src/vite/plugin-api.ts > client_hook_names > key_of",
+			"reason": "one oxc AST property to its key name (not replayable), constant work; proven in packages/core/test/plugins.test.ts"
+		},
+		{
+			"id": "packages/compiler/src/vite/plugin-api.ts > client_hook_names > filter:0~a8d4cb",
+			"reason": "one top-level statement against the export form (an oxc AST node: not replayable), once per realm per build; proven in packages/core/test/plugins.test.ts"
+		},
+		{
+			"id": "packages/compiler/src/vite/plugin-api.ts > client_hook_names > flatMap:0~9d68c8",
+			"reason": "one export statement to its specifiers (an oxc AST node: not replayable), once per realm per build; proven in packages/core/test/plugins.test.ts"
+		},
+		{
+			"id": "packages/compiler/src/vite/plugin-api.ts > client_hook_names > find:0~9b241a",
+			"reason": "one export specifier against the name default (an oxc AST node: not replayable), constant work; proven in packages/core/test/plugins.test.ts"
+		},
+		{
+			"id": "packages/compiler/src/vite/plugin-api.ts > client_hook_names > find:0~de07eb",
+			"reason": "one top-level statement against export default (an oxc AST node: not replayable), constant work; proven in packages/core/test/plugins.test.ts"
+		},
+		{
+			"id": "packages/compiler/src/vite/plugin-api.ts > client_hook_names > filter:0~08f42a",
+			"reason": "one top-level statement against a const declaration (an oxc AST node: not replayable), constant work; proven in packages/core/test/plugins.test.ts"
+		},
+		{
+			"id": "packages/compiler/src/vite/plugin-api.ts > client_hook_names > flatMap:0~15075b",
+			"reason": "one const declaration to its declarators (an oxc AST node: not replayable), constant work; proven in packages/core/test/plugins.test.ts"
+		},
+		{
+			"id": "packages/compiler/src/vite/plugin-api.ts > client_hook_names > find:0~e53b3e",
+			"reason": "one declarator against the exported name (an oxc AST node: not replayable), constant work; proven in packages/core/test/plugins.test.ts"
+		},
+		{
+			"id": "packages/compiler/src/vite/plugin-api.ts > client_hook_names > some:0~21370e",
+			"reason": "one property of the realm's object for a key it cannot read (an oxc AST node: not replayable), constant work; proven in packages/core/test/plugins.test.ts"
+		},
+		{
+			"id": "packages/compiler/src/vite/plugin-api.ts > client_hook_names > find:0~4d8122",
+			"reason": "one property of the realm's object against the key hooks (an oxc AST node: not replayable), constant work; proven in packages/core/test/plugins.test.ts"
 		},
 		{
 			"id": "packages/federation/src/messages.ts > FEDERATION_WARNINGS > federation_audience_missing > text",
