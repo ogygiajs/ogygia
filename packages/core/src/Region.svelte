@@ -319,7 +319,7 @@
 		try {
 			return page.error != null;
 		} catch {
-			return false; // isolated render without a live page (a hole endpoint, a remote's region)
+			return false; // ok: isolated render without a live page (a hole endpoint, a remote's region)
 		}
 	}
 	// ONLY KIT'S OWN PASS IS KIT'S TO HYDRATE: a render root ogygia starts (a held region baked by a

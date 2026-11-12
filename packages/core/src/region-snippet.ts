@@ -81,7 +81,7 @@ const host_context = (): Map<unknown, unknown> | null => {
 	try {
 		return getAllContexts();
 	} catch {
-		return null;
+		return null; // ok: outside a component's init: no host contexts to take
 	}
 };
 /** context.ts `isInLiveSnippet` reads it: a hole in the body stays deferred (Region.svelte). */

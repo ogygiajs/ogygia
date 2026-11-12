@@ -783,6 +783,18 @@ export const WARNINGS = {
 			so the island reads \`undefined\` there.
 		`
 	},
+	page_payload_unreadable: {
+		text: (a: { what: string }): string => prose`
+			the page's ${a.what} could not be read back, so islands go on without it. The error follows.
+		`,
+		details: (): string => prose`
+			Dev only. The server wrote data into the page for its islands (the page seed, the page
+			facts, the holes record, the context marker, remote functions' data), and the browser could not decode it. The
+			usual cause is a custom type the server's \`transport\` encodes and the browser has no
+			decoder for. Islands then read nothing there. Give the type a decoder in \`transport\`
+			(hooks.ts), or pass plain data.
+		`
+	},
 	store_not_extensible: {
 		text: (a: { tag: string }): string => prose`
 			store "${a.tag}": the store object is not extensible (frozen/sealed), so it cannot carry

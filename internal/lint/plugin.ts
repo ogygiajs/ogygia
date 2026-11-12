@@ -336,7 +336,7 @@ function swallows(handler: unknown): boolean {
 /** The packages whose fallback catches are not swept yet (#1286): there, only an empty catch or
  *  handler (`() => {}`, `=> null`, `=> undefined`, `=> void 0`, `noop`) is refused, as before.
  *  Each sweep takes its package out; the list and `empty_handler` go with the last. */
-const FALLBACKS_UNSWEPT_RE = /\/packages\/(compiler|core|devtools)\//;
+const FALLBACKS_UNSWEPT_RE = /\/packages\/(compiler|devtools)\//;
 
 /** The handlers refused before #1286: they do nothing at all. */
 function empty_handler(handler: unknown): boolean {

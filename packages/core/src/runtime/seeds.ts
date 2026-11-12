@@ -82,7 +82,8 @@ function parse_page_seed(el: Element): PageSeed | null {
 		const raw = parse_sidecar_text(el, page_defer_revivers(transport_decoders)) as PageSeed;
 		if (slots.nav && !DEVTOOLS) el.textContent = '';
 		return raw;
-	} catch {
+	} catch (e) {
+		if (import.meta.env.DEV) warn('page_payload_unreadable', { what: 'seed' }, e);
 		return null;
 	}
 }
@@ -96,7 +97,7 @@ function apply_page_seed(raw: PageSeed | null): void {
 		try {
 			url = new URL(raw.url);
 		} catch {
-			url = undefined;
+			url = undefined; // ok: the server writes `url.href`; only a hand-made seed lands here
 		}
 	}
 	set_page({ ...raw, url });
@@ -166,7 +167,8 @@ function absorb_page_facts(): void {
 		let facts: Record<string, unknown>;
 		try {
 			facts = parse_wire_text(text, false, transport_decoders) as Record<string, unknown>;
-		} catch {
+		} catch (e) {
+			if (import.meta.env.DEV) warn('page_payload_unreadable', { what: 'facts' }, e);
 			continue;
 		}
 		if (!facts || typeof facts !== 'object') continue;
