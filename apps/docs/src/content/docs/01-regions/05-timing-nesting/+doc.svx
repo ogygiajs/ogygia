@@ -58,6 +58,8 @@ Each of the four demos below is a real island with that schedule:
 
 The same applies to every other schedule until the island is live. A `load`, `idle`, `visible` or media island is server markup with no handlers until it wakes, so a press on it before then wakes it at once, and the click is replayed when it is live. A Ctrl, Cmd, Shift or middle click on a link opens it the way the browser normally would, since a replay could not.
 
+A click made while an island is starting goes to the island, and to nothing else at that moment. ogygia holds it from the page's own click listeners too (a `document` listener that closes a menu on an outside click, click analytics), so no listener sees it twice. They hear it once, as the replay, when the island is live (or, if the island fails to wake, when ogygia gives the click back to the server markup). So a page listener hears an early click late, and untrusted (`event.isTrusted` is `false`). Only a listener that runs before ogygia's hears the press itself: one on `window` in the capture phase, or one on `document` in the capture phase added before ogygia started.
+
 One caution: the replayed first event is not a _trusted_ browser gesture, so gesture-gated APIs (`window.open`, the clipboard, fullscreen) are blocked when called from it. A component that ignores untrusted clicks (`if (!event.isTrusted) return`, often written to skip its own synthetic clicks) ignores the replay too, so narrow such a guard. A component can detect this case and adapt:
 
 ```svelte
