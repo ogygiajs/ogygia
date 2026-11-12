@@ -1,7 +1,7 @@
 // Mutation testing through the simulator (src/mutate.ts): a mutant is one change at one line of a
 // package's source; it is killed when a seed finds what that seed did not find on the code as it is.
 import { describe, expect, it } from 'vitest';
-import { apply_mutant, package_of, verdict } from '../src/mutate.ts';
+import { apply_mutant, clone_command, package_of, tally, verdict } from '../src/mutate.ts';
 
 const SRC = [
 	'function f(a, b) {',
@@ -92,5 +92,23 @@ describe('the verdict', () => {
 	it('is killed by a build that fails, or a seed that did not finish', () => {
 		expect(verdict(base, new Map([['191:3', ['waste 1a']]]), 'build failed').killed).toBe(true);
 		expect(verdict(base, new Map([['191:3', ['waste 1a']]])).by).toEqual(['191:4 did not finish']);
+	});
+});
+
+describe('a mutation run', () => {
+	it('clones the repo copy-on-write on macOS and on Linux (the daily job runs on Linux)', () => {
+		expect(clone_command('darwin', '/r', '/b')).toBe("cp -cR '/r' '/b'");
+		expect(clone_command('linux', '/r', '/b')).toBe("cp -a --reflink=auto '/r' '/b'");
+	});
+
+	it('stops starting mutants past its time budget, and says how many it got through', () => {
+		expect(tally([{ killed: true }, { killed: false }], 5, '2026-11-12T10:00:00.000Z')).toEqual({
+			killed: 1,
+			judged: 2,
+			total: 5,
+			rate: 50,
+			at: '2026-11-12T10:00:00.000Z'
+		});
+		expect(tally([], 5, 'x').rate).toBe(0);
 	});
 });
