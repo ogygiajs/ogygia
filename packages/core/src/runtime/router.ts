@@ -11,7 +11,7 @@
  * merge, body reconcile, seeds, a11y) is ./router-nav.ts, loaded on the first prefetch or
  * intercepted click. A visitor who never leaves the page never downloads it.
  */
-import { flights, random, seen, STALE, type Scope, type Stale } from '@ogygia/machine';
+import { flights, random, STALE, type Scope, type Stale } from '@ogygia/machine';
 import { import_again } from './import-again.ts';
 import { kit_hydrates_page } from './kit-boot.ts';
 import { create_navigation, type Navigation } from './navigation.ts';
@@ -20,6 +20,7 @@ import { publish_nav } from './nav-handle.ts';
 import { nearest_attr } from './nearest-attr.ts';
 import { record_server_body } from './ownership.ts';
 import { runtime_session } from './session.ts';
+import { once_on_screen } from './viewport.ts';
 import { OgygiaError, warn } from '../messages/core.ts';
 import { report_thrown } from '../report-thrown.ts';
 import { download } from '../policies.ts';
@@ -797,30 +798,19 @@ export class SpaRouter {
 	 * After start + every navigation, in IDLE: eager links warm now; viewport links get observed.
 	 * Only anchors under a preload-marked element are read — an unmarked anchor has no trigger. Idle,
 	 * because the scan competes with the freshly swapped page's own islands for the main thread and
-	 * a warm is speculation by definition. The scan and its observer are the page visit's
-	 * (./session.ts `PageVisit`): the next page's swap disconnects it, so the anchors of a page left
+	 * a warm is speculation by definition. The scan and its watches are the page visit's
+	 * (./session.ts `PageVisit`): the next page's swap ends them, so the anchors of a page left
 	 * behind are never held, and a scan still waiting for idle time when its page is left never runs.
+	 * "On screen" is the one viewport tracker's (./viewport.ts), as for a region's `visible` wake.
 	 */
 	scan_preload_links(): void {
 		const page = runtime_session.visit.scope;
 		on_idle(page, () => {
-			const observer = seen.observer(
-				(entries, self) => {
-					for (const e of entries) {
-						if (e.isIntersecting) {
-							self.unobserve(e.target);
-							this.#warm_anchor(e.target);
-						}
-					}
-				},
-				{ rootMargin: '0px' }
-			);
-			// (no observer on this platform: viewport links are not warmed, eager ones still are)
-			const io = observer === null ? null : page.watch(observer);
 			for (const anchor of Array.from(document.querySelectorAll(PRELOAD_MARKED_ANCHORS))) {
 				const rank = this.#preload_rank(anchor);
 				if (rank === PRELOAD_RANK.eager) this.#warm_anchor(anchor);
-				else if (rank === PRELOAD_RANK.viewport) io?.observe(anchor);
+				else if (rank === PRELOAD_RANK.viewport)
+					page.defer(once_on_screen(anchor, '0px', () => this.#warm_anchor(anchor)));
 			}
 		});
 	}
