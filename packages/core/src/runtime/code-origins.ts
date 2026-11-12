@@ -9,8 +9,10 @@
  * a `'strict-dynamic'` CSP the runtime's `import()` is trusted, so the CSP would not stop it.
  *
  * Read once per document, from the first runtime script in the head (the server's, before any
- * markup a page adds later), and never widened. A {@link CodeUrl} is made only here: the loader
- * (./import-again.ts `import_file`) takes nothing else. test/browser/code-origins.test.ts.
+ * markup a page adds later), and never widened. A {@link CodeUrl} is made only here, and
+ * {@link import_code}, the runtime's one computed `import()`, takes nothing else: an island's load,
+ * its warm and its preload links, and the dev region-css rescue all ask here (#981).
+ * test/browser/code-origins.test.ts.
  *
  * A leaf: island-side code (./entry-locations.ts) imports it.
  */
@@ -65,6 +67,12 @@ export function code_url_or_refuse(url: string, entry: string = url): CodeUrl {
 	const ok = code_url(url);
 	if (ok === null) throw new OgygiaError('island_code_refused', { url, entry });
 	return ok;
+}
+
+/** The runtime's one `import()` of a computed URL: island code, a retry of its file, a dev region's
+ *  styles. Nothing else in the runtime imports a URL it did not write (test/code-origins.test.ts). */
+export function import_code<T>(url: CodeUrl): Promise<T> {
+	return import(/* @vite-ignore */ url);
 }
 
 // ── a location is the same island's built file ──────────────────────────────────────────────
