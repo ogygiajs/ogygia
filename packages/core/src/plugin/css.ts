@@ -2,7 +2,7 @@
  * `ogygia/plugin/css` — the CSS of components a programmatic router renders (see the server-router-css
  * notes + compiler/link/router-css.ts). Such a page's component is a VALUE, not a Kit route, so nothing
  * file-derived links its scoped `<style>` / plain `.css` imports. The build registers every component a
- * page module (`b.pageModules()`) can reach in a runtime registry (`virtual:ogygia/router-css`); this
+ * page module (`b.pageModules()`) can reach in a runtime registry (`ogygia:server/router-css`); this
  * turns the components ONE render places into the `<link>` / `<style>` head tags `document()` hoists,
  * deduped against the request's held-region links.
  *
@@ -14,6 +14,7 @@ import { flights, say } from '@ogygia/machine';
 import { router_css_active, router_css_of } from '../router-css.ts';
 import { claim_region_css } from '../context.ts';
 import { warn } from '../messages/server.ts';
+import { OGYGIA_RCSS, OGYGIA_REGION_CSS } from '../wire-markup.ts';
 
 // ── regexes
 const STYLE_CLOSE_G = /<\/style/gi;
@@ -26,7 +27,7 @@ const STYLE_CLOSE_G = /<\/style/gi;
 // importer): that run reads the edited registry.
 const registry = flights({
 	name: 'router-css registry',
-	run: () => import('virtual:ogygia/router-css')
+	run: () => import('ogygia:server/router-css')
 });
 /** Said once for the process. */
 const inactive = say({ max: 1 });
@@ -61,9 +62,9 @@ export async function componentCssHead(components: readonly unknown[]): Promise<
 	for (const e of entries) {
 		if (!fresh.has(e.key)) continue;
 		fresh.delete(e.key); // shared child CSS can repeat across components — link once
-		if (e.href) head += `<link rel="stylesheet" href="${e.href}" data-ogygia-region-css>`;
+		if (e.href) head += `<link rel="stylesheet" href="${e.href}" ${OGYGIA_REGION_CSS}>`;
 		else if (e.css)
-			head += `<style data-ogygia-rcss>${e.css.replace(STYLE_CLOSE_G, '<\\/style')}</style>`;
+			head += `<style ${OGYGIA_RCSS}>${e.css.replace(STYLE_CLOSE_G, '<\\/style')}</style>`;
 	}
 	return head;
 }

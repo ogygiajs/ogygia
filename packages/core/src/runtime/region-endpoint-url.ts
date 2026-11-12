@@ -1,35 +1,20 @@
+import { clock } from '@ogygia/machine';
+import type { HoleRefusal } from '../contract/runtime-hooks.ts';
 import { preload_island_graph } from './island-graph-preload.ts';
-import { fetch_priority_of, LoadSlot, type LoadClass } from './load-scheduler.ts';
+import { LoadSlot } from './load-scheduler.ts';
+import { class_at, fetch_priority_of, PRIORITY, type LoadClass } from './load-class.ts';
+import { flights, STALE, type Flights } from '@ogygia/machine';
 import { entry_location } from './entry-locations.ts';
 import { import_file } from './import-again.ts';
+import { code_url, type CodeUrl } from './code-origins.ts';
+import { cache } from '@ogygia/machine';
 
 /** Hoisted (hot paths — connectedCallback/hydrate run per region); shared with core's
  *  foreign-origin checks. */
 export const ABSOLUTE_URL_SCHEME: RegExp = /^[a-z][a-z0-9+.-]*:/i;
 
-/**
- * Defense-in-depth: only fetch region HTML from same-origin capability URLs.
- * Mint always emits a path-only URL (`resolve(DEFAULT_ISLANDS_ENDPOINT)?…`). Absolute /
- * protocol-relative endpoints would require prior HTML injection — still reject them so the
- * runtime is not an XSS amplifier. See INVARIANTS.md · HOLE-TRUST.
- */
-
-/** True when `endpoint` resolves to same-origin http(s). */
-export function is_allowed_region_endpoint(
-	endpoint: string,
-	page_origin: string = location.origin
-): boolean {
-	if (typeof endpoint !== 'string' || endpoint.length === 0) return false;
-	try {
-		const url = new URL(endpoint, page_origin);
-		if (url.protocol !== 'http:' && url.protocol !== 'https:') return false;
-		if (url.origin !== page_origin) return false;
-		// Reject if the final response could redirect cross-origin — checked by caller via res.url.
-		return true;
-	} catch {
-		return false;
-	}
-}
+// (the same-origin checks are the HTML sink's gate: ./html-sink.ts)
+export { is_allowed_region_endpoint, is_same_origin_response } from './html-sink.ts';
 
 /** How far this browser's clock may run behind the server's and still see an expiry. */
 const CLOCK_SKEW_SEC = 300;
@@ -42,7 +27,7 @@ const CLOCK_SKEW_SEC = 300;
  */
 export function capability_expired(
 	endpoint: string,
-	now_ms: number = Date.now(),
+	now_ms: number = clock.wall(), // wall: against the server's signed epoch `exp`
 	page_origin: string = location.origin
 ): boolean {
 	try {
@@ -86,7 +71,7 @@ export function is_redirected_answer(res: Response): boolean {
  * - `forbidden`: the handle refused the capability (a 403, `deny` says why — `foreign-key` when the
  *   page and the islands endpoint came from different deployments).
  */
-export type RegionRefusal = 'redirected' | 'document' | 'forbidden';
+export type RegionRefusal = HoleRefusal;
 
 /** The error a refused answer throws: the fetch loop does not retry it (the answer is
  *  deterministic — a redirect rule, a refused capability, not a flaky network) and DEV names the
@@ -104,6 +89,28 @@ export class RegionAnswerRefused extends Error {
 		this.final_url = final_url;
 		this.deny = deny;
 	}
+}
+
+/** The error a 429 throws: the endpoint's budget for this visitor is spent. `wait_ms`: how long its
+ *  `Retry-After` says to wait, or null when it sent none (a proxy's 429, a server without one). */
+export class RegionAnswerLater extends Error {
+	override name = 'RegionAnswerLater';
+	readonly wait_ms: number | null;
+
+	constructor(wait_ms: number | null, url: string) {
+		super(`region answer: 429 Too Many Requests (${url})`);
+		this.wait_ms = wait_ms;
+	}
+}
+
+/** A response's `Retry-After` in ms: delta-seconds, or an HTTP date; null when absent or unreadable. */
+export function retry_after_ms(res: Response): number | null {
+	const v = res.headers.get('retry-after')?.trim();
+	if (!v) return null;
+	if (/^\d+$/.test(v)) return Number(v) * 1000;
+	const at = Date.parse(v);
+	// wall: an HTTP date is a moment on the wall clock
+	return Number.isNaN(at) ? null : Math.max(0, at - clock.wall());
 }
 
 /** The reason a 403 without `x-ogygia-deny` gets: ogygia's handle never answered it. */
@@ -128,19 +135,6 @@ export function deny_of(res: Response, endpoint: string): string {
 	return `foreign-key: signed by ${minted || '?'}, answered by ${res.headers.get('x-ogygia-key') ?? '?'}`;
 }
 
-/** After fetch: reject opaque redirects that left the page origin. */
-export function is_same_origin_response(
-	res: Response,
-	page_origin: string = location.origin
-): boolean {
-	if (!res.url) return true; // older environments — rely on request URL check
-	try {
-		return new URL(res.url).origin === page_origin;
-	} catch {
-		return false;
-	}
-}
-
 /**
  * Normalize a hydrate `entry` for `import()`.
  *
@@ -161,21 +155,65 @@ export function island_module_url(entry: string, base?: string): string {
 	if (hit !== undefined) return hit;
 	const resolved = new URL(entry, b);
 	const out = resolved.pathname + resolved.search + resolved.hash;
-	if (module_urls.size > 4000) module_urls.clear();
 	module_urls.set(key, out);
 	return out;
 }
-/** A relative entry resolved against its document, by base + entry (asked on every wake and warm). */
-const module_urls = new Map<string, string>();
+/** A relative entry resolved against its document, by base + entry (asked on every wake and warm;
+ *  the least recently asked go first). */
+const module_urls = cache<string, string>({ name: 'island module urls', max: 4000 });
 
 // ── the ONE island-module warmer ─────────────────────────────────────────────
 // Every "get this island's JS into the module cache before it's needed" call site funnels here:
 // the router's next-page prefetch warm, core's visible-island idle warm, and the interaction
 // feature's pointerenter warm. One URL-level dedupe set replaces three inconsistent schemes
 // (`import()` is idempotent, but re-parsing the specifier on every hover isn't free). A failed
-// warm un-marks the URL so the real wake — or a later warm — retries; warming is never fatal.
-/** Each warmed module's download slot (a warm with a better class joining it promotes it, #437). */
-const warmed_modules = new Map<string, LoadSlot>();
+// warm is not kept, so the real wake — or a later warm — retries; warming is never fatal.
+/** A warm's ask: the module's key, and the file it names as the caller that started it spelled it. */
+type Warm = { key: string; entry: string; base: string | undefined; url: CodeUrl };
+/** One warm per module, kept once it landed: a warm with a more urgent class joining one raises it
+ *  (#437: still queued, it starts now at that class; started, its graph links are raised). Made at
+ *  the first warm: a module that only checks an endpoint makes none. */
+let warm_flights: Flights<Warm, unknown, Pick<Warm, 'key'>> | undefined;
+const warms = () => (warm_flights ??= make_warms());
+const make_warms = () =>
+	flights.keyed<Warm>()({
+		name: 'island warm',
+		key: ['key'],
+		ignore: {
+			entry: 'the module the key names, as the warm that started it spelled it',
+			base: 'what that spelling resolves against',
+			url: 'the key before it was made absolute'
+		},
+		run: async ({ entry, base, url }, _signal, flight) => {
+			// a warm is the load scheduler's to time (load-scheduler.ts): a hover is the visitor's, a page
+			// prefetch's warm is speculative
+			const slot = new LoadSlot({
+				kind: 'code',
+				cls: class_at(flight.priority),
+				label: entry,
+				flight
+			});
+			const release = await slot.ready;
+			try {
+				// the whole graph with the entry, at the class it started with; a later raise lifts it
+				preload_island_graph(entry, base, fetch_priority_of(slot.cls()));
+				flight.onRaise((p) => preload_island_graph(entry, base, fetch_priority_of(class_at(p))));
+				// (through the file's loader the island's own load uses: a warm that failed leaves the load a
+				// fresh URL to ask, not the failed one — #261)
+				return await import_file(url);
+			} catch {
+				return STALE; // ok: a warm that failed is not kept (STALE); the island's own load asks again and says its failure
+			} finally {
+				release();
+			}
+		}
+	});
+
+/** Test seam: forget every warm (a fresh document). */
+export function reset_island_warms(): void {
+	warm_flights?.drop(() => true);
+	warm_flights = undefined;
+}
 
 /** The warmer's key: the resolved module as an absolute URL (a location arrives absolute, an href
  *  off a page root-relative — the same file must be one key). */
@@ -197,35 +235,15 @@ export function warm_island_module(
 	if (!url) return;
 	// a build's identity with no known location names no file: the load finds it (import_entry)
 	if (!entry_location(entry, base) && url.includes('/ogygia/og-region.')) return;
-	const key = warm_key(url);
-	const joined = warmed_modules.get(key);
-	if (joined) {
-		// the warm already asked for: a hover after a page prefetch lifts the prefetch's download to
-		// the visitor's class (still queued, it starts now; started, its graph links are raised)
-		if (joined.queued) joined.promote(cls);
-		else preload_island_graph(entry, base, fetch_priority_of(cls));
-		return;
-	}
-	// a warm is the load scheduler's to time (load-scheduler.ts): a hover is the visitor's, a page
-	// prefetch's warm is speculative
-	const slot = new LoadSlot({ kind: 'code', cls, label: entry });
-	warmed_modules.set(key, slot);
-	void slot.ready.then((release) => {
-		// the whole graph with the entry, at the class it started with (a join may have promoted it)
-		preload_island_graph(entry, base, fetch_priority_of(slot.cls()));
-		// (through the file's loader the island's own load uses: a warm that failed leaves the load a
-		// fresh URL to ask, not the failed one — #261)
-		import_file(url)
-			.catch(() => {
-				warmed_modules.delete(key);
-			})
-			.finally(release);
-	}); // ok: the import's failure is caught inside (a warm that failed leaves a fresh URL to ask)
+	// (code on an origin the page loads none from is not warmed: its load says why, ./code-origins.ts)
+	const code = code_url(url);
+	if (code === null) return;
+	void warms().get({ key: warm_key(url), entry, base, url: code }, { priority: PRIORITY[cls] }); // ok: a warm that failed answers STALE, never rejects: nothing to hear
 }
 
 /** Has this island module already been warmed (or imported through the warmer)? `entry` resolves
  *  the way `warm_island_module` resolves it; `base` for an href read off a foreign document. */
 export function is_warmed_module(entry: string, base?: string): boolean {
 	const url = island_module_url(entry, base);
-	return !!url && warmed_modules.has(warm_key(url));
+	return !!url && warm_flights?.peek({ key: warm_key(url) }) !== undefined;
 }

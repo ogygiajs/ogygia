@@ -10,6 +10,7 @@ import { install as install_morph } from '../../src/runtime/morph.ts';
 import { SpaRouter } from '../../src/runtime/router.ts';
 import { prepare_spa_document } from '../../src/runtime/seeds.ts';
 import { page_state } from '../../src/shims/page-store.svelte.ts';
+import { TEST_MARK_ATTR } from './_response-mark.ts';
 
 declare module 'vitest/browser' {
 	interface BrowserCommands {
@@ -25,8 +26,9 @@ const NEXT = '/soft-refresh-next';
 
 const page = (title: string, who: string, extra = '') =>
 	'<!doctype html><html><head><meta name="ogygia-router" content="plain">' +
-	`<meta name="soft-page" content="${who}">${extra}<title>${title}</title></head>` +
-	`<body><p>${who}</p><script type="application/ogygia-page" data-og-format="json">` +
+	`<meta name="soft-page" content="${who}">${extra}<title>${title}</title>` +
+	`<script type="application/x-runtime-stand-in" data-ogygia-runtime${TEST_MARK_ATTR}></script></head>` +
+	`<body><p>${who}</p><script type="application/ogygia-page" data-og-format="json"${TEST_MARK_ATTR}>` +
 	JSON.stringify({ url: new URL(who === 'a' ? home : NEXT, home).href, data: { who } }) +
 	'</script></body></html>';
 
@@ -54,6 +56,8 @@ beforeEach(() => {
 afterEach(async () => {
 	window.fetch = real_fetch;
 	history.replaceState(null, '', home);
+	// (a fetched page's head brought its runtime stand-in)
+	for (const el of document.head.querySelectorAll('script[data-ogygia-runtime]')) el.remove();
 	await commands.keep_downloads(HELD);
 });
 
