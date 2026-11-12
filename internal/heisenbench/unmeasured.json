@@ -21,22 +21,6 @@
 			"reason": "browser only: a dev server fetch of one app file, then the map parse (lines_of_map, measured on its own)"
 		},
 		{
-			"id": "packages/machine/src/cache.ts > Store > get size",
-			"reason": "a cache's count of what it holds: one Map size read, constant work; run by packages/machine/test/cache.test.ts"
-		},
-		{
-			"id": "packages/machine/src/cache.ts > Store > get weight",
-			"reason": "a cache's total weight: one field read, constant work; run by packages/machine/test/cache.test.ts"
-		},
-		{
-			"id": "packages/machine/src/cache.ts > Store > has",
-			"reason": "one Map read and an age compare, constant work; run by packages/machine/test/cache.test.ts"
-		},
-		{
-			"id": "packages/machine/src/cache.ts > Store > peek",
-			"reason": "one Map read and an age compare, constant work (not a use); run by packages/machine/test/cache.test.ts and flights' _back"
-		},
-		{
 			"id": "packages/machine/src/flights.ts > Flown > get _weight",
 			"reason": "the flights' total kept weight, read from its cache: one field read, constant work; run by packages/machine/test/flights.test.ts"
 		},
@@ -2257,23 +2241,23 @@
 			"reason": "build time: declares the flags definer through the plugin builder (not cloneable), constant work"
 		},
 		{
-			"id": "packages/machine/src/registry.ts > defineRun",
+			"id": "packages/machine/src/define.ts > defineRun",
 			"reason": "dev only: a module's new run ends the run before it and returns its wrapper (a function, not cloneable), constant work of its own"
 		},
 		{
-			"id": "packages/machine/src/registry.ts > defineRun > <anonymous>~bc014d",
+			"id": "packages/machine/src/define.ts > defineRun > <anonymous>~bc014d",
 			"reason": "dev only: the wrapper for one definer call (a function, not cloneable), constant work"
 		},
 		{
-			"id": "packages/machine/src/registry.ts > defineRun > <anonymous>~bc014d > <anonymous>~90dfa6",
+			"id": "packages/machine/src/define.ts > defineRun > <anonymous>~bc014d > <anonymous>~90dfa6",
 			"reason": "dev only: runs one definer call under its module's run and puts the outer run back, constant work of its own"
 		},
 		{
-			"id": "packages/machine/src/registry.ts > defining",
+			"id": "packages/machine/src/define.ts > defining",
 			"reason": "reads the process-wide defining host on globalThis (hidden state), constant work"
 		},
 		{
-			"id": "packages/machine/src/registry.ts > defining_host",
+			"id": "packages/machine/src/define.ts > defining_host",
 			"reason": "reads or makes the process-wide defining host on globalThis (not cloneable), constant work"
 		},
 		{
