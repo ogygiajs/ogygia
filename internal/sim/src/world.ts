@@ -645,7 +645,26 @@ export class World {
 	 * so whether a page was "complete" would depend on the host's speed, and the run would not
 	 * replay.)
 	 */
-	async quiesce(budget = 30_000, gap = 2_000): Promise<void> {
+	/**
+	 * Runs the loop until the world is AT REST, however long that takes (up to the run's horizon):
+	 * what the oracles judge. A quiesce gives up after its budget, which a visitor's next action may
+	 * well do; a body stalled after its first piece (up to 40 s) is still work in flight, and a page
+	 * judged while its runtime chunk was still coming had not booted (gen 196, seed 16).
+	 */
+	async rest(): Promise<void> {
+		// (only the wire keeps it waiting: a live region ticks for good, and its ticks end a quiesce
+		// by its budget, as before)
+		// (a quiesce whose next task is past its budget returns without running it: step to it)
+		while (!(await this.quiesce()) && this.loop.next_at <= this.loop.horizon && !this.#wire_quiet())
+			await this.loop.step();
+	}
+
+	#wire_quiet(): boolean {
+		return this.loop.next_of('net') === Infinity && this.network.unanswered() === 0;
+	}
+
+	/** True when the world came to rest; false when the budget or the horizon ended the wait. */
+	async quiesce(budget = 30_000, gap = 2_000): Promise<boolean> {
 		const end = this.loop.now + budget;
 		for (;;) {
 			await this.loop.settle();
@@ -654,8 +673,8 @@ export class World {
 			// (nor is a request a server is still working on: its answer is not a task until it
 			// comes, and the server's own timer may be due past the gap, a hole that renders in 3 s;
 			// seed 46, /ooo)
-			const quiet = this.loop.next_of('net') === Infinity && this.network.unanswered() === 0;
-			if (next > end || (quiet && next > this.loop.now + gap) || next > this.loop.horizon) return;
+			if (this.#wire_quiet() && next > this.loop.now + gap) return true;
+			if (next > end || next > this.loop.horizon) return false;
 			await this.loop.step();
 		}
 	}
