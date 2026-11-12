@@ -73,6 +73,7 @@ export function written_order(value: object): FrameOrder | undefined {
 
 /** A capability's own parameters: its expiry, MAC, key fingerprint, lifetime and a renewal flag.
  *  They change per mint; the call they sign does not. */
+// static: the capability's own parameter names
 const CAPABILITY_PARAMS: ReadonlySet<string> = new Set(['exp', 'sig', 'k', 'ttl', 'renew']);
 /** An absolute URL's scheme and host: the address is the path it names on its page's origin. */
 const ORIGIN_RE = /^[a-z][a-z0-9+.-]*:\/\/[^/?#]*/i;
