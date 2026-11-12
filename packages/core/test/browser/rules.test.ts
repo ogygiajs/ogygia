@@ -154,6 +154,26 @@ test('the address bar and the history model: checked once no navigation is out',
 	expect(rules()).toEqual([]);
 });
 
+test('every marker declared: the app’s own data-og-* attributes are the app’s, ogygia’s misspelled ones are broken', () => {
+	const markup = () => rules().filter((b) => b.code === 'rule_markup_known');
+	// an app's Open Graph tooling, on its own elements and on a web component ogygia restored
+	document.body.innerHTML =
+		'<div data-og-image="/a.png" data-og-title="A"></div>' +
+		'<x-widget data-og-title="B" data-og-kept=""></x-widget>';
+	expect(markup()).toEqual([]);
+	// ogygia's own namespace, or a marker on ogygia's own element, misspelled
+	document.body.innerHTML =
+		'<script data-ogygia-runtim></script><ogygia-region entry="a" data-og-hydratd></ogygia-region>';
+	expect(markup()).toEqual([
+		{
+			code: 'rule_markup_known',
+			detail: 'the page carries undeclared markers: data-ogygia-runtim, data-og-hydratd'
+		}
+	]);
+	document.body.innerHTML = '';
+	expect(markup()).toEqual([]);
+});
+
 test('no failure without a code: a STALE rejection, an ogygia error with no code page', async () => {
 	const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
 	window.dispatchEvent(

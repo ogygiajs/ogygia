@@ -38,6 +38,8 @@ export {
 	type Watcher,
 	type When
 } from './scope.ts';
+export { cache, type Cache, type CacheOptions, type EvictWhy, type SetOptions } from './cache.ts';
+export { registry, defineRun, defining, type KeyedRegistry, type Registry } from './registry.ts';
 export { lock, type Lock, type LockToken } from './lock.ts';
 export {
 	clock,

@@ -11,6 +11,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
+import { cache } from '@ogygia/machine';
 import { fnv1a32 } from '@ogygia/core/contract';
 import {
 	transformHost,
@@ -143,6 +144,7 @@ const IMPORT_SPEC_G =
 // code can make without reaching Kit's page world. Everything else under `$app/`, any package but
 // Svelte, and anything the walk cannot resolve or read counts as a reader: over-inclusion ships the
 // page seed's runtime for nothing, a miss would leave an island's `page.data` empty.
+// static: the two `$app/` modules that never read Kit's page
 const PAGE_FREE_APP_MODULES = new Set(['$app/environment', '$app/paths']);
 const ASSET_EXTS =
 	'css|scss|sass|less|styl|pcss|postcss|json|svg|png|jpe?g|gif|webp|avif|ico|bmp|woff2?|ttf|otf|eot|txt|wasm|mp4|webm|mp3|wav';
@@ -197,10 +199,13 @@ const fnv = fnv1a32;
 /** Once per module id: a dependency file carries ogygia marks but its package declares no
  *  `ogygia.files` — the marks are then silently inert (a `with { }` attribute is valid syntax,
  *  it just never rewrites), which is the worst way to fail. Say it loudly, once. */
-const warned_undeclared = new Set<string>();
+const warned_undeclared = cache<string, true>({
+	name: 'warned undeclared package marks',
+	max: 10_000
+});
 function warn_undeclared_pkg_marks(id: string): void {
 	if (warned_undeclared.has(id)) return;
-	warned_undeclared.add(id);
+	warned_undeclared.set(id, true);
 	warn('package_marks_undeclared', { file: id });
 }
 
