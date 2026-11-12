@@ -51,7 +51,7 @@ import {
 	pin_build_map,
 	pin_region_urls
 } from './entry-locations.ts';
-import { code_origins } from './code-origins.ts';
+import { code_origins, code_url, import_code } from './code-origins.ts';
 import { load_devalue, needs_devalue } from './devalue-lane.ts';
 import {
 	is_awake,
@@ -461,11 +461,12 @@ export function region_fragment(html: VerifiedHtml): {
 			if (!href) continue;
 			// Document-relative href → resolve against the document, never this module (see
 			// island_module_url: a bare import() of `../../@id/…` lands on `/node_modules/@id/…`).
-			const url = island_module_url(href);
-			if (seen.has(url)) continue;
+			// (an href is markup: imported only from the page's code origins, as an island's own load)
+			const url = code_url(island_module_url(href));
+			if (url === null || seen.has(url)) continue;
 			seen.add(url);
 			pending.push(
-				import(/* @vite-ignore */ url).then(
+				import_code(url).then(
 					() => undefined,
 					() => undefined
 				) // ok: a stylesheet wait only: the swap goes on, and the region's own import says a failure
@@ -2194,10 +2195,11 @@ function apply_dev_head_region_css(): void {
 			// The href is DOCUMENT-relative (`../../@id/…` on a nested route, base-aware by design). A bare
 			// `import()` would resolve it against THIS module's url (`/node_modules/…/og-runtime.js` in an
 			// app) and 404 on `/node_modules/@id/…` — the same trap island entries avoid via this resolver.
-			const url = island_module_url(href);
-			if (seen.has(url)) continue;
+			// (an href is markup: imported only from the page's code origins, as an island's own load)
+			const url = code_url(island_module_url(href));
+			if (url === null || seen.has(url)) continue;
 			seen.add(url);
-			void import(/* @vite-ignore */ url).catch(() => {}); // ok: dev only: a region's own import says a failure; this one only styles early
+			void import_code(url).catch(() => {}); // ok: dev only: a region's own import says a failure; this one only styles early
 		}
 	}); // ok: dom_ready never rejects, and the work in it catches
 }
