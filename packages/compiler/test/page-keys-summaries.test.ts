@@ -4,7 +4,11 @@
 // ships the whole page seed). Rows the mutation pass found unpinned.
 import { describe, expect, it } from 'vitest';
 import { dedent } from '@ogygia/core/contract';
-import { summarize_export, type ExportSummary } from '../src/compiler/link/page-keys.ts';
+import {
+	page_data_keys_answer,
+	summarize_export,
+	type ExportSummary
+} from '../src/compiler/link/page-keys.ts';
 
 const b = new Set(['b']);
 const none = new Set<string>();
@@ -52,7 +56,10 @@ const ROWS: [string, string, number, ExportSummary][] = [
 	['export const h = 1;', 'h', 0, 'all'],
 	['export const h = (p) => p.data.b;', 'k', 0, 'all'],
 	['export class h { constructor(p) { this.b = p.data.b; } }', 'h', 0, 'all'],
-	['export function h(p) { return p.data.b;', 'h', 0, 'all']
+	['export function h(p) { return p.data.b;', 'h', 0, 'all'],
+	// an import is not an `export *`, and another exported function is not the one asked for
+	["import { g } from './x';\nexport const k = 1;", 'h', 0, 'all'],
+	['export function h(p) { return p.data.b; }\nexport function k(p) { return p.url; }', 'h', 0, b]
 ];
 
 describe('summarize_export answers exactly', () => {
@@ -68,6 +75,16 @@ describe('summarize_export answers exactly', () => {
 			<p>hi</p>
 		`;
 		expect(summarize_export(code, '/app/src/lib/H.svelte', 'svelte', 'h', 0)).toEqual(b);
+	});
+
+	it("names the line of the read that ships all, not the module's last", () => {
+		const code = dedent`
+			import { page } from '$app/state';
+			const d = page.data;
+			export const a = d.a;
+			export const b = 1;
+		`;
+		expect(page_data_keys_answer(code, '/app/src/lib/x.ts', 'script').reason?.line).toBe(2);
 	});
 
 	it('a component that does not parse gives up', () => {
