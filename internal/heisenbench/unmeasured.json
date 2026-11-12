@@ -1161,8 +1161,8 @@
 			"reason": "closes the run's scope (a timer), constant work; proven in packages/devtools/test/profiler-fake-progress.test.ts"
 		},
 		{
-			"id": "packages/devtools/src/profiler/ui/fake-progress.svelte.ts > FakeProgress > [computed]",
-			"reason": "Symbol.dispose: closes the bar's scope (its timers), constant work; proven in packages/devtools/test/profiler-fake-progress.test.ts"
+			"id": "packages/devtools/src/profiler/ui/fake-progress.svelte.ts > FakeProgress > close",
+			"reason": "closes the bar's scope (its timers), constant work; proven in packages/devtools/test/profiler-fake-progress.test.ts"
 		},
 		{
 			"id": "packages/devtools/src/profiler/ui/fake-progress.svelte.ts > FakeProgress > finish > task:0",
