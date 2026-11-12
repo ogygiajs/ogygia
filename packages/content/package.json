@@ -113,6 +113,7 @@
 	},
 	"scripts": {
 		"build": "tsdown",
+		"prepublishOnly": "pnpm run build",
 		"check": "tsc -p . && svelte-check --tsconfig ./tsconfig.check.json --fail-on-warnings && tsc -p test && tsc -p e2e && vitest run",
 		"test": "vitest run",
 		"e2e": "playwright test"
@@ -125,6 +126,7 @@
 		"mdsvex": "catalog:"
 	},
 	"devDependencies": {
+		"@ogygia/compiler": "workspace:*",
 		"@ogygia/config": "workspace:*",
 		"@ogygia/core": "workspace:*",
 		"@ogygia/tooling": "workspace:*",
@@ -145,6 +147,7 @@
 		"vitest": "catalog:"
 	},
 	"peerDependencies": {
+		"@ogygia/compiler": "workspace:^",
 		"@ogygia/core": "workspace:^",
 		"@sveltejs/kit": "catalog:peers",
 		"shiki": "catalog:peers",

@@ -1,0 +1,184 @@
+name: dst
+
+# ALWAYS-ON DETERMINISTIC SIMULATION (internal/notes/dst.md): one seed drives a whole app (servers,
+# tabs, network, time), and a failing seed replays exactly. This job runs seeds back to back for
+# almost six hours, then files what is new: an issue (labels `bug`, `dst`) and a `sim/found-<sig>`
+# branch with a seeded test, deduplicated by signature (internal/sim/src/ci.ts).
+#
+# Schedule and manual runs ONLY: never on a pull request or a push, so no fork's code ever runs
+# here, and it tests the repository's own code (main, unless a manual run names another ref). A good
+# neighbour on the shared runners: it counts the queued runs every 20 minutes and waits, or stops
+# early, while CI needs them.
+
+on:
+  schedule:
+    # every 6 hours; with the concurrency group below, runs chain back to back
+    - cron: '17 */6 * * *'
+    # once a day: the mutation run (the `mutate` job), about an hour
+    - cron: '43 3 * * *'
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: The ref to simulate
+        default: main
+      steps:
+        description: Actions per seed
+        default: '40'
+      queue_limit:
+        description: Queued runs in the repository past which DST yields to CI
+        default: '50'
+      job:
+        description: 'simulate (the sweep, then seeds back to back) or mutate (the mutation run)'
+        default: simulate
+
+permissions: {}
+
+# exactly one at a time; a new one waits for the running one, never cancels it
+concurrency:
+  group: dst
+  cancel-in-progress: false
+
+jobs:
+  simulate:
+    if: >-
+      github.repository == 'ogygiajs/ogygia' && github.event.schedule != '43 3 * * *' &&
+      (inputs.job || 'simulate') == 'simulate'
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    permissions:
+      # contents: push sim/found-* branches; issues: file and comment on findings; actions: count
+      # the queued runs (the good-neighbour check)
+      contents: write
+      issues: write
+      actions: read
+    steps:
+      # (the deadline counts from here: setup and builds take part of the 350 minutes)
+      - name: Note the start
+        run: echo "DST_STARTED=$(date +%s)" >> "$GITHUB_ENV"
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.ref || 'main' }}
+          persist-credentials: false
+
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          # the simulator runs TypeScript with plain node and needs `import.meta.main`
+          node-version: 26
+          cache: pnpm
+
+      - name: Install workspace deps
+        run: pnpm install --frozen-lockfile
+
+      - name: Build the packages
+        run: pnpm build:lib
+
+      # the simulated app, with ogygia's rules built in (the oracles read them)
+      - name: Build the palaestra (rules on)
+        working-directory: apps/palaestra
+        env:
+          OGYGIA_RULES: '1'
+        run: node node_modules/vite/bin/vite.js build
+
+      # EVERY MACHINE STEP ACCOUNTED FOR: the standard sweep (internal/sim/steps.json `sweep`) reaches
+      # each step the ledger says it reaches; a step in no bucket fails the job (after the seeds run)
+      - name: Sweep (every machine step accounted for)
+        id: sweep
+        continue-on-error: true
+        working-directory: internal/sim
+        run: node --experimental-vm-modules --no-warnings src/sweep.ts --out "$RUNNER_TEMP/sweep"
+
+      # the latest finished mutation run (the daily `mutate` job's artifact), for the summary
+      - name: Latest mutation run
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          for id in $(gh run list -R "$REPO" -w dst.yml -s completed -L 30 --json databaseId -q '.[].databaseId'); do
+            if gh run download "$id" -R "$REPO" -n dst-mutation -D "$RUNNER_TEMP/mutation" 2> /dev/null; then break; fi
+          done
+
+      # stops starting batches 20 minutes before the job's timeout, then files and summarizes
+      - name: Simulate
+        working-directory: internal/sim
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DST_FILE: '1'
+          DST_STEPS: ${{ inputs.steps || '40' }}
+          DST_QUEUE_LIMIT: ${{ inputs.queue_limit || '50' }}
+          DST_RESULTS: ${{ runner.temp }}/dst-results.json
+          DST_SWEEP: ${{ runner.temp }}/sweep/steps.json
+          DST_MUTATION: ${{ runner.temp }}/mutation/dst-mutation.jsonl
+        run: |
+          export DST_DEADLINE=$(( (DST_STARTED + (350 - 20) * 60) * 1000 ))
+          node --experimental-vm-modules --no-warnings src/ci.ts
+
+      - name: Upload the results
+        if: always()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: dst-results
+          path: |
+            ${{ runner.temp }}/dst-results.json
+            ${{ runner.temp }}/sweep/steps.json
+          if-no-files-found: ignore
+
+      # (after the seeds ran: a step in no bucket fails the job, as the PR check's static mode does)
+      - name: Every machine step accounted for
+        if: steps.sweep.outcome == 'failure'
+        run: |
+          echo "The sweep left machine steps unaccounted for (internal/sim/steps.json): see its step's log."
+          exit 1
+
+  # MUTATION TESTING once a day: each mutant (internal/sim/mutants.json) is built into a sandbox
+  # clone and run against fixed seeds; the kill rate is the simulator's quality number. About an
+  # hour: no mutant starts after 60 minutes, and the result says how many it judged.
+  mutate:
+    if: >-
+      github.repository == 'ogygiajs/ogygia' &&
+      (github.event.schedule == '43 3 * * *' || inputs.job == 'mutate')
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.ref || 'main' }}
+          persist-credentials: false
+
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 26
+          cache: pnpm
+
+      - name: Install workspace deps
+        run: pnpm install --frozen-lockfile
+
+      - name: Build the packages
+        run: pnpm build:lib
+
+      - name: Mutate
+        working-directory: internal/sim
+        run: |
+          node --no-warnings src/mutate.ts --mutants mutants.json --gens 188,191,192,193 --seeds 20 \
+            --jobs 4 --budget-min 60 --sandbox "$RUNNER_TEMP/mutbox" \
+            --out "$RUNNER_TEMP/dst-mutation.jsonl"
+          tail -1 "$RUNNER_TEMP/dst-mutation.jsonl" | node -e '
+            const t = JSON.parse(require("fs").readFileSync(0, "utf8"));
+            require("fs").appendFileSync(process.env.GITHUB_STEP_SUMMARY,
+              `## Mutation testing\n\nKill rate ${t.rate}% (${t.killed}/${t.judged} judged of ${t.total}), ${t.at.slice(0, 10)}.\n`);'
+
+      - name: Upload the result
+        if: always()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: dst-mutation
+          path: ${{ runner.temp }}/dst-mutation.jsonl
+          retention-days: 30
+          if-no-files-found: ignore
