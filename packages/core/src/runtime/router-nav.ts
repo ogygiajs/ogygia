@@ -15,6 +15,7 @@
  * way.
  */
 import { boot_link, router_link, slots } from './slots.ts';
+import { clock } from '@ogygia/machine';
 import { dispose_scope } from '../ref.ts';
 import {
 	NO_RECONCILE_SELECTOR,
@@ -30,6 +31,7 @@ import {
 } from './seeds.ts';
 import type { HistoryEntry, HistoryMove, SpaRouter } from './router.ts';
 import { spa_html_cacheable } from './spa-cacheable.ts';
+import { is_dangerous_head_node } from './head-deny.ts';
 import { pin_region_urls } from './entry-locations.ts';
 import { emit as dt_emit } from '../events/bus.ts';
 
@@ -37,9 +39,15 @@ import { emit as dt_emit } from '../events/bus.ts';
 // never imports a boot module (./slots.ts `BootLink`: a module both import is split out of the runtime
 // chunk). The router's helpers exist only with the router feature; the MPA `invalidateAll` path (no
 // router) touches none of them.
+// (rules on: `rule_head_adopted` checks the head with this chunk's own deny, ./rules.ts)
+(globalThis as { __og_head_deny?: (deny: typeof is_dangerous_head_node) => void }).__og_head_deny?.(
+	is_dangerous_head_node
+);
+
 const KitBoot = { document_has: (doc: ParentNode) => boot_link().KitBoot.document_has(doc) };
 const regions_in_shadow = () => boot_link().regions_in_shadow();
-const release_sheets = (unlisted: readonly Element[]) => boot_link().release_sheets(unlisted);
+const release_head_nodes = (unlisted: readonly Element[]) =>
+	boot_link().release_head_nodes(unlisted);
 const session = () => boot_link().runtime_session;
 type Scope = import('@ogygia/machine').Scope;
 type Stale = import('@ogygia/machine').Stale;
@@ -62,9 +70,10 @@ const jump_to_hash = (hash: string) => router_link().jump_to_hash(hash);
 
 // DEVTOOLS gate — module-local const from the Vite `define` (proven DCE pattern); off → folds out.
 const DEVTOOLS = typeof __OGYGIA_DEVTOOLS__ !== 'undefined' ? __OGYGIA_DEVTOOLS__ : false;
-/** High-res clock for devtools nav timings (guarded — dead when off). */
-const dt_now = () =>
-	typeof performance !== 'undefined' && performance.now ? performance.now() : Date.now();
+const HOOK_NAVIGATED =
+	typeof __OGYGIA_HOOK_NAVIGATED__ !== 'undefined' ? __OGYGIA_HOOK_NAVIGATED__ : true;
+/** The monotonic clock, for devtools nav timings (dead when off). */
+const dt_now = clock.mono;
 
 /** RECONCILER R1: when on (and morph is installed), a nav diffs the body IN PLACE — matched regions
  *  keep their live islands, changed regions re-mount, the shell morphs — instead of a full-body
@@ -194,14 +203,24 @@ export function tag_attr(attrs: string, name: string): string | null {
 const ISLAND_GRAPH_SCRIPT_G =
 	/<script type="application\/json" data-ogygia-graph>([^<]*)<\/script>/g;
 
-/** A node's URL attribute as the address it names: resolved against the page the node belongs to
- *  (a live node's, the document; a fetched page's, its own address, set by `resolve_head_urls`).
- *  `../a.css` on `/x/y` and `/a.css` are one file, so one key. Empty when absent. */
+/** The address the server's head was written for. This module loads before a navigation first moves
+ *  the address (the router awaits it before any history write), so it is still the load's. */
+const DOCUMENT_BASE = typeof document === 'undefined' ? '' : document.baseURI;
+
+/** A node's URL attribute as the address it names: resolved against the page the node came from
+ *  (the server's head: the address it was written for, not the one a navigation moved to since,
+ *  #821; a fetched page's: its own address, set by `resolve_head_urls`). `../a.css` on `/x/y` and
+ *  `/a.css` are one file, so one key. Empty when absent. */
 function url_of(node: Element, attr: string): string {
 	const value = node.getAttribute(attr);
 	if (!value) return '';
+	// (only a node in the live head can be the server's: a fetched page's or a detached one never is)
+	const base =
+		DOCUMENT_BASE !== '' && node.parentNode === document.head && session().page_head.has(node)
+			? DOCUMENT_BASE
+			: node.baseURI;
 	try {
-		return new URL(value, node.baseURI).href;
+		return new URL(value, base).href;
 	} catch {
 		return value; // (not a URL: compared as written)
 	}
@@ -427,23 +446,6 @@ function focus_reset(el: HTMLElement) {
 
 /** The elements whose `tabindex` a navigation's focus lent until they blur, with their own value. */
 const lent = new WeakMap<HTMLElement, string | null>();
-
-/** Head nodes that must never be adopted from SPA HTML (rewrite relative fetches / CSP). */
-function is_dangerous_head_node(node: Element): boolean {
-	const tag = node.tagName;
-	if (tag === 'BASE') return true;
-	if (tag === 'META') {
-		const http_equiv = (node.getAttribute('http-equiv') || '').toLowerCase();
-		if (
-			http_equiv === 'refresh' ||
-			http_equiv === 'content-security-policy' ||
-			http_equiv === 'content-security-policy-report-only'
-		) {
-			return true;
-		}
-	}
-	return false;
-}
 
 // ── navigation state (one per document lifetime, module-level: this chunk loads once) ──────────
 /** A page as a fetch got it: its HTML and the address it belongs to (where the fetch landed, after
@@ -900,7 +902,7 @@ export async function navigate(
 		announcer?.remove();
 		// LIFECYCLE (Astro-parity DOM events): last chance to read the OUTGOING page's DOM.
 		document.dispatchEvent(new Event('og:before-swap'));
-		const unlisted_sheets = merge_head(doc.head); // keeps our runtime module script alive across swaps
+		const unlisted = merge_head(doc.head); // keeps our runtime module script alive across swaps
 		// the next page's sheets, loaded while it was built, style it from now on (#267)
 		for (const sheet of built.sheets) apply_sheet(sheet);
 		// CONTINUITY: snapshot the LEAVING page's changed island form fields (session-scoped) so
@@ -919,7 +921,7 @@ export async function navigate(
 			// only REMOVED regions' hub ids happens inside reconcile_body.
 			reconcile_body(document.body, doc.body, slots.morph!);
 			built.reconciled = true;
-			document.title = doc.title;
+			adopt_title(doc);
 			session().settle_lakes_in(document.body);
 		} else {
 			// FALLBACK (reconcile off, or a region nested in an open shadow root morph can't pierce):
@@ -933,7 +935,7 @@ export async function navigate(
 					reason: !slots.morph ? 'no-morph' : 'shadow-region'
 				});
 			swap_body(document.body, doc.body);
-			document.title = doc.title;
+			adopt_title(doc);
 			session().settle_lakes_in(document.body);
 			dispose_scope('page');
 		}
@@ -943,9 +945,9 @@ export async function navigate(
 		// and the merge above put the next page's server copy of the same content in beside it — retire
 		// that copy now that the reconcile has settled which islands stayed (runtime/session.ts).
 		session().retire_page_head_copies();
-		// the region sheets the new page does not list go now, but for those a region kept across the
-		// swap still uses (#275)
-		release_sheets(unlisted_sheets);
+		// the region head nodes the new page does not list go now, but for those a region kept across
+		// the swap still uses (#275) or owns (#806)
+		release_head_nodes(unlisted);
 		// STREAMED pages fetched over SPA nav arrive COMPLETE (fetch buffers the stream), so any
 		// late templates still inert in the parsed doc apply now — the inline boot script that
 		// handles them on a full load never executes across a body swap.
@@ -1010,18 +1012,17 @@ export async function navigate(
 	// applied: a later same-address click is a refresh, not a duplicate
 	r.nav.move('loading', 'settling', { href: url.href });
 	const settled = r.nav.now;
-	// (the profiler's browser half, through the boot's link — this lazy chunk imports no boot
-	// module; a no-op without the profiler's tag or devtools)
-	boot_link().beacon_nav({
-		from: from.pathname + from.search,
-		to: dest.pathname + dest.search,
-		type,
-		t: nav_t0,
-		fetched: built.fetched,
-		styled: built.styled,
-		swapped: performance.now(),
-		href: url.href
-	});
+	if (HOOK_NAVIGATED)
+		slots.hooks?.navigated?.({
+			from: `${from.pathname}${from.search}`,
+			to: `${dest.pathname}${dest.search}`,
+			type,
+			t: nav_t0,
+			fetched: built.fetched,
+			styled: built.styled,
+			swapped: performance.now(),
+			href: url.href
+		});
 	if (DEVTOOLS)
 		dt_emit({
 			domain: 'nav',
@@ -1194,8 +1195,8 @@ export async function invalidate_all(on_screen?: URL | null): Promise<void> {
 		},
 		commit: (doc) => {
 			if (doc === null) return;
-			// (the page's regions all stay: their sheets go once no region uses them)
-			release_sheets(merge_head(doc.head));
+			// (the page's regions all stay: their head nodes go once no region uses or owns them)
+			release_head_nodes(merge_head(doc.head));
 			apply_soft_invalidate_doc(doc);
 		}
 	});
@@ -1272,9 +1273,19 @@ function reset_focus(hash: string, kept: string | null = null) {
 
 /**
  * Merge <head>: keep nodes present in both, remove stale, add new. Keeps runtime scripts alive.
- * Returns the region sheets the new head does not list: they are for the regions that use them too
- * (./region-sheets.ts), so they go only after the swap, once it is settled which regions stayed.
+ * Returns the region head nodes the new head does not list (region sheets, and tags naming an owning
+ * region): they are for the regions that use or own them too (./region-sheets.ts), so they go only
+ * after the swap, once it is settled which regions stayed.
  */
+/** The next page's title, as a fresh load of it has one: only when it carries a `<title>`. Setting
+ *  `document.title` makes a `<title>` where there is none (test/browser/nav-no-title.test.ts); the
+ *  head merge already took the leaving page's own out. */
+function adopt_title(next: Document): void {
+	// (an HTML <title>, as the `title` getter reads: an SVG one in the body does not count)
+	if (next.getElementsByTagNameNS('http://www.w3.org/1999/xhtml', 'title').length > 0)
+		document.title = next.title;
+}
+
 function merge_head(new_head: HTMLHeadElement): Element[] {
 	const current = document.head;
 	// Only the PAGE's nodes take part (runtime/session.ts — who owns each node in <head>). An island's
@@ -1283,11 +1294,7 @@ function merge_head(new_head: HTMLHeadElement): Element[] {
 	// for the next page's copy either (the island may be torn down in the reconcile that follows —
 	// the copy the page needs goes in, and the one-copy rule retires it again if the island stays).
 	// Nodes that are not ours at all (a third-party inject) stay, as under Kit's own router.
-	const owned = session().page_head;
-	const current_nodes = new Map<string, Element>();
-	for (const node of Array.from(current.children)) {
-		if (owned.has(node)) current_nodes.set(head_node_key(node), node);
-	}
+	const current_nodes = live_page_head();
 	const next_keys = new Set<string>();
 	for (const node of Array.from(new_head.children)) {
 		if (is_dangerous_head_node(node)) continue;
@@ -1298,42 +1305,60 @@ function merge_head(new_head: HTMLHeadElement): Element[] {
 	for (const [key, node] of current_nodes) {
 		if (next_keys.has(key)) continue;
 		if (keep_head_node_across_spa(node)) continue;
-		if (node.hasAttribute('data-ogygia-region-css')) unlisted.push(node);
+		if (node.hasAttribute('data-ogygia-region-css') || node.hasAttribute('data-og-owner'))
+			unlisted.push(node);
 		else node.remove();
 	}
-	// add / replace nodes (skip dangerous head policy tags)
-	// A `<style>` the next document carries goes at the TOP of <head>, in document order — exactly
-	// where `preload_stylesheets` puts an SPA `<link>`, and for the same reason: an island's
-	// `<svelte:head>` hydration on the new page reclaims a TRAILING head-node range, so a sheet
-	// appended at the end goes with it. Kit inlines a route's small sheets as `<style>` under
-	// `kit.inlineStyleThreshold`, and ogygia inlines small region sheets the same way; one such
-	// destination page lost its `ogygia-region{display:block}` and the layout collapsed
-	// (e2e/context, "Context after SPA navigation"). `anchor` is the head's first child BEFORE this
-	// merge, so the new sheets land above everything old and keep their own order.
-	let anchor = current.firstChild;
+	// add / replace nodes (skip dangerous head policy tags), each in its fresh-load place (`head_slot`)
+	const live = new Map(current_nodes);
 	for (const node of Array.from(new_head.children)) {
 		if (is_dangerous_head_node(node)) continue;
 		const key = head_node_key(node);
 		const existing = current_nodes.get(key);
 		// Kit FOUC bag: always refresh content (same key every page, different CSS). The new bag goes
-		// in first, then the old one comes out. After one navigation the old bag is the head's first
-		// child, so it is `anchor` itself: what comes after it goes where it was.
+		// in, then the old one comes out.
 		if (key === 'STYLE:data-sveltekit') {
-			install_head_style(node, current, anchor);
-			if (existing) {
-				if (existing === anchor) anchor = existing.nextSibling;
-				existing.remove();
-			}
+			live.delete(key);
+			if (existing) existing.remove();
+			live.set(key, install_head_style(node, current, head_slot(node, live)));
 			continue;
 		}
 		if (existing) continue;
+		const at = head_slot(node, live);
 		if (node.tagName === 'STYLE') {
-			install_head_style(node, current, anchor);
+			live.set(key, install_head_style(node, current, at));
 		} else {
-			session().claim_page_head(current.appendChild(node.cloneNode(true)));
+			const copy = node.cloneNode(true) as Element;
+			session().claim_page_head(current.insertBefore(copy, at));
+			live.set(key, copy);
 		}
 	}
 	return unlisted;
+}
+
+/** The page's own nodes in the live <head>, by key (runtime/session.ts — who owns each node). */
+function live_page_head(): Map<string, Element> {
+	const owned = session().page_head;
+	const out = new Map<string, Element>();
+	for (const node of Array.from(document.head.children))
+		if (owned.has(node)) out.set(head_node_key(node), node);
+	return out;
+}
+
+/**
+ * Where a next-page head node goes in the live <head>: right after the live copy of the nearest node
+ * before it in the next head, or at the head's top when none is live. So the page's own nodes keep
+ * the next document's order, the cascade order a fresh load has (test/browser/nav-head-order.test.ts,
+ * #794). It always follows a node of the PAGE, never an island's: an island's live head block (Svelte
+ * removes its range on teardown) is never split by a page node going in.
+ */
+function head_slot(node: Element, live: ReadonlyMap<string, Element>): Node | null {
+	for (let p = node.previousElementSibling; p !== null; p = p.previousElementSibling) {
+		if (is_dangerous_head_node(p)) continue;
+		const at = live.get(head_node_key(p));
+		if (at !== undefined && at.parentNode === document.head) return at.nextSibling;
+	}
+	return document.head.firstChild;
 }
 
 /**
@@ -1364,6 +1389,7 @@ function preload_stylesheets(
 			present.add(head_node_key(node));
 		}
 	}
+	const live = live_page_head();
 	const pending: Promise<void>[] = [];
 	for (const node of Array.from(new_head.children)) {
 		if (node.tagName !== 'LINK' || node.getAttribute('rel') !== 'stylesheet') continue;
@@ -1388,10 +1414,9 @@ function preload_stylesheets(
 				attempt.on(link, 'error', () => resolve(), { once: true });
 			})
 		);
-		// Insert at the TOP of <head>, not the end: an island's `<svelte:head>` hydration removes a
-		// trailing node range, so a stylesheet appended after the island head blocks gets reclaimed.
 		session().claim_page_head(link); // the next page's own sheet (runtime/session.ts)
-		document.head.insertBefore(link, document.head.firstChild);
+		document.head.insertBefore(link, head_slot(node, live));
+		live.set(key, link);
 		sheets.push(sheet);
 		discard(() => link.remove());
 	}

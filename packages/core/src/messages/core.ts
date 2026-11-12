@@ -49,6 +49,30 @@ export const ERRORS = {
 			deploy, ogygia retries the current build's file first.
 		`
 	},
+	client_hook_failed: {
+		text: (a: { plugin: string; hook: string }): string =>
+			`plugin \`${a.plugin}\`: its \`${a.hook}\` hook threw (or its promise rejected); the page and the other plugins carry on`,
+		details: (): string => prose`
+			A plugin's browser half subscribes to a runtime hook, and its function failed. The runtime
+			calls every subscriber of a hook in plugin order and wraps each call, so one plugin's
+			failure never stops another's hook or the page. Said once per plugin and hook; the error
+			follows the message. In dev the hook's payload is frozen: a hook that writes to it fails
+			here too.
+		`
+	},
+	kit_boot_failed: {
+		text: (a: { url: string }): string => prose`
+			SvelteKit's client code failed to load (${a.url}), so Kit cannot start on this page. The
+			islands waiting for it stay as their server HTML.
+		`,
+		details: (): string => prose`
+			On a csr=true page, an island inside a lake or a hole answer waits for SvelteKit to start
+			before it hydrates. One of the files Kit's own boot script imports failed to download (the
+			network dropped it, or the file is missing after a deploy), and the browser keeps that
+			failure for the life of the page: Kit will not start. The waiting islands stop waiting and
+			fail, and keep their server HTML. Reloading the page loads Kit again. Said once per file.
+		`
+	},
 	chunk_reload_needed: {
 		text: (a: { url: string }): string =>
 			`a file this page needs cannot load until the page reloads: ${a.url}`,
@@ -877,6 +901,18 @@ export const WARNINGS = {
 			puts the answer in the shape its components expect. An element of an answer was built
 			during the parse anyway: the engine built custom elements in a document that has no
 			registry. ${BUG}
+		`
+	},
+	rule_head_adopted: {
+		text: (a: { detail: string }): string =>
+			`rule broken, the head gains no <base> or refresh, CSP or cookie meta: ${a.detail}`,
+		details: (): string => prose`
+			Dev and e2e only (a rule ogygia checks on itself). A \`<base>\` re-points every relative
+			fetch on the page, and a \`meta[http-equiv]\` that refreshes, sets a content security policy
+			or sets a cookie acts the moment it lands, so a navigation never adopts one from a fetched
+			page: only the first document's own count. One came into the head later. If the app adds it
+			itself, set it in the first document's head or as an HTTP header (a CSP header cannot be
+			loosened by a meta); else ${BUG}
 		`
 	}
 };

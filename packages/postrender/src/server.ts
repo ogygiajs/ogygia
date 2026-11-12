@@ -17,14 +17,14 @@
  * teaches: an eligible page gets `x-ogygia-postrender: would-store`, a refused one a console note.
  */
 import { createHash } from 'node:crypto';
-import { building, dev } from '$app/env';
+import { building, dev, version } from '$app/env';
 import {
 	defineServer,
 	STORED_DOCUMENT_META,
 	type RequestContext,
 	type ServerPlugin
 } from '@ogygia/core/plugin';
-import { STALE } from '@ogygia/machine';
+import { flights, STALE, type Flights } from '@ogygia/machine';
 import {
 	current_runtime,
 	enter_flight,
@@ -33,6 +33,7 @@ import {
 	installed_runtime,
 	retracting,
 	self_evict,
+	store_call,
 	store_get,
 	store_render,
 	type Flight,
@@ -63,6 +64,8 @@ interface State {
 	obs: Observation | null;
 	/** the request was eligible to be stored */
 	eligible: boolean;
+	/** its render is not stored: the request carried the visitor's credentials */
+	credentials: boolean;
 }
 
 type Ctx = RequestContext<PostrenderServerOptions, State>;
@@ -80,6 +83,49 @@ const BUILD_MARKER_KEY = '\0og:build';
  *  store saw), not a page, so the pages' TTL backstop must not apply to it: a deploy a month after
  *  the last one still has to find it. */
 const BUILD_MARKER_TTL_SEC = 10 * 365 * 24 * 3600;
+
+/** The tag every page carries for the build that stored it: a new build drops the old one's. */
+const build_tag = (build: string): string => `b:${build}`;
+
+/** The deploy checks, per store runtime and build: one per boot, shared by the page path and
+ *  federation's `lastBuild` ask (whichever asks first moves the marker; both hear one answer). A
+ *  failed check is not kept: the next request tries again. */
+const deploys = new WeakMap<Runtime, Flights<string, string | undefined>>();
+
+/**
+ * A deploy is a write (internal/notes/freeze.md: prerender is the special case where the only write
+ * is a deploy). The build the store saw before this one: when it is another, its pages are dropped
+ * (origin and edges), then the marker moves to this build. The evict goes first, so one that fails
+ * leaves the marker where it was and the next request tries again. test/deploy.test.ts (#947).
+ */
+function deploy_check(runtime: Runtime, build: string): Promise<string | undefined | typeof STALE> {
+	let checks = deploys.get(runtime);
+	if (!checks) {
+		checks = flights({
+			run: async (build: string) => {
+				const { store } = runtime;
+				const marker = await store_call('get', BUILD_MARKER_KEY, () => store.get(BUILD_MARKER_KEY));
+				const seen = marker?.kind === 'page' ? marker.html : undefined;
+				if (seen !== undefined && seen !== build) {
+					const { failed } = await evict_tags([build_tag(seen)], runtime);
+					if (failed.length) throw failed[0];
+				}
+				// written on every check (once per boot), not only on a change: a store that dropped
+				// the marker anyway (memory pressure, a custom store that caps the TTL) has it again
+				await store_call('put', BUILD_MARKER_KEY, () =>
+					store.put(
+						BUILD_MARKER_KEY,
+						{ kind: 'page', html: build, headers: {}, created: Date.now() },
+						{ ttl: BUILD_MARKER_TTL_SEC, tags: [] }
+					)
+				);
+				return seen;
+			}
+		});
+		deploys.set(runtime, checks);
+	}
+	return checks.get(build);
+}
 
 /** The TTL backstop on read: a stored entry older than `ttl` seconds is a miss. A store with native
  *  expiry has dropped it already; one without (a custom store) still lets its pages expire. An
@@ -257,7 +303,7 @@ async function capture(
 	flight: Flight
 ): Promise<Captured> {
 	const { path, facts } = ctx;
-	const tags = facts.sources ?? [];
+	const tags = [...(facts.sources ?? []), build_tag(version)];
 	/** Store `entry`, unless an invalidation started while the store was being written to (the
 	 *  flight went stale; its evict may have run first): then the entry comes back out, and the
 	 *  page stays per-request (no hit is served from it meanwhile, `retracting`). */
@@ -344,16 +390,26 @@ async function capture(
 	return { stored: true, entry, response: postrender_response(entry, 'stored') };
 }
 
+/** What a route lets postrender store: nothing, pages from requests without the visitor's
+ *  credentials (`true`), or also from requests with them (`'with-credentials'`). */
+type Storing = false | true | 'with-credentials';
+
 /** This request's value for the `postrender` key of Kit's `config` (the route's, merged from its
- *  layouts), or the app-wide default when no level sets a boolean. */
-function opted_in(ctx: Ctx): boolean {
+ *  layouts), or the app-wide default when no level sets one. */
+function opted_in(ctx: Ctx): Storing {
 	const declared = ctx.routeConfig('postrender');
-	if (typeof declared === 'boolean') return declared;
+	if (typeof declared === 'boolean' || declared === 'with-credentials') return declared;
 	if (declared !== undefined)
 		ctx.app.warn(
-			`\`config.postrender\` must be true or false (got ${JSON.stringify(declared)}); the app-wide default applies.`
+			`\`config.postrender\` must be true, false or 'with-credentials' (got ${JSON.stringify(declared)}); the app-wide default applies.`
 		);
 	return ctx.options.default;
+}
+
+/** The request carries the visitor's credentials: a cookie or an `authorization` header. Read
+ *  before the render's reads are watched (they are not the render's). */
+function credentialed(request: Request): boolean {
+	return request.headers.has('cookie') || request.headers.has('authorization');
 }
 
 const server: ServerPlugin<PostrenderServerOptions, State> = defineServer<
@@ -364,12 +420,12 @@ const server: ServerPlugin<PostrenderServerOptions, State> = defineServer<
 		set_postrender_app(app);
 	},
 
-	state: () => ({ runtime: null, flight: null, obs: null, eligible: false }),
+	state: () => ({ runtime: null, flight: null, obs: null, eligible: false, credentials: false }),
 
 	async page(ctx) {
 		const { event, path, facts, state } = ctx;
 		const runtime = (state.runtime = runtime_of(ctx));
-		const eligible =
+		const storing =
 			!facts.private &&
 			!building &&
 			event.request.method.toUpperCase() === 'GET' &&
@@ -377,12 +433,22 @@ const server: ServerPlugin<PostrenderServerOptions, State> = defineServer<
 			!path.endsWith('__data.json') &&
 			!facts.answerForm &&
 			opted_in(ctx);
-		if (!eligible) return;
+		if (!storing) return;
+		// A request with the visitor's credentials is answered from the store, but its render is
+		// stored only where the route says the page is the same with them: test/plugin.test.ts › "a
+		// page rendered for one visitor is never served to another"
+		const may_store = storing === 'with-credentials' || !credentialed(event.request);
 		state.eligible = true;
 		if (dev) {
 			// observe only: the verdict teaches in `response`, nothing stores
 			state.obs = observe_event(ctx);
 			return;
+		}
+		// a deploy is a write: a boot's first read drops the old build's pages before any is served
+		try {
+			if ((await deploy_check(runtime, version)) === STALE) return;
+		} catch {
+			return; // ok: the store's failure was said; this request renders, the next checks again
 		}
 		const hit = await store_get(runtime, path);
 		// (an entry past its TTL is a miss: the render below stores a fresh one over it; so is one a
@@ -390,6 +456,17 @@ const server: ServerPlugin<PostrenderServerOptions, State> = defineServer<
 		if (hit && within_ttl(hit, ctx.options.ttl) && !retracting(path)) {
 			ctx.app.devtools({ domain: 'server', name: 'server.postrender', op: 'hit', url: path });
 			return serve(hit, 'hit', ctx);
+		}
+		if (!may_store) {
+			state.credentials = true;
+			ctx.app.devtools({
+				domain: 'server',
+				name: 'server.postrender',
+				op: 'skip',
+				url: path,
+				reason: 'credentials'
+			});
+			return;
 		}
 		let flight = enter_flight(path);
 		while ('joined' in flight) {
@@ -480,6 +557,9 @@ const server: ServerPlugin<PostrenderServerOptions, State> = defineServer<
 			} catch {
 				settle(null);
 			}
+		} else if (state.credentials) {
+			// (rendered for this visitor: no shared cache keeps it either)
+			stamp_no_store(response);
 		} else if (dev && obs && state.eligible) {
 			dev_postrender_note(response, ctx, obs);
 		}
@@ -506,19 +586,12 @@ const server: ServerPlugin<PostrenderServerOptions, State> = defineServer<
 			throw new AggregateError(failed, `${failed.length} tags failed to evict`);
 	},
 
-	// SHARED HOOK — deploy thaw: remember this build, answer the one the store saw before. Written on
-	// every ask (once per boot), not only on a change: a store that dropped the marker anyway (memory
-	// pressure, a custom store that caps the TTL) has it again from the next boot on.
-	async lastBuild(version) {
-		const { store } = current_runtime();
-		const marker = await store.get(BUILD_MARKER_KEY);
-		const seen = marker?.kind === 'page' ? marker.html : undefined;
-		await store.put(
-			BUILD_MARKER_KEY,
-			{ kind: 'page', html: version, headers: {}, created: Date.now() },
-			{ ttl: BUILD_MARKER_TTL_SEC, tags: [] }
-		);
-		return seen;
+	// SHARED HOOK — deploy thaw: the build the store saw before this one, from the one deploy check
+	// the page path runs too (a new build has dropped this app's own pages by the time it answers).
+	async lastBuild(build) {
+		const seen = await deploy_check(current_runtime(), build);
+		// (never dropped: a check is STALE only if its flights were, and these never are)
+		return seen === STALE ? undefined : seen;
 	}
 });
 export default server;
