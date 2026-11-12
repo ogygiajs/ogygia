@@ -4,6 +4,7 @@ import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { World } from '../src/world.ts';
+import { user_click } from '../src/workload.ts';
 import type { Heard } from '../src/browser.ts';
 import {
 	document_faulted,
@@ -202,6 +203,43 @@ describe('known', () => {
 		expect(k.applies(shown, fresh)).toBe(true);
 		expect(k.applies(fresh, fresh)).toBe(false);
 		expect(k.forgive(shown, fresh)).toBe(fresh);
+	});
+
+	it("#1067's kept island with the last page's fingerprint (palaestra /props-tail, /formkeep)", () => {
+		const k = KNOWN.find((x) => x.issue === 1067)!;
+		const page = (fp: string, kept = ' data-ogygia-keep="player"') =>
+			[
+				'title: ',
+				'<html>',
+				'  <body>',
+				`    <ogygia-region data-hydrated="" data-og-fp="${fp}"${kept} wake="load">`,
+				'      <div class="island">'
+			].join('\n');
+		expect(k.applies(page('aaa'), page('bbb'))).toBe(true);
+		expect(k.forgive(page('aaa'), page('bbb'))).toBe(k.forgive(page('bbb'), page('aaa')));
+		// (only a kept region's: another region's fingerprint is still a finding)
+		expect(excused(page('aaa', ''), page('bbb', ''))).toEqual([]);
+	});
+
+	it("#1071's kept head link resolving under the page's path (palaestra /lab/deep/x)", () => {
+		const k = KNOWN.find((x) => x.issue === 1071)!;
+		const page = (href: string) =>
+			[
+				'title: ',
+				'<html>',
+				'  <head>',
+				`    <link href="${href}" rel="stylesheet">`,
+				'  <body>'
+			].join('\n');
+		const shown = page('/lab/_app/immutable/assets/14.x.css');
+		const fresh = page('/_app/immutable/assets/14.x.css');
+		expect(k.applies(shown, fresh)).toBe(true);
+		expect(k.applies(fresh, fresh)).toBe(false);
+		expect(k.forgive(shown, fresh)).toBe(fresh);
+		// (another file is still a finding)
+		expect(k.forgive(shown, page('/_app/immutable/assets/15.x.css'))).not.toBe(
+			page('/_app/immutable/assets/15.x.css')
+		);
 	});
 });
 
@@ -854,6 +892,48 @@ describe.skipIf(!built)('oracles on the palaestra build', () => {
 			await world.go(tab, 'goto', '/');
 			expect(page_errors(tab)).toBeNull();
 			expect(page_rules(tab)).toBeNull();
+			expect(await mpa_equivalent(world, v, tab)).toBeNull();
+		} finally {
+			await world.end();
+		}
+	});
+
+	it('a text made from the time of its render is not state, in a run with no delay fault', async () => {
+		// (two reference loads with no delay fault take the same time, to the ms: a stamp made of
+		// `performance.now()` agreed on both and was never masked. The tab's own load, slower by a
+		// buggified flight or a stall, showed another: palaestra seed 20004, /delta/b's DeltaNav)
+		const world = await World.make({ seed: 2, builds: [{ id: 'v1', output: OUTPUT }] });
+		try {
+			const v = world.visitor('alice');
+			const tab = world.tab(v);
+			await world.go(tab, 'goto', '/delta/b');
+			await world.quiesce();
+			const doc = tab.page.mainFrame.document as unknown as Document;
+			const stamp = doc.querySelector('[data-delta-stamp]')!;
+			// (the same page, rendered a few ms later than a reference load)
+			stamp.textContent = `nav-server-stamp:${Number(stamp.textContent!.split(':')[1]) + 3000}`;
+			expect(await mpa_equivalent(world, v, tab)).toBeNull();
+		} finally {
+			await world.end();
+		}
+	});
+
+	it("the fresh load carries the visitor's httpOnly cookies too", async () => {
+		// (Kit's `cookies.set` is httpOnly by default: the reference load was sent without the locale
+		// a command had set, and showed the other language; palaestra seed 20004, /header-refresh)
+		const world = await World.make({ seed: 2, builds: [{ id: 'v1', output: OUTPUT }] });
+		try {
+			const v = world.visitor('alice');
+			const tab = world.tab(v);
+			await world.go(tab, 'goto', '/header-refresh');
+			await world.quiesce();
+			const page = tab.page.mainFrame.document as unknown as Document;
+			user_click(page.querySelector('[data-hl-switch]')!);
+			await world.quiesce();
+			await world.go(tab, 'reload');
+			await world.quiesce();
+			const doc = tab.page.mainFrame.document as unknown as Document;
+			expect(doc.querySelector('[data-hl-header]')!.getAttribute('data-locale')).toBe('fr');
 			expect(await mpa_equivalent(world, v, tab)).toBeNull();
 		} finally {
 			await world.end();
