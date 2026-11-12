@@ -22,7 +22,6 @@ import { is_deferred, ours_on_kit_document, region_ssr_truncated } from './regio
 import { boot_link, slots, type LiftedLake } from './slots.ts';
 import { report_thrown } from '../report-thrown.ts';
 import type { HeadMark } from './session.ts';
-import { keep_host_classes, note_host_classes } from './host-classes.ts';
 import { install_hydrate_features } from 'ogygia:boot';
 import { emit as dt_emit } from '../events/bus.ts';
 import { warn } from '../messages/lazy.ts';
@@ -808,9 +807,9 @@ export function hydrate_island(
 		// that attempt by design, so without this the recovery warning below could never say WHY the
 		// walk failed — only that the pre-hydrate check saw drift, which repair may well have fixed.
 		let strict_error: unknown = null;
-		// (a web component's own class tokens on its host: Svelte's hydration writes `class` whole —
-		// runtime/host-classes.ts puts the component's back after it)
-		const host_classes = note_host_classes(region);
+		// (the plugins around Svelte's hydrate: @ogygia/reshape puts a web component's own class
+		// tokens back on its host, since Svelte's hydration writes `class` whole)
+		const after_hydrate = boot_link().region_hydrate(region);
 		try {
 			out = quietly(() => attempt(false));
 			healed = repaired;
@@ -818,7 +817,7 @@ export function hydrate_island(
 			strict_error = err;
 			out = attempt(true);
 		}
-		keep_host_classes(host_classes);
+		after_hydrate?.();
 		if (healed) {
 			// The reason is the "why" — recorded on the element so DOM inspection shows it, carried on
 			// the devtools event, and appended to the console line. Empty string when unknown.
@@ -927,13 +926,13 @@ export function hydrate_live(
 		return null;
 	}
 	const provided_ctx = capture_region_ids(region, () => slots.context?.(region));
-	const host_classes = note_host_classes(region);
+	const after_hydrate = boot_link().region_hydrate(region);
 	const pushed = new slots.Pushable(prop_guard.wrap(props, entry));
 	const app = hydrate(mod.default, {
 		target: region,
 		props: pushed.props,
 		context: nested_context(provided_ctx)
 	});
-	keep_host_classes(host_classes);
+	after_hydrate?.();
 	return handle(app, unmount_app, entry, pushed);
 }

@@ -10,8 +10,10 @@
  *   its listeners, timers, streams).
  * - `rule_failure_uncoded`: no failure leaves ogygia without a code: an uncaught ogygia error names
  *   its code's page, and a `STALE` never escapes as a rejection.
- * - `rule_parse_upgraded`: a parsed answer is inert (./parse-html.ts, #382): no element of it was
+ * - `rule_parse_upgraded`: a parsed answer is inert (./html-sink.ts, #382): no element of it was
  *   built by a component's constructor before the restore reached it.
+ * - `rule_head_adopted`: the head never gains a `<base>` or a refresh / CSP / cookie meta after the
+ *   first document (SPA-HEAD, ./head-deny.ts).
  *
  * Each area tells this module what it holds (`note_mount`, `note_visit`, `watch_router`) only when
  * rules are on (`RULES`): every call site folds out of a build without them.
@@ -25,7 +27,8 @@ type RuntimeRule =
 	| 'rule_address_bar_drift'
 	| 'rule_old_page_open'
 	| 'rule_failure_uncoded'
-	| 'rule_parse_upgraded';
+	| 'rule_parse_upgraded'
+	| 'rule_head_adopted';
 
 /** The runtime's rules. */
 export const runtime_rules: Rules<RuntimeRule> = /* @__PURE__ */ new Rules<RuntimeRule>();
@@ -134,7 +137,7 @@ const no_failure_uncoded = (): string | null => (uncoded.length === 0 ? null : u
 /** What parses built that they should not have, as found (a few). */
 const parsed_built: string[] = [];
 
-/** The rule's ear on every parse (./parse-html.ts calls it): an element of the parsed fragment that
+/** The rule's ear on every parse (./html-sink.ts calls it): an element of the parsed fragment that
  *  a component's constructor built (a defined name, an instance of its definition). */
 function note_parse(fragment: DocumentFragment): void {
 	if (parsed_built.length >= 10 || typeof customElements === 'undefined') return;
@@ -154,6 +157,40 @@ function note_parse(fragment: DocumentFragment): void {
 
 const no_parse_upgraded = (): string | null =>
 	parsed_built.length === 0 ? null : parsed_built.join('; ');
+
+// ── the head gains no <base>, refresh, CSP or cookie meta (SPA-HEAD) ──
+
+type HeadDeny = (node: Element) => boolean;
+
+/** The first document's own candidates (its server sent them, as `outerHTML`): never counted.
+ *  Null: not watched yet. */
+let first_head: ReadonlySet<string> | null = null;
+/** The router's deny (./head-deny.ts), handed in as its lazy chunk loads (a lazy chunk never
+ *  imports a boot module: test/runtime-boot-svelte-free.test.ts). Null: no navigation can have
+ *  adopted anything yet. */
+let head_deny: HeadDeny | null = null;
+
+const head_candidates = (): Element[] =>
+	Array.from(document.head.querySelectorAll('base, meta[http-equiv]'));
+
+function head_not_adopted(): string | null {
+	if (head_deny === null || first_head === null) return null;
+	for (const node of head_candidates()) {
+		const html = node.outerHTML;
+		if (head_deny(node) && !first_head.has(html))
+			return `${html.slice(0, 160)} came into the head after the first document`;
+	}
+	return null;
+}
+
+/** Takes the first document's head as it is now, and checks it never gains a node the router
+ *  denies (`__og_head_deny`, called by ./router-nav.ts with ./head-deny.ts's). */
+export function watch_head(): void {
+	if (first_head === null) runtime_rules.add('rule_head_adopted', head_not_adopted);
+	first_head = new Set(head_candidates().map((n) => n.outerHTML));
+	(globalThis as { __og_head_deny?: (deny: HeadDeny) => void }).__og_head_deny = (deny) =>
+		(head_deny = deny);
+}
 
 // ── the runner ──
 
@@ -182,6 +219,7 @@ export function install_rules(dev: boolean): void {
 	runtime_rules.add('rule_old_page_open', no_old_page_open);
 	runtime_rules.add('rule_failure_uncoded', no_failure_uncoded);
 	runtime_rules.add('rule_parse_upgraded', no_parse_upgraded);
+	watch_head();
 	(globalThis as { __og_parsed?: (f: DocumentFragment) => void }).__og_parsed = note_parse;
 	(globalThis as { __ogygia_rules?: () => BrokenRule[] }).__ogygia_rules = () =>
 		runtime_rules.broken();

@@ -19,12 +19,17 @@ on:
 env:
   TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
   TURBO_TEAM: ${{ vars.TURBO_TEAM }}
+  TURBO_REMOTE_CACHE_SIGNATURE_KEY: ${{ secrets.TURBO_REMOTE_CACHE_SIGNATURE_KEY }}
   TURBO_REMOTE_CACHE_READ_ONLY: ${{ github.event_name != 'push' }}
 
 # (a push cancels the PR's older run; adding another label does not)
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' && github.event.action != 'labeled' }}
+
+# read-only by default; a job that needs more says so
+permissions:
+  contents: read
 
 jobs:
   # Whether this run is wanted: always off a pull request; on one, when it carries or earns the
@@ -41,10 +46,11 @@ jobs:
     outputs:
       run: ${{ steps.gate.outputs.run }}
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          persist-credentials: false
           sparse-checkout: .github/scripts
-      - uses: actions/setup-node@v7
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 22
       - name: Gate
@@ -74,11 +80,12 @@ jobs:
       contents: read
       actions: read
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          persist-credentials: false
           fetch-depth: 0
-      - uses: pnpm/action-setup@v6
-      - uses: actions/setup-node@v7
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 22
           cache: pnpm
@@ -103,7 +110,7 @@ jobs:
       fail-fast: false
       matrix:
         include: ${{ fromJSON(needs.plan.outputs.e2e_engines) }}
-    uses: ./.github/workflows/e2e-slice.yml
+    uses: ./.github/workflows/e2e-slice.yml # zizmor: ignore[self-repository]
     with:
       name: ${{ matrix.name }}
       id: ${{ matrix.id }}
@@ -111,7 +118,9 @@ jobs:
       shard: ${{ matrix.shard }}
       adapters: ${{ matrix.adapters }}
       browser: ${{ matrix.browser }}
-    secrets: inherit
+    secrets:
+      TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
+      TURBO_REMOTE_CACHE_SIGNATURE_KEY: ${{ secrets.TURBO_REMOTE_CACHE_SIGNATURE_KEY }}
 
   # The browser test projects (core, content, machine) in the engines beside Chromium (which e2e.yml's
   # `check` runs): Playwright's Firefox and WebKit, and Firefox as released (WebdriverIO and
@@ -128,11 +137,13 @@ jobs:
       matrix:
         browser: ${{ fromJSON(needs.plan.outputs.browsers) }}
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
-      - uses: pnpm/action-setup@v6
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
 
-      - uses: actions/setup-node@v7
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 22
           cache: pnpm
@@ -147,7 +158,7 @@ jobs:
 
       - name: Playwright browser cache
         if: matrix.browser != 'firefox-stable'
-        uses: actions/cache@v6
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ matrix.browser }}-${{ steps.playwright.outputs.version }}
@@ -155,14 +166,16 @@ jobs:
       # WebKit needs system libraries the runner image lacks: --with-deps here
       - name: Install Playwright ${{ matrix.browser }}
         if: matrix.browser != 'firefox-stable'
-        run: pnpm exec playwright install --with-deps ${{ matrix.browser }}
+        env:
+          BROWSER: ${{ matrix.browser }}
+        run: pnpm exec playwright install --with-deps "$BROWSER"
 
       # the released Firefox (the runner's own is replaced by the latest release); geckodriver is
       # fetched by webdriverio when the run starts
       - name: Install Firefox (release)
         if: matrix.browser == 'firefox-stable'
         id: firefox
-        uses: browser-actions/setup-firefox@v1
+        uses: browser-actions/setup-firefox@0bc507ddf224827e3b1af68e014d5e42ab93e795 # v1.7.2
         with:
           firefox-version: latest
 
@@ -184,7 +197,7 @@ jobs:
       # remembered: the same inputs in this engine passed (the plan leaves the job out next time)
       - name: Remember the pass
         run: echo "${{ needs.plan.outputs.browsers_hash }}" > .browsers-pass
-      - uses: actions/cache/save@v6
+      - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: .browsers-pass
           key: browsers-pass-${{ matrix.browser }}-${{ needs.plan.outputs.browsers_hash }}

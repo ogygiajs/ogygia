@@ -20,8 +20,6 @@ import { kit_hydrates_page } from './kit-boot.ts';
 import {
 	init_shadow_registries,
 	parse_region_html,
-	restore_adopt_sheets,
-	restore_markup,
 	vouch_remote_answer,
 	type VerifiedHtml
 } from './html-sink.ts';
@@ -109,12 +107,13 @@ import {
 import {
 	CLIENT_PLUGINS,
 	boot_client_plugins,
+	client_answer_parsed,
+	client_answer_placed,
 	client_region_mount,
 	client_region_unmount
 } from './client-plugins.ts';
 import type { ClientPlugin } from '../plugin/client.ts';
 import { OgygiaError, warn, line } from '../messages/core.ts';
-import { report_restores } from './restore-report.ts';
 import { disclose_version } from './disclose-version.ts';
 
 // DEVTOOLS gate — module-local const from the Vite `define` (the proven DCE pattern): when off, every
@@ -535,9 +534,9 @@ export function region_fragment(html: VerifiedHtml): {
 				)
 				.then(() => undefined)
 		: Promise.resolve();
-	// The app's transform reshaped the answer: restore it first — before the pristine copies below,
-	// before the morph, before any upgrade (the fragment is inert: nothing upgrades in it)
-	restore_markup(frag);
+	// The app's own pass reshaped the answer (@ogygia/reshape): restored first — before the pristine
+	// copies below, before the morph, before any upgrade (the fragment is inert: nothing upgrades in it)
+	if (CLIENT_PLUGINS) client_answer_parsed(frag);
 	// Pre-capture each nested self-hydrating island's PRISTINE markup while the fragment is still
 	// disconnected. Once inserted, a swapped-in foreign runtime (a web-component upgrade) can reach a raw
 	// custom element inside the island — attaching a shadow, its normalization dropping neighbouring
@@ -1266,7 +1265,7 @@ class OgygiaRegion extends HTMLElement {
 		}
 		if (morph) morph(this, Array.from(frag.childNodes));
 		else this.replaceChildren(frag);
-		restore_adopt_sheets();
+		if (CLIENT_PLUGINS) client_answer_placed();
 		init_shadow_registries(this);
 		absorb_page_facts_now();
 		this.#answered('answered');
@@ -1349,7 +1348,7 @@ class OgygiaRegion extends HTMLElement {
 			for (const el of this.querySelectorAll('ogygia-region'))
 				if (el instanceof OgygiaRegion) el.#box.post((t) => el.#renew(t));
 		}
-		restore_adopt_sheets();
+		if (CLIENT_PLUGINS) client_answer_placed();
 		init_shadow_registries(this);
 		absorb_page_facts_now();
 		this.dispatchEvent(new CustomEvent('ogygia:live', { bubbles: true }));
@@ -1883,7 +1882,7 @@ class OgygiaRegion extends HTMLElement {
 		use_sheets(this, sheets);
 		slots.lakes.settle_in(frag);
 		this.replaceChildren(frag);
-		restore_adopt_sheets();
+		if (CLIENT_PLUGINS) client_answer_placed();
 		init_shadow_registries(this);
 		await this.#live_hydrate(desc.props, mine, desc.module, turn);
 	}
@@ -2077,8 +2076,6 @@ export function boot(
 		warn,
 		line
 	};
-	// what the server transform's restorer recorded, said out loud (./restore-report.ts)
-	report_restores();
 	// What the lazy chunks use from the boot, handed over through the registry (./boot-link.ts).
 	link_boot();
 	for (const install of installers) install();

@@ -69,6 +69,8 @@ with no line, or a line naming something that does not exist (`internal/checks/i
 
 **Why:** Browsers must never mint capabilities. Multi-instance deploys without a shared env need the baked fallback so all replicas agree. Domain-separated keys + length-prefixed fields close classic MAC footguns without requiring the env var on every local demo.
 
+A client build fails (`secret_in_client_chunk`) when a chunk or asset holds a signing secret, or a chunk holds a module that signs. Messages are `v2|` (the render id signed too) for every current mint; `v1|` is still verified so pages cached before an upgrade keep their holes.
+
 **Do not:** Embed the real secret in a client chunk. Fail production builds only when you are ready to require env everywhere (local demos still need the fallback). Change the MAC version string without a deliberate invalidate of in-flight capability URLs.
 
 **Enforced by:** `packages/core/test/region-mac.test.ts > length-prefixes so embedded nulls cannot shift field boundaries`, `packages/core/test/signing-key.test.ts > falls back to the build key without a runtime OGYGIA_SECRET`
@@ -77,11 +79,11 @@ with no line, or a line naming something that does not exist (`internal/checks/i
 
 ## PROBE-THEN-RENDER — rate limit ordering
 
-**What:** Pre-HMAC probe limiter → verify MAC → render limiter → render (with process concurrency gate).
+**What:** Pre-HMAC probe limiter → verify MAC → render limiter → render (with process concurrency gate). The same order holds for each hole of a batch POST: every hole is probed, verified and charged on its own, and one call asked twice in a batch renders once.
 
-**Why:** Forged floods must not burn render CPU or reveal id existence (uniform 403).
+**Why:** Forged floods must not burn render CPU or reveal id existence (uniform 403). A batch must not buy more renders than the same holes asked one by one.
 
-**Do not:** Charge the render budget before verify. Trust `X-Forwarded-For` when `getClientAddress()` fails — fail closed (429).
+**Do not:** Charge the render budget before verify. Charge a batch once for all its holes. Trust `X-Forwarded-For` when `getClientAddress()` fails — fail closed (429).
 
 **Enforced by:** `apps/palaestra/e2e/region-rate.spec.ts > a forged flood is all 403, never 429, and a valid request still serves after it`, `packages/core/test/audit-fixes.test.ts > documents render-rate contract: junk must not call render limited()`
 
@@ -99,13 +101,13 @@ with no line, or a line naming something that does not exist (`internal/checks/i
 
 ---
 
-## PRELOAD-CACHE — `private, max-age=30` without `Vary: Cookie`
+## PRELOAD-CACHE — every region response says how it may be cached
 
-**What:** Region responses are `cache-control: private, max-age=30` so the browser can reuse `<link rel="preload" as="fetch">` for the runtime fetch.
+**What:** A hole is dynamic by default: its answer is `cache-control: no-store`. A hole that opts in (a signed `ttl`, e.g. the `maxAge` preset) is `private, max-age=<ttl>`, so the browser reuses its `<link rel="preload" as="fetch">` answer for the runtime fetch. Every other region response (a refusal, an error, a keep-fallback 204) is `no-store`. No region response is ever `public` or carries `s-maxage`, and every one carries `Referrer-Policy: no-referrer`.
 
-**Why:** Without reuse, every defer hole double-fetches (preload + runtime) and verify suites that assert single render break.
+**Why:** A region answer can hold one visitor's render and its URL is a capability: no shared cache may keep either. A response with no `cache-control` is heuristically cacheable (a 204 too). The opt-in private cache saves the double fetch for holes that are the same for a while.
 
-**Do not:** Default to `no-store` without another way to share preload ↔ runtime. Shared CDNs must not store `private` responses.
+**Do not:** Send a region response without an explicit `cache-control`. Make a hole cacheable by default. Let a shared CDN store a region response.
 
 **Enforced by:** `apps/palaestra/e2e/server-islands.spec.ts > the opt-in cache path (maxAge: '1h' preset) carries a signed ttl + private max-age`
 
@@ -113,7 +115,7 @@ with no line, or a line naming something that does not exist (`internal/checks/i
 
 ## SPA-HEAD — merge allowlist / deny dangerous tags
 
-**What:** SPA head merge skips `<base>` and dangerous `meta[http-equiv]` (refresh / CSP). Only `script[type=module][data-ogygia-runtime]` is retained across navigations. The router starts only when `meta[name=ogygia-router]` is present **and** the document is not Kit-booted (`csr=true`). Navigating toward a Kit-bootstrap HTML response does a full load.
+**What:** SPA head merge skips `<base>` and dangerous `meta[http-equiv]` (refresh / CSP / set-cookie; `packages/core/src/runtime/head-deny.ts`), and the head never gains one after the first document (the rule `rule_head_adopted`, in dev and at the end of every e2e test). Only `script[type=module][data-ogygia-runtime]` is retained across navigations. The router starts only when `meta[name=ogygia-router]` is present **and** the document is not Kit-booted (`csr=true`). Navigating toward a Kit-bootstrap HTML response does a full load.
 
 **Why:** Adopting `<base>` rewrites relative capability fetches. Keeping every module script forever leaks memory across SPA pages. Dual routers on a Kit page would fight click interception — gradual migration needs root `<OgygiaRouter/>` to be a no-op on `csr=true` routes.
 
@@ -121,7 +123,7 @@ with no line, or a line naming something that does not exist (`internal/checks/i
 
 **Do not:** Re-enable “keep all module scripts” without a runtime marker. Prefer HTTP CSP headers over CSP meta (meta is mergeable).
 
-**Enforced by:** `packages/core/test/browser/spa-head-deny.test.ts > a fetched page’s <base> and refresh / CSP metas are never adopted, in any case`
+**Enforced by:** `rule_head_adopted`, `packages/core/test/browser/spa-head-deny.test.ts > a fetched page’s <base> and refresh / CSP / cookie metas are never adopted, in any case`
 
 ---
 

@@ -7,6 +7,7 @@
  * the caller decides when it may go out.
  */
 import { KEEP_FALLBACK_HTML } from '../keep-fallback-marker.ts';
+import { warn } from '../messages/lazy.ts';
 import {
 	capability_expired,
 	deny_of,
@@ -31,6 +32,11 @@ export type HoleFetch = {
 
 /** A hole's fetch: its request started ({@link start_hole}), its answer read ({@link read_hole}). */
 export async function fetch_hole(endpoint: string, opts: HoleFetch = {}): Promise<VerifiedHtml> {
+	// (HOLE-TRUST: nothing goes out to another origin, whoever asks: the element, its warm, preload())
+	if (!is_allowed_region_endpoint(endpoint)) {
+		if (import.meta.env.DEV) warn('region_endpoint_foreign', { endpoint });
+		throw new Error('foreign region endpoint');
+	}
 	return read_hole(endpoint, start_hole(endpoint, opts), opts);
 }
 
