@@ -1,20 +1,8 @@
-/**
- * postrender — Cloudflare edge adapter: zone purge with a bearer API token.
- *
- * `purgeUrl` = purge by files (every plan); `purgeWhere({ prefix })` = purge by prefixes
- * (`<host><prefix>` — Cloudflare's native URL-subtree purge; Enterprise). `headers(meta)` stamps
- * the same depth-capped prefix tags as Akamai under `cache-tag` (Enterprise honors them; other
- * plans ignore the header harmlessly) plus the verdict's `s-maxage`.
- *
- * `baseUrl` override points the SAME adapter at a harness emulator — the real request/auth
- * shape is what gets exercised.
- */
 import { net } from '@ogygia/machine';
 import type { PostrenderMeta, EdgeAdapter } from '../types.ts';
 import { prefix_tags, normalize_prefix } from '../key.ts';
 import { OgygiaError } from '../messages.ts';
 
-// ── regexes
 const TRAILING_SLASHES_RE = /\/+$/;
 const HTTP_SCHEME_RE = /^https?:\/\//;
 
@@ -30,6 +18,12 @@ export interface CloudflareConfig {
 	maxAge?: number;
 }
 
+/**
+ * A Cloudflare edge: zone purge with a bearer API token. `purgeUrl` purges by files (every plan);
+ * `purgeWhere({ prefix })` purges by prefixes (`<host><prefix>`, Enterprise). `headers(meta)`
+ * stamps the depth-capped prefix tags under `cache-tag` (plans that do not read it ignore it)
+ * plus the verdict's `s-maxage`. `baseUrl` points the same adapter at an emulator.
+ */
 export class CloudflareEdge implements EdgeAdapter {
 	readonly name: string = 'cloudflare';
 	#config: CloudflareConfig;
