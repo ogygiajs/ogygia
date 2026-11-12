@@ -1,7 +1,16 @@
 // Mutation testing through the simulator (src/mutate.ts): a mutant is one change at one line of a
 // package's source; it is killed when a seed finds what that seed did not find on the code as it is.
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { apply_mutant, clone_command, package_of, tally, verdict } from '../src/mutate.ts';
+import {
+	apply_mutant,
+	clone_command,
+	package_of,
+	tally,
+	verdict,
+	type Mutant
+} from '../src/mutate.ts';
 
 const SRC = [
 	'function f(a, b) {',
@@ -54,6 +63,33 @@ describe('a mutant', () => {
 	it('names the package it builds', () => {
 		expect(package_of('packages/core/src/runtime/core.ts')).toBe('packages/core');
 		expect(() => package_of('internal/sim/src/cli.ts')).toThrow(/package/);
+	});
+
+	it('finds its line by its code when the source moved, the nearest of several', () => {
+		// (the daily list's lines went stale as main moved: both mutants changed a comment line or
+		// threw, and the job judged nothing)
+		const moved = ['// a', '// b', SRC, '\treturn false;'].join('\n');
+		const m = {
+			file: 'packages/core/src/x.ts',
+			line: 3,
+			code: 'return false;',
+			operator: 'boolean'
+		};
+		const out = apply_mutant(moved, m).split('\n');
+		expect(out[4]).toBe('\treturn true;');
+		expect(out[6]).toBe('\treturn false;');
+		expect(() => apply_mutant(moved, { ...m, code: 'return maybe;' })).toThrow(/return maybe/);
+	});
+
+	it('of the daily list applies to the code as it is', () => {
+		const root = fileURLToPath(new URL('../../../', import.meta.url));
+		const list = JSON.parse(
+			readFileSync(new URL('../mutants.json', import.meta.url), 'utf8')
+		) as Mutant[];
+		for (const m of list) {
+			expect(m.code, `${m.id} names its line's code`).toBeTypeOf('string');
+			expect(() => apply_mutant(readFileSync(root + m.file, 'utf8'), m)).not.toThrow();
+		}
 	});
 });
 

@@ -642,14 +642,15 @@ export class World {
 	 */
 	async rest(): Promise<void> {
 		// (only the wire keeps it waiting: a live region ticks for good, and its ticks end a quiesce
-		// by its budget, as before)
+		// by its budget, as before; a live answer's pieces are not work in flight, or rest waited
+		// budget after budget, once to the horizon: palaestra seed 20003, test/rest.node.test.ts)
 		// (a quiesce whose next task is past its budget returns without running it: step to it)
 		while (!(await this.quiesce()) && this.loop.next_at <= this.loop.horizon && !this.#wire_quiet())
 			await this.loop.step();
 	}
 
 	#wire_quiet(): boolean {
-		return this.loop.next_of('net') === Infinity && this.network.unanswered() === 0;
+		return !this.network.busy();
 	}
 
 	/** True when the world came to rest; false when the budget or the horizon ended the wait. */
