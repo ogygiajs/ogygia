@@ -281,7 +281,15 @@ function report(lints: Array<Lint & { from: string }>): string | null {
 export async function html_sent(world: World): Promise<Broken | null> {
 	const judged = new Set<string>();
 	const lints: Array<Lint & { from: string }> = [];
+	// (a server passes on what its hops brought, a mounted peer page whole: a document one of whose
+	// hops the network changed or cut holds bytes no server wrote; gen 178, test/html.test.ts)
+	const hops_faulted = new Set(
+		world.network.exchanges
+			.filter((e) => e.for !== undefined && (e.tampered || e.cut))
+			.map((e) => e.for!)
+	);
 	for (const a of world.html) {
+		if (hops_faulted.has(a.from)) continue;
 		const html = await a.html;
 		if (html === '' || judged.has(html)) continue;
 		judged.add(html);
