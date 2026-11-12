@@ -11,7 +11,7 @@
  * A timestamp in `sessionStorage` bounds it to one reload per few seconds, so a genuinely broken
  * entry (200 that keeps failing to import) never loops.
  */
-import { flights } from '@ogygia/machine';
+import { clock, flights, net, storage } from '@ogygia/machine';
 import { code_url } from './code-origins.ts';
 
 const STALE_DEP_RELOAD_KEY = 'ogygia:dev:dep-reload';
@@ -51,12 +51,15 @@ export async function recover_from_stale_deps(
 
 async function confirm_and_reload(url: string, reload: () => void): Promise<void> {
 	try {
-		const last = Number(sessionStorage.getItem(STALE_DEP_RELOAD_KEY) || 0);
+		// (no storage: no reload, since nothing would stop the next page reloading again)
+		const session = storage.session();
+		if (session === null) return;
+		const last = Number(session.getItem(STALE_DEP_RELOAD_KEY) || 0);
 		// wall: the last reload's time lives in sessionStorage, across page loads
-		if (Date.now() - last < STALE_DEP_RELOAD_WINDOW_MS) return; // already reloaded — don't loop
-		const res = await fetch(url, { cache: 'no-store' });
+		if (clock.wall() - last < STALE_DEP_RELOAD_WINDOW_MS) return; // already reloaded — don't loop
+		const res = await net.fetch(url, { cache: 'no-store' });
 		if (!res.ok) return; // a real 404 — leave the error visible, it is not a re-optimize
-		sessionStorage.setItem(STALE_DEP_RELOAD_KEY, String(Date.now())); // wall: read by the next page load
+		session.setItem(STALE_DEP_RELOAD_KEY, String(clock.wall())); // wall: read by the next page load
 		reload();
 	} catch {
 		// ok: dev only: storage or fetch blocked; the error said before this stays, and the dev reloads by hand
