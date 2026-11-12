@@ -65,6 +65,17 @@ describe('a region import in a .ts module', () => {
 		).toBe(null);
 	});
 
+	it('rewrites at the right place after text outside ASCII', () => {
+		const out = compile(dedent`
+			// ünïcödé ✓ 🌊
+			import X from '$lib/X.svelte' with { wake: 'load' };
+			export const r = X;
+		`);
+		expect(out!.code).toMatch(
+			/^\/\/ ünïcödé ✓ 🌊\nimport X from "ogygia:region\/binding\/[0-9a-f]{12}\.js";\nexport const r = X;$/
+		);
+	});
+
 	it('an import with other attributes is not a region', () => {
 		expect(compile(`import data from './d.json' with { type: 'json' };\nexport { data };`)).toBe(
 			null
