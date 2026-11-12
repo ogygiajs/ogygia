@@ -17,7 +17,6 @@ export interface CompiledPattern {
 
 const REGEX_SPECIAL_G = /[.*+?^${}()|[\]\\]/g;
 const escape_re = (s: string) => s.replace(REGEX_SPECIAL_G, '\\$&');
-
 const REST = /^\[\.\.\.([a-zA-Z_$][\w$]*)\]$/;
 const OPTIONAL = /^\[\[([a-zA-Z_$][\w$]*)\]\]$/;
 const VALID_PARAM_GROUPS = /\[[a-zA-Z_$][\w$]*\]/g;
@@ -62,28 +61,41 @@ export function compile(pattern: string): CompiledPattern {
 			rx += '(?:/([^/]+))?';
 			ranks.push(SEGMENT_RANK.optional);
 		} else {
-			let inner = '/';
-			let has_static = false;
-			let has_param = false;
+			const pieces: Array<{ text: string } | { name: string }> = [];
 			let last = 0;
 			INNER_PARAM.lastIndex = 0;
 			let g: RegExpExecArray | null;
 			while ((g = INNER_PARAM.exec(seg))) {
 				const pre = seg.slice(last, g.index);
-				if (pre) {
-					inner += escape_re(pre);
-					has_static = true;
-				}
-				inner += '([^/]+)';
-				params.push({ name: g[1] });
-				has_param = true;
+				if (pre) pieces.push({ text: pre });
+				pieces.push({ name: g[1] });
 				last = INNER_PARAM.lastIndex;
 			}
 			const tail = seg.slice(last);
-			if (tail) {
-				inner += escape_re(tail);
-				has_static = true;
-			}
+			if (tail) pieces.push({ text: tail });
+			let inner = '/';
+			let has_static = false;
+			let has_param = false;
+			let params_left = pieces.filter((p) => 'name' in p).length;
+			pieces.forEach((p, j) => {
+				if ('text' in p) {
+					inner += escape_re(p.text);
+					has_static = true;
+					return;
+				}
+				params_left--;
+				const next = pieces[j + 1];
+				const group = params.length + 1;
+				// @why a param with another after it takes the shortest run its literal follows, as an atomic group never backtracked into, so the match is linear and splits as Kit's lazy params do (test: test/router-match.test.ts › a segment with several params answers a long path that almost matches at once)
+				inner +=
+					params_left === 0
+						? '([^/]+)'
+						: next && 'text' in next
+							? `(?=([^/]+?)${escape_re(next.text)})\\${group}`
+							: '([^/])';
+				params.push({ name: p.name });
+				has_param = true;
+			});
 			if (has_stray_bracket(seg) || (!has_static && !has_param)) {
 				throw new Error(`[@ogygia/router] malformed segment ${JSON.stringify(seg)} in ${pattern}`);
 			}
@@ -147,8 +159,12 @@ export function fill(pattern: string, params: Record<string, string | number>): 
 	});
 }
 
+/** The longest pathname any route is matched against (longer: no route, a 404). */
+const MAX_PATH = 8192;
+
 /** First (most-specific) match in a pre-sorted list, or null. */
 export function match_path(sorted: CompiledPattern[], pathname: string): PathMatch | null {
+	if (pathname.length > MAX_PATH) return null;
 	for (const c of sorted) {
 		const hit = match_one(c, pathname);
 		if (hit) return hit;
