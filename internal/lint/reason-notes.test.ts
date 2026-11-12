@@ -82,3 +82,22 @@ export const awaited = async () => void (await p());
 test('ogygia/no-silent-failures: every void call needs an ok note, an optional call and a cast too', () => {
 	assert.deepEqual(reported('no-silent-failures', VOIDS), [3, 4, 5, 7]);
 });
+
+const FALLBACKS = `declare const p: () => Promise<string>;
+declare const use: (x: unknown) => void;
+export function a() { try { return p(); } catch { return null; } }
+export function b() { try { return p(); } catch { return ''; } }
+export function c(xs: string[]) { for (const x of xs) { try { use(x); } catch { continue; } } }
+export function d() { let v = 1; try { v = 2; } catch { v = 0; } return v; }
+export const e = () => p().catch(() => '');
+export const f = () => p().catch(() => []);
+export const g = () => p().then(String, () => { return false; });
+export function h() { try { return p(); } catch (err) { return String(err); } }
+export function i() { try { return p(); } catch { return null; } } // ok: a missing value is the answer
+export const j = () => p().catch((err: unknown) => { use(err); return ''; });
+export function k() { try { return p(); } catch { use(1); return null; } }
+`;
+
+test('ogygia/no-silent-failures: a catch that only falls back (a value, a continue) says why (#1286)', () => {
+	assert.deepEqual(reported('no-silent-failures', FALLBACKS), [3, 4, 5, 6, 7, 8, 9]);
+});
