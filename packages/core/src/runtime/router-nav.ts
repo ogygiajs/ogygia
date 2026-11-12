@@ -81,6 +81,8 @@ const is_warmed_module = (entry: string, base?: string) =>
 	boot_link().is_warmed_module(entry, base);
 const warm_island_module = (entry: string, base?: string) =>
 	boot_link().warm_island_module(entry, base);
+const runs_entry = (attrs: import('./region-attrs.ts').RegionAttrs) =>
+	boot_link().runs_entry(attrs);
 const note_entry_location = (entry: string, src: string | null, base?: string) =>
 	boot_link().note_entry_location(entry, src, base);
 const register_island_graph = (text: string, base: string) =>
@@ -664,10 +666,11 @@ function warm_modules(href: string, html: string) {
 		const json = text_of(html, t, 'script');
 		if (json !== null) register_island_graph(json, new URL(href, location.href).href);
 	}
-	// Each region's identity, and its location beside it (the file the warm then fetches)
+	// Each region's identity, and its location beside it (the file the warm then fetches): only a
+	// region whose entry the browser runs (a lake's names no file)
 	for (const t of tags(html, 'ogygia-region')) {
 		const entry = t.attrs.get('entry');
-		if (!entry) continue;
+		if (!entry || !runs_entry({ getAttribute: (name) => t.attrs.get(name) ?? null })) continue;
 		note_entry_location(entry, t.attrs.get('src') ?? null, href);
 		warm_island_module(entry, href);
 	}
