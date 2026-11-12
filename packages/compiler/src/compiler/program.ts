@@ -251,7 +251,7 @@ export class Program {
 
 	/** Replace this host's claims; shared ids keep one registry entry (path+strategy dedupe). */
 	register(result: RegisterResult, hostId: string): void {
-		const { registry, island_graph, by_id, region_kinds, host_index, id_hosts } = this;
+		const { island_graph, by_id, region_kinds, host_index, id_hosts } = this;
 		this.unregister_host(hostId);
 		const key = host_key(hostId);
 		// The ONE wire rule: the transform said this file can cross live content into an island
