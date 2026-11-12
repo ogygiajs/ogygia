@@ -34,6 +34,9 @@ export interface RequestFacts {
 	sources: string[] | null;
 	/** Every flag decided for this request (name → variant): federation carries them as claims. */
 	assignments: Record<string, string>;
+	/** Origins island code on this page may load from, learned by the render (a peer fragment's own
+	 *  runtime origin): written on the runtime's script with the plugins' (`codeOrigins`). */
+	codeOrigins?: string[];
 }
 
 interface FactsSlot {

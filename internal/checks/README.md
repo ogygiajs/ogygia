@@ -1,13 +1,21 @@
 # internal checks
 
 Scripts we run by hand (or from an agent loop) to check ogygia's own tools and costs. None of them
-ship, and none of them run in CI. Each script's header says what it checks and how to run it; run
+ship, and only the ones under "Run in CI" run in CI. Each script's header says what it checks and how to run it; run
 them from the repository root, for example `node internal/checks/all-keys.ts`.
 
 The framework benchmark (ogygia against SvelteKit, Astro and Mochi, Lighthouse and bytes) no longer
 lives here. It moved to its own public repository,
 [ogygiajs/bench](https://github.com/ogygiajs/bench), which benchmarks every ogygia pull
 request and every push to `main`.
+
+## Run in CI
+
+`*.test.ts` files here run with `pnpm lint:test`, which CI runs.
+
+| script              | checks                                                                                  |
+| ------------------- | --------------------------------------------------------------------------------------- |
+| `attack-surface.ts` | `internal/notes/ATTACK-SURFACE.md` is the map the code makes now: run it after a change |
 
 ## Answer keys
 
@@ -37,15 +45,6 @@ and checks that the devtools or the profiler name exactly those, and nothing on 
 | `compiler-stress.ts`           | repeated real builds: transform time, byte determinism, cache hits   |
 | `compiler-micro.ts`            | pathological inputs straight into the transform: no blowup           |
 | `integration-prop-contract.ts` | island props survive the server to client trip, and cannot escape it |
-
-## Comments sweep (#512)
-
-| script        | does                                                                              |
-| ------------- | --------------------------------------------------------------------------------- |
-| `comments.ts` | lists what `ogygia/structured-comments` reports under a path (`--table`: PR rows) |
-| `flip.ts`     | breaks one line on purpose, runs a test command, wants red, puts the line back    |
-
-The rule's own tests: `pnpm lint:test`.
 
 ## Costs
 

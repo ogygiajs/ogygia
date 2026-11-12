@@ -12,7 +12,7 @@ import { observe_reads } from './reads.ts';
 import { ask, notify, register_hooks } from './hooks.ts';
 import { route_config } from './routes.ts';
 import { renders_for_a_page } from '../server/endpoint.ts';
-import { plugin_capabilities, type CapabilitySigner } from './capability.ts';
+import { plugin_capabilities, plugin_signer, type CapabilitySigner } from './capability.ts';
 import { record_server_event } from '../events/server-registry.ts';
 import { warn } from '../messages/server.ts';
 import { say, slot as shared } from '@ogygia/machine';
@@ -44,6 +44,7 @@ export function start_plugins(
 	const plugins = entries.map(({ name, options, server }) => {
 		// (once per message, of the last 1024 said: a message with a URL in it never grows the server)
 		const warned = say();
+		const own = plugin_signer(name, signer);
 		const app: ServerApp<unknown> = {
 			name,
 			options,
@@ -53,9 +54,9 @@ export function start_plugins(
 			current: current_facts,
 			perVisitor: note_per_visitor,
 			observeReads: (event) => observe_reads(event, facts_of(event.request).reads),
-			sign: signer.sign,
-			verify: signer.verify,
-			capability: plugin_capabilities(name, signer),
+			sign: own.sign,
+			verify: own.verify,
+			capability: plugin_capabilities(own),
 			devtools: record_server_event,
 			keepAlive: keep_alive,
 			warn(message) {

@@ -78,4 +78,49 @@ describe('steps accounted', () => {
 		// (accounted against the sweep: what it reached, and the covered and dead buckets)
 		expect([a.accounted, a.total]).toEqual([3, 4]);
 	});
+
+	// (a step one lucky seed reached is not covered: the sweep replays a saved plan that reaches it,
+	// the same run every time, and names the steps it must reach)
+	const planned = ledger({
+		sweep: {
+			...ledger().sweep,
+			plans: [{ app: 192, plan: 'internal/sim/sweep-plans/b-c.json', reaches: ['m: b -> c'] }]
+		}
+	});
+	const with_plan = (p: string): string | null =>
+		p === 'internal/sim/sweep-plans/b-c.json' ? '{}' : read(p);
+
+	it('fails a plan whose file is not there, or whose step is not in the reached bucket', () => {
+		expect(account(ALL, planned, { read: with_plan }).failures).toEqual([]);
+		expect(account(ALL, planned, { read }).failures).toEqual([
+			'its plan is not there: internal/sim/sweep-plans/b-c.json'
+		]);
+		const stray = ledger({
+			sweep: {
+				...ledger().sweep,
+				plans: [{ app: 192, plan: 'internal/sim/sweep-plans/b-c.json', reaches: ['m: c -> a'] }]
+			}
+		});
+		expect(account(ALL, stray, { read: with_plan }).failures).toEqual([
+			'internal/sim/sweep-plans/b-c.json reaches m: c -> a, which is not in the reached bucket'
+		]);
+	});
+
+	it('against a sweep: fails a plan that no longer reaches its step, though seeds did', () => {
+		const sweep = new Set(['m: a -> b', 'm: b -> c']);
+		const kept = account(ALL, planned, {
+			read: with_plan,
+			sweep,
+			plans: new Map([['internal/sim/sweep-plans/b-c.json', new Set(['m: b -> c'])]])
+		});
+		expect(kept.failures).toEqual([]);
+		const lost = account(ALL, planned, {
+			read: with_plan,
+			sweep,
+			plans: new Map([['internal/sim/sweep-plans/b-c.json', new Set(['m: a -> b'])]])
+		});
+		expect(lost.failures).toEqual([
+			'its plan no longer reaches it: m: b -> c (internal/sim/sweep-plans/b-c.json)'
+		]);
+	});
 });
