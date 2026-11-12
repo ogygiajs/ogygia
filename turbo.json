@@ -1,5 +1,7 @@
 {
 	"$schema": "https://turborepo.com/schema.json",
+	"remoteCache": { "signature": true },
+	"globalDependencies": [".github/turbo-cache-epoch"],
 	"tasks": {
 		"build": {
 			"dependsOn": ["^build"],
@@ -19,7 +21,7 @@
 		},
 		"e2e": {
 			"dependsOn": ["^build"],
-			"outputs": [],
+			"outputs": ["playwright-results/**"],
 			"cache": true,
 			"env": ["E2E_NO_BUILD", "E2E_SHARD", "OGYGIA_BROWSERS"],
 			"passThroughEnv": [

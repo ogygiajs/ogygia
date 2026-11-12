@@ -15,6 +15,7 @@
  *      (Heisenbench `unmeasured`), with the exemptions in internal/heisenbench/unmeasured.json
  *
  * An exemption is `{ "id": "packages/core/src/x.ts > fn", "reason": "why nothing can measure it" }`.
+ * One whose id names no function any more fails the gate too (./stale.ts).
  * Writes to --out (default .heisenbench/unmeasured): gate.md (also the job summary in CI), gate.json
  * (every function with its sources), and what each step produced. Exit 1 when the gate fails.
  */
@@ -25,14 +26,16 @@ import {
 	mkdtempSync,
 	readdirSync,
 	readFileSync,
+	renameSync,
 	rmSync,
 	writeFileSync
 } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join, relative } from 'node:path';
+import { dirname, join, relative } from 'node:path';
 import { parseArgs } from 'node:util';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { heisenbench_dir, bench_packages, link_heisenbench, REPO_ROOT } from './heisenbench.ts';
+import { gone_exemptions, type Exemption } from './stale.ts';
 
 const { values } = parseArgs({
 	options: {
@@ -79,6 +82,21 @@ function source_files(rev: string | null): string[] {
 				!f.endsWith('.d.ts')
 		)
 		.sort();
+}
+
+/** The package source files git sees as renamed from `rev` to the working tree: old path → new. */
+function renames(rev: string): Map<string, string> {
+	const out = execFileSync(
+		'git',
+		['diff', '--name-status', '--find-renames', '--diff-filter=R', rev, '--', 'packages'],
+		{ cwd: REPO_ROOT, encoding: 'utf8', maxBuffer: 1 << 28 }
+	);
+	const moved = new Map<string, string>();
+	for (const line of out.split('\n')) {
+		const [status, from, to] = line.split('\t');
+		if (status?.startsWith('R') && from && to) moved.set(from, to);
+	}
+	return moved;
 }
 
 // 1. what the bench files run
@@ -178,14 +196,45 @@ if (values.base) {
 		maxBuffer: 1 << 30
 	});
 	execFileSync('tar', ['-x', '-C', base_root], { input: tar });
+	// A file moved since the base keeps its functions: the base's copy is read at its new path, so a
+	// move is not a crop of new functions (git's own rename detection decides what moved).
+	const moved = renames(values.base);
+	const base_files = files.map((f) => {
+		const to = moved.get(f);
+		if (to === undefined) return f;
+		mkdirSync(dirname(join(base_root, to)), { recursive: true });
+		renameSync(join(base_root, f), join(base_root, to));
+		return to;
+	});
 	const base_list = join(out, 'base-files.txt');
-	writeFileSync(base_list, files.join('\n') + '\n');
+	writeFileSync(base_list, base_files.join('\n') + '\n');
 	const base_inventory = join(out, 'base-inventory.json');
 	heisenbench_cli(['inventory', '--list', base_list, '--root', base_root, '--out', base_inventory]);
 	gate_args.push('--base-inventory', base_inventory);
 	rmSync(base_root, { recursive: true, force: true });
 }
-const status = heisenbench_cli(gate_args);
+let status = heisenbench_cli(gate_args);
+// An exemption that names no function any more fails the gate (./stale.ts), matched as the
+// Heisenbench checkout's gate matches it
+const { context_path } = (await import(
+	pathToFileURL(join(heisenbench, 'src', 'identity.ts')).href
+)) as { context_path: (id: string) => string };
+const gone = gone_exemptions(
+	(JSON.parse(readFileSync(EXEMPT, 'utf8')) as { exempt: Exemption[] }).exempt,
+	JSON.parse(readFileSync(inventory, 'utf8')) as { functions: { id: string }[] },
+	context_path
+);
+if (gone.length) {
+	const md =
+		`\n**${gone.length} exemption${gone.length === 1 ? '' : 's'} naming no function any more.** ` +
+		'Take each out of internal/heisenbench/unmeasured.json (its function was renamed, moved or ' +
+		'deleted; a renamed one that is still unmeasured gets an exemption under its new id):\n\n' +
+		gone.map((e) => `- \`${e.id}\``).join('\n') +
+		'\n';
+	writeFileSync(join(out, 'gate.md'), md, { flag: 'a' });
+	for (const e of gone) log(`stale exemption: ${e.id}`);
+	status = 1;
+}
 if (process.env.GITHUB_STEP_SUMMARY) {
 	writeFileSync(process.env.GITHUB_STEP_SUMMARY, readFileSync(join(out, 'gate.md')), { flag: 'a' });
 }
