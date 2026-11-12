@@ -432,7 +432,8 @@ describe('the random app', () => {
 		expect(pages.some((p) => p.hero)).toBe(true);
 		expect(pages.some((p) => !p.hero)).toBe(true);
 		// (the trees stay what they were: the hero is drawn apart)
-		const strip = (ps: readonly GenPage[]) => ps.map(({ hero: _, ...p }) => p);
+		const strip = (ps: readonly GenPage[]) =>
+			ps.map((p) => Object.fromEntries(Object.entries(p).filter(([k]) => k !== 'hero')));
 		expect(strip(plan(3))).toEqual(strip(plan(3)));
 		const seed = seeds.find((s) => plan(s).some((p) => p.hero))!;
 		const app = mkdtempSync(join(tmpdir(), 'sim-gen-'));
