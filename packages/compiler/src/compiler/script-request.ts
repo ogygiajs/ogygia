@@ -9,7 +9,9 @@
  */
 
 /** Vite's query flags whose payload is not the module's script */
+// static: Vite's query flags that make a request something other than a script
 const NON_SCRIPT_FLAGS = new Set(['raw', 'url', 'inline', 'worker', 'sharedworker', 'direct']);
+// static: the script languages a request may name
 const SCRIPT_LANGS = new Set(['js', 'ts', 'jsx', 'tsx', 'mjs', 'cjs', 'mts', 'cts']);
 
 export function is_script_request(id: string): boolean {
