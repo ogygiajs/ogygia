@@ -9,7 +9,7 @@
 // coverage.
 import { el, frag } from '../test/_stubs/dom.ts';
 import { bench } from '@bench/heisenbench/bench';
-import { fingerprint_of, fnv1a, signature_of } from '../src/runtime/hash.ts';
+import { fingerprint_of, fnv1a, signature_of } from '../src/contract/hash.ts';
 import { morph_children } from '../src/runtime/morph.ts';
 import { parse_wire_text } from '../src/runtime/wire-format.ts';
 import {

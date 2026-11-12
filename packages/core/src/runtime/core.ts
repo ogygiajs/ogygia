@@ -1,5 +1,6 @@
 import {
 	backoffAfter,
+	clock,
 	flights,
 	mailbox,
 	scope,
@@ -11,18 +12,14 @@ import {
 } from '@ogygia/machine';
 import { frameAddress, older_by, type FrameOrder } from '../frame.ts';
 import { import_again, is_failed_import, on_reload_needed } from './import-again.ts';
+import { browser_offline, no_response } from './network.ts';
 // Build-time constants (compiler/link/runtime-entry.ts `generateRuntimeFlagsSource`): `FRAMES` is
 // off in a build where no region streams HTML, and the bundler drops the element's fetch / apply /
 // morph / renew path with it — that path works on the element's own state, so it cannot be a
 // feature module of its own, and without the frame store it has nowhere to land anyway.
-import { FRAMES } from 'virtual:ogygia/runtime-flags';
+import { FRAMES } from 'ogygia:boot';
 import { kit_hydrates_page } from './kit-boot.ts';
-import {
-	init_shadow_registries,
-	parse_region_html,
-	restore_adopt_sheets,
-	restore_markup
-} from './parse-html.ts';
+import { init_shadow_registries, parse_region_html } from './parse-html.ts';
 import {
 	mark_region_changed,
 	region_changed,
@@ -69,7 +66,15 @@ import {
 } from './region-machines.ts';
 import { KEEP_FALLBACK_HTML } from '../keep-fallback-marker.ts';
 import { download, region_fetch } from '../policies.ts';
-import { install_rules, note_mount, note_unmount } from './rules.ts';
+import {
+	install_rules,
+	note_handed,
+	note_mount,
+	note_shown,
+	note_turn,
+	note_unbound,
+	note_unmount
+} from './rules.ts';
 import { PAGE_FACTS_SELECTOR } from '../page-facts-script.ts';
 import { link_boot } from './boot-link.ts';
 import {
@@ -88,15 +93,6 @@ import { fetch_priority_of, LoadSlot, viewport_class, type LoadClass } from './l
 import { connected_regions } from './connected.ts';
 import { restore_props_sidecar } from './sidecar.ts';
 import { hole_facts_of } from './hole-facts.ts';
-import {
-	beacon_hydrated,
-	beacon_watch,
-	beacon_failed,
-	beacon_warning,
-	beacon_hole_failed,
-	beacon_hole_answered,
-	beacon_entry_fallback
-} from './beacon.ts';
 import { set_hydrating, tap_svelte_warnings, on_svelte_warning } from './svelte-warnings.ts';
 import type { IslandHandle, IslandModule } from './hydrate-core.ts';
 import { emit as dt_emit } from '../events/bus.ts';
@@ -106,21 +102,26 @@ import {
 } from '../events/sinks.ts';
 import {
 	CLIENT_PLUGINS,
+	HOOK_ANSWER_PARSED,
+	HOOK_ANSWER_PLACED,
+	HOOK_ENTRY_FALLBACK,
+	HOOK_HOLE_ANSWERED,
+	HOOK_HOLE_FAILED,
+	HOOK_REGION_FAILED,
+	HOOK_REGION_HYDRATED,
+	HOOK_REGION_MOUNT,
+	HOOK_REGION_UNMOUNT,
+	HOOK_WARNING,
 	boot_client_plugins,
-	client_region_mount,
-	client_region_unmount
+	client_region_mount
 } from './client-plugins.ts';
-import type { ClientPlugin } from '../plugin/client.ts';
+import type { ClientRealm } from './client-plugins.ts';
 import { OgygiaError, warn, line } from '../messages/core.ts';
-import { report_restores } from './restore-report.ts';
 import { disclose_version } from './disclose-version.ts';
 
 // DEVTOOLS gate — module-local const from the Vite `define` (the proven DCE pattern): when off, every
 // `if (DEVTOOLS) dt_emit({…})` folds to `if (false)` and the whole devtools graph tree-shakes away.
 const DEVTOOLS = typeof __OGYGIA_DEVTOOLS__ !== 'undefined' ? __OGYGIA_DEVTOOLS__ : false;
-// the profiler's browser half: only where the profiler or devtools can read it (a plain import of
-// dist/ without the define keeps it). Every `if (BEACON) beacon_…()` folds out otherwise.
-const BEACON = typeof __OGYGIA_BEACON__ !== 'undefined' ? __OGYGIA_BEACON__ : true;
 // the runtime's rules (./rules.ts): in dev, and in a build made with OGYGIA_RULES=1 (e2e). Every
 // `if (RULES) …` folds out of any other build, and the rules with it.
 const RULES =
@@ -169,10 +170,8 @@ function dt_ids(el: Element): { entry?: string; fp?: string } {
 	return { entry, fp };
 }
 
-/** High-res clock for devtools timings (guarded — dead when devtools is off). */
-function now_ms(): number {
-	return typeof performance !== 'undefined' && performance.now ? performance.now() : Date.now();
-}
+/** The monotonic clock, for devtools timings (dead when devtools is off). */
+const now_ms = clock.mono;
 
 /**
  * THE HYDRATE CORE, loaded once, lazily (./hydrate-core.ts): Svelte's `hydrate`, the provider
@@ -318,10 +317,11 @@ async function recover_from_stale_deps(entry: string | null): Promise<void> {
 	if (!import.meta.env.DEV || !entry || typeof location === 'undefined') return;
 	try {
 		const last = Number(sessionStorage.getItem(STALE_DEP_RELOAD_KEY) || 0);
+		// wall: the last reload's time lives in sessionStorage, across page loads
 		if (Date.now() - last < STALE_DEP_RELOAD_WINDOW_MS) return; // already reloaded — don't loop
 		const res = await fetch(island_module_url(entry), { cache: 'no-store' });
 		if (!res.ok) return; // a real 404 — leave the error visible, it is not a re-optimize
-		sessionStorage.setItem(STALE_DEP_RELOAD_KEY, String(Date.now()));
+		sessionStorage.setItem(STALE_DEP_RELOAD_KEY, String(Date.now())); // wall: read by the next page load
 		location.reload();
 	} catch {
 		// ok: dev only: storage or fetch blocked; the error said before this stays, and the dev reloads by hand
@@ -364,7 +364,35 @@ type LiveTick = {
 /** A download slot (load-scheduler.ts) asked for by a step whose element then left: its turn still
  *  comes, and is handed straight back. */
 const hand_back = (release: () => void): void => release();
+
+/**
+ * An island that could not start, said once with its code: a woken island's, or a live region's.
+ * The ENTRY FETCH failing (the module never loaded) is told apart from the hydrate throwing (the
+ * module loaded, its code ran and failed). A `Failed to fetch dynamically imported module` on the
+ * island's own entry is not a hydration problem: in dev it almost always means Vite re-optimized deps
+ * and rotated the optimizer hash, so this already-loaded tab is importing dep URLs that no longer
+ * exist — a reload picks up the new graph (the dev bridge carries `@vite/client`, so Vite's own
+ * full-reload does this on the next signal). (each engine words it its own way: is_failed_import
+ * knows them all, WebKit's too, #383)
+ */
+function say_island_failed(entry: string | null, err: unknown): void {
+	if (kit_boot_failed(err)) {
+		// ok: said once for the page by the wait that saw it (kit-page-thread.svelte.ts)
+	} else if (is_failed_import(err)) {
+		if (import.meta.env.DEV) {
+			console.error(new OgygiaError('island_load_failed_stale_deps', { entry }), err);
+			void recover_from_stale_deps(entry); // ok: dev only, never rejects (its failure leaves the error above)
+		} else {
+			console.error(new OgygiaError('island_load_failed', { entry }), err);
+		}
+	} else {
+		console.error(new OgygiaError('island_hydrate_failed', { entry }), err);
+	}
+}
 const nothing = (): void => {};
+/** Whether a wait failed because Kit can no longer start on this page (kit-page-thread.svelte.ts). */
+const kit_boot_failed = (err: unknown): boolean =>
+	(err as { code?: unknown } | null)?.code === 'kit_boot_failed';
 
 /** Where a live snippet's pending hydrate waits on its host region (region-snippet.ts `hold_host`). */
 const SNIPPET_BOOTS = Symbol.for('ogygia.snippet-boots');
@@ -536,9 +564,9 @@ export function region_fragment(html: string): {
 				)
 				.then(() => undefined)
 		: Promise.resolve();
-	// The app's transform reshaped the answer: restore it first — before the pristine copies below,
-	// before the morph, before any upgrade (the fragment is inert: nothing upgrades in it)
-	restore_markup(frag);
+	// The app's own pass reshaped the answer (@ogygia/reshape): restored first — before the pristine
+	// copies below, before the morph, before any upgrade (the fragment is inert: nothing upgrades in it)
+	if (HOOK_ANSWER_PARSED) slots.hooks?.answerParsed?.({ fragment: frag });
 	// Pre-capture each nested self-hydrating island's PRISTINE markup while the fragment is still
 	// disconnected. Once inserted, a swapped-in foreign runtime (a web-component upgrade) can reach a raw
 	// custom element inside the island — attaching a shadow, its normalization dropping neighbouring
@@ -690,7 +718,7 @@ class OgygiaRegion extends HTMLElement {
 	absorbKeptProps(next: Element): void {
 		if (!this.#app?.set_props || !loaded_core) return;
 		try {
-			this.#app.set_props(loaded_core.read_region_props(next));
+			this.#app.set_props(loaded_core.absorb_region_props(this, next));
 		} catch {
 			// ok: malformed incoming props: the live props it has are kept
 		}
@@ -1075,7 +1103,8 @@ class OgygiaRegion extends HTMLElement {
 			this.#visitor = replayed;
 			return Promise.resolve(fire()).then(() => {
 				const s = this.#wake.now;
-				if (s.kind === 'failed') throw s.error;
+				// (offline: the visitor's input cannot wait for the network; the island wakes later)
+				if (s.kind === 'failed' || s.kind === 'offline') throw s.error;
 			});
 		};
 	}
@@ -1131,12 +1160,17 @@ class OgygiaRegion extends HTMLElement {
 		this.#frame_address = address;
 		binding.defer(() => {
 			if (this.#binding === binding) this.#frame_address = null;
+			if (RULES) note_unbound(this);
 		});
 		// (each frame a turn of its own: one the store hands over while this turn binds lands after it)
 		const box = this.#box;
 		const off = slots.frames?.subscribe(address, (f) => {
 			this.#frames_in++;
-			box.post((turn) => this.#apply(f.html, turn));
+			if (RULES) note_handed(this, address, f.v, () => this.#paint.now.kind === 'painting');
+			box.post((turn) => {
+				if (RULES) note_turn(this);
+				return this.#apply(f.html, turn, f.v);
+			});
 		});
 		if (off) binding.defer(off);
 		return address;
@@ -1200,7 +1234,8 @@ class OgygiaRegion extends HTMLElement {
 	#answered(kind: 'answered' | 'kept'): void {
 		this.#answer.go(kind);
 		const hole = this.#hole.now.kind;
-		if (hole === 'armed' || hole === 'retrying' || hole === 'failed') this.#hole.go('idle');
+		if (hole === 'armed' || hole === 'retrying' || hole === 'offline' || hole === 'failed')
+			this.#hole.go('idle');
 	}
 
 	/** A frame landed: it starts its paint visit (a frame still waiting for its sheets is older, and
@@ -1223,7 +1258,7 @@ class OgygiaRegion extends HTMLElement {
 	 * offline before custom elements connect, then swap, mark, event. HOLE-TRUST: the HTML is our own
 	 * signed same-origin SSR.
 	 */
-	async #apply(html: string, turn: Turn) {
+	async #apply(html: string, turn: Turn, v?: number) {
 		if (!this.isConnected) return;
 		// The newest frame: one still waiting for its sheets is older, and never paints over this one.
 		const painting = this.#paint_next();
@@ -1231,6 +1266,7 @@ class OgygiaRegion extends HTMLElement {
 		// marker parcel in a batch): keep what the page rendered, mark the region done, wake nothing.
 		if (html === KEEP_FALLBACK_HTML) {
 			this.#painted(painting);
+			if (RULES && v !== undefined) note_shown(this, v);
 			use_sheets(this, []); // (the fallback's sheets are the page's)
 			this.#answered('kept');
 			if (!is_awake(this)) this.setAttribute('data-hydrated', '');
@@ -1248,6 +1284,7 @@ class OgygiaRegion extends HTMLElement {
 		// region left the page meanwhile; a newer frame came meanwhile: it paints, this one never does.
 		if ((await turn.wait(ready)) === STALE || this.#paint.now !== painting) return;
 		this.#painted(painting);
+		if (RULES && v !== undefined) note_shown(this, v);
 		use_sheets(this, sheets);
 		this.#shown = html;
 		slots.lakes.settle_in(frag);
@@ -1270,7 +1307,7 @@ class OgygiaRegion extends HTMLElement {
 		}
 		if (morph) morph(this, Array.from(frag.childNodes));
 		else this.replaceChildren(frag);
-		restore_adopt_sheets();
+		if (HOOK_ANSWER_PLACED) slots.hooks?.answerPlaced?.({ el: this });
 		init_shadow_registries(this);
 		absorb_page_facts_now();
 		this.#answered('answered');
@@ -1281,13 +1318,14 @@ class OgygiaRegion extends HTMLElement {
 		// (a lake this settled wakes the regions inside that waited on it: morphed in place, nothing
 		// reconnects them)
 		slots.lakes.after_html_swap(this, { revalidate }, () => this.#wake_waiting_regions());
-		if (BEACON && !revalidate && this.#fetch_started) {
+		if (HOOK_HOLE_ANSWERED && slots.hooks?.holeAnswered && !revalidate && this.#fetch_started) {
 			const ep = this.getAttribute('endpoint');
-			beacon_hole_answered(
-				this,
-				this.#fetch_started,
-				ep ? slots.frames?.batch_times?.(ep) : undefined
-			);
+			const batch = ep ? slots.frames?.batch_times?.(ep) : undefined;
+			slots.hooks.holeAnswered({
+				el: this,
+				start: this.#fetch_started,
+				...(batch ? { batch } : {})
+			});
 		}
 		if (DEVTOOLS)
 			dt_emit({
@@ -1353,7 +1391,7 @@ class OgygiaRegion extends HTMLElement {
 			for (const el of this.querySelectorAll('ogygia-region'))
 				if (el instanceof OgygiaRegion) el.#box.post((t) => el.#renew(t));
 		}
-		restore_adopt_sheets();
+		if (HOOK_ANSWER_PLACED) slots.hooks?.answerPlaced?.({ el: this });
 		init_shadow_registries(this);
 		absorb_page_facts_now();
 		this.dispatchEvent(new CustomEvent('ogygia:live', { bubbles: true }));
@@ -1478,7 +1516,12 @@ class OgygiaRegion extends HTMLElement {
 		const refused = err instanceof RegionAnswerRefused;
 		// (a refused capability's reason travels as the failure's message)
 		const deny = refused && err.reason === 'forbidden' ? err.deny || 'no reason given' : undefined;
-		if (import.meta.env.DEV) {
+		// No response while the browser is offline: the network's failure, not the server's. It waits
+		// for the network, however many tries are left (#891, ./network.ts).
+		const offline = !refused && this.isConnected && no_response(err) && browser_offline();
+		const final = !offline && (refused || !this.isConnected || attempts >= region_fetch.attempts);
+		// (each failure in dev; in a production build the give-up, once, by its code)
+		if (import.meta.env.DEV || final) {
 			if (deny !== undefined) {
 				warn('region_answer_denied', { endpoint, deny });
 			} else if (refused) {
@@ -1491,9 +1534,8 @@ class OgygiaRegion extends HTMLElement {
 				warn('region_fetch_failed', { endpoint }, err);
 			}
 		}
-		const final = refused || !this.isConnected || attempts >= region_fetch.attempts;
 		// the profiler's browser half: the hole that kept its fallback, by its island id
-		if (final) {
+		if (HOOK_HOLE_FAILED && final && slots.hooks?.holeFailed) {
 			let id = '';
 			let final_path: string | undefined;
 			try {
@@ -1502,11 +1544,11 @@ class OgygiaRegion extends HTMLElement {
 			} catch {
 				// ok: an endpoint URL that was fetched parses; the message goes without its id if not
 			}
-			if (BEACON && id)
-				beacon_hole_failed({
+			if (id)
+				slots.hooks.holeFailed?.({
 					id,
 					reason: refused ? err.reason : 'error',
-					...(final_path ? { final_path } : {}),
+					...(final_path ? { finalPath: final_path } : {}),
 					...(refused
 						? {}
 						: {
@@ -1544,6 +1586,19 @@ class OgygiaRegion extends HTMLElement {
 			if (this.#answer.now.kind !== 'none') {
 				this.#hole.go('idle');
 				return;
+			}
+			if (offline) {
+				// (its listener is the state's: an answer another way, or the region leaving, drops it)
+				this.#hole.go('offline', { revalidate });
+				const waiting = this.#hole.scope;
+				const back = await turn.wait(
+					waiting.task(
+						() => new Promise<void>((resolve) => waiting.on(window, 'online', () => resolve()))
+					)
+				);
+				if (back === STALE) return;
+				if (revalidate) return this.#fetch_html(turn, true);
+				return this.#connect(turn);
 			}
 			this.#hole.go('retrying', { attempts, revalidate });
 			const retrying = this.#hole.scope;
@@ -1624,13 +1679,15 @@ class OgygiaRegion extends HTMLElement {
 		 *  visit is over. Checked after every wait before the turn. */
 		const gone = (back?: unknown) => back === STALE || !this.isConnected || this.#wake.now !== mine;
 		let failure: { error: unknown } | null = null;
+		/** Its code failed to download while offline: it waits for the network, no failure. */
+		let offline: { error: unknown } | null = null;
 		const t0 = now_ms();
 		const dt_t0 = DEVTOOLS ? t0 : 0;
 		let t_loaded = t0;
 		/** when its hydrate step began: a failed step held the thread from here (the reports count it busy) */
 		let t_turn: number | undefined;
 		if (DEVTOOLS) dt_emit({ domain: 'runtime', name: 'region.hydrate.start', ...dt_ids(this) });
-		if (CLIENT_PLUGINS) client_region_mount(this);
+		if (HOOK_REGION_MOUNT) client_region_mount(this);
 		try {
 			// wait for full parse so the end-of-body props sidecars (and the seed) are in the DOM. On an
 			// SPA swap (and any post-load hydrate) the document is already parsed, so skip the await
@@ -1716,7 +1773,15 @@ class OgygiaRegion extends HTMLElement {
 			// are, so `data-hydrated` and the event wait for them. Its own timings stay its own.
 			if (gone(await turn.wait(snippets_settled(this, visit))) || !this.#app) return;
 			this.setAttribute('data-hydrated', '');
-			if (BEACON) beacon_hydrated(this, t0, t_loaded, t_done, ssr_html, t_turn); // the profiler's browser half (no-op without its tag)
+			if (HOOK_REGION_HYDRATED)
+				slots.hooks?.regionHydrated?.({
+					el: this,
+					t0,
+					tLoaded: t_loaded,
+					tTurn: t_turn,
+					tDone: t_done,
+					ssrHtml: ssr_html
+				});
 			if (DEVTOOLS)
 				dt_emit({
 					domain: 'runtime',
@@ -1729,13 +1794,23 @@ class OgygiaRegion extends HTMLElement {
 			// A run whose visit is over fails quietly: the region left while it loaded, and what stands
 			// now (the region put back) is a new visit, which loads, fails or wakes on its own.
 			if (this.#wake.now !== mine) return;
+			// Its code did not download while the browser is offline: the network's failure. It wakes
+			// again once the browser is back online (below), the file asked for afresh (#891).
+			if (is_failed_import(err) && browser_offline()) {
+				offline = { error: err };
+				return;
+			}
 			failure = { error: err };
 			// (a failed island stops being watched; its copy, if kept, counts as changed from here)
 			if (this.#watching) mark_region_changed(this);
 			this.#unwatch();
-			// the beacon's CPU window stops waiting for this one, and the visit reports it (no-op without it)
-			if (BEACON)
-				beacon_failed(this, (err as { message?: string })?.message ?? String(err), t0, t_turn);
+			if (HOOK_REGION_FAILED)
+				slots.hooks?.regionFailed?.({
+					el: this,
+					message: (err as { message?: string })?.message ?? String(err),
+					since: t0,
+					turn: t_turn
+				});
 			if (DEVTOOLS)
 				dt_emit({
 					domain: 'runtime',
@@ -1744,24 +1819,7 @@ class OgygiaRegion extends HTMLElement {
 					message: (err as { message?: string })?.message ?? String(err),
 					...(t_turn !== undefined ? { turn: t_turn } : {})
 				});
-			// Distinguish the ENTRY FETCH failing (the module never loaded) from the hydrate throwing
-			// (the module loaded, its code ran and failed). A `Failed to fetch dynamically imported
-			// module` on the island's own entry is not a hydration problem: in dev it almost always
-			// means Vite re-optimized deps and rotated the optimizer hash, so this already-loaded tab
-			// is importing dep URLs that no longer exist — a reload picks up the new graph (the dev
-			// bridge carries `@vite/client`, so Vite's own full-reload does this on the next signal).
-			// (each engine words it its own way: is_failed_import knows them all, WebKit's too, #383)
-			const entry = this.getAttribute('entry');
-			if (is_failed_import(err)) {
-				if (import.meta.env.DEV) {
-					console.error(new OgygiaError('island_load_failed_stale_deps', { entry }), err);
-					void recover_from_stale_deps(entry); // ok: dev only, never rejects (its failure leaves the error above)
-				} else {
-					console.error(new OgygiaError('island_load_failed', { entry }), err);
-				}
-			} else {
-				console.error(new OgygiaError('island_hydrate_failed', { entry }), err);
-			}
+			say_island_failed(this.getAttribute('entry'), err);
 		} finally {
 			// live (or failed, or not ours): leaving `waking` disarms the capture — its clicks are its own
 			// from here (a click it already queued is still replayed by the wake that queued it). Not
@@ -1770,9 +1828,20 @@ class OgygiaRegion extends HTMLElement {
 			if (this.#wake.now === mine) {
 				hydrate_settled(this);
 				if (failure) this.#wake.go('failed', failure);
+				else if (offline) this.#wake_online(offline.error);
 				else this.#wake.go(this.#app ? 'awake' : 'cold');
 			}
 		}
+	}
+
+	/** Its code failed to download offline: in `offline` until the browser is back online, then it
+	 *  wakes again (the listener is the state's: the region leaving drops it). */
+	#wake_online(error: unknown): void {
+		this.#wake.go('offline', { error });
+		this.#wake.scope.on(window, 'online', () => {
+			this.#wake.go('armed');
+			void this.#fire_hydrate(); // ok: a wake; its hydrate says its own failure
+		});
 	}
 
 	/**
@@ -1877,6 +1946,9 @@ class OgygiaRegion extends HTMLElement {
 			this.#live_props = desc.props;
 			return;
 		}
+		// Same module, its island's file could not load (said once): the tick's server HTML shows, and
+		// nothing loads again (#942, test/browser/live-region-failed-file.test.ts)
+		if (s.kind === 'failed' && s.module === desc.module) return this.#morph_live(desc.html, turn);
 
 		// First tick, the interactive module changed, or it was static: swap + hydrate. (Leaving `live`
 		// disposes its island; leaving `static` drops its subscription; leaving `hydrating` ends that
@@ -1896,7 +1968,7 @@ class OgygiaRegion extends HTMLElement {
 		use_sheets(this, sheets);
 		slots.lakes.settle_in(frag);
 		this.replaceChildren(frag);
-		restore_adopt_sheets();
+		if (HOOK_ANSWER_PLACED) slots.hooks?.answerPlaced?.({ el: this });
 		init_shadow_registries(this);
 		await this.#live_hydrate(desc.props, mine, desc.module, turn);
 	}
@@ -1908,6 +1980,7 @@ class OgygiaRegion extends HTMLElement {
 	 * It waits for `visit` (the wake's, or the live tick's): a region that left stops waiting, and the
 	 * wait ends with the last region in it.
 	 */
+	/** Fails with `kit_boot_failed` when Kit can no longer start (its own files failed to load). */
 	#kit_page_ready(core: HydrateCore, visit: Scope): Promise<unknown> | null {
 		if (!kit_hydrates_page() || !ours_on_kit_document(this)) return null;
 		return core.kit_page_thread(visit.signal);
@@ -1916,8 +1989,9 @@ class OgygiaRegion extends HTMLElement {
 	/**
 	 * Hydrate a live region's swapped-in HTML through the hydrate core's live path — for the visit to
 	 * `hydrating` that swapped it (`mine`): a later tick that took over (another module, a static
-	 * tick) or the region leaving ends it before it mounts. One that could not mount goes back to
-	 * `idle`, so the next tick starts over.
+	 * tick) or the region leaving ends it before it mounts. One whose island could not load or
+	 * hydrate goes `failed`, said once, coded: the same module's later ticks show their HTML and start
+	 * nothing (#942). One that did not mount for another reason goes back to `idle`.
 	 */
 	async #live_hydrate(
 		props: Record<string, unknown>,
@@ -1951,14 +2025,20 @@ class OgygiaRegion extends HTMLElement {
 				release();
 			}
 			if (!ours()) return;
-			if (!ours(await turn.wait(this.#kit_page_ready(core, this.#live.scope)))) return;
-			if (CLIENT_PLUGINS) client_region_mount(this);
+			// (Kit cannot start: the region keeps its swapped HTML, and the wait said why)
+			const kit = await turn.wait(this.#kit_page_ready(core, this.#live.scope)).catch((err) => {
+				if (kit_boot_failed(err)) return STALE;
+				throw err;
+			});
+			if (!ours(kit)) return;
+			if (HOOK_REGION_MOUNT) client_region_mount(this);
 			const app = core.hydrate_live(this, entry, mod, props);
 			if (!app) return;
 			this.#live.go('live', { module, app });
 			// (leaving `live` — a static tick, another module, the region gone — disposes it)
 			this.#live.scope.defer(() => {
-				if (CLIENT_PLUGINS) client_region_unmount(this, this.getAttribute('entry') ?? '');
+				if (HOOK_REGION_UNMOUNT)
+					slots.hooks?.regionUnmount?.({ el: this, entry: this.getAttribute('entry') ?? '' });
 				app.dispose();
 			});
 			const pending = this.#live_props;
@@ -1967,6 +2047,11 @@ class OgygiaRegion extends HTMLElement {
 			this.setAttribute('data-hydrated', '');
 			this.dispatchEvent(new CustomEvent('ogygia:hydrated', { bubbles: true }));
 			this.dispatchEvent(new CustomEvent('ogygia:live', { bubbles: true }));
+		} catch (error) {
+			// (a tick that took over, or the region gone: the failure is no longer this visit's)
+			if (this.#live.now !== mine) return;
+			say_island_failed(this.getAttribute('entry'), error);
+			this.#live.go('failed', { module, error });
 		} finally {
 			if (this.#live.now === mine) this.#live.go('idle');
 		}
@@ -1998,7 +2083,8 @@ class OgygiaRegion extends HTMLElement {
 		// sleep ends with its lifetime, below)
 		if (this.#watching) mark_region_changed(this);
 		// Out past the task it left in: the island is gone (a move came back before the microtask).
-		if (CLIENT_PLUGINS && this.#app) client_region_unmount(this, this.getAttribute('entry') ?? '');
+		if (HOOK_REGION_UNMOUNT && this.#app)
+			slots.hooks?.regionUnmount?.({ el: this, entry: this.getAttribute('entry') ?? '' });
 		// a live region: leaving its mode disposes its island (the plugins told) or drops its
 		// subscription
 		if (this.#live.now.kind !== 'idle') this.#live.go('idle');
@@ -2073,7 +2159,7 @@ function apply_dev_head_region_css(): void {
 
 export function boot(
 	installers: Array<() => void> = [],
-	client_plugins: readonly ClientPlugin[] = []
+	client_plugins: readonly ClientRealm[] = []
 ): void {
 	// which ogygia this page runs: `window.__ogygia.v` (./disclose-version.ts)
 	disclose_version();
@@ -2090,8 +2176,6 @@ export function boot(
 		warn,
 		line
 	};
-	// what the server transform's restorer recorded, said out loud (./restore-report.ts)
-	report_restores();
 	// What the lazy chunks use from the boot, handed over through the registry (./boot-link.ts).
 	link_boot();
 	for (const install of installers) install();
@@ -2101,7 +2185,7 @@ export function boot(
 	// the devtools timeline and the beacon hear it (entry-locations.ts imports neither)
 	on_entry_fallback((report) => {
 		if (DEVTOOLS) dt_emit({ domain: 'runtime', name: 'entry.fallback', ...report });
-		if (BEACON) beacon_entry_fallback(report);
+		if (HOOK_ENTRY_FALLBACK) slots.hooks?.entryFallback?.(report);
 	});
 	// A chunk whose dependency failed: no retry loads it, the page needs a reload (#262; said once,
 	// import-again.ts imports nothing)
@@ -2111,17 +2195,12 @@ export function boot(
 
 	if (import.meta.env.DEV) apply_dev_head_region_css();
 
-	// THE BEACON from boot (the profiler's own visit, or the devtools Page tab): vitals, shifts, long
-	// tasks, first clicks and the CPU sampler start before any island wakes — a page whose islands
-	// never wake, or that has none, still reports. One querySelector and out without the tag.
-	if (BEACON) beacon_watch();
-
 	// DEV: Svelte's hydration warnings (the server and the browser disagreed; Svelte kept the
 	// server's value, so only the console knew) reach the devtools and the profiler's browser half
 	if (import.meta.env.DEV) {
 		tap_svelte_warnings();
 		on_svelte_warning((w) => {
-			if (BEACON) beacon_warning(w);
+			if (HOOK_WARNING) slots.hooks?.warning?.(w);
 			if (DEVTOOLS)
 				dt_emit({
 					domain: 'runtime',
