@@ -62,6 +62,40 @@ export function own_symbols(): () => void {
 	};
 }
 
+/** The environment of the instance whose code is loading or running now. */
+const env_of = new AsyncLocalStorage<Readonly<Record<string, string>>>();
+
+/**
+ * EACH INSTANCE ITS OWN `process.env`, as on its own machine: a key the instance's environment has
+ * reads as its own (a federation peer checks a call's audience against its own `ORIGIN`), any
+ * other the host's. Writes go to the host's. Returns the undo.
+ */
+export function own_env(): () => void {
+	const host = process.env;
+	const own = (key: string | symbol): string | undefined => {
+		const env = env_of.getStore();
+		return typeof key === 'string' && env !== undefined && Object.hasOwn(env, key)
+			? env[key]
+			: undefined;
+	};
+	process.env = new Proxy(host, {
+		get: (target, key) => own(key) ?? Reflect.get(target, key),
+		has: (target, key) => own(key) !== undefined || Reflect.has(target, key),
+		ownKeys: (target) => [
+			...new Set([...Reflect.ownKeys(target), ...Object.keys(env_of.getStore() ?? {})])
+		],
+		getOwnPropertyDescriptor: (target, key) => {
+			const value = own(key);
+			return value === undefined
+				? Reflect.getOwnPropertyDescriptor(target, key)
+				: { value, writable: true, enumerable: true, configurable: true };
+		}
+	});
+	return () => {
+		process.env = host;
+	};
+}
+
 const TYPES: Record<string, string> = {
 	'.js': 'text/javascript',
 	'.mjs': 'text/javascript',
@@ -91,11 +125,17 @@ export interface Build {
 	readonly id: string;
 	/** The app's `.svelte-kit/output`. */
 	readonly output: string;
+	/** Its server's environment beside the host's (`$env/dynamic/private`): a federated app's keys
+	 *  and its peers' origins. */
+	readonly env?: Readonly<Record<string, string>>;
 }
 
 export interface ServerInstance {
 	readonly name: string;
 	readonly build: Build;
+	/** Its own environment over the host's: the build's, and `ORIGIN` (its public origin, as an
+	 *  adapter is told). What its code reads from `process.env` (`own_env`). */
+	readonly env: Readonly<Record<string, string>>;
 	/** ms its wall clock is off. */
 	readonly skew: number;
 	handle(request: Request): Promise<Response>;
@@ -129,65 +169,72 @@ let started = 0;
 export async function start_server(
 	name: string,
 	build: Build,
+	origin: string,
 	scratch: string,
 	skew = 0
 ): Promise<ServerInstance> {
+	const env = { ORIGIN: origin, ...build.env };
 	const dir = join(scratch, `${process.pid}-${++started}-${build.id}-${name}`);
 	rmSync(dir, { recursive: true, force: true });
 	link_tree(join(build.output, 'server'), join(dir, 'server'));
 	const files = files_of(build.output);
 	// (its code loads, and later runs, with its own symbols: `own_symbols`)
 	const tag = `sim-server-${started}`;
-	const kit = await registry_of.run(tag, async () => {
-		const { Server } = (await native_import(
-			pathToFileURL(join(dir, 'server', 'index.js')).href
-		)) as {
-			Server: new (manifest: unknown) => KitServer;
-		};
-		const { manifest } = (await native_import(
-			pathToFileURL(join(dir, 'server', 'manifest.js')).href
-		)) as {
-			manifest: unknown;
-		};
-		const kit = new Server(manifest);
-		await kit.init({ env: { ...process.env } as Record<string, string> });
-		return kit;
-	});
+	const kit = await env_of.run(env, () =>
+		registry_of.run(tag, async () => {
+			const { Server } = (await native_import(
+				pathToFileURL(join(dir, 'server', 'index.js')).href
+			)) as {
+				Server: new (manifest: unknown) => KitServer;
+			};
+			const { manifest } = (await native_import(
+				pathToFileURL(join(dir, 'server', 'manifest.js')).href
+			)) as {
+				manifest: unknown;
+			};
+			const kit = new Server(manifest);
+			await kit.init({ env: { ...process.env, ...env } as Record<string, string> });
+			return kit;
+		})
+	);
 	const instance: ServerInstance = {
 		name,
 		build,
+		env,
 		skew,
 		handle: (request) =>
-			registry_of.run(tag, () =>
-				current_server.run(instance, async () => {
-					const url = new URL(request.url);
-					const path = decodeURIComponent(url.pathname);
-					// (a static host answers HEAD as it does GET, without the body: a page asks whether a
-					// file is still there, runtime/entry-locations.ts's `is_gone`)
-					const read = request.method === 'GET' || request.method === 'HEAD';
-					const head = request.method === 'HEAD';
-					const asset = read ? files.client.get(path) : undefined;
-					if (asset !== undefined) {
-						const immutable = path.includes('/immutable/');
-						return new Response(head ? null : asset.slice(), {
-							headers: {
-								'content-type': TYPES[extname(path)] ?? 'application/octet-stream',
-								'cache-control': immutable
-									? 'public, max-age=31536000, immutable'
-									: 'public, max-age=0'
-							}
-						});
-					}
-					const page = read
-						? (files.pages.get(path === '/' ? '/index.html' : path + '.html') ??
-							files.pages.get(join(path, 'index.html')))
-						: undefined;
-					if (page !== undefined)
-						return new Response(head ? null : page.slice(), {
-							headers: { 'content-type': TYPES['.html'] }
-						});
-					return kit.respond(request, { getClientAddress: () => '10.0.0.1', platform: {} });
-				})
+			env_of.run(env, () =>
+				registry_of.run(tag, () =>
+					current_server.run(instance, async () => {
+						const url = new URL(request.url);
+						const path = decodeURIComponent(url.pathname);
+						// (a static host answers HEAD as it does GET, without the body: a page asks whether a
+						// file is still there, runtime/entry-locations.ts's `is_gone`)
+						const read = request.method === 'GET' || request.method === 'HEAD';
+						const head = request.method === 'HEAD';
+						const asset = read ? files.client.get(path) : undefined;
+						if (asset !== undefined) {
+							const immutable = path.includes('/immutable/');
+							return new Response(head ? null : asset.slice(), {
+								headers: {
+									'content-type': TYPES[extname(path)] ?? 'application/octet-stream',
+									'cache-control': immutable
+										? 'public, max-age=31536000, immutable'
+										: 'public, max-age=0'
+								}
+							});
+						}
+						const page = read
+							? (files.pages.get(path === '/' ? '/index.html' : path + '.html') ??
+								files.pages.get(join(path, 'index.html')))
+							: undefined;
+						if (page !== undefined)
+							return new Response(head ? null : page.slice(), {
+								headers: { 'content-type': TYPES['.html'] }
+							});
+						return kit.respond(request, { getClientAddress: () => '10.0.0.1', platform: {} });
+					})
+				)
 			),
 		serves: (path) => files.client.has(path),
 		stop: () => rmSync(dir, { recursive: true, force: true })

@@ -22,6 +22,7 @@ import { install, platform } from './platform.ts';
 import { rng, type Rng } from './rng.ts';
 import {
 	current_server,
+	own_env,
 	own_symbols,
 	start_server,
 	type Build,
@@ -68,6 +69,11 @@ export interface WorldOptions {
 	 *  signs with its own key, and a page of one build gets its holes refused by another's servers
 	 *  (`x-ogygia-deny: foreign-key`, as ogygia's `secret_missing` warns). */
 	secret?: string;
+	/** Other apps at their own origins (federation's peers): each one build, one instance, behind
+	 *  no CDN. The app's servers and the tabs reach them over the network; their content-hashed
+	 *  files answer any origin (`access-control-allow-origin: *`), as a peer's CDN does for the
+	 *  islands another origin's page imports. */
+	peers?: ReadonlyArray<{ readonly origin: string; readonly build: Build }>;
 }
 
 /**
@@ -101,6 +107,8 @@ export class World {
 	readonly browsers: Browsers;
 	/** Live instances by build id. */
 	readonly servers = new Map<string, ServerInstance[]>();
+	/** Each peer app's instance, by origin. */
+	readonly peers = new Map<string, ServerInstance>();
 	/** Errors no page or server caught, as the host process heard them. */
 	readonly uncaught: string[] = [];
 	/** The build new requests go to (a deploy moves it). */
@@ -149,7 +157,9 @@ export class World {
 		});
 		const restore_platform = install(globalThis, host);
 		const restore_symbols = own_symbols();
+		const restore_env = own_env();
 		const restore = () => {
+			restore_env();
 			restore_symbols();
 			restore_platform();
 		};
@@ -198,6 +208,18 @@ export class World {
 				if (!globals.has(key)) delete (globalThis as Record<PropertyKey, unknown>)[key];
 		};
 		await w.deploy(o.builds[0]);
+		for (const peer of o.peers ?? []) {
+			const scratch = o.scratch ?? join(peer.build.output, '..', 'sim');
+			w.peers.set(
+				peer.origin,
+				await start_server(
+					`peer-${new URL(peer.origin).hostname}`,
+					peer.build,
+					peer.origin,
+					scratch
+				)
+			);
+		}
 		return w;
 	}
 
@@ -314,7 +336,7 @@ export class World {
 			const list: ServerInstance[] = [];
 			for (let i = 0; i < (this.#o.instances ?? 1); i++) {
 				const skew = this.#o.skew ? r.between(-this.#o.skew, this.#o.skew) : 0;
-				list.push(await start_server(`server-${i}`, build, scratch, skew));
+				list.push(await start_server(`server-${i}`, build, ORIGIN, scratch, skew));
 			}
 			this.servers.set(build.id, list);
 		}
@@ -334,6 +356,19 @@ export class World {
 					headers: { 'content-type': 'text/html', 'access-control-allow-origin': '*' }
 				})
 			);
+		// (a peer app: its own server answers; its content-hashed files to any origin)
+		const peer = this.peers.get(url.origin);
+		if (peer !== undefined)
+			return peer.handle(request).then((answer) => {
+				if (!url.pathname.startsWith('/_app/immutable/')) return answer;
+				const headers = new Headers(answer.headers);
+				headers.set('access-control-allow-origin', '*');
+				return new Response(answer.body, {
+					status: answer.status,
+					statusText: answer.statusText,
+					headers
+				});
+			});
 		if (url.origin !== ORIGIN || this.#o.supplied?.includes(url.pathname)) {
 			const type = url.pathname.endsWith('.css')
 				? 'text/css'
@@ -425,6 +460,7 @@ export class World {
 			this.#restore?.();
 			this.#restore = null;
 			for (const list of this.servers.values()) for (const s of list) s.stop();
+			for (const s of this.peers.values()) s.stop();
 		}
 	}
 }

@@ -52,8 +52,10 @@ import {
 import { rng } from './rng.ts';
 import type { FaultClass } from './network.ts';
 import type { Visitor } from './browser.ts';
-import { ORIGIN, World, type Rollover } from './world.ts';
+import { ORIGIN, World, type Rollover, type WorldOptions } from './world.ts';
 import { builds_of } from './builds.ts';
+import { key_pair } from './keys.ts';
+import type { Build } from './server.ts';
 
 const arg = (flag: string): string | undefined => {
 	const at = process.argv.indexOf(flag);
@@ -67,7 +69,50 @@ const APP = resolve(
 const OUTPUT = join(APP, '.svelte-kit', 'output');
 /** The builds a run starts on and deploys between: the app's two sim builds (`pnpm sim:builds`),
  *  else its one build, which never deploys. */
-const BUILDS = builds_of(APP).length > 0 ? builds_of(APP) : [{ id: 'v1', output: OUTPUT }];
+const BUILDS: readonly Build[] =
+	builds_of(APP).length > 0 ? builds_of(APP) : [{ id: 'v1', output: OUTPUT }];
+/**
+ * FEDERATION: `--name shell --peers cms=<app dir>,dash=<app dir>` runs the app with peer apps, each
+ * at `https://<name>.test` (`WorldOptions.peers`). Every app gets the environment federation's
+ * examples read: its own `<NAME>_SIGNING_KEY`, every app's `<NAME>_PUBLIC_KEY` and `<NAME>_ORIGIN`,
+ * and `ORIGIN`; the keys drawn from the seed (`keys.ts`).
+ */
+const NAME = arg('--name') ?? 'app';
+const PEERS = (arg('--peers') ?? '')
+	.split(',')
+	.filter(Boolean)
+	.map((p) => {
+		const [name, dir] = p.split('=');
+		return {
+			name,
+			origin: `https://${name}.test`,
+			output: join(resolve(dir), '.svelte-kit', 'output')
+		};
+	});
+
+/** The run's federation: the app's environment, and its peers with theirs. */
+function federation(seed: number): { env: Record<string, string>; peers: WorldOptions['peers'] } {
+	if (PEERS.length === 0) return { env: {}, peers: [] };
+	const r = rng(seed).fork('keys');
+	const apps = [{ name: NAME, origin: ORIGIN }, ...PEERS].map((a) => ({ ...a, keys: key_pair(r) }));
+	const common: Record<string, string> = {};
+	for (const a of apps) {
+		common[`${a.name.toUpperCase()}_PUBLIC_KEY`] = a.keys.pub;
+		common[`${a.name.toUpperCase()}_ORIGIN`] = a.origin;
+	}
+	const env_of = (a: (typeof apps)[number]) => ({
+		...common,
+		ORIGIN: a.origin,
+		[`${a.name.toUpperCase()}_SIGNING_KEY`]: a.keys.priv
+	});
+	return {
+		env: env_of(apps[0]),
+		peers: apps.slice(1).map((a, i) => ({
+			origin: a.origin,
+			build: { id: a.name, output: PEERS[i].output, env: env_of(a) }
+		}))
+	};
+}
 const FIRST = Number(arg('--seed') ?? arg('--from') ?? 1);
 const RUNS = arg('--seed') !== undefined ? 1 : Number(arg('--runs') ?? (LONG ? 500 : 20));
 const STEPS = Number(arg('--steps') ?? (LONG ? 40 : 12));
@@ -89,7 +134,12 @@ function route_paths(app: string): string[] {
 	walk(join(app, 'src', 'routes'), '');
 	return out.sort();
 }
-const PATHS = route_paths(APP);
+/** The paths the visitor goes to: the app's route tree, and `--paths /a,/b` (a programmatic
+ *  router's, a mounted peer's pages, which no route file names). */
+const PATHS = [
+	...route_paths(APP),
+	...(arg('--paths') ?? '').split(',').filter((p) => p.startsWith('/'))
+];
 /** Paths an app's e2e serves itself (`page.route`), not its build: palaestra's /wake-gate holds a
  *  slow script its spec releases (e2e/wake-gate.spec.ts). */
 const SUPPLIED = ['/wake-gate-slow.js'];
@@ -137,9 +187,11 @@ export async function run(
 	};
 	// and whether the app set a stable secret (most do; without one, a deploy refuses old holes)
 	const secret = r.chance(0.7) ? 'sim-secret' : undefined;
+	const fed = federation(seed);
 	const world = await World.make({
 		seed,
-		builds: BUILDS,
+		builds: BUILDS.map((b) => ({ ...b, env: { ...b.env, ...fed.env } })),
+		peers: fed.peers,
 		rollover,
 		secret,
 		faults: new Set(faults),
