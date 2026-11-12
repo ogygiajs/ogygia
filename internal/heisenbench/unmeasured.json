@@ -3749,6 +3749,10 @@
 			"reason": "browser only, dev and e2e builds: records a region element that left the page (DOM nodes, not cloneable), constant work; proven in packages/core/test/browser/rules.test.ts"
 		},
 		{
+			"id": "packages/core/src/runtime/region-machines.ts > busy_machines",
+			"reason": "dev and e2e builds only (the rule on a region that left): four compares over a fixed table, constant work; proven in packages/core/test/browser/rules.test.ts"
+		},
+		{
 			"id": "packages/core/src/runtime/rules.ts > regions_left_at_rest",
 			"reason": "browser only, dev and e2e builds: the rule over the region elements that left the page, linear in those not yet seen at rest; proven in packages/core/test/browser/rules.test.ts and read at the end of every e2e spec"
 		},
