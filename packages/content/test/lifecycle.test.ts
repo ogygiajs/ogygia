@@ -556,7 +556,8 @@ describe('a collection a newer run of its module replaces stops following (#247)
 		const lazy = run_1(() => content({ schema, loader: liveSource([row('a', 'A')]).source }));
 		defineRun('/app/src/lib/lazy.server.ts'); // the module ran again: run 1 ended
 		const c = lazy();
-		const in_graph = () => GRAPH.all.has((c as unknown as Record<symbol, never>)[COLLECTION]);
+		const in_graph = () =>
+			[...GRAPH.all].includes((c as unknown as Record<symbol, never>)[COLLECTION]);
 		expect(in_graph()).toBe(false);
 		expect((await c.refs()).map((e) => e.id)).toEqual(['a']);
 		expect(in_graph()).toBe(true);
