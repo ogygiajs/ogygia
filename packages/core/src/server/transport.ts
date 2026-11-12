@@ -16,6 +16,7 @@ import { OgygiaError } from '../messages/server.ts';
 import { REF_WIRE_KEY, type Ref } from '../ref.ts';
 import { ogygiaTransport } from '../transport.ts';
 
+// static: the ogygia value kinds a remote argument is refused for
 const KINDS: ReadonlySet<unknown> = new Set([
 	'wire',
 	'store',
