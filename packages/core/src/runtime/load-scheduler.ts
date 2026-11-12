@@ -222,7 +222,11 @@ function until_critical(): Promise<void> {
 
 /** The slots waiting, in the order they were asked for (a pass takes out the ones it started when
  *  it ends; `waiting` counts the rest at any moment). */
-const queue: LoadSlot[] = [];
+class LoadQueue {
+	readonly slots: LoadSlot[] = [];
+}
+/** The document's one queue (a slot leaves as it starts, or at a test's reset). */
+const Q = new LoadQueue();
 let waiting = 0;
 let in_flight_background = 0;
 let in_flight_holes = 0;
@@ -264,7 +268,7 @@ export class LoadSlot {
 		this.#read = typeof o.cls === 'function' ? o.cls : () => o.cls as LoadClass;
 		this.#flight = o.flight ?? null;
 		this.ready = new Promise<() => void>((r) => (this.#resolve = r));
-		queue.push(this);
+		Q.slots.push(this);
 		waiting++;
 		// its element moved on or off screen: its class may have moved with it
 		if (o.el) this.unwatch = watch_viewport(o.el, '0px', drain);
@@ -372,15 +376,15 @@ async function drain_queue(): Promise<void> {
 	for (;;) {
 		// (a drain asked for until now is this round)
 		if (drainer.now.kind === 'again') drainer.go('draining');
-		const asked = queue.length;
+		const asked = Q.slots.length;
 		const by_class: LoadSlot[][] = [[], [], [], []];
-		for (let i = 0; i < asked; i++) by_class[3 - PRIORITY[queue[i].cls()]].push(queue[i]);
+		for (let i = 0; i < asked; i++) by_class[3 - PRIORITY[Q.slots[i].cls()]].push(Q.slots[i]);
 		// nothing has run since the classes were read; after a start its holder has, so they are read again
 		let ran = false;
 		let started = false;
 		let yielded = false;
 		pass: for (let r = 0; r <= 4; r++) {
-			const list = r < 4 ? by_class[r] : queue;
+			const list = r < 4 ? by_class[r] : Q.slots;
 			for (let i = r < 4 ? 0 : asked; i < list.length; i++) {
 				const e = list[i];
 				if (!e.queued) continue; // (the test seam emptied the queue while the pass waited)
@@ -415,8 +419,8 @@ async function drain_queue(): Promise<void> {
 /** The started slots out of the queue, the rest kept in the order asked. */
 function leave_queue(): void {
 	let w = 0;
-	for (let i = 0; i < queue.length; i++) if (queue[i].queued) queue[w++] = queue[i];
-	queue.length = w;
+	for (let i = 0; i < Q.slots.length; i++) if (Q.slots[i].queued) Q.slots[w++] = Q.slots[i];
+	Q.slots.length = w;
 }
 
 function noop(): void {}
@@ -425,11 +429,11 @@ const now = clock.mono;
 
 /** Test seam: a fresh document. */
 export function reset_load_scheduler(): void {
-	for (const s of queue) {
+	for (const s of Q.slots) {
 		s.queued = false;
 		s.unwatch();
 	}
-	queue.length = 0;
+	Q.slots.length = 0;
 	waiting = 0;
 	in_flight_background = 0;
 	in_flight_holes = 0;
