@@ -3,7 +3,7 @@
  * found broken, or null. Each is precise about what it normalizes away, and why.
  */
 import { writeFileSync } from 'node:fs';
-import type { Tab, Visitor } from './browser.ts';
+import { own_text, type Tab, type Visitor } from './browser.ts';
 import { answer_key, FOREIGN_MARK, is_page_path, type World } from './world.ts';
 
 /** `SIM_DUMP=<dir>`: an MPA difference writes both sides whole there (`<tab>-<path>-shown.txt`,
@@ -616,6 +616,59 @@ export function fallback_stands(tab: Tab, world: World): Broken | null {
 		oracle: 'fallback-stands',
 		detail: `${url}: ${left.map((r) => r.querySelector('[data-gen-fallback]')!.textContent).join(', ')}`
 	};
+}
+
+/**
+ * A LIVE REGION ANNOUNCES WHAT IT SHOWS: at rest, each live region (the random app's, inside its
+ * `[data-gen="live-host"]`; palaestra's live partials) was last heard, by a listener on the document,
+ * saying `ogygia:live` about the tick it shows now: every paint of a tick says it (a morph, a swap's
+ * mount, a kept-alive island's new props). And one showing an island (it has a `wake`) said
+ * `ogygia:hydrated` when that island mounted, followed by `ogygia:live`, the one mount of its module
+ * since another module's tick. Mutation testing: a keep-alive tick, or a mount, sent without
+ * `bubbles` reached no listener and survived every other oracle (core.ts, gen 196). The tick is
+ * {@link own_text}: what the region shows of its own. Set aside: a document a deploy failed a download
+ * of, one the visitor pressed in (the caller's), and an island in a document a fault touched (its
+ * file may have failed: the tick's HTML stands with nothing to announce, #942). A static tick is
+ * judged there too: its morph always announces.
+ */
+export function live_events(tab: Tab, world: World): Broken | null {
+	const url = tab.page.mainFrame.url;
+	if (!url.startsWith('http') || world.skewed_for(tab.realm)) return null;
+	const touched = faulted(world, tab);
+	const doc = tab.page.mainFrame.document as unknown as Document;
+	const wrong: string[] = [];
+	for (const r of doc.querySelectorAll(
+		'[data-gen="live-host"] > ogygia-region, [data-live-interactive] > ogygia-region, [data-live-static] > ogygia-region'
+	)) {
+		const now = own_text(r);
+		if (now === '') continue;
+		const island = r.hasAttribute('wake');
+		if (island && touched) continue;
+		const entry = r.getAttribute('entry') ?? '';
+		const said = tab.heard.get(r) ?? [];
+		const live = said.filter((h) => h.type === 'ogygia:live').at(-1);
+		const what = `<ogygia-region entry="${entry}"> showing "${now}"`;
+		if (live === undefined) {
+			wrong.push(`${what}: never said ogygia:live`);
+			continue;
+		}
+		if (live.entry !== entry || live.shown !== now) {
+			wrong.push(`${what}: last said ogygia:live showing "${live.shown}" (${live.entry})`);
+			continue;
+		}
+		if (!island) continue;
+		// (its mount: back past this module's ticks, a hydrated and then a live)
+		let i = said.length - 1;
+		while (i >= 0 && said[i].type === 'ogygia:live' && said[i].entry === entry) i--;
+		const mount = said[i];
+		if (mount?.type !== 'ogygia:hydrated' || mount.entry !== entry)
+			wrong.push(`${what}: its island mounted and never said ogygia:hydrated`);
+		else if (said[i + 1]?.type !== 'ogygia:live')
+			wrong.push(`${what}: its island mounted and said ogygia:hydrated, no ogygia:live`);
+	}
+	return wrong.length === 0
+		? null
+		: { oracle: 'live-events', detail: `${url}: ${wrong.join('\n')}` };
 }
 
 /** An empty region a filed bug explains, by its shape and what its document was answered (as

@@ -49,6 +49,7 @@ import {
 	page_rules,
 	regions_show,
 	fallback_stands,
+	live_events,
 	server_rules,
 	stuck,
 	uncaught,
@@ -445,7 +446,10 @@ export async function run(
 					pressed.get(t.name) === t.documents ? null : regions_show(t, world),
 					// (and no hole that wakes on its own still shows its fallback, pressed or not: a press
 					// changes what a region shows, never whether a hole is owed its answer)
-					fallback_stands(t, world)
+					fallback_stands(t, world),
+					// (and every live region was heard announcing the tick it shows, unless a press made
+					// the page the visitor's own)
+					pressed.get(t.name) === t.documents ? null : live_events(t, world)
 				])
 					if (b) broken.push({ ...b, detail: `at rest: ${b.detail}` });
 			for (const t of v.tabs) {

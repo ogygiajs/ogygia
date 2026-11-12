@@ -58,6 +58,31 @@ export interface Tab {
 	/** Each document's machine move log (`__ogygia_moves()`, rules builds), by realm, a left one's
 	 *  too: a hard navigation inside one action replaces a document before it is looked at. */
 	readonly moves_by: Map<string, () => string>;
+	/** What each region of the shown document announced (`ogygia:hydrated`, `ogygia:live`), as a
+	 *  listener of the app's on the document hears it: bubbling, never capturing. */
+	heard: Map<Element, Heard[]>;
+}
+
+/** A region event a document's listener heard, and what the region showed once it was sent. */
+export interface Heard {
+	readonly type: 'ogygia:hydrated' | 'ogygia:live';
+	/** Virtual ms. */
+	readonly at: number;
+	/** The region's `entry` then: the module (or, static, the region) the tick was. */
+	readonly entry: string;
+	/** {@link own_text}, read once the event's own microtasks ran (a kept-alive island's new props
+	 *  render in one). */
+	readonly shown: string;
+}
+
+/** What a region shows of its own, as text: less a region inside it (its own answer comes on its
+ *  own), a button (its own count, the visitor's), and the page's data a soft refresh changes in place
+ *  (the random app's `data-gen-page`). */
+export function own_text(region: Element): string {
+	const copy = region.cloneNode(true) as Element;
+	for (const el of copy.querySelectorAll('ogygia-region, button, [data-gen-page], script, style'))
+		el.remove();
+	return (copy.textContent ?? '').replace(/\s+/g, ' ').trim();
 }
 
 /** What a document holds that outlives a page visit if nobody lets it go. */
@@ -326,6 +351,22 @@ export class Browsers {
 		});
 		const loop = this.#o.loop;
 		window.addEventListener('og:before-swap', () => swaps.push(loop.now), { capture: true });
+		// (a region's announcements, as the app hears them: bubbling up to the window, so one sent
+		// without `bubbles` is heard by no one, as in a browser)
+		const heard: Map<Element, Heard[]> = (tab.heard = new Map());
+		const hear = (e: Event): void => {
+			const el = e.target as Element;
+			const type = e.type as Heard['type'];
+			const at = loop.now;
+			const entry = el.getAttribute('entry') ?? '';
+			(window as unknown as { queueMicrotask(f: () => void): void }).queueMicrotask(() => {
+				let list = heard.get(el);
+				if (list === undefined) heard.set(el, (list = []));
+				list.push({ type, at, entry, shown: own_text(el) });
+			});
+		};
+		window.addEventListener('ogygia:hydrated', hear as never);
+		window.addEventListener('ogygia:live', hear as never);
 		this.#count_held(window, tab);
 		const w = window as unknown as {
 			addEventListener(
@@ -582,6 +623,7 @@ export class Browsers {
 			orphans: () => [],
 			swaps: [],
 			swaps_by: new Map(),
+			heard: new Map(),
 			moves_by: new Map(),
 			said_by: new Map()
 		};
