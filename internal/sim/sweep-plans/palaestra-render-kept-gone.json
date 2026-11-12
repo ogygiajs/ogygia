@@ -9,12 +9,12 @@
 			{ "kind": "hurry", "tab": 0, "nth": 113, "next": 130, "after": 20 },
 			{ "kind": "click", "tab": 0, "nth": 811 },
 			{ "kind": "goto", "tab": 0, "path": "/server-cached" },
-			{ "kind": "click", "tab": 0, "nth": 755 },
-			{ "kind": "click", "tab": 0, "nth": 43 },
+			{ "kind": "click", "tab": 0, "nth": 755, "names": ["link /plain"] },
+			{ "kind": "click", "tab": 0, "nth": 43, "names": ["link /dashboard/orders"] },
 			{ "kind": "reload", "tab": 0 },
 			{ "kind": "back", "tab": 0 },
 			{ "kind": "offline", "tab": 0 },
-			{ "kind": "click", "tab": 0, "nth": 763 },
+			{ "kind": "click", "tab": 0, "nth": 763, "names": ["link /dashboard/orders"] },
 			{ "kind": "click", "tab": 0, "nth": 613 },
 			{ "kind": "click", "tab": 0, "nth": 250 },
 			{ "kind": "wait", "ms": 1000 },
@@ -23,16 +23,32 @@
 			{ "kind": "click", "tab": 0, "nth": 922 },
 			{ "kind": "forward", "tab": 0 },
 			{ "kind": "back", "tab": 0 },
-			{ "kind": "outage", "tab": 0, "during": "press", "nth": 263, "after": 100, "lasts": 120000 },
+			{
+				"kind": "outage",
+				"tab": 0,
+				"during": "press",
+				"nth": 263,
+				"after": 100,
+				"lasts": 120000,
+				"names": ["button og-region \"count is 5\""]
+			},
 			{ "kind": "goto", "tab": 0, "path": "/lab" },
 			{ "kind": "back", "tab": 0 },
-			{ "kind": "hover", "tab": 0, "nth": 263 },
+			{ "kind": "hover", "tab": 0, "nth": 263, "names": ["link /server"] },
 			{ "kind": "back", "tab": 0 },
-			{ "kind": "click", "tab": 0, "nth": 836 },
-			{ "kind": "press", "tab": 0, "nth": 404 },
+			{ "kind": "click", "tab": 0, "nth": 836, "names": ["link /dashboard/orders"] },
+			{ "kind": "press", "tab": 0, "nth": 404, "names": ["button og-region \"ID\""] },
 			{ "kind": "forward", "tab": 0 },
-			{ "kind": "away", "tab": 0, "nth": 434, "ms": 10000 },
-			{ "kind": "outage", "tab": 0, "during": "click", "nth": 690, "after": 100, "lasts": 30000 }
+			{ "kind": "away", "tab": 0, "nth": 434, "ms": 10000, "names": ["link / @1"] },
+			{
+				"kind": "outage",
+				"tab": 0,
+				"during": "click",
+				"nth": 690,
+				"after": 100,
+				"lasts": 30000,
+				"names": ["link /static"]
+			}
 		]
 	}
 }
