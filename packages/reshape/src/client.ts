@@ -18,16 +18,18 @@ const client: ClientPlugin = defineClient({
 		// (a Kit-hydrated page: ogygia's runtime does not boot there, so it never reported either)
 		if (!kitPage) report_restores();
 	},
-	regionHydrate(el) {
-		const noted = note_host_classes(el);
-		return noted ? () => keep_host_classes(noted) : undefined;
-	},
-	answerParsed(fragment) {
-		// (the page's restorer, read now: the report wraps it at boot)
-		(window as RestoreWindow).__og_restore?.(fragment);
-	},
-	answerPlaced() {
-		(window as RestoreWindow).__og_restore_adopt?.();
+	hooks: {
+		regionHydrate({ el }) {
+			const noted = note_host_classes(el);
+			return noted ? () => keep_host_classes(noted) : undefined;
+		},
+		answerParsed({ fragment }) {
+			// (the page's restorer, read now: the report wraps it at boot)
+			(window as RestoreWindow).__og_restore?.(fragment);
+		},
+		answerPlaced() {
+			(window as RestoreWindow).__og_restore_adopt?.();
+		}
 	}
 });
 export default client;
