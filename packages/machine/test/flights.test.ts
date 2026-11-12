@@ -164,9 +164,20 @@ describe('one key (what once() was)', () => {
 			expect(() => flights({ run: () => 1, retry })).toThrow(/machine_bad_option/);
 		for (const keep of [-1, Number.NaN, '5' as unknown as number])
 			expect(() => flights({ run: () => 1, keep })).toThrow(/`keep` must be a time in ms/);
-		for (const max of [0, -1, Number.NaN])
-			expect(() => flights({ run: () => 1, max })).toThrow(/`max` must be more than 0/);
+		for (const max of [0, -1, Number.NaN, Infinity])
+			expect(() => flights({ run: () => 1, max })).toThrow(
+				/`max` must be a finite number more than 0/
+			);
 		expect(() => flights({ run: 'no' as never })).toThrow(/`run` must be a function/);
+	});
+
+	it('a weigh with no max is refused: the default max counts answers, not the weigh’s unit', () => {
+		expect(() => flights({ run: () => 'page', weigh: (h: string) => h.length })).toThrow(
+			/machine_bad_option/
+		);
+		expect(() =>
+			flights({ run: () => 'page', weigh: (h: string) => h.length, max: 5_000_000 })
+		).not.toThrow();
 	});
 
 	it('its own handling of a failure adds no unhandled rejection', async () => {
@@ -544,6 +555,30 @@ describe('keep, max and weigh', () => {
 		expect(weight).toBe(1);
 	});
 
+	it('a refresh that lands past its prior’s age, into a full cache no sweep has reached yet, is kept', async () => {
+		let now = 1_000_000;
+		// (the clock port reads the platform's `performance` at each call)
+		const spy = vi.spyOn(performance, 'now').mockImplementation(() => now);
+		const d = deferred<string>();
+		let round = 0;
+		const pages = flights({
+			run: (k: string) => (k === '/a' && round++ === 1 ? d.promise : Promise.resolve(k)),
+			keep: 1000,
+			weigh: (answer) => answer.length,
+			max: 7
+		});
+		await pages.get('/a');
+		await pages.get('/b');
+		const refresh = pages.get('/a', { fresh: true });
+		// both answers pass their age while the refresh is out; the cache's sweep has not run
+		now += 2000;
+		d.resolve('/a new');
+		expect(await refresh).toBe('/a new');
+		expect(pages.peek('/a')).toMatchObject({ kind: 'kept', answer: '/a new', flying: false });
+		expect((pages as unknown as { _weight: number })._weight).toBe('/a new'.length);
+		spy.mockRestore();
+	});
+
 	it('a keep or weigh that throws fails the flight and keeps nothing', async () => {
 		const pages = flights({
 			run: async () => 'x',
@@ -640,6 +675,198 @@ describe('fresh', () => {
 		ctl.abort();
 		await expect(out).resolves.toBe(STALE);
 		expect(pages.peek('/a')).toMatchObject({ kind: 'kept', answer: 'kept', flying: false });
+	});
+});
+
+describe('priority', () => {
+	it('a run sees the priority of the get that started it (0 when it gave none)', async () => {
+		const seen: number[] = [];
+		const pages = flights({
+			name: NAME,
+			run: async (href: string, _signal, flight) => (seen.push(flight.priority), href)
+		});
+		await pages.get('/a');
+		await pages.get('/b', { priority: 2 });
+		expect(seen).toEqual([0, 2]);
+	});
+
+	it('a join with a higher priority raises the flight, and the run hears it', async () => {
+		const d = deferred<string>();
+		const heard: number[] = [];
+		let flight!: { readonly priority: number };
+		const pages = flights({
+			name: NAME,
+			run: (_href: string, _signal, f) => {
+				flight = f;
+				f.onRaise((p) => heard.push(p));
+				return d.promise;
+			}
+		});
+		const low = pages.get('/a', { priority: 0 });
+		const high = pages.get('/a', { priority: 3 });
+		expect(flight.priority).toBe(3);
+		expect(heard).toEqual([3]);
+		d.resolve('page');
+		expect(await low).toBe('page');
+		expect(await high).toBe('page');
+	});
+
+	it('a join with a lower or equal priority never lowers it, and is not heard', () => {
+		const heard: number[] = [];
+		let flight!: { readonly priority: number };
+		const pages = flights({
+			name: NAME,
+			run: (_href: string, _signal, f) => {
+				flight = f;
+				f.onRaise((p) => heard.push(p));
+				return new Promise<string>(() => {});
+			}
+		});
+		void pages.get('/a', { priority: 2 });
+		void pages.get('/a', { priority: 1 });
+		void pages.get('/a', { priority: 2 });
+		void pages.get('/a');
+		expect(flight.priority).toBe(2);
+		expect(heard).toEqual([]);
+		pages.drop(() => true);
+	});
+
+	it('a caller that leaves does not take the raise back', async () => {
+		let flight!: { readonly priority: number };
+		const pages = flights({
+			name: NAME,
+			run: (_href: string, _signal, f) => ((flight = f), new Promise<string>(() => {}))
+		});
+		void pages.get('/a', { priority: 0 });
+		const ctl = new AbortController();
+		const high = pages.get('/a', { priority: 3, signal: ctl.signal });
+		ctl.abort();
+		await expect(high).resolves.toBe(STALE);
+		expect(flight.priority).toBe(3);
+		pages.drop(() => true);
+	});
+
+	it('a kept answer is given as it is: no run, nothing raised', async () => {
+		const run = vi.fn(async (href: string) => href);
+		const pages = flights({ name: NAME, run });
+		await pages.get('/a', { priority: 0 });
+		expect(await pages.get('/a', { priority: 9 })).toBe('/a');
+		expect(run).toHaveBeenCalledOnce();
+	});
+
+	it('a fresh flight starts at its own caller priority', async () => {
+		const seen: number[] = [];
+		const pages = flights({
+			name: NAME,
+			run: async (href: string, _signal, f) => (seen.push(f.priority), href)
+		});
+		await pages.get('/a', { priority: 3 });
+		await pages.get('/a', { priority: 1, fresh: true });
+		expect(seen).toEqual([3, 1]);
+	});
+
+	it('every try a retry policy gives reads the priority as it stands', async () => {
+		const seen: number[] = [];
+		let calls = 0;
+		const gate = deferred<void>();
+		const pages = flights({
+			name: NAME,
+			retry: policy({ attempts: 2, backoff: 0, jitter: 0, deadline: Infinity }),
+			run: async (href: string, _signal, f) => {
+				seen.push(f.priority);
+				if (calls++ === 0) {
+					await gate.promise;
+					throw new Error('blip');
+				}
+				return href;
+			}
+		});
+		const out = pages.get('/a', { priority: 0 });
+		void pages.get('/a', { priority: 2 });
+		gate.resolve();
+		expect(await out).toBe('/a');
+		expect(seen).toEqual([0, 2]);
+	});
+
+	it('a raise is heard only by the try that is out: a failed try’s listeners are let go', async () => {
+		const heard: string[] = [];
+		let tries = 0;
+		const first = deferred<void>();
+		const second = deferred<string>();
+		const started = deferred<void>();
+		const pages = flights({
+			name: NAME,
+			retry: policy({ attempts: 2, backoff: 0, jitter: 0, deadline: Infinity }),
+			run: async (_href: string, _signal, f) => {
+				const mine = ++tries;
+				f.onRaise((p) => heard.push(`try ${mine}: ${p}`));
+				if (mine === 1) {
+					await first.promise;
+					throw new Error('blip');
+				}
+				started.resolve();
+				return second.promise;
+			}
+		});
+		const out = pages.get('/a', { priority: 0 });
+		first.resolve();
+		await started.promise;
+		void pages.get('/a', { priority: 2 });
+		second.resolve('/a');
+		expect(await out).toBe('/a');
+		expect(heard).toEqual(['try 2: 2']);
+	});
+
+	it('keyed: two inputs of one key are one flight, raised by the later', () => {
+		let flight!: { readonly priority: number };
+		const pages = flights.keyed<{ href: string; purpose: string }>()({
+			name: NAME,
+			key: ['href'],
+			ignore: { purpose: 'how, not what' },
+			run: (_ask, _signal, f) => ((flight = f), new Promise<string>(() => {}))
+		});
+		void pages.get({ href: '/a', purpose: 'prefetch' }, { priority: 0 });
+		void pages.get({ href: '/a', purpose: 'nav' }, { priority: 3 });
+		expect(flight.priority).toBe(3);
+		pages.drop(() => true);
+	});
+
+	it('a raise listener that throws is said, and the join and the other listeners go on', async () => {
+		const said = vi.spyOn(console, 'error').mockImplementation(() => {});
+		const page = globalThis as { reportError?: (e: unknown) => void };
+		const own = page.reportError;
+		const reported: unknown[] = [];
+		page.reportError = (e) => reported.push(e);
+		try {
+			const heard: number[] = [];
+			const d = deferred<string>();
+			const pages = flights({
+				name: NAME,
+				run: (_href: string, _signal, f) => {
+					f.onRaise(() => {
+						throw new Error('listener');
+					});
+					f.onRaise((p) => heard.push(p));
+					return d.promise;
+				}
+			});
+			void pages.get('/a');
+			const joined = pages.get('/a', { priority: 1 });
+			expect(heard).toEqual([1]);
+			expect(String(said.mock.calls[0]?.[0])).toContain('machine_flight_raise_failed');
+			expect(reported).toHaveLength(1);
+			d.resolve('page');
+			expect(await joined).toBe('page');
+		} finally {
+			page.reportError = own;
+			said.mockRestore();
+		}
+	});
+
+	it('a priority that is not a number is refused', () => {
+		const pages = flights({ name: NAME, run: async (href: string) => href });
+		expect(() => pages.get('/a', { priority: NaN })).toThrow(MachineError);
+		expect(() => pages.get('/a', { priority: '1' as never })).toThrow(/priority/);
 	});
 });
 

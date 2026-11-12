@@ -1,6 +1,7 @@
 import type { RequestEvent } from '@sveltejs/kit';
 import { with_request_store } from '@sveltejs/kit/internal/server';
 import type { RequestContext, ServerApp, ServerPlugin } from './index.ts';
+// port-ok: a test helper's own key, made once per test process (never a running app's)
 import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 import { facts_of } from './facts.ts';
 import { request_contexts, start_plugins, type AppSigner } from './server.ts';
@@ -16,6 +17,10 @@ export { clear_route_config as clearRouteConfig } from './routes.ts';
 export { set_page_route_config as setPageRouteConfig } from './routes.ts';
 
 const TEST_KEY = randomBytes(32);
+const TEST_KEY_FP = createHmac('sha256', TEST_KEY)
+	.update('ogygia-key-fp')
+	.digest('base64url')
+	.slice(0, 8);
 const TEST_SIGNER: AppSigner = {
 	sign: (message) => createHmac('sha256', TEST_KEY).update(message).digest('base64url'),
 	verify(message, signature) {
@@ -23,6 +28,7 @@ const TEST_SIGNER: AppSigner = {
 		const got = Buffer.from(signature);
 		return want.length === got.length && timingSafeEqual(want, got);
 	},
+	fingerprint: () => TEST_KEY_FP,
 	lifetime: capability_lifetime({
 		building: false,
 		region_ttl: 3600,

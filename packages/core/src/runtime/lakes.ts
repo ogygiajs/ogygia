@@ -1,4 +1,6 @@
 import { relocate_trailing_empty_comments } from './lake-anchors.ts';
+import { on_schedule } from '../contract/trigger.ts';
+import { clock } from '@ogygia/machine';
 import {
 	FROZEN_SELECTOR,
 	document_is_stored,
@@ -12,6 +14,7 @@ import {
 import { runtime_session } from './session.ts';
 import { slots, type LakeArm, type LiftedLake } from './slots.ts';
 import { warn } from '../messages/core.ts';
+import { OG_STATIC } from '../wire-markup.ts';
 
 /** Feature entry: fill the `lakes` slot so core lifts/restores frozen regions. */
 export function install(): void {
@@ -37,7 +40,7 @@ export function settle_in(root: ParentNode): void {
 // moved its trailing anchors in front of its content, and the snippet's hydrate then mismatched.
 const in_live_snippet = (lake: Element, parent: Element) => {
 	const snippet = lake.parentElement?.closest('ogygia-snippet');
-	return !!snippet && parent.contains(snippet) && !snippet.hasAttribute('data-og-static');
+	return !!snippet && parent.contains(snippet) && !snippet.hasAttribute(OG_STATIC);
 };
 
 /** The lakes `parent`'s own hydrate lifts and restores: nearest region is `parent`, outside live snippets. */
@@ -128,7 +131,7 @@ function remember(
 		frag: cached,
 		endpoint: meta.endpoint,
 		when: meta.when,
-		cachedAt: Date.now(),
+		cachedAt: clock.mono(),
 		maxAgeMs: meta.maxAgeMs || region_max_age_ms(lake)
 	});
 }
@@ -143,12 +146,7 @@ export function on_frozen_connect(el: HTMLElement, arm: LakeArm): boolean {
 		// schedule — a fresh SERVER render carrying the visitor's cookies. This is how a stored
 		// page's `render: 'live'` regions self-freshen (internal/notes/freeze.md).
 		if (region_remount(el) === 'swr' && el.getAttribute('endpoint') && document_is_stored()) {
-			const when = el.getAttribute('when') || 'load';
-			const fire = () => arm.fetch_revalidate();
-			if (when === 'idle') arm.idle(fire);
-			else if (when === 'visible') arm.visible(fire);
-			else if (when === 'load') fire();
-			else arm.media(when, fire);
+			on_schedule(el.getAttribute('when') || 'load', arm, () => arm.fetch_revalidate());
 		} else if (
 			import.meta.env.DEV &&
 			region_remount(el) === 'swr' &&
@@ -205,7 +203,7 @@ export function on_frozen_connect(el: HTMLElement, arm: LakeArm): boolean {
 				return true;
 			}
 			const max_age = region_max_age_ms(el) || cached.maxAgeMs || 0;
-			const expired = max_age > 0 && Date.now() - cached.cachedAt > max_age;
+			const expired = max_age > 0 && clock.mono() - cached.cachedAt > max_age;
 			const on_expire = region_on_expire(el);
 
 			if (expired && on_expire === 'empty') {
@@ -220,11 +218,7 @@ export function on_frozen_connect(el: HTMLElement, arm: LakeArm): boolean {
 				}
 				el.setAttribute('endpoint', cached.endpoint);
 				const when = el.getAttribute('when') || cached.when || 'load';
-				const fire = () => arm.fetch_revalidate();
-				if (when === 'idle') arm.idle(fire);
-				else if (when === 'visible') arm.visible(fire);
-				else if (when === 'load') fire();
-				else arm.media(when, fire);
+				on_schedule(when, arm, () => arm.fetch_revalidate());
 				return true;
 			}
 
@@ -244,11 +238,7 @@ export function on_frozen_connect(el: HTMLElement, arm: LakeArm): boolean {
 			}
 			el.setAttribute('endpoint', cached.endpoint);
 			const when = el.getAttribute('when') || cached.when || 'load';
-			const fire = () => arm.fetch_revalidate();
-			if (when === 'idle') arm.idle(fire);
-			else if (when === 'visible') arm.visible(fire);
-			else if (when === 'load') fire();
-			else arm.media(when, fire);
+			on_schedule(when, arm, () => arm.fetch_revalidate());
 			return true;
 		}
 		default: {
@@ -298,7 +288,7 @@ export function after_html_swap(
 		frag: cached,
 		endpoint: region.getAttribute('endpoint') || prev?.endpoint || '',
 		when: region.getAttribute('when') || prev?.when || 'load',
-		cachedAt: Date.now(),
+		cachedAt: clock.mono(),
 		maxAgeMs: region_max_age_ms(region) || prev?.maxAgeMs || 0
 	});
 }

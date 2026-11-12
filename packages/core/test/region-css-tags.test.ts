@@ -3,6 +3,7 @@
 // silently unstyled every sheet small enough for Kit's `inlineStyleThreshold`, which ogygia inlines
 // as `<style data-ogygia-region-css="href">`.
 import { describe, expect, it } from 'vitest';
+import { hole_head } from '../src/server/hole-graph.ts';
 import { region_css_tags } from '../src/server/html-scan.ts';
 
 describe('region_css_tags', () => {
@@ -27,6 +28,42 @@ describe('region_css_tags', () => {
 		expect(region_css_tags('<link rel="stylesheet" href="/a.css"><style>.a{}</style>')).toBe('');
 		expect(region_css_tags('<linker data-ogygia-region-css><styles data-ogygia-region-css>')).toBe(
 			''
+		);
+	});
+
+	it('reads tags as a browser does: a quoted `>`, any case, comments, the marker as a value', () => {
+		expect(
+			region_css_tags(
+				'<link title="a>b" href="/a.css" data-ogygia-region-css>' +
+					'<LINK HREF="/b.css" DATA-OGYGIA-REGION-CSS>' +
+					'<!-- <link href="/c.css" data-ogygia-region-css> -->' +
+					'<link rel="stylesheet" href="/d.css?data-ogygia-region-css">' +
+					'<style data-ogygia-region-css="/e.css">.e{}</STYLE>'
+			)
+		).toBe(
+			'<link title="a>b" href="/a.css" data-ogygia-region-css>' +
+				'<LINK HREF="/b.css" DATA-OGYGIA-REGION-CSS>' +
+				'<style data-ogygia-region-css="/e.css">.e{}</STYLE>'
+		);
+	});
+
+	it('a link written inside a style is the sheet’s text, not a tag', () => {
+		expect(
+			region_css_tags('<style>/* <link href="/a.css" data-ogygia-region-css> */</style>')
+		).toBe('');
+	});
+
+	it('a hole answer carries no region sheet out of a comment, a meta value or the title (#976)', () => {
+		const head =
+			'<!-- <link rel=stylesheet href=/x.css data-ogygia-region-css> -->' +
+			'<meta name="description" content="see <link data-ogygia-region-css href=/m.css>">' +
+			'<title>the data-ogygia-region-css attribute</title>' +
+			'<link rel="stylesheet" href="/real.css" data-ogygia-region-css>';
+		expect(region_css_tags(head)).toBe(
+			'<link rel="stylesheet" href="/real.css" data-ogygia-region-css>'
+		);
+		expect(hole_head(head, undefined)).toBe(
+			'<link rel="stylesheet" href="/real.css" data-ogygia-region-css>'
 		);
 	});
 
