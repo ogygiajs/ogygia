@@ -147,8 +147,42 @@ export const KNOWN: ReadonlyArray<{
 			for (const i of baked_sheet_lines(s).reverse()) out.splice(i, 1);
 			return out.join('\n');
 		}
+	},
+	{
+		issue: 1067,
+		what: "a kept island keeps the last page's data-og-fp after a client navigation",
+		// (a kept region's opening line, its fingerprint set aside: palaestra /props-tail, /formkeep)
+		applies: (shown, fresh) => kept_fps(shown).join('\n') !== kept_fps(fresh).join('\n'),
+		forgive: (s) =>
+			s
+				.split('\n')
+				.map((l) => (KEPT_REGION.test(l) ? l.replace(/ data-og-fp="[^"]*"/, '') : l))
+				.join('\n')
+	},
+	{
+		issue: 1071,
+		what: 'a kept head link with a relative URL names another file after a client navigation',
+		// (a link whose file resolves under the page's own path, `/lab/_app/…`, where the other side
+		// names `/_app/…`: palaestra /lab/a -> /lab/deep/x)
+		applies: (shown, fresh) => DEEP_ASSET.test(shown) && !DEEP_ASSET.test(fresh),
+		forgive: (s) => s.replace(DEEP_ASSET_ALL, ' href="/_app/')
 	}
 ];
+
+/** The opening line of a region the router keeps across navigations (`keep`). */
+const KEPT_REGION = /^ *<ogygia-region [^>]*data-ogygia-keep=/;
+
+/** Each kept region's `data-og-fp`. */
+function kept_fps(s: string): string[] {
+	return s
+		.split('\n')
+		.filter((l) => KEPT_REGION.test(l))
+		.map((l) => / data-og-fp="([^"]*)"/.exec(l)?.[1] ?? '');
+}
+
+/** A head link to a build's file under a page's own path (`href="/lab/_app/…"`). */
+const DEEP_ASSET = /^ *<link\b[^>]* href="\/(?:[^"/]+\/)+_app\//m;
+const DEEP_ASSET_ALL = / href="\/(?:[^"/]+\/)+_app\//g;
 
 /** The lines (by number) of region sheet links right inside a baked held region. */
 function baked_sheet_lines(s: string): number[] {
@@ -388,26 +422,28 @@ export function first_difference(a: string, b: string, context = 3): string {
 }
 
 /** A hard load of `url` in a new browser with `v`'s cookies, on a network that does not fail it
- *  (a fault there is no finding about the tab), at rest. */
+ *  (a fault there is no finding about the tab), at rest, each leg `pace` ms slower. */
 async function load_fresh(
 	world: World,
 	v: Visitor,
 	url: string,
-	name: string
+	name: string,
+	pace = 0
 ): Promise<{ visitor: Visitor; tab: Tab }> {
 	const visitor = world.visitor(`${v.name}-${name}`);
 	const jar = (b: Visitor) =>
 		(
 			b.browser.defaultContext as unknown as {
 				cookieContainer: {
-					getCookies(u: URL | null, http: boolean): unknown[];
+					getCookies(u: URL | null, client_side: boolean): unknown[];
 					addCookies(c: unknown[]): void;
 				};
 			}
 		).cookieContainer;
-	jar(visitor).addCookies(jar(v).getCookies(null, true));
+	// (every cookie, httpOnly ones too: a request carries them all; `true` would be a script's view)
+	jar(visitor).addCookies(jar(v).getCookies(null, false));
 	const tab = world.tab(visitor);
-	world.network.calm(tab.name);
+	world.network.calm(tab.name, pace);
 	const path = new URL(url);
 	await world.go(tab, 'goto', path.pathname + path.search + path.hash);
 	return { visitor, tab };
@@ -431,8 +467,8 @@ export async function mpa_equivalent(
 	// (a page a build a deploy replaced answered is compared with a fresh load from that build: an
 	// old page is the old release's, whole)
 	const build = world.build_of(tab.realm);
-	const fresh_load = (w: World, visitor: Visitor, at: string, name: string) =>
-		w.as_of(build, () => load_fresh(w, visitor, at, name), world.answers_of(tab.realm));
+	const fresh_load = (w: World, visitor: Visitor, at: string, name: string, pace = 0) =>
+		w.as_of(build, () => load_fresh(w, visitor, at, name, pace), world.answers_of(tab.realm));
 	const fresh = await fresh_load(world, v, url, 'fresh');
 	// (no reference: the build the page is of could not give it again, its stored copies dropped and
 	// a newer build's handed out instead, gen 131, seed 131003)
@@ -466,10 +502,12 @@ export async function mpa_equivalent(
 	// differs between the two is marked on every side: seeds 107, 188, 268, 280, 326, 340, 477)
 	// (and a third, when two servers each count their own renders: two loads can meet the same
 	// count on two instances, but of three, two come from one instance; seed 221, a cart's stamp)
+	// (each at its own speed: with no delay fault two loads take the same time to the ms, and a
+	// stamp of the render's moment agreed on both; palaestra seed 20004, /delta/b)
 	const looks = [loaded];
 	let diff = '';
 	for (const n of [2, 3]) {
-		const more = await fresh_load(world, v, url, `fresh-${n}`);
+		const more = await fresh_load(world, v, url, `fresh-${n}`, (n - 1) * 7);
 		looks.push(whole(view(more.tab.page.mainFrame.document as unknown as Document)));
 		await world.browsers.close(more.visitor, more.tab);
 		for (const other of looks.slice(0, -1)) {
@@ -1040,6 +1078,12 @@ export const KNOWN_SAID: ReadonlyArray<{ issue: number; what: string; said: RegE
 		issue: 1046,
 		what: "Svelte's async mode sends a guarded query with the value its {#if} rules out",
 		said: /^unhandled: \{"message":"Bad Request"\}$/
+	},
+	{
+		issue: 1050,
+		what: 'a hole nested in an island is imported as a module after a client navigation',
+		// (the hole's id as a module URL: `/<12 hex>?og-retry=1`; palaestra /prefetch -> /nested)
+		said: /chunk_reload_needed\?url=https%3A%2F%2F[^%]+%2F[0-9a-f]{12}(%3F|$)/
 	}
 ];
 
