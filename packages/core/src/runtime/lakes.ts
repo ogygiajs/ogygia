@@ -127,7 +127,7 @@ function remember(
 	for (const child of Array.from(lake.childNodes)) {
 		cached.appendChild(child.cloneNode(true));
 	}
-	runtime_session.set_lake_cache(id, {
+	runtime_session.lake_cache.set(id, {
 		frag: cached,
 		endpoint: meta.endpoint,
 		when: meta.when,
@@ -197,7 +197,7 @@ export function on_frozen_connect(el: HTMLElement, arm: LakeArm): boolean {
 			return true;
 		case 'cache':
 		case 'swr': {
-			const cached = runtime_session.lake_cache.get(id);
+			const cached = runtime_session.lake_cache.peek(id);
 			if (!cached) {
 				runtime_session.settled_lakes.add(el);
 				return true;
@@ -283,8 +283,8 @@ export function after_html_swap(
 	for (const child of Array.from(region.childNodes)) {
 		cached.appendChild(child.cloneNode(true));
 	}
-	const prev = runtime_session.lake_cache.get(id);
-	runtime_session.set_lake_cache(id, {
+	const prev = runtime_session.lake_cache.peek(id);
+	runtime_session.lake_cache.set(id, {
 		frag: cached,
 		endpoint: region.getAttribute('endpoint') || prev?.endpoint || '',
 		when: region.getAttribute('when') || prev?.when || 'load',
