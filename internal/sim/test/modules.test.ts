@@ -4,7 +4,7 @@
 import { describe, expect, it } from 'vitest';
 import { Browser } from 'happy-dom';
 import { use_v8_modules } from '../src/modules.ts';
-import { modules_in_order } from '../src/happy.ts';
+import { modules_in_order, window_load_events } from '../src/happy.ts';
 
 const FILES: Record<string, string> = {
 	'/a.js': 'export let n = 0; export function bump() { n++; }',
@@ -16,11 +16,16 @@ export const returned = where();`,
 	'/shared.js': "import './slow.js'; export const shared = 'ran';",
 	'/first.js': "import './slow.js'; (globalThis.order ??= []).push('first');",
 	'/slow.js': 'export const slow = 1;',
-	'/state.js': "import './slow.js'; globalThis.order.push('module ' + document.readyState);"
+	'/state.js': "import './slow.js'; globalThis.order.push('module ' + document.readyState);",
+	'/needs-slow.js': "import { slow } from './slow.js'; document.body.textContent = String(slow);"
 };
+
+/** Each download the last `run` made, by path. */
+const asked: string[] = [];
 
 async function run(v8: boolean, content?: string): Promise<string> {
 	if (v8) use_v8_modules();
+	asked.length = 0;
 	const browser = new Browser({
 		settings: {
 			enableJavaScriptEvaluation: true,
@@ -29,6 +34,7 @@ async function run(v8: boolean, content?: string): Promise<string> {
 				interceptor: {
 					beforeAsyncRequest: async ({ request, window }) => {
 						const path = new URL(request.url).pathname;
+						asked.push(path);
 						const body = FILES[path];
 						const W = window as unknown as { Response: typeof Response };
 						if (body === undefined) return new W.Response('', { status: 404 }) as never;
@@ -84,6 +90,27 @@ describe('modules of a simulated tab', () => {
 		modules_in_order();
 		const page = `<script>globalThis.order = [document.readyState];document.addEventListener('DOMContentLoaded', () => order.push('dcl ' + document.readyState));addEventListener('load', () => { order.push('load ' + document.readyState); document.body.textContent = order.join(' '); });\x3C/script><script type="module" src="/state.js">\x3C/script>`;
 		expect(await run(true, page)).toBe('loading module interactive dcl interactive load complete');
+	});
+
+	// the differential (src/differ.ts): Chromium, Firefox and WebKit all heard `load` and then
+	// `pageshow` on a window listener that captures; the simulator heard neither (happy-dom fires
+	// `load` to the window's bubbling listeners only, and never fires `pageshow`)
+	it('load, then pageshow, reach the window capturing and not, their target the document', async () => {
+		window_load_events();
+		const page = `<script>globalThis.order = [];for (const type of ['load', 'pageshow']) for (const capture of [true, false]) addEventListener(type, (e) => { order.push(type + (capture ? ' capture' : '') + (e.target === document ? ' document' : '')); document.body.textContent = order.join(', '); }, capture);\x3C/script>`;
+		expect(await run(true, page)).toBe(
+			'load capture document, load document, pageshow capture document, pageshow document'
+		);
+	});
+
+	// the differential (src/differ.ts): Chromium asked for each of the runtime's chunks once, the
+	// simulator twice. The runtime's script comes before its `modulepreload` links, so its imports
+	// were asked of the network while the preloads were still on their way: in a browser the
+	// preload's fetch is already the module map's entry, and the import waits for it
+	it('an import of a module a modulepreload is still downloading waits for it, not a second download', async () => {
+		const page = `<script type="module" src="/needs-slow.js">\x3C/script><link rel="modulepreload" href="/slow.js">`;
+		expect(await run(true, page)).toBe('1');
+		expect(asked.filter((p) => p === '/slow.js')).toEqual(['/slow.js']);
 	});
 
 	// palaestra seed 270: a Kit page left just after its start script's body came still ran the

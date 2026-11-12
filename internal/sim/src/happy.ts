@@ -21,6 +21,8 @@ import ParentNodeUtility from 'happy-dom/lib/nodes/parent-node/ParentNodeUtility
 import * as PropertySymbol from 'happy-dom/lib/PropertySymbol.js';
 import XMLEncodeUtility from 'happy-dom/lib/utilities/XMLEncodeUtility.js';
 import WindowBrowserContext from 'happy-dom/lib/window/WindowBrowserContext.js';
+import HappyEventTarget from 'happy-dom/lib/event/EventTarget.js';
+import EventPhaseEnum from 'happy-dom/lib/event/EventPhaseEnum.js';
 import type { Loop, Task } from './loop.ts';
 
 /**
@@ -569,6 +571,50 @@ export function scripts_start_once(): void {
 			started.add(copy);
 		}
 		return copy;
+	};
+}
+
+/**
+ * A document's `load` reaches its window's capturing listeners too, and `pageshow` follows it, as
+ * in a browser (the target of both the document, the HTML spec's legacy override). happy-dom calls
+ * only the window's bubbling `load` listeners and never fires `pageshow` (found by the
+ * differential). Idempotent. test/modules.test.ts.
+ */
+export function window_load_events(): void {
+	// (EventTarget's: a window binds EventTarget's methods to itself after BrowserWindow's)
+	const proto = HappyEventTarget.prototype as unknown as Record<string, unknown>;
+	if (proto.__load) return;
+	proto.__load = true;
+	type Ev = Event & Record<symbol, unknown>;
+	const real = proto.dispatchEvent as (this: unknown, e: Event) => boolean;
+	/** `event` to `window`'s listeners, capturing then not, as the document's: no path, no bubble. */
+	const at_window = (window: { document: unknown }, event: Ev): boolean => {
+		event[PropertySymbol.target] = window.document;
+		event[PropertySymbol.currentTarget] = window;
+		event[PropertySymbol.eventPhase] = EventPhaseEnum.capturing;
+		real.call(window, event);
+		event[PropertySymbol.eventPhase] = EventPhaseEnum.atTarget;
+		return real.call(window, event);
+	};
+	proto.dispatchEvent = function (this: { document: unknown; Event: typeof Event }, e: Event) {
+		const event = e as Ev;
+		// (happy-dom's own `load`: its target set to the document before it is dispatched)
+		if (
+			event.type !== 'load' ||
+			this.document === undefined ||
+			event[PropertySymbol.target] !== this.document ||
+			event[PropertySymbol.dispatching] === true
+		)
+			return real.call(this, e);
+		const kept = at_window(this, event);
+		const show = new this.Event('pageshow') as Ev;
+		Object.defineProperty(show, 'persisted', { value: false });
+		show[PropertySymbol.dispatching] = true;
+		at_window(this, show);
+		show[PropertySymbol.dispatching] = false;
+		show[PropertySymbol.eventPhase] = EventPhaseEnum.none;
+		show[PropertySymbol.currentTarget] = null;
+		return kept;
 	};
 }
 
