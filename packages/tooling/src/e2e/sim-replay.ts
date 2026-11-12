@@ -26,6 +26,7 @@ type Action =
 	| { kind: 'away'; tab: number; nth: number; ms: number }
 	| { kind: 'hurry'; tab: number; nth: number; next: number; after: number }
 	| { kind: 'hover'; tab: number; nth: number }
+	| { kind: 'eager'; tab: number; path: string; nth: number; after: number }
 	| {
 			kind: 'outage';
 			tab: number;
@@ -266,7 +267,14 @@ async function nth_of(page: Page, list: 'links' | 'buttons', nth: number): Promi
 							(b) => !b.disabled && b.form === null
 						);
 			if (found.length === 0) return false;
-			found[nth % found.length].click();
+			// (a visitor's click: the pointer goes down and up first, as the simulator's user_click)
+			const el = found[nth % found.length];
+			const at = { bubbles: true, cancelable: true, composed: true, button: 0 };
+			el.dispatchEvent(new PointerEvent('pointerdown', { ...at, buttons: 1, isPrimary: true }));
+			el.dispatchEvent(new MouseEvent('mousedown', { ...at, buttons: 1 }));
+			el.dispatchEvent(new PointerEvent('pointerup', { ...at, isPrimary: true }));
+			el.dispatchEvent(new MouseEvent('mouseup', at));
+			el.click();
 			return true;
 		},
 		[list, nth] as const
@@ -420,6 +428,13 @@ async function play(
 				break;
 			case 'hover':
 				await hover_nth(tab, a.nth);
+				break;
+			case 'eager':
+				// (the document is in, still loading: the press comes before its first paint, or during
+				// the wait for its critical resources)
+				await navigated(tab.goto(a.path, { waitUntil: 'commit' }));
+				await pass(context, a.after);
+				await nth_of(tab, BUTTONS, a.nth);
 				break;
 			case 'hurry':
 				if (!(await nth_of(tab, LINKS, a.nth))) break;

@@ -26,6 +26,9 @@ export type Action =
 	/** Point at link or region `nth` (of both, in document order) without clicking: the router warms
 	 *  a hovered link's page, an island's code is warmed on intent. */
 	| { kind: 'hover'; tab: number; nth: number }
+	/** Go to `path` and press button `nth` `after` ms in, while the page still loads: an input before
+	 *  the first paint, or during the wait for the page's critical resources. */
+	| { kind: 'eager'; tab: number; path: string; nth: number; after: number }
 	| {
 			kind: 'outage';
 			tab: number;
@@ -58,6 +61,8 @@ export function describe(a: Action): string {
 			return `tab ${a.tab}: click link #${a.nth}, then link #${a.next} ${a.after} ms later`;
 		case 'hover':
 			return `tab ${a.tab}: point at link or region #${a.nth}`;
+		case 'eager':
+			return `tab ${a.tab}: go to ${a.path}, press button #${a.nth} ${a.after} ms in`;
 		case 'outage':
 			return `tab ${a.tab}: ${a.during === 'wait' ? 'an outage' : `${a.during} #${a.nth}, then an outage`} ${a.after} ms in, for ${a.lasts} ms`;
 		default:
@@ -108,7 +113,8 @@ export const ACTION_KINDS: readonly Action['kind'][] = [
 	'outage',
 	'away',
 	'hurry',
-	'hover'
+	'hover',
+	'eager'
 ];
 
 /** The seed's next action for a world with `tabs` tabs (`deploys`: a deploy may be drawn; the
@@ -179,7 +185,17 @@ function choices(
 			},
 			1
 		],
-		[{ kind: 'hover', tab, nth: rng.int(1000) }, 2]
+		[{ kind: 'hover', tab, nth: rng.int(1000) }, 2],
+		[
+			{
+				kind: 'eager',
+				tab,
+				path: rng.pick(paths),
+				nth: rng.int(1000),
+				after: rng.pick([0, 5, 20, 60, 150, 300])
+			},
+			1
+		]
 	];
 }
 
@@ -278,6 +294,12 @@ export async function act(
 			if (tab === undefined || !click(world, tab, a.nth, origin)) return;
 			await world.loop.run(a.after);
 			click(world, tab, a.next, origin);
+			await world.quiesce();
+			return;
+		case 'eager':
+			if (tab === undefined) return;
+			await world.start(tab, 'goto', a.path, a.after);
+			press(world, tab, a.nth);
 			await world.quiesce();
 			return;
 		case 'goto':

@@ -79,13 +79,7 @@ describe('the workload', () => {
 		for (const type of ['pointerdown', 'mousedown', 'pointerup', 'mouseup', 'click'])
 			window.document.addEventListener(type, (e) => heard.push(e.type), { capture: true });
 		user_click(button as unknown as Element);
-		expect(heard).toEqual([
-			'pointerdown',
-			'mousedown',
-			'pointerup',
-			'mouseup',
-			'click'
-		]);
+		expect(heard).toEqual(['pointerdown', 'mousedown', 'pointerup', 'mouseup', 'click']);
 		window.close();
 	});
 });

@@ -604,12 +604,35 @@ export class World {
 		path = '/',
 		budget = 30_000
 	): Promise<void> {
+		const end = this.loop.now + budget;
+		await this.#navigate(tab, how, path, end);
+		await this.quiesce(Math.max(0, end - this.loop.now));
+	}
+
+	/** Navigates `tab` and runs the loop until its document is in (or `end`). */
+	async #navigate(
+		tab: Tab,
+		how: 'goto' | 'back' | 'forward' | 'reload',
+		path: string,
+		end: number
+	): Promise<void> {
 		let done = false;
 		void this.browsers.navigate(tab, how, path).then(() => (done = true));
-		const end = this.loop.now + budget;
 		await this.loop.settle();
 		while (!done && this.loop.now < end) if (!(await this.loop.step())) break;
-		await this.quiesce(Math.max(0, end - this.loop.now));
+	}
+
+	/** Starts a navigation and runs the loop until its document is in, then `ms` more: the page is
+	 *  still loading (its scripts, its first paint, its critical resources) when it returns. */
+	async start(
+		tab: Tab,
+		how: 'goto' | 'back' | 'forward' | 'reload',
+		path: string,
+		ms: number,
+		budget = 30_000
+	): Promise<void> {
+		await this.#navigate(tab, how, path, this.loop.now + budget);
+		await this.loop.run(ms);
 	}
 
 	/**
