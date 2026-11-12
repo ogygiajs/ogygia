@@ -2846,7 +2846,7 @@
 		},
 		{
 			"id": "packages/compiler/src/vite/index.ts > ogygia > seams > pinned_imports",
-			"reason": "the app's import keys and asRegion locals over ogygia()'s closure (not replayable); asRegionLocals is benched with the region transform; proven through barrels() in packages/barrels/test/plugin.test.ts and packages/barrels/test/as-region.test.ts"
+			"reason": "the app's import keys over ogygia()'s closure (not replayable); proven through barrels() in packages/barrels/test/plugin.test.ts and packages/barrels/test/named-region.test.ts"
 		},
 		{
 			"id": "packages/compiler/src/vite/index.ts > ogygia > barrels_left_of",
@@ -2862,11 +2862,7 @@
 		},
 		{
 			"id": "packages/compiler/src/vite/index.ts > ogygia > seams > pinned_imports > <anonymous>~a269ad",
-			"reason": "one declaration against the pinned keys and locals (constant work over ogygia()'s closure); proven in packages/barrels/test/plugin.test.ts and packages/barrels/test/as-region.test.ts"
-		},
-		{
-			"id": "packages/compiler/src/vite/index.ts > ogygia > seams > pinned_imports > <anonymous>~a269ad > some:0~d4dbd6",
-			"reason": "one specifier's local against the asRegion locals (a Set has); proven in packages/barrels/test/as-region.test.ts"
+			"reason": "one declaration against the pinned keys (constant work over ogygia()'s closure); proven in packages/barrels/test/plugin.test.ts and packages/barrels/test/named-region.test.ts"
 		},
 		{
 			"id": "packages/compiler/src/vite/index.ts > ogygia > seams > pinned_imports > <anonymous>~a269ad > some:0~e91cb2",

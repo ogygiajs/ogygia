@@ -7,11 +7,10 @@
 import { describe, expect, test } from 'vitest';
 import fc from 'fast-check';
 import ts from 'typescript';
+import { dedent } from '@ogygia/core/contract';
 import {
 	transformHost,
 	transformTsRegions,
-	regionIdentity,
-	regionId,
 	wrapperVirtualId
 } from '../src/compiler/region/transform.ts';
 import { HOST_CTX_DEFAULTS } from './_host-ctx.ts';
@@ -174,8 +173,20 @@ function source_of(c: Case, imports = import_line(c)): string {
 		.map((u) => (c.kind === 'svelte' ? u.script.replace(/^export /, '') : u.script))
 		.filter(Boolean)
 		.join('\n');
-	if (c.kind === 'ts') return `${imports}\n${script}\nexport const n = 1;\n`;
-	return `<script lang="ts">\n${imports}\n${script}\n</script>\n\n${uses.map((u) => u.markup).join('')}<div></div>\n`;
+	if (c.kind === 'ts')
+		return dedent`
+			${imports}
+			${script}
+			export const n = 1;
+		`;
+	return dedent`
+		<script lang="ts">
+		${imports}
+		${script}
+		</script>
+
+		${uses.map((u) => u.markup).join('')}<div></div>
+	`;
 }
 
 function compile(c: Case, src = source_of(c)) {
@@ -285,7 +296,11 @@ function organize(text: string): string {
 	const ls = ts.createLanguageService(host, ts.createDocumentRegistry());
 	const changes = ls.organizeImports(
 		{ type: 'file', fileName: file, mode: ts.OrganizeImportsMode.SortAndCombine },
-		{},
+		// an editor's usual spacing (`{ A, B }`), so a line the organizer leaves alone reads the same
+		{
+			insertSpaceAfterCommaDelimiter: true,
+			insertSpaceAfterOpeningAndBeforeClosingNonemptyBraces: true
+		},
 		{}
 	);
 	let out = text;
@@ -330,20 +345,34 @@ const arb_file = fc
 
 function file_text(f: { kind: Kind; decls: Decl[] }, imports: string): string {
 	const names = f.decls.flatMap((d) => d.names);
-	if (f.kind === 'ts') return `${imports}\nexport const all = [${names.join(', ')}];\n`;
-	return `<script lang="ts">\n${imports}\n</script>\n\n${names.map((x) => `<${x} />`).join('')}\n`;
+	if (f.kind === 'ts')
+		return dedent`
+			${imports}
+			export const all = [${names.join(', ')}];
+		`;
+	return dedent`
+		<script lang="ts">
+		${imports}
+		</script>
+
+		${names.map((x) => `<${x} />`).join('')}
+	`;
 }
 
 /** The parts of a transform result an organizer must not change: regions, and the code's lines. */
 function normal(r: ReturnType<typeof transformHost> | ReturnType<typeof transformTsRegions>) {
 	if (!r) return null;
 	const islands = [...r.islands].map((i) => JSON.stringify(i, Object.keys(i).sort())).sort();
-	const lines = r.code
-		.split('\n')
-		.map((l) => l.trim())
-		.filter(Boolean)
-		.sort();
-	return { islands, lines };
+	// plain imports are the organizer's to merge: compare the names they bind, not their lines
+	const plain = /^import \{([^}]*)\} from '([^']*)';$/;
+	const lines: string[] = [];
+	for (const raw of r.code.split('\n')) {
+		const l = raw.trim();
+		const m = plain.exec(l);
+		if (m) for (const n of m[1].split(',')) lines.push(`plain ${n.trim()} from ${m[2]}`);
+		else if (l) lines.push(l);
+	}
+	return { islands, lines: lines.sort() };
 }
 
 describe('TypeScript organizeImports never changes the regions a file has', () => {
@@ -370,9 +399,12 @@ describe('TypeScript organizeImports never changes the regions a file has', () =
 	});
 
 	test(`organizeImports keeps a marked import apart from a plain one (TS ${ts.version})`, () => {
-		const out = organize(
-			`import { B } from 'x';\nimport { A } from 'x' with { wake: 'idle' };\nimport { C } from 'x' with { wake: 'idle' };\nimport { D } from 'x' with { wake: 'load' };\n`
-		);
+		const out = organize(dedent`
+			import { B } from 'x';
+			import { A } from 'x' with { wake: 'idle' };
+			import { C } from 'x' with { wake: 'idle' };
+			import { D } from 'x' with { wake: 'load' };
+		`);
 		expect(out).toContain(`import { B } from 'x';`);
 		expect(out).toMatch(/import \{ A,\s*C \} from 'x' with \{ wake: 'idle' \};/);
 		expect(out).toContain(`import { D } from 'x' with { wake: 'load' };`);

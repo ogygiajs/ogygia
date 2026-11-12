@@ -36,11 +36,7 @@ import {
 import { island_sourcemaps_plugin } from './sourcemaps.ts';
 import { lazy_files } from './lazy-files.ts';
 import { install_dev_client_maps, install_dev_maps, install_dev_page_keys } from './dev-maps.ts';
-import {
-	is_island_path,
-	normalize_import_keys,
-	asRegionLocals
-} from '../compiler/region/transform.ts';
+import { is_island_path, normalize_import_keys } from '../compiler/region/transform.ts';
 
 export {
 	normalize_import_keys,
@@ -432,12 +428,10 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 				return index.map(file, spec, policy, t);
 			}
 		},
-		pinned_imports(code) {
+		// a region's identity is on its marked import alone (default or named), so the code is not read
+		pinned_imports() {
 			const keys = new Set(Object.values(import_keys));
-			const locals = asRegionLocals(code);
-			return (decl) =>
-				decl.attribute_keys.some((k) => keys.has(k)) ||
-				(locals.size > 0 && decl.specs.some((s) => locals.has(s.local)));
+			return (decl) => decl.attribute_keys.some((k) => keys.has(k));
 		},
 		regions: {
 			names: () => compiler.region_names(),

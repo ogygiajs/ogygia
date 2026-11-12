@@ -48,10 +48,15 @@ const TS_CTX: TsCtx = {
 	visibleMargin: '0px'
 };
 
-const page = (script: string, markup: string, lang = '') =>
-	`<script${lang ? ` lang="${lang}"` : ''}>\n${script}\n</script>\n\n${markup}\n`;
+const page = (script: string, markup: string, lang = '') => dedent`
+	<script${lang ? ` lang="${lang}"` : ''}>
+	${script}
+	</script>
+
+	${markup}
+`;
 const host = (script: string, markup: string, ctx = host_ctx()) =>
-	transformHost(page(script, markup), HOST, ctx)!;
+	transformHost(page(script, markup, 'ts'), HOST, ctx)!;
 const ts = (code: string) => transformTsRegions(code, TS, TS_CTX);
 
 /** The thrown error's code and message (`null` when nothing threw). */
@@ -150,8 +155,10 @@ describe('a marked named import in a .svelte host is a region', () => {
 		const r = host(`import { Chart } from '@acme/ui' with { ${w} };`, '<Chart />');
 		expect(r.islands).toHaveLength(1);
 		expect(ok(r.islands[0] as never)).toBe(true);
-		expect(String(r.islands[0].source ?? r.islands[0].bindingSsrSource)).toMatch(
-			/import \{ Chart as __Og/
+		const i = r.islands[0];
+		// a cache lake has no entry: its wrapper imports the component
+		expect(String(i.source ?? i.bindingSsrSource ?? i.wrapperSource)).toMatch(
+			/import \{ Chart as \w+ \} from ["']@acme\/ui["']/
 		);
 	});
 
@@ -322,7 +329,13 @@ describe('import.meta.og.asRegion is a build error that prints the replacement',
 		expect(
 			thrown(() =>
 				transformHost(
-					`<script module>\nimport { H } from 'x';\nexport const A = import.meta.og.asRegion(H, { wake: 'load' });\n</script>\n<div />`,
+					dedent`
+						<script module>
+						import { H } from 'x';
+						export const A = import.meta.og.asRegion(H, { wake: 'load' });
+						</script>
+						<div />
+					`,
 					HOST,
 					host_ctx()
 				)
