@@ -419,7 +419,8 @@ describe('an island that wakes on its own is awake', () => {
 					cut: false,
 					tampered: false,
 					redirected: false
-				}))
+				})),
+				busy_for: () => false
 			},
 			browsers: { lacks_a_file: () => false },
 			skewed_for: () => false
