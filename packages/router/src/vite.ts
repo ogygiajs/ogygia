@@ -1,4 +1,4 @@
-import { definePlugin, type OgygiaPlugin } from '@ogygia/core/vite';
+import { definePlugin, type OgygiaPlugin } from '@ogygia/compiler/vite';
 
 /**
  * The server router's plugin, listed beside `ogygia()` in vite.config. A `routes()` table renders
