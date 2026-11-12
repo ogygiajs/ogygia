@@ -3,9 +3,8 @@
  * 0.13 rules for package source (`packages/<pkg>/src`), outside `@ogygia/machine` itself, which is
  * where the primitives they point at live:
  *
- * - `ogygia/compiler-boundary`: inside core, the compiler side (`compiler/`, `vite/`) uses the core
- *   side only through `contract/`, `insights/` and two server services; the core side never uses
- *   the compiler side (#488).
+ * - `ogygia/compiler-boundary`: `@ogygia/compiler` uses core only through `@ogygia/core/contract`,
+ *   and core never uses the compiler (#488, #513).
  * - `ogygia/no-promise-cache`: async work that callers share is a `flights()` (one flight per key,
  *   a success kept, a failure never kept, work stopped when its last caller leaves). A `Map` or
  *   `WeakMap` of promises, or a `??=` latch on a promise, is that cache written by hand, and each
@@ -670,54 +669,53 @@ const ports = {
 };
 
 // ── ogygia/compiler-boundary ──────────────────────────────────────────────
-// Inside core: the compiler side (`compiler/`, `vite/`) may use the core side only through
-// `contract/` and a few services the dev server runs; the core side never uses the compiler side.
+// `@ogygia/compiler` uses core only through `@ogygia/core/contract` (what both share, and core's
+// own files by path); core never uses the compiler. Package source only: tests may reach across.
 
-const CORE_SRC = /(^|\/)packages\/core\/src\//;
-const COMPILER_SIDE = /^(compiler|vite)\//;
-/** What the compiler side may import from the core side, besides `contract/`. */
-const COMPILER_MAY_USE = /^(contract\/|insights\/|server\/endpoint\.ts$|server\/hmac\.ts$)/;
+const PACKAGE_SRC = /(^|\/)packages\/(core|compiler)\/src\//;
+/** Core, by either name: `@ogygia/core`, `ogygia`, or a subpath. */
+const CORE_SPEC = /^(@ogygia\/core|ogygia)(\/|$)/;
+/** The compiler: its package, or the `ogygia` subpaths that re-export it. */
+const COMPILER_SPEC = /^(@ogygia\/compiler(\/|$)|ogygia\/(vite|internal\/compiler(-ids)?)$)/;
+const COMPILER_MAY_USE = '@ogygia/core/contract';
 const MESSAGE_CORE_USES_COMPILER =
-	'The core side (contract/ included) imports the compiler side (compiler/, vite/). Move what both need into contract/ (#488).';
+	'Core imports the compiler. Move what both need into core’s contract/ (#488, #513).';
 const MESSAGE_COMPILER_USES_CORE =
-	'The compiler side imports the core side outside contract/, insights/, server/endpoint and server/hmac. Move what both need into contract/ (#488).';
+	'The compiler imports core outside `@ogygia/core/contract`. Move what both need into core’s contract/ (#488, #513).';
+const MESSAGE_LEAVES_PACKAGE =
+	'A relative import leaves its package. Import the other package by name (#513).';
 
-/** `spec` from `file`, relative to core's src/, or null when it is not a relative path into it. */
-function core_target(file: string, spec: string): string | null {
-	if (!spec.startsWith('.')) return null;
-	const dir = file.slice(0, file.lastIndexOf('/'));
-	const parts = dir.split('/');
+/** Whether relative `spec` from `file` (inside `packages/<pkg>/src/`) leaves `packages/<pkg>/`. */
+function leaves_package(file: string, pkg: string, spec: string): boolean {
+	if (!spec.startsWith('.')) return false;
+	const parts = file.slice(0, file.lastIndexOf('/')).split('/');
 	for (const seg of spec.split('/')) {
 		if (seg === '.' || seg === '') continue;
 		if (seg === '..') parts.pop();
 		else parts.push(seg);
 	}
-	const joined = parts.join('/');
-	const m = CORE_SRC.exec(joined);
-	return m ? joined.slice(m.index + m[0].length) : null;
+	return !`${parts.join('/')}/`.includes(`/packages/${pkg}/`);
 }
 
 const compiler_boundary = {
 	meta: {
 		type: 'problem',
-		docs: { description: "Core's compiler side and core side meet only through contract/." }
+		docs: { description: 'The compiler uses core only through its contract; core never uses it.' }
 	},
 	create(context: Context) {
 		const file = (context.filename ?? context.getFilename?.() ?? '').replaceAll('\\', '/');
-		const m = CORE_SRC.exec(file);
+		const m = PACKAGE_SRC.exec(file);
 		if (!m) return {};
-		const own = file.slice(m.index + m[0].length);
-		const compiler = COMPILER_SIDE.test(own);
+		const pkg = m[2];
 		const check = (node: Node, source: unknown) => {
 			const value = (source as { value?: unknown } | null)?.value;
 			if (typeof value !== 'string') return;
-			const target = core_target(file, value);
-			if (target === null) return;
-			const to_compiler = COMPILER_SIDE.test(target);
-			if (compiler) {
-				if (!to_compiler && !COMPILER_MAY_USE.test(target))
-					context.report({ node, message: MESSAGE_COMPILER_USES_CORE });
-			} else if (to_compiler) context.report({ node, message: MESSAGE_CORE_USES_COMPILER });
+			if (leaves_package(file, pkg, value))
+				context.report({ node, message: MESSAGE_LEAVES_PACKAGE });
+			else if (pkg === 'core' && COMPILER_SPEC.test(value))
+				context.report({ node, message: MESSAGE_CORE_USES_COMPILER });
+			else if (pkg === 'compiler' && CORE_SPEC.test(value) && value !== COMPILER_MAY_USE)
+				context.report({ node, message: MESSAGE_COMPILER_USES_CORE });
 		};
 		return {
 			ImportDeclaration: (node: Node) => check(node, node.source),
