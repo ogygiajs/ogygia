@@ -3,7 +3,7 @@
 // not recorded; with no MutationObserver every island compares.
 import { afterEach, expect, it, vi } from 'vitest';
 import { region_changed, unwatch_region, watch_region } from '../../src/runtime/drift-watch.ts';
-import { OPAQUE_ATTR } from '../../src/runtime/ownership.ts';
+import { OG_OPAQUE } from '../../src/wire-markup.ts';
 
 const made: Element[] = [];
 afterEach(() => {
@@ -20,15 +20,15 @@ function region(html: string): HTMLElement {
 }
 
 it('a change inside a part Svelte never walks does not mark the island', () => {
-	const r = region(`<div ${OPAQUE_ATTR}><p>widget</p></div><p>walked</p>`);
+	const r = region(`<div ${OG_OPAQUE}><p>widget</p></div><p>walked</p>`);
 	watch_region();
-	r.querySelector(`[${OPAQUE_ATTR}] p`)!.firstChild!.nodeValue = 'reworked';
+	r.querySelector(`[${OG_OPAQUE}] p`)!.firstChild!.nodeValue = 'reworked';
 	expect(region_changed(r)).toBe(false);
 	unwatch_region();
 });
 
 it('a change inside a nested region marks its host, but not past a part Svelte never walks', () => {
-	const r = region(`<div ${OPAQUE_ATTR}><ogygia-region><p>a</p></ogygia-region></div>`);
+	const r = region(`<div ${OG_OPAQUE}><ogygia-region><p>a</p></ogygia-region></div>`);
 	const inner = r.querySelector('ogygia-region')!;
 	watch_region();
 	inner.querySelector('p')!.firstChild!.nodeValue = 'b';
