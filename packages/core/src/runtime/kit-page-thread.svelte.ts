@@ -43,7 +43,7 @@
  * click long after boot) — the caller skips the await entirely.
  */
 import { OgygiaError, warn } from '../messages/lazy.ts';
-import { flights, say, scope, type Scope } from '@ogygia/machine';
+import { flights, say, scope, tasks, type Scope } from '@ogygia/machine';
 
 const KIT_PAGE_KEY = Symbol.for('ogygia.kit-page');
 /** Kit constructs its `$app/state` page with this status; `initialize()` replaces it with the real one. */
@@ -212,7 +212,7 @@ function await_applied(wait: Scope, bridge: Bridge, done: () => void): void {
 	const end = () => {
 		if (ended) return;
 		ended = true;
-		queueMicrotask(() => stop());
+		tasks.micro(() => stop());
 	};
 	const stop = $effect.root(() => {
 		$effect(() => {
