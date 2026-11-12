@@ -9,6 +9,7 @@
  * Each document is its own realm in the loop (`tab-2#3`: tab 2's third document), so a document's
  * timers die with it when the tab navigates away, as in a browser.
  */
+import { ear } from '@ogygia/tooling/e2e/sim-observe.ts';
 import { Browser, type BrowserPage, type BrowserWindow } from 'happy-dom';
 import CookieStringUtility from 'happy-dom/lib/cookie/urilities/CookieStringUtility.js';
 import * as PropertySymbol from 'happy-dom/lib/PropertySymbol.js';
@@ -76,6 +77,9 @@ export interface Tab {
 	/** What each region of the shown document announced (`ogygia:hydrated`, `ogygia:live`), as a
 	 *  listener of the app's on the document hears it: bubbling, never capturing. */
 	heard: Map<Element, Heard[]>;
+	/** What the tab's documents heard of their lifecycle and ogygia's events, in order (the
+	 *  differential's `ear`, @ogygia/tooling/e2e/sim-observe.ts): read and emptied by a look. */
+	readonly lifecycle: string[];
 }
 
 /** A region event a document's listener heard, and what the region showed once it was sent. */
@@ -401,6 +405,12 @@ export class Browsers {
 		};
 		window.addEventListener('ogygia:hydrated', hear as never);
 		window.addEventListener('ogygia:live', hear as never);
+		// (the differential's ear, as the real-browser player's init script: test/differ.test.ts)
+		Object.defineProperty(window, '__sim_heard', {
+			value: (line: string) => tab.lifecycle.push(line),
+			configurable: true
+		});
+		ear(window);
 		this.#count_held(window, tab);
 		const w = window as unknown as {
 			addEventListener(
@@ -686,6 +696,7 @@ export class Browsers {
 			swaps: [],
 			swaps_by: new Map(),
 			heard: new Map(),
+			lifecycle: [],
 			moves_by: new Map(),
 			said_by: new Map()
 		};

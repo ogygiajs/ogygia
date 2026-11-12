@@ -30,7 +30,7 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 
 import { availableParallelism } from 'node:os';
 // (the host's real timers: a run replaces the global ones with its simulated ones)
 import { clearTimeout as clearRealTimeout, setTimeout as real_timeout } from 'node:timers';
-import { join, relative, resolve } from 'node:path';
+import { basename, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, act, next_action, ACTION_KINDS, type Action, type Mix } from './workload.ts';
 import { html_kept, html_sent } from './html.ts';
@@ -67,6 +67,8 @@ import { builds_of } from './builds.ts';
 import { key_pair } from './keys.ts';
 import { MOUNT, type GenPeer } from './gen.ts';
 import type { Build } from './server.ts';
+import { observe } from './observe.ts';
+import { NOT_CALM, type Observed, type Seen } from '@ogygia/tooling/e2e/sim-observe.ts';
 import {
 	all_steps,
 	Coverage,
@@ -82,8 +84,14 @@ const arg = (flag: string): string | undefined => {
 };
 const LONG = process.argv.includes('--long');
 const REPLAY = !process.argv.includes('--no-replay');
+/** `--calm`: the differential's world (src/differ.ts), one a real browser can play alike: no fault,
+ *  no buggify point, one server with a stable secret, one build, and none of `NOT_CALM`'s actions. */
+const CALM = process.argv.includes('--calm');
+/** `--observe <dir>`: each run's plan and what the visitor saw after each action
+ *  (@ogygia/tooling/e2e/sim-observe.ts) go to `<dir>/<app>-<seed>.sim.json`, for the differential. */
+const OBSERVE = arg('--observe');
 /** Buggify points on (`--no-buggify`: off), in a rules build. */
-const BUGGIFY = !process.argv.includes('--no-buggify');
+const BUGGIFY = !process.argv.includes('--no-buggify') && !CALM;
 // (`SIM_APP`: a found test's app, set before it imports this module)
 const APP = resolve(
 	arg('--app') ??
@@ -94,7 +102,10 @@ const OUTPUT = join(APP, '.svelte-kit', 'output');
 /** The builds a run starts on and deploys between: the app's two sim builds (`pnpm sim:builds`),
  *  else its one build, which never deploys. */
 const BUILDS: readonly Build[] =
-	builds_of(APP).length > 0 ? builds_of(APP) : [{ id: 'v1', output: OUTPUT }];
+	builds_of(APP).length > 0 && !process.argv.includes('--calm')
+		? builds_of(APP)
+		: // (a calm run's is the app's own build, the one its real-browser player serves)
+			[{ id: 'v1', output: OUTPUT }];
 /**
  * FEDERATION: `--name shell --peers cms=<app dir>,dash=<app dir>` runs the app with peer apps, each
  * at `https://<name>.test` (`WorldOptions.peers`). Every app gets the environment federation's
@@ -217,6 +228,8 @@ export interface RunResult {
 	readonly wire: readonly WireFault[];
 	/** Whether its engine had idle callbacks (a plan of it replays on the same engine). */
 	readonly idle: boolean;
+	/** What the visitor saw after each action (`--observe`), else empty. */
+	readonly seen: readonly Seen[];
 }
 
 /** A request of tab `tab` (0 is the first) the network dropped or cut: the `nth` (from 0) of the
@@ -282,9 +295,11 @@ export async function run(
 	const faults = FAULTS.filter(() => r.chance(0.4));
 	// (stalls on a stream of their own: the swarm's other draws stay as they were)
 	if (rng(seed).fork('swarm stall').chance(0.3)) faults.push('stall');
+	// (a calm run draws the same, then drops it: its other draws stay the seed's)
+	if (CALM) faults.length = 0;
 	// and its own servers: sometimes two instances behind the front door (each request to the
 	// seed's pick), their clocks up to 5 s apart
-	const instances = r.chance(0.3) ? 2 : 1;
+	const instances = r.chance(0.3) && !CALM ? 2 : 1;
 	const skew = instances > 1 && r.chance(0.5) ? 5_000 : 0;
 	// and how a deploy goes out: at once or rolling (old and new servers side by side for 10 s),
 	// the old build's content-hashed files kept or gone, the CDN purged or not
@@ -294,7 +309,7 @@ export async function run(
 		purge: r.chance(0.5)
 	};
 	// and whether the app set a stable secret (most do; without one, a deploy refuses old holes)
-	const secret = r.chance(0.7) ? 'sim-secret' : undefined;
+	const secret = r.chance(0.7) || CALM ? 'sim-secret' : undefined;
 	const fed = federation(seed);
 	const world = await World.make({
 		seed,
@@ -326,6 +341,8 @@ export async function run(
 	const log = world.loop;
 	/** Machine steps the pages took, with how often. */
 	const steps_taken: Record<string, number> = {};
+	/** What the visitor saw after each action (`--observe`). */
+	const seen: Seen[] = [];
 	try {
 		const v = world.visitor('visitor');
 		// (the network's exchanges since the last check: a fault among them explains what was said)
@@ -353,6 +370,15 @@ export async function run(
 		/** Each tab looked at, after `what`: its DOM and what it holds in the trace, and the oracles. */
 		const look = (what: string): void => {
 			hear_moves();
+			if (OBSERVE !== undefined)
+				seen.push(
+					observe(
+						world,
+						v,
+						seen.length === 0 ? 'first load' : `${seen.length} ${actions.at(-1)?.kind}`,
+						since
+					)
+				);
 			for (const t of v.tabs) {
 				const doc = t.page.mainFrame.document as unknown as Document;
 				log.note(`${t.name} ${t.page.mainFrame.url} dom ${fingerprint(normalize(doc))}`);
@@ -407,6 +433,8 @@ export async function run(
 							world.deployed.length < BUILDS.length - 1,
 							plan?.mix
 						);
+			// (a calm run leaves out what a real browser cannot play alike: the player does too)
+			if (CALM && NOT_CALM.includes(a.kind)) continue;
 			actions.push(a);
 			log.note(`action ${i + 1}: ${describe(a)}`);
 			// (what a press or a deploy does is on purpose: each document's asks are judged up to it)
@@ -526,7 +554,8 @@ export async function run(
 			buggified,
 			coverage: { steps: steps_taken, points: Object.fromEntries(world.buggified) },
 			wire: wire_faults(world),
-			idle: world.idle
+			idle: world.idle,
+			seen
 		};
 	} finally {
 		await world.end();
@@ -884,6 +913,18 @@ async function main(): Promise<void> {
 		const [res, again] = await pending;
 		const seed = seeds[i];
 		results.push(res);
+		if (OBSERVE !== undefined && res.seen.length > 0) {
+			const out: Observed = {
+				app: APP,
+				seed,
+				gen: GEN?.seed,
+				plan: { actions: res.actions },
+				by: 'sim',
+				seen: res.seen
+			};
+			mkdirSync(OBSERVE, { recursive: true });
+			writeFileSync(join(OBSERVE, `${basename(APP)}-${seed}.sim.json`), `${JSON.stringify(out)}\n`);
+		}
 		let replay = '';
 		if (again !== null) {
 			results.push(again);
@@ -1019,7 +1060,9 @@ class Pool {
 		const passed = [
 			...(arg('--app') !== undefined ? ['--app', APP] : []),
 			...(arg('--hang-ms') !== undefined ? ['--hang-ms', arg('--hang-ms')!] : []),
-			...(BUGGIFY ? [] : ['--no-buggify'])
+			...(BUGGIFY ? [] : ['--no-buggify']),
+			...(CALM ? ['--calm'] : []),
+			...(OBSERVE !== undefined ? ['--observe', OBSERVE] : [])
 		];
 		const child = fork(import.meta.filename, ['--worker', ...passed], {
 			execArgv: ['--experimental-vm-modules', '--no-warnings'],
@@ -1066,7 +1109,8 @@ class Pool {
 				buggified: [],
 				coverage: { steps: {}, points: {} },
 				wire: [],
-				idle: job.plan?.idle ?? true
+				idle: job.plan?.idle ?? true,
+				seen: []
 			}
 		});
 		const done = (message: { result?: RunResult; error?: string; hung?: string }) => {

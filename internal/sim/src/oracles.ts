@@ -1172,12 +1172,6 @@ export const KNOWN_SAID: ReadonlyArray<{ issue: number; what: string; said: RegE
 		said: /^unhandled: \{"message":"Bad Request"\}$/
 	},
 	{
-		issue: 1050,
-		what: 'a hole nested in an island is imported as a module after a client navigation',
-		// (the hole's id as a module URL: `/<12 hex>?og-retry=1`; palaestra /prefetch -> /nested)
-		said: /chunk_reload_needed\?url=https%3A%2F%2F[^%]+%2F[0-9a-f]{12}(%3F|$)/
-	},
-	{
 		issue: 1079,
 		what: "Svelte's async mode reads a remote query's derived after its effect ended",
 		// (a plain Kit app warns it too; the stale read it warns of gave palaestra's PendingGreeting
