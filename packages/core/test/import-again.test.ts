@@ -3,12 +3,7 @@
 // lazy-chunk-retry spec; this pins the URL reading and the attempt sequence.
 import { describe, expect, it, vi } from 'vitest';
 import { flights } from '@ogygia/machine';
-import {
-	failed_import_url,
-	import_again,
-	is_failed_import,
-	retry_url
-} from '../src/runtime/import-again.ts';
+import { import_again, is_failed_import, retry_url } from '../src/runtime/import-again.ts';
 import { download } from '../src/policies.ts';
 
 const CHROMIUM = new TypeError(
@@ -19,38 +14,14 @@ const FIREFOX = new TypeError(
 );
 const SAFARI = new TypeError('Importing a module script failed.');
 
-describe('failed_import_url', () => {
-	it('reads the URL from Chromium and Firefox messages', () => {
-		vi.stubGlobal('location', new URL('https://shop.test/cart'));
-		expect(failed_import_url(CHROMIUM)).toBe('https://shop.test/_app/immutable/chunks/DmQpvhkC.js');
-		expect(failed_import_url(FIREFOX)).toBe('https://shop.test/_app/immutable/chunks/DmQpvhkC.js');
-		vi.unstubAllGlobals();
-	});
-
+describe('is_failed_import', () => {
 	it('tells a failed load from a module that threw, in every engine’s wording (#383)', () => {
 		expect(is_failed_import(CHROMIUM)).toBe(true);
 		expect(is_failed_import(FIREFOX)).toBe(true);
 		expect(is_failed_import(SAFARI)).toBe(true);
 		expect(is_failed_import(new TypeError('undefined is not a function'))).toBe(false);
+		expect(is_failed_import(new ReferenceError('x is not defined'))).toBe(false);
 		expect(is_failed_import(undefined)).toBe(false);
-	});
-
-	it('names none for Safari, an evaluation error, another origin or a non-http URL', () => {
-		vi.stubGlobal('location', new URL('https://shop.test/cart'));
-		expect(failed_import_url(SAFARI)).toBe(null);
-		expect(failed_import_url(new ReferenceError('x is not defined'))).toBe(null);
-		expect(
-			failed_import_url(
-				new TypeError('Failed to fetch dynamically imported module: https://cdn.other/x.js')
-			)
-		).toBe(null);
-		expect(
-			failed_import_url(
-				new TypeError('Failed to fetch dynamically imported module: data:text/javascript,1')
-			)
-		).toBe(null);
-		expect(failed_import_url(undefined)).toBe(null);
-		vi.unstubAllGlobals();
 	});
 });
 
@@ -75,8 +46,7 @@ describe('import_again', () => {
 		expect(fresh).not.toHaveBeenCalled();
 	});
 
-	it('after a failed download, asks for the same file under a new URL each time', async () => {
-		vi.stubGlobal('location', new URL('https://shop.test/cart'));
+	it('after a failed download, asks for its file under a new URL each time', async () => {
 		const asked: string[] = [];
 		const fresh = vi.fn(async (url: string) => {
 			asked.push(url);
@@ -84,7 +54,11 @@ describe('import_again', () => {
 				throw new TypeError(`Failed to fetch dynamically imported module: ${url}`);
 			return 'core';
 		});
-		const load = import_again(() => Promise.reject(CHROMIUM), fresh);
+		const load = import_again(
+			() => Promise.reject(CHROMIUM),
+			fresh,
+			'https://shop.test/_app/immutable/chunks/DmQpvhkC.js'
+		);
 		await expect(load()).rejects.toBe(CHROMIUM);
 		await expect(load()).rejects.toThrow('og-retry=1');
 		await expect(load()).resolves.toBe('core');
@@ -92,7 +66,6 @@ describe('import_again', () => {
 			'https://shop.test/_app/immutable/chunks/DmQpvhkC.js?og-retry=1',
 			'https://shop.test/_app/immutable/chunks/DmQpvhkC.js?og-retry=2'
 		]);
-		vi.unstubAllGlobals();
 	});
 
 	it('when the failure names no URL (Safari), tries the plain load again', async () => {
@@ -122,6 +95,70 @@ describe('import_again', () => {
 		vi.unstubAllGlobals();
 	});
 
+	it('a failure that names another file (Firefox names the dependency that failed) asks for the loader’s own file again, never that one', async () => {
+		vi.stubGlobal('location', new URL('https://shop.test/cart'));
+		const own = 'https://shop.test/_app/immutable/chunks/hydrate-core.js';
+		const dependency = new TypeError(
+			'error loading dynamically imported module: https://shop.test/_app/immutable/chunks/shared.js'
+		);
+		const asked: string[] = [];
+		const fresh = vi.fn(async (url: string) => {
+			asked.push(url);
+			return 'core';
+		});
+		const load = import_again(() => Promise.reject(dependency), fresh, own);
+		await expect(load()).rejects.toBe(dependency);
+		await load();
+		expect(asked).toEqual([own + '?og-retry=1']);
+		vi.unstubAllGlobals();
+	});
+
+	it('a loader that does not know its own file never asks for the file a failure names', async () => {
+		vi.stubGlobal('location', new URL('https://shop.test/cart'));
+		const fresh = vi.fn();
+		const plain = vi
+			.fn<() => Promise<string>>()
+			.mockRejectedValueOnce(CHROMIUM)
+			.mockResolvedValue('core');
+		const load = import_again(plain, fresh);
+		await expect(load()).rejects.toBe(CHROMIUM);
+		await expect(load()).resolves.toBe('core');
+		expect(fresh).not.toHaveBeenCalled();
+		vi.unstubAllGlobals();
+	});
+
+	it('a file named relative to the loader’s module is asked for at that module’s URL', async () => {
+		const asked: string[] = [];
+		const fresh = vi.fn(async (url: string) => {
+			asked.push(url);
+			return 'nav';
+		});
+		const load = import_again(
+			() => Promise.reject(SAFARI),
+			fresh,
+			'./chunks/nav.js',
+			'https://cdn.shop.test/_app/immutable/og-runtime.js'
+		);
+		await expect(load()).rejects.toBe(SAFARI);
+		await expect(load()).resolves.toBe('nav');
+		expect(asked).toEqual(['https://cdn.shop.test/_app/immutable/chunks/nav.js?og-retry=1']);
+	});
+
+	it('a file given as the page names it (an island entry, root-relative, no base) fails with the import’s own error and is asked for at the page’s origin', async () => {
+		vi.stubGlobal('location', new URL('https://shop.test/cart'));
+		const asked: string[] = [];
+		const fresh = vi.fn(async (url: string) => {
+			asked.push(url);
+			return 'island';
+		});
+		const load = import_again(() => Promise.reject(CHROMIUM), fresh, '/@id/island/a1.js');
+		// (the dev watchdog and the error report read this error: it must stay the failed import)
+		await expect(load()).rejects.toBe(CHROMIUM);
+		await expect(load()).resolves.toBe('island');
+		expect(asked).toEqual(['https://shop.test/@id/island/a1.js?og-retry=1']);
+		vi.unstubAllGlobals();
+	});
+
 	it('a known file whose module threw (not a download) is not asked for again (#383)', async () => {
 		vi.stubGlobal('location', new URL('https://shop.test/cart'));
 		const fresh = vi.fn();
@@ -135,16 +172,15 @@ describe('import_again', () => {
 	});
 
 	it('with flights({ retry: download }): one dropped download is invisible to the caller', async () => {
-		vi.stubGlobal('location', new URL('https://shop.test/cart'));
 		const core = flights({
 			run: import_again(
 				() => Promise.reject(CHROMIUM),
-				async () => 'core'
+				async () => 'core',
+				'https://shop.test/_app/immutable/chunks/DmQpvhkC.js'
 			),
 			retry: download
 		});
 		await expect(core.get()).resolves.toBe('core');
-		vi.unstubAllGlobals();
 	});
 });
 
@@ -184,16 +220,28 @@ describe("a peer's island file", () => {
 		vi.unstubAllGlobals();
 	});
 
-	it('names the URL only on the page’s origin or the asked file’s: never a third', () => {
+	it('asks again only for the asked file, whatever URL the error names (#385, #956)', async () => {
 		vi.stubGlobal('location', new URL('https://shop.test/p3'));
-		expect(failed_import_url(dropped(PEER_FILE), PEER_FILE)).toBe(PEER_FILE);
-		// (a file the asked one imports, on the asked file's origin)
+		const asked: string[] = [];
+		const fresh = vi.fn(async (url: string) => {
+			asked.push(url);
+			return 'island';
+		});
+		// (a file the asked one imports, on the peer's origin: the asked file is what is loaded again)
 		const dep = 'https://peer.test/_app/immutable/chunks/dep.js';
-		expect(failed_import_url(dropped(dep), PEER_FILE)).toBe(dep);
-		// an origin nothing asked for: never loaded again
-		expect(failed_import_url(dropped('https://evil.test/x.js'), PEER_FILE)).toBe(null);
-		// the asked file on the page's own origin trusts no other
-		expect(failed_import_url(dropped(PEER_FILE), 'https://shop.test/a.js')).toBe(null);
+		const load = import_again(() => Promise.reject(dropped(dep)), fresh, PEER_FILE);
+		await expect(load()).rejects.toThrow(dep);
+		await expect(load()).resolves.toBe('island');
+		expect(asked).toEqual([PEER_FILE + '?og-retry=1']);
+		// a file that is not http(s) is never asked again by URL
+		const odd = import_again(
+			() => Promise.reject(dropped('data:text/javascript,0')),
+			fresh,
+			'data:text/javascript,0'
+		);
+		await expect(odd()).rejects.toThrow();
+		await odd().catch(() => {});
+		expect(asked).toEqual([PEER_FILE + '?og-retry=1']);
 		vi.unstubAllGlobals();
 	});
 
