@@ -23,7 +23,16 @@
  * first one.
  */
 import { watch_viewport } from './viewport.ts';
-import { clock, flights, machine, tasks, timers, type Scope, type Stale } from '@ogygia/machine';
+import {
+	clock,
+	flights,
+	machine,
+	tasks,
+	timers,
+	type MachineGraph,
+	type Scope,
+	type Stale
+} from '@ogygia/machine';
 
 type Turn = {
 	el: Element;
@@ -64,18 +73,24 @@ const P = new PendingTurns();
  *       ╲ waiting{at} ╱             a drain waits for a time: the snapshot, or a viewport island
  *
  * `waiting` owns its timer (its visit's scope), so leaving it drops the timer: a drain queued
- * meanwhile runs sooner and works out the waits again, and a sooner wait replaces a later one
+ * meanwhile runs sooner and works out the waits again, so a sooner wait replaces a later one
  * (#236). One state in place of the `draining` flag beside a `wait_timer` and its `wait_at`.
  */
-const drainer = machine<{ idle: {}; queued: {}; waiting: { at: number } }>()({
+const drain_definition = machine<{ idle: {}; queued: {}; waiting: { at: number } }>()({
 	name: 'hydrate-drain',
 	initial: 'idle',
 	steps: {
 		idle: ['queued', 'waiting'],
 		queued: ['idle'],
-		waiting: ['queued', 'waiting']
+		waiting: ['queued']
 	}
-}).create();
+});
+const drainer = drain_definition.create();
+
+/** The drain's machine as data (test/machine-steps.test.ts holds each step to where it is taken). */
+export function drain_graph(): MachineGraph {
+	return drain_definition.graph();
+}
 /** Connect-order stamp per region — document order at upgrade, insertion order after a morph. */
 const order_of = new WeakMap<Element, number>();
 let next_order = 0;
@@ -399,12 +414,10 @@ function schedule_drain(): void {
 	yield_task().then(drain);
 }
 
-/** Re-drain after `ms`. One wait at a time, and it is the EARLIEST: a sooner wait replaces a later
- *  one (a short snapshot wait set during a long hold), a later one rides the sooner. */
+/** Re-drain after `ms`. Called only by `drain()`, which has just moved to `idle`: a wait set before
+ *  was left when a turn queued (its timer dropped), and this drain worked the waits out again. */
 function drain_after(ms: number): void {
 	const at = now() + Math.max(1, ms);
-	const s = drainer.now;
-	if (s.kind === 'waiting' && s.at <= at) return;
 	drainer.go('waiting', { at });
 	drainer.scope.timeout(schedule_drain, Math.max(1, ms));
 }
