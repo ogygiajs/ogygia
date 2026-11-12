@@ -5827,7 +5827,9 @@ class Profiler {
 				return ctx.json({ error: 'That file is not an ogygia profiler dump.' }, { status: 400 });
 			}
 			return ctx.json({ url: ctx.href('/report/[id]', { id: this.#store_uploaded(dump) }) });
-		} catch {
+		} catch (e) {
+			if (e instanceof OgygiaError && e.code === 'devtools_profiler_upload_too_large')
+				return ctx.json({ error: e.message }, { status: 413 });
 			return ctx.json(
 				{ error: "That file isn't a profile, or it was made with a different key." },
 				{ status: 400 }
