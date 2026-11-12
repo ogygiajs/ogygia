@@ -285,7 +285,7 @@ describe('pages — the branch’s loads', () => {
 		const app = routes(
 			shell({
 				'/p': page(
-					async function* (_c, data) {
+					async function* (_c: unknown, data: Record<string, unknown>) {
 						yield `<p data-out>${String(data.from)}</p>`;
 					},
 					{ load: () => (open(), { page: true }) }
@@ -306,7 +306,7 @@ describe('pages — the branch’s loads', () => {
 		const app = routes(
 			shell({
 				'/p': page(
-					async function* (_c, data) {
+					async function* (_c: unknown, data: Record<string, unknown>) {
 						yield `<p data-out>${String(data.who)}-${String(data.a)}</p>`;
 					},
 					{ load: () => ({ who: 'page' }) }
