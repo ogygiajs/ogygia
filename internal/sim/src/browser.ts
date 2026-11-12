@@ -55,7 +55,8 @@ export interface Held {
 	readonly observers: number;
 	/** `<head>`'s children (each client navigation merges a head in: one that only grows leaks). */
 	readonly head: number;
-	/** Elements in the document (the same page, visited again, shows the same page). */
+	/** Elements in the document, less what its regions show (the same page, visited again, shows
+	 *  the same page). */
 	readonly elements: number;
 }
 
@@ -430,7 +431,12 @@ export class Browsers {
 			intervals: p?.pending().filter((l) => l.startsWith('interval')).length ?? 0,
 			observers: observing.size,
 			head: d.head?.children.length ?? 0,
-			elements: d.getElementsByTagName('*').length
+			// (a region counts, what it shows does not: a live query that failed on one visit and
+			// shows its region on the next is not a leak, gen 25 seed 10; what a region shows is
+			// judged against a fresh load by the MPA check)
+			elements:
+				d.getElementsByTagName('*').length -
+				(d as unknown as Document).querySelectorAll('ogygia-region *').length
 		});
 		tab.listening = () => [...listeners.values()].sort();
 	}
