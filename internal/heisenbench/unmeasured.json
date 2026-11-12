@@ -1637,6 +1637,10 @@
 			"reason": "wraps the handle with the request's owner (a Kit request event nothing can clone); its parts are proven in packages/core/test/request-scope.test.ts"
 		},
 		{
+			"id": "packages/core/src/hooks.ts > claim_of",
+			"reason": "copies five fields of a parsed capability into the claim it signs, constant work; the handle runs only inside a Kit server build, and the signing it feeds is benched (packages/core/bench/region-capability.bench.ts)"
+		},
+		{
 			"id": "packages/core/src/messages/server.ts > SERVER_WARNINGS > request_cleanup_failed > details",
 			"reason": "a message table entry: wording only"
 		},
@@ -2159,54 +2163,6 @@
 		{
 			"id": "packages/core/src/runtime/hydrate-core.ts > PropMutationGuard > #warn > once:1~6adcde",
 			"reason": "say(): one dev warning per mutated prop path, constant work"
-		},
-		{
-			"id": "packages/core/src/runtime/hydrate-core.ts > set_own_inner_html",
-			"reason": "browser only: hands a region's own markup to the sink through the boot link, one call; proven in packages/core/test/browser/repair-web-component-upgrade.test.ts"
-		},
-		{
-			"id": "packages/core/src/runtime/html-sink.ts > is_allowed_region_endpoint",
-			"reason": "reads location (hidden state), one URL parse; proven in packages/core/test/audit-fixes.test.ts"
-		},
-		{
-			"id": "packages/core/src/runtime/html-sink.ts > is_same_origin_response",
-			"reason": "reads a live Response (not cloneable) and location, constant work; proven in packages/core/test/audit-fixes.test.ts"
-		},
-		{
-			"id": "packages/core/src/runtime/html-sink.ts > vouch_region_answer",
-			"reason": "reads a live Response (not cloneable), two origin checks; proven in packages/core/test/browser/batch-same-origin.test.ts"
-		},
-		{
-			"id": "packages/core/src/runtime/html-sink.ts > vouch_page_answer",
-			"reason": "browser only: one origin compare against location; proven in packages/core/test/browser/soft-refresh-foreign-landing.test.ts"
-		},
-		{
-			"id": "packages/core/src/runtime/html-sink.ts > vouch_remote_answer",
-			"reason": "a type brand: returns its argument, constant work"
-		},
-		{
-			"id": "packages/core/src/runtime/html-sink.ts > parse_page_document",
-			"reason": "browser only: one DOMParser call (the browser's parser, not ours)"
-		},
-		{
-			"id": "packages/core/src/runtime/html-sink.ts > set_inner_html",
-			"reason": "browser only: one setHTMLUnsafe call (the browser's parser, not ours)"
-		},
-		{
-			"id": "packages/core/src/runtime/html-sink.ts > restore_markup",
-			"reason": "browser only: hands a parsed fragment to the restorer, one call; the restorer is proven in packages/core/test/browser/restore.test.ts"
-		},
-		{
-			"id": "packages/core/src/runtime/html-sink.ts > restore_adopt_sheets",
-			"reason": "browser only: hands inserted roots to the restorer's sheet adoption, one call; proven in packages/core/test/browser/restore.test.ts"
-		},
-		{
-			"id": "packages/core/src/runtime/html-sink.ts > attach_declarative_shadows",
-			"reason": "browser only: the browser's declarative shadow DOM attach over a parsed fragment (moved from parse-html.ts); proven in packages/core/test/browser/inert-parse.test.ts"
-		},
-		{
-			"id": "packages/core/src/runtime/html-sink.ts > init_shadow_registries",
-			"reason": "browser only: gives inserted shadow roots the page's registry (moved from parse-html.ts); proven in packages/core/test/browser/inert-parse.test.ts"
 		},
 		{
 			"id": "packages/flags/src/index.ts > flag > bucket > once:1~0367ec",
@@ -4675,6 +4631,54 @@
 		{
 			"id": "packages/core/src/runtime/region-sheets.ts > release_head_nodes > filter:0~db55d7",
 			"reason": "browser only: one owner looked up in the page's owner set, constant work; proven in packages/core/test/browser/head-owner-release.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/hydrate-core.ts > set_own_inner_html",
+			"reason": "browser only: hands a region's own markup to the sink through the boot link, one call; proven in packages/core/test/browser/repair-web-component-upgrade.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/html-sink.ts > is_allowed_region_endpoint",
+			"reason": "reads location (hidden state), one URL parse; proven in packages/core/test/audit-fixes.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/html-sink.ts > is_same_origin_response",
+			"reason": "reads a live Response (not cloneable) and location, constant work; proven in packages/core/test/audit-fixes.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/html-sink.ts > vouch_region_answer",
+			"reason": "reads a live Response (not cloneable), two origin checks; proven in packages/core/test/browser/batch-same-origin.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/html-sink.ts > vouch_page_answer",
+			"reason": "browser only: one origin compare against location; proven in packages/core/test/browser/soft-refresh-foreign-landing.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/html-sink.ts > vouch_remote_answer",
+			"reason": "a type brand: returns its argument, constant work"
+		},
+		{
+			"id": "packages/core/src/runtime/html-sink.ts > parse_page_document",
+			"reason": "browser only: one DOMParser call (the browser's parser, not ours)"
+		},
+		{
+			"id": "packages/core/src/runtime/html-sink.ts > set_inner_html",
+			"reason": "browser only: one setHTMLUnsafe call (the browser's parser, not ours)"
+		},
+		{
+			"id": "packages/core/src/runtime/html-sink.ts > restore_markup",
+			"reason": "browser only: hands a parsed fragment to the restorer, one call; the restorer is proven in packages/core/test/browser/restore.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/html-sink.ts > restore_adopt_sheets",
+			"reason": "browser only: hands inserted roots to the restorer's sheet adoption, one call; proven in packages/core/test/browser/restore.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/html-sink.ts > attach_declarative_shadows",
+			"reason": "browser only: the browser's declarative shadow DOM attach over a parsed fragment (moved from parse-html.ts); proven in packages/core/test/browser/inert-parse.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/html-sink.ts > init_shadow_registries",
+			"reason": "browser only: gives inserted shadow roots the page's registry (moved from parse-html.ts); proven in packages/core/test/browser/inert-parse.test.ts"
 		},
 		{
 			"id": "packages/compiler/src/compiler/link/build-output.ts > refuse_client_secrets > filter:0~63949f",
