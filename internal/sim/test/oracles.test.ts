@@ -131,7 +131,8 @@ describe('every region shows something', () => {
 });
 
 describe("a hole's fallback does not stand", () => {
-	const at_rest = async (body: string) => {
+	/** `wire`: the document's requests, each `[url, status]`. */
+	const at_rest = async (body: string, wire: Array<[string, number | 'dropped']> = []) => {
 		const { Window } = await import('happy-dom');
 		const w = new Window({ url: 'https://app.test/p1' });
 		w.document.write(`<html><body>${body}</body></html>`);
@@ -143,7 +144,18 @@ describe("a hole's fallback does not stand", () => {
 		} as unknown as Parameters<typeof fallback_stands>[0];
 		const world = {
 			fired_in: new Map(),
-			network: { exchanges: [] },
+			network: {
+				exchanges: wire.map(([url, status], i) => ({
+					id: i + 1,
+					from: 'tab-1#1',
+					method: 'GET',
+					url: `https://app.test${url}`,
+					status,
+					cut: false,
+					tampered: false,
+					redirected: false
+				}))
+			},
 			skewed_for: () => false
 		} as unknown as Parameters<typeof fallback_stands>[1];
 		return fallback_stands(tab, world);
@@ -154,6 +166,20 @@ describe("a hole's fallback does not stand", () => {
 	it('finds a load or idle hole still showing its fallback at rest (a mutant that never fetched survived)', async () => {
 		expect((await at_rest(hole('idle', 'data-gen-fallback')))?.oracle).toBe('fallback-stands');
 		expect((await at_rest(hole('load', 'data-gen-fallback')))?.oracle).toBe('fallback-stands');
+	});
+
+	it('finds one never asked for in a document a fault touched elsewhere, and passes one whose own request failed', async () => {
+		// (a mutant that never fetched survived: nearly every run has a fault somewhere)
+		const other: [string, 'dropped'] = ['/_app/immutable/x.js', 'dropped'];
+		expect((await at_rest(hole('idle', 'data-gen-fallback'), [other]))?.oracle).toBe(
+			'fallback-stands'
+		);
+		expect(
+			await at_rest(hole('idle', 'data-gen-fallback'), [
+				other,
+				['/__ogygia__?id=a&exp=1&sig=s', 'dropped']
+			])
+		).toBeNull();
 	});
 
 	it('passes one that keeps it by design, one waiting for the visitor, and an answered one', async () => {
