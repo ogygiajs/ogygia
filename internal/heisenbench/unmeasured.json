@@ -1,6 +1,10 @@
 {
 	"exempt": [
 		{
+			"id": "packages/federation/src/serve.ts > thaw_notice > every:0~b2197b",
+			"reason": "one typeof check per tag (an inline callback, not replayable on its own), constant work; run by packages/federation/test/thaw-notice-shape.test.ts"
+		},
+		{
 			"id": "packages/core/src/runtime/entry-locations.ts > recover_location > task:0~d0bd46",
 			"reason": "one rollover wait on the recovery's own scope timer (seconds, a deploy's rollover only), constant work"
 		},
