@@ -92,9 +92,7 @@ describe('the virtual modules’ declarations', () => {
 		expect(realm).toContain(
 			`export const region_ttl: ${CONTRACT}.VirtualModules['ogygia:server/region-ttl']['region_ttl'];`
 		);
-		expect(realm).toContain(
-			`export { sign, verify, region_mac_message } from '../dist/server/hmac.js';`
-		);
+		expect(realm).toContain(`export { sign, region_sign } from '../dist/server/hmac.js';`);
 		expect(realm).toContain(
 			`export const region_css: ${CONTRACT}.VirtualModules['ogygia:server/region-deps']['region_css'];`
 		);

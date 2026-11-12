@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { observe, STALE } from '@ogygia/machine';
-import * as frames from '../src/runtime/frame-store.ts';
+import * as frames from './_frames.ts';
 
 afterEach(() => frames._reset());
 

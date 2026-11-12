@@ -11,6 +11,9 @@
  *   the middle does: signed payloads must be refused, never painted);
  * - `redirect`: a request to ogygia's region endpoint is sent to another origin, whose answer
  *   is HTML the page must never paint;
+ * - `stall`: an answer is held 10 to 40 s before it starts coming, or, half the time, its body goes
+ *   quiet that long after its first piece (a stuck connection, an overloaded origin): longer than a
+ *   client's own deadline for it;
  * - `offline`: a tab's requests fail at once.
  *
  * A fault is on for a run when its class is in the run's swarm (search.ts picks a random subset per
@@ -20,7 +23,15 @@ import { AsyncLocalStorage } from 'node:async_hooks';
 import type { Loop } from './loop.ts';
 import type { Rng } from './rng.ts';
 
-export type FaultClass = 'delay' | 'drop' | 'duplicate' | 'cut' | 'tamper' | 'reorder' | 'redirect';
+export type FaultClass =
+	| 'delay'
+	| 'drop'
+	| 'duplicate'
+	| 'cut'
+	| 'tamper'
+	| 'reorder'
+	| 'redirect'
+	| 'stall';
 
 /** The rest of the web, where a `redirect` fault sends a request (world.ts answers it). */
 export const ELSEWHERE = 'https://elsewhere.test';
@@ -57,6 +68,8 @@ export interface Exchange {
 	redirected: boolean;
 	/** Its body broke off as its tab went offline (`status` stays the answer's). */
 	lost?: boolean;
+	/** Its answer was held 10 to 40 s on the way (a `stall`): its page may have given up on it. */
+	stalled?: boolean;
 	/** The build whose server gave the answer the client got (its {@link ANSWERED_BY} header). */
 	build?: string;
 	/** A batch of holes (`POST /__ogygia__`): the holes it asks for, by `answer_key` (world.ts). */
@@ -98,7 +111,8 @@ const RATES: Record<FaultClass, number> = {
 	duplicate: 0.05,
 	cut: 0.03,
 	tamper: 0.01,
-	redirect: 0.3
+	redirect: 0.3,
+	stall: 0.02
 };
 
 export class Network {
@@ -120,9 +134,26 @@ export class Network {
 
 	readonly #redirectable: (url: URL) => boolean;
 
-	/** Each exchange still on the wire (its request out, or its body still coming): how it fails
-	 *  when its tab loses the network. */
-	readonly #on_wire = new Map<Exchange, (why: string) => void>();
+	/** Each exchange still on the wire (its request out, or its body still coming): how it ends
+	 *  when its tab loses the network (`offline`), or its document is left (`left`). */
+	readonly #on_wire = new Map<Exchange, (why: 'offline' | 'left') => void>();
+
+	/** Documents their tab has left: nothing reaches them any more. */
+	readonly #left = new Set<string>();
+
+	/**
+	 * Document `realm` is left (its tab moved on, or closed): a browser calls off its fetches as it
+	 * unloads it, and its code never runs again, so what it has on the wire never reaches it, and
+	 * nothing it sent is in flight any more (test/core.test.ts; gen 192, seed 11).
+	 */
+	leave(realm: string): void {
+		this.#left.add(realm);
+		for (const [ex, end] of this.#on_wire)
+			if (ex.from === realm) {
+				this.#on_wire.delete(ex);
+				end('left');
+			}
+	}
 
 	/**
 	 * Takes `realm` off the network (or puts it back). What it has on the wire fails too, as when a
@@ -216,7 +247,11 @@ export class Network {
 		this.exchanges.push(ex);
 		this.#open.add(ex);
 		const loop = this.#loop;
-		return new Promise<Response>((resolve, reject) => {
+		return new Promise<Response>((answered, failed) => {
+			// (a document left hears nothing: a drop, a redirect or an error due after it never lands)
+			const heard = () => !this.#left.has(realm);
+			const resolve = (r: Response) => heard() && answered(r);
+			const reject = (e: unknown) => heard() && failed(e);
 			const fail = (why: string) => reject(new TypeError(`Failed to fetch (${why})`));
 			// (offline is the tab's, whichever document it shows: `tab-2#3` is tab-2's)
 			if (this.#offline.has(realm) || this.#offline.has(realm.split('#')[0])) {
@@ -256,10 +291,19 @@ export class Network {
 			ex.duplicated = dup;
 			const cut = !calm && this.#on('cut');
 			const tamper = !calm && this.#on('tamper');
+			// (drawn only in a run with stalls: every other run's draws stay as they were)
+			const stall = !calm && this.#on('stall') ? this.#rng.between(10_000, 40_000) : 0;
+			if (stall > 0) ex.stalled = true;
+			// (half of them midway: the head on time, then the body quiet after its first piece)
+			const midway = stall > 0 && this.#rng.chance(0.5) ? stall : 0;
 			// (until its answer comes, its tab going offline fails it: `offline`)
 			let lost = false;
 			this.#on_wire.set(ex, (why) => {
 				lost = true;
+				if (why === 'left') {
+					ex.status = 'aborted';
+					return;
+				}
 				ex.status = 'offline';
 				loop.add('net', `offline ${ex.id}`, 0, () => fail(why));
 			});
@@ -285,13 +329,14 @@ export class Network {
 								);
 							if (!lost) ex.status = response.status;
 							ex.build = response.headers.get(ANSWERED_BY) ?? undefined;
-							loop.add('net', `response ${ex.id} ${response.status}`, this.#latency(calm), () => {
+							const leg = this.#latency(calm) + stall - midway;
+							loop.add('net', `response ${ex.id} ${response.status}`, leg, () => {
 								if (signal?.aborted || lost) {
 									void response.body?.cancel();
 									return;
 								}
 								this.#on_wire.delete(ex);
-								resolve(this.#deliver(ex, response, cut, tamper, signal, calm));
+								resolve(this.#deliver(ex, response, cut, tamper, signal, calm, midway));
 							});
 						})
 						.catch((error: unknown) => {
@@ -318,7 +363,8 @@ export class Network {
 		cut: boolean,
 		tamper: boolean,
 		signal: AbortSignal | undefined,
-		calm: boolean
+		calm: boolean,
+		midway = 0
 	): Response {
 		const headers = new Headers(response.headers);
 		headers.delete('content-length');
@@ -336,7 +382,8 @@ export class Network {
 		let last = loop.now;
 		let piece = 0;
 		const send = (label: string, deliver: () => void): void => {
-			const at = Math.max(last, loop.now + (piece === 0 ? 0 : this.#latency(calm)));
+			const quiet = piece === 1 ? midway : 0;
+			const at = Math.max(last, loop.now + (piece === 0 ? 0 : this.#latency(calm)) + quiet);
 			last = at;
 			loop.add('net', `${label} ${ex.id}.${piece++}`, at - loop.now, () => {
 				if (ended) return;
@@ -413,9 +460,13 @@ export class Network {
 			},
 			{ once: true }
 		);
-		// (a body still coming breaks off when its tab goes offline)
+		// (a body still coming breaks off when its tab goes offline; its document left, the rest
+		// never comes)
 		this.#on_wire.set(ex, (why) => {
-			if (!ended) stop(why, true);
+			if (ended) return;
+			if (why === 'offline') return stop(why, true);
+			ended = true;
+			void source.cancel().catch(() => {});
 		});
 		void pump();
 		return new Response(stream, init);
