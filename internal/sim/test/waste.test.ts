@@ -170,6 +170,27 @@ describe('asked twice in every document, up to what first disturbed it', () => {
 		// (any other batch asking it again is waste)
 		expect(asked_twice_each(w, new Map([['tab-1#1', [4000]]]), new Map())?.oracle).toBe('waste');
 	});
+
+	it("counts a visit's batch sent before its swap (the next page's sheets loading) as #1020's, from its page's fetch on (gen 191, seed 33)", () => {
+		const w = run([['tab-1#1', hole, 200]]);
+		const at = (id: number, method: string, path: string, t: number, holes?: string[]) =>
+			w.network.exchanges.push({
+				...w.network.exchanges[0],
+				id,
+				method,
+				url: `https://app.test${path}`,
+				at: t,
+				...(holes ? { holes } : {})
+			});
+		// (the router fetches /p2, sends its batch, loads its sheets, then swaps)
+		at(2, 'GET', '/p2', 4000);
+		at(3, 'POST', '/__ogygia__', 4003, [hole]);
+		expect(asked_twice_each(w, new Map([['tab-1#1', [4006]]]), new Map())?.oracle).toBe('known');
+		// (a batch with no page fetched since the last swap is no visit's)
+		expect(asked_twice_each(w, new Map([['tab-1#1', [4001, 4006]]]), new Map())?.oracle).toBe(
+			'waste'
+		);
+	});
 });
 
 describe('refused', () => {
