@@ -5,7 +5,11 @@
 // then generated mixes of them (seeded 314; OGYGIA_FUZZ_SEED, OGYGIA_FUZZ_RUNS).
 import { describe, expect, it } from 'vitest';
 import { fc } from '@ogygia/config/sim';
-import { page_data_keys, summarize_export } from '../src/compiler/link/page-keys.ts';
+import {
+	page_data_keys,
+	page_data_keys_answer,
+	summarize_export
+} from '../src/compiler/link/page-keys.ts';
 import { dedent } from '@ogygia/core/contract';
 
 const KEYS = ['a', 'b', 'c'];
@@ -284,5 +288,53 @@ describe('the page store re-exported or imported dynamically', () => {
 		expect(page_data_keys("export { navigating } from '$app/state';", '/x.ts', 'script')).toBe(
 			null
 		);
+	});
+});
+
+/** `get` / `derived` are Svelte's store helpers only when they come from `svelte/store`. */
+describe('a get() or derived() that is not svelte/store', () => {
+	it.each([
+		["import { get } from 'lodash-es';", "use(get(page, 'data.b').url);"],
+		["import { get } from 'lodash-es';", "const v = get(page, 'data.b'); use(v.params);"],
+		['function get(o, k) { return o.data[k]; }', "use(get(page, 'b').url);"],
+		["import { derived } from './my-derived';", 'derived(page, (p) => p.url);'],
+		[
+			"import { derived } from 'svelte/store'; import { pick } from './pick';",
+			'derived(page, pick);'
+		],
+		[
+			"import { derived } from 'svelte/store';",
+			'const pick = (p) => p.data.b; derived(page, pick);'
+		]
+	])('%s %s answers all or follows the call', (head, body) => {
+		const code = dedent`
+			import { page } from '$app/stores';
+			${head}
+			${body}
+		`;
+		const { keys, pending } = page_data_keys_answer(code, '/app/src/lib/x.ts', 'script');
+		expect(keys === 'all' || pending.length > 0, JSON.stringify({ keys, pending })).toBe(true);
+	});
+
+	it.each([
+		["import { get } from 'svelte/store';", 'use(get(page).data.b);'],
+		["import { get as read } from 'svelte/store';", 'use(read(page).data.b);'],
+		["import { derived } from 'svelte/store';", 'const d = derived(page, (p) => p.data.b);'],
+		["import { derived as d } from 'svelte/store';", 'const s = d([page], ([p]) => p.data.b);']
+	])('%s %s still reads b alone', (head, body) => {
+		const code = dedent`
+			import { page } from '$app/stores';
+			${head}
+			${body}
+		`;
+		expect(page_data_keys(code, '/app/src/lib/x.ts', 'script')).toEqual(new Set(['b']));
+	});
+
+	it('a followed helper reading through svelte/store get is still summarized', () => {
+		const code = dedent`
+			import { get } from 'svelte/store';
+			export function h(p) { return get(p).data.b; }
+		`;
+		expect(summarize_export(code, '/app/src/lib/h.ts', 'script', 'h', 0)).toEqual(new Set(['b']));
 	});
 });
