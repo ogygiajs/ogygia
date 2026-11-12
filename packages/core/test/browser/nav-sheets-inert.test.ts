@@ -4,13 +4,10 @@
 // the page that has not come yet.
 //
 // Two sheets, for real: one loads at once (a `data:` sheet that sets a custom property on `<html>`),
-// one is held at the network (the `hold_downloads` command), so the navigation is still waiting. The
-// router's timers are the test's (fake): its 2 s cap on that wait never runs out on a loaded runner
-// and swaps the page in early.
-import { afterEach, beforeEach, expect, vi } from 'vitest';
+// one is held at the network (the `hold_downloads` command), so the navigation is still waiting.
+import { afterEach, beforeEach, expect } from 'vitest';
 import { commands } from 'vitest/browser';
 import { it_with_network_routes } from './_browsers.ts';
-import { in_head } from './_in-head.ts';
 import { link_boot } from '../../src/runtime/boot-link.ts';
 import { install as install_morph } from '../../src/runtime/morph.ts';
 import { SpaRouter } from '../../src/runtime/router.ts';
@@ -34,7 +31,6 @@ const next_page = () =>
 beforeEach(() => {
 	link_boot();
 	install_morph();
-	vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
 	document.body.innerHTML = '<p>first</p>';
 	prepare_spa_document();
 	window.fetch = async () =>
@@ -44,7 +40,6 @@ beforeEach(() => {
 		);
 });
 afterEach(async () => {
-	vi.useRealTimers();
 	window.fetch = real_fetch;
 	history.replaceState(null, '', home);
 	await commands.keep_downloads(HELD);
@@ -55,10 +50,10 @@ it_with_network_routes(
 	async () => {
 		await commands.hold_downloads(HELD);
 		const r = new SpaRouter();
+		const fast = () => document.head.querySelector<HTMLLinkElement>(`link[href="${FAST}"]`);
 		const went = r.navigate(new URL('/nav-sheets-inert-next', location.href));
 		// the fast sheet is in and loaded; the navigation still waits for the held one
-		const fast = (await in_head(`link[href="${FAST}"]`)) as HTMLLinkElement;
-		if (!fast.sheet) await new Promise((loaded) => fast.addEventListener('load', loaded));
+		await expect.poll(() => fast()?.sheet ?? null, { timeout: 2_000 }).not.toBeNull();
 		expect(r.nav.now.kind).toBe('loading');
 		expect(document.querySelector('p')?.textContent).not.toBe('next');
 		expect(next_page().trim()).toBe('');
