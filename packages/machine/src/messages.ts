@@ -29,6 +29,7 @@ export type MachineErrors = {
 	machine_outbox_gave_up: Entry<{ name: string }>;
 	machine_stage_step_failed: Entry<{ name: string }>;
 	machine_mailbox_handler_failed: Entry<Record<string, never>>;
+	machine_slot_version: Entry<{ name: string; have: string; want: string }>;
 	machine_evict_failed: Entry<{ name: string; why: string }>;
 	machine_flight_raise_failed: Entry<{ name: string }>;
 	machine_queue_start_failed: Entry<{ name: string }>;
@@ -148,6 +149,17 @@ Give the outbox a \`giveUp\` to say it in your own words, or to keep the work so
 			`A \`mailbox()\` handler threw while it ran in its turn, after events ahead of it. Nobody waits on its stack (it was posted earlier, by someone who has moved on), so its error goes to the page's error handler (\`reportError\`: the console and \`window.onerror\`), as an event listener's would, and the box goes on with the next event.
 
 A handler that runs at once (posted to an idle box) throws to its poster instead, and one posted with \`ask()\` rejects its asker's promise. Catch inside the handler to handle it there.`
+	},
+	machine_slot_version: {
+		text: (a: { name: string; have: string; want: string }): string =>
+			`slot ${a.name}: this page or process already holds it at version ${a.have}, and this copy wants version ${a.want}.`,
+		details: (): string =>
+			'A process-global slot (`slot(name, version, make)`) is shared by every copy of a package ' +
+			'the process loads. Two copies at different versions of its shape were loaded together: ' +
+			'usually two versions of an ogygia package in one app (a dependency pinned to an older one, ' +
+			'or a federated peer).\n\nIn dev this throws, so the mismatch is fixed where it starts: give ' +
+			'the app one version of each package. In production the second copy keeps a private value ' +
+			'of its own, and this is printed once: the two copies no longer share that state.'
 	},
 	machine_evict_failed: {
 		text: (a: { name: string; why: string }): string =>
