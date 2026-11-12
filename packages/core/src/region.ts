@@ -101,8 +101,9 @@ export type DualRegion = {
 	readonly module: string;
 	readonly hydrate?: string;
 	readonly hydrateMargin?: string;
-	/** Server signer, invoked by the transport at serialization. Never crosses the wire. */
-	readonly sign: (id: string, props: Record<string, unknown>) => string;
+	/** Server signer, invoked by the transport at serialization. Never crosses the wire. `wakes`:
+	 *  the component hydrates over the answer, so the endpoint renders it in its hydrate's context. */
+	readonly sign: (id: string, props: Record<string, unknown>, wakes?: boolean) => string;
 	/**
 	 * Server-only renderer, invoked when the region is **awaited** (see {@link region}). Renders
 	 * the component to HTML on the server so the ticket can travel with its markup — no client fetch.
@@ -172,7 +173,7 @@ type RegionBinding = {
 	__hydrate?: string;
 	__hydrateMargin?: string;
 	__component?: Component<Record<string, unknown>>;
-	__sign?: (entry: string, props: Record<string, unknown>) => string;
+	__sign?: (entry: string, props: Record<string, unknown>, wakes?: boolean) => string;
 	/** SSR-only: render the component to HTML (svelte/server). Used when a held region is awaited. */
 	__renderHtml?: (props: Record<string, unknown>, wakes?: boolean) => string | Promise<string>;
 };
