@@ -1061,6 +1061,8 @@ const ANSWER_RENDERS = 3;
 // same on Amplify (isolated workers) and on a single long-lived server.
 /** an inspector-unavailable recording error (edge runtimes) vs a real profiling failure */
 const INSPECTOR_ERR = /inspector/;
+/** The beacon flag's shape: an HMAC-SHA256 as lowercase hex. */
+const HEX_64_RE = /^[0-9a-f]{64}$/;
 const WIN_DRIVE_RE = /^[A-Za-z]:[\\/]/;
 const QUERY_SUFFIX_RE = /\?.*$/;
 const SRC_RELATIVE_RE = /(?:^|[/\\])src[/\\](.*)$/;
@@ -2706,6 +2708,33 @@ class Profiler {
 	}
 
 	// ---- auth -------------------------------------------------------------
+	/** Is this request's visitor the profiler's logged-in user? Its session cookie stays on the
+	 *  profiler's path, so a region request carries only the site-wide beacon flag: the flag's value
+	 *  is signed (`#flag_value`), and a bare `1` anyone can set is not it. */
+	async measures(event: RequestEvent): Promise<boolean> {
+		if (this.dev) return true;
+		return this.#flag_ok(event);
+	}
+
+	/** The beacon flag's value for a logged-in browser: an HMAC under the secret (none without one). */
+	async #flag_value(): Promise<string | null> {
+		if (!this.secret) return null;
+		const { createHmac } = await import('node:crypto');
+		return createHmac('sha256', this.secret).update('og-profiler-beacon-flag').digest('hex');
+	}
+
+	/** Does the request carry the signed beacon flag? */
+	async #flag_ok(event: RequestEvent): Promise<boolean> {
+		const sent = event.cookies.get('og_profiler_beacon');
+		// (64 lowercase hex characters: 32 bytes, as the flag is; anything else, including characters
+		// that decode to more bytes, is refused before the compare, which needs equal lengths)
+		if (!sent || !HEX_64_RE.test(sent)) return false;
+		const want = await this.#flag_value();
+		if (want === null) return false;
+		const { timingSafeEqual } = await import('node:crypto');
+		return timingSafeEqual(Buffer.from(sent, 'hex'), Buffer.from(want, 'hex'));
+	}
+
 	async #key_matches(provided: string | null | undefined): Promise<boolean> {
 		if (this.dev) return true;
 		if (!this.secret || !provided) return false;
@@ -2743,9 +2772,10 @@ class Profiler {
 	 *  "this browser is the profiler's user, put the beacon tag in its documents". The session
 	 *  cookie stays scoped to the profiler's own path (the `/beacon` POST is under it, so the
 	 *  runtime's post still carries the real session). Set with the session, cleared with it. */
-	#beacon_cookie(on: boolean, event: RequestEvent): string {
+	async #beacon_cookie(on: boolean, event: RequestEvent): Promise<string> {
 		const secure = event.url.protocol === 'https:' ? '; Secure' : '';
-		return `og_profiler_beacon=${on ? '1' : ''}; Path=/; HttpOnly; SameSite=Lax${secure}${on ? '' : '; Max-Age=0'}`;
+		const value = on ? ((await this.#flag_value()) ?? '') : '';
+		return `og_profiler_beacon=${value}; Path=/; HttpOnly; SameSite=Lax${secure}${on ? '' : '; Max-Age=0'}`;
 	}
 
 	/**
@@ -2833,13 +2863,14 @@ class Profiler {
 	 *  that keeps one per response must not lose the session for it. */
 	async #flag_cookie(event: RequestEvent, res: Response): Promise<Response> {
 		if (this.dev || !this.secret || res.headers.has('set-cookie')) return res;
-		const flag = event.cookies.get('og_profiler_beacon') === '1';
+		// (a flag from before it was signed, `1`, is not the flag: replaced on the next response)
+		const flag = await this.#flag_ok(event);
 		const values = session_cookie_values(event);
 		let session = false;
 		for (const v of values) if (await this.#key_matches(v)) session = true;
 		if (session === flag) return res;
 		const out = new Response(res.body, res);
-		out.headers.append('set-cookie', this.#beacon_cookie(session, event));
+		out.headers.append('set-cookie', await this.#beacon_cookie(session, event));
 		return out;
 	}
 
@@ -6754,8 +6785,7 @@ class Profiler {
 		if (!is_document_request(event.request)) return null;
 		if (!this.dev) {
 			const key = event.request.headers.get('x-profiler-key');
-			if (key ? !(await this.#key_matches(key)) : event.cookies.get('og_profiler_beacon') !== '1')
-				return null;
+			if (key ? !(await this.#key_matches(key)) : !(await this.#flag_ok(event))) return null;
 		}
 		return `<meta name="${BEACON_META}" content="${this.base}/beacon">${BEACON_STANDALONE_TAG}`;
 	}
@@ -7208,10 +7238,15 @@ class Profiler {
  * See the class doc and README for what it captures. Visit `<path>` (default
  * /__profiler) — in prod, log in (or send the x-profiler-key header).
  */
-export function profiler(options: ProfilerOptions = {}): Handle {
+export function profiler(options: ProfilerOptions = {}): ProfilerHandle {
 	const instance = new Profiler(options);
-	return (args) => instance.handle(args);
+	return Object.assign((args: Parameters<Handle>[0]) => instance.handle(args), {
+		measures: (event: RequestEvent) => instance.measures(event)
+	});
 }
+
+/** The profiler's handle, and the shared `measures` hook's answer (../server.ts). */
+export type ProfilerHandle = Handle & { measures(event: RequestEvent): Promise<boolean> };
 
 // ---------------------------------------------------------------------------
 
