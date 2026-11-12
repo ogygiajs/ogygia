@@ -4679,11 +4679,18 @@ class Profiler {
 			}
 			against += ch;
 		}
+		// The page starts its run on its own only when the visitor came from the profiler's own pages,
+		// or typed the address: a link from another site opens it waiting for a click, since the run
+		// changes the profiler's state (#1168; test: profiler-session › opened from another site, the
+		// run waits for a click)
+		const site = ctx.request.headers.get('sec-fetch-site');
+		const start = site === null || site === 'same-origin' || site === 'none';
 		return {
 			base: this.base,
 			path,
 			runs,
 			format,
+			start,
 			...(against && against.length <= 32 ? { against } : {})
 		};
 	}

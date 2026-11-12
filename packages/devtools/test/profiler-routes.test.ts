@@ -161,11 +161,11 @@ describe('the profiler routes that change state', () => {
 			const done = vi.fn(async () => new Response('done'));
 			const app = build_profiler_router(deps({ [dep]: done } as Partial<Deps>));
 			const got = await app.fetch(req(path)).then(
-				(r) => r?.status,
-				(e: unknown) => (e as { status?: number }).status
+				(r) => ({ status: r?.status, allow: r?.headers.get('allow') }),
+				(e: unknown) => ({ status: (e as { status?: number }).status, allow: null })
 			);
 			expect(done).not.toHaveBeenCalled();
-			expect(got).not.toBe(200);
+			expect(got).toEqual({ status: 405, allow: 'POST' });
 			expect(await (await app.fetch(req(path, { method: 'POST' })))?.text()).toBe('done');
 			expect(done).toHaveBeenCalledTimes(1);
 		});
