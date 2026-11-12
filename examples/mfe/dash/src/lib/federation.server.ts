@@ -8,11 +8,14 @@ import { region } from 'ogygia';
 // `region: 'raw'`: the fragment root ships as HTML only, but the mark gives its scoped stylesheet
 // a real client asset the bake links.
 import Kpis from '$lib/Kpis.svelte' with { region: 'raw' };
+import Holder from '$lib/Holder.svelte' with { region: 'raw' };
 import { env } from '$env/dynamic/private';
 
 federate({
 	name: 'dash',
 	key: env.DASH_SIGNING_KEY,
+	// the host peers sign their calls to dash for (a call made for another app is refused)
+	audience: new URL(env.DASH_ORIGIN ?? 'http://localhost:5191').host,
 	peers: {
 		shell: { origin: env.SHELL_ORIGIN ?? 'http://localhost:5190', key: env.SHELL_PUBLIC_KEY },
 		cms: { origin: env.CMS_ORIGIN ?? 'http://localhost:5192', key: env.CMS_PUBLIC_KEY }
@@ -25,6 +28,8 @@ federate({
 					org: String(props.org ?? 'acme'),
 					viewer: (user as { sub?: string; roles?: string[] } | undefined) ?? null
 				})
-		}
+		},
+		// a widget with a server island inside it
+		holder: (props) => region(Holder, { who: String(props.who ?? 'stranger') })
 	}
 });

@@ -4,7 +4,7 @@
  * A router page/layout/error component is a runtime VALUE (`r.page(Home)`), so unlike a Kit route
  * there is no file-derived place to link its stylesheets from — historically its `<style>` never
  * reached the page (see link/router-css.ts for the whole story). The fix is Kit's association done
- * value-wise: the build emits `virtual:ogygia/router-css`, a generated module (never user code) that
+ * value-wise: the build emits `ogygia:server/router-css`, a generated module (never user code) that
  * imports each component the app's router modules can reach and registers it HERE with a thunk
  * yielding its stylesheet entries. `componentCssHead()` (plugin/css.ts) then looks up exactly the
  * components a render places and links them through `document()`'s head.
@@ -47,9 +47,13 @@ export function router_css_active(): boolean {
  *  router page's whole tree — scoped styles, plain `.css` imports — into that crawl, leaking a
  *  router page's stylesheets into unrelated app pages. So dev registers `path → entries` data and
  *  the lookup matches through Svelte's own dev metadata instead (see `filename_of`). */
-const path_registry = new Map<string, RouterCssEntry[]>();
+class PathRegistrations {
+	/** One entry per router component of the app (each registration replaces its path's). */
+	readonly by_path = new Map<string, RouterCssEntry[]>();
+}
+const paths = new PathRegistrations();
 
-/** Called by the generated `virtual:ogygia/router-css` — one registration per reachable component. */
+/** Called by the generated `ogygia:server/router-css` — one registration per reachable component. */
 export function register_router_css(component: unknown, entries: () => RouterCssEntry[]): void {
 	any_registered = true;
 	if (
@@ -63,7 +67,7 @@ export function register_router_css(component: unknown, entries: () => RouterCss
 /** Dev-mode registration: `abs posix source path → entries`, no component identity needed. */
 export function register_router_css_paths(map: Record<string, RouterCssEntry[]>): void {
 	any_registered = true;
-	for (const key in map) path_registry.set(key, map[key]);
+	for (const key in map) paths.by_path.set(key, map[key]);
 }
 
 /** A dev-compiled Svelte 5 component carries its source path under svelte's `Symbol(filename)`
@@ -89,9 +93,9 @@ export function router_css_of(component: unknown): RouterCssEntry[] {
 			return []; // a broken handoff read must degrade to unstyled, never crash the render
 		}
 	}
-	if (path_registry.size) {
+	if (paths.by_path.size) {
 		const file = filename_of(component as object);
-		if (file) return path_registry.get(file) ?? [];
+		if (file) return paths.by_path.get(file) ?? [];
 	}
 	return [];
 }
@@ -102,9 +106,9 @@ export function router_css_known(component: unknown): boolean {
 	if (typeof component !== 'function' && (typeof component !== 'object' || component === null))
 		return false;
 	if (registry.has(component as object)) return true;
-	if (path_registry.size) {
+	if (paths.by_path.size) {
 		const file = filename_of(component as object);
-		if (file) return path_registry.has(file);
+		if (file) return paths.by_path.has(file);
 	}
 	return false;
 }

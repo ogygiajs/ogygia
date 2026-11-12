@@ -3,7 +3,7 @@
  * each app compiles its own copy. The truly shared thing is the NAME + the shape.
  * Cart belongs to the dash team; changing a shape here is a reviewed version bump.
  */
-import { SharedState } from 'ogygia';
+import { SharedState } from '@ogygia/federation/shared';
 import { flag } from '@ogygia/flags';
 
 /** @type {SharedState<{ items: string[] }>} */
