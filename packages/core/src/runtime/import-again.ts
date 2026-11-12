@@ -192,23 +192,35 @@ export function import_again<T>(
 ): () => Promise<T> {
 	hear_responses();
 	const state = file_definition.create();
-	return () => {
+	const next = (): Promise<T> => {
 		const s = state.now;
 		if (s.kind === 'loaded') return s.run as Promise<T>;
 		if (s.kind === 'stuck') return Promise.reject(s.error);
+		// (a retry that failed is not yet known to be a drop or a dependency's failure: ask once it is)
+		if (s.kind === 'failed' && s.verdict) return s.verdict.then(next);
 		let run: Promise<T>;
 		if (s.kind === 'failed') {
 			// (each retry its own URL, counted as it starts: two calls at once ask under two)
 			const attempt = s.attempt + 1;
 			state.go('failed', { url: s.url, attempt });
 			const url = retry_url(s.url, attempt);
-			run = (fresh(url) as Promise<T>).catch(async (error: unknown) => {
-				// (its entry may land after the import rejects: Firefox on a loaded machine)
-				const status = await response_landed(url);
-				// its own file came, and it still failed: a dependency's failure, which no URL fixes
-				if (status !== null && status < 400 && state.move('failed', 'stuck', { error })) {
-					reload.once('reload', () => say_reload_needed(url, error));
-				}
+			run = (fresh(url) as Promise<T>).catch((error: unknown) => {
+				const wait = (verdict?: Promise<void>) => {
+					const now = state.now;
+					if (now.kind === 'failed')
+						state.go('failed', { url: now.url, attempt: now.attempt, verdict });
+				};
+				// Whether its own file came is read once its timing entry lands (Firefox on a loaded
+				// machine: after the import rejects; WebKit gives a dropped download none, so the wait
+				// runs out). The caller hears the failure now; a later call waits for the verdict.
+				const verdict: Promise<void> = response_landed(url).then((status) => {
+					// its own file came, and it still failed: a dependency's failure, which no URL fixes
+					if (status !== null && status < 400 && state.move('failed', 'stuck', { error }))
+						reload.once('reload', () => say_reload_needed(url, error));
+					// (only a failed state holds a verdict)
+					else if ((state.now as { verdict?: unknown }).verdict === verdict) wait();
+				});
+				wait(verdict);
 				throw error;
 			});
 		} else {
@@ -226,22 +238,24 @@ export function import_again<T>(
 		); // ok: the failure is the caller's: `run` itself is returned and rejects to it
 		return run;
 	};
+	return next;
 }
 
 /**
  * One file's loads, as a machine:
  *
- *   fresh ─ failed{url, attempt} ⟲ ─ loaded{run}
- *     ╲──────────────────────────╱ ╲ stuck{error}
+ *   fresh ─ failed{url, attempt, verdict} ⟲ ─ loaded{run}
+ *     ╲───────────────────────────────────╱ ╲ stuck{error}
  *
  * `fresh`: nothing failed yet (or the loader knows no file): a call loads the bundler's way. `failed`:
- * a download failed; each call asks under a fresh URL. `loaded`: a load landed, and every later call
+ * a download failed; each call asks under a fresh URL, once the last retry's `verdict` (whether its
+ * own file came) is in. `loaded`: a load landed, and every later call
  * is that load (a fresh URL after a success would be a second copy of the module). `stuck`: a retry's
  * own file came and it still failed, a dependency's failure: every later call fails at once with it.
  */
 const file_definition = machine<{
 	fresh: {};
-	failed: { url: string; attempt: number };
+	failed: { url: string; attempt: number; verdict?: Promise<void> };
 	loaded: { run: Promise<unknown> };
 	stuck: { error: unknown };
 }>()({

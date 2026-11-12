@@ -3,7 +3,12 @@
 // lazy-chunk-retry spec; this pins the URL reading and the attempt sequence.
 import { describe, expect, it, vi } from 'vitest';
 import { flights } from '@ogygia/machine';
-import { import_again, is_failed_import, retry_url } from '../src/runtime/import-again.ts';
+import {
+	import_again,
+	is_failed_import,
+	on_reload_needed,
+	retry_url
+} from '../src/runtime/import-again.ts';
 import { download } from '../src/policies.ts';
 
 const CHROMIUM = new TypeError(
@@ -142,6 +147,71 @@ describe('import_again', () => {
 		await expect(load()).rejects.toBe(SAFARI);
 		await expect(load()).resolves.toBe('nav');
 		expect(asked).toEqual(['https://cdn.shop.test/_app/immutable/chunks/nav.js?og-retry=1']);
+	});
+
+	it('a failed retry fails its caller at once; a call while its verdict is out waits for it, then asks again (#392)', async () => {
+		const file = 'https://shop.test/_app/immutable/chunks/nav.js';
+		const asked: string[] = [];
+		const fresh = vi.fn(async (url: string) => {
+			asked.push(url);
+			if (asked.length === 1)
+				throw new TypeError(`Failed to fetch dynamically imported module: ${url}`);
+			return 'nav';
+		});
+		const load = import_again(() => Promise.reject(SAFARI), fresh, file);
+		await expect(load()).rejects.toBe(SAFARI);
+		// (no timing entry ever lands for the retry, as in WebKit for a dropped download: its verdict
+		// waits out the entry wait)
+		vi.useFakeTimers();
+		try {
+			await expect(load()).rejects.toThrow('og-retry=1');
+			const next = load();
+			expect(asked).toHaveLength(1);
+			await vi.runAllTimersAsync();
+			await expect(next).resolves.toBe('nav');
+		} finally {
+			vi.useRealTimers();
+		}
+		expect(asked).toEqual([`${file}?og-retry=1`, `${file}?og-retry=2`]);
+	});
+
+	it('the page says it needs a reload exactly once, however many retries fail with their own file loaded', async () => {
+		const said: string[] = [];
+		on_reload_needed((url) => said.push(url));
+		// (every retry's own file came: a 200 in the timeline, so each failure is a dependency's)
+		const entries = vi
+			.spyOn(performance, 'getEntriesByName')
+			.mockImplementation(
+				(name) =>
+					(name.includes('og-retry')
+						? [{ responseStatus: 200, responseStart: 1 }]
+						: []) as unknown as PerformanceEntryList
+			);
+		try {
+			const dep = (url: string) =>
+				new TypeError(`Failed to fetch dynamically imported module: ${url}`);
+			const loaders = ['a.js', 'b.js', 'c.js'].map((name) => {
+				const file = `https://shop.test/_app/immutable/chunks/${name}`;
+				return import_again(
+					() => Promise.reject(dep(file)),
+					async (url: string) => {
+						throw dep(url);
+					},
+					file
+				);
+			});
+			for (const load of loaders) {
+				await expect(load()).rejects.toThrow(TypeError);
+				await expect(load()).rejects.toThrow('og-retry=1');
+				// (the verdict landed: stuck now, every later call fails at once)
+				await expect(load()).rejects.toThrow('og-retry=1');
+				await expect(load()).rejects.toThrow('og-retry=1');
+			}
+			expect(said).toEqual(['https://shop.test/_app/immutable/chunks/a.js?og-retry=1']);
+		} finally {
+			entries.mockRestore();
+			on_reload_needed(() => {});
+		}
 	});
 
 	it('a file given as the page names it (an island entry, root-relative, no base) fails with the import’s own error and is asked for at the page’s origin', async () => {
