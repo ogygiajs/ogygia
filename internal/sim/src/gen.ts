@@ -16,12 +16,15 @@ import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { rng, type Rng } from './rng.ts';
 
-type Wake = 'load' | 'idle' | 'visible' | 'interaction';
+/** A schedule: one of ogygia's, or a media query (an island wakes while it matches; the sim's and the
+ *  player's viewport is 1280 wide, so one of the two never does). */
+type Wake = 'load' | 'idle' | 'visible' | 'interaction' | MediaWake;
+type MediaWake = '(max-width: 600px)' | '(min-width: 601px)';
 
 /** One region (or plain markup) of a generated page. */
 export interface GenNode {
 	readonly id: number;
-	/** island: a woken region; hole: a deferred one (`wake`: woken once it lands); lake: frozen
+	/** island: a woken region; hole: a deferred one (`wake`: when its HTML is fetched); lake: frozen
 	 *  server HTML (`wake: 'none'`); plain: a component with no region of its own; held: a region
 	 *  a remote query returns (`region(N, props)`), rendered by a host with `<Region of>` (`wake`:
 	 *  its baked schedule, none for `region: 'raw'`); live: one a `query.live` yields anew on each
@@ -117,12 +120,34 @@ export interface GenPage {
 
 const WAKES: readonly Wake[] = ['load', 'idle', 'visible', 'interaction'];
 
+/**
+ * Island wakes as real apps have them (apps/palaestra, examples/mfe, apps/docs: 351 island
+ * imports, 2026-11): load 71%, visible 22%, interaction and idle 3% each, a media query 1%. The
+ * media query is drawn more often here (5%), so a seed sees one.
+ */
+const REAL_WAKES: ReadonlyArray<readonly [Wake, number]> = [
+	['load', 70],
+	['visible', 20],
+	['interaction', 3],
+	['idle', 3],
+	['(max-width: 600px)', 2.5],
+	['(min-width: 601px)', 2.5]
+];
+
+/** How an app's island wakes are drawn, from its own stream (`gen shape`): `real`, as real apps
+ *  have them (`REAL_WAKES`), or `drawn`, evenly from ogygia's four (every schedule as often). */
+export function shape_plan(seed: number): 'real' | 'drawn' {
+	return rng(seed).fork('gen shape').chance(0.5) ? 'real' : 'drawn';
+}
+
 /** A region tree drawn from `r`, depth first (a child's id before its parent's, ids from `first`);
- *  `wrap` may turn a drawn region into another kind (held, live). */
+ *  `wrap` may turn a drawn region into another kind (held, live); `wake` draws an island's
+ *  schedule (one draw of `r`, either way). */
 function trees(
 	r: Rng,
 	wrap: (n: GenNode) => GenNode = (n) => n,
-	first = 0
+	first = 0,
+	wake: (r: Rng) => Wake = (r) => r.pick(WAKES)
 ): (depth: number) => GenNode {
 	let ids = first;
 	const node = (depth: number): GenNode => {
@@ -142,7 +167,7 @@ function trees(
 					]);
 		const children = Array.from({ length: n }, () => node(depth + 1));
 		const id = ids++;
-		if (kind === 'island') return wrap({ id, kind, wake: r.pick(WAKES), children });
+		if (kind === 'island') return wrap({ id, kind, wake: wake(r), children });
 		if (kind === 'hole')
 			return {
 				id,
@@ -261,7 +286,12 @@ export function plan(seed: number): GenPage[] {
 	// (and whether a page opens with a hero image, from its own)
 	const hr = rng(seed).fork('gen hero');
 	const switching = switcher(seed);
-	const node = trees(r, held);
+	const node = trees(
+		r,
+		held,
+		0,
+		shape_plan(seed) === 'real' ? (r) => r.weighted(REAL_WAKES) : undefined
+	);
 	const pages = r.between(3, 6);
 	return Array.from({ length: pages }, (_, i) => ({
 		path: `/p${i}`,
@@ -507,7 +537,7 @@ function attributes(n: GenNode): string {
 			// (a kept render is a preset's: apps/sim-gen/vite.config.ts)
 			if (n.maxAge) return ` with { preset: 'hole-${n.maxAge}${n.wake ? `-${n.wake}` : ''}' }`;
 			return n.wake
-				? ` with { render: 'deferred', wake: '${n.wake}' }`
+				? ` with { render: 'deferred', fetch: '${n.wake}' }`
 				: ` with { render: 'deferred' }`;
 		case 'plain':
 			return '';
@@ -650,9 +680,9 @@ function component(n: GenNode): string {
 \tlet { label = '' }: { label?: string; ogygiaFallback?: Snippet } = $props();
 \x3C/script>
 `;
+	// (a hole ships no JS, whatever its `fetch`: its own islands are what wake in it)
 	const interactive =
-		n.kind === 'island' ||
-		((n.kind === 'hole' || n.kind === 'held' || n.kind === 'live') && n.wake !== undefined);
+		n.kind === 'island' || ((n.kind === 'held' || n.kind === 'live') && n.wake !== undefined);
 	const lines = [
 		'<script lang="ts">',
 		"\timport type { Snippet } from 'svelte';",
