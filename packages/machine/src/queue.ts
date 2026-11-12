@@ -36,7 +36,7 @@ export interface QueueOptions<J> {
 	start: (job: J) => void;
 	/** Hears a job that will never start: its deadline came, it was cancelled, or the owner closed. */
 	stale?: (job: J) => void;
-	/** The clock deadlines are read on (ms). `performance.now()` when left out. */
+	/** The clock deadlines are read on (ms). `clock.mono()` when left out. */
 	now?: () => number;
 	/** Closing it makes every waiting job stale, and any pushed after. */
 	owner?: Scope;
