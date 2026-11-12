@@ -8,6 +8,7 @@ import {
 	sign,
 	type RegionClaim
 } from '../src/server/hmac.ts';
+import { region_request } from '../src/server/region-request.ts';
 
 const SECRET = 'bench-secret-0123456789abcdef';
 const AUD = '/__ogygia__';
@@ -67,4 +68,22 @@ bench(
 			return { at, sigs };
 		}
 	}
+);
+
+bench(
+	'region_request: the steps of each hole request of one page',
+	({ n }) => {
+		let sent = 0;
+		for (let i = 0; i < n; i++) {
+			const r = region_request.create();
+			r.go('prechecked');
+			r.go('probed');
+			r.go('verified');
+			r.go('charged');
+			r.go('rendering');
+			if (r.go('sent')) sent++;
+		}
+		return sent;
+	},
+	{ setup: () => ({ n: 20 }), scale: (_ctx, k) => ({ n: 20 * k }) }
 );
