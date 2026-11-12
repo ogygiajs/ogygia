@@ -11,6 +11,7 @@ import { current_facts, facts_of, note_per_visitor, type RequestFacts } from './
 import { observe_reads } from './reads.ts';
 import { ask, notify, register_hooks } from './hooks.ts';
 import { route_config } from './routes.ts';
+import { renders_for_a_page } from '../server/endpoint.ts';
 import { plugin_capabilities, type CapabilitySigner } from './capability.ts';
 import { record_server_event } from '../events/server-registry.ts';
 import { warn } from '../messages/server.ts';
@@ -228,9 +229,11 @@ export function request_contexts(
 	const route_id = event.route?.id;
 	const route_cfg = (key: string) => route_config(key, route_id, path);
 	const per_visitor = (reason: string) => note_per_visitor(event.request, reason);
+	const for_page = renders_for_a_page(event);
 	return plugins.map(({ def, app }) => ({
 		event,
 		path,
+		forPage: for_page,
 		state: def.state?.(),
 		options: app.options,
 		app,

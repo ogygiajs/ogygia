@@ -24,8 +24,8 @@ import {
 	type OgygiaPlugin,
 	type TransformContext,
 	type TransformEvent
-} from '@ogygia/core/vite';
-import { is_script_request, type ExportMap, type Policy } from '@ogygia/core/internal/compiler';
+} from '@ogygia/compiler/vite';
+import { is_script_request, type ExportMap, type Policy } from '@ogygia/compiler';
 import { matches_any, normalize_options, type BarrelsOptions } from './options.ts';
 import { rewrite_imports, type Lookup, type RewriteMove } from './rewrite.ts';
 import { rewrite_svelte } from './svelte.ts';

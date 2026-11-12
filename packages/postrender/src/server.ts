@@ -17,14 +17,14 @@
  * teaches: an eligible page gets `x-ogygia-postrender: would-store`, a refused one a console note.
  */
 import { createHash } from 'node:crypto';
-import { building, dev } from '$app/env';
+import { building, dev, version } from '$app/env';
 import {
 	defineServer,
 	STORED_DOCUMENT_META,
 	type RequestContext,
 	type ServerPlugin
 } from '@ogygia/core/plugin';
-import { STALE } from '@ogygia/machine';
+import { clock, flights, say, STALE, type Flights } from '@ogygia/machine';
 import {
 	current_runtime,
 	enter_flight,
@@ -33,6 +33,7 @@ import {
 	installed_runtime,
 	retracting,
 	self_evict,
+	store_call,
 	store_get,
 	store_render,
 	type Flight,
@@ -83,10 +84,60 @@ const BUILD_MARKER_KEY = '\0og:build';
  *  the last one still has to find it. */
 const BUILD_MARKER_TTL_SEC = 10 * 365 * 24 * 3600;
 
-/** The TTL backstop on read: a stored entry older than `ttl` seconds is a miss. A store with native
- *  expiry has dropped it already; one without (a custom store) still lets its pages expire. An
- *  entry with no usable creation time cannot be aged, and is a miss too. */
-function within_ttl(entry: PostrenderEntry, ttl: number, now: number = Date.now()): boolean {
+/** The tag every page carries for the build that stored it: a new build drops the old one's. */
+const build_tag = (build: string): string => `b:${build}`;
+
+/** The deploy checks, per store runtime and build: one per boot, shared by the page path and
+ *  federation's `lastBuild` ask (whichever asks first moves the marker; both hear one answer). A
+ *  failed check is not kept: the next request tries again. */
+const deploys = new WeakMap<Runtime, Flights<string, string | undefined>>();
+
+/**
+ * A deploy is a write (internal/notes/freeze.md: prerender is the special case where the only write
+ * is a deploy). What makes it one is the entry's build label: a page is served only to the build that
+ * stored it ({@link servable}), so no build ever serves another's, a rolling deploy's old instances
+ * included. This check is the early cleanup beside it: the build the store saw before this one, whose
+ * pages are dropped (origin and edges: an edge never asks the label), then the marker moves to this
+ * build. The evict goes first, so one that fails leaves the marker where it was and the next request
+ * tries again. test/deploy.test.ts (#947).
+ */
+function deploy_check(runtime: Runtime, build: string): Promise<string | undefined | typeof STALE> {
+	let checks = deploys.get(runtime);
+	if (!checks) {
+		checks = flights({
+			run: async (build: string) => {
+				const { store } = runtime;
+				const marker = await store_call('get', BUILD_MARKER_KEY, () => store.get(BUILD_MARKER_KEY));
+				const seen = marker?.kind === 'page' ? marker.html : undefined;
+				if (seen !== undefined && seen !== build) {
+					const { failed } = await evict_tags([build_tag(seen)], runtime);
+					if (failed.length) throw failed[0];
+				}
+				// written on every check (once per boot), not only on a change: a store that dropped
+				// the marker anyway (memory pressure, a custom store that caps the TTL) has it again
+				await store_call('put', BUILD_MARKER_KEY, () =>
+					store.put(
+						BUILD_MARKER_KEY,
+						{ kind: 'page', html: build, headers: {}, created: Date.now() },
+						{ ttl: BUILD_MARKER_TTL_SEC, tags: [] }
+					)
+				);
+				return seen;
+			}
+		});
+		deploys.set(runtime, checks);
+	}
+	return checks.get(build);
+}
+
+/** A stored entry this build may serve: one it stored itself (another build's, or one with no build,
+ *  is a miss: the label is the deploy's truth), within the TTL backstop (an older one is a miss: a
+ *  store with native expiry has dropped it already, one without still lets its pages expire; one
+ *  with no usable creation time cannot be aged, and is a miss too). */
+function servable(entry: PostrenderEntry, ttl: number): boolean {
+	if (entry.build !== version) return false;
+	// wall: `created` is an epoch time another process may have written
+	const now = clock.wall();
 	return Number.isFinite(entry.created) && now - entry.created < ttl * 1000;
 }
 
@@ -212,7 +263,7 @@ function stamp_no_store(response: Response): void {
 
 /** DEV teaching leg: the verdict runs but never stores/serves. Eligible → a `would-store`
  *  header to read in the network panel; refused → ONE console note per path naming the read. */
-const dev_noted_paths = new Set<string>();
+const dev_noted_paths = say({ max: 500 });
 function dev_postrender_note(response: Response, ctx: Ctx, obs: Observation): void {
 	const refusal =
 		obs.disqualified_by ??
@@ -231,9 +282,10 @@ function dev_postrender_note(response: Response, ctx: Ctx, obs: Observation): vo
 		}
 		return;
 	}
-	if (dev_noted_paths.has(ctx.path)) return;
-	dev_noted_paths.add(ctx.path);
-	warn('postrender_stays_per_request', { path: ctx.path, refusal });
+	// (once per path, for the latest 500 paths: a dev session's pages)
+	dev_noted_paths.once(ctx.path, () =>
+		warn('postrender_stays_per_request', { path: ctx.path, refusal })
+	);
 }
 
 /** What a capture did: stored an entry (with the Response to send), or refused to. A refusal made
@@ -259,12 +311,13 @@ async function capture(
 	flight: Flight
 ): Promise<Captured> {
 	const { path, facts } = ctx;
-	const tags = facts.sources ?? [];
+	const tags = [...(facts.sources ?? []), build_tag(version)];
 	/** Store `entry`, unless an invalidation started while the store was being written to (the
 	 *  flight went stale; its evict may have run first): then the entry comes back out, and the
-	 *  page stays per-request (no hit is served from it meanwhile, `retracting`). */
+	 *  page stays per-request (no hit is served from it meanwhile, `retracting`). Labeled with this
+	 *  build: it is served to this build only ({@link servable}). */
 	const put = (entry: PostrenderEntry): Promise<boolean> =>
-		store_render(runtime, path, entry, { ttl, tags }, flight);
+		store_render(runtime, path, { ...entry, build: version }, { ttl, tags }, flight);
 	// Personalization observed (cookie/header/locals/flag read, or a cookie write) → per-request.
 	if (obs.disqualified_by || obs.wrote_cookie) return REFUSED;
 	// Permanent redirects are the hottest cheap wins (canonical 301s) — store status + location.
@@ -381,7 +434,9 @@ const server: ServerPlugin<PostrenderServerOptions, State> = defineServer<
 	async page(ctx) {
 		const { event, path, facts, state } = ctx;
 		const runtime = (state.runtime = runtime_of(ctx));
+		// (a page request only: a remote call carries its page's URL, test/remote-call.test.ts)
 		const storing =
+			!ctx.forPage &&
 			!facts.private &&
 			!building &&
 			event.request.method.toUpperCase() === 'GET' &&
@@ -400,10 +455,14 @@ const server: ServerPlugin<PostrenderServerOptions, State> = defineServer<
 			state.obs = observe_event(ctx);
 			return;
 		}
+		// a deploy is a write: the entry's build label decides (servable); a boot's first read also
+		// starts the old build's pages' early cleanup, which no read waits for
+		deploy_check(runtime, version).then(undefined, () => {}); // ok: the store's failure was said; the next request checks again
 		const hit = await store_get(runtime, path);
-		// (an entry past its TTL is a miss: the render below stores a fresh one over it; so is one a
-		// stale render is taking back out, which may be the page from before a publish, #332)
-		if (hit && within_ttl(hit, ctx.options.ttl) && !retracting(path)) {
+		// (another build's entry, or one past its TTL, is a miss: the render below stores a fresh one
+		// over it; so is one a stale render is taking back out, which may be the page from before a
+		// publish, #332)
+		if (hit && servable(hit, ctx.options.ttl) && !retracting(path)) {
 			ctx.app.devtools({ domain: 'server', name: 'server.postrender', op: 'hit', url: path });
 			return serve(hit, 'hit', ctx);
 		}
@@ -536,19 +595,12 @@ const server: ServerPlugin<PostrenderServerOptions, State> = defineServer<
 			throw new AggregateError(failed, `${failed.length} tags failed to evict`);
 	},
 
-	// SHARED HOOK — deploy thaw: remember this build, answer the one the store saw before. Written on
-	// every ask (once per boot), not only on a change: a store that dropped the marker anyway (memory
-	// pressure, a custom store that caps the TTL) has it again from the next boot on.
-	async lastBuild(version) {
-		const { store } = current_runtime();
-		const marker = await store.get(BUILD_MARKER_KEY);
-		const seen = marker?.kind === 'page' ? marker.html : undefined;
-		await store.put(
-			BUILD_MARKER_KEY,
-			{ kind: 'page', html: version, headers: {}, created: Date.now() },
-			{ ttl: BUILD_MARKER_TTL_SEC, tags: [] }
-		);
-		return seen;
+	// SHARED HOOK — deploy thaw: the build the store saw before this one, from the one deploy check
+	// the page path runs too (a new build has dropped this app's own pages by the time it answers).
+	async lastBuild(build) {
+		const seen = await deploy_check(current_runtime(), build);
+		// (never dropped: a check is STALE only if its flights were, and these never are)
+		return seen === STALE ? undefined : seen;
 	}
 });
 export default server;
