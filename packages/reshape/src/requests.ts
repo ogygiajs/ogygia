@@ -7,6 +7,7 @@
  * by `reshape()`) can end up as two module instances of this file (src beside dist), and a transform
  * filed through one must be read through the other.
  */
+import { slot as shared } from '@ogygia/machine';
 import type { RequestEvent } from '@sveltejs/kit';
 import type { TransformKind } from './reversible.ts';
 
@@ -37,6 +38,8 @@ interface Slot {
 	by_request: WeakMap<Request, ReshapeTransform>;
 }
 
-export const slot: Slot = ((globalThis as Record<symbol, Slot | undefined>)[
-	Symbol.for('ogygia.reshape.v1')
-] ??= { live: false, by_request: new WeakMap() });
+export const slot: Slot = shared<Slot>({
+	name: 'ogygia.reshape',
+	version: 1,
+	make: () => ({ live: false, by_request: new WeakMap() })
+});

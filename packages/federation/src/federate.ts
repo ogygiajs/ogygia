@@ -1,12 +1,3 @@
-/**
- * `federate()` — ONE identity per app. Builds the typed peer handles, registers the app's
- * federation (peers, exposed table, widgets) for the handle to serve, and wires cross-app thaw:
- * every `postrender.invalidate()` notifies the peers that baked this app's fragments. Design:
- * internal/notes/federation.md.
- *
- * Called at server module-eval (in or under hooks.server.ts). The handle reads the registration
- * back to serve `/og/fragment/*`, `/og/thaw`, and the deferred remote-region holes.
- */
 import { net, outbox, policy, timers, type Outbox } from '@ogygia/machine';
 import { fed_app } from './app.ts';
 import { warn } from './messages.ts';
@@ -45,14 +36,14 @@ export function begin_source_capture(request: Request): {
 }
 
 /**
- * `federate({ name, key, peers, visitor, expose?, widgets? })`. Returns the peer handles keyed by
- * their config names: `const { cms, dash } = federate({ … })`.
+ * `federate({ name, key, peers, visitor, expose?, widgets? })`: the app's one federation identity,
+ * called once in or under hooks.server.ts. Returns the peer handles keyed by their config names:
+ * `const { cms, dash } = federate({ … })`. Exposing a table or widgets while no peer has a key
+ * (and without `open`) lets nobody call, so it warns (`federation_open_without_keys`).
  */
 export function federate<P extends Record<string, PeerConfig>>(
 	config: FederateConfig<P>
 ): { [K in keyof P]: Peer } {
-	// FAIL-CLOSED: exposing a table or widgets with NO peer keys configured (and no `open`) means
-	// nobody is allowed to call — a config bug, not a choice. Say it loudly.
 	const has_inbound = Object.values(config.peers ?? {}).some((p) => p.key);
 	if ((config.expose || config.widgets) && !has_inbound && !config.open) {
 		warn('federation_open_without_keys');
@@ -100,12 +91,9 @@ export function federate<P extends Record<string, PeerConfig>>(
 		deploy: config.deploy ?? 'auto'
 	};
 	set_federation(fed);
-	// (THAW: the server realm implements the shared `invalidated` hook — every invalidation of this
-	// app's stored pages tells the peers that baked its fragments: server.ts)
 	return out;
 }
 
-/** One thaw notice on its way to one peer. */
 type Thaw = {
 	fed: Federation;
 	peer: Peer;
@@ -114,19 +102,14 @@ type Thaw = {
 	body: ArrayBuffer;
 };
 
-/** How a notice to a peer is tried again: a peer restarting or briefly down is ridden out, and the
- *  whole send fits the time a serverless platform keeps a request alive after its response. */
 const PEER_POLICY = policy({
 	attempts: 4,
 	backoff: [200, 1000, 5000],
 	jitter: 0.2,
 	deadline: 30_000
 });
-/** The longest one try waits for a peer's answer. */
 const PEER_TRY_MS = 5000;
 
-/** One try: done only once the peer answered ok, which it does once it APPLIED the notice (it
- *  answers an error for one its store failed to apply, #287). */
 async function post_thaw(t: Thaw, signal: AbortSignal): Promise<void> {
 	const u = new URL(THAW_PATH, t.peer.origin);
 	const signed = t.fed.key ? sign_headers(t.fed.key, 'POST', u, t.body, undefined) : {};
@@ -139,16 +122,12 @@ async function post_thaw(t: Thaw, signal: AbortSignal): Promise<void> {
 	if (!res.ok) throw new Error(`${t.peer_name} answered ${res.status}`);
 }
 
-/** The outbox thaw notices go through: kept alive past the response of the request that caused
- *  them (#286), tried again, one send per notice and peer. `say`: a peer that never took it is
- *  said here (a publish's notices), or by the caller (the deploy thaw's rounds). */
 function thaw_outbox(name: string, say: boolean): Outbox<Thaw> {
 	return outbox<Thaw>({
 		name,
 		send: post_thaw,
 		id: (t) => t.id + '\n' + t.peer_name,
 		retry: PEER_POLICY,
-		// (a peer that never took it keeps its stored copy until it expires)
 		giveUp: say
 			? (t, error) => warn('federation_thaw_notice_failed', t.peer_name, error)
 			: () => {}, // ok: the deploy thaw names the peers that missed it once its rounds are spent
@@ -156,7 +135,6 @@ function thaw_outbox(name: string, say: boolean): Outbox<Thaw> {
 	});
 }
 
-/** A publish's notices, and the ones this app passes on. */
 const publish_thaws = thaw_outbox('federation thaw notices', true);
 /** The deploy thaw's notices (serve.ts): its rounds say who never took them. */
 export const deploy_thaws: Outbox<Thaw> = thaw_outbox('federation deploy thaw', false);
@@ -187,6 +165,5 @@ export async function broadcast_thaw(
 	return missed;
 }
 
-// re-exported so the handle (which holds the region secret) can read the registration
 export { current_federation };
 export type { Federation, Peer, Claims, FragmentDocument, WidgetDocument };
