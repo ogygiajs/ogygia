@@ -311,20 +311,31 @@ export function join_batch(endpoint: string): Promise<void> {
 	return flushed;
 }
 
-/** The holes that joined in one task: the ones a batch can carry go out in batches of MAX_BATCH. */
+/** A region call of an islands endpoint (`?id=…`, `&id=…`): what a batch POST to its path answers. */
+const REGION_CALL_RE = /[?&]id=/;
+
+/** The holes that joined in one task: the ones a batch can carry go out in batches of MAX_BATCH,
+ *  one endpoint path per batch (it is POSTed there). A hole that is no region call (a plugin's
+ *  endpoint) goes on its own: test/browser/hole-batch.test.ts (#917). */
 function gather(list: string[]): void {
-	const fresh: string[] = [];
+	const by_path = new Map<string, string[]>();
 	const seen = new Set<string>();
 	// (a hole whose request the page's head started is in flight at its address, so not idle:
 	// ./early-holes.ts)
 	for (const e of list) {
+		if (!REGION_CALL_RE.test(e)) continue;
 		const a = frameAddress(e);
 		if (seen.has(a) || !is_idle(a)) continue;
 		seen.add(a);
-		fresh.push(e);
+		const q = e.indexOf('?');
+		const path = e.slice(0, q);
+		const fresh = by_path.get(path);
+		if (fresh) fresh.push(e);
+		else by_path.set(path, [e]);
 	}
 	// (reserve happens synchronously inside streamFrames, before this resolves)
-	if (fresh.length >= 2)
-		for (let i = 0; i < fresh.length; i += MAX_BATCH)
-			void streamFrames(fresh.slice(i, i + MAX_BATCH), 'page'); // ok: a batch says its own failure, and its holes fall back to their own fetch
+	for (const fresh of by_path.values())
+		if (fresh.length >= 2)
+			for (let i = 0; i < fresh.length; i += MAX_BATCH)
+				void streamFrames(fresh.slice(i, i + MAX_BATCH), 'page'); // ok: a batch says its own failure, and its holes fall back to their own fetch
 }
