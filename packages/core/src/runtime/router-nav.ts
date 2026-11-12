@@ -909,7 +909,7 @@ export async function navigate(
 			// only REMOVED regions' hub ids happens inside reconcile_body.
 			reconcile_body(document.body, doc.body, slots.morph!);
 			built.reconciled = true;
-			document.title = doc.title;
+			adopt_title(doc);
 			session().settle_lakes_in(document.body);
 		} else {
 			// FALLBACK (reconcile off, or a region nested in an open shadow root morph can't pierce):
@@ -923,7 +923,7 @@ export async function navigate(
 					reason: !slots.morph ? 'no-morph' : 'shadow-region'
 				});
 			swap_body(document.body, doc.body);
-			document.title = doc.title;
+			adopt_title(doc);
 			session().settle_lakes_in(document.body);
 			dispose_scope('page');
 		}
@@ -1266,6 +1266,15 @@ function reset_focus(hash: string, kept: string | null = null) {
  * region): they are for the regions that use or own them too (./region-sheets.ts), so they go only
  * after the swap, once it is settled which regions stayed.
  */
+/** The next page's title, as a fresh load of it has one: only when it carries a `<title>`. Setting
+ *  `document.title` makes a `<title>` where there is none (test/browser/nav-no-title.test.ts); the
+ *  head merge already took the leaving page's own out. */
+function adopt_title(next: Document): void {
+	// (an HTML <title>, as the `title` getter reads: an SVG one in the body does not count)
+	if (next.getElementsByTagNameNS('http://www.w3.org/1999/xhtml', 'title').length > 0)
+		document.title = next.title;
+}
+
 function merge_head(new_head: HTMLHeadElement): Element[] {
 	const current = document.head;
 	// Only the PAGE's nodes take part (runtime/session.ts — who owns each node in <head>). An island's
