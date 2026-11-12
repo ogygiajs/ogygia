@@ -278,6 +278,25 @@ finding gone: it fails while the bug stands, and skips when the app on disk is n
 found on (a generated app's seed, from its plan.json). Rename it to say the behavior, and put it
 on the finding's `sim/found-<name>` branch.
 
+## The real-browser tier
+
+A plan file carries its app, the run's wire faults (each request of a tab's the network dropped or
+cut, as the `nth` of its `method path` on that tab) and what the run found. A search writes each run
+it keeps to `plans/kept/` (and each failure to `plans/`). `apps/palaestra/e2e/sim-replay.spec.ts`
+plays plans in a real browser on the palaestra's build:
+
+    SIM_PLANS=<plan.json>,... E2E_NO_BUILD=1 OGYGIA_SECRET=sim-secret \
+      npx playwright test e2e/sim-replay --project chromium
+
+The page's clock is Playwright's fake one (`context.clock`), moved on in slices with real time
+between for the network; each wire fault is done again to the same request (`context.route`: a drop
+aborts, a cut resets the connection, as the simulator's cut fails the body's read); offline is the
+context's (every tab's, where the simulator's is one tab's). At rest (nothing on the wire, 20 s real
+at most, then 5 s of the clock): no page error and no coded error on a tab the network did not
+fail, no machine left in a state of work under way, and ogygia's rules (the `page` fixture). What the
+simulator found is attached. Not played: deploys. The palaestra's 9 kept plans of a 60-run search
+pass in Chromium.
+
 ## Findings
 
 A real bug gets a GitHub issue (labels `bug`, `dst`) and a failing test on its own branch

@@ -108,6 +108,11 @@ for (const file of PLANS) {
 			});
 		};
 		watch(page);
+		// (the requests on the wire, every tab's)
+		let flying = 0;
+		context.on('request', () => flying++);
+		context.on('requestfinished', () => flying--);
+		context.on('requestfailed', () => flying--);
 		await context.route('**/*', async (route: Route) => {
 			const req = route.request();
 			const tab = tabs.indexOf(req.frame().page());
@@ -123,11 +128,8 @@ for (const file of PLANS) {
 					f.nth === nth
 			);
 			if (fault?.kind === 'drop') return route.abort('failed');
-			if (fault?.kind === 'cut') {
-				const res = await route.fetch();
-				const body = await res.body();
-				return route.fulfill({ response: res, body: body.subarray(0, body.length >> 1) });
-			}
+			// (a body cut midway fails its read, as the simulator's does: the connection resets)
+			if (fault?.kind === 'cut') return route.abort('connectionreset');
 			return route.continue();
 		});
 		await context.clock.install({ time: new Date('2026-01-01T00:00:00Z') });
@@ -182,8 +184,23 @@ for (const file of PLANS) {
 			await pass(context, 1000);
 		}
 		await context.setOffline(false);
+		// AT REST, as the simulator's: nothing on the wire (a server's slow render takes real time,
+		// which the page's clock does not move), then the clock run on (20 s real at most)
+		const until = Date.now() + 20_000;
+		do await pass(context, 1000);
+		while (flying > 0 && Date.now() < until);
 		await pass(context, 5000);
-		check('no page error, no coded error', errors.length === 0, errors.join('\n'));
+		// (as in the simulator, a tab the network failed may say why: a fault on one of its requests,
+		// or the connection down, which here is every tab's)
+		const offline = p.plan.actions.some((a) => a.kind === 'offline' || a.kind === 'outage');
+		const faulted = (tab: number) => offline || (p.wire ?? []).some((f) => f.tab === tab);
+		const judged = errors.filter((e) => !faulted(Number(/^tab (\d+)/.exec(e)?.[1])));
+		if (judged.length < errors.length)
+			info.annotations.push({
+				type: 'said on a faulted tab',
+				description: errors.filter((e) => !judged.includes(e)).join('\n')
+			});
+		check('no page error, no coded error', judged.length === 0, judged.join('\n'));
 		for (const [i, t] of tabs.entries()) {
 			const last = new Map<string, string>();
 			for (const line of ((await moves(t)) ?? '').split('\n')) {
