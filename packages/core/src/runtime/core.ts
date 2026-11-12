@@ -1942,7 +1942,8 @@ class OgygiaRegion extends HTMLElement {
 		}
 		// Same module, its island's file could not load (said once): the tick's server HTML shows, and
 		// nothing loads again (#942, test/browser/live-region-failed-file.test.ts)
-		if (s.kind === 'failed' && s.module === desc.module) return this.#morph_live(desc.html, turn);
+		if (s.kind === 'failed' && s.module === desc.module)
+			return this.#morph_live(vouch_remote_answer(desc.html), turn);
 
 		// First tick, the interactive module changed, or it was static: swap + hydrate. (Leaving `live`
 		// disposes its island; leaving `static` drops its subscription; leaving `hydrating` ends that
