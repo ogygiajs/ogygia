@@ -296,9 +296,6 @@ function read_route_config_uncached(
 	return out;
 }
 
-const CONFIG_FILES_PAGE = ['+page.server.js', '+page.server.ts', '+page.js', '+page.ts'];
-const CONFIG_FILES_LAYOUT = ['+layout.server.js', '+layout.server.ts', '+layout.js', '+layout.ts'];
-
 const PAGE_UNIVERSAL = ['+page.js', '+page.ts'];
 const PAGE_SERVER = ['+page.server.js', '+page.server.ts'];
 const LAYOUT_UNIVERSAL = ['+layout.js', '+layout.ts'];
@@ -640,14 +637,20 @@ const _page_config = cache<string, Record<string, Record<string, unknown>>>({
 	max: ROOTS_MAX
 });
 
-/** One page's merged config, claimed keys only: the layouts it renders in, root first, then the
- *  page; at each level the server module, then the universal one; a later level replaces a key,
- *  top level only. A key no level sets is absent. */
+/** One page's merged config, claimed keys only, as Kit's `PageNodes.get_config` merges it: the
+ *  layouts it renders in, root first, then the page; at each level the universal module, then the
+ *  server one (the reverse of `csr`); a later level replaces a key, top level only. A key no level
+ *  sets is absent. */
 function page_config(leaf: RouteNode, keys: readonly string[]): Record<string, unknown> {
 	let merged: Record<string, unknown> = {};
-	for (const node of [...leaf.layouts, leaf])
-		for (const f of node.kind === 'leaf' ? CONFIG_FILES_PAGE : CONFIG_FILES_LAYOUT)
+	for (const node of [...leaf.layouts, leaf]) {
+		const files =
+			node.kind === 'leaf'
+				? [...PAGE_UNIVERSAL, ...PAGE_SERVER]
+				: [...LAYOUT_UNIVERSAL, ...LAYOUT_SERVER];
+		for (const f of files)
 			merged = { ...merged, ...read_route_config(path.join(node.route.dir, f), keys) };
+	}
 	return merged;
 }
 
