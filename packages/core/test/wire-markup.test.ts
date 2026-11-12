@@ -96,6 +96,14 @@ describe('tags', () => {
 		expect(names('<!-- x --!><meta name="c">', 'meta')).toEqual(['<meta name="c">']);
 	});
 
+	it('reads a script’s escaped text as the browser does: <!-- <script> runs past one </script>', () => {
+		expect(names('<script><!--<script></script><meta a></script><meta b>', 'meta')).toEqual([
+			'<meta b>'
+		]);
+		expect(names('<script><!--<script>--><meta a></script><meta b>', 'meta')).toEqual(['<meta b>']);
+		expect(names('<script><!--></script><meta b>', 'meta')).toEqual(['<meta b>']);
+	});
+
 	it('finds no tag inside a quoted attribute value of an end tag', () => {
 		expect(names('</div title="<meta name=in>"><meta name="out">', 'meta')).toEqual([
 			'<meta name="out">'

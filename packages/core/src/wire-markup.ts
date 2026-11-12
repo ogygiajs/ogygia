@@ -295,66 +295,226 @@ export interface FoundTag {
 	readonly attrs: Map<string, string>;
 }
 
-const SPACE = /[\t\n\f\r ]/;
+/** HTML's whitespace inside a tag: tab, LF, FF, CR, space (NaN, past the end, is not). */
+function is_space(c: number): boolean {
+	return c === 32 || c === 9 || c === 10 || c === 12 || c === 13;
+}
 
-/** Each `<name …>` start tag in `html`, in order, read the way a browser reads one. */
-export function* tags(html: string, name: string): Generator<FoundTag> {
-	const want = name.toLowerCase();
-	let i = 0;
-	while (i < html.length) {
+/** `[A-Za-z]`: what starts a tag name (`<3` and `< p` are text). */
+function is_letter(c: number): boolean {
+	return (c >= 97 && c <= 122) || (c >= 65 && c <= 90);
+}
+
+/** The elements whose text the tokenizer reads raw, up to their own end tag: no tag, no comment
+ *  inside. (`script` has its own escape rules: `skip_script`.) */
+const RAW_TEXT = new Set([
+	'style',
+	'textarea',
+	'title',
+	'xmp',
+	'iframe',
+	'noembed',
+	'noframes',
+	'noscript'
+]);
+
+/** Does `</name` (any case) followed by whitespace, `/` or `>` start at `at`: the end tag that
+ *  closes a raw-text element? */
+function closes(html: string, at: number, name: string): boolean {
+	return (
+		html.charCodeAt(at) === 60 &&
+		html.charCodeAt(at + 1) === 47 &&
+		html.slice(at + 2, at + 2 + name.length).toLowerCase() === name &&
+		(is_space(html.charCodeAt(at + 2 + name.length)) ||
+			html[at + 2 + name.length] === '/' ||
+			html[at + 2 + name.length] === '>')
+	);
+}
+
+/** Where the end tag of a raw-text element `name` whose text starts at `from` begins (-1: none). */
+function skip_raw(html: string, from: number, name: string): number {
+	for (let at = html.indexOf('</', from); at !== -1; at = html.indexOf('</', at + 2))
+		if (closes(html, at, name)) return at;
+	return -1;
+}
+
+/** Does `<script` (any case) followed by whitespace, `/` or `>` start at `at`? */
+function opens_script(html: string, at: number): boolean {
+	const c = html[at + 7];
+	return (
+		html.slice(at + 1, at + 7).toLowerCase() === 'script' &&
+		(c === '/' || c === '>' || is_space(html.charCodeAt(at + 7)))
+	);
+}
+
+/**
+ * Where the `</script` that ends a script's text (from `from`) begins (-1: none), by the
+ * tokenizer's script-data states: after `<!--` the text is ESCAPED until `-->`, and an escaped
+ * `<script` opens a DOUBLE-ESCAPED run where `</script` does not end the script (it returns to
+ * escaped).
+ */
+function skip_script(html: string, from: number): number {
+	let i = from;
+	for (;;) {
+		// script data: a `<!--` escapes, a `</script` ends
 		const lt = html.indexOf('<', i);
-		if (lt === -1) return;
-		if (html.startsWith('<!--', lt)) {
-			const close = html.indexOf('-->', lt + 4);
-			if (close === -1) return;
-			i = close + 3;
-			continue;
-		}
-		const after = lt + 1 + want.length;
-		const next = html[after];
-		if (
-			html.slice(lt + 1, after).toLowerCase() !== want ||
-			(next !== undefined && next !== '>' && next !== '/' && !SPACE.test(next))
-		) {
+		if (lt === -1) return -1;
+		if (closes(html, lt, 'script')) return lt;
+		if (!html.startsWith('<!--', lt)) {
 			i = lt + 1;
 			continue;
 		}
-		const attrs = new Map<string, string>(); // (one per tag, not module-level)
-		let j = after;
+		// escaped (the `--` of `<!--` already read, so `<!-->` ends it at once)
+		let j = lt + 2;
 		for (;;) {
-			while (j < html.length && (SPACE.test(html[j]) || html[j] === '/')) j++;
-			if (j >= html.length) return;
-			if (html[j] === '>') break;
-			const name_start = j;
-			while (
-				j < html.length &&
-				!SPACE.test(html[j]) &&
-				html[j] !== '=' &&
-				html[j] !== '>' &&
-				html[j] !== '/'
-			)
-				j++;
-			const attr = html.slice(name_start, j).toLowerCase();
-			while (j < html.length && SPACE.test(html[j])) j++;
-			let value = '';
-			if (html[j] === '=') {
-				j++;
-				while (j < html.length && SPACE.test(html[j])) j++;
-				const q = html[j];
-				if (q === '"' || q === "'") {
-					const close = html.indexOf(q, j + 1);
-					if (close === -1) return;
-					value = html.slice(j + 1, close);
-					j = close + 1;
-				} else {
-					const v = j;
-					while (j < html.length && !SPACE.test(html[j]) && html[j] !== '>') j++;
-					value = html.slice(v, j);
+			const dash = html.indexOf('-->', j);
+			const open = html.indexOf('<', j);
+			if (open !== -1 && (dash === -1 || open < dash)) {
+				if (closes(html, open, 'script')) return open;
+				if (!opens_script(html, open)) {
+					j = open + 1;
+					continue;
 				}
+				// double escaped: `-->` returns to script data, `</script` to escaped
+				let k = open + 7;
+				for (;;) {
+					const d = html.indexOf('-->', k);
+					const c = html.indexOf('</', k);
+					if (c !== -1 && (d === -1 || c < d) && closes(html, c, 'script')) {
+						j = c + 8;
+						break;
+					}
+					if (d === -1 && c === -1) return -1;
+					if (d !== -1 && (c === -1 || d < c)) {
+						j = -1;
+						i = d + 3;
+						break;
+					}
+					k = c + 2;
+				}
+				if (j === -1) break;
+				continue;
 			}
-			if (!attrs.has(attr)) attrs.set(attr, value);
+			if (dash === -1) return -1;
+			i = dash + 3;
+			break;
 		}
-		yield { start: lt, end: j + 1, attrs };
-		i = j + 1;
+	}
+}
+
+/**
+ * Read a tag's attributes from `j` (just past its name) to its `>`, into `attrs` (null: an end tag,
+ * read only to find its end). Returns the index just past the `>`, or -1 when the input ends inside
+ * the tag (the browser drops it). Names fold to lower case; a quoted value may hold `>` and the
+ * other quote; an unquoted one ends at whitespace or `>`; of two same-name attributes the first
+ * counts; values are kept as written.
+ */
+function read_attrs(html: string, j: number, attrs: Map<string, string> | null): number {
+	const n = html.length;
+	for (;;) {
+		while (j < n && (is_space(html.charCodeAt(j)) || html[j] === '/')) j++;
+		if (j >= n) return -1;
+		if (html[j] === '>') return j + 1;
+		// (the first character is the name's, even when it is `=`)
+		const name_start = j++;
+		while (j < n) {
+			const c = html[j];
+			if (c === '=' || c === '>' || c === '/' || is_space(html.charCodeAt(j))) break;
+			j++;
+		}
+		const name_end = j;
+		while (j < n && is_space(html.charCodeAt(j))) j++;
+		let value = '';
+		if (html[j] === '=') {
+			j++;
+			while (j < n && is_space(html.charCodeAt(j))) j++;
+			const q = html[j];
+			if (q === '"' || q === "'") {
+				const close = html.indexOf(q, j + 1);
+				if (close === -1) return -1;
+				value = html.slice(j + 1, close);
+				j = close + 1;
+			} else {
+				const v = j;
+				while (j < n && html[j] !== '>' && !is_space(html.charCodeAt(j))) j++;
+				value = html.slice(v, j);
+			}
+		}
+		if (attrs) {
+			const name = html.slice(name_start, name_end).toLowerCase();
+			if (!attrs.has(name)) attrs.set(name, value);
+		}
+	}
+}
+
+/**
+ * Each `<name …>` start tag in `html`, in order, read the way a browser's tokenizer reads one: no
+ * tag inside a comment (`<!-->` and `--!>` end one too), a bogus comment (`<!x …>`, `<?x …>`,
+ * CDATA), an end tag's attribute values, or the text of a raw-text element (script, style,
+ * textarea, title…, up to its own end tag). Pinned against parse5 by
+ * test/wire-markup-differential.test.ts. (Foreign content is not modelled: an `<svg>`'s `<style>`
+ * is read as raw text, as in HTML.)
+ */
+export function* tags(html: string, name: string): Generator<FoundTag> {
+	const want = name.toLowerCase();
+	const n = html.length;
+	let i = 0;
+	while (i < n) {
+		const lt = html.indexOf('<', i);
+		if (lt === -1) return;
+		const c = html.charCodeAt(lt + 1);
+		if (c === 33 /* ! */ && html.startsWith('<!--', lt)) {
+			// (`<!-->` and `<!--->` are whole comments; else the first `-->` or `--!>` ends it)
+			if (html[lt + 4] === '>') i = lt + 5;
+			else if (html.startsWith('->', lt + 4)) i = lt + 6;
+			else {
+				const a = html.indexOf('-->', lt + 4);
+				const b = html.indexOf('--!>', lt + 4);
+				if (a === -1 && b === -1) return;
+				i = b !== -1 && (a === -1 || b < a) ? b + 4 : a + 3;
+			}
+			continue;
+		}
+		if (c === 33 /* ! */ || c === 63 /* ? */) {
+			// a bogus comment (a doctype, CDATA, a processing instruction): to the first `>`
+			const gt = html.indexOf('>', lt + 2);
+			if (gt === -1) return;
+			i = gt + 1;
+			continue;
+		}
+		if (c === 47 /* / */) {
+			const d = html.charCodeAt(lt + 2);
+			if (is_letter(d)) {
+				// an end tag: its "attributes" are read (quotes and all) only to find its `>`
+				let j = lt + 3;
+				while (j < n && html[j] !== '>' && html[j] !== '/' && !is_space(html.charCodeAt(j))) j++;
+				const end = read_attrs(html, j, null);
+				if (end === -1) return;
+				i = end;
+			} else if (d === 62 /* > */) i = lt + 3;
+			else {
+				const gt = html.indexOf('>', lt + 2);
+				if (gt === -1) return;
+				i = gt + 1;
+			}
+			continue;
+		}
+		if (!is_letter(c)) {
+			i = lt + 1;
+			continue;
+		}
+		let j = lt + 2;
+		while (j < n && html[j] !== '>' && html[j] !== '/' && !is_space(html.charCodeAt(j))) j++;
+		const tag = html.slice(lt + 1, j).toLowerCase();
+		// (one map per wanted tag, not module-level; any other tag is read only to find its end)
+		const attrs = tag === want ? new Map<string, string>() : null;
+		const end = read_attrs(html, j, attrs);
+		if (end === -1) return;
+		if (attrs) yield { start: lt, end, attrs };
+		i = end;
+		if (tag === 'script') i = skip_script(html, end);
+		else if (tag === 'plaintext') return;
+		else if (RAW_TEXT.has(tag)) i = skip_raw(html, end, tag);
+		if (i === -1) return;
 	}
 }

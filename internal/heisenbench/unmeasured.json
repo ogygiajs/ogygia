@@ -2125,10 +2125,6 @@
 			"reason": "once at module load: every declared marker's name, linear in MARK's entries (fixed)"
 		},
 		{
-			"id": "packages/core/src/wire-markup.ts > tags",
-			"reason": "a generator (not recorded) the tests read pages with; no source calls it; proven in packages/core/test/wire-markup.test.ts"
-		},
-		{
 			"id": "packages/content/src/markdown/shiki.ts > render_code_region > replace:1~7326ff",
 			"reason": "the replacement for the multi-variant id attribute: one concatenation, constant work; proven in packages/content/test/fence-escaping.test.ts"
 		},
