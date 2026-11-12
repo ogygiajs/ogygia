@@ -6,7 +6,7 @@
 import { describe, it, expect, afterEach } from 'vitest';
 import { set_request_event_stub } from './_stubs/server.request-event.ts';
 
-const { known_region_fps } = await import('../src/server/region-endpoint.ts');
+const { reuse_known_region } = await import('../src/server/region-endpoint.ts');
 const { handle } = await import('../src/hooks.ts');
 
 const flag = globalThis as { __OGYGIA_SERVER_DELTA__?: boolean };
@@ -24,14 +24,17 @@ describe('server-delta: the x-ogygia-known header', () => {
 	it('is ignored when the app did not opt into serverDelta', () => {
 		const request = delta_request();
 		set_request_event_stub(() => ({ request }));
-		expect([...known_region_fps()]).toEqual([]);
+		expect(reuse_known_region('f00dfeed')).toBe(false);
+		expect(reuse_known_region('deadbeef')).toBe(false);
 	});
 
 	it('is read when the app opted in', () => {
 		flag.__OGYGIA_SERVER_DELTA__ = true;
 		const request = delta_request();
 		set_request_event_stub(() => ({ request }));
-		expect([...known_region_fps()]).toEqual(['f00dfeed', 'deadbeef']);
+		expect(reuse_known_region('f00dfeed')).toBe(true);
+		expect(reuse_known_region('deadbeef')).toBe(true);
+		expect(reuse_known_region('0badc0de')).toBe(false);
 	});
 
 	it('when the app opted in, a page says it varies by the header', async () => {
