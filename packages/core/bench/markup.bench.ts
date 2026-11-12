@@ -163,6 +163,29 @@ bench(
 	}
 );
 
+bench(
+	'tags: every region start tag of a document, read past its scripts, styles and comments',
+	({ html }) => {
+		let n = 0;
+		for (const t of tags(html, 'ogygia-region')) n += t.attrs.size;
+		return n;
+	},
+	{
+		setup: () => ({ html: document(300) }),
+		scale: (_ctx, k) => ({ html: document(300 * k) })
+	}
+);
+
+bench(
+	'tags: the head links of a page with forty islands',
+	({ h }) => {
+		let n = 0;
+		for (const t of tags(h, 'link')) n += t.end - t.start;
+		return n;
+	},
+	{ setup: () => ({ h: head(40) }) }
+);
+
 /** `n` rows of author text, one in three full of the characters that need escaping. */
 function cards(n: number): { id: string; href: string; title: string }[] {
 	return Array.from({ length: n }, (_, i) =>

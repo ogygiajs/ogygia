@@ -11,8 +11,10 @@ export type Frame = {
 	/** Address — the serialized call that produced this content. */
 	a: string;
 	/**
-	 * Version ticket. Assigned at REQUEST time (not arrival time) by the store, so a slow response
-	 * that started earlier can never overwrite one that started later. `write()` drops `v <=` applied.
+	 * A stamp of the store's one world (runtime/frame-store.ts `stamp()`): a fetch's is taken when
+	 * its request starts, a write from elsewhere takes one when it writes, so a slow response that
+	 * started earlier can never overwrite one that started, or landed, later. `write()` drops `v <=`
+	 * applied.
 	 */
 	v: number;
 	/**
@@ -71,6 +73,7 @@ export function written_order(value: object): FrameOrder | undefined {
 
 /** A capability's own parameters: its expiry, MAC, key fingerprint, lifetime and a renewal flag.
  *  They change per mint; the call they sign does not. */
+// static: the capability's own parameter names
 const CAPABILITY_PARAMS: ReadonlySet<string> = new Set(['exp', 'sig', 'k', 'ttl', 'renew']);
 /** An absolute URL's scheme and host: the address is the path it names on its page's origin. */
 const ORIGIN_RE = /^[a-z][a-z0-9+.-]*:\/\/[^/?#]*/i;

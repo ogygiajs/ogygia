@@ -9,7 +9,7 @@
  *
  * Only DIFFS are stored (default → nothing), bounded page count, so this stays cheap.
  */
-import { machine } from '@ogygia/machine';
+import { cache, machine } from '@ogygia/machine';
 import { element_address, resolve_address } from './interaction.ts';
 import { slots } from './slots.ts';
 import { OGYGIA_NO_KEEP } from '../wire-markup.ts';
@@ -34,7 +34,7 @@ type FieldRec = {
 };
 
 /** pathKey → the fields a visitor changed on that page (in this tab session). */
-const store = new Map<string, FieldRec[]>();
+const store = cache<string, FieldRec[]>({ name: 'form continuity', max: MAX_PAGES });
 
 /** How long a page's restore listens for its islands' hydrations (they have all hydrated by
  *  then, or never will). */
@@ -84,12 +84,9 @@ export function snapshot_forms(root: ParentNode, pathKey: string): void {
 			});
 		}
 	});
-	if (recs.length) {
-		store.delete(pathKey); // refresh recency
-		store.set(pathKey, recs);
-		// Bound the store — evict oldest paths.
-		while (store.size > MAX_PAGES) store.delete(store.keys().next().value as string);
-	} else {
+	// (the store is bounded: past MAX_PAGES the least recently saved or read page goes)
+	if (recs.length) store.set(pathKey, recs);
+	else {
 		store.delete(pathKey);
 	}
 }
