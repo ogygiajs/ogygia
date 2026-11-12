@@ -800,8 +800,20 @@ export function faulted(world: World, tab: Tab, since?: number): boolean {
 					(typeof e.status === 'number' && e.status >= 500))) ||
 			// (a server's hop for it changed on the way: what the page was made from. A cut one is
 			// a failure the app must answer well, #937)
-			(e.for !== undefined && mine(e.for) && e.tampered)
+			(e.for !== undefined && mine(e.for) && e.tampered) ||
+			kept_changed(e, tab)
 	);
+}
+
+/** A peer's page a server's hop got changed on the way, for any document: the app keeps a peer's
+ *  page documents (`cache: { ttl }`), so a later document of that page, and the MPA check's fresh
+ *  load, may be shown the changed copy (gen 125, seed 125013). By the hop's `path` and the page's. */
+function kept_changed(e: World['network']['exchanges'][number], tab: Tab): boolean {
+	if (!e.tampered || e.for === undefined) return false;
+	const hop = new URL(e.url);
+	if (!hop.pathname.endsWith('/og/fragment/page')) return false;
+	const path = hop.searchParams.get('path');
+	return path !== null && new URL(tab.page.mainFrame.url).pathname.endsWith(path);
 }
 
 /** Was the HTML of the document `tab` shows changed or cut on its way? (Its own load is the first
@@ -821,7 +833,7 @@ export function document_faulted(world: World, tab: Tab): boolean {
 		// (or what a server fetched to make this document's answers: a changed byte in a peer's page
 		// is in the page, as one in the page's own HTML would be; gen 32, seed 32008, `pe�r-page` in
 		// a mounted peer page)
-		if (e.for === tab.realm && e.tampered) return true;
+		if ((e.for === tab.realm && e.tampered) || kept_changed(e, tab)) return true;
 		const path = new URL(e.url).pathname;
 		if (e.from === tab.realm) return is_page_path(path);
 		return e.from.startsWith(`${tab.name}#`) && path === here;
