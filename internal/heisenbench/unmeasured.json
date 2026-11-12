@@ -2277,14 +2277,6 @@
 			"reason": "say(): one build warning a skipped component says once, constant work"
 		},
 		{
-			"id": "packages/core/src/compiler/region/transform.ts > say_unparsed",
-			"reason": "the build warning for a host the parser cannot read, said once per file, constant work"
-		},
-		{
-			"id": "packages/core/src/compiler/region/transform.ts > warn_unparsed > once:1~087a4c",
-			"reason": "say(): one build warning per unparsed file, constant work"
-		},
-		{
 			"id": "packages/core/src/plugin/css.ts > componentCssHead > once:1~695de0",
 			"reason": "say(): one dev warning for the process, constant work"
 		},
@@ -2303,10 +2295,6 @@
 		{
 			"id": "packages/core/src/store-transport.ts > __og_store > <anonymous>~221e3f > once:1~fd8aa8",
 			"reason": "say(): one warning per unbranded store tag, constant work"
-		},
-		{
-			"id": "packages/core/src/vite/style-preprocess.ts > preprocess_component_for_css > once:1~832199",
-			"reason": "say(): one build warning for the process, constant work"
 		},
 		{
 			"id": "packages/flags/src/index.ts > flag > bucket > once:1~0367ec",
@@ -2953,32 +2941,8 @@
 			"reason": "wraps a derived key (a Buffer, not cloneable) in a sign/verify pair, once per profiler; the mint and check it serves are benched in packages/devtools/bench/window-id.bench.ts"
 		},
 		{
-			"id": "packages/core/src/compiler/macros/pipeline.ts > run_module_macros > refuse",
-			"reason": "throws the coded build error (not replayable), constant work; proven in packages/core/test/macros-own-source.test.ts"
-		},
-		{
-			"id": "packages/core/src/compiler/driver.ts > Compiler > macros > run_module_macros:2~cee8e9 > ownSource",
-			"reason": "forwards to CompileCtx.is_own_source, one call; proven in packages/core/test/macros-own-source.test.ts"
-		},
-		{
-			"id": "packages/core/src/compiler/ctx.ts > CompileCtx > is_own_source",
-			"reason": "one substring test and the declared-package lookup (a CompileCtx, hidden state), constant work per declared root"
-		},
-		{
-			"id": "packages/core/src/compiler/messages.ts > BUILD_ERRORS > macro_outside_app > text",
-			"reason": "a message's wording, constant text; said in packages/core/test/macros-own-source.test.ts"
-		},
-		{
-			"id": "packages/core/src/compiler/messages.ts > BUILD_ERRORS > macro_outside_app > details",
-			"reason": "a message's wording, constant text; said in packages/core/test/macros-own-source.test.ts"
-		},
-		{
 			"id": "packages/postrender/src/server.ts > credentialed",
 			"reason": "two header lookups on the request (a Request, not cloneable), once per request, constant work; proven in packages/postrender/test/plugin.test.ts"
-		},
-		{
-			"id": "packages/core/src/vite/package-files.ts > discover_package_files > inside",
-			"reason": "a closure over the package's real root (not replayable), one prefix compare; proven in packages/core/test/package-files.test.ts"
 		},
 		{
 			"id": "packages/core/src/server/rules.ts > note_region_answer",
@@ -4715,6 +4679,98 @@
 		{
 			"id": "packages/machine/src/registry.ts > defining_host",
 			"reason": "reads or makes the process-wide defining host on globalThis (not cloneable), constant work"
+		},
+		{
+			"id": "packages/compiler/src/compiler/region/transform.ts > say_unparsed",
+			"reason": "the build warning for a host the parser cannot read, said once per file, constant work"
+		},
+		{
+			"id": "packages/compiler/src/compiler/region/transform.ts > warn_unparsed > once:1~087a4c",
+			"reason": "say(): one build warning per unparsed file, constant work"
+		},
+		{
+			"id": "packages/compiler/src/vite/style-preprocess.ts > preprocess_component_for_css > once:1~832199",
+			"reason": "say(): one build warning for the process, constant work"
+		},
+		{
+			"id": "packages/compiler/src/compiler/macros/pipeline.ts > run_module_macros > refuse",
+			"reason": "throws the coded build error (not replayable), constant work; proven in packages/core/test/macros-own-source.test.ts"
+		},
+		{
+			"id": "packages/compiler/src/compiler/driver.ts > Compiler > macros > run_module_macros:2~cee8e9 > ownSource",
+			"reason": "forwards to CompileCtx.is_own_source, one call; proven in packages/core/test/macros-own-source.test.ts"
+		},
+		{
+			"id": "packages/compiler/src/compiler/ctx.ts > CompileCtx > is_own_source",
+			"reason": "one substring test and the declared-package lookup (a CompileCtx, hidden state), constant work per declared root"
+		},
+		{
+			"id": "packages/compiler/src/vite/package-files.ts > discover_package_files > inside",
+			"reason": "a closure over the package's real root (not replayable), one prefix compare; proven in packages/core/test/package-files.test.ts"
+		},
+		{
+			"id": "packages/core/src/context.ts > head_owner",
+			"reason": "one Svelte getContext read per region in the server render (hidden state: the component context), constant work; proven in apps/palaestra/e2e/head-owner-kept.spec.ts (#806)"
+		},
+		{
+			"id": "packages/core/src/context.ts > set_head_owner",
+			"reason": "one Svelte setContext write per outermost island in the server render (hidden state: the component context), constant work; proven in apps/palaestra/e2e/head-owner-kept.spec.ts (#806)"
+		},
+		{
+			"id": "packages/core/src/hooks.ts > set_ref_names_reader:0~1d7e63",
+			"reason": "the per-request ref names reader the handle installs once at startup: reads the request-local store (hidden state), constant work; proven by packages/core/test/hole-identity-refs.test.ts (#816)"
+		},
+		{
+			"id": "packages/core/src/messages/core.ts > ERRORS > kit_boot_failed > text",
+			"reason": "a message's wording (one URL), constant text; said in apps/palaestra/e2e/kit-boot-failed.spec.ts (#820)"
+		},
+		{
+			"id": "packages/core/src/messages/core.ts > ERRORS > kit_boot_failed > details",
+			"reason": "a message table entry: wording only (#820)"
+		},
+		{
+			"id": "packages/core/src/runtime/core.ts > OgygiaRegion > #live_hydrate > catch:0~66a292",
+			"reason": "browser only, an error path: a live region's Kit wait failed because Kit cannot start (once per page at most), constant work; proven in apps/palaestra/e2e/kit-boot-failed.spec.ts (#820)"
+		},
+		{
+			"id": "packages/core/src/runtime/core.ts > kit_boot_failed",
+			"reason": "an error path's code check (one property read), constant work; proven in apps/palaestra/e2e/kit-boot-failed.spec.ts (#820)"
+		},
+		{
+			"id": "packages/core/src/runtime/hydrate-core.ts > absorb_region_props",
+			"reason": "browser only: a kept region takes the next page's props on a navigation, through its live island and the page's context store (not cloneable), linear in its props; proven in apps/palaestra/e2e (#804)"
+		},
+		{
+			"id": "packages/core/src/runtime/hydrate-core.ts > absorb_region_props > capture_region_ids:1~a50e0d",
+			"reason": "browser only: the context read absorb_region_props wraps to record the ids the region owns (not cloneable), constant work around it (#804)"
+		},
+		{
+			"id": "packages/core/src/runtime/kit-page-thread.svelte.ts > kit_boot_failed",
+			"reason": "an error path, at most once per Kit boot file per page: makes the coded error and says it once (console), constant work; proven in packages/core/test/browser/kit-page-thread.test.ts (#820)"
+		},
+		{
+			"id": "packages/core/src/runtime/kit-page-thread.svelte.ts > kit_boot_failed > once:1~5d742a",
+			"reason": "the console.error said once per file (an error path), constant work (#820)"
+		},
+		{
+			"id": "packages/core/src/runtime/kit-page-thread.svelte.ts > kit_boot_imports",
+			"reason": "browser only: reads the live document's inline scripts once per Kit wait (not on the boot), linear in the inline scripts; proven in packages/core/test/browser/kit-page-thread.test.ts (#820)"
+		},
+		{
+			"id": "packages/core/src/runtime/region-sheets.ts > release_head_nodes",
+			"reason": "browser only: after a navigation's swap, walks the connected regions (a module set of live elements, not cloneable) against the head nodes the next page does not list; linear in both; proven in packages/core/test/browser/head-owner-release.test.ts (#806)"
+		},
+		{
+			"id": "packages/core/src/runtime/router-nav.ts > release_head_nodes",
+			"reason": "browser only: the navigation's call into region-sheets.ts release_head_nodes (the live head, not cloneable), constant work around it (#806)"
+		},
+		{
+			"id": "packages/compiler/src/compiler/messages.ts > BUILD_ERRORS > macro_outside_app > text",
+			"reason": "a message's wording, constant text; said in packages/core/test/macros-own-source.test.ts"
+		},
+		{
+			"id": "packages/compiler/src/compiler/messages.ts > BUILD_ERRORS > macro_outside_app > details",
+			"reason": "a message's wording, constant text; said in packages/core/test/macros-own-source.test.ts"
 		}
 	]
 }
