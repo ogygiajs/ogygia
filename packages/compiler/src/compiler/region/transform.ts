@@ -7,7 +7,7 @@ import { foucCssVirtualId } from '../fouc-css.ts';
 import { collectCaptureInfo } from '../free-vars.ts';
 import { parse_module } from '../parse/oxc.ts';
 import { strategyKey, regionIdentity, regionId } from './identity.ts';
-import { parse_trigger, SCHEDULE, WAKE } from '../../contract/trigger.ts';
+import { parse_trigger, SCHEDULE, WAKE } from '@ogygia/core/contract';
 import { regionBindingVirtualId, region_family, wrapperVirtualId } from '../ids.ts';
 import { OGYGIA_SCHEME } from '../virtual/table.ts';
 import {
@@ -207,7 +207,7 @@ function warn_once(key: string, speak: () => void): void {
 }
 
 // Invariant per-build — hoisted to module scope so they aren't reallocated on every transformHost.
-// The wake, swap, prefetch and revalidate vocabulary is ../../contract/trigger.ts: `WAKE` (with
+// The wake, swap, prefetch and revalidate vocabulary is core's contract/trigger.ts: `WAKE` (with
 // `interaction`: on an island, the first pointer/key/focus wakes it with click replay; on a deferred
 // region, an ON-DEMAND hole) and `SCHEDULE` (a prefetch, a revalidation: never `interaction`, which
 // is the swap, and never `none`, which is no schedule).
