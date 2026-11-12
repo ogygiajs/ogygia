@@ -73,7 +73,7 @@ export function normalize(root: {
 		if (tag === 'link' && /\b(modulepreload|preload|prefetch)\b/.test(el.getAttribute('rel') ?? ''))
 			return;
 		if (el.hasAttribute('data-ogygia-announcer')) return;
-		if (tag === 'meta' && el.getAttribute('name') === 'ogygia-stored') return;
+		if (el.matches(STORE_MARK)) return;
 		const attrs = [...el.attributes]
 			.filter(
 				(a) =>
@@ -1003,12 +1003,13 @@ export class Leaks {
 		const list = this.#samples.get(key) ?? [];
 		const held = tab.held();
 		// (a module preload stays in the head once added, as Vite's own do: one per chunk the app
-		// has, so bounded by the app, not by the visits; set aside)
-		const preloads = preloads_in_head(tab);
+		// has, so bounded by the app, not by the visits; and a page store's mark is delivery: set
+		// aside)
+		const delivery = delivery_in_head(tab);
 		const now: Record<string, number> = {
 			...held,
-			head: held.head - preloads,
-			elements: held.elements - preloads
+			head: held.head - delivery,
+			elements: held.elements - delivery
 		};
 		// (one sample per visit, its latest: the visit may still have been settling)
 		const labels = this.#listening.get(key) ?? [];
@@ -1082,8 +1083,14 @@ function added(before: string[], after: string[]): string[] {
 	return more;
 }
 
-/** The module preloads in a tab's head. */
-function preloads_in_head(tab: Tab): number {
+/** A page store's mark on a copy it served (`<meta name="ogygia-stored">`): delivery, not the
+ *  page. The MPA check drops it (gen 63, seed 26), and the leak check does not count it: a stored
+ *  visit brings it in once (gen 61, seed 36). */
+const STORE_MARK = 'meta[name="ogygia-stored"]';
+
+/** What the head holds that a visit does not leak: the module preloads (one per chunk the app
+ *  has, kept once added, as Vite's own are) and a page store's mark. */
+function delivery_in_head(tab: Tab): number {
 	const head = (tab.page.mainFrame.document as unknown as Document).head;
-	return head ? head.querySelectorAll('link[rel="modulepreload"]').length : 0;
+	return head ? head.querySelectorAll(`link[rel="modulepreload"], ${STORE_MARK}`).length : 0;
 }
