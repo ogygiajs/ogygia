@@ -286,29 +286,30 @@ import { queue } from '@ogygia/machine';
 
 const renders = queue<Call>({
 	max: 4,
-	start: (call) => call.enter(), // its turn, in the step its place came free
+	start: (call, place) => call.enter(place), // its turn, in the step its place came free
 	stale: (call) => call.gone() // its deadline came, it was cancelled, or the owner closed
 });
 renders.push(call, Date.now() + 5_000);
 signal.addEventListener('abort', () => renders.cancel(call));
 // once the call's work is done:
-renders.release();
+place.release();
 ```
 
 |                       |                                                                                              |
 | --------------------- | -------------------------------------------------------------------------------------------- |
 | `max`                 | The most jobs holding a place at once.                                                       |
-| `start(job)`          | Starts a job; its place is its until `release()`.                                            |
+| `start(job, place)`   | Starts a job; `place` is its until `place.release()`.                                        |
 | `stale(job)`          | Hears a job that will never start: its deadline came, it was cancelled, or the owner closed. |
 | `now`                 | The clock deadlines are read on. Default `performance.now()`.                                |
 | `owner`               | Closing it makes every waiting job stale, and any pushed after.                              |
 | `push(job, deadline)` | Queues a job, to start in turn or be stale at its deadline.                                  |
 | `cancel(job)`         | A waiting job leaves at once, stale; a started one is untouched.                             |
-| `release()`           | A started job's work is done: its place goes to the next job, in this step.                  |
+| `place.release()`     | A started job's work is done: its place goes to the next job, in this step. Once per place.  |
 
+- **A place is its job's.** It is given back once: a second `release()` does nothing, so it never frees another job's place. A `start` that throws gives its place back.
 - **A place is handed on, never free in between.** A release starts the next job in the same step, so a job pushed meanwhile queues behind it. A `start` that pushes, cancels or releases is safe inside the drain.
 - **A wait never hangs.** A job still waiting at its deadline is stale and never starts; one whose deadline came is passed over at a release even before the timer runs. The deadlines share one timer, at the earliest one waiting, gone once none waits.
-- **No record per job.** The queue keeps the jobs themselves, in the order pushed. A `start` that throws is reported ([machine_queue_start_failed](https://ogygiajs.dev/e/machine_queue_start_failed)) and the jobs after it still start; a `stale` that throws is reported too ([machine_queue_stale_failed](https://ogygiajs.dev/e/machine_queue_stale_failed)), and the other waiting jobs still go stale.
+- **No record per job.** The queue keeps the jobs themselves, in the order pushed. A `start` that throws is reported ([machine_queue_start_failed](https://ogygiajs.dev/e/machine_queue_start_failed)), its place goes back, and the jobs after it still start; a `stale` that throws is reported too ([machine_queue_stale_failed](https://ogygiajs.dev/e/machine_queue_stale_failed)), and the other waiting jobs still go stale.
 
 ## Outbox
 
@@ -458,7 +459,7 @@ await recorder.acquire(signal); // waits its turn
 const facts = slot({ name: 'ogygia.facts', version: 2, make: () => ({ by_request: new WeakMap() }) });
 ```
 
-The value lives at `globalThis[Symbol.for(name)]`. A name starts with `ogygia.` and carries no version: `version` is the value's shape, raised when the shape changes. A copy that asks for another version of a held name is refused in dev ([machine_slot_version](https://ogygiajs.dev/e/machine_slot_version)); in production it keeps a private value, said once.
+The value lives at `globalThis[Symbol.for(name)]`. A name starts with `ogygia.` and carries no version: `version` is the value's shape, raised when the shape changes. A copy that asks for another version of a held name is refused in dev ([machine_slot_version](https://ogygiajs.dev/e/machine_slot_version)); in production it keeps a private value for its version (made once, shared by every copy at that version), said once.
 
 ## Clocks
 

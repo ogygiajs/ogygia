@@ -208,7 +208,7 @@ The rules every hook follows:
 
 - Subscribers run in plugin order, the same order as the server hooks.
 - A hook only listens: what it returns is ignored. A promise it returns is never awaited.
-- A hook that throws, or whose promise rejects, is reported once (`client_hook_failed`) and stops nothing else.
+- A hook that throws, or whose promise rejects, is reported once (`client_hook_failed`) and stops nothing else. A `boot` that throws is reported the same way: the other plugins boot and the regions still wake.
 - Every subscriber gets the same event object. In dev it is frozen, so a hook that writes to it fails.
 
 The build reads the keys of `hooks` from the file, so write it as an object literal inside `defineClient({ … })`. A hook no plugin subscribes to is removed from the runtime, with every call to it.

@@ -2,7 +2,7 @@
 // step (an NTP correction, a VM resume, a laptop waking) moves neither a `keep` TTL nor a retry
 // deadline (#472). A seeded run steps the wall clock forward and back by hours between reads.
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { clock, flights, policy, queue } from '../src/index.ts';
+import { clock, flights, policy, queue, type Place } from '../src/index.ts';
 import { under_policy } from '../src/policy.ts';
 
 afterEach(() => {
@@ -113,16 +113,19 @@ describe('a queue reads deadlines on the monotonic clock', () => {
 		let mono = 0;
 		vi.spyOn(clock, 'mono').mockImplementation(() => mono);
 		const log: string[] = [];
+		const places: Place[] = [];
 		const q = queue<string>({
 			max: 1,
-			start: (job) => void log.push(job),
+			start: (job, place) => {
+				log.push(job);
+				places.push(place);
+			},
 			stale: (job) => void log.push(`stale ${job}`)
 		});
 		q.push('first');
 		q.push('late', 1e12);
 		mono = 2e12;
-		q.release();
+		places[0].release();
 		expect(log).toEqual(['first', 'stale late']);
-		q.release();
 	});
 });
