@@ -1,9 +1,3 @@
-/**
- * QUERIES OVER THE STACK INDEX (analyze.ts `StackIndex`): the samples of one render with their
- * stacks, asked "what ran in this range" and "what was the stack at this instant". Pure and
- * cheap — a range query walks the samples once and each sample's stack once — so the report's
- * scrubber can answer while the mouse moves. No regex: the labels are compared as they are.
- */
 import type { StackIndex, FrameCategory } from './analyze.ts';
 
 export interface RangeRow {
@@ -33,7 +27,6 @@ export interface RangeSummary {
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
-/** the first sample index whose end reaches `t` (binary search on the sorted starts) */
 function first_at(index: StackIndex, t: number): number {
 	let lo = 0;
 	let hi = index.t.length;
