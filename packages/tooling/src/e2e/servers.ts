@@ -13,6 +13,7 @@ import { spawn, type ChildProcess } from 'node:child_process';
 import { connect } from 'node:net';
 import { setTimeout as pause } from 'node:timers/promises';
 import { clock, machine } from '@ogygia/machine';
+import { append_server_log } from './server-log.ts';
 
 /** A port a suite owns, moved up by `E2E_PORT_OFFSET`: when one machine runs a suite as several
  *  groups at once (`pnpm test:e2e`), each group's servers sit in their own range. Every fixed port
@@ -127,8 +128,9 @@ export async function spawn_server(opts: SpawnServerOptions): Promise<SpawnedSer
 		stdio: ['ignore', 'pipe', 'pipe'],
 		detached: true
 	});
-	child.stdout?.on('data', (d) => logs.push(String(d)));
-	child.stderr?.on('data', (d) => logs.push(String(d)));
+	// (kept in the suite's server log too: each test reads the server rules said while it ran)
+	child.stdout?.on('data', (d) => (logs.push(String(d)), append_server_log(d)));
+	child.stderr?.on('data', (d) => (logs.push(String(d)), append_server_log(d)));
 	const closed = new Promise<void>((r) => child.once('close', () => r()));
 	const pid = child.pid;
 	const signal_group = (sig: NodeJS.Signals) => {
