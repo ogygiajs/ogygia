@@ -155,20 +155,22 @@ const fill_token = /\[(\.\.\.)?\[?([a-zA-Z_$][\w$]*)\]?\]/g;
  *  every URL parser drops that segment, so the URL would name another route (`%2e` is read as a
  *  dot too). Test: test/property-fill-match.test.ts. */
 export function fill(pattern: string, params: Record<string, string | number>): string {
-	return pattern.replace(fill_token, (m, _rest, name: string, at: number) => {
-		const val = params[name];
-		const out = val == null ? '' : encodeURIComponent(String(val));
-		const end = at + m.length;
-		if (
-			(out === '.' || out === '..') &&
-			pattern[at - 1] === '/' &&
-			(end === pattern.length || pattern[end] === '/')
-		)
-			throw new Error(
-				`[@ogygia/router] the param "${name}" is ${JSON.stringify(out)}, a dot segment a URL drops: it would name another route than ${pattern}`
-			);
-		return out;
-	});
+	// (segment by segment: a token never spans a `/`, and a segment is a dot segment whatever filled
+	// it, one token, several, or a token beside a literal dot)
+	return pattern
+		.split('/')
+		.map((seg) => {
+			const out = seg.replace(fill_token, (_m, _rest, name: string) => {
+				const val = params[name];
+				return val == null ? '' : encodeURIComponent(String(val));
+			});
+			if (out !== seg && (out === '.' || out === '..'))
+				throw new Error(
+					`[@ogygia/router] the segment "${seg}" fills as ${JSON.stringify(out)}, a dot segment a URL drops: it would name another route than ${pattern}`
+				);
+			return out;
+		})
+		.join('/');
 }
 
 const MAX_PATH = 8192;
