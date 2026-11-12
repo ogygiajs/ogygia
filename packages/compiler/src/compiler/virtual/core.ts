@@ -683,6 +683,10 @@ export const hook_answer_placed: Constant = hook_gate('answerPlaced');
 export const hook_region_hydrated: Constant = hook_gate('regionHydrated');
 /** a plugin's browser half subscribes to `regionFailed` */
 export const hook_region_failed: Constant = hook_gate('regionFailed');
+/** a plugin's browser half subscribes to `regionWoke` */
+export const hook_region_woke: Constant = hook_gate('regionWoke');
+/** a plugin's browser half subscribes to `regionMismatched` */
+export const hook_region_mismatched: Constant = hook_gate('regionMismatched');
 /** a plugin's browser half subscribes to `holeAnswered` */
 export const hook_hole_answered: Constant = hook_gate('holeAnswered');
 /** a plugin's browser half subscribes to `holeFailed` */
@@ -691,10 +695,14 @@ export const hook_hole_failed: Constant = hook_gate('holeFailed');
 export const hook_hole_batch_missed: Constant = hook_gate('holeBatchMissed');
 /** a plugin's browser half subscribes to `entryFallback` */
 export const hook_entry_fallback: Constant = hook_gate('entryFallback');
+/** a plugin's browser half subscribes to `navStarted` */
+export const hook_nav_started: Constant = hook_gate('navStarted');
 /** a plugin's browser half subscribes to `navigated` */
 export const hook_navigated: Constant = hook_gate('navigated');
 /** a plugin's browser half subscribes to `criticalSettled` */
 export const hook_critical_settled: Constant = hook_gate('criticalSettled');
+/** a plugin's browser half subscribes to `loadStarted` */
+export const hook_load_started: Constant = hook_gate('loadStarted');
 /** a plugin's browser half subscribes to `warning` */
 export const hook_warning: Constant = hook_gate('warning');
 
@@ -729,12 +737,16 @@ export const CORE_CONSTANTS: readonly Constant<boolean | number | string | null>
 	hook_answer_placed,
 	hook_region_hydrated,
 	hook_region_failed,
+	hook_region_woke,
+	hook_region_mismatched,
 	hook_hole_answered,
 	hook_hole_failed,
 	hook_hole_batch_missed,
 	hook_entry_fallback,
+	hook_nav_started,
 	hook_navigated,
 	hook_critical_settled,
+	hook_load_started,
 	hook_warning,
 	kit_major,
 	version,
