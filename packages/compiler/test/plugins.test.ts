@@ -19,6 +19,8 @@ import {
 } from '../src/vite/plugin-api.ts';
 import { EVERY_BARREL } from '../src/compiler/exports/index.ts';
 import { server_plugins_module, route_config_module } from '../src/compiler/link/caps.ts';
+import { route_reader } from '../src/compiler/kit.ts';
+import { node_fs } from '../src/compiler/fs.ts';
 import { defineServer } from '../../core/src/plugin/index.ts';
 import { facts_of, note_per_visitor } from '../../core/src/plugin/facts.ts';
 import { ask, notify, register_hooks } from '../../core/src/plugin/hooks.ts';
@@ -28,6 +30,8 @@ import {
 	route_config,
 	set_page_route_config
 } from '../../core/src/plugin/routes.ts';
+
+const R = route_reader(node_fs);
 import { startPlugin } from '../../core/src/plugin/testing.ts';
 import { dedent } from '@ogygia/core/plugin/utils';
 

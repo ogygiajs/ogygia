@@ -3,11 +3,8 @@ import { dedent } from '@ogygia/core/contract';
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import {
-	read_route_config,
-	page_route_config,
-	route_reader
-} from '../src/compiler/kit.ts';
+import { read_route_config, page_route_config, route_reader } from '../src/compiler/kit.ts';
+import { node_fs } from '../src/compiler/fs.ts';
 import {
 	route_config,
 	set_page_route_config,
@@ -24,6 +21,7 @@ import {
 // accepts any key inside `config`. This suite pins the read, the merge, and the run-time answer.
 // ─────────────────────────────────────────────────────────────────────────────
 
+const R = route_reader(node_fs);
 const dirs: string[] = [];
 afterEach(() => {
 	for (const d of dirs.splice(0)) rmSync(d, { recursive: true, force: true });

@@ -22,8 +22,11 @@ import {
 	read_csr,
 	route_reader
 } from '../src/compiler/kit.ts';
+import { node_fs } from '../src/compiler/fs.ts';
 import { transformHost } from '../src/compiler/region/transform.ts';
 import { dedent } from '@ogygia/core/contract';
+
+const R = route_reader(node_fs);
 
 /** Write a route tree: { 'content/[...slug]/+page.ts': 'export const csr = false;' }. */
 function tree(files: Record<string, string>): string {
@@ -138,7 +141,9 @@ describe('page world — option-file chain, deepest wins', () => {
 			'docs/[[lang]]/[...slug]/+page.ts': 'export const csr = false;\n',
 			'docs/[[lang]]/[...slug]/+page.svelte': '<h1>doc</h1>'
 		});
-		expect(routeCsrIsFalse(R, at(routes, 'docs/[[lang]]/[...slug]/+page.svelte'), routes)).toBe(true);
+		expect(routeCsrIsFalse(R, at(routes, 'docs/[[lang]]/[...slug]/+page.svelte'), routes)).toBe(
+			true
+		);
 	});
 
 	it('non-route files and files outside routesDir are never route hosts', () => {

@@ -37,7 +37,9 @@ export const node_fs: Fs = {
 	},
 	list(dir) {
 		try {
-			return fs.readdirSync(dir, { withFileTypes: true }).map((e) => ({ name: e.name, kind: kind_of(e) }));
+			return fs
+				.readdirSync(dir, { withFileTypes: true })
+				.map((e) => ({ name: e.name, kind: kind_of(e) }));
 		} catch {
 			return null; // ok: not a listable directory, the contract above
 		}

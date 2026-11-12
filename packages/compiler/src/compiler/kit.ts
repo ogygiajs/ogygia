@@ -39,7 +39,10 @@ const routes_by_fs = new WeakMap<Fs, Routes>();
 export function route_reader(files: Fs): Routes {
 	let r = routes_by_fs.get(files);
 	if (r) return r;
-	const csr_of_file = cache<string, boolean | undefined>({ name: 'route csr', max: ROUTE_FILES_MAX });
+	const csr_of_file = cache<string, boolean | undefined>({
+		name: 'route csr',
+		max: ROUTE_FILES_MAX
+	});
 	const config_of_file = cache<string, Record<string, unknown>>({
 		name: 'route config',
 		max: ROUTE_FILES_MAX

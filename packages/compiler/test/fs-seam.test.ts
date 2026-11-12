@@ -13,7 +13,8 @@ import {
 	clientBuildWillSkip,
 	csrTrueRouteIds,
 	page_route_config,
-	routeCsrIsFalse
+	routeCsrIsFalse,
+	route_reader
 } from '../src/compiler/kit.ts';
 import { partial_ctx_init } from './_compile-ctx.ts';
 import { dedent } from '@ogygia/core/contract';
@@ -30,7 +31,10 @@ function app_files(): Record<string, string> {
 			</script>
 			<Counter />
 		`,
-		[`${ROUTES}/live/+page.ts`]: `export const csr = true;\nexport const config = { tier: 'gold' };\n`,
+		[`${ROUTES}/live/+page.ts`]: dedent`
+			export const csr = true;
+			export const config = { tier: 'gold' };
+		`,
 		[`${ROUTES}/live/+page.svelte`]: `<p>live</p>\n`,
 		[`${ROOT}/src/lib/Counter.svelte`]: dedent`
 			<script>
@@ -94,8 +98,9 @@ describe('the compiler reads an app through its fs seam', () => {
 	test('route worlds and route config come from the seam, and each file system has its own', () => {
 		const a = memory_fs(app_files());
 		const b = memory_fs({ ...app_files(), [`${ROUTES}/+layout.ts`]: `export const csr = true;\n` });
-		const ra = new CompileCtx(partial_ctx_init({ root: ROOT, fs: a })).routes;
-		const rb = new CompileCtx(partial_ctx_init({ root: ROOT, fs: b })).routes;
+		const ra = route_reader(a);
+		const rb = route_reader(b);
+		expect(route_reader(a)).toBe(ra); // one cache set per file system
 		expect(routeCsrIsFalse(ra, `${ROUTES}/+page.svelte`, ROUTES)).toBe(true);
 		expect(routeCsrIsFalse(rb, `${ROUTES}/+page.svelte`, ROUTES)).toBe(false);
 		expect(csrTrueRouteIds(ra, ROUTES)).toEqual(['/live']);
@@ -130,12 +135,20 @@ describe('the compiler reads an app through its fs seam', () => {
 // Each direct `node:fs` call left in the compiler, by file, and why it is not an app read. A new
 // one fails here: route it through `ctx.fs`, or add it with its reason.
 const DIRECT_FS: Record<string, { calls: number; why: string }> = {
-	'fs.ts': { calls: 4, why: 'the seam itself: the node file system' },
-	'build-cache.ts': { calls: 6, why: "the build cache's own directory, written and read back" },
-	'kit.ts': { calls: 12, why: "Kit's package files, the app's hooks, the keepalive route it writes" },
+	'fs.ts': { calls: 3, why: 'the seam itself: the node file system' },
+	'build-cache.ts': { calls: 5, why: "the build cache's own directory, written and read back" },
+	'kit.ts': {
+		calls: 10,
+		why: "Kit's package files, the app's hooks, the keepalive route and stale dirs it writes"
+	},
 	'virtual/core.ts': { calls: 2, why: "ogygia's own package.json (the dev runtime's location)" },
-	'macros/bake.ts': { calls: 5, why: 'moving to its own package' },
-	'flags.ts': { calls: 0, why: 'moving to its own package' }
+	'link/build-output.ts': { calls: 7, why: 'the build output it writes and patches' },
+	'link/island-deps.ts': {
+		calls: 1,
+		why: 'generated server code, reading its handoff at run time'
+	},
+	'link/page-keys.ts': { calls: 1, why: 'moving to its own package (#1335)' },
+	'macros/bake.ts': { calls: 4, why: 'moving to its own package' }
 };
 
 test('the compiler reads app files only through its fs seam', () => {
@@ -144,13 +157,11 @@ test('the compiler reads app files only through its fs seam', () => {
 	for (const rel of fs.readdirSync(dir, { recursive: true, encoding: 'utf8' })) {
 		if (!rel.endsWith('.ts')) continue;
 		const src = fs.readFileSync(path.join(dir, rel), 'utf8');
-		const n = src.match(/\bfs\.\w+(Sync)?\(/g)?.length ?? 0;
+		// (`ctx.fs.read(` and `r.fs.stat(` are the seam: a dot before `fs` is not a direct call)
+		const n = src.match(/(?<![\w.])fs\s*\.\s*\w+\(/g)?.length ?? 0;
 		if (n > 0) found[rel.split(path.sep).join('/')] = n;
 	}
-	const allowed = Object.fromEntries(
-		Object.entries(DIRECT_FS)
-			.filter(([, v]) => v.calls > 0)
-			.map(([k, v]) => [k, v.calls])
+	expect(found).toEqual(
+		Object.fromEntries(Object.entries(DIRECT_FS).map(([k, v]) => [k, v.calls]))
 	);
-	expect(found).toEqual(allowed);
 });
