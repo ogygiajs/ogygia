@@ -11,14 +11,23 @@ vi.mock('ogygia:server/route-config', () => ({ route_config: {} }));
 vi.mock('ogygia:server/devtools-boot-url', () => ({ devtools_boot_url: '' }));
 const A = 'aaaaaa012345';
 const B = 'bbbbbb012345';
+const C = 'cccccc012345';
 /** A hole whose tree mints one slot id, as Region does (with the render's slot sequence). */
 const minting = ($$renderer: { push(s: string): void }) =>
 	$$renderer.push(`<i>${next_slot_id('e', getContext(Symbol.for('ogygia.slot-sequence')))}</i>`);
+/** A hole whose tree mints in a render root of its own (`await region(…)`, a held region): that
+ *  root's context is made fresh, so it carries no slot sequence. */
+const fresh_root = ($$renderer: { push(s: string): void }) =>
+	$$renderer.push(`<i>${next_slot_id('e', undefined)}</i>`);
 vi.mock('ogygia:server/server-manifest', () => ({
 	load_server_regions: async () => ({
-		regions: { [A]: async () => ({ default: minting }), [B]: async () => ({ default: minting }) }
+		regions: {
+			[A]: async () => ({ default: minting }),
+			[B]: async () => ({ default: minting }),
+			[C]: async () => ({ default: fresh_root })
+		}
 	}),
-	region_url: { [A]: '/a.js', [B]: '/b.js' },
+	region_url: { [A]: '/a.js', [B]: '/b.js', [C]: '/c.js' },
 	region_name: {},
 	region_render: {},
 	render_region: {},
@@ -58,21 +67,34 @@ describe('slot ids in a hole’s answer', () => {
 		expect(ids(await res.text())).toEqual([expect.stringMatching(/^ogaaaaaa-/)]);
 	});
 
-	it('holes fetched in one batch: each one’s ids carry its own region id', async () => {
-		const calls = [mint_server_region(A, {}), mint_server_region(B, {})];
-		const body = JSON.stringify(calls);
-		const res = await handle()({
+	it('a hole fetched on its own: a render root inside it keeps its region id', async () => {
+		const res = await handle()({ event: event(mint_server_region(C, {})), resolve } as never);
+		expect(ids(await res.text())).toEqual([expect.stringMatching(/^ogcccccc-/)]);
+	});
+
+	const batch = (regions: string[]) =>
+		handle()({
 			event: event('/__ogygia__', {
 				method: 'POST',
-				body,
+				body: JSON.stringify(regions.map((r) => mint_server_region(r, {}))),
 				headers: { 'content-type': 'application/json', 'sec-fetch-site': 'same-origin' }
 			}),
 			resolve
 		} as never);
-		const minted = ids(await res.text()).sort();
+
+	it('holes fetched in one batch: each one’s ids carry its own region id', async () => {
+		const minted = ids(await (await batch([A, B])).text()).sort();
 		expect(minted).toEqual([
 			expect.stringMatching(/^ogaaaaaa-/),
 			expect.stringMatching(/^ogbbbbbb-/)
 		]);
+	});
+
+	it('holes fetched in one batch: a render root inside one never mints a page’s id', async () => {
+		const minted = ids(await (await batch([A, C])).text());
+		expect(minted).toHaveLength(2);
+		// (prefixed, so never one of the page's own `og<tag><n>`; and unique within the answer)
+		for (const id of minted) expect(id).toMatch(/^og[a-z0-9]{6}-/);
+		expect(new Set(minted).size).toBe(2);
 	});
 });
