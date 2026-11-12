@@ -24,19 +24,19 @@ test.describe('import.meta.og.asRegion: barrel/named-import islands SSR+hydrate;
 			if (m.type() === 'error') errs.push(m.text());
 		});
 		page.on('pageerror', (e) => errs.push(String(e)));
-		await page.goto('/as-region', { waitUntil: 'networkidle' });
+		await page.goto('/named-regions', { waitUntil: 'networkidle' });
 
 		// Ticker — wake:'load' → hydrates immediately.
 		const ticker = page.locator('[data-ticker] button').first();
 		await ticker.waitFor();
 		check(
-			'asRegion: ticker SSR prop (start=10)',
+			'named regions: ticker SSR prop (start=10)',
 			(await ticker.textContent())!.includes('ticks 10')
 		);
 		await ticker.click();
 		await ticker.click();
 		check(
-			'asRegion: ticker (wake:load) hydrated + interactive',
+			'named regions: ticker (wake:load) hydrated + interactive',
 			(await ticker.textContent())!.includes('ticks 12'),
 			(await ticker.textContent())!
 		);
@@ -44,23 +44,23 @@ test.describe('import.meta.og.asRegion: barrel/named-import islands SSR+hydrate;
 		// Flag — wake:'visible' → hydrates once scrolled into view.
 		const flag = page.locator('[data-flag] button').first();
 		await flag.waitFor();
-		check('asRegion: flag SSR prop (on=true)', (await flag.textContent())!.includes('flag is ON'));
+		check('named regions: flag SSR prop (on=true)', (await flag.textContent())!.includes('flag is ON'));
 		await flag.scrollIntoViewIfNeeded();
 		await sleep(300);
 		await flag.click();
 		check(
-			'asRegion: flag (wake:visible) hydrated + interactive',
+			'named regions: flag (wake:visible) hydrated + interactive',
 			(await flag.textContent())!.includes('flag is OFF'),
 			(await flag.textContent())!
 		);
 
 		// A NON-component export from the SAME barrel, used as an ordinary value in the shell.
 		check(
-			'asRegion: non-component barrel export used in shell',
+			'named regions: non-component barrel export used in shell',
 			(await page.locator('[data-brand]').textContent())!.includes('Acme Islands')
 		);
 
-		check('asRegion: no console errors', errs.length === 0, errs.join(' | '));
+		check('named regions: no console errors', errs.length === 0, errs.join(' | '));
 	});
 
 	// ── 3. build-output: tree-shaking canaries must be ABSENT from the client build ────────────────────
@@ -88,19 +88,19 @@ test.describe('import.meta.og.asRegion: barrel/named-import islands SSR+hydrate;
 		if (fs.existsSync(clientDir)) {
 			const hugeHits = client_contains('ogygia_barrel_huge_unused_canary');
 			check(
-				'asRegion: huge unused barrel constant tree-shaken (absent from client)',
+				'named regions: huge unused barrel constant tree-shaken (absent from client)',
 				hugeHits.length === 0,
 				hugeHits.join(', ')
 			);
 			const compHits = client_contains('ogygia_barrel_heavy_component_canary');
 			check(
-				'asRegion: unused barrel component tree-shaken (absent from client)',
+				'named regions: unused barrel component tree-shaken (absent from client)',
 				compHits.length === 0,
 				compHits.join(', ')
 			);
 		} else {
 			check(
-				'asRegion: client build present for tree-shake inspection',
+				'named regions: client build present for tree-shake inspection',
 				false,
 				`missing ${clientDir}`
 			);
