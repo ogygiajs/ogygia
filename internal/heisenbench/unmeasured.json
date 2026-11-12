@@ -4615,6 +4615,10 @@
 		{
 			"id": "packages/federation/src/peer.ts > hop_failure_status",
 			"reason": "the status a failed hop answers with: one class check (hidden state: the error's class), constant work; run by packages/federation/test/hole-peer-failure.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/frame-nav.ts > send_batches",
+			"reason": "browser only: a set of holes grouped by endpoint path into batch POSTs over the frame store (not recorded), linear in the holes; run by packages/core/test/browser/hole-batch.test.ts and nav-batch-page.test.ts"
 		}
 	]
 }
