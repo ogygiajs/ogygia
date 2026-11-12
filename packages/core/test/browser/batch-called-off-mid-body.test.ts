@@ -57,4 +57,26 @@ describe('a batch called off while its body comes', () => {
 			window.removeEventListener('unhandledrejection', hear);
 		}
 	});
+
+	it('a body that breaks off midway ends the batch quietly too, like a request that fails', async () => {
+		vi.spyOn(window, 'fetch').mockImplementation(
+			async () =>
+				new Response(
+					new ReadableStream<Uint8Array>({
+						start(controller) {
+							controller.enqueue(new TextEncoder().encode(build_parcel('s1', '<p>one</p>')));
+							setTimeout(() => controller.error(new TypeError('network error')), 20);
+						}
+					}),
+					{ status: 200, headers: { 'content-type': 'text/html' } }
+				)
+		);
+		const visit = scope();
+		const batch = streamFrames([ep('s1'), ep('s2')], 'nav', visit).then(
+			() => 'settled',
+			(err: { name?: string }) => `rejected ${err?.name}`
+		);
+		expect(await batch).toBe('settled');
+		visit.close();
+	});
 });
