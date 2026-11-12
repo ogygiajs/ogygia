@@ -83,6 +83,39 @@ export function held_twice(doc: Document): string[] {
 	];
 }
 
+/** Waste a filed bug explains, by what is held twice (as KNOWN is for an MPA difference). Each entry
+ *  goes when its fix lands. */
+const KNOWN_WASTE: ReadonlyArray<{
+	issue: number;
+	what: string;
+	is: (held: string, doc: Document) => boolean;
+}> = [
+	{
+		issue: 984,
+		what: 'the island graph preload links a chunk another loader linked after its first read',
+		// (the second link to the chunk is the graph preload's own: gen 180, seed 3)
+		is: (held, doc) => {
+			const m = /^module preload (.+)$/.exec(held);
+			if (m === null) return false;
+			const links = [...doc.querySelectorAll('link[rel="modulepreload"]')].filter(
+				(l) => (l as HTMLLinkElement).href === m[1]
+			);
+			return links.slice(1).every((l) => l.hasAttribute('data-ogygia-graph-preload'));
+		}
+	}
+];
+
+/** What is held twice, less what a filed bug explains (and which bugs did). */
+export function known_waste(doc: Document, held: string[]): { left: string[]; known: number[] } {
+	const known = new Set<number>();
+	const left = held.filter((h) => {
+		const k = KNOWN_WASTE.find((x) => x.is(h, doc));
+		if (k) known.add(k.issue);
+		return k === undefined;
+	});
+	return { left, known: [...known] };
+}
+
 /** The warnings the document itself said. */
 export function warned(tab: Tab): string[] {
 	return tab.console.filter(
@@ -94,12 +127,18 @@ export function warned(tab: Tab): string[] {
 export function waste(world: World, tab: Tab): Broken | null {
 	const doc = tab.page.mainFrame.document as unknown as Document;
 	if (!tab.page.mainFrame.url.startsWith('http')) return null;
+	const held = known_waste(doc, held_twice(doc));
 	const found = [
 		...asked_twice(world, tab.realm).map((k) => `asked twice: ${k}`),
-		...held_twice(doc).map((k) => `held twice: ${k}`),
+		...held.left.map((k) => `held twice: ${k}`),
 		...warned(tab).map((l) => `said: ${l.split('\n')[0].slice(0, 200)}`)
 	];
-	return found.length === 0
+	if (found.length > 0)
+		return { oracle: 'waste', detail: `${tab.page.mainFrame.url}: ${found.join('\n')}` };
+	return held.known.length === 0
 		? null
-		: { oracle: 'waste', detail: `${tab.page.mainFrame.url}: ${found.join('\n')}` };
+		: {
+				oracle: 'known',
+				detail: `${tab.page.mainFrame.url}: ${held.known.map((i) => `#${i} (${KNOWN_WASTE.find((k) => k.issue === i)!.what})`).join(', ')}`
+			};
 }

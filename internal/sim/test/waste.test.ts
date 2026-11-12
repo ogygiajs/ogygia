@@ -1,7 +1,7 @@
 // The waste oracle (src/waste.ts): it finds an answer asked for twice, a thing a document holds
 // twice and a warning, and lets a page that does its work once pass.
 import { describe, expect, it } from 'vitest';
-import { asked_twice, held_twice, warned } from '../src/waste.ts';
+import { asked_twice, held_twice, known_waste, warned } from '../src/waste.ts';
 import type { World } from '../src/world.ts';
 
 const world = (urls: Array<[string, number | 'dropped']>) =>
@@ -80,6 +80,29 @@ describe('held twice', () => {
 			`<html><head></head><body>${props}<ogygia-region endpoint="/og/frag?slot=1">${props}${props}</ogygia-region></body></html>`
 		);
 		expect(held_twice(x.document as unknown as Document)).toEqual(['props f1:{}']);
+	});
+});
+
+describe('known waste', () => {
+	it("counts #984's second link to a chunk, the graph preload's, as known", async () => {
+		const { Window } = await import('happy-dom');
+		const doc = (second: string) => {
+			const w = new Window({ url: 'https://app.test/' });
+			w.document.write(
+				`<html><head><link rel="modulepreload" as="script" crossorigin="" href="/m.js">${second}</head><body></body></html>`
+			);
+			return w.document as unknown as Document;
+		};
+		const ours = '<link rel="modulepreload" href="/m.js" data-ogygia-graph-preload="">';
+		expect(known_waste(doc(ours), held_twice(doc(ours)))).toEqual({
+			left: [],
+			known: [984]
+		});
+		const html = '<link rel="modulepreload" href="/m.js">';
+		expect(known_waste(doc(html), held_twice(doc(html)))).toEqual({
+			left: ['module preload https://app.test/m.js'],
+			known: []
+		});
 	});
 });
 
