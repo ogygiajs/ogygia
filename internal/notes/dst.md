@@ -223,7 +223,14 @@ The app lists `postrender({ default: false })` (opt-in: no page is stored unless
 shared cache is. Some pages opt in (`config = { postrender: true }`, stream `gen postrender`, 30%),
 so the store holds pages and a publish has something to invalidate. And some islands change their
 markup in the next release (stream `gen release`, 30%: an element only build v2 renders), so the two
-builds differ as releases do and one build's HTML hydrated with the other's code shows (#947). In a federated app the invalidation is announced to the peer: a thaw notice
+builds differ as releases do and one build's HTML hydrated with the other's code shows (#947).
+Four more streams reach machines no run touched before: `gen style` (a region with a scoped
+`<style>`: an answer lifts its sheet into the head, `region-sheet`), `gen max age` (a hole whose
+render the server keeps, `maxAge` 2 s or 30 s through a preset of apps/sim-gen's vite config, since
+the compiler refuses it inline: `render cache`), `gen devalue` (an island given a `Date` prop: its
+props cross in devalue's lane) and `gen page data` (a page with a server load whose regions read
+`page.data.who`: a hole or held region looks its page up, `page facts`; some islands that read it
+have a refresh button, `invalidateAll()`: the `soft refresh`). In a federated app the invalidation is announced to the peer: a thaw notice
 through federation's outbox, which the peer applies and passes back on (hop + 1). The same store
 makes a deploy's first federation request send the deploy thaw. And some seeds keep the peer's
 page documents (`gen peer cache`: `cache: { ttl }` of 300 ms, 2 s or 30 s), served stale while one
@@ -365,7 +372,11 @@ old build's, gen 88), else of the build that has it (the live one, or any when t
 files; gens 63, 65). A page store's mark (`<meta name="ogygia-stored">`) is delivery: the MPA and
 leak checks set it aside. A copy the store served is of the build that rendered it, read off its
 etag when it was stored (`x-ogygia-postrender: stored`), not of the server that handed it out: after
-a deploy the store may still hold the old release's page (#947, gen 90).
+a deploy the store may still hold the old release's page (#947, gen 90). A document's page is the
+build its answer names, a CDN copy's too (gen 131). A reference load pinned to an old build that the
+store answered with a newer build's copy (the deploy dropped the old one's, #949) is no reference:
+the world says it went `astray` and the check sets it aside. Region sheets an answer lifted into the
+head are compared in any order (each went in as its answer landed; gen 143), the page's own in theirs.
 
 ## Always on
 
