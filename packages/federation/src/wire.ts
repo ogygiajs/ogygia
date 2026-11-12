@@ -309,6 +309,7 @@ export function verify_signed_request(
 			}
 		if (!checked) return null;
 		// the same call, already accepted by its legacy signature (#822)
+		// wall: the token's expiry is a timestamp
 		if (nonce_seen(cap_nonce(token), cap_expiry(token) + skew, Date.now())) return null;
 		return claims_of(user_b64);
 	}
