@@ -1776,6 +1776,10 @@ async function code_run(browser) {
 			has('island-barrel', 'Toolbar still imports a barrel whole: src/lib/dtcode/index.ts')
 		],
 		[
+			'why the barrel pass left it',
+			has('island-barrel', 'barrels() left it: it runs code of its own besides its re-exports')
+		],
+		[
 			'the heavy module, on Toolbar',
 			has('island-heavy-module', 'Icons.svelte is') &&
 				has('island-heavy-module', "of Toolbar's code")
@@ -2139,6 +2143,10 @@ try {
 	{
 		const read = async (path) => {
 			const page = await browser.newPage({ viewport: { width: 1400, height: 900 } });
+			// (the testing engine, as @ogygia/testing injects it: its hydration() reads the diff)
+			await page.addInitScript({
+				path: fileURLToPath(new URL('../../packages/testing/dist/engine.js', import.meta.url))
+			});
 			await page.goto(base + path, { waitUntil: 'load' });
 			await page.waitForTimeout(2000);
 			const f = await page.evaluate(() =>
