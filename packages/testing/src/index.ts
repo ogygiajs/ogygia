@@ -62,7 +62,7 @@ import type {
 	PlaywrightWorkerOptions
 } from '@playwright/test';
 import { readFileSync } from 'node:fs';
-import { cache, scope, type Scope } from '@ogygia/machine';
+import { cache, clock, scope, type Scope } from '@ogygia/machine';
 import { OgygiaError, warn } from './messages.ts';
 
 let engine_source: string | undefined;
@@ -547,7 +547,7 @@ export class Ogygia {
 
 	async #call<T>(name: string, ...args: unknown[]): Promise<T> {
 		await this.#injected;
-		const until = Date.now() + (this.#options.timeout ?? 15_000);
+		const until = clock.mono() + (this.#options.timeout ?? 15_000);
 		while (
 			!(await this.#in_page(() => {
 				// (an engine a test injected is there on every page: it answers once the app's realm feeds it)
@@ -555,7 +555,7 @@ export class Ogygia {
 				return !!t && t.live !== false;
 			}, null))
 		) {
-			if (Date.now() > until) throw new OgygiaError('testing_api_absent');
+			if (clock.mono() > until) throw new OgygiaError('testing_api_absent');
 			await this.#wait(100);
 		}
 		const out = (await this.#in_page(
@@ -650,6 +650,7 @@ export function playwrightDriver(
 			const hold = async (route: Route) => {
 				const req = route.request();
 				if (!req.isNavigationRequest() || req.frame() !== page.mainFrame()) return route.fallback();
+				// wall: against the page's own epoch origin (performance.timeOrigin)
 				const nav = { url: req.url(), t: origin === null ? null : Math.round(Date.now() - origin) };
 				held.push(nav);
 				opts.onNavigationHeld?.(nav);

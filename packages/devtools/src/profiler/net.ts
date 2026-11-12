@@ -533,7 +533,7 @@ function wrap_fetch(orig: typeof globalThis.fetch): typeof globalThis.fetch {
 		if (canned) return canned;
 		const call: NetCall = {
 			start: performance.now(),
-			epoch: Date.now(),
+			epoch: Date.now(), // wall: the call's epoch time, beside its monotonic start
 			ms: -1,
 			method: method.toUpperCase(),
 			url,
@@ -822,7 +822,7 @@ function instrument_client_request(req: unknown, args: unknown[], proto: 'http' 
 
 	const call: NetCall = {
 		start: performance.now(),
-		epoch: Date.now(),
+		epoch: Date.now(), // wall: the call's epoch time, beside its monotonic start
 		ms: -1,
 		method: method.toUpperCase(),
 		url,

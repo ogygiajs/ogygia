@@ -12,7 +12,7 @@
 import { spawn, type ChildProcess } from 'node:child_process';
 import { connect } from 'node:net';
 import { setTimeout as pause } from 'node:timers/promises';
-import { machine } from '@ogygia/machine';
+import { clock, machine } from '@ogygia/machine';
 import { append_server_log } from './server-log.ts';
 
 /** A port a suite owns, moved up by `E2E_PORT_OFFSET`: when one machine runs a suite as several
@@ -112,9 +112,9 @@ export async function spawn_server(opts: SpawnServerOptions): Promise<SpawnedSer
 	const at = new URL(opts.url);
 	const host = at.hostname.replace(/^\[(.*)\]$/, '$1');
 	const port_number = Number(at.port) || (at.protocol === 'https:' ? 443 : 80);
-	const free_by = Date.now() + PORT_WAIT_MS;
+	const free_by = clock.mono() + PORT_WAIT_MS;
 	while (await port_held(host, port_number)) {
-		if (Date.now() >= free_by)
+		if (clock.mono() >= free_by)
 			throw new Error(
 				`port ${port_number} (${opts.url}) is still held by another process after ${PORT_WAIT_MS} ms: not starting ${what} onto it (a server of an earlier spec or run is still up)`
 			);
@@ -178,10 +178,10 @@ export async function spawn_server(opts: SpawnServerOptions): Promise<SpawnedSer
 		}
 	};
 	const ready = opts.ready ?? (() => true);
-	const start = Date.now();
+	const start = clock.mono();
 	const timeout = opts.timeout_ms ?? 60_000;
 	const answered = await m.scope.task(async (signal) => {
-		while (Date.now() - start < timeout && !signal.aborted) {
+		while (clock.mono() - start < timeout && !signal.aborted) {
 			try {
 				const res = await fetch(opts.url, { redirect: 'manual', signal });
 				if (res.status > 0 && ready(res)) return true;
