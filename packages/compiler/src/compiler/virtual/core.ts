@@ -29,6 +29,7 @@ import {
 } from '../link/server-manifest.ts';
 import { registry_stub_names, registry_stub_source } from '../link/registry-stub.ts';
 import { dev_hmr_client_source } from '../dev/dev-hmr.ts';
+import { fn_manifest_registrations } from '../macros/dollar.ts';
 import { PROFILER_MAPS_PLACEHOLDER, REGION_FAMILY } from '../ids.ts';
 import type { CompileCtx } from '../ctx.ts';
 import type { ClientRealmFile, ServerRealm } from '../link/caps.ts';
@@ -202,10 +203,7 @@ export const fn_manifest: Family = virtual.family({
 			globalThis.__og_reg_fn = __register_fn;
 		`}\n`;
 		if (!app.ctx.is_dev) return `${bridge}/*__OGYGIA_FN_MANIFEST__*/`;
-		const hoists = [...app.dollar_hoists.entries()]
-			.map(([tag, src]) => `globalThis.__og_reg_fn(${JSON.stringify(tag)}, (${src}));`)
-			.join('\n');
-		return `${bridge}${hoists}`;
+		return `${bridge}${fn_manifest_registrations(app.dollar_hoists)}`;
 	}
 });
 
