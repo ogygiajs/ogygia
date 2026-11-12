@@ -10,6 +10,7 @@
 import { backoffAfter, flights, STALE, type Stale } from '@ogygia/machine';
 import { import_again } from './import-again.ts';
 import { devalue_download, download } from '../policies.ts';
+import { OG_FORMAT, OGYGIA_PROPS } from '../wire-markup.ts';
 
 type Devalue = typeof import('devalue');
 
@@ -50,8 +51,8 @@ export function with_devalue(fn: (d: Devalue) => void, tried = 0): void {
 }
 
 const DEVALUE_LANE_SELECTOR =
-	'script[data-ogygia-props]:not([data-og-format="json"]),' +
-	'script[type="application/ogygia-page"]:not([data-og-format="json"]),' +
+	`script[${OGYGIA_PROPS}]:not([${OG_FORMAT}="json"]),` +
+	`script[type="application/ogygia-page"]:not([${OG_FORMAT}="json"]),` +
 	'script[type="application/ogygia-page-facts"]';
 
 /** Does this document (or fragment) hold a script only devalue can read: a props sidecar or the
