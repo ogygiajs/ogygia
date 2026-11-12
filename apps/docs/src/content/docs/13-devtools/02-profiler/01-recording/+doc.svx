@@ -77,13 +77,13 @@ If you would rather not carry files around, give the profiler a [shared store](#
 
 ## In production
 
-In production the UI stays off and answers 404 until you set a secret:
+In production the UI stays off and answers 404 until you set a secret of at least 16 bytes (a shorter one keeps the UI off, and the server says why when it starts):
 
 ```bash
-OGYGIA_PROFILER_SECRET=some-long-random-string
+OGYGIA_PROFILER_SECRET=$(openssl rand -hex 32)
 ```
 
-Then open the dashboard and **log in** with the secret. The profiler sets a session cookie, so links inside a report keep working for the rest of the session without asking for the secret again. The secret is compared in constant time, and it never travels in a URL, where a log, a cache or a shared link could keep it. The profiler is also reachable programmatically over MCP, with `ogygia mcp` / `ogygia ai`.
+Then open the dashboard and **log in** with the secret. The profiler sets a session cookie, so links inside a report keep working without asking for the secret again. The session is a random id the server signs: it lasts 12 hours, and **Logout** ends it. Changing the secret ends every session. The secret is compared in constant time, and it never travels in a URL, where a log, a cache or a shared link could keep it. After ten wrong keys from one address in 15 minutes (through the login form or the `x-profiler-key` and `x-profile` headers), that address gets a 429 until the 15 minutes pass. The profiler is also reachable programmatically over MCP, with `ogygia mcp` / `ogygia ai`.
 
 **Serverless hosts (Amplify, Lambda).** These hosts hand console variables to the _build_ only, and the running function does not see them. Pass the secret through the vite config, as shown under [Options](#options), and keep the option unconditional. A guard like `devtools({ profiler: env.SECRET && { secret } })` turns the whole profiler off when the variable is missing at build time, and `/__profiler` then falls through to your own routing (typically an i18n redirect to the home page), which looks like a broken profiler. A configured profiler with an empty secret instead answers `/__profiler` with a plain "installed but disabled" 404 and the build prints a warning, so the two cases are easy to tell apart.
 
