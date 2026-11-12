@@ -140,6 +140,40 @@ describe('dispatch — thrown redirect / error', () => {
 	});
 });
 
+describe('the table-wide load — a guard before every route', () => {
+	it('its thrown redirect gates an endpoint too', async () => {
+		const app = routes(
+			{ '/api': { GET: (c) => c.json({ ok: true }) } },
+			{
+				load: (c) => {
+					if (!c.url.searchParams.has('in')) redirect(303, '/login');
+					return {};
+				}
+			}
+		);
+		expect((await app.fetch(req('/api')))!.status).toBe(303);
+		expect((await app.fetch(req('/api?in')))!.status).toBe(200);
+	});
+
+	it('a Response it returns is the answer: the route never runs', async () => {
+		let ran = false;
+		const app = routes(
+			{
+				'/api': {
+					GET: (c) => {
+						ran = true;
+						return c.json({ ok: true });
+					}
+				}
+			},
+			{ load: () => new Response('denied', { status: 403 }) }
+		);
+		const r = await app.fetch(req('/api'));
+		expect(r!.status).toBe(403);
+		expect(ran).toBe(false);
+	});
+});
+
 describe('loads — memoization + parent-sharing (no waterfall, no waste)', () => {
 	it('a shared load runs ONCE per request even when two loads await it', async () => {
 		let runs = 0;
