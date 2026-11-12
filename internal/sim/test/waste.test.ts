@@ -306,4 +306,17 @@ describe('warned', () => {
 		} as unknown as Parameters<typeof warned>[0];
 		expect(warned(tab)).toEqual(['warn: new']);
 	});
+
+	it('leaves out a hydration mismatch a page makes on purpose, as hydrates_as_sent does (palaestra seed 92, /detector)', () => {
+		const said = ['warn: https://svelte.dev/e/hydration_mismatch', 'warn: other'];
+		const tab = (path: string) =>
+			({
+				realm: 'tab-1#1',
+				console: said,
+				said_by: new Map(),
+				page: { mainFrame: { url: `https://app.test${path}` } }
+			}) as unknown as Parameters<typeof warned>[0];
+		expect(warned(tab('/detector'))).toEqual(['warn: other']);
+		expect(warned(tab('/data'))).toEqual(said);
+	});
 });
