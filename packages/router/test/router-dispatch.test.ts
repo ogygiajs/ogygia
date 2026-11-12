@@ -269,6 +269,72 @@ describe('href — rename-safe links off the table keys', () => {
 	});
 });
 
+describe('pages — the branch’s loads', () => {
+	const html_of = async (app: { fetch: (r: Request) => Promise<Response | null> }, path: string) =>
+		(await app.fetch(req(path, { headers: { accept: 'text/html' } })))!.text();
+
+	it('the layouts’ and the page’s loads all run before any of them ends (no waterfall)', async () => {
+		const { page, layout } = await import('../src/index.ts');
+		const { default: Shell } = await import('./fixtures/Shell.svelte');
+		let open!: () => void;
+		const page_started = new Promise<void>((r) => (open = r));
+		const shell = layout('shell', Shell as never, {
+			// waits for the page's load to START: one after the other, this never ends
+			load: async () => (await page_started, { from: 'layout' })
+		});
+		const app = routes(
+			shell({
+				'/p': page(
+					async function* (_c, data) {
+						yield `<p data-out>${String(data.from)}</p>`;
+					},
+					{ load: () => (open(), { page: true }) }
+				)
+			})
+		);
+		const out = await Promise.race([
+			html_of(app, '/p'),
+			new Promise<string>((r) => setTimeout(() => r('waterfall'), 1000))
+		]);
+		expect(out).toContain('<p data-out>layout</p>');
+	});
+
+	it('the loads’ data merges in branch order: the page’s wins over its layout’s', async () => {
+		const { page, layout } = await import('../src/index.ts');
+		const { default: Shell } = await import('./fixtures/Shell.svelte');
+		const shell = layout('shell', Shell as never, { load: () => ({ who: 'layout', a: 1 }) });
+		const app = routes(
+			shell({
+				'/p': page(
+					async function* (_c, data) {
+						yield `<p data-out>${String(data.who)}-${String(data.a)}</p>`;
+					},
+					{ load: () => ({ who: 'page' }) }
+				)
+			})
+		);
+		expect(await html_of(app, '/p')).toContain('<p data-out>page-1</p>');
+	});
+
+	it('a page load that returns a Response is the answer: nothing renders', async () => {
+		const { page } = await import('../src/index.ts');
+		let rendered = false;
+		const app = routes({
+			'/p': page(
+				async function* () {
+					rendered = true;
+					yield '<p>page</p>';
+				},
+				{ load: () => new Response('denied', { status: 403 }) }
+			)
+		});
+		const res = (await app.fetch(req('/p', { headers: { accept: 'text/html' } })))!;
+		expect(res.status).toBe(403);
+		expect(await res.text()).toBe('denied');
+		expect(rendered).toBe(false);
+	});
+});
+
 describe('pages — a thrown error finds its boundary', () => {
 	/** /p under two layouts (shell outside inner), each with its own error page and load. */
 	async function branch(over: {

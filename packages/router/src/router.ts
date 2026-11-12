@@ -321,9 +321,7 @@ export function routes<const T extends KeyedTable<T>>(
 			return method_not_allowed(page_allow(node));
 		}
 
-		// Branch loads: the table-wide root load, then every layout's (outermost→inner), then the page's
-		// — CONCURRENTLY. Each is memoized on ctx (root_load already ran in dispatch, so it's a cache
-		// hit here), merged into `data` in branch order (last wins).
+		// @why no waterfall: a branch's loads run together (test: packages/router/test/router-dispatch.test.ts › the layouts’ and the page’s loads all run before any of them ends (no waterfall))
 		const load_defs: (LoadDef | undefined)[] = [
 			root_load,
 			...node.layouts.map((l) => l.load),
@@ -332,21 +330,11 @@ export function routes<const T extends KeyedTable<T>>(
 		const results = await Promise.all(load_defs.map((l) => (l ? l(ctx) : undefined)));
 		const data: Record<string, unknown> = {};
 		for (const r of results) {
-			if (r instanceof Response) return r; // a load may short-circuit (redirect / custom response)
+			if (r instanceof Response) return r;
 			if (r && typeof r === 'object') Object.assign(data, r);
 		}
 
 		const chain = node.layouts.map((l) => l.component);
-		// ONE slot resolution — bare component, ComponentPick, and mount()'s html view all take
-		// the same door: a branded per-request resolver, run post-loads (so a mounted wire doc
-		// rides `data`). Resolver ARMS are covered by build-time CSS discovery exactly like bare
-		// components — discovery walks the router module's .svelte IMPORT specs, never the table
-		// values, so anything an arm can return was already an import. Free for `$infer`: types
-		// come from LOADS, never components.
-		// STREAMED page (`page(async function* (c, data) { yield region(...); ... })`): the FIRST
-		// yield renders in the document and the page flushes; later yields ride the same response
-		// as late template chunks (see stream.ts). Non-GET renders run the generator to COMPLETION
-		// and show the final yield — actions need a whole answer, streaming is a GET affair.
 		let gen_rest: AsyncGenerator<unknown> | null = null;
 		let gen_first_html: string | null = null;
 		if (is_stream_slot(node.component)) {
@@ -379,18 +367,11 @@ export function routes<const T extends KeyedTable<T>>(
 							node.component as { __ogpick: (c: Ctx, data: Record<string, unknown>) => unknown }
 						).__ogpick(ctx, data)
 					: node.component;
-		// An html view renders through the router's own pure-HTML component (RawHtml.svelte, the
-		// twin of og_html_region's) — the wire document is just html + css, no bespoke page component. Its css tags
-		// + escaped title join the DOCUMENT head (the router owns the head; a component would have
-		// needed <svelte:head>).
 		const html_view =
 			typeof resolved === 'object' && resolved !== null && '__oghtml' in resolved
 				? (resolved as PageHtmlView)
 				: null;
 		const page_component = html_view ? (RawHtml as AnyComponent) : (resolved as AnyComponent);
-		// STATUS CHANNEL: a view carrying an error status (a mounted app's own 404/500 page)
-		// answers with THAT status through the shell — never a 200-wrapped error page. 2xx/3xx
-		// view statuses don't override (redirects already threw; action-fail status stands).
 		if (html_view?.status && html_view.status >= 400) status = html_view.status;
 		const of = region(LayoutChain as never, {
 			chain,
@@ -402,12 +383,10 @@ export function routes<const T extends KeyedTable<T>>(
 		const css_head =
 			(await router_css_head(html_view ? chain : [...chain, page_component])) +
 			(html_view
-				? // (the title is plain text: escaped once, here)
-					(html_view.title ? String(html`<title>${html_view.title}</title>`) : '') +
+				? (html_view.title ? String(html`<title>${html_view.title}</title>`) : '') +
 					(html_view.css?.join('') ?? '') +
 					(html_view.head ?? '')
 				: '');
-		// this document delivers late chunks (a GET's streamed response): its promise `of`s may register
 		if (m === 'GET') open_late_scope();
 		const res = await document(of, {
 			status,
@@ -422,9 +401,6 @@ export function routes<const T extends KeyedTable<T>>(
 			}
 		});
 		if (method === 'HEAD') return new Response(null, res);
-		// Late content remains — a page generator's later yields, and/or LATE REGIONS the render
-		// registered (`<Region of={promise}>` holes, armed via the handle's ALS) — chunk it all
-		// down THIS response in readiness order (one connection, closes when every source ends).
 		const late = take_late_regions();
 		const chunk_src =
 			gen_rest && late?.length
@@ -434,7 +410,6 @@ export function routes<const T extends KeyedTable<T>>(
 					: late?.length
 						? late_region_chunks(late)
 						: null;
-		// (and every late region that registers while those chunks bake, until none is left)
 		if (chunk_src && m === 'GET')
 			return stream_document(
 				await res.text(),
