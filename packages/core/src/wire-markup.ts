@@ -40,6 +40,7 @@ export type MarkKey =
 	| 'detailSession'
 	| 'detailTop'
 	| 'detailTwice'
+	| 'dt'
 	| 'dtIngested'
 	| 'exp'
 	| 'format'
@@ -164,6 +165,7 @@ export const MARK: { readonly [K in MarkKey]: Mark } = {
 	detailSession: { attr: 'data-og-detail-session', by: 'devtools' },
 	detailTop: { attr: 'data-og-detail-top', by: 'devtools' },
 	detailTwice: { attr: 'data-og-detail-twice', by: 'devtools' },
+	dt: { attr: 'data-og-dt', by: 'page' },
 	dtIngested: { attr: 'data-og-dt-ingested', by: 'page' },
 	exp: { attr: 'data-og-exp', by: 'page' },
 	format: { attr: 'data-og-format', by: 'page' },
