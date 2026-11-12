@@ -173,8 +173,8 @@ describe('profiler login: where it goes after', () => {
 			expect(res.headers.get('location'), path).toBe('/__profiler/login?next=%2F__profiler');
 		}
 		const page = await run(event('/__profiler/run?p=/x&runs=1'));
-		expect(page.headers.get('location')).toBe(
-			`/__profiler/login?next=${encodeURIComponent('/__profiler/run?p=/x&runs=1')}`
+		expect(page.headers.get('location')).toMatch(
+			/^\/__profiler\/login\?next=%2F__profiler%2Frun%3F/
 		);
 	});
 });

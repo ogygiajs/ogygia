@@ -3000,7 +3000,13 @@ class Profiler {
 				});
 			const target = new URL(ctx.url);
 			target.searchParams.delete(AFTER_LOGIN_PARAM);
-			const next = encodeURIComponent(target.pathname + target.search);
+			// (the browser goes to `next` with a GET: a state change is a POST only, so its `next` is
+			// the dashboard; test: profiler-login-guard › where it goes after)
+			const next = encodeURIComponent(
+				ctx.request.method === 'GET' || ctx.request.method === 'HEAD'
+					? target.pathname + target.search
+					: this.base
+			);
 			// Right after a successful login: not the login page again (a loop), the login page WITH the
 			// diagnosis.
 			return ctx.redirect(
