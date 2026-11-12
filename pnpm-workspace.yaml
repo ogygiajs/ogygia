@@ -109,6 +109,9 @@ catalogs:
   # its history and console internals (internal/notes/dst.md), so a new version is a deliberate move.
   sim:
     happy-dom: 21.0.4
+    # the HTML quality oracle's spec parser (its parse errors are the spec's): the version already in
+    # the tree
+    parse5: 7.3.0
 # Not workspace members, so no catalog reaches them; their pins stay inline, on purpose: the adapter
 # fixture (apps/palaestra/e2e/adapters/fixture) and the Kit 3 app (internal/repro-kit3, installs the
 # packed ogygia).
