@@ -186,6 +186,14 @@ describe('a marked named import in a .svelte host is a region', () => {
 		expect(r.islands).toHaveLength(2);
 	});
 
+	test('a component prop whose name starts with "on" is a prop, not an event handler', () => {
+		const r = host(
+			`import { Card } from '@acme/ui' with { wake: 'load' };`,
+			'<Card /><Tabs once={Card} /><List only={Card} /><Wizard onboarding={Card} /><Menu onselect={Card} />'
+		);
+		expect(r.islands).toHaveLength(1);
+	});
+
 	test('a marked binding typed with `typeof` in a type position is legal', () => {
 		const r = host(
 			dedent`
@@ -397,6 +405,8 @@ describe('a marked binding used as anything but a component', () => {
 		['a transition', ``, '<div transition:Card></div>'],
 		['an attachment', ``, '<div {@attach Card}></div>'],
 		['an event handler', ``, '<button onclick={Card}>x</button>'],
+		['an event handler on svelte:window', ``, '<svelte:window onresize={Card} />'],
+		['an event handler on svelte:element', ``, '<svelte:element this="div" onclick={Card} />'],
 		['each', ``, '{#each Card as c}{c}{/each}'],
 		['await', ``, '{#await Card}x{/await}'],
 		['a spread attribute', ``, '<div {...Card}></div>'],
