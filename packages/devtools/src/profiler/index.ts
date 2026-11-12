@@ -259,6 +259,7 @@ import { set_span_recorder, type SpanAttrs, type SpanRecord, type SpanRecorder }
 import type { WindowIds } from './window-id.ts';
 import {
 	flights,
+	clock,
 	lock,
 	machine,
 	outbox,
@@ -1225,6 +1226,7 @@ class Profiler {
 		inOrder: true,
 		giveUp: (post, error) => {
 			// (kept for the site view, as every post's outcome is; the rows themselves are gone)
+			// wall: shown as a time
 			this.#sink_last = { at: Date.now(), ok: false, rows: post.rows, error: error_text(error) };
 			warn('devtools_profiler_sink_undelivered', { rows: String(post.rows) }, error);
 		},
@@ -1668,6 +1670,7 @@ class Profiler {
 	#recording_active(): boolean {
 		// (by its start too: a process frozen mid-profile and thawed may answer before its timer runs)
 		const s = this.#holder.now;
+		// wall: a frozen process's monotonic clock does not advance, and the freeze is what this catches
 		return s.kind === 'recording' && Date.now() - s.since < RECORDING_MAX_MS;
 	}
 
@@ -1681,7 +1684,7 @@ class Profiler {
 	#take(kind: 'background' | 'recording'): LockToken | null {
 		const token = this.#recorder.take();
 		if (token === null) return null;
-		this.#holder.go(kind, { token, since: Date.now() });
+		this.#holder.go(kind, { token, since: Date.now() }); // wall: read across a freeze (above)
 		// (leaving it, to `cut` or `free`, detaches the attribution context)
 		this.#holder.scope.defer(() => this.#release_als());
 		return token;
@@ -1701,7 +1704,7 @@ class Profiler {
 				? null
 				: {
 						kind: this.#win.now.kind !== 'idle' ? 'window' : s.kind,
-						age_ms: Date.now() - s.since,
+						age_ms: Date.now() - s.since, // wall: `since` is a wall time (a freeze counts)
 						stale: s.kind === 'cut' || (s.kind === 'recording' && !this.#recording_active())
 					};
 		return new Response(JSON.stringify({ busy: true, message, holder }), {
@@ -1802,11 +1805,13 @@ class Profiler {
 		}
 
 		const mem: MemSample[] = [];
-		const t0 = Date.now();
+		// (the window's t0 and t1 are matched against the request ring's epoch `ts`, and become the
+		// report's `created`)
+		const t0 = Date.now(); // wall: see above
 		const sample_mem = () => {
 			const m = process.memoryUsage();
 			mem.push({
-				t: Date.now() - t0,
+				t: Date.now() - t0, // wall: on the window's own t0 (above)
 				rss: Math.round(m.rss / 1048576),
 				heap_used: Math.round(m.heapUsed / 1048576)
 			});
@@ -1941,7 +1946,7 @@ class Profiler {
 					heap_head = null;
 				}
 			}
-			const t1 = Date.now();
+			const t1 = Date.now(); // wall: matched against the request ring's epoch `ts` (t0, above)
 			sample_mem();
 			// drain entries the observer buffered but hasn't delivered to its
 			// callback yet (deferred batching would otherwise lose the last GCs)
@@ -4395,8 +4400,8 @@ class Profiler {
 				// `until`: the time this check may use. Three renders are the least a verdict reads from
 				// (and the halfway read, at most the third, is already in); past that, another render that
 				// would end after `until` is not started
-				if (i >= 3 && Date.now() + last > until) break;
-				const t = Date.now();
+				if (i >= 3 && clock.mono() + last > until) break;
+				const t = clock.mono();
 				await render();
 				series.push(await settled());
 				// FLAT AFTER THREE: the verdict's line is 64 KB a render; well under half of it, with the
@@ -4415,7 +4420,7 @@ class Profiler {
 							profile?: { head?: HeapNode };
 						}
 					).profile?.head;
-				last = Date.now() - t;
+				last = clock.mono() - t;
 			}
 			const res = (await session.post('HeapProfiler.getSamplingProfile')) as {
 				profile?: { head?: HeapNode };
@@ -4757,7 +4762,7 @@ class Profiler {
 			cpu_ms: entry.cpu_ms,
 			net_ms: entry.net_ms ?? null,
 			net_count: entry.net_count ?? 0,
-			at: Date.now(),
+			at: Date.now(), // wall: stored, and read by other instances
 			instance: this.#instance_id
 		};
 		const store = await this.#store_ready();
@@ -5061,18 +5066,18 @@ class Profiler {
 			const requests_before = Math.max(0, this.#requests_seen - 1);
 			// Cap the run at the hard limit even on a real server (Infinity budget): a page recording must
 			// never outlive RECORDING_HARD_CAP_MS, because it holds the site-wide attribution context open.
-			const budget_deadline = Number.isFinite(work_budget) ? Date.now() + work_budget : Infinity;
+			const budget_deadline = Number.isFinite(work_budget) ? clock.mono() + work_budget : Infinity;
 			// when the platform itself cuts the request (Amplify: 30 s from now): the store write at the
 			// end may only wait for what is left of it
-			const request_deadline = Date.now() + detect_request_budget_ms();
-			const deadline = Math.min(budget_deadline, Date.now() + RECORDING_HARD_CAP_MS);
+			const request_deadline = clock.mono() + detect_request_budget_ms();
+			const deadline = Math.min(budget_deadline, clock.mono() + RECORDING_HARD_CAP_MS);
 			// Each render is raced against a timeout so a single hung upstream can't pin the recording (and
 			// the site) — the smaller of PER_RENDER_TIMEOUT_MS and whatever budget is left.
 			const fetch_render = (p: string, extra?: Record<string, string>) => {
 				// a reset took the recorder: this run renders nothing more under the next owner
 				if (!this.#holds(token))
 					return Promise.reject(new Error('the recording was reset before it finished'));
-				const left = deadline - Date.now();
+				const left = deadline - clock.mono();
 				const ms = Number.isFinite(left)
 					? Math.max(1, Math.min(PER_RENDER_TIMEOUT_MS, left))
 					: PER_RENDER_TIMEOUT_MS;
@@ -5250,7 +5255,7 @@ class Profiler {
 						// costs little, and what a render leaves behind is the finding that matters most.
 						if (
 							i > 0 &&
-							Date.now() + slowest + retention_reserve() + coverage_reserve() > deadline
+							clock.mono() + slowest + retention_reserve() + coverage_reserve() > deadline
 						) {
 							// which limit it was: the platform's (serverless) or the recording's own cap (any
 							// server: a recording holds the site-wide attribution open, so it never runs longer)
@@ -5381,6 +5386,7 @@ class Profiler {
 			let answers: ReportMeta['answers'];
 			if (stable.size && this.#kept) {
 				const state = {
+					// wall: unique across restarts
 					token: `${fnv1a32(`${Math.random()}:${Date.now()}`).toString(36)}${fnv1a32(String(performance.now())).toString(36)}`,
 					keys: stable
 				};
@@ -5388,7 +5394,7 @@ class Profiler {
 				try {
 					const ms: number[] = [];
 					for (let i = 0; i < ANSWER_RENDERS; i++) {
-						if (Date.now() + slowest + retention_reserve() + coverage_reserve() > deadline) break;
+						if (clock.mono() + slowest + retention_reserve() + coverage_reserve() > deadline) break;
 						const t = performance.now();
 						const res = await fetch_render(target, { [ANSWERS_HEADER]: state.token });
 						await res.text();
@@ -5497,14 +5503,14 @@ class Profiler {
 				gc_attr &&
 				this.want_heap &&
 				heap_ok &&
-				Date.now() + retention_reserve() + coverage_reserve() < deadline
+				clock.mono() + retention_reserve() + coverage_reserve() < deadline
 			) {
 				try {
-					const t = Date.now();
+					const t = clock.mono();
 					retained = await this.#retention_pass(async () => {
 						await fetch_render(target).then((r) => r.text());
 					});
-					retain_ms = Date.now() - t;
+					retain_ms = clock.mono() - t;
 				} catch {
 					retained = undefined;
 				}
@@ -5519,7 +5525,7 @@ class Profiler {
 				// the coverage render's time (the call counts come after it), and it stops by the clock,
 				// not only by count; each render is priced by the retention pass's real wall time
 				const each = Math.max(retain_ms, slowest + 300);
-				const room = deadline - Date.now() - coverage_reserve() - 1500;
+				const room = deadline - clock.mono() - coverage_reserve() - 1500;
 				// (and by the heap's room: each render keeps what the retention render measured)
 				const s = v8_stats?.();
 				const heap_n = s
@@ -5537,7 +5543,7 @@ class Profiler {
 								await fetch_render(target).then((r) => r.text());
 							},
 							n,
-							Date.now() + room
+							clock.mono() + room
 						);
 					} catch {
 						growth = undefined;
@@ -5695,8 +5701,8 @@ class Profiler {
 							// serverless one, what the request has left), so the totals do not vary run to run
 							budget_ms:
 								q.get('weigh') === 'full'
-									? Math.max(500, Math.min(120_000, request_deadline - Date.now() - 4000))
-									: Math.max(500, Math.min(6000, request_deadline - Date.now() - 8000)),
+									? Math.max(500, Math.min(120_000, request_deadline - clock.mono() - 4000))
+									: Math.max(500, Math.min(6000, request_deadline - clock.mono() - 8000)),
 							...(q.get('weigh') === 'full' ? { max_files: 2000 } : {}),
 							extra,
 							// the build's readable list of what a hashed chunk holds (keyed by its served path)
@@ -5737,7 +5743,7 @@ class Profiler {
 			// (never into the platform's own cut: what is left of it, less a margin for the answer)
 			const persist_wait = Math.max(
 				200,
-				Math.min(PERSIST_WAIT_MS, request_deadline - Date.now() - 2_000)
+				Math.min(PERSIST_WAIT_MS, request_deadline - clock.mono() - 2_000)
 			);
 			// (the bound's timer is the request's, and goes the moment the write lands)
 			const bound = scope(current_request_scope() ?? undefined);
@@ -6637,7 +6643,7 @@ class Profiler {
 				this.#interaction_cpus.delete(this.#interaction_cpus.keys().next().value!);
 			this.#interaction_cpus.set(page, {
 				...interaction_windows(profile, interaction, run),
-				at: Date.now()
+				at: Date.now() // wall: stored with the report, shown as a time
 			});
 			return true;
 		}
@@ -6645,11 +6651,12 @@ class Profiler {
 		// CUT BY ISLAND: the same load's visit (the trace goes out 8–20 s after the page started, the
 		// visit before it) gives each island's hydrate window — what ran inside it, by name
 		const visit = this.#visits.get(page)?.at(-1);
-		const windows =
-			visit && Date.now() - visit.at < 120_000 ? client_windows(profile, visit, run) : undefined;
+		// wall: a visit's `at` is the page's epoch time, as its beacon sent it
+		const recent = visit !== undefined && Date.now() - visit.at < 120_000;
+		const windows = recent ? client_windows(profile, visit, run) : undefined;
 		// a slow interaction DURING the load (the load trace holds it; the interaction sampler starts
 		// only once this trace is out): its spans are cut from this trace
-		const i = visit && Date.now() - visit.at < 120_000 ? visit.interaction : undefined;
+		const i = recent ? visit.interaction : undefined;
 		if (
 			i &&
 			i.ms >= 200 &&
@@ -6665,14 +6672,14 @@ class Profiler {
 					{ t: i.t, wait: [i.t, at], handler: [at, at + i.processing] },
 					run
 				),
-				at: Date.now()
+				at: Date.now() // wall: stored with the report, shown as a time
 			});
 		}
 		if (this.#client_cpus.size >= 50 && !this.#client_cpus.has(page))
 			this.#client_cpus.delete(this.#client_cpus.keys().next().value!);
 		this.#client_cpus.set(page, {
 			analysis,
-			at: Date.now(),
+			at: Date.now(), // wall: stored with the report, shown as a time
 			sample_ms: analysis.duration_ms,
 			...(windows ? { windows } : {})
 		});
@@ -6772,7 +6779,7 @@ class Profiler {
 			if (!(await this.#ingest_client_cpu(page, cpu, ctx.url.origin, spans)))
 				return new Response(null, { status: 400 });
 		}
-		const now = Date.now();
+		const now = clock.mono();
 		// THE APP'S MARKS (`mark()` from ogygia/profiler/client): per page, per name, bounded
 		if (
 			Array.isArray(marks) &&
@@ -6950,7 +6957,7 @@ class Profiler {
 				remote_url = null;
 			}
 		const entry: RequestEntry = {
-			ts: Date.now(),
+			ts: Date.now(), // wall: a request's time, shown and stored
 			method: event.request.method,
 			path: remote_url ? remote_url.pathname : event.url.pathname,
 			...(remote ? { remote: true as const } : {}),
@@ -7288,8 +7295,9 @@ class Profiler {
 				signal: AbortSignal.any([signal, AbortSignal.timeout(SINK_TRY_MS)])
 			});
 			if (!res.ok) throw new Error(`the sink answered ${res.status}`);
-			this.#sink_last = { at: Date.now(), ok: true, rows: post.rows };
+			this.#sink_last = { at: Date.now(), ok: true, rows: post.rows }; // wall: shown as a time
 		} catch (error) {
+			// wall: shown as a time
 			this.#sink_last = { at: Date.now(), ok: false, rows: post.rows, error: error_text(error) };
 			throw error;
 		}
