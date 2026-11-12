@@ -140,6 +140,8 @@ bench(
 			];
 			tail.hints(hrefs, fp);
 			tail.graph(entry, hrefs, fp);
+			// (the blocks share one sheet: each after the first is one more owner of it, #854)
+			tail.sheet_owner('/_app/immutable/assets/blocks.css', fp);
 		}
 		tail.hole('h1', '/__ogygia__/r?id=1&p=abc', '');
 		return tail.render(SeedIndex.of(data)).length;
