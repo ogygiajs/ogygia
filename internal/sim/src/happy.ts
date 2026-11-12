@@ -6,7 +6,8 @@
  * - `inert_parsed_documents`: a parsed document loads nothing.
  * - `completion_on_the_loop`: a document's `load` event and `readyState` come on virtual time.
  */
-import { HTMLLinkElement } from 'happy-dom';
+import { HTMLLinkElement, HTMLScriptElement } from 'happy-dom';
+import ECMAScriptModule from 'happy-dom/lib/module/ECMAScriptModule.js';
 import AsyncTaskManager from 'happy-dom/lib/async-task-manager/AsyncTaskManager.js';
 import BrowserFrame from 'happy-dom/lib/browser/BrowserFrame.js';
 import BrowserFrameNavigator from 'happy-dom/lib/browser/utilities/BrowserFrameNavigator.js';
@@ -15,6 +16,7 @@ import HistoryItemList from 'happy-dom/lib/history/HistoryItemList.js';
 import HTMLParser from 'happy-dom/lib/html-parser/HTMLParser.js';
 import Document from 'happy-dom/lib/nodes/document/Document.js';
 import HTMLElement from 'happy-dom/lib/nodes/html-element/HTMLElement.js';
+import ParentNodeUtility from 'happy-dom/lib/nodes/parent-node/ParentNodeUtility.js';
 import * as PropertySymbol from 'happy-dom/lib/PropertySymbol.js';
 import XMLEncodeUtility from 'happy-dom/lib/utilities/XMLEncodeUtility.js';
 import WindowBrowserContext from 'happy-dom/lib/window/WindowBrowserContext.js';
@@ -116,6 +118,27 @@ export function inert_custom_elements(): void {
 }
 
 /**
+ * `document.getElementsByTagNameNS` works, as in a browser. happy-dom's reads the owner document of
+ * the node it searches from, for its content type, and a document has none, so it threw (the
+ * router's title check, on every client navigation: generated app 31). The search from a document
+ * reads the document as its own owner. Idempotent. Without it until now: test/document.test.ts.
+ */
+export function documents_by_namespace(): void {
+	const proto = Document.prototype as unknown as Record<string, unknown> & { __ns?: boolean };
+	if (proto.__ns) return;
+	proto.__ns = true;
+	const find = ParentNodeUtility.getElementsByTagNameNS;
+	ParentNodeUtility.getElementsByTagNameNS = function (parent, namespace, tag) {
+		const node = parent as unknown as Record<symbol, unknown>;
+		if (node[PropertySymbol.ownerDocument] != null) return find.call(this, parent, namespace, tag);
+		const own = new Proxy(node, {
+			get: (t, k) => (k === PropertySymbol.ownerDocument ? t : Reflect.get(t, k))
+		});
+		return find.call(this, own as unknown as typeof parent, namespace, tag);
+	};
+}
+
+/**
  * A run of text is one text node, as a browser's parser makes it. happy-dom's parser hands a bare
  * `>` in text (`() => x`) to a text node of its own, so the run became two nodes, and Svelte,
  * hydrating the server's one text, found a node left over (seed 477). A run the parser goes on
@@ -157,6 +180,138 @@ export function whole_text_runs(): void {
 		plain.call(this, text);
 		const now = node?.lastChild;
 		if (now?.nodeType === 3) made.add(now);
+	};
+}
+
+/** A window whose document its own parser parses (`modules_in_order`). */
+interface ParsedWindow {
+	document: EventTarget & { [key: symbol]: unknown };
+	Event: typeof Event;
+	setTimeout(fn: () => void, ms: number): unknown;
+	[key: symbol]: { startTask(): number; endTask(id: number): void };
+}
+
+/**
+ * The document is parsed: it reads `interactive`, and once the module scripts its parser put in it
+ * have run (or failed to load), DOMContentLoaded fires, a task of its own, as in a browser; then
+ * `load` may come (`holding` kept it back). happy-dom reads `interactive` from the start and never
+ * fires it: a script waiting for it never ran, and ogygia's wake gate waited for `load`
+ * (test/modules.test.ts).
+ */
+function content_loaded(
+	window: ParsedWindow,
+	modules: ReadonlyArray<{ done: Promise<void> }>,
+	holding: number
+): void {
+	const doc = window.document;
+	doc[PropertySymbol.readyState] = 'interactive';
+	doc.dispatchEvent(new window.Event('readystatechange'));
+	void Promise.all(modules.map((m) => m.done)).then(() =>
+		window.setTimeout(() => {
+			try {
+				doc.dispatchEvent(new window.Event('DOMContentLoaded', { bubbles: true }));
+			} finally {
+				window[PropertySymbol.readyStateManager].endTask(holding);
+			}
+		}, 0)
+	);
+}
+
+/**
+ * A document's module scripts run in its order, as a browser runs them: each one its parser put in
+ * the document (not `async`) runs after the ones above it, once they have run or failed to load.
+ * happy-dom runs an inline module at once and an external one when its file comes, so an inline
+ * module ran before the runtime's module above it (/island-foreign-edit: a foreign tool edited the
+ * islands before the runtime kept their server markup). Idempotent. test/modules.test.ts.
+ */
+export function modules_in_order(): void {
+	const script = HTMLScriptElement.prototype as unknown as Record<symbol | string, unknown>;
+	if (script.__ordered) return;
+	script.__ordered = true;
+	type Entry = {
+		url: string;
+		inline: boolean;
+		started: boolean;
+		done: Promise<void>;
+		finish: () => void;
+	};
+	const queues = new WeakMap<object, Entry[]>();
+	/** The document its own parser is parsing now (what it connects is parser-inserted). */
+	let parsing: unknown = null;
+	/** The inline module being connected (happy-dom evaluates it in the same call). */
+	let current: Entry | null = null;
+	const parser = HTMLParser.prototype as unknown as {
+		parse(this: { window: ParsedWindow }, ...a: unknown[]): unknown;
+	};
+	const parse = parser.parse;
+	parser.parse = function (...a: unknown[]) {
+		const was = parsing;
+		const own = a[1] === this.window.document && parsing !== a[1];
+		if (!own) return parse.apply(this, a);
+		const window = this.window;
+		const doc = window.document;
+		// (the document is loading while its parser runs, and `load` waits for DOMContentLoaded)
+		doc[PropertySymbol.readyState] = 'loading';
+		const holding = window[PropertySymbol.readyStateManager].startTask();
+		parsing = doc;
+		try {
+			return parse.apply(this, a);
+		} finally {
+			parsing = was;
+			content_loaded(window, [...(queues.get(doc) ?? [])], holding);
+		}
+	};
+	const connect = script[PropertySymbol.connectedToDocument] as (this: unknown) => unknown;
+	script[PropertySymbol.connectedToDocument] = function (this: HTMLScriptElement) {
+		const doc = this.ownerDocument;
+		if (parsing !== doc || this.getAttribute('type') !== 'module' || this.hasAttribute('async'))
+			return connect.call(this);
+		const src = this.getAttribute('src');
+		let finish = (): void => {};
+		const done = new Promise<void>((r) => (finish = r));
+		const entry: Entry = {
+			url: src === null ? '' : new URL(src, doc.location.href).href,
+			inline: src === null,
+			started: false,
+			done,
+			finish
+		};
+		const list = queues.get(doc) ?? [];
+		queues.set(doc, list);
+		list.push(entry);
+		if (src !== null) {
+			// (one that never runs, its file failed, lets the ones below it go on)
+			this.addEventListener('load', () => entry.finish(), { once: true });
+			this.addEventListener('error', () => entry.finish(), { once: true });
+			return connect.call(this);
+		}
+		current = entry;
+		try {
+			return connect.call(this);
+		} finally {
+			current = null;
+		}
+	};
+	const module = ECMAScriptModule.prototype as unknown as Record<symbol | string, unknown>;
+	const evaluate = module.evaluate as (this: unknown, ...a: unknown[]) => Promise<unknown>;
+	module.evaluate = async function (this: Record<symbol | string, unknown>, ...a: unknown[]) {
+		const doc = (this[PropertySymbol.window] as { document?: object } | undefined)?.document;
+		const list = doc === undefined ? undefined : queues.get(doc);
+		const href = String((this.url as { href?: string })?.href ?? this.url);
+		const entry =
+			list === undefined
+				? undefined
+				: current !== null && list.includes(current) && !current.started
+					? current
+					: list.find((e) => !e.inline && !e.started && e.url === href);
+		if (list === undefined || entry === undefined) return evaluate.apply(this, a);
+		entry.started = true;
+		try {
+			await Promise.all(list.slice(0, list.indexOf(entry)).map((e) => e.done));
+			return await evaluate.apply(this, a);
+		} finally {
+			entry.finish();
+		}
 	};
 }
 
@@ -310,6 +465,36 @@ interface Manager {
  * back). The other methods clear the timer with the real `clearTimeout`, which ignores this handle,
  * so a task that is no longer the manager's current one does nothing.
  */
+/**
+ * A script runs once, as in a browser: a script is "already started" once it connected (whether it
+ * ran or not), or when a parser marked it unexecutable (`DOMParser`, `innerHTML`), and a copy
+ * carries the flag (HTML's cloning steps for `script`). happy-dom keeps no such flag, so a copy of a
+ * parsed page's script ran when the router's head merge put it in the page: the next page's early
+ * hole start ran again and asked for holes its batch had brought (gen 191, seed 191001). Idempotent.
+ * test/scripts.test.ts.
+ */
+export function scripts_start_once(): void {
+	const script = HTMLScriptElement.prototype as unknown as Record<symbol | string, unknown>;
+	if (script.__once) return;
+	script.__once = true;
+	const started = new WeakSet<object>();
+	const connect = script[PropertySymbol.connectedToDocument] as (this: object) => unknown;
+	script[PropertySymbol.connectedToDocument] = function (this: Record<symbol, unknown>) {
+		if (started.has(this)) this[PropertySymbol.disableEvaluation] = true;
+		started.add(this);
+		return connect.call(this);
+	};
+	const clone = script[PropertySymbol.cloneNode] as (this: object, deep?: boolean) => unknown;
+	script[PropertySymbol.cloneNode] = function (this: Record<symbol, unknown>, deep?: boolean) {
+		const copy = clone.call(this, deep) as Record<symbol, unknown>;
+		if (started.has(this) || this[PropertySymbol.disableEvaluation] === true) {
+			copy[PropertySymbol.disableEvaluation] = true;
+			started.add(copy);
+		}
+		return copy;
+	};
+}
+
 export function completion_on_the_loop(loop: Loop | null): void {
 	driving = loop;
 	const proto = AsyncTaskManager.prototype as unknown as Record<string, unknown>;
