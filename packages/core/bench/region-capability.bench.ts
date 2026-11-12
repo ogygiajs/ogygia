@@ -16,7 +16,8 @@ const claim = (i: number): RegionClaim => ({
 	payload: `eyJuIjo${i}fQ`,
 	session: '',
 	ttl: '',
-	render: 'c0ffee0c0ffe'
+	render: 'c0ffee0c0ffe',
+	wakes: ''
 });
 const exp = () => Math.floor(Date.now() / 1000) + 1800;
 
