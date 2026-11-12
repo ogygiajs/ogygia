@@ -50,6 +50,21 @@ export const ERRORS = {
 			deploy, ogygia retries the current build's file first.
 		`
 	},
+	island_code_refused: {
+		text: (a: { url: string; entry: string }): string =>
+			`refused island code from ${a.url} (for ${a.entry}): not an origin this page loads code from`,
+		details: (): string => prose`
+			An island's code was to load from an origin the page does not load code from. The runtime
+			imports island code only from the page's own origin, its own (Kit's \`paths.assets\`), and
+			the origins the server named on the runtime's script (a federated peer's, from
+			\`federate({ peers })\`). Anything else came from the page's markup, not from ogygia: a
+			region's \`entry\` or \`src\` written by content that is not the server's own render. The
+			island stays as its server HTML.
+
+			If the origin is one of your apps, declare it as a federation peer. If markup a visitor
+			wrote can reach the page, check what keeps it from writing \`<ogygia-region>\` elements.
+		`
+	},
 	client_hook_failed: {
 		text: (a: { plugin: string; hook: string }): string =>
 			`plugin \`${a.plugin}\`: its \`${a.hook}\` hook threw (or its promise rejected); the page and the other plugins carry on`,
