@@ -1,27 +1,3 @@
-/**
- * The REGION emitter — turns a pure-static compiled content module into a **serialized region**.
- *
- * The principle: content must cross into Svelte as DATA, never as template source text. mdsvex's
- * output for a plain `.md` is already HTML except for two things we put there ourselves — the module
- * script (metadata) and the fence `{@html \`…\`}` wrappers (a lossless codec, reversed here). So the
- * emitter unwraps the fences, verifies nothing dynamic remains, and re-emits the module as:
- *
- *   <script module>
- *     …original metadata export…
- *     export const __ogygia_region = { html: "<the whole document, one JSON string>" };
- *   </script>
- *   {@html __ogygia_region.html}
- *
- * The HTML lives in a JS string literal (JSON escaping — mechanical, can't be wrong); the template
- * holds a single reference and never any content, so the escaping hazard class is structurally gone.
- * Downstream, the `markdown` format sees `__ogygia_region` and mints a PRE-BAKED inline region:
- * `<Region>` renders the shell component as usual, awaiting the body is a no-op (the HTML was baked
- * at compile time), and the fence cache upstream stores plain HTML.
- *
- * A file that ISN'T pure static — islands, `<script>`, component tags, svelte expressions, tabs —
- * returns `null` and keeps the component path. Fallback, never failure: dynamic content is what the
- * component path is FOR; the region path is for the corpus.
- */
 import { dedent } from '@ogygia/core/plugin/utils';
 
 /** Exact inverse of `escape_svelte` (shiki.ts). In escaped text every backslash was produced by one
@@ -31,10 +7,8 @@ export function unescape_svelte(escaped: string): string {
 	return escaped.replace(/\\([\s\S])/g, '$1');
 }
 
-/** One fence embed: `{@html \`…\`}` with backtick/backslash escapes inside (never a raw backtick). */
 const FENCE_EMBED_RE = /\{@html `((?:[^`\\]|\\[\s\S])*)`\}/g;
 
-/** A module-level script block (Svelte 5 `<script module>` or legacy `context="module"`). */
 const MODULE_SCRIPT_RE =
 	/<script\b[^>]*\b(?:context\s*=\s*(["'])module\1|module)\b[^>]*>([\s\S]*?)<\/script>/;
 
@@ -44,7 +18,6 @@ export type RegionEmit = {
 	html: string;
 };
 
-/** A compiled module's module script body (its metadata export) and the template around it. */
 function split_module(code: string): { module_body: string; template: string } {
 	const mod = MODULE_SCRIPT_RE.exec(code);
 	return {
@@ -53,52 +26,50 @@ function split_module(code: string): { module_body: string; template: string } {
 	};
 }
 
-/** A component tag's opening: `<Foo`, `<Foo.Bar`, `<ui.Button`. */
 const COMPONENT_TAG_RE = /<([A-Z][\w$]*(?:\.[\w$]+)*|[a-z_$][\w$]*(?:\.[\w$]+)+)(?=[\s/>])/;
 
-/** The first component tag in a compiled module's template, outside its fences; null when none. A
- *  region keeps one as an inert element (a `.md` corpus mentions them); `md()` refuses it. */
+/** The first component tag (`<Foo`, `<Foo.Bar`, `<ui.Button`) in a compiled module; null when
+ *  none. A region keeps one as an inert element (a `.md` corpus mentions them); `md()` refuses it. */
 export function component_tag_in(code: string): string | null {
 	const m = COMPONENT_TAG_RE.exec(split_module(code).template.replace(FENCE_EMBED_RE, ' '));
 	return m ? m[1]! : null;
 }
 
 /**
- * Try to re-emit a compiled content module as a serialized region. `code` is the post-mdsvex,
- * post-island-transform module; `module_lines` are the extra module-script exports the caller was
- * going to inject anyway (`__ogygia_source`, …). Returns `null` when the file is dynamic.
+ * Re-emit a compiled content module as a serialized region: content crosses into Svelte as data,
+ * never as template source. `code` is the post-mdsvex, post-island-transform module; `module_lines`
+ * are the module-script exports the caller injects anyway (`__ogygia_source`, …). The result:
+ *
+ * ```svelte
+ * <script context="module">
+ *   …the original metadata export…
+ *   export const __ogygia_region = { html: "<the whole document, one JSON string>" };
+ * </script>
+ * {@html __ogygia_region.html}
+ * ```
+ *
+ * The fence embeds are unwrapped (the codec is lossless), and the prose is text: its braces become
+ * entities, a `<svelte:…>` tag shows as written, a capitalized `<Widget>` stays an inert element.
+ * The template holds one reference and no content, so nothing in the content can be read as
+ * Svelte. Only an instance `<script>` keeps the component path: then it returns `null`.
  */
 export function try_region_emit(code: string, module_lines: string[]): RegionEmit | null {
 	const { module_body, template } = split_module(code);
 
-	// An instance script is genuinely dynamic — the component path's job. (Everything else that
-	// LOOKS svelte-ish in a region-mode `.md` is text; see the skeleton passes below.)
 	if (/<script\b/.test(template)) return null;
 
-	// Pull OUR fence embeds out and hold their plain HTML aside. The classifier below must judge only
-	// the PROSE — fence content is code and legitimately full of braces; it was already proven inert
-	// by arriving through the embed codec.
 	const fences: string[] = [];
 	let skeleton = template.replace(FENCE_EMBED_RE, (_, inner: string) => {
 		fences.push(unescape_svelte(inner));
 		return `\0${fences.length - 1}\0`;
 	});
 
-	// In region-mode `.md` nothing can BE a component or a svelte meta-element — there are no
-	// imports and no scripts. A literal `<svelte:document>` in prose (the 2023 what's-new post) is
-	// TEXT: escape it visible. A capitalized `<Widget>` mention passes through as an unknown element
-	// (children render, tag inert) — exactly what svelte.dev's own renderer does with it.
 	skeleton = skeleton.replace(/<(\/?)(svelte:[a-z]+)/g, '&lt;$1$2');
 
-	// Prose braces are TEXT. In a `.md` (region mode = "markdown is content"), a stray `{` in prose
-	// is the author showing a brace — not a svelte expression — and the component path would either
-	// evaluate it or die on it ("Expected token }", the 2018 svelte-blog post). Escape to entities
-	// and keep the region. Live svelte-in-markdown is `.svx`'s job.
 	const prose = skeleton.replace(/\{/g, '&#123;').replace(/\}/g, '&#125;');
 
 	const html = prose.replace(/\0(\d+)\0/g, (_, n: string) => fences[Number(n)]!).trim();
-	// `<`-escape `<` inside the JSON literal so `</script>` (or `<!--`) in content can never
-	// terminate the surrounding script block. Valid JSON, decodes to the same string.
+	// @why a `</script>` or `<!--` in the content would end the module script: every `<` in the JSON literal is `<` (test: test/region-emit.test.ts › JSON-escapes </script> in content so the module script cannot terminate early)
 	const html_json = JSON.stringify(html).replace(/</g, '\\u003C');
 
 	const lines = [...module_lines, `export const __ogygia_region = { html: ${html_json} };`].join(

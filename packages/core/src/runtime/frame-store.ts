@@ -108,6 +108,8 @@ type Entry = {
 	 *  woke: ./early-holes.ts): handed, once, to the first caller that asks here, which is refused as
 	 *  if it had asked itself. A frame written here, or a forced fetch, ends it. */
 	refused: Error | null;
+	/** The store let it go (another entry took the address, or it lingered out): never held again. */
+	gone: boolean;
 };
 
 /** Entries with no subscribers linger this long (ms) so quick remounts / SPA swaps reuse content. */
@@ -116,6 +118,10 @@ const EVICT_TTL = 60_000;
 /** The most addresses the store keeps: past it the least recently used idle one goes (a bound or
  *  fetched one never does). A page binds a few dozen; a long session's idle ones are what goes. */
 const MAX_ADDRESSES = 2000;
+
+/** A set by a caller that knows the entry is in use (bound or fetched), or idle. */
+const HELD = { keep: Infinity };
+const LINGER = { keep: EVICT_TTL };
 
 type FrameFlights = Flights<FrameAsk, VerifiedHtml, Pick<FrameAsk, 'a'>>;
 
@@ -159,9 +165,9 @@ function make_store(): Store {
 		owner: life,
 		onEvict: (a, e, why) => {
 			// its linger ran out while something bound it again or fetches it: it stays
-			if (why === 'age' && live(a) && entries.set(a, e)) return;
-			// (set again, its linger starting over: the same entry, still held)
-			if (entries.peek(a) === e) return;
+			if (why === 'age' && live(a) && entries.set(a, e, HELD)) return;
+			// (a set of the entry it holds is not a leave: a notice is of an entry the store let go)
+			e.gone = true;
 			// the store ends: a binder joined to a reservation must not hang
 			if (why === 'end') e.batch?.fail(new Error('reset'));
 			e.answer.stop();
@@ -232,7 +238,7 @@ function entry(a: string): Entry {
 	const entries = store().entries;
 	let e = entries.peek(a);
 	if (!e) {
-		e = { answer: answers.create(), batch: null, renewed: null, refused: null };
+		e = { answer: answers.create(), batch: null, renewed: null, refused: null, gone: false };
 		entries.set(a, e);
 	}
 	return e;
@@ -246,9 +252,8 @@ function entry(a: string): Entry {
  * region, or a live tick whose address keeps changing).
  */
 function schedule_evict(a: string, e: Entry): void {
-	if (live(a)) return;
-	const entries = store().entries;
-	if (entries.peek(a) === e) entries.set(a, e); // (set again: its linger starts now)
+	if (live(a) || e.gone) return;
+	store().entries.set(a, e, LINGER); // (set again: its linger starts now)
 }
 
 /** Applied content for an address, if any. */
@@ -362,7 +367,7 @@ export function subscribe(a: string, cb: (f: StoredFrame) => void): () => void {
 	// Ongoing notifications ride the hub's watcher set; immediate replay of already-applied
 	// content stays here (a late binder catching a frame that landed before it mounted).
 	const off = watch(frame_id(a), cb as (v: unknown) => void);
-	store().entries.set(a, e); // (bound now: it stays while bound)
+	store().entries.set(a, e, HELD); // (bound now: it stays while bound)
 	const s = shown_of(e);
 	if (s !== null) cb({ a, v: s.v, d: s.d, html: s.html });
 	return () => {

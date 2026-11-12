@@ -592,6 +592,35 @@ describe('mount() — claims auto-built from the table identity', () => {
 		await app.fetch(new Request('http://shell.test/cms/x'));
 		expect(seen!.headers.get('x-og-user')).toBeNull();
 	});
+
+	it('a user override replaces the visitor, the table experiments still ride along, and its own experiment wins', async () => {
+		let seen: Request | undefined;
+		vi.stubGlobal('fetch', async (u: URL, init?: RequestInit) => {
+			seen = new Request(u, init);
+			return new Response(doc_json());
+		});
+		const hero = flag('hero', { rollout: 100 });
+		const promo = flag('promo', { rollout: 100 });
+		const cms = new PeerHandle('cms', { origin: 'http://mfe.test' }, 'shell', priv);
+		const app = routes(
+			{
+				'/cms/[...rest]': mount(cms, {
+					user: () => ({ sub: 'override', experiments: { promo: 'mine' } })
+				})
+			},
+			{ visitor: () => ({ sub: 'u9' }), flags: [hero, promo] }
+		);
+		await app.fetch(new Request('http://shell.test/cms/x'));
+		const v = verify_signed_request(
+			{ publicKeys: [pub], audience: 'mfe.test' },
+			seen!,
+			new URL(seen!.url)
+		);
+		const experiments = v?.user?.experiments as Record<string, unknown>;
+		expect(v?.user?.sub).toBe('override');
+		expect(experiments?.hero).toBeDefined();
+		expect(experiments?.promo).toBe('mine');
+	});
 });
 
 describe('federate() — registration + fail-closed', () => {

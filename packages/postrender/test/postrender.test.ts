@@ -2,6 +2,7 @@
 // when REDIS_URL is set), observed purity, single-flight + fan-out, and the two edge adapters'
 // REAL request shapes (signing included) captured through a stubbed fetch.
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { createHash, createHmac } from 'node:crypto';
 import { STALE } from '@ogygia/machine';
 import { store_key, normalize_prefix, prefix_tags, PREFIX_TAG_DEPTH } from '../src/key.ts';
 import { MemoryStore } from '../src/memory-store.ts';
@@ -129,6 +130,10 @@ store_contract('memory (tier 1)', () => new MemoryStore());
 
 // A faithful little Valkey fake (get/set EX/del/scan MATCH+COUNT with cursor) so the adapter's
 // command usage is exercised on every PR; the REAL server runs the same contract below.
+// (RegExp.escape is not in Node 22, which CI runs)
+const REGEX_SPECIAL_G = /[\\^$.*+?()[\]{}|/-]/g;
+const regex_escape = (s: string): string => s.replace(REGEX_SPECIAL_G, '\\$&');
+
 function fake_valkey(): ValkeyLike & { data: Map<string, string>; expiry: Map<string, number> } {
 	const data = new Map<string, string>();
 	const sets = new Map<string, Set<string>>();
@@ -190,12 +195,15 @@ function fake_valkey(): ValkeyLike & { data: Map<string, string>; expiry: Map<st
 		async scan(cursor, ...args) {
 			// single-page cursor; honor MATCH with the same glob subset the adapter emits
 			const match = String(args[args.indexOf('MATCH') + 1]);
-			const re = new RegExp(
-				`^${match
-					.replace(/[.+^${}()|[\]]/g, '\\$&')
-					.replace(/\\\\([*?[\]\\])/g, (_, c) => `\\${c}`)
-					.replace(/\*/g, '.*')}$`
-			);
+			let source = '';
+			for (let i = 0; i < match.length; i++) {
+				const c = match[i];
+				if (c === '\\') source += regex_escape(match[++i]);
+				else if (c === '*') source += '.*';
+				else if (c === '?') source += '.';
+				else source += regex_escape(c);
+			}
+			const re = new RegExp(`^${source}$`);
 			return ['0', [...data.keys()].filter((k) => re.test(k))] as unknown;
 		}
 	};
@@ -222,6 +230,54 @@ describe('valkey tag index lifetime', () => {
 		await store.put('/page/', page_entry(), { ttl: 86_400, tags: ['t'] });
 		const left = (client.expiry.get('og:t:t')! - Date.now()) / 1000;
 		expect(left).toBeGreaterThan(86_000);
+	});
+});
+
+describe('valkey client families and glob paths', () => {
+	it('evicts a prefix that holds a glob character literally, never a sibling it would match as a glob', async () => {
+		const store = new ValkeyStore(fake_valkey());
+		await store.put('/a*/x/', page_entry(), { ttl: 60 });
+		await store.put('/ab/x/', page_entry(), { ttl: 60 });
+		await store.evictWhere({ prefix: '/a*/' });
+		expect(await store.get('/a*/x/')).toBeNull();
+		expect(await store.get('/ab/x/')).not.toBeNull();
+	});
+
+	it('speaks node-redis v4: SET with an options bag after the positional form throws, and an object SCAN reply', async () => {
+		const base = fake_valkey();
+		const sets: unknown[][] = [];
+		const client: ValkeyLike = {
+			...base,
+			async set(key, value, ...args) {
+				sets.push(args);
+				if (args[0] === 'EX') throw new Error('ERR syntax error');
+				return base.set(key, value, ...args);
+			},
+			async scan(cursor, ...args) {
+				const [next, keys] = (await base.scan(cursor, ...args)) as [string, string[]];
+				return { cursor: Number(next), keys } as unknown;
+			}
+		};
+		const store = new ValkeyStore(client);
+		await store.put('/fr/a/', page_entry(), { ttl: 60 });
+		expect(sets).toEqual([['EX', 60], [{ EX: 60 }]]);
+		expect(base.expiry.has('og:a:/fr/a/')).toBe(true);
+		await store.evictWhere({ prefix: '/fr/' });
+		expect(await store.get('/fr/a/')).toBeNull();
+	});
+
+	it('speaks ioredis: SET … EX positionally, never the options bag', async () => {
+		const base = fake_valkey();
+		const sets: unknown[][] = [];
+		const store = new ValkeyStore({
+			...base,
+			async set(key, value, ...args) {
+				sets.push(args);
+				return base.set(key, value, ...args);
+			}
+		});
+		await store.put('/x/', page_entry(), { ttl: 60 });
+		expect(sets).toEqual([['EX', 60]]);
 	});
 });
 
@@ -700,6 +756,12 @@ describe('postrender/stitch', () => {
 		expect(out).toContain('fallback-stays');
 		expect(out).toContain('render="defer"'); // the dead hole still client-fetches
 		expect(out).toContain('<p>ok</p>');
+		const thrown = await stitch_html(html, async (e) => {
+			if (e === '/dead') throw new Error('upstream down');
+			return '<p>ok</p>';
+		});
+		expect(thrown).toContain('fallback-stays');
+		expect(thrown).toContain('<p>ok</p>');
 	});
 });
 
@@ -737,6 +799,29 @@ describe('edge adapters', () => {
 		expect(auth).toMatch(
 			/^EG1-HMAC-SHA256 client_token=ct;access_token=at;timestamp=\d{8}T\d\d:\d\d:\d\d\+0000;nonce=[0-9a-f-]{36};signature=[A-Za-z0-9+/=]+$/
 		);
+
+		const fields = Object.fromEntries(
+			auth
+				.slice('EG1-HMAC-SHA256 '.length)
+				.split(';')
+				.map((p) => [p.slice(0, p.indexOf('=')), p.slice(p.indexOf('=') + 1)])
+		);
+		const url = new URL(captured[0].url);
+		const auth_prefix = auth.slice(0, auth.indexOf('signature='));
+		const content_hash = createHash('sha256')
+			.update(String(captured[0].init.body))
+			.digest('base64');
+		const data = [
+			'POST',
+			'https',
+			'akab-test.purge.akamaiapis.net',
+			url.pathname + url.search,
+			'',
+			content_hash,
+			auth_prefix
+		].join('\t');
+		const key = createHmac('sha256', 'cs').update(fields.timestamp).digest('base64');
+		expect(fields.signature).toBe(createHmac('sha256', key).update(data).digest('base64'));
 
 		await edge.purgeWhere({ prefix: '/fr/fr/' });
 		expect(captured[1].url).toContain('/ccu/v3/invalidate/tag/production');

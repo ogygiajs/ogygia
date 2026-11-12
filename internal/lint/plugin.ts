@@ -227,14 +227,17 @@ const owned_effects = {
 type Comment = { type: string; value: string; loc: { start: { line: number } } };
 type Located = Node & { loc: { start: { line: number }; end: { line: number } } };
 
-/** The lines of this file that carry an `// ok: <reason>` comment (a reason, not just `ok:`). */
+/** An `// ok: <reason>` note: a reason, not just `ok:`. */
+const OK_NOTE = /^\s*ok:\s*\S/;
+
+/** The lines of this file that carry an `// ok: <reason>` comment. */
 function ok_lines(context: Context): Set<number> {
 	const comments =
 		(
 			context as { sourceCode?: { getAllComments?: () => Comment[] } }
 		).sourceCode?.getAllComments?.() ?? [];
 	const lines = new Set<number>();
-	for (const c of comments) if (/^\s*ok:\s*\S/.test(c.value)) lines.add(c.loc.start.line);
+	for (const c of comments) if (OK_NOTE.test(c.value)) lines.add(c.loc.start.line);
 	return lines;
 }
 
@@ -544,7 +547,7 @@ const TYPE_ONLY = /^@(type|satisfies)\s*\{[\s\S]*\}$/;
 const PACKAGE_DOC = /(^|\s)@packageDocumentation(\s|$)/;
 
 const MESSAGE_FREE =
-	'A comment in package source is JSDoc on an export, a tool directive (`-- <reason>`), or `// @why <fact> (test: <file> › <name>)`. Make this one a test, a rule, a type or clearer code, or delete it (#512).';
+	'A comment in package source is JSDoc on an export, a tool directive (`-- <reason>`), an `// ok: <reason>` note on a failure that is fine, or `// @why <fact> (test: <file> › <name>)`. Make this one a test, a rule, a type or clearer code, or delete it (#512).';
 const MESSAGE_JSDOC =
 	'JSDoc documents an export (or a member of an exported class or type). This one sits on something not exported: make it a clearer name, a test or a type, or delete it (#512).';
 const MESSAGE_REASON =
@@ -697,8 +700,9 @@ function names_verified(t: unknown): boolean {
  * component's props type and its members, or a `@packageDocumentation` block before any code), a
  * tool directive (`oxlint-disable…` and
  * `@ts-expect-error` with ` -- <reason>`; `svelte-ignore`, `@__PURE__`, `@vite-ignore`, formatter
- * ignores, `/// <reference>` as they are; a JSDoc that is only `@type {…}` or `@satisfies {…}`), or
- * a one-line `// @why <fact> (test: <file> › <name>)` directly above its statement, whose test
+ * ignores, `/// <reference>` as they are; a JSDoc that is only `@type {…}` or `@satisfies {…}`), a
+ * line `// ok: <reason>` (the note the no-silent-failures rules ask for), or a one-line
+ * `// @why <fact> (test: <file> › <name>)` directly above its statement, whose test
  * exists. A bin's `#!` line is not a comment. Anything else is a finding. `.d.ts` files are
  * documented like exports and are not read.
  */
@@ -730,6 +734,7 @@ const structured_comments = {
 						continue;
 					}
 					if (FREE.test(value)) continue;
+					if (c.type === 'Line' && OK_NOTE.test(value)) continue;
 					if (c.type === 'Block' && value.startsWith('*')) {
 						if (PACKAGE_DOC.test(value) && text.slice(0, c.range[0]).trim() === '') continue;
 						if (TYPE_ONLY.test(value.replace(/^[^\S\n]*\*/gm, '').trim())) continue;

@@ -1,26 +1,3 @@
-/**
- * STREAMED PAGES — `page(async function* (c, data) { yield region(...); ... })`.
- *
- * "The next state of a slot is a region" is the house law (`query.live` yields regions over the
- * push channel); this is the same vocabulary on the INITIAL response: the FIRST yield renders in
- * the document and the page flushes immediately; every later yield rides down the SAME response
- * as an inert `<template data-og-late>` chunk that swaps into the slot as it parses. One
- * connection, closed when the generator ends — no SSE, no second round trip, and no Svelte
- * streaming needed: each yield is an ordinary synchronous render, only the DOCUMENT is chunked.
- *
- * Islands inside late chunks need no orchestration: `<ogygia-region>` is a custom element, so
- * the moment swapped content lands in the DOM it upgrades, connects, and wakes on its own
- * schedule — the runtime never has to be told.
- *
- * Swapping is driven by ONE small classic inline script in the head (module scripts don't run
- * until parsing ENDS, which for a streamed document is the very thing we're not waiting for).
- * The slot, chunk and boot script are core's late wire (`ogygia/plugin`): core's `<Region
- * of={promise}>` emits the same slots and its runtime applies the same chunks. SPA navigations
- * fetch the COMPLETED stream, so there the runtime applies remaining templates after the body swap.
- *
- * Streaming's honest trades (documented): status/title/headers flush with the first yield — a
- * late error can't change an already-sent 200, and Server-Timing set after the flush is lost.
- */
 import { lateChunk as late_chunk, LATE_BOOT_SCRIPT } from '@ogygia/core/plugin';
 import { escapeText as escape_text } from '@ogygia/core/plugin/utils';
 import { cleanup_failed, next_tag, OG_LATE_ERROR, text_of } from '@ogygia/core/internal/server';
@@ -41,17 +18,10 @@ export async function bake_yield(v: unknown): Promise<string> {
 			props?: { html?: unknown };
 			then?: unknown;
 		};
-		// A still-thenable region (yielded from a SYNC generator, or handed in directly): bake it.
-		// NOTE an ASYNC generator's `yield` awaits thenables ITSELF, so the usual arrival here is
-		// the RESOLVED shape — `{ kind, html }` with the bake done (this bit the e2e while the
-		// string-only unit tests stayed green: test the real shapes).
 		if (typeof o.then === 'function') return bake_yield(await (v as PromiseLike<unknown>));
-		// resolved inline/dual carry top-level `html`; a raw og_html_region carries `props.html`
 		const html = o.html ?? o.props?.html;
 		if (html != null) return String(html);
 		if (o.kind != null)
-			// a region with NO html after resolution: an unmarked import in a server-only module
-			// bakes nothing (no identity, no client leg — the round-1 `region: 'raw'` rule).
 			throw new Error(
 				"[@ogygia/router] a yielded region did not bake — mark its import (`with { region: 'raw' }` or a wake) so the component has an identity + client leg."
 			);
@@ -76,13 +46,6 @@ function head_end(html: string): number {
 
 const NO_TRANSFORM_RE = /no-transform/i;
 
-/**
- * Turn a fully-rendered document (first yield in place) + the generator's REMAINING yields into
- * a streamed Response: flush everything up to `</body>` now, append one template chunk per
- * later yield, then the tail. A generator throw after the flush becomes an inline error-card
- * chunk (the page must never end broken) — the status is already on the wire, which is
- * streaming's documented trade.
- */
 /** One late chunk headed for one slot — the multi-slot unit `stream_document` drains. */
 export interface LateChunk {
 	slot: string;
@@ -98,13 +61,19 @@ export async function* page_slot_chunks(rest: AsyncGenerator<unknown>): AsyncGen
 	}
 }
 
+/**
+ * Turns a fully rendered document (first yield in place) and the remaining chunks into a streamed
+ * Response: everything up to `</body>` flushes now, each later chunk follows as an inert
+ * `<template>` that core's late boot script swaps into its slot as it parses, then the tail. The
+ * status and headers go out with the first flush, so a later throw cannot change them: it becomes
+ * an error card in `error_slot`. The stream ends when the visitor leaves (the body is cancelled)
+ * or `request` ends, and its chunk source is ended with it.
+ */
 export function stream_document(
 	full_html: string,
 	res: Response,
 	rest: AsyncGenerator<LateChunk>,
-	/** the slot an ERROR CARD lands in when the chunk source itself throws */
 	error_slot: string = PAGE_SLOT_ID,
-	/** the request's owner: its end (the visitor left) ends the stream too */
 	request?: Scope
 ): Response {
 	const at = head_end(full_html);
@@ -115,9 +84,6 @@ export function stream_document(
 	const tail_part = cut === -1 ? '' : with_boot.slice(cut);
 	const enc = new TextEncoder();
 
-	// The response's owner, the request's child: the visitor leaving (the body cancelled, or the
-	// request's signal) closes it, ends the chunk source (its generators' `finally` blocks run, and
-	// a merged source ends the ones it holds) and drops what lands after (#284).
 	const owner = scope(request);
 	owner.defer(() => void rest.return(undefined).catch(cleanup_failed));
 	const body = new ReadableStream<Uint8Array>({
@@ -144,10 +110,8 @@ export function stream_document(
 	});
 
 	const headers = new Headers(res.headers);
-	headers.delete('content-length'); // a stream has none — a stale length truncates the document
-	// no-transform: compressing intermediaries (CDNs, vite preview's gzip) BUFFER while they
-	// compress, which collapses the stream back into one late paint — the flushed-first-chunk
-	// point of this response. The standard header tells them to pass bytes through as-is.
+	headers.delete('content-length');
+	// @why a compressing proxy or CDN buffers a response while it compresses it, which turns the stream into one late paint; `no-transform` tells it to pass the bytes through (test: test/router-stream.test.ts › sets cache-control: no-transform when the page set no cache-control)
 	const cc = headers.get('cache-control');
 	if (!cc) headers.set('cache-control', 'no-transform');
 	else if (!NO_TRANSFORM_RE.test(cc)) headers.set('cache-control', `${cc}, no-transform`);
@@ -228,14 +192,10 @@ export async function* until_drained(
 			take_more();
 		}
 	} finally {
-		// ended early (the visitor left): every source it holds ends too
 		end_all(sources);
 	}
 }
 
-/** Ends each source (its `finally` runs once its pending step lands); one that already ended is
- *  left as it is. Nobody waits on that ending, so a `finally` that throws is said
- *  (`request_cleanup_failed`). */
 function end_all(sources: readonly AsyncGenerator<LateChunk>[]): void {
 	for (const s of sources) void s.return(undefined).catch(cleanup_failed);
 }
@@ -259,7 +219,6 @@ export async function* merge_chunks(
 			}
 		}
 	} finally {
-		// ended early (the visitor left): every source ends too
 		end_all(sources);
 	}
 }

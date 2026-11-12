@@ -1,17 +1,8 @@
-/**
- * postrender — tier-2 store on Upstash Redis (REST). Serverless-native: no client library, no
- * connection — every command is one signed HTTPS call, which is exactly what edge/lambda origins
- * want. Same key scheme as the valkey adapter (`og:a:<pathname>`, `og:t:<tag>` sets).
- *
- *   postrender.handle({ store: new UpstashStore({ url: env.UPSTASH_REDIS_REST_URL,
- *                                                 token: env.UPSTASH_REDIS_REST_TOKEN }) })
- */
 import { net } from '@ogygia/machine';
 import type { PostrenderEntry, PostrenderPutOptions, PostrenderStore } from '../types.ts';
 import { normalize_prefix, subtree_prefix } from '../key.ts';
 import { OgygiaError } from '../messages.ts';
 
-// ── regexes
 const GLOB_ACTIVE_G = /[*?[\]\\]/g;
 const TRAILING_SLASHES_RE = /\/+$/;
 
@@ -25,11 +16,17 @@ export interface UpstashConfig {
 	token: string;
 }
 
-/** Escape glob-active characters so a literal pathname can ride a SCAN MATCH pattern. */
 function glob_escape(value: string): string {
 	return value.replace(GLOB_ACTIVE_G, (c) => `\\${c}`);
 }
 
+/**
+ * A store on Upstash Redis over its REST API: no client library and no connection, every command
+ * is one HTTPS call, which suits serverless and edge origins. The same keys as `ValkeyStore`.
+ *
+ *   postrender.handle({ store: new UpstashStore({ url: env.UPSTASH_REDIS_REST_URL,
+ *                                                 token: env.UPSTASH_REDIS_REST_TOKEN }) })
+ */
 export class UpstashStore implements PostrenderStore {
 	#base: string;
 	#token: string;
@@ -57,9 +54,7 @@ export class UpstashStore implements PostrenderStore {
 		await this.#command(['SET', KEY_NS + key, JSON.stringify(entry), 'EX', ttl]);
 		for (const tag of tags ?? []) {
 			await this.#command(['SADD', TAG_NS + tag, key]);
-			// A tag set is shared by entries of different lifetimes: only ever EXTEND its expiry,
-			// or a short-lived entry would expire the index of a long-lived page sharing the tag.
-			// (TTL then EXPIRE, not `EXPIRE … GT`: GT treats a fresh set as never-expiring.)
+			// @why `EXPIRE … GT` treats a set with no expiry as never expiring, so it would never set the first one; TTL then EXPIRE does (test: test/postrender-sources-and-adapters.test.ts › speaks the REST protocol: SET EX, SADD/EXPIRE tags, SMEMBERS+DEL on evictByTag)
 			const left = await this.#command<number>(['TTL', TAG_NS + tag]);
 			if (left < ttl) await this.#command(['EXPIRE', TAG_NS + tag, ttl]);
 		}

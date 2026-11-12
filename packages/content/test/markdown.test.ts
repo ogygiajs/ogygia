@@ -278,6 +278,19 @@ describe('scoped heading ids', () => {
 		expect(code).toContain('id="a-b"');
 		expect(code).toContain('id="a-b-1"');
 	});
+
+	it('an explicit {#id} reserves it: a later heading that slugs to it gets a suffix', async () => {
+		const code = await render(['## Setup {#install}', '', '## Install'].join('\n'));
+		expect(code).toContain('id="install"');
+		expect(code).toContain('id="install-1"');
+	});
+
+	it('a heading with inline code shows its braces in metadata.headings, not entities', async () => {
+		const code = await render('## The `{count}` prop');
+		expect(metadataOf(code).headings).toEqual([
+			{ depth: 2, id: 'the-count-prop', text: 'The {count} prop' }
+		]);
+	});
 });
 
 describe('code-block ids', () => {

@@ -8,13 +8,14 @@ describe('strip_markup_ts', () => {
 {#snippet row(l: { a: number }, i: number)}<p>{l.a}</p>{/snippet}
 <p>{(a as number).toFixed()} {a!.toString()} {a satisfies number} {foo<string>(a)}</p>
 {#each xs as x: number}{x}{/each}
-<button onclick={(e: MouseEvent): void => go(e)}>x</button>`;
+<button onclick={(e: MouseEvent): void => go(e)}>x</button>
+<p>{<number>a}</p>`;
 		expect(strip_markup_ts(src)).toBe(`<script>let a = 1;</script>
 {#snippet row(l, i)}<p>{l.a}</p>{/snippet}
 <p>{(a).toFixed()} {a.toString()} {a} {foo(a)}</p>
 {#each xs as x}{x}{/each}
-<button onclick={(e) => go(e)}>x</button>`);
-	});
+<button onclick={(e) => go(e)}>x</button>
+<p>{a}</p>`);	});
 
 	it('drops lang from a module script too, and keeps other attributes', () => {
 		const src = `<script module lang='ts'>export const k = 1;</script>
@@ -30,9 +31,10 @@ describe('strip_markup_ts', () => {
 		expect(strip_markup_ts('<script>let a = 1;</script><p>{a}</p>')).toBe(
 			'<script>let a = 1;</script><p>{a}</p>'
 		);
-		const src = '<script lang="ts">let a = 1;</script><p title="x as Y">{"b as C"} x as y</p>';
+		const src =
+			'<script lang="ts">let a = 1;</script><p title="x as Y" data-lang=\'lang="ts"\'>{"b as C"} x as y</p>';
 		expect(strip_markup_ts(src)).toBe(
-			'<script>let a = 1;</script><p title="x as Y">{"b as C"} x as y</p>'
+			'<script>let a = 1;</script><p title="x as Y" data-lang=\'lang="ts"\'>{"b as C"} x as y</p>'
 		);
 	});
 
