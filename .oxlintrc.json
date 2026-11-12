@@ -15,6 +15,10 @@
 	},
 	"overrides": [
 		{
+			"files": ["packages/*/src/**/*.ts"],
+			"rules": { "ogygia/markup-from-vocabulary": "error" }
+		},
+		{
 			"files": ["packages/*/src/**"],
 			"rules": { "no-eval": "error", "no-new-func": "error", "no-implied-eval": "error" }
 		}

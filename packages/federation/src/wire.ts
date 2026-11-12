@@ -11,6 +11,18 @@ import {
 	sign as ed_sign,
 	verify as ed_verify
 } from 'node:crypto';
+import {
+	Needle,
+	next_any_tag,
+	next_tag,
+	OG_MOUNT_MOVED,
+	OG_MOVED,
+	OGYGIA_GRAPH,
+	OGYGIA_RUNTIME,
+	text_of,
+	value_at,
+	type FoundTag
+} from '@ogygia/core/internal/server';
 import { cache } from '@ogygia/machine';
 import { attr, decodeText, html, type Html } from '@ogygia/core/plugin/utils';
 import { capability, type Capability } from '@ogygia/machine';
@@ -404,7 +416,11 @@ export function child_traceparent(incoming?: string | null): {
 
 // ── asset absolutizing ───────────────────────────────────────────────────────────────────────
 const ABSOLUTE_RE = /^[a-z][a-z0-9+.-]*:|^\/\//i;
-const ASSET_ATTR_RE = /\b(entry|endpoint|href|src)="([^"]+)"/g;
+/** An attribute that holds an asset ref (its name in lower case): `entry`, `endpoint`, `href`,
+ *  `src`, or a name ending in one after a non-word character (`data-src`, `xlink:href`). */
+const ASSET_ATTR_NAME = /(?:^|[^a-z0-9_])(?:entry|endpoint|href|src)$/;
+// (those names in any case: where an asset ref can be; a tag without one is not read)
+const ASSET_ATTR_ANY_CASE = /entry|endpoint|href|src/gi;
 const ASSET_PATH_RE = /(?:^|\/)(_app|og)\//;
 const ASSET_EXT_RE = /\.(js|css|woff2?)(\?|$)/;
 
@@ -415,8 +431,8 @@ function pin_asset(value: string, origin: string): string {
 	return new URL(value, origin + '/').href;
 }
 
-const GRAPH_SCRIPT_RE =
-	/(<script type="application\/json" data-ogygia-graph>)([\s\S]*?)(<\/script>)/g;
+// (the attribute's name in any case: where a graph script can be; a script without it is not read)
+const GRAPH_ANY_CASE = new RegExp(OGYGIA_GRAPH, 'gi');
 
 /** An island graph's JSON (core island-graph.ts: `{h, e, s}`), every chunk, entry and location in
  *  it pinned to `origin`: the shell's runtime resolves them against ITS page otherwise, so a remote
@@ -448,36 +464,97 @@ function pin_graph(json: string, origin: string): string {
 	return JSON.stringify(wire).replaceAll('<', '\\u003C');
 }
 
+/** `html` with the JSON of every `script[data-ogygia-graph]` (as the runtime selects them) pinned. */
+function pin_graphs(html: string, origin: string): string {
+	const mark = new Needle(html, GRAPH_ANY_CASE);
+	if (mark.gone) return html;
+	let out = '';
+	let pos = 0;
+	for (let t = next_tag(html, 'script', 0); t !== null; t = next_tag(html, 'script', t.next)) {
+		const held = mark.holds(t);
+		if (mark.gone) break;
+		if (!held || t.attr(OGYGIA_GRAPH) === undefined) continue;
+		const json = text_of(html, t, 'script');
+		if (json === null) break;
+		out += html.slice(pos, t.end) + pin_graph(json, origin);
+		pos = t.end + json.length;
+	}
+	return pos === 0 ? html : out + html.slice(pos);
+}
+
+/** `html` with the asset refs in the attribute values of its real tags pinned (as the browser
+ *  reads the tags: text that looks like one, in a comment, a code sample or script text, is the
+ *  page's text, #974). */
+function pin_attrs(html: string, origin: string): string {
+	const mark = new Needle(html, ASSET_ATTR_ANY_CASE);
+	if (mark.gone) return html;
+	let out = '';
+	let pos = 0;
+	for (let t = next_any_tag(html, 0); t !== null; t = next_any_tag(html, t.tag.next)) {
+		const held = mark.holds(t.tag);
+		if (mark.gone) break;
+		if (!held) continue;
+		// (in source order: a tag's attributes are read first to last)
+		for (const [name, value] of t.tag.attrs) {
+			if (value === '' || !ASSET_ATTR_NAME.test(name)) continue;
+			const pinned = pin_asset(value, origin);
+			if (pinned === value) continue;
+			const at = value_at(html, t.tag, t.name, name);
+			if (at === -1) continue;
+			out += html.slice(pos, at) + pinned;
+			pos = at + value.length;
+		}
+	}
+	return pos === 0 ? html : out + html.slice(pos);
+}
+
 /** Pin ASSET refs (island entries, stylesheets, chunks, the island graph) to `origin`; app-local
  *  LINKS stay path-relative — the consuming shell owns the address space they resolve in. */
 export function absolutize(html: string, origin: string): string {
-	return html
-		.replace(
-			ASSET_ATTR_RE,
-			(_m, attr: string, value: string) => `${attr}="${pin_asset(value, origin)}"`
-		)
-		.replace(
-			GRAPH_SCRIPT_RE,
-			(_m, open: string, json: string, close: string) => open + pin_graph(json, origin) + close
-		);
+	return pin_graphs(pin_attrs(html, origin), origin);
 }
 
 // ── document lifting (an app's full HTML → the wire document) ────────────────────────────────
-const HEAD_RE = /<head[^>]*>([\s\S]*?)<\/head>/i;
-const TITLE_RE = /<title[^>]*>([\s\S]*?)<\/title>/i;
-const STYLESHEET_LINK_RE = /<link\b[^>]*rel="stylesheet"[^>]*>/gi;
-const STYLE_TAG_RE = /<style[\s\S]*?<\/style>/gi;
-const BODY_RE = /<body[^>]*>([\s\S]*)<\/body>/i;
-const RUNTIME_SCRIPT_RE = /<script[^>]*data-ogygia-runtime[^>]*src="([^"]+)"/i;
-// HEAD CHANNEL: the meta tags worth carrying (SEO/social); charset/viewport/http-equiv stay the
-// shell's — it owns the document.
-const META_TAG_RE = /<meta\b[^>]*>|<link\b[^>]*rel="canonical"[^>]*>/gi;
-const SHELL_OWNED_META_RE = /\bcharset\b|http-equiv|name="viewport"/i;
+// (a `rel` holds a token as a browser reads it: split on spaces, in any case)
+const STYLESHEET_REL = /(?:^|[\t\n\f\r ])stylesheet(?:[\t\n\f\r ]|$)/i;
+const CANONICAL_REL = /(?:^|[\t\n\f\r ])canonical(?:[\t\n\f\r ]|$)/i;
+
+/** The element `tag` (a `<name …>` of `html`) through its end tag: its raw text up to the first
+ *  `</name`, then that end tag. Null when it never closes. */
+function element_of(html: string, tag: FoundTag, name: string): string | null {
+	const text = text_of(html, tag, name);
+	if (text === null) return null;
+	const gt = html.indexOf('>', tag.end + text.length);
+	return gt === -1 ? null : html.slice(tag.start, gt + 1);
+}
+
+/** Where the document's last `</body` end tag starts, at or after `from`, or -1. */
+function last_body_close(html: string, from: number): number {
+	for (let i = html.lastIndexOf('</'); i >= from && i !== -1; i = html.lastIndexOf('</', i - 1)) {
+		if (html.slice(i + 2, i + 6).toLowerCase() === 'body') {
+			const c = html.charCodeAt(i + 6);
+			// (the name ends there: whitespace, `/`, `>`)
+			if (c === 62 || c === 47 || c === 32 || (c >= 9 && c <= 13)) return i;
+		}
+		if (i === 0) break;
+	}
+	return -1;
+}
+
+/** A head meta the fragment carries: SEO/social; charset/viewport/http-equiv stay the shell's
+ *  (it owns the document). */
+function carried_meta(t: FoundTag): boolean {
+	return (
+		t.attr('charset') === undefined &&
+		t.attr('http-equiv') === undefined &&
+		(t.attr('name') ?? '').toLowerCase() !== 'viewport'
+	);
+}
 
 /** The card a fragment answers with when its peer redirected after the status was sent (a hole,
  *  a streamed mount): a link to the peer's `location`, escaped into its `href` (#439). */
 export function moved_card(
-	marker: 'data-og-moved' | 'data-og-mount-moved',
+	marker: typeof OG_MOVED | typeof OG_MOUNT_MOVED,
 	what: 'section' | 'page',
 	location: string
 ): Html {
@@ -486,19 +563,44 @@ export function moved_card(
 
 /** Lift a full HTML document into the wire shape (title, css, head channel, body, runtime). */
 export function lift_document(html: string, origin: string): Omit<FragmentDocument, 'status'> {
-	const head = html.match(HEAD_RE)?.[1] ?? '';
-	const runtime_src = html.match(RUNTIME_SCRIPT_RE)?.[1];
-	const head_meta = (head.match(META_TAG_RE) ?? [])
-		.filter((t) => !SHELL_OWNED_META_RE.test(t))
-		.map((t) => absolutize(t, origin))
-		.join('');
+	const head_tag = next_tag(html, 'head', 0);
+	const head = (head_tag && text_of(html, head_tag, 'head')) ?? '';
+	let runtime_src: string | undefined;
+	for (let t = next_tag(html, 'script', 0); t !== null; t = next_tag(html, 'script', t.next)) {
+		if (t.attr(OGYGIA_RUNTIME) === undefined) continue;
+		runtime_src = t.attr('src') || undefined;
+		if (runtime_src) break;
+	}
+	// HEAD CHANNEL: the metas and the canonical link, in the head's order; the stylesheets beside
+	let head_meta = '';
+	const css: string[] = [];
+	let meta = next_tag(head, 'meta', 0);
+	let link = next_tag(head, 'link', 0);
+	while (meta !== null || link !== null) {
+		if (link === null || (meta !== null && meta.start < link.start)) {
+			if (carried_meta(meta!)) head_meta += absolutize(head.slice(meta!.start, meta!.end), origin);
+			meta = next_tag(head, 'meta', meta!.next);
+			continue;
+		}
+		const rel = link.attr('rel') ?? '';
+		if (CANONICAL_REL.test(rel)) head_meta += absolutize(head.slice(link.start, link.end), origin);
+		if (STYLESHEET_REL.test(rel)) css.push(absolutize(head.slice(link.start, link.end), origin));
+		link = next_tag(head, 'link', link.next);
+	}
+	for (let t = next_tag(head, 'style', 0); t !== null;) {
+		const style = element_of(head, t, 'style');
+		if (style === null) break;
+		css.push(absolutize(style, origin));
+		t = next_tag(head, 'style', t.start + style.length);
+	}
+	const title_tag = next_tag(head, 'title', 0);
+	const body_tag = next_tag(html, 'body', 0);
+	const body_end = body_tag === null ? -1 : last_body_close(html, body_tag.end);
 	return {
-		title: decodeText(head.match(TITLE_RE)?.[1] ?? ''),
-		css: [...(head.match(STYLESHEET_LINK_RE) ?? []), ...(head.match(STYLE_TAG_RE) ?? [])].map((t) =>
-			absolutize(t, origin)
-		),
+		title: decodeText((title_tag && text_of(head, title_tag, 'title')) ?? ''),
+		css,
 		...(head_meta ? { head: head_meta } : {}),
-		body: absolutize(html.match(BODY_RE)?.[1] ?? html, origin),
+		body: absolutize(body_end === -1 ? html : html.slice(body_tag!.end, body_end), origin),
 		...(runtime_src ? { runtime: new URL(runtime_src, origin + '/').href } : {})
 	};
 }
