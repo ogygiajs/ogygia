@@ -6,6 +6,7 @@
 // the links the SSR baked onto the page. Simulated with a data: module that appends a known style.
 import { expect, test } from 'vitest';
 import { bootDev } from '../../src/runtime/full.ts';
+import { region_fragment } from '../../src/runtime/core.ts';
 import { island_module_url } from '../../src/runtime/region-endpoint-url.ts';
 
 // Strips the document's filename so what is left is its directory (for a relative href).
@@ -14,19 +15,11 @@ const MARKER_MODULE = '/test/browser/fixtures/dev-css-marker.ts';
 
 // An ES module evaluates ONCE per url, so a shared marker module cannot prove a SECOND import ran (a
 // cache hit re-runs no side effect). Each test that must observe "imported or not" mints its own
-// fresh module; the `tag` comment makes the url unique.
-const marker_module = (tag: string) =>
-	'data:text/javascript,' +
-	encodeURIComponent(
-		`/* ${tag} */ document.documentElement.setAttribute('data-og-dev-css-marker', '1');`
-	);
+// fresh module; the `tag` query makes the url unique. (On the page's own origin: the rescue imports
+// nothing else, runtime/code-origins.ts.)
+const marker_module = (tag: string) => MARKER_MODULE + '?m=' + tag;
 
-const MODULE =
-	'data:text/javascript,' +
-	encodeURIComponent(
-		"const s=document.createElement('style');s.setAttribute('data-og-dev-probe','');" +
-			"s.textContent='.og-dev-probe{color:rgb(0, 128, 0)}';document.head.appendChild(s);"
-	);
+const MODULE = '/test/browser/fixtures/dev-css-probe.ts';
 
 function css_link(href: string): void {
 	const l = document.createElement('link');
@@ -140,4 +133,39 @@ test('DEV: a link for a lake (wake="none") is still imported — nothing else wo
 		.toBe('1');
 	expect(document.head.querySelectorAll('link[data-ogygia-region-css]').length).toBe(0);
 	lake.remove();
+});
+
+// A region-css href is markup, as an island's `entry` is: the rescue imports it only from the page's
+// code origins (runtime/code-origins.ts), as the island's own load does (#981). A blob: module is on
+// none, and leaves a mark if it runs.
+const off_origin_module = (mark: string) =>
+	URL.createObjectURL(
+		new Blob([`document.documentElement.setAttribute('${mark}', '1');`], {
+			type: 'text/javascript'
+		})
+	);
+
+test('DEV: a region-css link off the page’s code origins is not imported at boot', async () => {
+	document.head.querySelectorAll('link[data-ogygia-region-css]').forEach((n) => n.remove());
+	document.documentElement.removeAttribute('data-og-dev-css-marker');
+	css_link(off_origin_module('data-og-off-origin-boot'));
+	css_link(MARKER_MODULE + '?m=after-off-origin'); // the page's own: it runs, so the rescue ran
+
+	bootDev();
+
+	await expect
+		.poll(() => document.documentElement.getAttribute('data-og-dev-css-marker'), {
+			timeout: 10_000
+		})
+		.toBe('1');
+	await new Promise((r) => setTimeout(r, 50));
+	expect(document.documentElement.hasAttribute('data-og-off-origin-boot')).toBe(false);
+});
+
+test('DEV: a fetched answer’s region-css link off the page’s code origins is not imported', async () => {
+	const off = off_origin_module('data-og-off-origin-answer');
+	await region_fragment(`<link rel="modulepreload" href="${off}" data-ogygia-region-css><p></p>`)
+		.ready;
+	await new Promise((r) => setTimeout(r, 50));
+	expect(document.documentElement.hasAttribute('data-og-off-origin-answer')).toBe(false);
 });
