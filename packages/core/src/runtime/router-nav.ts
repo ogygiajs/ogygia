@@ -34,6 +34,7 @@ import { spa_html_cacheable } from './spa-cacheable.ts';
 import { is_dangerous_head_node } from './head-deny.ts';
 import { pin_region_urls } from './entry-locations.ts';
 import { emit as dt_emit } from '../events/bus.ts';
+import { KNOWN_HEADER_CAP } from '../contract/known-copies.ts';
 
 // What this lazy chunk uses from the boot and from the router, handed over through the registry — it
 // never imports a boot module (./slots.ts `BootLink`: a module both import is split out of the runtime
@@ -80,12 +81,8 @@ const dt_now = clock.mono;
  *  replaceWith. Flip to `false` to fall back to the legacy full-swap path (the e2e safety net). */
 const RECONCILE_NAV = true;
 
-/** Max bytes for the `x-ogygia-known` header — past this we OMIT it, so the server renders every
- *  region (the safe full-render fallback). Keeps request headers well under proxy/server limits. */
-const KNOWN_HEADER_CAP = 6144;
-
 /** SERVER-DELTA NAV is OPT-IN for the first release (a new client↔server protocol). Off → the client
- *  never sends `x-ogygia-known`, so `known_region_fps()` is always empty server-side and every region
+ *  never sends `x-ogygia-known`, so `reuse_known_region()` never skips server-side and every region
  *  full-renders (the documented safe fallback). Compile-time constant (Vite `define`); typeof-guarded
  *  so a plain node import of dist/ without the define falls back to OFF. */
 const SERVER_DELTA =
@@ -107,10 +104,31 @@ export type NavPurpose = 'nav' | 'prefetch' | 'history';
 export const DOCUMENT_ACCEPT = 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8';
 
 /**
+ * The live region copies the server may skip (#846): one fingerprint per copy, so twins repeat it.
+ * The server skips the first copies of a fingerprint in document order, and the morph pairs each
+ * skipped placeholder with the live copy of the same place (runtime/reconcile.ts keys the n-th copy
+ * of an identity `<identity> <n>`). So a fingerprint's copies are claimed only up to the first one
+ * not hydrated: a placeholder paired with a copy that is still server markup would empty it.
+ */
+function known_copies(doc: Document): string[] {
+	const out: string[] = [];
+	/** Fingerprints whose run of hydrated copies ended. */
+	const ended = new Set<string>();
+	for (const el of doc.querySelectorAll('ogygia-region[data-og-fp]')) {
+		const fp = el.getAttribute('data-og-fp');
+		if (!fp || ended.has(fp)) continue;
+		if (el.hasAttribute('data-hydrated')) out.push(fp);
+		else ended.add(fp);
+	}
+	return out;
+}
+
+/**
  * SERVER-DELTA NAV (D2): headers for a nav/prefetch fetch. Always `x-ogygia-spa`. When `purpose` is
  * not a plain nav, `x-ogygia-purpose` names it (see {@link NavPurpose}). Plus, when the current
- * document has HYDRATED islands carrying a `data-og-fp`, `x-ogygia-known` lists their fingerprints so
- * the server can SKIP re-rendering the ones this page already has live. Only data-hydrated regions
+ * document has HYDRATED islands carrying a `data-og-fp`, `x-ogygia-known` lists their fingerprints, one
+ * per live copy ({@link known_copies}), so the server can SKIP re-rendering as many copies as this page
+ * already has live. Only data-hydrated regions
  * are claimed (never assert a region we don't actually have), and the header is omitted past a size
  * cap → the server renders everything (progressive enhancement: every header here is an optimization
  * the server may ignore, and its absence is always correct).
@@ -123,13 +141,9 @@ function nav_headers(purpose: NavPurpose = 'nav'): Record<string, string> {
 	const headers: Record<string, string> = { accept: DOCUMENT_ACCEPT, 'x-ogygia-spa': '1' };
 	if (purpose !== 'nav') headers['x-ogygia-purpose'] = purpose;
 	if (!SERVER_DELTA || typeof document === 'undefined') return headers;
-	const seen = new Set<string>();
-	for (const el of document.querySelectorAll('ogygia-region[data-og-fp][data-hydrated]')) {
-		const fp = el.getAttribute('data-og-fp');
-		if (fp) seen.add(fp);
-	}
-	if (seen.size === 0) return headers;
-	const joined = [...seen].join(',');
+	const live = known_copies(document);
+	if (live.length === 0) return headers;
+	const joined = live.join(',');
 	if (joined.length <= KNOWN_HEADER_CAP) headers['x-ogygia-known'] = joined;
 	return headers;
 }
