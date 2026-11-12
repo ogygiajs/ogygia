@@ -46,20 +46,20 @@ let cachedEndpoint = '';
 
 test.describe('defer fallback/endpoint/HMAC/cookie/CSS', () => {
 	test.beforeAll(async ({ baseURL }) => {
-		const res = await fetch(baseURL + '/server');
+		const res = await fetch(`${baseURL}/server`);
 		server_status = res.status;
 		server_html = await res.text();
 		// ServerIsland emits a RELATIVE path (Kit's server resolve()); resolve it against the page
 		// URL exactly as the browser does, giving an absolute URL for the fetch checks below.
 		const m = server_html.match(ENDPOINT_ATTR_RE);
-		endpoint = m ? new URL(m[1].replace(AMP_ENTITY_G_RE, '&'), baseURL + '/server').href : '';
+		endpoint = m ? new URL(m[1].replace(AMP_ENTITY_G_RE, '&'), `${baseURL}/server`).href : '';
 
 		// The /server-cached island opts into a browser cache via `maxAge: '1h'` (preset cachedGreeting).
-		const rc = await fetch(baseURL + '/server-cached');
+		const rc = await fetch(`${baseURL}/server-cached`);
 		cached_html = await rc.text();
 		const mc = cached_html.match(CACHED_ENDPOINT_ATTR_RE);
 		cachedEndpoint = mc
-			? new URL(mc[1].replace(AMP_ENTITY_G_RE, '&'), baseURL + '/server-cached').href
+			? new URL(mc[1].replace(AMP_ENTITY_G_RE, '&'), `${baseURL}/server-cached`).href
 			: '';
 	});
 
@@ -189,7 +189,7 @@ test.describe('defer fallback/endpoint/HMAC/cookie/CSS', () => {
 		}
 
 		// tampered signature -> rejected
-		const tampered = endpoint.replace(SIG_RE, 'sig=' + '0'.repeat(64));
+		const tampered = endpoint.replace(SIG_RE, `sig=${'0'.repeat(64)}`);
 		const resT = await fetch(tampered);
 		check('tampered signature rejected (403)', resT.status === 403, `got ${resT.status}`);
 
@@ -200,7 +200,7 @@ test.describe('defer fallback/endpoint/HMAC/cookie/CSS', () => {
 
 		// unknown region id with forged sig -> 403 (no existence oracle)
 		const resU = await fetch(
-			baseURL + '/__ogygia__?id=deadbeefdead&props=W3t9XQ&exp=9999999999&sig=' + '0'.repeat(64)
+			`${baseURL}/__ogygia__?id=deadbeefdead&props=W3t9XQ&exp=9999999999&sig=${'0'.repeat(64)}`
 		);
 		check('unknown region id rejected (403, no oracle)', resU.status === 403, `got ${resU.status}`);
 
@@ -228,13 +228,13 @@ test.describe('defer fallback/endpoint/HMAC/cookie/CSS', () => {
 
 	// malformed percent-encoding on the islands path must not crash the process (SEC-05)
 	test('malformed % path returns 4xx and the server stays up (SEC-05)', async ({ baseURL }) => {
-		const resBad = await fetch(baseURL + '/100%');
+		const resBad = await fetch(`${baseURL}/100%`);
 		check(
 			'malformed % path returns 4xx (no process crash)',
 			resBad.status >= 400 && resBad.status < 500,
 			`got ${resBad.status}`
 		);
-		const stillUp = await fetch(baseURL + '/server');
+		const stillUp = await fetch(`${baseURL}/server`);
 		check('server still up after malformed %', stillUp.status === 200);
 	});
 

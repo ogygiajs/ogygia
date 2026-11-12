@@ -16,6 +16,7 @@ import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { test, check, REPO as repo } from '@ogygia/tooling/e2e';
 import { spawn_server, port, type SpawnedServer } from '@ogygia/tooling/e2e/servers.ts';
+import { dedent } from '@ogygia/core/plugin/utils';
 
 // `ogygia` (what apps install) is a thin package over `@ogygia/core`: both are unpacked
 const pkg = path.join(repo, 'packages', 'ogygia');
@@ -45,8 +46,12 @@ const FILES: Record<string, string> = {
 	'package.json': '{ "name": "installed-app", "private": true, "type": "module" }\n',
 	'svelte.config.js': 'export default { kit: {} };\n',
 	// (devtools on, the way an app turns it on in dev: its dock's packages must be found up front)
-	'vite.config.js':
-		"import { sveltekit } from '@sveltejs/kit/vite';\nimport { ogygia } from 'ogygia/vite';\nimport { devtools } from '@ogygia/devtools/vite';\nexport default { plugins: [ogygia(), devtools(), sveltekit()] };\n",
+	'vite.config.js': `${dedent`
+			import { sveltekit } from '@sveltejs/kit/vite';
+			import { ogygia } from 'ogygia/vite';
+			import { devtools } from '@ogygia/devtools/vite';
+			export default { plugins: [ogygia(), devtools(), sveltekit()] };
+		`}\n`,
 	'src/app.html':
 		'<!doctype html><html><head><meta charset="utf-8" />%sveltekit.head%</head><body><div>%sveltekit.body%</div></body></html>\n',
 	'src/routes/+page.ts': 'export const csr = false;\n',
@@ -213,7 +218,7 @@ test.describe('dev: an installed (not linked) ogygia runs as one copy in the bro
 			'the page loads ogygia’s runtime and its slots from ogygia’s own files',
 			own.some((p) => p.endsWith('/runtime/slots.js')) &&
 				own.some((p) => p.endsWith('/runtime/hydrate-core.js')),
-			own.length + ' files'
+			`${own.length} files`
 		);
 		check(
 			'each ogygia file once',
@@ -229,7 +234,7 @@ test.describe('dev: an installed (not linked) ogygia runs as one copy in the bro
 			.filter(
 				([id, m]) =>
 					['ogygia', '@ogygia/core'].some(
-						(n) => id === n || id.startsWith(n + '/') || id.endsWith(' > ' + n)
+						(n) => id === n || id.startsWith(`${n}/`) || id.endsWith(` > ${n}`)
 					) ||
 					(m.src ?? '').includes('/node_modules/ogygia/') ||
 					(m.src ?? '').includes('/node_modules/@ogygia/core/')
@@ -319,7 +324,12 @@ test.describe('dev: an installed (not linked) ogygia runs as one copy in the bro
 		// imports load ogygia by path — the server restarts on the config change
 		fs.writeFileSync(
 			path.join(app, 'vite.config.js'),
-			"import { sveltekit } from '@sveltejs/kit/vite';\nimport { ogygia } from 'ogygia/vite';\nimport { devtools } from '@ogygia/devtools/vite';\nexport default { plugins: [ogygia(), devtools(), sveltekit()], optimizeDeps: { include: ['ogygia/runtime'] } };\n"
+			`${dedent`
+				import { sveltekit } from '@sveltejs/kit/vite';
+				import { ogygia } from 'ogygia/vite';
+				import { devtools } from '@ogygia/devtools/vite';
+				export default { plugins: [ogygia(), devtools(), sveltekit()], optimizeDeps: { include: ['ogygia/runtime'] } };
+			`}\n`
 		);
 		await page.waitForTimeout(6000);
 		let said: string[] = [];

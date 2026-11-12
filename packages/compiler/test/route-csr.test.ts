@@ -23,6 +23,7 @@ import {
 	clear_route_csr_cache
 } from '../src/compiler/kit.ts';
 import { transformHost } from '../src/compiler/region/transform.ts';
+import { dedent } from '@ogygia/core/contract';
 
 /** Write a route tree: { 'content/[...slug]/+page.ts': 'export const csr = false;' }. */
 function tree(files: Record<string, string>): string {
@@ -63,8 +64,22 @@ describe('read_csr — declaration forms', () => {
 		expect(one('export const csr: boolean = false;\n')).toBe(false);
 	});
 	it('commented-out declarations never win', () => {
-		expect(one('// export const csr = true\nexport const csr = false;\n')).toBe(false);
-		expect(one('/* export const csr = true */\nexport const csr = false;\n')).toBe(false);
+		expect(
+			one(
+				`${dedent`
+			// export const csr = true
+			export const csr = false;
+		`}\n`
+			)
+		).toBe(false);
+		expect(
+			one(
+				`${dedent`
+			/* export const csr = true */
+			export const csr = false;
+		`}\n`
+			)
+		).toBe(false);
 		expect(one('// export const csr = false\n')).toBe(undefined);
 	});
 });

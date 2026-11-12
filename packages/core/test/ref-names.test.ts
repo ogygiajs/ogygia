@@ -51,8 +51,8 @@ describe('ref names · one per render', () => {
 	it('two renders never share an id: each wire text carries its own fence', () => {
 		const a = request(render_page);
 		const b = request(render_page);
-		expect(a.out.text).toContain(a.names.fence + '~0');
-		expect(b.out.text).toContain(b.names.fence + '~0');
+		expect(a.out.text).toContain(`${a.names.fence}~0`);
+		expect(b.out.text).toContain(`${b.names.fence}~0`);
 		expect(a.names.fence).not.toBe(b.names.fence);
 	});
 
@@ -72,11 +72,11 @@ describe('ref names · one per render', () => {
 	it('placed() drops the fence of the render minting now, and leaves other text alone', () => {
 		const other = ref_names();
 		const { names, out } = request((own) => [
-			placed('a' + other.fence + '~0'),
-			placed('a' + own.fence + '~1')
+			placed(`a${other.fence}~0`),
+			placed(`a${own.fence}~1`)
 		]);
-		expect(out).toEqual(['a' + other.fence + '~0', 'a~1']);
+		expect(out).toEqual([`a${other.fence}~0`, 'a~1']);
 		// off a request: no names, nothing to drop
-		expect(placed('a' + names.fence + '~1')).toBe('a' + names.fence + '~1');
+		expect(placed(`a${names.fence}~1`)).toBe(`a${names.fence}~1`);
 	});
 });

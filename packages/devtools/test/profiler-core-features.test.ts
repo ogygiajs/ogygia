@@ -14,6 +14,7 @@ import { span_values } from '../src/profiler/insights.ts';
 import type { RequestEntry } from '../src/profiler/report.ts';
 import type { Timeline } from '../src/profiler/timeline.ts';
 import type { SpanRecord } from '../src/profiler/span.ts';
+import { dedent } from '@ogygia/core/plugin/utils';
 
 // a profile: (root) → load (routes/x/+page.server.ts) → fetchData ; (root) → Page.svelte → Card.svelte
 function profile(): CpuProfile {
@@ -301,10 +302,13 @@ describe('data lineage from the code', () => {
 		expect(data_prop_names(renamed)).toEqual(['data', 'pd']);
 		expect(data_reads(renamed, data_prop_names(renamed))).toEqual(['items']);
 		expect(data_reads(`let { data } = $props();\nconst all = { ...data };`)).toBeNull();
-		expect(data_reads(`let { data } = $props();\nconst k = data.a;\nfn(data);`)).toEqual([
-			'a',
-			'*'
-		]);
+		expect(
+			data_reads(dedent`
+			let { data } = $props();
+			const k = data.a;
+			fn(data);
+		`)
+		).toEqual(['a', '*']);
 		expect(data_reads(`const metadata = 1; const dataset = 2;`)).toEqual([]);
 		expect(data_reads(`const alias = data;\nconst keys = Object.keys(page.data);`)).toBeNull();
 	});

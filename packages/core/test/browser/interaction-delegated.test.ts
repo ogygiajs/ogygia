@@ -66,7 +66,7 @@ test('an event inside an armed region wakes THAT region only, once; the pointer 
 });
 
 test('a nested region that is not armed hands the event to the armed region above it', () => {
-	document.body.innerHTML = region('outer', region('inner') + '<span>x</span>');
+	document.body.innerHTML = region('outer', `${region('inner')}<span>x</span>`);
 	const outer = document.getElementById('outer')!;
 	const inner = document.getElementById('inner')!;
 	let fired = 0;

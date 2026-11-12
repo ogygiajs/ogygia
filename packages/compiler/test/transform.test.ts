@@ -17,6 +17,7 @@ import {
 	foucCssVirtualId
 } from '../dist/compiler/region/transform.js';
 import { HOST_CTX_DEFAULTS } from './_host-ctx.ts';
+import { dedent } from '@ogygia/core/contract';
 
 const ROOT = '/app';
 const HOST = '/app/src/routes/+page.svelte';
@@ -40,7 +41,7 @@ function makeCtx(overrides: Partial<HostCtx> = {}): HostCtx {
 		dev: false,
 		virtualPathFor: (_hostId: string, iid: string) => `ogygia:region/entry/${iid}.js`,
 		wrapperPathFor: (_hostId: string, iid: string) => wrapperVirtualId(iid),
-		devUrlFor: (p: string) => '/@id/' + p,
+		devUrlFor: (p: string) => `/@id/${p}`,
 		visibleMargin: '0px',
 		presets: {},
 		...overrides
@@ -54,7 +55,12 @@ function run(src: string, ctx = makeCtx()): Result | null {
 }
 
 function wrap(imports: string, markup: string): string {
-	return `<script>\n${imports}\n</script>\n${markup}`;
+	return dedent`
+		<script>
+		${imports}
+		</script>
+		${markup}
+	`;
 }
 
 function expectThrows(fn: () => unknown, re: RegExp): string {
@@ -124,10 +130,10 @@ describe('strategyKey / regionIdentity dedupe', () => {
 describe('foucCssVirtualId', () => {
 	test('builds .js virtual FOUC CSS ids (encoded path)', () => {
 		expect(foucCssVirtualId('src/lib/SideNav.svelte')).toBe(
-			'ogygia:region/fouc-css/' + encodeURIComponent('src/lib/SideNav.svelte') + '.js'
+			`ogygia:region/fouc-css/${encodeURIComponent('src/lib/SideNav.svelte')}.js`
 		);
 		expect(foucCssVirtualId('src\\routes\\A.svelte')).toBe(
-			'ogygia:region/fouc-css/' + encodeURIComponent('src/routes/A.svelte') + '.js'
+			`ogygia:region/fouc-css/${encodeURIComponent('src/routes/A.svelte')}.js`
 		);
 		expect(foucCssVirtualId('src/lib/SideNav.svelte').endsWith('.js')).toBe(true);
 	});
@@ -229,7 +235,11 @@ describe('portable binding rewrite', () => {
 	test('two static usages + dynamic + second import same path → ONE island entry', () => {
 		const r = run(
 			wrap(
-				`import A from './A.svelte' with { wake: 'load' };\nimport B from './A.svelte' with { wake: 'load' };\nconst dyn = A;`,
+				dedent`
+					import A from './A.svelte' with { wake: 'load' };
+					import B from './A.svelte' with { wake: 'load' };
+					const dyn = A;
+				`,
 				'<A n={1} /><A n={2} /><svelte:component this={dyn} n={3} /><B n={4} />'
 			)
 		)!;
@@ -750,21 +760,30 @@ describe('cross-island children (runtime slot crossing)', () => {
 	});
 
 	test('many call sites with different children share the ONE island', () => {
-		const r = run(wrap(LOAD, '<C><p>a</p></C>\n<C><p>b</p></C>\n<C><p>a</p></C>'))!;
+		const r = run(
+			wrap(
+				LOAD,
+				dedent`
+			<C><p>a</p></C>
+			<C><p>b</p></C>
+			<C><p>a</p></C>
+		`
+			)
+		)!;
 		expect(r.islands).toHaveLength(1);
 		// no synthetic per-usage bindings — every usage keeps the real import
 		expect(r.code).not.toMatch(/__og\d/);
 	});
 
 	test('host values referenced by children need no capture wiring (server closure renders them)', () => {
-		const r = run(wrap(LOAD + '\nconst who = "Ada";', '<C><p>{who}</p></C>'))!;
+		const r = run(wrap(`${LOAD}\nconst who = "Ada";`, '<C><p>{who}</p></C>'))!;
 		expect(r.code).not.toMatch(/__ogFv/);
 		expect(r.code).toMatch(/<p>\{who\}<\/p>/);
 	});
 
 	test('a nested marked island inside children keeps its OWN region (wakes independently)', () => {
 		const r = run(
-			wrap(LOAD + `\nimport B from './B.svelte' with { wake: 'load' };`, '<C><B start={5} /></C>')
+			wrap(`${LOAD}\nimport B from './B.svelte' with { wake: 'load' };`, '<C><B start={5} /></C>')
 		)!;
 		expect(r.islands).toHaveLength(2);
 		expect(r.code).toMatch(/<B start=\{5\} \/>/);
@@ -1044,7 +1063,7 @@ describe('package-specifier island marks', () => {
 
 	test('children at the call site stay put — the package island crosses them at runtime', () => {
 		const src = wrap(
-			PKG + `\nimport { Tab } from 'ogygia/content';`,
+			`${PKG}\nimport { Tab } from 'ogygia/content';`,
 			`<TabGroup group="install"><Tab label="npm"><p>x</p></Tab></TabGroup>`
 		);
 		const r = run(src)!;
@@ -1080,7 +1099,7 @@ describe('package-specifier island marks', () => {
 		const src = (host: string) =>
 			transformHost(
 				wrap(
-					PKG + `\nimport { Tab } from 'ogygia/content';`,
+					`${PKG}\nimport { Tab } from 'ogygia/content';`,
 					`<TabGroup group="pm"><Tab label="npm"><p>i</p></Tab></TabGroup>`
 				),
 				host,
@@ -1143,9 +1162,11 @@ describe('asRegion macro (import.meta.og.asRegion)', () => {
 
 	test('identity keys on source#exportName: two named exports of ONE barrel → two islands', () => {
 		const r = asr(
-			`import { Header, Footer } from '@acme/ui';\n` +
-				`const H = import.meta.og.asRegion(Header, { wake: 'load' });\n` +
-				`const F = import.meta.og.asRegion(Footer, { wake: 'visible' });`,
+			dedent`
+				import { Header, Footer } from '@acme/ui';
+				const H = import.meta.og.asRegion(Header, { wake: 'load' });
+				const F = import.meta.og.asRegion(Footer, { wake: 'visible' });
+			`,
 			'<H /><F />'
 		);
 		expect(r.islands).toHaveLength(2);

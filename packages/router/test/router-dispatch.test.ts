@@ -7,7 +7,7 @@
 import { describe, it, expect } from 'vitest';
 import { routes, load, redirect, error, layout, page } from '../src/index.ts';
 
-const req = (path: string, init?: RequestInit) => new Request('http://x' + path, init);
+const req = (path: string, init?: RequestInit) => new Request(`http://x${path}`, init);
 
 describe('dispatch — endpoints, params, verbs', () => {
 	const app = routes({

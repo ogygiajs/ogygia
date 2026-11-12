@@ -53,7 +53,7 @@ export type StoredFrame = Frame & { html: VerifiedHtml };
 /** Frame addresses live in the hub's watcher space under a namespace, so region binders subscribe
  *  through the ONE hub `watch`/`notify` primitive (hub v2 phase W) — the frame store no longer owns
  *  a parallel subscriber set. */
-const frame_id = (a: string): string => 'frame:' + a;
+const frame_id = (a: string): string => `frame:${a}`;
 
 /** The name of a refused answer's error (./region-endpoint-url.ts): by name, since the store is one
  *  per document across bundle copies, and a copy's class is not another's. */
@@ -347,7 +347,7 @@ export function release(a: string): void {
 	const held = e?.batch;
 	if (!e || !held) return;
 	e.batch = null;
-	const miss = new Error('ogygia batch: no frame for ' + a);
+	const miss = new Error(`ogygia batch: no frame for ${a}`);
 	miss.name = BATCH_MISS;
 	held.fail(miss);
 }

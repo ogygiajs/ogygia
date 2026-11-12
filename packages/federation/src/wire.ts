@@ -429,7 +429,7 @@ const ASSET_EXT_RE = /\.(js|css|woff2?)(\?|$)/;
 function pin_asset(value: string, origin: string): string {
 	if (ABSOLUTE_RE.test(value)) return value;
 	if (!ASSET_PATH_RE.test(value) && !ASSET_EXT_RE.test(value)) return value;
-	return new URL(value, origin + '/').href;
+	return new URL(value, `${origin}/`).href;
 }
 
 // (the attribute's name in any case: where a graph script can be; a script without it is not read)
@@ -468,7 +468,7 @@ function pin_graph(json: string, origin: string): string {
 /** A region's `endpoint`, pinned to `origin` whatever its path: it is always the answering app's own
  *  (a server island's hole, a lake's), never a link the consumer resolves in its address space. */
 function pin_endpoint(value: string, origin: string): string {
-	return ABSOLUTE_RE.test(value) ? value : new URL(value, origin + '/').href;
+	return ABSOLUTE_RE.test(value) ? value : new URL(value, `${origin}/`).href;
 }
 
 /** `html` with the JSON of every `script[data-ogygia-graph]` (as the runtime selects them) pinned. */
@@ -611,7 +611,7 @@ export function lift_document(html: string, origin: string): Omit<FragmentDocume
 		css,
 		...(head_meta ? { head: head_meta } : {}),
 		body: absolutize(body_end === -1 ? html : html.slice(body_tag!.end, body_end), origin),
-		...(runtime_src ? { runtime: new URL(runtime_src, origin + '/').href } : {})
+		...(runtime_src ? { runtime: new URL(runtime_src, `${origin}/`).href } : {})
 	};
 }
 

@@ -1,5 +1,6 @@
 import { describe, test, expect } from 'vitest';
 import path from 'node:path';
+import { dedent } from '@ogygia/core/contract';
 import {
 	buildFoucCssModuleSource,
 	collectFoucCssReachable,
@@ -15,17 +16,27 @@ describe('fouc-css collector', () => {
 
 	test('foucCssVirtualId normalizes separators', () => {
 		expect(foucCssVirtualId('src/lib/A.svelte')).toBe(
-			'ogygia:region/fouc-css/' + encodeURIComponent('src/lib/A.svelte') + '.js'
+			`ogygia:region/fouc-css/${encodeURIComponent('src/lib/A.svelte')}.js`
 		);
 		expect(foucScopedVirtualId('src\\lib\\A.svelte')).toBe(
-			'ogygia:region/fouc-scoped/' + encodeURIComponent('src/lib/A.svelte') + '.css'
+			`ogygia:region/fouc-scoped/${encodeURIComponent('src/lib/A.svelte')}.css`
 		);
 	});
 
 	test('walks child .svelte + plain css without emitting component JS', async () => {
 		const files: Record<string, string> = {
-			'/app/src/lib/Hero.svelte': `<script>\nimport Demo from './Demo.svelte';\nimport './x.css';\n</script>\n<Demo />\n`,
-			'/app/src/lib/Demo.svelte': `<script></script>\n<style>.d { color: red }</style>\n<div class="d"></div>\n`,
+			'/app/src/lib/Hero.svelte': `${dedent`
+				<script>
+				import Demo from './Demo.svelte';
+				import './x.css';
+				</script>
+				<Demo />
+			`}\n`,
+			'/app/src/lib/Demo.svelte': `${dedent`
+				<script></script>
+				<style>.d { color: red }</style>
+				<div class="d"></div>
+			`}\n`,
 			'/app/src/lib/x.css': `.x { color: blue }`
 		};
 		const src = await buildFoucCssModuleSource('/app/src/lib/Hero.svelte', {
@@ -43,8 +54,19 @@ describe('fouc-css collector', () => {
 	// `.ts` module was a dead end. The bundler's resolver resolves it; a barrel is followed by name.
 	test('a package barrel and a local barrel: the names taken, and only those', async () => {
 		const files: Record<string, string> = {
-			'/app/src/lib/Menu.svelte': `<script lang="ts">import { KitPanel, type KitProps } from '@kit/ui/components';\nimport { LocalBadge } from './bits/index';\n</script>\n<KitPanel /><LocalBadge />`,
-			'/kit/components.ts': `import KitPanel from './src/KitPanel.svelte';\nexport { KitPanel };\nexport { default as KitUnused } from './src/KitUnused.svelte';\nexport * from './more';\nexport type KitProps = { a: number };`,
+			'/app/src/lib/Menu.svelte': dedent`
+				<script lang="ts">import { KitPanel, type KitProps } from '@kit/ui/components';
+				import { LocalBadge } from './bits/index';
+				</script>
+				<KitPanel /><LocalBadge />
+			`,
+			'/kit/components.ts': dedent`
+				import KitPanel from './src/KitPanel.svelte';
+				export { KitPanel };
+				export { default as KitUnused } from './src/KitUnused.svelte';
+				export * from './more';
+				export type KitProps = { a: number };
+			`,
 			'/kit/more.ts': `export { default as KitDeep } from './src/KitDeep.svelte';`,
 			'/kit/src/KitPanel.svelte': `<div class="p"></div><style>.p { color: red }</style>`,
 			'/kit/src/KitUnused.svelte': `<div class="u"></div><style>.u { color: red }</style>`,
@@ -78,7 +100,11 @@ describe('fouc-css collector', () => {
 	test('a module with code of its own brings every component it imports', async () => {
 		const files: Record<string, string> = {
 			'/app/src/lib/Page.svelte': `<script>import { pick } from './pick';\n</script>{pick()}`,
-			'/app/src/lib/pick.ts': `import A from './A.svelte';\nimport B from './B.svelte';\nexport const pick = () => (Math.random() > 0.5 ? A : B);`,
+			'/app/src/lib/pick.ts': dedent`
+				import A from './A.svelte';
+				import B from './B.svelte';
+				export const pick = () => (Math.random() > 0.5 ? A : B);
+			`,
 			'/app/src/lib/A.svelte': `<i class="a"></i><style>.a { color: red }</style>`,
 			'/app/src/lib/B.svelte': `<i class="b"></i><style>.b { color: red }</style>`
 		};
@@ -97,8 +123,11 @@ describe('fouc-css collector', () => {
 		// rule (a header lake once lost its `:global(x-web-header.scrolled-top)` height reservation).
 		const css = compileFoucScopedCss(
 			'/app/src/lib/Header.svelte',
-			`<script>import { s } from './s.js';</script>\n<p>{$s}</p>\n` +
-				`<style>@media (min-width: 1025px) { :global(x-web-header.scrolled-top:not(.client-mounted)) { min-height: 161px } }</style>`
+			dedent`
+				<script>import { s } from './s.js';</script>
+				<p>{$s}</p>
+				<style>@media (min-width: 1025px) { :global(x-web-header.scrolled-top:not(.client-mounted)) { min-height: 161px } }</style>
+			`
 		);
 		expect(css).not.toContain(':global(');
 		expect(css).toContain('x-web-header.scrolled-top:not(.client-mounted)');
@@ -109,7 +138,11 @@ describe('fouc-css collector', () => {
 		const abs = '/app/src/lib/Side.svelte';
 		const css = compileFoucScopedCss(
 			abs,
-			`<script lang="ts">let x: number = 1;</script>\n<style>.side { display: block }</style>\n<div class="side"></div>\n`
+			`${dedent`
+				<script lang="ts">let x: number = 1;</script>
+				<style>.side { display: block }</style>
+				<div class="side"></div>
+			`}\n`
 		);
 		expect(css).toMatch(/\.side/);
 		expect(css.length).toBeGreaterThan(0);
@@ -117,7 +150,14 @@ describe('fouc-css collector', () => {
 
 	test('listStaticImports reads side-effect css imports and the names taken', () => {
 		const imports = listStaticImports(
-			`<script lang="ts">\nimport '$lib/styles/a.css';\nimport B from './B.svelte';\nimport { C, type T } from './kit';\nimport type { U } from './types';\n</script>\n`,
+			`${dedent`
+				<script lang="ts">
+				import '$lib/styles/a.css';
+				import B from './B.svelte';
+				import { C, type T } from './kit';
+				import type { U } from './types';
+				</script>
+			`}\n`,
 			'/app/src/lib/H.svelte'
 		);
 		const by = new Map(imports.map((i) => [i.source, [...i.names]]));

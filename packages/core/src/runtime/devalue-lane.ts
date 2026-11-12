@@ -50,10 +50,7 @@ export function with_devalue(fn: (d: Devalue) => void, tried = 0): void {
 		);
 }
 
-const DEVALUE_LANE_SELECTOR =
-	`script[${OGYGIA_PROPS}]:not([${OG_FORMAT}="json"]),` +
-	`script[type="application/ogygia-page"]:not([${OG_FORMAT}="json"]),` +
-	'script[type="application/ogygia-page-facts"]';
+const DEVALUE_LANE_SELECTOR = `script[${OGYGIA_PROPS}]:not([${OG_FORMAT}="json"]),script[type="application/ogygia-page"]:not([${OG_FORMAT}="json"]),script[type="application/ogygia-page-facts"]`;
 
 /** Does this document (or fragment) hold a script only devalue can read: a props sidecar or the
  *  page seed not in the JSON lane, or page facts? */

@@ -23,6 +23,7 @@ import {
 	wait_save_on_path,
 	type WaitCall
 } from '../src/profiler/patterns.ts';
+import { dedent } from '@ogygia/core/plugin/utils';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // PATTERNS: known slow shapes, recognised on the costly lines and backed by what was measured.
@@ -107,19 +108,19 @@ describe('find_patterns', () => {
 	const ds = '/app/src/lib/ds-ssr.ts';
 	const util = '/app/src/lib/util.ts';
 	const files = {
-		[ds]: [
-			"import x from 'x';",
-			'export function splice() {',
-			"\tspan('ds.splice', () => {",
-			'\t\tfor (const { tag, el } of rendered) html = html.replace(tag, el);',
-			'\t});',
-			'}'
-		].join('\n'),
-		[util]: [
-			'export function formatPrice(n, locale, currency) {',
-			"\treturn new Intl.NumberFormat(locale, { style: 'currency', currency }).format(n);",
-			'}'
-		].join('\n')
+		[ds]: dedent`
+			import x from 'x';
+			export function splice() {
+				span('ds.splice', () => {
+					for (const { tag, el } of rendered) html = html.replace(tag, el);
+				});
+			}
+		`,
+		[util]: dedent`
+			export function formatPrice(n, locale, currency) {
+				return new Intl.NumberFormat(locale, { style: 'currency', currency }).format(n);
+			}
+		`
 	};
 	const functions = [
 		fn({ key: 'anon', name: '(anonymous)', path: ds, line: 3 }),
@@ -309,14 +310,14 @@ describe('find_patterns', () => {
 			category: 'component',
 			calls: 60
 		});
-		const src = [
-			'<script module>',
-			'\tconst M = Object.fromEntries(Array.from({ length: 60 }, (_, i) => [i, i]));',
-			'</script>',
-			'<script>',
-			'\tconst T = Object.fromEntries(Array.from({ length: 60 }, (_, i) => [i, i]));',
-			'</script>'
-		].join('\n');
+		const src = dedent`
+			<script module>
+				const M = Object.fromEntries(Array.from({ length: 60 }, (_, i) => [i, i]));
+			</script>
+			<script>
+				const T = Object.fromEntries(Array.from({ length: 60 }, (_, i) => [i, i]));
+			</script>
+		`;
 		const code = 'const T = Object.fromEntries(Array.from({ length: 60 }, (_, i) => [i, i]));';
 		const hit = find_patterns({
 			ledger: [row({ path: icon, line: 5, code, fn: 'C:Icon', cpu_ms: 14, alloc_bytes: 26e6 })],
@@ -396,13 +397,13 @@ describe('find_patterns', () => {
 
 	it('a library called once per item is named after the library function', () => {
 		const p = '/app/src/lib/ds.ts';
-		const src = [
-			'export function run(tags) {',
-			'\treturn tags.map(async (tag) => {',
-			'\t\treturn await render(tag);',
-			'\t});',
-			'}'
-		].join('\n');
+		const src = dedent`
+			export function run(tags) {
+				return tags.map(async (tag) => {
+					return await render(tag);
+				});
+			}
+		`;
 		const out = find_patterns({
 			ledger: [
 				row({
@@ -425,19 +426,19 @@ describe('find_patterns', () => {
 
 	it('a thin wrapper’s site lists the caller lines that call it, through an instrument() alias, in a loop', () => {
 		const p = '/app/src/lib/ds-ssr.ts';
-		const src = [
-			"import { renderToString as uiRender } from '@acme/core';", // 1
-			'const render = (html) => uiRender(html);', // 2
-			"const renderToString = instrument(render, 'ds.render');", // 3
-			'export async function run(tags) {', // 4
-			'\treturn Promise.all(', // 5
-			'\t\ttags.map(async (tag) => {', // 6
-			'\t\t\tlet el = await renderToString(tag);', // 7
-			'\t\t\treturn await renderToString(el);', // 8
-			'\t\t})', // 9
-			'\t);', // 10
-			'}' // 11
-		].join('\n');
+		const src = dedent`
+			import { renderToString as uiRender } from '@acme/core';
+			const render = (html) => uiRender(html);
+			const renderToString = instrument(render, 'ds.render');
+			export async function run(tags) {
+				return Promise.all(
+					tags.map(async (tag) => {
+						let el = await renderToString(tag);
+						return await renderToString(el);
+					})
+				);
+			}
+		`;
 		const wrapper = fn({
 			key: 'render',
 			name: 'render',
@@ -631,14 +632,14 @@ describe('find_patterns', () => {
 
 	it('a search inside a loop and a spread accumulator are named', () => {
 		const p = '/app/src/lib/join.ts';
-		const src = [
-			'export function join(products, brands) {',
-			'\tfor (const pr of products) {',
-			'\t\tpr.brand = brands.find((b) => b.id === pr.brand_id);',
-			'\t}',
-			'\treturn products.reduce((acc, x) => ({ ...acc, [x.id]: x }), {});',
-			'}'
-		].join('\n');
+		const src = dedent`
+			export function join(products, brands) {
+				for (const pr of products) {
+					pr.brand = brands.find((b) => b.id === pr.brand_id);
+				}
+				return products.reduce((acc, x) => ({ ...acc, [x.id]: x }), {});
+			}
+		`;
 		const j = fn({ key: 'j', name: 'join', path: p, line: 1, calls: 1 });
 		const out = find_patterns({
 			ledger: [
@@ -720,15 +721,15 @@ describe('cache_rules', () => {
 
 describe('find_wait_patterns', () => {
 	const p = '/app/src/routes/+page.server.ts';
-	const src = [
-		'export async function load() {',
-		'\tconst items = [];',
-		'\tfor (const id of ids) {',
-		'\t\titems.push(await getItem(id));',
-		'\t}',
-		'\treturn { items };',
-		'}'
-	].join('\n');
+	const src = dedent`
+		export async function load() {
+			const items = [];
+			for (const id of ids) {
+				items.push(await getItem(id));
+			}
+			return { items };
+		}
+	`;
 	const source = (path: string, a: number, b: number) =>
 		path === p ? { start: a, lines: src.split('\n').slice(a - 1, b) } : undefined;
 	const at = { path: p, line: 4 };
@@ -760,17 +761,17 @@ describe('find_wait_patterns', () => {
 
 	it('calls whose each asks with the answer before it are the program, not a chain — independent ones are', () => {
 		const q = '/app/src/routes/x/+page.server.ts';
-		const code = [
-			'export async function load() {',
-			"\tconst step1 = await svc('a');",
-			'\tconst step2 = await svc(`b-${step1.name}`);',
-			'\tconst id = step2.id;',
-			'\tconst step3 = await svc(id);',
-			"\tconst user = await svc('user');",
-			"\tconst cart = await svc('cart');",
-			"\tconst promos = await svc('promos');",
-			'}'
-		].join('\n');
+		const code = dedent`
+			export async function load() {
+				const step1 = await svc('a');
+				const step2 = await svc(\`b-\${step1.name}\`);
+				const id = step2.id;
+				const step3 = await svc(id);
+				const user = await svc('user');
+				const cart = await svc('cart');
+				const promos = await svc('promos');
+			}
+		`;
 		const src2 = (path: string, a: number, b: number) =>
 			path === q ? { start: a, lines: code.split('\n').slice(a - 1, b) } : undefined;
 		const helper = { path: q, line: 40 };
@@ -800,14 +801,14 @@ describe('find_wait_patterns', () => {
 
 	it('a loop whose turn feeds the next (a cursor) cannot run its calls together', () => {
 		const q = '/app/src/routes/y/+page.server.ts';
-		const code = [
-			'export async function load() {',
-			'\tlet cursor = null;',
-			'\tfor (let i = 0; i < 5; i++) {',
-			'\t\tcursor = (await page(cursor)).next;',
-			'\t}',
-			'}'
-		].join('\n');
+		const code = dedent`
+			export async function load() {
+				let cursor = null;
+				for (let i = 0; i < 5; i++) {
+					cursor = (await page(cursor)).next;
+				}
+			}
+		`;
 		const src2 = (path: string, a: number, b: number) =>
 			path === q ? { start: a, lines: code.split('\n').slice(a - 1, b) } : undefined;
 		const at2 = { path: q, line: 4 };
@@ -824,11 +825,11 @@ describe('find_wait_patterns', () => {
 	it('calls one after another from ONE line that runs no loop are nested, not a missed Promise.all', () => {
 		// a build without maps folds `const a = await f(); const b = await f(a.x)` into one line
 		const q = '/app/src/routes/w/+page.server.ts';
-		const code = [
-			'export async function load() {',
-			'\tconst c = await f(`c-${(await f(`b-${(await f("a")).x}`)).x}`);',
-			'}'
-		].join('\n');
+		const code = dedent`
+			export async function load() {
+				const c = await f(\`c-\${(await f(\`b-\${(await f("a")).x}\`)).x}\`);
+			}
+		`;
 		const src2 = (path: string, a: number, b: number) =>
 			path === q ? { start: a, lines: code.split('\n').slice(a - 1, b) } : undefined;
 		const calls = [0, 21, 42].map((start) => ({
@@ -881,15 +882,13 @@ describe('find_wait_patterns', () => {
 		expect(
 			find_wait_patterns({ calls: [c(0, 6), c(0.3, 30), c(21, 7), c(42, 8)] })[0].sites[0].calls
 		).toBe(3);
-		const code = [
-			'',
-			'',
-			'async function get() {}',
-			'export const load = async () => {',
-			'\tconst a = get(); const b = get(); const s = get();',
-			'\treturn { a: await a, b: await b, s };',
-			'};'
-		].join('\n');
+		const code = `\n\n${dedent`
+			async function get() {}
+			export const load = async () => {
+				const a = get(); const b = get(); const s = get();
+				return { a: await a, b: await b, s };
+			};
+		`}`;
 		const src = (p: string, a: number, b: number) =>
 			p === q ? { start: a, lines: code.split('\n').slice(a - 1, b) } : undefined;
 		const s = (start: number, ms: number) => ({
@@ -935,16 +934,16 @@ describe('find_wait_patterns', () => {
 
 	it('two awaits of a helper written on two lines are a chain; its callers show as where to fix', () => {
 		const q = '/app/src/routes/+page.server.ts';
-		const s2 = [
-			'async function callService(name) {',
-			'\tconst res = await fetch(url + name);',
-			'\treturn res.json();',
-			'}',
-			'export async function load() {',
-			"\tconst pricing = await callService('pricing');",
-			"\tconst inventory = await callService('inventory');",
-			'}'
-		].join('\n');
+		const s2 = dedent`
+			async function callService(name) {
+				const res = await fetch(url + name);
+				return res.json();
+			}
+			export async function load() {
+				const pricing = await callService('pricing');
+				const inventory = await callService('inventory');
+			}
+		`;
 		const src2 = (path: string, a: number, b: number) =>
 			path === q ? { start: a, lines: s2.split('\n').slice(a - 1, b) } : undefined;
 		const helper = { path: q, line: 2 };
@@ -1000,7 +999,7 @@ describe('find_wait_patterns', () => {
 			ms: 50,
 			target: 'GET x',
 			at,
-			scope: '/p' + i
+			scope: `/p${i}`
 		}));
 		expect(find_wait_patterns({ calls: pages, source })).toEqual([]);
 	});
@@ -1010,7 +1009,7 @@ describe('pattern_deltas', () => {
 	const pat = (kind: string, cost: number, lib?: string) =>
 		({
 			kind,
-			title: kind + (lib ? ' ' + lib : ''),
+			title: kind + (lib ? ` ${lib}` : ''),
 			fix: '',
 			sites: [{ libs: lib ? [lib] : undefined }],
 			cost_ms: cost,
@@ -1516,51 +1515,51 @@ describe('audit false positives (normal pages)', () => {
 
 describe('inferno round: context fixes', () => {
 	const files: Record<string, string> = {
-		'/app/src/lib/i18n.ts': [
-			'function lookup(key, table) {',
-			'\tfor (const [k, v] of Object.entries(table)) if (k === key) return v;',
-			'}',
-			'function plural(key, n, locale) {',
-			'\tconst rules = new Intl.PluralRules(locale);',
-			'\treturn lookup(`${key}.${rules.select(n)}`);',
-			'}'
-		].join('\n'),
-		'/app/src/lib/catalog.ts': [
-			'export function attach(products) {',
-			'\tconst out = [];',
-			'\tfor (const p of products) {',
-			'\t\tconst brand = BRANDS.find((b) => b.id === p.brandId);',
-			'\t\tout.push({ ...p, brand });',
-			'\t}',
-			'\treturn out;',
-			'}'
-		].join('\n'),
-		'/app/src/lib/Card.svelte': [
-			'<script>',
-			'\t// a fixed table (belongs in <script module>)',
-			'\tconst ICONS = Object.fromEntries(Array.from({ length: 400 }, (_, i) => [`i${i}`, `M${i}`]));',
-			'</script>'
-		].join('\n'),
-		'/app/src/lib/search.ts': [
-			'export function matches(p, term) {',
-			"\tconst re = new RegExp(escape(term), 'i');",
-			'\treturn re.test(p.name) || p.tags.some((t) => re.test(t));',
-			'}',
-			'export function clean(s, ch) {',
-			"\tconst strip = new RegExp(ch, 'g');",
-			"\treturn s.replace(strip, '');",
-			'}'
-		].join('\n'),
-		'/app/src/lib/ds.ts': [
-			'function swap(html, from, to) {',
-			'\treturn html.replace(from, to);',
-			'}',
-			'export function all(html, tags) {',
-			'\tfor (const t of tags) {',
-			'\t\thtml = swap(html, t, t);',
-			'\t}',
-			'}'
-		].join('\n')
+		'/app/src/lib/i18n.ts': dedent`
+			function lookup(key, table) {
+				for (const [k, v] of Object.entries(table)) if (k === key) return v;
+			}
+			function plural(key, n, locale) {
+				const rules = new Intl.PluralRules(locale);
+				return lookup(\`\${key}.\${rules.select(n)}\`);
+			}
+		`,
+		'/app/src/lib/catalog.ts': dedent`
+			export function attach(products) {
+				const out = [];
+				for (const p of products) {
+					const brand = BRANDS.find((b) => b.id === p.brandId);
+					out.push({ ...p, brand });
+				}
+				return out;
+			}
+		`,
+		'/app/src/lib/Card.svelte': dedent`
+			<script>
+				// a fixed table (belongs in <script module>)
+				const ICONS = Object.fromEntries(Array.from({ length: 400 }, (_, i) => [\`i\${i}\`, \`M\${i}\`]));
+			</script>
+		`,
+		'/app/src/lib/search.ts': dedent`
+			export function matches(p, term) {
+				const re = new RegExp(escape(term), 'i');
+				return re.test(p.name) || p.tags.some((t) => re.test(t));
+			}
+			export function clean(s, ch) {
+				const strip = new RegExp(ch, 'g');
+				return s.replace(strip, '');
+			}
+		`,
+		'/app/src/lib/ds.ts': dedent`
+			function swap(html, from, to) {
+				return html.replace(from, to);
+			}
+			export function all(html, tags) {
+				for (const t of tags) {
+					html = swap(html, t, t);
+				}
+			}
+		`
 	};
 	const source = src_of(files);
 	const kinds = (ledger: LedgerLine[], functions: FrameStat[]) =>
@@ -1764,15 +1763,15 @@ describe('inferno round: context fixes', () => {
 describe('site context', () => {
 	it('each site carries two lines each side of it, when the source is there', () => {
 		const p = '/app/src/lib/i18n.ts';
-		const src = [
-			'// a',
-			'// b',
-			'function lookup(key, table) {',
-			'\tfor (const [k, v] of Object.entries(table)) if (k === key) return v;',
-			'}',
-			'// c',
-			'// d'
-		].join('\n');
+		const src = dedent`
+			// a
+			// b
+			function lookup(key, table) {
+				for (const [k, v] of Object.entries(table)) if (k === key) return v;
+			}
+			// c
+			// d
+		`;
 		const f = fn({ key: 'lookup', name: 'lookup', path: p, line: 3, calls: 600 });
 		const out = find_patterns({
 			ledger: [row({ path: p, line: 4, code: src.split('\n')[3].trim(), fn: 'lookup', cpu_ms: 9 })],
@@ -1786,14 +1785,14 @@ describe('site context', () => {
 describe('repeat-request', () => {
 	it('the exact same read made again in one render; its callers are listed; writes and other pages are not repeats', () => {
 		const p = '/app/src/routes/+page.server.ts';
-		const src = [
-			'async function svc(name) {',
-			'\treturn (await fetch(url + name)).json();',
-			'}',
-			'const a = await svc("session");',
-			'const b = await svc("session");',
-			'const c = await svc("session");'
-		].join('\n');
+		const src = dedent`
+			async function svc(name) {
+				return (await fetch(url + name)).json();
+			}
+			const a = await svc("session");
+			const b = await svc("session");
+			const c = await svc("session");
+		`;
 		const at = { path: p, line: 2 };
 		const call = (start: number, line: number, extra: Partial<WaitCall> = {}): WaitCall => ({
 			start,
@@ -2295,19 +2294,19 @@ describe('line_deltas', () => {
 describe('rescan needs the rebuilt string', () => {
 	it('a short value cleaned per item is not a whole-string rescan; the accumulator scanned then reassigned is', () => {
 		const p = '/app/src/lib/util.ts';
-		const src = [
-			'export function labels(keys) {',
-			'\tfor (const key of keys) {',
-			"\t\tout.push(humanize(key.replace(/_/g, ' ')));",
-			'\t}',
-			'}',
-			'export function insert(html, styles) {',
-			'\tfor (const { style } of styles) {',
-			"\t\tconst at = html.indexOf('</head>');",
-			'\t\thtml = html.slice(0, at) + style + html.slice(at);',
-			'\t}',
-			'}'
-		].join('\n');
+		const src = dedent`
+			export function labels(keys) {
+				for (const key of keys) {
+					out.push(humanize(key.replace(/_/g, ' ')));
+				}
+			}
+			export function insert(html, styles) {
+				for (const { style } of styles) {
+					const at = html.indexOf('</head>');
+					html = html.slice(0, at) + style + html.slice(at);
+				}
+			}
+		`;
 		const f1 = fn({ key: 'labels', name: 'labels', path: p, line: 1 });
 		const f2 = fn({ key: 'insert', name: 'insert', path: p, line: 6 });
 		const out = find_patterns({
@@ -2324,16 +2323,16 @@ describe('rescan needs the rebuilt string', () => {
 
 describe('find_cold_caches', () => {
 	const p = '/app/src/lib/catalog.ts';
-	const src = [
-		'const cache = new WeakMap();', // 1
-		'export function toView(p) {', // 2
-		'\tconst hit = cache.get(p);', // 3
-		'\tif (hit) return hit;', // 4
-		'\tconst v = { ...p, score: scoreOf(p) };', // 5
-		'\tcache.set(p, v);', // 6
-		'\treturn v;', // 7
-		'}' // 8
-	].join('\n');
+	const src = dedent`
+		const cache = new WeakMap();
+		export function toView(p) {
+			const hit = cache.get(p);
+			if (hit) return hit;
+			const v = { ...p, score: scoreOf(p) };
+			cache.set(p, v);
+			return v;
+		}
+	`;
 	const source = src_of({ [p]: src });
 	const f = (calls: number) =>
 		fn({
@@ -2390,20 +2389,20 @@ describe('find_cold_caches', () => {
 describe('a whole function inlined into a line that runs once', () => {
 	it('its cost on the caller line is read inside the callee, whose own loop gives the context', () => {
 		const p = '/app/src/routes/+page.server.ts';
-		const src = [
-			'function attach(products) {', // 1
-			'\tconst out = [];', // 2
-			'\tfor (const p of products) {', // 3
-			'\t\tconst brand = BRANDS.find((b) => b.id === p.brandId);', // 4
-			'\t\tout.push({ ...p, brand });', // 5
-			'\t}', // 6
-			'\treturn out;', // 7
-			'}', // 8
-			'export async function load() {', // 9
-			'\tconst joined = attach(PRODUCTS);', // 10
-			'\tconst f = new Intl.NumberFormat("de");', // 11: once, outside any loop — must stay quiet
-			'}'
-		].join('\n');
+		const src = dedent`
+			function attach(products) {
+				const out = [];
+				for (const p of products) {
+					const brand = BRANDS.find((b) => b.id === p.brandId);
+					out.push({ ...p, brand });
+				}
+				return out;
+			}
+			export async function load() {
+				const joined = attach(PRODUCTS);
+				const f = new Intl.NumberFormat("de");
+			}
+		`;
 		const load = fn({ key: 'load', name: 'load', path: p, line: 9, calls: 1 });
 		const out = find_patterns({
 			ledger: [
@@ -2457,26 +2456,26 @@ describe('compare: an unchanged render makes CPU moves "shifted"', () => {
 });
 
 describe('sync I/O too quick to sample, from V8 call counts', () => {
-	const page = [
-		"import { readFileSync, existsSync } from 'node:fs';",
-		"const config = readFileSync('config.json', 'utf8');",
-		'if (process.env.X) {',
-		"\treadFileSync('startup.txt');",
-		'}',
-		'/**',
-		" * readFileSync('in a comment') is not a call",
-		' */',
-		'function readManifest() {',
-		"\treturn existsSync('m.json') ? readFileSync('m.json', 'utf8').length : 0;",
-		'}',
-		'function neverCalled() {',
-		"\treturn readFileSync('other.json');",
-		'}',
-		'const rows = items.map((x) => {',
-		'\treturn readFileSync(x);',
-		'});',
-		"export const load = async ({ url }) => ({ size: readManifest(), at: statSync('x') });"
-	].join('\n');
+	const page = dedent`
+		import { readFileSync, existsSync } from 'node:fs';
+		const config = readFileSync('config.json', 'utf8');
+		if (process.env.X) {
+			readFileSync('startup.txt');
+		}
+		/**
+		 * readFileSync('in a comment') is not a call
+		 */
+		function readManifest() {
+			return existsSync('m.json') ? readFileSync('m.json', 'utf8').length : 0;
+		}
+		function neverCalled() {
+			return readFileSync('other.json');
+		}
+		const rows = items.map((x) => {
+			return readFileSync(x);
+		});
+		export const load = async ({ url }) => ({ size: readManifest(), at: statSync('x') });
+	`;
 	const files = [
 		{ path: '/app/src/routes/p/+page.server.ts', file: 'routes/p/+page.server.ts', text: page }
 	];

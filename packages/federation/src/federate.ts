@@ -126,7 +126,7 @@ function thaw_outbox(name: string, say: boolean): Outbox<Thaw> {
 	return outbox<Thaw>({
 		name,
 		send: post_thaw,
-		id: (t) => t.id + '\n' + t.peer_name,
+		id: (t) => `${t.id}\n${t.peer_name}`,
 		retry: PEER_POLICY,
 		giveUp: say
 			? (t, error) => warn('federation_thaw_notice_failed', t.peer_name, error)

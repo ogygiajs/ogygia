@@ -1,10 +1,16 @@
 import { describe, expect, it } from 'vitest';
 import { try_region_emit, unescape_svelte } from '../src/markdown/region-emit.ts';
 import { escape_svelte, fence_embed } from '../src/markdown/shiki.ts';
+import { dedent } from '@ogygia/core/plugin/utils';
 
 /** A compiled-module skeleton: module script (metadata) + template markup. */
 const mod = (template: string, script = `export const metadata = {"title":"X"};`) =>
-	`<script context="module">\n${script}\n</script>\n${template}`;
+	dedent`
+		<script context="module">
+		${script}
+		</script>
+		${template}
+	`;
 
 describe('unescape_svelte', () => {
 	it('is the exact inverse of escape_svelte', () => {
@@ -26,7 +32,12 @@ describe('try_region_emit', () => {
 			`<pre class="shiki"><code>function load() { return { user }; }</code></pre>`
 		);
 		const out = try_region_emit(
-			mod(`<h2 id="a">Title</h2>\n<p>prose</p>\n${fence}\n<p>after</p>`),
+			mod(dedent`
+				<h2 id="a">Title</h2>
+				<p>prose</p>
+				${fence}
+				<p>after</p>
+			`),
 			[]
 		);
 		expect(out).not.toBeNull();
@@ -106,7 +117,12 @@ describe('try_region_emit', () => {
 
 	it('reads a Svelte 5 `<script module>` as the module script, as it does `context="module"`', () => {
 		const out = try_region_emit(
-			`<script module>\nexport const metadata = {"title":"X"};\n</script>\n<p>hi</p>`,
+			dedent`
+				<script module>
+				export const metadata = {"title":"X"};
+				</script>
+				<p>hi</p>
+			`,
 			[]
 		);
 		expect(out!.html).toBe('<p>hi</p>');

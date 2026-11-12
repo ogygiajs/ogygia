@@ -34,7 +34,7 @@ const resolved_urls = cache<string, string>({ name: 'resolved entry urls', max: 
 
 function absolute(url: string, base?: string): string {
 	const b = base ?? location.href;
-	const key = b + '\n' + url;
+	const key = `${b}\n${url}`;
 	const hit = resolved_urls.get(key);
 	if (hit !== undefined) return hit;
 	let out: string;
@@ -181,7 +181,7 @@ function is_build_identity(entry: string): boolean {
 /** The current map's file for an identity (`<appDir>/ogygia.json`), or null: not a build's identity. */
 function current_map_file(identity: string): string | null {
 	const dir = identity.lastIndexOf('/ogygia/og-region.');
-	return dir === -1 ? null : identity.slice(0, dir) + '/ogygia.json';
+	return dir === -1 ? null : `${identity.slice(0, dir)}/ogygia.json`;
 }
 
 /** The current build's location for `entry`: null when its map has none, undefined when the map

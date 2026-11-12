@@ -15,7 +15,7 @@ test.describe('a wire-class prop keeps its island across navigations', () => {
 		baseURL
 	}) => {
 		const fp = async () => {
-			const html = await (await context.request.get(baseURL + '/lazy-retry-class')).text();
+			const html = await (await context.request.get(`${baseURL}/lazy-retry-class`)).text();
 			return [...html.matchAll(/<ogygia-region[^>]*data-og-fp="([0-9a-f]+)"/g)].map((m) => m[1]);
 		};
 		const first = await fp();
@@ -28,12 +28,12 @@ test.describe('a wire-class prop keeps its island across navigations', () => {
 		context,
 		baseURL
 	}) => {
-		const full = await (await context.request.get(baseURL + '/lazy-retry-class')).text();
+		const full = await (await context.request.get(`${baseURL}/lazy-retry-class`)).text();
 		const known = [...full.matchAll(/<ogygia-region[^>]*data-og-fp="([0-9a-f]+)"/g)]
 			.map((m) => m[1])
 			.join(',');
 		const delta = await (
-			await context.request.get(baseURL + '/lazy-retry-class', {
+			await context.request.get(`${baseURL}/lazy-retry-class`, {
 				headers: { 'x-ogygia-spa': '1', 'x-ogygia-known': known }
 			})
 		).text();

@@ -107,7 +107,7 @@ test('a child pushed out of the ones that stand for a box-less region is let go,
 	region.style.display = 'contents';
 	for (let i = 0; i < 20; i++) {
 		const p = document.createElement('p');
-		p.textContent = 'row ' + i;
+		p.textContent = `row ${i}`;
 		p.style.margin = '0';
 		region.append(p);
 	}

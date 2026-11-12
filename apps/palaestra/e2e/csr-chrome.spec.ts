@@ -17,7 +17,7 @@ test.describe('REGRESSION: csr=true page under a csr=false layout w/ wake:load c
 		const errs: string[] = [];
 		page.on('pageerror', (e) => errs.push(e.message));
 		// raw SSR HTML first — the runtime/dev-hmr must never be injected on a csr=true page
-		const html = await (await fetch(baseURL + '/csr-chrome/kit/')).text();
+		const html = await (await fetch(`${baseURL}/csr-chrome/kit/`)).text();
 		check('csr=true page ships NO ogygia runtime script', !RUNTIME_SCRIPT_RE.test(html));
 		check('csr=true page ships NO ogygia dev-hmr script', !DEV_HMR_RE.test(html));
 		check('csr=true SSR has NO <ogygia-region> element', !REGION_TAG_RE.test(html));
@@ -60,7 +60,7 @@ test.describe('REGRESSION: csr=true page under a csr=false layout w/ wake:load c
 	}) => {
 		const errs: string[] = [];
 		page.on('pageerror', (e) => errs.push(e.message));
-		const html = await (await fetch(baseURL + '/csr-chrome/deep/anything/')).text();
+		const html = await (await fetch(`${baseURL}/csr-chrome/deep/anything/`)).text();
 		check('deep dynamic csr=true: SSR has NO <ogygia-region>', !REGION_TAG_RE.test(html));
 		check('deep dynamic csr=true: chrome rendered inline', CHROME_HEADER_RE.test(html));
 		check('deep dynamic csr=true: NO ogygia runtime shipped', !RUNTIME_SCRIPT_RE.test(html));

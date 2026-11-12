@@ -27,9 +27,7 @@ async function open_sheet(props: Record<string, unknown> = {}) {
 	const outside = document.createElement('div');
 	// The open dialog turns pointer events off on the body; the shell's bar turns them back on
 	// (shell.css), so both buttons here do too.
-	outside.innerHTML =
-		'<button data-ph-sheet-toggle style="pointer-events:auto">menu</button>' +
-		'<button class="elsewhere" style="pointer-events:auto">elsewhere</button>';
+	outside.innerHTML = `<button data-ph-sheet-toggle style="pointer-events:auto">menu</button><button class="elsewhere" style="pointer-events:auto">elsewhere</button>`;
 	const target = document.createElement('div');
 	document.body.append(outside, target);
 	const state = { open: true }; // the parent's side of `bind:open`

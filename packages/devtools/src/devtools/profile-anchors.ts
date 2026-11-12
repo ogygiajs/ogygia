@@ -24,13 +24,13 @@ export interface Anchor {
 }
 
 const ms = (n: number) =>
-	n >= 1000 ? (n / 1000).toFixed(2) + ' s' : n >= 10 ? Math.round(n) + ' ms' : n.toFixed(1) + ' ms';
+	n >= 1000 ? `${(n / 1000).toFixed(2)} s` : n >= 10 ? `${Math.round(n)} ms` : `${n.toFixed(1)} ms`;
 const kb = (n: number) =>
 	n < 1024
-		? n + ' B'
+		? `${n} B`
 		: n < 1048576
-			? (n / 1024).toFixed(1) + ' KB'
-			: (n / 1048576).toFixed(2) + ' MB';
+			? `${(n / 1024).toFixed(1)} KB`
+			: `${(n / 1048576).toFixed(2)} MB`;
 
 /** a tag name we may put in a selector: letters, digits and dashes, starting with a letter */
 export function safe_tag(t: string): boolean {
@@ -84,7 +84,7 @@ export function by_tag(tag: string, doc: Document = document): Element[] {
 	return all_elements(doc).filter((el) => el.localName === t);
 }
 
-const same_file = (a: string, b: string) => a === b || a.endsWith('/' + b) || b.endsWith('/' + a);
+const same_file = (a: string, b: string) => a === b || a.endsWith(`/${b}`) || b.endsWith(`/${a}`);
 
 export function page_anchors(p: SlimProfile, doc: Document = document): Anchor[] {
 	const out: Anchor[] = [];
@@ -106,7 +106,7 @@ export function page_anchors(p: SlimProfile, doc: Document = document): Anchor[]
 		if (!n) continue;
 		const file = c.file;
 		out.push({
-			key: 'component:' + file,
+			key: `component:${file}`,
 			title: c.name,
 			detail: `${ms(c.self_ms)} on the server${c.instances ? ` for ${c.instances} instance${c.instances === 1 ? '' : 's'}` : ''} · ${n} element${n === 1 ? '' : 's'} here`,
 			find: () => els_of(file),
@@ -125,7 +125,7 @@ export function page_anchors(p: SlimProfile, doc: Document = document): Anchor[]
 	for (const i of islands) {
 		const fp = i.fp!;
 		out.push({
-			key: 'island:' + fp,
+			key: `island:${fp}`,
 			title: `${i.name} (island)`,
 			detail: [
 				i.ssr_ms !== null ? `${ms(i.ssr_ms)} server render` : null,
@@ -166,11 +166,11 @@ export function page_anchors(p: SlimProfile, doc: Document = document): Anchor[]
 			out.push({
 				key: 'html:shadow',
 				title: `${p.html.shadow_count} declarative shadow roots`,
-				detail:
-					`${kb(p.html.shadow)} of the ${kb(p.html.total)} HTML · ${n} became shadow roots here` +
-					(n < p.html.shadow_count
+				detail: `${kb(p.html.shadow)} of the ${kb(p.html.total)} HTML · ${n} became shadow roots here${
+					n < p.html.shadow_count
 						? ` — the browser refused the other ${p.html.shadow_count - n} (a second shadow root on one element is not allowed): their bytes are shipped for nothing`
-						: ''),
+						: ''
+				}`,
 				find: () => shadow_hosts(doc),
 				count: n
 			});

@@ -78,7 +78,7 @@ export function stream_document(
 ): Response {
 	const at = head_end(full_html);
 	const with_boot =
-		at === -1 ? full_html : full_html.slice(0, at) + LATE_BOOT_SCRIPT + full_html.slice(at);
+		at === -1 ? full_html : `${full_html.slice(0, at)}${LATE_BOOT_SCRIPT}${full_html.slice(at)}`;
 	const cut = with_boot.lastIndexOf('</body>');
 	const head_part = cut === -1 ? with_boot : with_boot.slice(0, cut);
 	const tail_part = cut === -1 ? '' : with_boot.slice(cut);
@@ -121,10 +121,7 @@ export function stream_document(
 /** The in-slot failure card (message escaped) — a stream must never end broken or empty. */
 export function error_card_html(e: unknown): string {
 	const msg = e instanceof Error ? e.message : String(e);
-	return (
-		`<div ${OG_LATE_ERROR} style="border:1px dashed #dc2626;border-radius:8px;padding:1rem;color:#dc2626">` +
-		`This section failed to load. ${escape_text(msg)}</div>`
-	);
+	return `<div ${OG_LATE_ERROR} style="border:1px dashed #dc2626;border-radius:8px;padding:1rem;color:#dc2626">This section failed to load. ${escape_text(msg)}</div>`;
 }
 
 /** Drain registered LATE REGIONS (`<Region of={promise}>` holes) in COMPLETION order — the slot

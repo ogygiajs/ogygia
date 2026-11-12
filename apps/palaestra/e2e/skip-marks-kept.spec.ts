@@ -18,7 +18,7 @@ test.describe('twin regions across client navigations', () => {
 					...document.querySelectorAll(
 						'ogygia-region[data-og-skipped], ogygia-region[data-og-opaque]'
 					)
-				].map((r) => r.getAttribute('entry') + ' ' + r.getAttributeNames().join(','))
+				].map((r) => `${r.getAttribute('entry')} ${r.getAttributeNames().join(',')}`)
 			);
 		const twins = () => page.locator('[data-tally="twin"]').count();
 		await page.goto('/props-tail');

@@ -1,4 +1,5 @@
 import type { NavItem, NavLeaf, NavTree } from './types.ts';
+import { dedent } from '@ogygia/core/plugin/utils';
 
 const FRONTMATTER_BLOCK_RE = /^﻿?---\r?\n[\s\S]*?\r?\n---\r?\n?/;
 const LEADING_WS_RE = /^\s+/;
@@ -32,7 +33,12 @@ export function build_sitemap(tree: NavTree, origin: string): string {
 	const urls = leaves_of(tree)
 		.map((l) => `  <url><loc>${xml_escape(origin + l.href)}</loc></url>`)
 		.join('\n');
-	return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls}\n</urlset>\n`;
+	return `${dedent`
+		<?xml version="1.0" encoding="UTF-8"?>
+		<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+		${urls}
+		</urlset>
+	`}\n`;
 }
 
 function bullet(item: NavItem, origin: string): string | null {
@@ -82,7 +88,7 @@ export function build_llms(tree: NavTree, origin: string, opts: LlmsOptions = {}
 		lines.push('');
 	}
 
-	return lines.join('\n').replace(EXCESS_BLANK_LINES_G, '\n\n').trimEnd() + '\n';
+	return `${lines.join('\n').replace(EXCESS_BLANK_LINES_G, '\n\n').trimEnd()}\n`;
 }
 
 /** One feed item. `href` is root-relative (the emitter absolutizes); `date` is ISO `YYYY-MM-DD`. */
@@ -112,7 +118,7 @@ export function build_rss(origin: string, opts: RssOptions): string {
 				`\t\t\t<link>${xml_escape(url)}</link>`,
 				`\t\t\t<guid isPermaLink="true">${xml_escape(url)}</guid>`,
 				...(p.description ? [`\t\t\t<description>${xml_escape(p.description)}</description>`] : []),
-				`\t\t\t<pubDate>${new Date(p.date + 'T00:00:00Z').toUTCString()}</pubDate>`,
+				`\t\t\t<pubDate>${new Date(`${p.date}T00:00:00Z`).toUTCString()}</pubDate>`,
 				`\t\t</item>`
 			].join('\n');
 		})

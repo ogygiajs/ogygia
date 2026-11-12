@@ -11,8 +11,7 @@ const ep = (sig: string) => `/__ogygia__?id=aaaaaaa1020&props=${sig}&exp=9999999
 const hole = (sig: string) =>
 	`<ogygia-region render="defer" when="load" endpoint="${ep(sig)}"><p>…</p></ogygia-region>`;
 const page = (title: string, body: string) =>
-	'<!doctype html><html><head><meta name="ogygia-router" content="plain">' +
-	`<title>${title}</title></head><body>${body}</body></html>`;
+	`<!doctype html><html><head><meta name="ogygia-router" content="plain"><title>${title}</title></head><body>${body}</body></html>`;
 
 const real_fetch = window.fetch;
 const home = location.href;
@@ -32,7 +31,7 @@ test('a router return within the linger asks nothing for the holes the store hol
 			const parcels = calls.map((c) =>
 				build_parcel(new URL(c, location.href).searchParams.get('sig')!, `<p>${c.slice(-1)}</p>`)
 			);
-			return new Response(parcels.join('') + done_parcel(), { status: 200 });
+			return new Response(`${parcels.join('')}${done_parcel()}`, { status: 200 });
 		}
 		if (u.pathname === '/__ogygia__') {
 			asked.push(u.pathname + u.search);

@@ -195,13 +195,13 @@
 			server = { ...server, [url]: { error: e instanceof Error ? e.message : String(e) } };
 		}
 	}
-	const ms = (n) => (n >= 1000 ? (n / 1000).toFixed(2) + ' s' : Math.round(n) + ' ms');
+	const ms = (n) => (n >= 1000 ? `${(n / 1000).toFixed(2)} s` : `${Math.round(n)} ms`);
 	const kb = (n) =>
 		n < 1024
-			? n + ' B'
+			? `${n} B`
 			: n < 1048576
-				? (n / 1024).toFixed(1) + ' KB'
-				: (n / 1048576).toFixed(1) + ' MB';
+				? `${(n / 1024).toFixed(1)} KB`
+				: `${(n / 1048576).toFixed(1)} MB`;
 
 	onMount(() => () => {
 		clear_highlight();

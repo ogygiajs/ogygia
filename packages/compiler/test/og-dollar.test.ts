@@ -4,6 +4,7 @@
  * and the strict-position build errors.
  */
 import { describe, it, expect } from 'vitest';
+import { dedent } from '@ogygia/core/contract';
 import { rewrite_dollar } from '../src/compiler/macros/dollar.ts';
 import { __register_fn, fn_handle } from '../../core/src/fn-transport.ts';
 
@@ -46,7 +47,13 @@ describe('og.$ transform', () => {
 	});
 
 	it('works inside a .svelte script block', () => {
-		const src = `<script>\n\tconst site = 'x';\n\tconst track = import.meta.og.$((e) => [site, e]);\n</script>\n<button onclick={() => track('hi')}>go</button>`;
+		const src = dedent`
+			<script>
+				const site = 'x';
+				const track = import.meta.og.$((e) => [site, e]);
+			</script>
+			<button onclick={() => track('hi')}>go</button>
+		`;
 		const { code, hoists } = rewrite_dollar(
 			src,
 			'src/routes/+layout.svelte',
@@ -140,7 +147,12 @@ describe('og.$ as the UNIVERSAL boundary mark (non-function values)', () => {
 
 describe('og.$ in TEMPLATE expressions (props in markup)', () => {
 	it('an inline fn prop hoists with captures from the component scope', () => {
-		const src = `<script>\n\tconst rate = 2;\n</script>\n<Island fmt={import.meta.og.$((n) => n * rate)} />`;
+		const src = dedent`
+			<script>
+				const rate = 2;
+			</script>
+			<Island fmt={import.meta.og.$((n) => n * rate)} />
+		`;
 		const { code, hoists } = rewrite_dollar(
 			src,
 			'src/routes/p.svelte',
@@ -155,7 +167,13 @@ describe('og.$ in TEMPLATE expressions (props in markup)', () => {
 	});
 
 	it('a value prop becomes a boundary assertion; imports merge with script-pass injection', () => {
-		const src = `<script>\n\tconst s = makeStore();\n\tconst f = import.meta.og.$(() => 1);\n</script>\n<Island store={import.meta.og.$(s)} />`;
+		const src = dedent`
+			<script>
+				const s = makeStore();
+				const f = import.meta.og.$(() => 1);
+			</script>
+			<Island store={import.meta.og.$(s)} />
+		`;
 		const { code } = rewrite_dollar(src, 'src/routes/p.svelte', 'src/routes/p.svelte', SVELTE);
 		expect(code).toContain(`store={__og_boundary((s), "src/routes/p.svelte:5")}`);
 		expect(code).toContain(`import { __og_$, __og_boundary } from 'ogygia/internal';`);

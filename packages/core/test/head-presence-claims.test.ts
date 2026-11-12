@@ -56,9 +56,7 @@ describe('runtime_first', () => {
 		const head =
 			'<script>pre</script><head><meta charset="utf-8"><script src="/a.js"></script></head>';
 		expect(runtime_first(head, tag)).toBe(
-			'<script>pre</script><head><meta charset="utf-8">' +
-				tag +
-				'<script src="/a.js"></script></head>'
+			`<script>pre</script><head><meta charset="utf-8">${tag}<script src="/a.js"></script></head>`
 		);
 	});
 });

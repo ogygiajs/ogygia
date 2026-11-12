@@ -109,7 +109,7 @@ export async function preprocess_component_for_css(
 				const [whole, attrs, body] = m;
 				if (!SCRIPT_LANG_TS_ATTR.test(attrs)) continue;
 				try {
-					const { code } = await ts(body, abs + '.ts');
+					const { code } = await ts(body, `${abs}.ts`);
 					// `lang="ts"` stays: the stripped script is plain JS (fine as TS), and the markup
 					// may still carry type annotations (`(c: Row) => …`), which Svelte's parser takes
 					// only under a TS script. Without it the compile threw and the CSS fell back to

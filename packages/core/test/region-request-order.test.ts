@@ -38,7 +38,7 @@ function event(url: string, init?: RequestInit) {
 	} as never;
 }
 const resolve = async () => new Response('page');
-const forge = (url: string) => url.replace(/sig=[0-9a-f]+/, 'sig=' + '0'.repeat(64));
+const forge = (url: string) => url.replace(/sig=[0-9a-f]+/, `sig=${'0'.repeat(64)}`);
 
 let moves: ReturnType<typeof trace> | null = null;
 afterEach(() => {

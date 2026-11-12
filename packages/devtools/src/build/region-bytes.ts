@@ -42,7 +42,7 @@ const ENTRY_PREFIX = region_family('entry');
 
 /** Shared framework / prebundled deps — pruned so per-island totals reflect app code, not Svelte. */
 function is_framework(mod: ByteGraphModule): boolean {
-	const s = (mod.file || '') + '\n' + (mod.url || mod.id || '');
+	const s = `${mod.file || ''}\n${mod.url || mod.id || ''}`;
 	const u = mod.url || mod.id || '';
 	return (
 		s.includes('node_modules') ||

@@ -557,7 +557,7 @@ export class Collection<
 			if (names.length) contributors.push({ src, names });
 		}
 		await Promise.all(contributors.map((c) => c.src.#loaded()));
-		const key = `${GRAPH.all.size}|` + contributors.map((c) => c.src.version()).join(',');
+		const key = `${GRAPH.all.size}|${contributors.map((c) => c.src.version()).join(',')}`;
 		if (this.#backlinkKey === key && this.#backlinkIndex) return this.#backlinkIndex;
 		const index = new Map<string, RefEntry[]>();
 		for (const { src, names } of contributors) {

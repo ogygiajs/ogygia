@@ -296,11 +296,11 @@ function id_of(v: object | symbol): number {
 function key_part(v: unknown): string {
 	switch (typeof v) {
 		case 'string':
-			return 's' + v.length + ':' + v;
+			return `s${v.length}:${v}`;
 		case 'number':
-			return 'n' + v + ';'; // (0 and -0 are one key, as in a Map)
+			return `n${v};`; // (0 and -0 are one key, as in a Map)
 		case 'bigint':
-			return 'g' + v + ';';
+			return `g${v};`;
 		case 'boolean':
 			return v ? 't;' : 'f;';
 		case 'undefined':
@@ -308,11 +308,11 @@ function key_part(v: unknown): string {
 		case 'symbol': {
 			// a registered symbol is one per name for good (`Symbol.for`): spelled by its name
 			const name = Symbol.keyFor(v);
-			if (name !== undefined) return 'Y' + name.length + ':' + name;
-			return 'y' + id_of(v) + ';';
+			if (name !== undefined) return `Y${name.length}:${name}`;
+			return `y${id_of(v)};`;
 		}
 		default:
-			return v === null ? 'z;' : 'o' + id_of(v as object) + ';';
+			return v === null ? 'z;' : `o${id_of(v as object)};`;
 	}
 }
 

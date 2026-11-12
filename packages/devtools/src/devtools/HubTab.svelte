@@ -18,7 +18,7 @@
 	// A transportable's registration tag is `<module path>#<ExportName>` — the class/const name is the
 	// part after `#`. That's the human label; the id is a mint hash (fall back to it when untagged).
 	function short_id(id) {
-		return id && id.length > 12 ? id.slice(0, 8) + '…' : id;
+		return id && id.length > 12 ? `${id.slice(0, 8)}…` : id;
 	}
 	function name_of(m) {
 		if (m.tag) return m.tag.split('#').pop() || m.tag;

@@ -5,6 +5,7 @@
  */
 import { afterEach, describe, expect, it } from 'vitest';
 import { fixture, type Fixture } from './_fixture.ts';
+import { dedent } from '@ogygia/core/contract';
 
 let f: Fixture;
 afterEach(() => f?.dispose());
@@ -17,7 +18,11 @@ describe('export map — the basic shapes', () => {
 			'lib/a.ts': 'export const a = 1; export const b = 2;',
 			'lib/Button.svelte': '<button>x</button>',
 			'lib/c.ts': 'export const c = 3; export default 4;',
-			'lib/index.ts': `export { a, b as bee } from './a';\nexport { default as Button } from './Button.svelte';\nexport * from './c';`
+			'lib/index.ts': dedent`
+				export { a, b as bee } from './a';
+				export { default as Button } from './Button.svelte';
+				export * from './c';
+			`
 		});
 		const m = (await f.index().map(f.id('lib/index.ts'), '$lib'))!;
 		expect(m.pure).toBe(true);
@@ -37,7 +42,13 @@ describe('export map — the basic shapes', () => {
 			'lib/a.ts': 'export const a = 1;',
 			'lib/d.ts': 'export default 1;',
 			'lib/n.ts': 'export const one = 1;',
-			'lib/index.ts': `import { a as x } from './a';\nimport d from './d';\nimport * as n from './n';\nexport { x as y, d, n };\nexport default d;`
+			'lib/index.ts': dedent`
+				import { a as x } from './a';
+				import d from './d';
+				import * as n from './n';
+				export { x as y, d, n };
+				export default d;
+			`
 		});
 		const m = (await f.index().map(f.id('lib/index.ts'), '$lib'))!;
 		expect(m.entries.get('y')).toEqual(leaf(f, 'lib/a.ts', 'a'));
@@ -105,7 +116,11 @@ describe('nesting — barrels of barrels', () => {
 			'lib/x.ts': 'export const same = "x"; export const only_x = 1;',
 			'lib/y.ts': 'export const same = "y"; export const only_y = 2;',
 			'lib/z.ts': 'export const same = "z";',
-			'lib/index.ts': `export { same } from './z';\nexport * from './x';\nexport * from './y';`
+			'lib/index.ts': dedent`
+				export { same } from './z';
+				export * from './x';
+				export * from './y';
+			`
 		});
 		const m = (await f.index().map(f.id('lib/index.ts'), '$lib'))!;
 		expect(m.entries.get('same'), 'explicit wins').toEqual(leaf(f, 'lib/z.ts', 'same'));
@@ -200,9 +215,9 @@ describe('where the walk stops', () => {
 		});
 		const i = f.index({
 			resolve: async (spec, importer) =>
-				spec.endsWith('?raw') ? f.id('lib/leaf.ts') + '?raw' : f.host().resolve(spec, importer)
+				spec.endsWith('?raw') ? `${f.id('lib/leaf.ts')}?raw` : f.host().resolve(spec, importer)
 		});
-		expect(await i.map(f.id('lib/index.ts') + '?raw', '$lib')).toBeNull();
+		expect(await i.map(`${f.id('lib/index.ts')}?raw`, '$lib')).toBeNull();
 		const m = (await i.map(f.id('lib/index.ts'), '$lib'))!;
 		expect(m.entries.get('l')).toEqual(leaf(f, 'lib/leaf.ts', 'l'));
 		expect(m.entries.has('raw')).toBe(false);
@@ -214,7 +229,13 @@ describe('where the walk stops', () => {
 			'lib/leaf.ts': 'export const l = 1;',
 			'lib/data.json': '{"k":1}',
 			'lib/broken.ts': 'export const = ;',
-			'lib/index.ts': `export { l } from './leaf';\nexport * from './data.json';\nexport * from './missing';\nexport * from './broken';\nexport * from 'virtual:thing';`
+			'lib/index.ts': dedent`
+				export { l } from './leaf';
+				export * from './data.json';
+				export * from './missing';
+				export * from './broken';
+				export * from 'virtual:thing';
+			`
 		});
 		const m = (await f.index().map(f.id('lib/index.ts'), '$lib'))!;
 		expect(m.opaque).toBe(true);

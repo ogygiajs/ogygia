@@ -221,8 +221,7 @@ export const CONTENT_ERRORS = {
 	},
 	content_search_engine_missing: {
 		text: (): string =>
-			'search needs the optional peer dependency "@orama/orama". Install it:\n' +
-			'  npm i @orama/orama   (or the pnpm / yarn / bun equivalent)',
+			`search needs the optional peer dependency "@orama/orama". Install it:\n  npm i @orama/orama   (or the pnpm / yarn / bun equivalent)`,
 		details: (): string => prose`
 			The docs site's default search engine is an optional peer dependency, so it is not
 			installed with \`@ogygia/content\`. Install \`@orama/orama\` in the app, or give the

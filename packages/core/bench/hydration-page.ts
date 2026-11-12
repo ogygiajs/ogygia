@@ -18,6 +18,7 @@ import { DomElement, document, el, frag, type DomNode } from '../test/_stubs/dom
 import { encode_island_graph } from '../src/island-graph.ts';
 import { OGYGIA_GRAPH as ISLAND_GRAPH_ATTR } from '../src/wire-markup.ts';
 import { block, header, island_entry } from './fixtures.ts';
+import { dedent } from '../src/contract/dedent.ts';
 
 const chunk_of = (i: number): string => `/_app/immutable/chunks/c${i}.js`;
 
@@ -128,21 +129,29 @@ const fp = (i: number): string => (i * 2654435761 + 977).toString(16).slice(-8).
 
 /** One block island's server markup: a card of rows inside Svelte's anchor pair, with whitespace. */
 function block_html(i: number, rows: number): string {
-	let inner = `<!--[--><section class="block b${i}">\n\t<h2>Block ${i}</h2>\n\t<ul>`;
+	let inner = dedent`
+		<!--[--><section class="block b${i}">
+			<h2>Block ${i}</h2>
+			<ul>
+	`;
 	for (let r = 0; r < rows; r++)
-		inner += `\n\t\t<li data-sku="SKU-${i}-${r}"><a href="/p/${i}/${r}">Row ${r}</a> <span>${(i * 7 + r) % 97}</span></li>`;
-	return inner + '\n\t</ul>\n</section><!--]-->';
+		inner = `${inner}\n\t\t<li data-sku="SKU-${i}-${r}"><a href="/p/${i}/${r}">Row ${r}</a> <span>${(i * 7 + r) % 97}</span></li>`;
+	return dedent`
+		${inner}
+			</ul>
+		</section><!--]-->
+	`;
 }
 
 /** The header island: a nav of menus, a search box and an account menu. */
 function header_html(menus: number): string {
 	let inner = '<!--[--><header class="site">\n\t<nav>';
 	for (let m = 0; m < menus; m++)
-		inner += `\n\t\t<div class="menu"><button type="button">Menu ${m}</button> <ul><li><a href="/m/${m}/a">A</a></li> <li><a href="/m/${m}/b">B</a></li></ul></div>`;
-	return (
-		inner +
-		'\n\t</nav>\n\t<form role="search"><input name="q"> <button>Go</button></form>\n</header><!--]-->'
-	);
+		inner = `${inner}\n\t\t<div class="menu"><button type="button">Menu ${m}</button> <ul><li><a href="/m/${m}/a">A</a></li> <li><a href="/m/${m}/b">B</a></li></ul></div>`;
+	return `${inner}
+	</nav>
+	<form role="search"><input name="q"> <button>Go</button></form>
+</header><!--]-->`;
 }
 
 /** Where an island's code is (`src`, the location the server names): the identity's built file on
@@ -187,11 +196,9 @@ export function strip_whitespace(
  * own (its markers around a JSON-LD script inside an `{#if}`).
  */
 export function page_head(blocks: number): void {
-	let html =
-		'<meta charset="utf-8"><meta name="ogygia-csr" content="false"><title>Catalog</title>' +
-		'<!--h1a2b3--><meta name="description" content="Every product"><!----><link rel="stylesheet" href="/app.css">';
+	let html = `<meta charset="utf-8"><meta name="ogygia-csr" content="false"><title>Catalog</title><!--h1a2b3--><meta name="description" content="Every product"><!----><link rel="stylesheet" href="/app.css">`;
 	for (let i = 0; i < blocks; i += 10)
-		html += `<!--h${fp(i)}--><!--[--><script type="application/ld+json">{"@id":"b${i}"}</script><!--]--><!---->`;
+		html = `${html}<!--h${fp(i)}--><!--[--><script type="application/ld+json">{"@id":"b${i}"}</script><!--]--><!---->`;
 	(document.head as unknown as DomElement).replaceChildren(...frag(html));
 }
 
@@ -224,14 +231,20 @@ export function cms_page(blocks: number, rows = 6, edit = true): PageRegion[] {
 		});
 	}
 	parts.push({
-		html: '<!--[--><footer>\n\t<p>Footer</p>\n</footer><!--]-->',
+		html: dedent`
+			<!--[--><footer>
+				<p>Footer</p>
+			</footer><!--]-->
+		`,
 		wake: 'idle',
 		entry: island_entry(30),
 		props: JSON.stringify({ year: 2026, links: ['a', 'b', 'c'] })
 	});
 	let html = '<main><div class="blocks">';
-	parts.forEach((p, i) => (html += region_open(i, p.wake, p.entry) + p.html + '</ogygia-region>'));
-	html += '</div></main><div hidden>';
+	parts.forEach(
+		(p, i) => (html = `${html}${region_open(i, p.wake, p.entry) + p.html}</ogygia-region>`)
+	);
+	html = `${html}</div></main><div hidden>`;
 	parts.forEach((p, i) => (html += sidecar(i, p.props)));
 	// the tail's island graph: each entry's chunks, preloaded at its wake (island-graph-preload.ts)
 	const graph = new Map<string, string[]>();
@@ -240,8 +253,8 @@ export function cms_page(blocks: number, rows = 6, edit = true): PageRegion[] {
 			const k = graph.size;
 			graph.set(p.entry, [chunk_of(k), chunk_of(k + 1), chunk_of(40)]);
 		}
-	html += `<script type="application/json" ${ISLAND_GRAPH_ATTR}>${encode_island_graph(graph)}</script>`;
-	html += '</div>';
+	html = `${html}<script type="application/json" ${ISLAND_GRAPH_ATTR}>${encode_island_graph(graph)}</script>`;
+	html = `${html}</div>`;
 	for (const n of frag(html)) body.appendChild(n);
 	const els = (body as unknown as Element).querySelectorAll('ogygia-region');
 	return parts.map((p, i) => {
@@ -266,11 +279,11 @@ export function grid_page(cards: number): PageRegion {
 	const entry = island_entry(50);
 	let inner = '<!--[-->';
 	for (let i = 0; i < cards; i++)
-		inner += `<article class="card"><h3>Product ${i}</h3> <p>${(i * 13) % 97} USD</p></article>`;
-	inner += '<!--]-->';
+		inner = `${inner}<article class="card"><h3>Product ${i}</h3> <p>${(i * 13) % 97} USD</p></article>`;
+	inner = `${inner}<!--]-->`;
 	const props = JSON.stringify({ ids: Array.from({ length: cards }, (_, i) => i) });
 	for (const n of frag(
-		region_open(0, 'load', entry) + inner + '</ogygia-region>' + sidecar(0, props)
+		`${region_open(0, 'load', entry) + inner}</ogygia-region>${sidecar(0, props)}`
 	))
 		body.appendChild(n);
 	const region = (body as unknown as Element).querySelector('ogygia-region')!;

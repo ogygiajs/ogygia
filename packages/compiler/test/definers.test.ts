@@ -4,6 +4,7 @@
 // ends it: a definition deleted from the code is gone).
 import { describe, expect, it } from 'vitest';
 import { mark_definer_calls } from '../src/vite/definers.ts';
+import { dedent } from '@ogygia/core/plugin/utils';
 
 const DEFINERS = [
 	{ module: '@ogygia/content', names: ['content'] },
@@ -14,17 +15,17 @@ const mark = (code: string) => mark_definer_calls(code, '/app/src/lib/docs.serve
 describe('mark_definer_calls', () => {
 	it('marks a named, a renamed and a namespace definer call, and asks for the run once', () => {
 		const out = mark(
-			[
-				`import { content, folder } from '@ogygia/content';`,
-				`import { content as collection } from '@ogygia/content';`,
-				`import * as c from '@ogygia/content';`,
-				`import { flag } from '@ogygia/flags';`,
-				`export const a = content({ loader: folder({}) });`,
-				`export const b = collection({ loader: folder({}) });`,
-				`export const n = c.content({ loader: c.folder({}) });`,
-				`export const lazy = () => content({ loader: folder({}) });`,
-				`export const f = flag('hero', 0.5);`
-			].join('\n')
+			dedent`
+				import { content, folder } from '@ogygia/content';
+				import { content as collection } from '@ogygia/content';
+				import * as c from '@ogygia/content';
+				import { flag } from '@ogygia/flags';
+				export const a = content({ loader: folder({}) });
+				export const b = collection({ loader: folder({}) });
+				export const n = c.content({ loader: c.folder({}) });
+				export const lazy = () => content({ loader: folder({}) });
+				export const f = flag('hero', 0.5);
+			`
 		)!;
 		expect(out.code.match(/\?\.run\?\.\("\/app\/src\/lib\/docs\.server\.ts"\)/g)).toHaveLength(1);
 		expect(out.code).toContain('a = __og_define(content)({');

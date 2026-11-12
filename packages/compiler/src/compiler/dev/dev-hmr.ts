@@ -2,6 +2,7 @@
  * Client bridge source for `ogygia:dev/hmr` (vite serve only). Pure codegen: it returns the
  * JS text the adapter serves for the dev soft-CSS-HMR bridge. No build state.
  */
+import { dedent } from '@ogygia/core/contract';
 
 /**
  * Client bridge source for `ogygia:dev/hmr` (vite serve only): a LAZY map of app CSS under
@@ -27,27 +28,28 @@
  * @internal Emitted by the plugin; exported for unit tests.
  */
 export function dev_hmr_client_source(): string {
-	return (
-		`import "/@vite/client";\n` +
-		`const css_modules = import.meta.glob("/src/**/*.{css,scss,sass,less,styl}", { eager: false });\n` +
-		`const scope_meta = document.querySelector('meta[name="ogygia-dev-scope"]');\n` +
-		`const scope = scope_meta ? scope_meta.getAttribute("content") || "" : "";\n` +
-		`// Soft path: scoped join on first change, then Vite CSS HMR (injected after FOUC; later rules win).\n` +
-		`// Hard path: anything Vite can't apply.\n` +
-		`function ogygia_full_reload() {\n` +
-		`  location.reload();\n` +
-		`}\n` +
-		`if (import.meta.hot) {\n` +
-		`  import.meta.hot.accept();\n` +
-		`  import.meta.hot.on("vite:error", ogygia_full_reload);\n` +
-		`  import.meta.hot.on("ogygia:css", (d) => {\n` +
-		`    const p = d && d.path;\n` +
-		`    if (!p || !css_modules[p]) return;\n` +
-		`    const owners = (d && d.owners) || [];\n` +
-		`    // Join only what this page's sub-app owns; ownerless css (shared / undeterminable) joins anywhere.\n` +
-		`    if (owners.length && owners.indexOf(scope) === -1) return;\n` +
-		`    css_modules[p]();\n` +
-		`  });\n` +
-		`}\n`
-	);
+	const source = dedent`
+		import "/@vite/client";
+		const css_modules = import.meta.glob("/src/**/*.{css,scss,sass,less,styl}", { eager: false });
+		const scope_meta = document.querySelector('meta[name="ogygia-dev-scope"]');
+		const scope = scope_meta ? scope_meta.getAttribute("content") || "" : "";
+		// Soft path: scoped join on first change, then Vite CSS HMR (injected after FOUC; later rules win).
+		// Hard path: anything Vite can't apply.
+		function ogygia_full_reload() {
+		  location.reload();
+		}
+		if (import.meta.hot) {
+		  import.meta.hot.accept();
+		  import.meta.hot.on("vite:error", ogygia_full_reload);
+		  import.meta.hot.on("ogygia:css", (d) => {
+		    const p = d && d.path;
+		    if (!p || !css_modules[p]) return;
+		    const owners = (d && d.owners) || [];
+		    // Join only what this page's sub-app owns; ownerless css (shared / undeterminable) joins anywhere.
+		    if (owners.length && owners.indexOf(scope) === -1) return;
+		    css_modules[p]();
+		  });
+		}
+	`;
+	return `${source}\n`;
 }

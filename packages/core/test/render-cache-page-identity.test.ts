@@ -24,10 +24,10 @@ import {
 } from '../src/server/render-page.ts';
 
 const kit_data = (data: Record<string, unknown>) =>
-	JSON.stringify({
+	`${JSON.stringify({
 		type: 'data',
 		nodes: [{ type: 'data', data: JSON.parse(devalue.stringify(data)), uses: {} }]
-	}) + '\n';
+	})}\n`;
 
 /** An anonymous visitor's hole request, asked from `page`, its personal reads observed. */
 function hole_request(page: string): RequestEvent {

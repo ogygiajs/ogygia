@@ -4,6 +4,7 @@ import { rewrite_lake_import_to_placeholder } from '../dist/vite/index.js';
 import { RateLimiter } from '../../core/dist/server/rate-limit.js';
 import { sign, verify, region_mac_message } from '../../core/dist/server/hmac.js';
 import { HOST_CTX_DEFAULTS } from './_host-ctx.ts';
+import { dedent } from '@ogygia/core/contract';
 
 const ROOT = '/app';
 const HOST = '/app/src/routes/+page.svelte';
@@ -20,7 +21,7 @@ function makeCtx(overrides: Partial<HostCtx> = {}): HostCtx {
 		virtualPathFor: (_hostId: string, iid: string) => `ogygia:region/entry/${iid}.js`,
 		// the transform's own fallback when a caller omits it
 		wrapperPathFor: (_hostId: string, iid: string) => wrapperVirtualId(iid),
-		devUrlFor: (p: string) => '/@id/' + p,
+		devUrlFor: (p: string) => `/@id/${p}`,
 		visibleMargin: '0px',
 		presets: {},
 		idSalt: '',
@@ -29,7 +30,12 @@ function makeCtx(overrides: Partial<HostCtx> = {}): HostCtx {
 }
 
 function wrap(imports: string, markup: string) {
-	return `<script>\n${imports}\n</script>\n${markup}`;
+	return dedent`
+		<script>
+		${imports}
+		</script>
+		${markup}
+	`;
 }
 
 function run(src: string, ctx = makeCtx()) {

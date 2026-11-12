@@ -8,6 +8,7 @@ import { spawn, execSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { dedent } from '@ogygia/core/plugin/utils';
 
 const REQUESTS = Number(process.argv[2] ?? 300);
 const CONC = Number(process.argv[3] ?? 4);
@@ -47,13 +48,13 @@ server.stderr.on('data', (d) => (server_out += d));
 const base = `http://127.0.0.1:${PORT}`;
 for (let i = 0; i < 100; i++) {
 	try {
-		await fetch(base + '/bench-cms/plain');
+		await fetch(`${base}/bench-cms/plain`);
 		break;
 	} catch {
 		await new Promise((r) => setTimeout(r, 200));
 	}
 	if (i === 99) {
-		console.error('server never came up\n' + server_out);
+		console.error(`server never came up\n${server_out}`);
 		process.exit(1);
 	}
 }
@@ -132,7 +133,7 @@ for (const f of profiles) {
 		const url = n.callFrame.url || '';
 		total += us;
 		const file = url
-			? url.replace(/^file:\/\//, '').replace(root + '/', '')
+			? url.replace(/^file:\/\//, '').replace(`${root}/`, '')
 			: `(${n.callFrame.functionName || 'native'})`;
 		const short = file.replace(/.*node_modules\//, 'nm:').replace(/\?.*$/, '');
 		self_by_file.set(short, (self_by_file.get(short) ?? 0) + us / 1000);
@@ -146,7 +147,10 @@ const top = (m, n, filter = () => true) =>
 		.sort((a, b) => b[1] - a[1])
 		.slice(0, n);
 console.log(
-	`\nCPU profile: ${profiles.length} file(s), ${Math.round(total / 1000)} ms sampled\n  self time by file (top 25):`
+	`\n${dedent`
+		CPU profile: ${profiles.length} file(s), ${Math.round(total / 1000)} ms sampled
+		  self time by file (top 25):
+	`}`
 );
 for (const [k, v] of top(self_by_file, 25))
 	console.log(`   ${String(Math.round(v)).padStart(7)} ms  ${k}`);

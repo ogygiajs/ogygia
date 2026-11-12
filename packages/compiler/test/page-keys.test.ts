@@ -10,6 +10,7 @@ import {
 	type PageKeys,
 	type PendingCall
 } from '../src/compiler/link/page-keys.ts';
+import { dedent } from '@ogygia/core/contract';
 
 const ts = (code: string) => {
 	const r = page_data_keys(code, '/app/x.ts', 'script');
@@ -92,33 +93,64 @@ describe('page_data_keys — components', () => {
 	it('$page?.data?.key in the script and page.data.key in the template', () => {
 		expect(
 			svelte(
-				`<script>\n\timport { page } from '$app/stores';\n\tcurrentUrl.set($page.url.href);\n\tconst l = $page?.data?._locale;\n\tconst d = $page?.data?.pageContent?.createdDate;\n</script>\n<p>{$page.data.userCountry.country}</p>`
+				dedent`
+					<script>
+						import { page } from '$app/stores';
+						currentUrl.set($page.url.href);
+						const l = $page?.data?._locale;
+						const d = $page?.data?.pageContent?.createdDate;
+					</script>
+					<p>{$page.data.userCountry.country}</p>
+				`
 			)
 		).toEqual(['_locale', 'pageContent', 'userCountry']);
 		expect(
 			svelte(
-				`<script lang="ts">\n\timport { page } from '$app/state';\n\tconst summary = $derived(\`\${page.params.id}: \${page.data.order.customer}\`);\n</script>\n<div>Derived from page: {summary}</div>`
+				dedent`
+					<script lang="ts">
+						import { page } from '$app/state';
+						const summary = $derived(\`\${page.params.id}: \${page.data.order.customer}\`);
+					</script>
+					<div>Derived from page: {summary}</div>
+				`
 			)
 		).toEqual(['order']);
 	});
 	it('a module script and an {#each} over page data', () => {
 		expect(
 			svelte(
-				`<script module>\n\timport { page } from '$app/state';\n</script>\n{#each page.data.items as item}<b>{item}</b>{/each}`
+				dedent`
+					<script module>
+						import { page } from '$app/state';
+					</script>
+					{#each page.data.items as item}<b>{item}</b>{/each}
+				`
 			)
 		).toEqual(['items']);
 	});
 	it('the palaestra reader that hands page.data to an arrow → all', () => {
 		expect(
 			svelte(
-				`<script lang="ts">\n\timport { page } from '$app/state';\n\tconst d = () => page.data as any;\n</script>\n<p>{d().locale}</p>`
+				dedent`
+					<script lang="ts">
+						import { page } from '$app/state';
+						const d = () => page.data as any;
+					</script>
+					<p>{d().locale}</p>
+				`
 			)
 		).toBe('all');
 	});
 	it('a component that only reads params → empty set', () => {
 		expect(
 			svelte(
-				`<script>\n\timport { page } from '$app/state';\n\tconst fr = page.params.country?.toLowerCase() === 'ca' && page.params.language?.toLowerCase() === 'fr';\n</script>\n{fr}`
+				dedent`
+					<script>
+						import { page } from '$app/state';
+						const fr = page.params.country?.toLowerCase() === 'ca' && page.params.language?.toLowerCase() === 'fr';
+					</script>
+					{fr}
+				`
 			)
 		).toEqual([]);
 	});
@@ -159,7 +191,14 @@ describe('page_data_keys — doubt goes to all', () => {
 	it('prose that says "page" is not a reference', () => {
 		expect(
 			svelte(
-				`<script>\n\timport { page } from '$app/state';\n\t// the page store\n\tconst l = page.data._locale;\n</script>\n<p>Derived from page: {l}</p>`
+				dedent`
+					<script>
+						import { page } from '$app/state';
+						// the page store
+						const l = page.data._locale;
+					</script>
+					<p>Derived from page: {l}</p>
+				`
 			)
 		).toEqual(['_locale']);
 	});
@@ -170,7 +209,15 @@ describe('page_data_keys — a branch the browser never takes', () => {
 		// Region's own server-side snapshot: every island rendering a <Region> read as taking it whole
 		expect(
 			svelte(
-				`<script>\n\timport { page } from '$app/state';\n\tif (typeof window === 'undefined') {\n\t\trecord({ data: page.data });\n\t}\n\tconst l = page.data._locale;\n</script>`
+				dedent`
+					<script>
+						import { page } from '$app/state';
+						if (typeof window === 'undefined') {
+							record({ data: page.data });
+						}
+						const l = page.data._locale;
+					</script>
+				`
 			)
 		).toEqual(['_locale']);
 		expect(
@@ -250,14 +297,36 @@ describe('page_data_keys — the demented cases', () => {
 	it('component: <style lang="scss"> with // comments does not stop the analysis', () => {
 		expect(
 			svelte(
-				`<script lang="ts">\n\timport { page } from '$app/stores';\n\tlet l = $page?.data?._locale;\n</script>\n<p>{l}</p>\n<style lang="scss">\n\t// <!-- a comment the CSS parser hates -->\n\t.a { .b { color: red; } }\n</style>`
+				dedent`
+					<script lang="ts">
+						import { page } from '$app/stores';
+						let l = $page?.data?._locale;
+					</script>
+					<p>{l}</p>
+					<style lang="scss">
+						// <!-- a comment the CSS parser hates -->
+						.a { .b { color: red; } }
+					</style>
+				`
 			)
 		).toEqual(['_locale']);
 	});
 	it('component: template constructs — {#if} {#each} {#await} {@const} {@html} attributes, bind:, handlers, snippets, svelte:head', () => {
 		expect(
 			svelte(
-				`<script>\n\timport { page } from '$app/state';\n</script>\n<svelte:head><title>{page.data.title}</title></svelte:head>\n{#if page.data.flag}<b>on</b>{/if}\n{#each page.data.items as it}{@const label = page.data.labels[it]}<span>{label}</span>{/each}\n{#await page.data.later then v}<i>{v}</i>{/await}\n{@html page.data.html}\n<Comp a={page.data.prop} b={page.url.href} onclick={() => use(page.data.handler)} />\n<input bind:value={page.data.form.q} />\n{#snippet row(x)}<em>{page.data.rows[x]}</em>{/snippet}`
+				dedent`
+					<script>
+						import { page } from '$app/state';
+					</script>
+					<svelte:head><title>{page.data.title}</title></svelte:head>
+					{#if page.data.flag}<b>on</b>{/if}
+					{#each page.data.items as it}{@const label = page.data.labels[it]}<span>{label}</span>{/each}
+					{#await page.data.later then v}<i>{v}</i>{/await}
+					{@html page.data.html}
+					<Comp a={page.data.prop} b={page.url.href} onclick={() => use(page.data.handler)} />
+					<input bind:value={page.data.form.q} />
+					{#snippet row(x)}<em>{page.data.rows[x]}</em>{/snippet}
+				`
 			)
 		).toEqual([
 			'flag',
@@ -274,25 +343,50 @@ describe('page_data_keys — the demented cases', () => {
 	});
 	it('component: a spread of page.data into attributes → all', () => {
 		expect(
-			svelte(`<script>\n\timport { page } from '$app/state';\n</script>\n<Comp {...page.data} />`)
+			svelte(dedent`
+				<script>
+					import { page } from '$app/state';
+				</script>
+				<Comp {...page.data} />
+			`)
 		).toBe('all');
 	});
 	it('component: runes — $state, $derived.by, $effect, class fields; legacy context="module"', () => {
 		expect(
 			svelte(
-				`<script context="module">\n\timport { page } from '$app/state';\n</script>\n<script lang="ts">\n\tlet n = $state(page.data.count);\n\tconst d = $derived.by(() => page.data.deep.x);\n\t$effect(() => { track(page.data.track); });\n\tclass C { k = page.data.klass; }\n</script>\n<p>{n}{d}</p>`
+				dedent`
+					<script context="module">
+						import { page } from '$app/state';
+					</script>
+					<script lang="ts">
+						let n = $state(page.data.count);
+						const d = $derived.by(() => page.data.deep.x);
+						$effect(() => { track(page.data.track); });
+						class C { k = page.data.klass; }
+					</script>
+					<p>{n}{d}</p>
+				`
 			)
 		).toEqual(['count', 'deep', 'klass', 'track']);
 	});
 	it('component: the whole page passed to a helper in the template → all, with the reason', () => {
 		expect(
-			svelte(`<script>\n\timport { page } from '$app/state';\n</script>\n<p>{fmt(page)}</p>`)
+			svelte(dedent`
+				<script>
+					import { page } from '$app/state';
+				</script>
+				<p>{fmt(page)}</p>
+			`)
 		).toBe('all');
 	});
 	it('a reason names the construct and the line', async () => {
 		const { page_data_keys_answer } = await import('../src/compiler/link/page-keys.ts');
 		const a = page_data_keys_answer(
-			`import { page } from '$app/state';\nconst a = 1;\nexport const x = helper(page.data);`,
+			dedent`
+				import { page } from '$app/state';
+				const a = 1;
+				export const x = helper(page.data);
+			`,
 			'/app/x.ts',
 			'script'
 		);
@@ -315,24 +409,40 @@ describe('page_data_keys — call following', () => {
 	it('a helper of the same module is followed: its parameter is the page inside it', async () => {
 		expect(
 			ts(
-				`import { page } from '$app/state';\nfunction getParams(p) { return p.url.searchParams.get('q'); }\nexport const q = getParams(page);`
+				dedent`
+					import { page } from '$app/state';
+					function getParams(p) { return p.url.searchParams.get('q'); }
+					export const q = getParams(page);
+				`
 			)
 		).toEqual([]);
 		expect(
 			ts(
-				`import { page } from '$app/state';\nconst pick = (p) => p.data.chosen;\nexport const c = pick(page);`
+				dedent`
+					import { page } from '$app/state';
+					const pick = (p) => p.data.chosen;
+					export const c = pick(page);
+				`
 			)
 		).toEqual(['chosen']);
 		expect(
 			ts(
-				`import { page } from '$app/state';\nfunction leak(p) { return send(p); }\nexport const c = leak(page);`
+				dedent`
+					import { page } from '$app/state';
+					function leak(p) { return send(p); }
+					export const c = leak(page);
+				`
 			)
 		).toBe('all');
 	});
 	it('an imported helper is recorded as pending, the rest of the module still pinned', async () => {
 		const { page_data_keys_answer } = await import('../src/compiler/link/page-keys.ts');
 		const a = page_data_keys_answer(
-			`import { page } from '$app/state';\nimport { getParams } from '@app/common/utils';\nexport const p = getParams(page); export const l = page.data._locale;`,
+			dedent`
+				import { page } from '$app/state';
+				import { getParams } from '@app/common/utils';
+				export const p = getParams(page); export const l = page.data._locale;
+			`,
 			'/app/x.ts',
 			'script'
 		);
@@ -421,7 +531,11 @@ describe('page_data_keys — call following', () => {
 // ── the bundle-time half: resolve + summarize, through barrels, with a fake fs ────────────────
 describe('follow_pending_page_calls', () => {
 	const files: Record<string, string> = {
-		'/pkg/common/utils.ts': `export * from './misc';\nexport { getParams } from './routing';\nexport { url } from './url';`,
+		'/pkg/common/utils.ts': dedent`
+			export * from './misc';
+			export { getParams } from './routing';
+			export { url } from './url';
+		`,
 		'/pkg/common/routing.ts': `export function getParams(page) { const q = page.url.searchParams; return q.get('x'); }`,
 		'/pkg/common/url.ts': `export const url = (p) => p.data.origin + p.url.pathname;`,
 		'/pkg/common/misc.ts': `export const other = 1;`,
@@ -430,10 +544,10 @@ describe('follow_pending_page_calls', () => {
 	};
 	const resolve = async (spec: string, importer: string) => {
 		if (spec.startsWith('@app/common'))
-			return { id: '/pkg/common/' + (spec.split('/')[2] ?? 'utils') + '.ts' };
+			return { id: `/pkg/common/${spec.split('/')[2] ?? 'utils'}.ts` };
 		if (spec.startsWith('./')) {
 			const dir = importer.replace(/[^/]+$/, '');
-			return { id: dir + spec.slice(2) + '.ts' };
+			return { id: `${dir + spec.slice(2)}.ts` };
 		}
 		return null;
 	};
@@ -519,7 +633,14 @@ describe('page_data_keys — guards and subscribers', () => {
 	it('`const { a, b } = $page?.data || {}` names its keys; a subscriber parameter is the page', () => {
 		expect(
 			svelte(
-				`<script>\n\timport { page } from '$app/stores';\n\tconst { isRangePage = false, isDebugAllowed } = $page?.data || {};\n\tconst c = ($page?.data ?? {}).canonicalUrl;\n</script>\n{isRangePage}{isDebugAllowed}{c}`
+				dedent`
+					<script>
+						import { page } from '$app/stores';
+						const { isRangePage = false, isDebugAllowed } = $page?.data || {};
+						const c = ($page?.data ?? {}).canonicalUrl;
+					</script>
+					{isRangePage}{isDebugAllowed}{c}
+				`
 			)
 		).toEqual(['canonicalUrl', 'isDebugAllowed', 'isRangePage']);
 		expect(

@@ -453,7 +453,7 @@ export function mountBase(url: URL | string | { pathname: string }, slug: string
 	const path = pathname.replace(TRAILING_SLASHES_RE, '');
 	const s = slug.replace(EDGE_SLASHES_G, '');
 	if (!s) return path;
-	if (path.endsWith('/' + s)) return path.slice(0, path.length - s.length - 1);
+	if (path.endsWith(`/${s}`)) return path.slice(0, path.length - s.length - 1);
 	if (path.endsWith(s))
 		return path.slice(0, path.length - s.length).replace(TRAILING_SLASHES_RE, '');
 	return path;

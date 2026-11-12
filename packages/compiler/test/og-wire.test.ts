@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { dedent } from '@ogygia/core/contract';
 import { rewrite_wire, WIRE_EXPR } from '../src/compiler/macros/wire.ts';
 import {
 	wire,
@@ -16,7 +17,11 @@ const CODEC = `{ encode: (c) => c.v, decode: (v) => new C(v) }`;
 
 describe('rewrite_wire — the strict compile construct', () => {
 	it('consumes the member and mints the symbol key', () => {
-		const src = `export class C {\n\tstatic wire = import.meta.og.wire(${CODEC});\n}`;
+		const src = dedent`
+			export class C {
+				static wire = import.meta.og.wire(${CODEC});
+			}
+		`;
 		const out = rewrite_wire(src, '/app/src/lib/c.svelte.ts', MARKUP);
 		expect(out).toContain(`static [${WIRE_EXPR}] = ${CODEC};`);
 		expect(out).not.toContain('import.meta.og.wire');
@@ -24,23 +29,23 @@ describe('rewrite_wire — the strict compile construct', () => {
 	});
 
 	it('rewrites inside a .svelte <script module> block only — markup prose is untouched', () => {
-		const src = [
-			`<script module lang="ts">`,
-			`\texport class C { static wire = import.meta.og.wire(${CODEC}); }`,
-			`</script>`,
-			`<p>the marker import.meta.og.wire() in prose stays literal</p>`
-		].join('\n');
+		const src = dedent`
+			<script module lang="ts">
+				export class C { static wire = import.meta.og.wire(${CODEC}); }
+			</script>
+			<p>the marker import.meta.og.wire() in prose stays literal</p>
+		`;
 		const out = rewrite_wire(src, '/app/src/lib/C.svelte', MARKUP);
 		expect(out).toContain(`static [${WIRE_EXPR}] = ${CODEC};`);
 		expect(out).toContain('<p>the marker import.meta.og.wire() in prose stays literal</p>');
 	});
 
 	it('AST path: a marker in a comment or string is NOT rewritten (and not judged as misuse)', () => {
-		const src = [
-			`// docs mention import.meta.og.wire() here`,
-			`const s = "import.meta.og.wire()";`,
-			`export class C { static wire = import.meta.og.wire(${CODEC}); }`
-		].join('\n');
+		const src = dedent`
+			// docs mention import.meta.og.wire() here
+			const s = "import.meta.og.wire()";
+			export class C { static wire = import.meta.og.wire(${CODEC}); }
+		`;
 		const out = rewrite_wire(src, '/app/x.ts', MARKUP);
 		expect(out).toContain(`// docs mention import.meta.og.wire() here`);
 		expect(out).toContain(`const s = "import.meta.og.wire()";`);
@@ -54,10 +59,10 @@ describe('rewrite_wire — the strict compile construct', () => {
 	});
 
 	it('scanner fallback (unparseable source) still rewrites the legal member', () => {
-		const src = [
-			`class C { static wire = import.meta.og.wire(${CODEC}); }`,
-			`const broken = (`
-		].join('\n');
+		const src = dedent`
+			class C { static wire = import.meta.og.wire(${CODEC}); }
+			const broken = (
+		`;
 		expect(rewrite_wire(src, '/app/x.ts', MARKUP)).toContain(`static [${WIRE_EXPR}] = ${CODEC};`);
 	});
 

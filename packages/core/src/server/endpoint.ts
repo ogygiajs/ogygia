@@ -31,7 +31,7 @@ export function configure_islands_endpoint(path: string | undefined): void {
 		? DEFAULT_ISLANDS_ENDPOINT
 		: path.startsWith('/')
 			? path
-			: '/' + path;
+			: `/${path}`;
 }
 
 /** THE KIND OF A REQUEST: one rendering on behalf of a page it is not (the islands endpoint, or a

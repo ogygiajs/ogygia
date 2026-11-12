@@ -81,7 +81,7 @@ function write_index(): void {
 		b.localeCompare(a, undefined, { numeric: true })
 	);
 	mkdirSync(dirname(index_file), { recursive: true });
-	writeFileSync(index_file, JSON.stringify({ versions }, null, '\t') + '\n');
+	writeFileSync(index_file, `${JSON.stringify({ versions }, null, '\t')}\n`);
 }
 // (the release workflow writes the report at the released commit, then lists it on main's index)
 if (values['index-only']) {
@@ -434,7 +434,7 @@ for (const [name, found] of [...by_package].sort(([a], [b]) => a.localeCompare(b
 	});
 	writeFileSync(
 		join(OUT, `${name.replace(/^@/, '').replaceAll('/', '-')}.json`),
-		JSON.stringify({ format: 1, where: WHERE, files, tests, coverage: cov ?? null }) + '\n'
+		`${JSON.stringify({ format: 1, where: WHERE, files, tests, coverage: cov ?? null })}\n`
 	);
 }
 for (const k of ['lines', 'branches', 'functions', 'statements'] as const)
@@ -451,7 +451,7 @@ totals.ratio = totals.srcLines ? Math.round((totals.testLines / totals.srcLines)
 
 writeFileSync(
 	join(OUT, 'summary.json'),
-	JSON.stringify(
+	`${JSON.stringify(
 		{
 			version: VERSION,
 			commit: COMMIT,
@@ -463,12 +463,12 @@ writeFileSync(
 		},
 		null,
 		'\t'
-	) + '\n'
+	)}\n`
 );
 mkdirSync(RAW, { recursive: true });
 writeFileSync(
 	join(RAW, 'coverage-summary.json'),
-	JSON.stringify(coverage_summary, null, '\t') + '\n'
+	`${JSON.stringify(coverage_summary, null, '\t')}\n`
 );
 
 if (values.index) write_index();

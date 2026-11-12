@@ -15,7 +15,7 @@ const hmac = (key: string): Signer => {
 		return h.toString(16).padStart(8, '0');
 	};
 	const sign = (m: string) =>
-		fnv(key + '\0' + m, 2166136261) + fnv(m + '\0' + key, 84696351) + fnv(key + m, 1) + fnv(m, 7);
+		fnv(`${key}\0${m}`, 2166136261) + fnv(`${m}\0${key}`, 84696351) + fnv(key + m, 1) + fnv(m, 7);
 	return { sign, verify: (m, sig) => sign(m) === sig };
 };
 

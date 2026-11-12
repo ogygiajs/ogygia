@@ -52,8 +52,7 @@ test('a placed island adopts its server nodes', async () => {
 
 test("a deferred answer (render()'s shape, its stylesheet links first) adopts its server nodes", () => {
 	const region = region_with(
-		'<link rel="stylesheet" href="data:text/css," data-ogygia-region-css>' +
-			decode('counter_render_b64'),
+		`<link rel="stylesheet" href="data:text/css," data-ogygia-region-css>${decode('counter_render_b64')}`,
 		{ render: 'defer', entry: '/counter' }
 	);
 	const button = region.querySelector('button')!;
@@ -65,7 +64,7 @@ test("a deferred answer (render()'s shape, its stylesheet links first) adopts it
 
 test("a placed island an earlier build rendered (its host's {#if} pair around it) is adopted too", async () => {
 	// (a hole's answer from a server still on the earlier build, mid rolling deploy)
-	const region = region_with('<!--[0-->' + decode('counter_render_b64') + '<!--]-->', {
+	const region = region_with(`<!--[0-->${decode('counter_render_b64')}<!--]-->`, {
 		entry: '/counter'
 	});
 	const button = region.querySelector('button')!;

@@ -15,7 +15,7 @@ const APP = fileURLToPath(new URL('../../../apps/sim-gen', import.meta.url));
 const builds = builds_of(APP);
 const ready = ((): boolean => {
 	if (builds.length === 0) return false;
-	const plan = APP + '/src/lib/gen/plan.json';
+	const plan = `${APP}/src/lib/gen/plan.json`;
 	return existsSync(plan) && JSON.parse(readFileSync(plan, 'utf8')).seed === 131;
 })();
 

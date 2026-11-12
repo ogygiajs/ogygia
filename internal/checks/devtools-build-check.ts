@@ -18,7 +18,7 @@ const check = (name, ok, extra = '') => {
 	console.log(`${ok ? '✓' : '✗'} ${name}${extra ? ` — ${extra}` : ''}`);
 };
 
-const html = await (await fetch(base + '/dt-lab')).text();
+const html = await (await fetch(`${base}/dt-lab`)).text();
 check("a visitor's HTML has no server side-channel", !html.includes('application/ogygia-devtools'));
 
 const browser = await chromium.launch();
@@ -29,7 +29,7 @@ page.on('pageerror', (e) => !e.message.includes('planted') && errors.push(e.mess
 let loaded = [];
 page.on('response', (r) => r.url().endsWith('.js') && loaded.push(r.url()));
 
-await page.goto(base + '/dt-lab', { waitUntil: 'load' });
+await page.goto(`${base}/dt-lab`, { waitUntil: 'load' });
 await page.waitForTimeout(1500);
 check('a visitor sees no launcher', (await page.locator('[data-og-panel-toggle]').count()) === 0);
 check(
@@ -55,7 +55,7 @@ check(
 
 // THE URL SWITCH: on for this browser, from this very response (the server sets the cookie and writes
 // its side-channel), and the address drops the param
-const switched = await fetch(base + '/dt-lab?og-devtools=on');
+const switched = await fetch(`${base}/dt-lab?og-devtools=on`);
 check(
 	'?og-devtools=on: the response sets the switch',
 	(switched.headers.get('set-cookie') ?? '').includes('og_devtools=on')
@@ -64,7 +64,7 @@ check(
 	'…and carries the server side-channel',
 	(await switched.text()).includes('application/ogygia-devtools')
 );
-await page.goto(base + '/dt-lab?og-devtools=on', { waitUntil: 'load' });
+await page.goto(`${base}/dt-lab?og-devtools=on`, { waitUntil: 'load' });
 // (the launcher is a lazy chunk: on a server's cold first requests it can take past a fixed wait)
 await page.waitForSelector('[data-og-panel-toggle]', { timeout: 10_000 }).catch(() => {});
 await page.waitForTimeout(500);
@@ -155,7 +155,7 @@ check(
 const files = await (async () => {
 	const c = await browser.newContext({ viewport: { width: 1400, height: 900 } });
 	const v = await c.newPage();
-	await v.goto(base + '/dt-lab', { waitUntil: 'load' });
+	await v.goto(`${base}/dt-lab`, { waitUntil: 'load' });
 	await v.waitForTimeout(2500);
 	const list = await v.evaluate(() => [
 		...new Set(
@@ -226,7 +226,7 @@ check(
 	!!clean_styles && clean_styles.codes.length === 0,
 	JSON.stringify(clean_styles)
 );
-await page.goto(base + '/dt-styles', { waitUntil: 'load' });
+await page.goto(`${base}/dt-styles`, { waitUntil: 'load' });
 await page.waitForTimeout(1500);
 const lab_styles = await styles_of();
 check(
@@ -263,7 +263,7 @@ check(
 					}
 				: null;
 		});
-	await page.goto(base + '/dt-lab', { waitUntil: 'load' });
+	await page.goto(`${base}/dt-lab`, { waitUntil: 'load' });
 	await page.waitForTimeout(800);
 	const clean = await cache_of(page);
 	check(
@@ -282,7 +282,7 @@ check(
 			});
 		}
 	);
-	await planted.goto(base + '/dt-lab', { waitUntil: 'load' });
+	await planted.goto(`${base}/dt-lab`, { waitUntil: 'load' });
 	await planted.waitForTimeout(1200);
 	const bad = await cache_of(planted);
 	check(
@@ -303,7 +303,7 @@ check(
 {
 	const inp_of = async (mode) => {
 		const p = await ctx.newPage();
-		await p.goto(base + '/dt-inp', { waitUntil: 'load' });
+		await p.goto(`${base}/dt-inp`, { waitUntil: 'load' });
 		await p.waitForTimeout(1500);
 		const center = async (sel) => {
 			const b = await p.locator(sel).boundingBox();
@@ -328,7 +328,7 @@ check(
 	// (a click whose handler reads sizes between writes: how much of it was forced layout)
 	{
 		const p = await ctx.newPage();
-		await p.goto(base + '/dt-inp-thrash', { waitUntil: 'load' });
+		await p.goto(`${base}/dt-inp-thrash`, { waitUntil: 'load' });
 		await p.waitForTimeout(1500);
 		const b = await p.locator('[data-inp="thrash"]').boundingBox();
 		await p.mouse.click(b.x + b.width / 2, b.y + b.height / 2);
@@ -366,7 +366,7 @@ check(
 	// function in a chunk is never quoted — the frames' reading stands
 	{
 		const p = await ctx.newPage();
-		await p.goto(base + '/dt-inp', { waitUntil: 'load' });
+		await p.goto(`${base}/dt-inp`, { waitUntil: 'load' });
 		const state = await p
 			.waitForFunction(() => window.__ogygia_page?.()?.page.cpu.state === 'done', null, {
 				timeout: 30_000
@@ -401,7 +401,7 @@ check('no errors', errors.length === 0, errors.slice(0, 2).join(' | '));
 	p.on('request', (r) => {
 		if (r.url().includes('__ogygia__')) posts.push(r.method());
 	});
-	await p.goto(base + '/dt-batch', { waitUntil: 'load' });
+	await p.goto(`${base}/dt-batch`, { waitUntil: 'load' });
 	await p.waitForTimeout(3000);
 	const slow = await p.evaluate(
 		() =>
@@ -433,7 +433,7 @@ check('no errors', errors.length === 0, errors.slice(0, 2).join(' | '));
 			const p = await c.newPage();
 			const cdp = await c.newCDPSession(p);
 			await cdp.send('Performance.enable');
-			await p.goto(base + '/hell-fixed', { waitUntil: 'load' });
+			await p.goto(`${base}/hell-fixed`, { waitUntil: 'load' });
 			await p.waitForTimeout(1500);
 			const m = Object.fromEntries(
 				(await cdp.send('Performance.getMetrics')).metrics.map((x) => [x.name, x.value])
@@ -459,7 +459,7 @@ check('no errors', errors.length === 0, errors.slice(0, 2).join(' | '));
 	const c = await browser.newContext({ viewport: { width: 1400, height: 900 } });
 	await c.addCookies([{ name: 'og_devtools', value: 'on', url: base }]);
 	const p = await c.newPage();
-	await p.goto(base + '/dt-leak', { waitUntil: 'load' });
+	await p.goto(`${base}/dt-leak`, { waitUntil: 'load' });
 	await p.waitForTimeout(2000);
 	await p.evaluate(() => document.querySelector('[data-leak-go]')?.click());
 	await p.waitForTimeout(2000);
@@ -551,7 +551,7 @@ check('no errors', errors.length === 0, errors.slice(0, 2).join(' | '));
 		const c = await browser.newContext({ viewport: { width: 1400, height: 900 } });
 		await c.addCookies([{ name: 'og_devtools', value: 'on', url: base }]);
 		const p = await c.newPage();
-		await p.goto(base + '/dt-lcp-bg', { waitUntil: 'load' });
+		await p.goto(`${base}/dt-lcp-bg`, { waitUntil: 'load' });
 		await p.waitForTimeout(1500);
 		await p.click('[data-og-panel-toggle]').catch(() => {});
 		await p.waitForSelector('[data-og-tab]', { timeout: 5000 }).catch(() => {});
@@ -581,7 +581,7 @@ check('no errors', errors.length === 0, errors.slice(0, 2).join(' | '));
 	await c.addCookies([{ name: 'og_devtools', value: 'on', url: base }]);
 	const p = await c.newPage();
 	await p.setExtraHTTPHeaders({ 'x-profiler-key': 'hell' });
-	await p.goto(base + '/dt-lab', { waitUntil: 'load' });
+	await p.goto(`${base}/dt-lab`, { waitUntil: 'load' });
 	await p.waitForTimeout(1500);
 	await p.click('[data-og-panel-toggle]').catch(() => {});
 	await p.click('[data-og-tab="profiler"]').catch(() => {});
@@ -646,7 +646,7 @@ check('no errors', errors.length === 0, errors.slice(0, 2).join(' | '));
 	await c.addCookies([{ name: 'og_devtools', value: 'on', url: base }]);
 	const p = await c.newPage();
 	await p.setExtraHTTPHeaders({ 'x-profiler-key': 'hell' });
-	await p.goto(base + '/dt-dupe', { waitUntil: 'load' });
+	await p.goto(`${base}/dt-dupe`, { waitUntil: 'load' });
 	await p.waitForTimeout(1500);
 	await p.click('[data-og-panel-toggle]').catch(() => {});
 	await p.click('[data-og-tab="profiler"]').catch(() => {});
@@ -694,7 +694,7 @@ check('no errors', errors.length === 0, errors.slice(0, 2).join(' | '));
 	const c = await browser.newContext({ viewport: { width: 1400, height: 900 } });
 	await c.addCookies([{ name: 'og_devtools', value: 'on', url: base }]);
 	const p = await c.newPage();
-	await p.goto(base + '/dt-jank', { waitUntil: 'load' });
+	await p.goto(`${base}/dt-jank`, { waitUntil: 'load' });
 	await p.waitForTimeout(1200);
 	await p.mouse.move(700, 450);
 	for (let i = 0; i < 8; i++) {
@@ -721,7 +721,7 @@ check('no errors', errors.length === 0, errors.slice(0, 2).join(' | '));
 	const c = await browser.newContext({ viewport: { width: 1400, height: 900 } });
 	await c.addCookies([{ name: 'og_devtools', value: 'on', url: base }]);
 	const p = await c.newPage();
-	await p.goto(base + '/dt-preload-never', { waitUntil: 'load' });
+	await p.goto(`${base}/dt-preload-never`, { waitUntil: 'load' });
 	await p.waitForTimeout(3500);
 	await p.click('[data-og-panel-toggle]').catch(() => {});
 	await p.waitForSelector('[data-og-tab]', { timeout: 5000 }).catch(() => {});
@@ -758,7 +758,7 @@ check('no errors', errors.length === 0, errors.slice(0, 2).join(' | '));
 		});
 	});
 	await c.addCookies([{ name: 'og_devtools', value: 'on', url: base }]);
-	await p.goto(base + '/dt-lab', { waitUntil: 'load' });
+	await p.goto(`${base}/dt-lab`, { waitUntil: 'load' });
 	await p.waitForSelector('[data-og-panel-toggle]', { timeout: 10_000 }).catch(() => {});
 	await p.click('[data-og-panel-toggle]').catch(() => {});
 	await p.waitForSelector('[data-og-tab]', { timeout: 5000 }).catch(() => {});
@@ -786,7 +786,7 @@ check('no errors', errors.length === 0, errors.slice(0, 2).join(' | '));
 	const launcher = () => p.locator('[data-og-panel-toggle]').count();
 	const on = async () =>
 		(await c.cookies()).some((x) => x.name === 'og_devtools' && x.value === 'on');
-	await p.goto(base + '/dt-lab', { waitUntil: 'load' });
+	await p.goto(`${base}/dt-lab`, { waitUntil: 'load' });
 	await p.waitForSelector('[data-og-panel-toggle]', { timeout: 10_000 }).catch(() => {});
 	await p.click('[data-og-panel-toggle]');
 	await p.waitForSelector('[data-og-hide]', { timeout: 5000 }).catch(() => {});
@@ -806,8 +806,8 @@ check('no errors', errors.length === 0, errors.slice(0, 2).join(' | '));
 	check('console on(): the switch is on', await on());
 	await p.evaluate(() => window.ogygia?.devtools?.off());
 	check('console off(): the launcher goes', (await launcher()) === 0);
-	await p.goto(base + '/dt-lab?og-devtools=on', { waitUntil: 'load' });
-	await p.goto(base + '/dt-lab?og-devtools=off', { waitUntil: 'load' });
+	await p.goto(`${base}/dt-lab?og-devtools=on`, { waitUntil: 'load' });
+	await p.goto(`${base}/dt-lab?og-devtools=off`, { waitUntil: 'load' });
 	await p.waitForTimeout(1500);
 	check('?og-devtools=off: no launcher, switch off', (await launcher()) === 0 && !(await on()));
 	await c.close();

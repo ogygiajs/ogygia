@@ -21,7 +21,7 @@ const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const NAME = 'flights under test';
 const taken = new Set<string>();
 const off = observe((name, from, to) => {
-	if (name === NAME) taken.add(from.kind + ' → ' + (to?.kind ?? 'stopped'));
+	if (name === NAME) taken.add(`${from.kind} → ${to?.kind ?? 'stopped'}`);
 });
 afterAll(() => {
 	off();
@@ -207,7 +207,7 @@ describe('one key (what once() was)', () => {
 
 describe('keyed', () => {
 	it('one flight per key: the same key joins, another key runs on its own', async () => {
-		const run = vi.fn(async (href: string) => 'page ' + href);
+		const run = vi.fn(async (href: string) => `page ${href}`);
 		const pages = flights({ name: NAME, run });
 		const [a, b, c] = await Promise.all([pages.get('/a'), pages.get('/a'), pages.get('/b')]);
 		expect([a, b, c]).toEqual(['page /a', 'page /a', 'page /b']);
@@ -236,9 +236,9 @@ describe('keyed', () => {
 		const base: Spec = { owner: 'a', repo: 'b', ref: 'main', sub: 'docs' };
 		const inputs: Spec[] = [base];
 		for (const field of ['owner', 'repo', 'ref', 'sub'] as const) {
-			inputs.push({ ...base, [field]: base[field] + 'x' });
+			inputs.push({ ...base, [field]: `${base[field]}x` });
 			// a value that a careless join would spell like another field's
-			inputs.push({ ...base, [field]: base[field] + ':' + 'b' });
+			inputs.push({ ...base, [field]: `${base[field]}:b` });
 		}
 		inputs.push({ owner: 'a:b', repo: '', ref: 'main', sub: 'docs' });
 		const answers = await Promise.all(inputs.map((i) => checkouts.get(i)));
@@ -369,7 +369,7 @@ describe('keyed', () => {
 		await Promise.all([pages.get('/docs/a'), pages.get('/docs/b'), pages.get('/blog/c')]);
 		const out = pages.get('/docs/d'); // still out
 		const seen: string[] = [];
-		pages.drop((key, entry) => (seen.push(key + ':' + entry.kind), key.startsWith('/docs/')));
+		pages.drop((key, entry) => (seen.push(`${key}:${entry.kind}`), key.startsWith('/docs/')));
 		expect(seen.sort()).toEqual(['/blog/c:kept', '/docs/a:kept', '/docs/b:kept', '/docs/d:flying']);
 		await expect(out).resolves.toBe(STALE);
 		expect(pages.peek('/docs/a')).toBeUndefined();
@@ -910,7 +910,7 @@ describe('under load (real concurrency)', () => {
 					try {
 						await wait(Math.floor(rand() * 3));
 						if (rand() < 0.2) throw new Error('blip');
-						return key + '!';
+						return `${key}!`;
 					} finally {
 						runs.delete(signal);
 					}
@@ -919,7 +919,7 @@ describe('under load (real concurrency)', () => {
 				max: 3
 			});
 			for (let i = 0; i < 60; i++) {
-				const key = '/' + Math.floor(rand() * 4);
+				const key = `/${Math.floor(rand() * 4)}`;
 				const r = rand();
 				if (r < 0.1) pages.drop(key);
 				else if (r < 0.15) pages.drop(() => true);
@@ -935,7 +935,7 @@ describe('under load (real concurrency)', () => {
 			const settled = await Promise.allSettled(out.map((o) => o.p));
 			for (let i = 0; i < settled.length; i++) {
 				const s = settled[i];
-				if (s.status === 'fulfilled') expect([STALE, out[i].key + '!']).toContain(s.value);
+				if (s.status === 'fulfilled') expect([STALE, `${out[i].key}!`]).toContain(s.value);
 				else expect((s.reason as Error).message).toBe('blip');
 			}
 			expect(overlap).toBe(false);

@@ -71,13 +71,8 @@ export class CloudFrontEdge implements EdgeAdapter {
 	async #create_invalidation(paths: string[]): Promise<void> {
 		const config = this.#config;
 		const items = paths.map((p) => `<Path>${p}</Path>`).join('');
-		const body =
-			`<?xml version="1.0" encoding="UTF-8"?>` +
-			`<InvalidationBatch xmlns="http://cloudfront.amazonaws.com/doc/${API_VERSION}/">` +
-			// wall: a reference unique across processes
-			`<CallerReference>og-${clock.wall()}-${Math.floor(random.float() * 1e6)}</CallerReference>` +
-			`<Paths><Quantity>${paths.length}</Quantity><Items>${items}</Items></Paths>` +
-			`</InvalidationBatch>`;
+		// wall: a reference unique across processes
+		const body = `<?xml version="1.0" encoding="UTF-8"?><InvalidationBatch xmlns="http://cloudfront.amazonaws.com/doc/${API_VERSION}/"><CallerReference>og-${clock.wall()}-${Math.floor(random.float() * 1e6)}</CallerReference><Paths><Quantity>${paths.length}</Quantity><Items>${items}</Items></Paths></InvalidationBatch>`;
 		const path = `/${API_VERSION}/distribution/${config.distributionId}/invalidation`;
 		const { datetime, date } = amz_dates();
 		const payload_hash = hex_sha(body);
@@ -95,7 +90,7 @@ export class CloudFrontEdge implements EdgeAdapter {
 		].join('\n');
 		const scope = `${date}/${REGION}/${SERVICE}/aws4_request`;
 		const string_to_sign = ['AWS4-HMAC-SHA256', datetime, scope, hex_sha(canonical)].join('\n');
-		const k_date = hmac('AWS4' + config.secretAccessKey, date);
+		const k_date = hmac(`AWS4${config.secretAccessKey}`, date);
 		const k_region = hmac(k_date, REGION);
 		const k_service = hmac(k_region, SERVICE);
 		const k_signing = hmac(k_service, 'aws4_request');
@@ -107,9 +102,7 @@ export class CloudFrontEdge implements EdgeAdapter {
 				'content-type': 'text/xml',
 				'x-amz-content-sha256': payload_hash,
 				'x-amz-date': datetime,
-				authorization:
-					`AWS4-HMAC-SHA256 Credential=${config.accessKeyId}/${scope}, ` +
-					`SignedHeaders=host;x-amz-content-sha256;x-amz-date, Signature=${signature}`
+				authorization: `AWS4-HMAC-SHA256 Credential=${config.accessKeyId}/${scope}, SignedHeaders=host;x-amz-content-sha256;x-amz-date, Signature=${signature}`
 			},
 			body
 		});

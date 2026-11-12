@@ -317,7 +317,7 @@ async function start_preview() {
 	);
 	for (let i = 0; i < 120; i++) {
 		try {
-			await fetch(base + '/');
+			await fetch(`${base}/`);
 			return () => child.kill();
 		} catch {
 			await new Promise((r) => setTimeout(r, 500));

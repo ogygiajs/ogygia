@@ -17,7 +17,7 @@ export const PREFIX_TAG_DEPTH = 3;
 
 /** Normalize a prefix filter: leading slash enforced, trailing slash stripped (except root). */
 export function normalize_prefix(prefix: string): string {
-	let p = prefix.startsWith('/') ? prefix : '/' + prefix;
+	let p = prefix.startsWith('/') ? prefix : `/${prefix}`;
 	while (p.length > 1 && p.endsWith('/')) p = p.slice(0, -1);
 	return p;
 }
@@ -25,7 +25,7 @@ export function normalize_prefix(prefix: string): string {
 /** The key prefix a normalized prefix's SUBTREE shares: `/fr/fr` → `/fr/fr/` (never `/fr/fright`),
  *  and the root `/` → `/` itself (every key; `'/' + '/'` would match nothing). */
 export function subtree_prefix(normalized: string): string {
-	return normalized.endsWith('/') ? normalized : normalized + '/';
+	return normalized.endsWith('/') ? normalized : `${normalized}/`;
 }
 
 /** The depth-capped prefix list for a pathname — the edge tag vocabulary for this response. */
@@ -33,7 +33,7 @@ export function prefix_tags(pathname: string): string[] {
 	const segs = pathname.split('/').filter(Boolean);
 	const out: string[] = [];
 	for (let i = 1; i <= Math.min(segs.length, PREFIX_TAG_DEPTH); i++) {
-		out.push('/' + segs.slice(0, i).join('/'));
+		out.push(`/${segs.slice(0, i).join('/')}`);
 	}
 	return out;
 }

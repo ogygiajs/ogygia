@@ -329,7 +329,7 @@ export function tag_fills(
 				found.set(k.key, (found.get(k.key) ?? false) || k.verdict !== 'unread');
 			if (found.size) n.fills = [...found].map(([key, read]) => ({ key, read }));
 		}
-		const here = n.kind === 'lane' && n.at ? split_place(n.at + ':0').parts : lane;
+		const here = n.kind === 'lane' && n.at ? split_place(`${n.at}:0`).parts : lane;
 		for (const c of n.children ?? []) walk(c, here);
 	};
 	walk(root);
@@ -401,7 +401,7 @@ export function build_drill(
 				(n.kind === 'cpu' || n.kind === 'wait') &&
 				(parent_kind === 'phase' || parent_kind === 'lane' || parent_kind === 'more')
 			) {
-				const k = n.kind + '\0' + n.label;
+				const k = `${n.kind}\0${n.label}`;
 				(rows.get(k) ?? rows.set(k, []).get(k)!).push(n);
 			}
 			for (const c of n.children ?? []) collect(c, n.kind);
@@ -507,7 +507,7 @@ function build_tree(
 	 *  nest (`render 30` holding `db 21`), so past the wait itself the largest is their whole. */
 	const add_split = (g: Group, c: NonNullable<Segment['calls']>[number]) => {
 		if (!is_http(c.label)) return;
-		const id = c.label + '\0' + (c.caller ?? '') + '\0' + c.ms;
+		const id = `${c.label}\0${c.caller ?? ''}\0${c.ms}`;
 		if ((g.split_seen ??= new Set()).has(id)) return;
 		g.split_seen.add(id);
 		const body = Math.min(c.body_ms ?? 0, c.ms);
@@ -539,7 +539,7 @@ function build_tree(
 			const each = len / s.calls.length;
 			const keyed = s.calls.map((c) => {
 				const lane = in_load ? lane_of([...(c.callers ?? []), c.caller]) : undefined;
-				return { c, lane, key: 'w\0' + call_group(c.label) + '\0' + (lane ?? '') };
+				return { c, lane, key: `w\0${call_group(c.label)}\0${lane ?? ''}` };
 			});
 			// ALONE: nothing else was in flight, so the render waited on this endpoint only — the part a
 			// faster answer is sure to save (a shared stretch still waits on the others)
@@ -577,7 +577,7 @@ function build_tree(
 		const file = s.kind === 'gap' ? pending_place(s.pending) : s.file;
 		// the load file on its stack (a `$lib` helper a load ran), else the file it sits in
 		const lane = in_load ? (s.lane ?? lane_of([file])) : undefined;
-		const key = s.kind[0] + '\0' + label + '\0' + (lane ?? '');
+		const key = `${s.kind[0]}\0${label}\0${lane ?? ''}`;
 		const g =
 			ph.get(key) ??
 			ph
@@ -607,10 +607,8 @@ function build_tree(
 	for (const s of segs)
 		for (const c of s.calls ?? []) {
 			const lane = s.phase === 'load' ? lane_of([...(c.callers ?? []), c.caller]) : undefined;
-			const k = s.phase + '\0' + call_group(c.label) + '\0' + (lane ?? '');
-			(seen.get(k) ?? seen.set(k, new Set()).get(k)!).add(
-				c.label + '\0' + (c.caller ?? '') + '\0' + c.ms
-			);
+			const k = `${s.phase}\0${call_group(c.label)}\0${lane ?? ''}`;
+			(seen.get(k) ?? seen.set(k, new Set()).get(k)!).add(`${c.label}\0${c.caller ?? ''}\0${c.ms}`);
 		}
 	// your function's lines: its ledger rows (the ledger holds the whole recording; only the shares
 	// are used, applied to this render's time for the function)
@@ -621,12 +619,12 @@ function build_tree(
 		const anon = f.name.startsWith('(');
 		return ledger.filter((l) => {
 			if (!l.fn || l.cpu_ms <= 0) return false;
-			if (l.fn === 'C:' + f.name) return true;
+			if (l.fn === `C:${f.name}`) return true;
 			const sp = anon ? l.fn.indexOf(') ') + 1 : l.fn.lastIndexOf(' ');
 			if (sp <= 0 || l.fn.slice(0, sp) !== f.name) return false;
 			const def = anon
 				? split_place(l.fn.slice(sp + 1))
-				: { parts: split_place(l.fn.slice(sp + 1) + ':').parts, line: own.line };
+				: { parts: split_place(`${l.fn.slice(sp + 1)}:`).parts, line: own.line };
 			return def.line === own.line && same_file(def.parts, own.parts);
 		});
 	};
@@ -651,7 +649,7 @@ function build_tree(
 		else {
 			// no stack record: the ledger rows named after it
 			const rows = ledger.filter(
-				(l) => l.fn && (l.fn.split(' ')[0] === fn || l.fn === 'C:' + fn) && l.cpu_ms > 0
+				(l) => l.fn && (l.fn.split(' ')[0] === fn || l.fn === `C:${fn}`) && l.cpu_ms > 0
 			);
 			const total = rows.reduce((s, l) => s + l.cpu_ms, 0);
 			for (const l of rows)
@@ -686,7 +684,7 @@ function build_tree(
 			n.ms = r2(n.ms);
 			if (n.alone !== undefined) n.alone = r2(n.alone);
 			if (n.kind === 'wait') {
-				n.calls = seen.get(phase + '\0' + n.label + '\0' + (g.lane ?? ''))?.size ?? 0;
+				n.calls = seen.get(`${phase}\0${n.label}\0${g.lane ?? ''}`)?.size ?? 0;
 				if (g.split) {
 					const sp = g.split;
 					// their biggest entries: the first is often a wrapper (`render`), what it holds comes next

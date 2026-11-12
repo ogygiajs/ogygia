@@ -41,7 +41,7 @@ export function without_switch(url: URL): URL {
 
 /** Is it on in a `Cookie` header / `document.cookie` string. */
 export function switch_on_in(cookies: string): boolean {
-	const want = DEVTOOLS_COOKIE + '=' + DEVTOOLS_ON;
+	const want = `${DEVTOOLS_COOKIE}=${DEVTOOLS_ON}`;
 	for (const c of cookies.split(';')) if (c.trim() === want) return true;
 	return false;
 }
@@ -59,7 +59,7 @@ export const TESTING_PARAM = 'og-testing';
 
 /** Is lean testing asked for in a `Cookie` header / `document.cookie` string. */
 export function lean_in(cookies: string): boolean {
-	const want = TESTING_COOKIE + '=' + TESTING_LEAN;
+	const want = `${TESTING_COOKIE}=${TESTING_LEAN}`;
 	for (const c of cookies.split(';')) if (c.trim() === want) return true;
 	return false;
 }

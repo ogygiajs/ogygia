@@ -247,7 +247,7 @@ export class CompileCtx {
 		if (this.#pkg_files.size === 0 && this.#pkg_dirs.length === 0) return false;
 		const p = id.split(BACKSLASH_SEP).join('/');
 		if (this.#pkg_files.has(p)) return true;
-		for (const dir of this.#pkg_dirs) if (p.startsWith(dir + '/')) return true;
+		for (const dir of this.#pkg_dirs) if (p.startsWith(`${dir}/`)) return true;
 		return false;
 	}
 
@@ -266,7 +266,7 @@ export class CompileCtx {
 		if (this.#pkg_roots.length === 0) return null;
 		const p = abs.split(BACKSLASH_SEP).join('/');
 		for (const { root, name } of this.#pkg_roots) {
-			if (p.startsWith(root + '/')) return name + p.slice(root.length);
+			if (p.startsWith(`${root}/`)) return name + p.slice(root.length);
 		}
 		return null;
 	}
@@ -284,13 +284,13 @@ export class CompileCtx {
 	 *  `Program.runtime_feature_hash`, threaded in by the caller so this stays a pure naming function. */
 	runtime_chunk_filename(program_feature_hash: string): string {
 		const feat = this.runtime_features(program_feature_hash);
-		return `${this.app_dir}/${STABLE_NAME_DIR}/og-runtime.${this.runtime_hash}${feat ? '-' + feat : ''}.js`;
+		return `${this.app_dir}/${STABLE_NAME_DIR}/og-runtime.${this.runtime_hash}${feat ? `-${feat}` : ''}.js`;
 	}
 
 	/** App-internal URL of the runtime chunk (leading slash + appDir; NO base). SSR bakes it as the
 	 *  `<script src>`, then `asset()` prepends base / the assets CDN at render time. */
 	runtime_chunk_url(program_feature_hash: string): string {
-		return '/' + this.runtime_chunk_filename(program_feature_hash);
+		return `/${this.runtime_chunk_filename(program_feature_hash)}`;
 	}
 
 	/** Output filename for a hydrate island chunk (under the app dir; an on-disk build path). */
@@ -328,6 +328,6 @@ export class CompileCtx {
 	 *  at SSR, which is the sole base authority. Baking `base` here would double it (Vite dev serves
 	 *  `/@id/…` UNDER base, and `asset()` already adds that prefix). */
 	dev_url_for(virtualPath: string): string {
-		return '/@id/' + virtualPath;
+		return `/@id/${virtualPath}`;
 	}
 }

@@ -29,6 +29,7 @@ import {
 	set_page_route_config
 } from '../../core/src/plugin/routes.ts';
 import { startPlugin } from '../../core/src/plugin/testing.ts';
+import { dedent } from '@ogygia/core/plugin/utils';
 
 /** An app of the repo's (the federation demo's dash): it depends on `@ogygia/flags`. */
 const APP = path.resolve(
@@ -123,11 +124,17 @@ describe('realms, named by the plugin', () => {
 		};
 		const plain = file(
 			'plain.ts',
-			`import { defineClient } from 'ogygia/plugin/client';\nexport default defineClient({ boot() {}, hooks: { regionHydrated(e) {}, 'navigated': () => {} } });\n`
+			`${dedent`
+				import { defineClient } from 'ogygia/plugin/client';
+				export default defineClient({ boot() {}, hooks: { regionHydrated(e) {}, 'navigated': () => {} } });
+			`}\n`
 		);
 		const held = file(
 			'held.ts',
-			`const client: ClientPlugin = defineClient({ hooks: { holeFailed() {} } });\nexport default client;\n`
+			`${dedent`
+				const client: ClientPlugin = defineClient({ hooks: { holeFailed() {} } });
+				export default client;
+			`}\n`
 		);
 		const none = file('none.ts', `export default defineClient({ boot() {} });\n`);
 		const spread = file('spread.ts', `export default defineClient({ hooks: { ...more } });\n`);
@@ -146,7 +153,10 @@ describe('realms, named by the plugin', () => {
 		const built = path.join(dir, 'client.js');
 		fs.writeFileSync(
 			built,
-			`const client = defineClient({ hooks: { regionHydrated() {}, navigated() {} } });\nexport { client as default };\n`
+			`${dedent`
+				const client = defineClient({ hooks: { regionHydrated() {}, navigated() {} } });
+				export { client as default };
+			`}\n`
 		);
 		expect(client_hook_names('p', built)).toEqual(['regionHydrated', 'navigated']);
 	});
@@ -159,15 +169,25 @@ describe('realms, named by the plugin', () => {
 		};
 		const named_plugin = file(
 			'plugin.ts',
-			`const plugin: ClientPlugin = { boot() {}, hooks: { regionMount() {}, warning() {} } };\nconst client = defineClient(plugin);\nexport default client;\n`
+			`${dedent`
+				const plugin: ClientPlugin = { boot() {}, hooks: { regionMount() {}, warning() {} } };
+				const client = defineClient(plugin);
+				export default client;
+			`}\n`
 		);
 		const named_hooks = file(
 			'hooks.ts',
-			`const hooks = { holeFailed() {} };\nexport default defineClient({ boot() {}, hooks });\n`
+			`${dedent`
+				const hooks = { holeFailed() {} };
+				export default defineClient({ boot() {}, hooks });
+			`}\n`
 		);
 		const let_hooks = file(
 			'let.ts',
-			`let hooks = { holeFailed() {} };\nexport default defineClient({ hooks });\n`
+			`${dedent`
+				let hooks = { holeFailed() {} };
+				export default defineClient({ hooks });
+			`}\n`
 		);
 		expect(client_hook_names('p', named_plugin)).toEqual(['regionMount', 'warning']);
 		expect(client_hook_names('p', named_hooks)).toEqual(['holeFailed']);
@@ -186,7 +206,7 @@ describe('realms, named by the plugin', () => {
 			resolve_plugins([def({ name: '@ogygia/flags', server: './server.ts' })], APP, true)
 		).toThrow(/is not a file/);
 		expect(() =>
-			resolve_plugins([def({ name: '@ogygia/flags', server: FLAGS_SERVER + '.nope' })], APP, true)
+			resolve_plugins([def({ name: '@ogygia/flags', server: `${FLAGS_SERVER}.nope` })], APP, true)
 		).toThrow(/is not a file/);
 		expect(() => check_plugins([{ name: 'a', server: 1 }])).toThrow(/module location/);
 	});
@@ -297,7 +317,7 @@ describe('shared hooks — notify / ask', () => {
 		const seen: string[][] = [];
 		const leave_a = register_hooks({ invalidate: (tags: string[]) => void seen.push(tags) });
 		const leave_b = register_hooks({
-			invalidate: (tags: string[]) => void seen.push(tags.map((t) => t + '!')),
+			invalidate: (tags: string[]) => void seen.push(tags.map((t) => `${t}!`)),
 			lastBuild: () => 'v1'
 		});
 		const leave_c = register_hooks({ lastBuild: () => 'v2' });

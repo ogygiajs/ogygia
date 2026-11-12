@@ -72,7 +72,7 @@ function normalize_route_id(id: string): string {
 		.split('/')
 		.filter(Boolean)
 		.filter((s) => !(s.startsWith('(') && s.endsWith(')')));
-	return '/' + segs.join('/');
+	return `/${segs.join('/')}`;
 }
 
 /**

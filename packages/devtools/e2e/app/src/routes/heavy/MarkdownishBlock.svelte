@@ -1,14 +1,18 @@
 <script lang="ts">
 	// String/regex heavy: fakes a markdown-ish transform over a large generated document. This is
 	// the shape of real SSR cost when pages format big blobs of text. Attributed to `MarkdownishBlock`.
+	import { dedent } from 'ogygia/plugin/utils';
 	let { paragraphs = 400 }: { paragraphs?: number } = $props();
 
 	const words = 'lorem ipsum dolor sit amet consectetur adipiscing elit sed do eiusmod'.split(' ');
 	let doc = '';
 	for (let p = 0; p < paragraphs; p++) {
 		let line = '';
-		for (let w = 0; w < 40; w++) line += words[(p * 7 + w * 13) % words.length] + ' ';
-		doc += `## Section ${p}\n${line}**bold** and _em_ and \`code\`\n\n`;
+		for (let w = 0; w < 40; w++) line = `${line}${words[(p * 7 + w * 13) % words.length]} `;
+		doc = `${dedent`
+			${doc}## Section ${p}
+			${line}**bold** and _em_ and \`code\`
+		`}\n\n`;
 	}
 
 	// several passes of regex replacement — the expensive part

@@ -26,7 +26,7 @@ const TABS = [
 
 const browser = await chromium.launch();
 const page = await browser.newPage({ viewport: { width: 1400, height: 900 } });
-await page.goto(base + '/dt-lab', { waitUntil: 'load' });
+await page.goto(`${base}/dt-lab`, { waitUntil: 'load' });
 await page.waitForTimeout(2500);
 await page.addScriptTag({ content: AXE });
 await page.click('[data-og-panel-toggle]');

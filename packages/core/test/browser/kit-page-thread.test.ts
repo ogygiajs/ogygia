@@ -30,11 +30,7 @@ test('a page-reading island inside a lake on a Kit document waits for Kit’s pa
 	console.warn = (...args: unknown[]) => warns.push(args.map(String).join(' '));
 	try {
 		// Kit's bootstrap marks the document; its client entry (the thread) has NOT run yet.
-		document.body.innerHTML =
-			'<script>__sveltekit_lab = {};</script>' +
-			'<div data-mount>' +
-			inject_html('lake_page_reader_ssr_b64') +
-			'</div>';
+		document.body.innerHTML = `<script>__sveltekit_lab = {};\x3C/script><div data-mount>${inject_html('lake_page_reader_ssr_b64')}</div>`;
 		const island = document.querySelector(ISLAND) as HTMLElement;
 		expect(island, 'the fixture is the lake + idle island shape').not.toBeNull();
 		const server_branch = island.querySelector('[data-testid="search"]');
@@ -79,11 +75,7 @@ test('the bridge is published but Kit has not applied its page (status -1): the 
 	try {
 		// Kit's entry has evaluated (bridge=Y) — but start() has not applied the page (status -1, data {}).
 		const kit = publish_kit_page_deferred();
-		document.body.innerHTML =
-			'<script>__sveltekit_lab = {};</script>' +
-			'<div data-mount>' +
-			inject_html('lake_page_reader_ssr_b64') +
-			'</div>';
+		document.body.innerHTML = `<script>__sveltekit_lab = {};\x3C/script><div data-mount>${inject_html('lake_page_reader_ssr_b64')}</div>`;
 		const island = document.querySelector(ISLAND) as HTMLElement;
 		const server_branch = island.querySelector('[data-testid="search"]');
 		expect(server_branch?.textContent).toBe('search');
@@ -197,11 +189,7 @@ test('a boot-shaped script naming a file on another origin is never imported: ma
 
 test('with the thread already published at wake there is no hold: the island hydrates straight away', async () => {
 	publish_kit_page({ searchBarMarkup: '<i data-testid="search">search</i>' });
-	document.body.innerHTML =
-		'<script>__sveltekit_lab = {};</script>' +
-		'<div data-mount>' +
-		inject_html('lake_page_reader_ssr_b64') +
-		'</div>';
+	document.body.innerHTML = `<script>__sveltekit_lab = {};\x3C/script><div data-mount>${inject_html('lake_page_reader_ssr_b64')}</div>`;
 	const island = document.querySelector(ISLAND) as HTMLElement;
 	bootDev();
 	await expect.poll(() => island.hasAttribute('data-hydrated'), { timeout: 10_000 }).toBe(true);

@@ -6,9 +6,7 @@
 
 	// (it re-appends once its children are parsed, like a runtime that mounts after the document;
 	// the closing tag is split so it does not end this component's own <script> block)
-	const define =
-		`<script>customElements.define('eo-shell', class extends HTMLElement { connectedCallback() { const move = () => { for (const el of Array.from(this.children)) this.append(el); }; if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', move, { once: true }); else move(); } });</` +
-		'script>';
+	const define = `<script>customElements.define('eo-shell', class extends HTMLElement { connectedCallback() { const move = () => { for (const el of Array.from(this.children)) this.append(el); }; if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', move, { once: true }); else move(); } });\x3C/script>`;
 </script>
 
 <svelte:head>{@html define}</svelte:head>

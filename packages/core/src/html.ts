@@ -170,7 +170,7 @@ const NOTHING = /* @__PURE__ */ new Html(MADE_HERE, '');
 export function attr(name: string, value: string | number | boolean | null | undefined): Html {
 	if (!ATTR_NAME.test(name)) throw new TypeError(`attr: "${name}" is not an attribute name`);
 	if (value === null || value === undefined || value === false) return NOTHING;
-	if (value === true) return new Html(MADE_HERE, ' ' + name);
+	if (value === true) return new Html(MADE_HERE, ` ${name}`);
 	const s = String(value);
 	const v = URL_ATTRS.has(name.toLowerCase()) ? safe_url(s) : s;
 	return new Html(MADE_HERE, ` ${name}="${escape_attr(v)}"`);

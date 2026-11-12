@@ -114,31 +114,31 @@ function read_double_quoted(s: string, i: number): { value: string; i: number } 
 			const n = s[i + 1];
 			switch (n) {
 				case 'n':
-					out += '\n';
+					out = `${out}\n`;
 					break;
 				case 't':
-					out += '\t';
+					out = `${out}\t`;
 					break;
 				case 'r':
-					out += '\r';
+					out = `${out}\r`;
 					break;
 				case '0':
-					out += '\0';
+					out = `${out}\0`;
 					break;
 				case 'b':
-					out += '\b';
+					out = `${out}\b`;
 					break;
 				case 'f':
-					out += '\f';
+					out = `${out}\f`;
 					break;
 				case '"':
-					out += '"';
+					out = `${out}"`;
 					break;
 				case '\\':
-					out += '\\';
+					out = `${out}\\`;
 					break;
 				case '/':
-					out += '/';
+					out = `${out}/`;
 					break;
 				case 'u': {
 					const hex = s.slice(i + 2, i + 6);
@@ -147,7 +147,7 @@ function read_double_quoted(s: string, i: number): { value: string; i: number } 
 						i += 6;
 						continue;
 					}
-					out += 'u';
+					out = `${out}u`;
 					break;
 				}
 				default:
@@ -170,7 +170,7 @@ function read_single_quoted(s: string, i: number): { value: string; i: number } 
 		const c = s[i];
 		if (c === "'") {
 			if (s[i + 1] === "'") {
-				out += "'";
+				out = `${out}'`;
 				i += 2;
 				continue;
 			}
@@ -418,16 +418,16 @@ function parse_block_scalar(ctx: Ctx, parent_indent: number, header: string): st
 		for (let k = 0; k < body.length; k++) {
 			const cur = body[k];
 			if (k === 0) text += cur;
-			else if (cur === '') text += '\n';
+			else if (cur === '') text = `${text}\n`;
 			else if (body[k - 1] === '') text += cur;
-			else text += ' ' + cur;
+			else text = `${text} ${cur}`;
 		}
 	}
 
 	if (body.length === 0) return chomp === '+' ? '\n'.repeat(trailing_blanks) : '';
 	if (chomp === '-') return text;
 	if (chomp === '+') return text + '\n'.repeat(trailing_blanks + 1);
-	return text + '\n';
+	return `${text}\n`;
 }
 
 function parse_child(ctx: Ctx, indent: number): unknown {

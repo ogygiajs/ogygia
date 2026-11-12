@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { render_profile as render } from '../src/mcp.ts';
 // the profiler's report reading, as `ogygia mcp` loads it from an app with the devtools plugin
 import * as reading from '../../devtools/src/report.ts';
+import { dedent } from '@ogygia/core/plugin/utils';
 
 const render_profile = (origin: string, report: Parameters<typeof render>[1]) =>
 	render(origin, report, reading);
@@ -406,7 +407,12 @@ describe('ogygia_profile digest', () => {
 			}
 		} as Parameters<typeof render_profile>[1]);
 		expect(out).toContain(
-			'## Since your last profile of this page\n-68.6ms since the last profile (163 → 94.4ms), mostly:\n- better load (x.ts:24): -67.1ms\nThe fixed patterns promised ~68.1ms; the render moved 68.6ms (as-expected).'
+			dedent`
+				## Since your last profile of this page
+				-68.6ms since the last profile (163 → 94.4ms), mostly:
+				- better load (x.ts:24): -67.1ms
+				The fixed patterns promised ~68.1ms; the render moved 68.6ms (as-expected).
+			`
 		);
 	});
 

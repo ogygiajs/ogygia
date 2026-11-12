@@ -26,6 +26,9 @@ export { SizedLru } from '../server/sized-lru.ts';
 /** The receipt tag one `(source, args)` call files, or null for a function not declared with
  *  `import.meta.og.source`. */
 export { source_tag_of as sourceTag } from '../source.ts';
+/** A block of text written indented in the source, with its common indent and its leading and
+ *  trailing blank lines gone; as a tag, values go in after (a long or multi-line string). */
+export { dedent } from '../contract/dedent.ts';
 /** The Standard Schema interface (standardschema.dev): validate a value with any schema library. */
 export type { StandardSchemaV1, StandardResult, StandardIssue } from './standard-schema.ts';
 /** The stable cross-build key for a markup module's own scoped CSS. */

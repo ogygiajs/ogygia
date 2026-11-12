@@ -102,8 +102,8 @@ export function fixture(files: Record<string, string>): Fixture {
 	const resolve_package = (spec: string): string | null => {
 		const [scope_or_name, ...rest] = spec.split('/');
 		const scoped = scope_or_name.startsWith('@');
-		const name = scoped ? scope_or_name + '/' + rest.shift() : scope_or_name;
-		const sub = rest.length ? './' + rest.join('/') : '.';
+		const name = scoped ? `${scope_or_name}/${rest.shift()}` : scope_or_name;
+		const sub = rest.length ? `./${rest.join('/')}` : '.';
 		const dir = path.posix.join(root, 'node_modules', name);
 		const pkg_json = path.posix.join(dir, 'package.json');
 		if (!existsSync(pkg_json)) return null;
@@ -150,8 +150,8 @@ export function fixture(files: Record<string, string>): Fixture {
 				return resolve_package(spec);
 			},
 			candidate: (p, spec) => {
-				if (packages.some((pk) => spec === pk || spec.startsWith(pk + '/'))) return true;
-				return !p.includes('/node_modules/') && p.startsWith(root + '/');
+				if (packages.some((pk) => spec === pk || spec.startsWith(`${pk}/`))) return true;
+				return !p.includes('/node_modules/') && p.startsWith(`${root}/`);
 			},
 			forced: () => false,
 			kept: () => false,
@@ -216,7 +216,7 @@ export function fixture(files: Record<string, string>): Fixture {
 			});
 			try {
 				// ok: a later plugin may fail on the module; only the source stage's output is read
-				await server.transformRequest('/' + rel).catch(() => null);
+				await server.transformRequest(`/${rel}`).catch(() => null);
 			} finally {
 				await server.close();
 			}

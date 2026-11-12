@@ -79,7 +79,7 @@ function plugin_imports(dir: string): string[] {
 		const text = fs.readFileSync(file, 'utf8');
 		for (const m of text.matchAll(IMPORT_RE)) {
 			const spec = m[1] ?? m[2]!;
-			if (PLUGINS.some((name) => spec === name || spec.startsWith(name + '/')))
+			if (PLUGINS.some((name) => spec === name || spec.startsWith(`${name}/`)))
 				out.push(`${path.relative(PACKAGES, file)}: ${spec}`);
 		}
 	}

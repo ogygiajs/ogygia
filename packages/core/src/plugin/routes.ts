@@ -64,7 +64,7 @@ function strip_route_groups(id: string): string {
 		.split('/')
 		.filter(Boolean)
 		.filter((s) => !(s.startsWith('(') && s.endsWith(')')));
-	return '/' + segs.join('/');
+	return `/${segs.join('/')}`;
 }
 
 /** This request's value for `key` in its route's merged `config`, or `undefined` (use the plugin's

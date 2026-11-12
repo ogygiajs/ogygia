@@ -15,14 +15,7 @@ const HASH = 'svelte-1abc23';
  *  Svelte SSR emitted (`<!--HASH-->` …content… `<!---->`), and — since this is what actually breaks —
  *  a foreign node a third party injected INTO that block's range after SSR. */
 function seed_head(): void {
-	document.head.innerHTML =
-		'<meta charset="utf-8">' +
-		`<!--${HASH}-->` +
-		'<link rel="preload" href="/hero.avif" as="image">' +
-		'<script data-foreign-inject>/* a monitoring / design-system inject landed here */</script>' +
-		'<!---->' +
-		'<!-- a lone third-party comment, not a svelte marker -->' +
-		'<title>Page</title>';
+	document.head.innerHTML = `<meta charset="utf-8"><!--${HASH}--><link rel="preload" href="/hero.avif" as="image"><script data-foreign-inject>/* a monitoring / design-system inject landed here */\x3C/script><!----><!-- a lone third-party comment, not a svelte marker --><title>Page</title>`;
 }
 
 const head_comments = () =>
@@ -61,12 +54,13 @@ test('a lone head comment (no matching empty close) is never touched', () => {
 test('a block whose content carries its own Svelte anchors still loses its outer HASH marker', () => {
 	// Dynamic `<svelte:head>` content nests block anchors `<!--[-->` … `<!--]-->` inside the block. The
 	// depth-aware walk must still identify and drop the OUTER HASH open at top level, or the island crashes.
-	document.head.innerHTML =
-		`<!--${HASH}-->` +
-		'<!--[-->' + // {#if}
-		'<meta name="description" content="x">' +
-		'<!--]-->' + // closes the {#if}
-		'<!---->'; // closes the head block
+	document.head.innerHTML = [
+		`<!--${HASH}-->`,
+		'<!--[-->', // {#if}
+		'<meta name="description" content="x">',
+		'<!--]-->', // closes the {#if}
+		'<!---->' // closes the head block
+	].join('');
 	neutralize_head_hydration_markers();
 	expect(head_comments().some((c) => c.data === HASH)).toBe(false);
 	expect(document.head.querySelector('meta[name="description"]')).not.toBeNull();
@@ -77,25 +71,26 @@ test('a LOOPED + BRANCHED head (each + if/else-if/else, many <link>s) loses its 
 	// `{#if index===0}{:else if}{:else}` inside — nested block anchors several deep. The previous
 	// stack-pairing mistook `<!--]-->` for an opening comment and left the HASH marker in place, so the
 	// island still crashed. Depth tracking pairs the HASH open with the head block's top-level empty close.
-	document.head.innerHTML =
-		`<!--${HASH}-->` +
-		'<!--[-->' + // {#if preloadImages && defaultAspectRatio}
-		'<link rel="preload" as="image" href="/hero.avif">' +
-		'<!--]-->' +
-		'<!--[-->' + // {#if preloadImages && responsiveOptions.length >= 3}
-		'<!--[-->' + //   {#each}
-		'<!--[-->' + //     {#if index === 0}
-		'<link rel="preload" as="image" media="(min-width: 0px)" href="/0.avif">' +
-		'<!--]-->' +
-		'<!--[!-->' + //    {:else if}
-		'<link rel="preload" as="image" media="(min-width: 768px)" href="/1.avif">' +
-		'<!--]-->' +
-		'<!--[-->' + //     {#if index === 0} (second each item)
-		'<link rel="preload" as="image" media="(min-width: 1200px)" href="/2.avif">' +
-		'<!--]-->' +
-		'<!--]-->' + //   /each
-		'<!--]-->' + // /if
-		'<!---->'; // head block close
+	document.head.innerHTML = [
+		`<!--${HASH}-->`,
+		'<!--[-->', // {#if preloadImages && defaultAspectRatio}
+		'<link rel="preload" as="image" href="/hero.avif">',
+		'<!--]-->',
+		'<!--[-->', // {#if preloadImages && responsiveOptions.length >= 3}
+		'<!--[-->', //   {#each}
+		'<!--[-->', //     {#if index === 0}
+		'<link rel="preload" as="image" media="(min-width: 0px)" href="/0.avif">',
+		'<!--]-->',
+		'<!--[!-->', //    {:else if}
+		'<link rel="preload" as="image" media="(min-width: 768px)" href="/1.avif">',
+		'<!--]-->',
+		'<!--[-->', //     {#if index === 0} (second each item)
+		'<link rel="preload" as="image" media="(min-width: 1200px)" href="/2.avif">',
+		'<!--]-->',
+		'<!--]-->', //   /each
+		'<!--]-->', // /if
+		'<!---->' // head block close
+	].join('');
 	neutralize_head_hydration_markers();
 	expect(head_comments().some((c) => c.data === HASH)).toBe(false);
 	// every preload <link> the head rendered survives (only inert hydration comments are touched)

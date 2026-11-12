@@ -213,7 +213,7 @@ export function html_arb(vocab: HtmlVocab): fc.Arbitrary<string> {
 									.map((parts) => parts.join(''))
 									// (a raw element's text that holds its own `</name` would end it: the parser's
 									// call, but a bare `</name` at the very end can't close: keep it apart from the closer)
-									.map((s) => (s.endsWith(`</${lower}`) ? s + ' ' : s))
+									.map((s) => (s.endsWith(`</${lower}`) ? `${s} ` : s))
 							: tie('nodes');
 						return fc
 							.tuple(open, inner, close, fc.integer({ min: 0, max: 9 }))

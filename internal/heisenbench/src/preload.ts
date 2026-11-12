@@ -19,9 +19,9 @@ const APP = '$app/';
 const REALM_RE = /^ogygia:(server|boot|region|dev)(?:\/(.+))?$/;
 
 function stub_name(specifier: string): string | null {
-	if (specifier.startsWith(APP)) return 'app-' + specifier.slice(APP.length);
+	if (specifier.startsWith(APP)) return `app-${specifier.slice(APP.length)}`;
 	const realm = REALM_RE.exec(specifier);
-	if (realm) return realm[2] ? `${realm[1]}.${realm[2]}` : 'realm-' + realm[1];
+	if (realm) return realm[2] ? `${realm[1]}.${realm[2]}` : `realm-${realm[1]}`;
 	return null;
 }
 

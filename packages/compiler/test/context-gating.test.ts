@@ -10,6 +10,7 @@ import {
 	source_uses_ogygia_context
 } from '../src/compiler/link/context-detect.ts';
 import { resolveFeatures } from '../src/compiler/link/runtime-entry.ts';
+import { dedent } from '@ogygia/core/contract';
 
 describe('source_uses_ogygia_context — a provider is detected', () => {
 	it.each([
@@ -18,7 +19,15 @@ describe('source_uses_ogygia_context — a provider is detected', () => {
 		[`import { createContext } from 'ogygia';`, 'createContext'],
 		[`import { setContext as sc } from 'ogygia';`, 'aliased'],
 		[`import { Region, setContext, preload } from "ogygia";`, 'among other named imports, dq'],
-		[`import {\n  Provide,\n  createContext\n} from 'ogygia';`, 'multi-line clause'],
+		[
+			dedent`
+			import {
+			  Provide,
+			  createContext
+			} from 'ogygia';
+		`,
+			'multi-line clause'
+		],
 		[
 			`import type { X } from 'ogygia';\nimport { setContext } from 'ogygia';`,
 			'after a type import'
@@ -69,17 +78,31 @@ describe('context_string_keys — follows the getContext/setContext import bindi
 	});
 
 	it('follows a namespace member (ns.getContext / ns.setContext)', () => {
-		const src = `import * as svelte from 'svelte';\nsvelte.getContext('k');\nsvelte.setContext('s', 1);`;
+		const src = dedent`
+			import * as svelte from 'svelte';
+			svelte.getContext('k');
+			svelte.setContext('s', 1);
+		`;
 		expect(context_string_keys(src, 'script')).toEqual({ reads: ['k'], sets: ['s'] });
 	});
 
 	it('reads inside a Svelte component <script>', () => {
-		const src = `<script>\n  import { getContext } from 'svelte';\n  const first = getContext('headingContext')?.firstId;\n</script>\n<h1>{first}</h1>`;
+		const src = dedent`
+			<script>
+			  import { getContext } from 'svelte';
+			  const first = getContext('headingContext')?.firstId;
+			</script>
+			<h1>{first}</h1>
+		`;
 		expect(svelteReads(src)).toEqual(['headingContext']);
 	});
 
 	it('separates a setContext (from svelte) into sets, not reads', () => {
-		const src = `import { setContext, getContext } from 'svelte';\nsetContext('a', 1);\ngetContext('b');`;
+		const src = dedent`
+			import { setContext, getContext } from 'svelte';
+			setContext('a', 1);
+			getContext('b');
+		`;
 		expect(context_string_keys(src, 'script')).toEqual({ reads: ['b'], sets: ['a'] });
 	});
 
@@ -108,7 +131,11 @@ describe('context_string_keys — follows the getContext/setContext import bindi
 
 	it('dedupes repeated reads of the same key', () => {
 		expect(
-			reads(`import { getContext } from 'svelte';\ngetContext('k');\nif (1) getContext('k');`)
+			reads(dedent`
+				import { getContext } from 'svelte';
+				getContext('k');
+				if (1) getContext('k');
+			`)
 		).toEqual(['k']);
 	});
 

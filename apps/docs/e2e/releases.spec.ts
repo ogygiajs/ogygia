@@ -33,7 +33,7 @@ test.beforeAll(async () => {
 			'127.0.0.1'
 		],
 		cwd: root,
-		url: base + '/releases',
+		url: `${base}/releases`,
 		timeout_ms: 180_000
 	});
 });
@@ -43,7 +43,7 @@ const card = (page: import('@playwright/test').Page, version: string) =>
 	page.locator(`[data-release-version="${version}"]`);
 
 test('the releases page lists 0.13.0 with the packages released in it', async ({ page }) => {
-	await page.goto(base + '/releases');
+	await page.goto(`${base}/releases`);
 	const v = card(page, '0.13.0');
 	await expect(v).toBeVisible();
 	for (const name of ['ogygia', '@ogygia/core', '@ogygia/machine'])
@@ -60,7 +60,7 @@ test.describe('with JavaScript off', () => {
 	test('a type filter is a link the server reads: Patch lists patch releases only', async ({
 		page
 	}) => {
-		await page.goto(base + '/releases');
+		await page.goto(`${base}/releases`);
 		await page.getByRole('link', { name: 'Patch', exact: true }).click();
 		await expect(page).toHaveURL(/type=patch/);
 		await expect(card(page, '0.12.3')).toBeVisible();
@@ -72,7 +72,7 @@ test.describe('with JavaScript off', () => {
 });
 
 test('one package has its own page, with only its own releases', async ({ page }) => {
-	await page.goto(base + '/releases/machine');
+	await page.goto(`${base}/releases/machine`);
 	await expect(page.getByRole('heading', { level: 1 })).toHaveText('@ogygia/machine');
 	await expect(card(page, '0.13.0')).toBeVisible();
 	await expect(page.locator('[data-release-package]', { hasText: '@ogygia/core' })).toHaveCount(0);

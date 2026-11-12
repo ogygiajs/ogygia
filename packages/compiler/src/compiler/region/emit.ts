@@ -37,11 +37,9 @@ export function component_import_line(local: string, spec: string, exportName?: 
 
 /** JS re-export of the real component — the held region's entry (SSR render + client hydrate). */
 function region_entry_source(componentPath: string, iid: string, exportName?: string) {
-	return (
-		component_import_line(`__OgygiaComp_${iid}`, componentPath, exportName) +
-		'\n' +
-		`export default __OgygiaComp_${iid};\n`
-	);
+	return `${component_import_line(`__OgygiaComp_${iid}`, componentPath, exportName)}
+export default __OgygiaComp_${iid};
+`;
 }
 
 /**
@@ -56,22 +54,19 @@ export function island_entry_source(
 	iid: string,
 	exportName?: string
 ): string {
-	return (
-		`import 'ogygia:region/transportables-eager';\n` +
-		component_import_line(`__OgygiaComp_${iid}`, componentPath, exportName) +
-		'\n' +
-		`export default __OgygiaComp_${iid};\n` +
-		// The FOREIGN-HYDRATE CONTRACT (fragment federation, src/entry-hydrate.ts): another app's
-		// runtime wakes this entry through these exports, against THIS build's svelte. Everything
-		// after the mark is cut when the entry is served for an app that does not federate, and from
-		// every server leg (compiler/driver.ts): same-origin wakes never call them.
-		FOREIGN_HYDRATE_MARK +
-		`import { og_entry_hydrate as __og_hy, og_entry_unmount as __og_unmount } from 'ogygia/internal';\n` +
-		`export function __og_hydrate(target, props, options) {\n` +
-		`\treturn __og_hy(__OgygiaComp_${iid}, target, props, options);\n` +
-		`}\n` +
-		`export { __og_unmount };\n`
-	);
+	// The FOREIGN-HYDRATE CONTRACT (fragment federation, src/entry-hydrate.ts): another app's
+	// runtime wakes this entry through the exports after the mark, against THIS build's svelte. They
+	// are cut when the entry is served for an app that does not federate, and from every server leg
+	// (compiler/driver.ts): same-origin wakes never call them.
+	return `import 'ogygia:region/transportables-eager';
+${component_import_line(`__OgygiaComp_${iid}`, componentPath, exportName)}
+export default __OgygiaComp_${iid};
+${FOREIGN_HYDRATE_MARK}import { og_entry_hydrate as __og_hy, og_entry_unmount as __og_unmount } from 'ogygia/internal';
+export function __og_hydrate(target, props, options) {
+\treturn __og_hy(__OgygiaComp_${iid}, target, props, options);
+}
+export { __og_unmount };
+`;
 }
 
 /** Where an island entry's foreign-hydrate exports begin (compiler/driver.ts cuts from here). */
@@ -96,19 +91,17 @@ export function island_wrapper_source(
 ): string {
 	const strategy_attrs = strategy_to_attr(strategy, options);
 	const persist_attr = options?.keep ? ` __keep={${JSON.stringify(options.keep)}}` : '';
-	return (
-		`<script${lang}>\n` +
-		`\timport { Region as OgygiaRegion__Wrapper } from 'ogygia/internal';\n` +
-		`\timport __OgygiaEntry from ${JSON.stringify(entryPath)};\n` +
-		`\t${component_import_line('__OgygiaCss', componentPath, exportName)}\n` +
-		`\tlet { children, ...__props } = $props();\n` +
-		`</script>\n` +
-		// `children` rides as an EXPLICIT prop, never as template children: wrapping `{@render
-		// children?.()}` in the tags would hand Region a fragment snippet even for a CHILDLESS call
-		// site — Region's `island_children != null` gate would then serialize a pointless empty slot.
-		`<OgygiaRegion__Wrapper __mode="island" ${strategy_attrs}${persist_attr} __entry={${JSON.stringify(entry_url)}} ` +
-		`__component={__OgygiaEntry} __css={__OgygiaCss} {__props} {children} />\n`
-	);
+	// `children` rides as an EXPLICIT prop, never as template children: wrapping `{@render
+	// children?.()}` in the tags would hand Region a fragment snippet even for a CHILDLESS call
+	// site — Region's `island_children != null` gate would then serialize a pointless empty slot.
+	return `<script${lang}>
+\timport { Region as OgygiaRegion__Wrapper } from 'ogygia/internal';
+\timport __OgygiaEntry from ${JSON.stringify(entryPath)};
+\t${component_import_line('__OgygiaCss', componentPath, exportName)}
+\tlet { children, ...__props } = $props();
+</script>
+<OgygiaRegion__Wrapper __mode="island" ${strategy_attrs}${persist_attr} __entry={${JSON.stringify(entry_url)}} __component={__OgygiaEntry} __css={__OgygiaCss} {__props} {children} />
+`;
 }
 
 /**
@@ -134,17 +127,15 @@ export function island_wrapper_client_source(
 ): string {
 	const strategy_attrs = strategy_to_attr(strategy, options);
 	const persist_attr = options?.keep ? ` __keep={${JSON.stringify(options.keep)}}` : '';
-	return (
-		`<script${lang}>\n` +
-		`\timport { Region as OgygiaRegion__Wrapper } from 'ogygia/internal';\n` +
-		`\timport __OgygiaEntry, { load as __OgygiaLoad } from ${JSON.stringify(lazyPath)};\n` +
-		`\tlet { children, ...__props } = $props();\n` +
-		`</script>\n` +
-		// `__component` is the entry when the document rendered this island (Kit hydrates it in
-		// place), else undefined — then `__load` is how Region fetches it for a client render.
-		`<OgygiaRegion__Wrapper __mode="island" ${strategy_attrs}${persist_attr} __entry={${JSON.stringify(entry_url)}} ` +
-		`__component={__OgygiaEntry} __load={__OgygiaLoad} {__props} {children} />\n`
-	);
+	// `__component` is the entry when the document rendered this island (Kit hydrates it in
+	// place), else undefined — then `__load` is how Region fetches it for a client render.
+	return `<script${lang}>
+\timport { Region as OgygiaRegion__Wrapper } from 'ogygia/internal';
+\timport __OgygiaEntry, { load as __OgygiaLoad } from ${JSON.stringify(lazyPath)};
+\tlet { children, ...__props } = $props();
+</script>
+<OgygiaRegion__Wrapper __mode="island" ${strategy_attrs}${persist_attr} __entry={${JSON.stringify(entry_url)}} __component={__OgygiaEntry} __load={__OgygiaLoad} {__props} {children} />
+`;
 }
 
 /**
@@ -165,12 +156,11 @@ export function lazy_entry_source(entryPath: string, entry_url: string): string 
 	const stamp = JSON.stringify(
 		`meta[name="ogygia-kit-island"][content=${JSON.stringify(entry_url)}]`
 	);
-	return (
-		`import { documentIsCsrTrue } from 'ogygia/internal';\n` +
-		`const rendered = typeof document !== 'undefined' && !!document.querySelector(${stamp});\n` +
-		`export default documentIsCsrTrue() && !rendered ? undefined : (await import(${entry})).default;\n` +
-		`export const load = () => import(${entry}).then((m) => m.default);\n`
-	);
+	return `import { documentIsCsrTrue } from 'ogygia/internal';
+const rendered = typeof document !== 'undefined' && !!document.querySelector(${stamp});
+export default documentIsCsrTrue() && !rendered ? undefined : (await import(${entry})).default;
+export const load = () => import(${entry}).then((m) => m.default);
+`;
 }
 
 /**
@@ -216,9 +206,16 @@ export function make_region_binding(opts: {
 	// The runtime `<ogygia-region>` fetches on mount (`when: 'load'`) and wakes on the resolved schedule.
 	// Fetch timing is the consumer's own `{#if}` — a held region has no render axis.
 	let meta = `__ogRegion: ${JSON.stringify(opts.iid)}, __module: ${JSON.stringify(opts.moduleUrl)}`;
-	if (opts.hydrate) meta += `, __hydrate: ${JSON.stringify(opts.hydrate)}`;
+	if (opts.hydrate) meta = `${meta}, __hydrate: ${JSON.stringify(opts.hydrate)}`;
 	if (opts.hydrate && opts.hydrateMargin != null)
-		meta += `, __hydrateMargin: ${JSON.stringify(opts.hydrateMargin)}`;
+		meta = `${meta}, __hydrateMargin: ${JSON.stringify(opts.hydrateMargin)}`;
+	// The page never imported this server-picked component, so its scoped CSS is on no page
+	// stylesheet: the render is prefixed with the island's `<link>`s (the client hoists them to
+	// <head>). SSR leg only — the client binding stays metadata-only.
+	const ssr_source = `${component_import_line('__ogRegionComp', opts.componentPath, opts.exportName)}
+import { make_region_endpoint as __ogRegionSign, render_region_html as __ogRegionHtml } from 'ogygia/internal/server';
+export default { ${meta}, __component: __ogRegionComp, __sign: __ogRegionSign, __renderHtml: ${render_html_source(opts.moduleUrl)} };
+`;
 	return {
 		id: opts.iid,
 		virtualPath: opts.entryPath,
@@ -230,15 +227,7 @@ export function make_region_binding(opts: {
 		// the held region is awaited (live regions), so the ticket travels with its markup — no fetch.
 		// `svelte/server` is imported only on this SSR leg; the client leg is metadata-only, so the
 		// component and server render never ship to the browser bundle.
-		bindingSsrSource:
-			component_import_line('__ogRegionComp', opts.componentPath, opts.exportName) +
-			'\n' +
-			// The page never imported this server-picked component, so its scoped CSS is on no page
-			// stylesheet: the render is prefixed with the island's `<link>`s (the client hoists them to
-			// <head>). SSR leg only — the client binding stays metadata-only.
-			`import { make_region_endpoint as __ogRegionSign, render_region_html as __ogRegionHtml } from 'ogygia/internal/server';\n` +
-			`export default { ${meta}, __component: __ogRegionComp, __sign: __ogRegionSign, ` +
-			`__renderHtml: ${render_html_source(opts.moduleUrl)} };\n`,
+		bindingSsrSource: ssr_source,
 		bindingClientSource: `export default { ${meta} };\n`,
 		hostPath: opts.hostPath,
 		componentPath: opts.componentPath,
@@ -270,22 +259,20 @@ function wrapper_attach_binding(opts: {
 	exportName?: string;
 }) {
 	let meta = `__ogRegion: ${JSON.stringify(opts.iid)}, __module: ${JSON.stringify(opts.moduleUrl)}`;
-	if (opts.hydrate) meta += `, __hydrate: ${JSON.stringify(opts.hydrate)}`;
+	if (opts.hydrate) meta = `${meta}, __hydrate: ${JSON.stringify(opts.hydrate)}`;
 	if (opts.hydrate && opts.hydrateMargin != null)
-		meta += `, __hydrateMargin: ${JSON.stringify(opts.hydrateMargin)}`;
+		meta = `${meta}, __hydrateMargin: ${JSON.stringify(opts.hydrateMargin)}`;
 	return {
-		ssr:
-			`import __OgygiaWrap from ${JSON.stringify(opts.wrapperPath)};\n` +
-			component_import_line('__ogRegionComp', opts.componentPath, opts.exportName) +
-			'\n' +
-			`import { make_region_endpoint as __ogRegionSign, render_region_html as __ogRegionHtml } from 'ogygia/internal/server';\n` +
-			`Object.assign(__OgygiaWrap, { ${meta}, __component: __ogRegionComp, __sign: __ogRegionSign, ` +
-			`__renderHtml: ${render_html_source(opts.moduleUrl)} });\n` +
-			`export default __OgygiaWrap;\n`,
-		client:
-			`import __OgygiaWrap from ${JSON.stringify(opts.wrapperPath)};\n` +
-			`Object.assign(__OgygiaWrap, { ${meta} });\n` +
-			`export default __OgygiaWrap;\n`
+		ssr: `import __OgygiaWrap from ${JSON.stringify(opts.wrapperPath)};
+${component_import_line('__ogRegionComp', opts.componentPath, opts.exportName)}
+import { make_region_endpoint as __ogRegionSign, render_region_html as __ogRegionHtml } from 'ogygia/internal/server';
+Object.assign(__OgygiaWrap, { ${meta}, __component: __ogRegionComp, __sign: __ogRegionSign, __renderHtml: ${render_html_source(opts.moduleUrl)} });
+export default __OgygiaWrap;
+`,
+		client: `import __OgygiaWrap from ${JSON.stringify(opts.wrapperPath)};
+Object.assign(__OgygiaWrap, { ${meta} });
+export default __OgygiaWrap;
+`
 	};
 }
 
@@ -423,34 +410,36 @@ export function server_wrapper_source(
 	// Stitching mark — the emitted hole carries `stitch="serve"` (postrender's serve path fills it at
 	// origin on every serve) or `stitch="edge"` (postrender's capture rewrites it into an ESI include
 	// the CDN fills; the shell stays edge-cached). See packages/postrender/src/stitch.ts.
-	if (options?.stitch) server_attrs += ` __stitch={${JSON.stringify(options.stitch)}}`;
+	if (options?.stitch)
+		server_attrs = `${server_attrs} __stitch={${JSON.stringify(options.stitch)}}`;
 	// The warm schedule — the emitted hole carries `prefetch="idle"` etc.; the runtime arms it next
 	// to `when` and fills the frame store early, the swap still waits for `when`.
-	if (options?.prefetch) server_attrs += ` __prefetch={${JSON.stringify(options.prefetch)}}`;
-	if (options?.margin != null) server_attrs += ` __margin={${JSON.stringify(options.margin)}}`;
+	if (options?.prefetch)
+		server_attrs = `${server_attrs} __prefetch={${JSON.stringify(options.prefetch)}}`;
+	if (options?.margin != null)
+		server_attrs = `${server_attrs} __margin={${JSON.stringify(options.margin)}}`;
 	// Signed at mint into the hole's endpoint → the handle answers `private, max-age=cacheTtlSec`.
 	if (options?.cacheTtlSec != null)
-		server_attrs += ` __cacheTtl={${JSON.stringify(options.cacheTtlSec)}}`;
+		server_attrs = `${server_attrs} __cacheTtl={${JSON.stringify(options.cacheTtlSec)}}`;
 	if (deferred_hydrate) {
-		server_attrs += ` __hydrate={${JSON.stringify(options.hydrate)}}`;
-		server_attrs += ` __module={${JSON.stringify(module_url)}}`;
+		server_attrs = `${server_attrs} __hydrate={${JSON.stringify(options.hydrate)}}`;
+		server_attrs = `${server_attrs} __module={${JSON.stringify(module_url)}}`;
 		if (options.hydrateMargin != null) {
-			server_attrs += ` __hydrateMargin={${JSON.stringify(options.hydrateMargin)}}`;
+			server_attrs = `${server_attrs} __hydrateMargin={${JSON.stringify(options.hydrateMargin)}}`;
 		}
 	}
-	return (
-		`<script${lang}>\n` +
-		`\timport { Region as OgygiaRegion__Wrapper } from 'ogygia/internal';\n` +
-		(component
-			? `\timport __OgygiaEntry from ${JSON.stringify(entryPath)};\n` +
-				`\t${component_import_line('__OgygiaCss', componentPath, exportName)}\n`
-			: '') +
-		`\tlet { ogygiaFallback, ...__props } = $props();\n` +
-		`</script>\n` +
-		`<OgygiaRegion__Wrapper __mode="server" __entry={${JSON.stringify(iid)}} ` +
-		(component ? `__component={__OgygiaEntry} __css={__OgygiaCss} ` : '') +
-		`{__props} ${server_attrs} {ogygiaFallback} />\n`
-	);
+	const component_imports = component
+		? `	import __OgygiaEntry from ${JSON.stringify(entryPath)};
+	${component_import_line('__OgygiaCss', componentPath, exportName)}
+`
+		: '';
+	const component_attrs = component ? `__component={__OgygiaEntry} __css={__OgygiaCss} ` : '';
+	return `<script${lang}>
+\timport { Region as OgygiaRegion__Wrapper } from 'ogygia/internal';
+${component_imports}\tlet { ogygiaFallback, ...__props } = $props();
+</script>
+<OgygiaRegion__Wrapper __mode="server" __entry={${JSON.stringify(iid)}} ${component_attrs}{__props} ${server_attrs} {ogygiaFallback} />
+`;
 }
 
 /**
@@ -470,21 +459,19 @@ export function lake_wrapper_source(
 	const needs_endpoint = remount === 'swr';
 	const when = options?.when || (needs_endpoint ? 'load' : undefined);
 	let attrs = `__entry={${JSON.stringify(iid)}} __remount={${JSON.stringify(remount)}}`;
-	if (options?.maxAgeMs != null) attrs += ` __maxAge={${JSON.stringify(options.maxAgeMs)}}`;
-	if (options?.onExpire) attrs += ` __onExpire={${JSON.stringify(options.onExpire)}}`;
+	if (options?.maxAgeMs != null) attrs = `${attrs} __maxAge={${JSON.stringify(options.maxAgeMs)}}`;
+	if (options?.onExpire) attrs = `${attrs} __onExpire={${JSON.stringify(options.onExpire)}}`;
 	if (needs_endpoint) {
-		attrs += ` __when={${JSON.stringify(when || 'load')}} __props={__props}`;
-		if (options?.margin != null) attrs += ` __margin={${JSON.stringify(options.margin)}}`;
+		attrs = `${attrs} __when={${JSON.stringify(when || 'load')}} __props={__props}`;
+		if (options?.margin != null) attrs = `${attrs} __margin={${JSON.stringify(options.margin)}}`;
 	}
-	return (
-		`<script${lang}>\n` +
-		`\timport { Region as OgygiaRegion__Wrapper } from 'ogygia/internal';\n` +
-		`\t${component_import_line('OgygiaLakeInner', componentPath, exportName)}\n` +
-		`\tlet __props = $props();\n` +
-		`</script>\n` +
-		`<OgygiaRegion__Wrapper __mode="lake" ${attrs}>` +
-		`<OgygiaLakeInner {...__props} /></OgygiaRegion__Wrapper>\n`
-	);
+	return `<script${lang}>
+\timport { Region as OgygiaRegion__Wrapper } from 'ogygia/internal';
+\t${component_import_line('OgygiaLakeInner', componentPath, exportName)}
+\tlet __props = $props();
+</script>
+<OgygiaRegion__Wrapper __mode="lake" ${attrs}><OgygiaLakeInner {...__props} /></OgygiaRegion__Wrapper>
+`;
 }
 
 /** Map a hydrate strategy (+ options) to the Island wrapper attribute markup. */
@@ -555,7 +542,7 @@ export function rewrite_lake_import_to_placeholder(
 			const named = kept.length
 				? `import { ${kept.join(', ')} } from ${JSON.stringify(from)};`
 				: '';
-			return `import ${local} from ${ph};${named ? '\n\t' + named : ''}`;
+			return `import ${local} from ${ph};${named ? `\n\t${named}` : ''}`;
 		}
 	);
 	return src;

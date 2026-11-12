@@ -12,6 +12,7 @@
  */
 import fs from 'node:fs';
 import path from 'node:path';
+import { dedent } from 'ogygia/plugin/utils';
 
 type TS = typeof import('typescript');
 
@@ -144,7 +145,11 @@ function members_of(
 	return out;
 }
 
-const fence = (code: string) => '```ts\n' + code + '\n```';
+const fence = (code: string) => dedent`
+	\`\`\`ts
+	${code}
+	\`\`\`
+`;
 
 /**
  * JSDoc prose flows into mdsvex → the SVELTE parser. A bare `<svelte:boundary>`-style sequence in
@@ -172,12 +177,24 @@ function render_export(e: Export): string {
 	const parts: string[] = [`## ${e.name}`, ''];
 	if (e.since)
 		parts.push(
-			`<blockquote class="since note">\n\nAvailable since ${e.since}\n\n</blockquote>`,
+			dedent`
+				<blockquote class="since note">
+
+				Available since ${e.since}
+
+				</blockquote>
+			`,
 			''
 		);
 	if (e.deprecated)
 		parts.push(
-			`<blockquote class="deprecated">\n\n${sanitize_doc(e.deprecated)}\n\n</blockquote>`,
+			dedent`
+				<blockquote class="deprecated">
+
+				${sanitize_doc(e.deprecated)}
+
+				</blockquote>
+			`,
 			''
 		);
 	if (e.doc) parts.push(sanitize_doc(e.doc), '');
@@ -238,8 +255,13 @@ export async function render_module(module_id: string): Promise<string | null> {
 	if (!exports.length) return null;
 
 	const names = exports.map((e) => e.name).sort((a, b) => a.localeCompare(b));
-	const summary =
-		'```js\nimport {\n\t' + names.join(',\n\t') + "\n} from '" + module_id + "';\n```";
+	const summary = dedent`
+		\`\`\`js
+		import {
+			${names.join(',\n\t')}
+		} from '${module_id}';
+		\`\`\`
+	`;
 	return [summary, '', ...exports.map(render_export)].join('\n');
 }
 

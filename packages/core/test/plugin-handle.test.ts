@@ -39,11 +39,11 @@ describe('around()', () => {
 
 	it("a plugin's transformPageChunk runs after ogygia's own", async () => {
 		const core: Handle = ({ event, resolve }) =>
-			resolve(event, { transformPageChunk: ({ html }) => html + '[core]' });
+			resolve(event, { transformPageChunk: ({ html }) => `${html}[core]` });
 		const handle = around(
 			[
 				live('p', {
-					handle: (_ctx, next) => next({ transformPageChunk: ({ html }) => html + '[plugin]' })
+					handle: (_ctx, next) => next({ transformPageChunk: ({ html }) => `${html}[plugin]` })
 				})
 			],
 			core

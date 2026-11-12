@@ -67,7 +67,7 @@
 				: known && !known.has(n.key)
 					? null
 					: row_href(`fn:${n.key}`);
-	const short = (s: string, max = 19) => (s.length > max ? s.slice(0, max - 1) + '…' : s);
+	const short = (s: string, max = 19) => (s.length > max ? `${s.slice(0, max - 1)}…` : s);
 </script>
 
 {#each groups as { g, l }, gi (g.owner.key)}

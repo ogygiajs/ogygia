@@ -77,7 +77,7 @@ describe('one way the runtime asks for island code', () => {
 			if (!file.endsWith('.ts') || file === 'code-origins.ts') continue;
 			const text = readFileSync(dir + file, 'utf8');
 			for (const m of text.matchAll(COMPUTED_IMPORT))
-				found.push(file + ':' + text.slice(0, m.index).split('\n').length);
+				found.push(`${file}:${text.slice(0, m.index).split('\n').length}`);
 		}
 		expect(found).toEqual([]);
 	});

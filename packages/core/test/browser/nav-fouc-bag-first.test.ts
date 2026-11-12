@@ -20,9 +20,7 @@ function serve() {
 		const path = new URL(String(input instanceof Request ? input.url : input), location.href)
 			.pathname;
 		return new Response(
-			'<!doctype html><html><head><meta name="ogygia-router" content="plain">' +
-				`<style data-sveltekit>[data-page="${path}"]{color:red}</style>` +
-				`<title>${path}</title></head><body><p data-page="${path}">${path}</p></body></html>`,
+			`<!doctype html><html><head><meta name="ogygia-router" content="plain"><style data-sveltekit>[data-page="${path}"]{color:red}</style><title>${path}</title></head><body><p data-page="${path}">${path}</p></body></html>`,
 			{ status: 200, headers: { 'content-type': 'text/html' } }
 		);
 	};

@@ -1,6 +1,7 @@
 import { parse } from 'svelte/compiler';
 import MagicString from 'magic-string';
 import type { SourceMap } from 'magic-string';
+import { dedent } from '@ogygia/core/contract';
 import type { IslandDescriptor } from '../program.ts';
 import { createHash } from 'node:crypto';
 import { foucCssVirtualId } from '../fouc-css.ts';
@@ -134,7 +135,7 @@ export function is_island_path(id: string): boolean {
 		(bare.startsWith(BINDING_PREFIX) && bare.endsWith('.js')) ||
 		(bare.startsWith(LAZY_PREFIX) && bare.endsWith('.js')) ||
 		// legacy on-disk path shape (pre-virtual ids); still recognize for resolve/HMR edge cases
-		(bare.includes('/' + ISLAND_DIR + '/') && bare.endsWith('.svelte'))
+		(bare.includes(`/${ISLAND_DIR}/`) && bare.endsWith('.svelte'))
 	);
 }
 
@@ -329,7 +330,7 @@ export function islandChunkFileName(iid: string, appDir = '_app') {
  *  `asset()` at render time, which is the sole authority on `base` / the assets CDN / relative paths —
  *  so a base is never baked here (that would double-apply it). NOT the on-disk output filename. */
 export function islandPublicUrl(iid: string, appDir = '_app'): string {
-	return '/' + islandChunkFileName(iid, appDir);
+	return `/${islandChunkFileName(iid, appDir)}`;
 }
 
 const AS_REGION_ARG_G = /import\.meta\.og\.asRegion\(\s*([A-Za-z_$][\w$]*)/g;
@@ -493,7 +494,7 @@ export function normalize_hydrate_value(raw: string, where: string, wakeKey = 'w
 /** Reconstruct an import declaration without its `with { ... }` attributes clause. */
 function clean_import_text(source: string, node: SvelteNode) {
 	// slice up to the end of the module-specifier string literal, then terminate.
-	return source.slice(node.start, node.source.end) + ';';
+	return `${source.slice(node.start, node.source.end)};`;
 }
 
 /**
@@ -668,8 +669,7 @@ function parse_remount(raw: unknown, err: OptErr, names: string) {
 	if ('strategy' in raw || 'when' in raw) {
 		throw err(
 			names,
-			`\`remount\` object uses \`revalidate\` (false | 'load' | 'idle' | 'visible' | media), not \`strategy\`/\`when\`. ` +
-				`Examples: { revalidate: false, maxAge: '5m' } or { revalidate: 'idle' }. Shorthands: 'cache' | 'empty' | 'swr'.`
+			`\`remount\` object uses \`revalidate\` (false | 'load' | 'idle' | 'visible' | media), not \`strategy\`/\`when\`. Examples: { revalidate: false, maxAge: '5m' } or { revalidate: 'idle' }. Shorthands: 'cache' | 'empty' | 'swr'.`
 		);
 	}
 	for (const k of Object.keys(raw)) {
@@ -716,8 +716,7 @@ function parse_remount(raw: unknown, err: OptErr, names: string) {
 		if (out.policy === 'cache' && oe === 'fetch') {
 			throw err(
 				names,
-				`\`onExpire: 'fetch'\` requires \`revalidate\` (a schedule). Pure cache expires to empty — ` +
-					`use { revalidate: 'load', maxAge, onExpire: 'fetch' } for SWR past maxAge.`
+				`\`onExpire: 'fetch'\` requires \`revalidate\` (a schedule). Pure cache expires to empty — use { revalidate: 'load', maxAge, onExpire: 'fetch' } for SWR past maxAge.`
 			);
 		}
 		out.onExpire = oe;
@@ -825,7 +824,7 @@ function assert_swr_lake_crossable(node: SvelteNode, err: (name: string, msg: st
 		if (attr.type !== 'Attribute') {
 			throw err(
 				node.name,
-				`\`render: 'live'\` region <${node.name}> cannot use \`${attr.type === 'BindDirective' ? 'bind:' + attr.name : attr.name || attr.type}\` — only plain attributes and spreads can be serialized for the revalidate endpoint.`
+				`\`render: 'live'\` region <${node.name}> cannot use \`${attr.type === 'BindDirective' ? `bind:${attr.name}` : attr.name || attr.type}\` — only plain attributes and spreads can be serialized for the revalidate endpoint.`
 			);
 		}
 		const name = attr.name;
@@ -1195,8 +1194,7 @@ class FileCompilation {
 		if (render_mode === 'deferred' && wake_val != null) {
 			if (fetch_val != null) {
 				throw fail(
-					`${said} times a \`${import_keys.render}: 'deferred'\` hole twice, with \`${import_keys.fetch}: '${fetch_val}'\` and \`${import_keys.wake}: '${wake_val}'\`. ` +
-						`Keep \`${import_keys.fetch}\`: it says when a hole's HTML arrives.`
+					`${said} times a \`${import_keys.render}: 'deferred'\` hole twice, with \`${import_keys.fetch}: '${fetch_val}'\` and \`${import_keys.wake}: '${wake_val}'\`. Keep \`${import_keys.fetch}\`: it says when a hole's HTML arrives.`
 				);
 			}
 			warn_once(`deferred-wake:${rel_host}:${said}:${wake_val}`, () =>
@@ -1213,11 +1211,9 @@ class FileCompilation {
 		}
 		if (fetch_val != null && render_mode !== 'deferred') {
 			throw fail(
-				`${said} sets \`${import_keys.fetch}: '${fetch_val}'\` without \`${import_keys.render}: 'deferred'\` — \`${import_keys.fetch}\` is a hole's timing. ` +
-					`Write \`${import_keys.render}: 'deferred', ${import_keys.fetch}: '${fetch_val}'\` for a hole` +
-					(render_mode == null
-						? `, or \`${import_keys.wake}: '${fetch_val}'\` for an island.`
-						: '.')
+				`${said} sets \`${import_keys.fetch}: '${fetch_val}'\` without \`${import_keys.render}: 'deferred'\` — \`${import_keys.fetch}\` is a hole's timing. Write \`${import_keys.render}: 'deferred', ${import_keys.fetch}: '${fetch_val}'\` for a hole${
+					render_mode == null ? `, or \`${import_keys.wake}: '${fetch_val}'\` for an island.` : '.'
+				}`
 			);
 		}
 		if (render_mode === 'deferred') {
@@ -1721,9 +1717,7 @@ class FileCompilation {
 				const arg = stray.arguments?.[0];
 				throw this.#as_err(
 					arg?.type === 'Identifier' ? arg.name : '?',
-					'must be a top-level `const Name = import.meta.og.asRegion(Comp, timing)` in the instance <script> — ' +
-						'it compiles to a hoisted import, so it can never sit inside a loop, function, block, larger ' +
-						'expression, `<script module>`, or markup.'
+					`must be a top-level \`const Name = import.meta.og.asRegion(Comp, timing)\` in the instance <script> — it compiles to a hoisted import, so it can never sit inside a loop, function, block, larger expression, \`<script module>\`, or markup.`
 				);
 			}
 		}
@@ -1852,7 +1846,7 @@ class FileCompilation {
 			) {
 				fouc_css_specs.add(componentPathAbs);
 				const rel = this.#posix_rel(componentPathAbs);
-				text += `\nimport ${JSON.stringify(foucCssVirtualId(rel))};`;
+				text = `${text}\nimport ${JSON.stringify(foucCssVirtualId(rel))};`;
 			}
 			return text;
 		};
@@ -2449,24 +2443,28 @@ class FileCompilation {
 				// same scope it was authored in, rendered once.
 				const wrapped = body.some((n: SvelteNode) => n.type === 'ConstTag');
 				const template =
-					(carried_src ? carried_src + '\n' : '') +
+					(carried_src ? `${carried_src}\n` : '') +
 					(wrapped
-						? `{#snippet __og_body()}\n${markup}\n{/snippet}\n{@render __og_body()}`
+						? dedent`
+							{#snippet __og_body()}
+							${markup}
+							{/snippet}
+							{@render __og_body()}
+						`
 						: markup);
-				const synth =
-					`<script${lang}>\n` +
-					`\timport 'ogygia:region/transportables-eager';\n` +
-					cleaned_imports.map((imp) => `\t${imp}\n`).join('') +
-					(prop_names.length
-						? `\t// svelte-ignore state_referenced_locally\n\tlet { ${prop_names.join(', ')} } = $props();\n`
-						: '') +
-					(snip_params.length
-						? `\t// svelte-ignore state_referenced_locally\n\tconst [${params_src}] = __ogArgs;\n`
-						: '') +
-					`</script>\n` +
-					template +
-					'\n' +
-					(host_style_src ? host_style_src + '\n' : '');
+				const import_lines = cleaned_imports.map((imp) => `\t${imp}\n`).join('');
+				const props = prop_names.length
+					? `\t// svelte-ignore state_referenced_locally\n\tlet { ${prop_names.join(', ')} } = $props();\n`
+					: '';
+				const args = snip_params.length
+					? `\t// svelte-ignore state_referenced_locally\n\tconst [${params_src}] = __ogArgs;\n`
+					: '';
+				const host_style = host_style_src ? `${host_style_src}\n` : '';
+				const synth = `<script${lang}>
+	import 'ogygia:region/transportables-eager';
+${import_lines}${props}${args}</script>
+${template}
+${host_style}`;
 				islands_by_id.set(iid, {
 					id: iid,
 					virtualPath: entryPath,
@@ -2524,14 +2522,18 @@ class FileCompilation {
 		{
 			let head = '';
 			if (portable_emitted) {
-				head +=
-					`import { og_portable as ${OG_PORTABLE} } from 'ogygia/internal';\n` +
-					portable_imports.join('\n') +
-					'\n';
+				const helper = `import { og_portable as ${OG_PORTABLE} } from 'ogygia/internal';`;
+				head = `${head}${[helper, ...portable_imports].join('\n')}\n`;
 			}
 			if (head) {
 				if (ast.instance) s.appendLeft(ast.instance.content.start, `\n${head}`);
-				else s.prepend(`<script${lang}>\n${head}</script>\n`);
+				else
+					s.prepend(
+						`${dedent`
+					<script${lang}>
+					${head}</script>
+				`}\n`
+					);
 			}
 		}
 
@@ -3053,8 +3055,7 @@ class TsRegionCompilation {
 						const a = stray.arguments?.[0];
 						throw this.#as_err(
 							a?.type === 'Identifier' ? a.name : '?',
-							'must be a top-level `const Name = import.meta.og.asRegion(Comp, options)` — it compiles ' +
-								'to a hoisted import, so it can never sit in a loop, function, block, or larger expression.'
+							`must be a top-level \`const Name = import.meta.og.asRegion(Comp, options)\` — it compiles to a hoisted import, so it can never sit in a loop, function, block, or larger expression.`
 						);
 					}
 				}

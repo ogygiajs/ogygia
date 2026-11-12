@@ -33,12 +33,10 @@ describe('the server log', () => {
 	});
 
 	it('reads each rule a server said, with its detail decoded, once', () => {
-		const text = [
-			'[ogygia] https://ogygiajs.dev/e/rule_capability_not_path?detail=.%2F__ogygia__%3B+.%2F__ogygia__',
-			'[ogygia] https://ogygiajs.dev/e/secret_missing',
-			'[ogygia] https://ogygiajs.dev/e/rule_request_scope_open',
-			'[ogygia] https://ogygiajs.dev/e/rule_request_scope_open'
-		].join('\n');
+		const text = `[ogygia] https://ogygiajs.dev/e/rule_capability_not_path?detail=.%2F__ogygia__%3B+.%2F__ogygia__
+[ogygia] https://ogygiajs.dev/e/secret_missing
+[ogygia] https://ogygiajs.dev/e/rule_request_scope_open
+[ogygia] https://ogygiajs.dev/e/rule_request_scope_open`;
 		expect(said_rules(text)).toEqual([
 			'rule_capability_not_path: ./__ogygia__; ./__ogygia__',
 			'rule_request_scope_open'

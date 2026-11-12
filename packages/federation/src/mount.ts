@@ -60,7 +60,7 @@ function mount_fn(
 			const rest = (c.params as { rest?: string }).rest ?? '';
 			try {
 				const doc = await peer.doc(
-					'/' + rest,
+					`/${rest}`,
 					c.url.search,
 					claims_for(c, opts.user),
 					child_traceparent(c.request.headers.get('traceparent')).traceparent
@@ -100,7 +100,7 @@ function mount_fn(
 			const trace = child_traceparent(c.request.headers.get('traceparent'));
 			const t0 = clock.mono();
 			const doc = await peer.doc(
-				'/' + rest,
+				`/${rest}`,
 				c.url.search,
 				claims_for(c, opts.user),
 				trace.traceparent
@@ -108,9 +108,7 @@ function mount_fn(
 			const hop_ms = Math.round((clock.mono() - t0) * 10) / 10;
 			if (doc.location) redirect(doc.status as 301 | 302 | 303 | 307 | 308, doc.location);
 			c.setHeaders?.({
-				'server-timing':
-					`${peer.label};dur=${hop_ms}` +
-					(doc.server_ms != null ? `, ${peer.label}-render;dur=${doc.server_ms}` : ''),
+				'server-timing': `${peer.label};dur=${hop_ms}${doc.server_ms != null ? `, ${peer.label}-render;dur=${doc.server_ms}` : ''}`,
 				...(doc.trace ? { 'x-og-trace': doc.trace.trace_id } : {})
 			});
 			return { doc };
@@ -125,7 +123,7 @@ function mount_action(resolve_peer: (c: Ctx) => Peer, opts: MountOptions) {
 		const rest = (c.params as { rest?: string }).rest ?? '';
 		const body = await c.request.arrayBuffer();
 		const doc = await peer.postDoc(
-			'/' + rest,
+			`/${rest}`,
 			c.url.search,
 			body,
 			c.request.headers.get('content-type') ?? 'application/x-www-form-urlencoded',
@@ -167,14 +165,12 @@ export function kit_mount(
 			const rest = e.params[param] ?? '';
 			const trace = child_traceparent(e.request.headers.get('traceparent'));
 			const t0 = clock.mono();
-			const doc = await peer.doc('/' + rest, e.url.search, opts.user?.(e), trace.traceparent);
+			const doc = await peer.doc(`/${rest}`, e.url.search, opts.user?.(e), trace.traceparent);
 			const hop_ms = Math.round((clock.mono() - t0) * 10) / 10;
 			const { error: kit_error, redirect: kit_redirect } = await kit();
 			if (doc.location) kit_redirect(doc.status as 301, doc.location);
 			e.setHeaders?.({
-				'server-timing':
-					`${peer.label};dur=${hop_ms}` +
-					(doc.server_ms != null ? `, ${peer.label}-render;dur=${doc.server_ms}` : ''),
+				'server-timing': `${peer.label};dur=${hop_ms}${doc.server_ms != null ? `, ${peer.label}-render;dur=${doc.server_ms}` : ''}`,
 				...(doc.trace ? { 'x-og-trace': doc.trace.trace_id } : {})
 			});
 			if (doc.status >= 400) kit_error(doc.status, doc.title || 'This section is unavailable.');
@@ -185,7 +181,7 @@ export function kit_mount(
 				const rest = e.params[param] ?? '';
 				const body = await e.request.arrayBuffer();
 				const doc = await peer.postDoc(
-					'/' + rest,
+					`/${rest}`,
 					e.url.search,
 					body,
 					e.request.headers.get('content-type') ?? 'application/x-www-form-urlencoded',

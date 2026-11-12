@@ -1,3 +1,5 @@
+import { dedent } from '@ogygia/core/plugin/utils';
+
 /** Exact inverse of `escape_svelte` (shiki.ts). In escaped text every backslash was produced by one
  *  of its three rules (`\\` ← `\`, `` \` `` ← `` ` ``, `\$` ← `${`'s `$`), so dropping each backslash
  *  and keeping the escaped char is a total, lossless decode. */
@@ -20,7 +22,7 @@ function split_module(code: string): { module_body: string; template: string } {
 	const mod = MODULE_SCRIPT_RE.exec(code);
 	return {
 		module_body: mod ? mod[2]! : '',
-		template: mod ? code.slice(0, mod.index) + code.slice(mod.index + mod[0]!.length) : code
+		template: mod ? `${code.slice(0, mod.index)}${code.slice(mod.index + mod[0]!.length)}` : code
 	};
 }
 
@@ -73,6 +75,11 @@ export function try_region_emit(code: string, module_lines: string[]): RegionEmi
 	const lines = [...module_lines, `export const __ogygia_region = { html: ${html_json} };`].join(
 		'\n'
 	);
-	const script = `<script context="module">\n${module_body}\n${lines}\n</script>\n`;
-	return { code: script + '{@html __ogygia_region.html}\n', html };
+	const script = `${dedent`
+		<script context="module">
+		${module_body}
+		${lines}
+		</script>
+	`}\n`;
+	return { code: `${script}{@html __ogygia_region.html}\n`, html };
 }

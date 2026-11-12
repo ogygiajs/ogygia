@@ -165,7 +165,7 @@ export function restore(root: Document | DocumentFragment | Element): number {
 		const r = el.getAttribute('og-r');
 		const custom =
 			el.localName.indexOf('-') !== -1 &&
-			(' ' + (el.getAttribute('og-keep') ?? '') + ' ').indexOf(' class ') === -1;
+			` ${el.getAttribute('og-keep') ?? ''} `.indexOf(' class ') === -1;
 		let svelte_class: string | null | undefined;
 		if (r) {
 			try {
@@ -176,7 +176,7 @@ export function restore(root: Document | DocumentFragment | Element): number {
 						svelte_class = v;
 						const own = new Set((v ?? '').split(' '));
 						let theirs = '';
-						for (const t of Array.from(el.classList)) if (!own.has(t)) theirs += ' ' + t;
+						for (const t of Array.from(el.classList)) if (!own.has(t)) theirs = `${theirs} ${t}`;
 						const merged = ((v ?? '') + theirs).trim();
 						if (merged) el.setAttribute('class', merged);
 						else el.removeAttribute('class');
@@ -233,11 +233,9 @@ export function restore(root: Document | DocumentFragment | Element): number {
 	// equal by test/browser/restore.test.ts › "the restorer swaps back every tag …"), no on*
 	// attributes: test/browser/restore.test.ts › "a stand-in becomes only a tag the server pass …".
 	const STAND_IN_TAGS = new Set(
-		(
-			'a nobr button form li dd dt option optgroup td th tr address article aside blockquote center' +
-			' details dialog dir div dl fieldset figcaption figure footer header hgroup main menu nav ol p' +
-			' search section summary ul h1 h2 h3 h4 h5 h6 pre listing table hr xmp plaintext'
-		).split(' ')
+		`a nobr button form li dd dt option optgroup td th tr address article aside blockquote center details dialog dir div dl fieldset figcaption figure footer header hgroup main menu nav ol p search section summary ul h1 h2 h3 h4 h5 h6 pre listing table hr xmp plaintext`.split(
+			' '
+		)
 	);
 	const swap_stand_ins = (under: ParentNode) => {
 		const list = Array.from(under.querySelectorAll('og-as'));

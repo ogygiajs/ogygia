@@ -32,14 +32,14 @@ describe('join_batch', () => {
 	it('two holes in one task: one POST, and each fetch joins it', async () => {
 		const { posts } = stub_batch(
 			(calls) =>
-				calls
+				`${calls
 					.map((c) =>
 						build_parcel(
 							new URL(c, location.href).searchParams.get('sig')!,
 							`<p>${c.slice(-1)}</p>`
 						)
 					)
-					.join('') + done_parcel()
+					.join('')}${done_parcel()}`
 		);
 		const own = vi.fn(async () => 'own');
 		await Promise.all([join_batch(ep('s1')), join_batch(ep('s2'))]);

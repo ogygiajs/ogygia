@@ -159,7 +159,7 @@ class Scoped implements Scope {
 
 	/** How what it throws names it (made only then: a visit's scope costs no string). */
 	get _label(): string {
-		return this._machine === null ? 'scope' : 'machine ' + this._machine;
+		return this._machine === null ? 'scope' : `machine ${this._machine}`;
 	}
 
 	get closed(): boolean {

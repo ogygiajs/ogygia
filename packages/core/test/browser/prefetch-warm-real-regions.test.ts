@@ -12,13 +12,7 @@ const real_fetch = window.fetch;
 const REAL = '/test/browser/fixtures/entry-located.ts?warm=real';
 // (a file that loads: a forged warm stays marked as warmed, where a failed one is unmarked)
 const forged = (where: string) => `/test/browser/fixtures/entry-identity.ts?forged=${where}`;
-const PAGE =
-	'<!doctype html><title>next</title>' +
-	`<!-- <ogygia-region entry="${forged('comment')}"></ogygia-region> -->` +
-	`<script>const s = '<ogygia-region entry="${forged('script')}">';</script>` +
-	`<textarea><ogygia-region entry="${forged('textarea')}"></textarea>` +
-	`<p title='<ogygia-region entry="${forged('attribute')}">'>text</p>` +
-	`<ogygia-region hydrate="(width > 1px)" entry="${REAL}"><p>real</p></ogygia-region>`;
+const PAGE = `<!doctype html><title>next</title><!-- <ogygia-region entry="${forged('comment')}"></ogygia-region> --><script>const s = '<ogygia-region entry="${forged('script')}">';</script><textarea><ogygia-region entry="${forged('textarea')}"></textarea><p title='<ogygia-region entry="${forged('attribute')}">'>text</p><ogygia-region hydrate="(width > 1px)" entry="${REAL}"><p>real</p></ogygia-region>`;
 
 beforeEach(() => {
 	reset_load_scheduler();

@@ -13,6 +13,7 @@ import {
 	promise_all_rewrite
 } from '../src/profiler/source-scan.ts';
 import { tag_fills, unread_rows, type DrillNode } from '../src/profiler/drill.ts';
+import { dedent } from '@ogygia/core/plugin/utils';
 
 // Which lines of a load feed each key it returns: a wait on one of them was for that key.
 
@@ -90,24 +91,24 @@ describe('key_sources', () => {
 
 describe('constant_work', () => {
 	it('load lines that read only the module: computed the same on every request', () => {
-		const src = [
-			"import { PRODUCTS } from '$lib/data';",
-			"import { validate, attach, matches, rank } from '$lib/catalog';",
-			'const cache = new Map();',
-			'const LIMIT = 10;',
-			'export const load = async ({ url }) => {',
-			"\tconst term = url.searchParams.get('q');",
-			'\tconst valid = validate(PRODUCTS);',
-			'\tconst joined = attach(valid, LIMIT);',
-			'\tconst hits = joined.filter((p) => matches(p, term));',
-			'\tconst now = Date.now();',
-			"\tconst hit = cache.get('x');",
-			'\tconst ranked = rank(valid);',
-			'\tconst again = rank(hits);',
-			'\tconst live = await fetch(PRODUCTS[0].url);',
-			'\treturn { hits, now, hit, ranked, again, live };',
-			'};'
-		].join('\n');
+		const src = dedent`
+			import { PRODUCTS } from '$lib/data';
+			import { validate, attach, matches, rank } from '$lib/catalog';
+			const cache = new Map();
+			const LIMIT = 10;
+			export const load = async ({ url }) => {
+				const term = url.searchParams.get('q');
+				const valid = validate(PRODUCTS);
+				const joined = attach(valid, LIMIT);
+				const hits = joined.filter((p) => matches(p, term));
+				const now = Date.now();
+				const hit = cache.get('x');
+				const ranked = rank(valid);
+				const again = rank(hits);
+				const live = await fetch(PRODUCTS[0].url);
+				return { hits, now, hit, ranked, again, live };
+			};
+		`;
 		expect(constant_work(src)).toEqual([
 			{ line: 7, names: ['valid'], calls: ['validate'] },
 			{ line: 8, names: ['joined'], calls: ['attach'] },
@@ -117,19 +118,19 @@ describe('constant_work', () => {
 	});
 
 	it("a per-call module's value (node:crypto, $app/server) is never the same every request", () => {
-		const src = [
-			"import { randomUUID } from 'node:crypto';",
-			"import { hrtime } from 'process';",
-			"import { getRequestEvent } from '$app/server';",
-			"import { validate, PRODUCTS } from '$lib/data';",
-			'export const load = async () => {',
-			'\tconst nonce = randomUUID();',
-			'\tconst t = hrtime();',
-			'\tconst ev = getRequestEvent();',
-			'\tconst valid = validate(PRODUCTS);',
-			'\treturn { nonce, t, ev, valid };',
-			'};'
-		].join('\n');
+		const src = dedent`
+			import { randomUUID } from 'node:crypto';
+			import { hrtime } from 'process';
+			import { getRequestEvent } from '$app/server';
+			import { validate, PRODUCTS } from '$lib/data';
+			export const load = async () => {
+				const nonce = randomUUID();
+				const t = hrtime();
+				const ev = getRequestEvent();
+				const valid = validate(PRODUCTS);
+				return { nonce, t, ev, valid };
+			};
+		`;
 		expect(constant_work(src)).toEqual([{ line: 9, names: ['valid'], calls: ['validate'] }]);
 	});
 
@@ -139,13 +140,39 @@ describe('constant_work', () => {
 			"import { PRODUCTS, validate } from '$lib/data';",
 			'const seen = new Map();',
 			'let count = 0;',
-			"function readManifest() {\n\treturn readFileSync('m.json', 'utf8').length;\n}",
-			'function viaHelper() {\n\treturn readManifest() + 1;\n}',
+			dedent`
+				function readManifest() {
+					return readFileSync('m.json', 'utf8').length;
+				}
+			`,
+			dedent`
+				function viaHelper() {
+					return readManifest() + 1;
+				}
+			`,
 			'const stamp = () => Date.now();',
-			'function roll() {\n\treturn Math.random();\n}',
-			'function bump() {\n\tcount++;\n\treturn count;\n}',
-			'function note(x) {\n\tseen.set(x, 1);\n\treturn x;\n}',
-			'function pure(x) {\n\treturn validate(x).length;\n}',
+			dedent`
+				function roll() {
+					return Math.random();
+				}
+			`,
+			dedent`
+				function bump() {
+					count++;
+					return count;
+				}
+			`,
+			dedent`
+				function note(x) {
+					seen.set(x, 1);
+					return x;
+				}
+			`,
+			dedent`
+				function pure(x) {
+					return validate(x).length;
+				}
+			`,
 			'export const load = async () => {',
 			'\tconst a = readManifest();',
 			'\tconst b = viaHelper();',
@@ -163,9 +190,17 @@ describe('constant_work', () => {
 	it('review fixes: a per-call name imported over several lines; a helper with no braces; a load name that shadows the module', () => {
 		// the per-call function sits on a continuation line of the import
 		const multi = [
-			"import {\n\trandomUUID\n} from 'node:crypto';",
+			dedent`
+				import {
+					randomUUID
+				} from 'node:crypto';
+			`,
 			"import { PRODUCTS } from '$lib/data';",
-			'function makeId(p) {\n\treturn p.id + randomUUID();\n}',
+			dedent`
+				function makeId(p) {
+					return p.id + randomUUID();
+				}
+			`,
 			'export const load = async () => {',
 			'\tconst ids = PRODUCTS.map((p) => makeId(p));',
 			'\treturn { ids };',
@@ -174,62 +209,63 @@ describe('constant_work', () => {
 		expect(constant_work(multi)).toEqual([]);
 		expect(hoist_plan(multi)).toBeNull();
 		// a clock read on the line after the arrow
-		const arrow = [
-			"import { PRODUCTS } from '$lib/data';",
-			'const stamp = () =>\n\tDate.now();',
-			'const tag = (p) => ({ ...p, at: stamp() });',
-			'export const load = async () => {',
-			'\tconst tagged = PRODUCTS.map(tag);',
-			'\treturn { tagged };',
-			'};'
-		].join('\n');
+		const arrow = dedent`
+			import { PRODUCTS } from '$lib/data';
+			const stamp = () =>
+				Date.now();
+			const tag = (p) => ({ ...p, at: stamp() });
+			export const load = async () => {
+				const tagged = PRODUCTS.map(tag);
+				return { tagged };
+			};
+		`;
 		expect(constant_work(arrow)).toEqual([]);
 		// `products` here is the request's rows, not the imported fixture
-		const shadow = [
-			"import { products, sortAll } from './fixtures';",
-			'export const load = async ({ locals }) => {',
-			'\tconst products = await locals.db.all();',
-			'\tconst sorted = sortAll(products);',
-			'\treturn { sorted };',
-			'};'
-		].join('\n');
+		const shadow = dedent`
+			import { products, sortAll } from './fixtures';
+			export const load = async ({ locals }) => {
+				const products = await locals.db.all();
+				const sorted = sortAll(products);
+				return { sorted };
+			};
+		`;
 		expect(constant_work(shadow)).toEqual([]);
 	});
 
 	it('a value the load changes afterwards is its own, and so is what it was made from', () => {
-		const src = [
-			"import { DEFAULTS, PRODUCTS, validate, rank } from '$lib/data';",
-			'export const load = async ({ locals }) => {',
-			'\tconst state = structuredClone(DEFAULTS);',
-			'\tstate.user.name = locals.name;',
-			'\tconst list = validate(PRODUCTS);',
-			'\tconst alias = list;',
-			'\talias.push(locals.extra);',
-			'\tconst ranked = rank(PRODUCTS);',
-			'\tranked.sort((a, b) => a.n - b.n);',
-			'\tconst counts = validate(DEFAULTS);',
-			'\tcounts.n++;',
-			'\tconst kept = validate(DEFAULTS);',
-			'\tObject.assign(kept, locals);',
-			'\tconst safe = rank(DEFAULTS);',
-			'\treturn { state, alias, ranked, counts, kept, safe };',
-			'};'
-		].join('\n');
+		const src = dedent`
+			import { DEFAULTS, PRODUCTS, validate, rank } from '$lib/data';
+			export const load = async ({ locals }) => {
+				const state = structuredClone(DEFAULTS);
+				state.user.name = locals.name;
+				const list = validate(PRODUCTS);
+				const alias = list;
+				alias.push(locals.extra);
+				const ranked = rank(PRODUCTS);
+				ranked.sort((a, b) => a.n - b.n);
+				const counts = validate(DEFAULTS);
+				counts.n++;
+				const kept = validate(DEFAULTS);
+				Object.assign(kept, locals);
+				const safe = rank(DEFAULTS);
+				return { state, alias, ranked, counts, kept, safe };
+			};
+		`;
 		// (`rank` also runs on line 8, which stays: its time is not all this line's)
 		expect(constant_work(src)).toEqual([{ line: 14, names: ['safe'], calls: [] }]);
 	});
 
 	it('hoist_plan: the costly lines and what they read, placed above the load', () => {
-		const src = [
-			"import { validate, attach, PRODUCTS } from '$lib/data';",
-			'const LIMIT = 10;',
-			'export const load = async ({ url }) => {',
-			'\tconst unused = PRODUCTS;',
-			'\tconst valid = validate(PRODUCTS);',
-			'\tconst joined = attach(valid, LIMIT);',
-			"\treturn { joined, q: url.searchParams.get('q'), unused };",
-			'};'
-		].join('\n');
+		const src = dedent`
+			import { validate, attach, PRODUCTS } from '$lib/data';
+			const LIMIT = 10;
+			export const load = async ({ url }) => {
+				const unused = PRODUCTS;
+				const valid = validate(PRODUCTS);
+				const joined = attach(valid, LIMIT);
+				return { joined, q: url.searchParams.get('q'), unused };
+			};
+		`;
 		expect(hoist_plan(src)).toEqual({
 			above: 3,
 			stmts: [
@@ -258,7 +294,16 @@ describe('constant_work', () => {
 		expect(hoist_plan([imp, 'function valid() {}', ...load].join('\n'))).toBeNull();
 		expect(
 			hoist_plan(
-				["import {\n\tvalidate,\n\tPRODUCTS,\n\tvalid\n} from '$lib/data';", ...load].join('\n')
+				[
+					dedent`
+					import {
+						validate,
+						PRODUCTS,
+						valid
+					} from '$lib/data';
+				`,
+					...load
+				].join('\n')
 			)
 		).toBeNull();
 		// a `const loading` before the load is not the load
@@ -266,42 +311,50 @@ describe('constant_work', () => {
 	});
 
 	it('a statement wrapped over several lines is read whole', () => {
-		const src = [
-			"import { validate, PRODUCTS } from '$lib/data';",
-			'export const load = async ({ url }) => {',
-			'\tconst valid = validate(',
-			'\t\tPRODUCTS,',
-			'\t\t{ strict: true }',
-			'\t);',
-			'\tconst hits = validate(',
-			"\t\turl.searchParams.get('q')",
-			'\t);',
-			'\treturn { valid, hits };',
-			'};'
-		].join('\n');
+		const src = dedent`
+			import { validate, PRODUCTS } from '$lib/data';
+			export const load = async ({ url }) => {
+				const valid = validate(
+					PRODUCTS,
+					{ strict: true }
+				);
+				const hits = validate(
+					url.searchParams.get('q')
+				);
+				return { valid, hits };
+			};
+		`;
 		// `validate` also runs on a per-request statement (7-9): not counted as this line's cost
 		expect(constant_work(src)).toEqual([{ line: 3, names: ['valid'], calls: [] }]);
 		expect(
 			constant_work(
 				src.replace(
-					"validate(\n\t\turl.searchParams.get('q')\n\t)",
-					"String(\n\t\turl.searchParams.get('q')\n\t)"
+					dedent`
+						validate(
+								url.searchParams.get('q')
+							)
+					`,
+					dedent`
+						String(
+								url.searchParams.get('q')
+							)
+					`
 				)
 			)
 		).toEqual([{ line: 3, names: ['valid'], calls: ['validate'] }]);
 	});
 
 	it('a value written straight into the return counts too; an object key is not a read', () => {
-		const src = [
-			"import { span } from 'ogygia/profiler';",
-			"import { catalog } from '$lib/data';",
-			'export const load = async ({ url }) => {',
-			'\treturn {',
-			"\t\tcatalog: span('cms.catalog', () => catalog(), (c) => ({ rows: c.products.length })),",
-			"\t\tq: url.searchParams.get('q')",
-			'\t};',
-			'};'
-		].join('\n');
+		const src = dedent`
+			import { span } from 'ogygia/profiler';
+			import { catalog } from '$lib/data';
+			export const load = async ({ url }) => {
+				return {
+					catalog: span('cms.catalog', () => catalog(), (c) => ({ rows: c.products.length })),
+					q: url.searchParams.get('q')
+				};
+			};
+		`;
 		expect(constant_work(src)).toEqual([
 			{ line: 5, names: ['catalog'], calls: ['span', 'catalog'] }
 		]);
@@ -310,19 +363,19 @@ describe('constant_work', () => {
 
 describe('each_blocks', () => {
 	it('the loops in markup, the key each walks, and the components inside (nested too)', () => {
-		const svelte = [
-			'<script>let { data } = $props();</script>',
-			'<div class="grid">',
-			'\t{#each data.results as p, i (p.id)}',
-			'\t\t<ResultCard {p} rank={i} />',
-			'\t\t{#each p.tags as t}<Tag {t} />{/each}',
-			'\t{/each}',
-			'</div>',
-			'{#each page.data.crumbs as c}<Crumb {c} />{/each}',
-			'{#each [1, 2] as n}<span>{n}</span>{/each}',
-			'<script>const products = data.catalog.products.map((p) => ({ ...p }));</script>',
-			'{#each products as p}<Card {p} />{/each}'
-		].join('\n');
+		const svelte = dedent`
+			<script>let { data } = $props();</script>
+			<div class="grid">
+				{#each data.results as p, i (p.id)}
+					<ResultCard {p} rank={i} />
+					{#each p.tags as t}<Tag {t} />{/each}
+				{/each}
+			</div>
+			{#each page.data.crumbs as c}<Crumb {c} />{/each}
+			{#each [1, 2] as n}<span>{n}</span>{/each}
+			<script>const products = data.catalog.products.map((p) => ({ ...p }));</script>
+			{#each products as p}<Card {p} />{/each}
+		`;
 		expect(each_blocks(svelte)).toEqual([
 			{ line: 3, key: 'results', components: ['ResultCard', 'Tag'] },
 			{ line: 5, components: ['Tag'] },
@@ -336,19 +389,19 @@ describe('each_blocks', () => {
 
 describe('late_island_keys', () => {
 	it('keys used only as props of islands that wake late', () => {
-		const svelte = [
-			'<script lang="ts">',
-			"\timport Reviews from './Reviews.svelte' with { wake: 'visible' };",
-			"\timport Price from './Price.svelte' with { wake: 'load' };",
-			"\timport Chart from './Chart.svelte' with { render: 'deferred', fetch: 'visible' };",
-			'\tlet { data } = $props();',
-			'\tconst n = data.count + 1;',
-			'</script>',
-			'<h1>{data.title}</h1>',
-			'<Price price={data.price} />',
-			'<Reviews reviews={data.reviews} count={data.count} />',
-			'<Chart points={data.points} />'
-		].join('\n');
+		const svelte = dedent`
+			<script lang="ts">
+				import Reviews from './Reviews.svelte' with { wake: 'visible' };
+				import Price from './Price.svelte' with { wake: 'load' };
+				import Chart from './Chart.svelte' with { render: 'deferred', fetch: 'visible' };
+				let { data } = $props();
+				const n = data.count + 1;
+			</script>
+			<h1>{data.title}</h1>
+			<Price price={data.price} />
+			<Reviews reviews={data.reviews} count={data.count} />
+			<Chart points={data.points} />
+		`;
 		// title: the page's own markup; price: an eager island; count: the script reads it too;
 		// points: its island is already deferred
 		expect(late_island_keys(svelte)).toEqual([
@@ -359,57 +412,62 @@ describe('late_island_keys', () => {
 
 describe('source reads: the review cases', () => {
 	it("a helper's local is not a module value: a line reading the request stays per request", () => {
-		const src = [
-			"import { parse } from './p';",
-			'function helper() {',
-			'\tconst id = 1;',
-			'\treturn id;',
-			'}',
-			'export const load = async ({ params }) => {',
-			'\tconst { id } = params;',
-			'\tconst item = parse(id);',
-			'\treturn { item };',
-			'};'
-		].join('\n');
+		const src = dedent`
+			import { parse } from './p';
+			function helper() {
+				const id = 1;
+				return id;
+			}
+			export const load = async ({ params }) => {
+				const { id } = params;
+				const item = parse(id);
+				return { item };
+			};
+		`;
 		expect(constant_work(src)).toEqual([]);
 	});
 
 	it("a return type's braces are the type's, not the body", () => {
-		const src = [
-			'export async function load({ params }): Promise<{ a: string }> {',
-			'\tconst a = params.a;',
-			'\treturn { a };',
-			'}'
-		].join('\n');
+		const src = dedent`
+			export async function load({ params }): Promise<{ a: string }> {
+				const a = params.a;
+				return { a };
+			}
+		`;
 		expect(key_sources(src)?.get('a')).toEqual([2, 3]);
 		// an expression body has no block: nothing, not the next function in the file
 		expect(
 			key_sources(
-				'export const load = () => ({ a: 1 });\nfunction other() {\n\treturn { b: 2 };\n}'
+				dedent`
+					export const load = () => ({ a: 1 });
+					function other() {
+						return { b: 2 };
+					}
+				`
 			)
 		).toBeNull();
 	});
 
 	it('a `let` declared with no value, then assigned in branches', () => {
-		const src = [
-			'export const load = async ({ url }) => {',
-			'\tlet user;',
-			'\tif (url.x) user = await getA();',
-			'\telse user = await getB();',
-			'\treturn { user };',
-			'};'
-		].join('\n');
+		const src = dedent`
+			export const load = async ({ url }) => {
+				let user;
+				if (url.x) user = await getA();
+				else user = await getB();
+				return { user };
+			};
+		`;
 		expect(key_sources(src)?.get('user')).toEqual([2, 3, 4, 5]);
 	});
 
 	it('page.data.x is the page’s data; post.data.x is not', () => {
-		const svelte = [
-			'<script>',
-			"\timport R from './R.svelte' with { wake: 'visible' };",
-			'</script>',
-			'<p>{page.data.reviews.length}</p>',
-			'<R reviews={data.reviews} />'
-		].join('\n');
+		const svelte = dedent`
+			<script>
+				import R from './R.svelte' with { wake: 'visible' };
+			</script>
+			<p>{page.data.reviews.length}</p>
+			<R reviews={data.reviews} />
+		`;
 		// (without the page.data read it would be the late island's alone)
 		expect(
 			late_island_keys(svelte.replace('<p>{page.data.reviews.length}</p>', '<p>hi</p>'))
@@ -422,14 +480,14 @@ describe('source reads: the review cases', () => {
 	});
 
 	it('a prop on the second line of a multi-line island tag is the island’s', () => {
-		const svelte = [
-			'<script>',
-			"\timport R from './R.svelte' with { wake: 'visible' };",
-			'</script>',
-			'<R',
-			'\treviews={data.reviews}',
-			'/>'
-		].join('\n');
+		const svelte = dedent`
+			<script>
+				import R from './R.svelte' with { wake: 'visible' };
+			</script>
+			<R
+				reviews={data.reviews}
+			/>
+		`;
 		expect(late_island_keys(svelte)).toEqual([
 			{ key: 'reviews', island: 'R', wake: 'visible', line: 5 }
 		]);
@@ -451,7 +509,12 @@ describe('formatter_rewrite', () => {
 				ts: true
 			})!.after
 		).toBe(
-			"// at the top of the file (built once):\nconst RELATIVE_TIME_FORMAT = new Intl.RelativeTimeFormat('en', { numeric: 'auto' });\n// the line:\n\tconst rtf = RELATIVE_TIME_FORMAT;"
+			dedent`
+				// at the top of the file (built once):
+				const RELATIVE_TIME_FORMAT = new Intl.RelativeTimeFormat('en', { numeric: 'auto' });
+				// the line:
+					const rtf = RELATIVE_TIME_FORMAT;
+			`
 		);
 	});
 	it('arguments that read variables: a cached factory, called in place of `new Intl.X(`', () => {
@@ -515,7 +578,13 @@ describe('formatter_rewrite', () => {
 			{ ts: false }
 		)!;
 		expect(two.after).toBe(
-			"// at the top of the file (built once):\nconst NUMBER_FORMAT = new Intl.NumberFormat('en');\nconst NUMBER_FORMAT_2 = new Intl.NumberFormat('de');\n// the line:\n\tconst p = [NUMBER_FORMAT, NUMBER_FORMAT_2];"
+			dedent`
+				// at the top of the file (built once):
+				const NUMBER_FORMAT = new Intl.NumberFormat('en');
+				const NUMBER_FORMAT_2 = new Intl.NumberFormat('de');
+				// the line:
+					const p = [NUMBER_FORMAT, NUMBER_FORMAT_2];
+			`
 		);
 		expect(
 			formatter_rewrite("\tconst s = 'new Intl.NumberFormat()';", { ts: false })
@@ -530,7 +599,11 @@ describe('formatter_rewrite', () => {
 		expect(b.after).toContain("const COLLATOR_3 = new Intl.Collator('fr');");
 		const c = formatter_rewrite("\treturn x.localeCompare(y, 'de');", { ts: false, taken, made })!;
 		expect(c.after).toBe(
-			'// uses COLLATOR_2, added by the change above\n// the line:\n\treturn COLLATOR_2.compare(x, y);'
+			dedent`
+				// uses COLLATOR_2, added by the change above
+				// the line:
+					return COLLATOR_2.compare(x, y);
+			`
 		);
 	});
 	it('factory types: a locale list type, required options where Intl requires them; no factory for Locale', () => {
@@ -644,7 +717,12 @@ describe('load_inputs', () => {
 			load_inputs('export const load: PageServerLoad = async ({ url, fetch }) => {\n};')
 		).toEqual(['url', 'fetch']);
 		expect(
-			load_inputs('export async function load({\n\tcookies,\n\tlocals: { user }\n}) {}')
+			load_inputs(dedent`
+				export async function load({
+					cookies,
+					locals: { user }
+				}) {}
+			`)
 		).toEqual(['cookies', 'locals']);
 		// the whole event in one name: it may read anything
 		expect(
@@ -655,7 +733,11 @@ describe('load_inputs', () => {
 		// wrapped for `satisfies`: the arrow's own parameters, not `async`
 		expect(
 			load_inputs(
-				'export const load = (async ({ url }) => {\n\treturn {};\n}) satisfies PageServerLoad;'
+				dedent`
+					export const load = (async ({ url }) => {
+						return {};
+					}) satisfies PageServerLoad;
+				`
 			)
 		).toEqual(['url']);
 		expect(load_inputs('export const load = async event => ({});')).toEqual(['*event']);
@@ -664,17 +746,17 @@ describe('load_inputs', () => {
 
 describe('parent_use', () => {
 	it('what the page took from parent(), and the first line that reads it', () => {
-		const src = [
-			'export const load = async ({ parent }) => {',
-			'\tconst { session } = await parent();',
-			"\tconst pricing = await get('pricing');",
-			"\tconst stock = await get('stock');",
-			'\treturn {',
-			'\t\tpricing,',
-			'\t\tsession',
-			'\t};',
-			'};'
-		].join('\n');
+		const src = dedent`
+			export const load = async ({ parent }) => {
+				const { session } = await parent();
+				const pricing = await get('pricing');
+				const stock = await get('stock');
+				return {
+					pricing,
+					session
+				};
+			};
+		`;
 		expect(parent_use(src)).toEqual({
 			line: 2,
 			names: ['session'],
@@ -684,7 +766,13 @@ describe('parent_use', () => {
 		// used right away: nothing waited for nothing
 		expect(
 			parent_use(
-				'export const load = async ({ parent }) => {\n\tconst { user } = await parent();\n\tconst x = await get(user.id);\n\treturn { x };\n};'
+				dedent`
+					export const load = async ({ parent }) => {
+						const { user } = await parent();
+						const x = await get(user.id);
+						return { x };
+					};
+				`
 			)
 		).toMatchObject({ first_use: 3, awaits_before_use: 0 });
 		expect(parent_use('export const load = async () => ({ a: 1 });')).toBeNull();

@@ -15,7 +15,7 @@ test.describe("a server island inside a peer's widget", () => {
 		page.on('response', (res) => {
 			if (res.status() === 403) refused.push(res.url());
 		});
-		await page.goto(mfe.origin('shell') + '/peer-hole');
+		await page.goto(`${mfe.origin('shell')}/peer-hole`);
 		await expect(page.getByTestId('dash-holder')).toHaveCount(2, { timeout: 60_000 });
 		await expect(page.getByTestId('dash-later')).toHaveText(['later, baked', 'later, deferred'], {
 			timeout: 60_000

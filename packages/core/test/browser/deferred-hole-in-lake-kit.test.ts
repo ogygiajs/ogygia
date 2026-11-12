@@ -40,13 +40,7 @@ function set_csr_true(): void {
 test('a deferred hole INSIDE a lake fetches and fills on a csr=true document', async () => {
 	set_csr_true();
 	// The header lake (wake:'none') with a deferred hole inside — exactly the served shape.
-	document.body.innerHTML =
-		'<ogygia-region wake="none" entry="header-lake">' +
-		'  <div data-frozen>shell</div>' +
-		`  <ogygia-region render="defer" when="load" endpoint="${ENDPOINT}" data-og-hole="hole1">` +
-		'    <div data-fallback>loading</div>' +
-		'  </ogygia-region>' +
-		'</ogygia-region>';
+	document.body.innerHTML = `<ogygia-region wake="none" entry="header-lake">  <div data-frozen>shell</div>  <ogygia-region render="defer" when="load" endpoint="${ENDPOINT}" data-og-hole="hole1">    <div data-fallback>loading</div>  </ogygia-region></ogygia-region>`;
 
 	bootDev();
 

@@ -62,4 +62,4 @@ export {
 export { og_member } from './macros/wire.ts';
 export { BuildCache, configure_build_cache, __set_build_cache_root } from './build-cache.ts';
 export { content_css_key } from '@ogygia/core/contract';
-export { dedent } from './dedent.ts';
+export { dedent } from '@ogygia/core/contract';

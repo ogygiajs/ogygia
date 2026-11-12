@@ -209,7 +209,7 @@ export async function serve_federation(event: RequestEvent): Promise<Response | 
 function expose_target(origin: string, base: string, path: string, search: string): URL | null {
 	if (OFF_SITE_PATH_RE.test(path)) return null;
 	const target = new URL(origin);
-	target.pathname = base + (path.startsWith('/') ? path : '/' + path);
+	target.pathname = base + (path.startsWith('/') ? path : `/${path}`);
 	target.search = search;
 	return target.origin === origin ? target : null;
 }

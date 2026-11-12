@@ -78,7 +78,7 @@ describe('measure', () => {
 		const calls: string[] = [];
 		const fake = (async (url: string | URL | Request, init?: RequestInit) => {
 			const u = String(url);
-			calls.push(u + ' ' + new Headers(init?.headers).get('x-profiler-key'));
+			calls.push(`${u} ${new Headers(init?.headers).get('x-profiler-key')}`);
 			if (u.includes('p=%2Fbusy')) return new Response('{}', { status: 409 });
 			if (u.includes('p=%2Flocked')) return new Response('', { status: 401 });
 			if (u.includes('p=%2Fhtml')) return new Response('<html>', { status: 200 });

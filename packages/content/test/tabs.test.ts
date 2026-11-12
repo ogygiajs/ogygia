@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { transform_tabs, has_tabs } from '../src/markdown/tabs.ts';
+import { dedent } from '@ogygia/core/plugin/utils';
 
 /** Backtick fence helper — keeps the test source readable (no escaping a wall of backticks). */
 const F = '```';
@@ -31,15 +32,32 @@ describe('has_tabs gate', () => {
 		expect(has_tabs('::: code-group')).toBe(true);
 		expect(has_tabs('::: tabs')).toBe(true);
 		expect(has_tabs('  ::: tabs foo')).toBe(true);
-		expect(has_tabs('text\n::: code-group\n')).toBe(true);
+		expect(
+			has_tabs(
+				`${dedent`
+			text
+			::: code-group
+		`}\n`
+			)
+		).toBe(true);
 	});
 	it('ignores unrelated content', () => {
 		expect(has_tabs('just prose')).toBe(false);
-		expect(has_tabs('::: tip\nhi\n:::')).toBe(false);
+		expect(
+			has_tabs(dedent`
+			::: tip
+			hi
+			:::
+		`)
+		).toBe(false);
 		expect(has_tabs('the word tabs and code-group in prose')).toBe(false);
 	});
 	it('does not fire the pass when absent (identity + used=false)', () => {
-		const src = 'no tabs here\n\n## Heading\n';
+		const src = `${dedent`
+			no tabs here
+
+			## Heading
+		`}\n`;
 		const r = transform_tabs(src);
 		expect(r.used).toBe(false);
 		expect(r.code).toBe(src);
@@ -117,7 +135,11 @@ describe('code-group — grouping / sync', () => {
 		const block = [`::: code-group`, `${F}b [npm]`, 'x', F, `${F}b [pnpm]`, 'y', F, ':::'].join(
 			'\n'
 		);
-		const src = `${block}\n\n${block}`;
+		const src = dedent`
+			${block}
+
+			${block}
+		`;
 		const groups = [...run(src).matchAll(/<TabGroup group="([^"]*)">/g)].map((m) => m[1]);
 		expect(groups).toEqual(['cg:npm~pnpm', 'cg:npm~pnpm']);
 	});
@@ -145,7 +167,12 @@ describe('code-group — fence robustness', () => {
 		expect(run(src)).toContain(`${F}js`);
 	});
 	it('tolerates an unclosed fence (runs to block end)', () => {
-		const src = [`::: code-group`, `${F}bash [npm]`, 'npm i', ':::'].join('\n');
+		const src = dedent`
+			::: code-group
+			${F}bash [npm]
+			npm i
+			:::
+		`;
 		expect(transform_tabs(src).used).toBe(true);
 		expect(labels(src)).toEqual(['npm']);
 	});
@@ -157,14 +184,14 @@ describe('code-group — fence robustness', () => {
 });
 
 describe('tabs — basics', () => {
-	const src = [
-		'::: tabs',
-		'== macOS',
-		'brew install node',
-		'== Linux',
-		'apt install node',
-		':::'
-	].join('\n');
+	const src = dedent`
+		::: tabs
+		== macOS
+		brew install node
+		== Linux
+		apt install node
+		:::
+	`;
 	it('emits one Tab per == marker', () => {
 		expect(labels(src)).toEqual(['macOS', 'Linux']);
 	});
@@ -173,7 +200,13 @@ describe('tabs — basics', () => {
 		expect(run(src)).toContain('apt install node');
 	});
 	it('drops content before the first == marker', () => {
-		const s = ['::: tabs', 'preamble', '== A', 'body', ':::'].join('\n');
+		const s = dedent`
+			::: tabs
+			preamble
+			== A
+			body
+			:::
+		`;
 		expect(run(s)).not.toContain('preamble');
 		expect(labels(s)).toEqual(['A']);
 	});
@@ -181,13 +214,29 @@ describe('tabs — basics', () => {
 
 describe('tabs — grouping', () => {
 	it('auto-numbers independent groups per block', () => {
-		const b = ['::: tabs', '== A', 'x', '== B', 'y', ':::'].join('\n');
-		const src = `${b}\n\n${b}`;
+		const b = dedent`
+			::: tabs
+			== A
+			x
+			== B
+			y
+			:::
+		`;
+		const src = dedent`
+			${b}
+
+			${b}
+		`;
 		const groups = [...run(src).matchAll(/<TabGroup group="([^"]*)">/g)].map((m) => m[1]);
 		expect(groups).toEqual(['tabs0', 'tabs1']);
 	});
 	it('honours an explicit group name', () => {
-		const src = ['::: tabs install', '== A', 'x', ':::'].join('\n');
+		const src = dedent`
+			::: tabs install
+			== A
+			x
+			:::
+		`;
 		expect(group(src)).toBe('install');
 	});
 });
@@ -284,17 +333,27 @@ describe('multiple & mixed blocks', () => {
 
 describe('malformed / edge cases (never throws, always valid)', () => {
 	it('an empty code-group emits nothing and is not "used"', () => {
-		const src = ['::: code-group', ':::'].join('\n');
+		const src = dedent`
+			::: code-group
+			:::
+		`;
 		const r = transform_tabs(src);
 		expect(r.used).toBe(false);
 		expect(r.code).not.toContain('<TabGroup');
 	});
 	it('an empty tabs block emits nothing', () => {
-		const src = ['::: tabs', ':::'].join('\n');
+		const src = dedent`
+			::: tabs
+			:::
+		`;
 		expect(transform_tabs(src).used).toBe(false);
 	});
 	it('tolerates an unclosed block (runs to EOF)', () => {
-		const src = ['::: tabs', '== A', 'body without a closing marker'].join('\n');
+		const src = dedent`
+			::: tabs
+			== A
+			body without a closing marker
+		`;
 		expect(transform_tabs(src).used).toBe(true);
 		expect(labels(src)).toEqual(['A']);
 	});
@@ -307,7 +366,13 @@ describe('malformed / edge cases (never throws, always valid)', () => {
 		expect(labels(src)).toEqual(['npm']);
 	});
 	it('does not treat "==" with no space as a marker', () => {
-		const src = ['::: tabs', '==NoSpace', '== Real', 'x', ':::'].join('\n');
+		const src = dedent`
+			::: tabs
+			==NoSpace
+			== Real
+			x
+			:::
+		`;
 		expect(labels(src)).toEqual(['Real']);
 	});
 	it('is a no-op on empty input', () => {
@@ -361,11 +426,35 @@ describe('has_tabs — prose false positives stay false', () => {
 		expect(has_tabs('you gain the ability to import a code-group helper')).toBe(false);
 		expect(has_tabs('tabs vs spaces is an eternal debate')).toBe(false);
 		expect(has_tabs('see :::tip for admonitions')).toBe(false); // no keyword
-		expect(has_tabs('::: warning\nnot a tab group\n:::')).toBe(false);
+		expect(
+			has_tabs(dedent`
+			::: warning
+			not a tab group
+			:::
+		`)
+		).toBe(false);
 	});
 	it('fires on a real opener even when buried mid-document', () => {
-		expect(has_tabs('# Title\n\nintro\n\n::: code-group\n')).toBe(true);
-		expect(has_tabs('a\nb\n\t::: tabs custom\n')).toBe(true);
+		expect(
+			has_tabs(
+				`${dedent`
+			# Title
+
+			intro
+
+			::: code-group
+		`}\n`
+			)
+		).toBe(true);
+		expect(
+			has_tabs(
+				`${dedent`
+			a
+			b
+				::: tabs custom
+		`}\n`
+			)
+		).toBe(true);
 	});
 	it('fires on a CRLF-terminated opener', () => {
 		expect(has_tabs('lead\r\n::: tabs\r\n')).toBe(true);
@@ -406,19 +495,37 @@ describe('well-formed output', () => {
 		expect(fences_balanced(run(src))).toBe(true);
 	});
 	it('synthesizes a closer for an unclosed code-group fence', () => {
-		const src = [`::: code-group`, `${F}bash [npm]`, 'npm i', ':::'].join('\n');
+		const src = dedent`
+			::: code-group
+			${F}bash [npm]
+			npm i
+			:::
+		`;
 		const code = run(src);
 		expect(labels(src)).toEqual(['npm']);
 		expect(fences_balanced(code)).toBe(true);
 	});
 	it('synthesizes a closer for an unclosed fence inside a tabs body', () => {
-		const src = ['::: tabs', '== A', `${F}sh`, 'echo hi', ':::'].join('\n');
+		const src = dedent`
+			::: tabs
+			== A
+			${F}sh
+			echo hi
+			:::
+		`;
 		const code = run(src);
 		expect(labels(src)).toEqual(['A']);
 		expect(fences_balanced(code)).toBe(true);
 	});
 	it('wraps each tab in exactly one <Tab>…</Tab>', () => {
-		const src = ['::: tabs', '== A', 'x', '== B', 'y', ':::'].join('\n');
+		const src = dedent`
+			::: tabs
+			== A
+			x
+			== B
+			y
+			:::
+		`;
 		const code = run(src);
 		expect(code.match(/<Tab /g)).toHaveLength(2);
 		expect(code.match(/<\/Tab>/g)).toHaveLength(2);
@@ -429,16 +536,35 @@ describe('grouping — cross-block sync & isolation', () => {
 	it('different label sets get different code-group keys', () => {
 		const a = [`::: code-group`, `${F}b [npm]`, 'x', F, `${F}b [pnpm]`, 'y', F, ':::'].join('\n');
 		const b = [`::: code-group`, `${F}b [deno]`, 'z', F, ':::'].join('\n');
-		expect(groups(`${a}\n\n${b}`)).toEqual(['cg:npm~pnpm', 'cg:deno']);
+		expect(
+			groups(dedent`
+			${a}
+
+			${b}
+		`)
+		).toEqual(['cg:npm~pnpm', 'cg:deno']);
 	});
 	it('an explicit name overrides the label-set key', () => {
 		const src = [`::: code-group shared`, `${F}b [npm]`, 'x', F, ':::'].join('\n');
 		expect(group(src)).toBe('shared');
 	});
 	it('tabs blocks keep independent auto groups even when interleaved with code-groups', () => {
-		const t = ['::: tabs', '== A', 'x', ':::'].join('\n');
+		const t = dedent`
+			::: tabs
+			== A
+			x
+			:::
+		`;
 		const c = [`::: code-group`, `${F}b [npm]`, 'y', F, ':::'].join('\n');
-		expect(groups(`${t}\n\n${c}\n\n${t}`)).toEqual(['tabs0', 'cg:npm', 'tabs1']);
+		expect(
+			groups(dedent`
+			${t}
+
+			${c}
+
+			${t}
+		`)
+		).toEqual(['tabs0', 'cg:npm', 'tabs1']);
 	});
 });
 

@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, it } from 'vitest';
+import { dedent } from '@ogygia/core/plugin/utils';
 
 // Black-box suite for `ogygia site init`. It drives the REAL CLI (the source, run by Node's native
 // TS support) against throwaway fixture projects on disk, so it exercises argv parsing, the sv-utils
@@ -25,23 +26,23 @@ function svelteConfigProject(extra: Record<string, string> = {}): string {
 			type: 'module',
 			devDependencies: { '@sveltejs/kit': '^2.70.0', svelte: '^5.0.0', vite: '^8.0.0' }
 		}),
-		'svelte.config.js': [
-			"import adapter from '@sveltejs/adapter-node';",
-			"import { vitePreprocess } from '@sveltejs/vite-plugin-svelte';",
-			'',
-			'const config = {',
-			'\tpreprocess: vitePreprocess(),',
-			'\tkit: { adapter: adapter() }',
-			'};',
-			'',
-			'export default config;'
-		].join('\n'),
-		'vite.config.ts': [
-			"import { sveltekit } from '@sveltejs/kit/vite';",
-			"import { defineConfig } from 'vite';",
-			'',
-			'export default defineConfig({ plugins: [sveltekit()] });'
-		].join('\n'),
+		'svelte.config.js': dedent`
+			import adapter from '@sveltejs/adapter-node';
+			import { vitePreprocess } from '@sveltejs/vite-plugin-svelte';
+
+			const config = {
+				preprocess: vitePreprocess(),
+				kit: { adapter: adapter() }
+			};
+
+			export default config;
+		`,
+		'vite.config.ts': dedent`
+			import { sveltekit } from '@sveltejs/kit/vite';
+			import { defineConfig } from 'vite';
+
+			export default defineConfig({ plugins: [sveltekit()] });
+		`,
 		'tsconfig.json': '{ "extends": "./.svelte-kit/tsconfig.json" }',
 		...extra
 	});
@@ -55,12 +56,12 @@ function viteConfigProject(extra: Record<string, string> = {}): string {
 			type: 'module',
 			devDependencies: { '@sveltejs/kit': '^2.70.0', svelte: '^5.0.0', vite: '^8.0.0' }
 		}),
-		'vite.config.ts': [
-			"import { sveltekit } from '@sveltejs/kit/vite';",
-			"import { defineConfig } from 'vite';",
-			'',
-			'export default defineConfig({ plugins: [sveltekit({ adapter: undefined })] });'
-		].join('\n'),
+		'vite.config.ts': dedent`
+			import { sveltekit } from '@sveltejs/kit/vite';
+			import { defineConfig } from 'vite';
+
+			export default defineConfig({ plugins: [sveltekit({ adapter: undefined })] });
+		`,
 		'tsconfig.json': '{ "extends": "./.svelte-kit/tsconfig.json" }',
 		...extra
 	});
@@ -184,7 +185,10 @@ describe('site init — vite.config project', () => {
 
 // ── layout safety ───────────────────────────────────────────────────────────
 describe('site init — existing layout', () => {
-	const CUSTOM = '<script>/* my precious layout */</script>\n<slot />\n';
+	const CUSTOM = `${dedent`
+		<script>/* my precious layout */</script>
+		<slot />
+	`}\n`;
 
 	it('never clobbers an existing layout without --force (and says why)', () => {
 		const dir = svelteConfigProject({ 'src/routes/+layout.svelte': CUSTOM });
@@ -204,15 +208,15 @@ describe('site init — existing layout', () => {
 	});
 
 	it('recognises an existing ogygia shell as redeemable and keeps it (no --force needed)', () => {
-		const shell = [
-			'<script lang="ts">',
-			"\timport DocsShell from '@ogygia/content/docs-shell';",
-			"\timport { site } from '$lib/docs';",
-			'\tlet { children } = $props();',
-			'</script>',
-			'',
-			'<DocsShell {site} base="" title="My Edited Title">{@render children()}</DocsShell>'
-		].join('\n');
+		const shell = dedent`
+			<script lang="ts">
+				import DocsShell from '@ogygia/content/docs-shell';
+				import { site } from '$lib/docs';
+				let { children } = $props();
+			</script>
+
+			<DocsShell {site} base="" title="My Edited Title">{@render children()}</DocsShell>
+		`;
 		const dir = svelteConfigProject({ 'src/routes/+layout.svelte': shell });
 		const { status, out } = run(dir, ['init', '-y', '--no-install']);
 		expect(status).toBe(0);
@@ -317,7 +321,13 @@ describe('site init — re-runs', () => {
 	});
 
 	it('keeps the user’s own content instead of writing starter pages', () => {
-		const mine = '---\ntitle: Mine\n---\n\n# Mine\n';
+		const mine = `${dedent`
+			---
+			title: Mine
+			---
+
+			# Mine
+		`}\n`;
 		const dir = svelteConfigProject({ 'src/content/docs/mine.svx': mine });
 		const { status } = run(dir, ['init', '-y', '--no-install']);
 		expect(status).toBe(0);

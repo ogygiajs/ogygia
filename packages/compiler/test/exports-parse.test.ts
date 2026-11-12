@@ -5,6 +5,7 @@
  * classified here on purpose: a wrong "pure" would drop code the app runs.
  */
 import { describe, expect, it } from 'vitest';
+import { dedent } from '@ogygia/core/contract';
 import { analyze_exports, analyze_imports } from '../src/compiler/exports/parse.ts';
 
 const TS = '/app/x.ts';
@@ -12,7 +13,12 @@ const JS = '/app/x.js';
 
 describe('analyze_imports', () => {
 	it('reads every specifier kind with exact source ranges', () => {
-		const code = `import d, { a, b as c, type T } from './x';\nimport * as ns from './y';\nimport './side';\nimport type { U } from './u';`;
+		const code = dedent`
+			import d, { a, b as c, type T } from './x';
+			import * as ns from './y';
+			import './side';
+			import type { U } from './u';
+		`;
 		const decls = analyze_imports(code, TS)!;
 		expect(decls).toHaveLength(4);
 		expect(code.slice(decls[0].start, decls[0].end)).toBe(
@@ -54,7 +60,15 @@ describe('analyze_imports', () => {
 	});
 
 	it('handles the cursed spellings: no semicolons, no spaces, comments inside, unicode, `default as`', () => {
-		const code = `import{a}from"./x"\nimport {\n  /* c */ b, // trailing\n  c as d\n} from './y'\nimport { ünïcode } from './u';\nimport { default as Q } from './q';`;
+		const code = dedent`
+			import{a}from"./x"
+			import {
+			  /* c */ b, // trailing
+			  c as d
+			} from './y'
+			import { ünïcode } from './u';
+			import { default as Q } from './q';
+		`;
 		const decls = analyze_imports(code, JS)!;
 		expect(decls.map((d) => d.source)).toEqual(['./x', './y', './u', './q']);
 		expect(decls[1].specs.map((s) => s.local)).toEqual(['b', 'd']);
@@ -81,7 +95,15 @@ describe('analyze_imports', () => {
 describe('analyze_exports — shape + purity', () => {
 	it('a classic barrel is pure: named re-exports, default-as-name, star, star-as-namespace, type re-exports', () => {
 		const s = analyze_exports(
-			`export { a, b as c } from './ab';\nexport { default as Button } from './Button.svelte';\nexport * from './all';\nexport * as ns from './ns';\nexport type { T } from './t';\nexport type * from './types';\nexport {};`,
+			dedent`
+				export { a, b as c } from './ab';
+				export { default as Button } from './Button.svelte';
+				export * from './all';
+				export * as ns from './ns';
+				export type { T } from './t';
+				export type * from './types';
+				export {};
+			`,
 			TS
 		)!;
 		expect(s.pure).toBe(true);
@@ -104,7 +126,13 @@ describe('analyze_exports — shape + purity', () => {
 
 	it('import-then-export is a re-export through the binding (named, default, namespace)', () => {
 		const s = analyze_exports(
-			`import { a as x } from './a';\nimport d from './d';\nimport * as n from './n';\nexport { x as y, d, n };\nexport default d;`,
+			dedent`
+				import { a as x } from './a';
+				import d from './d';
+				import * as n from './n';
+				export { x as y, d, n };
+				export default d;
+			`,
 			TS
 		)!;
 		expect(s.pure).toBe(true);
@@ -125,7 +153,12 @@ describe('analyze_exports — shape + purity', () => {
 	it('type declarations do not make a module impure; enums do', () => {
 		expect(
 			analyze_exports(
-				`export type A = 1;\ninterface I {}\nexport interface J {}\nexport { x } from './x';`,
+				dedent`
+					export type A = 1;
+					interface I {}
+					export interface J {}
+					export { x } from './x';
+				`,
 				TS
 			)!.pure
 		).toBe(true);

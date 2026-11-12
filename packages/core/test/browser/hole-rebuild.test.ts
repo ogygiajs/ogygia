@@ -30,11 +30,7 @@ function html_response(html: string): Response {
 
 /** The document tail as the handle emits it: after Kit's root, `<` escaped inside the JSON. */
 function holes_record(record: Record<string, { endpoint: string; sidecar: string }>): string {
-	return (
-		`<script type="application/ogygia-holes" data-ogygia-holes${TEST_MARK_ATTR}>` +
-		JSON.stringify(record).replaceAll('<', '\\u003C') +
-		'</script>'
-	);
+	return `<script type="application/ogygia-holes" data-ogygia-holes${TEST_MARK_ATTR}>${JSON.stringify(record).replaceAll('<', '\\u003C')}\x3C/script>`;
 }
 
 test('a hole rendered again with no address gets its endpoint (and sidecar) back from the document record, and fetches', async () => {
@@ -45,12 +41,7 @@ test('a hole rendered again with no address gets its endpoint (and sidecar) back
 		return html_response('<p data-testid="served">served after the rebuild</p>');
 	};
 	// Kit's bootstrap marks the document as Kit-hydrated; the SSR hole and the tail's record.
-	document.body.innerHTML =
-		'<script>__sveltekit_lab = {};</script>' +
-		'<div data-kit-root>' +
-		`<ogygia-region render="defer" when="load" endpoint="${ENDPOINT}" data-og-hole="${IDENTITY}"><p data-testid="fallback">fallback</p></ogygia-region>${SIDECAR}` +
-		'</div>' +
-		holes_record({ [IDENTITY]: { endpoint: ENDPOINT, sidecar: SIDECAR } });
+	document.body.innerHTML = `<script>__sveltekit_lab = {};\x3C/script><div data-kit-root><ogygia-region render="defer" when="load" endpoint="${ENDPOINT}" data-og-hole="${IDENTITY}"><p data-testid="fallback">fallback</p></ogygia-region>${SIDECAR}</div>${holes_record({ [IDENTITY]: { endpoint: ENDPOINT, sidecar: SIDECAR } })}`;
 	try {
 		bootDev(); // the SSR element connects, fetches on load
 		await expect.poll(() => calls.length, { timeout: 10_000 }).toBe(1);
@@ -85,9 +76,7 @@ test('a hole with no address and no record keeps its fallback (nothing to fetch,
 		calls.push(String(input));
 		return html_response('<p>never</p>');
 	};
-	document.body.innerHTML =
-		'<script>__sveltekit_lab = {};</script>' +
-		'<div data-kit-root><ogygia-region render="defer" when="load" endpoint="" data-og-hole="0000000000000000"><p data-testid="fallback">fallback</p></ogygia-region></div>';
+	document.body.innerHTML = `<script>__sveltekit_lab = {};\x3C/script><div data-kit-root><ogygia-region render="defer" when="load" endpoint="" data-og-hole="0000000000000000"><p data-testid="fallback">fallback</p></ogygia-region></div>`;
 	try {
 		bootDev();
 		await new Promise((r) => setTimeout(r, 300));

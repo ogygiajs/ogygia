@@ -69,7 +69,7 @@ export class BuildCache<T> {
 		const d = this.dir();
 		if (!d) return null;
 		try {
-			return JSON.parse(fs.readFileSync(path.join(d, key + '.json'), 'utf8')) as T;
+			return JSON.parse(fs.readFileSync(path.join(d, `${key}.json`), 'utf8')) as T;
 		} catch {
 			return null;
 		}
@@ -80,9 +80,9 @@ export class BuildCache<T> {
 		if (!d) return;
 		try {
 			// Write-then-rename so a crashed write can't leave a torn entry at the final address.
-			const tmp = path.join(d, key + '.' + process.pid + '.tmp');
+			const tmp = path.join(d, `${key}.${process.pid}.tmp`);
 			fs.writeFileSync(tmp, JSON.stringify(value));
-			fs.renameSync(tmp, path.join(d, key + '.json'));
+			fs.renameSync(tmp, path.join(d, `${key}.json`));
 		} catch {
 			// ok: best effort; a failed write means a recompute next time
 		}

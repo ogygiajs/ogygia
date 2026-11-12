@@ -9,7 +9,7 @@ export class RetryStamp {
 	}
 
 	stamp_text(): string {
-		return 'retry-stamp:' + this.label;
+		return `retry-stamp:${this.label}`;
 	}
 
 	static wire = import.meta.og.wire({

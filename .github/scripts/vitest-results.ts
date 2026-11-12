@@ -31,6 +31,6 @@ export default class VitestResults implements Reporter {
 				};
 				lines.push(JSON.stringify(line));
 			}
-		if (lines.length) appendFileSync(out, lines.join('\n') + '\n');
+		if (lines.length) appendFileSync(out, `${lines.join('\n')}\n`);
 	}
 }

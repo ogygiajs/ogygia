@@ -30,7 +30,7 @@ export function route_imports(
 				if (end === -1) continue;
 				const start = line.lastIndexOf(q, end) + 1;
 				const spec = line.slice(start, end + leaf.length);
-				if (spec.startsWith('$lib/')) out.add('lib/' + spec.slice(5));
+				if (spec.startsWith('$lib/')) out.add(`lib/${spec.slice(5)}`);
 				else if (spec.startsWith('.')) {
 					// `./X` / `../x/X` against the route file's folder
 					const parts = dir.split('/');
@@ -79,7 +79,7 @@ export function module_imports(file: string, src: string): string[] {
 			)
 				continue;
 			let base: string;
-			if (spec.startsWith('$lib/')) base = 'lib/' + spec.slice(5);
+			if (spec.startsWith('$lib/')) base = `lib/${spec.slice(5)}`;
 			else {
 				const parts = dir ? dir.split('/') : [];
 				for (const seg of spec.split('/')) {
@@ -92,7 +92,7 @@ export function module_imports(file: string, src: string): string[] {
 			const stem = base.endsWith('.js') ? base.slice(0, -3) : base;
 			for (const c of base.endsWith('.ts')
 				? [base]
-				: [stem + '.ts', stem + '.js', base, stem + '/index.ts', stem + '/index.js'])
+				: [`${stem}.ts`, `${stem}.js`, base, `${stem}/index.ts`, `${stem}/index.js`])
 				if (!seen.has(c)) {
 					seen.add(c);
 					out.push(c);

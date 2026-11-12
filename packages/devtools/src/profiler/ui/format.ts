@@ -23,15 +23,15 @@ export const fmt_dur = (ms: number): string => {
 
 /** part/whole as a percentage, or an em-dash when whole is 0. */
 export const fmt_pct = (part: number, whole: number): string =>
-	whole > 0 ? ((part / whole) * 100).toFixed(1) + '%' : '—';
+	whole > 0 ? `${((part / whole) * 100).toFixed(1)}%` : '—';
 
 /** bytes → MB / kB / B. */
 export const fmt_bytes = (n: number): string =>
 	n >= 1048576
-		? (n / 1048576).toFixed(1) + ' MB'
+		? `${(n / 1048576).toFixed(1)} MB`
 		: n >= 1024
-			? (n / 1024).toFixed(0) + ' kB'
-			: n + ' B';
+			? `${(n / 1024).toFixed(0)} kB`
+			: `${n} B`;
 
 export const CATEGORY_LABEL: Record<FrameCategory, string> = {
 	component: 'component',

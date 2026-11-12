@@ -583,17 +583,15 @@ const PLANS = join(import.meta.dirname, '..', 'plans');
 function plan_json(seed: number, plan: Plan, res: RunResult): string {
 	const found = res.broken.map((b) => `[${b.oracle}] ${b.detail.split('\n')[0]}`);
 	const gen = GEN?.seed;
-	return (
-		JSON.stringify({
-			seed,
-			steps: plan.actions.length,
-			plan,
-			app: APP,
-			gen,
-			wire: res.wire,
-			found
-		}) + '\n'
-	);
+	return `${JSON.stringify({
+		seed,
+		steps: plan.actions.length,
+		plan,
+		app: APP,
+		gen,
+		wire: res.wire,
+		found
+	})}\n`;
 }
 
 /** A run the search keeps: it reached something no run before it had. */
@@ -713,7 +711,7 @@ async function guided(): Promise<void> {
 	const seconds = Math.round((wall() - started) / 100) / 10;
 	writeFileSync(
 		join(import.meta.dirname, '..', 'results.json'),
-		JSON.stringify(
+		`${JSON.stringify(
 			{
 				app: APP,
 				guided: GUIDED,
@@ -726,7 +724,7 @@ async function guided(): Promise<void> {
 			},
 			null,
 			'\t'
-		) + '\n'
+		)}\n`
 	);
 	console.log(
 		`\n${GUIDED} guided runs (${next_seed - FIRST} fresh seeds, ${kept.length} kept), ${failed} failed, ${leaks} plan replay leaks, ${seconds} s`
@@ -937,7 +935,7 @@ async function main(): Promise<void> {
 	};
 	writeFileSync(
 		join(import.meta.dirname, '..', 'results.json'),
-		JSON.stringify(summary, null, '\t') + '\n'
+		`${JSON.stringify(summary, null, '\t')}\n`
 	);
 	console.log(
 		`\n${RUNS} seeds, ${failed} failed, ${known} known, ${leaks.length} replay leaks, ${JOBS} jobs, ${summary.seconds} s, ${summary.steps_per_second} loop steps/s, ${summary.actions_per_second} actions/s`

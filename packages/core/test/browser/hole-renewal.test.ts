@@ -27,9 +27,7 @@ test('two copies of a hole on one fetch both take the capability its renewal ans
 			headers: { 'content-type': 'text/html', 'x-ogygia-capability': FRESH }
 		});
 	};
-	document.body.innerHTML =
-		`<ogygia-region render="defer" when="load" endpoint="${EXPIRED}"><p>desktop</p></ogygia-region>` +
-		`<ogygia-region render="defer" when="load" endpoint="${EXPIRED}"><p>drawer</p></ogygia-region>`;
+	document.body.innerHTML = `<ogygia-region render="defer" when="load" endpoint="${EXPIRED}"><p>desktop</p></ogygia-region><ogygia-region render="defer" when="load" endpoint="${EXPIRED}"><p>drawer</p></ogygia-region>`;
 	const [desktop, drawer] = Array.from(document.querySelectorAll('ogygia-region'));
 	bootDev();
 	await expect

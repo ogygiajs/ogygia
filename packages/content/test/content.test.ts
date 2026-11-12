@@ -6,6 +6,7 @@ import { parseFrontmatter } from '../src/markdown/frontmatter.ts';
 import { withRemotes } from '../src/server.ts';
 import { content_hmr as contentPlugin, invalidateModuleTree } from '../src/vite/hmr.ts';
 import type { ModuleNode, ViteDevServer } from 'vite';
+import { dedent } from '@ogygia/core/plugin/utils';
 
 const REGION_BRAND = Symbol.for('ogygia.region');
 
@@ -53,9 +54,15 @@ draft: true
 	});
 
 	it('rejects broken yaml as invalid frontmatter, naming what the parser stopped at', () => {
-		expect(() => parseFrontmatter(`---\n: : :\n---\n`)).toThrow(
-			/invalid frontmatter YAML: empty mapping key/
-		);
+		expect(() =>
+			parseFrontmatter(
+				`${dedent`
+			---
+			: : :
+			---
+		`}\n`
+			)
+		).toThrow(/invalid frontmatter YAML: empty mapping key/);
 	});
 });
 
@@ -106,7 +113,15 @@ describe('format source-builders', () => {
 			...svx({ title: 'Raw' }),
 			__ogygia_source: () => {
 				called++;
-				return Promise.resolve('---\ntitle: Raw\n---\n\n# Raw\n\nbody');
+				return Promise.resolve(dedent`
+					---
+					title: Raw
+					---
+
+					# Raw
+
+					body
+				`);
 			}
 		};
 		const src = markdown({ './a.svx': withSource, './b.svx': svx({ title: 'NoSrc' }) });

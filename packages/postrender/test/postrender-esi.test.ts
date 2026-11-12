@@ -70,7 +70,7 @@ describe('postrender/stitch — esi_rewrite', () => {
 
 	it('balances NESTED regions inside an edge hole (a fallback can contain regions)', () => {
 		const inner = `<ogygia-region render="defer" endpoint="/n">nested</ogygia-region>`;
-		const html = hole('edge', '/e', inner) + '<footer/>';
+		const html = `${hole('edge', '/e', inner)}<footer/>`;
 		const out = esi_rewrite(html);
 		expect(out.match(/<esi:remove>/g)).toHaveLength(1);
 		expect(out).toContain(`${inner}</ogygia-region></esi:remove>`);
@@ -90,7 +90,7 @@ describe('postrender/stitch — region tags the browser does not read', () => {
 			`<title>${OPEN}</title>fb`,
 			`<style>/* ${CLOSE} */</style>fb`
 		]) {
-			const html = hole('edge', '/e', fallback) + '<p>after</p>';
+			const html = `${hole('edge', '/e', fallback)}<p>after</p>`;
 			expect(find_stitch_holes(html), fallback).toEqual([
 				{ start: 0, end: html.length - '<p>after</p>'.length, endpoint: '/e', mode: 'edge' }
 			]);

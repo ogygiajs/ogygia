@@ -34,7 +34,7 @@ function read_scan_reply(reply: unknown): { cursor: string; keys: string[] } {
 }
 
 function glob_escape(value: string): string {
-	return value.replace(GLOB_ACTIVE_G, (c) => '\\' + c);
+	return value.replace(GLOB_ACTIVE_G, (c) => `\\${c}`);
 }
 
 /**
@@ -133,7 +133,7 @@ export class ValkeyStore implements PostrenderStore {
 	}
 
 	async #scan_prefix(prefix: string, on_keys: (keys: string[]) => Promise<void>): Promise<void> {
-		const pattern = glob_escape(KEY_NS + prefix) + '*';
+		const pattern = `${glob_escape(KEY_NS + prefix)}*`;
 		let cursor = '0';
 		do {
 			const reply = await this.#client.scan(cursor, 'MATCH', pattern, 'COUNT', SCAN_COUNT);

@@ -44,7 +44,7 @@ export function tokenize(html: string): string[] {
 			const c = html.charCodeAt(k);
 			if (c === 32 || c === 9 || c === 10 || c === 13) space = true;
 			else {
-				if (space && text) text += ' ';
+				if (space && text) text = `${text} `;
 				space = false;
 				text += html[k];
 			}

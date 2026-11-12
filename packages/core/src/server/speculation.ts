@@ -20,7 +20,7 @@ export function mpaSpeculationRules(endpoint = '/__ogygia__'): string {
 	const where = {
 		and: [
 			{ href_matches: '/*' },
-			{ not: { href_matches: endpoint + '*' } },
+			{ not: { href_matches: `${endpoint}*` } },
 			{ not: { selector_matches: '[rel~=nofollow]' } },
 			{
 				or: [

@@ -560,7 +560,7 @@ function inline_style_text(html: string): string {
 		const open = html.indexOf('>', at);
 		const close = open === -1 ? -1 : html.indexOf('</style', open);
 		if (close === -1) break;
-		out += html.slice(open + 1, close) + '\n';
+		out = `${out}${html.slice(open + 1, close)}\n`;
 		at = html.indexOf('<style', close);
 	}
 	return out;
@@ -607,7 +607,7 @@ export interface WeighedLike {
 export function assets_diff(a: WeighedLike, b: WeighedLike): AssetsDiff {
 	type W = WeighedLike['assets'][number];
 	const key = (x: W) =>
-		x.contains?.length ? 'c:' + [...x.contains].sort().join('|') : 'u:' + x.url;
+		x.contains?.length ? `c:${[...x.contains].sort().join('|')}` : `u:${x.url}`;
 	const scripts = (p: WeighedLike) => {
 		const m = new Map<string, W>();
 		for (const x of p.assets) if (x.kind === 'script') m.set(key(x), x);
@@ -834,6 +834,6 @@ async function weigh_one(
 		}
 		return w;
 	} catch (e) {
-		return { miss: 'error: ' + (e instanceof Error ? e.message : String(e)).slice(0, 120) };
+		return { miss: `error: ${(e instanceof Error ? e.message : String(e)).slice(0, 120)}` };
 	}
 }

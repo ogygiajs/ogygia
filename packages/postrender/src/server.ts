@@ -144,12 +144,8 @@ function servable(entry: PostrenderEntry, ttl: number): boolean {
 
 /** The two setup mistakes the read path can see, with the line that fixes each. */
 const SEQUENCE_LINE = 'export const handle = sequence(postrender.handle(), ogygia.handle());';
-export const MISSING_HANDLE: string =
-	'postrender.handle() is not in src/hooks.server.ts, so pages are kept in this process’s memory ' +
-	`store. Add it before ogygia's handle: \`${SEQUENCE_LINE}\``;
-export const MISORDERED_HANDLE: string =
-	'postrender.handle() must run before ogygia.handle() (the stored page is served before anything ' +
-	`renders), and this request reached ogygia first. Put it first: \`${SEQUENCE_LINE}\``;
+export const MISSING_HANDLE: string = `postrender.handle() is not in src/hooks.server.ts, so pages are kept in this process’s memory store. Add it before ogygia's handle: \`${SEQUENCE_LINE}\``;
+export const MISORDERED_HANDLE: string = `postrender.handle() must run before ogygia.handle() (the stored page is served before anything renders), and this request reached ogygia first. Put it first: \`${SEQUENCE_LINE}\``;
 
 /**
  * The store + edges for this request: what its `postrender.handle()` carried in. Two mistakes are

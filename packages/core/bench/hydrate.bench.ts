@@ -371,7 +371,7 @@ function raised_downloads(n: number): Promise<number> {
 			const slot = new LoadSlot({
 				kind: 'content',
 				cls: class_at(flight.priority),
-				label: 'd' + i,
+				label: `d${i}`,
 				flight
 			});
 			const release = await slot.ready;

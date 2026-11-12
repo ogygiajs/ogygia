@@ -58,7 +58,7 @@ describe('assemble', () => {
 		const spans = locate(html);
 		const head = '<!doctype html><html><head><link rel="stylesheet" href="/a">';
 		expect(assemble(html, spans, head, '', '')).toBe(
-			head + '</head><body><p>body</p></body></html>'
+			`${head}</head><body><p>body</p></body></html>`
 		);
 	});
 
@@ -87,7 +87,7 @@ describe('budget on a multi-MB document', () => {
 	// A 2.6 MB body: locating + assembling must be a handful of bounded string operations, and the
 	// only allocations are the small injected strings (V8 keeps slices and concatenations as views
 	// and ropes — nothing here forces a flatten).
-	const big = doc('<div>' + 'x'.repeat(2_600_000) + '</div>');
+	const big = doc(`<div>${'x'.repeat(2_600_000)}</div>`);
 
 	it('locate touches the string with exactly two bounded scans', () => {
 		const calls: string[] = [];
@@ -135,17 +135,13 @@ describe('budget on a multi-MB document', () => {
 
 	it('the csr probe reads only the last 64 KB before </body>, not the document', () => {
 		// Kit's boot sits at the end of the body — a bootstrap 3 MB up the page is not Kit's.
-		const early = doc(
-			'<script>var __sveltekit_x = 1;</script>' + '<i>' + 'y'.repeat(3_000_000) + '</i>'
-		);
+		const early = doc(`<script>var __sveltekit_x = 1;\x3C/script><i>${'y'.repeat(3_000_000)}</i>`);
 		expect(html_has_kit_bootstrap(early, locate(early).body_end)).toBe(false);
-		const late = doc('<i>' + 'y'.repeat(3_000_000) + '</i><script>var __sveltekit_x = 1;</script>');
+		const late = doc(`<i>${'y'.repeat(3_000_000)}</i><script>var __sveltekit_x = 1;\x3C/script>`);
 		expect(html_has_kit_bootstrap(late, locate(late).body_end)).toBe(true);
 		// …and a side-channel payload inside the window still never counts (P0).
 		const reflected = doc(
-			'<i>' +
-				'y'.repeat(3_000_000) +
-				'</i><script type="application/ogygia-page">{"u":"?q=__sveltekit_x="}</script>'
+			`<i>${'y'.repeat(3_000_000)}</i><script type="application/ogygia-page">{"u":"?q=__sveltekit_x="}\x3C/script>`
 		);
 		expect(html_has_kit_bootstrap(reflected, locate(reflected).body_end)).toBe(false);
 	});

@@ -74,15 +74,15 @@ export function rewrite_regions(src: string, id: string): string {
 			const alias = `__og_region_${alias_n++}`;
 			// Module-relative specifier with a leading `./` so Vite resolves it like an authored import.
 			let spec = path.relative(dir, abs).split(path.sep).join('/');
-			if (!spec.startsWith('.')) spec = './' + spec;
+			if (!spec.startsWith('.')) spec = `./${spec}`;
 			imports.push(`import ${alias} from ${JSON.stringify(spec)} with { region: 'raw' };`);
 			entries.push(`${JSON.stringify(key)}: ${alias}`);
 		}
-		out += src.slice(last, c.start) + `{ ${entries.join(', ')} }`;
+		out = `${out}${src.slice(last, c.start)}{ ${entries.join(', ')} }`;
 		last = c.end;
 	}
 	out += src.slice(last);
-	return imports.join('\n') + '\n' + out;
+	return `${imports.join('\n')}\n${out}`;
 }
 
 /** Resolve a LITERAL glob (relative to `dir`) to sorted absolute file paths. Supports the shapes a

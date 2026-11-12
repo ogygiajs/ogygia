@@ -13,7 +13,7 @@ const CHILD_ROW_RE = /data-child-row[^>]*>(one|two) · Ada/g;
 
 test.describe('host children/snippets cross into a hydrate island (synth entry)', () => {
 	test('SSR', async ({ baseURL }) => {
-		const raw = await (await fetch(baseURL + '/island-children')).text();
+		const raw = await (await fetch(`${baseURL}/island-children`)).text();
 		// Two CardShell call sites → two regions; the nested Bumper degrades inline (would be 3 otherwise).
 		check(
 			'SSR: one region per call site + the nested island as its OWN region (slot crossing)',
@@ -33,7 +33,7 @@ test.describe('host children/snippets cross into a hydrate island (synth entry)'
 		const errors: string[] = [];
 		page.on('pageerror', (e) => errors.push(e.message));
 		page.on('console', (m) => {
-			if (m.type() === 'error') errors.push('console: ' + m.text());
+			if (m.type() === 'error') errors.push(`console: ${m.text()}`);
 		});
 		await page.goto('/island-children', { waitUntil: 'networkidle' });
 		await page.waitForTimeout(250);

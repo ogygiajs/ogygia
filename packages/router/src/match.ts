@@ -54,11 +54,11 @@ export function compile(pattern: string): CompiledPattern {
 				);
 			}
 			params.push({ name: m[1], rest: true });
-			rx += '(?:/(.*))?';
+			rx = `${rx}(?:/(.*))?`;
 			ranks.push(SEGMENT_RANK.rest);
 		} else if ((m = seg.match(OPTIONAL))) {
 			params.push({ name: m[1], optional: true });
-			rx += '(?:/([^/]+))?';
+			rx = `${rx}(?:/([^/]+))?`;
 			ranks.push(SEGMENT_RANK.optional);
 		} else {
 			const pieces: Array<{ text: string } | { name: string }> = [];
@@ -107,7 +107,7 @@ export function compile(pattern: string): CompiledPattern {
 	});
 
 	if (rx === '') rx = '/?';
-	const regex = new RegExp('^' + rx + '/?$');
+	const regex = new RegExp(`^${rx}/?$`);
 	const trailing_rest = params.length > 0 && params[params.length - 1].rest === true;
 	return { pattern, regex, params, score: specificity(ranks, trailing_rest) };
 }

@@ -28,7 +28,7 @@ test.describe('REGRESSION: placed client island ships its own CSS (chunk-split :
 	test('SSR: the placed island emits its own CSS as <link data-ogygia-region-css>', async ({
 		baseURL
 	}) => {
-		const res = await fetch(baseURL + '/placed-island-css');
+		const res = await fetch(`${baseURL}/placed-island-css`);
 		const html = await res.text();
 		check('/placed-island-css returns 200', res.status === 200);
 		check('/placed-island-css ships NO Kit bootstrap (csr=false)', !KIT_MARKER_RE.test(html));

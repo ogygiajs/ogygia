@@ -320,7 +320,7 @@ function linked<T>(link: T | null, name: string): T {
 	// (its code's link written out: every chunk imports this registry, so it imports no messages
 	// module — messages/core.ts has the code)
 	if (link === null)
-		throw new Error('[ogygia] https://ogygiajs.dev/e/slot_not_linked?name=' + name);
+		throw new Error(`[ogygia] https://ogygiajs.dev/e/slot_not_linked?name=${name}`);
 	return link;
 }
 export const boot_link = (): BootLink => linked(slots.boot, 'boot');

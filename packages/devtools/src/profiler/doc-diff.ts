@@ -60,7 +60,7 @@ export function attr_sites(
 		if (!opens.length && l.slice(0, at).includes('<')) continue;
 		out.push({
 			line: i + 1,
-			code: l.trim().length > 140 ? l.trim().slice(0, 139) + '…' : l.trim()
+			code: l.trim().length > 140 ? `${l.trim().slice(0, 139)}…` : l.trim()
 		});
 	}
 	return out;
@@ -127,7 +127,7 @@ function parse(piece: string): { tag: string; attrs: Map<string, string>; text: 
 	return { tag, attrs, text: close === -1 ? '' : piece.slice(close + 1) };
 }
 
-const clip = (s: string) => (s.length > 60 ? s.slice(0, 59) + '…' : s);
+const clip = (s: string) => (s.length > 60 ? `${s.slice(0, 59)}…` : s);
 
 /**
  * The two documents' differences, grouped. `island_of(entry)` names an island by its entry URL (the
@@ -252,7 +252,7 @@ export function doc_diff(
 			for (const attr of changed) {
 				const key = `attr\0${attr}`;
 				const g = groups.get(key);
-				if (g && !g.tag.split(', ').includes(py.tag)) g.tag += `, ${py.tag}`;
+				if (g && !g.tag.split(', ').includes(py.tag)) g.tag = `${g.tag}, ${py.tag}`;
 				add(key, {
 					what: '',
 					tag: py.tag,

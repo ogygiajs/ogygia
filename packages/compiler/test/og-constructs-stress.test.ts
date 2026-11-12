@@ -6,6 +6,7 @@
  * regions, loaders — have their half in packages/content/test/constructs-stress.test.ts.)
  */
 import { describe, expect, it, beforeAll, afterAll } from 'vitest';
+import { dedent } from '@ogygia/core/contract';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -31,7 +32,13 @@ describe('bake — byte-offset integrity under multi-byte unicode', () => {
 	beforeAll(() => __set_build_cache_root(fs.mkdtempSync(path.join(os.tmpdir(), 'og-off-'))));
 
 	it('TWO bake() calls interleaved with unicode both inline at the right spots', async () => {
-		const src = `const a = "café";\nconst m = import.meta.og.bake(() => 1);\nconst b = "naïve 🔥";\nconst n = import.meta.og.bake(() => 2);\nexport { m, n };`;
+		const src = dedent`
+			const a = "café";
+			const m = import.meta.og.bake(() => 1);
+			const b = "naïve 🔥";
+			const n = import.meta.og.bake(() => 2);
+			export { m, n };
+		`;
 		const out = await rewrite_bake(src, '/app/x.ts', { alias: [], root: '/app' });
 		expect(out).toContain(`const a = "café";`);
 		expect(out).toContain(`const b = "naïve 🔥";`);
@@ -127,14 +134,14 @@ describe('bake in .svelte — component import excluded from the eval bundle', (
 	afterAll(() => fs.rmSync(dir, { recursive: true, force: true }));
 
 	it('the .svelte component import stays out of the Node eval; the bake still resolves its data', async () => {
-		const src = [
-			`<script lang="ts">`,
-			`import Widget from './Widget.svelte';`, // used in markup, NOT in bake → excluded from eval
-			`import { NUMS } from './nums';`, // used in bake → enters eval
-			`const total = import.meta.og.bake(() => NUMS.reduce((a, b) => a + b, 0));`,
-			`</script>`,
-			`<Widget n={total} />`
-		].join('\n');
+		const src = dedent`
+			<script lang="ts">
+			import Widget from './Widget.svelte';
+			import { NUMS } from './nums';
+			const total = import.meta.og.bake(() => NUMS.reduce((a, b) => a + b, 0));
+			</script>
+			<Widget n={total} />
+		`;
 		const out = await rewrite_bake(src, path.join(dir, 'C.svelte'), { alias: [], root: dir });
 		expect(out).toContain('const total = (6)'); // 1+2+3, bake resolved through the data import
 		expect(out).toContain(`import Widget from './Widget.svelte';`); // component import kept (used in markup)
@@ -251,14 +258,22 @@ describe('bake — resolution depth (real execution, real files)', () => {
 	const opts = () => ({ alias: [], root: dir });
 
 	it('a fn importing a sibling that imports another sibling (transitive)', async () => {
-		const src = `import { chain } from './c';\nconst v = import.meta.og.bake(() => chain());\nexport { v };`;
+		const src = dedent`
+			import { chain } from './c';
+			const v = import.meta.og.bake(() => chain());
+			export { v };
+		`;
 		const out = await rewrite_bake(src, path.join(dir, 'mod.ts'), opts());
 		expect(out).toContain('const v = (21)'); // (10*2)+1
 		expect(out).not.toContain(`import { chain }`); // dead after baking → dropped
 	});
 
 	it('a fn importing and using a node: builtin', async () => {
-		const src = `import path from 'node:path';\nconst v = import.meta.og.bake(() => path.join('a', 'b', 'c'));\nexport { v };`;
+		const src = dedent`
+			import path from 'node:path';
+			const v = import.meta.og.bake(() => path.join('a', 'b', 'c'));
+			export { v };
+		`;
 		const out = await rewrite_bake(src, path.join(dir, 'mod.ts'), opts());
 		expect(out).toContain('const v = ("a/b/c")');
 	});

@@ -159,7 +159,7 @@ type ParsedTab = { label: string; body: string[] };
 
 /** A stable group key from a code-group's labels (identical label sets sync across the page). */
 function group_key(tabs: ParsedTab[]): string {
-	return 'cg:' + tabs.map((t) => t.label).join('~');
+	return `cg:${tabs.map((t) => t.label).join('~')}`;
 }
 
 /** Pull the `[label]` out of a fence info string; return the label (or null) and the leftover language. */

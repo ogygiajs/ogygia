@@ -141,7 +141,7 @@ function convert_to_ts(deps: Deps, js_code: string, indent = '', offset = ''): s
 				} else if (ts.isJSDocSatisfiesTag(tag)) {
 					satisfies = get_type_info(tag.typeExpression!.getText());
 				} else {
-					throw new Error('Unhandled tag: ' + tag.getText());
+					throw new Error(`Unhandled tag: ${tag.getText()}`);
 				}
 
 				let start = tag.getStart();
@@ -247,7 +247,7 @@ function convert_to_ts(deps: Deps, js_code: string, indent = '', offset = ''): s
 				code.overwrite(end - 1, end, ` as ${type}`);
 			} else {
 				throw new Error(
-					'Unhandled @type JsDoc->TS conversion: ' + js_code.slice(node.getStart(), node.getEnd())
+					`Unhandled @type JsDoc->TS conversion: ${js_code.slice(node.getStart(), node.getEnd())}`
 				);
 			}
 
@@ -296,9 +296,9 @@ function convert_to_ts(deps: Deps, js_code: string, indent = '', offset = ''): s
 		);
 
 		if (last_import) {
-			code.appendLeft(last_import.getEnd(), '\n' + import_statements);
+			code.appendLeft(last_import.getEnd(), `\n${import_statements}`);
 		} else {
-			code.prependLeft(0, offset + import_statements + '\n');
+			code.prependLeft(0, `${offset + import_statements}\n`);
 		}
 	}
 

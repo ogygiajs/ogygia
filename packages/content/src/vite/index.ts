@@ -155,7 +155,7 @@ function content_checks(get_root: () => string, exts: readonly string[]): VitePl
 function warn_placement(root: string, file: string, code: string, warned: Say): void {
 	if (!root || !JS_MODULE_RE.test(file)) return;
 	// app source only — never library code
-	if (!file.startsWith(path.join(root, 'src') + path.sep)) return;
+	if (!file.startsWith(`${path.join(root, 'src')}${path.sep}`)) return;
 	const defines_collection = code.includes('@ogygia/content') && CONTENT_CALL_RE.test(code);
 	if (!defines_collection && !code.includes('import.meta.og.loader.')) return;
 	if (SERVER_MODULE_EXT_RE.test(file) || SERVER_DIR_RE.test(file.slice(root.length))) return;

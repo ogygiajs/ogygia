@@ -35,10 +35,7 @@ const HELD_HOLE_CARD = '/test/browser/fixtures/HeldHoleCard.svelte';
 
 /** The island shell a page carries: the runtime reads `wake` + `entry`, then the props sidecar. */
 function island(entry: string, body: string, props: Record<string, unknown>, wake = 'load') {
-	return (
-		`<ogygia-region wake="${wake}" entry="${entry}">${body}</ogygia-region>` +
-		`<script type="application/ogygia-props" data-ogygia-props>${stringify(props)}</script>`
-	);
+	return `<ogygia-region wake="${wake}" entry="${entry}">${body}</ogygia-region><script type="application/ogygia-props" data-ogygia-props>${stringify(props)}\x3C/script>`;
 }
 
 const b64 = (s: string) => Buffer.from(s, 'utf-8').toString('base64');
@@ -65,11 +62,7 @@ function island_tail(
 	fp: string,
 	legacy = false
 ) {
-	return (
-		`<ogygia-region wake="load" entry="${entry}" data-og-fp="${fp}">${body}</ogygia-region>` +
-		`<p data-filler>content between the island and its props</p>` +
-		keyed_sidecar(fp, stringify(props), { legacy })
-	);
+	return `<ogygia-region wake="load" entry="${entry}" data-og-fp="${fp}">${body}</ogygia-region><p data-filler>content between the island and its props</p>${keyed_sidecar(fp, stringify(props), { legacy })}`;
 }
 
 /** The seed script as the handle emits it (devalue), or on the JSON lane (`data-og-format="json"`). */
@@ -95,30 +88,21 @@ function island_seed_ref(
 	const props_text = stringify(root, {
 		OgygiaSeedRef: (v: unknown) => (v === root ? path : undefined)
 	});
-	return (
-		`<ogygia-region wake="load" entry="${entry}" data-og-fp="${fp}">${body}</ogygia-region>` +
-		`<p data-filler>content</p>` +
-		keyed_sidecar(fp, props_text) +
-		seed_script({
+	return `<ogygia-region wake="load" entry="${entry}" data-og-fp="${fp}">${body}</ogygia-region><p data-filler>content</p>${keyed_sidecar(fp, props_text)}${seed_script(
+		{
 			url: 'http://localhost/',
 			params: {},
 			route: { id: '/' },
 			status: 200,
 			data: seed_data
-		})
-	);
+		}
+	)}`;
 }
 
 /** A whole navigable document (for `DOMParser` on the test side): a seed-ref island whose seed
  *  carries `counter.start = start`, under its own fingerprint — page A and page B of a nav. */
 function seed_nav_document(body: string, start: number, fp: string) {
-	return (
-		`<!doctype html><html><head><meta name="ogygia-router" content="plain"><title>page ${start}</title>` +
-		`<script type="application/x-runtime-stand-in" data-ogygia-runtime${TEST_MARK_ATTR}></script></head><body>` +
-		`<h1 data-page-title>page ${start}</h1>` +
-		island_seed_ref(COUNTER, body, { counter: { start } }, ['counter'], fp) +
-		`</body></html>`
-	);
+	return `<!doctype html><html><head><meta name="ogygia-router" content="plain"><title>page ${start}</title><script type="application/x-runtime-stand-in" data-ogygia-runtime${TEST_MARK_ATTR}>\x3C/script></head><body><h1 data-page-title>page ${start}</h1>${island_seed_ref(COUNTER, body, { counter: { start } }, ['counter'], fp)}</body></html>`;
 }
 
 declare module 'vitest' {
@@ -222,19 +206,16 @@ export default async function setup(project: TestProject) {
 	project.provide(
 		'counter_json_lane_ssr_b64',
 		b64(
-			`<ogygia-region wake="load" entry="${COUNTER}" data-og-fp="0000aaaa1111bbbb">${body}</ogygia-region>` +
-				`<p data-filler>content</p>` +
-				keyed_sidecar('0000aaaa1111bbbb', JSON.stringify(props), { json: true }) +
-				seed_script(
-					{
-						url: 'http://localhost/',
-						params: {},
-						route: { id: '/' },
-						status: 200,
-						data: { greeting: 'json seed' }
-					},
-					true
-				)
+			`<ogygia-region wake="load" entry="${COUNTER}" data-og-fp="0000aaaa1111bbbb">${body}</ogygia-region><p data-filler>content</p>${keyed_sidecar('0000aaaa1111bbbb', JSON.stringify(props), { json: true })}${seed_script(
+				{
+					url: 'http://localhost/',
+					params: {},
+					route: { id: '/' },
+					status: 200,
+					data: { greeting: 'json seed' }
+				},
+				true
+			)}`
 		)
 	);
 	// The real wrapper (Region.svelte) renders the lake + the island's shell here — the browser test
@@ -257,9 +238,7 @@ export default async function setup(project: TestProject) {
 	// 21 heavy islands: 18 out of the viewport come FIRST in document order (absolutely positioned
 	// far below), the 3 in-viewport ones LAST — so viewport-first and document-first disagree.
 	const heavy = (n: number, top: number) =>
-		`<div style="position:absolute;top:${top}px;left:0">` +
-		island(HEAVY, render(Heavy, { props: { n } }).body, { n }) +
-		`</div>`;
+		`<div style="position:absolute;top:${top}px;left:0">${island(HEAVY, render(Heavy, { props: { n } }).body, { n })}</div>`;
 	let schedule = '';
 	for (let i = 0; i < 18; i++) schedule += heavy(i, 4000 + i * 40);
 	for (let i = 18; i < 21; i++) schedule += heavy(i, (i - 18) * 40);

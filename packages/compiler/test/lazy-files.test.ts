@@ -7,6 +7,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { rolldown } from 'rolldown';
 import { lazy_files } from '../src/vite/lazy-files.ts';
+import { dedent } from '@ogygia/core/plugin/utils';
 
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'og-lazy-files-'));
 afterAll(() => fs.rmSync(dir, { recursive: true, force: true }));
@@ -42,19 +43,19 @@ async function built(minify: boolean): Promise<Record<string, Given>> {
 describe('lazy_files', () => {
 	write({
 		'import-again.js': `export const import_again = (load, fresh, file, base) => ({ load, fresh, file, base });\n`,
-		'main.js': [
-			`import { import_again } from './import-again.js';`,
-			`import { shared } from './shared.js';`,
-			`console.log(shared);`,
-			`export const own = import_again(() => import('./lazy/own.js'));`,
-			`export const merged = import_again(() => import('./shared.js'));`,
-			// (a loader that reads part of its module, so the bundler leaves the rest out, with the same
-			// part read from a retry)
-			`export const part = import_again(() => import('./lazy/part.js').then(({ a }) => ({ a })), (url) => import(/* @vite-ignore */ url).then(({ a }) => ({ a })));`,
-			``
-		].join('\n'),
+		'main.js': `${dedent`
+			import { import_again } from './import-again.js';
+			import { shared } from './shared.js';
+			console.log(shared);
+			export const own = import_again(() => import('./lazy/own.js'));
+			export const merged = import_again(() => import('./shared.js'));
+			export const part = import_again(() => import('./lazy/part.js').then(({ a }) => ({ a })), (url) => import(/* @vite-ignore */ url).then(({ a }) => ({ a })));
+		`}\n`,
 		'lazy/own.js': `export const own = 1;\n`,
-		'lazy/part.js': `export const a = 'kept';\nexport const b = 'left out';\n`,
+		'lazy/part.js': `${dedent`
+			export const a = 'kept';
+			export const b = 'left out';
+		`}\n`,
 		'shared.js': `export const shared = 2;\n`
 	});
 

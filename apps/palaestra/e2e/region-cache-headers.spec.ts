@@ -39,7 +39,7 @@ test('a keepFallback() answer (204) carries its hole’s cache policy', async ({
 test('a refused or failed region request is no-store', async ({ baseURL }) => {
 	const [endpoint] = await hole_endpoints(baseURL!, '/server');
 	check('the page has a hole', endpoint !== undefined);
-	const forged = await fetch(endpoint!.replace(SIG_RE, 'sig=' + '0'.repeat(64)));
+	const forged = await fetch(endpoint!.replace(SIG_RE, `sig=${'0'.repeat(64)}`));
 	check('a forged capability is refused (403)', forged.status === 403, String(forged.status));
 	check(
 		'the 403 is no-store',

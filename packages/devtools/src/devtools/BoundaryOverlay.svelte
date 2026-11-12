@@ -27,7 +27,7 @@
 		onpick
 	} = $props();
 
-	const kb = (n) => (n < 1024 ? n + ' B' : (n / 1024).toFixed(1) + ' KB');
+	const kb = (n) => (n < 1024 ? `${n} B` : `${(n / 1024).toFixed(1)} KB`);
 
 	function pick(el) {
 		onpick?.(el);

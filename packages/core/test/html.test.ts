@@ -89,7 +89,7 @@ describe('html', () => {
 		expect(String(html`<div class="og-code" data-pref="${'pm'}">`)).toBe(
 			'<div class="og-code" data-pref="pm">'
 		);
-		expect(html`${0}${null}${undefined}${false}` + '').toBe('0');
+		expect(`${html`${0}${null}${undefined}${false}`}`).toBe('0');
 	});
 });
 

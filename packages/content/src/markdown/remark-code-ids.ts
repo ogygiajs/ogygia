@@ -73,5 +73,5 @@ function assign(node: MdNode, heading: string | null, seen: Set<string>): void {
 	let n = 2;
 	while (seen.has(id)) id = `${base}-${n++}`; // identical blocks in one section still get unique ids
 	seen.add(id);
-	node.meta = `${node.meta ? node.meta + ' ' : ''}${CODE_ID_META}=${id}`;
+	node.meta = `${node.meta ? `${node.meta} ` : ''}${CODE_ID_META}=${id}`;
 }

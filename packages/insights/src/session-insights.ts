@@ -218,13 +218,13 @@ export interface SessionReport {
 	cpu: CpuSummary | null;
 }
 
-const ms = (n: number) => (n >= 1000 ? (n / 1000).toFixed(2) + ' s' : Math.round(n) + ' ms');
+const ms = (n: number) => (n >= 1000 ? `${(n / 1000).toFixed(2)} s` : `${Math.round(n)} ms`);
 const kb = (n: number) =>
 	n < 1024
-		? n + ' B'
+		? `${n} B`
 		: n < 1048576
-			? (n / 1024).toFixed(1) + ' KB'
-			: (n / 1048576).toFixed(1) + ' MB';
+			? `${(n / 1024).toFixed(1)} KB`
+			: `${(n / 1048576).toFixed(1)} MB`;
 const path_of = (u: string) => {
 	try {
 		const x = new URL(u);
@@ -283,14 +283,14 @@ export function analyze_session(
 	let cpu: CpuSummary | null = null;
 	if (is_trace(s.cpu)) {
 		const windows = chosen.map((i) => ({
-			fp: 'ix:' + i,
+			fp: `ix:${i}`,
 			from: s.interactions[i].t,
 			to: s.interactions[i].t + s.interactions[i].duration
 		}));
 		cpu = analyze_cpu(s.cpu, windows, s.longtasks, page_url);
 	}
 	const why = (i: number) => {
-		const f = cpu?.islands['ix:' + i]?.top[0];
+		const f = cpu?.islands[`ix:${i}`]?.top[0];
 		if (f && f.self_ms >= 5) return `; mostly ${fn_label(f)}`;
 		// no sampler: the long animation frame over it names the script
 		const x = s.interactions[i];
@@ -475,13 +475,11 @@ export function analyze_session(
 		findings.push({
 			code: 'server-time',
 			severity: ssr >= 500 ? 'warn' : 'info',
-			message:
-				`${path_of(r.url)} took ${ms(r.ms)}: ${ms(ssr)} on the server` +
-				(cpu_ms !== undefined ? ` (${ms(cpu_ms)} of CPU)` : '') +
-				(net
+			message: `${path_of(r.url)} took ${ms(r.ms)}: ${ms(ssr)} on the server${cpu_ms !== undefined ? ` (${ms(cpu_ms)} of CPU)` : ''}${
+				net
 					? `, ${ms(net.ms)} of it waiting on ${net.desc.split('(')[1]?.split(')')[0] ?? 'several'} outbound call${net.desc.includes('(1)') ? '' : 's'}${up ? ` — the slowest ${up.desc} ${ms(up.ms)}` : ''}`
-					: '') +
-				`, ${ms(Math.max(0, r.ms - ssr))} on the network.`,
+					: ''
+			}, ${ms(Math.max(0, r.ms - ssr))} on the network.`,
 			fix:
 				net && net.ms >= ssr * 0.5
 					? 'The server mostly waited: start the calls together, cache the answer, or move the call out of this request.'

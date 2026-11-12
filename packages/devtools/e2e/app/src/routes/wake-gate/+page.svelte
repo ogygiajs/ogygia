@@ -9,7 +9,7 @@
 	import IdleCounter from '$lib/Counter.svelte' with { wake: 'idle' };
 	import InteractionCounter from '$lib/InteractionCounter.svelte' with { wake: 'interaction' };
 
-	const SLOW_SCRIPT = '<script type="module" src="/wake-gate-slow.js"></' + 'script>';
+	const SLOW_SCRIPT = `<script type="module" src="/wake-gate-slow.js">\x3C/script>`;
 </script>
 
 <svelte:head>

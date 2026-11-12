@@ -14,6 +14,7 @@ import {
 } from '../../../packages/compiler/dist/compiler/region/transform.js';
 import { test, check } from '@ogygia/tooling/e2e';
 import { WRAPPER_VIRTUAL_RE } from '@ogygia/tooling/e2e/re.ts';
+import { dedent } from 'ogygia/plugin/utils';
 
 const repo = fileURLToPath(new URL('../../..', import.meta.url));
 
@@ -55,7 +56,7 @@ const make_ctx = () => ({
 	dev: false,
 	virtualPathFor: (_h: string, iid: string) => `ogygia:region/entry/${iid}.js`,
 	wrapperPathFor: (_h: string, iid: string) => `ogygia:region/wrapper/${iid}.svelte`,
-	devUrlFor: (p: string) => '/@id/' + p,
+	devUrlFor: (p: string) => `/@id/${p}`,
 	visibleMargin: '0px',
 	presets: {}
 });
@@ -187,7 +188,12 @@ export const registry = [RawX, WakeX, LoadY, WakeX2];
 
 		// A `.ts` held+crossable `wake:` island is DISTINCT from a `.svelte` PLACED island of the same
 		// component+schedule — one carries a server endpoint (`held:*`), the other does not (`hydrate:*`).
-		const svelteHost = `<script>\nimport X from '$lib/X.svelte' with { wake: 'visible' };\n</script>\n<X />`;
+		const svelteHost = dedent`
+			<script>
+			import X from '$lib/X.svelte' with { wake: 'visible' };
+			</script>
+			<X />
+		`;
 		const rh = transformHost(svelteHost, '/app/src/routes/+page.svelte', ctx)!;
 		check(
 			'transform(.ts↔.svelte): a .ts held wake island ≠ a .svelte placed island (endpoint vs none)',
@@ -419,7 +425,7 @@ export const registry = [RawX, WakeX, LoadY, WakeX2];
 				);
 				const portableNode = [...appCode.matchAll(PORTABLE_NODE_RE)].map((m) => m[1])[0];
 				if (portableNode) {
-					const pf = fs.readdirSync(nodesDir).find((n) => n.startsWith(portableNode + '.'));
+					const pf = fs.readdirSync(nodesDir).find((n) => n.startsWith(`${portableNode}.`));
 					const pcode = pf ? fs.readFileSync(path.join(nodesDir, pf), 'utf-8') : '';
 					check(
 						'build: portable (csr=false) node has no island static import',
@@ -436,10 +442,7 @@ export const registry = [RawX, WakeX, LoadY, WakeX2];
 					js: Record<string, string[]>;
 					css: Record<string, string[]>;
 				};
-				const portableEntry =
-					'/_app/ogygia/og-region.' +
-					(counterFacades[0]?.match(OG_REGION_HASH_RE)?.[1] ?? '') +
-					'.js';
+				const portableEntry = `/_app/ogygia/og-region.${counterFacades[0]?.match(OG_REGION_HASH_RE)?.[1] ?? ''}.js`;
 				// Presence of deps handoff proves generateBundle walked Rolldown OutputChunk.imports.
 				// Shape is `{ js: { entry: [...] }, css: { entry: [...] } }`.
 				const jsKeys = Object.keys(deps.js ?? {});

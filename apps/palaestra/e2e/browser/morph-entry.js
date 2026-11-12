@@ -9,8 +9,9 @@ const rnd = () => (seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff
 
 function keyedList(n, gen) {
 	let s = '<ul>';
-	for (let i = 0; i < n; i++) s += `<li id="row-${i}" class="r${gen & 1}">Item ${i} · v${gen}</li>`;
-	return s + '</ul>';
+	for (let i = 0; i < n; i++)
+		s = `${s}<li id="row-${i}" class="r${gen & 1}">Item ${i} · v${gen}</li>`;
+	return `${s}</ul>`;
 }
 function shuffledList(n, gen) {
 	const order = Array.from({ length: n }, (_, i) => i);
@@ -19,13 +20,13 @@ function shuffledList(n, gen) {
 		[order[i], order[j]] = [order[j], order[i]];
 	}
 	let s = '<ul>';
-	for (const i of order) s += `<li id="row-${i}" class="r${gen & 1}">Item ${i} · v${gen}</li>`;
-	return s + '</ul>';
+	for (const i of order) s = `${s}<li id="row-${i}" class="r${gen & 1}">Item ${i} · v${gen}</li>`;
+	return `${s}</ul>`;
 }
 function positionalList(n, gen) {
 	let s = '<div>';
-	for (let i = 0; i < n; i++) s += `<p>line ${i} gen ${gen}</p>`;
-	return s + '</div>';
+	for (let i = 0; i < n; i++) s = `${s}<p>line ${i} gen ${gen}</p>`;
+	return `${s}</div>`;
 }
 // Structured reorder where LIS shines: a rotate keeps one long in-order run, so only O(1) nodes move.
 // Row CONTENT is stable across gens (a pure reorder, e.g. drag/sort) so the bench isolates move cost
@@ -35,9 +36,9 @@ function rotatedList(n, gen) {
 	let s = '<ul>';
 	for (let i = 0; i < n; i++) {
 		const k = (i + shift) % n;
-		s += `<li id="row-${k}">Item ${k}</li>`;
+		s = `${s}<li id="row-${k}">Item ${k}</li>`;
 	}
-	return s + '</ul>';
+	return `${s}</ul>`;
 }
 // A handful of items yanked to the front — the common "pin / move a few" edit. Stable content.
 function moveFewList(n, gen) {
@@ -48,35 +49,35 @@ function moveFewList(n, gen) {
 		order.unshift(from);
 	}
 	let s = '<ul>';
-	for (const i of order) s += `<li id="row-${i}">Item ${i}</li>`;
-	return s + '</ul>';
+	for (const i of order) s = `${s}<li id="row-${i}">Item ${i}</li>`;
+	return `${s}</ul>`;
 }
 function table(rows, cols, gen) {
 	let s = '<table><tbody>';
 	for (let r = 0; r < rows; r++) {
-		s += `<tr id="tr-${r}">`;
-		for (let c = 0; c < cols; c++) s += `<td class="c${(gen + c) & 3}">${r},${c}:${gen}</td>`;
-		s += '</tr>';
+		s = `${s}<tr id="tr-${r}">`;
+		for (let c = 0; c < cols; c++) s = `${s}<td class="c${(gen + c) & 3}">${r},${c}:${gen}</td>`;
+		s = `${s}</tr>`;
 	}
-	return s + '</tbody></table>';
+	return `${s}</tbody></table>`;
 }
 function deepTree(sections, cardsPer, gen) {
 	let s = '<main>';
 	for (let a = 0; a < sections; a++) {
-		s += `<section id="s-${a}"><header class="g${gen & 1}"><h2>Section ${a}</h2></header>`;
+		s = `${s}<section id="s-${a}"><header class="g${gen & 1}"><h2>Section ${a}</h2></header>`;
 		for (let b = 0; b < cardsPer; b++) {
-			s += `<article id="c-${a}-${b}" class="card v${gen & 3}"><h3>Card ${b}</h3><p>body ${a}/${b} rev ${gen}</p><footer><span>meta ${gen}</span></footer></article>`;
+			s = `${s}<article id="c-${a}-${b}" class="card v${gen & 3}"><h3>Card ${b}</h3><p>body ${a}/${b} rev ${gen}</p><footer><span>meta ${gen}</span></footer></article>`;
 		}
-		s += '</section>';
+		s = `${s}</section>`;
 	}
-	return s + '</main>';
+	return `${s}</main>`;
 }
 function attrChurn(n, gen) {
 	let s = '<div>';
 	for (let i = 0; i < n; i++) {
-		s += `<span id="a-${i}" class="x${gen & 3}" data-a="${gen}" data-b="${i}" data-c="${(gen + i) & 7}" title="t${gen}" role="cell" aria-label="l${gen}">x</span>`;
+		s = `${s}<span id="a-${i}" class="x${gen & 3}" data-a="${gen}" data-b="${i}" data-c="${(gen + i) & 7}" title="t${gen}" role="cell" aria-label="l${gen}">x</span>`;
 	}
-	return s + '</div>';
+	return `${s}</div>`;
 }
 
 /** Parse an HTML string into a detached array of real DOM child nodes of its single root. */

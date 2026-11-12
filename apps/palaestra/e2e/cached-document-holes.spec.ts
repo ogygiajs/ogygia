@@ -100,7 +100,7 @@ test.describe('holes outlive a CDN-cached document', () => {
 		const plain = await fetch(expired);
 		check('expired capability, plain request → 403', plain.status === 403, String(plain.status));
 
-		const renewed = await fetch(expired + '&renew=1');
+		const renewed = await fetch(`${expired}&renew=1`);
 		const fresh = renewed.headers.get('x-ogygia-capability') ?? '';
 		check('expired capability, &renew=1 → 200', renewed.status === 200, String(renewed.status));
 		check(
@@ -133,14 +133,14 @@ test.describe('holes outlive a CDN-cached document', () => {
 
 		const forged = new URL(expired);
 		forged.searchParams.set('sig', '0'.repeat(64));
-		const r_forged = await fetch(forged.href + '&renew=1');
+		const r_forged = await fetch(`${forged.href}&renew=1`);
 		check(
 			'forged signature, &renew=1 → 403 (only URLs this app minted renew)',
 			r_forged.status === 403,
 			String(r_forged.status)
 		);
 
-		const r_live = await fetch(live + '&renew=1');
+		const r_live = await fetch(`${live}&renew=1`);
 		check(
 			'a capability that has not expired never renews → 403',
 			r_live.status === 403,
@@ -148,7 +148,7 @@ test.describe('holes outlive a CDN-cached document', () => {
 		);
 		check('…and carries no fresh capability', !r_live.headers.get('x-ogygia-capability'));
 
-		const r_old = await fetch(signed_at(live, now() - 9 * DAY) + '&renew=1');
+		const r_old = await fetch(`${signed_at(live, now() - 9 * DAY)}&renew=1`);
 		check(
 			'expired beyond the renew window (9 days) → 403',
 			r_old.status === 403,
@@ -157,7 +157,7 @@ test.describe('holes outlive a CDN-cached document', () => {
 
 		const tampered = new URL(expired);
 		tampered.searchParams.set('exp', String(now() - 7200)); // a different exp than the one signed
-		const r_tampered = await fetch(tampered.href + '&renew=1');
+		const r_tampered = await fetch(`${tampered.href}&renew=1`);
 		check(
 			'tampered exp, &renew=1 → 403 (the MAC covers the original exp)',
 			r_tampered.status === 403,

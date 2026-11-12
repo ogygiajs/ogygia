@@ -8,6 +8,7 @@ import { describe, expect, it } from 'vitest';
 import { rolldown, type Plugin } from 'rolldown';
 import { VirtualTable } from '../src/compiler/virtual/resolver.ts';
 import { virtual } from '../src/compiler/virtual/table.ts';
+import { dedent } from '@ogygia/core/plugin/utils';
 
 const table = new VirtualTable<null>(
 	[
@@ -42,7 +43,11 @@ function app(realm_imports: boolean): Record<string, string> {
 			? `import { ${names.join(', ')} } from 'ogygia:boot';`
 			: names.map((n) => `import { ${n} } from 'ogygia:boot/${MODULE_OF[n]}';`).join(' ');
 	return {
-		'/e1.js': `${from(['alpha', 'gamma'])}\nconsole.log(alpha, gamma());\nimport('/lazy.js');`,
+		'/e1.js': dedent`
+			${from(['alpha', 'gamma'])}
+			console.log(alpha, gamma());
+			import('/lazy.js');
+		`,
 		'/e2.js': `${from(['beta', 'gamma'])}\nconsole.log(beta, gamma());`,
 		'/lazy.js': `${from(['alpha'])}\nexport const lazy = alpha;`
 	};
@@ -74,7 +79,11 @@ async function chunks(files: Record<string, string>): Promise<string[]> {
 describe('a realm module’s names, imported per entry', () => {
 	it('give the bundle the same chunks as direct imports of the entry modules', async () => {
 		expect(table.split_realm_imports(app(true)['/e1.js'])).toBe(
-			`import { alpha } from 'ogygia:boot/a'; import { gamma } from 'ogygia:boot/c';\nconsole.log(alpha, gamma());\nimport('/lazy.js');`
+			dedent`
+				import { alpha } from 'ogygia:boot/a'; import { gamma } from 'ogygia:boot/c';
+				console.log(alpha, gamma());
+				import('/lazy.js');
+			`
 		);
 		const direct = await chunks(app(false));
 		const through_realm = await chunks(app(true));

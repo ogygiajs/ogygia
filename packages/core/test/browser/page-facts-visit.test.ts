@@ -23,14 +23,12 @@ beforeEach(() => {
 	prepare_spa_document();
 	window.fetch = async () =>
 		new Response(
-			'<!doctype html><html><head><meta name="ogygia-router" content="plain"><title>next</title>' +
-				`<script type="application/x-runtime-stand-in" data-ogygia-runtime${TEST_MARK_ATTR}></script>` +
-				`</head><body><p>next</p><script type="application/ogygia-page" data-og-format="json"${TEST_MARK_ATTR}>` +
-				JSON.stringify({
+			`<!doctype html><html><head><meta name="ogygia-router" content="plain"><title>next</title><script type="application/x-runtime-stand-in" data-ogygia-runtime${TEST_MARK_ATTR}>\x3C/script></head><body><p>next</p><script type="application/ogygia-page" data-og-format="json"${TEST_MARK_ATTR}>${JSON.stringify(
+				{
 					url: new URL('/page-facts-next', location.href).href,
 					data: { who: 'next' }
-				}) +
-				'</script></body></html>',
+				}
+			)}\x3C/script></body></html>`,
 			{ status: 200, headers: { 'content-type': 'text/html' } }
 		);
 });
@@ -45,9 +43,7 @@ test('facts a hole brought on one page do not join the next page’s page.data',
 	await boot_link().load_devalue();
 	// a hole on the first page answers, before any island woke: its facts wait for a hydrate
 	region_fragment(
-		'<script type="application/ogygia-page-facts">' +
-			stringify({ who: 'first' }) +
-			'</script><p>hole</p>'
+		`<script type="application/ogygia-page-facts">${stringify({ who: 'first' })}\x3C/script><p>hole</p>`
 	);
 	// the visitor goes to the next page
 	await new SpaRouter().navigate(new URL('/page-facts-next', location.href));

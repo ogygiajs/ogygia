@@ -45,7 +45,7 @@ test('a click lifts the prefetch that replaced one a cache clear ended, and the 
 	const held = await Promise.all(
 		Array.from(
 			{ length: BACKGROUND_WINDOW },
-			(_, i) => new LoadSlot({ kind: 'content', cls: 'ahead', label: 'held' + i }).ready
+			(_, i) => new LoadSlot({ kind: 'content', cls: 'ahead', label: `held${i}` }).ready
 		)
 	);
 	void nav.fetch_page(href, undefined, 'prefetch'); // the first prefetch: queued
@@ -79,7 +79,7 @@ test('a click on a link whose prefetch still waits sends the page at the visitor
 	const held = await Promise.all(
 		Array.from(
 			{ length: BACKGROUND_WINDOW },
-			(_, i) => new LoadSlot({ kind: 'content', cls: 'ahead', label: 'held' + i }).ready
+			(_, i) => new LoadSlot({ kind: 'content', cls: 'ahead', label: `held${i}` }).ready
 		)
 	);
 	void nav.fetch_page(href, undefined, 'prefetch'); // a guess: queued behind the window

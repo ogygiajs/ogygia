@@ -80,7 +80,7 @@ function done(): void {
 				.map(([k, v]) => `${k}=${v}\n`)
 				.join('')
 		);
-	if (env.GITHUB_STEP_SUMMARY) appendFileSync(env.GITHUB_STEP_SUMMARY, summary.join('\n') + '\n');
+	if (env.GITHUB_STEP_SUMMARY) appendFileSync(env.GITHUB_STEP_SUMMARY, `${summary.join('\n')}\n`);
 	console.log(summary.join('\n'));
 	console.log(out);
 }

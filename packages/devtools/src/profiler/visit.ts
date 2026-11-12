@@ -1226,7 +1226,7 @@ export function one_clock(
 						t0: nav.res_start,
 						t1: nav.res_end,
 						kind: 'download',
-						detail: `${nav.size ? Math.round(nav.size / 1024) + ' KB' : 'the document'} over ${Math.round(nav.res_end - nav.res_start)} ms${nav.protocol ? ' · ' + nav.protocol : ''}`
+						detail: `${nav.size ? `${Math.round(nav.size / 1024)} KB` : 'the document'} over ${Math.round(nav.res_end - nav.res_start)} ms${nav.protocol ? ` · ${nav.protocol}` : ''}`
 					}
 				]
 	});
@@ -1254,7 +1254,7 @@ export function one_clock(
 					t1: r.end,
 					kind: t,
 					detail:
-						`${r.transfer ? Math.round(r.transfer / 1024) + ' KB on the wire' : ''}${r.size ? ` · ${Math.round(r.size / 1024)} KB decoded` : ''}${r.blocking ? ' · render-blocking' : ''}`.replace(
+						`${r.transfer ? `${Math.round(r.transfer / 1024)} KB on the wire` : ''}${r.size ? ` · ${Math.round(r.size / 1024)} KB decoded` : ''}${r.blocking ? ' · render-blocking' : ''}`.replace(
 							/^ · /,
 							''
 						),

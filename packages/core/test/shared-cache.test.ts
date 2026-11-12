@@ -160,6 +160,6 @@ describe('runtime: telling an expired capability from its URL', () => {
 		expect(capability_expired('/__ogygia__?exp=soon', now_ms, origin)).toBe(false);
 	});
 	it('the renewal request is the same URL plus renew=1', () => {
-		expect(renewal_url(url(5))).toBe(url(5) + '&renew=1');
+		expect(renewal_url(url(5))).toBe(`${url(5)}&renew=1`);
 	});
 });

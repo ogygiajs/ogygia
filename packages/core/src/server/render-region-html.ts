@@ -38,6 +38,6 @@ export async function render_region_html(
 	const r = await render(component, { props, context });
 	let own = '';
 	for (const href of region_css(module_url))
-		own += '<link rel="stylesheet" href="' + href + '" ' + OGYGIA_REGION_CSS + '>';
-	return own + region_css_tags(r.head) + r.body + kit_page_facts_tail();
+		own = `${own}<link rel="stylesheet" href="${href}" ${OGYGIA_REGION_CSS}>`;
+	return `${own}${region_css_tags(r.head)}${r.body}${kit_page_facts_tail()}`;
 }

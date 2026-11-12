@@ -3,6 +3,7 @@
  * The corpus case it clears: a house factory's custom methods surviving the island wire.
  */
 import { describe, it, expect, vi } from 'vitest';
+import { dedent } from '@ogygia/core/contract';
 import { get, writable, derived } from 'svelte/store';
 import { parse, stringify } from 'devalue';
 import { rewrite_store, auto_brand_stores } from '../src/compiler/macros/store.ts';
@@ -39,14 +40,22 @@ describe('og.store transform', () => {
 	});
 
 	it('accepts an identifier argument; sequential tags per module', () => {
-		const src = `function make(s) { return { subscribe: () => {}, s }; }\nexport const a = import.meta.og.store(make);\nexport const b = import.meta.og.store((x) => make(x));`;
+		const src = dedent`
+			function make(s) { return { subscribe: () => {}, s }; }
+			export const a = import.meta.og.store(make);
+			export const b = import.meta.og.store((x) => make(x));
+		`;
 		const code = run(src);
 		expect(code).toContain(`__og_store("src/lib/cart.ts#store0", make)`);
 		expect(code).toContain(`__og_store("src/lib/cart.ts#store1", (x) => make(x))`);
 	});
 
 	it('works in a .svelte script block; no marker → same reference', () => {
-		const sv = `<script>\n\tconst s = import.meta.og.store((v) => ({ subscribe: () => {}, v }));\n</script>`;
+		const sv = dedent`
+			<script>
+				const s = import.meta.og.store((v) => ({ subscribe: () => {}, v }));
+			</script>
+		`;
 		expect(rewrite_store(sv, 'src/X.svelte', 'src/X.svelte', SVELTE)).toContain(
 			`__og_store("src/X.svelte#store0"`
 		);
@@ -189,7 +198,14 @@ describe('auto-brand tier (zero-authoring provable factories)', () => {
 	});
 
 	it('brands: block body where EVERY return is provable', () => {
-		const src = `import { writable } from 'svelte/store';\nexport const make = (seed) => {\n\tif (!seed) return writable(0);\n\tconst { subscribe, set } = writable(seed);\n\treturn { subscribe, set, reset: () => set(0) };\n};`;
+		const src = dedent`
+			import { writable } from 'svelte/store';
+			export const make = (seed) => {
+				if (!seed) return writable(0);
+				const { subscribe, set } = writable(seed);
+				return { subscribe, set, reset: () => set(0) };
+			};
+		`;
 		expect(auto(src)).toContain(`__og_store("src/lib/s.ts#auto:make"`);
 	});
 
@@ -217,7 +233,13 @@ describe('auto-brand tier (zero-authoring provable factories)', () => {
 	});
 
 	it('auto-branded factory round-trips through the store kind with methods', () => {
-		const src = `import { writable } from 'svelte/store';\nexport const createCtr = (seed = 0) => {\n\tconst { subscribe, set, update } = writable(seed);\n\treturn { subscribe, set, update, bump: () => update((n) => n + 1) };\n};`;
+		const src = dedent`
+			import { writable } from 'svelte/store';
+			export const createCtr = (seed = 0) => {
+				const { subscribe, set, update } = writable(seed);
+				return { subscribe, set, update, bump: () => update((n) => n + 1) };
+			};
+		`;
 		const out = auto(src, 'src/lib/ctr.ts');
 		// execute the branded module body against the real runtime
 		const body = out

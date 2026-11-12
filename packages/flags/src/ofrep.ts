@@ -45,7 +45,7 @@ function default_context(c: CtxLike): Record<string, unknown> {
 export function ofrep(opts: OfrepOptions): FlagSource {
 	const ctx_of = opts.context ?? default_context;
 	const f = opts.fetch ?? net.fetch;
-	const endpoint = opts.url.replace(TRAILING_SLASH_RE, '') + '/ofrep/v1/evaluate/flags/bulk';
+	const endpoint = `${opts.url.replace(TRAILING_SLASH_RE, '')}/ofrep/v1/evaluate/flags/bulk`;
 	const timeout = opts.timeout ?? 800;
 	return async (queries: FlagQuery[], c: CtxLike): Promise<Record<string, Resolved>> => {
 		const out: Record<string, Resolved> = {};

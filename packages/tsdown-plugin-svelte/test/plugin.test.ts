@@ -34,13 +34,11 @@ function library(files: Record<string, string>): string {
 const FILES = {
 	'src/index.ts': "export { greet } from './util.ts';\n",
 	'src/util.ts': 'export const greet = (name: string): string => `hi ${name}`;\n',
-	'src/Button.svelte': [
-		'<script lang="ts">',
-		"\timport { greet } from './util.ts';",
-		'\tlet { name }: { name: string } = $props();',
-		'</script>',
-		'<button>{greet(name as string)}</button>'
-	].join('\n'),
+	'src/Button.svelte': `<script lang="ts">
+	import { greet } from './util.ts';
+	let { name }: { name: string } = $props();
+</script>
+<button>{greet(name as string)}</button>`,
 	'src/style.css': '.a { color: red; }\n',
 	'tsconfig.json': JSON.stringify({
 		compilerOptions: {

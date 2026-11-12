@@ -74,7 +74,7 @@ describe('batch stream parcels', () => {
 				fc.array(fc.record({ slot, html: parcel_text }), { maxLength: 5 }),
 				fc.array(fc.nat(), { maxLength: 6 }),
 				(parcels, cuts) => {
-					const stream = parcels.map((p) => build_parcel(p.slot, p.html)).join('') + done_parcel();
+					const stream = `${parcels.map((p) => build_parcel(p.slot, p.html)).join('')}${done_parcel()}`;
 					const at = [...new Set(cuts.map((c) => c % (stream.length + 1)))].sort((a, b) => a - b);
 					const got: { slot: string; html: string }[] = [];
 					let buffer = '';

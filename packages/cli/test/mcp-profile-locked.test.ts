@@ -57,14 +57,14 @@ const said = (out: { content: { text: string }[] }) => out.content.map((c) => c.
 
 describe('ogygia_profile on a locked profiler', () => {
 	it('says the profiler is locked and asks for its secret when no key is given', async () => {
-		const out = await dispatch_tool('ogygia_profile', { url: origin + '/p', runs: 1 });
+		const out = await dispatch_tool('ogygia_profile', { url: `${origin}/p`, runs: 1 });
 		expect.soft(out.isError).toBe(true);
 		expect(said(out)).toMatch(/is locked\. Ask the user for its secret/);
 	});
 
 	it('says the key was rejected when a wrong key is given', async () => {
 		const out = await dispatch_tool('ogygia_profile', {
-			url: origin + '/p',
+			url: `${origin}/p`,
 			runs: 1,
 			key: 'not-the-secret'
 		});

@@ -50,9 +50,9 @@ describe('trace()', () => {
 		a.go('answered');
 		a.go('loading');
 		expect(t.lines()).toEqual(['visit#1 loading -> answered', 'visit#1 answered -> loading']);
-		expect(t.text()).toBe(
-			'(1 earlier moves let go)\nvisit#1 loading -> answered\nvisit#1 answered -> loading'
-		);
+		expect(t.text()).toBe(`(1 earlier moves let go)
+visit#1 loading -> answered
+visit#1 answered -> loading`);
 	});
 
 	it('records only the names `only` accepts', () => {

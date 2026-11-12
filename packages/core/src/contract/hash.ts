@@ -82,10 +82,10 @@ export function endpoint_key(endpoint: string): string {
 
 /** Match key: WHICH region slot this is (testable without a DOM). */
 export function signature_of(entry: string, endpoint: string): string {
-	return entry + ' ' + endpoint_key(endpoint);
+	return `${entry} ${endpoint_key(endpoint)}`;
 }
 
 /** Change key: DID this region's inputs change (testable without a DOM). */
 export function fingerprint_of(entry: string, endpoint: string, props_text: string): string {
-	return fnv1a(entry + ' ' + endpoint_key(endpoint) + ' ' + props_text);
+	return fnv1a(`${entry} ${endpoint_key(endpoint)} ${props_text}`);
 }

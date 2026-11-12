@@ -11,6 +11,7 @@ import {
 } from '../../../packages/compiler/dist/compiler/region/transform.js';
 import { CTX_EXTRA } from './_ctx-extra.ts';
 import { test, check } from '@ogygia/tooling/e2e';
+import { dedent } from 'ogygia/plugin/utils';
 
 const OGYGIA_RE = /ogygia/i;
 const MUTATION_WARN_RE = /mutat|snapshot|prox/i;
@@ -24,12 +25,17 @@ const baseCtx = {
 	dev: false,
 	virtualPathFor: (_hostId: string, iid: string) => `ogygia:region/entry/${iid}.js`,
 	wrapperPathFor: (_hostId: string, iid: string) => wrapperVirtualId(iid),
-	devUrlFor: (p: string) => '/@id/' + p,
+	devUrlFor: (p: string) => `/@id/${p}`,
 	visibleMargin: '0px',
 	presets: {}
 };
 const HOST = '/app/src/routes/+page.svelte';
-const wrap = (imp: string, usage: string) => `<script>\n${imp}\n</script>\n${usage}`;
+const wrap = (imp: string, usage: string) => dedent`
+	<script>
+	${imp}
+	</script>
+	${usage}
+`;
 const run = (src: string) => transformHost(src, HOST, baseCtx);
 const IMP = `import C from './C.svelte' with { wake: 'load' };`;
 
@@ -51,17 +57,17 @@ test.describe('captured-var mutation: build errors + DEV/prod runtime', () => {
 		expect_ok('host static children cross', wrap(IMP, '<C><p>x</p></C>'));
 		expect_ok(
 			'host children referencing a host value cross',
-			wrap(IMP + '\nconst who = "x";', '<C><p>{who}</p></C>')
+			wrap(`${IMP}\nconst who = "x";`, '<C><p>{who}</p></C>')
 		);
 		expect_ok(
 			'host children with a bind: compile (frozen DOM never writes back)',
-			wrap(IMP + '\nlet name = "x";', '<C><input bind:value={name} /></C>')
+			wrap(`${IMP}\nlet name = "x";`, '<C><input bind:value={name} /></C>')
 		);
 
 		// Explicit serializable props are fine (no free-var hoist)
 		expect_ok(
 			'serializable prop on tag is fine',
-			wrap(IMP + '\nlet count = 0;', '<C value={count} />')
+			wrap(`${IMP}\nlet count = 0;`, '<C value={count} />')
 		);
 		expect_ok('self-closing island is fine', wrap(IMP, '<C />'));
 		expect_ok(

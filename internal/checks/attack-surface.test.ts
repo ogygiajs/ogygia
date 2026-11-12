@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
+import { dedent } from '@ogygia/core/plugin/utils';
 import { current_map, MAP_FILE, scan_file } from './attack-surface.ts';
 
 const ROOT = path.resolve(import.meta.dirname, '../..');
@@ -11,20 +12,20 @@ test('the attack-surface map is the one the code makes now (run node internal/ch
 });
 
 test('an entry names its file, the function it sits in, and what it does, with a count', () => {
-	const src = [
-		'export function read(request: Request) {',
-		"\tconst a = request.headers.get('x-a');",
-		"\tconst b = request.headers.get('x-a');",
-		'\treturn JSON.parse(a + b);',
-		'}',
-		'const top = atob(x);',
-		'class C {',
-		'\t#write(el: Element, html: string) {',
-		'\t\tel.innerHTML = html;',
-		'\t\tif (el.innerHTML == html) return;',
-		'\t}',
-		'}'
-	].join('\n');
+	const src = dedent`
+		export function read(request: Request) {
+			const a = request.headers.get('x-a');
+			const b = request.headers.get('x-a');
+			return JSON.parse(a + b);
+		}
+		const top = atob(x);
+		class C {
+			#write(el: Element, html: string) {
+				el.innerHTML = html;
+				if (el.innerHTML == html) return;
+			}
+		}
+	`;
 	assert.deepEqual(
 		scan_file('a.ts', src)
 			.map((e) => `${e.kind} ${e.where} ${e.what} ${e.count}`)
@@ -39,13 +40,13 @@ test('an entry names its file, the function it sits in, and what it does, with a
 });
 
 test('comments, secrets and routes', () => {
-	const src = [
-		'// el.innerHTML = x (a comment is not a sink)',
-		'export function key() {',
-		'\treturn createHmac("sha256", process.env.OGYGIA_SECRET);',
-		'}',
-		"export const PATH = '/og/thaw';"
-	].join('\n');
+	const src = dedent`
+		// el.innerHTML = x (a comment is not a sink)
+		export function key() {
+			return createHmac("sha256", process.env.OGYGIA_SECRET);
+		}
+		export const PATH = '/og/thaw';
+	`;
 	assert.deepEqual(
 		scan_file('b.ts', src)
 			.map((e) => `${e.kind} ${e.where} ${e.what}`)
@@ -55,21 +56,21 @@ test('comments, secrets and routes', () => {
 });
 
 test("a usage sample in a Svelte component's markup comment is not a surface", () => {
-	const src = [
-		'<!--',
-		'@component',
-		"A head script: `{@html script((k) => k, 'og-theme')}`",
-		'',
-		'```ts',
-		"export const load = async ({ url }) => url.searchParams.get('q');",
-		'```',
-		'-->',
-		'<!-- one line: {@html x} -->',
-		'<script lang="ts">',
-		"\tconst q = page.url.searchParams.get('q');",
-		'</script>',
-		'{@html note}'
-	].join('\n');
+	const src = dedent`
+		<!--
+		@component
+		A head script: \`{@html script((k) => k, 'og-theme')}\`
+
+		\`\`\`ts
+		export const load = async ({ url }) => url.searchParams.get('q');
+		\`\`\`
+		-->
+		<!-- one line: {@html x} -->
+		<script lang="ts">
+			const q = page.url.searchParams.get('q');
+		</script>
+		{@html note}
+	`;
 	assert.deepEqual(
 		scan_file('C.svelte', src)
 			.map((e) => `${e.kind} ${e.where} ${e.what} ${e.count}`)

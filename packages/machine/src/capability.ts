@@ -146,7 +146,7 @@ export function capability(options: CapabilityOptions): Capability {
 
 	const message = (audience: string, exp: number, n: string, fields: readonly string[]) => {
 		let m = `${head}${lp(audience)}|${lp(String(exp))}|${lp(n)}|${fields.length}`;
-		for (const f of fields) m += '|' + lp(f);
+		for (const f of fields) m = `${m}|${lp(f)}`;
 		return m;
 	};
 	const clock = (where: string): number => {

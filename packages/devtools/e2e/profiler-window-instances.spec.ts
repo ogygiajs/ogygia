@@ -70,7 +70,7 @@ test('a window started on one instance gathers the requests every instance serve
 	);
 
 	// a forged id is not the window's: nothing is written for it
-	const forged = { [start.header]: start.id.split('.')[0] + '.0000000000' };
+	const forged = { [start.header]: `${start.id.split('.')[0]}.0000000000` };
 	await b.get('/interaction', { headers: forged });
 	const again = await (await b.post('/__profiler/window/stop', { headers: tag })).json();
 	expect(again.window.requests).toHaveLength(2);

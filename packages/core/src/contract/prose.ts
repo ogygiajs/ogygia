@@ -27,7 +27,7 @@ export function prose(strings: TemplateStringsArray, ...values: unknown[]): stri
 			if (j > 0) {
 				// a blank line ends the paragraph; a line break inside one is a space
 				if (line.trim() === '' && j < last) end_paragraph();
-				else current += ' ';
+				else current = `${current} `;
 			}
 			// (a line's own trailing spaces go, except right before a value: `for ${x}`)
 			const text = j === 0 ? line : line.trimStart();
@@ -35,7 +35,8 @@ export function prose(strings: TemplateStringsArray, ...values: unknown[]): stri
 		});
 		if (i < values.length) {
 			const value = values[i];
-			if (value !== null && value !== undefined && value !== false) current += String(value);
+			if (value !== null && value !== undefined && value !== false)
+				current = `${current}${String(value)}`;
 		}
 	});
 	end_paragraph();

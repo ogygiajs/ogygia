@@ -1,11 +1,19 @@
 // A bracketed frontmatter value is a YAML flow sequence, one item or many.
 import { describe, expect, it } from 'vitest';
 import { parse_yaml, parseFrontmatter } from '../src/markdown/frontmatter.ts';
+import { dedent } from '@ogygia/core/plugin/utils';
 
 describe('flow sequences', () => {
 	it('tags: [svelte] is a one-item list', () => {
 		expect(parse_yaml('tags: [svelte]')).toEqual({ tags: ['svelte'] });
-		expect(parseFrontmatter('---\ntags: [svelte]\n---\nbody').data).toEqual({ tags: ['svelte'] });
+		expect(
+			parseFrontmatter(dedent`
+			---
+			tags: [svelte]
+			---
+			body
+		`).data
+		).toEqual({ tags: ['svelte'] });
 	});
 
 	it('a bracketed phrase is a one-item list, as YAML reads it; quoted, it stays a string', () => {
@@ -37,8 +45,13 @@ describe('flow sequences', () => {
 	it('a bracket or brace inside a plain item is the frontmatter error, as YAML rejects it (#620)', () => {
 		expect(() => parse_yaml('title: [see [a, b]]')).toThrow();
 		expect(() => parse_yaml('a: [a {b}]')).toThrow();
-		expect(() => parseFrontmatter('---\ntitle: [see [a, b]]\n---\nbody')).toThrow(
-			/content_frontmatter_invalid/
-		);
+		expect(() =>
+			parseFrontmatter(dedent`
+			---
+			title: [see [a, b]]
+			---
+			body
+		`)
+		).toThrow(/content_frontmatter_invalid/);
 	});
 });

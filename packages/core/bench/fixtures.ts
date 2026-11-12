@@ -48,50 +48,45 @@ const sheet = (i: number): string => `/_app/immutable/assets/${hex(i + 501)}.css
 /** The `<head>` of a rendered CMS page: every island repeats its hints and its region CSS. */
 export function head(islands: number): string {
 	let out = '<head><meta charset="utf-8"><meta name="viewport" content="width=device-width">';
-	out += '<title>Catalog: every product, every block</title>';
-	out += `<link rel="stylesheet" href="${sheet(0)}"><link rel="preconnect" href="https://cdn.example.test">`;
+	out = `${out}<title>Catalog: every product, every block</title>`;
+	out = `${out}<link rel="stylesheet" href="${sheet(0)}"><link rel="preconnect" href="https://cdn.example.test">`;
 	for (let i = 0; i < islands; i++) {
 		for (let k = 0; k < 4; k++) {
-			out += `<link rel="modulepreload" href="${chunk((i + k) % 24)}" fetchpriority="low">`;
+			out = `${out}<link rel="modulepreload" href="${chunk((i + k) % 24)}" fetchpriority="low">`;
 		}
-		out += `<link rel="stylesheet" href="${sheet(1 + (i % 6))}" data-ogygia-region-css>`;
+		out = `${out}<link rel="stylesheet" href="${sheet(1 + (i % 6))}" data-ogygia-region-css>`;
 		if (i % 5 === 0)
-			out += `<style data-ogygia-region-css="${sheet(40 + i)}">.b${i}{color:red}/* <link rel="stylesheet" href="x"> */</style>`;
+			out = `${out}<style data-ogygia-region-css="${sheet(40 + i)}">.b${i}{color:red}/* <link rel="stylesheet" href="x"> */</style>`;
 	}
-	out += `<script type="module" src="/_app/ogygia/runtime.${hex(7)}.js" data-ogygia-runtime></script>`;
-	return out + '</head>';
+	out = `${out}<script type="module" src="/_app/ogygia/runtime.${hex(7)}.js" data-ogygia-runtime></script>`;
+	return `${out}</head>`;
 }
 
 /** One island's server markup: a card with rows, Svelte's hydration comments, a custom element. */
 function island_html(i: number, rows: number): string {
 	let inner = `<!--[--><demo-card class="card c${i}"><h2>Block ${i}</h2><ul>`;
 	for (let r = 0; r < rows; r++) {
-		inner += `<li data-sku="SKU-${i}-${r}"><a href="/p/${i}/${r}">Row ${r}</a> <span>${(i * 7 + r) % 97}</span></li>`;
+		inner = `${inner}<li data-sku="SKU-${i}-${r}"><a href="/p/${i}/${r}">Row ${r}</a> <span>${(i * 7 + r) % 97}</span></li>`;
 	}
-	inner += '</ul></demo-card><!--]-->';
-	return (
-		`<ogygia-region entry="${island_entry(i)}" wake="${i % 3 === 0 ? 'load' : 'visible'}" ` +
-		`data-og-fp="${hex(i + 900)}${hex(i + 901)}">${inner}</ogygia-region>`
-	);
+	inner = `${inner}</ul></demo-card><!--]-->`;
+	return `<ogygia-region entry="${island_entry(i)}" wake="${i % 3 === 0 ? 'load' : 'visible'}" data-og-fp="${hex(i + 900)}${hex(i + 901)}">${inner}</ogygia-region>`;
 }
 
 /** A rendered CMS document: `regions` regions (islands, lakes holding islands, holes), ~1 KB each. */
 export function document(regions: number, rows = 8): string {
 	let body = '<body><div style="display: contents">';
-	body += '<script>window.__note = "<ogygia-region wake=load> is text here";</script>';
-	body += '<style>/* <ogygia-region> in a comment */ .x{}</style><!-- <ogygia-region> -->';
+	body = `${body}<script>window.__note = "<ogygia-region wake=load> is text here";</script>`;
+	body = `${body}<style>/* <ogygia-region> in a comment */ .x{}</style><!-- <ogygia-region> -->`;
 	for (let i = 0; i < regions; i++) {
 		if (i % 7 === 3) {
-			body += `<ogygia-region wake="none"><section class="lake">${island_html(i, rows)}</section></ogygia-region>`;
+			body = `${body}<ogygia-region wake="none"><section class="lake">${island_html(i, rows)}</section></ogygia-region>`;
 		} else if (i % 11 === 5) {
-			body +=
-				`<ogygia-region render="defer" when="visible" endpoint="/__ogygia__/r?id=${hex(i)}&amp;p=${hex(i + 3)}">` +
-				`<p class="fallback">Loading block ${i}</p></ogygia-region>`;
+			body = `${body}<ogygia-region render="defer" when="visible" endpoint="/__ogygia__/r?id=${hex(i)}&amp;p=${hex(i + 3)}"><p class="fallback">Loading block ${i}</p></ogygia-region>`;
 		} else {
 			body += island_html(i, rows);
 		}
 	}
-	body += '</div></body>';
+	body = `${body}</div></body>`;
 	return `<!doctype html><html lang="en">${head(Math.min(regions, 40))}${body}</html>`;
 }
 
@@ -202,14 +197,15 @@ export function dictionary_data(entries: number) {
 export function content_document(blocks: number): string {
 	let nav = '';
 	for (let i = 0; i < 240; i++)
-		nav += `<li><a href="/menu/${i % 6}/item/${i}">Item ${i}</a><p>${LOREM_TEXT.slice(0, 100)}</p></li>`;
+		nav = `${nav}<li><a href="/menu/${i % 6}/item/${i}">Item ${i}</a><p>${LOREM_TEXT.slice(0, 100)}</p></li>`;
 	const header_html = `<ogygia-region entry="${island_entry(900)}" wake="load" data-og-fp="${hex(990)}${hex(991)}"><!--[--><header><nav><ul>${nav}</ul></nav></header><!--]--></ogygia-region>`;
 	const doc = document(blocks, 100);
 	const at =
 		doc.indexOf('<div style="display: contents">') + '<div style="display: contents">'.length;
 	const end = doc.lastIndexOf('</div></body>');
 	let footer = '';
-	for (let i = 0; i < 72; i++) footer += `<li><a href="/f/${i % 6}/${i}">Link ${i}</a></li>`;
+	for (let i = 0; i < 72; i++)
+		footer = `${footer}<li><a href="/f/${i % 6}/${i}">Link ${i}</a></li>`;
 	const footer_html = `<ogygia-region entry="${island_entry(901)}" wake="visible" data-og-fp="${hex(992)}${hex(993)}"><!--[--><footer><ul>${footer}</ul><p>${LOREM_TEXT.repeat(6)}</p></footer><!--]--></ogygia-region>`;
 	return doc.slice(0, at) + header_html + doc.slice(at, end) + footer_html + doc.slice(end);
 }
@@ -218,12 +214,12 @@ export function content_document(blocks: number): string {
 export function plain_document(sections: number): string {
 	let body = '<body><main>';
 	for (let i = 0; i < sections; i++) {
-		body += `<section class="s${i}"><h2>Section ${i}</h2><ul>`;
+		body = `${body}<section class="s${i}"><h2>Section ${i}</h2><ul>`;
 		for (let r = 0; r < 100; r++)
-			body += `<li data-sku="SKU-${i}-${r}"><a href="/p/${i}/${r}">Row ${r}</a> <span>${(i * 7 + r) % 97}</span></li>`;
-		body += '</ul></section>';
+			body = `${body}<li data-sku="SKU-${i}-${r}"><a href="/p/${i}/${r}">Row ${r}</a> <span>${(i * 7 + r) % 97}</span></li>`;
+		body = `${body}</ul></section>`;
 	}
-	body += '</main><script>window.__note = "</body> is text here";</script></body>';
+	body = `${body}</main><script>window.__note = "</body> is text here";</script></body>`;
 	return `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Docs</title><link rel="stylesheet" href="${sheet(0)}"></head>${body}</html>`;
 }
 
@@ -231,12 +227,7 @@ export function plain_document(sections: number): string {
 export function hole_answer(regions: number): string {
 	let out = '';
 	for (let i = 0; i < regions; i++) {
-		out +=
-			`<link rel="stylesheet" href="../_app/immutable/assets/${hex(i)}.css" data-ogygia-region-css>` +
-			`<ogygia-region entry="./og-region.${hex(i)}.js" wake="visible">` +
-			`<div><img src="./img/${i}.png" alt=""><a href="/p/${i}">Item ${i}</a></div>` +
-			`<ogygia-region render="defer" endpoint="./r?id=${hex(i + 1)}"><i>later</i></ogygia-region>` +
-			'</ogygia-region>';
+		out = `${out}<link rel="stylesheet" href="../_app/immutable/assets/${hex(i)}.css" data-ogygia-region-css><ogygia-region entry="./og-region.${hex(i)}.js" wake="visible"><div><img src="./img/${i}.png" alt=""><a href="/p/${i}">Item ${i}</a></div><ogygia-region render="defer" endpoint="./r?id=${hex(i + 1)}"><i>later</i></ogygia-region></ogygia-region>`;
 	}
 	return out;
 }

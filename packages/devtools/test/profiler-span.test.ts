@@ -11,7 +11,7 @@ const dev_switch = vi.hoisted(() => ({ dev: true }));
 vi.mock('../src/profiler/env.ts', () => ({ detect_dev: () => dev_switch.dev }));
 
 function make_event(path: string, headers: Record<string, string> = {}): RequestEvent {
-	const url = new URL('http://localhost' + path);
+	const url = new URL(`http://localhost${path}`);
 	return {
 		url,
 		request: new Request(url, { headers }),
@@ -44,7 +44,7 @@ async function profile_spans(body: () => Promise<void>): Promise<Row[]> {
 	const url = res.headers.get('x-profile-report')!;
 	const json = await (
 		await handle({
-			event: make_event(url + '.json', { 'x-profiler-key': 'prof-key' }),
+			event: make_event(`${url}.json`, { 'x-profiler-key': 'prof-key' }),
 			resolve: async () => new Response('no')
 		})
 	).json();

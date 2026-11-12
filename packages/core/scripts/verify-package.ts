@@ -17,6 +17,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { dedent } from '../src/contract/dedent.ts';
 
 /** A subpath's condition map (`types` / `svelte` / `default` → file); every export here is flat. */
 type Conditions = Record<string, string>;
@@ -30,7 +31,7 @@ type Manifest = {
 
 const pkg_root = path.resolve(process.argv[2] ?? path.join(import.meta.dirname, '..'));
 const fail: string[] = [];
-const note = (m: string) => process.stdout.write(m + '\n');
+const note = (m: string) => process.stdout.write(`${m}\n`);
 const work = fs.mkdtempSync(path.join(os.tmpdir(), 'ogygia-verify-'));
 const tarballs: string[] = [];
 
@@ -178,13 +179,16 @@ const ambient_subpaths = Object.entries(exports).filter(([sp, val]) => {
 // A namespace type-import that FAILS to resolve is a compile error (TS2307/2306); one that resolves
 // is silent (unused type-only imports aren't flagged). So the imports alone are the assertion. A
 // reference that fails to resolve is TS2688.
-const consumer =
-	ambient_subpaths.map(([sp]) => `/// <reference types="${name}${sp.slice(1)}" />`).join('\n') +
-	'\n' +
-	type_subpaths
-		.map(([sp], i) => `import type * as _${i} from '${name}${sp.slice(1)}';`)
-		.join('\n') +
-	'\n';
+const references = ambient_subpaths
+	.map(([sp]) => `/// <reference types="${name}${sp.slice(1)}" />`)
+	.join('\n');
+const type_imports = type_subpaths
+	.map(([sp], i) => `import type * as _${i} from '${name}${sp.slice(1)}';`)
+	.join('\n');
+const consumer = `${dedent`
+	${references}
+	${type_imports}
+`}\n`;
 fs.writeFileSync(path.join(root, 'consumer.ts'), consumer);
 fs.writeFileSync(
 	path.join(root, 'tsconfig.verify.json'),
@@ -230,7 +234,7 @@ for (const t of tarballs) fs.rmSync(t, { force: true });
 
 if (fail.length) {
 	note(`\n✗ ${name}: package verification FAILED:`);
-	for (const f of fail) note('  · ' + f);
+	for (const f of fail) note(`  · ${f}`);
 	process.exit(1);
 }
 note(`\n✓ ${name} verified — ${Object.keys(exports).length} exports ship, resolve, and type-check`);

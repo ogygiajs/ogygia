@@ -206,15 +206,12 @@ export async function document(
 
 	// The runtime bootstrap goes before any script the component's head carries (after its non-JS
 	// head content) — the same order the handle gives a Kit page (head-presence.ts `runtime_first`).
-	const html =
-		`<!doctype html>\n<html lang="${escape_text(options.lang ?? 'en')}">` +
-		`<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">` +
-		(early.length
-			? with_early_holes_meta_csp(
-					runtime_first(head.join(''), null, code_origins(), response_mark(mark_key))
-				)
-			: runtime_first(head.join(''), null, code_origins(), response_mark(mark_key))) +
-		`</head><body>${r.body}</body></html>`;
+	const head_html = early.length
+		? with_early_holes_meta_csp(
+				runtime_first(head.join(''), null, code_origins(), response_mark(mark_key))
+			)
+		: runtime_first(head.join(''), null, code_origins(), response_mark(mark_key));
+	const html = `<!doctype html>\n<html lang="${escape_text(options.lang ?? 'en')}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">${head_html}</head><body>${r.body}</body></html>`;
 
 	const headers = new Headers({ 'content-type': 'text/html; charset=utf-8' });
 	// Programmatic documents are rendered per request — `no-store` by default, cacheable ones

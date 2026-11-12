@@ -12,7 +12,7 @@ const STUBS = fileURLToPath(new URL('../../core/test/_stubs/', import.meta.url))
 
 const ENTRY_STUB = /^(server|boot|region|dev)\.(.+)$/;
 
-const exact = (id: string): RegExp => new RegExp('^' + id.replace(/[$/.]/g, '\\$&') + '$');
+const exact = (id: string): RegExp => new RegExp(`^${id.replace(/[$/.]/g, '\\$&')}$`);
 
 /** The stubs as exact-match aliases (a realm module's id is a prefix of its entries' ids). */
 export function stub_aliases(): { find: RegExp; replacement: string }[] {
@@ -21,13 +21,13 @@ export function stub_aliases(): { find: RegExp; replacement: string }[] {
 		const name = file.replace(/\.ts$/, '');
 		const entry = ENTRY_STUB.exec(name);
 		const id = name.startsWith('app-')
-			? '$app/' + name.slice(4)
+			? `$app/${name.slice(4)}`
 			: name.startsWith('realm-')
-				? 'ogygia:' + name.slice(6)
+				? `ogygia:${name.slice(6)}`
 				: entry
 					? `ogygia:${entry[1]}/${entry[2]}`
 					: null;
-		if (id) out.push({ find: exact(id), replacement: STUBS + file });
+		if (id) out.push({ find: exact(id), replacement: `${STUBS}${file}` });
 	}
 	return out;
 }

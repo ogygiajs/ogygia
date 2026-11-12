@@ -249,7 +249,7 @@ if (update) {
 	const snap: Snapshot = Object.fromEntries(
 		rows.map((r) => [r.name, { boot: r.boot, total: r.total }])
 	);
-	writeFileSync(SNAPSHOT, JSON.stringify(snap, null, 2) + '\n');
+	writeFileSync(SNAPSHOT, `${JSON.stringify(snap, null, 2)}\n`);
 	console.log(`✓ baseline snapshot written → apps/palaestra/e2e/bundle-size.snapshot.json`);
 }
 
@@ -270,36 +270,24 @@ const base: Snapshot = COMPARE
 		: {};
 /** A profile's baseline, or undefined when the snapshot predates the boot/total split. */
 const baseline = (name: string) => (base[name]?.boot && base[name]?.total ? base[name] : undefined);
-const kb = (n: number) => (n / 1024).toFixed(2) + ' kB';
+const kb = (n: number) => `${(n / 1024).toFixed(2)} kB`;
 const delta = (cur: number, prev?: number) => {
 	if (prev == null) return '—';
 	const d = cur - prev;
 	if (d === 0) return '±0';
-	return (d > 0 ? '+' : '') + (d / 1024).toFixed(2) + ' kB';
+	return `${(d > 0 ? '+' : '') + (d / 1024).toFixed(2)} kB`;
 };
 
 console.log(`\nogygia runtime (brotli) — isolated rolldown build, svelte externalized\n`);
 console.log(
-	'  ' +
-		'profile'.padEnd(16) +
-		'boot'.padEnd(11) +
-		'Δ'.padEnd(11) +
-		'total'.padEnd(11) +
-		'Δ'.padEnd(11) +
-		'lazy chunks'
+	`  ${'profile'.padEnd(16)}${'boot'.padEnd(11)}${'Δ'.padEnd(11)}${'total'.padEnd(11)}${'Δ'.padEnd(11)}lazy chunks`
 );
-console.log('  ' + '─'.repeat(84));
+console.log(`  ${'─'.repeat(84)}`);
 const failures: string[] = [];
 for (const r of rows) {
 	const prev = baseline(r.name);
 	console.log(
-		'  ' +
-			r.name.padEnd(16) +
-			kb(r.boot.brotli).padEnd(11) +
-			delta(r.boot.brotli, prev?.boot.brotli).padEnd(11) +
-			kb(r.total.brotli).padEnd(11) +
-			delta(r.total.brotli, prev?.total.brotli).padEnd(11) +
-			r.lazy.map((l) => `${l.name} ${kb(l.brotli)}`).join(', ')
+		`  ${r.name.padEnd(16)}${kb(r.boot.brotli).padEnd(11)}${delta(r.boot.brotli, prev?.boot.brotli).padEnd(11)}${kb(r.total.brotli).padEnd(11)}${delta(r.total.brotli, prev?.total.brotli).padEnd(11)}${r.lazy.map((l) => `${l.name} ${kb(l.brotli)}`).join(', ')}`
 	);
 	if (!prev || update) continue;
 	for (const key of ['boot', 'total'] as const) {
@@ -311,17 +299,17 @@ for (const r of rows) {
 	}
 }
 const avg = Math.round(rows.reduce((a, r) => a + r.boot.brotli, 0) / rows.length);
-console.log('  ' + '─'.repeat(84));
-console.log('  ' + 'average boot'.padEnd(16) + kb(avg));
+console.log(`  ${'─'.repeat(84)}`);
+console.log(`  ${'average boot'.padEnd(16)}${kb(avg)}`);
 console.log('');
 if (failures.length) {
 	if (COMPARE) {
-		console.error('✗ bundle-size growth over the base branch:\n  ' + failures.join('\n  '));
+		console.error(`✗ bundle-size growth over the base branch:\n  ${failures.join('\n  ')}`);
 		console.error(
 			'  If the growth is meant, the PR body says why on a line of its own: `Size baseline: <why>`.'
 		);
 	} else {
-		console.error('✗ bundle-size regression (over snapshot + 2 %):\n  ' + failures.join('\n  '));
+		console.error(`✗ bundle-size regression (over snapshot + 2 %):\n  ${failures.join('\n  ')}`);
 		console.error('  If the growth is intended, refresh the baseline: pnpm bundle-size --update');
 	}
 	process.exit(1);

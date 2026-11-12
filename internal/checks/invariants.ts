@@ -193,7 +193,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
 		disk_repo(root)
 	);
 	if (problems.length > 0) {
-		console.error('INVARIANTS.md: an invariant is not enforced\n' + problems.join('\n'));
+		console.error(`INVARIANTS.md: an invariant is not enforced\n${problems.join('\n')}`);
 		process.exit(1);
 	}
 	console.log('INVARIANTS.md: every invariant names an enforcer that exists');

@@ -59,8 +59,7 @@ export const CONTENT_BUILD_ERRORS = {
 	},
 	content_mdsvex_missing: {
 		text: (): string =>
-			'Markdown content needs the optional peer dependency "mdsvex". Install it:\n' +
-			'  npm i -D mdsvex   (or the pnpm / yarn / bun equivalent)',
+			`Markdown content needs the optional peer dependency "mdsvex". Install it:\n  npm i -D mdsvex   (or the pnpm / yarn / bun equivalent)`,
 		details: (): string => prose`
 			Markdown is compiled with \`mdsvex\`, an optional peer dependency: it is not installed
 			with \`@ogygia/content\`, so an app that uses markdown installs it.

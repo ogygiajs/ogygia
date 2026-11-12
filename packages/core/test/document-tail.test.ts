@@ -70,12 +70,7 @@ describe('DocumentTail', () => {
 		expect(t.size).toEqual({ hints: 4, graph: 0, props: 2, holes: 0 });
 		expect(t.empty).toBe(false);
 		expect(t.render()).toBe(
-			'<link rel="modulepreload" href="/a.js" fetchpriority="low">' +
-				'<link rel="modulepreload" href="/b.js" fetchpriority="low">' +
-				'<link rel="modulepreload" href="/c.js" fetchpriority="low">' +
-				'<link rel="modulepreload" href="/one.js" fetchpriority="low">' +
-				'<script type="application/ogygia-props" data-ogygia-props="f1" id="og-props-f1">1</script>' +
-				'<script type="application/ogygia-props" data-ogygia-props="f2" id="og-props-f2">2</script>'
+			`<link rel="modulepreload" href="/a.js" fetchpriority="low"><link rel="modulepreload" href="/b.js" fetchpriority="low"><link rel="modulepreload" href="/c.js" fetchpriority="low"><link rel="modulepreload" href="/one.js" fetchpriority="low"><script type="application/ogygia-props" data-ogygia-props="f1" id="og-props-f1">1\x3C/script><script type="application/ogygia-props" data-ogygia-props="f2" id="og-props-f2">2\x3C/script>`
 		);
 		// no detail asked: no rows; with detail, one row per fingerprint with the count + the meta
 		expect(t.island_rows()).toBeNull();

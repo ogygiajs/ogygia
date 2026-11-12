@@ -37,7 +37,7 @@
 	// svelte-ignore state_referenced_locally
 	const script =
 		typeof window === 'undefined'
-			? LT + 'script data-ogygia-provide' + GT + serialize_context(resolved) + LT + '/script' + GT
+			? `${LT}script data-ogygia-provide${GT}${serialize_context(resolved)}${LT}/script${GT}`
 			: '';
 </script>
 

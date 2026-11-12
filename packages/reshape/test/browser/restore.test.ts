@@ -113,15 +113,7 @@ test('a stand-in keeps the parser from splitting the page’s link, and becomes 
 test('a stand-in becomes only a tag the server pass writes as one, without on* attributes', async () => {
 	const w = window as { __og_ran?: number };
 	w.__og_ran = 0;
-	document.body.innerHTML =
-		'<div id="c">' +
-		'<og-as tag="script">window.__og_ran++</og-as>' +
-		'<og-as tag="iframe" src="about:blank"></og-as>' +
-		'<og-as tag="object"></og-as><og-as tag="embed"></og-as><og-as tag="base" href="/x/"></og-as>' +
-		'<og-as tag="meta"></og-as><og-as tag="link"></og-as><og-as tag="style"></og-as>' +
-		'<og-as tag="template"></og-as><og-as tag="svg"></og-as><og-as></og-as>' +
-		'<og-as tag="p" onclick="window.__og_ran++" class="kept">text</og-as>' +
-		'</div>';
+	document.body.innerHTML = `<div id="c"><og-as tag="script">window.__og_ran++</og-as><og-as tag="iframe" src="about:blank"></og-as><og-as tag="object"></og-as><og-as tag="embed"></og-as><og-as tag="base" href="/x/"></og-as><og-as tag="meta"></og-as><og-as tag="link"></og-as><og-as tag="style"></og-as><og-as tag="template"></og-as><og-as tag="svg"></og-as><og-as></og-as><og-as tag="p" onclick="window.__og_ran++" class="kept">text</og-as></div>`;
 	restore(document);
 	await new Promise((r) => setTimeout(r, 50));
 	const c = document.getElementById('c')!;
@@ -539,9 +531,7 @@ test('putting attributes back never adds an event handler, a srcdoc or a javascr
 		'data-x': 'y'
 	});
 	const attr = (s: string) => s.replace(/&/g, '&amp;').replace(/'/g, '&#39;');
-	document.body.innerHTML =
-		`<demo-card og-h="k1" og-r='${attr(host_r)}'>` +
-		`<a og-c="k1.0" og-r='${attr(child_r)}'>a</a></demo-card>`;
+	document.body.innerHTML = `<demo-card og-h="k1" og-r='${attr(host_r)}'><a og-c="k1.0" og-r='${attr(child_r)}'>a</a></demo-card>`;
 	expect(restore(document)).toBe(1);
 	const host = document.querySelector<HTMLElement>('demo-card')!;
 	const a = host.querySelector('a')!;

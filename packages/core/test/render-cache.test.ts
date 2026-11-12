@@ -76,23 +76,23 @@ describe('render cache: what it keeps', () => {
 	});
 
 	it('bounds memory — past 500 entries the oldest evict', async () => {
-		for (let i = 0; i < 600; i++) await put(k('k' + i), 'v' + i, 60);
+		for (let i = 0; i < 600; i++) await put(k(`k${i}`), `v${i}`, 60);
 		expect(render_cache_get(k('k0'))).toBe(null); // oldest evicted
 		expect(render_cache_get(k('k599'))).toBe('v599'); // newest kept
 	});
 
 	it('a hit is an LRU touch — a recently-served entry survives eviction pressure', async () => {
 		await put(k('keep'), 'v', 60);
-		for (let i = 0; i < 499; i++) await put(k('f' + i), 'x', 60); // fill to 500
+		for (let i = 0; i < 499; i++) await put(k(`f${i}`), 'x', 60); // fill to 500
 		await put(k('keep'), 'other', 60); // a hit (served 'v') → most-recent
-		for (let i = 0; i < 100; i++) await put(k('g' + i), 'x', 60); // pressure
+		for (let i = 0; i < 100; i++) await put(k(`g${i}`), 'x', 60); // pressure
 		expect(render_cache_get(k('keep'))).toBe('v'); // survived because touched
 	});
 
 	it('holds many small renders, but 2 MB renders evict each other long before 500 entries', async () => {
 		const big = 'x'.repeat(2_000_000);
-		for (let i = 0; i < 40; i++) await put(k('big' + i), big, 60);
-		const kept = Array.from({ length: 40 }, (_, i) => render_cache_get(k('big' + i))).filter(
+		for (let i = 0; i < 40; i++) await put(k(`big${i}`), big, 60);
+		const kept = Array.from({ length: 40 }, (_, i) => render_cache_get(k(`big${i}`))).filter(
 			(v) => v !== null
 		).length;
 		expect(kept).toBeLessThan(40);
@@ -107,7 +107,7 @@ describe('cached_render — the shared seam (G2)', () => {
 		let renders = 0;
 		const body = () => {
 			renders++;
-			return '<p>' + renders + '</p>';
+			return `<p>${renders}</p>`;
 		};
 		const cache = { key: render_cache_key('id', 'p', ''), ttl: 60 };
 		at(1000);
@@ -121,7 +121,7 @@ describe('cached_render — the shared seam (G2)', () => {
 
 	it('re-renders after expiry, and NEVER caches a dynamic (no cache / ttl<=0) render', async () => {
 		let renders = 0;
-		const body = () => '<p>' + ++renders + '</p>';
+		const body = () => `<p>${++renders}</p>`;
 		const cache = { key: render_cache_key('id2', 'p', ''), ttl: 10 };
 		at(1000);
 		await cached_render(body, cache); // render 1, expires 11_000
