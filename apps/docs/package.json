@@ -33,6 +33,7 @@
 		"@ogygia/devtools": "workspace:*",
 		"@ogygia/federation": "workspace:*",
 		"@ogygia/flags": "workspace:*",
+		"@ogygia/insights": "workspace:*",
 		"@ogygia/machine": "workspace:*",
 		"@ogygia/postrender": "workspace:*",
 		"@ogygia/reshape": "workspace:*",

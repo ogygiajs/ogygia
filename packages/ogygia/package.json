@@ -108,10 +108,6 @@
 			"types": "./dist/events.d.ts",
 			"default": "./src/events.ts"
 		},
-		"./insights": {
-			"types": "./dist/insights.d.ts",
-			"default": "./src/insights.ts"
-		},
 		"./types": {
 			"types": "./ambient.d.ts"
 		}
@@ -200,10 +196,6 @@
 				"types": "./dist/events.d.ts",
 				"default": "./dist/events.js"
 			},
-			"./insights": {
-				"types": "./dist/insights.d.ts",
-				"default": "./dist/insights.js"
-			},
 			"./internal/compiler": {
 				"types": "./dist/internal/compiler.d.ts",
 				"default": "./dist/internal/compiler.js"
@@ -221,8 +213,7 @@
 	},
 	"dependencies": {
 		"@ogygia/compiler": "workspace:*",
-		"@ogygia/core": "workspace:*",
-		"@ogygia/insights": "workspace:*"
+		"@ogygia/core": "workspace:*"
 	},
 	"devDependencies": {
 		"@ogygia/config": "workspace:*",

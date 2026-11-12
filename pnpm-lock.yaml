@@ -457,6 +457,9 @@ importers:
       '@ogygia/flags':
         specifier: workspace:*
         version: link:../../packages/flags
+      '@ogygia/insights':
+        specifier: workspace:*
+        version: link:../../packages/insights
       '@ogygia/machine':
         specifier: workspace:*
         version: link:../../packages/machine
@@ -1563,9 +1566,6 @@ importers:
       '@ogygia/core':
         specifier: workspace:*
         version: link:../core
-      '@ogygia/insights':
-        specifier: workspace:*
-        version: link:../insights
       rolldown:
         specifier: catalog:peers
         version: 1.2.16
