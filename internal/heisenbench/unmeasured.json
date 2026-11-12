@@ -4645,6 +4645,10 @@
 			"reason": "build time: declares the flags definer through the plugin builder (not cloneable), constant work"
 		},
 		{
+			"id": "packages/federation/src/serve.ts > thaw_notice > every:0~b2197b",
+			"reason": "one typeof check per tag (an inline callback, not replayable on its own), constant work; run by packages/federation/test/thaw-notice-shape.test.ts"
+		},
+		{
 			"id": "packages/core/src/hooks.ts > OgygiaHandle > #render_capability > render_component:4~077289",
 			"reason": "the profiler's cache-outcome callback of a batched hole: one assignment to a local, constant work"
 		},
