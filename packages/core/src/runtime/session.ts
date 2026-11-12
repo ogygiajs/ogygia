@@ -18,7 +18,7 @@ export type LakeCacheEntry = {
 	frag: Node;
 	endpoint: string;
 	when: string;
-	/** `Date.now()` when this entry was first cached or last successfully revalidated. */
+	/** `clock.mono()` when this entry was first cached or last successfully revalidated. */
 	cachedAt: number;
 	/** Client TTL in ms; `0` = no expiry. */
 	maxAgeMs: number;

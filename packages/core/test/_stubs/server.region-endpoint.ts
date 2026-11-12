@@ -4,7 +4,7 @@
 import { fingerprint_of } from '../../src/contract/hash.ts';
 export const make_region_endpoint = () => '';
 export const mint_server_region = () => '';
-export const known_region_fps = (): ReadonlySet<string> => new Set();
+export const reuse_known_region = (): boolean => false;
 export const hole_css = (): string[] => [];
 // (real-shaped: 16 hex of entry + canonical text, which tests read off `data-og-fp`; the universal
 // lane hash stands in for server/fingerprint.ts, which needs `node:crypto`)

@@ -797,7 +797,7 @@ export function hydrate_island(
 				const app = hydrate(Component, {
 					target: region,
 					props: pushed ? pushed.props : wrapped,
-					context: nested_context(provided_ctx),
+					context: nested_context(provided_ctx, region),
 					...recovery
 				});
 				return handle(app, unmount_app, entry, pushed);
@@ -960,7 +960,7 @@ export function hydrate_live(
 		app = hydrate(mod.default, {
 			target: region,
 			props: pushed.props,
-			context: nested_context(provided_ctx)
+			context: nested_context(provided_ctx, region)
 		});
 	} finally {
 		set_current_region(null);
