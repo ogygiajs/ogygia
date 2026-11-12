@@ -10,7 +10,7 @@
  *   its listeners, timers, streams).
  * - `rule_failure_uncoded`: no failure leaves ogygia without a code: an uncaught ogygia error names
  *   its code's page, and a `STALE` never escapes as a rejection.
- * - `rule_parse_upgraded`: a parsed answer is inert (./parse-html.ts, #382): no element of it was
+ * - `rule_parse_upgraded`: a parsed answer is inert (./html-sink.ts, #382): no element of it was
  *   built by a component's constructor before the restore reached it.
  * - `rule_markup_known`: every ogygia marker on the page (`data-ogygia-*`, and `data-og-*` on an
  *   `ogygia-*` element) is declared in `MARK` (../wire-markup.ts, #479): a renamed or misspelled
@@ -240,7 +240,7 @@ function regions_show_their_answers(): string | null {
 
 /** (What parses built that they should not have, as found, is `R.parsed_built`.) */
 
-/** The rule's ear on every parse (./parse-html.ts calls it): an element of the parsed fragment that
+/** The rule's ear on every parse (./html-sink.ts calls it): an element of the parsed fragment that
  *  a component's constructor built (a defined name, an instance of its definition). */
 function note_parse(fragment: DocumentFragment): void {
 	if (R.parsed_built.length >= 10 || typeof customElements === 'undefined') return;
