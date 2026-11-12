@@ -11,6 +11,8 @@
  *   the middle does: signed payloads must be refused, never painted);
  * - `redirect`: a request to ogygia's region endpoint is sent to another origin, whose answer
  *   is HTML the page must never paint;
+ * - `stall`: an answer is held 10 to 40 s before it starts coming (a stuck connection, an overloaded
+ *   origin): longer than a client's own deadline for it;
  * - `offline`: a tab's requests fail at once.
  *
  * A fault is on for a run when its class is in the run's swarm (search.ts picks a random subset per
@@ -20,7 +22,15 @@ import { AsyncLocalStorage } from 'node:async_hooks';
 import type { Loop } from './loop.ts';
 import type { Rng } from './rng.ts';
 
-export type FaultClass = 'delay' | 'drop' | 'duplicate' | 'cut' | 'tamper' | 'reorder' | 'redirect';
+export type FaultClass =
+	| 'delay'
+	| 'drop'
+	| 'duplicate'
+	| 'cut'
+	| 'tamper'
+	| 'reorder'
+	| 'redirect'
+	| 'stall';
 
 /** The rest of the web, where a `redirect` fault sends a request (world.ts answers it). */
 export const ELSEWHERE = 'https://elsewhere.test';
@@ -57,6 +67,8 @@ export interface Exchange {
 	redirected: boolean;
 	/** Its body broke off as its tab went offline (`status` stays the answer's). */
 	lost?: boolean;
+	/** Its answer was held 10 to 40 s on the way (a `stall`): its page may have given up on it. */
+	stalled?: boolean;
 	/** The build whose server gave the answer the client got (its {@link ANSWERED_BY} header). */
 	build?: string;
 	/** A batch of holes (`POST /__ogygia__`): the holes it asks for, by `answer_key` (world.ts). */
@@ -98,7 +110,8 @@ const RATES: Record<FaultClass, number> = {
 	duplicate: 0.05,
 	cut: 0.03,
 	tamper: 0.01,
-	redirect: 0.3
+	redirect: 0.3,
+	stall: 0.02
 };
 
 export class Network {
@@ -256,6 +269,9 @@ export class Network {
 			ex.duplicated = dup;
 			const cut = !calm && this.#on('cut');
 			const tamper = !calm && this.#on('tamper');
+			// (drawn only in a run with stalls: every other run's draws stay as they were)
+			const stall = !calm && this.#on('stall') ? this.#rng.between(10_000, 40_000) : 0;
+			if (stall > 0) ex.stalled = true;
 			// (until its answer comes, its tab going offline fails it: `offline`)
 			let lost = false;
 			this.#on_wire.set(ex, (why) => {
@@ -285,7 +301,8 @@ export class Network {
 								);
 							if (!lost) ex.status = response.status;
 							ex.build = response.headers.get(ANSWERED_BY) ?? undefined;
-							loop.add('net', `response ${ex.id} ${response.status}`, this.#latency(calm), () => {
+							const leg = this.#latency(calm) + stall;
+							loop.add('net', `response ${ex.id} ${response.status}`, leg, () => {
 								if (signal?.aborted || lost) {
 									void response.body?.cancel();
 									return;

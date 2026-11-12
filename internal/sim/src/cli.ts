@@ -267,6 +267,8 @@ export async function run(
 	const r = rng(seed).fork('swarm');
 	// swarm testing: each run turns on its own subset of fault classes
 	const faults = FAULTS.filter(() => r.chance(0.4));
+	// (stalls on a stream of their own: the swarm's other draws stay as they were)
+	if (rng(seed).fork('swarm stall').chance(0.3)) faults.push('stall');
 	// and its own servers: sometimes two instances behind the front door (each request to the
 	// seed's pick), their clocks up to 5 s apart
 	const instances = r.chance(0.3) ? 2 : 1;

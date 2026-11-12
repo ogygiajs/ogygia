@@ -47,7 +47,8 @@ export function asked_twice(
 	for (const [i, e] of world.network.exchanges.entries()) {
 		if (i >= until) break;
 		if (e.from !== realm || e.status !== 200) continue;
-		if (e.cut || e.lost === true || e.tampered || e.duplicated) continue;
+		// (a stalled answer the page may have given up on: asking again is its recovery)
+		if (e.cut || e.lost === true || e.tampered || e.duplicated || e.stalled === true) continue;
 		if (e.method === 'POST') {
 			for (const k of e.holes ?? []) {
 				holes.set(k, [...(holes.get(k) ?? []), e.at]);
