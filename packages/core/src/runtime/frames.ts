@@ -9,7 +9,7 @@
  * static-islands app (and a router app without deferred regions) tree-shakes the whole graph away.
  */
 import { slots } from './slots.ts';
-import { subscribe, ensure, peek, renew, renewal } from './frame-store.ts';
+import { subscribe, peek, ticket, ensure, renew, renewal } from './frame-store.ts';
 import { watch_frames } from './rules.ts';
 import { batch_times, join_batch, streamFrames } from './frame-nav.ts';
 import { adopt_early_holes } from './early-holes.ts';
@@ -28,6 +28,7 @@ export function install(): void {
 	slots.frames = {
 		subscribe,
 		peek,
+		ticket,
 		ensure,
 		renew,
 		renewal,
