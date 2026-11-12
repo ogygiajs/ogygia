@@ -266,20 +266,95 @@ function reason_notes(context: Context, note: RegExp): (node: Node) => boolean {
 	return (node) => lines.has((node as Located).loc.start.line);
 }
 
-/** A handler that does nothing with the failure: `() => {}`, `() => undefined`, `() => null`,
- *  `() => void 0`, or a function named `noop`. */
+/** A value handed back in place of what failed: a literal (`null`, `''`, `0`, `false`), a template
+ *  with nothing in it, `[]`, `{}`, `void 0`, `-1`, or a plain name (`undefined`, a fallback
+ *  constant). */
+function is_fallback(e: Node | undefined | null): boolean {
+	if (!e) return true;
+	switch (e.type) {
+		case 'Literal':
+		case 'Identifier':
+			return true;
+		case 'TemplateLiteral':
+			return (e.expressions as unknown[]).length === 0;
+		case 'ArrayExpression':
+			return (e.elements as unknown[]).length === 0;
+		case 'ObjectExpression':
+			return (e.properties as unknown[]).length === 0;
+		case 'UnaryExpression':
+			return (e.argument as Node).type === 'Literal';
+		default:
+			return false;
+	}
+}
+
+/** A body that does nothing with the failure but fall back: empty, or one `return <fallback>`,
+ *  `continue`, `break`, or `<name> = <fallback>`. */
+function falls_back(statements: unknown[]): boolean {
+	if (statements.length === 0) return true;
+	if (statements.length > 1) return false;
+	const s = statements[0] as Node;
+	if (s.type === 'ReturnStatement') return is_fallback(s.argument as Node | null);
+	if (s.type === 'ContinueStatement' || s.type === 'BreakStatement') return true;
+	if (s.type !== 'ExpressionStatement') return false;
+	const e = s.expression as Node;
+	return (
+		e.type === 'AssignmentExpression' &&
+		(e.left as Node).type === 'Identifier' &&
+		is_fallback(e.right as Node)
+	);
+}
+
+/** Does `node` read the name `name` anywhere under it? */
+function reads(node: unknown, name: string): boolean {
+	if (!node || typeof node !== 'object') return false;
+	if (Array.isArray(node)) return node.some((n) => reads(n, name));
+	const n = node as Node;
+	if (n.type === 'Identifier' && (n as { name?: string }).name === name) return true;
+	for (const key in n) {
+		if (key === 'parent' || key === 'loc' || key === 'range') continue;
+		if (reads((n as Record<string, unknown>)[key], name)) return true;
+	}
+	return false;
+}
+
+/** A handler that does nothing with the failure but fall back: `() => {}`, `() => null`,
+ *  `() => ''`, `() => []`, `() => { return false; }`, or a function named `noop`. One that reads
+ *  its error does something with it. */
 function swallows(handler: unknown): boolean {
 	const h = handler as Node | undefined;
 	if (!h) return false;
 	if (h.type === 'Identifier') return (h as { name?: string }).name === 'noop';
 	if (h.type !== 'ArrowFunctionExpression' && h.type !== 'FunctionExpression') return false;
+	const param = (h.params as Node[])[0];
+	if (param?.type === 'Identifier' && reads(h.body, (param as { name: string }).name)) return false;
 	const body = h.body as Node;
+	if (body.type === 'BlockStatement') return falls_back(body.body as unknown[]);
+	return is_fallback(body);
+}
+
+/** The packages whose fallback catches are not swept yet (#1286): there, only an empty catch or
+ *  handler (`() => {}`, `=> null`, `=> undefined`, `=> void 0`, `noop`) is refused, as before.
+ *  Each sweep takes its package out; the list and `empty_handler` go with the last. */
+const FALLBACKS_UNSWEPT_RE = /\/packages\/(compiler|core|devtools)\//;
+
+/** The handlers refused before #1286: they do nothing at all. */
+function empty_handler(handler: unknown): boolean {
+	const h = handler as Node | undefined;
+	if (h?.type === 'Identifier') return true;
+	const body = (h as Node).body as Node;
 	if (body.type === 'BlockStatement') return (body.body as unknown[]).length === 0;
 	if (body.type === 'Identifier') return (body as { name?: string }).name === 'undefined';
 	if (body.type === 'Literal') return (body as { value?: unknown }).value === null;
-	if (body.type === 'UnaryExpression')
-		return body.operator === 'void' && (body.argument as Node).type === 'Literal';
-	return false;
+	return body.type === 'UnaryExpression' && body.operator === 'void';
+}
+
+/** A `catch` that does nothing with the failure but fall back (it never reads its error). */
+function catch_falls_back(clause: Node): boolean {
+	const statements = (clause.body as Node).body as unknown[];
+	if (!falls_back(statements)) return false;
+	const param = clause.param as Node | null;
+	return !(param?.type === 'Identifier' && reads(statements, (param as { name: string }).name));
 }
 
 /** `p.catch(handler)` / `p.then(ok, handler)`: the failure has a handler that does something. */
@@ -298,8 +373,10 @@ const MESSAGE_SILENT =
 
 /**
  * `ogygia/no-silent-failures`: every caught failure reports a message code, re-throws, or moves a
- * machine; nothing is swallowed without a written reason. Refused: an empty `catch` (a comment is
- * not a body), `.catch(() => {})` (or `=> undefined`, `=> null`, `noop`), and a bare `void <call>()`,
+ * machine; nothing is swallowed without a written reason. Refused: a `catch` that only falls back
+ * (empty, or one `return <fallback>`, `continue`, `break` or `x = <fallback>`, never reading its
+ * error; a comment is not a body), a handler that only falls back (`.catch(() => {})`, `=> null`,
+ * `=> ''`, `=> []`, `noop`; #1286), and a bare `void <call>()`,
  * whose rejection goes unhandled unless the callee catches it (`void p.catch(report)` is handled).
  * A site that is truly fine carries `// ok: <reason>` on its first or last line (for a catch, also
  * inside its body; for a `void` call, also alone on the line above). A `void` call is one through
@@ -330,17 +407,23 @@ const no_silent_failures = {
 		const refuse = (node: Node) => {
 			if (!marked(node)) context.report({ node, message: MESSAGE_SILENT });
 		};
+		const unswept = FALLBACKS_UNSWEPT_RE.test(
+			(context.filename ?? context.getFilename?.() ?? '').replaceAll('\\', '/')
+		);
+		const swallowed = (handler: unknown): boolean =>
+			swallows(handler) && (!unswept || empty_handler(handler));
 		return {
 			CatchClause(node: Node) {
-				if (((node.body as Node).body as unknown[]).length === 0) refuse(node);
+				if (!catch_falls_back(node)) return;
+				if (!unswept || ((node.body as Node).body as unknown[]).length === 0) refuse(node);
 			},
 			CallExpression(node: Node) {
 				const callee = node.callee as Node;
 				if (callee?.type !== 'MemberExpression') return;
 				const name = (callee.property as { name?: string }).name;
 				const args = node.arguments as unknown[];
-				if (name === 'catch' && swallows(args[0])) refuse(node);
-				else if (name === 'then' && args.length > 1 && swallows(args[1])) refuse(node);
+				if (name === 'catch' && swallowed(args[0])) refuse(node);
+				else if (name === 'then' && args.length > 1 && swallowed(args[1])) refuse(node);
 			},
 			UnaryExpression(node: Node) {
 				if (node.operator !== 'void') return;

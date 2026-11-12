@@ -562,6 +562,6 @@ function now(): number {
 	try {
 		return clock.wall(); // wall: an exposure's timestamp, sent to the analytics sink
 	} catch {
-		return 0;
+		return 0; // ok: no clock in this sandbox: exposure timestamps are 0 (said above)
 	}
 }

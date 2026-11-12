@@ -175,6 +175,6 @@ function safe_decode(s: string): string {
 	try {
 		return decodeURIComponent(s);
 	} catch {
-		return s;
+		return s; // ok: a malformed escape matches as it was written
 	}
 }

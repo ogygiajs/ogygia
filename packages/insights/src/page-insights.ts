@@ -514,7 +514,7 @@ export function defer_keys(html: string, marker = 'OgygiaDefer'): Map<number, st
 		if (!Array.isArray(parsed)) return out;
 		arr = parsed;
 	} catch {
-		return out;
+		return out; // ok: not a JSON list: nothing to read from it
 	}
 	// (every value is an index into the array; a reducer is [name, index])
 	const id_of = (i: unknown): number | null => {
@@ -751,7 +751,7 @@ export function encoding_only(a: string, b: string): boolean {
 	try {
 		return decodeURIComponent(a) === decodeURIComponent(b);
 	} catch {
-		return false;
+		return false; // ok: a malformed escape is not the same URL written another way
 	}
 }
 
@@ -2448,7 +2448,7 @@ export function analyze_page(
 			try {
 				return new URL(u, 'http://x').pathname;
 			} catch {
-				return u;
+				return u; // ok: not a URL: shown as given
 			}
 		};
 		if (h.reason === 'forbidden') {
@@ -2496,7 +2496,7 @@ export function analyze_page(
 		try {
 			host = new URL(s.url).host;
 		} catch {
-			continue;
+			continue; // ok: an inline or malformed script URL has no host to weigh
 		}
 		host_ms.set(host, Math.max(host_ms.get(host) ?? 0, 0) + (cpu?.by_host?.[host] ? 0 : s.ms));
 	}
@@ -3239,7 +3239,7 @@ function explain_interaction(
 		try {
 			return new URL(url, origin).origin === origin;
 		} catch {
-			return true;
+			return true; // ok: not a URL: counted as the page's own, as with no origin known
 		}
 	};
 	// SAMPLED: when a trace of this interaction was taken, the function that ran — by its real name
@@ -3351,7 +3351,7 @@ function path_of(url: string): string {
 		const u = new URL(url, 'http://x');
 		return u.pathname + u.search;
 	} catch {
-		return url;
+		return url; // ok: not a URL: shown as given
 	}
 }
 

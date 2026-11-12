@@ -133,8 +133,7 @@ export function restore(root: Document | DocumentFragment | Element): number {
 			sheet = new CSSStyleSheet();
 			sheet.replaceSync(css);
 		} catch {
-			// no constructable stylesheets: a <style> per root
-			sheet = null;
+			sheet = null; // ok: no constructable stylesheets: a <style> per root
 		}
 		const made = { sheet, css };
 		sheets.set(key, made);
@@ -204,7 +203,7 @@ export function restore(root: Document | DocumentFragment | Element): number {
 		try {
 			return JSON.parse(data.slice(q + 1)) as string;
 		} catch {
-			return undefined;
+			return undefined; // ok: a comment that only looks like a mark carries no original
 		}
 	};
 
@@ -262,7 +261,7 @@ export function restore(root: Document | DocumentFragment | Element): number {
 		try {
 			check = JSON.parse(check_el.textContent || '{}');
 		} catch {
-			check = null;
+			check = null; // ok: a check that does not parse checks nothing; the restore itself goes on
 		}
 		check_el.remove();
 	}

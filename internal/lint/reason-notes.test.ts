@@ -13,11 +13,11 @@ import path from 'node:path';
 const ROOT = path.resolve(import.meta.dirname, '../..');
 const OXLINT = path.join(ROOT, 'node_modules/.bin/oxlint');
 
-/** The lines of `source`, as a core source file, that `rule` reports. */
-function reported(rule: string, source: string): number[] {
+/** The lines of `source`, as a source file of `pkg` (core by default), that `rule` reports. */
+function reported(rule: string, source: string, pkg = 'core'): number[] {
 	const dir = mkdtempSync(path.join(tmpdir(), 'og-reason-notes-'));
 	try {
-		const file = path.join(dir, 'packages/core/src/x.ts');
+		const file = path.join(dir, `packages/${pkg}/src/x.ts`);
 		mkdirSync(path.dirname(file), { recursive: true });
 		writeFileSync(file, source);
 		const config = path.join(dir, '.oxlintrc.json');
@@ -99,5 +99,7 @@ export function k() { try { return p(); } catch { use(1); return null; } }
 `;
 
 test('ogygia/no-silent-failures: a catch that only falls back (a value, a continue) says why (#1286)', () => {
-	assert.deepEqual(reported('no-silent-failures', FALLBACKS), [3, 4, 5, 6, 7, 8, 9]);
+	assert.deepEqual(reported('no-silent-failures', FALLBACKS, 'router'), [3, 4, 5, 6, 7, 8, 9]);
+	// (a package not swept yet refuses only the empty ones, as before)
+	assert.deepEqual(reported('no-silent-failures', FALLBACKS, 'core'), []);
 });

@@ -305,7 +305,7 @@ function claims_of(user_b64: string): { user?: Claims } | null {
 			user: JSON.parse(Buffer.from(user_b64, 'base64').toString()) as Claims
 		};
 	} catch {
-		return null; // signed but unparseable claims = reject
+		return null; // ok: signed but unparseable claims: the caller rejects the request
 	}
 }
 
@@ -456,7 +456,7 @@ function pin_graph(json: string, origin: string): string {
 	try {
 		wire = JSON.parse(json);
 	} catch {
-		return json;
+		return json; // ok: not a graph: peer HTML passes through as it came
 	}
 	// (peer HTML: anything that is not a graph object passes through as it came)
 	if (!wire || typeof wire !== 'object' || Array.isArray(wire)) return json;

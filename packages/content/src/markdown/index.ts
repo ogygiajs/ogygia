@@ -287,7 +287,7 @@ function register_island_scanner(
 			try {
 				entries = readdirSync(dir, { withFileTypes: true });
 			} catch {
-				return;
+				return; // ok: a folder that cannot be read holds no pages to watch
 			}
 			for (const e of entries) {
 				if (e.isDirectory()) {
