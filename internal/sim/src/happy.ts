@@ -423,7 +423,35 @@ interface Manager {
  * back). The other methods clear the timer with the real `clearTimeout`, which ignores this handle,
  * so a task that is no longer the manager's current one does nothing.
  */
-export function scripts_start_once(): void {}
+/**
+ * A script runs once, as in a browser: a script is "already started" once it connected (whether it
+ * ran or not), or when a parser marked it unexecutable (`DOMParser`, `innerHTML`), and a copy
+ * carries the flag (HTML's cloning steps for `script`). happy-dom keeps no such flag, so a copy of a
+ * parsed page's script ran when the router's head merge put it in the page: the next page's early
+ * hole start ran again and asked for holes its batch had brought (gen 191, seed 191001). Idempotent.
+ * test/scripts.test.ts.
+ */
+export function scripts_start_once(): void {
+	const script = HTMLScriptElement.prototype as unknown as Record<symbol | string, unknown>;
+	if (script.__once) return;
+	script.__once = true;
+	const started = new WeakSet<object>();
+	const connect = script[PropertySymbol.connectedToDocument] as (this: object) => unknown;
+	script[PropertySymbol.connectedToDocument] = function (this: Record<symbol, unknown>) {
+		if (started.has(this)) this[PropertySymbol.disableEvaluation] = true;
+		started.add(this);
+		return connect.call(this);
+	};
+	const clone = script[PropertySymbol.cloneNode] as (this: object, deep?: boolean) => unknown;
+	script[PropertySymbol.cloneNode] = function (this: Record<symbol, unknown>, deep?: boolean) {
+		const copy = clone.call(this, deep) as Record<symbol, unknown>;
+		if (started.has(this) || this[PropertySymbol.disableEvaluation] === true) {
+			copy[PropertySymbol.disableEvaluation] = true;
+			started.add(copy);
+		}
+		return copy;
+	};
+}
 
 export function completion_on_the_loop(loop: Loop | null): void {
 	driving = loop;

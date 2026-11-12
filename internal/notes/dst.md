@@ -59,6 +59,9 @@ module scripts. Its gaps are handled in the sim, with no patch to happy-dom:
   request on the network, and the answer carries its URL (`test/redirect.test.ts`).
 - It ran an inline module script at once and an external one when its file came: a document's
   module scripts run in its order (`modules_in_order`, `test/modules.test.ts`).
+- It ran a copy of any script: a copy carries "already started" (a script that connected, or one a
+  parser marked unexecutable), so the router's head merge ran the next page's early hole start
+  again (`scripts_start_once`, `test/scripts.test.ts`; gen 191).
 - Its console's methods read private fields, so a document's own console (which tells one
   document's words from another's) runs each on the page's console (`test/console.test.ts`).
 - Its `document.getElementsByTagNameNS` read the document's owner document (it has none) and
