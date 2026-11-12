@@ -26,6 +26,7 @@ const AUD = '/__ogygia__';
 const APP_SIGNER: AppSigner = {
 	sign: (message) => sign(SECRET, message),
 	verify: (message, signature) => verify(SECRET, message, signature),
+	fingerprint: () => 'aaaaaaaa',
 	lifetime: capability_lifetime({
 		building: false,
 		region_ttl: 3600,
@@ -56,7 +57,8 @@ const claim: RegionClaim = {
 	payload: 'eyJuIjoxfQ',
 	session: '',
 	ttl: '',
-	render: 'c0ffee0c0ffe'
+	render: 'c0ffee0c0ffe',
+	wakes: ''
 };
 
 describe("a plugin's signature never verifies as a region capability", () => {
