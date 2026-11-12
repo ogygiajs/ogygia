@@ -4215,6 +4215,22 @@
 		{
 			"id": "packages/compiler/src/vite/lazy-files.ts > lazy_files > renderChunk",
 			"reason": "build only: Vite's renderChunk hook over a rendered chunk and its bundle (not cloneable), linear in the chunk's file tokens; proven in packages/compiler/test/lazy-files.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/import-again.ts > import_again > next > catch:0~df975d",
+			"reason": "browser only: a failed retry's import (an Error: not replayable): starts the wait for its verdict, constant work of its own; proven in packages/core/test/import-again.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/import-again.ts > import_again > next > catch:0~df975d > wait",
+			"reason": "browser only: holds (or clears) the verdict on the loader's failed state (machine state: not replayable), one state move; proven in packages/core/test/import-again.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/import-again.ts > import_again > next > catch:0~df975d > then:0~ef5058",
+			"reason": "browser only: the retry's verdict once its timing entry lands (the loader's machine state: not replayable), one state move; proven in packages/core/test/import-again.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/import-again.ts > import_again > next > catch:0~df975d > then:0~ef5058 > once:1~b3964f",
+			"reason": "browser only: says once per page that a reload is needed (a dependency's failure no URL fixes), constant work; proven in packages/core/test/import-again.test.ts"
 		}
 	]
 }
