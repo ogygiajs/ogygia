@@ -156,7 +156,6 @@ function bag_of(request: Request): Bag {
 		request,
 		ctx: new Map(),
 		page: null,
-		seed_wanted: false,
 		seed_keys: null,
 		seed_asks: request_stats_detailed() ? new Map() : null,
 		remotes_wanted: new Set(),
