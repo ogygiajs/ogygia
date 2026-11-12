@@ -9,15 +9,21 @@
  * - `cut`: a response body stops partway (an aborted stream);
  * - `tamper`: a response body's bytes are changed on the way (what a broken proxy or an attacker in
  *   the middle does: signed payloads must be refused, never painted);
+ * - `redirect`: a request to ogygia's region endpoint is sent to another origin, whose answer
+ *   is HTML the page must never paint;
  * - `offline`: a tab's requests fail at once.
  *
  * A fault is on for a run when its class is in the run's swarm (search.ts picks a random subset per
  * run), and then fires with its probability.
  */
+import { AsyncLocalStorage } from 'node:async_hooks';
 import type { Loop } from './loop.ts';
 import type { Rng } from './rng.ts';
 
-export type FaultClass = 'delay' | 'drop' | 'duplicate' | 'cut' | 'tamper' | 'reorder';
+export type FaultClass = 'delay' | 'drop' | 'duplicate' | 'cut' | 'tamper' | 'reorder' | 'redirect';
+
+/** The rest of the web, where a `redirect` fault sends a request (world.ts answers it). */
+export const ELSEWHERE = 'https://elsewhere.test';
 
 export interface NetworkOptions {
 	loop: Loop;
@@ -26,6 +32,9 @@ export interface NetworkOptions {
 	faults: ReadonlySet<FaultClass>;
 	/** Each fault's chance when it is on (per request). */
 	rates?: Partial<Record<FaultClass, number>>;
+	/** The requests a `redirect` fault may send to another origin (default: ogygia's region
+	 *  endpoint, whose HTML a page paints). */
+	redirectable?: (url: URL) => boolean;
 }
 
 export type Handler = (request: Request) => Promise<Response>;
@@ -34,12 +43,52 @@ export type Handler = (request: Request) => Promise<Response>;
 export interface Exchange {
 	readonly id: number;
 	readonly from: string;
+	/** A server's hop: the document whose request the server was answering when it made it. */
+	readonly for?: string;
 	readonly method: string;
 	readonly url: string;
-	status: number | 'dropped' | 'offline' | 'pending';
+	/** When it was sent (virtual ms). */
+	readonly at: number;
+	status: number | 'dropped' | 'offline' | 'aborted' | 'pending';
 	cut: boolean;
 	tampered: boolean;
 	duplicated: boolean;
+	/** Answered with a redirect to another origin (`ELSEWHERE`). */
+	redirected: boolean;
+	/** Its body broke off as its tab went offline (`status` stays the answer's). */
+	lost?: boolean;
+	/** The build whose server gave the answer the client got (its {@link ANSWERED_BY} header). */
+	build?: string;
+	/** A batch of holes (`POST /__ogygia__`): the holes it asks for, by `answer_key` (world.ts). */
+	holes?: readonly string[];
+}
+
+/** The header the front door puts on each answer: the build that answered it (a cached copy says
+ *  it too). Read off the answer the client gets, not a duplicate's thrown away (seed 53). */
+export const ANSWERED_BY = 'x-sim-build';
+
+/** The document a server is answering, through all its async work: its own hops are on that
+ *  document's behalf (a calm tab's reference load is calm all the way to a peer). */
+const asked_by = new AsyncLocalStorage<string>();
+
+/** The exchange a handler is answering now, through all its async work. */
+const answering = new AsyncLocalStorage<Exchange>();
+
+/** The exchange whose request is being answered now (the front door names what a batch asks). */
+export function answering_now(): Exchange | undefined {
+	return answering.getStore();
+}
+
+/** The client a server is answering: the visitor's address, or the reference load's. */
+const client = new AsyncLocalStorage<string>();
+const VISITOR_ADDRESS = '10.0.0.1';
+const REFERENCE_ADDRESS = '10.0.0.2';
+
+/** The address of the client whose request a server is answering now (Kit's `getClientAddress`).
+ *  An oracle's reference load is a client of its own: it shares no per-client budget (a rate
+ *  limit) with the run's visitor, whose own traffic may have used it up (gen 78, seed 78013). */
+export function client_address(): string {
+	return client.getStore() ?? VISITOR_ADDRESS;
 }
 
 const RATES: Record<FaultClass, number> = {
@@ -48,7 +97,8 @@ const RATES: Record<FaultClass, number> = {
 	drop: 0.03,
 	duplicate: 0.05,
 	cut: 0.03,
-	tamper: 0.01
+	tamper: 0.01,
+	redirect: 0.3
 };
 
 export class Network {
@@ -65,13 +115,57 @@ export class Network {
 		this.#rng = options.rng.fork('net');
 		this.#faults = options.faults;
 		this.#rates = { ...RATES, ...options.rates };
+		this.#redirectable = options.redirectable ?? ((url) => url.pathname.startsWith('/__ogygia__'));
 	}
 
-	/** Takes `realm` off the network (or puts it back). */
+	readonly #redirectable: (url: URL) => boolean;
+
+	/** Each exchange still on the wire (its request out, or its body still coming): how it fails
+	 *  when its tab loses the network. */
+	readonly #on_wire = new Map<Exchange, (why: string) => void>();
+
+	/**
+	 * Takes `realm` off the network (or puts it back). What it has on the wire fails too, as when a
+	 * device loses its connection: a request not yet answered fails to fetch, a body still coming
+	 * (a page, a live stream) breaks off. (They used to go on arriving while the tab was offline.)
+	 */
 	offline(realm: string, off: boolean): void {
-		if (off) this.#offline.add(realm);
-		else this.#offline.delete(realm);
+		if (off !== this.#offline.has(realm)) for (const told of this.#told) told(realm, !off);
+		if (!off) {
+			this.#offline.delete(realm);
+			return;
+		}
+		this.#offline.add(realm);
+		// (a Map deletes as it is walked: an entry gone is not visited)
+		for (const [ex, fail] of this.#on_wire)
+			if (ex.from === realm || ex.from.split('#')[0] === realm) {
+				this.#on_wire.delete(ex);
+				fail('offline');
+			}
 	}
+
+	/** Whether `realm` (a tab) has the network: what its documents' `navigator.onLine` reads. */
+	online(realm: string): boolean {
+		return !this.#offline.has(realm);
+	}
+
+	/** Who hears a tab lose or get back the network (its documents: `offline`, `online`). */
+	readonly #told: Array<(realm: string, online: boolean) => void> = [];
+
+	/** Calls `told` each time a tab loses the network or gets it back. */
+	tell(told: (realm: string, online: boolean) => void): void {
+		this.#told.push(told);
+	}
+
+	/** Requests a server is still working on (sent, no answer yet): work in flight, however long it
+	 *  takes (a hole that renders in 3 s). */
+	unanswered(): number {
+		for (const e of this.#open) if (e.status !== 'pending') this.#open.delete(e);
+		return this.#open.size;
+	}
+
+	/** Exchanges that were pending when last looked at (`unanswered` prunes it). */
+	readonly #open = new Set<Exchange>();
 
 	isOffline(realm: string): boolean {
 		return this.#offline.has(realm);
@@ -79,7 +173,8 @@ export class Network {
 
 	readonly #calm = new Set<string>();
 
-	/** Spares `tab` (each of its documents) every fault but delay: an oracle's reference load. */
+	/** Spares `tab` (each of its documents) every fault but short delay: an oracle's reference
+	 *  load. */
 	calm(tab: string): void {
 		this.#calm.add(tab);
 	}
@@ -89,25 +184,37 @@ export class Network {
 	}
 
 	/** One leg's latency: 1 ms with no delay faults; with them, mostly short and sometimes long. */
-	#latency(): number {
+	#latency(calm = false): number {
 		if (!this.#faults.has('delay')) return 1;
 		const long = this.#faults.has('reorder') && this.#rng.chance(this.#rates.reorder);
-		return long ? this.#rng.between(200, 3000) : this.#rng.between(5, 120);
+		const ms = long ? this.#rng.between(200, 3000) : this.#rng.between(5, 120);
+		// (a calm leg is never a long one: two long legs on a reference load's peer hop passed the
+		// peer's 5 s timeout, and the app rightly answered 504; gen 23, seed 23023. The same draws
+		// either way, so every other leg of a run replays as it did)
+		return calm && long ? 5 + (ms % 116) : ms;
 	}
 
 	/** Sends `request` from `realm` to `handler`; the answer comes when the loop says. */
 	send(realm: string, request: Request, handler: Handler): Promise<Response> {
+		// (the document this request is for: its own, or, for a server's hop, the document whose
+		// request the server was answering)
+		const asked = asked_by.getStore();
+		const behalf = asked ?? realm;
 		const ex: Exchange = {
 			id: ++this.#ids,
 			from: realm,
+			...(asked !== undefined && { for: asked }),
 			method: request.method,
 			url: request.url,
+			at: this.#loop.now,
 			status: 'pending',
 			cut: false,
 			tampered: false,
-			duplicated: false
+			duplicated: false,
+			redirected: false
 		};
 		this.exchanges.push(ex);
+		this.#open.add(ex);
 		const loop = this.#loop;
 		return new Promise<Response>((resolve, reject) => {
 			const fail = (why: string) => reject(new TypeError(`Failed to fetch (${why})`));
@@ -118,45 +225,80 @@ export class Network {
 				return;
 			}
 			const signal = request.signal;
-			const aborted = () => reject(signal.reason ?? new DOMException('aborted', 'AbortError'));
+			const aborted = () => {
+				// (its page called it off before an answer came: nothing is on its way for it now)
+				if (ex.status === 'pending') ex.status = 'aborted';
+				reject(signal.reason ?? new DOMException('aborted', 'AbortError'));
+			};
 			if (signal?.aborted) return aborted();
 			signal?.addEventListener('abort', aborted, { once: true });
-			const calm = this.#calm.has(realm.split('#')[0]);
+			// (a server's hop made while answering a calm tab is calm too: the reference load's peer
+			// hop was dropped, and its page was the peer's 500; gen 12, seed 60)
+			const calm = this.#calm.has(realm.split('#')[0]) || this.#calm.has(behalf.split('#')[0]);
 			if (!calm && this.#on('drop')) {
 				ex.status = 'dropped';
 				loop.add('net', `drop ${ex.id}`, this.#latency(), () => fail('connection lost'));
+				return;
+			}
+			// an edge or proxy that sends a region's request to another origin (an open redirect, a
+			// misrouted CDN): the page must never paint what comes back (INVARIANTS.md HOLE-TRUST)
+			const target = new URL(request.url);
+			if (!calm && this.#redirectable(target) && this.#on('redirect')) {
+				ex.status = 302;
+				ex.redirected = true;
+				const location = ELSEWHERE + target.pathname + target.search;
+				loop.add('net', `redirect ${ex.id}`, this.#latency(), () =>
+					resolve(new Response(null, { status: 302, headers: { location } }))
+				);
 				return;
 			}
 			const dup = !calm && this.#on('duplicate');
 			ex.duplicated = dup;
 			const cut = !calm && this.#on('cut');
 			const tamper = !calm && this.#on('tamper');
+			// (until its answer comes, its tab going offline fails it: `offline`)
+			let lost = false;
+			this.#on_wire.set(ex, (why) => {
+				lost = true;
+				ex.status = 'offline';
+				loop.add('net', `offline ${ex.id}`, 0, () => fail(why));
+			});
+			signal?.addEventListener('abort', () => this.#on_wire.delete(ex), { once: true });
 			loop.add(
 				'net',
 				`request ${ex.id} ${request.method} ${new URL(request.url).pathname}`,
-				this.#latency(),
+				this.#latency(calm),
 				() => {
 					const copy = dup ? request.clone() : null;
-					void handler(request)
+					const address = calm ? REFERENCE_ADDRESS : VISITOR_ADDRESS;
+					const answer = (r: Request) =>
+						answering.run(ex, () =>
+							asked_by.run(behalf, () => client.run(address, () => handler(r)))
+						);
+					void answer(request)
 						.then(async (response) => {
 							// the duplicate is answered too, and its answer thrown away (as a proxy's retry)
 							if (copy !== null)
-								await handler(copy).then(
+								await answer(copy).then(
 									(r) => r.body?.cancel(),
 									() => {}
 								);
-							ex.status = response.status;
-							loop.add('net', `response ${ex.id} ${response.status}`, this.#latency(), () => {
-								if (signal?.aborted) {
+							if (!lost) ex.status = response.status;
+							ex.build = response.headers.get(ANSWERED_BY) ?? undefined;
+							loop.add('net', `response ${ex.id} ${response.status}`, this.#latency(calm), () => {
+								if (signal?.aborted || lost) {
 									void response.body?.cancel();
 									return;
 								}
-								resolve(this.#deliver(ex, response, cut, tamper, signal));
+								this.#on_wire.delete(ex);
+								resolve(this.#deliver(ex, response, cut, tamper, signal, calm));
 							});
 						})
 						.catch((error: unknown) => {
+							if (lost) return;
+							this.#on_wire.delete(ex);
 							ex.status = 500;
-							loop.add('net', `error ${ex.id}`, this.#latency(), () =>
+							loop.add('net', `error ${ex.id}`, this.#latency(calm), () =>
 								fail(error instanceof Error ? error.message : String(error))
 							);
 						});
@@ -175,7 +317,8 @@ export class Network {
 		response: Response,
 		cut: boolean,
 		tamper: boolean,
-		signal: AbortSignal | undefined
+		signal: AbortSignal | undefined,
+		calm: boolean
 	): Response {
 		const headers = new Headers(response.headers);
 		headers.delete('content-length');
@@ -193,7 +336,7 @@ export class Network {
 		let last = loop.now;
 		let piece = 0;
 		const send = (label: string, deliver: () => void): void => {
-			const at = Math.max(last, loop.now + (piece === 0 ? 0 : this.#latency()));
+			const at = Math.max(last, loop.now + (piece === 0 ? 0 : this.#latency(calm)));
 			last = at;
 			loop.add('net', `${label} ${ex.id}.${piece++}`, at - loop.now, () => {
 				if (ended) return;
@@ -204,8 +347,9 @@ export class Network {
 				}
 			});
 		};
-		const stop = (why: string): void => {
-			ex.cut = true;
+		const stop = (why: string, offline = false): void => {
+			if (offline) ex.lost = true;
+			else ex.cut = true;
 			send('cut', () => {
 				to.error(new TypeError(`network error: ${why}`));
 				ended = true;
@@ -269,6 +413,10 @@ export class Network {
 			},
 			{ once: true }
 		);
+		// (a body still coming breaks off when its tab goes offline)
+		this.#on_wire.set(ex, (why) => {
+			if (!ended) stop(why, true);
+		});
 		void pump();
 		return new Response(stream, init);
 	}
