@@ -174,7 +174,8 @@ export interface BuildContext {
 	routeConfig(key: string): void;
 	/** Keep the foreign-hydrate exports on this app's island entries: another app's page may host
 	 *  them and wake them through its own runtime (fragment federation). Off by default — they cost
-	 *  every island ~185 B gz and a preload. */
+	 *  every island ~185 B gz and a preload. It also says this app's pages carry other apps'
+	 *  regions, so its runtime ships every feature a region in the HTML can need. */
 	foreignHydrate(): void;
 	/** An `import.meta.og.<name>(…)` construct this plugin compiles (`'code'`, `'loader'`). Plugin
 	 *  macros run after core's own (`wire`, `$`, `source`, `store`) and before `bake`, in plugin order. */
