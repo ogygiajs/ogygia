@@ -1,5 +1,6 @@
 import { flights, STALE } from '@ogygia/machine';
 import { import_again } from './import-again.ts';
+import { code_url_or_refuse, import_code } from './code-origins.ts';
 import { speculate_url } from './speculate-hint.ts';
 import { OgygiaError, warn } from '../messages/core.ts';
 import { download } from '../policies.ts';
@@ -18,8 +19,12 @@ export const NAV_HANDLE_KEY: unique symbol = Symbol.for('ogygia.nav');
 
 const load_refresh = flights({
 	name: 'soft refresh',
-	run: import_again(() =>
-		import('./router-nav.ts').then(({ invalidate_all }) => ({ invalidate_all }))
+	run: import_again(
+		() => import('./router-nav.ts').then(({ invalidate_all }) => ({ invalidate_all })),
+		(url) =>
+			Promise.resolve()
+				.then(() => import_code<typeof import('./router-nav.ts')>(code_url_or_refuse(url)))
+				.then(({ invalidate_all }) => ({ invalidate_all }))
 	),
 	retry: download
 });
