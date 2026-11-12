@@ -1,7 +1,8 @@
 /**
  * A simulated document's RESOURCE TIMING: one entry per download it made, as a browser's
- * performance timeline holds them, heard through a `PerformanceObserver`. happy-dom has neither, so
- * a page that reads its downloads' statuses (ogygia's import-again: did a failed chunk's own file
+ * performance timeline holds them, heard through a `PerformanceObserver`. happy-dom records no
+ * resource entries (its window's observer is the host's, which hears none of a page's downloads),
+ * so a page that reads its downloads' statuses (ogygia's import-again: did a failed chunk's own file
  * come?) read nothing in the sim, and its branches that hang on an entry never ran.
  *
  * Two engines' ways, the world's draw (`Engine`):
@@ -44,14 +45,12 @@ interface Window {
 }
 
 /**
- * Gives `window` a resource timeline and its `PerformanceObserver` (where the DOM library has
- * none). Call before the document's first script.
+ * Gives `window` a resource timeline and its `PerformanceObserver` (in place of the DOM library's).
+ * Call before the document's first script.
  */
 export function install_timeline(window: object): void {
 	const timeline: Timeline = { buffer: [], observers: new Set() };
 	TIMELINES.set(window, timeline);
-	if (typeof (window as { PerformanceObserver?: unknown }).PerformanceObserver === 'function')
-		return;
 	class PerformanceObserver {
 		static readonly supportedEntryTypes = ['resource'];
 		readonly #callback: Callback;
