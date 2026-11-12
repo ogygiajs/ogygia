@@ -140,7 +140,7 @@ its pull request says why it is safe (or which INVARIANTS.md section covers it).
 
 ## Decoders: text turned into values (JSON, devalue, base64, URI escapes)
 
-100 entries.
+97 entries.
 
 | file | in | what | n |
 | --- | --- | --- | --- |
@@ -168,9 +168,6 @@ its pull request says why it is safe (or which INVARIANTS.md section covers it).
 | `packages/core/src/runtime/hole-facts.ts` | `parse_record` | `JSON.parse` | 1 |
 | `packages/core/src/runtime/kit-page-thread.svelte.ts` | `kit_boot_imports` | `JSON.parse` | 1 |
 | `packages/core/src/runtime/page-defer.ts` | `(module)` | `devalue parse` | 1 |
-| `packages/core/src/runtime/router-nav.ts` | `reset_focus` | `decodeURIComponent` | 1 |
-| `packages/core/src/runtime/router.ts` | `hash_target_exists` | `decodeURIComponent` | 1 |
-| `packages/core/src/runtime/router.ts` | `jump_to_hash` | `decodeURIComponent` | 1 |
 | `packages/core/src/runtime/wire-format.ts` | `(module)` | `devalue parse` | 1 |
 | `packages/core/src/runtime/wire-format.ts` | `(module)` | `JSON.parse` | 1 |
 | `packages/core/src/server/page-facts.ts` | `(module)` | `decodeURIComponent` | 1 |
