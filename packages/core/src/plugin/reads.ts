@@ -109,7 +109,9 @@ function is_personal_header(name: string): boolean {
 
 /** Members of `platform` that are the same for every request: the app's bindings, and the
  *  platform's hand-off for work past the response. Everything else there is per request. */
+// static: the platform members every request shares
 const SHARED_PLATFORM: ReadonlySet<string> = new Set(['env', 'caches']);
+// static: the platform context members every request shares
 const SHARED_PLATFORM_CONTEXT: ReadonlySet<string> = new Set([
 	'waitUntil',
 	'passThroughOnException'
