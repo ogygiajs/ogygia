@@ -2421,6 +2421,30 @@
 			"reason": "reads the size of a module-level set (process state), constant work; proven in packages/devtools/test/request-stats-detail.test.ts"
 		},
 		{
+			"id": "packages/core/src/vite/index.ts > ogygia > closeBundle",
+			"reason": "build only: Vite's closeBundle hook, once per build leg, constant work of its own"
+		},
+		{
+			"id": "packages/devtools/src/build/maps-plugin.ts > profiler_maps_plugins",
+			"reason": "build only: makes the two map plugin objects, once per build, constant work"
+		},
+		{
+			"id": "packages/devtools/src/build/maps-plugin.ts > profiler_maps_plugins > maps > closeBundle > handler",
+			"reason": "build only: fills the maps module once per server build (files on disk, not recorded); its work is fill_profiler_maps"
+		},
+		{
+			"id": "packages/devtools/src/build/maps-plugin.ts > profiler_maps_plugins > maps > configResolved",
+			"reason": "build only: reads three fields of Vite's resolved config, once per build, constant work"
+		},
+		{
+			"id": "packages/devtools/src/build/maps-plugin.ts > profiler_maps_plugins > maps > writeBundle",
+			"reason": "build only: writes the server leg's module map beside its chunks (files on disk, not recorded); its work is write_module_map"
+		},
+		{
+			"id": "packages/devtools/src/build/maps-plugin.ts > profiler_maps_plugins > server_sourcemaps_plugin:0~8b94d4",
+			"reason": "build only: the hidden-sourcemaps switch, always on in a build with the profiler, constant work"
+		},
+		{
 			"id": "packages/core/src/server/rules.ts > no_kept_unkeyed_read",
 			"reason": "dev and e2e builds only: timers and a machine observer over module state; proven in packages/core/test/server-rules.test.ts"
 		},
