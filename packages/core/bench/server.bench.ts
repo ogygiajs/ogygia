@@ -95,6 +95,51 @@ bench(
 	{ setup: () => ({ n: 40 }), scale: (_ctx, k) => ({ n: 40 * k }) }
 );
 
+bench(
+	"reads: a render that asks locals, fetches, the visitor's address, the platform and a copy of the request",
+	async ({ n }) => {
+		let seen = 0;
+		const fetched = async () => new Response('');
+		for (let i = 0; i < n; i++) {
+			const headers: Record<string, string> = { 'accept-language': 'en' };
+			if (i % 2) headers.cookie = `vid=v${i}`;
+			const request = new Request('http://app.example.com/page', { headers });
+			const event = {
+				url: new URL(request.url),
+				request,
+				cookies: { get: () => undefined, getAll: () => [] },
+				locals: (i % 3 ? { user: { id: i } } : {}) as Record<string, unknown>,
+				fetch: fetched,
+				getClientAddress: () => '203.0.113.7',
+				platform: {
+					env: { KEY: 'k' },
+					context: { waitUntil: () => {} },
+					region: i % 2 ? 'eu' : ''
+				}
+			};
+			observe_reads(event as never, facts_of(request).reads);
+			seen += 'user' in event.locals ? 1 : 0;
+			seen += Object.keys(event.locals).length;
+			// its own origin, a subdomain, another site, and a URL Kit cannot fetch
+			await event.fetch('/api/own');
+			await event.fetch('https://cdn.app.example.com/x');
+			await event.fetch('https://elsewhere.example.org/y');
+			await event.fetch('http://[bad');
+			event.getClientAddress();
+			const platform = event.platform as Record<string, Record<string, unknown>>;
+			void platform.env.KEY;
+			(platform.context.waitUntil as () => void)();
+			void platform.region;
+			seen += request.headers.has('cookie') ? 1 : 0;
+			for (const [name] of request.headers) seen += name.length;
+			const copy = request.clone();
+			seen += copy.headers.get('cookie') ? 1 : 0;
+		}
+		return seen;
+	},
+	{ setup: () => ({ n: 40 }), scale: (_ctx, k) => ({ n: 40 * k }) }
+);
+
 /** Holes rendered through `gate`, each answering after a tick. */
 const hole_render =
 	(gate: ConcurrencyGate) =>
