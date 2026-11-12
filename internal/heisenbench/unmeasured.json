@@ -2037,8 +2037,16 @@
 			"reason": "writes the request's prime state onto a Request (not cloneable), constant work; proven in packages/flags/test/prime-twice.test.ts"
 		},
 		{
-			"id": "packages/content/src/markdown/shiki.ts > cache:0~7f893a > onEvict",
-			"reason": "disposes one highlighter past the cap (a Shiki object, never ran in tests: the cap is never reached), constant work of its own"
+			"id": "packages/core/src/boundary.ts > BoundarySettings > configure",
+			"reason": "once per configure: refills the allow and deny sets, linear in the names the app configured"
+		},
+		{
+			"id": "packages/core/src/shims/page-store.svelte.ts > WarnedReads > has",
+			"reason": "a set lookup on the process-wide record (not replayable), constant work"
+		},
+		{
+			"id": "packages/core/src/shims/page-store.svelte.ts > WarnedReads > set",
+			"reason": "adds one island to the process-wide record, cleared past 1000 (not replayable), constant work"
 		},
 		{
 			"id": "packages/core/src/runtime/router-nav.ts > resolve_head_urls",
@@ -3929,60 +3937,36 @@
 			"reason": "the marker write, one store put (I/O, the live store: not cloneable), constant work (#947)"
 		},
 		{
-			"id": "packages/content/src/collection-base.ts > Collection > constructor > defer:0~2dc470",
-			"reason": "dev only: a collection's module ran again, so the old collection is disposed; one call, constant work of its own"
+			"id": "packages/core/src/runtime/core.ts > arm_on_demand > set:1~0b08c2",
+			"reason": "browser only: an on-demand region's one firing (forgets its entry, then fires), constant work of its own"
 		},
 		{
-			"id": "packages/core/src/vite/definers.ts > definers_plugin",
-			"reason": "dev only: builds one Vite plugin object (functions, not cloneable), once per server, constant work"
+			"id": "packages/core/src/runtime/interaction.ts > noop",
+			"reason": "an empty function, constant work"
 		},
 		{
-			"id": "packages/core/src/vite/definers.ts > definers_plugin > transform",
-			"reason": "dev only: a Vite transform hook (the plugin context, not replayable); a substring test per module, then mark_definer_calls"
+			"id": "packages/core/src/runtime/router-nav.ts > queued_prefetch",
+			"reason": "browser only: makes the queued-prefetch cache once and returns it, constant work"
 		},
 		{
-			"id": "packages/core/src/vite/definers.ts > definers_plugin > transform > some:0~b700ad",
-			"reason": "dev only: one substring test per declared definer module, linear in the definers (a handful)"
+			"id": "packages/core/src/runtime/router-nav.ts > warmed_pages",
+			"reason": "browser only: makes the warmed-pages cache once and returns it, constant work"
 		},
 		{
-			"id": "packages/core/src/vite/definers.ts > mark_definer_calls > find:0~96804f",
-			"reason": "dev only: matches one import's source against the declared definer modules, linear in the definers (a handful)"
+			"id": "packages/core/src/runtime/schedule.ts > TaskHops > constructor",
+			"reason": "browser only, where scheduler.yield() is missing: one MessageChannel per document, constant work"
 		},
 		{
-			"id": "packages/core/src/vite/definers.ts > nodes",
-			"reason": "dev only: a generator over a parsed module's AST (not recorded), linear in its nodes; run by packages/core/test/definers.test.ts through mark_definer_calls"
+			"id": "packages/core/src/runtime/schedule.ts > TaskHops > constructor > onmessage",
+			"reason": "browser only, where scheduler.yield() is missing: lands the oldest hop, constant work"
 		},
 		{
-			"id": "packages/core/src/vite/index.ts > ogygia > definers_plugin:0~db4cb5",
-			"reason": "dev only: hands the plugins' definer list to the dev transform, constant work"
+			"id": "packages/core/src/runtime/schedule.ts > TaskHops > hop",
+			"reason": "browser only, where scheduler.yield() is missing: queues one hop and posts one message, constant work"
 		},
 		{
-			"id": "packages/core/src/vite/plugin-api.ts > resolve_plugins > build:0~e195ce > definers",
-			"reason": "build time: records one plugin's definer module and names, constant work per plugin"
-		},
-		{
-			"id": "packages/flags/src/vite.ts > flags > definePlugin:0~de4de4 > build",
-			"reason": "build time: declares the flags definer through the plugin builder (not cloneable), constant work"
-		},
-		{
-			"id": "packages/machine/src/registry.ts > defineRun",
-			"reason": "dev only: a module's new run ends the run before it and returns its wrapper (a function, not cloneable), constant work of its own"
-		},
-		{
-			"id": "packages/machine/src/registry.ts > defineRun > <anonymous>~bc014d",
-			"reason": "dev only: the wrapper for one definer call (a function, not cloneable), constant work"
-		},
-		{
-			"id": "packages/machine/src/registry.ts > defineRun > <anonymous>~bc014d > <anonymous>~90dfa6",
-			"reason": "dev only: runs one definer call under its module's run and puts the outer run back, constant work of its own"
-		},
-		{
-			"id": "packages/machine/src/registry.ts > defining",
-			"reason": "reads the process-wide defining host on globalThis (hidden state), constant work"
-		},
-		{
-			"id": "packages/machine/src/registry.ts > defining_host",
-			"reason": "reads or makes the process-wide defining host on globalThis (not cloneable), constant work"
+			"id": "packages/core/src/runtime/svelte-warnings.ts > WarningLog > add",
+			"reason": "browser only: keeps one Svelte hydration warning (at most 100) and tells its listeners, linear in the listeners (a devtools panel or none)"
 		},
 		{
 			"id": "packages/core/src/runtime/nav-handle.ts > flights:0~bc1a2c > import_again:1~6d4297",
@@ -4379,6 +4363,94 @@
 		{
 			"id": "packages/devtools/src/client.ts > plugin > hooks > loadStarted",
 			"reason": "browser only: one record_hook of a hook event, constant work of its own"
+		},
+		{
+			"id": "packages/devtools/src/devtools/highlight.ts > highlight > defer:0~248bad",
+			"reason": "browser only: the highlight layer's scope takes its layer out as it closes, constant work"
+		},
+		{
+			"id": "packages/devtools/src/devtools/leftovers.ts > watched",
+			"reason": "browser only: the page's leftovers record, made at its first use, constant work"
+		},
+		{
+			"id": "packages/devtools/src/devtools/profile-store.ts > set_profile > map:0~39039e",
+			"reason": "one profile out of each kept entry (64 at most) while the newest 8 are saved, constant work per entry; devtools-profile-store.test.ts runs it"
+		},
+		{
+			"id": "packages/devtools/src/devtools/source-lines.ts > flights:0~fc7528 > run",
+			"reason": "browser only: one app file's read through the dev server (tool_fetch), once per file"
+		},
+		{
+			"id": "packages/devtools/src/devtools/source-lines.ts > read_table",
+			"reason": "browser only: a dev server fetch of one app file, then the map parse (lines_of_map, measured on its own)"
+		},
+		{
+			"id": "packages/devtools/src/profiler/embedded-maps.ts > embedded_source > map:0~31820d",
+			"reason": "profiler only: lists the known app roots for one source path, linear in the roots (one per app)"
+		},
+		{
+			"id": "packages/devtools/src/profiler/net.ts > keeping",
+			"reason": "profiler only: reads the module's kept-answers state (hidden state), constant work"
+		},
+		{
+			"id": "packages/content/src/markdown/shiki.ts > cache:0~7f893a > onEvict",
+			"reason": "disposes one highlighter past the cap (a Shiki object, never ran in tests: the cap is never reached), constant work of its own"
+		},
+		{
+			"id": "packages/content/src/collection-base.ts > Collection > constructor > defer:0~2dc470",
+			"reason": "dev only: a collection's module ran again, so the old collection is disposed; one call, constant work of its own"
+		},
+		{
+			"id": "packages/core/src/vite/definers.ts > definers_plugin",
+			"reason": "dev only: builds one Vite plugin object (functions, not cloneable), once per server, constant work"
+		},
+		{
+			"id": "packages/core/src/vite/definers.ts > definers_plugin > transform",
+			"reason": "dev only: a Vite transform hook (the plugin context, not replayable); a substring test per module, then mark_definer_calls"
+		},
+		{
+			"id": "packages/core/src/vite/definers.ts > definers_plugin > transform > some:0~b700ad",
+			"reason": "dev only: one substring test per declared definer module, linear in the definers (a handful)"
+		},
+		{
+			"id": "packages/core/src/vite/definers.ts > mark_definer_calls > find:0~96804f",
+			"reason": "dev only: matches one import's source against the declared definer modules, linear in the definers (a handful)"
+		},
+		{
+			"id": "packages/core/src/vite/definers.ts > nodes",
+			"reason": "dev only: a generator over a parsed module's AST (not recorded), linear in its nodes; run by packages/core/test/definers.test.ts through mark_definer_calls"
+		},
+		{
+			"id": "packages/core/src/vite/index.ts > ogygia > definers_plugin:0~db4cb5",
+			"reason": "dev only: hands the plugins' definer list to the dev transform, constant work"
+		},
+		{
+			"id": "packages/core/src/vite/plugin-api.ts > resolve_plugins > build:0~e195ce > definers",
+			"reason": "build time: records one plugin's definer module and names, constant work per plugin"
+		},
+		{
+			"id": "packages/flags/src/vite.ts > flags > definePlugin:0~de4de4 > build",
+			"reason": "build time: declares the flags definer through the plugin builder (not cloneable), constant work"
+		},
+		{
+			"id": "packages/machine/src/registry.ts > defineRun",
+			"reason": "dev only: a module's new run ends the run before it and returns its wrapper (a function, not cloneable), constant work of its own"
+		},
+		{
+			"id": "packages/machine/src/registry.ts > defineRun > <anonymous>~bc014d",
+			"reason": "dev only: the wrapper for one definer call (a function, not cloneable), constant work"
+		},
+		{
+			"id": "packages/machine/src/registry.ts > defineRun > <anonymous>~bc014d > <anonymous>~90dfa6",
+			"reason": "dev only: runs one definer call under its module's run and puts the outer run back, constant work of its own"
+		},
+		{
+			"id": "packages/machine/src/registry.ts > defining",
+			"reason": "reads the process-wide defining host on globalThis (hidden state), constant work"
+		},
+		{
+			"id": "packages/machine/src/registry.ts > defining_host",
+			"reason": "reads or makes the process-wide defining host on globalThis (not cloneable), constant work"
 		}
 	]
 }
