@@ -631,6 +631,9 @@ importers:
       '@ogygia/federation':
         specifier: workspace:*
         version: link:../../packages/federation
+      '@ogygia/flags':
+        specifier: workspace:*
+        version: link:../../packages/flags
       '@ogygia/postrender':
         specifier: workspace:*
         version: link:../../packages/postrender
