@@ -30,7 +30,7 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 
 import { availableParallelism } from 'node:os';
 // (the host's real timers: a run replaces the global ones with its simulated ones)
 import { clearTimeout as clearRealTimeout, setTimeout as real_timeout } from 'node:timers';
-import { join, resolve } from 'node:path';
+import { join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, act, next_action, ACTION_KINDS, type Action, type Mix } from './workload.ts';
 import {
@@ -51,6 +51,8 @@ import {
 	type Broken
 } from './oracles.ts';
 import { rng, type Rng } from './rng.ts';
+import { signature } from './ci.ts';
+import { ddmin, regression_test, slug } from './shrink.ts';
 import type { FaultClass } from './network.ts';
 import type { Visitor } from './browser.ts';
 import { ORIGIN, World, type Rollover, type WorldOptions } from './world.ts';
@@ -68,8 +70,11 @@ const LONG = process.argv.includes('--long');
 const REPLAY = !process.argv.includes('--no-replay');
 /** Buggify points on (`--no-buggify`: off), in a rules build. */
 const BUGGIFY = !process.argv.includes('--no-buggify');
+// (`SIM_APP`: a found test's app, set before it imports this module)
 const APP = resolve(
-	arg('--app') ?? fileURLToPath(new URL('../../../apps/palaestra', import.meta.url))
+	arg('--app') ??
+		process.env.SIM_APP ??
+		fileURLToPath(new URL('../../../apps/palaestra', import.meta.url))
 );
 const OUTPUT = join(APP, '.svelte-kit', 'output');
 /** The builds a run starts on and deploys between: the app's two sim builds (`pnpm sim:builds`),
@@ -603,7 +608,113 @@ async function guided(): Promise<void> {
 	process.exitCode = failed || leaks ? 1 : 0;
 }
 
+/** `--shrink <plan file>`: a failing run's plan (a search's, or `{ seed, steps, plan }` by hand). */
+const SHRINK = arg('--shrink');
+/** `--known`: a shrink may take a filed bug's finding (`known`) when the run finds nothing new. */
+const KNOWN_TOO = process.argv.includes('--known');
+
+/**
+ * Shrinks a failing run to the fewest actions that fail the same way (src/shrink.ts), replays the
+ * shrunk run twice (its traces must be equal), prints its actions, its finding and its trace's
+ * tail, and writes its plan (`plans/<name>.min.json`, for `--plan`) and its regression test
+ * (`test/found/<name>.test.ts`, which fails while the bug stands).
+ */
+async function shrink(file: string): Promise<void> {
+	const given = JSON.parse(readFileSync(file, 'utf8')) as {
+		seed: number;
+		steps?: number;
+		plan?: Plan;
+	};
+	const seed = given.seed;
+	const pool = new Pool(JOBS);
+	// (no plan: the seed's own workload, of `steps` actions, spelled out by its run)
+	const plan: Plan =
+		given.plan ??
+		({ actions: (await pool.run(seed, given.steps ?? STEPS, Infinity)).result.actions } as Plan);
+	const ran = (actions: readonly Action[], avoid = -1) =>
+		pool.run(seed, actions.length, Infinity, avoid, { actions, mix: plan.mix });
+	const first = (await ran(plan.actions)).result;
+	// (a new finding first; else a filed one's, to shrink its repro)
+	const bad =
+		first.broken.find((b) => b.oracle !== 'known') ?? (KNOWN_TOO ? first.broken[0] : undefined);
+	if (bad === undefined) {
+		pool.end();
+		console.log(
+			`seed ${seed}: its ${plan.actions.length} actions find nothing new: nothing to shrink (\`--known\` shrinks a filed bug's)`
+		);
+		process.exitCode = 1;
+		return;
+	}
+	const target = signature(bad);
+	console.log(`[shrink] seed ${seed}, ${plan.actions.length} actions: [${bad.oracle}] ${target}`);
+	// (the signature names the oracle: `known` for a filed bug's)
+	const fails = (r: RunResult) => r.broken.some((b) => signature(b) === target);
+	const check = (candidates: ReadonlyArray<readonly Action[]>) =>
+		Promise.all(candidates.map((a) => ran(a).then((x) => fails(x.result))));
+	let { items, runs } = await ddmin(plan.actions, check);
+	// (the first load alone, with no action at all)
+	if (items.length === 1 && (await check([[]]))[0]) items = [];
+	runs++;
+	const a = await ran(items);
+	const b = await ran(items, a.worker);
+	pool.end();
+	const diff = trace_difference(a.result.log, b.result.log);
+	const found = a.result.broken.find((k) => signature(k) === target);
+	if (found === undefined || diff !== '') {
+		console.log(
+			found === undefined
+				? `[shrink] the shrunk run no longer fails the same way (${runs} runs): a flaky finding`
+				: `[shrink] the shrunk run's replay DIFFERS:\n${diff}`
+		);
+		process.exitCode = 1;
+		return;
+	}
+	const name = slug(found.oracle, target);
+	// (as the run took them: on the tabs it had)
+	items = a.result.actions;
+	const min: Plan = { actions: items, mix: plan.mix };
+	mkdirSync(PLANS, { recursive: true });
+	const plan_file = join(PLANS, `${name}.min.json`);
+	writeFileSync(plan_file, JSON.stringify({ seed, steps: items.length, plan: min }) + '\n');
+	const gen_plan = join(APP, 'src', 'lib', 'gen', 'plan.json');
+	const gen = existsSync(gen_plan)
+		? (JSON.parse(readFileSync(gen_plan, 'utf8')) as { seed: number }).seed
+		: null;
+	const test_file = join(import.meta.dirname, '..', 'test', 'found', `${name}.test.ts`);
+	mkdirSync(join(test_file, '..'), { recursive: true });
+	if (!existsSync(test_file))
+		writeFileSync(
+			test_file,
+			regression_test({
+				name,
+				app: relative(ROOT, APP),
+				gen,
+				seed,
+				plan: min,
+				oracle: found.oracle,
+				signature: target,
+				detail: found.detail,
+				actions: items.map(describe)
+			})
+		);
+	console.log(
+		[
+			`[shrink] ${plan.actions.length} actions to ${items.length}, in ${runs} runs; it replays the same`,
+			...items.map((x, i) => `  ${i + 1}. ${describe(x)}`),
+			`  [${found.oracle}] ${found.detail.split('\n').join('\n    ')}`,
+			"  the trace, last 40 lines (less the network's body chunks):",
+			...a.result.log
+				.filter((l) => !/ net (chunk|end) /.test(l))
+				.slice(-40)
+				.map((l) => `    ${l}`),
+			`  plan: ${plan_file}  (pnpm sim --app ${APP} --plan ${plan_file} --step ${items.length})`,
+			`  test: ${test_file}`
+		].join('\n')
+	);
+}
+
 async function main(): Promise<void> {
+	if (SHRINK !== undefined) return shrink(SHRINK);
 	if (!existsSync(join(BUILDS[0].output, 'server', 'index.js'))) {
 		console.error(
 			`no build at ${OUTPUT}: run \`pnpm sim:builds\` (two builds, with deploys) or \`OGYGIA_RULES=1 npx vite build\` in ${APP}`
