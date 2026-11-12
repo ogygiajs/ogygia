@@ -3041,10 +3041,6 @@
 			"reason": "moved from packages/core/src/runtime/restore-report.ts with reshape (#608): never ran here, browser state; the gate on this base does not follow a file across packages, and the moved tests (packages/reshape/test) prove it"
 		},
 		{
-			"id": "packages/core/src/server/region-endpoint.ts > hole_css",
-			"reason": "a map lookup and a handoff read (holeCss before the region rename, unmeasured on that base); its handoff read is region_css's, which the request benches run"
-		},
-		{
 			"id": "packages/core/src/runtime/router-nav.ts > live_page_head",
 			"reason": "browser only: reads the live <head>'s page-owned nodes (not cloneable), linear in the head; proven in packages/core/test/browser/nav-head-order.test.ts (#794)"
 		},
