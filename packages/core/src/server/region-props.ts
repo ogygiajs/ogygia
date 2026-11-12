@@ -5,7 +5,7 @@
 import { stringify } from 'devalue';
 import { B64Url } from './payload.ts';
 import { MAX_REGION_PROPS_LEN } from './endpoint.ts';
-import { REF_WIRE_KEY, ref_reducer } from '../ref.ts';
+import { REF_WIRE_KEY, placed, ref_reducer } from '../ref.ts';
 // PULL-registration inside the function below (idempotent; no import-time side effects).
 import { register_wire_kind } from '../live-transport.ts';
 import { register_store_kind } from '../store-transport.ts';
@@ -32,7 +32,11 @@ export function encode_region_props(props: Record<string, unknown>): string | nu
 	ensure_prop_kinds();
 	let payload: string;
 	try {
-		payload = B64Url.encode(stringify(props, { [REF_WIRE_KEY]: ref_reducer(PROP_FAMILIES) }));
+		// (the endpoint decodes fresh, never by id: the ids' place is enough, and the address stays the
+		// same from one render to the next — ref.ts `placed`)
+		payload = B64Url.encode(
+			placed(stringify(props, { [REF_WIRE_KEY]: ref_reducer(PROP_FAMILIES) }))
+		);
 	} catch {
 		return null;
 	}
