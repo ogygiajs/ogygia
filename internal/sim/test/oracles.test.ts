@@ -204,6 +204,43 @@ describe('known', () => {
 		expect(k.applies(fresh, fresh)).toBe(false);
 		expect(k.forgive(shown, fresh)).toBe(fresh);
 	});
+
+	it("#1067's kept island with the last page's fingerprint (palaestra /props-tail, /formkeep)", () => {
+		const k = KNOWN.find((x) => x.issue === 1067)!;
+		const page = (fp: string, kept = ' data-ogygia-keep="player"') =>
+			[
+				'title: ',
+				'<html>',
+				'  <body>',
+				`    <ogygia-region data-hydrated="" data-og-fp="${fp}"${kept} wake="load">`,
+				'      <div class="island">'
+			].join('\n');
+		expect(k.applies(page('aaa'), page('bbb'))).toBe(true);
+		expect(k.forgive(page('aaa'), page('bbb'))).toBe(k.forgive(page('bbb'), page('aaa')));
+		// (only a kept region's: another region's fingerprint is still a finding)
+		expect(excused(page('aaa', ''), page('bbb', ''))).toEqual([]);
+	});
+
+	it("#1071's kept head link resolving under the page's path (palaestra /lab/deep/x)", () => {
+		const k = KNOWN.find((x) => x.issue === 1071)!;
+		const page = (href: string) =>
+			[
+				'title: ',
+				'<html>',
+				'  <head>',
+				`    <link href="${href}" rel="stylesheet">`,
+				'  <body>'
+			].join('\n');
+		const shown = page('/lab/_app/immutable/assets/14.x.css');
+		const fresh = page('/_app/immutable/assets/14.x.css');
+		expect(k.applies(shown, fresh)).toBe(true);
+		expect(k.applies(fresh, fresh)).toBe(false);
+		expect(k.forgive(shown, fresh)).toBe(fresh);
+		// (another file is still a finding)
+		expect(k.forgive(shown, page('/_app/immutable/assets/15.x.css'))).not.toBe(
+			page('/_app/immutable/assets/15.x.css')
+		);
+	});
 });
 
 describe('every region shows something', () => {

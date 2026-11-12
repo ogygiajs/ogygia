@@ -147,8 +147,42 @@ export const KNOWN: ReadonlyArray<{
 			for (const i of baked_sheet_lines(s).reverse()) out.splice(i, 1);
 			return out.join('\n');
 		}
+	},
+	{
+		issue: 1067,
+		what: "a kept island keeps the last page's data-og-fp after a client navigation",
+		// (a kept region's opening line, its fingerprint set aside: palaestra /props-tail, /formkeep)
+		applies: (shown, fresh) => kept_fps(shown).join('\n') !== kept_fps(fresh).join('\n'),
+		forgive: (s) =>
+			s
+				.split('\n')
+				.map((l) => (KEPT_REGION.test(l) ? l.replace(/ data-og-fp="[^"]*"/, '') : l))
+				.join('\n')
+	},
+	{
+		issue: 1071,
+		what: 'a kept head link with a relative URL names another file after a client navigation',
+		// (a link whose file resolves under the page's own path, `/lab/_app/…`, where the other side
+		// names `/_app/…`: palaestra /lab/a -> /lab/deep/x)
+		applies: (shown, fresh) => DEEP_ASSET.test(shown) && !DEEP_ASSET.test(fresh),
+		forgive: (s) => s.replace(DEEP_ASSET_ALL, ' href="/_app/')
 	}
 ];
+
+/** The opening line of a region the router keeps across navigations (`keep`). */
+const KEPT_REGION = /^ *<ogygia-region [^>]*data-ogygia-keep=/;
+
+/** Each kept region's `data-og-fp`. */
+function kept_fps(s: string): string[] {
+	return s
+		.split('\n')
+		.filter((l) => KEPT_REGION.test(l))
+		.map((l) => / data-og-fp="([^"]*)"/.exec(l)?.[1] ?? '');
+}
+
+/** A head link to a build's file under a page's own path (`href="/lab/_app/…"`). */
+const DEEP_ASSET = /^ *<link\b[^>]* href="\/(?:[^"/]+\/)+_app\//m;
+const DEEP_ASSET_ALL = / href="\/(?:[^"/]+\/)+_app\//g;
 
 /** The lines (by number) of region sheet links right inside a baked held region. */
 function baked_sheet_lines(s: string): number[] {
@@ -1044,6 +1078,12 @@ export const KNOWN_SAID: ReadonlyArray<{ issue: number; what: string; said: RegE
 		issue: 1046,
 		what: "Svelte's async mode sends a guarded query with the value its {#if} rules out",
 		said: /^unhandled: \{"message":"Bad Request"\}$/
+	},
+	{
+		issue: 1050,
+		what: 'a hole nested in an island is imported as a module after a client navigation',
+		// (the hole's id as a module URL: `/<12 hex>?og-retry=1`; palaestra /prefetch -> /nested)
+		said: /chunk_reload_needed\?url=https%3A%2F%2F[^%]+%2F[0-9a-f]{12}(%3F|$)/
 	}
 ];
 
