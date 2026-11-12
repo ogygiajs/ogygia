@@ -668,6 +668,47 @@ const ports = {
 	}
 };
 
+/**
+ * `ogygia/one-hash` (#484): a content hash is core's `contract/hash.ts` (`id64` for identity, where a
+ * collision serves the wrong thing; `bucket32` for spreading). The FNV-1a offset basis anywhere else
+ * is a copy, and says why it must be one with `// hash: <why>` on its line or the line before (a
+ * seeded hash, one over bytes, a client island's own copy).
+ */
+const FNV_BASIS = 0x811c9dc5;
+const MESSAGE_HASH =
+	"An FNV-1a copy: use id64 / bucket32 from core's contract/hash.ts, or say why this must be its own with `// hash: <why>`.";
+
+const one_hash = {
+	meta: {
+		type: 'problem',
+		docs: { description: 'One content hash implementation: contract/hash.ts.' }
+	},
+	create(context: Context) {
+		const file = (context.filename ?? context.getFilename?.() ?? '').replaceAll('\\', '/');
+		if (!in_source(context) || file.endsWith('packages/core/src/contract/hash.ts')) return {};
+		const found: Node[] = [];
+		return {
+			Literal(node: Node) {
+				if ((node as { value?: unknown }).value === FNV_BASIS) found.push(node);
+			},
+			'Program:exit'() {
+				if (!found.length) return;
+				const comments =
+					(
+						context as { sourceCode?: { getAllComments?: () => Comment[] } }
+					).sourceCode?.getAllComments?.() ?? [];
+				const marked = new Set<number>();
+				for (const c of comments) if (/^\s*hash:\s*\S/.test(c.value)) marked.add(c.loc.start.line);
+				for (const n of found) {
+					const line = (n as Located).loc.start.line;
+					if (!marked.has(line) && !marked.has(line - 1))
+						context.report({ node: n, message: MESSAGE_HASH });
+				}
+			}
+		};
+	}
+};
+
 // ── ogygia/compiler-boundary ──────────────────────────────────────────────
 // `@ogygia/compiler` uses core only through `@ogygia/core/contract` (what both share, and core's
 // own files by path); core never uses the compiler. Package source only: tests may reach across.
@@ -733,6 +774,7 @@ const compiler_boundary = {
 export default {
 	meta: { name: 'ogygia' },
 	rules: {
+		'one-hash': one_hash,
 		'no-promise-cache': no_promise_cache,
 		'owned-effects': owned_effects,
 		'no-silent-failures': no_silent_failures,
