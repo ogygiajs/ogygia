@@ -112,32 +112,34 @@ export function session_timeline(s: SessionData, names: (fp: string) => string):
 	for (const p of (s.pages ?? []).slice(1))
 		islands.push({ t0: p.t - z, t1: p.t - z, label: `page load: ${p.url}`, tone: 'info' });
 	const hyd = new Map<string, number>();
-	for (const e of s.events) if (e.name === 'region.hydrate.done' && e.fp) hyd.set(e.fp, e.t);
-	for (const e of s.events) {
-		const fp = (e as { fp?: string }).fp;
-		if (e.name === 'wake.fired' && fp)
+	for (const e of s.hooks) if (e.hook === 'regionHydrated' && e.fp) hyd.set(e.fp, e.at);
+	for (const e of s.hooks) {
+		const fp = e.fp;
+		if (e.hook === 'regionWoke' && fp)
 			islands.push({
-				t0: e.t - z,
-				t1: (hyd.get(fp) ?? e.t) - z,
-				label: `${names(fp)} woke (${(e as { when?: string }).when ?? ''})`,
+				t0: e.at - z,
+				t1: (hyd.get(fp) ?? e.at) - z,
+				label: `${names(fp)} woke (${e.when})`,
 				tone: 'ok',
 				ref: { kind: 'island', fp }
 			});
-		else if (e.name === 'region.hydrate.failed' && fp)
+		else if (e.hook === 'regionFailed' && fp)
 			islands.push({
-				t0: e.t - z,
-				t1: e.t - z,
+				t0: e.at - z,
+				t1: e.at - z,
 				label: `${names(fp)} failed to hydrate`,
 				tone: 'bad',
 				ref: { kind: 'island', fp }
 			});
-		else if (e.name === 'nav.finish')
+		else if (e.hook === 'navigated') {
+			const nav_ms = e.swapped - e.t;
 			islands.push({
-				t0: e.t - e.ms - z,
-				t1: e.t - z,
-				label: `navigation to ${e.to} — ${Math.round(e.ms)} ms`,
-				tone: e.ms >= 500 ? 'warn' : 'info'
+				t0: e.at - nav_ms - z,
+				t1: e.at - z,
+				label: `navigation to ${e.to} — ${Math.round(nav_ms)} ms`,
+				tone: nav_ms >= 500 ? 'warn' : 'info'
 			});
+		}
 	}
 	const layout: TimelineItem[] = s.shifts.map((x, i) => ({
 		t0: x.t - z,
@@ -346,7 +348,7 @@ export function analyze_session(
 	// ── a click that changed nothing, or answered only late. In an island: its own DOM changes (within
 	// 3 s it answered — late past 500 ms; none = dead). Outside islands: any change but in the islands
 	// other clicks just hit, any request, a navigation — within 500 ms ──
-	const navs = s.events.filter((e) => e.name === 'nav.start').map((e) => e.t);
+	const navs = s.hooks.filter((e) => e.hook === 'navStarted').map((e) => e.at);
 	const raged = new Set(rage.map((r) => s.clicks[r].target));
 	const dead: number[] = [];
 	const late: { i: number; after: number }[] = [];
@@ -519,68 +521,68 @@ export function analyze_session(
 	for (const m of s.mutations) if (m.fp && by_island[m.fp]) by_island[m.fp].mutations = m.count;
 
 	// ── islands: woken, failed, recovered, healed during the session ──
-	const woke = s.events.filter((e) => e.name === 'wake.fired');
+	const woke = s.hooks.filter((e) => e.hook === 'regionWoke');
 	if (woke.length) {
 		const done = new Map<string, number>();
-		for (const e of s.events) if (e.name === 'region.hydrate.done' && e.fp) done.set(e.fp, e.ms);
-		const list = woke.map((e) =>
-			(e as { fp?: string }).fp
-				? `${name_of((e as { fp?: string }).fp!)}${done.has((e as { fp?: string }).fp!) ? ` (${ms(done.get((e as { fp?: string }).fp!)!)})` : ''}`
-				: 'an island'
-		);
+		for (const e of s.hooks)
+			if (e.hook === 'regionHydrated' && e.fp) done.set(e.fp, e.tDone - e.t0);
+		const list = woke.map((e) => {
+			const took = e.fp ? done.get(e.fp) : undefined;
+			return e.fp ? `${name_of(e.fp)}${took !== undefined ? ` (${ms(took)})` : ''}` : 'an island';
+		});
 		findings.push({
 			code: 'islands-woke',
 			severity: 'info',
 			message: `${woke.length} island${woke.length === 1 ? '' : 's'} woke during the session: ${[...new Set(list)].slice(0, 5).join(', ')}.`,
 			refs: woke
-				.filter((e) => (e as { fp?: string }).fp)
+				.flatMap((e) => (e.fp ? [e.fp] : []))
 				.slice(0, 6)
-				.map((e) => ({ kind: 'island' as const, fp: (e as { fp?: string }).fp! }))
+				.map((fp) => ({ kind: 'island' as const, fp }))
 		});
 	}
-	for (const e of s.events) {
-		if (e.name === 'region.hydrate.failed')
+	for (const e of s.hooks) {
+		if (e.hook === 'regionFailed')
 			findings.push({
 				code: 'hydrate-failed',
 				severity: 'error',
 				message: `${name_of(e.fp ?? null)} failed to hydrate: ${e.message.split('\n')[0].slice(0, 160)}.`,
 				refs: e.fp ? [{ kind: 'island', fp: e.fp }] : []
 			});
-		else if (e.name === 'region.hydrate.recovered')
+		else if (e.hook === 'regionMismatched' && e.kind === 'recovered')
 			findings.push({
 				code: 'hydrate-recovered',
 				severity: 'error',
 				message: `${name_of(e.fp ?? null)} threw away its server HTML and rendered again${e.reason ? `: ${e.reason}` : ''}.`,
 				refs: e.fp ? [{ kind: 'island', fp: e.fp }] : []
 			});
-		else if (e.name === 'region.hydrate.healed')
+		else if (e.hook === 'regionMismatched' && e.kind === 'healed')
 			findings.push({
 				code: 'hydrate-healed',
 				severity: 'warn',
 				message: `${name_of(e.fp ?? null)}'s markup was changed by another script before it woke; the runtime put the server markup back${e.reason ? ` (${e.reason})` : ''}.`,
 				refs: e.fp ? [{ kind: 'island', fp: e.fp }] : []
 			});
-		else if (e.name === 'region.hydrate.conflict')
+		else if (e.hook === 'regionMismatched' && e.kind === 'conflict')
 			findings.push({
 				code: 'hydrate-conflict',
 				severity: 'warn',
 				message: `${name_of(e.fp ?? null)}: ${e.reason ?? 'a web component'} changed its own children where Svelte's hydration reads, so the repair removed what it added (render it with {@html}, put it in a lake, or mark it ${OGYGIA_KEEP}).`,
 				refs: e.fp ? [{ kind: 'island', fp: e.fp }] : []
 			});
-		else if (e.name === 'load.critical' && e.outcome === 'cap')
+		else if (e.hook === 'criticalSettled' && e.outcome === 'cap')
 			findings.push({
 				code: 'critical-cap',
 				severity: 'warn',
-				message: `The page's critical resource${e.resources === 1 ? '' : 's'} (marked fetchpriority="high") took longer than ${e.waited_ms} ms; ogygia stopped holding its downloads back and let them start.`,
+				message: `The page's critical resource${e.resources === 1 ? '' : 's'} (marked fetchpriority="high") took longer than ${e.waitedMs} ms; ogygia stopped holding its downloads back and let them start.`,
 				refs: []
 			});
 	}
 	// What the load scheduler held back for the page's critical resources (runtime/load-scheduler.ts).
-	const held = s.events.filter(
-		(e) => e.name === 'load.started' && e.class !== 'user' && e.waited_ms > 0
+	const held = s.hooks.flatMap((e) =>
+		e.hook === 'loadStarted' && e.class !== 'user' && e.waitedMs > 0 ? [e.waitedMs] : []
 	);
 	if (held.length) {
-		const most = Math.max(...held.map((e) => (e.name === 'load.started' ? e.waited_ms : 0)));
+		const most = Math.max(...held);
 		findings.push({
 			code: 'loads-held',
 			severity: 'info',
@@ -591,7 +593,7 @@ export function analyze_session(
 
 	// ── errors ── (ogygia's own log of a failed island is the hydrate-failed finding above, with its
 	// name: not counted again; each message by its first line — a component stack follows it)
-	const failed_here = s.events.some((e) => e.name === 'region.hydrate.failed');
+	const failed_here = s.hooks.some((e) => e.hook === 'regionFailed');
 	const errors = failed_here
 		? s.errors.filter(
 				// (its line, worded in dev or the code's link alone)
@@ -632,13 +634,14 @@ export function analyze_session(
 		});
 
 	// ── navigations ──
-	for (const e of s.events) {
-		if (e.name !== 'nav.finish') continue;
-		if (e.ms >= 500)
+	for (const e of s.hooks) {
+		if (e.hook !== 'navigated') continue;
+		const nav_ms = e.swapped - e.t;
+		if (nav_ms >= 500)
 			findings.push({
 				code: 'slow-navigation',
 				severity: 'info',
-				message: `The navigation to ${e.to} took ${ms(e.ms)}${e.reconciled ? '' : ' (a full swap, not reconciled)'}.`,
+				message: `The navigation to ${e.to} took ${ms(nav_ms)}${e.reconciled ? '' : ' (a full swap, not reconciled)'}.`,
 				refs: []
 			});
 	}
