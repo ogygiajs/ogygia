@@ -60,11 +60,31 @@ export const DEVTOOLS_ERRORS = {
 			server restarts.
 		`
 	},
+	devtools_profiler_upload_too_large: {
+		text: (a: { limit: number }): string =>
+			`that .ogp file unpacks to more than ${Math.round(a.limit / 1_048_576)} MB; it was refused`,
+		details: (): string => prose`
+			An uploaded \`.ogp\` profile is Brotli-compressed, and it unpacked past the profiler's
+			limit, so the profiler stopped unpacking it and refused it. A real profile is far smaller:
+			the file was not made by a profiler, or it was made to fill the server's memory.
+		`
+	},
 	devtools_profiler_get_report_failed: {
 		text: (): string => 'store.getReport failed:',
 		details: (): string => prose`
 			Printed with \`OGYGIA_PROFILER_DEBUG\` set. The profiler's \`store\` failed to read a
 			report back (the error follows the message), so the report is answered as not found.
+		`
+	},
+	devtools_profiler_secret_short: {
+		text: (a: { bytes: number }): string =>
+			`the profiler secret is ${a.bytes} bytes, under the 16 a production profiler needs; its pages stay closed`,
+		details: (): string => prose`
+			In production the profiler opens its pages, its \`x-profiler-key\` header and its
+			\`x-profile\` header only to a secret of at least 16 bytes (\`profiler({ secret })\` or
+			\`OGYGIA_PROFILER_SECRET\`): a shorter one can be guessed. Until then the profiler
+			records as usual and nobody can log in to it. Set a longer secret, for example the output
+			of \`openssl rand -hex 32\`.
 		`
 	},
 	devtools_dock_load_failed: {
@@ -79,6 +99,20 @@ export const DEVTOOLS_ERRORS = {
 
 /** The warnings: `warn(code, args, ...rest)`. */
 export const DEVTOOLS_WARNINGS = {
+	devtools_page_beacon_load_failed: {
+		text: (): string =>
+			'the page beacon failed to load or to start, so this page is not measured (the next page load tries again):',
+		details: (): string => prose`
+			Devtools is switched on in this browser and the page had no beacon of its own (an app
+			without ogygia's handle gets none from the server), so the dock asked for the beacon's code.
+			The browser could not download it (the network failed, or a deploy removed the file), or the
+			beacon threw as it started; the error follows the message. The page works as before, but
+			this visit is missing from the profiler. The next page load asks for the code again.
+
+			If a download keeps failing, check that the build's \`_app\` files are deployed and
+			reachable. Said once per page.
+		`
+	},
 	devtools_profiler_session_rejected: {
 		text: (a: { path: string; diagnosis: string; reason: string }): string =>
 			`session not accepted on ${a.path}: ${a.diagnosis} — ${a.reason}`,
