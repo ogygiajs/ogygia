@@ -4083,6 +4083,34 @@
 		{
 			"id": "packages/core/src/server/transport.ts > refuse",
 			"reason": "throws Kit's 400 with a worded message (not replayable), constant work; proven in packages/core/test/remote-arg-plain-data.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/index.ts > Profiler > measures",
+			"reason": "reads the request's cookies and checks the session (a profiler instance and a RequestEvent, not cloneable), constant work per cookie; proven in packages/devtools/test/profiler-measures.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/index.ts > Profiler > #flag_value",
+			"reason": "one HMAC under the secret (node:crypto, a profiler instance), constant work; proven in packages/devtools/test/profiler-measures.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/index.ts > Profiler > #flag_ok",
+			"reason": "reads one cookie of a RequestEvent (not cloneable) and compares in constant time, constant work; proven in packages/devtools/test/profiler-measures.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/index.ts > profiler > assign:0~28ebd3",
+			"reason": "the profiler's handle: forwards to Profiler.handle (a RequestEvent, not cloneable), one call; the work is Profiler.handle's"
+		},
+		{
+			"id": "packages/devtools/src/profiler/index.ts > profiler > assign:1~aaa293 > measures",
+			"reason": "forwards to Profiler.measures (a RequestEvent, not cloneable), one call; proven in packages/devtools/test/profiler-measures.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/server.ts > defineServer:0~b77987 > measures",
+			"reason": "the shared hook: forwards to the mounted profiler's measures, one call; proven in packages/core/test/server-timing-measurer.test.ts"
+		},
+		{
+			"id": "packages/core/src/hooks.ts > OgygiaHandle > render_region > catch:0~2baffa",
+			"reason": "a failed measures hook counts as not measured (the failure is said by the hook runner), constant work"
 		}
 	]
 }
