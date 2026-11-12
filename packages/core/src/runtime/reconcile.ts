@@ -186,6 +186,12 @@ export function stamp_region_keys(root: ParentNode): void {
  */
 export const NO_RECONCILE_SELECTOR: string = `[${OG_NO_RECONCILE}]`;
 
+/** Did the author opt this page's body out of the in-place reconcile? On the body itself or any
+ *  element in it (test/browser/no-reconcile-opt-out.test.ts). */
+export function opts_out_of_reconcile(body: Element): boolean {
+	return body.hasAttribute(OG_NO_RECONCILE) || body.querySelector(NO_RECONCILE_SELECTOR) !== null;
+}
+
 /** Reconcile the live body toward the parsed next body IN PLACE (no replaceWith). `morph` is the
  *  keyed morpher (slots.morph / morph_children). After this, `live` IS the reconciled tree: matched
  *  regions kept live, changed regions re-mounted, shell morphed. Region ownership of hub ids (R3)
