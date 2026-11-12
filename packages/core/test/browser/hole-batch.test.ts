@@ -55,6 +55,30 @@ describe('join_batch', () => {
 		expect(posts).toEqual([]);
 	});
 
+	it("a plugin's holes (no region id) go on their own: only the islands endpoint answers a batch", async () => {
+		const { posts } = stub_batch(() => done_parcel());
+		const frag = (org: string) =>
+			`/og/frag?peer=dash&kind=widget&search=org%3D${org}&exp=9&sig=${org}`;
+		await Promise.all([join_batch(frag('a')), join_batch(frag('b')), join_batch(ep('s1'))]);
+		expect(posts).toEqual([]);
+	});
+
+	it('holes of two endpoint paths never share a batch: each path gets its own', async () => {
+		const urls: string[] = [];
+		const { posts } = stub_batch(() => done_parcel());
+		vi.mocked(window.fetch).mockImplementation(async (url, init) => {
+			urls.push(String(url));
+			posts.push(JSON.parse(String(init?.body)) as string[]);
+			return new Response(done_parcel(), { status: 200 });
+		});
+		const at = (base: string, sig: string) => base + ep(sig);
+		await Promise.all(
+			[at('/a', 'a1'), at('/b', 'b1'), at('/a', 'a2'), at('/b', 'b2')].map((e) => join_batch(e))
+		);
+		expect(urls.sort()).toEqual(['/a/__ogygia__', '/b/__ogygia__']);
+		expect(posts.map((p) => p.length)).toEqual([2, 2]);
+	});
+
 	it('a frame the batch did not carry: the joined fetch rejects as a batch miss', async () => {
 		stub_batch(() => done_parcel());
 		await Promise.all([join_batch(ep('m1')), join_batch(ep('m2'))]);
