@@ -34,7 +34,7 @@ test('a beacon that throws as it starts is warned with the same code, and the st
 	vi.resetModules();
 	const fresh = await import('../src/page-beacon-start.ts');
 	await expect(fresh.start_page_beacon(() => Promise.resolve({ standalone_beacon }))).resolves.toBe(
-		undefined
+		false
 	);
 	const lines = warned.mock.calls.filter((c) =>
 		String(c[0]).includes('devtools_page_beacon_load_failed')
