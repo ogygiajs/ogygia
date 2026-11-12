@@ -583,9 +583,15 @@ const server: ServerPlugin<PostrenderServerOptions, State> = defineServer<
 							}
 				);
 				if (captured.stored) {
-					return captured.entry.kind === 'page' && captured.entry.stitch
-						? await serve_stitched(captured.entry, 'stored', ctx)
-						: captured.response;
+					if (captured.entry.kind !== 'page' || !captured.entry.stitch) return captured.response;
+					try {
+						return await serve_stitched(captured.entry, 'stored', ctx);
+					} catch (failed) {
+						// (the original's body is spent: the page as read goes out, unstitched, per-request)
+						capture_failed(path, failed);
+						stamp_no_store(captured.response);
+						return captured.response;
+					}
 				}
 				// Refused → per-request forever (until inputs change). Stamp `no-store` when the app set
 				// nothing: the verdict's word replaces blanket CDN rules in BOTH directions (a personal
@@ -594,7 +600,8 @@ const server: ServerPlugin<PostrenderServerOptions, State> = defineServer<
 				stamp_no_store(captured.response ?? response);
 				if (captured.response) return captured.response;
 			} catch (failed) {
-				// (before the body was read: the response goes out as it is)
+				// (a capture that threw before the body was read: the response goes out as it is; every
+				// step after the read hands back the page it read)
 				settle(null);
 				capture_failed(path, failed);
 			}
