@@ -72,11 +72,14 @@ bench(
 	}
 );
 
-/** The replay guard after a busy minute: `expired` signatures past their window, then live ones. */
+/** The replay guard after a busy minute: `expired` signatures at the end of their window, then live
+ *  ones. (A signature is kept until its ts plus the skew window, never longer: the guard's age
+ *  timer, and its sweep, run as they would.) */
 function fill_replay_guard(expired: number): void {
 	wire.seen_sigs.clear();
-	for (let i = 0; i < expired; i++) wire.seen_sigs.set(`old-${i}`, 1);
-	for (let i = 0; i < 200; i++) wire.seen_sigs.set(`live-${i}`, Number.MAX_SAFE_INTEGER);
+	const now = Date.now();
+	for (let i = 0; i < expired; i++) wire.seen_sigs.set(`old-${i}`, now + 1);
+	for (let i = 0; i < 200; i++) wire.seen_sigs.set(`live-${i}`, now + 60_000);
 }
 
 bench(
