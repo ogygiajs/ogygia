@@ -117,7 +117,10 @@ Each seed draws its own world (swarm testing): a subset of the fault classes, an
 two behind the front door (each request to the seed's pick), their clocks up to 5 s apart. The
 visitor's workload (`workload.ts`): click links, go to a path, back, forward, reload, open a tab,
 go offline and back, wait, and press a button in a region (woken or not yet: a press before an
-island's code came is replayed once it wakes). A press makes every tab's document the visitor's
+island's code came is replayed once it wakes). And three shapes: `away` (follow a link, stay 10 to 50
+s, go back: under the 60 s the frame store keeps a left page's answers), `hurry` (click a link, then
+another 0 to 300 ms later: a navigation called off midway) and `hover` (point at a link or a region:
+the router warms the link's page, an island's code is warmed on intent). A press makes every tab's document the visitor's
 own state, so the MPA check skips each such document (its next one is clean), and the element
 count leaves it out of the leak check.
 
@@ -284,6 +287,26 @@ failure leads to, a retry, an offline wait, a failure, a stall, a give-up, and a
 recovery step nothing reaches shows at once, and each wants a buggify point, a fault or an app shape.
 A server's moves too: in a rules build core's server rules keep its last 5000 under
 `Symbol.for('ogygia.server.moves')`, which the simulator reads from each instance's own registry.
+Every document's log is read, by realm, a left one's too (`Tab.moves_by`): a hard navigation inside
+one action replaced the document before it was looked at, and the steps it took last were lost.
+A flights' targets are only the entry steps its options and its file can take: `keep: 0` keeps
+nothing, and with no `get(input, { fresh })` in its file an entry is never forced (`flying -> flying`,
+`kept -> flying`).
+
+EVERY STEP ACCOUNTED FOR (`src/steps.ts`, test/steps.test.ts). The ledger `internal/sim/steps.json`
+puts each step in exactly one bucket: `reached` (the standard sweep reaches it), `covered` (the fake
+browser cannot; a named real test does, and the check finds that test in its file) or `dead` (no code
+takes it; an issue asks for its removal). A step in no bucket fails. `node src/steps.ts` is the static
+check (the PR check job, once the ledger is complete); `node src/sweep.ts` runs the standard sweep (the
+ledger's `sweep`: palaestra and generated apps' seeds) and fails when a `reached` step was not reached,
+a `dead` one was, or a step is in no bucket; `--write` sets `reached` to what it reached. dst.yml runs
+the sweep before its seeds and fails the job after them when it failed.
+
+MUTATION, DAILY: dst.yml's `mutate` job (cron `43 3 * * *`) runs `src/mutate.ts` over
+`internal/sim/mutants.json` with `--budget-min 60` (no mutant starts after an hour; the last line says
+how many it judged of the list, and when) and uploads it (`dst-mutation`). The always-on job's batch
+log line and summary say both numbers: steps accounted, and the latest finished mutation run's kill
+rate with its date.
 
 `--guided N` searches by coverage: a run that reaches a step or fires a point no run before it had
 is kept (its seed and its actions); most next runs mutate a kept one (its first actions up to a
@@ -412,7 +435,12 @@ props, throwing holes, bad `{@html}` in lakes) and is the app's. Some leaves ren
 (`gen empty`: an island, hole or lake with no element and no text), each used inside
 `<div data-gen-empty>`, which the region oracle leaves to the app.
 
-`src/waste.ts` (`waste`): at rest, in a document no fault, deploy or press touched, no answer asked
+`src/waste.ts` (`waste`): every document of a run (a left one too), each up to what first disturbed
+it (a press, a deploy, a fault on one of its exchanges), asks no answer twice (`asked_twice_each`;
+judged only at rest, a document was nearly always set aside by then). A hole's answer counts by its
+own GET or a router batch's part (the front door tags a batch's exchange with its holes), when asked
+again within the 60 s the frame store keeps it; a router visit's batch asking it again is #1020's. At
+rest, in a document no fault, deploy or press touched: no answer asked
 for twice (content-hashed files and pages left out: a browser's module map keeps a file, and the
 simulator has no HTTP cache; a remote query is counted per router visit, `og:before-swap` to the
 next: a back is a new visit, and its held region asks again as its page does, gen 187), no POST the app refused (a batch to a path that answers none, #987),
