@@ -8,8 +8,38 @@
 		"ogygia/no-promise-cache": "error",
 		"ogygia/owned-effects": "error",
 		"ogygia/no-silent-failures": "error",
-		"ogygia/stale-whole": "error"
+		"ogygia/stale-whole": "error",
+		"ogygia/html-sink": "error",
+		"ogygia/one-hash": "error",
+		"ogygia/compiler-boundary": "error",
+		"ogygia/ports": "error"
 	},
+	"overrides": [
+		{
+			"files": ["packages/*/src/**/*.ts"],
+			"rules": { "ogygia/markup-from-vocabulary": "error" }
+		},
+		{
+			"files": ["packages/*/src/**"],
+			"rules": { "no-eval": "error", "no-new-func": "error", "no-implied-eval": "error" }
+		},
+		{
+			"files": [
+				"packages/compiler/src/**",
+				"packages/cli/src/**",
+				"packages/tooling/src/**",
+				"packages/config/src/**",
+				"packages/testing/src/**",
+				"packages/barrels/src/**",
+				"packages/tsdown-plugin-svelte/src/**",
+				"packages/*/src/vite/**",
+				"packages/*/src/compiler/**",
+				"packages/devtools/src/**",
+				"packages/core/src/runtime/beacon.ts"
+			],
+			"rules": { "ogygia/ports": "off" }
+		}
+	],
 	"ignorePatterns": [
 		"**/dist/**",
 		"**/build/**",

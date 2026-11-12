@@ -10,7 +10,7 @@ import { afterEach, beforeEach, expect, vi } from 'vitest';
 import { commands } from 'vitest/browser';
 import { it_with_network_routes } from './_browsers.ts';
 import { link_boot } from '../../src/runtime/boot-link.ts';
-import { region_fragment } from '../../src/runtime/core.ts';
+import { region_fragment } from './_html.ts';
 
 declare module 'vitest/browser' {
 	interface BrowserCommands {
