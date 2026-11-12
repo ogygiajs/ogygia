@@ -1,12 +1,11 @@
 /**
  * Pure, UI-free helpers the devtools components share — region classification off the DOM attributes
- * the compiler already emits, resource-timing byte lookups, and event queries over the bus buffer.
+ * the compiler already emits, and resource-timing byte lookups.
  * No Svelte, no styling: the `.svelte` components own all presentation.
  */
-import { snapshot } from '@ogygia/core/events';
+import { cache, type Cache } from '@ogygia/machine';
 import { props_sidecar_of } from '@ogygia/core/internal/instruments';
 import { tool_made } from '@ogygia/core/internal/instruments';
-import type { DevtoolsEvent } from '@ogygia/core/events';
 import type { IslandBarrel, IslandHazard } from '@ogygia/insights';
 
 // ── regexes
@@ -66,7 +65,13 @@ export function all_regions(): RegionInfo[] {
  */
 export function region_props_sidecar(el: Element): string | null {
 	// Keyed at the end of the body (by `data-og-fp`) or adjacent — the runtime's own lookup.
-	return props_sidecar_of(el)?.textContent ?? null;
+	return sidecar_of(el)?.textContent ?? null;
+}
+
+let sidecar_of = props_sidecar_of;
+// @why the runtime remembers restored sidecars in its own module; a copy not built with the app asks the realm's (test: devtools-leftovers-ledger)
+export function use_sidecar_lookup(lookup: typeof props_sidecar_of): void {
+	sidecar_of = lookup;
 }
 
 /** basename of a URL/path (drops query + directory). */
@@ -145,14 +150,21 @@ export function timing_for(entry: string): PerformanceResourceTiming | undefined
 	return timing_index().get(base);
 }
 
+/** The most resource entries indexed: the page's timeline is bounded by the browser (250 entries
+ *  by default; a page may raise it), so this only bounds a page that raised it past this. */
+const INDEX_MAX = 4000;
+
 // the resource list by basename, rebuilt only when it grows: every island asked on every tick, and
 // each ask split every resource's URL (18 ms per 3 s on a page with 64 files and 30 islands)
 let index_len = -1;
-let index = new Map<string, PerformanceResourceTiming>();
-function timing_index(): Map<string, PerformanceResourceTiming> {
+const index = cache<string, PerformanceResourceTiming>({
+	name: 'devtools resource index',
+	max: INDEX_MAX
+});
+function timing_index(): Cache<string, PerformanceResourceTiming> {
 	const res = performance.getEntriesByType('resource') as PerformanceResourceTiming[];
 	if (res.length !== index_len) {
-		index = new Map();
+		index.clear();
 		// last match wins (a re-fetch), the devtools' own reads left out (a HEAD's empty body is no size)
 		for (const r of res) if (!tool_made(r)) index.set(basename(r.name), r);
 		index_len = res.length;
@@ -167,11 +179,4 @@ export function chunk_bytes(entry: string): { wire: number; raw: number; loaded:
 	const wire = t.encodedBodySize || t.transferSize || t.decodedBodySize || 0;
 	const raw = t.decodedBodySize || wire;
 	return { wire, raw, loaded: true };
-}
-
-/** Latest buffered event matching a predicate (newest wins), or null. */
-export function latest_event(pred: (e: DevtoolsEvent) => boolean): DevtoolsEvent | null {
-	const events = snapshot();
-	for (let i = events.length - 1; i >= 0; i--) if (pred(events[i])) return events[i];
-	return null;
 }

@@ -7,17 +7,19 @@ import { afterEach, expect, it } from 'vitest';
 import { fc } from '@ogygia/config/sim';
 import { release_head_nodes, use_sheets } from '../../src/runtime/region-sheets.ts';
 import { connected_regions } from '../../src/runtime/connected.ts';
+import { scope } from '@ogygia/machine';
 
 const made: Element[] = [];
+/** The test regions' lifetime in the page: each cleanup ends it. */
+let page = scope();
 function track<T extends Element>(el: T): T {
 	made.push(el);
 	return el;
 }
 function cleanup(): void {
-	for (const el of made.splice(0)) {
-		connected_regions.delete(el);
-		el.remove();
-	}
+	page.close();
+	page = scope();
+	for (const el of made.splice(0)) el.remove();
 }
 afterEach(cleanup);
 
@@ -55,7 +57,7 @@ it('a head node the next page does not list stays exactly while a region on the 
 					const el = track(document.createElement('div'));
 					if (r.fp) el.setAttribute('data-og-fp', r.fp);
 					document.body.append(el);
-					connected_regions.add(el);
+					connected_regions.add(el, page);
 					const used = r.uses.filter((i) => i < nodes.length).map((i) => nodes[i]!);
 					use_sheets(el, used);
 					// a region gone from the page: out of the document, its teardown not run yet

@@ -150,7 +150,7 @@ describe('peer transport — one per remote app', () => {
 	it('widgetDoc throws a plain Error; doc() throws http errors; a network failure is a 504', async () => {
 		vi.stubGlobal('fetch', async () => new Response('nope', { status: 500 }));
 		const dash = new PeerHandle('dash', { origin: 'http://dash.test' }, 'shell');
-		await expect(dash.widgetDoc('kpis')).rejects.toThrow("fragment 'kpis' answered 500");
+		await expect(dash.widgetDoc('kpis')).rejects.toThrow('fragment app answered a 500');
 		await expect(dash.doc('/p', '')).rejects.toMatchObject({ status: 502 });
 		vi.stubGlobal('fetch', async () => {
 			throw new TypeError('fetch failed');
@@ -640,8 +640,8 @@ describe('deferred remote holes — the lifetime and renewal of a local hole', (
 		expect(plain).toBeLessThanOrEqual(now_sec() + 3600); // the app's `ttl` (an hour by default)
 		const stored = Number((await mint(true)).searchParams.get('exp'));
 		expect(stored).toBeGreaterThan(now_sec() + 365 * 24 * 3600); // what a local hole gets
-		// the url keeps exp + sig as its tail, which a region's identity cuts off
-		expect([...(await mint()).searchParams.keys()].slice(-2)).toEqual(['exp', 'sig']);
+		// the url keeps exp + sig + k as its tail, which a region's identity cuts off
+		expect([...(await mint()).searchParams.keys()].slice(-3)).toEqual(['exp', 'sig', 'k']);
 	});
 
 	it('answers a live hole with the fragment', async () => {
