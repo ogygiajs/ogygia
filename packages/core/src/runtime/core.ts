@@ -1,5 +1,6 @@
 import {
 	backoffAfter,
+	buggify,
 	clock,
 	flights,
 	mailbox,
@@ -22,7 +23,12 @@ import { browser_offline, no_response } from './network.ts';
 // feature module of its own, and without the frame store it has nowhere to land anyway.
 import { FRAMES } from 'ogygia:boot';
 import { kit_hydrates_page } from './kit-boot.ts';
-import { init_shadow_registries, parse_region_html } from './parse-html.ts';
+import {
+	init_shadow_registries,
+	parse_region_html,
+	vouch_remote_answer,
+	type VerifiedHtml
+} from './html-sink.ts';
 import {
 	mark_region_changed,
 	region_changed,
@@ -46,6 +52,7 @@ import {
 	pin_build_map,
 	pin_region_urls
 } from './entry-locations.ts';
+import { code_origins, code_url, import_code } from './code-origins.ts';
 import { load_devalue, needs_devalue } from './devalue-lane.ts';
 import {
 	is_awake,
@@ -424,7 +431,7 @@ async function snippets_settled(region: Element, visit: Scope): Promise<void> {
  * left in the body would also fail to load inside a `<template>` batch parcel.) `sheets`: the head
  * nodes the answer uses, for the region that paints it (./region-sheets.ts `use_sheets`).
  */
-export function region_fragment(html: string): {
+export function region_fragment(html: VerifiedHtml): {
 	frag: DocumentFragment;
 	ready: Promise<void>;
 	sheets: readonly Element[];
@@ -455,11 +462,12 @@ export function region_fragment(html: string): {
 			if (!href) continue;
 			// Document-relative href → resolve against the document, never this module (see
 			// island_module_url: a bare import() of `../../@id/…` lands on `/node_modules/@id/…`).
-			const url = island_module_url(href);
-			if (seen.has(url)) continue;
+			// (an href is markup: imported only from the page's code origins, as an island's own load)
+			const url = code_url(island_module_url(href));
+			if (url === null || seen.has(url)) continue;
 			seen.add(url);
 			pending.push(
-				import(/* @vite-ignore */ url).then(
+				import_code(url).then(
 					() => undefined,
 					() => undefined
 				) // ok: a stylesheet wait only: the swap goes on, and the region's own import says a failure
@@ -616,7 +624,7 @@ class OgygiaRegion extends HTMLElement {
 	#box: Mailbox = CLOSED_BOX;
 	/** The answer it painted last: what a hole put back on the page shows again when the frame store
 	 *  let it go meanwhile (#336). */
-	#shown: string | null = null;
+	#shown: VerifiedHtml | null = null;
 	/** Frames its binding was handed (a binding that replays one counts it at once). */
 	#frames_in = 0;
 	/** A live region's last tick: what it goes on with when it is put back on the page (#337). */
@@ -1275,7 +1283,7 @@ class OgygiaRegion extends HTMLElement {
 	 * offline before custom elements connect, then swap, mark, event. HOLE-TRUST: the HTML is our own
 	 * signed same-origin SSR.
 	 */
-	async #apply(html: string, turn: Turn, v?: number) {
+	async #apply(html: VerifiedHtml, turn: Turn, v?: number) {
 		if (!this.isConnected) return;
 		// The newest frame: one still waiting for its sheets is older, and never paints over this one.
 		const painting = this.#paint_next();
@@ -1371,7 +1379,7 @@ class OgygiaRegion extends HTMLElement {
 	 * survives — the breathing update live partials rely on). Interactive live regions never reach
 	 * here: they keep the imperative keep-alive path in {@link applyLive}.
 	 */
-	async #morph_live(html: string, turn: Turn) {
+	async #morph_live(html: VerifiedHtml, turn: Turn) {
 		if (!this.isConnected) return;
 		// BAKED (Region.svelte, PromiseRegionAwait): the first HTML is already here — the page was
 		// served with it and hydrated against it. Nothing to paint; later ticks morph as usual (by
@@ -1466,6 +1474,9 @@ class OgygiaRegion extends HTMLElement {
 		const mine = this.#hole.now;
 		let html: string | typeof STALE;
 		try {
+			// (buggify: the answer is lost on the way, as a dropped request's: the fetch fails, and
+			// the hole tries again or gives up as it would)
+			if (RULES && buggify.fires('hole.fetch-lost')) throw new TypeError('Failed to fetch');
 			// (the network is no turn of the element's: the frames that come meanwhile land as it waits)
 			html = await turn.wait(
 				this.#hole.scope.task((signal) =>
@@ -1954,13 +1965,15 @@ class OgygiaRegion extends HTMLElement {
 			const address = desc.url ? frameAddress(desc.url) : null;
 			const held = address && frames ? frames.peek(address) : null;
 			const mine = address && frames ? (desc.written ??= { v: frames.ticket(address) }) : null;
-			if (mine === null) await this.#morph_live(desc.html, turn);
+			// (a live tick is our server's render, through the app's remote transport)
+			const html = vouch_remote_answer(desc.html);
+			if (mine === null) await this.#morph_live(html, turn);
 			else if (older_by(mine, held) === null && older_by(mine, this.#live_painted) === null) {
 				this.#live_painted = stands_at(
 					held && held.v > (this.#live_painted?.v ?? 0) ? held : this.#live_painted,
 					mine
 				);
-				await this.#morph_live(desc.html, turn);
+				await this.#morph_live(html, turn);
 			}
 			return;
 		}
@@ -1982,7 +1995,8 @@ class OgygiaRegion extends HTMLElement {
 		}
 		// Same module, its island's file could not load (said once): the tick's server HTML shows, and
 		// nothing loads again (#942, test/browser/live-region-failed-file.test.ts)
-		if (s.kind === 'failed' && s.module === desc.module) return this.#morph_live(desc.html, turn);
+		if (s.kind === 'failed' && s.module === desc.module)
+			return this.#morph_live(vouch_remote_answer(desc.html), turn);
 
 		// First tick, the interactive module changed, or it was static: swap + hydrate. (Leaving `live`
 		// disposes its island; leaving `static` drops its subscription; leaving `hydrating` ends that
@@ -1992,9 +2006,9 @@ class OgygiaRegion extends HTMLElement {
 		const painting = this.#paint_next();
 		this.#live_props = null;
 		this.#live_ready = true;
-		// createContextualFragment — signed same-origin HTML trust boundary (HOLE-TRUST). The HTML is
-		// our own SSR under a verified MAC (or, for a live tick, rendered in-process on the server).
-		const { frag, ready, sheets } = region_fragment(desc.html);
+		// The HTML sink's trust boundary (HOLE-TRUST, ./html-sink.ts): a live tick is rendered
+		// in-process on our server and reaches us through the app's remote transport.
+		const { frag, ready, sheets } = region_fragment(vouch_remote_answer(desc.html));
 		// stylesheet before paint — an interactive held region has CSS too (no FOUC). (STALE: the
 		// region left the page meanwhile; another tick took over: it paints)
 		if ((await turn.wait(ready)) === STALE || this.#live.now !== mine) return;
@@ -2185,10 +2199,11 @@ function apply_dev_head_region_css(): void {
 			// The href is DOCUMENT-relative (`../../@id/…` on a nested route, base-aware by design). A bare
 			// `import()` would resolve it against THIS module's url (`/node_modules/…/og-runtime.js` in an
 			// app) and 404 on `/node_modules/@id/…` — the same trap island entries avoid via this resolver.
-			const url = island_module_url(href);
-			if (seen.has(url)) continue;
+			// (an href is markup: imported only from the page's code origins, as an island's own load)
+			const url = code_url(island_module_url(href));
+			if (url === null || seen.has(url)) continue;
 			seen.add(url);
-			void import(/* @vite-ignore */ url).catch(() => {}); // ok: dev only: a region's own import says a failure; this one only styles early
+			void import_code(url).catch(() => {}); // ok: dev only: a region's own import says a failure; this one only styles early
 		}
 	}); // ok: dom_ready never rejects, and the work in it catches
 }
@@ -2217,6 +2232,8 @@ export function boot(
 	for (const install of installers) install();
 	// The build's location map, pinned to this page's address before any navigation moves it
 	pin_build_map();
+	// The origins island code may load from, read while the head is still the server's alone
+	code_origins();
 	// An island whose file was gone (this page outlived its build) woke on the current build's file:
 	// the devtools timeline and the beacon hear it (entry-locations.ts imports neither)
 	on_entry_fallback((report) => {
