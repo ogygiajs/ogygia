@@ -34,7 +34,15 @@
 import type { SeedIndex } from '../seed-refs.ts';
 import { escape_script_text } from '../escape.ts';
 import { HOLES_SCRIPT_TYPE } from '../holes-record.ts';
-import { ISLAND_GRAPH_ATTR, encode_island_graph } from '../island-graph.ts';
+import { HEAD_OWNERS_ATTR } from '../head-owners.ts';
+import { encode_island_graph } from '../island-graph.ts';
+import {
+	OG_LOCATIONS,
+	OGYGIA_GRAPH,
+	OGYGIA_HOLES,
+	OGYGIA_RUNTIME,
+	OGYGIA_RUNTIME_DEP
+} from '../wire-markup.ts';
 import { props_sidecar, type WireText } from './props-wire.ts';
 import type { HoleStat, IslandInteractivity, IslandStat } from './request-stats.ts';
 
@@ -94,7 +102,8 @@ const RUNTIME_LOAD_FAILED = "console.error('[ogygia] https://ogygiajs.dev/e/runt
  * runtime instead of one round trip after it. Normal priority — the runtime cannot run without
  * them. `data-ogygia-runtime-dep` keeps them attached to the script when the handle moves it
  * (head-presence.ts `runtime_first`). `locations`: the build's location map, which the runtime reads
- * for a load that arrives with an identity alone (runtime/entry-locations.ts).
+ * for a load that arrives with an identity alone (runtime/entry-locations.ts). Its code origins are
+ * written at head time (head-presence.ts `runtime_first`).
  *
  * The runtime cannot say that it failed to load: when its file or one of its static imports fails to
  * download, none of it runs, every island stays server markup, and nothing of ogygia's was logged
@@ -108,15 +117,15 @@ export function runtime_bootstrap_tags(
 	locations: string | null = null
 ): string {
 	let html =
-		'<script type="module" data-ogygia-runtime' +
-		(locations ? ' data-og-locations="' + locations + '"' : '') +
+		`<script type="module" ${OGYGIA_RUNTIME}` +
+		(locations ? ` ${OG_LOCATIONS}="` + locations + '"' : '') +
 		' src="' +
 		src +
 		'" onerror="' +
 		RUNTIME_LOAD_FAILED +
 		'"></script>';
 	for (const dep of deps)
-		html += '<link rel="modulepreload" href="' + dep + '" data-ogygia-runtime-dep>';
+		html += '<link rel="modulepreload" href="' + dep + `" ${OGYGIA_RUNTIME_DEP}>`;
 	return html;
 }
 
@@ -132,7 +141,7 @@ export function island_graph_script(
 	if (graph.size === 0 && !locations?.size) return '';
 	return (
 		'<script type="application/json" ' +
-		ISLAND_GRAPH_ATTR +
+		OGYGIA_GRAPH +
 		'>' +
 		escape_script_text(encode_island_graph(graph, locations ?? undefined)) +
 		'</script>'
@@ -140,7 +149,7 @@ export function island_graph_script(
 }
 
 /** The holes record (`hole()`), read by runtime/hole-facts.ts. */
-const HOLES_SCRIPT_OPEN = `<script type="${HOLES_SCRIPT_TYPE}" data-ogygia-holes>`;
+const HOLES_SCRIPT_OPEN = `<script type="${HOLES_SCRIPT_TYPE}" ${OGYGIA_HOLES}`;
 const HOLES_SCRIPT_CLOSE = '</script>';
 
 /** A sidecar as the tail keeps it: the plan, and the facts the profiler reads after the render. */
@@ -167,6 +176,8 @@ export class DocumentTail {
 	readonly #props = new Map<string, Sidecar>();
 	readonly #holes = new Map<string, HoleRecord>();
 	readonly #hole_notes = new Map<string, HoleStat>();
+	/** sheet identity → the outer islands that use it beyond the one its tag names (#854) */
+	readonly #sheet_owners = new Map<string, Set<string>>();
 	/** per-fingerprint facts of the last `render()` (the profiler's Islands table) */
 	#island_rows: IslandStat[] | null = null;
 
@@ -261,13 +272,26 @@ export class DocumentTail {
 			this.#holes.set(identity, { endpoint, sidecar });
 	}
 
+	/**
+	 * One more owner of a region sheet: an outer island that uses the sheet another one linked first
+	 * in this request (the tag names only that one, `data-og-owner`). `identity` is the sheet's
+	 * resolved href, as its tag carries it. A navigation keeps the sheet while any owner stays
+	 * (runtime/region-sheets.ts).
+	 */
+	sheet_owner(identity: string, owner: string): void {
+		let set = this.#sheet_owners.get(identity);
+		if (!set) this.#sheet_owners.set(identity, (set = new Set()));
+		set.add(owner);
+	}
+
 	get empty(): boolean {
 		return (
 			this.#hints.size === 0 &&
 			this.#graph.size === 0 &&
 			this.#locations.size === 0 &&
 			this.#props.size === 0 &&
-			this.#holes.size === 0
+			this.#holes.size === 0 &&
+			this.#sheet_owners.size === 0
 		);
 	}
 
@@ -284,8 +308,9 @@ export class DocumentTail {
 	/** The tail's HTML: hints, the island graph, then props (each rendered now, against `seed`), then
 	 *  the holes record (one script, JSON, `<`-escaped). Empty string when nothing was recorded. With
 	 *  `detail`, the per-island rows (bytes, lane, references, the devalue culprit) are kept for
-	 *  the profiler — a little extra work, only while it records. */
-	render(seed: SeedIndex | null = null, detail = false): string {
+	 *  the profiler — a little extra work, only while it records. `mark`: the response's mark
+	 *  attribute, on the holes record (server/response-mark.ts `mark_attr`, RESPONSE-MARK). */
+	render(seed: SeedIndex | null = null, detail = false, mark = ''): string {
 		let out = '';
 		for (const href of this.#hints) out += modulepreload_tag(href);
 		out += island_graph_script(this.#graph, this.#locations);
@@ -319,7 +344,20 @@ export class DocumentTail {
 		if (this.#holes.size) {
 			const record: Record<string, HoleRecord> = {};
 			for (const [identity, facts] of this.#holes) record[identity] = facts;
-			out += HOLES_SCRIPT_OPEN + escape_script_text(JSON.stringify(record)) + HOLES_SCRIPT_CLOSE;
+			out +=
+				HOLES_SCRIPT_OPEN +
+				mark +
+				'>' +
+				escape_script_text(JSON.stringify(record)) +
+				HOLES_SCRIPT_CLOSE;
+		}
+		if (this.#sheet_owners.size) {
+			const record: Record<string, string[]> = {};
+			for (const [identity, owners] of this.#sheet_owners) record[identity] = [...owners];
+			out +=
+				`<script type="application/json" ${HEAD_OWNERS_ATTR}>` +
+				escape_script_text(JSON.stringify(record)) +
+				'</script>';
 		}
 		return out;
 	}

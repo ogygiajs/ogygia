@@ -4,10 +4,10 @@
 // client over a stand-in worker (the browser's Worker is the client's only browser need).
 import { bench } from '@bench/heisenbench/bench';
 import * as v from 'valibot';
+import { defineRun, registry, type Registry } from '@ogygia/machine';
 // (the site layer reaches the package's own Svelte components, written for experimental.async:
 // Heisenbench compiles them with the package's svelte.config.js)
 import { content, folder, json, type Source, type SourceEntry } from '../src/index.ts';
-import { mark_content_calls } from '../src/vite/hmr.ts';
 import { site } from '../src/site/site.ts';
 import { dimensions } from '../src/site/dimensions.ts';
 import { create_search, type SearchEngine } from '../src/site/search.ts';
@@ -17,10 +17,11 @@ import { outline, pick } from '../src/site/outline.ts';
  *  graph read walks all of them: each run starts from an empty graph, or a run would walk the
  *  collections every earlier run made and count more than the one before. */
 function fresh<T>(ctx: T): T {
-	const graph = (globalThis as Record<symbol, { all?: Set<unknown> } | undefined>)[
+	const graph = (globalThis as Record<symbol, { all?: Registry<unknown> } | undefined>)[
 		Symbol.for('ogygia.content.graph')
 	];
-	graph?.all?.clear();
+	// (a registry holds what its owners hold: a fresh one is an empty graph)
+	if (graph) graph.all = registry();
 	return ctx;
 }
 
@@ -250,19 +251,14 @@ bench(
 	{ setup: () => fresh({ n: 6 }), scale: (_ctx, k) => fresh({ n: 6 * k }) }
 );
 
-/** The content graph's module runs: what a module the content dev plugin marked asks for at the
- *  top of each of its runs, and passes each of its content() calls through. */
-const graph_runs = (globalThis as Record<symbol, unknown>)[Symbol.for('ogygia.content.graph')] as {
-	module_run: (module: string) => <F extends (...a: never[]) => unknown>(build: F) => F;
-};
-
 bench(
 	'content: edits in dev, each run of a module replacing the live collections the run before built',
 	async ({ n }) => {
 		let found = 0;
 		const kept: ReturnType<typeof content>[] = [];
 		for (let run = 0; run < n; run++) {
-			const marked = graph_runs.module_run('/app/src/lib/docs.server.ts');
+			// (what core's definer marking does at the top of each run of a module that calls content())
+			const marked = defineRun('/app/src/lib/docs.server.ts');
 			const rows = Array.from({ length: 10 }, (_, i) => doc(i));
 			const src = live_source(rows);
 			const c = marked(content)({ schema, loader: src.source });
@@ -280,33 +276,7 @@ bench(
 	{ setup: () => fresh({ n: 12 }), scale: (_ctx, k) => fresh({ n: 12 * k }) }
 );
 
-/** A server module with `content()` calls (named, renamed, through a namespace), `k` times over. */
-function collections_module(k: number): string {
-	const parts = [
-		`import { content, folder } from '@ogygia/content';`,
-		`import { content as collection } from '@ogygia/content';`,
-		`import * as c from '@ogygia/content';`,
-		`import { content as other } from './elsewhere.ts';`
-	];
-	for (let i = 0; i < k; i++)
-		parts.push(
-			`export const docs${i} = content({ loader: folder(import.meta.glob('./d${i}/**')) });`,
-			`export const blog${i} = collection({ loader: folder(import.meta.glob('./b${i}/**')) });`,
-			`export const news${i} = c.content({ loader: c.folder(import.meta.glob('./n${i}/**')) });`,
-			`export const not${i} = other({ loader: folder({}) });`,
-			`function lazy${i}() { return content({ loader: folder({}) }); }`
-		);
-	return parts.join('\n');
-}
-
-bench(
-	'content: the dev plugin marks the content() calls of a module with n collections',
-	({ code }) => mark_content_calls(code, '/app/src/lib/collections.server.ts'),
-	{
-		setup: () => ({ code: collections_module(4) }),
-		scale: (_ctx, k) => ({ code: collections_module(4 * k) })
-	}
-);
+// (the marking of a module's content() calls is core's definer marking now: its bench is core's)
 
 /** The browser's Worker, stood in for: answers the client as the search worker does. */
 class StandInWorker {
