@@ -11,7 +11,7 @@ with no line, or a line naming something that does not exist (`internal/checks/i
 
 ## HOLE-TRUST — signed same-origin HTML for deferred regions
 
-**What:** The runtime fetches a capability URL and inserts HTML via `createContextualFragment` + `replaceChildren`. Scripts in that HTML do **not** run; event-handler attributes would.
+**What:** The runtime fetches a capability URL and inserts HTML parsed in one place (`runtime/parse-html.ts` `parse_region_html`: `setHTMLUnsafe` on a template of an inert document, so declarative shadow roots attach) and grafted or swapped in (`replaceChildren`). Scripts in that HTML do **not** run; event-handler attributes would.
 
 **Why:** Deferred / SWR regions are MPA-equivalent: the HTML is produced by _our_ SSR under a verified HMAC. Trust root is the **server MAC**, not the client.
 
@@ -69,7 +69,7 @@ with no line, or a line naming something that does not exist (`internal/checks/i
 
 **Why:** Browsers must never mint capabilities. Multi-instance deploys without a shared env need the baked fallback so all replicas agree. Domain-separated keys + length-prefixed fields close classic MAC footguns without requiring the env var on every local demo.
 
-A client build fails (`secret_in_client_chunk`) when a chunk or asset holds a signing secret, or a chunk holds a module that signs. Messages are `v2|` (the render id signed too) for every current mint; `v1|` is still verified so pages cached before an upgrade keep their holes.
+A client build fails (`secret_in_client_chunk`) when a chunk or asset holds a signing secret, or a chunk holds a module that signs. Messages are `v2|` (the render id signed too) for every current mint of a hole that does not wake, and `v3|` (the "wakes" mark `w=1` signed too, so the endpoint renders the answer inside an island, as its hydrate does) for one that does; `v1|` is still verified so pages cached before an upgrade keep their holes.
 
 **Do not:** Embed the real secret in a client chunk. Fail production builds only when you are ready to require env everywhere (local demos still need the fallback). Change the MAC version string without a deliberate invalidate of in-flight capability URLs.
 
@@ -101,15 +101,15 @@ A client build fails (`secret_in_client_chunk`) when a chunk or asset holds a si
 
 ---
 
-## PRELOAD-CACHE — every region response says how it may be cached
+## HOLE-CACHE — every region response says how it may be cached; one request per hole
 
-**What:** A hole is dynamic by default: its answer is `cache-control: no-store`. A hole that opts in (a signed `ttl`, e.g. the `maxAge` preset) is `private, max-age=<ttl>`, so the browser reuses its `<link rel="preload" as="fetch">` answer for the runtime fetch. Every other region response (a refusal, an error, a keep-fallback 204) is `no-store`. No region response is ever `public` or carries `s-maxage`, and every one carries `Referrer-Policy: no-referrer`.
+**What:** A hole is dynamic by default: its answer is `cache-control: no-store`. A hole that opts in (a signed `ttl`, e.g. the `maxAge` preset) is `private, max-age=<ttl>` (never on a renewed answer). Every other region response (a refusal, an error, a keep-fallback 204) is `no-store`. No region response is ever `public` or carries `s-maxage`, and every one carries `Referrer-Policy: no-referrer`. A `defer: 'load'` hole's request starts in the head during the parse (`early-holes.ts`: one data block, one constant inline script), and the runtime takes that request over as the hole's flight, so each hole is asked for once with no cache between them.
 
-**Why:** A region answer can hold one visitor's render and its URL is a capability: no shared cache may keep either. A response with no `cache-control` is heuristically cacheable (a 204 too). The opt-in private cache saves the double fetch for holes that are the same for a while.
+**Why:** A region answer can hold one visitor's render and its URL is a capability: no shared cache may keep either. A response with no `cache-control` is heuristically cacheable (a 204 too). A `<link rel="preload" as="fetch">` used to make the early start and needed a cacheable answer for the runtime to reuse; WebKit never hands a preload to a later `fetch()`, so every hole was asked for, and rendered, twice there (#404).
 
-**Do not:** Send a region response without an explicit `cache-control`. Make a hole cacheable by default. Let a shared CDN store a region response.
+**Do not:** Send a region response without an explicit `cache-control`. Make a hole cacheable by default. Let a shared CDN store a region response. Bring back a preload for the early start.
 
-**Enforced by:** `apps/palaestra/e2e/server-islands.spec.ts > the opt-in cache path (maxAge: '1h' preset) carries a signed ttl + private max-age`
+**Enforced by:** `apps/palaestra/e2e/server-islands.spec.ts > the opt-in cache path (maxAge: '1h' preset) carries a signed ttl + private max-age`, `packages/core/test/browser/early-holes.test.ts`
 
 ---
 
@@ -143,7 +143,7 @@ A client build fails (`secret_in_client_chunk`) when a chunk or asset holds a si
 
 ## LAKE-PLACEHOLDER — no lake JS on the client
 
-**What:** Client build rewrites lake imports to `LakePlaceholder.svelte`; SSR keeps the real component. Runtime lifts/restores SSR DOM around hydrate.
+**What:** Client build rewrites lake imports to the render-nothing `ClientBindingStub.svelte` (`compiler/region/emit.ts` `rewrite_lake_import_to_placeholder`); SSR keeps the real component. Runtime lifts/restores SSR DOM around hydrate.
 
 **Why:** `hydrate: 'none'` means zero lake client JS.
 
@@ -231,8 +231,20 @@ a kept island’s live query then freezes and its next read throws (#817,
 
 ---
 
+## CONTEXT-CURSOR — one slot for the region being hydrated
+
+**What:** The region the runtime is hydrating (the anchor a cross-island `context.get()` walks up from) and the foreign island it is delegating to another build (`set_foreign_hydrate`) each live on one `globalThis` slot under a `Symbol.for` key (`packages/core/src/current-region.ts`). The runtime writes them; the context feature and the `$app/*` shims read them.
+
+**Why:** The context feature is bundled apart from the runtime, and a federated island's build is another bundle again: each has its own copy of the module. A module-level variable would be one slot per copy, so the reader would see `null` while the runtime is hydrating, and a nested `get()` would find no context.
+
+**Do not:** Keep the cursor in a module variable or behind an import the other bundle does not share. Move it into a module with heavy imports (it lives alone so the boot stays small).
+
+**Enforced by:** `packages/core/test/current-region-slot.test.ts > two copies of the module share the region being hydrated, and the foreign island`
+
+---
+
 ## Related docs
 
 - Product vocabulary: [`DESIGN.md`](./DESIGN.md)
-- Public API: docs site + [`packages/ogygia/README.md`](./packages/ogygia/README.md)
+- Public API: docs site + [`packages/ogygia/README.md`](../../packages/ogygia/README.md)
 - Spec / goals: [`SPEC.md`](./SPEC.md)
