@@ -185,5 +185,6 @@ export async function measure(opts: MeasureOptions): Promise<PerfSnapshot> {
 		pages.push(snap);
 		opts.on_page?.(snap);
 	}
+	// wall: a saved measurement's date
 	return { version: 1, at: Date.now(), node, ...(opts.label ? { label: opts.label } : {}), pages };
 }

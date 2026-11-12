@@ -17,8 +17,11 @@
 		"@codemirror/state": "catalog:",
 		"@codemirror/view": "catalog:",
 		"@ionic/core": "^9.0.4",
+		"@ogygia/barrels": "workspace:*",
 		"@ogygia/devtools": "workspace:*",
+		"@ogygia/reshape": "workspace:*",
 		"@ogygia/router": "workspace:*",
+		"@ogygia/testing": "workspace:*",
 		"devalue": "catalog:",
 		"ogygia": "workspace:*",
 		"valibot": "catalog:"

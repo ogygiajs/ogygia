@@ -2,13 +2,14 @@
 // document from before the id existed, by attribute), the JSON lane (`data-og-format="json"` on a
 // sidecar or the seed → `JSON.parse`, nothing else), the csr fact read off `<meta name="ogygia-csr">`
 // before any inline-script probe, and the shared IntersectionObserver.
-import { beforeEach, expect, inject, test } from 'vitest';
+import { afterEach, beforeEach, expect, inject, test } from 'vitest';
+import { mark_live_head } from './_response-mark.ts';
 import { page } from 'vitest/browser';
 import { bootDev } from '../../src/runtime/full.ts';
 import { props_sidecar_of } from '../../src/runtime/sidecar.ts';
 import { parse_sidecar_text, prepare_spa_document } from '../../src/runtime/seeds.ts';
 import { KitBoot, kit_hydrates_page } from '../../src/runtime/kit-boot.ts';
-import { observe, observer_count, once_visible } from '../../src/runtime/observe.ts';
+import { once_on_screen, tracker_count, watch_viewport } from '../../src/runtime/viewport.ts';
 import { page_state } from '../../src/shims/page-store.svelte.ts';
 import { runtime_session } from '../../src/runtime/session.ts';
 import { link_boot } from '../../src/runtime/boot-link.ts';
@@ -22,9 +23,14 @@ const decode = (
 	key: 'counter_tail_ssr_b64' | 'counter_tail_legacy_ssr_b64' | 'counter_json_lane_ssr_b64'
 ) => decodeURIComponent(escape(atob(inject(key))));
 
+const unmark: Array<() => void> = [];
 beforeEach(() => {
 	document.body.innerHTML = '';
 	prepare_spa_document();
+	unmark.push(mark_live_head());
+});
+afterEach(() => {
+	for (const undo of unmark.splice(0)) undo();
 });
 
 test('a keyed sidecar is found through the id map (id="og-props-<fp>")', () => {
@@ -132,34 +138,34 @@ test('the csr fact: the meta decides when present; the inline-script probe only 
 	runtime_session.kit_page = undefined;
 });
 
-test('one IntersectionObserver per rootMargin, shared by every element; once_visible fires once', async () => {
+test('one IntersectionObserver per rootMargin, shared by every element; once_on_screen fires once', async () => {
 	document.body.innerHTML =
 		'<div id="a" style="height:20px"></div><div id="b" style="height:20px"></div>' +
 		'<div id="c" style="position:absolute;top:9000px;height:20px"></div>';
-	const before = observer_count();
+	const before = tracker_count();
 	const seen: string[] = [];
-	const stop_a = observe(document.getElementById('a')!, '0px', (i) => seen.push('a:' + i));
-	const stop_b = observe(document.getElementById('b')!, '0px', (i) => seen.push('b:' + i));
-	expect(observer_count()).toBe(
+	const stop_a = watch_viewport(document.getElementById('a')!, '0px', (i) => seen.push('a:' + i));
+	const stop_b = watch_viewport(document.getElementById('b')!, '0px', (i) => seen.push('b:' + i));
+	expect(tracker_count()).toBe(
 		before + (before === 0 ? 1 : 0) || before + 1 - (before > 0 ? 1 : 0)
 	);
-	const with_zero = observer_count();
-	observe(document.getElementById('c')!, '200px', (i) => seen.push('c:' + i));
-	expect(observer_count()).toBe(with_zero + 1); // a distinct margin → one more observer
-	observe(document.getElementById('c')!, '200px', (i) => seen.push('c2:' + i));
-	expect(observer_count()).toBe(with_zero + 1); // same margin → shared (both callbacks kept)
+	const with_zero = tracker_count();
+	watch_viewport(document.getElementById('c')!, '200px', (i) => seen.push('c:' + i));
+	expect(tracker_count()).toBe(with_zero + 1); // a distinct margin → one more observer
+	watch_viewport(document.getElementById('c')!, '200px', (i) => seen.push('c2:' + i));
+	expect(tracker_count()).toBe(with_zero + 1); // same margin → shared (both callbacks kept)
 	await expect
 		.poll(() => seen.filter((s) => s.startsWith('a') || s.startsWith('b')).length)
 		.toBe(2);
 	expect(seen).toContain('a:true');
 	expect(seen).toContain('b:true');
 	// two watchers of one element both hear it (one replacing the other hid a visible island from the
-	// hydration scheduler: observe-shared.test.ts)
+	// hydration scheduler: viewport-shared.test.ts)
 	await expect.poll(() => seen.includes('c:false') && seen.includes('c2:false')).toBe(true);
 	stop_a();
 	stop_b();
 	let fired = 0;
-	once_visible(document.getElementById('a')!, '0px', () => fired++);
+	once_on_screen(document.getElementById('a')!, '0px', () => fired++);
 	await expect.poll(() => fired).toBe(1);
 	document.getElementById('a')!.style.display = 'none';
 	document.getElementById('a')!.style.display = '';

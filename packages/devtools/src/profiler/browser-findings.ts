@@ -16,8 +16,8 @@ import {
 	type PageInput,
 	type PageReport,
 	type RegionFact
-} from '@ogygia/core/insights';
-import type { CodeKind, CpuFn, CpuSummary } from '@ogygia/core/insights';
+} from '@ogygia/insights';
+import type { CodeKind, CpuFn, CpuSummary } from '@ogygia/insights';
 import type { FrameCategory } from './analyze.ts';
 import type { ClientWindows, InteractionCpu, WindowFn } from './client-windows.ts';
 import type { Visit } from './visit.ts';
@@ -25,6 +25,7 @@ import type { Visit } from './visit.ts';
 /** codes the report makes from its own data (render-blocking only when it weighed the page's files:
  *  the report.ts caller drops the browser's then — on a dev server it weighs nothing, and the
  *  browser's timing of the blocking file is all there is) */
+// static: a fixed list of finding codes
 const SKIP = new Set([
 	'recovered',
 	'never-woke',
