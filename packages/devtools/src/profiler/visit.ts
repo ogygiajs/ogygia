@@ -263,11 +263,30 @@ export interface Visit {
 }
 
 const MAX_RESOURCES = 200;
-const MAX_LONGTASKS = 100;
-const MAX_ISLANDS = 400;
-const MAX_SHIFTS = 60;
-const MAX_MARKS = 200;
 const MAX_MS = 600_000;
+
+/** How many of each list one visit keeps: when a post is parsed, and when posts of the same visit
+ *  fold (`merge_visits`), so no number of posts grows a kept visit past one post's size.
+ *  test/property-visit.test.ts. */
+const LIST_MAX = {
+	longtasks: 100,
+	islands: 400,
+	firsts: 400,
+	shifts: 60,
+	marks: 200,
+	regions: 400,
+	holes_failed: 30,
+	forced_layout: 30,
+	scroll_jank: 20,
+	entry_fallbacks: 20,
+	navs: 20,
+	holes_answered: 30
+} as const;
+type ListName = keyof typeof LIST_MAX;
+
+/** A post's list `name`, at most {@link LIST_MAX} of it (none when it is not a list). */
+const list = (v: Record<string, unknown>, name: ListName): Record<string, unknown>[] =>
+	(Array.isArray(v[name]) ? (v[name] as Record<string, unknown>[]) : []).slice(0, LIST_MAX[name]);
 
 const num = (v: unknown, max = MAX_MS): number | undefined => {
 	const n = Number(v);
@@ -399,19 +418,13 @@ export function parse_visit(page: unknown, raw: unknown): Visit | null {
 		resources.push(out);
 	}
 	const longtasks: Visit['longtasks'] = [];
-	for (const l of (Array.isArray(v.longtasks) ? v.longtasks : []).slice(0, MAX_LONGTASKS) as Record<
-		string,
-		unknown
-	>[]) {
+	for (const l of list(v, 'longtasks')) {
 		const t = num(l?.t);
 		const ms = num(l?.ms);
 		if (t !== undefined && ms !== undefined) longtasks.push({ t, ms });
 	}
 	const islands: VisitIsland[] = [];
-	for (const i of (Array.isArray(v.islands) ? v.islands : []).slice(0, MAX_ISLANDS) as Record<
-		string,
-		unknown
-	>[]) {
+	for (const i of list(v, 'islands')) {
 		const fp = typeof i?.fp === 'string' && FP_RE.test(i.fp) ? i.fp : undefined;
 		const t0 = num(i?.t0);
 		const done = num(i?.done);
@@ -449,19 +462,13 @@ export function parse_visit(page: unknown, raw: unknown): Visit | null {
 		islands.push(out);
 	}
 	const firsts: Visit['firsts'] = [];
-	for (const f of (Array.isArray(v.firsts) ? v.firsts : []).slice(0, MAX_ISLANDS) as Record<
-		string,
-		unknown
-	>[]) {
+	for (const f of list(v, 'firsts')) {
 		const fp = typeof f?.fp === 'string' && FP_RE.test(f.fp) ? f.fp : undefined;
 		const t = num(f?.t);
 		if (fp && t !== undefined) firsts.push({ fp, t, type: str(f.type, 24) ?? 'input' });
 	}
 	const shifts: VisitShift[] = [];
-	for (const s of (Array.isArray(v.shifts) ? v.shifts : []).slice(0, MAX_SHIFTS) as Record<
-		string,
-		unknown
-	>[]) {
+	for (const s of list(v, 'shifts')) {
 		const t = num(s?.t);
 		const value = num(s?.value, 100);
 		if (t === undefined || value === undefined) continue;
@@ -489,10 +496,7 @@ export function parse_visit(page: unknown, raw: unknown): Visit | null {
 	if (v.longtasks_from === 'frames') visit.longtasks_from = 'frames';
 	if (v.shifts_from === 'boxes') visit.shifts_from = 'boxes';
 	const marks: NonNullable<Visit['marks']> = [];
-	for (const m of (Array.isArray(v.marks) ? v.marks : []).slice(0, MAX_MARKS) as Record<
-		string,
-		unknown
-	>[]) {
+	for (const m of list(v, 'marks')) {
 		const name = str(m?.name, 120);
 		const ms = num(m?.ms);
 		if (!name || ms === undefined) continue;
@@ -501,10 +505,7 @@ export function parse_visit(page: unknown, raw: unknown): Visit | null {
 	}
 	if (marks.length) visit.marks = marks;
 	const regions: VisitRegion[] = [];
-	for (const r of (Array.isArray(v.regions) ? v.regions : []).slice(0, MAX_ISLANDS) as Record<
-		string,
-		unknown
-	>[]) {
+	for (const r of list(v, 'regions')) {
 		const fp = typeof r?.fp === 'string' && FP_RE.test(r.fp) ? r.fp : undefined;
 		const top = Number(r?.top);
 		const height = num(r?.height, 1e6);
@@ -563,10 +564,7 @@ export function parse_visit(page: unknown, raw: unknown): Visit | null {
 	}
 	if (warnings.length) visit.warnings = warnings;
 	const holes_failed: NonNullable<Visit['holes_failed']> = [];
-	for (const h of (Array.isArray(v.holes_failed) ? v.holes_failed : []).slice(0, 30) as Record<
-		string,
-		unknown
-	>[]) {
+	for (const h of list(v, 'holes_failed')) {
 		const id = str(h?.id, 40);
 		const reason =
 			h?.reason === 'redirected' ||
@@ -690,10 +688,7 @@ export function parse_visit(page: unknown, raw: unknown): Visit | null {
 	}
 	if (images_eager_below.length) visit.images_eager_below = images_eager_below;
 	const forced_layout: NonNullable<Visit['forced_layout']> = [];
-	for (const f of (Array.isArray(v.forced_layout) ? v.forced_layout : []).slice(0, 30) as Record<
-		string,
-		unknown
-	>[]) {
+	for (const f of list(v, 'forced_layout')) {
 		const start = num(f?.start);
 		const end = num(f?.end);
 		const ms = num(f?.ms);
@@ -702,10 +697,7 @@ export function parse_visit(page: unknown, raw: unknown): Visit | null {
 	}
 	if (forced_layout.length) visit.forced_layout = forced_layout;
 	const scroll_jank: NonNullable<Visit['scroll_jank']> = [];
-	for (const j of (Array.isArray(v.scroll_jank) ? v.scroll_jank : []).slice(0, 20) as Record<
-		string,
-		unknown
-	>[]) {
+	for (const j of list(v, 'scroll_jank')) {
 		const start = num(j?.start);
 		const ms = num(j?.ms);
 		if (start === undefined || !ms) continue;
@@ -742,10 +734,7 @@ export function parse_visit(page: unknown, raw: unknown): Visit | null {
 		};
 	}
 	const entry_fallbacks: NonNullable<Visit['entry_fallbacks']> = [];
-	for (const f of (Array.isArray(v.entry_fallbacks) ? v.entry_fallbacks : []).slice(
-		0,
-		20
-	) as Record<string, unknown>[]) {
+	for (const f of list(v, 'entry_fallbacks')) {
 		const entry = str(f?.entry, 300);
 		const src = str(f?.src, 300);
 		if (!entry || !src) continue;
@@ -775,7 +764,7 @@ export function parse_visit(page: unknown, raw: unknown): Visit | null {
 	}
 	if (refetched.length) visit.refetched = refetched;
 	const navs: PageNav[] = [];
-	for (const n of (Array.isArray(v.navs) ? v.navs : []).slice(0, 20) as Record<string, unknown>[]) {
+	for (const n of list(v, 'navs')) {
 		const to = str(n?.to, 300);
 		const t = num(n?.t, 3_600_000);
 		const fetched = num(n?.fetched, 3_600_000);
@@ -848,10 +837,7 @@ export function parse_visit(page: unknown, raw: unknown): Visit | null {
 		}
 	}
 	const holes_answered: NonNullable<Visit['holes_answered']> = [];
-	for (const h of (Array.isArray(v.holes_answered) ? v.holes_answered : []).slice(0, 30) as Record<
-		string,
-		unknown
-	>[]) {
+	for (const h of list(v, 'holes_answered')) {
 		const id = str(h?.id, 40);
 		const start = num(h?.start);
 		const t = num(h?.t);
@@ -974,11 +960,12 @@ export function parse_visit(page: unknown, raw: unknown): Visit | null {
  *  own half (islands here, marks there); a visit is also posted early and again on hide. Arrays
  *  union by identity, the later record's navigation and paints win where it has them. */
 export function merge_visits(a: Visit, b: Visit): Visit {
-	const by = <T>(xs: T[], ys: T[], key: (x: T) => string): T[] => {
+	// (the first seen of each key keeps its place; one post's bound holds for the fold too)
+	const by = <T>(name: ListName, xs: T[], ys: T[], key: (x: T) => string): T[] => {
 		const m = new Map<string, T>();
 		for (const x of xs) m.set(key(x), x);
 		for (const y of ys) m.set(key(y), y);
-		return [...m.values()];
+		return [...m.values()].slice(0, LIST_MAX[name]);
 	};
 	return {
 		page: a.page,
@@ -992,18 +979,20 @@ export function merge_visits(a: Visit, b: Visit): Visit {
 				? { resource_totals: b.resource_totals, resources_all: b.resources_all }
 				: {}
 			: { resource_totals: a.resource_totals, resources_all: a.resources_all }),
-		longtasks: by(a.longtasks, b.longtasks, (l) => `${l.t}|${l.ms}`),
+		longtasks: by('longtasks', a.longtasks, b.longtasks, (l) => `${l.t}|${l.ms}`),
 		...(a.longtasks_from || b.longtasks_from ? { longtasks_from: 'frames' as const } : {}),
 		...(a.shifts_from || b.shifts_from ? { shifts_from: 'boxes' as const } : {}),
-		islands: by(a.islands, b.islands, (i) => `${i.fp}|${i.t0}`),
-		firsts: by(a.firsts, b.firsts, (f) => f.fp),
-		shifts: by(a.shifts, b.shifts, (s) => `${s.t}|${s.value}`),
+		islands: by('islands', a.islands, b.islands, (i) => `${i.fp}|${i.t0}`),
+		firsts: by('firsts', a.firsts, b.firsts, (f) => f.fp),
+		shifts: by('shifts', a.shifts, b.shifts, (s) => `${s.t}|${s.value}`),
 		...(a.marks || b.marks
-			? { marks: by(a.marks ?? [], b.marks ?? [], (m) => `${m.name}|${m.t0 ?? ''}|${m.ms}`) }
+			? {
+					marks: by('marks', a.marks ?? [], b.marks ?? [], (m) => `${m.name}|${m.t0 ?? ''}|${m.ms}`)
+				}
 			: {}),
 		// (the later record's picture of each region wins: it woke, or failed, since)
 		...(a.regions || b.regions
-			? { regions: by(a.regions ?? [], b.regions ?? [], (r) => r.fp) }
+			? { regions: by('regions', a.regions ?? [], b.regions ?? [], (r) => r.fp) }
 			: {}),
 		...(a.vitals || b.vitals ? { vitals: { ...a.vitals, ...b.vitals } } : {}),
 		// (each record carries the frames so far: the later one has them all)
@@ -1037,6 +1026,7 @@ export function merge_visits(a: Visit, b: Visit): Visit {
 		...(a.forced_layout || b.forced_layout
 			? {
 					forced_layout: by(
+						'forced_layout',
 						a.forced_layout ?? [],
 						b.forced_layout ?? [],
 						(f) => `${f.start}|${f.url}`
@@ -1044,10 +1034,19 @@ export function merge_visits(a: Visit, b: Visit): Visit {
 				}
 			: {}),
 		...(a.scroll_jank || b.scroll_jank
-			? { scroll_jank: by(a.scroll_jank ?? [], b.scroll_jank ?? [], (j) => `${j.start}`) }
+			? {
+					scroll_jank: by(
+						'scroll_jank',
+						a.scroll_jank ?? [],
+						b.scroll_jank ?? [],
+						(j) => `${j.start}`
+					)
+				}
 			: {}),
 		...((b.refetched ?? a.refetched) ? { refetched: b.refetched ?? a.refetched } : {}),
-		...(a.navs || b.navs ? { navs: by(a.navs ?? [], b.navs ?? [], (n) => `${n.t}|${n.to}`) } : {}),
+		...(a.navs || b.navs
+			? { navs: by('navs', a.navs ?? [], b.navs ?? [], (n) => `${n.t}|${n.to}`) }
+			: {}),
 		// (the slower interaction of the two records: INP is the worst)
 		...(a.interaction || b.interaction
 			? {
@@ -1061,14 +1060,24 @@ export function merge_visits(a: Visit, b: Visit): Visit {
 				}
 			: {}),
 		...(a.entry_fallbacks || b.entry_fallbacks
-			? { entry_fallbacks: by(a.entry_fallbacks ?? [], b.entry_fallbacks ?? [], (f) => f.entry) }
+			? {
+					entry_fallbacks: by(
+						'entry_fallbacks',
+						a.entry_fallbacks ?? [],
+						b.entry_fallbacks ?? [],
+						(f) => f.entry
+					)
+				}
 			: {}),
 		...(a.holes_failed || b.holes_failed
-			? { holes_failed: by(a.holes_failed ?? [], b.holes_failed ?? [], (h) => h.id) }
+			? {
+					holes_failed: by('holes_failed', a.holes_failed ?? [], b.holes_failed ?? [], (h) => h.id)
+				}
 			: {}),
 		...(a.holes_answered || b.holes_answered
 			? {
 					holes_answered: by(
+						'holes_answered',
 						a.holes_answered ?? [],
 						b.holes_answered ?? [],
 						(h) => `${h.n}:${h.id}`
