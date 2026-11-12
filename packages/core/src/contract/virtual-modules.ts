@@ -113,8 +113,12 @@ export interface RuntimeFlagsModule {
 }
 
 export interface TransportablesModule {
-	/** client: a transportable class module's tag path → its lazy import (server: empty, eager) */
-	wire_loaders: Record<string, () => Promise<unknown>>;
+	/** client: a transportable class module's tag path → its lazy import, the file it imports (`null`
+	 *  when it has none of its own) and the URL that file is relative to (server: empty, eager) */
+	wire_loaders: Record<
+		string,
+		readonly [load: () => Promise<unknown>, file: string | null, base: string]
+	>;
 	/** client: the app sends wired values through Kit's transport: every class loads with every island */
 	wire_all: boolean;
 }
