@@ -42,9 +42,9 @@ its pull request says why it is safe (or which INVARIANTS.md section covers it).
 | `packages/core/src/runtime/router-nav.ts` | `run_page_fetch` | `headers.get('content-type')` | 1 |
 | `packages/core/src/server/early-holes-csp.ts` | `add_early_holes_csp` | `headers.get(name)` | 1 |
 | `packages/core/src/server/page-facts.ts` | `(module)` | `headers.get(PAGE_FACTS_ROUTE_HEADER)` | 1 |
-| `packages/core/src/server/region-endpoint.ts` | `known_region_fps` | `headers.get('x-ogygia-known')` | 1 |
-| `packages/core/src/server/region-endpoint.ts` | `known_region_fps` | `headers.get('x-ogygia-spa')` | 1 |
 | `packages/core/src/server/region-endpoint.ts` | `region_session` | `cookies.get(session_cookie)` | 1 |
+| `packages/core/src/server/region-endpoint.ts` | `reuse_known_region` | `headers.get('x-ogygia-known')` | 1 |
+| `packages/core/src/server/region-endpoint.ts` | `reuse_known_region` | `headers.get('x-ogygia-spa')` | 1 |
 | `packages/core/src/server/render-page.ts` | `page_url_of` | `headers.get('referer')` | 1 |
 | `packages/core/src/server/rules.ts` | `region_answer_unsafe` | `headers.get('cache-control')` | 1 |
 | `packages/core/src/server/rules.ts` | `region_answer_unsafe` | `headers.get('referrer-policy')` | 1 |
@@ -140,7 +140,7 @@ its pull request says why it is safe (or which INVARIANTS.md section covers it).
 
 ## Decoders: text turned into values (JSON, devalue, base64, URI escapes)
 
-95 entries.
+96 entries.
 
 | file | in | what | n |
 | --- | --- | --- | --- |
@@ -239,6 +239,7 @@ its pull request says why it is safe (or which INVARIANTS.md section covers it).
 | `packages/tooling/src/e2e/run.ts` | `find_suites` | `JSON.parse` | 1 |
 | `packages/tooling/src/e2e/run.ts` | `read_report` | `JSON.parse` | 1 |
 | `packages/tooling/src/e2e/run.ts` | `read_timings` | `JSON.parse` | 1 |
+| `packages/tooling/src/e2e/server-log.ts` | `said_rules` | `decodeURIComponent` | 1 |
 
 ## HTML sinks: markup written into a page as markup
 

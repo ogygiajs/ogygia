@@ -908,6 +908,16 @@ export const WARNINGS = {
 			either: ${BUG}
 		`
 	},
+	rule_region_answer_behind: {
+		text: (a: { detail: string }): string =>
+			`rule broken, a region shows the answer its address holds: ${a.detail}`,
+		details: (): string => prose`
+			Dev and e2e only (a rule ogygia checks on itself). Every answer for a deferred region lands in
+			one store, by the region's address, and the store keeps the newest (by when it was asked
+			for). Each region bound to that address paints what the store holds. One region was left
+			on an older answer, or never got the newest. ${BUG}
+		`
+	},
 	rule_parse_upgraded: {
 		text: (a: { detail: string }): string => `rule broken, a parsed answer is inert: ${a.detail}`,
 		details: (): string => prose`

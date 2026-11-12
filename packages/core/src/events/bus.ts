@@ -26,6 +26,7 @@ import {
 	type DevtoolsEventInput
 } from '../contract/events.ts';
 import { report_thrown } from '../report-thrown.ts';
+import { clock } from '@ogygia/machine';
 
 /** Compile-time gate (Vite `define`). Exported for the public surface + tests; seam modules declare
  *  their OWN local `const DEVTOOLS` from the same token so DCE never depends on cross-module folding. */
@@ -83,13 +84,8 @@ function bus(): BusState {
 	});
 }
 
-/** High-resolution monotonic clock where available; wall-clock otherwise. */
-function now(): number {
-	if (typeof performance !== 'undefined' && typeof performance.now === 'function') {
-		return performance.now();
-	}
-	return Date.now();
-}
+/** The monotonic clock (@ogygia/machine `clock`). */
+const now = clock.mono;
 
 /** Sampling gate: keep 1-in-N for a name that opted in, else keep all. */
 function passes_sample(b: BusState, name: string): boolean {

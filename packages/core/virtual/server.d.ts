@@ -27,7 +27,7 @@ export const region_remotes: import('../dist/contract/virtual-modules.js').Virtu
 export const fn_manifest: import('../dist/contract/virtual-modules.js').VirtualModules['ogygia:server/region-deps']['fn_manifest'];
 export const entry_location: import('../dist/contract/virtual-modules.js').VirtualModules['ogygia:server/region-deps']['entry_location'];
 export const location_map: import('../dist/contract/virtual-modules.js').VirtualModules['ogygia:server/region-deps']['location_map'];
-export { make_region_endpoint, mint_server_region, known_region_fps, region_fingerprint, hole_css } from '../dist/server/region-endpoint.js';
+export { make_region_endpoint, mint_server_region, reuse_known_region, region_fingerprint, hole_css } from '../dist/server/region-endpoint.js';
 export const region_ttl: import('../dist/contract/virtual-modules.js').VirtualModules['ogygia:server/region-ttl']['region_ttl'];
 export const renew_window: import('../dist/contract/virtual-modules.js').VirtualModules['ogygia:server/region-ttl']['renew_window'];
 export { getRequestEvent as get_request_event } from '$app/server';
@@ -68,7 +68,7 @@ const module: import('../dist/contract/virtual-modules.js').VirtualModules['ogyg
 export = module;
 }
 declare module 'ogygia:server/region-endpoint' {
-export { make_region_endpoint, mint_server_region, known_region_fps, region_fingerprint, hole_css } from '../dist/server/region-endpoint.js';
+export { make_region_endpoint, mint_server_region, reuse_known_region, region_fingerprint, hole_css } from '../dist/server/region-endpoint.js';
 }
 declare module 'ogygia:server/region-ttl' {
 export const region_ttl: import('../dist/contract/virtual-modules.js').VirtualModules['ogygia:server/region-ttl']['region_ttl'];

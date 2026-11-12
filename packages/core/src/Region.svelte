@@ -47,7 +47,7 @@
 		entry_location,
 		make_region_endpoint,
 		mint_server_region,
-		known_region_fps,
+		reuse_known_region,
 		region_fingerprint,
 		hole_css,
 		runtime_bootstrap,
@@ -528,17 +528,18 @@
 	const outer_owner = typeof window === 'undefined' ? head_owner() : '';
 	const tag_owner = outer_owner || (typeof window === 'undefined' ? untrack(() => island_fp) : '');
 	if (!outer_owner && tag_owner) set_head_owner(tag_owner);
-	// SERVER-DELTA (D3): SKIP rendering a NON-cached island the client already has live (its fp is
-	// in the SPA nav's x-ogygia-known set). Emit the region's identifying attrs + props script but NO
-	// component content — the reconciler keeps the live node (same data-key). Safe: known_region_fps()
-	// is empty on a full load / non-SPA request, so this never fires except on an SPA nav.
+	// SERVER-DELTA (D3): SKIP rendering a NON-cached island the client already has live (a copy of its
+	// fp the SPA nav's x-ogygia-known lists, not taken by an earlier twin). Emit the region's identifying
+	// attrs + props script but NO component content — the reconciler keeps the live node (same
+	// data-key). Safe: nothing is reused on a full load / non-SPA request, or without serverDelta. (A
+	// derived made in the server render runs once, so each region takes at most one copy.)
 	const island_skip = $derived(
 		is_island &&
 			!island_inline &&
 			!has_slot_children &&
 			(__cacheTtl ?? 0) <= 0 &&
 			!!island_fp &&
-			known_region_fps().has(island_fp)
+			reuse_known_region(island_fp)
 	);
 	// THE DOCUMENT TAIL (server/document-tail.ts): in Kit's page pass this region's module-preload
 	// hints and its props sidecar go to the end of the body — the handle emits the tail once, after
@@ -999,8 +1000,11 @@
 	// emptied. Later values morph in.
 	/** @type {Element | null} */
 	let baked_el = $state(null);
+	// `data-og-baked` says "the server wrote the first HTML in here", so only the server's element
+	// carries it: one the browser creates fresh (an island re-creating it, Kit remounting) is empty,
+	// a plain live region whose first value paints (e2e/held-in-held.spec.ts, #945)
 	const baked_adopt = adopt_region(
-		() => ' live data-og-baked',
+		() => (typeof window === 'undefined' ? ' live data-og-baked' : ' live'),
 		(renderer) => /** @type {{ push(html: string): void }} */ (renderer).push(baked_html),
 		(el) => {
 			baked_el = el;

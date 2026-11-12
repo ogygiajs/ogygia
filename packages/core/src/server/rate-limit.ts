@@ -4,6 +4,8 @@
  * - Render limiter: charge AFTER a valid MAC (RATE-BURN).
  * - Probe limiter: charge BEFORE HMAC (HMAC-CPU-DOS).
  */
+import { clock } from '@ogygia/machine';
+
 export type RateBucket = { n: number; t: number };
 
 const DEFAULT_CAP = 4096;
@@ -49,7 +51,7 @@ export class RateLimiter {
 	/** @returns true if this IP is over budget (request should 429). */
 	limited(ip: string): boolean {
 		if (this.#max <= 0) return false;
-		const now = Date.now();
+		const now = clock.mono();
 		const b = this.#buckets.get(ip);
 		if (!b || now - b.t >= this.#windowMs) {
 			this.#buckets.set(ip, { n: 1, t: now });
@@ -70,7 +72,7 @@ export class RateLimiter {
 	over(ip: string): boolean {
 		if (this.#max <= 0) return false;
 		const b = this.#buckets.get(ip);
-		return b !== undefined && Date.now() - b.t < this.#windowMs && b.n >= this.#max;
+		return b !== undefined && clock.mono() - b.t < this.#windowMs && b.n >= this.#max;
 	}
 
 	get size(): number {
@@ -81,4 +83,19 @@ export class RateLimiter {
 		this.#buckets.clear();
 		this.#since_prune = 0;
 	}
+}
+
+/** IPv4 ranges no visitor on the internet has: private, loopback, link-local, shared (100.64/10). */
+const SHARED_V4 =
+	/^(?:10|127)\.|^169\.254\.|^192\.168\.|^172\.(?:1[6-9]|2\d|3[01])\.|^100\.(?:6[4-9]|[7-9]\d|1[01]\d|12[0-7])\./;
+/** IPv6: loopback, unique local (fc00::/7), link-local (fe80::/10). */
+const SHARED_V6 = /^(?:::1$|f[cd][0-9a-f]{0,2}:|fe[89ab][0-9a-f]?:)/i;
+
+/**
+ * Whether `ip` is an address no visitor on the internet has (an IPv4-mapped IPv6 one too). A client
+ * address like that is a proxy's or a load balancer's: every visitor behind it shares its rate-limit
+ * budget (#894, test/rate-limit-shared-address.test.ts).
+ */
+export function is_shared_address(ip: string): boolean {
+	return SHARED_V4.test(ip.replace(/^::ffff:/i, '')) || SHARED_V6.test(ip);
 }
