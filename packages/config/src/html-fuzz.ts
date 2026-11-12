@@ -21,7 +21,10 @@ import {
 	parseFragment,
 	defaultTreeAdapter,
 	html as parse5_html,
-	type DefaultTreeAdapterTypes as T
+	Parser,
+	type DefaultTreeAdapterMap,
+	type DefaultTreeAdapterTypes as T,
+	type Token
 } from 'parse5';
 
 export { fc };
@@ -284,6 +287,73 @@ type Parent = T.ParentNode;
 /** `html` as a whole document, the way a browser parses a response (scripting on). */
 export function parse_document(html: string): T.Document {
 	return parse(html, { sourceCodeLocationInfo: true });
+}
+
+/** One start tag as the browser's tokenizer reads it, whatever the tree builder then does with it
+ *  (a second `<head>`, a `<tr>` outside a table: ignored by the tree, still a tag in the source). */
+export interface StartTag {
+	/** Its name, lower case. */
+	name: string;
+	/** `[start, end)` of the whole tag in the source. */
+	start: number;
+	end: number;
+	/** Its attributes: names lower case, the first of two same-name ones kept, each value as
+	 *  WRITTEN in the source (quotes off, character references not decoded). */
+	attrs: Map<string, string>;
+	/** Its attributes' values as the DOM holds them (references decoded). */
+	decoded: Map<string, string>;
+}
+
+/** Records every start tag token the tokenizer hands the tree builder. */
+class TagRecorder extends Parser<DefaultTreeAdapterMap> {
+	seen: Token.TagToken[] = [];
+	override onStartTag(token: Token.TagToken): void {
+		this.seen.push(token);
+		super.onStartTag(token);
+	}
+}
+
+/**
+ * Every start tag in `html`, in source order, as the browser tokenizes it: the tree builder drives
+ * the tokenizer, so a raw-text element's text (script, style, textarea, title…), a comment and a
+ * bogus comment hold no tags. Parsed as a whole document, or (with `context`) as that element's
+ * children, the way `innerHTML` parses it.
+ */
+export function start_tags(html: string, context?: string): StartTag[] {
+	const options = { sourceCodeLocationInfo: true, treeAdapter: defaultTreeAdapter };
+	// (`getFragmentParser` builds `new this`: the recorder, set up as a fragment parser)
+	const parser = context
+		? (TagRecorder.getFragmentParser(
+				defaultTreeAdapter.createElement(context, parse5_html.NS.HTML, []),
+				options
+			) as TagRecorder)
+		: new TagRecorder(options);
+	parser.seen = [];
+	parser.tokenizer.write(html, true);
+	return parser.seen.map((t) => {
+		const attrs = new Map<string, string>();
+		const decoded = new Map<string, string>();
+		for (const a of t.attrs) {
+			if (attrs.has(a.name)) continue;
+			const at = t.location?.attrs?.[a.name];
+			let raw = a.value;
+			if (at) {
+				const src = html.slice(at.startOffset, at.endOffset);
+				const eq = src.indexOf('=');
+				raw = eq === -1 ? '' : src.slice(eq + 1).replace(/^[\t\n\f\r ]+/, '');
+				if (raw[0] === '"' || raw[0] === "'") raw = raw.slice(1, -1);
+			}
+			attrs.set(a.name, raw);
+			decoded.set(a.name, a.value);
+		}
+		return {
+			name: t.tagName,
+			start: t.location!.startOffset,
+			end: t.location!.endOffset,
+			attrs,
+			decoded
+		};
+	});
 }
 
 /** `html` as the children of a `context` element (`'body'`, `'head'`, `'div'`), the way
