@@ -417,6 +417,7 @@ export function standalone_beacon(): void {
 		at += 7;
 		const end = endpoint.indexOf('&', at);
 		const payload = endpoint.slice(at, end === -1 ? endpoint.length : end);
+		// hash: core's hole_copy_of, copied: this script is inlined by toString and can import nothing
 		let h = 0x811c9dc5;
 		for (let i = 0; i < payload.length; i++) {
 			h ^= payload.charCodeAt(i);

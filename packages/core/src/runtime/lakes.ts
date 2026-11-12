@@ -1,4 +1,5 @@
 import { relocate_trailing_empty_comments } from './lake-anchors.ts';
+import { on_schedule } from '../contract/trigger.ts';
 import { clock } from '@ogygia/machine';
 import {
 	FROZEN_SELECTOR,
@@ -145,12 +146,7 @@ export function on_frozen_connect(el: HTMLElement, arm: LakeArm): boolean {
 		// schedule — a fresh SERVER render carrying the visitor's cookies. This is how a stored
 		// page's `render: 'live'` regions self-freshen (internal/notes/freeze.md).
 		if (region_remount(el) === 'swr' && el.getAttribute('endpoint') && document_is_stored()) {
-			const when = el.getAttribute('when') || 'load';
-			const fire = () => arm.fetch_revalidate();
-			if (when === 'idle') arm.idle(fire);
-			else if (when === 'visible') arm.visible(fire);
-			else if (when === 'load') fire();
-			else arm.media(when, fire);
+			on_schedule(el.getAttribute('when') || 'load', arm, () => arm.fetch_revalidate());
 		} else if (
 			import.meta.env.DEV &&
 			region_remount(el) === 'swr' &&
@@ -222,11 +218,7 @@ export function on_frozen_connect(el: HTMLElement, arm: LakeArm): boolean {
 				}
 				el.setAttribute('endpoint', cached.endpoint);
 				const when = el.getAttribute('when') || cached.when || 'load';
-				const fire = () => arm.fetch_revalidate();
-				if (when === 'idle') arm.idle(fire);
-				else if (when === 'visible') arm.visible(fire);
-				else if (when === 'load') fire();
-				else arm.media(when, fire);
+				on_schedule(when, arm, () => arm.fetch_revalidate());
 				return true;
 			}
 
@@ -246,11 +238,7 @@ export function on_frozen_connect(el: HTMLElement, arm: LakeArm): boolean {
 			}
 			el.setAttribute('endpoint', cached.endpoint);
 			const when = el.getAttribute('when') || cached.when || 'load';
-			const fire = () => arm.fetch_revalidate();
-			if (when === 'idle') arm.idle(fire);
-			else if (when === 'visible') arm.visible(fire);
-			else if (when === 'load') fire();
-			else arm.media(when, fire);
+			on_schedule(when, arm, () => arm.fetch_revalidate());
 			return true;
 		}
 		default: {

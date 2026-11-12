@@ -31,7 +31,9 @@ const page_entry = (html = '<html><head></head><body>stored</body></html>'): Pos
 	kind: 'page',
 	html,
 	headers: { 'content-type': 'text/html' },
-	created: Date.now()
+	created: Date.now(),
+	// (stored by this build: the mocked `version`)
+	build: 'test'
 });
 
 /** A store already holding `/a` and `/p`. */
