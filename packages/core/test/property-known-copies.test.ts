@@ -3,12 +3,20 @@
 // (server/region-endpoint.ts `reuse_known_region`). The header is the browser's claim: whatever it
 // says, the server never skips more copies of a fingerprint than the header names, never more than
 // the page renders, never one it does not name, and never on a request that is not an SPA nav.
-import { afterEach, expect, it } from 'vitest';
+import { afterEach, beforeEach, expect, it } from 'vitest';
 import { fc } from '@ogygia/config/sim';
 import { set_request_event_stub } from './_stubs/server.request-event.ts';
 import { reuse_known_region } from '../src/server/region-endpoint.ts';
 
-afterEach(() => set_request_event_stub(null));
+// the app opted into server-delta (`router: { serverDelta: true }`); off, nothing is ever skipped
+const flag = globalThis as { __OGYGIA_SERVER_DELTA__?: boolean };
+beforeEach(() => {
+	flag.__OGYGIA_SERVER_DELTA__ = true;
+});
+afterEach(() => {
+	set_request_event_stub(null);
+	delete flag.__OGYGIA_SERVER_DELTA__;
+});
 
 const FPS = ['a', 'b', 'c', 'd'];
 const fp = fc.constantFrom(...FPS);
@@ -46,6 +54,17 @@ it('skips nothing on a request that is not an SPA nav, whatever it names', () =>
 	fc.assert(
 		fc.property(header, fc.array(fp, { maxLength: 8 }), (named, renders) => {
 			request({ 'x-ogygia-known': named.join(',') });
+			for (const f of renders) expect(reuse_known_region(f)).toBe(false);
+		}),
+		{ numRuns: 100 }
+	);
+});
+
+it('skips nothing when the app did not opt into serverDelta, whatever the header names', () => {
+	delete flag.__OGYGIA_SERVER_DELTA__;
+	fc.assert(
+		fc.property(header, fc.array(fp, { maxLength: 8 }), (named, renders) => {
+			request({ 'x-ogygia-spa': '1', 'x-ogygia-known': named.join(',') });
 			for (const f of renders) expect(reuse_known_region(f)).toBe(false);
 		}),
 		{ numRuns: 100 }
