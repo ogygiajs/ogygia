@@ -263,7 +263,7 @@ its pull request says why it is safe (or which INVARIANTS.md section covers it).
 | `packages/core/src/messages/core.ts` | `WARNINGS` | `{@html}` | 2 |
 | `packages/core/src/Provide.svelte` | `(module)` | `{@html}` | 1 |
 | `packages/core/src/RawHtml.svelte` | `(module)` | `{@html}` | 1 |
-| `packages/core/src/Region.svelte` | `(module)` | `{@html}` | 7 |
+| `packages/core/src/Region.svelte` | `(module)` | `{@html}` | 6 |
 | `packages/core/src/runtime/html-sink.ts` | `parse_page_document` | `DOMParser` | 1 |
 | `packages/core/src/runtime/html-sink.ts` | `parse_region_html` | `innerHTML =` | 1 |
 | `packages/core/src/runtime/html-sink.ts` | `set_inner_html` | `innerHTML =` | 1 |

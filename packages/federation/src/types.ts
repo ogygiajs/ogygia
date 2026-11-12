@@ -1,11 +1,3 @@
-/**
- * federation v2 — shared contracts. Design: internal/notes/federation.md.
- *
- * ONE identity per app (`federate()`), a SYMMETRIC peers map (public keys verify inbound, the
- * app's private key signs outbound), remote fragments as REGION VALUES with the region dials, and
- * cross-app THAW notices so a publish or a deploy on one team thaws the stored pages of every
- * team that baked its fragments.
- */
 import type { RegionValue } from '@ogygia/core';
 import type { Router } from '@ogygia/router';
 import type { Claims } from './wire.ts';
