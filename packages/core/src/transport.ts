@@ -17,7 +17,8 @@
  */
 import { REGION_BRAND } from './region-brand.ts';
 import { frameAddress } from './frame.ts';
-import { ticket, write } from './runtime/frame-store.ts';
+import { shown_version, ticket, write } from './runtime/frame-store.ts';
+import { emit as dt_emit } from './events/bus.ts';
 import {
 	register_kind,
 	mint,
@@ -31,7 +32,9 @@ import { register_wire_kind } from './live-transport.ts';
 import { register_store_kind, register_derived_kind } from './store-transport.ts';
 import { register_snippet_kind } from './region-snippet.ts';
 import { register_fn_kind } from './fn-transport.ts';
-import { OgygiaError } from './messages/island.ts';
+import { OgygiaError, warn } from './messages/island.ts';
+
+const DEVTOOLS = typeof __OGYGIA_DEVTOOLS__ !== 'undefined' ? __OGYGIA_DEVTOOLS__ : false;
 
 type EncodedRegion = {
 	i: string; // id
@@ -41,6 +44,7 @@ type EncodedRegion = {
 	h?: string; // hydrate schedule
 	g?: string; // hydrate margin
 	x?: string; // server-rendered HTML baked into the ticket (awaited region) — swap, no fetch
+	d?: number; // data version (`region(C, props, { version })`): orders answers at one address
 	/** HUB IDENTITY — minted per live region instance (one id however many payloads carry it).
 	 *  The browser memoizes decode by it, so every consumer of one region value shares one
 	 *  descriptor, and the future reconciler diffs by it. Absent on legacy payloads. */
@@ -64,7 +68,8 @@ function encode_region(value: unknown): false | EncodedRegion {
 				f.module as string,
 				f.hydrate as string,
 				f.hydrateMargin as string,
-				f.html as string
+				f.html as string,
+				f.version as number | undefined
 			);
 		}
 		// Dual region — sign now (this IS the moment of crossing) and drop the component. If it
@@ -79,7 +84,8 @@ function encode_region(value: unknown): false | EncodedRegion {
 				f.module as string,
 				f.hydrate as string,
 				f.hydrateMargin as string,
-				f.html as string
+				f.html as string,
+				f.version as number | undefined
 			);
 		}
 		// Inline region that was AWAITED — its SSR HTML is baked, so it crosses as an HTML-only
@@ -102,6 +108,15 @@ function encode_region(value: unknown): false | EncodedRegion {
 	}
 }
 
+/** A versioned answer the store dropped for older data than the one shown: said in dev and to
+ *  devtools (a decoded answer is the only frame that carries a version). */
+function dropped_older(a: string, version: number): void {
+	const shown = shown_version(a);
+	if (shown === undefined || version >= shown) return;
+	if (import.meta.env?.DEV) warn('region_answer_older', { address: a, version, shown });
+	if (DEVTOOLS) dt_emit({ domain: 'wire', name: 'wire.frame.dropped', address: a, version, shown });
+}
+
 /** The region DECODE law (single-flight frame write for baked HTML + deferred rebuild),
  *  byte-for-byte the pre-hub behavior. */
 function decode_region(raw: EncodedRegion) {
@@ -115,7 +130,9 @@ function decode_region(raw: EncodedRegion) {
 		// it's placed instead.
 		if (raw.x != null && raw.u && typeof document !== 'undefined') {
 			const a = frameAddress(raw.u);
-			write({ a, v: ticket(a), html: raw.x });
+			const d = raw.d;
+			if (d == null) write({ a, v: ticket(a), html: raw.x });
+			else if (!write({ a, v: ticket(a), d, html: raw.x })) dropped_older(a, d);
 		}
 		return {
 			[REGION_BRAND]: true,
@@ -126,7 +143,8 @@ function decode_region(raw: EncodedRegion) {
 			module: raw.m,
 			...(raw.h ? { hydrate: raw.h } : {}),
 			...(raw.g ? { hydrateMargin: raw.g } : {}),
-			...(raw.x != null ? { html: raw.x } : {})
+			...(raw.x != null ? { html: raw.x } : {}),
+			...(raw.d != null ? { version: raw.d } : {})
 		};
 	}
 }
@@ -261,11 +279,13 @@ function pack(
 	module: string,
 	hydrate?: string,
 	hydrateMargin?: string,
-	html?: string
+	html?: string,
+	version?: number
 ): EncodedRegion {
 	const out: EncodedRegion = { i: id, p: props, u: url, m: module };
 	if (hydrate) out.h = hydrate;
 	if (hydrateMargin) out.g = hydrateMargin;
 	if (html != null) out.x = html;
+	if (version != null) out.d = version;
 	return out;
 }
