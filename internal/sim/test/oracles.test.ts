@@ -4,6 +4,7 @@ import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { World } from '../src/world.ts';
+import type { Heard } from '../src/browser.ts';
 import {
 	document_faulted,
 	fallback_stands,
@@ -11,6 +12,7 @@ import {
 	hydrates_as_sent,
 	KNOWN,
 	Leaks,
+	live_events,
 	mpa_equivalent,
 	normalize,
 	page_errors,
@@ -204,6 +206,119 @@ describe("a hole's fallback does not stand", () => {
 			`<main data-gen="peer-page">${hole('load', 'data-gen-fallback')}</main>${hole('idle', 'data-gen-fallback')}`
 		);
 		expect(both?.oracle).toBe('fallback-stands');
+	});
+});
+
+describe('a live region announces what it shows', () => {
+	type Said = [type: 'ogygia:hydrated' | 'ogygia:live', entry: string, tick: number];
+	/** A live region showing `tick` of module `entry` (interactive: it has a `wake`), and what a
+	 *  listener on the document heard it say, each with what it showed then. */
+	const at_rest = async (
+		o: { entry: string; tick: number; wake?: boolean; extra?: string },
+		said: Said[],
+		wire: Array<[string, number | 'dropped']> = []
+	) => {
+		const { Window } = await import('happy-dom');
+		const w = new Window({ url: 'https://app.test/p1' });
+		const body = (tick: number) =>
+			`<div data-gen="live"><span>n4 tick ${tick}</span><i data-gen-page>${tick}</i>${o.extra ?? ''}</div>`;
+		w.document.write(
+			`<html><body><div data-gen="live-host"><ogygia-region render="defer" entry="${o.entry}"${o.wake ? ' wake="load"' : ''}>${body(o.tick)}</ogygia-region></div></body></html>`
+		);
+		const region = w.document.querySelector('ogygia-region') as unknown as Element;
+		const heard = new Map<Element, Heard[]>([
+			[
+				region,
+				said.map(([type, entry, tick], i) => ({ type, at: i, entry, shown: `n4 tick ${tick}` }))
+			]
+		]);
+		const tab = {
+			realm: 'tab-1#1',
+			name: 'tab-1',
+			documents: 1,
+			heard,
+			page: { mainFrame: { url: 'https://app.test/p1', document: w.document } }
+		} as unknown as Parameters<typeof live_events>[0];
+		const world = {
+			fired_in: new Map(),
+			network: {
+				exchanges: wire.map(([url, status], i) => ({
+					id: i + 1,
+					from: 'tab-1#1',
+					method: 'GET',
+					url: `https://app.test${url}`,
+					status,
+					cut: false,
+					tampered: false,
+					redirected: false
+				}))
+			},
+			skewed_for: () => false
+		} as unknown as Parameters<typeof live_events>[1];
+		return live_events(tab, world);
+	};
+
+	it('passes a region whose every paint was heard: a static tick, then an island mounted and kept alive', async () => {
+		expect(await at_rest({ entry: 's4', tick: 5 }, [['ogygia:live', 's4', 5]])).toBeNull();
+		expect(
+			await at_rest({ entry: 'm4', tick: 4, wake: true }, [
+				['ogygia:live', 's4', 2],
+				['ogygia:hydrated', 'm4', 3],
+				['ogygia:live', 'm4', 3],
+				['ogygia:live', 'm4', 4]
+			])
+		).toBeNull();
+	});
+
+	it("finds a kept-alive island's tick nobody heard (core.ts: the keep-alive's ogygia:live)", async () => {
+		const found = await at_rest({ entry: 'm4', tick: 4, wake: true }, [
+			['ogygia:hydrated', 'm4', 3],
+			['ogygia:live', 'm4', 3]
+		]);
+		expect(found?.oracle).toBe('live-events');
+		expect(found?.detail).toContain('n4 tick 4');
+	});
+
+	it('finds a mounted island that never said ogygia:hydrated, and one that never said ogygia:live', async () => {
+		expect(
+			(await at_rest({ entry: 'm4', tick: 3, wake: true }, [['ogygia:live', 'm4', 3]]))?.oracle
+		).toBe('live-events');
+		expect(
+			(await at_rest({ entry: 'm4', tick: 3, wake: true }, [['ogygia:hydrated', 'm4', 3]]))?.oracle
+		).toBe('live-events');
+		// (another module's mount is not this one's)
+		expect(
+			(
+				await at_rest({ entry: 'm4', tick: 3, wake: true }, [
+					['ogygia:hydrated', 'a4', 1],
+					['ogygia:live', 'a4', 1],
+					['ogygia:live', 'm4', 3]
+				])
+			)?.oracle
+		).toBe('live-events');
+	});
+
+	it('finds a region that showed a tick and said nothing at all', async () => {
+		expect((await at_rest({ entry: 's4', tick: 1 }, []))?.oracle).toBe('live-events');
+	});
+
+	it("leaves out what is not the tick's: the page's data, a button's own count, a region inside", async () => {
+		expect(
+			await at_rest(
+				{
+					entry: 's4',
+					tick: 5,
+					extra: '<button>pressed 3</button><ogygia-region entry="n9"><p>n9 #2</p></ogygia-region>'
+				},
+				[['ogygia:live', 's4', 5]]
+			)
+		).toBeNull();
+	});
+
+	it("sets aside an island in a document a fault touched (its file may have failed: it shows the tick's HTML, #942), never a static tick", async () => {
+		const failed: Array<[string, 'dropped']> = [['/_app/immutable/m4.js', 'dropped']];
+		expect(await at_rest({ entry: 'm4', tick: 3, wake: true }, [], failed)).toBeNull();
+		expect((await at_rest({ entry: 's4', tick: 3 }, [], failed))?.oracle).toBe('live-events');
 	});
 });
 
