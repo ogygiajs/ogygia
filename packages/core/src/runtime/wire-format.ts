@@ -6,13 +6,13 @@
  * @packageDocumentation
  */
 import { boot_link } from './slots.ts';
+import { OG_FORMAT } from '../wire-markup.ts';
 
-export const WIRE_FORMAT_ATTR = 'data-og-format';
 export const WIRE_FORMAT_JSON = 'json';
 
 /** Is this side-channel element's text the JSON lane? */
 export function wire_is_json(el: Element): boolean {
-	return el.getAttribute(WIRE_FORMAT_ATTR) === WIRE_FORMAT_JSON;
+	return el.getAttribute(OG_FORMAT) === WIRE_FORMAT_JSON;
 }
 
 /** Parse a side-channel's text in its lane: `JSON.parse` for the JSON lane (nothing to revive by

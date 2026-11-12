@@ -1,10 +1,12 @@
-// THE VISIT AFTER A TAB SWITCH (runtime/beacon.ts, #209), in a real browser: hiding the page sends
+// THE VISIT AFTER A TAB SWITCH (devtools profiler/beacon.ts, #209), in a real browser: hiding the page sends
 // the visit, but the visit is not over. Coming back to the tab, or a back/forward cache restore,
 // opens it again: what happens after (a navigation, a worse interaction, a shift) goes out with
 // the next hide.
 import { afterEach, beforeEach, expect, inject, test } from 'vitest';
 import { bootDev } from '../../src/runtime/full.ts';
-import { _reset_beacon, beacon_nav } from '../../src/runtime/beacon.ts';
+import { _reset_beacon, beacon_nav } from '../../../devtools/src/profiler/beacon.ts';
+import { _restart_page_beacon } from '../../../devtools/src/profiler/beacon-standalone.ts';
+import devtools_client from '../../../devtools/src/client.ts';
 
 const inject_html = () => decodeURIComponent(escape(atob(inject('counter_json_lane_ssr_b64'))));
 
@@ -20,7 +22,16 @@ function set_visibility(state: 'hidden' | 'visible'): void {
 }
 
 const nav = (to: string) =>
-	beacon_nav({ from: '/', to, type: 'link', t: 1, fetched: 2, styled: 3, swapped: 4 });
+	beacon_nav({
+		from: '/',
+		to,
+		type: 'link',
+		t: 1,
+		fetched: 2,
+		styled: 3,
+		swapped: 4,
+		reconciled: true
+	});
 const visits = () => sent.filter((b) => b.visit);
 
 beforeEach(async () => {
@@ -33,13 +44,14 @@ beforeEach(async () => {
 	meta.name = 'ogygia-profiler-beacon';
 	meta.content = '/__profiler/beacon';
 	document.head.appendChild(meta);
+	_restart_page_beacon();
 	sent = [];
 	navigator.sendBeacon = ((_url: string, body: string) => {
 		sent.push(JSON.parse(body) as Body);
 		return true;
 	}) as typeof navigator.sendBeacon;
 	document.body.innerHTML = inject_html();
-	bootDev();
+	bootDev([{ name: '@ogygia/devtools', client: devtools_client }]);
 	await expect
 		.poll(() => document.querySelector('ogygia-region[data-og-fp][data-hydrated]') !== null, {
 			timeout: 20_000

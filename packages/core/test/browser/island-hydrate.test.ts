@@ -2,9 +2,16 @@
 // from `setup.ts` (rendered in Node with `svelte/server`, wrapped in the region shell + props
 // sidecar, provided base64 — see the note there); the test boots the real runtime and watches the
 // island wake.
-import { expect, inject, test } from 'vitest';
+import { afterEach, beforeEach, expect, inject, test } from 'vitest';
 import { page } from 'vitest/browser';
 import { bootDev } from '../../src/runtime/full.ts';
+import { mark_live_head } from './_response-mark.ts';
+
+const unmark: Array<() => void> = [];
+beforeEach(() => void unmark.push(mark_live_head()));
+afterEach(() => {
+	for (const undo of unmark.splice(0)) undo();
+});
 
 const HYDRATED = 'ogygia-region[data-hydrated]';
 
