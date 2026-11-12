@@ -1008,6 +1008,9 @@ importers:
       '@ogygia/machine':
         specifier: workspace:^
         version: link:../../packages/machine
+      '@ogygia/tooling':
+        specifier: workspace:*
+        version: link:../../packages/tooling
       happy-dom:
         specifier: catalog:sim
         version: 21.0.4
