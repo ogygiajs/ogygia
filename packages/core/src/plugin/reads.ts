@@ -13,6 +13,7 @@
  * set around it, so a hole rendered into a page makes that page per-visitor too.
  */
 import type { RequestEvent } from '@sveltejs/kit';
+import { slot as shared } from '@ogygia/machine';
 
 /** One render's read set (and, through its parent, the sets around it). A plain shape, not a class:
  *  core's own types and its built types (and a plugin's copy of this module) must agree on it. */
@@ -55,9 +56,7 @@ interface ReadsSlot {
 	open: (() => Reads | undefined) | null;
 }
 // (one global slot: a plugin package and core can be two module instances of this file)
-const slot: ReadsSlot = ((globalThis as Record<symbol, ReadsSlot | undefined>)[
-	Symbol.for('ogygia.reads.v1')
-] ??= { open: null });
+const slot = shared<ReadsSlot>({ name: 'ogygia.reads', version: 1, make: () => ({ open: null }) });
 
 /** Core only (server/read-trace.ts): how the read set of the running work is found. */
 export function set_open_reads(fn: (() => Reads | undefined) | null): void {

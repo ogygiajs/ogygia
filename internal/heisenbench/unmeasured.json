@@ -2065,6 +2065,22 @@
 			"reason": "a slot's maker: builds the slot's empty starting value, once per process, constant work"
 		},
 		{
+			"id": "packages/content/src/bridge.ts > slot:0~959d03 > make",
+			"reason": "a slot's maker: builds the slot's empty starting value, once per process, constant work"
+		},
+		{
+			"id": "packages/core/src/plugin/request-scope.ts > shared:0~5bce76 > make",
+			"reason": "a slot's maker: builds the slot's empty starting value, once per process, constant work"
+		},
+		{
+			"id": "packages/core/src/plugin/server.ts > shared:0~f8205a > make",
+			"reason": "a slot's maker: builds the slot's empty starting value, once per process, constant work"
+		},
+		{
+			"id": "packages/postrender/src/registry.ts > shared:0~4e63eb > make",
+			"reason": "a slot's maker: builds the slot's empty starting value, once per process, constant work"
+		},
+		{
 			"id": "packages/postrender/src/app.ts > shared:0~2ec32d > make",
 			"reason": "a slot's maker: builds the slot's empty starting value, once per process, constant work"
 		},

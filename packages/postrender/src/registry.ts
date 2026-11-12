@@ -22,6 +22,7 @@ import {
 	registry,
 	say,
 	scope,
+	slot as shared,
 	type Scope,
 	type Stale
 } from '@ogygia/machine';
@@ -55,9 +56,11 @@ interface Slot {
 	/** the memory store used while no handle exists */
 	fallback: Runtime | null;
 }
-const slot: Slot = ((globalThis as Record<symbol, Slot | undefined>)[
-	Symbol.for('ogygia.postrender.v1')
-] ??= { installed: null, handled: new WeakMap(), fallback: null });
+const slot = shared<Slot>({
+	name: 'ogygia.postrender',
+	version: 1,
+	make: () => ({ installed: null, handled: new WeakMap(), fallback: null })
+});
 
 /** A server event into the current request's devtools stream (a no-op unless devtools is on). */
 function record(event: DevtoolsEventInput): void {
