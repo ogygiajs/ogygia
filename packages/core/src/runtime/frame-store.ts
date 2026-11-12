@@ -31,7 +31,7 @@ import {
 	type Scope,
 	type Stale
 } from '@ogygia/machine';
-import { older_by, type DropWhy, type Frame } from '../frame.ts';
+import { older_by, stands_at, type DropWhy, type Frame } from '../frame.ts';
 import { watch, notify, watcher_count } from '../ref-watch.ts';
 
 /** The store's fetch at an address. `flight` is the address's flight: its priority is the most
@@ -251,8 +251,7 @@ export function write(f: Frame): boolean {
 		return false;
 	}
 	if (f.v > clock.n) clock.n = f.v; // foreign ticket (streamed/mutation frame) — keep the clock monotonic
-	// (newer data under an older ticket keeps the ticket order going)
-	e.answer.go('shown', { v: s !== null && s.v > f.v ? s.v : f.v, d: f.d, html: f.html });
+	e.answer.go('shown', { ...stands_at(s, f), html: f.html });
 	e.refused = null;
 	// Fulfil a batch's part, whoever wrote the frame (the batch, or a forced fetch that landed
 	// first): a binder that joined via ensure() unblocks, and no per-region fetch ever starts. The

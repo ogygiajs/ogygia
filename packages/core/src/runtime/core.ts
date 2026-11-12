@@ -13,7 +13,7 @@ import {
 	type Stale,
 	type Turn
 } from '@ogygia/machine';
-import { frameAddress, older_by, type FrameOrder } from '../frame.ts';
+import { frameAddress, older_by, stands_at, type FrameOrder } from '../frame.ts';
 import { import_again, is_failed_import, on_reload_needed } from './import-again.ts';
 import { browser_offline, no_response } from './network.ts';
 // Build-time constants (compiler/link/runtime-entry.ts `generateRuntimeFlagsSource`): `FRAMES` is
@@ -116,6 +116,7 @@ import {
 	HOOK_REGION_HYDRATED,
 	HOOK_REGION_MOUNT,
 	HOOK_REGION_UNMOUNT,
+	HOOK_REGION_WOKE,
 	HOOK_WARNING,
 	boot_client_plugins,
 	client_region_mount
@@ -1043,12 +1044,13 @@ class OgygiaRegion extends HTMLElement {
 		// capture wakes it at once (a gesture: the `user` class) and replays the click when it is live.
 		// `interaction` is the island with no other trigger.
 		if (fire === this.#fire_hydrate && when !== 'interaction') this.#catch_early_input(fire);
-		if (DEVTOOLS) {
+		if (DEVTOOLS || (HOOK_REGION_WOKE && slots.hooks?.regionWoke)) {
 			// Wrap so the schedule FIRING is observable (interaction/visible/idle "when did it actually
 			// wake, and why" is the story a timeline instrument tells). Off → `fire` is used directly.
 			const raw = fire;
 			fire = () => {
-				dt_emit({ domain: 'runtime', name: 'wake.fired', ...dt_ids(this), when });
+				if (DEVTOOLS) dt_emit({ domain: 'runtime', name: 'wake.fired', ...dt_ids(this), when });
+				if (HOOK_REGION_WOKE) slots.hooks?.regionWoke?.({ el: this, when });
 				return raw();
 			};
 		}
@@ -1574,6 +1576,7 @@ class OgygiaRegion extends HTMLElement {
 			}
 			if (id)
 				slots.hooks.holeFailed?.({
+					el: this,
 					id,
 					reason: refused ? err.reason : 'error',
 					...(final_path ? { finalPath: final_path } : {}),
@@ -1932,9 +1935,11 @@ class OgygiaRegion extends HTMLElement {
 				// (each frame a turn of its own, the one the store hands over as it binds too)
 				const box = this.#box;
 				const off = frames?.subscribe(frameAddress(desc.url), (f) => {
-					box.post((t) =>
-						older_by(f, this.#live_painted) === null ? this.#morph_live(f.html, t) : undefined
-					);
+					box.post((t) => {
+						if (older_by(f, this.#live_painted) !== null) return;
+						this.#live_painted = stands_at(this.#live_painted, f);
+						return this.#morph_live(f.html, t);
+					});
 				});
 				if (off) {
 					this.#live_unsub = off;
@@ -1944,24 +1949,28 @@ class OgygiaRegion extends HTMLElement {
 					});
 				}
 			}
-			// The store's one ordering (`older_by`) decides: when the answer it holds is this tick's
-			// write or newer, the subscription paints it. A tick the store holds no such answer for (its
-			// HTML never went through the store, or the answer there is older) paints its own —
-			// test/browser/region-orderings.test.ts. Painted, it stands where the store would have put
-			// it: a frame the subscription hands over later (as it binds again, put back) paints only
-			// if newer than that.
-			const held = desc.url ? frames?.peek(frameAddress(desc.url)) : null;
-			const mine = desc.written;
-			if (!held || mine === undefined || older_by(mine, held) === null) {
-				this.#live_painted =
-					mine === undefined
-						? (held ?? null)
-						: { v: held && held.v > mine.v ? held.v : mine.v, d: mine.d };
+			// The store's one ordering (`older_by`) decides. A tick stands where its HTML was written at
+			// its address, or, written nowhere, at its arrival (the store's next ticket, taken once: put
+			// back, it is the same tick). It paints its own HTML only when it is newer than both the
+			// answer the store holds (that one, its write or newer, the subscription paints) and what is
+			// on screen (put back after the store let the address go, what it showed stays: #774) —
+			// test/browser/region-orderings.test.ts.
+			const address = desc.url ? frameAddress(desc.url) : null;
+			const held = address && frames ? frames.peek(address) : null;
+			const mine = address && frames ? (desc.written ??= { v: frames.ticket(address) }) : null;
+			if (mine === null) await this.#morph_live(desc.html, turn);
+			else if (older_by(mine, held) === null && older_by(mine, this.#live_painted) === null) {
+				this.#live_painted = stands_at(
+					held && held.v > (this.#live_painted?.v ?? 0) ? held : this.#live_painted,
+					mine
+				);
 				await this.#morph_live(desc.html, turn);
 			}
 			return;
 		}
 
+		// (an island takes the screen: no frame is on it, and the next static tick's frame is newer)
+		this.#live_painted = null;
 		const s = this.#live.now;
 		// Keep-alive: same interactive module, already mounted → reactive prop push, no DOM churn.
 		if (s.kind === 'live' && s.module === desc.module) {
