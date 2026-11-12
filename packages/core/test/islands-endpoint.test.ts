@@ -63,7 +63,9 @@ describe('the islands endpoint', () => {
 					'W3t9XQ',
 					'',
 					'',
-					'c0ffee0c0ffe'
+					'c0ffee0c0ffe',
+					// (wakes: '' for a hole that does not wake)
+					''
 				].join('|').length
 		);
 	});

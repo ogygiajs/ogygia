@@ -59,9 +59,10 @@ const hole_message = (peer: string, kind: string, target: string, search: string
  */
 export function install_federation(app: ServerApp): void {
 	set_hole_signer(({ peer, kind, target, search = '' }) => {
-		const { exp, sig } = app.capability.mint((e) => hole_message(peer, kind, target, search, e));
-		// `exp` + `sig` last: the volatile tail a region's identity cuts off
-		const q = new URLSearchParams({ peer, kind, target, search, exp, sig });
+		const { exp, sig, k } = app.capability.mint((e) => hole_message(peer, kind, target, search, e));
+		// `exp`, `sig` and `k` (the key it names, #1007) last: the volatile tail a region's identity
+		// cuts off
+		const q = new URLSearchParams({ peer, kind, target, search, exp, sig, k });
 		return `${HOLE_PATH}?${q}`;
 	});
 }
@@ -455,20 +456,15 @@ async function serve_thaw(fed: Federation, event: RequestEvent): Promise<Respons
 	}
 	if (!sender) return json_error(401, 'invalid or missing signature');
 
-	let notice: { id?: string; hop?: number; tags?: string[] | 'all' };
+	let notice: Notice | null;
 	try {
-		notice = JSON.parse(new TextDecoder().decode(body ?? new Uint8Array()));
+		notice = thaw_notice(JSON.parse(new TextDecoder().decode(body ?? new Uint8Array())));
 	} catch {
-		return json_error(400, 'bad notice');
+		notice = null;
 	}
-	const received: Received = {
-		fed,
-		id: notice.id ?? '',
-		hop: notice.hop ?? 0,
-		tags: notice.tags ?? [],
-		sender,
-		sender_name
-	};
+	// (not the notice's shape: refused, never asked again, never passed on — test/thaw-notice-shape)
+	if (notice === null) return json_error(400, 'bad notice');
+	const received: Received = { fed, ...notice, sender, sender_name };
 	if (received.id && applied_notices.peek({ id: received.id })?.kind === 'kept')
 		return json_response({ ok: true, deduped: true });
 	try {
@@ -482,6 +478,19 @@ async function serve_thaw(fed: Federation, event: RequestEvent): Promise<Respons
 }
 
 /** `p:<path>` → `p:<peer>:<path>`; `s:…`/`r:…` → `r:<peer>:…`; `a:…` → `a:<peer>`. */
+type Notice = { id: string; hop: number; tags: string[] | 'all' };
+
+/** A parsed notice as the notice it is (a field left out: none, hop 0, no tags), or null when any
+ *  field is another type: `hop + 1` must stay a number the hop cap (federate.ts) can stop. */
+function thaw_notice(v: unknown): Notice | null {
+	if (v === null || typeof v !== 'object' || Array.isArray(v)) return null;
+	const { id = '', hop = 0, tags = [] } = v as Record<string, unknown>;
+	if (typeof id !== 'string' || !Number.isSafeInteger(hop) || (hop as number) < 0) return null;
+	if (tags !== 'all' && !(Array.isArray(tags) && tags.every((t) => typeof t === 'string')))
+		return null;
+	return { id, hop: hop as number, tags: tags as string[] | 'all' };
+}
+
 function map_thaw_tags(peer: string, tags: string[] | 'all'): string[] {
 	if (tags === 'all') return [];
 	return tags.map((t) => {
