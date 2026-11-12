@@ -1,6 +1,17 @@
 // WHICH CI A PULL REQUEST RUNS, as plain functions (ci-labels.ts and ci-plan.ts read them; tested in
 // ci-stack.test.ts). A STACKED PR (its base is another PR's branch) runs format, lint, check and size
-// only: its opt-in sets and e2e run once, on its stack's PR into main (or with `ci:full`).
+// only: its opt-in sets and e2e run once, on its stack's PR into main (or with `ci:full`). A BATCHED
+// PR (CI folded it into a ci/integration-* batch and labelled it `batched`) runs format, lint, check
+// and size only, even with `ci:full`: the rest runs on the batch, and the PR lands only through the
+// batch's green run, so its own `ci ok` is red while it carries the label (e2e.yml).
+
+/** The label CI adds when it folds a PR into an integration batch, and removes when it pulls it out. */
+export const BATCHED = 'batched';
+
+/** The PR carries `batched`: its e2e and opt-in sets run on its batch, not on the PR. */
+export function is_batched(carried: readonly string[]): boolean {
+	return carried.includes(BATCHED);
+}
 
 const ENGINES_PATHS = [
 	/^packages\/[^/]+\/src\/runtime\//,
@@ -42,6 +53,7 @@ export function has_label(
 	carried: readonly string[],
 	earned: readonly string[]
 ): boolean {
+	if (is_batched(carried)) return false;
 	// (a stacked PR earns nothing, but what its author added by hand still runs)
 	const all = new Set([...carried, ...(is_stacked(base) ? [] : earned)]);
 	return all.has(want) || all.has('ci:full');
