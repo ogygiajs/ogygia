@@ -1,12 +1,11 @@
-// Shared Playwright fixtures + the suites' `check()` idiom — `@ogygia/tooling/e2e`, imported by every
-// package's e2e specs (packages/<name>/e2e, apps/palaestra/e2e). Siblings (by file name, `.ts` and
-// all): `/servers.ts` (spawn_server), `/re.ts` (shared regexes), `/packed.ts` (the packed ogygia),
-// `/config.ts` (each suite's playwright.config.ts), `/build.ts` (a fixture app's build).
-//
-// The hand-rolled scripts collected a PASS/FAIL list and failed at the end. `check()` keeps that
-// shape as SOFT assertions: every check in a test still runs, each failure is reported with its
-// name and extra, and the test fails once at the end — so a migrated spec reads the same as the
-// script it replaced, with Playwright's report, traces, and fixtures around it.
+/**
+ * Shared Playwright fixtures and the suites' `check()` idiom: `@ogygia/tooling/e2e`, imported by
+ * every package's e2e specs (packages/<name>/e2e, apps/palaestra/e2e). Siblings (by file name, `.ts`
+ * and all): `/servers.ts` (spawn_server), `/re.ts` (shared regexes), `/packed.ts` (the packed
+ * ogygia), `/config.ts` (each suite's playwright.config.ts), `/build.ts` (a fixture app's build).
+ *
+ * @packageDocumentation
+ */
 import { test as base, expect, type Page } from '@playwright/test';
 import { ISLAND_GRAPH_SCRIPT_G_RE } from './re.ts';
 import { said_rules, server_log_since, server_log_size } from './server-log.ts';
@@ -83,7 +82,9 @@ export const test = base.extend<{ server_rules: void }>({
 	}
 });
 
-/** A named soft assertion. `extra` (a measured value, a snippet) rides in the failure message. */
+/** A named soft assertion. `extra` (a measured value, a snippet) rides in the failure message.
+ *  Every check in a test runs, each failure is reported, and the test fails once at the end: the
+ *  shape of the PASS/FAIL scripts the specs replaced, with Playwright's report and traces around it. */
 export function check(name: string, cond: unknown, extra = ''): void {
 	expect.soft(!!cond, extra ? `${name} — ${extra}` : name).toBe(true);
 }

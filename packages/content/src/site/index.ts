@@ -73,9 +73,6 @@ export type {
 export { SearchClient } from './search-client.ts';
 export type { SearchClientOptions } from './search-client.ts';
 
-// ── chrome: every component, one barrel (see ./components/index.ts — modern bundlers tree-shake
-// barrels; import a brick, ship a brick). Styling is an EXPLICIT import:
-// `import '@ogygia/content/theme.css'` — skip it for zero CSS.
 export * from './components/index.ts';
 export { get_shell_context as getShellContext } from './context.ts';
 export type { ShellContext } from './context.ts';
