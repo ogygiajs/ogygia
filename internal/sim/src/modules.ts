@@ -18,6 +18,8 @@ import vm from 'node:vm';
 import Module from 'happy-dom/lib/module/ECMAScriptModule.js';
 import Compiler from 'happy-dom/lib/module/ECMAScriptModuleCompiler.js';
 import ModuleFactory from 'happy-dom/lib/module/ModuleFactory.js';
+import UnresolvedModule from 'happy-dom/lib/module/UnresolvedModule.js';
+import * as PropertySymbol from 'happy-dom/lib/PropertySymbol.js';
 
 type Window = object & { fetch(url: string): Promise<Response>; location: { href: string } };
 
@@ -87,10 +89,49 @@ function make_loader(window: Window): Loader {
 			throw error;
 		}
 	};
+	/** Sources happy-dom compiled (a `modulepreload`, a module script, a classic `import()`), and the
+	 *  ones an import waits for while happy-dom still downloads them. */
+	const compiled = new Map<string, string>();
+	const awaited = new Map<string, (code: string) => void>();
+	/** ONE MODULE MAP PER DOCUMENT: happy-dom's own download of `url` under way (a modulepreload,
+	 *  the document's module script) is the map's entry, so an import waits for it rather than ask
+	 *  the network again (test/modules.test.ts). Its source, once its module compiles; undefined
+	 *  when happy-dom has not asked for it. */
+	const downloading = (url: string): Promise<string> | undefined => {
+		const map = (window as unknown as Record<symbol, { esm: Map<string, unknown> } | undefined>)[
+			PropertySymbol.modules
+		]?.esm;
+		const entry = map?.get(url);
+		if (entry === undefined) return undefined;
+		const known = compiled.get(url);
+		if (known !== undefined) return Promise.resolve(known);
+		return new Promise<string>((resolve, reject) => {
+			const compile = () => {
+				const now = compiled.get(url);
+				if (now !== undefined) return resolve(now);
+				awaited.set(url, resolve);
+				// (downloaded, not compiled yet: its preload compiles it, which hands the source here)
+				void (map!.get(url) as { preload?: () => Promise<void> }).preload?.();
+			};
+			if (entry instanceof UnresolvedModule)
+				entry.addResolveListener(compile, (error: unknown) => {
+					if (typeof error === 'object' && error !== null) unfetched.add(error);
+					reject(error);
+				});
+			else compile();
+		});
+	};
 	const load = (url: string, code?: string): Promise<vm.Module> => {
+		if (code !== undefined) {
+			compiled.set(url, code);
+			awaited.get(url)?.(code);
+			awaited.delete(url);
+		}
 		let m = modules.get(url);
 		if (m === undefined) {
-			m = (code !== undefined ? Promise.resolve(code) : fetch_code(url)).then((c) => make(url, c));
+			m = (
+				code !== undefined ? Promise.resolve(code) : (downloading(url) ?? fetch_code(url))
+			).then((c) => make(url, c));
 			// (a module that fails to load or parse fails its importers, who report it as a page
 			// does; the cached promise itself is not an unhandled rejection of the host)
 			m.catch(() => {});
