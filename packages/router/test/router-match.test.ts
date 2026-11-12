@@ -135,18 +135,24 @@ describe('router pattern matching takes time in line with the path', () => {
 			level = level.flatMap((p) => [...'a-x/'].map((ch) => p + ch));
 			paths.push(...level);
 		}
+		// 131k cases: one RegExp per pattern and one expect at the end, or this runs 60x slower
+		// and times out on a loaded runner
+		const misses: unknown[] = [];
 		for (const pattern of patterns) {
 			const c = compile(pattern);
+			const reference = kit(pattern);
 			for (const tail of paths) {
 				const path = `/${tail}`;
-				const want = kit(pattern).exec(path);
-				const got = match_one(c, path);
-				const want_params = want
-					? Object.fromEntries(c.params.map((s, i) => [s.name, want[i + 1]]))
-					: null;
-				expect([pattern, path, got?.params ?? null]).toEqual([pattern, path, want_params]);
+				const want = reference.exec(path);
+				const got = match_one(c, path)?.params ?? null;
+				const same =
+					want === null
+						? got === null
+						: got !== null && c.params.every((s, i) => got[s.name] === want[i + 1]);
+				if (!same) misses.push([pattern, path, got, want?.slice(1) ?? null]);
 			}
 		}
+		expect(misses).toEqual([]);
 	});
 
 	it('two params with nothing between them answer a long near miss at once (#833)', () => {
