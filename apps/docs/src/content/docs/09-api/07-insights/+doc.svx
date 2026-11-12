@@ -1,8 +1,8 @@
 ---
-title: ogygia/insights
+title: '@ogygia/insights'
 summary: Findings computed from the event layer.
 ---
 
 This page is generated from the package's own `.d.ts` files on every build, so the signatures, descriptions and examples below always match the source.
 
-> MODULE: ogygia/insights
+> MODULE: @ogygia/insights
