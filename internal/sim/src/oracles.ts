@@ -601,9 +601,20 @@ export function fallback_stands(tab: Tab, world: World): Broken | null {
 		return endpoint !== null && !asked.has(answer_key(new URL(endpoint, url)));
 	});
 	if (standing.length === 0) return null;
+	// (a region a filed bug leaves empty stands on its fallback for the same reason: #910's hole asks
+	// the app's endpoint, which refuses it)
+	const is = (k: (typeof KNOWN_EMPTY)[number], r: Element) => k.is(r, world, tab.realm);
+	const left = standing.filter((r) => !KNOWN_EMPTY.some((k) => is(k, r)));
+	if (left.length === 0) {
+		const known = KNOWN_EMPTY.filter((k) => standing.some((r) => is(k, r)));
+		return {
+			oracle: 'known',
+			detail: `${url}: ${known.map((k) => `#${k.issue} (${k.what})`).join(', ')}`
+		};
+	}
 	return {
 		oracle: 'fallback-stands',
-		detail: `${url}: ${standing.map((r) => r.querySelector('[data-gen-fallback]')!.textContent).join(', ')}`
+		detail: `${url}: ${left.map((r) => r.querySelector('[data-gen-fallback]')!.textContent).join(', ')}`
 	};
 }
 
