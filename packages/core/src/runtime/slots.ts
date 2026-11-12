@@ -92,7 +92,8 @@ export type RemoteSeedOps = {
 	seed_once(): void;
 	seed_query_responses(text: string): void;
 	clear_remote_seeds(): void;
-	clear_remote_instances(): void;
+	/** destroy the query instances only departed islands held (shims/kit-remote/remote-cache.ts) */
+	release_remote_instances(): void;
 };
 
 /** The page as island code sees it, filled by the `page` feature (./seeds.ts). Null when no island
@@ -177,12 +178,11 @@ export type BootLink = {
 	vouch_page_html: typeof import('./html-sink.ts').vouch_page_html;
 	runtime_session: typeof import('./session.ts').runtime_session;
 	regions_in_shadow: typeof import('./connected.ts').regions_in_shadow;
-	/** the region sheets a navigation's head merge left, taken out but for those a region uses */
-	release_sheets: typeof import('./region-sheets.ts').release_sheets;
+	/** the region head nodes a navigation's head merge left, taken out but for those a region on
+	 *  the page uses or owns */
+	release_head_nodes: typeof import('./region-sheets.ts').release_head_nodes;
 	yield_task: typeof import('./schedule.ts').yield_task;
-	/** the router's navigation, timed for the profiler's beacon (a no-op without it) */
-	beacon_nav: typeof import('./beacon.ts').beacon_nav;
-	/** the plugins around Svelte's hydrate over server markup (./client-plugins.ts) */
+	/** the `regionHydrate` subscribers around Svelte's hydrate over server markup (./client-plugins.ts) */
 	region_hydrate: typeof import('./client-plugins.ts').client_region_hydrate;
 	/** the load scheduler's queue (./load-scheduler.ts) */
 	LoadSlot: typeof import('./load-scheduler.ts').LoadSlot;
@@ -251,6 +251,9 @@ export type Slots = {
 	interaction_link: InteractionLink | null;
 	/** Morph's attribute sync, for the navigation's body reconcile. */
 	sync_attributes: typeof import('./morph.ts').sync_attributes | null;
+	/** The runtime hooks the plugins' browser halves subscribe to, set at boot only when one does
+	 *  (./client-plugins.ts). */
+	hooks?: Partial<import('../contract/runtime-hooks.ts').RuntimeHooks>;
 };
 
 /** The live registry. A feature's `install()` assigns its slot; core/router read them. */

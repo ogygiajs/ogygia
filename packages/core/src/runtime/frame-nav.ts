@@ -16,13 +16,16 @@ import { is_idle, reserve, release, ticket, write } from './frame-store.ts';
 import { is_allowed_region_endpoint, vouch_region_answer } from './html-sink.ts';
 import { runtime_session } from './session.ts';
 import { emit as dt_emit } from '../events/bus.ts';
-
-import { beacon_hole_batch_missed } from './beacon.ts';
+import { slots } from './slots.ts';
 
 // DEVTOOLS gate — module-local const from the Vite `define` (proven DCE pattern); off → folds out.
 const DEVTOOLS = typeof __OGYGIA_DEVTOOLS__ !== 'undefined' ? __OGYGIA_DEVTOOLS__ : false;
-// The measuring browser's gate (the profiler's beacon, the devtools) — off in a plain build.
-const BEACON = typeof __OGYGIA_BEACON__ !== 'undefined' ? __OGYGIA_BEACON__ : true;
+const HOOK_HOLE_ANSWERED =
+	typeof __OGYGIA_HOOK_HOLE_ANSWERED__ !== 'undefined' ? __OGYGIA_HOOK_HOLE_ANSWERED__ : true;
+const HOOK_HOLE_BATCH_MISSED =
+	typeof __OGYGIA_HOOK_HOLE_BATCH_MISSED__ !== 'undefined'
+		? __OGYGIA_HOOK_HOLE_BATCH_MISSED__
+		: true;
 /** this page's batches, numbered (the devtools join a batch's parts and its end to it) */
 let batch_seq = 0;
 
@@ -139,7 +142,7 @@ export async function streamFrames(
 	// is newer, and the batch's part landing after it is dropped (test/sim/frame-order.test.ts).
 	const bySig = new Map<string, { a: string; v: number }>();
 	// (a measuring browser: slot → endpoint, to name and time each part as it lands)
-	const endpoint_of = DEVTOOLS || BEACON ? new Map<string, string>() : null;
+	const endpoint_of = DEVTOOLS || HOOK_HOLE_ANSWERED ? new Map<string, string>() : null;
 	const reserved: string[] = [];
 	for (const e of endpoints) {
 		const s = sigOf(e);
@@ -160,7 +163,7 @@ export async function streamFrames(
 			kind,
 			endpoints: endpoints.slice()
 		});
-	const left = BEACON ? performance.now() : 0;
+	const left = HOOK_HOLE_ANSWERED ? performance.now() : 0;
 	let delivered = 0;
 	let status = 0;
 	let refused: 'redirected' | 'document' | undefined;
@@ -189,7 +192,7 @@ export async function streamFrames(
 		if (res === STALE) return; // no answer at all for STALL_MS
 		stream.go('reading');
 		status = res.status;
-		if ((DEVTOOLS || BEACON) && res.redirected) {
+		if ((DEVTOOLS || HOOK_HOLE_BATCH_MISSED) && res.redirected) {
 			refused = 'redirected';
 			final_url = res.url;
 		}
@@ -221,7 +224,7 @@ export async function streamFrames(
 				const part = bySig.get(p.slot);
 				if (part) {
 					// (timed BEFORE the write: the write applies the part, and the hole reports its answer then)
-					if (BEACON) {
+					if (HOOK_HOLE_ANSWERED) {
 						const ep = endpoint_of!.get(p.slot)!;
 						batched.delete(ep);
 						batched.set(ep, { left, at: performance.now(), size: reserved.length });
@@ -244,7 +247,7 @@ export async function streamFrames(
 			if (consumed) buffer = buffer.slice(consumed);
 		}
 		// (a 200 with no parcel at all: something in front of ogygia answered with a page)
-		if ((DEVTOOLS || BEACON) && !parcels && !refused) {
+		if ((DEVTOOLS || HOOK_HOLE_BATCH_MISSED) && !parcels && !refused) {
 			refused = 'document';
 			final_url = res.url;
 		}
@@ -258,12 +261,12 @@ export async function streamFrames(
 		for (const a of reserved) release(a);
 		// a batch that did not carry all its holes: the profiler's report says what answered (each
 		// hole then fetched on its own). Not when its page was left: nothing missed it.
-		if (BEACON && delivered < reserved.length && !visit.closed)
-			beacon_hole_batch_missed({
+		if (HOOK_HOLE_BATCH_MISSED && delivered < reserved.length && !visit.closed)
+			slots.hooks?.holeBatchMissed?.({
 				sent: reserved.length,
 				delivered,
 				status,
-				...(refused ? { refused, ...(final_url ? { final_url } : {}) } : {}),
+				...(refused ? { refused, ...(final_url ? { finalUrl: final_url } : {}) } : {}),
 				endpoints
 			});
 		if (DEVTOOLS)
@@ -315,20 +318,31 @@ export function join_batch(endpoint: string): Promise<void> {
 	return flushed;
 }
 
-/** The holes that joined in one task: the ones a batch can carry go out in batches of MAX_BATCH. */
+/** A region call of an islands endpoint (`?id=…`, `&id=…`): what a batch POST to its path answers. */
+const REGION_CALL_RE = /[?&]id=/;
+
+/** The holes that joined in one task: the ones a batch can carry go out in batches of MAX_BATCH,
+ *  one endpoint path per batch (it is POSTed there). A hole that is no region call (a plugin's
+ *  endpoint) goes on its own: test/browser/hole-batch.test.ts (#917). */
 function gather(list: string[]): void {
-	const fresh: string[] = [];
+	const by_path = new Map<string, string[]>();
 	const seen = new Set<string>();
 	// (a hole whose request the page's head started is in flight at its address, so not idle:
 	// ./early-holes.ts)
 	for (const e of list) {
+		if (!REGION_CALL_RE.test(e)) continue;
 		const a = frameAddress(e);
 		if (seen.has(a) || !is_idle(a)) continue;
 		seen.add(a);
-		fresh.push(e);
+		const q = e.indexOf('?');
+		const path = e.slice(0, q);
+		const fresh = by_path.get(path);
+		if (fresh) fresh.push(e);
+		else by_path.set(path, [e]);
 	}
 	// (reserve happens synchronously inside streamFrames, before this resolves)
-	if (fresh.length >= 2)
-		for (let i = 0; i < fresh.length; i += MAX_BATCH)
-			void streamFrames(fresh.slice(i, i + MAX_BATCH), 'page'); // ok: a batch says its own failure, and its holes fall back to their own fetch
+	for (const fresh of by_path.values())
+		if (fresh.length >= 2)
+			for (let i = 0; i < fresh.length; i += MAX_BATCH)
+				void streamFrames(fresh.slice(i, i + MAX_BATCH), 'page'); // ok: a batch says its own failure, and its holes fall back to their own fetch
 }
