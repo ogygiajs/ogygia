@@ -1516,16 +1516,13 @@ class OgygiaRegion extends HTMLElement {
 			await frames.join(endpoint);
 		const cls = () => (this.#visitor ? 'user' : viewport_class(this));
 		const fetcher = this.#frame_fetcher(endpoint, revalidate, cls);
-		// (joining a warm out for the address: it is raised to this hole's class)
-		const run = () =>
-			frames.ensure(address, fetcher, { force: revalidate, signal, priority: PRIORITY[cls()] });
-		try {
-			return await run();
-		} catch (err) {
-			// the batch it joined did not carry it: its own fetch, now (not a failure, no retry wait)
-			if ((err as { name?: string })?.name !== 'OgygiaBatchMiss' || signal.aborted) throw err;
-			return await run();
-		}
+		// (joining a warm out for the address: it is raised to this hole's class; a batch that did
+		// not carry it is no failure: the store asks again, and its own fetch runs)
+		return frames.ensure(address, fetcher, {
+			force: revalidate,
+			signal,
+			priority: PRIORITY[cls()]
+		});
 	}
 
 	/**

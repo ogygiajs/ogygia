@@ -193,6 +193,18 @@
 	],
 	"covered": [
 		{
+			"step": "frame-part: promised -> landed",
+			"reason": "a navigation's hole batch reserves the next page's addresses; whether the sweep's navigations land a part before its hole binds is timing the ledger does not pin",
+			"test": "packages/core/test/frame-store.test.ts",
+			"name": "ensure() JOINS a reservation instead of fetching; write() fulfils it"
+		},
+		{
+			"step": "frame-part: promised -> missed",
+			"reason": "a batch that ends without a part it reserved: the simulated server always carries every part it is asked for",
+			"test": "packages/core/test/frame-store.test.ts",
+			"name": "release() misses an undelivered reservation, so the binder that joined it fetches on its own"
+		},
+		{
 			"step": "critical resources: kept -> gone",
 			"reason": "a page asks only before the gate settles, and the answer is kept only after it: no later get, no expiry, no max; only reset_load_scheduler() drops it, which a test's reset calls",
 			"test": "packages/core/test/browser/load-scheduler.test.ts",

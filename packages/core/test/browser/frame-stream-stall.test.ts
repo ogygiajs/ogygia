@@ -42,16 +42,17 @@ describe('a stalled batch stream', () => {
 		const carried = ensure(frameAddress(ep('s1')), own);
 		let outcome = 'waiting';
 		void ensure(frameAddress(ep('s2')), own).then(
-			() => (outcome = 'answered'),
-			(err: { name?: string }) => (outcome = err?.name ?? 'failed')
+			(html) => (outcome = String(html)),
+			() => (outcome = 'failed')
 		);
 		expect(await carried).toBe('<p>one</p>');
 		// a slow part is not cut short: a few quiet seconds are a server still rendering
 		await vi.advanceTimersByTimeAsync(5_000);
 		expect(outcome).toBe('waiting');
-		// quiet for long: the stream is given up, and the hole it never carried is let go
-		await vi.advanceTimersByTimeAsync(10_000);
-		expect(outcome, 'the stalled stream let the waiting hole go').toBe('OgygiaBatchMiss');
 		expect(own).not.toHaveBeenCalled();
+		// quiet for long: the stream is given up, and the hole it never carried fetches on its own
+		await vi.advanceTimersByTimeAsync(10_000);
+		expect(outcome, 'the stalled stream let the waiting hole go').toBe('own');
+		expect(own).toHaveBeenCalledTimes(1);
 	});
 });
