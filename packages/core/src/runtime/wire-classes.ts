@@ -32,7 +32,7 @@ export function install(): void {
 	slots.wire_classes = wire_classes_for;
 }
 
-const loaders = wire_loaders as Record<string, () => Promise<unknown>>;
+const loaders = wire_loaders;
 const paths = Object.keys(loaders);
 /** Each class module's loader: what it asks for next (its file, or a fresh URL after a failure). */
 const imports = cache<string, () => Promise<unknown>>({
@@ -45,7 +45,10 @@ const loads = flights({
 	name: 'wire class',
 	run: (path: string) => {
 		let import_class = imports.get(path);
-		if (!import_class) imports.set(path, (import_class = import_again(loaders[path]!)));
+		if (!import_class) {
+			const [load, file, base] = loaders[path]!;
+			imports.set(path, (import_class = import_again(load, undefined, file, base)));
+		}
 		// (each import starts in a task of its own: every class's preload ran inside the first
 		// island's start)
 		return yield_task().then(import_class);

@@ -21,10 +21,11 @@
  * markup (same component, same props), so addresses stay valid; a tag-name check guards drift.
  *
  * WHAT SURVIVES THE WAKE:
- * - **Clicks are queued + replayed.** While waking, `click` events are `preventDefault()`ed and
- *   recorded (address + coordinates); after hydration each re-dispatches at its address. Cancel-
- *   then-replay means a checkbox / link / summary activates exactly ONCE — on the replay, where
- *   the island's handlers exist. Enter/Space activation arrives as a derived click → same path.
+ * - **Clicks are queued + replayed.** While waking, `click` events are `preventDefault()`ed, kept
+ *   from the page's handlers (`stopPropagation()`), and recorded (address + coordinates); after
+ *   hydration each re-dispatches at its address. Cancel-then-replay means a checkbox / link /
+ *   summary activates exactly ONCE — on the replay, where the island's handlers exist, even when
+ *   they were live before the wake ended. Enter/Space activation arrives as a derived click → same path.
  * - **Typing lands natively and is restored.** Characters are in the DOM before hydration starts;
  *   hydration resets `.value` from SSR state, so field values (+ checkedness + selection) are
  *   snapshotted at wake and re-applied at the field's address, with `input`/`change` events so
@@ -244,7 +245,11 @@ function wake(a: Armed, e: Event): void {
 		const addr = element_address(region, e.target);
 		if (addr) {
 			const me = e as MouseEvent;
+			// a queued click is the replay's alone: canceled, and kept from the island's handlers too —
+			// they can be live before its wake ends (hydrated, not yet marked) and would hear it twice
+			// (test/browser/interaction-delegated.test.ts)
 			e.preventDefault();
+			e.stopPropagation();
 			// `e.target` is already retargeted to the shadow HOST; keep the real deepest node too.
 			const path = typeof e.composedPath === 'function' ? e.composedPath() : [];
 			const deep = path.length && path[0] !== e.target ? path[0] : null;
