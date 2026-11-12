@@ -4,33 +4,36 @@
 // the next page, but its `data-og-fp` stays page B's: a fresh load of /props-tail has another
 // fingerprint there. The router names the islands a page holds by that attribute
 // (`x-ogygia-known`). (Skipped without the app built for the simulator.)
-//
-//   1. tab 0: go to /props-tail/b
-//   2. tab 0: click link #964 (to /props-tail)
 import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { signature } from '../../src/ci.ts';
-import type { Plan } from '../../src/cli.ts';
+import { World } from '../../src/world.ts';
+import { mpa_equivalent } from '../../src/oracles.ts';
+import { user_click } from '../../src/workload.ts';
 
-const APP = fileURLToPath(new URL('../../../../apps/palaestra', import.meta.url));
-const ready = ['/.svelte-kit/sim-builds/v1', '/.svelte-kit/output'].some((b) =>
-	existsSync(`${APP}${b}/server/index.js`)
+const OUTPUT = fileURLToPath(
+	new URL('../../../../apps/palaestra/.svelte-kit/output', import.meta.url)
 );
 
-const SEED = 20004;
-const PLAN: Plan = {
-	actions: [
-		{ kind: 'goto', tab: 0, path: '/props-tail/b' },
-		{ kind: 'click', tab: 0, nth: 964 }
-	]
-};
-
-describe.skipIf(!ready)("found: a kept island keeps the last page's fingerprint", () => {
-	it('after a navigation a kept island carries the fingerprint a fresh load gives (mpa-equivalence aa9cd228da)', async () => {
-		process.env.SIM_APP = APP;
-		const { run } = await import('../../src/cli.ts');
-		const res = await run(SEED, PLAN.actions.length, Infinity, undefined, PLAN);
-		expect(res.broken.filter((b) => signature(b) === 'aa9cd228da')).toEqual([]);
-	}, 300_000);
-});
+describe.skipIf(!existsSync(`${OUTPUT}/server/index.js`))(
+	"found: a kept island keeps the last page's fingerprint",
+	() => {
+		it('after a navigation a kept island carries the fingerprint a fresh load gives', async () => {
+			const world = await World.make({ seed: 2, builds: [{ id: 'v1', output: OUTPUT }] });
+			try {
+				const v = world.visitor('alice');
+				const tab = world.tab(v);
+				await world.go(tab, 'goto', '/props-tail/b');
+				await world.quiesce();
+				const doc = tab.page.mainFrame.document as unknown as Document;
+				user_click(doc.querySelector('a[data-to-a]')!);
+				await world.quiesce();
+				expect(tab.page.mainFrame.url).toBe('https://app.test/props-tail');
+				expect(tab.documents).toBe(1); // (a client navigation)
+				expect(await mpa_equivalent(world, v, tab)).toBeNull();
+			} finally {
+				await world.end();
+			}
+		}, 300_000);
+	}
+);
