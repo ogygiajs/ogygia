@@ -24,7 +24,7 @@ export {
 	location_map
 } from 'ogygia:server/region-deps';
 export { build_key, build_had_secret } from 'ogygia:server/secret';
-export { sign, verify, region_mac_message } from 'ogygia:server/sign';
+export { sign, region_sign } from 'ogygia:server/sign';
 export { getRequestEvent as get_request_event } from 'ogygia:server/request-event';
 export {
 	make_region_endpoint,
