@@ -42,9 +42,16 @@ const MAX_BYTES = 64 * 1024 * 1024;
 const MAX_ENTRIES = 500;
 const ENTRY_SHARE = Math.floor(MAX_BYTES / MAX_ENTRIES);
 
-/** What a region render is made from: the region, its props, the visitor's session seal, and (when
- *  its tree reads `page.data`) the page it renders for. */
-export type RenderKey = { id: string; payload: string; session: string; page: string | null };
+/** What a region render is made from: the region, its props, the visitor's session seal, (when
+ *  its tree reads `page.data`) the page it renders for, and whether it renders inside an island (a
+ *  hole that wakes, #906: its regions take another branch). */
+export type RenderKey = {
+	id: string;
+	payload: string;
+	session: string;
+	page: string | null;
+	nested: boolean;
+};
 
 /** A render to share: what it is made from, the render itself (the caller's: the endpoint gates
  *  it, the inline path renders directly), and how long its HTML stays (seconds). */
@@ -68,9 +75,9 @@ export function unkeyed_read(reads: Reads, key: RenderKey): string | null {
 
 const renders = flights.keyed<Ask>()({
 	name: 'render cache',
-	key: ['id', 'payload', 'session', 'page'],
+	key: ['id', 'payload', 'session', 'page', 'nested'],
 	ignore: {
-		render_body: 'the render of the key: the same region, props, visitor and page',
+		render_body: 'the render of the key: the same region, props, visitor, page and nesting',
 		ttl: 'how long the HTML stays, not what is rendered'
 	},
 	run: async (ask, signal): Promise<TracedRender> => {
@@ -94,9 +101,10 @@ export function render_cache_key(
 	id: string,
 	payload: string,
 	session: string,
-	page: string | null = null
+	page: string | null = null,
+	nested = false
 ): RenderKey {
-	return { id, payload, session, page };
+	return { id, payload, session, page, nested };
 }
 
 /** Test/ops hook: the HTML kept for `key` now, or null. */

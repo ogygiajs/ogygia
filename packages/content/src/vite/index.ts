@@ -17,14 +17,14 @@
 import path from 'node:path';
 import type { PreprocessorGroup } from 'svelte/compiler';
 import type { Plugin as VitePlugin } from 'vite';
-import { definePlugin, type OgygiaPlugin } from '@ogygia/core/vite';
+import { definePlugin, type OgygiaPlugin } from '@ogygia/compiler/vite';
 import { bridge } from '../bridge.ts';
 import { ogygiaPresetPreprocess, type MarkdownOptions } from '../markdown/index.ts';
 import { snippet_macros } from '../macros/snippets.ts';
 import { rewrite_loaders } from '../macros/loaders.ts';
 import { rewrite_regions } from '../macros/regions.ts';
 import { materialize } from '../macros/git.ts';
-import { content_hmr, content_runs, type ContentHmrOptions } from './hmr.ts';
+import { content_hmr, type ContentHmrOptions } from './hmr.ts';
 import { content_leaks } from './leaks.ts';
 import { OgygiaError, warn } from '../messages/build.ts';
 import { say, type Say } from '@ogygia/machine';
@@ -76,6 +76,8 @@ export function content(options: ContentOptions = {}): [OgygiaPlugin, ...VitePlu
 		name: '@ogygia/content',
 		build(b) {
 			root = b.root;
+			// each content() call is owned by the run of the module that makes it (dev: core marks it)
+			b.definers('@ogygia/content', ['content']);
 			for (const { name, handler } of snippet_macros(
 				() => bridge.markdownConfig as MarkdownOptions | null
 			))
@@ -105,13 +107,7 @@ export function content(options: ContentOptions = {}): [OgygiaPlugin, ...VitePlu
 			}
 		}
 	});
-	return [
-		plugin,
-		content_hmr(hmr),
-		content_runs(),
-		content_checks(() => root, exts),
-		content_leaks()
-	];
+	return [plugin, content_hmr(hmr), content_checks(() => root, exts), content_leaks()];
 }
 
 type ContentBridgePresets = NonNullable<typeof bridge.contentPresets>;
