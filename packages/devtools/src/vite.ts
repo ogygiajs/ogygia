@@ -53,7 +53,7 @@ export function devtools(
 	const plugin = definePlugin<DevtoolsServerOptions>({
 		name: '@ogygia/devtools',
 		server: import.meta.resolve('./server.ts'),
-		client: import.meta.resolve('./client.ts'),
+		client: dock ? import.meta.resolve('./client.ts') : import.meta.resolve('./client-beacon.ts'),
 		options: { profiler },
 		build(b) {
 			if (dock) b.events({ lazy: !b.dev });
