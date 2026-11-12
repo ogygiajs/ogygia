@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { rng } from '../src/rng.ts';
 import { Loop } from '../src/loop.ts';
 import { platform, EPOCH } from '../src/platform.ts';
-import { Network, type FaultClass } from '../src/network.ts';
+import { client_address, Network, type FaultClass } from '../src/network.ts';
 
 describe('rng', () => {
 	it('gives the same stream for the same seed, and a fork by name is its own stream', () => {
@@ -134,6 +134,24 @@ describe('the network', () => {
 		// (request leg, response leg, one chunk and the end, each at most 120 ms)
 		expect(at).toBeGreaterThan(0);
 		expect(at).toBeLessThanOrEqual(4 * 120);
+	});
+
+	it("a calm tab's request comes from a client address of its own (gen 78, seed 78013)", async () => {
+		// (the reference load met the rate limit the run's own hole retries had used up, got 429
+		// for its holes and showed their fallbacks)
+		const loop = new Loop(rng(1));
+		const net = new Network({ loop, rng: rng(1), faults: new Set() });
+		net.calm('tab-9');
+		const seen: Record<string, string> = {};
+		for (const tab of ['tab-1', 'tab-9'])
+			void net.send(`${tab}#1`, new Request('https://app.test/'), async () => {
+				seen[tab] = client_address();
+				return new Response('x');
+			});
+		await loop.run();
+		expect(seen['tab-1']).toBeDefined();
+		expect(seen['tab-9']).toBeDefined();
+		expect(seen['tab-9']).not.toBe(seen['tab-1']);
 	});
 
 	it("a server's hop names the document whose request it was answering", async () => {
