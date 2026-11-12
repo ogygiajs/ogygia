@@ -35,6 +35,9 @@ export const FRAGMENT_BASE = '/og/fragment/';
 /** Thaw notices: `POST /og/thaw` (signed, JSON `{ id, hop, build, tags }`). */
 export const THAW_PATH = '/og/thaw';
 
+/** A path that would leave the origin it is set on (`//host`, `/\host`, `\host`). */
+export const OFF_SITE_PATH_RE: RegExp = /^(?:[/\\]{2}|\\)/;
+
 // ── headers ──────────────────────────────────────────────────────────────────────────────────
 const SIG_HEADER = 'x-og-sig';
 const TS_HEADER = 'x-og-ts';
@@ -462,6 +465,12 @@ function pin_graph(json: string, origin: string): string {
 	return JSON.stringify(wire).replaceAll('<', '\\u003C');
 }
 
+/** A region's `endpoint`, pinned to `origin` whatever its path: it is always the answering app's own
+ *  (a server island's hole, a lake's), never a link the consumer resolves in its address space. */
+function pin_endpoint(value: string, origin: string): string {
+	return ABSOLUTE_RE.test(value) ? value : new URL(value, origin + '/').href;
+}
+
 /** `html` with the JSON of every `script[data-ogygia-graph]` (as the runtime selects them) pinned. */
 function pin_graphs(html: string, origin: string): string {
 	const mark = new Needle(html, GRAPH_ANY_CASE);
@@ -495,7 +504,9 @@ function pin_attrs(html: string, origin: string): string {
 		// (in source order: a tag's attributes are read first to last)
 		for (const [name, value] of t.tag.attrs) {
 			if (value === '' || !ASSET_ATTR_NAME.test(name)) continue;
-			const pinned = pin_asset(value, origin);
+			const pinned = name.endsWith('endpoint')
+				? pin_endpoint(value, origin)
+				: pin_asset(value, origin);
 			if (pinned === value) continue;
 			const at = value_at(html, t.tag, t.name, name);
 			if (at === -1) continue;
@@ -506,8 +517,9 @@ function pin_attrs(html: string, origin: string): string {
 	return pos === 0 ? html : out + html.slice(pos);
 }
 
-/** Pin ASSET refs (island entries, stylesheets, chunks, the island graph) to `origin`; app-local
- *  LINKS stay path-relative — the consuming shell owns the address space they resolve in. */
+/** Pin ASSET refs (island entries, stylesheets, chunks, the island graph) and region ENDPOINTS to
+ *  `origin`; app-local LINKS stay path-relative — the consuming shell owns the address space they
+ *  resolve in. */
 export function absolutize(html: string, origin: string): string {
 	return pin_graphs(pin_attrs(html, origin), origin);
 }
