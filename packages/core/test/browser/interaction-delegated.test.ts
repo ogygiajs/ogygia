@@ -162,6 +162,69 @@ test('a click that reaches an island already live (woken by its pointerdown) act
 	expect(count).toBe(1);
 });
 
+/** Two frames: a replay runs a frame after the wake settles. */
+const frames = () => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+
+test("a page's own click listener hears an early click once, as its replay when the island is live (#922)", async () => {
+	document.body.innerHTML = region('heard');
+	const el = document.getElementById('heard')!;
+	const btn = el.querySelector('button')!;
+	const heard: boolean[] = [];
+	const on_page = (e: Event) => {
+		if ((e.target as Element).closest?.('#heard')) heard.push(e.defaultPrevented);
+	};
+	document.addEventListener('click', on_page);
+	const live = defer();
+	arm_interaction(
+		el,
+		() => {},
+		() => live.promise,
+		page
+	);
+	btn.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
+	btn.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+	live.resolve();
+	await live.promise;
+	await frames();
+	await frames();
+	document.removeEventListener('click', on_page);
+	// (once: the replay, not canceled; the held click itself is the replay's alone)
+	expect(heard).toEqual([false]);
+});
+
+test("a page's own click listener hears an early click once when the island fails to wake: replayed onto the server markup (#922)", async () => {
+	document.body.innerHTML = region('dead');
+	const el = document.getElementById('dead')!;
+	const btn = el.querySelector('button')!;
+	const heard: boolean[] = [];
+	const on_page = (e: Event) => {
+		if ((e.target as Element).closest?.('#dead')) heard.push(e.defaultPrevented);
+	};
+	document.addEventListener('click', on_page);
+	const failed = Promise.reject(new Error('the island did not load'));
+	failed.catch(() => {}); // ok: the capture reads it
+	const errors: unknown[] = [];
+	const real_error = console.error;
+	console.error = (...a: unknown[]) => void errors.push(a);
+	try {
+		arm_interaction(
+			el,
+			() => {},
+			() => failed,
+			page
+		);
+		btn.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
+		btn.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+		await frames();
+		await frames();
+		await frames();
+	} finally {
+		console.error = real_error;
+		document.removeEventListener('click', on_page);
+	}
+	expect(heard).toEqual([false]);
+});
+
 test('a click that opens a link elsewhere is never canceled (an untrusted replay could not open it)', () => {
 	document.body.innerHTML = region('links', '<a href="/next">next</a>');
 	const el = document.getElementById('links')!;
