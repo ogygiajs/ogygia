@@ -2,7 +2,25 @@
  * What a recorded session holds (the recorder: devtools/session.ts; what it says:
  * session-insights.ts). Types only, so the analysis reads them without the recorder.
  */
-import type { DevtoolsEvent } from '@ogygia/core/internal/instruments';
+import type { RuntimeHookName, RuntimeHooks } from '@ogygia/core/plugin/client';
+
+type HookPayload<K extends RuntimeHookName> = Parameters<RuntimeHooks[K]>[0];
+
+/** One runtime hook call as the readers keep it: which hook, when it was called (`at`, page time,
+ *  ms), its payload without the server markup, and the region its element names (`fp`, `entry`,
+ *  `endpoint`): the element is held weakly and a saved session part drops it, so the names carry
+ *  the region past the page. */
+export type HookEntry = {
+	[K in RuntimeHookName]: {
+		readonly hook: K;
+		readonly at: number;
+		readonly fp?: string;
+		readonly entry?: string;
+		readonly endpoint?: string;
+		/** held weakly (a region the page left can go); gone in a saved part */
+		readonly el?: WeakRef<Element>;
+	} & Omit<HookPayload<K>, 'el' | 'ssrHtml'>;
+}[RuntimeHookName];
 
 export interface SessionInteraction {
 	t: number;
@@ -75,7 +93,8 @@ export interface SessionData {
 	/** navigations as they started, with what started them (absent in a part saved before this field) */
 	navs?: SessionNav[];
 	heap: { from: number; to: number } | null;
-	events: DevtoolsEvent[];
+	/** the runtime hooks the page called while it recorded */
+	hooks: HookEntry[];
 	cpu: unknown | null;
 	cpu_off: string | null;
 	page: string;
