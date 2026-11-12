@@ -37,3 +37,5 @@ export { islands_endpoint } from './server/endpoint.ts';
 export { RateLimiter } from './server/rate-limit.ts';
 /** The production floor for a signing secret (UTF-8 bytes). */
 export { MIN_SECRET_BYTES } from './server/hmac.ts';
+// the page markup's vocabulary and its tag reader
+export * from './wire-markup.ts';
