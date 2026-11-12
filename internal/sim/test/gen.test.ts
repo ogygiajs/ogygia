@@ -508,7 +508,7 @@ describe('the random app', () => {
 			all(plan(s).flatMap((p) => p.roots)).filter((n) => n.thirdParty)
 		);
 		const kinds = new Set(touched.map((n) => n.thirdParty));
-		expect([...kinds].sort()).toEqual(['prepend', 'retag']);
+		expect([...kinds].sort()).toEqual(['prepend', 'retag', 'text']);
 		const seed = seeds.find((s) =>
 			all(plan(s).flatMap((p) => p.roots)).some((n) => n.thirdParty === 'retag')
 		)!;
@@ -530,6 +530,40 @@ describe('the random app', () => {
 					`<N${n.id} [^\\n]*/>\\n\\s*\\{@html '<scr' \\+ 'ipt>[^\\n]*replaceWith`
 				);
 				expect(pages.some((f) => after.test(f))).toBe(true);
+			}
+		} finally {
+			rmSync(app, { recursive: true, force: true });
+		}
+	});
+
+	// (repair mutant 419: a level that lined up said to have failed names a false ownership conflict,
+	// heard only where every element lines up and one of them owns some of its children)
+	it('draws a third party that adds only text, from its own stream, on islands that hold a <details>, the others unchanged', () => {
+		const seeds = Array.from({ length: 40 }, (_, i) => i + 1);
+		const seed = seeds.find((s) =>
+			all(plan(s).flatMap((p) => p.roots)).some((n) => n.thirdParty === 'text')
+		)!;
+		expect(seed).toBeDefined();
+		const app = mkdtempSync(join(tmpdir(), 'sim-gen-'));
+		try {
+			write(app, plan(seed), seed);
+			const pages = readdirSync(join(app, 'src', 'routes'), { recursive: true })
+				.filter((f) => String(f).endsWith('.svelte'))
+				.map((f) => readFileSync(join(app, 'src', 'routes', String(f)), 'utf8'))
+				.concat(
+					readdirSync(join(app, 'src', 'lib', 'gen'))
+						.filter((f) => f.endsWith('.svelte'))
+						.map((f) => readFileSync(join(app, 'src', 'lib', 'gen', f), 'utf8'))
+				);
+			for (const n of all(plan(seed).flatMap((p) => p.roots)).filter(
+				(n) => n.thirdParty === 'text'
+			)) {
+				const after = new RegExp(
+					`<N${n.id} [^\\n]*/>\\n\\s*\\{@html '<scr' \\+ 'ipt>[^\\n]*createTextNode`
+				);
+				expect(pages.some((f) => after.test(f))).toBe(true);
+				const own = readFileSync(join(app, 'src', 'lib', 'gen', `N${n.id}.svelte`), 'utf8');
+				expect(own).toContain('<details><summary>{label}</summary></details>');
 			}
 		} finally {
 			rmSync(app, { recursive: true, force: true });
