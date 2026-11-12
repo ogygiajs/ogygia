@@ -1,9 +1,16 @@
 // The workload's shapes: a visitor who leaves a page and comes back a while later (10 to 50 s, under
 // the 60 s a left page's hole answers linger in the frame store) is drawn, so a store that lets them
 // go early is seen asking again (the frame-store EVICT_TTL mutant survived without it).
+import { Window } from 'happy-dom';
 import { describe, expect, it } from 'vitest';
 import { rng } from '../src/rng.ts';
-import { ACTION_KINDS, describe as say, next_action, type Action } from '../src/workload.ts';
+import {
+	ACTION_KINDS,
+	describe as say,
+	next_action,
+	user_click,
+	type Action
+} from '../src/workload.ts';
 
 describe('the workload', () => {
 	it('leaves a page and comes back 10 to 50 s later', () => {
@@ -47,5 +54,25 @@ describe('the workload', () => {
 		expect(say({ kind: 'hurry', tab: 0, nth: 3, next: 7, after: 20 })).toBe(
 			'tab 0: click link #3, then link #7 20 ms later'
 		);
+	});
+
+	it("a visitor's click is a pointer's: down, up, then the click, as a browser sends them", () => {
+		const window = new Window();
+		const button = window.document.createElement('button');
+		window.document.body.append(button);
+		const heard: string[] = [];
+		for (const type of ['pointerdown', 'mousedown', 'pointerup', 'mouseup', 'click'])
+			window.document.addEventListener(type, (e) => heard.push(`${e.type} ${e.isTrusted}`), {
+				capture: true
+			});
+		user_click(button as unknown as Element);
+		expect(heard.map((h) => h.split(' ')[0])).toEqual([
+			'pointerdown',
+			'mousedown',
+			'pointerup',
+			'mouseup',
+			'click'
+		]);
+		window.close();
 	});
 });
