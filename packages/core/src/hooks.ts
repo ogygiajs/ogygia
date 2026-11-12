@@ -491,6 +491,7 @@ set_page_route_config(route_config);
 const plugins = start_app_plugins(server_plugins, {
 	sign: (message) => sign(signing_key().secret, message),
 	verify: (message, signature) => verify(signing_key().secret, message, signature),
+	fingerprint: () => signing_key().fp,
 	lifetime: app_lifetime,
 	deny: region_denied
 });
