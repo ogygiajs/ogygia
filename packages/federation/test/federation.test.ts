@@ -191,7 +191,13 @@ describe('Ed25519 signing / verification', () => {
 		const LEGACY = ['x-og-ts', 'x-og-n', 'x-og-sig'];
 		/** a call as a peer of this release sends it, with only the capability (legacy headers off) */
 		const cap_only = (
-			o: { method?: string; path?: string; body?: string; claims?: object; audience?: string } = {}
+			o: {
+				method?: string;
+				path?: string;
+				body?: string;
+				claims?: Record<string, unknown>;
+				audience?: string;
+			} = {}
 		) => {
 			const u = new URL(`http://cms.test${o.path ?? '/og/fragment/page?path=/p'}`);
 			const body = o.body == null ? undefined : new TextEncoder().encode(o.body);
