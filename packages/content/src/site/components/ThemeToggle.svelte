@@ -11,6 +11,7 @@
 	 * the Shell includes it; standalone users add it once in their layout):
 	 * `{@html script((k) => { try { var t = localStorage.getItem(k); if (t === 'light' || t === 'dark') document.documentElement.setAttribute('data-theme', t); } catch (e) {} }, 'og-theme')}`
 	 */
+	import { storage } from '@ogygia/machine';
 
 	let {
 		key = 'og-theme',
@@ -29,8 +30,9 @@
 			if (next) root.setAttribute('data-theme', next);
 			else root.removeAttribute('data-theme');
 			try {
-				if (next) localStorage.setItem(key, next);
-				else localStorage.removeItem(key);
+				const store = storage.local();
+				if (next) store?.setItem(key, next);
+				else store?.removeItem(key);
 			} catch {
 				// ok: no storage (private mode); the theme holds for this page only
 			}
