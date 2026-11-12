@@ -87,6 +87,7 @@
 		next_slot_id
 	} from './region-snippet.ts';
 	import { isRegion } from './region.ts';
+	import { written_order } from './frame.ts';
 	// (LateIslandAwait.svelte in its place where the app runs Svelte's async mode: vite/late-island.ts)
 	import LateIsland from './LateIsland.svelte';
 	// (PromiseRegionAwait.svelte in its place where the app runs Svelte's async mode: vite/late-island.ts)
@@ -682,7 +683,11 @@
 		// (seconds, from the preset's `maxAge`) is signed in so the handle sets Cache-Control; absent
 		// → 0 → the hole is served `no-store` (dynamic by default).
 		// (+ the page facts it renders from, for a hole whose tree reads page.data: server/render-page.ts)
-		return mint_server_region(__entry, __props || {}, __cacheTtl || 0) + kit_page_version(__entry);
+		// (a hole that wakes says so, signed: its answer renders as its hydrate does, #906)
+		return (
+			mint_server_region(__entry, __props || {}, __cacheTtl || 0, !!__hydrate) +
+			kit_page_version(__entry)
+		);
 	});
 
 	// DOM `entry`: the importable module URL a deferred island wakes with AFTER its HTML swaps in.
@@ -1029,7 +1034,8 @@
 			html: f.html,
 			url: f.url,
 			hydrate: f.hydrate,
-			hydrateMargin: f.hydrateMargin
+			hydrateMargin: f.hydrateMargin,
+			written: written_order(f)
 		});
 	}
 	/** @param {import('./region.ts').DeferredRegion} f */
