@@ -181,3 +181,21 @@ export type Paint = Machine<PaintStates, typeof paint_steps>;
 export function create_paint(): Paint {
 	return paint_definition.create();
 }
+
+/** Where a region element's machines are, by machine name. (Its answer has no rest: a region put
+ *  back keeps what it showed.) */
+export type RegionMachinesNow = {
+	hole: Hole['now']['kind'];
+	wake: Wake['now']['kind'];
+	'live-region': Live['now']['kind'];
+	'region-paint': Paint['now']['kind'];
+};
+
+/** Where each rests: off the page, a region's machines are here (core.ts `#teardown` puts them
+ *  there; the rule `rule_region_left_busy` holds it). */
+export const REGION_REST: Readonly<RegionMachinesNow> = {
+	hole: 'idle',
+	wake: 'cold',
+	'live-region': 'idle',
+	'region-paint': 'idle'
+};
