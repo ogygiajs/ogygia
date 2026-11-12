@@ -15,8 +15,8 @@ import {
 	type Rollup
 } from 'vite';
 import { svelte } from '@sveltejs/vite-plugin-svelte';
-import { ogygia } from '@ogygia/core/vite';
-import { is_script_request } from '@ogygia/core/internal/compiler';
+import { ogygia } from '@ogygia/compiler/vite';
+import { is_script_request } from '@ogygia/compiler';
 import { fixture, type Fixture } from './_fixture.ts';
 import { barrels, type BarrelsOptions } from '../src/index.ts';
 import { format_report } from '../src/report.ts';
