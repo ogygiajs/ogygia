@@ -67,6 +67,14 @@ export class RateLimiter {
 		return false;
 	}
 
+	/** @returns true if this IP has spent its budget for the window, charging nothing (a budget
+	 *  spent only on failures checks first, and charges with {@link limited} when one happens). */
+	over(ip: string): boolean {
+		if (this.#max <= 0) return false;
+		const b = this.#buckets.get(ip);
+		return b !== undefined && Date.now() - b.t < this.#windowMs && b.n >= this.#max;
+	}
+
 	get size(): number {
 		return this.#buckets.size;
 	}
