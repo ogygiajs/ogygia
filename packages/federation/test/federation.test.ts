@@ -516,6 +516,30 @@ describe('lift_document — an app’s full HTML → the wire shape', () => {
 		expect(d.head).toBe(meta);
 	});
 
+	it('takes the runtime only from a real runtime script, never from text that looks like one (#972)', () => {
+		const d = lift_document(
+			`<html><head></head><body><script>s='<script data-ogygia-runtime src="//evil.example/r.js">'</script>` +
+				`<!-- <script data-ogygia-runtime src="//evil.example/c.js"></script> -->` +
+				`<textarea><script data-ogygia-runtime src="//evil.example/t.js"></script></textarea></body></html>`,
+			'https://peer.example'
+		);
+		expect(d.runtime).toBeUndefined();
+	});
+
+	it('lifts no stylesheet a head comment holds, and reads the head past a </head> in script text (#973)', () => {
+		const d = lift_document(
+			`<html><head><!-- <link rel="stylesheet" href="/_app/old.css"> -->` +
+				`<script>x="</head>"</script><link rel="stylesheet" href="/_app/a.css">` +
+				`<styled-thing>y</styled-thing><style>p{color:red}</style><title>t</title></head><body>b</body></html>`,
+			'https://peer.example'
+		);
+		expect(d.css).toEqual([
+			'<link rel="stylesheet" href="https://peer.example/_app/a.css">',
+			'<style>p{color:red}</style>'
+		]);
+		expect(d.title).toBe('t');
+	});
+
 	// peer HTML is untrusted: a graph body that is not a graph object passes through, never throws
 	it('a graph that is not an object passes through as it came', () => {
 		for (const text of ['null', '7', '"x"', '[1]', '{bad'])
