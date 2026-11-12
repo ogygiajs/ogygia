@@ -89,21 +89,37 @@ const MAX_SNAPSHOTS = 40;
 const CPU_QUIET_MS = 1500;
 const r2 = (n: number) => Math.round(n * 100) / 100;
 
-let visit_islands: VisitIslandRec[] = [];
-let snapshots: Snapshot[] = [];
+/**
+ * What the beacon collects for the document, in one record (made anew only by a test's reset).
+ * Each list is capped where it grows (the islands at 400 and the warnings at 50 by the page's room,
+ * the snapshots at MAX_SNAPSHOTS, the others at 10 to 30), and the failed islands' maps hold one
+ * row per island of the page.
+ */
+class Collected {
+	readonly visit_islands: VisitIslandRec[] = [];
+	readonly snapshots: Snapshot[] = [];
+	readonly visit_navs: NavOut[] = [];
+	readonly visit_warnings: {
+		code: string;
+		message: string;
+		file?: string;
+		fp?: string;
+		t: number;
+	}[] = [];
+	readonly visit_holes_failed: HoleFailed[] = [];
+	readonly visit_holes_answered: HoleAnswered[] = [];
+	readonly visit_hole_batches: HoleBatchMiss[] = [];
+	readonly visit_entry_fallbacks: EntryFallbackEvent[] = [];
+	/** each failed island's message, span and turn, by fingerprint */
+	readonly failed_fps = new Map<string, string>();
+	readonly failed_spans = new Map<string, [number, number]>();
+	readonly failed_turns = new Map<string, number>();
+}
+let C = new Collected();
 let snapshot_firsts = 0;
 let navs_seen = false;
-let visit_navs: NavOut[] = [];
-let visit_warnings: { code: string; message: string; file?: string; fp?: string; t: number }[] = [];
-let visit_holes_failed: HoleFailed[] = [];
-let visit_holes_answered: HoleAnswered[] = [];
 let holes_answered_els = new WeakSet<Element>();
-let visit_hole_batches: HoleBatchMiss[] = [];
-let visit_entry_fallbacks: EntryFallbackEvent[] = [];
 let critical_held: { outcome: CriticalOutcome; resources: number; waited_ms: number } | null = null;
-const failed_fps = new Map<string, string>();
-const failed_spans = new Map<string, [number, number]>();
-const failed_turns = new Map<string, number>();
 let island_boxes: WeakMap<Element, { top: number; height: number }> | null = null;
 
 type NavOut = Omit<NavigatedEvent, 'href' | 'reconciled'> & {
@@ -155,8 +171,8 @@ export function beacon_warning(w: WarningEvent): void {
 	const o = owner();
 	if (o) return o.beacon_warning(w);
 	const p = page();
-	if (!p || !p.room(visit_warnings, 50, (x) => x.t)) return;
-	visit_warnings.push(w);
+	if (!p || !p.room(C.visit_warnings, 50, (x) => x.t)) return;
+	C.visit_warnings.push(w);
 	p.changed();
 }
 
@@ -164,9 +180,9 @@ export function beacon_hole_failed(h: HoleFailed): void {
 	const o = owner();
 	if (o) return o.beacon_hole_failed(h);
 	const p = page();
-	if (!p || visit_holes_failed.length >= 30 || visit_holes_failed.some((x) => x.id === h.id))
+	if (!p || C.visit_holes_failed.length >= 30 || C.visit_holes_failed.some((x) => x.id === h.id))
 		return;
-	visit_holes_failed.push(h);
+	C.visit_holes_failed.push(h);
 	p.changed();
 }
 
@@ -176,7 +192,7 @@ export function beacon_hole_batch_missed(
 	const o = owner();
 	if (o) return o.beacon_hole_batch_missed(m);
 	const p = page();
-	if (!p || visit_hole_batches.length >= 10) return;
+	if (!p || C.visit_hole_batches.length >= 10) return;
 	const ids: string[] = [];
 	for (const e of m.endpoints.slice(0, 32)) {
 		try {
@@ -185,7 +201,7 @@ export function beacon_hole_batch_missed(
 			ids.push('');
 		}
 	}
-	visit_hole_batches.push({
+	C.visit_hole_batches.push({
 		sent: m.sent,
 		delivered: m.delivered,
 		status: m.status,
@@ -240,11 +256,11 @@ export function beacon_entry_fallback(f: EntryFallbackEvent): void {
 	const p = page();
 	if (
 		!p ||
-		visit_entry_fallbacks.length >= 20 ||
-		visit_entry_fallbacks.some((x) => x.entry === f.entry)
+		C.visit_entry_fallbacks.length >= 20 ||
+		C.visit_entry_fallbacks.some((x) => x.entry === f.entry)
 	)
 		return;
-	visit_entry_fallbacks.push({
+	C.visit_entry_fallbacks.push({
 		entry: f.entry.slice(0, 300),
 		src: f.src.slice(0, 300),
 		recovered: f.recovered
@@ -261,7 +277,7 @@ export function beacon_hole_answered(
 	const o = owner();
 	if (o) return o.beacon_hole_answered(el, start, batch);
 	const p = page();
-	if (!p || visit_holes_answered.length >= 30) return;
+	if (!p || C.visit_holes_answered.length >= 30) return;
 	let id = '';
 	try {
 		id = new URL(el.getAttribute('endpoint') ?? '', location.href).searchParams.get('id') ?? '';
@@ -279,9 +295,9 @@ export function beacon_hole_answered(
 				batch: batch.size
 			}
 		: hole_request_times(el.getAttribute('endpoint') ?? '', performance.now());
-	visit_holes_answered.push({
+	C.visit_holes_answered.push({
 		id,
-		n: visit_holes_answered.length,
+		n: C.visit_holes_answered.length,
 		start: Math.round(start),
 		t: Math.round(performance.now()),
 		below_fold: rect.top + scrollY > innerHeight,
@@ -295,7 +311,7 @@ export function beacon_nav(n: NavigatedEvent): void {
 	const o = owner();
 	if (o) return o.beacon_nav(n);
 	const p = page();
-	if (!p || visit_navs.length >= 20) return;
+	if (!p || C.visit_navs.length >= 20) return;
 	let split: Pick<NavOut, 'server' | 'download' | 'bytes' | 'prefetched'> = {};
 	try {
 		const entries = n.href
@@ -325,10 +341,10 @@ export function beacon_nav(n: NavigatedEvent): void {
 	}
 	if (!navs_seen) {
 		navs_seen = true;
-		snapshot_firsts = snapshots.length;
+		snapshot_firsts = C.snapshots.length;
 		p.nav_at(n.t);
 	}
-	visit_navs.push({
+	C.visit_navs.push({
 		from: n.from.slice(0, 300),
 		to: n.to.slice(0, 300),
 		type: (n.type || 'link').slice(0, 20),
@@ -347,9 +363,9 @@ export function beacon_failed(el: Element, message?: string, since?: number, tur
 	if (!page()) return;
 	const fp = el.getAttribute('data-og-fp');
 	if (!fp) return;
-	failed_fps.set(fp, (message ?? '').slice(0, 300));
-	if (typeof since === 'number') failed_spans.set(fp, [r2(since), r2(performance.now())]);
-	if (typeof turn === 'number') failed_turns.set(fp, r2(turn));
+	C.failed_fps.set(fp, (message ?? '').slice(0, 300));
+	if (typeof since === 'number') C.failed_spans.set(fp, [r2(since), r2(performance.now())]);
+	if (typeof turn === 'number') C.failed_turns.set(fp, r2(turn));
 }
 
 /** an element's box: its own, or (a region draws no box of its own) its children's together */
@@ -469,7 +485,7 @@ function visit_regions(): Record<string, unknown>[] {
 						break;
 					}
 				}
-			const failed = failed_fps.get(fp);
+			const failed = C.failed_fps.get(fp);
 			out.push({
 				fp,
 				...(el.getAttribute('entry') ? { entry: el.getAttribute('entry')! } : {}),
@@ -479,8 +495,8 @@ function visit_regions(): Record<string, unknown>[] {
 				...(failed !== undefined
 					? {
 							failed,
-							...(failed_spans.has(fp) ? { failed_span: failed_spans.get(fp) } : {}),
-							...(failed_turns.has(fp) ? { failed_turn: failed_turns.get(fp) } : {})
+							...(C.failed_spans.has(fp) ? { failed_span: C.failed_spans.get(fp) } : {}),
+							...(C.failed_turns.has(fp) ? { failed_turn: C.failed_turns.get(fp) } : {})
 						}
 					: {}),
 				top: Math.round(box.top + sy),
@@ -505,23 +521,25 @@ function restore_log(): { restores?: unknown[] } {
 const part: RegionPart = {
 	visit() {
 		return {
-			...(visit_navs.length ? { navs: visit_navs.slice() } : {}),
+			...(C.visit_navs.length ? { navs: C.visit_navs.slice() } : {}),
 			...(island_boxes ? { shifts_from: 'boxes' } : {}),
-			islands: visit_islands.slice(),
+			islands: C.visit_islands.slice(),
 			regions: visit_regions(),
-			...(visit_warnings.length ? { warnings: visit_warnings.slice() } : {}),
-			...(visit_holes_failed.length ? { holes_failed: visit_holes_failed.slice() } : {}),
-			...(visit_holes_answered.length ? { holes_answered: visit_holes_answered.slice() } : {}),
-			...(visit_hole_batches.length ? { hole_batches: visit_hole_batches.slice() } : {}),
+			...(C.visit_warnings.length ? { warnings: C.visit_warnings.slice() } : {}),
+			...(C.visit_holes_failed.length ? { holes_failed: C.visit_holes_failed.slice() } : {}),
+			...(C.visit_holes_answered.length ? { holes_answered: C.visit_holes_answered.slice() } : {}),
+			...(C.visit_hole_batches.length ? { hole_batches: C.visit_hole_batches.slice() } : {}),
 			...restore_log(),
-			...(visit_entry_fallbacks.length ? { entry_fallbacks: visit_entry_fallbacks.slice() } : {}),
+			...(C.visit_entry_fallbacks.length
+				? { entry_fallbacks: C.visit_entry_fallbacks.slice() }
+				: {}),
 			...(critical_held ? { held: critical_held } : {})
 		};
 	},
 	snapshots(final) {
 		const p = page();
 		if (final && p)
-			for (const s of snapshots) {
+			for (const s of C.snapshots) {
 				const el = document.querySelector(`ogygia-region[data-og-fp="${s.fp}"]`);
 				if (!el) continue;
 				const html =
@@ -530,16 +548,16 @@ const part: RegionPart = {
 						: p.bare(el.innerHTML).slice(s.from, s.from + SNAPSHOT_CAP);
 				if (html !== s.hydrated) s.final = html.slice(0, SNAPSHOT_CAP);
 			}
-		return snapshots;
+		return C.snapshots;
 	},
 	waking(now) {
-		const last = visit_islands.length ? visit_islands[visit_islands.length - 1].done : 0;
+		const last = C.visit_islands.length ? C.visit_islands[C.visit_islands.length - 1].done : 0;
 		if (now - last < CPU_QUIET_MS) return true;
 		try {
 			for (const el of document.querySelectorAll(
 				'ogygia-region[data-og-fp]:not([data-hydrated]):not([wake]):not([render="defer"]), ogygia-region[data-og-fp][wake="load"]:not([data-hydrated])'
 			))
-				if (!failed_fps.has(el.getAttribute('data-og-fp') ?? '')) return true;
+				if (!C.failed_fps.has(el.getAttribute('data-og-fp') ?? '')) return true;
 		} catch {
 			// ok: no document to read: nothing is waking
 		}
@@ -564,9 +582,9 @@ function snapshot_of(fp: string, ssr: string, now: string, a: string, b: string)
 }
 
 function snapshot_room(): boolean {
-	if (snapshots.length < MAX_SNAPSHOTS) return true;
-	if (!navs_seen || snapshots.length <= snapshot_firsts) return false;
-	snapshots.splice(snapshot_firsts, 1);
+	if (C.snapshots.length < MAX_SNAPSHOTS) return true;
+	if (!navs_seen || C.snapshots.length <= snapshot_firsts) return false;
+	C.snapshots.splice(snapshot_firsts, 1);
 	return true;
 }
 
@@ -615,7 +633,7 @@ function island_record(
 		: null;
 	let changed: boolean | undefined;
 	let attrs: AttrChange[] | null = null;
-	const room = p.room(visit_islands, 400, (i) => i.t0);
+	const room = p.room(C.visit_islands, 400, (i) => i.t0);
 	if (typeof ssr_html === 'string' && room) {
 		const now = el.innerHTML;
 		if (now !== ssr_html) {
@@ -624,7 +642,7 @@ function island_record(
 			changed = a !== b;
 			if (changed) {
 				attrs = p.attr_changes(a, b);
-				if (snapshot_room()) snapshots.push(snapshot_of(fp, ssr_html, now, a, b));
+				if (snapshot_room()) C.snapshots.push(snapshot_of(fp, ssr_html, now, a, b));
 			}
 		} else changed = false;
 	}
@@ -653,7 +671,7 @@ function island_record(
 				...(markers ? { markers } : {})
 			}
 		: null;
-	if (rec) visit_islands.push(rec);
+	if (rec) C.visit_islands.push(rec);
 	if (rec || sent)
 		queueMicrotask(() => {
 			const fx = performance.now();
@@ -694,9 +712,9 @@ export function beacon_page(): BeaconPage | null {
 	if (!p) return null;
 	return {
 		...p.page(),
-		islands: visit_islands.slice(),
+		islands: C.visit_islands.slice(),
 		...(island_boxes ? { shifts_from: 'boxes' as const } : {}),
-		snapshots: snapshots.slice()
+		snapshots: C.snapshots.slice()
 	};
 }
 
@@ -725,21 +743,11 @@ export function install_beacon(dock: boolean): void {
 export function _reset_beacon(): void {
 	const g = globalThis as PageGlobals;
 	if (!self_api || g[REGIONS_KEY] === self_api) delete g[REGIONS_KEY];
-	visit_islands = [];
-	snapshots = [];
+	C = new Collected();
 	snapshot_firsts = 0;
 	navs_seen = false;
-	visit_navs = [];
-	visit_warnings = [];
-	visit_holes_failed = [];
-	visit_holes_answered = [];
 	holes_answered_els = new WeakSet();
-	visit_hole_batches = [];
-	visit_entry_fallbacks = [];
 	critical_held = null;
-	failed_fps.clear();
-	failed_spans.clear();
-	failed_turns.clear();
 	island_boxes = null;
 }
 
@@ -752,5 +760,5 @@ export function _beacon_state(): {
 	snapshots: number;
 } {
 	const s = page()?.state() ?? { target: null, queued: 0, marks: 0, scheduled: false };
-	return { ...s, snapshots: snapshots.length };
+	return { ...s, snapshots: C.snapshots.length };
 }

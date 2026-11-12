@@ -37,6 +37,7 @@ type Tok =
 	| { t: 'raw'; start: number; end: number }
 	| { t: 'other'; start: number; end: number };
 
+// static: HTML's raw-text elements
 const RAW = new Set([
 	'script',
 	'style',
@@ -47,6 +48,7 @@ const RAW = new Set([
 	'noembed',
 	'noframes'
 ]);
+// static: HTML's void elements
 const VOID = new Set([
 	'area',
 	'base',
@@ -228,6 +230,7 @@ interface Attr {
 /** (the attributes of a tag nobody asked about: one shared empty list, never an allocation per tag) */
 const NO_ATTRS: readonly Attr[] = Object.freeze([]) as readonly Attr[];
 /** (nothing to remove from a tag without ogygia's marks; only a tag with marks ever adds to its set) */
+// static: the empty set, shared and never written
 const NO_REMOVE = new Set<string>();
 
 function parse_attrs(html: string, from: number, to: number): Attr[] {
@@ -330,6 +333,7 @@ function replace_all(s: string, from: string, to: string): string {
 
 // ─── the open-element stack, with the parser's implied closes ──────────────────────────────────────
 
+// static: the elements whose start tag closes an open <p> (HTML's parser)
 const P_CLOSERS = new Set([
 	'address',
 	'article',
@@ -373,7 +377,9 @@ const P_CLOSERS = new Set([
 	'dt',
 	'plaintext'
 ]);
+// static: HTML's heading elements
 const HEADINGS = new Set(['h1', 'h2', 'h3', 'h4', 'h5', 'h6']);
+// static: the elements that bound HTML's "in scope"
 const SCOPE = new Set([
 	'applet',
 	'caption',
@@ -417,6 +423,7 @@ type Stack<F extends { name: string } = Frame> = F[] & {
 	/** per tracked name, how many are open */
 	open?: number[];
 };
+// static: the elements the parser tracks, each with what it implies
 const TRACKED = new Map(
 	['a', 'nobr', 'button', 'form', 'li', 'dd', 'dt', 'p', 'td', 'th', 'tr'].map((n, i) => [n, i])
 );
@@ -459,7 +466,9 @@ function in_scope(stack: Stack<{ name: string }>, name: string, extra?: Set<stri
 	}
 	return -1;
 }
+// static: the extra bound of "in button scope"
 const BUTTON_SCOPE = new Set(['button']);
+// static: the extra bound of "in list item scope"
 const LIST_SCOPE = new Set(['ol', 'ul']);
 /** `implied_close`: the parser ignores this start tag (a form in a form) */
 const DROP = -2;
@@ -567,7 +576,9 @@ interface HostRecord {
 
 /** (the record of a host ogygia won't restore: shared, never written) */
 const NO_RECORD: Record<string, string> = Object.freeze({}) as Record<string, string>;
+// static: the empty record, shared and never written
 const NO_CHILDREN: HostRecord['children'] = new Map();
+// static: the empty record, shared and never written
 const NO_TEXTS: HostRecord['texts'] = new Map();
 
 export interface MarkRecord {
