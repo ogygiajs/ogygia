@@ -320,7 +320,9 @@ export function swap_body(live: HTMLElement, next: HTMLElement): void {
 type Absorbable = Element & { absorbKeptProps?: (incoming: Element) => void };
 
 /** For each live region whose reconcile key also appears in `next`, push the incoming region's
- *  props into the live island (kept regions only — a re-mounting region gets its props on mount). */
+ *  props into the live island (kept regions only — a re-mounting region gets its props on mount),
+ *  and its fingerprint, the name of those props: the sidecar is found by it and the router lists a
+ *  page's islands by it (#1067). The morph never enters a kept region, so it syncs neither. */
 function absorb_kept_props(live: Element, next: Element): void {
 	const incoming = new Map<string, Element>();
 	for (const el of next.querySelectorAll('ogygia-region')) {
@@ -331,7 +333,11 @@ function absorb_kept_props(live: Element, next: Element): void {
 		const k = el.getAttribute('data-key');
 		if (k === null) continue;
 		const twin = incoming.get(k);
+		if (twin === undefined || twin === el) continue;
 		const absorb = (el as Absorbable).absorbKeptProps;
-		if (twin !== undefined && twin !== el && typeof absorb === 'function') absorb.call(el, twin);
+		if (typeof absorb === 'function') absorb.call(el, twin);
+		const fp = twin.getAttribute(OG_FP);
+		if (fp === null) el.removeAttribute(OG_FP);
+		else if (el.getAttribute(OG_FP) !== fp) el.setAttribute(OG_FP, fp);
 	}
 }
