@@ -1,4 +1,9 @@
-// The few e2e specs that cannot run in every engine say why, here: never a bare skip.
+/**
+ * The engine differences e2e specs meet, each named once: skips that say why a spec cannot run in
+ * an engine, and readers that make an engine's output the same as the others'.
+ *
+ * @packageDocumentation
+ */
 import { test, type ConsoleMessage, type Page } from '@playwright/test';
 
 /**
@@ -29,8 +34,6 @@ export function needs_js_self_profiling(page: Page): void {
 	);
 }
 
-/** WebKit's console line for a fetch that failed at the network (a connection the server dropped,
- *  a request the page's navigation cancelled), whatever the origin. */
 const WEBKIT_NETWORK_FAILURE_RE = /^Fetch API cannot load \S+ due to access control checks\.$/;
 
 /**
@@ -44,7 +47,7 @@ export function page_errors(page: Page): string[] {
 	const webkit = page.context().browser()?.browserType().name() === 'webkit';
 	const errors: string[] = [];
 	page.on('pageerror', (e) => {
-		// (the stack's first line is the whole console line: the message alone is cut at its `http:`)
+		// @why the stack's first line is the whole console line: the message alone is cut at its `http:` (test: test/e2e-browsers.test.ts › leaves out WebKit's line for a fetch that failed at the network, read from the stack's first line)
 		const line = (e.stack ?? '').split('\n')[0] ?? '';
 		if (!(webkit && WEBKIT_NETWORK_FAILURE_RE.test(line))) errors.push(e.message);
 	});

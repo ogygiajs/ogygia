@@ -1,11 +1,9 @@
 /**
- * R3 OWNERSHIP: which page-scoped hub ids each region's island resolved during hydration. The
- * hydrate core installs a resolve-sink (ref-sink.ts `set_resolve_sink`) around each island's sync prop +
- * context decode that funnels ids here, keyed by the region element; the reconciler (a navigation)
- * disposes the ids REMOVED regions owned that no region left on the page owns ({@link ids_released}).
- * WeakMap → a removed element's set is GC'd with it.
- * Its own module so the boot-time reconciler and the lazily loaded hydrate core share one map
- * without either importing the other.
+ * Which page-scoped hub ids each region's island resolved while it hydrated, kept per region
+ * element: the hydrate core captures them, and the reconciler (./reconcile.ts) disposes the ids of
+ * the regions a navigation removed that no region left on the page owns ({@link ids_released}).
+ *
+ * @packageDocumentation
  */
 import { set_resolve_sink } from '../ref-sink.ts';
 
@@ -41,8 +39,8 @@ export function ids_released(departed: readonly Element[], page: ParentNode): st
 }
 
 /** Run `fn` with the hub's resolve-sink funneling every page id it resolves to `region`'s owned
- *  set, then restore the previous sink (finally, so a throw can't strand it). Wrap an island's
- *  SYNC prop/context decode so the reconciler learns which ids that island owns. */
+ *  set, then take the sink down, even when `fn` throws. Wrap an island's SYNC prop/context decode
+ *  so the reconciler learns which ids that island owns. */
 export function capture_region_ids<T>(region: Element, fn: () => T): T {
 	set_resolve_sink((id) => record_region_id(region, id));
 	try {

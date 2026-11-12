@@ -1,21 +1,6 @@
 import { getContext, setContext } from 'svelte';
 
-// Context key marking "this subtree is already inside a hydrated island". Nested island wrappers
-// read it and degrade to a plain inline component so an island-within-an-island hydrates exactly
-// once, together with its parent.
-//
-// KEY IDENTITY (CTX-KEY): must be `Symbol.for` (global registry), NOT `createContext`'s per-call
-// `Symbol()`. The runtime bundle (which hydrates an island → nested_context) and each island-entry
-// bundle (which renders a lake region → isNested) are SEPARATE Vite entry graphs; `context.ts` is
-// duplicated across them on the client, so a per-module `Symbol()` mints a different key in each —
-// setNested and isNested then miss each other and a lake renders no `<ogygia-region hydrate="none">`,
-// so the lift/restore drops it. SSR bundles once, so the key matches there — hence it broke ONLY
-// after client hydration. A global `Symbol.for` is one key across every graph.
-//
-// A leaf of its own (context.ts re-exports it): the hydrate core needs only this,
-// and the hydrate core shares modules with Kit's client graph, which uses the rest of context.ts. A
-// shared module ships whole, so importing context.ts from the hydrate core sent every island page
-// the request-scoped claim helpers it never runs.
+// @why `Symbol.for`, not `Symbol()`: the runtime and each island entry bundle their own copy of this file (test: test/nested-key.test.ts › two copies of nested.ts mark "inside an island" with the same context key)
 const NESTED_KEY = Symbol.for('ogygia.nested-island');
 
 /**
@@ -27,12 +12,12 @@ export function setNested(value = true): void {
 	setContext(NESTED_KEY, value);
 }
 
-/** The island's region element, in its context (one `Symbol.for` key across graphs, as above). */
 const ISLAND_REGION_KEY = Symbol.for('ogygia.island-region');
 
-/** The context an island is hydrated with: `base` (a `<Provide>` above it), marked "inside an
- *  island" — what a wrapper's `setNested()` gave its children, with no wrapper in the tree — and
- *  naming `region`, the island's element, for every component it mounts (now or later). */
+/** The context an island is hydrated with: a copy of `base` (a `<Provide>` above it), marked
+ *  "inside an island" — what a wrapper's `setNested()` gave its children, with no wrapper in the
+ *  tree — and naming `region`, the island's element, for every component it mounts (now or later).
+ *  `base` itself is left as it is. */
 export function nested_context(
 	base?: Map<unknown, unknown> | null,
 	region?: Element | null
