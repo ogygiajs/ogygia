@@ -12,12 +12,15 @@ import {
 	critical_outcome,
 	critical_settled,
 	fetch_priority_of,
+	HOLE_WINDOW,
 	LoadSlot,
 	preload_urls,
 	reset_load_scheduler,
 	viewport_class
 } from '../../src/runtime/load-scheduler.ts';
 import { reset_document_painted } from '../../src/runtime/schedule.ts';
+import { PRIORITY } from '../../src/runtime/load-class.ts';
+import { flights } from '@ogygia/machine';
 
 const tick = (ms = 0) => new Promise((r) => setTimeout(r, ms));
 
@@ -28,6 +31,35 @@ function pending_hero(): HTMLImageElement {
 	Object.defineProperty(img, 'complete', { configurable: true, get: () => false });
 	document.body.appendChild(img);
 	return img;
+}
+
+/** An island's box below the fold (`style.top = '0px'` brings it on screen). */
+function off_screen_box(): HTMLElement {
+	const el = document.createElement('div');
+	el.style.cssText = `position:absolute;left:0;top:${innerHeight + 500}px;width:10px;height:10px`;
+	document.body.append(el);
+	return el;
+}
+
+/** A shared download queued as a guess (a page prefetch): `join` is a caller joining its flight at
+ *  a higher class (a click on the link), which raises it. */
+function queued_guess(label: string): {
+	ready: Promise<() => void>;
+	join: (cls: 'user' | 'visible') => void;
+} {
+	let slot!: LoadSlot;
+	const downloads = flights({
+		run: (_key: string, _signal, flight) => {
+			slot = new LoadSlot({ kind: 'content', cls: 'speculative', label, flight });
+			return slot.ready;
+		}
+	});
+	void downloads.get(label, { priority: PRIORITY.speculative }); // (its run starts inside the get)
+	// (the slot's own turn: its holder's start-up runs in the drain's microtask, as a download's does)
+	return {
+		ready: slot.ready,
+		join: (cls) => void downloads.get(label, { priority: PRIORITY[cls] })
+	};
 }
 
 beforeEach(() => {
@@ -172,28 +204,57 @@ test('background work shares a window; ahead goes before speculative; release le
 	expect(started.at(-1)).toBe('s4');
 });
 
-test('a queued download follows the viewport, and promote() lifts it', async () => {
+test('hole answers share a window of their own, whatever their class: a 4th starts the moment one lands', async () => {
+	await critical_settled();
+	const started: string[] = [];
+	const releases = new Map<string, () => void>();
+	const ask = (label: string, cls: 'user' | 'visible') =>
+		void new LoadSlot({ kind: 'content', cls, label, window: 'holes' }).ready.then((release) => {
+			started.push(label);
+			releases.set(label, release);
+		});
+	ask('h1', 'visible');
+	ask('h2', 'visible');
+	ask('h3', 'visible');
+	ask('h4', 'user');
+	ask('h5', 'visible');
+	await tick();
+	expect(started).toEqual(['h1', 'h2', 'h3'].slice(0, HOLE_WINDOW));
+	releases.get('h2')!();
+	await tick();
+	expect(started).toEqual(['h1', 'h2', 'h3', 'h4']);
+	// a release given twice frees one place, not two
+	releases.get('h2')!();
+	await tick();
+	expect(started).toEqual(['h1', 'h2', 'h3', 'h4']);
+	releases.get('h1')!();
+	await tick();
+	expect(started).toEqual(['h1', 'h2', 'h3', 'h4', 'h5']);
+});
+
+test('a queued download follows the viewport, and a more urgent join of its flight lifts it', async () => {
 	await critical_settled();
 	const hold: (() => void)[] = [];
 	for (let i = 0; i < BACKGROUND_WINDOW; i++)
 		void new LoadSlot({ kind: 'content', cls: 'ahead' }).ready.then((r) => hold.push(r));
 	await tick();
-	let cls: 'ahead' | 'visible' = 'ahead';
+	const island = off_screen_box();
 	let started = false;
-	void new LoadSlot({ kind: 'code', cls: () => cls }).ready.then(() => (started = true));
-	await tick();
-	expect(started).toBe(false); // ahead: the window is full
-	cls = 'visible';
-	dispatchEvent(new Event('scroll'));
+	void new LoadSlot({ kind: 'code', cls: () => viewport_class(island), el: island }).ready.then(
+		() => (started = true)
+	);
 	await tick(40);
-	expect(started).toBe(true); // scrolled into view: visible code is not windowed
+	expect(started).toBe(false); // ahead: the window is full
+	island.style.top = '0px'; // it comes on screen
+	await expect.poll(() => started, { timeout: 1_000 }).toBe(true); // visible code is not windowed
+	island.remove();
 
 	let promoted = false;
-	const queued = new LoadSlot({ kind: 'content', cls: 'speculative' });
+	const queued = queued_guess('q');
 	void queued.ready.then(() => (promoted = true));
 	await tick();
 	expect(promoted).toBe(false);
-	queued.promote('user');
+	queued.join('user');
 	await tick();
 	expect(promoted).toBe(true);
 	for (const r of hold) r();
@@ -315,14 +376,14 @@ test('a class a holder’s start-up changes is read again in the same drain', as
 		started.push('g')
 	);
 	// a guess that waits for the window; the visitor then wants it (its holder already waits)
-	const u = new LoadSlot({ kind: 'content', cls: 'speculative', label: 'u' });
+	const u = queued_guess('u');
 	void u.ready.then(() => {
 		started.push('u');
 		cls = 'visible'; // what the visitor's page adds moves the other one on screen
 	});
 	await tick();
 	expect(started).toEqual([]);
-	u.promote('user');
+	u.join('user');
 	await tick();
 	expect(started).toEqual(['u', 'g']);
 	for (const r of hold) r();
@@ -352,27 +413,28 @@ test('a slot asked for while a drain starts others goes in that drain, after the
 	for (const r of releases) r();
 });
 
-test('the scroll watch ends in the frame that starts the last queued slot', async () => {
+test('a queued slot stops watching its element once it starts', async () => {
 	await critical_settled();
 	const hold = await fill_window();
-	let cls: Cls = 'ahead';
+	const island = off_screen_box();
 	let started = false;
-	void new LoadSlot({ kind: 'code', cls: () => cls }).ready.then(() => (started = true));
-	await tick();
-	const removed: string[] = [];
-	const remove = window.removeEventListener;
-	window.removeEventListener = function (this: Window, ...args: Parameters<typeof remove>) {
-		removed.push(String(args[0]));
-		return remove.apply(this, args);
-	} as typeof remove;
+	void new LoadSlot({ kind: 'code', cls: () => viewport_class(island), el: island }).ready.then(
+		() => (started = true)
+	);
+	await tick(40);
+	const unobserved: Element[] = [];
+	const unobserve = IntersectionObserver.prototype.unobserve;
+	IntersectionObserver.prototype.unobserve = function (this: IntersectionObserver, t: Element) {
+		unobserved.push(t);
+		return unobserve.call(this, t);
+	};
 	try {
-		cls = 'visible';
-		dispatchEvent(new Event('scroll'));
-		await tick(40);
+		island.style.top = '0px';
+		await expect.poll(() => started, { timeout: 1_000 }).toBe(true);
 	} finally {
-		window.removeEventListener = remove;
+		IntersectionObserver.prototype.unobserve = unobserve;
 	}
-	expect(started).toBe(true);
-	expect(removed).toContain('scroll');
+	expect(unobserved).toContain(island);
+	island.remove();
 	for (const r of hold) r();
 });
