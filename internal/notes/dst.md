@@ -152,7 +152,10 @@ The `outage` action is a whole flow: the visitor follows a link, presses a butto
 nothing (a stream or a hole's fetch already on its way); some ms in (0 to 500) the connection
 drops, for 1 s to 2 min, then comes back. Going offline fails what the tab has on the wire, as a
 lost connection does: a request not yet answered fails to fetch, a body still coming (a page, a
-live stream) breaks off (`Exchange.lost`).
+live stream) breaks off (`Exchange.lost`). The document hears it as in a browser: its
+`navigator.onLine` reads the tab's network, and `offline`, then `online`, fire on its window as
+tasks of its realm (`Network.tell`; a page that waits for the network to come back never heard it
+before, gen 88).
 
 THE OUTAGE OVER, THE PAGE RECOVERS: a document only an outage touched (no other fault) is
 MPA-checked at rest like any other (`outage-recovery`): an answer it gave up on while offline is
@@ -357,8 +360,12 @@ a peer hop passed the peer's 5 s timeout, and the app rightly answered 504 (gen 
 It reaches the app from a client address of its own (`client_address`, Kit's `getClientAddress`):
 it once met the rate limit the run's own hole retries had used up (gen 78). It asks each hole of
 the build that last answered it in the tab, a batch's too (`POST /__ogygia__`, gen 77), and a file
-of the build that has it (the live one, or any when the host keeps old files; gens 63, 65). A page
-store's mark (`<meta name="ogygia-stored">`) is delivery: the MPA and leak checks set it aside.
+of the build that gave it to the tab (one the old build gave in a rolling deploy's window is the
+old build's, gen 88), else of the build that has it (the live one, or any when the host keeps old
+files; gens 63, 65). A page store's mark (`<meta name="ogygia-stored">`) is delivery: the MPA and
+leak checks set it aside. A copy the store served is of the build that rendered it, read off its
+etag when it was stored (`x-ogygia-postrender: stored`), not of the server that handed it out: after
+a deploy the store may still hold the old release's page (#947, gen 90).
 
 ## Always on
 
