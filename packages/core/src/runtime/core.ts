@@ -14,6 +14,7 @@ import {
 	type Turn
 } from '@ogygia/machine';
 import { frameAddress, older_by, stands_at, type FrameOrder } from '../frame.ts';
+import { on_trigger, WAKE } from '../contract/trigger.ts';
 import { OG_BAKED, OG_FP, OG_HOLE, OG_KEPT, OG_STATIC, OGYGIA_REGION_CSS } from '../wire-markup.ts';
 import { import_again, is_failed_import, on_file_load, on_reload_needed } from './import-again.ts';
 import { browser_offline, no_response } from './network.ts';
@@ -62,6 +63,7 @@ import { slots, type FrameOps } from './slots.ts';
 import {
 	create_answer,
 	create_hole,
+	busy_machines,
 	create_live,
 	create_paint,
 	create_wake,
@@ -69,6 +71,7 @@ import {
 	type Hole,
 	type Live,
 	type Paint,
+	type RegionMachinesNow,
 	type Wake
 } from './region-machines.ts';
 import { KEEP_FALLBACK_HTML } from '../keep-fallback-marker.ts';
@@ -76,6 +79,7 @@ import { download, region_fetch, region_rate_limited } from '../policies.ts';
 import {
 	install_rules,
 	note_handed,
+	note_left,
 	note_mount,
 	note_shown,
 	note_turn,
@@ -1056,24 +1060,32 @@ class OgygiaRegion extends HTMLElement {
 		// starts nothing (#335).
 		const armed = owner.scope;
 		const start = () => background_start(() => void (armed.closed || fire()));
-		if (when === 'idle') this.#on_idle(fire, owner);
-		else if (when === 'visible') this.#on_visible(start, visible_margin, owner);
-		else if (when === 'load') start();
-		else if (when === 'interaction') {
-			// (by the machine it drives, not by the region: a hole's island that wakes on a visitor is
-			// the island's wake, whatever the hole's own `when` was — #338)
-			if (owner === this.#hole) {
-				// a visitor's gesture: this region's downloads are the `user` class from here on
-				arm_on_demand(
-					this,
-					() => {
-						this.#visitor = NO_REPLAY; // (a hole's answer: nothing of the visitor's to replay)
-						return fire();
-					},
-					owner.scope
-				);
-			} else this.#on_interaction(fire);
-		} else this.#on_media(when, start, owner); // a media query string
+		on_trigger(
+			when,
+			WAKE,
+			{
+				idle: (f) => this.#on_idle(f, owner),
+				visible: () => this.#on_visible(start, visible_margin, owner),
+				load: start,
+				media: (query) => this.#on_media(query, start, owner),
+				interaction: (f) => {
+					// (by the machine it drives, not by the region: a hole's island that wakes on a
+					// visitor is the island's wake, whatever the hole's own `when` was — #338)
+					if (owner === this.#hole) {
+						// a visitor's gesture: this region's downloads are the `user` class from here on
+						arm_on_demand(
+							this,
+							() => {
+								this.#visitor = NO_REPLAY; // (a hole's answer: nothing of the visitor's to replay)
+								return f();
+							},
+							owner.scope
+						);
+					} else this.#on_interaction(f);
+				}
+			},
+			fire
+		);
 	}
 
 	/**
@@ -1267,6 +1279,16 @@ class OgygiaRegion extends HTMLElement {
 	 *  already started (a listener of this paint wrote one). */
 	#painted(painting: Paint['now']): void {
 		if (this.#paint.now === painting) this.#paint.go('idle');
+	}
+
+	/** Where each of this region's machines is now, by name (for the rule on a region that left). */
+	#machines(): RegionMachinesNow {
+		return {
+			hole: this.#hole.now.kind,
+			wake: this.#wake.now.kind,
+			'live-region': this.#live.now.kind,
+			'region-paint': this.#paint.now.kind
+		};
 	}
 
 	/**
@@ -1680,7 +1702,6 @@ class OgygiaRegion extends HTMLElement {
 	}
 
 	#on_media(q: string, fire: () => unknown, owner: Leaves) {
-		if (!q) return void fire(); // ok: a wake; its hydrate says its own failure
 		const mql = matchMedia(q);
 		if (mql.matches) return void fire(); // ok: a wake; its hydrate says its own failure
 		const off = owner.scope.on(mql, 'change', (e) => {
@@ -2137,6 +2158,11 @@ class OgygiaRegion extends HTMLElement {
 		// stays: a region put back keeps what it showed.
 		if (this.#hole.now.kind !== 'idle') this.#hole.go('idle');
 		if (this.#wake.now.kind !== 'cold') this.#wake.go('cold');
+		// A frame still waiting for its sheets never paints now (its wait comes back STALE): its paint
+		// visit ends here, with the region's lifetime, not at each wait (#1132).
+		if (this.#paint.now.kind !== 'idle') this.#paint.go('idle');
+		// (every region machine is at rest now: the rule holds it there, ./rules.ts `note_left`)
+		if (RULES) note_left(this, () => busy_machines(this.#machines()));
 		// Its lifetime in the page ends: its sleep, its viewport snapshot, its binding to the store,
 		// a replay still waiting for its frame, and its mailbox (what is queued is dropped; a step
 		// that waits gets STALE).
