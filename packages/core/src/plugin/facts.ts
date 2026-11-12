@@ -12,7 +12,8 @@
  * of this file (src beside dist, a dual install), and a fact written through one must be read
  * through the other.
  */
-import { note_visitor_read, Reads } from './reads.ts';
+import { slot as shared } from '@ogygia/machine';
+import { note_visitor_read, read_set, type Reads } from './reads.ts';
 
 export interface RequestFacts {
 	/** This render MAY be stored and served to others later (a plugin decided so before the render):
@@ -33,6 +34,9 @@ export interface RequestFacts {
 	sources: string[] | null;
 	/** Every flag decided for this request (name → variant): federation carries them as claims. */
 	assignments: Record<string, string>;
+	/** Origins island code on this page may load from, learned by the render (a peer fragment's own
+	 *  runtime origin): written on the runtime's script with the plugins' (`codeOrigins`). */
+	codeOrigins?: string[];
 }
 
 interface FactsSlot {
@@ -40,11 +44,10 @@ interface FactsSlot {
 	/** core (hooks.ts): the Request of the code running now, through Kit's request store */
 	current: (() => Request | undefined) | null;
 }
-const slot: FactsSlot = ((globalThis as Record<symbol, FactsSlot | undefined>)[
-	Symbol.for('ogygia.facts.v3')
-] ??= {
-	by_request: new WeakMap(),
-	current: null
+const slot = shared<FactsSlot>({
+	name: 'ogygia.facts',
+	version: 3,
+	make: () => ({ by_request: new WeakMap(), current: null })
 });
 
 /** This request's facts (made on first touch). */
@@ -55,7 +58,7 @@ export function facts_of(request: Request): RequestFacts {
 			request,
 			(facts = {
 				storable: false,
-				reads: new Reads(),
+				reads: read_set(),
 				streamed: false,
 				private: false,
 				answerForm: false,

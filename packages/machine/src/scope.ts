@@ -23,6 +23,8 @@
  * first time they are needed. A scope nothing was given to costs one small object.
  */
 import { machine_error, report } from './messages.ts';
+import { noop } from './noop.ts';
+import { tasks, timers } from './ports.ts';
 import { STALE, whole, type Fresh, type Stale } from './stale.ts';
 
 // (a runtime without the explicit-resource-management symbols gets the registered ones, as the
@@ -130,23 +132,6 @@ export function is_time(ms: unknown): ms is number {
 	return typeof ms === 'number' && Number.isFinite(ms) && ms >= 0 && ms <= MAX_TIMEOUT_MS;
 }
 
-type Timer = ReturnType<typeof setTimeout>;
-type Global = {
-	requestAnimationFrame?: (fn: () => void) => number;
-	cancelAnimationFrame?: (id: number) => void;
-	requestIdleCallback?: (fn: () => void) => number;
-	cancelIdleCallback?: (id: number) => void;
-};
-const host = globalThis as Global;
-
-/** A server shutting down does not wait for a scope's timer. */
-function unref(timer: Timer): Timer {
-	(timer as { unref?: () => void }).unref?.();
-	return timer;
-}
-
-const noop = (): void => {};
-
 /**
  * Every scope is one of these. Fields are plain (`_`), not `#private`: a machine reads and writes
  * its visit's scope on every move, where a `#` field costs about twice as much on V8.
@@ -247,16 +232,12 @@ class Scoped implements Scope {
 			release();
 			fn();
 		};
-		if (when === 'frame' && host.requestAnimationFrame !== undefined) {
-			const id = host.requestAnimationFrame(fire);
-			release = this._hold(() => host.cancelAnimationFrame?.(id));
-		} else if (when === 'idle' && host.requestIdleCallback !== undefined) {
-			const id = host.requestIdleCallback(fire);
-			release = this._hold(() => host.cancelIdleCallback?.(id));
-		} else {
-			// (no frames or idle time here, a server or a worker: the next task)
-			const timer = unref(setTimeout(fire, typeof when === 'number' ? when : 0));
-			release = this._hold(() => clearTimeout(timer));
+		// (no frames or idle time here, a server or a worker: the ports fall back to the next task)
+		if (when === 'frame') release = this._hold(tasks.frame(fire));
+		else if (when === 'idle') release = this._hold(tasks.idle(fire));
+		else {
+			const timer = timers.after(fire, typeof when === 'number' ? when : 0);
+			release = this._hold(() => timers.cancel(timer));
 		}
 		return release;
 	}
@@ -264,8 +245,8 @@ class Scoped implements Scope {
 	every(fn: () => void, ms: number): () => void {
 		if (!is_time(ms)) throw machine_error('machine_bad_time', { where: 'every()', ms: String(ms) });
 		if (this._closed) return noop;
-		const timer = unref(setInterval(fn, ms));
-		return this._hold(() => clearInterval(timer));
+		const timer = timers.every(fn, ms);
+		return this._hold(() => timers.cancel(timer));
 	}
 
 	watch<O extends Watcher>(observer: O): O {

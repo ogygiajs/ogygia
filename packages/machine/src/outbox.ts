@@ -1,41 +1,13 @@
-/**
- * Work that must happen after the response, put in one place that keeps it alive, tries it again,
- * never sends it twice at once, and only calls it done when the other side said it applied it.
- *
- *   const thaws = outbox({
- *     name: 'thaw notices',
- *     send: (n: Notice, signal) => post_thaw(n, signal), // resolves: the peer applied it
- *     id: (n) => n.id,                                    // the peer drops a second copy
- *     retry: policy({ attempts: 4, backoff: [200, 1000, 5000], deadline: 30_000 }),
- *     giveUp: (n, error) => warn('thaw_undelivered', n.peer, error),
- *     waitUntil: (work) => platform.waitUntil(work)
- *   });
- *   thaws.put(notice); // returns at once, never throws
- *
- * - `put` starts the send at once and returns. The response never waits for it. Its promise
- *   (which never rejects) says how it ended: `true` once `send` resolved, `false` once it was given
- *   up; a caller whose next step needs the work done awaits it.
- * - `waitUntil` is handed each send: a serverless platform then keeps the instance alive until it
- *   ends. Without one, it runs on in the process, which stays alive for it (the waits between its
- *   tries too) until it is done or given up.
- * - `send` resolving is done, so it resolves only once the receiver confirmed it APPLIED the work
- *   (an HTTP send checks `ok`), and throws otherwise. The receiver applies first and records the id
- *   after, so a failed apply is tried again and a second copy of an applied one is dropped.
- * - A send that fails is tried again by `retry` (`policy.standard` by default). Its signal aborts at
- *   the policy's deadline. Out of tries (or time), `giveUp` hears it once (by default the outbox
- *   prints `machine_outbox_gave_up`), and nothing of it is left behind.
- * - With `id`, a put of an id whose send is still out (queued or trying) joins it: one send.
- * - With `inOrder`, one send at a time, in the order they were put: a send waits until the one
- *   before it is done or given up (its deadline counts from its own turn).
- *
- * Each send is a flight (`flights()`, keyed by `id`, kept for nothing once it lands), and its tries
- * and waits are one scope's: the deadline closes it, which aborts the try out and ends the wait.
- */
 import { flights, type Flights } from './flights.ts';
 import { mailbox, type Mailbox } from './mailbox.ts';
 import { scope } from './scope.ts';
 import { machine_error, report } from './messages.ts';
 import { policy, under_policy, type Policy } from './policy.ts';
+import { buggify } from './ports.ts';
+
+/** Dev and rules builds (buggify points); folded out of any other (../rules-env.d.ts). */
+const RULES =
+	import.meta.env?.DEV || (typeof __OGYGIA_RULES__ !== 'undefined' ? __OGYGIA_RULES__ : false);
 
 export interface OutboxOptions<T> {
 	/** Names the outbox in messages. Default `outbox`. */
@@ -66,8 +38,6 @@ export interface Outbox<T> {
 	put(item: T): Promise<boolean>;
 }
 
-/** An id that names one item: a string, or a finite number. Anything else (`undefined` from an
- *  item missing its id, `NaN`) would name every such item alike and join them into one send. */
 function id_of(id: unknown): string | number {
 	if (typeof id === 'string' || (typeof id === 'number' && Number.isFinite(id))) return id;
 	throw machine_error('machine_bad_option', {
@@ -77,7 +47,6 @@ function id_of(id: unknown): string | number {
 	});
 }
 
-/** One put: its item, and the key its send is shared under. */
 type Put<T> = { item: T; key: unknown };
 
 class Box<T> implements Outbox<T> {
@@ -88,8 +57,6 @@ class Box<T> implements Outbox<T> {
 	_give_up: ((item: T, error: unknown) => void) | undefined;
 	_wait_until: ((work: Promise<unknown>) => void) | undefined;
 	_flights: Flights<Put<T>, boolean, Pick<Put<T>, 'key'>>;
-	/** In order: its sends, one turn each (a send holds its turn until it ends); else null. It lives
-	 *  as long as the outbox: its owner never closes. */
 	_box: Mailbox | null;
 
 	constructor(o: OutboxOptions<T>) {
@@ -111,8 +78,6 @@ class Box<T> implements Outbox<T> {
 			key: ['key'],
 			ignore: { item: 'one send per id: a put of an id still out joins the send of the first' },
 			keep: 0,
-			// in order: the send starts now when none is ahead of it, else once the last one put ends
-			// (never STALE: its box never closes)
 			run: (p) =>
 				this._box === null
 					? this._deliver(p.item)
@@ -125,10 +90,8 @@ class Box<T> implements Outbox<T> {
 		try {
 			const p: Put<T> = { item, key: undefined };
 			p.key = this._id === undefined ? p : id_of(this._id(item));
-			// (never STALE: nothing drops a send, and no caller leaves it)
 			sent = this._flights.get(p).then((done) => done === true);
 		} catch (error) {
-			// an `id` that threw: the item cannot be named, so it is not sent
 			this._gave_up(item, error);
 			return Promise.resolve(false);
 		}
@@ -142,10 +105,20 @@ class Box<T> implements Outbox<T> {
 		return sent;
 	}
 
-	/** The tries of one send, within the deadline: true once one is done, false once given up. */
 	async _deliver(item: T): Promise<boolean> {
 		try {
-			await under_policy(this._retry, (signal) => this._send(item, signal));
+			await under_policy(
+				this._retry,
+				RULES
+					? async (signal) => {
+							await this._send(item, signal);
+							// (buggify: the receiver applied it and its reply was lost: the send is tried
+							// again, and the receiver sees the same work twice)
+							if (buggify.fires('outbox.reply-lost'))
+								throw new Error('buggify: the reply was lost');
+						}
+					: (signal) => this._send(item, signal)
+			);
 			return true;
 		} catch (error) {
 			this._gave_up(item, error);
@@ -166,7 +139,40 @@ class Box<T> implements Outbox<T> {
 	}
 }
 
-/** Work after the response, kept alive, tried again, sent once (see the module's comment). */
+/**
+ * Work that must happen after the response, put in one place that keeps it alive, tries it again,
+ * never sends it twice at once, and only calls it done when the other side said it applied it.
+ *
+ *   const thaws = outbox({
+ *     name: 'thaw notices',
+ *     send: (n: Notice, signal) => post_thaw(n, signal), // resolves: the peer applied it
+ *     id: (n) => n.id,                                    // the peer drops a second copy
+ *     retry: policy({ attempts: 4, backoff: [200, 1000, 5000], deadline: 30_000 }),
+ *     giveUp: (n, error) => warn('thaw_undelivered', n.peer, error),
+ *     waitUntil: (work) => platform.waitUntil(work)
+ *   });
+ *   thaws.put(notice); // returns at once, never throws
+ *
+ * - `put` starts the send at once and returns. The response never waits for it. Its promise
+ *   (which never rejects) says how it ended: `true` once `send` resolved, `false` once it was given
+ *   up; a caller whose next step needs the work done awaits it.
+ * - `waitUntil` is handed each send: a serverless platform then keeps the instance alive until it
+ *   ends. Without one, it runs on in the process, which stays alive for it (the waits between its
+ *   tries too) until it is done or given up.
+ * - `send` resolving is done, so it resolves only once the receiver confirmed it APPLIED the work
+ *   (an HTTP send checks `ok`), and throws otherwise. The receiver applies first and records the id
+ *   after, so a failed apply is tried again and a second copy of an applied one is dropped.
+ * - A send that fails is tried again by `retry` (`policy.standard` by default). Its signal aborts at
+ *   the policy's deadline, as does the try out; no try starts after it. Out of tries (or time),
+ *   `giveUp` hears it once (by default the outbox prints `machine_outbox_gave_up`).
+ * - Once a send is done or given up, nothing of it is kept: a later put of its id is a new send.
+ * - With `id`, a put of an id whose send is still out (queued or trying) joins it: one send. An id
+ *   that is not a string or a finite number (`undefined` from an item missing its id, `NaN`) would
+ *   name every such item alike, so it names nothing: that item is not sent.
+ * - With `inOrder`, one send at a time, in the order they were put: a send waits until the one
+ *   before it is done or given up (its deadline counts from its own turn). With none ahead, it
+ *   starts inside the put.
+ */
 export function outbox<T>(options: OutboxOptions<T>): Outbox<T> {
 	return new Box<T>(options);
 }

@@ -1,16 +1,4 @@
-/**
- * DOM attribute vocabulary for `<ogygia-region>` (DESIGN.md two axes).
- *
- * - `wake`    — when JS wakes: `none` | `load` | `idle` | `visible` | `interaction` | media query
- * - `render`  — when HTML arrives: omit/`page` | `defer`
- * - `when`    — schedule for `render="defer"` OR `remount="swr"` revalidate
- * - `hydrate-margin` — IntersectionObserver rootMargin for phase-2 `wake="visible"`
- * - `remount` — `{#if}` re-creation of `wake="none"`: `cache` | `empty` | `swr`
- * - `max-age` — client lake-cache TTL in ms (optional)
- * - `on-expire` — past max-age: `empty` | `fetch` (swr default `fetch`, cache default `empty`)
- *
- * No "island" / "lake" attribute names — those are nicknames, not the mechanism.
- */
+import { OG_BAKED } from '../wire-markup.ts';
 
 /** CSS selector for frozen regions (`hydrate: 'none'`). */
 export const FROZEN_SELECTOR = 'ogygia-region[wake="none"]';
@@ -40,8 +28,7 @@ export function is_deferred(el: Element): boolean {
  * `isInLake()` (context.ts — set by LakeBoundary and on every render root whose HTML lands in one) and
  * `region_kind` (reversible.ts).
  */
-export const OPAQUE_SELECTOR =
-	'ogygia-region[wake="none"],ogygia-region[render="defer"],ogygia-region[data-og-baked]';
+export const OPAQUE_SELECTOR: string = `ogygia-region[wake="none"],ogygia-region[render="defer"],ogygia-region[${OG_BAKED}]`;
 
 /** True if this region sits inside an {@link OPAQUE_SELECTOR opaque} region: on a Kit-hydrated
  *  document nothing but the runtime will ever wake it. */
@@ -82,14 +69,15 @@ export function region_on_expire(el: Element): 'empty' | 'fetch' {
 }
 
 /**
- * True when a frozen region has only Svelte placeholder anchors (comments / whitespace).
+ * True when a frozen region has only Svelte placeholder anchors (comments / whitespace): an
+ * element child (node type 1) or a text child (3) that is not blank makes it filled.
  * Used by remount: a text-only lake is still "filled" — `querySelector('*')` would miss it and
  * double-append the cache on reconnect (REMOUNT-VACANT).
  */
 export function region_is_vacant(el: ParentNode): boolean {
 	for (const n of el.childNodes) {
-		if (n.nodeType === 1) return false; // Element
-		if (n.nodeType === 3 && (n.textContent?.trim() ?? '') !== '') return false; // Text
+		if (n.nodeType === 1) return false;
+		if (n.nodeType === 3 && (n.textContent?.trim() ?? '') !== '') return false;
 	}
 	return true;
 }
@@ -114,7 +102,8 @@ export function document_is_stored(): boolean {
  * page shows the island twice.
  *
  * Detected as an UNBALANCED hydration envelope: strictly more `[` open anchors than `]` close anchors
- * among the region's descendants. A validly-nested region (inline content, or block content in block
+ * among the region's descendants (Svelte 5's fragment anchors are the comments `<!--[-->` and
+ * `<!--[N-->`, which open, and `<!--]-->`, which closes). A validly-nested region (inline content, or block content in block
  * context) always balances; a region that renders nothing balances (0 == 0); a not-yet-swapped
  * deferred/live region carries no anchors at all (0 == 0). So this never false-positives on a
  * correctly-parsed region — only the parser-truncated envelope reads open > close.
@@ -125,8 +114,6 @@ export function region_ssr_truncated(el: ParentNode): boolean {
 	const scan = (parent: ParentNode) => {
 		for (const n of parent.childNodes) {
 			if (n.nodeType === 8) {
-				// Comment: Svelte 5 fragment anchors are `<!--[-->` / `<!--[N-->` (open) and `<!--]-->`
-				// (close). Read the first non-space char of the comment data.
 				const d = (n.textContent ?? '').trim();
 				if (d[0] === '[') open++;
 				else if (d[0] === ']') close++;

@@ -1,16 +1,3 @@
-/**
- * postrender — pages stored at request time. Shared contracts.
- *
- * The store holds THE RENDER: a full response (html + headers) or a permanent redirect,
- * keyed by URL pathname. Two tiny adapter contracts (see internal/notes/freeze.md):
- * every store impl passes ONE shared contract spec; every edge adapter speaks its CDN's
- * real purge API. Fan-out (allSettled across edges) lives in ogygia, never in adapters.
- *
- * Bulk eviction is PREFIX-shaped, not locale-shaped: the key is the URL, so any URL subtree
- * (`/fr/fr/` — a locale; `/docs/` — a section) evicts with one call. Locale was the app
- * motivating case, never the contract.
- */
-
 /** A stored page: a finished page response, or a permanent redirect. */
 export type PostrenderEntry =
 	| {
@@ -24,6 +11,9 @@ export type PostrenderEntry =
 			headers: Record<string, string>;
 			/** Epoch ms at store time — the read side's TTL backstop (a page older than the TTL is a miss). */
 			created: number;
+			/** The build that stored it (Kit's `version.name`): it is served to that build only, and is
+			 *  a miss for any other (absent: stored before builds were recorded, a miss too). */
+			build?: string;
 			/** The shell contains serve-time STITCH holes: every serve re-renders them with the
 			 *  visitor's request and splices — per-visitor responses, `private, no-store`, no
 			 *  validators. See postrender/stitch.ts. */
@@ -34,6 +24,8 @@ export type PostrenderEntry =
 			status: 301 | 308;
 			location: string;
 			created: number;
+			/** The build that stored it: as a page's. */
+			build?: string;
 	  };
 
 /** Options `put` receives beyond the entry. */

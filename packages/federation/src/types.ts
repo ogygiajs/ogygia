@@ -1,14 +1,7 @@
-/**
- * federation v2 — shared contracts. Design: internal/notes/federation.md.
- *
- * ONE identity per app (`federate()`), a SYMMETRIC peers map (public keys verify inbound, the
- * app's private key signs outbound), remote fragments as REGION VALUES with the region dials, and
- * cross-app THAW notices so a publish or a deploy on one team thaws the stored pages of every
- * team that baked its fragments.
- */
 import type { RegionValue } from '@ogygia/core';
 import type { Router } from '@ogygia/router';
 import type { Claims } from './wire.ts';
+import type { PeerHandle } from './peer.ts';
 
 /** Visitor claims resolver — `federate({ visitor })`. Reads the LIVE event (cookies, locals);
  *  runs on the shell for every hop, including hole-time fetches of deferred remote regions. */
@@ -72,8 +65,9 @@ export interface FederateConfig<P extends Record<string, PeerConfig> = Record<st
 	base?: string;
 	/** Named widget catalog served at `/og/fragment/<name>`; `__catalog` = the unsigned manifest. */
 	widgets?: Record<string, WidgetDef>;
-	/** The audience(s) THIS app verifies inbound calls against. Defaults to the request host;
-	 *  set when a reverse proxy rewrites Host between the hops. */
+	/** The audience(s) THIS app verifies inbound calls against: the host peers sign their calls to
+	 *  it for. Defaults to the host of the `ORIGIN` environment variable; with neither, every signed
+	 *  call is refused (`federation_audience_missing`). Never taken from the request. */
 	audience?: string | string[];
 	/** Clock skew / replay window for inbound signatures (ms, default 120 000). */
 	skewMs?: number;
@@ -138,7 +132,11 @@ export interface Peer {
 export interface Federation {
 	readonly name: string;
 	readonly key: string | undefined;
-	readonly peers: ReadonlyMap<string, Peer & { readonly keys: readonly string[] }>;
+	/** The handles (the transport the handle forwards a hole through), with each peer's keys. */
+	readonly peers: ReadonlyMap<string, PeerHandle & { readonly keys: readonly string[] }>;
+	/** Every peer's origins (replicas included): where its islands' code loads from on this app's
+	 *  pages (core's `codeOrigins` hook). */
+	readonly code_origins: readonly string[];
 	readonly visitor: VisitorResolver | undefined;
 	readonly expose: Router | undefined;
 	readonly base: string;

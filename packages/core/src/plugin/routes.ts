@@ -15,6 +15,7 @@
  *
  * One global slot: dist entries and plugin packages must share the registry.
  */
+import { slot as shared } from '@ogygia/machine';
 
 /** A route's merged `config`, as far as the claimed keys go. */
 export type RouteConfig = Readonly<Record<string, unknown>>;
@@ -27,11 +28,16 @@ interface RoutesSlot {
 	/** route id (group-stripped) → the claimed keys of its merged config, for every Kit page route */
 	pages: Map<string, RouteConfig>;
 }
-const slot: RoutesSlot = ((globalThis as Record<symbol, RoutesSlot | undefined>)[
-	Symbol.for('ogygia.route-config.v1')
-] ??= {
-	routers: new Map(),
-	pages: new Map()
+/** The app's route tables, one per process across every copy of this module (the slot): one
+ *  matcher per `routes()` key (a re-run replaces its own) and one config per page route. */
+class RoutesTables implements RoutesSlot {
+	readonly routers = new Map<string, RouteConfigMatcher>();
+	pages = new Map<string, RouteConfig>();
+}
+const slot = shared<RoutesSlot>({
+	name: 'ogygia.route-config',
+	version: 1,
+	make: () => new RoutesTables()
 });
 
 /** A `routes()` table joins (keyed: dev re-evaluates hooks.server.ts and calls `routes()` again; a

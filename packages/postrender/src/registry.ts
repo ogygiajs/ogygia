@@ -14,7 +14,19 @@
  * two module instances (src beside dist), and both must see the same runtime.
  */
 import type { RequestEvent } from '@sveltejs/kit';
-import { flights, machine, outbox, policy, say, type Stale } from '@ogygia/machine';
+import {
+	buggify,
+	flights,
+	machine,
+	outbox,
+	policy,
+	registry,
+	say,
+	scope,
+	slot as shared,
+	type Scope,
+	type Stale
+} from '@ogygia/machine';
 import type {
 	PostrenderEntry,
 	PostrenderPutOptions,
@@ -28,6 +40,11 @@ import type { DevtoolsEventInput } from '@ogygia/core/plugin';
 import { sourceTag } from '@ogygia/core/plugin/utils';
 import { postrender_app } from './app.ts';
 import { OgygiaError, warn } from './messages.ts';
+
+declare const __OGYGIA_RULES__: boolean | undefined;
+/** Dev and rules builds (a buggify point); folded out of any other. */
+const RULES =
+	import.meta.env?.DEV || (typeof __OGYGIA_RULES__ !== 'undefined' ? __OGYGIA_RULES__ : false);
 
 /** One server's live settings: what its `postrender.handle({ store, edge })` was given. */
 export interface Runtime {
@@ -45,9 +62,11 @@ interface Slot {
 	/** the memory store used while no handle exists */
 	fallback: Runtime | null;
 }
-const slot: Slot = ((globalThis as Record<symbol, Slot | undefined>)[
-	Symbol.for('ogygia.postrender.v1')
-] ??= { installed: null, handled: new WeakMap(), fallback: null });
+const slot = shared<Slot>({
+	name: 'ogygia.postrender',
+	version: 1,
+	make: () => ({ installed: null, handled: new WeakMap(), fallback: null })
+});
 
 /** A server event into the current request's devtools stream (a no-op unless devtools is on). */
 function record(event: DevtoolsEventInput): void {
@@ -99,7 +118,8 @@ export function reset_for_tests(): void {
 	replica_blindspot.ok(BLINDSPOT);
 	store_health = health_def.create();
 	renders.drop(() => true);
-	writes.clear();
+	writes_life.close();
+	writes_life = scope();
 }
 
 // ── cross-app thaw (federation) ──────────────────────────────────────────────────────────────
@@ -181,6 +201,22 @@ function store_answered(mark: Health): void {
 	if (store_health.now === mark && mark.kind === 'failing') store_health.go('ok');
 }
 
+/** `work` against the store: its failure is said, then thrown (for a caller that tries again). */
+export async function store_call<T>(op: string, key: string, work: () => Promise<T>): Promise<T> {
+	const mark = store_health.now;
+	try {
+		// (buggify: the store is down for this call, a shared store's blip: the page renders fresh
+		// and is not kept, and the streak is said once)
+		if (RULES && buggify.fires('postrender.store-down')) throw new Error('store down (buggify)');
+		const out = await work();
+		store_answered(mark);
+		return out;
+	} catch (error) {
+		store_failed(op, key, error);
+		throw error;
+	}
+}
+
 /** `work` against the store: its failure is said and answered `fallback`. */
 async function guarded<T>(
 	op: string,
@@ -188,14 +224,10 @@ async function guarded<T>(
 	work: () => Promise<T>,
 	fallback: T
 ): Promise<T> {
-	const mark = store_health.now;
 	try {
-		const out = await work();
-		store_answered(mark);
-		return out;
-	} catch (error) {
-		store_failed(op, key, error);
-		return fallback;
+		return await store_call(op, key, work);
+	} catch {
+		return fallback; // ok: store_call said it
 	}
 }
 
@@ -214,7 +246,10 @@ export function store_put(
 
 /** A render's write to the store, while it is out: its page, and the render's flight. */
 type Write = { key: string; flight: Flight };
-const writes = new Set<Write>();
+/** The writes out now, each held from its start until it settles (and all of them until a test
+ *  harness reset ends `writes_life`). */
+const writes = registry<Write>();
+let writes_life: Scope = scope();
 
 /**
  * Store a render's page. An invalidation that starts while the write is out ends the render's
@@ -234,7 +269,7 @@ export async function store_render(
 	flight: Flight
 ): Promise<boolean> {
 	const write: Write = { key, flight };
-	writes.add(write);
+	const settled = writes.add(write, writes_life);
 	try {
 		await store_put(runtime, key, entry, options);
 		if (!flight.stale) return true;
@@ -242,7 +277,7 @@ export async function store_render(
 		if (await self_evicts.put({ runtime, key })) store_answered(mark);
 		return false;
 	} finally {
-		writes.delete(write);
+		settled();
 	}
 }
 

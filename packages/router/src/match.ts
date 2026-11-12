@@ -1,14 +1,3 @@
-/**
- * Pattern compilation + matching for the ogygia router. Kit's route grammar, reused verbatim so
- * nothing new is learned:
- *   /docs/[slug]      — one required segment  → { slug: string }
- *   /docs/[...rest]   — rest, may be empty     → { rest: string }
- *   /[[lang]]/docs    — optional segment       → { lang?: string }
- * Matching is trailing-slash-insensitive by default (refinement 1): `/docs/foo` and `/docs/foo/`
- * hit the same route with identical params. This module is pure — no rendering, no request — so the
- * whole match/specificity story is unit-testable by calling `compile()` + `match_path()` directly.
- */
-
 export interface ParamSpec {
 	name: string;
 	/** `[...rest]` — captures the remaining path (slashes included), may be '' */
@@ -28,19 +17,23 @@ export interface CompiledPattern {
 
 const REGEX_SPECIAL_G = /[.*+?^${}()|[\]\\]/g;
 const escape_re = (s: string) => s.replace(REGEX_SPECIAL_G, '\\$&');
-
 const REST = /^\[\.\.\.([a-zA-Z_$][\w$]*)\]$/;
 const OPTIONAL = /^\[\[([a-zA-Z_$][\w$]*)\]\]$/;
-/** strips valid `[param]` groups so any leftover bracket flags a malformed segment */
-const STRIP_PARAMS = /\[[a-zA-Z_$][\w$]*\]/g;
-
-/**
- * Compile a pattern into a regex + its param specs + a specificity score. Throws on an obviously
- * malformed pattern (a rest segment that isn't last) — a loud build-time-ish error beats a route
- * that silently never matches.
- */
+const VALID_PARAM_GROUPS = /\[[a-zA-Z_$][\w$]*\]/g;
 const INNER_PARAM = /\[([a-zA-Z_$][\w$]*)\]/g;
 
+const has_stray_bracket = (seg: string) => {
+	const left = seg.replace(VALID_PARAM_GROUPS, '');
+	return left.includes('[') || left.includes(']');
+};
+
+const SEGMENT_RANK = { static: 4, mixed: 3, param: 2, optional: 1, rest: 0 } as const;
+
+/**
+ * Compiles a route pattern in Kit's grammar (`/docs/[slug]`, `/files/[...rest]`, `/[[lang]]/docs`,
+ * and mixed segments like `/[id].json`) into a trailing-slash-insensitive regex, its params and a
+ * specificity score (higher sorts first). Throws on a malformed pattern.
+ */
 export function compile(pattern: string): CompiledPattern {
 	if (!pattern.startsWith('/')) {
 		throw new Error(
@@ -49,8 +42,7 @@ export function compile(pattern: string): CompiledPattern {
 	}
 	const segs = pattern.split('/').filter((s) => s !== '');
 	const params: ParamSpec[] = [];
-	// per-segment specificity digit (packed base-5): static=4, mixed=3, param=2, optional=1, rest=0
-	const digits: number[] = [];
+	const ranks: number[] = [];
 	let rx = '';
 
 	segs.forEach((seg, i) => {
@@ -63,63 +55,69 @@ export function compile(pattern: string): CompiledPattern {
 			}
 			params.push({ name: m[1], rest: true });
 			rx += '(?:/(.*))?';
-			digits.push(0);
+			ranks.push(SEGMENT_RANK.rest);
 		} else if ((m = seg.match(OPTIONAL))) {
 			params.push({ name: m[1], optional: true });
 			rx += '(?:/([^/]+))?';
-			digits.push(1);
+			ranks.push(SEGMENT_RANK.optional);
 		} else {
-			// A normal segment: static text, a bare [param], OR a MIX (Kit allows `[id].json`,
-			// `page-[n]`, etc.). Parse the [param] groups out, escaping the static bits between them.
-			let inner = '/';
-			let has_static = false;
-			let has_param = false;
+			const pieces: Array<{ text: string } | { name: string }> = [];
 			let last = 0;
 			INNER_PARAM.lastIndex = 0;
 			let g: RegExpExecArray | null;
 			while ((g = INNER_PARAM.exec(seg))) {
 				const pre = seg.slice(last, g.index);
-				if (pre) {
-					inner += escape_re(pre);
-					has_static = true;
-				}
-				inner += '([^/]+)';
-				params.push({ name: g[1] });
-				has_param = true;
+				if (pre) pieces.push({ text: pre });
+				pieces.push({ name: g[1] });
 				last = INNER_PARAM.lastIndex;
 			}
 			const tail = seg.slice(last);
-			if (tail) {
-				inner += escape_re(tail);
-				has_static = true;
-			}
-			// any bracket left after removing the valid [param] groups = a malformed segment
-			const leftover = seg.replace(STRIP_PARAMS, '');
-			if (leftover.includes('[') || leftover.includes(']') || (!has_static && !has_param)) {
+			if (tail) pieces.push({ text: tail });
+			let inner = '/';
+			let has_static = false;
+			let has_param = false;
+			let params_left = pieces.filter((p) => 'name' in p).length;
+			pieces.forEach((p, j) => {
+				if ('text' in p) {
+					inner += escape_re(p.text);
+					has_static = true;
+					return;
+				}
+				params_left--;
+				const next = pieces[j + 1];
+				const group = params.length + 1;
+				// @why a param with another after it takes the shortest run its literal follows, as an atomic group never backtracked into, so the match is linear and splits as Kit's lazy params do (test: test/router-match.test.ts › a segment with several params answers a long path that almost matches at once)
+				inner +=
+					params_left === 0
+						? '([^/]+)'
+						: next && 'text' in next
+							? `(?=([^/]+?)${escape_re(next.text)})\\${group}`
+							: '([^/])';
+				params.push({ name: p.name });
+				has_param = true;
+			});
+			if (has_stray_bracket(seg) || (!has_static && !has_param)) {
 				throw new Error(`[@ogygia/router] malformed segment ${JSON.stringify(seg)} in ${pattern}`);
 			}
 			rx += inner;
-			digits.push(!has_param ? 4 : has_static ? 3 : 2);
+			ranks.push(
+				!has_param ? SEGMENT_RANK.static : has_static ? SEGMENT_RANK.mixed : SEGMENT_RANK.param
+			);
 		}
 	});
 
-	if (rx === '') rx = '/?'; // root '/'
+	if (rx === '') rx = '/?';
 	const regex = new RegExp('^' + rx + '/?$');
-
-	// score: pack per-segment digits big-endian (base-5), then favour more segments. Static-heavy,
-	// longer patterns sort first — '/docs/new' > '/docs/[slug]' > '/[...all]', and '[id].json' > '[id]'.
-	// A trailing [...rest] matches ZERO-or-more segments, so it must not count as depth — otherwise
-	// '/[...all]' (one "segment") outranks '/' (zero) and shadows the home route. Score a rest
-	// pattern as its prefix, then nudge it just BELOW that prefix: '/docs' > '/docs/[...r]', and
-	// '/docs/[slug]' > '/docs/[...r]' still holds (the param pattern is genuinely deeper).
 	const trailing_rest = params.length > 0 && params[params.length - 1].rest === true;
-	const eff = trailing_rest ? digits.slice(0, -1) : digits;
-	let score = 0;
-	for (const d of eff) score = score * 5 + d;
-	score = score * 64 + eff.length; // length as a low-order tiebreaker
-	if (trailing_rest) score -= 1;
+	return { pattern, regex, params, score: specificity(ranks, trailing_rest) };
+}
 
-	return { pattern, regex, params, score };
+function specificity(ranks: number[], trailing_rest: boolean): number {
+	const depth_ranks = trailing_rest ? ranks.slice(0, -1) : ranks;
+	let score = 0;
+	for (const rank of depth_ranks) score = score * 5 + rank;
+	score = score * 64 + depth_ranks.length;
+	return trailing_rest ? score - 1 : score;
 }
 
 /** Compile a whole table's keys and sort most-specific-first, so the first match wins. */
@@ -150,9 +148,10 @@ export function match_one(c: CompiledPattern, pathname: string): PathMatch | nul
 	return { pattern: c.pattern, params };
 }
 
-/** Fill a pattern's `[param]` / `[...rest]` tokens from a params record (URL-encoded). Shared by
- *  `href()` (router) and the typed `api()` client — one token grammar, one filler. */
 const fill_token = /\[(\.\.\.)?\[?([a-zA-Z_$][\w$]*)\]?\]/g;
+
+/** Fills a pattern's `[param]`, `[[optional]]` and `[...rest]` tokens from `params`, URL-encoded;
+ *  a missing one becomes empty. */
 export function fill(pattern: string, params: Record<string, string | number>): string {
 	return pattern.replace(fill_token, (_m, _rest, name: string) => {
 		const val = params[name];
@@ -160,8 +159,11 @@ export function fill(pattern: string, params: Record<string, string | number>): 
 	});
 }
 
+const MAX_PATH = 8192;
+
 /** First (most-specific) match in a pre-sorted list, or null. */
 export function match_path(sorted: CompiledPattern[], pathname: string): PathMatch | null {
+	if (pathname.length > MAX_PATH) return null;
 	for (const c of sorted) {
 		const hit = match_one(c, pathname);
 		if (hit) return hit;
@@ -173,6 +175,6 @@ function safe_decode(s: string): string {
 	try {
 		return decodeURIComponent(s);
 	} catch {
-		return s; // malformed %xx — hand back the raw segment rather than throw mid-route
+		return s;
 	}
 }

@@ -14,7 +14,10 @@
  *
  * One global slot: every module instance dispatches over the same implementations.
  */
+import type { RequestEvent } from '@sveltejs/kit';
 import { warn } from '../messages/server.ts';
+import { slot as shared } from '@ogygia/machine';
+import { current_facts } from './facts.ts';
 
 /** The shared hooks. Each is optional on a plugin; the signature is the contract. */
 export interface ServerHooks {
@@ -24,14 +27,20 @@ export interface ServerHooks {
 	invalidated(tags: string[] | 'all'): void | Promise<void>;
 	/** Record `version` as the build the shared store last saw; answer the one before (or undefined). */
 	lastBuild(version: string): string | undefined | Promise<string | undefined>;
+	/** Is this request's visitor one the plugin measures for, proved by its own credentials (the
+	 *  profiler: its logged-in user)? Such a visitor's region answers say how loaded the server is
+	 *  (`server-timing`). A plugin that cannot tell answers `undefined`. */
+	measures(event: RequestEvent): boolean | undefined | Promise<boolean | undefined>;
+	/** The origins island code on this app's pages may load from besides its own (a federation
+	 *  shell's peers). Sync, and every implementation's answers count: read through
+	 *  {@link code_origins}, written on the runtime's script (runtime/code-origins.ts). */
+	codeOrigins(): readonly string[];
 }
 
 type AnyFn = (...args: unknown[]) => unknown;
 type Impl = Record<string, unknown>;
 
-const implementations: Impl[] = ((globalThis as Record<symbol, Impl[] | undefined>)[
-	Symbol.for('ogygia.server-hooks.v1')
-] ??= []);
+const implementations = shared<Impl[]>({ name: 'ogygia.server-hooks', version: 1, make: () => [] });
 
 /** Core only: a set of hook implementations joins (a plugin's server half, or core's own). Keyed by
  *  identity; returns the leave. */
@@ -42,6 +51,24 @@ export function register_hooks(impl: object): () => void {
 		const at = implementations.indexOf(entry);
 		if (at !== -1) implementations.splice(at, 1);
 	};
+}
+
+/** Every implementation's `codeOrigins`, in plugin order (a failing one is logged and adds none),
+ *  then the running request's own (`facts.codeOrigins`). */
+export function code_origins(): string[] {
+	const out: string[] = [];
+	for (const impl of implementations) {
+		const fn = impl.codeOrigins;
+		if (typeof fn !== 'function') continue;
+		try {
+			out.push(...((fn as AnyFn).call(impl) as readonly string[]));
+		} catch (e) {
+			warn('plugin_hook_failed', { name: 'codeOrigins' }, e);
+		}
+	}
+	const learned = current_facts()?.codeOrigins;
+	if (learned) out.push(...learned);
+	return out;
 }
 
 export type Notify = {

@@ -1,29 +1,20 @@
-/**
- * The interaction wake's SECOND half (see ./interaction.ts): once the island is live, put back
- * what the visitor did while it was waking — typed values, focus, the canceled clicks — at each
- * element's ADDRESS (hydration may have replaced the nodes). Loaded when the first interaction
- * island arms; never part of the boot.
- */
 import type { Scope } from '@ogygia/machine';
 import type { FieldSnapshot, QueuedClick } from './interaction.ts';
 import { interaction_link } from './slots.ts';
 import { emit as dt_emit } from '../events/bus.ts';
+import { OG_FP } from '../wire-markup.ts';
 
-// Interaction's resolver, handed over through the registry — this lazy chunk never imports a boot
-// module (./slots.ts `BootLink`).
 const resolve_address = (region: Element, addr: number[]) =>
 	interaction_link().resolve_address(region, addr);
 
-// DEVTOOLS gate — module-local const from the Vite `define` (proven DCE pattern); off → folds out.
 const DEVTOOLS = typeof __OGYGIA_DEVTOOLS__ !== 'undefined' ? __OGYGIA_DEVTOOLS__ : false;
 
-/** Re-apply what the user typed while the island was waking, at each field's ADDRESS; sync `bind:`. */
 function restore_fields(region: Element, fields: FieldSnapshot[]) {
 	for (const s of fields) {
 		const el = resolve_address(region, s.addr);
 		if (!el || el.tagName !== s.tag) continue;
 		const f = el as HTMLInputElement;
-		if (f === s.el) continue; // hydration reused the node — nothing was lost
+		if (f === s.el) continue;
 		let changed = false;
 		if (f.value !== s.el.value) {
 			f.value = s.el.value;
@@ -55,16 +46,16 @@ function restore_fields(region: Element, fields: FieldSnapshot[]) {
  * changes in their own render tick. A synchronous replay lands before that tick and toggles
  * nothing; after a frame the component is settled. The frame is `owner`'s (the region's lifetime in
  * the page): a region gone by then replays nothing.
+ *
+ * A click that landed inside a web component's shadow tree replays on that inner node (composed,
+ * so the host hears it too): a click on the host never reaches a shadow-internal handler, and
+ * hydration claims the host but leaves its shadow tree, so the inner node is still live.
  */
 export function replay_clicks(region: Element, queued: QueuedClick[], owner: Scope): void {
 	const replay = () => {
 		for (const q of queued) {
 			const t = resolve_address(region, q.addr);
 			if (!t || t.tagName !== q.tag) continue;
-			// A web component's shadow-internal handler (a design-system button's inner <button>) sits
-			// BELOW the host: a click dispatched on the host never reaches it. Hydration claims
-			// the host node and never touches its shadow tree, so the captured deep node is
-			// still live — replay there (composed, so the host's listeners hear it too).
 			const deep = q.deep as Node | null;
 			const target = deep && deep.isConnected && t.shadowRoot?.contains(deep) ? deep : t;
 			target.dispatchEvent(new MouseEvent('click', q.init));
@@ -74,7 +65,10 @@ export function replay_clicks(region: Element, queued: QueuedClick[], owner: Sco
 	owner.timeout(replay, 'frame');
 }
 
-/** The island is live: fields back, focus back, clicks replayed. */
+/** The island is live: put back what the visitor did while it was waking, at each element's
+ *  address (hydration may have replaced the nodes). Typed values and checked states come back
+ *  (with their selection, and `input` and `change` so `bind:` syncs) where the address still holds
+ *  the same tag; focus comes back; the queued clicks replay ({@link replay_clicks}). */
 export function after_wake(
 	region: Element,
 	fields: FieldSnapshot[],
@@ -94,7 +88,7 @@ export function after_wake(
 			domain: 'runtime',
 			name: 'interaction.replay',
 			entry: region.getAttribute('entry') || undefined,
-			fp: region.getAttribute('data-og-fp') || undefined,
+			fp: region.getAttribute(OG_FP) || undefined,
 			clicks: replayed,
 			fields: fields.length
 		});

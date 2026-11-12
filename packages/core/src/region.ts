@@ -1,24 +1,7 @@
-/**
- * Held regions — a held render. A value you can pass around and render with `<Region of={f} />`.
- *
- * `region(Component, props)` produces one, props type-checked against the component.
- *
- * One value, three faces the renderer sees:
- * - **inline** — a plain component import. Renders in the current server pass. Cannot cross the wire
- *   (nothing prepared a chunk for it). SDUI composed in place.
- * - **dual** — a component imported `with { region: 'raw' }`. Server-side it holds BOTH the real
- *   component (renders inline, first paint) AND everything needed to sign a capability. Rendered in
- *   the same pass → inline. Serialized to the client → the {@link import('./hooks.ts').ogygiaTransport}
- *   strips the component and signs a ticket, so it arrives as `deferred`.
- * - **deferred** — what a dual region becomes across the wire: a signed ticket the runtime fetches
- *   and (if interactive) hydrates. No component.
- */
 import type { Component } from 'svelte';
 import { region_snippet } from './region-snippet.ts';
 import { with_portable_forms } from './portable-form.ts';
 import RawHtml from './RawHtml.svelte';
-
-/** Brand so the transport can recognize a region without false-matching plain objects. */
 import { REGION_BRAND } from './region-brand.ts';
 import { kit_page_facts_tail, kit_page_ready, kit_render_context } from './server/kit-context.ts';
 import { region_css_tags } from './server/html-scan.ts';
@@ -43,11 +26,27 @@ export type RegionOptions = { wake?: string; margin?: string };
 export type RegionSchedule<P = Record<string, unknown>> = (data: P) => RegionOptions;
 
 /**
- * The region result types erase the component's prop type — `region()` type-checks props
- * against the component at the call site, so the stored value doesn't need to stay generic. Erasing
- * keeps every concrete region assignable to the bare {@link RegionValue} supertype (a `C` in both a
- * covariant `props` and a contravariant `component` position has no non-`any` supertype otherwise).
+ * The `region()` data argument: `region(Card, props, { version: row.updatedAt })`. `version` is how
+ * new the data behind this answer is: a number, a `Date`, or a date string. When two answers for the
+ * same region reach the browser (two commands that both return it), the one with the newer version
+ * stays on screen, whichever arrived last. Equal versions, or an answer without one, fall back to
+ * arrival order. Only a held region has an address in the browser to order, so an inline region's
+ * version has nothing to compare against.
  */
+export type RegionData = { version?: number | Date | string };
+
+function to_version(version: number | Date | string): number {
+	const n =
+		typeof version === 'number'
+			? version
+			: version instanceof Date
+				? version.getTime()
+				: Date.parse(version);
+	if (!Number.isFinite(n))
+		throw new OgygiaError('region_version_invalid', { version: String(version) });
+	return n;
+}
+
 type AnyComponent = Component<Record<string, unknown>>;
 
 /** A plain component. Renders in the current server pass; **awaiting** it bakes its SSR HTML so it
@@ -78,16 +77,23 @@ export type DualRegion = {
 	readonly module: string;
 	readonly hydrate?: string;
 	readonly hydrateMargin?: string;
-	/** Server signer, invoked by the transport at serialization. Never crosses the wire. */
-	readonly sign: (id: string, props: Record<string, unknown>) => string;
+	/** Server signer, invoked by the transport at serialization. Never crosses the wire. `wakes`:
+	 *  the component hydrates over the answer, so the endpoint renders it in its hydrate's context. */
+	readonly sign: (id: string, props: Record<string, unknown>, wakes?: boolean) => string;
 	/**
 	 * Server-only renderer, invoked when the region is **awaited** (see {@link region}). Renders
 	 * the component to HTML on the server so the ticket can travel with its markup — no client fetch.
-	 * Provided by the SSR region-binding leg; never crosses the wire.
+	 * Provided by the SSR region-binding leg; never crosses the wire. `wakes`: the component hydrates
+	 * over the HTML, so it renders in its hydrate's context.
 	 */
-	readonly renderHtml?: (props: Record<string, unknown>) => string | Promise<string>;
+	readonly renderHtml?: (
+		props: Record<string, unknown>,
+		wakes?: boolean
+	) => string | Promise<string>;
 	/** Server-rendered HTML, present once the region has been awaited. Rides the wire in the ticket. */
 	readonly html?: string;
+	/** The data version `region()` was given ({@link RegionData}), as a number. */
+	readonly version?: number;
 };
 
 /** A held region that arrived over the wire: a signed capability, no component. */
@@ -110,6 +116,8 @@ export type DeferredRegion = {
 	 * runtime fetches the signed `url` as usual.
 	 */
 	readonly html?: string;
+	/** The data version its server gave it ({@link RegionData}), as a number. */
+	readonly version?: number;
 };
 
 export type RegionValue = InlineRegion | DualRegion | DeferredRegion;
@@ -130,26 +138,17 @@ export function isRegion(value: unknown): value is RegionValue {
 	);
 }
 
-/**
- * What a `with { region: 'raw' }` import is rewritten to. The SSR leg is dual-face — it carries the
- * component AND the signer; the client leg is metadata-only. Authors never see this; they pass the
- * imported binding straight to {@link region}.
- */
 type RegionBinding = {
 	__ogRegion: string;
 	__module: string;
 	__hydrate?: string;
 	__hydrateMargin?: string;
 	__component?: Component<Record<string, unknown>>;
-	__sign?: (entry: string, props: Record<string, unknown>) => string;
-	/** SSR-only: render the component to HTML (svelte/server). Used when a held region is awaited. */
-	__renderHtml?: (props: Record<string, unknown>) => string | Promise<string>;
+	__sign?: (entry: string, props: Record<string, unknown>, wakes?: boolean) => string;
+	__renderHtml?: (props: Record<string, unknown>, wakes?: boolean) => string | Promise<string>;
 };
 
 function isBinding(value: unknown): value is RegionBinding {
-	// A binding is either a plain descriptor OBJECT (`region: 'raw'`) or the wrapper COMPONENT (a
-	// function) with the descriptor fields attached (a `wake:` attach binding — placeable AND holdable).
-	// Both carry `__ogRegion`; only a plain component lacks it (→ an inline region).
 	return (
 		(typeof value === 'object' || typeof value === 'function') &&
 		value !== null &&
@@ -157,25 +156,18 @@ function isBinding(value: unknown): value is RegionBinding {
 	);
 }
 
-/** `region()` itself; the export below adds `region.snippet`. */
 function make_region<P extends Record<string, unknown>>(
 	component: Component<P>,
 	props: P,
-	opts?: RegionSchedule<P>,
-	/** Internal: content-body CSS key, set by the markdown source (see {@link InlineRegion.content_id}). */
+	opts?: RegionSchedule<P> | RegionData,
 	content_id?: string
 ): AwaitableRegion {
 	const p = (props ?? {}) as Record<string, unknown>;
-	// The schedule arg is a `(data) => options` function (or absent) — call it with the props
-	// ("generated data") so a registry of raw components can pick each one's timing from its data.
-	const o = opts ? opts(props) : undefined;
+	const o = typeof opts === 'function' ? opts(props) : undefined;
+	const version =
+		typeof opts === 'object' && opts?.version != null ? to_version(opts.version) : undefined;
 	if (isBinding(component)) {
 		if (!component.__component || !component.__sign) {
-			// No signer → this is the CLIENT leg (metadata-only), or a build that never SSR'd the binding.
-			// A `wake:` attach binding is itself a mountable component (the wrapper), so render it INLINE
-			// — the same thing that happened before wake bindings were recognized as bindings at all.
-			// Only a bare `region: 'raw'` descriptor (a plain object) genuinely can't render client-side:
-			// it must be turned into a region on the server, where the signer lives.
 			if (typeof component === 'function') {
 				const inlineWrap: InlineRegion = {
 					[REGION_BRAND]: true,
@@ -188,8 +180,6 @@ function make_region<P extends Record<string, unknown>>(
 			}
 			throw new OgygiaError('raw_region_on_client');
 		}
-		// Schedule: the call's `wake` wins, else the binding's baked schedule (from a `wake:` mark). A
-		// `region: 'raw'` binding bakes none, so the call sets it — that's how the descriptor stays reusable.
 		const hydrate = o?.wake ?? component.__hydrate;
 		const hydrateMargin = o?.margin ?? component.__hydrateMargin;
 		const dual: DualRegion = {
@@ -202,7 +192,8 @@ function make_region<P extends Record<string, unknown>>(
 			...(hydrate ? { hydrate } : {}),
 			...(hydrateMargin ? { hydrateMargin } : {}),
 			sign: component.__sign,
-			...(component.__renderHtml ? { renderHtml: component.__renderHtml } : {})
+			...(component.__renderHtml ? { renderHtml: component.__renderHtml } : {}),
+			...(version === undefined ? {} : { version })
 		};
 		return make_awaitable(dual);
 	}
@@ -216,17 +207,8 @@ function make_region<P extends Record<string, unknown>>(
 	return make_inline_awaitable(inline);
 }
 
-/**
- * Give an inline region a non-enumerable `then` so `await`-ing it (server-side) renders the
- * component to HTML and resolves to a plain (non-thenable) inline region carrying that HTML — which
- * is what lets it cross the wire as an HTML-only ticket (see the transport). Mirrors
- * {@link make_awaitable} for duals; `svelte/server` is imported lazily and only on the server, so
- * this module stays browser-safe. Awaiting on the client settles to an unchanged copy.
- */
 function make_inline_awaitable(inline: InlineRegion): AwaitableRegion {
-	// A region value is a thenable by design: it is the public API, `await region(C, props)` renders
-	// the region to HTML. test/transport.test.ts ("region(C, props) is thenable") covers it.
-	// oxlint-disable-next-line unicorn/no-thenable
+	// oxlint-disable-next-line unicorn/no-thenable -- a region is a thenable by design: `await region(C, props)` renders it
 	Object.defineProperty(inline, 'then', {
 		enumerable: false,
 		configurable: true,
@@ -237,9 +219,6 @@ function make_inline_awaitable(inline: InlineRegion): AwaitableRegion {
 		) {
 			const run = async (): Promise<InlineRegion> => {
 				if (typeof document !== 'undefined') return { ...inline };
-				// PRE-BAKED (a serialized-region content body): the HTML was rendered at compile time and
-				// travels with the value — awaiting is a no-op, no svelte/server pass. This is what makes
-				// prerendering a region-native corpus O(html-concat) instead of O(svelte-render).
 				if (inline.html != null) return { ...inline };
 				// Plain static specifier — Vite MUST resolve this to the app's single `svelte/server`
 				// instance. A computed/`@vite-ignore` specifier resolves to a SECOND instance whose
@@ -270,18 +249,9 @@ function make_inline_awaitable(inline: InlineRegion): AwaitableRegion {
 	return inline as AwaitableRegion;
 }
 
-/**
- * Give a dual region a non-enumerable `then` so `await`-ing it renders the component to HTML and
- * resolves to a plain (non-thenable) dual region carrying that HTML. Non-enumerable so a spread or
- * `devalue` walk never copies it (which would re-arm the thenable / try to serialize a function);
- * the transport reads only the data fields. A held region with no `renderHtml` (SSR leg absent) is left
- * un-awaitable — awaiting it would be a no-op and only masks a mis-wired build.
- */
 function make_awaitable(dual: DualRegion): AwaitableRegion {
 	if (!dual.renderHtml) return dual as AwaitableRegion;
-	// A region value is a thenable by design: it is the public API, `await region(C, props)` renders
-	// the region to HTML. test/live-partial.test.ts ("awaiting a dual renders its HTML") covers it.
-	// oxlint-disable-next-line unicorn/no-thenable
+	// oxlint-disable-next-line unicorn/no-thenable -- a region is a thenable by design: `await region(C, props)` renders it
 	Object.defineProperty(dual, 'then', {
 		enumerable: false,
 		configurable: true,
@@ -294,13 +264,9 @@ function make_awaitable(dual: DualRegion): AwaitableRegion {
 				// `renderHtml` (generated per binding) already prefixes the component's stylesheet
 				// `<link>`s — the page never imported this server-picked component, so its CSS is on no
 				// page stylesheet; the client hoists those links to <head>.
-				// A branded snippet in the props crosses in its portable form (portable-form.ts) — the
-				// same shape the far side revives from the descriptor the wire carries.
 				const html = dual.renderHtml
-					? await dual.renderHtml(with_portable_forms(dual.props))
+					? await dual.renderHtml(with_portable_forms(dual.props), !!dual.hydrate)
 					: undefined;
-				// Spread copies only enumerable own props → drops `then`, so the result is NOT a
-				// thenable and `await` settles here instead of chaining forever.
 				return { ...dual, ...(html != null ? { html } : {}) };
 			};
 			return run().then(onFulfilled, onRejected);
@@ -318,7 +284,6 @@ function make_awaitable(dual: DualRegion): AwaitableRegion {
 export function prebaked_region(
 	component: Component<Record<string, never>>,
 	html: string,
-	/** Internal: content-body CSS key, set by the markdown source (see {@link InlineRegion.content_id}). */
 	content_id?: string
 ): AwaitableRegion {
 	const inline: InlineRegion = {
@@ -332,22 +297,27 @@ export function prebaked_region(
 	return make_inline_awaitable(inline);
 }
 
-// `region.snippet()` — the SNIPPET shape of a region, sibling of `region()` for components. Freeze a
-// parameterless snippet to static server HTML, or build the raw `{ render, setup?, captures? }` form
-// (mirrors Svelte's `createRawSnippet`). Pure runtime, passable, renderable with plain `{@render}`.
 /**
- * Make a held region with type-checked props.
+ * Make a held region with type-checked props: a value you can pass around and render with
+ * `<Region of={f} />`.
  *
  * - A plain component import → an **inline** region (renders in this pass; can't cross the wire).
  * - A component imported `with { region: 'raw' }` → a **dual** region: inline where it's made,
- *   a signed ticket where it travels. Minting the marked form is server-only (the signer lives on
- *   the SSR leg) — call it in a load / remote / render context.
+ *   a signed ticket where it travels (the transport drops the component and signs it, so it arrives
+ *   as a **deferred** region). Minting the marked form is server-only (the signer lives on the SSR
+ *   leg) — call it in a load / remote / render context; on the client it throws. A component marked
+ *   with `wake:` is a binding too, and on the client it renders inline.
  *
  * **A dual region is awaitable.** `await region(Card, props)` renders the component to HTML on
- * the server and bakes it into the ticket, so the client swaps it in with no extra request. In an
+ * the server (snippets in the props in their portable form) and bakes it into the ticket, so the
+ * client swaps it in with no extra request. The awaited value is a plain copy, not a thenable. In an
  * async generator (`query.live`) or an async remote, `yield region(…)` / `return region(…)` is
  * awaited by the language, so the HTML travels automatically — LiveView over the channel you already
  * have. A held region you *don't* await renders inline where it lands (first paint, same SSR pass).
+ * A dual region with no server renderer is not awaitable; an inline one awaited on the client
+ * settles to a plain copy.
+ *
+ * `region.snippet()` is the snippet form of a region.
  */
 export const region: typeof make_region & { snippet: typeof region_snippet } = Object.assign(
 	make_region,

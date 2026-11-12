@@ -332,7 +332,7 @@ Core rename goes LAST: many build paths key off the package name `ogygia`.
     blocks (scanner, parser, host fs/path/hash, build cache, content CSS key) come from
     `ogygia/internal/compiler-browser` — host-seamed, so they run in node AND the Observatory.
     `prebaked_region` joins `ogygia/internal`.
-  - CONTENT owns: its bridge (`Symbol.for('ogygia.content-bridge.v1')`: markdown config, presets, the
+  - CONTENT owns: its bridge (the `ogygia.content-bridge` slot: markdown config, presets, the
     transform, scan, style sources), the preset tagging pre-transform, the collection-placement and
     loader-in-component warnings, dev HMR. `content({ markdown, presets, watchDirs, hmrDebounceMs })`
     from `@ogygia/content/vite`, plus the svelte config's `preprocess()` / `extensions()` there.
@@ -378,8 +378,9 @@ Core rename goes LAST: many build paths key off the package name `ogygia`.
       dirs, files })` (the profiler UI + its router); plugins' build hooks now run in core's `config`
       hook (before the defines); plugin packages join `ssr.noExternal` + `optimizeDeps.exclude`. The
       measurement producers stayed core (they need compiler internals) — gated by `b.measure()`.
-    - CLIENT `ogygia/plugin/client`: `defineClient({ boot({ kitPage }), regionMount(el, { entry, urls }),
-      regionUnmount(el, { entry }) })` (user: public names say REGION, never island); found by name
+    - CLIENT `ogygia/plugin/client`: `defineClient({ boot({ kitPage }), hooks: { regionMount, regionUnmount,
+      regionHydrated, … } })` (RuntimeHooks, contract/runtime-hooks.ts; one build constant per hook, read
+      statically from the file) (user: public names say REGION, never island); found by name
       (`<name>/client`), statically imported into the boot entry / `bootDev([…])` / the Kit-page dev boot;
       one gate `__OGYGIA_CLIENT_PLUGINS__` folds every call when none (per-hook DCE: later).
     - `ogygia mcp` loads `@ogygia/devtools/report` from the app's install at first need (moves to the CLI
@@ -428,7 +429,7 @@ Core rename goes LAST: many build paths key off the package name `ogygia`.
   - ONE MODULE COPY: shell src re-exports resolve to core's src in the workspace (dist when published);
     compiler-emitted specifiers stay `ogygia/...` (apps depend on `ogygia`; `ogygia/internal` and
     `ogygia/internal/server` still resolve head-on to core files via `OGYGIA_INJECTED_FILES`).
-  - SELF-NAME: `src/own-package.ts` (`OWN_PACKAGE_NAMES` = `ogygia`, `@ogygia/core`; `is_own_specifier`;
+  - SELF-NAME: `src/contract/own-package.ts` (`OWN_PACKAGE_NAMES` = `ogygia`, `@ogygia/core`; `is_own_specifier`;
     `OWN_SPECIFIER_SOURCE`; `OWN_FILE_RE` = `…/ogygia|@ogygia/core|packages/core/(src|dist)/…`). Used by
     vite `ssr.noExternal` + `optimizeDeps.exclude` + the dev `optimizeDeps.include` warning; the dev
     include names `ogygia > @ogygia/core > devalue`; package-files skip; island-deps (pkg name + own

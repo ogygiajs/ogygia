@@ -2,6 +2,7 @@
 // when REDIS_URL is set), observed purity, single-flight + fan-out, and the two edge adapters'
 // REAL request shapes (signing included) captured through a stubbed fetch.
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { createHash, createHmac } from 'node:crypto';
 import { STALE } from '@ogygia/machine';
 import { store_key, normalize_prefix, prefix_tags, PREFIX_TAG_DEPTH } from '../src/key.ts';
 import { MemoryStore } from '../src/memory-store.ts';
@@ -129,6 +130,10 @@ store_contract('memory (tier 1)', () => new MemoryStore());
 
 // A faithful little Valkey fake (get/set EX/del/scan MATCH+COUNT with cursor) so the adapter's
 // command usage is exercised on every PR; the REAL server runs the same contract below.
+// (RegExp.escape is not in Node 22, which CI runs)
+const REGEX_SPECIAL_G = /[\\^$.*+?()[\]{}|/-]/g;
+const regex_escape = (s: string): string => s.replace(REGEX_SPECIAL_G, '\\$&');
+
 function fake_valkey(): ValkeyLike & { data: Map<string, string>; expiry: Map<string, number> } {
 	const data = new Map<string, string>();
 	const sets = new Map<string, Set<string>>();
@@ -190,14 +195,15 @@ function fake_valkey(): ValkeyLike & { data: Map<string, string>; expiry: Map<st
 		async scan(cursor, ...args) {
 			// single-page cursor; honor MATCH with the same glob subset the adapter emits
 			const match = String(args[args.indexOf('MATCH') + 1]);
-			const re = new RegExp(
-				'^' +
-					match
-						.replace(/[.+^${}()|[\]]/g, '\\$&')
-						.replace(/\\\\([*?[\]\\])/g, (_, c) => '\\' + c)
-						.replace(/\*/g, '.*') +
-					'$'
-			);
+			let source = '';
+			for (let i = 0; i < match.length; i++) {
+				const c = match[i];
+				if (c === '\\') source += regex_escape(match[++i]);
+				else if (c === '*') source += '.*';
+				else if (c === '?') source += '.';
+				else source += regex_escape(c);
+			}
+			const re = new RegExp(`^${source}$`);
 			return ['0', [...data.keys()].filter((k) => re.test(k))] as unknown;
 		}
 	};
@@ -224,6 +230,54 @@ describe('valkey tag index lifetime', () => {
 		await store.put('/page/', page_entry(), { ttl: 86_400, tags: ['t'] });
 		const left = (client.expiry.get('og:t:t')! - Date.now()) / 1000;
 		expect(left).toBeGreaterThan(86_000);
+	});
+});
+
+describe('valkey client families and glob paths', () => {
+	it('evicts a prefix that holds a glob character literally, never a sibling it would match as a glob', async () => {
+		const store = new ValkeyStore(fake_valkey());
+		await store.put('/a*/x/', page_entry(), { ttl: 60 });
+		await store.put('/ab/x/', page_entry(), { ttl: 60 });
+		await store.evictWhere({ prefix: '/a*/' });
+		expect(await store.get('/a*/x/')).toBeNull();
+		expect(await store.get('/ab/x/')).not.toBeNull();
+	});
+
+	it('speaks node-redis v4: SET with an options bag after the positional form throws, and an object SCAN reply', async () => {
+		const base = fake_valkey();
+		const sets: unknown[][] = [];
+		const client: ValkeyLike = {
+			...base,
+			async set(key, value, ...args) {
+				sets.push(args);
+				if (args[0] === 'EX') throw new Error('ERR syntax error');
+				return base.set(key, value, ...args);
+			},
+			async scan(cursor, ...args) {
+				const [next, keys] = (await base.scan(cursor, ...args)) as [string, string[]];
+				return { cursor: Number(next), keys } as unknown;
+			}
+		};
+		const store = new ValkeyStore(client);
+		await store.put('/fr/a/', page_entry(), { ttl: 60 });
+		expect(sets).toEqual([['EX', 60], [{ EX: 60 }]]);
+		expect(base.expiry.has('og:a:/fr/a/')).toBe(true);
+		await store.evictWhere({ prefix: '/fr/' });
+		expect(await store.get('/fr/a/')).toBeNull();
+	});
+
+	it('speaks ioredis: SET … EX positionally, never the options bag', async () => {
+		const base = fake_valkey();
+		const sets: unknown[][] = [];
+		const store = new ValkeyStore({
+			...base,
+			async set(key, value, ...args) {
+				sets.push(args);
+				return base.set(key, value, ...args);
+			}
+		});
+		await store.put('/x/', page_entry(), { ttl: 60 });
+		expect(sets).toEqual([['EX', 60]]);
 	});
 });
 
@@ -471,15 +525,24 @@ type AnyEvent = {
 	};
 	locals: Record<string, unknown>;
 	request: Request;
+	url: URL;
+	fetch: (input: string | URL | Request, init?: RequestInit) => Promise<Response>;
+	getClientAddress: () => string;
+	platform: Record<string, unknown>;
 };
 
 function fake_event(init?: {
 	cookies?: Record<string, string>;
 	locals?: Record<string, unknown>;
 	headers?: Record<string, string>;
+	platform?: Record<string, unknown>;
 }): AnyEvent {
 	const jar = new Map(Object.entries(init?.cookies ?? {}));
 	return {
+		url: new URL('http://x/'),
+		fetch: async () => new Response('{}'),
+		getClientAddress: () => '203.0.113.7',
+		platform: init?.platform ?? {},
 		cookies: {
 			get: (n: string) => jar.get(n),
 			getAll: () => [...jar].map(([name, value]) => ({ name, value })),
@@ -550,6 +613,90 @@ describe('postrender/observe', () => {
 		expect(obs.disqualified_by).toBe('cookie:session');
 	});
 
+	describe('every way a render reaches the visitor is a per-visitor read', () => {
+		const personal = {
+			cookie: 'session=alice',
+			authorization: 'Bearer alice',
+			'x-forwarded-for': '203.0.113.7'
+		};
+		const cases: [string, Parameters<typeof fake_event>[0], (e: AnyEvent) => unknown][] = [
+			[
+				'a function-valued locals entry (a session getter)',
+				{ locals: { auth: async () => ({ user: 'alice' }) } },
+				(e) => (e.locals.auth as () => Promise<unknown>)()
+			],
+			['`in` on locals', { locals: { user: { id: 7 } } }, (e) => 'user' in e.locals],
+			['the keys of locals', { locals: { user: { id: 7 } } }, (e) => Object.keys(e.locals)],
+			[
+				'a copy of the request headers',
+				{ headers: personal },
+				(e) => new Request('http://api.example/me', { headers: e.request.headers })
+			],
+			[
+				'the request headers as entries',
+				{ headers: personal },
+				(e) => Object.fromEntries(e.request.headers)
+			],
+			[
+				'a clone of the request',
+				{ headers: personal },
+				(e) => e.request.clone().headers.get('cookie')
+			],
+			[
+				'`has` on a personal header',
+				{ headers: personal },
+				(e) => e.request.headers.has('authorization')
+			],
+			[
+				'the client address header',
+				{ headers: personal },
+				(e) => e.request.headers.get('x-forwarded-for')
+			],
+			[
+				'the forwarded host',
+				{ headers: { 'x-forwarded-host': 'other.example' } },
+				(e) => e.request.headers.get('x-forwarded-host')
+			],
+			[
+				'a geo header',
+				{ headers: { 'x-geo-country': 'DE' } },
+				(e) => e.request.headers.get('x-geo-country')
+			],
+			['the client address', {}, (e) => e.getClientAddress()],
+			[
+				'per-request platform data',
+				{ platform: { geo: { country: 'DE' } } },
+				(e) => (e.platform.geo as { country: string }).country
+			],
+			[
+				'a fetch to its own origin that carries the visitor’s cookies',
+				{ headers: personal },
+				(e) => e.fetch('/api/me')
+			]
+		];
+		for (const [name, init, read] of cases)
+			it(name, async () => {
+				const event = fake_event(init);
+				const obs = observe(event);
+				await read(event);
+				expect(obs.disqualified_by).not.toBeNull();
+			});
+
+		it('reads that are the same for every visitor still store', async () => {
+			const event = fake_event({
+				headers: { host: 'x', accept: 'text/html' },
+				platform: { env: { API: 'k' }, context: { waitUntil: () => {} } }
+			});
+			const obs = observe(event);
+			Object.fromEntries(event.request.headers);
+			void (event.platform.env as { API: string }).API;
+			void (event.platform.context as { waitUntil: unknown }).waitUntil;
+			await event.fetch('/api/public');
+			await event.fetch('http://other.example/feed');
+			expect(obs.disqualified_by).toBeNull();
+		});
+	});
+
 	it('a reason already in the read set (a flag read) is what the observation reports', () => {
 		const event = fake_event();
 		observer.app.perVisitor(event.request, 'flag:hero');
@@ -582,6 +729,18 @@ describe('postrender/stitch', () => {
 		expect(find_stitch_holes(hole('/e', 'fb', false))).toHaveLength(0);
 	});
 
+	it('reads region tags as a browser does: a quoted `>`, any case, single quotes, not in a comment, not a value', () => {
+		const html =
+			'<!-- <ogygia-region stitch="edge" endpoint="/gone"></ogygia-region> -->' +
+			'<ogygia-region class="stitch" endpoint="/no">fb</ogygia-region>' +
+			"<ogygia-region data-note=\"a>b\" STITCH='edge' ENDPOINT='/e?a=1&amp;b=2'>fb</ogygia-region>";
+		const holes = find_stitch_holes(html);
+		expect(holes.map((h) => [h.endpoint, h.mode])).toEqual([['/e?a=1&b=2', 'edge']]);
+		expect(html.slice(holes[0].start, holes[0].end)).toBe(
+			"<ogygia-region data-note=\"a>b\" STITCH='edge' ENDPOINT='/e?a=1&amp;b=2'>fb</ogygia-region>"
+		);
+	});
+
 	it('splices renders in place; nested islands land under a neutral display:contents div', async () => {
 		const html = `<a>${hole('/e1?x=1', 'fb1')}</a><b>${hole('/e2?x=2', 'fb2')}</b>`;
 		const out = await stitch_html(html, async (e) => `<h1>fresh:${e}</h1>`);
@@ -600,6 +759,12 @@ describe('postrender/stitch', () => {
 		expect(out).toContain('fallback-stays');
 		expect(out).toContain('render="defer"'); // the dead hole still client-fetches
 		expect(out).toContain('<p>ok</p>');
+		const thrown = await stitch_html(html, async (e) => {
+			if (e === '/dead') throw new Error('upstream down');
+			return '<p>ok</p>';
+		});
+		expect(thrown).toContain('fallback-stays');
+		expect(thrown).toContain('<p>ok</p>');
 	});
 });
 
@@ -637,6 +802,29 @@ describe('edge adapters', () => {
 		expect(auth).toMatch(
 			/^EG1-HMAC-SHA256 client_token=ct;access_token=at;timestamp=\d{8}T\d\d:\d\d:\d\d\+0000;nonce=[0-9a-f-]{36};signature=[A-Za-z0-9+/=]+$/
 		);
+
+		const fields = Object.fromEntries(
+			auth
+				.slice('EG1-HMAC-SHA256 '.length)
+				.split(';')
+				.map((p) => [p.slice(0, p.indexOf('=')), p.slice(p.indexOf('=') + 1)])
+		);
+		const url = new URL(captured[0].url);
+		const auth_prefix = auth.slice(0, auth.indexOf('signature='));
+		const content_hash = createHash('sha256')
+			.update(String(captured[0].init.body))
+			.digest('base64');
+		const data = [
+			'POST',
+			'https',
+			'akab-test.purge.akamaiapis.net',
+			url.pathname + url.search,
+			'',
+			content_hash,
+			auth_prefix
+		].join('\t');
+		const key = createHmac('sha256', 'cs').update(fields.timestamp).digest('base64');
+		expect(fields.signature).toBe(createHmac('sha256', key).update(data).digest('base64'));
 
 		await edge.purgeWhere({ prefix: '/fr/fr/' });
 		expect(captured[1].url).toContain('/ccu/v3/invalidate/tag/production');

@@ -1,17 +1,7 @@
-/**
- * `@ogygia/flags/openfeature` (OFREP) — speak the OpenFeature Remote Evaluation Protocol directly, with
- * ZERO vendor SDK. Any OFREP endpoint works (flagd, the OpenFeature operator, a gateway). One
- * bulk POST per request over the app's declared flags; decisions come back as variant names +
- * optional payloads, indistinguishable from native flags after the await.
- *
- *   import { decide } from '@ogygia/flags';
- *   import { ofrep } from '@ogygia/flags/openfeature';
- *   decide({ source: ofrep({ url: 'http://flagd:8016' }) });
- */
 import { request_scope } from '@ogygia/core/internal/server';
+import { net, timers } from '@ogygia/machine';
 import type { FlagSource, FlagQuery, Resolved, CtxLike } from './index.ts';
 
-// ── regexes
 const TRAILING_SLASH_RE = /\/$/;
 
 export interface OfrepOptions {
@@ -19,8 +9,8 @@ export interface OfrepOptions {
 	url: string;
 	/** Static headers (auth token, tenant) sent with every evaluation. */
 	headers?: Record<string, string>;
-	/** Build the OFREP evaluation context from the request (default: visitor `sub` →
-	 *  `targetingKey` plus every own key of `c.visitor`). */
+	/** Build the OFREP evaluation context from the request (default: visitor `sub`, else
+	 *  an anonymous visitor's `vid` → `targetingKey`, plus every own key of `c.visitor`). */
 	context?: (c: CtxLike) => Record<string, unknown>;
 	/** Per-request fetch (default global). */
 	fetch?: typeof fetch;
@@ -37,13 +27,24 @@ interface OfrepFlag {
 }
 
 function default_context(c: CtxLike): Record<string, unknown> {
-	const sub = c.visitor?.sub;
-	return { ...c.visitor, ...(sub ? { targetingKey: sub } : {}) };
+	const key = c.visitor?.sub || c.visitor?.vid;
+	return { ...c.visitor, ...(key ? { targetingKey: key } : {}) };
 }
 
+/**
+ * A flag source that speaks the OpenFeature Remote Evaluation Protocol (OFREP) directly, with no
+ * vendor SDK: any OFREP endpoint works (flagd, the OpenFeature operator, a gateway). One bulk POST
+ * per request over the app's declared flags; a boolean value reads as `on` / `off`. An error
+ * answer, a timeout or a network failure throws, so the flags fall to their native rule and it is
+ * said; a request that ended first stops the call and reports nothing.
+ *
+ *   import { decide } from '@ogygia/flags';
+ *   import { ofrep } from '@ogygia/flags/openfeature';
+ *   decide({ source: ofrep({ url: 'http://flagd:8016' }) });
+ */
 export function ofrep(opts: OfrepOptions): FlagSource {
 	const ctx_of = opts.context ?? default_context;
-	const f = opts.fetch ?? fetch;
+	const f = opts.fetch ?? net.fetch;
 	const endpoint = opts.url.replace(TRAILING_SLASH_RE, '') + '/ofrep/v1/evaluate/flags/bulk';
 	const timeout = opts.timeout ?? 800;
 	return async (queries: FlagQuery[], c: CtxLike): Promise<Record<string, Resolved>> => {
@@ -54,17 +55,14 @@ export function ofrep(opts: OfrepOptions): FlagSource {
 				method: 'POST',
 				headers: { 'content-type': 'application/json', ...opts.headers },
 				body: JSON.stringify({ context: ctx_of(c) }),
-				// (or the request ending first: nobody reads the answer then)
-				signal: AbortSignal.any([AbortSignal.timeout(timeout), ended])
+				signal: timers.timeout(timeout, ended)
 			});
-			// whole endpoint down → all native, and said (prime_flags: flags_source_failed)
 			if (!res.ok) throw new Error(`OFREP ${endpoint} answered ${res.status}`);
 			const body = (await res.json()) as { flags?: OfrepFlag[] };
 			const want = new Map(queries.map((q) => [q.name, q]));
 			for (const f of body.flags ?? []) {
 				const q = want.get(f.key);
 				if (!q || f.errorCode) continue;
-				// boolean flags: OFREP returns a boolean value; variant flags: a variant name.
 				const variant =
 					f.variant ?? (typeof f.value === 'boolean' ? (f.value ? 'on' : 'off') : undefined);
 				if (variant === undefined || !q.variants.includes(variant)) continue;
@@ -74,10 +72,7 @@ export function ofrep(opts: OfrepOptions): FlagSource {
 						: variant;
 			}
 		} catch (error) {
-			// the request ended first: nobody reads these flags, nothing failed
 			if (ended.aborted) return out;
-			// a timeout, the network, an error answer: everything falls through to the native rule,
-			// and prime_flags says it
 			throw error;
 		}
 		return out;

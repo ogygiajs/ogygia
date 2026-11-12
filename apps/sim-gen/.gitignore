@@ -1,0 +1,6 @@
+# written from a seed by internal/sim/src/gen.ts
+/src/routes/
+/src/lib/gen/
+.svelte-kit/
+build/
+node_modules/

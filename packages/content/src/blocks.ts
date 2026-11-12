@@ -1,20 +1,3 @@
-/**
- * `blocks()` — a source builder for Builder.io-style pages: a JSON tree of block nodes rendered
- * through a registry. Each entry's `body` is the rendered tree, so you render it with
- * `<Region of={entry.body} />`, exactly like a markdown body.
- *
- *   import { content, blocks } from '@ogygia/content';
- *   import Hero    from '$lib/blocks/Hero.svelte'    with { region: 'raw' };
- *   import Pricing from '$lib/blocks/Pricing.svelte' with { region: 'raw' };
- *
- *   export const pages = content({ loader: blocks(import.meta.glob('./pages/*.json'), { Hero, Pricing }) });
- *
- * The registry values are `with { region: 'raw' }` imports (held regions): each block SSRs inline and,
- * on the client, only the block types a page names — and only nodes that set a `wake` schedule — pull
- * their hydrate chunk (a node with no `wake` is HTML only, zero runtime JS). The `Blocks` renderer is
- * dynamic-imported in `init()`, so this module (and `@ogygia/content`) never pulls a `.svelte` file at
- * import time.
- */
 import type { Component } from 'svelte';
 import { region, type RegionSchedule, type RegionValue } from '@ogygia/core';
 import {
@@ -86,7 +69,6 @@ export function resolve_block_tree(
 	return out;
 }
 
-/** If Vite wrapped a lone JSON `default` export, unwrap it. */
 function unwrap_default(resolved: unknown): unknown {
 	if (!resolved || typeof resolved !== 'object' || Array.isArray(resolved)) return resolved;
 	const mod = resolved as Record<string, unknown>;
@@ -96,7 +78,6 @@ function unwrap_default(resolved: unknown): unknown {
 	return resolved;
 }
 
-/** Pull the block tree + frontmatter data out of the source's several accepted shapes. */
 function normalize(value: unknown): { tree: BlockNode[]; data: Record<string, unknown> } {
 	if (Array.isArray(value)) return { tree: value as BlockNode[], data: {} };
 	if (value && typeof value === 'object') {
@@ -113,10 +94,24 @@ function normalize(value: unknown): { tree: BlockNode[]; data: Record<string, un
 }
 
 /**
- * Build a `blocks` source. The registry is resolved into regions AT MINT (`blocks.resolve`), so an
- * entry's `body` is a clean tree of regions — the registry never rides along. `data` carries any `meta`
- * frontmatter the page declared. The body renders through an internal recomposer, the same one the
- * no-collection recipe reproduces in ten lines.
+ * A source for pages built from a JSON tree of block nodes, rendered through a registry. Each
+ * entry's `body` is the rendered tree, so `<Region of={entry.body} />` renders it like a markdown
+ * body.
+ *
+ * ```ts
+ * import { content, blocks } from '@ogygia/content';
+ * import Hero    from '$lib/blocks/Hero.svelte'    with { region: 'raw' };
+ * import Pricing from '$lib/blocks/Pricing.svelte' with { region: 'raw' };
+ *
+ * export const pages = content({ loader: blocks(import.meta.glob('./pages/*.json'), { Hero, Pricing }) });
+ * ```
+ *
+ * A page is a bare array of nodes, a single node, or `{ blocks, meta }` (`data` also works for
+ * `meta`), which becomes the entry's `data`. The registry values are `with { region: 'raw' }` imports
+ * (held regions): each block SSRs inline, and on the client only nodes that set a `wake` schedule
+ * pull their block's hydrate chunk. The registry is resolved into regions when the entry is read
+ * (`blocks.resolve`), so it never rides along. The renderer loads in `init()`, so importing this
+ * module pulls no `.svelte` file.
  */
 export function blocks(
 	input: GlobMap | RawSource<unknown>,
@@ -137,13 +132,13 @@ export function blocks(
 }
 
 export declare namespace blocks {
+	/**
+	 * `blocks.resolve(tree, registry, schedule?)`, for a page with no collection: turn a tree you
+	 * hold into region nodes (`type → region`, recursively, unknown types skipped). It must run on
+	 * the server (a `+page.server.ts` load, a remote, or a `csr = false` SSR pass), where the signing
+	 * key lives. Render the result with your own small recomposer. It is the walk `blocks()` runs.
+	 */
 	export var resolve: typeof resolve_block_tree;
 }
 
-/**
- * `blocks.resolve(tree, registry, schedule?)` — the helper for the no-collection recipe: turn a tree
- * you hold into region nodes (`type → region`, recursively, unknown types skipped). MUST run server-
- * side (a `+page.server.ts` load, a remote, or a `csr = false` SSR pass), where the signing key lives.
- * Render the result with your own small recomposer. Same walk the `blocks()` source runs at mint.
- */
 blocks.resolve = resolve_block_tree;

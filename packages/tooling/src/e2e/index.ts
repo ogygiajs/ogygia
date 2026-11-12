@@ -1,14 +1,14 @@
-// Shared Playwright fixtures + the suites' `check()` idiom — `@ogygia/tooling/e2e`, imported by every
-// package's e2e specs (packages/<name>/e2e, apps/palaestra/e2e). Siblings (by file name, `.ts` and
-// all): `/servers.ts` (spawn_server), `/re.ts` (shared regexes), `/packed.ts` (the packed ogygia),
-// `/config.ts` (each suite's playwright.config.ts), `/build.ts` (a fixture app's build).
-//
-// The hand-rolled scripts collected a PASS/FAIL list and failed at the end. `check()` keeps that
-// shape as SOFT assertions: every check in a test still runs, each failure is reported with its
-// name and extra, and the test fails once at the end — so a migrated spec reads the same as the
-// script it replaced, with Playwright's report, traces, and fixtures around it.
+/**
+ * Shared Playwright fixtures and the suites' `check()` idiom: `@ogygia/tooling/e2e`, imported by
+ * every package's e2e specs (packages/<name>/e2e, apps/palaestra/e2e). Siblings (by file name, `.ts`
+ * and all): `/servers.ts` (spawn_server), `/re.ts` (shared regexes), `/packed.ts` (the packed
+ * ogygia), `/config.ts` (each suite's playwright.config.ts), `/build.ts` (a fixture app's build).
+ *
+ * @packageDocumentation
+ */
 import { test as base, expect, type Page } from '@playwright/test';
 import { ISLAND_GRAPH_SCRIPT_G_RE } from './re.ts';
+import { said_rules, server_log_since, server_log_size } from './server-log.ts';
 
 export { expect };
 export { REPO } from './paths.ts';
@@ -28,23 +28,63 @@ export async function rules(page: Page): Promise<BrokenRule[] | null> {
 	}
 }
 
+/** The page's machine moves, one line each (`visit#3 loading -> answered`), or null where the page
+ *  keeps none (a build made without rules, a page that is not ogygia's, a page already closed). */
+export async function moves(page: Page): Promise<string | null> {
+	try {
+		return await page.evaluate(
+			() => (globalThis as { __ogygia_moves?: () => string }).__ogygia_moves?.() ?? null
+		);
+	} catch {
+		return null; // ok: closed, or navigating away: nothing to read
+	}
+}
+
 /**
  * Playwright's `test`, and at the end of every test that used a page, ogygia's rules on itself: a
  * page that has them (the dev server, a build made with `OGYGIA_RULES=1` such as the palaestra's)
  * must end the test with none broken. A soft assertion: the test's own checks all still report.
+ * A test that failed gets the page's machine moves attached (`machine moves`) and printed.
  *
  * The check rides on `page` itself, which Playwright makes only for a test that asks for it: a test
  * that reads the wire alone (`fetch`, `request`) opens no browser for the rules.
  */
-export const test = base.extend({
-	page: async ({ page }, use) => {
+export const test = base.extend<{ server_rules: void }>({
+	/**
+	 * Every test, page or not: the rules a server said broken while it ran (core server/rules.ts,
+	 * on in dev and in `OGYGIA_RULES=1` builds), read from the suite's server log
+	 * (./server-log.ts). A soft assertion, as the page's rules are. `OGYGIA_E2E_SERVER_RULES=report`
+	 * attaches and prints them instead, failing nothing.
+	 */
+	server_rules: [
+		// oxlint-disable-next-line no-empty-pattern -- Playwright reads a fixture's needs from this pattern
+		async ({}, use, info) => {
+			const from = server_log_size();
+			await use();
+			const said = said_rules(server_log_since(from));
+			if (said.length === 0) return;
+			await info.attach('server rules', { body: said.join('\n'), contentType: 'text/plain' });
+			if (process.env.OGYGIA_E2E_SERVER_RULES === 'report')
+				console.warn(`server rules said in "${info.title}":\n  ${said.join('\n  ')}`);
+			else expect.soft(said, 'ogygia server rules said during the test').toEqual([]);
+		},
+		{ auto: true }
+	],
+	page: async ({ page }, use, info) => {
 		await use(page);
 		const broken = await rules(page);
 		if (broken !== null) expect.soft(broken, 'ogygia rules broken at the end').toEqual([]);
+		if (info.status === info.expectedStatus && info.errors.length === 0) return;
+		const log = await moves(page);
+		if (!log) return;
+		await info.attach('machine moves', { body: log, contentType: 'text/plain' });
+		console.error(`machine moves in "${info.title}":\n${log}`);
 	}
 });
 
-/** A named soft assertion. `extra` (a measured value, a snippet) rides in the failure message. */
+/** A named soft assertion. `extra` (a measured value, a snippet) rides in the failure message.
+ *  Every check in a test runs, each failure is reported, and the test fails once at the end: the
+ *  shape of the PASS/FAIL scripts the specs replaced, with Playwright's report and traces around it. */
 export function check(name: string, cond: unknown, extra = ''): void {
 	expect.soft(!!cond, extra ? `${name} — ${extra}` : name).toBe(true);
 }

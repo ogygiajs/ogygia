@@ -1,21 +1,13 @@
-/**
- * `ogygia/plugin/testing` — start a plugin's server realm without a server, for unit tests: its app
- * made, its shared hooks registered, its `setup` run (exactly what the handle does at boot), and a
- * request context to call its hooks with.
- *
- *   const { app, ctx } = startPlugin(server, { name: '@ogygia/flags' });
- *   await server.request?.(ctx(new Request('http://x/')));
- */
 import type { RequestEvent } from '@sveltejs/kit';
 import { with_request_store } from '@sveltejs/kit/internal/server';
 import type { RequestContext, ServerApp, ServerPlugin } from './index.ts';
+// port-ok: a test helper's own key, made once per test process (never a running app's)
 import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 import { facts_of } from './facts.ts';
 import { request_contexts, start_plugins, type AppSigner } from './server.ts';
 import { capability_lifetime } from '../server/capability-lifetime.ts';
 import { RENEW_WINDOW_SEC } from '../server/shared-cache.ts';
 
-// ── route config: read the lookup a plugin's `ctx.routeConfig()` reads, and set its two worlds up
 /** This request's value for `key` (a registered router's merged config, else the Kit page's baked
  *  value), or `undefined`. */
 export { route_config as routeConfig } from './routes.ts';
@@ -24,8 +16,11 @@ export { clear_route_config as clearRouteConfig } from './routes.ts';
 /** Stand in for the compiler: the Kit pages' merged config (route id → key → value). */
 export { set_page_route_config as setPageRouteConfig } from './routes.ts';
 
-/** A real HMAC under a key made for this test process. */
 const TEST_KEY = randomBytes(32);
+const TEST_KEY_FP = createHmac('sha256', TEST_KEY)
+	.update('ogygia-key-fp')
+	.digest('base64url')
+	.slice(0, 8);
 const TEST_SIGNER: AppSigner = {
 	sign: (message) => createHmac('sha256', TEST_KEY).update(message).digest('base64url'),
 	verify(message, signature) {
@@ -33,14 +28,13 @@ const TEST_SIGNER: AppSigner = {
 		const got = Buffer.from(signature);
 		return want.length === got.length && timingSafeEqual(want, got);
 	},
-	// the app's hole lifetime with ogygia's defaults (`ttl` an hour, `maxPageAge` eight days)
+	fingerprint: () => TEST_KEY_FP,
 	lifetime: capability_lifetime({
 		building: false,
 		region_ttl: 3600,
 		renew_window: RENEW_WINDOW_SEC,
 		request: () => null
 	}),
-	// the handle's refusal, without its framing headers
 	deny: (why) => new Response('Forbidden', { status: 403, headers: { 'x-ogygia-deny': why } })
 };
 
@@ -59,6 +53,18 @@ export interface StartedPlugin<Options, State> {
 	ctx(request: Request, event?: Partial<RequestEvent>): RequestContext<Options, State>;
 }
 
+/**
+ * Starts a plugin's server realm without a server, for unit tests: its app made, its shared hooks
+ * registered, its `setup` run (what the handle does at boot), and a request context to call its
+ * hooks with. The app signs with a real HMAC under a key made for this process, with ogygia's
+ * default hole lifetime (`ttl` an hour, `maxPageAge` eight days), and refuses a capability with the
+ * handle's 403.
+ *
+ * ```ts
+ * const { app, ctx } = startPlugin(server, { name: '@ogygia/flags' });
+ * await server.request?.(ctx(new Request('http://x/')));
+ * ```
+ */
 export function startPlugin<Options = undefined, State = undefined>(
 	server: ServerPlugin<Options, State>,
 	{ name = 'test-plugin', options }: { name?: string; options?: Options } = {}

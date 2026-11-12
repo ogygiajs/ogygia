@@ -1,19 +1,6 @@
-/**
- * The profiler's route tree — dogfood for `@ogygia/router` v2 (internal/notes/router-v2.md). Extracted
- * from ProfilerHost so its `$infer` type is importable: the host passes bound methods across the typed
- * `ProfilerDeps` boundary, and each UI component types its props by indexing the map —
- * `let { data }: ProfilerRoutes['/'] = $props()` — instead of re-declaring the shape.
- *
- * v2 idioms on show: a flat table (the whole sitemap in one glance), the auth GUARD as the table-wide
- * `load` (no chrome component — the profiler pages render their own Shell), a root `error` boundary,
- * bare `{ GET }` endpoint objects, and thrown `error()` for the expired-report 404s.
- */
-// This module is a PAGE MODULE (devtools' `b.pageModules({ files })`): its page components are
-// router-css roots, so their scoped styles link when the profiler renders them.
 import { routes, page, error, type Ctx, type PageDef, type Router } from '@ogygia/router';
 import type { Analysis } from './analyze.ts';
 import type { ReportExtras, ReportMeta, RequestEntry, RouteAgg } from './report.ts';
-// Type-only (erased) — index.ts value-imports THIS module, so a value import back would cycle.
 import type { StoredReport, SampledSummary, TrapStatus } from './index.ts';
 import Dashboard from './ui/Dashboard.svelte';
 import Report from './ui/Report.svelte';
@@ -75,8 +62,7 @@ export interface ProfilerDeps {
 		/** why the background recorders are off (a serverless host), when they are */
 		background_note: string | null;
 	};
-	/** Two stored reports side by side (404 when either expired). */
-	/** `cmp` is null when this server no longer holds one of the reports: the page then compares
+	/** Two stored reports side by side. `cmp` is null when this server no longer holds one of the reports: the page then compares
 	 *  from the browser's store (the ids come back so it can) */
 	compare(
 		a: string | undefined,
@@ -110,7 +96,7 @@ export interface ProfilerDeps {
 	/** `session_problem`: why a login that just succeeded still has no session (null otherwise). */
 	login_props(c: Ctx): { base: string; next: string; session_problem: string | null };
 	login(c: Ctx): Promise<Response>;
-	logout(c: Ctx): Response;
+	logout(c: Ctx): Promise<Response>;
 	upload(c: Ctx): Promise<Response>;
 	report_stored(id: string | undefined): StoredReport | undefined;
 	/** Like `report_stored`, but falls through to the configured storage backend (SQLite/Redis/
@@ -149,8 +135,6 @@ export interface ProfilerDeps {
 	report_raw(stored: StoredReport): Promise<Response>;
 }
 
-/** Shared lookup for the report representations: the stored report (memory or the storage backend),
- *  or a thrown 404. */
 async function report_or_404<R>(
 	d: ProfilerDeps,
 	id: string | undefined,
@@ -164,11 +148,20 @@ async function report_or_404<R>(
 type CtxFn<R> = (c: Ctx) => R;
 type ProfilerPage<Load, Actions = unknown> = PageDef<readonly [], Load, Actions, unknown, unknown>;
 
-/** Build the profiler router. Auth is the table-wide `load` (a redirect/deny short-circuits every
- *  route; on allow it seeds `{ base }`); thrown `error()` renders the root `Message` boundary.
- *  `/report/[id]` is PUBLIC (a share `#fragment` decrypts client-side); its `.json`/`.dump`/`/raw`
- *  siblings keep the suffix so they stay behind the guard's server-data gate. Endpoints are
- *  the plain `{ GET }` object form (bare handlers; `c.params.id` reads from the table key). */
+/**
+ * Build the profiler router. Auth is the table-wide `load`: a redirect or deny short-circuits every
+ * route (the hydration beacon and the recording window too); on allow it seeds `{ base }`.
+ *
+ * - `/report/[id]` gives the server's report only to a logged-in visitor (else anyone could read
+ *   reports by guessing ids); a guest gets the share-link gate, which decrypts a `#fragment` in the
+ *   browser. A guest never reaches the storage backend. When this server holds the report in
+ *   memory, the gate says so and offers the login: the visitor is most likely its owner on a fresh
+ *   browser.
+ * - Its `.json`, `.html`, `.dump` and `/raw` files GET the stored report by id (a thrown 404 once it
+ *   expired). `.json`, `.html`, `.dump` and `.ogp` also take a POST that carries the report (the
+ *   page's .ogp bytes or the browser's kept copy), which any instance can answer: on a serverless
+ *   host the only kind of request that finds the report at all.
+ */
 export function build_profiler_router(d: ProfilerDeps): Router<{
 	readonly '/': ProfilerPage<(c: Ctx) => ReturnType<ProfilerDeps['dashboard']>>;
 	readonly '/run': ProfilerPage<(c: Ctx) => ReturnType<ProfilerDeps['run_page']>>;
@@ -182,7 +175,7 @@ export function build_profiler_router(d: ProfilerDeps): Router<{
 		(c: Ctx) => ReturnType<ProfilerDeps['login_props']>,
 		{ default: CtxFn<Promise<Response>> }
 	>;
-	readonly '/logout': { readonly GET: CtxFn<Response> };
+	readonly '/logout': { readonly GET: CtxFn<Promise<Response>> };
 	readonly '/view': ProfilerPage<() => { base: string }, { default: CtxFn<Promise<Response>> }>;
 	readonly '/reports.json': { readonly GET: CtxFn<Promise<Response>> };
 	readonly '/report/[id]': ProfilerPage<
@@ -222,9 +215,7 @@ export function build_profiler_router(d: ProfilerDeps): Router<{
 			'/page': { GET: (c) => d.record_page(c) },
 			'/reset': { GET: (c) => d.reset(c) },
 			'/status.json': { GET: (c) => c.json(d.status(c)) },
-			// the browser's hydration timings (runtime/beacon.ts) — behind the guard like everything else
 			'/beacon': { POST: (c) => d.beacon(c) },
-			// a window you start and stop around what a test does (@ogygia/testing, the Record tab)
 			'/window/start': { POST: (c) => d.window_start(c) },
 			'/window/stop': { POST: (c) => d.window_stop(c) },
 			'/login': page(Login, {
@@ -236,8 +227,6 @@ export function build_profiler_router(d: ProfilerDeps): Router<{
 				load: () => ({ base: d.base }),
 				actions: { default: (c) => d.upload(c) }
 			}),
-			// The bare report page renders from EITHER the server report (logged in only — else an unauth
-			// visitor could read reports by guessing the id) OR a share-link `#fragment` (client-side).
 			'/reports.json': { GET: async (c) => c.json(await d.list_stored()) },
 			'/report/[id]': page(Report, {
 				load: async (c) => {
@@ -246,15 +235,9 @@ export function build_profiler_router(d: ProfilerDeps): Router<{
 						: d.report_stored(c.params.id);
 					if (stored && (await d.authed(c)))
 						return { report: await d.report_view(stored), base: d.base, login: null, exists: true };
-					// Not logged in (or no such report): the page renders the share-link gate. When this
-					// server HAS the report, say so and offer the login — the visitor is most likely its
-					// owner on a fresh browser, not a share-link recipient.
 					return { report: null, base: d.base, login: d.login_url(c), exists: !!stored };
 				}
 			}),
-			// each representation also takes a POST that CARRIES the report (the page's .ogp bytes or
-			// the browser's kept copy): any instance can answer it, which on a serverless host is the
-			// only kind of request that finds the report at all
 			'/report/[id].json': {
 				GET: (c) => report_or_404(d, c.params.id, d.report_json),
 				POST: (c) => d.report_posted(c, 'json')
@@ -267,21 +250,15 @@ export function build_profiler_router(d: ProfilerDeps): Router<{
 				GET: (c) => report_or_404(d, c.params.id, d.report_dump_json),
 				POST: (c) => d.report_posted(c, 'dump')
 			},
-			// the encrypted .ogp, made by whichever instance answers from the kept copy the request
-			// carries (only a server holds the key, and on serverless rarely the one that recorded it)
 			'/report/[id].ogp': {
 				POST: (c) => d.report_posted(c, 'ogp')
 			},
 			'/report/[id]/raw': {
 				GET: (c) => report_or_404(d, c.params.id, d.report_raw)
 			},
-			// Before/after: two stored reports, deltas signed so a regression reads positive.
 			'/compare/[a]/[b]': page(Compare, { load: (c) => d.compare(c.params.a, c.params.b) }),
-			// profile a caught request again, in full page mode, with the inputs it was caught with
 			'/replay/[id]': { GET: (c) => d.replay(c.params.id, c) },
-			// the whole site: the request cloud and the layer cake, from this instance or a sink
 			'/site': page(Site, { load: (c) => d.site(c) }),
-			// The source peek behind an expanded row (dev only; 404 elsewhere).
 			'/source': { GET: (c) => d.source(c) }
 		},
 		{
