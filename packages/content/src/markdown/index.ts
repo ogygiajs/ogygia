@@ -16,7 +16,7 @@
 
 import type { MdsvexOptions } from 'mdsvex';
 import type { PreprocessorGroup, Processed } from 'svelte/compiler';
-import { BuildCache, content_css_key } from '@ogygia/core/internal/compiler-browser';
+import { BuildCache, content_css_key } from '@ogygia/compiler';
 import { flights, STALE } from '@ogygia/machine';
 import { bridge } from '../bridge.ts';
 import { RegionStore } from '../region-store.ts';
@@ -47,8 +47,6 @@ export { diff_markers } from './diff.ts';
 export { inline_markers } from './inline-markers.ts';
 export type { InlineMarkerOptions } from './inline-markers.ts';
 export type { Fence, MetaParser, VariantGenerator, Variant } from './code.ts';
-// the `code` / `md` macros, for an in-browser compiler (the Observatory) — the plugin's own pair
-export { snippet_macros, type SnippetMacro } from '../macros/snippets.ts';
 
 // ── regexes
 const BACKSLASH_G = /\\/g;

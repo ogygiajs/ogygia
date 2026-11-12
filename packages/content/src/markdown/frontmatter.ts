@@ -366,8 +366,7 @@ function read_flow_map(p: Cursor): Record<string, unknown> {
 		}
 		skip_ws(p);
 		if (p.s[p.i] === ':') p.i++;
-		const value = read_flow_node(p);
-		obj[key] = value;
+		set_key(obj, key, read_flow_node(p));
 		skip_ws(p);
 		const c = p.s[p.i];
 		if (c === ',') {
@@ -588,15 +587,30 @@ function parse_mapping(ctx: Ctx, indent: number): Record<string, unknown> {
 		ctx.i++;
 		const clean = strip_comment(value_part).trim();
 
-		if (is_block_scalar_indicator(clean)) {
-			obj[key] = parse_block_scalar(ctx, indent, clean);
-		} else if (clean === '') {
-			obj[key] = parse_child(ctx, indent);
-		} else {
-			obj[key] = parse_scalar(clean);
-		}
+		set_key(
+			obj,
+			key,
+			is_block_scalar_indicator(clean)
+				? parse_block_scalar(ctx, indent, clean)
+				: clean === ''
+					? parse_child(ctx, indent)
+					: parse_scalar(clean)
+		);
 	}
 	return obj;
+}
+
+/** Sets a parsed key as the object's own, as `JSON.parse` does: a `__proto__` key never sets its
+ *  prototype (test: frontmatter.test.ts › a `__proto__` key is a plain key). */
+function set_key(obj: Record<string, unknown>, key: string, value: unknown): void {
+	if (key === '__proto__')
+		Object.defineProperty(obj, key, {
+			value,
+			writable: true,
+			enumerable: true,
+			configurable: true
+		});
+	else obj[key] = value;
 }
 
 /** Dispatch a block node at column `indent`: sequence, mapping, or scalar. */
