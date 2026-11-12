@@ -1,4 +1,5 @@
 import { machine, STALE, type Scope } from '@ogygia/machine';
+import { OG_LEN, OGYGIA_SLOT } from '../wire-markup.ts';
 
 const STREAM_DONE_SLOT = '__ogygia_done__';
 
@@ -20,13 +21,13 @@ function has_template_close(html: string): boolean {
  */
 export function build_parcel(slot: string, html: string): string {
 	if (has_template_close(html))
-		return `<template data-ogygia-slot="${slot}" data-og-len="${html.length}">${html}</template>`;
-	return `<template data-ogygia-slot="${slot}">${html}</template>`;
+		return `<template ${OGYGIA_SLOT}="${slot}" ${OG_LEN}="${html.length}">${html}</template>`;
+	return `<template ${OGYGIA_SLOT}="${slot}">${html}</template>`;
 }
 
 /** The done-sentinel parcel (empty template) the client watches to end the batch. */
 export function done_parcel(): string {
-	return `<template data-ogygia-slot="${STREAM_DONE_SLOT}"></template>`;
+	return `<template ${OGYGIA_SLOT}="${STREAM_DONE_SLOT}"></template>`;
 }
 
 /** One region call's answer in a batch: its slot (the capability signature) and its HTML. Null:
