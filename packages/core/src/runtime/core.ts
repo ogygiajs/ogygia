@@ -67,6 +67,7 @@ import { slots, type FrameOps } from './slots.ts';
 import {
 	create_answer,
 	create_hole,
+	busy_machines,
 	create_live,
 	create_paint,
 	create_wake,
@@ -74,6 +75,7 @@ import {
 	type Hole,
 	type Live,
 	type Paint,
+	type RegionMachinesNow,
 	type Wake
 } from './region-machines.ts';
 import { KEEP_FALLBACK_HTML } from '../keep-fallback-marker.ts';
@@ -81,6 +83,7 @@ import { download, region_fetch, region_rate_limited } from '../policies.ts';
 import {
 	install_rules,
 	note_handed,
+	note_left,
 	note_mount,
 	note_shown,
 	note_turn,
@@ -1276,6 +1279,16 @@ class OgygiaRegion extends HTMLElement {
 		if (this.#paint.now === painting) this.#paint.go('idle');
 	}
 
+	/** Where each of this region's machines is now, by name (for the rule on a region that left). */
+	#machines(): RegionMachinesNow {
+		return {
+			hole: this.#hole.now.kind,
+			wake: this.#wake.now.kind,
+			'live-region': this.#live.now.kind,
+			'region-paint': this.#paint.now.kind
+		};
+	}
+
 	/**
 	 * THE single apply path. A frame's HTML lands here from any source (own fetch, stream parcel,
 	 * navigation batch, mutation). First arrival hydrates the hole; a later arrival at a newer
@@ -2141,6 +2154,11 @@ class OgygiaRegion extends HTMLElement {
 		// stays: a region put back keeps what it showed.
 		if (this.#hole.now.kind !== 'idle') this.#hole.go('idle');
 		if (this.#wake.now.kind !== 'cold') this.#wake.go('cold');
+		// A frame still waiting for its sheets never paints now (its wait comes back STALE): its paint
+		// visit ends here, with the region's lifetime, not at each wait (#1132).
+		if (this.#paint.now.kind !== 'idle') this.#paint.go('idle');
+		// (every region machine is at rest now: the rule holds it there, ./rules.ts `note_left`)
+		if (RULES) note_left(this, () => busy_machines(this.#machines()));
 		// Its lifetime in the page ends: its sleep, its viewport snapshot, its binding to the store,
 		// a replay still waiting for its frame, and its mailbox (what is queued is dropped; a step
 		// that waits gets STALE).

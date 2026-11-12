@@ -4,6 +4,7 @@
 // one render) must not hold the others on their fallback forever: once it has been quiet long enough
 // their reservations fail, and each hole fetches on its own.
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { observe } from '@ogygia/machine';
 import { streamFrames } from '../../src/runtime/frame-nav.ts';
 import { _reset, ensure } from '../_frames.ts';
 import { frameAddress } from '../../src/frame.ts';
@@ -54,5 +55,43 @@ describe('a stalled batch stream', () => {
 		await vi.advanceTimersByTimeAsync(10_000);
 		expect(outcome, 'the stalled stream let the waiting hole go').toBe('own');
 		expect(own).toHaveBeenCalledTimes(1);
+	});
+
+	it('an answer that never starts: the stream is given up while sending, and its holes are let go', async () => {
+		vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+		let aborted = false;
+		vi.spyOn(window, 'fetch').mockImplementation(
+			(_url, init) =>
+				new Promise<Response>((_, reject) =>
+					init?.signal?.addEventListener('abort', () => {
+						aborted = true;
+						reject(new DOMException('aborted', 'AbortError'));
+					})
+				)
+		);
+		const steps: string[] = [];
+		const off = observe((name, from, to) => {
+			if (name === 'batch-stream') steps.push(`${from?.kind} -> ${to?.kind}`);
+		});
+		const own = vi.fn(async () => 'own');
+		try {
+			void streamFrames([ep('s1'), ep('s2')]);
+			const outcomes = [ep('s1'), ep('s2')].map((e) =>
+				ensure(frameAddress(e), own).then(
+					() => 'answered',
+					(err: { name?: string }) => err?.name ?? 'failed'
+				)
+			);
+			// a few quiet seconds are a server still rendering
+			await vi.advanceTimersByTimeAsync(5_000);
+			expect(aborted).toBe(false);
+			await vi.advanceTimersByTimeAsync(10_000);
+			expect(await Promise.all(outcomes)).toEqual(['OgygiaBatchMiss', 'OgygiaBatchMiss']);
+		} finally {
+			off();
+		}
+		expect(steps).toContain('sending -> stalled');
+		expect(aborted, 'the request is aborted').toBe(true);
+		expect(own).not.toHaveBeenCalled();
 	});
 });
