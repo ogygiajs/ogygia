@@ -35,17 +35,27 @@ export function asked_twice(world: World, realm: string): string[] {
 /** What one document holds twice: a stylesheet, a style text, an island's props, a page seed, a
  *  module preload. */
 export function held_twice(doc: Document): string[] {
-	const twice = (what: string, keys: Array<string | null>): string[] => {
+	/** `keys` held twice, each within its own `scope` (default: the document). */
+	const twice = (what: string, keys: Array<string | null>, scope?: number[]): string[] => {
 		const seen = new Set<string>();
 		const out = new Set<string>();
-		for (const k of keys) {
+		for (const [i, k] of keys.entries()) {
 			if (k === null || k === '') continue;
-			if (seen.has(k)) out.add(`${what} ${k.length > 80 ? k.slice(0, 80) + '…' : k}`);
-			seen.add(k);
+			const at = `${scope?.[i] ?? 0} ${k}`;
+			if (seen.has(at)) out.add(`${what} ${k.length > 80 ? k.slice(0, 80) + '…' : k}`);
+			seen.add(at);
 		}
 		return [...out];
 	};
 	const all = (s: string) => [...doc.querySelectorAll(s)];
+	// (an island's props are its answer's: a region fetched apart carries its own, so one island in
+	// two answers holds them twice by design; gen 173, seed 17. Twice in one answer is waste)
+	const answers = new Map<Element | null, number>();
+	const answer_of = (e: Element): number => {
+		const a = e.closest('ogygia-region[endpoint]');
+		if (!answers.has(a)) answers.set(a, answers.size);
+		return answers.get(a)!;
+	};
 	return [
 		...twice(
 			'stylesheet',
@@ -59,7 +69,8 @@ export function held_twice(doc: Document): string[] {
 			'props',
 			all('script[data-ogygia-props]').map(
 				(s) => `${s.getAttribute('data-ogygia-props')}:${s.textContent}`
-			)
+			),
+			all('script[data-ogygia-props]').map(answer_of)
 		),
 		...twice(
 			'page seed',
