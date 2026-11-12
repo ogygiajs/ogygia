@@ -24,23 +24,35 @@
  * a cap. Visible CONTENT (a hole's HTML on screen) does not wait: it IS what the visitor sees.
  *
  * A queued download's class is re-read when the queue drains, so an island scrolling into view moves
- * from `ahead` to `visible`; `promote()` lifts a queued one by hand (a click on a link whose prefetch
+ * from `ahead` to `visible`. A shared download (a `flights()` flight: a page prefetch, a hole's warm,
+ * a module warm) queues with its flight, and a caller that joins it at a higher class raises the
+ * flight (load-class.ts): the queued slot then drains at that class (a click on a link whose prefetch
  * still waits). On a Kit-hydrated document Kit's own start sets the pace, so nothing waits on the
  * critical resources there (the window still applies).
  */
 import { after_document_painted, yield_task } from './schedule.ts';
 import { kit_hydrates_page } from './kit-boot.ts';
-import { clock, flights, machine, scope, type Scope, type Stale } from '@ogygia/machine';
+import {
+	clock,
+	flights,
+	machine,
+	scope,
+	type InFlight,
+	type Scope,
+	type Stale
+} from '@ogygia/machine';
 import { emit as dt_emit } from '../events/bus.ts';
+import { class_at, CLASSES, PRIORITY, type LoadClass } from './load-class.ts';
 import type { CriticalOutcome } from '../contract/runtime-hooks.ts';
 import { slots } from './slots.ts';
+
+export { fetch_priority_of, type LoadClass } from './load-class.ts';
 
 const HOOK_CRITICAL_SETTLED =
 	typeof __OGYGIA_HOOK_CRITICAL_SETTLED__ !== 'undefined' ? __OGYGIA_HOOK_CRITICAL_SETTLED__ : true;
 
 const DEVTOOLS = typeof __OGYGIA_DEVTOOLS__ !== 'undefined' ? __OGYGIA_DEVTOOLS__ : false;
 
-export type LoadClass = 'user' | 'visible' | 'ahead' | 'speculative';
 /** `code`: an island's modules. `content`: HTML (a hole's answer, a prefetched page). */
 export type LoadKind = 'code' | 'content';
 
@@ -48,14 +60,6 @@ export type LoadKind = 'code' | 'content';
 export const CRITICAL_CAP_MS = 2500;
 /** Background (`ahead` + `speculative`) downloads in flight at once. */
 export const BACKGROUND_WINDOW = 3;
-
-const RANK: Record<LoadClass, number> = { user: 0, visible: 1, ahead: 2, speculative: 3 };
-const CLASSES: readonly LoadClass[] = ['user', 'visible', 'ahead', 'speculative'];
-
-/** The fetch priority a class downloads at (`fetch(…, { priority })`, `<link fetchpriority>`). */
-export function fetch_priority_of(cls: LoadClass): 'high' | 'auto' | 'low' {
-	return cls === 'user' ? 'high' : cls === 'visible' ? 'auto' : 'low';
-}
 
 /**
  * `visible` when `el` — or, for a region with no area of its own, what it renders — intersects the
@@ -246,7 +250,8 @@ let scroll_watch: Scope | null = null;
 /**
  * A queued download: asking for one queues it. `ready` resolves with a `release` to call when the
  * download is done (settled, success or not). `cls` may be a getter, re-read whenever the queue
- * drains (viewport changes); `promote` lifts it.
+ * drains (viewport changes). A slot that serves a shared download is given its `flight`: it is at
+ * least at the class of the flight's priority, and a raise of the flight drains it at the new class.
  */
 export class LoadSlot {
 	readonly kind: LoadKind;
@@ -256,33 +261,48 @@ export class LoadSlot {
 	/** Still in the queue: a drain takes it out when it starts. */
 	queued = true;
 	#read: () => LoadClass;
-	#forced: LoadClass | null = null;
+	#flight: InFlight | null;
 	#resolve!: (release: () => void) => void;
 
-	constructor(o: { kind: LoadKind; cls: LoadClass | (() => LoadClass); label?: string }) {
+	constructor(o: {
+		kind: LoadKind;
+		cls: LoadClass | (() => LoadClass);
+		label?: string;
+		flight?: InFlight;
+	}) {
 		this.kind = o.kind;
 		this.label = o.label;
 		this.#read = typeof o.cls === 'function' ? o.cls : () => o.cls as LoadClass;
+		this.#flight = o.flight ?? null;
 		this.ready = new Promise<() => void>((r) => (this.#resolve = r));
 		queue.push(this);
 		waiting++;
 		if (typeof o.cls === 'function') watch_scroll();
+		// a caller joined the flight at a higher class: still queued, it drains at that class now
+		this.#flight?.onRaise(() => {
+			if (this.queued) drain();
+		});
 		if (!critical_done() && waits_for_critical(this.kind, this.cls())) void critical_settled(); // ok: the critical wait only waits on timers and resources' events; it never rejects
 		drain();
 	}
 
-	/** Its class now: the getter's, or the promoted one when that ranks higher. */
+	/** Its class now: the getter's, or its flight's (or the one it was lifted to) when that is more
+	 *  urgent. */
 	cls(): LoadClass {
 		const c = this.#read();
-		const forced = this.#forced;
-		return forced !== null && RANK[forced] < RANK[c] ? forced : c;
+		const flight = this.#flight;
+		const p = Math.max(flight === null ? -1 : flight.priority, this.#lifted);
+		return p > PRIORITY[c] ? class_at(p) : c;
 	}
 
-	/** Lift it to `c` (a prefetch the visitor then navigates to, a warm a hover joins); a class that
-	 *  ranks lower than one it was lifted to already changes nothing. */
+	/** The priority `promote` lifted it to (-1: none). */
+	#lifted = -1;
+
+	/** Lift it to `c` by hand (the router's prefetch, which is not on a flight's priority yet); a
+	 *  class below one it was lifted to changes nothing. */
 	promote(c: LoadClass): void {
-		if (this.#forced !== null && RANK[this.#forced] <= RANK[c]) return;
-		this.#forced = c;
+		if (PRIORITY[c] <= this.#lifted) return;
+		this.#lifted = PRIORITY[c];
 		drain();
 	}
 
@@ -366,7 +386,7 @@ async function drain_queue(): Promise<void> {
 		if (drainer.now.kind === 'again') drainer.go('draining');
 		const asked = queue.length;
 		const by_class: LoadSlot[][] = [[], [], [], []];
-		for (let i = 0; i < asked; i++) by_class[RANK[queue[i].cls()]].push(queue[i]);
+		for (let i = 0; i < asked; i++) by_class[3 - PRIORITY[queue[i].cls()]].push(queue[i]);
 		// nothing has run since the classes were read; after a start its holder has, so they are read again
 		let ran = false;
 		let started = false;

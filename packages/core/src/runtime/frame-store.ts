@@ -27,13 +27,16 @@ import {
 	scope,
 	STALE,
 	type Flights,
+	type InFlight,
 	type Scope,
 	type Stale
 } from '@ogygia/machine';
 import type { Frame } from '../frame.ts';
 import { watch, notify, watcher_count } from '../ref-watch.ts';
 
-export type FrameFetcher = (signal: AbortSignal) => Promise<string>;
+/** The store's fetch at an address. `flight` is the address's flight: its priority is the most
+ *  urgent caller's, raised as callers join (a queued download follows it: load-scheduler.ts). */
+export type FrameFetcher = (signal: AbortSignal, flight: InFlight) => Promise<string>;
 
 /** Frame addresses live in the hub's watcher space under a namespace, so region binders subscribe
  *  through the ONE hub `watch`/`notify` primitive (hub v2 phase W) — the frame store no longer owns
@@ -139,16 +142,21 @@ function frame_flights(): FrameFlights {
 		key: ['a'],
 		ignore: { work: 'one flight per address: a fetch or a batch part out there is joined' },
 		keep: 0,
-		run: ({ a, work }, signal): Promise<string> =>
-			typeof work === 'function' ? fetch_frame(a, work, signal) : work
+		run: ({ a, work }, signal, flight): Promise<string> =>
+			typeof work === 'function' ? fetch_frame(a, work, signal, flight) : work
 	}));
 }
 
 /** A fetch at an address takes its ticket at its start, and writes what it got (a newer write may
  *  have raced past it: the answer is whatever the store then holds). */
-async function fetch_frame(a: string, fetcher: FrameFetcher, signal: AbortSignal): Promise<string> {
+async function fetch_frame(
+	a: string,
+	fetcher: FrameFetcher,
+	signal: AbortSignal,
+	flight: InFlight
+): Promise<string> {
 	const t = ticket(a);
-	const html = await fetcher(signal);
+	const html = await fetcher(signal, flight);
 	if (!signal.aborted) write({ a, v: t, html });
 	const e = entries.get(a);
 	return (e && shown_of(e)?.html) ?? html;
@@ -351,13 +359,16 @@ export function subscribe(a: string, cb: (f: Frame) => void): () => void {
  * fetch is aborted only once its LAST caller left — one unmounting element must not kill a fetch
  * its twin still awaits. Rejections propagate to every joined caller; retry policy stays with the
  * caller (the element).
+ *
+ * `priority` is how soon this caller needs it (its load class, ./load-class.ts): a fetch out at a
+ * lower one, a warm still waiting for a background turn, is raised to it, never lowered.
  */
 export async function ensure(
 	a: string,
 	fetcher: FrameFetcher,
-	opts: { force?: boolean; signal?: AbortSignal } = {}
+	opts: { force?: boolean; signal?: AbortSignal; priority?: number } = {}
 ): Promise<string | Stale> {
-	const { signal } = opts;
+	const { signal, priority } = opts;
 	const f = frame_flights();
 	const e = entry(a);
 	let fresh = opts.force === true;
@@ -368,7 +379,7 @@ export async function ensure(
 			const refused = e.refused;
 			e.refused = null;
 			if (!fresh && refused !== null) throw refused;
-			const html = await f.get({ a, work: fetcher }, { signal, fresh });
+			const html = await f.get({ a, work: fetcher }, { signal, fresh, priority });
 			// STALE: this caller left, the store was reset, or a forced fetch took the place of the
 			// one it waited on: then it asks again (and joins that one)
 			if (html !== STALE || signal?.aborted || frame_flights() !== f) return html;

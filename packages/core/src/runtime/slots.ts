@@ -114,11 +114,12 @@ export type PageOps = {
  */
 export type FrameOps = {
 	subscribe(a: string, cb: (f: Frame) => void): () => void;
-	/** `STALE` when its `signal` aborted: only that caller leaves the fetch. */
+	/** `STALE` when its `signal` aborted: only that caller leaves the fetch. A join at a higher
+	 *  `priority` (a load class's, ./load-class.ts) raises the fetch it joins. */
 	ensure(
 		a: string,
-		fetcher: (signal: AbortSignal) => Promise<string>,
-		opts?: { force?: boolean; signal?: AbortSignal }
+		fetcher: import('./frame-store.ts').FrameFetcher,
+		opts?: { force?: boolean; signal?: AbortSignal; priority?: number }
 	): Promise<string | Stale>;
 	/** A renewal answered a fresh capability for this address; and the one it answered, if any. */
 	renew(a: string, fresh: string): void;

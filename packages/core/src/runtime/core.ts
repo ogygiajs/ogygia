@@ -90,6 +90,8 @@ import { once_visible } from './observe.ts';
 import { sheet_of, use_sheets, type RegionSheet } from './region-sheets.ts';
 import { preload_island_graph } from './island-graph-preload.ts';
 import { fetch_priority_of, LoadSlot, viewport_class, type LoadClass } from './load-scheduler.ts';
+import { PRIORITY } from './load-class.ts';
+import type { FrameFetcher } from './frame-store.ts';
 import { connected_regions } from './connected.ts';
 import { restore_props_sidecar } from './sidecar.ts';
 import { hole_facts_of } from './hole-facts.ts';
@@ -931,9 +933,12 @@ class OgygiaRegion extends HTMLElement {
 		if (!endpoint || !is_allowed_region_endpoint(endpoint)) return;
 		const address = frameAddress(endpoint);
 		if (DEVTOOLS) dt_emit({ domain: 'runtime', name: 'region.prefetch', ...dt_ids(this) });
-		// a warm ahead of the hole's own schedule: background work (load-scheduler.ts)
+		// a warm ahead of the hole's own schedule: background work (load-scheduler.ts), raised when the
+		// hole's own fetch or `preload()` joins it
 		void slots.frames
-			?.ensure(address, this.#frame_fetcher(endpoint, false, 'ahead'))
+			?.ensure(address, this.#frame_fetcher(endpoint, false, 'ahead'), {
+				priority: PRIORITY.ahead
+			})
 			?.catch(() => {}); // ok: a warm ahead; the hole's own fetch asks again and says its failure
 	}
 
@@ -943,18 +948,23 @@ class OgygiaRegion extends HTMLElement {
 	 * marker on a 204 (`keepFallback()` on the server). A revalidate bypasses the browser cache
 	 * (the endpoint may answer `private, max-age`, and stale is the whole point of revalidating).
 	 */
-	#frame_fetcher(endpoint: string, revalidate: boolean, cls: LoadClass | (() => LoadClass)) {
-		const class_now = typeof cls === 'function' ? cls : () => cls;
-		return async (signal: AbortSignal) => {
+	#frame_fetcher(
+		endpoint: string,
+		revalidate: boolean,
+		cls: LoadClass | (() => LoadClass)
+	): FrameFetcher {
+		return async (signal, flight) => {
 			// HTML is content: on screen it never waits for the page's critical resources; off screen it
-			// is background work (load-scheduler.ts). The server gate still caps what one page asks of
-			// the origin at once.
-			const release = await new LoadSlot({ kind: 'content', cls, label: endpoint }).ready;
+			// is background work (load-scheduler.ts). Every caller of the address shares this fetch, so
+			// it goes at the most urgent one's class (its flight's). The server gate still caps what one
+			// page asks of the origin at once.
+			const slot = new LoadSlot({ kind: 'content', cls, label: endpoint, flight });
+			const release = await slot.ready;
 			try {
 				return await this.#fetch_region(
 					endpoint,
 					revalidate,
-					fetch_priority_of(class_now()),
+					fetch_priority_of(slot.cls()),
 					signal
 				);
 			} finally {
@@ -1484,10 +1494,11 @@ class OgygiaRegion extends HTMLElement {
 		// not an expired capability (only its own GET renews it).
 		if (!revalidate && frames.join && !endpoint.includes('&ttl=') && !capability_expired(endpoint))
 			await frames.join(endpoint);
-		const fetcher = this.#frame_fetcher(endpoint, revalidate, () =>
-			this.#visitor ? 'user' : viewport_class(this)
-		);
-		const run = () => frames.ensure(address, fetcher, { force: revalidate, signal });
+		const cls = () => (this.#visitor ? 'user' : viewport_class(this));
+		const fetcher = this.#frame_fetcher(endpoint, revalidate, cls);
+		// (joining a warm out for the address: it is raised to this hole's class)
+		const run = () =>
+			frames.ensure(address, fetcher, { force: revalidate, signal, priority: PRIORITY[cls()] });
 		try {
 			return await run();
 		} catch (err) {
