@@ -183,7 +183,9 @@ export class Collection<
 	#disposals = 0;
 	readonly #waiters = new Set<() => void>();
 	#backlinkIndex: Map<string, RefEntry[]> | null = null;
-	#backlinkKey: string | null = null;
+	/** The worlds the backlink index was built from, each at its stamp: it stands while the same
+	 *  collections (by identity: a dev reload's replacement has its own world) are all still fresh. */
+	#backlinkFrom: readonly { world: World; stamp: number }[] = [];
 
 	constructor(opts: CollectionBaseOptions<Data, Meta>) {
 		if (!opts || opts.loader == null) throw new OgygiaError('content_loader_missing');
@@ -557,8 +559,14 @@ export class Collection<
 			if (names.length) contributors.push({ src, names });
 		}
 		await Promise.all(contributors.map((c) => c.src.#loaded()));
-		const key = `${GRAPH.all.size}|${contributors.map((c) => c.src.version()).join(',')}`;
-		if (this.#backlinkKey === key && this.#backlinkIndex) return this.#backlinkIndex;
+		const from = contributors.map((c) => world_of(c.src));
+		const was = this.#backlinkFrom;
+		if (
+			this.#backlinkIndex &&
+			was.length === from.length &&
+			was.every((w, i) => w.world === from[i] && w.world.fresh(w.stamp))
+		)
+			return this.#backlinkIndex;
 		const index = new Map<string, RefEntry[]>();
 		for (const { src, names } of contributors) {
 			for (const se of src.visibleRefs()) {
@@ -572,7 +580,7 @@ export class Collection<
 				}
 			}
 		}
-		this.#backlinkKey = key;
+		this.#backlinkFrom = from.map((world) => ({ world, stamp: world.stamp() }));
 		this.#backlinkIndex = index;
 		return index;
 	}
