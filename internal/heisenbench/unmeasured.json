@@ -4763,6 +4763,58 @@
 		{
 			"id": "packages/core/src/hooks.ts > OgygiaHandle > render_region > catch:0~2baffa",
 			"reason": "a failed measures hook counts as not measured (the failure is said by the hook runner), constant work"
+		},
+		{
+			"id": "packages/devtools/src/profiler/index.ts > Profiler > #has_session",
+			"reason": "checks each session cookie of a RequestEvent (not cloneable), one HMAC per cookie; proven in packages/devtools/test/profiler-login-guard.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/index.ts > Profiler > #address",
+			"reason": "reads the platform's client address off a RequestEvent (not cloneable), constant work; proven in packages/devtools/test/profiler-login-guard.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/index.ts > Profiler > #key_ok",
+			"reason": "one constant-time compare and a budget charge (a profiler instance, not cloneable), constant work; proven in packages/devtools/test/profiler-login-guard.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/index.ts > Profiler > #session_mac",
+			"reason": "one HMAC under a key derived once (node:crypto, a profiler instance), constant work; proven in packages/devtools/test/profiler-login-guard.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/index.ts > Profiler > #new_session",
+			"reason": "random bytes and one HMAC (not replayable: random), constant work; proven in packages/devtools/test/profiler-login-guard.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/index.ts > Profiler > #session_ok",
+			"reason": "one bounded regex, a clock read and one HMAC compare (reads the clock, not replayable), constant work; proven in packages/devtools/test/profiler-login-guard.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/index.ts > Profiler > #revoke_sessions",
+			"reason": "logout: ends the request's sessions in a bounded map (a profiler instance, not cloneable), at most 4096 entries; proven in packages/devtools/test/profiler-login-guard.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/messages/runtime.ts > DEVTOOLS_ERRORS > devtools_profiler_secret_short > text",
+			"reason": "a message's wording, constant text; said in packages/devtools/test/profiler-login-guard.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/messages/runtime.ts > DEVTOOLS_ERRORS > devtools_profiler_secret_short > details",
+			"reason": "a message's wording, constant text; said in packages/devtools/test/profiler-login-guard.test.ts"
+		},
+		{
+			"id": "packages/core/src/server/rate-limit.ts > RateLimiter > over",
+			"reason": "one map read and a clock read (hidden state), constant work; proven in packages/core/test/audit-fixes.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/index.ts > Profiler > #flag_mac",
+			"reason": "one HMAC under a key derived once for flags (node:crypto, a profiler instance), constant work; proven in packages/devtools/test/profiler-measures.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/index.ts > Profiler > #flag_session",
+			"reason": "reads one cookie of a RequestEvent (not cloneable), one regex, a revoked-set read and one HMAC compared in constant time, constant work; proven in packages/devtools/test/profiler-measures.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/index.ts > Profiler > #live_session",
+			"reason": "checks each session cookie of a RequestEvent (not cloneable), one HMAC per cookie; proven in packages/devtools/test/profiler.test.ts"
 		}
 	]
 }
