@@ -170,6 +170,7 @@ export function render_page(
 }
 
 /** Reads a component makes without meaning a page key (Svelte, devalue, a thenable check). */
+// static: the property names that are never page keys
 const NOT_A_KEY = new Set([
 	'then',
 	'toJSON',
