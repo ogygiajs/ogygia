@@ -379,7 +379,7 @@ export class Program {
 	drop_component(componentPath: string): Set<string> {
 		const gone = new Set<string>();
 		const ids = new Set<string>();
-		for (const [vpath, entry] of this.registry)
+		for (const entry of this.registry.values())
 			if (same_module_path(entry.componentPath, componentPath)) ids.add(entry.id);
 		for (const id of ids) {
 			for (const rows of this.#rows.get(id)?.values() ?? [])
