@@ -44,6 +44,7 @@ export type MarkKey =
 	| 'exp'
 	| 'format'
 	| 'fp'
+	| 'fragmentFailed'
 	| 'head'
 	| 'healed'
 	| 'hide'
@@ -167,6 +168,7 @@ export const MARK: { readonly [K in MarkKey]: Mark } = {
 	exp: { attr: 'data-og-exp', by: 'page' },
 	format: { attr: 'data-og-format', by: 'page' },
 	fp: { attr: 'data-og-fp', by: 'page' },
+	fragmentFailed: { attr: 'data-og-fragment-failed', by: 'page' },
 	head: { attr: 'data-og-head', by: 'page' },
 	healed: { attr: 'data-og-healed', by: 'page' },
 	hide: { attr: 'data-og-hide', by: 'devtools' },
