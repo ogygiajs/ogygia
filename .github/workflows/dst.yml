@@ -6,12 +6,9 @@ name: dst
 # branch with a seeded test, deduplicated by signature (internal/sim/src/ci.ts).
 #
 # Schedule and manual runs ONLY: never on a pull request or a push, so no fork's code ever runs
-# here, and it tests the repository's own code. A good neighbour on the shared runners: it counts
-# the queued runs every 20 minutes and waits, or stops early, while CI needs them.
-#
-# TEMPORARY: the simulator (internal/sim) and the ports it needs are not on main yet, so the job
-# checks out the DST branch (`ref`, default `dst/3-oracles`). Once they land, the default becomes
-# main and this note goes.
+# here, and it tests the repository's own code (main, unless a manual run names another ref). A good
+# neighbour on the shared runners: it counts the queued runs every 20 minutes and waits, or stops
+# early, while CI needs them.
 
 on:
   schedule:
@@ -22,8 +19,8 @@ on:
   workflow_dispatch:
     inputs:
       ref:
-        description: 'The ref to simulate (temporary default: the DST branch, until it lands on main)'
-        default: dst/3-oracles
+        description: The ref to simulate
+        default: main
       steps:
         description: Actions per seed
         default: '40'
@@ -61,7 +58,7 @@ jobs:
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ inputs.ref || 'dst/3-oracles' }}
+          ref: ${{ inputs.ref || 'main' }}
           persist-credentials: false
 
       - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
