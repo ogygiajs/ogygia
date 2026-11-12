@@ -7,6 +7,8 @@
  *   map and cache keep it; the simulator has neither, so it may fetch one again) and a page (a
  *   navigation back asks again by design);
  * - no POST the app refused (4xx): a batch to a path that answers none (#987);
+ * - nothing alive after its owner: an observer still observing once every element it watches has
+ *   left the document (`tab.orphans()`; test/orphans.node.test.ts);
  * - nothing sent twice in the document: one stylesheet linked twice, one `<style>` text twice, one
  *   island's props (`data-ogygia-props`) or a page seed twice, one module preloaded twice;
  * - nothing said: a console warning in such a document is something ogygia (or the app) found wrong.
@@ -152,6 +154,7 @@ export function waste(world: World, tab: Tab): Broken | null {
 		...asked_twice(world, tab.realm).map((k) => `asked twice: ${k}`),
 		...asked.left.map((k) => `refused: ${k}`),
 		...held.left.map((k) => `held twice: ${k}`),
+		...tab.orphans().map((o) => `alive after its owner: ${o}`),
 		...warned(tab).map((l) => `said: ${l.split('\n')[0].slice(0, 200)}`)
 	];
 	if (found.length > 0)

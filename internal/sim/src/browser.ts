@@ -44,6 +44,9 @@ export interface Tab {
 	/** The listeners it holds, each as `window|document <type> <its code's hash>` (with
 	 *  `SIM_SITES=1`, and the line that added it): the leak oracle's per-listener counts. */
 	listening(): string[];
+	/** Observers still observing whose every watched element has left the document (their owner
+	 *  ended and nothing disconnected them), each as `<Name> watching <the first one's tag>`. */
+	orphans(): string[];
 }
 
 /** What a document holds that outlives a page visit if nobody lets it go. */
@@ -423,6 +426,8 @@ export class Browsers {
 			};
 		}
 		const observing = new Set<object>();
+		/** What each observer watches (an element; a PerformanceObserver watches none). */
+		const watched = new WeakMap<object, { name: string; targets: Set<Element> }>();
 		const w = window as unknown as Record<string, unknown>;
 		for (const name of [
 			'IntersectionObserver',
@@ -435,10 +440,23 @@ export class Browsers {
 			const Counted = class extends Real {
 				observe(...a: unknown[]): unknown {
 					observing.add(this);
+					if (a[0] !== null && typeof a[0] === 'object' && 'isConnected' in a[0]) {
+						let mine = watched.get(this);
+						if (mine === undefined) watched.set(this, (mine = { name, targets: new Set() }));
+						mine.targets.add(a[0] as Element);
+					}
 					return (Real.prototype as { observe(...a: unknown[]): unknown }).observe.apply(this, a);
+				}
+				unobserve(...a: unknown[]): unknown {
+					watched.get(this)?.targets.delete(a[0] as Element);
+					return (Real.prototype as { unobserve(...a: unknown[]): unknown }).unobserve.apply(
+						this,
+						a
+					);
 				}
 				disconnect(): unknown {
 					observing.delete(this);
+					watched.delete(this);
 					return (Real.prototype as { disconnect(): unknown }).disconnect.call(this);
 				}
 			};
@@ -463,6 +481,21 @@ export class Browsers {
 				(d as unknown as Document).querySelectorAll('ogygia-region *').length
 		});
 		tab.listening = () => [...listeners.values()].sort();
+		tab.orphans = () => {
+			const out: string[] = [];
+			for (const o of observing) {
+				const mine = watched.get(o);
+				if (mine === undefined || mine.targets.size === 0) continue;
+				const targets = [...mine.targets];
+				if (targets.some((t) => t.isConnected)) continue;
+				const t = targets[0];
+				const id = t.getAttribute?.('id');
+				out.push(
+					`${mine.name} watching <${t.tagName?.toLowerCase() ?? t.nodeName}${id ? ` id="${id}"` : ''}>`
+				);
+			}
+			return out.sort();
+		};
 	}
 
 	/**
@@ -511,6 +544,7 @@ export class Browsers {
 			platform: null,
 			held: () => ({ listeners: 0, intervals: 0, observers: 0, head: 0, elements: 0 }),
 			listening: () => [],
+			orphans: () => [],
 			said_by: new Map()
 		};
 		// (each line said is the document's that said it: one action can show several documents,
