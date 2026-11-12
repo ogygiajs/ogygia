@@ -122,6 +122,23 @@ export function set_ref_names_reader(fn: (() => RefNames | null) | null): void {
 }
 
 /**
+ * Run `fn` minting with LOCAL names: no fence, places counted from 0 in the order `fn` first mints
+ * each instance. What `fn` writes then names its refs the same way in any render, on either leg
+ * (a hole's identity, server/props-wire.ts `hole_identity`). The render's own names come back after.
+ */
+export function with_local_names<T>(fn: () => T): T {
+	const reg = registry();
+	const outer = reg.names;
+	const local: RefNames = { ids: new WeakMap(), fence: '', next: 0 };
+	reg.names = () => local;
+	try {
+		return fn();
+	} finally {
+		reg.names = outer;
+	}
+}
+
+/**
  * `text` with the minting render's ref ids in place form, fence dropped: what a render of the same
  * thing writes every time. Text from a render with no names (the client, off a request) is
  * returned as it is.
