@@ -15,6 +15,7 @@
  * way.
  */
 import { boot_link, router_link, slots } from './slots.ts';
+import { clock } from '@ogygia/machine';
 import { dispose_scope } from '../ref.ts';
 import {
 	NO_RECONCILE_SELECTOR,
@@ -71,9 +72,8 @@ const jump_to_hash = (hash: string) => router_link().jump_to_hash(hash);
 const DEVTOOLS = typeof __OGYGIA_DEVTOOLS__ !== 'undefined' ? __OGYGIA_DEVTOOLS__ : false;
 const HOOK_NAVIGATED =
 	typeof __OGYGIA_HOOK_NAVIGATED__ !== 'undefined' ? __OGYGIA_HOOK_NAVIGATED__ : true;
-/** High-res clock for devtools nav timings (guarded — dead when off). */
-const dt_now = () =>
-	typeof performance !== 'undefined' && performance.now ? performance.now() : Date.now();
+/** The monotonic clock, for devtools nav timings (dead when off). */
+const dt_now = clock.mono;
 
 /** RECONCILER R1: when on (and morph is installed), a nav diffs the body IN PLACE — matched regions
  *  keep their live islands, changed regions re-mount, the shell morphs — instead of a full-body

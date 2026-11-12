@@ -1,5 +1,6 @@
 import {
 	backoffAfter,
+	clock,
 	flights,
 	mailbox,
 	scope,
@@ -160,10 +161,8 @@ function dt_ids(el: Element): { entry?: string; fp?: string } {
 	return { entry, fp };
 }
 
-/** High-res clock for devtools timings (guarded — dead when devtools is off). */
-function now_ms(): number {
-	return typeof performance !== 'undefined' && performance.now ? performance.now() : Date.now();
-}
+/** The monotonic clock, for devtools timings (dead when devtools is off). */
+const now_ms = clock.mono;
 
 /**
  * THE HYDRATE CORE, loaded once, lazily (./hydrate-core.ts): Svelte's `hydrate`, the provider
@@ -309,10 +308,11 @@ async function recover_from_stale_deps(entry: string | null): Promise<void> {
 	if (!import.meta.env.DEV || !entry || typeof location === 'undefined') return;
 	try {
 		const last = Number(sessionStorage.getItem(STALE_DEP_RELOAD_KEY) || 0);
+		// wall: the last reload's time lives in sessionStorage, across page loads
 		if (Date.now() - last < STALE_DEP_RELOAD_WINDOW_MS) return; // already reloaded — don't loop
 		const res = await fetch(island_module_url(entry), { cache: 'no-store' });
 		if (!res.ok) return; // a real 404 — leave the error visible, it is not a re-optimize
-		sessionStorage.setItem(STALE_DEP_RELOAD_KEY, String(Date.now()));
+		sessionStorage.setItem(STALE_DEP_RELOAD_KEY, String(Date.now())); // wall: read by the next page load
 		location.reload();
 	} catch {
 		// ok: dev only: storage or fetch blocked; the error said before this stays, and the dev reloads by hand
