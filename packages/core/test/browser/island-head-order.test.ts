@@ -11,6 +11,7 @@ import { link_boot } from '../../src/runtime/boot-link.ts';
 import { boot_link } from '../../src/runtime/slots.ts';
 import { load_devalue } from '../../src/runtime/devalue-lane.ts';
 import { hydrate_island } from '../../src/runtime/hydrate-core.ts';
+import { RuntimeSession } from '../../src/runtime/session.ts';
 import HeadStyle from './fixtures/HeadStyle.svelte';
 
 const decode = (key: 'head_style_head_b64' | 'head_style_body_b64') =>
@@ -40,4 +41,49 @@ test("islands' head tags keep the server order when the islands wake in the othe
 	const after = document.head.querySelector('meta[name="after"]')!;
 	for (const s of document.head.querySelectorAll('meta[name="head-style"]'))
 		expect(s.compareDocumentPosition(after) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+});
+
+/** What a step adds to the head: `html`'s elements and a text anchor after them, as Svelte's
+ *  head() renders a block fresh; `between`, a node the head already held, is moved inside that run
+ *  while it renders. */
+function step_adds(s: RuntimeSession, html: string, between: Element | null = null): Node[] {
+	const mark = s.mark_head();
+	const tpl = document.createElement('template');
+	tpl.innerHTML = html;
+	const nodes: Node[] = [...tpl.content.childNodes, document.createTextNode('')];
+	document.head.append(...nodes);
+	if (between) (nodes[0] as Element).after(between);
+	s.record_island_head(mark);
+	return nodes;
+}
+
+test('a run another node stands inside stays where it is (Svelte removes a head block from its first node to its last)', () => {
+	const s = new RuntimeSession();
+	document.head.innerHTML =
+		'<meta name="x" content="1"><meta name="y" content="2"><meta name="after">';
+	s.adopt_document_head();
+	const after = document.head.querySelector('meta[name="after"]')!;
+	const nodes = step_adds(s, '<meta name="x" content="1"><meta name="y" content="2">', after);
+	// (the page's copies retired; the run left as it stood, the page's node inside it)
+	expect([...document.head.childNodes]).toEqual([nodes[0], after, nodes[1], nodes[2]]);
+});
+
+test('a block with no page copy stays where Svelte put it', () => {
+	const s = new RuntimeSession();
+	document.head.innerHTML = '<meta name="x" content="1"><meta name="after">';
+	s.adopt_document_head();
+	const nodes = step_adds(s, '<meta name="z" content="3">');
+	expect([...document.head.childNodes].slice(-2)).toEqual(nodes);
+});
+
+test("a block with a page copy takes the copy's place, its anchor with it", () => {
+	const s = new RuntimeSession();
+	document.head.innerHTML =
+		'<meta name="x" content="1"><meta name="y" content="2"><meta name="after">';
+	s.adopt_document_head();
+	const nodes = step_adds(s, '<meta name="y" content="2">');
+	expect(
+		[...document.head.childNodes].map((n) => (n as Element).getAttribute?.('name') ?? '#text')
+	).toEqual(['x', 'y', '#text', 'after']);
+	expect(document.head.childNodes[1]).toBe(nodes[0]);
 });
