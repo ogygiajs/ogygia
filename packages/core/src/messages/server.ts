@@ -15,6 +15,21 @@ const SECRET_FIX =
 
 /** The errors: `throw new OgygiaError(code, args)`, or `console.error(new OgygiaError(…))`. */
 export const SERVER_ERRORS = {
+	remote_arg_not_data: {
+		text: (a: { kind: string }): string => prose`
+			a remote function's argument carried an ogygia ${a.kind} value. Arguments sent from the
+			browser must be plain data.
+		`,
+		details: (): string => prose`
+			A remote function was called from the browser with an argument that holds an ogygia value:
+			a region, a snippet, a function, a wired class instance, a store or a derived store. The
+			server refuses it with a 400 and runs nothing. Those values travel from the server to the
+			browser only.
+
+			Send the plain data the server needs instead (an id, the props, a slug), and build the
+			value on the server from it.
+		`
+	},
 	handle_secret_too_short: {
 		text: (a: { min: number }): string =>
 			`handle({ secret }) is too short for production (need ≥${a.min} UTF-8 bytes).`,
@@ -103,6 +118,18 @@ export const SERVER_WARNINGS = {
 		details: (): string => prose`
 			Dev only. A region's server render threw, so the islands endpoint answered 500 and the page
 			keeps the region's fallback. The error follows the message.
+		`
+	},
+	rate_limit_shared_address: {
+		text: (a: { address: string }): string =>
+			`the region render budget is spent for ${a.address}, a proxy's address: every visitor behind it shares one budget`,
+		details: (): string => prose`
+			The islands endpoint's render budget (\`ogygia({ rateLimit })\`) is per client address, the
+			one your adapter gives (\`event.getClientAddress()\`). This address is private, loopback or
+			link-local, so no visitor has it: it is a reverse proxy's or a load balancer's, and every
+			visitor behind it shares one budget, so normal traffic gets 429s. Tell your adapter which
+			header holds the visitor's address (adapter-node: \`ADDRESS_HEADER\`, with \`XFF_DEPTH\` for
+			\`X-Forwarded-For\`). Said once per server.
 		`
 	},
 	region_render_abandoned: {

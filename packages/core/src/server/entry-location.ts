@@ -13,7 +13,6 @@
  */
 import { runtime_url, entry_location, region_deps, location_map } from 'ogygia:server';
 import { runtime_bootstrap_tags } from './document-tail.ts';
-
 /** The file an entry is loaded from: its content-hashed location, else the identity itself. */
 export function entry_src(identity: string): string {
 	return (identity && entry_location(identity)) || identity;
