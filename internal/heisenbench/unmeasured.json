@@ -4799,6 +4799,10 @@
 		{
 			"id": "packages/core/src/server/answer-context.ts > hole_answer_context",
 			"reason": "one hole answer's render context: Kit's context Map (live request objects, not cloneable), copied once with the nested mark when the hole wakes, constant work; proven in packages/core/test/woken-hole-capability.test.ts"
+		},
+		{
+			"id": "packages/federation/src/serve.ts > thaw_notice > every:0~b2197b",
+			"reason": "one typeof check per tag (an inline callback, not replayable on its own), constant work; run by packages/federation/test/thaw-notice-shape.test.ts"
 		}
 	]
 }
