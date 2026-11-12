@@ -86,6 +86,26 @@ describe('router pattern matching', () => {
 		);
 		expect(fill('/docs/[slug]', {})).toBe('/docs/');
 	});
+
+	it('fill() keeps the slashes of a rest value and encodes each of its segments, as Kit does', () => {
+		expect(fill('/files/[...path]', { path: 'a/b/c.txt' })).toBe('/files/a/b/c.txt');
+		expect(fill('/files/[...path]', { path: 'a b/c?d' })).toBe('/files/a%20b/c%3Fd');
+		expect(fill('/u/[name]', { name: 'a/b' })).toBe('/u/a%2Fb');
+		expect(fill('/[[lang]]/x', { lang: 'a/b' })).toBe('/a%2Fb/x');
+		const c = compile('/files/[...path]');
+		expect(match_one(c, fill('/files/[...path]', { path: 'a b/c' }))!.params).toEqual({
+			path: 'a b/c'
+		});
+	});
+
+	it('fill() drops the segment of an empty optional or rest param, as Kit does', () => {
+		expect(fill('/a/[[x]]/b', {})).toBe('/a/b');
+		expect(fill('/a/[[x]]/b', { x: '' })).toBe('/a/b');
+		expect(fill('/[[lang]]/docs', {})).toBe('/docs');
+		expect(fill('/files/[...path]', { path: '' })).toBe('/files');
+		expect(fill('/[...path]', { path: '' })).toBe('/');
+		expect(fill('/a/[...rest]/b', {})).toBe('/a/b');
+	});
 });
 
 describe('router pattern matching takes time in line with the path', () => {
