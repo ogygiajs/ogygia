@@ -19,7 +19,7 @@
  * classes: without one the loader map is empty, but the bundler cannot see that through the virtual
  * module, so this code shipped to every island page for a lookup that always found nothing.
  */
-import { flights } from '@ogygia/machine';
+import { cache, flights } from '@ogygia/machine';
 import { wire_loaders, wire_all } from 'ogygia:region';
 import { import_again } from './import-again.ts';
 import { props_sidecar_of } from './sidecar.ts';
@@ -35,7 +35,11 @@ export function install(): void {
 const loaders = wire_loaders;
 const paths = Object.keys(loaders);
 /** Each class module's loader: what it asks for next (its file, or a fresh URL after a failure). */
-const imports = new Map<string, () => Promise<unknown>>();
+const imports = cache<string, () => Promise<unknown>>({
+	name: 'class module loaders',
+	// (one per class module the build lists: never more)
+	max: Math.max(1, paths.length)
+});
 /** Each class module's load, by path, kept once it succeeds (a failure is never kept). */
 const loads = flights({
 	name: 'wire class',

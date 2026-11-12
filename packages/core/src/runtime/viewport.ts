@@ -31,6 +31,7 @@ const DEPTH = 3;
 /** How many children of each level stand in for it. */
 const WIDTH = 16;
 /** No children followed. */
+// static: the empty list, shared and never written
 const NONE: readonly Element[] = [];
 
 /** The children that stand in for an element with no area of its own. */
@@ -201,9 +202,13 @@ class Tracker {
 	}
 }
 
-/** The trackers, by root margin, and the scope that owns their observers. */
-let trackers = new Map<string, Tracker>();
-let owner: Scope | null = null;
+/** The document's trackers, one per distinct root margin (the few the app names), and the scope
+ *  that owns their observers: made at the first watch, ended only by a test's reset. */
+class Trackers {
+	readonly by_margin = new Map<string, Tracker>();
+	readonly owner: Scope = scope();
+}
+let T: Trackers | null = null;
 
 /**
  * Watch whether `el` is on screen (the root grown by `root_margin`): `heard` gets its state once it
@@ -211,8 +216,9 @@ let owner: Scope | null = null;
  * state known at once.
  */
 export function watch_viewport(el: Element, root_margin: string, heard: Heard): () => void {
-	let t = trackers.get(root_margin);
-	if (!t) trackers.set(root_margin, (t = new Tracker(root_margin, (owner ??= scope()))));
+	const all = (T ??= new Trackers());
+	let t = all.by_margin.get(root_margin);
+	if (!t) all.by_margin.set(root_margin, (t = new Tracker(root_margin, all.owner)));
 	return t.watch(el, heard);
 }
 
@@ -230,7 +236,7 @@ export function once_on_screen(el: Element, root_margin: string, fire: () => voi
  *  by the same rule. */
 export function on_screen(el: Element): boolean {
 	if (typeof innerHeight === 'undefined' || !el.isConnected) return false;
-	return trackers.get('0px')?.decided.get(el) ?? decide(el, DEPTH, measure) === true;
+	return T?.by_margin.get('0px')?.decided.get(el) ?? decide(el, DEPTH, measure) === true;
 }
 
 /** An element as its box is now, against the viewport. */
@@ -245,12 +251,11 @@ function measure(el: Element): Seen {
 
 /** Test seam: how many observers exist (one per distinct root margin). */
 export function tracker_count(): number {
-	return trackers.size;
+	return T?.by_margin.size ?? 0;
 }
 
 /** Test seam: a fresh document (every observer disconnected, every watch forgotten). */
 export function reset_viewport(): void {
-	owner?.close();
-	owner = null;
-	trackers = new Map();
+	T?.owner.close();
+	T = null;
 }
