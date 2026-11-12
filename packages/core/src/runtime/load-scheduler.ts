@@ -36,8 +36,13 @@ import { flights, machine, type InFlight, type Stale } from '@ogygia/machine';
 import { emit as dt_emit } from '../events/bus.ts';
 import { class_at, CLASSES, PRIORITY, type LoadClass } from './load-class.ts';
 import { on_screen, watch_viewport } from './viewport.ts';
+import type { CriticalOutcome } from '../contract/runtime-hooks.ts';
+import { slots } from './slots.ts';
 
 export { fetch_priority_of, type LoadClass } from './load-class.ts';
+
+const HOOK_CRITICAL_SETTLED =
+	typeof __OGYGIA_HOOK_CRITICAL_SETTLED__ !== 'undefined' ? __OGYGIA_HOOK_CRITICAL_SETTLED__ : true;
 
 const DEVTOOLS = typeof __OGYGIA_DEVTOOLS__ !== 'undefined' ? __OGYGIA_DEVTOOLS__ : false;
 
@@ -62,9 +67,7 @@ export function viewport_class(el: Element): 'visible' | 'ahead' {
 
 // ── the critical-resources gate ─────────────────────────────────────────────────────────────────
 
-/** How the critical-resources wait ended: they `arrived` (or failed), the visitor's first `input`,
- *  the `cap`, or `none` were pending. */
-export type CriticalOutcome = 'arrived' | 'input' | 'cap' | 'none';
+export type { CriticalOutcome };
 type CriticalReport = { outcome: CriticalOutcome; resources: number; waited_ms: number };
 
 /**
@@ -128,6 +131,12 @@ function settle_critical(outcome: CriticalOutcome): void {
 			: { outcome, resources: 0, waited_ms: 0 };
 	gate.go('settled', { report });
 	if (DEVTOOLS) dt_emit({ domain: 'runtime', name: 'load.critical', ...report });
+	if (HOOK_CRITICAL_SETTLED)
+		slots.hooks?.criticalSettled?.({
+			outcome: report.outcome,
+			resources: report.resources,
+			waitedMs: report.waited_ms
+		});
 	drain();
 }
 
