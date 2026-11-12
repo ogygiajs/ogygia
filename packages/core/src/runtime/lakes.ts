@@ -15,6 +15,11 @@ import { runtime_session } from './session.ts';
 import { slots, type LakeArm, type LiftedLake } from './slots.ts';
 import { warn } from '../messages/core.ts';
 import { OG_STATIC } from '../wire-markup.ts';
+import { note_lake_restore } from './rules.ts';
+
+// the runtime's rules (./rules.ts): dev, and a build made with OGYGIA_RULES=1; folds out elsewhere
+const RULES =
+	import.meta.env?.DEV || (typeof __OGYGIA_RULES__ !== 'undefined' ? __OGYGIA_RULES__ : false);
 
 /** Feature entry: fill the `lakes` slot so core lifts/restores frozen regions. */
 export function install(): void {
@@ -72,8 +77,10 @@ export function restore(parent: Element, lifted: LiftedLake[]): void {
 	// ride per-instance, but the id is component+schedule), so `querySelector([entry])` returns the
 	// FIRST for both — both frags land in lake #1, leaving lake #2 empty. `lift()` collected `lifted`
 	// in DOM order under this exact direct-child filter, and hydrate-in-place doesn't reorder the frozen
-	// children, so the i-th surviving lake here owns the i-th lifted frag.
+	// children, so the i-th surviving lake here owns the i-th lifted frag (rule_lake_restored: the
+	// counts agree).
 	const lakes = lifted_lakes_of(parent);
+	if (RULES) note_lake_restore(parent, lifted.length, lakes.length);
 	// a live snippet's lakes stayed in place: settled and remembered here all the same, as the host is awake
 	for (const lake of parent.querySelectorAll(FROZEN_SELECTOR)) {
 		if (lake.parentElement?.closest('ogygia-region') !== parent || !in_live_snippet(lake, parent))
