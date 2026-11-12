@@ -219,7 +219,7 @@ shadow boundary keeps it from the dock — a built dock opened unstyled. -->
 			const url = URL.createObjectURL(new Blob([text], { type: 'application/json' }));
 			const a = document.createElement('a');
 			a.href = url;
-			a.download = `ogygia-trace-${Date.now()}.json`;
+			a.download = `ogygia-trace-${Date.now()}.json`; // wall: a file name that sorts by time
 			a.click();
 			// (the download is the page's, not the dock's: it lets go of the file even if the dock goes)
 			// oxlint-disable-next-line ogygia/owned-effects -- one-shot, ends itself, outlives the dock on purpose

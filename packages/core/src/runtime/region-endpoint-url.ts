@@ -47,7 +47,7 @@ const CLOCK_SKEW_SEC = 300;
  */
 export function capability_expired(
 	endpoint: string,
-	now_ms: number = Date.now(),
+	now_ms: number = clock.wall(), // wall: against the server's signed epoch `exp`
 	page_origin: string = location.origin
 ): boolean {
 	try {
