@@ -31,6 +31,16 @@ describe('normalize', () => {
 			].join('\n')
 		);
 	});
+
+	it("drops a page store's mark: a stored copy is the render it kept (gen 63, seed 26)", async () => {
+		const { Window } = await import('happy-dom');
+		const page = (head: string) => {
+			const w = new Window();
+			w.document.write(`<html><head><title>t</title>${head}</head><body><p>hi</p></body></html>`);
+			return normalize(w.document as unknown as Document);
+		};
+		expect(page('<meta name="ogygia-stored" content="hit">')).toBe(page(''));
+	});
 });
 
 describe('page errors', () => {
