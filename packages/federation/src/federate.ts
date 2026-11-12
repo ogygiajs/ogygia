@@ -7,7 +7,7 @@
  * Called at server module-eval (in or under hooks.server.ts). The handle reads the registration
  * back to serve `/og/fragment/*`, `/og/thaw`, and the deferred remote-region holes.
  */
-import { net, outbox, policy, type Outbox } from '@ogygia/machine';
+import { net, outbox, policy, timers, type Outbox } from '@ogygia/machine';
 import { fed_app } from './app.ts';
 import { warn } from './messages.ts';
 import { PeerHandle } from './peer.ts';
@@ -124,7 +124,7 @@ async function post_thaw(t: Thaw, signal: AbortSignal): Promise<void> {
 		method: 'POST',
 		headers: { 'content-type': 'application/json', ...signed },
 		body: t.body,
-		signal: AbortSignal.any([signal, AbortSignal.timeout(PEER_TRY_MS)])
+		signal: timers.timeout(PEER_TRY_MS, signal)
 	});
 	if (!res.ok) throw new Error(`${t.peer_name} answered ${res.status}`);
 }
