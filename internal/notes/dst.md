@@ -349,9 +349,11 @@ answer again but never replaces a flight (`flying -> flying` is no target: feder
 
 EVERY STEP ACCOUNTED FOR (`src/steps.ts`, test/steps.test.ts). The ledger `internal/sim/steps.json`
 puts each step in exactly one bucket: `reached` (the standard sweep reaches it), `covered` (the fake
-browser cannot; a named real test does, and the check finds that test in its file) or `dead` (no code
-takes it; an issue asks for its removal). A step in no bucket fails. `node src/steps.ts` is the static
-check (the PR check job, once the ledger is complete); `node src/sweep.ts` runs the standard sweep (the
+browser cannot, or no sweep seed does; a named real test does, and the check finds that test in its
+file; its `reason` says what the sweep lacks) or `dead` (no code takes it; an issue asks for its
+removal). A step in no bucket fails, and so does a ledger entry no machine has (a removed step leaves
+the ledger with it). `node src/steps.ts` is the static check, run by e2e.yml's PR check job ("Every
+machine step accounted for", 188/188 since 2026-11-12); `node src/sweep.ts` runs the standard sweep (the
 ledger's `sweep`: palaestra and generated apps' seeds) and fails when a `reached` step was not reached,
 a `dead` one was, or a step is in no bucket; `--write` sets `reached` to what it reached. A step only a
 lucky seed reaches is not covered: the sweep's `plans` (saved runs in `internal/sim/sweep-plans/`, each

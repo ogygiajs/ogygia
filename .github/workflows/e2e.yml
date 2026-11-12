@@ -134,6 +134,11 @@ jobs:
       - name: CI scripts' own tests
         run: pnpm run ci:test
 
+      # every step of every machine the packages define is reached by the simulator's sweep, taken
+      # by a named real test, or dead and filed (internal/sim/steps.json): a new step in no bucket fails
+      - name: Every machine step accounted for
+        run: node internal/sim/src/steps.ts
+
       # What `check` would run, asked of turbo first: when every check task is a cache hit, nothing
       # runs a browser (a replay only prints the stored logs), so the browser's setup is skipped.
       - name: Plan
