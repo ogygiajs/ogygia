@@ -136,6 +136,25 @@ export const KNOWN: ReadonlyArray<{
 	seen?(world: World, tab: Tab): boolean;
 }> = [
 	{
+		issue: 914,
+		what: 'every deferred peer widget shares one answer',
+		// (the generated peer's widgets say whose they are, `w<k> for r<slot>`: another slot's
+		// widget in one; each widget's subtree set aside)
+		applies: (shown, fresh) => widget_labels(shown) !== widget_labels(fresh),
+		forgive: (s) => {
+			const out: string[] = [];
+			let inside: string | null = null;
+			for (const line of s.split('\n')) {
+				const indent = /^ */.exec(line)![0];
+				if (inside !== null && indent.length > inside.length) continue;
+				inside = null;
+				out.push(line);
+				if (line.trim().startsWith('<section data-gen="widget"')) inside = indent;
+			}
+			return out.join('\n');
+		}
+	},
+	{
 		issue: 786,
 		what: 'an empty <title> after client navigations, or two titles on a page visited again',
 		// (an empty one: no text line under it; and the empty one a page with a title fills in,
@@ -507,6 +526,11 @@ function kit_stamps(s: string): string {
 		.map((b) => b[0].trim())
 		.sort()
 		.join('\n');
+}
+
+/** A normalized DOM's generated peer widgets, by what each says it is (`w<k> for r<slot>`). */
+function widget_labels(s: string): string {
+	return [...s.matchAll(/"(w\d+ for r\d+)"/g)].map((m) => m[1]).join(',');
 }
 
 /** A normalized DOM's region fingerprints, in order. */
@@ -990,7 +1014,12 @@ export function hydrates_as_sent(tab: Tab, world?: World): Broken | null {
 /** What a page says because of a filed bug, as KNOWN is for a DOM difference: a seed that says
  *  only these is counted `known`, not failed. Each entry goes when its fix lands. */
 export const KNOWN_SAID: ReadonlyArray<{ issue: number; what: string; said: RegExp }> = [
-	{ issue: 817, what: 'a kept island loses its live query', said: /No cached query found/ }
+	{ issue: 817, what: 'a kept island loses its live query', said: /No cached query found/ },
+	{
+		issue: 915,
+		what: "Svelte 5.56.8's error walk meets a destroyed boundary",
+		said: /^unhandled: TypeError: Cannot read properties of null \(reading 'error'\)/
+	}
 ];
 
 /**
