@@ -19,7 +19,7 @@
  * the observers watched the region's own box, so a fixed button on screen downloaded as `visible` and
  * never woke.
  */
-import { scope, type Scope } from '@ogygia/machine';
+import { scope, seen, tasks, type Scope } from '@ogygia/machine';
 
 /** Hears an element's on-screen state: once known, then on every change. */
 type Heard = (on: boolean) => void;
@@ -84,8 +84,10 @@ class Tracker {
 
 	constructor(root_margin: string, owner: Scope) {
 		this.owner = owner;
+		// (only browsers observe: where there is none, the first `observe` throws, as the raw
+		// constructor did, and the caller is told rather than left unwoken)
 		this.io = owner.watch(
-			new IntersectionObserver((entries) => this.#report(entries), { rootMargin: root_margin })
+			seen.observer((entries) => this.#report(entries), { rootMargin: root_margin })!
 		);
 	}
 
@@ -113,11 +115,11 @@ class Tracker {
 		// change), or the first report with the others
 		const known = this.decided.get(el);
 		if (known !== undefined)
-			queueMicrotask(() => {
+			tasks.micro(() => {
 				if (this.heard.get(el)?.has(heard)) heard(known);
 			});
 		// (observed already, as what another watched element renders: its report is in, none comes)
-		else if (this.seen.has(el)) queueMicrotask(() => this.#settle(el));
+		else if (this.seen.has(el)) tasks.micro(() => this.#settle(el));
 		return () => {
 			const now = this.heard.get(el);
 			if (!now?.delete(heard) || now.size) return;
