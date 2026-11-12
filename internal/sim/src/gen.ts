@@ -90,8 +90,12 @@ export interface GenNode {
 	 *  its own (`load`, `idle`): after a router visit the script is inert, and an island still asleep
 	 *  there would rightly differ from a fresh load. `prepend` puts an element of its own first;
 	 *  `retag` swaps the island's first `<span>` for a `<b>` with the same content (the element count
-	 *  kept: the repair's tag check sees it, which a prepended element never reaches). */
-	readonly thirdParty?: 'prepend' | 'retag';
+	 *  kept: the repair's tag check sees it, which a prepended element never reaches). `text` (its own
+	 *  stream, `gen third party text`, on islands the others left alone) adds a text node only, so
+	 *  every element lines up and the repair walks into each; the island then holds a `<details>`, an
+	 *  element whose children are partly its own, which a repair that lined up names no conflict for
+	 *  (the gen app's client says any conflict named on the console: apps/sim-gen/src/sim-client.ts). */
+	readonly thirdParty?: 'prepend' | 'retag' | 'text';
 	readonly children: readonly GenNode[];
 }
 
@@ -282,19 +286,17 @@ function third_party(seed: number): (page: GenPage) => GenPage {
 	const t = rng(seed).fork('gen third party');
 	// (which edit, from a stream of its own: the islands it touches stay as they were drawn)
 	const k = rng(seed).fork('gen third party kind');
+	// (a text drift, from a stream of its own, on islands the first stream left alone: the islands
+	// and kinds it drew stay as they were)
+	const x = rng(seed).fork('gen third party text');
 	const walk = (n: GenNode, page: boolean): GenNode => {
 		const children = n.children.map((c) =>
 			walk(c, page && (n.kind === 'island' || n.kind === 'plain'))
 		);
-		const on =
-			page &&
-			n.kind === 'island' &&
-			(n.wake === 'load' || n.wake === 'idle') &&
-			!n.empty &&
-			t.chance(0.3);
-		return on
-			? { ...n, children, thirdParty: k.chance(0.5) ? 'retag' : 'prepend' }
-			: { ...n, children };
+		const can = page && n.kind === 'island' && (n.wake === 'load' || n.wake === 'idle') && !n.empty;
+		if (can && t.chance(0.3))
+			return { ...n, children, thirdParty: k.chance(0.5) ? 'retag' : 'prepend' };
+		return can && x.chance(0.3) ? { ...n, children, thirdParty: 'text' } : { ...n, children };
 	};
 	return (page) => ({ ...page, roots: page.roots.map((n) => walk(n, true)) });
 }
@@ -314,7 +316,8 @@ const THIRD_PARTY = {
 	),
 	retag: third_party_script(
 		'var f=el.firstElementChild;if(f&&f.localName==="span"){var b=document.createElement("b");while(f.firstChild)b.appendChild(f.firstChild);f.replaceWith(b);}'
-	)
+	),
+	text: third_party_script('el.appendChild(document.createTextNode(" third party"));')
 };
 
 /** Some apps read a flag on some pages (their own stream, `gen flags`): 40% of seeds, half their
@@ -681,6 +684,8 @@ function component(n: GenNode): string {
 		...(n.reads ? ['\t<i data-gen-page>{page.data.who}</i>'] : []),
 		...(n.odd ? ['\t<b title={note} data-note={note}>{note}</b>'] : []),
 		...(n.big ? ['\t<small>{blob.length}</small>'] : []),
+		// (its summary reads a prop, so the hydration walk enters it, and so does the repair)
+		...(n.thirdParty === 'text' ? ['\t<details><summary>{label}</summary></details>'] : []),
 		...(n.bad
 			? [
 					`\t<div data-gen-messy>{@html '<p>n${n.id} said<div>a block</div></p><a href="#x">a<a href="#y">b</a></a>'}</div>`
