@@ -64,7 +64,14 @@ import { builds_of } from './builds.ts';
 import { key_pair } from './keys.ts';
 import { MOUNT, type GenPeer } from './gen.ts';
 import type { Build } from './server.ts';
-import { Coverage, new_moves, step_of_move, universe, type RunCoverage } from './coverage.ts';
+import {
+	all_steps,
+	Coverage,
+	new_moves,
+	step_of_move,
+	universe,
+	type RunCoverage
+} from './coverage.ts';
 
 const arg = (flag: string): string | undefined => {
 	const at = process.argv.indexOf(flag);
@@ -510,6 +517,8 @@ function coverage_summary(covered: Coverage) {
 			.filter((m) => m.reached > 0)
 			.map((m) => ({ name: m.name, reached: m.reached, total: m.total, missing: m.missing })),
 		untouched: r.per_machine.filter((m) => m.reached === 0).map((m) => `${m.pkg}/${m.name}`),
+		/** Every machine step reached, for the steps ledger (src/steps.ts `--sweep`). */
+		steps_reached: [...all_steps(machines)].filter((s) => covered.steps.has(s)).sort(),
 		unknown: r.unknown,
 		/** Recovery steps (a retry, an offline wait, a failure, a give-up, a keep running out) no run
 		 *  reached: each wants a buggify point, a fault or an app shape that leads there. */
