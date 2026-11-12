@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { lock, type LockToken } from '../src/index.ts';
 import { macrotask } from './_tick.ts';
 
@@ -104,6 +104,17 @@ describe('lock', () => {
 		ctl.abort();
 		expect(l.held).toBe(true);
 		expect(l.free(t)).toBe(true);
+	});
+
+	it('acquire: a waiter handed the lock lets go of its abort listener (a long-lived signal does not pile them up)', async () => {
+		const l = lock();
+		const ctl = new AbortController();
+		const removed = vi.spyOn(ctl.signal, 'removeEventListener');
+		const held = l.take() as LockToken;
+		const a = l.acquire(ctl.signal);
+		l.free(held);
+		l.free(await a);
+		expect(removed).toHaveBeenCalledWith('abort', expect.any(Function));
 	});
 
 	it('seize: takes it from a stuck owner, whose late free is then refused', async () => {
