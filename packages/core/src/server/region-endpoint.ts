@@ -14,9 +14,7 @@ import {
 	region_render,
 	region_css
 } from 'ogygia:server';
-// (`resolve('/__ogygia__')` reads the same on Kit 2, which wants the leading slash, and Kit 3, which
-// takes it as a route ID with no params — the same pathname)
-import { resolve } from '$app/paths';
+import { app_path } from '../kit-paths.ts';
 import { building } from '$app/env';
 import { islands_endpoint, MAX_REGION_PROPS_LEN } from './endpoint.ts';
 import { capability_lifetime, type CapabilityLifetime } from './capability-lifetime.ts';
@@ -158,7 +156,8 @@ export function mint_region_capability(entry: string, payload: string, ttl = 0):
 	if (DEVTOOLS)
 		record_server_event({ domain: 'server', name: 'server.capability.minted', id: entry, ttl });
 	// `k`: the minter's key fingerprint, outside the MAC (server/signing-key.ts)
-	const url = `${resolve(islands_endpoint())}?id=${encodeURIComponent(entry)}${render ? `&r=${render}` : ''}&props=${payload}&exp=${exp}${ttl_param}&sig=${sig}&k=${key.fp}`;
+	// a path from the app's root, never page-relative: the HTML that carries it moves
+	const url = `${app_path(islands_endpoint())}?id=${encodeURIComponent(entry)}${render ? `&r=${render}` : ''}&props=${payload}&exp=${exp}${ttl_param}&sig=${sig}&k=${key.fp}`;
 	if (RULES) note_minted_capability(url);
 	return url;
 }

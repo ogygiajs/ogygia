@@ -242,7 +242,9 @@ if (stacked)
 
 // (the size tool itself changing counts too: it measures both sides). Remembered like the browser
 // jobs: the same core build against the same base passed before, so it is left out.
-const core_builds = pull_request ? dry(['run', 'build', '--filter=@ogygia/core...']) : [];
+const core_builds = pull_request
+	? dry(['run', 'build', '--filter=@ogygia/core...', '--filter=@ogygia/compiler...'])
+	: [];
 const size_hash = digest([
 	env.BASE_SHA ?? '',
 	...core_builds.map((t) => `${t.taskId}:${t.hash}`),

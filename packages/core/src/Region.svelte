@@ -1000,8 +1000,11 @@
 	// emptied. Later values morph in.
 	/** @type {Element | null} */
 	let baked_el = $state(null);
+	// `data-og-baked` says "the server wrote the first HTML in here", so only the server's element
+	// carries it: one the browser creates fresh (an island re-creating it, Kit remounting) is empty,
+	// a plain live region whose first value paints (e2e/held-in-held.spec.ts, #945)
 	const baked_adopt = adopt_region(
-		() => ' live data-og-baked',
+		() => (typeof window === 'undefined' ? ' live data-og-baked' : ' live'),
 		(renderer) => /** @type {{ push(html: string): void }} */ (renderer).push(baked_html),
 		(el) => {
 			baked_el = el;
