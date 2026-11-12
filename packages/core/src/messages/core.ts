@@ -69,9 +69,10 @@ export const ERRORS = {
 		text: (a: { plugin: string; hook: string }): string =>
 			`plugin \`${a.plugin}\`: its \`${a.hook}\` hook threw (or its promise rejected); the page and the other plugins carry on`,
 		details: (): string => prose`
-			A plugin's browser half subscribes to a runtime hook, and its function failed. The runtime
-			calls every subscriber of a hook in plugin order and wraps each call, so one plugin's
-			failure never stops another's hook or the page. Said once per plugin and hook; the error
+			A plugin's browser half subscribes to a runtime hook (or has a \`boot\`), and its function
+			failed. The runtime calls every subscriber of a hook, and every \`boot\`, in plugin order and
+			wraps each call, so one plugin's failure never stops another's hook, the boot or the page
+			(its regions still wake). Said once per plugin and hook; the error
 			follows the message. In dev the hook's payload is frozen: a hook that writes to it fails
 			here too.
 		`
@@ -945,6 +946,16 @@ export const WARNINGS = {
 			one store, by the region's address, and the store keeps the newest (by when it was asked
 			for). Each region bound to that address paints what the store holds. One region was left
 			on an older answer, or never got the newest. ${BUG}
+		`
+	},
+	rule_region_left_busy: {
+		text: (a: { detail: string }): string =>
+			`rule broken, a region that left the page is at rest: ${a.detail}`,
+		details: (): string => prose`
+			Dev and e2e only (a rule ogygia checks on itself). A region element runs a few state
+			machines: its fetch, its wake, its live mode, its paint. When the element leaves the page,
+			each goes back to rest, so nothing of it waits on something that can no longer happen. One
+			of them was still in the middle of its work after the element left. ${BUG}
 		`
 	},
 	rule_parse_upgraded: {
