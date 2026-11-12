@@ -391,9 +391,10 @@ export function next_slot_id(key = ''): string {
 		let seq = slot_seq_by_request.get(event);
 		if (!seq) {
 			const url = event.url;
-			const hole = url && is_islands_endpoint(url.pathname)
-				? (url.searchParams.get('id') ?? '').slice(0, 6)
-				: '';
+			const hole =
+				url && is_islands_endpoint(url.pathname)
+					? (url.searchParams.get('id') ?? '').slice(0, 6)
+					: '';
 			slot_seq_by_request.set(event, (seq = { prefix: hole ? `${hole}-` : '', n: new Map() }));
 		}
 		// (each entry's tag hashed once per request: the next copies only count)
