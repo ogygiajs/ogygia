@@ -40,12 +40,9 @@ catalog:
   # build
   vite: ^8.3.5
   rolldown: ^1.2.2
-  '@rolldown/browser': 1.2.2
   tsdown: ^0.23.4
   typescript: ^6.0.3
   '@types/node': ^26.1.2
-  vite-plugin-wasm: ^3.6.0
-  path-browserify: ^1.0.1
   magic-string: ^1.4.5
   # test
   vitest: ^4.1.12
