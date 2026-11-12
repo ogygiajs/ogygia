@@ -2173,14 +2173,6 @@
 			"reason": "browser only: hands the head merge's unlisted sheets to the boot's release_sheets (live elements, not cloneable), one call; proven in apps/palaestra/e2e/hole-kept-sheet.spec.ts (#275)"
 		},
 		{
-			"id": "packages/core/src/server/request-stats.ts > hold_request_stats_detail",
-			"reason": "returns a release closure (a function, not cloneable), constant work; proven in packages/core/test/request-stats-detail.test.ts"
-		},
-		{
-			"id": "packages/core/src/server/request-stats.ts > hold_request_stats_detail > <anonymous>~4ba179",
-			"reason": "lets go of one hold in a module-level set (not replayable: process state), constant work; proven in packages/core/test/request-stats-detail.test.ts"
-		},
-		{
 			"id": "packages/devtools/src/profiler/index.ts > Profiler > #busy",
 			"reason": "builds the 409 Response from the recorder machine's state (a Response, not cloneable), constant work; proven in packages/cli/test/mcp-profile-busy.test.ts (#290)"
 		},
@@ -3105,14 +3097,6 @@
 			"reason": "one substring test and the declared-package lookup (a CompileCtx, hidden state), constant work per declared root"
 		},
 		{
-			"id": "packages/core/src/messages/build.ts > BUILD_ERRORS > macro_outside_app > text",
-			"reason": "a message's wording, constant text; said in packages/core/test/macros-own-source.test.ts"
-		},
-		{
-			"id": "packages/core/src/messages/build.ts > BUILD_ERRORS > macro_outside_app > details",
-			"reason": "a message's wording, constant text; said in packages/core/test/macros-own-source.test.ts"
-		},
-		{
 			"id": "packages/core/src/vite/package-files.ts > discover_package_files > inside",
 			"reason": "a closure over the package's real root (not replayable), one prefix compare; proven in packages/core/test/package-files.test.ts"
 		},
@@ -3183,6 +3167,146 @@
 		{
 			"id": "packages/core/src/messages/core.ts > WARNINGS > rule_head_adopted > text",
 			"reason": "a rule's message wording (dev and e2e only), constant text; said in packages/core/test/browser/spa-head-deny.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/request-stats.ts > hold_request_stats_detail",
+			"reason": "returns a release closure (a function, not cloneable), constant work; proven in packages/devtools/test/request-stats-detail.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/request-stats.ts > hold_request_stats_detail > <anonymous>~4ba179",
+			"reason": "lets go of one hold in a module-level set (not replayable: process state), constant work; proven in packages/devtools/test/request-stats-detail.test.ts"
+		},
+		{
+			"id": "packages/core/src/server/request-stats.ts > set_request_stats_sink",
+			"reason": "sets one module slot, once per profiler setup (constant work)"
+		},
+		{
+			"id": "packages/devtools/src/profiler/request-stats.ts > install_request_stats",
+			"reason": "sets core's stats sink, once per profiler setup (constant work)"
+		},
+		{
+			"id": "packages/devtools/src/profiler/request-stats.ts > request_stats_of",
+			"reason": "one WeakMap read keyed by a live Request (not cloneable), constant work"
+		},
+		{
+			"id": "packages/devtools/src/profiler/request-stats.ts > hole_stats_of",
+			"reason": "one WeakMap read keyed by a live Request (not cloneable), constant work"
+		},
+		{
+			"id": "packages/devtools/src/profiler/request-stats.ts > set_batch_hole_listener",
+			"reason": "stores one listener function (not cloneable), constant work"
+		},
+		{
+			"id": "packages/devtools/src/profiler/request-stats.ts > request_stats_store > page",
+			"reason": "one WeakMap write keyed by a live Request (not cloneable), constant work"
+		},
+		{
+			"id": "packages/devtools/src/profiler/request-stats.ts > request_stats_store > hole",
+			"reason": "one WeakMap write keyed by a live Request (not cloneable), constant work"
+		},
+		{
+			"id": "packages/devtools/src/profiler/request-stats.ts > request_stats_store > batchHole",
+			"reason": "hands one record to the recording profiler's listener, constant work"
+		},
+		{
+			"id": "packages/devtools/src/profiler/request-stats.ts > request_stats_store > wantsBatchHoles",
+			"reason": "reads one module slot (process state), constant work"
+		},
+		{
+			"id": "packages/devtools/src/profiler/request-stats.ts > request_stats_store > detailed",
+			"reason": "reads the size of a module-level set (process state), constant work; proven in packages/devtools/test/request-stats-detail.test.ts"
+		},
+		{
+			"id": "packages/core/src/vite/index.ts > ogygia > seams > regions > barrelWhy",
+			"reason": "dev only: the regions seam hands the dock one barrel answer from the build's index, constant work of its own"
+		},
+		{
+			"id": "packages/core/src/vite/index.ts > ogygia > seams > regions > names",
+			"reason": "dev only: the regions seam lists the build's region entries, linear in the regions"
+		},
+		{
+			"id": "packages/core/src/vite/plugin-api.ts > NO_SEAMS > regions > barrelWhy",
+			"reason": "the empty seam a plugin sees before the build is set up: answers nothing, constant work"
+		},
+		{
+			"id": "packages/core/src/vite/plugin-api.ts > NO_SEAMS > regions > names",
+			"reason": "the empty seam a plugin sees before the build is set up: answers nothing, constant work"
+		},
+		{
+			"id": "packages/devtools/src/build/dev-meta.ts > dev_meta_plugin",
+			"reason": "dev only: builds one Vite plugin object, once per server, constant work"
+		},
+		{
+			"id": "packages/devtools/src/build/dev-meta.ts > dev_meta_plugin > configureServer",
+			"reason": "dev only: installs two middlewares on the dev server, once per server, constant work"
+		},
+		{
+			"id": "packages/devtools/src/build/dev-meta.ts > dev_meta_plugin > configureServer > use:0~2175f9",
+			"reason": "dev only: sets one response header and passes on, constant work"
+		},
+		{
+			"id": "packages/devtools/src/build/dev-meta.ts > dev_meta_plugin > configureServer > use:0~56d04b",
+			"reason": "dev only: the dock's meta endpoint over the dev server's module graph (not recorded); its work is island_subgraph_bytes, measured in core"
+		},
+		{
+			"id": "packages/devtools/src/build/dev-meta.ts > dev_meta_plugin > configureServer > use:0~56d04b > island_subgraph_bytes:2~0b61a8",
+			"reason": "dev only: hands one barrel question to the regions seam, constant work of its own"
+		},
+		{
+			"id": "packages/devtools/src/build/dev-meta.ts > dev_meta_plugin > configureServer > use:0~56d04b > read",
+			"reason": "dev only: reads one component source once per request (a file read, not recorded), constant work of its own"
+		},
+		{
+			"id": "packages/devtools/src/vite.ts > devtools > dev_meta_plugin:0~479109",
+			"reason": "dev only: hands the build's regions seam to the dev meta plugin, constant work"
+		},
+		{
+			"id": "packages/core/src/vite/index.ts > ogygia > closeBundle",
+			"reason": "build only: Vite's closeBundle hook, once per build leg, constant work of its own"
+		},
+		{
+			"id": "packages/devtools/src/build/maps-plugin.ts > profiler_maps_plugins",
+			"reason": "build only: makes the two map plugin objects, once per build, constant work"
+		},
+		{
+			"id": "packages/devtools/src/build/maps-plugin.ts > profiler_maps_plugins > maps > closeBundle > handler",
+			"reason": "build only: fills the maps module once per server build (files on disk, not recorded); its work is fill_profiler_maps"
+		},
+		{
+			"id": "packages/devtools/src/build/maps-plugin.ts > profiler_maps_plugins > maps > configResolved",
+			"reason": "build only: reads three fields of Vite's resolved config, once per build, constant work"
+		},
+		{
+			"id": "packages/devtools/src/build/maps-plugin.ts > profiler_maps_plugins > maps > writeBundle",
+			"reason": "build only: writes the server leg's module map beside its chunks (files on disk, not recorded); its work is write_module_map"
+		},
+		{
+			"id": "packages/devtools/src/build/maps-plugin.ts > profiler_maps_plugins > server_sourcemaps_plugin:0~8b94d4",
+			"reason": "build only: the hidden-sourcemaps switch, always on in a build with the profiler, constant work"
+		},
+		{
+			"id": "packages/core/src/runtime/router-nav.ts > live_page_head",
+			"reason": "browser only: reads the live <head>'s page-owned nodes (not cloneable), linear in the head; proven in packages/core/test/browser/nav-head-order.test.ts (#794)"
+		},
+		{
+			"id": "packages/core/src/runtime/router-nav.ts > head_slot",
+			"reason": "browser only: walks a parsed head node's earlier siblings against the live <head> (not cloneable), linear in the head; proven in packages/core/test/browser/nav-head-order.test.ts (#794)"
+		},
+		{
+			"id": "packages/core/src/runtime/router-nav.ts > adopt_title",
+			"reason": "browser only: reads the parsed document's title and writes the live document's (not cloneable), constant work; proven in packages/core/test/browser/nav-no-title.test.ts"
+		},
+		{
+			"id": "packages/core/src/compiler/messages.ts > BUILD_ERRORS > macro_outside_app > text",
+			"reason": "a message's wording, constant text; said in packages/core/test/macros-own-source.test.ts"
+		},
+		{
+			"id": "packages/core/src/compiler/messages.ts > BUILD_ERRORS > macro_outside_app > details",
+			"reason": "a message's wording, constant text; said in packages/core/test/macros-own-source.test.ts"
+		},
+		{
+			"id": "packages/postrender/src/server.ts > credentialed",
+			"reason": "two header lookups on the request (a Request, not cloneable), once per request, constant work; proven in packages/postrender/test/plugin.test.ts"
 		}
 	]
 }

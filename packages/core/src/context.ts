@@ -131,6 +131,20 @@ const runtime_claimed = new WeakMap<object, true>();
 /** Per-request: stylesheet hrefs already linked for held regions rendered in this SSR pass. */
 const region_css_claimed = new WeakMap<object, Set<string>>();
 
+/** Context key: the fingerprint of the outermost island a region renders inside (server only). */
+const HEAD_OWNER = Symbol.for('ogygia.head-owner');
+
+/** The fingerprint the head tags of the region rendering now belong to: the outermost island
+ *  around it, '' outside any (server/region-css.ts `head_owner_attr`). Call during setup. */
+export function head_owner(): string {
+	return (getContext(HEAD_OWNER) as string | undefined) ?? '';
+}
+
+/** An outermost island names itself the owner of every head tag rendered inside it. */
+export function set_head_owner(fp: string): void {
+	setContext(HEAD_OWNER, fp);
+}
+
 /** Per-request: island entries already stamped `<meta name="ogygia-kit-island">` in this pass. */
 const kit_island_claimed = new WeakMap<object, Set<string>>();
 

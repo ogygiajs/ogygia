@@ -45,5 +45,8 @@ export {
 export { analyze_imports, type ImportDecl, type ImportSpec } from './exports/parse.ts';
 export { blank_styles } from './blank-styles.ts';
 export { is_script_request } from './script-request.ts';
+// How a dev module id says it is generated or ogygia's own (devtools' per-island byte walk).
+export { OGYGIA_SCHEME } from './virtual/table.ts';
+export { OWN_FILE_RE } from '../contract/own-package.ts';
 // the build's message tables, for the docs' `ogygiajs.dev/e` pages
 export { BUILD_ERRORS, BUILD_WARNINGS } from './messages.ts';
