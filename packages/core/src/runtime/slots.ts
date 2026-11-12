@@ -214,7 +214,8 @@ export type BootLink = {
 	server_body_child: typeof import('./ownership.ts').server_body_child;
 	/** a document's side channels, the server's own only (./response-mark.ts, RESPONSE-MARK) */
 	server_channel: typeof import('./response-mark.ts').server_channel;
-	adopt_mark: typeof import('./response-mark.ts').adopt_mark;
+	/** the kept runtime script takes the next response's mark and code origins (./response-mark.ts) */
+	adopt_response: typeof import('./response-mark.ts').adopt_response;
 	/** devalue, loaded when a page needs it (./devalue-lane.ts) */
 	load_devalue: typeof import('./devalue-lane.ts').load_devalue;
 	devalue: typeof import('./devalue-lane.ts').devalue;
