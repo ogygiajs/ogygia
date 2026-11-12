@@ -23,6 +23,7 @@ import {
 import { join, extname } from 'node:path';
 import { createRequire } from 'node:module';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { client_address } from './network.ts';
 
 /** Node's own `import()`: a built app is plain ESM, and a test runner's module transform (vitest's)
  *  must not load it a second, different way. */
@@ -143,6 +144,9 @@ export interface ServerInstance {
 	serves(path: string): boolean;
 	/** Removes its copy of the build (its modules stay loaded in this process). */
 	stop(): void;
+	/** Its machine moves so far, one line each (core's server rules keep its last lines), or '' in a
+	 *  build without rules. */
+	moves(): string;
 }
 
 /**
@@ -232,12 +236,18 @@ export async function start_server(
 							return new Response(head ? null : page.slice(), {
 								headers: { 'content-type': TYPES['.html'] }
 							});
-						return kit.respond(request, { getClientAddress: () => '10.0.0.1', platform: {} });
+						return kit.respond(request, { getClientAddress: client_address, platform: {} });
 					})
 				)
 			),
 		serves: (path) => files.client.has(path),
-		stop: () => rmSync(dir, { recursive: true, force: true })
+		stop: () => rmSync(dir, { recursive: true, force: true }),
+		moves: () => {
+			const read = (globalThis as Record<symbol, unknown>)[
+				Symbol.for(`${tag}\u0000ogygia.server.moves`)
+			];
+			return typeof read === 'function' ? String(read()) : '';
+		}
 	};
 	return instance;
 }

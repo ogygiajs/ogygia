@@ -17,8 +17,31 @@ describe('coverage', () => {
 		expect(u.get('hole')?.pkg).toBe('core');
 		expect(u.get('import-again')?.steps.fresh).toEqual(['failed', 'loaded']);
 		// (a flights' entries: flying, kept, gone, under the flights' name)
-		expect(u.get('island file')?.steps.flying).toEqual(['flying', 'kept', 'gone']);
+		expect(u.get('island file')?.steps.flying).toEqual(['kept', 'gone']);
 		expect(all_steps(u).has(step_key('import-again', 'failed', 'stuck'))).toBe(true);
+	});
+
+	it("gives a flights only the entry steps its options and its file's calls can take", () => {
+		const u = universe(ROOT);
+		// (no caller asks it `fresh`: a flight is never replaced, a kept answer never run again)
+		expect(u.get('island file')?.steps).toEqual({
+			flying: ['kept', 'gone'],
+			kept: ['gone'],
+			gone: []
+		});
+		// (`keep: 0`: nothing is kept; its file asks `fresh`: a flight replaced by a forced one)
+		expect(u.get('frames')?.steps).toEqual({ flying: ['flying', 'gone'], kept: [], gone: [] });
+	});
+
+	it('a fresh ask made only when a peek shows no flight out never replaces a flight', () => {
+		const u = universe(ROOT);
+		// (peer.ts refreshes a stale document with `fresh` under `!seen.flying`: a kept answer runs
+		// again, a flight out is joined)
+		expect(u.get('federation peer documents')?.steps).toEqual({
+			flying: ['kept', 'gone'],
+			kept: ['flying', 'gone'],
+			gone: []
+		});
 	});
 
 	it('a move line is a step, and a stop is none', () => {
@@ -38,6 +61,38 @@ describe('coverage', () => {
 			total: 5
 		});
 		expect(new_moves('', 4)).toEqual({ lines: [], total: 0 });
+	});
+
+	it('lists the recovery steps no run reached: a retry, an offline wait, a failure, a give-up, a keep that ran out', () => {
+		const c = new Coverage();
+		c.add({ steps: { 'hole: fetching -> retrying': 1, 'hole: idle -> armed': 1 }, points: {} });
+		const machines = new Map([
+			[
+				'hole',
+				{
+					name: 'hole',
+					pkg: 'core',
+					steps: {
+						idle: ['armed'],
+						fetching: ['retrying', 'offline', 'idle'],
+						retrying: ['fetching'],
+						offline: ['armed'],
+						failed: ['armed']
+					}
+				}
+			],
+			[
+				'island file',
+				{ name: 'island file', pkg: 'core', steps: { kept: ['gone'], flying: ['kept'] } }
+			]
+		]) as unknown as Parameters<Coverage['report']>[0];
+		expect(c.unreached_recovery(machines)).toEqual([
+			'hole: failed -> armed',
+			'hole: fetching -> offline',
+			'hole: offline -> armed',
+			'hole: retrying -> fetching',
+			'island file: kept -> gone'
+		]);
 	});
 
 	it('counts a step or a fired point new only the first time', () => {

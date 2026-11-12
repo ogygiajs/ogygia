@@ -16,6 +16,7 @@ import HistoryItemList from 'happy-dom/lib/history/HistoryItemList.js';
 import HTMLParser from 'happy-dom/lib/html-parser/HTMLParser.js';
 import Document from 'happy-dom/lib/nodes/document/Document.js';
 import HTMLElement from 'happy-dom/lib/nodes/html-element/HTMLElement.js';
+import ParentNodeUtility from 'happy-dom/lib/nodes/parent-node/ParentNodeUtility.js';
 import * as PropertySymbol from 'happy-dom/lib/PropertySymbol.js';
 import XMLEncodeUtility from 'happy-dom/lib/utilities/XMLEncodeUtility.js';
 import WindowBrowserContext from 'happy-dom/lib/window/WindowBrowserContext.js';
@@ -113,6 +114,27 @@ export function inert_custom_elements(): void {
 		return without(registry_of(this), PropertySymbol.callbacks, undefined, () =>
 			connected.apply(this, a)
 		);
+	};
+}
+
+/**
+ * `document.getElementsByTagNameNS` works, as in a browser. happy-dom's reads the owner document of
+ * the node it searches from, for its content type, and a document has none, so it threw (the
+ * router's title check, on every client navigation: generated app 31). The search from a document
+ * reads the document as its own owner. Idempotent. Without it until now: test/document.test.ts.
+ */
+export function documents_by_namespace(): void {
+	const proto = Document.prototype as unknown as Record<string, unknown> & { __ns?: boolean };
+	if (proto.__ns) return;
+	proto.__ns = true;
+	const find = ParentNodeUtility.getElementsByTagNameNS;
+	ParentNodeUtility.getElementsByTagNameNS = function (parent, namespace, tag) {
+		const node = parent as unknown as Record<symbol, unknown>;
+		if (node[PropertySymbol.ownerDocument] != null) return find.call(this, parent, namespace, tag);
+		const own = new Proxy(node, {
+			get: (t, k) => (k === PropertySymbol.ownerDocument ? t : Reflect.get(t, k))
+		});
+		return find.call(this, own as unknown as typeof parent, namespace, tag);
 	};
 }
 
@@ -401,6 +423,36 @@ interface Manager {
  * back). The other methods clear the timer with the real `clearTimeout`, which ignores this handle,
  * so a task that is no longer the manager's current one does nothing.
  */
+/**
+ * A script runs once, as in a browser: a script is "already started" once it connected (whether it
+ * ran or not), or when a parser marked it unexecutable (`DOMParser`, `innerHTML`), and a copy
+ * carries the flag (HTML's cloning steps for `script`). happy-dom keeps no such flag, so a copy of a
+ * parsed page's script ran when the router's head merge put it in the page: the next page's early
+ * hole start ran again and asked for holes its batch had brought (gen 191, seed 191001). Idempotent.
+ * test/scripts.test.ts.
+ */
+export function scripts_start_once(): void {
+	const script = HTMLScriptElement.prototype as unknown as Record<symbol | string, unknown>;
+	if (script.__once) return;
+	script.__once = true;
+	const started = new WeakSet<object>();
+	const connect = script[PropertySymbol.connectedToDocument] as (this: object) => unknown;
+	script[PropertySymbol.connectedToDocument] = function (this: Record<symbol, unknown>) {
+		if (started.has(this)) this[PropertySymbol.disableEvaluation] = true;
+		started.add(this);
+		return connect.call(this);
+	};
+	const clone = script[PropertySymbol.cloneNode] as (this: object, deep?: boolean) => unknown;
+	script[PropertySymbol.cloneNode] = function (this: Record<symbol, unknown>, deep?: boolean) {
+		const copy = clone.call(this, deep) as Record<symbol, unknown>;
+		if (started.has(this) || this[PropertySymbol.disableEvaluation] === true) {
+			copy[PropertySymbol.disableEvaluation] = true;
+			started.add(copy);
+		}
+		return copy;
+	};
+}
+
 export function completion_on_the_loop(loop: Loop | null): void {
 	driving = loop;
 	const proto = AsyncTaskManager.prototype as unknown as Record<string, unknown>;

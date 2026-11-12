@@ -32,6 +32,9 @@ export interface GenNode {
 	readonly slow?: number;
 	/** A hole the page gives a fallback. */
 	readonly fallback?: boolean;
+	/** A hole with a fallback that keeps it (`keepFallback()`: the endpoint answers 204). Only a
+	 *  page's own root hole: nested in an island, a hole renders inline, where it may not. */
+	readonly keep?: boolean;
 	/** A held region's host: plain server markup awaiting the query in the page's render
 	 *  (`'page'`), or an island reading the query's `.current` (`'island'`). */
 	readonly host?: 'page' | 'island';
@@ -45,12 +48,49 @@ export interface GenNode {
 	readonly placeholder?: boolean;
 	/** A live region's ticks, this many ms apart. */
 	readonly every?: number;
+	/** An island whose markup the next release changes (an element only build v2 renders), as a
+	 *  release changes a component: what hydrates one build's HTML with the other's code meets. */
+	readonly changes?: boolean;
+	/** The region has a stylesheet of its own (a scoped `<style>`): an answer that brings it lifts
+	 *  its sheet into the head. */
+	readonly style?: boolean;
+	/** A hole whose render the server keeps this long (`maxAge`, a duration string): every visitor's
+	 *  same call is answered from the render cache. */
+	readonly maxAge?: string;
+	/** The region reads its page's data (`page.data.who` from `$app/state`): a hole or a held region
+	 *  rendered outside its page looks its page up. Only on a page that has data. */
+	readonly reads?: boolean;
+	/** An island that reads its page's data has a button that refreshes it in place
+	 *  (`invalidateAll()` from `ogygia/app`: the soft refresh). */
+	readonly refresh?: boolean;
+	/** An island its parent gives a `Date` prop: its props cross in devalue's lane, not JSON's. */
+	readonly dated?: boolean;
+	/** MESSY, as apps are (stream `gen messy`): text with quotes, `<`, `>`, `&` and unicode, in an
+	 *  attribute and in the text. */
+	readonly odd?: boolean;
+	/** An island its parent gives a very large prop (100 000 characters). */
+	readonly big?: boolean;
+	/** A hole whose server render throws: ogygia keeps its fallback (it always has one) and says so
+	 *  with a code, never a broken page. */
+	readonly throws?: boolean;
+	/** A lake that writes bad HTML on purpose (`{@html}`: a block in a `<p>`), marked
+	 *  `data-gen-messy`, the app's own: what ogygia does around it must stay whole. */
+	readonly bad?: boolean;
+	/** A region whose component renders nothing at all (stream `gen empty`): a leaf island, hole or
+	 *  lake with no element and no text. Where it is used, `<div data-gen-empty>` holds it, so the
+	 *  region oracle knows an empty `<ogygia-region>` there is the app's. */
+	readonly empty?: boolean;
 	readonly children: readonly GenNode[];
 }
 
 export interface GenPage {
 	readonly path: string;
 	readonly roots: readonly GenNode[];
+	/** The page opts in to postrender (`config = { postrender: true }`): its HTML is stored and
+	 *  served again until a publish invalidates it. */
+	readonly postrender?: boolean;
+	/** The page has a server load (`{ who }`), which some of its regions read. */
+	readonly data?: boolean;
 }
 
 const WAKES: readonly Wake[] = ['load', 'idle', 'visible', 'interaction'];
@@ -107,7 +147,13 @@ export function plan(seed: number): GenPage[] {
 		if (n.kind === 'hole' || !h.chance(0.3)) return n;
 		const wake = h.chance(0.5) ? h.pick(WAKES) : undefined;
 		if (h.chance(0.3))
-			return { id: n.id, kind: 'live', wake, every: h.pick([700, 3000]), children: n.children };
+			return {
+				id: n.id,
+				kind: 'live',
+				wake,
+				every: h.pick([700, 3000]),
+				children: n.children
+			};
 		const host = h.chance(0.5) ? 'island' : 'page';
 		const command = host === 'island' && h.chance(0.6);
 		return {
@@ -121,12 +167,87 @@ export function plan(seed: number): GenPage[] {
 			children: n.children
 		};
 	};
+	// (and whether a root hole keeps its fallback, from its own)
+	const k = rng(seed).fork('gen keep');
+	const keep = (n: GenNode): GenNode =>
+		n.kind === 'hole' && n.fallback && k.chance(0.4) ? { ...n, keep: true } : n;
+	// (and whether a page is stored, from its own)
+	const s = rng(seed).fork('gen postrender');
+	// (and whether an island's markup changes in the next release, from its own)
+	const c = rng(seed).fork('gen release');
+	const release = (n: GenNode): GenNode => {
+		const children = n.children.map(release);
+		return n.kind === 'island' && c.chance(0.3)
+			? { ...n, children, changes: true }
+			: { ...n, children };
+	};
+	// (and a region's stylesheet, a hole's render cache and an island's dated props, each from its
+	// own)
+	const st = rng(seed).fork('gen style');
+	const ma = rng(seed).fork('gen max age');
+	const dv = rng(seed).fork('gen devalue');
+	const extras = (n: GenNode): GenNode => {
+		const children = n.children.map(extras);
+		const style = st.chance(0.25);
+		const max_age =
+			n.kind === 'hole' && !n.keep && ma.chance(0.3) ? ma.pick(['2s', '30s']) : undefined;
+		const dated = n.kind === 'island' && dv.chance(0.25);
+		return {
+			...n,
+			children,
+			...(style ? { style } : {}),
+			...(max_age ? { maxAge: max_age } : {}),
+			...(dated ? { dated } : {})
+		};
+	};
+	// (and whether a page has data its regions read, from its own)
+	const d = rng(seed).fork('gen page data');
+	const reading = (n: GenNode): GenNode => {
+		const children = n.children.map(reading);
+		if (!d.chance(0.4)) return { ...n, children };
+		const refresh = n.kind === 'island' && d.chance(0.5);
+		return { ...n, children, reads: true, ...(refresh ? { refresh } : {}) };
+	};
+	// (and the app's messy parts, from its own)
+	const m = rng(seed).fork('gen messy');
+	const messy = (n: GenNode): GenNode => {
+		const children = n.children.map(messy);
+		const odd = m.chance(0.15);
+		const big = n.kind === 'island' && m.chance(0.1);
+		const throws = n.kind === 'hole' && !n.keep && m.chance(0.15);
+		const bad = n.kind === 'lake' && m.chance(0.3);
+		return {
+			...n,
+			children,
+			...(odd ? { odd } : {}),
+			...(big ? { big } : {}),
+			...(throws ? { throws, fallback: true } : {}),
+			...(bad ? { bad } : {})
+		};
+	};
+	// (and an empty region, from its own: a leaf with nothing else to show)
+	const e = rng(seed).fork('gen empty');
+	const empty = (n: GenNode): GenNode => {
+		const children = n.children.map(empty);
+		const plain =
+			children.length === 0 &&
+			(n.kind === 'island' || n.kind === 'hole' || n.kind === 'lake') &&
+			!(n.odd || n.big || n.bad || n.throws || n.keep || n.reads || n.refresh) &&
+			!(n.dated || n.changes || n.style);
+		return plain && e.chance(0.15) ? { ...n, children, empty: true } : { ...n, children };
+	};
 	const node = trees(r, held);
 	const pages = r.between(3, 6);
 	return Array.from({ length: pages }, (_, i) => ({
 		path: `/p${i}`,
-		roots: Array.from({ length: r.between(1, 4) }, () => node(0))
-	}));
+		roots: Array.from({ length: r.between(1, 4) }, () => node(0)).map(keep)
+	}))
+		.map((page) => (s.chance(0.3) ? { ...page, postrender: true } : page))
+		.map((page) => ({ ...page, roots: page.roots.map(release) }))
+		.map((page) => ({ ...page, roots: page.roots.map(extras) }))
+		.map((page) => (d.chance(0.4) ? { ...page, data: true, roots: page.roots.map(reading) } : page))
+		.map((page) => ({ ...page, roots: page.roots.map(messy) }))
+		.map((page) => ({ ...page, roots: page.roots.map(empty) }));
 }
 
 /** A widget the peer app serves (`federate({ widgets })`): a root holding a region tree. */
@@ -208,7 +329,23 @@ export function peer_plan(seed: number, pages: readonly GenPage[]): GenPeer | nu
 			[2000, 1],
 			[30_000, 1]
 		]);
-	return { mount, widgets, pages: own, slots, ttl };
+	// (and the peer's region stylesheets, which its server router links for a page it renders, and
+	// its pages' loads, each from its own stream)
+	const ps = rng(seed).fork('gen peer style');
+	const styled = (n: GenNode): GenNode => {
+		const children = n.children.map(styled);
+		return ps.chance(0.25) ? { ...n, children, style: true } : { ...n, children };
+	};
+	const pd = rng(seed).fork('gen peer data');
+	return {
+		mount,
+		widgets: widgets.map((w) => ({ ...w, children: w.children.map(styled) })),
+		pages: own
+			.map((p) => ({ ...p, roots: p.roots.map(styled) }))
+			.map((p) => (pd.chance(0.5) ? { ...p, data: true } : p)),
+		slots,
+		ttl
+	};
 }
 
 /** How a parent imports `n`: its import attributes. */
@@ -219,6 +356,8 @@ function attributes(n: GenNode): string {
 		case 'lake':
 			return ` with { wake: 'none' }`;
 		case 'hole':
+			// (a kept render is a preset's: apps/sim-gen/vite.config.ts)
+			if (n.maxAge) return ` with { preset: 'hole-${n.maxAge}${n.wake ? `-${n.wake}` : ''}' }`;
 			return n.wake
 				? ` with { render: 'deferred', wake: '${n.wake}' }`
 				: ` with { render: 'deferred' }`;
@@ -239,11 +378,16 @@ function name(n: GenNode): string {
 
 /** Where `n` is used: its tag, with a fallback for a hole that has one. */
 function usage(n: GenNode, indent: string): string {
+	if (n.empty)
+		return `${indent}<div data-gen-empty>\n${usage({ ...n, empty: false }, `${indent}\t`)}\n${indent}</div>`;
 	if (n.kind === 'hole' && n.fallback)
-		return `${indent}<N${n.id} label="n${n.id}">\n${indent}\t{#snippet ogygiaFallback()}<p data-gen-fallback>loading n${n.id}…</p>{/snippet}\n${indent}</N${n.id}>`;
-	return n.kind === 'held' || n.kind === 'live'
-		? `${indent}<${name(n)} />`
-		: `${indent}<N${n.id} label="n${n.id}" />`;
+		// (a fallback the hole keeps on purpose says so: the fallback oracle leaves it standing)
+		return `${indent}<N${n.id} label="n${n.id}">\n${indent}\t{#snippet ogygiaFallback()}<p data-gen-fallback${n.keep ? ' data-gen-kept' : ''}>loading n${n.id}…</p>{/snippet}\n${indent}</N${n.id}>`;
+	if (n.kind === 'held' || n.kind === 'live') return `${indent}<${name(n)} />`;
+	// (a fixed instant: what devalue carries, the same in every render)
+	const since = n.dated ? ` since={new Date(${n.id * 86_400_000})}` : '';
+	const blob = n.big ? ` blob={'x'.repeat(100_000)}` : '';
+	return `${indent}<N${n.id} label="n${n.id}"${since}${blob} />`;
 }
 
 /** A held or live region's remote module: the query that returns it (and the command that changes
@@ -332,27 +476,73 @@ function host(n: GenNode): string {
 	].join('\n');
 }
 
+/** What an odd component says: quotes, markup characters, an entity's spelling and unicode. */
+const ODD_TEXT = `say "hi" & 'bye' <b>not bold</b> a > b &amp; é ü 中文 😀 ​ end`;
+
 /** The component file of `n`. */
 function component(n: GenNode): string {
+	if (n.empty)
+		return [
+			'<script lang="ts">',
+			"\timport type { Snippet } from 'svelte';",
+			"\tlet { label = '' }: { label?: string; ogygiaFallback?: Snippet } = $props();",
+			'</script>',
+			''
+		].join('\n');
 	const interactive =
 		n.kind === 'island' ||
 		((n.kind === 'hole' || n.kind === 'held' || n.kind === 'live') && n.wake !== undefined);
-	const lines = ['<script lang="ts">', "\timport type { Snippet } from 'svelte';"];
+	const lines = [
+		'<script lang="ts">',
+		"\timport type { Snippet } from 'svelte';",
+		...(n.keep ? ["\timport { keepFallback } from 'ogygia';"] : []),
+		...(n.reads ? ["\timport { page } from '$app/state';"] : []),
+		...(n.refresh ? ["\timport { invalidateAll } from 'ogygia/app';"] : [])
+	];
 	for (const c of n.children)
 		lines.push(`\timport ${name(c)} from './${name(c)}.svelte'${attributes(c)};`);
 	lines.push(
-		"\tlet { label = '' }: { label?: string; ogygiaFallback?: Snippet } = $props();",
+		`\tlet { label = ''${n.dated ? ', since' : ''}${n.big ? ", blob = ''" : ''} }: { label?: string;${n.dated ? ' since?: Date;' : ''}${n.big ? ' blob?: string;' : ''} ogygiaFallback?: Snippet } = $props();`,
 		...(interactive ? ['\tlet count = $state(0);'] : []),
-		...(n.slow ? [`\tawait new Promise((r) => setTimeout(r, ${n.slow}));`] : []),
+		...(n.odd ? [`\tconst note = ${JSON.stringify(ODD_TEXT)};`] : []),
+		// (a render that throws, on the server: the hole's endpoint answers what it can)
+		...(n.throws ? [`\tif (label) throw new Error('n${n.id} throws');`] : []),
+		...(n.keep
+			? ['\tkeepFallback();']
+			: n.slow
+				? [`\tawait new Promise((r) => setTimeout(r, ${n.slow}));`]
+				: []),
 		'</script>',
 		'',
-		`<div data-gen="${n.kind}" data-build={import.meta.env.VITE_SIM_BUILD}>`,
+		`<div data-gen="${n.kind}"${n.style ? ` class="g${n.id}"` : ''} data-build={import.meta.env.VITE_SIM_BUILD}>`,
+		...(n.changes
+			? ["\t{#if import.meta.env.VITE_SIM_BUILD === 'v2'}<em data-gen-new>new in v2</em>{/if}"]
+			: []),
 		'\t<span>{label}</span>',
+		...(n.dated ? ['\t<time>{since?.toISOString()}</time>'] : []),
+		...(n.reads ? ['\t<i data-gen-page>{page.data.who}</i>'] : []),
+		...(n.odd ? ['\t<b title={note} data-note={note}>{note}</b>'] : []),
+		...(n.big ? ['\t<small>{blob.length}</small>'] : []),
+		...(n.bad
+			? [
+					`\t<div data-gen-messy>{@html '<p>n${n.id} said<div>a block</div></p><a href="#x">a<a href="#y">b</a></a>'}</div>`
+				]
+			: []),
 		...(interactive
 			? ['\t<button onclick={() => (count += 1)}>{label} pressed {count}</button>']
 			: []),
+		...(n.refresh ? [`\t<button onclick={() => invalidateAll()}>refresh n${n.id}</button>`] : []),
 		...n.children.map((c) => usage(c, '\t')),
 		'</div>',
+		...(n.style
+			? [
+					'',
+					'<style>',
+					`\t.g${n.id} { border-left: ${(n.id % 4) + 1}px solid; }`,
+					`\t.g${n.id} > span { font-weight: ${n.id % 2 ? 'bold' : 'normal'}; }`,
+					'</style>'
+				]
+			: []),
 		''
 	);
 	return lines.join('\n');
@@ -494,14 +684,20 @@ export function write(
 		const imports = page.roots.map(
 			(n) => `\timport ${name(n)} from '$lib/gen/${name(n)}.svelte'${attributes(n)};`
 		);
-		if (slots.length > 0) {
+		// (a stored page says so in Kit's own `config`, in the page's server load when it has one)
+		const config = page.postrender ? ['export const config = { postrender: true };', ''] : [];
+		if (slots.length === 0 && !page.data && config.length > 0)
+			writeFileSync(join(dir, '+page.ts'), config.join('\n'));
+		if (slots.length > 0)
 			imports.push(`\timport { Region } from 'ogygia';`, `\tlet { data } = $props();`);
+		if (slots.length > 0 || page.data)
 			writeFileSync(
 				join(dir, '+page.server.ts'),
 				[
-					`import { peer } from '$lib/gen/federation.server';`,
-					'',
+					...(slots.length > 0 ? [`import { peer } from '$lib/gen/federation.server';`, ''] : []),
+					...config,
 					`export const load = async () => ({`,
+					...(page.data ? [`\twho: '${page.path.slice(1)} data',`] : []),
 					...slots.map(
 						(s) =>
 							`\tr${s.id}: await peer.widget('${s.widget}', { label: 'r${s.id}' }, { render: '${s.render}' }),`
@@ -510,7 +706,6 @@ export function write(
 					''
 				].join('\n')
 			);
-		}
 		writeFileSync(
 			join(dir, '+page.svelte'),
 			[
@@ -563,11 +758,13 @@ export function write_peer(dir: string, peer: GenPeer, seed: number): void {
 			[
 				'<script lang="ts">',
 				...p.roots.map((n) => `\timport ${name(n)} from './${name(n)}.svelte'${attributes(n)};`),
+				...(p.data ? ['\tlet { data }: { data: { who: string } } = $props();'] : []),
 				'</script>',
 				'',
 				`<nav>${nav}</nav>`,
 				`<main data-gen="peer-page">`,
 				`\t<h1>peer ${p.path}</h1>`,
+				...(p.data ? ['\t<p data-gen-page>{data.who}</p>'] : []),
 				...p.roots.map((n) => usage(n, '\t')),
 				'</main>',
 				''
@@ -583,7 +780,11 @@ export function write_peer(dir: string, peer: GenPeer, seed: number): void {
 			'',
 			`export const router = routes(`,
 			`\t{`,
-			...peer.pages.map((p, i) => `\t\t'${p.path}': page(Q${i}),`),
+			...peer.pages.map((p, i) =>
+				p.data
+					? `\t\t'${p.path}': page(Q${i}, { load: () => ({ who: '${p.path.slice(1)} data' }) }),`
+					: `\t\t'${p.path}': page(Q${i}),`
+			),
 			`\t},`,
 			`\t{ base: '${MOUNT}' }`,
 			`);`,

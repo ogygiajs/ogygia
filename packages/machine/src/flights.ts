@@ -471,7 +471,12 @@ class Flown<I, V, K> implements Flights<I, V, K> {
 			if (s.kind === 'kept') {
 				// (a use: the kept answer is the most recently used; one past its age leaves its entry)
 				if (this._kept.get(key) !== m) m = undefined;
-				else if (options?.fresh !== true) return s.promise as Promise<V>;
+				else if (RULES && buggify.fires('flights.evicted-early')) {
+					// (buggify: its keep ran out just now, as a short keep's or a full cache's would: the
+					// entry goes, and this caller runs the work again)
+					this._remove(key, m);
+					m = undefined;
+				} else if (options?.fresh !== true) return s.promise as Promise<V>;
 				else prior = kept_of(s);
 			} else if (s.kind === 'flying') {
 				if (options?.fresh !== true) {

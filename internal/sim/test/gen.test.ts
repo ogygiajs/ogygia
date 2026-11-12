@@ -52,6 +52,68 @@ describe('the random app', () => {
 		}
 	});
 
+	it('some root holes with a fallback keep it, and no other region does', () => {
+		const seeds = Array.from({ length: 30 }, (_, i) => i + 1);
+		const pages = seeds.flatMap((s) => plan(s));
+		const kept = all(pages.flatMap((p) => p.roots)).filter((n) => n.keep);
+		expect(kept.length).toBeGreaterThan(0);
+		const roots = new Set(pages.flatMap((p) => p.roots));
+		for (const n of kept) {
+			expect(roots.has(n)).toBe(true);
+			expect([n.kind, n.fallback]).toEqual(['hole', true]);
+		}
+	});
+
+	it("some pages are stored (postrender), and say so in Kit's config", () => {
+		const seeds = Array.from({ length: 30 }, (_, i) => i + 1);
+		const pages = seeds.flatMap((s) => plan(s));
+		const stored = pages.filter((p) => p.postrender);
+		expect(stored.length).toBeGreaterThan(0);
+		expect(stored.length).toBeLessThan(pages.length);
+		const app = mkdtempSync(join(tmpdir(), 'sim-gen-'));
+		try {
+			// (a stored page with no peer slot says so in a +page.ts of its own, or beside its data's
+			// load when it has one)
+			const seed = seeds.find((s) => plan(s).some((p) => p.postrender))!;
+			const drawn = plan(seed);
+			write(app, drawn, seed);
+			for (const p of drawn) {
+				const at = join(app, 'src', 'routes', p.path.slice(1));
+				const files = readdirSync(at);
+				if (!p.postrender) expect(files).not.toContain('+page.ts');
+				else
+					expect(readFileSync(join(at, p.data ? '+page.server.ts' : '+page.ts'), 'utf8')).toContain(
+						'export const config = { postrender: true };'
+					);
+			}
+		} finally {
+			rmSync(app, { recursive: true, force: true });
+		}
+	});
+
+	it("some islands' markup changes in the next release, and nothing else's", () => {
+		const nodes = Array.from({ length: 30 }, (_, i) => plan(i + 1)).flatMap((pages) =>
+			all(pages.flatMap((p) => p.roots))
+		);
+		const changing = nodes.filter((n) => n.changes);
+		expect(changing.length).toBeGreaterThan(0);
+		for (const n of changing) expect(n.kind).toBe('island');
+		const seed = Array.from({ length: 30 }, (_, i) => i + 1).find((s) =>
+			all(plan(s).flatMap((p) => p.roots)).some((n) => n.changes)
+		)!;
+		const app = mkdtempSync(join(tmpdir(), 'sim-gen-'));
+		try {
+			const pages = plan(seed);
+			write(app, pages, seed);
+			for (const n of all(pages.flatMap((p) => p.roots))) {
+				const src = readFileSync(join(app, 'src', 'lib', 'gen', `N${n.id}.svelte`), 'utf8');
+				expect(src.includes("VITE_SIM_BUILD === 'v2'")).toBe(n.changes === true);
+			}
+		} finally {
+			rmSync(app, { recursive: true, force: true });
+		}
+	});
+
 	it('draws held and live regions, never in place of a hole', () => {
 		const seeds = Array.from({ length: 30 }, (_, i) => i + 1);
 		const nodes = seeds.flatMap((s) => all(plan(s).flatMap((p) => p.roots)));
@@ -123,6 +185,141 @@ describe('the random app', () => {
 			const host = readFileSync(join(app, 'src', 'lib', 'gen', `H${n.id}.svelte`), 'utf8');
 			expect(host).toContain(`from './h${n.id}.remote'`);
 			expect(host).toContain('<Region of={');
+		} finally {
+			rmSync(app, { recursive: true, force: true });
+		}
+	});
+
+	it("draws regions' stylesheets, kept hole renders, dated island props and page data, each where it can be", () => {
+		const seeds = Array.from({ length: 30 }, (_, i) => i + 1);
+		const pages = seeds.flatMap((s) => plan(s));
+		const nodes = all(pages.flatMap((p) => p.roots));
+		for (const f of ['style', 'maxAge', 'dated', 'reads', 'refresh'] as const)
+			expect(nodes.some((n) => n[f] !== undefined)).toBe(true);
+		for (const n of nodes) {
+			if (n.maxAge) expect([n.kind, n.keep]).toEqual(['hole', undefined]);
+			if (n.dated) expect(n.kind).toBe('island');
+			if (n.refresh) expect([n.kind, n.reads]).toEqual(['island', true]);
+		}
+		// (a region reads page data only on a page that has it)
+		for (const p of pages) if (!p.data) expect(all(p.roots).some((n) => n.reads)).toBe(false);
+		const seed = seeds.find((s) => {
+			const ns = all(plan(s).flatMap((p) => p.roots));
+			return ns.some((n) => n.maxAge) && ns.some((n) => n.dated) && ns.some((n) => n.reads);
+		})!;
+		const app = mkdtempSync(join(tmpdir(), 'sim-gen-'));
+		try {
+			const drawn = plan(seed);
+			write(app, drawn, seed);
+			const read = (f: string) => readFileSync(join(app, 'src', 'lib', 'gen', f), 'utf8');
+			const route = (p: string, f: string) =>
+				readFileSync(join(app, 'src', 'routes', p.slice(1), f), 'utf8');
+			for (const p of drawn) {
+				if (p.data)
+					expect(route(p.path, '+page.server.ts')).toContain(`who: '${p.path.slice(1)} data'`);
+				const users = [
+					route(p.path, '+page.svelte'),
+					...all(p.roots).map((n) => read(`N${n.id}.svelte`))
+				];
+				for (const n of all(p.roots)) {
+					const src = read(`N${n.id}.svelte`);
+					expect(src.includes('<style>')).toBe(n.style === true);
+					expect(src.includes('page.data.who')).toBe(n.reads === true);
+					expect(src.includes('invalidateAll()')).toBe(n.refresh === true);
+					// (a kept render is a preset's, never an inline maxAge: the compiler refuses one)
+					const used = users
+						.join('\n')
+						.split('\n')
+						.find((l) => l.includes(`import N${n.id} `));
+					if (n.maxAge) expect(used).toContain(`preset: 'hole-${n.maxAge}`);
+					expect(used ?? '').not.toContain('maxAge');
+					if (n.dated)
+						expect(users.join('\n')).toContain(`<N${n.id} label="n${n.id}" since={new Date(`);
+				}
+			}
+		} finally {
+			rmSync(app, { recursive: true, force: true });
+		}
+	});
+
+	it("draws the peer's region stylesheets and its pages' loads", () => {
+		const seed = Array.from({ length: 40 }, (_, i) => i + 1).find((s) => {
+			const q = peer_plan(s, plan(s));
+			return q !== null && q.pages.some((p) => p.data) && q.pages.some((p) => !p.data);
+		})!;
+		const peer = peer_plan(seed, plan(seed))!;
+		const nodes = all([
+			...peer.widgets.flatMap((w) => w.children),
+			...peer.pages.flatMap((p) => p.roots)
+		]);
+		expect(nodes.some((n) => n.style)).toBe(true);
+		const root = mkdtempSync(join(tmpdir(), 'sim-gen-'));
+		try {
+			write_peer(join(root, 'peer'), peer, seed);
+			const lib = (f: string) => readFileSync(join(root, 'peer', 'src', 'lib', 'gen', f), 'utf8');
+			for (const n of nodes)
+				expect(lib(`N${n.id}.svelte`).includes('<style>')).toBe(n.style === true);
+			for (const [i, p] of peer.pages.entries()) {
+				expect(lib('router.ts').includes(`page(Q${i}, { load:`)).toBe(p.data === true);
+				expect(lib(`Q${i}.svelte`).includes('{data.who}')).toBe(p.data === true);
+			}
+		} finally {
+			rmSync(root, { recursive: true, force: true });
+		}
+	});
+
+	it('draws messy parts where each can be: odd text, big props, a throwing hole with a fallback, a lake with bad HTML', () => {
+		const seeds = Array.from({ length: 40 }, (_, i) => i + 1);
+		const nodes = seeds.flatMap((s) => all(plan(s).flatMap((p) => p.roots)));
+		for (const f of ['odd', 'big', 'throws', 'bad'] as const)
+			expect(nodes.some((n) => n[f] === true)).toBe(true);
+		for (const n of nodes) {
+			if (n.big) expect(n.kind).toBe('island');
+			if (n.throws) expect([n.kind, n.fallback, n.keep]).toEqual(['hole', true, undefined]);
+			if (n.bad) expect(n.kind).toBe('lake');
+		}
+		const seed = seeds.find((s) => all(plan(s).flatMap((p) => p.roots)).some((n) => n.bad))!;
+		const app = mkdtempSync(join(tmpdir(), 'sim-gen-'));
+		try {
+			write(app, plan(seed), seed);
+			for (const n of all(plan(seed).flatMap((p) => p.roots))) {
+				const src = readFileSync(join(app, 'src', 'lib', 'gen', `N${n.id}.svelte`), 'utf8');
+				// (what it writes badly says so: the HTML oracle leaves it to the app)
+				expect(src.includes('data-gen-messy')).toBe(n.bad === true);
+				expect(src.includes('throw new Error')).toBe(n.throws === true);
+			}
+		} finally {
+			rmSync(app, { recursive: true, force: true });
+		}
+	});
+
+	it('draws empty regions, from their own stream: leaves that render nothing, each used inside a marked element', () => {
+		const seeds = Array.from({ length: 40 }, (_, i) => i + 1);
+		const nodes = seeds.flatMap((s) => all(plan(s).flatMap((p) => p.roots)));
+		expect(nodes.some((n) => n.empty === true)).toBe(true);
+		for (const n of nodes.filter((n) => n.empty)) {
+			expect(['island', 'hole', 'lake']).toContain(n.kind);
+			expect(n.children).toEqual([]);
+		}
+		const seed = seeds.find((s) => all(plan(s).flatMap((p) => p.roots)).some((n) => n.empty))!;
+		const app = mkdtempSync(join(tmpdir(), 'sim-gen-'));
+		try {
+			write(app, plan(seed), seed);
+			const lib = join(app, 'src', 'lib', 'gen');
+			const users = readdirSync(lib)
+				.filter((f) => f.endsWith('.svelte'))
+				.map((f) => readFileSync(join(lib, f), 'utf8'));
+			const pages = readdirSync(join(app, 'src', 'routes'), { recursive: true })
+				.filter((f) => String(f).endsWith('+page.svelte'))
+				.map((f) => readFileSync(join(app, 'src', 'routes', String(f)), 'utf8'));
+			for (const n of all(plan(seed).flatMap((p) => p.roots)).filter((n) => n.empty)) {
+				const src = readFileSync(join(lib, `N${n.id}.svelte`), 'utf8');
+				// (nothing after its script: no element, no text)
+				expect(src.slice(src.indexOf('</script>') + '</script>'.length).trim()).toBe('');
+				// (where it is used, a marked element holds it: the region oracle knows it is the app's)
+				const tag = new RegExp(`<div data-gen-empty>\\s*<N${n.id} `);
+				expect([...users, ...pages].some((s) => tag.test(s))).toBe(true);
+			}
 		} finally {
 			rmSync(app, { recursive: true, force: true });
 		}

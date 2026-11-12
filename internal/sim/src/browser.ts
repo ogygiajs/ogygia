@@ -11,6 +11,7 @@
  */
 import { Browser, type BrowserPage, type BrowserWindow } from 'happy-dom';
 import CookieStringUtility from 'happy-dom/lib/cookie/urilities/CookieStringUtility.js';
+import * as PropertySymbol from 'happy-dom/lib/PropertySymbol.js';
 import WindowBrowserContext from 'happy-dom/lib/window/WindowBrowserContext.js';
 import type { Loop } from './loop.ts';
 import type { Network } from './network.ts';
@@ -43,6 +44,20 @@ export interface Tab {
 	/** The listeners it holds, each as `window|document <type> <its code's hash>` (with
 	 *  `SIM_SITES=1`, and the line that added it): the leak oracle's per-listener counts. */
 	listening(): string[];
+	/** The observers observing, each as `<Name> <its callback's code hash>`: the leak oracle's
+	 *  per-observer counts. */
+	watching(): string[];
+	/** Observers still observing whose every watched element has left the document (their owner
+	 *  ended and nothing disconnected them), each as `<Name> watching <the first one's tag>`. */
+	orphans(): string[];
+	/** When the router swapped the shown document's page (`og:before-swap`, virtual ms): where one
+	 *  visit of the document ends and the next begins. */
+	swaps: number[];
+	/** Each document's {@link swaps}, by realm, a left one's too. */
+	readonly swaps_by: Map<string, number[]>;
+	/** Each document's machine move log (`__ogygia_moves()`, rules builds), by realm, a left one's
+	 *  too: a hard navigation inside one action replaces a document before it is looked at. */
+	readonly moves_by: Map<string, () => string>;
 }
 
 /** What a document holds that outlives a page visit if nobody lets it go. */
@@ -55,7 +70,8 @@ export interface Held {
 	readonly observers: number;
 	/** `<head>`'s children (each client navigation merges a head in: one that only grows leaks). */
 	readonly head: number;
-	/** Elements in the document (the same page, visited again, shows the same page). */
+	/** Elements in the document, less what its regions show (the same page, visited again, shows
+	 *  the same page). */
 	readonly elements: number;
 }
 
@@ -85,6 +101,17 @@ export class Browsers {
 
 	constructor(options: BrowsersOptions) {
 		this.#o = options;
+		options.network.tell((name, online) => this.#line(name, online));
+	}
+
+	/** A tab lost the network or got it back: its document hears it, as a task of its own
+	 *  (`offline` or `online` on its window; `navigator.onLine` reads the network: `#arrive`). */
+	#line(name: string, online: boolean): void {
+		const tab = this.visitors.flatMap((v) => v.tabs).find((t) => t.name === name);
+		if (tab === undefined) return;
+		const window = tab.page.mainFrame.window as unknown as Window & { Event: typeof Event };
+		const type = online ? 'online' : 'offline';
+		this.#o.loop.add(tab.realm, type, 0, () => window.dispatchEvent(new window.Event(type)));
 	}
 
 	/** A new visitor: their own browser, cookies and storage. */
@@ -99,6 +126,8 @@ export class Browsers {
 				disableJavaScriptFileLoading: false,
 				// (stylesheets load over the simulated network: the router moves them between pages)
 				enableCSSFileLoading: true,
+				// (and images: one not yet come is not `complete`, which the critical wait reads)
+				enableImageFileLoading: true,
 				navigator: {
 					userAgent: 'Mozilla/5.0 (ogygia-sim) AppleWebKit/537.36 Chrome/140.0 Safari/537.36'
 				},
@@ -146,6 +175,12 @@ export class Browsers {
 								const cookies = jar.cookieContainer.getCookies(url, false);
 								if (cookies.length > 0)
 									headers.set('cookie', CookieStringUtility.cookiesToString(cookies));
+								// the page it came from, by the request's policy (happy-dom works it out before
+								// the interceptor and adds the header after it: test/referer.test.ts)
+								const referrer = (request as unknown as Record<symbol, unknown>)[
+									PropertySymbol.referrer
+								];
+								if (referrer instanceof URL) headers.set('referer', referrer.href);
 								// a browser sends its document's origin with every request that is not a GET
 								// or HEAD (happy-dom does not; Kit refuses a remote call without it: 403)
 								if (method !== 'GET' && method !== 'HEAD' && !headers.has('origin'))
@@ -269,8 +304,28 @@ export class Browsers {
 			});
 		}
 		install_timeline(window);
+		// (the tab's network, as a browser's `navigator.onLine` reads its own: test/online.node.test.ts)
+		const network = this.#o.network;
+		Object.defineProperty(window.navigator, 'onLine', {
+			get: () => network.online(tab.name),
+			configurable: true
+		});
 		tab.platform = p;
 		this.#windows.set(window, tab);
+		// (heard before the listener count starts: the simulator's own ear, not the page's; on the
+		// window while capturing, as writing the document's content drops the document's listeners)
+		const swaps: number[] = (tab.swaps = []);
+		tab.swaps_by.set(tab.realm, swaps);
+		const page_window = window as unknown as { __ogygia_moves?: () => string };
+		tab.moves_by.set(tab.realm, () => {
+			try {
+				return page_window.__ogygia_moves?.() ?? '';
+			} catch {
+				return ''; // ok: a closed document's log may be gone with it; what was read stays counted
+			}
+		});
+		const loop = this.#o.loop;
+		window.addEventListener('og:before-swap', () => swaps.push(loop.now), { capture: true });
 		this.#count_held(window, tab);
 		const w = window as unknown as {
 			addEventListener(
@@ -398,6 +453,10 @@ export class Browsers {
 			};
 		}
 		const observing = new Set<object>();
+		/** What each observer watches (an element; a PerformanceObserver watches none). */
+		const watched = new WeakMap<object, { name: string; targets: Set<Element> }>();
+		/** Each observer as its kind and its callback's code (the leak check's per-observer counts). */
+		const made_by = new WeakMap<object, string>();
 		const w = window as unknown as Record<string, unknown>;
 		for (const name of [
 			'IntersectionObserver',
@@ -408,12 +467,29 @@ export class Browsers {
 			const Real = w[name] as (new (...a: unknown[]) => object) | undefined;
 			if (typeof Real !== 'function') continue;
 			const Counted = class extends Real {
+				constructor(...a: unknown[]) {
+					super(...a);
+					made_by.set(this, `${name} ${code_of(a[0])}`);
+				}
 				observe(...a: unknown[]): unknown {
 					observing.add(this);
+					if (a[0] !== null && typeof a[0] === 'object' && 'isConnected' in a[0]) {
+						let mine = watched.get(this);
+						if (mine === undefined) watched.set(this, (mine = { name, targets: new Set() }));
+						mine.targets.add(a[0] as Element);
+					}
 					return (Real.prototype as { observe(...a: unknown[]): unknown }).observe.apply(this, a);
+				}
+				unobserve(...a: unknown[]): unknown {
+					watched.get(this)?.targets.delete(a[0] as Element);
+					return (Real.prototype as { unobserve(...a: unknown[]): unknown }).unobserve.apply(
+						this,
+						a
+					);
 				}
 				disconnect(): unknown {
 					observing.delete(this);
+					watched.delete(this);
 					return (Real.prototype as { disconnect(): unknown }).disconnect.call(this);
 				}
 			};
@@ -430,9 +506,30 @@ export class Browsers {
 			intervals: p?.pending().filter((l) => l.startsWith('interval')).length ?? 0,
 			observers: observing.size,
 			head: d.head?.children.length ?? 0,
-			elements: d.getElementsByTagName('*').length
+			// (a region counts, what it shows does not: a live query that failed on one visit and
+			// shows its region on the next is not a leak, gen 25 seed 10; what a region shows is
+			// judged against a fresh load by the MPA check)
+			elements:
+				d.getElementsByTagName('*').length -
+				(d as unknown as Document).querySelectorAll('ogygia-region *').length
 		});
 		tab.listening = () => [...listeners.values()].sort();
+		tab.watching = () => [...observing].map((o) => made_by.get(o) ?? 'observer').sort();
+		tab.orphans = () => {
+			const out: string[] = [];
+			for (const o of observing) {
+				const mine = watched.get(o);
+				if (mine === undefined || mine.targets.size === 0) continue;
+				const targets = [...mine.targets];
+				if (targets.some((t) => t.isConnected)) continue;
+				const t = targets[0];
+				const id = t.getAttribute?.('id');
+				out.push(
+					`${mine.name} watching <${t.tagName?.toLowerCase() ?? t.nodeName}${id ? ` id="${id}"` : ''}>`
+				);
+			}
+			return out.sort();
+		};
 	}
 
 	/**
@@ -481,6 +578,11 @@ export class Browsers {
 			platform: null,
 			held: () => ({ listeners: 0, intervals: 0, observers: 0, head: 0, elements: 0 }),
 			listening: () => [],
+			watching: () => [],
+			orphans: () => [],
+			swaps: [],
+			swaps_by: new Map(),
+			moves_by: new Map(),
 			said_by: new Map()
 		};
 		// (each line said is the document's that said it: one action can show several documents,

@@ -8,16 +8,18 @@ import { join } from 'node:path';
 import { Browsers, type Tab, type Visitor } from './browser.ts';
 import {
 	completion_on_the_loop,
+	documents_by_namespace,
 	history_by_document,
 	inert_custom_elements,
 	inert_parsed_documents,
 	modules_in_order,
+	scripts_start_once,
 	whole_text_runs
 } from './happy.ts';
 import { Cdn } from './cdn.ts';
 import { Loop } from './loop.ts';
 import { use_v8_modules } from './modules.ts';
-import { ANSWERED_BY, ELSEWHERE, Network, type FaultClass } from './network.ts';
+import { ANSWERED_BY, ELSEWHERE, Network, answering_now, type FaultClass } from './network.ts';
 import { install, platform } from './platform.ts';
 import { rng, type Rng } from './rng.ts';
 import {
@@ -34,6 +36,14 @@ export const ORIGIN = 'https://app.test';
 /** The attribute on every element of HTML another origin answers (`no_foreign_html` looks for it). */
 export const FOREIGN_MARK = 'data-sim-foreign';
 
+/** Whether a request of a tab's is for a page (its Kit data too): not a build's file or Kit's
+ *  remote functions (`/_app/`), not a region's answer (ogygia's endpoint, `/__ogygia__`, and
+ *  federation's, `/og/`: a peer frame's hole asked after a deploy is not the page's build; gen 54,
+ *  seed 54024). */
+export function is_page_path(path: string): boolean {
+	return !path.startsWith('/_app/') && !path.startsWith('/__ogygia__') && !path.startsWith('/og/');
+}
+
 /** A request's key among a document's answers: its path and query, less what a render signs anew
  *  each time (a hole's expiry and signature), so a fresh load's same request is the same key. */
 export function answer_key(url: URL): string {
@@ -42,6 +52,21 @@ export function answer_key(url: URL): string {
 	q.delete('sig');
 	const s = q.toString();
 	return s ? `${url.pathname}?${s}` : url.pathname;
+}
+
+/** The keys ({@link answer_key}) of the holes a batch asks for: a `POST /__ogygia__` whose body is
+ *  a JSON list of hole addresses (core's runtime/frame-nav.ts); none for any other request. */
+async function batched(request: Request): Promise<string[]> {
+	const url = new URL(request.url);
+	if (request.method !== 'POST' || url.pathname !== '/__ogygia__') return [];
+	try {
+		const list: unknown = JSON.parse(await request.clone().text());
+		return Array.isArray(list)
+			? list.filter((h) => typeof h === 'string').map((h) => answer_key(new URL(h, url)))
+			: [];
+	} catch {
+		return []; // ok: not a batch (another POST to the endpoint): no hole is named
+	}
 }
 
 export interface WorldOptions {
@@ -121,6 +146,8 @@ export class World {
 	/** Each buggify point asked in this run: whether the swarm turned it on, and how often it fired
 	 *  (the coverage a search steers by). */
 	readonly buggified = new Map<string, { on: boolean; asked: number; fired: number }>();
+	/** The buggify points that fired in each realm (a document's, a server's). */
+	readonly fired_in = new Map<string, Set<string>>();
 	/** The build new requests go to (a deploy moves it). */
 	live: string;
 	readonly #o: WorldOptions;
@@ -174,6 +201,7 @@ export class World {
 		if (r === undefined) this.#buggify_rng.set(key, (r = this.rng.fork(`buggify ${key}`)));
 		if (!r.chance(o.fires)) return false;
 		seen.fired++;
+		this.fired_in.set(realm, (this.fired_in.get(realm) ?? new Set<string>()).add(point));
 		this.loop.note(`buggify ${realm} ${point}`);
 		return true;
 	}
@@ -182,9 +210,11 @@ export class World {
 	static async make(o: WorldOptions): Promise<World> {
 		use_v8_modules();
 		modules_in_order();
+		scripts_start_once();
 		inert_parsed_documents();
 		inert_custom_elements();
 		whole_text_runs();
+		documents_by_namespace();
 		history_by_document();
 		const w = new World(o);
 		completion_on_the_loop(w.loop);
@@ -308,6 +338,11 @@ export class World {
 	 *  asked (a realm: a tab's document, `tab-1#2`). */
 	readonly skewed = new Map<string, Set<string>>();
 
+	/** The realms whose peer region address (`/og/frag`) a server refused as `sig` while the app
+	 *  has no secret: another build's key, which a plugin capability cannot name (#1007; goes with
+	 *  its fix, when the refusal says `foreign-key` and `skewed` holds it). */
+	readonly frag_refused = new Set<string>();
+
 	/** The build every request goes to while it is set (`as_of`). */
 	#pinned: string | null = null;
 
@@ -320,18 +355,28 @@ export class World {
 		return this.#page_build.get(realm) ?? this.live;
 	}
 
-	/** The build that answered each of `realm`'s requests for what is not a file (a page, a hole, an
-	 *  endpoint), by {@link answer_key}, its latest answer's: a hole a page asks for after a deploy is
-	 *  the new release's. */
+	/** The build that answered each of `realm`'s requests, by {@link answer_key}, its latest answer's:
+	 *  a hole a page asks for after a deploy is the new release's, and a file the old build gave in a
+	 *  rolling deploy's window is the old build's (gen 88, seed 88020; test/deploy.node.test.ts). */
 	answers_of(realm: string): ReadonlyMap<string, string> {
 		const of = new Map<string, string>();
-		for (const e of this.network.exchanges) {
+		const batches = this.#batches.filter((b) => b.from === realm);
+		let next = 0;
+		for (const [i, e] of this.network.exchanges.entries()) {
+			// (a batch's answers, in the order they came among the exchanges)
+			for (; next < batches.length && batches[next].at <= i; next++)
+				for (const k of batches[next].keys) of.set(k, batches[next].build);
 			if (e.from !== realm || e.build === undefined) continue;
-			const url = new URL(e.url);
-			if (!url.pathname.startsWith('/_app/immutable/')) of.set(answer_key(url), e.build);
+			of.set(answer_key(new URL(e.url)), e.build);
 		}
+		for (; next < batches.length; next++)
+			for (const k of batches[next].keys) of.set(k, batches[next].build);
 		return of;
 	}
+
+	/** Each batch of holes a realm's document sent (`POST /__ogygia__`): the holes' keys, the build
+	 *  that answered, and how many exchanges there were by then. */
+	readonly #batches: Array<{ from: string; keys: string[]; build: string; at: number }> = [];
 
 	/** Runs `work` with every request sent to `build` (the MPA check's fresh load of an old page
 	 *  asks the build that page is of), or, for a request `answers` names, to the build that answered
@@ -358,14 +403,32 @@ export class World {
 		return (this.skewed.get(realm)?.size ?? 0) > 0;
 	}
 
-	/** The build a request goes to now: the live one, or during a rolling deploy's window, by even
-	 *  odds, the one before it. A content-hashed file only another build has goes to that build
-	 *  when the host keeps old files. */
+	/** Realms of a pinned load whose page came rendered by another build than the one asked: the page
+	 *  store handed out a newer build's copy (it dropped the old build's at the deploy, #949). */
+	readonly #astray = new Set<string>();
+
+	/** Every HTML answer a server of the app gave (a page: `whole`; a hole's or a fragment's answer),
+	 *  its text as the server sent it, before the network's faults. */
+	readonly html: Array<{ from: string; url: string; whole: boolean; html: Promise<string> }> = [];
+
+	/** Whether a pinned load in `realm` got another build's page than the one it asked for: it is no
+	 *  reference for that build's page (test/pinned-store.node.test.ts). */
+	astray(realm: string): boolean {
+		return this.#astray.has(realm);
+	}
+
+	/** The build a request goes to now: the pinned one (`as_of`), else the live one, or during a
+	 *  rolling deploy's window, by even odds, the one before it. A content-hashed file only another
+	 *  build has goes to that build when the host keeps old files, a pinned load's too (gen 65,
+	 *  seed 25). A pinned load is the MPA check's reference, not a visitor meeting a rolling deploy:
+	 *  a file only the live build has is the live build's for it, whatever the host keeps (gen 63,
+	 *  seed 63005; both in test/deploy.node.test.ts). */
 	#build_for(path: string, from: string, key: string): string {
-		if (this.#pinned !== null) return this.#pinned_answers.get(key) ?? this.#pinned;
+		const pinned = this.#pinned;
 		const last = this.deployed.at(-1);
-		let id = this.live;
+		let id = pinned === null ? this.live : (this.#pinned_answers.get(key) ?? pinned);
 		if (
+			pinned === null &&
 			last !== undefined &&
 			this.loop.now < last.at + (this.#o.rollover?.window ?? 0) &&
 			this.rng.chance(0.5)
@@ -375,16 +438,13 @@ export class World {
 			const serves = (b: string) => this.servers.get(b)![0].serves(path);
 			const other = serves(id) ? undefined : [...this.servers.keys()].reverse().find(serves);
 			if (other !== undefined) {
-				if (this.#o.rollover?.old_files) id = other;
+				if (this.#o.rollover?.old_files || (pinned !== null && other === this.live)) id = other;
 				else {
 					const list = this.skewed.get(from) ?? new Set<string>();
 					this.skewed.set(from, list.add(path));
 				}
 			}
 		}
-		// (a page: not a file, not the region endpoint; its Kit data is the page's too)
-		if (!path.startsWith('/_app/') && !path.startsWith('/__ogygia__'))
-			this.#page_build.set(from, id);
 		return id;
 	}
 
@@ -444,23 +504,89 @@ export class World {
 				? this.cdn
 				: { fetch: (r: Request, origin: (r: Request) => Promise<Response>) => origin(r) };
 		const key = answer_key(url);
-		return cdn.fetch(request, async (r) => {
-			const build = this.#build_for(decodeURIComponent(url.pathname), from, key);
-			const list = this.servers.get(build)!;
-			const answer = await list[this.rng.int(list.length)].handle(r);
-			// (a hole one build signed, refused by another's servers for its key: the deploy's doing
-			// when the app has no stable secret, as ogygia's `secret_missing` says)
-			if (answer.headers.get('x-ogygia-deny') === 'foreign-key' && this.#o.secret === undefined)
-				this.skewed.set(from, (this.skewed.get(from) ?? new Set<string>()).add(url.pathname));
-			// (which build answered rides with the answer, so a cached copy says it too)
-			const headers = new Headers(answer.headers);
-			headers.set(ANSWERED_BY, build);
-			return new Response(answer.body, {
-				status: answer.status,
-				statusText: answer.statusText,
-				headers
-			});
-		});
+		// (a document's page is the build its answer names, the server's or a cached copy's: a CDN
+		// hit is the build's that rendered the copy, test/cdn-build.node.test.ts)
+		const page = this.#pinned === null && is_page_path(decodeURIComponent(url.pathname));
+		const answered = (response: Response): Response => {
+			const by = response.headers.get(ANSWERED_BY);
+			if (page && by !== null) this.#page_build.set(from, by);
+			return response;
+		};
+		return cdn
+			.fetch(request, async (r) => {
+				// (a batch answers each hole it lists: the fresh load's batch asks the build that answered
+				// the first of them, and each is the batch's build's from now on: gen 77, seed 77025)
+				const holes = await batched(r);
+				const build = this.#build_for(
+					decodeURIComponent(url.pathname),
+					from,
+					holes.length > 0 ? holes[0] : key
+				);
+				if (holes.length > 0) {
+					this.#batches.push({ from, keys: holes, build, at: this.network.exchanges.length });
+					const ex = answering_now();
+					if (ex !== undefined) ex.holes = holes;
+				}
+				const list = this.servers.get(build)!;
+				const answer = await list[this.rng.int(list.length)].handle(r);
+				// (the HTML a server sent, as it sent it, for the quality oracle: src/html.ts)
+				if (
+					r.method === 'GET' &&
+					answer.status === 200 &&
+					(answer.headers.get('content-type') ?? '').includes('text/html')
+				)
+					this.html.push({
+						from,
+						url: url.href,
+						whole: is_page_path(decodeURIComponent(url.pathname)),
+						// (a body the server broke off is no answer to judge: ok, nothing to read)
+						html: answer
+							.clone()
+							.text()
+							.catch(() => '')
+					});
+				// (a hole one build signed, refused by another's servers for its key: the deploy's doing
+				// when the app has no stable secret, as ogygia's `secret_missing` says)
+				if (answer.headers.get('x-ogygia-deny') === 'foreign-key' && this.#o.secret === undefined)
+					this.skewed.set(from, (this.skewed.get(from) ?? new Set<string>()).add(url.pathname));
+				if (
+					answer.headers.get('x-ogygia-deny') === 'sig' &&
+					this.#o.secret === undefined &&
+					url.pathname === '/og/frag'
+				)
+					this.frag_refused.add(from);
+				// (which build answered rides with the answer, so a cached copy says it too; a page store's
+				// copy is the build's that rendered it: test/stored-build.node.test.ts)
+				const rendered = this.#rendered_by(answer, build);
+				if (
+					this.#pinned !== null &&
+					rendered !== build &&
+					is_page_path(decodeURIComponent(url.pathname))
+				)
+					this.#astray.add(from);
+				const headers = new Headers(answer.headers);
+				headers.set(ANSWERED_BY, rendered);
+				return new Response(answer.body, {
+					status: answer.status,
+					statusText: answer.statusText,
+					headers
+				});
+			})
+			.then(answered);
+	}
+
+	/** The build each page store's copy is of, by its etag (the render's identity). */
+	readonly #stored_by = new Map<string, string>();
+
+	/** The build whose render `answer` is: `build`, the server's, unless postrender served a copy it
+	 *  kept (`x-ogygia-postrender: hit` or `join`), which is the build's whose render it stored
+	 *  (`stored`). After a deploy the store may still hold the old release's page (#947). */
+	#rendered_by(answer: Response, build: string): string {
+		const via = answer.headers.get('x-ogygia-postrender');
+		const etag = answer.headers.get('etag');
+		if (via === null || etag === null) return build;
+		if (via === 'stored') this.#stored_by.set(etag, build);
+		return this.#stored_by.get(etag) ?? build;
 	}
 
 	visitor(name: string): Visitor {
@@ -478,12 +604,35 @@ export class World {
 		path = '/',
 		budget = 30_000
 	): Promise<void> {
+		const end = this.loop.now + budget;
+		await this.#navigate(tab, how, path, end);
+		await this.quiesce(Math.max(0, end - this.loop.now));
+	}
+
+	/** Navigates `tab` and runs the loop until its document is in (or `end`). */
+	async #navigate(
+		tab: Tab,
+		how: 'goto' | 'back' | 'forward' | 'reload',
+		path: string,
+		end: number
+	): Promise<void> {
 		let done = false;
 		void this.browsers.navigate(tab, how, path).then(() => (done = true));
-		const end = this.loop.now + budget;
 		await this.loop.settle();
 		while (!done && this.loop.now < end) if (!(await this.loop.step())) break;
-		await this.quiesce(Math.max(0, end - this.loop.now));
+	}
+
+	/** Starts a navigation and runs the loop until its document is in, then `ms` more: the page is
+	 *  still loading (its scripts, its first paint, its critical resources) when it returns. */
+	async start(
+		tab: Tab,
+		how: 'goto' | 'back' | 'forward' | 'reload',
+		path: string,
+		ms: number,
+		budget = 30_000
+	): Promise<void> {
+		await this.#navigate(tab, how, path, this.loop.now + budget);
+		await this.loop.run(ms);
 	}
 
 	/**

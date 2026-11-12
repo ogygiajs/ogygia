@@ -9,8 +9,8 @@
  * - **Buggify points.** Each rare branch a run was asked about, whether the swarm turned it on, and
  *   how often it fired (`World.buggified`).
  *
- * The browser realms only: a server's machines are bundled into its build, where the simulator does
- * not hear them.
+ * Every realm: each document's moves, and each server instance's (core's server rules keep them
+ * under `Symbol.for('ogygia.server.moves')`, in the instance's own registry).
  */
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -79,6 +79,22 @@ function steps_of(n: unknown, consts: Map<string, unknown>): Record<string, stri
 	return out;
 }
 
+/** What a file's `fresh` asks of a flights can find: none made, only a kept answer, or anything. */
+type Fresh = 'never' | 'kept' | 'any';
+
+/** A test that holds only when no flight is out: `!x.flying`, alone or beside others under `&&`. */
+function no_flight_out(test: unknown): boolean {
+	if (is(test, 'LogicalExpression') && test.operator === '&&')
+		return no_flight_out(test.left) || no_flight_out(test.right);
+	return (
+		is(test, 'UnaryExpression') &&
+		test.operator === '!' &&
+		is(test.argument, 'MemberExpression') &&
+		is((test.argument as Node).property, 'Identifier') &&
+		((test.argument as Node).property as Node).name === 'flying'
+	);
+}
+
 function walk(n: unknown, visit: (n: Node) => void): void {
 	if (Array.isArray(n)) {
 		for (const c of n) walk(c, visit);
@@ -105,7 +121,15 @@ function files(dir: string): string[] {
  */
 export function universe(root: string): Map<string, MachineDef> {
 	const out = new Map<string, MachineDef>();
-	const flights_named: Array<{ name: string; pkg: string; file: string }> = [];
+	const flights_named: Array<{
+		name: string;
+		pkg: string;
+		file: string;
+		/** `keep: 0`: it keeps no answer. */
+		keeps_none: boolean;
+		/** What its file's `fresh` asks (`.get(input, { fresh })`) can find. */
+		fresh: Fresh;
+	}> = [];
 	let flights_steps: Record<string, string[]> | null = null;
 	for (const pkg of PACKAGES)
 		for (const file of files(join(root, 'packages', pkg, 'src'))) {
@@ -118,6 +142,32 @@ export function universe(root: string): Map<string, MachineDef> {
 					for (const d of s.declarations as Node[])
 						if (is(d.id, 'Identifier')) consts.set(d.id.name as string, d.init);
 			const rel = file.slice(root.length + 1);
+			// (a forced run, `get(input, { fresh })`, anywhere in the file: the only way an entry goes
+			// flying -> flying or kept -> flying; one asked only under `!seen.flying`, a peek showing no
+			// flight out, runs a kept answer again and never replaces a flight)
+			const fresh_asks: Node[] = [];
+			const idle_only = new Set<Node>();
+			walk(ast, (n) => {
+				if (
+					is(n, 'CallExpression') &&
+					is(n.callee, 'MemberExpression') &&
+					is((n.callee as Node).property, 'Identifier') &&
+					((n.callee as Node).property as Node).name === 'get' &&
+					(n.arguments as unknown[]).some(
+						(a) => is(a, 'ObjectExpression') && prop(a, 'fresh') !== undefined
+					)
+				)
+					fresh_asks.push(n);
+				if (is(n, 'IfStatement') && no_flight_out(n.test))
+					walk(n.consequent, (c) => void idle_only.add(c));
+			});
+			const fresh: Fresh =
+				fresh_asks.length === 0
+					? 'never'
+					: fresh_asks.every((n) => idle_only.has(n))
+						? 'kept'
+						: 'any';
+			const named_here = flights_named.length;
 			walk(ast, (n) => {
 				if (!is(n, 'CallExpression')) return;
 				const callee = n.callee as Node;
@@ -141,20 +191,55 @@ export function universe(root: string): Map<string, MachineDef> {
 					out.set(name, { name, pkg, file: rel, initial, steps });
 					return;
 				}
-				// flights({ name }) and flights.keyed<I>()({ name })
+				// flights({ name }), flights.keyed<I>()({ name }), link().flights.keyed<I>()({ name })
+				const names_flights = (n: unknown): boolean =>
+					(is(n, 'Identifier') && n.name === 'flights') ||
+					(is(n, 'MemberExpression') &&
+						is(n.property, 'Identifier') &&
+						n.property.name === 'flights');
 				const is_flights =
-					(is(callee, 'Identifier') && callee.name === 'flights') ||
+					names_flights(callee) ||
 					(is(callee, 'CallExpression') &&
 						is(callee.callee, 'MemberExpression') &&
-						is((callee.callee as Node).object, 'Identifier') &&
-						((callee.callee as Node).object as Node).name === 'flights');
+						names_flights((callee.callee as Node).object));
 				const name = is_flights ? literal(prop(config, 'name')) : null;
-				if (name !== null) flights_named.push({ name, pkg, file: rel });
+				if (name === null) return;
+				const keep = bare(prop(config, 'keep'));
+				const keeps_none = is(keep, 'Literal') && keep.value === 0;
+				flights_named.push({ name, pkg, file: rel, keeps_none, fresh: 'never' });
 			});
+			for (let i = named_here; i < flights_named.length; i++) flights_named[i].fresh = fresh;
 		}
-	if (flights_steps !== null)
-		for (const f of flights_named)
-			if (!out.has(f.name)) out.set(f.name, { ...f, initial: 'flying', steps: flights_steps });
+	// (set in the walk's callback, which the compiler does not follow)
+	const generic = flights_steps as Record<string, string[]> | null;
+	if (generic !== null)
+		for (const { keeps_none, fresh, ...f } of flights_named) {
+			// (only the steps its options and its file's calls can take: no `fresh` ask, no forced run;
+			// one only when no flight is out, no flight replaced; `keep: 0`, no kept answer)
+			const forced_from = (from: string): boolean =>
+				fresh === 'any' || (fresh === 'kept' && from === 'kept');
+			const flights_steps = Object.fromEntries(
+				Object.entries(generic!).map(([from, tos]) => [
+					from,
+					keeps_none && from === 'kept'
+						? []
+						: tos.filter(
+								(to) => !(keeps_none && to === 'kept') && (to !== 'flying' || forced_from(from))
+							)
+				])
+			);
+			const same = out.get(f.name);
+			// (a flights named as a machine is: one name in the moves, so its steps are both's)
+			const steps = same
+				? Object.fromEntries(
+						[...new Set([...Object.keys(same.steps), ...Object.keys(flights_steps)])].map((k) => [
+							k,
+							[...new Set([...(same.steps[k] ?? []), ...(flights_steps![k] ?? [])])]
+						])
+					)
+				: flights_steps;
+			out.set(f.name, same ? { ...same, steps } : { ...f, initial: 'flying', steps });
+		}
 	return out;
 }
 
@@ -260,4 +345,23 @@ export class Coverage {
 			unknown: [...this.steps.keys()].filter((s) => !every.has(s)).sort()
 		};
 	}
+
+	/** The recovery steps of `machines` no run reached: into, out of or between the states a failure
+	 *  leads to (a retry, an offline wait, a failure, a stall, a give-up), and a kept answer's keep
+	 *  running out (`kept -> gone`). Listed so a new one nothing reaches shows at once. */
+	unreached_recovery(machines: Map<string, MachineDef>): string[] {
+		const out: string[] = [];
+		for (const m of machines.values())
+			for (const [from, tos] of Object.entries(m.steps))
+				for (const to of tos) {
+					const key = step_key(m.name, from, to);
+					if (this.steps.has(key)) continue;
+					if (RECOVERY.test(from) || RECOVERY.test(to) || (from === 'kept' && to === 'gone'))
+						out.push(key);
+				}
+		return out.sort();
+	}
 }
+
+/** A state a failure leads to, by its name. */
+const RECOVERY = /retry|offline|fail|stall|stuck|timed|timeout|gave|give|lost|refus|expired|again/;
