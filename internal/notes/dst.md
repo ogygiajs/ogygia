@@ -63,6 +63,17 @@ module scripts. Its gaps are handled in the sim, with no patch to happy-dom:
   node left over: a run is one node (`whole_text_runs`, `test/parser.test.ts`).
 - It hands an intercepted answer back as it is: the sim follows a redirect itself, each leg a
   request on the network, and the answer carries its URL (`test/redirect.test.ts`).
+- Its module map and the V8 loader's were two: an import asked the network for a module a
+  `modulepreload` was still downloading (the runtime's script comes before its preloads, so every
+  runtime chunk was asked twice). An import waits for happy-dom's download and takes its source
+  (`downloading` in `src/modules.ts`, `test/modules.test.ts`; found by the differential).
+- It lays nothing out, and its IntersectionObserver is a stub that never reports: no
+  `wake: 'visible'` island ever woke by being seen, and the hydration drain waited for a viewport
+  snapshot on every turn. A document has a layout (`src/layout.ts`: block flow on the player's
+  1280x720 viewport, read off happy-dom's computed styles: display, margins, borders, padding,
+  height; text 8 px a character, 20 px a line) and an IntersectionObserver that reports from it at
+  a frame, a task of its realm (`test/layout.test.ts`; found by the differential). The home page's
+  regions land within 70 px of Chromium's. Never scrolled yet.
 - It ran an inline module script at once and an external one when its file came: a document's
   module scripts run in its order (`modules_in_order`, `test/modules.test.ts`).
 - It read `interactive` from the start, never fired DOMContentLoaded, and fired `load` before a
@@ -81,6 +92,9 @@ module scripts. Its gaps are handled in the sim, with no patch to happy-dom:
   back from the page on screen (the router handed a click to the browser, the visitor went back,
   and the stalled page landed on the back's document: palaestra seed 20958,
   `rule_address_bar_drift`).
+- It called only a window's bubbling `load` listeners (one that captures never heard it) and never
+  fired `pageshow`: both reach the window, capturing then not, the document their target
+  (`window_load_events`, `test/modules.test.ts`; found by the differential).
 - It ran a copy of any script: a copy carries "already started" (a script that connected, or one a
   parser marked unexecutable), so the router's head merge ran the next page's early hole start
   again (`scripts_start_once`, `test/scripts.test.ts`; gen 191).
@@ -428,6 +442,37 @@ a `new PerformanceMark()`'s: the fake clock moves `performance.now` and an event
 the entries'. A timer's callback runs inside the clock's own `runFor`, so a long timer task is not
 seen (its entry point is Playwright's); a fetch's answer, an event and a module's evaluation are. The palaestra's 9 kept plans of a 60-run search
 pass in Chromium.
+
+## The differential
+
+The fake browser's gaps were found by luck (DOMContentLoaded never fired, `load` came before the
+module scripts ran, history entries came at the wrong time, a left document's downloads went on),
+each after hundreds of runs. The differential looks for them on purpose (`src/differ.ts`): the same
+calm runs played in the simulator and in Chromium, Firefox and WebKit, and what ogygia observably
+did put side by side after every action.
+
+    node --experimental-vm-modules src/differ.ts [--app <dir>] [--from 1] [--runs 10] [--steps 8] \
+      [--browsers chromium,firefox,webkit] [--out <dir>] [--reuse]
+    node src/differ.ts --compare <dir>
+
+A calm run (`cli.ts --calm`) is one both worlds can play alike: no fault, no buggify point, one
+server with a stable secret, the app's own build (the one its player serves), and no deploy, offline
+or outage (`NOT_CALM`, left out on both sides). `--observe <dir>` writes each run's plan with what it
+saw (`<app>-<seed>.sim.json`); the player plays that plan with `SIM_OBSERVE=<dir>` and writes
+`<app>-<seed>.sim.<browser>.json`. After each action each side waits for rest and looks at every tab
+(`@ogygia/tooling/e2e/sim-observe.ts`, the same code on both sides): the document (`snapshot`: the
+MPA oracle's normalization, which a page can run), what each document heard from before its first
+script (`ear`: readystatechange, DOMContentLoaded, load, pageshow, pagehide, popstate, hashchange,
+`og:*` and `ogygia:*`, capturing on the window), its machine moves, its errors and warnings, and
+the requests the tabs made to the app.
+
+Compared (`differences`): the address, the document's first differing hunk, the lifecycle's order
+(a region's own events as a count: their order is the network's), each machine's steps by name and
+the states left mid-work, what was said, and the requests as a multiset. What differs by
+construction is masked (`plain`): the origin, content hashes, a hole's `exp=` and `sig=` (its
+server's clock). A difference every browser shows alike is the simulator's (`sim-only`, the report's
+first list); one only some show is `engines` (an engine's way, or timing). dst.yml's `differ` job
+runs 12 seeds a day (a new range each day) in all three and puts the report in its summary.
 
 ## Findings
 
