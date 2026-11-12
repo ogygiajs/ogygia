@@ -178,84 +178,6 @@ export const KNOWN: ReadonlyArray<{
 		}
 	},
 	{
-		issue: 786,
-		what: 'an empty <title> after client navigations, or two titles on a page visited again',
-		// (an empty one: no text line under it; and the empty one a page with a title fills in,
-		// beside its own: seed 443, /soft-race → a page with no title → back)
-		applies: (shown, fresh) => titles(shown).length > titles(fresh).length,
-		forgive: (s) => {
-			const h = head_blocks(s);
-			const first = h.blocks.find((b) => b[0] === '    <title>' && b.length > 1);
-			const blocks = h.blocks.filter((b) => b[0] !== '    <title>' || b === first);
-			return [...h.before, ...blocks.flat(), ...h.after].join('\n');
-		}
-	},
-	{
-		issue: 799,
-		what: "a left page's region sheet kept for one navigation",
-		// (the tab holds a region sheet the fresh load does not, or one more copy of it: the left
-		// page's lifted sheet beside the next page's own, its href written another way; seeds 385,
-		// 415, /server → /nested, gone with #800's fix)
-		applies: (shown, fresh) => {
-			const there = new Map<string, number>();
-			for (const s of region_sheets(fresh)) there.set(s, (there.get(s) ?? 0) + 1);
-			return region_sheets(shown).some((s) => {
-				const n = there.get(s) ?? 0;
-				there.set(s, n - 1);
-				return n <= 0;
-			});
-		},
-		forgive: (s) => {
-			const h = head_blocks(s);
-			const blocks = h.blocks.filter((b) => !b[0].includes('data-ogygia-region-css='));
-			return [...h.before, ...blocks.flat(), ...h.after].join('\n');
-		}
-	},
-	{
-		issue: 794,
-		what: "a page's styles above the app's after client navigations",
-		// (the same stylesheets, in another order)
-		applies: (shown, fresh) => {
-			const sheets = (s: string) =>
-				head_blocks(s)
-					.blocks.filter((b) => /^ {4}<style\b|rel="stylesheet"/.test(b[0]))
-					.map((b) => b.join('\n'));
-			const [a, b] = [sheets(shown), sheets(fresh)];
-			return a.join('\n') !== b.join('\n') && a.sort().join('\n') === b.sort().join('\n');
-		},
-		forgive: (s) => {
-			const h = head_blocks(s);
-			const blocks = h.blocks.map((b) => b.join('\n')).sort();
-			return [...h.before, ...blocks, ...h.after].join('\n');
-		}
-	},
-	{
-		issue: 804,
-		what: 'a wire-class prop gives a region a new fingerprint every render',
-		// (the regions' fingerprints differ; with them set aside, nothing else may)
-		applies: (shown, fresh) => fingerprints(shown) !== fingerprints(fresh),
-		forgive: (s) => s.replace(/ data-og-fp="[0-9a-f]+"/g, ' data-og-fp="<fp>"')
-	},
-	{
-		issue: 806,
-		what: 'a page brought in by the router lacks its kit-island stamp',
-		// (the fresh load has a stamp the tab does not)
-		applies: (shown, fresh) => kit_stamps(shown) !== kit_stamps(fresh),
-		forgive: (s) => {
-			const h = head_blocks(s);
-			const blocks = h.blocks.filter((b) => !b[0].includes('name="ogygia-kit-island"'));
-			return [...h.before, ...blocks.flat(), ...h.after].join('\n');
-		}
-	},
-	{
-		issue: 840,
-		what: "a kept region takes the server placeholder's skip marks",
-		// (a region of the tab carries data-og-skipped, which no fresh load has)
-		applies: (shown) => / data-og-skipped=""/.test(shown),
-		forgive: (s) =>
-			s.replace(/^( *<ogygia-region .*)$/gm, (l) => l.replace(/ data-og-(skipped|opaque)=""/g, ''))
-	},
-	{
 		issue: 891,
 		what: 'a hole that failed while offline never loads once the network is back',
 		// (a hole of the tab still shows its fallback, unanswered, where the fresh load's same hole
@@ -287,76 +209,8 @@ export const KNOWN: ReadonlyArray<{
 			}
 			return out.join('\n');
 		}
-	},
-	{
-		issue: 831,
-		what: 'a retried import hands back the file its error named',
-		// (the document asked for a region file again, `og-retry`, and a region woken from a file
-		// shows other markup: the nested region's component in the outer one's place, with no
-		// hydration mismatch when the two are alike; generated app 3, seed 48, #899)
-		seen: (world, tab) => retried_a_region(world, tab),
-		applies: (shown, fresh) => regions(shown).join('\n') !== regions(fresh).join('\n'),
-		forgive: (s) => {
-			const lines = s.split('\n');
-			const out: string[] = [];
-			for (let i = 0; i < lines.length; i++) {
-				const block = region_at(lines, i);
-				if (block === null || !/ src="/.test(lines[i])) out.push(lines[i]);
-				else {
-					out.push(lines[i].replace(' data-hydrated=""', ''));
-					i = block.end - 1;
-				}
-			}
-			return out.join('\n');
-		}
-	},
-	{
-		issue: 807,
-		what: 'a region of the page left stays after a client navigation',
-		// (the tab holds every region the fresh load has, and more; after #804, which sets
-		// fingerprints aside, so regions are compared by what they show)
-		applies: (shown, fresh) => {
-			const [a, b] = [regions(shown), regions(fresh)];
-			return a.length > b.length && b.every((r) => a.includes(r));
-		},
-		forgive: (s, other) => {
-			const keep = new Set(regions(other));
-			const lines = s.split('\n');
-			const out: string[] = [];
-			for (let i = 0; i < lines.length; i++) {
-				const block = region_at(lines, i);
-				if (block === null || keep.has(block.text)) out.push(lines[i]);
-				else i = block.end - 1;
-			}
-			return out.join('\n');
-		}
 	}
 ];
-
-/** Whether `tab`'s document asked for a region file again under `og-retry` (#831's mark). */
-function retried_a_region(world: World, tab: Tab): boolean {
-	return world.network.exchanges.some(
-		(e) => e.from === tab.realm && /\/og-region\.[^/?]+\?og-retry=/.test(e.url)
-	);
-}
-
-/** The `<title>` elements in a normalized DOM's head, each whole. */
-function titles(s: string): string[] {
-	return head_blocks(s)
-		.blocks.filter((b) => b[0] === '    <title>')
-		.map((b) => b.join('\n'));
-}
-
-/** A normalized DOM's regions (`<ogygia-region>` subtrees), each as its text. */
-function regions(s: string): string[] {
-	const lines = s.split('\n');
-	const found: string[] = [];
-	for (let i = 0; i < lines.length; i++) {
-		const block = region_at(lines, i);
-		if (block !== null) found.push(block.text);
-	}
-	return found;
-}
 
 /** The region whose opening line is `lines[at]`, with the line after its subtree; null if none. */
 function region_at(lines: string[], at: number): { text: string; end: number } | null {
@@ -542,15 +396,6 @@ function bookkeeping_out(s: string): string {
 	});
 }
 
-/** A normalized DOM's kit-island stamps. */
-function kit_stamps(s: string): string {
-	return head_blocks(s)
-		.blocks.filter((b) => b[0].includes('name="ogygia-kit-island"'))
-		.map((b) => b[0].trim())
-		.sort()
-		.join('\n');
-}
-
 /** How many generated peer widgets a normalized DOM shows. */
 function widgets(s: string): number {
 	return s.split('\n').filter((l) => l.trim().startsWith('<section data-gen="widget"')).length;
@@ -570,18 +415,6 @@ function peer_hop_failed(e: World['network']['exchanges'][number]): boolean {
 /** A normalized DOM's generated peer widgets, by what each says it is (`w<k> for r<slot>`). */
 function widget_labels(s: string): string {
 	return [...s.matchAll(/"(w\d+ for r\d+)"/g)].map((m) => m[1]).join(',');
-}
-
-/** A normalized DOM's region fingerprints, in order. */
-function fingerprints(s: string): string {
-	return [...s.matchAll(/ data-og-fp="([0-9a-f]+)"/g)].map((m) => m[1]).join(',');
-}
-
-/** The region sheets (`data-ogygia-region-css`) in a normalized DOM's head, each whole. */
-function region_sheets(s: string): string[] {
-	return head_blocks(s)
-		.blocks.filter((b) => b[0].includes('data-ogygia-region-css='))
-		.map((b) => b.join('\n'));
 }
 
 /** The first lines where two normalized DOMs differ, for a report. */
@@ -804,7 +637,7 @@ const KNOWN_EMPTY: ReadonlyArray<{ issue: number; what: string; is: (r: Element)
  * Read from the page's machine moves (`__ogygia_moves()`, rules on): each machine's last move is
  * its state now (the trace lets the oldest lines go first, so a machine it still lists is current).
  */
-export function stuck(tab: Tab, world?: World): Broken | null {
+export function stuck(tab: Tab): Broken | null {
 	const w = tab.page.mainFrame.window as unknown as { __ogygia_moves?: () => string };
 	const last = new Map<string, string>();
 	for (const line of (w.__ogygia_moves?.() ?? '').split('\n')) {
@@ -814,42 +647,7 @@ export function stuck(tab: Tab, world?: World): Broken | null {
 	const held = [...last].filter(([, state]) => state.endsWith('ing'));
 	if (held.length === 0) return null;
 	const detail = `${tab.page.mainFrame.url}: at rest, still ${held.map(([id, s]) => `${id} ${s}`).join(', ')}`;
-	// #820: on a page Kit hydrates, Kit's client that never came leaves its islands' wakes waiting
-	if (
-		held.every(([id, s]) => id.startsWith('wake#') && s === 'waking') &&
-		kit_never_came(tab, world)
-	)
-		return {
-			oracle: 'known',
-			detail: `${detail}: #820 (an island waits for a Kit that never came)`
-		};
 	return { oracle: 'stuck', detail };
-}
-
-/**
- * A page Kit hydrates (its start entry is in the document) whose Kit never published its page: no
- * bridge, or a file of the app's code failed to download in this document (Kit's boot imports
- * many; the bridge may come from one that did load: seed 848, its start entry cut).
- */
-function kit_never_came(tab: Tab, world?: World): boolean {
-	const w = tab.page.mainFrame.window as unknown as Record<symbol, unknown> & {
-		document: Document;
-	};
-	const kit = [...w.document.querySelectorAll('script, link')].some((e) =>
-		/\/_app\/immutable\/entry\/start\./.test(e.textContent + (e.getAttribute('href') ?? ''))
-	);
-	if (!kit) return false;
-	if (w[Symbol.for('ogygia.kit-page')] == null) return true;
-	return (
-		world !== undefined &&
-		(world.skewed_for(tab.realm) ||
-			world.network.exchanges.some(
-				(e) =>
-					e.from === tab.realm &&
-					new URL(e.url).pathname.startsWith('/_app/immutable/') &&
-					(e.cut || e.lost || e.status === 'offline' || e.status === 'dropped')
-			))
-	);
 }
 
 /** ogygia's own rules, in the page (`__ogygia_rules()`, built in with OGYGIA_RULES=1). */
@@ -1063,20 +861,12 @@ export function hydrates_as_sent(tab: Tab, world?: World): Broken | null {
 	const url = tab.page.mainFrame.url;
 	if (UNHYDRATED_BY_DESIGN.some((d) => d.path.test(new URL(url).pathname))) return null;
 	const detail = `${url}: ${said.map((l) => l.split('\n')[0]).join('\n')}`;
-	// #831: a region module asked for again (`og-retry`) after a nested island's download failed
-	// stands in for the outer region's module, which then hydrates the wrong component
-	if (world !== undefined && retried_a_region(world, tab))
-		return {
-			oracle: 'known',
-			detail: `${detail}: #831 (a retried import hands back the file its error named)`
-		};
 	return { oracle: 'ssr-hydrate', detail };
 }
 
 /** What a page says because of a filed bug, as KNOWN is for a DOM difference: a seed that says
  *  only these is counted `known`, not failed. Each entry goes when its fix lands. */
 export const KNOWN_SAID: ReadonlyArray<{ issue: number; what: string; said: RegExp }> = [
-	{ issue: 817, what: 'a kept island loses its live query', said: /No cached query found/ },
 	{
 		issue: 915,
 		what: "Svelte 5.56.8's error walk meets a destroyed boundary",
@@ -1184,8 +974,7 @@ export class Leaks {
 		const now: Record<string, number> = {
 			...held,
 			head: held.head - preloads,
-			elements: held.elements - preloads,
-			explained: explained_head(tab)
+			elements: held.elements - preloads
 		};
 		// (one sample per visit, its latest: the visit may still have been settling)
 		const labels = this.#listening.get(key) ?? [];
@@ -1202,12 +991,7 @@ export class Leaks {
 		if (list.length < LEAK_VISITS) return null;
 		const run = list.slice(-LEAK_VISITS);
 		// (BOUNDED MEMORY: the head and the element count too; a page visited again is the same page)
-		const grew = (field: string, less = 0) =>
-			run.every(
-				(s, i) =>
-					i === 0 || s[field] - less * s.explained > run[i - 1][field] - less * run[i - 1].explained
-			);
-		let known = false;
+		const grew = (field: string) => run.every((s, i) => i === 0 || s[field] > run[i - 1][field]);
 		const fields = ['listeners', 'intervals', 'observers', 'head', 'elements'];
 		for (const field of pressed ? fields.slice(0, -1) : fields) {
 			if (!grew(field)) continue;
@@ -1216,11 +1000,6 @@ export class Leaks {
 			// Svelte's event delegation do, and visits of new kinds of region add new code each;
 			// generated-app 6, seed 12)
 			if (field === 'listeners' && growing(labels.slice(-LEAK_VISITS)).length === 0) continue;
-			// (head nodes a filed bug explains are set aside: if then it does not grow, it is known)
-			if ((field === 'head' || field === 'elements') && !grew(field, 1)) {
-				known = true;
-				continue;
-			}
 			return {
 				oracle: 'leak',
 				detail: `${url}: ${field} grew visit after visit in one document: ${run.map((s) => s[field]).join(' → ')}${field === 'intervals' ? `\nrunning: ${tab.platform?.pending().join(', ')}` : ''}${
@@ -1236,12 +1015,7 @@ export class Leaks {
 				}`
 			};
 		}
-		return known
-			? {
-					oracle: 'known',
-					detail: `${url}: #799 (a left page's region sheet kept), #821 (a second runtime script after a navigation to another depth)`
-				}
-			: null;
+		return null;
 	}
 }
 
@@ -1278,16 +1052,4 @@ function added(before: string[], after: string[]): string[] {
 function preloads_in_head(tab: Tab): number {
 	const head = (tab.page.mainFrame.document as unknown as Document).head;
 	return head ? head.querySelectorAll('link[rel="modulepreload"]').length : 0;
-}
-
-/**
- * Head nodes a filed bug explains: runtime scripts past the first (#821) and region sheets (#799
- * keeps a left page's for a navigation; until it is fixed a sheet's coming and going is set aside).
- */
-function explained_head(tab: Tab): number {
-	const head = (tab.page.mainFrame.document as unknown as Document).head;
-	if (!head) return 0;
-	const runtime = head.querySelectorAll('script[data-ogygia-runtime]').length;
-	const sheets = head.querySelectorAll('[data-ogygia-region-css]').length;
-	return Math.max(0, runtime - 1) + sheets;
 }
