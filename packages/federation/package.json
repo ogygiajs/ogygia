@@ -74,6 +74,7 @@
 		"devalue": "catalog:"
 	},
 	"devDependencies": {
+		"@ogygia/compiler": "workspace:*",
 		"@ogygia/config": "workspace:*",
 		"@ogygia/core": "workspace:*",
 		"@ogygia/flags": "workspace:*",
@@ -91,6 +92,7 @@
 		"vitest": "catalog:"
 	},
 	"peerDependencies": {
+		"@ogygia/compiler": "workspace:^",
 		"@ogygia/core": "workspace:^",
 		"@ogygia/router": "workspace:^",
 		"svelte": "catalog:peers",
