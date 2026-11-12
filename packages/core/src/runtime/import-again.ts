@@ -34,6 +34,7 @@ import {
 	STALE,
 	type Scope
 } from '@ogygia/machine';
+import type { CodeUrl } from './code-origins.ts';
 
 // dev and rules builds (a buggify point); folded out of any other
 const RULES =
@@ -327,9 +328,10 @@ const file_loads = flights({
  * asked for again at once under a fresh URL, and by every later load of that file. A plain
  * `import()` of it once left an island whose file dropped one download dead for the tab (#261). A
  * file the server answered for (a 404 after a deploy) is not asked for again at once: the caller's
- * own recovery (./entry-locations.ts, the current build's file) is what helps there.
+ * own recovery (./entry-locations.ts, the current build's file) is what helps there. Only a URL on
+ * an allowed code origin (./code-origins.ts) is taken.
  */
-export function import_file<T>(url: string): Promise<T> {
+export function import_file<T>(url: CodeUrl): Promise<T> {
 	// (nothing drops a file's load, so it is never STALE; were it, it is asked for again)
 	return file_loads.get(url).then((m) => (m === STALE ? import_file<T>(url) : (m as T)));
 }

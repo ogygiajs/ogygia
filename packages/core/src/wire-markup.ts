@@ -70,6 +70,7 @@ export type MarkKey =
 	| 'noReconcile'
 	| 'opaque'
 	| 'opaquen'
+	| 'origins'
 	| 'overlay'
 	| 'overlayToggle'
 	| 'owner'
@@ -200,6 +201,7 @@ export const OG_MOVED = 'data-og-moved';
 export const OG_NO_RECONCILE = 'data-og-no-reconcile';
 export const OG_OPAQUE = 'data-og-opaque';
 export const OG_OPAQUEN = 'data-og-opaquen';
+export const OG_ORIGINS = 'data-og-origins';
 export const OG_OVERLAY = 'data-og-overlay';
 export const OG_OVERLAY_TOGGLE = 'data-og-overlay-toggle';
 export const OG_OWNER = 'data-og-owner';
@@ -326,6 +328,7 @@ export const MARK: { readonly [K in MarkKey]: Mark } = {
 	noReconcile: { attr: OG_NO_RECONCILE, by: 'page' },
 	opaque: { attr: OG_OPAQUE, by: 'page' },
 	opaquen: { attr: OG_OPAQUEN, by: 'page' },
+	origins: { attr: OG_ORIGINS, by: 'page' },
 	overlay: { attr: OG_OVERLAY, by: 'devtools' },
 	overlayToggle: { attr: OG_OVERLAY_TOGGLE, by: 'devtools' },
 	owner: { attr: OG_OWNER, by: 'page' },
