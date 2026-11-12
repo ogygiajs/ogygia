@@ -682,7 +682,11 @@
 		// (seconds, from the preset's `maxAge`) is signed in so the handle sets Cache-Control; absent
 		// → 0 → the hole is served `no-store` (dynamic by default).
 		// (+ the page facts it renders from, for a hole whose tree reads page.data: server/render-page.ts)
-		return mint_server_region(__entry, __props || {}, __cacheTtl || 0) + kit_page_version(__entry);
+		// (a hole that wakes says so, signed: its answer renders as its hydrate does, #906)
+		return (
+			mint_server_region(__entry, __props || {}, __cacheTtl || 0, !!__hydrate) +
+			kit_page_version(__entry)
+		);
 	});
 
 	// DOM `entry`: the importable module URL a deferred island wakes with AFTER its HTML swaps in.
