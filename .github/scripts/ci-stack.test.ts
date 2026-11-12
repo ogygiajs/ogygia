@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { has_label, is_stacked, labels_for } from './ci-stack.ts';
+import { has_label, is_batched, is_stacked, labels_for } from './ci-stack.ts';
 
 test('a PR into main, latest or an lts line is not stacked; a PR into another PR branch is', () => {
 	assert.equal(is_stacked('main'), false);
@@ -25,4 +25,12 @@ test('a stacked PR runs an opt-in set its author added by hand', () => {
 test('a PR into main runs what it carries or earns', () => {
 	assert.equal(has_label('ci:bench', 'main', [], ['ci:bench']), true);
 	assert.equal(has_label('ci:engines', 'main', [], ['ci:bench']), false);
+});
+
+test('a batched PR runs no opt-in set, not even with ci:full: its batch runs them', () => {
+	assert.equal(is_batched(['batched']), true);
+	assert.equal(is_batched(['ci:bench']), false);
+	assert.equal(has_label('ci:bench', 'main', ['batched'], ['ci:bench']), false);
+	assert.equal(has_label('ci:engines', 'main', ['batched', 'ci:full'], []), false);
+	assert.equal(has_label('ci:preview', 'feat/x', ['batched', 'ci:preview'], []), false);
 });
