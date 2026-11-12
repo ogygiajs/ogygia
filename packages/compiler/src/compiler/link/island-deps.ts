@@ -6,7 +6,17 @@
  */
 import path from 'node:path';
 import { dedent } from '@ogygia/core/contract';
-import { merge_page_keys, type PageKeys } from './page-keys.ts';
+
+/** What a module reads of `page.data`, as the seed-shaping plugin answers: its keys, or 'unknown'. */
+type PageKeys = ReadonlySet<string> | 'unknown';
+
+/** Union two answers: `'unknown'` absorbs everything, `null` is the identity. */
+function merge_page_keys(a: PageKeys | null, b: PageKeys | null): PageKeys | null {
+	if (a === 'unknown' || b === 'unknown') return 'unknown';
+	if (!a) return b;
+	if (!b) return a;
+	return new Set([...a, ...b]);
+}
 import {
 	hydration_hazards,
 	OWN_FILE_RE,
@@ -91,11 +101,11 @@ export function collectIslandDepModulepreloads(
 	 */
 	remote_hash: ((module_id: string) => string | null) | null = null,
 	/**
-	 * SEED SHAPING: the top-level `page.data` keys a bundled module reads (link/page-keys.ts, recorded
-	 * by the transform), `'all'` when its reads could not be pinned, `null` for a module that never
-	 * imports the page. Per entry, `page_keys[entryUrl]` is the union over its chunk closure — the
-	 * keys the handle ships — or `null` (ship all) when any module said `'all'`, or when the closure
-	 * reads the page through a module the transform never saw. Absent → every reader `null`.
+	 * SEED SHAPING: the top-level `page.data` keys a bundled module reads (the seed-shaping plugin's
+	 * answer), `'unknown'` when its reads could not be pinned, `null` for a module it never saw read
+	 * the page. Per entry, `page_keys[entryUrl]` is the union over its chunk closure — the keys the
+	 * handle ships — or `null` (ship all) when any module said `'unknown'`, or when the closure reads
+	 * the page through a module the plugin never saw. Absent (no plugin) → every reader `null`.
 	 */
 	page_keys_of: ((module_id: string) => PageKeys | null) | null = null,
 	/**
@@ -201,7 +211,7 @@ export function collectIslandDepModulepreloads(
 			if (k === null) continue;
 			any = true;
 			acc = merge_page_keys(acc, k);
-			if (acc === 'all') break;
+			if (acc === 'unknown') break;
 		}
 		return any ? acc : undefined;
 	};
@@ -324,9 +334,10 @@ export function collectIslandDepModulepreloads(
 				if (k === undefined) continue;
 				saw_reader = true;
 				acc = merge_page_keys(acc, k);
-				if (acc === 'all') break;
+				if (acc === 'unknown') break;
 			}
-			page_keys[entryUrl] = !saw_reader || acc === 'all' || acc === null ? null : [...acc].sort();
+			page_keys[entryUrl] =
+				!saw_reader || acc === 'unknown' || acc === null ? null : [...acc].sort();
 		}
 		// The remotes this island's client code can call: every remote module bundled anywhere in
 		// its closure (static + dynamic). Sorted so the handoff is byte-stable across builds.

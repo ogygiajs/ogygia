@@ -18,12 +18,11 @@ describe('report_seed_shaping', () => {
 				'b.js': { type: 'chunk', moduleIds: ['/app/src/lib/B.svelte'] },
 				'c.js': { type: 'chunk', moduleIds: ['/app/src/lib/C.svelte'] }
 			},
-			{
-				page_key_reasons: new Map([
+			(module) =>
+				new Map([
 					['/app/src/lib/helper.ts', { why: '`page.data` is spread', line: 7 }],
 					['/app/src/lib/C.svelte', { why: '`page.data` is passed on', line: 3 }]
-				])
-			},
+				]).get(module) ?? null,
 			'/app'
 		);
 		log.mockRestore();

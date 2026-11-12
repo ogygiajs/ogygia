@@ -73,7 +73,10 @@ export type {
 	StageTransform,
 	ExportsSeam,
 	PinnedDecl,
-	RegionsSeam
+	RegionsSeam,
+	PageReads,
+	PageReadsResolve,
+	PageReadWhy
 } from './plugin-api.ts';
 export type {
 	ExportMap,
@@ -135,7 +138,6 @@ import {
 	summarize_chunk_contents
 } from '../compiler/link/island-deps.ts';
 import { report_seed_shaping } from '../compiler/link/build-output.ts';
-import { follow_pending_page_calls } from '../compiler/link/page-keys.ts';
 import { emit_island_deps_handoff, refuse_client_secrets } from '../compiler/link/build-output.ts';
 import { ssr_hosts_handoff_path, parse_ssr_hosts } from '../compiler/link/emit-gate.ts';
 import { router_css_key } from '../compiler/link/router-css.ts';
@@ -234,6 +236,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 	let route_config: string[] = [];
 	let foreign_hydrate = false;
 	let macros: ResolvedPlugins['macros'] = [];
+	let page_reads: ResolvedPlugins['page_reads'] = null;
 	let stage_transforms: ResolvedPlugins['transforms'] = [];
 	let markup: ResolvedPlugins['markup'] = [];
 	let definers: ResolvedPlugins['definers'] = [];
@@ -615,7 +618,8 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 						foreign_hydrate,
 						macros,
 						markup,
-						definers
+						definers,
+						page_reads
 					} = resolved);
 					measure = resolved.measure;
 					devtools_effective = resolved.events !== false;
@@ -871,6 +875,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 						import_keys,
 						resolve_alias,
 						macros,
+						page_reads,
 						// (the id prefix, not the native path: every consumer `startsWith`s a module id)
 						pkg_root: CORE_ROOT_ID,
 						build_secret,
@@ -1038,12 +1043,14 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 					install_dev_maps(server);
 					// ...and the browser's modules, for the traces the browser sends
 					install_dev_client_maps(server);
-					// ...and which page.data keys each island's code reads (the build's seed answer)
-					install_dev_page_keys(
-						server,
-						(iid) => program.registry.get(program.by_id.get(iid) ?? '')?.componentPath,
-						root
-					);
+					// ...and which page.data keys each island's code reads (the seed-shaping plugin's answer)
+					if (page_reads)
+						install_dev_page_keys(
+							server,
+							(iid) => program.registry.get(program.by_id.get(iid) ?? '')?.componentPath,
+							root,
+							page_reads
+						);
 				}
 			},
 
@@ -1327,7 +1334,8 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 				const page = compiler.patch_page_data_reads(
 					fn?.code ?? code,
 					(id) => this.getModuleInfo(id),
-					() => this.getModuleIds()
+					() => this.getModuleIds(),
+					page_reads
 				);
 				return page ?? fn;
 			},
@@ -1461,11 +1469,9 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 				// `remotes`: per island entry, the Kit remote modules in that closure (by the id-hash Kit
 				// mints them with — relative to `process.cwd()`, as Kit's own transform hashes them) —
 				// the handle seeds an SSR-resolved remote only for a page with an island that can call it.
-				// SEED SHAPING, the calls to follow: `helper(page)` into an IMPORTED helper. Resolve the
-				// specifier from the calling module, summarize what the helper's export reads of its page
-				// parameter (through barrel re-exports, a few hops), and fold it into the caller's keys.
-				// Anything unresolvable answers 'all' with a reason naming the call.
-				await follow_pending_page_calls(program, (s, importer) => this.resolve(s, importer));
+				// SEED SHAPING: the plugin settles what needs the bundler (a helper in another module that
+				// the page is handed to) before the collector asks it for each module's keys.
+				await page_reads?.settle((s, importer) => this.resolve(s, importer));
 
 				const remote_hash = (id: string) => remote_hash_of(id, process.cwd());
 				// IDENTITY → LOCATION: the entries' final (content-hashed) names. Every map the collector
@@ -1485,9 +1491,9 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 					>,
 					[APP_SHIMS['$app/state'], APP_SHIMS['$app/stores']],
 					remote_hash,
-					// SEED SHAPING: the transform recorded, per module, the `page.data` keys it reads
-					// (Program.page_keys); the collector unions them over each island's closure.
-					(module_id) => program.page_keys.get(module_id) ?? null,
+					// SEED SHAPING: the plugin answers, per module, the `page.data` keys it reads; the
+					// collector unions them over each island's closure. No plugin: every reader ships all.
+					page_reads && ((module_id) => page_reads!.keys(module_id)),
 					// WAKE ADVISOR: the collector counts what each island's own components do
 					(id) => {
 						try {
@@ -1501,14 +1507,16 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 					entries.runtime_file,
 					{ islands: entries.islands, runtime: entries.runtime }
 				);
-				const page_why = report_seed_shaping(
-					map,
-					bundle as Record<string, { type: string; moduleIds?: string[]; imports?: string[] }>,
-					program,
-					root,
-					// (the maps key identities; the walk starts at each one's emitted file)
-					(identity) => entries.locations[identity] ?? identity
-				);
+				const page_why = page_reads
+					? report_seed_shaping(
+							map,
+							bundle as Record<string, { type: string; moduleIds?: string[]; imports?: string[] }>,
+							(module) => page_reads!.why(module),
+							root,
+							// (the maps key identities; the walk starts at each one's emitted file)
+							(identity) => entries.locations[identity] ?? identity
+						)
+					: {};
 				// SERVER-ROUTER CSS handoff: each root's whole component-tree CSS was compiled + emitted as
 				// ONE dedicated asset in buildStart (router_css_refs). Resolve each referenceId to its
 				// hashed URL under `rcss:<rel>`, the key `ogygia:server/router-css` reads via `islandCss()`

@@ -201,6 +201,27 @@ describe('realms, named by the plugin', () => {
 		expect(out.servers).toEqual([]);
 		expect(out.clients).toEqual([]);
 	});
+	it('seed shaping is off without a plugin, one plugin answers it, and a second claim fails loudly', () => {
+		expect(resolve_plugins([def({ name: '@ogygia/flags' })], APP, true).page_reads).toBeNull();
+		const reads = {
+			module() {},
+			settle: async () => {},
+			keys: () => null,
+			why: () => null,
+			dev: async () => ({ keys: null, why: [] })
+		};
+		const claim = (name: string) =>
+			def({
+				name,
+				build(b) {
+					b.pageReads(reads);
+				}
+			});
+		expect(resolve_plugins([claim('@ogygia/flags')], APP, true).page_reads).toBe(reads);
+		expect(() =>
+			resolve_plugins([claim('@ogygia/flags'), claim('@ogygia/barrels')], APP, true)
+		).toThrow(/claimed by both `@ogygia\/flags` and `@ogygia\/barrels`/);
+	});
 	it('a realm that is not a file, or not a location, fails loudly', () => {
 		expect(() =>
 			resolve_plugins([def({ name: '@ogygia/flags', server: './server.ts' })], APP, true)

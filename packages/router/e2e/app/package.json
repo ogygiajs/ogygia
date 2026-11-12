@@ -11,6 +11,7 @@
 		"check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --fail-on-warnings"
 	},
 	"dependencies": {
+		"@ogygia/page-keys": "workspace:*",
 		"@ogygia/router": "workspace:*",
 		"ogygia": "workspace:*",
 		"repro-island-pkg": "workspace:*"

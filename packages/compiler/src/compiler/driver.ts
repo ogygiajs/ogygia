@@ -67,7 +67,6 @@ import {
 } from './virtual/core.ts';
 import type { Leg, Part } from './virtual/table.ts';
 import { strip_id, host_key } from './program.ts';
-import { mentions_page_store, page_data_keys_answer } from './link/page-keys.ts';
 import {
 	export_names,
 	registry_client_id,
@@ -1462,25 +1461,11 @@ export class Compiler implements CoreApp {
 		// Program.ssr_transformed / link/emit-gate.ts)
 		if (ssr && ctx.is_build) program.ssr_transformed.add(host_key(id_n));
 
-		// SEED SHAPING: a module that imports Kit's page store is read ONCE here, on the compiler's
-		// parsers, for the top-level `page.data` keys it can reach (link/page-keys.ts). Recorded by
-		// the query-less id so the client `writeBundle` can find it from a chunk's `moduleIds`; the
-		// source form is what this pre-transform sees, before the `$app/*` shim rewrite below.
-		if (ctx.is_build && mentions_page_store(code)) {
-			const clean = id.split('?')[0].split('\\').join('/');
-			const kind = clean.endsWith('.svelte')
-				? 'svelte'
-				: SCRIPT_MODULE_RE.test(clean)
-					? 'script'
-					: null;
-			if (kind) {
-				const { keys, reason, pending } = page_data_keys_answer(code, clean, kind);
-				if (keys !== null) program.page_keys.set(clean, keys);
-				if (reason) program.page_key_reasons.set(clean, reason);
-				if (pending.length) program.page_pending.set(clean, pending);
-				else program.page_pending.delete(clean);
-			}
-		}
+		// SEED SHAPING: the seed-shaping plugin (`b.pageReads`) reads the module once, in the source
+		// form this pre-transform sees (before the `$app/*` shim rewrite below), by its query-less id
+		// so the client `writeBundle` can find it from a chunk's `moduleIds`.
+		if (ctx.is_build && ctx.page_reads)
+			ctx.page_reads.module(id.split('?')[0].split('\\').join('/'), code);
 
 		// (There is deliberately NO csr=false route-client stripping here. Kit collects a route's
 		// CSS manifest from the CLIENT graph — stubbing those modules silently drops every component
@@ -1675,29 +1660,29 @@ export class Compiler implements CoreApp {
 	/**
 	 * Patch the server manifest's page-data placeholder: per server island (a hole), does its SERVER
 	 * tree — the component and everything it imports, statically or dynamically (a registry's blocks)
-	 * — read `page.data`? The transform recorded each module's reads (`page_keys`, seed shaping); by
+	 * — read `page.data`? The seed-shaping plugin answered each module's reads (`reads`); by
 	 * renderChunk the graph is complete. A hole that never reads it never pays the page lookup
 	 * (server/render-page.ts). One walk per hole, sharing what earlier walks proved: a walk that ends
 	 * with no reader proves every module it visited reads nothing. `graph` is the bundler's module info.
+	 * No plugin (`reads` null): unknown, so every hole looks up (`null`).
 	 */
 	patch_page_data_reads(
 		code: string,
 		graph: (
 			id: string
 		) => { importedIds: readonly string[]; dynamicallyImportedIds: readonly string[] } | null,
-		module_ids: () => Iterable<string>
+		module_ids: () => Iterable<string>,
+		reads: { keys(id: string): ReadonlySet<string> | 'unknown' | null } | null
 	): { code: string; map: null } | null {
 		const at = code.indexOf(PAGE_DATA_READS_TOKEN);
 		if (at === -1) return null;
-		const { page_keys, page_pending, by_id, registry } = this.program;
+		const { by_id, registry } = this.program;
 		const clean = (id: string) => id.split('?')[0].split('\\').join('/');
 		const imports_kit_page = (ids: readonly string[]) =>
 			ids.some((d) => KIT_PAGE_MODULE_RE.test(clean(d)));
 		const reads_itself = (id: string, info: ReturnType<typeof graph>) => {
-			const c = clean(id);
-			const k = page_keys.get(c);
-			if (k !== undefined) return k === 'all' || k.size > 0 || page_pending.has(c);
-			if (page_pending.has(c)) return true;
+			const k = reads!.keys(clean(id));
+			if (k !== null) return k === 'unknown' || k.size > 0;
 			// a page reader seed shaping could not read (a barrel, `getStores()`, an `import()`): unknown
 			return (
 				!!info &&
@@ -1708,7 +1693,7 @@ export class Compiler implements CoreApp {
 		const ids_by_path = new Map<string, string>();
 		for (const id of module_ids()) if (!id.startsWith('\0')) ids_by_path.set(clean(id), id);
 		const proven_clean = new Set<string>();
-		const reads = (root: string): boolean => {
+		const reads_page = (root: string): boolean => {
 			const seen = new Set<string>([root]);
 			const queue = [root];
 			for (let i = 0; i < queue.length; i++) {
@@ -1732,17 +1717,18 @@ export class Compiler implements CoreApp {
 			return false;
 		};
 		const out: Record<string, boolean> = {};
-		for (const [iid, virtual_path] of by_id) {
-			const reg = registry.get(virtual_path);
-			if (!reg?.server) continue;
-			const root = reg.componentPath ? ids_by_path.get(clean(reg.componentPath)) : undefined;
-			// (a component the graph does not know: unknown, so it looks up — a wrong `false` would
-			// render a hole with an empty page.data)
-			out[iid] = root === undefined ? true : reads(root);
-		}
+		if (reads)
+			for (const [iid, virtual_path] of by_id) {
+				const reg = registry.get(virtual_path);
+				if (!reg?.server) continue;
+				const root = reg.componentPath ? ids_by_path.get(clean(reg.componentPath)) : undefined;
+				// (a component the graph does not know: unknown, so it looks up — a wrong `false` would
+				// render a hole with an empty page.data)
+				out[iid] = root === undefined ? true : reads_page(root);
+			}
 		// the token sits in a string literal the bundler may have re-quoted: escape for that quote (the
 		// JSON is ids and booleans only — its one special character is `"`)
-		const json = JSON.stringify(out);
+		const json = reads ? JSON.stringify(out) : 'null';
 		const literal = code[at - 1] === '"' ? json.split('"').join('\\"') : json;
 		return {
 			code: code.slice(0, at) + literal + code.slice(at + PAGE_DATA_READS_TOKEN.length),

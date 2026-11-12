@@ -1,6 +1,5 @@
 // The compiler's per-file passes, the work a build does for every module: the island transform of a
-// route component (its `with { wake }` imports, props and snippets), the page-data key analysis,
-// the ownership stamps, the store macros, the de-barrel import / export analysis, and the free
+// route component (its `with { wake }` imports, props and snippets), the ownership stamps, the store macros, the de-barrel import / export analysis, and the free
 // variables of an island's children; and the dev transform's marking of definer calls.
 import path from 'node:path';
 import { parse } from 'svelte/compiler';
@@ -11,7 +10,6 @@ import { barrel_left_table } from '../src/compiler/exports/left.ts';
 import { BARREL_LEFT_REASONS } from '@ogygia/core/contract';
 import { collect_flag_sites } from '../src/compiler/flags.ts';
 import { collectFreeIdentifiers } from '../src/compiler/free-vars.ts';
-import { page_data_keys_answer } from '../src/compiler/link/page-keys.ts';
 import { auto_brand_stores, rewrite_store } from '../src/compiler/macros/store.ts';
 import { stamp_opaque } from '../src/compiler/ownership-stamps.ts';
 import { transformHost } from '../src/compiler/region/transform.ts';
@@ -103,27 +101,6 @@ bench(
 	({ source }) =>
 		transformHost(source, '/app/src/routes/catalog/+page.svelte', host_ctx(false))?.code.length,
 	{ setup: () => ({ source: route_page(20) }) }
-);
-
-bench(
-	'page data keys: which page.data keys a component reads',
-	({ source }) => page_data_keys_answer(source, '/app/src/lib/Catalog.svelte', 'svelte').keys,
-	{
-		setup: () => {
-			let body = '';
-			for (let i = 0; i < 60; i++) {
-				body = `${body}\tconst v${i} = page.data.section${i % 15}?.items?.[${i}]?.title ?? page.data.fallback;\n`;
-			}
-			return {
-				source: `${dedent`
-					<script lang="ts">
-						import { page } from '$app/state';
-					${body}</script>
-					{#each page.data.list as item}<p>{item.name} {page.data.user?.name}</p>{/each}
-				`}\n`
-			};
-		}
-	}
 );
 
 bench(

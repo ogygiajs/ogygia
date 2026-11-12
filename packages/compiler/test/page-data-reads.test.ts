@@ -10,14 +10,20 @@ const PLACEHOLDER =
 /** The value the patched placeholder evaluates to. */
 const value_of = (code: string): unknown => new Function(`return ${code};`)();
 
-function compiler_with(holes: Record<string, string>, reads: Record<string, Set<string> | 'all'>) {
+type Graph = Parameters<Compiler['patch_page_data_reads']>[1];
+
+/** A compiler with these holes, and a seed-shaping plugin answering `reads` (null: no plugin). */
+function compiler_with(
+	holes: Record<string, string>,
+	reads: Record<string, Set<string> | 'unknown'> | null
+) {
 	const program = new Program({ forms: true, router: true });
 	for (const [iid, component] of Object.entries(holes)) {
 		const vp = `\0ogygia:region/entry/${iid}`;
 		program.by_id.set(iid, vp);
 		program.registry.set(vp, { server: true, componentPath: component } as never);
 	}
-	for (const [id, keys] of Object.entries(reads)) program.page_keys.set(id, keys);
+	const plugin = reads && { keys: (id: string) => reads[id] ?? null };
 	const profiler = {
 		prof: {
 			transformMs: 0,
@@ -32,7 +38,11 @@ function compiler_with(holes: Record<string, string>, reads: Record<string, Set<
 		P: false,
 		outHash: new Map<string, number>()
 	};
-	return new Compiler(program, profiler);
+	const compiler = new Compiler(program, profiler);
+	return {
+		patch_page_data_reads: (code: string, graph: Graph, ids: () => Iterable<string>) =>
+			compiler.patch_page_data_reads(code, graph, ids, plugin)
+	};
 }
 
 describe('patch_page_data_reads', () => {
@@ -63,10 +73,10 @@ describe('patch_page_data_reads', () => {
 		expect(value_of(out!.code)).toEqual({ aaaaaaaaaaaa: true, bbbbbbbbbbbb: false });
 	});
 
-	test('an unpinnable read (`all`) counts; a component the graph does not know looks up', () => {
+	test('an unpinnable read (`unknown`) counts; a component the graph does not know looks up', () => {
 		const c = compiler_with(
 			{ cccccccccccc: '/app/Nav.svelte', dddddddddddd: '/app/Gone.svelte' },
-			{ '/app/util.ts': 'all' }
+			{ '/app/util.ts': 'unknown' }
 		);
 		// (a bundler that re-quoted the literal with single quotes)
 		const out = c.patch_page_data_reads(PLACEHOLDER.split('"').join("'"), info, ids);
@@ -75,6 +85,11 @@ describe('patch_page_data_reads', () => {
 
 	test('unpatched (a build that never reached renderChunk), it is unknown: null', () => {
 		expect(value_of(PLACEHOLDER)).toBeNull();
+	});
+
+	test('without a seed-shaping plugin it is unknown: null, so every hole looks up', () => {
+		const c = compiler_with({ bbbbbbbbbbbb: '/app/Footer.svelte' }, null);
+		expect(value_of(c.patch_page_data_reads(PLACEHOLDER, info, ids)!.code)).toBeNull();
 	});
 
 	test('a chunk without the placeholder is left alone', () => {

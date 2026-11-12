@@ -125,19 +125,6 @@ export class Program {
 	/** flag()/experiment() call sites the prescan OBSERVED (modules importing 'ogygia' only) —
 	 *  written to node_modules/.ogygia/flags-manifest.json at build for CI flag-debt diffs. */
 	readonly flag_sites: import('./flags.ts').FlagSite[] = [];
-	/** SEED SHAPING: per module (query-less id, forward slashes), the top-level `page.data` keys its
-	 *  code reads — `'all'` when a read could not be pinned to a literal key. Recorded by the driver's
-	 *  transform for every module that imports Kit's page store (link/page-keys.ts); the client
-	 *  `writeBundle` unions them over each island's chunk closure (link/island-deps.ts), and the
-	 *  handle ships only those keys of `page.data`. */
-	readonly page_keys: Map<string, import('./link/page-keys.ts').PageKeys> = new Map();
-	/** Per module that answered `'all'`: why, and on which line — the build report names it, so a
-	 *  developer sees the one read that makes a page ship its whole `page.data`. */
-	readonly page_key_reasons: Map<string, import('./link/page-keys.ts').AllReason> = new Map();
-	/** Per module: the `helper(page)` calls into IMPORTED helpers the build follows at `writeBundle`
-	 *  (resolve the specifier, summarize the export, fold the answer into `page_keys`). */
-	readonly page_pending: Map<string, import('./link/page-keys.ts').PendingCall[]> = new Map();
-
 	/** App crosses a held region / transportable value through Kit's `transport` hook — a `.remote.*`
 	 *  file, or a `region`/`site`/content import (loads & remotes that carry regions or wired values).
 	 *  Set during the prescan walk; with `runtime_marks.wire` it decides whether `ogygia.transport`

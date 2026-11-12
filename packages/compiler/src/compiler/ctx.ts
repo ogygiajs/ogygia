@@ -11,6 +11,11 @@ import { islandVirtualId } from './ids.ts';
 import { parse_module, type AstNode } from './parse/oxc.ts';
 import type { ClientRealmFile, ServerRealm } from './link/caps.ts';
 import type { PluginMacro } from './macros/pipeline.ts';
+
+/** The part of a seed-shaping plugin the transform calls (the whole of it: vite/plugin-api.ts `PageReads`). */
+export interface PageReadsSink {
+	module(id: string, code: string): void;
+}
 import {
 	islandChunkFileName,
 	islandPublicUrl,
@@ -86,6 +91,9 @@ export interface CompileCtxInit {
 	resolve_alias: unknown[];
 	/** The plugins' `import.meta.og.*` macros (`b.macro`), in plugin order. Optional (default none). */
 	macros?: readonly PluginMacro[];
+	/** The plugin that reads which `page.data` keys a module reads (`b.pageReads`), handed each
+	 *  module the build compiles. Optional (default none: every region gets all of `page.data`). */
+	page_reads?: PageReadsSink | null;
 	/** ogygia's own package root — the `auto_brand` macro skips ogygia source (it can't self-register). */
 	pkg_root: string;
 
@@ -142,6 +150,7 @@ export class CompileCtx {
 	readonly import_keys: ImportKeys;
 	readonly resolve_alias: unknown[];
 	readonly macros: readonly PluginMacro[];
+	readonly page_reads: PageReadsSink | null;
 	readonly pkg_root: string;
 	readonly build_secret: string;
 	readonly rate_limit: { max: number; windowMs: number };
@@ -189,6 +198,7 @@ export class CompileCtx {
 		this.import_keys = init.import_keys;
 		this.resolve_alias = init.resolve_alias;
 		this.macros = init.macros ?? [];
+		this.page_reads = init.page_reads ?? null;
 		this.pkg_root = init.pkg_root;
 		this.build_secret = init.build_secret;
 		this.rate_limit = init.rate_limit;

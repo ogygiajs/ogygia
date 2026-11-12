@@ -9,7 +9,7 @@ import {
 	page_data_keys,
 	page_data_keys_answer,
 	summarize_export
-} from '../src/compiler/link/page-keys.ts';
+} from '../src/analysis.ts';
 import { dedent } from '@ogygia/core/contract';
 
 const KEYS = ['a', 'b', 'c'];

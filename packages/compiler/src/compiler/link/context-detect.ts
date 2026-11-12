@@ -14,7 +14,7 @@
  * — instead follows the import binding through the AST, see `get_context_string_keys` below; a text
  * scan there would count an unrelated `getContext`.)
  */
-import { parse_roots } from './page-keys.ts';
+import { parse_roots } from '../parse/roots.ts';
 import { OWN_PACKAGE_NAMES, OWN_SPECIFIER_SOURCE } from '@ogygia/core/contract';
 import type { AstNode } from '../parse/oxc.ts';
 

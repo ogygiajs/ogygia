@@ -160,7 +160,8 @@ export function emit_island_deps_handoff(root: string, json: string, out_dir: st
 export function report_seed_shaping(
 	map: { page: Record<string, boolean>; page_keys: Record<string, string[] | null> },
 	bundle: Record<string, { type: string; moduleIds?: string[]; imports?: string[] }>,
-	program: { page_key_reasons: Map<string, { why: string; line: number | null }> },
+	/** a module (query-less id) → why its reads could not be pinned (the seed-shaping plugin's `why`) */
+	reason_of: (module: string) => { why: string; line: number | null } | null,
 	root: string,
 	/** an entry's IDENTITY (the maps' key) → its emitted file (its location); absent → the key is
 	 *  the file (a bundle from before content hashing) */
@@ -202,7 +203,7 @@ export function report_seed_shaping(
 			for (const chunk of closure(e)) {
 				for (const id of bundle[chunk]?.moduleIds ?? []) {
 					const clean = id.split('?')[0].split('\\').join('/');
-					const r = program.page_key_reasons.get(clean);
+					const r = reason_of(clean);
 					if (!r) continue;
 					if (!blamed.has(clean)) blamed.set(clean, r);
 					if (own.has(clean)) continue;
