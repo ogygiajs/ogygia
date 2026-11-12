@@ -34,6 +34,7 @@ import {
 	type VerifyConfig
 } from './wire.ts';
 import type { Federation, Peer } from './types.ts';
+import { hop_failure_status } from './peer.ts';
 
 const HOLE_PATH = '/og/frag';
 
@@ -342,7 +343,7 @@ async function serve_hole(fed: Federation, event: RequestEvent): Promise<Respons
 	});
 	const traceparent = child_traceparent(event.request.headers.get('traceparent')).traceparent;
 	// (a renewal's answer carries the fresh capability, which the runtime adopts for later fetches)
-	const answer = (html: string) => hole_html(html, opened.headers);
+	const answer = (html: string, status = 200) => hole_html(html, opened.headers, status);
 	try {
 		if (kind === 'widget') {
 			const props: Record<string, string> = {};
@@ -353,15 +354,19 @@ async function serve_hole(fed: Federation, event: RequestEvent): Promise<Respons
 		const doc = await peer.doc(target, search, claims, traceparent);
 		if (doc.location) return answer(String(moved_card(OG_MOVED, 'section', doc.location)));
 		return answer((doc.css?.join('') ?? '') + (doc.head ?? '') + doc.body);
-	} catch {
-		return answer('');
+	} catch (e) {
+		// a failed hop is an error status, never an empty success: the region keeps its fallback and
+		// the runtime asks again (test/hole-peer-failure.test.ts, #937). A bad answer was said by the
+		// peer's reader.
+		return answer('', hop_failure_status(e));
 	}
 }
 
-/** A hole response: the runtime swaps this HTML into the region element and its islands wake. */
-function hole_html(html: string, headers: Record<string, string>): Response {
+/** A hole response: the runtime swaps this HTML into the region element and its islands wake (an
+ *  error status: it keeps the fallback and tries again). */
+function hole_html(html: string, headers: Record<string, string>, status = 200): Response {
 	return new Response(html, {
-		status: 200,
+		status,
 		headers: {
 			'content-type': 'text/html; charset=utf-8',
 			'cache-control': 'no-store',
@@ -450,15 +455,20 @@ async function serve_thaw(fed: Federation, event: RequestEvent): Promise<Respons
 	}
 	if (!sender) return json_error(401, 'invalid or missing signature');
 
-	let notice: Notice | null;
+	let notice: { id?: string; hop?: number; tags?: string[] | 'all' };
 	try {
-		notice = thaw_notice(JSON.parse(new TextDecoder().decode(body ?? new Uint8Array())));
+		notice = JSON.parse(new TextDecoder().decode(body ?? new Uint8Array()));
 	} catch {
-		notice = null;
+		return json_error(400, 'bad notice');
 	}
-	// (not the notice's shape: refused, never asked again, never passed on — test/thaw-notice-shape)
-	if (notice === null) return json_error(400, 'bad notice');
-	const received: Received = { fed, ...notice, sender, sender_name };
+	const received: Received = {
+		fed,
+		id: notice.id ?? '',
+		hop: notice.hop ?? 0,
+		tags: notice.tags ?? [],
+		sender,
+		sender_name
+	};
 	if (received.id && applied_notices.peek({ id: received.id })?.kind === 'kept')
 		return json_response({ ok: true, deduped: true });
 	try {
@@ -472,19 +482,6 @@ async function serve_thaw(fed: Federation, event: RequestEvent): Promise<Respons
 }
 
 /** `p:<path>` → `p:<peer>:<path>`; `s:…`/`r:…` → `r:<peer>:…`; `a:…` → `a:<peer>`. */
-type Notice = { id: string; hop: number; tags: string[] | 'all' };
-
-/** A parsed notice as the notice it is (a field left out: none, hop 0, no tags), or null when any
- *  field is another type: `hop + 1` must stay a number the hop cap (federate.ts) can stop. */
-function thaw_notice(v: unknown): Notice | null {
-	if (v === null || typeof v !== 'object' || Array.isArray(v)) return null;
-	const { id = '', hop = 0, tags = [] } = v as Record<string, unknown>;
-	if (typeof id !== 'string' || !Number.isSafeInteger(hop) || (hop as number) < 0) return null;
-	if (tags !== 'all' && !(Array.isArray(tags) && tags.every((t) => typeof t === 'string')))
-		return null;
-	return { id, hop: hop as number, tags: tags as string[] | 'all' };
-}
-
 function map_thaw_tags(peer: string, tags: string[] | 'all'): string[] {
 	if (tags === 'all') return [];
 	return tags.map((t) => {

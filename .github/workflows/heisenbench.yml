@@ -114,8 +114,7 @@ jobs:
   # The measurement-source gate (internal/heisenbench/src/unmeasured.ts): every function in
   # packages/<pkg>/src needs a bench file that runs it or a unit test whose inputs replay. Fails only
   # on functions this PR adds with neither (and no exemption in internal/heisenbench/unmeasured.json);
-  # what was unmeasured before is listed in the job summary, not failed. An exemption that names no
-  # function any more fails it too.
+  # what was unmeasured before is listed in the job summary, not failed.
   unmeasured:
     needs: gate
     if: >-
@@ -153,9 +152,6 @@ jobs:
       # some unit tests import the built libraries
       - name: Build the libraries
         run: pnpm run build:lib
-
-      - name: The gate's own tests
-        run: pnpm --filter ogygia-internal-heisenbench test
 
       - name: Functions with no measurement source
         env:

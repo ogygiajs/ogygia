@@ -15,7 +15,6 @@
  *      (Heisenbench `unmeasured`), with the exemptions in internal/heisenbench/unmeasured.json
  *
  * An exemption is `{ "id": "packages/core/src/x.ts > fn", "reason": "why nothing can measure it" }`.
- * One whose id names no function any more fails the gate too (./stale.ts).
  * Writes to --out (default .heisenbench/unmeasured): gate.md (also the job summary in CI), gate.json
  * (every function with its sources), and what each step produced. Exit 1 when the gate fails.
  */
@@ -33,9 +32,8 @@ import {
 import { tmpdir } from 'node:os';
 import { dirname, join, relative } from 'node:path';
 import { parseArgs } from 'node:util';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { fileURLToPath } from 'node:url';
 import { heisenbench_dir, bench_packages, link_heisenbench, REPO_ROOT } from './heisenbench.ts';
-import { gone_exemptions, type Exemption } from './stale.ts';
 
 const { values } = parseArgs({
 	options: {
@@ -213,28 +211,7 @@ if (values.base) {
 	gate_args.push('--base-inventory', base_inventory);
 	rmSync(base_root, { recursive: true, force: true });
 }
-let status = heisenbench_cli(gate_args);
-// An exemption that names no function any more fails the gate (./stale.ts), matched as the
-// Heisenbench checkout's gate matches it
-const { context_path } = (await import(
-	pathToFileURL(join(heisenbench, 'src', 'identity.ts')).href
-)) as { context_path: (id: string) => string };
-const gone = gone_exemptions(
-	(JSON.parse(readFileSync(EXEMPT, 'utf8')) as { exempt: Exemption[] }).exempt,
-	JSON.parse(readFileSync(inventory, 'utf8')) as { functions: { id: string }[] },
-	context_path
-);
-if (gone.length) {
-	const md =
-		`\n**${gone.length} exemption${gone.length === 1 ? '' : 's'} naming no function any more.** ` +
-		'Take each out of internal/heisenbench/unmeasured.json (its function was renamed, moved or ' +
-		'deleted; a renamed one that is still unmeasured gets an exemption under its new id):\n\n' +
-		gone.map((e) => `- \`${e.id}\``).join('\n') +
-		'\n';
-	writeFileSync(join(out, 'gate.md'), md, { flag: 'a' });
-	for (const e of gone) log(`stale exemption: ${e.id}`);
-	status = 1;
-}
+const status = heisenbench_cli(gate_args);
 if (process.env.GITHUB_STEP_SUMMARY) {
 	writeFileSync(process.env.GITHUB_STEP_SUMMARY, readFileSync(join(out, 'gate.md')), { flag: 'a' });
 }

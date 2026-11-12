@@ -8,14 +8,15 @@
  *  - every request made (resource timing: size, time, status);
  *  - DOM changes per island (a MutationObserver), errors and rejections, console errors;
  *  - the heap before and after (where the browser exposes it);
- *  - the devtools bus: islands woken, hydrations, failures, recoveries, navigations, hole fetches.
+ *  - the runtime hooks: islands woken, hydrations, failures, recoveries, navigations, hole fetches.
  * Elements are kept by WeakRef so the tab can point at them without holding the page alive.
  */
-import { add_sink, snapshot } from '@ogygia/core/events';
 import { OG_FP, OGYGIA_DEVTOOLS_HOST } from '@ogygia/core/internal/instruments';
 import { flights, machine, STALE } from '@ogygia/machine';
 import { all_regions, region_name } from './regions.ts';
+import { on_hook } from './hook-entries.ts';
 import type {
+	HookEntry,
 	SessionClick,
 	SessionData,
 	SessionFrame,
@@ -53,7 +54,7 @@ export function session_names(s: SessionData, now: (fp: string) => string): (fp:
 }
 
 /** A page's part of a session, saved on page hide so the next document picks the session up. */
-interface SavedPart {
+export interface SavedPart {
 	origin: number;
 	data: SessionData;
 }
@@ -76,7 +77,7 @@ function shift_part(s: SessionData, d: number): SessionData {
 		clicks: t(s.clicks),
 		errors: t(s.errors),
 		navs: t(s.navs ?? []),
-		events: s.events.map((e) => ({ ...e, t: e.t + d })),
+		hooks: (s.hooks ?? []).map((e) => ({ ...e, at: e.at + d })),
 		pages: t(s.pages)
 	};
 }
@@ -106,7 +107,7 @@ function merge_parts(parts: SavedPart[], current: SessionData): SessionData {
 		clicks: cat('clicks'),
 		errors: cat('errors'),
 		navs: all.flatMap((p) => p.navs ?? []),
-		events: cat('events'),
+		hooks: cat('hooks'),
 		pages: cat('pages'),
 		mutations: [...muts.values()].sort((a, b) => b.count - a.count),
 		heap: current.heap,
@@ -114,8 +115,8 @@ function merge_parts(parts: SavedPart[], current: SessionData): SessionData {
 	};
 }
 
-/** On a devtools boot: a session a previous page was recording goes on here. */
-export function resume_session_if_any(): boolean {
+/** The parts a previous page saved, taken (so no other copy of this module resumes them too). */
+export function take_saved_session(): SavedPart[] | null {
 	let parts: SavedPart[] | null = null;
 	try {
 		const raw = sessionStorage.getItem(SAVED_KEY);
@@ -124,9 +125,20 @@ export function resume_session_if_any(): boolean {
 	} catch {
 		parts = null;
 	}
-	if (!parts?.length || active) return false;
+	return parts?.length ? parts : null;
+}
+
+/** A session the parts of earlier pages began goes on here (needs the document's body). */
+export function resume_session(parts: SavedPart[]): boolean {
+	if (page_recording.active) return false;
 	start_session(parts);
 	return true;
+}
+
+/** On a devtools boot: a session a previous page was recording goes on here. */
+export function resume_session_if_any(): boolean {
+	const parts = take_saved_session();
+	return parts ? resume_session(parts) : false;
 }
 
 /** Was a session saved by the page before (without resuming it). */
@@ -187,8 +199,11 @@ const run_definition = machine<RunStates>()({
 	steps: { recording: ['saved', 'stopped'], saved: [], stopped: [] }
 });
 
-/** The recording now: the newest started and not yet stopped. */
-let active: Recorder | null = null;
+/** The recording now: the newest started and not yet stopped, one for the page. */
+// @why the dock's Record tab and the injected testing engine are two copies of this module, and each patches the page's console (test: e2e/devtools.spec.ts › #240)
+const page_recording: { active: Recorder | null } = ((
+	globalThis as { [k: symbol]: { active: Recorder | null } }
+)[Symbol.for('ogygia.session.recording')] ??= { active: null });
 
 /** the last finished session (its data + report), for every tab: the Record tab writes it, the
  *  island detail reads its island's part (the report type lives in session-insights.ts) */
@@ -206,18 +221,18 @@ export function last_session_version(): number {
 }
 
 export function recording(): Recorder | null {
-	return active;
+	return page_recording.active;
 }
 
 /** Start recording (or go on with the parts earlier pages saved — `resume_session_if_any`). */
 export function start_session(prior?: SavedPart[]): Recorder {
-	if (active) return active;
+	if (page_recording.active) return page_recording.active;
 	// the run's visit to `recording` owns every watcher below: leaving it (a stop, the page going
 	// away) takes them all off, once
 	const run = run_definition.create();
 	const s = run.scope;
 	const from = performance.now();
-	const seq0 = snapshot().at(-1)?.seq ?? -1;
+	const hooks: HookEntry[] = [];
 	const interactions: SessionInteraction[] = [];
 	const longtasks: { t: number; ms: number }[] = [];
 	const frames: SessionFrame[] = [];
@@ -225,16 +240,17 @@ export function start_session(prior?: SavedPart[]): Recorder {
 	const errors: { t: number; message: string }[] = [];
 	const muts = new Map<Element | null, number>();
 	// ISLAND NAMES as the session goes: an in-app navigation swaps the page, and the islands that
-	// were clicked leave the DOM — named now, at the start and just before each swap (nav.start is
-	// emitted synchronously, before the new page goes in), they keep their names in the report
+	// were clicked leave the DOM — named now, at the start and just before each swap (navStarted is
+	// called synchronously, before the new page goes in), they keep their names in the report
 	const names: Record<string, string> = {};
 	const note_names = () => {
 		for (const r of all_regions()) if (r.fp && !names[r.fp]) names[r.fp] = region_name(r.entry);
 	};
 	note_names();
 	s.defer(
-		add_sink((e) => {
-			if (e.name === 'nav.start') note_names();
+		on_hook((e) => {
+			hooks.push(e);
+			if (e.hook === 'navStarted') note_names();
 		})
 	);
 	const watch = (
@@ -514,7 +530,7 @@ export function start_session(prior?: SavedPart[]): Recorder {
 			errors,
 			navs,
 			heap: heap0 !== null && heap1 !== null ? { from: heap0, to: heap1 } : null,
-			events: snapshot().filter((e) => e.seq > seq0 && e.realm === 'client'),
+			hooks: [...hooks],
 			cpu,
 			cpu_off,
 			page: location.pathname,
@@ -548,7 +564,7 @@ export function start_session(prior?: SavedPart[]): Recorder {
 	// the module's recording is let go only while it is still this one (a newer one may have started
 	// since)
 	s.defer(() => {
-		if (active === rec) active = null;
+		if (page_recording.active === rec) page_recording.active = null;
 	});
 	const stopping = flights({
 		name: 'session stop',
@@ -581,6 +597,6 @@ export function start_session(prior?: SavedPart[]): Recorder {
 		started: prior?.length ? prior[0].data.from + (prior[0].origin - performance.timeOrigin) : from,
 		stop
 	};
-	active = rec;
+	page_recording.active = rec;
 	return rec;
 }

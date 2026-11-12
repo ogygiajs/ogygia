@@ -114,6 +114,7 @@ import {
 	HOOK_REGION_HYDRATED,
 	HOOK_REGION_MOUNT,
 	HOOK_REGION_UNMOUNT,
+	HOOK_REGION_WOKE,
 	HOOK_WARNING,
 	boot_client_plugins,
 	client_region_mount
@@ -1036,12 +1037,13 @@ class OgygiaRegion extends HTMLElement {
 		// capture wakes it at once (a gesture: the `user` class) and replays the click when it is live.
 		// `interaction` is the island with no other trigger.
 		if (fire === this.#fire_hydrate && when !== 'interaction') this.#catch_early_input(fire);
-		if (DEVTOOLS) {
+		if (DEVTOOLS || (HOOK_REGION_WOKE && slots.hooks?.regionWoke)) {
 			// Wrap so the schedule FIRING is observable (interaction/visible/idle "when did it actually
 			// wake, and why" is the story a timeline instrument tells). Off → `fire` is used directly.
 			const raw = fire;
 			fire = () => {
-				dt_emit({ domain: 'runtime', name: 'wake.fired', ...dt_ids(this), when });
+				if (DEVTOOLS) dt_emit({ domain: 'runtime', name: 'wake.fired', ...dt_ids(this), when });
+				if (HOOK_REGION_WOKE) slots.hooks?.regionWoke?.({ el: this, when });
 				return raw();
 			};
 		}
@@ -1435,8 +1437,8 @@ class OgygiaRegion extends HTMLElement {
 	 * when the region leaves the page (it leaves the shared fetch). A failure leaves the
 	 * answer as it was, so a reconnect, a remount or the retry can try again — a transient network
 	 * error never kills the hole for good.
-	 * A `load` hole takes over the request the head started (HOLE-CACHE); an swr REVALIDATE must not
-	 * reuse an answer (a hole that opts in is `private, max-age=<ttl>`, and stale is the whole point).
+	 * A deferred hole reuses the browser's `<link rel="preload">` response; an swr REVALIDATE must
+	 * not (the endpoint answers `cache-control: private, max-age=30`, and stale is the whole point).
 	 */
 	async #fetch_html(turn: Turn, revalidate = false): Promise<void> {
 		if (!FRAMES) return;
@@ -1567,6 +1569,7 @@ class OgygiaRegion extends HTMLElement {
 			}
 			if (id)
 				slots.hooks.holeFailed?.({
+					el: this,
 					id,
 					reason: refused ? err.reason : 'error',
 					...(final_path ? { finalPath: final_path } : {}),

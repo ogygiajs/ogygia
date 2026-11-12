@@ -25,7 +25,7 @@ type ServerRule =
 	| 'rule_region_answer_shared'
 	| 'rule_capability_not_path';
 
-/** The first few region answers that left without their headers (CAPABILITY-URL, HOLE-CACHE). */
+/** The first few region answers that left without their headers (CAPABILITY-URL, PRELOAD-CACHE). */
 const unsafe_answers: string[] = [];
 /** The first few capability URLs minted with more than a path (CAPABILITY-URL, HOLE-TRUST). */
 const unsafe_mints: string[] = [];

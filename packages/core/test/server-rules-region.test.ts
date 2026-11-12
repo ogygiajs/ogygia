@@ -1,6 +1,6 @@
 /**
  * THE SERVER'S RULES for region answers (src/server/rules.ts, INVARIANTS CAPABILITY-URL and
- * HOLE-CACHE): every answer of the region endpoint keeps its capability out of a Referer and out
+ * PRELOAD-CACHE): every answer of the region endpoint keeps its capability out of a Referer and out
  * of every shared cache, and every minted capability is a same-origin path. Own file: a broken rule
  * here stays broken for the module.
  */
