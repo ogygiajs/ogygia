@@ -204,7 +204,7 @@ function absorb_page_facts(): void {
  */
 export function apply_soft_invalidate_doc(doc: Document): void {
 	if (typeof document === 'undefined') return;
-	// Seed bag only — never clear_remote_instances() here (live Query/LiveQuery stay mounted).
+	// Seed bag only — never release_remote_instances() here (live Query/LiveQuery stay mounted).
 	slots.remoteSeeds?.clear_remote_seeds();
 	apply_remote_seed_text(doc.querySelector(REMOTE_SEED_SELECTOR)?.textContent);
 	session().mark_remote_seeded();
@@ -216,8 +216,8 @@ export function apply_soft_invalidate_doc(doc: Document): void {
 /**
  * Reset per-document session + SSR remote seeds before a new body connects.
  *
- * Do **not** clear `query_map` / `live_query_map` here — old islands are still mounted, and Kit's
- * LiveQueryProxy throws if its cache entry vanishes mid-render. Instance sweep happens in
+ * Do **not** release `query_map` / `live_query_map` entries here — old islands are still mounted,
+ * and Kit's LiveQueryProxy throws if its cache entry vanishes mid-render. The release happens in
  * {@link finish_spa_document} after the swap.
  *
  * `next`: the visit of the page going in, made by its navigation (runtime/session.ts `PageVisit`):
@@ -230,10 +230,11 @@ export function prepare_spa_document(next?: import('./session.ts').PageVisit): v
 }
 
 /**
- * After the body swap: old islands have disconnected; new ones have only queued their hydrate.
- * Sweep Kit query/live instance maps so the next page cannot reuse a LiveQuery whose `#start` is
- * already spent (`once`) — that reuse never opens SSE again and leaves "connecting…".
+ * After the body swap: departed islands have disconnected, kept ones are still in the page, new
+ * ones have only queued their hydrate. Release the Kit query/live instances only departed islands
+ * held, so the next page builds fresh ones (a LiveQuery's `#start` is `once`) while a kept island's
+ * keep running (#817, e2e/live-query-kept.spec.ts).
  */
 export function finish_spa_document(): void {
-	slots.remoteSeeds?.clear_remote_instances();
+	slots.remoteSeeds?.release_remote_instances();
 }

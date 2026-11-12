@@ -25,4 +25,4 @@ export {
 	root_layout_csr_true
 } from 'ogygia:server';
 export { runtime_bootstrap } from './server/entry-location.ts';
-export { region_css_tag } from './server/region-css.ts';
+export { region_css_tag, head_owner_attr } from './server/region-css.ts';

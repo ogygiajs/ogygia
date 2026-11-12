@@ -26,10 +26,14 @@ import { record_server_event } from '../events/server-registry.ts';
 
 // DEVTOOLS gate — server realm; off → folds out.
 const DEVTOOLS = typeof __OGYGIA_DEVTOOLS__ !== 'undefined' ? __OGYGIA_DEVTOOLS__ : false;
+// the server's rules (./rules.ts): dev and OGYGIA_RULES=1 builds only, folds out of any other
+const RULES =
+	import.meta.env?.DEV || (typeof __OGYGIA_RULES__ !== 'undefined' ? __OGYGIA_RULES__ : false);
 import { B64Url } from './payload.ts';
-import { REF_WIRE_KEY, ref_reducer } from '../ref.ts';
+import { REF_WIRE_KEY, placed, ref_reducer } from '../ref.ts';
 import { ensure_prop_kinds } from './region-props.ts';
 import { OgygiaError, warn } from '../messages/server.ts';
+import { note_minted_capability } from './rules.ts';
 
 /** A hole's own stylesheet hrefs, by region id — the list its endpoint answer links (hooks.ts
  *  `region_css_links`), for a render that inlines the hole in the page instead (Region.svelte). */
@@ -78,14 +82,23 @@ function region_session(): string {
  */
 const KNOWN_COPIES = new WeakMap<object, Map<string, number>>();
 
+/** Did the app opt into server-delta navigation (`router: { serverDelta: true }`)? A build constant
+ *  (Vite `define`, the SSR build's too); typeof-guarded, so a plain node import is off. Off, the
+ *  server never honors `x-ogygia-known`: any client can send it. */
+export function server_delta_on(): boolean {
+	return typeof __OGYGIA_SERVER_DELTA__ !== 'undefined' && __OGYGIA_SERVER_DELTA__ === true;
+}
+
 /**
- * Whether the region with fingerprint `fp` may be skipped in this response: the client holds a live
- * copy of it that no earlier region of this response took. Each call takes one copy, so a page with
- * more copies than the client holds gets the rest rendered (#846): the client pairs each skipped
- * placeholder with one live copy, in document order (runtime/reconcile.ts `stamp_region_keys`).
- * Region.svelte calls it once per region, in render order. Client-stubbed to `false`.
+ * Whether the region with fingerprint `fp` may be skipped in this response: the app opted into
+ * server-delta, and the client holds a live copy of it that no earlier region of this response took.
+ * Each call takes one copy, so a page with more copies than the client holds gets the rest rendered
+ * (#846): the client pairs each skipped placeholder with one live copy, in document order
+ * (runtime/reconcile.ts `stamp_region_keys`). Region.svelte calls it once per region, in render
+ * order. Client-stubbed to `false`.
  */
 export function reuse_known_region(fp: string): boolean {
+	if (!server_delta_on()) return false;
 	let event;
 	try {
 		event = get_request_event();
@@ -141,7 +154,9 @@ export function mint_region_capability(entry: string, payload: string, ttl = 0):
 	if (DEVTOOLS)
 		record_server_event({ domain: 'server', name: 'server.capability.minted', id: entry, ttl });
 	// `k`: the minter's key fingerprint, outside the MAC (server/signing-key.ts)
-	return `${resolve(islands_endpoint())}?id=${encodeURIComponent(entry)}${render ? `&r=${render}` : ''}&props=${payload}&exp=${exp}${ttl_param}&sig=${sig}&k=${key.fp}`;
+	const url = `${resolve(islands_endpoint())}?id=${encodeURIComponent(entry)}${render ? `&r=${render}` : ''}&props=${payload}&exp=${exp}${ttl_param}&sig=${sig}&k=${key.fp}`;
+	if (RULES) note_minted_capability(url);
+	return url;
 }
 
 /**
@@ -153,7 +168,10 @@ export function mint_region_capability(entry: string, payload: string, ttl = 0):
  */
 export function mint_server_region(entry: string, props: Record<string, unknown>, ttl = 0): string {
 	ensure_prop_kinds();
-	const payload = B64Url.encode(stringify(props, { [REF_WIRE_KEY]: ref_reducer(PROP_FAMILIES) }));
+	// (decoded fresh at the endpoint, never by id: place form keeps the address the same per render)
+	const payload = B64Url.encode(
+		placed(stringify(props, { [REF_WIRE_KEY]: ref_reducer(PROP_FAMILIES) }))
+	);
 	if (payload.length > MAX_REGION_PROPS_LEN) {
 		throw new OgygiaError('hole_props_too_large', {
 			entry,
