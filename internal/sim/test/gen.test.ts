@@ -33,7 +33,11 @@ describe('the random app', () => {
 			const nodes = all(pages.flatMap((p) => p.roots));
 			const files = readdirSync(join(app, 'src', 'lib', 'gen'));
 			const hosted = nodes.filter((n) => n.kind === 'held' || n.kind === 'live');
-			expect(files.filter((f) => f.endsWith('.svelte'))).toHaveLength(nodes.length + hosted.length);
+			// (a live region that switches has two more: another interactive module and a static one)
+			const switching = nodes.filter((n) => n.switches).length;
+			expect(files.filter((f) => f.endsWith('.svelte'))).toHaveLength(
+				nodes.length + hosted.length + 2 * switching
+			);
 			expect(files.filter((f) => f.endsWith('.remote.ts'))).toHaveLength(hosted.length);
 			const read = (f: string) => readFileSync(join(app, 'src', 'lib', 'gen', f), 'utf8');
 			for (const n of nodes)
@@ -180,6 +184,33 @@ describe('the random app', () => {
 			);
 		} finally {
 			rmSync(root, { recursive: true, force: true });
+		}
+	});
+
+	it("draws live regions that switch, from their own stream: ticks cycle through the region's own module, another interactive one and a static one", () => {
+		const seeds = Array.from({ length: 60 }, (_, i) => i + 1);
+		const lives = seeds.flatMap((s) =>
+			all(plan(s).flatMap((p) => p.roots)).filter((n) => n.kind === 'live')
+		);
+		expect(lives.some((n) => n.switches)).toBe(true);
+		expect(lives.some((n) => !n.switches)).toBe(true);
+		for (const s of seeds)
+			for (const n of all(plan(s).flatMap((p) => p.roots)))
+				if (n.switches) expect(n.kind).toBe('live');
+		const seed = seeds.find((s) => all(plan(s).flatMap((p) => p.roots)).some((n) => n.switches))!;
+		const app = mkdtempSync(join(tmpdir(), 'sim-gen-'));
+		try {
+			write(app, plan(seed), seed);
+			const n = all(plan(seed).flatMap((p) => p.roots)).find((x) => x.switches)!;
+			const lib = join(app, 'src', 'lib', 'gen');
+			const remote = readFileSync(join(lib, `h${n.id}.remote.ts`), 'utf8');
+			expect(remote).toContain(`import A${n.id} from './A${n.id}.svelte' with { wake: 'load' };`);
+			expect(remote).toContain(`import S${n.id} from './S${n.id}.svelte' with { region: 'raw' };`);
+			expect(remote).toContain(`[N${n.id}, A${n.id}, S${n.id}][n % 3]`);
+			expect(readFileSync(join(lib, `A${n.id}.svelte`), 'utf8')).toContain('<button');
+			expect(readFileSync(join(lib, `S${n.id}.svelte`), 'utf8')).not.toContain('<button');
+		} finally {
+			rmSync(app, { recursive: true, force: true });
 		}
 	});
 
