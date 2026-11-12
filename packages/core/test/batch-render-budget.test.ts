@@ -75,6 +75,18 @@ describe('region endpoint: the render budget', () => {
 		expect(renders).toBeLessThanOrEqual(by_get);
 	});
 
+	it("a GET over the budget says when the visitor's window is over (Retry-After, #959)", async () => {
+		const h = handle();
+		const cap = mint_server_region(ID, { n: 1 });
+		for (let i = 0; i < 2; i++) await h({ event: event(cap), resolve } as never);
+		const refused = await h({ event: event(cap), resolve } as never);
+		expect(refused.status).toBe(429);
+		const after = Number(refused.headers.get('retry-after'));
+		// the window is 60 s and just started: the whole of it, in seconds
+		expect(after).toBeGreaterThan(55);
+		expect(after).toBeLessThanOrEqual(60);
+	});
+
 	it('one call asked many times in a batch renders once', async () => {
 		const h = handle();
 		const cap = mint_server_region(ID, { n: 1 });

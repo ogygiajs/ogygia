@@ -1,3 +1,4 @@
+import { clock } from '@ogygia/machine';
 import type { HoleRefusal } from '../contract/runtime-hooks.ts';
 import { preload_island_graph } from './island-graph-preload.ts';
 import { LoadSlot } from './load-scheduler.ts';
@@ -46,7 +47,7 @@ const CLOCK_SKEW_SEC = 300;
  */
 export function capability_expired(
 	endpoint: string,
-	now_ms: number = Date.now(),
+	now_ms: number = clock.wall(), // wall: against the server's signed epoch `exp`
 	page_origin: string = location.origin
 ): boolean {
 	try {
@@ -108,6 +109,28 @@ export class RegionAnswerRefused extends Error {
 		this.final_url = final_url;
 		this.deny = deny;
 	}
+}
+
+/** The error a 429 throws: the endpoint's budget for this visitor is spent. `wait_ms`: how long its
+ *  `Retry-After` says to wait, or null when it sent none (a proxy's 429, a server without one). */
+export class RegionAnswerLater extends Error {
+	override name = 'RegionAnswerLater';
+	readonly wait_ms: number | null;
+
+	constructor(wait_ms: number | null, url: string) {
+		super(`region answer: 429 Too Many Requests (${url})`);
+		this.wait_ms = wait_ms;
+	}
+}
+
+/** A response's `Retry-After` in ms: delta-seconds, or an HTTP date; null when absent or unreadable. */
+export function retry_after_ms(res: Response): number | null {
+	const v = res.headers.get('retry-after')?.trim();
+	if (!v) return null;
+	if (/^\d+$/.test(v)) return Number(v) * 1000;
+	const at = Date.parse(v);
+	// wall: an HTTP date is a moment on the wall clock
+	return Number.isNaN(at) ? null : Math.max(0, at - clock.wall());
 }
 
 /** The reason a 403 without `x-ogygia-deny` gets: ogygia's handle never answered it. */

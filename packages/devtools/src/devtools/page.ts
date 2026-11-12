@@ -5,7 +5,7 @@
  * read the same report the tab shows without opening the panel.
  */
 import { beacon_page, hole_request_times, is_headless } from '../profiler/beacon.ts';
-import { tool_fetch } from '@ogygia/core/internal/instruments';
+import { OG_FP, tool_fetch } from '@ogygia/core/internal/instruments';
 import { built_dev, hook_entries } from './hook-entries.ts';
 import { cache, flights, type Flights } from '@ogygia/machine';
 import { page_ledger } from './ledger-dom.ts';
@@ -320,7 +320,7 @@ export function failures(since: number = last_nav()?.t ?? -Infinity): Failure[] 
 				!(
 					e.fp &&
 					document.querySelector(
-						`ogygia-region[data-og-fp="${CSS.escape(e.fp)}"]:not([data-hydrated])`
+						`ogygia-region[${OG_FP}="${CSS.escape(e.fp)}"]:not([data-hydrated])`
 					)
 				)
 			)
@@ -678,7 +678,7 @@ function empty_slots(): string[] {
 			}
 		if (content) continue;
 		const region = slot.closest('ogygia-region[data-hydrated]');
-		const fp = region?.getAttribute('data-og-fp');
+		const fp = region?.getAttribute(OG_FP);
 		if (fp) out.push(fp);
 	}
 	return out;
@@ -814,7 +814,7 @@ function server_brief(path: string): ServerProfileBrief | undefined {
 			? p.cache_control
 			: undefined;
 	return {
-		ago_min: Math.max(0, (Date.now() - p.at) / 60_000),
+		ago_min: Math.max(0, (Date.now() - p.at) / 60_000), // wall: a stored profile's epoch time
 		render_ms: p.render_ms,
 		top: said
 			? trim(said)
@@ -1127,7 +1127,7 @@ function snapshot_of(v: PageView): LoadSnapshot {
 	const name = new Map(v.regions.map((r) => [r.fp, r.name]));
 	return {
 		path: location.pathname,
-		at: Date.now(),
+		at: Date.now(), // wall: kept across page loads
 		// (`dev`: the dev server's own doing — never "new" or "fixed" on the next load)
 		findings: v.report.findings.map((f) => ({
 			code: f.code,

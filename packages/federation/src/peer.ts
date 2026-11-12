@@ -4,11 +4,11 @@
  * `widget()`. The peer is request-agnostic: per-request facts (claims, traceparent) are call
  * arguments, so one instance is shared across requests.
  */
-import { flights, STALE, world, type Flights } from '@ogygia/machine';
+import { clock, flights, net, STALE, timers, world, type Flights } from '@ogygia/machine';
 import { error, isHttpError as is_http_error } from '@ogygia/router';
 import type { RegionValue } from '@ogygia/core';
 import { htmlRegion as og_html_region } from '@ogygia/core/plugin';
-import { current_request_scope } from '@ogygia/core/internal/server';
+import { current_request_scope, OG_FRAGMENT_FAILED } from '@ogygia/core/internal/server';
 import { fed_app } from './app.ts';
 import { warn } from './messages.ts';
 import {
@@ -48,8 +48,7 @@ export function hop_failure_status(e: unknown): number {
 }
 
 /** What a static widget shows when its peer's answer could not be read: the page still renders. */
-const FRAGMENT_FAILED =
-	'<div data-og-fragment-failed style="border:1px dashed #dc2626;border-radius:8px;padding:1rem;color:#dc2626">This section is temporarily unavailable.</div>';
+const FRAGMENT_FAILED = `<div ${OG_FRAGMENT_FAILED} style="border:1px dashed #dc2626;border-radius:8px;padding:1rem;color:#dc2626">This section is temporarily unavailable.</div>`;
 
 /** The one rule for what the document cache keeps, on the first fill and on every refresh: a
  *  successful answer that is not a redirect. */
@@ -139,7 +138,8 @@ export class PeerHandle implements Peer {
 		const signal = current_request_scope()?.signal;
 		for (;;) {
 			const seen = docs.peek(key);
-			if (seen?.kind === 'kept' && Date.now() - seen.at >= this.#ttl) {
+			// wall: a flights entry's `at` is a wall timestamp
+			if (seen?.kind === 'kept' && clock.wall() - seen.at >= this.#ttl) {
 				// stale: served as it is while one fresh flight refreshes it (an error answer, or a
 				// failure, leaves the good copy kept, and the next stale read tries again)
 				if (!seen.flying) docs.get(read, { fresh: true }).then(undefined, noop); // ok: the good copy stays served and the next stale read tries again; a read with no copy throws the failure
@@ -316,9 +316,8 @@ export class PeerHandle implements Peer {
 					this.#cfg.audience
 				)
 			: {};
-		const timeout = AbortSignal.timeout(this.#timeout);
-		return fetch(u, {
-			signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
+		return net.fetch(u, {
+			signal: timers.timeout(this.#timeout, signal),
 			...init,
 			headers: {
 				...(init?.headers as Record<string, string>),

@@ -20,9 +20,6 @@
  * Universal leaf: the server encodes (server/document-tail.ts), the boot decodes.
  */
 
-/** The attribute that marks a graph script (the runtime finds every one on the page by it). */
-export const ISLAND_GRAPH_ATTR = 'data-ogygia-graph';
-
 /** The JSON shape a graph script carries. */
 export interface IslandGraphWire {
 	h: string[];

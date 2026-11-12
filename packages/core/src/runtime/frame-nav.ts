@@ -9,12 +9,22 @@
 // This is Ryan's test made concrete: request new server-component data on navigation, flush part of
 // the response, let the rest come in as the server's async settles.
 // ─────────────────────────────────────────────────────────────────────────────
-import { cache, machine, STALE, type Scope } from '@ogygia/machine';
+import {
+	cache,
+	clock,
+	machine,
+	net,
+	STALE,
+	tasks,
+	type MachineGraph,
+	type Scope
+} from '@ogygia/machine';
 import { frameAddress } from '../frame.ts';
 import { stream } from '../policies.ts';
 import { is_idle, reserve, release, stamp, write } from './frame-store.ts';
 import { runtime_session } from './session.ts';
 import { emit as dt_emit } from '../events/bus.ts';
+import { OG_LEN, OGYGIA_SLOT } from '../wire-markup.ts';
 import { slots } from './slots.ts';
 
 // DEVTOOLS gate — module-local const from the Vite `define` (proven DCE pattern); off → folds out.
@@ -44,8 +54,8 @@ export function batch_times(
 }
 
 const STREAM_DONE_SLOT = '__ogygia_done__';
-const OPEN = '<template data-ogygia-slot="';
-const LEN = '" data-og-len="';
+const OPEN = `<template ${OGYGIA_SLOT}="`;
+const LEN = `" ${OG_LEN}="`;
 const CLOSE = '</template>';
 
 type Parcel = { slot: string; html: string; end: number };
@@ -89,18 +99,17 @@ const STALL_MS = stream.deadline;
 
 /**
  * A BATCH STREAM'S LIFE, one machine: `sending` (the POST, until its answer starts), `reading` (each
- * read that brings bytes is a new visit, so the quiet time starts again), `ended`. Quiet for
- * STALL_MS in either, it steps to `stalled` on its own: the request is aborted and every reservation
- * it did not fill is released, as at any other end.
+ * read that brings bytes is a new visit, so the quiet time starts again). Its end, however it ends,
+ * is the machine's `stop()`. Quiet for STALL_MS in either, it steps to `stalled` on its own: the
+ * request is aborted and every reservation it did not fill is released, as at any other end.
  */
-const batch_stream = machine<{ sending: {}; reading: {}; stalled: {}; ended: {} }>()({
+const batch_stream = machine<{ sending: {}; reading: {}; stalled: {} }>()({
 	name: 'batch-stream',
 	initial: 'sending',
 	steps: {
-		sending: ['reading', 'stalled', 'ended'],
-		reading: ['reading', 'stalled', 'ended'],
-		stalled: [],
-		ended: []
+		sending: ['reading', 'stalled'],
+		reading: ['reading', 'stalled'],
+		stalled: []
 	},
 	after: {
 		sending: { ms: STALL_MS, to: 'stalled' },
@@ -108,26 +117,36 @@ const batch_stream = machine<{ sending: {}; reading: {}; stalled: {}; ended: {} 
 	}
 });
 
+/** The batch stream's machine as data (test/machine-steps.test.ts holds each step to where it is
+ *  taken). */
+export function batch_stream_graph(): MachineGraph {
+	return batch_stream.graph();
+}
+
 function sigOf(endpoint: string): string | null {
 	const q = endpoint.indexOf('?');
 	return q === -1 ? null : new URLSearchParams(endpoint.slice(q + 1)).get('sig');
 }
 
 /**
- * Stream a batch of region calls into the frame store. Endpoints must share an endpoint path (they
- * do — all are minted against the app's one islands endpoint, `handle({ endpoint })`, read here off
- * the first URL). Frames apply as they land; the promise resolves when
- * the response ends.
+ * Stream a batch of region calls into the frame store. Endpoints must share an endpoint path, read
+ * here off the first URL: `send_batches` groups them so (#987). Frames apply as they land; the
+ * promise resolves when the response ends.
  *
  * `visit`: the scope of the page whose holes these are (the page on screen by default; a navigation
  * hands the next page's, runtime/session.ts `PageVisit`). The batch is its: the visit ending stops
  * the request and lets go of its body. Every other end lets go of the body too (the end mark, a
  * stall, a refusal), and the holes it did not carry fetch on their own.
+ *
+ * `page`: the page the holes are for, sent as the request's referrer, which is how the server knows
+ * the page a hole renders for (server/render-page.ts `page_url_of`). A navigation's batch leaves
+ * before its swap, from the page being left: it names its destination (#995).
  */
 export async function streamFrames(
 	endpoints: string[],
 	kind: 'page' | 'nav' = 'nav',
-	visit: Scope = runtime_session.visit.scope
+	visit: Scope = runtime_session.visit.scope,
+	page?: string
 ): Promise<void> {
 	if (!endpoints.length) return;
 	const first = endpoints[0];
@@ -162,7 +181,7 @@ export async function streamFrames(
 			kind,
 			endpoints: endpoints.slice()
 		});
-	const left = HOOK_HOLE_ANSWERED ? performance.now() : 0;
+	const left = HOOK_HOLE_ANSWERED ? clock.mono() : 0;
 	let delivered = 0;
 	let status = 0;
 	let refused: 'redirected' | 'document' | undefined;
@@ -177,11 +196,13 @@ export async function streamFrames(
 		let res: Response | typeof STALE;
 		try {
 			res = await stream.scope.task(() =>
-				fetch(path, {
+				net.fetch(path, {
 					method: 'POST',
 					credentials: 'same-origin',
 					headers: { 'content-type': 'application/json' },
 					body: JSON.stringify(endpoints),
+					// (none named: the page on screen, the browser's own referrer)
+					...(page !== undefined ? { referrer: page } : {}),
 					signal: batch_scope.signal
 				})
 			);
@@ -225,7 +246,7 @@ export async function streamFrames(
 					// (timed BEFORE the write: the write applies the part, and the hole reports its answer then)
 					if (HOOK_HOLE_ANSWERED) {
 						const ep = endpoint_of!.get(p.slot)!;
-						batched.set(ep, { left, at: performance.now(), size: reserved.length });
+						batched.set(ep, { left, at: clock.mono(), size: reserved.length });
 					}
 					write({ ...part, html: p.html });
 					delivered++;
@@ -295,7 +316,7 @@ export function join_batch(endpoint: string): Promise<void> {
 	if (!queued) {
 		queued = [];
 		flushed = new Promise<void>((resolve) =>
-			queueMicrotask(() => {
+			tasks.micro(() => {
 				const list = queued!;
 				queued = null;
 				// (every hole that joined waits on this: it resolves however the gathering goes, and a
@@ -315,10 +336,24 @@ export function join_batch(endpoint: string): Promise<void> {
 /** A region call of an islands endpoint (`?id=…`, `&id=…`): what a batch POST to its path answers. */
 const REGION_CALL_RE = /[?&]id=/;
 
-/** The holes that joined in one task: the ones a batch can carry go out in batches of MAX_BATCH,
- *  one endpoint path per batch (it is POSTed there). A hole that is no region call (a plugin's
- *  endpoint) goes on its own: test/browser/hole-batch.test.ts (#917). */
 function gather(list: string[]): void {
+	void send_batches(list, 'page'); // ok: a batch says its own failure, and its holes fall back to their own fetch
+}
+
+/**
+ * THE BATCHES OF A SET OF HOLES, for the page's first holes (`join_batch`) and a navigation's alike
+ * (frames.ts `stream`): the ones a batch can carry go out in batches of MAX_BATCH, one endpoint path
+ * per batch (it is POSTed there). A hole that is no region call (a plugin's endpoint, a peer
+ * widget) goes on its own, as does a path's lone hole: test/browser/hole-batch.test.ts (#917, #987).
+ * Each batch names `page`, the page its holes are for (`streamFrames`, #995). Resolves when every
+ * batch's response ended.
+ */
+export function send_batches(
+	list: readonly string[],
+	kind: 'page' | 'nav',
+	visit: Scope = runtime_session.visit.scope,
+	page?: string
+): Promise<unknown> {
 	const by_path = new Map<string, string[]>();
 	const seen = new Set<string>();
 	// (a hole whose request the page's head started is in flight at its address, so not idle:
@@ -334,9 +369,11 @@ function gather(list: string[]): void {
 		if (fresh) fresh.push(e);
 		else by_path.set(path, [e]);
 	}
-	// (reserve happens synchronously inside streamFrames, before this resolves)
+	// (reserve happens synchronously inside streamFrames, before this returns)
+	const sent: Promise<void>[] = [];
 	for (const fresh of by_path.values())
 		if (fresh.length >= 2)
 			for (let i = 0; i < fresh.length; i += MAX_BATCH)
-				void streamFrames(fresh.slice(i, i + MAX_BATCH), 'page'); // ok: a batch says its own failure, and its holes fall back to their own fetch
+				sent.push(streamFrames(fresh.slice(i, i + MAX_BATCH), kind, visit, page));
+	return Promise.all(sent);
 }

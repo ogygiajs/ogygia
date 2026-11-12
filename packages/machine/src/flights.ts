@@ -71,7 +71,7 @@
  * flight's moves, under the flights' `name`.
  */
 import { cache_store, type CacheStore, type EvictWhy } from './cache.ts';
-import { clock } from './clock.ts';
+import { clock } from './ports.ts';
 import { machine, type Machine } from './machine.ts';
 import { bad_option, report_thrown } from './messages.ts';
 import { under_policy, type Policy } from './policy.ts';
