@@ -29,7 +29,6 @@ function host_ctx(ssr: boolean): HostCtx {
 		root: '/app',
 		libDir: '/app/src/lib',
 		readFile: () => null,
-		pathModule: path,
 		dev: false,
 		virtualPathFor: (_host: string, iid: string) => `ogygia:region/entry/${iid}.js`,
 		wrapperPathFor: (_host: string, iid: string) => `ogygia:region/wrapper/${iid}.svelte`,

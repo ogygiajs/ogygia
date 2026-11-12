@@ -26,7 +26,6 @@
  *   5. defer/raw-only mints                  → NO wire   (isolation / data-minting never cross)
  */
 import { describe, expect, it } from 'vitest';
-import path from 'node:path';
 import {
 	transformHost,
 	transformTsRegions,
@@ -40,7 +39,6 @@ const ctx = {
 	root: '/app',
 	libDir: '/app/src/lib',
 	readFile: () => null,
-	pathModule: path,
 	dev: false,
 	virtualPathFor: (_h: string, iid: string) => `ogygia:region/entry/${iid}.js`,
 	wrapperPathFor: (_h: string, iid: string) => wrapperVirtualId(iid),

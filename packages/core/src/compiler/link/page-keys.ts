@@ -17,7 +17,7 @@
  * doubt goes to `'all'`.
  */
 import { parse, type AST } from 'svelte/compiler';
-import { fs } from '../host.ts';
+import fs from 'node:fs';
 import { parse_module, type AstNode } from '../parse/oxc.ts';
 import { blank_styles } from '../blank-styles.ts';
 

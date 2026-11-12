@@ -3,17 +3,15 @@
  * linker), the resolved `CompileCtx`, and the per-file transform cache, and exposes the file-local
  * front-end as one call: `transform(source, id)` → parse ▸ analyze ▸ lower ▸ emit (today fused inside
  * `transformHost`), memoized. It is bundler-agnostic by construction — it imports no Vite; the adapter
- * drives it. That independence is the design goal: a future REPL is just a second adapter over the
- * same driver, feeding a `CompileCtx` + source and rendering the returned freeze.
+ * drives it.
  *
  * The transform cache is content-keyed (`hit.code === source`), so a changed source misses and
  * recomputes on its own; the linker's `unregister_host` deliberately does NOT clear it.
  */
-import { fs, path, createHash, dir_entries } from './host.ts';
+import fs from 'node:fs';
+import path from 'node:path';
+import { createHash } from 'node:crypto';
 import { fnv1a32 } from '../contract/hash.ts';
-// `performance` is a global in both Node (≥16) and the browser — no import, so the driver graph loads
-// in the browser compiler (Observatory REPL) without pulling node:perf_hooks.
-const performance = globalThis.performance;
 import {
 	transformHost,
 	transformTsRegions,
@@ -439,7 +437,6 @@ export class Compiler implements CoreApp {
 			root: ctx.root,
 			libDir: ctx.libDir,
 			readFile: (abs: string) => ctx.read_file(abs),
-			pathModule: path,
 			dev: ctx.is_dev,
 			virtualPathFor: (_hostId: string, iid: string) => ctx.island_virtual_id(iid),
 			wrapperPathFor: (_hostId: string, iid: string) => wrapperVirtualId(iid),
@@ -476,7 +473,6 @@ export class Compiler implements CoreApp {
 		return transformTsRegions(source, id, {
 			root: ctx.root,
 			libDir: ctx.libDir,
-			pathModule: path,
 			dev: ctx.is_dev,
 			virtualPathFor: (_hostId: string, iid: string) => ctx.island_virtual_id(iid),
 			devUrlFor: (virtualPath: string) => ctx.dev_url_for(virtualPath),
@@ -562,7 +558,7 @@ export class Compiler implements CoreApp {
 		const walk = (dir: string) => {
 			let entries;
 			try {
-				entries = dir_entries(dir);
+				entries = fs.readdirSync(dir, { withFileTypes: true });
 			} catch {
 				return;
 			}
@@ -1550,7 +1546,7 @@ export class Compiler implements CoreApp {
 			// A transportable class can live in this component's `<script module>` — register it
 			// (same tag scheme, keyed by the `.svelte` path) so it travels like a `.svelte.ts` one.
 			if (!id_n.startsWith(ctx.pkg_root)) {
-				const withReg = appendSvelteModuleRegistrations(out, id_n, root, path);
+				const withReg = appendSvelteModuleRegistrations(out, id_n, root);
 				if (withReg !== null) {
 					out = withReg;
 					map = null; // injected into the module script — prior map no longer aligns
@@ -1596,7 +1592,7 @@ export class Compiler implements CoreApp {
 			// Skip ogygia's own source (workspace dev links it outside node_modules; appending
 			// an `import 'ogygia'` there would create an eval cycle). Append-only → map survives.
 			if (!id_n.startsWith(ctx.pkg_root)) {
-				const registered = appendTransportRegistrations(out, id_n, root, path);
+				const registered = appendTransportRegistrations(out, id_n, root);
 				if (registered !== null) {
 					out = registered;
 					touched = true;

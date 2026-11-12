@@ -12,7 +12,7 @@
  * (`register` / `unregister_host` / `note_runtime_mark`). Config-free by construction — it knows the
  * descriptors, never the resolved build context (that is `CompileCtx`'s job).
  */
-import { path } from './host.ts';
+import path from 'node:path';
 import { renderId } from './region/identity.ts';
 import type { RuntimeMarks } from './link/runtime-entry.ts';
 

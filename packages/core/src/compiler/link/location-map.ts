@@ -18,7 +18,7 @@
  * resolves them against wherever the build is served (a base, an assets CDN), and an identity that
  * resolves elsewhere (another app's) never matches.
  */
-import { path } from '../host.ts';
+import path from 'node:path';
 
 /** The fixed-name map's file, in the app dir (beside Kit's `version.json`). */
 export const CURRENT_LOCATIONS_FILE = 'ogygia.json';

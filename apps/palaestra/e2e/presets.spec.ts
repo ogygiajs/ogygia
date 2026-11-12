@@ -5,7 +5,6 @@ import {
 	wrapperVirtualId
 } from '../../../packages/core/dist/compiler/region/transform.js';
 import { CTX_EXTRA } from './_ctx-extra.ts';
-import path from 'node:path';
 import { test, check } from '@ogygia/tooling/e2e';
 import { WRAPPER_VIRTUAL_RE } from '@ogygia/tooling/e2e/re.ts';
 
@@ -35,7 +34,6 @@ const base_ctx = {
 	root,
 	libDir: '/app/src/lib',
 	readFile: () => null,
-	pathModule: path,
 	dev: false,
 	virtualPathFor: (_hostId: string, iid: string) => `ogygia:region/entry/${iid}.js`,
 	wrapperPathFor: (_hostId: string, iid: string) => wrapperVirtualId(iid),

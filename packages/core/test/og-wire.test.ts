@@ -108,9 +108,7 @@ describe('prescan detection — raw source (pre-rewrite)', () => {
 });
 
 describe('appendTransportRegistrations — inject ONLY for wire classes', () => {
-	const path = { relative: (_from: string, to: string) => to };
-	const reg = (src: string, id = '/app/x.ts') =>
-		appendTransportRegistrations(src, id, '/app', path);
+	const reg = (src: string, id = '/app/x.ts') => appendTransportRegistrations(src, id, '/app');
 
 	it('a PLAIN exported class is NOT registered (no ogygia import dragged in)', () => {
 		// The bug: `BroadcastSessionUpdates` in a package that never touches ogygia was getting an

@@ -1,13 +1,13 @@
 // The virtual-module table (src/compiler/virtual/): every id an app's build asks for resolved and
 // loaded on both legs, in a build and on the dev server, the way the Vite plugin drives it; and
 // the dev invalidations a change sets off.
+import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
-import { createHash } from 'node:crypto';
 import { bench } from '@bench/heisenbench/bench';
 import { Compiler } from '../src/compiler/driver.ts';
 import { Program } from '../src/compiler/program.ts';
 import { CompileCtx, type CompileCtxInit } from '../src/compiler/ctx.ts';
-import { set_host, type HostFs } from '../src/compiler/host.ts';
 import { normalize_import_keys } from '../src/compiler/region/transform.ts';
 import * as core from '../src/compiler/virtual/core.ts';
 import {
@@ -29,40 +29,23 @@ import { VirtualTable } from '../src/compiler/virtual/resolver.ts';
 import { BUILD_ERRORS } from '../src/compiler/messages.ts';
 import { specifier, virtual, type Realm } from '../src/compiler/virtual/table.ts';
 
-const ROOT = '/app';
-
-/** A small app in memory: one csr=false page, one csr=true page, the layout between. */
+/** A small app on disk: one csr=false page, one csr=true page, the layout between. */
 const FILES: Record<string, string> = {
-	'/app/src/routes/+layout.ts': 'export const csr = false;\n',
-	'/app/src/routes/+page.svelte': '<h1>home</h1>\n',
-	'/app/src/routes/shop/+page.ts': 'export const csr = true;\n',
-	'/app/src/routes/shop/+page.svelte': '<h1>shop</h1>\n'
+	'src/routes/+layout.ts': 'export const csr = false;\n',
+	'src/routes/+page.svelte': '<h1>home</h1>\n',
+	'src/routes/shop/+page.ts': 'export const csr = true;\n',
+	'src/routes/shop/+page.svelte': '<h1>shop</h1>\n'
 };
-const is_dir = (p: string): boolean => Object.keys(FILES).some((f) => f.startsWith(p + '/'));
-const entry = (dir: string, name: string) => ({
-	name,
-	isDirectory: () => is_dir(dir + '/' + name),
-	isFile: () => dir + '/' + name in FILES
-});
-const memory_fs = {
-	readFileSync(p: string): string {
-		if (p in FILES) return FILES[p];
-		throw Object.assign(new Error(`ENOENT: ${p}`), { code: 'ENOENT' });
-	},
-	existsSync: (p: string) => p in FILES || is_dir(p),
-	readdirSync(p: string, opts?: { withFileTypes?: boolean }) {
-		const names = new Set<string>();
-		for (const f of Object.keys(FILES))
-			if (f.startsWith(p + '/')) names.add(f.slice(p.length + 1).split('/')[0]);
-		return opts?.withFileTypes ? [...names].map((n) => entry(p, n)) : [...names];
-	},
-	statSync: (p: string) => ({ isDirectory: () => is_dir(p), isFile: () => p in FILES }),
-	globSync: () => [],
-	writeFileSync() {},
-	mkdirSync() {},
-	rmSync() {},
-	renameSync() {}
-} as unknown as HostFs;
+
+/** The app written to a fresh temporary directory (the compiler reads node:fs directly). */
+function write_app(): string {
+	const root = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'og-virtual-bench-')));
+	for (const [rel, text] of Object.entries(FILES)) {
+		fs.mkdirSync(path.dirname(path.join(root, rel)), { recursive: true });
+		fs.writeFileSync(path.join(root, rel), text);
+	}
+	return root;
+}
 
 function compiler(root: string, is_dev: boolean): Compiler {
 	const c = new Compiler(new Program({ forms: true, router: true }), {
@@ -173,10 +156,7 @@ bench(
 		return bytes;
 	},
 	{
-		setup: () => {
-			set_host({ fs: memory_fs, path, crypto: { createHash } });
-			return { root: ROOT };
-		}
+		setup: () => ({ root: write_app() })
 	}
 );
 

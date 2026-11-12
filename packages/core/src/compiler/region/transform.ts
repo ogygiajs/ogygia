@@ -2,7 +2,7 @@ import { parse } from 'svelte/compiler';
 import MagicString from 'magic-string';
 import type { SourceMap } from 'magic-string';
 import type { IslandDescriptor } from '../program.ts';
-import { createHash } from '../host.ts';
+import { createHash } from 'node:crypto';
 import { foucCssVirtualId } from '../fouc-css.ts';
 import { collectCaptureInfo } from '../free-vars.ts';
 import { parse_module } from '../parse/oxc.ts';
@@ -17,7 +17,7 @@ import {
 	make_wake_island
 } from './emit.ts';
 import type { SvelteNode, HostImport, RegionMark } from './ir.ts';
-import type * as NodePath from 'node:path';
+import path from 'node:path';
 import { blank_styles } from '../blank-styles.ts';
 import { OgygiaError, warn } from '../messages.ts';
 import { say } from '@ogygia/machine';
@@ -42,7 +42,6 @@ interface HostCtx {
 	root: string;
 	libDir: string;
 	readFile: (abs: string) => string | null;
-	pathModule: typeof NodePath;
 	dev: boolean;
 	virtualPathFor: (hostId: string, iid: string) => string;
 	/** Absent: the island's wrapper virtual id (`wrapperVirtualId`). */
@@ -79,7 +78,6 @@ interface HostCtx {
 interface TsRegionCtx {
 	root: string;
 	libDir: string;
-	pathModule: typeof NodePath;
 	dev: boolean;
 	virtualPathFor: (hostId: string, iid: string) => string;
 	devUrlFor: (virtualPath: string) => string;
@@ -882,10 +880,10 @@ function resolve_component_path(spec: string, host_id: string, ctx: HostCtx) {
 		throw new OgygiaError('generated_module_relative_import', { host: host_id, specifier: spec });
 	}
 	if (spec === '$lib' || spec.startsWith('$lib/')) {
-		return ctx.pathModule.join(ctx.libDir, spec === '$lib' ? '' : spec.slice('$lib/'.length));
+		return path.join(ctx.libDir, spec === '$lib' ? '' : spec.slice('$lib/'.length));
 	}
 	if (spec.startsWith('.')) {
-		return ctx.pathModule.resolve(ctx.pathModule.dirname(host_id), spec);
+		return path.resolve(path.dirname(host_id), spec);
 	}
 	// Package / alias / absolute specifier — re-emitted verbatim into generated modules.
 	return spec;
@@ -1458,7 +1456,7 @@ class FileCompilation {
 
 	/** Root-relative posix path — island ids must not drift across Windows/POSIX build legs. */
 	#posix_rel(abs: string) {
-		return this.#ctx.pathModule.relative(this.#ctx.root, abs).split(PATH_SEP).join('/');
+		return path.relative(this.#ctx.root, abs).split(PATH_SEP).join('/');
 	}
 
 	/**
@@ -1470,7 +1468,7 @@ class FileCompilation {
 	 * prod HTML would stop matching its chunks.
 	 */
 	#component_identity(p: string) {
-		if (!this.#ctx.pathModule.isAbsolute(p)) return p;
+		if (!path.isAbsolute(p)) return p;
 		const pkg = typeof this.#ctx.pkg_identity === 'function' ? this.#ctx.pkg_identity(p) : null;
 		return pkg ?? this.#posix_rel(p);
 	}
@@ -1568,7 +1566,6 @@ class FileCompilation {
 		const module_body = ast.module?.content?.body ?? [];
 		const lang = script_lang_attr(ast.instance) || script_lang_attr(ast.module);
 
-		const path = ctx.pathModule;
 		// Posix-relative host path — island ids must not drift across Windows/POSIX build legs. Stored on
 		// the compilation early so #resolve_region_mark (a method) can read it during this same phase.
 		const rel_host = (this.#rel_host = path.relative(ctx.root, id).split(PATH_SEP).join('/'));
@@ -1792,7 +1789,6 @@ class FileCompilation {
 		const synthetic_export = this.#synthetic_export;
 		const has_island_children = this.#has_island_children;
 		const has_island_hint = this.#has_island_hint;
-		const path = ctx.pathModule;
 
 		const s = new MagicString(source);
 		// The resolution base for this host's relative specifiers. For a real file it IS the file.
@@ -2610,7 +2606,7 @@ function parse_import_attrs(raw: string) {
  * @param source
  * @param id absolute module path
  * @param ctx same context fields as {@link transformHost} (root, libDir, dev, devUrlFor,
- *   virtualPathFor, importKeys, idSalt, pathModule)
+ *   virtualPathFor, importKeys, idSalt)
  * @returns
  */
 /** Byte ranges of every template/string literal AND comment in a `.ts`/`.js` source, or `null` if it
@@ -2683,7 +2679,6 @@ class TsRegionCompilation {
 	#import_keys;
 	#regionKey;
 	#wakeKey;
-	#path;
 	#root;
 	#salt;
 	#rel_host;
@@ -2695,15 +2690,14 @@ class TsRegionCompilation {
 		this.#import_keys = normalize_import_keys(ctx.importKeys);
 		this.#regionKey = this.#import_keys.region;
 		this.#wakeKey = this.#import_keys.wake;
-		this.#path = ctx.pathModule;
 		this.#root = ctx.root;
 		this.#salt = ctx.idSalt || '';
-		this.#rel_host = this.#path.relative(this.#root, id).split(PATH_SEP).join('/');
+		this.#rel_host = path.relative(this.#root, id).split(PATH_SEP).join('/');
 	}
 
 	/** Root-relative posix path (see FileCompilation#posix_rel). */
 	#posix_rel(abs: string) {
-		return this.#path.relative(this.#root, abs).split(PATH_SEP).join('/');
+		return path.relative(this.#root, abs).split(PATH_SEP).join('/');
 	}
 
 	/** `host: import.meta.og.asRegion (local) — msg` (`as_region_invalid`). */
@@ -2721,7 +2715,6 @@ class TsRegionCompilation {
 	 */
 	#resolve_spec(spec: string) {
 		const ctx = this.#ctx;
-		const path = this.#path;
 		if (typeof spec !== 'string' || !spec.trim()) return null;
 		if (spec === '$lib' || spec.startsWith('$lib/')) {
 			return path.join(ctx.libDir, spec === '$lib' ? '' : spec.slice('$lib/'.length));
@@ -2734,7 +2727,7 @@ class TsRegionCompilation {
 	 *  own. Declared-package files key `<pkg-name>/<rel>` (install-independent — see
 	 *  FileCompilation#component_identity); duck-typed like wrapperPathFor, host ctxs may lack it. */
 	#component_identity(p: string) {
-		if (!this.#path.isAbsolute(p)) return p;
+		if (!path.isAbsolute(p)) return p;
 		const ctx = this.#ctx;
 		const pkg = typeof ctx.pkg_identity === 'function' ? ctx.pkg_identity(p) : null;
 		return pkg ?? this.#posix_rel(p);

@@ -26,7 +26,8 @@
  *     (`ogygia/plugin/css`), which claims through
  *     `claim_region_css` (deduped with held-region links), and hands `document()` the head tags.
  */
-import { fs, path } from '../host.ts';
+import fs from 'node:fs';
+import path from 'node:path';
 import {
 	collectFoucCssReachable,
 	compileFoucScopedCss,

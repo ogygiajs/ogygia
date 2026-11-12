@@ -3,22 +3,16 @@
  * (island transform / svelte compile / ts-region minting) sees a module: `wire`, `$`, `store`,
  * auto-branding, `code`/`md`, and `bake`. Each pass is a no-op unless its exact marker is present, is
  * extension-aware, and (where it matters) AST-precise. Pulled out of the Vite adapter so the whole
- * macro leg is one call (`Compiler.macros`) the driver owns — a REPL runs the same passes with no Vite
- * in sight. Pure over `(source, id, ctx)` apart from the `dollarHoists` map it fills and the profiler
+ * macro leg is one call (`Compiler.macros`) the driver owns. Pure over `(source, id, ctx)` apart from the `dollarHoists` map it fills and the profiler
  * timing it records; returns `{ code, touched }` (the caller invalidates its own sourcemap on touch).
  */
-import { path } from '../host.ts';
-// Global in both Node (≥16) and the browser — no import, so this module loads in the browser compiler.
-const performance = globalThis.performance;
+import path from 'node:path';
 import { rewrite_wire } from './wire.ts';
 import { rewrite_dollar } from './dollar.ts';
 import { rewrite_source } from './source.ts';
 import { rewrite_store, auto_brand_stores } from './store.ts';
-// `bake` is imported LAZILY (only inside the marker guard below) — its two dynamic imports
-// (`import('rolldown')` + a `pathToFileURL(...)` module eval) are Node-only, and keeping bake.js out of
-// the STATIC graph is what lets the whole driver bundle into a browser worker (the Observatory) without
-// Vite's dep-optimizer double-declaring `__vite__injectQuery`. A build that uses no `import.meta.og.bake`
-// never loads bake.js (or rolldown) at all.
+// `bake` is imported LAZILY (only inside the marker guard below): a build that uses no
+// `import.meta.og.bake` never loads bake.js (or Vite's build for it) at all.
 import type { AliasEntry } from './bake.ts';
 import type { Profiler } from '../driver.ts';
 import { OgygiaError } from '../messages.ts';

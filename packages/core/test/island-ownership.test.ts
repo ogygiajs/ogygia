@@ -15,7 +15,6 @@
  * packages/content/test/island-ownership.test.ts.
  */
 import { describe, expect, it } from 'vitest';
-import path from 'node:path';
 import { transformHost } from '../src/compiler/region/transform.ts';
 
 // A csr=false route host: a marked server island with a fallback snippet child.
@@ -40,7 +39,6 @@ describe('server-island host legs (the compiler contract the registry depends on
 		root: '/app',
 		libDir: '/app/src/lib',
 		readFile: () => null,
-		pathModule: path,
 		dev: false,
 		virtualPathFor: (_h: string, iid: string) => `ogygia:region/entry/${iid}.js`,
 		wrapperPathFor: (_h: string, iid: string) => `ogygia:region/wrapper/${iid}.svelte`,

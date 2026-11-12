@@ -71,10 +71,6 @@
 			"types": "./dist/internal/compiler-ids.d.ts",
 			"default": "./src/internal/compiler-ids.ts"
 		},
-		"./internal/region-core": {
-			"types": "./dist/internal/region-core.d.ts",
-			"default": "./dist/internal/region-core.js"
-		},
 		"./internal/reconcile": {
 			"svelte": "./src/internal/reconcile.ts",
 			"types": "./dist/internal/reconcile.d.ts",
@@ -170,11 +166,6 @@
 				"types": "./dist/internal/compiler-ids.d.ts",
 				"svelte": "./dist/internal/compiler-ids.js",
 				"default": "./dist/internal/compiler-ids.js"
-			},
-			"./internal/region-core": {
-				"types": "./dist/internal/region-core.d.ts",
-				"svelte": "./dist/internal/region-core.js",
-				"default": "./dist/internal/region-core.js"
 			},
 			"./internal/reconcile": {
 				"types": "./dist/internal/reconcile.d.ts",

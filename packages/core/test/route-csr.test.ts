@@ -379,7 +379,6 @@ function compile_layout(routeCsr: boolean | undefined) {
 		root: '/app',
 		libDir: '/app/src/lib',
 		readFile: () => null,
-		pathModule: path,
 		dev: false,
 		ssr: true,
 		virtualPathFor: (_h: string, iid: string) => `ogygia:region/entry/${iid}.js`,

@@ -80,10 +80,6 @@
 			"types": "./dist/compiler/ids.d.ts",
 			"default": "./src/compiler/ids.ts"
 		},
-		"./internal/region-core": {
-			"types": "./dist/region-core.d.ts",
-			"default": "./dist/region-core.js"
-		},
 		"./internal/reconcile": {
 			"svelte": "./src/internal-reconcile.ts",
 			"types": "./dist/internal-reconcile.d.ts",
@@ -184,11 +180,6 @@
 				"types": "./dist/compiler/ids.d.ts",
 				"svelte": "./dist/compiler/ids.js",
 				"default": "./dist/compiler/ids.js"
-			},
-			"./internal/region-core": {
-				"types": "./dist/region-core.d.ts",
-				"svelte": "./dist/region-core.js",
-				"default": "./dist/region-core.js"
 			},
 			"./internal/reconcile": {
 				"types": "./dist/internal-reconcile.d.ts",

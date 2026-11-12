@@ -12,8 +12,7 @@
 import { createRequire } from 'node:module';
 
 /**
- * An AST node as the compiler's passes read it: the parser seam's output (oxc's ESTree, or whatever
- * parser {@link set_parser} installed) and Svelte's template AST, walked generically and read by field
+ * An AST node as the compiler's passes read it: oxc's ESTree and Svelte's template AST, walked generically and read by field
  * name. Kept loose on purpose: the walkers index arbitrary fields (`node[key]`), and some passes accept
  * node shapes beyond oxc's (store.ts also matches Babel's `StringLiteral` / `ObjectProperty`), which a
  * precise ESTree union would rule out. The one loose node type every pass shares.
@@ -31,41 +30,18 @@ export type RawParse = (
 	code: string
 ) => { program?: Node; errors?: unknown[]; comments?: Comment[] };
 
-/**
- * The parser is INJECTABLE so the SAME oxc can run in the browser (the Observatory / Rung 1). Node
- * uses the default `rolldown/utils` (native); a browser build installs `@rolldown/browser/utils`
- * (WASM, the SAME rolldown version → byte-identical AST) via {@link set_parser}, after awaiting the
- * WASM init. This is the seam, not a parser swap for Node: the default below is unchanged, so the
- * production build parses exactly as before. (bake() keeps rolldown too, so this is consistency —
- * same parser both realms — not a new dependency.)
- */
-// Node's default parser is loaded LAZILY (first use), NOT statically imported, so a BROWSER build of
-// this module (the Observatory / Rung 1) never eagerly pulls the native `rolldown/utils` binding: the
-// browser installs the WASM parser via set_parser() before the first parse, so this default is never
-// reached there. Node hits it on the first parse and memoizes parseSync. (A static
-// `import { parseSync } from 'rolldown/utils'` made Vite's dev dep-optimizer load the native binding
-// inside the Observatory's browser worker → an opaque module-load crash; the production build tree-shook
-// past it, so only `dev` was affected. Lazy-loading fixes dev without touching the Node parse path.)
+// Loaded on the first parse, not imported: a module that reaches this file without parsing (a server
+// runtime path) never loads Vite. The VARIABLE specifier keeps a bundler from pulling `vite` in.
 let node_parse_sync: RawParse | undefined;
-function node_default_parse(id: string, code: string) {
+function raw_parse(id: string, code: string) {
 	if (!node_parse_sync) {
 		const require = createRequire(import.meta.url);
 		// Vite re-exports the SAME oxc parser as `rolldown/utils` (byte-identical AST — verified), so
 		// this reads through the app's required `vite` peer instead of a direct `rolldown` dependency.
-		// The browser realm still installs the WASM oxc parser via `set_parser()` (below), unchanged;
-		// a VARIABLE specifier keeps any bundler from statically pulling Node-only `vite` into the
-		// browser Observatory worker (this default is never reached there — the WASM parser is set).
 		const vite_spec = 'vite';
 		node_parse_sync = (require(vite_spec) as { parseSync: RawParse }).parseSync;
 	}
 	return node_parse_sync(id, code);
-}
-
-let raw_parse: RawParse = node_default_parse;
-
-/** Install a browser (or test) parser with the same call shape. No-arg reset restores the default. */
-export function set_parser(fn?: RawParse): void {
-	raw_parse = fn ?? node_default_parse;
 }
 
 /**

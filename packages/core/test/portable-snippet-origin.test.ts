@@ -11,7 +11,6 @@
 // It only ever bit relative specifiers: `$lib/…` and package specifiers are host-independent, which
 // is why every earlier snippet fixture (all `$lib`) sailed through.
 import { describe, it, expect } from 'vitest';
-import path from 'node:path';
 import { transformHost } from '../src/compiler/region/transform.ts';
 
 // ── regexes
@@ -26,7 +25,6 @@ const base_ctx = {
 	root: '/app',
 	libDir: '/app/src/lib',
 	readFile: () => null,
-	pathModule: path,
 	dev: false,
 	virtualPathFor: (_h: string, iid: string) => `ogygia:region/entry/${iid}.js`,
 	wrapperPathFor: (_h: string, iid: string) => `ogygia:region/wrapper/${iid}.svelte`,

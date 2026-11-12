@@ -18,17 +18,14 @@
  * Constraint: a top-level `export class X` (declaration or `export { X }`). Default exports
  * and class expressions have no stable name to tag by.
  */
-// Parse via the injectable oxc seam (parse/oxc.ts), NOT `import { parseSync } from 'vite'` — importing
-// the Node `vite` package here dragged the whole of vite onto the compiler's hot path, which is what
-// kept the FULL driver out of a browser worker (the Observatory). `set_parser` already installs the
-// sync oxc parser in every realm (Node default; the worker installs rolldown-browser's).
+import path from 'node:path';
 import { parse_module } from './parse/oxc.ts';
 
 const CLASS_KW = /\bclass\b/;
 // A real (pre-transform) wire codec member: `static <name> = import.meta.og.wire(…)`. Tight on
 // purpose — the prescan uses this to catch a wire class BEFORE the macro rewrites it to the computed
 // `static [WIRE_EXPR]` form (which the AST check below sees). A BARE textual mention of the macro (a
-// comment or string that merely names it — e.g. the Observatory's own REPL analysis code) must NOT
+// comment or string that merely names it) must NOT
 // read as a transportable, or the module gets side-effect-imported into every realm by the eager
 // registration manifest — including a Web Worker that references `self`, which then crashes on SSR.
 const WIRE_STATIC_MEMBER = /\bstatic\s+#?\w+\s*=\s*import\.meta\.og\.wire\b/;
@@ -247,8 +244,7 @@ export function moduleHasTransportable(code: string, id_n: string): boolean {
 export function appendTransportRegistrations(
 	code: string,
 	id_n: string,
-	root: string,
-	pathModule: { relative: (from: string, to: string) => string }
+	root: string
 ): string | null {
 	if (code.includes(GENERATED_MARK)) return null;
 	// Cheap gates — skip parsing modules that have neither a class nor a createContext call.
@@ -264,7 +260,7 @@ export function appendTransportRegistrations(
 	const contexts = maybeCtx ? contextExportNamesFromBody(body) : [];
 	if (classes.length === 0 && contexts.length === 0) return null;
 
-	const rel = pathModule.relative(root, id_n).split('\\').join('/');
+	const rel = path.relative(root, id_n).split('\\').join('/');
 	return code + registrationBlock(rel, classes, contexts) + '\n';
 }
 
@@ -278,7 +274,7 @@ function registrationBlock(rel: string, classes: string[], contexts: string[]): 
 		// A Region-free seam, NOT the `ogygia/internal` barrel: this import lands in every module with
 		// an exported class / createContext, and the barrel re-exports `Region.svelte` (→ `$app/paths` →
 		// `window`). In a bundled build tree-shaking hides that, but Vite DEV serves raw ESM, so a
-		// no-window realm (the Observatory compiler worker) would crash at module-eval. See internal-register.ts.
+		// no-window realm (dev SSR) would crash at module-eval. See internal-register.ts.
 		`import { ${imports.join(', ')} } from 'ogygia/internal/register';`
 	];
 	for (const name of classes) lines.push(`__OGT(${JSON.stringify(rel + '#' + name)}, ${name});`);
@@ -320,15 +316,14 @@ export function svelteModuleHasTransportable(code: string, id_n: string): boolea
 export function appendSvelteModuleRegistrations(
 	code: string,
 	id_n: string,
-	root: string,
-	pathModule: { relative: (from: string, to: string) => string }
+	root: string
 ): string | null {
 	if (code.includes(GENERATED_MARK) || !CLASS_KW.test(code)) return null;
 	const mod = moduleScriptOf(code);
 	if (!mod) return null;
 	const exported = exportedWireClassNames(mod.body, id_n.replace(SVELTE_EXT, '.svelte.ts'));
 	if (exported.length === 0) return null;
-	const rel = pathModule.relative(root, id_n).split('\\').join('/');
+	const rel = path.relative(root, id_n).split('\\').join('/');
 	const block = '\n' + registrationBlock(rel, exported, []) + '\n';
 	return code.slice(0, mod.injectAt) + block + code.slice(mod.injectAt);
 }
