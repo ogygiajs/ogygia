@@ -8,6 +8,9 @@ import { normalize_shiki, render_code_region } from '../src/markdown/shiki.ts';
 import { default_pipeline } from '../src/markdown/code-render.ts';
 import { fc } from '@ogygia/config/sim';
 import { decodeText } from '@ogygia/core/plugin/utils';
+import { warm_shiki } from './_shiki-warm.ts';
+
+warm_shiki();
 
 beforeAll(() => __set_fence_cache_dir(null));
 afterAll(() => __set_fence_cache_dir(undefined));

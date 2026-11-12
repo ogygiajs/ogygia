@@ -1,6 +1,6 @@
 import { all_regions, region_name } from './regions.ts';
 import type { StylesFinding } from './styles.ts';
-import { tool_fetch, tool_made } from '@ogygia/core/internal/instruments';
+import { OGYGIA_RUNTIME, tool_fetch, tool_made } from '@ogygia/core/internal/instruments';
 
 export interface CacheProbe {
 	url: string;
@@ -37,7 +37,7 @@ export function content_named_files(doc: Document = document): { url: string; na
 		if (src && r.entry && src !== r.entry && !out.has(abs(src)))
 			out.set(abs(src), region_name(r.entry));
 	}
-	const rt = doc.querySelector('script[data-ogygia-runtime]')?.getAttribute('src');
+	const rt = doc.querySelector(`script[${OGYGIA_RUNTIME}]`)?.getAttribute('src');
 	if (rt && !out.has(abs(rt))) out.set(abs(rt), 'the runtime');
 	return [...out].map(([url, name]) => ({ url, name }));
 }
