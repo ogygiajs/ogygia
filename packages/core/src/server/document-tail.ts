@@ -34,6 +34,7 @@
 import type { SeedIndex } from '../seed-refs.ts';
 import { escape_script_text } from '../escape.ts';
 import { HOLES_SCRIPT_TYPE } from '../holes-record.ts';
+import { HEAD_OWNERS_ATTR } from '../head-owners.ts';
 import { encode_island_graph } from '../island-graph.ts';
 import {
 	OG_LOCATIONS,
@@ -197,6 +198,8 @@ export class DocumentTail {
 	readonly #props = new Map<string, Sidecar>();
 	readonly #holes = new Map<string, HoleRecord>();
 	readonly #hole_notes = new Map<string, HoleStat>();
+	/** sheet identity → the outer islands that use it beyond the one its tag names (#854) */
+	readonly #sheet_owners = new Map<string, Set<string>>();
 	/** per-fingerprint facts of the last `render()` (the profiler's Islands table) */
 	#island_rows: IslandStat[] | null = null;
 
@@ -291,13 +294,26 @@ export class DocumentTail {
 			this.#holes.set(identity, { endpoint, sidecar });
 	}
 
+	/**
+	 * One more owner of a region sheet: an outer island that uses the sheet another one linked first
+	 * in this request (the tag names only that one, `data-og-owner`). `identity` is the sheet's
+	 * resolved href, as its tag carries it. A navigation keeps the sheet while any owner stays
+	 * (runtime/region-sheets.ts).
+	 */
+	sheet_owner(identity: string, owner: string): void {
+		let set = this.#sheet_owners.get(identity);
+		if (!set) this.#sheet_owners.set(identity, (set = new Set()));
+		set.add(owner);
+	}
+
 	get empty(): boolean {
 		return (
 			this.#hints.size === 0 &&
 			this.#graph.size === 0 &&
 			this.#locations.size === 0 &&
 			this.#props.size === 0 &&
-			this.#holes.size === 0
+			this.#holes.size === 0 &&
+			this.#sheet_owners.size === 0
 		);
 	}
 
@@ -350,6 +366,14 @@ export class DocumentTail {
 			const record: Record<string, HoleRecord> = {};
 			for (const [identity, facts] of this.#holes) record[identity] = facts;
 			out += HOLES_SCRIPT_OPEN + escape_script_text(JSON.stringify(record)) + HOLES_SCRIPT_CLOSE;
+		}
+		if (this.#sheet_owners.size) {
+			const record: Record<string, string[]> = {};
+			for (const [identity, owners] of this.#sheet_owners) record[identity] = [...owners];
+			out +=
+				`<script type="application/json" ${HEAD_OWNERS_ATTR}>` +
+				escape_script_text(JSON.stringify(record)) +
+				'</script>';
 		}
 		return out;
 	}
