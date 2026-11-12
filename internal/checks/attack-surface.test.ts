@@ -53,3 +53,27 @@ test('comments, secrets and routes', () => {
 		['route PATH /og/thaw', 'secret key createHmac', 'secret key env OGYGIA_SECRET']
 	);
 });
+
+test("a usage sample in a Svelte component's markup comment is not a surface", () => {
+	const src = [
+		'<!--',
+		'@component',
+		"A head script: `{@html script((k) => k, 'og-theme')}`",
+		'',
+		'```ts',
+		"export const load = async ({ url }) => url.searchParams.get('q');",
+		'```',
+		'-->',
+		'<!-- one line: {@html x} -->',
+		'<script lang="ts">',
+		"\tconst q = page.url.searchParams.get('q');",
+		'</script>',
+		'{@html note}'
+	].join('\n');
+	assert.deepEqual(
+		scan_file('C.svelte', src)
+			.map((e) => `${e.kind} ${e.where} ${e.what} ${e.count}`)
+			.sort(),
+		['html (module) {@html} 1', "request q searchParams('q') 1"]
+	);
+});

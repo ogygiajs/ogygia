@@ -1,20 +1,9 @@
-/**
- * postrender — Akamai edge adapter: Fast Purge v3 (url + tag) with real EdgeGrid request signing.
- *
- * `headers(meta)` stamps the depth-capped PREFIX tags (`edge-cache-tag: p:/fr, p:/fr/fr, …`) the
- * property stores by; `purgeWhere({ prefix })` purges the matching tag — Fast Purge has no
- * arbitrary-prefix purge, tags ARE the prefix mechanism. `purgeUrl` purges by absolute URL.
- *
- * `baseUrl` override points the SAME adapter at the harness's edge emulator — e2e exercises this
- * exact signing/requesting code, not a mock of it.
- */
 import { createHmac, createHash } from 'node:crypto';
 import { clock, net, random } from '@ogygia/machine';
 import type { PostrenderMeta, EdgeAdapter } from '../types.ts';
 import { prefix_tags, normalize_prefix } from '../key.ts';
 import { OgygiaError } from '../messages.ts';
 
-// ── regexes
 const TRAILING_SLASHES_RE = /\/+$/;
 
 export interface AkamaiConfig {
@@ -33,7 +22,6 @@ export interface AkamaiConfig {
 	maxAge?: number;
 }
 
-/** EdgeGrid timestamp: `yyyyMMddTHH:mm:ss+0000`. */
 function edgegrid_timestamp(): string {
 	const d = new Date(clock.wall());
 	const pad = (n: number) => String(n).padStart(2, '0');
@@ -47,6 +35,12 @@ const b64_hmac = (key: string | Buffer, data: string) =>
 	createHmac('sha256', key).update(data).digest('base64');
 const b64_sha = (data: string) => createHash('sha256').update(data).digest('base64');
 
+/**
+ * An Akamai edge: Fast Purge v3 by URL and by tag, with EdgeGrid request signing. `headers(meta)`
+ * stamps depth-capped prefix tags (`edge-cache-tag: p:/fr, p:/fr/fr, …`), and
+ * `purgeWhere({ prefix })` purges the matching tag, as Fast Purge has no prefix purge of its own.
+ * `baseUrl` points the same adapter at an emulator, so a test runs the real signing code.
+ */
 export class AkamaiEdge implements EdgeAdapter {
 	readonly name: string = 'akamai';
 	#config: AkamaiConfig;
@@ -90,13 +84,13 @@ export class AkamaiEdge implements EdgeAdapter {
 			`EG1-HMAC-SHA256 client_token=${config.clientToken};` +
 			`access_token=${config.accessToken};timestamp=${timestamp};nonce=${nonce};`;
 		const url = new URL(this.#api_base + path);
-		// Canonical data: METHOD \t scheme \t host \t path+query \t canonical-headers \t content-hash \t auth
+		// @why EdgeGrid signs METHOD, scheme, host, path and query, the signed headers, the body hash and the auth fields, tab-joined (test: test/postrender.test.ts › akamai: EdgeGrid-signed Fast Purge by url + prefix tag; headers stamp prefix tags)
 		const data_to_sign = [
 			'POST',
 			url.protocol.replace(':', ''),
 			config.host,
 			url.pathname + url.search,
-			'', // no signed headers
+			'',
 			b64_sha(payload),
 			auth_prefix
 		].join('\t');

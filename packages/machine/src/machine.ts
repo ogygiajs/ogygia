@@ -201,7 +201,7 @@ export function observe(observer: Observer): () => void {
 
 function notify(name: string, from: State, to: State | null, machine: AnyMachine): void {
 	// (the watchers at the move: one that stops another during the move does not cut it off)
-	const list = [...observers];
+	const list = observers.snapshot();
 	for (let i = 0; i < list.length; i++) {
 		try {
 			list[i]!(name, from, to, machine);
