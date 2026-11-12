@@ -29,6 +29,7 @@ export type MachineErrors = {
 	machine_outbox_gave_up: Entry<{ name: string }>;
 	machine_stage_step_failed: Entry<{ name: string }>;
 	machine_mailbox_handler_failed: Entry<Record<string, never>>;
+	machine_evict_failed: Entry<{ name: string; why: string }>;
 	machine_flight_raise_failed: Entry<{ name: string }>;
 	machine_queue_start_failed: Entry<{ name: string }>;
 	machine_queue_stale_failed: Entry<{ name: string }>;
@@ -78,9 +79,10 @@ export const MACHINE_ERRORS: MachineErrors = {
 			`machine: \`${a.option}\` must be ${a.rule} (got ${a.value}).`,
 		details: (): string =>
 			'An option was given a value it cannot take. `retries` counts tries: a whole number of 0 ' +
-			'or more. A flights `keep` is milliseconds: 0 or more, `Infinity` for as long as the ' +
-			'flights lives. A flights `max` is the most weight it keeps: more than 0. A `say()` `max` ' +
-			'is the most keys it remembers: a whole number, 1 or more.'
+			'or more. A flights `keep` is milliseconds: 0 or more, `Infinity` for until `max` lets it ' +
+			'go. A flights or cache `max` is the most weight it keeps: a finite number more than 0 ' +
+			'(a cache with no bound is refused). A `say()` `max` is the most keys it remembers: a ' +
+			'whole number, 1 or more.'
 	},
 	machine_bad_time: {
 		text: (a: { where: string; ms: string }): string =>
@@ -177,6 +179,14 @@ export const MACHINE_ERRORS: MachineErrors = {
 			"event listener's would, and the box goes on with the next event.\n\n" +
 			'A handler that runs at once (posted to an idle box) throws to its poster instead, and one ' +
 			"posted with `ask()` rejects its asker's promise. Catch inside the handler to handle it there."
+	},
+	machine_evict_failed: {
+		text: (a: { name: string; why: string }): string =>
+			`${a.name}: an eviction notice (${a.why}) threw.`,
+		details: (): string =>
+			"A `cache()`'s `onEvict` threw while it heard a value leave. The value had already left: " +
+			'the cache goes on, and the notices after it still run. Its error follows this message. ' +
+			'Catch inside `onEvict` when a cleanup can fail.'
 	},
 	machine_flight_raise_failed: {
 		text: (a: { name: string }): string =>
