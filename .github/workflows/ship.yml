@@ -14,7 +14,8 @@ name: ship
 # read and write): a merge made with the built-in GITHUB_TOKEN would not trigger the workflows that
 # a push to `main` runs (the release workflow above all).
 on:
-  pull_request_target:
+  # (it checks out nothing and runs no PR code: it only turns auto-merge on or off by label)
+  pull_request_target: # zizmor: ignore[dangerous-triggers]
     types: [labeled, unlabeled]
 
 permissions: {}
