@@ -82,7 +82,7 @@ function main(): void {
 	replay('../../apps/palaestra', 'palaestra');
 	// (an app a plan runs on is built though no seeds run on it)
 	const planned = (sw.plans ?? []).flatMap((p) => (p.app === 'palaestra' ? [] : [p.app]));
-	for (const g of [...new Set([...sw.gens, ...planned])]) {
+	for (const g of new Set([...sw.gens, ...planned])) {
 		if (!sh(SIM, `node --no-warnings src/gen.ts --seed ${g}`, log)) {
 			failed.push(`gen ${g}: not written`);
 			continue;
