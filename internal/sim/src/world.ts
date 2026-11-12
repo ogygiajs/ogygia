@@ -397,6 +397,10 @@ export class World {
 	 *  store handed out a newer build's copy (it dropped the old build's at the deploy, #949). */
 	readonly #astray = new Set<string>();
 
+	/** Every HTML answer a server of the app gave (a page: `whole`; a hole's or a fragment's answer),
+	 *  its text as the server sent it, before the network's faults. */
+	readonly html: Array<{ from: string; url: string; whole: boolean; html: Promise<string> }> = [];
+
 	/** Whether a pinned load in `realm` got another build's page than the one it asked for: it is no
 	 *  reference for that build's page (test/pinned-store.node.test.ts). */
 	astray(realm: string): boolean {
@@ -512,6 +516,22 @@ export class World {
 					this.#batches.push({ from, keys: holes, build, at: this.network.exchanges.length });
 				const list = this.servers.get(build)!;
 				const answer = await list[this.rng.int(list.length)].handle(r);
+				// (the HTML a server sent, as it sent it, for the quality oracle: src/html.ts)
+				if (
+					r.method === 'GET' &&
+					answer.status === 200 &&
+					(answer.headers.get('content-type') ?? '').includes('text/html')
+				)
+					this.html.push({
+						from,
+						url: url.href,
+						whole: is_page_path(decodeURIComponent(url.pathname)),
+						// (a body the server broke off is no answer to judge: ok, nothing to read)
+						html: answer
+							.clone()
+							.text()
+							.catch(() => '')
+					});
 				// (a hole one build signed, refused by another's servers for its key: the deploy's doing
 				// when the app has no stable secret, as ogygia's `secret_missing` says)
 				if (answer.headers.get('x-ogygia-deny') === 'foreign-key' && this.#o.secret === undefined)

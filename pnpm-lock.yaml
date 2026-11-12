@@ -306,6 +306,9 @@ catalogs:
     happy-dom:
       specifier: 21.0.4
       version: 21.0.4
+    parse5:
+      specifier: 7.3.0
+      version: 7.3.0
   tsgo:
     '@typescript/native':
       specifier: npm:typescript@^7.0.2
@@ -990,6 +993,9 @@ importers:
       fast-check:
         specifier: 'catalog:'
         version: 4.10.2
+      parse5:
+        specifier: catalog:sim
+        version: 7.3.0
       rolldown:
         specifier: 'catalog:'
         version: 1.2.16

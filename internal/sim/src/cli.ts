@@ -33,7 +33,9 @@ import { clearTimeout as clearRealTimeout, setTimeout as real_timeout } from 'no
 import { join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, act, next_action, ACTION_KINDS, type Action, type Mix } from './workload.ts';
+import { html_kept, html_sent } from './html.ts';
 import {
+	document_faulted,
 	faulted,
 	outage_only,
 	hydrates_as_sent,
@@ -434,6 +436,15 @@ export async function run(
 			}
 			const c = no_cross_visitor_cache(world);
 			if (c) broken.push(c);
+			// GOOD HTML: what the servers sent, and what each tab's document is at rest (one the network
+			// changed set aside)
+			const sent = await html_sent(world);
+			if (sent) broken.push(sent);
+			for (const t of v.tabs) {
+				if (document_faulted(world, t)) continue;
+				const kept = html_kept(t);
+				if (kept) broken.push({ ...kept, detail: `${t.page.mainFrame.url}: ${kept.detail}` });
+			}
 		}
 		for (const b of broken) log.note(`broken ${b.oracle}: ${b.detail}`);
 		const buggified = [...world.buggified]
