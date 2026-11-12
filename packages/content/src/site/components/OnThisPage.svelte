@@ -1,15 +1,12 @@
+<!--
+@component
+On-this-page headings with a scrollspy. Mount it as an island (`with { wake: 'load' }`): it wakes on
+every page, after every navigation too. The spy marks the section being read and slides the rail
+thumb to it, in this list and in the page's static mobile outline (`.og-mtoc`). The title entry
+links to the page itself and scrolls to the top. Customize each row with the `item` snippet (then
+apply your own active state); `.og-toc*` hooks for CSS.
+-->
 <script lang="ts">
-	/**
-	 * On-this-page headings with scrollspy. Meant to be mounted as an ISLAND (`with { wake: 'load' }`)
-	 * so it's a real reactive component: it hydrates per page and RE-hydrates after every SPA
-	 * navigation, so the active marker just works on the new page — no inline `script()`, no dependence
-	 * on scripts re-running across a body swap.
-	 *
-	 * The scrollspy lives in an ATTACHMENT on the list (runs on mount, cleans up on unmount), its
-	 * window listeners and its frame on one scope. It marks the last heading above the fold line as
-	 * active and slides the rail thumb to it. Customize each row with the `item` snippet (then apply
-	 * your own active state); `.og-toc*` hooks for CSS.
-	 */
 	import { scope } from '@ogygia/machine';
 	import type { Snippet } from 'svelte';
 	import { page } from '$app/state';
@@ -36,10 +33,7 @@
 
 	let active = $state('');
 
-	// The "top" entry is a real link to the current page (so it's a valid href, not a bare `#`), but
-	// clicking it just scrolls to the top — no navigation. The page's own path, the same on the server
-	// and in the browser (a `window.location` read here drew `/` on the server: every page's top link
-	// changed as it woke). The path alone: a prerendered page may not read `url.search`
+	// @why the page's path, not `location`: the same on the server, so the top link does not change as the page wakes (test: test/browser/on-this-page.test.ts › links the title to the page's own path, the same as on the server)
 	const top_href = $derived(page.url.pathname);
 	function to_top(e: MouseEvent) {
 		e.preventDefault();
@@ -47,11 +41,10 @@
 		history.replaceState(history.state, '', top_href);
 	}
 
-	/** Attachment: wire the scrollspy to the rendered list. Returns a teardown Svelte calls on unmount. */
 	function spy(list: HTMLElement) {
 		if (!scrollspy || !headings.length) return;
 		const ids = headings.map((h) => h.id);
-		// the spy's listeners and its frame, let go together on unmount
+		// @why one scope: the window listeners and the frame go with the list (test: test/browser/on-this-page.test.ts › lets go of the window when it unmounts: a scroll after moves nothing)
 		const s = scope();
 		let queued = false;
 		const pick = () => {
@@ -67,18 +60,14 @@
 				if (s.top <= 120) best = s.id;
 				else break;
 			}
-			// Short page: nothing crossed the fold but the first heading is up in view → active.
+			// @why a short page: no heading crossed the fold line, but the first is in view (test: test/browser/on-this-page.test.ts › marks the first heading on a short page where none crossed the fold line)
 			if (!best && seen[0].top <= innerHeight * 0.4) best = seen[0].id;
-			// At the very bottom, the last section is what you're reading.
+			// @why at the very bottom the last section is the one being read, though it never reaches the fold line (test: test/browser/on-this-page.test.ts › marks the last heading at the very bottom of the page)
 			if (innerHeight + scrollY >= document.documentElement.scrollHeight - 4)
 				best = seen[seen.length - 1].id;
 			active = best;
-			// Slide the rail thumb to the active link's box. Drive this island's own list AND the
-			// mobile inline outline — a static `<details class="og-mtoc">` (Doc.svelte) with no
-			// scrollspy of its own, so on mobile it gets the same active row + moving thumb.
 			const move_thumb = (ul: HTMLElement | null, set_active: boolean) => {
 				if (!ul) return;
-				// The island's own list uses Svelte's `class:og-active`; only the static list needs this.
 				if (set_active)
 					ul.querySelectorAll('.og-active').forEach((a) => a.classList.remove('og-active'));
 				const lnk = best ? ul.querySelector<HTMLElement>(`a[href="#${CSS.escape(best)}"]`) : null;
@@ -92,6 +81,7 @@
 				}
 			};
 			move_thumb(list, false);
+			// @why Doc's mobile outline is static HTML with no spy of its own: this one marks it too (test: test/browser/on-this-page.test.ts › marks the last heading above the fold line, in its list and in the static outline)
 			move_thumb(document.querySelector('.og-mtoc .og-toc-list'), true);
 		};
 		const onScroll = () => {
