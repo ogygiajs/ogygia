@@ -16,7 +16,8 @@ import {
 	navigation_starts,
 	scripts_start_once,
 	whole_text_runs,
-	window_load_events
+	window_load_events,
+	disabled_stylesheets
 } from './happy.ts';
 import { Cdn } from './cdn.ts';
 import { Loop } from './loop.ts';
@@ -220,6 +221,7 @@ export class World {
 		history_by_document();
 		navigation_starts();
 		window_load_events();
+		disabled_stylesheets();
 		const w = new World(o);
 		completion_on_the_loop(w.loop);
 		const host = platform({

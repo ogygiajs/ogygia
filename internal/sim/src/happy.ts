@@ -142,6 +142,54 @@ export function documents_by_namespace(): void {
 }
 
 /**
+ * A stylesheet link with a `disabled` attribute fetches nothing, and removing the attribute fetches
+ * it, as the HTML spec's fetch setup of a stylesheet link says. happy-dom fetched it anyway: every
+ * stylesheet Kit inlines it also lists as `<link rel="stylesheet" disabled>` (for its router), so
+ * the simulator asked for each on every page and no browser did (the differential). A disabled
+ * link connects, or has its `rel` or `href` set, with its evaluation off (happy-dom's stylesheet
+ * load reads that before its first await). Idempotent. test/stylesheets.test.ts.
+ */
+export function disabled_stylesheets(): void {
+	const proto = HTMLLinkElement.prototype as unknown as Record<symbol | string, unknown>;
+	if (proto.__disabled) return;
+	proto.__disabled = true;
+	type Link = Record<symbol, unknown> & {
+		hasAttribute(name: string): boolean;
+		getAttributeNode(name: string): unknown;
+	};
+	const off = (link: Link): boolean =>
+		link.hasAttribute('disabled') && link[PropertySymbol.disableEvaluation] !== true;
+	const set = proto[PropertySymbol.onSetAttribute] as (this: Link, ...a: unknown[]) => unknown;
+	for (const key of [PropertySymbol.connectedToDocument, PropertySymbol.onSetAttribute]) {
+		const real = proto[key] as (this: Link, ...a: unknown[]) => unknown;
+		proto[key] = function (this: Link, ...a: unknown[]) {
+			if (!off(this)) return real.apply(this, a);
+			this[PropertySymbol.disableEvaluation] = true;
+			try {
+				return real.apply(this, a);
+			} finally {
+				this[PropertySymbol.disableEvaluation] = false;
+			}
+		};
+	}
+	const remove = proto[PropertySymbol.onRemoveAttribute] as (this: Link, a: unknown) => unknown;
+	proto[PropertySymbol.onRemoveAttribute] = function (this: Link, removed: unknown) {
+		const out = remove.call(this, removed);
+		const href = this.getAttributeNode('href');
+		if ((removed as Record<symbol, unknown>)[PropertySymbol.name] !== 'disabled' || href === null)
+			return out;
+		// (happy-dom's load as on an `href` set, its mutation record held back: none was made)
+		this[PropertySymbol.reportMutation] = () => {};
+		try {
+			set.call(this, href, href);
+		} finally {
+			delete this[PropertySymbol.reportMutation];
+		}
+		return out;
+	};
+}
+
+/**
  * A run of text is one text node, as a browser's parser makes it. happy-dom's parser hands a bare
  * `>` in text (`() => x`) to a text node of its own, so the run became two nodes, and Svelte,
  * hydrating the server's one text, found a node left over (seed 477). A run the parser goes on
