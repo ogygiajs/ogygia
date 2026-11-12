@@ -65,6 +65,7 @@ import { slots, type FrameOps } from './slots.ts';
 import {
 	create_answer,
 	create_hole,
+	busy_machines,
 	create_live,
 	create_paint,
 	create_region_life,
@@ -2152,7 +2153,7 @@ class OgygiaRegion extends HTMLElement {
 		// visit ends here, with the region's lifetime, not at each wait (#1132).
 		if (this.#paint.now.kind !== 'idle') this.#paint.go('idle');
 		// (every region machine is at rest now: the rule holds it there, ./rules.ts `note_left`)
-		if (RULES) note_left(this, () => this.#machines());
+		if (RULES) note_left(this, () => busy_machines(this.#machines()));
 		// Its lifetime in the page ends: its count among the connected regions, its sleep, its
 		// viewport snapshot, its binding to the store, a replay still waiting for its frame, and its
 		// mailbox (what is queued is dropped; a step that waits gets STALE). A connect again starts

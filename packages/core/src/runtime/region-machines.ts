@@ -270,3 +270,12 @@ export const REGION_REST: Readonly<RegionMachinesNow> = {
 	'live-region': 'idle',
 	'region-paint': 'idle'
 };
+
+/** The machines in `now` not at rest, each as `name state` (the rule's detail). */
+export function busy_machines(now: RegionMachinesNow): string[] {
+	const busy: string[] = [];
+	for (const name of Object.keys(REGION_REST) as Array<keyof RegionMachinesNow>) {
+		if (now[name] !== REGION_REST[name]) busy.push(`${name} ${now[name]}`);
+	}
+	return busy;
+}
