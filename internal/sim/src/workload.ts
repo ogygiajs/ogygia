@@ -14,6 +14,9 @@ export type Action =
 	| { kind: 'goto'; tab: number; path: string }
 	| { kind: 'back' | 'forward' | 'reload'; tab: number }
 	| { kind: 'open'; path: string }
+	/** A new tab opened behind the one the visitor looks at (a link opened in the background): its
+	 *  page loads hidden, and paints no frame until the visitor looks at it. */
+	| { kind: 'background'; path: string }
 	| { kind: 'offline' | 'online'; tab: number }
 	| { kind: 'wait'; ms: number }
 	| { kind: 'deploy' }
@@ -58,6 +61,8 @@ export function describe(a: Action): string {
 			return `tab ${a.tab}: go to ${a.path}`;
 		case 'open':
 			return `new tab at ${a.path}`;
+		case 'background':
+			return `new tab at ${a.path}, behind`;
 		case 'wait':
 			return `wait ${a.ms} ms`;
 		case 'deploy':
@@ -117,6 +122,7 @@ export const ACTION_KINDS: readonly Action['kind'][] = [
 	'forward',
 	'reload',
 	'open',
+	'background',
 	'offline',
 	'online',
 	'wait',
@@ -219,7 +225,8 @@ function choices(
 			},
 			1
 		],
-		[{ kind: 'twice', tab, nth: rng.int(1000), after: rng.pick([0, 5, 20, 60, 150, 300]) }, 1]
+		[{ kind: 'twice', tab, nth: rng.int(1000), after: rng.pick([0, 5, 20, 60, 150, 300]) }, 1],
+		[{ kind: 'background', path: rng.pick(paths) }, tabs < 3 ? 0.7 : 0]
 	];
 }
 
@@ -260,6 +267,9 @@ function press(world: World, tab: Tab, nth: number): boolean {
 	return true;
 }
 
+/** How long a visitor looks at a tab brought to the front before acting in it (ms). */
+const LOOK_MS = 300;
+
 /** Does `a` in `world`, as `visitor`; runs the world to rest after it. */
 export async function act(
 	world: World,
@@ -273,6 +283,16 @@ export async function act(
 	own: (tab: Tab) => void = () => {}
 ): Promise<void> {
 	const tab = 'tab' in a ? visitor.tabs[a.tab % Math.max(1, visitor.tabs.length)] : undefined;
+	// (the visitor looks at the tab they act in: the others go behind it; the network is not a look)
+	// (one shown again is looked at before the visitor acts in it: its frames come while it is still
+	// the document shown, so a reload's requests are the next document's alone; gen 193, seed 8)
+	if (
+		tab !== undefined &&
+		a.kind !== 'offline' &&
+		a.kind !== 'online' &&
+		world.browsers.focus(visitor, tab)
+	)
+		await world.loop.run(LOOK_MS);
 	switch (a.kind) {
 		case 'click':
 			if (tab !== undefined && click(world, tab, a.nth, origin)) await world.quiesce();
@@ -358,6 +378,14 @@ export async function act(
 			return;
 		case 'open': {
 			const t = world.tab(visitor);
+			world.browsers.focus(visitor, t);
+			await world.go(t, 'goto', a.path);
+			return;
+		}
+		case 'background': {
+			// (opened behind the tab the visitor looks at: it loads hidden, and stays so until looked at)
+			const t = world.tab(visitor);
+			t.hidden = true;
 			await world.go(t, 'goto', a.path);
 			return;
 		}

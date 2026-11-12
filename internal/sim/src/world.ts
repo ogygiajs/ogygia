@@ -112,6 +112,9 @@ export interface WorldOptions {
 	 *  files answer any origin (`access-control-allow-origin: *`), as a peer's CDN does for the
 	 *  islands another origin's page imports. */
 	peers?: ReadonlyArray<{ readonly origin: string; readonly build: Build }>;
+	/** Whether the tabs' engine has `requestIdleCallback`. Default: the seed's draw (stream `idle
+	 *  engine`: 30% of seeds are Safari's, which has none). */
+	idle?: boolean;
 }
 
 /**
@@ -145,6 +148,8 @@ export class World {
 	readonly browsers: Browsers;
 	/** Other visitors a crowd brought (workload.ts `crowd`), each with its tab, in order. */
 	readonly crowd: Visitor[] = [];
+	/** Whether the tabs' engine has idle callbacks (`WorldOptions.idle`, or the seed's draw). */
+	readonly idle: boolean;
 	/** Live instances by build id. */
 	readonly servers = new Map<string, ServerInstance[]>();
 	/** Each peer app's instance, by origin. */
@@ -178,6 +183,8 @@ export class World {
 			rates: o.rates
 		});
 		this.cdn = new Cdn(this.loop);
+		// (whether the engine has idle callbacks: some seeds' engine is Safari's, which has none)
+		this.idle = o.idle ?? !this.rng.fork('idle engine').chance(0.3);
 		this.browsers = new Browsers({
 			loop: this.loop,
 			rng: this.rng,
@@ -186,7 +193,8 @@ export class World {
 			origin: ORIGIN,
 			buggify: (realm, point) => this.#buggify(realm, point),
 			// (the seed's browser engine, as its resource timing reads: most report each status)
-			timeline: this.rng.fork('timeline engine').chance(0.7) ? 'status' : 'start'
+			timeline: this.rng.fork('timeline engine').chance(0.7) ? 'status' : 'start',
+			idle: this.idle
 		});
 		this.live = o.builds[0].id;
 	}

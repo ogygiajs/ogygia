@@ -12,3 +12,11 @@ export function server_rules_hold(sim: Sim): void {
 		return broken.length === 0 ? null : broken.map((b) => `${b.code}: ${b.detail}`).join('; ');
 	});
 }
+
+/**
+ * Runs of a primitive's simulation (flights, the outbox, scopes): 1000 in node. The browser run
+ * (test/browser/sim-primitives.test.ts) adds the engine's own promise order, AbortSignal and
+ * EventTarget, and each run ends on real timer tasks (Firefox waits 4 ms or more for each nested
+ * one): 1000 took 13 s there, past the 15 s timeout on a loaded runner. 200 there, same seed.
+ */
+export const PRIMITIVE_RUNS: number = typeof document === 'undefined' ? 1000 : 200;
