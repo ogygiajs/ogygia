@@ -44,7 +44,8 @@ export type {
 	TransformEvent,
 	StageTransform,
 	ExportsSeam,
-	PinnedDecl
+	PinnedDecl,
+	RegionsSeam
 } from './plugin-api.ts';
 export type {
 	ExportMap,
@@ -103,7 +104,6 @@ import {
 	needs_island_entry_full_reload
 } from '../compiler/dev/hmr.ts';
 import { derive_css_scope_owners, type DevGraphModule } from '../compiler/dev/css-scope.ts';
-import { island_subgraph_bytes } from '../compiler/dev/region-bytes.ts';
 import {
 	collectIslandDepModulepreloads,
 	collect_inline_css,
@@ -431,6 +431,10 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 			return (decl) =>
 				decl.attribute_keys.some((k) => keys.has(k)) ||
 				(locals.size > 0 && decl.specs.some((s) => locals.has(s.local)));
+		},
+		regions: {
+			names: () => compiler.region_names(),
+			barrelWhy: (file, importers) => barrel_why(file, importers)
 		}
 	};
 	// Why a barrel stayed (`t.emit`), per environment and stage (a stage's run forgets only its own
@@ -1029,51 +1033,6 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 						root
 					);
 				}
-				// Devtools: serve the live `island id → component name` map so the dock can label a
-				// region "Counter" instead of a hashed entry. A middleware (not a virtual module) so it
-				// reads the CURRENT registry at request time — the dock fetches it after mount, by which
-				// point every island app-wide is registered, so the map is complete and never stale.
-				if (!devtools_effective) return;
-				// The browser's JS Self-Profiling API needs the document to opt in: every dev response
-				// carries the policy, so the Page tab can sample the main thread while islands wake
-				// (the trace stays in the page — runtime/beacon.ts). Dev only, like all of devtools.
-				server.middlewares.use((_req, res, next) => {
-					res.setHeader('document-policy', 'js-profiling');
-					next();
-				});
-				server.middlewares.use((req, res, next) => {
-					if ((req.url || '').split('?')[0] !== '/__ogygia_devtools_meta') return next();
-					// `names`: island id → component name (live registry). `bytes`: island id → its
-					// transitive dev-module-graph size (wrapper + component + everything imported), so the
-					// Bytes tab can show real cost instead of the wrapper chunk alone. Both read live, so
-					// the map is complete once the dock fetches (post-mount, islands registered).
-					const envs = (
-						server as unknown as {
-							environments?: Record<
-								string,
-								{ moduleGraph?: { idToModuleMap?: Map<string, unknown> } }
-							>;
-						}
-					).environments;
-					const client_modules = envs?.client?.moduleGraph?.idToModuleMap?.values();
-					// (each app component's source, read once a request: its lines that draw differently in the browser)
-					const sources = new Map<string, string | undefined>();
-					const read = (file: string) => {
-						if (!sources.has(file)) {
-							try {
-								sources.set(file, fs.readFileSync(file, 'utf8'));
-							} catch {
-								sources.set(file, undefined);
-							}
-						}
-						return sources.get(file);
-					};
-					const bytes = client_modules
-						? island_subgraph_bytes(client_modules as never, read, barrel_why)
-						: {};
-					res.setHeader('content-type', 'application/json');
-					res.end(JSON.stringify({ names: compiler.region_names(), bytes }));
-				});
 			},
 
 			watchChange(id, change) {
