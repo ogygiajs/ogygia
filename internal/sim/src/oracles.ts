@@ -78,7 +78,7 @@ export function normalize(root: {
 			)
 			.sort()
 			.join(' ');
-		out.push(`${'  '.repeat(depth)}<${tag}${attrs ? ' ' + attrs : ''}>`);
+		out.push(`${'  '.repeat(depth)}<${tag}${attrs ? ` ${attrs}` : ''}>`);
 		if (tag !== 'head') {
 			for (const child of el.childNodes) walk(child, depth + 1, out);
 			return;
@@ -478,7 +478,7 @@ export async function mpa_equivalent(
 		known.length > 0 ? `with ${known.map((k) => `#${k.issue}`).join(', ')} set aside, ` : '';
 	return {
 		oracle: 'mpa-equivalence',
-		detail: `${url}\n${left}${first_difference(a, b)}${said.length ? `\nthe fresh load said:\n${said.join('\n')}` : ''}`
+		detail: `${url}\n${left}${first_difference(a, b)}${said.length ? ['', 'the fresh load said:', ...said].join('\n') : ''}`
 	};
 }
 

@@ -139,7 +139,7 @@ export async function start_server(
 					});
 				}
 				const page = read
-					? (files.pages.get(path === '/' ? '/index.html' : path + '.html') ??
+					? (files.pages.get(path === '/' ? '/index.html' : `${path}.html`) ??
 						files.pages.get(join(path, 'index.html')))
 					: undefined;
 				if (page !== undefined)

@@ -328,10 +328,14 @@ function file_one(open: Open[]): (sig: string, list: Finding[]) => Filed {
 					'-R',
 					REPO,
 					'-b',
-					`Seen again by the scheduled run: ${list.length} seed(s) (${list
-						.slice(0, 10)
-						.map((x) => x.seed)
-						.join(', ')}).\n\n${mark}`
+					[
+						`Seen again by the scheduled run: ${list.length} seed(s) (${list
+							.slice(0, 10)
+							.map((x) => x.seed)
+							.join(', ')}).`,
+						'',
+						mark
+					].join('\n')
 				]);
 			return { sig, issue: known.number, repeat: true };
 		}
@@ -442,7 +446,7 @@ async function main(): Promise<void> {
 			first_line: list[0].detail.split('\n')[0].slice(0, 200)
 		}))
 	};
-	writeFileSync(RESULTS, JSON.stringify(results, null, '\t') + '\n');
+	writeFileSync(RESULTS, `${JSON.stringify(results, null, '\t')}\n`);
 	if (env.GITHUB_STEP_SUMMARY)
 		appendFileSync(
 			env.GITHUB_STEP_SUMMARY,

@@ -90,7 +90,7 @@ describe('postrender/stitch — region tags the browser does not read', () => {
 			`<title>${OPEN}</title>fb`,
 			`<style>/* ${CLOSE} */</style>fb`
 		]) {
-			const html = hole('edge', '/e', fallback) + '<p>after</p>';
+			const html = `${hole('edge', '/e', fallback)}<p>after</p>`;
 			expect(find_stitch_holes(html), fallback).toEqual([
 				{ start: 0, end: html.length - '<p>after</p>'.length, endpoint: '/e', mode: 'edge' }
 			]);

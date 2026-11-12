@@ -9,7 +9,7 @@ import { World } from '../src/world.ts';
 const OUTPUT = fileURLToPath(
 	new URL('../../../apps/palaestra/.svelte-kit/output', import.meta.url)
 );
-const built = existsSync(OUTPUT + '/server/index.js');
+const built = existsSync(`${OUTPUT}/server/index.js`);
 
 async function load(seed: number, path: string) {
 	const world = await World.make({ seed, builds: [{ id: 'v1', output: OUTPUT }] });

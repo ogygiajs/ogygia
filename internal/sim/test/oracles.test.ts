@@ -9,33 +9,35 @@ import { KNOWN, mpa_equivalent, normalize, page_errors, page_rules } from '../sr
 const OUTPUT = fileURLToPath(
 	new URL('../../../apps/palaestra/.svelte-kit/output', import.meta.url)
 );
-const built = existsSync(OUTPUT + '/server/index.js');
+const built = existsSync(`${OUTPUT}/server/index.js`);
 
 describe('normalize', () => {
 	it('drops scripts, comments, nonces and blank text; keeps attributes and text', async () => {
 		const { Window } = await import('happy-dom');
 		const w = new Window();
 		w.document.write(
-			'<html><head><title>t</title><script nonce="x">1</script></head><body>\n  <!--[--><p class="a" nonce="y">hi</p><!--]-->\n</body></html>'
+			`<html><head><title>t</title><script nonce="x">1\x3C/script></head><body>
+  <!--[--><p class="a" nonce="y">hi</p><!--]-->
+</body></html>`
 		);
 		expect(normalize(w.document as unknown as Document)).toBe(
-			[
-				'title: t',
-				'<html>',
-				'  <head>',
-				'    <title>',
-				'      "t"',
-				'  <body>',
-				'    <p class="a">',
-				'      "hi"'
-			].join('\n')
+			`title: t
+<html>
+  <head>
+    <title>
+      "t"
+  <body>
+    <p class="a">
+      "hi"`
 		);
 	});
 });
 
 describe('KNOWN', () => {
 	const region = (label: string, at = '    ') =>
-		[`${at}<ogygia-region wake="load">`, `${at}  <div>`, `${at}    "${label}"`].join('\n');
+		`${at}<ogygia-region wake="load">
+${at}  <div>
+${at}    "${label}"`;
 	const page = (...labels: string[]) =>
 		['<html>', '  <body>', ...labels.map((l) => region(l))].join('\n');
 	const left = KNOWN.find((k) => k.issue === 807)!;

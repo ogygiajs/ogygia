@@ -87,7 +87,7 @@ export function platform(
 	const live = new Map<number, Task>();
 
 	const arm = (label: string, ms: number, fn: () => void, id = ++ids): number => {
-		if (SITES) label += ` @ ${site()}`;
+		if (SITES) label = `${label} @ ${site()}`;
 		const task = loop.add(name, label, ms, () => {
 			live.delete(id);
 			fn();

@@ -316,7 +316,7 @@ async function main(): Promise<void> {
 	};
 	writeFileSync(
 		join(import.meta.dirname, '..', 'results.json'),
-		JSON.stringify(summary, null, '\t') + '\n'
+		`${JSON.stringify(summary, null, '\t')}\n`
 	);
 	console.log(
 		`\n${RUNS} seeds, ${failed} failed, ${known} known, ${leaks.length} replay leaks, ${JOBS} jobs, ${summary.seconds} s, ${summary.steps_per_second} loop steps/s, ${summary.actions_per_second} actions/s`
