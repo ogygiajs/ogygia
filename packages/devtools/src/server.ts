@@ -13,7 +13,7 @@ import type { ProfilerOptions } from './profiler/index.ts';
 import { profiler_demand_skip } from './profiler/on-demand.ts';
 import { OgygiaError } from './messages/runtime.ts';
 
-/** What `devtools()` hands its server half (vite.config → `virtual:ogygia/server-plugins`). The
+/** What `devtools()` hands its server half (vite.config → `ogygia:server/server-plugins`). The
  *  profiler's `secret` is here only when the app passed one (then it IS baked into the server build,
  *  on purpose — a serverless host may have no runtime env); left out, the profiler reads
  *  OGYGIA_PROFILER_SECRET at runtime. */

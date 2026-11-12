@@ -87,7 +87,7 @@ export function module_category(id: string): { category: FrameCategory; pkg?: st
 	const posix = id.split('\\').join('/');
 	// ogygia's generated modules (the island wrappers, the virtual runtime entries): its code, not the app's
 	// (in any spelling: bare, with the NUL prefix Vite gives virtual ids, or that NUL written out)
-	if (posix.includes('virtual:ogygia')) return { category: 'dependency', pkg: 'ogygia' };
+	if (posix.includes('ogygia:')) return { category: 'dependency', pkg: 'ogygia' };
 	const nm = posix.lastIndexOf('node_modules/');
 	// (ogygia's own: the `ogygia` package and the `@ogygia/core` it re-exports — a checkout's
 	// `packages/core` — and this profiler)
