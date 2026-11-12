@@ -48,8 +48,11 @@ stateDiagram-v2
     armed --> waking
     waking --> cold
     waking --> awake
+    waking --> offline
     waking --> failed
     awake --> cold
+    offline --> cold
+    offline --> armed
     failed --> cold
 ```
 
