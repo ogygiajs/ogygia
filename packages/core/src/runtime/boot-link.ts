@@ -17,10 +17,17 @@ import {
 import { note_entry_location } from './entry-locations.ts';
 import { register_island_graph } from './island-graph-preload.ts';
 import { props_sidecar_of } from './sidecar.ts';
-import { parse_region_html } from './parse-html.ts';
+import {
+	parse_page_document,
+	parse_region_html,
+	set_inner_html,
+	vouch_page_answer,
+	vouch_page_html
+} from './html-sink.ts';
 import { runtime_session } from './session.ts';
 import { regions_in_shadow } from './connected.ts';
 import { release_head_nodes } from './region-sheets.ts';
+import { add_head_owners, adopt_owner_record, head_owners } from '../head-owners.ts';
 import { yield_task } from './schedule.ts';
 import { HOOK_REGION_HYDRATE, client_region_hydrate } from './client-plugins.ts';
 import {
@@ -31,6 +38,7 @@ import {
 	walk_enters
 } from './ownership.ts';
 import { LoadSlot } from './load-scheduler.ts';
+import { adopt_mark, server_channel } from './response-mark.ts';
 import { fetch_priority_of, PRIORITY } from './load-class.ts';
 import { load_devalue, devalue, with_devalue, needs_devalue } from './devalue-lane.ts';
 import { OgygiaError, warn } from '../messages/core.ts';
@@ -48,9 +56,16 @@ export function link_boot(): void {
 		note_entry_location,
 		props_sidecar_of,
 		parse_region_html,
+		parse_page_document,
+		set_inner_html,
+		vouch_page_answer,
+		vouch_page_html,
 		runtime_session,
 		regions_in_shadow,
 		release_head_nodes,
+		head_owners,
+		add_head_owners,
+		adopt_owner_record,
 		yield_task,
 		region_hydrate: HOOK_REGION_HYDRATE ? client_region_hydrate : no_region_hydrate,
 		walk_enters,
@@ -58,6 +73,8 @@ export function link_boot(): void {
 		record_server_body,
 		server_body_attributes,
 		server_body_child,
+		server_channel,
+		adopt_mark,
 		LoadSlot,
 		PRIORITY,
 		fetch_priority_of,

@@ -44,6 +44,7 @@
  */
 import { OgygiaError, warn } from '../messages/lazy.ts';
 import { flights, say, scope, tasks, type Scope } from '@ogygia/machine';
+import { code_url, import_code, type CodeUrl } from './code-origins.ts';
 
 const KIT_PAGE_KEY = Symbol.for('ogygia.kit-page');
 /** Kit constructs its `$app/state` page with this status; `initialize()` replaces it with the real one. */
@@ -92,7 +93,7 @@ const pending = flights({
 		return new Promise<void>((resolve, reject) => {
 			for (const url of kit_boot_imports()) {
 				void wait
-					.task(() => import(/* @vite-ignore */ url))
+					.task(() => import_code(url))
 					.then(undefined, (error: unknown) => {
 						wait.close();
 						reject(kit_boot_failed(url, error));
@@ -129,13 +130,12 @@ const KIT_BOOT_IMPORT = /\bimport\(\s*("(?:[^"\\\n]|\\.)*")\s*\)/g;
  * (`bundleStrategy: 'inline'`) or the document has no boot script. Only scripts that run are read:
  * a data script (`type="application/json"`, ogygia's side channels) is never one.
  */
-function kit_boot_imports(): string[] {
+function kit_boot_imports(): CodeUrl[] {
 	if (typeof document === 'undefined') return [];
-	// A script that came in as markup and never ran looks the same, so only the files Kit's own boot
-	// can name: the page's origin (its env) and the runtime's (Kit's assets, its entries). Tested in
-	// test/browser/kit-page-thread.test.ts ("never imported").
-	const origins = new Set([location.origin, new URL(import.meta.url).origin]);
-	const urls = new Set<string>();
+	// A script that came in as markup and never ran looks the same, so only the files on the page's
+	// code origins (./code-origins.ts: the page's, the runtime's, where Kit's assets and entries are,
+	// and the ones the app named). Tested in test/browser/kit-page-thread.test.ts ("never imported").
+	const urls = new Set<CodeUrl>();
 	for (const s of document.querySelectorAll('script:not([src])')) {
 		const type = s.getAttribute('type');
 		if (
@@ -148,9 +148,8 @@ function kit_boot_imports(): string[] {
 		if (!KIT_BOOT_ASSIGN.test(text)) continue;
 		for (const m of text.matchAll(KIT_BOOT_IMPORT)) {
 			try {
-				const url = new URL(JSON.parse(m[1]) as string, document.baseURI);
-				if ((url.protocol === 'http:' || url.protocol === 'https:') && origins.has(url.origin))
-					urls.add(url.href);
+				const url = code_url(new URL(JSON.parse(m[1]) as string, document.baseURI).href);
+				if (url !== null) urls.add(url);
 			} catch {
 				// ok: not a URL Kit's import could load either; Kit's other files still decide
 			}
