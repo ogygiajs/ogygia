@@ -15,9 +15,32 @@ export const LIB = `${ROOT}/src/lib`;
 export const ROUTE_DIRS = ['', 'a', 'a/b', '(g)', '(g)/c', 'd'] as const;
 export type RouteDir = (typeof ROUTE_DIRS)[number];
 
-/** An import's mark: none (plain), or the wake attribute that makes the import a region. */
-export const MARKS = ['plain', 'load', 'idle', 'visible'] as const;
+/** An import's mark: none (plain), or the attributes that make the import a region: an island (a
+ *  wake), a lake (`wake: 'none'`), a server island (`render: 'deferred'`, with its fetch timing),
+ *  or HTML only (`region: 'raw'`). */
+export const MARKS = [
+	'plain',
+	'load',
+	'idle',
+	'visible',
+	'interaction',
+	'lake',
+	'deferred',
+	'deferred-visible',
+	'raw'
+] as const;
 export type Mark = (typeof MARKS)[number];
+
+const ATTRS: Record<Exclude<Mark, 'plain'>, string> = {
+	load: `wake: 'load'`,
+	idle: `wake: 'idle'`,
+	visible: `wake: 'visible'`,
+	interaction: `wake: 'interaction'`,
+	lake: `wake: 'none'`,
+	deferred: `render: 'deferred'`,
+	'deferred-visible': `render: 'deferred', fetch: 'visible'`,
+	raw: `region: 'raw'`
+};
 
 /** A node's csr: unset, or set in its universal or its server option file. */
 export type Csr = 'unset' | 'true' | 'false' | 'server-true' | 'server-false';
@@ -88,7 +111,7 @@ function imports(uses: readonly Use[], from: 'route' | 'lib'): string {
 			from === 'lib'
 				? `./${component_name(u.component)}.svelte`
 				: `$lib/${component_name(u.component)}.svelte`;
-		const attr = u.mark === 'plain' ? '' : ` with { wake: '${u.mark}' }`;
+		const attr = u.mark === 'plain' ? '' : ` with { ${ATTRS[u.mark]} }`;
 		lines.push(`import ${component_name(u.component)} from '${spec}'${attr};`);
 	}
 	return lines.join('\n');

@@ -10,6 +10,7 @@ import path from 'node:path';
 import { memory_fs, type MemoryFs } from '../../../packages/compiler/src/compiler/index.ts';
 import { code_of, session, transform_module, type Leg, type Session } from './session.ts';
 import { LIB, ROOT } from './app.ts';
+import { permute } from './order.ts';
 
 const LEGS: readonly Leg[] = ['ssr', 'client'];
 
@@ -41,10 +42,23 @@ export const VIRTUALS = [
  * - #1375: a csr change re-transforms the route hosts (here: every route host is dropped as if
  *   edited).
  * - #1376: a transform that changed the registry or the marks reloads what read them.
+ * - #1399: the server manifest's lines are compared sorted (`as_judged`).
  */
 export const KNOWN: ReadonlySet<number> = new Set(
-	(process.env.DST_KNOWN ?? '1375,1376').split(',').filter(Boolean).map(Number)
+	(process.env.DST_KNOWN ?? '1375,1376,1399').split(',').filter(Boolean).map(Number)
 );
+
+/** A served module as the oracles compare it. #1399 (the server manifest in registration order):
+ *  its lines sorted, until the fix lands. */
+export function as_judged(id: string, out: Served): Served {
+	if (KNOWN.has(1399) && typeof out === 'string' && id.includes('ogygia:server/server-'))
+		return out
+			.split('\n')
+			.map((l) => l.replace(/,$/, ''))
+			.sort()
+			.join('\n');
+	return out;
+}
 
 /** The registry and the marks, as text: what a `regions` reload depends on. */
 const regions_print = (s: Session): string =>
@@ -89,13 +103,16 @@ export class Server {
 
 	/** What the last page load was served, by key. */
 	served(): Map<string, Served> {
-		return new Map([...this.reached].map((k) => [k, this.cache.get(k) ?? null]));
+		return new Map([...this.reached].map((k) => [k, as_judged(k, this.cache.get(k) ?? null)]));
 	}
 	readonly s: Session;
 	readonly fs: MemoryFs;
-	constructor(s: Session, fs: MemoryFs) {
+	/** a seeded order to request the entries in (a bundler's workers reach modules in any order) */
+	readonly #next: (() => number) | null;
+	constructor(s: Session, fs: MemoryFs, next: (() => number) | null = null) {
 		this.s = s;
 		this.fs = fs;
+		this.#next = next;
 	}
 
 	invalidate(id: string): void {
@@ -108,14 +125,15 @@ export class Server {
 	}
 
 	/** One page load, repeated while ogygia invalidates what it just served (a closure mark, a stale
-	 *  server manifest): bounded, since each round is a real reload. */
-	async serve(): Promise<void> {
+	 *  server manifest): bounded, since each round is a real reload. In a build, one leg's graph
+	 *  (`legs`): the server leg, then the client leg. */
+	async serve(legs: readonly Leg[] = LEGS): Promise<void> {
 		for (let round = 0; round < 4; round++) {
 			let did = false;
 			this.reached.clear();
-			for (const leg of LEGS) {
+			for (const leg of legs) {
 				const seen = new Set<string>();
-				const queue = entries(this.fs);
+				const queue = this.#next ? permute(entries(this.fs), this.#next) : entries(this.fs);
 				while (queue.length) {
 					const id = queue.shift()!;
 					if (seen.has(id)) continue;

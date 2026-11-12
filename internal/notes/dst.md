@@ -526,8 +526,14 @@ runtime marks: a superset is safe), never less. A filed bug the model works arou
 (`DST_KNOWN=` turns them off): it makes the model do what the fix will make the plugin do, so a
 search goes on past it.
 
-Next, from the compiler study (section G.4): Kit 2 vs Kit 3 vs watch topologies, metamorphic edits
-(renames, comments, an unused import), and wider apps (regions, lakes, remotes, wire classes,
+Topology (`src/topology.ts`, `test/topology.test.ts`): Kit 2 (a session per leg) and Kit 3 (one
+session, both legs) serve each leg the same modules and emit the same chunks, and one build with its
+modules requested in a seeded order serves the same bytes (found #1399). The app's marks cover
+islands of every wake, lakes, server islands (with a fetch timing) and `region: 'raw'`.
+
+Next, from the compiler study (section G.4): watch (a second build in one session: compiler 5's
+F1 work, #1386), metamorphic edits (renames, comments, an unused import), sound analyses (what a
+region reads is within what the compiler predicted), and wider apps (remotes, wire classes,
 router pages).
 
 ## Findings
