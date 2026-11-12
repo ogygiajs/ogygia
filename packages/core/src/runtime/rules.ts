@@ -18,6 +18,9 @@
  * - `rule_region_answer_behind`: a region bound to a frame-store address shows the answer the
  *   address holds (./frame-store.ts tickets): it was handed the newest, and painted it once no paint
  *   is out.
+ * - `rule_region_left_busy`: a region element that left the page has every machine at rest (its
+ *   hole's fetch, its wake, its live mode, its paint): no visit of it waits on what can no longer
+ *   happen (#1132). Read from a task after its teardown.
  * - `rule_head_adopted`: the head never gains a `<base>` or a refresh / CSP / cookie meta after the
  *   first document (SPA-HEAD, ./head-deny.ts).
  *
@@ -37,6 +40,7 @@ type RuntimeRule =
 	| 'rule_parse_upgraded'
 	| 'rule_markup_known'
 	| 'rule_region_answer_behind'
+	| 'rule_region_left_busy'
 	| 'rule_head_adopted';
 
 /** The runtime's rules. */
@@ -46,11 +50,13 @@ export const runtime_rules: Rules<RuntimeRule> = /* @__PURE__ */ new Rules<Runti
 
 /** What the runtime's rules track while they are on (dev, a rules build): the region elements
  *  that hold an island now and how many (each leaves at its unmount), the page visits made (each
- *  leaves once closed, at the next check), the regions bound to a frame-store address now (each
+ *  leaves once closed, at the next check), the regions that left the page and are not yet seen at
+ *  rest (each leaves once it is, or is back), the regions bound to a frame-store address now (each
  *  leaves when it lets its address go), and the few breaks found so far (10 each, at most). */
 class RuleRows {
 	readonly mounts = new Map<Element, number>();
 	readonly shows = new Map<Element, Shows>();
+	readonly left = new Map<Element, () => readonly string[]>();
 	readonly visits: Array<{ visit: Visit; n: number }> = [];
 	readonly uncoded: string[] = [];
 	readonly parsed_built: string[] = [];
@@ -78,6 +84,31 @@ function one_mount_per_region(): string | null {
 		// check runs a task after the moves)
 		if (!region.isConnected)
 			return `${entry_of(region)} left the page with its island still mounted`;
+	}
+	return null;
+}
+
+// ── a region that left the page is at rest ──
+
+/** A region element left the page (its teardown ran): `busy` reads its machines not at rest, as
+ *  `name state` (./region-machines.ts `busy_machines`). */
+export function note_left(region: Element, busy: () => readonly string[]): void {
+	R.left.set(region, busy);
+}
+
+function regions_left_at_rest(): string | null {
+	for (const [region, read_busy] of R.left) {
+		// (put back: its machines are the page's again)
+		if (region.isConnected) {
+			R.left.delete(region);
+			continue;
+		}
+		const busy = read_busy();
+		if (busy.length === 0) {
+			R.left.delete(region);
+			continue;
+		}
+		return `${entry_of(region)} left the page with ${busy.join(', ')}`;
 	}
 	return null;
 }
@@ -324,6 +355,7 @@ export function install_rules(dev: boolean): void {
 	runtime_rules.add('rule_parse_upgraded', no_parse_upgraded);
 	runtime_rules.add('rule_markup_known', markup_known);
 	runtime_rules.add('rule_region_answer_behind', regions_show_their_answers);
+	runtime_rules.add('rule_region_left_busy', regions_left_at_rest);
 	watch_head();
 	(globalThis as { __og_parsed?: (f: DocumentFragment) => void }).__og_parsed = note_parse;
 	(globalThis as { __ogygia_rules?: () => BrokenRule[] }).__ogygia_rules = () =>

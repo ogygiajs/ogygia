@@ -16,12 +16,15 @@ import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { rng, type Rng } from './rng.ts';
 
-type Wake = 'load' | 'idle' | 'visible' | 'interaction';
+/** A schedule: one of ogygia's, or a media query (an island wakes while it matches; the sim's and the
+ *  player's viewport is 1280 wide, so one of the two never does). */
+type Wake = 'load' | 'idle' | 'visible' | 'interaction' | MediaWake;
+type MediaWake = '(max-width: 600px)' | '(min-width: 601px)';
 
 /** One region (or plain markup) of a generated page. */
 export interface GenNode {
 	readonly id: number;
-	/** island: a woken region; hole: a deferred one (`wake`: woken once it lands); lake: frozen
+	/** island: a woken region; hole: a deferred one (`wake`: when its HTML is fetched); lake: frozen
 	 *  server HTML (`wake: 'none'`); plain: a component with no region of its own; held: a region
 	 *  a remote query returns (`region(N, props)`), rendered by a host with `<Region of>` (`wake`:
 	 *  its baked schedule, none for `region: 'raw'`); live: one a `query.live` yields anew on each
@@ -96,6 +99,13 @@ export interface GenNode {
 	 *  element whose children are partly its own, which a repair that lined up names no conflict for
 	 *  (the gen app's client says any conflict named on the console: apps/sim-gen/src/sim-client.ts). */
 	readonly thirdParty?: 'prepend' | 'retag' | 'text';
+	/** An island with a `<svelte:head>` of its own (stream `gen head`): a `<meta>` in an `{#if}` and a
+	 *  `<style>`, rendered into the document's head, whose page copy the island's live copy retires
+	 *  once it wakes (one copy: the waste check sees a `<style>` held twice). `drift`: a third party's
+	 *  script puts an element of its own at the start of that head block once the document is parsed,
+	 *  where Svelte's head hydration would walk into it (the runtime takes every island's head off
+	 *  that walk first). Only one that wakes on its own, in the page's own HTML. */
+	readonly head?: 'own' | 'drift';
 	readonly children: readonly GenNode[];
 }
 
@@ -117,12 +127,34 @@ export interface GenPage {
 
 const WAKES: readonly Wake[] = ['load', 'idle', 'visible', 'interaction'];
 
+/**
+ * Island wakes as real apps have them (apps/palaestra, examples/mfe, apps/docs: 351 island
+ * imports, 2026-11): load 71%, visible 22%, interaction and idle 3% each, a media query 1%. The
+ * media query is drawn more often here (5%), so a seed sees one.
+ */
+const REAL_WAKES: ReadonlyArray<readonly [Wake, number]> = [
+	['load', 70],
+	['visible', 20],
+	['interaction', 3],
+	['idle', 3],
+	['(max-width: 600px)', 2.5],
+	['(min-width: 601px)', 2.5]
+];
+
+/** How an app's island wakes are drawn, from its own stream (`gen shape`): `real`, as real apps
+ *  have them (`REAL_WAKES`), or `drawn`, evenly from ogygia's four (every schedule as often). */
+export function shape_plan(seed: number): 'real' | 'drawn' {
+	return rng(seed).fork('gen shape').chance(0.5) ? 'real' : 'drawn';
+}
+
 /** A region tree drawn from `r`, depth first (a child's id before its parent's, ids from `first`);
- *  `wrap` may turn a drawn region into another kind (held, live). */
+ *  `wrap` may turn a drawn region into another kind (held, live); `wake` draws an island's
+ *  schedule (one draw of `r`, either way). */
 function trees(
 	r: Rng,
 	wrap: (n: GenNode) => GenNode = (n) => n,
-	first = 0
+	first = 0,
+	wake: (r: Rng) => Wake = (r) => r.pick(WAKES)
 ): (depth: number) => GenNode {
 	let ids = first;
 	const node = (depth: number): GenNode => {
@@ -142,7 +174,7 @@ function trees(
 					]);
 		const children = Array.from({ length: n }, () => node(depth + 1));
 		const id = ids++;
-		if (kind === 'island') return wrap({ id, kind, wake: r.pick(WAKES), children });
+		if (kind === 'island') return wrap({ id, kind, wake: wake(r), children });
 		if (kind === 'hole')
 			return {
 				id,
@@ -261,7 +293,12 @@ export function plan(seed: number): GenPage[] {
 	// (and whether a page opens with a hero image, from its own)
 	const hr = rng(seed).fork('gen hero');
 	const switching = switcher(seed);
-	const node = trees(r, held);
+	const node = trees(
+		r,
+		held,
+		0,
+		shape_plan(seed) === 'real' ? (r) => r.weighted(REAL_WAKES) : undefined
+	);
 	const pages = r.between(3, 6);
 	return Array.from({ length: pages }, (_, i) => ({
 		path: `/p${i}`,
@@ -276,8 +313,36 @@ export function plan(seed: number): GenPage[] {
 		.map((page) => (hr.chance(0.4) ? { ...page, hero: true } : page))
 		.map((page) => ({ ...page, roots: page.roots.map(switching) }))
 		.map(flagging(seed))
-		.map(third_party(seed));
+		.map(third_party(seed))
+		.map(heads(seed));
 }
+
+/** Some islands have a `<svelte:head>` of their own (their own stream, `gen head`), and a third
+ *  party edits some of those head blocks: an island that wakes on its own, in the page's own HTML. */
+function heads(seed: number): (page: GenPage) => GenPage {
+	const h = rng(seed).fork('gen head');
+	const walk = (n: GenNode, page: boolean): GenNode => {
+		const children = n.children.map((c) =>
+			walk(c, page && (n.kind === 'island' || n.kind === 'plain'))
+		);
+		const can = page && n.kind === 'island' && (n.wake === 'load' || n.wake === 'idle') && !n.empty;
+		if (can && h.chance(0.3)) return { ...n, children, head: h.chance(0.5) ? 'drift' : 'own' };
+		return { ...n, children };
+	};
+	return (page) => ({ ...page, roots: page.roots.map((n) => walk(n, true)) });
+}
+
+/** The third party's script after an island whose head block it edits (`head: 'drift'`): once the
+ *  document is parsed, an element of its own right after the block's open marker (the comment before
+ *  the island's `<style>` that is no block anchor). */
+const head_drift_script = (id: number): string =>
+	`{@html '<scr' + 'ipt>${[
+		'document.addEventListener("DOMContentLoaded",function(){',
+		`var n=document.head.querySelector("style[data-gen-head=n${id}]");`,
+		'while(n&&(n=n.previousSibling))if(n.nodeType===8&&n.data&&n.data[0]!=="["&&n.data!=="]")break;',
+		'if(n){var m=document.createElement("meta");m.setAttribute("data-gen-third-party","");n.after(m);}',
+		'})'
+	].join('')}</scr' + 'ipt>'}`;
 
 /** Some islands a third party's script changes while they sleep (their own stream, `gen third
  *  party`): an island that wakes on its own, in the page's own HTML (under islands and plain markup
@@ -507,7 +572,7 @@ function attributes(n: GenNode): string {
 			// (a kept render is a preset's: apps/sim-gen/vite.config.ts)
 			if (n.maxAge) return ` with { preset: 'hole-${n.maxAge}${n.wake ? `-${n.wake}` : ''}' }`;
 			return n.wake
-				? ` with { render: 'deferred', wake: '${n.wake}' }`
+				? ` with { render: 'deferred', fetch: '${n.wake}' }`
 				: ` with { render: 'deferred' }`;
 		case 'plain':
 			return '';
@@ -542,7 +607,8 @@ ${indent}</N${n.id}>`;
 	const since = n.dated ? ` since={new Date(${n.id * 86_400_000})}` : '';
 	const blob = n.big ? ` blob={'x'.repeat(100_000)}` : '';
 	const third = n.thirdParty ? `\n${indent}${THIRD_PARTY[n.thirdParty]}` : '';
-	return `${indent}<N${n.id} label="n${n.id}"${since}${blob} />${third}`;
+	const drift = n.head === 'drift' ? `\n${indent}${head_drift_script(n.id)}` : '';
+	return `${indent}<N${n.id} label="n${n.id}"${since}${blob} />${third}${drift}`;
 }
 
 /** A held or live region's remote module: the query that returns it (and the command that changes
@@ -650,9 +716,9 @@ function component(n: GenNode): string {
 \tlet { label = '' }: { label?: string; ogygiaFallback?: Snippet } = $props();
 \x3C/script>
 `;
+	// (a hole ships no JS, whatever its `fetch`: its own islands are what wake in it)
 	const interactive =
-		n.kind === 'island' ||
-		((n.kind === 'hole' || n.kind === 'held' || n.kind === 'live') && n.wake !== undefined);
+		n.kind === 'island' || ((n.kind === 'held' || n.kind === 'live') && n.wake !== undefined);
 	const lines = [
 		'<script lang="ts">',
 		"\timport type { Snippet } from 'svelte';",
@@ -675,6 +741,15 @@ function component(n: GenNode): string {
 				: []),
 		'</script>',
 		'',
+		...(n.head
+			? [
+					'<svelte:head>',
+					`\t{#if label}<meta name="gen-head-n${n.id}" content={label} />{/if}`,
+					`\t<style data-gen-head="n${n.id}">.h${n.id} { color: inherit; }</style>`,
+					'</svelte:head>',
+					''
+				]
+			: []),
 		`<div data-gen="${n.kind}"${n.style ? ` class="g${n.id}"` : ''} data-build={import.meta.env.VITE_SIM_BUILD}>`,
 		...(n.changes
 			? ["\t{#if import.meta.env.VITE_SIM_BUILD === 'v2'}<em data-gen-new>new in v2</em>{/if}"]
