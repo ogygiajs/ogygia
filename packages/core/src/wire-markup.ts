@@ -39,7 +39,6 @@ export type MarkKey =
 	| 'detailSession'
 	| 'detailTop'
 	| 'detailTwice'
-	| 'dt'
 	| 'dtIngested'
 	| 'exp'
 	| 'format'
@@ -63,6 +62,7 @@ export type MarkKey =
 	| 'ledgerTwice'
 	| 'len'
 	| 'locations'
+	| 'mark'
 	| 'mountFailed'
 	| 'mountFallback'
 	| 'mountMoved'
@@ -170,7 +170,6 @@ export const OG_DETAIL_SERVER = 'data-og-detail-server';
 export const OG_DETAIL_SESSION = 'data-og-detail-session';
 export const OG_DETAIL_TOP = 'data-og-detail-top';
 export const OG_DETAIL_TWICE = 'data-og-detail-twice';
-export const OG_DT = 'data-og-dt';
 export const OG_DT_INGESTED = 'data-og-dt-ingested';
 export const OG_EXP = 'data-og-exp';
 export const OG_FORMAT = 'data-og-format';
@@ -194,6 +193,7 @@ export const OG_LEDGER_SHARED = 'data-og-ledger-shared';
 export const OG_LEDGER_TWICE = 'data-og-ledger-twice';
 export const OG_LEN = 'data-og-len';
 export const OG_LOCATIONS = 'data-og-locations';
+export const OG_MARK = 'data-og-mark';
 export const OG_MOUNT_FAILED = 'data-og-mount-failed';
 export const OG_MOUNT_FALLBACK = 'data-og-mount-fallback';
 export const OG_MOUNT_MOVED = 'data-og-mount-moved';
@@ -297,7 +297,6 @@ export const MARK: { readonly [K in MarkKey]: Mark } = {
 	detailSession: { attr: OG_DETAIL_SESSION, by: 'devtools' },
 	detailTop: { attr: OG_DETAIL_TOP, by: 'devtools' },
 	detailTwice: { attr: OG_DETAIL_TWICE, by: 'devtools' },
-	dt: { attr: OG_DT, by: 'page' },
 	dtIngested: { attr: OG_DT_INGESTED, by: 'page' },
 	exp: { attr: OG_EXP, by: 'page' },
 	format: { attr: OG_FORMAT, by: 'page' },
@@ -321,6 +320,7 @@ export const MARK: { readonly [K in MarkKey]: Mark } = {
 	ledgerTwice: { attr: OG_LEDGER_TWICE, by: 'devtools' },
 	len: { attr: OG_LEN, by: 'page' },
 	locations: { attr: OG_LOCATIONS, by: 'page' },
+	mark: { attr: OG_MARK, by: 'page' },
 	mountFailed: { attr: OG_MOUNT_FAILED, by: 'page' },
 	mountFallback: { attr: OG_MOUNT_FALLBACK, by: 'page' },
 	mountMoved: { attr: OG_MOUNT_MOVED, by: 'page' },
