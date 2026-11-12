@@ -814,7 +814,7 @@ function server_brief(path: string): ServerProfileBrief | undefined {
 			? p.cache_control
 			: undefined;
 	return {
-		ago_min: Math.max(0, (Date.now() - p.at) / 60_000),
+		ago_min: Math.max(0, (Date.now() - p.at) / 60_000), // wall: a stored profile's epoch time
 		render_ms: p.render_ms,
 		top: said
 			? trim(said)
@@ -1127,7 +1127,7 @@ function snapshot_of(v: PageView): LoadSnapshot {
 	const name = new Map(v.regions.map((r) => [r.fp, r.name]));
 	return {
 		path: location.pathname,
-		at: Date.now(),
+		at: Date.now(), // wall: kept across page loads
 		// (`dev`: the dev server's own doing — never "new" or "fixed" on the next load)
 		findings: v.report.findings.map((f) => ({
 			code: f.code,
