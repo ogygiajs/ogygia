@@ -25,6 +25,41 @@ export type Frame = {
 	html: string;
 };
 
+/** Where a frame stands in its address's order: its request ticket, and its data version if any. */
+export type FrameOrder = { v: number; d?: number | undefined };
+
+/** Why an answer is not newer than another: an older request's (by ticket), or older data (by version). */
+export type DropWhy = 'older request' | 'older data';
+
+/**
+ * Why `f` is not newer than `than`, or `null` when it is: by data version when both carry one and
+ * they differ (the server knows which data is newer, whatever order the answers arrived in), else by
+ * request ticket. Anything is newer than nothing. The one ordering of answers at an address: the
+ * frame store's `write` asks it, and so does a static live region of the answer it painted itself
+ * (runtime/core.ts `#apply_live`).
+ */
+export function older_by(f: FrameOrder, than: FrameOrder | null): DropWhy | null {
+	if (than === null) return null;
+	if (f.d !== undefined && than.d !== undefined && f.d !== than.d)
+		return f.d > than.d ? null : 'older data';
+	return f.v > than.v ? null : 'older request';
+}
+
+/** The order a decoded region value's HTML was written at its address with (transport.ts), kept
+ *  beside the value: a live tick paints its own HTML unless the store holds this write or a newer
+ *  one, by the store's one ordering (runtime/core.ts `#apply_live`). */
+const written = new WeakMap<object, FrameOrder>();
+
+/** Transport: `value`'s HTML was written to the frame store at `order`. */
+export function mark_written(value: object, order: FrameOrder): void {
+	written.set(value, order);
+}
+
+/** The order `value`'s HTML was written at, or undefined when it never went through the store. */
+export function written_order(value: object): FrameOrder | undefined {
+	return written.get(value);
+}
+
 /** A capability's own parameters: its expiry, MAC, key fingerprint, lifetime and a renewal flag.
  *  They change per mint; the call they sign does not. */
 const CAPABILITY_PARAMS: ReadonlySet<string> = new Set(['exp', 'sig', 'k', 'ttl', 'renew']);
