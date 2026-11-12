@@ -8,7 +8,6 @@ import {
 	document_faulted,
 	faulted,
 	hydrates_as_sent,
-	KNOWN,
 	Leaks,
 	mpa_equivalent,
 	normalize,
@@ -64,30 +63,6 @@ describe('normalize', () => {
 		// (each answer's sheets go in as it lands: which hole answered first is the network's)
 		expect(page('a.css', 'og:x.css', 'og:y.css')).toBe(page('a.css', 'og:y.css', 'og:x.css'));
 		expect(page('a.css', 'b.css')).not.toBe(page('b.css', 'a.css'));
-	});
-});
-
-describe('known', () => {
-	it("#954's failed held region takes its region sheet with it (gen 149, seed 149002)", () => {
-		const k = KNOWN.find((x) => x.issue === 954)!;
-		const page = (host: string[], sheets: string[]) =>
-			[
-				'title: ',
-				'<html>',
-				'  <head>',
-				...sheets.map((h) => `    <link data-ogygia-region-css="" href="${h}" rel="stylesheet">`),
-				'    <meta charset="utf-8">',
-				'  <body>',
-				'    <div data-gen="held-host">',
-				...host.map((l) => `      ${l}`)
-			].join('\n');
-		const shown = page(['<span data-gen-error="">', '  "n19 failed"'], ['/a.css']);
-		const fresh = page(
-			['<ogygia-region live="true">', '  <div class="g19">'],
-			['/a.css', '/b.css']
-		);
-		expect(k.applies(shown, fresh)).toBe(true);
-		expect(k.forgive(shown, fresh)).toBe(k.forgive(fresh, shown));
 	});
 });
 

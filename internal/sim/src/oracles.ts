@@ -154,25 +154,6 @@ export const KNOWN: ReadonlyArray<{
 		seen: (world) => world.network.exchanges.some(peer_hop_failed)
 	},
 	{
-		issue: 914,
-		what: 'every deferred peer widget shares one answer',
-		// (the generated peer's widgets say whose they are, `w<k> for r<slot>`: another slot's
-		// widget in one; each widget's subtree set aside)
-		applies: (shown, fresh) => widget_labels(shown) !== widget_labels(fresh),
-		forgive: (s) => {
-			const out: string[] = [];
-			let inside: string | null = null;
-			for (const line of s.split('\n')) {
-				const indent = /^ */.exec(line)![0];
-				if (inside !== null && indent.length > inside.length) continue;
-				inside = null;
-				out.push(line);
-				if (line.trim().startsWith('<section data-gen="widget"')) inside = indent;
-			}
-			return out.join('\n');
-		}
-	},
-	{
 		issue: 966,
 		what: "a mounted peer page's stylesheet stays in the head after a router navigation away",
 		// (a peer's sheet, `crossorigin`, in the tab's head and not in the fresh load's: gen 158)
@@ -183,28 +164,6 @@ export const KNOWN: ReadonlyArray<{
 				.split('\n')
 				.filter((l) => !stale.has(l))
 				.join('\n');
-		}
-	},
-	{
-		issue: 954,
-		what: "a remote call from a stored page is answered with the stored page's HTML",
-		// (a held or live region's query failed on one side only: the generated host's error line;
-		// each host's subtree set aside, and the region sheets one side lifted and the other did not,
-		// the failed region's: gen 149, seed 149002)
-		applies: (shown, fresh) => host_errors(shown) !== host_errors(fresh),
-		forgive: (s, other) => {
-			const theirs = new Set(other.split('\n').filter(lifted_sheet));
-			const out: string[] = [];
-			let inside: string | null = null;
-			for (const line of s.split('\n')) {
-				const indent = /^ */.exec(line)![0];
-				if (inside !== null && indent.length > inside.length) continue;
-				inside = null;
-				if (lifted_sheet(line) && !theirs.has(line)) continue;
-				out.push(line);
-				if (/^<div data-gen="(held|live)-host"/.test(line.trim())) inside = indent;
-			}
-			return out.join('\n');
 		}
 	}
 ];
@@ -376,27 +335,12 @@ function peer_hop_failed(e: World['network']['exchanges'][number]): boolean {
 	);
 }
 
-/** A normalized DOM's generated peer widgets, by what each says it is (`w<k> for r<slot>`). */
-function widget_labels(s: string): string {
-	return [...s.matchAll(/"(w\d+ for r\d+)"/g)].map((m) => m[1]).join(',');
-}
-
 /** The peer stylesheets (`crossorigin`) in `s`'s head that `other`'s lacks (#966). */
 function stale_peer_sheets(s: string, other: string): string[] {
 	const theirs = new Set(other.split('\n'));
 	return s
 		.split('\n')
 		.filter((l) => /^ {4}<link crossorigin="".* rel="stylesheet">$/.test(l) && !theirs.has(l));
-}
-
-/** A normalized head line of a region sheet an answer lifted. */
-function lifted_sheet(line: string): boolean {
-	return /^ {4}<link data-ogygia-region-css=""/.test(line);
-}
-
-/** The generated held and live hosts that show their query's error (#954). */
-function host_errors(s: string): number {
-	return s.split('\n').filter((l) => l.trim().startsWith('<span data-gen-error')).length;
 }
 
 /** The first lines where two normalized DOMs differ, for a report. */
@@ -593,16 +537,6 @@ const KNOWN_EMPTY: ReadonlyArray<{ issue: number; what: string; is: (r: Element)
 			r.getAttribute('render') === 'defer' &&
 			r.closest('[data-gen="widget"], [data-gen="peer-page"]') != null &&
 			(r.getAttribute('endpoint') ?? '').startsWith('/__ogygia__?')
-	},
-	{
-		issue: 948,
-		what: 'a server island inside a server island inside an island stays empty',
-		// (a hole in a lake, its answer shown and then dropped: gen 73, /p3)
-		is: (r) =>
-			r.hasAttribute('data-og-hole') &&
-			!r.hasAttribute('data-hydrated') &&
-			r.getAttribute('when') === 'load' &&
-			r.parentElement?.closest('ogygia-region[wake="none"]') != null
 	}
 ];
 
@@ -866,12 +800,6 @@ export const KNOWN_SAID: ReadonlyArray<{ issue: number; what: string; said: RegE
 		issue: 915,
 		what: "Svelte 5.56.8's error walk meets a destroyed boundary",
 		said: /^unhandled: TypeError: Cannot read properties of null \(reading 'error'\)/
-	},
-	{
-		issue: 954,
-		what: "a remote call from a stored page is answered with the stored page's HTML",
-		// (Kit's remote client reads the HTML as JSON: a live query's rejection nobody handles, gen 112)
-		said: /^unhandled: SyntaxError: Unexpected token '<', "<!doctype "\.\.\. is not valid JSON/
 	}
 ];
 
