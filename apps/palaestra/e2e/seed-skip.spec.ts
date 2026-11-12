@@ -5,7 +5,8 @@
 // Usage: pnpm exec playwright test seed-skip
 import { test, check } from '@ogygia/tooling/e2e';
 
-const SEED_RE = /<script type="application\/ogygia-page" data-ogygia-page>/;
+// (the seed bears its response's mark: RESPONSE-MARK)
+const SEED_RE = /<script type="application\/ogygia-page" data-ogygia-page[\s>]/;
 
 test.describe('SEED SKIP: the page seed ships only for islands that read it', () => {
 	test('a page whose islands never read $page ships NO seed', async ({ baseURL }) => {

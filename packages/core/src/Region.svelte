@@ -14,7 +14,7 @@
 	 *   ticket), or live (ticket already carries HTML — swap then morph). An interactive **dual** held
 	 *   value routes into the island branch, so held + placed interactivity share one code path.
 	 *
-	 * Server-island minting is routed through the `virtual:ogygia/region-endpoint` virtual (client-
+	 * Server-island minting is routed through the `ogygia:server/region-endpoint` virtual (client-
 	 * stubbed to `''`), so this component lives in the main `ogygia` graph without pulling `$app/server`
 	 * into the browser. The runtime custom element (`core.ts`) is unchanged; only the `.svelte` wrappers
 	 * collapsed into this file.
@@ -34,34 +34,34 @@
 		kit_request_event
 	} from './server/kit-context.ts';
 	import { stringify } from 'devalue';
-	import hmrUrl from 'virtual:ogygia/dev-hmr-url';
+	import { dev_hmr_url } from './dev-hmr-url.ts';
+	// the server's half of the render; in the browser, its stand-ins (region-server.browser.ts)
 	import {
-		islandDeps,
-		islandCss,
-		contentCss,
-		islandReadsPage,
-		islandPageKeys,
-		islandRemotes,
-		islandInteractivity,
-		entryLocation
-	} from 'virtual:ogygia/island-deps';
-	import { runtime_bootstrap } from './server/entry-location.ts';
-	import {
-		makeRegionEndpoint,
-		mintServerIsland,
-		known_region_fps,
-		islandFingerprint,
-		holeCss
-	} from 'virtual:ogygia/region-endpoint';
-	import { fingerprint_of, hole_copy_of } from './runtime/hash.ts';
+		region_deps,
+		region_css,
+		content_css,
+		region_reads_page,
+		region_page_keys,
+		region_remotes,
+		region_interactivity,
+		entry_location,
+		make_region_endpoint,
+		mint_server_region,
+		reuse_known_region,
+		region_fingerprint,
+		hole_css,
+		runtime_bootstrap,
+		region_css_tag,
+		head_owner_attr
+	} from '#region-server';
+	import { hole_copy_of } from './contract/hash.ts';
 	// Kit's `asset()`, taking ogygia's base-less `/…` URLs on Kit 2 and Kit 3 alike (kit-paths.ts)
-	import { kit_asset as asset } from './kit-paths.ts';
+	import { kit_asset } from './kit-paths.ts';
 	import { building } from '$app/env';
 	import { page } from '$app/state';
 	import { record_page } from './page-seed-registry.ts';
 	import { document_tail, island_graph_script, modulepreload_tag } from './server/document-tail.ts';
-	import { plan_props_wire, props_sidecar } from './server/props-wire.ts';
-	import { region_css_tag } from './server/region-css.ts';
+	import { hole_identity, plan_props_wire, props_sidecar } from './server/props-wire.ts';
 	import { escape_amp_quot, escape_attr } from './escape.ts';
 	import { warn } from './messages/island.ts';
 	import {
@@ -75,6 +75,8 @@
 		claimRuntimeEmit,
 		claim_region_css,
 		claim_kit_island,
+		head_owner,
+		set_head_owner,
 		note_early_hole
 	} from './context.ts';
 	import {
@@ -85,6 +87,7 @@
 		next_slot_id
 	} from './region-snippet.ts';
 	import { isRegion } from './region.ts';
+	import { written_order } from './frame.ts';
 	// (LateIslandAwait.svelte in its place where the app runs Svelte's async mode: vite/late-island.ts)
 	import LateIsland from './LateIsland.svelte';
 	// (PromiseRegionAwait.svelte in its place where the app runs Svelte's async mode: vite/late-island.ts)
@@ -358,7 +361,7 @@
 	// the client `page` is already the shim seed), and a harmless no-op in an isolated server-island
 	// endpoint render (no recorder installed there either). `untrack` — one snapshot read, no dep.
 	//
-	// THE SEED SHIPS ONLY FOR A REGION WHOSE CLIENT CODE READS IT: `islandReadsPage(entry)` is the
+	// THE SEED SHIPS ONLY FOR A REGION WHOSE CLIENT CODE READS IT: `region_reads_page(entry)` is the
 	// build's answer (the `$app/state` / `$app/stores` shim in the entry's chunk closure; fail-open for
 	// an entry the handoff does not know, and in dev). The snapshot is recorded either way — the
 	// handle also reads it for the freeze verdict and for server-side page reads — with `seed:false`
@@ -368,7 +371,7 @@
 	// closure already includes it; a promise `of` resolves later with a module SSR cannot see, so it
 	// asks (fail-open).
 	//
-	// THE REMOTE SEED SHIPS ONLY FOR REMOTES SOME REGION'S CLIENT CAN CALL: `islandRemotes(entry)` is
+	// THE REMOTE SEED SHIPS ONLY FOR REMOTES SOME REGION'S CLIENT CAN CALL: `region_remotes(entry)` is
 	// the build's list for this entry (the remote modules in its chunk closure). A region with no
 	// client entry (a lake, a static hole, an inline held value) records `[]`; the fail-open cases
 	// above record `null` ("may call anything"). The handle unions the records and seeds an
@@ -390,16 +393,16 @@
 								? of_init.module
 								: '';
 			// SEED SHAPING: not a flag but an ask — which `page.data` keys this region's client reads
-			// (`islandPageKeys`, the build's AST answer over the chunk closure), `'all'` when the build
+			// (`region_page_keys`, the build's AST answer over the chunk closure), `'all'` when the build
 			// could not pin them or does not know the entry, `false` when nothing in it reads the page.
 			const seed = !entry
 				? false
-				: entry === '?' || !islandReadsPage(entry)
+				: entry === '?' || !region_reads_page(entry)
 					? entry === '?'
 						? 'all'
 						: false
-					: (islandPageKeys(entry) ?? 'all');
-			const remotes = !entry ? [] : entry === '?' ? null : islandRemotes(entry);
+					: (region_page_keys(entry) ?? 'all');
+			const remotes = !entry ? [] : entry === '?' ? null : region_remotes(entry);
 			try {
 				record_page(
 					{ data: page.data, form: page.form, error: page.error, status: page.status },
@@ -488,7 +491,7 @@
 	// `asset()` is the sole base/assets authority — every ogygia URL is baked base-LESS (prod
 	// `/${appDir}/immutable/…`, dev `/@id/…`) and resolved here once. (Kit dev serves `/@id/…` under
 	// base, and `asset()` supplies that prefix — so we never special-case dev URLs.)
-	const island_module_url = $derived(nested || !island_entry ? '' : asset(island_entry));
+	const island_module_url = $derived(nested || !island_entry ? '' : kit_asset(island_entry));
 	// IDENTITY vs LOCATION (server/entry-location.ts): `island_module_url` is the island's identity
 	// (the `entry` attribute, the graph key, the fingerprint input); the file the runtime loads is its
 	// location — content-hashed, so an `immutable` cache never serves a stale one. The server reads it
@@ -496,8 +499,8 @@
 	// none, and the runtime finds it in the build's location map (runtime/entry-locations.ts). Only a
 	// location is ever written as a URL to fetch: no location, no URL.
 	const location_of = (/** @type {string} */ identity) => {
-		const found = identity ? entryLocation(identity) : null;
-		return found ? asset(found) : '';
+		const found = identity ? entry_location(identity) : null;
+		return found ? kit_asset(found) : '';
 	};
 	const island_src = $derived(nested || !island_entry ? '' : location_of(island_entry));
 	// (written LAST on the element: every attribute before it keeps the order it had before
@@ -517,19 +520,42 @@
 	// so the server can skip re-rendering an unchanged island). A function of the props alone: the
 	// same props give the same fingerprint with or without the seed.
 	const island_fp = $derived(
-		island_wire ? islandFingerprint(island_module_url, island_wire.canonical) : ''
+		island_wire ? region_fingerprint(island_module_url, island_wire.canonical) : ''
 	);
-	// SERVER-DELTA (D3): SKIP rendering a NON-cached island the client already has live (its fp is
-	// in the SPA nav's x-ogygia-known set). Emit the region's identifying attrs + props script but NO
-	// component content — the reconciler keeps the live node (same data-key). Safe: known_region_fps()
-	// is empty on a full load / non-SPA request, so this never fires except on an SPA nav.
+	// WHO THIS REGION'S HEAD TAGS BELONG TO (#806): the outermost island around it, or itself when it
+	// is one. The server skips an island the browser already has, and every tag its inner regions
+	// write goes with it; the router keeps a tag naming a region it keeps (region-css.ts
+	// `head_owner_attr`). Server only, read once: the SSR pass renders each region once.
+	const outer_owner = typeof window === 'undefined' ? head_owner() : '';
+	const tag_owner = outer_owner || (typeof window === 'undefined' ? untrack(() => island_fp) : '');
+	if (!outer_owner && tag_owner) set_head_owner(tag_owner);
+	/**
+	 * This region's sheets as head tags: each one this request has not linked yet, named for its
+	 * owner. A sheet another outer island linked first gets this owner listed in the tail (#854,
+	 * test/shared-sheet-owners.test.ts). Server-only: `claim_region_css` is [] on the client.
+	 * @param {string[]} hrefs
+	 */
+	const sheet_tags = (hrefs) => {
+		const shared = tail
+			? (/** @type {string} */ href) => tail.sheet_owner(kit_asset(href), tag_owner)
+			: undefined;
+		let html = '';
+		for (const href of claim_region_css(hrefs, tag_owner, shared))
+			html += region_css_tag(href, kit_asset(href), tag_owner);
+		return html;
+	};
+	// SERVER-DELTA (D3): SKIP rendering a NON-cached island the client already has live (a copy of its
+	// fp the SPA nav's x-ogygia-known lists, not taken by an earlier twin). Emit the region's identifying
+	// attrs + props script but NO component content — the reconciler keeps the live node (same
+	// data-key). Safe: nothing is reused on a full load / non-SPA request, or without serverDelta. (A
+	// derived made in the server render runs once, so each region takes at most one copy.)
 	const island_skip = $derived(
 		is_island &&
 			!island_inline &&
 			!has_slot_children &&
 			(__cacheTtl ?? 0) <= 0 &&
 			!!island_fp &&
-			known_region_fps().has(island_fp)
+			reuse_known_region(island_fp)
 	);
 	// THE DOCUMENT TAIL (server/document-tail.ts): in Kit's page pass this region's module-preload
 	// hints and its props sidecar go to the end of the body — the handle emits the tail once, after
@@ -556,7 +582,7 @@
 				// the module as SERVED (its location): what the profiler weighs
 				module_url: island_src || island_module_url,
 				wake: hydrate_attr,
-				interactivity: islandInteractivity(island_entry)
+				interactivity: region_interactivity(island_entry)
 			});
 			return true;
 		});
@@ -586,8 +612,8 @@
 	 * @returns {string[]}
 	 */
 	function graph_hrefs(entry, self_url, live_entries) {
-		const deps = islandDeps(entry);
-		if (!live_entries?.length) return deps.map((dep) => asset(dep));
+		const deps = region_deps(entry);
+		if (!live_entries?.length) return deps.map((dep) => kit_asset(dep));
 		const seen = new Set([self_url]);
 		/** @type {string[]} */
 		const hrefs = [];
@@ -598,11 +624,11 @@
 				hrefs.push(href);
 			}
 		};
-		for (const dep of deps) add(asset(dep));
+		for (const dep of deps) add(kit_asset(dep));
 		for (const m of live_entries) {
 			// (the file the snippet's import fetches: its location, when the build named one)
 			add(location_of(m));
-			for (const dep of islandDeps(m)) add(asset(dep));
+			for (const dep of region_deps(m)) add(kit_asset(dep));
 		}
 		return hrefs;
 	}
@@ -672,7 +698,11 @@
 		// (seconds, from the preset's `maxAge`) is signed in so the handle sets Cache-Control; absent
 		// → 0 → the hole is served `no-store` (dynamic by default).
 		// (+ the page facts it renders from, for a hole whose tree reads page.data: server/render-page.ts)
-		return mintServerIsland(__entry, __props || {}, __cacheTtl || 0) + kit_page_version(__entry);
+		// (a hole that wakes says so, signed: its answer renders as its hydrate does, #906)
+		return (
+			mint_server_region(__entry, __props || {}, __cacheTtl || 0, !!__hydrate) +
+			kit_page_version(__entry)
+		);
 	});
 
 	// DOM `entry`: the importable module URL a deferred island wakes with AFTER its HTML swaps in.
@@ -680,7 +710,7 @@
 	// so there is nothing to import. Must not fall back to the region id: the router's next-page warm
 	// scans `entry="…"` and `import()`s each as a module, so a bare id there fetches `/<id>` → 404 on
 	// nav. The endpoint (which fetches the hole's HTML) is minted from `__entry` above, independently.
-	const server_region_entry = $derived(!nested && __module ? asset(__module) : '');
+	const server_region_entry = $derived(!nested && __module ? kit_asset(__module) : '');
 	// …and its location, the file that import fetches (as for an island)
 	const server_region_src = $derived(!nested && __module ? location_of(__module) : '');
 
@@ -693,19 +723,13 @@
 			: ''
 	);
 	// The hole's IDENTITY — the fingerprint of its region id + canonical props, the same function on
-	// both legs (runtime/hash.ts), so the client leg computes the SAME value the server emitted. The
+	// both legs (contract/hash.ts), so the client leg computes the SAME value the server emitted. The
 	// runtime keys the server-minted facts (endpoint, props sidecar) on it: when Kit gives up
 	// hydrating a client-on document and mounts it fresh, the client leg renders this hole again
 	// with NO address (it cannot mint), and the runtime hands the SSR facts back by identity — never
 	// by position. Emitted on every top-level hole; costs one walk of the hole's (small) props.
 	const server_identity = $derived(
-		nested || !is_server
-			? ''
-			: fingerprint_of(
-					__entry,
-					'',
-					(server_wire ?? plan_props_wire(__props || {}, __entry)).canonical
-				)
+		nested || !is_server ? '' : hole_identity(/** @type {string} */ (__entry), __props, server_wire)
 	);
 	// A hole a client hydrates over — in a live snippet's body, or on a KIT-HYDRATED document — is adopted
 	// (`adopt_region`): its browser leg cannot mint the hole's address, and as a template it blanked
@@ -774,10 +798,7 @@
 	// link them as its endpoint answer would (server-only; the client hoists `data-ogygia-region-css`)
 	const hole_css_html = $derived.by(() => {
 		if (!is_server || !nested) return '';
-		let html = '';
-		for (const href of claim_region_css(holeCss(__entry || '')))
-			html += region_css_tag(href, asset(href));
-		return html;
+		return sheet_tags(hole_css(__entry || ''));
 	});
 	// On a KIT-HYDRATED document the facts ride the document tail too (server/document-tail.ts
 	// `hole()`): Kit's root can be cleared and mounted fresh, the tail outside it cannot. Decided once
@@ -836,7 +857,7 @@
 	const lake_inside = is_lake && nested;
 	const lake_swr = $derived(__remount === 'swr');
 	const lake_endpoint = $derived(
-		lake_inside && lake_swr ? makeRegionEndpoint(__entry || '', __props || {}) : ''
+		lake_inside && lake_swr ? make_region_endpoint(__entry || '', __props || {}) : ''
 	);
 	// Every lake a client hydrates over — inside an island, or on a KIT-HYDRATED document (a csr=true
 	// page) — is adopted (`adopt_region`). The lake's component is the render-nothing placeholder on the
@@ -884,11 +905,11 @@
 	// stable name: the one bootstrap every document path shares (server/entry-location.ts).
 	const runtime_script =
 		!nested && ((is_island && !is_csr) || is_server || holds_live) && claimRuntimeEmit()
-			? runtime_bootstrap(asset) +
-				(hmrUrl
+			? runtime_bootstrap(kit_asset) +
+				(dev_hmr_url
 					? LT +
 						'script type="module" data-ogygia-dev-hmr src="' +
-						asset(hmrUrl) +
+						kit_asset(dev_hmr_url) +
 						'"' +
 						GT +
 						LT +
@@ -903,10 +924,7 @@
 	// `claim_region_css` returns [] on the client (SSR already emitted them).
 	const region_css_html = $derived.by(() => {
 		if (!resolved || resolved.kind !== 'dual' || !resolved.module) return '';
-		let html = '';
-		for (const href of claim_region_css(islandCss(resolved.module)))
-			html += region_css_tag(href, asset(href));
-		return html;
+		return sheet_tags(region_css(resolved.module));
 	});
 	// A PLACED client island's CSS is ASSUMED to already sit in the page's own stylesheet (Kit links
 	// a route's static import graph). But Rollup can chunk-split the marked component's CSS — notably
@@ -914,8 +932,8 @@
 	// page never loads, so the island renders unstyled in a production build. Link the island's own
 	// CSS here, the SAME channel a held dual uses (`claim_region_css` dedups per-request, the client
 	// hoists `data-ogygia-region-css` into <head>). Keyed by the raw `island_entry`, exactly like
-	// `island_preload`'s `islandDeps` — not the asset URL. Server-only; dev routes through the same
-	// module-import hoist (`islandCss` returns the dev module URL there).
+	// `island_preload`'s `region_deps` — not the asset URL. Server-only; dev routes through the same
+	// module-import hoist (`region_css` returns the dev module URL there).
 	const island_css_html = $derived.by(() => {
 		// A csr=true document's inline island links its CSS here as well: the client wrapper imports
 		// the component lazily there, so Kit's route stylesheets no longer carry it (that static
@@ -926,10 +944,7 @@
 		// never imports them at all). Claims are per request, so a sheet the parent already linked
 		// is not linked twice.
 		if (__mode !== 'island' || !island_entry) return '';
-		let html = '';
-		for (const href of claim_region_css(islandCss(island_entry)))
-			html += region_css_tag(href, asset(href));
-		return html;
+		return sheet_tags(region_css(island_entry));
 	});
 	// The RENDERED stamp for an inline island (a csr=true document, or nested in a woken island):
 	// `<meta name="ogygia-kit-island" content="<entry>">`, once per entry per request. The client
@@ -938,20 +953,24 @@
 	const kit_island_meta = $derived.by(() => {
 		if (!is_island || !island_inline || !island_entry || !claim_kit_island(island_entry)) return '';
 		const content = escape_amp_quot(String(island_entry));
-		return LT + 'meta name="ogygia-kit-island" content="' + content + '"' + GT;
+		return (
+			LT +
+			'meta name="ogygia-kit-island" content="' +
+			content +
+			'"' +
+			head_owner_attr(tag_owner) +
+			GT
+		);
 	});
 
 	// A content BODY (an inline region from a `.svx`/`.md`) carries its own scoped `<style>`, but the
 	// corpus is server-only so that CSS joins no page stylesheet — the same blind spot a held dual has,
 	// one step further (there is no client module at all, just data). The markdown source baked a
-	// `content_id`; resolve it through the handoff (`contentCss`) and link the client CSS asset the
+	// `content_id`; resolve it through the handoff (`content_css`) and link the client CSS asset the
 	// plugin emitted, the SAME `data-ogygia-region-css` channel, deduped per-request by `claim_region_css`.
 	const content_css_html = $derived.by(() => {
 		if (resolved?.kind !== 'inline' || !resolved.content_id) return '';
-		let html = '';
-		for (const href of claim_region_css(contentCss(resolved.content_id)))
-			html += region_css_tag(href, asset(href));
-		return html;
+		return sheet_tags(content_css(resolved.content_id));
 	});
 
 	// THE HEAD IS SERVER OUTPUT. Every piece of it is a fact only the render knows (the build's
@@ -989,8 +1008,11 @@
 	// emptied. Later values morph in.
 	/** @type {Element | null} */
 	let baked_el = $state(null);
+	// `data-og-baked` says "the server wrote the first HTML in here", so only the server's element
+	// carries it: one the browser creates fresh (an island re-creating it, Kit remounting) is empty,
+	// a plain live region whose first value paints (e2e/held-in-held.spec.ts, #945)
 	const baked_adopt = adopt_region(
-		() => ' live data-og-baked',
+		() => (typeof window === 'undefined' ? ' live data-og-baked' : ' live'),
 		(renderer) => /** @type {{ push(html: string): void }} */ (renderer).push(baked_html),
 		(el) => {
 			baked_el = el;
@@ -1015,7 +1037,8 @@
 			html: f.html,
 			url: f.url,
 			hydrate: f.hydrate,
-			hydrateMargin: f.hydrateMargin
+			hydrateMargin: f.hydrateMargin,
+			written: written_order(f)
 		});
 	}
 	/** @param {import('./region.ts').DeferredRegion} f */
