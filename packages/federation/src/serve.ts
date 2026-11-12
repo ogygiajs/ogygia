@@ -43,9 +43,11 @@ function inbound_verify(fed: Federation): VerifyConfig {
 	return { publicKeys, audience: fed.audience, skewMs: fed.skew_ms };
 }
 
-/** The HMAC-signed message for a deferred hole capability (peer + kind + target + search + exp). */
+/** The HMAC-signed message for a deferred hole capability (peer + kind + target + search + exp).
+ *  Version 2: the fields as one JSON array, so no two holes share a message (version 1 joined them
+ *  with dots): test/federation.test.ts › "a hole signature covers each field on its own". */
 const hole_message = (peer: string, kind: string, target: string, search: string, exp: string) =>
-	`frag.${peer}.${kind}.${target}.${search}.${exp}`;
+	`frag/2:${JSON.stringify([peer, kind, target, search, exp])}`;
 
 /**
  * Install the hole signer: a deferred hole is one of the app's own capabilities (`app.capability`),
