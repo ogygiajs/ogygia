@@ -295,6 +295,15 @@ that lined up names no ownership conflict there; the app's client plugin (`apps/
 `regionMismatched`) says any conflict named on the console, where the page-errors oracle hears it
 (mutation: `align_to` saying a level that lined up failed).
 
+Some islands that wake on their own render a `<svelte:head>` of their own (`gen head`, 30%): a
+`<meta>` in an `{#if}` and a `<style data-gen-head>`. Half of those have a third party that puts an
+element of its own right after the head block's open marker once the document is parsed, where
+Svelte's head hydration would walk into it: the runtime takes every island's head block off that
+walk before the first wake, and retires the page's copy once the island's own is in (the waste
+check sees a `<style>` held twice when it does not). Mutation: hydrate-core's head markers left in
+place, or the page copy kept, died on gen 262. The order those styles stand in after a return is
+#1107 (`KNOWN`).
+
 A build's boot runtime comes from `packages/core/dist/runtime` (the prebuilt runtime a published
 package ships), not from `src`: after a change to core's runtime, `pnpm build:lib` before
 `pnpm sim:builds`, or the app boots the old one (its import-again had no buggify point, while the
@@ -363,8 +372,9 @@ the sweep before its seeds and fails the job after them when it failed.
 
 MUTATION, DAILY: dst.yml's `mutate` job (cron `43 3 * * *`) runs `src/mutate.ts` over
 `internal/sim/mutants.json` on main's code, over gens 188 (an empty island that wakes: it kills the
-repair's `> 0` mutant), 191, 192, 193 and 220 (a text-only third party on a page root: it kills
-`align_to`'s last `return true` -> false), with `--budget-min 60` (no mutant starts after an hour; the last line says
+repair's `> 0` mutant), 191, 192, 193, 220 (a text-only third party on a page root: it kills
+`align_to`'s last `return true` -> false) and 262 (islands with a `<svelte:head>`, one a third party
+edits: it kills the head mutants), with `--budget-min 60` (no mutant starts after an hour; the last line says
 how many it judged of the list, and when) and uploads it (`dst-mutation`). Each listed mutant names
 its line's `code`, and goes on the line that holds it, so the list outlives main's lines moving
 (`test/mutate.test.ts` checks that every one applies). The always-on job's batch
@@ -460,8 +470,11 @@ any state whose name ends in `ing`), every region shows something (`empty-region
 or touched), no hole that wakes on its own (`load`, `idle`) still shows its fallback at rest
 (`fallback-stands`: in a document a fault touched, only one never asked for; the MPA check cannot see
 it, the fresh load runs the same code; a fallback the app keeps on purpose is marked
-`data-gen-kept`; found by mutation testing: a mutant whose holes never fetched survived), the
-rules once more at rest, and the watchdog (`hung`).
+`data-gen-kept`; found by mutation testing: a mutant whose holes never fetched survived), its twin
+for islands (`islands-wake`: at rest no island that wakes on its own is still asleep, in a document no
+fault touched but an outage; one inside a region waiting for the visitor or the screen waits with
+it, and so does one in a lake whose host never hydrates, a held region's baked markup), the rules
+once more at rest, and the watchdog (`hung`).
 
 Each line a page says is judged by the document that said it (`Tab.said_by`): one action can show
 several documents, and an old page's failed download is not the next page's. The first document is

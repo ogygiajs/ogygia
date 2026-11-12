@@ -52,5 +52,32 @@
 		"operator": "relational",
 		"from": " > 0",
 		"to": " >= 0"
+	},
+	{
+		"id": "head-markers-never-neutralized",
+		"file": "packages/core/src/runtime/hydrate-core.ts",
+		"line": 126,
+		"code": "let head_markers_neutralized = false;",
+		"operator": "boolean",
+		"from": "false",
+		"to": "true"
+	},
+	{
+		"id": "head-markers-left",
+		"file": "packages/core/src/runtime/hydrate-core.ts",
+		"line": 694,
+		"code": "neutralize_head_hydration_markers();",
+		"operator": "statement",
+		"from": "neutralize_head_hydration_markers();",
+		"to": ""
+	},
+	{
+		"id": "head-page-copy-kept",
+		"file": "packages/core/src/runtime/hydrate-core.ts",
+		"line": 741,
+		"code": "head_mark = kit_hydrates_page() ? null : boot_link().runtime_session.mark_head();",
+		"operator": "statement",
+		"from": "head_mark = kit_hydrates_page() ? null : boot_link().runtime_session.mark_head();",
+		"to": ""
 	}
 ]
