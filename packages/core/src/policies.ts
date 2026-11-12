@@ -37,6 +37,17 @@ export const region_fetch: Policy = /* @__PURE__ */ policy({
 	deadline: Infinity
 });
 
+/** A hole the endpoint rate-limited (a 429, #959): its tries are `region_fetch`'s, and the wait
+ *  before each is what the 429's `Retry-After` says (the visitor's window), at most this backoff: a
+ *  window longer than a minute (a misconfigured or hostile answer) never parks a hole for good. A
+ *  429 with no `Retry-After` waits `region_fetch`'s own backoff. */
+export const region_rate_limited: Policy = /* @__PURE__ */ policy({
+	attempts: 3,
+	backoff: [60_000],
+	jitter: 0,
+	deadline: Infinity
+});
+
 /** A region's server render, its wait for a render slot included: one try within 10 s (#195). A
  *  render stuck on a hung upstream past it is abandoned, so it never holds a slot for good. */
 export const render: Policy = /* @__PURE__ */ policy({

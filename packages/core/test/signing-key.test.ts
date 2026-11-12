@@ -4,11 +4,11 @@
 // CDN. Its fingerprint rides every capability (`&k=`) so a refusal can name the split.
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
-const build = vi.hoisted(() => ({ buildKey: 'build-random-key', buildHadSecret: false }));
-vi.mock('virtual:ogygia/secret', () => build);
-vi.mock('virtual:ogygia/sign', () => ({
+const build = vi.hoisted(() => ({ build_key: 'build-random-key', build_had_secret: false }));
+vi.mock('ogygia:server/secret', () => build);
+vi.mock('ogygia:server/sign', () => ({
 	sign: (k: string, m: string) => Buffer.from(`${k}:${m}`).toString('base64url'),
-	region_mac_message: (...parts: unknown[]) => parts.join('|')
+	region_sign: (k: string) => k
 }));
 
 const { signing_key, key_fingerprint, reset_signing_key, configure_signing_secret } =
@@ -25,7 +25,7 @@ const g = globalThis as Record<symbol, unknown>;
 beforeEach(() => {
 	reset_signing_key();
 	delete g[WARNED];
-	build.buildHadSecret = false;
+	build.build_had_secret = false;
 });
 afterEach(() => {
 	vi.unstubAllEnvs();
@@ -58,7 +58,7 @@ describe('the signing key', () => {
 	it('a server whose build had OGYGIA_SECRET but whose runtime has none says so, once', () => {
 		vi.stubEnv('DEV', false);
 		vi.stubEnv('OGYGIA_SECRET', '');
-		build.buildHadSecret = true;
+		build.build_had_secret = true;
 		const error = vi.spyOn(console, 'error').mockImplementation(() => {});
 		signing_key();
 		reset_signing_key();
@@ -121,7 +121,7 @@ describe('handle({ secret })', () => {
 	it('a production server signing with it is silent', () => {
 		vi.stubEnv('DEV', false);
 		vi.stubEnv('OGYGIA_SECRET', '');
-		build.buildHadSecret = true;
+		build.build_had_secret = true;
 		const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
 		const error = vi.spyOn(console, 'error').mockImplementation(() => {});
 		configure_signing_secret('the-app-secret');
