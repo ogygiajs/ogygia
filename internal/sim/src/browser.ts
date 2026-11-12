@@ -30,8 +30,13 @@ export interface Tab {
 	readonly page: BrowserPage;
 	/** The realm of the document it shows now. */
 	realm: string;
-	/** Documents it has shown. */
+	/** Documents it has shown (and navigations called off before theirs came: each took a realm). */
 	documents: number;
+	/** Hard navigations it started: only the latest is still going (`navigate`). */
+	navigations: number;
+	/** A navigation started and its document has not come yet: its requests are realm
+	 *  `#documents + 1`'s. */
+	awaiting: boolean;
 	/** What the page reported: uncaught errors, failed scripts, console errors. */
 	readonly errors: string[];
 	readonly console: string[];
@@ -298,6 +303,7 @@ export class Browsers {
 		if (tab === undefined || (tab.page.mainFrame.window as unknown) !== window) return;
 		this.#leave(tab);
 		tab.documents++;
+		tab.awaiting = false;
 		tab.realm = `${tab.name}#${tab.documents}`;
 		const options: RealmOptions = {
 			name: tab.realm,
@@ -614,6 +620,8 @@ export class Browsers {
 			page,
 			realm: `${name}#0`,
 			documents: 0,
+			navigations: 0,
+			awaiting: false,
 			errors: [],
 			console: [],
 			platform: null,
@@ -656,6 +664,15 @@ export class Browsers {
 	 */
 	navigate(tab: Tab, how: 'goto' | 'back' | 'forward' | 'reload', path = '/'): Promise<void> {
 		const page = tab.page;
+		// a navigation whose document has not come yet is called off by this one, as a browser does:
+		// its document never comes (happy-dom wrote it over the newer page once its stalled body
+		// ended, under its own URL; palaestra seed 122), and its requests' realm is never shown
+		if (tab.awaiting) {
+			tab.documents++;
+			this.#o.network.leave(`${tab.name}#${tab.documents}`);
+		}
+		tab.awaiting = true;
+		const mine = ++tab.navigations;
 		const go =
 			how === 'goto'
 				? page.goto(new URL(path, this.#o.origin).href)
@@ -664,9 +681,15 @@ export class Browsers {
 					: how === 'forward'
 						? page.goForward()
 						: page.reload();
+		// (one called off says nothing: the visitor called it off)
+		const latest = () => tab.navigations === mine;
 		return go.then(
-			() => {},
+			() => {
+				if (latest()) tab.awaiting = false;
+			},
 			(error: unknown) => {
+				if (!latest()) return;
+				tab.awaiting = false;
 				tab.errors.push(`navigation: ${error instanceof Error ? error.message : String(error)}`);
 			}
 		);
