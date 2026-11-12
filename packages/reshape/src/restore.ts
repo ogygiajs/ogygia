@@ -146,6 +146,21 @@ export function restore(root: Document | DocumentFragment | Element): number {
 	 *  ones the render added, and Svelte's are recorded on the element (`__og_svelte_class`): the
 	 *  island's hydrate puts the component's back after Svelte writes `class` whole
 	 *  (runtime/host-classes.ts). Unless the render kept `class` as its own (`og-keep`). */
+	/** An attribute the reset never sets, whatever `og-r` says: a handler, an inline document, a
+	 *  script URL. `og-r` is an attribute like any other, so markup a sanitizer let through (it keeps
+	 *  unknown attributes) must not become script here. test/browser/restore.test.ts › "a host’s
+	 *  attribute reset …". */
+	const unsafe_attr = (el: Element, name: string, value: string): boolean => {
+		const n = name.toLowerCase();
+		// (a handler is an `on…` name the element has an event-handler property for: `onclick`, not a
+		// component's own `online` or `once`)
+		if ((n.startsWith('on') && n in el) || n === 'srcdoc') return true;
+		// (a script URL in any attribute, not only the ones known to hold URLs today: the scheme as a
+		// browser reads it, leading spaces and controls, and tabs or newlines inside, gone)
+		// oxlint-disable-next-line no-control-regex -- the controls a URL parser strips are the point
+		const scheme = value.replace(/[\u0000- ]/g, '').toLowerCase();
+		return scheme.startsWith('javascript:') || scheme.startsWith('vbscript:');
+	};
 	const reset = (el: Element) => {
 		const r = el.getAttribute('og-r');
 		const custom =
@@ -166,9 +181,8 @@ export function restore(root: Document | DocumentFragment | Element): number {
 						if (merged) el.setAttribute('class', merged);
 						else el.removeAttribute('class');
 					} else if (v === null) el.removeAttribute(name);
-					// (never script: no handler, no srcdoc, no javascript: URL; test/browser/restore.test.ts)
-					else if (!/^on|^srcdoc$/i.test(name) && !/^javascript:/i.test(v.replace(/[\0- ]/g, '')))
-						el.setAttribute(name, v);
+					// (never script: no handler, no srcdoc, no script URL; test/browser/restore.test.ts)
+					else if (!unsafe_attr(el, name, v)) el.setAttribute(name, v);
 				}
 			} catch {
 				// ok: a mangled diff: the attributes are left as served
