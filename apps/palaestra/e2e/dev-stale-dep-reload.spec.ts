@@ -5,13 +5,13 @@
 // on a plain fetch, only the `?import` transform 404s) and reloads the tab once, loop-guarded so a
 // genuinely-broken entry never reloads forever.
 //
-// Simulated here by aborting the island's `?import` request (the dynamic import) while letting the
-// plain module fetch (the watchdog's confirmation) succeed. Dev only — the prod build tree-shakes
+// Simulated here by aborting every module load of the island (its import and the loader's retry)
+// while letting the plain fetch (the watchdog's confirmation) succeed. Dev only — the prod build tree-shakes
 // the watchdog out, so this must run against a real `vite dev` server.
 //
 //   pnpm exec playwright test dev-stale-dep-reload
 import { fileURLToPath } from 'node:url';
-import { test, check, sleep, REPO as repo } from '@ogygia/tooling/e2e';
+import { test, expect, check, REPO as repo } from '@ogygia/tooling/e2e';
 import { spawn_server, port, type SpawnedServer } from '@ogygia/tooling/e2e/servers.ts';
 
 const palaestra = fileURLToPath(new URL('..', import.meta.url));
@@ -55,17 +55,32 @@ test.describe('dev: a stale-dep entry-fetch failure recovers the tab', () => {
 				/* ignore */
 			}
 		});
-		// Every IMPORT of the island's entry fails (a `script` request: the first one and the runtime's
-		// `og-retry` ones alike) — the stale-hash symptom when a retry cannot help. The plain fetch (the
-		// watchdog's confirm) is left alone, so the watchdog sees a live module and reloads.
+		// The stale graph: in the first document every MODULE LOAD of an island fails (its first import
+		// and the loader's retry under a fresh URL alike: a stale tab's imports keep failing whatever the
+		// island's URL), while a plain fetch of it (the watchdog's confirm) serves. A new document (the
+		// reload) has the server's current graph, so from then on the island loads.
+		let documents = 0;
+		page.on('request', (req) => {
+			if (req.resourceType() === 'document' && req.frame() === page.mainFrame()) documents++;
+		});
 		await page.route(/ogygia:region\/entry\//, (r) =>
-			r.request().resourceType() === 'script' ? r.abort() : r.fallback()
+			r.request().resourceType() !== 'fetch' && documents < 2 ? r.abort() : r.continue()
 		);
 
-		await page.goto(`${base}/interaction`, { waitUntil: 'networkidle' });
-		await page.locator('[data-i-btn]').click(); // wakes the interaction island → import fails
+		// The page's `wake: 'load'` island fails as the page loads, with no click: a click here could
+		// land on either document (the watchdog may already have reloaded), and one on the new one
+		// counted too (count 2 on a slow runner).
+		await page.goto(`${base}/interaction`, { waitUntil: 'load' });
 		// watchdog: confirm-fetch + one reload
-		await sleep(4000);
+		await expect.poll(() => documents, { timeout: 15_000 }).toBe(2);
+		await page.waitForLoadState('load');
+		// the reloaded page works: the island wakes and counts a click
+		await page.locator('[data-i-btn]').click();
+		await expect
+			.poll(async () => (await page.locator('[data-i-count]').textContent())?.trim(), {
+				timeout: 10_000
+			})
+			.toBe('1');
 
 		const loads = await page.evaluate(() => {
 			try {
