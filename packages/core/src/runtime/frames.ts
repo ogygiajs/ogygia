@@ -27,6 +27,7 @@ export function install(): void {
 	adopt_early_holes(runtime_session.visit.scope);
 	slots.frames = {
 		subscribe,
+		peek,
 		ensure,
 		renew,
 		renewal,

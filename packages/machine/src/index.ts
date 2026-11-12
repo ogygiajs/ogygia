@@ -51,6 +51,7 @@ export {
 	type Platform,
 	type TimerHandle
 } from './ports.ts';
+export { queue, type Queue, type QueueOptions } from './queue.ts';
 export { mailbox, type Mailbox, type Turn } from './mailbox.ts';
 export type { Fresh } from './stale.ts';
 export { outbox, type Outbox, type OutboxOptions } from './outbox.ts';
