@@ -4075,6 +4075,10 @@
 		{
 			"id": "packages/core/src/runtime/lakes.ts > on_frozen_connect > on_schedule:2~6d0320#3",
 			"reason": "browser only: a cached lake revalidates on its schedule, one fetch call, constant work"
+		},
+		{
+			"id": "packages/core/src/compiler/link/location-map.ts > by_key",
+			"reason": "build time: one comparison of two keys, a sort's callback (not recorded), constant work; proven in packages/core/test/entry-locations.test.ts"
 		}
 	]
 }
