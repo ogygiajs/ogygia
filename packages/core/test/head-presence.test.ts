@@ -234,13 +234,13 @@ describe('runtime_first — a devtools response’s mark on the tag it places (D
 		'<script data-og-dt="m1" type="module" data-ogygia-runtime src="/_app/og-runtime.js"></script>';
 
 	it('writes the mark on a moved tag, an injected tag and a tag already in place', () => {
-		expect(runtime_first(head_start + design_system + runtime, null, 'm1')).toBe(
+		expect(runtime_first(head_start + design_system + runtime, null, [], 'm1')).toBe(
 			head_start + marked + design_system
 		);
-		expect(runtime_first(head_start + design_system, runtime, 'm1')).toBe(
+		expect(runtime_first(head_start + design_system, runtime, [], 'm1')).toBe(
 			head_start + marked + design_system
 		);
-		expect(runtime_first(head_start + runtime + design_system, null, 'm1')).toBe(
+		expect(runtime_first(head_start + runtime + design_system, null, [], 'm1')).toBe(
 			head_start + marked + design_system
 		);
 	});
@@ -248,7 +248,7 @@ describe('runtime_first — a devtools response’s mark on the tag it places (D
 	it('leads the attributes, so a mark the markup put on the tag loses', () => {
 		const forged =
 			'<script type="module" data-og-dt="m2" data-ogygia-runtime src="/x.js"></script>';
-		const out = runtime_first(head_start + forged, null, 'm1');
+		const out = runtime_first(head_start + forged, null, [], 'm1');
 		const el = out.slice(head_start.length);
 		expect(el.indexOf('data-og-dt="m1"')).toBeLessThan(el.indexOf('data-og-dt="m2"'));
 	});
