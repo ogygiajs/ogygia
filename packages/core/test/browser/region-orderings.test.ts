@@ -248,8 +248,16 @@ describe('a live region put back goes on in its last tick’s mode (#337)', () =
 						'a static tick',
 						() => {
 							const html = '<p data-n="1">one</p>';
-							write({ a, v: ticket(a), html });
-							return el.applyLive({ id: 'order-live', module: '', props: {}, html, url: LIVE_URL });
+							const written = ticket(a);
+							write({ a, v: written, html });
+							return el.applyLive({
+								id: 'order-live',
+								module: '',
+								props: {},
+								html,
+								url: LIVE_URL,
+								written: { v: written }
+							});
 						},
 						'then'
 					],
@@ -295,6 +303,126 @@ describe('a live region put back goes on in its last tick’s mode (#337)', () =
 					['it leaves', () => el.remove(), 'then'],
 					['a moment passes', passes(100), 'then'],
 					['it is put back', () => document.body.append(el)]
+				]);
+			},
+			RUNS
+		);
+	});
+});
+
+describe('a static live tick reaches its region after a write at its address', () => {
+	it('the newer write stays on screen, not the tick decoded before it', async () => {
+		await simulate.check(
+			[],
+			async (sim) => {
+				start(sim);
+				const el = document.createElement('ogygia-region') as LiveRegion;
+				el.setAttribute('live', '');
+				const a = frameAddress(LIVE_URL);
+				sim.finally('it shows the write', () =>
+					el.querySelector('[data-n="2"]') !== null ? null : `it shows "${el.innerHTML}"`
+				);
+				const html = '<p data-n="1">one</p>';
+				let written = 0;
+				await sim.play([
+					['it comes onto the page', () => document.body.append(el), 'then'],
+					// (the app's transport decodes the tick: its HTML is written at its address)
+					[
+						'a static tick is decoded',
+						() => void write({ a, v: (written = ticket(a)), html }),
+						'then'
+					],
+					[
+						// (in one step: the store lets an address nobody is bound to go after a minute, and
+						// a tick reaches its region well before that)
+						'a write at its address, then the tick reaches its region',
+						() => {
+							write({ a, v: ticket(a), html: '<p data-n="2">two</p>' });
+							return el.applyLive({
+								id: 'order-live',
+								module: '',
+								props: {},
+								html,
+								url: LIVE_URL,
+								written: { v: written }
+							});
+						}
+					]
+				]);
+			},
+			RUNS
+		);
+	});
+
+	it('a later tick that wrote nothing at its address still paints', async () => {
+		await simulate.check(
+			[],
+			async (sim) => {
+				start(sim);
+				const el = document.createElement('ogygia-region') as LiveRegion;
+				el.setAttribute('live', '');
+				const a = frameAddress(LIVE_URL);
+				sim.finally('it shows the second tick', () =>
+					el.querySelector('[data-n="2"]') !== null ? null : `it shows "${el.innerHTML}"`
+				);
+				const tick = (n: number) => ({
+					id: 'order-live',
+					module: '',
+					props: {},
+					html: `<p data-n="${n}">${n}</p>`,
+					url: LIVE_URL
+				});
+				await sim.play([
+					['it comes onto the page', () => document.body.append(el), 'then'],
+					[
+						'the first tick, written at its address as it is decoded',
+						() => {
+							write({ a, v: ticket(a), html: tick(1).html });
+							return el.applyLive(tick(1));
+						},
+						'then'
+					],
+					// (its HTML never went through the store: the frame there is still the first tick's)
+					['a second tick that wrote nothing', () => el.applyLive(tick(2)), 'then'],
+					// (bound again, the store hands over the first tick's frame: older than what is shown)
+					['it leaves', () => el.remove(), 'then'],
+					['it is put back', () => document.body.append(el)]
+				]);
+			},
+			RUNS
+		);
+	});
+
+	it('a later tick with older data than the answer at its address leaves the newer data on screen', async () => {
+		await simulate.check(
+			[],
+			async (sim) => {
+				start(sim);
+				const el = document.createElement('ogygia-region') as LiveRegion;
+				el.setAttribute('live', '');
+				const a = frameAddress(LIVE_URL);
+				sim.finally('it shows the newer data', () =>
+					el.querySelector('[data-n="3"]') !== null ? null : `it shows "${el.innerHTML}"`
+				);
+				const tick = (n: number) => ({
+					id: 'order-live',
+					module: '',
+					props: {},
+					html: `<p data-n="${n}">${n}</p>`,
+					url: LIVE_URL
+				});
+				// (as the app's transport decodes each: written at its address with its data version,
+				// and an answer with older data than the one there is dropped)
+				const decode = (n: number, d: number) => {
+					const t = tick(n);
+					const v = ticket(a);
+					write({ a, v, d, html: t.html });
+					return el.applyLive({ ...t, written: { v, d } });
+				};
+				await sim.play([
+					['it comes onto the page', () => document.body.append(el), 'then'],
+					['a tick at data version 3', () => decode(3, 3), 'then'],
+					['a later tick at data version 2', () => decode(2, 2)]
 				]);
 			},
 			RUNS
