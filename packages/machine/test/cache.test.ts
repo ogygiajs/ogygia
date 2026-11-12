@@ -1,6 +1,12 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cache, flights, MachineError, scope, world, type EvictWhy } from '../src/index.ts';
+import { cache, clock, flights, MachineError, scope, world, type EvictWhy } from '../src/index.ts';
 import { DISPOSE } from './_dispose.ts';
+
+/** Steps the monotonic clock (the one ages are on) by `ms`, without running the timers due. */
+function step_mono(ms: number): void {
+	const at = clock.mono() + ms;
+	vi.spyOn(clock, 'mono').mockImplementation(() => at);
+}
 
 /** A cache's notices, as `key:value:why`. */
 function noted() {
@@ -113,7 +119,7 @@ describe('cache: bounded', () => {
 
 	it('a set that must make room replaces the key’s own value past its age: noticed as a replace, never as its age', () => {
 		let now = 1_000_000;
-		vi.spyOn(Date, 'now').mockImplementation(() => now);
+		vi.spyOn(clock, 'mono').mockImplementation(() => now);
 		const n = noted();
 		const c = cache<string, number>({
 			max: 2,
@@ -203,7 +209,7 @@ describe('cache: ages', () => {
 		});
 		c.set('old', 1);
 		c.set('b', 2);
-		vi.setSystemTime(Date.now() + 200); // past old's age, its timer not run yet
+		step_mono(200); // past old's age, its timer not run yet
 		c.set('c', 3);
 		expect(n.seen).toEqual(['old:1:age']);
 		expect(c.has('b')).toBe(true);
@@ -216,7 +222,7 @@ describe('cache: the eviction notice', () => {
 		const n = noted();
 		const c = cache<string, number>({ max: 10, keep: 100, onEvict: n.onEvict });
 		c.set('a', 1);
-		vi.setSystemTime(Date.now() + 200); // past its age, its timer not run yet
+		step_mono(200); // past its age, its timer not run yet
 		c.set('a', 2);
 		expect(n.seen).toEqual(['a:1:delete']);
 		expect(c.get('a')).toBe(2);
@@ -232,7 +238,7 @@ describe('cache: the eviction notice', () => {
 		});
 		expect(await pages.get()).toBe('old');
 		const refresh = pages.get(undefined, { fresh: true });
-		vi.setSystemTime(Date.now() + 200); // the kept answer is past its age; its timer has not run
+		step_mono(200); // the kept answer is past its age; its timer has not run
 		land('new');
 		expect(await refresh).toBe('new');
 		expect(pages.peek(undefined)).toMatchObject({ kind: 'kept', answer: 'new' });

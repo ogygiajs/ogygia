@@ -65,7 +65,7 @@ describe('the server realm primes the source with the visitor', () => {
 				getAll: () => []
 			};
 			await server.request!(ctx(request, { cookies } as never));
-			expect(seen).toEqual([{ sub: 'v-9', anonymous: true }]);
+			expect(seen).toEqual([{ vid: 'v-9', anonymous: true }]);
 		} finally {
 			decide({ source: undefined });
 		}

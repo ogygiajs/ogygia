@@ -8,7 +8,10 @@
 // origin. On the MFE's OWN front door the same island is local: no warning, and the value survives.
 //
 // Servers: the `mfe` worker fixture (three `vite dev` servers from examples/mfe, throwaway keys).
-import { test, expect } from './mfe.ts';
+import { test, expect, BUILT } from './mfe.ts';
+
+// (the warning is dev's: a production island bundle ships it stripped)
+test.skip(BUILT, 'a dev-only warning');
 import { FOREIGN_WARN_RE } from '@ogygia/tooling/e2e/re.ts';
 
 /** The cms SERVER render of the probe reads the cms page (`site` from the cms layout load) —
