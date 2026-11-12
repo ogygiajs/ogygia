@@ -23,6 +23,7 @@ type Action =
 	| { kind: 'open'; path: string }
 	| { kind: 'wait'; ms: number }
 	| { kind: 'deploy' }
+	| { kind: 'away'; tab: number; nth: number; ms: number }
 	| {
 			kind: 'outage';
 			tab: number;
@@ -389,6 +390,12 @@ async function play(
 					type: 'not played',
 					description: `action ${i + 1}: a deploy`
 				});
+				break;
+			case 'away':
+				// (no link: nothing done, as in the simulator)
+				if (!(await nth_of(tab, LINKS, a.nth))) break;
+				await pass(context, a.ms);
+				await navigated(tab.goBack());
 				break;
 			case 'outage':
 				if (a.during !== 'wait') await nth_of(tab, a.during === 'click' ? LINKS : BUTTONS, a.nth);

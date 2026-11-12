@@ -17,6 +17,9 @@ export type Action =
 	| { kind: 'offline' | 'online'; tab: number }
 	| { kind: 'wait'; ms: number }
 	| { kind: 'deploy' }
+	/** Follow link `nth`, stay `ms` on the next page, then go back: a page left a while and come back
+	 *  to (10 to 50 s: under the 60 s its hole answers linger for a quick return). */
+	| { kind: 'away'; tab: number; nth: number; ms: number }
 	| {
 			kind: 'outage';
 			tab: number;
@@ -43,6 +46,8 @@ export function describe(a: Action): string {
 			return `wait ${a.ms} ms`;
 		case 'deploy':
 			return 'deploy the next build';
+		case 'away':
+			return `tab ${a.tab}: follow link #${a.nth}, come back ${a.ms} ms later`;
 		case 'outage':
 			return `tab ${a.tab}: ${a.during === 'wait' ? 'an outage' : `${a.during} #${a.nth}, then an outage`} ${a.after} ms in, for ${a.lasts} ms`;
 		default:
@@ -90,7 +95,8 @@ export const ACTION_KINDS: readonly Action['kind'][] = [
 	'online',
 	'wait',
 	'deploy',
-	'outage'
+	'outage',
+	'away'
 ];
 
 /** The seed's next action for a world with `tabs` tabs (`deploys`: a deploy may be drawn; the
@@ -139,6 +145,15 @@ function choices(
 				nth: rng.int(1000),
 				after: rng.pick([0, 5, 20, 100, 500]),
 				lasts: rng.pick([1000, 5000, 30_000, 120_000])
+			},
+			1
+		],
+		[
+			{
+				kind: 'away',
+				tab,
+				nth: rng.int(1000),
+				ms: rng.pick([10_000, 20_000, 35_000, 50_000])
 			},
 			1
 		]
@@ -198,6 +213,12 @@ export async function act(
 			await world.quiesce();
 			return;
 		}
+		case 'away':
+			if (tab === undefined || !click(world, tab, a.nth, origin)) return;
+			await world.quiesce();
+			await world.loop.run(a.ms);
+			await world.go(tab, 'back');
+			return;
 		case 'goto':
 			if (tab) await world.go(tab, 'goto', a.path);
 			return;
