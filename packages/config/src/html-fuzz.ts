@@ -338,10 +338,22 @@ export function start_tags(html: string, context?: string): StartTag[] {
 			const at = t.location?.attrs?.[a.name];
 			let raw = a.value;
 			if (at) {
-				const src = html.slice(at.startOffset, at.endOffset);
-				const eq = src.indexOf('=');
-				raw = eq === -1 ? '' : src.slice(eq + 1).replace(/^[\t\n\f\r ]+/, '');
-				if (raw[0] === '"' || raw[0] === "'") raw = raw.slice(1, -1);
+				// (read from the source, past the name: `=` may be the name's first character)
+				let i = at.startOffset + a.name.length;
+				const space = (k: number) => /[\t\n\f\r ]/.test(html[k] ?? '');
+				while (space(i)) i++;
+				if (html[i] !== '=') raw = '';
+				else {
+					i++;
+					while (space(i)) i++;
+					const q = html[i];
+					if (q === '"' || q === "'") raw = html.slice(i + 1, html.indexOf(q, i + 1));
+					else {
+						let e = i;
+						while (e < html.length && html[e] !== '>' && !space(e)) e++;
+						raw = html.slice(i, e);
+					}
+				}
 			}
 			attrs.set(a.name, raw);
 			decoded.set(a.name, a.value);
