@@ -6,7 +6,7 @@
 import { describe, it, expect, afterEach, vi } from 'vitest';
 import { clearRouteConfig, setPageRouteConfig, startPlugin } from '@ogygia/core/plugin/testing';
 import { register_hooks, ask } from '../../core/src/plugin/hooks.ts';
-import type { PluginDefinition } from '@ogygia/core/vite';
+import type { PluginDefinition } from '@ogygia/compiler/vite';
 import { postrender as postrenderPlugin } from '../src/vite.ts';
 import server, { type PostrenderServerOptions } from '../src/server.ts';
 import { postrender } from '../src/index.ts';

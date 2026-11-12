@@ -69,6 +69,8 @@ const jump_to_hash = (hash: string) => router_link().jump_to_hash(hash);
 
 // DEVTOOLS gate — module-local const from the Vite `define` (proven DCE pattern); off → folds out.
 const DEVTOOLS = typeof __OGYGIA_DEVTOOLS__ !== 'undefined' ? __OGYGIA_DEVTOOLS__ : false;
+const HOOK_NAVIGATED =
+	typeof __OGYGIA_HOOK_NAVIGATED__ !== 'undefined' ? __OGYGIA_HOOK_NAVIGATED__ : true;
 /** High-res clock for devtools nav timings (guarded — dead when off). */
 const dt_now = () =>
 	typeof performance !== 'undefined' && performance.now ? performance.now() : Date.now();
@@ -1013,18 +1015,17 @@ export async function navigate(
 	// applied: a later same-address click is a refresh, not a duplicate
 	r.nav.move('loading', 'settling', { href: url.href });
 	const settled = r.nav.now;
-	// (the profiler's browser half, through the boot's link — this lazy chunk imports no boot
-	// module; a no-op without the profiler's tag or devtools)
-	boot_link().beacon_nav({
-		from: from.pathname + from.search,
-		to: dest.pathname + dest.search,
-		type,
-		t: nav_t0,
-		fetched: built.fetched,
-		styled: built.styled,
-		swapped: performance.now(),
-		href: url.href
-	});
+	if (HOOK_NAVIGATED)
+		slots.hooks?.navigated?.({
+			from: `${from.pathname}${from.search}`,
+			to: `${dest.pathname}${dest.search}`,
+			type,
+			t: nav_t0,
+			fetched: built.fetched,
+			styled: built.styled,
+			swapped: performance.now(),
+			href: url.href
+		});
 	if (DEVTOOLS)
 		dt_emit({
 			domain: 'nav',

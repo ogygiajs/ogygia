@@ -16,7 +16,7 @@ export interface EmbeddedMaps {
 
 let ready: EmbeddedMaps | null = null;
 
-import { PROFILER_MAPS_GZ_PREFIX as GZ_PREFIX } from '@ogygia/core/internal/compiler-ids';
+import { PROFILER_MAPS_GZ_PREFIX as GZ_PREFIX } from '@ogygia/compiler/ids';
 import { flights, STALE } from '@ogygia/machine';
 import { read_profiler_maps } from '#profiler-maps';
 

@@ -10,7 +10,7 @@ import {
 	unscoped_finding,
 	unscoped_marker
 } from '@ogygia/core/internal/instruments';
-import { weigh_assets } from '@ogygia/core/insights';
+import { weigh_assets } from '@ogygia/insights';
 
 describe('the unscoped-fallback marker', () => {
 	it('carries the file name only and the reason, and reads back', () => {
