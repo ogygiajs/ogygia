@@ -34,7 +34,10 @@ describe.skipIf(!built)('a document the tab has left', () => {
 					() => heard.push('answered'),
 					() => heard.push('failed')
 				);
-			await world.go(tab, 'goto', '/');
+			// (back to the tab's first entry, `about:blank`: no request, so the document is left at
+			// once, before any stalled answer can come; a page of the app's own came after the answer
+			// once the seed's draws moved, and the old page rightly heard it)
+			await world.go(tab, 'back');
 			expect(tab.documents).toBe(2);
 			await world.loop.run(60_000);
 			await world.quiesce();
@@ -68,7 +71,7 @@ describe.skipIf(!built)('a document the tab has left', () => {
 				doc.body.append(s);
 			}
 			await world.loop.run(50);
-			await world.go(tab, 'goto', '/about');
+			await world.go(tab, 'back');
 			expect(tab.documents).toBe(2);
 			await world.loop.run(60_000);
 			await world.quiesce();
