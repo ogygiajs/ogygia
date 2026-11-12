@@ -73,6 +73,8 @@ export interface Exchange {
 	lost?: boolean;
 	/** Its answer was held 10 to 40 s on the way (a `stall`): its page may have given up on it. */
 	stalled?: boolean;
+	/** The client address the server saw it from (a server's hop: the document's it was for). */
+	address?: string;
 	/** The build whose server gave the answer the client got (its {@link ANSWERED_BY} header). */
 	build?: string;
 	/** A batch of holes (`POST /__ogygia__`): the holes it asks for, by `answer_key` (world.ts). */
@@ -145,6 +147,14 @@ export class Network {
 	/** Each exchange still on the wire (its request out, or its body still coming): how it ends
 	 *  when its tab loses the network (`offline`), or its document is left (`left`). */
 	readonly #on_wire = new Map<Exchange, (why: 'offline' | 'left') => void>();
+
+	/** Each tab's client address, when it is not the visitor's (a crowd's visitor: `address`). */
+	readonly #addresses = new Map<string, string>();
+
+	/** Tab `tab`'s requests come from client address `address`: a visitor of its own. */
+	address(tab: string, address: string): void {
+		this.#addresses.set(tab, address);
+	}
 
 	/** Documents their tab has left: nothing reaches them any more. */
 	readonly #left = new Set<string>();
@@ -291,6 +301,12 @@ export class Network {
 				return;
 			}
 			const signal = request.signal;
+			// The server's end of the connection: its request is called off once the connection
+			// closes (the client calls it off, its document is left or goes offline, the body is
+			// cut or cancelled), as a Node server's request signal is (test/core.test.ts).
+			const line = new AbortController();
+			const hang_up = () => line.abort(new DOMException('The connection closed', 'AbortError'));
+			signal?.addEventListener('abort', hang_up, { once: true });
 			const aborted = () => {
 				// (its page called it off before an answer came: nothing is on its way for it now)
 				if (ex.status === 'pending') ex.status = 'aborted';
@@ -332,6 +348,7 @@ export class Network {
 			let lost = false;
 			this.#on_wire.set(ex, (why) => {
 				lost = true;
+				hang_up();
 				if (why === 'left') {
 					ex.status = 'aborted';
 					return;
@@ -345,30 +362,43 @@ export class Network {
 				`request ${ex.id} ${request.method} ${new URL(request.url).pathname}`,
 				this.#latency(pace),
 				() => {
-					const copy = dup ? request.clone() : null;
-					const address = calm ? REFERENCE_ADDRESS : VISITOR_ADDRESS;
+					// (the duplicate is a connection of its own, closed once its answer is thrown away)
+					const copy_line = dup ? new AbortController() : null;
+					const copy =
+						copy_line !== null ? new Request(request.clone(), { signal: copy_line.signal }) : null;
+					const address = calm
+						? REFERENCE_ADDRESS
+						: (this.#addresses.get(behalf.split('#')[0]) ?? VISITOR_ADDRESS);
+					ex.address = address;
 					const answer = (r: Request) =>
 						answering.run(ex, () =>
 							asked_by.run(behalf, () => client.run(address, () => handler(r)))
 						);
-					void answer(request)
+					void answer(new Request(request, { signal: line.signal }))
 						.then(async (response) => {
 							// the duplicate is answered too, and its answer thrown away (as a proxy's retry)
 							if (copy !== null)
 								await answer(copy).then(
-									(r) => r.body?.cancel(),
+									(r) => {
+										copy_line?.abort(new DOMException('The connection closed', 'AbortError'));
+										return r.body?.cancel();
+									},
 									() => {}
 								);
-							if (!lost) ex.status = response.status;
+							// (called off before it came, it stays `aborted`: the client never got it)
+							if (!lost && !signal?.aborted) ex.status = response.status;
 							ex.build = response.headers.get(ANSWERED_BY) ?? undefined;
 							const leg = this.#latency(pace) + stall - midway;
 							loop.add('net', `response ${ex.id} ${response.status}`, leg, () => {
 								if (signal?.aborted || lost) {
+									hang_up();
 									void response.body?.cancel();
 									return;
 								}
 								this.#on_wire.delete(ex);
-								resolve(this.#deliver(ex, response, cut, tamper, signal, pace, midway, ended));
+								resolve(
+									this.#deliver(ex, response, cut, tamper, signal, pace, midway, ended, hang_up)
+								);
 							});
 						})
 						.catch((error: unknown) => {
@@ -397,7 +427,8 @@ export class Network {
 		signal: AbortSignal | undefined,
 		pace: number | null,
 		midway = 0,
-		heard?: Ended
+		heard?: Ended,
+		hang_up: () => void = () => {}
 	): Response {
 		const headers = new Headers(response.headers);
 		headers.delete('content-length');
@@ -444,6 +475,7 @@ export class Network {
 				ended = true;
 				done(false);
 			});
+			hang_up();
 			void source.cancel().catch(() => {});
 		};
 		const pump = async (): Promise<void> => {
@@ -487,6 +519,7 @@ export class Network {
 			},
 			cancel: () => {
 				ended = true;
+				hang_up();
 				void source.cancel().catch(() => {});
 			}
 		});
@@ -510,6 +543,7 @@ export class Network {
 			if (ended) return;
 			if (why === 'offline') return stop(why, true);
 			ended = true;
+			hang_up();
 			void source.cancel().catch(() => {});
 		});
 		void pump();
