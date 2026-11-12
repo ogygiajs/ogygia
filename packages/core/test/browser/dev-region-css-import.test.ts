@@ -6,7 +6,7 @@
 // the links the SSR baked onto the page. Simulated with a data: module that appends a known style.
 import { expect, test } from 'vitest';
 import { bootDev } from '../../src/runtime/full.ts';
-import { region_fragment } from '../../src/runtime/core.ts';
+import { region_fragment } from './_html.ts';
 import { island_module_url } from '../../src/runtime/region-endpoint-url.ts';
 
 // Strips the document's filename so what is left is its directory (for a relative href).
