@@ -4,7 +4,8 @@
 //      the very objects `page.data` holds, and the seed's text is blanked once it is in memory.
 //   2. a reconcile navigation: the next page's island resolves its reference against the NEXT
 //      page's seed — the stale-reference regression (a per-element cache the morph reused).
-import { beforeEach, expect, inject, test } from 'vitest';
+import { afterEach, beforeEach, expect, inject, test } from 'vitest';
+import { mark_live_head } from './_response-mark.ts';
 import { bootDev } from '../../src/runtime/full.ts';
 import {
 	PAGE_SEED_SELECTOR,
@@ -28,9 +29,14 @@ const decode = (key: 'counter_seedref_ssr_b64' | 'seed_nav_a_html_b64' | 'seed_n
 const counts = () =>
 	[...document.querySelectorAll('[data-testid="count"]')].map((e) => e.textContent);
 
+const unmark: Array<() => void> = [];
 beforeEach(() => {
 	document.body.innerHTML = '';
 	prepare_spa_document(); // a fresh document: session flags, page store, reader counts
+	unmark.push(mark_live_head());
+});
+afterEach(() => {
+	for (const undo of unmark.splice(0)) undo();
 });
 
 test('boot: two seed-ref islands, ONE seed parse, refs by reference into page.data, seed text blanked', async () => {
