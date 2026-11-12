@@ -251,6 +251,26 @@ describe('the network', () => {
 		expect(seen['tab-9']).not.toBe(seen['tab-1']);
 	});
 
+	it('each visitor comes from a client address of its own, and its server hops keep it', async () => {
+		// (a crowd of visitors shared one address, so a per-client rate limit saw one client)
+		const loop = new Loop(rng(1));
+		const net = new Network({ loop, rng: rng(1), faults: new Set() });
+		net.address('tab-2', '10.0.1.2');
+		const seen: Record<string, string> = {};
+		const peer = async () => {
+			seen.hop = client_address();
+			return new Response('peer');
+		};
+		for (const tab of ['tab-1', 'tab-2'])
+			void net.send(`${tab}#1`, new Request('https://app.test/'), async () => {
+				seen[tab] = client_address();
+				if (tab === 'tab-2') await net.send('server-0', new Request('https://peer.test/f'), peer);
+				return new Response('x');
+			});
+		await loop.run();
+		expect(seen).toEqual({ 'tab-1': '10.0.0.1', 'tab-2': '10.0.1.2', hop: '10.0.1.2' });
+	});
+
 	it("a server's hop names the document whose request it was answering", async () => {
 		const loop = new Loop(rng(1));
 		const net = new Network({ loop, rng: rng(1), faults: new Set() });
