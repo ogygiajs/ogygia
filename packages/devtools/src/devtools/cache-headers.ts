@@ -1,11 +1,3 @@
-/**
- * HOW THE HOST CACHES THE ISLANDS' FILES. In a build every island's file and the runtime are named by
- * their content (the region's `src`, the runtime script's `src`), so the right cache for them is a
- * year-long `immutable` one — a new build names new files. A host that serves them `no-cache`, or
- * with a short `max-age`, makes every returning visitor download (or revalidate) every island again.
- * The browser's timing API does not expose response headers, so this asks the server once for each
- * file's (a HEAD request, past the cache) when the Page tab opens. Off a build (no `src`): nothing.
- */
 import { all_regions, region_name } from './regions.ts';
 import type { StylesFinding } from './styles.ts';
 import { OGYGIA_RUNTIME, tool_fetch, tool_made } from '@ogygia/core/internal/instruments';
@@ -19,10 +11,10 @@ export interface CacheProbe {
 	bytes: number;
 }
 
-/** A day: a content-named file cached for less than this is fetched again on most return visits. */
 const MIN_MAX_AGE_S = 86_400;
 
-/** Read one `cache-control`: whether it caches the file long enough to count. Split, not a regex. */
+/** Read one `cache-control`: whether it caches the file long enough to count (`immutable`, or a
+ *  `max-age` of a day or more: shorter, and most return visits fetch it again). Split, not a regex. */
 export function cached_long(cache_control: string | null): boolean {
 	if (!cache_control) return false;
 	let max_age = -1;
@@ -50,10 +42,17 @@ export function content_named_files(doc: Document = document): { url: string; na
 	return [...out].map(([url, name]) => ({ url, name }));
 }
 
-/** Ask the server how it caches each file (HEAD, past the browser's cache), at most `limit` files. */
+/**
+ * Ask the server how it caches each content-named file, at most `limit` files. In a build every
+ * island's file and the runtime are named by their content (the region's `src`, the runtime script's
+ * `src`), so the right cache for them is a year-long `immutable` one: a new build names new files. A
+ * host that serves them `no-cache`, or with a short `max-age`, makes every returning visitor download
+ * (or revalidate) them again. The browser's timing API does not expose response headers, so this
+ * sends a HEAD request past the browser's cache for each. A file's bytes are the page's own load of
+ * it, never an earlier probe's empty HEAD. Off a build (no `src`, or the `src` is the entry): nothing.
+ */
 export async function probe_cache(doc: Document = document, limit = 40): Promise<CacheProbe[]> {
 	const sizes = new Map<string, number>();
-	// (the page's loads: an earlier probe's HEAD has no body to size)
 	for (const r of performance.getEntriesByType('resource') as PerformanceResourceTiming[])
 		if (!tool_made(r)) sizes.set(r.name, r.decodedBodySize || 0);
 	const files = content_named_files(doc).slice(0, limit);
@@ -71,15 +70,15 @@ export async function probe_cache(doc: Document = document, limit = 40): Promise
 	);
 }
 
-/** The finding: content-named files the host does not cache long, named, with the bytes at stake. */
+/** The finding: content-named files the host does not cache long, named heaviest first (the names
+ *  that fit are the files a return visit pays most for), with the bytes at stake and each header
+ *  seen named once (a host usually sends one policy for the whole directory). */
 export function cache_findings(probes: readonly CacheProbe[]): StylesFinding[] {
 	const short = probes.filter((p) => !cached_long(p.cache_control));
 	if (!short.length) return [];
 	const kb = (n: number) => (n >= 1024 ? `${(n / 1024).toFixed(1)} KB` : `${n} B`);
 	const bytes = short.reduce((s, p) => s + p.bytes, 0);
-	// the headers seen, each once (a host sends one policy for the whole directory, usually)
 	const seen = [...new Set(short.map((p) => p.cache_control ?? 'no cache-control'))].slice(0, 3);
-	// the heaviest first: the names that fit are the files a return visit pays most for
 	const names = [...new Set([...short].sort((a, b) => b.bytes - a.bytes).map((p) => p.name))];
 	const list =
 		names.length > 4

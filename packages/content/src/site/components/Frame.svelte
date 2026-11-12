@@ -1,24 +1,22 @@
+<!--
+@component
+The page frame: a sidebar beside the main content, with an optional header and footer. For each
+region, pass a component to replace it, `false` or `null` to remove it, or nothing for the default
+(the `Sidebar` with the site's nav tree; no header or footer). Sets the shell context (the site and
+its mount base), so components inside find the site without passing it down. Starts with a skip
+link to `<main>`.
+
+```svelte
+<Frame {site}>{@render children()}</Frame>
+<Frame {site} sidebar={MySidebar} footer={null}>…</Frame>
+```
+-->
 <script lang="ts">
-	/**
-	 * The one composition — sidebar + main, with every region overridable: pass a component to
-	 * REPLACE a region, `false`/`null` to REMOVE it, nothing for the default. Written ONLY in public
-	 * API (the eject litmus: copy this file into your app and it still runs). Sets the shell context
-	 * so bricks inside find the site without prop threading.
-	 *
-	 * ```svelte
-	 * <Frame {site}>{@render children()}</Frame>
-	 * <Frame {site} sidebar={MySidebar} footer={null}>…</Shell>
-	 * ```
-	 */
 	import type { Component, Snippet } from 'svelte';
 	import { page } from '$app/state';
 	import { set_shell_context } from '../context.ts';
 	import { mountBase, type Site } from '../site.ts';
 	import type { NavTree } from '../types.ts';
-	// Island, NOT a plain import: the default sidebar loads its code only when it actually renders —
-	// a `sidebar` override drops it — and it comes alive on a csr=false page (roving focus, active
-	// marker) instead of shipping as dead SSR HTML. Mirrors DocsShell. Islands are isolated hydration
-	// roots, so the nav crosses as a DATA prop below (context doesn't cross the boundary).
 	import Sidebar from './Sidebar.svelte' with { wake: 'load' };
 
 	type Region = Component<{ site: Site }> | false | null | undefined;
@@ -43,23 +41,17 @@
 		children: Snippet;
 	} = $props();
 
-	// Deliberate init-time snapshot: context is set once per mount (csr=false SSR) — wiring, not state.
 	// svelte-ignore state_referenced_locally
 	const the_base = base ?? mountBase(page.url, page.params.slug ?? '');
 	// svelte-ignore state_referenced_locally
 	set_shell_context({ site, base: the_base, components: site.components });
 
-	// The nav tree as DATA, so the default `<Sidebar>` island gets it across the boundary (context
-	// doesn't cross). Only computed for the built-in path; an overriding `sidebar` component reads
-	// `site` from context itself. On a dimensions() site the slug selects the coordinate.
 	// svelte-ignore state_referenced_locally
 	const tree: NavTree =
 		sidebar === undefined ? await site.nav({ base: the_base, slug: page.params.slug ?? '' }) : [];
 </script>
 
 <div class="og-shell">
-	<!-- First focusable element: a keyboard user can jump the nav straight to the content. Visually
-	     hidden until focused (see `.og-skip`). Targets the `<main>` landmark below. -->
 	<a class="og-skip" href="#og-main">Skip to content</a>
 	{#if header}
 		{@const H = header}

@@ -1,8 +1,10 @@
+import { handle } from './handle.ts';
+import { invalidate, invalidateWhere } from './registry.ts';
+
 /**
- * `@ogygia/postrender` — pages stored at request time. SERVER ONLY.
- *
- * Prerender renders a page at build time; postrender renders it on its first request, stores it
- * whole, and serves the stored bytes until an invalidation clears it.
+ * Pages stored at request time, on the server only. Prerender renders a page at build time;
+ * postrender renders it on its first request, stores it whole, and serves the stored bytes until
+ * an invalidation clears it.
  *
  * ```ts
  * // vite.config: the switch (+ serializable policy)
@@ -24,9 +26,6 @@
  * await postrender.invalidateWhere({ prefix: '/fr/fr/' }); // subtree nuke
  * ```
  */
-import { handle } from './handle.ts';
-import { invalidate, invalidateWhere } from './registry.ts';
-
 export const postrender: {
 	handle: typeof handle;
 	invalidate: typeof invalidate;
