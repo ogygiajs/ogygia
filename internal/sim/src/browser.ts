@@ -20,6 +20,7 @@ import type { Network } from './network.ts';
 import { install, message_channel, platform, site, SITES, type RealmOptions } from './platform.ts';
 import { hash, type Rng } from './rng.ts';
 import { install_timeline, record_download, type Engine } from './timeline.ts';
+import { install_layout, VIEWPORT } from './layout.ts';
 
 /** `SIM_STACKS=1`: a page's uncaught error carries its stack (to triage a seed). */
 const STACKS = process.env.SIM_STACKS === '1';
@@ -166,6 +167,8 @@ export class Browsers {
 				enableCSSFileLoading: true,
 				// (and images: one not yet come is not `complete`, which the critical wait reads)
 				enableImageFileLoading: true,
+				// (the real-browser player's, which the layout reads too: a media query, innerWidth)
+				viewport: { width: VIEWPORT.w, height: VIEWPORT.h, devicePixelRatio: 1 },
 				navigator: {
 					userAgent: 'Mozilla/5.0 (ogygia-sim) AppleWebKit/537.36 Chrome/140.0 Safari/537.36'
 				},
@@ -344,6 +347,8 @@ export class Browsers {
 			});
 		}
 		install_timeline(window);
+		// (a layout, and the IntersectionObserver that reads it: happy-dom's never reports)
+		install_layout(window, this.#o.loop, tab.realm);
 		// (the tab's network, as a browser's `navigator.onLine` reads its own: test/online.node.test.ts)
 		const network = this.#o.network;
 		Object.defineProperty(window.navigator, 'onLine', {

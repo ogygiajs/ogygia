@@ -67,6 +67,13 @@ module scripts. Its gaps are handled in the sim, with no patch to happy-dom:
   `modulepreload` was still downloading (the runtime's script comes before its preloads, so every
   runtime chunk was asked twice). An import waits for happy-dom's download and takes its source
   (`downloading` in `src/modules.ts`, `test/modules.test.ts`; found by the differential).
+- It lays nothing out, and its IntersectionObserver is a stub that never reports: no
+  `wake: 'visible'` island ever woke by being seen, and the hydration drain waited for a viewport
+  snapshot on every turn. A document has a layout (`src/layout.ts`: block flow on the player's
+  1280x720 viewport, read off happy-dom's computed styles: display, margins, borders, padding,
+  height; text 8 px a character, 20 px a line) and an IntersectionObserver that reports from it at
+  a frame, a task of its realm (`test/layout.test.ts`; found by the differential). The home page's
+  regions land within 70 px of Chromium's. Never scrolled yet.
 - It ran an inline module script at once and an external one when its file came: a document's
   module scripts run in its order (`modules_in_order`, `test/modules.test.ts`).
 - It read `interactive` from the start, never fired DOMContentLoaded, and fired `load` before a
