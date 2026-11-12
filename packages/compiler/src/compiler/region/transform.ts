@@ -395,12 +395,13 @@ function is_import_meta_og(node: SvelteNode, prop: string): boolean {
  * Resolve a local name back to its import binding — the module specifier plus the EXPORT NAME it
  * imports (`'default'` for `import X`, the imported name for `import { X }` / `import { A as X }`).
  * Feeds asRegion: the island entry re-imports the component by this export name (barrel-friendly), and
- * region identity keys on `source#exportName`. Namespace imports (`import * as X`) return `{ namespace }`.
+ * region identity keys on `source#exportName`. A namespace import (`import * as X`) names no export:
+ * null, as for a name no import binds.
  */
 function import_binding_of(
 	node: SvelteNode,
 	localName: string
-): { source: string; exportName: string } | { namespace: true } | null {
+): { source: string; exportName: string } | null {
 	for (const spec of node.specifiers ?? []) {
 		if (spec.local?.name !== localName) continue;
 		if (spec.type === 'ImportDefaultSpecifier')
@@ -410,7 +411,6 @@ function import_binding_of(
 			const name = imported?.type === 'Literal' ? String(imported.value) : imported?.name;
 			return { source: node.source.value, exportName: name };
 		}
-		if (spec.type === 'ImportNamespaceSpecifier') return { namespace: true };
 	}
 	return null;
 }
@@ -1628,7 +1628,7 @@ class FileCompilation {
 					`'${comp_arg.name}' is not an imported component — import it first (e.g. \`import { ${comp_arg.name} } from './…'\`).`
 				);
 			const binding = import_binding_of(info.node, comp_arg.name);
-			if (!binding || 'namespace' in binding)
+			if (!binding)
 				throw this.#as_err(
 					local,
 					`'${comp_arg.name}' must be a default or named import, not a namespace import.`
@@ -3058,7 +3058,7 @@ class TsRegionCompilation {
 							`'${comp_arg.name}' is not an imported component — import it first (e.g. \`import { ${comp_arg.name} } from './…'\`).`
 						);
 					const binding = import_binding_of(imp, comp_arg.name);
-					if (!binding || 'namespace' in binding)
+					if (!binding)
 						throw this.#as_err(
 							local,
 							`'${comp_arg.name}' must be a default or named import, not a namespace import.`
