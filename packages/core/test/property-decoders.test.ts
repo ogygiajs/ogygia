@@ -25,6 +25,10 @@ import {
 link_boot();
 await load_devalue();
 
+/** Every run draws the same inputs (314, as the sim, unless `OGYGIA_SIM_SEED` says): an input that
+ *  fails, fails on every run, and the seed in its report replays it (#994). */
+const SEED = Number(process.env.OGYGIA_SIM_SEED ?? 314);
+
 /** Every parcel whole in `buf`, and the text after the last one. */
 function read_all(buf: string) {
 	const out: { slot: string; html: string }[] = [];
@@ -85,7 +89,7 @@ describe('batch stream parcels', () => {
 					expect(got).toEqual([...parcels, { slot: '__ogygia_done__', html: '' }]);
 				}
 			),
-			{ numRuns: 500 }
+			{ seed: SEED, numRuns: 500 }
 		);
 	});
 
@@ -94,7 +98,7 @@ describe('batch stream parcels', () => {
 			fc.property(parcel_text, (text) => {
 				read_all(text);
 			}),
-			{ numRuns: 1000 }
+			{ seed: SEED, numRuns: 1000 }
 		);
 	});
 
@@ -136,7 +140,7 @@ describe('island props', () => {
 				expect(w.text).not.toContain('<');
 				expect(parse_wire_text(w.text, w.json)).toEqual(value);
 			}),
-			{ numRuns: 500 }
+			{ seed: SEED, numRuns: 500 }
 		);
 	});
 
@@ -179,7 +183,7 @@ describe('island props', () => {
 				}
 				expect(Object.getOwnPropertyNames(Object.prototype).sort()).toEqual(before);
 			}),
-			{ numRuns: 2000 }
+			{ seed: SEED, numRuns: 2000 }
 		);
 	});
 });
@@ -199,7 +203,21 @@ describe('island graph', () => {
 					expect(decode_island_locations(text)).toEqual(locations);
 				}
 			),
-			{ numRuns: 500 }
+			{
+				seed: SEED,
+				numRuns: 500,
+				// (names an object has already, which a plain-object table would lose or mix up: #994)
+				examples: [
+					[[['__proto__', ['a']]], [['__proto__', 'b']]],
+					[
+						[
+							['constructor', []],
+							['toString', ['c']]
+						],
+						[['hasOwnProperty', 'd']]
+					]
+				]
+			}
 		);
 	});
 
@@ -215,7 +233,7 @@ describe('island graph', () => {
 					expect(typeof v).toBe('string');
 				}
 			}),
-			{ numRuns: 1000 }
+			{ seed: SEED, numRuns: 1000 }
 		);
 	});
 });
