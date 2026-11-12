@@ -66,7 +66,6 @@ export async function load_profiler_reading(): Promise<ProfilerReading | null> {
 // ── regexes
 const TRAILING_SLASH_RE = /\/$/;
 const HTTP_URL_RE = /^https?:\/\//i;
-const LOGIN_FORM_RE = /id="og-login"/;
 const HTML_TAG_G = /<[^>]+>/g;
 const WS_G = /\s+/g;
 const BACKSLASH_G = /\\/g;
@@ -1472,6 +1471,15 @@ const NOT_MOUNTED = (base: string, where: string) =>
 	`  plugins: [ogygia(), devtools({ profiler: true /* or { secret, path, … } */ }), sveltekit()]\n\n` +
 	`ogygia.handle() mounts it for you — no hooks wiring needed. Restart the server, then retry.`;
 
+/** A locked profiler sends a visitor without a session to `<base>/login` (devtools profiler
+ *  `#auth_guard`): is `res` that redirect? Proved by test/mcp-profile-locked.test.ts. */
+function sends_to_login(res: Response, base: string): boolean {
+	if (res.status < 300 || res.status >= 400) return false;
+	const to = res.headers.get('location');
+	if (!to) return false;
+	return new URL(to, base).pathname === new URL(base + '/login').pathname;
+}
+
 /** Who holds the profiler's recorder, as its 409 says (devtools profiler `#busy`). */
 type BusyHolder = { kind: string; age_ms: number; stale: boolean };
 
@@ -1531,8 +1539,8 @@ async function tool_profile(args: Attrs): Promise<ToolResult> {
 	}
 
 	// Confirm the profiler is mounted AND we're authed — clean messages beat a cryptic failure. A locked
-	// profiler serves its login PAGE at 200 (not 401), so sniff for it: no key → ask for one, wrong key
-	// → say so, before we bother recording.
+	// profiler redirects to its login page (not 401), so look for that: no key → ask for one, wrong
+	// key → say so, before we bother recording.
 	{
 		const key_h: Record<string, string> = key ? { 'x-profiler-key': key } : {};
 		let pre: Response;
@@ -1548,8 +1556,8 @@ async function tool_profile(args: Attrs): Promise<ToolResult> {
 			);
 		}
 		if (pre.status === 404) return fail(NOT_MOUNTED(profiler_base, origin));
-		const pre_body = await pre.text().catch(() => '');
-		if (LOGIN_FORM_RE.test(pre_body))
+		await pre.body?.cancel().catch(() => {}); // ok: only the status and Location are read
+		if (sends_to_login(pre, origin + profiler_base))
 			return fail(
 				key
 					? `The profiler on ${origin} rejected that \`key\` (still locked). Confirm its secret with the user.`
