@@ -4,10 +4,12 @@
 // the next page's sheets must go with the navigation, or they style the page on screen.
 //
 // The sheet loads for real and is held at the network (the `hold_downloads` command), so the
-// navigation is still waiting for it when it is called off.
-import { afterEach, beforeEach, expect } from 'vitest';
+// navigation is still waiting for it when it is called off. The router's timers are the test's (fake):
+// its 2 s cap on that wait never runs out on a loaded runner and swaps the page in early.
+import { afterEach, beforeEach, expect, vi } from 'vitest';
 import { commands } from 'vitest/browser';
 import { it_with_network_routes } from './_browsers.ts';
+import { in_head } from './_in-head.ts';
 import { link_boot } from '../../src/runtime/boot-link.ts';
 import { SpaRouter } from '../../src/runtime/router.ts';
 
@@ -24,6 +26,7 @@ const SHEET = '/nav-called-off-next.css';
 
 beforeEach(() => {
 	link_boot();
+	vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
 	window.fetch = async () =>
 		new Response(
 			`<!doctype html><html><head><meta name="ogygia-router" content="plain"><link rel="stylesheet" href="${SHEET}"><title>next</title></head><body><p>next</p></body></html>`,
@@ -31,6 +34,7 @@ beforeEach(() => {
 		);
 });
 afterEach(async () => {
+	vi.useRealTimers();
 	window.fetch = real_fetch;
 	history.replaceState(null, '', home);
 	await commands.keep_downloads(SHEET);
@@ -43,8 +47,9 @@ it_with_network_routes(
 		const r = new SpaRouter();
 		const sheet = () => document.head.querySelector(`link[href="${SHEET}"]`);
 		const went = r.navigate(new URL('/nav-called-off-next', location.href));
-		// the next page's sheet is in the head, and the navigation waits for it
-		await expect.poll(sheet, { timeout: 2_000 }).not.toBeNull();
+		// the next page's sheet is in the head, and the navigation waits for it (the navigation's code
+		// loads first: on a cold, loaded runner that alone can take seconds)
+		await in_head(`link[href="${SHEET}"]`);
 		expect(r.nav.now.kind).toBe('loading');
 		// back to the page on screen (popstate on the same document): the navigation is called off
 		r.supersede();
