@@ -7,7 +7,7 @@
  * clear the noise floor to count. The vitals use the profiler's own rule (page-insights
  * `vitals_moved`): "since your last load" and "since your last profile" never disagree.
  */
-import { vitals_moved, type PartedVital, type VitalPart } from '@ogygia/core/insights';
+import { vitals_moved, type PartedVital, type VitalPart } from '@ogygia/insights';
 
 export interface LoadSnapshot {
 	path: string;
@@ -44,8 +44,10 @@ export interface SinceLoad {
 }
 
 /** findings a dev server's first compile of the page can raise on its own (its islands' code arrives late) */
+// static: a fixed list of finding codes
 const COMPILE_BORNE = new Set(['late-interactive', 'slow-module', 'queued']);
 /** …and, when the PAGE compiled on its request, everything that waited on its first byte */
+// static: a fixed list of finding codes
 const PAGE_COMPILE_BORNE = new Set([
 	...COMPILE_BORNE,
 	'slow-ttfb',
@@ -67,7 +69,7 @@ const label = (f: { code: string; names: string[] }) =>
 export function since_load(
 	prev: LoadSnapshot,
 	now: LoadSnapshot,
-	at: number = Date.now()
+	at: number = Date.now() // wall: compared with the last load's stored time
 ): SinceLoad | null {
 	if (prev.path !== now.path) return null;
 	const key = (f: { code: string; names: string[] }) =>

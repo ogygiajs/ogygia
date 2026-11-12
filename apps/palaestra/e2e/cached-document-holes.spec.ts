@@ -10,7 +10,8 @@
 import fs from 'node:fs';
 import { test, check } from '@ogygia/tooling/e2e';
 import { AMP_ENTITY_G_RE, ENDPOINT_ATTR_RE } from '@ogygia/tooling/e2e/re.ts';
-import { region_mac_message, sign } from '../../../packages/core/dist/server/hmac.js';
+import { derive_mac_key, Hmac } from '../../../packages/core/dist/server/hmac.js';
+import { capability } from '../../../packages/machine/dist/index.js';
 
 const ENV_SECRET_RE = /^OGYGIA_SECRET=(.+)$/m;
 // the secret the palaestra server signs with: the environment's (CI sets it; it also wins over
@@ -32,20 +33,34 @@ async function hole_endpoint(base: string, path: string): Promise<string> {
 	return m ? new URL(m[1].replace(AMP_ENTITY_G_RE, '&'), base + path).href : '';
 }
 
-/** `endpoint` re-signed for another `exp`, as the handle minted it (anonymous, same ttl). */
+/** The v3 region capability's message (server/hmac.ts `region_capability`): its signature is the
+ *  same whenever it was minted, so the spec can sign one that expired (a mint now never would). */
+const REGION_V3 = capability({
+	name: 'region',
+	version: 3,
+	nonce: false,
+	// (only its message is read: the lifetime bounds a mint or a check, not the message)
+	ttl: { max: 1 },
+	signer: { sign: () => '', verify: () => false }
+});
+
+/** `endpoint` re-signed for another `exp`, as the handle minted it back then (anonymous, same ttl):
+ *  a v3 capability for the islands endpoint (the URL's `v=3`), as every current mint is. */
 function signed_at(endpoint: string, exp: number): string {
 	const u = new URL(endpoint);
 	const p = u.searchParams;
-	const sig = sign(
-		SECRET,
-		region_mac_message(
-			p.get('id') ?? '',
-			String(exp),
-			p.get('props') ?? '',
-			'',
-			p.get('ttl') ?? '',
-			p.get('r') ?? ''
-		)
+	const fields = [
+		p.get('id') ?? '',
+		p.get('props') ?? '',
+		'',
+		p.get('ttl') ?? '',
+		p.get('r') ?? '',
+		// (the claim's sixth field: a hole that wakes, the URL's `w=1`; server/hmac.ts `claim_fields`)
+		p.get('w') ?? ''
+	];
+	const sig = Hmac.sha256(
+		derive_mac_key(SECRET),
+		REGION_V3.message(u.pathname, exp * 1000, '', fields)
 	);
 	p.set('exp', String(exp));
 	p.set('sig', sig);
@@ -158,19 +173,13 @@ test.describe('holes outlive a CDN-cached document', () => {
 		const lp = new URL(live).searchParams;
 		const expired = new URL(signed_at(live, now() - 2 * 3600)).searchParams;
 		// Serve /server as a cache would have kept it: the same document, its hole minted 2h+ ago,
-		// everywhere the document names it (the hole's attribute, and the head's early start, whose
-		// JSON writes `&` as itself)
+		// everywhere the document names it (the hole's attribute, and the head's early start). Its
+		// `exp` and `sig` are swapped each on its own: other params (`v`, `ttl`) sit between them.
 		await page.route(`${baseURL}/server`, async (route) => {
 			const res = await route.fetch();
 			const html = (await res.text())
-				.replaceAll(
-					`exp=${lp.get('exp')}&amp;sig=${lp.get('sig')}`,
-					`exp=${expired.get('exp')}&amp;sig=${expired.get('sig')}`
-				)
-				.replaceAll(
-					`exp=${lp.get('exp')}&sig=${lp.get('sig')}`,
-					`exp=${expired.get('exp')}&sig=${expired.get('sig')}`
-				);
+				.replaceAll(`exp=${lp.get('exp')}&`, `exp=${expired.get('exp')}&`)
+				.replaceAll(`sig=${lp.get('sig')}`, `sig=${expired.get('sig')}`);
 			await route.fulfill({ response: res, body: html });
 		});
 		const hole_statuses: string[] = [];

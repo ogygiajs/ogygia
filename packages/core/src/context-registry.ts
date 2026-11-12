@@ -45,6 +45,3 @@ export function record_ctx(key: string, value: unknown, opts?: SetContextOptions
 	if (opts?.islands === false) return;
 	recorder?.(key, value);
 }
-
-/** DOM marker the server emits (before `</body>`) and `collect_provided_context` reads. */
-export const PAGE_CTX_MARKER = 'data-ogygia-provide-page';
