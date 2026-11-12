@@ -148,6 +148,7 @@ export function placed(text: string): string {
 	return fence !== undefined && text.includes(fence) ? text.replaceAll(fence, '') : text;
 }
 
+import { random } from '@ogygia/machine';
 import { emit as dt_emit } from './events/bus.ts';
 import { batch, notify, watchers } from './ref-watch.ts';
 import { resolve_sink } from './ref-sink.ts';
@@ -186,9 +187,7 @@ export function register_kind(kind: RefKind): void {
 }
 
 function mint_id(): string {
-	const c = (globalThis as { crypto?: { randomUUID?: () => string } }).crypto;
-	if (c?.randomUUID) return c.randomUUID();
-	return 'r' + Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2);
+	return random.uuid();
 }
 
 /**
