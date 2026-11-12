@@ -1,17 +1,7 @@
-/**
- * postrender — tier-2 store on Valkey/Redis. BYO client (ioredis or node-redis v4 both fit the
- * minimal shape below — ogygia takes no redis dependency). Keys are `og:a:<pathname>`, value =
- * JSON entry, EX = the TTL backstop. Prefix eviction is a native cursor SCAN over
- * `og:a:<prefix>*` — the key IS the URL, so no index exists to drift. The og.source reverse
- * index is a per-tag SET (`og:t:<tag>` of plain pathnames; each put only EXTENDS its expiry, to
- * the longest lifetime among its members; members of expired entries are harmless — deleting a
- * gone key is a no-op).
- */
 import type { PostrenderEntry, PostrenderPutOptions, PostrenderStore } from '../types.ts';
 import { normalize_prefix, subtree_prefix } from '../key.ts';
 import { OgygiaError } from '../messages.ts';
 
-// ── regexes
 const GLOB_ACTIVE_G = /[*?[\]\\]/g;
 
 const KEY_NS = 'og:a:';
@@ -35,7 +25,6 @@ export interface ValkeyLike {
 	TTL?(key: string): Promise<number>;
 }
 
-/** Both client families' scan shapes → one { cursor, keys }. */
 function read_scan_reply(reply: unknown): { cursor: string; keys: string[] } {
 	if (Array.isArray(reply)) {
 		return { cursor: String(reply[0]), keys: (reply[1] as string[]) ?? [] };
@@ -44,11 +33,17 @@ function read_scan_reply(reply: unknown): { cursor: string; keys: string[] } {
 	return { cursor: String(obj.cursor), keys: obj.keys ?? [] };
 }
 
-/** Escape glob-active characters so a literal pathname can ride a SCAN MATCH pattern. */
 function glob_escape(value: string): string {
 	return value.replace(GLOB_ACTIVE_G, (c) => '\\' + c);
 }
 
+/**
+ * A store on Valkey or Redis, with the app's own client (ioredis and node-redis v4 both fit
+ * {@link ValkeyLike}; ogygia takes no Redis dependency). Keys are `og:a:<pathname>` with `EX` as
+ * the TTL backstop; prefix eviction is a cursor SCAN, so no index can drift. Each `og.source` tag
+ * is a SET of pathnames whose expiry a put only ever extends, to the longest lifetime among its
+ * members.
+ */
 export class ValkeyStore implements PostrenderStore {
 	#client: ValkeyLike;
 
@@ -74,9 +69,7 @@ export class ValkeyStore implements PostrenderStore {
 		await this.#set_with_ttl(KEY_NS + key, JSON.stringify(entry), ttl);
 		for (const tag of tags ?? []) {
 			await this.#sadd(TAG_NS + tag, key);
-			// A tag set is shared by entries of different lifetimes: only ever EXTEND its expiry,
-			// or a short-lived entry would expire the index of a long-lived page sharing the tag.
-			// (TTL then EXPIRE, not `EXPIRE … GT`: GT treats a fresh set as never-expiring.)
+			// @why `EXPIRE … GT` treats a set with no expiry as never expiring, so it would never set the first one; TTL then EXPIRE does (test: test/postrender.test.ts › a longer-lived entry extends the tag set)
 			const left = await this.#read_ttl(TAG_NS + tag);
 			if (left === null || left < ttl) await this.#client.expire?.(TAG_NS + tag, ttl);
 		}
@@ -89,7 +82,6 @@ export class ValkeyStore implements PostrenderStore {
 	async evictWhere({ prefix }: { prefix: string }): Promise<void> {
 		const client = this.#client;
 		const p = normalize_prefix(prefix);
-		// `/fr/fr` must match itself + its subtree, never `/fr/fright`: two exact patterns.
 		await this.#scan_prefix(subtree_prefix(p), async (keys) => void (await client.del(...keys)));
 		await client.del(KEY_NS + p);
 	}
@@ -104,7 +96,7 @@ export class ValkeyStore implements PostrenderStore {
 
 	async #set_with_ttl(key: string, value: string, ttl: number): Promise<void> {
 		try {
-			// ioredis positional form first — node-redis v4 throws on it, then takes the options bag.
+			// @why ioredis takes `SET key value EX ttl` positionally; node-redis v4 throws on that form and takes `{ EX }` instead (test: test/postrender.test.ts › speaks node-redis v4: SET with an options bag after the positional form throws, and an object SCAN reply)
 			await this.#client.set(key, value, 'EX', ttl);
 		} catch {
 			await this.#client.set(key, value, { EX: ttl } as unknown as string);

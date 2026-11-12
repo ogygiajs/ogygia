@@ -309,6 +309,26 @@ describe('after the commit', () => {
 		owner.close();
 	});
 
+	it('discard and undo steps run newest first', async () => {
+		const owner = scope();
+		const page = live();
+		const left = stage(owner, {
+			build: ({ discard }) => {
+				discard(() => page.log.push('discard 1'));
+				discard(() => page.log.push('discard 2'));
+				return 'new';
+			},
+			commit: (_built, undo) => {
+				undo(() => page.log.push('undo 1'));
+				undo(() => page.log.push('undo 2'));
+				throw new Error('half way');
+			}
+		});
+		await left.ready;
+		expect(() => left.commit()).toThrow('half way');
+		expect(page.log).toEqual(['undo 2', 'undo 1', 'discard 2', 'discard 1']);
+	});
+
 	it('an ended stage keeps none of its discard steps, not even one given late', async () => {
 		const steps = (s: unknown) => (s as { _steps: unknown[] })._steps.length;
 		let staging!: Staging;
