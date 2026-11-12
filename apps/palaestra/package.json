@@ -11,7 +11,7 @@
 		"e2e": "playwright test"
 	},
 	"dependencies": {
-		"@rolldown/browser": "catalog:",
+		"@ogygia/barrels": "workspace:*",
 		"devalue": "catalog:",
 		"ogygia": "workspace:*",
 		"repro-hole-css-kit": "workspace:*",
@@ -27,15 +27,11 @@
 		"@types/node": "catalog:",
 		"@typescript/native": "catalog:tsgo",
 		"axe-core": "catalog:",
-		"crypto-browserify": "^3.12.1",
-		"path-browserify": "catalog:",
 		"playwright": "catalog:",
 		"rolldown": "catalog:",
 		"svelte": "catalog:",
 		"svelte-check": "catalog:",
 		"typescript": "catalog:",
-		"vite": "catalog:",
-		"vite-plugin-top-level-await": "^1.6.0",
-		"vite-plugin-wasm": "catalog:"
+		"vite": "catalog:"
 	}
 }

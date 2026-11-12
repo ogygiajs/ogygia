@@ -4,7 +4,12 @@ import {
 	type UnscopedStyles
 } from '@ogygia/core/internal/instruments';
 import { tool_fetch, tool_made } from '@ogygia/core/internal/instruments';
-import { paint_blocker } from '@ogygia/core/internal/instruments';
+import {
+	OGYGIA_DEVTOOLS_HOST,
+	OGYGIA_RCSS,
+	OGYGIA_REGION_CSS,
+	paint_blocker
+} from '@ogygia/core/internal/instruments';
 
 export interface SheetRow {
 	/** the file name, or `inline <style>` */
@@ -190,7 +195,7 @@ export function read_styles(
 	const examples: { sel: string; len: number }[] = [];
 	let unreadable = 0;
 	const blocks = paint_blocker();
-	const panel = doc.querySelector('[data-ogygia-devtools-host]')?.shadowRoot;
+	const panel = doc.querySelector(`[${OGYGIA_DEVTOOLS_HOST}]`)?.shadowRoot;
 	for (const sheet of Array.from(doc.styleSheets)) {
 		const node = sheet.ownerNode as Element | null;
 		if (own_sheet(node)) continue;
@@ -218,8 +223,8 @@ export function read_styles(
 			unmatched_bytes: opts.match ? 0 : null,
 			ogygia:
 				!!node &&
-				(node.hasAttribute('data-ogygia-region-css') ||
-					node.hasAttribute('data-ogygia-rcss') ||
+				(node.hasAttribute(OGYGIA_REGION_CSS) ||
+					node.hasAttribute(OGYGIA_RCSS) ||
 					(href ?? '').includes('og-rcss'))
 		};
 		each_style_rule(rules, (rule) => {

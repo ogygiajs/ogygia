@@ -11,6 +11,7 @@ import {
 	observe,
 	outbox,
 	policy,
+	queue,
 	scope,
 	stage,
 	STALE,
@@ -361,6 +362,35 @@ bench(
 		for (const land of landed) land();
 		await Promise.all(out);
 		return heard;
+	},
+	{ setup: () => ({ n: 400 }), scale: (_ctx, k) => ({ n: 400 * k }) }
+);
+
+bench(
+	'queue: renders through four places, some past their deadline, some cancelled, each released as it ends',
+	async ({ n }) => {
+		let clock = 0;
+		let started = 0;
+		let stale = 0;
+		const q = queue<number>({
+			max: 4,
+			now: () => clock,
+			start: (job) => {
+				started++;
+				void Promise.resolve().then(() => {
+					clock++;
+					q.release(); // the render ends
+				});
+				void job;
+			},
+			stale: () => void stale++
+		});
+		for (let i = 0; i < n; i++) {
+			q.push(i, i % 7 === 0 ? clock + 20 : undefined);
+			if (i % 11 === 0) q.cancel(i);
+		}
+		while (q.waiting) await Promise.resolve();
+		return started + stale;
 	},
 	{ setup: () => ({ n: 400 }), scale: (_ctx, k) => ({ n: 400 * k }) }
 );
