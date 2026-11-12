@@ -19,6 +19,7 @@
 import { machine, type Machine } from '@ogygia/machine';
 import { connected_regions } from './connected.ts';
 import { head_owners } from '../head-owners.ts';
+import { OG_FP, OG_OWNER, OGYGIA_REGION_CSS } from '../wire-markup.ts';
 import { runtime_session } from './session.ts';
 
 type SheetStates = {
@@ -111,7 +112,7 @@ export function note_code_sheets<T>(url: string, loading: Promise<T>): Promise<T
 				if (!STYLESHEET_REL_RE.test(n.getAttribute('rel') ?? '')) continue;
 				if (session.page_head.has(n) || session.island_head.has(n)) continue;
 				if (!(n as HTMLLinkElement).href.startsWith(dir)) continue;
-				n.setAttribute('data-ogygia-region-css', '');
+				n.setAttribute(OGYGIA_REGION_CSS, '');
 				session.claim_page_head(n);
 				code_sheets.add(n);
 			}
@@ -149,7 +150,7 @@ export function use_code_sheets(region: Element, module: object): void {
  * that left can come back only rendered again, and its tags name it again then.
  */
 export function release_head_nodes(unlisted: readonly Element[]): void {
-	const shared = document.head.querySelectorAll('[data-og-owner*=" "]');
+	const shared = document.head.querySelectorAll(`[${OG_OWNER}*=" "]`);
 	if (unlisted.length === 0 && shared.length === 0) return;
 	const used = new Set<Element>();
 	const owners = new Set<string>();
@@ -159,7 +160,7 @@ export function release_head_nodes(unlisted: readonly Element[]): void {
 		if (sheets !== undefined) for (const s of sheets) used.add(s);
 		const code = code_used_by.get(region);
 		if (code !== undefined) for (const s of code) used.add(s);
-		const fp = region.getAttribute('data-og-fp');
+		const fp = region.getAttribute(OG_FP);
 		if (fp) owners.add(fp);
 	}
 	for (const node of unlisted) {
@@ -171,6 +172,6 @@ export function release_head_nodes(unlisted: readonly Element[]): void {
 		if (!node.isConnected) continue;
 		const list = head_owners(node);
 		const on_page = list.filter((o) => owners.has(o));
-		node.setAttribute('data-og-owner', (on_page.length ? on_page : list.slice(0, 1)).join(' '));
+		node.setAttribute(OG_OWNER, (on_page.length ? on_page : list.slice(0, 1)).join(' '));
 	}
 }

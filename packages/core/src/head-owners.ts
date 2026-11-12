@@ -6,14 +6,16 @@
  * adds those to the tag, and the owners a later page's copy of the tag names; a navigation keeps the
  * tag while any owner is on the page (runtime/region-sheets.ts `release_head_nodes`).
  *
- * Import-free: the server (document-tail.ts), the boot (region-sheets.ts) and the router's chunk
- * (router-nav.ts) share it, and the runtime reaches no server code through it.
+ * Imports only the markup vocabulary: the server (document-tail.ts), the boot (region-sheets.ts) and
+ * the router's chunk (router-nav.ts) share it, and the runtime reaches no server code through it.
  */
-export const HEAD_OWNERS_ATTR = 'data-og-owners';
+import { OG_OWNER, OG_OWNERS, OGYGIA_REGION_CSS } from './wire-markup.ts';
+
+export const HEAD_OWNERS_ATTR: typeof OG_OWNERS = OG_OWNERS;
 
 /** The owners a head tag names (`data-og-owner`). */
 export function head_owners(node: Element): string[] {
-	const attr = node.getAttribute('data-og-owner');
+	const attr = node.getAttribute(OG_OWNER);
 	return attr ? attr.split(' ').filter(Boolean) : [];
 }
 
@@ -22,7 +24,7 @@ export function add_head_owners(node: Element, more: Iterable<string>): void {
 	const list = head_owners(node);
 	const before = list.length;
 	for (const o of more) if (o && !o.includes(' ') && !list.includes(o)) list.push(o);
-	if (list.length !== before) node.setAttribute('data-og-owner', list.join(' '));
+	if (list.length !== before) node.setAttribute(OG_OWNER, list.join(' '));
 }
 
 /**
@@ -41,8 +43,8 @@ export function adopt_owner_record(doc: ParentNode, head: ParentNode): void {
 		return;
 	}
 	if (record === null || typeof record !== 'object') return;
-	for (const node of Array.from(head.querySelectorAll('[data-ogygia-region-css]'))) {
-		const identity = node.getAttribute('data-ogygia-region-css') || node.getAttribute('href');
+	for (const node of Array.from(head.querySelectorAll(`[${OGYGIA_REGION_CSS}]`))) {
+		const identity = node.getAttribute(OGYGIA_REGION_CSS) || node.getAttribute('href');
 		const owners = identity !== null && Object.hasOwn(record, identity) ? record[identity] : null;
 		if (Array.isArray(owners))
 			add_head_owners(

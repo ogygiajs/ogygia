@@ -35,7 +35,14 @@ import type { SeedIndex } from '../seed-refs.ts';
 import { escape_script_text } from '../escape.ts';
 import { HOLES_SCRIPT_TYPE } from '../holes-record.ts';
 import { HEAD_OWNERS_ATTR } from '../head-owners.ts';
-import { ISLAND_GRAPH_ATTR, encode_island_graph } from '../island-graph.ts';
+import { encode_island_graph } from '../island-graph.ts';
+import {
+	OG_LOCATIONS,
+	OGYGIA_GRAPH,
+	OGYGIA_HOLES,
+	OGYGIA_RUNTIME,
+	OGYGIA_RUNTIME_DEP
+} from '../wire-markup.ts';
 import { props_sidecar, type WireText } from './props-wire.ts';
 import type { HoleStat, IslandInteractivity, IslandStat } from './request-stats.ts';
 
@@ -109,15 +116,15 @@ export function runtime_bootstrap_tags(
 	locations: string | null = null
 ): string {
 	let html =
-		'<script type="module" data-ogygia-runtime' +
-		(locations ? ' data-og-locations="' + locations + '"' : '') +
+		`<script type="module" ${OGYGIA_RUNTIME}` +
+		(locations ? ` ${OG_LOCATIONS}="` + locations + '"' : '') +
 		' src="' +
 		src +
 		'" onerror="' +
 		RUNTIME_LOAD_FAILED +
 		'"></script>';
 	for (const dep of deps)
-		html += '<link rel="modulepreload" href="' + dep + '" data-ogygia-runtime-dep>';
+		html += '<link rel="modulepreload" href="' + dep + `" ${OGYGIA_RUNTIME_DEP}>`;
 	return html;
 }
 
@@ -133,7 +140,7 @@ export function island_graph_script(
 	if (graph.size === 0 && !locations?.size) return '';
 	return (
 		'<script type="application/json" ' +
-		ISLAND_GRAPH_ATTR +
+		OGYGIA_GRAPH +
 		'>' +
 		escape_script_text(encode_island_graph(graph, locations ?? undefined)) +
 		'</script>'
@@ -141,7 +148,7 @@ export function island_graph_script(
 }
 
 /** The holes record (`hole()`), read by runtime/hole-facts.ts. */
-const HOLES_SCRIPT_OPEN = `<script type="${HOLES_SCRIPT_TYPE}" data-ogygia-holes>`;
+const HOLES_SCRIPT_OPEN = `<script type="${HOLES_SCRIPT_TYPE}" ${OGYGIA_HOLES}>`;
 const HOLES_SCRIPT_CLOSE = '</script>';
 
 /** A sidecar as the tail keeps it: the plan, and the facts the profiler reads after the render. */
