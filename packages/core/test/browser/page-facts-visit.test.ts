@@ -11,6 +11,7 @@ import { SpaRouter } from '../../src/runtime/router.ts';
 import { prepare_spa_document, seed_page_once } from '../../src/runtime/seeds.ts';
 import { boot_link } from '../../src/runtime/slots.ts';
 import { page_state } from '../../src/shims/page-store.svelte.ts';
+import { TEST_MARK_ATTR } from './_response-mark.ts';
 
 const real_fetch = window.fetch;
 const home = location.href;
@@ -23,7 +24,8 @@ beforeEach(() => {
 	window.fetch = async () =>
 		new Response(
 			'<!doctype html><html><head><meta name="ogygia-router" content="plain"><title>next</title>' +
-				'</head><body><p>next</p><script type="application/ogygia-page" data-og-format="json">' +
+				`<script type="application/x-runtime-stand-in" data-ogygia-runtime${TEST_MARK_ATTR}></script>` +
+				`</head><body><p>next</p><script type="application/ogygia-page" data-og-format="json"${TEST_MARK_ATTR}>` +
 				JSON.stringify({
 					url: new URL('/page-facts-next', location.href).href,
 					data: { who: 'next' }
@@ -35,6 +37,8 @@ beforeEach(() => {
 afterEach(() => {
 	window.fetch = real_fetch;
 	history.replaceState(null, '', home);
+	// (the next page's head brought its runtime stand-in)
+	for (const el of document.head.querySelectorAll('script[data-ogygia-runtime]')) el.remove();
 });
 
 test('facts a hole brought on one page do not join the next page’s page.data', async () => {

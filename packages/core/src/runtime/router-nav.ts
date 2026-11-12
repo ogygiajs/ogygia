@@ -65,6 +65,7 @@ const regions_in_shadow = () => boot_link().regions_in_shadow();
 const release_head_nodes = (unlisted: readonly Element[]) =>
 	boot_link().release_head_nodes(unlisted);
 const session = () => boot_link().runtime_session;
+const adopt_mark = (next: Document) => boot_link().adopt_mark(next);
 type Scope = import('@ogygia/machine').Scope;
 type Stale = import('@ogygia/machine').Stale;
 type Staging = import('@ogygia/machine').Staging;
@@ -1362,6 +1363,8 @@ function merge_head(new_head: HTMLHeadElement): Element[] {
 			live.set(key, copy);
 		}
 	}
+	// (the kept runtime script takes the next response's mark: RESPONSE-MARK)
+	adopt_mark(new_head.ownerDocument);
 	return unlisted;
 }
 

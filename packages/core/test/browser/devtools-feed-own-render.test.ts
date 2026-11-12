@@ -18,7 +18,7 @@ function add(parent: HTMLElement, el: Element): void {
 function runtime_script(mark: string | null): void {
 	const el = document.createElement('script');
 	el.setAttribute('data-ogygia-runtime', '');
-	if (mark !== null) el.setAttribute('data-og-dt', mark);
+	if (mark !== null) el.setAttribute('data-og-mark', mark);
 	// (a type the browser does not run: the element stands in for the bootstrap)
 	el.type = 'application/x-runtime-stand-in';
 	add(document.head, el);
@@ -26,7 +26,7 @@ function runtime_script(mark: string | null): void {
 function channel(names: string[], mark: string | null): void {
 	const el = document.createElement('script');
 	el.type = 'application/ogygia-devtools';
-	if (mark !== null) el.setAttribute('data-og-dt', mark);
+	if (mark !== null) el.setAttribute('data-og-mark', mark);
 	el.textContent = JSON.stringify(names.map(event));
 	add(document.body, el);
 }
