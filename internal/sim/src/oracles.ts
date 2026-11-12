@@ -176,15 +176,18 @@ export const KNOWN: ReadonlyArray<{
 		issue: 954,
 		what: "a remote call from a stored page is answered with the stored page's HTML",
 		// (a held or live region's query failed on one side only: the generated host's error line;
-		// each host's subtree set aside)
+		// each host's subtree set aside, and the region sheets one side lifted and the other did not,
+		// the failed region's: gen 149, seed 149002)
 		applies: (shown, fresh) => host_errors(shown) !== host_errors(fresh),
-		forgive: (s) => {
+		forgive: (s, other) => {
+			const theirs = new Set(other.split('\n').filter(lifted_sheet));
 			const out: string[] = [];
 			let inside: string | null = null;
 			for (const line of s.split('\n')) {
 				const indent = /^ */.exec(line)![0];
 				if (inside !== null && indent.length > inside.length) continue;
 				inside = null;
+				if (lifted_sheet(line) && !theirs.has(line)) continue;
 				out.push(line);
 				if (/^<div data-gen="(held|live)-host"/.test(line.trim())) inside = indent;
 			}
@@ -363,6 +366,11 @@ function peer_hop_failed(e: World['network']['exchanges'][number]): boolean {
 /** A normalized DOM's generated peer widgets, by what each says it is (`w<k> for r<slot>`). */
 function widget_labels(s: string): string {
 	return [...s.matchAll(/"(w\d+ for r\d+)"/g)].map((m) => m[1]).join(',');
+}
+
+/** A normalized head line of a region sheet an answer lifted. */
+function lifted_sheet(line: string): boolean {
+	return /^ {4}<link data-ogygia-region-css=""/.test(line);
 }
 
 /** The generated held and live hosts that show their query's error (#954). */
