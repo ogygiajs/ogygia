@@ -155,11 +155,21 @@ const encoder = new TextEncoder();
 const noop = (): void => {};
 
 const env = (globalThis as { process?: { env: Record<string, string | undefined> } }).process?.env;
+/** A whole number from the environment (a seed, a run count), or undefined when unset. Anything
+ *  else throws: a typo must not run with `NaN` as its seed (core's test/property-seeded.test.ts). */
 const env_number = (name: string): number | undefined => {
 	const v = env?.[name];
-	return v === undefined || v === '' ? undefined : Number(v);
+	if (v === undefined || v === '') return undefined;
+	const n = Number(v);
+	if (!Number.isSafeInteger(n))
+		throw new Error(`${name} must be a whole number, not ${JSON.stringify(v)}`);
+	return n;
 };
 const only = env?.OGYGIA_SIM_ONLY || undefined;
+
+// Every property a test runs through this `fc` is seeded (314 unless `OGYGIA_FUZZ_SEED` says), so
+// CI tries the same inputs every time; a test's own `seed` wins (core's test/property-seeded.test.ts).
+fc.configureGlobal({ ...fc.readConfigureGlobal(), seed: env_number('OGYGIA_FUZZ_SEED') ?? 314 });
 
 class Run implements Sim {
 	readonly s: fc.Scheduler;
@@ -499,13 +509,22 @@ class Run implements Sim {
 	}
 }
 
+/** The run whose clock and fetch are installed: one at a time, as they swap the realm's globals. */
+let installed: Run | null = null;
+
 /** One run: `body` under a clock and a fetch the scheduler owns; throws the rules it broke. */
 export async function simulate(
 	s: fc.Scheduler,
 	body: (sim: Sim) => Promise<void>,
 	options: SimOptions = {}
 ): Promise<void> {
+	// (a test that timed out leaves its runs going: the next test's would share its swapped clock)
+	if (installed !== null)
+		throw new Error(
+			'a simulated run started while another is still out (did an earlier test time out?)'
+		);
 	const run = new Run(s, options);
+	installed = run;
 	run._install();
 	let broken: string[];
 	try {
@@ -514,6 +533,7 @@ export async function simulate(
 		broken = run._end();
 	} finally {
 		run._uninstall();
+		installed = null;
 	}
 	if (broken.length > 0) throw new Error(`broken rules:\n  ${broken.join('\n  ')}`);
 }

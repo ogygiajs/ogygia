@@ -26,7 +26,7 @@ type Action =
 	| { kind: 'click' | 'press'; tab: number; nth: number }
 	| { kind: 'goto'; tab: number; path: string }
 	| { kind: 'back' | 'forward' | 'reload' | 'offline' | 'online'; tab: number }
-	| { kind: 'open'; path: string }
+	| { kind: 'open' | 'background'; path: string }
 	| { kind: 'wait'; ms: number }
 	| { kind: 'deploy' }
 	| { kind: 'away'; tab: number; nth: number; ms: number }
@@ -62,6 +62,45 @@ export interface BrowserPlan {
 	readonly wire?: readonly WireFault[];
 	/** What the simulator found on the run. */
 	readonly found?: readonly string[];
+	/** What the simulator saw after each action (a calm run's plan, for the differential). */
+	readonly seen?: readonly Seen[];
+}
+
+/**
+ * The moment of its document's load an eager press (action `i`) waits for: `rest` when the
+ * simulator's press came once the load was at rest (its moves for the new document show the
+ * critical wait settled and never touched, and no island woke by the press), else null (press
+ * `after` ms from the commit, as planned). The simulator loads a page in a few virtual ms, with no
+ * CPU time, and a browser takes longer: the same ms would test another moment of the load on each
+ * side.
+ */
+export function eager_waits_for(p: BrowserPlan, i: number): 'rest' | null {
+	const a = p.plan.actions[i];
+	if (a?.kind !== 'eager') return null;
+	const tab = p.seen?.[i + 1]?.tabs[a.tab];
+	const gate = (tab?.moves ?? '').split('\n').filter((m) => m.startsWith('critical-gate#'));
+	const settled =
+		gate.some((m) => m.endsWith(' -> settled')) && !gate.some((m) => m.includes('touched'));
+	return settled && !/data-og-woke="interaction"/.test(tab!.dom) ? 'rest' : null;
+}
+
+/** Until `tab`'s load is at rest (its machines' moves, rules builds): its critical wait settled
+ *  and no island waking; at most `ms` on the page's clock. */
+async function until_rest(context: BrowserContext, tab: Page, ms: number): Promise<void> {
+	for (let left = ms; left > 0; left -= 10) {
+		const moves =
+			(await tab
+				.evaluate(() => (window as unknown as { __ogygia_moves?: () => string }).__ogygia_moves?.())
+				.catch(() => '')) ?? ''; // ok: a document between loads reads as not at rest yet
+		const last = new Map<string, string>();
+		for (const m of moves.split('\n')) {
+			const at = /^(wake#\d+) \S+ -> (\S+)$/.exec(m);
+			if (at) last.set(at[1], at[2]);
+		}
+		const waking = [...last.values()].includes('waking');
+		if (/^critical-gate#\d+ \S+ -> settled$/m.test(moves) && !waking) return;
+		await pass(context, 10);
+	}
 }
 
 /** What a page's performance observers reported (Chromium only): a layout shift that came right
@@ -464,7 +503,9 @@ async function play(
 			case 'reload':
 				await navigated(tab.reload());
 				break;
-			case 'open': {
+			// (a tab opened behind: Playwright brings a new page to the front, so it loads shown here)
+			case 'open':
+			case 'background': {
 				const t = await context.newPage();
 				tabs.push(t);
 				watch(t);
@@ -497,7 +538,8 @@ async function play(
 				// (the document is in, still loading: the press comes before its first paint, or during
 				// the wait for its critical resources)
 				await navigated(tab.goto(a.path, { waitUntil: 'commit' }));
-				await pass(context, a.after);
+				if (eager_waits_for(p, i) === 'rest') await until_rest(context, tab, 10_000);
+				else await pass(context, a.after);
 				await nth_of(tab, BUTTONS, a.nth);
 				break;
 			case 'twice':
