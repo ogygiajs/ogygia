@@ -33,8 +33,32 @@
 			"reason": "the holes of one task sorted into batches: a DOM read and the frame store (not recorded), linear in the holes that joined; run by packages/core/test/browser/hole-batch.test.ts"
 		},
 		{
-			"id": "packages/core/src/runtime/frame-store.ts > schedule_evict > timeout:0~981b61",
-			"reason": "an idle entry's linger ending on a real timer (not replayable), constant work"
+			"id": "packages/core/src/runtime/frame-store.ts > live",
+			"reason": "reads the hub's watcher count and the store's flights (module state by design: one store per document), constant work; run by packages/core/test/frame-store.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/frame-store.ts > make_store",
+			"reason": "makes the document's one store (a scope, a cache, a flights, a world) once per document or reset, constant work; run by packages/core/test/frame-store.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/frame-store.ts > make_store > cache:0~f09d8f > keep",
+			"reason": "an entry's linger, from whether it is bound or fetched (live), constant work; run by packages/core/test/frame-store.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/frame-store.ts > make_store > cache:0~f09d8f > onEvict",
+			"reason": "an entry let go: a reservation failed at the store's end, or a live entry put back, constant work; run by packages/core/test/frame-store.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/frame-store.ts > make_store > s > call:0~2f2cb8 > run",
+			"reason": "a flight's work: the store's fetch or a batch part's promise, handed on (constant work); run by packages/core/test/frame-store.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/frame-store.ts > stamp",
+			"reason": "one bump and one read of the store's world (module state by design), constant work; run by packages/core/test/frame-store.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/frame-store.ts > store",
+			"reason": "the document's one store, made on first use (module state by design), constant work; run by packages/core/test/frame-store.test.ts"
 		},
 		{
 			"id": "packages/devtools/src/devtools/testing-engine.ts > settle_poll",

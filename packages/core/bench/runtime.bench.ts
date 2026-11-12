@@ -332,7 +332,7 @@ bench(
 				const leaving = frames.ensure(a, fetcher, { signal: leave.signal });
 				const twin = frames.ensure(a, fetcher);
 				leave.abort();
-				frames.write({ a, v: frames.ticket(a), html: `<p>batch ${i}</p>` });
+				frames.write({ a, v: frames.stamp(), html: `<p>batch ${i}</p>` });
 				settled.push(leaving, twin);
 				continue;
 			}
@@ -372,14 +372,14 @@ bench(
 		let applied = 0;
 		for (let i = 0; i < n; i++) {
 			const a = `w${i % 50}|p`;
-			const t = frames.ticket(a);
+			const t = frames.stamp();
 			// a refresh, then the slower answer of the request before it (dropped)
 			if (frames.write({ a, v: t, html: `<p>${i}</p>` })) applied++;
 			if (frames.write({ a, v: t - 1, html: `<p>late ${i}</p>` })) applied++;
 			// two commands' answers with data versions, decoded out of order (the older is dropped)
 			if (i % 4 === 0) {
-				if (frames.write({ a, v: frames.ticket(a), d: i + 2, html: `<p>v${i + 2}</p>` })) applied++;
-				if (frames.write({ a, v: frames.ticket(a), d: i + 1, html: `<p>v${i + 1}</p>` })) applied++;
+				if (frames.write({ a, v: frames.stamp(), d: i + 2, html: `<p>v${i + 2}</p>` })) applied++;
+				if (frames.write({ a, v: frames.stamp(), d: i + 1, html: `<p>v${i + 1}</p>` })) applied++;
 			}
 		}
 		let shown = 0;
