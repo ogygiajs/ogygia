@@ -9,7 +9,7 @@
  * `profile()` reads the SSR profiler, which comes with `devtools({ profiler })`.
  */
 import type { Plugin as VitePlugin } from 'vite';
-import { definePlugin, type OgygiaPlugin, type RegionsSeam } from '@ogygia/core/vite';
+import { definePlugin, type OgygiaPlugin, type RegionsSeam } from '@ogygia/compiler/vite';
 
 /** The dev server's names endpoint the engine asks (devtools' dock serves the same path, with more). */
 const NAMES_PATH = '/__ogygia_devtools_meta';

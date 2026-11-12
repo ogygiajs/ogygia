@@ -1874,6 +1874,9 @@ importers:
         specifier: workspace:^
         version: link:../machine
     devDependencies:
+      '@ogygia/compiler':
+        specifier: workspace:*
+        version: link:../compiler
       '@ogygia/config':
         specifier: workspace:*
         version: link:../config
