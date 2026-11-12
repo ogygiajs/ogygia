@@ -89,6 +89,23 @@ describe('mount(pick) — the flag-picked canary', () => {
 		expect(seen[1]).toContain('http://a.test');
 	});
 
+	it('a resolver function picks the peer for each request', async () => {
+		const seen: string[] = [];
+		vi.stubGlobal('fetch', async (u: URL | string) => {
+			seen.push(String(u));
+			return new Response(doc_json());
+		});
+		const blue = new PeerHandle('cms', { origin: 'http://blue.test' }, 'shell');
+		const green = new PeerHandle('cms', { origin: 'http://green.test' }, 'shell');
+		const app = routes({
+			'/cms/[...rest]': mount((c) => (c.url.searchParams.has('green') ? green : blue))
+		});
+		await app.fetch(new Request('http://shell/cms/x?green'));
+		await app.fetch(new Request('http://shell/cms/x'));
+		expect(seen[0]).toContain('http://green.test');
+		expect(seen[1]).toContain('http://blue.test');
+	});
+
 	it('a pick that yields a non-client throws loudly, naming the fix', async () => {
 		const v2 = flag('cms-v2-bad');
 		const app = routes({
