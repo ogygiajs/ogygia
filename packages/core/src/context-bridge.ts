@@ -30,7 +30,9 @@ function ensure_ctx_kinds(): void {
 	register_derived_kind();
 }
 import { boundary_problems } from './boundary.ts';
-import { PAGE_CTX_MARKER, record_ctx, type SetContextOptions } from './context-registry.ts';
+import { record_ctx, type SetContextOptions } from './context-registry.ts';
+import { boot_link } from './runtime/slots.ts';
+import { OGYGIA_PROVIDE, OGYGIA_PROVIDE_PAGE } from './wire-markup.ts';
 import { escape_script_text } from './escape.ts';
 import { warn } from './messages/island.ts';
 
@@ -169,7 +171,7 @@ export function collect_provided_context(start: Element | null): Map<string, unk
 	};
 	while (el) {
 		if (el.tagName === 'OGYGIA-PROVIDE') {
-			fold(parse_ctx(el.querySelector(':scope > script[data-ogygia-provide]')?.textContent));
+			fold(parse_ctx(el.querySelector(`:scope > script[${OGYGIA_PROVIDE}]`)?.textContent));
 		}
 		el = el.parentElement;
 	}
@@ -189,7 +191,10 @@ function page_ctx(): Record<string, unknown> | undefined {
 		document.addEventListener('og:after-swap', () => (page_ctx_cache = null));
 	}
 	return (page_ctx_cache ??= {
-		value: parse_ctx(document.querySelector(`script[${PAGE_CTX_MARKER}]`)?.textContent)
+		// (the runtime's reader: a page root is the server's only with its response's mark)
+		value: parse_ctx(
+			boot_link().server_channel(document, `script[${OGYGIA_PROVIDE_PAGE}]`)?.textContent
+		)
 	}).value;
 }
 

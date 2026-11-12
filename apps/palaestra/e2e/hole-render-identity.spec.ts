@@ -46,7 +46,8 @@ function minted_as(endpoint: string, id: string, r: string): string {
 				payload: p.get('props') ?? '',
 				session: '',
 				ttl: p.get('ttl') ?? '',
-				render: r
+				render: r,
+				wakes: p.get('w') ?? ''
 			})
 		);
 	} else {
@@ -54,7 +55,18 @@ function minted_as(endpoint: string, id: string, r: string): string {
 		p.delete('v');
 		p.set(
 			'sig',
-			sign(SECRET, region_mac_message(id, exp, p.get('props') ?? '', '', p.get('ttl') ?? '', ''))
+			sign(
+				SECRET,
+				region_mac_message(
+					id,
+					exp,
+					p.get('props') ?? '',
+					'',
+					p.get('ttl') ?? '',
+					'',
+					p.get('w') ?? ''
+				)
+			)
 		);
 	}
 	return u.href;

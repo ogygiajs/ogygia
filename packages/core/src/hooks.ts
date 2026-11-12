@@ -138,12 +138,21 @@ import { error_route_is_csr_true, route_is_csr_true, take_early_holes } from './
 import { early_holes_head } from './early-holes-head.ts';
 import { add_early_holes_csp, with_early_holes_meta_csp } from './server/early-holes-csp.ts';
 import { merge_seed_ask, shape_page_data, type SeedKeys } from './server/seed-shape.ts';
-import { html_has_kit_bootstrap } from './runtime/kit-boot.ts';
+import { html_has_kit_bootstrap } from './server/html-scan.ts';
 import { hole_head } from './server/hole-graph.ts';
 import { RateLimiter, is_shared_address } from './server/rate-limit.ts';
 import { PageSeed } from './server/page-seed.ts';
 import { analyze, SeedIndex, set_measure_memo_reader, type MeasureMemo } from './seed-refs.ts';
-import { WIRE_FORMAT_ATTR, WIRE_FORMAT_JSON } from './server/props-wire.ts';
+import { WIRE_FORMAT_JSON } from './server/props-wire.ts';
+import {
+	OG_FORMAT,
+	OGYGIA_DEV_HMR,
+	OGYGIA_DEVTOOLS_BOOT,
+	OGYGIA_FNM,
+	OGYGIA_PAGE,
+	OGYGIA_PROVIDE_PAGE,
+	OGYGIA_SPECULATE
+} from './wire-markup.ts';
 import {
 	stage_deferred,
 	settle_deferred,
@@ -161,7 +170,7 @@ import { stringify } from 'devalue';
 import { serialize_provided_context } from './context-bridge.ts';
 import { escape_script_text } from './escape.ts';
 import { hole_copy_key } from './contract/hash.ts';
-import { PAGE_CTX_MARKER, set_ctx_recorder } from './context-registry.ts';
+import { set_ctx_recorder } from './context-registry.ts';
 import {
 	set_ask_scope_opener,
 	set_page_recorder,
@@ -193,10 +202,11 @@ import { set_server_devtools_recorder } from './events/server-registry.ts';
 import { drop_dead_kit_resolves } from './server/dead-kit-resolves.ts';
 import {
 	DEVTOOLS_SCHEMA_VERSION,
-	DT_MARK,
 	type DevtoolsEvent,
 	type DevtoolsEventInput
 } from './contract/events.ts';
+import { mark_attr, response_mark } from './server/response-mark.ts';
+import { RESPONSE_MARK } from './contract/response-mark.ts';
 import {
 	DEVTOOLS_COOKIE,
 	DEVTOOLS_ON,
@@ -268,6 +278,8 @@ const dt_now = clock.mono;
 //   deferred — page.data/form promises staged for STREAMING (real browser loads only). Set during
 //          the render; `handle` streams a resolve script per promise after the doc ships.
 type RequestBag = {
+	/** The request this bag is for: its response's mark is keyed on it (server/response-mark.ts). */
+	request: Request;
 	ctx: Map<string, unknown>;
 	page: PageSnapshot | null;
 	/** The `load` hole endpoints this page's head started early (early-holes.ts): its response's
@@ -506,21 +518,10 @@ const plugins = start_app_plugins(server_plugins, {
 // DEVTOOLS: per-request event buffers, keyed off the request bag by a side WeakMap so RequestBag stays
 // pristine (and free) when devtools is off. GC'd with the bag; never a global ring (which would mix
 // concurrent SSR requests). Unreferenced ⇒ tree-shaken when the gate is off.
-// `mark`: random per response, on its side channel and its head runtime script (DEVTOOLS-FEED), so
-// the client takes no channel the page's markup carries.
-const dt_buffers = new WeakMap<
-	RequestBag,
-	{ events: DevtoolsEvent[]; seq: number; mark: string }
->();
-function dt_new_mark(): string {
-	const bytes = crypto.getRandomValues(new Uint8Array(12));
-	let hex = '';
-	for (const b of bytes) hex += b.toString(16).padStart(2, '0');
-	return hex;
-}
-/** This response's devtools mark ('' off devtools, or with no buffer: a lean or devtools-off visit). */
-function dt_mark_of(bag: RequestBag | undefined): string {
-	return (DEVTOOLS && bag && dt_buffers.get(bag)?.mark) || '';
+const dt_buffers = new WeakMap<RequestBag, { events: DevtoolsEvent[]; seq: number }>();
+/** The mark of this bag's response, for its head runtime script ('' with no bag: RESPONSE-MARK). */
+function mark_of(bag: RequestBag | undefined): string {
+	return bag ? response_mark(bag.request) : '';
 }
 // Stamp the envelope with THIS request's own seq/clock and push into its buffer.
 function dt_record(bag: RequestBag | undefined, input: DevtoolsEventInput): void {
@@ -567,7 +568,7 @@ const REGION_FRAME_HEADERS = {
 } as const;
 
 /** Every region response, with those headers. It says how it may be cached: `no-store` (a refusal,
- *  an error, a dynamic hole) unless the caller names the hole's own policy (PRELOAD-CACHE). */
+ *  an error, a dynamic hole) unless the caller names the hole's own policy (HOLE-CACHE). */
 function region_response(
 	body: BodyInit | null,
 	init: { status: number; headers?: Record<string, string> }
@@ -798,7 +799,9 @@ function csr_page_of(
 function page_ctx_script(bag: RequestBag | undefined): string {
 	if (!bag?.ctx?.size) return '';
 	const payload = serialize_provided_context(bag.ctx);
-	return payload ? emit_ogygia_script('ctx', payload, PAGE_CTX_MARKER) : '';
+	return payload
+		? emit_ogygia_script('ctx', payload, OGYGIA_PROVIDE_PAGE + mark_attr(bag.request))
+		: '';
 }
 
 /** `inner` with the request's owner around it: made before `inner` runs, ended with its response
@@ -973,7 +976,8 @@ class OgygiaHandle {
 				late_next: 0,
 				late_open: false,
 				seed_reducers: null,
-				facts
+				facts,
+				request: event.request
 			};
 			// DEVTOOLS: attach a request-scoped event buffer via a side WeakMap (keeps RequestBag — and
 			// its cost — untouched when devtools is off; the map + this line DCE out then).
@@ -986,7 +990,7 @@ class OgygiaHandle {
 				!building &&
 				(event.cookies.get(TESTING_COOKIE) === TESTING_LEAN ||
 					event.url.searchParams.get(TESTING_PARAM) === TESTING_LEAN);
-			if (devtools_on && !lean) dt_buffers.set(bag, { events: [], seq: 0, mark: dt_new_mark() });
+			if (devtools_on && !lean) dt_buffers.set(bag, { events: [], seq: 0 });
 			// Hang the bag off the request for the rest of it — the render's own Kit store and the
 			// streamed tail chunks (late regions, resolve scripts, after `resolve()` returned) all
 			// carry this same `Request` and find it.
@@ -1226,8 +1230,8 @@ class OgygiaHandle {
 				// devtools is compiled in (`devtools_boot_url` is non-empty only then, dev-only), inject a
 				// standalone dock boot so the launcher is on EVERY dev page — on this csr=true page it
 				// renders a "csr=true — open a csr=false page" notice, since there are no islands here.
-				if (devtools_boot_url && !head.includes('data-ogygia-devtools-boot')) {
-					head_inject += `<script type="module" data-ogygia-devtools-boot src="${devtools_boot_url}"></script>`;
+				if (devtools_boot_url && !head.includes(OGYGIA_DEVTOOLS_BOOT)) {
+					head_inject += `<script type="module" ${OGYGIA_DEVTOOLS_BOOT} src="${devtools_boot_url}"></script>`;
 				}
 				if (bag) bag.kit_with_runtime = page_declares_runtime_script(head);
 			}
@@ -1246,7 +1250,7 @@ class OgygiaHandle {
 			const tail =
 				spans.body_end !== -1 && bag
 					? (bag.transform_body ?? '') +
-						bag.tail.render(null) +
+						bag.tail.render(null, false, mark_attr(bag.request)) +
 						(bag.kit_with_runtime ? page_ctx_script(bag) : '')
 					: '';
 			if (head === null && !tail) return html;
@@ -1255,7 +1259,7 @@ class OgygiaHandle {
 			const ordered =
 				head === null
 					? null
-					: with_early_csp(runtime_first(head, null, code_origins(), dt_mark_of(bag)));
+					: with_early_csp(runtime_first(head, null, code_origins(), mark_of(bag)));
 			return assemble(html, spans, ordered === head ? null : ordered, head_inject, tail);
 		}
 
@@ -1294,7 +1298,7 @@ class OgygiaHandle {
 			// Firefox prefetches them, everything else ignores the JSON. Presence-checked so a page
 			// authoring its own rules wins; per-link opt-out via `data-ogygia-speculate="off"`.
 			if (!router_enabled && !page_declares_speculation_rules(probe)) {
-				head_inject += `<script type="speculationrules" data-ogygia-speculate>${this.#speculation_rules}</script>`;
+				head_inject += `<script type="speculationrules" ${OGYGIA_SPECULATE}>${this.#speculation_rules}</script>`;
 			}
 			if (router_enabled && !page_declares_router_meta(probe)) {
 				head_inject += `<meta name="ogygia-router" content="${view_transitions ? 'vt' : 'plain'}">`;
@@ -1310,7 +1314,7 @@ class OgygiaHandle {
 					: null;
 			// (with the code origins the plugins and this render named: runtime/code-origins.ts)
 			const ordered = with_early_csp(
-				runtime_first(probe, runtime_tag, code_origins(), dt_mark_of(bag))
+				runtime_first(probe, runtime_tag, code_origins(), mark_of(bag))
 			);
 			if (ordered !== probe) head_out = ordered;
 			// The DEV bridge is NOT gated on the router — it carries `@vite/client`, and Vite's own
@@ -1322,7 +1326,7 @@ class OgygiaHandle {
 			// skips) kept a poisoned tab after a re-optimize until a manual reload, reporting only
 			// "hydration failed". `dev_hmr_url` is empty outside `vite serve`, so this stays dev-only.
 			if (dev_hmr_url && !page_declares_dev_hmr_script(probe)) {
-				head_inject += `<script type="module" data-ogygia-dev-hmr src="${kit_asset(dev_hmr_url)}"></script>`;
+				head_inject += `<script type="module" ${OGYGIA_DEV_HMR} src="${kit_asset(dev_hmr_url)}"></script>`;
 				// The page's sub-app scope (its route id's first segment) for the dev CSS bridge:
 				// a changed stylesheet joins this page only when the plugin derives the same scope
 				// among its owners — two route-group sub-apps never paint each other in dev.
@@ -1369,7 +1373,11 @@ class OgygiaHandle {
 		// path into the full tree resolves identically against the shipped seed, provided its key
 		// ships. The plan records the keys it referenced (`touched`) for exactly that.
 		const detail = request_stats_detailed();
-		const tail_html = bag!.tail.render(seed_wanted ? SeedIndex.of(page_snap.data) : null, detail);
+		const tail_html = bag!.tail.render(
+			seed_wanted ? SeedIndex.of(page_snap.data) : null,
+			detail,
+			mark_attr(bag!.request)
+		);
 		// SEED SHAPING: the slice of `page.data` the page's islands read (server/seed-shape.ts) — every
 		// step below (streaming, settling, the payload) sees the shaped tree. A key no island's code
 		// reads but whose node an island's props point into ships too: a reference must have something
@@ -1461,8 +1469,9 @@ class OgygiaHandle {
 				emit_ogygia_script(
 					'page',
 					page_payload.text,
-					'data-ogygia-page' +
-						(page_payload.json ? ` ${WIRE_FORMAT_ATTR}="${WIRE_FORMAT_JSON}"` : '')
+					OGYGIA_PAGE +
+						(page_payload.json ? ` ${OG_FORMAT}="${WIRE_FORMAT_JSON}"` : '') +
+						mark_attr(bag!.request)
 				)
 			);
 			if (DEVTOOLS)
@@ -1475,7 +1484,11 @@ class OgygiaHandle {
 		}
 
 		if (state?.remote?.implicit) {
-			const remote_script = await this.build_remote_seed_script(state, bag!.remotes_wanted);
+			const remote_script = await this.build_remote_seed_script(
+				state,
+				bag!.remotes_wanted,
+				bag!.request
+			);
 			if (remote_script) {
 				scripts.push(remote_script);
 				remote_seed_bytes = remote_script.length;
@@ -1501,7 +1514,7 @@ class OgygiaHandle {
 				const entries = Object.entries(fnm)
 					.map(([tag, src]) => `${JSON.stringify(tag)}:(${src})`)
 					.join(',');
-				fnm_script = `<script data-ogygia-fnm>globalThis.__OG_FNM=Object.assign(globalThis.__OG_FNM||{},{${entries}});</script>`;
+				fnm_script = `<script ${OGYGIA_FNM}>globalThis.__OG_FNM=Object.assign(globalThis.__OG_FNM||{},{${entries}});</script>`;
 				fnm_script_cache.set(fnm, fnm_script);
 			}
 			scripts.push(fnm_script);
@@ -1610,12 +1623,12 @@ class OgygiaHandle {
 	 *  realms, correlated by fingerprint. Appended LAST so the seed.injected events are included. */
 	append_devtools_seed(scripts: string[], bag: RequestBag | undefined): void {
 		const dt_buf = DEVTOOLS && bag ? dt_buffers.get(bag) : undefined;
-		if (DEVTOOLS && dt_buf && dt_buf.events.length) {
+		if (DEVTOOLS && bag && dt_buf && dt_buf.events.length) {
 			scripts.push(
 				emit_ogygia_script(
 					'devtools',
 					escape_script_text(JSON.stringify(dt_buf.events)),
-					`${DT_MARK}="${dt_buf.mark}"`
+					`${RESPONSE_MARK}="${response_mark(bag.request)}"`
 				)
 			);
 		}
@@ -1639,7 +1652,9 @@ class OgygiaHandle {
 		state: RequestState,
 		/** REMOTE SEED ONLY WHEN REACHABLE: the id-hashes some region's client on this page can call
 		 *  (`bag.remotes_wanted`); `null` = unknown → seed every implicit remote (the pre-gate rule). */
-		wanted: ReadonlySet<string> | null = null
+		wanted: ReadonlySet<string> | null = null,
+		/** the request whose response carries it: its mark goes on the script (RESPONSE-MARK) */
+		request?: Request
 	): Promise<string | null> {
 		const implicit = state.remote?.implicit;
 		if (!implicit) return null;
@@ -1660,7 +1675,11 @@ class OgygiaHandle {
 			Object.entries(transport).map(([name, codec]) => [name, codec.encode])
 		);
 		// devalue output is `<`-safe by itself (it writes `<`), so no second pass over the payload.
-		return emit_ogygia_script('remote', devalue.stringify(data, reducers));
+		return emit_ogygia_script(
+			'remote',
+			devalue.stringify(data, reducers),
+			request ? `${RESPONSE_MARK}="${response_mark(request)}"` : ''
+		);
 	}
 
 	/**

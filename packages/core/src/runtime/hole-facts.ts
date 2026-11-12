@@ -14,6 +14,7 @@
  */
 import { HOLES_SCRIPT_TYPE } from '../holes-record.ts';
 import { parse_region_html, vouch_page_html } from './html-sink.ts';
+import { server_channel } from './response-mark.ts';
 
 export type HoleFacts = {
 	/** The signed capability URL the server minted. */
@@ -30,7 +31,7 @@ type RawRecord = Record<string, { endpoint?: unknown; sidecar?: unknown }>;
 const records = new WeakMap<Document, Map<string, HoleFacts> | null>();
 
 function parse_record(doc: Document): Map<string, HoleFacts> | null {
-	const el = doc.querySelector(HOLES_SELECTOR);
+	const el = server_channel(doc, HOLES_SELECTOR);
 	if (!el) return null;
 	let raw: RawRecord;
 	try {

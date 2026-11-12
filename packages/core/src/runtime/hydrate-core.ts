@@ -25,6 +25,7 @@ import type { HeadMark } from './session.ts';
 import { install_hydrate_features } from 'ogygia:boot';
 import { emit as dt_emit } from '../events/bus.ts';
 import { warn } from '../messages/lazy.ts';
+import { OG_FP, OG_HEALED, OG_RECOVERED, OGYGIA_KEEP } from '../wire-markup.ts';
 import { say } from '@ogygia/machine';
 
 // The page's seeds, through their features' slots (`page`, `remote-seeds`: hydrate phase, installed
@@ -758,9 +759,9 @@ export function hydrate_island(
 		const wrapped = foreign ? props : prop_guard.wrap(props, entry);
 		// Keep needs SPA navigation — a full-page load throws the DOM away, so there is nothing
 		// to relocate. Warn (dev) when the router is off on this page.
-		const keep = region.hasAttribute('data-ogygia-keep') && !!slots.Pushable;
+		const keep = region.hasAttribute(OGYGIA_KEEP) && !!slots.Pushable;
 		if (keep && import.meta.env.DEV && !document.querySelector('meta[name="ogygia-router"]')) {
-			warn('keep_without_router', { entry, key: region.getAttribute('data-ogygia-keep') || '' });
+			warn('keep_without_router', { entry, key: region.getAttribute(OGYGIA_KEEP) || '' });
 		}
 
 		/**
@@ -835,13 +836,13 @@ export function hydrate_island(
 		if (healed) {
 			// The reason is the "why" — recorded on the element so DOM inspection shows it, carried on
 			// the devtools event, and appended to the console line. Empty string when unknown.
-			region.setAttribute('data-og-healed', drift.reason || '');
+			region.setAttribute(OG_HEALED, drift.reason || '');
 			if (DEVTOOLS)
 				dt_emit({
 					domain: 'runtime',
 					name: 'region.hydrate.healed',
 					entry,
-					fp: region.getAttribute('data-og-fp') || undefined,
+					fp: region.getAttribute(OG_FP) || undefined,
 					reason: drift.reason || undefined
 				});
 			if (HOOK_REGION_MISMATCHED)
@@ -860,7 +861,7 @@ export function hydrate_island(
 					domain: 'runtime',
 					name: 'region.hydrate.conflict',
 					entry,
-					fp: region.getAttribute('data-og-fp') || undefined,
+					fp: region.getAttribute(OG_FP) || undefined,
 					reason: drift.conflict
 				});
 			if (HOOK_REGION_MISMATCHED)
@@ -892,13 +893,13 @@ export function hydrate_island(
 			// there was still the mutated one). Null when the sequences matched yet Svelte recovered
 			// anyway — a mismatch our walk does not see (an attribute, a Svelte-internal anchor) — then
 			// the general guidance below stands on its own.
-			region.setAttribute('data-og-recovered', drift.reason || '');
+			region.setAttribute(OG_RECOVERED, drift.reason || '');
 			if (DEVTOOLS)
 				dt_emit({
 					domain: 'runtime',
 					name: 'region.hydrate.recovered',
 					entry,
-					fp: region.getAttribute('data-og-fp') || undefined,
+					fp: region.getAttribute(OG_FP) || undefined,
 					reason: drift.reason || undefined
 				});
 			if (HOOK_REGION_MISMATCHED)

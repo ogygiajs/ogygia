@@ -34,7 +34,14 @@
 import type { SeedIndex } from '../seed-refs.ts';
 import { escape_script_text } from '../escape.ts';
 import { HOLES_SCRIPT_TYPE } from '../holes-record.ts';
-import { ISLAND_GRAPH_ATTR, encode_island_graph } from '../island-graph.ts';
+import { encode_island_graph } from '../island-graph.ts';
+import {
+	OG_LOCATIONS,
+	OGYGIA_GRAPH,
+	OGYGIA_HOLES,
+	OGYGIA_RUNTIME,
+	OGYGIA_RUNTIME_DEP
+} from '../wire-markup.ts';
 import { props_sidecar, type WireText } from './props-wire.ts';
 import type { HoleStat, IslandInteractivity, IslandStat } from './request-stats.ts';
 
@@ -109,15 +116,15 @@ export function runtime_bootstrap_tags(
 	locations: string | null = null
 ): string {
 	let html =
-		'<script type="module" data-ogygia-runtime' +
-		(locations ? ' data-og-locations="' + locations + '"' : '') +
+		`<script type="module" ${OGYGIA_RUNTIME}` +
+		(locations ? ` ${OG_LOCATIONS}="` + locations + '"' : '') +
 		' src="' +
 		src +
 		'" onerror="' +
 		RUNTIME_LOAD_FAILED +
 		'"></script>';
 	for (const dep of deps)
-		html += '<link rel="modulepreload" href="' + dep + '" data-ogygia-runtime-dep>';
+		html += '<link rel="modulepreload" href="' + dep + `" ${OGYGIA_RUNTIME_DEP}>`;
 	return html;
 }
 
@@ -133,7 +140,7 @@ export function island_graph_script(
 	if (graph.size === 0 && !locations?.size) return '';
 	return (
 		'<script type="application/json" ' +
-		ISLAND_GRAPH_ATTR +
+		OGYGIA_GRAPH +
 		'>' +
 		escape_script_text(encode_island_graph(graph, locations ?? undefined)) +
 		'</script>'
@@ -141,7 +148,7 @@ export function island_graph_script(
 }
 
 /** The holes record (`hole()`), read by runtime/hole-facts.ts. */
-const HOLES_SCRIPT_OPEN = `<script type="${HOLES_SCRIPT_TYPE}" data-ogygia-holes>`;
+const HOLES_SCRIPT_OPEN = `<script type="${HOLES_SCRIPT_TYPE}" ${OGYGIA_HOLES}`;
 const HOLES_SCRIPT_CLOSE = '</script>';
 
 /** A sidecar as the tail keeps it: the plan, and the facts the profiler reads after the render. */
@@ -285,8 +292,9 @@ export class DocumentTail {
 	/** The tail's HTML: hints, the island graph, then props (each rendered now, against `seed`), then
 	 *  the holes record (one script, JSON, `<`-escaped). Empty string when nothing was recorded. With
 	 *  `detail`, the per-island rows (bytes, lane, references, the devalue culprit) are kept for
-	 *  the profiler — a little extra work, only while it records. */
-	render(seed: SeedIndex | null = null, detail = false): string {
+	 *  the profiler — a little extra work, only while it records. `mark`: the response's mark
+	 *  attribute, on the holes record (server/response-mark.ts `mark_attr`, RESPONSE-MARK). */
+	render(seed: SeedIndex | null = null, detail = false, mark = ''): string {
 		let out = '';
 		for (const href of this.#hints) out += modulepreload_tag(href);
 		out += island_graph_script(this.#graph, this.#locations);
@@ -320,7 +328,12 @@ export class DocumentTail {
 		if (this.#holes.size) {
 			const record: Record<string, HoleRecord> = {};
 			for (const [identity, facts] of this.#holes) record[identity] = facts;
-			out += HOLES_SCRIPT_OPEN + escape_script_text(JSON.stringify(record)) + HOLES_SCRIPT_CLOSE;
+			out +=
+				HOLES_SCRIPT_OPEN +
+				mark +
+				'>' +
+				escape_script_text(JSON.stringify(record)) +
+				HOLES_SCRIPT_CLOSE;
 		}
 		return out;
 	}

@@ -90,6 +90,23 @@ describe('page_declares_speculation_rules', () => {
 			true
 		);
 	});
+
+	it('reads the type the way a browser does: any case, spaces around it trimmed', () => {
+		expect(page_declares_speculation_rules('<script type=" SpeculationRules ">{}</script>')).toBe(
+			true
+		);
+	});
+});
+
+describe('attribute names in any case', () => {
+	it('finds a marker spelled in upper case, as a browser does', () => {
+		expect(page_declares_runtime_script('<script DATA-OGYGIA-RUNTIME src="/r.js"></script>')).toBe(
+			true
+		);
+		expect(page_declares_dev_hmr_script('<script Data-Ogygia-Dev-Hmr src="/h.js"></script>')).toBe(
+			true
+		);
+	});
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -141,6 +158,16 @@ describe('runtime_first — before all of the page’s JavaScript, not first in 
 		expect(runtime_first(head_start + css + preload + design_system + runtime, null)).toBe(
 			head_start + css + runtime + preload + design_system
 		);
+	});
+
+	it('reads rel as a browser does: tokens in any case, so any modulepreload counts', () => {
+		const css = '<link rel="stylesheet" href="/a.css">';
+		for (const rel of ['ModulePreload', 'preload modulepreload']) {
+			const preload = `<link rel="${rel}" href="/_app/start.js">`;
+			expect(runtime_first(head_start + css + preload + design_system + runtime, null)).toBe(
+				head_start + css + runtime + preload + design_system
+			);
+		}
 	});
 
 	it('moves the runtime’s own modulepreload hints WITH it, as one unit', () => {
@@ -202,9 +229,9 @@ describe('runtime_first — before all of the page’s JavaScript, not first in 
 	});
 });
 
-describe('runtime_first — a devtools response’s mark on the tag it places (DEVTOOLS-FEED)', () => {
+describe('runtime_first — the response’s mark on the tag it places (RESPONSE-MARK)', () => {
 	const marked =
-		'<script data-og-dt="m1" type="module" data-ogygia-runtime src="/_app/og-runtime.js"></script>';
+		'<script data-og-mark="m1" type="module" data-ogygia-runtime src="/_app/og-runtime.js"></script>';
 
 	it('writes the mark on a moved tag, an injected tag and a tag already in place', () => {
 		expect(runtime_first(head_start + design_system + runtime, null, [], 'm1')).toBe(
@@ -220,13 +247,21 @@ describe('runtime_first — a devtools response’s mark on the tag it places (D
 
 	it('leads the attributes, so a mark the markup put on the tag loses', () => {
 		const forged =
-			'<script type="module" data-og-dt="m2" data-ogygia-runtime src="/x.js"></script>';
+			'<script type="module" data-og-mark="m2" data-ogygia-runtime src="/x.js"></script>';
 		const out = runtime_first(head_start + forged, null, [], 'm1');
 		const el = out.slice(head_start.length);
-		expect(el.indexOf('data-og-dt="m1"')).toBeLessThan(el.indexOf('data-og-dt="m2"'));
+		expect(el.indexOf('data-og-mark="m1"')).toBeLessThan(el.indexOf('data-og-mark="m2"'));
 	});
 
-	it('leaves the head alone with no mark (every non-devtools response)', () => {
+	it('writes the mark and the code origins on the same tag, the mark first', () => {
+		const out = runtime_first(head_start + runtime, null, ['https://peer.example/x.js'], 'm1');
+		expect(out).toBe(
+			head_start +
+				'<script data-og-mark="m1" type="module" data-ogygia-runtime data-og-origins="https://peer.example" src="/_app/og-runtime.js"></script>'
+		);
+	});
+
+	it('leaves the head alone with no mark (no request: nothing to mark)', () => {
 		const head = head_start + runtime + design_system;
 		expect(runtime_first(head, null)).toBe(head);
 	});

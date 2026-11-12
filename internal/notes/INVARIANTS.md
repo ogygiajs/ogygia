@@ -11,7 +11,7 @@ with no line, or a line naming something that does not exist (`internal/checks/i
 
 ## HOLE-TRUST — signed same-origin HTML for deferred regions
 
-**What:** The runtime fetches a capability URL and inserts the HTML it answered. Every string becomes DOM in one module, `packages/core/src/runtime/html-sink.ts`: region HTML is parsed with `setHTMLUnsafe` into a template of a document with no browsing context (inert: nothing in it is built or run until it is inserted), a fetched page with `DOMParser`. The sink takes only a `VerifiedHtml`, and only its vouchers make one, each named by what it checked (a same-origin endpoint whose answer stayed same-origin, a page fetch that landed on this origin, HTML the page itself holds, an answer of the app's own remote transport). Scripts in that HTML do **not** run; event-handler attributes would.
+**What:** The runtime fetches a capability URL and inserts the HTML it answered. Every string becomes DOM in one module, `packages/core/src/runtime/html-sink.ts`: region HTML is parsed with `setHTMLUnsafe` into a template of a document with no browsing context (inert: nothing in it is built or run until it is inserted; declarative shadow roots attach), then grafted or swapped in (`replaceChildren`); a fetched page is parsed with `DOMParser`. The sink takes only a `VerifiedHtml`, and only its vouchers make one, each named by what it checked (a same-origin endpoint whose answer stayed same-origin, a page fetch that landed on this origin, HTML the page itself holds, an answer of the app's own remote transport). Scripts in that HTML do **not** run; event-handler attributes would.
 
 **Why:** Deferred / SWR regions are MPA-equivalent: the HTML is produced by _our_ SSR under a verified HMAC. Trust root is the **server MAC**, not the client.
 
@@ -117,15 +117,15 @@ A client build fails (`secret_in_client_chunk`) when a chunk or asset holds a si
 
 ---
 
-## PRELOAD-CACHE — every region response says how it may be cached
+## HOLE-CACHE — every region response says how it may be cached; one request per hole
 
-**What:** A hole is dynamic by default: its answer is `cache-control: no-store`. A hole that opts in (a signed `ttl`, e.g. the `maxAge` preset) is `private, max-age=<ttl>`, so the browser reuses its `<link rel="preload" as="fetch">` answer for the runtime fetch. Every other region response (a refusal, an error, a keep-fallback 204) is `no-store`. No region response is ever `public` or carries `s-maxage`, and every one carries `Referrer-Policy: no-referrer`.
+**What:** A hole is dynamic by default: its answer is `cache-control: no-store`. A hole that opts in (a signed `ttl`, e.g. the `maxAge` preset) is `private, max-age=<ttl>` (never on a renewed answer). Every other region response (a refusal, an error, a keep-fallback 204) is `no-store`. No region response is ever `public` or carries `s-maxage`, and every one carries `Referrer-Policy: no-referrer`. A `defer: 'load'` hole's request starts in the head during the parse (`early-holes.ts`: one data block, one constant inline script), and the runtime takes that request over as the hole's flight, so each hole is asked for once with no cache between them.
 
-**Why:** A region answer can hold one visitor's render and its URL is a capability: no shared cache may keep either. A response with no `cache-control` is heuristically cacheable (a 204 too). The opt-in private cache saves the double fetch for holes that are the same for a while.
+**Why:** A region answer can hold one visitor's render and its URL is a capability: no shared cache may keep either. A response with no `cache-control` is heuristically cacheable (a 204 too). A `<link rel="preload" as="fetch">` used to make the early start and needed a cacheable answer for the runtime to reuse; WebKit never hands a preload to a later `fetch()`, so every hole was asked for, and rendered, twice there (#404).
 
-**Do not:** Send a region response without an explicit `cache-control`. Make a hole cacheable by default. Let a shared CDN store a region response.
+**Do not:** Send a region response without an explicit `cache-control`. Make a hole cacheable by default. Let a shared CDN store a region response. Bring back a preload for the early start.
 
-**Enforced by:** `apps/palaestra/e2e/server-islands.spec.ts > the opt-in cache path (maxAge: '1h' preset) carries a signed ttl + private max-age`
+**Enforced by:** `apps/palaestra/e2e/server-islands.spec.ts > the opt-in cache path (maxAge: '1h' preset) carries a signed ttl + private max-age`, `packages/core/test/browser/early-holes.test.ts`
 
 ---
 
@@ -159,7 +159,7 @@ A client build fails (`secret_in_client_chunk`) when a chunk or asset holds a si
 
 ## LAKE-PLACEHOLDER — no lake JS on the client
 
-**What:** Client build rewrites lake imports to `LakePlaceholder.svelte`; SSR keeps the real component. Runtime lifts/restores SSR DOM around hydrate.
+**What:** Client build rewrites lake imports to the render-nothing `ClientBindingStub.svelte` (`compiler/region/emit.ts` `rewrite_lake_import_to_placeholder`); SSR keeps the real component. Runtime lifts/restores SSR DOM around hydrate.
 
 **Why:** `hydrate: 'none'` means zero lake client JS.
 
@@ -247,18 +247,19 @@ a kept island’s live query then freezes and its next read throws (#817,
 
 ---
 
-## DEVTOOLS-FEED — the devtools stream takes only this response's own server channel
+## RESPONSE-MARK — a document's side channels are read only from its own response
 
-**What:** On a devtools build, the handle picks one random mark per response (`hooks.ts` `dt_new_mark`), writes it as `data-og-dt` on its `application/ogygia-devtools` side channel and on the head runtime script (`head-presence.ts` `runtime_first`, so every head path stamps it). At boot the client ingests only channels whose mark equals the head runtime script's (`events/sinks.ts` `ingest_server_events`); no mark there means nothing is ingested. Only well-formed server events pass `ingest` (#879).
+**What:** Every response has one random mark, made on the first ask for its request (`server/response-mark.ts`). It is written as `data-og-mark` on the head runtime script (`head-presence.ts` `runtime_first`, so every head path stamps it, the handle's and `document()`'s) and on every side channel the response writes into the document: the page seed, the remote seed, the page context root, the holes record and the devtools events. The client reads a channel only when it bears the mark of its document's head runtime script (`runtime/response-mark.ts` `server_channel` / `server_channels`, the one door for every document-level channel); no mark there means no channel is read. A navigation keeps the live runtime script, so it takes the next document's mark (`adopt_mark` in `router-nav.ts` `merge_head`). Only well-formed server events pass `ingest` (#879).
 
-**Why:** Page markup (a CMS block, an HTML field rendered raw) can carry its own channel with well-formed events. It cannot know a mark made for this response, so the dock, a trace or a sink shows only what the server recorded.
+**Why:** Page markup (a CMS block, an HTML field rendered raw, a sanitizer that keeps scripts of a type that does not run) can carry a script of any of these types, before or after the server's. It cannot know a mark made for this response, so islands get the server's page data, remote values, context and hole endpoints, and the dock shows only what the server recorded (#881, #893).
 
 **Do not:**
 
-- Ingest by type alone, or read the mark from anywhere but the head runtime script.
+- Read a document-level channel by its type or marker alone, or read the mark from anywhere but the head runtime script.
 - Put the mark after the tag's other attributes: a repeated attribute keeps its first value, so leading it beats a mark the markup wrote on the tag.
+- Write a side channel of a response with another request's mark, or with none.
 
-**Enforced by:** `packages/core/test/browser/devtools-feed-own-render.test.ts` (client), `packages/core/test/head-presence.test.ts` (the mark on every placement).
+**Enforced by:** `packages/core/test/browser/side-channel-seeds.test.ts` (every channel, before and after, a fetched document, an unmarked one), `packages/core/test/browser/devtools-feed-own-render.test.ts` (devtools), `packages/core/test/head-presence.test.ts` (the mark on every placement), `packages/core/test/response-mark.test.ts` (one mark per response, on the holes record).
 
 ---
 
@@ -277,5 +278,5 @@ a kept island’s live query then freezes and its next read throws (#817,
 ## Related docs
 
 - Product vocabulary: [`DESIGN.md`](./DESIGN.md)
-- Public API: docs site + [`packages/ogygia/README.md`](./packages/ogygia/README.md)
+- Public API: docs site + [`packages/ogygia/README.md`](../../packages/ogygia/README.md)
 - Spec / goals: [`SPEC.md`](./SPEC.md)

@@ -28,7 +28,8 @@ import Region from './Region.svelte';
 import { PageSeed } from './server/page-seed.ts';
 import { page_seed_reducers } from './server/page-stream.ts';
 import { analyze } from './seed-refs.ts';
-import { WIRE_FORMAT_ATTR, WIRE_FORMAT_JSON } from './server/props-wire.ts';
+import { WIRE_FORMAT_JSON } from './server/props-wire.ts';
+import { OG_FORMAT, OGYGIA_DEV_HMR, OGYGIA_PAGE } from './wire-markup.ts';
 import { runtime_url, router_enabled, view_transitions } from 'ogygia:server';
 import { dev_hmr_url } from './dev-hmr-url.ts';
 import { runtime_bootstrap } from './server/entry-location.ts';
@@ -39,10 +40,11 @@ import { open_ask_scope, read_seed_ask, record_page } from './page-seed-registry
 import { shape_page_data } from './server/seed-shape.ts';
 
 import { escape_text } from './escape.ts';
+import { mark_attr, response_mark } from './server/response-mark.ts';
 import { take_early_holes } from './context.ts';
 import { early_holes_head } from './early-holes-head.ts';
 import { add_early_holes_csp, with_early_holes_meta_csp } from './server/early-holes-csp.ts';
-const TITLE_TAG_RE = /<title[\s>]/i;
+import { next_tag } from './wire-markup.ts';
 import {
 	page_declares_router_meta,
 	page_declares_runtime_script,
@@ -146,7 +148,7 @@ export async function document(
 	head.push(r.head);
 	if (options.head) head.push(options.head);
 	const head_so_far = () => head.join('');
-	if (options.title && !TITLE_TAG_RE.test(head_so_far())) {
+	if (options.title && next_tag(head_so_far(), 'title', 0) === null) {
 		head.push(`<title>${escape_text(options.title)}</title>`);
 	}
 	// The same three injections the handle makes into a Kit page, presence-checked the same way
@@ -160,7 +162,7 @@ export async function document(
 		head.push(runtime_bootstrap());
 	}
 	if (dev_hmr_url && !page_declares_dev_hmr_script(head_so_far())) {
-		head.push(`<script type="module" data-ogygia-dev-hmr src="${dev_hmr_url}"></script>`);
+		head.push(`<script type="module" ${OGYGIA_DEV_HMR} src="${dev_hmr_url}"></script>`);
 	}
 	// THE EARLY START (early-holes.ts): this document's `load` holes asked for during the parse
 	const early = take_early_holes();
@@ -171,6 +173,10 @@ export async function document(
 	// above recorded their asks. None asked → no island reads the page, nothing ships (a profiler
 	// report page shipped its whole 2.9 MB report here, read by nobody). Outside a request the handle
 	// owns there are no asks to read, and the whole slice ships as before.
+	// RESPONSE-MARK: the request's mark, so a handle writing into this response agrees (outside a
+	// request, the document's own)
+	const store = try_get_request_store() as { event?: { request?: Request } } | undefined;
+	const mark_key: object = store?.event?.request ?? {};
 	const ask = options.pageState ? read_seed_ask() : undefined;
 	if (options.pageState && (!ask || ask.wanted)) {
 		const s = options.pageState;
@@ -191,9 +197,9 @@ export async function document(
 			analyze(data).json && analyze(s.form ?? null).json && analyze(s.error ?? null).json
 		);
 		if (payload) {
-			const format = payload.json ? ` ${WIRE_FORMAT_ATTR}="${WIRE_FORMAT_JSON}"` : '';
+			const format = payload.json ? ` ${OG_FORMAT}="${WIRE_FORMAT_JSON}"` : '';
 			head.push(
-				`<script type="application/ogygia-page" data-ogygia-page${format}>${payload.text}</script>`
+				`<script type="application/ogygia-page" ${OGYGIA_PAGE}${format}${mark_attr(mark_key)}>${payload.text}</script>`
 			);
 		}
 	}
@@ -204,8 +210,10 @@ export async function document(
 		`<!doctype html>\n<html lang="${escape_text(options.lang ?? 'en')}">` +
 		`<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">` +
 		(early.length
-			? with_early_holes_meta_csp(runtime_first(head.join(''), null, code_origins()))
-			: runtime_first(head.join(''), null, code_origins())) +
+			? with_early_holes_meta_csp(
+					runtime_first(head.join(''), null, code_origins(), response_mark(mark_key))
+				)
+			: runtime_first(head.join(''), null, code_origins(), response_mark(mark_key))) +
 		`</head><body>${r.body}</body></html>`;
 
 	const headers = new Headers({ 'content-type': 'text/html; charset=utf-8' });

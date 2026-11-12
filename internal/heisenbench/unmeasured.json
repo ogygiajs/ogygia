@@ -245,6 +245,26 @@
 			"reason": "a rule's message wording (dev and e2e only), constant text; said in packages/core/test/server-rules.test.ts"
 		},
 		{
+			"id": "packages/core/src/messages/server.ts > SERVER_ERRORS > remote_arg_not_data > text",
+			"reason": "a message's wording, constant text; said in packages/core/test/remote-arg-plain-data.test.ts"
+		},
+		{
+			"id": "packages/core/src/messages/server.ts > SERVER_ERRORS > remote_arg_not_data > details",
+			"reason": "a message's wording, constant text; said in packages/core/test/remote-arg-plain-data.test.ts"
+		},
+		{
+			"id": "packages/core/src/server/transport.ts > ogygiaServerTransport > Region > decode",
+			"reason": "refuses with a thrown 400 (Kit's error(), not replayable), constant work; proven in packages/core/test/remote-arg-plain-data.test.ts"
+		},
+		{
+			"id": "packages/core/src/server/transport.ts > ogygiaServerTransport > [computed] > decode",
+			"reason": "refuses with a thrown 400 (Kit's error(), not replayable), one Set lookup; proven in packages/core/test/remote-arg-plain-data.test.ts"
+		},
+		{
+			"id": "packages/core/src/server/transport.ts > refuse",
+			"reason": "throws Kit's 400 with a worded message (not replayable), constant work; proven in packages/core/test/remote-arg-plain-data.test.ts"
+		},
+		{
 			"id": "packages/core/src/rules.ts > Rules > add",
 			"reason": "the rules registry (dev and e2e builds only): its checks are closures over module state; proven in packages/core/test/browser/rules.test.ts and packages/core/test/server-rules.test.ts"
 		},
@@ -2023,6 +2043,10 @@
 		{
 			"id": "packages/flags/src/index.ts > set_prime",
 			"reason": "writes the request's prime state onto a Request (not cloneable), constant work; proven in packages/flags/test/prime-twice.test.ts"
+		},
+		{
+			"id": "packages/core/src/markup-walk.ts > tags",
+			"reason": "a generator (not recorded): one pattern jump per tag, the tag itself read by read_tag (benched in packages/core/bench/markup.bench.ts, a scan of a whole document too); proven in packages/core/test/wire-markup.test.ts"
 		},
 		{
 			"id": "packages/core/src/boundary.ts > BoundarySettings > configure",
@@ -4601,26 +4625,6 @@
 			"reason": "reads or makes the process-wide defining host on globalThis (not cloneable), constant work"
 		},
 		{
-			"id": "packages/core/src/messages/server.ts > SERVER_ERRORS > remote_arg_not_data > text",
-			"reason": "a message's wording, constant text; said in packages/core/test/remote-arg-plain-data.test.ts"
-		},
-		{
-			"id": "packages/core/src/messages/server.ts > SERVER_ERRORS > remote_arg_not_data > details",
-			"reason": "a message's wording, constant text; said in packages/core/test/remote-arg-plain-data.test.ts"
-		},
-		{
-			"id": "packages/core/src/server/transport.ts > ogygiaServerTransport > Region > decode",
-			"reason": "refuses with a thrown 400 (Kit's error(), not replayable), constant work; proven in packages/core/test/remote-arg-plain-data.test.ts"
-		},
-		{
-			"id": "packages/core/src/server/transport.ts > ogygiaServerTransport > [computed] > decode",
-			"reason": "refuses with a thrown 400 (Kit's error(), not replayable), one Set lookup; proven in packages/core/test/remote-arg-plain-data.test.ts"
-		},
-		{
-			"id": "packages/core/src/server/transport.ts > refuse",
-			"reason": "throws Kit's 400 with a worded message (not replayable), constant work; proven in packages/core/test/remote-arg-plain-data.test.ts"
-		},
-		{
 			"id": "packages/devtools/src/profiler/index.ts > Profiler > measures",
 			"reason": "reads the request's cookies and checks the session (a profiler instance and a RequestEvent, not cloneable), constant work per cookie; proven in packages/devtools/test/profiler-measures.test.ts"
 		},
@@ -4839,6 +4843,26 @@
 		{
 			"id": "packages/core/src/runtime/code-origins.ts > import_code",
 			"reason": "one browser import() of a module URL (a real module load, not replayable), constant work; run by packages/core/test/browser/code-origins.test.ts and dev-region-css-import.test.ts"
+		},
+		{
+			"id": "packages/core/src/events/bus.ts > ingest_page_events",
+			"reason": "writes the devtools ring (hidden state: the page's event bus), linear in the events handed in; proven in packages/core/test/browser/devtools-feed-own-render.test.ts and side-channel-seeds.test.ts"
+		},
+		{
+			"id": "packages/core/src/events/bus.ts > push_stamped",
+			"reason": "writes the devtools ring (hidden state: the page's event bus), linear in the events handed in; proven in packages/core/test/browser/devtools-feed-own-render.test.ts and side-channel-seeds.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/router-nav.ts > adopt_mark",
+			"reason": "browser only: hands the head merge's next document to the boot's adopt_mark (one registry read), constant work; proven in packages/core/test/browser/page-facts-visit.test.ts and soft-refresh-page-on-screen.test.ts (#893)"
+		},
+		{
+			"id": "packages/core/src/runtime/response-mark.ts > adopt_mark",
+			"reason": "browser only: the live head's runtime script takes the next document's mark (two head reads, one attribute write), constant work; proven in packages/core/test/browser/page-facts-visit.test.ts and soft-refresh-page-on-screen.test.ts (#893)"
+		},
+		{
+			"id": "packages/core/src/runtime/response-mark.ts > server_channels",
+			"reason": "browser only: the devtools channels of the live document bearing its mark (a DOM query, not recorded), linear in the channels; proven in packages/core/test/browser/devtools-feed-own-render.test.ts (#893)"
 		}
 	]
 }
