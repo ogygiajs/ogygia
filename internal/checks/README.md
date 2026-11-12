@@ -46,6 +46,15 @@ and checks that the devtools or the profiler name exactly those, and nothing on 
 | `compiler-micro.ts`            | pathological inputs straight into the transform: no blowup           |
 | `integration-prop-contract.ts` | island props survive the server to client trip, and cannot escape it |
 
+## Comments sweep (#512)
+
+| script        | does                                                                              |
+| ------------- | --------------------------------------------------------------------------------- |
+| `comments.ts` | lists what `ogygia/structured-comments` reports under a path (`--table`: PR rows) |
+| `flip.ts`     | breaks one line on purpose, runs a test command, wants red, puts the line back    |
+
+The rule's own tests: `pnpm lint:test`.
+
 ## Costs
 
 | script           | measures                                                                    |

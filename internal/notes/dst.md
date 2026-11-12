@@ -275,6 +275,16 @@ region-sheet bookkeeping is for (mutation testing: two survivors there died once
 `hero.png/+server.ts`: the page's critical resource, which island code and background downloads wait
 for (the load scheduler's `critical-gate`).
 
+Some islands that wake on their own are changed by a third party's script while they sleep (`gen third
+party`, 30%): once the document is parsed, it prepends an element of its own, or (`gen third party
+kind`) swaps the island's first `<span>` for a `<b>`, so the repair puts the server's markup back
+before the island hydrates. A third kind, from a stream of its own (`gen third party text`, on islands
+the first stream left alone) adds a text node only: every element lines up, so the repair walks into
+each one, and the island holds a `<details>` (an element whose children are partly its own). A repair
+that lined up names no ownership conflict there; the app's client plugin (`apps/sim-gen/src/sim-client.ts`,
+`regionMismatched`) says any conflict named on the console, where the page-errors oracle hears it
+(mutation: `align_to` saying a level that lined up failed).
+
 A build's boot runtime comes from `packages/core/dist/runtime` (the prebuilt runtime a published
 package ships), not from `src`: after a change to core's runtime, `pnpm build:lib` before
 `pnpm sim:builds`, or the app boots the old one (its import-again had no buggify point, while the
