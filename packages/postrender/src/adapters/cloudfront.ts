@@ -9,6 +9,7 @@
  * this exact signing/requesting code, not a mock of it.
  */
 import { createHmac, createHash } from 'node:crypto';
+import { clock, net, random } from '@ogygia/machine';
 import type { EdgeAdapter, PostrenderMeta } from '../types.ts';
 import { normalize_prefix } from '../key.ts';
 import { OgygiaError } from '../messages.ts';
@@ -37,7 +38,10 @@ const hmac = (key: Buffer | string, data: string) =>
 
 /** amz dates: `20260901T120000Z` / `20260901`. */
 function amz_dates(): { datetime: string; date: string } {
-	const iso = new Date().toISOString().replace(DASH_COLON_G, '').replace(MILLISECONDS_RE, '');
+	const iso = new Date(clock.wall())
+		.toISOString()
+		.replace(DASH_COLON_G, '')
+		.replace(MILLISECONDS_RE, '');
 	return { datetime: iso, date: iso.slice(0, 8) };
 }
 
@@ -67,7 +71,8 @@ export class CloudFrontEdge implements EdgeAdapter {
 	async #create_invalidation(paths: string[]): Promise<void> {
 		const config = this.#config;
 		const items = paths.map((p) => `<Path>${p}</Path>`).join('');
-		const body = `<?xml version="1.0" encoding="UTF-8"?><InvalidationBatch xmlns="http://cloudfront.amazonaws.com/doc/${API_VERSION}/"><CallerReference>og-${Date.now()}-${Math.floor(Math.random() * 1e6)}</CallerReference><Paths><Quantity>${paths.length}</Quantity><Items>${items}</Items></Paths></InvalidationBatch>`;
+		// wall: a reference unique across processes
+		const body = `<?xml version="1.0" encoding="UTF-8"?><InvalidationBatch xmlns="http://cloudfront.amazonaws.com/doc/${API_VERSION}/"><CallerReference>og-${clock.wall()}-${Math.floor(random.float() * 1e6)}</CallerReference><Paths><Quantity>${paths.length}</Quantity><Items>${items}</Items></Paths></InvalidationBatch>`;
 		const path = `/${API_VERSION}/distribution/${config.distributionId}/invalidation`;
 		const { datetime, date } = amz_dates();
 		const payload_hash = hex_sha(body);
@@ -90,7 +95,7 @@ export class CloudFrontEdge implements EdgeAdapter {
 		const k_service = hmac(k_region, SERVICE);
 		const k_signing = hmac(k_service, 'aws4_request');
 		const signature = createHmac('sha256', k_signing).update(string_to_sign).digest('hex');
-		const res = await fetch(this.#api_base + path, {
+		const res = await net.fetch(this.#api_base + path, {
 			method: 'POST',
 			headers: {
 				host: API_HOST,

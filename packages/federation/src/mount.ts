@@ -5,6 +5,7 @@
  * `mount()` — the wire behavior (status/redirect/form translation, canary, streaming) is unchanged;
  * it just takes a `Peer` instead of a `client()`.
  */
+import { clock } from '@ogygia/machine';
 import { page, redirect, type PageDef, type ComponentPick, type Ctx } from '@ogygia/router';
 import { fed_app } from './app.ts';
 import { child_traceparent, moved_card, type Claims, type FragmentDocument } from './wire.ts';
@@ -110,14 +111,14 @@ function mount_fn(
 			const peer = resolve_peer(c);
 			const rest = (c.params as { rest?: string }).rest ?? '';
 			const trace = child_traceparent(c.request.headers.get('traceparent'));
-			const t0 = performance.now();
+			const t0 = clock.mono();
 			const doc = await peer.doc(
 				`/${rest}`,
 				c.url.search,
 				claims_for(c, opts.user),
 				trace.traceparent
 			);
-			const hop_ms = Math.round((performance.now() - t0) * 10) / 10;
+			const hop_ms = Math.round((clock.mono() - t0) * 10) / 10;
 			if (doc.location) redirect(doc.status as 301 | 302 | 303 | 307 | 308, doc.location);
 			c.setHeaders?.({
 				'server-timing': `${peer.label};dur=${hop_ms}${doc.server_ms != null ? `, ${peer.label}-render;dur=${doc.server_ms}` : ''}`,
@@ -177,9 +178,9 @@ export function kit_mount(
 		load: async (e) => {
 			const rest = e.params[param] ?? '';
 			const trace = child_traceparent(e.request.headers.get('traceparent'));
-			const t0 = performance.now();
+			const t0 = clock.mono();
 			const doc = await peer.doc(`/${rest}`, e.url.search, opts.user?.(e), trace.traceparent);
-			const hop_ms = Math.round((performance.now() - t0) * 10) / 10;
+			const hop_ms = Math.round((clock.mono() - t0) * 10) / 10;
 			const { error: kit_error, redirect: kit_redirect } = await kit();
 			if (doc.location) kit_redirect(doc.status as 301, doc.location);
 			e.setHeaders?.({

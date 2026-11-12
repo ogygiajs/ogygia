@@ -24,7 +24,7 @@
  * Each area tells this module what it holds (`note_mount`, `note_visit`, `watch_router`) only when
  * rules are on (`RULES`): every call site folds out of a build without them.
  */
-import { observe, STALE, trace } from '@ogygia/machine';
+import { observe, STALE, timers, trace } from '@ogygia/machine';
 import { Rules, type BrokenRule } from '../rules.ts';
 import { warn } from '../messages/core.ts';
 import { OG_PREFIX, OGYGIA_PREFIX, unknown_markers } from '../wire-markup.ts';
@@ -305,7 +305,7 @@ function check_soon(): void {
 	if (pending) return;
 	pending = true;
 	// oxlint-disable-next-line ogygia/owned-effects -- dev's rule check, a task after the moves that asked for it: it ends itself, and the document's rules outlive every page
-	setTimeout(() => {
+	timers.after(() => {
 		pending = false;
 		runtime_rules.say((code, detail) => warn(code, { detail }));
 	}, 0);

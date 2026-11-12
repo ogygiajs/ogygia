@@ -7,23 +7,24 @@ import {
 	createPrivateKey,
 	createPublicKey,
 	createHash,
-	randomBytes,
 	sign as ed_sign,
 	verify as ed_verify
 } from 'node:crypto';
 import {
 	Needle,
+	next_any_tag,
 	next_tag,
 	OG_MOUNT_MOVED,
 	OG_MOVED,
 	OGYGIA_GRAPH,
 	OGYGIA_RUNTIME,
 	text_of,
+	value_at,
 	type FoundTag
 } from '@ogygia/core/internal/server';
 import { cache } from '@ogygia/machine';
 import { attr, decodeText, html, type Html } from '@ogygia/core/plugin/utils';
-import { capability, type Capability } from '@ogygia/machine';
+import { capability, clock, random, type Capability } from '@ogygia/machine';
 
 // ── paths the handle serves ──────────────────────────────────────────────────────────────────
 /** The exposed route table: `GET|POST|… /og/fragment/page?path=…&search=…`. */
@@ -55,7 +56,8 @@ const MAX_SEEN_SIGS = 100_000;
 const seen_sigs = cache<string, number>({
 	name: 'federation replay guard',
 	max: MAX_SEEN_SIGS,
-	keep: (expires_at) => expires_at - Date.now()
+	// wall: a signature's expiry is a wall timestamp the signer set
+	keep: (expires_at) => expires_at - clock.wall()
 });
 function replay_seen(sig: string, expires_at: number, now: number): boolean {
 	if (seen_sigs.has(sig)) return true;
@@ -224,7 +226,7 @@ export function sign_headers(
 	audience?: string
 ): Record<string, string> {
 	const key = private_key(privateKey);
-	const ts = String(Date.now());
+	const ts = String(clock.wall()); // wall: signed, and checked by the peer's clock
 	const pathq = url.pathname + url.search;
 	const user_b64 = claims ? Buffer.from(JSON.stringify(claims)).toString('base64') : '';
 	const bhash = body_hash(body);
@@ -316,14 +318,14 @@ export function verify_signed_request(
 			}
 		if (!checked) return null;
 		// the same call, already accepted by its legacy signature (#822)
-		if (nonce_seen(cap_nonce(token), cap_expiry(token) + skew, Date.now())) return null;
+		if (nonce_seen(cap_nonce(token), cap_expiry(token) + skew, clock.wall())) return null;
 		return claims_of(user_b64);
 	}
 	const ts = request.headers.get(TS_HEADER);
 	const sig = request.headers.get(SIG_HEADER);
 	if (!ts || !sig) return null;
 	const ts_n = Number(ts);
-	const now = Date.now();
+	const now = clock.wall(); // wall: against the sender's signed timestamp
 	// a non-numeric ts → NaN; guard it, else `NaN > window` is false and the freshness gate opens
 	if (!Number.isFinite(ts_n) || Math.abs(now - ts_n) > skew) return null;
 	const nonce = request.headers.get(NONCE_HEADER) ?? '';
@@ -396,7 +398,7 @@ export interface WidgetDocument {
 
 // ── W3C trace context ────────────────────────────────────────────────────────────────────────
 const TRACEPARENT_RE = /^00-([0-9a-f]{32})-([0-9a-f]{16})-([0-9a-f]{2})$/;
-const hex = (n: number) => randomBytes(n).toString('hex');
+const hex = (n: number) => Buffer.from(random.bytes(n)).toString('hex');
 
 /** Continue the caller's trace (same trace-id, fresh span) or mint one. */
 export function child_traceparent(incoming?: string | null): {
@@ -412,7 +414,11 @@ export function child_traceparent(incoming?: string | null): {
 
 // ── asset absolutizing ───────────────────────────────────────────────────────────────────────
 const ABSOLUTE_RE = /^[a-z][a-z0-9+.-]*:|^\/\//i;
-const ASSET_ATTR_RE = /\b(entry|endpoint|href|src)="([^"]+)"/g;
+/** An attribute that holds an asset ref (its name in lower case): `entry`, `endpoint`, `href`,
+ *  `src`, or a name ending in one after a non-word character (`data-src`, `xlink:href`). */
+const ASSET_ATTR_NAME = /(?:^|[^a-z0-9_])(?:entry|endpoint|href|src)$/;
+// (those names in any case: where an asset ref can be; a tag without one is not read)
+const ASSET_ATTR_ANY_CASE = /entry|endpoint|href|src/gi;
 const ASSET_PATH_RE = /(?:^|\/)(_app|og)\//;
 const ASSET_EXT_RE = /\.(js|css|woff2?)(\?|$)/;
 
@@ -474,16 +480,36 @@ function pin_graphs(html: string, origin: string): string {
 	return pos === 0 ? html : out + html.slice(pos);
 }
 
+/** `html` with the asset refs in the attribute values of its real tags pinned (as the browser
+ *  reads the tags: text that looks like one, in a comment, a code sample or script text, is the
+ *  page's text, #974). */
+function pin_attrs(html: string, origin: string): string {
+	const mark = new Needle(html, ASSET_ATTR_ANY_CASE);
+	if (mark.gone) return html;
+	let out = '';
+	let pos = 0;
+	for (let t = next_any_tag(html, 0); t !== null; t = next_any_tag(html, t.tag.next)) {
+		const held = mark.holds(t.tag);
+		if (mark.gone) break;
+		if (!held) continue;
+		// (in source order: a tag's attributes are read first to last)
+		for (const [name, value] of t.tag.attrs) {
+			if (value === '' || !ASSET_ATTR_NAME.test(name)) continue;
+			const pinned = pin_asset(value, origin);
+			if (pinned === value) continue;
+			const at = value_at(html, t.tag, t.name, name);
+			if (at === -1) continue;
+			out += html.slice(pos, at) + pinned;
+			pos = at + value.length;
+		}
+	}
+	return pos === 0 ? html : out + html.slice(pos);
+}
+
 /** Pin ASSET refs (island entries, stylesheets, chunks, the island graph) to `origin`; app-local
  *  LINKS stay path-relative — the consuming shell owns the address space they resolve in. */
 export function absolutize(html: string, origin: string): string {
-	return pin_graphs(
-		html.replace(
-			ASSET_ATTR_RE,
-			(_m, attr: string, value: string) => `${attr}="${pin_asset(value, origin)}"`
-		),
-		origin
-	);
+	return pin_graphs(pin_attrs(html, origin), origin);
 }
 
 // ── document lifting (an app's full HTML → the wire document) ────────────────────────────────

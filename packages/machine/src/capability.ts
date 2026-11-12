@@ -23,6 +23,7 @@
  *   const r = region.check(token, 'https://app.example', [id, props]);   // { ok: true, exp, nonce }
  */
 import { machine_error } from './messages.ts';
+import { bytes as random_bytes } from './ports/random.ts';
 
 /** Signs and verifies one message. `sign`'s output is URL-safe (hex or base64url); `verify`
  *  compares in constant time. */
@@ -103,8 +104,7 @@ function bad(option: string, value: unknown, rule: string): never {
 
 /** 16 random bytes as base64url (22 characters). */
 function nonce(): string {
-	const bytes = new Uint8Array(16);
-	globalThis.crypto.getRandomValues(bytes);
+	const bytes = random_bytes(16);
 	let bin = '';
 	for (const b of bytes) bin += String.fromCharCode(b);
 	return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').slice(0, 22);

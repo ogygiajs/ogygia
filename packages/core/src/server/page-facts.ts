@@ -52,13 +52,13 @@ export function data_url_of(page: URL): string {
  */
 export async function look_up_page(
 	page: URL,
-	fetch: Fetch,
+	kit_fetch: Fetch,
 	decoders: Decoders,
 	owner?: Scope
 ): Promise<PageFacts | { miss: string }> {
 	let res: Response;
 	try {
-		res = await fetch(data_url_of(page), { headers: { [PAGE_FACTS_HEADER]: '1' } });
+		res = await kit_fetch(data_url_of(page), { headers: { [PAGE_FACTS_HEADER]: '1' } });
 	} catch (e) {
 		return { miss: `the data request failed (${String((e as Error)?.message ?? e)})` };
 	}

@@ -4,6 +4,7 @@
  * while the shell stays edge-cached; one `stitch="serve"` hole taints the page to origin-serve.
  */
 import { describe, it, expect } from 'vitest';
+import { around, elements, fc, fuzz, parse_document } from '@ogygia/config/html-fuzz';
 import { find_stitch_holes, stitch_modes, esi_rewrite } from '../src/stitch.ts';
 
 const hole = (mode: '' | 'serve' | 'edge', endpoint: string, inner = 'fb') =>
@@ -74,5 +75,68 @@ describe('postrender/stitch — esi_rewrite', () => {
 		expect(out.match(/<esi:remove>/g)).toHaveLength(1);
 		expect(out).toContain(`${inner}</ogygia-region></esi:remove>`);
 		expect(out.endsWith('<footer/>')).toBe(true);
+	});
+});
+
+describe('postrender/stitch — region tags the browser does not read', () => {
+	const OPEN = '<ogygia-region render="defer" stitch="edge" endpoint="/x">';
+	const CLOSE = '</ogygia-region>';
+
+	it('a region tag in a comment or raw text in a fallback does not move the balance (#975)', () => {
+		for (const fallback of [
+			`<!-- ${CLOSE} -->fb`,
+			`<script>document.write('${CLOSE}')</script>fb`,
+			`<textarea>${CLOSE}</textarea>fb`,
+			`<title>${OPEN}</title>fb`,
+			`<style>/* ${CLOSE} */</style>fb`
+		]) {
+			const html = hole('edge', '/e', fallback) + '<p>after</p>';
+			expect(find_stitch_holes(html), fallback).toEqual([
+				{ start: 0, end: html.length - '<p>after</p>'.length, endpoint: '/e', mode: 'edge' }
+			]);
+			expect(esi_rewrite(html), fallback).toContain(`${fallback}</ogygia-region></esi:remove>`);
+		}
+	});
+
+	it('finds the holes the browser builds, whatever comments and raw text the page carries', () => {
+		const hazard = fc.constantFrom(
+			OPEN,
+			CLOSE,
+			'<ogygia-region stitch="serve" endpoint="/y">',
+			'x'
+		);
+		const filler = fc.oneof(
+			hazard.map((t) => `<!-- ${t} -->`),
+			fc
+				.tuple(fc.constantFrom('script', 'textarea', 'title', 'style'), hazard)
+				.map(([n, t]) => `<${n}>${t}</${n}>`),
+			fc.constantFrom('text', '<p>p</p>', '<b>b</b>')
+		);
+		const region = (inner: string) =>
+			fc
+				.constantFrom(
+					'<ogygia-region render="defer" stitch="edge" endpoint="/e">',
+					'<ogygia-region render="defer" stitch="serve" endpoint="/s">',
+					'<ogygia-region render="defer" endpoint="/n">'
+				)
+				.map((open) => `${open}${inner}${CLOSE}`);
+		fuzz(around(filler, region), (body) => {
+			const html = `<!doctype html><html><head></head><body>${body}</body></html>`;
+			const truth = elements(parse_document(html))
+				.filter(
+					(e) =>
+						e.name === 'ogygia-region' &&
+						!e.ancestors.includes('ogygia-region') &&
+						e.attrs.has('stitch') &&
+						e.attrs.get('endpoint')
+				)
+				.map((e) => ({
+					start: e.start_tag!.start,
+					end: e.end!,
+					endpoint: e.attrs.get('endpoint')!,
+					mode: e.attrs.get('stitch') === 'edge' ? 'edge' : 'serve'
+				}));
+			expect(find_stitch_holes(html)).toEqual(truth);
+		});
 	});
 });

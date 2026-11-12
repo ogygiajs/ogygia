@@ -15,7 +15,7 @@ import { connect } from 'node:net';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { setTimeout as pause } from 'node:timers/promises';
-import { machine } from '@ogygia/machine';
+import { clock, machine } from '@ogygia/machine';
 import { OgygiaError } from '../messages.ts';
 import { measure, type PerfSnapshot } from './measure.ts';
 import { verdict, type Budget } from './compare.ts';
@@ -180,13 +180,13 @@ export async function serve(
 	ready_ms: number,
 	grace_ms: number = STOP_GRACE_MS
 ): Promise<() => Promise<void>> {
-	const deadline = Date.now() + ready_ms;
+	const deadline = clock.mono() + ready_ms;
 	const at = new URL(url);
 	const host = at.hostname.replace(/^\[(.*)\]$/, '$1');
 	const port = Number(at.port) || (at.protocol === 'https:' ? 443 : 80);
 	// the port free first: whoever is on it would answer the readiness poll below
 	while (await port_held(host, port)) {
-		if (Date.now() >= deadline)
+		if (clock.mono() >= deadline)
 			throw new OgygiaError('cli_server_port_busy', { url, port, ms: ready_ms });
 		await sleep(200);
 	}
@@ -247,7 +247,7 @@ export async function serve(
 	};
 
 	const answered = await m.scope.task(async (signal) => {
-		while (Date.now() < deadline && !signal.aborted) {
+		while (clock.mono() < deadline && !signal.aborted) {
 			try {
 				const res = await fetch(url, {
 					redirect: 'manual',
