@@ -60,6 +60,7 @@ const MAX_SEEN_SIGS = 100_000;
 const seen_sigs = cache<string, number>({
 	name: 'federation replay guard',
 	max: MAX_SEEN_SIGS,
+	// wall: a signature's expiry is a wall timestamp the signer set
 	keep: (expires_at) => expires_at - Date.now()
 });
 function replay_seen(sig: string, expires_at: number, now: number): boolean {
@@ -229,7 +230,7 @@ export function sign_headers(
 	audience?: string
 ): Record<string, string> {
 	const key = private_key(privateKey);
-	const ts = String(Date.now());
+	const ts = String(Date.now()); // wall: signed, and checked by the peer's clock
 	const pathq = url.pathname + url.search;
 	const user_b64 = claims ? Buffer.from(JSON.stringify(claims)).toString('base64') : '';
 	const bhash = body_hash(body);
@@ -321,6 +322,7 @@ export function verify_signed_request(
 			}
 		if (!checked) return null;
 		// the same call, already accepted by its legacy signature (#822)
+		// wall: the token's expiry is a timestamp
 		if (nonce_seen(cap_nonce(token), cap_expiry(token) + skew, Date.now())) return null;
 		return claims_of(user_b64);
 	}
@@ -328,7 +330,7 @@ export function verify_signed_request(
 	const sig = request.headers.get(SIG_HEADER);
 	if (!ts || !sig) return null;
 	const ts_n = Number(ts);
-	const now = Date.now();
+	const now = Date.now(); // wall: against the sender's signed timestamp
 	// a non-numeric ts → NaN; guard it, else `NaN > window` is false and the freshness gate opens
 	if (!Number.isFinite(ts_n) || Math.abs(now - ts_n) > skew) return null;
 	const nonce = request.headers.get(NONCE_HEADER) ?? '';

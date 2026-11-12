@@ -7,7 +7,7 @@
  * handle owns all of it, so a `federate()` in hooks.server.ts is the whole wiring.
  */
 import { version } from '$app/env';
-import { backoffAfter, flights, machine, policy, type Policy } from '@ogygia/machine';
+import { backoffAfter, clock, flights, machine, policy, type Policy } from '@ogygia/machine';
 import type { RequestEvent } from '@sveltejs/kit';
 import type { ServerApp } from '@ogygia/core/plugin';
 import { OG_MOVED } from '@ogygia/core/internal/server';
@@ -123,7 +123,7 @@ export function deploy_thaw_check(fed: Federation): Promise<void> {
 	if (fed.deploy !== 'auto') return Promise.resolve();
 	const s = deploy.now;
 	if (s.kind === 'checking') return s.run;
-	if (s.kind === 'done' || Date.now() < s.after) return Promise.resolve();
+	if (s.kind === 'done' || clock.mono() < s.after) return Promise.resolve();
 	const run = check_deploy(fed, s.owed).then(checked);
 	deploy.move('unchecked', 'checking', { run });
 	return run;
@@ -135,7 +135,8 @@ type Checked = { done: true } | { done: false; owed: Owed | null };
 /** A check ended: done, or tried again by a request after DEPLOY_RETRY_MS. */
 function checked(c: Checked): void {
 	if (c.done) deploy.move('checking', 'done');
-	else deploy.move('checking', 'unchecked', { after: Date.now() + DEPLOY_RETRY_MS, owed: c.owed });
+	else
+		deploy.move('checking', 'unchecked', { after: clock.mono() + DEPLOY_RETRY_MS, owed: c.owed });
 }
 
 /** One check (it never throws). `owed`: the thaw an earlier check found due, still owed. */
