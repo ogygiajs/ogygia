@@ -191,6 +191,20 @@ describe("a hole's fallback does not stand", () => {
 			)
 		).toBeNull();
 	});
+
+	it("counts one a filed bug explains as known: a hole in a peer's page asks the app's endpoint (#910, gen 196)", async () => {
+		const found = await at_rest(
+			`<main data-gen="peer-page">${hole('load', 'data-gen-fallback')}</main>`,
+			[['/__ogygia__?id=a&exp=1&sig=s', 403]]
+		);
+		expect(found?.oracle).toBe('known');
+		expect(found?.detail).toContain('#910');
+		// (one the bug does not explain stays a finding beside it)
+		const both = await at_rest(
+			`<main data-gen="peer-page">${hole('load', 'data-gen-fallback')}</main>${hole('idle', 'data-gen-fallback')}`
+		);
+		expect(both?.oracle).toBe('fallback-stands');
+	});
 });
 
 describe('hydrates as sent', () => {
