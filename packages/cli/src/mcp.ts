@@ -3,8 +3,8 @@
  *
  * The transform runs in plain Node (no browser, no WASM stub — the oxc parser auto-loads), so an AI
  * client (Claude Desktop / Claude Code / any MCP host) can hand ogygia a `.svelte` source and get back
- * the island map, the rewritten host, the wire shape, and any rule violations — the same currency the
- * Observatory shows a human, in a form an AI can reason over.
+ * the island map, the rewritten host, the wire shape, and any rule violations, in a form an AI can
+ * reason over.
  *
  * Transport is stdio, newline-delimited JSON-RPC 2.0 (the MCP stdio contract). Hand-rolled on purpose:
  * zero runtime deps beyond ogygia's own compiler, so `npx ogygia mcp` just works wherever ogygia is
@@ -15,7 +15,6 @@
 import { createInterface } from 'node:readline';
 import { createRequire } from 'node:module';
 import { flights, scope, STALE } from '@ogygia/machine';
-import { gzipSync } from 'node:zlib';
 import { readdirSync, readFileSync, type Dirent } from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -28,7 +27,7 @@ import {
 	collect_flag_sites,
 	flags_manifest,
 	type FlagSite
-} from '@ogygia/core/internal/compiler';
+} from '@ogygia/compiler';
 import { line } from './messages.ts';
 
 /** The profiler's report reading (`@ogygia/devtools/report`), as these tools use it: loaded from the
@@ -70,10 +69,6 @@ const HTTP_URL_RE = /^https?:\/\//i;
 const LOGIN_FORM_RE = /id="og-login"/;
 const HTML_TAG_G = /<[^>]+>/g;
 const WS_G = /\s+/g;
-const PLUS_G = /\+/g;
-const SLASH_G = /\//g;
-const TRAILING_EQUALS_RE = /=+$/;
-const HASH_SUFFIX_RE = /#.*$/;
 const BACKSLASH_G = /\\/g;
 const UNKNOWN_PRESET_RE = /unknown preset/i;
 const SVELTE_EXT_RE = /\.svelte$/;
@@ -83,6 +78,7 @@ const { version } = require('../package.json') as { version: string };
 
 const PROTOCOL_VERSION = '2024-11-05';
 const SERVER_NAME = 'ogygia';
+// static: the import-attribute keys that mark a region, a fixed list
 const MARK_KEYS = new Set(['wake', 'fetch', 'render', 'region', 'keep', 'preset', 'margin']);
 
 type Attrs = Record<string, unknown>;
@@ -102,13 +98,12 @@ type HostIsland = {
 };
 type HostResult = { code?: string; islands?: HostIsland[] } | null;
 
-// The Observatory's build_ctx, in Node: real path, no file reads (single-source REPL), dev shape.
+// A build_ctx for one source: real path, no file reads, dev shape.
 function build_ctx(ssr: boolean, route_csr = false) {
 	return {
 		root: '/repl',
 		libDir: '/repl/src/lib',
 		readFile: () => null,
-		pathModule: path as never,
 		dev: true,
 		virtualPathFor: (_host: string, iid: string) => islandVirtualId(iid),
 		wrapperPathFor: (_host: string, iid: string) => wrapperVirtualId(iid),
@@ -389,36 +384,6 @@ const TOOLS = [
 					type: 'string',
 					description:
 						'Directory to scan, relative to the server cwd or absolute (default "src"; try "src/routes").'
-				}
-			}
-		}
-	},
-	{
-		name: 'ogygia_observatory',
-		description:
-			'Bundle one or more files into a shareable, CLIENT-ONLY ogygia Observatory link so the user can see ' +
-			'their code compiled + running live in the browser (island map, byte ledger, wire, hydrating preview). ' +
-			'The files are gzip-packed into the URL # fragment, which browsers never send to a server — nothing ' +
-			'hits any server. Great for showing the user how one of their real pages becomes islands. Pass `files` ' +
-			'(a map of filename → source; App.svelte is the entry) or a single `source`.',
-		inputSchema: {
-			type: 'object',
-			properties: {
-				files: {
-					type: 'object',
-					description:
-						'Map of filename → source. App.svelte is the entry; include the components it imports.',
-					additionalProperties: { type: 'string' }
-				},
-				source: {
-					type: 'string',
-					description: 'Single-file convenience: the component source (paired with `filename`).'
-				},
-				filename: { type: 'string', description: 'Name for `source` (default App.svelte).' },
-				base: {
-					type: 'string',
-					description:
-						'Observatory base URL (default the public docs Observatory; use a localhost URL to target a dev build).'
 				}
 			}
 		}
@@ -1694,55 +1659,9 @@ async function tool_profile_open(args: Attrs): Promise<ToolResult> {
 	);
 }
 
-// ── ogygia_observatory — bundle files into a client-only Observatory link ──────────────────────────
-
-const DEFAULT_OBSERVATORY = 'https://ogygiajs.dev/observatory';
-
-/** `#<base64url(gzip(json))>` — the EXACT single-string format the Observatory decodes (browser gunzip).
- *  The payload is `{ f: files }` (files only; the app fills in default UI state). */
-function observatory_link(files: Record<string, string>, base: string): string {
-	const gz = gzipSync(Buffer.from(JSON.stringify({ f: files }), 'utf8'));
-	const b64url = gz
-		.toString('base64')
-		.replace(PLUS_G, '-')
-		.replace(SLASH_G, '_')
-		.replace(TRAILING_EQUALS_RE, '');
-	return `${base.replace(HASH_SUFFIX_RE, '')}#${b64url}`;
-}
-
-function tool_observatory(args: Attrs): ToolResult {
-	let files: Record<string, string> = {};
-	if (args.files && typeof args.files === 'object' && !Array.isArray(args.files)) {
-		for (const [k, v] of Object.entries(args.files as Record<string, unknown>))
-			if (typeof v === 'string') files[k] = v;
-	} else if (typeof args.source === 'string') {
-		files[String(args.filename ?? 'App.svelte')] = args.source;
-	}
-	const names = Object.keys(files);
-	if (!names.length)
-		return fail(
-			'Provide `files` (a map of filename → source) or `source` (+ optional `filename`).'
-		);
-	if (!names.some((n) => n.endsWith('.svelte')))
-		return text(
-			`⚠️ No .svelte file given — the Observatory renders a Svelte component (App.svelte is the entry). Add one.\n\nFiles: ${names.join(', ')}`
-		);
-
-	const base = String(args.base ?? DEFAULT_OBSERVATORY);
-	const url = observatory_link(files, base);
-	const long =
-		url.length > 8000
-			? `\n\n⚠️ The link is ${url.length} chars — some tools truncate very long URLs. Trim to the files that matter if it breaks.`
-			: '';
-	return text(
-		`Open this in the ogygia Observatory to see ${names.length === 1 ? 'this component' : `these ${names.length} files`} compiled live — the island map, byte ledger, wire payloads, and a real hydrating preview:\n\n` +
-			`${url}\n\n` +
-			`🔒 Client-only: the code is packed into the URL's **# fragment**, which browsers NEVER send to a server — nothing here touches ogygia's (or anyone's) servers. It compiles entirely in your browser.${long}`
-	);
-}
-
 // ── ogygia_scan — walk a real project, map every island + lint the whole codebase ──────────────────
 
+// static: the folders a project scan never walks into, a fixed list
 const SKIP_DIRS = new Set([
 	'node_modules',
 	'.svelte-kit',
@@ -2089,8 +2008,6 @@ export async function dispatch_tool(name: string, args: Attrs): Promise<ToolResu
 			return tool_profile(args);
 		case 'ogygia_profile_open':
 			return tool_profile_open(args);
-		case 'ogygia_observatory':
-			return tool_observatory(args);
 		case 'ogygia_scan':
 			return tool_scan(args);
 		case 'ogygia_flags':
