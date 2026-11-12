@@ -1,17 +1,3 @@
-/**
- * `postrender()` — pages stored at request time, listed beside `ogygia()` in vite.config. The
- * SWITCH + serializable policy, nothing else: a page whose render observed no personalization is
- * stored whole on its first request and served as bytes until `postrender.invalidate(url)` /
- * `postrender.invalidateWhere({ prefix })` or the TTL backstop. Live adapters (a valkey client, CDN
- * purge creds) are the argument of `postrender.handle({ store, edge })` in hooks.server.ts, from
- * `@ogygia/postrender`.
- *
- * `default` sets the app-wide opt-in: `true` (the default) keeps the auto behaviour — every eligible
- * page is stored, observed purity refuses the rest, and a route opts OUT in Kit's own config:
- * `export const config = { postrender: false }`. `false` flips the app to OPT-IN: nothing is stored
- * unless a page or a layout above it sets `config = { postrender: true }`. Kit merges `config` from
- * the layouts into the page (the page's own key wins), and so does the build that reads it.
- */
 import { definePlugin, type OgygiaPlugin } from '@ogygia/compiler/vite';
 import type { PostrenderServerOptions } from './server.ts';
 
@@ -22,6 +8,19 @@ export interface PostrenderOptions {
 	default?: boolean;
 }
 
+/**
+ * `postrender()`: pages stored at request time, listed beside `ogygia()` in vite.config. The
+ * switch and serializable policy, nothing else: a page whose render observed no personalization is
+ * stored whole on its first request and served as bytes until `postrender.invalidate(url)` /
+ * `postrender.invalidateWhere({ prefix })` or the TTL backstop. Live adapters (a store client, CDN
+ * purge credentials) are the argument of `postrender.handle({ store, edge })` in hooks.server.ts.
+ *
+ * `default` sets the app-wide opt-in: `true` (the default) stores every eligible page, and a route
+ * opts out in Kit's own config (`export const config = { postrender: false }`). `false` makes the
+ * app opt-in: nothing is stored unless a page or a layout above it sets
+ * `config = { postrender: true }`. `config` merges from the layouts into the page, the page's own
+ * key winning, as Kit merges it.
+ */
 export function postrender(options: PostrenderOptions = {}): OgygiaPlugin<PostrenderServerOptions> {
 	return definePlugin<PostrenderServerOptions>({
 		name: '@ogygia/postrender',
