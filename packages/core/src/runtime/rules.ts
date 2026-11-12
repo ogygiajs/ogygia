@@ -41,9 +41,11 @@ export const runtime_rules: Rules<RuntimeRule> = /* @__PURE__ */ new Rules<Runti
 
 /** What the runtime's rules track while they are on (dev, a rules build): the region elements
  *  that hold an island now and how many (each leaves at its unmount), the page visits made (each
- *  leaves once closed, at the next check), and the few breaks found so far (10 each, at most). */
+ *  leaves once closed, at the next check), the regions bound to a frame-store address now (each
+ *  leaves when it lets its address go), and the few breaks found so far (10 each, at most). */
 class RuleRows {
 	readonly mounts = new Map<Element, number>();
+	readonly shows = new Map<Element, Shows>();
 	readonly visits: Array<{ visit: Visit; n: number }> = [];
 	readonly uncoded: string[] = [];
 	readonly parsed_built: string[] = [];
@@ -155,8 +157,6 @@ type Shows = {
 	painting: () => boolean;
 };
 
-/** The regions bound to a frame-store address now. */
-const shows = new Map<Element, Shows>();
 /** The frame store's applied answer at an address (./frames.ts hands it over when it installs). */
 let held_at: ((address: string) => { v: number } | null) | null = null;
 
@@ -173,33 +173,33 @@ export function note_handed(
 	v: number,
 	painting: () => boolean
 ): void {
-	const s = shows.get(region);
+	const s = R.shows.get(region);
 	if (s && s.address === address) {
 		s.handed = v;
 		s.out++;
-	} else shows.set(region, { address, handed: v, shown: 0, out: 1, painting });
+	} else R.shows.set(region, { address, handed: v, shown: 0, out: 1, painting });
 }
 
 /** A handed answer's turn came (its paint starts, or it is dropped as older). */
 export function note_turn(region: Element): void {
-	const s = shows.get(region);
+	const s = R.shows.get(region);
 	if (s) s.out--;
 }
 
 /** `region` painted the answer with ticket `v`. */
 export function note_shown(region: Element, v: number): void {
-	const s = shows.get(region);
+	const s = R.shows.get(region);
 	if (s) s.shown = v;
 }
 
 /** `region` let its address go. */
 export function note_unbound(region: Element): void {
-	shows.delete(region);
+	R.shows.delete(region);
 }
 
 function regions_show_their_answers(): string | null {
 	if (held_at === null) return null;
-	for (const [region, s] of shows) {
+	for (const [region, s] of R.shows) {
 		if (!region.isConnected) continue;
 		const held = held_at(s.address);
 		// (the store let it go: what the region shows is its own last answer, #336)
