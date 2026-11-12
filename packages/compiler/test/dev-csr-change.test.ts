@@ -1,0 +1,112 @@
+// DEV (#1375): a route host is compiled for its route's csr (a csr=true host has its marks stripped,
+// Kit hydrates it whole). When an option file changes the csr of a route while the dev server runs,
+// every host it reaches is compiled again: Vite only re-runs the plugin for the file that changed.
+// Before, a page that became csr=false kept its stripped marks (its regions never existed until a
+// restart), and one that became csr=true kept its regions. Found by the compiler DST harness
+// (internal/compiler-dst, dev matches a cold start).
+import { expect, test } from 'vitest';
+import { Compiler } from '../src/compiler/driver.ts';
+import { Program } from '../src/compiler/program.ts';
+import { CompileCtx } from '../src/compiler/ctx.ts';
+import { normalize_import_keys } from '../src/compiler/region/transform.ts';
+import { memory_fs, type MemoryFs } from '../src/compiler/fs.ts';
+import { partial_ctx_init } from './_compile-ctx.ts';
+import { dedent } from '@ogygia/core/contract';
+
+const ROOT = '/csr-app';
+const PAGE = `${ROOT}/src/routes/a/+page.svelte`;
+const LAYOUT_OPTIONS = `${ROOT}/src/routes/+layout.ts`;
+const IDLE_PAGE = dedent`
+	<script>
+	import C0 from '$lib/C0.svelte' with { wake: 'idle' };
+	</script>
+	<C0 />
+`;
+
+function dev_compiler(files: MemoryFs) {
+	const program = new Program({ forms: true, router: true });
+	const compiler = new Compiler(program, {
+		prof: {
+			transformMs: 0,
+			transformN: 0,
+			transformHit: 0,
+			prescanMs: 0,
+			bakeMs: 0,
+			bakeN: 0,
+			resolveMs: 0,
+			loadMs: 0
+		},
+		P: false,
+		outHash: new Map<string, number>()
+	});
+	compiler.configure(
+		new CompileCtx(
+			partial_ctx_init({
+				root: ROOT,
+				base: '/',
+				libDir: `${ROOT}/src/lib`,
+				is_dev: true,
+				is_build: false,
+				id_salt: '',
+				visibleMargin: '0px',
+				presets: {},
+				import_keys: normalize_import_keys(undefined),
+				resolve_alias: [],
+				pkg_root: '/nowhere/ogygia',
+				app_shims: {},
+				fs: files
+			})
+		)
+	);
+	compiler.prescan();
+	return { compiler, program };
+}
+
+/** The plugin's `watchChange` for a route file (vite/index.ts): the module ids it invalidates. */
+function dev_route_change(compiler: Compiler): string[] {
+	compiler.ctx.routes.clear();
+	return compiler.changed('routes');
+}
+
+const transform = (compiler: Compiler, files: MemoryFs) =>
+	compiler.transform_module(files.read(PAGE)!, PAGE, { ssr: true, emitFile: () => '' });
+
+test('a page that becomes csr=false while dev runs is compiled again, with its regions', async () => {
+	const files = memory_fs({ [PAGE]: IDLE_PAGE, [`${ROOT}/src/lib/C0.svelte`]: `<p>C0</p>\n` });
+	const { compiler, program } = dev_compiler(files);
+	await transform(compiler, files);
+	expect(program.registry.size).toBe(0); // csr=true: Kit hydrates the page whole
+
+	files.set(LAYOUT_OPTIONS, `export const csr = false;\n`);
+	expect(dev_route_change(compiler)).toContain(PAGE);
+	await transform(compiler, files);
+	expect(program.registry.size).toBeGreaterThan(0);
+});
+
+test('a page that becomes csr=true while dev runs is compiled again, and lets its regions go', async () => {
+	const files = memory_fs({
+		[PAGE]: IDLE_PAGE,
+		[LAYOUT_OPTIONS]: `export const csr = false;\n`,
+		[`${ROOT}/src/lib/C0.svelte`]: `<p>C0</p>\n`
+	});
+	const { compiler, program } = dev_compiler(files);
+	await transform(compiler, files);
+	expect(program.registry.size).toBeGreaterThan(0);
+
+	files.set(LAYOUT_OPTIONS, null);
+	expect(dev_route_change(compiler)).toContain(PAGE);
+	await transform(compiler, files);
+	expect(program.registry.size).toBe(0);
+});
+
+test('a route change that leaves a host its csr compiles nothing again', async () => {
+	const files = memory_fs({
+		[PAGE]: IDLE_PAGE,
+		[LAYOUT_OPTIONS]: `export const csr = false;\n`,
+		[`${ROOT}/src/lib/C0.svelte`]: `<p>C0</p>\n`
+	});
+	const { compiler } = dev_compiler(files);
+	await transform(compiler, files);
+	files.set(`${ROOT}/src/routes/b/+page.svelte`, `<h1>b</h1>\n`);
+	expect(dev_route_change(compiler)).not.toContain(PAGE);
+});
