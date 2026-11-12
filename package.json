@@ -15,6 +15,7 @@
 		"check:palaestra": "turbo run check --filter=palaestra",
 		"check:docs": "turbo run check --filter=docs",
 		"check:bench": "node internal/heisenbench/src/check.ts",
+		"check:maps": "node --test internal/checks/module-maps.test.ts && node internal/checks/module-maps.ts",
 		"bench:types": "node internal/heisenbench/src/types.ts",
 		"bench:unmeasured": "node internal/heisenbench/src/unmeasured.ts",
 		"test:e2e": "node packages/tooling/src/e2e/run.ts",
@@ -30,9 +31,9 @@
 		"ci:version": "changeset version",
 		"ci:release": "changeset publish",
 		"format": "oxfmt .",
-		"format:check": "oxfmt --check .",
+		"format:check": "git ls-files -z | xargs -0 oxfmt --check --no-error-on-unmatched-pattern",
 		"lint": "oxlint",
-		"lint:test": "node --test internal/lint/*.test.ts",
+		"lint:test": "node --test internal/lint/*.test.ts internal/checks/*.test.ts",
 		"ci:test": "node --test .github/scripts/*.test.ts"
 	},
 	"devDependencies": {
