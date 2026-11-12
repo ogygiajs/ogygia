@@ -47,6 +47,7 @@ export function id_dir(p: string): string {
 export const CORE_ROOT_ID: string = id_dir(CORE_ROOT);
 
 /** The two ogygia self-imports the transform injects into hosts / generated island modules. */
+// static: the imports the compiler injects
 export const OGYGIA_INJECTED_IMPORTS: Set<string> = new Set([
 	'ogygia/internal',
 	'ogygia/internal/server'
@@ -66,6 +67,7 @@ const OG_HAS_SRC = fs.existsSync(path.join(CORE_ROOT, 'src/internal.ts'));
 /** ogygia's `Region.svelte` — either copy, as the POSIX id Vite hands the transform hook (a workspace
  *  can load the src one and the dist one both): its LateIsland import is the awaiting one where the
  *  app runs Svelte's async mode (late-island.ts). */
+// static: the modules a region import names
 export const OGYGIA_REGION_MODULES: ReadonlySet<string> = new Set([
 	`${CORE_ROOT_ID}src/Region.svelte`,
 	`${CORE_ROOT_ID}dist/Region.svelte`

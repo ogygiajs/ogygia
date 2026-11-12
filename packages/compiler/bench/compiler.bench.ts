@@ -1,7 +1,7 @@
 // The compiler's per-file passes, the work a build does for every module: the island transform of a
 // route component (its `with { wake }` imports, props and snippets), the page-data key analysis,
 // the ownership stamps, the store macros, the de-barrel import / export analysis, and the free
-// variables of an island's children.
+// variables of an island's children; and the dev transform's marking of definer calls.
 import path from 'node:path';
 import { parse } from 'svelte/compiler';
 import { bench } from '@bench/heisenbench/bench';
@@ -15,6 +15,7 @@ import { page_data_keys_answer } from '../src/compiler/link/page-keys.ts';
 import { auto_brand_stores, rewrite_store } from '../src/compiler/macros/store.ts';
 import { stamp_opaque } from '../src/compiler/ownership-stamps.ts';
 import { transformHost } from '../src/compiler/region/transform.ts';
+import { mark_definer_calls } from '../src/vite/definers.ts';
 import { HOST_CTX_DEFAULTS } from '../test/_host-ctx.ts';
 
 type HostCtx = Parameters<typeof transformHost>[2];
@@ -314,5 +315,35 @@ bench(
 			const ast = parse(route_page(20), { modern: true });
 			return { nodes: ast.fragment.nodes as Parameters<typeof collectFreeIdentifiers>[0] };
 		}
+	}
+);
+
+/** A server module with definer calls (named, renamed, through a namespace), `k` times over. */
+function definers_module(k: number): string {
+	const parts = [
+		`import { content, folder } from '@ogygia/content';`,
+		`import { content as collection } from '@ogygia/content';`,
+		`import * as c from '@ogygia/content';`,
+		`import { content as other } from './elsewhere.ts';`
+	];
+	for (let i = 0; i < k; i++)
+		parts.push(
+			`export const docs${i} = content({ loader: folder(import.meta.glob('./d${i}/**')) });`,
+			`export const blog${i} = collection({ loader: folder(import.meta.glob('./b${i}/**')) });`,
+			`export const news${i} = c.content({ loader: c.folder(import.meta.glob('./n${i}/**')) });`,
+			`export const not${i} = other({ loader: folder({}) });`,
+			`function lazy${i}() { return content({ loader: folder({}) }); }`
+		);
+	return parts.join('\n');
+}
+
+const CONTENT_DEFINERS = [{ module: '@ogygia/content', names: ['content'] }] as const;
+
+bench(
+	'definers: the dev transform marks the definer calls of a module with n collections',
+	({ code }) => mark_definer_calls(code, '/app/src/lib/collections.server.ts', CONTENT_DEFINERS),
+	{
+		setup: () => ({ code: definers_module(4) }),
+		scale: (_ctx, k) => ({ code: definers_module(4 * k) })
 	}
 );
