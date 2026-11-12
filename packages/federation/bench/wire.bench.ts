@@ -68,6 +68,23 @@ bench(
 	}
 );
 
+// (the rare tags: an asset name written twice, the first kept; a name past ASCII, read as the map
+// reads it)
+bench(
+	'absolutize: tags that repeat an asset name or spell one past ASCII',
+	({ html }) => absolutize(html, ORIGIN).length,
+	{
+		setup: () => {
+			let html = '';
+			for (let i = 0; i < 20; i++) {
+				html = `${html}<img src="/_app/a${i}.webp" SRC="/_app/b${i}.webp" alt="">`;
+				html = `${html}<x-widget data-Äsrc="/og/w${i}.js" href="/_app/w${i}.css"></x-widget>`;
+			}
+			return { html };
+		}
+	}
+);
+
 /** The replay guard after a busy minute: `expired` signatures at the end of their window, then live
  *  ones. (A signature is kept until its ts plus the skew window, never longer: the guard's age
  *  timer, and its sweep, run as they would.) */
