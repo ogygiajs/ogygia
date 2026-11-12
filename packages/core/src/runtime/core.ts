@@ -3,6 +3,7 @@ import {
 	clock,
 	flights,
 	mailbox,
+	registry,
 	scope,
 	STALE,
 	type Mailbox,
@@ -34,6 +35,7 @@ import {
 	RegionAnswerRefused
 } from './region-endpoint-url.ts';
 import { fetch_hole } from './hole-fetch.ts';
+import { recover_from_stale_deps } from './stale-deps.ts';
 import {
 	island_entry_of,
 	import_entry,
@@ -268,9 +270,11 @@ const NO_REPLAY: Promise<unknown> = Promise.resolve();
 /**
  * ON-DEMAND holes, delegated: ONE set of capture listeners on the document for every armed hole
  * (five listeners per hole used to be five hundred on a page of nav-menus). Intent lands anywhere
- * inside a hole; the nearest ARMED hole above the target fires once and is forgotten.
+ * inside a hole; the nearest ARMED hole above the target fires once and is forgotten. Each armed
+ * hole is held by its arming (the `armed` state of its fetch): it leaves when that ends, or at its
+ * fire.
  */
-const on_demand_armed = new Map<Element, () => void>();
+const on_demand_armed = registry.keyed<Element, () => void>();
 let on_demand_installed = false;
 function on_demand_event(e: Event): void {
 	if (on_demand_armed.size === 0) return;
@@ -279,12 +283,18 @@ function on_demand_event(e: Event): void {
 		region = region.parentElement?.closest(ON_DEMAND_SELECTOR) ?? null;
 	}
 	if (!region) return;
-	const fire = on_demand_armed.get(region)!;
-	on_demand_armed.delete(region);
-	fire();
+	on_demand_armed.get(region)!();
 }
-function arm_on_demand(region: Element, fire: () => void): void {
-	on_demand_armed.set(region, fire);
+function arm_on_demand(region: Element, fire: () => void, owner: Scope): void {
+	// (it fires once: its entry goes first)
+	const forget = on_demand_armed.set(
+		region,
+		() => {
+			forget();
+			fire();
+		},
+		owner
+	);
 	if (on_demand_installed) return;
 	on_demand_installed = true;
 	for (const type of ON_DEMAND_EVENTS)
@@ -300,36 +310,6 @@ const load_island = (entry: string, cls: LoadClass = 'visible') => {
 	// (its location, and the fresh identity if that fails: entry-locations.ts)
 	return import_entry<IslandModule>(entry, island_module_url(entry));
 };
-
-/**
- * DEV watchdog for a stranded tab (dev only; the branch is dead in a production build). Under
- * `csr = false` Kit ships no client bootstrap, so a Vite dep re-optimization — which rotates the
- * optimizer's browserHash — can leave a tab that was loaded under the old hash importing island dep
- * URLs (`svelte.js?v=<old>`) that now 404, and Vite's own full-reload does not always reach a
- * csr=false page. The island entry then throws `Failed to fetch dynamically imported module` on
- * wake, and nothing recovers it.
- *
- * We CONFIRM it is staleness, not a genuinely-missing module: re-fetch the entry URL, and reload
- * only when the server still serves it (200) — a real 404 is a different bug and must stay visible.
- * A timestamp in `sessionStorage` bounds it to one reload per few seconds, so a genuinely broken
- * entry (200 that keeps failing to import) never loops.
- */
-const STALE_DEP_RELOAD_KEY = 'ogygia:dev:dep-reload';
-const STALE_DEP_RELOAD_WINDOW_MS = 6000;
-async function recover_from_stale_deps(entry: string | null): Promise<void> {
-	if (!import.meta.env.DEV || !entry || typeof location === 'undefined') return;
-	try {
-		const last = Number(sessionStorage.getItem(STALE_DEP_RELOAD_KEY) || 0);
-		// wall: the last reload's time lives in sessionStorage, across page loads
-		if (Date.now() - last < STALE_DEP_RELOAD_WINDOW_MS) return; // already reloaded — don't loop
-		const res = await fetch(island_module_url(entry), { cache: 'no-store' });
-		if (!res.ok) return; // a real 404 — leave the error visible, it is not a re-optimize
-		sessionStorage.setItem(STALE_DEP_RELOAD_KEY, String(Date.now())); // wall: read by the next page load
-		location.reload();
-	} catch {
-		// ok: dev only: storage or fetch blocked; the error said before this stays, and the dev reloads by hand
-	}
-}
 
 function dom_ready() {
 	if (typeof document === 'undefined' || document.readyState !== 'loading')
@@ -384,7 +364,7 @@ function say_island_failed(entry: string | null, err: unknown): void {
 	} else if (is_failed_import(err)) {
 		if (import.meta.env.DEV) {
 			console.error(new OgygiaError('island_load_failed_stale_deps', { entry }), err);
-			void recover_from_stale_deps(entry); // ok: dev only, never rejects (its failure leaves the error above)
+			if (entry) void recover_from_stale_deps(island_module_url(entry)); // ok: dev only, never rejects (its failure leaves the error above)
 		} else {
 			console.error(new OgygiaError('island_load_failed', { entry }), err);
 		}
@@ -615,6 +595,8 @@ class OgygiaRegion extends HTMLElement {
 	 * teardown: anything given to it then is let go at once.
 	 */
 	#life: Scope = NOT_CONNECTED;
+	/** Its entry in the connected regions (connected.ts) for this lifetime: its removal. */
+	#counted: (() => void) | null = null;
 	/**
 	 * ITS EVENTS, ONE AT A TIME (@ogygia/machine's `mailbox()`, #322): a connect, a schedule firing, a
 	 * frame landing, a live tick, its fetch's end and its retry, its wake's steps — each a turn, in the
@@ -734,7 +716,9 @@ class OgygiaRegion extends HTMLElement {
 			this.#life = scope();
 			this.#box = mailbox(this.#life);
 		}
-		connected_regions.add(this); // the navigation's shadow-root check counts these (connected.ts)
+		// the navigation's shadow-root check counts these (connected.ts): once per lifetime, held by it
+		if (!this.#counted && !this.#life.closed)
+			this.#counted = connected_regions.add(this, this.#life);
 		devalue_lane_stale(); // (its sidecar may have come in with it)
 		// its relative URLs, against the address it entered at — they are read again after any
 		// navigation, when `location` is another page (entry-locations.ts)
@@ -1072,11 +1056,14 @@ class OgygiaRegion extends HTMLElement {
 			// the island's wake, whatever the hole's own `when` was — #338)
 			if (owner === this.#hole) {
 				// a visitor's gesture: this region's downloads are the `user` class from here on
-				arm_on_demand(this, () => {
-					this.#visitor = NO_REPLAY; // (a hole's answer: nothing of the visitor's to replay)
-					return fire();
-				});
-				owner.scope.defer(() => on_demand_armed.delete(this));
+				arm_on_demand(
+					this,
+					() => {
+						this.#visitor = NO_REPLAY; // (a hole's answer: nothing of the visitor's to replay)
+						return fire();
+					},
+					owner.scope
+				);
 			} else this.#on_interaction(fire);
 		} else this.#on_media(when, start, owner); // a media query string
 	}
@@ -2109,7 +2096,8 @@ class OgygiaRegion extends HTMLElement {
 	}
 
 	#teardown() {
-		connected_regions.delete(this);
+		this.#counted?.();
+		this.#counted = null;
 		unregister_region(this);
 		// out of the document nothing watches it: a copy it keeps is compared if it wakes again (its
 		// sleep ends with its lifetime, below)

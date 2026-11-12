@@ -4,6 +4,12 @@ import { createRequire } from 'node:module';
 import { ISLAND_DIR } from './region/transform.ts';
 import { parse_module, type AstNode } from './parse/oxc.ts';
 import { OgygiaError } from './messages.ts';
+import { cache } from '@ogygia/machine';
+
+/** Project roots a process remembers Kit's settings for (one per Vite instance it runs). */
+const ROOTS_MAX = 64;
+/** Route files a process remembers a read of (a large app's route tree, with room). */
+const ROUTE_FILES_MAX = 20_000;
 
 /** The Kit-internal + app paths ogygia deep-imports (resolved off the APP root, not this package). */
 export interface KitPaths {
@@ -109,7 +115,10 @@ export interface KitDirs {
 	out_dir: string;
 }
 export const DEFAULT_KIT_DIRS = { routes: 'src/routes', out: '.svelte-kit' } as const;
-const _kit_dirs = new Map<string, KitDirs>();
+// (config, not a memo: an evicted root would answer the defaults, so the bound is far past the roots
+// any process configures, one per Vite instance; the owner-scoped fix is tracked in #633)
+const KIT_CONFIG_ROOTS_MAX = 10_000;
+const _kit_dirs = cache<string, KitDirs>({ name: 'kit dirs', max: KIT_CONFIG_ROOTS_MAX });
 
 export function set_kit_dirs(root: string, dirs: KitDirs): void {
 	_kit_dirs.set(root, dirs);
@@ -130,7 +139,10 @@ export function kit_dirs(root: string): KitDirs {
 // text of every region CSS asset under the threshold in the island-deps handoff, and the render
 // emits `<style data-ogygia-region-css="href">` instead of a blocking `<link>`. Read from the
 // app's svelte.config.js by the Vite plugin next to `kit_dirs`; `0` (Kit's default) = never inline.
-const _kit_inline_style_threshold = new Map<string, number>();
+const _kit_inline_style_threshold = cache<string, number>({
+	name: 'kit inline style threshold',
+	max: KIT_CONFIG_ROOTS_MAX
+});
 
 export function set_kit_inline_style_threshold(root: string, bytes: number): void {
 	_kit_inline_style_threshold.set(root, bytes);
@@ -162,7 +174,10 @@ const LINE_COMMENT_G = /^[ \t]*\/\/.*$/gm;
 /** Each option file's `csr`, read once until a route file changes (`clear_route_csr_cache`): every
  *  transform asks for its route's chain of option files, cache hits included, and each read was a
  *  file read (or an ENOENT throw) per directory level. */
-const _csr_of_file = new Map<string, boolean | undefined>();
+const _csr_of_file = cache<string, boolean | undefined>({
+	name: 'route csr',
+	max: ROUTE_FILES_MAX
+});
 
 /** Read `export const csr = true|false` from a route options file; `undefined` if unset/absent. */
 export function read_csr(file: string): boolean | undefined {
@@ -196,7 +211,10 @@ function read_csr_uncached(file: string): boolean | undefined {
 // an object, and a type annotation, `satisfies` or `as const` around it must not hide a key.
 
 /** Each module's claimed `config` keys, read once until a route file changes (`clear_route_csr_cache`). */
-const _config_of_file = new Map<string, Record<string, unknown>>();
+const _config_of_file = cache<string, Record<string, unknown>>({
+	name: 'route config',
+	max: ROUTE_FILES_MAX
+});
 
 /** `x as T` · `x satisfies T` · `<T>x` · `x!` · `(x)` → `x`. */
 function unwrap_expression(node: AstNode | null | undefined): AstNode | null {
@@ -363,7 +381,8 @@ export function rootLayoutCsrTrue(routesDir: string): boolean {
 // Judging a layout by its own partial chain is the bug this exists to prevent: `csr = false`
 // declared BELOW the root layout used to flip the root chrome into the strip path while Kit
 // shipped no client for those pages — dead Header/BootEffects.
-const _page_worlds = new Map<string, Map<string, boolean>>(); // routesDir → (pageDir → csrIsFalse)
+// routesDir → (pageDir → csrIsFalse): each a whole route tree's, made at once
+const _page_worlds = cache<string, Map<string, boolean>>({ name: 'page worlds', max: ROOTS_MAX });
 
 function page_worlds(routesDir: string): Map<string, boolean> {
 	let m = _page_worlds.get(routesDir);
@@ -500,7 +519,10 @@ export function csrTrueRouteIds(routesDir: string): string[] {
 // Each page's merged value for every claimed `config` key (see read_route_config above). The plugin
 // applies its own default to a key no level sets. Memoized per routesDir + keys; cleared on a dev
 // route-topology change alongside the csr maps.
-const _page_config = new Map<string, Record<string, Record<string, unknown>>>();
+const _page_config = cache<string, Record<string, Record<string, unknown>>>({
+	name: 'page config',
+	max: ROOTS_MAX
+});
 
 // A `+page.*` file: svelte host, universal, OR server — a route dir with ANY of these produces a
 // page RESPONSE. Unlike csr (which is about hydrating a rendered `+page.svelte`), route config
@@ -573,7 +595,7 @@ export function page_route_config(
 
 // Memoized per routesDir — a build-constant walked once, not per-transform. Dev route-topology
 // changes clear it via `clear_route_csr_cache` (the plugin's route watcher).
-const _has_csr_true = new Map<string, boolean>();
+const _has_csr_true = cache<string, boolean>({ name: 'routes csr true', max: ROOTS_MAX });
 
 /**
  * Does the app have ANY csr=true page (Kit hydrates the whole document there)? Drives whether a
