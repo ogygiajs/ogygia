@@ -451,14 +451,12 @@ export class PeerHandle implements Peer {
 		for (const origin of this.#origins) {
 			const u = new URL(target, origin);
 			if (u.origin !== new URL(origin).origin) return null;
-			const ask = (url: URL) => {
-				const timeout = AbortSignal.timeout(this.#timeout);
-				return fetch(url, {
+			const ask = (url: URL) =>
+				net.fetch(url, {
 					redirect: 'manual',
-					signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
+					signal: timers.timeout(this.#timeout, signal),
 					headers: traceparent ? { traceparent } : {}
 				});
-			};
 			let res: Response;
 			try {
 				res = await ask(u);
