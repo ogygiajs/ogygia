@@ -15,7 +15,10 @@ import {
 } from '../../src/runtime/entry-locations.ts';
 import { warm_island_module } from '../../src/runtime/region-endpoint-url.ts';
 import { code_url } from '../../src/runtime/code-origins.ts';
-import { preload_island_graph, register_island_graph } from '../../src/runtime/island-graph-preload.ts';
+import {
+	preload_island_graph,
+	register_island_graph
+} from '../../src/runtime/island-graph-preload.ts';
 import { encode_island_graph } from '../../src/island-graph.ts';
 import { OGYGIA_GRAPH_PRELOAD } from '../../src/wire-markup.ts';
 
