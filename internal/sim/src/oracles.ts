@@ -1035,7 +1035,13 @@ export function hydrates_as_sent(tab: Tab, world?: World): Broken | null {
 
 /** What a page says because of a filed bug, as KNOWN is for a DOM difference: a seed that says
  *  only these is counted `known`, not failed. Each entry goes when its fix lands. */
-export const KNOWN_SAID: ReadonlyArray<{ issue: number; what: string; said: RegExp }> = [];
+export const KNOWN_SAID: ReadonlyArray<{ issue: number; what: string; said: RegExp }> = [
+	{
+		issue: 1046,
+		what: "Svelte's async mode sends a guarded query with the value its {#if} rules out",
+		said: /^unhandled: \{"message":"Bad Request"\}$/
+	}
+];
 
 /**
  * No error escaped every page and server to the host process (beyond a network failure's own
