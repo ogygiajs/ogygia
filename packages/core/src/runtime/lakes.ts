@@ -14,6 +14,7 @@ import {
 import { runtime_session } from './session.ts';
 import { slots, type LakeArm, type LiftedLake } from './slots.ts';
 import { warn } from '../messages/core.ts';
+import { OG_STATIC } from '../wire-markup.ts';
 
 /** Feature entry: fill the `lakes` slot so core lifts/restores frozen regions. */
 export function install(): void {
@@ -39,7 +40,7 @@ export function settle_in(root: ParentNode): void {
 // moved its trailing anchors in front of its content, and the snippet's hydrate then mismatched.
 const in_live_snippet = (lake: Element, parent: Element) => {
 	const snippet = lake.parentElement?.closest('ogygia-snippet');
-	return !!snippet && parent.contains(snippet) && !snippet.hasAttribute('data-og-static');
+	return !!snippet && parent.contains(snippet) && !snippet.hasAttribute(OG_STATIC);
 };
 
 /** The lakes `parent`'s own hydrate lifts and restores: nearest region is `parent`, outside live snippets. */
