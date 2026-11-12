@@ -70,13 +70,17 @@
  * flight's moves, under the flights' `name`.
  */
 import { cache, type Cache, type EvictWhy } from './cache.ts';
-import { clock } from './ports.ts';
+import { buggify, clock } from './ports.ts';
 import { machine, type Machine } from './machine.ts';
 import { bad_option, report_thrown } from './messages.ts';
 import { under_policy, type Policy } from './policy.ts';
 import { DISPOSE } from './scope.ts';
 import { STALE, type Fresh, type Stale } from './stale.ts';
 import { watch_world, type World } from './world.ts';
+
+/** Dev and rules builds (buggify points); folded out of any other (../rules-env.d.ts). */
+const RULES =
+	import.meta.env?.DEV || (typeof __OGYGIA_RULES__ !== 'undefined' ? __OGYGIA_RULES__ : false);
 
 /** What every flights takes; `R` is what `run` (and `keep`, `weigh`) may read of an input. */
 interface FlightsCommon<R, V, W> {
@@ -467,7 +471,12 @@ class Flown<I, V, K> implements Flights<I, V, K> {
 			if (s.kind === 'kept') {
 				// (a use: the kept answer is the most recently used; one past its age leaves its entry)
 				if (this._kept.get(key) !== m) m = undefined;
-				else if (options?.fresh !== true) return s.promise as Promise<V>;
+				else if (RULES && buggify.fires('flights.evicted-early')) {
+					// (buggify: its keep ran out just now, as a short keep's or a full cache's would: the
+					// entry goes, and this caller runs the work again)
+					this._remove(key, m);
+					m = undefined;
+				} else if (options?.fresh !== true) return s.promise as Promise<V>;
 				else prior = kept_of(s);
 			} else if (s.kind === 'flying') {
 				if (options?.fresh !== true) {
@@ -647,6 +656,8 @@ class Flown<I, V, K> implements Flights<I, V, K> {
 		}
 		// (a weight below 0, or not a number, would lower the total and let `max` cap nothing)
 		if (!(ms > 0) || !(weight >= 0 && weight <= this._max)) return this._back(key, m, prior);
+		// (buggify: an answer not kept, as one too heavy for `max` is: the next caller runs again)
+		if (RULES && buggify.fires('flights.not-kept')) return this._back(key, m, prior);
 		const at = clock.wall();
 		const until = ms === Infinity ? Infinity : clock.mono() + ms; // (a duration: the monotonic clock)
 		m.go('kept', { answer, at, until, weight, promise });
