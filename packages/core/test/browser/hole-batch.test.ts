@@ -5,6 +5,9 @@ import { join_batch } from '../../src/runtime/frame-nav.ts';
 import { _reset, ensure, peek } from '../../src/runtime/frame-store.ts';
 import { frameAddress } from '../../src/frame.ts';
 import { build_parcel, done_parcel } from '../../src/server/stream-regions.ts';
+import { install as install_frames } from '../../src/runtime/frames.ts';
+import { slots } from '../../src/runtime/slots.ts';
+import { scope } from '@ogygia/machine';
 
 // (the address is the call — id + props — so each hole gets its own props)
 const ep = (sig: string) => `/__ogygia__?id=aaaaaaaaaaaa&props=${sig}&exp=9999999999&sig=${sig}`;
@@ -77,6 +80,22 @@ describe('join_batch', () => {
 		);
 		expect(urls.sort()).toEqual(['/a/__ogygia__', '/b/__ogygia__']);
 		expect(posts.map((p) => p.length)).toEqual([2, 2]);
+	});
+
+	it('a navigation’s batch, with a peer widget first: no POST to the widget’s path, region calls to theirs (#987)', async () => {
+		const urls: string[] = [];
+		const posts: string[][] = [];
+		vi.spyOn(window, 'fetch').mockImplementation(async (url, init) => {
+			urls.push(String(url));
+			posts.push(JSON.parse(String(init?.body)) as string[]);
+			return new Response(done_parcel(), { status: 200 });
+		});
+		install_frames();
+		const frag = `/og/frag?peer=dash&kind=widget&search=org%3D1&exp=9&sig=w1`;
+		// (what router-nav's batch_regions hands the frames feature: every load hole of the next page)
+		await slots.frames!.stream!([frag, ep('n1'), ep('n2')], scope(), location.href);
+		expect(urls).toEqual(['/__ogygia__']);
+		expect(posts).toEqual([[ep('n1'), ep('n2')]]);
 	});
 
 	it('a frame the batch did not carry: the joined fetch rejects as a batch miss', async () => {
