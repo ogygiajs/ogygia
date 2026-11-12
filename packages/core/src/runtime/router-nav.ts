@@ -15,6 +15,7 @@
  * way.
  */
 import { boot_link, router_link, slots } from './slots.ts';
+import { clock } from '@ogygia/machine';
 import { dispose_scope } from '../ref.ts';
 import {
 	NO_RECONCILE_SELECTOR,
@@ -33,6 +34,7 @@ import { spa_html_cacheable } from './spa-cacheable.ts';
 import { is_dangerous_head_node } from './head-deny.ts';
 import { pin_region_urls } from './entry-locations.ts';
 import { emit as dt_emit } from '../events/bus.ts';
+import { KNOWN_HEADER_CAP } from '../contract/known-copies.ts';
 
 // What this lazy chunk uses from the boot and from the router, handed over through the registry — it
 // never imports a boot module (./slots.ts `BootLink`: a module both import is split out of the runtime
@@ -71,21 +73,18 @@ const jump_to_hash = (hash: string) => router_link().jump_to_hash(hash);
 const DEVTOOLS = typeof __OGYGIA_DEVTOOLS__ !== 'undefined' ? __OGYGIA_DEVTOOLS__ : false;
 const HOOK_NAVIGATED =
 	typeof __OGYGIA_HOOK_NAVIGATED__ !== 'undefined' ? __OGYGIA_HOOK_NAVIGATED__ : true;
-/** High-res clock for devtools nav timings (guarded — dead when off). */
-const dt_now = () =>
-	typeof performance !== 'undefined' && performance.now ? performance.now() : Date.now();
+const HOOK_NAV_STARTED =
+	typeof __OGYGIA_HOOK_NAV_STARTED__ !== 'undefined' ? __OGYGIA_HOOK_NAV_STARTED__ : true;
+/** The monotonic clock, for devtools nav timings (dead when off). */
+const dt_now = clock.mono;
 
 /** RECONCILER R1: when on (and morph is installed), a nav diffs the body IN PLACE — matched regions
  *  keep their live islands, changed regions re-mount, the shell morphs — instead of a full-body
  *  replaceWith. Flip to `false` to fall back to the legacy full-swap path (the e2e safety net). */
 const RECONCILE_NAV = true;
 
-/** Max bytes for the `x-ogygia-known` header — past this we OMIT it, so the server renders every
- *  region (the safe full-render fallback). Keeps request headers well under proxy/server limits. */
-const KNOWN_HEADER_CAP = 6144;
-
 /** SERVER-DELTA NAV is OPT-IN for the first release (a new client↔server protocol). Off → the client
- *  never sends `x-ogygia-known`, so `known_region_fps()` is always empty server-side and every region
+ *  never sends `x-ogygia-known`, so `reuse_known_region()` never skips server-side and every region
  *  full-renders (the documented safe fallback). Compile-time constant (Vite `define`); typeof-guarded
  *  so a plain node import of dist/ without the define falls back to OFF. */
 const SERVER_DELTA =
@@ -107,10 +106,31 @@ export type NavPurpose = 'nav' | 'prefetch' | 'history';
 export const DOCUMENT_ACCEPT = 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8';
 
 /**
+ * The live region copies the server may skip (#846): one fingerprint per copy, so twins repeat it.
+ * The server skips the first copies of a fingerprint in document order, and the morph pairs each
+ * skipped placeholder with the live copy of the same place (runtime/reconcile.ts keys the n-th copy
+ * of an identity `<identity> <n>`). So a fingerprint's copies are claimed only up to the first one
+ * not hydrated: a placeholder paired with a copy that is still server markup would empty it.
+ */
+function known_copies(doc: Document): string[] {
+	const out: string[] = [];
+	/** Fingerprints whose run of hydrated copies ended. */
+	const ended = new Set<string>();
+	for (const el of doc.querySelectorAll('ogygia-region[data-og-fp]')) {
+		const fp = el.getAttribute('data-og-fp');
+		if (!fp || ended.has(fp)) continue;
+		if (el.hasAttribute('data-hydrated')) out.push(fp);
+		else ended.add(fp);
+	}
+	return out;
+}
+
+/**
  * SERVER-DELTA NAV (D2): headers for a nav/prefetch fetch. Always `x-ogygia-spa`. When `purpose` is
  * not a plain nav, `x-ogygia-purpose` names it (see {@link NavPurpose}). Plus, when the current
- * document has HYDRATED islands carrying a `data-og-fp`, `x-ogygia-known` lists their fingerprints so
- * the server can SKIP re-rendering the ones this page already has live. Only data-hydrated regions
+ * document has HYDRATED islands carrying a `data-og-fp`, `x-ogygia-known` lists their fingerprints, one
+ * per live copy ({@link known_copies}), so the server can SKIP re-rendering as many copies as this page
+ * already has live. Only data-hydrated regions
  * are claimed (never assert a region we don't actually have), and the header is omitted past a size
  * cap → the server renders everything (progressive enhancement: every header here is an optimization
  * the server may ignore, and its absence is always correct).
@@ -123,13 +143,9 @@ function nav_headers(purpose: NavPurpose = 'nav'): Record<string, string> {
 	const headers: Record<string, string> = { accept: DOCUMENT_ACCEPT, 'x-ogygia-spa': '1' };
 	if (purpose !== 'nav') headers['x-ogygia-purpose'] = purpose;
 	if (!SERVER_DELTA || typeof document === 'undefined') return headers;
-	const seen = new Set<string>();
-	for (const el of document.querySelectorAll('ogygia-region[data-og-fp][data-hydrated]')) {
-		const fp = el.getAttribute('data-og-fp');
-		if (fp) seen.add(fp);
-	}
-	if (seen.size === 0) return headers;
-	const joined = [...seen].join(',');
+	const live = known_copies(document);
+	if (live.length === 0) return headers;
+	const joined = live.join(',');
 	if (joined.length <= KNOWN_HEADER_CAP) headers['x-ogygia-known'] = joined;
 	return headers;
 }
@@ -471,18 +487,19 @@ const pages = (): Pages =>
 		name: 'router pages',
 		key: ['href'],
 		ignore: { purpose: 'a navigation joins the prefetch out for its address: how, not what' },
-		run: (ask, signal): Promise<Fetched> => run_page_fetch(ask, signal),
+		run: (ask, signal, flight): Promise<Fetched> => run_page_fetch(ask, signal, flight),
 		world: (page_world = boot_link().world()),
 		keep: (answer) => (answer.page !== null && answer.cacheable ? PREFETCH_TTL_MS : 0),
 		max: PAGE_CACHE_MAX_BYTES,
 		weigh: (answer) =>
 			Math.max((answer.page?.html.length ?? 0) * 2, PAGE_CACHE_MAX_BYTES / PAGE_CACHE_MAX_ENTRIES)
 	}));
-/** Prefetches still waiting in the load scheduler's queue, by href (a click promotes its one). */
-const queued_prefetch = new Map<string, { promote(cls: 'user'): void }>();
-/** Hrefs whose prefetched HTML was already scanned for island entries — parse once. (URL-level
- *  import dedupe lives in the shared `warm_island_module`.) */
-const warmed_pages = new Set<string>();
+type Memo<K, V> = import('@ogygia/machine').Cache<K, V>;
+/** Hrefs whose prefetched HTML was already scanned for island entries — parse once (the least
+ *  recently warmed go first). (URL-level import dedupe lives in the shared `warm_island_module`.) */
+let warmed_pages_memo: Memo<string, true> | undefined;
+const warmed_pages = () =>
+	(warmed_pages_memo ??= boot_link().cache({ name: 'warmed pages', max: 512 }));
 /** (Hard SPA navigations are the router's own machine, `r.nav` (./navigation.ts), so a "same
  *  document" decision there can stop one in flight: SpaRouter.supersede. The soft refresh is its
  *  machine too, `boot_link().soft` (./soft-refresh.ts): the boot holds it, as a page without the
@@ -551,10 +568,11 @@ export async function fetch_page(
 	// the kept page after use (one-shot — see navigate()), so the next visit is still fresh.
 	// PREFETCH-HIT.
 	const ask: PageAsk = { href, purpose };
+	// a guess, or the visitor's: a click joining a prefetch out for the page raises it to theirs
+	const { PRIORITY } = boot_link();
+	const priority = purpose === 'prefetch' ? PRIORITY.speculative : PRIORITY.user;
 	for (;;) {
-		// a click joining a prefetch the load scheduler still holds: it is the visitor's now
-		if (purpose !== 'prefetch') queued_prefetch.get(href)?.promote('user');
-		const answer = await pages().get(ask, { signal });
+		const answer = await pages().get(ask, { signal, priority });
 		if (answer !== boot_link().STALE) {
 			// Warm the destination's island JS during the hover/idle runway, so the click path is
 			// swap + hydrate with no first-time import() per island — the module graph is already
@@ -570,29 +588,31 @@ export async function fetch_page(
 	}
 }
 
-/** One page fetch (a flight's work): a prefetch waits for its turn in the load scheduler first. */
-async function run_page_fetch({ href, purpose }: PageAsk, signal: AbortSignal): Promise<Fetched> {
-	const go = () =>
+/** One page fetch (a flight's work): a prefetch waits for its turn in the load scheduler first, at
+ *  its flight's priority (a click joining it raises it: it goes at once, at the visitor's). */
+async function run_page_fetch(
+	{ href, purpose }: PageAsk,
+	signal: AbortSignal,
+	flight: import('@ogygia/machine').InFlight
+): Promise<Fetched> {
+	const go = (priority?: 'high' | 'auto' | 'low') =>
 		fetch(href, {
 			signal,
 			headers: nav_headers(purpose),
-			...(purpose === 'prefetch' ? { priority: 'low' } : {})
+			...(priority ? { priority } : {})
 		} as RequestInit);
 	// A prefetch is a guess: it waits for the page's critical resources and shares the background
 	// window (load-scheduler.ts). A navigation never waits.
 	let res: Response;
 	try {
 		if (purpose === 'prefetch') {
-			const { LoadSlot } = boot_link();
-			const slot = new LoadSlot({ kind: 'content', cls: 'speculative', label: href });
-			queued_prefetch.set(href, slot);
+			const { LoadSlot, fetch_priority_of } = boot_link();
+			const slot = new LoadSlot({ kind: 'content', cls: 'speculative', label: href, flight });
 			const release = await slot.ready;
-			// only its own entry: after a cache clear a newer prefetch of the page holds the address
-			if (queued_prefetch.get(href) === slot) queued_prefetch.delete(href);
 			try {
 				// a cache clear ended it while it waited: its turn is given back without a fetch
 				if (signal.aborted) return { page: null, cacheable: false };
-				res = await go();
+				res = await go(fetch_priority_of(slot.cls()));
 			} finally {
 				release();
 			}
@@ -627,8 +647,8 @@ async function run_page_fetch({ href, purpose }: PageAsk, signal: AbortSignal): 
  * A cheap attribute scan avoids building a whole detached Document during the hover window.
  */
 function warm_modules(href: string, html: string) {
-	if (warmed_pages.has(href)) return;
-	warmed_pages.add(href);
+	if (warmed_pages().has(href)) return;
+	warmed_pages().set(href, true);
 	// Match `entry="…"` on ogygia-region open tags in our own SSR output (module URLs never contain
 	// a double-quote), collecting the distinct client-island module specifiers. URL-level dedupe +
 	// failure-retry live in the shared warmer (one scheme for router/visible/interaction warms).
@@ -743,6 +763,12 @@ export async function navigate(
 			name: 'nav.start',
 			from: from.pathname + from.search,
 			to: url.pathname + url.search,
+			type
+		});
+	if (HOOK_NAV_STARTED)
+		slots.hooks?.navStarted?.({
+			from: `${from.pathname}${from.search}`,
+			to: `${url.pathname}${url.search}`,
 			type
 		});
 
@@ -1021,7 +1047,8 @@ export async function navigate(
 			fetched: built.fetched,
 			styled: built.styled,
 			swapped: performance.now(),
-			href: url.href
+			href: url.href,
+			reconciled: built.reconciled
 		});
 	if (DEVTOOLS)
 		dt_emit({
