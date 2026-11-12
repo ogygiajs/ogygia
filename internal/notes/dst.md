@@ -337,7 +337,8 @@ a `dead` one was, or a step is in no bucket; `--write` sets `reached` to what it
 the sweep before its seeds and fails the job after them when it failed.
 
 MUTATION, DAILY: dst.yml's `mutate` job (cron `43 3 * * *`) runs `src/mutate.ts` over
-`internal/sim/mutants.json` with `--budget-min 60` (no mutant starts after an hour; the last line says
+`internal/sim/mutants.json` on main's code, over gens 188 (an empty island that wakes: it kills the
+repair's `> 0` mutant), 191, 192 and 193, with `--budget-min 60` (no mutant starts after an hour; the last line says
 how many it judged of the list, and when) and uploads it (`dst-mutation`). The always-on job's batch
 log line and summary say both numbers: steps accounted, and the latest finished mutation run's kill
 rate with its date.
