@@ -223,24 +223,14 @@ const ATTACHMENT = /^\s*attachment\b/i;
 /** Kit remote-function POSTs live under `…/_app/remote/…` (or custom `appDir`). */
 const REMOTE_MUTATION_PATH = /\/remote(?:\/|$|\?)/;
 
-/** The address the server's head was written for. This module loads before a navigation first moves
- *  the address (the router awaits it before any history write), so it is still the load's. */
-const DOCUMENT_BASE = typeof document === 'undefined' ? '' : document.baseURI;
-
-/** A node's URL attribute as the address it names: resolved against the page the node came from
- *  (the server's head: the address it was written for, not the one a navigation moved to since,
- *  #821; a fetched page's: its own address, set by `resolve_head_urls`). `../a.css` on `/x/y` and
- *  `/a.css` are one file, so one key. Empty when absent. */
+/** A node's URL attribute as the address it names. Every head URL is written root-relative before
+ *  its page's address can move (`own_live_head`, `resolve_head_urls`), so the node's own base
+ *  reads it right. `../a.css` on `/x/y` and `/a.css` are one file, so one key. Empty when absent. */
 function url_of(node: Element, attr: string): string {
 	const value = node.getAttribute(attr);
 	if (!value) return '';
-	// (only a node in the live head can be the server's: a fetched page's or a detached one never is)
-	const base =
-		DOCUMENT_BASE !== '' && node.parentNode === document.head && session().page_head.has(node)
-			? DOCUMENT_BASE
-			: node.baseURI;
 	try {
-		return new URL(value, base).href;
+		return new URL(value, node.baseURI).href;
 	} catch {
 		return value; // (not a URL: compared as written)
 	}
@@ -270,9 +260,22 @@ export function resolve_head_urls(head: HTMLHeadElement, page: URL): void {
 		}
 		for (const attr of HEAD_SRCSET_ATTRS) {
 			const value = el.getAttribute(attr);
-			if (value !== null && value.trim() !== '') el.setAttribute(attr, resolve_srcset(value, page));
+			if (value === null || value.trim() === '') continue;
+			// (only a change is written: a live node's set again would be fetched again)
+			const resolved = resolve_srcset(value, page);
+			if (resolved !== value) el.setAttribute(attr, resolved);
 		}
 	}
+}
+
+/**
+ * The live head's URLs belong to the page on screen, `page` (#821, #1071). The server writes them
+ * page-relative, and so may a runtime that adds a node for the page; a node kept across a move of the
+ * address would name another file under the next one (a parked sheet, turned on, would fetch it).
+ * Made root-relative, as a fetched page's are, before anything keys them or the address moves.
+ */
+function own_live_head(page: URL): void {
+	resolve_head_urls(document.head, page);
 }
 
 /** A candidate list (`a.png 1x, b.png 2x`) with each URL resolved against `page`. */
@@ -778,6 +781,9 @@ export async function navigate(
 	// every step below checks it is still `mine`, and its fetch (a task of the visit) is aborted.
 	r.nav.go('loading', { href: url.href });
 	const mine = r.nav.now;
+	// (on a back or forward step the browser has moved the address already: the page on screen is
+	// the router's, not `location`'s)
+	own_live_head(r.current_url);
 	// What this one navigation does is its visit's (`attempt`): leaving it (a newer click, back to
 	// the page on screen, a hand-off) lets it all go. The page it brings has a visit of its own, made
 	// now (runtime/session.ts `PageVisit`): what is started for that page before its swap is that
@@ -915,6 +921,8 @@ export async function navigate(
 		if (soft.now.kind === 'refreshing') soft.go('idle');
 		// the page being left (the router's history moves on below)
 		const left = r.current_url;
+		// (a node the page on screen added while this one loaded)
+		own_live_head(left);
 		// THE ENTRY, written now (#310): a new one (the one left keeps where its page was), the one on
 		// screen at its new address, or the one a back or forward step is on. At the address the page
 		// belongs to: a redirect's intermediate URL is never an entry, as in a browser.
