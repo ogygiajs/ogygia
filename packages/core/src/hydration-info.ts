@@ -21,11 +21,13 @@
  * that is the wake that ran its code.
  */
 
+import { OG_WOKE } from './wire-markup.ts';
+
 const CURRENT_REGION = Symbol.for('ogygia.context.current-region');
 
 export function hydratedBy(): string | null {
 	if (typeof window === 'undefined') return null;
 	const region = (globalThis as Record<symbol, unknown>)[CURRENT_REGION] as Element | null;
 	if (!region) return null;
-	return region.getAttribute('data-og-woke') || region.getAttribute('wake') || 'load';
+	return region.getAttribute(OG_WOKE) || region.getAttribute('wake') || 'load';
 }
