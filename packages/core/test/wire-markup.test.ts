@@ -74,6 +74,16 @@ describe('MARK', () => {
 		expect(constants.size).toBeGreaterThan(100);
 		expect(imported).toEqual([]);
 	});
+
+	it('an entry that re-exports a marker constant exports its value (the compiler loads contract/)', async () => {
+		const entries = ['contract/index.js', 'internal-server.js', 'internal-instruments.js'];
+		const values: Record<string, unknown> = {};
+		for (const e of entries) {
+			const mod = (await import(path.join(DIST, e))) as Record<string, unknown>;
+			values[e] = mod.OG_HTML;
+		}
+		expect(values).toEqual(Object.fromEntries(entries.map((e) => [e, 'data-og-html'])));
+	});
 });
 
 describe('tags', () => {
