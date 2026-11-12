@@ -7,6 +7,9 @@
  * - `rule_flight_kept_failure`: no flight keeps a failure: an answer kept is never an error.
  * - `rule_kept_unkeyed_read`: a kept render read nothing its key does not cover (a per-visitor read
  *   in an anonymous render, #434).
+ * - `rule_region_answer_shared`: every region endpoint answer says `Referrer-Policy: no-referrer`
+ *   and a `Cache-Control` no shared cache keeps (`no-store` or `private`).
+ * - `rule_capability_not_path`: every minted capability URL is a same-origin path.
  *
  * Each area tells this module what it holds (`note_response_end`) only when rules are on: every call
  * site folds out of a build without them.
@@ -15,7 +18,55 @@ import { observe, timers, type AnyMachine, type Scope } from '@ogygia/machine';
 import { Rules } from '../rules.ts';
 import { warn } from '../messages/server.ts';
 
-type ServerRule = 'rule_request_scope_open' | 'rule_flight_kept_failure' | 'rule_kept_unkeyed_read';
+type ServerRule =
+	| 'rule_request_scope_open'
+	| 'rule_flight_kept_failure'
+	| 'rule_kept_unkeyed_read'
+	| 'rule_region_answer_shared'
+	| 'rule_capability_not_path';
+
+/** The first few region answers that left without their headers (CAPABILITY-URL, PRELOAD-CACHE). */
+const unsafe_answers: string[] = [];
+/** The first few capability URLs minted with more than a path (CAPABILITY-URL, HOLE-TRUST). */
+const unsafe_mints: string[] = [];
+
+/** Why a region endpoint answer is unsafe to send, or null: it must keep its capability out of
+ *  every Referer (`no-referrer`) and out of every shared cache (`no-store`, or `private`). */
+export function region_answer_unsafe(res: Response): string | null {
+	const referrer = res.headers.get('referrer-policy');
+	if (referrer !== 'no-referrer') return `referrer-policy: ${referrer ?? '(none)'}`;
+	const cache = res.headers.get('cache-control');
+	if (!cache) return 'no cache-control';
+	const directives = cache
+		.toLowerCase()
+		.split(',')
+		.map((d) => d.trim().split('=')[0]);
+	if (
+		!(directives.includes('no-store') || directives.includes('private')) ||
+		directives.includes('public') ||
+		directives.includes('s-maxage')
+	)
+		return `cache-control: ${cache}`;
+	return null;
+}
+
+/** A region endpoint answer is about to leave: one without its headers breaks the rule. */
+export function note_region_answer(path: string, res: Response): void {
+	if (!installed) return;
+	const why = region_answer_unsafe(res);
+	if (why === null) return;
+	if (unsafe_answers.length < 10) unsafe_answers.push(`${path} (${res.status}): ${why}`);
+	check_soon();
+}
+
+/** A capability was minted: one that is not a same-origin path (`/…`, never `//…`) breaks the rule. */
+export function note_minted_capability(url: string): void {
+	if (!installed) return;
+	if (url.startsWith('/') && !url.startsWith('//') && !url.startsWith('/\\')) return;
+	// (the address only: the query is the capability)
+	if (unsafe_mints.length < 10) unsafe_mints.push(url.split('?')[0]!);
+	check_soon();
+}
 
 /** The server's rules. */
 export const server_rules: Rules<ServerRule> = /* @__PURE__ */ new Rules<ServerRule>();
@@ -87,6 +138,12 @@ export function install_server_rules(): void {
 	server_rules.add('rule_request_scope_open', request_scopes_closed);
 	server_rules.add('rule_flight_kept_failure', no_kept_failure);
 	server_rules.add('rule_kept_unkeyed_read', no_kept_unkeyed_read);
+	server_rules.add('rule_region_answer_shared', () =>
+		unsafe_answers.length ? unsafe_answers.join('; ') : null
+	);
+	server_rules.add('rule_capability_not_path', () =>
+		unsafe_mints.length ? unsafe_mints.join('; ') : null
+	);
 	// a flight's entry moving to `kept` with an error, or a render that read what its key does not
 	// cover, for its answer (flights' machine, @ogygia/machine), and out of it again
 	observe((name, _from, to, machine) => {
