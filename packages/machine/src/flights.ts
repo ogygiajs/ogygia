@@ -69,7 +69,7 @@
  * its place) is what aborts the work and turns its answer into STALE. `observe()` hears every
  * flight's moves, under the flights' `name`.
  */
-import { cache, type Cache, type EvictWhy } from './cache.ts';
+import { cache_store, type CacheStore, type EvictWhy } from './cache.ts';
 import { buggify, clock } from './ports.ts';
 import { machine, type Machine } from './machine.ts';
 import { bad_option, report_thrown } from './messages.ts';
@@ -350,7 +350,7 @@ class Flown<I, V, K> implements Flights<I, V, K> {
 	/** The entries that keep an answer (kept, or flying beside the answer kept before): their
 	 *  bound (`max`, `weigh`), ages (`keep`) and use order. An answer it lets go for age or size
 	 *  leaves its entry. */
-	_kept: Cache<unknown, Entry>;
+	_kept: CacheStore<unknown, Entry>;
 	_disposed = false;
 
 	/** The total weight of what it keeps. */
@@ -405,7 +405,7 @@ class Flown<I, V, K> implements Flights<I, V, K> {
 		// (one try with no deadline needs no policy: the run is the flight's work as it is)
 		this._retry =
 			retry === null || (retry.attempts <= 1 && retry.deadline === Infinity) ? null : retry;
-		this._kept = cache<unknown, Entry>({
+		this._kept = cache_store<unknown, Entry>({
 			name: o.name ?? 'flights',
 			max,
 			weigh: (m) => held_of(m)?.weight ?? 0,
@@ -469,8 +469,13 @@ class Flown<I, V, K> implements Flights<I, V, K> {
 		if (m !== undefined) {
 			const s = m.now;
 			if (s.kind === 'kept') {
-				// (a use: the kept answer is the most recently used; one past its age leaves its entry)
-				if (this._kept.get(key) !== m) m = undefined;
+				// (a use: the kept answer is the most recently used; one past its age leaves its entry.
+				// The cache's newest, in its age, is a use that moves nothing: read in place.)
+				const kept = this._kept;
+				const h = kept._newest === key ? kept._newest_h : undefined;
+				const in_place =
+					h !== undefined && h.value === m && (h.until === Infinity || h.until > clock.mono());
+				if (!in_place && kept.get(key) !== m) m = undefined;
 				else if (RULES && buggify.fires('flights.evicted-early')) {
 					// (buggify: its keep ran out just now, as a short keep's or a full cache's would: the
 					// entry goes, and this caller runs the work again)

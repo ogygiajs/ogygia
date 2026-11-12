@@ -65,6 +65,58 @@ describe('cache: bounded', () => {
 		expect(c.has('a')).toBe(false);
 	});
 
+	it('the least recently used order holds through repeated uses, replaces and lets go of the newest', () => {
+		const n = noted();
+		const c = cache<string | undefined, number>({ max: 3, onEvict: n.onEvict });
+		c.set('a', 1);
+		c.set('b', 2);
+		c.get('b');
+		c.get('b'); // (the newest used again: still the newest)
+		c.set('b', 20); // (the newest replaced: still the newest)
+		c.get('a'); // a is now the newest, b the oldest
+		c.set(undefined, 9); // (any value is a key, undefined too)
+		c.get(undefined);
+		expect([...c.entries()]).toEqual([
+			['b', 20],
+			['a', 1],
+			[undefined, 9]
+		]);
+		c.delete(undefined); // the newest goes
+		c.set('c', 3);
+		c.get('c');
+		c.set('a', 10); // a replaced while c is the newest: a moves to the end
+		c.set('d', 4); // past max: b, the oldest, goes
+		expect([...c.entries()]).toEqual([
+			['c', 3],
+			['a', 10],
+			['d', 4]
+		]);
+		expect(n.seen).toEqual(['b:2:delete', 'undefined:9:delete', 'a:1:delete', 'b:20:size']);
+	});
+
+	it('the newest value read after it left finds nothing, whichever way it left', () => {
+		const c = cache<string, number>({ max: 2, keep: 1000, pinned: (v) => v === 0 });
+		c.set('a', 1);
+		c.delete('a');
+		expect(c.get('a')).toBeUndefined();
+		c.set('a', 1);
+		c.clear();
+		expect(c.get('a')).toBeUndefined();
+		c.set('a', 1);
+		step_mono(1000); // past its age: a read sweeps it
+		expect(c.get('a')).toBeUndefined();
+		expect(c.size).toBe(0);
+		vi.restoreAllMocks();
+		c.set('p', 0); // pinned
+		c.set('b', 2);
+		c.set('c', 3); // past max: p is pinned, so b goes, the newest as it goes
+		expect(c.get('b')).toBeUndefined();
+		expect(c.get('c')).toBe(3);
+		c.set('c', 30); // the newest replaced in place
+		expect(c.get('c')).toBe(30);
+		expect(c.get('p')).toBe(0);
+	});
+
 	it('weigh counts against max: as many go as it takes, oldest first', () => {
 		const n = noted();
 		const c = cache<string, string>({ max: 10, weigh: (v) => v.length, onEvict: n.onEvict });
