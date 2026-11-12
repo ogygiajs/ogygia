@@ -1078,12 +1078,6 @@ export const KNOWN_SAID: ReadonlyArray<{ issue: number; what: string; said: RegE
 		issue: 1046,
 		what: "Svelte's async mode sends a guarded query with the value its {#if} rules out",
 		said: /^unhandled: \{"message":"Bad Request"\}$/
-	},
-	{
-		issue: 1050,
-		what: 'a hole nested in an island is imported as a module after a client navigation',
-		// (the hole's id as a module URL: `/<12 hex>?og-retry=1`; palaestra /prefetch -> /nested)
-		said: /chunk_reload_needed\?url=https%3A%2F%2F[^%]+%2F[0-9a-f]{12}(%3F|$)/
 	}
 ];
 
