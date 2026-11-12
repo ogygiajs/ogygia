@@ -86,18 +86,17 @@ const STALL_MS = stream.deadline;
 
 /**
  * A BATCH STREAM'S LIFE, one machine: `sending` (the POST, until its answer starts), `reading` (each
- * read that brings bytes is a new visit, so the quiet time starts again), `ended`. Quiet for
- * STALL_MS in either, it steps to `stalled` on its own: the request is aborted and every reservation
- * it did not fill is released, as at any other end.
+ * read that brings bytes is a new visit, so the quiet time starts again). Its end, however it ends,
+ * is the machine's `stop()`. Quiet for STALL_MS in either, it steps to `stalled` on its own: the
+ * request is aborted and every reservation it did not fill is released, as at any other end.
  */
-const batch_stream = machine<{ sending: {}; reading: {}; stalled: {}; ended: {} }>()({
+const batch_stream = machine<{ sending: {}; reading: {}; stalled: {} }>()({
 	name: 'batch-stream',
 	initial: 'sending',
 	steps: {
-		sending: ['reading', 'stalled', 'ended'],
-		reading: ['reading', 'stalled', 'ended'],
-		stalled: [],
-		ended: []
+		sending: ['reading', 'stalled'],
+		reading: ['reading', 'stalled'],
+		stalled: []
 	},
 	after: {
 		sending: { ms: STALL_MS, to: 'stalled' },

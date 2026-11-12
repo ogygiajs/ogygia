@@ -665,7 +665,7 @@ class OgygiaRegion extends HTMLElement {
 	#hydrate_run: { visit: unknown; run: Promise<void> } | null = null;
 	#fire_hydrate = (): Promise<void> => {
 		const held = this.#hydrate_run;
-		// (`waking` is always the held run's: a wake starts only from cold or armed, through here)
+		// (`waking` is always the held run's: a wake starts only from armed, through here)
 		if (held && (held.visit === this.#wake.now || this.#wake.now.kind === 'waking'))
 			return held.run;
 		const run = this.#box.ask((turn) => this.#hydrate(turn)).then(nothing);
@@ -1665,6 +1665,8 @@ class OgygiaRegion extends HTMLElement {
 	 */
 	async #hydrate(turn: Turn) {
 		const from = this.#wake.now.kind;
+		// (a wake already under way, or over: nothing to do. `cold` is let through so the machine
+		// refuses it out loud: every fire runs in `armed`, test/machine-steps.test.ts)
 		if (this.#app || (from !== 'cold' && from !== 'armed')) return;
 		// (leaving `armed` drops the schedule's listeners: it fired, or a visitor came first)
 		this.#wake.go('waking');
