@@ -10,6 +10,7 @@
  * drop its SWR copies). The notices go through an outbox: the publish never waits for them (a peer
  * that is down never fails it), and the platform keeps them alive past its response (#286).
  */
+import { random } from '@ogygia/machine';
 import { defineServer, type ServerPlugin } from '@ogygia/core/plugin';
 import { set_fed_app } from './app.ts';
 import { install_federation, serve_federation } from './serve.ts';
@@ -37,7 +38,7 @@ const server: ServerPlugin = defineServer({
 		if (!fed) return;
 		// (an outbox send: kept alive past this request's response, and a peer that never took it is
 		// said once its tries are spent)
-		void broadcast_thaw(fed, { id: crypto.randomUUID(), hop: 0, tags }); // ok: broadcast_thaw never rejects (an outbox put never does)
+		void broadcast_thaw(fed, { id: random.uuid(), hop: 0, tags }); // ok: broadcast_thaw never rejects (an outbox put never does)
 	}
 });
 export default server;

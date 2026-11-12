@@ -1159,7 +1159,7 @@ class OgygiaHandle {
 		// Kit hands one chunk at a time (ONE chunk for a non-streamed page). Two facts about a chunk
 		// decide everything below, each found with one bounded scan (server/document-assembly.ts):
 		// `</head>` from the front, `</body>` from the back. The chunk is assembled ONCE at the end.
-		const t_start = performance.now();
+		const t_start = clock.mono();
 		const spans = locate(html);
 		const head = spans.head_end === -1 ? null : html.slice(0, spans.head_end);
 		// THE EARLY START (early-holes.ts): the requests of this page's `load` holes start during the
@@ -1485,7 +1485,7 @@ class OgygiaHandle {
 		if (event && request_stats_wanted()) {
 			const size = bag!.tail.size;
 			record_request_stats(event.request, {
-				transform_ms: Math.round((performance.now() - t_start) * 100) / 100,
+				transform_ms: Math.round((clock.mono() - t_start) * 100) / 100,
 				islands: size.props,
 				hints: size.hints,
 				holes: size.holes,
@@ -1677,14 +1677,14 @@ class OgygiaHandle {
 					if (!timing) return render_gate.run(render_body, gated);
 					// the wait for a slot, and the time in it. A slot is held for the whole render,
 					// awaits included: a hole waiting on slow data keeps the next one queued
-					const asked = performance.now();
+					const asked = clock.mono();
 					return render_gate.run(async () => {
-						const entered = performance.now();
+						const entered = clock.mono();
 						timing.queue_ms = entered - asked;
 						try {
 							return await render_body();
 						} finally {
-							timing.render_ms = performance.now() - entered;
+							timing.render_ms = clock.mono() - entered;
 						}
 					}, gated);
 				},
@@ -1767,7 +1767,7 @@ class OgygiaHandle {
 			return 'shape';
 		const expiry = expiry_refusal(
 			cap.exp,
-			Math.floor(Date.now() / 1000), // wall: against the capability's signed epoch expiry
+			Math.floor(clock.wall() / 1000), // wall: against the capability's signed epoch expiry
 			renewal,
 			app_lifetime.renew_window
 		);
@@ -1873,7 +1873,7 @@ class OgygiaHandle {
 		const cache = this.#hole_cache(target, payload, wakes, event, ttl, reads_page_data);
 		// (the profiler logs each batched hole as its own hole request — only when one listens)
 		const stats = batch && has_batch_hole_listener();
-		const t0 = stats ? performance.now() : 0;
+		const t0 = stats ? clock.mono() : 0;
 		const timing: { queue_ms?: number; render_ms?: number } = {};
 		let outcome: 'hit' | 'miss' | 'none' = 'none';
 		const body = await this.#render_component(
@@ -1898,7 +1898,7 @@ class OgygiaHandle {
 					: {}),
 				...(region_name?.[target] ? { name: region_name[target] } : {}),
 				p: hole_copy_key(payload),
-				ms: performance.now() - t0,
+				ms: clock.mono() - t0,
 				status: body === null ? 500 : 200
 			});
 		// (an answer nobody waits on any more is not shaped: the stream drops it)
