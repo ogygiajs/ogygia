@@ -4063,6 +4063,22 @@
 		{
 			"id": "packages/devtools/src/server.ts > defineServer:0~6ae004 > handle > next",
 			"reason": "SvelteKit's resolve for a beacon page in a build (a RequestEvent's resolve: not cloneable), then never_stored, constant work of its own"
+		},
+		{
+			"id": "packages/core/src/hooks.ts > over_budget",
+			"reason": "an error path: one 429 Response per refused request (a Response, not cloneable), constant work; proven in packages/core/test/batch-render-budget.test.ts (#959)"
+		},
+		{
+			"id": "packages/core/src/server/rate-limit.ts > RateLimiter > retry_after_s",
+			"reason": "an error path: reads the visitor's bucket (the limiter's private map, not replayable) and the monotonic clock, constant work; proven in packages/core/test/batch-render-budget.test.ts (#959)"
+		},
+		{
+			"id": "packages/core/src/runtime/region-endpoint-url.ts > RegionAnswerLater > constructor",
+			"reason": "browser only, an error path: the error a 429 throws, two field writes, constant work; proven in packages/core/test/browser/hole-rate-limited.test.ts (#959)"
+		},
+		{
+			"id": "packages/core/src/runtime/region-endpoint-url.ts > retry_after_ms",
+			"reason": "browser only, an error path: reads one header of a live Response (not cloneable) and parses it, constant work; proven in packages/core/test/browser/hole-rate-limited.test.ts (#959)"
 		}
 	]
 }
