@@ -77,6 +77,30 @@ describe('summarize_export answers exactly', () => {
 		expect(summarize_export(code, '/app/src/lib/H.svelte', 'svelte', 'h', 0)).toEqual(b);
 	});
 
+	it.each([
+		// a function expression of this module is followed like an arrow or a declaration
+		['const f = function (p) { return p.data.b; };\nuse(f(page));', ['b']],
+		// `arguments` outside a function handed the page reaches nothing of it
+		['function f() { return arguments.length; }\nuse(f(), page.data.b);', ['b']],
+		// a module that does not parse ships all
+		['use(page.data.b);\nconst = ;', 'all']
+	])('page_data_keys: %s', (body, want) => {
+		const code = `import { page } from '$app/state';\n${body}`;
+		const { keys } = page_data_keys_answer(code, '/app/src/lib/x.ts', 'script');
+		expect(keys === 'all' ? 'all' : [...(keys ?? [])].sort()).toEqual(want);
+	});
+
+	it('a default-imported helper handed the page is followed by its default export', () => {
+		const code = dedent`
+			import { page } from '$app/state';
+			import h from './h';
+			use(h(page));
+		`;
+		const { keys, pending } = page_data_keys_answer(code, '/app/src/lib/x.ts', 'script');
+		expect(keys).toEqual(new Set());
+		expect(pending).toEqual([{ specifier: './h', imported: 'default', arg: 0, line: 3 }]);
+	});
+
 	it("names the line of the read that ships all, not the module's last", () => {
 		const code = dedent`
 			import { page } from '$app/state';
