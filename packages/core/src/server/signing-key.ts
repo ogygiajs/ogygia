@@ -14,8 +14,7 @@
  * instead of an opaque 403: the page and its islands endpoint came from different deployments (a CDN
  * routing them to two backends, HTML cached across a key change).
  */
-import { buildKey, buildHadSecret } from 'virtual:ogygia/secret';
-import { sign } from 'virtual:ogygia/sign';
+import { build_key, build_had_secret, sign } from 'ogygia:server';
 import { building } from '$app/env';
 import { OgygiaError, warn } from '../messages/server.ts';
 
@@ -67,7 +66,7 @@ export function signing_key(): SigningKey {
 			? [s.option, 'option' as const]
 			: from_env
 				? [from_env, 'env' as const]
-				: [buildKey, 'build' as const];
+				: [build_key, 'build' as const];
 	const key: SigningKey = {
 		secret,
 		stable: source !== 'build',
@@ -118,7 +117,7 @@ function warn_build_key(): void {
 	if (g[K]) return;
 	g[K] = true;
 	if (building) warn('build_key_prerender');
-	else if (buildHadSecret) console.error(new OgygiaError('secret_missing_at_runtime'));
+	else if (build_had_secret) console.error(new OgygiaError('secret_missing_at_runtime'));
 	else warn('secret_missing');
 }
 

@@ -11,7 +11,7 @@
  */
 import { createRequire } from 'node:module';
 import path from 'node:path';
-import { warn } from '../messages/build.ts';
+import { warn } from '../compiler/messages.ts';
 import { say } from '@ogygia/machine';
 
 const STYLE_BLOCK_G = /<style\b([^>]*)>([\s\S]*?)<\/style>/gi;
