@@ -8,6 +8,7 @@ import { observe } from '@ogygia/machine';
 import { bootDev } from '../../src/runtime/full.ts';
 import { _reset, stamp, write } from '../_frames.ts';
 import { frameAddress } from '../../src/frame.ts';
+import { KEEP_FALLBACK_HTML } from '../../src/keep-fallback-marker.ts';
 
 const COUNTER = '/test/browser/fixtures/Counter.svelte';
 const counter = () => decodeURIComponent(escape(atob(inject('counter_render_b64'))));
@@ -76,6 +77,39 @@ test('a kept fallback that later gets a real answer is not kept any more, and it
 	await expect
 		.poll(() => el.hasAttribute('data-hydrated'), { timeout: 5_000, message: 'its island woke' })
 		.toBe(true);
+});
+
+test('a hole answered, then told to keep its fallback twice, then answered again: each answer is a move of its own', async () => {
+	const E = ep('life00000007');
+	window.fetch = async () => html('<p data-answer>first</p>');
+	const moves: string[] = [];
+	const off = observe((name, from, to) => {
+		if (name === 'hole-answer' && to) moves.push(`${from.kind} -> ${to.kind}`);
+	});
+	try {
+		const [el] = insert(plain_hole(E));
+		bootDev();
+		await expect
+			.poll(() => el.querySelector('[data-answer]') !== null, { timeout: 5_000 })
+			.toBe(true);
+		// (writes at its address: a command that returned the region, a refresh)
+		const a = frameAddress(E);
+		write({ a, v: stamp(), html: KEEP_FALLBACK_HTML });
+		await expect.poll(() => el.hasAttribute('data-og-kept'), { timeout: 5_000 }).toBe(true);
+		write({ a, v: stamp(), html: KEEP_FALLBACK_HTML });
+		await expect.poll(() => moves.length, { timeout: 5_000 }).toBe(3);
+		write({ a, v: stamp(), html: '<p data-answer>again</p>' });
+		await expect.poll(() => el.textContent, { timeout: 5_000 }).toContain('again');
+		expect(el.hasAttribute('data-og-kept'), 'no longer kept').toBe(false);
+		expect(moves).toEqual([
+			'none -> answered',
+			'answered -> kept',
+			'kept -> kept',
+			'kept -> answered'
+		]);
+	} finally {
+		off();
+	}
 });
 
 test('a refetch that failed does not mark the hole’s first answer a refresh', async () => {
@@ -159,6 +193,62 @@ test('a refresh that re-mints a hole while its first fetch is out shows the new 
 	await tick(100);
 	expect(hole.querySelector('[data-testid="old"]'), 'the old answer never paints').toBeNull();
 	expect(hole.querySelector('[data-testid="new"]')).not.toBeNull();
+});
+
+test('a re-minted hole with no answer refetches after a refusal, after a server error, and after the network came back', async () => {
+	// The first address is refused (`failed`); the refresh re-mints the hole and it refetches the new
+	// one (`failed -> fetching`); a server error waits and refetches (`retrying -> fetching`); a
+	// failure offline waits for the network and refetches (`offline -> fetching`).
+	const E1 = ep('life00000008', 'cHJvcHMx');
+	const E2 = ep('life00000008', 'cHJvcHMy');
+	let online = true;
+	Object.defineProperty(navigator, 'onLine', { configurable: true, get: () => online });
+	let second = 0;
+	window.fetch = async (input) => {
+		if (!String(input).includes('cHJvcHMy')) return new Response('', { status: 403 });
+		second++;
+		if (second === 1) return new Response('', { status: 500 });
+		if (second === 2) {
+			online = false;
+			throw new TypeError('Failed to fetch');
+		}
+		return html('<p data-testid="served">served</p>');
+	};
+	const moves: string[] = [];
+	const stop = observe((name, from, to) => {
+		if (name === 'hole' && to) moves.push(`${from.kind} -> ${to.kind}`);
+	});
+	try {
+		const live = document.createElement('ogygia-region');
+		live.setAttribute('live', '');
+		document.body.append(live);
+		bootDev();
+		type Live = { applyLive(desc: Record<string, unknown>): Promise<void> };
+		const tick_with = (endpoint: string) =>
+			(live as unknown as Live).applyLive({
+				id: 'life-live',
+				module: '',
+				props: {},
+				html: plain_hole(endpoint),
+				url: ep('life0002live')
+			});
+		await tick_with(E1);
+		await expect.poll(() => moves.includes('fetching -> failed'), { timeout: 5_000 }).toBe(true);
+		await tick_with(E2);
+		await expect.poll(() => moves.includes('fetching -> offline'), { timeout: 5_000 }).toBe(true);
+		online = true;
+		window.dispatchEvent(new Event('online'));
+		const hole = live.querySelector('ogygia-region')!;
+		await expect
+			.poll(() => hole.querySelector('[data-testid="served"]') !== null, { timeout: 5_000 })
+			.toBe(true);
+		expect(moves).toContain('failed -> fetching');
+		expect(moves).toContain('retrying -> fetching');
+		expect(moves).toContain('offline -> fetching');
+	} finally {
+		stop();
+		delete (navigator as unknown as Record<string, unknown>).onLine;
+	}
 });
 
 test('a hole answered twice moves once per answer, and the second answer is the one on screen', async () => {
