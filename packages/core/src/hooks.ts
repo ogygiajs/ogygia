@@ -19,7 +19,7 @@
  * @packageDocumentation
  */
 import { render } from 'svelte/server';
-import { clock } from '@ogygia/machine';
+import { clock, random } from '@ogygia/machine';
 import type { Component } from 'svelte';
 import type { RequestEvent } from '@sveltejs/kit';
 import type { Handle } from './kit-handle.ts';
@@ -201,6 +201,7 @@ import { set_server_devtools_recorder } from './events/server-registry.ts';
 import { drop_dead_kit_resolves } from './server/dead-kit-resolves.ts';
 import {
 	DEVTOOLS_SCHEMA_VERSION,
+	DT_MARK,
 	type DevtoolsEvent,
 	type DevtoolsEventInput
 } from './contract/events.ts';
@@ -217,6 +218,7 @@ import { mark_personal } from './server/personal-response.ts';
 import { OgygiaError, warn } from './messages/server.ts';
 import { ERRORS, WARNINGS } from './messages/core.ts';
 import { define_messages, dev_or_prerender } from './contract/messages.ts';
+import { ask } from './plugin/hooks.ts';
 
 // A prerender words every message, the link after it (contract/messages.ts `dev_or_prerender`).
 (globalThis as unknown as Record<symbol, unknown>)[Symbol.for('ogygia.prerendering')] = building;
@@ -512,7 +514,21 @@ const plugins = start_app_plugins(server_plugins, {
 // DEVTOOLS: per-request event buffers, keyed off the request bag by a side WeakMap so RequestBag stays
 // pristine (and free) when devtools is off. GC'd with the bag; never a global ring (which would mix
 // concurrent SSR requests). Unreferenced ⇒ tree-shaken when the gate is off.
-const dt_buffers = new WeakMap<RequestBag, { events: DevtoolsEvent[]; seq: number }>();
+// `mark`: random per response, on its side channel and its head runtime script (DEVTOOLS-FEED), so
+// the client takes no channel the page's markup carries.
+const dt_buffers = new WeakMap<
+	RequestBag,
+	{ events: DevtoolsEvent[]; seq: number; mark: string }
+>();
+function dt_new_mark(): string {
+	let hex = '';
+	for (const b of random.bytes(12)) hex += b.toString(16).padStart(2, '0');
+	return hex;
+}
+/** This response's devtools mark ('' off devtools, or with no buffer: a lean or devtools-off visit). */
+function dt_mark_of(bag: RequestBag | undefined): string {
+	return (DEVTOOLS && bag && dt_buffers.get(bag)?.mark) || '';
+}
 // Stamp the envelope with THIS request's own seq/clock and push into its buffer.
 function dt_record(bag: RequestBag | undefined, input: DevtoolsEventInput): void {
 	const buf = bag ? dt_buffers.get(bag) : undefined;
@@ -965,7 +981,7 @@ class OgygiaHandle {
 				!building &&
 				(event.cookies.get(TESTING_COOKIE) === TESTING_LEAN ||
 					event.url.searchParams.get(TESTING_PARAM) === TESTING_LEAN);
-			if (devtools_on && !lean) dt_buffers.set(bag, { events: [], seq: 0 });
+			if (devtools_on && !lean) dt_buffers.set(bag, { events: [], seq: 0, mark: dt_new_mark() });
 			// Hang the bag off the request for the rest of it — the render's own Kit store and the
 			// streamed tail chunks (late regions, resolve scripts, after `resolve()` returned) all
 			// carry this same `Request` and find it.
@@ -1231,7 +1247,8 @@ class OgygiaHandle {
 			if (head === null && !tail) return html;
 			// The runtime an island inside a lake emitted goes before the head's JavaScript here too
 			// (see the csr=false path below): its regions keep their server markup from the first connect.
-			const ordered = head === null ? null : with_early_csp(runtime_first(head, null));
+			const ordered =
+				head === null ? null : with_early_csp(runtime_first(head, null, dt_mark_of(bag)));
 			return assemble(html, spans, ordered === head ? null : ordered, head_inject, tail);
 		}
 
@@ -1284,7 +1301,7 @@ class OgygiaHandle {
 				router_enabled && runtime_url && !page_declares_runtime_script(probe)
 					? runtime_bootstrap(kit_asset)
 					: null;
-			const ordered = with_early_csp(runtime_first(probe, runtime_tag));
+			const ordered = with_early_csp(runtime_first(probe, runtime_tag, dt_mark_of(bag)));
 			if (ordered !== probe) head_out = ordered;
 			// The DEV bridge is NOT gated on the router — it carries `@vite/client`, and Vite's own
 			// full-reload recovery must reach EVERY csr=false page. A dep re-optimization rotates the
@@ -1584,7 +1601,11 @@ class OgygiaHandle {
 		const dt_buf = DEVTOOLS && bag ? dt_buffers.get(bag) : undefined;
 		if (DEVTOOLS && dt_buf && dt_buf.events.length) {
 			scripts.push(
-				emit_ogygia_script('devtools', escape_script_text(JSON.stringify(dt_buf.events)))
+				emit_ogygia_script(
+					'devtools',
+					escape_script_text(JSON.stringify(dt_buf.events)),
+					`${DT_MARK}="${dt_buf.mark}"`
+				)
 			);
 		}
 	}
@@ -2090,13 +2111,14 @@ class OgygiaHandle {
 			p: hole_copy_key(payload)
 		});
 		// the same split for the browser (devtools, the profiler's beacon), as Server-Timing. Only for
-		// a browser that measures (dev, the devtools cookie, the profiler's flag): no other visitor's
-		// answer tells how loaded the server is
+		// a browser that measures (dev, the devtools cookie, a visitor a plugin vouches for by its own
+		// credentials: the profiler's logged-in user): no other visitor's answer tells how loaded the
+		// server is
 		const timed =
 			timing.queue_ms !== undefined &&
 			(import.meta.env.DEV ||
 				(DEVTOOLS && event.cookies.get(DEVTOOLS_COOKIE) === DEVTOOLS_ON) ||
-				event.cookies.get('og_profiler_beacon') === '1');
+				(await ask.measures(event).catch(() => undefined)) === true); // ok: a failed hook was said (plugin_hook_failed); unproved is not timed
 		const server_timing: Record<string, string> = timed
 			? {
 					'server-timing': `og-queue;dur=${timing.queue_ms!.toFixed(1)}, og-render;dur=${(timing.render_ms ?? 0).toFixed(1)}`
@@ -2200,8 +2222,9 @@ export interface OgygiaHandleOptions {
  */
 // Also surfaced here so `import * as ogygia from 'ogygia/server'` has `ogygia.transport` — but the
 // actual Kit transport hook must live in the UNIVERSAL hooks (client needs decode), so wire it
-// from `'ogygia'` in src/hooks.ts, not here.
-export { ogygiaTransport as transport } from './transport.ts';
+// from `'ogygia'` in src/hooks.ts, not here. This module is server-only: the server realm's
+// transport, which refuses ogygia values a browser sent (./server/transport.ts).
+export { ogygiaServerTransport as transport } from './server/transport.ts';
 // `document()` — render a held region into a complete ogygia document (a `Response`). Server-only.
 export { document, type DocumentOptions } from './document.ts';
 export function handle(options: OgygiaHandleOptions = {}): Handle {
