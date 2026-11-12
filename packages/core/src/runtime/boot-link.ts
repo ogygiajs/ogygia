@@ -37,6 +37,7 @@ import {
 	walk_enters
 } from './ownership.ts';
 import { LoadSlot } from './load-scheduler.ts';
+import { fetch_priority_of, PRIORITY } from './load-class.ts';
 import { load_devalue, devalue, with_devalue, needs_devalue } from './devalue-lane.ts';
 import { OgygiaError, warn } from '../messages/core.ts';
 
@@ -68,6 +69,8 @@ export function link_boot(): void {
 		server_body_attributes,
 		server_body_child,
 		LoadSlot,
+		PRIORITY,
+		fetch_priority_of,
 		load_devalue,
 		devalue,
 		with_devalue,

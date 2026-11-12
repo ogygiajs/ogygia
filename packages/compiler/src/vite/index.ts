@@ -33,6 +33,7 @@ import {
 	type ChunkBarrel
 } from '@ogygia/core/contract';
 import { island_sourcemaps_plugin } from './sourcemaps.ts';
+import { lazy_files } from './lazy-files.ts';
 import { install_dev_client_maps, install_dev_maps, install_dev_page_keys } from './dev-maps.ts';
 import {
 	is_island_path,
@@ -1077,7 +1078,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 				}
 				if (__P) {
 					const keys = [...__outHash.keys()].sort();
-					let d = 0x811c9dc5;
+					let d = 0x811c9dc5; // hash: folds numbers (each file's hash), not a string
 					for (const k of keys) {
 						d ^= __outHash.get(k)!;
 						d = Math.imul(d, 0x01000193) >>> 0;
@@ -1609,7 +1610,8 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 		},
 		// the plugins' `post` stage: on what the region transform made of the module
 		stage_host('post'),
-		island_sourcemaps_plugin({ program, is_island_path })
+		island_sourcemaps_plugin({ program, is_island_path }),
+		lazy_files()
 	];
 }
 

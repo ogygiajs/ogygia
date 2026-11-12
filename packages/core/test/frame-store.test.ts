@@ -113,7 +113,7 @@ describe('frame-store: every answer at an address is a move', () => {
 			'kept -> shown',
 			'shown -> kept'
 		]);
-		expect(frames.peek('/x')).toEqual({ v: 3, html: 'c' });
+		expect(frames.peek('/x')).toEqual({ v: 3, d: 5, html: 'c' });
 	});
 
 	it('a dropped answer’s move names what was dropped and why, and keeps what is shown', () => {
