@@ -136,6 +136,29 @@ export const KNOWN: ReadonlyArray<{
 	seen?(world: World, tab: Tab): boolean;
 }> = [
 	{
+		issue: 937,
+		what: 'a deferred peer region whose peer failed is answered as an empty success',
+		// (a peer widget the fresh load shows is missing whole from the tab, and a server's hop to a
+		// peer failed in the run: cut, dropped, tampered, or a 5xx; each widget set aside whole)
+		applies: (shown, fresh) => widgets(shown) < widgets(fresh),
+		forgive: (s) => {
+			const out: string[] = [];
+			let inside: string | null = null;
+			for (const line of s.split('\n')) {
+				const indent = /^ */.exec(line)![0];
+				if (inside !== null && indent.length > inside.length) continue;
+				inside = null;
+				if (line.trim().startsWith('<section data-gen="widget"')) {
+					inside = indent;
+					continue;
+				}
+				out.push(line);
+			}
+			return out.join('\n');
+		},
+		seen: (world) => world.network.exchanges.some(peer_hop_failed)
+	},
+	{
 		issue: 914,
 		what: 'every deferred peer widget shares one answer',
 		// (the generated peer's widgets say whose they are, `w<k> for r<slot>`: another slot's
@@ -528,6 +551,22 @@ function kit_stamps(s: string): string {
 		.join('\n');
 }
 
+/** How many generated peer widgets a normalized DOM shows. */
+function widgets(s: string): number {
+	return s.split('\n').filter((l) => l.trim().startsWith('<section data-gen="widget"')).length;
+}
+
+/** A server's hop to a peer's fragment that failed (#937: the shell answers its hole empty). */
+function peer_hop_failed(e: World['network']['exchanges'][number]): boolean {
+	return (
+		e.from.startsWith('server') &&
+		e.url.includes('/og/fragment/') &&
+		(e.cut ||
+			e.tampered ||
+			(typeof e.status === 'number' ? e.status >= 500 : e.status !== 'pending'))
+	);
+}
+
 /** A normalized DOM's generated peer widgets, by what each says it is (`w<k> for r<slot>`). */
 function widget_labels(s: string): string {
 	return [...s.matchAll(/"(w\d+ for r\d+)"/g)].map((m) => m[1]).join(',');
@@ -733,6 +772,15 @@ const KNOWN_EMPTY: ReadonlyArray<{ issue: number; what: string; is: (r: Element)
 		is: (r) =>
 			r.getAttribute('render') === 'defer' &&
 			!r.hasAttribute('data-hydrated') &&
+			(r.getAttribute('endpoint') ?? '').startsWith('/og/frag?')
+	},
+	{
+		issue: 937,
+		what: 'a deferred peer region whose peer failed is answered as an empty success',
+		// (its hole fetched and answered, with nothing: the shell's hop to the peer failed)
+		is: (r) =>
+			r.getAttribute('render') === 'defer' &&
+			r.hasAttribute('data-hydrated') &&
 			(r.getAttribute('endpoint') ?? '').startsWith('/og/frag?')
 	},
 	{
