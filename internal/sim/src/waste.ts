@@ -6,6 +6,7 @@
  *   signature) answered 200 twice in one document, but a content-hashed file (a browser's module
  *   map and cache keep it; the simulator has neither, so it may fetch one again) and a page (a
  *   navigation back asks again by design);
+ * - no POST the app refused (4xx): a batch to a path that answers none (#987);
  * - nothing sent twice in the document: one stylesheet linked twice, one `<style>` text twice, one
  *   island's props (`data-ogygia-props`) or a page seed twice, one module preloaded twice;
  * - nothing said: a console warning in such a document is something ogygia (or the app) found wrong.
@@ -30,6 +31,18 @@ export function asked_twice(world: World, realm: string): string[] {
 		count.set(key, (count.get(key) ?? 0) + 1);
 	}
 	return [...count].filter(([, n]) => n > 1).map(([k, n]) => `${k} ×${n}`);
+}
+
+/** The POSTs of a document the app refused (4xx): a batch or a call a correct page never sends. A
+ *  refused GET is left out (a hole's expired capability renews with one, as designed). */
+export function refused(world: World, realm: string): string[] {
+	const out = new Set<string>();
+	for (const e of world.network.exchanges) {
+		if (e.from !== realm || e.method !== 'POST' || typeof e.status !== 'number') continue;
+		if (e.status < 400 || e.status >= 500 || e.cut || e.tampered) continue;
+		out.add(`POST ${decodeURIComponent(new URL(e.url).pathname)} ${e.status}`);
+	}
+	return [...out];
 }
 
 /** What one document holds twice: a stylesheet, a style text, an island's props, a page seed, a
@@ -102,6 +115,12 @@ const KNOWN_WASTE: ReadonlyArray<{
 			);
 			return links.slice(1).every((l) => l.hasAttribute('data-ogygia-graph-preload'));
 		}
+	},
+	{
+		issue: 987,
+		what: "a router navigation posts its deferred holes as one batch to the first hole's path",
+		// (a peer widget's first: `POST /og/frag`, refused; gen 157, seed 3)
+		is: (line) => line === 'POST /og/frag 403'
 	}
 ];
 
@@ -128,17 +147,20 @@ export function waste(world: World, tab: Tab): Broken | null {
 	const doc = tab.page.mainFrame.document as unknown as Document;
 	if (!tab.page.mainFrame.url.startsWith('http')) return null;
 	const held = known_waste(doc, held_twice(doc));
+	const asked = known_waste(doc, refused(world, tab.realm));
 	const found = [
 		...asked_twice(world, tab.realm).map((k) => `asked twice: ${k}`),
+		...asked.left.map((k) => `refused: ${k}`),
 		...held.left.map((k) => `held twice: ${k}`),
 		...warned(tab).map((l) => `said: ${l.split('\n')[0].slice(0, 200)}`)
 	];
 	if (found.length > 0)
 		return { oracle: 'waste', detail: `${tab.page.mainFrame.url}: ${found.join('\n')}` };
-	return held.known.length === 0
+	const known = [...new Set([...held.known, ...asked.known])];
+	return known.length === 0
 		? null
 		: {
 				oracle: 'known',
-				detail: `${tab.page.mainFrame.url}: ${held.known.map((i) => `#${i} (${KNOWN_WASTE.find((k) => k.issue === i)!.what})`).join(', ')}`
+				detail: `${tab.page.mainFrame.url}: ${known.map((i) => `#${i} (${KNOWN_WASTE.find((k) => k.issue === i)!.what})`).join(', ')}`
 			};
 }

@@ -1,7 +1,7 @@
 // The waste oracle (src/waste.ts): it finds an answer asked for twice, a thing a document holds
 // twice and a warning, and lets a page that does its work once pass.
 import { describe, expect, it } from 'vitest';
-import { asked_twice, held_twice, known_waste, warned } from '../src/waste.ts';
+import { asked_twice, held_twice, known_waste, refused, warned } from '../src/waste.ts';
 import type { World } from '../src/world.ts';
 
 const world = (urls: Array<[string, number | 'dropped']>) =>
@@ -42,6 +42,18 @@ describe('asked twice', () => {
 			['/p1', 200]
 		]);
 		expect(asked_twice(w, 'tab-1#1')).toEqual([]);
+	});
+});
+
+describe('refused', () => {
+	it('finds a batch the app refused, and passes a refused GET (a capability renews with one) (gen 157, seed 3)', () => {
+		const w = world([
+			['/__ogygia__?id=a&exp=1&sig=s', 403],
+			['/og/frag', 403],
+			['/og/frag?peer=p&sig=s', 200]
+		]);
+		(w.network.exchanges[1] as { method: string }).method = 'POST';
+		expect(refused(w, 'tab-1#1')).toEqual(['POST /og/frag 403']);
 	});
 });
 
