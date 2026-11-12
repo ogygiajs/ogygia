@@ -1,38 +1,6 @@
 {
 	"exempt": [
 		{
-			"id": "packages/core/src/server/region-endpoint.ts > hole_css",
-			"reason": "a map lookup and a handoff read (holeCss before the region rename, unmeasured on that base); its handoff read is region_css's, which the request benches run"
-		},
-		{
-			"id": "packages/core/src/server/region-endpoint.ts > make_region_endpoint",
-			"reason": "signs with the process's key and the request's session (hidden state; makeRegionEndpoint before the region rename, unmeasured on that base); the signing it wraps is sign's, benched"
-		},
-		{
-			"id": "packages/core/src/server/region-endpoint.ts > mint_server_region",
-			"reason": "signs with the process's key and the request's session (hidden state; mintServerIsland before the region rename, unmeasured on that base); the signing it wraps is sign's, benched"
-		},
-		{
-			"id": "packages/core/src/messages/core.ts > ERRORS > request_event_server_only > details",
-			"reason": "a message table entry: wording only (the browser stand-in prints the bare link; test/region-server-browser.test.ts)"
-		},
-		{
-			"id": "packages/core/src/messages/core.ts > ERRORS > request_event_server_only > text",
-			"reason": "a message table entry: wording only (the browser stand-in prints the bare link; test/region-server-browser.test.ts)"
-		},
-		{
-			"id": "packages/devtools/src/profiler/maps-browser.ts > read_profiler_maps",
-			"reason": "the browser stand-in answers null, constant; the devtools suite is not recorded (proven in packages/devtools/test/profiler-maps-browser.test.ts)"
-		},
-		{
-			"id": "packages/devtools/src/profiler/maps-server.ts > read_profiler_maps",
-			"reason": "imports the server build's ogygia:server/profiler-maps module, which exists only inside a built app; constant work"
-		},
-		{
-			"id": "packages/devtools/src/profiler/maps-server.ts > read_profiler_maps > then:0~09dfc9",
-			"reason": "reads the one export of the server build's profiler-maps module, which exists only inside a built app; constant work"
-		},
-		{
 			"id": "packages/core/src/runtime/entry-locations.ts > recover_location > task:0~d0bd46",
 			"reason": "one rollover wait on the recovery's own scope timer (seconds, a deploy's rollover only), constant work"
 		},
@@ -958,23 +926,7 @@
 		},
 		{
 			"id": "packages/core/src/plugin/css.ts > flights:0 > run",
-			"reason": "the dynamic import of the generated ogygia:server/router-css, which resolves only under the app's Vite pipeline; its failed read and the read after it are proven against a real Vite dev server in packages/core/test/router-css-dev.test.ts"
-		},
-		{
-			"id": "packages/barrels/src/index.ts > barrels > log",
-			"reason": "the console fallback before configResolved hands the plugin Vite's logger (never reached in a build: configResolved runs first); the logger path is benched in packages/barrels/bench/barrels.bench.ts"
-		},
-		{
-			"id": "packages/barrels/src/rewrite.ts > quote > replace:1~5719f3",
-			"reason": "the escape callback of one character (a table lookup, constant work); quote's escapes are proven in packages/barrels/test/rewrite.test.ts"
-		},
-		{
-			"id": "packages/core/src/compiler/dev/region-bytes.ts > island_subgraph_bytes > map:0~c49ee0",
-			"reason": "a barrel row's importers to their ids (one property read each), only with the dev server's live module graph; proven in packages/core/test/region-bytes.test.ts"
-		},
-		{
-			"id": "packages/devtools/src/profiler/report.ts > ogygia_findings > flatMap:0~283e13",
-			"reason": "the reasons of at most three listed barrels (constant work); proven in packages/devtools/test/profiler.test.ts"
+			"reason": "the dynamic import of the generated virtual:ogygia/router-css, which resolves only under the app's Vite pipeline; its failed read and the read after it are proven against a real Vite dev server in packages/core/test/router-css-dev.test.ts"
 		},
 		{
 			"id": "packages/cli/src/perf/cli.ts > group_alive",
@@ -1111,10 +1063,6 @@
 		{
 			"id": "packages/config/src/vitest.ts > browser_runs",
 			"reason": "test config: picks the browser projects' provider when a vitest config loads (before any test or bench), constant work; every browser job runs it"
-		},
-		{
-			"id": "packages/config/src/vitest.ts > exact",
-			"reason": "test config: one stub alias's pattern when a vitest config loads (before any test or bench), constant work; every node test job runs it"
 		},
 		{
 			"id": "packages/config/src/vitest.ts > browser_runs > map:0~5b89ec",
@@ -1330,7 +1278,7 @@
 		},
 		{
 			"id": "packages/devtools/src/profiler/embedded-maps.ts > flights:0",
-			"reason": "the dynamic import of ogygia:server/profiler-maps (and its gunzip), module IO once per process; run by the profiler tests"
+			"reason": "the dynamic import of virtual:ogygia/profiler-maps (and its gunzip), module IO once per process; run by the profiler tests"
 		},
 		{
 			"id": "packages/devtools/src/profiler/index.ts > Profiler > flights:0",
@@ -2141,14 +2089,6 @@
 			"reason": "browser only: hands the head merge's unlisted sheets to the boot's release_sheets (live elements, not cloneable), one call; proven in apps/palaestra/e2e/hole-kept-sheet.spec.ts (#275)"
 		},
 		{
-			"id": "packages/devtools/src/profiler/request-stats.ts > hold_request_stats_detail",
-			"reason": "returns a release closure (a function, not cloneable), constant work; proven in packages/devtools/test/request-stats-detail.test.ts"
-		},
-		{
-			"id": "packages/devtools/src/profiler/request-stats.ts > hold_request_stats_detail > <anonymous>~4ba179",
-			"reason": "lets go of one hold in a module-level set (not replayable: process state), constant work; proven in packages/devtools/test/request-stats-detail.test.ts"
-		},
-		{
 			"id": "packages/devtools/src/profiler/index.ts > Profiler > #busy",
 			"reason": "builds the 409 Response from the recorder machine's state (a Response, not cloneable), constant work; proven in packages/cli/test/mcp-profile-busy.test.ts (#290)"
 		},
@@ -2157,24 +2097,12 @@
 			"reason": "awaits the app's flag source (an async call out, not recorded), linear in the registered flags; proven in packages/flags/test/prime-twice.test.ts and packages/flags/test/source-failed.test.ts"
 		},
 		{
-			"id": "packages/core/src/contract/trigger.ts > on_schedule",
-			"reason": "hands a callback to one of four schedule arms (functions, not cloneable), one parse and one branch, constant work"
-		},
-		{
-			"id": "packages/core/src/runtime/lakes.ts > on_frozen_connect > on_schedule:2~6d0320",
-			"reason": "browser only: a stored page's swr lake revalidates on its schedule, one fetch call, constant work"
-		},
-		{
-			"id": "packages/core/src/runtime/lakes.ts > on_frozen_connect > on_schedule:2~6d0320#2",
-			"reason": "browser only: a cached lake revalidates on its schedule, one fetch call, constant work"
-		},
-		{
-			"id": "packages/core/src/runtime/lakes.ts > on_frozen_connect > on_schedule:2~6d0320#3",
-			"reason": "browser only: a cached lake revalidates on its schedule, one fetch call, constant work"
-		},
-		{
 			"id": "packages/flags/src/index.ts > set_prime",
 			"reason": "writes the request's prime state onto a Request (not cloneable), constant work; proven in packages/flags/test/prime-twice.test.ts"
+		},
+		{
+			"id": "packages/core/src/compiler/link/location-map.ts > by_key",
+			"reason": "build time: one comparison of two keys, a sort's callback (not recorded), constant work; proven in packages/core/test/entry-locations.test.ts"
 		},
 		{
 			"id": "packages/content/src/markdown/shiki.ts > render_code_region > replace:1~7326ff",
@@ -2203,170 +2131,6 @@
 		{
 			"id": "packages/core/src/runtime/router-nav.ts > page_relative_resolved",
 			"reason": "browser only: one URL resolved against a fetched page (reads location.origin), constant work"
-		},
-		{
-			"id": "packages/federation/src/messages.ts > FEDERATION_ERRORS > shared_state_not_plain > details",
-			"reason": "a message table entry: wording only"
-		},
-		{
-			"id": "packages/federation/src/messages.ts > FEDERATION_ERRORS > shared_state_not_plain > text",
-			"reason": "a message table entry: wording only"
-		},
-		{
-			"id": "packages/content/src/messages/build.ts > CONTENT_BUILD_WARNINGS > content_leaked_to_client > details",
-			"reason": "a message table entry: wording only"
-		},
-		{
-			"id": "packages/content/src/messages/build.ts > CONTENT_BUILD_WARNINGS > content_leaked_to_client > text",
-			"reason": "a message table entry: wording only"
-		},
-		{
-			"id": "packages/content/src/messages/build.ts > CONTENT_BUILD_WARNINGS > content_leaked_to_client > text > map:0~63a78f",
-			"reason": "a message table entry: wording only (indents at most five module lines)"
-		},
-		{
-			"id": "packages/content/src/vite/leaks.ts > content_leaks",
-			"reason": "build only: makes one Vite plugin object, once per build; proven in packages/content/test/content-leaks.test.ts"
-		},
-		{
-			"id": "packages/content/src/vite/leaks.ts > content_leaks > configResolved",
-			"reason": "build only: reads three config fields, once per build"
-		},
-		{
-			"id": "packages/content/src/vite/leaks.ts > content_leaks > writeBundle",
-			"reason": "build only: once per client build, off the request and boot paths; proven in packages/content/test/content-leaks.test.ts"
-		},
-		{
-			"id": "packages/content/src/vite/leaks.ts > warn_content_leaks > filter:0~eec9a0",
-			"reason": "build only: two regex tests per module id of a finished client bundle, once per build"
-		},
-		{
-			"id": "packages/content/src/vite/leaks.ts > warn_content_leaks > flatMap:0~b437c4",
-			"reason": "build only: runs only when the build is already warning about a leak"
-		},
-		{
-			"id": "packages/content/src/vite/leaks.ts > warn_content_leaks > warn:1~cd9197 > map:0~a95637",
-			"reason": "build only: relative paths of at most five leaked modules, inside the warning"
-		},
-		{
-			"id": "packages/core/src/server/request-stats.ts > set_request_stats_sink",
-			"reason": "sets one module slot, once per profiler setup (constant work)"
-		},
-		{
-			"id": "packages/devtools/src/profiler/request-stats.ts > install_request_stats",
-			"reason": "sets core's stats sink, once per profiler setup (constant work)"
-		},
-		{
-			"id": "packages/devtools/src/profiler/request-stats.ts > request_stats_of",
-			"reason": "one WeakMap read keyed by a live Request (not cloneable), constant work"
-		},
-		{
-			"id": "packages/devtools/src/profiler/request-stats.ts > hole_stats_of",
-			"reason": "one WeakMap read keyed by a live Request (not cloneable), constant work"
-		},
-		{
-			"id": "packages/devtools/src/profiler/request-stats.ts > set_batch_hole_listener",
-			"reason": "stores one listener function (not cloneable), constant work"
-		},
-		{
-			"id": "packages/devtools/src/profiler/request-stats.ts > request_stats_store > page",
-			"reason": "one WeakMap write keyed by a live Request (not cloneable), constant work"
-		},
-		{
-			"id": "packages/devtools/src/profiler/request-stats.ts > request_stats_store > hole",
-			"reason": "one WeakMap write keyed by a live Request (not cloneable), constant work"
-		},
-		{
-			"id": "packages/devtools/src/profiler/request-stats.ts > request_stats_store > batchHole",
-			"reason": "hands one record to the recording profiler's listener, constant work"
-		},
-		{
-			"id": "packages/devtools/src/profiler/request-stats.ts > request_stats_store > wantsBatchHoles",
-			"reason": "reads one module slot (process state), constant work"
-		},
-		{
-			"id": "packages/devtools/src/profiler/request-stats.ts > request_stats_store > detailed",
-			"reason": "reads the size of a module-level set (process state), constant work; proven in packages/devtools/test/request-stats-detail.test.ts"
-		},
-		{
-			"id": "packages/devtools/src/build/dev-meta.ts > dev_meta_plugin",
-			"reason": "dev only: builds one Vite plugin object, once per server, constant work"
-		},
-		{
-			"id": "packages/devtools/src/build/dev-meta.ts > dev_meta_plugin > configureServer",
-			"reason": "dev only: installs two middlewares on the dev server, once per server, constant work"
-		},
-		{
-			"id": "packages/devtools/src/build/dev-meta.ts > dev_meta_plugin > configureServer > use:0~2175f9",
-			"reason": "dev only: sets one response header and passes on, constant work"
-		},
-		{
-			"id": "packages/devtools/src/build/dev-meta.ts > dev_meta_plugin > configureServer > use:0~56d04b",
-			"reason": "dev only: the dock's meta endpoint over the dev server's module graph (not recorded); its work is island_subgraph_bytes, measured in core"
-		},
-		{
-			"id": "packages/devtools/src/build/dev-meta.ts > dev_meta_plugin > configureServer > use:0~56d04b > island_subgraph_bytes:2~0b61a8",
-			"reason": "dev only: hands one barrel question to the regions seam, constant work of its own"
-		},
-		{
-			"id": "packages/devtools/src/build/dev-meta.ts > dev_meta_plugin > configureServer > use:0~56d04b > read",
-			"reason": "dev only: reads one component source once per request (a file read, not recorded), constant work of its own"
-		},
-		{
-			"id": "packages/devtools/src/vite.ts > devtools > dev_meta_plugin:0~479109",
-			"reason": "dev only: hands the build's regions seam to the dev meta plugin, constant work"
-		},
-		{
-			"id": "packages/devtools/src/build/maps-plugin.ts > profiler_maps_plugins",
-			"reason": "build only: makes the two map plugin objects, once per build, constant work"
-		},
-		{
-			"id": "packages/devtools/src/build/maps-plugin.ts > profiler_maps_plugins > maps > closeBundle > handler",
-			"reason": "build only: fills the maps module once per server build (files on disk, not recorded); its work is fill_profiler_maps"
-		},
-		{
-			"id": "packages/devtools/src/build/maps-plugin.ts > profiler_maps_plugins > maps > configResolved",
-			"reason": "build only: reads three fields of Vite's resolved config, once per build, constant work"
-		},
-		{
-			"id": "packages/devtools/src/build/maps-plugin.ts > profiler_maps_plugins > maps > writeBundle",
-			"reason": "build only: writes the server leg's module map beside its chunks (files on disk, not recorded); its work is write_module_map"
-		},
-		{
-			"id": "packages/devtools/src/build/maps-plugin.ts > profiler_maps_plugins > server_sourcemaps_plugin:0~8b94d4",
-			"reason": "build only: the hidden-sourcemaps switch, always on in a build with the profiler, constant work"
-		},
-		{
-			"id": "packages/core/src/server/rules.ts > no_kept_unkeyed_read",
-			"reason": "dev and e2e builds only: timers and a machine observer over module state; proven in packages/core/test/server-rules.test.ts"
-		},
-		{
-			"id": "packages/core/src/messages/server.ts > SERVER_WARNINGS > rule_kept_unkeyed_read > details",
-			"reason": "a rule's message wording (dev and e2e only), constant text; said in packages/core/test/server-rules.test.ts"
-		},
-		{
-			"id": "packages/core/src/messages/server.ts > SERVER_WARNINGS > rule_kept_unkeyed_read > text",
-			"reason": "a rule's message wording (dev and e2e only), constant text; said in packages/core/test/server-rules.test.ts"
-		},
-		{
-			"id": "packages/core/src/hooks.ts > OgygiaHandle > #hole_cache",
-			"reason": "a hole's cache key and the start of its read observation (a RequestEvent, not cloneable), constant work; run by packages/flags/test/hole-cache.test.ts through cached_render and the e2e hole suites"
-		},
-		{
-			"id": "packages/core/src/plugin/reads.ts > set_open_reads",
-			"reason": "installs the read-set reader once, at module load, constant work"
-		},
-		{
-			"id": "packages/core/src/server/render-page.ts > render_page > get data",
-			"reason": "notes a page.data read into the running render's read set and returns the data, constant work"
-		},
-		{
-			"id": "packages/flags/src/index.ts > outbox:0~05e47f > giveUp > once:1~de49a5",
-			"reason": "prints one warning (console output, not replayable), constant work"
-		},
-		{
-			"id": "packages/machine/src/say.ts > say > get size",
-			"reason": "reads a Map's size, constant work; proven in packages/machine/test/say.test.ts"
 		},
 		{
 			"id": "packages/core/src/runtime/router-nav.ts > hold_scroll",
@@ -2421,8 +2185,44 @@
 			"reason": "the wait runs out (a dropped download in WebKit): resolves null, constant work"
 		},
 		{
-			"id": "packages/content/src/markdown/frontmatter.ts > reason_of",
-			"reason": "a thrown error to its words (an OgygiaError's class identity does not replay), two string slices, only on a frontmatter error; proven in packages/content/test/frontmatter-errors.test.ts"
+			"id": "packages/core/src/server/rules.ts > no_kept_unkeyed_read",
+			"reason": "dev and e2e builds only: timers and a machine observer over module state; proven in packages/core/test/server-rules.test.ts"
+		},
+		{
+			"id": "packages/core/src/messages/server.ts > SERVER_WARNINGS > rule_kept_unkeyed_read > details",
+			"reason": "a rule's message wording (dev and e2e only), constant text; said in packages/core/test/server-rules.test.ts"
+		},
+		{
+			"id": "packages/core/src/messages/server.ts > SERVER_WARNINGS > rule_kept_unkeyed_read > text",
+			"reason": "a rule's message wording (dev and e2e only), constant text; said in packages/core/test/server-rules.test.ts"
+		},
+		{
+			"id": "packages/core/src/hooks.ts > OgygiaHandle > #hole_cache",
+			"reason": "a hole's cache key and the start of its read observation (a RequestEvent, not cloneable), constant work; run by packages/flags/test/hole-cache.test.ts through cached_render and the e2e hole suites"
+		},
+		{
+			"id": "packages/core/src/plugin/reads.ts > set_open_reads",
+			"reason": "installs the read-set reader once, at module load, constant work"
+		},
+		{
+			"id": "packages/core/src/server/render-page.ts > render_page > get data",
+			"reason": "notes a page.data read into the running render's read set and returns the data, constant work"
+		},
+		{
+			"id": "packages/core/src/plugin/server.ts > start_plugins > map:0~9f66ac > app > observeReads",
+			"reason": "forwards a RequestEvent (not cloneable) to observe_reads, constant work; packages/core/bench/server.bench.ts runs observe_reads"
+		},
+		{
+			"id": "packages/core/src/plugin/server.ts > start_plugins > map:0~9f66ac > app > warn > once:1~c9a4aa",
+			"reason": "prints one warning (console output, not replayable), constant work; proven in packages/core/test/plugins.test.ts"
+		},
+		{
+			"id": "packages/flags/src/index.ts > outbox:0~05e47f > giveUp > once:1~de49a5",
+			"reason": "prints one warning (console output, not replayable), constant work"
+		},
+		{
+			"id": "packages/machine/src/say.ts > say > get size",
+			"reason": "reads a Map's size, constant work; proven in packages/machine/test/say.test.ts"
 		},
 		{
 			"id": "packages/content/src/vite/index.ts > warn_placement > once:1~daa8fe",
@@ -2483,118 +2283,6 @@
 		{
 			"id": "packages/postrender/src/registry.ts > install > once:1~4af86e",
 			"reason": "say(): one setup warning for the process, constant work"
-		},
-		{
-			"id": "packages/core/src/server/page-stream.ts > swap_tracked",
-			"reason": "the fallback walk for a page value too deep or cyclic for the untracked one, handed a swap function (not cloneable); linear in the value, one Map entry per open object; proven in packages/core/test/page-defer.test.ts (the cyclic cases)"
-		},
-		{
-			"id": "packages/core/src/server/page-stream.ts > swap_tracked > walk",
-			"reason": "one node of swap_tracked's walk over a closure (its Map and swap: not cloneable), constant work per node; proven in packages/core/test/page-defer.test.ts (the cyclic cases)"
-		},
-		{
-			"id": "packages/content/src/markdown/shiki.ts > render_code_region > replace:1~7326ff",
-			"reason": "the replacement for the multi-variant id attribute: one concatenation, constant work; proven in packages/content/test/fence-escaping.test.ts"
-		},
-		{
-			"id": "packages/content/src/markdown/shiki.ts > render_code_region > replace:1~ca1204",
-			"reason": "the replacement for the pre's attributes: one concatenation, constant work; proven in packages/content/test/fence-escaping.test.ts"
-		},
-		{
-			"id": "packages/core/src/plugin/server.ts > start_plugins > map:0~9f66ac > app > observeReads",
-			"reason": "forwards a RequestEvent (not cloneable) to observe_reads, constant work; packages/core/bench/server.bench.ts runs observe_reads"
-		},
-		{
-			"id": "packages/core/src/plugin/server.ts > start_plugins > map:0~9f66ac > app > warn > once:1~c9a4aa",
-			"reason": "prints one warning (console output, not replayable), constant work; proven in packages/core/test/plugins.test.ts"
-		},
-		{
-			"id": "packages/content/src/messages/runtime.ts > CONTENT_ERRORS > content_site_context_failed > text",
-			"reason": "a message table entry: wording only"
-		},
-		{
-			"id": "packages/content/src/messages/runtime.ts > CONTENT_ERRORS > content_site_context_failed > details",
-			"reason": "a message table entry: wording only"
-		},
-		{
-			"id": "packages/machine/src/trace.ts > trace",
-			"reason": "test and devtools tool, never on a page's path: one observe() subscription and a bounded ring of lines (max, default 500)"
-		},
-		{
-			"id": "packages/machine/src/trace.ts > trace > observe:0~38d8f1",
-			"reason": "test tool: one line formatted and pushed per machine move while a trace is on, oldest dropped past max, constant work per move"
-		},
-		{
-			"id": "packages/machine/src/trace.ts > trace > stop",
-			"reason": "test tool: ends the observe subscription, once"
-		},
-		{
-			"id": "packages/machine/src/trace.ts > trace > lines",
-			"reason": "test tool: a copy of the bounded ring (at most max lines), read when a test fails"
-		},
-		{
-			"id": "packages/machine/src/trace.ts > trace > text",
-			"reason": "test tool: the bounded ring joined, read when a test fails"
-		},
-		{
-			"id": "packages/machine/src/trace.ts > trace > clear",
-			"reason": "test tool: empties the ring, constant work"
-		},
-		{
-			"id": "packages/tooling/src/e2e/index.ts > moves",
-			"reason": "e2e fixture only (never shipped): reads the page's trace text once when a test fails"
-		},
-		{
-			"id": "packages/tooling/src/e2e/index.ts > moves > evaluate:0~b28489",
-			"reason": "e2e fixture only: one page.evaluate reading the trace text in the browser"
-		},
-		{
-			"id": "packages/tooling/src/vitest/trace-setup.ts > beforeEach:0~efb4a4",
-			"reason": "test setup only (never shipped): starts one trace per test"
-		},
-		{
-			"id": "packages/tooling/src/vitest/trace.ts > trace_on_failure",
-			"reason": "test setup only (never shipped): registers one onTestFailed per test"
-		},
-		{
-			"id": "packages/tooling/src/vitest/trace.ts > trace_on_failure > onTestFailed:0~8bf46a",
-			"reason": "test setup only: prints the trace once when a test fails"
-		},
-		{
-			"id": "packages/tooling/src/vitest/trace.ts > trace_on_failure > <anonymous>~1f95d7",
-			"reason": "test setup only: stops the trace at the test's end, once"
-		},
-		{
-			"id": "packages/core/src/messages/core.ts > ERRORS > region_version_invalid > text",
-			"reason": "a message's one-line text: one template string, on the error path only (an app passed a version that is not a time)"
-		},
-		{
-			"id": "packages/core/src/messages/core.ts > ERRORS > region_version_invalid > details",
-			"reason": "a message's details: one constant string, on the error path only"
-		},
-		{
-			"id": "packages/core/src/messages/core.ts > WARNINGS > region_answer_older > text",
-			"reason": "a dev warning's one-line text: one template string, only when an older answer is dropped"
-		},
-		{
-			"id": "packages/core/src/messages/core.ts > WARNINGS > region_answer_older > details",
-			"reason": "a dev warning's details: one constant string, only when an older answer is dropped"
-		},
-		{
-			"id": "packages/core/src/region.ts > to_version",
-			"reason": "one region's version to milliseconds: a typeof check and at most one Date.parse, once per held region render (not per element), constant work"
-		},
-		{
-			"id": "packages/core/src/transport.ts > dropped_older",
-			"reason": "one Map read and one compare per decoded versioned answer; the warning and devtools event only in dev or with devtools on, constant work"
-		},
-		{
-			"id": "packages/core/src/runtime/frame-store.ts > shown_version",
-			"reason": "one Map read of the shown answer's version at an address, constant work"
-		},
-		{
-			"id": "packages/core/src/runtime/frame-store.ts > answer_definition",
-			"reason": "builds the stored-answer machine definition (plain data: three states, their steps), once per address entry; its moves are measured by the frame-store bench, the definition itself is not cloneable"
 		},
 		{
 			"id": "packages/core/src/hooks.ts > OgygiaHandle > #pass_document",
@@ -2859,6 +2547,314 @@
 		{
 			"id": "packages/reshape/src/restore-report.ts > report_restores > __og_restore",
 			"reason": "moved from packages/core/src/runtime/restore-report.ts with reshape (#608): never ran here, browser state; the gate on this base does not follow a file across packages, and the moved tests (packages/reshape/test) prove it"
+		},
+		{
+			"id": "packages/core/src/server/page-stream.ts > swap_tracked",
+			"reason": "the fallback walk for a page value too deep or cyclic for the untracked one, handed a swap function (not cloneable); linear in the value, one Map entry per open object; proven in packages/core/test/page-defer.test.ts (the cyclic cases)"
+		},
+		{
+			"id": "packages/core/src/server/page-stream.ts > swap_tracked > walk",
+			"reason": "one node of swap_tracked's walk over a closure (its Map and swap: not cloneable), constant work per node; proven in packages/core/test/page-defer.test.ts (the cyclic cases)"
+		},
+		{
+			"id": "packages/content/src/messages/runtime.ts > CONTENT_ERRORS > content_site_context_failed > text",
+			"reason": "a message table entry: wording only"
+		},
+		{
+			"id": "packages/content/src/messages/runtime.ts > CONTENT_ERRORS > content_site_context_failed > details",
+			"reason": "a message table entry: wording only"
+		},
+		{
+			"id": "packages/content/src/markdown/frontmatter.ts > reason_of",
+			"reason": "a thrown error to its words (an OgygiaError's class identity does not replay), two string slices, only on a frontmatter error; proven in packages/content/test/frontmatter-errors.test.ts"
+		},
+		{
+			"id": "packages/machine/src/trace.ts > trace",
+			"reason": "test and devtools tool, never on a page's path: one observe() subscription and a bounded ring of lines (max, default 500)"
+		},
+		{
+			"id": "packages/machine/src/trace.ts > trace > observe:0~38d8f1",
+			"reason": "test tool: one line formatted and pushed per machine move while a trace is on, oldest dropped past max, constant work per move"
+		},
+		{
+			"id": "packages/machine/src/trace.ts > trace > stop",
+			"reason": "test tool: ends the observe subscription, once"
+		},
+		{
+			"id": "packages/machine/src/trace.ts > trace > lines",
+			"reason": "test tool: a copy of the bounded ring (at most max lines), read when a test fails"
+		},
+		{
+			"id": "packages/machine/src/trace.ts > trace > text",
+			"reason": "test tool: the bounded ring joined, read when a test fails"
+		},
+		{
+			"id": "packages/machine/src/trace.ts > trace > clear",
+			"reason": "test tool: empties the ring, constant work"
+		},
+		{
+			"id": "packages/tooling/src/e2e/index.ts > moves",
+			"reason": "e2e fixture only (never shipped): reads the page's trace text once when a test fails"
+		},
+		{
+			"id": "packages/tooling/src/e2e/index.ts > moves > evaluate:0~b28489",
+			"reason": "e2e fixture only: one page.evaluate reading the trace text in the browser"
+		},
+		{
+			"id": "packages/tooling/src/vitest/trace-setup.ts > beforeEach:0~efb4a4",
+			"reason": "test setup only (never shipped): starts one trace per test"
+		},
+		{
+			"id": "packages/tooling/src/vitest/trace.ts > trace_on_failure",
+			"reason": "test setup only (never shipped): registers one onTestFailed per test"
+		},
+		{
+			"id": "packages/tooling/src/vitest/trace.ts > trace_on_failure > onTestFailed:0~8bf46a",
+			"reason": "test setup only: prints the trace once when a test fails"
+		},
+		{
+			"id": "packages/tooling/src/vitest/trace.ts > trace_on_failure > <anonymous>~1f95d7",
+			"reason": "test setup only: stops the trace at the test's end, once"
+		},
+		{
+			"id": "packages/core/src/messages/core.ts > ERRORS > region_version_invalid > text",
+			"reason": "a message's one-line text: one template string, on the error path only (an app passed a version that is not a time)"
+		},
+		{
+			"id": "packages/core/src/messages/core.ts > ERRORS > region_version_invalid > details",
+			"reason": "a message's details: one constant string, on the error path only"
+		},
+		{
+			"id": "packages/core/src/messages/core.ts > WARNINGS > region_answer_older > text",
+			"reason": "a dev warning's one-line text: one template string, only when an older answer is dropped"
+		},
+		{
+			"id": "packages/core/src/messages/core.ts > WARNINGS > region_answer_older > details",
+			"reason": "a dev warning's details: one constant string, only when an older answer is dropped"
+		},
+		{
+			"id": "packages/core/src/region.ts > to_version",
+			"reason": "one region's version to milliseconds: a typeof check and at most one Date.parse, once per held region render (not per element), constant work"
+		},
+		{
+			"id": "packages/core/src/transport.ts > dropped_older",
+			"reason": "one Map read and one compare per decoded versioned answer; the warning and devtools event only in dev or with devtools on, constant work"
+		},
+		{
+			"id": "packages/core/src/runtime/frame-store.ts > shown_version",
+			"reason": "one Map read of the shown answer's version at an address, constant work"
+		},
+		{
+			"id": "packages/core/src/runtime/frame-store.ts > answer_definition",
+			"reason": "builds the stored-answer machine definition (plain data: three states, their steps), once per address entry; its moves are measured by the frame-store bench, the definition itself is not cloneable"
+		},
+		{
+			"id": "packages/core/src/server/region-endpoint.ts > hole_css",
+			"reason": "a map lookup and a handoff read (holeCss before the region rename, unmeasured on that base); its handoff read is region_css's, which the request benches run"
+		},
+		{
+			"id": "packages/core/src/server/region-endpoint.ts > make_region_endpoint",
+			"reason": "signs with the process's key and the request's session (hidden state; makeRegionEndpoint before the region rename, unmeasured on that base); the signing it wraps is sign's, benched"
+		},
+		{
+			"id": "packages/core/src/server/region-endpoint.ts > mint_server_region",
+			"reason": "signs with the process's key and the request's session (hidden state; mintServerIsland before the region rename, unmeasured on that base); the signing it wraps is sign's, benched"
+		},
+		{
+			"id": "packages/core/src/messages/core.ts > ERRORS > request_event_server_only > details",
+			"reason": "a message table entry: wording only (the browser stand-in prints the bare link; test/region-server-browser.test.ts)"
+		},
+		{
+			"id": "packages/core/src/messages/core.ts > ERRORS > request_event_server_only > text",
+			"reason": "a message table entry: wording only (the browser stand-in prints the bare link; test/region-server-browser.test.ts)"
+		},
+		{
+			"id": "packages/devtools/src/profiler/maps-browser.ts > read_profiler_maps",
+			"reason": "the browser stand-in answers null, constant; the devtools suite is not recorded (proven in packages/devtools/test/profiler-maps-browser.test.ts)"
+		},
+		{
+			"id": "packages/devtools/src/profiler/maps-server.ts > read_profiler_maps",
+			"reason": "imports the server build's ogygia:server/profiler-maps module, which exists only inside a built app; constant work"
+		},
+		{
+			"id": "packages/devtools/src/profiler/maps-server.ts > read_profiler_maps > then:0~09dfc9",
+			"reason": "reads the one export of the server build's profiler-maps module, which exists only inside a built app; constant work"
+		},
+		{
+			"id": "packages/barrels/src/index.ts > barrels > log",
+			"reason": "the console fallback before configResolved hands the plugin Vite's logger (never reached in a build: configResolved runs first); the logger path is benched in packages/barrels/bench/barrels.bench.ts"
+		},
+		{
+			"id": "packages/barrels/src/rewrite.ts > quote > replace:1~5719f3",
+			"reason": "the escape callback of one character (a table lookup, constant work); quote's escapes are proven in packages/barrels/test/rewrite.test.ts"
+		},
+		{
+			"id": "packages/core/src/compiler/dev/region-bytes.ts > island_subgraph_bytes > map:0~c49ee0",
+			"reason": "a barrel row's importers to their ids (one property read each), only with the dev server's live module graph; proven in packages/core/test/region-bytes.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/report.ts > ogygia_findings > flatMap:0~283e13",
+			"reason": "the reasons of at most three listed barrels (constant work); proven in packages/devtools/test/profiler.test.ts"
+		},
+		{
+			"id": "packages/config/src/vitest.ts > exact",
+			"reason": "test config: one stub alias's pattern when a vitest config loads (before any test or bench), constant work; every node test job runs it"
+		},
+		{
+			"id": "packages/federation/src/messages.ts > FEDERATION_ERRORS > shared_state_not_plain > details",
+			"reason": "a message table entry: wording only"
+		},
+		{
+			"id": "packages/federation/src/messages.ts > FEDERATION_ERRORS > shared_state_not_plain > text",
+			"reason": "a message table entry: wording only"
+		},
+		{
+			"id": "packages/content/src/messages/build.ts > CONTENT_BUILD_WARNINGS > content_leaked_to_client > details",
+			"reason": "a message table entry: wording only"
+		},
+		{
+			"id": "packages/content/src/messages/build.ts > CONTENT_BUILD_WARNINGS > content_leaked_to_client > text",
+			"reason": "a message table entry: wording only"
+		},
+		{
+			"id": "packages/content/src/messages/build.ts > CONTENT_BUILD_WARNINGS > content_leaked_to_client > text > map:0~63a78f",
+			"reason": "a message table entry: wording only (indents at most five module lines)"
+		},
+		{
+			"id": "packages/content/src/vite/leaks.ts > content_leaks",
+			"reason": "build only: makes one Vite plugin object, once per build; proven in packages/content/test/content-leaks.test.ts"
+		},
+		{
+			"id": "packages/content/src/vite/leaks.ts > content_leaks > configResolved",
+			"reason": "build only: reads three config fields, once per build"
+		},
+		{
+			"id": "packages/content/src/vite/leaks.ts > content_leaks > writeBundle",
+			"reason": "build only: once per client build, off the request and boot paths; proven in packages/content/test/content-leaks.test.ts"
+		},
+		{
+			"id": "packages/content/src/vite/leaks.ts > warn_content_leaks > filter:0~eec9a0",
+			"reason": "build only: two regex tests per module id of a finished client bundle, once per build"
+		},
+		{
+			"id": "packages/content/src/vite/leaks.ts > warn_content_leaks > flatMap:0~b437c4",
+			"reason": "build only: runs only when the build is already warning about a leak"
+		},
+		{
+			"id": "packages/content/src/vite/leaks.ts > warn_content_leaks > warn:1~cd9197 > map:0~a95637",
+			"reason": "build only: relative paths of at most five leaked modules, inside the warning"
+		},
+		{
+			"id": "packages/devtools/src/profiler/request-stats.ts > hold_request_stats_detail",
+			"reason": "returns a release closure (a function, not cloneable), constant work; proven in packages/devtools/test/request-stats-detail.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/request-stats.ts > hold_request_stats_detail > <anonymous>~4ba179",
+			"reason": "lets go of one hold in a module-level set (not replayable: process state), constant work; proven in packages/devtools/test/request-stats-detail.test.ts"
+		},
+		{
+			"id": "packages/core/src/contract/trigger.ts > on_schedule",
+			"reason": "hands a callback to one of four schedule arms (functions, not cloneable), one parse and one branch, constant work"
+		},
+		{
+			"id": "packages/core/src/runtime/lakes.ts > on_frozen_connect > on_schedule:2~6d0320",
+			"reason": "browser only: a stored page's swr lake revalidates on its schedule, one fetch call, constant work"
+		},
+		{
+			"id": "packages/core/src/runtime/lakes.ts > on_frozen_connect > on_schedule:2~6d0320#2",
+			"reason": "browser only: a cached lake revalidates on its schedule, one fetch call, constant work"
+		},
+		{
+			"id": "packages/core/src/runtime/lakes.ts > on_frozen_connect > on_schedule:2~6d0320#3",
+			"reason": "browser only: a cached lake revalidates on its schedule, one fetch call, constant work"
+		},
+		{
+			"id": "packages/core/src/server/request-stats.ts > set_request_stats_sink",
+			"reason": "sets one module slot, once per profiler setup (constant work)"
+		},
+		{
+			"id": "packages/devtools/src/profiler/request-stats.ts > install_request_stats",
+			"reason": "sets core's stats sink, once per profiler setup (constant work)"
+		},
+		{
+			"id": "packages/devtools/src/profiler/request-stats.ts > request_stats_of",
+			"reason": "one WeakMap read keyed by a live Request (not cloneable), constant work"
+		},
+		{
+			"id": "packages/devtools/src/profiler/request-stats.ts > hole_stats_of",
+			"reason": "one WeakMap read keyed by a live Request (not cloneable), constant work"
+		},
+		{
+			"id": "packages/devtools/src/profiler/request-stats.ts > set_batch_hole_listener",
+			"reason": "stores one listener function (not cloneable), constant work"
+		},
+		{
+			"id": "packages/devtools/src/profiler/request-stats.ts > request_stats_store > page",
+			"reason": "one WeakMap write keyed by a live Request (not cloneable), constant work"
+		},
+		{
+			"id": "packages/devtools/src/profiler/request-stats.ts > request_stats_store > hole",
+			"reason": "one WeakMap write keyed by a live Request (not cloneable), constant work"
+		},
+		{
+			"id": "packages/devtools/src/profiler/request-stats.ts > request_stats_store > batchHole",
+			"reason": "hands one record to the recording profiler's listener, constant work"
+		},
+		{
+			"id": "packages/devtools/src/profiler/request-stats.ts > request_stats_store > wantsBatchHoles",
+			"reason": "reads one module slot (process state), constant work"
+		},
+		{
+			"id": "packages/devtools/src/profiler/request-stats.ts > request_stats_store > detailed",
+			"reason": "reads the size of a module-level set (process state), constant work; proven in packages/devtools/test/request-stats-detail.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/build/dev-meta.ts > dev_meta_plugin",
+			"reason": "dev only: builds one Vite plugin object, once per server, constant work"
+		},
+		{
+			"id": "packages/devtools/src/build/dev-meta.ts > dev_meta_plugin > configureServer",
+			"reason": "dev only: installs two middlewares on the dev server, once per server, constant work"
+		},
+		{
+			"id": "packages/devtools/src/build/dev-meta.ts > dev_meta_plugin > configureServer > use:0~2175f9",
+			"reason": "dev only: sets one response header and passes on, constant work"
+		},
+		{
+			"id": "packages/devtools/src/build/dev-meta.ts > dev_meta_plugin > configureServer > use:0~56d04b",
+			"reason": "dev only: the dock's meta endpoint over the dev server's module graph (not recorded); its work is island_subgraph_bytes, measured in core"
+		},
+		{
+			"id": "packages/devtools/src/build/dev-meta.ts > dev_meta_plugin > configureServer > use:0~56d04b > island_subgraph_bytes:2~0b61a8",
+			"reason": "dev only: hands one barrel question to the regions seam, constant work of its own"
+		},
+		{
+			"id": "packages/devtools/src/build/dev-meta.ts > dev_meta_plugin > configureServer > use:0~56d04b > read",
+			"reason": "dev only: reads one component source once per request (a file read, not recorded), constant work of its own"
+		},
+		{
+			"id": "packages/devtools/src/vite.ts > devtools > dev_meta_plugin:0~479109",
+			"reason": "dev only: hands the build's regions seam to the dev meta plugin, constant work"
+		},
+		{
+			"id": "packages/devtools/src/build/maps-plugin.ts > profiler_maps_plugins",
+			"reason": "build only: makes the two map plugin objects, once per build, constant work"
+		},
+		{
+			"id": "packages/devtools/src/build/maps-plugin.ts > profiler_maps_plugins > maps > closeBundle > handler",
+			"reason": "build only: fills the maps module once per server build (files on disk, not recorded); its work is fill_profiler_maps"
+		},
+		{
+			"id": "packages/devtools/src/build/maps-plugin.ts > profiler_maps_plugins > maps > configResolved",
+			"reason": "build only: reads three fields of Vite's resolved config, once per build, constant work"
+		},
+		{
+			"id": "packages/devtools/src/build/maps-plugin.ts > profiler_maps_plugins > maps > writeBundle",
+			"reason": "build only: writes the server leg's module map beside its chunks (files on disk, not recorded); its work is write_module_map"
+		},
+		{
+			"id": "packages/devtools/src/build/maps-plugin.ts > profiler_maps_plugins > server_sourcemaps_plugin:0~8b94d4",
+			"reason": "build only: the hidden-sourcemaps switch, always on in a build with the profiler, constant work"
 		},
 		{
 			"id": "packages/core/src/runtime/router-nav.ts > live_page_head",
