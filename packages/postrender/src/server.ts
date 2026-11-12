@@ -118,7 +118,8 @@ function deploy_check(runtime: Runtime, build: string): Promise<string | undefin
 				await store_call('put', BUILD_MARKER_KEY, () =>
 					store.put(
 						BUILD_MARKER_KEY,
-						{ kind: 'page', html: build, headers: {}, created: Date.now() },
+						// wall: stored, read by every instance
+						{ kind: 'page', html: build, headers: {}, created: clock.wall() },
 						{ ttl: BUILD_MARKER_TTL_SEC, tags: [] }
 					)
 				);
@@ -328,7 +329,7 @@ async function capture(
 			kind: 'redirect',
 			status: response.status,
 			location,
-			created: Date.now()
+			created: clock.wall() // wall: stored, read by every instance
 		};
 		if (!(await put(entry))) return REFUSED;
 		return { stored: true, entry, response };
@@ -352,7 +353,7 @@ async function capture(
 	// only declares its deferred-map when the page carries pending promises — buffering such a
 	// response bakes ONE settle's inline resolve scripts into the copy. Never store it.
 	if (KIT_DEFERRED_BOOT_RE.test(html)) return { stored: false, response: answered() };
-	const created = Date.now();
+	const created = clock.wall(); // wall: stored, read by every instance
 	// STITCH holes, two modes (stitch.ts):
 	//  - `stitch="serve"` flips the entry's nature: the SHELL stores (renders once), but every
 	//    serve is per-visitor (holes re-render + splice at ORIGIN). So: no shared-cache headers, no
