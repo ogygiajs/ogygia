@@ -75,6 +75,8 @@ import {
 
 /** Set on the login page's URL when a login just succeeded and the session still did not arrive. */
 const LOGIN_FAILED_PARAM = 'session';
+/** The origin a login's `next` is read against: one it keeps never names another. */
+const SAME_ORIGIN = 'http://same.origin';
 /** A region entry's id prefix on the dev server (core's ids.ts `islandVirtualId`). */
 const REGION_ENTRY_ID = 'ogygia:region/entry/';
 import {
@@ -4575,10 +4577,22 @@ class Profiler {
 		}
 	}
 
-	/** No open redirect — a `next` only bounces back into the profiler. */
+	/** No open redirect: a `next` only bounces back into the profiler. It is read as the browser
+	 *  reads it (a URL against this origin) and kept, as read, only on this origin and under the base,
+	 *  at the root too (test/property-login-next.test.ts). */
 	#safe_next(next: string | null): string {
-		const n = next ?? this.base;
-		return n.startsWith(this.base) ? n : this.base;
+		const fallback = this.base || '/';
+		let u: URL;
+		try {
+			u = new URL(next ?? fallback, SAME_ORIGIN);
+		} catch {
+			return fallback; // ok: not a URL is no place to go back to
+		}
+		// (a path that reads `//host` once set as an address would leave the origin again)
+		if (u.origin !== SAME_ORIGIN || u.pathname.startsWith('//')) return fallback;
+		if (u.pathname !== this.base && !u.pathname.startsWith(`${this.base}/`) && this.base !== '')
+			return fallback;
+		return u.pathname + u.search;
 	}
 
 	/** Clear the session cookie and bounce to the dashboard. */
