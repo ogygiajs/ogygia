@@ -253,3 +253,83 @@ describe('import_again', () => {
 		await expect(core.get()).resolves.toBe('core');
 	});
 });
+
+// A peer's island (fragment federation) is a file on the peer's origin. One dropped download of it
+// must be asked again like the app's own (#956). The retry goes only where the first load went: the
+// origin of the file the caller asked for, never one an error's text names.
+describe("a peer's island file", () => {
+	const PEER_FILE = 'https://peer.test/_app/immutable/og-region.f1f4e2e5072e.4zu2V8jT.js';
+	const dropped = (url: string) =>
+		new TypeError(`Failed to fetch dynamically imported module: ${url}`);
+
+	it('a dropped download is asked for again under a new URL, on the peer’s origin', async () => {
+		vi.stubGlobal('location', new URL('https://shop.test/p3'));
+		const asked: string[] = [];
+		const fresh = vi.fn(async (url: string) => {
+			asked.push(url);
+			return 'island';
+		});
+		const load = import_again(() => Promise.reject(dropped(PEER_FILE)), fresh, PEER_FILE);
+		await expect(load()).rejects.toThrow(PEER_FILE);
+		await expect(load()).resolves.toBe('island');
+		expect(asked).toEqual([PEER_FILE + '?og-retry=1']);
+		vi.unstubAllGlobals();
+	});
+
+	it('Safari’s failure, which names no URL: the asked file again, on the peer’s origin', async () => {
+		vi.stubGlobal('location', new URL('https://shop.test/p3'));
+		const asked: string[] = [];
+		const fresh = vi.fn(async (url: string) => {
+			asked.push(url);
+			return 'island';
+		});
+		const load = import_again(() => Promise.reject(SAFARI), fresh, PEER_FILE);
+		await expect(load()).rejects.toBe(SAFARI);
+		await expect(load()).resolves.toBe('island');
+		expect(asked).toEqual([PEER_FILE + '?og-retry=1']);
+		vi.unstubAllGlobals();
+	});
+
+	it('asks again only for the asked file, whatever URL the error names (#385, #956)', async () => {
+		vi.stubGlobal('location', new URL('https://shop.test/p3'));
+		const asked: string[] = [];
+		const fresh = vi.fn(async (url: string) => {
+			asked.push(url);
+			return 'island';
+		});
+		// (a file the asked one imports, on the peer's origin: the asked file is what is loaded again)
+		const dep = 'https://peer.test/_app/immutable/chunks/dep.js';
+		const load = import_again(() => Promise.reject(dropped(dep)), fresh, PEER_FILE);
+		await expect(load()).rejects.toThrow(dep);
+		await expect(load()).resolves.toBe('island');
+		expect(asked).toEqual([PEER_FILE + '?og-retry=1']);
+		// a file that is not http(s) is never asked again by URL
+		const odd = import_again(
+			() => Promise.reject(dropped('data:text/javascript,0')),
+			fresh,
+			'data:text/javascript,0'
+		);
+		await expect(odd()).rejects.toThrow();
+		await odd().catch(() => {});
+		expect(asked).toEqual([PEER_FILE + '?og-retry=1']);
+		vi.unstubAllGlobals();
+	});
+
+	it('an error naming a third origin never sends the retry there: the asked file is asked again', async () => {
+		vi.stubGlobal('location', new URL('https://shop.test/p3'));
+		const asked: string[] = [];
+		const fresh = vi.fn(async (url: string) => {
+			asked.push(url);
+			return 'island';
+		});
+		const load = import_again(
+			() => Promise.reject(dropped('https://evil.test/x.js')),
+			fresh,
+			PEER_FILE
+		);
+		await expect(load()).rejects.toThrow('evil.test');
+		await load().catch(() => {});
+		for (const url of asked) expect(new URL(url).origin).not.toBe('https://evil.test');
+		vi.unstubAllGlobals();
+	});
+});

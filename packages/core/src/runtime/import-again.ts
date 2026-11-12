@@ -114,12 +114,17 @@ export function is_failed_import(error: unknown): boolean {
 }
 
 /** A loader's file as a URL: against `base` (the loader's module), else the page (an island's entry
- *  is named as the page names it, root-relative); null when it names no URL. Never throws: it runs
- *  inside a failed import's handler, whose own error is what the caller hears. */
+ *  is named as the page names it, root-relative); null when it names no http(s) URL. The retry is
+ *  always this file, the one the first load asked for, so it goes only where a first load went: a
+ *  peer's island to the peer's origin (#956), never an origin only an error's text names. Never
+ *  throws: it runs inside a failed import's handler, whose own error is what the caller hears. */
 function file_url(file: string, base: string | undefined): string | null {
 	try {
-		return new URL(file, base ?? (typeof location !== 'undefined' ? location.href : undefined))
-			.href;
+		const url = new URL(
+			file,
+			base ?? (typeof location !== 'undefined' ? location.href : undefined)
+		);
+		return url.protocol === 'http:' || url.protocol === 'https:' ? url.href : null;
 	} catch {
 		return null; // ok: no URL to ask again under; the loader loads the plain way next time
 	}

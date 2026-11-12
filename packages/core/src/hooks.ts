@@ -19,6 +19,7 @@
  * @packageDocumentation
  */
 import { render } from 'svelte/server';
+import { clock } from '@ogygia/machine';
 import type { Component } from 'svelte';
 import type { RequestEvent } from '@sveltejs/kit';
 import type { Handle } from './kit-handle.ts';
@@ -241,9 +242,8 @@ const DEVTOOLS_LAZY =
 const RULES =
 	import.meta.env?.DEV || (typeof __OGYGIA_RULES__ !== 'undefined' ? __OGYGIA_RULES__ : false);
 if (RULES) install_server_rules();
-/** High-res clock for server-realm devtools timestamps. */
-const dt_now = () =>
-	typeof performance !== 'undefined' && performance.now ? performance.now() : Date.now();
+/** The monotonic clock, for server-realm devtools timestamps. */
+const dt_now = clock.mono;
 
 // Drop-in `setContext` bridge. A layout that imports `setContext` from `ogygia` records each string
 // key into this per-request bag during SSR; `inject_client_seeds` reads it back and emits ONE
@@ -1732,7 +1732,7 @@ class OgygiaHandle {
 			return 'shape';
 		const expiry = expiry_refusal(
 			cap.exp,
-			Math.floor(Date.now() / 1000),
+			Math.floor(Date.now() / 1000), // wall: against the capability's signed epoch expiry
 			renewal,
 			app_lifetime.renew_window
 		);
