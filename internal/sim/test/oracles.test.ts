@@ -4,6 +4,7 @@ import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { World } from '../src/world.ts';
+import { user_click } from '../src/workload.ts';
 import type { Heard } from '../src/browser.ts';
 import {
 	document_faulted,
@@ -889,7 +890,8 @@ describe.skipIf(!built)('oracles on the palaestra build', () => {
 			const tab = world.tab(v);
 			await world.go(tab, 'goto', '/header-refresh');
 			await world.quiesce();
-			(tab.page.mainFrame.document.querySelector('[data-hl-switch]') as HTMLElement).click();
+			const page = tab.page.mainFrame.document as unknown as Document;
+			user_click(page.querySelector('[data-hl-switch]')!);
 			await world.quiesce();
 			await world.go(tab, 'reload');
 			await world.quiesce();
