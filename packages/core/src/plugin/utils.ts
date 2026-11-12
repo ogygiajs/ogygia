@@ -9,6 +9,11 @@ export { fnv1a32 } from '../contract/hash.ts';
 export { escape_amp_quot as escapeAttr } from '../escape.ts';
 /** Text content with `&`, `<` and `>` escaped (unchanged, uncopied, when it has none). */
 export { escape_text as escapeText } from '../escape.ts';
+/** Code written inline in a `<script>`: its text made to hold no `</script` and no `<!--`, so the
+ *  element ends where it should (what `script()` does for ogygia's own inline code). */
+export { close_safe as closeSafe } from '../script.ts';
+/** The regex `\s` over one char code: ASCII whitespace and the Unicode spaces. */
+export { is_space as isSpace } from '../server/html-scan.ts';
 /** HTML from a template, each value escaped for where it sits (text, a quoted attribute, a URL
  *  attribute); `Html` values (from `html`, `attr`, `trustedHtml`) are markup placed as is.
  *  `html.svelte` is for markup written into a Svelte template (.svelte / .svx source): every
