@@ -7,7 +7,8 @@
 	"exports": {
 		"./tsdown": "./src/tsdown.ts",
 		"./vitest": "./src/vitest.ts",
-		"./sim": "./src/sim.ts"
+		"./sim": "./src/sim.ts",
+		"./html-fuzz": "./src/html-fuzz.ts"
 	},
 	"scripts": {
 		"check": "tsc -p ."
@@ -23,6 +24,7 @@
 		"@types/node": "catalog:",
 		"@typescript/native": "catalog:tsgo",
 		"fast-check": "catalog:",
+		"parse5": "catalog:",
 		"svelte": "catalog:",
 		"typescript": "catalog:",
 		"vitest": "catalog:"
