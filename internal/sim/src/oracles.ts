@@ -35,6 +35,11 @@ export interface Broken {
  * - a URL as written (`./a.css` and `/a.css` load the same file; Kit writes relative paths into a
  *   prerendered page): a `<link>`'s `href`, and any attribute starting `./` or `../`, as the path
  *   it resolves to;
+ * - where a loaded stylesheet link's build file sits under the page's path (`/lab/_app/x.css` and
+ *   `/_app/x.css` read `/_app/x.css`): the router keeps a page's loaded sheet as its page wrote it,
+ *   since setting its URL again fetches it again (#1071, #1086), so a page-relative one kept across a
+ *   move to another depth reads another path against the new address while the file it loaded is
+ *   the same. A parked (disabled) sheet is not loaded yet and is compared as it resolves;
  * - what a client navigation adds by design: the router's live-region announcer
  *   (`[data-ogygia-announcer]`, as Kit's own router adds one), and the reconciler's morph key on a
  *   region (`data-key`);
@@ -86,11 +91,16 @@ export function normalize(root: {
 						(a.name === 'data-key' || a.name === 'data-revalidated' || a.name === 'data-og-healed')
 					)
 			)
-			.map((a) =>
-				(tag === 'link' && a.name === 'href') || /^\.\.?\//.test(a.value)
-					? `${a.name}="${new URL(a.value, root.baseURI ?? 'https://app.test/').pathname}"`
-					: `${a.name}="${a.value}"`
-			)
+			.map((a) => {
+				if (!((tag === 'link' && a.name === 'href') || /^\.\.?\//.test(a.value)))
+					return `${a.name}="${a.value}"`;
+				const path = new URL(a.value, root.baseURI ?? 'https://app.test/').pathname;
+				const loaded_sheet =
+					tag === 'link' &&
+					/\bstylesheet\b/.test(el.getAttribute('rel') ?? '') &&
+					!el.hasAttribute('disabled');
+				return `${a.name}="${loaded_sheet ? path.replace(/^\/(?:[^/]+\/)*(?=_app\/)/, '/') : path}"`;
+			})
 			.sort()
 			.join(' ');
 		out.push(`${'  '.repeat(depth)}<${tag}${attrs ? ` ${attrs}` : ''}>`);
@@ -135,20 +145,7 @@ export const KNOWN: ReadonlyArray<{
 	forgive(normalized: string, other: string): string;
 	/** The bug's mark on the document itself, when the DOM alone does not show it. */
 	seen?(world: World, tab: Tab): boolean;
-}> = [
-	{
-		issue: 1071,
-		what: 'a kept head link with a relative URL names another file after a client navigation',
-		// (a link whose file resolves under the page's own path, `/lab/_app/…`, where the other side
-		// names `/_app/…`: palaestra /lab/a -> /lab/deep/x)
-		applies: (shown, fresh) => DEEP_ASSET.test(shown) && !DEEP_ASSET.test(fresh),
-		forgive: (s) => s.replace(DEEP_ASSET_ALL, ' href="/_app/')
-	}
-];
-
-/** A head link to a build's file under a page's own path (`href="/lab/_app/…"`). */
-const DEEP_ASSET = /^ *<link\b[^>]* href="\/(?:[^"/]+\/)+_app\//m;
-const DEEP_ASSET_ALL = / href="\/(?:[^"/]+\/)+_app\//g;
+}> = [];
 
 /**
  * Islands of the test app that keep their own client state across a navigation by design, as a

@@ -182,25 +182,6 @@ describe('known', () => {
 		const sheet = '<link crossorigin="" href="https://peer.test/a.css" rel="stylesheet">';
 		expect(excused(page([sheet]), page([]))).toEqual([]);
 	});
-
-	it("#1071's kept head link resolving under the page's path (palaestra /lab/deep/x)", () => {
-		const k = KNOWN.find((x) => x.issue === 1071)!;
-		const page = (href: string) =>
-			`title: ${''}
-<html>
-  <head>
-    <link href="${href}" rel="stylesheet">
-  <body>`;
-		const shown = page('/lab/_app/immutable/assets/14.x.css');
-		const fresh = page('/_app/immutable/assets/14.x.css');
-		expect(k.applies(shown, fresh)).toBe(true);
-		expect(k.applies(fresh, fresh)).toBe(false);
-		expect(k.forgive(shown, fresh)).toBe(fresh);
-		// (another file is still a finding)
-		expect(k.forgive(shown, page('/_app/immutable/assets/15.x.css'))).not.toBe(
-			page('/_app/immutable/assets/15.x.css')
-		);
-	});
 });
 
 describe('every region shows something', () => {
