@@ -11,6 +11,7 @@
  *
  * No "island" / "lake" attribute names — those are nicknames, not the mechanism.
  */
+import { OG_BAKED } from '../wire-markup.ts';
 
 /** CSS selector for frozen regions (`hydrate: 'none'`). */
 export const FROZEN_SELECTOR = 'ogygia-region[wake="none"]';
@@ -40,8 +41,7 @@ export function is_deferred(el: Element): boolean {
  * `isInLake()` (context.ts — set by LakeBoundary and on every render root whose HTML lands in one) and
  * `region_kind` (reversible.ts).
  */
-export const OPAQUE_SELECTOR =
-	'ogygia-region[wake="none"],ogygia-region[render="defer"],ogygia-region[data-og-baked]';
+export const OPAQUE_SELECTOR: string = `ogygia-region[wake="none"],ogygia-region[render="defer"],ogygia-region[${OG_BAKED}]`;
 
 /** True if this region sits inside an {@link OPAQUE_SELECTOR opaque} region: on a Kit-hydrated
  *  document nothing but the runtime will ever wake it. */

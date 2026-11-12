@@ -6,7 +6,7 @@
  * entry fallbacks and the critical wait. It joins the page beacon at boot; without one on the page
  * (a visitor), every call is a no-op.
  */
-import type { AttrChange } from '@ogygia/core/internal/instruments';
+import { OG_FP, OG_HEALED, OG_RECOVERED, type AttrChange } from '@ogygia/core/internal/instruments';
 import type {
 	CriticalOutcome,
 	CriticalSettledEvent,
@@ -361,7 +361,7 @@ export function beacon_failed(el: Element, message?: string, since?: number, tur
 	const o = owner();
 	if (o) return o.beacon_failed(el, message, since, turn);
 	if (!page()) return;
-	const fp = el.getAttribute('data-og-fp');
+	const fp = el.getAttribute(OG_FP);
 	if (!fp) return;
 	C.failed_fps.set(fp, (message ?? '').slice(0, 300));
 	if (typeof since === 'number') C.failed_spans.set(fp, [r2(since), r2(performance.now())]);
@@ -390,7 +390,7 @@ function box_of(el: Element): { top: number; bottom: number; left: number; width
 function note_island_boxes(): void {
 	if (island_boxes || typeof innerHeight === 'undefined') return;
 	island_boxes = new WeakMap();
-	for (const el of document.querySelectorAll('ogygia-region[data-og-fp]:not([data-hydrated])')) {
+	for (const el of document.querySelectorAll(`ogygia-region[${OG_FP}]:not([data-hydrated])`)) {
 		const b = box_of(el);
 		if (b) island_boxes.set(el, { top: b.top + scrollY, height: b.bottom - b.top });
 	}
@@ -473,9 +473,9 @@ function visit_regions(): Record<string, unknown>[] {
 	const out: Record<string, unknown>[] = [];
 	try {
 		const sy = typeof scrollY === 'number' ? scrollY : 0;
-		for (const el of document.querySelectorAll('ogygia-region[data-og-fp]')) {
+		for (const el of document.querySelectorAll(`ogygia-region[${OG_FP}]`)) {
 			if (out.length >= 400) break;
-			const fp = el.getAttribute('data-og-fp')!;
+			const fp = el.getAttribute(OG_FP)!;
 			let box = el.getBoundingClientRect();
 			if (!box.height && !box.width)
 				for (const c of el.children) {
@@ -540,7 +540,7 @@ const part: RegionPart = {
 		const p = page();
 		if (final && p)
 			for (const s of C.snapshots) {
-				const el = document.querySelector(`ogygia-region[data-og-fp="${s.fp}"]`);
+				const el = document.querySelector(`ogygia-region[${OG_FP}="${s.fp}"]`);
 				if (!el) continue;
 				const html =
 					s.from === undefined
@@ -555,9 +555,9 @@ const part: RegionPart = {
 		if (now - last < CPU_QUIET_MS) return true;
 		try {
 			for (const el of document.querySelectorAll(
-				'ogygia-region[data-og-fp]:not([data-hydrated]):not([wake]):not([render="defer"]), ogygia-region[data-og-fp][wake="load"]:not([data-hydrated])'
+				`ogygia-region[${OG_FP}]:not([data-hydrated]):not([wake]):not([render="defer"]), ogygia-region[${OG_FP}][wake="load"]:not([data-hydrated])`
 			))
-				if (!C.failed_fps.has(el.getAttribute('data-og-fp') ?? '')) return true;
+				if (!C.failed_fps.has(el.getAttribute(OG_FP) ?? '')) return true;
 		} catch {
 			// ok: no document to read: nothing is waking
 		}
@@ -617,10 +617,10 @@ function island_record(
 	ssr_html?: string | null,
 	t_turn?: number
 ): void {
-	const fp = el.getAttribute('data-og-fp');
+	const fp = el.getAttribute(OG_FP);
 	if (!fp) return;
-	const recovered = el.hasAttribute('data-og-recovered');
-	const reason = (el.getAttribute('data-og-recovered') || '').slice(0, 300) || undefined;
+	const recovered = el.hasAttribute(OG_RECOVERED);
+	const reason = (el.getAttribute(OG_RECOVERED) || '').slice(0, 300) || undefined;
 	const sent: Record<string, unknown> | null = p.sends
 		? {
 				fp,
@@ -666,7 +666,7 @@ function island_record(
 				...(changed ? { changed: true } : {}),
 				...(attrs ? { attrs } : {}),
 				...(input ? { input } : {}),
-				...(el.hasAttribute('data-og-healed') ? { healed: true } : {}),
+				...(el.hasAttribute(OG_HEALED) ? { healed: true } : {}),
 				...(typeof ssr_html === 'string' ? { ssr_bytes: ssr_html.length } : {}),
 				...(markers ? { markers } : {})
 			}
