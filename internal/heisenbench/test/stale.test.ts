@@ -7,16 +7,38 @@ import { gone_exemptions } from '../src/stale.ts';
 
 const fn = (id: string) => ({ id });
 const ex = (id: string) => ({ id, reason: 'why' });
+// (Heisenbench identity.ts: the id without shape hashes and order suffixes)
+const context_path = (id: string) => id.replace(/(?:~[0-9a-f]{6})?(?:#\d+)?(?= > |$)/g, '');
 
 test('an exemption that names no function in the inventory is gone', () => {
 	const inventory = { functions: [fn('a.ts > one'), fn('a.ts > two')] };
 	const exempt = [ex('a.ts > one'), ex('a.ts > gone'), ex('b.ts > moved')];
 	assert.deepEqual(
-		gone_exemptions(exempt, inventory).map((e) => e.id),
+		gone_exemptions(exempt, inventory, context_path).map((e) => e.id),
 		['a.ts > gone', 'b.ts > moved']
 	);
 });
 
+test('an exemption naming a place (no shape hash) names the functions there', () => {
+	const inventory = { functions: [fn('a.ts > flights:0~3fa9c2 > run')] };
+	const exempt = [ex('a.ts > flights:0 > run'), ex('a.ts > flights:1 > run')];
+	assert.deepEqual(
+		gone_exemptions(exempt, inventory, context_path).map((e) => e.id),
+		['a.ts > flights:1 > run']
+	);
+});
+
+test('an exemption naming the call a function sits in names it (an enclosing exemption)', () => {
+	const inventory = { functions: [fn('a.ts > flights:0~3fa9c2 > run')] };
+	assert.deepEqual(
+		gone_exemptions([ex('a.ts > flights:0'), ex('a.ts')], inventory, context_path).map((e) => e.id),
+		['a.ts']
+	);
+});
+
 test('none gone: an empty list', () => {
-	assert.deepEqual(gone_exemptions([ex('a.ts > one')], { functions: [fn('a.ts > one')] }), []);
+	assert.deepEqual(
+		gone_exemptions([ex('a.ts > one')], { functions: [fn('a.ts > one')] }, context_path),
+		[]
+	);
 });
