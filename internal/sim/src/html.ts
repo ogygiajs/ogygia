@@ -287,8 +287,17 @@ export async function html_sent(world: World): Promise<Broken | null> {
 	const hops_faulted = new Set(
 		world.network.exchanges.filter((e) => e.for !== undefined && e.tampered).map((e) => e.for!)
 	);
+	// (and a peer page the app kept from a tampered hop, `cache: { ttl }`: a later answer of that
+	// page, any document's, is the changed copy; gen 195, seed 25)
+	const kept_changed = world.network.exchanges
+		.filter((e) => e.for !== undefined && e.tampered)
+		.map((e) => new URL(e.url))
+		.filter((u) => u.pathname.endsWith('/og/fragment/page'))
+		.map((u) => u.searchParams.get('path'))
+		.filter((p): p is string => p !== null);
 	for (const a of world.html) {
 		if (hops_faulted.has(a.from)) continue;
+		if (kept_changed.some((p) => new URL(a.url).pathname.endsWith(p))) continue;
 		const html = await a.html;
 		if (html === '' || judged.has(html)) continue;
 		judged.add(html);
