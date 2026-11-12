@@ -32,6 +32,7 @@ import {
 	capability_expired,
 	is_allowed_region_endpoint,
 	island_module_url,
+	RegionAnswerLater,
 	RegionAnswerRefused
 } from './region-endpoint-url.ts';
 import { fetch_hole } from './hole-fetch.ts';
@@ -67,7 +68,7 @@ import {
 	type Wake
 } from './region-machines.ts';
 import { KEEP_FALLBACK_HTML } from '../keep-fallback-marker.ts';
-import { download, region_fetch } from '../policies.ts';
+import { download, region_fetch, region_rate_limited } from '../policies.ts';
 import {
 	install_rules,
 	note_handed,
@@ -1620,7 +1621,12 @@ class OgygiaRegion extends HTMLElement {
 			}
 			this.#hole.go('retrying', { attempts, revalidate });
 			const retrying = this.#hole.scope;
-			const wait = backoffAfter(region_fetch, attempts);
+			// a 429 says when the endpoint's window is over: the next try waits it out (#959)
+			const later = err instanceof RegionAnswerLater ? err.wait_ms : null;
+			const wait =
+				later === null
+					? backoffAfter(region_fetch, attempts)
+					: Math.min(later, backoffAfter(region_rate_limited, attempts));
 			const waited = await turn.wait(
 				retrying.task(() => new Promise<void>((resolve) => retrying.timeout(resolve, wait)))
 			);
