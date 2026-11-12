@@ -1776,6 +1776,10 @@ async function code_run(browser) {
 			has('island-barrel', 'Toolbar still imports a barrel whole: src/lib/dtcode/index.ts')
 		],
 		[
+			'why the barrel pass left it',
+			has('island-barrel', 'barrels() left it: it runs code of its own besides its re-exports')
+		],
+		[
 			'the heavy module, on Toolbar',
 			has('island-heavy-module', 'Icons.svelte is') &&
 				has('island-heavy-module', "of Toolbar's code")

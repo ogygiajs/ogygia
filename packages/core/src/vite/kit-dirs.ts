@@ -25,7 +25,7 @@ import {
 	type KitDirs,
 	DEFAULT_KIT_DIRS
 } from '../compiler/kit.ts';
-import { warn } from '../messages/build.ts';
+import { warn } from '../compiler/messages.ts';
 
 const CONFIG_FILES = ['svelte.config.js', 'svelte.config.mjs'];
 

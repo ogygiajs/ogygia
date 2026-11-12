@@ -87,6 +87,8 @@ A client build fails (`secret_in_client_chunk`) when a chunk or asset holds a si
 
 **Enforced by:** `apps/palaestra/e2e/region-rate.spec.ts > a forged flood is all 403, never 429, and a valid request still serves after it`, `packages/core/test/audit-fixes.test.ts > documents render-rate contract: junk must not call render limited()`
 
+**Enforced by:** `apps/palaestra/e2e/region-rate.spec.ts > a forged flood is all 403, never 429, and a valid request still serves after it`, `packages/core/test/audit-fixes.test.ts > documents render-rate contract: junk must not call render limited()`
+
 ---
 
 ## RENDER-TIMEOUT — race without true cancel
@@ -108,6 +110,8 @@ A client build fails (`secret_in_client_chunk`) when a chunk or asset holds a si
 **Why:** A region answer can hold one visitor's render and its URL is a capability: no shared cache may keep either. A response with no `cache-control` is heuristically cacheable (a 204 too). The opt-in private cache saves the double fetch for holes that are the same for a while.
 
 **Do not:** Send a region response without an explicit `cache-control`. Make a hole cacheable by default. Let a shared CDN store a region response.
+
+**Enforced by:** `apps/palaestra/e2e/server-islands.spec.ts > the opt-in cache path (maxAge: '1h' preset) carries a signed ttl + private max-age`
 
 **Enforced by:** `apps/palaestra/e2e/server-islands.spec.ts > the opt-in cache path (maxAge: '1h' preset) carries a signed ttl + private max-age`
 

@@ -7,7 +7,8 @@ import { foucCssVirtualId } from '../fouc-css.ts';
 import { collectCaptureInfo } from '../free-vars.ts';
 import { parse_module } from '../parse/oxc.ts';
 import { strategyKey, regionIdentity, regionId } from './identity.ts';
-import { regionBindingVirtualId } from '../ids.ts';
+import { regionBindingVirtualId, region_family, wrapperVirtualId } from '../ids.ts';
+import { OGYGIA_SCHEME } from '../virtual/table.ts';
 import {
 	island_entry_source,
 	server_wrapper_source,
@@ -18,7 +19,7 @@ import {
 import type { SvelteNode, HostImport, RegionMark } from './ir.ts';
 import type * as NodePath from 'node:path';
 import { blank_styles } from '../blank-styles.ts';
-import { OgygiaError, warn } from '../../messages/build.ts';
+import { OgygiaError, warn } from '../messages.ts';
 import { say } from '@ogygia/machine';
 
 /** A host the parser still cannot read keeps its region imports as plain imports (no island):
@@ -50,7 +51,7 @@ interface HostCtx {
 	/**
 	 * The REAL source file a module derives from — the resolution base for its relative specifiers.
 	 * A generated entry (a portable-snippet synth is authored markup re-processed under a
-	 * `virtual:ogygia/…` id) has no directory of its own: every `./x` / `../x` inside it must resolve
+	 * `ogygia:region/…` id) has no directory of its own: every `./x` / `../x` inside it must resolve
 	 * against the file the slice was cut from, exactly as the driver's `resolve_id` already rebases
 	 * that entry's plain imports. Identity for a real file. Optional for legacy callers (= identity).
 	 */
@@ -103,8 +104,9 @@ const REGEXP_META = /[.*+?^${}()|[\]\\]/g;
 const PATH_SEP = /[/\\]/;
 const DURATION = /^(\d+(?:\.\d+)?)\s*(ms|s|m|h)?$/i;
 const JS_EXT = /\.js$/;
-/** A generated module id (`virtual:ogygia/…`, optionally `\0`-resolved) — it has no directory. */
-const VIRTUAL_HOST_RE = /^\0?virtual:/;
+/** A generated module id (`ogygia:region/…` or another plugin's `virtual:…`, optionally
+ *  `\0`-resolved) — it has no directory. */
+const VIRTUAL_HOST_RE = /^\0?(?:virtual|ogygia):/;
 const WRAP_QUOTES = /^['"]|['"]$/g;
 /** One `key: 'value'` pair of an import-attributes clause (shared `g` regex — reset `lastIndex`
  *  before each scan). */
@@ -118,16 +120,20 @@ export { foucCssVirtualId } from '../fouc-css.ts';
 
 export const ISLAND_DIR = '.ogygia';
 
+const ENTRY_PREFIX = region_family('entry');
+const WRAPPER_PREFIX = region_family('wrapper');
+const BINDING_PREFIX = region_family('binding');
+const LAZY_PREFIX = region_family('lazy');
+
 /** True for a GENERATED island glue id (virtual island entry / wrapper / region binding, or the legacy
  *  on-disk `.ogygia/` shape) — the ids that are ogygia's own emit, not authored app/component source. */
 export function is_island_path(id: string): boolean {
 	const bare = id.split('?')[0];
 	return (
-		(bare.startsWith('virtual:ogygia/island/') &&
-			(bare.endsWith('.js') || bare.endsWith('.svelte'))) ||
-		(bare.startsWith('virtual:ogygia/wrapper/') && bare.endsWith('.svelte')) ||
-		(bare.startsWith('virtual:ogygia/region/') && bare.endsWith('.js')) ||
-		(bare.startsWith('virtual:ogygia/lazy/') && bare.endsWith('.js')) ||
+		(bare.startsWith(ENTRY_PREFIX) && (bare.endsWith('.js') || bare.endsWith('.svelte'))) ||
+		(bare.startsWith(WRAPPER_PREFIX) && bare.endsWith('.svelte')) ||
+		(bare.startsWith(BINDING_PREFIX) && bare.endsWith('.js')) ||
+		(bare.startsWith(LAZY_PREFIX) && bare.endsWith('.js')) ||
 		// legacy on-disk path shape (pre-virtual ids); still recognize for resolve/HMR edge cases
 		(bare.includes('/' + ISLAND_DIR + '/') && bare.endsWith('.svelte'))
 	);
@@ -328,18 +334,13 @@ export function islandPublicUrl(iid: string, appDir = '_app'): string {
 	return '/' + islandChunkFileName(iid, appDir);
 }
 
-/** Portable wrapper module id — SSR / csr=true host binding (Island/ServerIsland/Lake shell). */
-export function wrapperVirtualId(iid: string) {
-	return `virtual:ogygia/wrapper/${iid}.svelte`;
-}
-
 const AS_REGION_ARG_G = /import\.meta\.og\.asRegion\(\s*([A-Za-z_$][\w$]*)/g;
 
 /**
  * The local bindings a file hands to `import.meta.og.asRegion(X)`. An island's identity is keyed on
  * the import that binds `X` (`'<specifier>#<export>'`), and the prescan derives it from the raw
- * source on disk — so no pass that runs before the transform may rewrite that import (the debarrel
- * pass leaves declarations binding these names alone, as it does marked imports). A textual scan on
+ * source on disk — so no pass that runs before the transform may rewrite that import
+ * (`b.pinnedImports` names them to the plugins, with the marked imports). A textual scan on
  * purpose: it runs before any parse, on every transformed file.
  */
 export function asRegionLocals(code: string): Set<string> {
@@ -360,18 +361,18 @@ export function asRegionLocals(code: string): Set<string> {
  * `emitFile` owns hydrate modules and Rolldown does not thin-facade them. Hydration uses
  * `import(entry)` only — this stub is never loaded for island JS.
  *
- * Beside the stub the transform emits `import 'virtual:ogygia/fouc-css/<entry>'` so Kit still
+ * Beside the stub the transform emits `import 'ogygia:region/fouc-css/<entry>'` so Kit still
  * links stylesheets (FOUC) via CSS-only side effects. Importing the full `.svelte` JS module
  * dual-owns it with the emitFile island entry and Rolldown thin-facades `og-region.*`.
  * Omitting CSS entirely orphans rules (scoped class hashes, no stylesheet).
  */
-export const CLIENT_BINDING_STUB = 'virtual:ogygia/client-binding-stub';
+export const CLIENT_BINDING_STUB: string = region_family('client_binding_stub');
 
 // The join key — region identity (strategyKey / regionIdentity / regionId) now lives in ./identity.ts.
 // Imported for the lowering below and re-exported so the public `ogygia/internal/compiler` surface
 // (export * from transform) is unchanged.
 export { strategyKey, regionIdentity, regionId };
-export { regionBindingVirtualId };
+export { regionBindingVirtualId, wrapperVirtualId };
 
 /** True if `val` looks like a CSS media query (must contain a balanced-ish `(…)`). */
 function is_media_query(val: string) {
@@ -873,8 +874,8 @@ function assert_swr_lake_crossable(node: SvelteNode, err: (name: string, msg: st
  */
 function resolve_component_path(spec: string, host_id: string, ctx: HostCtx) {
 	if (typeof spec !== 'string' || !spec.trim()) return null;
-	// A relative specifier needs a real directory. A `virtual:ogygia/…` host has none — resolving
-	// against it used to yield a cwd-relative phantom (`<root>/virtual:ogygia/X.svelte`) that only
+	// A relative specifier needs a real directory. An `ogygia:region/…` host has none — resolving
+	// against it used to yield a cwd-relative phantom (`<root>/ogygia:region/X.svelte`) that only
 	// surfaced later as an opaque UNRESOLVED_IMPORT out of a region module. The origin host is
 	// threaded via `ctx.originOf`; reaching here with a virtual host means that thread is missing.
 	if (spec.startsWith('.') && VIRTUAL_HOST_RE.test(host_id)) {
@@ -1824,7 +1825,7 @@ class FileCompilation {
 
 		/**
 		 * Kit links CSS only from the *client* page graph, so a marked component whose scoped CSS is
-		 * NOT in that graph must side-effect-import `virtual:ogygia/fouc-css/<entry>` (the CSS graph
+		 * NOT in that graph must side-effect-import `ogygia:region/fouc-css/<entry>` (the CSS graph
 		 * only — not the component JS) to ship its stylesheet without dual-owning the module emitFile
 		 * registers as `og-region.*`. When the CSS *is* absent from the client graph depends on the
 		 * binding, not on `link_virtual` alone:
@@ -2191,7 +2192,7 @@ class FileCompilation {
 					// the host's real wrapper entries (the csr=false server-island prerender crash). A
 					// re-transform of generated output must never widen the island set.
 					const import_spec = String(imports.get(base_name)?.node?.source?.value ?? '');
-					const from_generated = import_spec.startsWith('virtual:ogygia/');
+					const from_generated = import_spec.startsWith(OGYGIA_SCHEME);
 					for (const child of node.fragment?.nodes ?? []) {
 						if (child.type !== 'SnippetBlock' || !child.expression?.name) continue;
 						const zero_arg = (child.parameters?.length ?? 0) === 0;
@@ -2465,7 +2466,7 @@ class FileCompilation {
 						: markup);
 				const synth =
 					`<script${lang}>\n` +
-					`\timport 'virtual:ogygia/transportables-eager';\n` +
+					`\timport 'ogygia:region/transportables-eager';\n` +
 					cleaned_imports.map((imp) => `\t${imp}\n`).join('') +
 					(prop_names.length
 						? `\t// svelte-ignore state_referenced_locally\n\tlet { ${prop_names.join(', ')} } = $props();\n`

@@ -1,8 +1,8 @@
-import { OWN_SPECIFIER_SOURCE } from '../../own-package.ts';
+import { OWN_SPECIFIER_SOURCE } from '../../contract/own-package.ts';
 import { dedent } from '../dedent.ts';
 
 /**
- * `virtual:ogygia/transport` emitter — re-exports the app's universal `transport` hook (or an empty
+ * `ogygia:region/transport` emitter — re-exports the app's universal `transport` hook (or an empty
  * map) for the client remote wire codec. Universal hooks are isomorphic, so this is client-safe.
  * Pure over the resolved absolute path to the app's universal hooks module (or null).
  */
@@ -40,7 +40,7 @@ export function transport_module(
 }
 
 /**
- * `virtual:ogygia/kit-transport` emitter — the value behind the barrel's `ogygia.transport` (the Kit
+ * `ogygia:region/kit-transport` emitter — the value behind the barrel's `ogygia.transport` (the Kit
  * `transport` hook the app spreads into its universal hooks). GENERATED per-app, not a fixed export:
  * the real `ogygiaTransport` statically pulls the whole codec cluster (wire/store/snippet/fn + region,
  * ~9 kB) since a wired value can nest any other kind. A **pure-island** app crosses NOTHING through
@@ -89,7 +89,7 @@ export function source_crosses_wire(src: string): boolean {
 }
 
 /**
- * `virtual:ogygia/transportables` emitter — where the `[ogygia.wire]` codecs come from, so an island
+ * `ogygia:region/transportables` emitter — where the `[ogygia.wire]` codecs come from, so an island
  * receiving a transportable prop never has to import the class itself. Per leg:
  * - SERVER: side-effect-imports every module that defines a transportable class (the region endpoint
  *   decodes signed props of any island; loaded once per process).
@@ -97,26 +97,27 @@ export function source_crosses_wire(src: string): boolean {
  *   app. It exports `wire_loaders`, a class module's tag path (root-relative, the part of a tag
  *   before `#`) → a lazy import; the runtime loads just the ones an island's props carry (the server
  *   stamps them on its props sidecar) before it decodes them.
- * `modules` is the Program's set of transportable module paths (absolute); `rel` makes a tag path.
+ * `modules` is the Program's set of transportable module paths (absolute).
  */
-export function transportables_module(
+export function transportables_server_module(modules: Iterable<string>): string {
+	const imports: string[] = [];
+	for (const abs of modules) imports.push(`import ${JSON.stringify(abs)};`);
+	return dedent`
+		${imports.join('\n')}
+
+		export const wire_loaders = {};
+		export const wire_all = false;
+	`;
+}
+
+/** The CLIENT leg of {@link transportables_server_module}'s module; `rel` makes a tag path. */
+export function transportables_client_module(
 	modules: Iterable<string>,
-	ssr: boolean,
 	rel: (abs: string) => string,
 	/** the app sends wired values through Kit's `transport` (remote functions, loads): those decode
 	 *  synchronously, whenever they arrive — every class must be in before any island wakes */
 	crosses_wire = false
 ): string {
-	if (ssr) {
-		const imports: string[] = [];
-		for (const abs of modules) imports.push(`import ${JSON.stringify(abs)};`);
-		return dedent`
-			${imports.join('\n')}
-
-			export const wire_loaders = {};
-			export const wire_all = false;
-		`;
-	}
 	const entries: string[] = [];
 	for (const abs of modules)
 		entries.push(`${JSON.stringify(rel(abs))}: () => import(${JSON.stringify(abs)})`);
