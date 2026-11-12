@@ -277,6 +277,8 @@ const dt_now = clock.mono;
 //          and records it here; the seed below merges it in. That's how `$page.data` works in islands.
 //   deferred — page.data/form promises staged for STREAMING (real browser loads only). Set during
 //          the render; `handle` streams a resolve script per promise after the doc ships.
+/** An open late-region scope: the regions not yet drained, and the next slot id (`r<n>`). */
+type LateCapture = { regions: LateRegion[]; next: number };
 type RequestBag = {
 	/** The request this bag is for: its response's mark is keyed on it (server/response-mark.ts). */
 	request: Request;
@@ -308,13 +310,11 @@ type RequestBag = {
 	deferred: Deferred[] | null;
 	/** Next free defer id after data+form staging — re-staging (nested promises) continues from here. */
 	defer_next_id: number;
-	/** LATE REGIONS registered during the render (`<Region of={promise}>` on a streamed router
-	 *  page) — the router drains these into completion-order template chunks. */
-	late: LateRegion[] | null;
-	late_next: number;
-	/** The router's streamed document opened the late scope (`open_late_scope`): only then does a
-	 *  promise `of` register — nothing else would ever fill its slot. */
-	late_open: boolean;
+	/** LATE REGIONS (`<Region of={promise}>` on a streamed router page): null until the router's
+	 *  streamed document opens the scope (`open_late_scope`), since nothing else would ever fill a
+	 *  slot. Open, it holds the regions registered and not yet drained (the router drains them into
+	 *  completion-order template chunks, again while it bakes) and the next slot id. */
+	late: LateCapture | null;
 	/** devalue reducers for streamed resolve scripts (app transport encoders + defer marker). */
 	seed_reducers: Record<string, (v: unknown) => unknown> | null;
 	/** the document carries Kit's client bootstrap (`__sveltekit_*` defined): Kit's streamed resolve
@@ -469,23 +469,24 @@ set_kit_page_reader(() => {
 	);
 });
 // LATE REGIONS: a promise `of` registers per request; the id keys the region's slot wrapper AND
-// its later template chunk. The taker DRAINS (the router reads once, post-render).
+// its later template chunk. The taker DRAINS and leaves the scope open (the router drains again while
+// it bakes, so a late region inside a late region still lands).
 set_late_scope_opener(() => {
 	const bag = bag_of();
-	if (bag) bag.late_open = true;
+	if (bag) bag.late ??= { regions: [], next: 0 };
 });
 set_late_recorder((promise) => {
-	const bag = bag_of();
-	if (!bag?.late_open) return null;
-	const id = `r${bag.late_next++}`;
-	(bag.late ??= []).push({ id, promise });
+	const late = bag_of()?.late;
+	if (!late) return null;
+	const id = `r${late.next++}`;
+	late.regions.push({ id, promise });
 	return id;
 });
 set_late_taker(() => {
-	const bag = bag_of();
-	if (!bag?.late?.length) return null;
-	const list = bag.late;
-	bag.late = null;
+	const late = bag_of()?.late;
+	if (!late?.regions.length) return null;
+	const list = late.regions;
+	late.regions = [];
 	return list;
 });
 // FACTS (plugin/facts.ts): the region-endpoint mint (prerender-grade holes in a storable render)
@@ -973,8 +974,6 @@ class OgygiaHandle {
 				deferred: null,
 				defer_next_id: 0,
 				late: null,
-				late_next: 0,
-				late_open: false,
 				seed_reducers: null,
 				facts,
 				request: event.request
