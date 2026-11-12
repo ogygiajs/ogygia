@@ -193,6 +193,36 @@
 	],
 	"covered": [
 		{
+			"step": "region-life: detached -> connected",
+			"reason": "new with the region life machine (it replaced the element's lifetime fields): the next sweep's --write moves it to reached if the fake browser takes it",
+			"test": "packages/core/test/browser/region-life.test.ts",
+			"name": "a region connects, schedules, and a move keeps its lifetime"
+		},
+		{
+			"step": "region-life: connected -> scheduled",
+			"reason": "new with the region life machine (it replaced the element's lifetime fields): the next sweep's --write moves it to reached if the fake browser takes it",
+			"test": "packages/core/test/browser/region-life.test.ts",
+			"name": "a region connects, schedules, and a move keeps its lifetime"
+		},
+		{
+			"step": "region-life: connected -> detached",
+			"reason": "new with the region life machine (it replaced the element's lifetime fields): the next sweep's --write moves it to reached if the fake browser takes it",
+			"test": "packages/core/test/browser/region-life.test.ts",
+			"name": "a live region that never scheduled leaves from connected"
+		},
+		{
+			"step": "region-life: scheduled -> connected",
+			"reason": "new with the region life machine (it replaced the element's lifetime fields): the next sweep's --write moves it to reached if the fake browser takes it",
+			"test": "packages/core/test/browser/region-life.test.ts",
+			"name": "a hole whose fetch failed connects afresh for its retry"
+		},
+		{
+			"step": "region-life: scheduled -> detached",
+			"reason": "new with the region life machine (it replaced the element's lifetime fields): the next sweep's --write moves it to reached if the fake browser takes it",
+			"test": "packages/core/test/browser/region-life.test.ts",
+			"name": "a scheduled region removed for good is detached once"
+		},
+		{
 			"step": "critical resources: kept -> gone",
 			"reason": "a page asks only before the gate settles, and the answer is kept only after it: no later get, no expiry, no max; only reset_load_scheduler() drops it, which a test's reset calls",
 			"test": "packages/core/test/browser/load-scheduler.test.ts",
