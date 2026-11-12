@@ -9,6 +9,7 @@
 import type { RequestEvent } from '@sveltejs/kit';
 import { with_request_store } from '@sveltejs/kit/internal/server';
 import type { RequestContext, ServerApp, ServerPlugin } from './index.ts';
+// port-ok: a test helper's own key, made once per test process (never a running app's)
 import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 import { facts_of } from './facts.ts';
 import { request_contexts, start_plugins, type AppSigner } from './server.ts';
