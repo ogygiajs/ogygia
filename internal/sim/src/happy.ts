@@ -545,6 +545,10 @@ export function on_navigation_start(page: object, starts: Starts): void {
 	STARTS.set(page, starts);
 }
 
+/** How long a browser waits for a document's answer before it gives up: the network stack's own
+ *  deadline (Chromium's is 5 minutes), not happy-dom's 30 s. */
+const NAVIGATION_DEADLINE_MS = 300_000;
+
 /**
  * Every hard navigation of a page starts in happy-dom's navigator, whoever asked (the visitor, the
  * page's `location`, a form's submit, `history.back()`): each start of a main frame's goes through
@@ -565,7 +569,11 @@ export function navigation_starts(): void {
 		'reload'
 	] as const) {
 		const real = nav[step] as (this: unknown, o: { frame: Frame }) => Promise<unknown>;
-		nav[step] = function (this: unknown, o: { frame: Frame }) {
+		nav[step] = function (this: unknown, o: { frame: Frame; goToOptions?: object }) {
+			// (happy-dom calls a navigation off after 30 s; a browser waits for the network's own
+			// deadline, minutes: test/page-abort.node.test.ts)
+			if (step === 'navigate')
+				o = { ...o, goToOptions: { timeout: NAVIGATION_DEADLINE_MS, ...o.goToOptions } };
 			const page = (o.frame as unknown as { page: { mainFrame: unknown } }).page;
 			const starts = starting === 0 && page.mainFrame === o.frame ? STARTS.get(page) : undefined;
 			const go = () => {
