@@ -1058,11 +1058,11 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 				// graph, so without invalidation the SERVER leg keeps deciding island-vs-inline from a
 				// STALE set while Kit flips immediately — `<ogygia-region>` shells on a Kit-booted page
 				// with the runtime withheld = dead chrome (hit at a consumer after toggling `csr`).
+				// (a plugin's key inside `export const config` add/flip changes the baked values too, and a
+				// host compiled for its old csr is compiled again: driver `routes_changed`)
 				if (is_dev && ROUTE_HOST_OR_OPTION_RE.test(id)) {
-					compiler.ctx.routes.clear();
-					// (a plugin's key inside `export const config` add/flip changes the baked values too)
-					if (vite_server)
-						for (const mid of compiler.changed('routes')) invalidate_module_id(vite_server, mid);
+					const ids = compiler.routes_changed();
+					if (vite_server) for (const mid of ids) invalidate_module_id(vite_server, mid);
 				}
 				// Unlink often skips handleHotUpdate; drop islands that still import the deleted file.
 				if (!is_dev || change.event !== 'delete' || !vite_server) return;

@@ -64,8 +64,7 @@ function dev_compiler(files: MemoryFs) {
 
 /** The plugin's `watchChange` for a route file (vite/index.ts): the module ids it invalidates. */
 function dev_route_change(compiler: Compiler): string[] {
-	compiler.ctx.routes.clear();
-	return compiler.changed('routes');
+	return compiler.routes_changed();
 }
 
 const transform = (compiler: Compiler, files: MemoryFs) =>
