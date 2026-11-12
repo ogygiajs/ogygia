@@ -82,7 +82,7 @@ export type Claims = Record<string, unknown>;
 /** In-process only: verified claims ride the forwarded Request as a Symbol property — an HTTP
  *  caller cannot set a JS symbol, so an app's standalone (unsigned) front door can never smuggle
  *  identity in through a header. */
-const CLAIMS = Symbol.for('ogygia.claims.v1');
+const CLAIMS = Symbol.for('ogygia.claims');
 
 /** Read the VERIFIED visitor claims in any load / action / endpoint of an exposed router (and in
  *  a widget's `info.user`). `undefined` on the standalone front door and for anonymous calls. */

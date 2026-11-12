@@ -28,6 +28,7 @@ import {
 	cache,
 	flights,
 	machine,
+	noop,
 	registry,
 	say,
 	scope,
@@ -173,7 +174,7 @@ function status_of(entries: readonly PerformanceEntry[]): number | null {
 }
 
 /** What the page says when a chunk cannot load until it reloads: the boot's message (./core.ts). */
-let say_reload_needed: (url: string, error: unknown) => void = () => {};
+let say_reload_needed: (url: string, error: unknown) => void = noop;
 /** Said once per page (for the first such chunk: one reload loads them all). */
 const reload = say({ max: 1 });
 /** The boot hands over its message for a chunk no retry can load. */
