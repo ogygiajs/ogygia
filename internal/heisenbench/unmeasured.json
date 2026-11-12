@@ -801,12 +801,16 @@
 			"reason": "browser only: the navigation's commit, the head merge and body reconcile on the live document (not cloneable), linear in the page; proven in every palaestra navigation e2e and packages/core/test/browser/nav-swap-fails.test.ts (#276)"
 		},
 		{
-			"id": "packages/core/src/runtime/router-nav.ts > apply_sheet",
-			"reason": "browser only: gives a live link element its media back (two attribute writes), constant work; proven in packages/core/test/browser/nav-sheets-inert.test.ts (#267)"
+			"id": "packages/core/src/runtime/router-nav.ts > live_page_head",
+			"reason": "browser only: reads the live <head>'s page-owned nodes (not cloneable), linear in the head; proven in packages/core/test/browser/nav-head-order.test.ts (#794)"
 		},
 		{
-			"id": "packages/core/src/runtime/router-nav.ts > adopt_title",
-			"reason": "browser only: reads the parsed document's title and writes the live document's (not cloneable), constant work; proven in packages/core/test/browser/nav-no-title.test.ts"
+			"id": "packages/core/src/runtime/router-nav.ts > head_slot",
+			"reason": "browser only: walks a parsed head node's earlier siblings against the live <head> (not cloneable), linear in the head; proven in packages/core/test/browser/nav-head-order.test.ts (#794)"
+		},
+		{
+			"id": "packages/core/src/runtime/router-nav.ts > apply_sheet",
+			"reason": "browser only: gives a live link element its media back (two attribute writes), constant work; proven in packages/core/test/browser/nav-sheets-inert.test.ts (#267)"
 		},
 		{
 			"id": "packages/core/src/runtime/router-nav.ts > preload_stylesheets > discard:0~b6b485",
@@ -2407,6 +2411,10 @@
 		{
 			"id": "packages/core/src/runtime/frame-store.ts > answer_definition",
 			"reason": "builds the stored-answer machine definition (plain data: three states, their steps), once per address entry; its moves are measured by the frame-store bench, the definition itself is not cloneable"
+		},
+		{
+			"id": "packages/core/src/runtime/router-nav.ts > adopt_title",
+			"reason": "browser only: reads the parsed document's title and writes the live document's (not cloneable), constant work; proven in packages/core/test/browser/nav-no-title.test.ts"
 		},
 		{
 			"id": "packages/federation/src/messages.ts > FEDERATION_WARNINGS > federation_audience_missing > text",

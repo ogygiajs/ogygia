@@ -1283,11 +1283,7 @@ function merge_head(new_head: HTMLHeadElement): Element[] {
 	// for the next page's copy either (the island may be torn down in the reconcile that follows —
 	// the copy the page needs goes in, and the one-copy rule retires it again if the island stays).
 	// Nodes that are not ours at all (a third-party inject) stay, as under Kit's own router.
-	const owned = session().page_head;
-	const current_nodes = new Map<string, Element>();
-	for (const node of Array.from(current.children)) {
-		if (owned.has(node)) current_nodes.set(head_node_key(node), node);
-	}
+	const current_nodes = live_page_head();
 	const next_keys = new Set<string>();
 	for (const node of Array.from(new_head.children)) {
 		if (is_dangerous_head_node(node)) continue;
@@ -1302,39 +1298,56 @@ function merge_head(new_head: HTMLHeadElement): Element[] {
 			unlisted.push(node);
 		else node.remove();
 	}
-	// add / replace nodes (skip dangerous head policy tags)
-	// A `<style>` the next document carries goes at the TOP of <head>, in document order — exactly
-	// where `preload_stylesheets` puts an SPA `<link>`, and for the same reason: an island's
-	// `<svelte:head>` hydration on the new page reclaims a TRAILING head-node range, so a sheet
-	// appended at the end goes with it. Kit inlines a route's small sheets as `<style>` under
-	// `kit.inlineStyleThreshold`, and ogygia inlines small region sheets the same way; one such
-	// destination page lost its `ogygia-region{display:block}` and the layout collapsed
-	// (e2e/context, "Context after SPA navigation"). `anchor` is the head's first child BEFORE this
-	// merge, so the new sheets land above everything old and keep their own order.
-	let anchor = current.firstChild;
+	// add / replace nodes (skip dangerous head policy tags), each in its fresh-load place (`head_slot`)
+	const live = new Map(current_nodes);
 	for (const node of Array.from(new_head.children)) {
 		if (is_dangerous_head_node(node)) continue;
 		const key = head_node_key(node);
 		const existing = current_nodes.get(key);
 		// Kit FOUC bag: always refresh content (same key every page, different CSS). The new bag goes
-		// in first, then the old one comes out. After one navigation the old bag is the head's first
-		// child, so it is `anchor` itself: what comes after it goes where it was.
+		// in, then the old one comes out.
 		if (key === 'STYLE:data-sveltekit') {
-			install_head_style(node, current, anchor);
-			if (existing) {
-				if (existing === anchor) anchor = existing.nextSibling;
-				existing.remove();
-			}
+			live.delete(key);
+			if (existing) existing.remove();
+			live.set(key, install_head_style(node, current, head_slot(node, live)));
 			continue;
 		}
 		if (existing) continue;
+		const at = head_slot(node, live);
 		if (node.tagName === 'STYLE') {
-			install_head_style(node, current, anchor);
+			live.set(key, install_head_style(node, current, at));
 		} else {
-			session().claim_page_head(current.appendChild(node.cloneNode(true)));
+			const copy = node.cloneNode(true) as Element;
+			session().claim_page_head(current.insertBefore(copy, at));
+			live.set(key, copy);
 		}
 	}
 	return unlisted;
+}
+
+/** The page's own nodes in the live <head>, by key (runtime/session.ts — who owns each node). */
+function live_page_head(): Map<string, Element> {
+	const owned = session().page_head;
+	const out = new Map<string, Element>();
+	for (const node of Array.from(document.head.children))
+		if (owned.has(node)) out.set(head_node_key(node), node);
+	return out;
+}
+
+/**
+ * Where a next-page head node goes in the live <head>: right after the live copy of the nearest node
+ * before it in the next head, or at the head's top when none is live. So the page's own nodes keep
+ * the next document's order, the cascade order a fresh load has (test/browser/nav-head-order.test.ts,
+ * #794). It always follows a node of the PAGE, never an island's: an island's live head block (Svelte
+ * removes its range on teardown) is never split by a page node going in.
+ */
+function head_slot(node: Element, live: ReadonlyMap<string, Element>): Node | null {
+	for (let p = node.previousElementSibling; p !== null; p = p.previousElementSibling) {
+		if (is_dangerous_head_node(p)) continue;
+		const at = live.get(head_node_key(p));
+		if (at !== undefined && at.parentNode === document.head) return at.nextSibling;
+	}
+	return document.head.firstChild;
 }
 
 /**
@@ -1365,6 +1378,7 @@ function preload_stylesheets(
 			present.add(head_node_key(node));
 		}
 	}
+	const live = live_page_head();
 	const pending: Promise<void>[] = [];
 	for (const node of Array.from(new_head.children)) {
 		if (node.tagName !== 'LINK' || node.getAttribute('rel') !== 'stylesheet') continue;
@@ -1389,10 +1403,9 @@ function preload_stylesheets(
 				attempt.on(link, 'error', () => resolve(), { once: true });
 			})
 		);
-		// Insert at the TOP of <head>, not the end: an island's `<svelte:head>` hydration removes a
-		// trailing node range, so a stylesheet appended after the island head blocks gets reclaimed.
 		session().claim_page_head(link); // the next page's own sheet (runtime/session.ts)
-		document.head.insertBefore(link, document.head.firstChild);
+		document.head.insertBefore(link, head_slot(node, live));
+		live.set(key, link);
 		sheets.push(sheet);
 		discard(() => link.remove());
 	}
