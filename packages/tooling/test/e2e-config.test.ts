@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { e2e_browsers, suite } from '../src/e2e/config.ts';
 
 const BUILD = fileURLToPath(new URL('../src/e2e/build.ts', import.meta.url));
+const TEE = fileURLToPath(new URL('../src/e2e/tee.ts', import.meta.url));
 
 type Server = { command: string; env: Record<string, string>; reuseExistingServer: boolean };
 const server = (c: ReturnType<typeof suite>) => c.webServer as Server;
@@ -55,7 +56,9 @@ describe('suite', () => {
 	it('a served app is built and previewed in one command chain, never an earlier server', () => {
 		vi.stubEnv('E2E_PORT_OFFSET', '');
 		const s = server(suite({ port: 4100, serve: '/apps/x' }));
-		expect(s.command).toBe(
+		// (run through tee.ts, which keeps its output in the suite's server log)
+		expect(s.command).toBe(`node ${TEE}`);
+		expect(s.env.OGYGIA_E2E_SERVE_COMMAND).toBe(
 			`node ${BUILD} && node node_modules/vite/bin/vite.js preview --port 4100 --strictPort`
 		);
 		expect(s.reuseExistingServer).toBe(false);
