@@ -30,8 +30,13 @@ export interface Tab {
 	readonly page: BrowserPage;
 	/** The realm of the document it shows now. */
 	realm: string;
-	/** Documents it has shown. */
+	/** Documents it has shown (and navigations called off before theirs came: each took a realm). */
 	documents: number;
+	/** Hard navigations it started: only the latest is still going (`navigate`). */
+	navigations: number;
+	/** A navigation started and its document has not come yet: its requests are realm
+	 *  `#documents + 1`'s. */
+	awaiting: boolean;
 	/** What the page reported: uncaught errors, failed scripts, console errors. */
 	readonly errors: string[];
 	readonly console: string[];
@@ -58,6 +63,31 @@ export interface Tab {
 	/** Each document's machine move log (`__ogygia_moves()`, rules builds), by realm, a left one's
 	 *  too: a hard navigation inside one action replaces a document before it is looked at. */
 	readonly moves_by: Map<string, () => string>;
+	/** What each region of the shown document announced (`ogygia:hydrated`, `ogygia:live`), as a
+	 *  listener of the app's on the document hears it: bubbling, never capturing. */
+	heard: Map<Element, Heard[]>;
+}
+
+/** A region event a document's listener heard, and what the region showed once it was sent. */
+export interface Heard {
+	readonly type: 'ogygia:hydrated' | 'ogygia:live';
+	/** Virtual ms. */
+	readonly at: number;
+	/** The region's `entry` then: the module (or, static, the region) the tick was. */
+	readonly entry: string;
+	/** {@link own_text}, read once the event's own microtasks ran (a kept-alive island's new props
+	 *  render in one). */
+	readonly shown: string;
+}
+
+/** What a region shows of its own, as text: less a region inside it (its own answer comes on its
+ *  own), a button (its own count, the visitor's), and the page's data a soft refresh changes in place
+ *  (the random app's `data-gen-page`). */
+export function own_text(region: Element): string {
+	const copy = region.cloneNode(true) as Element;
+	for (const el of copy.querySelectorAll('ogygia-region, button, [data-gen-page], script, style'))
+		el.remove();
+	return (copy.textContent ?? '').replace(/\s+/g, ' ').trim();
 }
 
 /** What a document holds that outlives a page visit if nobody lets it go. */
@@ -271,8 +301,9 @@ export class Browsers {
 		const tab = this.#find(window);
 		// (a frame inside the page is not the tab's document)
 		if (tab === undefined || (tab.page.mainFrame.window as unknown) !== window) return;
-		this.#o.loop.drop(tab.realm);
+		this.#leave(tab);
 		tab.documents++;
+		tab.awaiting = false;
 		tab.realm = `${tab.name}#${tab.documents}`;
 		const options: RealmOptions = {
 			name: tab.realm,
@@ -326,6 +357,22 @@ export class Browsers {
 		});
 		const loop = this.#o.loop;
 		window.addEventListener('og:before-swap', () => swaps.push(loop.now), { capture: true });
+		// (a region's announcements, as the app hears them: bubbling up to the window, so one sent
+		// without `bubbles` is heard by no one, as in a browser)
+		const heard: Map<Element, Heard[]> = (tab.heard = new Map());
+		const hear = (e: Event): void => {
+			const el = e.target as Element;
+			const type = e.type as Heard['type'];
+			const at = loop.now;
+			const entry = el.getAttribute('entry') ?? '';
+			(window as unknown as { queueMicrotask(f: () => void): void }).queueMicrotask(() => {
+				let list = heard.get(el);
+				if (list === undefined) heard.set(el, (list = []));
+				list.push({ type, at, entry, shown: own_text(el) });
+			});
+		};
+		window.addEventListener('ogygia:hydrated', hear as never);
+		window.addEventListener('ogygia:live', hear as never);
 		this.#count_held(window, tab);
 		const w = window as unknown as {
 			addEventListener(
@@ -573,6 +620,8 @@ export class Browsers {
 			page,
 			realm: `${name}#0`,
 			documents: 0,
+			navigations: 0,
+			awaiting: false,
 			errors: [],
 			console: [],
 			platform: null,
@@ -582,6 +631,7 @@ export class Browsers {
 			orphans: () => [],
 			swaps: [],
 			swaps_by: new Map(),
+			heard: new Map(),
 			moves_by: new Map(),
 			said_by: new Map()
 		};
@@ -614,6 +664,15 @@ export class Browsers {
 	 */
 	navigate(tab: Tab, how: 'goto' | 'back' | 'forward' | 'reload', path = '/'): Promise<void> {
 		const page = tab.page;
+		// a navigation whose document has not come yet is called off by this one, as a browser does:
+		// its document never comes (happy-dom wrote it over the newer page once its stalled body
+		// ended, under its own URL; palaestra seed 122), and its requests' realm is never shown
+		if (tab.awaiting) {
+			tab.documents++;
+			this.#o.network.leave(`${tab.name}#${tab.documents}`);
+		}
+		tab.awaiting = true;
+		const mine = ++tab.navigations;
 		const go =
 			how === 'goto'
 				? page.goto(new URL(path, this.#o.origin).href)
@@ -622,17 +681,30 @@ export class Browsers {
 					: how === 'forward'
 						? page.goForward()
 						: page.reload();
+		// (one called off says nothing: the visitor called it off)
+		const latest = () => tab.navigations === mine;
 		return go.then(
-			() => {},
+			() => {
+				if (latest()) tab.awaiting = false;
+			},
 			(error: unknown) => {
+				if (!latest()) return;
+				tab.awaiting = false;
 				tab.errors.push(`navigation: ${error instanceof Error ? error.message : String(error)}`);
 			}
 		);
 	}
 
-	/** Closes `tab`: its document's tasks go with it. */
-	async close(v: Visitor, tab: Tab): Promise<void> {
+	/** The tab leaves the document it shows (it moves on, or closes): a browser unloads it, so its
+	 *  tasks go with it and nothing on the network reaches it any more. */
+	#leave(tab: Tab): void {
 		this.#o.loop.drop(tab.realm);
+		this.#o.network.leave(tab.realm);
+	}
+
+	/** Closes `tab`: its document goes with it. */
+	async close(v: Visitor, tab: Tab): Promise<void> {
+		this.#leave(tab);
 		v.tabs.splice(v.tabs.indexOf(tab), 1);
 		// (a page closes once its documents finish, which happy-dom judges on the loop: run it)
 		let closed = false;
