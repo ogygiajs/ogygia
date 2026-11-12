@@ -59,3 +59,21 @@ test('a navigation to a page at another depth keeps one head node for the same f
 	// the node from the first page stayed: kept, not taken out and put back
 	expect(added[0]!.isConnected).toBe(true);
 });
+
+test('a kept head node still names its file under the deeper address it was kept for', async () => {
+	const r = new SpaRouter();
+	vi.spyOn(r, 'hand_off').mockImplementation(() => {
+		if (r.nav.now.kind !== 'idle') r.nav.go('idle');
+	});
+	await r.navigate(new URL('/shop/dashboard/orders', location.href));
+	await expect
+		.poll(() => document.querySelector('[data-page="orders"]'), { timeout: 2_000 })
+		.not.toBeNull();
+	await expect.poll(() => r.nav.now.kind, { timeout: 2_000 }).toBe('idle');
+	expect(location.pathname).toBe('/shop/dashboard/orders');
+	// what the browser fetches for each node: its attribute against the address on screen now
+	const files = [...document.head.querySelectorAll('script[type="text/x-og-key-depth"]')].map(
+		(s) => new URL((s as HTMLScriptElement).src).pathname
+	);
+	expect(files).toEqual([FILE]);
+});
