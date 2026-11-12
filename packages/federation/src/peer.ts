@@ -457,7 +457,7 @@ export class PeerHandle implements Peer {
 			// escapes for those, and a path may hold a `'`)
 			const q = html.charCodeAt(at - 1);
 			const quoted = q === 34 || q === 39 ? 1 : 0;
-			out += `${html.slice(kept, at - quoted)}"${escapeAttr(url)}"`;
+			out = `${out}${html.slice(kept, at - quoted)}"${escapeAttr(url)}"`;
 			kept = at + value.length + quoted;
 		}
 		return kept === 0 ? html : `${out}${html.slice(kept)}`;
