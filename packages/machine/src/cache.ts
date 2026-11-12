@@ -33,6 +33,7 @@
 import { DEV } from 'esm-env';
 import { clock } from './clock.ts';
 import { bad_option, machine_error, report } from './messages.ts';
+import { noop } from './noop.ts';
 import { DISPOSE, MAX_TIMEOUT_MS, scope, type Scope } from './scope.ts';
 import type { World } from './world.ts';
 
@@ -122,7 +123,7 @@ export function cache<K, V>(o: CacheOptions<K, V>): Cache<K, V> {
 	const held = new Map<K, Held<V>>();
 	let weight_now = 0;
 	/** The age timer's stop, and when it fires (`Infinity`: none set). */
-	let stop_timer: () => void = () => {};
+	let stop_timer: () => void = noop;
 	let timer_at = Infinity;
 	/** When the timer last swept (`-Infinity`: never). */
 	let swept_at = -Infinity;

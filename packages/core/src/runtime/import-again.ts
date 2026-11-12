@@ -23,7 +23,17 @@
  * imports nothing of the boot (only `@ogygia/machine`, which the boot runs on); the boot hands it
  * its message (`on_reload_needed`).
  */
-import { cache, flights, machine, registry, say, scope, STALE, type Scope } from '@ogygia/machine';
+import {
+	cache,
+	flights,
+	machine,
+	noop,
+	registry,
+	say,
+	scope,
+	STALE,
+	type Scope
+} from '@ogygia/machine';
 
 /** How long a failed import waits for its file's timing entry before it reads as "no response". */
 const ENTRY_WAIT_MS = 1000;
@@ -155,7 +165,7 @@ function status_of(entries: readonly PerformanceEntry[]): number | null {
 }
 
 /** What the page says when a chunk cannot load until it reloads: the boot's message (./core.ts). */
-let say_reload_needed: (url: string, error: unknown) => void = () => {};
+let say_reload_needed: (url: string, error: unknown) => void = noop;
 /** Said once per page (for the first such chunk: one reload loads them all). */
 const reload = say({ max: 1 });
 /** The boot hands over its message for a chunk no retry can load. */
