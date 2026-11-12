@@ -4,7 +4,7 @@
  * the DOM diff and shift boxes, and the sink's rows and aggregations.
  */
 import { describe, expect, it } from 'vitest';
-import { byte_strip, arrival_ms } from '../src/profiler/byte-strip.ts';
+import { byte_strip, arrival_ms, page_seed } from '../src/profiler/byte-strip.ts';
 import { parse_visit, one_clock, merge_visits } from '../src/profiler/visit.ts';
 import { build_river, load_return_keys, seed_key_bytes } from '../src/profiler/river.ts';
 import { html_diff, tokenize_html, shift_boxes } from '../src/profiler/dom-diff.ts';
@@ -99,6 +99,33 @@ describe('byte strip', () => {
 			'/f/half.png'
 		]);
 		expect(byte_strip('<img width="1" height="1" src="x.png">').unsized_images).toBeUndefined();
+	});
+
+	it('reads the tags as a browser does: a quoted `>`, a comment, a value naming a marker, a data-src', () => {
+		const doc3 =
+			'<html><head><!-- <link rel="stylesheet" href="/gone.css"> -->' +
+			'<script data-note="a>b" type="application/ogygia-page">{}</script>' +
+			'<script type="module" src="/data-ogygia-runtime.js"></script>' +
+			'<LINK REL="preload stylesheet" HREF="/a/b.css"></head>' +
+			'<body><img data-src="/lazy.png" src="/real.png"></body></html>';
+		const s = byte_strip(doc3);
+		expect(s.segments.filter((x) => x.kind !== 'head' && x.kind !== 'markup')).toEqual([
+			{ kind: 'seed', start: 61, end: 127 },
+			{ kind: 'script', label: 'src data-ogygia-runtime.js', start: 127, end: 188 },
+			{ kind: 'css-link', label: 'b.css', start: 188, end: 235 }
+		]);
+		expect(s.unsized_images).toEqual(['/real.png']);
+	});
+
+	it('reads the page seed’s text the way the byte strip finds the seed script', () => {
+		expect(page_seed(doc)).toBe('{"data":{"a":1}}');
+		expect(
+			page_seed(
+				'<!-- <script type="application/ogygia-page">{"gone":1}</script> -->' +
+					"<script data-note='a>b' TYPE='application/ogygia-page'>{\"data\":{}}</script>"
+			)
+		).toBe('{"data":{}}');
+		expect(page_seed('<p>no seed</p>')).toBeNull();
 	});
 
 	it('a document without ogygia at all, or a broken one, still strips', () => {

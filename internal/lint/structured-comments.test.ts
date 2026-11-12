@@ -93,6 +93,59 @@ test('free comments and block comments are reported; tool directives pass', () =
 	assert.deepEqual(findings({ [A]: src }), { [A]: [1, 3] });
 });
 
+test('a JSDoc that is only a type (`@type {…}`, `@satisfies {…}`) passes anywhere; prose beside it does not', () => {
+	const src = [
+		'/** @type {number} */', // 1
+		'let a = 1;', // 2
+		'/** @satisfies {Record<string, number>} */', // 3
+		'const b = { x: 1 };', // 4
+		'/** @type {number} the count */', // 5
+		'let c = a + b.x;', // 6
+		'console.log(c);' // 7
+	].join('\n');
+	assert.deepEqual(findings({ [A]: src }), { [A]: [5] });
+});
+
+test("a component's props type is its export: JSDoc on it and its members passes", () => {
+	const named = [
+		'<script lang="ts">', // 1
+		'\t/** the props */', // 2
+		'\ttype Props = {', // 3
+		'\t\t/** a prop */', // 4
+		'\t\tsize: number;', // 5
+		'\t};', // 6
+		'\ttype Other = {', // 7
+		'\t\t/** not the props */', // 8
+		'\t\tx: number;', // 9
+		'\t};', // 10
+		'\tconst props: Props = $props();', // 11
+		'\tconst o: Other = { x: props.size };', // 12
+		'</script>', // 13
+		'<p>{o.x}</p>' // 14
+	].join('\n');
+	const inline = [
+		'<script lang="ts">', // 1
+		'\tlet {', // 2
+		'\t\tsize', // 3
+		'\t}: {', // 4
+		'\t\t/** a prop */', // 5
+		'\t\tsize: number;', // 6
+		'\t} = $props();', // 7
+		'\t/** local */', // 8
+		'\tconst twice = size * 2;', // 9
+		'</script>', // 10
+		'<p>{twice}</p>' // 11
+	].join('\n');
+	const N = 'packages/demo/src/N.svelte';
+	const I = 'packages/demo/src/I.svelte';
+	assert.deepEqual(findings({ [N]: named, [I]: inline }), { [N]: [8], [I]: [8] });
+});
+
+test("a bin's #! line passes; the comments after it are read as usual", () => {
+	const src = ['#!/usr/bin/env node', '// narration', 'export const a = 1;'].join('\n');
+	assert.deepEqual(findings({ [A]: src }), { [A]: [2] });
+});
+
 test('a directive with no reason is reported', () => {
 	const src = ['// oxlint-disable-next-line no-eval', 'export const b = eval("1");'].join('\n');
 	assert.deepEqual(findings({ [A]: src }), { [A]: [1] });
