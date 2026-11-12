@@ -956,11 +956,18 @@ class OgygiaRegion extends HTMLElement {
 		return async (signal, flight) => {
 			// HTML is content: on screen it never waits for the page's critical resources; off screen it
 			// is background work (load-scheduler.ts). Every caller of the address shares this fetch, so
-			// it goes at the most urgent one's class (its flight's). The server gate still caps what one
+			// it goes at the most urgent one's class (its flight's). The holes window caps what one
 			// page asks of the origin at once.
 			// (a class that follows this hole's place on screen is re-read as it moves)
 			const el = typeof cls === 'function' ? this : undefined;
-			const slot = new LoadSlot({ kind: 'content', cls, label: endpoint, el, flight });
+			const slot = new LoadSlot({
+				kind: 'content',
+				cls,
+				label: endpoint,
+				el,
+				flight,
+				window: 'holes'
+			});
 			const release = await slot.ready;
 			try {
 				return await this.#fetch_region(
@@ -981,16 +988,14 @@ class OgygiaRegion extends HTMLElement {
 		priority: 'high' | 'auto' | 'low',
 		signal: AbortSignal
 	) {
-		return runtime_session.server_gate.run(() => {
-			// (./hole-fetch.ts: the same read of the answer `preload()` makes. A renewed capability is
-			// the address's, kept in the store: every element bound there adopts it — #adopt_renewed)
-			const address = frameAddress(endpoint);
-			return fetch_hole(endpoint, {
-				revalidate,
-				priority,
-				signal,
-				renewed: (fresh) => slots.frames?.renew(address, fresh)
-			});
+		// (./hole-fetch.ts: the same read of the answer `preload()` makes. A renewed capability is
+		// the address's, kept in the store: every element bound there adopts it — #adopt_renewed)
+		const address = frameAddress(endpoint);
+		return fetch_hole(endpoint, {
+			revalidate,
+			priority,
+			signal,
+			renewed: (fresh) => slots.frames?.renew(address, fresh)
 		});
 	}
 
