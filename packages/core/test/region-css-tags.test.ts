@@ -3,6 +3,7 @@
 // silently unstyled every sheet small enough for Kit's `inlineStyleThreshold`, which ogygia inlines
 // as `<style data-ogygia-region-css="href">`.
 import { describe, expect, it } from 'vitest';
+import { hole_head } from '../src/server/hole-graph.ts';
 import { region_css_tags } from '../src/server/html-scan.ts';
 
 describe('region_css_tags', () => {
@@ -50,6 +51,20 @@ describe('region_css_tags', () => {
 		expect(
 			region_css_tags('<style>/* <link href="/a.css" data-ogygia-region-css> */</style>')
 		).toBe('');
+	});
+
+	it('a hole answer carries no region sheet out of a comment, a meta value or the title (#976)', () => {
+		const head =
+			'<!-- <link rel=stylesheet href=/x.css data-ogygia-region-css> -->' +
+			'<meta name="description" content="see <link data-ogygia-region-css href=/m.css>">' +
+			'<title>the data-ogygia-region-css attribute</title>' +
+			'<link rel="stylesheet" href="/real.css" data-ogygia-region-css>';
+		expect(region_css_tags(head)).toBe(
+			'<link rel="stylesheet" href="/real.css" data-ogygia-region-css>'
+		);
+		expect(hole_head(head, undefined)).toBe(
+			'<link rel="stylesheet" href="/real.css" data-ogygia-region-css>'
+		);
 	});
 
 	it('an unterminated inline sheet stops the scan instead of swallowing the rest', () => {
