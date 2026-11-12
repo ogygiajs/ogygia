@@ -1,0 +1,198 @@
+// Seed shaping must be SOUND: a key it leaves out is missing from the shipped page seed, and the island
+// reads `undefined` there. Each script below really runs, with a recording Proxy as `page.data`
+// and a `use()` that reads all of whatever it is handed (a function the analysis cannot see into),
+// and the analysis must answer 'all' or a set holding every key that was read. One shape at a time,
+// then generated mixes of them (seeded 314; OGYGIA_FUZZ_SEED, OGYGIA_FUZZ_RUNS).
+import { describe, expect, it } from 'vitest';
+import { fc } from '@ogygia/config/sim';
+import { page_data_keys } from '../src/compiler/link/page-keys.ts';
+import { dedent } from '@ogygia/core/contract';
+
+const KEYS = ['a', 'b', 'c'];
+let fresh = 0;
+const v = () => `v${fresh++}`;
+
+/** One read of `page.data` per shape; `k` is the key it reads. */
+const SHAPES: ((k: string) => string)[] = [
+	(k) => `use(page.data.${k});`,
+	(k) => `use(page.data?.${k});`,
+	(k) => `use(page.data['${k}']);`,
+	(k) => `use(page.data[\`${k}\`]);`,
+	(k) => `use(page['data'].${k});`,
+	(k) => `use(page?.data?.${k});`,
+	(k) => `use((page.data).${k});`,
+	(k) => `use(page.data.${k}?.x);`,
+	(k) => `use(page.data.${k}.toString());`,
+	(k) => `use(page.data.${k} = page.data.${k});`,
+	(k) => `use(page.data.hasOwnProperty('${k}'));`,
+	(k) => `use(page.data.valueOf().${k});`,
+	(k) => `use('${k}' in page.data);`,
+	(k) => `use(Object.hasOwn(page.data, '${k}'));`,
+	(k) => `use(Reflect.get(page.data, '${k}'));`,
+	(k) => `use(page.data[('${k}')]);`,
+	(k) => `use(page.data.${k}, page.data);`,
+	(k) => `use([page][0].data.${k});`,
+	(k) => `use([page.data][0].${k});`,
+	(k) => `use(((x) => x)(page.data).${k});`,
+	() => `use(Object.keys(page.data));`,
+	() => `use({ ...page.data });`,
+	() => `use(JSON.stringify(page.data));`,
+	() => `use([page]);`,
+	() => `for (const ${v()} in page.data) use(0);`,
+	(k) => {
+		const d = v();
+		return `const ${d} = page.data; use(${d}.${k});`;
+	},
+	(k) => {
+		const d = v();
+		return `let ${d}; ${d} = page.data; use(${d}.${k});`;
+	},
+	(k) => {
+		const d = v();
+		return `const { ${k}: ${d} } = page.data; use(${d});`;
+	},
+	(k) => {
+		const d = v();
+		return `const { ${k}: ${d}, ...${v()} } = page.data; use(${d});`;
+	},
+	(k) => {
+		const d = v();
+		return `const { data: { ${k}: ${d} } } = page; use(${d});`;
+	},
+	(k) => {
+		const d = v();
+		return `const { data: ${d} } = page; use(${d}.${k});`;
+	},
+	(k) => {
+		const d = v();
+		return `const ${d} = page; use(${d}.data.${k});`;
+	},
+	(k) => {
+		const d = v();
+		return `const ${d} = '${k}'; use(page.data[${d}]);`;
+	},
+	(k) => {
+		const f = v();
+		return `function ${f}(o) { return o.${k}; } use(${f}(page.data));`;
+	},
+	(k) => {
+		const f = v();
+		return `const ${f} = (o) => o.data.${k}; use(${f}(page));`;
+	},
+	(k) => {
+		const f = v();
+		return `function ${f}({ data }) { return data.${k}; } use(${f}(page));`;
+	},
+	(k) => {
+		const f = v();
+		return `const ${f} = () => page.data.${k}; use(${f}());`;
+	},
+	(k) => {
+		const d = v();
+		return `const [${d}] = [page.data]; use(${d}.${k});`;
+	},
+	(k) => {
+		const d = v();
+		return `const ${d} = [page]; use(${d}[0].data.${k});`;
+	},
+	(k) => {
+		const d = v();
+		return `const ${d} = { p: page }; use(${d}.p.data.${k});`;
+	},
+	(k) => {
+		const d = v();
+		return `const ${d} = page.data ?? {}; use(${d}.${k});`;
+	},
+	(k) => {
+		const d = v();
+		return `const ${d} = true ? page.data : null; use(${d}.${k});`;
+	},
+	(k) => {
+		const d = v();
+		return `const ${d} = (0, page.data); use(${d}.${k});`;
+	},
+	(k) => {
+		const d = v();
+		return `let ${d}; ({ ${k}: ${d} } = page.data); use(${d});`;
+	},
+	(k) => {
+		const d = v();
+		return `const ${d} = page.data; { const ${d} = { z: 1 }; use(${d}.z); } use(${d}.${k});`;
+	},
+	(k) => {
+		const d = v();
+		return `const ${d} = { get x() { return page.data.${k}; } }; use(${d}.x);`;
+	},
+	(k) => {
+		const d = v();
+		return `class ${d.toUpperCase()} { m() { return page.data.${k}; } } use(new ${d.toUpperCase()}().m());`;
+	}
+];
+
+/** Runs `body` with a recording `page.data`: the keys it read, or `all` when it listed them. */
+function trace(body: string): { all: boolean; keys: Set<string> } {
+	const seen = { all: false, keys: new Set<string>() };
+	const note = (k: string | symbol) => {
+		if (typeof k === 'string' && KEYS.includes(k)) seen.keys.add(k);
+	};
+	const data = new Proxy({ a: { x: 1 }, b: 2, c: 'c' } as Record<string, unknown>, {
+		get: (t, k, r) => (note(k), Reflect.get(t, k, r)),
+		has: (t, k) => (note(k), Reflect.has(t, k)),
+		getOwnPropertyDescriptor: (t, k) => (note(k), Reflect.getOwnPropertyDescriptor(t, k)),
+		ownKeys: (t) => ((seen.all = true), Reflect.ownKeys(t))
+	});
+	const page = { data, url: new URL('https://example.com/'), params: {} };
+	const use = (...xs: unknown[]) => {
+		for (const x of xs) if (x && typeof x === 'object') JSON.stringify(x);
+	};
+	new Function('page', 'use', body)(page, use);
+	return seen;
+}
+
+/** The analysis answer for `body` as a module, and whether it covers what `body` really read. */
+function judge(body: string) {
+	const code = dedent`
+		import { page } from '$app/state';
+		const use = globalThis.use;
+		${body}
+	`;
+	const answer = page_data_keys(code, '/app/src/lib/x.ts', 'script');
+	const seen = trace(body);
+	const covered =
+		answer === 'all' || (!seen.all && [...seen.keys].every((k) => answer?.has(k) === true));
+	return { answer: answer === 'all' ? 'all' : [...(answer ?? [])].sort(), seen, covered };
+}
+
+describe('page.data seed shaping is sound', () => {
+	it.each(SHAPES.map((shape) => [((fresh = 0), shape('b'))]))('%s', (body) => {
+		const { answer, seen, covered } = judge(body);
+		expect(
+			covered,
+			`answered ${JSON.stringify(answer)}, read ${JSON.stringify([...seen.keys])}`
+		).toBe(true);
+	});
+
+	it('over generated mixes of the shapes', () => {
+		fc.assert(
+			fc.property(
+				fc.array(fc.tuple(fc.nat(SHAPES.length - 1), fc.constantFrom(...KEYS)), {
+					minLength: 1,
+					maxLength: 4
+				}),
+				(picks) => {
+					fresh = 0;
+					const body = picks.map(([i, k]) => SHAPES[i](k)).join('\n');
+					const { answer, seen, covered } = judge(body);
+					expect(
+						covered,
+						`${body}\nanswered ${JSON.stringify(answer)}, read ${JSON.stringify([...seen.keys])}`
+					).toBe(true);
+				}
+			),
+			{
+				seed: Number(process.env.OGYGIA_FUZZ_SEED ?? 314),
+				numRuns: Number(process.env.OGYGIA_FUZZ_RUNS ?? 300)
+			}
+		);
+	});
+});
