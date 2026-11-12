@@ -260,7 +260,8 @@ A rare branch the code can take on purpose in a simulated run: `buggify.fires(po
 (`packages/core/test/rules-stripped.node.test.ts`). Only a simulated platform answers it. Each run
 turns each point on or off (30%, its own stream `buggify swarm <point>`), and an on point fires at
 20% of its asks, from the realm's own stream. A firing is in the trace. `--no-buggify` turns them
-all off. Points: `flights.not-kept` (an answer not kept), `outbox.reply-lost` (the receiver applied
+all off. Points: `flights.not-kept` (an answer not kept), `flights.evicted-early` (a kept answer's keep
+runs out at its next read: the entry goes, `kept -> gone`, and the caller runs the work again), `outbox.reply-lost` (the receiver applied
 a send and its reply was lost: sent again), `import-again.entry-missed` (a download's timing entry
 never comes, as WebKit gives a dropped one none), `federation.doc-stale` (a peer document's ttl just
 ran out), `hole.fetch-lost` (a hole's answer lost on the way: it tries again, or gives up, as it

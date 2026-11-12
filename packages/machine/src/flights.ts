@@ -448,7 +448,12 @@ class Flown<I, V, K> implements Flights<I, V, K> {
 		if (m !== undefined) {
 			const s = m.now;
 			if (s.kind === 'kept') {
-				if (expired(s, s.until === Infinity ? 0 : clock.mono())) {
+				if (
+					expired(s, s.until === Infinity ? 0 : clock.mono()) ||
+					// (buggify: its keep ran out just now, as a short keep's or a full cache's would: the
+					// entry goes, and this caller runs the work again)
+					(RULES && buggify.fires('flights.evicted-early'))
+				) {
 					this._remove(key, m);
 					m = undefined;
 				} else if (options?.fresh !== true) {
