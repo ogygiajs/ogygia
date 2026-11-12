@@ -20,7 +20,11 @@
  * No top-level side effect: the global is created lazily on first `emit`/`configure`, so an unused
  * import is fully shakeable.
  */
-import { DEVTOOLS_SCHEMA_VERSION, type DevtoolsEvent, type DevtoolsEventInput } from './schema.ts';
+import {
+	DEVTOOLS_SCHEMA_VERSION,
+	type DevtoolsEvent,
+	type DevtoolsEventInput
+} from '../contract/events.ts';
 import { report_thrown } from '../report-thrown.ts';
 
 /** Compile-time gate (Vite `define`). Exported for the public surface + tests; seam modules declare

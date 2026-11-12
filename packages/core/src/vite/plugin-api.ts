@@ -22,9 +22,12 @@ import fs from 'node:fs';
 import { createRequire } from 'node:module';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import type MagicString from 'magic-string';
 import type { Plugin as VitePlugin } from 'vite';
+import type { ExportMap, Policy } from '../compiler/exports/index.ts';
 import type { ServerRealm } from '../compiler/link/caps.ts';
-import { OgygiaError } from '../messages/build.ts';
+import type { CompileEventInput } from '../contract/events.ts';
+import { OgygiaError } from '../compiler/messages.ts';
 
 /** Where `definePlugin` puts the definition on the Vite plugin it returns. A registered symbol, so a
  *  second copy of ogygia in one app still recognizes the first's plugins. */
@@ -92,8 +95,70 @@ export interface MarkupRegions {
 	transform(source: string, filename: string): string | null;
 }
 
+/** Where a plugin's transform runs: on the module as written, before the region transform
+ *  (`'source'`), or on what the region transform made of it (`'post'`). */
+export type TransformStage = 'source' | 'post';
+
+/** One module, as a stage transform sees it. */
+export interface TransformContext {
+	/** The module id, query included. */
+	readonly id: string;
+	/** The module's code as the stage received it (no byte-order mark). */
+	readonly code: string;
+	/** The stage's edits, by offsets into `code`: every transform of a stage edits the code it
+	 *  received, and the stage emits one result and one source map. */
+	readonly edit: MagicString;
+	/** The bundler's environment (`client`, `ssr`). */
+	readonly environment: string;
+	/** A specifier resolved from `importer` as the bundler resolves it now; null when it cannot be
+	 *  (unresolvable, or external). */
+	resolve(spec: string, importer: string): Promise<string | null>;
+	/** Re-transform this module when `file` changes (dev). */
+	watch(file: string): void;
+	/** Tell the build what the transform did to this module (it is the event's importer): read back
+	 *  by the findings, and forgotten when the module is transformed again. */
+	emit(event: TransformEvent): void;
+}
+
+/** What a stage transform tells the build about the module it transformed. */
+export type TransformEvent = Omit<
+	Extract<CompileEventInput, { name: 'compile.barrel.left' }>,
+	'importer'
+>;
+
+/** A transform at a stage around the region transform: ordering is the stage, not list position. */
+export interface StageTransform {
+	stage: TransformStage;
+	/** Which modules (by full id); every module when absent. */
+	filter?(id: string): boolean;
+	transform(t: TransformContext): void | Promise<void>;
+}
+
+/** The app's export index: each barrel's names to the modules that define them, over one parse of
+ *  each module for the whole app, resolved as the module being transformed resolves. */
+export interface ExportsSeam {
+	/** The map of the barrel at `file` (as `spec` named it), or null when `policy` does not go
+	 *  through it. */
+	map(file: string, spec: string, policy: Policy, t: TransformContext): Promise<ExportMap | null>;
+}
+
+/** An import declaration, as {@link BuildContext.pinnedImports} reads it. */
+export interface PinnedDecl {
+	readonly attribute_keys: readonly string[];
+	readonly specs: readonly { readonly local: string }[];
+}
+
 /** The build, as one plugin sees it (handed to `build`). */
 export interface BuildContext {
+	/** Run `transform` on every module (that `filter` takes) at its `stage`. */
+	transform(transform: StageTransform): void;
+	/** The app's export index (`compiler/exports/`), for a transform that follows names through
+	 *  barrels. */
+	readonly exports: ExportsSeam;
+	/** For a module's code: the imports that carry a region's identity (a region mark, or a binding
+	 *  that `import.meta.og.asRegion(X)` reads). A transform that rewrites imports leaves them as
+	 *  written, so the region the prescan keys on the raw import is the region the transform sees. */
+	pinnedImports(code: string): (decl: PinnedDecl) => boolean;
 	/** The app's root directory. */
 	readonly root: string;
 	/** `vite dev` (true) or `vite build` (false). */
@@ -204,6 +269,14 @@ export interface ResolvedPlugins {
 	/** page modules (`b.pageModules()`): the specifiers whose importers are page modules, and files
 	 *  that are page modules themselves */
 	page_modules: { importers: string[]; files: string[] };
+	/** stage transforms (`b.transform()`), in plugin order */
+	transforms: StageTransform[];
+}
+
+/** What core hands every plugin's build context: the export index and the pinned-import check. */
+export interface BuildSeams {
+	exports: ExportsSeam;
+	pinned_imports(code: string): (decl: PinnedDecl) => boolean;
 }
 
 const MACRO_NAME_RE = /^[a-z][A-Za-z0-9]*$/;
@@ -219,6 +292,17 @@ function order(plugins: readonly PluginDefinition[]): PluginDefinition[] {
 }
 
 const ROUTE_CONFIG_KEY_RE = /^[a-z][A-Za-z0-9]*$/;
+
+/** The seams outside a configured `ogygia()` (a unit test of the plugin list): asking for one is a
+ *  mistake in that test, said loudly. */
+const NO_SEAMS: BuildSeams = {
+	exports: {
+		map: () => Promise.reject(new Error('resolve_plugins: no export index without ogygia()'))
+	},
+	pinned_imports: () => {
+		throw new Error('resolve_plugins: no pinned imports without ogygia()');
+	}
+};
 
 /**
  * Config-time shape check of the definitions found: each named once, its realms locations, its
@@ -286,7 +370,8 @@ export function resolve_plugins(
 	plugins: readonly PluginDefinition[],
 	root: string,
 	dev: boolean,
-	markup_transform: MarkupRegions['transform'] = () => null
+	markup_transform: MarkupRegions['transform'] = () => null,
+	seams: BuildSeams = NO_SEAMS
 ): ResolvedPlugins {
 	const ordered = order(plugins);
 	const req = createRequire(path.join(root, 'package.json'));
@@ -300,7 +385,8 @@ export function resolve_plugins(
 		events: false,
 		measure: false,
 		files: [],
-		page_modules: { importers: [], files: [] }
+		page_modules: { importers: [], files: [] },
+		transforms: []
 	};
 	const config_owner = new Map<string, string>();
 	const macro_owner = new Map<string, string>();
@@ -315,6 +401,11 @@ export function resolve_plugins(
 		plugin.build?.({
 			root,
 			dev,
+			exports: seams.exports,
+			pinnedImports: seams.pinned_imports,
+			transform(t) {
+				out.transforms.push(t);
+			},
 			routeConfig(key) {
 				if (!ROUTE_CONFIG_KEY_RE.test(key))
 					throw new OgygiaError('route_config_key_invalid', { plugin: plugin.name, key });

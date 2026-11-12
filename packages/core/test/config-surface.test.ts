@@ -9,7 +9,6 @@
 import { describe, it, expect } from 'vitest';
 import { ogygia } from '../src/vite/index.ts';
 import { resolve_options } from '../src/vite/options.ts';
-import { region_ttl_module } from '../src/compiler/link/caps.ts';
 
 describe('legacy option renames — errors with the new spelling, never silent aliasing', () => {
 	it('rejects regions (its keys moved to the root)', () => {
@@ -40,6 +39,12 @@ describe('legacy option renames — errors with the new spelling, never silent a
 		expect(() => ogygia({ plugins: [] } as never)).toThrow(
 			/plugins: \[ogygia\(\), flags\(\), sveltekit\(\)\]/
 		);
+	});
+	it('rejects barrels (now the @ogygia/barrels plugin), any value', () => {
+		for (const barrels of [true, false, { keep: ['x'] }])
+			expect(() => ogygia({ barrels } as never)).toThrow(
+				/plugins: \[ogygia\(\), barrels\(\), sveltekit\(\)\]/
+			);
 	});
 });
 
@@ -72,10 +77,7 @@ describe('maxPageAge — the oldest cached page whose holes still come back', ()
 	it('never touches the hole URL life (ttl)', () => {
 		expect(resolve_options({ maxPageAge: 30 * 24 * 3600 }, 3600).region_ttl).toBe(3600);
 	});
-	it('reaches the server (and never the browser) through virtual:ogygia/region-ttl', () => {
-		expect(region_ttl_module(true, 3600, 2592000)).toContain('export const renewWindow = 2592000;');
-		expect(region_ttl_module(false, 3600, 2592000)).toContain('export const renewWindow = 0;');
-	});
+	// (it reaches the server, and never the browser, through the region-ttl module: virtual-table.test.ts)
 });
 
 describe('presets — config-time validation', () => {

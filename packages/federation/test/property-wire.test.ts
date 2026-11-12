@@ -56,7 +56,9 @@ describe('signed claims', () => {
 					fc.string({ minLength: 1, maxLength: 3 }),
 					(c, which, at, put) => {
 						const h = sent(sign_headers(priv, 'GET', url, undefined, c));
-						const names = Object.keys(h).filter((n) => covered === null || covered.includes(n));
+						const names = Object.keys(h).filter(
+							(n) => covered === null || (covered as readonly string[]).includes(n)
+						);
 						const name = names[which % names.length]!;
 						const value = h[name]!;
 						const i = at % (value.length + 1);
