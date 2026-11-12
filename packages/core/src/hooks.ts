@@ -19,7 +19,7 @@
  * @packageDocumentation
  */
 import { render } from 'svelte/server';
-import { clock, say } from '@ogygia/machine';
+import { clock, say, STALE } from '@ogygia/machine';
 import type { Component } from 'svelte';
 import type { RequestEvent } from '@sveltejs/kit';
 import type { Handle } from './kit-handle.ts';
@@ -1082,7 +1082,8 @@ class OgygiaHandle {
 					response,
 					bag.deferred,
 					bag.defer_next_id,
-					bag.seed_reducers ?? undefined
+					bag.seed_reducers ?? undefined,
+					event.url.pathname
 				);
 			}
 			// A page with no Kit client (csr=false) whose load returned promises nobody seeds (no
@@ -1427,8 +1428,14 @@ class OgygiaHandle {
 			bag!.seed_reducers = seed_reducers; // resolve scripts encode with the same transport + defer
 			scripts.push(`<script>${PAGE_DEFER_BOOTSTRAP}</script>`);
 		} else if (has_pending && seed_wanted) {
-			seed_data = await settle_deferred(shaped_data);
-			seed_form = await settle_deferred(page_snap.form);
+			// (data and form settle together, the request's wait: the visitor gone, nobody reads it)
+			const settled = await settle_deferred(
+				[shaped_data, page_snap.form],
+				request_scope(bag!.request),
+				event?.url.pathname
+			);
+			if (settled === STALE) return html;
+			[seed_data, seed_form] = settled as [typeof seed_data, typeof seed_form];
 		}
 
 		// The tail (rendered above, before shaping) goes out after the defer bootstrap, before the seeds.

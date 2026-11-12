@@ -1,7 +1,22 @@
 import { stringify } from 'devalue';
-import type { Scope } from '@ogygia/machine';
+import { noop, STALE, type Scope, type Stale } from '@ogygia/machine';
 import { PAGE_DEFER_GLOBAL, PAGE_DEFER_KEY, PAGE_SETTLED_KEY } from '../page-defer.ts';
 import { escape_script_text } from '../escape.ts';
+import { warn } from '../messages/server.ts';
+
+/** How long a streamed promise waits before dev says so (`page_promise_pending`). Never a deadline:
+ *  the wait ends when the promise settles or the request does (test/page-stream-request-owned.test.ts). */
+const PENDING_SAID_MS = 10_000;
+
+/** Dev: says once, while `owner` lasts, that a streamed promise of `path` is still pending after
+ *  {@link PENDING_SAID_MS}. Returns what calls it off (everything settled). */
+function say_if_pending(owner: Scope, path: string): () => void {
+	if (!import.meta.env?.DEV) return noop;
+	return owner.timeout(
+		() => warn('page_promise_pending', { path, ms: PENDING_SAID_MS }),
+		PENDING_SAID_MS
+	);
+}
 
 /** A THENABLE, not just a native Promise — Kit wraps streamed load promises, so `instanceof Promise`
  *  would miss them. Anything with a callable `.then` we can await. */
@@ -161,8 +176,21 @@ export function stage_deferred(
  * this path exactly as on the streaming path, and `{#await …:catch}` works. The clone is built in one
  * walk before anything settles, so its keys keep the data's order. Promises are found at any depth,
  * and a cycle is kept, as by {@link stage_deferred}.
+ *
+ * The wait is the request's (`owner`): no deadline while it lasts, `STALE` the moment it ends (the
+ * visitor left), even when a promise never settles. `path` names the page in dev's
+ * `page_promise_pending`.
  */
-export async function settle_deferred(value: unknown): Promise<unknown> {
+export function settle_deferred(value: unknown, owner: Scope, path = ''): Promise<unknown | Stale> {
+	return owner.task(async () => {
+		const quiet = say_if_pending(owner, path);
+		const settled = await settle_all(value);
+		quiet();
+		return settled;
+	});
+}
+
+async function settle_all(value: unknown): Promise<unknown> {
 	const settling: Array<Promise<void>> = [];
 	const settled = swap_thenables(value, (promise) => {
 		const ref = new SettledRef(true, undefined);
@@ -175,7 +203,7 @@ export async function settle_deferred(value: unknown): Promise<unknown> {
 
 async function settle_into(ref: SettledRef, promise: PromiseLike<unknown>): Promise<void> {
 	try {
-		ref.value = await settle_deferred(await promise);
+		ref.value = await settle_all(await promise);
 	} catch (err) {
 		ref.ok = false;
 		ref.value = normalize_error(err);
@@ -246,15 +274,18 @@ function has_body_close(carry: Uint8Array, chunk: Uint8Array): boolean {
  * the whole tree has settled. A value that cannot be staged (a getter that throws) is that
  * promise's failure. The status and headers are kept, without `content-length`.
  *
- * The stream is the request's (`request`, its owner): the visitor leaving, or the body cancelled,
- * stops Kit's reader and drops what settles after.
+ * The stream is the request's (`request`, its owner). While it lasts a promise may take as long as
+ * it takes; when it ends (the visitor left, the body cancelled) Kit's reader stops, every wait on a
+ * promise gives `STALE`, and the stream closes, even with a promise that never settles. `path` names
+ * the page in dev's `page_promise_pending`.
  */
 export function stream_page_deferred(
 	request: Scope,
 	response: Response,
 	deferred: Deferred[],
 	initial_next_id: number,
-	reducers?: Record<string, (v: unknown) => unknown>
+	reducers?: Record<string, (v: unknown) => unknown>,
+	path = ''
 ): Response {
 	const source = response.body;
 	if (!source) return response;
@@ -289,15 +320,21 @@ export function stream_page_deferred(
 			let pending = deferred.length;
 			let next_id = initial_next_id;
 			let closed = false;
-			const maybe_close = () => {
-				if (pending === 0 && !closed) {
-					closed = true;
-					try {
-						controller.close();
-					} catch {
-						// ok: already closed (the visitor left), which is what this was for
-					}
+			const quiet = pending ? say_if_pending(owner, path) : noop;
+			const close = () => {
+				if (closed) return;
+				closed = true;
+				quiet();
+				try {
+					controller.close();
+				} catch {
+					// ok: already closed (the visitor left), which is what this was for
 				}
+			};
+			// (the request's end closes the stream: a promise still pending is let go)
+			owner.defer(close);
+			const maybe_close = () => {
+				if (pending === 0) close();
 			};
 			const push = (id: number, ok: boolean, value: unknown) => {
 				if (owner.closed) return;
@@ -315,21 +352,24 @@ export function stream_page_deferred(
 				maybe_close();
 			};
 			const stream_one = (id: number, promise: PromiseLike<unknown>) => {
-				Promise.resolve(promise).then(
-					(value) => {
-						let staged: ReturnType<typeof stage_deferred>;
-						try {
-							staged = stage_deferred(value, next_id);
-						} catch (error) {
-							return settled(id, false, error);
-						}
-						next_id = staged.next_id;
-						pending += staged.deferred.length;
-						for (const n of staged.deferred) stream_one(n.id, n.promise);
-						settled(id, true, staged.staged);
-					},
-					(error) => settled(id, false, error)
-				);
+				void owner
+					.task(() => promise)
+					.then(
+						(value) => {
+							if (value === STALE) return; // the request ended: the stream closed with it
+							let staged: ReturnType<typeof stage_deferred>;
+							try {
+								staged = stage_deferred(value, next_id);
+							} catch (error) {
+								return settled(id, false, error);
+							}
+							next_id = staged.next_id;
+							pending += staged.deferred.length;
+							for (const n of staged.deferred) stream_one(n.id, n.promise);
+							settled(id, true, staged.staged);
+						},
+						(error) => settled(id, false, error)
+					);
 			};
 			for (const { id, promise } of deferred) stream_one(id, promise);
 			maybe_close();

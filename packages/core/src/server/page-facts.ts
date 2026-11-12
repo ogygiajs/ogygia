@@ -14,6 +14,7 @@
  */
 import * as devalue from 'devalue';
 import type { Scope } from '@ogygia/machine';
+import { OgygiaError } from '../messages/core.ts';
 
 /** Marks ogygia's own lookup: the handle answers it without setting up a page render. */
 export const PAGE_FACTS_HEADER = 'x-ogygia-page-facts';
@@ -47,8 +48,9 @@ export function data_url_of(page: URL): string {
 /**
  * The page's facts, or a reason they are not available (a redirect, an error, a load that threw,
  * not a Kit data answer). `decoders`: the app's `transport` decoders, as Kit's client uses them.
- * `owner`: the request the look-up is for. When it ends, the answer's reader stops (a streamed
- * promise still pending then stays pending).
+ * `owner`: the request the look-up is for. When it ends, the answer's reader stops. A streamed
+ * promise the answer did not bring by its end (it ended, broke, or stopped with the request) is
+ * rejected (`page_promise_unresolved`, `why=answer`).
  */
 export async function look_up_page(
 	page: URL,
@@ -156,7 +158,7 @@ async function settle_streamed(
 			if (chunk.error !== undefined) d.reject(revive(chunk.error));
 			else d.fulfil(revive(chunk.data));
 		} catch {
-			// ok: a line that does not decode leaves its promise pending (the request's end lets it go)
+			// ok: a line that does not decode leaves its promise to the answer's end, which rejects it
 		}
 	};
 	try {
@@ -173,8 +175,12 @@ async function settle_streamed(
 		}
 		line(buf);
 	} catch {
-		// ok: the stream broke: what did not arrive stays pending (the request's end lets it go)
+		// ok: the stream broke: what did not arrive is rejected below
 	} finally {
 		void reader.cancel().catch(() => {}); // ok: done reading; a failed cancel has nothing to stop
+		// (the answer is over, ended, broken or let go with the request: what it did not bring never comes)
+		for (const d of deferreds.values())
+			d.reject(new OgygiaError('page_promise_unresolved', { why: 'answer' }));
+		deferreds.clear();
 	}
 }

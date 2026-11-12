@@ -157,10 +157,12 @@ export const ERRORS = {
 		details: (): string => BUG
 	},
 	page_promise_unresolved: {
-		text: (a: { why: 'stream' | 'devalue' }): string =>
+		text: (a: { why: 'stream' | 'devalue' | 'answer' }): string =>
 			a.why === 'stream'
 				? 'a streamed page.data promise never got its value: the page loaded without it.'
-				: "a streamed page.data promise's value came, but the code to read it never loaded.",
+				: a.why === 'answer'
+					? "a streamed page.data promise never got its value: the page's data answer ended without it."
+					: "a streamed page.data promise's value came, but the code to read it never loaded.",
 		details: (): string => prose`
 			A promise in \`page.data\` streams into islands: the page carries it pending, and a script
 			later in the same response settles it. Here that can no longer happen, so the promise is
@@ -168,6 +170,9 @@ export const ERRORS = {
 			forever. \`why=stream\`: the page finished loading with no value for it (the response was
 			cut short, or something between the server and the browser dropped its end).
 			\`why=devalue\`: the value came, but the browser could not download the code that reads it.
+			\`why=answer\`: on the server, a region rendered outside its page (a hole, a remote call)
+			reads the page's data from Kit's data answer, and that answer ended (it broke, or the
+			request was over) before the promise's value came.
 		`
 	},
 	slot_not_linked: {
