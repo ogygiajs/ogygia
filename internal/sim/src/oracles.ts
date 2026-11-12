@@ -244,6 +244,53 @@ function live_lines(before: string, after: string): string[] {
 	return out;
 }
 
+/** Each live region's lines in a normalized DOM (its own line and everything inside it), in
+ *  document order. */
+function live_regions(s: string): Array<{ from: number; to: number }> {
+	const lines = s.split('\n');
+	const out: Array<{ from: number; to: number }> = [];
+	for (let i = 0; i < lines.length; i++) {
+		if (tag_of(lines[i]) !== 'ogygia-region' || !lines[i].includes(' live="true"')) continue;
+		const indent = /^ */.exec(lines[i])![0].length;
+		let to = i + 1;
+		while (to < lines.length && /^ */.exec(lines[to])![0].length > indent) to++;
+		out.push({ from: i, to });
+	}
+	return out;
+}
+
+/**
+ * The live regions (by their place among the page's live regions) whose content changed its shape
+ * between two looks at the same page: a tick that brings another component (a switching live
+ * region cycles three; gen 194, seed 25). What moved in place is `live_lines`'.
+ */
+export function reshaped_live(before: string, after: string): Set<number> {
+	const [a, b] = [before.split('\n'), after.split('\n')];
+	const [x, y] = [live_regions(before), live_regions(after)];
+	const out = new Set<number>();
+	if (x.length !== y.length) return out;
+	const shape = (lines: string[], r: { from: number; to: number }) =>
+		lines
+			.slice(r.from + 1, r.to)
+			.map((l) => (/^ *"/.test(l) ? `${/^ */.exec(l)![0]}"` : `${/^ */.exec(l)![0]}${tag_of(l)}`))
+			.join('\n');
+	for (let i = 0; i < x.length; i++) if (shape(a, x[i]) !== shape(b, y[i])) out.add(i);
+	return out;
+}
+
+/** `s` with each live region of `which` (by its place) one line: what moves by itself, whole. */
+export function live_regions_out(s: string, which: ReadonlySet<number>): string {
+	if (which.size === 0) return s;
+	const lines = s.split('\n');
+	const regions = live_regions(s);
+	for (let i = regions.length - 1; i >= 0; i--) {
+		if (!which.has(i)) continue;
+		const { from, to } = regions[i];
+		lines.splice(from, to - from, `${/^ */.exec(lines[from])![0]}<ogygia-region <live>>`);
+	}
+	return lines.join('\n');
+}
+
 /** `a` and `b` with a line that moved on one side taken as the other side's same line: the moving
  *  thing, masked where it moved, may not have moved in the other's look (a live region's tick every
  *  3 s caught on one side only; generated app 6, seed 76). Text for text, an element for an element
@@ -466,15 +513,24 @@ export async function mpa_equivalent(
 	// (no reference: the build the page is of could not give it again, its stored copies dropped and
 	// a newer build's handed out instead, gen 131, seed 131003)
 	if (world.astray(fresh.tab.realm)) return null;
-	const loaded = view(fresh.tab.page.mainFrame.document as unknown as Document);
+	let loaded = view(fresh.tab.page.mainFrame.document as unknown as Document);
 	// (a text that changes on its own at rest is time, not state: a ticking clock in an island the
 	// navigation kept has run longer than the fresh load's. Each side is looked at once more a
 	// moment later, and a text line that moved by itself is masked on both: seed 289)
 	await world.loop.run(LIVE_LOOK_MS);
-	const live = new Set([
-		...live_lines(shown, view(tab.page.mainFrame.document as unknown as Document)),
-		...live_lines(loaded, view(fresh.tab.page.mainFrame.document as unknown as Document))
+	let shown_later = view(tab.page.mainFrame.document as unknown as Document);
+	let loaded_later = view(fresh.tab.page.mainFrame.document as unknown as Document);
+	// (and a live region whose tick brought another shape on either side is set aside whole on
+	// every side: gen 194, seed 25)
+	const moving = new Set([
+		...reshaped_live(shown, shown_later),
+		...reshaped_live(loaded, loaded_later)
 	]);
+	const whole = (s: string) => live_regions_out(s, moving);
+	[shown, shown_later, loaded, loaded_later] = [shown, shown_later, loaded, loaded_later].map(
+		whole
+	);
+	const live = new Set([...live_lines(shown, shown_later), ...live_lines(loaded, loaded_later)]);
 	let again = bookkeeping_out(mask(loaded, live));
 	shown = bookkeeping_out(mask(shown, live));
 	const said = [...fresh.tab.errors, ...fresh.tab.console];
@@ -490,7 +546,7 @@ export async function mpa_equivalent(
 	let diff = '';
 	for (const n of [2, 3]) {
 		const more = await fresh_load(world, v, url, `fresh-${n}`);
-		looks.push(view(more.tab.page.mainFrame.document as unknown as Document));
+		looks.push(whole(view(more.tab.page.mainFrame.document as unknown as Document)));
 		await world.browsers.close(more.visitor, more.tab);
 		for (const other of looks.slice(0, -1)) {
 			const render = per_render(other, looks.at(-1)!);
