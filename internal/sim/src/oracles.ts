@@ -2,8 +2,13 @@
  * ORACLES: what must hold, checked at every step or once the world is at rest. Each says what it
  * found broken, or null. Each is precise about what it normalizes away, and why.
  */
+import { writeFileSync } from 'node:fs';
 import type { Tab, Visitor } from './browser.ts';
 import { FOREIGN_MARK, type World } from './world.ts';
+
+/** `SIM_DUMP=<dir>`: an MPA difference writes both sides whole there (`<tab>-<path>-shown.txt`,
+ *  `-fresh.txt`), to read past its first hunk. */
+const DUMP = process.env.SIM_DUMP;
 
 /** What an oracle found broken. */
 export interface Broken {
@@ -127,6 +132,8 @@ export const KNOWN: ReadonlyArray<{
 	what: string;
 	applies(shown: string, fresh: string): boolean;
 	forgive(normalized: string, other: string): string;
+	/** The bug's mark on the document itself, when the DOM alone does not show it. */
+	seen?(world: World, tab: Tab): boolean;
 }> = [
 	{
 		issue: 786,
@@ -240,6 +247,28 @@ export const KNOWN: ReadonlyArray<{
 		}
 	},
 	{
+		issue: 831,
+		what: 'a retried import hands back the file its error named',
+		// (the document asked for a region file again, `og-retry`, and a region woken from a file
+		// shows other markup: the nested region's component in the outer one's place, with no
+		// hydration mismatch when the two are alike; generated app 3, seed 48, #899)
+		seen: (world, tab) => retried_a_region(world, tab),
+		applies: (shown, fresh) => regions(shown).join('\n') !== regions(fresh).join('\n'),
+		forgive: (s) => {
+			const lines = s.split('\n');
+			const out: string[] = [];
+			for (let i = 0; i < lines.length; i++) {
+				const block = region_at(lines, i);
+				if (block === null || !/ src="/.test(lines[i])) out.push(lines[i]);
+				else {
+					out.push(lines[i].replace(' data-hydrated=""', ''));
+					i = block.end - 1;
+				}
+			}
+			return out.join('\n');
+		}
+	},
+	{
 		issue: 807,
 		what: 'a region of the page left stays after a client navigation',
 		// (the tab holds every region the fresh load has, and more; after #804, which sets
@@ -261,6 +290,13 @@ export const KNOWN: ReadonlyArray<{
 		}
 	}
 ];
+
+/** Whether `tab`'s document asked for a region file again under `og-retry` (#831's mark). */
+function retried_a_region(world: World, tab: Tab): boolean {
+	return world.network.exchanges.some(
+		(e) => e.from === tab.realm && /\/og-region\.[^/?]+\?og-retry=/.test(e.url)
+	);
+}
 
 /** The `<title>` elements in a normalized DOM's head, each whole. */
 function titles(s: string): string[] {
@@ -512,7 +548,7 @@ export async function mpa_equivalent(
 	// old page is the old release's, whole)
 	const build = world.build_of(tab.realm);
 	const fresh_load = (w: World, visitor: Visitor, at: string, name: string) =>
-		w.as_of(build, () => load_fresh(w, visitor, at, name));
+		w.as_of(build, () => load_fresh(w, visitor, at, name), world.answers_of(tab.realm));
 	const fresh = await fresh_load(world, v, url, 'fresh');
 	const loaded = view(fresh.tab.page.mainFrame.document as unknown as Document);
 	// (a text that changes on its own at rest is time, not state: a ticking clock in an island the
@@ -556,7 +592,7 @@ export async function mpa_equivalent(
 	let a = shown;
 	let b = again;
 	for (const k of KNOWN) {
-		if (!k.applies(a, b)) continue;
+		if ((k.seen && !k.seen(world, tab)) || !k.applies(a, b)) continue;
 		known.push(k);
 		[a, b] = [k.forgive(a, b), k.forgive(b, a)];
 	}
@@ -566,6 +602,11 @@ export async function mpa_equivalent(
 			detail: `${url}: ${known.map((k) => `#${k.issue} (${k.what})`).join(', ')}`
 		};
 	// (what is left once the filed bugs are set aside: the difference to triage)
+	if (DUMP) {
+		const name = `${DUMP}/${tab.name}-${new URL(url).pathname.replace(/\W+/g, '_')}`;
+		writeFileSync(`${name}-shown.txt`, a);
+		writeFileSync(`${name}-fresh.txt`, b);
+	}
 	const left =
 		known.length > 0 ? `with ${known.map((k) => `#${k.issue}`).join(', ')} set aside, ` : '';
 	return {
@@ -750,20 +791,6 @@ function deploy_took(world: World, tab: Tab, line: string): boolean {
 	return NOT_DOWNLOADED.test(line) && world.skewed_for(tab.realm);
 }
 
-/** How the browser, or ogygia with its code, says a module or file did not download. */
-const NOT_DOWNLOADED =
-	/ogygiajs\.dev\/e\/|Failed to fetch dynamically imported module|^error: <(script|link)> \S+ failed|Failed to perform request/;
-
-/**
- * A failure a deploy explains: the tab asked a build for a content-hashed file only another build
- * has (an old page's file after its build is gone, or one build's file asked of the other's
- * servers in a rolling deploy), said as the browser says a download failed, or by ogygia with its
- * code. ogygia's own words without a code are never excused.
- */
-function deploy_took(world: World, tab: Tab, line: string): boolean {
-	return NOT_DOWNLOADED.test(line) && world.skewed_for(tab.realm);
-}
-
 /** No uncaught error, unhandled rejection or console error in the page (beyond what a network
  *  fault on this document explains, or a deploy, when `world` is given). */
 export function page_errors(tab: Tab, world?: World, since?: number): Broken | null {
@@ -829,12 +856,7 @@ export function hydrates_as_sent(tab: Tab, world?: World): Broken | null {
 	const detail = `${url}: ${said.map((l) => l.split('\n')[0]).join('\n')}`;
 	// #831: a region module asked for again (`og-retry`) after a nested island's download failed
 	// stands in for the outer region's module, which then hydrates the wrong component
-	const retried =
-		world !== undefined &&
-		world.network.exchanges.some(
-			(e) => e.from === tab.realm && /\/og-region\.[^/?]+\?og-retry=/.test(e.url)
-		);
-	if (retried)
+	if (world !== undefined && retried_a_region(world, tab))
 		return {
 			oracle: 'known',
 			detail: `${detail}: #831 (a retried import hands back the file its error named)`
@@ -894,10 +916,13 @@ const LEAK_VISITS = 3;
  * and URL: what a document holds on its Nth visit of a URL may differ from its first (a page
  * visited since may install what lives as long as the document), but it must not GROW visit after
  * visit. Growth over {@link LEAK_VISITS} visits in a row, in one count, is what a visit that keeps
- * something after it ends looks like.
+ * something after it ends looks like. For listeners, the same code must be what grows: a visit that
+ * leaks one adds the same closure again each time.
  */
 export class Leaks {
 	readonly #samples = new Map<string, Array<Record<string, number>>>();
+	/** Each sample's listeners, by label (to name the ones that grew). */
+	readonly #listening = new Map<string, string[][]>();
 	/** Each document met, numbered. */
 	readonly #docs = new WeakMap<object, number>();
 	#docs_made = 0;
@@ -927,10 +952,17 @@ export class Leaks {
 			explained: explained_head(tab)
 		};
 		// (one sample per visit, its latest: the visit may still have been settling)
-		if (this.#at.get(tab.name) === key && list.length > 0) list[list.length - 1] = now;
-		else list.push(now);
+		const labels = this.#listening.get(key) ?? [];
+		if (this.#at.get(tab.name) === key && list.length > 0) {
+			list[list.length - 1] = now;
+			labels[labels.length - 1] = tab.listening();
+		} else {
+			list.push(now);
+			labels.push(tab.listening());
+		}
 		this.#at.set(tab.name, key);
 		this.#samples.set(key, list);
+		this.#listening.set(key, labels);
 		if (list.length < LEAK_VISITS) return null;
 		const run = list.slice(-LEAK_VISITS);
 		// (BOUNDED MEMORY: the head and the element count too; a page visited again is the same page)
@@ -943,6 +975,11 @@ export class Leaks {
 		const fields = ['listeners', 'intervals', 'observers', 'head', 'elements'];
 		for (const field of pressed ? fields.slice(0, -1) : fields) {
 			if (!grew(field)) continue;
+			// (listeners: one code added again on every visit, not new code on each: a page's first
+			// visit of a kind installs a delegation once for the document, as ogygia's wake and
+			// Svelte's event delegation do, and visits of new kinds of region add new code each;
+			// generated-app 6, seed 12)
+			if (field === 'listeners' && growing(labels.slice(-LEAK_VISITS)).length === 0) continue;
 			// (head nodes a filed bug explains are set aside: if then it does not grow, it is known)
 			if ((field === 'head' || field === 'elements') && !grew(field, 1)) {
 				known = true;
@@ -950,7 +987,17 @@ export class Leaks {
 			}
 			return {
 				oracle: 'leak',
-				detail: `${url}: ${field} grew visit after visit in one document: ${run.map((s) => s[field]).join(' → ')}${field === 'intervals' ? `\nrunning: ${tab.platform?.pending().join(', ')}` : ''}`
+				detail: `${url}: ${field} grew visit after visit in one document: ${run.map((s) => s[field]).join(' → ')}${field === 'intervals' ? `\nrunning: ${tab.platform?.pending().join(', ')}` : ''}${
+					field === 'listeners'
+						? labels
+								.slice(-LEAK_VISITS + 1)
+								.map(
+									(l, i) =>
+										`\nvisit ${i + 2} added: ${added(labels[labels.length - LEAK_VISITS + i], l).join(', ')}`
+								)
+								.join('')
+						: ''
+				}`
 			};
 		}
 		return known
@@ -960,6 +1007,35 @@ export class Leaks {
 				}
 			: null;
 	}
+}
+
+/** The listeners (by target, type and code; the line that added one set aside) held more times in
+ *  each sample than in the one before. */
+function growing(samples: string[][]): string[] {
+	const counts = samples.map((labels) => {
+		const c = new Map<string, number>();
+		for (const l of labels) {
+			const base = l.split(' @ ')[0];
+			c.set(base, (c.get(base) ?? 0) + 1);
+		}
+		return c;
+	});
+	return [...counts[counts.length - 1].keys()].filter((l) =>
+		counts.every((c, i) => i === 0 || (c.get(l) ?? 0) > (counts[i - 1].get(l) ?? 0))
+	);
+}
+
+/** What `after` holds that `before` did not, each label as many times as it is in excess. */
+function added(before: string[], after: string[]): string[] {
+	const left = new Map<string, number>();
+	for (const l of before) left.set(l, (left.get(l) ?? 0) + 1);
+	const more: string[] = [];
+	for (const l of after) {
+		const n = left.get(l) ?? 0;
+		if (n > 0) left.set(l, n - 1);
+		else more.push(l);
+	}
+	return more;
 }
 
 /** The module preloads in a tab's head. */

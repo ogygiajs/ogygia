@@ -24,10 +24,10 @@ export const EPOCH = Date.UTC(2026, 0, 1);
 const FRAME_MS = 16;
 
 /** `SIM_SITES=1`: each timer's trace line names the code that set it (to find a replay leak). */
-const SITES = process.env.SIM_SITES === '1';
+export const SITES = process.env.SIM_SITES === '1';
 
 /** The first caller outside the simulator, as `file:line` (its path after the last `/`). */
-function site(): string {
+export function site(): string {
 	const lines = (new Error().stack ?? '').split('\n').slice(1);
 	const at = lines.find((l) => !l.includes('/internal/sim/src/')) ?? '';
 	return at

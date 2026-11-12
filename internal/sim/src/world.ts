@@ -33,6 +33,19 @@ export const ORIGIN = 'https://app.test';
 /** The attribute on every element of HTML another origin answers (`no_foreign_html` looks for it). */
 export const FOREIGN_MARK = 'data-sim-foreign';
 
+/** The header the front door puts on each answer: the build that answered it. */
+const BUILD_HEADER = 'x-sim-build';
+
+/** A request's key among a document's answers: its path and query, less what a render signs anew
+ *  each time (a hole's expiry and signature), so a fresh load's same request is the same key. */
+export function answer_key(url: URL): string {
+	const q = new URLSearchParams(url.search);
+	q.delete('exp');
+	q.delete('sig');
+	const s = q.toString();
+	return s ? `${url.pathname}?${s}` : url.pathname;
+}
+
 export interface WorldOptions {
 	seed: number;
 	/** The builds a deploy moves between: the first is live at the start. */
@@ -227,16 +240,33 @@ export class World {
 		return this.#page_build.get(realm) ?? this.live;
 	}
 
+	/** The build that answered each realm's requests for what is not a file (a page, a hole, an
+	 *  endpoint), by {@link answer_key}: a hole a page asks for after a deploy is the new release's. */
+	readonly #answered = new Map<string, Map<string, string>>();
+
+	/** What answered `realm`'s requests (by {@link answer_key}), each request's build. */
+	answers_of(realm: string): ReadonlyMap<string, string> {
+		return this.#answered.get(realm) ?? new Map();
+	}
+
 	/** Runs `work` with every request sent to `build` (the MPA check's fresh load of an old page
-	 *  asks the build that page is of). */
-	async as_of<T>(build: string, work: () => Promise<T>): Promise<T> {
+	 *  asks the build that page is of), or, for a request `answers` names, to the build that answered
+	 *  it (the tab's hole asked after a deploy, answered by the new release). */
+	async as_of<T>(
+		build: string,
+		work: () => Promise<T>,
+		answers: ReadonlyMap<string, string> = new Map()
+	): Promise<T> {
 		this.#pinned = build;
+		this.#pinned_answers = answers;
 		try {
 			return await work();
 		} finally {
 			this.#pinned = null;
+			this.#pinned_answers = new Map();
 		}
 	}
+	#pinned_answers: ReadonlyMap<string, string> = new Map();
 
 	/** Whether a deploy failed a download `realm` asked for (`skewed`): a browser names the module
 	 *  it imported, not the dependency of it that failed, so any of the document's counts. */
@@ -247,8 +277,8 @@ export class World {
 	/** The build a request goes to now: the live one, or during a rolling deploy's window, by even
 	 *  odds, the one before it. A content-hashed file only another build has goes to that build
 	 *  when the host keeps old files. */
-	#build_for(path: string, from: string): string {
-		if (this.#pinned !== null) return this.#pinned;
+	#build_for(path: string, from: string, key: string): string {
+		if (this.#pinned !== null) return this.#pinned_answers.get(key) ?? this.#pinned;
 		const last = this.deployed.at(-1);
 		let id = this.live;
 		if (
@@ -316,14 +346,32 @@ export class World {
 			this.#pinned === null
 				? this.cdn
 				: { fetch: (r: Request, origin: (r: Request) => Promise<Response>) => origin(r) };
-		return cdn.fetch(request, async (r) => {
-			const list = this.servers.get(this.#build_for(decodeURIComponent(url.pathname), from))!;
+		const key = answer_key(url);
+		const answer = cdn.fetch(request, async (r) => {
+			const build = this.#build_for(decodeURIComponent(url.pathname), from, key);
+			const list = this.servers.get(build)!;
 			const answer = await list[this.rng.int(list.length)].handle(r);
 			// (a hole one build signed, refused by another's servers for its key: the deploy's doing
 			// when the app has no stable secret, as ogygia's `secret_missing` says)
 			if (answer.headers.get('x-ogygia-deny') === 'foreign-key' && this.#o.secret === undefined)
 				this.skewed.set(from, (this.skewed.get(from) ?? new Set<string>()).add(url.pathname));
-			return answer;
+			// (which build answered rides with the answer, so a cached copy says it too)
+			const headers = new Headers(answer.headers);
+			headers.set(BUILD_HEADER, build);
+			return new Response(answer.body, {
+				status: answer.status,
+				statusText: answer.statusText,
+				headers
+			});
+		});
+		if (url.pathname.startsWith('/_app/immutable/')) return answer;
+		return answer.then((a) => {
+			const build = a.headers.get(BUILD_HEADER);
+			if (build !== null) {
+				const of = this.#answered.get(from) ?? new Map<string, string>();
+				this.#answered.set(from, of.set(key, build));
+			}
+			return a;
 		});
 	}
 
