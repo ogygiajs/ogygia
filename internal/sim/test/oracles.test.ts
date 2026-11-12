@@ -4,7 +4,14 @@ import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { World } from '../src/world.ts';
-import { KNOWN, mpa_equivalent, normalize, page_errors, page_rules } from '../src/oracles.ts';
+import {
+	KNOWN,
+	Leaks,
+	mpa_equivalent,
+	normalize,
+	page_errors,
+	page_rules
+} from '../src/oracles.ts';
 
 const OUTPUT = fileURLToPath(
 	new URL('../../../apps/palaestra/.svelte-kit/output', import.meta.url)
@@ -103,6 +110,49 @@ describe('page errors', () => {
 
 	it('a changed chunk does not excuse a TypeError', () => {
 		expect(page_errors(tab(said), world('https://app.test/_app/x.js'))?.oracle).toBe('page-errors');
+	});
+});
+
+describe('leaks', () => {
+	const doc = { head: { children: [], querySelectorAll: () => [] } };
+	/** A tab whose visits of one URL hold these listeners, one list per visit. */
+	const visits = (...lists: string[][]) => {
+		const leaks = new Leaks();
+		let now: string[] = [];
+		const tab = {
+			realm: 'tab-1#1',
+			name: 'tab-1',
+			platform: null,
+			page: { mainFrame: { url: 'https://app.test/', document: doc } },
+			held: () => ({ listeners: now.length, intervals: 0, observers: 0, head: 0, elements: 0 }),
+			listening: () => now
+		} as unknown as Parameters<Leaks['check']>[0];
+		let found: ReturnType<Leaks['check']> = null;
+		for (const list of lists) {
+			now = list;
+			found = leaks.check(tab);
+			// (another URL between: the next sample is a new visit)
+			const url = tab.page.mainFrame.url;
+			(tab.page.mainFrame as { url: string }).url = 'https://app.test/other';
+			leaks.check(tab);
+			(tab.page.mainFrame as { url: string }).url = url;
+		}
+		return found;
+	};
+
+	it('the same code added again on every visit is a leak', () => {
+		const a = 'document click f1';
+		expect(visits([a], [a, a], [a, a, a])?.oracle).toBe('leak');
+	});
+
+	it('new code installed once on each visit is not (generated-app 6, seed 12)', () => {
+		expect(
+			visits(
+				['document click f1'],
+				['document click f1', 'document keydown f2'],
+				['document click f1', 'document keydown f2', 'document click f3']
+			)
+		).toBeNull();
 	});
 });
 

@@ -14,8 +14,8 @@ import CookieStringUtility from 'happy-dom/lib/cookie/urilities/CookieStringUtil
 import WindowBrowserContext from 'happy-dom/lib/window/WindowBrowserContext.js';
 import type { Loop } from './loop.ts';
 import type { Network } from './network.ts';
-import { install, message_channel, platform, type RealmOptions } from './platform.ts';
-import type { Rng } from './rng.ts';
+import { install, message_channel, platform, site, SITES, type RealmOptions } from './platform.ts';
+import { hash, type Rng } from './rng.ts';
 
 /** `SIM_STACKS=1`: a page's uncaught error carries its stack (to triage a seed). */
 const STACKS = process.env.SIM_STACKS === '1';
@@ -37,6 +37,9 @@ export interface Tab {
 	platform: ReturnType<typeof platform> | null;
 	/** What the shown document holds now (the leak oracle's sample). */
 	held(): Held;
+	/** The listeners it holds, each as `window|document <type> <its code's hash>` (with
+	 *  `SIM_SITES=1`, and the line that added it): the leak oracle's per-listener counts. */
+	listening(): string[];
 }
 
 /** What a document holds that outlives a page visit if nobody lets it go. */
@@ -314,7 +317,8 @@ export class Browsers {
 	 * observers between `observe()` and `disconnect()`.
 	 */
 	#count_held(window: BrowserWindow, tab: Tab): void {
-		const listeners = new Set<string>();
+		/** Each listener's key, to its label. */
+		const listeners = new Map<string, string>();
 		const ids = new WeakMap<object, number>();
 		let next = 0;
 		const key = (type: string, fn: unknown, options: unknown): string => {
@@ -324,6 +328,16 @@ export class Browsers {
 			let id = ids.get(fn as object);
 			if (id === undefined) ids.set(fn as object, (id = ++next));
 			return `${type} ${id} ${capture}`;
+		};
+		// (a listener's code, as a hash of its source: a closure made again each visit is the same
+		// code each time, where a listener installed once for the document is code met once)
+		const codes = new WeakMap<object, string>();
+		const code_of = (fn: unknown): string => {
+			if (typeof fn !== 'function') return 'object';
+			let c = codes.get(fn);
+			if (c === undefined)
+				codes.set(fn, (c = hash(Function.prototype.toString.call(fn)).toString(36)));
+			return c;
 		};
 		const doc = (window as unknown as { document: object }).document;
 		for (const [name, target] of [
@@ -339,7 +353,11 @@ export class Browsers {
 			t.addEventListener = function (type, fn, options) {
 				// (a `once` listener or one with a signal lets itself go: counted while it may still fire)
 				const k = key(type, fn, options);
-				if (k) listeners.add(`${name} ${k}`);
+				if (k)
+					listeners.set(
+						`${name} ${k}`,
+						`${name} ${type} ${code_of(fn)}${SITES ? ` @ ${site()}` : ''}`
+					);
 				const signal = (options as { signal?: AbortSignal } | undefined)?.signal;
 				signal?.addEventListener('abort', () => listeners.delete(`${name} ${k}`), { once: true });
 				return add.call(this, type, fn, options);
@@ -384,6 +402,7 @@ export class Browsers {
 			head: d.head?.children.length ?? 0,
 			elements: d.getElementsByTagName('*').length
 		});
+		tab.listening = () => [...listeners.values()].sort();
 	}
 
 	/**
@@ -430,7 +449,8 @@ export class Browsers {
 			errors: [],
 			console: [],
 			platform: null,
-			held: () => ({ listeners: 0, intervals: 0, observers: 0, head: 0, elements: 0 })
+			held: () => ({ listeners: 0, intervals: 0, observers: 0, head: 0, elements: 0 }),
+			listening: () => []
 		};
 		v.tabs.push(tab);
 		this.#windows.set(page.mainFrame.window, tab);
