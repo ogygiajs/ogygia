@@ -82,4 +82,70 @@ describe('the mobile bar switches its sheet between views', () => {
 			style.remove();
 		}
 	});
+
+	it('switches between the nav and search views without closing the sheet', async () => {
+		const target = document.createElement('div');
+		document.body.append(target);
+		const app = mount(ShellBar, { target, props: { nav } });
+		flushSync();
+		const menu = await until(() => target.querySelector<HTMLButtonElement>('.og-cbar-menu'));
+		menu.click();
+		const sheet = await until(() => document.querySelector<HTMLElement>('.og-sheet'));
+		await until(() => sheet.querySelector('nav'));
+		const search = await until(() =>
+			target.querySelector<HTMLButtonElement>('[data-ph-sheet-toggle]:not(.og-cbar-menu)')
+		);
+		search.click();
+		await until(() => sheet.querySelector('.og-cbar-search'));
+		expect(sheet.isConnected).toBe(true);
+		expect(document.querySelectorAll('.og-sheet')).toHaveLength(1);
+		await unmount(app);
+	});
+
+	it('swaps at once under reduced motion: no height is pinned', async () => {
+		const real = window.matchMedia;
+		window.matchMedia = ((q: string) =>
+			({
+				...real.call(window, q),
+				matches: q.includes('reduce')
+			}) as MediaQueryList) as typeof real;
+		try {
+			const target = document.createElement('div');
+			document.body.append(target);
+			const app = mount(ShellBar, { target, props: { nav } });
+			flushSync();
+			const menu = await until(() => target.querySelector<HTMLButtonElement>('.og-cbar-menu'));
+			menu.click();
+			const swap = await until(() => document.querySelector<HTMLElement>('.og-sheet-swap'));
+			const search = await until(() =>
+				target.querySelector<HTMLButtonElement>('[data-ph-sheet-toggle]:not(.og-cbar-menu)')
+			);
+			search.click();
+			await frame();
+			expect(swap.style.height).toBe('');
+			await frame();
+			expect(swap.style.height).toBe('');
+			await unmount(app);
+		} finally {
+			window.matchMedia = real;
+		}
+	});
+
+	it('lets go of a switch in flight when it unmounts', async () => {
+		const target = document.createElement('div');
+		document.body.append(target);
+		const app = mount(ShellBar, { target, props: { nav } });
+		flushSync();
+		const menu = await until(() => target.querySelector<HTMLButtonElement>('.og-cbar-menu'));
+		menu.click();
+		const swap = await until(() => document.querySelector<HTMLElement>('.og-sheet-swap'));
+		const search = await until(() =>
+			target.querySelector<HTMLButtonElement>('[data-ph-sheet-toggle]:not(.og-cbar-menu)')
+		);
+		search.click();
+		// the switch has pinned the height and waits for its frames
+		await until(() => (swap.style.height ? swap : null));
+		await unmount(app);
+		expect(swap.style.height).toBe('');
+	});
 });
