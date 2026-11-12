@@ -17,7 +17,8 @@ import {
 	normalize,
 	page_errors,
 	page_rules,
-	regions_show
+	regions_show,
+	styled_regions
 } from '../src/oracles.ts';
 
 const OUTPUT = fileURLToPath(
@@ -319,6 +320,58 @@ describe('a live region announces what it shows', () => {
 		const failed: Array<[string, 'dropped']> = [['/_app/immutable/m4.js', 'dropped']];
 		expect(await at_rest({ entry: 'm4', tick: 3, wake: true }, [], failed)).toBeNull();
 		expect((await at_rest({ entry: 's4', tick: 3 }, [], failed))?.oracle).toBe('live-events');
+	});
+});
+
+describe('a region on screen keeps its styles', () => {
+	const at_rest = async (
+		head: string,
+		body: string,
+		wire: Array<[string, number | 'dropped']> = []
+	) => {
+		const { Window } = await import('happy-dom');
+		const w = new Window({ url: 'https://app.test/p1' });
+		w.document.write(`<html><head>${head}</head><body>${body}</body></html>`);
+		const tab = {
+			realm: 'tab-1#1',
+			name: 'tab-1',
+			documents: 1,
+			page: { mainFrame: { url: 'https://app.test/p1', document: w.document } }
+		} as unknown as Parameters<typeof styled_regions>[0];
+		const world = {
+			fired_in: new Map(),
+			network: {
+				exchanges: wire.map(([url, status], i) => ({
+					id: i + 1,
+					from: 'tab-1#1',
+					method: 'GET',
+					url: `https://app.test${url}`,
+					status,
+					cut: false,
+					tampered: false,
+					redirected: false
+				}))
+			},
+			skewed_for: () => false
+		} as unknown as Parameters<typeof styled_regions>[1];
+		return styled_regions(tab, world);
+	};
+	const region =
+		'<ogygia-region entry="n4"><div class="g4 svelte-abc123"><span class="svelte-abc123">n4</span></div></ogygia-region>';
+
+	it("passes a region whose component's scoped rules are in the head", async () => {
+		expect(await at_rest('<style>.g4.svelte-abc123 { border: 0 }</style>', region)).toBeNull();
+	});
+
+	it('finds one whose sheet left the head while it stays on screen (core.ts: an answer that never said which sheets it uses)', async () => {
+		const found = await at_rest('<style>.other.svelte-zzz999 { border: 0 }</style>', region);
+		expect(found?.oracle).toBe('unstyled-region');
+		expect(found?.detail).toContain('svelte-abc123');
+	});
+
+	it('leaves out an element outside a region, and a document a fault touched (its sheet may have failed)', async () => {
+		expect(await at_rest('', '<div class="svelte-abc123">page</div>')).toBeNull();
+		expect(await at_rest('', region, [['/_app/immutable/assets/N4.css', 'dropped']])).toBeNull();
 	});
 });
 
