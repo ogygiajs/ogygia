@@ -49,6 +49,7 @@ const dim = color.dim;
 // ── argv ─────────────────────────────────────────────────────────────────────
 const argv = process.argv.slice(2);
 const command = argv[0];
+// static: the command line's flags, read once when the command starts
 const flags = new Set(argv.slice(1).filter((a) => a.startsWith('-')));
 
 if (
@@ -368,7 +369,7 @@ function wireOgygia(pf: Preflight, markdown: boolean, asyncCompiler = false): vo
 		return c.trim() ? c.replace(TRAILING_LFS_RE, '\n\n') + line : line;
 	});
 
-	// 5. Ambient types — one reference line so `svelte-check` / `tsc` resolve the `virtual:ogygia/*`
+	// 5. Ambient types — one reference line so `svelte-check` / `tsc` resolve the `ogygia:*`
 	//    modules the shipped source imports (and content's `import.meta.og.*` macros when markdown is
 	//    on). TS projects only; never clobber an existing file.
 	if (ext === 'ts') {

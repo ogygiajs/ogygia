@@ -77,7 +77,7 @@ Server islands and command or form POSTs go through Kit's CSRF protection, so se
 
 #### TypeScript types
 
-ogygia resolves some build-time virtual modules (`virtual:ogygia/*`), and your editor and `svelte-check` need one reference line to see their types. Add a `src/ogygia.d.ts` that contains only this:
+ogygia resolves some build-time virtual modules (`ogygia:*`), and your editor and `svelte-check` need one reference line to see their types. Add a `src/ogygia.d.ts` that contains only this:
 
 ```ts
 /// <reference types="ogygia/types" />

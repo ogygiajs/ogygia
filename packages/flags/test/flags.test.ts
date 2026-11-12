@@ -240,10 +240,25 @@ describe('decide + source — the source sees the visitor a read hashes on', () 
 		return seen;
 	};
 
-	it('the og-vid cookie (no router identity above the router) → `{ sub, anonymous }`', async () => {
+	it('the og-vid cookie (no router identity above the router) → `{ vid, anonymous }`', async () => {
 		expect(await seen_by_source(ctx('http://s/x', { vid: 'v-42' }))).toEqual([
-			{ sub: 'v-42', anonymous: true }
+			{ vid: 'v-42', anonymous: true }
 		]);
+	});
+
+	it("an anonymous router visitor (anonymousVisitor()'s `{ vid }`) is read, and hashes like its cookie", async () => {
+		const anon = { ...ctx(), visitor: { vid: 'v-9', anonymous: true } };
+		expect(await seen_by_source(anon)).toEqual([{ vid: 'v-9', anonymous: true }]);
+		const f = flag('anon-roll', 50);
+		for (let i = 0; i < 40; i++) {
+			const as_router = { ...ctx(), visitor: { vid: `v${i}`, anonymous: true } };
+			expect(f(as_router)).toBe(f(ctx('http://s/x', { vid: `v${i}` })));
+		}
+	});
+
+	it('anonymous carried claims (`{ vid }` from a shell) are read', async () => {
+		const claims = { vid: 'v-5', anonymous: true, experiments: {} };
+		expect(await seen_by_source(ctx('http://s/x', { claims }))).toEqual([claims]);
 	});
 
 	it('carried claims win over the cookie; a router visitor wins over both', async () => {
@@ -272,7 +287,7 @@ describe('decide + source — the source sees the visitor a read hashes on', () 
 		await prime_flags(ctx('http://s/x', { vid: 'v-7' }));
 		expect(contexts.length).toBeGreaterThan(0);
 		for (const context of contexts)
-			expect(context).toEqual({ sub: 'v-7', anonymous: true, targetingKey: 'v-7' });
+			expect(context).toEqual({ vid: 'v-7', anonymous: true, targetingKey: 'v-7' });
 	});
 });
 

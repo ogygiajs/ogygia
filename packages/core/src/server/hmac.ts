@@ -1,8 +1,8 @@
 /**
  * HMAC-SHA256 for region capability URLs — Node `createHmac` (sync).
  *
- * Used by `ogygiaHandle` and by SSR `virtual:ogygia/sign`. The client never imports this
- * module: ServerIsland goes through `virtual:ogygia/sign`, which is a no-op on the client
+ * Used by `ogygiaHandle` and by SSR `ogygia:server/sign`. The client never imports this
+ * module: ServerIsland goes through `ogygia:server/sign`, which is a no-op on the client
  * (secret is already empty there). Web Crypto is not used — browsers must not mint with a
  * real secret.
  *
@@ -12,6 +12,7 @@
  */
 import { createHmac, hkdfSync, timingSafeEqual } from 'node:crypto';
 import { is_lower_hex } from './endpoint.ts';
+import { cache } from '@ogygia/machine';
 const MAC_INFO = Buffer.from('ogygia-mac-v1');
 const ID_SALT_INFO = Buffer.from('ogygia-id-salt-v1');
 const utf8 = new TextEncoder();
@@ -22,7 +23,7 @@ export const MIN_SECRET_BYTES = 16;
 // The secret is a process constant (env / build), so the derived key is too: derived once per
 // distinct secret, not once per sign and once per verify (an HKDF per island mint and per hole
 // request added up on a page of twenty). Bounded: a process sees one secret, tests a handful.
-const mac_keys = new Map<string, Buffer>();
+const mac_keys = cache<string, Buffer>({ name: 'mac keys', max: 16 });
 
 /** HKDF-SHA256 → 32-byte MAC key (hex for stable logging / tests; Buffer used internally). */
 export function derive_mac_key(secret: string): Buffer {
@@ -31,7 +32,6 @@ export function derive_mac_key(secret: string): Buffer {
 		key = Buffer.from(
 			hkdfSync('sha256', Buffer.from(secret, 'utf8'), Buffer.alloc(0), MAC_INFO, 32)
 		);
-		if (mac_keys.size >= 16) mac_keys.clear();
 		mac_keys.set(secret, key);
 	}
 	return key;
@@ -86,11 +86,15 @@ export class Hmac {
 	 *   URL's `r`: the component the endpoint renders, compiler/region/identity.ts `renderId`). Signing
 	 *   it lets a build that no longer has `id` (another schedule, preset or salt) answer the
 	 *   capability with its own entry for that component, and only for that component. Every current
-	 *   mint is `v2`.
+	 *   mint of a hole that does not wake is `v2`.
+	 * - `v3|id|exp|props|session|ttl|render|wakes` — the same six, plus "wakes" (the URL's `w=1`): the
+	 *   hole's component hydrates over its answer, so the endpoint renders it inside an island, as
+	 *   the hydrate does (#906). Every mint of a hole that wakes is `v3`.
 	 *
-	 * The version follows from the URL: a capability with `r` is checked as `v2`, one without as `v1`.
-	 * A `v2` MAC never verifies as `v1` (the prefix and the field count differ), so stripping `r` or
-	 * swapping it for another component breaks the signature. Empty `session`/`ttl` are still fields
+	 * The version follows from the URL: a capability with `w` is checked as `v3`, else one with `r`
+	 * as `v2`, one without either as `v1`. No version's MAC verifies as another's (the prefix and the
+	 * field count differ), so stripping `r` or `w`, adding `w`, or swapping `r` for another component
+	 * breaks the signature. Empty `session`/`ttl` are still fields
 	 * (prerender / unbound / no-store) — never optional concat. `ttl` is the response cache max-age in
 	 * seconds (`''` = no-store); signing it keeps a harvested URL from being re-pointed at a longer
 	 * browser cache.
@@ -101,9 +105,11 @@ export class Hmac {
 		props: string,
 		session = '',
 		ttl: number | string = '',
-		render = ''
+		render = '',
+		wakes = ''
 	): string {
 		const v1 = `${lp(String(id))}|${lp(String(exp))}|${lp(String(props))}|${lp(String(session))}|${lp(String(ttl))}`;
+		if (wakes !== '') return `v3|${v1}|${lp(String(render))}|${lp(String(wakes))}`;
 		return render === '' ? `v1|${v1}` : `v2|${v1}|${lp(String(render))}`;
 	}
 }
