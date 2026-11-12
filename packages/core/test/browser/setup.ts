@@ -177,8 +177,8 @@ export default async function setup(project: TestProject) {
 		__hydrate: 'load',
 		__component: card,
 		__sign: () => '',
-		__renderHtml: (props: Record<string, unknown>) =>
-			render_region_html(card, HELD_HOLE_CARD, props)
+		__renderHtml: (props: Record<string, unknown>, wakes?: boolean) =>
+			render_region_html(card, HELD_HOLE_CARD, props, wakes)
 	};
 	const baked = (await region(held_card as never, {} as never)) as { html?: string };
 	project.provide('held_hole_card_b64', b64(baked.html ?? ''));
