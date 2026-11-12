@@ -43,6 +43,49 @@ function round_trip(p: string, values: Record<string, string>) {
 	return m && m.params;
 }
 
+describe('fill never builds a URL of another origin', () => {
+	const ORIGIN = 'https://app.test';
+	// (patterns whose first segment a param fills: an empty one there would start the path with `//`)
+	const LEADING = [
+		'/[a]/[...b]',
+		'/[a]/[b]',
+		'/[[a]]/[b]/x',
+		'/[...a]',
+		'/[a]',
+		'/[a]/x',
+		'/[[a]]/[[b]]'
+	];
+
+	it('whatever the params, the filled path stays on the origin it is read against, or is refused', () => {
+		fc.assert(
+			fc.property(
+				fc.constantFrom(...LEADING),
+				fc.string({ unit: fc.constantFrom('/', '\\', ':', '.', 'evil.example', ''), maxLength: 4 }),
+				fc.string({ unit: fc.constantFrom('/', '\\', ':', '.', 'evil.example', ''), maxLength: 4 }),
+				(p, a, b) => {
+					let filled: string;
+					try {
+						filled = fill(p, { a, b });
+					} catch {
+						return; // refused
+					}
+					expect(new URL(filled, ORIGIN).origin).toBe(ORIGIN);
+				}
+			),
+			{ seed: SEED, numRuns: 3000 }
+		);
+	});
+
+	it('an empty param that fills a first segment is refused (#1142)', () => {
+		expect(() => fill('/[a]/[...b]', { a: '', b: 'evil.example' })).toThrow(/empty segment/);
+		expect(() => fill('/[a]/[b]', { b: 'evil.example' })).toThrow(/empty segment/);
+		expect(() => fill('/[[a]]/[b]/x', {})).toThrow(/empty segment/);
+		expect(() => fill('/[...a]', { a: '//evil.example' })).toThrow(/empty segment/);
+		expect(fill('/[...a]', { a: '\\evil.example' })).toBe('/%5Cevil.example');
+		expect(fill('/[a]', { a: '' })).toBe('/');
+	});
+});
+
 describe('fill, read back through the URL parser', () => {
 	it('gives back the params as filled, or refuses them', () => {
 		fc.assert(
