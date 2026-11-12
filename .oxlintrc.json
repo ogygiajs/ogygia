@@ -10,6 +10,7 @@
 		"ogygia/no-silent-failures": "error",
 		"ogygia/stale-whole": "error",
 		"ogygia/wall-clock": "error",
+		"ogygia/one-hash": "error",
 		"ogygia/compiler-boundary": "error"
 	},
 	"overrides": [

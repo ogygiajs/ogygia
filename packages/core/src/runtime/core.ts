@@ -10,7 +10,7 @@ import {
 	type Stale,
 	type Turn
 } from '@ogygia/machine';
-import { frameAddress } from '../frame.ts';
+import { frameAddress, older_by, type FrameOrder } from '../frame.ts';
 import { import_again, is_failed_import, on_reload_needed } from './import-again.ts';
 import { browser_offline, no_response } from './network.ts';
 // Build-time constants (compiler/link/runtime-entry.ts `generateRuntimeFlagsSource`): `FRAMES` is
@@ -86,10 +86,12 @@ import {
 	unregister_region,
 	yield_task
 } from './schedule.ts';
-import { once_visible } from './observe.ts';
+import { once_on_screen } from './viewport.ts';
 import { sheet_of, use_sheets, type RegionSheet } from './region-sheets.ts';
 import { preload_island_graph } from './island-graph-preload.ts';
 import { fetch_priority_of, LoadSlot, viewport_class, type LoadClass } from './load-scheduler.ts';
+import { PRIORITY } from './load-class.ts';
+import type { FrameFetcher } from './frame-store.ts';
 import { connected_regions } from './connected.ts';
 import { restore_props_sidecar } from './sidecar.ts';
 import { hole_facts_of } from './hole-facts.ts';
@@ -356,6 +358,9 @@ type LiveTick = {
 	url?: string;
 	hydrate?: string;
 	hydrateMargin?: string;
+	/** The order its HTML was written at its address with as it was decoded; absent when it never
+	 *  went through the frame store. */
+	written?: FrameOrder | undefined;
 };
 
 /** A download slot (load-scheduler.ts) asked for by a step whose element then left: its turn still
@@ -675,6 +680,9 @@ class OgygiaRegion extends HTMLElement {
 	#live_props: Record<string, unknown> | null = null;
 	/** A static live region's subscription to its address, while it is static. */
 	#live_unsub: (() => void) | null = null;
+	/** Where the HTML a static tick painted itself stands in its address's order (`older_by`): a frame
+	 *  not newer than it is older than what is on screen. */
+	#live_painted: FrameOrder | null = null;
 	// The two wake targets, bound once per element (not per connect): `#arm` hands them to a
 	// schedule, and `load` calls them straight — no closure built on the connect path. Each returns
 	// its promise: the interaction feature awaits it to know when the island is live (replay).
@@ -931,9 +939,12 @@ class OgygiaRegion extends HTMLElement {
 		if (!endpoint || !is_allowed_region_endpoint(endpoint)) return;
 		const address = frameAddress(endpoint);
 		if (DEVTOOLS) dt_emit({ domain: 'runtime', name: 'region.prefetch', ...dt_ids(this) });
-		// a warm ahead of the hole's own schedule: background work (load-scheduler.ts)
+		// a warm ahead of the hole's own schedule: background work (load-scheduler.ts), raised when the
+		// hole's own fetch or `preload()` joins it
 		void slots.frames
-			?.ensure(address, this.#frame_fetcher(endpoint, false, 'ahead'))
+			?.ensure(address, this.#frame_fetcher(endpoint, false, 'ahead'), {
+				priority: PRIORITY.ahead
+			})
 			?.catch(() => {}); // ok: a warm ahead; the hole's own fetch asks again and says its failure
 	}
 
@@ -943,18 +954,32 @@ class OgygiaRegion extends HTMLElement {
 	 * marker on a 204 (`keepFallback()` on the server). A revalidate bypasses the browser cache
 	 * (the endpoint may answer `private, max-age`, and stale is the whole point of revalidating).
 	 */
-	#frame_fetcher(endpoint: string, revalidate: boolean, cls: LoadClass | (() => LoadClass)) {
-		const class_now = typeof cls === 'function' ? cls : () => cls;
-		return async (signal: AbortSignal) => {
+	#frame_fetcher(
+		endpoint: string,
+		revalidate: boolean,
+		cls: LoadClass | (() => LoadClass)
+	): FrameFetcher {
+		return async (signal, flight) => {
 			// HTML is content: on screen it never waits for the page's critical resources; off screen it
-			// is background work (load-scheduler.ts). The server gate still caps what one page asks of
-			// the origin at once.
-			const release = await new LoadSlot({ kind: 'content', cls, label: endpoint }).ready;
+			// is background work (load-scheduler.ts). Every caller of the address shares this fetch, so
+			// it goes at the most urgent one's class (its flight's). The holes window caps what one
+			// page asks of the origin at once.
+			// (a class that follows this hole's place on screen is re-read as it moves)
+			const el = typeof cls === 'function' ? this : undefined;
+			const slot = new LoadSlot({
+				kind: 'content',
+				cls,
+				label: endpoint,
+				el,
+				flight,
+				window: 'holes'
+			});
+			const release = await slot.ready;
 			try {
 				return await this.#fetch_region(
 					endpoint,
 					revalidate,
-					fetch_priority_of(class_now()),
+					fetch_priority_of(slot.cls()),
 					signal
 				);
 			} finally {
@@ -969,16 +994,14 @@ class OgygiaRegion extends HTMLElement {
 		priority: 'high' | 'auto' | 'low',
 		signal: AbortSignal
 	) {
-		return runtime_session.server_gate.run(() => {
-			// (./hole-fetch.ts: the same read of the answer `preload()` makes. A renewed capability is
-			// the address's, kept in the store: every element bound there adopts it — #adopt_renewed)
-			const address = frameAddress(endpoint);
-			return fetch_hole(endpoint, {
-				revalidate,
-				priority,
-				signal,
-				renewed: (fresh) => slots.frames?.renew(address, fresh)
-			});
+		// (./hole-fetch.ts: the same read of the answer `preload()` makes. A renewed capability is
+		// the address's, kept in the store: every element bound there adopts it — #adopt_renewed)
+		const address = frameAddress(endpoint);
+		return fetch_hole(endpoint, {
+			revalidate,
+			priority,
+			signal,
+			renewed: (fresh) => slots.frames?.renew(address, fresh)
 		});
 	}
 
@@ -1484,10 +1507,11 @@ class OgygiaRegion extends HTMLElement {
 		// not an expired capability (only its own GET renews it).
 		if (!revalidate && frames.join && !endpoint.includes('&ttl=') && !capability_expired(endpoint))
 			await frames.join(endpoint);
-		const fetcher = this.#frame_fetcher(endpoint, revalidate, () =>
-			this.#visitor ? 'user' : viewport_class(this)
-		);
-		const run = () => frames.ensure(address, fetcher, { force: revalidate, signal });
+		const cls = () => (this.#visitor ? 'user' : viewport_class(this));
+		const fetcher = this.#frame_fetcher(endpoint, revalidate, cls);
+		// (joining a warm out for the address: it is raised to this hole's class)
+		const run = () =>
+			frames.ensure(address, fetcher, { force: revalidate, signal, priority: PRIORITY[cls()] });
 		try {
 			return await run();
 		} catch (err) {
@@ -1642,10 +1666,11 @@ class OgygiaRegion extends HTMLElement {
 		const off_cap = s.timeout(first, 2000);
 	}
 
-	/** `visible`: the shared observer for this margin (observe.ts) — fires once, on first entry. */
+	/** `visible`: the one viewport tracker for this margin (viewport.ts) — fires once, the first time
+	 *  the region (or, with no box of its own, what it renders) is on screen. */
 	#on_visible(fire: () => unknown, root_margin: string | undefined, owner: Leaves) {
 		const rootMargin = root_margin || this.getAttribute('margin') || '0px';
-		owner.scope.defer(once_visible(this, rootMargin, () => void fire())); // ok: a wake; its hydrate says its own failure
+		owner.scope.defer(once_on_screen(this, rootMargin, () => void fire())); // ok: a wake; its hydrate says its own failure
 	}
 
 	#on_media(q: string, fire: () => unknown, owner: Leaves) {
@@ -1700,7 +1725,7 @@ class OgygiaRegion extends HTMLElement {
 			// Its downloads wait for their slot (load-scheduler.ts): a gesture's never wait; otherwise
 			// the class follows the viewport, re-read while queued (an island scrolled into view moves up).
 			const cls = () => (this.#visitor ? 'user' : viewport_class(this));
-			const slot = new LoadSlot({ kind: 'code', cls, label: entry });
+			const slot = new LoadSlot({ kind: 'code', cls, label: entry, el: this });
 			const release = await turn.wait(slot.ready);
 			// (gone while it queued: the slot, when it comes, goes straight back)
 			if (release === STALE) return void slot.ready.then(hand_back); // ok: a slot's turn never fails
@@ -1872,11 +1897,11 @@ class OgygiaRegion extends HTMLElement {
 		const last = this.#live_last;
 		if (last === null || this.#live.now.kind !== 'idle') return;
 		// (in the connect's turn: the turn is the tick's until it ends)
-		return this.#apply_live(last, turn, true);
+		return this.#apply_live(last, turn);
 	}
 
-	/** One live tick, in its turn. `again`: its last tick, gone on with as it is put back. */
-	async #apply_live(desc: LiveTick, turn: Turn, again = false): Promise<void> {
+	/** One live tick, in its turn (or its last tick, gone on with as it is put back). */
+	async #apply_live(desc: LiveTick, turn: Turn): Promise<void> {
 		// Keep the element self-describing so the fallback fetch path still works if ever needed.
 		this.setAttribute('render', 'defer');
 		this.setAttribute('entry', desc.module || desc.id);
@@ -1896,19 +1921,15 @@ class OgygiaRegion extends HTMLElement {
 		// `static` disposes an island an interactive tick hydrated.
 		if (!interactive) {
 			if (this.#live.now.kind !== 'static') this.#live.go('static');
-			let replayed = false;
+			const frames = slots.frames;
 			if (desc.url && !this.#live_unsub) {
-				// (each later frame a turn of its own. The one the store hands over as it binds is older
-				// than this tick, which paints instead — unless this is its last tick gone on with as it
-				// is put back: then the store's frame is the newest it has)
+				// (each frame a turn of its own, the one the store hands over as it binds too)
 				const box = this.#box;
-				let binding = true;
-				const off = slots.frames?.subscribe(frameAddress(desc.url), (f) => {
-					if (binding && !again) return;
-					replayed ||= binding;
-					box.post((t) => this.#morph_live(f.html, t));
+				const off = frames?.subscribe(frameAddress(desc.url), (f) => {
+					box.post((t) =>
+						older_by(f, this.#live_painted) === null ? this.#morph_live(f.html, t) : undefined
+					);
 				});
-				binding = false;
 				if (off) {
 					this.#live_unsub = off;
 					this.#live.scope.defer(() => {
@@ -1917,7 +1938,21 @@ class OgygiaRegion extends HTMLElement {
 					});
 				}
 			}
-			if (!replayed) await this.#morph_live(desc.html, turn);
+			// The store's one ordering (`older_by`) decides: when the answer it holds is this tick's
+			// write or newer, the subscription paints it. A tick the store holds no such answer for (its
+			// HTML never went through the store, or the answer there is older) paints its own —
+			// test/browser/region-orderings.test.ts. Painted, it stands where the store would have put
+			// it: a frame the subscription hands over later (as it binds again, put back) paints only
+			// if newer than that.
+			const held = desc.url ? frames?.peek(frameAddress(desc.url)) : null;
+			const mine = desc.written;
+			if (!held || mine === undefined || older_by(mine, held) === null) {
+				this.#live_painted =
+					mine === undefined
+						? (held ?? null)
+						: { v: held && held.v > mine.v ? held.v : mine.v, d: mine.d };
+				await this.#morph_live(desc.html, turn);
+			}
 			return;
 		}
 
@@ -1997,7 +2032,7 @@ class OgygiaRegion extends HTMLElement {
 			const entry = island_entry_of(this);
 			if (!entry) return;
 			const cls = () => viewport_class(this);
-			const slot = new LoadSlot({ kind: 'code', cls, label: entry });
+			const slot = new LoadSlot({ kind: 'code', cls, label: entry, el: this });
 			const release = await turn.wait(slot.ready);
 			// (gone while it queued: the slot, when it comes, goes straight back)
 			if (release === STALE) return void slot.ready.then(hand_back); // ok: a slot's turn never fails
