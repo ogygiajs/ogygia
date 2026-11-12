@@ -80,8 +80,8 @@ import {
 	waiting_rows
 } from '../src/profiler/ui/report-data.ts';
 import type { RequestEvent } from '@sveltejs/kit';
-// (core's stub, the file `virtual:ogygia/island-deps` is aliased to — pluginTests())
-import { set_chunk_contents } from '../../core/test/_stubs/virtual-island-deps.ts';
+// (core's stub, the file `ogygia:server/region-deps` is aliased to — pluginTests())
+import { set_chunk_contents } from '../../core/test/_stubs/server.region-deps.ts';
 import {
 	app_asset_rel,
 	client_dir_candidates,
@@ -1860,6 +1860,27 @@ describe('the ogygia / svelte / kit round: islands, seed, holes, lanes, markup v
 			'SiteHeader ships a barrel whole: src/lib/ui/index.ts, and the 8 modules behind it'
 		);
 		expect(br.message).not.toContain('svelte runtime');
+		expect(br.fix).toContain('barrels() from @ogygia/barrels');
+		expect(br.fix).not.toContain('ogygia({ barrels })');
+		// the build recorded why the barrel pass left it: the finding quotes it
+		const why = derive_findings(
+			analyze(p1),
+			meta as never,
+			{
+				net: [],
+				mem: [],
+				weights,
+				client,
+				barrels: {
+					'/_app/immutable/aaaaaaaaaaaaaaaa.js': [
+						{ name: 'src/lib/ui/index.ts', fanout: 8, why: ['outside-project'] }
+					]
+				}
+			} as never
+		).find((x) => x.code === 'island-barrel')!;
+		expect(why.message).toContain(
+			'barrels() left it: it is a package, and barrels({ packages }) does not list it'
+		);
 		// with the report's own visit: where the time went, and the advice for a queue, not a slow step
 		const visit = {
 			page: '/',
@@ -6151,7 +6172,8 @@ describe('profiler handle', () => {
 	// THE BEACON: an authed document gets the meta tag; the runtime POSTs its hydration timings to
 	// `/beacon`; the report joins them to its island rows by fingerprint. Dev here (open UI).
 	it('beacon: the tag rides an authed document, /beacon is bounded, the report joins by fingerprint', async () => {
-		const { record_request_stats } = await import('@ogygia/core/internal/server');
+		const { request_stats_store } = await import('../src/profiler/request-stats.ts');
+		const record_request_stats = request_stats_store.page;
 		const handle = profiler({ secret: 'prof-key' });
 		// a document request gets the tag at the end of <head>; a fetch (no document dest) does not
 		// (dev: the tag needs no flag cookie; production reads `og_profiler_beacon`, set at login)

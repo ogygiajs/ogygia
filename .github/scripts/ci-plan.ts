@@ -13,6 +13,7 @@
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { appendFileSync } from 'node:fs';
+import { is_stacked } from './ci-stack.ts';
 
 type Slice = {
 	name: string;
@@ -56,6 +57,11 @@ const BROWSER_JOBS = ['firefox', 'webkit', 'firefox-stable'] as const;
 
 const env = process.env;
 const pull_request = env.EVENT === 'pull_request';
+// (a stacked PR's e2e and browser jobs run once, on its stack's PR into main: ci-stack.ts)
+const stacked =
+	pull_request &&
+	is_stacked(env.PR_BASE ?? '') &&
+	!(JSON.parse(env.LABELS || '[]') as string[]).includes('ci:full');
 // (the base commit itself: a stacked PR's `base_ref` was seen to read `main` on CI, its base sha
 // was right)
 const base = env.BASE_SHA || (env.BASE_REF ? `origin/${env.BASE_REF}` : 'origin/main');
@@ -209,7 +215,7 @@ const browsers =
 	browser_tasks.length === 0
 		? []
 		: BROWSER_JOBS.filter((b) => !passed(`browsers-pass-${b}-${browsers_hash}`));
-output('browsers', browsers);
+output('browsers', stacked ? [] : browsers);
 output('browsers_hash', browsers_hash);
 summary.push(`browsers: ${browsers.join(', ') || 'none'} (inputs ${browsers_hash}).`);
 
@@ -227,12 +233,18 @@ for (const browser of ENGINES)
 			`e2e ${slice.name}, ${browser}: ${e2e.length} task(s), ${left.length} to run${left.length ? ` (${left.map((t) => t.taskId).join(', ')})` : ''}.`
 		);
 	}
-output('e2e_chromium', chromium);
-output('e2e_engines', engines);
+output('e2e_chromium', stacked ? [] : chromium);
+output('e2e_engines', stacked ? [] : engines);
+if (stacked)
+	summary.push(
+		`Stacked on \`${env.PR_BASE}\`: no e2e or browser jobs here (they run on the integration PR or the stack's PR into main; \`ci:full\` runs them).`
+	);
 
 // (the size tool itself changing counts too: it measures both sides). Remembered like the browser
 // jobs: the same core build against the same base passed before, so it is left out.
-const core_builds = pull_request ? dry(['run', 'build', '--filter=@ogygia/core...']) : [];
+const core_builds = pull_request
+	? dry(['run', 'build', '--filter=@ogygia/core...', '--filter=@ogygia/compiler...'])
+	: [];
 const size_hash = digest([
 	env.BASE_SHA ?? '',
 	...core_builds.map((t) => `${t.taskId}:${t.hash}`),

@@ -20,9 +20,9 @@ import { props_sidecar_of } from './sidecar.ts';
 import { parse_region_html } from './parse-html.ts';
 import { runtime_session } from './session.ts';
 import { regions_in_shadow } from './connected.ts';
-import { release_sheets } from './region-sheets.ts';
+import { release_head_nodes } from './region-sheets.ts';
 import { yield_task } from './schedule.ts';
-import { beacon_nav } from './beacon.ts';
+import { HOOK_REGION_HYDRATE, client_region_hydrate } from './client-plugins.ts';
 import {
 	is_self_owned,
 	record_server_body,
@@ -31,13 +31,11 @@ import {
 	walk_enters
 } from './ownership.ts';
 import { LoadSlot } from './load-scheduler.ts';
+import { fetch_priority_of, PRIORITY } from './load-class.ts';
 import { load_devalue, devalue, with_devalue, needs_devalue } from './devalue-lane.ts';
 import { OgygiaError, warn } from '../messages/core.ts';
 
-// (the profiler's browser half ships only where something reads it: see `__OGYGIA_BEACON__`; a
-// plain import of dist/ without the define keeps it)
-const BEACON = typeof __OGYGIA_BEACON__ !== 'undefined' ? __OGYGIA_BEACON__ : true;
-const no_beacon_nav: typeof beacon_nav = () => {};
+const no_region_hydrate: typeof client_region_hydrate = () => null;
 
 export function link_boot(): void {
 	slots.boot ??= {
@@ -52,15 +50,17 @@ export function link_boot(): void {
 		parse_region_html,
 		runtime_session,
 		regions_in_shadow,
-		release_sheets,
+		release_head_nodes,
 		yield_task,
-		beacon_nav: BEACON ? beacon_nav : no_beacon_nav,
+		region_hydrate: HOOK_REGION_HYDRATE ? client_region_hydrate : no_region_hydrate,
 		walk_enters,
 		is_self_owned,
 		record_server_body,
 		server_body_attributes,
 		server_body_child,
 		LoadSlot,
+		PRIORITY,
+		fetch_priority_of,
 		load_devalue,
 		devalue,
 		with_devalue,
