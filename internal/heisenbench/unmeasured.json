@@ -1,6 +1,38 @@
 {
 	"exempt": [
 		{
+			"id": "packages/core/src/server/region-endpoint.ts > hole_css",
+			"reason": "a map lookup and a handoff read (holeCss before the region rename, unmeasured on that base); its handoff read is region_css's, which the request benches run"
+		},
+		{
+			"id": "packages/core/src/server/region-endpoint.ts > make_region_endpoint",
+			"reason": "signs with the process's key and the request's session (hidden state; makeRegionEndpoint before the region rename, unmeasured on that base); the signing it wraps is sign's, benched"
+		},
+		{
+			"id": "packages/core/src/server/region-endpoint.ts > mint_server_region",
+			"reason": "signs with the process's key and the request's session (hidden state; mintServerIsland before the region rename, unmeasured on that base); the signing it wraps is sign's, benched"
+		},
+		{
+			"id": "packages/core/src/messages/core.ts > ERRORS > request_event_server_only > details",
+			"reason": "a message table entry: wording only (the browser stand-in prints the bare link; test/region-server-browser.test.ts)"
+		},
+		{
+			"id": "packages/core/src/messages/core.ts > ERRORS > request_event_server_only > text",
+			"reason": "a message table entry: wording only (the browser stand-in prints the bare link; test/region-server-browser.test.ts)"
+		},
+		{
+			"id": "packages/devtools/src/profiler/maps-browser.ts > read_profiler_maps",
+			"reason": "the browser stand-in answers null, constant; the devtools suite is not recorded (proven in packages/devtools/test/profiler-maps-browser.test.ts)"
+		},
+		{
+			"id": "packages/devtools/src/profiler/maps-server.ts > read_profiler_maps",
+			"reason": "imports the server build's ogygia:server/profiler-maps module, which exists only inside a built app; constant work"
+		},
+		{
+			"id": "packages/devtools/src/profiler/maps-server.ts > read_profiler_maps > then:0~09dfc9",
+			"reason": "reads the one export of the server build's profiler-maps module, which exists only inside a built app; constant work"
+		},
+		{
 			"id": "packages/core/src/runtime/entry-locations.ts > recover_location > task:0~d0bd46",
 			"reason": "one rollover wait on the recovery's own scope timer (seconds, a deploy's rollover only), constant work"
 		},
@@ -934,7 +966,23 @@
 		},
 		{
 			"id": "packages/core/src/plugin/css.ts > flights:0 > run",
-			"reason": "the dynamic import of the generated virtual:ogygia/router-css, which resolves only under the app's Vite pipeline; its failed read and the read after it are proven against a real Vite dev server in packages/core/test/router-css-dev.test.ts"
+			"reason": "the dynamic import of the generated ogygia:server/router-css, which resolves only under the app's Vite pipeline; its failed read and the read after it are proven against a real Vite dev server in packages/core/test/router-css-dev.test.ts"
+		},
+		{
+			"id": "packages/barrels/src/index.ts > barrels > log",
+			"reason": "the console fallback before configResolved hands the plugin Vite's logger (never reached in a build: configResolved runs first); the logger path is benched in packages/barrels/bench/barrels.bench.ts"
+		},
+		{
+			"id": "packages/barrels/src/rewrite.ts > quote > replace:1~5719f3",
+			"reason": "the escape callback of one character (a table lookup, constant work); quote's escapes are proven in packages/barrels/test/rewrite.test.ts"
+		},
+		{
+			"id": "packages/core/src/compiler/dev/region-bytes.ts > island_subgraph_bytes > map:0~c49ee0",
+			"reason": "a barrel row's importers to their ids (one property read each), only with the dev server's live module graph; proven in packages/core/test/region-bytes.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/report.ts > ogygia_findings > flatMap:0~283e13",
+			"reason": "the reasons of at most three listed barrels (constant work); proven in packages/devtools/test/profiler.test.ts"
 		},
 		{
 			"id": "packages/cli/src/perf/cli.ts > group_alive",
@@ -1071,6 +1119,10 @@
 		{
 			"id": "packages/config/src/vitest.ts > browser_runs",
 			"reason": "test config: picks the browser projects' provider when a vitest config loads (before any test or bench), constant work; every browser job runs it"
+		},
+		{
+			"id": "packages/config/src/vitest.ts > exact",
+			"reason": "test config: one stub alias's pattern when a vitest config loads (before any test or bench), constant work; every node test job runs it"
 		},
 		{
 			"id": "packages/config/src/vitest.ts > browser_runs > map:0~5b89ec",
@@ -1286,7 +1338,7 @@
 		},
 		{
 			"id": "packages/devtools/src/profiler/embedded-maps.ts > flights:0",
-			"reason": "the dynamic import of virtual:ogygia/profiler-maps (and its gunzip), module IO once per process; run by the profiler tests"
+			"reason": "the dynamic import of ogygia:server/profiler-maps (and its gunzip), module IO once per process; run by the profiler tests"
 		},
 		{
 			"id": "packages/devtools/src/profiler/index.ts > Profiler > flights:0",
@@ -1683,6 +1735,14 @@
 		{
 			"id": "packages/core/src/hooks.ts > owned",
 			"reason": "wraps the handle with the request's owner (a Kit request event nothing can clone); its parts are proven in packages/core/test/request-scope.test.ts"
+		},
+		{
+			"id": "packages/insights/src/page-assets.ts > weigh_one > Promise:0~9ee1b9 > timeout:0~e7251f",
+			"reason": "a file's budget race timer on its own scope (a fetched Response, not cloneable), constant work; run by packages/insights/test/profiler-page-assets.test.ts"
+		},
+		{
+			"id": "packages/insights/src/page-assets.ts > weigh_one > finally:0~4a8350",
+			"reason": "a file's budget race timer on its own scope (a fetched Response, not cloneable), constant work; run by packages/insights/test/profiler-page-assets.test.ts"
 		},
 		{
 			"id": "packages/core/src/messages/server.ts > SERVER_WARNINGS > request_cleanup_failed > details",
@@ -2097,6 +2157,14 @@
 			"reason": "browser only: hands the head merge's unlisted sheets to the boot's release_sheets (live elements, not cloneable), one call; proven in apps/palaestra/e2e/hole-kept-sheet.spec.ts (#275)"
 		},
 		{
+			"id": "packages/devtools/src/profiler/request-stats.ts > hold_request_stats_detail",
+			"reason": "returns a release closure (a function, not cloneable), constant work; proven in packages/devtools/test/request-stats-detail.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/request-stats.ts > hold_request_stats_detail > <anonymous>~4ba179",
+			"reason": "lets go of one hold in a module-level set (not replayable: process state), constant work; proven in packages/devtools/test/request-stats-detail.test.ts"
+		},
+		{
 			"id": "packages/devtools/src/profiler/index.ts > Profiler > #busy",
 			"reason": "builds the 409 Response from the recorder machine's state (a Response, not cloneable), constant work; proven in packages/cli/test/mcp-profile-busy.test.ts (#290)"
 		},
@@ -2107,18 +2175,6 @@
 		{
 			"id": "packages/flags/src/index.ts > set_prime",
 			"reason": "writes the request's prime state onto a Request (not cloneable), constant work; proven in packages/flags/test/prime-twice.test.ts"
-		},
-		{
-			"id": "packages/core/src/compiler/link/location-map.ts > by_key",
-			"reason": "build time: one comparison of two keys, a sort's callback (not recorded), constant work; proven in packages/core/test/entry-locations.test.ts"
-		},
-		{
-			"id": "packages/content/src/markdown/shiki.ts > render_code_region > replace:1~7326ff",
-			"reason": "the replacement for the multi-variant id attribute: one concatenation, constant work; proven in packages/content/test/fence-escaping.test.ts"
-		},
-		{
-			"id": "packages/content/src/markdown/shiki.ts > render_code_region > replace:1~ca1204",
-			"reason": "the replacement for the pre's attributes: one concatenation, constant work; proven in packages/content/test/fence-escaping.test.ts"
 		},
 		{
 			"id": "packages/core/src/runtime/router-nav.ts > resolve_head_urls",
@@ -2139,582 +2195,6 @@
 		{
 			"id": "packages/core/src/runtime/router-nav.ts > page_relative_resolved",
 			"reason": "browser only: one URL resolved against a fetched page (reads location.origin), constant work"
-		},
-		{
-			"id": "packages/core/src/runtime/router-nav.ts > hold_scroll",
-			"reason": "browser only: a Back or Forward's scroll restore and its hold (one child scope, four listeners, a timer, one ResizeObserver), constant work; router-history e2e runs it"
-		},
-		{
-			"id": "packages/core/src/runtime/router-nav.ts > islands_above",
-			"reason": "browser only: the not-yet-live islands of the page, each one layout read, once per Back or Forward; scroll-hold.test.ts runs it in three engines"
-		},
-		{
-			"id": "packages/core/src/runtime/router-nav.ts > hold_scroll > settled",
-			"reason": "browser only: the islands above all woke, one frame timer, constant work"
-		},
-		{
-			"id": "packages/core/src/runtime/router-nav.ts > hold_scroll > put",
-			"reason": "browser only: one scrollTo when the position moved, constant work"
-		},
-		{
-			"id": "packages/core/src/runtime/router-nav.ts > hold_scroll > on:2~0f2971",
-			"reason": "browser only: the visitor's input ends the hold (one scope close)"
-		},
-		{
-			"id": "packages/core/src/runtime/router-nav.ts > hold_scroll > on:2~641bd9",
-			"reason": "browser only: a scroll elsewhere ends the hold (one comparison, one scope close)"
-		},
-		{
-			"id": "packages/core/src/runtime/router-nav.ts > hold_scroll > timeout:0~0f2971",
-			"reason": "browser only: the hold's cap ends it (one scope close)"
-		},
-		{
-			"id": "packages/core/src/runtime/import-again.ts > heard",
-			"reason": "browser only: one resource entry the loader's observer heard, recorded in a bounded map, constant work"
-		},
-		{
-			"id": "packages/core/src/runtime/import-again.ts > response_landed",
-			"reason": "a failed import's wait for its file's entry (a scope, one timer): constant work, on a failure only; run by import-again.test.ts and the lazy-chunk-retry e2e"
-		},
-		{
-			"id": "packages/core/src/runtime/import-again.ts > response_landed > Promise:0~7305f1",
-			"reason": "the wait's promise executor: registers one waiter and one timer, constant work"
-		},
-		{
-			"id": "packages/core/src/runtime/import-again.ts > response_landed > Promise:0~7305f1 > defer:0~eaf5d9",
-			"reason": "the wait's cleanup: takes its waiter out, constant work"
-		},
-		{
-			"id": "packages/core/src/runtime/import-again.ts > response_landed > Promise:0~7305f1 > done",
-			"reason": "the wait settles: closes its scope and resolves, constant work"
-		},
-		{
-			"id": "packages/core/src/runtime/import-again.ts > response_landed > Promise:0~7305f1 > timeout:0~317c93",
-			"reason": "the wait runs out (a dropped download in WebKit): resolves null, constant work"
-		},
-		{
-			"id": "packages/core/src/server/rules.ts > no_kept_unkeyed_read",
-			"reason": "dev and e2e builds only: timers and a machine observer over module state; proven in packages/core/test/server-rules.test.ts"
-		},
-		{
-			"id": "packages/core/src/messages/server.ts > SERVER_WARNINGS > rule_kept_unkeyed_read > details",
-			"reason": "a rule's message wording (dev and e2e only), constant text; said in packages/core/test/server-rules.test.ts"
-		},
-		{
-			"id": "packages/core/src/messages/server.ts > SERVER_WARNINGS > rule_kept_unkeyed_read > text",
-			"reason": "a rule's message wording (dev and e2e only), constant text; said in packages/core/test/server-rules.test.ts"
-		},
-		{
-			"id": "packages/core/src/hooks.ts > OgygiaHandle > #hole_cache",
-			"reason": "a hole's cache key and the start of its read observation (a RequestEvent, not cloneable), constant work; run by packages/flags/test/hole-cache.test.ts through cached_render and the e2e hole suites"
-		},
-		{
-			"id": "packages/core/src/plugin/reads.ts > set_open_reads",
-			"reason": "installs the read-set reader once, at module load, constant work"
-		},
-		{
-			"id": "packages/core/src/server/render-page.ts > render_page > get data",
-			"reason": "notes a page.data read into the running render's read set and returns the data, constant work"
-		},
-		{
-			"id": "packages/core/src/plugin/server.ts > start_plugins > map:0~9f66ac > app > observeReads",
-			"reason": "forwards a RequestEvent (not cloneable) to observe_reads, constant work; packages/core/bench/server.bench.ts runs observe_reads"
-		},
-		{
-			"id": "packages/core/src/plugin/server.ts > start_plugins > map:0~9f66ac > app > warn > once:1~c9a4aa",
-			"reason": "prints one warning (console output, not replayable), constant work; proven in packages/core/test/plugins.test.ts"
-		},
-		{
-			"id": "packages/flags/src/index.ts > outbox:0~05e47f > giveUp > once:1~de49a5",
-			"reason": "prints one warning (console output, not replayable), constant work"
-		},
-		{
-			"id": "packages/machine/src/say.ts > say > get size",
-			"reason": "reads a Map's size, constant work; proven in packages/machine/test/say.test.ts"
-		},
-		{
-			"id": "packages/content/src/vite/index.ts > warn_placement > once:1~daa8fe",
-			"reason": "say(): one dev warning a file says once, constant work"
-		},
-		{
-			"id": "packages/core/src/compiler/debarrel/plugin.ts > debarrel > transform > rewrite_svelte:4~85d86d > once:1~fc2896",
-			"reason": "say(): one build warning a skipped component says once, constant work"
-		},
-		{
-			"id": "packages/core/src/compiler/region/transform.ts > say_unparsed",
-			"reason": "the build warning for a host the parser cannot read, said once per file, constant work"
-		},
-		{
-			"id": "packages/core/src/compiler/region/transform.ts > warn_unparsed > once:1~087a4c",
-			"reason": "say(): one build warning per unparsed file, constant work"
-		},
-		{
-			"id": "packages/core/src/plugin/css.ts > componentCssHead > once:1~695de0",
-			"reason": "say(): one dev warning for the process, constant work"
-		},
-		{
-			"id": "packages/core/src/runtime/hydrate-core.ts > PropMutationGuard > #warn > once:1~6adcde",
-			"reason": "say(): one dev warning per mutated prop path, constant work"
-		},
-		{
-			"id": "packages/core/src/runtime/import-again.ts > import_again > <anonymous>~106f1d > catch:0~ce98b7 > once:1~b3964f",
-			"reason": "say(): the page's one reload message, constant work"
-		},
-		{
-			"id": "packages/core/src/runtime/restore-report.ts > report > once:1~a177c8",
-			"reason": "say(): one warning per late host, constant work"
-		},
-		{
-			"id": "packages/core/src/store-transport.ts > __og_store > <anonymous>~221e3f > once:1~fd8aa8",
-			"reason": "say(): one warning per unbranded store tag, constant work"
-		},
-		{
-			"id": "packages/core/src/vite/style-preprocess.ts > preprocess_component_for_css > once:1~832199",
-			"reason": "say(): one build warning for the process, constant work"
-		},
-		{
-			"id": "packages/flags/src/index.ts > flag > bucket > once:1~0367ec",
-			"reason": "say(): one setup warning for the process, constant work"
-		},
-		{
-			"id": "packages/flags/src/index.ts > resolved_for > once:1~3c5497",
-			"reason": "say(): one setup warning for the process, constant work"
-		},
-		{
-			"id": "packages/flags/src/source-health.ts > source_failed > once:1~64efac",
-			"reason": "say(): one warning per failing streak, constant work"
-		},
-		{
-			"id": "packages/postrender/src/handle.ts > handle > <anonymous>~327efc > once:1~b7e8fe",
-			"reason": "say(): one setup warning for the process, constant work"
-		},
-		{
-			"id": "packages/postrender/src/registry.ts > install > once:1~4af86e",
-			"reason": "say(): one setup warning for the process, constant work"
-		},
-		{
-			"id": "packages/core/src/hooks.ts > OgygiaHandle > #pass_document",
-			"reason": "runs the plugins' document passes over one rendered page (the request's handle state: not recorded), once per document, linear in the passes"
-		},
-		{
-			"id": "packages/core/src/messages/server.ts > SERVER_ERRORS > handle_transform_moved > details",
-			"reason": "a message table entry: wording only"
-		},
-		{
-			"id": "packages/core/src/messages/server.ts > SERVER_ERRORS > handle_transform_moved > text",
-			"reason": "a message table entry: wording only"
-		},
-		{
-			"id": "packages/reshape/src/index.ts > handle",
-			"reason": "builds one SvelteKit handle (closure state: not cloneable), once per app; its pass is benched in packages/reshape/bench/markup.bench.ts"
-		},
-		{
-			"id": "packages/reshape/src/index.ts > handle > <anonymous>~eafc25",
-			"reason": "the handle per request (a RequestEvent and resolve: not recorded): hands the document to the pass, constant work of its own; the pass is benched in packages/reshape/bench/markup.bench.ts"
-		},
-		{
-			"id": "packages/reshape/src/messages.ts > RESHAPE_ERRORS > reshape_plugin_missing > details",
-			"reason": "a message table entry: wording only"
-		},
-		{
-			"id": "packages/reshape/src/messages.ts > RESHAPE_ERRORS > reshape_plugin_missing > text",
-			"reason": "a message table entry: wording only"
-		},
-		{
-			"id": "packages/reshape/src/pass.ts > reshape_pass > region",
-			"reason": "one region's pass inside reshape_pass (its closure over the document: not recorded), benched with the document pass in packages/reshape/bench/markup.bench.ts"
-		},
-		{
-			"id": "packages/reshape/src/restore.ts > restore",
-			"reason": "moved from packages/core/src/runtime/restore.ts with reshape (#607): never ran here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/reshape/test) prove it"
-		},
-		{
-			"id": "packages/reshape/src/restore.ts > restore > comments",
-			"reason": "moved from packages/core/src/runtime/restore.ts with reshape (#607): never ran here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/reshape/test) prove it"
-		},
-		{
-			"id": "packages/reshape/src/restore.ts > restore > describe",
-			"reason": "moved from packages/core/src/runtime/restore.ts with reshape (#607): never ran here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/reshape/test) prove it"
-		},
-		{
-			"id": "packages/reshape/src/restore.ts > restore > differ",
-			"reason": "moved from packages/core/src/runtime/restore.ts with reshape (#607): never ran here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/reshape/test) prove it"
-		},
-		{
-			"id": "packages/reshape/src/restore.ts > restore > esc",
-			"reason": "moved from packages/core/src/runtime/restore.ts with reshape (#607): never ran here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/reshape/test) prove it"
-		},
-		{
-			"id": "packages/reshape/src/restore.ts > restore > fix_text",
-			"reason": "moved from packages/core/src/runtime/restore.ts with reshape (#607): never ran here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/reshape/test) prove it"
-		},
-		{
-			"id": "packages/reshape/src/restore.ts > restore > log",
-			"reason": "moved from packages/core/src/runtime/restore.ts with reshape (#607): never ran here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/reshape/test) prove it"
-		},
-		{
-			"id": "packages/reshape/src/restore.ts > restore > map:0~54a21c",
-			"reason": "moved from packages/core/src/runtime/restore.ts with reshape (#607): never ran here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/reshape/test) prove it"
-		},
-		{
-			"id": "packages/reshape/src/restore.ts > restore > norm",
-			"reason": "moved from packages/core/src/runtime/restore.ts with reshape (#607): never ran here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/reshape/test) prove it"
-		},
-		{
-			"id": "packages/reshape/src/restore.ts > restore > norm > map:0~543c6f",
-			"reason": "moved from packages/core/src/runtime/restore.ts with reshape (#607): never ran here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/reshape/test) prove it"
-		},
-		{
-			"id": "packages/reshape/src/restore.ts > restore > original",
-			"reason": "moved from packages/core/src/runtime/restore.ts with reshape (#607): never ran here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/reshape/test) prove it"
-		},
-		{
-			"id": "packages/reshape/src/restore.ts > restore > reset",
-			"reason": "moved from packages/core/src/runtime/restore.ts with reshape (#607): never ran here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/reshape/test) prove it"
-		},
-		{
-			"id": "packages/reshape/src/restore.ts > restore > sheet_for",
-			"reason": "moved from packages/core/src/runtime/restore.ts with reshape (#607): never ran here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/reshape/test) prove it"
-		},
-		{
-			"id": "packages/reshape/src/restore.ts > restore > sort:0~178687",
-			"reason": "moved from packages/core/src/runtime/restore.ts with reshape (#607): never ran here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/reshape/test) prove it"
-		},
-		{
-			"id": "packages/reshape/src/restore.ts > restore > swap_stand_ins",
-			"reason": "moved from packages/core/src/runtime/restore.ts with reshape (#607): never ran here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/reshape/test) prove it"
-		},
-		{
-			"id": "packages/reshape/src/restore.ts > restore > verify",
-			"reason": "moved from packages/core/src/runtime/restore.ts with reshape (#607): never ran here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/reshape/test) prove it"
-		},
-		{
-			"id": "packages/reshape/src/restore.ts > restore > watch",
-			"reason": "moved from packages/core/src/runtime/restore.ts with reshape (#607): never ran here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/reshape/test) prove it"
-		},
-		{
-			"id": "packages/reshape/src/restore.ts > restore > watch > MutationObserver:0~19a5fb",
-			"reason": "moved from packages/core/src/runtime/restore.ts with reshape (#607): not recorded here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/reshape/test) prove it"
-		},
-		{
-			"id": "packages/reshape/src/restore.ts > restore > within",
-			"reason": "moved from packages/core/src/runtime/restore.ts with reshape (#607): never ran here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/reshape/test) prove it"
-		},
-		{
-			"id": "packages/reshape/src/restore.ts > restore_adopt",
-			"reason": "moved from packages/core/src/runtime/restore.ts with reshape (#607): never ran here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/reshape/test) prove it"
-		},
-		{
-			"id": "packages/reshape/src/restore.ts > restore_adopt > waiting",
-			"reason": "moved from packages/core/src/runtime/restore.ts with reshape (#607): never ran here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/reshape/test) prove it"
-		},
-		{
-			"id": "packages/reshape/src/restore.ts > restore_adopt > where",
-			"reason": "moved from packages/core/src/runtime/restore.ts with reshape (#607): never ran here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/reshape/test) prove it"
-		},
-		{
-			"id": "packages/reshape/src/reversible.ts > check_script",
-			"reason": "moved from packages/core/src/server/reversible.ts with reshape (#607): never ran here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/reshape/test) prove it"
-		},
-		{
-			"id": "packages/reshape/src/reversible.ts > localizeMarks",
-			"reason": "moved from packages/core/src/server/reversible.ts with reshape (#607): not cloneable here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/reshape/test) prove it"
-		},
-		{
-			"id": "packages/reshape/src/reversible.ts > localizeMarks > back",
-			"reason": "moved from packages/core/src/server/reversible.ts with reshape (#607): not replayable here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/reshape/test) prove it"
-		},
-		{
-			"id": "packages/reshape/src/reversible.ts > localizeMarks > back > remap:1~78687b",
-			"reason": "moved from packages/core/src/server/reversible.ts with reshape (#607): not replayable here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/reshape/test) prove it"
-		},
-		{
-			"id": "packages/reshape/src/reversible.ts > localizeMarks > map:0~5a97cd",
-			"reason": "moved from packages/core/src/server/reversible.ts with reshape (#607): not recorded here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/reshape/test) prove it"
-		},
-		{
-			"id": "packages/reshape/src/reversible.ts > localizeMarks > remap:1~c2f583",
-			"reason": "moved from packages/core/src/server/reversible.ts with reshape (#607): not replayable here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/reshape/test) prove it"
-		},
-		{
-			"id": "packages/reshape/src/reversible.ts > map:0~1d7705",
-			"reason": "moved from packages/core/src/server/reversible.ts with reshape (#607): not replayable here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/reshape/test) prove it"
-		},
-		{
-			"id": "packages/reshape/src/reversible.ts > mark > some:0~5343d7",
-			"reason": "moved from packages/core/src/server/reversible.ts with reshape (#607): never ran here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/reshape/test) prove it"
-		},
-		{
-			"id": "packages/reshape/src/reversible.ts > remap",
-			"reason": "moved from packages/core/src/server/reversible.ts with reshape (#607): not cloneable here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/reshape/test) prove it"
-		},
-		{
-			"id": "packages/reshape/src/reversible.ts > script_json",
-			"reason": "moved from packages/core/src/server/reversible.ts with reshape (#607): never ran here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/reshape/test) prove it"
-		},
-		{
-			"id": "packages/reshape/src/reversible.ts > settle > find:0~12a6e6",
-			"reason": "moved from packages/core/src/server/reversible.ts with reshape (#607): not replayable here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/reshape/test) prove it"
-		},
-		{
-			"id": "packages/reshape/src/reversible.ts > transformMarkup",
-			"reason": "moved from packages/core/src/server/reversible.ts with reshape (#607): not recorded here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/reshape/test) prove it"
-		},
-		{
-			"id": "packages/reshape/src/server.ts > defineServer:0~5ced6a > pass",
-			"reason": "the plugin's document pass (the page's context: not cloneable), hands it to reshape_pass, constant work of its own; benched in packages/reshape/bench/markup.bench.ts"
-		},
-		{
-			"id": "packages/reshape/src/server.ts > defineServer:0~5ced6a > setup",
-			"reason": "the plugin's server setup, once per app (the ServerApp: not cloneable), constant work"
-		},
-		{
-			"id": "packages/reshape/src/split-regions.ts > make_region > withInner",
-			"reason": "moved from packages/core/src/server/split-regions.ts with reshape (#607): not cloneable here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/reshape/test) prove it"
-		},
-		{
-			"id": "packages/reshape/src/split-regions.ts > merge_class > replace:1~7fb3fd",
-			"reason": "moved from packages/core/src/server/split-regions.ts with reshape (#607): not replayable here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/reshape/test) prove it"
-		},
-		{
-			"id": "packages/reshape/src/vite.ts > reshape",
-			"reason": "the plugin factory: one definePlugin, once per config"
-		},
-		{
-			"id": "packages/core/src/runtime/client-plugins.ts > client_answer_parsed",
-			"reason": "browser only: hands a parsed region answer (a DocumentFragment: not replayable) to the client plugins that hook it, linear in them"
-		},
-		{
-			"id": "packages/core/src/runtime/client-plugins.ts > client_answer_placed",
-			"reason": "browser only: tells the client plugins that hook it a region answer was placed, linear in them"
-		},
-		{
-			"id": "packages/core/src/runtime/client-plugins.ts > client_region_hydrate",
-			"reason": "browser only: asks the client plugins that hook a region's hydrate (a DOM element: not replayable), linear in them (a handful), once per hydrate; nothing at all without one"
-		},
-		{
-			"id": "packages/core/src/runtime/client-plugins.ts > client_region_hydrate > <anonymous>~761ca0",
-			"reason": "browser only: runs each plugin's after-hydrate callback, linear in them (a handful)"
-		},
-		{
-			"id": "packages/reshape/src/client.ts > defineClient:0~5f52a9 > answerParsed",
-			"reason": "browser only: runs the page's inline restorer over one parsed answer (a DocumentFragment: not replayable)"
-		},
-		{
-			"id": "packages/reshape/src/client.ts > defineClient:0~5f52a9 > answerPlaced",
-			"reason": "browser only: one call of the page's inline adopt, constant work of its own"
-		},
-		{
-			"id": "packages/reshape/src/client.ts > defineClient:0~5f52a9 > boot",
-			"reason": "browser only: reshape's boot, once per page: wraps the inline restorer to report what it recorded"
-		},
-		{
-			"id": "packages/reshape/src/client.ts > defineClient:0~5f52a9 > regionHydrate",
-			"reason": "browser only: notes a region host's own class tokens before Svelte's hydrate (a DOM element: not replayable), once per hydrate; proven in packages/reshape/test/browser/host-classes.test.ts"
-		},
-		{
-			"id": "packages/reshape/src/client.ts > defineClient:0~5f52a9 > regionHydrate > <anonymous>~0199e1",
-			"reason": "browser only: puts the noted class tokens back after hydrate (DOM state: not replayable); proven in packages/reshape/test/browser/host-classes.test.ts"
-		},
-		{
-			"id": "packages/reshape/src/host-classes.ts > keep_host_classes",
-			"reason": "moved from packages/core/src/runtime/host-classes.ts with reshape (#608): never ran here, browser state; the gate on this base does not follow a file across packages, and the moved tests (packages/reshape/test) prove it"
-		},
-		{
-			"id": "packages/reshape/src/host-classes.ts > note_host_classes",
-			"reason": "moved from packages/core/src/runtime/host-classes.ts with reshape (#608): never ran here, browser state; the gate on this base does not follow a file across packages, and the moved tests (packages/reshape/test) prove it"
-		},
-		{
-			"id": "packages/reshape/src/messages.ts > RESHAPE_ERRORS > restore_markup_broken > details",
-			"reason": "a message table entry: wording only (moved from core with reshape, #608)"
-		},
-		{
-			"id": "packages/reshape/src/messages.ts > RESHAPE_ERRORS > restore_markup_broken > text",
-			"reason": "a message table entry: wording only (moved from core with reshape, #608)"
-		},
-		{
-			"id": "packages/reshape/src/messages.ts > RESHAPE_WARNINGS > restore_late > details",
-			"reason": "a message table entry: wording only (moved from core with reshape, #608)"
-		},
-		{
-			"id": "packages/reshape/src/messages.ts > RESHAPE_WARNINGS > restore_late > text",
-			"reason": "a message table entry: wording only (moved from core with reshape, #608)"
-		},
-		{
-			"id": "packages/reshape/src/restore-report.ts > report",
-			"reason": "moved from packages/core/src/runtime/restore-report.ts with reshape (#608): never ran here, browser state; the gate on this base does not follow a file across packages, and the moved tests (packages/reshape/test) prove it"
-		},
-		{
-			"id": "packages/reshape/src/restore-report.ts > report > once:1~a177c8",
-			"reason": "moved from packages/core/src/runtime/restore-report.ts with reshape (#608): never ran here, browser state; the gate on this base does not follow a file across packages, and the moved tests (packages/reshape/test) prove it"
-		},
-		{
-			"id": "packages/reshape/src/restore-report.ts > report_restores",
-			"reason": "moved from packages/core/src/runtime/restore-report.ts with reshape (#608): never ran here, browser state; the gate on this base does not follow a file across packages, and the moved tests (packages/reshape/test) prove it"
-		},
-		{
-			"id": "packages/reshape/src/restore-report.ts > report_restores > __og_restore",
-			"reason": "moved from packages/core/src/runtime/restore-report.ts with reshape (#608): never ran here, browser state; the gate on this base does not follow a file across packages, and the moved tests (packages/reshape/test) prove it"
-		},
-		{
-			"id": "packages/core/src/server/page-stream.ts > swap_tracked",
-			"reason": "the fallback walk for a page value too deep or cyclic for the untracked one, handed a swap function (not cloneable); linear in the value, one Map entry per open object; proven in packages/core/test/page-defer.test.ts (the cyclic cases)"
-		},
-		{
-			"id": "packages/core/src/server/page-stream.ts > swap_tracked > walk",
-			"reason": "one node of swap_tracked's walk over a closure (its Map and swap: not cloneable), constant work per node; proven in packages/core/test/page-defer.test.ts (the cyclic cases)"
-		},
-		{
-			"id": "packages/content/src/messages/runtime.ts > CONTENT_ERRORS > content_site_context_failed > text",
-			"reason": "a message table entry: wording only"
-		},
-		{
-			"id": "packages/content/src/messages/runtime.ts > CONTENT_ERRORS > content_site_context_failed > details",
-			"reason": "a message table entry: wording only"
-		},
-		{
-			"id": "packages/content/src/markdown/frontmatter.ts > reason_of",
-			"reason": "a thrown error to its words (an OgygiaError's class identity does not replay), two string slices, only on a frontmatter error; proven in packages/content/test/frontmatter-errors.test.ts"
-		},
-		{
-			"id": "packages/machine/src/trace.ts > trace",
-			"reason": "test and devtools tool, never on a page's path: one observe() subscription and a bounded ring of lines (max, default 500)"
-		},
-		{
-			"id": "packages/machine/src/trace.ts > trace > observe:0~38d8f1",
-			"reason": "test tool: one line formatted and pushed per machine move while a trace is on, oldest dropped past max, constant work per move"
-		},
-		{
-			"id": "packages/machine/src/trace.ts > trace > stop",
-			"reason": "test tool: ends the observe subscription, once"
-		},
-		{
-			"id": "packages/machine/src/trace.ts > trace > lines",
-			"reason": "test tool: a copy of the bounded ring (at most max lines), read when a test fails"
-		},
-		{
-			"id": "packages/machine/src/trace.ts > trace > text",
-			"reason": "test tool: the bounded ring joined, read when a test fails"
-		},
-		{
-			"id": "packages/machine/src/trace.ts > trace > clear",
-			"reason": "test tool: empties the ring, constant work"
-		},
-		{
-			"id": "packages/tooling/src/e2e/index.ts > moves",
-			"reason": "e2e fixture only (never shipped): reads the page's trace text once when a test fails"
-		},
-		{
-			"id": "packages/tooling/src/e2e/index.ts > moves > evaluate:0~b28489",
-			"reason": "e2e fixture only: one page.evaluate reading the trace text in the browser"
-		},
-		{
-			"id": "packages/tooling/src/vitest/trace-setup.ts > beforeEach:0~efb4a4",
-			"reason": "test setup only (never shipped): starts one trace per test"
-		},
-		{
-			"id": "packages/tooling/src/vitest/trace.ts > trace_on_failure",
-			"reason": "test setup only (never shipped): registers one onTestFailed per test"
-		},
-		{
-			"id": "packages/tooling/src/vitest/trace.ts > trace_on_failure > onTestFailed:0~8bf46a",
-			"reason": "test setup only: prints the trace once when a test fails"
-		},
-		{
-			"id": "packages/tooling/src/vitest/trace.ts > trace_on_failure > <anonymous>~1f95d7",
-			"reason": "test setup only: stops the trace at the test's end, once"
-		},
-		{
-			"id": "packages/core/src/messages/core.ts > ERRORS > region_version_invalid > text",
-			"reason": "a message's one-line text: one template string, on the error path only (an app passed a version that is not a time)"
-		},
-		{
-			"id": "packages/core/src/messages/core.ts > ERRORS > region_version_invalid > details",
-			"reason": "a message's details: one constant string, on the error path only"
-		},
-		{
-			"id": "packages/core/src/messages/core.ts > WARNINGS > region_answer_older > text",
-			"reason": "a dev warning's one-line text: one template string, only when an older answer is dropped"
-		},
-		{
-			"id": "packages/core/src/messages/core.ts > WARNINGS > region_answer_older > details",
-			"reason": "a dev warning's details: one constant string, only when an older answer is dropped"
-		},
-		{
-			"id": "packages/core/src/region.ts > to_version",
-			"reason": "one region's version to milliseconds: a typeof check and at most one Date.parse, once per held region render (not per element), constant work"
-		},
-		{
-			"id": "packages/core/src/transport.ts > dropped_older",
-			"reason": "one Map read and one compare per decoded versioned answer; the warning and devtools event only in dev or with devtools on, constant work"
-		},
-		{
-			"id": "packages/core/src/frame.ts > mark_written",
-			"reason": "one WeakMap set beside a decoded region value (hidden state), constant work; run by packages/core/test/browser/region-orderings.test.ts and sim-region.test.ts"
-		},
-		{
-			"id": "packages/core/src/frame.ts > written_order",
-			"reason": "one WeakMap read of a decoded region value's write order (hidden state), constant work; run by packages/core/test/browser/region-orderings.test.ts and sim-region.test.ts"
-		},
-		{
-			"id": "packages/core/src/runtime/frame-store.ts > shown_version",
-			"reason": "one Map read of the shown answer's version at an address, constant work"
-		},
-		{
-			"id": "packages/core/src/runtime/frame-store.ts > answer_definition",
-			"reason": "builds the stored-answer machine definition (plain data: three states, their steps), once per address entry; its moves are measured by the frame-store bench, the definition itself is not cloneable"
-		},
-		{
-			"id": "packages/core/src/server/region-endpoint.ts > hole_css",
-			"reason": "a map lookup and a handoff read (holeCss before the region rename, unmeasured on that base); its handoff read is region_css's, which the request benches run"
-		},
-		{
-			"id": "packages/core/src/server/region-endpoint.ts > make_region_endpoint",
-			"reason": "signs with the process's key and the request's session (hidden state; makeRegionEndpoint before the region rename, unmeasured on that base); the signing it wraps is sign's, benched"
-		},
-		{
-			"id": "packages/core/src/server/region-endpoint.ts > mint_server_region",
-			"reason": "signs with the process's key and the request's session (hidden state; mintServerIsland before the region rename, unmeasured on that base); the signing it wraps is sign's, benched"
-		},
-		{
-			"id": "packages/core/src/messages/core.ts > ERRORS > request_event_server_only > details",
-			"reason": "a message table entry: wording only (the browser stand-in prints the bare link; test/region-server-browser.test.ts)"
-		},
-		{
-			"id": "packages/core/src/messages/core.ts > ERRORS > request_event_server_only > text",
-			"reason": "a message table entry: wording only (the browser stand-in prints the bare link; test/region-server-browser.test.ts)"
-		},
-		{
-			"id": "packages/devtools/src/profiler/maps-browser.ts > read_profiler_maps",
-			"reason": "the browser stand-in answers null, constant; the devtools suite is not recorded (proven in packages/devtools/test/profiler-maps-browser.test.ts)"
-		},
-		{
-			"id": "packages/devtools/src/profiler/maps-server.ts > read_profiler_maps",
-			"reason": "imports the server build's ogygia:server/profiler-maps module, which exists only inside a built app; constant work"
-		},
-		{
-			"id": "packages/devtools/src/profiler/maps-server.ts > read_profiler_maps > then:0~09dfc9",
-			"reason": "reads the one export of the server build's profiler-maps module, which exists only inside a built app; constant work"
-		},
-		{
-			"id": "packages/barrels/src/index.ts > barrels > log",
-			"reason": "the console fallback before configResolved hands the plugin Vite's logger (never reached in a build: configResolved runs first); the logger path is benched in packages/barrels/bench/barrels.bench.ts"
-		},
-		{
-			"id": "packages/barrels/src/rewrite.ts > quote > replace:1~5719f3",
-			"reason": "the escape callback of one character (a table lookup, constant work); quote's escapes are proven in packages/barrels/test/rewrite.test.ts"
-		},
-		{
-			"id": "packages/core/src/compiler/dev/region-bytes.ts > island_subgraph_bytes > map:0~c49ee0",
-			"reason": "a barrel row's importers to their ids (one property read each), only with the dev server's live module graph; proven in packages/core/test/region-bytes.test.ts"
-		},
-		{
-			"id": "packages/devtools/src/profiler/report.ts > ogygia_findings > flatMap:0~283e13",
-			"reason": "the reasons of at most three listed barrels (constant work); proven in packages/devtools/test/profiler.test.ts"
-		},
-		{
-			"id": "packages/config/src/vitest.ts > exact",
-			"reason": "test config: one stub alias's pattern when a vitest config loads (before any test or bench), constant work; every node test job runs it"
 		},
 		{
 			"id": "packages/federation/src/messages.ts > FEDERATION_ERRORS > shared_state_not_plain > details",
@@ -2759,30 +2239,6 @@
 		{
 			"id": "packages/content/src/vite/leaks.ts > warn_content_leaks > warn:1~cd9197 > map:0~a95637",
 			"reason": "build only: relative paths of at most five leaked modules, inside the warning"
-		},
-		{
-			"id": "packages/devtools/src/profiler/request-stats.ts > hold_request_stats_detail",
-			"reason": "returns a release closure (a function, not cloneable), constant work; proven in packages/devtools/test/request-stats-detail.test.ts"
-		},
-		{
-			"id": "packages/devtools/src/profiler/request-stats.ts > hold_request_stats_detail > <anonymous>~4ba179",
-			"reason": "lets go of one hold in a module-level set (not replayable: process state), constant work; proven in packages/devtools/test/request-stats-detail.test.ts"
-		},
-		{
-			"id": "packages/core/src/contract/trigger.ts > on_schedule",
-			"reason": "hands a callback to one of four schedule arms (functions, not cloneable), one parse and one branch, constant work"
-		},
-		{
-			"id": "packages/core/src/runtime/lakes.ts > on_frozen_connect > on_schedule:2~6d0320",
-			"reason": "browser only: a stored page's swr lake revalidates on its schedule, one fetch call, constant work"
-		},
-		{
-			"id": "packages/core/src/runtime/lakes.ts > on_frozen_connect > on_schedule:2~6d0320#2",
-			"reason": "browser only: a cached lake revalidates on its schedule, one fetch call, constant work"
-		},
-		{
-			"id": "packages/core/src/runtime/lakes.ts > on_frozen_connect > on_schedule:2~6d0320#3",
-			"reason": "browser only: a cached lake revalidates on its schedule, one fetch call, constant work"
 		},
 		{
 			"id": "packages/core/src/server/request-stats.ts > set_request_stats_sink",
@@ -2873,356 +2329,96 @@
 			"reason": "build only: the hidden-sourcemaps switch, always on in a build with the profiler, constant work"
 		},
 		{
-			"id": "packages/core/src/runtime/router-nav.ts > live_page_head",
-			"reason": "browser only: reads the live <head>'s page-owned nodes (not cloneable), linear in the head; proven in packages/core/test/browser/nav-head-order.test.ts (#794)"
+			"id": "packages/devtools/src/devtools/hook-entries.ts > built_dev",
+			"reason": "reads one field of the page's hook record (a global: hidden state), constant work"
 		},
 		{
-			"id": "packages/core/src/runtime/router-nav.ts > head_slot",
-			"reason": "browser only: walks a parsed head node's earlier siblings against the live <head> (not cloneable), linear in the head; proven in packages/core/test/browser/nav-head-order.test.ts (#794)"
+			"id": "packages/devtools/src/devtools/hook-record.ts > record",
+			"reason": "the page's hook record from its global, made once (hidden state), constant work"
 		},
 		{
-			"id": "packages/core/src/runtime/router-nav.ts > adopt_title",
-			"reason": "browser only: reads the parsed document's title and writes the live document's (not cloneable), constant work; proven in packages/core/test/browser/nav-no-title.test.ts"
+			"id": "packages/devtools/src/devtools/testing-script.ts > api > get live",
+			"reason": "the injected engine only (a page in a test): one field read of the hook record, constant work"
 		},
 		{
-			"id": "packages/federation/src/messages.ts > FEDERATION_WARNINGS > federation_audience_missing > text",
-			"reason": "a warning's wording, constant text; said in packages/federation/test/federation.test.ts"
+			"id": "packages/devtools/src/devtools/testing-script.ts > api > page",
+			"reason": "the injected engine only (a page in a test): hands the call to page_json, whose work it is"
 		},
 		{
-			"id": "packages/federation/src/messages.ts > FEDERATION_WARNINGS > federation_audience_missing > details",
-			"reason": "a warning's longer wording for its error page, constant text"
+			"id": "packages/devtools/src/devtools/testing-script.ts > api > hydration",
+			"reason": "the injected engine only (a page in a test): hands the call to hydration_json, whose work it is"
 		},
 		{
-			"id": "packages/federation/src/wire.ts > checker > capability:0~070b09 > signer > sign",
-			"reason": "the check side's signer stub: it never signs (every check brings its own keys), no work"
+			"id": "packages/devtools/src/devtools/testing-script.ts > api > record_start",
+			"reason": "the injected engine only (a page in a test): hands the call to record_start, whose work it is"
 		},
 		{
-			"id": "packages/federation/src/wire.ts > checker > capability:0~070b09 > signer > verify",
-			"reason": "the check side's signer stub: every check brings its own keys, so this always refuses, no work"
+			"id": "packages/devtools/src/devtools/testing-script.ts > api > record_stop",
+			"reason": "the injected engine only (a page in a test): hands the call to record_stop, whose work it is"
 		},
 		{
-			"id": "packages/federation/src/wire.ts > minter > capability:0~81c9d6 > signer > verify",
-			"reason": "the mint side's verify stub: a minter checks nothing (the receiver brings its keys), no work"
+			"id": "packages/devtools/src/devtools/testing-script.ts > api > settled",
+			"reason": "the injected engine only (a page in a test): hands the call to settled, whose work it is"
 		},
 		{
-			"id": "packages/federation/src/wire.ts > configured_audience",
-			"reason": "reads the process's ORIGIN once per federate() (hidden state: the environment), one URL parse, constant work; proven in packages/federation/test/federation.test.ts"
+			"id": "packages/devtools/src/devtools/regions.ts > use_sidecar_lookup",
+			"reason": "keeps the realm's lookup (a function: not cloneable), once per page, constant work"
 		},
 		{
-			"id": "packages/devtools/src/profiler/index.ts > Profiler > #ids",
-			"reason": "the profiler's window ids, made once per instance (a profiler instance, not cloneable): one lazy import and one call of window_ids, which packages/devtools/bench/window-id.bench.ts measures; proven in packages/devtools/test/profiler-window-id.test.ts"
+			"id": "packages/testing/src/index.ts > engine_script",
+			"reason": "the test process reads the built engine file once (a file on disk, not recorded), then the cached text"
 		},
 		{
-			"id": "packages/devtools/src/profiler/index.ts > Profiler > #ids > then:0~2b15d2",
-			"reason": "hands the loaded module's window_ids the profiler's secret, mode and audience (a module namespace, not cloneable), constant work; window_ids is benched in packages/devtools/bench/window-id.bench.ts"
+			"id": "packages/devtools/src/client-beacon.ts > on_region_hydrated",
+			"reason": "browser only: hands one hook event (a DOM element: not replayable) to beacon_hydrated, constant work of its own"
 		},
 		{
-			"id": "packages/devtools/src/profiler/window-id.ts > hmac_signer",
-			"reason": "wraps a derived key (a Buffer, not cloneable) in a sign/verify pair, once per profiler; the mint and check it serves are benched in packages/devtools/bench/window-id.bench.ts"
+			"id": "packages/devtools/src/client-beacon.ts > on_region_failed",
+			"reason": "browser only: hands one hook event (a DOM element: not replayable) to beacon_failed, constant work of its own"
 		},
 		{
-			"id": "packages/core/src/compiler/macros/pipeline.ts > run_module_macros > refuse",
-			"reason": "throws the coded build error (not replayable), constant work; proven in packages/core/test/macros-own-source.test.ts"
+			"id": "packages/devtools/src/client-beacon.ts > on_hole_answered",
+			"reason": "browser only: hands one hook event (a DOM element: not replayable) to beacon_hole_answered, constant work of its own"
 		},
 		{
-			"id": "packages/core/src/compiler/driver.ts > Compiler > macros > run_module_macros:2~cee8e9 > ownSource",
-			"reason": "forwards to CompileCtx.is_own_source, one call; proven in packages/core/test/macros-own-source.test.ts"
+			"id": "packages/devtools/src/client-beacon.ts > on_hole_failed",
+			"reason": "browser only: renames one field of a hook event for beacon_hole_failed, constant work of its own"
 		},
 		{
-			"id": "packages/core/src/compiler/ctx.ts > CompileCtx > is_own_source",
-			"reason": "one substring test and the declared-package lookup (a CompileCtx, hidden state), constant work per declared root"
+			"id": "packages/devtools/src/client-beacon.ts > on_hole_batch_missed",
+			"reason": "browser only: renames one field of a hook event for beacon_hole_batch_missed, constant work of its own"
 		},
 		{
-			"id": "packages/core/src/compiler/messages.ts > BUILD_ERRORS > macro_outside_app > text",
-			"reason": "a message's wording, constant text; said in packages/core/test/macros-own-source.test.ts"
+			"id": "packages/devtools/src/devtools/hook-entries.ts > state",
+			"reason": "the page's one hook record on a globalThis symbol (hidden state), a get-or-create; proven in packages/devtools/test/devtools-hook-record.test.ts"
 		},
 		{
-			"id": "packages/core/src/compiler/messages.ts > BUILD_ERRORS > macro_outside_app > details",
-			"reason": "a message's wording, constant text; said in packages/core/test/macros-own-source.test.ts"
+			"id": "packages/devtools/src/devtools/hook-entries.ts > hook_entries",
+			"reason": "reads the global hook record's entries (hidden state), constant work; proven in packages/devtools/test/devtools-hook-record.test.ts"
 		},
 		{
-			"id": "packages/postrender/src/server.ts > credentialed",
-			"reason": "two header lookups on the request (a Request, not cloneable), once per request, constant work; proven in packages/postrender/test/plugin.test.ts"
+			"id": "packages/devtools/src/devtools/hook-entries.ts > on_hook",
+			"reason": "adds one listener (a function: not cloneable) to the global hook record, constant work"
 		},
 		{
-			"id": "packages/core/src/vite/package-files.ts > discover_package_files > inside",
-			"reason": "a closure over the package's real root (not replayable), one prefix compare; proven in packages/core/test/package-files.test.ts"
+			"id": "packages/devtools/src/devtools/hook-entries.ts > on_hook > <anonymous>~55fa77",
+			"reason": "removes one listener from a Set (process state: not replayable), constant work"
 		},
 		{
-			"id": "packages/core/src/server/rules.ts > note_region_answer",
-			"reason": "dev and e2e builds only: reads a live Response (not cloneable) into module state, constant work; proven in packages/core/test/server-rules-region.test.ts"
+			"id": "packages/devtools/src/devtools/page.ts > last_nav > flatMap:0~408dbd",
+			"reason": "one hook entry to its navStarted start or nothing, inside last_nav's one pass, constant work; proven in packages/devtools/test/devtools-last-nav.test.ts"
 		},
 		{
-			"id": "packages/core/src/server/rules.ts > note_minted_capability",
-			"reason": "dev and e2e builds only: two prefix tests into module state (hidden state), constant work; proven in packages/core/test/server-rules-region.test.ts"
+			"id": "packages/devtools/src/devtools/session.ts > start_session > on_hook:0~0806a1",
+			"reason": "browser only: the session's hook listener, one push and on navStarted one region-name pass, linear in the regions"
 		},
 		{
-			"id": "packages/core/src/server/rules.ts > install_server_rules > add:1~32ab66",
-			"reason": "dev and e2e builds only: the region-answer rule joins its module list (hidden state), linear in the unsafe answers seen; proven in packages/core/test/server-rules-region.test.ts"
+			"id": "packages/insights/src/session-insights.ts > analyze_session > flatMap:0~2b7bc1",
+			"reason": "one hook entry to its load wait or nothing, inside analyze_session's pass, constant work"
 		},
 		{
-			"id": "packages/core/src/server/rules.ts > install_server_rules > add:1~dd5fc5",
-			"reason": "dev and e2e builds only: the minted-capability rule joins its module list (hidden state), linear in the unsafe mints seen; proven in packages/core/test/server-rules-region.test.ts"
-		},
-		{
-			"id": "packages/core/src/server/rules.ts > region_answer_unsafe",
-			"reason": "dev and e2e builds only: reads a live Response's headers (not cloneable), constant work; proven in packages/core/test/server-rules-region.test.ts"
-		},
-		{
-			"id": "packages/core/src/messages/server.ts > SERVER_WARNINGS > rule_region_answer_shared > text",
-			"reason": "a rule's message wording (dev and e2e only), constant text; said in packages/core/test/server-rules-region.test.ts"
-		},
-		{
-			"id": "packages/core/src/messages/server.ts > SERVER_WARNINGS > rule_region_answer_shared > details",
-			"reason": "a rule's message wording (dev and e2e only), constant text; said in packages/core/test/server-rules-region.test.ts"
-		},
-		{
-			"id": "packages/core/src/messages/server.ts > SERVER_WARNINGS > rule_capability_not_path > text",
-			"reason": "a rule's message wording (dev and e2e only), constant text; said in packages/core/test/server-rules-region.test.ts"
-		},
-		{
-			"id": "packages/core/src/messages/server.ts > SERVER_WARNINGS > rule_capability_not_path > details",
-			"reason": "a rule's message wording (dev and e2e only), constant text; said in packages/core/test/server-rules-region.test.ts"
-		},
-		{
-			"id": "packages/core/src/runtime/rules.ts > head_candidates",
-			"reason": "browser only, dev and e2e builds: one query of the live head (DOM nodes, not cloneable), linear in its base and http-equiv nodes; proven in packages/core/test/browser/spa-head-deny.test.ts"
-		},
-		{
-			"id": "packages/core/src/runtime/rules.ts > head_not_adopted",
-			"reason": "browser only, dev and e2e builds: the rule's answer over the live head (DOM nodes, not cloneable), linear in its base and http-equiv nodes; proven in packages/core/test/browser/spa-head-deny.test.ts and read at the end of every palaestra e2e spec"
-		},
-		{
-			"id": "packages/core/src/runtime/rules.ts > watch_head",
-			"reason": "browser only, dev and e2e builds: takes the first document's head once (DOM nodes, not cloneable) and installs the rule; proven in packages/core/test/browser/spa-head-deny.test.ts"
-		},
-		{
-			"id": "packages/core/src/runtime/rules.ts > watch_head > map:0~7d8330",
-			"reason": "browser only, dev and e2e builds: one head node's outerHTML (a DOM node, not cloneable), constant work; proven in packages/core/test/browser/spa-head-deny.test.ts"
-		},
-		{
-			"id": "packages/core/src/runtime/rules.ts > watch_head > __og_head_deny",
-			"reason": "browser only, dev and e2e builds: the router's lazy chunk hands its deny in (one assignment), constant work; proven in packages/core/test/browser/spa-head-deny.test.ts"
-		},
-		{
-			"id": "packages/core/src/runtime/head-deny.ts > is_dangerous_head_node",
-			"reason": "browser only: a tag name and one attribute of a head node (a DOM element, not cloneable), constant work; proven in packages/core/test/browser/spa-head-deny.test.ts in three engines"
-		},
-		{
-			"id": "packages/core/src/messages/core.ts > WARNINGS > rule_head_adopted > details",
-			"reason": "a rule's message wording (dev and e2e only), constant text; said in packages/core/test/browser/spa-head-deny.test.ts"
-		},
-		{
-			"id": "packages/core/src/messages/core.ts > WARNINGS > rule_head_adopted > text",
-			"reason": "a rule's message wording (dev and e2e only), constant text; said in packages/core/test/browser/spa-head-deny.test.ts"
-		},
-		{
-			"id": "packages/core/src/runtime/core.ts > say_island_failed",
-			"reason": "browser only, an error path: says one coded console error for an island that could not start (an Error, not cloneable), constant work; proven in packages/core/test/browser/live-region-failed-file.test.ts (#942)"
-		},
-		{
-			"id": "packages/compiler/src/compiler/virtual/core.ts > family:0~04bf59 > load > server_manifest_module:3~e7ea15",
-			"reason": "the server manifest's dev URL of one registered region (a lambda handed to the generator), constant work; the bench session registers no region"
-		},
-		{
-			"id": "packages/compiler/src/compiler/virtual/core.ts > family:0~04bf59 > load > server_manifest_module:4~126d93",
-			"reason": "the server manifest's public URL of one registered region (a lambda handed to the generator), constant work; the bench session registers no region"
-		},
-		{
-			"id": "packages/compiler/src/compiler/virtual/core.ts > family:0~359af7 > load > router_css_module:1~4ebdf0 > read_file",
-			"reason": "one file read for the server router's CSS, a pass-through to the host fs (the router-css generator's own tests read real routes)"
-		},
-		{
-			"id": "packages/compiler/src/compiler/messages.ts > BUILD_ERRORS > virtual_wrong_realm > details",
-			"reason": "a message table entry: wording only"
-		},
-		{
-			"id": "packages/compiler/src/compiler/messages.ts > BUILD_ERRORS > virtual_wrong_realm > text",
-			"reason": "a message table entry: wording only"
-		},
-		{
-			"id": "packages/compiler/src/compiler/messages.ts > BUILD_ERRORS > virtual_unknown > details",
-			"reason": "a message table entry: wording only"
-		},
-		{
-			"id": "packages/compiler/src/compiler/messages.ts > BUILD_ERRORS > virtual_duplicate > details",
-			"reason": "a message table entry: wording only"
-		},
-		{
-			"id": "packages/compiler/src/compiler/virtual/core.ts > map:0~fa4377",
-			"reason": "declares the six driver-resolved families once, as core.ts loads; constant, never per build"
-		},
-		{
-			"id": "packages/compiler/src/compiler/virtual/table.ts > virtual > family",
-			"reason": "a table constructor: called once per entry as core.ts loads, returns its argument with its kind"
-		},
-		{
-			"id": "packages/compiler/src/compiler/virtual/table.ts > virtual > request",
-			"reason": "a table constructor: called once per entry as core.ts loads, returns its argument with its kind"
-		},
-		{
-			"id": "packages/compiler/src/compiler/messages.ts > BUILD_ERRORS > barrels_option_removed > details",
-			"reason": "a message table entry: wording only"
-		},
-		{
-			"id": "packages/compiler/src/compiler/messages.ts > BUILD_ERRORS > barrels_option_removed > text",
-			"reason": "a message table entry: wording only"
-		},
-		{
-			"id": "packages/compiler/src/vite/index.ts > ogygia > seams > exports > map",
-			"reason": "a plugin's export index for one environment (a Map get or create over ogygia()'s closure: not replayable); the index's work is benched in packages/core/bench/compiler.bench.ts; proven through barrels() against a real Vite dev server in packages/barrels/test/plugin.test.ts"
-		},
-		{
-			"id": "packages/compiler/src/vite/index.ts > ogygia > seams > exports > map > ExportIndex:0~b7ee02",
-			"reason": "the index's resolver: the transformed module's own resolve (a live Vite plugin context, not recorded); proven in packages/barrels/test/plugin.test.ts"
-		},
-		{
-			"id": "packages/compiler/src/vite/index.ts > ogygia > seams > pinned_imports",
-			"reason": "the app's import keys and asRegion locals over ogygia()'s closure (not replayable); asRegionLocals is benched with the region transform; proven through barrels() in packages/barrels/test/plugin.test.ts and packages/barrels/test/as-region.test.ts"
-		},
-		{
-			"id": "packages/compiler/src/vite/index.ts > ogygia > barrels_left_of",
-			"reason": "one table per environment and stage in ogygia()'s closure, made once (a map lookup); the table itself is benched in packages/core/bench/compiler.bench.ts"
-		},
-		{
-			"id": "packages/compiler/src/vite/index.ts > ogygia > barrel_why",
-			"reason": "the client tables' why for one barrel row, over ogygia()'s closure (not replayable), at most two lookups; the join is benched in packages/core/bench/compiler.bench.ts and proven in packages/core/test/barrel-left.test.ts"
-		},
-		{
-			"id": "packages/compiler/src/vite/index.ts > ogygia > barrel_why > filter:0~cf3029",
-			"reason": "orders at most nine reasons (constant work); the same filter in the table is benched in packages/core/bench/compiler.bench.ts"
-		},
-		{
-			"id": "packages/compiler/src/vite/index.ts > ogygia > seams > pinned_imports > <anonymous>~a269ad",
-			"reason": "one declaration against the pinned keys and locals (constant work over ogygia()'s closure); proven in packages/barrels/test/plugin.test.ts and packages/barrels/test/as-region.test.ts"
-		},
-		{
-			"id": "packages/compiler/src/vite/index.ts > ogygia > seams > pinned_imports > <anonymous>~a269ad > some:0~d4dbd6",
-			"reason": "one specifier's local against the asRegion locals (a Set has); proven in packages/barrels/test/as-region.test.ts"
-		},
-		{
-			"id": "packages/compiler/src/vite/index.ts > ogygia > seams > pinned_imports > <anonymous>~a269ad > some:0~e91cb2",
-			"reason": "one attribute key against the app's import keys (a Set has); proven in packages/barrels/test/plugin.test.ts"
-		},
-		{
-			"id": "packages/compiler/src/vite/index.ts > ogygia > stage_host",
-			"reason": "builds one Vite plugin object per stage (constant work, over ogygia()'s closure); the stage's transforms are benched in packages/barrels/bench/barrels.bench.ts"
-		},
-		{
-			"id": "packages/compiler/src/vite/index.ts > ogygia > stage_host > transform",
-			"reason": "a live Vite transform hook (its this.resolve and this.addWatchFile are the plugin context, not recorded); a stage's work is the plugins' transforms, benched in packages/barrels/bench/barrels.bench.ts; proven against a real Vite dev server and build in packages/barrels/test/plugin.test.ts"
-		},
-		{
-			"id": "packages/compiler/src/vite/index.ts > ogygia > stage_host > transform > filter:0~18c7ef",
-			"reason": "each stage transform's own filter on the module id (constant work per plugin); proven in packages/barrels/test/plugin.test.ts"
-		},
-		{
-			"id": "packages/compiler/src/vite/index.ts > ogygia > stage_host > transform > t > resolve",
-			"reason": "one specifier through the host's this.resolve (a live Vite plugin context, not recorded); its throw and external cases are proven in packages/barrels/test/plugin.test.ts"
-		},
-		{
-			"id": "packages/compiler/src/vite/index.ts > ogygia > stage_host > transform > t > watch",
-			"reason": "the host's this.addWatchFile (a live Vite plugin context, not recorded); proven by the barrel-edit case in packages/barrels/test/plugin.test.ts"
-		},
-		{
-			"id": "packages/compiler/src/vite/plugin-api.ts > NO_SEAMS > exports > map",
-			"reason": "a constant rejection for a plugin list resolved outside ogygia(); proven in packages/core/test/plugins.test.ts"
-		},
-		{
-			"id": "packages/compiler/src/vite/plugin-api.ts > NO_SEAMS > pinned_imports",
-			"reason": "a constant throw for a plugin list resolved outside ogygia(); proven in packages/core/test/plugins.test.ts"
-		},
-		{
-			"id": "packages/compiler/src/vite/plugin-api.ts > resolve_plugins > build:0~4ffc6b > transform",
-			"reason": "one push of a plugin's stage transform (a function: not replayable), constant work; proven in packages/core/test/plugins.test.ts"
-		},
-		{
-			"id": "packages/compiler/src/compiler/exports/index.ts > EVERY_BARREL > forced",
-			"reason": "a constant answer (false) of the allow-everything policy"
-		},
-		{
-			"id": "packages/compiler/src/compiler/exports/parse.ts > attribute_keys > map:0~781359",
-			"reason": "one attribute node to its key name (an oxc AST node: not replayable), constant work; the parse is benched in packages/core/bench/compiler.bench.ts"
-		},
-		{
-			"id": "packages/compiler/src/vite/index.ts > ogygia > Shapes:0~f72d16",
-			"reason": "the app's file read for its shared shapes (a BOM-stripped read over the plugin's closure: not replayable); the shapes are benched in packages/core/bench/compiler.bench.ts"
-		},
-		{
-			"id": "packages/compiler/src/compiler/fouc-css.ts > through_caller",
-			"reason": "hands one specifier to the walk's resolver (a function argument: not cloneable); proven in packages/core/test/exports-index.test.ts"
-		},
-		{
-			"id": "packages/compiler/src/compiler/fouc-css.ts > collectFoucCssReachable > Shapes:0~3bebf5",
-			"reason": "the walk's own file read for a fresh index's shapes (a pass-through to the caller's reader: not replayable); proven in packages/core/test/exports-index.test.ts"
-		},
-		{
-			"id": "packages/compiler/src/vite/index.ts > ogygia > css_walk_index",
-			"reason": "the CSS walk's export index for one environment (a Map get or create over the plugin's closure), constant work; the index's work is benched in packages/core/bench/compiler.bench.ts"
-		},
-		{
-			"id": "packages/insights/src/page-assets.ts > weigh_one > Promise:0~9ee1b9 > timeout:0~e7251f",
-			"reason": "a file's budget race timer on its own scope (a fetched Response, not cloneable), constant work; run by packages/insights/test/profiler-page-assets.test.ts"
-		},
-		{
-			"id": "packages/insights/src/page-assets.ts > weigh_one > finally:0~4a8350",
-			"reason": "a file's budget race timer on its own scope (a fetched Response, not cloneable), constant work; run by packages/insights/test/profiler-page-assets.test.ts"
-		},
-		{
-			"id": "packages/compiler/src/vite/index.ts > ogygia > seams > regions > barrelWhy",
-			"reason": "dev only: the regions seam hands the dock one barrel answer from the build's index, constant work of its own"
-		},
-		{
-			"id": "packages/compiler/src/vite/index.ts > ogygia > seams > regions > names",
-			"reason": "dev only: the regions seam lists the build's region entries, linear in the regions"
-		},
-		{
-			"id": "packages/compiler/src/vite/plugin-api.ts > NO_SEAMS > regions > barrelWhy",
-			"reason": "the empty seam a plugin sees before the build is set up: answers nothing, constant work"
-		},
-		{
-			"id": "packages/compiler/src/vite/plugin-api.ts > NO_SEAMS > regions > names",
-			"reason": "the empty seam a plugin sees before the build is set up: answers nothing, constant work"
-		},
-		{
-			"id": "packages/compiler/src/vite/index.ts > ogygia > closeBundle",
-			"reason": "build only: Vite's closeBundle hook, once per build leg, constant work of its own"
-		},
-		{
-			"id": "packages/compiler/src/vite/paths.ts > runtime_content_hash",
-			"reason": "build only: hashes the runtime's files on disk (file reads, not recorded), once per build leg"
-		},
-		{
-			"id": "packages/compiler/src/vite/paths.ts > scan_entry_pattern",
-			"reason": "dev only: one island file to an optimizeDeps pattern (a realpath and one replace), constant work per file"
-		},
-		{
-			"id": "packages/core/src/contract/core-files.ts > built",
-			"reason": "one path.join into core's dist, run as the module loads (never per request or per build)"
-		},
-		{
-			"id": "packages/core/src/contract/core-files.ts > id_dir",
-			"reason": "real_posix and one trailing slash, run as the module loads (CORE_ROOT_ID), constant work"
-		},
-		{
-			"id": "packages/core/src/contract/core-files.ts > real_posix",
-			"reason": "one realpath on the file system (not replayable) and one replace, constant work"
-		},
-		{
-			"id": "packages/compiler/src/compiler/messages.ts > BUILD_ERRORS > plugin_client_hook_unknown > text",
-			"reason": "a message table entry: wording only"
-		},
-		{
-			"id": "packages/compiler/src/compiler/messages.ts > BUILD_ERRORS > plugin_client_hook_unknown > details",
-			"reason": "a message table entry: wording only"
-		},
-		{
-			"id": "packages/compiler/src/compiler/messages.ts > BUILD_ERRORS > plugin_client_hooks_unread > text",
-			"reason": "a message table entry: wording only"
-		},
-		{
-			"id": "packages/compiler/src/compiler/messages.ts > BUILD_ERRORS > plugin_client_hooks_unread > details",
-			"reason": "a message table entry: wording only"
+			"id": "packages/insights/src/session-insights.ts > analyze_session > push:0~e8d6d3 > flatMap:0~0d228a",
+			"reason": "one woke entry to its island fp or nothing, inside analyze_session's pass, constant work"
 		},
 		{
 			"id": "packages/core/src/messages/core.ts > ERRORS > client_hook_failed > text",
@@ -3231,10 +2427,6 @@
 		{
 			"id": "packages/core/src/messages/core.ts > ERRORS > client_hook_failed > details",
 			"reason": "a message table entry: wording only"
-		},
-		{
-			"id": "packages/compiler/src/compiler/virtual/core.ts > hook_gate",
-			"reason": "declares one hook constant (its from is a lambda: not cloneable), once per hook as core.ts loads; constant, never per build"
 		},
 		{
 			"id": "packages/core/src/runtime/client-plugins.ts > joined",
@@ -3251,54 +2443,6 @@
 		{
 			"id": "packages/core/src/runtime/client-plugins.ts > joined > <anonymous>~76c203 > catch:0~d63084",
 			"reason": "browser only: a subscriber's rejected promise to report, constant work"
-		},
-		{
-			"id": "packages/compiler/src/vite/plugin-api.ts > client_hook_names > unread",
-			"reason": "builds one OgygiaError for an unreadable realm, constant work"
-		},
-		{
-			"id": "packages/compiler/src/vite/plugin-api.ts > client_hook_names > unwrap",
-			"reason": "one oxc AST node through its type wrappers (not replayable), at most a few steps; proven in packages/core/test/plugins.test.ts"
-		},
-		{
-			"id": "packages/compiler/src/vite/plugin-api.ts > client_hook_names > key_of",
-			"reason": "one oxc AST property to its key name (not replayable), constant work; proven in packages/core/test/plugins.test.ts"
-		},
-		{
-			"id": "packages/compiler/src/vite/plugin-api.ts > client_hook_names > filter:0~a8d4cb",
-			"reason": "one top-level statement against the export form (an oxc AST node: not replayable), once per realm per build; proven in packages/core/test/plugins.test.ts"
-		},
-		{
-			"id": "packages/compiler/src/vite/plugin-api.ts > client_hook_names > flatMap:0~9d68c8",
-			"reason": "one export statement to its specifiers (an oxc AST node: not replayable), once per realm per build; proven in packages/core/test/plugins.test.ts"
-		},
-		{
-			"id": "packages/compiler/src/vite/plugin-api.ts > client_hook_names > find:0~9b241a",
-			"reason": "one export specifier against the name default (an oxc AST node: not replayable), constant work; proven in packages/core/test/plugins.test.ts"
-		},
-		{
-			"id": "packages/compiler/src/vite/plugin-api.ts > client_hook_names > find:0~de07eb",
-			"reason": "one top-level statement against export default (an oxc AST node: not replayable), constant work; proven in packages/core/test/plugins.test.ts"
-		},
-		{
-			"id": "packages/compiler/src/vite/plugin-api.ts > client_hook_names > filter:0~08f42a",
-			"reason": "one top-level statement against a const declaration (an oxc AST node: not replayable), constant work; proven in packages/core/test/plugins.test.ts"
-		},
-		{
-			"id": "packages/compiler/src/vite/plugin-api.ts > client_hook_names > flatMap:0~15075b",
-			"reason": "one const declaration to its declarators (an oxc AST node: not replayable), constant work; proven in packages/core/test/plugins.test.ts"
-		},
-		{
-			"id": "packages/compiler/src/vite/plugin-api.ts > client_hook_names > find:0~e53b3e",
-			"reason": "one declarator against the exported name (an oxc AST node: not replayable), constant work; proven in packages/core/test/plugins.test.ts"
-		},
-		{
-			"id": "packages/compiler/src/vite/plugin-api.ts > client_hook_names > some:0~21370e",
-			"reason": "one property of the realm's object for a key it cannot read (an oxc AST node: not replayable), constant work; proven in packages/core/test/plugins.test.ts"
-		},
-		{
-			"id": "packages/compiler/src/vite/plugin-api.ts > client_hook_names > find:0~4d8122",
-			"reason": "one property of the realm's object against the key hooks (an oxc AST node: not replayable), constant work; proven in packages/core/test/plugins.test.ts"
 		},
 		{
 			"id": "packages/devtools/src/profiler/beacon.ts > beacon_critical",
@@ -3889,6 +3033,206 @@
 			"reason": "e2e tooling: one override line per released-together package (three), run once per suite by apps/palaestra/e2e/adapters.spec.ts and kit3.spec.ts"
 		},
 		{
+			"id": "packages/devtools/src/devtools/session.ts > take_saved_session",
+			"reason": "browser only: one sessionStorage read and remove (hidden state), once per document; proven by packages/testing/e2e/ogygia-testing.spec.ts (record() across a full page load)"
+		},
+		{
+			"id": "packages/devtools/src/devtools/session.ts > resume_session",
+			"reason": "browser only: starts the recorder on the saved parts (module state, the document's body), once per document; proven by packages/testing/e2e/ogygia-testing.spec.ts (record() across a full page load)"
+		},
+		{
+			"id": "packages/devtools/src/devtools/testing-script.ts > on:2~955b4d",
+			"reason": "browser only: the injected engine's DOMContentLoaded listener, once per document, constant work of its own; proven by packages/testing/e2e/ogygia-testing.spec.ts"
+		},
+		{
+			"id": "packages/devtools/src/client-beacon.ts > BEACON_HOOKS > holeAnswered",
+			"reason": "browser only: one hook event to its beacon function (a DOM element in the event: not replayable), constant work of its own"
+		},
+		{
+			"id": "packages/devtools/src/client-beacon.ts > BEACON_HOOKS > holeBatchMissed",
+			"reason": "browser only: one hook event to its beacon function (a DOM element in the event: not replayable), constant work of its own"
+		},
+		{
+			"id": "packages/devtools/src/client-beacon.ts > BEACON_HOOKS > holeFailed",
+			"reason": "browser only: one hook event to its beacon function (a DOM element in the event: not replayable), constant work of its own"
+		},
+		{
+			"id": "packages/devtools/src/client-beacon.ts > BEACON_HOOKS > regionFailed",
+			"reason": "browser only: one hook event to its beacon function (a DOM element in the event: not replayable), constant work of its own"
+		},
+		{
+			"id": "packages/devtools/src/client-beacon.ts > BEACON_HOOKS > regionHydrated",
+			"reason": "browser only: one hook event to its beacon function (a DOM element in the event: not replayable), constant work of its own"
+		},
+		{
+			"id": "packages/devtools/src/client-beacon.ts > beacon_hook",
+			"reason": "browser only: one hook call to the beacon, once per page (first_handling), a switch on the hook name (a DOM element in the event: not cloneable)"
+		},
+		{
+			"id": "packages/devtools/src/client-beacon.ts > plugin > hooks > criticalSettled",
+			"reason": "browser only: hands one hook event on to the realm or beacon that records it (a DOM element in the event: not replayable), constant work of its own"
+		},
+		{
+			"id": "packages/devtools/src/client-beacon.ts > plugin > hooks > entryFallback",
+			"reason": "browser only: hands one hook event on to the realm or beacon that records it (a DOM element in the event: not replayable), constant work of its own"
+		},
+		{
+			"id": "packages/devtools/src/client-beacon.ts > plugin > hooks > holeAnswered",
+			"reason": "browser only: hands one hook event on to the realm or beacon that records it (a DOM element in the event: not replayable), constant work of its own"
+		},
+		{
+			"id": "packages/devtools/src/client-beacon.ts > plugin > hooks > holeBatchMissed",
+			"reason": "browser only: hands one hook event on to the realm or beacon that records it (a DOM element in the event: not replayable), constant work of its own"
+		},
+		{
+			"id": "packages/devtools/src/client-beacon.ts > plugin > hooks > holeFailed",
+			"reason": "browser only: hands one hook event on to the realm or beacon that records it (a DOM element in the event: not replayable), constant work of its own"
+		},
+		{
+			"id": "packages/devtools/src/client-beacon.ts > plugin > hooks > navigated",
+			"reason": "browser only: hands one hook event on to the realm or beacon that records it (a DOM element in the event: not replayable), constant work of its own"
+		},
+		{
+			"id": "packages/devtools/src/client-beacon.ts > plugin > hooks > regionFailed",
+			"reason": "browser only: hands one hook event on to the realm or beacon that records it (a DOM element in the event: not replayable), constant work of its own"
+		},
+		{
+			"id": "packages/devtools/src/client-beacon.ts > plugin > hooks > regionHydrated",
+			"reason": "browser only: hands one hook event on to the realm or beacon that records it (a DOM element in the event: not replayable), constant work of its own"
+		},
+		{
+			"id": "packages/devtools/src/client-beacon.ts > plugin > hooks > warning",
+			"reason": "browser only: hands one hook event on to the realm or beacon that records it (a DOM element in the event: not replayable), constant work of its own"
+		},
+		{
+			"id": "packages/devtools/src/client.ts > plugin > boot > realm_boot:1~ef831d > lend",
+			"reason": "browser only: lends the app's own chunk of names to the realm, one dynamic import, once per page"
+		},
+		{
+			"id": "packages/devtools/src/client.ts > plugin > boot > then:0~26dd7e",
+			"reason": "browser only, a build's switched-on dock: joins the regions' half to the page beacon once it started, once per document, constant work of its own"
+		},
+		{
+			"id": "packages/devtools/src/devtools/hook-once.ts > first_handling",
+			"reason": "browser only: one WeakSet has/add on a page-wide set under a globalThis symbol (hidden state), constant work"
+		},
+		{
+			"id": "packages/devtools/src/realm.ts > realm_boot",
+			"reason": "browser only: the realm's start at the runtime's boot, once per page: records its facts, installs the beacon, starts the leftovers watch"
+		},
+		{
+			"id": "packages/devtools/src/realm.ts > realm_hook",
+			"reason": "browser only: one hook call into the record, the leftovers watch and the beacon (a DOM element in the event: not cloneable), constant work of its own"
+		},
+		{
+			"id": "packages/testing/src/client.ts > defineClient:0~c5530d > boot",
+			"reason": "browser only: hands the runtime's boot to the injected engine, once per page; a visitor has no engine and it reads one global"
+		},
+		{
+			"id": "packages/testing/src/client.ts > defineClient:0~c5530d > boot > boot:1~53c81c > lend",
+			"reason": "browser only: lends the app's own chunk of names to the realm, one dynamic import, once per page"
+		},
+		{
+			"id": "packages/testing/src/client.ts > defineClient:0~c5530d > hooks > criticalSettled",
+			"reason": "browser only: hands one hook event on to the realm or beacon that records it (a DOM element in the event: not replayable), constant work of its own"
+		},
+		{
+			"id": "packages/testing/src/client.ts > defineClient:0~c5530d > hooks > entryFallback",
+			"reason": "browser only: hands one hook event on to the realm or beacon that records it (a DOM element in the event: not replayable), constant work of its own"
+		},
+		{
+			"id": "packages/testing/src/client.ts > defineClient:0~c5530d > hooks > holeAnswered",
+			"reason": "browser only: hands one hook event on to the realm or beacon that records it (a DOM element in the event: not replayable), constant work of its own"
+		},
+		{
+			"id": "packages/testing/src/client.ts > defineClient:0~c5530d > hooks > holeBatchMissed",
+			"reason": "browser only: hands one hook event on to the realm or beacon that records it (a DOM element in the event: not replayable), constant work of its own"
+		},
+		{
+			"id": "packages/testing/src/client.ts > defineClient:0~c5530d > hooks > holeFailed",
+			"reason": "browser only: hands one hook event on to the realm or beacon that records it (a DOM element in the event: not replayable), constant work of its own"
+		},
+		{
+			"id": "packages/testing/src/client.ts > defineClient:0~c5530d > hooks > loadStarted",
+			"reason": "browser only: hands one hook event on to the realm or beacon that records it (a DOM element in the event: not replayable), constant work of its own"
+		},
+		{
+			"id": "packages/testing/src/client.ts > defineClient:0~c5530d > hooks > navStarted",
+			"reason": "browser only: hands one hook event on to the realm or beacon that records it (a DOM element in the event: not replayable), constant work of its own"
+		},
+		{
+			"id": "packages/testing/src/client.ts > defineClient:0~c5530d > hooks > navigated",
+			"reason": "browser only: hands one hook event on to the realm or beacon that records it (a DOM element in the event: not replayable), constant work of its own"
+		},
+		{
+			"id": "packages/testing/src/client.ts > defineClient:0~c5530d > hooks > regionFailed",
+			"reason": "browser only: hands one hook event on to the realm or beacon that records it (a DOM element in the event: not replayable), constant work of its own"
+		},
+		{
+			"id": "packages/testing/src/client.ts > defineClient:0~c5530d > hooks > regionHydrated",
+			"reason": "browser only: hands one hook event on to the realm or beacon that records it (a DOM element in the event: not replayable), constant work of its own"
+		},
+		{
+			"id": "packages/testing/src/client.ts > defineClient:0~c5530d > hooks > regionMismatched",
+			"reason": "browser only: hands one hook event on to the realm or beacon that records it (a DOM element in the event: not replayable), constant work of its own"
+		},
+		{
+			"id": "packages/testing/src/client.ts > defineClient:0~c5530d > hooks > regionMount",
+			"reason": "browser only: hands one hook event on to the realm or beacon that records it (a DOM element in the event: not replayable), constant work of its own"
+		},
+		{
+			"id": "packages/testing/src/client.ts > defineClient:0~c5530d > hooks > regionUnmount",
+			"reason": "browser only: hands one hook event on to the realm or beacon that records it (a DOM element in the event: not replayable), constant work of its own"
+		},
+		{
+			"id": "packages/testing/src/client.ts > defineClient:0~c5530d > hooks > regionWoke",
+			"reason": "browser only: hands one hook event on to the realm or beacon that records it (a DOM element in the event: not replayable), constant work of its own"
+		},
+		{
+			"id": "packages/testing/src/client.ts > defineClient:0~c5530d > hooks > warning",
+			"reason": "browser only: hands one hook event on to the realm or beacon that records it (a DOM element in the event: not replayable), constant work of its own"
+		},
+		{
+			"id": "packages/testing/src/client.ts > realm",
+			"reason": "browser only: the injected engine's realm, one globalThis read"
+		},
+		{
+			"id": "packages/testing/src/vite.ts > names_plugin",
+			"reason": "builds one dev-only Vite plugin object, once per config"
+		},
+		{
+			"id": "packages/testing/src/vite.ts > names_plugin > configureServer",
+			"reason": "dev only: Vite's configureServer hook, once per dev server: adds one middleware"
+		},
+		{
+			"id": "packages/testing/src/vite.ts > names_plugin > configureServer > use:0~9a1d51",
+			"reason": "dev only: the names endpoint middleware over a live Node request (not recorded): one path compare, and on its path one JSON answer of the regions' names"
+		},
+		{
+			"id": "packages/testing/src/vite.ts > testing",
+			"reason": "the plugin factory: one definePlugin and one Vite plugin, once per config"
+		},
+		{
+			"id": "packages/testing/src/vite.ts > testing > definePlugin:0~5a0f45 > build",
+			"reason": "the build hook, once per build: keeps the regions seam in dev, constant work"
+		},
+		{
+			"id": "packages/testing/src/vite.ts > testing > names_plugin:0~479109",
+			"reason": "hands the names plugin the regions seam it reads, one closure read"
+		},
+		{
+			"id": "packages/testing/src/index.ts > Ogygia > constructor > catch:0~a1b2d0",
+			"reason": "a no-op for an injection that failed (its error is the first call's, which awaits it), constant work"
+		},
+		{
+			"id": "packages/testing/src/index.ts > playwrightDriver > addInitScript",
+			"reason": "hands one script to Playwright's page.addInitScript (a live Page: not recorded), once per test; proven by packages/testing/e2e/ogygia-testing.spec.ts"
+		},
+		{
+			"id": "packages/testing/src/index.ts > withOgygia > extend:0~40fb42 > ogygia > Ogygia:0~36a362 > addInitScript",
+			"reason": "keeps the driver's injection to await before the test's first load (a live Page: not recorded), once per test; proven by packages/testing/e2e/ogygia-testing.spec.ts"
+		},
+		{
 			"id": "packages/devtools/src/messages/runtime.ts > DEVTOOLS_WARNINGS > devtools_page_beacon_load_failed > text",
 			"reason": "a message table entry: wording only"
 		},
@@ -3911,6 +3255,30 @@
 		{
 			"id": "packages/devtools/src/page-beacon-start.ts > start_page_beacon > then:1~491fd5",
 			"reason": "browser only: a failed chunk download, said once per page (a module flag), constant work"
+		},
+		{
+			"id": "packages/devtools/src/client.ts > plugin > boot > record_realm:0~ef831d > lend",
+			"reason": "a dynamic import of the realm's loan chunk, asked once per page by a reader not built with the app; the import is the bundler's"
+		},
+		{
+			"id": "packages/devtools/src/client-beacon.ts > plugin > boot",
+			"reason": "browser only: installs the beacon once per page (install_beacon), constant work of its own"
+		},
+		{
+			"id": "packages/devtools/src/client.ts > plugin > hooks > regionWoke",
+			"reason": "browser only: one record_hook of a hook event (a DOM element: not replayable), constant work of its own"
+		},
+		{
+			"id": "packages/devtools/src/client.ts > plugin > hooks > regionMismatched",
+			"reason": "browser only: one record_hook of a hook event (a DOM element: not replayable), constant work of its own"
+		},
+		{
+			"id": "packages/devtools/src/client.ts > plugin > hooks > navStarted",
+			"reason": "browser only: one record_hook of a hook event, constant work of its own"
+		},
+		{
+			"id": "packages/devtools/src/client.ts > plugin > hooks > loadStarted",
+			"reason": "browser only: one record_hook of a hook event, constant work of its own"
 		},
 		{
 			"id": "packages/devtools/src/client.ts > plugin > hooks > regionMount",
@@ -3969,6 +3337,954 @@
 			"reason": "SvelteKit's resolve for a beacon page in a build (a RequestEvent's resolve: not cloneable), then never_stored, constant work of its own"
 		},
 		{
+			"id": "packages/core/src/server/rules.ts > no_kept_unkeyed_read",
+			"reason": "dev and e2e builds only: timers and a machine observer over module state; proven in packages/core/test/server-rules.test.ts"
+		},
+		{
+			"id": "packages/core/src/messages/server.ts > SERVER_WARNINGS > rule_kept_unkeyed_read > details",
+			"reason": "a rule's message wording (dev and e2e only), constant text; said in packages/core/test/server-rules.test.ts"
+		},
+		{
+			"id": "packages/core/src/messages/server.ts > SERVER_WARNINGS > rule_kept_unkeyed_read > text",
+			"reason": "a rule's message wording (dev and e2e only), constant text; said in packages/core/test/server-rules.test.ts"
+		},
+		{
+			"id": "packages/core/src/hooks.ts > OgygiaHandle > #hole_cache",
+			"reason": "a hole's cache key and the start of its read observation (a RequestEvent, not cloneable), constant work; run by packages/flags/test/hole-cache.test.ts through cached_render and the e2e hole suites"
+		},
+		{
+			"id": "packages/core/src/plugin/reads.ts > set_open_reads",
+			"reason": "installs the read-set reader once, at module load, constant work"
+		},
+		{
+			"id": "packages/core/src/server/render-page.ts > render_page > get data",
+			"reason": "notes a page.data read into the running render's read set and returns the data, constant work"
+		},
+		{
+			"id": "packages/flags/src/index.ts > outbox:0~05e47f > giveUp > once:1~de49a5",
+			"reason": "prints one warning (console output, not replayable), constant work"
+		},
+		{
+			"id": "packages/machine/src/say.ts > say > get size",
+			"reason": "reads a Map's size, constant work; proven in packages/machine/test/say.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/router-nav.ts > hold_scroll",
+			"reason": "browser only: a Back or Forward's scroll restore and its hold (one child scope, four listeners, a timer, one ResizeObserver), constant work; router-history e2e runs it"
+		},
+		{
+			"id": "packages/core/src/runtime/router-nav.ts > islands_above",
+			"reason": "browser only: the not-yet-live islands of the page, each one layout read, once per Back or Forward; scroll-hold.test.ts runs it in three engines"
+		},
+		{
+			"id": "packages/core/src/runtime/router-nav.ts > hold_scroll > settled",
+			"reason": "browser only: the islands above all woke, one frame timer, constant work"
+		},
+		{
+			"id": "packages/core/src/runtime/router-nav.ts > hold_scroll > put",
+			"reason": "browser only: one scrollTo when the position moved, constant work"
+		},
+		{
+			"id": "packages/core/src/runtime/router-nav.ts > hold_scroll > on:2~0f2971",
+			"reason": "browser only: the visitor's input ends the hold (one scope close)"
+		},
+		{
+			"id": "packages/core/src/runtime/router-nav.ts > hold_scroll > on:2~641bd9",
+			"reason": "browser only: a scroll elsewhere ends the hold (one comparison, one scope close)"
+		},
+		{
+			"id": "packages/core/src/runtime/router-nav.ts > hold_scroll > timeout:0~0f2971",
+			"reason": "browser only: the hold's cap ends it (one scope close)"
+		},
+		{
+			"id": "packages/core/src/runtime/import-again.ts > heard",
+			"reason": "browser only: one resource entry the loader's observer heard, recorded in a bounded map, constant work"
+		},
+		{
+			"id": "packages/core/src/runtime/import-again.ts > response_landed",
+			"reason": "a failed import's wait for its file's entry (a scope, one timer): constant work, on a failure only; run by import-again.test.ts and the lazy-chunk-retry e2e"
+		},
+		{
+			"id": "packages/core/src/runtime/import-again.ts > response_landed > Promise:0~7305f1",
+			"reason": "the wait's promise executor: registers one waiter and one timer, constant work"
+		},
+		{
+			"id": "packages/core/src/runtime/import-again.ts > response_landed > Promise:0~7305f1 > defer:0~eaf5d9",
+			"reason": "the wait's cleanup: takes its waiter out, constant work"
+		},
+		{
+			"id": "packages/core/src/runtime/import-again.ts > response_landed > Promise:0~7305f1 > done",
+			"reason": "the wait settles: closes its scope and resolves, constant work"
+		},
+		{
+			"id": "packages/core/src/runtime/import-again.ts > response_landed > Promise:0~7305f1 > timeout:0~317c93",
+			"reason": "the wait runs out (a dropped download in WebKit): resolves null, constant work"
+		},
+		{
+			"id": "packages/content/src/markdown/frontmatter.ts > reason_of",
+			"reason": "a thrown error to its words (an OgygiaError's class identity does not replay), two string slices, only on a frontmatter error; proven in packages/content/test/frontmatter-errors.test.ts"
+		},
+		{
+			"id": "packages/content/src/vite/index.ts > warn_placement > once:1~daa8fe",
+			"reason": "say(): one dev warning a file says once, constant work"
+		},
+		{
+			"id": "packages/core/src/compiler/debarrel/plugin.ts > debarrel > transform > rewrite_svelte:4~85d86d > once:1~fc2896",
+			"reason": "say(): one build warning a skipped component says once, constant work"
+		},
+		{
+			"id": "packages/core/src/compiler/region/transform.ts > say_unparsed",
+			"reason": "the build warning for a host the parser cannot read, said once per file, constant work"
+		},
+		{
+			"id": "packages/core/src/compiler/region/transform.ts > warn_unparsed > once:1~087a4c",
+			"reason": "say(): one build warning per unparsed file, constant work"
+		},
+		{
+			"id": "packages/core/src/plugin/css.ts > componentCssHead > once:1~695de0",
+			"reason": "say(): one dev warning for the process, constant work"
+		},
+		{
+			"id": "packages/core/src/runtime/hydrate-core.ts > PropMutationGuard > #warn > once:1~6adcde",
+			"reason": "say(): one dev warning per mutated prop path, constant work"
+		},
+		{
+			"id": "packages/core/src/runtime/import-again.ts > import_again > <anonymous>~106f1d > catch:0~ce98b7 > once:1~b3964f",
+			"reason": "say(): the page's one reload message, constant work"
+		},
+		{
+			"id": "packages/core/src/runtime/restore-report.ts > report > once:1~a177c8",
+			"reason": "say(): one warning per late host, constant work"
+		},
+		{
+			"id": "packages/core/src/store-transport.ts > __og_store > <anonymous>~221e3f > once:1~fd8aa8",
+			"reason": "say(): one warning per unbranded store tag, constant work"
+		},
+		{
+			"id": "packages/core/src/vite/style-preprocess.ts > preprocess_component_for_css > once:1~832199",
+			"reason": "say(): one build warning for the process, constant work"
+		},
+		{
+			"id": "packages/flags/src/index.ts > flag > bucket > once:1~0367ec",
+			"reason": "say(): one setup warning for the process, constant work"
+		},
+		{
+			"id": "packages/flags/src/index.ts > resolved_for > once:1~3c5497",
+			"reason": "say(): one setup warning for the process, constant work"
+		},
+		{
+			"id": "packages/flags/src/source-health.ts > source_failed > once:1~64efac",
+			"reason": "say(): one warning per failing streak, constant work"
+		},
+		{
+			"id": "packages/postrender/src/handle.ts > handle > <anonymous>~327efc > once:1~b7e8fe",
+			"reason": "say(): one setup warning for the process, constant work"
+		},
+		{
+			"id": "packages/postrender/src/registry.ts > install > once:1~4af86e",
+			"reason": "say(): one setup warning for the process, constant work"
+		},
+		{
+			"id": "packages/core/src/server/page-stream.ts > swap_tracked",
+			"reason": "the fallback walk for a page value too deep or cyclic for the untracked one, handed a swap function (not cloneable); linear in the value, one Map entry per open object; proven in packages/core/test/page-defer.test.ts (the cyclic cases)"
+		},
+		{
+			"id": "packages/core/src/server/page-stream.ts > swap_tracked > walk",
+			"reason": "one node of swap_tracked's walk over a closure (its Map and swap: not cloneable), constant work per node; proven in packages/core/test/page-defer.test.ts (the cyclic cases)"
+		},
+		{
+			"id": "packages/content/src/markdown/shiki.ts > render_code_region > replace:1~7326ff",
+			"reason": "the replacement for the multi-variant id attribute: one concatenation, constant work; proven in packages/content/test/fence-escaping.test.ts"
+		},
+		{
+			"id": "packages/content/src/markdown/shiki.ts > render_code_region > replace:1~ca1204",
+			"reason": "the replacement for the pre's attributes: one concatenation, constant work; proven in packages/content/test/fence-escaping.test.ts"
+		},
+		{
+			"id": "packages/core/src/plugin/server.ts > start_plugins > map:0~9f66ac > app > observeReads",
+			"reason": "forwards a RequestEvent (not cloneable) to observe_reads, constant work; packages/core/bench/server.bench.ts runs observe_reads"
+		},
+		{
+			"id": "packages/core/src/plugin/server.ts > start_plugins > map:0~9f66ac > app > warn > once:1~c9a4aa",
+			"reason": "prints one warning (console output, not replayable), constant work; proven in packages/core/test/plugins.test.ts"
+		},
+		{
+			"id": "packages/content/src/messages/runtime.ts > CONTENT_ERRORS > content_site_context_failed > text",
+			"reason": "a message table entry: wording only"
+		},
+		{
+			"id": "packages/content/src/messages/runtime.ts > CONTENT_ERRORS > content_site_context_failed > details",
+			"reason": "a message table entry: wording only"
+		},
+		{
+			"id": "packages/machine/src/trace.ts > trace",
+			"reason": "test and devtools tool, never on a page's path: one observe() subscription and a bounded ring of lines (max, default 500)"
+		},
+		{
+			"id": "packages/machine/src/trace.ts > trace > observe:0~38d8f1",
+			"reason": "test tool: one line formatted and pushed per machine move while a trace is on, oldest dropped past max, constant work per move"
+		},
+		{
+			"id": "packages/machine/src/trace.ts > trace > stop",
+			"reason": "test tool: ends the observe subscription, once"
+		},
+		{
+			"id": "packages/machine/src/trace.ts > trace > lines",
+			"reason": "test tool: a copy of the bounded ring (at most max lines), read when a test fails"
+		},
+		{
+			"id": "packages/machine/src/trace.ts > trace > text",
+			"reason": "test tool: the bounded ring joined, read when a test fails"
+		},
+		{
+			"id": "packages/machine/src/trace.ts > trace > clear",
+			"reason": "test tool: empties the ring, constant work"
+		},
+		{
+			"id": "packages/tooling/src/e2e/index.ts > moves",
+			"reason": "e2e fixture only (never shipped): reads the page's trace text once when a test fails"
+		},
+		{
+			"id": "packages/tooling/src/e2e/index.ts > moves > evaluate:0~b28489",
+			"reason": "e2e fixture only: one page.evaluate reading the trace text in the browser"
+		},
+		{
+			"id": "packages/tooling/src/vitest/trace-setup.ts > beforeEach:0~efb4a4",
+			"reason": "test setup only (never shipped): starts one trace per test"
+		},
+		{
+			"id": "packages/tooling/src/vitest/trace.ts > trace_on_failure",
+			"reason": "test setup only (never shipped): registers one onTestFailed per test"
+		},
+		{
+			"id": "packages/tooling/src/vitest/trace.ts > trace_on_failure > onTestFailed:0~8bf46a",
+			"reason": "test setup only: prints the trace once when a test fails"
+		},
+		{
+			"id": "packages/tooling/src/vitest/trace.ts > trace_on_failure > <anonymous>~1f95d7",
+			"reason": "test setup only: stops the trace at the test's end, once"
+		},
+		{
+			"id": "packages/core/src/messages/core.ts > ERRORS > region_version_invalid > text",
+			"reason": "a message's one-line text: one template string, on the error path only (an app passed a version that is not a time)"
+		},
+		{
+			"id": "packages/core/src/messages/core.ts > ERRORS > region_version_invalid > details",
+			"reason": "a message's details: one constant string, on the error path only"
+		},
+		{
+			"id": "packages/core/src/messages/core.ts > WARNINGS > region_answer_older > text",
+			"reason": "a dev warning's one-line text: one template string, only when an older answer is dropped"
+		},
+		{
+			"id": "packages/core/src/messages/core.ts > WARNINGS > region_answer_older > details",
+			"reason": "a dev warning's details: one constant string, only when an older answer is dropped"
+		},
+		{
+			"id": "packages/core/src/region.ts > to_version",
+			"reason": "one region's version to milliseconds: a typeof check and at most one Date.parse, once per held region render (not per element), constant work"
+		},
+		{
+			"id": "packages/core/src/transport.ts > dropped_older",
+			"reason": "one Map read and one compare per decoded versioned answer; the warning and devtools event only in dev or with devtools on, constant work"
+		},
+		{
+			"id": "packages/core/src/frame.ts > mark_written",
+			"reason": "one WeakMap set beside a decoded region value (hidden state), constant work; run by packages/core/test/browser/region-orderings.test.ts and sim-region.test.ts"
+		},
+		{
+			"id": "packages/core/src/frame.ts > written_order",
+			"reason": "one WeakMap read of a decoded region value's write order (hidden state), constant work; run by packages/core/test/browser/region-orderings.test.ts and sim-region.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/frame-store.ts > shown_version",
+			"reason": "one Map read of the shown answer's version at an address, constant work"
+		},
+		{
+			"id": "packages/core/src/runtime/frame-store.ts > answer_definition",
+			"reason": "builds the stored-answer machine definition (plain data: three states, their steps), once per address entry; its moves are measured by the frame-store bench, the definition itself is not cloneable"
+		},
+		{
+			"id": "packages/core/src/hooks.ts > OgygiaHandle > #pass_document",
+			"reason": "runs the plugins' document passes over one rendered page (the request's handle state: not recorded), once per document, linear in the passes"
+		},
+		{
+			"id": "packages/core/src/messages/server.ts > SERVER_ERRORS > handle_transform_moved > details",
+			"reason": "a message table entry: wording only"
+		},
+		{
+			"id": "packages/core/src/messages/server.ts > SERVER_ERRORS > handle_transform_moved > text",
+			"reason": "a message table entry: wording only"
+		},
+		{
+			"id": "packages/reshape/src/index.ts > handle",
+			"reason": "builds one SvelteKit handle (closure state: not cloneable), once per app; its pass is benched in packages/reshape/bench/markup.bench.ts"
+		},
+		{
+			"id": "packages/reshape/src/index.ts > handle > <anonymous>~eafc25",
+			"reason": "the handle per request (a RequestEvent and resolve: not recorded): hands the document to the pass, constant work of its own; the pass is benched in packages/reshape/bench/markup.bench.ts"
+		},
+		{
+			"id": "packages/reshape/src/messages.ts > RESHAPE_ERRORS > reshape_plugin_missing > details",
+			"reason": "a message table entry: wording only"
+		},
+		{
+			"id": "packages/reshape/src/messages.ts > RESHAPE_ERRORS > reshape_plugin_missing > text",
+			"reason": "a message table entry: wording only"
+		},
+		{
+			"id": "packages/reshape/src/pass.ts > reshape_pass > region",
+			"reason": "one region's pass inside reshape_pass (its closure over the document: not recorded), benched with the document pass in packages/reshape/bench/markup.bench.ts"
+		},
+		{
+			"id": "packages/reshape/src/restore.ts > restore",
+			"reason": "moved from packages/core/src/runtime/restore.ts with reshape (#607): never ran here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/reshape/test) prove it"
+		},
+		{
+			"id": "packages/reshape/src/restore.ts > restore > comments",
+			"reason": "moved from packages/core/src/runtime/restore.ts with reshape (#607): never ran here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/reshape/test) prove it"
+		},
+		{
+			"id": "packages/reshape/src/restore.ts > restore > describe",
+			"reason": "moved from packages/core/src/runtime/restore.ts with reshape (#607): never ran here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/reshape/test) prove it"
+		},
+		{
+			"id": "packages/reshape/src/restore.ts > restore > differ",
+			"reason": "moved from packages/core/src/runtime/restore.ts with reshape (#607): never ran here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/reshape/test) prove it"
+		},
+		{
+			"id": "packages/reshape/src/restore.ts > restore > esc",
+			"reason": "moved from packages/core/src/runtime/restore.ts with reshape (#607): never ran here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/reshape/test) prove it"
+		},
+		{
+			"id": "packages/reshape/src/restore.ts > restore > fix_text",
+			"reason": "moved from packages/core/src/runtime/restore.ts with reshape (#607): never ran here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/reshape/test) prove it"
+		},
+		{
+			"id": "packages/reshape/src/restore.ts > restore > log",
+			"reason": "moved from packages/core/src/runtime/restore.ts with reshape (#607): never ran here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/reshape/test) prove it"
+		},
+		{
+			"id": "packages/reshape/src/restore.ts > restore > map:0~54a21c",
+			"reason": "moved from packages/core/src/runtime/restore.ts with reshape (#607): never ran here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/reshape/test) prove it"
+		},
+		{
+			"id": "packages/reshape/src/restore.ts > restore > norm",
+			"reason": "moved from packages/core/src/runtime/restore.ts with reshape (#607): never ran here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/reshape/test) prove it"
+		},
+		{
+			"id": "packages/reshape/src/restore.ts > restore > norm > map:0~543c6f",
+			"reason": "moved from packages/core/src/runtime/restore.ts with reshape (#607): never ran here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/reshape/test) prove it"
+		},
+		{
+			"id": "packages/reshape/src/restore.ts > restore > original",
+			"reason": "moved from packages/core/src/runtime/restore.ts with reshape (#607): never ran here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/reshape/test) prove it"
+		},
+		{
+			"id": "packages/reshape/src/restore.ts > restore > reset",
+			"reason": "moved from packages/core/src/runtime/restore.ts with reshape (#607): never ran here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/reshape/test) prove it"
+		},
+		{
+			"id": "packages/reshape/src/restore.ts > restore > sheet_for",
+			"reason": "moved from packages/core/src/runtime/restore.ts with reshape (#607): never ran here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/reshape/test) prove it"
+		},
+		{
+			"id": "packages/reshape/src/restore.ts > restore > sort:0~178687",
+			"reason": "moved from packages/core/src/runtime/restore.ts with reshape (#607): never ran here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/reshape/test) prove it"
+		},
+		{
+			"id": "packages/reshape/src/restore.ts > restore > swap_stand_ins",
+			"reason": "moved from packages/core/src/runtime/restore.ts with reshape (#607): never ran here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/reshape/test) prove it"
+		},
+		{
+			"id": "packages/reshape/src/restore.ts > restore > verify",
+			"reason": "moved from packages/core/src/runtime/restore.ts with reshape (#607): never ran here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/reshape/test) prove it"
+		},
+		{
+			"id": "packages/reshape/src/restore.ts > restore > watch",
+			"reason": "moved from packages/core/src/runtime/restore.ts with reshape (#607): never ran here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/reshape/test) prove it"
+		},
+		{
+			"id": "packages/reshape/src/restore.ts > restore > watch > MutationObserver:0~19a5fb",
+			"reason": "moved from packages/core/src/runtime/restore.ts with reshape (#607): not recorded here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/reshape/test) prove it"
+		},
+		{
+			"id": "packages/reshape/src/restore.ts > restore > within",
+			"reason": "moved from packages/core/src/runtime/restore.ts with reshape (#607): never ran here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/reshape/test) prove it"
+		},
+		{
+			"id": "packages/reshape/src/restore.ts > restore_adopt",
+			"reason": "moved from packages/core/src/runtime/restore.ts with reshape (#607): never ran here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/reshape/test) prove it"
+		},
+		{
+			"id": "packages/reshape/src/restore.ts > restore_adopt > waiting",
+			"reason": "moved from packages/core/src/runtime/restore.ts with reshape (#607): never ran here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/reshape/test) prove it"
+		},
+		{
+			"id": "packages/reshape/src/restore.ts > restore_adopt > where",
+			"reason": "moved from packages/core/src/runtime/restore.ts with reshape (#607): never ran here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/reshape/test) prove it"
+		},
+		{
+			"id": "packages/reshape/src/reversible.ts > check_script",
+			"reason": "moved from packages/core/src/server/reversible.ts with reshape (#607): never ran here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/reshape/test) prove it"
+		},
+		{
+			"id": "packages/reshape/src/reversible.ts > localizeMarks",
+			"reason": "moved from packages/core/src/server/reversible.ts with reshape (#607): not cloneable here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/reshape/test) prove it"
+		},
+		{
+			"id": "packages/reshape/src/reversible.ts > localizeMarks > back",
+			"reason": "moved from packages/core/src/server/reversible.ts with reshape (#607): not replayable here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/reshape/test) prove it"
+		},
+		{
+			"id": "packages/reshape/src/reversible.ts > localizeMarks > back > remap:1~78687b",
+			"reason": "moved from packages/core/src/server/reversible.ts with reshape (#607): not replayable here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/reshape/test) prove it"
+		},
+		{
+			"id": "packages/reshape/src/reversible.ts > localizeMarks > map:0~5a97cd",
+			"reason": "moved from packages/core/src/server/reversible.ts with reshape (#607): not recorded here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/reshape/test) prove it"
+		},
+		{
+			"id": "packages/reshape/src/reversible.ts > localizeMarks > remap:1~c2f583",
+			"reason": "moved from packages/core/src/server/reversible.ts with reshape (#607): not replayable here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/reshape/test) prove it"
+		},
+		{
+			"id": "packages/reshape/src/reversible.ts > map:0~1d7705",
+			"reason": "moved from packages/core/src/server/reversible.ts with reshape (#607): not replayable here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/reshape/test) prove it"
+		},
+		{
+			"id": "packages/reshape/src/reversible.ts > mark > some:0~5343d7",
+			"reason": "moved from packages/core/src/server/reversible.ts with reshape (#607): never ran here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/reshape/test) prove it"
+		},
+		{
+			"id": "packages/reshape/src/reversible.ts > remap",
+			"reason": "moved from packages/core/src/server/reversible.ts with reshape (#607): not cloneable here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/reshape/test) prove it"
+		},
+		{
+			"id": "packages/reshape/src/reversible.ts > script_json",
+			"reason": "moved from packages/core/src/server/reversible.ts with reshape (#607): never ran here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/reshape/test) prove it"
+		},
+		{
+			"id": "packages/reshape/src/reversible.ts > settle > find:0~12a6e6",
+			"reason": "moved from packages/core/src/server/reversible.ts with reshape (#607): not replayable here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/reshape/test) prove it"
+		},
+		{
+			"id": "packages/reshape/src/reversible.ts > transformMarkup",
+			"reason": "moved from packages/core/src/server/reversible.ts with reshape (#607): not recorded here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/reshape/test) prove it"
+		},
+		{
+			"id": "packages/reshape/src/server.ts > defineServer:0~5ced6a > pass",
+			"reason": "the plugin's document pass (the page's context: not cloneable), hands it to reshape_pass, constant work of its own; benched in packages/reshape/bench/markup.bench.ts"
+		},
+		{
+			"id": "packages/reshape/src/server.ts > defineServer:0~5ced6a > setup",
+			"reason": "the plugin's server setup, once per app (the ServerApp: not cloneable), constant work"
+		},
+		{
+			"id": "packages/reshape/src/split-regions.ts > make_region > withInner",
+			"reason": "moved from packages/core/src/server/split-regions.ts with reshape (#607): not cloneable here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/reshape/test) prove it"
+		},
+		{
+			"id": "packages/reshape/src/split-regions.ts > merge_class > replace:1~7fb3fd",
+			"reason": "moved from packages/core/src/server/split-regions.ts with reshape (#607): not replayable here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/reshape/test) prove it"
+		},
+		{
+			"id": "packages/reshape/src/vite.ts > reshape",
+			"reason": "the plugin factory: one definePlugin, once per config"
+		},
+		{
+			"id": "packages/core/src/runtime/client-plugins.ts > client_answer_parsed",
+			"reason": "browser only: hands a parsed region answer (a DocumentFragment: not replayable) to the client plugins that hook it, linear in them"
+		},
+		{
+			"id": "packages/core/src/runtime/client-plugins.ts > client_answer_placed",
+			"reason": "browser only: tells the client plugins that hook it a region answer was placed, linear in them"
+		},
+		{
+			"id": "packages/core/src/runtime/client-plugins.ts > client_region_hydrate",
+			"reason": "browser only: asks the client plugins that hook a region's hydrate (a DOM element: not replayable), linear in them (a handful), once per hydrate; nothing at all without one"
+		},
+		{
+			"id": "packages/core/src/runtime/client-plugins.ts > client_region_hydrate > <anonymous>~761ca0",
+			"reason": "browser only: runs each plugin's after-hydrate callback, linear in them (a handful)"
+		},
+		{
+			"id": "packages/reshape/src/client.ts > defineClient:0~5f52a9 > answerParsed",
+			"reason": "browser only: runs the page's inline restorer over one parsed answer (a DocumentFragment: not replayable)"
+		},
+		{
+			"id": "packages/reshape/src/client.ts > defineClient:0~5f52a9 > answerPlaced",
+			"reason": "browser only: one call of the page's inline adopt, constant work of its own"
+		},
+		{
+			"id": "packages/reshape/src/client.ts > defineClient:0~5f52a9 > boot",
+			"reason": "browser only: reshape's boot, once per page: wraps the inline restorer to report what it recorded"
+		},
+		{
+			"id": "packages/reshape/src/client.ts > defineClient:0~5f52a9 > regionHydrate",
+			"reason": "browser only: notes a region host's own class tokens before Svelte's hydrate (a DOM element: not replayable), once per hydrate; proven in packages/reshape/test/browser/host-classes.test.ts"
+		},
+		{
+			"id": "packages/reshape/src/client.ts > defineClient:0~5f52a9 > regionHydrate > <anonymous>~0199e1",
+			"reason": "browser only: puts the noted class tokens back after hydrate (DOM state: not replayable); proven in packages/reshape/test/browser/host-classes.test.ts"
+		},
+		{
+			"id": "packages/reshape/src/host-classes.ts > keep_host_classes",
+			"reason": "moved from packages/core/src/runtime/host-classes.ts with reshape (#608): never ran here, browser state; the gate on this base does not follow a file across packages, and the moved tests (packages/reshape/test) prove it"
+		},
+		{
+			"id": "packages/reshape/src/host-classes.ts > note_host_classes",
+			"reason": "moved from packages/core/src/runtime/host-classes.ts with reshape (#608): never ran here, browser state; the gate on this base does not follow a file across packages, and the moved tests (packages/reshape/test) prove it"
+		},
+		{
+			"id": "packages/reshape/src/messages.ts > RESHAPE_ERRORS > restore_markup_broken > details",
+			"reason": "a message table entry: wording only (moved from core with reshape, #608)"
+		},
+		{
+			"id": "packages/reshape/src/messages.ts > RESHAPE_ERRORS > restore_markup_broken > text",
+			"reason": "a message table entry: wording only (moved from core with reshape, #608)"
+		},
+		{
+			"id": "packages/reshape/src/messages.ts > RESHAPE_WARNINGS > restore_late > details",
+			"reason": "a message table entry: wording only (moved from core with reshape, #608)"
+		},
+		{
+			"id": "packages/reshape/src/messages.ts > RESHAPE_WARNINGS > restore_late > text",
+			"reason": "a message table entry: wording only (moved from core with reshape, #608)"
+		},
+		{
+			"id": "packages/reshape/src/restore-report.ts > report",
+			"reason": "moved from packages/core/src/runtime/restore-report.ts with reshape (#608): never ran here, browser state; the gate on this base does not follow a file across packages, and the moved tests (packages/reshape/test) prove it"
+		},
+		{
+			"id": "packages/reshape/src/restore-report.ts > report > once:1~a177c8",
+			"reason": "moved from packages/core/src/runtime/restore-report.ts with reshape (#608): never ran here, browser state; the gate on this base does not follow a file across packages, and the moved tests (packages/reshape/test) prove it"
+		},
+		{
+			"id": "packages/reshape/src/restore-report.ts > report_restores",
+			"reason": "moved from packages/core/src/runtime/restore-report.ts with reshape (#608): never ran here, browser state; the gate on this base does not follow a file across packages, and the moved tests (packages/reshape/test) prove it"
+		},
+		{
+			"id": "packages/reshape/src/restore-report.ts > report_restores > __og_restore",
+			"reason": "moved from packages/core/src/runtime/restore-report.ts with reshape (#608): never ran here, browser state; the gate on this base does not follow a file across packages, and the moved tests (packages/reshape/test) prove it"
+		},
+		{
+			"id": "packages/compiler/src/compiler/virtual/core.ts > family:0~04bf59 > load > server_manifest_module:3~e7ea15",
+			"reason": "the server manifest's dev URL of one registered region (a lambda handed to the generator), constant work; the bench session registers no region"
+		},
+		{
+			"id": "packages/compiler/src/compiler/virtual/core.ts > family:0~04bf59 > load > server_manifest_module:4~126d93",
+			"reason": "the server manifest's public URL of one registered region (a lambda handed to the generator), constant work; the bench session registers no region"
+		},
+		{
+			"id": "packages/compiler/src/compiler/virtual/core.ts > family:0~359af7 > load > router_css_module:1~4ebdf0 > read_file",
+			"reason": "one file read for the server router's CSS, a pass-through to the host fs (the router-css generator's own tests read real routes)"
+		},
+		{
+			"id": "packages/compiler/src/compiler/messages.ts > BUILD_ERRORS > virtual_wrong_realm > details",
+			"reason": "a message table entry: wording only"
+		},
+		{
+			"id": "packages/compiler/src/compiler/messages.ts > BUILD_ERRORS > virtual_wrong_realm > text",
+			"reason": "a message table entry: wording only"
+		},
+		{
+			"id": "packages/compiler/src/compiler/messages.ts > BUILD_ERRORS > virtual_unknown > details",
+			"reason": "a message table entry: wording only"
+		},
+		{
+			"id": "packages/compiler/src/compiler/messages.ts > BUILD_ERRORS > virtual_duplicate > details",
+			"reason": "a message table entry: wording only"
+		},
+		{
+			"id": "packages/compiler/src/compiler/virtual/core.ts > map:0~fa4377",
+			"reason": "declares the six driver-resolved families once, as core.ts loads; constant, never per build"
+		},
+		{
+			"id": "packages/compiler/src/compiler/virtual/table.ts > virtual > family",
+			"reason": "a table constructor: called once per entry as core.ts loads, returns its argument with its kind"
+		},
+		{
+			"id": "packages/compiler/src/compiler/virtual/table.ts > virtual > request",
+			"reason": "a table constructor: called once per entry as core.ts loads, returns its argument with its kind"
+		},
+		{
+			"id": "packages/compiler/src/compiler/messages.ts > BUILD_ERRORS > barrels_option_removed > details",
+			"reason": "a message table entry: wording only"
+		},
+		{
+			"id": "packages/compiler/src/compiler/messages.ts > BUILD_ERRORS > barrels_option_removed > text",
+			"reason": "a message table entry: wording only"
+		},
+		{
+			"id": "packages/compiler/src/vite/index.ts > ogygia > seams > exports > map",
+			"reason": "a plugin's export index for one environment (a Map get or create over ogygia()'s closure: not replayable); the index's work is benched in packages/core/bench/compiler.bench.ts; proven through barrels() against a real Vite dev server in packages/barrels/test/plugin.test.ts"
+		},
+		{
+			"id": "packages/compiler/src/vite/index.ts > ogygia > seams > exports > map > ExportIndex:0~b7ee02",
+			"reason": "the index's resolver: the transformed module's own resolve (a live Vite plugin context, not recorded); proven in packages/barrels/test/plugin.test.ts"
+		},
+		{
+			"id": "packages/compiler/src/vite/index.ts > ogygia > seams > pinned_imports",
+			"reason": "the app's import keys and asRegion locals over ogygia()'s closure (not replayable); asRegionLocals is benched with the region transform; proven through barrels() in packages/barrels/test/plugin.test.ts and packages/barrels/test/as-region.test.ts"
+		},
+		{
+			"id": "packages/compiler/src/vite/index.ts > ogygia > barrels_left_of",
+			"reason": "one table per environment and stage in ogygia()'s closure, made once (a map lookup); the table itself is benched in packages/core/bench/compiler.bench.ts"
+		},
+		{
+			"id": "packages/compiler/src/vite/index.ts > ogygia > barrel_why",
+			"reason": "the client tables' why for one barrel row, over ogygia()'s closure (not replayable), at most two lookups; the join is benched in packages/core/bench/compiler.bench.ts and proven in packages/core/test/barrel-left.test.ts"
+		},
+		{
+			"id": "packages/compiler/src/vite/index.ts > ogygia > barrel_why > filter:0~cf3029",
+			"reason": "orders at most nine reasons (constant work); the same filter in the table is benched in packages/core/bench/compiler.bench.ts"
+		},
+		{
+			"id": "packages/compiler/src/vite/index.ts > ogygia > seams > pinned_imports > <anonymous>~a269ad",
+			"reason": "one declaration against the pinned keys and locals (constant work over ogygia()'s closure); proven in packages/barrels/test/plugin.test.ts and packages/barrels/test/as-region.test.ts"
+		},
+		{
+			"id": "packages/compiler/src/vite/index.ts > ogygia > seams > pinned_imports > <anonymous>~a269ad > some:0~d4dbd6",
+			"reason": "one specifier's local against the asRegion locals (a Set has); proven in packages/barrels/test/as-region.test.ts"
+		},
+		{
+			"id": "packages/compiler/src/vite/index.ts > ogygia > seams > pinned_imports > <anonymous>~a269ad > some:0~e91cb2",
+			"reason": "one attribute key against the app's import keys (a Set has); proven in packages/barrels/test/plugin.test.ts"
+		},
+		{
+			"id": "packages/compiler/src/vite/index.ts > ogygia > stage_host",
+			"reason": "builds one Vite plugin object per stage (constant work, over ogygia()'s closure); the stage's transforms are benched in packages/barrels/bench/barrels.bench.ts"
+		},
+		{
+			"id": "packages/compiler/src/vite/index.ts > ogygia > stage_host > transform",
+			"reason": "a live Vite transform hook (its this.resolve and this.addWatchFile are the plugin context, not recorded); a stage's work is the plugins' transforms, benched in packages/barrels/bench/barrels.bench.ts; proven against a real Vite dev server and build in packages/barrels/test/plugin.test.ts"
+		},
+		{
+			"id": "packages/compiler/src/vite/index.ts > ogygia > stage_host > transform > filter:0~18c7ef",
+			"reason": "each stage transform's own filter on the module id (constant work per plugin); proven in packages/barrels/test/plugin.test.ts"
+		},
+		{
+			"id": "packages/compiler/src/vite/index.ts > ogygia > stage_host > transform > t > resolve",
+			"reason": "one specifier through the host's this.resolve (a live Vite plugin context, not recorded); its throw and external cases are proven in packages/barrels/test/plugin.test.ts"
+		},
+		{
+			"id": "packages/compiler/src/vite/index.ts > ogygia > stage_host > transform > t > watch",
+			"reason": "the host's this.addWatchFile (a live Vite plugin context, not recorded); proven by the barrel-edit case in packages/barrels/test/plugin.test.ts"
+		},
+		{
+			"id": "packages/compiler/src/vite/plugin-api.ts > NO_SEAMS > exports > map",
+			"reason": "a constant rejection for a plugin list resolved outside ogygia(); proven in packages/core/test/plugins.test.ts"
+		},
+		{
+			"id": "packages/compiler/src/vite/plugin-api.ts > NO_SEAMS > pinned_imports",
+			"reason": "a constant throw for a plugin list resolved outside ogygia(); proven in packages/core/test/plugins.test.ts"
+		},
+		{
+			"id": "packages/compiler/src/vite/plugin-api.ts > resolve_plugins > build:0~4ffc6b > transform",
+			"reason": "one push of a plugin's stage transform (a function: not replayable), constant work; proven in packages/core/test/plugins.test.ts"
+		},
+		{
+			"id": "packages/compiler/src/compiler/exports/index.ts > EVERY_BARREL > forced",
+			"reason": "a constant answer (false) of the allow-everything policy"
+		},
+		{
+			"id": "packages/compiler/src/compiler/exports/parse.ts > attribute_keys > map:0~781359",
+			"reason": "one attribute node to its key name (an oxc AST node: not replayable), constant work; the parse is benched in packages/core/bench/compiler.bench.ts"
+		},
+		{
+			"id": "packages/compiler/src/vite/index.ts > ogygia > Shapes:0~f72d16",
+			"reason": "the app's file read for its shared shapes (a BOM-stripped read over the plugin's closure: not replayable); the shapes are benched in packages/core/bench/compiler.bench.ts"
+		},
+		{
+			"id": "packages/compiler/src/compiler/fouc-css.ts > through_caller",
+			"reason": "hands one specifier to the walk's resolver (a function argument: not cloneable); proven in packages/core/test/exports-index.test.ts"
+		},
+		{
+			"id": "packages/compiler/src/compiler/fouc-css.ts > collectFoucCssReachable > Shapes:0~3bebf5",
+			"reason": "the walk's own file read for a fresh index's shapes (a pass-through to the caller's reader: not replayable); proven in packages/core/test/exports-index.test.ts"
+		},
+		{
+			"id": "packages/compiler/src/vite/index.ts > ogygia > css_walk_index",
+			"reason": "the CSS walk's export index for one environment (a Map get or create over the plugin's closure), constant work; the index's work is benched in packages/core/bench/compiler.bench.ts"
+		},
+		{
+			"id": "packages/compiler/src/vite/index.ts > ogygia > seams > regions > barrelWhy",
+			"reason": "dev only: the regions seam hands the dock one barrel answer from the build's index, constant work of its own"
+		},
+		{
+			"id": "packages/compiler/src/vite/index.ts > ogygia > seams > regions > names",
+			"reason": "dev only: the regions seam lists the build's region entries, linear in the regions"
+		},
+		{
+			"id": "packages/compiler/src/vite/plugin-api.ts > NO_SEAMS > regions > barrelWhy",
+			"reason": "the empty seam a plugin sees before the build is set up: answers nothing, constant work"
+		},
+		{
+			"id": "packages/compiler/src/vite/plugin-api.ts > NO_SEAMS > regions > names",
+			"reason": "the empty seam a plugin sees before the build is set up: answers nothing, constant work"
+		},
+		{
+			"id": "packages/compiler/src/vite/index.ts > ogygia > closeBundle",
+			"reason": "build only: Vite's closeBundle hook, once per build leg, constant work of its own"
+		},
+		{
+			"id": "packages/compiler/src/vite/paths.ts > runtime_content_hash",
+			"reason": "build only: hashes the runtime's files on disk (file reads, not recorded), once per build leg"
+		},
+		{
+			"id": "packages/compiler/src/vite/paths.ts > scan_entry_pattern",
+			"reason": "dev only: one island file to an optimizeDeps pattern (a realpath and one replace), constant work per file"
+		},
+		{
+			"id": "packages/core/src/contract/core-files.ts > built",
+			"reason": "one path.join into core's dist, run as the module loads (never per request or per build)"
+		},
+		{
+			"id": "packages/core/src/contract/core-files.ts > id_dir",
+			"reason": "real_posix and one trailing slash, run as the module loads (CORE_ROOT_ID), constant work"
+		},
+		{
+			"id": "packages/core/src/contract/core-files.ts > real_posix",
+			"reason": "one realpath on the file system (not replayable) and one replace, constant work"
+		},
+		{
+			"id": "packages/compiler/src/compiler/messages.ts > BUILD_ERRORS > plugin_client_hook_unknown > text",
+			"reason": "a message table entry: wording only"
+		},
+		{
+			"id": "packages/compiler/src/compiler/messages.ts > BUILD_ERRORS > plugin_client_hook_unknown > details",
+			"reason": "a message table entry: wording only"
+		},
+		{
+			"id": "packages/compiler/src/compiler/messages.ts > BUILD_ERRORS > plugin_client_hooks_unread > text",
+			"reason": "a message table entry: wording only"
+		},
+		{
+			"id": "packages/compiler/src/compiler/messages.ts > BUILD_ERRORS > plugin_client_hooks_unread > details",
+			"reason": "a message table entry: wording only"
+		},
+		{
+			"id": "packages/compiler/src/compiler/virtual/core.ts > hook_gate",
+			"reason": "declares one hook constant (its from is a lambda: not cloneable), once per hook as core.ts loads; constant, never per build"
+		},
+		{
+			"id": "packages/compiler/src/vite/plugin-api.ts > client_hook_names > unread",
+			"reason": "builds one OgygiaError for an unreadable realm, constant work"
+		},
+		{
+			"id": "packages/compiler/src/vite/plugin-api.ts > client_hook_names > unwrap",
+			"reason": "one oxc AST node through its type wrappers (not replayable), at most a few steps; proven in packages/core/test/plugins.test.ts"
+		},
+		{
+			"id": "packages/compiler/src/vite/plugin-api.ts > client_hook_names > key_of",
+			"reason": "one oxc AST property to its key name (not replayable), constant work; proven in packages/core/test/plugins.test.ts"
+		},
+		{
+			"id": "packages/compiler/src/vite/plugin-api.ts > client_hook_names > filter:0~a8d4cb",
+			"reason": "one top-level statement against the export form (an oxc AST node: not replayable), once per realm per build; proven in packages/core/test/plugins.test.ts"
+		},
+		{
+			"id": "packages/compiler/src/vite/plugin-api.ts > client_hook_names > flatMap:0~9d68c8",
+			"reason": "one export statement to its specifiers (an oxc AST node: not replayable), once per realm per build; proven in packages/core/test/plugins.test.ts"
+		},
+		{
+			"id": "packages/compiler/src/vite/plugin-api.ts > client_hook_names > find:0~9b241a",
+			"reason": "one export specifier against the name default (an oxc AST node: not replayable), constant work; proven in packages/core/test/plugins.test.ts"
+		},
+		{
+			"id": "packages/compiler/src/vite/plugin-api.ts > client_hook_names > find:0~de07eb",
+			"reason": "one top-level statement against export default (an oxc AST node: not replayable), constant work; proven in packages/core/test/plugins.test.ts"
+		},
+		{
+			"id": "packages/compiler/src/vite/plugin-api.ts > client_hook_names > filter:0~08f42a",
+			"reason": "one top-level statement against a const declaration (an oxc AST node: not replayable), constant work; proven in packages/core/test/plugins.test.ts"
+		},
+		{
+			"id": "packages/compiler/src/vite/plugin-api.ts > client_hook_names > flatMap:0~15075b",
+			"reason": "one const declaration to its declarators (an oxc AST node: not replayable), constant work; proven in packages/core/test/plugins.test.ts"
+		},
+		{
+			"id": "packages/compiler/src/vite/plugin-api.ts > client_hook_names > find:0~e53b3e",
+			"reason": "one declarator against the exported name (an oxc AST node: not replayable), constant work; proven in packages/core/test/plugins.test.ts"
+		},
+		{
+			"id": "packages/compiler/src/vite/plugin-api.ts > client_hook_names > some:0~21370e",
+			"reason": "one property of the realm's object for a key it cannot read (an oxc AST node: not replayable), constant work; proven in packages/core/test/plugins.test.ts"
+		},
+		{
+			"id": "packages/compiler/src/vite/plugin-api.ts > client_hook_names > find:0~4d8122",
+			"reason": "one property of the realm's object against the key hooks (an oxc AST node: not replayable), constant work; proven in packages/core/test/plugins.test.ts"
+		},
+		{
+			"id": "packages/federation/src/messages.ts > FEDERATION_WARNINGS > federation_audience_missing > text",
+			"reason": "a warning's wording, constant text; said in packages/federation/test/federation.test.ts"
+		},
+		{
+			"id": "packages/federation/src/messages.ts > FEDERATION_WARNINGS > federation_audience_missing > details",
+			"reason": "a warning's longer wording for its error page, constant text"
+		},
+		{
+			"id": "packages/federation/src/messages.ts > FEDERATION_WARNINGS > federation_peer_answer_invalid > text",
+			"reason": "a warning's wording, constant text; said in packages/federation/test/peer-answer-invalid.test.ts"
+		},
+		{
+			"id": "packages/federation/src/messages.ts > FEDERATION_WARNINGS > federation_peer_answer_invalid > details",
+			"reason": "a warning's longer wording for its error page, constant text"
+		},
+		{
+			"id": "packages/federation/src/messages.ts > FEDERATION_WARNINGS > federation_peer_unreachable > text",
+			"reason": "a warning's wording, constant text; said in packages/federation/test/peer-unreachable.test.ts"
+		},
+		{
+			"id": "packages/federation/src/messages.ts > FEDERATION_WARNINGS > federation_peer_unreachable > details",
+			"reason": "a warning's longer wording for its error page, constant text"
+		},
+		{
+			"id": "packages/federation/src/peer.ts > HopFailed > constructor",
+			"reason": "a failed hop's error: its message and a status picked from three, constant work; thrown in packages/federation/test/peer-answer-invalid.test.ts and peer-unreachable.test.ts"
+		},
+		{
+			"id": "packages/federation/src/peer.ts > hop_failure_status",
+			"reason": "the status a failed hop answers with: one class check (hidden state: the error's class), constant work; run by packages/federation/test/hole-peer-failure.test.ts"
+		},
+		{
+			"id": "packages/federation/src/wire.ts > checker > capability:0~070b09 > signer > sign",
+			"reason": "the check side's signer stub: it never signs (every check brings its own keys), no work"
+		},
+		{
+			"id": "packages/federation/src/wire.ts > checker > capability:0~070b09 > signer > verify",
+			"reason": "the check side's signer stub: every check brings its own keys, so this always refuses, no work"
+		},
+		{
+			"id": "packages/federation/src/wire.ts > minter > capability:0~81c9d6 > signer > verify",
+			"reason": "the mint side's verify stub: a minter checks nothing (the receiver brings its keys), no work"
+		},
+		{
+			"id": "packages/federation/src/wire.ts > configured_audience",
+			"reason": "reads the process's ORIGIN once per federate() (hidden state: the environment), one URL parse, constant work; proven in packages/federation/test/federation.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/index.ts > Profiler > #ids",
+			"reason": "the profiler's window ids, made once per instance (a profiler instance, not cloneable): one lazy import and one call of window_ids, which packages/devtools/bench/window-id.bench.ts measures; proven in packages/devtools/test/profiler-window-id.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/index.ts > Profiler > #ids > then:0~2b15d2",
+			"reason": "hands the loaded module's window_ids the profiler's secret, mode and audience (a module namespace, not cloneable), constant work; window_ids is benched in packages/devtools/bench/window-id.bench.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/window-id.ts > hmac_signer",
+			"reason": "wraps a derived key (a Buffer, not cloneable) in a sign/verify pair, once per profiler; the mint and check it serves are benched in packages/devtools/bench/window-id.bench.ts"
+		},
+		{
+			"id": "packages/core/src/compiler/macros/pipeline.ts > run_module_macros > refuse",
+			"reason": "throws the coded build error (not replayable), constant work; proven in packages/core/test/macros-own-source.test.ts"
+		},
+		{
+			"id": "packages/core/src/compiler/driver.ts > Compiler > macros > run_module_macros:2~cee8e9 > ownSource",
+			"reason": "forwards to CompileCtx.is_own_source, one call; proven in packages/core/test/macros-own-source.test.ts"
+		},
+		{
+			"id": "packages/core/src/compiler/ctx.ts > CompileCtx > is_own_source",
+			"reason": "one substring test and the declared-package lookup (a CompileCtx, hidden state), constant work per declared root"
+		},
+		{
+			"id": "packages/core/src/vite/package-files.ts > discover_package_files > inside",
+			"reason": "a closure over the package's real root (not replayable), one prefix compare; proven in packages/core/test/package-files.test.ts"
+		},
+		{
+			"id": "packages/core/src/server/rules.ts > note_region_answer",
+			"reason": "dev and e2e builds only: reads a live Response (not cloneable) into module state, constant work; proven in packages/core/test/server-rules-region.test.ts"
+		},
+		{
+			"id": "packages/core/src/server/rules.ts > note_minted_capability",
+			"reason": "dev and e2e builds only: two prefix tests into module state (hidden state), constant work; proven in packages/core/test/server-rules-region.test.ts"
+		},
+		{
+			"id": "packages/core/src/server/rules.ts > install_server_rules > add:1~32ab66",
+			"reason": "dev and e2e builds only: the region-answer rule joins its module list (hidden state), linear in the unsafe answers seen; proven in packages/core/test/server-rules-region.test.ts"
+		},
+		{
+			"id": "packages/core/src/server/rules.ts > install_server_rules > add:1~dd5fc5",
+			"reason": "dev and e2e builds only: the minted-capability rule joins its module list (hidden state), linear in the unsafe mints seen; proven in packages/core/test/server-rules-region.test.ts"
+		},
+		{
+			"id": "packages/core/src/server/rules.ts > region_answer_unsafe",
+			"reason": "dev and e2e builds only: reads a live Response's headers (not cloneable), constant work; proven in packages/core/test/server-rules-region.test.ts"
+		},
+		{
+			"id": "packages/core/src/messages/server.ts > SERVER_WARNINGS > rule_region_answer_shared > text",
+			"reason": "a rule's message wording (dev and e2e only), constant text; said in packages/core/test/server-rules-region.test.ts"
+		},
+		{
+			"id": "packages/core/src/messages/server.ts > SERVER_WARNINGS > rule_region_answer_shared > details",
+			"reason": "a rule's message wording (dev and e2e only), constant text; said in packages/core/test/server-rules-region.test.ts"
+		},
+		{
+			"id": "packages/core/src/messages/server.ts > SERVER_WARNINGS > rule_capability_not_path > text",
+			"reason": "a rule's message wording (dev and e2e only), constant text; said in packages/core/test/server-rules-region.test.ts"
+		},
+		{
+			"id": "packages/core/src/messages/server.ts > SERVER_WARNINGS > rule_capability_not_path > details",
+			"reason": "a rule's message wording (dev and e2e only), constant text; said in packages/core/test/server-rules-region.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/rules.ts > head_candidates",
+			"reason": "browser only, dev and e2e builds: one query of the live head (DOM nodes, not cloneable), linear in its base and http-equiv nodes; proven in packages/core/test/browser/spa-head-deny.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/rules.ts > head_not_adopted",
+			"reason": "browser only, dev and e2e builds: the rule's answer over the live head (DOM nodes, not cloneable), linear in its base and http-equiv nodes; proven in packages/core/test/browser/spa-head-deny.test.ts and read at the end of every palaestra e2e spec"
+		},
+		{
+			"id": "packages/core/src/runtime/rules.ts > watch_head",
+			"reason": "browser only, dev and e2e builds: takes the first document's head once (DOM nodes, not cloneable) and installs the rule; proven in packages/core/test/browser/spa-head-deny.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/rules.ts > watch_head > map:0~7d8330",
+			"reason": "browser only, dev and e2e builds: one head node's outerHTML (a DOM node, not cloneable), constant work; proven in packages/core/test/browser/spa-head-deny.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/rules.ts > watch_head > __og_head_deny",
+			"reason": "browser only, dev and e2e builds: the router's lazy chunk hands its deny in (one assignment), constant work; proven in packages/core/test/browser/spa-head-deny.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/head-deny.ts > is_dangerous_head_node",
+			"reason": "browser only: a tag name and one attribute of a head node (a DOM element, not cloneable), constant work; proven in packages/core/test/browser/spa-head-deny.test.ts in three engines"
+		},
+		{
+			"id": "packages/core/src/messages/core.ts > WARNINGS > rule_head_adopted > details",
+			"reason": "a rule's message wording (dev and e2e only), constant text; said in packages/core/test/browser/spa-head-deny.test.ts"
+		},
+		{
+			"id": "packages/core/src/messages/core.ts > WARNINGS > rule_head_adopted > text",
+			"reason": "a rule's message wording (dev and e2e only), constant text; said in packages/core/test/browser/spa-head-deny.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/router-nav.ts > live_page_head",
+			"reason": "browser only: reads the live <head>'s page-owned nodes (not cloneable), linear in the head; proven in packages/core/test/browser/nav-head-order.test.ts (#794)"
+		},
+		{
+			"id": "packages/core/src/runtime/router-nav.ts > head_slot",
+			"reason": "browser only: walks a parsed head node's earlier siblings against the live <head> (not cloneable), linear in the head; proven in packages/core/test/browser/nav-head-order.test.ts (#794)"
+		},
+		{
+			"id": "packages/core/src/runtime/router-nav.ts > adopt_title",
+			"reason": "browser only: reads the parsed document's title and writes the live document's (not cloneable), constant work; proven in packages/core/test/browser/nav-no-title.test.ts"
+		},
+		{
+			"id": "packages/core/src/compiler/messages.ts > BUILD_ERRORS > macro_outside_app > text",
+			"reason": "a message's wording, constant text; said in packages/core/test/macros-own-source.test.ts"
+		},
+		{
+			"id": "packages/core/src/compiler/messages.ts > BUILD_ERRORS > macro_outside_app > details",
+			"reason": "a message's wording, constant text; said in packages/core/test/macros-own-source.test.ts"
+		},
+		{
+			"id": "packages/postrender/src/server.ts > credentialed",
+			"reason": "two header lookups on the request (a Request, not cloneable), once per request, constant work; proven in packages/postrender/test/plugin.test.ts"
+		},
+		{
 			"id": "packages/core/src/runtime/rules.ts > watch_frames",
 			"reason": "browser only, dev and e2e builds: hands the rule the frame store's peek, once; proven in packages/core/test/browser/rules.test.ts"
 		},
@@ -3999,6 +4315,30 @@
 		{
 			"id": "packages/core/src/messages/core.ts > WARNINGS > rule_region_answer_behind > text",
 			"reason": "a message's one line for the dev warning: a template over the rule's detail, printed once when the rule breaks"
+		},
+		{
+			"id": "packages/core/src/runtime/core.ts > say_island_failed",
+			"reason": "browser only, an error path: says one coded console error for an island that could not start (an Error, not cloneable), constant work; proven in packages/core/test/browser/live-region-failed-file.test.ts (#942)"
+		},
+		{
+			"id": "packages/core/src/compiler/link/location-map.ts > by_key",
+			"reason": "build time: one comparison of two keys, a sort's callback (not recorded), constant work; proven in packages/core/test/entry-locations.test.ts"
+		},
+		{
+			"id": "packages/core/src/contract/trigger.ts > on_schedule",
+			"reason": "hands a callback to one of four schedule arms (functions, not cloneable), one parse and one branch, constant work"
+		},
+		{
+			"id": "packages/core/src/runtime/lakes.ts > on_frozen_connect > on_schedule:2~6d0320",
+			"reason": "browser only: a stored page's swr lake revalidates on its schedule, one fetch call, constant work"
+		},
+		{
+			"id": "packages/core/src/runtime/lakes.ts > on_frozen_connect > on_schedule:2~6d0320#2",
+			"reason": "browser only: a cached lake revalidates on its schedule, one fetch call, constant work"
+		},
+		{
+			"id": "packages/core/src/runtime/lakes.ts > on_frozen_connect > on_schedule:2~6d0320#3",
+			"reason": "browser only: a cached lake revalidates on its schedule, one fetch call, constant work"
 		},
 		{
 			"id": "packages/machine/src/queue.ts > QueueImpl > #arm > timeout:0~5b3150",
