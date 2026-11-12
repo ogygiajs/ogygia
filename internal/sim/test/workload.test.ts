@@ -8,6 +8,7 @@ import {
 	ACTION_KINDS,
 	describe as say,
 	next_action,
+	pick,
 	user_click,
 	type Action
 } from '../src/workload.ts';
@@ -95,6 +96,39 @@ describe('the workload', () => {
 			window.document.addEventListener(type, (e) => heard.push(e.type), { capture: true });
 		user_click(button as unknown as Element);
 		expect(heard).toEqual(['pointerdown', 'mousedown', 'pointerup', 'mouseup', 'click']);
+		window.close();
+	});
+
+	it('a planned pick finds what it named on a page whose elements moved, and says when it is gone', () => {
+		const window = new Window({ url: 'https://app.test/' });
+		const page = (html: string) => {
+			window.document.body.innerHTML = html;
+			return [
+				...window.document.querySelectorAll('a[href], ogygia-region button')
+			] as unknown as Element[];
+		};
+		// (a run picks by its draw, and names what it picked)
+		const first = page('<a href="/a">a</a><a href="/b">b</a><a href="/b">b again</a>');
+		const drawn = pick(first, 2, undefined);
+		expect(drawn.name).toBe('link /b @1');
+		expect(drawn.missed).toBe(false);
+		// (its plan, replayed on a page with one more link before it: the same link, by its name)
+		const moved = page(
+			'<a href="/new">n</a><a href="/a">a</a><a href="/b">b</a><a href="/b">b2</a>'
+		);
+		const again = pick(moved, 2, drawn.name);
+		expect(again.el.textContent).toBe('b2');
+		expect(again.missed).toBe(false);
+		// (a button by its region and text)
+		const buttons = page(
+			'<ogygia-region entry="Cart"><button>add</button><button>remove</button></ogygia-region>'
+		);
+		expect(pick(buttons, 1, undefined).name).toBe('button Cart "remove"');
+		expect(pick(buttons, 0, 'button Cart "remove"').el.textContent).toBe('remove');
+		// (what it named is gone: its draw picks, and the pick says it missed)
+		const gone = pick(first, 0, 'link /gone');
+		expect(gone.missed).toBe(true);
+		expect(gone.name).toBe('link /a');
 		window.close();
 	});
 });
