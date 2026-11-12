@@ -194,6 +194,18 @@
 	],
 	"covered": [
 		{
+			"step": "interaction-arming: armed -> woken",
+			"reason": "new with the interaction arming machine (it replaced a hand-switched state field): the next sweep's --write moves it to reached if the fake browser takes it",
+			"test": "packages/core/test/browser/interaction-delegated.test.ts",
+			"name": "an event inside an armed region wakes THAT region only, once; the pointer warms once"
+		},
+		{
+			"step": "interaction-arming: woken -> over",
+			"reason": "new with the interaction arming machine (it replaced a hand-switched state field): the next sweep's --write moves it to reached if the fake browser takes it",
+			"test": "packages/core/test/browser/interaction-rearm.test.ts",
+			"name": "a capture armed again while the first one’s wake loads catches the next click, and the first leaves it alone"
+		},
+		{
 			"step": "critical resources: kept -> gone",
 			"reason": "a page asks only before the gate settles, and the answer is kept only after it: no later get, no expiry, no max; only reset_load_scheduler() drops it, which a test's reset calls",
 			"test": "packages/core/test/browser/load-scheduler.test.ts",

@@ -587,6 +587,9 @@ export function fallback_stands(tab: Tab, world: World): Broken | null {
 	const touched = faulted(world, tab);
 	const mine = world.network.exchanges.filter((e) => e.from === tab.realm);
 	if (touched && mine.some((e) => e.method === 'POST')) return null;
+	// (nor one whose runtime, or another script, failed to load: the runtime may never have run, and
+	// the page stays its server HTML, as runtime_load_failed says; gen 12, seed 22)
+	if (touched && world.browsers.lacks_a_file(tab.realm)) return null;
 	const asked = new Set(
 		mine.filter((e) => e.method === 'GET').map((e) => answer_key(new URL(e.url)))
 	);
@@ -1126,6 +1129,12 @@ export const KNOWN_SAID: ReadonlyArray<{ issue: number; what: string; said: RegE
 		// (a plain Kit app warns it too; the stale read it warns of gave palaestra's PendingGreeting
 		// `undefined`, seeds 20257 and a plain Kit app's 124)
 		said: /svelte\.dev\/e\/derived_inert|^unhandled: TypeError: Cannot read properties of undefined \(reading 'greeting'\)/
+	},
+	{
+		issue: 1158,
+		what: 'a hole batch called off while its body comes rejects with nobody listening',
+		// (the reason the network gives a request its page called off: browser.ts `call_off`)
+		said: /^unhandled: AbortError: The operation was aborted\.$/
 	}
 ];
 
