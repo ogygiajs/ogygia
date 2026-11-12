@@ -212,6 +212,9 @@ export type BootLink = {
 	record_server_body: typeof import('./ownership.ts').record_server_body;
 	server_body_attributes: typeof import('./ownership.ts').server_body_attributes;
 	server_body_child: typeof import('./ownership.ts').server_body_child;
+	/** a document's side channels, the server's own only (./response-mark.ts, RESPONSE-MARK) */
+	server_channel: typeof import('./response-mark.ts').server_channel;
+	adopt_mark: typeof import('./response-mark.ts').adopt_mark;
 	/** devalue, loaded when a page needs it (./devalue-lane.ts) */
 	load_devalue: typeof import('./devalue-lane.ts').load_devalue;
 	devalue: typeof import('./devalue-lane.ts').devalue;
