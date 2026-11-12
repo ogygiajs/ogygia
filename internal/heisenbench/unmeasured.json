@@ -4039,6 +4039,26 @@
 		{
 			"id": "packages/core/src/runtime/core.ts > say_island_failed",
 			"reason": "browser only, an error path: says one coded console error for an island that could not start (an Error, not cloneable), constant work; proven in packages/core/test/browser/live-region-failed-file.test.ts (#942)"
+		},
+		{
+			"id": "packages/core/src/messages/core.ts > WARNINGS > rule_markup_known > details",
+			"reason": "dev and e2e only: one rule's message text, constant work"
+		},
+		{
+			"id": "packages/core/src/messages/core.ts > WARNINGS > rule_markup_known > text",
+			"reason": "dev and e2e only: one rule's message text, constant work"
+		},
+		{
+			"id": "packages/core/src/runtime/rules.ts > markup_known",
+			"reason": "dev and e2e only (folds out of production): reads the live DOM's attributes, linear in the page's elements; proven in packages/core/test/browser/rules.test.ts"
+		},
+		{
+			"id": "packages/core/src/wire-markup.ts > map:0~d4bdfe",
+			"reason": "once at module load: every declared marker's name, linear in MARK's entries (fixed)"
+		},
+		{
+			"id": "packages/core/src/wire-markup.ts > tags",
+			"reason": "a generator (not recorded) the tests read pages with; no source calls it; proven in packages/core/test/wire-markup.test.ts"
 		}
 	]
 }
