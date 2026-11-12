@@ -1,8 +1,10 @@
 /**
  * Anonymous visitor identity — sticky experiments/flags/rollouts for LOGGED-OUT traffic.
  * Without an identity, splits degrade to control (nothing to hash on); this resolver mints a
- * random id into a cookie on first sight and returns it as `{ sub }` forever after, so a
- * rollout percentage holds for anonymous visitors too.
+ * random id into a cookie on first sight and returns it as `{ vid, anonymous: true }` forever
+ * after, so a rollout percentage holds for anonymous visitors too. It is never `sub`: that is a
+ * signed-in user's id, which `mount()` signs onward to peers as who is browsing, and the cookie is
+ * whatever the browser sends (test/visitor.test.ts).
  *
  *     routes(table, { visitor: anonymousVisitor() })                      // anonymous-only
  *     routes(table, { visitor: (c) => session(c) ?? anon(c) })            // session first
@@ -27,7 +29,7 @@ export function anonymousVisitor(
 	const max_age = (opts.days ?? 365) * 86_400;
 	return (c) => {
 		const existing = c.cookies?.get(name);
-		if (existing) return { sub: existing, anonymous: true };
+		if (existing) return { vid: existing, anonymous: true };
 		const id = randomUUID();
 		// mounted in Kit → its cookie jar (adds the header AND makes the value readable this
 		// request); standalone → a set-cookie on the router-built response via setHeaders
@@ -43,6 +45,6 @@ export function anonymousVisitor(
 				'set-cookie': `${name}=${id}; Path=/; Max-Age=${max_age}; HttpOnly; SameSite=Lax`
 			});
 		}
-		return { sub: id, anonymous: true };
+		return { vid: id, anonymous: true };
 	};
 }

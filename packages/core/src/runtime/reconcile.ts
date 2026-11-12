@@ -127,9 +127,30 @@ export function region_props_fp(el: Element): string {
 const RECONCILE_KEY = 'data-key';
 
 /** Stamp reconcile keys onto a root's regions + keep-chrome, without clobbering an authored key/id.
- *  A region's key is signature+fingerprint (patch on either change); keep-chrome keys by keep name. */
+ *  A region's key is its identity (fingerprint, or signature for a persisted one) plus which copy of
+ *  it it is; keep-chrome keys by keep name. */
 export function stamp_region_keys(root: ParentNode): void {
-	for (const el of root.querySelectorAll('ogygia-region')) {
+	const regions = root.querySelectorAll('ogygia-region');
+	// A key names ONE region: identical regions (same component, same props) share a fingerprint, and
+	// a shared key let the morph match both to one node, so a page left with two of them kept one
+	// (#807). The first copy keeps the bare identity, a later copy adds its place among the copies in
+	// document order, the same on the live page and the incoming one. Keys already stamped (a region
+	// kept from an earlier navigation) are taken first, so a new copy never repeats one.
+	const taken = new Set<string>();
+	for (const el of regions) {
+		const k = el.getAttribute(RECONCILE_KEY);
+		if (k !== null) taken.add(k);
+	}
+	const copies = new Map<string, number>();
+	const stamp = (el: Element, identity: string): void => {
+		let n = copies.get(identity) ?? 0;
+		let key = n === 0 ? identity : identity + ' ' + n;
+		while (taken.has(key)) key = identity + ' ' + ++n;
+		copies.set(identity, n + 1);
+		taken.add(key);
+		el.setAttribute(RECONCILE_KEY, key);
+	};
+	for (const el of regions) {
 		if (el.getAttribute(RECONCILE_KEY) !== null || el.id !== '') continue;
 		// A KEPT region (keep:'name' / data-persist) keys by its STABLE identity so a props change
 		// (e.g. a `track` prop following the route) KEEPS the live island and prop-pushes the new
@@ -139,12 +160,12 @@ export function stamp_region_keys(root: ParentNode): void {
 		if (keep !== null) {
 			el.setAttribute(RECONCILE_KEY, 'k ' + keep);
 		} else if (el.hasAttribute('data-persist')) {
-			el.setAttribute(RECONCILE_KEY, 'p ' + region_signature(el));
+			stamp(el, 'p ' + region_signature(el));
 		} else {
 			// One identity: the 64-bit fingerprint alone. It already hashes entry + endpoint + props,
 			// so the old signature+fp encoded entry twice — the fp is the whole key now, and 64 bits
 			// makes a cross-slot collision a non-risk.
-			el.setAttribute(RECONCILE_KEY, 'r ' + region_props_fp(el));
+			stamp(el, 'r ' + region_props_fp(el));
 		}
 	}
 	for (const el of root.querySelectorAll('[data-ogygia-keep]')) {
