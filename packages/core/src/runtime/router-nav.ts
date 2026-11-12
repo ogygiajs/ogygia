@@ -15,7 +15,7 @@
  * way.
  */
 import { boot_link, router_link, slots } from './slots.ts';
-import { clock } from '@ogygia/machine';
+import { clock, net } from '@ogygia/machine';
 import { dispose_scope } from '../ref.ts';
 import {
 	NO_RECONCILE_SELECTOR,
@@ -599,7 +599,7 @@ async function run_page_fetch(
 	flight: import('@ogygia/machine').InFlight
 ): Promise<Fetched> {
 	const go = (priority?: 'high' | 'auto' | 'low') =>
-		fetch(href, {
+		net.fetch(href, {
 			signal,
 			headers: nav_headers(purpose),
 			...(priority ? { priority } : {})
@@ -757,7 +757,7 @@ export async function navigate(
 	// THE NAVIGATION'S OWN CLOCK (the beacon's: a slow in-app navigation is a page's cost the
 	// document timing never sees): its start, the page fetched and its styles in (the build's), the
 	// swap committed
-	const nav_t0 = performance.now();
+	const nav_t0 = clock.mono();
 	if (DEVTOOLS)
 		dt_emit({
 			domain: 'nav',
@@ -814,7 +814,7 @@ export async function navigate(
 		const page = await fetch_page(url.href, signal, purpose);
 		if (page === null || signal.aborted) return null;
 		const { html } = page;
-		const fetched = performance.now();
+		const fetched = clock.mono();
 		// one-shot; always fresh on real navigation (a fetch already out again for it is left be)
 		pages().drop(({ href }, entry) => href === url.href && entry.kind === 'kept' && !entry.flying);
 
@@ -894,7 +894,7 @@ export async function navigate(
 		const sheets: InertSheet[] = [];
 		await preload_stylesheets(doc.head, attempt, sheets, discard);
 		if (signal.aborted) return null;
-		const styled = performance.now();
+		const styled = clock.mono();
 		// The transition starts in a task of its own: everything above is a finished task by then, and
 		// the frame it captures is not the one that parsed 2 MB of HTML.
 		await yield_task();
@@ -1047,7 +1047,7 @@ export async function navigate(
 			t: nav_t0,
 			fetched: built.fetched,
 			styled: built.styled,
-			swapped: performance.now(),
+			swapped: clock.mono(),
 			href: url.href,
 			reconciled: built.reconciled
 		});
