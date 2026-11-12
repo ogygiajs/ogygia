@@ -17,7 +17,7 @@ const OUTPUT = fileURLToPath(
 	new URL('../../../../apps/palaestra/.svelte-kit/output', import.meta.url)
 );
 
-describe.skipIf(!existsSync(OUTPUT + '/server/index.js'))(
+describe.skipIf(!existsSync(`${OUTPUT}/server/index.js`))(
 	'found: a kept head link with a relative URL',
 	() => {
 		it('still names its file after a client navigation to a deeper path', async () => {
