@@ -11,7 +11,19 @@ const NAMES = ['meta', 'link', 'script', 'ogygia-region', 'style', 'title', 'tex
 
 const PAGE = html_arb({
 	tags: [...NAMES, 'div', 'template', 'noscript', 'xmp', 'p'],
-	attrs: ['name', 'content', 'rel', 'href', 'entry', 'data-ogygia-runtime', 'data-x'],
+	// (and names past ASCII, which the browser keeps as written: it lower-cases ASCII only, #1115.
+	// `ı` upper-cases to an ASCII `I`, `ä` to `Ä`)
+	attrs: [
+		'name',
+		'content',
+		'rel',
+		'href',
+		'entry',
+		'data-ogygia-runtime',
+		'data-x',
+		'data-äsrc',
+		'ıd'
+	],
 	values: ['ogygia-router', 'stylesheet', '/a.css', './_app/x.js'],
 	texts: [
 		'<meta name="ogygia-router">',
