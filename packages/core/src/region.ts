@@ -106,9 +106,13 @@ export type DualRegion = {
 	/**
 	 * Server-only renderer, invoked when the region is **awaited** (see {@link region}). Renders
 	 * the component to HTML on the server so the ticket can travel with its markup — no client fetch.
-	 * Provided by the SSR region-binding leg; never crosses the wire.
+	 * Provided by the SSR region-binding leg; never crosses the wire. `wakes`: the component hydrates
+	 * over the HTML, so it renders in its hydrate's context.
 	 */
-	readonly renderHtml?: (props: Record<string, unknown>) => string | Promise<string>;
+	readonly renderHtml?: (
+		props: Record<string, unknown>,
+		wakes?: boolean
+	) => string | Promise<string>;
 	/** Server-rendered HTML, present once the region has been awaited. Rides the wire in the ticket. */
 	readonly html?: string;
 	/** The data version `region()` was given ({@link RegionData}), as a number. */
@@ -170,7 +174,7 @@ type RegionBinding = {
 	__component?: Component<Record<string, unknown>>;
 	__sign?: (entry: string, props: Record<string, unknown>) => string;
 	/** SSR-only: render the component to HTML (svelte/server). Used when a held region is awaited. */
-	__renderHtml?: (props: Record<string, unknown>) => string | Promise<string>;
+	__renderHtml?: (props: Record<string, unknown>, wakes?: boolean) => string | Promise<string>;
 };
 
 function isBinding(value: unknown): value is RegionBinding {
@@ -325,9 +329,10 @@ function make_awaitable(dual: DualRegion): AwaitableRegion {
 				// `<link>`s — the page never imported this server-picked component, so its CSS is on no
 				// page stylesheet; the client hoists those links to <head>.
 				// A branded snippet in the props crosses in its portable form (portable-form.ts) — the
-				// same shape the far side revives from the descriptor the wire carries.
+				// same shape the far side revives from the descriptor the wire carries. A schedule wakes it
+				// (Region.svelte's `held_dual_island`).
 				const html = dual.renderHtml
-					? await dual.renderHtml(with_portable_forms(dual.props))
+					? await dual.renderHtml(with_portable_forms(dual.props), !!dual.hydrate)
 					: undefined;
 				// Spread copies only enumerable own props → drops `then`, so the result is NOT a
 				// thenable and `await` settles here instead of chaining forever.
