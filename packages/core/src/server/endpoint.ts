@@ -1,3 +1,6 @@
+import { app_path } from '../app-base.ts';
+import { OgygiaError } from '../messages/server.ts';
+
 // Default server-island / region endpoint path. The double-underscore sentinel makes it clash-safe
 // against real application routes (no app ships a `/__ogygia__` route) while staying plain ASCII —
 // readable in the network panel, no percent-encoding on the wire. Overridable via
@@ -19,19 +22,31 @@ export const DEFAULT_ISLANDS_ENDPOINT = '/__ogygia__';
 const ENDPOINT_KEY = Symbol.for('ogygia.islands-endpoint');
 const endpoint_slot = globalThis as unknown as Record<symbol, string | undefined>;
 
-/** The islands endpoint path (without the app's base: matched by suffix, minted through `resolve`). */
+/** The islands endpoint path, without the app's base (minted and matched under it: `app_path`). */
 export function islands_endpoint(): string {
 	return endpoint_slot[ENDPOINT_KEY] ?? DEFAULT_ISLANDS_ENDPOINT;
 }
 
-/** Set by the handle (`handle({ endpoint })`); the default when none is given. */
+/** Set by the handle (`handle({ endpoint })`); the default when none is given. A process has one
+ *  endpoint: a second handle naming another is said (`islands_endpoint_conflict`), and the later one
+ *  stands, as a dev reload of the hooks wants. */
 export function configure_islands_endpoint(path: string | undefined): void {
-	// (the suffix match and the mint both read a leading slash: `api/x` would match `/myapi/x`)
-	endpoint_slot[ENDPOINT_KEY] = !path
-		? DEFAULT_ISLANDS_ENDPOINT
-		: path.startsWith('/')
-			? path
-			: `/${path}`;
+	const next = !path ? DEFAULT_ISLANDS_ENDPOINT : path.startsWith('/') ? path : `/${path}`;
+	const was = endpoint_slot[ENDPOINT_KEY];
+	if (was !== undefined && was !== next && !import.meta.env.DEV)
+		console.error(new OgygiaError('islands_endpoint_conflict', { endpoint: next, was }));
+	endpoint_slot[ENDPOINT_KEY] = next;
+}
+
+/** Tests: forget the endpoint, as a fresh process has none set. */
+export function reset_islands_endpoint(): void {
+	delete endpoint_slot[ENDPOINT_KEY];
+}
+
+/** Is `pathname` the islands endpoint? Its one path under the app's base, the one minted
+ *  (`app_path`): a page whose path only ends the same (`/docs/api` for `/api`) is a page. */
+export function is_islands_endpoint(pathname: string): boolean {
+	return pathname === app_path(islands_endpoint());
 }
 
 /** THE KIND OF A REQUEST: one rendering on behalf of a page it is not (the islands endpoint, or a
@@ -39,7 +54,7 @@ export function configure_islands_endpoint(path: string | undefined): void {
  *  page request. Read by the render (whose page it is) and by plugins (`ctx.forPage`: postrender
  *  stores and serves page requests only, #954). */
 export function renders_for_a_page(event: { url: URL; isRemoteRequest?: boolean }): boolean {
-	return event.url.pathname.endsWith(islands_endpoint()) || event.isRemoteRequest === true;
+	return is_islands_endpoint(event.url.pathname) || event.isRemoteRequest === true;
 }
 
 /** Max b64url props blob accepted by the region handle (and refused at mint time). */
