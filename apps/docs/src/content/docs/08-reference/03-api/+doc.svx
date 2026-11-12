@@ -234,6 +234,8 @@ Extra import-attribute keys to treat as ogygia directives, for interoperability 
 
 Protects the signed island endpoint against abuse by limiting requests per window per client.
 
+The client is the address your adapter gives (`event.getClientAddress()`). Behind a reverse proxy or a load balancer, tell the adapter which header holds the visitor's address (for adapter-node, `ADDRESS_HEADER`, with `XFF_DEPTH` for `X-Forwarded-For`). Otherwise every request has the proxy's address, every visitor shares one budget, and normal traffic gets `429`. When the budget runs out for a private, loopback or link-local address, the server warns once with [`rate_limit_shared_address`](https://ogygiajs.dev/e/rate_limit_shared_address).
+
 ### `sessionCookie`
 
 The name and options of the session cookie that ogygia uses to scope signed capabilities.

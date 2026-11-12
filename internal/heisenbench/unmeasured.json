@@ -4935,6 +4935,22 @@
 		{
 			"id": "packages/devtools/src/profiler/key-check.ts > random_id",
 			"reason": "random bytes (hidden state, not replayable) and a base64url of them, constant work; proven in packages/devtools/test/profiler-login-guard.test.ts"
+		},
+		{
+			"id": "packages/core/src/hooks.ts > OgygiaHandle > #render_over",
+			"reason": "one render-budget charge and, when it is spent, one address check (a handle instance, not cloneable), constant work; proven in packages/core/test/rate-limit-shared-address.test.ts and batch-render-budget.test.ts (#894)"
+		},
+		{
+			"id": "packages/core/src/hooks.ts > OgygiaHandle > #render_over > once:1~9fd48d",
+			"reason": "says the shared-address warning once (a console write, not replayable), constant work; proven in packages/core/test/rate-limit-shared-address.test.ts (#894)"
+		},
+		{
+			"id": "packages/core/src/messages/server.ts > SERVER_WARNINGS > rate_limit_shared_address > text",
+			"reason": "a message table entry: wording only; said in packages/core/test/rate-limit-shared-address.test.ts"
+		},
+		{
+			"id": "packages/core/src/messages/server.ts > SERVER_WARNINGS > rate_limit_shared_address > details",
+			"reason": "a message table entry: wording only"
 		}
 	]
 }
