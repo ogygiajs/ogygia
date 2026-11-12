@@ -156,6 +156,39 @@ describe('the network', () => {
 		expect(by).toEqual({ 'tab-1#1': true, 'tab-9#1': false });
 	});
 
+	it('some stalls come midway: the head arrives on time and the body goes quiet 10 to 40 s', async () => {
+		// (a batch stream that started reading and then went quiet, `batch-stream: reading -> stalled`:
+		// a stall only ever held an answer's start)
+		const loop = new Loop(rng(6));
+		const net = new Network({ loop, rng: rng(6), faults: new Set(['stall']), rates: { stall: 1 } });
+		const body = () =>
+			new ReadableStream<Uint8Array>({
+				start(c) {
+					c.enqueue(new TextEncoder().encode('a'));
+					c.enqueue(new TextEncoder().encode('b'));
+					c.close();
+				}
+			});
+		const seen: Array<{ head: number; whole: number }> = [];
+		for (let i = 0; i < 12; i++)
+			void net
+				.send(`tab-1#1`, new Request(`https://app.test/r/${i}`), async () => new Response(body()))
+				.then(async (r) => {
+					const head = loop.now;
+					expect(await r.text()).toBe('ab');
+					seen.push({ head, whole: loop.now });
+				});
+		await loop.run();
+		expect(seen).toHaveLength(12);
+		const midway = seen.filter((s) => s.head < 10_000);
+		const held = seen.filter((s) => s.head >= 10_000);
+		expect(midway.length).toBeGreaterThan(0);
+		expect(held.length).toBeGreaterThan(0);
+		for (const s of midway) expect(s.whole - s.head).toBeGreaterThanOrEqual(10_000);
+		for (const s of seen) expect(s.whole).toBeLessThanOrEqual(41_000);
+		expect(net.exchanges.every((e) => e.stalled === true)).toBe(true);
+	});
+
 	it("a calm tab's request comes from a client address of its own (gen 78, seed 78013)", async () => {
 		// (the reference load met the rate limit the run's own hole retries had used up, got 429
 		// for its holes and showed their fallbacks)
