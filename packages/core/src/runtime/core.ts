@@ -15,14 +15,9 @@ import { import_again, is_failed_import, on_reload_needed } from './import-again
 // off in a build where no region streams HTML, and the bundler drops the element's fetch / apply /
 // morph / renew path with it — that path works on the element's own state, so it cannot be a
 // feature module of its own, and without the frame store it has nowhere to land anyway.
-import { FRAMES } from 'virtual:ogygia/runtime-flags';
+import { FRAMES } from 'ogygia:boot';
 import { kit_hydrates_page } from './kit-boot.ts';
-import {
-	init_shadow_registries,
-	parse_region_html,
-	restore_adopt_sheets,
-	restore_markup
-} from './parse-html.ts';
+import { init_shadow_registries, parse_region_html } from './parse-html.ts';
 import {
 	mark_region_changed,
 	region_changed,
@@ -107,12 +102,13 @@ import {
 import {
 	CLIENT_PLUGINS,
 	boot_client_plugins,
+	client_answer_parsed,
+	client_answer_placed,
 	client_region_mount,
 	client_region_unmount
 } from './client-plugins.ts';
 import type { ClientPlugin } from '../plugin/client.ts';
 import { OgygiaError, warn, line } from '../messages/core.ts';
-import { report_restores } from './restore-report.ts';
 import { disclose_version } from './disclose-version.ts';
 
 // DEVTOOLS gate — module-local const from the Vite `define` (the proven DCE pattern): when off, every
@@ -533,9 +529,9 @@ export function region_fragment(html: string): {
 				)
 				.then(() => undefined)
 		: Promise.resolve();
-	// The app's transform reshaped the answer: restore it first — before the pristine copies below,
-	// before the morph, before any upgrade (the fragment is inert: nothing upgrades in it)
-	restore_markup(frag);
+	// The app's own pass reshaped the answer (@ogygia/reshape): restored first — before the pristine
+	// copies below, before the morph, before any upgrade (the fragment is inert: nothing upgrades in it)
+	if (CLIENT_PLUGINS) client_answer_parsed(frag);
 	// Pre-capture each nested self-hydrating island's PRISTINE markup while the fragment is still
 	// disconnected. Once inserted, a swapped-in foreign runtime (a web-component upgrade) can reach a raw
 	// custom element inside the island — attaching a shadow, its normalization dropping neighbouring
@@ -1112,11 +1108,13 @@ class OgygiaRegion extends HTMLElement {
 	 * Bind to the store at `endpoint`'s address: this region applies whatever frame lands there (#apply)
 	 * — from its own fetch, a twin's, a navigation batch stream, or a mutation. subscribe() replays
 	 * current content immediately, so a late-mounting twin catches up free. A re-minted endpoint (new
-	 * props, new page facts) moves the binding to its new address. Returns the address.
+	 * props, new page facts) moves the binding to its new address, and a fetch out at the old one is
+	 * left: its answer is for a call this hole no longer is. Returns the address.
 	 */
 	#bind(endpoint: string): string {
 		const address = frameAddress(endpoint);
 		if (this.#bound() && this.#frame_address === address) return address;
+		if (this.#hole.now.kind === 'fetching') this.#hole.go('idle');
 		// (one binding at a time, for the element's lifetime in the page: its end unbinds)
 		this.#binding?.close();
 		const binding = (this.#binding = this.#life.child());
@@ -1190,7 +1188,7 @@ class OgygiaRegion extends HTMLElement {
 	/** An answer landed: the hole's own fetch has nothing left to wait for — a schedule still armed
 	 *  (a retry's) or a retry it waited for is called off. A fetch in flight runs to its end. */
 	#answered(kind: 'answered' | 'kept'): void {
-		if (this.#answer.now.kind !== kind) this.#answer.go(kind);
+		this.#answer.go(kind);
 		const hole = this.#hole.now.kind;
 		if (hole === 'armed' || hole === 'retrying' || hole === 'failed') this.#hole.go('idle');
 	}
@@ -1262,7 +1260,7 @@ class OgygiaRegion extends HTMLElement {
 		}
 		if (morph) morph(this, Array.from(frag.childNodes));
 		else this.replaceChildren(frag);
-		restore_adopt_sheets();
+		if (CLIENT_PLUGINS) client_answer_placed();
 		init_shadow_registries(this);
 		absorb_page_facts_now();
 		this.#answered('answered');
@@ -1345,7 +1343,7 @@ class OgygiaRegion extends HTMLElement {
 			for (const el of this.querySelectorAll('ogygia-region'))
 				if (el instanceof OgygiaRegion) el.#box.post((t) => el.#renew(t));
 		}
-		restore_adopt_sheets();
+		if (CLIENT_PLUGINS) client_answer_placed();
 		init_shadow_registries(this);
 		absorb_page_facts_now();
 		this.dispatchEvent(new CustomEvent('ogygia:live', { bubbles: true }));
@@ -1374,13 +1372,16 @@ class OgygiaRegion extends HTMLElement {
 	 */
 	async #fetch_html(turn: Turn, revalidate = false): Promise<void> {
 		if (!FRAMES) return;
-		const s = this.#hole.now;
 		// A revalidate re-fetches even after the first answer; a plain fetch is one-shot.
-		if (s.kind === 'fetching' || (!revalidate && this.#answer.now.kind !== 'none')) return;
+		if (!revalidate && this.#answer.now.kind !== 'none') return;
 		const endpoint = this.#endpoint();
 		// Don't start a fetch without an endpoint (would block a later remount retry on the same
 		// element if one were ever scheduled).
 		if (!endpoint) return;
+		// (a fetch out at this address already does this; one out at an older address — a re-minted
+		// hole — is left as it binds the new one, below)
+		if (this.#hole.now.kind === 'fetching' && frameAddress(endpoint) === this.#frame_address)
+			return;
 		// HOLE-TRUST defense-in-depth: mint emits path-only; reject absolute/cross-origin attrs.
 		if (!is_allowed_region_endpoint(endpoint)) {
 			if (import.meta.env.DEV) {
@@ -1394,6 +1395,7 @@ class OgygiaRegion extends HTMLElement {
 		// Bind if we haven't (SWR/lake remount reaches #fetch_html without going through #server);
 		// a re-minted hole (a refreshed region: new props, new page facts) answers at its NEW address.
 		const address = this.#bind(endpoint);
+		const s = this.#hole.now;
 		const attempts = s.kind === 'armed' || s.kind === 'retrying' ? s.attempts : 0;
 		this.#hole.go('fetching', { attempts, revalidate });
 		const mine = this.#hole.now;
@@ -1874,7 +1876,7 @@ class OgygiaRegion extends HTMLElement {
 		use_sheets(this, sheets);
 		slots.lakes.settle_in(frag);
 		this.replaceChildren(frag);
-		restore_adopt_sheets();
+		if (CLIENT_PLUGINS) client_answer_placed();
 		init_shadow_registries(this);
 		await this.#live_hydrate(desc.props, mine, desc.module, turn);
 	}
@@ -2068,8 +2070,6 @@ export function boot(
 		warn,
 		line
 	};
-	// what the server transform's restorer recorded, said out loud (./restore-report.ts)
-	report_restores();
 	// What the lazy chunks use from the boot, handed over through the registry (./boot-link.ts).
 	link_boot();
 	for (const install of installers) install();

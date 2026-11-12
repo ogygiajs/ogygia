@@ -51,6 +51,8 @@ catalog:
   vitest: ^4.1.12
   '@vitest/browser': 4.1.12
   '@vitest/browser-playwright': 4.1.12
+  # coverage for every package's unit and browser projects (.github/scripts/coverage.ts)
+  '@vitest/coverage-v8': 4.1.12
   # the released Firefox for the browser projects (through geckodriver)
   '@vitest/browser-webdriverio': 4.1.12
   # 9, not 10: vitest 4.1's webdriverio provider calls `switchFrame`, which 10 removed for BiDi sessions

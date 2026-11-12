@@ -25,6 +25,12 @@
 	"sideEffects": [
 		"**/*.css"
 	],
+	"imports": {
+		"#profiler-maps": {
+			"browser": "./src/profiler/maps-browser.ts",
+			"default": "./src/profiler/maps-server.ts"
+		}
+	},
 	"exports": {
 		".": {
 			"types": "./dist/devtools/index.d.ts",
@@ -69,6 +75,13 @@
 		}
 	},
 	"publishConfig": {
+		"imports": {
+			"#profiler-maps": {
+				"types": "./dist/profiler/maps-server.d.ts",
+				"browser": "./dist/profiler/maps-browser.js",
+				"default": "./dist/profiler/maps-server.js"
+			}
+		},
 		"exports": {
 			".": {
 				"types": "./dist/devtools/index.d.ts",
@@ -116,6 +129,7 @@
 	},
 	"scripts": {
 		"build": "tsdown",
+		"prepublishOnly": "pnpm run build",
 		"check": "tsc -p . && svelte-check --tsconfig ./tsconfig.check.json --fail-on-warnings && tsc -p test && tsc -p e2e && vitest run",
 		"test": "vitest run",
 		"e2e": "playwright test"
@@ -123,6 +137,7 @@
 	"dependencies": {
 		"@neodrag/svelte": "catalog:",
 		"@ogygia/machine": "workspace:^",
+		"@ogygia/reshape": "workspace:^",
 		"@ogygia/router": "workspace:^",
 		"devalue": "catalog:"
 	},

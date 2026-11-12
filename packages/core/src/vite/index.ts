@@ -4,8 +4,8 @@ import crypto from 'node:crypto';
 import { isMainThread } from 'node:worker_threads';
 import { loadEnv, type Plugin, type Rolldown, type ViteDevServer } from 'vite';
 import type { PreprocessorGroup } from 'svelte/compiler';
-import { configure_build_cache } from '../build-cache.ts';
-import { content_css_key } from '../plugin/utils.ts';
+import { configure_build_cache } from '../compiler/build-cache.ts';
+import { content_css_key } from '../contract/content.ts';
 import { island_sourcemaps_plugin } from './sourcemaps.ts';
 import { server_sourcemaps_plugin } from './server-sourcemaps.ts';
 import { install_dev_client_maps, install_dev_maps, install_dev_page_keys } from './dev-maps.ts';
@@ -30,8 +30,6 @@ export {
 } from '../compiler/region/transform.ts';
 export { rewrite_lake_import_to_placeholder } from '../compiler/region/emit.ts';
 export type { ImportKeys } from '../compiler/region/transform.ts';
-// The debarrel pass as a standalone plugin for any Vite app (inside ogygia it rides `barrels`).
-export { debarrel } from '../compiler/debarrel/plugin.ts';
 // the BUILD side of a plugin (design: internal/notes/packages.md, plugin API v2)
 export { definePlugin } from './plugin-api.ts';
 export type {
@@ -41,16 +39,31 @@ export type {
 	MacroHandler,
 	MacroContext,
 	MarkupSource,
-	MarkupRegions
+	MarkupRegions,
+	TransformStage,
+	TransformContext,
+	TransformEvent,
+	StageTransform,
+	ExportsSeam,
+	PinnedDecl
 } from './plugin-api.ts';
-export type { DebarrelOptions, Matcher as DebarrelMatcher } from '../compiler/debarrel/options.ts';
+export type {
+	ExportMap,
+	Entry as ExportEntry,
+	Leaf as ExportLeaf,
+	Policy as ExportPolicy
+} from '../compiler/exports/index.ts';
 export type { OgygiaPreset, OgygiaRateLimit, OgygiaOptions } from './options.ts';
 import {
 	find_plugins,
 	resolve_plugins,
+	type BuildSeams,
 	type PluginDefinition,
-	type ResolvedPlugins
+	type ResolvedPlugins,
+	type TransformContext,
+	type TransformStage
 } from './plugin-api.ts';
+import MagicString from 'magic-string';
 import type { ServerRealm } from '../compiler/link/caps.ts';
 import { assert_no_legacy_options, validate_region_presets, resolve_options } from './options.ts';
 import {
@@ -67,9 +80,8 @@ import {
 import { load_kit_dirs } from './kit-dirs.ts';
 import { write_module_map } from './module-map.ts';
 import { fill_profiler_maps } from './profiler-maps.ts';
-import { debarrel } from '../compiler/debarrel/plugin.ts';
 import { DEFAULT_REGION_TTL_SEC } from '../server/endpoint.ts';
-import { RENEW_WINDOW_SEC } from '../server/shared-cache.ts';
+import { RENEW_WINDOW_SEC } from '../contract/capability.ts';
 import { derive_id_salt, secret_has_min_entropy, MIN_SECRET_BYTES } from '../server/hmac.ts';
 import {
 	buildFoucCssModuleSource,
@@ -78,8 +90,15 @@ import {
 	foucRelFromId,
 	isFoucCssId,
 	isFoucScopedId,
-	svelteHasStyle
+	svelteHasStyle,
+	through_caller,
+	type WalkResolve
 } from '../compiler/fouc-css.ts';
+import { ExportIndex, Shapes } from '../compiler/exports/index.ts';
+import { barrel_left_table, type BarrelLeftTable } from '../compiler/exports/left.ts';
+import { BARREL_LEFT_REASONS, type BarrelLeftReason } from '../contract/barrels.ts';
+import type { ChunkBarrel } from '../contract/virtual-modules.ts';
+import { strip_bom } from '../compiler/bom.ts';
 
 import { preprocess_component_for_css } from './style-preprocess.ts';
 import {
@@ -96,24 +115,16 @@ import {
 } from '../compiler/link/island-deps.ts';
 import { report_seed_shaping } from '../compiler/link/build-output.ts';
 import { follow_pending_page_calls } from '../compiler/link/page-keys.ts';
-import { warn_content_leaks, emit_island_deps_handoff } from '../compiler/link/build-output.ts';
+import { emit_island_deps_handoff } from '../compiler/link/build-output.ts';
 import { ssr_hosts_handoff_path, parse_ssr_hosts } from '../compiler/link/emit-gate.ts';
 import { router_css_key } from '../compiler/link/router-css.ts';
 import { Program, strip_id } from '../compiler/program.ts';
 import { Compiler } from '../compiler/driver.ts';
+import { core_defines } from '../compiler/virtual/core.ts';
 import { CompileCtx, type PackageScan } from '../compiler/ctx.ts';
 import { discover_package_files } from './package-files.ts';
 import { async_twin_redirect, svelte_async_enabled } from './late-island.ts';
 import { flags_manifest } from '../compiler/flags.ts';
-import {
-	V_KIT_WIRE,
-	V_ROUTER_CSS,
-	V_ROUTE_CSR,
-	V_ROUTE_CONFIG,
-	RESOLVED,
-	V_SERVER_MANIFEST,
-	V_SERVER_ISLANDS
-} from '../compiler/ids.ts';
 
 // Kit's generated CLIENT app entry — Kit 2 dev serves `generated/client/app.js` and the build inputs
 // `generated/client-optimized/app.js`; Kit 3 nests both under `generated/dev/` and `generated/build/`
@@ -146,7 +157,7 @@ const KIT_PAGE_THREAD =
 // runs no ogygia runtime, so Kit's entry discloses it too. Where the runtime does boot, it adds the
 // same version (runtime/disclose-version.ts): the Set keeps one.
 const KIT_DISCLOSE_VERSION = `((globalThis.__ogygia ??= {}).v ??= new Set()).add(${JSON.stringify(OGYGIA_VERSION)});\n`;
-import { OWN_PACKAGE_NAMES, is_own_specifier } from '../own-package.ts';
+import { OWN_PACKAGE_NAMES, is_own_specifier } from '../contract/own-package.ts';
 import {
 	PKG_ROOT,
 	PKG_ROOT_ID,
@@ -162,18 +173,17 @@ import {
 	STUB_PATHS,
 	KIT_REMOTE_CLIENT,
 	KIT_REMOTE_STATE,
-	HMAC_MODULE,
 	RUNTIME_DIR,
-	REGION_ENDPOINT_MODULE,
 	RUNTIME_HASH,
 	OGYGIA_VERSION
 } from './paths.ts';
 
 import type { OgygiaOptions } from './options.ts';
-import { OgygiaError, warn, line } from '../messages/build.ts';
+import { OgygiaError, warn, line } from '../compiler/messages.ts';
 
 /** css-ish file the dev bridge manages (mirrors the bridge's glob). */
 const DEV_CSS_FILE_RE = /\.(css|scss|sass|less|styl)$/;
+const BACKSLASH_G = /\\/g;
 
 const CSS_EXT_RE = /\.css$/;
 const STYLE_BEARING_FILE_RE = /\.(svelte|css|scss|sass|less|styl)$/;
@@ -221,6 +231,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 	let route_config: string[] = [];
 	let foreign_hydrate = false;
 	let macros: ResolvedPlugins['macros'] = [];
+	let stage_transforms: ResolvedPlugins['transforms'] = [];
 	let markup: ResolvedPlugins['markup'] = [];
 	const import_keys = normalize_import_keys(options.importKeys);
 	// What the plugins asked of the build (their `build` hooks, run in `config` below): the build's
@@ -292,8 +303,11 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 	// `own`: the root's source when it is not the file on disk (a content module's post-mdsvex Svelte);
 	// the root's own CSS is then the caller's. `skip`: files whose CSS ships some other way.
 	const compiled_css = new Map<string, string | null>();
-	const tree_css_walk = (ctx: Parameters<typeof bundler_resolve>[0]) => {
+	const tree_css_walk = (
+		ctx: Parameters<typeof bundler_resolve>[0] & { environment: { name: string } }
+	) => {
 		const walk_resolve = bundler_resolve(ctx);
+		const exports = css_walk_index(ctx.environment.name);
 		return async (
 			abs: string,
 			opts: { own?: string; skip?: (abs: string) => boolean } = {}
@@ -305,7 +319,8 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 				libDir,
 				readFile: own == null ? readFile : (p: string) => (p === abs ? own : readFile(p)),
 				alias: resolve_alias,
-				resolve: walk_resolve
+				resolve: walk_resolve,
+				exports
 			})) {
 				if ((own != null && e.abs === abs) || skip?.(e.abs)) continue;
 				let css = compiled_css.get(e.abs);
@@ -390,6 +405,101 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 		}
 	};
 
+	// The app's module shapes, each parsed once (compiler/exports/): the CSS walk's indexes and the
+	// plugins' (`b.exports`) read the same ones. An index is per resolver: the CSS walk resolves past
+	// this plugin, a stage transform through it, so they share parses, never resolutions.
+	const shapes = new Shapes((abs) => {
+		const code = readFile(abs);
+		return code == null ? null : strip_bom(code);
+	});
+	// The plugins' seams (vite/plugin-api.ts): one export index per environment, resolved as the
+	// transformed module resolves (through every plugin's resolveId, this one's included)
+	const transform_indexes = new Map<string, ExportIndex<TransformContext>>();
+	const seams: BuildSeams = {
+		exports: {
+			map(file, spec, policy, t) {
+				let index = transform_indexes.get(t.environment);
+				if (index === undefined)
+					transform_indexes.set(
+						t.environment,
+						(index = new ExportIndex<TransformContext>(
+							(s, importer, caller) => caller.resolve(s, importer),
+							shapes
+						))
+					);
+				return index.map(file, spec, policy, t);
+			}
+		},
+		pinned_imports(code) {
+			const keys = new Set(Object.values(import_keys));
+			const locals = asRegionLocals(code);
+			return (decl) =>
+				decl.attribute_keys.some((k) => keys.has(k)) ||
+				(locals.size > 0 && decl.specs.some((s) => locals.has(s.local)));
+		}
+	};
+	// Why a barrel stayed (`t.emit`), per environment and stage (a stage's run forgets only its own
+	// earlier word on the module): what the findings read back for a barrel an island still imports
+	// whole. Cleared at each build leg's end and when the dev server closes.
+	const barrels_left = new Map<string, BarrelLeftTable>();
+	const barrels_left_of = (environment: string, stage: TransformStage): BarrelLeftTable => {
+		const key = `${environment}:${stage}`;
+		let table = barrels_left.get(key);
+		if (table === undefined) barrels_left.set(key, (table = barrel_left_table()));
+		return table;
+	};
+	/** Why the browser's `barrel` stayed, by every stage. */
+	const barrel_why = (barrel: string, importers: Iterable<string>): BarrelLeftReason[] => {
+		const ids = [...importers];
+		const found = new Set<BarrelLeftReason>();
+		for (const stage of ['source', 'post'] as const)
+			for (const r of barrels_left.get(`client:${stage}`)?.why(barrel, ids) ?? []) found.add(r);
+		return BARREL_LEFT_REASONS.filter((r) => found.has(r));
+	};
+	// A stage's host: runs the plugins' transforms of `stage` over one MagicString of the module, so
+	// the stage is one result and one map wherever the app lists the plugins
+	const stage_host = (stage: TransformStage): Plugin => ({
+		name: `ogygia:${stage}`,
+		enforce: 'pre',
+		async transform(raw, id) {
+			const mine = stage_transforms.filter((s) => s.stage === stage && (s.filter?.(id) ?? true));
+			if (mine.length === 0) return null;
+			const left = barrels_left_of(this.environment.name, stage);
+			left.forget(id);
+			// edits land by parser offsets: no byte-order mark in front of them (compiler/bom.ts)
+			const code = strip_bom(raw);
+			const edit = new MagicString(code);
+			const t: TransformContext = {
+				id,
+				code,
+				edit,
+				environment: this.environment.name,
+				resolve: async (spec, importer) => {
+					let r: Awaited<ReturnType<typeof this.resolve>>;
+					try {
+						r = await this.resolve(spec, importer, { skipSelf: true });
+					} catch {
+						return null; // ok: Vite throws for a specifier this importer cannot resolve
+					}
+					return r && !r.external ? r.id.replace(BACKSLASH_G, '/') : null;
+				},
+				watch: (file) => this.addWatchFile(file),
+				emit: (e) => left.record(id, e.barrel, e.reason)
+			};
+			for (const s of mine) await s.transform(t);
+			return edit.hasChanged()
+				? { code: edit.toString(), map: edit.generateMap({ hires: true }) }
+				: null;
+		}
+	});
+	const css_walk_indexes = new Map<string, ExportIndex<WalkResolve>>();
+	const css_walk_index = (environment: string): ExportIndex<WalkResolve> => {
+		let index = css_walk_indexes.get(environment);
+		if (index === undefined)
+			css_walk_indexes.set(environment, (index = new ExportIndex(through_caller, shapes)));
+		return index;
+	};
+
 	const __prof = {
 		transformMs: 0,
 		transformN: 0,
@@ -458,20 +568,8 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 	};
 
 	return [
-		// `ogygia({ barrels })` — the debarrel pass, FIRST in the array so the region transform below
-		// sees leaf imports. It leaves alone every import that carries an island identity: one with
-		// a region mark (the app's configured attribute keys) and one whose binding feeds
-		// `import.meta.og.asRegion(X)` — the prescan keys that island on the raw import, so the
-		// transform must see the same import. Islands are marked exactly as without it. Off unless
-		// asked for.
-		...(options.barrels
-			? [
-					debarrel(options.barrels, {
-						skip_attribute_keys: Object.values(import_keys),
-						skip_locals: asRegionLocals
-					})
-				]
-			: []),
+		// the plugins' `source` stage: on the module as written, before the region transform below
+		stage_host('source'),
 		{
 			name: 'ogygia',
 			enforce: 'pre',
@@ -496,8 +594,10 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 						app_plugins,
 						path.resolve(userConfig.root ?? '.'),
 						env.command === 'serve',
-						(source, filename) => compiler.transform_content_island(source, filename)
+						(source, filename) => compiler.transform_content_island(source, filename),
+						seams
 					);
+					stage_transforms = resolved.transforms;
 					({
 						servers: server_plugins,
 						clients: client_plugins,
@@ -602,7 +702,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 					// ONE OGYGIA IN THE DEV BROWSER: ogygia itself is never pre-bundled. An installed
 					// ogygia (not a workspace link) would be: the boot's `ogygia/runtime` went into
 					// `.vite/deps` while everything the compiler writes — the island modules and their
-					// `ogygia/internal`, `virtual:ogygia/hydrate-features` — imports ogygia's files by
+					// `ogygia/internal`, `ogygia:boot/hydrate-features` — imports ogygia's files by
 					// path, so the page ran two copies of its stateful modules (slots, the devtools bus,
 					// the island graph). The wire installed into one `slots` and the hydrate core read the
 					// other: every island with a snippet prop failed ("wired prop but no wire feature").
@@ -623,31 +723,19 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 						},
 						// CONTINUITY config → compile-time constants the client runtime reads (typeof-guarded,
 						// so a plain node import of dist/ without these defined falls back to defaults).
-						define: {
-							__OGYGIA_CONTINUITY_FORMS__: JSON.stringify(continuity_forms),
-							__OGYGIA_SERVER_DELTA__: JSON.stringify(server_delta),
-							// The event-layer gate — off unless a plugin asked (`b.events()`: devtools). When false, every
-							// `if (DEVTOOLS) emit({…})` folds out and the bus tree-shakes away.
-							__OGYGIA_DEVTOOLS__: JSON.stringify(devtools_effective),
-							// a BUILD with devtools on: the dock and the page measuring wait until
-							// someone opens it (a cookie remembers that for the next loads)
-							__OGYGIA_DEVTOOLS_LAZY__: JSON.stringify(devtools_lazy),
-							// ogygia's rules on itself (src/rules.ts), in a build: only one made for e2e
-							// (`OGYGIA_RULES=1`), which reads them at the end of each test. Dev has them always.
-							__OGYGIA_RULES__: JSON.stringify(process.env.OGYGIA_RULES === '1'),
-							// the profiler's browser half (runtime/beacon.ts) ships only to an app that
-							// can read it: the profiler configured, or devtools. Everywhere else every
-							// `if (BEACON) …` folds out and the module leaves the boot (a quarter of it)
-							__OGYGIA_BEACON__: JSON.stringify(measure || devtools_effective),
-							// a plugin's browser half is in the boot (`<plugin>/client`): the runtime calls its
-							// hooks; none, and every call folds out
-							__OGYGIA_CLIENT_PLUGINS__: JSON.stringify(client_plugins.length > 0),
-							// the app's Kit major: whether Kit's `asset()` takes a path with its leading
-							// slash (2) or without (3) — kit-paths.ts, where a runtime probe guessed wrong in builds
-							__OGYGIA_KIT_MAJOR__: JSON.stringify(kit_major(path.resolve(userConfig.root ?? '.'))),
-							// the installed ogygia's version, which the page's runtime discloses (`window.__ogygia.v`)
-							__OGYGIA_VERSION__: JSON.stringify(OGYGIA_VERSION)
-						},
+						// the switches (compiler/virtual/core.ts: the table's constants)
+						define: core_defines({
+							continuity_forms,
+							server_delta,
+							devtools: devtools_effective,
+							devtools_lazy,
+							rules: process.env.OGYGIA_RULES === '1',
+							beacon: measure || devtools_effective,
+							client_plugins: client_plugins.length > 0,
+							kit_major: kit_major(path.resolve(userConfig.root ?? '.')),
+							version: OGYGIA_VERSION,
+							dev_server: env.command === 'serve'
+						}),
 						server: {
 							fs: {
 								allow: [PKG_ROOT]
@@ -784,8 +872,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 						client_hooks,
 						runtime_dir: RUNTIME_DIR,
 						runtime_hash: RUNTIME_HASH,
-						hmac_module: HMAC_MODULE,
-						region_endpoint_module: REGION_ENDPOINT_MODULE,
+						kit_wire_path,
 						client_binding_stub_file: CLIENT_BINDING_STUB_FILE,
 						app_shims: APP_SHIMS,
 						is_build,
@@ -904,7 +991,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 					compiled_css.clear();
 					const tree_css = tree_css_walk(this);
 					// Router pages: resolved to a handoff `rcss:<rel>` href in writeBundle, linked at SSR by
-					// `virtual:ogygia/router-css` (link/router-css.ts).
+					// `ogygia:server/router-css` (link/router-css.ts).
 					router_css_refs.clear();
 					for (const abs of compiler.router_css_roots()) {
 						const source = await tree_css(abs);
@@ -986,26 +1073,28 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 						}
 						return sources.get(file);
 					};
-					const bytes = client_modules ? island_subgraph_bytes(client_modules as never, read) : {};
+					const bytes = client_modules
+						? island_subgraph_bytes(client_modules as never, read, barrel_why)
+						: {};
 					res.setHeader('content-type', 'application/json');
 					res.end(JSON.stringify({ names: compiler.region_names(), bytes }));
 				});
 			},
 
 			watchChange(id, change) {
+				// before anything re-emits: a module's parse, and what every export index built from it
+				shapes.invalidate(id, change.event);
 				// A route add/remove/rename or a `csr` export flip changes the csr topology → drop the
-				// memoized answers AND re-run the baked `virtual:ogygia/route-csr` module. The second
+				// memoized answers AND re-run the baked `ogygia:server/route-csr` module. The second
 				// half is load-bearing: context.ts imports `csr_true_routes` through the SSR module
 				// graph, so without invalidation the SERVER leg keeps deciding island-vs-inline from a
 				// STALE set while Kit flips immediately — `<ogygia-region>` shells on a Kit-booted page
 				// with the runtime withheld = dead chrome (hit at a consumer after toggling `csr`).
 				if (is_dev && ROUTE_HOST_OR_OPTION_RE.test(id)) {
 					clear_route_csr_cache();
-					if (vite_server) {
-						invalidate_module_id(vite_server, RESOLVED(V_ROUTE_CSR));
-						// a plugin's key inside `export const config` add/flip changes the baked values too
-						invalidate_module_id(vite_server, RESOLVED(V_ROUTE_CONFIG));
-					}
+					// (a plugin's key inside `export const config` add/flip changes the baked values too)
+					if (vite_server)
+						for (const mid of compiler.changed('routes')) invalidate_module_id(vite_server, mid);
 				}
 				// Unlink often skips handleHotUpdate; drop islands that still import the deleted file.
 				if (!is_dev || change.event !== 'delete' || !vite_server) return;
@@ -1049,13 +1138,11 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 				if (!is_dev) return;
 				vite_server = server;
 
-				// Server-router CSS: the dev `virtual:ogygia/router-css` INLINES compiled css at emit
+				// Server-router CSS: the dev `ogygia:server/router-css` INLINES compiled css at emit
 				// time, so any style-bearing source change must invalidate it — the next SSR re-emits
 				// with fresh css. Cheap (module-graph lookup), so no root-membership check.
-				if (STYLE_BEARING_FILE_RE.test(file)) {
-					const mod = server.moduleGraph.getModuleById('\0' + V_ROUTER_CSS);
-					if (mod) server.moduleGraph.invalidateModule(mod);
-				}
+				if (STYLE_BEARING_FILE_RE.test(file))
+					for (const mid of compiler.changed('styles')) invalidate_module_id(server, mid);
 
 				// SCOPED soft CSS HMR. App css joins the browser graph LAZILY (see dev_hmr_client_source):
 				//  - already joined on a client → fall through to Vite's normal CSS update (soft);
@@ -1105,7 +1192,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 					invalidate_islands_for_file(file, { deleted, server });
 				}
 
-				// Soft CSS HMR via virtual:ogygia/dev-hmr. Route shells + island host rewrites +
+				// Soft CSS HMR via ogygia:dev/hmr. Route shells + island host rewrites +
 				// island entry component edits + deleted entry components need a document reload.
 				if (!needs_csr_false_full_reload(file) && !deleted && !host_changed && !entry_changed) {
 					return;
@@ -1115,9 +1202,6 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 			},
 
 			async resolveId(source, importer, options) {
-				// deep-import Kit's own wire helpers by absolute path (bypasses the exports map)
-				if (source === V_KIT_WIRE && kit_wire_path) return kit_wire_path;
-
 				// ogygia's OWN injected imports (`ogygia/internal` / `…/server`, written by the transform into
 				// a host or a generated island module) resolve to ogygia's own files DIRECTLY (see
 				// OGYGIA_INJECTED_FILES) — never via `this.resolve` (unreliable off a synthetic importer, can
@@ -1225,6 +1309,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 					ssr,
 					universalHooks: universal_hooks,
 					resolve: bundler_resolve(this),
+					exports: css_walk_index(this.environment.name),
 					kitCodec: kit_transport_init
 				});
 			},
@@ -1239,6 +1324,9 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 				if (!options?.ssr && KIT_CLIENT_APP_RE.test(id)) {
 					source += KIT_PAGE_THREAD + KIT_DISCLOSE_VERSION;
 				}
+				// a realm module's names, imported from the entries that have them (the graph a page
+				// ships is the names it uses: compiler/virtual/resolver.ts `split_realm_imports`)
+				source = compiler.split_realm_imports(source) ?? source;
 
 				// The whole per-file pass — content-preset tag ▸ macros ▸ host-island transform ▸ ts-region
 				// mint ▸ $app shim — is the driver's; `this.emitFile` (the one Vite primitive it needs, for
@@ -1251,10 +1339,8 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 				// DEV: a host edit dropped its server islands from the manifest the handle already
 				// re-imported (empty of them); this transform just registered them again — invalidate the
 				// manifest once more so the NEXT endpoint request sees the ids (driver: server_manifest_stale).
-				if (is_dev && vite_server && compiler.server_manifest_stale()) {
-					invalidate_module_id(vite_server, RESOLVED(V_SERVER_MANIFEST));
-					invalidate_module_id(vite_server, RESOLVED(V_SERVER_ISLANDS));
-				}
+				if (is_dev && vite_server && compiler.server_manifest_stale())
+					for (const mid of compiler.changed('regions')) invalidate_module_id(vite_server, mid);
 				// DEV: an island this transform registered (a file added while the server runs) pulled
 				// modules into the island world that the server may already hold transformed for a
 				// non-island importer — with Kit's real `$app/*`, which never boots on a csr=false page.
@@ -1357,6 +1443,8 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 				order: 'pre',
 				sequential: true,
 				handler() {
+					// (each build leg's end, and the dev server closing: its word on barrels is done)
+					barrels_left.clear();
 					if (!maps_pending) return;
 					const { dir, bundle } = maps_pending;
 					maps_pending = null;
@@ -1370,6 +1458,22 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 
 			async writeBundle(_options, bundle) {
 				const server_leg = server_leg_of(this);
+				// THE BUNDLE CHECK: no table module of a realm this leg may not hold, however it got in
+				// (a re-export past the resolve check included)
+				if (is_build) {
+					const ids: string[] = [];
+					for (const item of Object.values(bundle))
+						if (item.type === 'chunk') ids.push(...item.moduleIds);
+					const [wrong] = compiler.misplaced_modules(ids, server_leg);
+					if (wrong)
+						this.error(
+							new OgygiaError('virtual_wrong_realm', {
+								id: wrong[0].replace('\0', ''),
+								realm: wrong[1],
+								leg: server_leg ? 'server' : 'browser'
+							})
+						);
+				}
 				// THE MODULE MAP (server build, profiler on): which source module sits at which lines of
 				// each server chunk. A build without sourcemaps — the normal one — leaves the profiler only
 				// chunk names (`chunks/frames.js`): with this it still tells its own code, ogygia's and a
@@ -1393,8 +1497,6 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 				// `generateBundle`, so a chunk's `imports` there can name a phantom that's gone by write.
 				// By `writeBundle` the bundle reflects the files actually on disk.
 				if (!is_build || server_leg) return;
-
-				warn_content_leaks(bundle as Record<string, unknown>, root, is_island_path);
 
 				// FLAG MANIFEST — the inventory the prescan OBSERVED (AST-resolved flag()/experiment()
 				// call sites in modules importing 'ogygia'). Written once per build for CI flag-debt
@@ -1469,7 +1571,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 				);
 				// SERVER-ROUTER CSS handoff: each root's whole component-tree CSS was compiled + emitted as
 				// ONE dedicated asset in buildStart (router_css_refs). Resolve each referenceId to its
-				// hashed URL under `rcss:<rel>`, the key `virtual:ogygia/router-css` reads via `islandCss()`
+				// hashed URL under `rcss:<rel>`, the key `ogygia:server/router-css` reads via `islandCss()`
 				// at SSR. A dedicated asset (not a chunk's importedCss) is immune to rolldown's shared-chunk
 				// CSS hoisting — every profiler page shares Shell, which otherwise scatters onto whichever
 				// chunk rolldown parks it on (an island's, off the router's static graph entirely).
@@ -1534,11 +1636,11 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 				// code of its own and many modules behind it — a re-export index the barrel pass left
 				// (it has side effects, or the pass is off), so everything it re-exports ships with the
 				// island. The bundler's own module info decides; only with a profiler, like `contents`.
-				const barrels: Record<string, { name: string; fanout: number }[]> = {};
+				const barrels: Record<string, ChunkBarrel[]> = {};
 				if (measure) {
 					for (const [key, chunk] of Object.entries(bundle)) {
 						if (chunk.type !== 'chunk') continue;
-						const found: { name: string; fanout: number }[] = [];
+						const found: ChunkBarrel[] = [];
 						for (const id of chunk.moduleIds ?? []) {
 							if (id.startsWith('\0')) continue;
 							// (a component uses what it imports — a small one composing seven children is no
@@ -1551,7 +1653,8 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 							const own = info.code?.length ?? Infinity;
 							if (fanout >= 6 && own <= fanout * 160) {
 								const name = summarize_chunk_contents([id], 1, 1)[0];
-								if (name) found.push({ name, fanout });
+								const why = barrel_why(id, info.importers);
+								if (name) found.push(why.length ? { name, fanout, why } : { name, fanout });
 							}
 						}
 						if (found.length)
@@ -1576,6 +1679,8 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 				emit_island_deps_handoff(root, json, kit_dirs(root).out_dir);
 			}
 		},
+		// the plugins' `post` stage: on what the region transform made of the module
+		stage_host('post'),
 		island_sourcemaps_plugin({ program, is_island_path }),
 		server_sourcemaps_plugin(() => measure)
 	];

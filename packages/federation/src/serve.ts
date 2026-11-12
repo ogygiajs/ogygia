@@ -188,6 +188,21 @@ export async function serve_federation(event: RequestEvent): Promise<Response | 
 	return null;
 }
 
+const OFF_SITE_PATH = /^(?:[/\\]{2}|\\)/;
+
+/**
+ * The URL an exposed table is asked at: always on the app's own origin. Path and search are set
+ * apart, so neither can re-home it; a path that would (`//host`, `/\host`) is refused (null).
+ * Test: serve-expose.test.ts.
+ */
+function expose_target(origin: string, base: string, path: string, search: string): URL | null {
+	if (OFF_SITE_PATH.test(path)) return null;
+	const target = new URL(origin);
+	target.pathname = base + (path.startsWith('/') ? path : '/' + path);
+	target.search = search;
+	return target.origin === origin ? target : null;
+}
+
 // ── expose: the whole route table as a fragment document ─────────────────────────────────────
 async function serve_expose(fed: Federation, event: RequestEvent): Promise<Response | null> {
 	if (!fed.expose) return json_error(404, 'this app exposes no route table (federate({ expose }))');
@@ -196,10 +211,8 @@ async function serve_expose(fed: Federation, event: RequestEvent): Promise<Respo
 	const trace = child_traceparent(request.headers.get('traceparent'));
 	const path = url.searchParams.get('path') ?? '/';
 	const search = url.searchParams.get('search') ?? '';
-	const target = new URL(
-		fed.base + (path.startsWith('/') ? path : '/' + path) + search,
-		url.origin
-	);
+	const target = expose_target(url.origin, fed.base, path, search);
+	if (!target) return json_error(400, 'path must start with exactly one "/"');
 
 	const body = await read_capped_body(request, fed.max_body);
 	if (body === null) return json_error(413, 'body too large');
