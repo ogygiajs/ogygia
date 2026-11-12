@@ -23,7 +23,12 @@ import { browser_offline, no_response } from './network.ts';
 // feature module of its own, and without the frame store it has nowhere to land anyway.
 import { FRAMES } from 'ogygia:boot';
 import { kit_hydrates_page } from './kit-boot.ts';
-import { init_shadow_registries, parse_region_html } from './parse-html.ts';
+import {
+	init_shadow_registries,
+	parse_region_html,
+	vouch_remote_answer,
+	type VerifiedHtml
+} from './html-sink.ts';
 import {
 	mark_region_changed,
 	region_changed,
@@ -426,7 +431,7 @@ async function snippets_settled(region: Element, visit: Scope): Promise<void> {
  * left in the body would also fail to load inside a `<template>` batch parcel.) `sheets`: the head
  * nodes the answer uses, for the region that paints it (./region-sheets.ts `use_sheets`).
  */
-export function region_fragment(html: string): {
+export function region_fragment(html: VerifiedHtml): {
 	frag: DocumentFragment;
 	ready: Promise<void>;
 	sheets: readonly Element[];
@@ -618,7 +623,7 @@ class OgygiaRegion extends HTMLElement {
 	#box: Mailbox = CLOSED_BOX;
 	/** The answer it painted last: what a hole put back on the page shows again when the frame store
 	 *  let it go meanwhile (#336). */
-	#shown: string | null = null;
+	#shown: VerifiedHtml | null = null;
 	/** Frames its binding was handed (a binding that replays one counts it at once). */
 	#frames_in = 0;
 	/** A live region's last tick: what it goes on with when it is put back on the page (#337). */
@@ -1277,7 +1282,7 @@ class OgygiaRegion extends HTMLElement {
 	 * offline before custom elements connect, then swap, mark, event. HOLE-TRUST: the HTML is our own
 	 * signed same-origin SSR.
 	 */
-	async #apply(html: string, turn: Turn, v?: number) {
+	async #apply(html: VerifiedHtml, turn: Turn, v?: number) {
 		if (!this.isConnected) return;
 		// The newest frame: one still waiting for its sheets is older, and never paints over this one.
 		const painting = this.#paint_next();
@@ -1373,7 +1378,7 @@ class OgygiaRegion extends HTMLElement {
 	 * survives — the breathing update live partials rely on). Interactive live regions never reach
 	 * here: they keep the imperative keep-alive path in {@link applyLive}.
 	 */
-	async #morph_live(html: string, turn: Turn) {
+	async #morph_live(html: VerifiedHtml, turn: Turn) {
 		if (!this.isConnected) return;
 		// BAKED (Region.svelte, PromiseRegionAwait): the first HTML is already here — the page was
 		// served with it and hydrated against it. Nothing to paint; later ticks morph as usual (by
@@ -1959,13 +1964,15 @@ class OgygiaRegion extends HTMLElement {
 			const address = desc.url ? frameAddress(desc.url) : null;
 			const held = address && frames ? frames.peek(address) : null;
 			const mine = address && frames ? (desc.written ??= { v: frames.ticket(address) }) : null;
-			if (mine === null) await this.#morph_live(desc.html, turn);
+			// (a live tick is our server's render, through the app's remote transport)
+			const html = vouch_remote_answer(desc.html);
+			if (mine === null) await this.#morph_live(html, turn);
 			else if (older_by(mine, held) === null && older_by(mine, this.#live_painted) === null) {
 				this.#live_painted = stands_at(
 					held && held.v > (this.#live_painted?.v ?? 0) ? held : this.#live_painted,
 					mine
 				);
-				await this.#morph_live(desc.html, turn);
+				await this.#morph_live(html, turn);
 			}
 			return;
 		}
@@ -1987,7 +1994,8 @@ class OgygiaRegion extends HTMLElement {
 		}
 		// Same module, its island's file could not load (said once): the tick's server HTML shows, and
 		// nothing loads again (#942, test/browser/live-region-failed-file.test.ts)
-		if (s.kind === 'failed' && s.module === desc.module) return this.#morph_live(desc.html, turn);
+		if (s.kind === 'failed' && s.module === desc.module)
+			return this.#morph_live(vouch_remote_answer(desc.html), turn);
 
 		// First tick, the interactive module changed, or it was static: swap + hydrate. (Leaving `live`
 		// disposes its island; leaving `static` drops its subscription; leaving `hydrating` ends that
@@ -1997,9 +2005,9 @@ class OgygiaRegion extends HTMLElement {
 		const painting = this.#paint_next();
 		this.#live_props = null;
 		this.#live_ready = true;
-		// createContextualFragment — signed same-origin HTML trust boundary (HOLE-TRUST). The HTML is
-		// our own SSR under a verified MAC (or, for a live tick, rendered in-process on the server).
-		const { frag, ready, sheets } = region_fragment(desc.html);
+		// The HTML sink's trust boundary (HOLE-TRUST, ./html-sink.ts): a live tick is rendered
+		// in-process on our server and reaches us through the app's remote transport.
+		const { frag, ready, sheets } = region_fragment(vouch_remote_answer(desc.html));
 		// stylesheet before paint — an interactive held region has CSS too (no FOUC). (STALE: the
 		// region left the page meanwhile; another tick took over: it paints)
 		if ((await turn.wait(ready)) === STALE || this.#live.now !== mine) return;
