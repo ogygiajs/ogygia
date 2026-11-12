@@ -1,7 +1,9 @@
+<!--
+@component
+One panel of a TabGroup. Its `label` names the tab: it rides `data-label`, where TabGroup's island
+reads it to build the tab bar.
+-->
 <script lang="ts">
-	/** One panel of a {@link TabGroup}. Renders a STATIC panel (its label rides `data-label`); it carries
-	 *  no client behavior — the enclosing island reads the labels from its `labels` prop and shows/hides
-	 *  these panels by the active label. */
 	import type { Snippet } from 'svelte';
 	let { label, children }: { label: string; children: Snippet } = $props();
 </script>
