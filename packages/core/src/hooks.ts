@@ -551,7 +551,7 @@ const REGION_FRAME_HEADERS = {
 } as const;
 
 /** Every region response, with those headers. It says how it may be cached: `no-store` (a refusal,
- *  an error, a dynamic hole) unless the caller names the hole's own policy (PRELOAD-CACHE). */
+ *  an error, a dynamic hole) unless the caller names the hole's own policy (HOLE-CACHE). */
 function region_response(
 	body: BodyInit | null,
 	init: { status: number; headers?: Record<string, string> }
