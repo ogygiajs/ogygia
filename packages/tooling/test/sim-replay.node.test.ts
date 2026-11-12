@@ -5,6 +5,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
+import { dedent } from '../../core/src/contract/dedent.ts';
 import {
 	eager_waits_for,
 	judge_perf,
@@ -135,7 +136,12 @@ describe('an eager press, at the moment of the load the simulator pressed at', (
 	// side tested another moment of the load
 	it('at rest, when the simulator pressed once its critical wait settled and its islands woke', () => {
 		const p = with_moves(
-			'wake#1 cold -> armed\ncritical-gate#1 fresh -> settled\nwake#1 armed -> waking\nwake#1 waking -> awake',
+			dedent`
+				wake#1 cold -> armed
+				critical-gate#1 fresh -> settled
+				wake#1 armed -> waking
+				wake#1 waking -> awake
+			`,
 			'<ogygia-region data-hydrated="" wake="load">'
 		);
 		expect(eager_waits_for(p, 0)).toBe('rest');
@@ -143,7 +149,11 @@ describe('an eager press, at the moment of the load the simulator pressed at', (
 
 	it('at once, when the press woke an island in the simulator', () => {
 		const p = with_moves(
-			'critical-gate#1 fresh -> settled\nwake#1 armed -> waking\nwake#1 waking -> awake',
+			dedent`
+				critical-gate#1 fresh -> settled
+				wake#1 armed -> waking
+				wake#1 waking -> awake
+			`,
 			'<ogygia-region data-hydrated="" data-og-woke="interaction" wake="load">'
 		);
 		expect(eager_waits_for(p, 0)).toBe(null);
