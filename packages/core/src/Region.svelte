@@ -53,14 +53,14 @@
 		runtime_bootstrap,
 		region_css_tag
 	} from '#region-server';
-	import { fingerprint_of, hole_copy_of } from './contract/hash.ts';
+	import { hole_copy_of } from './contract/hash.ts';
 	// Kit's `asset()`, taking ogygia's base-less `/…` URLs on Kit 2 and Kit 3 alike (kit-paths.ts)
 	import { kit_asset } from './kit-paths.ts';
 	import { building } from '$app/env';
 	import { page } from '$app/state';
 	import { record_page } from './page-seed-registry.ts';
 	import { document_tail, island_graph_script, modulepreload_tag } from './server/document-tail.ts';
-	import { plan_props_wire, props_sidecar } from './server/props-wire.ts';
+	import { hole_identity, plan_props_wire, props_sidecar } from './server/props-wire.ts';
 	import { escape_amp_quot, escape_attr } from './escape.ts';
 	import { warn } from './messages/island.ts';
 	import {
@@ -698,13 +698,7 @@
 	// with NO address (it cannot mint), and the runtime hands the SSR facts back by identity — never
 	// by position. Emitted on every top-level hole; costs one walk of the hole's (small) props.
 	const server_identity = $derived(
-		nested || !is_server
-			? ''
-			: fingerprint_of(
-					__entry,
-					'',
-					(server_wire ?? plan_props_wire(__props || {}, __entry)).canonical
-				)
+		nested || !is_server ? '' : hole_identity(/** @type {string} */ (__entry), __props, server_wire)
 	);
 	// A hole a client hydrates over — in a live snippet's body, or on a KIT-HYDRATED document — is adopted
 	// (`adopt_region`): its browser leg cannot mint the hole's address, and as a template it blanked

@@ -3,6 +3,10 @@
 Why certain designs exist — and what breaks if you “simplify” them.
 Security and performance audits should read this before changing trust boundaries.
 
+Every section ends with an `**Enforced by:**` line: the rules (`rule_…`), lint rules (`ogygia/…`),
+tests and checks (`path` or `path > name`) that fail when the invariant breaks. CI fails a section
+with no line, or a line naming something that does not exist (`internal/checks/invariants.ts`).
+
 ---
 
 ## HOLE-TRUST — signed same-origin HTML for deferred regions
@@ -17,6 +21,8 @@ Security and performance audits should read this before changing trust boundarie
 - Treat absolute `endpoint` URLs as a primary XSS bug; mint always emits a **path-only** URL. The client same-origin check is defense-in-depth for prior HTML injection.
 
 **Client check:** `is_allowed_region_endpoint` + final `response.url` origin. Abort in-flight fetches on disconnect.
+
+**Enforced by:** `packages/core/test/audit-fixes.test.ts > allows same-origin relative and absolute; rejects cross-origin`
 
 ---
 
@@ -39,6 +45,8 @@ Security and performance audits should read this before changing trust boundarie
 - Put secrets in defer props and expect the URL to hide them — use Referrer-Policy (`no-referrer` on region responses) and keep secrets out of captured props.
 - Move props into `localStorage` “for confidentiality” — XSS then reads all of them.
 
+**Enforced by:** `packages/core/test/region-mac.test.ts > rejects expiry or props tampering`, `packages/core/test/capability-expiry.test.ts > is always valid for more than ttl/2 and at most ttl`
+
 ---
 
 ## PAGE-SEED — `application/ogygia-page` on `csr=false`
@@ -51,6 +59,8 @@ Security and performance audits should read this before changing trust boundarie
 
 **Do not:** Strip `data` by default without an opt-in API for islands that read `page.data` (would break real apps).
 
+**Enforced by:** `packages/core/test/audit-fixes.test.ts > escapes lt and falls back when data is non-serializable`, `packages/core/test/document-seed.test.ts`
+
 ---
 
 ## SECRET-SPLIT — empty client secret, SSR-only mint
@@ -59,17 +69,23 @@ Security and performance audits should read this before changing trust boundarie
 
 **Why:** Browsers must never mint capabilities. Multi-instance deploys without a shared env need the baked fallback so all replicas agree. Domain-separated keys + length-prefixed fields close classic MAC footguns without requiring the env var on every local demo.
 
+A client build fails (`secret_in_client_chunk`) when a chunk or asset holds a signing secret, or a chunk holds a module that signs. Messages are `v2|` (the render id signed too) for every current mint; `v1|` is still verified so pages cached before an upgrade keep their holes.
+
 **Do not:** Embed the real secret in a client chunk. Fail production builds only when you are ready to require env everywhere (local demos still need the fallback). Change the MAC version string without a deliberate invalidate of in-flight capability URLs.
+
+**Enforced by:** `packages/core/test/region-mac.test.ts > length-prefixes so embedded nulls cannot shift field boundaries`, `packages/core/test/signing-key.test.ts > falls back to the build key without a runtime OGYGIA_SECRET`
 
 ---
 
 ## PROBE-THEN-RENDER — rate limit ordering
 
-**What:** Pre-HMAC probe limiter → verify MAC → render limiter → render (with process concurrency gate).
+**What:** Pre-HMAC probe limiter → verify MAC → render limiter → render (with process concurrency gate). The same order holds for each hole of a batch POST: every hole is probed, verified and charged on its own, and one call asked twice in a batch renders once.
 
-**Why:** Forged floods must not burn render CPU or reveal id existence (uniform 403).
+**Why:** Forged floods must not burn render CPU or reveal id existence (uniform 403). A batch must not buy more renders than the same holes asked one by one.
 
-**Do not:** Charge the render budget before verify. Trust `X-Forwarded-For` when `getClientAddress()` fails — fail closed (429).
+**Do not:** Charge the render budget before verify. Charge a batch once for all its holes. Trust `X-Forwarded-For` when `getClientAddress()` fails — fail closed (429).
+
+**Enforced by:** `apps/palaestra/e2e/region-rate.spec.ts > a forged flood is all 403, never 429, and a valid request still serves after it`, `packages/core/test/audit-fixes.test.ts > documents render-rate contract: junk must not call render limited()`
 
 ---
 
@@ -81,27 +97,33 @@ Security and performance audits should read this before changing trust boundarie
 
 **Do not:** Assume timeout frees CPU instantly. Isolating renders in workers is the real cancel story (out of default scope).
 
+**Enforced by:** `packages/core/test/concurrency.test.ts > a body past its deadline is abandoned: its caller gets the timeout, its slot goes on`, `packages/core/test/sim/render-gate.test.ts > keeps its promise in every order (limit, deadlines, leaving, turn order)`, `packages/core/test/policies.test.ts > render and stream: one try, 10 s`
+
 ---
 
-## PRELOAD-CACHE — `private, max-age=30` without `Vary: Cookie`
+## PRELOAD-CACHE — every region response says how it may be cached
 
-**What:** Region responses are `cache-control: private, max-age=30` so the browser can reuse `<link rel="preload" as="fetch">` for the runtime fetch.
+**What:** A hole is dynamic by default: its answer is `cache-control: no-store`. A hole that opts in (a signed `ttl`, e.g. the `maxAge` preset) is `private, max-age=<ttl>`, so the browser reuses its `<link rel="preload" as="fetch">` answer for the runtime fetch. Every other region response (a refusal, an error, a keep-fallback 204) is `no-store`. No region response is ever `public` or carries `s-maxage`, and every one carries `Referrer-Policy: no-referrer`.
 
-**Why:** Without reuse, every defer hole double-fetches (preload + runtime) and verify suites that assert single render break.
+**Why:** A region answer can hold one visitor's render and its URL is a capability: no shared cache may keep either. A response with no `cache-control` is heuristically cacheable (a 204 too). The opt-in private cache saves the double fetch for holes that are the same for a while.
 
-**Do not:** Default to `no-store` without another way to share preload ↔ runtime. Shared CDNs must not store `private` responses.
+**Do not:** Send a region response without an explicit `cache-control`. Make a hole cacheable by default. Let a shared CDN store a region response.
+
+**Enforced by:** `apps/palaestra/e2e/server-islands.spec.ts > the opt-in cache path (maxAge: '1h' preset) carries a signed ttl + private max-age`
 
 ---
 
 ## SPA-HEAD — merge allowlist / deny dangerous tags
 
-**What:** SPA head merge skips `<base>` and dangerous `meta[http-equiv]` (refresh / CSP). Only `script[type=module][data-ogygia-runtime]` is retained across navigations. The router starts only when `meta[name=ogygia-router]` is present **and** the document is not Kit-booted (`csr=true`). Navigating toward a Kit-bootstrap HTML response does a full load.
+**What:** SPA head merge skips `<base>` and dangerous `meta[http-equiv]` (refresh / CSP / set-cookie; `packages/core/src/runtime/head-deny.ts`), and the head never gains one after the first document (the rule `rule_head_adopted`, in dev and at the end of every e2e test). Only `script[type=module][data-ogygia-runtime]` is retained across navigations. The router starts only when `meta[name=ogygia-router]` is present **and** the document is not Kit-booted (`csr=true`). Navigating toward a Kit-bootstrap HTML response does a full load.
 
 **Why:** Adopting `<base>` rewrites relative capability fetches. Keeping every module script forever leaks memory across SPA pages. Dual routers on a Kit page would fight click interception — gradual migration needs root `<OgygiaRouter/>` to be a no-op on `csr=true` routes.
 
 **Do not:** Assume SPA body swap can boot Kit inline scripts (it cannot — that is why Kit targets full-load).
 
 **Do not:** Re-enable “keep all module scripts” without a runtime marker. Prefer HTTP CSP headers over CSP meta (meta is mergeable).
+
+**Enforced by:** `rule_head_adopted`, `packages/core/test/browser/spa-head-deny.test.ts > a fetched page’s <base> and refresh / CSP / cookie metas are never adopted, in any case`
 
 ---
 
@@ -113,6 +135,8 @@ Security and performance audits should read this before changing trust boundarie
 
 **Do not:** Remove shims to “fix” shared-module confusion — that pulls the Kit router into island chunks. Isolate with `?ogygia-island` only as a careful follow-up.
 
+**Enforced by:** `packages/core/test/island-closure-alias.test.ts > the marked script helper leaves the client transform importing the SHIM`, `packages/core/test/kit-shim-surface.test.ts`
+
 ---
 
 ## LAKE-PLACEHOLDER — no lake JS on the client
@@ -123,6 +147,8 @@ Security and performance audits should read this before changing trust boundarie
 
 **Do not:** Import lakes through dynamic components that add comment envelopes the restore path cannot round-trip (LAKE-ENVELOPE).
 
+**Enforced by:** `packages/core/test/audit-fixes.test.ts > rewrites default lake imports`, `apps/palaestra/e2e/lakes.spec.ts > /lakes: frozen region, island-in-lake, inert lake button, remount cache + swr`
+
 ---
 
 ## NESTED-DEGRADE — one interactive tree
@@ -130,6 +156,8 @@ Security and performance audits should read this before changing trust boundarie
 **What:** Island-in-island hydrates with the parent; server-island-in-island renders inline (`defer` ignored).
 
 **Why:** Nested custom elements + separate hydrate schedules double-hydrate and break context.
+
+**Enforced by:** `apps/palaestra/e2e/nested.spec.ts > SSR: exactly ONE waking ogygia-region (outer); inner degrades inline`, `apps/palaestra/e2e/nested.spec.ts > browser: single hydration`
 
 ---
 
@@ -153,6 +181,8 @@ Islands that need fresh remote data should `.refresh()`, or Kit single-flight
 only sends keys + skips invalidate — without `requested`, the POST has no `q` and live
 `.current` stays stale). Hard remount + VT only on real route change.
 
+**Enforced by:** `packages/core/test/browser/soft-refresh-page-on-screen.test.ts > invalidateAll while a navigation waits refreshes the page on screen, not the next one`, `packages/core/test/browser/sim-router.test.ts`
+
 ---
 
 ## QUERY-LIVE — Kit owns SSE
@@ -175,6 +205,8 @@ instance maps in `prepare_spa_document` (pre-swap). Do not clear them whole afte
 a kept island’s live query then freezes and its next read throws (#817,
 `e2e/live-query-kept.spec.ts`, `test/remote-cache-holders.test.ts`).
 
+**Enforced by:** `packages/core/test/audit-fixes.test.ts > clear_remote_seeds leaves live/query instance maps intact`, `packages/core/test/audit-fixes.test.ts > remote_cache is shared via globalThis across re-imports`
+
 ---
 
 ## PAGE-CSR — a page's csr is Kit's rule; a layout's world derives from its pages
@@ -193,7 +225,7 @@ a kept island’s live query then freezes and its next read throws (#817,
 - Strip a layout when ANY page below it is csr=false.
 - Skip `clear_route_csr_cache()` on dev route-topology changes — the watcher covers `+page/+layout(.server).(svelte|js|ts)`.
 
-**Tests:** `packages/ogygia/test/route-csr.test.ts` (declaration forms × chain shapes × layout folds × cache, plus the transform strip/keep seam) and `e2e/deep-csr.ts` (real build of `internal/repro-deep-csr`, browser truth in both worlds).
+**Enforced by:** `packages/core/test/route-csr.test.ts` (declaration forms × chain shapes × layout folds × cache, plus the transform strip/keep seam), `apps/palaestra/e2e/deep-csr.spec.ts` (real build of internal/repro-deep-csr, browser truth in both worlds).
 
 ---
 

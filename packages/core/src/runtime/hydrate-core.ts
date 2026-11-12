@@ -465,6 +465,13 @@ function region_prop_revivers(): Record<string, (d: never) => unknown> | undefin
 	return cached_revivers;
 }
 
+/** A KEPT region reads the props of its incoming twin (`next`, the new page's copy): the ids they
+ *  resolve are the kept region's from now on (R3 ownership), so its removal on a later navigation
+ *  disposes them. */
+export function absorb_region_props(region: Element, next: Element): Record<string, unknown> {
+	return capture_region_ids(region, () => read_region_props(next));
+}
+
 /**
  * Parse a region's `<script data-ogygia-props>` sidecar (keyed at the end of the body, or adjacent —
  * runtime/sidecar.ts). Uses the client reviver (`remember: true`) so a named/shared transportable

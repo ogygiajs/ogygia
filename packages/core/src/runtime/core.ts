@@ -680,7 +680,7 @@ class OgygiaRegion extends HTMLElement {
 	absorbKeptProps(next: Element): void {
 		if (!this.#app?.set_props || !loaded_core) return;
 		try {
-			this.#app.set_props(loaded_core.read_region_props(next));
+			this.#app.set_props(loaded_core.absorb_region_props(this, next));
 		} catch {
 			// ok: malformed incoming props: the live props it has are kept
 		}
