@@ -51,3 +51,13 @@ it("asks again when the 409's Retry-After says", async () => {
 	expect(p.at.length).toBeGreaterThanOrEqual(2);
 	expect(p.at[1] - p.at[0]).toBeLessThan(1400);
 }, 10_000);
+
+it('a Retry-After past any timer waits, and ends with its owner, never failing (#1096)', async () => {
+	const p = await busy_profiler(99_999_999); // ~3 years
+	const owner = scope();
+	const done = run_profile('/x', 1, p.base, owner).catch((e: unknown) => e);
+	await new Promise((r) => setTimeout(r, 300));
+	owner.close();
+	expect(await done).toBe(null);
+	expect(p.at).toHaveLength(1);
+}, 10_000);
