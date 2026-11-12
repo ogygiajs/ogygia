@@ -229,6 +229,8 @@ const DROPPABLE_SEGMENT_RE = /^\[(?:\.\.\.[a-zA-Z_$][\w$]*|\[[a-zA-Z_$][\w$]*\])
  *  empty optional or rest param that is a whole segment drops that segment. A missing `[param]`
  *  becomes empty. Throws on a value that would fill a whole segment with `.` or `..`: every URL
  *  parser drops that segment, so the URL would name another route (`%2e` is read as a dot too).
+ *  Throws on a rest value with an empty piece (a leading, trailing or doubled `/`) too: it would
+ *  build `//host` or a path that routes elsewhere.
  *  Tests: test/property-fill-match.test.ts, test/router-match.test.ts. */
 export function fill(pattern: string, params: Record<string, string | number>): string {
 	// (segment by segment: a token never spans a `/`, and a segment is a dot segment whatever filled
@@ -237,7 +239,15 @@ export function fill(pattern: string, params: Record<string, string | number>): 
 	for (const seg of pattern.split('/')) {
 		const out = seg.replace(fill_token, (_m, rest: string | undefined, name: string) => {
 			const val = params[name] == null ? '' : String(params[name]);
-			return rest ? val.split('/').map(encodeURIComponent).join('/') : encodeURIComponent(val);
+			if (!rest) return encodeURIComponent(val);
+			const pieces = val.split('/');
+			// (an empty piece is an empty segment: a leading one builds `//host`, a URL of another
+			// origin, and any other names a path Kit routes elsewhere)
+			if (val !== '' && pieces.includes(''))
+				throw new Error(
+					`[@ogygia/router] the rest param "${name}" has an empty segment (${JSON.stringify(val)}): it would name another URL than ${pattern}`
+				);
+			return pieces.map(encodeURIComponent).join('/');
 		});
 		if (out === '' && DROPPABLE_SEGMENT_RE.test(seg)) continue;
 		if (out !== seg && out.split('/').some((p) => p === '.' || p === '..'))

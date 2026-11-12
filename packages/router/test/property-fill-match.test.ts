@@ -57,7 +57,8 @@ describe('fill, read back through the URL parser', () => {
 					const back = round_trip(p, values);
 					if (back === null) {
 						// refused: only a value the URL parser would drop as a dot segment (a rest value
-						// keeps its `/`, so each of its pieces is a segment of its own, #538)
+						// keeps its `/`, so each of its pieces is a segment of its own, #538, and an empty
+						// piece is refused too)
 						const rest = new Set(
 							compile(p)
 								.params.filter((s) => s.rest)
@@ -66,7 +67,7 @@ describe('fill, read back through the URL parser', () => {
 						const dot = (v: string) => v === '.' || v === '..';
 						expect(
 							Object.entries(values).some(([k, v]) =>
-								rest.has(k) ? v.split('/').some(dot) : dot(v)
+								rest.has(k) ? v.split('/').some((p) => p === '' || dot(p)) : dot(v)
 							)
 						).toBe(true);
 						return;
