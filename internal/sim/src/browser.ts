@@ -126,6 +126,9 @@ export interface BrowsersOptions {
 	buggify?: (realm: string, point: string) => boolean;
 	/** How each document's resource timing reads (./timeline.ts). Default `status`. */
 	timeline?: Engine;
+	/** Whether the engine has `requestIdleCallback` (Safari ships none: code that waits for an idle
+	 *  moment takes its own fallback there). Default true. */
+	idle?: boolean;
 }
 
 export class Browsers {
@@ -318,6 +321,12 @@ export class Browsers {
 		};
 		const p = platform(options);
 		install(window, p);
+		// (an engine with no idle callbacks: Safari)
+		if (this.#o.idle === false) {
+			const w = window as unknown as Record<string, unknown>;
+			delete w.requestIdleCallback;
+			delete w.cancelIdleCallback;
+		}
 		if ((window as unknown as { MessageChannel?: unknown }).MessageChannel === undefined)
 			Object.defineProperty(window, 'MessageChannel', {
 				value: message_channel(this.#o.loop, tab.realm),
