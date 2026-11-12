@@ -1,6 +1,26 @@
 {
 	"exempt": [
 		{
+			"id": "packages/devtools/src/devtools/highlight.ts > highlight > defer:0~248bad",
+			"reason": "browser only: the highlight layer's scope takes its layer out as it closes, constant work"
+		},
+		{
+			"id": "packages/devtools/src/devtools/leftovers.ts > watched",
+			"reason": "browser only: the page's leftovers record, made at its first use, constant work"
+		},
+		{
+			"id": "packages/devtools/src/devtools/profile-store.ts > set_profile > map:0~39039e",
+			"reason": "one profile out of each kept entry (64 at most) while the newest 8 are saved, constant work per entry; devtools-profile-store.test.ts runs it"
+		},
+		{
+			"id": "packages/devtools/src/devtools/source-lines.ts > flights:0~fc7528 > run",
+			"reason": "browser only: one app file's read through the dev server (tool_fetch), once per file"
+		},
+		{
+			"id": "packages/devtools/src/devtools/source-lines.ts > read_table",
+			"reason": "browser only: a dev server fetch of one app file, then the map parse (lines_of_map, measured on its own)"
+		},
+		{
 			"id": "packages/machine/src/cache.ts > Store > get size",
 			"reason": "a cache's count of what it holds: one Map size read, constant work; run by packages/machine/test/cache.test.ts"
 		},
@@ -4187,26 +4207,6 @@
 		{
 			"id": "packages/postrender/src/server.ts > deploy_check > flights:0~68fab5 > run > store_call:2~fa5e01",
 			"reason": "the marker write, one store put (I/O, the live store: not cloneable), constant work (#947)"
-		},
-		{
-			"id": "packages/devtools/src/devtools/highlight.ts > highlight > defer:0~248bad",
-			"reason": "browser only: the highlight layer's scope takes its layer out as it closes, constant work"
-		},
-		{
-			"id": "packages/devtools/src/devtools/leftovers.ts > watched",
-			"reason": "browser only: the page's leftovers record, made at its first use, constant work"
-		},
-		{
-			"id": "packages/devtools/src/devtools/profile-store.ts > set_profile > map:0~39039e",
-			"reason": "one profile out of each kept entry (64 at most) while the newest 8 are saved, constant work per entry; devtools-profile-store.test.ts runs it"
-		},
-		{
-			"id": "packages/devtools/src/devtools/source-lines.ts > flights:0~fc7528 > run",
-			"reason": "browser only: one app file's read through the dev server (tool_fetch), once per file"
-		},
-		{
-			"id": "packages/devtools/src/devtools/source-lines.ts > read_table",
-			"reason": "browser only: a dev server fetch of one app file, then the map parse (lines_of_map, measured on its own)"
 		},
 		{
 			"id": "packages/devtools/src/profiler/embedded-maps.ts > embedded_source > map:0~31820d",
