@@ -254,6 +254,14 @@ makes a deploy's first federation request send the deploy thaw. And some seeds k
 page documents (`gen peer cache`: `cache: { ttl }` of 300 ms, 2 s or 30 s), served stale while one
 fetch refreshes them.
 
+Two more streams: `gen layout` (40% of seeds) puts a region tree in the layout, after the nav on every
+page: a hole with a stylesheet of its own (ids from 500), some with a styled island inside. A router
+navigation keeps it on screen while the next page's head does not list its sheet (#275): what the
+region-sheet bookkeeping is for (mutation testing: two survivors there died once it was in). `gen hero`
+(40% of pages) opens a page with `<img src="/hero.png" fetchpriority="high">`, served by the app's
+`hero.png/+server.ts`: the page's critical resource, which island code and background downloads wait
+for (the load scheduler's `critical-gate`).
+
 A build's boot runtime comes from `packages/core/dist/runtime` (the prebuilt runtime a published
 package ships), not from `src`: after a change to core's runtime, `pnpm build:lib` before
 `pnpm sim:builds`, or the app boots the old one (its import-again had no buggify point, while the
