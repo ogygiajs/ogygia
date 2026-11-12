@@ -56,6 +56,39 @@ export const FEDERATION_WARNINGS = {
 			mesh) already checks the caller, pass \`open: true\`.
 		`
 	},
+	federation_audience_missing: {
+		text: (a: { name: string }): string => prose`
+			federate({ name: '${a.name}' }) has peers that may call in, but no \`audience\` and no
+			\`ORIGIN\`, so every signed call to this app is refused. Set \`audience\` to the host this
+			app answers on, or set \`ORIGIN\`.
+		`,
+		details: (): string => prose`
+			A signed call names the app it was meant for, its audience, so a call made for one app
+			cannot be sent to another that trusts the same key. To check that, this app has to know
+			its own host. It is never taken from the request: a server that builds its URL from the
+			\`Host\` header would let the caller pick it.
+
+			Set \`audience\` in \`federate()\` to the host (or hosts) this app answers on, for example
+			\`audience: 'cms.example.com'\`. Without it, the host of the \`ORIGIN\` environment
+			variable is used (SvelteKit's Node adapter reads the same one). With neither, signed
+			calls to this app get a 401.
+		`
+	},
+	federation_peer_answer_invalid: {
+		text: (a: { peer: string; url: string; what: string }): string => prose`
+			The peer '${a.peer}' answered ${a.url} with ${a.what}, so the hop failed: a static widget
+			shows its boundary card, a page read or a post is a 502 (or the peer's own 503 or 504).
+		`,
+		details: (): string => prose`
+			A peer answers a fragment or widget request with a JSON document and an OK status (a page
+			it does not have is a 404 that still carries its document). This answer could not be
+			used. An error status means the peer failed, refused the call (a 401 or 403: check the
+			two apps' keys), or does not have that widget (a 404). A body that does not parse means
+			something between the apps changed it (a proxy or CDN error page, a cut-off response), or
+			the URL reached something that is not the peer's ogygia handle. Ask the URL yourself,
+			signed as this app, and see what comes back.
+		`
+	},
 	federation_deploy_thaw_undelivered: {
 		text: (a: { peers: string; rounds: number }): string =>
 			`federation: the deploy thaw never reached ${a.peers} (${a.rounds} tries), so it is given up`,
