@@ -10,6 +10,7 @@ import {
 	runtime_scripts,
 	type Weight
 } from '../src/page-assets.ts';
+import { next_tag } from '@ogygia/core/internal/instruments';
 
 const KIT_PAGE = `<!doctype html><html><head>
 <link href="./_app/immutable/assets/0.abc.css" rel="stylesheet">
@@ -50,8 +51,17 @@ describe('scan_assets', () => {
 		expect(inline.style).toBe('.a{color:red}'.length);
 	});
 
+	test('tags are read as a browser reads them: a quoted `>`, an upper-case close', () => {
+		const { refs } = scan_assets(
+			`<head><link rel="stylesheet" title="a>b" href="/x.css">` +
+				`<script>var a = 1</SCRIPT><link rel=stylesheet href=/y.css></head>`
+		);
+		expect(refs.map((r) => r.url)).toEqual(['/x.css', '/y.css']);
+	});
+
 	test('attributes: quoted, unquoted, valueless, entities', () => {
-		const a = tag_attrs(`<link rel=preload as="script" href='/a.js?x=1&amp;y=2' crossorigin>`);
+		const html = `<link rel=preload as="script" href='/a.js?x=1&amp;y=2' crossorigin>`;
+		const a = tag_attrs(next_tag(html, 'link', 0)!);
 		expect(a.get('rel')).toBe('preload');
 		expect(a.get('href')).toBe('/a.js?x=1&y=2');
 		expect(a.has('crossorigin')).toBe(true);

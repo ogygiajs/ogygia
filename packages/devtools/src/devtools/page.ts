@@ -5,7 +5,7 @@
  * read the same report the tab shows without opening the panel.
  */
 import { beacon_page, hole_request_times, is_headless } from '../profiler/beacon.ts';
-import { tool_fetch } from '@ogygia/core/internal/instruments';
+import { OG_FP, tool_fetch } from '@ogygia/core/internal/instruments';
 import { built_dev, hook_entries } from './hook-entries.ts';
 import { cache, flights, type Flights } from '@ogygia/machine';
 import { page_ledger } from './ledger-dom.ts';
@@ -320,7 +320,7 @@ export function failures(since: number = last_nav()?.t ?? -Infinity): Failure[] 
 				!(
 					e.fp &&
 					document.querySelector(
-						`ogygia-region[data-og-fp="${CSS.escape(e.fp)}"]:not([data-hydrated])`
+						`ogygia-region[${OG_FP}="${CSS.escape(e.fp)}"]:not([data-hydrated])`
 					)
 				)
 			)
@@ -678,7 +678,7 @@ function empty_slots(): string[] {
 			}
 		if (content) continue;
 		const region = slot.closest('ogygia-region[data-hydrated]');
-		const fp = region?.getAttribute('data-og-fp');
+		const fp = region?.getAttribute(OG_FP);
 		if (fp) out.push(fp);
 	}
 	return out;
