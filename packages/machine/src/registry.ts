@@ -87,12 +87,12 @@ function make_keyed<K, V>(): KeyedRegistry<K, V> {
 		set(key: K, value: V, owner: Scope): () => void {
 			if (owner.closed) return () => {};
 			const old = lives.get(key);
+			// (the values' order is the order last set; the lives' order is nobody's)
 			values.delete(key);
-			lives.delete(key);
 			old?.close();
 			const life = owner.child();
-			values.set(key, value);
 			lives.set(key, life);
+			values.set(key, value);
 			// (only its own: a later set under the key holds another)
 			life.defer(() => {
 				if (lives.get(key) !== life) return;
