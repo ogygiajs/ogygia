@@ -549,8 +549,8 @@
 			"reason": "browser only: a frame that paints ends its visit of the element's paint machine (one owner-checked move), constant work; the machine runs in packages/core/bench/runtime.bench.ts, the element in packages/core/test/browser/frame-paint-order.test.ts"
 		},
 		{
-			"id": "packages/core/src/runtime/core.ts > OgygiaRegion > #teardown > note_left:1~2bef98",
-			"reason": "browser only, dev and e2e builds: the rule's reader of the element's machines, handed over at its teardown, constant work; proven in packages/core/test/browser/rules.test.ts"
+			"id": "packages/core/src/runtime/core.ts > OgygiaRegion > #teardown > note_left:1~6e248e",
+			"reason": "browser only, dev and e2e builds: the rule's reader of the element's busy machines, handed over at its teardown, constant work; proven in packages/core/test/browser/rules.test.ts"
 		},
 		{
 			"id": "packages/core/src/runtime/core.ts > OgygiaRegion > #machines",
