@@ -51,7 +51,8 @@ export type TimerHandle = { readonly [TIMER]: true };
 /** The two clocks (#472): `mono()` for a duration inside one process (it never steps), `wall()`
  *  for a timestamp that leaves the process or is compared with one from outside. */
 export * as clock from './ports/clock.ts';
-/** Timers: `after` (one-shot), `keep` (one that keeps a Node process alive), `every`, `cancel`. */
+/** Timers: `after` (one-shot), `keep` (one that keeps a Node process alive), `every`, `cancel`,
+ *  `timeout` (an abort signal on them). */
 export * as timers from './ports/timers.ts';
 /** The browser's task hooks: `micro`, `frame`, `idle` (each falls back to the next task). */
 export * as tasks from './ports/tasks.ts';

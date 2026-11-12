@@ -524,9 +524,10 @@ const stale_whole = {
 /**
  * `ogygia/ports` (DST): every source of nondeterminism goes through a port of @ogygia/machine
  * (packages/machine/src/ports.ts), so a simulated run (internal/sim) owns all of it and one seed
- * replays a run. Package source calls none of these raw: timers and the browser's task hooks
- * (`timers`, `tasks`), the clocks (`clock.mono()` for a duration, which a wall-clock step never
- * moves; `clock.wall()` for a timestamp that leaves the process: #472), randomness (`random`), the
+ * replays a run. Package source calls none of these raw: timers, the platform's timer-backed
+ * `AbortSignal.timeout` and the browser's task hooks (`timers`, `tasks`), the clocks, `new Date()`
+ * included (`clock.mono()` for a duration, which a wall-clock step never moves; `clock.wall()` for
+ * a timestamp that leaves the process: #472), randomness (`random`), the
  * network (`net`), what is on screen (`seen`) and storage (`storage`). It grew out of
  * `ogygia/wall-clock`, which it replaces: `Date.now()` is `clock.wall()`.
  *
@@ -547,7 +548,9 @@ const PORT_MEMBERS: Record<string, Record<string, string>> = {
 	Date: { now: 'clock.wall() (a timestamp) or clock.mono() (a duration)' },
 	performance: { now: 'clock.mono()' },
 	Math: { random: 'random.float()' },
-	crypto: { getRandomValues: 'random.bytes()', randomUUID: 'random.uuid()' }
+	crypto: { getRandomValues: 'random.bytes()', randomUUID: 'random.uuid()' },
+	// (a timer of the platform's own, which no simulated run can reach: a federation hop's)
+	AbortSignal: { timeout: 'timers.timeout()' }
 };
 const PORT_NEWS: Record<string, string> = {
 	IntersectionObserver: 'seen.observer()',
@@ -610,6 +613,9 @@ const ports = {
 				const name = global_name(node.callee as Node);
 				if (name !== undefined && Object.hasOwn(PORT_NEWS, name))
 					found.push({ node, message: port_message(`new ${name}()`, PORT_NEWS[name]) });
+				// (`new Date(x)` is a plain value; with no argument it reads the clock)
+				else if (name === 'Date' && !(node as { arguments?: unknown[] }).arguments?.length)
+					found.push({ node, message: port_message('new Date()', 'new Date(clock.wall())') });
 			},
 			Identifier(node: Node) {
 				const name = (node as { name?: string }).name;
