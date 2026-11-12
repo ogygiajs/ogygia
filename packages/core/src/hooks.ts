@@ -84,7 +84,7 @@ import { expiry_refusal, note_cache_control } from './server/shared-cache.ts';
 import { app_lifetime } from './server/region-endpoint.ts';
 import { render_cache_key, cached_render, type RenderKey } from './server/render-cache.ts';
 import { render as render_policy } from './policies.ts';
-import { install_server_rules } from './server/rules.ts';
+import { install_server_rules, note_region_answer } from './server/rules.ts';
 import { B64Url } from './server/payload.ts';
 import { REF_WIRE_KEY, ref_reviver } from './ref.ts';
 import type { RequestContext } from './plugin/index.ts';
@@ -1012,8 +1012,12 @@ class OgygiaHandle {
 		}
 		// POST to the endpoint = a BATCH frame stream (client-side navigation, single-flight): render a set
 		// of signed region calls and flush each as an out-of-order frame in one response.
-		if (event.request.method.toUpperCase() === 'POST') return this.render_batch(event);
-		return this.render_region(event);
+		const answer =
+			event.request.method.toUpperCase() === 'POST'
+				? await this.render_batch(event)
+				: await this.render_region(event);
+		if (RULES) note_region_answer(event.url.pathname, answer);
+		return answer;
 	}
 
 	/**

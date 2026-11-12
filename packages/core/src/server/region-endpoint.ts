@@ -26,10 +26,14 @@ import { record_server_event } from '../events/server-registry.ts';
 
 // DEVTOOLS gate — server realm; off → folds out.
 const DEVTOOLS = typeof __OGYGIA_DEVTOOLS__ !== 'undefined' ? __OGYGIA_DEVTOOLS__ : false;
+// the server's rules (./rules.ts): dev and OGYGIA_RULES=1 builds only, folds out of any other
+const RULES =
+	import.meta.env?.DEV || (typeof __OGYGIA_RULES__ !== 'undefined' ? __OGYGIA_RULES__ : false);
 import { B64Url } from './payload.ts';
 import { REF_WIRE_KEY, ref_reducer } from '../ref.ts';
 import { ensure_prop_kinds } from './region-props.ts';
 import { OgygiaError, warn } from '../messages/server.ts';
+import { note_minted_capability } from './rules.ts';
 
 /** A hole's own stylesheet hrefs, by region id — the list its endpoint answer links (hooks.ts
  *  `region_css_links`), for a render that inlines the hole in the page instead (Region.svelte). */
@@ -130,7 +134,9 @@ export function mint_region_capability(entry: string, payload: string, ttl = 0):
 	if (DEVTOOLS)
 		record_server_event({ domain: 'server', name: 'server.capability.minted', id: entry, ttl });
 	// `k`: the minter's key fingerprint, outside the MAC (server/signing-key.ts)
-	return `${resolve(islands_endpoint())}?id=${encodeURIComponent(entry)}${render ? `&r=${render}` : ''}&props=${payload}&exp=${exp}${ttl_param}&sig=${sig}&k=${key.fp}`;
+	const url = `${resolve(islands_endpoint())}?id=${encodeURIComponent(entry)}${render ? `&r=${render}` : ''}&props=${payload}&exp=${exp}${ttl_param}&sig=${sig}&k=${key.fp}`;
+	if (RULES) note_minted_capability(url);
+	return url;
 }
 
 /**
