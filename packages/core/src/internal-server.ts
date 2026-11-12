@@ -33,3 +33,5 @@ export {
 	request_scope
 } from './plugin/request-scope.ts';
 export { islands_endpoint } from './server/endpoint.ts';
+// the page markup's vocabulary and its tag reader
+export * from './wire-markup.ts';
