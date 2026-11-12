@@ -4795,6 +4795,30 @@
 		{
 			"id": "packages/core/src/plugin/capability.ts > plugin_signer > verify",
 			"reason": "prefixes the plugin's domain and hands the check to the app's signer (a closure over the app key, not replayable), constant work over the HMAC; proven in packages/core/test/plugin-signing.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/key-check.ts > sha256",
+			"reason": "one Web Crypto digest (async, not recorded), work linear in the text; proven in packages/devtools/test/profiler-key-web-crypto.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/key-check.ts > sha256_hex",
+			"reason": "one Web Crypto digest and a 32-byte hex (async, not recorded), work linear in the text; proven in packages/devtools/test/profiler-key-web-crypto.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/key-check.ts > same_key",
+			"reason": "two Web Crypto digests and a 32-byte constant-time compare (async, not recorded), work linear in the keys; proven in packages/devtools/test/profiler-key-web-crypto.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/key-check.ts > mac_key",
+			"reason": "one Web Crypto HKDF key derivation (async, not recorded), done once per profiler and use; proven in packages/devtools/test/profiler-key-web-crypto.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/key-check.ts > mac_hex",
+			"reason": "one Web Crypto HMAC and a 32-byte hex (async, not recorded), work linear in the message; proven in packages/devtools/test/profiler-key-web-crypto.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/key-check.ts > random_id",
+			"reason": "random bytes (hidden state, not replayable) and a base64url of them, constant work; proven in packages/devtools/test/profiler-login-guard.test.ts"
 		}
 	]
 }
