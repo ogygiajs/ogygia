@@ -91,6 +91,9 @@ export interface GenPage {
 	readonly postrender?: boolean;
 	/** The page has a server load (`{ who }`), which some of its regions read. */
 	readonly data?: boolean;
+	/** The page opens with a hero image (`fetchpriority="high"`): its critical resource, which island
+	 *  code and background downloads wait for (the load scheduler's critical gate). */
+	readonly hero?: boolean;
 }
 
 const WAKES: readonly Wake[] = ['load', 'idle', 'visible', 'interaction'];
@@ -236,6 +239,8 @@ export function plan(seed: number): GenPage[] {
 			!(n.dated || n.changes || n.style);
 		return plain && e.chance(0.15) ? { ...n, children, empty: true } : { ...n, children };
 	};
+	// (and whether a page opens with a hero image, from its own)
+	const hr = rng(seed).fork('gen hero');
 	const node = trees(r, held);
 	const pages = r.between(3, 6);
 	return Array.from({ length: pages }, (_, i) => ({
@@ -247,8 +252,24 @@ export function plan(seed: number): GenPage[] {
 		.map((page) => ({ ...page, roots: page.roots.map(extras) }))
 		.map((page) => (d.chance(0.4) ? { ...page, data: true, roots: page.roots.map(reading) } : page))
 		.map((page) => ({ ...page, roots: page.roots.map(messy) }))
-		.map((page) => ({ ...page, roots: page.roots.map(empty) }));
+		.map((page) => ({ ...page, roots: page.roots.map(empty) }))
+		.map((page) => (hr.chance(0.4) ? { ...page, hero: true } : page));
 }
+
+/** The hero image the app serves (`/hero.png`): a 1x1 PNG, loaded over the simulated network. */
+const HERO_ROUTE = [
+	`// (a page's hero: its critical resource, loaded over the simulated network)`,
+	`const PNG = Uint8Array.from(`,
+	`\tatob('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=='),`,
+	`\t(c) => c.charCodeAt(0)`,
+	`);`,
+	'',
+	`export const GET = () =>`,
+	`\tnew Response(PNG, {`,
+	`\t\theaders: { 'content-type': 'image/png', 'cache-control': 'public, max-age=31536000, immutable' }`,
+	`\t});`,
+	''
+].join('\n');
 
 /** The first id of the layout's regions: never one of the pages' (the peer's start at 1000). */
 export const LAYOUT_FIRST = 500;
@@ -679,6 +700,8 @@ export function write(
 		'export const csr = false;\nexport const prerender = false;\n'
 	);
 	writeFileSync(join(routes, '+page.svelte'), `<h1>generated app, seed ${seed}</h1>\n`);
+	mkdirSync(join(routes, 'hero.png'), { recursive: true });
+	writeFileSync(join(routes, 'hero.png', '+server.ts'), HERO_ROUTE);
 	writeFileSync(join(lib, 'mount.server.ts'), app_mount(peer));
 	if (peer) {
 		writeFileSync(join(lib, 'federation.server.ts'), app_federation(peer));
@@ -752,6 +775,9 @@ export function write(
 				'</script>',
 				'',
 				`<h1>${page.path}</h1>`,
+				...(page.hero
+					? ['<img src="/hero.png" fetchpriority="high" alt="" width="1" height="1" />']
+					: []),
 				...page.roots.map((n) => usage(n, '')),
 				...slots.map(slot_usage),
 				''
