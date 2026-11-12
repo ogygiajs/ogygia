@@ -948,6 +948,12 @@ export const KNOWN_SAID: ReadonlyArray<{ issue: number; what: string; said: RegE
 		issue: 915,
 		what: "Svelte 5.56.8's error walk meets a destroyed boundary",
 		said: /^unhandled: TypeError: Cannot read properties of null \(reading 'error'\)/
+	},
+	{
+		issue: 954,
+		what: "a remote call from a stored page is answered with the stored page's HTML",
+		// (Kit's remote client reads the HTML as JSON: a live query's rejection nobody handles, gen 112)
+		said: /^unhandled: SyntaxError: Unexpected token '<', "<!doctype "\.\.\. is not valid JSON/
 	}
 ];
 
