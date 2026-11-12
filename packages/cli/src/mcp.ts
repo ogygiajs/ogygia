@@ -27,7 +27,7 @@ import {
 	collect_flag_sites,
 	flags_manifest,
 	type FlagSite
-} from '@ogygia/core/internal/compiler';
+} from '@ogygia/compiler';
 import { line } from './messages.ts';
 
 /** The profiler's report reading (`@ogygia/devtools/report`), as these tools use it: loaded from the
@@ -103,7 +103,6 @@ function build_ctx(ssr: boolean, route_csr = false) {
 		root: '/repl',
 		libDir: '/repl/src/lib',
 		readFile: () => null,
-		pathModule: path as never,
 		dev: true,
 		virtualPathFor: (_host: string, iid: string) => islandVirtualId(iid),
 		wrapperPathFor: (_host: string, iid: string) => wrapperVirtualId(iid),

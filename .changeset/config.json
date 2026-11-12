@@ -8,6 +8,7 @@
 		[
 			"ogygia",
 			"@ogygia/core",
+			"@ogygia/compiler",
 			"@ogygia/flags",
 			"@ogygia/postrender",
 			"@ogygia/reshape",

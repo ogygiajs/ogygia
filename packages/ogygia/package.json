@@ -71,10 +71,6 @@
 			"types": "./dist/internal/compiler-ids.d.ts",
 			"default": "./src/internal/compiler-ids.ts"
 		},
-		"./internal/region-core": {
-			"types": "./dist/internal/region-core.d.ts",
-			"default": "./dist/internal/region-core.js"
-		},
 		"./internal/reconcile": {
 			"svelte": "./src/internal/reconcile.ts",
 			"types": "./dist/internal/reconcile.d.ts",
@@ -111,10 +107,6 @@
 		"./events": {
 			"types": "./dist/events.d.ts",
 			"default": "./src/events.ts"
-		},
-		"./insights": {
-			"types": "./dist/insights.d.ts",
-			"default": "./src/insights.ts"
 		},
 		"./types": {
 			"types": "./ambient.d.ts"
@@ -171,11 +163,6 @@
 				"svelte": "./dist/internal/compiler-ids.js",
 				"default": "./dist/internal/compiler-ids.js"
 			},
-			"./internal/region-core": {
-				"types": "./dist/internal/region-core.d.ts",
-				"svelte": "./dist/internal/region-core.js",
-				"default": "./dist/internal/region-core.js"
-			},
 			"./internal/reconcile": {
 				"types": "./dist/internal/reconcile.d.ts",
 				"svelte": "./dist/internal/reconcile.js",
@@ -209,10 +196,6 @@
 				"types": "./dist/events.d.ts",
 				"default": "./dist/events.js"
 			},
-			"./insights": {
-				"types": "./dist/insights.d.ts",
-				"default": "./dist/insights.js"
-			},
 			"./internal/compiler": {
 				"types": "./dist/internal/compiler.d.ts",
 				"default": "./dist/internal/compiler.js"
@@ -229,8 +212,8 @@
 		"verify:package": "node ../core/scripts/verify-package.ts ."
 	},
 	"dependencies": {
-		"@ogygia/core": "workspace:*",
-		"@ogygia/insights": "workspace:*"
+		"@ogygia/compiler": "workspace:*",
+		"@ogygia/core": "workspace:*"
 	},
 	"devDependencies": {
 		"@ogygia/config": "workspace:*",

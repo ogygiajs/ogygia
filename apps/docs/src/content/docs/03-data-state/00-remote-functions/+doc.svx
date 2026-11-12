@@ -56,7 +56,7 @@ export const bump = command(async () => (count += 1));
 
 If an island needs a query to update after a mutation, call `.refresh()` on it, or pair `submit().updates(query)` with `requested(query).refreshAll()` on the server. `updates` on its own does not fill the response.
 
-A command can also return a held region, and the region on the page repaints from the command's own response. When two commands can return the same region, give it the data's version (`region(Card, row, { version: row.updatedAt })`) so the newest data stays on screen whichever answer arrives last. See [Held regions](/docs/regions/held-regions#two-commands-one-region-give-it-a-version).
+A command can also return a held region, and the region on the page repaints from the command's own response. When two commands can return the same region, give it the data's version (`region(Card, row, { version: row.updatedAt })`) so the newest data stays on screen whichever answer arrives last. See [Held regions](/docs/regions/held-regions#single-flight-mutations-two-commands-one-region-give-it-a-version).
 
 ## Mutation guards
 
