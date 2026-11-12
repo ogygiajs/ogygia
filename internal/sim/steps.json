@@ -20,8 +20,8 @@
 			},
 			{
 				"app": "palaestra",
-				"plan": "internal/sim/sweep-plans/palaestra-batch-stalled.json",
-				"reaches": ["batch-stream: sending -> stalled"]
+				"plan": "internal/sim/sweep-plans/palaestra-form-restore.json",
+				"reaches": ["form-restore: idle -> open", "form-restore: open -> idle"]
 			},
 			{
 				"app": "palaestra",
@@ -36,7 +36,6 @@
 		"batch-stream: reading -> reading",
 		"batch-stream: reading -> stalled",
 		"batch-stream: sending -> reading",
-		"batch-stream: sending -> stalled",
 		"build location map: flying -> gone",
 		"build location map: flying -> kept",
 		"critical resources: flying -> gone",
@@ -60,7 +59,6 @@
 		"federation peer documents: flying -> kept",
 		"federation peer documents: kept -> flying",
 		"federation peer documents: kept -> gone",
-		"federation thaws applied: flying -> gone",
 		"federation thaws applied: flying -> kept",
 		"flags exposures: buffering -> idle",
 		"flags exposures: idle -> buffering",
@@ -104,7 +102,6 @@
 		"island warm: flying -> gone",
 		"island warm: flying -> kept",
 		"kit page thread: flying -> gone",
-		"live-region: failed -> hydrating",
 		"live-region: failed -> idle",
 		"live-region: failed -> static",
 		"live-region: hydrating -> failed",
@@ -353,6 +350,24 @@
 			"reason": "a notice id is kept 10 minutes: no run sends the same notice again that long after",
 			"test": "packages/federation/test/thaw-receive.test.ts",
 			"name": "is forgotten after 10 minutes: the same notice again is applied again"
+		},
+		{
+			"step": "batch-stream: sending -> stalled",
+			"reason": "a batch POST whose answer never starts for the stall deadline: one network stall aimed at one request, which the sweep's runs met by luck only, and lost when timings moved",
+			"test": "packages/core/test/browser/frame-stream-stall.test.ts",
+			"name": "an answer that never starts: the stream is given up while sending, and its holes are let go"
+		},
+		{
+			"step": "live-region: failed -> hydrating",
+			"reason": "a live region's island file must fail to load, then a tick of another module come: the sweep's runs met it by luck only, and lost it when timings moved",
+			"test": "packages/core/test/browser/live-region-failed-file.test.ts",
+			"name": "after its island file could not load, a tick of another module starts afresh and goes live"
+		},
+		{
+			"step": "federation thaws applied: flying -> gone",
+			"reason": "a thaw notice whose evict fails in the app's store: the sweep's runs met it by luck only, and lost it when timings moved",
+			"test": "packages/federation/test/thaw-receive.test.ts",
+			"name": "answers an error and keeps no id; the retry with the same id is applied"
 		}
 	],
 	"dead": [
