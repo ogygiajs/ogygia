@@ -486,6 +486,30 @@ describe('page errors', () => {
 			}
 		}) as unknown as Parameters<typeof page_errors>[1];
 
+	// (gen 192, seed 19: a router visit's hero image dropped; the DOM library says why only after
+	// the element's `error`, on the window's console, so its line carries no reason)
+	const image = (status: number | 'dropped') =>
+		({
+			fired_in: new Map(),
+			network: {
+				exchanges: [
+					{ id: 1, url: 'https://app.test/split-brain', status: 200 },
+					{ id: 2, url: 'https://app.test/hero.png', status: 200 },
+					{ id: 3, url: 'https://app.test/hero.png', status },
+					{ id: 4, url: 'https://app.test/_app/x.js', status: 'dropped' }
+				].map((e) => ({ from: 'tab-1#6', method: 'GET', cut: false, tampered: false, ...e }))
+			}
+		}) as unknown as Parameters<typeof page_errors>[1];
+	const failed_image = ['error: <img> /hero.png failed'];
+
+	it('an element whose own download the network failed may say it failed (gen 192, seed 19)', () => {
+		expect(page_errors(tab(failed_image), image('dropped'))).toBeNull();
+	});
+
+	it('an element that failed though its download came is a finding, whatever else dropped', () => {
+		expect(page_errors(tab(failed_image), image(200))?.oracle).toBe('page-errors');
+	});
+
 	it("a changed byte in a peer's page the server fetched for the document is the document's", () => {
 		expect(page_errors(tab(said), hop('tampered'))).toBeNull();
 	});
