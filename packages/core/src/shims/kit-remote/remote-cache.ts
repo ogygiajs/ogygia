@@ -1,5 +1,6 @@
 /** SSR-resolved remote response maps shared by Kit remote-functions + ogygia SPA reset. */
 import { current_region } from '../../current-region.ts';
+import { island_region } from '../../nested.ts';
 
 type RemoteNode = { v?: unknown; e?: [number, unknown] };
 
@@ -10,12 +11,13 @@ type RemoteResource = {
 };
 type RemoteEntry = { resource?: RemoteResource };
 
-/** The regions whose islands read each Kit query entry while they hydrated: its holders. */
+/** The regions whose islands read each Kit query entry: its holders. */
 const holders = new WeakMap<RemoteEntry, Set<Element>>();
 
-/** Record the region hydrating now (if any) as a holder of `entry`. */
+/** Record the island reading now (if any) as a holder of `entry`: the one hydrating, or the one
+ *  whose component runs now (a child it mounted after it hydrated, #853). */
 function hold(entry: RemoteEntry): void {
-	const region = current_region();
+	const region = current_region() ?? island_region();
 	if (region === null) return;
 	let set = holders.get(entry);
 	if (set === undefined) holders.set(entry, (set = new Set()));
