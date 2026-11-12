@@ -24,7 +24,8 @@ type Action =
 	| { kind: 'wait'; ms: number }
 	| { kind: 'deploy' }
 	| { kind: 'away'; tab: number; nth: number; ms: number }
-	| { kind: 'hurry'; tab: number; nth: number; then: number; after: number }
+	| { kind: 'hurry'; tab: number; nth: number; next: number; after: number }
+	| { kind: 'hover'; tab: number; nth: number }
 	| {
 			kind: 'outage';
 			tab: number;
@@ -272,6 +273,25 @@ async function nth_of(page: Page, list: 'links' | 'buttons', nth: number): Promi
 	);
 }
 
+/** Points at link or region `nth` (of both, in document order, as the simulator counts them). */
+async function hover_nth(page: Page, nth: number): Promise<void> {
+	const index = await page.evaluate((nth) => {
+		const links = [...document.querySelectorAll<HTMLAnchorElement>('a[href]')].filter(
+			(a) => a.href.startsWith(location.origin) && !a.hasAttribute('download') && !a.target
+		);
+		const found = [...links, ...document.querySelectorAll('ogygia-region')];
+		if (found.length === 0) return -1;
+		const el = found[nth % found.length];
+		el.setAttribute('data-sim-hover', '');
+		return 0;
+	}, nth);
+	if (index === -1) return;
+	await page.hover('[data-sim-hover]').catch(() => {}); // ok: an element with no box cannot be pointed at
+	await page.evaluate(() =>
+		document.querySelector('[data-sim-hover]')?.removeAttribute('data-sim-hover')
+	);
+}
+
 /** One test per plan SIM_PLANS names, each played on the app at `app` (its directory). */
 export function sim_replay(app: string): void {
 	const list = plans();
@@ -398,10 +418,13 @@ async function play(
 				await pass(context, a.ms);
 				await navigated(tab.goBack());
 				break;
+			case 'hover':
+				await hover_nth(tab, a.nth);
+				break;
 			case 'hurry':
 				if (!(await nth_of(tab, LINKS, a.nth))) break;
 				await pass(context, a.after);
-				await nth_of(tab, LINKS, a.then);
+				await nth_of(tab, LINKS, a.next);
 				break;
 			case 'outage':
 				if (a.during !== 'wait') await nth_of(tab, a.during === 'click' ? LINKS : BUTTONS, a.nth);

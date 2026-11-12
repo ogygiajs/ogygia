@@ -22,7 +22,10 @@ export type Action =
 	| { kind: 'away'; tab: number; nth: number; ms: number }
 	/** Click link `nth`, then link `then` `after` ms later, before the first navigation lands: a
 	 *  navigation called off midway (claimed again while loading or settling, its stage discarded). */
-	| { kind: 'hurry'; tab: number; nth: number; then: number; after: number }
+	| { kind: 'hurry'; tab: number; nth: number; next: number; after: number }
+	/** Point at link or region `nth` (of both, in document order) without clicking: the router warms
+	 *  a hovered link's page, an island's code is warmed on intent. */
+	| { kind: 'hover'; tab: number; nth: number }
 	| {
 			kind: 'outage';
 			tab: number;
@@ -52,7 +55,9 @@ export function describe(a: Action): string {
 		case 'away':
 			return `tab ${a.tab}: follow link #${a.nth}, come back ${a.ms} ms later`;
 		case 'hurry':
-			return `tab ${a.tab}: click link #${a.nth}, then link #${a.then} ${a.after} ms later`;
+			return `tab ${a.tab}: click link #${a.nth}, then link #${a.next} ${a.after} ms later`;
+		case 'hover':
+			return `tab ${a.tab}: point at link or region #${a.nth}`;
 		case 'outage':
 			return `tab ${a.tab}: ${a.during === 'wait' ? 'an outage' : `${a.during} #${a.nth}, then an outage`} ${a.after} ms in, for ${a.lasts} ms`;
 		default:
@@ -102,7 +107,8 @@ export const ACTION_KINDS: readonly Action['kind'][] = [
 	'deploy',
 	'outage',
 	'away',
-	'hurry'
+	'hurry',
+	'hover'
 ];
 
 /** The seed's next action for a world with `tabs` tabs (`deploys`: a deploy may be drawn; the
@@ -168,11 +174,12 @@ function choices(
 				kind: 'hurry',
 				tab,
 				nth: rng.int(1000),
-				then: rng.int(1000),
+				next: rng.int(1000),
 				after: rng.pick([0, 5, 20, 60, 150, 300])
 			},
 			1
-		]
+		],
+		[{ kind: 'hover', tab, nth: rng.int(1000) }, 2]
 	];
 }
 
@@ -235,10 +242,30 @@ export async function act(
 			await world.loop.run(a.ms);
 			await world.go(tab, 'back');
 			return;
+		case 'hover': {
+			if (tab === undefined) return;
+			const doc = tab.page.mainFrame.document as unknown as Document;
+			const found = [...links(tab, origin), ...doc.querySelectorAll('ogygia-region')];
+			if (found.length === 0) return;
+			const target = found[a.nth % found.length];
+			world.loop.note(
+				`${tab.name} points at ${target.getAttribute('href') ?? target.getAttribute('entry') ?? target.tagName}`
+			);
+			const view = tab.page.mainFrame.window as unknown as Window & typeof globalThis;
+			for (const type of ['pointerover', 'mouseover'])
+				target.dispatchEvent(
+					new (type === 'pointerover' ? view.PointerEvent : view.MouseEvent)(type, {
+						bubbles: true,
+						composed: true
+					})
+				);
+			await world.quiesce();
+			return;
+		}
 		case 'hurry':
 			if (tab === undefined || !click(world, tab, a.nth, origin)) return;
 			await world.loop.run(a.after);
-			click(world, tab, a.then, origin);
+			click(world, tab, a.next, origin);
 			await world.quiesce();
 			return;
 		case 'goto':
