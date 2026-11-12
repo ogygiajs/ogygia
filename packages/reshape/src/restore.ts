@@ -149,22 +149,13 @@ export function restore(root: Document | DocumentFragment | Element): number {
 	 *  script URL. `og-r` is an attribute like any other, so markup a sanitizer let through (it keeps
 	 *  unknown attributes) must not become script here. test/browser/restore.test.ts › "a host’s
 	 *  attribute reset …". */
-	const URL_ATTRS = new Set([
-		'href',
-		'xlink:href',
-		'src',
-		'action',
-		'formaction',
-		'data',
-		'poster'
-	]);
 	const unsafe_attr = (el: Element, name: string, value: string): boolean => {
 		const n = name.toLowerCase();
 		// (a handler is an `on…` name the element has an event-handler property for: `onclick`, not a
 		// component's own `online` or `once`)
 		if ((n.startsWith('on') && n in el) || n === 'srcdoc') return true;
-		if (!URL_ATTRS.has(n)) return false;
-		// (the scheme as a browser reads it: leading spaces and controls, and tabs or newlines inside)
+		// (a script URL in any attribute, not only the ones known to hold URLs today: the scheme as a
+		// browser reads it, leading spaces and controls, and tabs or newlines inside, gone)
 		// oxlint-disable-next-line no-control-regex -- the controls a URL parser strips are the point
 		const scheme = value.replace(/[\u0000- ]/g, '').toLowerCase();
 		return scheme.startsWith('javascript:') || scheme.startsWith('vbscript:');
@@ -189,6 +180,7 @@ export function restore(root: Document | DocumentFragment | Element): number {
 						if (merged) el.setAttribute('class', merged);
 						else el.removeAttribute('class');
 					} else if (v === null) el.removeAttribute(name);
+					// (never script: no handler, no srcdoc, no script URL; test/browser/restore.test.ts)
 					else if (!unsafe_attr(el, name, v)) el.setAttribute(name, v);
 				}
 			} catch {
@@ -236,13 +228,26 @@ export function restore(root: Document | DocumentFragment | Element): number {
 		return out;
 	};
 
+	// Only the tags the server pass writes as stand-ins (./reversible.ts `implied_close`, kept
+	// equal by test/browser/restore.test.ts › "the restorer swaps back every tag …"), no on*
+	// attributes: test/browser/restore.test.ts › "a stand-in becomes only a tag the server pass …".
+	const STAND_IN_TAGS = new Set(
+		(
+			'a nobr button form li dd dt option optgroup td th tr address article aside blockquote center' +
+			' details dialog dir div dl fieldset figcaption figure footer header hgroup main menu nav ol p' +
+			' search section summary ul h1 h2 h3 h4 h5 h6 pre listing table hr xmp plaintext'
+		).split(' ')
+	);
 	const swap_stand_ins = (under: ParentNode) => {
 		const list = Array.from(under.querySelectorAll('og-as'));
 		for (let x = list.length - 1; x >= 0; x--) {
 			const as = list[x];
-			const real = doc.createElement(as.getAttribute('tag') || 'span');
+			const tag = (as.getAttribute('tag') || '').toLowerCase();
+			if (!STAND_IN_TAGS.has(tag)) continue;
+			const real = doc.createElement(tag);
 			for (const a of Array.from(as.attributes))
-				if (a.name !== 'tag') real.setAttribute(a.name, a.value);
+				if (a.name !== 'tag' && !a.name.toLowerCase().startsWith('on'))
+					real.setAttribute(a.name, a.value);
 			while (as.firstChild) real.appendChild(as.firstChild);
 			as.replaceWith(real);
 		}
