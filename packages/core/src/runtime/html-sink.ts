@@ -1,8 +1,97 @@
 /**
- * THE one place region / SSR HTML becomes DOM. A leaf module (no imports) so every parse site shares
- * it: `region_fragment` (a fetched hole / live tick / held region), `repair_if_drifted` (the server
- * copy an island hydrates against), and anything added later. Having ONE parser is the point — a second,
- * DSD-unaware one would silently drift (see below).
+ * THE HTML SINK (HOLE-TRUST, internal/notes/INVARIANTS.md): the one module where a string becomes
+ * DOM. A leaf (no imports). Everything else hands it a {@link VerifiedHtml}, and the only way to have
+ * one is a voucher below, each named by what it checked: a region answer from a same-origin endpoint
+ * that stayed same-origin, a page fetch that landed on this origin, HTML the page itself holds, or an
+ * answer of the app's own remote transport. The string-to-DOM APIs (`setHTMLUnsafe`, `innerHTML =`,
+ * `DOMParser`, `createContextualFragment`, …) and a cast to `VerifiedHtml` are a lint error anywhere
+ * else in package source (`ogygia/html-sink`).
+ */
+
+declare const VERIFIED: unique symbol;
+
+/** HTML a voucher of this module vouched for: the only input the sink takes. */
+export type VerifiedHtml = string & { readonly [VERIFIED]: true };
+
+/**
+ * Defense-in-depth: only fetch region HTML from same-origin capability URLs. Mint always emits a
+ * path-only URL (`resolve(DEFAULT_ISLANDS_ENDPOINT)?…`). Absolute / protocol-relative endpoints would
+ * require prior HTML injection — still reject them so the runtime is not an XSS amplifier.
+ * True when `endpoint` resolves to same-origin http(s).
+ */
+export function is_allowed_region_endpoint(
+	endpoint: string,
+	page_origin: string = location.origin
+): boolean {
+	if (typeof endpoint !== 'string' || endpoint.length === 0) return false;
+	try {
+		const url = new URL(endpoint, page_origin);
+		if (url.protocol !== 'http:' && url.protocol !== 'https:') return false;
+		if (url.origin !== page_origin) return false;
+		// Reject if the final response could redirect cross-origin — checked by caller via res.url.
+		return true;
+	} catch {
+		return false;
+	}
+}
+
+/** After fetch: reject opaque redirects that left the page origin. */
+export function is_same_origin_response(
+	res: Response,
+	page_origin: string = location.origin
+): boolean {
+	if (!res.url) return true; // older environments — rely on request URL check
+	try {
+		return new URL(res.url).origin === page_origin;
+	} catch {
+		return false;
+	}
+}
+
+/** A region endpoint's answer (a hole, a batch's parcel, a 204's marker): vouched when the endpoint
+ *  is same-origin and the response ended there. Null otherwise. */
+export function vouch_region_answer(
+	endpoint: string,
+	res: Response,
+	text: string
+): VerifiedHtml | null {
+	return is_allowed_region_endpoint(endpoint) && is_same_origin_response(res)
+		? (text as VerifiedHtml)
+		: null;
+}
+
+/** A page the router fetched: vouched when the address it landed on is this origin. Null otherwise. */
+export function vouch_page_answer(landed: URL, html: string): VerifiedHtml | null {
+	return landed.origin === location.origin ? (html as VerifiedHtml) : null;
+}
+
+/** HTML the page itself holds (a region's own markup, a record the server wrote into the page):
+ *  exactly as trusted as the page. */
+export function vouch_page_html(html: string): VerifiedHtml {
+	return html as VerifiedHtml;
+}
+
+/** An answer of the app's own remote transport (Kit's remote functions: its own endpoint, its own
+ *  same-origin fetch): HTML our server rendered in-process. */
+export function vouch_remote_answer(html: string): VerifiedHtml {
+	return html as VerifiedHtml;
+}
+
+/** A page's whole document, parsed (inert: nothing in it runs). */
+export function parse_page_document(html: VerifiedHtml): Document {
+	return new DOMParser().parseFromString(html, 'text/html');
+}
+
+/** An element's children replaced by `html`'s, parsed in its own document. */
+export function set_inner_html(el: Element, html: VerifiedHtml): void {
+	el.innerHTML = html;
+}
+
+/**
+ * Region / SSR HTML into a fragment. Every parse site shares it: `region_fragment` (a fetched hole /
+ * live tick / held region), `repair_if_drifted` (the server copy an island hydrates against), and
+ * anything added later. Having ONE parser is the point — a second, DSD-unaware one would silently
+ * drift (see below).
  *
  * `<template shadowrootmode>` (declarative shadow DOM — a web STANDARD, nothing library-specific) turns
  * into a real shadow root ONLY when a DSD-aware parser reads it. `Element.setHTMLUnsafe()` is that
@@ -29,7 +118,7 @@
  *
  * In dev and e2e every parse is checked (`rule_parse_upgraded`, ./rules.ts): nothing built.
  */
-export function parse_region_html(html: string): DocumentFragment {
+export function parse_region_html(html: VerifiedHtml): DocumentFragment {
 	const tpl = inert_document().createElement('template');
 	const set_html_unsafe = (tpl as { setHTMLUnsafe?: (h: string) => void }).setHTMLUnsafe;
 	if (typeof set_html_unsafe === 'function') {
