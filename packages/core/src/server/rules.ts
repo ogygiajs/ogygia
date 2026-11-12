@@ -163,9 +163,7 @@ export function install_server_rules(): void {
 	server_rules.add('rule_region_answer_shared', () =>
 		B.answers.length ? B.answers.join('; ') : null
 	);
-	server_rules.add('rule_capability_not_path', () =>
-		B.mints.length ? B.mints.join('; ') : null
-	);
+	server_rules.add('rule_capability_not_path', () => (B.mints.length ? B.mints.join('; ') : null));
 	// a flight's entry moving to `kept` with an error, or a render that read what its key does not
 	// cover, for its answer (flights' machine, @ogygia/machine), and out of it again
 	observe((name, _from, to, machine) => {
