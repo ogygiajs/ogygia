@@ -25,11 +25,16 @@ import type { Peer, PeerConfig, RemoteDials } from './types.ts';
 
 const HOST_UNSAFE_G = /[^a-zA-Z0-9_-]/g;
 
-/** A peer's answer that is not its JSON document (`federation_peer_answer_invalid`, said once). */
+/** A peer's answer that can't be used: an error status, or not its JSON document
+ *  (`federation_peer_answer_invalid`, said once). `status` is what a page read or a post answers:
+ *  the peer's own 503 or 504 (busy or down, worth trying later), else a 502. */
 class AnswerInvalid extends Error {
 	override name = 'AnswerInvalid';
-	constructor(peer: string) {
-		super(`federation_peer_answer_invalid: '${peer}' answered no document`);
+	readonly status: 502 | 503 | 504;
+	constructor(what: string, status: number) {
+		// (the message is what a visitor's error page may show: no peer name, no URL)
+		super(`fragment app answered ${what}`);
+		this.status = status === 503 || status === 504 ? status : 502;
 	}
 }
 
@@ -195,20 +200,28 @@ export class PeerHandle implements Peer {
 			if (res.status < 500 || i === origins.length - 1) break;
 		}
 		if (!res) throw last_err instanceof Error ? last_err : new Error(String(last_err));
-		if (!res.ok) throw new Error(`fragment '${widget_name}' answered ${res.status}`);
-		return this.#answer<WidgetDocument>(res);
+		return this.#answer<WidgetDocument>(res, 'widget');
 	}
 
-	/** A hop's answer, read as the JSON document it should be. One that does not parse (a byte
-	 *  changed on the way, a proxy's error page) is said with its code and thrown as an
-	 *  {@link AnswerInvalid}: test/peer-answer-invalid.test.ts (#929). */
-	async #answer<T>(res: Response): Promise<T> {
+	/** Every hop's answer, read as the JSON document it should be. One that can't be used (an error
+	 *  status, or a body that does not parse: a byte changed on the way, a proxy's error page) is
+	 *  said with its code and thrown as an {@link AnswerInvalid}. A page's 404 is a document: the
+	 *  peer's own not-found page. test/peer-answer-invalid.test.ts (#929, #931). */
+	async #answer<T>(res: Response, kind: 'page' | 'widget'): Promise<T> {
+		const url = res.url || this.origin;
+		if (!res.ok && !(kind === 'page' && res.status === 404)) {
+			res.body?.cancel().then(undefined, noop); // ok: the answer is not read, only let go
+			const what = `a ${res.status}`;
+			warn('federation_peer_answer_invalid', { peer: this.name, url, what });
+			throw new AnswerInvalid(what, res.status);
+		}
 		const text = await res.text();
 		try {
 			return JSON.parse(text) as T;
 		} catch {
-			warn('federation_peer_answer_invalid', { peer: this.name, url: res.url || this.origin });
-			throw new AnswerInvalid(this.name);
+			const what = 'something that is not its JSON document';
+			warn('federation_peer_answer_invalid', { peer: this.name, url, what });
+			throw new AnswerInvalid('no document', res.status);
 		}
 	}
 
@@ -321,11 +334,10 @@ export class PeerHandle implements Peer {
 			if (res.status < 500 || i === pool.length - 1) break;
 		}
 		if (!res) throw last_err;
-		if (!res.ok && res.status !== 404) error(502, `fragment app answered ${res.status}`);
 		try {
-			return await this.#answer<FragmentDocument>(res);
+			return await this.#answer<FragmentDocument>(res, 'page');
 		} catch (e) {
-			if (e instanceof AnswerInvalid) error(502, 'fragment app answered no document');
+			if (e instanceof AnswerInvalid) error(e.status, e.message);
 			throw e;
 		}
 	}

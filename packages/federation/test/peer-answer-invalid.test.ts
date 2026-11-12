@@ -55,3 +55,49 @@ describe("a peer's answer that is not its JSON document", () => {
 		expect(e).not.toBeInstanceOf(SyntaxError);
 	});
 });
+
+// An error status is an answer that can't be used either (#931): the same reader says it with the
+// same code. A static widget's error status used to throw out of the shell's load: a 500 page.
+describe("a peer's answer with an error status", () => {
+	it('a static widget whose peer answers 500: the boundary card in its place, and the code said', async () => {
+		const { dash, warned } = peer('upstream down', 500);
+		const region = (await dash.widget('kpis')) as { html: string };
+		expect(region.html).toContain('data-og-fragment-failed');
+		expect(said(warned)).toBe(true);
+	});
+
+	it('a static widget the peer does not have (404): the boundary card, and the code said', async () => {
+		const { dash, warned } = peer('not found', 404);
+		const region = (await dash.widget('nope')) as { html: string };
+		expect(region.html).toContain('data-og-fragment-failed');
+		expect(said(warned)).toBe(true);
+	});
+
+	it('a page read whose peer answers 500: a 502, and the code said', async () => {
+		const { dash, warned } = peer('upstream down', 500);
+		const e = await dash.doc('/p', '').catch((err: unknown) => err);
+		expect(isHttpError(e) && e.status).toBe(502);
+		expect(said(warned)).toBe(true);
+	});
+
+	it('a page read whose peer is unavailable (503): the 503 passes through', async () => {
+		const { dash } = peer('maintenance', 503);
+		const e = await dash.doc('/p', '').catch((err: unknown) => err);
+		expect(isHttpError(e) && e.status).toBe(503);
+	});
+
+	it('a post whose peer answers 403: a 502, and the code said', async () => {
+		const { dash, warned } = peer('forbidden', 403);
+		const e = await dash
+			.postDoc('/p', '', new ArrayBuffer(0), 'text/plain')
+			.catch((err: unknown) => err);
+		expect(isHttpError(e) && e.status).toBe(502);
+		expect(said(warned)).toBe(true);
+	});
+
+	it("a page read the peer answers 404 with its document: the peer's own not-found page", async () => {
+		const { dash, warned } = peer(JSON.stringify({ status: 404, body: 'gone', css: [] }), 404);
+		expect((await dash.doc('/p', '')).body).toBe('gone');
+		expect(said(warned)).toBe(false);
+	});
+});
