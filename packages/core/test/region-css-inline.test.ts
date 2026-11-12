@@ -10,7 +10,7 @@ import { render } from 'svelte/server';
 import type { Component } from 'svelte';
 import Region from '../src/Region.svelte';
 import Tiny from './_fixtures/Tiny.svelte';
-import { region_css_tag } from '../src/server/region-css.ts';
+import { head_owner_attr, region_css_tag } from '../src/server/region-css.ts';
 import { set_island_css, set_inline_css } from './_stubs/server.region-deps.ts';
 import { set_request_event_stub } from './_stubs/server.request-event.ts';
 
@@ -61,6 +61,17 @@ describe('region_css_tag', () => {
 		expect(region_css_tag('/a/b.css?v=2', '/a/b.css?v=2')).toContain('rel="stylesheet"');
 	});
 
+	it('names its owning region when it has one (#806), attribute-escaped', () => {
+		set_inline_css({ [TINY_CSS]: '.t{}' });
+		expect(region_css_tag(TINY_CSS, TINY_CSS, 'fp"1')).toBe(
+			'<style data-ogygia-region-css="/islands/tiny.css" data-og-owner="fp&quot;1">.t{}</style>'
+		);
+		expect(region_css_tag(BIG_CSS, BIG_CSS, 'fp1')).toBe(
+			'<link rel="stylesheet" href="/islands/big.css" data-ogygia-region-css data-og-owner="fp1">'
+		);
+		expect(head_owner_attr('')).toBe('');
+	});
+
 	it('attribute-escapes the identity href in both shapes', () => {
 		set_inline_css({ '/a.css': '.a{}' });
 		expect(region_css_tag('/a.css', '/a.css?v="1"&x=<')).toContain(
@@ -81,15 +92,19 @@ describe('Region.svelte × inline region css', () => {
 		load: true
 	});
 
+	/** The island's fingerprint, as its region element carries it: the owner its head tags name. */
+	const fp_of = (body: string) => /data-og-fp="([^"]+)"/.exec(body)?.[1] ?? '';
+
 	it('an island whose sheet the build kept emits <style>; its other sheet stays a <link>', () => {
 		set_island_css({ [ENTRY]: [TINY_CSS, BIG_CSS] });
 		set_inline_css({ [TINY_CSS]: '.t{color:red}' });
 		const out = in_request(() => render(region, { props: island() }));
+		const fp = fp_of(out.body);
 		expect(out.head).toContain(
-			'<style data-ogygia-region-css="/islands/tiny.css">.t{color:red}</style>'
+			`<style data-ogygia-region-css="/islands/tiny.css" data-og-owner="${fp}">.t{color:red}</style>`
 		);
 		expect(out.head).toContain(
-			'<link rel="stylesheet" href="/islands/big.css" data-ogygia-region-css>'
+			`<link rel="stylesheet" href="/islands/big.css" data-ogygia-region-css data-og-owner="${fp}">`
 		);
 		expect(out.head).not.toContain('href="/islands/tiny.css"');
 	});
@@ -98,8 +113,16 @@ describe('Region.svelte × inline region css', () => {
 		set_island_css({ [ENTRY]: [TINY_CSS] });
 		const out = in_request(() => render(region, { props: island() }));
 		expect(out.head).toContain(
-			'<link rel="stylesheet" href="/islands/tiny.css" data-ogygia-region-css>'
+			`<link rel="stylesheet" href="/islands/tiny.css" data-ogygia-region-css data-og-owner="${fp_of(out.body)}">`
 		);
 		expect(out.head).not.toContain('<style data-ogygia-region-css');
+	});
+
+	it("an island's head tags name it as their owner (#806)", () => {
+		set_island_css({ [ENTRY]: [BIG_CSS] });
+		const out = in_request(() => render(region, { props: island() }));
+		const fp = fp_of(out.body);
+		expect(fp).not.toBe('');
+		expect(out.head).toContain(`data-og-owner="${fp}"`);
 	});
 });
