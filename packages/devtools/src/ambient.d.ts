@@ -19,7 +19,7 @@ interface Window {
 			bytes: number;
 			modules: number;
 			top?: { file: string; bytes: number }[];
-			barrels?: import('@ogygia/core/insights').IslandBarrel[];
+			barrels?: import('@ogygia/insights').IslandBarrel[];
 		}
 	>;
 }

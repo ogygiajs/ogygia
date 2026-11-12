@@ -9,7 +9,7 @@
  */
 import { boot_link, slots } from './slots.ts';
 import { seed_query_responses } from '../shims/kit-remote/client-stub.ts';
-import { clear_remote_seeds, clear_remote_instances } from '../shims/kit-remote/remote-cache.ts';
+import { clear_remote_seeds, release_remote_instances } from '../shims/kit-remote/remote-cache.ts';
 
 const REMOTE_SEED_SELECTOR = 'script[type="application/ogygia-remote"]';
 
@@ -31,6 +31,6 @@ export function install(): void {
 		seed_once,
 		seed_query_responses,
 		clear_remote_seeds,
-		clear_remote_instances
+		release_remote_instances
 	};
 }
