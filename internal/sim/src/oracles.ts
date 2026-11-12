@@ -149,17 +149,6 @@ export const KNOWN: ReadonlyArray<{
 		}
 	},
 	{
-		issue: 1067,
-		what: "a kept island keeps the last page's data-og-fp after a client navigation",
-		// (a kept region's opening line, its fingerprint set aside: palaestra /props-tail, /formkeep)
-		applies: (shown, fresh) => kept_fps(shown).join('\n') !== kept_fps(fresh).join('\n'),
-		forgive: (s) =>
-			s
-				.split('\n')
-				.map((l) => (KEPT_REGION.test(l) ? l.replace(/ data-og-fp="[^"]*"/, '') : l))
-				.join('\n')
-	},
-	{
 		issue: 1071,
 		what: 'a kept head link with a relative URL names another file after a client navigation',
 		// (a link whose file resolves under the page's own path, `/lab/_app/…`, where the other side
@@ -168,17 +157,6 @@ export const KNOWN: ReadonlyArray<{
 		forgive: (s) => s.replace(DEEP_ASSET_ALL, ' href="/_app/')
 	}
 ];
-
-/** The opening line of a region the router keeps across navigations (`keep`). */
-const KEPT_REGION = /^ *<ogygia-region [^>]*data-ogygia-keep=/;
-
-/** Each kept region's `data-og-fp`. */
-function kept_fps(s: string): string[] {
-	return s
-		.split('\n')
-		.filter((l) => KEPT_REGION.test(l))
-		.map((l) => / data-og-fp="([^"]*)"/.exec(l)?.[1] ?? '');
-}
 
 /** A head link to a build's file under a page's own path (`href="/lab/_app/…"`). */
 const DEEP_ASSET = /^ *<link\b[^>]* href="\/(?:[^"/]+\/)+_app\//m;
