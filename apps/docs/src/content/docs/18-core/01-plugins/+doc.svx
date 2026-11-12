@@ -13,22 +13,22 @@ Every package beside `ogygia` (content, flags, postrender, federation, the serve
 The packages are built on the API described below. It is public so that you can read how they work, but it is **first-party only for now**, and its shape can change in any release without notice, so don't build a published plugin on it yet.
 :::
 
-The first-party packages import it from `@ogygia/core`, which they take as a peer dependency. `ogygia` re-exports the same modules subpath for subpath, so `ogygia/plugin` and `@ogygia/core/plugin` are one module, and the examples below work with either.
+The first-party packages import it from `@ogygia/core`, and `definePlugin` from `@ogygia/compiler`; they take both as peer dependencies. `ogygia` re-exports the same modules subpath for subpath, so `ogygia/plugin` and `@ogygia/core/plugin` are one module, and the examples below work with either.
 
 A plugin consists of three pieces, each in its own file, so that server code never reaches a browser bundle:
 
-| Piece                | Where                                                                  | Made with                                                            |
-| -------------------- | ---------------------------------------------------------------------- | -------------------------------------------------------------------- |
-| The **plugin**       | the package's `./vite` export, listed beside `ogygia()` in vite.config | `definePlugin` from `@ogygia/core/vite`, which returns a Vite plugin |
-| The **server half**  | a module the plugin names in `server`                                  | `defineServer` from `@ogygia/core/plugin`                            |
-| The **browser half** | a module the plugin names in `client`                                  | `defineClient` from `@ogygia/core/plugin/client`                     |
+| Piece                | Where                                                                  | Made with                                                                |
+| -------------------- | ---------------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| The **plugin**       | the package's `./vite` export, listed beside `ogygia()` in vite.config | `definePlugin` from `@ogygia/compiler/vite`, which returns a Vite plugin |
+| The **server half**  | a module the plugin names in `server`                                  | `defineServer` from `@ogygia/core/plugin`                                |
+| The **browser half** | a module the plugin names in `client`                                  | `defineClient` from `@ogygia/core/plugin/client`                         |
 
 The plugin **names its halves**: `server` and `client` hold each module's location, resolved relative to the plugin's own file with `import.meta.resolve`, and either one may be omitted. They are files inside the package itself, so each module exists only once, and they need no entry in the package's `exports`, which remain yours to name. The build imports them statically, so nothing is looked up at run time, and a feature whose plugin is not listed costs zero bytes.
 
 ## The plugin: `definePlugin`
 
 ```ts title=src/vite.ts
-import { definePlugin, type OgygiaPlugin } from '@ogygia/core/vite';
+import { definePlugin, type OgygiaPlugin } from '@ogygia/compiler/vite';
 
 export function postrender(options: { ttl?: number } = {}): OgygiaPlugin<{ ttl: number }> {
   return definePlugin({
@@ -58,7 +58,7 @@ export function postrender(options: { ttl?: number } = {}): OgygiaPlugin<{ ttl: 
 A plugin that needs its own Vite hooks returns an array containing its `definePlugin(...)` and a plain Vite plugin. Vite flattens the array, so the app still lists a single `yaml()`. `content()` and `devtools()` work this way.
 
 ```ts title=src/vite.ts
-import { definePlugin } from '@ogygia/core/vite';
+import { definePlugin } from '@ogygia/compiler/vite';
 
 export function yaml() {
   return [
@@ -175,18 +175,45 @@ import { defineClient } from '@ogygia/core/plugin/client';
 
 export default defineClient({
   boot({ kitPage }) { /* once, before the first region wakes */ },
-  regionMount(el, { entry, urls }) { /* a region's component started */ },
-  regionUnmount(el, { entry }) { /* …and left the page */ }
+  hooks: {
+    regionMount({ el, entry, urls }) { /* a region's component started */ },
+    regionUnmount({ el, entry }) { /* …and left the page */ }
+  }
 });
 ```
 
-| Hook                               | When it runs                                                                                                                                          |
-| ---------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `boot({ kitPage })`                | Once, as the runtime boots, before any region wakes. `kitPage` is `true` on a `csr = true` page, where Kit hydrates and the region hooks do not fire. |
-| `regionMount(el, { entry, urls })` | A region's component started in the browser. `entry` is its component's stable module URL, `urls` the files it runs from.                             |
-| `regionUnmount(el, { entry })`     | A region's component left the page.                                                                                                                   |
+`boot({ kitPage })` runs once, as the runtime boots, before any region wakes. `kitPage` is `true` on a `csr = true` page, where Kit hydrates and the runtime hooks do not fire.
 
-The browser half is part of the boot's static graph, so it ships to every page. Keep it small and load anything heavy on demand through a dynamic import of its own. When the build contains no browser half, core's calls into these hooks are removed.
+`hooks` subscribes to the runtime's moments. Each takes one event object:
+
+| Hook               | When it runs                                                                                                                      |
+| ------------------ | --------------------------------------------------------------------------------------------------------------------------------- |
+| `regionMount`      | A region's component started in the browser. `entry` is its component's stable module URL, `urls` the files it runs from.         |
+| `regionUnmount`    | A region's component left the page.                                                                                               |
+| `regionHydrated`   | A region hydrated: `t0` its wake, `tLoaded` its modules in hand, `tTurn` its turn, `tDone` hydrated, `ssrHtml` the server markup. |
+| `regionFailed`     | A region failed to hydrate, with the error's `message`.                                                                           |
+| `regionWoke`       | A region's schedule fired (`when`): it starts to wake, or a hole starts to fetch.                                                 |
+| `regionMismatched` | A region's markup changed between the server and its hydration: `kind` is `recovered`, `healed` or `conflict`, with a `reason`.   |
+| `holeAnswered`     | A hole's first answer replaced its fallback.                                                                                      |
+| `holeFailed`       | A hole's answer never came, and no retry follows.                                                                                 |
+| `holeBatchMissed`  | A batch request carried fewer holes than it was sent for.                                                                         |
+| `entryFallback`    | A region's file was gone, and its fresh identity loaded instead.                                                                  |
+| `navStarted`       | An in-app navigation started, before its page is fetched.                                                                         |
+| `navigated`        | An in-app navigation finished, with its timings and whether the regions were `reconciled` in place.                               |
+| `criticalSettled`  | The wait for the page's critical resources ended: how, how many it waited on, and for how long.                                   |
+| `loadStarted`      | A download ogygia started on its own left the load scheduler's queue: its `class`, `kind`, and `waitedMs`.                        |
+| `warning`          | Dev only: a Svelte hydration warning.                                                                                             |
+
+The rules every hook follows:
+
+- Subscribers run in plugin order, the same order as the server hooks.
+- A hook only listens: what it returns is ignored. A promise it returns is never awaited.
+- A hook that throws, or whose promise rejects, is reported once (`client_hook_failed`) and stops nothing else.
+- Every subscriber gets the same event object. In dev it is frozen, so a hook that writes to it fails.
+
+The build reads the keys of `hooks` from the file, so write it as an object literal inside `defineClient({ … })`. A hook no plugin subscribes to is removed from the runtime, with every call to it.
+
+The browser half is part of the boot's static graph, so it ships to every page. Keep it small and load anything heavy on demand through a dynamic import of its own.
 
 ## Helpers
 
