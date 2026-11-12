@@ -551,7 +551,7 @@ function swarm_mix(g: Rng): Mix {
  * run ends first, so the search itself does not replay; each run in it does.
  */
 async function guided(): Promise<void> {
-	mkdirSync(PLANS, { recursive: true });
+	mkdirSync(join(PLANS, 'kept'), { recursive: true });
 	const started = wall();
 	const pool = new Pool(JOBS);
 	const g = rng(FIRST).fork('guided');
@@ -587,7 +587,14 @@ async function guided(): Promise<void> {
 		ran++;
 		const plan: Plan = { actions: res.actions, mix: c.plan?.mix };
 		const fresh = covered.add(res.coverage);
-		if (fresh.length > 0) kept.push({ seed: c.seed, plan, found: fresh.length });
+		if (fresh.length > 0) {
+			kept.push({ seed: c.seed, plan, found: fresh.length });
+			// (the interesting runs, for the real-browser tier: apps/palaestra/e2e/sim-replay.spec.ts)
+			writeFileSync(
+				join(PLANS, 'kept', `${c.label.replace(/\W+/g, '-')}.json`),
+				plan_json(c.seed, plan, res)
+			);
+		}
 		const bad = res.broken.filter((b) => b.oracle !== 'known');
 		if (fresh.length > 0 || bad.length > 0)
 			console.log(
