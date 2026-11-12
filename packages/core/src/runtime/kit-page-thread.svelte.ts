@@ -28,15 +28,23 @@
  *     is a reactive write and an effect reading `status` re-runs on it: the exact moment, no polling.
  *
  * Nothing here touches the `$page` store (removed in Kit 3): the `$app/state` page object is what
- * both Kit 2 and Kit 3 publish. No timeout either: a Kit document whose `start()` never runs has no
- * page truth for such an island to hydrate against, and its own Kit components are equally dead —
- * the island stays as its visible server HTML, which is the honest state.
+ * both Kit 2 and Kit 3 publish. No timeout either: a Kit document whose `start()` is late has no
+ * page truth for such an island to hydrate against yet, and the island stays as its visible server
+ * HTML meanwhile, which is the honest state.
+ *
+ * WHEN IT CAN NO LONGER HAPPEN (#820): one of the files Kit's boot script imports failed to
+ * download. Kit's boot never runs then, and a wait for it would hang. The browser keeps a failed
+ * module failed for the life of the page (import-again.ts), so the wait asks for the same files
+ * itself: an import that fails says Kit's did, in every engine (WebKit leaves a dropped download no
+ * timing entry to read), at no boot cost, past or future. The wait fails with `kit_boot_failed`,
+ * and the island's wake ends `failed`. (e2e kit-boot-failed.spec.ts)
  *
  * `null` when the page is already applied (the common late-wake case: a fetched hole's islands, a
  * click long after boot) — the caller skips the await entirely.
  */
-import { warn } from '../messages/lazy.ts';
-import { flights, scope, type Scope } from '@ogygia/machine';
+import { OgygiaError, warn } from '../messages/lazy.ts';
+import { flights, say, scope, tasks, type Scope } from '@ogygia/machine';
+import { code_url, import_code, type CodeUrl } from './code-origins.ts';
 
 const KIT_PAGE_KEY = Symbol.for('ogygia.kit-page');
 /** Kit constructs its `$app/state` page with this status; `initialize()` replaces it with the real one. */
@@ -82,7 +90,15 @@ const pending = flights({
 	run: (_: void, signal: AbortSignal) => {
 		const wait = scope();
 		wait.on(signal, 'abort', () => wait.close());
-		return new Promise<void>((resolve) => {
+		return new Promise<void>((resolve, reject) => {
+			for (const url of kit_boot_imports()) {
+				void wait
+					.task(() => import_code(url))
+					.then(undefined, (error: unknown) => {
+						wait.close();
+						reject(kit_boot_failed(url, error));
+					});
+			}
 			if (import.meta.env.DEV) {
 				wait.timeout(() => {
 					warn('kit_page_waiting', {
@@ -101,6 +117,57 @@ const pending = flights({
 	},
 	keep: 0
 });
+
+/** Kit's boot script: an inline script that assigns its `__sveltekit_<hash>` global (kit-boot.ts). */
+const KIT_BOOT_ASSIGN = /__sveltekit_\w+\s*=/;
+/** Each file Kit's boot script imports, as Kit writes it: `import("<JSON string>")`. A string the
+ *  script carries as data (its page data) has its quotes escaped, so it never matches. */
+const KIT_BOOT_IMPORT = /\bimport\(\s*("(?:[^"\\\n]|\\.)*")\s*\)/g;
+
+/**
+ * The files Kit's boot script imports (its start and app entries, and its env when it loads one),
+ * resolved as the script resolves them: against the document. None when Kit boots with no import
+ * (`bundleStrategy: 'inline'`) or the document has no boot script. Only scripts that run are read:
+ * a data script (`type="application/json"`, ogygia's side channels) is never one.
+ */
+function kit_boot_imports(): CodeUrl[] {
+	if (typeof document === 'undefined') return [];
+	// A script that came in as markup and never ran looks the same, so only the files on the page's
+	// code origins (./code-origins.ts: the page's, the runtime's, where Kit's assets and entries are,
+	// and the ones the app named). Tested in test/browser/kit-page-thread.test.ts ("never imported").
+	const urls = new Set<CodeUrl>();
+	for (const s of document.querySelectorAll('script:not([src])')) {
+		const type = s.getAttribute('type');
+		if (
+			type !== null &&
+			type !== '' &&
+			!/^(?:module|(?:text|application)\/javascript)$/i.test(type)
+		)
+			continue;
+		const text = s.textContent || '';
+		if (!KIT_BOOT_ASSIGN.test(text)) continue;
+		for (const m of text.matchAll(KIT_BOOT_IMPORT)) {
+			try {
+				const url = code_url(new URL(JSON.parse(m[1]) as string, document.baseURI).href);
+				if (url !== null) urls.add(url);
+			} catch {
+				// ok: not a URL Kit's import could load either; Kit's other files still decide
+			}
+		}
+	}
+	return [...urls];
+}
+
+/** Said once per file: every island waiting on the page fails with it, and says nothing more. */
+const boot_said = say();
+
+/** The wait's failure when Kit's boot import of `url` failed with `error` (said here, once). */
+function kit_boot_failed(url: string, error: unknown): Error {
+	const failure = new OgygiaError('kit_boot_failed', { url });
+	failure.cause = error;
+	boot_said.once(url, () => console.error(failure, error));
+	return failure;
+}
 
 /** Moment 1: the symbol is assigned. Calls back synchronously if it already is. */
 function await_bridge(wait: Scope, cb: (bridge: Bridge) => void): void {
@@ -144,7 +211,7 @@ function await_applied(wait: Scope, bridge: Bridge, done: () => void): void {
 	const end = () => {
 		if (ended) return;
 		ended = true;
-		queueMicrotask(() => stop());
+		tasks.micro(() => stop());
 	};
 	const stop = $effect.root(() => {
 		$effect(() => {
