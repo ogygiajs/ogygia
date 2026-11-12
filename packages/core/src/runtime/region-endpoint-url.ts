@@ -1,3 +1,4 @@
+import type { HoleRefusal } from '../contract/runtime-hooks.ts';
 import { preload_island_graph } from './island-graph-preload.ts';
 import { LoadSlot } from './load-scheduler.ts';
 import { class_at, fetch_priority_of, PRIORITY, type LoadClass } from './load-class.ts';
@@ -88,7 +89,7 @@ export function is_redirected_answer(res: Response): boolean {
  * - `forbidden`: the handle refused the capability (a 403, `deny` says why — `foreign-key` when the
  *   page and the islands endpoint came from different deployments).
  */
-export type RegionRefusal = 'redirected' | 'document' | 'forbidden';
+export type RegionRefusal = HoleRefusal;
 
 /** The error a refused answer throws: the fetch loop does not retry it (the answer is
  *  deterministic — a redirect rule, a refused capability, not a flaky network) and DEV names the
