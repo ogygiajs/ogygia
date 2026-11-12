@@ -12,6 +12,17 @@ import { charge } from '@ogygia/core/internal/instruments';
 import { scope } from '@ogygia/machine';
 import { resume_session, take_saved_session } from './session.ts';
 
+import { standalone_beacon } from '../profiler/beacon-standalone.ts';
+import { realm_boot, realm_hook } from '../realm.ts';
+
+/** Where `@ogygia/testing`'s `testing()` client finds this engine's realm (its client.ts reads the
+ *  same key). */
+const TESTING_REALM_KEY = Symbol.for('ogygia.testing.realm');
+interface EngineRealm {
+	boot: typeof realm_boot;
+	hook: typeof realm_hook;
+}
+
 /** When the script began, before its bundled modules ran (the build's banner sets it). */
 declare const __og_engine_t0: number | undefined;
 
@@ -30,6 +41,13 @@ if (typeof window !== 'undefined' && !window.__ogygia_testing) {
 		settled: (quiet, timeout) => settled(quiet, timeout)
 	};
 	window.__ogygia_testing = api;
+	// @why injected before any page script, so a page without the devtools server still has its beacon (idempotent: a server's tag that runs later finds it) (test: ogygia-testing e2e › testing() without devtools)
+	standalone_beacon();
+	// the app's `testing()` hands the runtime's hooks to this copy of the realm
+	(globalThis as { [TESTING_REALM_KEY]?: EngineRealm })[TESTING_REALM_KEY] = {
+		boot: realm_boot,
+		hook: realm_hook
+	};
 	// @why this engine answers record_stop, so a session the page before saved goes on in its copy, taken before the dock's copy can (test: ogygia-testing e2e › record() across a full page load)
 	const saved = take_saved_session();
 	if (saved) {

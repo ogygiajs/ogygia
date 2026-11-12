@@ -3037,6 +3037,182 @@
 			"reason": "browser only: the injected engine's DOMContentLoaded listener, once per document, constant work of its own; proven by packages/testing/e2e/ogygia-testing.spec.ts"
 		},
 		{
+			"id": "packages/devtools/src/client-beacon.ts > BEACON_HOOKS > holeAnswered",
+			"reason": "browser only: one hook event to its beacon function (a DOM element in the event: not replayable), constant work of its own"
+		},
+		{
+			"id": "packages/devtools/src/client-beacon.ts > BEACON_HOOKS > holeBatchMissed",
+			"reason": "browser only: one hook event to its beacon function (a DOM element in the event: not replayable), constant work of its own"
+		},
+		{
+			"id": "packages/devtools/src/client-beacon.ts > BEACON_HOOKS > holeFailed",
+			"reason": "browser only: one hook event to its beacon function (a DOM element in the event: not replayable), constant work of its own"
+		},
+		{
+			"id": "packages/devtools/src/client-beacon.ts > BEACON_HOOKS > regionFailed",
+			"reason": "browser only: one hook event to its beacon function (a DOM element in the event: not replayable), constant work of its own"
+		},
+		{
+			"id": "packages/devtools/src/client-beacon.ts > BEACON_HOOKS > regionHydrated",
+			"reason": "browser only: one hook event to its beacon function (a DOM element in the event: not replayable), constant work of its own"
+		},
+		{
+			"id": "packages/devtools/src/client-beacon.ts > beacon_hook",
+			"reason": "browser only: one hook call to the beacon, once per page (first_handling), a switch on the hook name (a DOM element in the event: not cloneable)"
+		},
+		{
+			"id": "packages/devtools/src/client-beacon.ts > plugin > hooks > criticalSettled",
+			"reason": "browser only: hands one hook event on to the realm or beacon that records it (a DOM element in the event: not replayable), constant work of its own"
+		},
+		{
+			"id": "packages/devtools/src/client-beacon.ts > plugin > hooks > entryFallback",
+			"reason": "browser only: hands one hook event on to the realm or beacon that records it (a DOM element in the event: not replayable), constant work of its own"
+		},
+		{
+			"id": "packages/devtools/src/client-beacon.ts > plugin > hooks > holeAnswered",
+			"reason": "browser only: hands one hook event on to the realm or beacon that records it (a DOM element in the event: not replayable), constant work of its own"
+		},
+		{
+			"id": "packages/devtools/src/client-beacon.ts > plugin > hooks > holeBatchMissed",
+			"reason": "browser only: hands one hook event on to the realm or beacon that records it (a DOM element in the event: not replayable), constant work of its own"
+		},
+		{
+			"id": "packages/devtools/src/client-beacon.ts > plugin > hooks > holeFailed",
+			"reason": "browser only: hands one hook event on to the realm or beacon that records it (a DOM element in the event: not replayable), constant work of its own"
+		},
+		{
+			"id": "packages/devtools/src/client-beacon.ts > plugin > hooks > navigated",
+			"reason": "browser only: hands one hook event on to the realm or beacon that records it (a DOM element in the event: not replayable), constant work of its own"
+		},
+		{
+			"id": "packages/devtools/src/client-beacon.ts > plugin > hooks > regionFailed",
+			"reason": "browser only: hands one hook event on to the realm or beacon that records it (a DOM element in the event: not replayable), constant work of its own"
+		},
+		{
+			"id": "packages/devtools/src/client-beacon.ts > plugin > hooks > regionHydrated",
+			"reason": "browser only: hands one hook event on to the realm or beacon that records it (a DOM element in the event: not replayable), constant work of its own"
+		},
+		{
+			"id": "packages/devtools/src/client-beacon.ts > plugin > hooks > warning",
+			"reason": "browser only: hands one hook event on to the realm or beacon that records it (a DOM element in the event: not replayable), constant work of its own"
+		},
+		{
+			"id": "packages/devtools/src/client.ts > plugin > boot > realm_boot:1~ef831d > lend",
+			"reason": "browser only: lends the app's own chunk of names to the realm, one dynamic import, once per page"
+		},
+		{
+			"id": "packages/devtools/src/client.ts > plugin > boot > then:0~26dd7e",
+			"reason": "browser only, a build's switched-on dock: joins the regions' half to the page beacon once it started, once per document, constant work of its own"
+		},
+		{
+			"id": "packages/devtools/src/devtools/hook-once.ts > first_handling",
+			"reason": "browser only: one WeakSet has/add on a page-wide set under a globalThis symbol (hidden state), constant work"
+		},
+		{
+			"id": "packages/devtools/src/realm.ts > realm_boot",
+			"reason": "browser only: the realm's start at the runtime's boot, once per page: records its facts, installs the beacon, starts the leftovers watch"
+		},
+		{
+			"id": "packages/devtools/src/realm.ts > realm_hook",
+			"reason": "browser only: one hook call into the record, the leftovers watch and the beacon (a DOM element in the event: not cloneable), constant work of its own"
+		},
+		{
+			"id": "packages/testing/src/client.ts > defineClient:0~c5530d > boot",
+			"reason": "browser only: hands the runtime's boot to the injected engine, once per page; a visitor has no engine and it reads one global"
+		},
+		{
+			"id": "packages/testing/src/client.ts > defineClient:0~c5530d > boot > boot:1~53c81c > lend",
+			"reason": "browser only: lends the app's own chunk of names to the realm, one dynamic import, once per page"
+		},
+		{
+			"id": "packages/testing/src/client.ts > defineClient:0~c5530d > hooks > criticalSettled",
+			"reason": "browser only: hands one hook event on to the realm or beacon that records it (a DOM element in the event: not replayable), constant work of its own"
+		},
+		{
+			"id": "packages/testing/src/client.ts > defineClient:0~c5530d > hooks > entryFallback",
+			"reason": "browser only: hands one hook event on to the realm or beacon that records it (a DOM element in the event: not replayable), constant work of its own"
+		},
+		{
+			"id": "packages/testing/src/client.ts > defineClient:0~c5530d > hooks > holeAnswered",
+			"reason": "browser only: hands one hook event on to the realm or beacon that records it (a DOM element in the event: not replayable), constant work of its own"
+		},
+		{
+			"id": "packages/testing/src/client.ts > defineClient:0~c5530d > hooks > holeBatchMissed",
+			"reason": "browser only: hands one hook event on to the realm or beacon that records it (a DOM element in the event: not replayable), constant work of its own"
+		},
+		{
+			"id": "packages/testing/src/client.ts > defineClient:0~c5530d > hooks > holeFailed",
+			"reason": "browser only: hands one hook event on to the realm or beacon that records it (a DOM element in the event: not replayable), constant work of its own"
+		},
+		{
+			"id": "packages/testing/src/client.ts > defineClient:0~c5530d > hooks > loadStarted",
+			"reason": "browser only: hands one hook event on to the realm or beacon that records it (a DOM element in the event: not replayable), constant work of its own"
+		},
+		{
+			"id": "packages/testing/src/client.ts > defineClient:0~c5530d > hooks > navStarted",
+			"reason": "browser only: hands one hook event on to the realm or beacon that records it (a DOM element in the event: not replayable), constant work of its own"
+		},
+		{
+			"id": "packages/testing/src/client.ts > defineClient:0~c5530d > hooks > navigated",
+			"reason": "browser only: hands one hook event on to the realm or beacon that records it (a DOM element in the event: not replayable), constant work of its own"
+		},
+		{
+			"id": "packages/testing/src/client.ts > defineClient:0~c5530d > hooks > regionFailed",
+			"reason": "browser only: hands one hook event on to the realm or beacon that records it (a DOM element in the event: not replayable), constant work of its own"
+		},
+		{
+			"id": "packages/testing/src/client.ts > defineClient:0~c5530d > hooks > regionHydrated",
+			"reason": "browser only: hands one hook event on to the realm or beacon that records it (a DOM element in the event: not replayable), constant work of its own"
+		},
+		{
+			"id": "packages/testing/src/client.ts > defineClient:0~c5530d > hooks > regionMismatched",
+			"reason": "browser only: hands one hook event on to the realm or beacon that records it (a DOM element in the event: not replayable), constant work of its own"
+		},
+		{
+			"id": "packages/testing/src/client.ts > defineClient:0~c5530d > hooks > regionMount",
+			"reason": "browser only: hands one hook event on to the realm or beacon that records it (a DOM element in the event: not replayable), constant work of its own"
+		},
+		{
+			"id": "packages/testing/src/client.ts > defineClient:0~c5530d > hooks > regionUnmount",
+			"reason": "browser only: hands one hook event on to the realm or beacon that records it (a DOM element in the event: not replayable), constant work of its own"
+		},
+		{
+			"id": "packages/testing/src/client.ts > defineClient:0~c5530d > hooks > regionWoke",
+			"reason": "browser only: hands one hook event on to the realm or beacon that records it (a DOM element in the event: not replayable), constant work of its own"
+		},
+		{
+			"id": "packages/testing/src/client.ts > defineClient:0~c5530d > hooks > warning",
+			"reason": "browser only: hands one hook event on to the realm or beacon that records it (a DOM element in the event: not replayable), constant work of its own"
+		},
+		{
+			"id": "packages/testing/src/client.ts > realm",
+			"reason": "browser only: the injected engine's realm, one globalThis read"
+		},
+		{
+			"id": "packages/testing/src/vite.ts > names_plugin",
+			"reason": "builds one dev-only Vite plugin object, once per config"
+		},
+		{
+			"id": "packages/testing/src/vite.ts > names_plugin > configureServer",
+			"reason": "dev only: Vite's configureServer hook, once per dev server: adds one middleware"
+		},
+		{
+			"id": "packages/testing/src/vite.ts > names_plugin > configureServer > use:0~9a1d51",
+			"reason": "dev only: the names endpoint middleware over a live Node request (not recorded): one path compare, and on its path one JSON answer of the regions' names"
+		},
+		{
+			"id": "packages/testing/src/vite.ts > testing",
+			"reason": "the plugin factory: one definePlugin and one Vite plugin, once per config"
+		},
+		{
+			"id": "packages/testing/src/vite.ts > testing > definePlugin:0~5a0f45 > build",
+			"reason": "the build hook, once per build: keeps the regions seam in dev, constant work"
+		},
+		{
+			"id": "packages/testing/src/vite.ts > testing > names_plugin:0~479109",
+			"reason": "hands the names plugin the regions seam it reads, one closure read"
+		},
+		{
 			"id": "packages/testing/src/index.ts > Ogygia > constructor > catch:0~a1b2d0",
 			"reason": "a no-op for an injection that failed (its error is the first call's, which awaits it), constant work"
 		},
