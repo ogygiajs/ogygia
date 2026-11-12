@@ -1033,9 +1033,8 @@ class OgygiaHandle {
 			return region_denied('cross-site');
 		const ip = client_ip(event);
 		if (!ip) return region_response('Too Many Requests', { status: 429 });
-		if (this.probe_rate.limited(ip) || this.render_rate.limited(ip)) {
-			return region_response('Too Many Requests', { status: 429 });
-		}
+		// (each hole is charged as its own GET would be, in #render_capability: one budget unit, one
+		// render, whichever door it comes in by)
 		// A batch is at most MAX_BATCH signed endpoints (~8.5kB each), so a well-formed body is a few
 		// hundred kB. `request.json()` buffers the WHOLE body before we can slice to 32 — reject an
 		// oversized body up front (O(1) header check) so a single padded POST can't force a large
@@ -1054,11 +1053,15 @@ class OgygiaHandle {
 		if (!Array.isArray(parsed) || parsed.length === 0) {
 			return region_response('Bad Request', { status: 400 });
 		}
-		const calls = parsed.filter((e): e is string => typeof e === 'string').slice(0, MAX_BATCH);
+		// (one call asked twice is one render: its one parcel answers both)
+		const calls = [...new Set(parsed.filter((e): e is string => typeof e === 'string'))].slice(
+			0,
+			MAX_BATCH
+		);
 		// (the stream's signal aborts when the visitor leaves: the holes not rendered yet never are)
 		const stream = batch_stream(
 			calls,
-			(endpoint, signal) => this.#render_capability(endpoint, event, true, signal),
+			(endpoint, signal) => this.#render_capability(endpoint, event, true, signal, ip),
 			request_scope(event.request)
 		);
 
@@ -1798,7 +1801,10 @@ class OgygiaHandle {
 		 *  and stays as it was. */
 		batch = false,
 		/** the batch's: aborts when its visitor left (nothing more is verified, loaded or rendered) */
-		signal?: AbortSignal
+		signal?: AbortSignal,
+		/** the visitor a batch charges, per hole, as its GET would (PROBE-THEN-RENDER): a probe before
+		 *  the MAC, a render after it. Over budget: no parcel, and the hole fetches on its own. */
+		ip?: string
 	): Promise<{ slot: string; html: string } | null> {
 		const q = endpoint.indexOf('?');
 		if (q === -1 || signal?.aborted) return null;
@@ -1806,7 +1812,9 @@ class OgygiaHandle {
 		const { id, payload, sig } = cap;
 
 		if (this.#capability_precheck(cap)) return null;
+		if (ip !== undefined && this.probe_rate.limited(ip)) return null;
 		if (!this.#verify_region_mac(cap, event)) return null;
+		if (ip !== undefined && this.render_rate.limited(ip)) return null;
 
 		const target = capability_target(cap);
 		if (target === null) return null;
