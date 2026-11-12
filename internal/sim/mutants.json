@@ -2,7 +2,8 @@
 	{
 		"id": "hole-fetch-once-negated",
 		"file": "packages/core/src/runtime/core.ts",
-		"line": 1452,
+		"line": 1449,
+		"code": "if (!revalidate && this.#answer.now.kind !== 'none') return;",
 		"operator": "equality",
 		"from": "!== 'none'",
 		"to": "=== 'none'"
@@ -10,9 +11,46 @@
 	{
 		"id": "evict-ttl-shorter",
 		"file": "packages/core/src/runtime/frame-store.ts",
-		"line": 104,
+		"line": 114,
+		"code": "const EVICT_TTL = 60_000;",
 		"operator": "literal",
 		"from": "60_000",
 		"to": "6_000"
+	},
+	{
+		"id": "repair-lakes-not-lifted",
+		"file": "packages/core/src/runtime/hydrate-core.ts",
+		"line": 370,
+		"code": "slots.lakes.lift(want);",
+		"operator": "statement",
+		"from": "slots.lakes.lift(want);",
+		"to": ""
+	},
+	{
+		"id": "repair-tag-change-lines-up",
+		"file": "packages/core/src/runtime/hydrate-core.ts",
+		"line": 392,
+		"code": "if (live_elements[i].tagName !== want_elements[i].tagName) return false;",
+		"operator": "boolean",
+		"from": "return false",
+		"to": "return true"
+	},
+	{
+		"id": "repair-aligned-level-fails",
+		"file": "packages/core/src/runtime/hydrate-core.ts",
+		"line": 423,
+		"code": "return true;",
+		"operator": "boolean",
+		"from": "true",
+		"to": "false"
+	},
+	{
+		"id": "repair-empty-island-discarded",
+		"file": "packages/core/src/runtime/hydrate-core.ts",
+		"line": 891,
+		"code": "if (ssr_children.length > 0 && !ssr_children.some((el) => region.contains(el))) {",
+		"operator": "relational",
+		"from": " > 0",
+		"to": " >= 0"
 	}
 ]
