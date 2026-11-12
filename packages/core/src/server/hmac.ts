@@ -12,7 +12,7 @@
  * from the raw secret so the id-salt domain stays separate.
  */
 import { createHmac, hkdfSync, timingSafeEqual } from 'node:crypto';
-import { capability, type Capability } from '@ogygia/machine';
+import { cache, capability, type Capability } from '@ogygia/machine';
 import { PRERENDER_REGION_TTL_SEC, REGION_CAPABILITY_VERSION, is_lower_hex } from './endpoint.ts';
 const MAC_INFO = Buffer.from('ogygia-mac-v1');
 const ID_SALT_INFO = Buffer.from('ogygia-id-salt-v1');
@@ -24,7 +24,7 @@ export const MIN_SECRET_BYTES = 16;
 // The secret is a process constant (env / build), so the derived key is too: derived once per
 // distinct secret, not once per sign and once per verify (an HKDF per island mint and per hole
 // request added up on a page of twenty). Bounded: a process sees one secret, tests a handful.
-const mac_keys = new Map<string, Buffer>();
+const mac_keys = cache<string, Buffer>({ name: 'mac keys', max: 16 });
 
 /** HKDF-SHA256 → 32-byte MAC key (hex for stable logging / tests; Buffer used internally). */
 export function derive_mac_key(secret: string): Buffer {
@@ -33,7 +33,6 @@ export function derive_mac_key(secret: string): Buffer {
 		key = Buffer.from(
 			hkdfSync('sha256', Buffer.from(secret, 'utf8'), Buffer.alloc(0), MAC_INFO, 32)
 		);
-		if (mac_keys.size >= 16) mac_keys.clear();
 		mac_keys.set(secret, key);
 	}
 	return key;
@@ -125,7 +124,7 @@ export interface RegionClaim {
 }
 
 // A capability per secret and lateness (a renewal checks an expired one): both process constants.
-const region_caps = new Map<string, Capability>();
+const region_caps = cache<string, Capability>({ name: 'region capabilities', max: 16 });
 
 /**
  * The region capability (v3): capability() with no nonce, so every render of a hole in one expiry
@@ -150,7 +149,6 @@ function region_capability(secret: string, late_sec: number): Capability {
 				verify: (m, sig) => is_lower_hex(sig, 64) && hex_equal(Hmac.sha256(key, m), sig)
 			}
 		});
-		if (region_caps.size >= 16) region_caps.clear();
 		region_caps.set(at, cap);
 	}
 	return cap;

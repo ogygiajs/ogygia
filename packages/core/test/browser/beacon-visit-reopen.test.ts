@@ -22,7 +22,16 @@ function set_visibility(state: 'hidden' | 'visible'): void {
 }
 
 const nav = (to: string) =>
-	beacon_nav({ from: '/', to, type: 'link', t: 1, fetched: 2, styled: 3, swapped: 4 });
+	beacon_nav({
+		from: '/',
+		to,
+		type: 'link',
+		t: 1,
+		fetched: 2,
+		styled: 3,
+		swapped: 4,
+		reconciled: true
+	});
 const visits = () => sent.filter((b) => b.visit);
 
 beforeEach(async () => {

@@ -41,6 +41,7 @@ export function hole_css(entry: string): string[] {
 }
 
 /** Same families as encode_region_props — one seam law for island props. */
+// static: the prop families that cross the wire
 const PROP_FAMILIES = new Set(['wire', 'store', 'snippet', 'fn', 'derived']);
 
 /** The request being rendered (null off-request: prerender, a test). */
