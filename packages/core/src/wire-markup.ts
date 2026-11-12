@@ -73,6 +73,7 @@ export type MarkKey =
 	| 'overlay'
 	| 'overlayToggle'
 	| 'owner'
+	| 'owners'
 	| 'pageBrowserLimits'
 	| 'pageFindings'
 	| 'pageHoles'
@@ -197,6 +198,7 @@ export const MARK: { readonly [K in MarkKey]: Mark } = {
 	overlay: { attr: 'data-og-overlay', by: 'devtools' },
 	overlayToggle: { attr: 'data-og-overlay-toggle', by: 'devtools' },
 	owner: { attr: 'data-og-owner', by: 'page' },
+	owners: { attr: 'data-og-owners', by: 'page' },
 	pageBrowserLimits: { attr: 'data-og-page-browser-limits', by: 'devtools' },
 	pageFindings: { attr: 'data-og-page-findings', by: 'devtools' },
 	pageHoles: { attr: 'data-og-page-holes', by: 'devtools' },
