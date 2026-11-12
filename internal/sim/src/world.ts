@@ -368,14 +368,16 @@ export class World {
 		return (this.skewed.get(realm)?.size ?? 0) > 0;
 	}
 
-	/** The build a request goes to now: the live one, or during a rolling deploy's window, by even
-	 *  odds, the one before it. A content-hashed file only another build has goes to that build
-	 *  when the host keeps old files. */
+	/** The build a request goes to now: the pinned one (`as_of`), else the live one, or during a
+	 *  rolling deploy's window, by even odds, the one before it. A content-hashed file only another
+	 *  build has goes to that build when the host keeps old files, a pinned load's too (gen 65,
+	 *  seed 25: test/deploy.node.test.ts). */
 	#build_for(path: string, from: string, key: string): string {
-		if (this.#pinned !== null) return this.#pinned_answers.get(key) ?? this.#pinned;
+		const pinned = this.#pinned;
 		const last = this.deployed.at(-1);
-		let id = this.live;
+		let id = pinned === null ? this.live : (this.#pinned_answers.get(key) ?? pinned);
 		if (
+			pinned === null &&
 			last !== undefined &&
 			this.loop.now < last.at + (this.#o.rollover?.window ?? 0) &&
 			this.rng.chance(0.5)
@@ -392,7 +394,7 @@ export class World {
 				}
 			}
 		}
-		if (is_page_path(path)) this.#page_build.set(from, id);
+		if (pinned === null && is_page_path(path)) this.#page_build.set(from, id);
 		return id;
 	}
 
