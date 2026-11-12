@@ -17,7 +17,7 @@ import {
 	watch_frames,
 	watch_router
 } from '../../src/runtime/rules.ts';
-import type { RegionMachinesNow } from '../../src/runtime/region-machines.ts';
+import { busy_machines, type RegionMachinesNow } from '../../src/runtime/region-machines.ts';
 import { _reset, peek, ticket, write } from '../_frames.ts';
 import { runtime_session } from '../../src/runtime/session.ts';
 
@@ -130,7 +130,7 @@ test('a region that left the page is at rest: one of its machines still mid-visi
 		'live-region': 'idle',
 		'region-paint': 'painting'
 	};
-	note_left(el, () => now);
+	note_left(el, () => busy_machines(now));
 	expect(busy()).toEqual([
 		{
 			code: 'rule_region_left_busy',
@@ -142,7 +142,7 @@ test('a region that left the page is at rest: one of its machines still mid-visi
 	expect(busy()).toEqual([]);
 	// put back on the page: its machines are the page's again
 	now['region-paint'] = 'painting';
-	note_left(el, () => now);
+	note_left(el, () => busy_machines(now));
 	document.body.append(el);
 	expect(busy()).toEqual([]);
 	el.remove();

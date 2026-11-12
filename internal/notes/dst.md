@@ -63,6 +63,17 @@ module scripts. Its gaps are handled in the sim, with no patch to happy-dom:
   node left over: a run is one node (`whole_text_runs`, `test/parser.test.ts`).
 - It hands an intercepted answer back as it is: the sim follows a redirect itself, each leg a
   request on the network, and the answer carries its URL (`test/redirect.test.ts`).
+- Its module map and the V8 loader's were two: an import asked the network for a module a
+  `modulepreload` was still downloading (the runtime's script comes before its preloads, so every
+  runtime chunk was asked twice). An import waits for happy-dom's download and takes its source
+  (`downloading` in `src/modules.ts`, `test/modules.test.ts`; found by the differential).
+- It lays nothing out, and its IntersectionObserver is a stub that never reports: no
+  `wake: 'visible'` island ever woke by being seen, and the hydration drain waited for a viewport
+  snapshot on every turn. A document has a layout (`src/layout.ts`: block flow on the player's
+  1280x720 viewport, read off happy-dom's computed styles: display, margins, borders, padding,
+  height; text 8 px a character, 20 px a line) and an IntersectionObserver that reports from it at
+  a frame, a task of its realm (`test/layout.test.ts`; found by the differential). The home page's
+  regions land within 70 px of Chromium's. Never scrolled yet.
 - It ran an inline module script at once and an external one when its file came: a document's
   module scripts run in its order (`modules_in_order`, `test/modules.test.ts`).
 - It read `interactive` from the start, never fired DOMContentLoaded, and fired `load` before a
@@ -81,6 +92,9 @@ module scripts. Its gaps are handled in the sim, with no patch to happy-dom:
   back from the page on screen (the router handed a click to the browser, the visitor went back,
   and the stalled page landed on the back's document: palaestra seed 20958,
   `rule_address_bar_drift`).
+- It called only a window's bubbling `load` listeners (one that captures never heard it) and never
+  fired `pageshow`: both reach the window, capturing then not, the document their target
+  (`window_load_events`, `test/modules.test.ts`; found by the differential).
 - It ran a copy of any script: a copy carries "already started" (a script that connected, or one a
   parser marked unexecutable), so the router's head merge ran the next page's early hole start
   again (`scripts_start_once`, `test/scripts.test.ts`; gen 191).
@@ -295,6 +309,30 @@ that lined up names no ownership conflict there; the app's client plugin (`apps/
 `regionMismatched`) says any conflict named on the console, where the page-errors oracle hears it
 (mutation: `align_to` saying a level that lined up failed).
 
+Some islands that wake on their own render a `<svelte:head>` of their own (`gen head`, 30%): a
+`<meta>` in an `{#if}` and a `<style data-gen-head>`. Half of those have a third party that puts an
+element of its own right after the head block's open marker once the document is parsed, where
+Svelte's head hydration would walk into it: the runtime takes every island's head block off that
+walk before the first wake, and retires the page's copy once the island's own is in (the waste
+check sees a `<style>` held twice when it does not). Mutation: hydrate-core's head markers left in
+place, or the page copy kept, died on gen 262. The order those styles stand in after a return is
+#1107 (`KNOWN`).
+
+## Tabs behind, and engines without idle callbacks
+
+The visitor looks at the tab they act in, and their other tabs go behind it (`Browsers.focus`): a
+tab behind reads `document.visibilityState` `hidden`, hears `visibilitychange` on each change, and
+its animation frames wait until it is shown (`platform.ts` parks them; a document's first frame is
+happy-dom's own, which writes the content, and is never parked). The `background` action opens a
+tab behind the one looked at. A tab brought to the front is looked at 300 ms before the visitor acts
+in it (gen 193, seed 8: a reload at once counted the old document's late requests as the next
+one's). A document loaded behind and never shown owes its wakes after every action (`islands-wake`);
+one shown before it went behind is set aside: a frame it asked for then waits, as a browser's does.
+Mutation: the paint gate's hidden branch (schedule.ts) died on gen 262.
+
+Some seeds' engine has no `requestIdleCallback` (stream `idle engine`, 30%: Safari's), so code that
+waits for an idle moment takes its own fallback (core's `#on_idle` pause; mutation: died on gen 262).
+
 A build's boot runtime comes from `packages/core/dist/runtime` (the prebuilt runtime a published
 package ships), not from `src`: after a change to core's runtime, `pnpm build:lib` before
 `pnpm sim:builds`, or the app boots the old one (its import-again had no buggify point, while the
@@ -349,9 +387,11 @@ answer again but never replaces a flight (`flying -> flying` is no target: feder
 
 EVERY STEP ACCOUNTED FOR (`src/steps.ts`, test/steps.test.ts). The ledger `internal/sim/steps.json`
 puts each step in exactly one bucket: `reached` (the standard sweep reaches it), `covered` (the fake
-browser cannot; a named real test does, and the check finds that test in its file) or `dead` (no code
-takes it; an issue asks for its removal). A step in no bucket fails. `node src/steps.ts` is the static
-check (the PR check job, once the ledger is complete); `node src/sweep.ts` runs the standard sweep (the
+browser cannot, or no sweep seed does; a named real test does, and the check finds that test in its
+file; its `reason` says what the sweep lacks) or `dead` (no code takes it; an issue asks for its
+removal). A step in no bucket fails, and so does a ledger entry no machine has (a removed step leaves
+the ledger with it). `node src/steps.ts` is the static check, run by e2e.yml's PR check job ("Every
+machine step accounted for", 188/188 since 2026-11-12); `node src/sweep.ts` runs the standard sweep (the
 ledger's `sweep`: palaestra and generated apps' seeds) and fails when a `reached` step was not reached,
 a `dead` one was, or a step is in no bucket; `--write` sets `reached` to what it reached. A step only a
 lucky seed reaches is not covered: the sweep's `plans` (saved runs in `internal/sim/sweep-plans/`, each
@@ -361,8 +401,9 @@ the sweep before its seeds and fails the job after them when it failed.
 
 MUTATION, DAILY: dst.yml's `mutate` job (cron `43 3 * * *`) runs `src/mutate.ts` over
 `internal/sim/mutants.json` on main's code, over gens 188 (an empty island that wakes: it kills the
-repair's `> 0` mutant), 191, 192, 193 and 220 (a text-only third party on a page root: it kills
-`align_to`'s last `return true` -> false), with `--budget-min 60` (no mutant starts after an hour; the last line says
+repair's `> 0` mutant), 191, 192, 193, 220 (a text-only third party on a page root: it kills
+`align_to`'s last `return true` -> false) and 262 (islands with a `<svelte:head>`, one a third party
+edits: it kills the head mutants), with `--budget-min 60` (no mutant starts after an hour; the last line says
 how many it judged of the list, and when) and uploads it (`dst-mutation`). Each listed mutant names
 its line's `code`, and goes on the line that holds it, so the list outlives main's lines moving
 (`test/mutate.test.ts` checks that every one applies). The always-on job's batch
@@ -429,6 +470,37 @@ the entries'. A timer's callback runs inside the clock's own `runFor`, so a long
 seen (its entry point is Playwright's); a fetch's answer, an event and a module's evaluation are. The palaestra's 9 kept plans of a 60-run search
 pass in Chromium.
 
+## The differential
+
+The fake browser's gaps were found by luck (DOMContentLoaded never fired, `load` came before the
+module scripts ran, history entries came at the wrong time, a left document's downloads went on),
+each after hundreds of runs. The differential looks for them on purpose (`src/differ.ts`): the same
+calm runs played in the simulator and in Chromium, Firefox and WebKit, and what ogygia observably
+did put side by side after every action.
+
+    node --experimental-vm-modules src/differ.ts [--app <dir>] [--from 1] [--runs 10] [--steps 8] \
+      [--browsers chromium,firefox,webkit] [--out <dir>] [--reuse]
+    node src/differ.ts --compare <dir>
+
+A calm run (`cli.ts --calm`) is one both worlds can play alike: no fault, no buggify point, one
+server with a stable secret, the app's own build (the one its player serves), and no deploy, offline
+or outage (`NOT_CALM`, left out on both sides). `--observe <dir>` writes each run's plan with what it
+saw (`<app>-<seed>.sim.json`); the player plays that plan with `SIM_OBSERVE=<dir>` and writes
+`<app>-<seed>.sim.<browser>.json`. After each action each side waits for rest and looks at every tab
+(`@ogygia/tooling/e2e/sim-observe.ts`, the same code on both sides): the document (`snapshot`: the
+MPA oracle's normalization, which a page can run), what each document heard from before its first
+script (`ear`: readystatechange, DOMContentLoaded, load, pageshow, pagehide, popstate, hashchange,
+`og:*` and `ogygia:*`, capturing on the window), its machine moves, its errors and warnings, and
+the requests the tabs made to the app.
+
+Compared (`differences`): the address, the document's first differing hunk, the lifecycle's order
+(a region's own events as a count: their order is the network's), each machine's steps by name and
+the states left mid-work, what was said, and the requests as a multiset. What differs by
+construction is masked (`plain`): the origin, content hashes, a hole's `exp=` and `sig=` (its
+server's clock). A difference every browser shows alike is the simulator's (`sim-only`, the report's
+first list); one only some show is `engines` (an engine's way, or timing). dst.yml's `differ` job
+runs 12 seeds a day (a new range each day) in all three and puts the report in its summary.
+
 ## Findings
 
 A real bug gets a GitHub issue (labels `bug`, `dst`) and a failing test on its own branch
@@ -458,8 +530,11 @@ any state whose name ends in `ing`), every region shows something (`empty-region
 or touched), no hole that wakes on its own (`load`, `idle`) still shows its fallback at rest
 (`fallback-stands`: in a document a fault touched, only one never asked for; the MPA check cannot see
 it, the fresh load runs the same code; a fallback the app keeps on purpose is marked
-`data-gen-kept`; found by mutation testing: a mutant whose holes never fetched survived), the
-rules once more at rest, and the watchdog (`hung`).
+`data-gen-kept`; found by mutation testing: a mutant whose holes never fetched survived), its twin
+for islands (`islands-wake`: at rest no island that wakes on its own is still asleep, in a document no
+fault touched but an outage; one inside a region waiting for the visitor or the screen waits with
+it, and so does one in a lake whose host never hydrates, a held region's baked markup), the rules
+once more at rest, and the watchdog (`hung`).
 
 Each line a page says is judged by the document that said it (`Tab.said_by`): one action can show
 several documents, and an old page's failed download is not the next page's. The first document is

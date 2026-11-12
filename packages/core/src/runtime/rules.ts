@@ -31,7 +31,6 @@ import { observe, STALE, timers, trace } from '@ogygia/machine';
 import { Rules, type BrokenRule } from '../rules.ts';
 import { warn } from '../messages/core.ts';
 import { OG_PREFIX, OGYGIA_PREFIX, unknown_markers } from '../wire-markup.ts';
-import { REGION_REST, type RegionMachinesNow } from './region-machines.ts';
 
 type RuntimeRule =
 	| 'rule_region_mounted_twice'
@@ -57,7 +56,7 @@ export const runtime_rules: Rules<RuntimeRule> = /* @__PURE__ */ new Rules<Runti
 class RuleRows {
 	readonly mounts = new Map<Element, number>();
 	readonly shows = new Map<Element, Shows>();
-	readonly left = new Map<Element, () => RegionMachinesNow>();
+	readonly left = new Map<Element, () => readonly string[]>();
 	readonly visits: Array<{ visit: Visit; n: number }> = [];
 	readonly uncoded: string[] = [];
 	readonly parsed_built: string[] = [];
@@ -91,27 +90,25 @@ function one_mount_per_region(): string | null {
 
 // ── a region that left the page is at rest ──
 
-/** A region element left the page (its teardown ran): `machines` reads where its machines are. */
-export function note_left(region: Element, machines: () => RegionMachinesNow): void {
-	R.left.set(region, machines);
+/** A region element left the page (its teardown ran): `busy` reads its machines not at rest, as
+ *  `name state` (./region-machines.ts `busy_machines`). */
+export function note_left(region: Element, busy: () => readonly string[]): void {
+	R.left.set(region, busy);
 }
 
 function regions_left_at_rest(): string | null {
-	for (const [region, machines] of R.left) {
+	for (const [region, read_busy] of R.left) {
 		// (put back: its machines are the page's again)
 		if (region.isConnected) {
 			R.left.delete(region);
 			continue;
 		}
-		const now = machines();
-		const busy = (Object.keys(REGION_REST) as Array<keyof RegionMachinesNow>).filter(
-			(name) => now[name] !== REGION_REST[name]
-		);
+		const busy = read_busy();
 		if (busy.length === 0) {
 			R.left.delete(region);
 			continue;
 		}
-		return `${entry_of(region)} left the page with ${busy.map((name) => `${name} ${now[name]}`).join(', ')}`;
+		return `${entry_of(region)} left the page with ${busy.join(', ')}`;
 	}
 	return null;
 }
