@@ -1,6 +1,14 @@
 {
 	"exempt": [
 		{
+			"id": "packages/core/src/events/bus.ts > ingest_page_events",
+			"reason": "writes the devtools ring (hidden state: the page's event bus), linear in the events handed in; proven in packages/core/test/browser/devtools-feed-own-render.test.ts and side-channel-seeds.test.ts"
+		},
+		{
+			"id": "packages/core/src/events/bus.ts > push_stamped",
+			"reason": "writes the devtools ring (hidden state: the page's event bus), linear in the events handed in; proven in packages/core/test/browser/devtools-feed-own-render.test.ts and side-channel-seeds.test.ts"
+		},
+		{
 			"id": "packages/core/src/runtime/entry-locations.ts > recover_location > task:0~d0bd46",
 			"reason": "one rollover wait on the recovery's own scope timer (seconds, a deploy's rollover only), constant work"
 		},
