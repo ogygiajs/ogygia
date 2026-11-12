@@ -30,6 +30,19 @@ describe('region_mac_message', () => {
 		).toBe(true);
 	});
 
+	it('v3 for a hole that wakes — and it never verifies as v2 (#906)', () => {
+		const exp = '1700000000';
+		const m = (wakes: string) =>
+			region_mac_message('aaaaaa', exp, 'W3t9XQ', '', '', 'c0ffee0c0ffe', wakes);
+		expect(m('1')).toBe('v3|6:aaaaaa|10:1700000000|6:W3t9XQ|0:|0:|12:c0ffee0c0ffe|1:1');
+		expect(m('')).toBe(region_mac_message('aaaaaa', exp, 'W3t9XQ', '', '', 'c0ffee0c0ffe'));
+		const v3 = sign(secret, m('1'));
+		// stripping `w` (a v2 check) breaks it, as adding it breaks a v2
+		expect(verify(secret, m(''), v3)).toBe(false);
+		expect(verify(secret, m('1'), sign(secret, m('')))).toBe(false);
+		expect(verify(secret, m('1'), v3)).toBe(true);
+	});
+
 	it('binds region id into the MAC', () => {
 		const props = 'W3t9XQ';
 		const exp = '1700000000';
