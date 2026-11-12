@@ -24,7 +24,7 @@ import {
 	type RequestContext,
 	type ServerPlugin
 } from '@ogygia/core/plugin';
-import { clock, flights, STALE, type Flights } from '@ogygia/machine';
+import { clock, flights, say, STALE, type Flights } from '@ogygia/machine';
 import {
 	current_runtime,
 	enter_flight,
@@ -264,7 +264,7 @@ function stamp_no_store(response: Response): void {
 
 /** DEV teaching leg: the verdict runs but never stores/serves. Eligible → a `would-store`
  *  header to read in the network panel; refused → ONE console note per path naming the read. */
-const dev_noted_paths = new Set<string>();
+const dev_noted_paths = say({ max: 500 });
 function dev_postrender_note(response: Response, ctx: Ctx, obs: Observation): void {
 	const refusal =
 		obs.disqualified_by ??
@@ -283,9 +283,10 @@ function dev_postrender_note(response: Response, ctx: Ctx, obs: Observation): vo
 		}
 		return;
 	}
-	if (dev_noted_paths.has(ctx.path)) return;
-	dev_noted_paths.add(ctx.path);
-	warn('postrender_stays_per_request', { path: ctx.path, refusal });
+	// (once per path, for the latest 500 paths: a dev session's pages)
+	dev_noted_paths.once(ctx.path, () =>
+		warn('postrender_stays_per_request', { path: ctx.path, refusal })
+	);
 }
 
 /** What a capture did: stored an entry (with the Response to send), or refused to. A refusal made

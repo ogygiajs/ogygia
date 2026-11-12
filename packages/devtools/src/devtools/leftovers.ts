@@ -57,27 +57,24 @@ export interface Leftover {
 	last_ago?: number;
 }
 
-interface Ledger {
-	readonly intervals: Map<unknown, LeftoverReg>;
-	readonly listeners: Map<unknown, (LeftoverReg & { on: EventTarget })[]>;
-	readonly islands: Map<
+/** What the page is watched for, kept for the page's life: the live registrations it mirrors (each
+ *  leaves as the page takes it back), the islands seen, and the scroll-holding and `unload`
+ *  listeners (each list capped). */
+class Ledger {
+	readonly intervals = new Map<unknown, LeftoverReg>();
+	readonly listeners = new Map<unknown, (LeftoverReg & { on: EventTarget })[]>();
+	readonly islands = new Map<
 		string,
 		{ urls: string[]; first: number; gone?: number; els: Map<Element, number> }
-	>;
-	readonly scroll_regs: (ScrollReg & { target: EventTarget; fn: unknown })[];
-	readonly unload_regs: { fn: unknown; frames: string[] }[];
+	>();
+	readonly scroll_regs: (ScrollReg & { target: EventTarget; fn: unknown })[] = [];
+	readonly unload_regs: { fn: unknown; frames: string[] }[] = [];
 	/** the page's timers and listeners are watched (by whichever copy started first) */
 	watching?: true;
 }
 // @why the realm's copy watches and the testing engine a test injects is another copy that reads: one ledger for the page (test: devtools-leftovers-ledger)
 const ledger: Ledger = ((globalThis as { [k: symbol]: Ledger })[Symbol.for('ogygia.leftovers')] ??=
-	{
-		intervals: new Map(),
-		listeners: new Map(),
-		islands: new Map(),
-		scroll_regs: [],
-		unload_regs: []
-	});
+	new Ledger());
 const { intervals, listeners, islands, scroll_regs, unload_regs } = ledger;
 let own_file = '';
 
@@ -220,6 +217,7 @@ export function watch_leftovers(): void {
 // `<body>` the browser treats them as passive unless `passive: false` is asked for; anywhere else
 // they block unless `passive: true` is ──
 
+// static: a fixed list of event types
 const SCROLL_TYPES: ReadonlySet<string> = new Set([
 	'wheel',
 	'mousewheel',
