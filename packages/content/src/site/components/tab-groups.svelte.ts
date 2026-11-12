@@ -1,21 +1,14 @@
-/**
- * Site-wide tab-group memory. Every `<TabGroup group="...">` with the same `group` shares one
- * selected label — pick "pnpm" in one block and every `group="install"` block on the page follows —
- * and the choice persists across pages (localStorage). A single module-level reactive record backs it,
- * so all blocks (and all island instances, which re-hydrate per nav) read and write the same state.
- *
- * This is the runes-module (`*.svelte.ts`) half of TabGroup: the component owns the Bits UI markup and
- * keyboard behavior; this owns the shared choice.
- */
 import { storage } from '@ogygia/machine';
 
 const KEY = 'og-tabs:';
 
-// group id → selected label. `$state` in a `.svelte.ts` module is a genuine reactive singleton: the
-// build emits it as `.svelte.js` with the rune intact, and every importer shares this one record.
 const selected = $state<Record<string, string>>({});
 
-/** A reactive handle for one group's selected label. Setting it persists to localStorage. */
+/**
+ * A reactive handle for one tab group's selected label. Every `<TabGroup group="...">` with the same
+ * `group` shares it (pick "pnpm" in one block and every `group="install"` block follows), and setting
+ * it saves the choice to localStorage for later pages. Without storage it is kept in memory.
+ */
 export function tab_group(group: string) {
 	return {
 		get value(): string | undefined {
@@ -34,11 +27,11 @@ export function tab_group(group: string) {
 
 /**
  * Seed a group's initial choice ONCE, from localStorage if present, else `fallback` (the first tab's
- * label). Client-only and idempotent: call it on mount, after the first paint, so restoring a saved
- * choice is a post-hydration update (no SSR/client mismatch) rather than an initial-render divergence.
+ * label). A choice made this session is never replaced. Client-only: call it on mount, so restoring a
+ * saved choice is an update after hydration, not a server/client mismatch.
  */
 export function hydrate_group(group: string, fallback: string): void {
-	if (selected[group] != null) return; // already chosen this session — don't clobber
+	if (selected[group] != null) return;
 	let saved: string | null = null;
 	try {
 		saved = storage.local()?.getItem(KEY + group) ?? null;

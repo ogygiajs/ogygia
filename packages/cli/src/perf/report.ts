@@ -1,9 +1,3 @@
-/**
- * REPORT — a verdict as the PR comment (markdown) and as the terminal summary. Pure. The comment
- * leads with the outcome, then one table per page (metric, base, PR, Δ, budget), then the three
- * biggest movers with their file, then the findings that appeared. Links to the two reports when
- * the runner has them.
- */
 import type { Verdict, PageVerdict, MetricRow } from './compare.ts';
 
 const fmt = (n: number | null, unit: MetricRow['unit']) =>
@@ -20,6 +14,11 @@ const sign = (d: number | null, unit: MetricRow['unit']) =>
 		: `${d > 0 ? '+' : ''}${unit === 'n' ? Math.round(d) : d.toFixed(1)}${unit === 'ms' ? ' ms' : unit === 'KB' ? ' KB' : ''}`;
 const pct = (p: number | null) => (p === null ? '' : ` (${p > 0 ? '+' : ''}${p.toFixed(0)}%)`);
 
+/**
+ * A verdict as the PR comment. It leads with the outcome, then one table per page (metric, base,
+ * PR, Δ, budget), then the three biggest movers with their file, then the findings that appeared.
+ * It links the two reports when the runner has them.
+ */
 export function markdown(
 	v: Verdict,
 	opts: { title?: string; links?: Record<string, { base?: string; cur?: string }> } = {}
