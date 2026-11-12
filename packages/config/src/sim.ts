@@ -161,6 +161,10 @@ const env_number = (name: string): number | undefined => {
 };
 const only = env?.OGYGIA_SIM_ONLY || undefined;
 
+// Every property a test runs through this `fc` is seeded (314 unless `OGYGIA_FUZZ_SEED` says), so
+// CI tries the same inputs every time; a test's own `seed` wins (core's test/property-seeded.test.ts).
+fc.configureGlobal({ ...fc.readConfigureGlobal(), seed: env_number('OGYGIA_FUZZ_SEED') ?? 314 });
+
 class Run implements Sim {
 	readonly s: fc.Scheduler;
 	readonly fetches: Request[] = [];
