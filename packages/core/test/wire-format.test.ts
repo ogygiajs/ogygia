@@ -39,7 +39,10 @@ test('the JSON lane is parsed as JSON and never asks for devalue', () => {
 test('the devalue lane is parsed by devalue with the caller’s revivers', () => {
 	boot();
 	class Money {
-		constructor(readonly cents: number) {}
+		readonly cents: number;
+		constructor(cents: number) {
+			this.cents = cents;
+		}
 	}
 	const text = stringify(
 		{ at: new Date(0), price: new Money(250) },
