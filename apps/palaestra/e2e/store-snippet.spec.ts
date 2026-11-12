@@ -2,7 +2,7 @@
 // handed to a hydrate island reads `$country` / `$language` (bare, member chain, template
 // literal). The compiler must hoist the subscription VALUES at the host and rewrite the crossed
 // body — the old behavior emitted `$country` verbatim into the runes-mode synth entry and the
-// BUILD died inside virtual:ogygia/island/… (so this page building at all is half the test).
+// BUILD died inside ogygia:region/entry/… (so this page building at all is half the test).
 // The crossed copy must render the snapshot on SSR, survive hydration, and stay alive.
 // Usage: pnpm exec playwright test store-snippet
 import { test, check } from '@ogygia/tooling/e2e';

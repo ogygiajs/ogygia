@@ -5,16 +5,29 @@ import { svelte } from '@sveltejs/vite-plugin-svelte';
 import type { ViteUserConfig } from 'vitest/config';
 import { heisenbench_record } from '../../../internal/heisenbench/src/record.ts';
 
-/** Core's test stubs: `app-<name>.ts` stands in for `$app/<name>`, `virtual-<name>.ts` for
- *  `virtual:ogygia/<name>` (packages/core/test/_stubs). */
+/** Core's test stubs: `app-<name>.ts` stands in for `$app/<name>`, `realm-<realm>.ts` for the
+ *  realm module `ogygia:<realm>`, `<realm>.<id>.ts` for its entry `ogygia:<realm>/<id>`
+ *  (packages/core/test/_stubs). */
 const STUBS = fileURLToPath(new URL('../../core/test/_stubs/', import.meta.url));
 
-function stub_aliases(): Record<string, string> {
-	const out: Record<string, string> = {};
+const ENTRY_STUB = /^(server|boot|region|dev)\.(.+)$/;
+
+const exact = (id: string): RegExp => new RegExp(`^${id.replace(/[$/.]/g, '\\$&')}$`);
+
+/** The stubs as exact-match aliases (a realm module's id is a prefix of its entries' ids). */
+export function stub_aliases(): { find: RegExp; replacement: string }[] {
+	const out: { find: RegExp; replacement: string }[] = [];
 	for (const file of readdirSync(STUBS)) {
 		const name = file.replace(/\.ts$/, '');
-		if (name.startsWith('app-')) out[`$app/${name.slice(4)}`] = STUBS + file;
-		else if (name.startsWith('virtual-')) out[`virtual:ogygia/${name.slice(8)}`] = STUBS + file;
+		const entry = ENTRY_STUB.exec(name);
+		const id = name.startsWith('app-')
+			? `$app/${name.slice(4)}`
+			: name.startsWith('realm-')
+				? `ogygia:${name.slice(6)}`
+				: entry
+					? `ogygia:${entry[1]}/${entry[2]}`
+					: null;
+		if (id) out.push({ find: exact(id), replacement: `${STUBS}${file}` });
 	}
 	return out;
 }

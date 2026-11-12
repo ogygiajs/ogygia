@@ -17,7 +17,7 @@
 import { DomElement, document, el, frag, type DomNode } from '../test/_stubs/dom.ts';
 import { ISLAND_GRAPH_ATTR, encode_island_graph } from '../src/island-graph.ts';
 import { block, header, island_entry } from './fixtures.ts';
-import { dedent } from '../src/compiler/dedent.ts';
+import { dedent } from '../src/contract/dedent.ts';
 
 const chunk_of = (i: number): string => `/_app/immutable/chunks/c${i}.js`;
 
@@ -35,7 +35,16 @@ g.location ??= { origin: 'https://shop.example.test', href: 'https://shop.exampl
 /** The elements the stand-in observer reports as intersecting (the page's first screen). */
 export const in_view = new WeakSet<object>();
 
-type Report = (entries: Array<{ target: Element; isIntersecting: boolean }>, io: unknown) => void;
+type Report = (
+	entries: Array<{
+		target: Element;
+		isIntersecting: boolean;
+		boundingClientRect: { width: number; height: number };
+	}>,
+	io: unknown
+) => void;
+/** Every element the stand-in reports has a box of its own (a block's). */
+const BOX = { width: 320, height: 48 };
 
 class StandInObserver {
 	#cb: Report;
@@ -50,7 +59,11 @@ class StandInObserver {
 	unobserve(): void {}
 	disconnect(): void {}
 	#report(): void {
-		const entries = this.#queued.map((target) => ({ target, isIntersecting: in_view.has(target) }));
+		const entries = this.#queued.map((target) => ({
+			target,
+			isIntersecting: in_view.has(target),
+			boundingClientRect: BOX
+		}));
 		this.#queued = [];
 		this.#cb(entries, this);
 	}

@@ -7,16 +7,39 @@
  * read (the next look has it), `null` when it cannot say (no inline map: a build's chunk, a file the
  * dev server did not transform). No regex: the map's marker is found by search, the VLQ by table.
  */
+import { flights } from '@ogygia/machine';
 import { tool_fetch } from '@ogygia/core/internal/instruments';
 
 const MARK = '//# sourceMappingURL=data:application/json;base64,';
 const B64 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+// static: base64's 64 digits and their values, filled once from B64
 const B64_INDEX = new Map<string, number>([...B64].map((c, i) => [c, i]));
 
 /** served line (1-based) → source line (1-based), or 0 where the line maps nowhere */
 type Lines = Int32Array;
-const ready = new Map<string, Lines | null>();
-const pending = new Set<string>();
+
+/** How many app files' tables are kept (the files a dev session's profiles name; the least
+ *  recently read go first, and are read again when a profile names them). */
+const TABLES_MAX = 256;
+
+/** An app file's table, as the dev server serves the file (`null`: none to give). */
+async function read_table(file: string): Promise<Lines | null> {
+	try {
+		const r = await tool_fetch(`/${file}`);
+		const t = r.ok ? await r.text() : '';
+		return t ? parse(t, file) : null;
+	} catch {
+		return null; // ok: a file that cannot be read has no source lines to give (said as `null`)
+	}
+}
+
+/** Each app file's table, read once while it is kept (`null`: the file has no inline map, or it
+ *  could not be read). One read per file at a time. */
+const tables = flights({
+	name: 'devtools source lines',
+	max: TABLES_MAX,
+	run: (file: string): Promise<Lines | null> => read_table(file)
+});
 
 /**
  * Each generated line's first segment that names a source → that source line; only segments of the
@@ -87,17 +110,10 @@ function parse(text: string, file: string): Lines | null {
  */
 export function source_line(file: string, line: number | null): number | null | undefined {
 	if (line === null || !file.startsWith('src/')) return null;
-	const hit = ready.get(file);
-	if (hit === null) return null;
-	if (hit) return hit[line] || null;
-	if (!pending.has(file) && typeof fetch === 'function') {
-		pending.add(file);
-		tool_fetch(`/${file}`)
-			.then((r) => (r.ok ? r.text() : ''))
-			.then((t) => ready.set(file, t ? parse(t, file) : null))
-			.catch(() => ready.set(file, null))
-			.finally(() => pending.delete(file));
-	}
+	const seen = tables.peek(file);
+	if (seen?.kind === 'kept') return seen.answer === null ? null : seen.answer[line] || null;
+	// (being read: the next look has it)
+	if (seen === undefined && typeof fetch === 'function') void tables.get(file); // ok: its read never rejects (a failure is a null table)
 	return undefined;
 }
 

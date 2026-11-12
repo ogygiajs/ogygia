@@ -1,9 +1,8 @@
 // Svelte's dev hydration warnings, read off the console line: the code, the message, the file
 // (without the zero-width spaces Svelte breaks paths with), and nothing for other warnings.
 import { expect, test } from 'vitest';
+import { dedent } from '../src/contract/dedent.ts';
 import { parse_svelte_warning } from '../src/runtime/svelte-warnings.ts';
-import { analyze_page } from '../src/insights/page-insights.ts';
-import { dedent } from '../src/compiler/dedent.ts';
 
 const line = dedent`
 		%c[svelte] hydration_html_changed
@@ -24,36 +23,4 @@ test('not a hydration warning: nothing', () => {
 		parse_svelte_warning('%c[svelte] state_snapshot_uncloneable\n%cValue cannot be cloned')
 	).toBeNull();
 	expect(parse_svelte_warning('some other warning')).toBeNull();
-});
-
-test('the finding groups them and names the island when it knows it', () => {
-	const r = analyze_page(
-		{
-			vitals: {},
-			visit: {
-				warnings: [
-					{
-						code: 'hydration_html_changed',
-						message: 'x',
-						file: '/a/Card.svelte',
-						fp: 'aaaaaaaa11111111'
-					},
-					{
-						code: 'hydration_html_changed',
-						message: 'x',
-						file: '/a/Card.svelte',
-						fp: 'aaaaaaaa11111111'
-					}
-				]
-			},
-			islands: [],
-			firsts: [],
-			shifts: [],
-			longtasks: []
-		},
-		[{ fp: 'aaaaaaaa11111111', name: 'Card', kind: 'island', wake: 'load', hydrated: true }]
-	);
-	const f = r.findings.find((x) => x.code === 'svelte-hydration-warning')!;
-	expect(f.message).toContain('hydration_html_changed in Card.svelte (Card) ×2');
-	expect(f.fps).toEqual(['aaaaaaaa11111111']);
 });

@@ -1,6 +1,12 @@
 import { describe, it, expect } from 'vitest';
 import { scope } from '@ogygia/machine';
-import { slim_profile, island_row, run_profile } from '../src/devtools/profile-store.ts';
+import {
+	slim_profile,
+	island_row,
+	run_profile,
+	set_profile,
+	profile_for
+} from '../src/devtools/profile-store.ts';
 
 const report = {
 	id: 'abc123',
@@ -29,7 +35,7 @@ const report = {
 		island_rows: [
 			{
 				name: 'SiteHeader',
-				entry: '/@id/virtual:ogygia/island/71c18fcca62d.js',
+				entry: '/@id/ogygia:region/entry/71c18fcca62d.js',
 				fp: '08048d746a335614',
 				wake: 'load',
 				ssr_ms: 4.1,
@@ -40,7 +46,7 @@ const report = {
 			},
 			{
 				name: 'Mark',
-				entry: '/@id/virtual:ogygia/island/24fa20edb0cb.js',
+				entry: '/@id/ogygia:region/entry/24fa20edb0cb.js',
 				fp: '49d3183153fa0510',
 				wake: 'load',
 				ssr_ms: null,
@@ -138,7 +144,7 @@ describe('island_row', () => {
 	it('joins by fingerprint, then by entry', () => {
 		expect(island_row(p, '08048d746a335614', null)?.name).toBe('SiteHeader');
 		// the same island with other props: another fingerprint, same entry chunk
-		expect(island_row(p, 'ffff', './@id/virtual:ogygia/island/71c18fcca62d.js')?.name).toBe(
+		expect(island_row(p, 'ffff', './@id/ogygia:region/entry/71c18fcca62d.js')?.name).toBe(
 			'SiteHeader'
 		);
 		expect(island_row(p, 'ffff', null)).toBeNull();
@@ -256,5 +262,15 @@ describe('run_profile when the profiler refuses', () => {
 		} finally {
 			globalThis.fetch = real;
 		}
+	});
+});
+
+describe('the profile store is bounded (#413)', () => {
+	it('keeps the most recently profiled pages, not one per page a tab ever profiled', () => {
+		const p = slim_profile(report);
+		// a long session: a profile per page of a large site, one after another
+		for (let i = 0; i < 500; i++) set_profile({ ...p, page: `/p/${i}`, at: i });
+		expect(profile_for('/p/499'), 'the newest is kept').not.toBeNull();
+		expect(profile_for('/p/0'), 'the oldest went once the store was full').toBeNull();
 	});
 });

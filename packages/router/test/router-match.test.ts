@@ -64,3 +64,78 @@ describe('router pattern matching', () => {
 		expect(() => compile('/a/[...rest]/b')).toThrow(/must be last/);
 	});
 });
+
+describe('router pattern matching takes time in line with the path', () => {
+	it('a segment with several params answers a long path that almost matches at once', () => {
+		const c = [compile('/[a]-[b]-[c]')];
+		const near_miss = `/${'-'.repeat(2000)}/x`;
+		const t = performance.now();
+		expect(match_path(c, near_miss)).toBeNull();
+		expect(performance.now() - t).toBeLessThan(100);
+	});
+
+	it('several params in a segment split at the first separator, the last param takes the rest', () => {
+		expect(match_one(compile('/[a]-[b]-[c]'), '/x-y-z')!.params).toEqual({
+			a: 'x',
+			b: 'y',
+			c: 'z'
+		});
+		expect(match_one(compile('/[a]-[b]'), '/x-y-z')!.params).toEqual({ a: 'x', b: 'y-z' });
+		// one param before its suffix keeps every character it had
+		expect(match_one(compile('/[id].json'), '/a.b.json')!.params).toEqual({ id: 'a.b' });
+	});
+
+	it('a param may hold the first character of the literal after it (#833)', () => {
+		expect(match_one(compile('/[a]-x-[b]'), '/p-q-x-r')!.params).toEqual({ a: 'p-q', b: 'r' });
+		expect(match_one(compile('/[slug]-[id]'), '/my-post-42')!.params).toEqual({
+			slug: 'my',
+			id: 'post-42'
+		});
+	});
+
+	it('every short path splits as SvelteKit lazy params would (#833)', () => {
+		// the reference is Kit's own shape: each param `([^/]+?)`, fine on paths this short
+		const kit = (pattern: string) =>
+			new RegExp(
+				`^${pattern.replace(/[.*+?^${}()|\\]/g, '\\$&').replace(/\[[a-z]\]/g, '([^/]+?)')}/?$`
+			);
+		const patterns = [
+			'/[a]-[b]',
+			'/[a]-x-[b]',
+			'/[a]-[b]-[c]',
+			'/[a][b]',
+			'/x[a]-[b]x',
+			'/[a]-[b]/[c]'
+		];
+		const paths: string[] = [''];
+		for (let level = [''], n = 0; n < 7; n++) {
+			level = level.flatMap((p) => [...'a-x/'].map((ch) => p + ch));
+			paths.push(...level);
+		}
+		for (const pattern of patterns) {
+			const c = compile(pattern);
+			for (const tail of paths) {
+				const path = `/${tail}`;
+				const want = kit(pattern).exec(path);
+				const got = match_one(c, path);
+				const want_params = want
+					? Object.fromEntries(c.params.map((s, i) => [s.name, want[i + 1]]))
+					: null;
+				expect([pattern, path, got?.params ?? null]).toEqual([pattern, path, want_params]);
+			}
+		}
+	});
+
+	it('two params with nothing between them answer a long near miss at once (#833)', () => {
+		const c = [compile('/[a][b]')];
+		const t = performance.now();
+		expect(match_path(c, `/${'a'.repeat(8000)}/x`)).toBeNull();
+		expect(performance.now() - t).toBeLessThan(100);
+	});
+
+	it('a path longer than any route can mean matches nothing', () => {
+		const c = compile_all(['/[...rest]']);
+		expect(match_path(c, `/${'a'.repeat(20_000)}`)).toBeNull();
+		expect(match_path(c, `/${'a'.repeat(2000)}`)).not.toBeNull();
+	});
+});

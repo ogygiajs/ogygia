@@ -6,7 +6,7 @@ import {
 	page_declares_speculation_rules,
 	runtime_first
 } from '../src/server/head-presence.ts';
-import { dedent } from '../src/compiler/dedent.ts';
+import { dedent } from '../src/contract/dedent.ts';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // The `handle()` transform skips injecting a head tag the page already carries. These predicates

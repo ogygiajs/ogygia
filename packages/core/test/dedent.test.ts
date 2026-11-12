@@ -1,7 +1,7 @@
 // `dedent` keeps a block's own indentation and trims its edges; `dedent.inline` writes one line as a
 // block: the lines join with nothing between them, so every space is one the author wrote.
 import { describe, expect, it } from 'vitest';
-import { dedent } from '../src/compiler/dedent.ts';
+import { dedent } from '../src/contract/dedent.ts';
 
 describe('dedent', () => {
 	it('strips the common indent, trims blank edges, and puts values in after', () => {

@@ -90,11 +90,17 @@ test.describe('a load island before its code is live', () => {
 		await page.addInitScript(() => {
 			const held: boolean[] = [];
 			(window as unknown as { __held: boolean[] }).__held = held;
-			document.addEventListener('click', (e) => {
-				// (a visitor's clicks only: the failure path replays the held one onto the server markup)
-				if (e.isTrusted && (e.target as Element | null)?.closest?.('[data-counter]'))
-					held.push(e.defaultPrevented);
-			});
+			// Seen first (window, capture) and read once the click's dispatch is over: a held click is
+			// kept from every handler after the runtime's, so a listener further on never hears it.
+			window.addEventListener(
+				'click',
+				(e) => {
+					// (a visitor's clicks only: the failure path replays the held one onto the server markup)
+					if (e.isTrusted && (e.target as Element | null)?.closest?.('[data-counter]'))
+						setTimeout(() => held.push(e.defaultPrevented));
+				},
+				{ capture: true }
+			);
 		});
 		await page.goto('/load-early-click', { waitUntil: 'domcontentloaded' });
 
@@ -106,8 +112,10 @@ test.describe('a load island before its code is live', () => {
 			})
 			.toBe(true);
 		await button.click();
-		const held = await page.evaluate(() => (window as unknown as { __held: boolean[] }).__held);
-		expect(held).toEqual([true, false]);
+		// (each click is read once its dispatch is over)
+		await expect
+			.poll(() => page.evaluate(() => (window as unknown as { __held: boolean[] }).__held))
+			.toEqual([true, false]);
 		await expect(live(page)).toHaveCount(0);
 	});
 });

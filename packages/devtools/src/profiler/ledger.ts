@@ -183,11 +183,14 @@ export const confirmed = (
 };
 
 /** a callee a line can be charged for: library code, never Svelte's markup internals or V8's own */
+// static: a fixed list of frame categories
 const LIB: ReadonlySet<FrameCategory> = new Set<FrameCategory>(['dependency', 'node']);
 
+// static: a fixed list of frame categories
 const APP: ReadonlySet<FrameCategory> = new Set<FrameCategory>(['app', 'component']);
 
 /** words before a `(` that are not calls */
+// static: a fixed list of keywords
 const CONTROL: ReadonlySet<string> = new Set([
 	'if',
 	'for',

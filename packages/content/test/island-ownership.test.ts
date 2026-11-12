@@ -7,7 +7,7 @@
  * the bridge there transformed the plugin's OUTPUT: a server island read as a plain component, its
  * `{#snippet}` children were branded as phantom portable snippets, and registering that phantom
  * WIPED the host's real wrapper registration — the cold build then failed to resolve
- * `virtual:ogygia/wrapper/<hash>.svelte` (client) or leaked it raw into the server bundle
+ * `ogygia:region/wrapper/<hash>.svelte` (client) or leaked it raw into the server bundle
  * (`ERR_UNSUPPORTED_ESM_URL_SCHEME: virtual:` at prerender).
  *
  * The compiler half (the server-island host legs the registry depends on) lives in core's
@@ -17,7 +17,7 @@ import { afterAll, afterEach, describe, expect, it } from 'vitest';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { __set_build_cache_root } from '@ogygia/core/internal/compiler-browser';
+import { __set_build_cache_root } from '@ogygia/compiler';
 import { ogygiaPreprocess } from '../src/markdown/index.ts';
 import { bridge } from '../src/bridge.ts';
 import { dedent } from '@ogygia/core/plugin/utils';
@@ -35,7 +35,7 @@ afterAll(() => {
 // server island (mark consumed → stub import) and a fallback snippet child. This is the shape the
 // markup hook actually receives for a `.svelte` — the phantom's trigger.
 const PLUGIN_OUTPUT = `<script lang="ts">
-	import DeferredHole from 'virtual:ogygia/client-binding-stub';
+	import DeferredHole from 'ogygia:region/client-binding-stub';
 </script>
 
 <DeferredHole>

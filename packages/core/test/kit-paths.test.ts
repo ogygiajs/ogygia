@@ -22,9 +22,7 @@ describe('kit_asset', () => {
 			return `/base/${f}`;
 		});
 		expect(kit_asset('/_app/immutable/x.js')).toBe('/base/_app/immutable/x.js');
-		expect(kit_asset('/@id/virtual:ogygia/island/a.js')).toBe(
-			'/base/@id/virtual:ogygia/island/a.js'
-		);
+		expect(kit_asset('/@id/ogygia:region/entry/a.js')).toBe('/base/@id/ogygia:region/entry/a.js');
 		expect(seen.every((f) => !f.startsWith('/'))).toBe(true);
 	});
 

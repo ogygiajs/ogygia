@@ -11,7 +11,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { brotliCompressSync } from 'node:zlib';
 import { rolldown } from 'rolldown';
-import { dedent } from '../src/compiler/dedent.ts';
+import { dedent } from '../src/contract/dedent.ts';
 
 const SRC = fileURLToPath(new URL('../src/', import.meta.url));
 const RUNTIME_RULES = [
@@ -38,7 +38,6 @@ async function build(entry: string, rules: boolean): Promise<string> {
 				'import.meta.env.DEV': 'false',
 				'import.meta.env.MODE': '"production"',
 				__OGYGIA_DEVTOOLS__: 'false',
-				__OGYGIA_BEACON__: 'false',
 				__OGYGIA_CLIENT_PLUGINS__: 'false',
 				__OGYGIA_RULES__: String(rules)
 			}

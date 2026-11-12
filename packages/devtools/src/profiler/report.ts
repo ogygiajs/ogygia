@@ -21,11 +21,17 @@ import {
 	lcp_rivals,
 	vital_parts,
 	type HeldOpen
-} from '@ogygia/core/insights';
-import { fp_compare } from '@ogygia/core/insights';
+} from '@ogygia/insights';
+import { fp_compare } from '@ogygia/insights';
+import {
+	barrel_left_fix,
+	barrel_left_words,
+	type BarrelLeftReason,
+	type ChunkBarrel
+} from '@ogygia/insights';
 import type { ClientWindows, InteractionCpu } from './client-windows.ts';
 import type { ByteStrip } from './byte-strip.ts';
-import { runtime_scripts, type PageAssets, type RuntimeScripts } from '@ogygia/core/insights';
+import { runtime_scripts, type PageAssets, type RuntimeScripts } from '@ogygia/insights';
 import { unscoped_finding } from '@ogygia/core/internal/instruments';
 import type { River } from './river.ts';
 import type { GcAttribution } from './gc.ts';
@@ -62,7 +68,7 @@ import type {
 	OgygiaRequestStats
 } from '@ogygia/core/internal/server';
 import type { SpanRecord } from './span.ts';
-import { TESTING_ENGINE_VERSION } from '@ogygia/core/insights';
+import { TESTING_ENGINE_VERSION } from '@ogygia/insights';
 
 export type { OgygiaRequestStats, SpanRecord, HoleRequestStats, IslandStat };
 
@@ -489,7 +495,7 @@ export interface GcSummary {
 }
 
 /** a line of an island's own component that draws differently in the browser, with its file */
-import { hazard_words, hazard_fix, type IslandHazard } from '@ogygia/core/insights';
+import { hazard_words, hazard_fix, type IslandHazard } from '@ogygia/insights';
 export type { IslandHazard };
 export { hazard_words, hazard_fix };
 
@@ -516,7 +522,7 @@ export interface ReportExtras {
 	/** each island file's rendered total and heaviest named modules (the build's handoff) */
 	heavy?: Record<string, { total: number; top: { name: string; bytes: number }[] }>;
 	/** re-export barrels each island file still holds, with how many modules each brings */
-	barrels?: Record<string, { name: string; fanout: number }[]>;
+	barrels?: Record<string, ChunkBarrel[]>;
 	/** each island entry's lines that draw differently in the browser (hydration-hazards.ts) */
 	hazards?: Record<string, IslandHazard[]>;
 	/** the visit's own hole requests from the request log (made after the recording): server ms each */
@@ -617,6 +623,7 @@ const fmt_pct = (part: number, whole: number): string =>
 	whole > 0 ? `${((part / whole) * 100).toFixed(1)}%` : '—';
 const round1 = (n: number): number => Math.round(n * 10) / 10;
 /** The dev server's own packages: their work (module loading, transforms) exists only in dev. */
+// static: a fixed list of package names
 const DEV_TOOLS = new Set([
 	'vite',
 	'rolldown',
@@ -635,6 +642,7 @@ export function dev_tool_caller(caller: string): boolean {
 	const pkg = caller.slice(open + 1, -1);
 	return DEV_TOOLS.has(pkg) || pkg.startsWith('@rolldown/') || pkg.startsWith('@vitejs/');
 }
+// static: a fixed list of keywords
 const CALL_KEYWORDS = new Set([
 	'if',
 	'for',
@@ -979,6 +987,7 @@ export function with_hidden_filled(
 
 /** browser findings whose answer is the screen's: below its first screen, hidden on it, images it
  *  shows smaller or lower down */
+// static: a fixed list of finding codes
 const SCREEN_CODES: ReadonlySet<string> = new Set([
 	'eager-offscreen',
 	'eager-hidden',
@@ -1002,6 +1011,7 @@ const PATH_WARN_MS = 3;
 
 /** findings about a server render — its CPU, components, calls, memory — that mean nothing when the
  *  build's file answered (no render ran: `run_static`) */
+// static: a fixed list of finding codes
 const RENDER_ONLY: ReadonlySet<string> = new Set([
 	'low-confidence',
 	'phases',
@@ -2705,6 +2715,7 @@ export function group_islands(rows: readonly IslandStat[]): IslandStat[] {
 /** Code every page with islands loads once, never an island's own to change: the runtimes, Kit,
  *  and devalue (the runtime's decoder for rich props — the `props-devalue` finding is where that is
  *  the island's doing). The heavy-module and barrel notes leave these out. */
+// static: a fixed list of package names
 const FRAMEWORK = new Set([
 	'svelte runtime',
 	'ogygia runtime',
@@ -3030,9 +3041,9 @@ function ogygia_findings(
 		}
 	}
 	// A BARREL AN ISLAND STILL IMPORTS WHOLE (the build's module info): every module it re-exports
-	// ships with the island. The barrel pass left it (a side effect, or the pass is off).
+	// ships with the island. The barrel pass left it (it says why), or the pass is off.
 	if (extras.barrels && islands.length) {
-		const found = new Map<string, { row: IslandStat; fanout: number }>();
+		const found = new Map<string, { row: IslandStat; fanout: number; why?: BarrelLeftReason[] }>();
 		for (const r of islands) {
 			if (r.wake === 'none') continue;
 			for (const u of new Set([r.module_url, ...r.hints])) {
@@ -3040,25 +3051,25 @@ function ogygia_findings(
 					// (Svelte's and Kit's own indexes look like barrels: shared once per page, not the island's)
 					if (FRAMEWORK.has(b.name)) continue;
 					const prev = found.get(b.name);
-					if (!prev || b.fanout > prev.fanout) found.set(b.name, { row: r, fanout: b.fanout });
+					if (!prev || b.fanout > prev.fanout)
+						found.set(b.name, { row: r, fanout: b.fanout, why: b.why });
 				}
 			}
 		}
 		if (found.size) {
 			const list = [...found].sort((a, b) => b[1].fanout - a[1].fanout).slice(0, 3);
+			const why = [...new Set(list.flatMap(([, f]) => f.why ?? []))];
 			warn(
 				'island-barrel',
 				`${list
-					.map(
-						([name, f]) =>
-							`${island_name(f.row)} ships a barrel whole: ${name}, and the ${f.fanout} modules behind it`
-					)
+					.map(([name, f]) => {
+						const words = barrel_left_words(f.why);
+						return `${island_name(f.row)} ships a barrel whole: ${name}, and the ${f.fanout} modules behind it${words ? ` (${words})` : ''}`;
+					})
 					.join(
 						'; '
 					)}. A Svelte component is never side-effect free to the bundler, so what the island does not use ships anyway.`,
-				{
-					fix: 'Import what the island uses from its own file, or turn on ogygia({ barrels }). If it is on, the barrel has side effects of its own (a statement besides its re-exports), or the build log says why it was skipped.'
-				}
+				{ fix: barrel_left_fix(why) }
 			);
 		}
 	}
@@ -4661,7 +4672,7 @@ type ReportJsonAssets = {
 		lazy?: boolean | undefined;
 		blocking?: boolean | undefined;
 		url: string;
-		kind: import('@ogygia/core/insights').AssetKind;
+		kind: import('@ogygia/insights').AssetKind;
 		via:
 			| 'script'
 			| 'img'

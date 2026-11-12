@@ -3,6 +3,8 @@
  * 0.13 rules for package source (`packages/<pkg>/src`), outside `@ogygia/machine` itself, which is
  * where the primitives they point at live:
  *
+ * - `ogygia/compiler-boundary`: `@ogygia/compiler` uses core only through `@ogygia/core/contract`,
+ *   and core never uses the compiler (#488, #513).
  * - `ogygia/no-promise-cache`: async work that callers share is a `flights()` (one flight per key,
  *   a success kept, a failure never kept, work stopped when its last caller leaves). A `Map` or
  *   `WeakMap` of promises, or a `??=` latch on a promise, is that cache written by hand, and each
@@ -16,7 +18,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-import { dedent } from '../../packages/core/src/compiler/dedent.ts';
+import { dedent } from '../../packages/core/src/contract/dedent.ts';
 
 type Node = { type: string; [key: string]: unknown };
 type Context = {
@@ -547,7 +549,7 @@ type FixContext = Context & {
 
 const MESSAGE_CONCAT = 'Build the string with a template literal, not `+`.';
 const MESSAGE_CONCAT_LINES =
-	'Build the string with a template literal, not `+` across lines: a long or multi-line one is a `dedent` template (core compiler/dedent.ts).';
+	'Build the string with a template literal, not `+` across lines: a long or multi-line one is a `dedent` template (core contract/dedent.ts).';
 
 const unwrap = (e: Node): Node =>
 	e.type === 'ParenthesizedExpression' || e.type === 'TSAsExpression'
@@ -727,7 +729,7 @@ const no_string_concat = {
  * conversion proves its bytes the same.
  */
 const MESSAGE_DEDENT =
-	'Write text of several lines as its lines, in one `dedent` template (core compiler/dedent.ts; `dedent.inline` for one line written as a block).';
+	'Write text of several lines as its lines, in one `dedent` template (core contract/dedent.ts; `dedent.inline` for one line written as a block).';
 
 /** How many `\n` escapes a literal's source text holds (an escaped backslash before `n` is not one). */
 function newline_escapes(raw: string): number {
@@ -779,10 +781,12 @@ function dedent_source(file: string): string | null {
 	const core = f.indexOf('/packages/core/');
 	if (core !== -1) {
 		const from = path.posix.dirname(f);
-		const to = `${f.slice(0, core)}/packages/core/src/compiler/dedent.ts`;
+		const to = `${f.slice(0, core)}/packages/core/src/contract/dedent.ts`;
 		const rel = path.posix.relative(from, to);
 		return rel.startsWith('.') ? rel : `./${rel}`;
 	}
+	// (the compiler reaches core only through its contract: ogygia/compiler-boundary)
+	if (f.includes('/packages/compiler/')) return '@ogygia/core/contract';
 	if (/\/packages\/(machine|tooling|config|tsdown-plugin-svelte)\//.test(f)) return null;
 	if (f.endsWith('/packages/cli/src/cli.ts')) return null;
 	// (a package that reaches core: its package.json names @ogygia/core or ogygia)
@@ -1002,14 +1006,119 @@ const prefer_dedent = {
 	}
 };
 
+/**
+ * `ogygia/one-hash` (#484): a content hash is core's `contract/hash.ts` (`id64` for identity, where a
+ * collision serves the wrong thing; `bucket32` for spreading). The FNV-1a offset basis anywhere else
+ * is a copy, and says why it must be one with `// hash: <why>` on its line or the line before (a
+ * seeded hash, one over bytes, a client island's own copy).
+ */
+const FNV_BASIS = 0x811c9dc5;
+const MESSAGE_HASH =
+	"An FNV-1a copy: use id64 / bucket32 from core's contract/hash.ts, or say why this must be its own with `// hash: <why>`.";
+
+const one_hash = {
+	meta: {
+		type: 'problem',
+		docs: { description: 'One content hash implementation: contract/hash.ts.' }
+	},
+	create(context: Context) {
+		const file = (context.filename ?? context.getFilename?.() ?? '').replaceAll('\\', '/');
+		if (!in_source(context) || file.endsWith('packages/core/src/contract/hash.ts')) return {};
+		const found: Node[] = [];
+		return {
+			Literal(node: Node) {
+				if ((node as { value?: unknown }).value === FNV_BASIS) found.push(node);
+			},
+			'Program:exit'() {
+				if (!found.length) return;
+				const comments =
+					(
+						context as { sourceCode?: { getAllComments?: () => Comment[] } }
+					).sourceCode?.getAllComments?.() ?? [];
+				const marked = new Set<number>();
+				for (const c of comments) if (/^\s*hash:\s*\S/.test(c.value)) marked.add(c.loc.start.line);
+				for (const n of found) {
+					const line = (n as Located).loc.start.line;
+					if (!marked.has(line) && !marked.has(line - 1))
+						context.report({ node: n, message: MESSAGE_HASH });
+				}
+			}
+		};
+	}
+};
+
+// ── ogygia/compiler-boundary ──────────────────────────────────────────────
+// `@ogygia/compiler` uses core only through `@ogygia/core/contract` (what both share, and core's
+// own files by path); core never uses the compiler. Package source only: tests may reach across.
+
+const PACKAGE_SRC = /(^|\/)packages\/(core|compiler)\/src\//;
+/** Core, by either name: `@ogygia/core`, `ogygia`, or a subpath. */
+const CORE_SPEC = /^(@ogygia\/core|ogygia)(\/|$)/;
+/** The compiler: its package, or the `ogygia` subpaths that re-export it. */
+const COMPILER_SPEC = /^(@ogygia\/compiler(\/|$)|ogygia\/(vite|internal\/compiler(-ids)?)$)/;
+const COMPILER_MAY_USE = '@ogygia/core/contract';
+const MESSAGE_CORE_USES_COMPILER =
+	'Core imports the compiler. Move what both need into core’s contract/ (#488, #513).';
+const MESSAGE_COMPILER_USES_CORE =
+	'The compiler imports core outside `@ogygia/core/contract`. Move what both need into core’s contract/ (#488, #513).';
+const MESSAGE_LEAVES_PACKAGE =
+	'A relative import leaves its package. Import the other package by name (#513).';
+
+/** Whether relative `spec` from `file` (inside `packages/<pkg>/src/`) leaves `packages/<pkg>/`. */
+function leaves_package(file: string, pkg: string, spec: string): boolean {
+	if (!spec.startsWith('.')) return false;
+	const parts = file.slice(0, file.lastIndexOf('/')).split('/');
+	for (const seg of spec.split('/')) {
+		if (seg === '.' || seg === '') continue;
+		if (seg === '..') parts.pop();
+		else parts.push(seg);
+	}
+	return !`${parts.join('/')}/`.includes(`/packages/${pkg}/`);
+}
+
+const compiler_boundary = {
+	meta: {
+		type: 'problem',
+		docs: { description: 'The compiler uses core only through its contract; core never uses it.' }
+	},
+	create(context: Context) {
+		const file = (context.filename ?? context.getFilename?.() ?? '').replaceAll('\\', '/');
+		const m = PACKAGE_SRC.exec(file);
+		if (!m) return {};
+		const pkg = m[2];
+		const check = (node: Node, source: unknown) => {
+			const value = (source as { value?: unknown } | null)?.value;
+			if (typeof value !== 'string') return;
+			if (leaves_package(file, pkg, value))
+				context.report({ node, message: MESSAGE_LEAVES_PACKAGE });
+			else if (pkg === 'core' && COMPILER_SPEC.test(value))
+				context.report({ node, message: MESSAGE_CORE_USES_COMPILER });
+			else if (pkg === 'compiler' && CORE_SPEC.test(value) && value !== COMPILER_MAY_USE)
+				context.report({ node, message: MESSAGE_COMPILER_USES_CORE });
+		};
+		return {
+			ImportDeclaration: (node: Node) => check(node, node.source),
+			ExportNamedDeclaration: (node: Node) => check(node, node.source),
+			ExportAllDeclaration: (node: Node) => check(node, node.source),
+			ImportExpression: (node: Node) => check(node, node.source),
+			TSImportType: (node: Node) => {
+				const arg = node.argument as Node | undefined;
+				check(node, (arg as { literal?: unknown } | undefined)?.literal ?? arg);
+			}
+		};
+	}
+};
+
 export default {
 	meta: { name: 'ogygia' },
 	rules: {
+		'one-hash': one_hash,
 		'no-promise-cache': no_promise_cache,
 		'owned-effects': owned_effects,
 		'no-silent-failures': no_silent_failures,
 		'stale-whole': stale_whole,
 		'no-string-concat': no_string_concat,
-		'prefer-dedent': prefer_dedent
+		'prefer-dedent': prefer_dedent,
+		'compiler-boundary': compiler_boundary
 	}
 };

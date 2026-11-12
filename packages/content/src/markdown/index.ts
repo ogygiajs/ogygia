@@ -16,8 +16,8 @@
 
 import type { MdsvexOptions } from 'mdsvex';
 import type { PreprocessorGroup, Processed } from 'svelte/compiler';
-import { BuildCache, content_css_key } from '@ogygia/core/internal/compiler-browser';
-import { flights, STALE } from '@ogygia/machine';
+import { BuildCache, content_css_key } from '@ogygia/compiler';
+import { flights, scope, STALE } from '@ogygia/machine';
 import { bridge } from '../bridge.ts';
 import { RegionStore } from '../region-store.ts';
 import { remarkHeadingId } from './remark-heading-id.ts';
@@ -48,8 +48,6 @@ export { diff_markers } from './diff.ts';
 export { inline_markers } from './inline-markers.ts';
 export type { InlineMarkerOptions } from './inline-markers.ts';
 export type { Fence, MetaParser, VariantGenerator, Variant } from './code.ts';
-// the `code` / `md` macros, for an in-browser compiler (the Observatory) — the plugin's own pair
-export { snippet_macros, type SnippetMacro } from '../macros/snippets.ts';
 
 // ── regexes
 const BACKSLASH_G = /\\/g;
@@ -303,8 +301,10 @@ function register_island_scanner(
 			}
 		};
 		walk(join(root, 'src'));
-		// Fresh each scan (dev re-scan / build) — a stale file must not keep emitting CSS.
-		bridge.contentModules.clear();
+		// Fresh each scan (dev re-scan / build) — a stale file must not keep emitting CSS: the scan
+		// before this one ends, and its modules with it.
+		bridge.contentScan?.close();
+		const this_scan = (bridge.contentScan = scope());
 		for (const file of files) {
 			const raw = readFile(file);
 			if (raw == null) continue;
@@ -317,7 +317,7 @@ function register_island_scanner(
 			// stylesheet: record its post-mdsvex source, and the build emits that CSS as one client
 			// asset keyed by content_css_key (every module bakes `__ogygia_css`, so the two agree).
 			if (res && typeof (res as { code?: unknown }).code === 'string')
-				bridge.contentModules.set(file, (res as { code: string }).code);
+				bridge.contentModules.add([file, (res as { code: string }).code], this_scan);
 		}
 	};
 }

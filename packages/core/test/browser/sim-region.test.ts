@@ -20,7 +20,7 @@ import { observe } from '@ogygia/machine';
 import { _reset, ticket, write } from '../../src/runtime/frame-store.ts';
 import { frameAddress } from '../../src/frame.ts';
 import { KEEP_FALLBACK_HTML } from '../../src/keep-fallback-marker.ts';
-import { dedent } from '../../src/compiler/dedent.ts';
+import { dedent } from '../../src/contract/dedent.ts';
 import {
 	COUNTER,
 	LABEL,
@@ -281,6 +281,11 @@ describe('one region element, simulated', () => {
 				let last: 'static' | 'interactive' | null = null;
 				let newest = 0;
 				let tick_n = 0;
+				/** Ticks reach their region in order (Svelte runs the effects in order), each some time
+				 *  after it was decoded: a write at the address may land in between. */
+				let ticks: Promise<unknown> = Promise.resolve();
+				const reach = (apply: () => Promise<void>) =>
+					(ticks = ticks.then(() => sim.later('the tick reaches its region')).then(apply));
 
 				r.runtime();
 				r.at_rest(el);
@@ -314,26 +319,40 @@ describe('one region element, simulated', () => {
 							if (s.kind === 'write') {
 								// (an out-of-band write: a static region shows it, an interactive one does not)
 								const n = ++tick_n;
-								if (last === 'static') newest = n;
+								newest = n;
 								write({ a, v: ticket(a), html: `<p data-tick="${n}">static ${n}</p>` });
 								return;
 							}
 							if (!el.isConnected) return;
 							const n = ++tick_n;
 							if (s.kind === 'static') {
-								last = 'static';
 								newest = n;
 								const html = `<p data-tick="${n}">static ${n}</p>`;
-								write({ a, v: ticket(a), html });
-								return el.applyLive({ id: 'sim-live', module: '', props: {}, html, url: LIVE_URL });
+								// as the app's transport does: the tick's value is decoded (its HTML written
+								// at its address), and its region applies it later
+								const written = ticket(a);
+								write({ a, v: written, html });
+								return reach(() => {
+									last = 'static';
+									return el.applyLive({
+										id: 'sim-live',
+										module: '',
+										props: {},
+										html,
+										url: LIVE_URL,
+										written: { v: written }
+									});
+								});
 							}
-							last = 'interactive';
-							return el.applyLive({
-								id: 'sim-live',
-								module: s.kind === 'label' ? LABEL : PROBE,
-								props: { text: 'one' },
-								html: label_html(),
-								hydrate: 'load'
+							return reach(() => {
+								last = 'interactive';
+								return el.applyLive({
+									id: 'sim-live',
+									module: s.kind === 'label' ? LABEL : PROBE,
+									props: { text: 'one' },
+									html: label_html(),
+									hydrate: 'load'
+								});
 							});
 						}
 					])

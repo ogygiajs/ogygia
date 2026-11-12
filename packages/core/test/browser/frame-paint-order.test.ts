@@ -4,7 +4,7 @@
 // the newer one paints, and the older one, its wait over, never paints over it.
 import { afterEach, expect, test } from 'vitest';
 import { bootDev } from '../../src/runtime/full.ts';
-import { _reset, ticket, write } from '../../src/runtime/frame-store.ts';
+import { _reset, stamp, write } from '../../src/runtime/frame-store.ts';
 import { frameAddress } from '../../src/frame.ts';
 
 /** A sheet that arrives in 300 ms; each test its own (a module loads once per page). */
@@ -41,7 +41,7 @@ test('a static live region: an older tick waiting on its sheet does not paint ov
 	// tick 1 needs a sheet still on its way; tick 2 (through the store: a query.live tick) needs none
 	void live(`${slow_sheet('live')}<p data-tick>1</p>`);
 	const a = frameAddress(url);
-	write({ a, v: ticket(a), html: '<p data-tick>2</p>' });
+	write({ a, v: stamp(), html: '<p data-tick>2</p>' });
 	await expect.poll(() => text(el), { timeout: 2_000 }).toBe('2');
 	await tick(600); // tick 1's sheet has come
 	expect(text(el), 'the newest tick stands').toBe('2');
@@ -51,14 +51,14 @@ test('a hole: an older frame waiting on its sheet does not paint over a newer on
 	const endpoint = '/__ogygia__?id=holepaint001&props=W3t9XQ&exp=9999999999&sig=stub';
 	const a = frameAddress(endpoint);
 	// its first answer is in the store already: the hole binds and paints it, no fetch
-	write({ a, v: ticket(a), html: '<p data-tick>0</p>' });
+	write({ a, v: stamp(), html: '<p data-tick>0</p>' });
 	document.body.innerHTML = `<ogygia-region render="defer" when="load" endpoint="${endpoint}"><p>fallback</p></ogygia-region>`;
 	const el = document.querySelector('ogygia-region')!;
 	bootDev();
 	await expect.poll(() => text(el), { timeout: 2_000 }).toBe('0');
 	// two refreshes at its address: the older one links a sheet still on its way
-	write({ a, v: ticket(a), html: `${slow_sheet('hole')}<p data-tick>1</p>` });
-	write({ a, v: ticket(a), html: '<p data-tick>2</p>' });
+	write({ a, v: stamp(), html: `${slow_sheet('hole')}<p data-tick>1</p>` });
+	write({ a, v: stamp(), html: '<p data-tick>2</p>' });
 	await expect.poll(() => text(el), { timeout: 2_000 }).toBe('2');
 	await tick(600);
 	expect(text(el), 'the newest frame stands').toBe('2');

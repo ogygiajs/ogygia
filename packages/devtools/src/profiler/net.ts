@@ -296,40 +296,39 @@ function emit(call: NetCall): void {
 // nothing more is.
 const KEEP_ONE = 1024 * 1024;
 const KEEP_ALL = 8 * 1024 * 1024;
-let keep_bodies = false;
-let kept_bytes = 0;
-const kept = new Map<string, { status: number; headers: [string, string][]; body: Uint8Array }>();
-/** each GET's FIRST answer in the recording too: against the last, what changed between renders */
-const kept_first = new Map<string, Uint8Array>();
-
-/** The recordings keeping answers now, and the ones still reading what was kept (a recording stops
- *  keeping after its timed renders, and reads them in its keep-the-answers renders after). Each
- *  recording turns only its own on and off: one that ends never stops or drops another's. */
-const keepers = new Set<object>();
-const readers = new Set<object>();
-
-function clear_kept(): void {
-	kept.clear();
-	kept_first.clear();
-	kept_bytes = 0;
+/** The kept answers, owned by the recordings that read them: made by the first to start keeping,
+ *  gone with the last that reads them. */
+class KeptAnswers {
+	bytes = 0;
+	answers = new Map<string, { status: number; headers: [string, string][]; body: Uint8Array }>();
+	/** each GET's FIRST answer in the recording too: against the last, what changed between renders */
+	first = new Map<string, Uint8Array>();
+	/** The recordings keeping answers now, and the ones still reading what was kept (a recording stops
+	 *  keeping after its timed renders, and reads them in its keep-the-answers renders after). Each
+	 *  recording turns only its own on and off: one that ends never stops or drops another's. */
+	keepers = new Set<object>();
+	readers = new Set<object>();
 }
+let kept: KeptAnswers | null = null;
 
-/** `owner` starts (the first recording to start clears what was kept) or stops keeping answers */
+/** Some recording keeps answers now. */
+const keeping = (): boolean => kept !== null && kept.keepers.size > 0;
+
+/** `owner` starts (the first recording to start begins with nothing kept) or stops keeping answers */
 export function keep_answers(owner: object, on: boolean): void {
 	if (on) {
-		if (readers.size === 0) clear_kept();
-		keepers.add(owner);
-		readers.add(owner);
-	} else keepers.delete(owner);
-	keep_bodies = keepers.size > 0;
+		kept ??= new KeptAnswers();
+		kept.keepers.add(owner);
+		kept.readers.add(owner);
+	} else kept?.keepers.delete(owner);
 }
 
 /** `owner` is done with the kept answers: dropped once no recording reads them */
 export function drop_answers(owner: object): void {
-	keepers.delete(owner);
-	readers.delete(owner);
-	keep_bodies = keepers.size > 0;
-	if (readers.size === 0) clear_kept();
+	if (kept === null) return;
+	kept.keepers.delete(owner);
+	kept.readers.delete(owner);
+	if (kept.readers.size === 0) kept = null;
 }
 
 /**
@@ -340,8 +339,8 @@ export function drop_answers(owner: object): void {
 export function answer_diff(
 	key: string
 ): { bytes: number; size: number; text: string } | undefined {
-	const a = kept_first.get(key);
-	const b = kept.get(key)?.body;
+	const a = kept?.first.get(key);
+	const b = kept?.answers.get(key)?.body;
 	if (!a || !b) return undefined;
 	let pre = 0;
 	const min = Math.min(a.length, b.length);
@@ -359,7 +358,7 @@ export function answer_diff(
 
 /** a kept answer as a fresh Response, or undefined */
 export function kept_answer(key: string): Response | undefined {
-	const k = kept.get(key);
+	const k = kept?.answers.get(key);
 	if (!k) return undefined;
 	return new Response(k.body.slice(), { status: k.status, headers: k.headers });
 }
@@ -704,7 +703,7 @@ function count_decoded(res: Response, call: NetCall, owner: Scope | undefined): 
 	if (!stream) return;
 	// (never an answer for someone: a call that carried a cookie or an authorization)
 	const keep =
-		keep_bodies && !call.personal && call.method === 'GET' && res.status >= 200 && res.status < 300;
+		keeping() && !call.personal && call.method === 'GET' && res.status >= 200 && res.status < 300;
 	const status = res.status;
 	void (async () => {
 		try {
@@ -714,7 +713,7 @@ function count_decoded(res: Response, call: NetCall, owner: Scope | undefined): 
 			let parts: Uint8Array[] | null = keep ? [] : null;
 			// a fingerprint of the body (FNV-1a over its first BODY_HASH_MAX bytes, and its length):
 			// the same GET answering the same bytes in every render is an answer to cache across requests
-			let h = 0x811c9dc5;
+			let h = 0x811c9dc5; // hash: over a body's bytes as they stream, not a string
 			for (;;) {
 				const { done, value } = await reader.read();
 				if (done) break;
@@ -730,10 +729,12 @@ function count_decoded(res: Response, call: NetCall, owner: Scope | undefined): 
 			}
 			call.bytes = total;
 			call.body_hash = `${(h >>> 0).toString(16)}:${total}`;
-			if (parts && keep_bodies) {
+			// (the recordings keeping now, read once the body is in: one that ended meanwhile kept nothing)
+			const k = kept;
+			if (parts && k !== null && k.keepers.size > 0) {
 				const key = `GET ${call.url}`;
-				const before = kept.get(key)?.body.byteLength ?? 0;
-				if (kept_bytes - before + total <= KEEP_ALL) {
+				const before = k.answers.get(key)?.body.byteLength ?? 0;
+				if (k.bytes - before + total <= KEEP_ALL) {
 					const body = new Uint8Array(total);
 					let at = 0;
 					for (const p of parts) {
@@ -746,11 +747,11 @@ function count_decoded(res: Response, call: NetCall, owner: Scope | undefined): 
 						if (k !== 'content-encoding' && k !== 'content-length' && k !== 'transfer-encoding')
 							headers.push([k, v]);
 					});
-					kept.set(key, { status, headers, body });
-					kept_bytes += total - before;
-					if (!kept_first.has(key) && kept_bytes + total <= KEEP_ALL) {
-						kept_first.set(key, body);
-						kept_bytes += total;
+					k.answers.set(key, { status, headers, body });
+					k.bytes += total - before;
+					if (!k.first.has(key) && k.bytes + total <= KEEP_ALL) {
+						k.first.set(key, body);
+						k.bytes += total;
 					}
 				}
 			}

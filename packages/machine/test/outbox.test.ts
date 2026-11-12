@@ -421,6 +421,24 @@ describe('policy', () => {
 		expect(policy({ deadline: Infinity }).deadline).toBe(Infinity);
 	});
 
+	it('a run that answered leaves no timer behind, not even its deadline’s', async () => {
+		vi.useFakeTimers();
+		try {
+			const p = policy({ attempts: 1, deadline: 60_000 });
+			expect(await under_policy(p, () => 'ok')).toBe('ok');
+			expect(vi.getTimerCount()).toBe(0);
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it('takes the longest wait a timer can hold, and no longer', () => {
+		const most = 2_147_483_647;
+		expect(policy({ backoff: most }).backoff).toBe(most);
+		expect(policy({ deadline: most }).deadline).toBe(most);
+		expect(() => policy({ backoff: most + 1 })).toThrow(/backoff/);
+	});
+
 	it('a list backs off by its entries (the last repeats); a number doubles', () => {
 		const list = policy({ backoff: [200, 1000], jitter: 0 });
 		expect([1, 2, 3, 4].map((n) => backoffAfter(list, n))).toEqual([200, 1000, 1000, 1000]);

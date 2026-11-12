@@ -7,6 +7,7 @@
  * the caller decides when it may go out.
  */
 import { KEEP_FALLBACK_HTML } from '../keep-fallback-marker.ts';
+import { warn } from '../messages/lazy.ts';
 import {
 	capability_expired,
 	deny_of,
@@ -14,8 +15,10 @@ import {
 	is_document_answer,
 	is_redirected_answer,
 	is_same_origin_response,
+	RegionAnswerLater,
 	RegionAnswerRefused,
-	renewal_url
+	renewal_url,
+	retry_after_ms
 } from './region-endpoint-url.ts';
 
 export type HoleFetch = {
@@ -30,6 +33,11 @@ export type HoleFetch = {
 
 /** A hole's fetch: its request started ({@link start_hole}), its answer read ({@link read_hole}). */
 export async function fetch_hole(endpoint: string, opts: HoleFetch = {}): Promise<string> {
+	// (HOLE-TRUST: nothing goes out to another origin, whoever asks: the element, its warm, preload())
+	if (!is_allowed_region_endpoint(endpoint)) {
+		if (import.meta.env.DEV) warn('region_endpoint_foreign', { endpoint });
+		throw new Error('foreign region endpoint');
+	}
 	return read_hole(endpoint, start_hole(endpoint, opts), opts);
 }
 
@@ -73,6 +81,8 @@ export async function read_hole(
 	// A refused capability is deterministic (its key, its MAC, its id): no retry would differ.
 	if (res.status === 403)
 		throw new RegionAnswerRefused('forbidden', res.url || endpoint, deny_of(res, endpoint));
+	// the visitor's budget is spent: ask again when it says, not inside its window (#959)
+	if (res.status === 429) throw new RegionAnswerLater(retry_after_ms(res), res.url || endpoint);
 	if (!res.ok) throw new Error(`status ${res.status}`);
 	// 204: the hole said keepFallback() — the page's fallback stands, nothing to swap.
 	if (res.status === 204) return KEEP_FALLBACK_HTML;

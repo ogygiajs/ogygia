@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { analyze_session, session_timeline } from '@ogygia/core/insights';
+import { analyze_session, session_timeline } from '@ogygia/insights';
 import type { SessionData } from '../src/devtools/session.ts';
 import { dedent } from '@ogygia/core/plugin/utils';
 
@@ -16,7 +16,7 @@ const base = (over: Partial<SessionData> = {}): SessionData => ({
 	clicks: [],
 	errors: [],
 	heap: null,
-	events: [],
+	hooks: [],
 	cpu: null,
 	cpu_off: 'unsupported',
 	page: '/x',
@@ -29,16 +29,13 @@ const codes = (r: ReturnType<typeof analyze_session>) => r.findings.map((f) => f
 
 describe('analyze_session', () => {
 	it("a failed island is one finding (hydrate-failed), not also ogygia's own console log of it", () => {
-		const failed = {
-			name: 'region.hydrate.failed',
+		const failed: SessionData['hooks'][number] = {
+			hook: 'regionFailed',
+			at: 10,
 			fp: 'a',
 			message: 'boom\n\tin X.svelte',
-			seq: 1,
-			t: 10,
-			v: 1,
-			realm: 'client',
-			domain: 'runtime'
-		} as unknown as SessionData['events'][number];
+			since: 5
+		};
 		const log = {
 			t: 11,
 			message: dedent`
@@ -49,7 +46,7 @@ describe('analyze_session', () => {
 				`
 		};
 		const own = { t: 12, message: 'TypeError: nope\n    at f (a.js:1)' };
-		const r = analyze_session(base({ events: [failed], errors: [log, own] }), names, 'http://x/x');
+		const r = analyze_session(base({ hooks: [failed], errors: [log, own] }), names, 'http://x/x');
 		expect(r.findings.find((f) => f.code === 'hydrate-failed')?.message).toContain(
 			'Slow failed to hydrate: boom'
 		);

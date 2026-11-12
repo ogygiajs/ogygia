@@ -16,13 +16,8 @@
 	 */
 	import { onMount } from 'svelte';
 	import { scope } from '@ogygia/machine';
-	import {
-		all_regions,
-		region_info,
-		latest_event,
-		region_name,
-		region_transitive
-	} from './regions.ts';
+	import { snapshot } from '@ogygia/core/events';
+	import { all_regions, region_info, region_name, region_transitive } from './regions.ts';
 
 	let {
 		overlay = false,
@@ -109,11 +104,12 @@
 	const tip = $derived.by(() => {
 		if (!hover) return null;
 		const info = region_info(hover.el);
+		const events = snapshot();
 		const rendered = info.fp
-			? latest_event((ev) => ev.name === 'server.region.rendered' && ev.fp === info.fp)
+			? (events.findLast((ev) => ev.name === 'server.region.rendered' && ev.fp === info.fp) ?? null)
 			: null;
 		const hyd = info.fp
-			? latest_event((ev) => ev.name === 'region.hydrate.done' && ev.fp === info.fp)
+			? (events.findLast((ev) => ev.name === 'region.hydrate.done' && ev.fp === info.fp) ?? null)
 			: null;
 		const t = info.kind === 'island' ? region_transitive(info.entry) : null;
 		return {

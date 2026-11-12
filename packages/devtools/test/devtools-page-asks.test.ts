@@ -9,6 +9,7 @@ import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { afterEach, expect, it } from 'vitest';
 import { prebundled_packages, vary_of } from '../src/devtools/page.ts';
+import { record_realm } from '../src/devtools/hook-record.ts';
 
 let server: Server | null = null;
 afterEach(async () => {
@@ -62,6 +63,11 @@ it("the dev server's pre-bundled packages are asked again after a failed ask", a
 		body: JSON.stringify({ optimized: { svelte: {}, '@scope/pkg/sub': {} } })
 	}));
 	const scripts = [`${s.origin}/node_modules/.vite/deps/svelte.js?v=1`];
+	// (the dev server's realm: only it has pre-bundled packages)
+	record_realm({
+		dev: true,
+		lend: async () => ({ region_names: undefined, props_sidecar_of: () => null })
+	});
 	expect(prebundled_packages(scripts)).toBe(null); // asked: the connection is refused
 	await new Promise((r) => setTimeout(r, 200));
 	await s.start();

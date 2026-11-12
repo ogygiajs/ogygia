@@ -10,8 +10,9 @@ import type { CapabilityOpened, PluginCapabilities } from './index.ts';
 import { expiry_refusal } from '../server/shared-cache.ts';
 import type { CapabilityLifetime } from '../server/capability-lifetime.ts';
 
-/** Why a plugin capability is refused (the region endpoint's reasons of the same name). */
-export type CapabilityDeny = 'expired' | 'renew-window' | 'sig';
+/** Why a plugin capability is refused (the region endpoint's reasons of the same name).
+ *  `foreign-key`: it names another signing key than this deployment's (#1007). */
+export type CapabilityDeny = 'expired' | 'renew-window' | 'foreign-key' | 'sig';
 
 /** What the handle hands in: the app's key, its hole lifetime, and the refusal a region request
  *  gets. (Handed in, never imported: this module stays free of the app's virtual modules, so the
@@ -19,6 +20,8 @@ export type CapabilityDeny = 'expired' | 'renew-window' | 'sig';
 export interface CapabilitySigner {
 	sign(message: string): string;
 	verify(message: string, signature: string): boolean;
+	/** The key's fingerprint, as a region capability carries it (`&k=`, server/signing-key.ts). */
+	fingerprint(): string;
 	lifetime: CapabilityLifetime;
 	deny(why: CapabilityDeny): Response;
 }
@@ -30,15 +33,20 @@ export function plugin_capabilities(name: string, signer: CapabilitySigner): Plu
 		// a plugin capability seals no session, so it is the anonymous hole of the lifetime rule
 		mint(message) {
 			const exp = String(lifetime.mint_expiry(''));
-			return { exp, sig: signer.sign(scoped(message(exp))) };
+			// (the key it names, as a region capability's `&k=`: another deployment can say so)
+			return { exp, sig: signer.sign(scoped(message(exp))), k: signer.fingerprint() };
 		},
 		open(url, message): CapabilityOpened {
 			const params = url.searchParams;
 			const exp = params.get('exp') ?? '';
 			const renewal = params.get('renew') === '1';
-			const now = Math.floor(Date.now() / 1000);
+			const now = Math.floor(Date.now() / 1000); // wall: against the capability's signed epoch expiry
 			const refused = expiry_refusal(exp, now, renewal, lifetime.renew_window);
 			if (refused) return { ok: false, response: signer.deny(refused) };
+			// (one minted before capabilities named their key carries none: left to the MAC)
+			const k = params.get('k');
+			if (k !== null && k !== signer.fingerprint())
+				return { ok: false, response: signer.deny('foreign-key') };
 			if (!signer.verify(scoped(message(exp)), params.get('sig') ?? ''))
 				return { ok: false, response: signer.deny('sig') };
 			if (!renewal) return { ok: true, headers: {} };

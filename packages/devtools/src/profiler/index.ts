@@ -4,8 +4,8 @@
  *
  *     ogygia({ profiler: true })          // or { profiler: { secret, path, … } }
  *
- * `ogygia.handle()` reads that config (through the `virtual:ogygia/profiler-config`
- * module) and dynamically imports + mounts this internally, so hooks.server.ts stays
+ * `ogygia.handle()` reads that config (through the plugins' server halves,
+ * `ogygia:server/server-plugins`) and dynamically imports + mounts this internally, so hooks.server.ts stays
  * a plain `sequence(...)`. This module is NOT a public entry point — it is reached
  * only through the handle's lazy import.
  *
@@ -74,6 +74,8 @@ import {
 
 /** Set on the login page's URL when a login just succeeded and the session still did not arrive. */
 const LOGIN_FAILED_PARAM = 'session';
+/** A region entry's id prefix on the dev server (core's ids.ts `islandVirtualId`). */
+const REGION_ENTRY_ID = 'ogygia:region/entry/';
 import {
 	derive_findings,
 	island_rows_of,
@@ -104,8 +106,9 @@ import {
 	type PageAssets,
 	type Weight,
 	type AssetRef
-} from '@ogygia/core/insights';
-import { BEACON_STANDALONE_TAG } from './beacon-standalone.ts';
+} from '@ogygia/insights';
+import { BEACON_STANDALONE_TAG } from './beacon-tag.ts';
+import { is_document_request } from '../document-request.ts';
 import { build_river, load_return_keys, seed_key_bytes, type River } from './river.ts';
 import { SinkBuffer, type SinkRow } from './sink.ts';
 import {
@@ -146,7 +149,7 @@ import { fnv1a32 } from '@ogygia/core/plugin/utils';
 import { mark_personal } from '@ogygia/core/internal/server';
 import { attr_sites, doc_diff } from './doc-diff.ts';
 import { almost_same_document_pattern } from './patterns.ts';
-import { hydration_hazards } from '@ogygia/core/insights';
+import { hydration_hazards } from '@ogygia/insights';
 import type { IslandHazard } from './report.ts';
 import {
 	constant_work,
@@ -227,35 +230,40 @@ import {
 	vitals_moved,
 	type Since
 } from './compare.ts';
-import { engine_of, vital_parts, type PageInput } from '@ogygia/core/insights';
+import { engine_of, vital_parts, type ChunkBarrel, type PageInput } from '@ogygia/insights';
 import { label_call, phase_of_frame } from './timeline.ts';
 import { gzip_large } from './compress.ts';
 import { io_kind, mark_left_each_run } from './async-io.ts';
 import {
 	current_request_scope,
-	hole_stats_of,
 	request_scope,
-	request_stats_of,
-	set_batch_hole_listener,
-	hold_request_stats_detail,
 	type BatchHoleStats
 } from '@ogygia/core/internal/server';
 import {
-	chunkBarrels,
-	chunkContents,
-	chunkDuplicates,
-	chunkHeavy,
-	islandHazards,
-	islandPageKeys,
-	islandPageWhy
-} from 'virtual:ogygia/island-deps';
+	hole_stats_of,
+	install_request_stats,
+	request_stats_of,
+	set_batch_hole_listener,
+	hold_request_stats_detail
+} from './request-stats.ts';
+import {
+	chunk_barrels,
+	chunk_contents,
+	chunk_duplicates,
+	chunk_heavy,
+	region_hazards,
+	region_page_keys,
+	region_page_why
+} from 'ogygia:server';
 import { set_span_recorder, type SpanAttrs, type SpanRecord, type SpanRecorder } from './span.ts';
+import type { WindowIds } from './window-id.ts';
 import {
 	flights,
 	lock,
 	machine,
 	outbox,
 	policy,
+	registry,
 	scope,
 	STALE,
 	type Flights,
@@ -485,7 +493,7 @@ export interface StoredReport {
 	/** what is inside each of those chunks (the build's handoff), for the same hrefs */
 	contents?: Record<string, string[]>;
 	heavy?: Record<string, { total: number; top: { name: string; bytes: number }[] }>;
-	barrels?: Record<string, { name: string; fanout: number }[]>;
+	barrels?: Record<string, ChunkBarrel[]>;
 	/** each island entry's lines that draw differently in the browser (its own `.svelte` sources) */
 	hazards?: Record<string, IslandHazard[]>;
 	/** browser hydration timings carried by an uploaded dump (a live report joins the ring instead) */
@@ -1001,18 +1009,19 @@ function trap_state(loop: Loop): TrapStatus['state'] {
 /** The span recorders of the windows recording now, newest last. Spans go to the newest; a window
  *  that ends hands them back to the one before it, never to nothing while another still records
  *  (two profilers in one dev process). */
-const span_windows: SpanRecorder[] = [];
+const span_windows = registry<SpanRecorder>();
 
-function own_spans(r: SpanRecorder): void {
-	span_windows.push(r);
+/** The window's recorder takes the spans while `owner` (the window) is open; returns the hand-back,
+ *  which the window's end also does. */
+function own_spans(r: SpanRecorder, owner: Scope): () => void {
+	const gone = span_windows.add(r, owner);
 	set_span_recorder(r);
-}
-
-function disown_spans(r: SpanRecorder): void {
-	const at = span_windows.lastIndexOf(r);
-	if (at === -1) return;
-	span_windows.splice(at, 1);
-	set_span_recorder(span_windows.length > 0 ? span_windows[span_windows.length - 1] : null);
+	return () => {
+		gone();
+		let newest: SpanRecorder | null = null;
+		for (const w of span_windows) newest = w;
+		set_span_recorder(newest);
+	};
 }
 /** the heap's fill (of its limit) past which no timed render is made: one more could end the process */
 const HEAP_STOP = 0.85;
@@ -1028,6 +1037,7 @@ type DevIslandKeys = {
 };
 
 /** the main thread's work in a render: the code on the sampled stacks and the collector's pauses */
+// static: a fixed list of frame categories
 const MAIN_THREAD_CPU: ReadonlySet<string> = new Set([
 	'app',
 	'component',
@@ -1304,8 +1314,12 @@ class Profiler {
 		// recording — sampling the process twice, and windows of two recorder locks overlapping
 		// (request-stats' detail is counted for that). An older one's timers stand down at their next tick.
 		(globalThis as Record<symbol, unknown>)[LIVE_PROFILER] = this;
-		// the holes a batch request renders land after the request is logged: each joins the log as it lands
-		if (!this.#disabled) set_batch_hole_listener((request, s) => this.#batch_hole(request, s));
+		if (!this.#disabled) {
+			// a live profiler is what the handle's stats are for, with the plugin or without it (#805)
+			install_request_stats();
+			// the holes a batch request renders land after the request is logged: each joins the log as it lands
+			set_batch_hole_listener((request, s) => this.#batch_hole(request, s));
+		}
 	}
 
 	/** Logged requests by their Request (a batch's holes find their request here), and the holes that
@@ -1830,7 +1844,7 @@ class Profiler {
 		// capture the calling stack of each outbound I/O call for the duration of
 		// the window (off otherwise — it costs a stack per call)
 		if (!opts.light) netmod?.set_stack_capture(owner, true);
-		own_spans(window_spans);
+		const disown_spans = own_spans(window_spans, sampling);
 		try {
 			await session.post('Profiler.enable');
 			await session.post('Profiler.setSamplingInterval', { interval: interval_us });
@@ -1971,7 +1985,7 @@ class Profiler {
 		} finally {
 			sampling.close();
 			histogram.disable();
-			disown_spans(window_spans);
+			disown_spans();
 			span_als.disable(); // the recording's own nesting store: gone with the window
 			release_detail();
 			netmod?.set_stack_capture(owner, false);
@@ -2178,7 +2192,8 @@ class Profiler {
 				// markup is not its source text: the chunk line stays), not generated code
 				(chunk, line) => {
 					const id = this.#module_find(chunk, line);
-					if (!id || id.startsWith('\0') || id.startsWith('virtual:')) return undefined;
+					if (!id || id.startsWith('\0') || id.startsWith('virtual:') || id.startsWith('ogygia:'))
+						return undefined;
 					if (id.startsWith('src/')) {
 						if (!SCRIPT_MODULE_EXTS.some((e) => id.endsWith(e))) return undefined;
 						return { source: path.resolve(process.cwd(), id), text: true };
@@ -2540,7 +2555,7 @@ class Profiler {
 		let heavy:
 			| Record<string, { total: number; top: { name: string; bytes: number }[] }>
 			| undefined;
-		let barrels: Record<string, { name: string; fanout: number }[]> | undefined;
+		let barrels: Record<string, ChunkBarrel[]> | undefined;
 		let hazards: Record<string, IslandHazard[]> | undefined;
 		if (fetch_url && !this.dev) {
 			const urls: string[] = [];
@@ -2549,11 +2564,11 @@ class Profiler {
 			// the readable source list behind each hashed chunk (the build's handoff), and its
 			// heaviest modules with their rendered bytes
 			for (const u of new Set(urls)) {
-				const inside = chunkContents(u);
+				const inside = chunk_contents(u);
 				if (inside?.length) (contents ??= {})[u] = inside;
-				const h = chunkHeavy(u);
+				const h = chunk_heavy(u);
 				if (h?.top.length) (heavy ??= {})[u] = h;
-				const b = chunkBarrels(u);
+				const b = chunk_barrels(u);
 				if (b?.length) (barrels ??= {})[u] = b;
 			}
 			// WHAT DRAWS DIFFERENTLY IN THE BROWSER: each island's own components — the lines a mismatch
@@ -2561,7 +2576,7 @@ class Profiler {
 			// rendering). The build scanned them (the site kit's too); an older build's handoff has
 			// none, and the app's `.svelte` files in its chunks are read and scanned here instead
 			for (const r of island_rows_of(meta)) {
-				const built = islandHazards(r.entry);
+				const built = region_hazards(r.entry);
 				if (built?.length) (hazards ??= {})[r.entry] = built;
 			}
 			if (contents) {
@@ -3156,7 +3171,7 @@ class Profiler {
 			if (dev) keys = dev.keys === 'all' ? null : (dev.keys ?? []);
 			else
 				try {
-					keys = islandPageKeys(r.entry);
+					keys = region_page_keys(r.entry);
 				} catch {
 					keys = null;
 				}
@@ -3919,16 +3934,16 @@ class Profiler {
 	/** A reader of app sources at report time (a file relative to `src/` or the cwd, or absolute);
 	 *  undefined where there is no file system, or when the file is not on this machine. */
 	/** THE DEV SERVER: which page.data keys an island's code reads, from the plugin's run of the build's
-	 *  analysis (vite/dev-maps.ts), by the island id in its entry (`…/virtual:ogygia/island/<id>.js`).
+	 *  analysis (vite/dev-maps.ts), by the region id in its entry (`…/ogygia:region/entry/<id>.js`).
 	 *  Undefined off the dev server or when the plugin cannot say */
 	async #dev_island_keys(entry: string): Promise<DevIslandKeys | undefined> {
 		if (!this.dev) return undefined;
 		const ask = (globalThis as Record<symbol, unknown>)[
 			Symbol.for('ogygia.profiler.dev-page-keys')
 		] as ((iid: string) => Promise<DevIslandKeys | undefined>) | undefined;
-		const at = entry.indexOf('virtual:ogygia/island/');
+		const at = entry.indexOf(REGION_ENTRY_ID);
 		if (!ask || at === -1) return undefined;
-		const rest = entry.slice(at + 'virtual:ogygia/island/'.length);
+		const rest = entry.slice(at + REGION_ENTRY_ID.length);
 		const dot = rest.indexOf('.');
 		try {
 			return await ask(dot === -1 ? rest : rest.slice(0, dot));
@@ -4102,7 +4117,7 @@ class Profiler {
 				if (seed_stats.whole_by.includes(name)) keys.push('*');
 			} else {
 				try {
-					keys = islandPageKeys(r.entry);
+					keys = region_page_keys(r.entry);
 				} catch {
 					keys = undefined;
 				}
@@ -4143,7 +4158,7 @@ class Profiler {
 				// helper it imports, a shared component), with the line — that is the line to fix
 				if (!whole_line) {
 					const whys = [
-						...(islandPageWhy(r.entry) ?? []),
+						...(region_page_why(r.entry) ?? []),
 						// (the dev server's answer names absolute files)
 						...(dev?.why ?? []).map((w) => ({ ...w, file: app_relative(w.file) ?? w.file }))
 					];
@@ -4554,22 +4569,25 @@ class Profiler {
 	// every instance writes such a request to the shared store (its visit rows, under the window's own
 	// key) BEFORE it answers — a frozen instance never finishes a write after; and stop, on whichever
 	// instance, gathers them. The CPU profile stays the starting instance's: sampling is per process.
-	async #window_sign(nonce: string): Promise<string> {
-		const { createHmac } = await import('node:crypto');
-		return createHmac('sha256', this.secret || 'ogygia-dev-window')
-			.update(`window:${nonce}`)
-			.digest('hex')
-			.slice(0, 20);
+	// (the ids are a capability, ./window-id.ts: a production profiler with no secret has none)
+	readonly #window_ids = flights({
+		name: 'profiler window ids',
+		run: () =>
+			import('./window-id.ts').then((m) =>
+				m.window_ids(this.secret, this.dev, `profiler:${this.base}`)
+			)
+	});
+	async #ids(): Promise<WindowIds | null> {
+		const ids = await this.#window_ids.get();
+		// (never dropped, so never STALE; if it were, no ids: a window id is refused, never trusted)
+		return ids === STALE ? null : ids;
 	}
 
-	/** A window id from a request, when its signature holds; else null. */
+	/** A window id from a request, when it checks; else null. */
 	async #window_id_of(request: Request): Promise<string | null> {
 		const raw = request.headers.get(WINDOW_HEADER);
-		if (!raw || raw.length > 80) return null;
-		const dot = raw.indexOf('.');
-		if (dot <= 0) return null;
-		const nonce = raw.slice(0, dot);
-		return (await this.#window_sign(nonce)) === raw.slice(dot + 1) ? raw : null;
+		if (!raw) return null;
+		return (await this.#ids())?.check(raw) ?? null;
 	}
 
 	/** A request in a window: written to the store, awaited (see above). */
@@ -4637,8 +4655,10 @@ class Profiler {
 		// a BACKGROUND window (the trap, the always-on sampler) holding the recorder is short: wait
 		// for it (as a page profile does); another page profile is the real conflict
 		await this.#wait_for_background();
-		const nonce = Math.random().toString(36).slice(2, 12) + Date.now().toString(36);
-		const id = `${nonce}.${await this.#window_sign(nonce)}`;
+		const ids = await this.#ids();
+		if (ids === null)
+			return busy('A window needs the profiler’s secret: set OGYGIA_PROFILER_SECRET.');
+		const id = ids.mint();
 		// (a window started meanwhile holds the recorder: this take fails)
 		const token = this.#take('background');
 		if (token === null) return busy('Another recording holds the recorder. Try again in a moment.');
@@ -5527,7 +5547,7 @@ class Profiler {
 								try {
 									const path = new URL(u).pathname;
 									const rel = app_asset_rel(path);
-									return chunkContents(rel ? `/${rel}` : path);
+									return chunk_contents(rel ? `/${rel}` : path);
 								} catch {
 									return null;
 								}
@@ -6220,7 +6240,7 @@ class Profiler {
 						.at(-1)
 				: undefined;
 		// (the modules the build shipped twice: the report names the ones this page loads both copies of)
-		const dupes = chunkDuplicates();
+		const dupes = chunk_duplicates();
 		return {
 			...(visit ? { visit } : {}),
 			...(other_screen_visit ? { other_screen_visit } : {}),
@@ -6421,7 +6441,7 @@ class Profiler {
 			// the handoff keys chunks by their served path; a rewritten local file still carries it
 			const rel = app_asset_rel(path);
 			if (rel) path = `/${rel}`;
-			const inside = chunkContents(path);
+			const inside = chunk_contents(path);
 			if (inside) {
 				if (inside.every((s) => s === 'svelte runtime')) return 'svelte';
 				// a chunk with none of the app's own files in it (runtimes, packages) is a dependency,
@@ -6450,7 +6470,7 @@ class Profiler {
 			const rel = app_asset_rel(p);
 			return rel ? `/${rel}` : p;
 		};
-		const renamer = chunk_component_renamer((p) => chunkContents(served(p)));
+		const renamer = chunk_component_renamer((p) => chunk_contents(served(p)));
 		const run = (p: CpuProfile) => analyze(p, resolver, undefined, undefined, renamer, url_hint);
 		// AN INTERACTION'S TRACE: only its two spans are read, and the load's analysis stays as it was
 		if (interaction) {
@@ -6722,20 +6742,12 @@ class Profiler {
 		if (!this.ui_enabled) return null;
 		// (never in the profiler's own renders: they ask as a page navigation, and the tag is not the page's)
 		if (event.request.headers.get('x-og-profiler-internal') === '1') return null;
-		const dest = event.request.headers.get('sec-fetch-dest');
-		if (
-			dest
-				? dest !== 'document'
-				: !(event.request.headers.get('accept') ?? '').includes('text/html')
-		)
-			return null;
+		if (!is_document_request(event.request)) return null;
 		if (!this.dev) {
 			const key = event.request.headers.get('x-profiler-key');
 			if (key ? !(await this.#key_matches(key)) : event.cookies.get('og_profiler_beacon') !== '1')
 				return null;
 		}
-		// (with the standalone beacon for a page that never boots the ogygia runtime: a Kit-hydrated
-		// page reports its vitals, long tasks and CPU too — it steps aside when the runtime is there)
 		return `<meta name="${BEACON_META}" content="${this.base}/beacon">${BEACON_STANDALONE_TAG}`;
 	}
 

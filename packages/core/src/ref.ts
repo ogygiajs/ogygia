@@ -88,6 +88,64 @@ interface HubRegistry {
 	scope_disposers: Map<Scope, Set<() => void>>;
 	/** continuity name → owning code tag (collision guard: one name, one kind of thing). */
 	keep_owner: Map<string, string>;
+	/** The names of the render minting now (the server's request; `null` on the client and off a
+	 *  request). Installed by hooks.ts. */
+	names: (() => RefNames | null) | null;
+}
+
+/**
+ * THE NAMES OF ONE RENDER. A stateful ref's id has two parts: the render's FENCE, random and the
+ * same for every ref one server request mints, and its PLACE, the order the request first minted
+ * that instance in. The fence keeps two answers that land in one tab (a page and a hole, a stored
+ * page and the holes stitched into it) from ever sharing an id; the place is what stays the same
+ * from one render of a page to the next, so identity across renders (an island's fingerprint, and
+ * everything keyed on it) reads the place alone ({@link placed}). One instance gets one name per
+ * request, however many props or context keys carry it.
+ */
+export interface RefNames {
+	/** live instance → its name in this render */
+	readonly ids: WeakMap<object, string>;
+	/** the render's fence: the head of every name it mints */
+	readonly fence: string;
+	/** the next place */
+	next: number;
+}
+
+/** A fresh render's names. */
+export function ref_names(): RefNames {
+	return { ids: new WeakMap(), fence: mint_id().replaceAll('-', '').slice(0, 16), next: 0 };
+}
+
+/** Install the reader of the render minting now (hooks.ts: one {@link RefNames} per request). */
+export function set_ref_names_reader(fn: (() => RefNames | null) | null): void {
+	registry().names = fn;
+}
+
+/**
+ * Run `fn` minting with LOCAL names: no fence, places counted from 0 in the order `fn` first mints
+ * each instance. What `fn` writes then names its refs the same way in any render, on either leg
+ * (a hole's identity, server/props-wire.ts `hole_identity`). The render's own names come back after.
+ */
+export function with_local_names<T>(fn: () => T): T {
+	const reg = registry();
+	const outer = reg.names;
+	const local: RefNames = { ids: new WeakMap(), fence: '', next: 0 };
+	reg.names = () => local;
+	try {
+		return fn();
+	} finally {
+		reg.names = outer;
+	}
+}
+
+/**
+ * `text` with the minting render's ref ids in place form, fence dropped: what a render of the same
+ * thing writes every time. Text from a render with no names (the client, off a request) is
+ * returned as it is.
+ */
+export function placed(text: string): string {
+	const fence = registry().names?.()?.fence;
+	return fence !== undefined && text.includes(fence) ? text.replaceAll(fence, '') : text;
 }
 
 import { emit as dt_emit } from './events/bus.ts';
@@ -113,7 +171,8 @@ function registry(): HubRegistry {
 		]),
 		instance_kind: new WeakMap(),
 		scope_disposers: new Map(),
-		keep_owner: new Map()
+		keep_owner: new Map(),
+		names: null
 	});
 }
 
@@ -136,7 +195,8 @@ function mint_id(): string {
  * Mint: live value → Ref, or undefined to fall through to devalue's normal handling.
  * `only` restricts the dispatch to named kinds — a seam may deliberately exclude a family
  * (the drop-in context path excludes snippets so a stray function THROWS instead of being
- * silently mis-read as one). Same instance → same id, always.
+ * silently mis-read as one). Same instance → same id, for the whole render (a server request) or
+ * the tab (the client).
  */
 export function mint(value: unknown, only?: ReadonlySet<string>): Ref | undefined {
 	if (value === null || (typeof value !== 'object' && typeof value !== 'function'))
@@ -146,11 +206,16 @@ export function mint(value: unknown, only?: ReadonlySet<string>): Ref | undefine
 		if (only && !only.has(kind.k)) continue;
 		if (!kind.match(value)) continue;
 		const { t, d } = kind.encode(value as object);
-		let i = reg.ids.get(value as object);
+		// (a server request names its instances itself: fence + place, see RefNames)
+		const names = reg.names?.() ?? null;
+		const ids = names === null ? reg.ids : names.ids;
+		let i = ids.get(value as object);
 		if (i === undefined) {
 			// (a stateless kind names it by its content: the same on every render)
-			i = kind.stable_id?.(d) ?? mint_id();
-			reg.ids.set(value as object, i);
+			i =
+				kind.stable_id?.(d) ??
+				(names === null ? mint_id() : `${names.fence}~${(names.next++).toString(36)}`);
+			ids.set(value as object, i);
 		}
 		const ref: Ref = { k: kind.k, i, d };
 		if (t !== undefined) ref.t = t;

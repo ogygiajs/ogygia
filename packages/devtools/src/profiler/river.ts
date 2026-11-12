@@ -343,6 +343,7 @@ export function seed_key_bytes(seed_json: string): Record<string, number> {
 /** devalue's typed arrays: `["Date", "…"]`, `["Map", i, j…]`, `["Set", i…]`, `["Object", i]`,
  *  `["RegExp", …]`, `["BigInt", …]`, `["null"]` — the first element names the type, the rest are
  *  indices for the container kinds and plain values for the others */
+// static: a fixed list of devalue's container kinds
 const DEVALUE_CONTAINERS = new Set(['Map', 'Set', 'Object', 'Array']);
 
 function devalue_key_bytes(nodes: unknown[]): Record<string, number> {

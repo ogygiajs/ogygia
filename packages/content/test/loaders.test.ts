@@ -1,4 +1,5 @@
 import { describe, expect, it, afterEach } from 'vitest';
+import { dedent } from '@ogygia/core/plugin/utils';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -16,8 +17,7 @@ import {
 	expand_braces,
 	loader_patterns
 } from '../src/macros/loaders.ts';
-import { __set_build_cache_root } from '@ogygia/core/internal/compiler-browser';
-import { dedent } from '@ogygia/core/plugin/utils';
+import { __set_build_cache_root } from '@ogygia/compiler';
 
 describe('parse_git_spec', () => {
 	it('owner/repo → default ref HEAD, empty sub', () => {

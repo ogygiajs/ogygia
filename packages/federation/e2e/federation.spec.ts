@@ -3,7 +3,7 @@
 // as a REGION (static baked + deferred hole), the signed endpoint gate, the unsigned __catalog
 // manifest, and cross-app THAW notices over HTTP. Design: internal/notes/federation.md.
 import { createPrivateKey, createHash, randomBytes, sign as ed_sign } from 'node:crypto';
-import { test, expect } from './mfe.ts';
+import { test, expect, BUILT } from './mfe.ts';
 
 /** Sign a request exactly like `federation/wire.ts` `sign_headers` (ts.METHOD.pathq.bhash.claims.aud.nonce). */
 function sign_headers(
@@ -46,7 +46,32 @@ test.describe('fragment federation v2', () => {
 		);
 		expect(html).toContain('data-testid="dash-fragment"');
 		// the anonymous static render is eligible for postrender (dev teaches with the verdict header)
-		expect(res.headers.get('x-ogygia-postrender')).toBe('would-store');
+		if (!BUILT) expect(res.headers.get('x-ogygia-postrender')).toBe('would-store');
+	});
+
+	test('a static widget whose peer answers an error status shows its card; the page renders (#931)', async ({
+		page,
+		mfe
+	}) => {
+		const res = await page.goto(`${mfe.origin('shell')}/widget-down`);
+		expect(res?.status()).toBe(200);
+		await expect(
+			page.getByTestId('retired-dash').locator('[data-og-fragment-failed]')
+		).toBeVisible();
+		await expect(page.getByTestId('still-here')).toBeVisible();
+		await expect(page.getByTestId('static-dash').locator('h2')).toHaveText('Dashboard · acme');
+		// (a production build prints the code's link alone, so the code is what is looked for)
+		expect(mfe.logs.shell.join('')).toContain('federation_peer_answer_invalid');
+	});
+
+	test('a DEFERRED remote widget loads in the browser, in place of its placeholder', async ({
+		page,
+		mfe
+	}) => {
+		await page.goto(`${mfe.origin('shell')}/`);
+		const deferred = page.getByTestId('deferred-dash');
+		await expect(deferred.locator('h2')).toHaveText('Dashboard · live-inc', { timeout: 30_000 });
+		await expect(deferred.getByTestId('deferred-loading')).toHaveCount(0);
 	});
 
 	test('a DEFERRED remote widget is a shell-signed hole the browser fetches', async ({ mfe }) => {

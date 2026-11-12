@@ -10,7 +10,9 @@
 		"ogygia/no-silent-failures": "error",
 		"ogygia/stale-whole": "error",
 		"ogygia/no-string-concat": "error",
-		"ogygia/prefer-dedent": "error"
+		"ogygia/prefer-dedent": "error",
+		"ogygia/one-hash": "error",
+		"ogygia/compiler-boundary": "error"
 	},
 	"overrides": [
 		{

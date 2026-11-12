@@ -11,6 +11,7 @@ import type { SpanRecord } from './span.ts';
 
 // ── sync I/O ─────────────────────────────────────────────────────────────────────────────────
 
+// static: a fixed list of calls
 const SYNC_IO = new Set([
 	'readFileSync',
 	'writeFileSync',
@@ -105,6 +106,7 @@ export interface MemoCandidate {
 
 const GLUE_RE = /^(?:\(anonymous\)|\$\.|get |set |render|children|slot|each_|if_|await_)/;
 /** request handlers and loads run once per request by design: not candidates */
+// static: a fixed list of function names
 const HANDLER_NAMES = new Set([
 	'load',
 	'handle',

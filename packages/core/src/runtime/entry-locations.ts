@@ -10,11 +10,12 @@
  * is known, else the identity (on the dev server, the module itself; in a build, a name, no file).
  */
 import { import_file } from './import-again.ts';
-import { backoffAfter, flights, scope, STALE } from '@ogygia/machine';
+import { backoffAfter, cache, flights, scope, STALE } from '@ogygia/machine';
 import { rollover } from '../policies.ts';
 
-/** absolute identity → absolute location */
-const locations = new Map<string, string>();
+/** absolute identity → absolute location: the islands of the pages this document has seen (a build
+ *  names a few hundred; the least recently read go first past this, and are found again) */
+const locations = cache<string, string>({ name: 'entry locations', max: 10_000 });
 
 /** A load that fell back to its identity: who hears about it (the runtime registers the devtools
  *  and beacon reporter at boot). This module imports nothing: app code (a portable snippet) uses it
@@ -26,8 +27,8 @@ export function on_entry_fallback(reporter: (report: EntryFallbackReport) => voi
 }
 
 /** Resolved URLs by base + url: every wake, warm and graph read asks again for the same few
- *  entries, and each ask was a `new URL()` parse (bounded: cleared past a few thousand). */
-const resolved_urls = new Map<string, string>();
+ *  entries, and each ask was a `new URL()` parse (the least recently asked go first). */
+const resolved_urls = cache<string, string>({ name: 'resolved entry urls', max: 4000 });
 
 function absolute(url: string, base?: string): string {
 	const b = base ?? location.href;
@@ -40,7 +41,6 @@ function absolute(url: string, base?: string): string {
 	} catch {
 		out = url;
 	}
-	if (resolved_urls.size > 4000) resolved_urls.clear();
 	resolved_urls.set(key, out);
 	return out;
 }

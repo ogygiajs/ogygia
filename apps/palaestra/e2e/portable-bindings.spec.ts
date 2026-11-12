@@ -11,7 +11,7 @@ import {
 	regionIdentity,
 	regionId,
 	CLIENT_BINDING_STUB
-} from '../../../packages/core/dist/compiler/region/transform.js';
+} from '../../../packages/compiler/dist/compiler/region/transform.js';
 import { test, check } from '@ogygia/tooling/e2e';
 import { WRAPPER_VIRTUAL_RE } from '@ogygia/tooling/e2e/re.ts';
 import { dedent } from 'ogygia/plugin/utils';
@@ -19,12 +19,12 @@ import { dedent } from 'ogygia/plugin/utils';
 const repo = fileURLToPath(new URL('../../..', import.meta.url));
 
 // transform-level probes
-const REWRITE_A_RE = /import A from "virtual:ogygia\/region\//;
+const REWRITE_A_RE = /import A from "ogygia:region\/binding\//;
 const STATIC_TAG_ERROR_RE = /never used as a static/;
 const HYDRATE_VISIBLE_RE = /__hydrate: "visible"/;
 const HYDRATE_LOAD_RE = /__hydrate: "load"/;
-const REWRITE_RAWX_RE = /import RawX from "virtual:ogygia\/region\//;
-const REWRITE_WAKEX_RE = /import WakeX from "virtual:ogygia\/region\//;
+const REWRITE_RAWX_RE = /import RawX from "ogygia:region\/binding\//;
+const REWRITE_WAKEX_RE = /import WakeX from "ogygia:region\/binding\//;
 // browser probes
 const GREETING_RE = /loading greeting|Portable/i;
 // build-output probes
@@ -42,7 +42,7 @@ const KIT_NODE_RE = /"\/kit":\[(\d+)/g;
 // static/dynamic IMPORT of an island or wrapper module (dual ownership), so match import
 // syntax, not bare mentions of the filename.
 const ISLAND_IMPORT_RE =
-	/(?:from\s*|import\s*\(?\s*)["'][^"']*og-region\.|virtual:ogygia\/(?:wrapper|island)\//;
+	/(?:from\s*|import\s*\(?\s*)["'][^"']*og-region\.|ogygia:region\/(?:wrapper|entry)\//;
 const PORTABLE_NODE_RE = /"\/\(spa\)\/portable":\[(\d+)/g;
 const OG_REGION_HASH_RE = /og-region\.([0-9a-f]+)\.js/;
 
@@ -53,10 +53,9 @@ const make_ctx = () => ({
 	root: ROOT,
 	libDir: '/app/src/lib',
 	readFile: () => null,
-	pathModule: path,
 	dev: false,
-	virtualPathFor: (_h: string, iid: string) => `virtual:ogygia/island/${iid}.js`,
-	wrapperPathFor: (_h: string, iid: string) => `virtual:ogygia/wrapper/${iid}.svelte`,
+	virtualPathFor: (_h: string, iid: string) => `ogygia:region/entry/${iid}.js`,
+	wrapperPathFor: (_h: string, iid: string) => `ogygia:region/wrapper/${iid}.svelte`,
 	devUrlFor: (p: string) => `/@id/${p}`,
 	visibleMargin: '0px',
 	presets: {}
@@ -95,7 +94,7 @@ const list = [{ Comp: A, props: { n: 1 } }, { Comp: B, props: { n: 2 } }];
 		);
 		check(
 			'transform: shared entry virtual path',
-			r!.islands[0].virtualPath === `virtual:ogygia/island/${id}.js`
+			r!.islands[0].virtualPath === `ogygia:region/entry/${id}.js`
 		);
 		check(
 			'transform: dynamic Comp + each allowed (no static-tag error)',

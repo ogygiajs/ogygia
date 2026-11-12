@@ -29,7 +29,10 @@ export type MachineErrors = {
 	machine_outbox_gave_up: Entry<{ name: string }>;
 	machine_stage_step_failed: Entry<{ name: string }>;
 	machine_mailbox_handler_failed: Entry<Record<string, never>>;
+	machine_evict_failed: Entry<{ name: string; why: string }>;
 	machine_flight_raise_failed: Entry<{ name: string }>;
+	machine_queue_start_failed: Entry<{ name: string }>;
+	machine_queue_stale_failed: Entry<{ name: string }>;
 };
 
 /** The errors: thrown in dev (and tests), where a wrong move is a bug to fix now. */
@@ -71,7 +74,7 @@ Either add the target to the state in \`steps\`, or fix the code that moved it.`
 		text: (a: { option: string; value: string; rule: string }): string =>
 			`machine: \`${a.option}\` must be ${a.rule} (got ${a.value}).`,
 		details: (): string =>
-			`An option was given a value it cannot take. \`retries\` counts tries: a whole number of 0 or more. A flights \`keep\` is milliseconds: 0 or more, \`Infinity\` for as long as the flights lives. A flights \`max\` is the most weight it keeps: more than 0. A \`say()\` \`max\` is the most keys it remembers: a whole number, 1 or more.`
+			`An option was given a value it cannot take. \`retries\` counts tries: a whole number of 0 or more. A flights \`keep\` is milliseconds: 0 or more, \`Infinity\` for until \`max\` lets it go. A flights or cache \`max\` is the most weight it keeps: a finite number more than 0 (a cache with no bound is refused). A \`say()\` \`max\` is the most keys it remembers: a whole number, 1 or more.`
 	},
 	machine_bad_time: {
 		text: (a: { where: string; ms: string }): string =>
@@ -146,6 +149,12 @@ Give the outbox a \`giveUp\` to say it in your own words, or to keep the work so
 
 A handler that runs at once (posted to an idle box) throws to its poster instead, and one posted with \`ask()\` rejects its asker's promise. Catch inside the handler to handle it there.`
 	},
+	machine_evict_failed: {
+		text: (a: { name: string; why: string }): string =>
+			`${a.name}: an eviction notice (${a.why}) threw.`,
+		details: (): string =>
+			`A \`cache()\`'s \`onEvict\` threw while it heard a value leave. The value had already left: the cache goes on, and the notices after it still run. Its error follows this message. Catch inside \`onEvict\` when a cleanup can fail.`
+	},
 	machine_flight_raise_failed: {
 		text: (a: { name: string }): string =>
 			`flights ${a.name}: a run's \`onRaise\` listener threw when a caller raised its flight.`,
@@ -153,6 +162,22 @@ A handler that runs at once (posted to an idle box) throws to its poster instead
 			`A \`flights()\` run listened for its flight's priority going up (\`flight.onRaise\`), and the listener threw when a caller joined at a higher priority. The caller that joined is not the one at fault, so it is not failed: the error goes to the page's error handler (\`reportError\`: the console and \`window.onerror\`), as an event listener's would. The flight is raised all the same, and its other listeners still hear it.
 
 Catch inside the listener to handle it there.`
+	},
+	machine_queue_start_failed: {
+		text: (a: { name: string }): string =>
+			`queue ${a.name}: a job's \`start\` threw as the drain started it.`,
+		details: (): string =>
+			`A \`queue()\` started a job with its \`start\` option, and it threw. The job is the one at fault, so the drain is not stopped: the error goes to the page's error handler (\`reportError\`: the console and \`window.onerror\`), as a task would, and the jobs after it still start. The job counts as started: release its place when its work is done.
+
+Catch inside \`start\` to handle it there.`
+	},
+	machine_queue_stale_failed: {
+		text: (a: { name: string }): string =>
+			`queue ${a.name}: a job's \`stale\` threw as the job left the queue.`,
+		details: (): string =>
+			`A \`queue()\` told a waiting job it was stale (its deadline came, it was cancelled, or the owner closed) through its \`stale\` option, and it threw. The job is the one at fault, so the queue goes on: the error goes to the page's error handler (\`reportError\`: the console and \`window.onerror\`), and the other waiting jobs still go stale or start, so none waits forever.
+
+Catch inside \`stale\` to handle it there.`
 	}
 };
 
@@ -191,6 +216,11 @@ export class MachineError extends Error {
 /** The error for `code`, worded with its arguments. */
 export function machine_error<C extends keyof Errors>(code: C, a: ArgsOf<C>): MachineError {
 	return new MachineError(code, line(code, a));
+}
+
+/** The error for an option given a value it cannot take (`machine_bad_option`). */
+export function bad_option(option: string, value: unknown, rule: string): MachineError {
+	return machine_error('machine_bad_option', { option, value: String(value), rule });
 }
 
 /** Prints `code` as an error, with the error that caused it after it (a timer or an observer has no

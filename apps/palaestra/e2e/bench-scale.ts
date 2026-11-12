@@ -10,7 +10,7 @@
 //
 // Appends a row to internal/notes/perf-checkpoints.md (## scale).
 // ─────────────────────────────────────────────────────────────────────────────
-import { transformHost } from '../../../packages/core/dist/compiler/region/transform.js';
+import { transformHost } from '../../../packages/compiler/dist/compiler/region/transform.js';
 import { CTX_EXTRA } from './_ctx-extra.ts';
 import { content } from '../../../packages/content/dist/factory.js';
 
@@ -52,10 +52,9 @@ const ctx = {
 	root: '/app',
 	libDir: '/app/src/lib',
 	readFile: () => null,
-	pathModule: path,
 	dev: false,
-	virtualPathFor: (_h: string, iid: string) => `virtual:ogygia/island/${iid}.js`,
-	wrapperPathFor: (_h: string, iid: string) => `virtual:ogygia/wrapper/${iid}.svelte`,
+	virtualPathFor: (_h: string, iid: string) => `ogygia:region/entry/${iid}.js`,
+	wrapperPathFor: (_h: string, iid: string) => `ogygia:region/wrapper/${iid}.svelte`,
 	devUrlFor: (p: string) => `/@id/${p}`,
 	visibleMargin: '0px',
 	presets: {}
