@@ -236,6 +236,15 @@ function declared_names(roots: unknown[]): Set<string> {
 	return out;
 }
 
+/** The tags whose `on…` attributes are event handlers (on a component, `on…` is a prop). */
+const DOM_ELEMENTS = new Set([
+	'RegularElement',
+	'SvelteElement',
+	'SvelteWindow',
+	'SvelteDocument',
+	'SvelteBody'
+]);
+
 /** Directives that take a function by name (`use:x`, `transition:x`, …), with how the message says it. */
 const DIRECTIVE_USE: Record<string, string> = {
 	UseDirective: 'used as an action',
@@ -288,7 +297,10 @@ function misuse_of(node: SvelteNode, ancestors: SvelteNode[]): string | null {
 			if (holder?.type === 'Attribute') {
 				if (Array.isArray(holder.value) && holder.value.length > 1)
 					return 'put in an attribute string';
-				if (/^on/i.test(String(holder.name))) return 'used as an event handler';
+				// an `on…` attribute is an event handler only on an element; on a component it is a prop
+				const element = ancestors[ancestors.length - 3];
+				if (/^on/i.test(String(holder.name)) && DOM_ELEMENTS.has(String(element?.type)))
+					return 'used as an event handler';
 				return null;
 			}
 			return 'rendered as text';
