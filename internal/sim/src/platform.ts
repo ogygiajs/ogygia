@@ -52,11 +52,17 @@ export interface RealmOptions {
 	node?: boolean;
 	/** Whether this realm takes the rare branch `point` now (the world's buggify swarm); none: never. */
 	buggify?: (realm: string, point: string) => boolean;
+	/** Whether the realm's tab is hidden now: its animation frames wait until `shown()`, as a
+	 *  browser runs none in a background tab. None: always shown. */
+	hidden?: () => boolean;
 }
 
 export interface SimPlatform extends Platform {
 	/** The realm's name. */
 	readonly realm: string;
+	/** Its tab is shown again: the animation frames asked for while it was hidden come at the next
+	 *  frame. */
+	readonly shown: () => void;
 	/** Timers and callbacks set and not yet run or cleared. */
 	readonly outstanding: () => number;
 	/** Their trace labels (with `SIM_SITES=1`, each names the code that set it). */
@@ -69,6 +75,7 @@ export function platform(
 ): Pick<
 	SimPlatform,
 	| 'realm'
+	| 'shown'
 	| 'outstanding'
 	| 'pending'
 	| 'setTimeout'
@@ -148,8 +155,23 @@ export function platform(
 	const math = Object.create(Math) as Math;
 	math.random = () => rng.float();
 
+	/** The next frame, `fn`'s (under `id`, a parked frame's own). */
+	const frame = (fn: FrameRequestCallback, id?: number): number => {
+		const since = loop.now - born;
+		const next = (Math.floor(since / FRAME_MS) + 1) * FRAME_MS - since;
+		return arm('frame', next, () => fn(loop.now - born), id);
+	};
+	/** Frames asked for while the tab was hidden, by id, in the order asked. */
+	const parked = new Map<number, FrameRequestCallback>();
+	let first_frame = true;
+
 	return {
 		realm: name,
+		shown: () => {
+			const waiting = [...parked];
+			parked.clear();
+			for (const [id, fn] of waiting) frame(fn, id);
+		},
 		outstanding: () => live.size,
 		pending: () => [...live.values()].map((t) => t.label),
 		setTimeout: (fn, ms) => arm('timeout', ms ?? 0, fn),
@@ -166,11 +188,22 @@ export function platform(
 		clearInterval: clear,
 		queueMicrotask: (fn) => globalThis.queueMicrotask(fn),
 		requestAnimationFrame: (fn) => {
-			const since = loop.now - born;
-			const next = (Math.floor(since / FRAME_MS) + 1) * FRAME_MS - since;
-			return arm('frame', next, () => fn(loop.now - born));
+			// (a hidden tab paints nothing: the frame waits for the tab to be shown. A document's first
+			// frame is the DOM library's own: happy-dom writes the document's content in it, after the
+			// platform is installed, and a hidden tab's page still loads; test/hidden-tab.node.test.ts)
+			const library = first_frame;
+			first_frame = false;
+			if (!library && options.hidden?.()) {
+				const id = ++ids;
+				parked.set(id, fn);
+				return id;
+			}
+			return frame(fn);
 		},
-		cancelAnimationFrame: (id) => clear(id),
+		cancelAnimationFrame: (id) => {
+			parked.delete(id);
+			clear(id);
+		},
 		requestIdleCallback: (fn, opts) => {
 			// a quiet moment comes after the seed's pick of busy time, never past `timeout`
 			const wait = rng.between(1, 50);
