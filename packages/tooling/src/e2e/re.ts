@@ -27,7 +27,7 @@ export const SIG_PARAM_RE = /[?&]sig=/;
 /** A hoisted region stylesheet link (`<link data-ogygia-region-css>`). */
 export const REGION_CSS_LINK_RE = /data-ogygia-region-css/;
 /** A generated wrapper module id. */
-export const WRAPPER_VIRTUAL_RE = /virtual:ogygia\/wrapper\//;
+export const WRAPPER_VIRTUAL_RE = /ogygia:region\/wrapper\//;
 
 /** The runtime bootstrap `<script data-ogygia-runtime>`. */
 export const RUNTIME_SCRIPT_RE = /data-ogygia-runtime/;

@@ -2,7 +2,7 @@
  * THE TRANSPORTABLE CLASSES AN ISLAND NEEDS, loaded before it decodes its props. An `[ogygia.wire]`
  * class revives through its registered codec, and its module registers it when it loads. Every island
  * page used to load every transportable class of the app up front (each island entry imported them
- * all); now the client build carries only a map of lazy loaders (`virtual:ogygia/transportables`), and
+ * all); now the client build carries only a map of lazy loaders (`ogygia:region/transportables`), and
  * an island loads just what it carries:
  * - its props: the server stamped the classes on the props sidecar (`data-og-wire`, tag paths);
  * - the context it reads: the `<ogygia-provide>` payloads around it and the page's context root;
@@ -19,8 +19,8 @@
  * classes: without one the loader map is empty, but the bundler cannot see that through the virtual
  * module, so this code shipped to every island page for a lookup that always found nothing.
  */
-import { flights } from '@ogygia/machine';
-import { wire_loaders, wire_all } from 'virtual:ogygia/transportables';
+import { cache, flights } from '@ogygia/machine';
+import { wire_loaders, wire_all } from 'ogygia:region';
 import { import_again } from './import-again.ts';
 import { props_sidecar_of } from './sidecar.ts';
 import { yield_task } from './schedule.ts';
@@ -32,16 +32,23 @@ export function install(): void {
 	slots.wire_classes = wire_classes_for;
 }
 
-const loaders = wire_loaders as Record<string, () => Promise<unknown>>;
+const loaders = wire_loaders;
 const paths = Object.keys(loaders);
 /** Each class module's loader: what it asks for next (its file, or a fresh URL after a failure). */
-const imports = new Map<string, () => Promise<unknown>>();
+const imports = cache<string, () => Promise<unknown>>({
+	name: 'class module loaders',
+	// (one per class module the build lists: never more)
+	max: Math.max(1, paths.length)
+});
 /** Each class module's load, by path, kept once it succeeds (a failure is never kept). */
 const loads = flights({
 	name: 'wire class',
 	run: (path: string) => {
 		let import_class = imports.get(path);
-		if (!import_class) imports.set(path, (import_class = import_again(loaders[path]!)));
+		if (!import_class) {
+			const [load, file, base] = loaders[path]!;
+			imports.set(path, (import_class = import_again(load, undefined, file, base)));
+		}
 		// (each import starts in a task of its own: every class's preload ran inside the first
 		// island's start)
 		return yield_task().then(import_class);
