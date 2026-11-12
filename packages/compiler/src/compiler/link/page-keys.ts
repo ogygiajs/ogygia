@@ -387,6 +387,20 @@ class Scan {
 				!enclosing_scope(node)
 			)
 				this.#local_fns.set(node.id.name, node.init);
+			// the page leaving through a barrel, or arriving whole from `import()`: whoever reads it
+			// never names `$app/…` (test: page-keys-soundness `re-exported or imported dynamically`)
+			if (
+				(node.type === 'ExportAllDeclaration' ||
+					(node.type === 'ExportNamedDeclaration' &&
+						node.specifiers?.some((s: Node) => spec_name(s.local) === 'page'))) &&
+				PAGE_SPECIFIER_RE.test(String(node.source?.value ?? ''))
+			)
+				throw new All('the page store is re-exported', node.start ?? null);
+			if (
+				node.type === 'ImportExpression' &&
+				PAGE_SPECIFIER_RE.test(static_string(node.source) ?? '')
+			)
+				throw new All('the page store is imported with `import()`', node.start ?? null);
 			if (node.type !== 'ImportDeclaration') return;
 			const specifier = String(node.source?.value ?? '');
 			for (const s of node.specifiers ?? []) {
@@ -780,10 +794,14 @@ function call_name(call: Node): string {
 /** `a.b` → 'b'; `a['b']` → 'b'; `a[expr]` → null. */
 function member_name(m: Node): string | null {
 	if (!m.computed) return m.property?.type === 'Identifier' ? m.property.name : null;
-	const p = m.property;
-	if (p?.type === 'Literal' && typeof p.value === 'string') return p.value;
-	if (p?.type === 'TemplateLiteral' && p.expressions?.length === 0)
-		return p.quasis?.[0]?.value?.cooked ?? null;
+	return static_string(m.property);
+}
+
+/** `'x'` / `` `x` `` → 'x'; anything computed → null. */
+function static_string(n: Node | null | undefined): string | null {
+	if (n?.type === 'Literal' && typeof n.value === 'string') return n.value;
+	if (n?.type === 'TemplateLiteral' && n.expressions?.length === 0)
+		return n.quasis?.[0]?.value?.cooked ?? null;
 	return null;
 }
 

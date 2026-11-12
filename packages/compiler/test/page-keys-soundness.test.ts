@@ -266,9 +266,13 @@ const PASSED_ON = [
 	"export { page as p } from '$app/stores';",
 	"export * from '$app/state';",
 	"export * as app from '$app/state';",
-	"const { page } = await import('$app/state');\nuse(page.data.b);",
+	"const { page } = await import('$app/state'); use(page.data.b);",
 	"import('$app/stores').then((m) => use(m.page));",
-	"import { page } from '$app/state';\nexport { page as p } from '$app/state';\nuse(page.data.a);"
+	dedent`
+		import { page } from '$app/state';
+		export { page as p } from '$app/state';
+		use(page.data.a);
+	`
 ];
 
 describe('the page store re-exported or imported dynamically', () => {
@@ -277,6 +281,8 @@ describe('the page store re-exported or imported dynamically', () => {
 	});
 
 	it('a re-export of another name from the page module answers null', () => {
-		expect(page_data_keys("export { navigating } from '$app/state';", '/x.ts', 'script')).toBe(null);
+		expect(page_data_keys("export { navigating } from '$app/state';", '/x.ts', 'script')).toBe(
+			null
+		);
 	});
 });
