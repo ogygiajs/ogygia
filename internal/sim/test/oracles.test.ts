@@ -859,4 +859,24 @@ describe.skipIf(!built)('oracles on the palaestra build', () => {
 			await world.end();
 		}
 	});
+
+	it('a text made from the time of its render is not state, in a run with no delay fault', async () => {
+		// (two reference loads with no delay fault take the same time, to the ms: a stamp made of
+		// `performance.now()` agreed on both and was never masked. The tab's own load, slower by a
+		// buggified flight or a stall, showed another: palaestra seed 20004, /delta/b's DeltaNav)
+		const world = await World.make({ seed: 2, builds: [{ id: 'v1', output: OUTPUT }] });
+		try {
+			const v = world.visitor('alice');
+			const tab = world.tab(v);
+			await world.go(tab, 'goto', '/delta/b');
+			await world.quiesce();
+			const doc = tab.page.mainFrame.document as unknown as Document;
+			const stamp = doc.querySelector('[data-delta-stamp]')!;
+			// (the same page, rendered a few ms later than a reference load)
+			stamp.textContent = `nav-server-stamp:${Number(stamp.textContent!.split(':')[1]) + 3000}`;
+			expect(await mpa_equivalent(world, v, tab)).toBeNull();
+		} finally {
+			await world.end();
+		}
+	});
 });
