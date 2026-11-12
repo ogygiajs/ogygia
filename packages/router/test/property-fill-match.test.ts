@@ -56,8 +56,19 @@ describe('fill, read back through the URL parser', () => {
 					if (names[1]) values[names[1]] = b;
 					const back = round_trip(p, values);
 					if (back === null) {
-						// refused: only a value the URL parser would drop as a dot segment
-						expect(Object.values(values).some((v) => v === '.' || v === '..')).toBe(true);
+						// refused: only a value the URL parser would drop as a dot segment (a rest value
+						// keeps its `/`, so each of its pieces is a segment of its own, #538)
+						const rest = new Set(
+							compile(p)
+								.params.filter((s) => s.rest)
+								.map((s) => s.name)
+						);
+						const dot = (v: string) => v === '.' || v === '..';
+						expect(
+							Object.entries(values).some(([k, v]) =>
+								rest.has(k) ? v.split('/').some(dot) : dot(v)
+							)
+						).toBe(true);
 						return;
 					}
 					expect(back).toEqual(values);
@@ -75,6 +86,9 @@ describe('fill, read back through the URL parser', () => {
 		expect(() => fill('/x/[a].[b]', { b: '.' })).toThrow(/dot segment/);
 		expect(() => fill('/x/[a][b]', { a: '.', b: '.' })).toThrow(/dot segment/);
 		expect(() => fill('/x/[id].', { id: '' })).toThrow(/dot segment/);
+		// a rest value keeps its `/`, so a dot piece of it is a dot segment
+		expect(() => fill('/f/[...rest]', { rest: 'a/../b' })).toThrow(/dot segment/);
+		expect(fill('/f/[...rest]', { rest: 'a/.b/c' })).toBe('/f/a/.b/c');
 		// a dot inside a segment is kept: the URL parser drops only a whole `.` or `..` segment
 		expect(fill('/d/[id].json', { id: '.' })).toBe('/d/..json');
 		expect(fill('/posts/[id]', { id: '...' })).toBe('/posts/...');
