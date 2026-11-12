@@ -44,10 +44,8 @@
  * pointer reaches an armed island or input lands.
  */
 
-import { flights, registry, STALE, type Scope, type Stale } from '@ogygia/machine';
+import { flights, noop, registry, STALE, type Scope, type Stale } from '@ogygia/machine';
 import { LoadSlot } from './load-scheduler.ts';
-
-const noop = (): void => {};
 import { import_again } from './import-again.ts';
 import { slots } from './slots.ts';
 import { warm_island_module } from './region-endpoint-url.ts';
