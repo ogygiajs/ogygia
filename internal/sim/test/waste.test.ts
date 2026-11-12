@@ -1,7 +1,14 @@
 // The waste oracle (src/waste.ts): it finds an answer asked for twice, a thing a document holds
 // twice and a warning, and lets a page that does its work once pass.
 import { describe, expect, it } from 'vitest';
-import { asked_twice, held_twice, known_waste, refused, warned } from '../src/waste.ts';
+import {
+	asked_twice,
+	asked_twice_each,
+	held_twice,
+	known_waste,
+	refused,
+	warned
+} from '../src/waste.ts';
 import type { World } from '../src/world.ts';
 
 const world = (urls: Array<[string, number | 'dropped']>) =>
@@ -90,6 +97,59 @@ describe('asked twice', () => {
 		expect(asked_twice(at([1000, 62_000], [hole]), 'tab-1#1')).toEqual([]);
 		// (a batch that asks another hole is that hole's)
 		expect(asked_twice(at([1000, 21_000], ['/__ogygia__?id=b&props=x']), 'tab-1#1')).toEqual([]);
+	});
+});
+
+describe('asked twice in every document, up to what first disturbed it', () => {
+	// (a document judged only at the end of a run was nearly always set aside by then: a press, a
+	// deploy or a fault came later, and the frame-store EVICT_TTL mutant's re-ask was never judged)
+	const hole = '/__ogygia__?id=a&props=x';
+	const run = (rows: Array<[string, string, number | 'dropped']>) =>
+		({
+			fired_in: new Map(),
+			skewed_for: () => false,
+			network: {
+				exchanges: rows.map(([from, url, status], i) => ({
+					id: i + 1,
+					from,
+					method: 'GET',
+					url: `https://app.test${url}&exp=${i}&sig=s`,
+					at: i * 1000,
+					status,
+					cut: false,
+					tampered: false,
+					duplicated: false,
+					redirected: false
+				}))
+			}
+		}) as unknown as World;
+	const docs = new Map([
+		['tab-1#1', []],
+		['tab-1#2', []]
+	]);
+
+	it('finds a left document that asked twice before anything disturbed it', () => {
+		const w = run([
+			['tab-1#1', hole, 200],
+			['tab-1#1', hole, 200],
+			['tab-1#1', '/__ogygia__?id=b&props=x', 'dropped'],
+			['tab-1#2', hole, 200]
+		]);
+		expect(asked_twice_each(w, docs, new Map([['tab-1#1', 3]]))?.detail).toBe(
+			`tab-1#1: asked twice: ${hole} ×2`
+		);
+	});
+
+	it('passes asks after a press, a deploy or a fault in that document', () => {
+		const w = run([
+			['tab-1#1', hole, 200],
+			['tab-1#1', '/__ogygia__?id=b&props=x', 'dropped'],
+			['tab-1#1', hole, 200],
+			['tab-1#2', hole, 200],
+			['tab-1#2', hole, 200]
+		]);
+		// (a press in tab-1#2 before its second ask: exchange 4)
+		expect(asked_twice_each(w, docs, new Map([['tab-1#2', 4]]))).toBeNull();
 	});
 });
 
