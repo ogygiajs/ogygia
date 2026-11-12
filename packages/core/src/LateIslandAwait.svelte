@@ -1,16 +1,15 @@
+<!--
+@component
+LateIsland.svelte, for an app that runs Svelte's async mode: the build imports this one in its place
+(vite/late-island.ts). The load is awaited, so the navigation's update batch waits for it and Kit
+keeps the old page until the island's code is in, then swaps the whole new page at once. Without
+async mode this file does not compile, which is why it is never the default. A failed load renders
+nothing, and says `island_load_failed`.
+-->
 <script>
-	/**
-	 * LateIsland.svelte, for an app that runs Svelte's async mode: the build imports this one in its
-	 * place (vite/late-island.ts). The load is awaited, so the navigation's update batch waits for it
-	 * and Kit keeps the old page until the island's code is in — then swaps the whole new page at once
-	 * (an island nested in it awaits in the same batch). Without async mode this file does not compile,
-	 * which is why it is never the default.
-	 */
 	import { OgygiaError } from './messages/island.ts';
 	/** @type {{ load: () => Promise<import('svelte').Component>, props: Record<string, unknown>, children?: import('svelte').Snippet }} */
 	let { load, props, children } = $props();
-	// (a failed load renders nothing, and is said)
-	// one load per island, read once on purpose (as in LateIsland.svelte)
 	// svelte-ignore state_referenced_locally
 	const Component = await load().catch((error) => {
 		console.error(new OgygiaError('island_load_failed', { entry: null }), error);
