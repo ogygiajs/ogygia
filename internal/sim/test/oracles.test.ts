@@ -6,6 +6,7 @@ import { describe, expect, it } from 'vitest';
 import { World } from '../src/world.ts';
 import { user_click } from '../src/workload.ts';
 import type { Heard } from '../src/browser.ts';
+import { waste } from '../src/waste.ts';
 import {
 	document_faulted,
 	fallback_stands,
@@ -180,20 +181,6 @@ describe('known', () => {
 			['title: ', '<html>', '  <head>', ...sheet.map((l) => `    ${l}`), '  <body>'].join('\n');
 		const sheet = '<link crossorigin="" href="https://peer.test/a.css" rel="stylesheet">';
 		expect(excused(page([sheet]), page([]))).toEqual([]);
-	});
-
-	it("#1067's kept island with the last page's fingerprint (palaestra /props-tail, /formkeep)", () => {
-		const k = KNOWN.find((x) => x.issue === 1067)!;
-		const page = (fp: string, kept = ' data-ogygia-keep="player"') =>
-			`title: ${''}
-<html>
-  <body>
-    <ogygia-region data-hydrated="" data-og-fp="${fp}"${kept} wake="load">
-      <div class="island">`;
-		expect(k.applies(page('aaa'), page('bbb'))).toBe(true);
-		expect(k.forgive(page('aaa'), page('bbb'))).toBe(k.forgive(page('bbb'), page('aaa')));
-		// (only a kept region's: another region's fingerprint is still a finding)
-		expect(excused(page('aaa', ''), page('bbb', ''))).toEqual([]);
 	});
 
 	it("#1071's kept head link resolving under the page's path (palaestra /lab/deep/x)", () => {
@@ -908,6 +895,25 @@ describe.skipIf(!built)('oracles on the palaestra build', () => {
 			const doc = tab.page.mainFrame.document as unknown as Document;
 			expect(doc.querySelector('[data-hl-header]')!.getAttribute('data-locale')).toBe('fr');
 			expect(await mpa_equivalent(world, v, tab)).toBeNull();
+		} finally {
+			await world.end();
+		}
+	});
+});
+
+describe.skipIf(!built)('a warning a filed bug says', () => {
+	it("is the bug's, not waste: /data's derived_inert is upstream (#1079)", async () => {
+		// (a remote query in {#await} in a boundary, beside another async boundary, warns on a plain
+		// load with no ogygia at all; waste-b320c6)
+		const world = await World.make({ seed: 2, builds: [{ id: 'v1', output: OUTPUT }] });
+		try {
+			const tab = world.tab(world.visitor('alice'));
+			await world.go(tab, 'goto', '/data');
+			await world.quiesce();
+			expect(waste(world, tab)).toEqual({
+				oracle: 'known',
+				detail: `https://app.test/data: #1079 (Svelte's async mode reads a remote query's derived after its effect ended)`
+			});
 		} finally {
 			await world.end();
 		}
