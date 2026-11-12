@@ -259,6 +259,30 @@ describe('start', () => {
 			said.mockRestore();
 		}
 	});
+
+	it('a start that throws gives its place back: the next job starts in it', () => {
+		const said = vi.spyOn(console, 'error').mockImplementation(() => {});
+		const page = globalThis as { reportError?: (e: unknown) => void };
+		const own = page.reportError;
+		page.reportError = () => {};
+		try {
+			const log: string[] = [];
+			const q = queue<string>({
+				max: 1,
+				start: (job) => {
+					if (job === 'bad') throw new Error('boom');
+					log.push(job);
+				}
+			});
+			q.push('bad');
+			q.push('next');
+			expect(log).toEqual(['next']);
+			expect(q.holding).toBe(1);
+		} finally {
+			page.reportError = own;
+			said.mockRestore();
+		}
+	});
 });
 
 describe('stale', () => {
