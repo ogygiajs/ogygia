@@ -16,6 +16,7 @@
  * A fault is on for a run when its class is in the run's swarm (search.ts picks a random subset per
  * run), and then fires with its probability.
  */
+import { AsyncLocalStorage } from 'node:async_hooks';
 import type { Loop } from './loop.ts';
 import type { Rng } from './rng.ts';
 
@@ -59,6 +60,10 @@ export interface Exchange {
 /** The header the front door puts on each answer: the build that answered it (a cached copy says
  *  it too). Read off the answer the client gets, not a duplicate's thrown away (seed 53). */
 export const ANSWERED_BY = 'x-sim-build';
+
+/** The tab a server is answering, through all its async work: its own hops are on that tab's
+ *  behalf (a calm tab's reference load is calm all the way to a peer). */
+const asked_by = new AsyncLocalStorage<string>();
 
 const RATES: Record<FaultClass, number> = {
 	delay: 1,
@@ -146,6 +151,9 @@ export class Network {
 
 	/** Sends `request` from `realm` to `handler`; the answer comes when the loop says. */
 	send(realm: string, request: Request, handler: Handler): Promise<Response> {
+		// (the tab this request is for: its own, or, for a server's hop, the tab whose request the
+		// server was answering)
+		const behalf = asked_by.getStore() ?? realm.split('#')[0];
 		const ex: Exchange = {
 			id: ++this.#ids,
 			from: realm,
@@ -176,7 +184,9 @@ export class Network {
 			};
 			if (signal?.aborted) return aborted();
 			signal?.addEventListener('abort', aborted, { once: true });
-			const calm = this.#calm.has(realm.split('#')[0]);
+			// (a server's hop made while answering a calm tab is calm too: the reference load's peer
+			// hop was dropped, and its page was the peer's 500; gen 12, seed 60)
+			const calm = this.#calm.has(realm.split('#')[0]) || this.#calm.has(behalf);
 			if (!calm && this.#on('drop')) {
 				ex.status = 'dropped';
 				loop.add('net', `drop ${ex.id}`, this.#latency(), () => fail('connection lost'));
@@ -212,14 +222,17 @@ export class Network {
 				this.#latency(),
 				() => {
 					const copy = dup ? request.clone() : null;
-					void handler(request)
+					void asked_by
+						.run(behalf, () => handler(request))
 						.then(async (response) => {
 							// the duplicate is answered too, and its answer thrown away (as a proxy's retry)
 							if (copy !== null)
-								await handler(copy).then(
-									(r) => r.body?.cancel(),
-									() => {}
-								);
+								await asked_by
+									.run(behalf, () => handler(copy))
+									.then(
+										(r) => r.body?.cancel(),
+										() => {}
+									);
 							if (!lost) ex.status = response.status;
 							ex.build = response.headers.get(ANSWERED_BY) ?? undefined;
 							loop.add('net', `response ${ex.id} ${response.status}`, this.#latency(), () => {
