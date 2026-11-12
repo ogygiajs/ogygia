@@ -2140,8 +2140,9 @@ export interface OgygiaHandleOptions {
  */
 // Also surfaced here so `import * as ogygia from 'ogygia/server'` has `ogygia.transport` — but the
 // actual Kit transport hook must live in the UNIVERSAL hooks (client needs decode), so wire it
-// from `'ogygia'` in src/hooks.ts, not here.
-export { ogygiaTransport as transport } from './transport.ts';
+// from `'ogygia'` in src/hooks.ts, not here. This module is server-only: the server realm's
+// transport, which refuses ogygia values a browser sent (./server/transport.ts).
+export { ogygiaServerTransport as transport } from './server/transport.ts';
 // `document()` — render a held region into a complete ogygia document (a `Response`). Server-only.
 export { document, type DocumentOptions } from './document.ts';
 export function handle(options: OgygiaHandleOptions = {}): Handle {
