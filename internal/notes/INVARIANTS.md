@@ -231,6 +231,21 @@ a kept island’s live query then freezes and its next read throws (#817,
 
 ---
 
+## DEVTOOLS-FEED — the devtools stream takes only this response's own server channel
+
+**What:** On a devtools build, the handle picks one random mark per response (`hooks.ts` `dt_new_mark`), writes it as `data-og-dt` on its `application/ogygia-devtools` side channel and on the head runtime script (`head-presence.ts` `runtime_first`, so every head path stamps it). At boot the client ingests only channels whose mark equals the head runtime script's (`events/sinks.ts` `ingest_server_events`); no mark there means nothing is ingested. Only well-formed server events pass `ingest` (#879).
+
+**Why:** Page markup (a CMS block, an HTML field rendered raw) can carry its own channel with well-formed events. It cannot know a mark made for this response, so the dock, a trace or a sink shows only what the server recorded.
+
+**Do not:**
+
+- Ingest by type alone, or read the mark from anywhere but the head runtime script.
+- Put the mark after the tag's other attributes: a repeated attribute keeps its first value, so leading it beats a mark the markup wrote on the tag.
+
+**Enforced by:** `packages/core/test/browser/devtools-feed-own-render.test.ts` (client), `packages/core/test/head-presence.test.ts` (the mark on every placement).
+
+---
+
 ## Related docs
 
 - Product vocabulary: [`DESIGN.md`](./DESIGN.md)
