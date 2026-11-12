@@ -39,6 +39,7 @@ import { open_ask_scope, read_seed_ask, record_page } from './page-seed-registry
 import { shape_page_data } from './server/seed-shape.ts';
 
 import { escape_text } from './escape.ts';
+import { mark_attr, response_mark } from './server/response-mark.ts';
 import { take_early_holes } from './context.ts';
 import { early_holes_head } from './early-holes-head.ts';
 import { add_early_holes_csp, with_early_holes_meta_csp } from './server/early-holes-csp.ts';
@@ -170,6 +171,10 @@ export async function document(
 	// above recorded their asks. None asked → no island reads the page, nothing ships (a profiler
 	// report page shipped its whole 2.9 MB report here, read by nobody). Outside a request the handle
 	// owns there are no asks to read, and the whole slice ships as before.
+	// RESPONSE-MARK: the request's mark, so a handle writing into this response agrees (outside a
+	// request, the document's own)
+	const store = try_get_request_store() as { event?: { request?: Request } } | undefined;
+	const mark_key: object = store?.event?.request ?? {};
 	const ask = options.pageState ? read_seed_ask() : undefined;
 	if (options.pageState && (!ask || ask.wanted)) {
 		const s = options.pageState;
@@ -192,7 +197,7 @@ export async function document(
 		if (payload) {
 			const format = payload.json ? ` ${WIRE_FORMAT_ATTR}="${WIRE_FORMAT_JSON}"` : '';
 			head.push(
-				`<script type="application/ogygia-page" data-ogygia-page${format}>${payload.text}</script>`
+				`<script type="application/ogygia-page" data-ogygia-page${format}${mark_attr(mark_key)}>${payload.text}</script>`
 			);
 		}
 	}
@@ -203,8 +208,8 @@ export async function document(
 		`<!doctype html>\n<html lang="${escape_text(options.lang ?? 'en')}">` +
 		`<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">` +
 		(early.length
-			? with_early_holes_meta_csp(runtime_first(head.join(''), null))
-			: runtime_first(head.join(''), null)) +
+			? with_early_holes_meta_csp(runtime_first(head.join(''), null, response_mark(mark_key)))
+			: runtime_first(head.join(''), null, response_mark(mark_key))) +
 		`</head><body>${r.body}</body></html>`;
 
 	const headers = new Headers({ 'content-type': 'text/html; charset=utf-8' });

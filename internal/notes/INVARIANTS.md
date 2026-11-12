@@ -225,18 +225,19 @@ instance maps in `prepare_spa_document` (pre-swap).
 
 ---
 
-## DEVTOOLS-FEED — the devtools stream takes only this response's own server channel
+## RESPONSE-MARK — a document's side channels are read only from its own response
 
-**What:** On a devtools build, the handle picks one random mark per response (`hooks.ts` `dt_new_mark`), writes it as `data-og-dt` on its `application/ogygia-devtools` side channel and on the head runtime script (`head-presence.ts` `runtime_first`, so every head path stamps it). At boot the client ingests only channels whose mark equals the head runtime script's (`events/sinks.ts` `ingest_server_events`); no mark there means nothing is ingested. Only well-formed server events pass `ingest` (#879).
+**What:** Every response has one random mark, made on the first ask for its request (`server/response-mark.ts`). It is written as `data-og-mark` on the head runtime script (`head-presence.ts` `runtime_first`, so every head path stamps it, the handle's and `document()`'s) and on every side channel the response writes into the document: the page seed, the remote seed, the page context root, the holes record and the devtools events. The client reads a channel only when it bears the mark of its document's head runtime script (`runtime/response-mark.ts` `server_channel` / `server_channels`, the one door for every document-level channel); no mark there means no channel is read. A navigation keeps the live runtime script, so it takes the next document's mark (`adopt_mark` in `router-nav.ts` `merge_head`). Only well-formed server events pass `ingest` (#879).
 
-**Why:** Page markup (a CMS block, an HTML field rendered raw) can carry its own channel with well-formed events. It cannot know a mark made for this response, so the dock, a trace or a sink shows only what the server recorded.
+**Why:** Page markup (a CMS block, an HTML field rendered raw, a sanitizer that keeps scripts of a type that does not run) can carry a script of any of these types, before or after the server's. It cannot know a mark made for this response, so islands get the server's page data, remote values, context and hole endpoints, and the dock shows only what the server recorded (#881, #893).
 
 **Do not:**
 
-- Ingest by type alone, or read the mark from anywhere but the head runtime script.
+- Read a document-level channel by its type or marker alone, or read the mark from anywhere but the head runtime script.
 - Put the mark after the tag's other attributes: a repeated attribute keeps its first value, so leading it beats a mark the markup wrote on the tag.
+- Write a side channel of a response with another request's mark, or with none.
 
-**Enforced by:** `packages/core/test/browser/devtools-feed-own-render.test.ts` (client), `packages/core/test/head-presence.test.ts` (the mark on every placement).
+**Enforced by:** `packages/core/test/browser/side-channel-seeds.test.ts` (every channel, before and after, a fetched document, an unmarked one), `packages/core/test/browser/devtools-feed-own-render.test.ts` (devtools), `packages/core/test/head-presence.test.ts` (the mark on every placement), `packages/core/test/response-mark.test.ts` (one mark per response, on the holes record).
 
 ---
 

@@ -47,6 +47,7 @@ const KitBoot = { document_has: (doc: ParentNode) => boot_link().KitBoot.documen
 const regions_in_shadow = () => boot_link().regions_in_shadow();
 const release_sheets = (unlisted: readonly Element[]) => boot_link().release_sheets(unlisted);
 const session = () => boot_link().runtime_session;
+const adopt_mark = (next: Document) => boot_link().adopt_mark(next);
 type Scope = import('@ogygia/machine').Scope;
 type Stale = import('@ogygia/machine').Stale;
 type Staging = import('@ogygia/machine').Staging;
@@ -1322,6 +1323,8 @@ function merge_head(new_head: HTMLHeadElement): Element[] {
 			session().claim_page_head(current.appendChild(node.cloneNode(true)));
 		}
 	}
+	// (the kept runtime script takes the next response's mark: RESPONSE-MARK)
+	adopt_mark(new_head.ownerDocument);
 	return unlisted;
 }
 

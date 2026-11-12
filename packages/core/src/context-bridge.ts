@@ -31,6 +31,7 @@ function ensure_ctx_kinds(): void {
 }
 import { boundary_problems } from './boundary.ts';
 import { PAGE_CTX_MARKER, record_ctx, type SetContextOptions } from './context-registry.ts';
+import { boot_link } from './runtime/slots.ts';
 import { escape_script_text } from './escape.ts';
 import { warn } from './messages/island.ts';
 
@@ -187,7 +188,10 @@ function page_ctx(): Record<string, unknown> | undefined {
 		document.addEventListener('og:after-swap', () => (page_ctx_cache = null));
 	}
 	return (page_ctx_cache ??= {
-		value: parse_ctx(document.querySelector(`script[${PAGE_CTX_MARKER}]`)?.textContent)
+		// (the runtime's reader: a page root is the server's only with its response's mark)
+		value: parse_ctx(
+			boot_link().server_channel(document, `script[${PAGE_CTX_MARKER}]`)?.textContent
+		)
 	}).value;
 }
 

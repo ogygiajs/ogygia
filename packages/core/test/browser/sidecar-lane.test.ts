@@ -2,7 +2,8 @@
 // document from before the id existed, by attribute), the JSON lane (`data-og-format="json"` on a
 // sidecar or the seed → `JSON.parse`, nothing else), the csr fact read off `<meta name="ogygia-csr">`
 // before any inline-script probe, and the shared IntersectionObserver.
-import { beforeEach, expect, inject, test } from 'vitest';
+import { afterEach, beforeEach, expect, inject, test } from 'vitest';
+import { mark_live_head } from './_response-mark.ts';
 import { page } from 'vitest/browser';
 import { bootDev } from '../../src/runtime/full.ts';
 import { props_sidecar_of } from '../../src/runtime/sidecar.ts';
@@ -22,9 +23,14 @@ const decode = (
 	key: 'counter_tail_ssr_b64' | 'counter_tail_legacy_ssr_b64' | 'counter_json_lane_ssr_b64'
 ) => decodeURIComponent(escape(atob(inject(key))));
 
+const unmark: Array<() => void> = [];
 beforeEach(() => {
 	document.body.innerHTML = '';
 	prepare_spa_document();
+	unmark.push(mark_live_head());
+});
+afterEach(() => {
+	for (const undo of unmark.splice(0)) undo();
 });
 
 test('a keyed sidecar is found through the id map (id="og-props-<fp>")', () => {
