@@ -6,7 +6,7 @@ its pull request says why it is safe (or which INVARIANTS.md section covers it).
 
 ## Request inputs: headers, query, cookies and bodies read from a request
 
-124 entries.
+125 entries.
 
 | file | in | what | n |
 | --- | --- | --- | --- |
@@ -122,12 +122,13 @@ its pull request says why it is safe (or which INVARIANTS.md section covers it).
 | `packages/insights/src/page-assets.ts` | `weigh_one` | `headers.get('content-encoding')` | 1 |
 | `packages/insights/src/page-assets.ts` | `weigh_one` | `headers.get('content-length')` | 1 |
 | `packages/insights/src/page-assets.ts` | `weigh_one` | `headers.get('vary')` | 1 |
-| `packages/postrender/src/server.ts` | `(module)` | `headers.get('cache-control')` | 1 |
 | `packages/postrender/src/server.ts` | `(module)` | `headers.get('content-type')` | 1 |
 | `packages/postrender/src/server.ts` | `(module)` | `headers.get('if-modified-since')` | 1 |
 | `packages/postrender/src/server.ts` | `(module)` | `headers.get('if-none-match')` | 1 |
 | `packages/postrender/src/server.ts` | `(module)` | `headers.get('location')` | 1 |
-| `packages/postrender/src/server.ts` | `dev_postrender_note` | `headers.get('content-type')` | 1 |
+| `packages/postrender/src/server.ts` | `refusal` | `headers.get('cache-control')` | 1 |
+| `packages/postrender/src/server.ts` | `refusal` | `headers.get('content-type')` | 1 |
+| `packages/postrender/src/server.ts` | `refusal` | `headers.get('location')` | 1 |
 | `packages/postrender/src/server.ts` | `stamp_no_store` | `headers.get('cache-control')` | 1 |
 | `packages/postrender/src/server.ts` | `stamp_no_store` | `headers.get('content-type')` | 1 |
 | `packages/router/src/client-api.ts` | `api` | `headers.get('content-type')` | 1 |
