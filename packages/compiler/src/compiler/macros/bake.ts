@@ -24,7 +24,7 @@ import { parse_module, type AstNode } from '../parse/oxc.ts';
 import { og_js_regions } from '../parse/scan.ts';
 import { BuildCache } from '../build-cache.ts';
 import { OgygiaError } from '../messages.ts';
-import { id64 } from '../../contract/hash.ts';
+import { id64 } from '@ogygia/core/contract';
 
 // ── regexes
 const REGEX_SPECIAL_G = /[.*+?^${}()|[\]\\]/g;
