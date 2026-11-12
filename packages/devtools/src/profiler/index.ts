@@ -235,13 +235,16 @@ import { gzip_large } from './compress.ts';
 import { io_kind, mark_left_each_run } from './async-io.ts';
 import {
 	current_request_scope,
-	hole_stats_of,
 	request_scope,
-	request_stats_of,
-	set_batch_hole_listener,
-	hold_request_stats_detail,
 	type BatchHoleStats
 } from '@ogygia/core/internal/server';
+import {
+	hole_stats_of,
+	install_request_stats,
+	request_stats_of,
+	set_batch_hole_listener,
+	hold_request_stats_detail
+} from './request-stats.ts';
 import {
 	chunk_barrels,
 	chunk_contents,
@@ -1307,8 +1310,12 @@ class Profiler {
 		// recording — sampling the process twice, and windows of two recorder locks overlapping
 		// (request-stats' detail is counted for that). An older one's timers stand down at their next tick.
 		(globalThis as Record<symbol, unknown>)[LIVE_PROFILER] = this;
-		// the holes a batch request renders land after the request is logged: each joins the log as it lands
-		if (!this.#disabled) set_batch_hole_listener((request, s) => this.#batch_hole(request, s));
+		if (!this.#disabled) {
+			// a live profiler is what the handle's stats are for, with the plugin or without it (#805)
+			install_request_stats();
+			// the holes a batch request renders land after the request is logged: each joins the log as it lands
+			set_batch_hole_listener((request, s) => this.#batch_hole(request, s));
+		}
 	}
 
 	/** Logged requests by their Request (a batch's holes find their request here), and the holes that

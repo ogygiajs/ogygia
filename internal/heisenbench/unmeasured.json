@@ -1,6 +1,78 @@
 {
 	"exempt": [
 		{
+			"id": "packages/core/src/server/region-endpoint.ts > hole_css",
+			"reason": "a map lookup and a handoff read (holeCss before the region rename, unmeasured on that base); its handoff read is region_css's, which the request benches run"
+		},
+		{
+			"id": "packages/core/src/server/region-endpoint.ts > make_region_endpoint",
+			"reason": "signs with the process's key and the request's session (hidden state; makeRegionEndpoint before the region rename, unmeasured on that base); the signing it wraps is sign's, benched"
+		},
+		{
+			"id": "packages/core/src/server/region-endpoint.ts > mint_server_region",
+			"reason": "signs with the process's key and the request's session (hidden state; mintServerIsland before the region rename, unmeasured on that base); the signing it wraps is sign's, benched"
+		},
+		{
+			"id": "packages/core/src/compiler/virtual/core.ts > family:0~04bf59 > load > server_manifest_module:3~e7ea15",
+			"reason": "the server manifest's dev URL of one registered region (a lambda handed to the generator), constant work; the bench session registers no region"
+		},
+		{
+			"id": "packages/core/src/compiler/virtual/core.ts > family:0~04bf59 > load > server_manifest_module:4~126d93",
+			"reason": "the server manifest's public URL of one registered region (a lambda handed to the generator), constant work; the bench session registers no region"
+		},
+		{
+			"id": "packages/core/src/compiler/virtual/core.ts > family:0~359af7 > load > router_css_module:1~4ebdf0 > read_file",
+			"reason": "one file read for the server router's CSS, a pass-through to the host fs (the router-css generator's own tests read real routes)"
+		},
+		{
+			"id": "packages/core/src/compiler/messages.ts > BUILD_ERRORS > virtual_wrong_realm > details",
+			"reason": "a message table entry: wording only"
+		},
+		{
+			"id": "packages/core/src/compiler/messages.ts > BUILD_ERRORS > virtual_wrong_realm > text",
+			"reason": "a message table entry: wording only"
+		},
+		{
+			"id": "packages/core/src/messages/core.ts > ERRORS > request_event_server_only > details",
+			"reason": "a message table entry: wording only (the browser stand-in prints the bare link; test/region-server-browser.test.ts)"
+		},
+		{
+			"id": "packages/core/src/messages/core.ts > ERRORS > request_event_server_only > text",
+			"reason": "a message table entry: wording only (the browser stand-in prints the bare link; test/region-server-browser.test.ts)"
+		},
+		{
+			"id": "packages/devtools/src/profiler/maps-browser.ts > read_profiler_maps",
+			"reason": "the browser stand-in answers null, constant; the devtools suite is not recorded (proven in packages/devtools/test/profiler-maps-browser.test.ts)"
+		},
+		{
+			"id": "packages/devtools/src/profiler/maps-server.ts > read_profiler_maps",
+			"reason": "imports the server build's ogygia:server/profiler-maps module, which exists only inside a built app; constant work"
+		},
+		{
+			"id": "packages/devtools/src/profiler/maps-server.ts > read_profiler_maps > then:0~09dfc9",
+			"reason": "reads the one export of the server build's profiler-maps module, which exists only inside a built app; constant work"
+		},
+		{
+			"id": "packages/core/src/compiler/messages.ts > BUILD_ERRORS > virtual_unknown > details",
+			"reason": "a message table entry: wording only"
+		},
+		{
+			"id": "packages/core/src/compiler/messages.ts > BUILD_ERRORS > virtual_duplicate > details",
+			"reason": "a message table entry: wording only"
+		},
+		{
+			"id": "packages/core/src/compiler/virtual/core.ts > map:0~fa4377",
+			"reason": "declares the six driver-resolved families once, as core.ts loads; constant, never per build"
+		},
+		{
+			"id": "packages/core/src/compiler/virtual/table.ts > virtual > family",
+			"reason": "a table constructor: called once per entry as core.ts loads, returns its argument with its kind"
+		},
+		{
+			"id": "packages/core/src/compiler/virtual/table.ts > virtual > request",
+			"reason": "a table constructor: called once per entry as core.ts loads, returns its argument with its kind"
+		},
+		{
 			"id": "packages/core/src/runtime/entry-locations.ts > recover_location > task:0~d0bd46",
 			"reason": "one rollover wait on the recovery's own scope timer (seconds, a deploy's rollover only), constant work"
 		},
@@ -327,30 +399,6 @@
 		{
 			"id": "packages/core/src/server/rules.ts > request_scopes_closed",
 			"reason": "dev and e2e builds only: timers and a machine observer over module state; proven in packages/core/test/server-rules.test.ts"
-		},
-		{
-			"id": "packages/core/src/server/rules.ts > no_kept_unkeyed_read",
-			"reason": "dev and e2e builds only: timers and a machine observer over module state; proven in packages/core/test/server-rules.test.ts"
-		},
-		{
-			"id": "packages/core/src/messages/server.ts > SERVER_WARNINGS > rule_kept_unkeyed_read > details",
-			"reason": "a rule's message wording (dev and e2e only), constant text; said in packages/core/test/server-rules.test.ts"
-		},
-		{
-			"id": "packages/core/src/messages/server.ts > SERVER_WARNINGS > rule_kept_unkeyed_read > text",
-			"reason": "a rule's message wording (dev and e2e only), constant text; said in packages/core/test/server-rules.test.ts"
-		},
-		{
-			"id": "packages/core/src/hooks.ts > OgygiaHandle > #hole_cache",
-			"reason": "a hole's cache key and the start of its read observation (a RequestEvent, not cloneable), constant work; run by packages/flags/test/hole-cache.test.ts through cached_render and the e2e hole suites"
-		},
-		{
-			"id": "packages/core/src/plugin/reads.ts > set_open_reads",
-			"reason": "installs the read-set reader once, at module load, constant work"
-		},
-		{
-			"id": "packages/core/src/server/render-page.ts > render_page > get data",
-			"reason": "notes a page.data read into the running render's read set and returns the data, constant work"
 		},
 		{
 			"id": "packages/machine/src/policy.ts > out_of_time",
@@ -801,14 +849,6 @@
 			"reason": "browser only: the navigation's commit, the head merge and body reconcile on the live document (not cloneable), linear in the page; proven in every palaestra navigation e2e and packages/core/test/browser/nav-swap-fails.test.ts (#276)"
 		},
 		{
-			"id": "packages/core/src/runtime/router-nav.ts > live_page_head",
-			"reason": "browser only: reads the live <head>'s page-owned nodes (not cloneable), linear in the head; proven in packages/core/test/browser/nav-head-order.test.ts (#794)"
-		},
-		{
-			"id": "packages/core/src/runtime/router-nav.ts > head_slot",
-			"reason": "browser only: walks a parsed head node's earlier siblings against the live <head> (not cloneable), linear in the head; proven in packages/core/test/browser/nav-head-order.test.ts (#794)"
-		},
-		{
 			"id": "packages/core/src/runtime/router-nav.ts > apply_sheet",
 			"reason": "browser only: gives a live link element its media back (two attribute writes), constant work; proven in packages/core/test/browser/nav-sheets-inert.test.ts (#267)"
 		},
@@ -962,7 +1002,123 @@
 		},
 		{
 			"id": "packages/core/src/plugin/css.ts > flights:0 > run",
-			"reason": "the dynamic import of the generated virtual:ogygia/router-css, which resolves only under the app's Vite pipeline; its failed read and the read after it are proven against a real Vite dev server in packages/core/test/router-css-dev.test.ts"
+			"reason": "the dynamic import of the generated ogygia:server/router-css, which resolves only under the app's Vite pipeline; its failed read and the read after it are proven against a real Vite dev server in packages/core/test/router-css-dev.test.ts"
+		},
+		{
+			"id": "packages/barrels/src/index.ts > barrels > log",
+			"reason": "the console fallback before configResolved hands the plugin Vite's logger (never reached in a build: configResolved runs first); the logger path is benched in packages/barrels/bench/barrels.bench.ts"
+		},
+		{
+			"id": "packages/barrels/src/rewrite.ts > quote > replace:1~5719f3",
+			"reason": "the escape callback of one character (a table lookup, constant work); quote's escapes are proven in packages/barrels/test/rewrite.test.ts"
+		},
+		{
+			"id": "packages/core/src/compiler/messages.ts > BUILD_ERRORS > barrels_option_removed > details",
+			"reason": "a message table entry: wording only"
+		},
+		{
+			"id": "packages/core/src/compiler/messages.ts > BUILD_ERRORS > barrels_option_removed > text",
+			"reason": "a message table entry: wording only"
+		},
+		{
+			"id": "packages/core/src/vite/index.ts > ogygia > seams > exports > map",
+			"reason": "a plugin's export index for one environment (a Map get or create over ogygia()'s closure: not replayable); the index's work is benched in packages/core/bench/compiler.bench.ts; proven through barrels() against a real Vite dev server in packages/barrels/test/plugin.test.ts"
+		},
+		{
+			"id": "packages/core/src/vite/index.ts > ogygia > seams > exports > map > ExportIndex:0~b7ee02",
+			"reason": "the index's resolver: the transformed module's own resolve (a live Vite plugin context, not recorded); proven in packages/barrels/test/plugin.test.ts"
+		},
+		{
+			"id": "packages/core/src/vite/index.ts > ogygia > seams > pinned_imports",
+			"reason": "the app's import keys and asRegion locals over ogygia()'s closure (not replayable); asRegionLocals is benched with the region transform; proven through barrels() in packages/barrels/test/plugin.test.ts and packages/barrels/test/as-region.test.ts"
+		},
+		{
+			"id": "packages/core/src/vite/index.ts > ogygia > barrels_left_of",
+			"reason": "one table per environment and stage in ogygia()'s closure, made once (a map lookup); the table itself is benched in packages/core/bench/compiler.bench.ts"
+		},
+		{
+			"id": "packages/core/src/vite/index.ts > ogygia > barrel_why",
+			"reason": "the client tables' why for one barrel row, over ogygia()'s closure (not replayable), at most two lookups; the join is benched in packages/core/bench/compiler.bench.ts and proven in packages/core/test/barrel-left.test.ts"
+		},
+		{
+			"id": "packages/core/src/vite/index.ts > ogygia > barrel_why > filter:0~cf3029",
+			"reason": "orders at most nine reasons (constant work); the same filter in the table is benched in packages/core/bench/compiler.bench.ts"
+		},
+		{
+			"id": "packages/core/src/compiler/dev/region-bytes.ts > island_subgraph_bytes > map:0~c49ee0",
+			"reason": "a barrel row's importers to their ids (one property read each), only with the dev server's live module graph; proven in packages/core/test/region-bytes.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/report.ts > ogygia_findings > flatMap:0~283e13",
+			"reason": "the reasons of at most three listed barrels (constant work); proven in packages/devtools/test/profiler.test.ts"
+		},
+		{
+			"id": "packages/core/src/vite/index.ts > ogygia > seams > pinned_imports > <anonymous>~a269ad",
+			"reason": "one declaration against the pinned keys and locals (constant work over ogygia()'s closure); proven in packages/barrels/test/plugin.test.ts and packages/barrels/test/as-region.test.ts"
+		},
+		{
+			"id": "packages/core/src/vite/index.ts > ogygia > seams > pinned_imports > <anonymous>~a269ad > some:0~d4dbd6",
+			"reason": "one specifier's local against the asRegion locals (a Set has); proven in packages/barrels/test/as-region.test.ts"
+		},
+		{
+			"id": "packages/core/src/vite/index.ts > ogygia > seams > pinned_imports > <anonymous>~a269ad > some:0~e91cb2",
+			"reason": "one attribute key against the app's import keys (a Set has); proven in packages/barrels/test/plugin.test.ts"
+		},
+		{
+			"id": "packages/core/src/vite/index.ts > ogygia > stage_host",
+			"reason": "builds one Vite plugin object per stage (constant work, over ogygia()'s closure); the stage's transforms are benched in packages/barrels/bench/barrels.bench.ts"
+		},
+		{
+			"id": "packages/core/src/vite/index.ts > ogygia > stage_host > transform",
+			"reason": "a live Vite transform hook (its this.resolve and this.addWatchFile are the plugin context, not recorded); a stage's work is the plugins' transforms, benched in packages/barrels/bench/barrels.bench.ts; proven against a real Vite dev server and build in packages/barrels/test/plugin.test.ts"
+		},
+		{
+			"id": "packages/core/src/vite/index.ts > ogygia > stage_host > transform > filter:0~18c7ef",
+			"reason": "each stage transform's own filter on the module id (constant work per plugin); proven in packages/barrels/test/plugin.test.ts"
+		},
+		{
+			"id": "packages/core/src/vite/index.ts > ogygia > stage_host > transform > t > resolve",
+			"reason": "one specifier through the host's this.resolve (a live Vite plugin context, not recorded); its throw and external cases are proven in packages/barrels/test/plugin.test.ts"
+		},
+		{
+			"id": "packages/core/src/vite/index.ts > ogygia > stage_host > transform > t > watch",
+			"reason": "the host's this.addWatchFile (a live Vite plugin context, not recorded); proven by the barrel-edit case in packages/barrels/test/plugin.test.ts"
+		},
+		{
+			"id": "packages/core/src/vite/plugin-api.ts > NO_SEAMS > exports > map",
+			"reason": "a constant rejection for a plugin list resolved outside ogygia(); proven in packages/core/test/plugins.test.ts"
+		},
+		{
+			"id": "packages/core/src/vite/plugin-api.ts > NO_SEAMS > pinned_imports",
+			"reason": "a constant throw for a plugin list resolved outside ogygia(); proven in packages/core/test/plugins.test.ts"
+		},
+		{
+			"id": "packages/core/src/vite/plugin-api.ts > resolve_plugins > build:0~4ffc6b > transform",
+			"reason": "one push of a plugin's stage transform (a function: not replayable), constant work; proven in packages/core/test/plugins.test.ts"
+		},
+		{
+			"id": "packages/core/src/compiler/exports/index.ts > EVERY_BARREL > forced",
+			"reason": "a constant answer (false) of the allow-everything policy"
+		},
+		{
+			"id": "packages/core/src/compiler/exports/parse.ts > attribute_keys > map:0~781359",
+			"reason": "one attribute node to its key name (an oxc AST node: not replayable), constant work; the parse is benched in packages/core/bench/compiler.bench.ts"
+		},
+		{
+			"id": "packages/core/src/vite/index.ts > ogygia > Shapes:0~f72d16",
+			"reason": "the app's file read for its shared shapes (a BOM-stripped read over the plugin's closure: not replayable); the shapes are benched in packages/core/bench/compiler.bench.ts"
+		},
+		{
+			"id": "packages/core/src/compiler/fouc-css.ts > through_caller",
+			"reason": "hands one specifier to the walk's resolver (a function argument: not cloneable); proven in packages/core/test/exports-index.test.ts"
+		},
+		{
+			"id": "packages/core/src/compiler/fouc-css.ts > collectFoucCssReachable > Shapes:0~3bebf5",
+			"reason": "the walk's own file read for a fresh index's shapes (a pass-through to the caller's reader: not replayable); proven in packages/core/test/exports-index.test.ts"
+		},
+		{
+			"id": "packages/core/src/vite/index.ts > ogygia > css_walk_index",
+			"reason": "the CSS walk's export index for one environment (a Map get or create over the plugin's closure), constant work; the index's work is benched in packages/core/bench/compiler.bench.ts"
 		},
 		{
 			"id": "packages/cli/src/perf/cli.ts > group_alive",
@@ -1099,6 +1255,10 @@
 		{
 			"id": "packages/config/src/vitest.ts > browser_runs",
 			"reason": "test config: picks the browser projects' provider when a vitest config loads (before any test or bench), constant work; every browser job runs it"
+		},
+		{
+			"id": "packages/config/src/vitest.ts > exact",
+			"reason": "test config: one stub alias's pattern when a vitest config loads (before any test or bench), constant work; every node test job runs it"
 		},
 		{
 			"id": "packages/config/src/vitest.ts > browser_runs > map:0~5b89ec",
@@ -1314,7 +1474,7 @@
 		},
 		{
 			"id": "packages/devtools/src/profiler/embedded-maps.ts > flights:0",
-			"reason": "the dynamic import of virtual:ogygia/profiler-maps (and its gunzip), module IO once per process; run by the profiler tests"
+			"reason": "the dynamic import of ogygia:server/profiler-maps (and its gunzip), module IO once per process; run by the profiler tests"
 		},
 		{
 			"id": "packages/devtools/src/profiler/index.ts > Profiler > flights:0",
@@ -2137,12 +2297,12 @@
 			"reason": "browser only: hands the head merge's unlisted sheets to the boot's release_sheets (live elements, not cloneable), one call; proven in apps/palaestra/e2e/hole-kept-sheet.spec.ts (#275)"
 		},
 		{
-			"id": "packages/core/src/server/request-stats.ts > hold_request_stats_detail",
-			"reason": "returns a release closure (a function, not cloneable), constant work; proven in packages/core/test/request-stats-detail.test.ts"
+			"id": "packages/devtools/src/profiler/request-stats.ts > hold_request_stats_detail",
+			"reason": "returns a release closure (a function, not cloneable), constant work; proven in packages/devtools/test/request-stats-detail.test.ts"
 		},
 		{
-			"id": "packages/core/src/server/request-stats.ts > hold_request_stats_detail > <anonymous>~4ba179",
-			"reason": "lets go of one hold in a module-level set (not replayable: process state), constant work; proven in packages/core/test/request-stats-detail.test.ts"
+			"id": "packages/devtools/src/profiler/request-stats.ts > hold_request_stats_detail > <anonymous>~4ba179",
+			"reason": "lets go of one hold in a module-level set (not replayable: process state), constant work; proven in packages/devtools/test/request-stats-detail.test.ts"
 		},
 		{
 			"id": "packages/devtools/src/profiler/index.ts > Profiler > #busy",
@@ -2151,14 +2311,6 @@
 		{
 			"id": "packages/flags/src/index.ts > ask_source",
 			"reason": "awaits the app's flag source (an async call out, not recorded), linear in the registered flags; proven in packages/flags/test/prime-twice.test.ts and packages/flags/test/source-failed.test.ts"
-		},
-		{
-			"id": "packages/flags/src/index.ts > outbox:0~05e47f > giveUp > once:1~de49a5",
-			"reason": "prints one warning (console output, not replayable), constant work"
-		},
-		{
-			"id": "packages/machine/src/say.ts > say > get size",
-			"reason": "reads a Map's size, constant work; proven in packages/machine/test/say.test.ts"
 		},
 		{
 			"id": "packages/flags/src/index.ts > set_prime",
@@ -2183,6 +2335,122 @@
 		{
 			"id": "packages/core/src/runtime/router-nav.ts > page_relative_resolved",
 			"reason": "browser only: one URL resolved against a fetched page (reads location.origin), constant work"
+		},
+		{
+			"id": "packages/federation/src/messages.ts > FEDERATION_ERRORS > shared_state_not_plain > details",
+			"reason": "a message table entry: wording only"
+		},
+		{
+			"id": "packages/federation/src/messages.ts > FEDERATION_ERRORS > shared_state_not_plain > text",
+			"reason": "a message table entry: wording only"
+		},
+		{
+			"id": "packages/content/src/messages/build.ts > CONTENT_BUILD_WARNINGS > content_leaked_to_client > details",
+			"reason": "a message table entry: wording only"
+		},
+		{
+			"id": "packages/content/src/messages/build.ts > CONTENT_BUILD_WARNINGS > content_leaked_to_client > text",
+			"reason": "a message table entry: wording only"
+		},
+		{
+			"id": "packages/content/src/messages/build.ts > CONTENT_BUILD_WARNINGS > content_leaked_to_client > text > map:0~63a78f",
+			"reason": "a message table entry: wording only (indents at most five module lines)"
+		},
+		{
+			"id": "packages/content/src/vite/leaks.ts > content_leaks",
+			"reason": "build only: makes one Vite plugin object, once per build; proven in packages/content/test/content-leaks.test.ts"
+		},
+		{
+			"id": "packages/content/src/vite/leaks.ts > content_leaks > configResolved",
+			"reason": "build only: reads three config fields, once per build"
+		},
+		{
+			"id": "packages/content/src/vite/leaks.ts > content_leaks > writeBundle",
+			"reason": "build only: once per client build, off the request and boot paths; proven in packages/content/test/content-leaks.test.ts"
+		},
+		{
+			"id": "packages/content/src/vite/leaks.ts > warn_content_leaks > filter:0~eec9a0",
+			"reason": "build only: two regex tests per module id of a finished client bundle, once per build"
+		},
+		{
+			"id": "packages/content/src/vite/leaks.ts > warn_content_leaks > flatMap:0~b437c4",
+			"reason": "build only: runs only when the build is already warning about a leak"
+		},
+		{
+			"id": "packages/content/src/vite/leaks.ts > warn_content_leaks > warn:1~cd9197 > map:0~a95637",
+			"reason": "build only: relative paths of at most five leaked modules, inside the warning"
+		},
+		{
+			"id": "packages/core/src/server/request-stats.ts > set_request_stats_sink",
+			"reason": "sets one module slot, once per profiler setup (constant work)"
+		},
+		{
+			"id": "packages/devtools/src/profiler/request-stats.ts > install_request_stats",
+			"reason": "sets core's stats sink, once per profiler setup (constant work)"
+		},
+		{
+			"id": "packages/devtools/src/profiler/request-stats.ts > request_stats_of",
+			"reason": "one WeakMap read keyed by a live Request (not cloneable), constant work"
+		},
+		{
+			"id": "packages/devtools/src/profiler/request-stats.ts > hole_stats_of",
+			"reason": "one WeakMap read keyed by a live Request (not cloneable), constant work"
+		},
+		{
+			"id": "packages/devtools/src/profiler/request-stats.ts > set_batch_hole_listener",
+			"reason": "stores one listener function (not cloneable), constant work"
+		},
+		{
+			"id": "packages/devtools/src/profiler/request-stats.ts > request_stats_store > page",
+			"reason": "one WeakMap write keyed by a live Request (not cloneable), constant work"
+		},
+		{
+			"id": "packages/devtools/src/profiler/request-stats.ts > request_stats_store > hole",
+			"reason": "one WeakMap write keyed by a live Request (not cloneable), constant work"
+		},
+		{
+			"id": "packages/devtools/src/profiler/request-stats.ts > request_stats_store > batchHole",
+			"reason": "hands one record to the recording profiler's listener, constant work"
+		},
+		{
+			"id": "packages/devtools/src/profiler/request-stats.ts > request_stats_store > wantsBatchHoles",
+			"reason": "reads one module slot (process state), constant work"
+		},
+		{
+			"id": "packages/devtools/src/profiler/request-stats.ts > request_stats_store > detailed",
+			"reason": "reads the size of a module-level set (process state), constant work; proven in packages/devtools/test/request-stats-detail.test.ts"
+		},
+		{
+			"id": "packages/core/src/server/rules.ts > no_kept_unkeyed_read",
+			"reason": "dev and e2e builds only: timers and a machine observer over module state; proven in packages/core/test/server-rules.test.ts"
+		},
+		{
+			"id": "packages/core/src/messages/server.ts > SERVER_WARNINGS > rule_kept_unkeyed_read > details",
+			"reason": "a rule's message wording (dev and e2e only), constant text; said in packages/core/test/server-rules.test.ts"
+		},
+		{
+			"id": "packages/core/src/messages/server.ts > SERVER_WARNINGS > rule_kept_unkeyed_read > text",
+			"reason": "a rule's message wording (dev and e2e only), constant text; said in packages/core/test/server-rules.test.ts"
+		},
+		{
+			"id": "packages/core/src/hooks.ts > OgygiaHandle > #hole_cache",
+			"reason": "a hole's cache key and the start of its read observation (a RequestEvent, not cloneable), constant work; run by packages/flags/test/hole-cache.test.ts through cached_render and the e2e hole suites"
+		},
+		{
+			"id": "packages/core/src/plugin/reads.ts > set_open_reads",
+			"reason": "installs the read-set reader once, at module load, constant work"
+		},
+		{
+			"id": "packages/core/src/server/render-page.ts > render_page > get data",
+			"reason": "notes a page.data read into the running render's read set and returns the data, constant work"
+		},
+		{
+			"id": "packages/flags/src/index.ts > outbox:0~05e47f > giveUp > once:1~de49a5",
+			"reason": "prints one warning (console output, not replayable), constant work"
+		},
+		{
+			"id": "packages/machine/src/say.ts > say > get size",
+			"reason": "reads a Map's size, constant work; proven in packages/machine/test/say.test.ts"
 		},
 		{
 			"id": "packages/core/src/runtime/router-nav.ts > hold_scroll",
@@ -2411,70 +2679,6 @@
 		{
 			"id": "packages/core/src/runtime/frame-store.ts > answer_definition",
 			"reason": "builds the stored-answer machine definition (plain data: three states, their steps), once per address entry; its moves are measured by the frame-store bench, the definition itself is not cloneable"
-		},
-		{
-			"id": "packages/core/src/runtime/router-nav.ts > adopt_title",
-			"reason": "browser only: reads the parsed document's title and writes the live document's (not cloneable), constant work; proven in packages/core/test/browser/nav-no-title.test.ts"
-		},
-		{
-			"id": "packages/federation/src/messages.ts > FEDERATION_WARNINGS > federation_audience_missing > text",
-			"reason": "a warning's wording, constant text; said in packages/federation/test/federation.test.ts"
-		},
-		{
-			"id": "packages/federation/src/messages.ts > FEDERATION_WARNINGS > federation_audience_missing > details",
-			"reason": "a warning's longer wording for its error page, constant text"
-		},
-		{
-			"id": "packages/federation/src/wire.ts > checker > capability:0~070b09 > signer > sign",
-			"reason": "the check side's signer stub: it never signs (every check brings its own keys), no work"
-		},
-		{
-			"id": "packages/federation/src/wire.ts > checker > capability:0~070b09 > signer > verify",
-			"reason": "the check side's signer stub: every check brings its own keys, so this always refuses, no work"
-		},
-		{
-			"id": "packages/federation/src/wire.ts > minter > capability:0~81c9d6 > signer > verify",
-			"reason": "the mint side's verify stub: a minter checks nothing (the receiver brings its keys), no work"
-		},
-		{
-			"id": "packages/federation/src/wire.ts > configured_audience",
-			"reason": "reads the process's ORIGIN once per federate() (hidden state: the environment), one URL parse, constant work; proven in packages/federation/test/federation.test.ts"
-		},
-		{
-			"id": "packages/devtools/src/profiler/index.ts > Profiler > #ids",
-			"reason": "the profiler's window ids, made once per instance (a profiler instance, not cloneable): one lazy import and one call of window_ids, which packages/devtools/bench/window-id.bench.ts measures; proven in packages/devtools/test/profiler-window-id.test.ts"
-		},
-		{
-			"id": "packages/devtools/src/profiler/index.ts > Profiler > #ids > then:0~2b15d2",
-			"reason": "hands the loaded module's window_ids the profiler's secret, mode and audience (a module namespace, not cloneable), constant work; window_ids is benched in packages/devtools/bench/window-id.bench.ts"
-		},
-		{
-			"id": "packages/devtools/src/profiler/window-id.ts > hmac_signer",
-			"reason": "wraps a derived key (a Buffer, not cloneable) in a sign/verify pair, once per profiler; the mint and check it serves are benched in packages/devtools/bench/window-id.bench.ts"
-		},
-		{
-			"id": "packages/core/src/compiler/macros/pipeline.ts > run_module_macros > refuse",
-			"reason": "throws the coded build error (not replayable), constant work; proven in packages/core/test/macros-own-source.test.ts"
-		},
-		{
-			"id": "packages/core/src/compiler/driver.ts > Compiler > macros > run_module_macros:2~cee8e9 > ownSource",
-			"reason": "forwards to CompileCtx.is_own_source, one call; proven in packages/core/test/macros-own-source.test.ts"
-		},
-		{
-			"id": "packages/core/src/compiler/ctx.ts > CompileCtx > is_own_source",
-			"reason": "one substring test and the declared-package lookup (a CompileCtx, hidden state), constant work per declared root"
-		},
-		{
-			"id": "packages/core/src/compiler/messages.ts > BUILD_ERRORS > macro_outside_app > text",
-			"reason": "a message's wording, constant text; said in packages/core/test/macros-own-source.test.ts"
-		},
-		{
-			"id": "packages/core/src/compiler/messages.ts > BUILD_ERRORS > macro_outside_app > details",
-			"reason": "a message's wording, constant text; said in packages/core/test/macros-own-source.test.ts"
-		},
-		{
-			"id": "packages/postrender/src/server.ts > credentialed",
-			"reason": "two header lookups on the request (a Request, not cloneable), once per request, constant work; proven in packages/postrender/test/plugin.test.ts"
 		},
 		{
 			"id": "packages/core/src/hooks.ts > OgygiaHandle > #pass_document",
@@ -2741,240 +2945,76 @@
 			"reason": "moved from packages/core/src/runtime/restore-report.ts with reshape (#608): never ran here, browser state; the gate on this base does not follow a file across packages, and the moved tests (packages/reshape/test) prove it"
 		},
 		{
-			"id": "packages/core/src/server/region-endpoint.ts > hole_css",
-			"reason": "a map lookup and a handoff read (holeCss before the region rename, unmeasured on that base); its handoff read is region_css's, which the request benches run"
+			"id": "packages/core/src/runtime/router-nav.ts > live_page_head",
+			"reason": "browser only: reads the live <head>'s page-owned nodes (not cloneable), linear in the head; proven in packages/core/test/browser/nav-head-order.test.ts (#794)"
 		},
 		{
-			"id": "packages/core/src/server/region-endpoint.ts > make_region_endpoint",
-			"reason": "signs with the process's key and the request's session (hidden state; makeRegionEndpoint before the region rename, unmeasured on that base); the signing it wraps is sign's, benched"
+			"id": "packages/core/src/runtime/router-nav.ts > head_slot",
+			"reason": "browser only: walks a parsed head node's earlier siblings against the live <head> (not cloneable), linear in the head; proven in packages/core/test/browser/nav-head-order.test.ts (#794)"
 		},
 		{
-			"id": "packages/core/src/server/region-endpoint.ts > mint_server_region",
-			"reason": "signs with the process's key and the request's session (hidden state; mintServerIsland before the region rename, unmeasured on that base); the signing it wraps is sign's, benched"
+			"id": "packages/core/src/runtime/router-nav.ts > adopt_title",
+			"reason": "browser only: reads the parsed document's title and writes the live document's (not cloneable), constant work; proven in packages/core/test/browser/nav-no-title.test.ts"
 		},
 		{
-			"id": "packages/core/src/compiler/virtual/core.ts > family:0~04bf59 > load > server_manifest_module:3~e7ea15",
-			"reason": "the server manifest's dev URL of one registered region (a lambda handed to the generator), constant work; the bench session registers no region"
+			"id": "packages/federation/src/messages.ts > FEDERATION_WARNINGS > federation_audience_missing > text",
+			"reason": "a warning's wording, constant text; said in packages/federation/test/federation.test.ts"
 		},
 		{
-			"id": "packages/core/src/compiler/virtual/core.ts > family:0~04bf59 > load > server_manifest_module:4~126d93",
-			"reason": "the server manifest's public URL of one registered region (a lambda handed to the generator), constant work; the bench session registers no region"
+			"id": "packages/federation/src/messages.ts > FEDERATION_WARNINGS > federation_audience_missing > details",
+			"reason": "a warning's longer wording for its error page, constant text"
 		},
 		{
-			"id": "packages/core/src/compiler/virtual/core.ts > family:0~359af7 > load > router_css_module:1~4ebdf0 > read_file",
-			"reason": "one file read for the server router's CSS, a pass-through to the host fs (the router-css generator's own tests read real routes)"
+			"id": "packages/federation/src/wire.ts > checker > capability:0~070b09 > signer > sign",
+			"reason": "the check side's signer stub: it never signs (every check brings its own keys), no work"
 		},
 		{
-			"id": "packages/core/src/compiler/messages.ts > BUILD_ERRORS > virtual_wrong_realm > details",
-			"reason": "a message table entry: wording only"
+			"id": "packages/federation/src/wire.ts > checker > capability:0~070b09 > signer > verify",
+			"reason": "the check side's signer stub: every check brings its own keys, so this always refuses, no work"
 		},
 		{
-			"id": "packages/core/src/compiler/messages.ts > BUILD_ERRORS > virtual_wrong_realm > text",
-			"reason": "a message table entry: wording only"
+			"id": "packages/federation/src/wire.ts > minter > capability:0~81c9d6 > signer > verify",
+			"reason": "the mint side's verify stub: a minter checks nothing (the receiver brings its keys), no work"
 		},
 		{
-			"id": "packages/core/src/messages/core.ts > ERRORS > request_event_server_only > details",
-			"reason": "a message table entry: wording only (the browser stand-in prints the bare link; test/region-server-browser.test.ts)"
+			"id": "packages/federation/src/wire.ts > configured_audience",
+			"reason": "reads the process's ORIGIN once per federate() (hidden state: the environment), one URL parse, constant work; proven in packages/federation/test/federation.test.ts"
 		},
 		{
-			"id": "packages/core/src/messages/core.ts > ERRORS > request_event_server_only > text",
-			"reason": "a message table entry: wording only (the browser stand-in prints the bare link; test/region-server-browser.test.ts)"
+			"id": "packages/devtools/src/profiler/index.ts > Profiler > #ids",
+			"reason": "the profiler's window ids, made once per instance (a profiler instance, not cloneable): one lazy import and one call of window_ids, which packages/devtools/bench/window-id.bench.ts measures; proven in packages/devtools/test/profiler-window-id.test.ts"
 		},
 		{
-			"id": "packages/devtools/src/profiler/maps-browser.ts > read_profiler_maps",
-			"reason": "the browser stand-in answers null, constant; the devtools suite is not recorded (proven in packages/devtools/test/profiler-maps-browser.test.ts)"
+			"id": "packages/devtools/src/profiler/index.ts > Profiler > #ids > then:0~2b15d2",
+			"reason": "hands the loaded module's window_ids the profiler's secret, mode and audience (a module namespace, not cloneable), constant work; window_ids is benched in packages/devtools/bench/window-id.bench.ts"
 		},
 		{
-			"id": "packages/devtools/src/profiler/maps-server.ts > read_profiler_maps",
-			"reason": "imports the server build's ogygia:server/profiler-maps module, which exists only inside a built app; constant work"
+			"id": "packages/devtools/src/profiler/window-id.ts > hmac_signer",
+			"reason": "wraps a derived key (a Buffer, not cloneable) in a sign/verify pair, once per profiler; the mint and check it serves are benched in packages/devtools/bench/window-id.bench.ts"
 		},
 		{
-			"id": "packages/devtools/src/profiler/maps-server.ts > read_profiler_maps > then:0~09dfc9",
-			"reason": "reads the one export of the server build's profiler-maps module, which exists only inside a built app; constant work"
+			"id": "packages/core/src/compiler/macros/pipeline.ts > run_module_macros > refuse",
+			"reason": "throws the coded build error (not replayable), constant work; proven in packages/core/test/macros-own-source.test.ts"
 		},
 		{
-			"id": "packages/core/src/compiler/messages.ts > BUILD_ERRORS > virtual_unknown > details",
-			"reason": "a message table entry: wording only"
+			"id": "packages/core/src/compiler/driver.ts > Compiler > macros > run_module_macros:2~cee8e9 > ownSource",
+			"reason": "forwards to CompileCtx.is_own_source, one call; proven in packages/core/test/macros-own-source.test.ts"
 		},
 		{
-			"id": "packages/core/src/compiler/messages.ts > BUILD_ERRORS > virtual_duplicate > details",
-			"reason": "a message table entry: wording only"
+			"id": "packages/core/src/compiler/ctx.ts > CompileCtx > is_own_source",
+			"reason": "one substring test and the declared-package lookup (a CompileCtx, hidden state), constant work per declared root"
 		},
 		{
-			"id": "packages/core/src/compiler/virtual/core.ts > map:0~fa4377",
-			"reason": "declares the six driver-resolved families once, as core.ts loads; constant, never per build"
+			"id": "packages/core/src/compiler/messages.ts > BUILD_ERRORS > macro_outside_app > text",
+			"reason": "a message's wording, constant text; said in packages/core/test/macros-own-source.test.ts"
 		},
 		{
-			"id": "packages/core/src/compiler/virtual/table.ts > virtual > family",
-			"reason": "a table constructor: called once per entry as core.ts loads, returns its argument with its kind"
+			"id": "packages/core/src/compiler/messages.ts > BUILD_ERRORS > macro_outside_app > details",
+			"reason": "a message's wording, constant text; said in packages/core/test/macros-own-source.test.ts"
 		},
 		{
-			"id": "packages/core/src/compiler/virtual/table.ts > virtual > request",
-			"reason": "a table constructor: called once per entry as core.ts loads, returns its argument with its kind"
-		},
-		{
-			"id": "packages/barrels/src/index.ts > barrels > log",
-			"reason": "the console fallback before configResolved hands the plugin Vite's logger (never reached in a build: configResolved runs first); the logger path is benched in packages/barrels/bench/barrels.bench.ts"
-		},
-		{
-			"id": "packages/barrels/src/rewrite.ts > quote > replace:1~5719f3",
-			"reason": "the escape callback of one character (a table lookup, constant work); quote's escapes are proven in packages/barrels/test/rewrite.test.ts"
-		},
-		{
-			"id": "packages/core/src/compiler/messages.ts > BUILD_ERRORS > barrels_option_removed > details",
-			"reason": "a message table entry: wording only"
-		},
-		{
-			"id": "packages/core/src/compiler/messages.ts > BUILD_ERRORS > barrels_option_removed > text",
-			"reason": "a message table entry: wording only"
-		},
-		{
-			"id": "packages/core/src/vite/index.ts > ogygia > seams > exports > map",
-			"reason": "a plugin's export index for one environment (a Map get or create over ogygia()'s closure: not replayable); the index's work is benched in packages/core/bench/compiler.bench.ts; proven through barrels() against a real Vite dev server in packages/barrels/test/plugin.test.ts"
-		},
-		{
-			"id": "packages/core/src/vite/index.ts > ogygia > seams > exports > map > ExportIndex:0~b7ee02",
-			"reason": "the index's resolver: the transformed module's own resolve (a live Vite plugin context, not recorded); proven in packages/barrels/test/plugin.test.ts"
-		},
-		{
-			"id": "packages/core/src/vite/index.ts > ogygia > seams > pinned_imports",
-			"reason": "the app's import keys and asRegion locals over ogygia()'s closure (not replayable); asRegionLocals is benched with the region transform; proven through barrels() in packages/barrels/test/plugin.test.ts and packages/barrels/test/as-region.test.ts"
-		},
-		{
-			"id": "packages/core/src/vite/index.ts > ogygia > barrels_left_of",
-			"reason": "one table per environment and stage in ogygia()'s closure, made once (a map lookup); the table itself is benched in packages/core/bench/compiler.bench.ts"
-		},
-		{
-			"id": "packages/core/src/vite/index.ts > ogygia > barrel_why",
-			"reason": "the client tables' why for one barrel row, over ogygia()'s closure (not replayable), at most two lookups; the join is benched in packages/core/bench/compiler.bench.ts and proven in packages/core/test/barrel-left.test.ts"
-		},
-		{
-			"id": "packages/core/src/vite/index.ts > ogygia > barrel_why > filter:0~cf3029",
-			"reason": "orders at most nine reasons (constant work); the same filter in the table is benched in packages/core/bench/compiler.bench.ts"
-		},
-		{
-			"id": "packages/core/src/compiler/dev/region-bytes.ts > island_subgraph_bytes > map:0~c49ee0",
-			"reason": "a barrel row's importers to their ids (one property read each), only with the dev server's live module graph; proven in packages/core/test/region-bytes.test.ts"
-		},
-		{
-			"id": "packages/devtools/src/profiler/report.ts > ogygia_findings > flatMap:0~283e13",
-			"reason": "the reasons of at most three listed barrels (constant work); proven in packages/devtools/test/profiler.test.ts"
-		},
-		{
-			"id": "packages/core/src/vite/index.ts > ogygia > seams > pinned_imports > <anonymous>~a269ad",
-			"reason": "one declaration against the pinned keys and locals (constant work over ogygia()'s closure); proven in packages/barrels/test/plugin.test.ts and packages/barrels/test/as-region.test.ts"
-		},
-		{
-			"id": "packages/core/src/vite/index.ts > ogygia > seams > pinned_imports > <anonymous>~a269ad > some:0~d4dbd6",
-			"reason": "one specifier's local against the asRegion locals (a Set has); proven in packages/barrels/test/as-region.test.ts"
-		},
-		{
-			"id": "packages/core/src/vite/index.ts > ogygia > seams > pinned_imports > <anonymous>~a269ad > some:0~e91cb2",
-			"reason": "one attribute key against the app's import keys (a Set has); proven in packages/barrels/test/plugin.test.ts"
-		},
-		{
-			"id": "packages/core/src/vite/index.ts > ogygia > stage_host",
-			"reason": "builds one Vite plugin object per stage (constant work, over ogygia()'s closure); the stage's transforms are benched in packages/barrels/bench/barrels.bench.ts"
-		},
-		{
-			"id": "packages/core/src/vite/index.ts > ogygia > stage_host > transform",
-			"reason": "a live Vite transform hook (its this.resolve and this.addWatchFile are the plugin context, not recorded); a stage's work is the plugins' transforms, benched in packages/barrels/bench/barrels.bench.ts; proven against a real Vite dev server and build in packages/barrels/test/plugin.test.ts"
-		},
-		{
-			"id": "packages/core/src/vite/index.ts > ogygia > stage_host > transform > filter:0~18c7ef",
-			"reason": "each stage transform's own filter on the module id (constant work per plugin); proven in packages/barrels/test/plugin.test.ts"
-		},
-		{
-			"id": "packages/core/src/vite/index.ts > ogygia > stage_host > transform > t > resolve",
-			"reason": "one specifier through the host's this.resolve (a live Vite plugin context, not recorded); its throw and external cases are proven in packages/barrels/test/plugin.test.ts"
-		},
-		{
-			"id": "packages/core/src/vite/index.ts > ogygia > stage_host > transform > t > watch",
-			"reason": "the host's this.addWatchFile (a live Vite plugin context, not recorded); proven by the barrel-edit case in packages/barrels/test/plugin.test.ts"
-		},
-		{
-			"id": "packages/core/src/vite/plugin-api.ts > NO_SEAMS > exports > map",
-			"reason": "a constant rejection for a plugin list resolved outside ogygia(); proven in packages/core/test/plugins.test.ts"
-		},
-		{
-			"id": "packages/core/src/vite/plugin-api.ts > NO_SEAMS > pinned_imports",
-			"reason": "a constant throw for a plugin list resolved outside ogygia(); proven in packages/core/test/plugins.test.ts"
-		},
-		{
-			"id": "packages/core/src/vite/plugin-api.ts > resolve_plugins > build:0~4ffc6b > transform",
-			"reason": "one push of a plugin's stage transform (a function: not replayable), constant work; proven in packages/core/test/plugins.test.ts"
-		},
-		{
-			"id": "packages/core/src/compiler/exports/index.ts > EVERY_BARREL > forced",
-			"reason": "a constant answer (false) of the allow-everything policy"
-		},
-		{
-			"id": "packages/core/src/compiler/exports/parse.ts > attribute_keys > map:0~781359",
-			"reason": "one attribute node to its key name (an oxc AST node: not replayable), constant work; the parse is benched in packages/core/bench/compiler.bench.ts"
-		},
-		{
-			"id": "packages/core/src/vite/index.ts > ogygia > Shapes:0~f72d16",
-			"reason": "the app's file read for its shared shapes (a BOM-stripped read over the plugin's closure: not replayable); the shapes are benched in packages/core/bench/compiler.bench.ts"
-		},
-		{
-			"id": "packages/core/src/compiler/fouc-css.ts > through_caller",
-			"reason": "hands one specifier to the walk's resolver (a function argument: not cloneable); proven in packages/core/test/exports-index.test.ts"
-		},
-		{
-			"id": "packages/core/src/compiler/fouc-css.ts > collectFoucCssReachable > Shapes:0~3bebf5",
-			"reason": "the walk's own file read for a fresh index's shapes (a pass-through to the caller's reader: not replayable); proven in packages/core/test/exports-index.test.ts"
-		},
-		{
-			"id": "packages/core/src/vite/index.ts > ogygia > css_walk_index",
-			"reason": "the CSS walk's export index for one environment (a Map get or create over the plugin's closure), constant work; the index's work is benched in packages/core/bench/compiler.bench.ts"
-		},
-		{
-			"id": "packages/config/src/vitest.ts > exact",
-			"reason": "test config: one stub alias's pattern when a vitest config loads (before any test or bench), constant work; every node test job runs it"
-		},
-		{
-			"id": "packages/federation/src/messages.ts > FEDERATION_ERRORS > shared_state_not_plain > details",
-			"reason": "a message table entry: wording only"
-		},
-		{
-			"id": "packages/federation/src/messages.ts > FEDERATION_ERRORS > shared_state_not_plain > text",
-			"reason": "a message table entry: wording only"
-		},
-		{
-			"id": "packages/content/src/messages/build.ts > CONTENT_BUILD_WARNINGS > content_leaked_to_client > details",
-			"reason": "a message table entry: wording only"
-		},
-		{
-			"id": "packages/content/src/messages/build.ts > CONTENT_BUILD_WARNINGS > content_leaked_to_client > text",
-			"reason": "a message table entry: wording only"
-		},
-		{
-			"id": "packages/content/src/messages/build.ts > CONTENT_BUILD_WARNINGS > content_leaked_to_client > text > map:0~63a78f",
-			"reason": "a message table entry: wording only (indents at most five module lines)"
-		},
-		{
-			"id": "packages/content/src/vite/leaks.ts > content_leaks",
-			"reason": "build only: makes one Vite plugin object, once per build; proven in packages/content/test/content-leaks.test.ts"
-		},
-		{
-			"id": "packages/content/src/vite/leaks.ts > content_leaks > configResolved",
-			"reason": "build only: reads three config fields, once per build"
-		},
-		{
-			"id": "packages/content/src/vite/leaks.ts > content_leaks > writeBundle",
-			"reason": "build only: once per client build, off the request and boot paths; proven in packages/content/test/content-leaks.test.ts"
-		},
-		{
-			"id": "packages/content/src/vite/leaks.ts > warn_content_leaks > filter:0~eec9a0",
-			"reason": "build only: two regex tests per module id of a finished client bundle, once per build"
-		},
-		{
-			"id": "packages/content/src/vite/leaks.ts > warn_content_leaks > flatMap:0~b437c4",
-			"reason": "build only: runs only when the build is already warning about a leak"
-		},
-		{
-			"id": "packages/content/src/vite/leaks.ts > warn_content_leaks > warn:1~cd9197 > map:0~a95637",
-			"reason": "build only: relative paths of at most five leaked modules, inside the warning"
+			"id": "packages/postrender/src/server.ts > credentialed",
+			"reason": "two header lookups on the request (a Request, not cloneable), once per request, constant work; proven in packages/postrender/test/plugin.test.ts"
 		},
 		{
 			"id": "packages/core/src/vite/package-files.ts > discover_package_files > inside",
