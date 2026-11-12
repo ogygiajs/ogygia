@@ -86,8 +86,22 @@ export function scan_file(file: string, text: string): Entry[] {
 	// goes back to 0: a local inside it is not an owner)
 	let owner = '(module)';
 	let depth = 0;
+	// (a Svelte component's markup comment, `<!-- @component … -->`, holds usage samples, not code)
+	const svelte = file.endsWith('.svelte');
+	let in_markup_comment = false;
 	for (const line of text.split('\n')) {
-		const code = line.replace(/^\s*(\/\/|\*|\/\*).*$/, '');
+		let code = line.replace(/^\s*(\/\/|\*|\/\*).*$/, '');
+		if (svelte) {
+			if (!in_markup_comment && /^\s*<!--/.test(code)) {
+				in_markup_comment = true;
+				code = code.slice(code.indexOf('<!--') + 4);
+			}
+			if (in_markup_comment) {
+				const end = code.indexOf('-->');
+				in_markup_comment = end === -1;
+				code = end === -1 ? '' : code.slice(end + 3);
+			}
+		}
 		const m = OWNER.exec(code);
 		const name = m && (m[1] ?? m[2] ?? m[3]);
 		if (name && !NOT_OWNER.has(name) && (depth === 0 || (depth === 1 && !m![2]))) owner = name;
