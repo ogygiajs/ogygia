@@ -64,6 +64,12 @@ module scripts. Its gaps are handled in the sim, with no patch to happy-dom:
   request on the network, and the answer carries its URL (`test/redirect.test.ts`).
 - It ran an inline module script at once and an external one when its file came: a document's
   module scripts run in its order (`modules_in_order`, `test/modules.test.ts`).
+- It read `interactive` from the start, never fired DOMContentLoaded, and fired `load` before a
+  document's module script had run: a document reads `loading` while its parser runs, then
+  `interactive`, fires DOMContentLoaded (a task of its own) once the module scripts its parser put
+  in it ran, and only then `load` (`content_loaded`, `test/modules.test.ts`). A script waiting for
+  DOMContentLoaded never ran (gen third party's repair mutants all survived), and ogygia's wake
+  gate waited for `load`.
 - It ran a copy of any script: a copy carries "already started" (a script that connected, or one a
   parser marked unexecutable), so the router's head merge ran the next page's early hole start
   again (`scripts_start_once`, `test/scripts.test.ts`; gen 191).
