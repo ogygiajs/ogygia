@@ -27,6 +27,7 @@ const sheets = () => document.head.querySelectorAll<HTMLLinkElement>(`link[href=
 let probe: HTMLElement;
 beforeEach(() => {
 	vi.stubEnv('DEV', false);
+	vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
 	link_boot();
 	for (const l of sheets()) l.remove();
 	probe = document.createElement('p');
@@ -34,6 +35,7 @@ beforeEach(() => {
 	document.body.appendChild(probe);
 });
 afterEach(async () => {
+	vi.useRealTimers();
 	vi.unstubAllEnvs();
 	await commands.keep_downloads(SHEET);
 	for (const l of sheets()) l.remove();
@@ -48,10 +50,10 @@ it_with_network_routes(
 		await region_fragment(answer).ready;
 		expect(sheets()).toHaveLength(1);
 		expect(getComputedStyle(probe).color).not.toBe(GREEN);
-		// the next answer with the same sheet asks for it again, and paints once it is in
-		const t0 = performance.now();
+		// the next answer with the same sheet asks for it again, and paints once it is in: on the
+		// sheet's load, never on the 5 s cap (its timer is the test's and never runs, so a wait on the
+		// failed link would hang here; a wall clock in its place failed on a loaded runner)
 		await region_fragment(answer).ready;
-		expect(performance.now() - t0).toBeLessThan(2_000);
 		expect(sheets()).toHaveLength(1);
 		expect(getComputedStyle(probe).color).toBe(GREEN);
 	}
