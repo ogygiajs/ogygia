@@ -371,7 +371,9 @@ export class World {
 	/** The build a request goes to now: the pinned one (`as_of`), else the live one, or during a
 	 *  rolling deploy's window, by even odds, the one before it. A content-hashed file only another
 	 *  build has goes to that build when the host keeps old files, a pinned load's too (gen 65,
-	 *  seed 25: test/deploy.node.test.ts). */
+	 *  seed 25). A pinned load is the MPA check's reference, not a visitor meeting a rolling deploy:
+	 *  a file only the live build has is the live build's for it, whatever the host keeps (gen 63,
+	 *  seed 63005; both in test/deploy.node.test.ts). */
 	#build_for(path: string, from: string, key: string): string {
 		const pinned = this.#pinned;
 		const last = this.deployed.at(-1);
@@ -387,7 +389,7 @@ export class World {
 			const serves = (b: string) => this.servers.get(b)![0].serves(path);
 			const other = serves(id) ? undefined : [...this.servers.keys()].reverse().find(serves);
 			if (other !== undefined) {
-				if (this.#o.rollover?.old_files) id = other;
+				if (this.#o.rollover?.old_files || (pinned !== null && other === this.live)) id = other;
 				else {
 					const list = this.skewed.get(from) ?? new Set<string>();
 					this.skewed.set(from, list.add(path));
