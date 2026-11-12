@@ -19,7 +19,7 @@
  * @packageDocumentation
  */
 import { render } from 'svelte/server';
-import { clock } from '@ogygia/machine';
+import { clock, random } from '@ogygia/machine';
 import type { Component } from 'svelte';
 import type { RequestEvent } from '@sveltejs/kit';
 import type { Handle } from './kit-handle.ts';
@@ -515,9 +515,8 @@ const dt_buffers = new WeakMap<
 	{ events: DevtoolsEvent[]; seq: number; mark: string }
 >();
 function dt_new_mark(): string {
-	const bytes = crypto.getRandomValues(new Uint8Array(12));
 	let hex = '';
-	for (const b of bytes) hex += b.toString(16).padStart(2, '0');
+	for (const b of random.bytes(12)) hex += b.toString(16).padStart(2, '0');
 	return hex;
 }
 /** This response's devtools mark ('' off devtools, or with no buffer: a lean or devtools-off visit). */
