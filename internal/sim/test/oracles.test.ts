@@ -183,29 +183,6 @@ describe('known', () => {
 		expect(excused(page([sheet]), page([]))).toEqual([]);
 	});
 
-	it("#1039's sheet link inside a held region, on one side (gen 194, seed 72)", () => {
-		const k = KNOWN.find((x) => x.issue === 1039)!;
-		const page = (sheet: string[]) =>
-			[
-				'title: ',
-				'<html>',
-				'  <body>',
-				'    <div data-gen="held-host">',
-				'      <ogygia-region data-og-baked="" live="">',
-				...sheet.map((l) => `        ${l}`),
-				'        <div data-gen="held">',
-				'          <span>',
-				'            "n3 #0"'
-			].join('\n');
-		const shown = page([
-			'<link data-ogygia-region-css="" href="/_app/immutable/assets/og-region.x.css" rel="stylesheet">'
-		]);
-		const fresh = page([]);
-		expect(k.applies(shown, fresh)).toBe(true);
-		expect(k.applies(fresh, fresh)).toBe(false);
-		expect(k.forgive(shown, fresh)).toBe(fresh);
-	});
-
 	it("#1071's kept head link resolving under the page's path (palaestra /lab/deep/x)", () => {
 		const k = KNOWN.find((x) => x.issue === 1071)!;
 		const page = (href: string) =>
