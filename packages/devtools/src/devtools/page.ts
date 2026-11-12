@@ -1,12 +1,12 @@
 /**
- * The Page tab's DOM side: reads the regions off the page and the failures off the bus, hands them
+ * The Page tab's DOM side: reads the regions off the page and the failures off the runtime hooks, hands them
  * with the beacon's visit to the pure {@link ./page-insights.js analyzer}. Also publishes
  * `window.__ogygia_page()` (dev-only, devtools builds) so the planted-problem answer key and e2e
  * read the same report the tab shows without opening the panel.
  */
 import { beacon_page, hole_request_times, is_headless } from '../profiler/beacon.ts';
 import { tool_fetch } from '@ogygia/core/internal/instruments';
-import { snapshot } from '@ogygia/core/events';
+import { hook_entries } from './hook-entries.ts';
 import { flights, type Flights } from '@ogygia/machine';
 import { page_ledger } from './ledger-dom.ts';
 import {
@@ -304,15 +304,15 @@ export function failures(since: number = last_nav()?.t ?? -Infinity): Failure[] 
 	const ok = new Set<string>();
 	const seen = new Set<string>();
 	// newest first: a later success clears an earlier failure of the same region
-	const ev = snapshot();
+	const ev = hook_entries();
 	for (let i = ev.length - 1; i >= 0; i--) {
 		const e = ev[i];
-		if (e.name === 'region.hydrate.done' && e.fp) ok.add(e.fp);
-		else if (e.name === 'region.hydrate.failed' && !(e.fp && ok.has(e.fp))) {
+		if (e.hook === 'regionHydrated' && e.fp) ok.add(e.fp);
+		else if (e.hook === 'regionFailed' && !(e.fp && ok.has(e.fp))) {
 			const key = e.fp ?? e.message;
 			if (seen.has(key)) continue;
 			if (
-				e.t < since &&
+				e.at < since &&
 				!(
 					e.fp &&
 					document.querySelector(
@@ -322,21 +322,11 @@ export function failures(since: number = last_nav()?.t ?? -Infinity): Failure[] 
 			)
 				continue;
 			seen.add(key);
-			// its wake (the start event before it): the span it was loading, holding the others' turns
-			let start: number | undefined;
-			for (let j = i - 1; j >= 0 && e.fp; j--) {
-				const s = ev[j];
-				if (s.name === 'region.hydrate.start' && s.fp === e.fp) {
-					start = s.t;
-					break;
-				}
-			}
-			const turn = (e as { turn?: unknown }).turn;
 			out.push({
 				fp: e.fp,
 				message: e.message,
-				...(start !== undefined ? { span: [start, e.t] as [number, number] } : {}),
-				...(typeof turn === 'number' ? { turn } : {})
+				...(e.fp ? { span: [e.since, e.at] as [number, number] } : {}),
+				...(e.turn !== undefined ? { turn: e.turn } : {})
 			});
 		}
 	}
@@ -371,8 +361,8 @@ export function hole_waits(since: number = last_nav()?.t ?? -Infinity, fcp = 0):
 	const out: HoleWait[] = [];
 	const seen = new Set<string>();
 	const batched = batch_parts(since);
-	for (const e of snapshot()) {
-		if (e.name !== 'region.server.applied' || e.wait_ms === undefined || e.t < since) continue;
+	for (const e of hook_entries()) {
+		if (e.hook !== 'holeAnswered' || e.at < since) continue;
 		const key = e.endpoint ?? e.entry ?? '';
 		if (seen.has(key)) continue;
 		seen.add(key);
@@ -389,18 +379,18 @@ export function hole_waits(since: number = last_nav()?.t ?? -Infinity, fcp = 0):
 		// how long the visitor SAW the fallback: from the first paint (or the hole's own start, when
 		// later: one woken by a scroll) to the swap. The fetch step alone undercounts: a prefetch may
 		// have started the request earlier, and the fallback was on screen since the paint anyway
-		const start = Math.max(fcp, since, e.t - e.wait_ms);
+		const start = Math.max(fcp, since, e.start);
 		// its request as the browser timed it: splits the wait into before it left, and the server. A
 		// batched hole has no request of its own: the batch's start, and its own part's landing
 		const part = e.endpoint ? batched.get(e.endpoint) : undefined;
 		const times = part
 			? { left: part.left, first: part.at, end: part.at }
 			: e.endpoint
-				? hole_request_times(e.endpoint, e.t)
+				? hole_request_times(e.endpoint, e.at)
 				: null;
 		out.push({
 			name: (id && region_names()[id]) || (e.entry ? region_name(e.entry) : 'a hole'),
-			wait_ms: Math.max(0, Math.round(e.t - start)),
+			wait_ms: Math.max(0, Math.round(e.at - start)),
 			below_fold: !!rect && rect.top + scrollY > innerHeight,
 			...(e.endpoint ? { endpoint: e.endpoint } : {}),
 			shown_at: Math.round(start),
@@ -421,16 +411,14 @@ export function hole_waits(since: number = last_nav()?.t ?? -Infinity, fcp = 0):
  *  timing of the POST, else the send), its own part's landing, and the batch's size. */
 function batch_parts(since: number): Map<string, { left: number; at: number; size: number }> {
 	const out = new Map<string, { left: number; at: number; size: number }>();
-	const sent = new Map<number, { t: number; size: number; left?: number }>();
-	for (const e of snapshot()) {
-		if (e.t < since) continue;
-		if (e.name === 'region.batch.sent') sent.set(e.batch, { t: e.t, size: e.endpoints.length });
-		else if (e.name === 'region.batch.part') {
-			const b = sent.get(e.batch);
-			if (!b) continue;
-			b.left ??= batch_request_start(e.endpoint, b.t);
-			out.set(e.endpoint, { left: Math.round(b.left), at: Math.round(e.t), size: b.size });
-		}
+	const left = new Map<number, number>();
+	for (const e of hook_entries()) {
+		if (e.hook !== 'holeAnswered' || !e.batch || !e.endpoint || e.batch.left < since) continue;
+		const { size, at } = e.batch;
+		let l = left.get(e.batch.left);
+		if (l === undefined)
+			left.set(e.batch.left, (l = batch_request_start(e.endpoint, e.batch.left)));
+		out.set(e.endpoint, { left: Math.round(l), at: Math.round(at), size });
 	}
 	return out;
 }
@@ -455,12 +443,10 @@ function batch_request_start(endpoint: string, sent: number): number {
 /** Batch requests that carried fewer holes than they were sent for (since `since`). */
 export function hole_batches(since: number = last_nav()?.t ?? -Infinity): HoleBatch[] {
 	const out: HoleBatch[] = [];
-	const sent = new Map<number, string[]>();
-	for (const e of snapshot()) {
-		if (e.t < since) continue;
-		if (e.name === 'region.batch.sent') sent.set(e.batch, e.endpoints);
-		else if (e.name === 'region.batch.done' && e.delivered < e.sent) {
-			const names = (sent.get(e.batch) ?? []).map((ep) => {
+	for (const e of hook_entries()) {
+		if (e.at < since) continue;
+		if (e.hook === 'holeBatchMissed') {
+			const names = e.endpoints.map((ep) => {
 				let id = '';
 				try {
 					id = new URL(ep, location.href).searchParams.get('id') ?? '';
@@ -474,7 +460,7 @@ export function hole_batches(since: number = last_nav()?.t ?? -Infinity): HoleBa
 				delivered: e.delivered,
 				status: e.status,
 				...(e.refused ? { refused: e.refused } : {}),
-				...(e.final_url ? { final_url: e.final_url } : {}),
+				...(e.finalUrl ? { final_url: e.finalUrl } : {}),
 				names
 			});
 		}
@@ -488,34 +474,22 @@ export function hole_failures(since: number = last_nav()?.t ?? -Infinity): HoleF
 	const out: HoleFailure[] = [];
 	const answered = new Set<string>();
 	const seen = new Set<string>();
-	const ev = snapshot();
+	const ev = hook_entries();
 	for (let i = ev.length - 1; i >= 0; i--) {
 		const e = ev[i];
-		if (e.name !== 'region.server.applied' && e.name !== 'region.server.failed') continue;
+		if (e.hook !== 'holeAnswered' && e.hook !== 'holeFailed') continue;
 		const key = e.endpoint ?? e.entry ?? '';
-		if (e.name === 'region.server.applied') answered.add(key);
-		else if (e.final && !answered.has(key) && !seen.has(key) && e.t >= since) {
+		if (e.hook === 'holeAnswered') answered.add(key);
+		else if (!answered.has(key) && !seen.has(key) && e.at >= since) {
 			seen.add(key);
-			// a hole has no entry: its endpoint names the component (`?id=<island id>`)
-			const el = e.endpoint
-				? document.querySelector(`ogygia-region[endpoint="${CSS.escape(e.endpoint)}"]`)
-				: e.entry
-					? document.querySelector(`ogygia-region[entry="${CSS.escape(e.entry)}"]`)
-					: null;
-			let id = '';
-			try {
-				id = e.endpoint ? (new URL(e.endpoint, location.href).searchParams.get('id') ?? '') : '';
-			} catch {
-				id = '';
-			}
 			out.push({
-				fp: el?.getAttribute('data-og-fp') ?? undefined,
-				name: (id && region_names()[id]) || (e.entry ? region_name(e.entry) : 'a hole'),
+				fp: e.fp,
+				name: region_names()[e.id] || (e.entry ? region_name(e.entry) : 'a hole'),
 				endpoint: e.endpoint,
 				reason: e.reason,
-				...(e.final_url ? { final_url: e.final_url } : {}),
+				...(e.finalPath ? { final_url: e.finalPath } : {}),
 				...(e.message ? { message: e.message } : {}),
-				attempts: e.attempt
+				attempts: e.attempts
 			});
 		}
 	}
@@ -566,26 +540,20 @@ export function held_open(): HeldOpen | null {
  *  and never finished — it fell back to a full load the browser did not make (a test holding document
  *  loads back), or a later one overtook it — changed nothing: this is still the page it was. */
 export function last_nav(): { to: string; t: number } | null {
-	const ev = snapshot();
+	const ev = hook_entries();
 	let own: { to: string; t: number } | null = null;
-	let finished: string | null = null;
-	for (let i = ev.length - 1; i >= 0; i--) {
+	for (let i = ev.length - 1; i >= 0 && !own; i--) {
 		const e = ev[i];
-		if (e.realm !== 'client') continue;
-		if (e.name === 'nav.finish' && finished === null) finished = e.to;
-		else if (e.name === 'nav.start' && finished !== null) {
-			own = { to: finished, t: e.t };
-			break;
-		}
+		if (e.hook === 'navigated') own = { to: e.to, t: e.t };
 	}
 	// a page change ogygia's router did not make (SvelteKit's own client router on a Kit-hydrated
 	// document): the URL moved to another page after the router's last navigation, or with none. The
 	// router's own address moves are not one — it pushes the new address before it fetches, so a
 	// navigation it then hands to the browser (held back by a test) leaves a move behind with no swap
 	const path = (to: string) => to.split('?')[0];
-	const starts = ev
-		.filter((e) => e.name === 'nav.start' && e.realm === 'client')
-		.map((e) => ({ t: e.t, path: path((e as { to: string }).to) }));
+	const starts = ev.flatMap((e) =>
+		e.hook === 'navStarted' ? [{ t: e.at, path: path(e.to) }] : []
+	);
 	const moved = url_moves
 		.filter((m) => !starts.some((s) => s.t <= m.t && s.path === path(m.to)))
 		.at(-1);

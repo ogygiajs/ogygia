@@ -8,13 +8,14 @@
  *  - every request made (resource timing: size, time, status);
  *  - DOM changes per island (a MutationObserver), errors and rejections, console errors;
  *  - the heap before and after (where the browser exposes it);
- *  - the devtools bus: islands woken, hydrations, failures, recoveries, navigations, hole fetches.
+ *  - the runtime hooks: islands woken, hydrations, failures, recoveries, navigations, hole fetches.
  * Elements are kept by WeakRef so the tab can point at them without holding the page alive.
  */
-import { add_sink, snapshot } from '@ogygia/core/events';
 import { flights, machine, STALE } from '@ogygia/machine';
 import { all_regions, region_name } from './regions.ts';
+import { on_hook } from './hook-entries.ts';
 import type {
+	HookEntry,
 	SessionClick,
 	SessionData,
 	SessionFrame,
@@ -75,7 +76,7 @@ function shift_part(s: SessionData, d: number): SessionData {
 		clicks: t(s.clicks),
 		errors: t(s.errors),
 		navs: t(s.navs ?? []),
-		events: s.events.map((e) => ({ ...e, t: e.t + d })),
+		hooks: (s.hooks ?? []).map((e) => ({ ...e, at: e.at + d })),
 		pages: t(s.pages)
 	};
 }
@@ -105,7 +106,7 @@ function merge_parts(parts: SavedPart[], current: SessionData): SessionData {
 		clicks: cat('clicks'),
 		errors: cat('errors'),
 		navs: all.flatMap((p) => p.navs ?? []),
-		events: cat('events'),
+		hooks: cat('hooks'),
 		pages: cat('pages'),
 		mutations: [...muts.values()].sort((a, b) => b.count - a.count),
 		heap: current.heap,
@@ -216,7 +217,7 @@ export function start_session(prior?: SavedPart[]): Recorder {
 	const run = run_definition.create();
 	const s = run.scope;
 	const from = performance.now();
-	const seq0 = snapshot().at(-1)?.seq ?? -1;
+	const hooks: HookEntry[] = [];
 	const interactions: SessionInteraction[] = [];
 	const longtasks: { t: number; ms: number }[] = [];
 	const frames: SessionFrame[] = [];
@@ -224,16 +225,17 @@ export function start_session(prior?: SavedPart[]): Recorder {
 	const errors: { t: number; message: string }[] = [];
 	const muts = new Map<Element | null, number>();
 	// ISLAND NAMES as the session goes: an in-app navigation swaps the page, and the islands that
-	// were clicked leave the DOM — named now, at the start and just before each swap (nav.start is
-	// emitted synchronously, before the new page goes in), they keep their names in the report
+	// were clicked leave the DOM — named now, at the start and just before each swap (navStarted is
+	// called synchronously, before the new page goes in), they keep their names in the report
 	const names: Record<string, string> = {};
 	const note_names = () => {
 		for (const r of all_regions()) if (r.fp && !names[r.fp]) names[r.fp] = region_name(r.entry);
 	};
 	note_names();
 	s.defer(
-		add_sink((e) => {
-			if (e.name === 'nav.start') note_names();
+		on_hook((e) => {
+			hooks.push(e);
+			if (e.hook === 'navStarted') note_names();
 		})
 	);
 	const watch = (
@@ -513,7 +515,7 @@ export function start_session(prior?: SavedPart[]): Recorder {
 			errors,
 			navs,
 			heap: heap0 !== null && heap1 !== null ? { from: heap0, to: heap1 } : null,
-			events: snapshot().filter((e) => e.seq > seq0 && e.realm === 'client'),
+			hooks: [...hooks],
 			cpu,
 			cpu_off,
 			page: location.pathname,
