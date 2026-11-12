@@ -137,63 +137,6 @@ export const KNOWN: ReadonlyArray<{
 	seen?(world: World, tab: Tab): boolean;
 }> = [
 	{
-		issue: 937,
-		what: 'a deferred peer region whose peer failed is answered as an empty success',
-		// (a peer widget the fresh load shows is missing whole from the tab, and a server's hop to a
-		// peer failed in the run: cut, dropped, tampered, or a 5xx; each widget set aside whole)
-		applies: (shown, fresh) => widgets(shown) < widgets(fresh),
-		forgive: (s) => {
-			const out: string[] = [];
-			let inside: string | null = null;
-			for (const line of s.split('\n')) {
-				const indent = /^ */.exec(line)![0];
-				if (inside !== null && indent.length > inside.length) continue;
-				inside = null;
-				if (line.trim().startsWith('<section data-gen="widget"')) {
-					inside = indent;
-					continue;
-				}
-				out.push(line);
-			}
-			return out.join('\n');
-		},
-		seen: (world) => world.network.exchanges.some(peer_hop_failed)
-	},
-	{
-		issue: 993,
-		what: 'a hole renders with an empty page.data when its page-facts look-up answer is not kept',
-		// (the generated `<i data-gen-page>` shows its page's data on one side only, buggify's
-		// flights.not-kept fired: gen 175, seed 175003; each such element's text set aside)
-		applies: (shown, fresh) => page_data_text(shown) !== page_data_text(fresh),
-		forgive: (s) => without_page_data(s),
-		seen: (world) => (world.buggified.get('flights.not-kept')?.fired ?? 0) > 0
-	},
-	{
-		issue: 995,
-		what: "a router navigation's hole batch is sent with the old page as Referer",
-		// (the same shape as #993, in a document that sent a batch of holes: gen 190, seed 190007)
-		applies: (shown, fresh) => page_data_text(shown) !== page_data_text(fresh),
-		forgive: (s) => without_page_data(s),
-		seen: (world, tab) =>
-			world.network.exchanges.some(
-				(e) =>
-					e.from === tab.realm && e.method === 'POST' && new URL(e.url).pathname === '/__ogygia__'
-			)
-	},
-	{
-		issue: 966,
-		what: "a mounted peer page's stylesheet stays in the head after a router navigation away",
-		// (a peer's sheet, `crossorigin`, in the tab's head and not in the fresh load's: gen 158)
-		applies: (shown, fresh) => stale_peer_sheets(shown, fresh).length > 0,
-		forgive: (s, other) => {
-			const stale = new Set(stale_peer_sheets(s, other));
-			return s
-				.split('\n')
-				.filter((l) => !stale.has(l))
-				.join('\n');
-		}
-	},
-	{
 		issue: 1039,
 		what: "a held region's stylesheet stays inside the next page's held region after a navigation",
 		// (a region sheet link right inside a baked held region, on one side only: gen 194, seed 72;
@@ -423,60 +366,6 @@ function bookkeeping_out(s: string): string {
 		const kept = url.replace(/&(exp|sig)=[^&]*/g, '&$1=<t>');
 		return ` endpoint="${kept}"`;
 	});
-}
-
-/** How many generated peer widgets a normalized DOM shows. */
-function widgets(s: string): number {
-	return s.split('\n').filter((l) => l.trim().startsWith('<section data-gen="widget"')).length;
-}
-
-/** A server's hop to a peer's fragment that failed (#937: the shell answers its hole empty). */
-function peer_hop_failed(e: World['network']['exchanges'][number]): boolean {
-	return (
-		e.from.startsWith('server') &&
-		e.url.includes('/og/fragment/') &&
-		(e.cut ||
-			e.tampered ||
-			(typeof e.status === 'number' ? e.status >= 500 : e.status !== 'pending'))
-	);
-}
-
-/** A normalized DOM less what each generated `<i data-gen-page>` says (#993, #995). */
-function without_page_data(s: string): string {
-	const out: string[] = [];
-	let inside: string | null = null;
-	for (const line of s.split('\n')) {
-		const indent = /^ */.exec(line)![0];
-		if (inside !== null && indent.length > inside.length) continue;
-		inside = null;
-		out.push(line);
-		if (line.trim().startsWith('<i data-gen-page=')) inside = indent;
-	}
-	return out.join('\n');
-}
-
-/** What each generated `<i data-gen-page>` in a normalized DOM says (#993). */
-function page_data_text(s: string): string {
-	const out: string[] = [];
-	const lines = s.split('\n');
-	for (const [i, line] of lines.entries())
-		if (line.trim().startsWith('<i data-gen-page=')) {
-			const next = lines[i + 1] ?? '';
-			out.push(
-				next.length - next.trimStart().length > line.length - line.trimStart().length
-					? next.trim()
-					: ''
-			);
-		}
-	return out.join(',');
-}
-
-/** The peer stylesheets (`crossorigin`) in `s`'s head that `other`'s lacks (#966). */
-function stale_peer_sheets(s: string, other: string): string[] {
-	const theirs = new Set(other.split('\n'));
-	return s
-		.split('\n')
-		.filter((l) => /^ {4}<link crossorigin="".* rel="stylesheet">$/.test(l) && !theirs.has(l));
 }
 
 /** The first lines where two normalized DOMs differ, for a report. */
@@ -819,26 +708,6 @@ const KNOWN_EMPTY: ReadonlyArray<{
 	what: string;
 	is: (r: Element, world: World, realm: string) => boolean;
 }> = [
-	{
-		issue: 1007,
-		what: 'a peer region another deployment refused reads as a bad signature, not its key',
-		// (a rolling deploy with no secret: its `/og/frag` refused `sig`, so the deploy's skew is
-		// not seen; gen 195, seed 31)
-		is: (r, world, realm) =>
-			r.getAttribute('render') === 'defer' &&
-			!r.hasAttribute('data-hydrated') &&
-			(r.getAttribute('endpoint') ?? '').startsWith('/og/frag?') &&
-			world.frag_refused.has(realm)
-	},
-	{
-		issue: 937,
-		what: 'a deferred peer region whose peer failed is answered as an empty success',
-		// (its hole fetched and answered, with nothing: the shell's hop to the peer failed)
-		is: (r) =>
-			r.getAttribute('render') === 'defer' &&
-			r.hasAttribute('data-hydrated') &&
-			(r.getAttribute('endpoint') ?? '').startsWith('/og/frag?')
-	},
 	{
 		issue: 910,
 		what: "a server island inside a peer's widget never shows",

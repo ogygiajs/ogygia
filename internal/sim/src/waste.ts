@@ -211,27 +211,7 @@ const KNOWN_WASTE: ReadonlyArray<{
 	issue: number;
 	what: string;
 	is: (held: string, doc: Document) => boolean;
-}> = [
-	{
-		issue: 984,
-		what: 'the island graph preload links a chunk another loader linked after its first read',
-		// (the second link to the chunk is the graph preload's own: gen 180, seed 3)
-		is: (held, doc) => {
-			const m = /^module preload (.+)$/.exec(held);
-			if (m === null) return false;
-			const links = [...doc.querySelectorAll('link[rel="modulepreload"]')].filter(
-				(l) => (l as HTMLLinkElement).href === m[1]
-			);
-			return links.slice(1).every((l) => l.hasAttribute('data-ogygia-graph-preload'));
-		}
-	},
-	{
-		issue: 987,
-		what: "a router navigation posts its deferred holes as one batch to the first hole's path",
-		// (a peer widget's first: `POST /og/frag`, refused; gen 157, seed 3)
-		is: (line) => line === 'POST /og/frag 403'
-	}
-];
+}> = [];
 
 /** What is held twice, less what a filed bug explains (and which bugs did). */
 export function known_waste(doc: Document, held: string[]): { left: string[]; known: number[] } {

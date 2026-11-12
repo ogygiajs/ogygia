@@ -142,7 +142,7 @@ describe('known', () => {
 		expect(excused(page([]), page(['"p2 data"']))).toEqual([]);
 	});
 
-	it("a peer widget missing from the tab is a finding again: #937 is fixed (gen 157)", () => {
+	it('a peer widget missing from the tab is a finding again: #937 is fixed (gen 157)', () => {
 		const page = (widget: string[]) =>
 			['title: ', '<html>', '  <body>', ...widget.map((l) => `    ${l}`)].join('\n');
 		const widget = ['<section data-gen="widget">', '  "w1"'];
@@ -178,7 +178,6 @@ describe('known', () => {
 		expect(k.applies(fresh, fresh)).toBe(false);
 		expect(k.forgive(shown, fresh)).toBe(fresh);
 	});
-
 });
 
 describe('every region shows something', () => {
@@ -197,8 +196,7 @@ describe('every region shows something', () => {
 		const world = {
 			fired_in: new Map(),
 			network: { exchanges: [] },
-			skewed_for: () => false,
-			frag_refused: new Set()
+			skewed_for: () => false
 		} as unknown as Parameters<typeof regions_show>[1];
 		const found = regions_show(tab, world);
 		expect(found?.oracle).toBe('empty-region');
@@ -221,8 +219,7 @@ describe('every region shows something', () => {
 		const world = {
 			fired_in: new Map(),
 			network: { exchanges: [] },
-			skewed_for: () => false,
-			frag_refused: new Set(['tab-1#1'])
+			skewed_for: () => false
 		} as unknown as Parameters<typeof regions_show>[1];
 		const found = regions_show(tab, world);
 		expect(found?.oracle).toBe('empty-region');
