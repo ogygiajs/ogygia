@@ -16,7 +16,8 @@ const FILES: Record<string, string> = {
 		'export const returned = where();',
 	'/shared.js': "import './slow.js'; export const shared = 'ran';",
 	'/first.js': "import './slow.js'; (globalThis.order ??= []).push('first');",
-	'/slow.js': 'export const slow = 1;'
+	'/slow.js': 'export const slow = 1;',
+	'/state.js': "import './slow.js'; globalThis.order.push('module ' + document.readyState);"
 };
 
 async function run(v8: boolean, content?: string): Promise<string> {
@@ -82,5 +83,19 @@ describe('modules of a simulated tab', () => {
 			'<script type="module" src="/first.js"></script>' +
 			"<script type=\"module\">(globalThis.order ??= []).push('inline'); document.body.textContent = globalThis.order.join(' ');</script>";
 		expect(await run(true, page)).toBe('first inline');
+	});
+
+	// (happy-dom reads `interactive` from the start and never fires DOMContentLoaded: a third party's
+	// script waiting for it never ran, gen 192's repair mutants all survived, and ogygia's wake gate
+	// waited for `load`)
+	it('the document is loading while parsed, then fires DOMContentLoaded once its modules ran, then load', async () => {
+		modules_in_order();
+		const page =
+			'<script>globalThis.order = [document.readyState];' +
+			"document.addEventListener('DOMContentLoaded', () => order.push('dcl ' + document.readyState));" +
+			"addEventListener('load', () => { order.push('load ' + document.readyState); document.body.textContent = order.join(' '); });" +
+			'</script>' +
+			'<script type="module" src="/state.js"></script>';
+		expect(await run(true, page)).toBe('loading module interactive dcl interactive load complete');
 	});
 });

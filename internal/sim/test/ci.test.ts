@@ -1,7 +1,14 @@
 // The always-on runner (src/ci.ts): a batch that did not run is never counted, a found branch never
 // needs a forced push, and no error it reports carries the token.
 import { describe, expect, it } from 'vitest';
-import { batch_result, free_branch, quality_line, redact, unreached_in_every } from '../src/ci.ts';
+import {
+	batch_result,
+	free_branch,
+	quality_line,
+	redact,
+	signature,
+	unreached_in_every
+} from '../src/ci.ts';
 
 const OUT = JSON.stringify({ findings: [], steps_per_second: 10, replay_leaks: [] });
 
@@ -33,6 +40,37 @@ describe('a found branch', () => {
 		expect(free_branch('abc', new Set(['sim/found-abc', 'sim/found-abc-2']))).toBe(
 			'sim/found-abc-3'
 		);
+	});
+});
+
+describe("a finding's signature", () => {
+	// (a mutant is a rebuilt app: every file name and position in a stack moves, and each mutant's
+	// baseline failure read as a new finding, a kill: gen 192, seed 11's five)
+	it('is the same for an uncaught error whose stack points into another build', () => {
+		const at = (file: string, line: number, column: number) => ({
+			oracle: 'uncaught',
+			detail: [
+				'after tab 0: click link #3: TypeError: c.navigate is not a function',
+				`    at Object.navigate (https://app.test/_app/immutable/${file}:${line}:${column})`,
+				`    at https://app.test/_app/immutable/${file}:${line}:${column + 40}`
+			].join('\n')
+		});
+		const base = signature(at('og-runtime-9038e5f3.BbtuYXh-.js', 6, 52784));
+		expect(signature(at('og-runtime-9038e5f3.B4tu7Xh-.js', 6, 52784))).toBe(base);
+		expect(signature(at('og-runtime-1a2b3c4d.CC3_pZej.js', 7, 1203))).toBe(base);
+		// (what the error says, and where in the code, still tell findings apart)
+		expect(
+			signature({ ...at('og-runtime-9038e5f3.BbtuYXh-.js', 6, 52784), oracle: 'page-errors' })
+		).not.toBe(base);
+		expect(
+			signature({
+				oracle: 'uncaught',
+				detail: at('og-runtime-9038e5f3.BbtuYXh-.js', 6, 52784).detail.replace(
+					'Object.navigate',
+					'Object.goto'
+				)
+			})
+		).not.toBe(base);
 	});
 });
 
