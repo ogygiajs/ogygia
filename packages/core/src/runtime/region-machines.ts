@@ -22,7 +22,7 @@
  * - A visit is its own object: code that awaited checks `machine.now === mine` to know it still is
  *   the visit it started in.
  */
-import { machine, type Machine } from '@ogygia/machine';
+import { machine, type Machine, type MachineGraph } from '@ogygia/machine';
 import type { IslandHandle } from './hydrate-core.ts';
 
 type HoleStates = {
@@ -124,6 +124,11 @@ const wake_definition = machine<WakeStates>()({
 });
 
 export type Wake = Machine<WakeStates, typeof wake_steps>;
+
+/** The wake machine's states and steps, as data (internal/notes/flows/region-wake.md draws it). */
+export function wake_graph(): MachineGraph {
+	return wake_definition.graph();
+}
 
 /** An island's wake machine, cold. */
 export function create_wake(): Wake {
