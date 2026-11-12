@@ -289,6 +289,12 @@ const HERO_ROUTE = [
 	''
 ].join('\n');
 
+/** Whether a seed's app runs the router (stream `gen router`): most do; one without it navigates
+ *  page to page, and its `invalidateAll()` is the document's own soft refresh (loaded on first use). */
+export function router_plan(seed: number): boolean {
+	return !rng(seed).fork('gen router').chance(0.25);
+}
+
 /** The first id of the layout's regions: never one of the pages' (the peer's start at 1000). */
 export const LAYOUT_FIRST = 500;
 
@@ -711,7 +717,8 @@ export function write(
 	pages: readonly GenPage[],
 	seed: number,
 	peer: GenPeer | null = null,
-	layout: GenNode | null = null
+	layout: GenNode | null = null,
+	router = true
 ): void {
 	const routes = join(app, 'src', 'routes');
 	const lib = join(app, 'src', 'lib', 'gen');
@@ -835,7 +842,7 @@ export function write(
 	}
 	writeFileSync(
 		join(lib, 'plan.json'),
-		JSON.stringify({ seed, pages, peer, layout }, null, '\t') + '\n'
+		JSON.stringify({ seed, pages, peer, layout, router }, null, '\t') + '\n'
 	);
 }
 
@@ -947,11 +954,12 @@ function main(): void {
 	const pages = plan(seed);
 	const peer = peer_plan(seed, pages);
 	const layout = layout_plan(seed);
-	write(app, pages, seed, peer, layout);
+	const router = router_plan(seed);
+	write(app, pages, seed, peer, layout, router);
 	const count = (ns: readonly GenNode[]): number =>
 		ns.reduce((s, n) => s + 1 + count(n.children), 0);
 	console.log(
-		`[sim] generated ${pages.length} pages, ${count(pages.flatMap((p) => p.roots))} regions (seed ${seed})${layout ? `, ${count([layout])} in the layout` : ''} in ${app}`
+		`[sim] generated ${pages.length} pages, ${count(pages.flatMap((p) => p.roots))} regions (seed ${seed})${layout ? `, ${count([layout])} in the layout` : ''}${router ? '' : ', no router'} in ${app}`
 	);
 	if (peer) {
 		write_peer(`${app}-peer`, peer, seed);
