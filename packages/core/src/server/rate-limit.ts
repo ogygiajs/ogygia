@@ -4,6 +4,8 @@
  * - Render limiter: charge AFTER a valid MAC (RATE-BURN).
  * - Probe limiter: charge BEFORE HMAC (HMAC-CPU-DOS).
  */
+import { clock } from '@ogygia/machine';
+
 export type RateBucket = { n: number; t: number };
 
 const DEFAULT_CAP = 4096;
@@ -49,7 +51,7 @@ export class RateLimiter {
 	/** @returns true if this IP is over budget (request should 429). */
 	limited(ip: string): boolean {
 		if (this.#max <= 0) return false;
-		const now = Date.now();
+		const now = clock.mono();
 		const b = this.#buckets.get(ip);
 		if (!b || now - b.t >= this.#windowMs) {
 			this.#buckets.set(ip, { n: 1, t: now });
@@ -63,6 +65,13 @@ export class RateLimiter {
 		b.n++;
 		this.#touch(ip, b);
 		return false;
+	}
+
+	/** Whole seconds until `ip`'s window resets (at least 1), for a 429's `Retry-After` (#959). */
+	retry_after_s(ip: string): number {
+		const b = this.#buckets.get(ip);
+		const left = b ? this.#windowMs - (clock.mono() - b.t) : 0;
+		return Math.max(1, Math.ceil(left / 1000));
 	}
 
 	get size(): number {

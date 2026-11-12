@@ -88,6 +88,20 @@ export const DEVTOOLS_ERRORS = {
 
 /** The warnings: `warn(code, args, ...rest)`. */
 export const DEVTOOLS_WARNINGS = {
+	devtools_page_beacon_load_failed: {
+		text: (): string =>
+			'the page beacon failed to load or to start, so this page is not measured (the next page load tries again):',
+		details: (): string => prose`
+			Devtools is switched on in this browser and the page had no beacon of its own (an app
+			without ogygia's handle gets none from the server), so the dock asked for the beacon's code.
+			The browser could not download it (the network failed, or a deploy removed the file), or the
+			beacon threw as it started; the error follows the message. The page works as before, but
+			this visit is missing from the profiler. The next page load asks for the code again.
+
+			If a download keeps failing, check that the build's \`_app\` files are deployed and
+			reachable. Said once per page.
+		`
+	},
 	devtools_profiler_session_rejected: {
 		text: (a: { path: string; diagnosis: string; reason: string }): string =>
 			`session not accepted on ${a.path}: ${a.diagnosis} — ${a.reason}`,

@@ -21,17 +21,17 @@ import {
 	lcp_rivals,
 	vital_parts,
 	type HeldOpen
-} from '@ogygia/core/insights';
-import { fp_compare } from '@ogygia/core/insights';
+} from '@ogygia/insights';
+import { fp_compare } from '@ogygia/insights';
 import {
 	barrel_left_fix,
 	barrel_left_words,
 	type BarrelLeftReason,
 	type ChunkBarrel
-} from '@ogygia/core/insights';
+} from '@ogygia/insights';
 import type { ClientWindows, InteractionCpu } from './client-windows.ts';
 import type { ByteStrip } from './byte-strip.ts';
-import { runtime_scripts, type PageAssets, type RuntimeScripts } from '@ogygia/core/insights';
+import { runtime_scripts, type PageAssets, type RuntimeScripts } from '@ogygia/insights';
 import { unscoped_finding } from '@ogygia/core/internal/instruments';
 import type { River } from './river.ts';
 import type { GcAttribution } from './gc.ts';
@@ -68,7 +68,7 @@ import type {
 	OgygiaRequestStats
 } from '@ogygia/core/internal/server';
 import type { SpanRecord } from './span.ts';
-import { TESTING_ENGINE_VERSION } from '@ogygia/core/insights';
+import { TESTING_ENGINE_VERSION } from '@ogygia/insights';
 
 export type { OgygiaRequestStats, SpanRecord, HoleRequestStats, IslandStat };
 
@@ -495,7 +495,7 @@ export interface GcSummary {
 }
 
 /** a line of an island's own component that draws differently in the browser, with its file */
-import { hazard_words, hazard_fix, type IslandHazard } from '@ogygia/core/insights';
+import { hazard_words, hazard_fix, type IslandHazard } from '@ogygia/insights';
 export type { IslandHazard };
 export { hazard_words, hazard_fix };
 
@@ -623,6 +623,7 @@ const fmt_pct = (part: number, whole: number): string =>
 	whole > 0 ? ((part / whole) * 100).toFixed(1) + '%' : '—';
 const round1 = (n: number): number => Math.round(n * 10) / 10;
 /** The dev server's own packages: their work (module loading, transforms) exists only in dev. */
+// static: a fixed list of package names
 const DEV_TOOLS = new Set([
 	'vite',
 	'rolldown',
@@ -641,6 +642,7 @@ export function dev_tool_caller(caller: string): boolean {
 	const pkg = caller.slice(open + 1, -1);
 	return DEV_TOOLS.has(pkg) || pkg.startsWith('@rolldown/') || pkg.startsWith('@vitejs/');
 }
+// static: a fixed list of keywords
 const CALL_KEYWORDS = new Set([
 	'if',
 	'for',
@@ -985,6 +987,7 @@ export function with_hidden_filled(
 
 /** browser findings whose answer is the screen's: below its first screen, hidden on it, images it
  *  shows smaller or lower down */
+// static: a fixed list of finding codes
 const SCREEN_CODES: ReadonlySet<string> = new Set([
 	'eager-offscreen',
 	'eager-hidden',
@@ -1008,6 +1011,7 @@ const PATH_WARN_MS = 3;
 
 /** findings about a server render — its CPU, components, calls, memory — that mean nothing when the
  *  build's file answered (no render ran: `run_static`) */
+// static: a fixed list of finding codes
 const RENDER_ONLY: ReadonlySet<string> = new Set([
 	'low-confidence',
 	'phases',
@@ -2723,6 +2727,7 @@ export function group_islands(rows: readonly IslandStat[]): IslandStat[] {
 /** Code every page with islands loads once, never an island's own to change: the runtimes, Kit,
  *  and devalue (the runtime's decoder for rich props — the `props-devalue` finding is where that is
  *  the island's doing). The heavy-module and barrel notes leave these out. */
+// static: a fixed list of package names
 const FRAMEWORK = new Set([
 	'svelte runtime',
 	'ogygia runtime',
@@ -4678,7 +4683,7 @@ type ReportJsonAssets = {
 		lazy?: boolean | undefined;
 		blocking?: boolean | undefined;
 		url: string;
-		kind: import('@ogygia/core/insights').AssetKind;
+		kind: import('@ogygia/insights').AssetKind;
 		via:
 			| 'script'
 			| 'img'

@@ -106,8 +106,9 @@ import {
 	type PageAssets,
 	type Weight,
 	type AssetRef
-} from '@ogygia/core/insights';
-import { BEACON_STANDALONE_TAG } from './beacon-standalone.ts';
+} from '@ogygia/insights';
+import { BEACON_STANDALONE_TAG } from './beacon-tag.ts';
+import { is_document_request } from '../document-request.ts';
 import { build_river, load_return_keys, seed_key_bytes, type River } from './river.ts';
 import { SinkBuffer, type SinkRow } from './sink.ts';
 import {
@@ -148,7 +149,7 @@ import { fnv1a32 } from '@ogygia/core/plugin/utils';
 import { mark_personal } from '@ogygia/core/internal/server';
 import { attr_sites, doc_diff } from './doc-diff.ts';
 import { almost_same_document_pattern } from './patterns.ts';
-import { hydration_hazards } from '@ogygia/core/insights';
+import { hydration_hazards } from '@ogygia/insights';
 import type { IslandHazard } from './report.ts';
 import {
 	constant_work,
@@ -229,19 +230,22 @@ import {
 	vitals_moved,
 	type Since
 } from './compare.ts';
-import { engine_of, vital_parts, type ChunkBarrel, type PageInput } from '@ogygia/core/insights';
+import { engine_of, vital_parts, type ChunkBarrel, type PageInput } from '@ogygia/insights';
 import { label_call, phase_of_frame } from './timeline.ts';
 import { gzip_large } from './compress.ts';
 import { io_kind, mark_left_each_run } from './async-io.ts';
 import {
 	current_request_scope,
-	hole_stats_of,
 	request_scope,
-	request_stats_of,
-	set_batch_hole_listener,
-	hold_request_stats_detail,
 	type BatchHoleStats
 } from '@ogygia/core/internal/server';
+import {
+	hole_stats_of,
+	install_request_stats,
+	request_stats_of,
+	set_batch_hole_listener,
+	hold_request_stats_detail
+} from './request-stats.ts';
 import {
 	chunk_barrels,
 	chunk_contents,
@@ -259,6 +263,7 @@ import {
 	machine,
 	outbox,
 	policy,
+	registry,
 	scope,
 	STALE,
 	type Flights,
@@ -1004,18 +1009,19 @@ function trap_state(loop: Loop): TrapStatus['state'] {
 /** The span recorders of the windows recording now, newest last. Spans go to the newest; a window
  *  that ends hands them back to the one before it, never to nothing while another still records
  *  (two profilers in one dev process). */
-const span_windows: SpanRecorder[] = [];
+const span_windows = registry<SpanRecorder>();
 
-function own_spans(r: SpanRecorder): void {
-	span_windows.push(r);
+/** The window's recorder takes the spans while `owner` (the window) is open; returns the hand-back,
+ *  which the window's end also does. */
+function own_spans(r: SpanRecorder, owner: Scope): () => void {
+	const gone = span_windows.add(r, owner);
 	set_span_recorder(r);
-}
-
-function disown_spans(r: SpanRecorder): void {
-	const at = span_windows.lastIndexOf(r);
-	if (at === -1) return;
-	span_windows.splice(at, 1);
-	set_span_recorder(span_windows.length > 0 ? span_windows[span_windows.length - 1] : null);
+	return () => {
+		gone();
+		let newest: SpanRecorder | null = null;
+		for (const w of span_windows) newest = w;
+		set_span_recorder(newest);
+	};
 }
 /** the heap's fill (of its limit) past which no timed render is made: one more could end the process */
 const HEAP_STOP = 0.85;
@@ -1031,6 +1037,7 @@ type DevIslandKeys = {
 };
 
 /** the main thread's work in a render: the code on the sampled stacks and the collector's pauses */
+// static: a fixed list of frame categories
 const MAIN_THREAD_CPU: ReadonlySet<string> = new Set([
 	'app',
 	'component',
@@ -1307,8 +1314,12 @@ class Profiler {
 		// recording — sampling the process twice, and windows of two recorder locks overlapping
 		// (request-stats' detail is counted for that). An older one's timers stand down at their next tick.
 		(globalThis as Record<symbol, unknown>)[LIVE_PROFILER] = this;
-		// the holes a batch request renders land after the request is logged: each joins the log as it lands
-		if (!this.#disabled) set_batch_hole_listener((request, s) => this.#batch_hole(request, s));
+		if (!this.#disabled) {
+			// a live profiler is what the handle's stats are for, with the plugin or without it (#805)
+			install_request_stats();
+			// the holes a batch request renders land after the request is logged: each joins the log as it lands
+			set_batch_hole_listener((request, s) => this.#batch_hole(request, s));
+		}
 	}
 
 	/** Logged requests by their Request (a batch's holes find their request here), and the holes that
@@ -1833,7 +1844,7 @@ class Profiler {
 		// capture the calling stack of each outbound I/O call for the duration of
 		// the window (off otherwise — it costs a stack per call)
 		if (!opts.light) netmod?.set_stack_capture(owner, true);
-		own_spans(window_spans);
+		const disown_spans = own_spans(window_spans, sampling);
 		try {
 			await session.post('Profiler.enable');
 			await session.post('Profiler.setSamplingInterval', { interval: interval_us });
@@ -1974,7 +1985,7 @@ class Profiler {
 		} finally {
 			sampling.close();
 			histogram.disable();
-			disown_spans(window_spans);
+			disown_spans();
 			span_als.disable(); // the recording's own nesting store: gone with the window
 			release_detail();
 			netmod?.set_stack_capture(owner, false);
@@ -6744,20 +6755,12 @@ class Profiler {
 		if (!this.ui_enabled) return null;
 		// (never in the profiler's own renders: they ask as a page navigation, and the tag is not the page's)
 		if (event.request.headers.get('x-og-profiler-internal') === '1') return null;
-		const dest = event.request.headers.get('sec-fetch-dest');
-		if (
-			dest
-				? dest !== 'document'
-				: !(event.request.headers.get('accept') ?? '').includes('text/html')
-		)
-			return null;
+		if (!is_document_request(event.request)) return null;
 		if (!this.dev) {
 			const key = event.request.headers.get('x-profiler-key');
 			if (key ? !(await this.#key_matches(key)) : event.cookies.get('og_profiler_beacon') !== '1')
 				return null;
 		}
-		// (with the standalone beacon for a page that never boots the ogygia runtime: a Kit-hydrated
-		// page reports its vitals, long tasks and CPU too — it steps aside when the runtime is there)
 		return `<meta name="${BEACON_META}" content="${this.base}/beacon">${BEACON_STANDALONE_TAG}`;
 	}
 

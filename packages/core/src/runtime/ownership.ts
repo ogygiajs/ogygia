@@ -183,6 +183,7 @@ export function render_made(node: Node, render_tags: ReadonlySet<string>): boole
 // starts, which is before any island wakes (the wake gate waits for DOMContentLoaded and a frame),
 // and each navigation renews it; any other root's starts at its first reconcile.
 
+// static: the empty answer, shared and never written
 const NO_TAGS: ReadonlySet<string> = new Set();
 const server_attrs = new WeakMap<Element, ReadonlySet<string>>();
 
