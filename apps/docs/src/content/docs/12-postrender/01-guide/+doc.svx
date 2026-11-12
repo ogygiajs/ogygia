@@ -117,7 +117,7 @@ await postrender.invalidate(loadDoc, ['promo']);          // declared source —
 
 These reach the store and edges you gave `postrender.handle()`, with nothing else to set up. A successful form action also evicts its own page automatically, which mirrors Kit's behaviour of actions invalidating loads.
 
-**A deploy is a write too.** Every stored page records the build that stored it (Kit's `version.name`). On the first request after a boot with a new build, postrender drops the pages the previous build stored, at the origin and at every edge, before it serves any. A new release never serves the old release's HTML, whose hashed assets the host may have dropped. This needs a store that outlives the process; the default memory store starts empty on every boot anyway.
+**A deploy is a write too.** Every stored page records the build that stored it (Kit's `version.name`, the entry's `build`), and a page is served only to that build: for any other it is a miss, and the new build renders and stores its own. A new release never serves the old release's HTML, whose hashed assets the host may have dropped, even while old instances of a rolling deploy are still storing pages. On the first request after a boot with a new build, postrender also drops the pages the previous build stored, at the origin and at every edge, so they stop taking up room and no CDN keeps serving them.
 
 **Declared sources** handle the case of one document that appears on many pages. You wrap the source's definition, and the loads that call it stay plain:
 
