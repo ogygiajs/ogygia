@@ -760,10 +760,11 @@ const KNOWN_EMPTY: ReadonlyArray<{ issue: number; what: string; is: (r: Element)
 	{
 		issue: 901,
 		what: 'a server island inside a woken held region never shows',
-		// (adopted as an empty lake)
+		// (adopted as an empty lake; the held region's `live` is "true" under an island host, and
+		// empty under a page host: gen 24, seed 3, a new tab at /p0)
 		is: (r) =>
 			r.getAttribute('wake') === 'none' &&
-			r.parentElement?.closest('ogygia-region[live="true"][render="defer"]') != null
+			r.parentElement?.closest('ogygia-region[live][render="defer"]') != null
 	},
 	{
 		issue: 909,
