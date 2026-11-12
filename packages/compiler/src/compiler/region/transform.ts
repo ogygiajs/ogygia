@@ -580,8 +580,6 @@ function script_lang_attr(scriptNode: SvelteNode) {
 	return '';
 }
 
-// static: the `remount` shorthands
-const REMOUNT_SHORTHANDS = new Set(['cache', 'empty', 'swr']);
 // static: what `remount.onExpire` takes
 const REMOUNT_ON_EXPIRE = new Set(['empty', 'fetch']);
 
@@ -644,59 +642,27 @@ function parse_cache_ttl_sec(raw: unknown, err: OptErr, names: string) {
 }
 
 /**
- * Normalize preset `remount`.
- *
- * Shorthands: `'cache'` | `'empty'` | `'swr'` (`swr` ≡ `{ revalidate: 'load' }`).
- * Object: `{ revalidate?: false | schedule, maxAge?, onExpire?: 'empty' | 'fetch' }`.
+ * A live hole's remount, from its preset's `revalidate` (false | schedule; the import's `wake`, else
+ * `'load'`), `maxAge` and `onExpire: 'empty' | 'fetch'`. Tests: preset-options.test.ts.
  *
  * @returns
  */
-function parse_remount(raw: unknown, err: OptErr, names: string) {
-	if (raw == null) return undefined;
-	if (typeof raw === 'string') {
-		if (!REMOUNT_SHORTHANDS.has(raw)) {
-			throw err(names, `unknown remount '${raw}'. Use 'cache' | 'empty' | 'swr'.`);
-		}
-		if (raw === 'swr') return { policy: 'swr', when: 'load' };
-		return { policy: raw };
-	}
-	if (typeof raw !== 'object' || raw === null) {
-		throw err(
-			names,
-			`\`remount\` must be 'cache' | 'empty' | 'swr' or \`{ revalidate?, maxAge?, onExpire? }\`.`
-		);
-	}
-	if ('strategy' in raw || 'when' in raw) {
-		throw err(
-			names,
-			`\`remount\` object uses \`revalidate\` (false | 'load' | 'idle' | 'visible' | media), not \`strategy\`/\`when\`. Examples: { revalidate: false, maxAge: '5m' } or { revalidate: 'idle' }. Shorthands: 'cache' | 'empty' | 'swr'.`
-		);
-	}
-	for (const k of Object.keys(raw)) {
-		if (k !== 'revalidate' && k !== 'maxAge' && k !== 'onExpire') {
-			throw err(names, `unknown remount key '${k}'. Use revalidate, maxAge, onExpire.`);
-		}
-	}
-	const ro = raw as { revalidate?: unknown; maxAge?: unknown; onExpire?: unknown };
-	if (ro.revalidate == null && ro.maxAge == null && ro.onExpire == null) {
-		throw err(
-			names,
-			`\`remount\` object needs revalidate, maxAge, and/or onExpire — or use the 'cache' | 'empty' | 'swr' shorthand.`
-		);
-	}
-
+function parse_remount(
+	ro: { revalidate: unknown; maxAge?: unknown; onExpire?: unknown },
+	err: OptErr,
+	names: string
+) {
 	const out: { policy: string; when?: string; maxAgeMs?: number; onExpire?: string } = {
 		policy: 'cache'
 	};
 
-	if (ro.revalidate === false || ro.revalidate == null) {
-		out.policy = 'cache';
-	} else if (ro.revalidate === true) {
+	if (ro.revalidate === true) {
 		throw err(
 			names,
 			`\`remount.revalidate: true\` is invalid — use 'load' (or 'idle' | 'visible' | a media query).`
 		);
-	} else {
+	}
+	if (ro.revalidate !== false && ro.revalidate != null) {
 		const rev = String(ro.revalidate);
 		if (!parse_trigger(rev, SCHEDULE)) {
 			throw err(
