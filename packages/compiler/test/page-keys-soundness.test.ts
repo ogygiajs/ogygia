@@ -150,7 +150,25 @@ const SHAPES: ((k: string) => string)[] = [
 	(k) => {
 		const f = v();
 		return `function ${f}(p) { return p.url; } ${f} = (p) => p.data.${k}; use(${f}(page));`;
-	}
+	},
+	(k) => {
+		const f = v();
+		return `function ${f}(p = page) { return p.data.${k}; } use(${f}());`;
+	},
+	(k) => {
+		const f = v();
+		return `function ${f}({ data } = page) { return data.${k}; } use(${f}());`;
+	},
+	(k) => {
+		const f = v();
+		return `const ${f} = (o = page.data) => o.${k}; use(${f}());`;
+	},
+	(k) => {
+		const f = v();
+		const g = v();
+		return `function ${f}(p) { return p.url; } function ${g}() { const ${f} = (p) => p.data.${k}; return ${f}(page); } use(${g}());`;
+	},
+	(k) => `{ const window = undefined; use(typeof window === 'undefined' ? page.data.${k} : 0); }`
 ];
 
 /** Runs `body` with a recording `page.data`: the keys it read, or `all` when it listed them. */
@@ -272,6 +290,8 @@ const PASSED_ON = [
 	"export * as app from '$app/state';",
 	"const { page } = await import('$app/state'); use(page.data.b);",
 	"import('$app/stores').then((m) => use(m.page));",
+	"import { getStores } from '$app/stores'; const { page } = getStores(); page.subscribe((p) => use(p.data.b));",
+	"import { getStores as stores } from '$app/stores'; use(stores().page);",
 	dedent`
 		import { page } from '$app/state';
 		export { page as p } from '$app/state';
