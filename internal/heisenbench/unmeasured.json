@@ -85,6 +85,10 @@
 			"reason": "the holes of one task sorted into batches: a DOM read and the frame store (not recorded), linear in the holes that joined; run by packages/core/test/browser/hole-batch.test.ts"
 		},
 		{
+			"id": "packages/core/src/runtime/frame-nav.ts > send_batches",
+			"reason": "browser only: a set of holes grouped by endpoint path into batch POSTs over the frame store (not recorded), linear in the holes; run by packages/core/test/browser/hole-batch.test.ts and nav-batch-page.test.ts"
+		},
+		{
 			"id": "packages/core/src/runtime/frame-store.ts > schedule_evict > timeout:0~981b61",
 			"reason": "an idle entry's linger ending on a real timer (not replayable), constant work"
 		},
