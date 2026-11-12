@@ -28,7 +28,8 @@ works, what is built, and how to add to it.
    - `platform.ts`: a realm's simulated time (epoch + virtual ms + skew), timers, frames (16 ms),
      idle callbacks, randomness, crypto bytes, and a MessageChannel on the loop.
    - `network.ts`: in memory, on the loop, adversarial: delay, reorder, drop, duplicate, cut a body
-     midway, tamper with bytes, redirect a region's request to another origin, offline.
+     midway, tamper with bytes, redirect a region's request to another origin, stall an answer 10 to
+     40 s (past a client's own deadline; its own swarm stream, 30% of runs), offline.
    - `server.ts`: a built Kit app (`.svelte-kit/output`) served in process, static files plus
      `Server.respond`. Each instance loads its own copy of the output (its own module graph), placed
      beside the app's output so it resolves the app's dependencies.
@@ -73,6 +74,13 @@ module scripts. Its gaps are handled in the sim, with no patch to happy-dom:
   the simulated network, read the seed's engine's way (`timeline engine`): `status` (Chromium,
   Firefox: every download an entry with its `responseStatus`, a dropped one 0) or `start` (WebKit:
   no status, no entry for a dropped download). Observer callbacks are tasks of the document.
+- It loads no image by default: every image read `complete` at once, and the critical wait (an
+  incomplete `img[fetchpriority=high]`) was never seen. Images load over the simulated network
+  (`enableImageFileLoading`, `test/images.test.ts`); the waste oracle leaves them out, as the
+  document's image cache keeps one.
+- `element.click()` sends only the click: a visitor's click (`user_click`) sends pointerdown,
+  mousedown, pointerup and mouseup first, as a browser does (the critical gate listens for the first
+  input; `test/workload.test.ts`). The real-browser player's clicks send the same.
 
 Differences in the DOM engine cancel out for the MPA-equivalence oracle (both sides run in it);
 the real-browser tier reruns interesting seeds in Chromium, Firefox and WebKit.
@@ -119,8 +127,11 @@ visitor's workload (`workload.ts`): click links, go to a path, back, forward, re
 go offline and back, wait, and press a button in a region (woken or not yet: a press before an
 island's code came is replayed once it wakes). And three shapes: `away` (follow a link, stay 10 to 50
 s, go back: under the 60 s the frame store keeps a left page's answers), `hurry` (click a link, then
-another 0 to 300 ms later: a navigation called off midway) and `hover` (point at a link or a region:
-the router warms the link's page, an island's code is warmed on intent). A press makes every tab's document the visitor's
+another 0 to 300 ms later: a navigation called off midway), `hover` (point at a link or a region:
+the router warms the link's page, an island's code is warmed on intent) and `eager` (go to a page
+and press a button 0 to 300 ms after its document is in, `World.start`: an input before the first
+paint or during the wait for the page's critical resources; the document it presses in is the
+visitor's, as a press's). A press makes every tab's document the visitor's
 own state, so the MPA check skips each such document (its next one is clean), and the element
 count leaves it out of the leak check.
 
@@ -291,7 +302,8 @@ Every document's log is read, by realm, a left one's too (`Tab.moves_by`): a har
 one action replaced the document before it was looked at, and the steps it took last were lost.
 A flights' targets are only the entry steps its options and its file can take: `keep: 0` keeps
 nothing, and with no `get(input, { fresh })` in its file an entry is never forced (`flying -> flying`,
-`kept -> flying`).
+`kept -> flying`); a fresh ask made only under `!x.flying` (a peek showing no flight out) runs a kept
+answer again but never replaces a flight (`flying -> flying` is no target: federation peer documents).
 
 EVERY STEP ACCOUNTED FOR (`src/steps.ts`, test/steps.test.ts). The ledger `internal/sim/steps.json`
 puts each step in exactly one bucket: `reached` (the standard sweep reaches it), `covered` (the fake
