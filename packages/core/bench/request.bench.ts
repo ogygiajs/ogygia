@@ -164,8 +164,6 @@ function bag_of(request: Request): Bag {
 		deferred: null,
 		defer_next_id: 0,
 		late: null,
-		late_next: 0,
-		late_open: false,
 		seed_reducers: null,
 		facts: facts_of(request)
 	};
