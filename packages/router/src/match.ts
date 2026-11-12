@@ -229,14 +229,17 @@ const DROPPABLE_SEGMENT_RE = /^\[(?:\.\.\.[a-zA-Z_$][\w$]*|\[[a-zA-Z_$][\w$]*\])
  *  empty optional or rest param that is a whole segment drops that segment. A missing `[param]`
  *  becomes empty. Throws on a value that would fill a whole segment with `.` or `..`: every URL
  *  parser drops that segment, so the URL would name another route (`%2e` is read as a dot too).
- *  Throws on a rest value with an empty piece (a leading, trailing or doubled `/`) too: it would
- *  build `//host` or a path that routes elsewhere.
+ *  Throws on an empty segment too, other than a dropped one or the last: a rest value with an
+ *  empty piece (a leading, trailing or doubled `/`), or a param that fills its segment empty,
+ *  would build `//host` (a URL of another origin) or a path that routes elsewhere.
  *  Tests: test/property-fill-match.test.ts, test/router-match.test.ts. */
 export function fill(pattern: string, params: Record<string, string | number>): string {
 	// (segment by segment: a token never spans a `/`, and a segment is a dot segment whatever filled
 	// it, one token, several, a token beside a literal dot, or one piece of a rest value)
 	const segs: string[] = [];
-	for (const seg of pattern.split('/')) {
+	const parts = pattern.split('/');
+	for (let i = 0; i < parts.length; i++) {
+		const seg = parts[i];
 		const out = seg.replace(fill_token, (_m, rest: string | undefined, name: string) => {
 			const val = params[name] == null ? '' : String(params[name]);
 			if (!rest) return encodeURIComponent(val);
@@ -250,6 +253,12 @@ export function fill(pattern: string, params: Record<string, string | number>): 
 			return pieces.map(encodeURIComponent).join('/');
 		});
 		if (out === '' && DROPPABLE_SEGMENT_RE.test(seg)) continue;
+		// (any param that fills its segment empty, but the last: an empty first one starts the path
+		// with `//`, a URL of another origin, and one between builds a path Kit routes elsewhere)
+		if (out === '' && seg !== '' && i < parts.length - 1)
+			throw new Error(
+				`[@ogygia/router] the segment "${seg}" fills empty, an empty segment: it would name another URL than ${pattern}`
+			);
 		if (out !== seg && out.split('/').some((p) => p === '.' || p === '..'))
 			throw new Error(
 				`[@ogygia/router] the segment "${seg}" fills as ${JSON.stringify(out)}, a dot segment a URL drops: it would name another route than ${pattern}`
