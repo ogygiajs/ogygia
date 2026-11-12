@@ -18,6 +18,7 @@ import { hole_head } from '../src/server/hole-graph.ts';
 import { island_graph_script } from '../src/server/document-tail.ts';
 import { region_css_tags } from '../src/server/html-scan.ts';
 import { markup_tokens, next_tag, read_tag, tags, text_of } from '../src/wire-markup.ts';
+import { attr_changes } from '../src/contract/markup-text.ts';
 import { document, head, hole_answer } from './fixtures.ts';
 import { attr, decode_text, html, trusted_html } from '../src/html.ts';
 
@@ -141,7 +142,20 @@ bench(
 	}
 );
 
-bench('next_tag: a title in a head that has none', ({ h }) => next_tag(h, 'title', 0) === null, {
+// (the profiler's per-island read of what hydration changed: attributes only, or more)
+bench(
+	'attr_changes: two renders of a document that differ in one attribute per region',
+	({ a, b }) => attr_changes(a, b)?.length,
+	{
+		setup: () => ({ a: document(100), b: document(100).replaceAll('wake="', 'wake="x') }),
+		scale: (_ctx, k) => ({
+			a: document(100 * k),
+			b: document(100 * k).replaceAll('wake="', 'wake="x')
+		})
+	}
+);
+
+bench('next_tag: a title in a head that has none',({ h }) => next_tag(h, 'title', 0) === null, {
 	setup: () => ({ h: head(40).replace(/<title>.*?<\/title>/, '') })
 });
 

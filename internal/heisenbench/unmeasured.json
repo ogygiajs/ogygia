@@ -3557,6 +3557,18 @@
 			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: not replayable); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
 		},
 		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > tag_name_end",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: not replayable); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > tag_end",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: not replayable); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > pieces",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: not replayable); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
 			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > tool_made",
 			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: not replayable); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
 		},
