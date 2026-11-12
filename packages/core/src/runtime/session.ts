@@ -40,9 +40,25 @@ export type LakeCacheEntry = {
  * And ONE copy: while an island's head content is live, the page's identical server copy of it is
  * retired (field: two identical JSON-LD blocks, duplicated inline CSS and preloads). Only page-owned
  * copies are ever retired — never an island's live node — and never a stylesheet link (removing either
- * copy could unstyle the page for a frame; a doubled sheet is harmless).
+ * copy could unstyle the page for a frame; a doubled sheet is harmless). Two copies are the same when
+ * {@link head_copy_key} says so.
  */
 const STYLESHEET_REL_RE = /(?:^|\s)stylesheet(?:\s|$)/i;
+
+/**
+ * What a head element is, for the one-copy rule: its tag, its attributes in order, and its content,
+ * where an element with no element children (a `<style>`, a `<script>`, a `<meta>`) is read by its
+ * text with the ends trimmed. The server writes such text as the source has it and the client's
+ * compiled template trims it, so a style written over several lines would otherwise never match its
+ * own server copy (#1122: island-head-order.test.ts). Text that differs past its ends is a different
+ * element (the same test file: a page style with other rules stays).
+ */
+function head_copy_key(el: Element): string {
+	const key = `${el.localName}${Array.from(el.attributes, (a) => `\0${a.name}\0${a.value}`).join('')}`;
+	return el.childElementCount === 0
+		? `${key}\0\0t${(el.textContent ?? '').trim()}`
+		: `${key}\0\0h${el.innerHTML}`;
+}
 
 /**
  * THE PAGE VISIT: one per page the visitor is on, the document load, then each page a navigation
@@ -119,10 +135,10 @@ function take_page_slot(nodes: Node[], own: Element[], page_head: WeakSet<Node>)
 	const run = new Set(nodes);
 	for (let n: Node | null = first; n !== last; n = n.nextSibling)
 		if (n === null || !run.has(n)) return;
-	const markup = new Set<string>();
-	for (const el of own) markup.add(el.outerHTML);
+	const keys = new Set<string>();
+	for (const el of own) keys.add(head_copy_key(el));
 	for (const el of head.children) {
-		if (run.has(el) || !page_head.has(el) || !markup.has(el.outerHTML)) continue;
+		if (run.has(el) || !page_head.has(el) || !keys.has(head_copy_key(el))) continue;
 		for (const n of nodes) head.insertBefore(n, el);
 		return;
 	}
@@ -201,7 +217,7 @@ export class RuntimeSession {
 	}
 
 	/**
-	 * Remove every PAGE-owned head element that duplicates a live island-owned one (same markup), and
+	 * Remove every PAGE-owned head element that duplicates a live island-owned one ({@link head_copy_key}), and
 	 * the page's `<title>` once an island renders its own (the browser honours the first title, and
 	 * the island's is the reactive one). Runs after an island hydrates and after a navigation merge.
 	 */
@@ -213,14 +229,14 @@ export class RuntimeSession {
 				this.island_head.delete(el);
 				continue;
 			}
-			live.add(el.outerHTML);
+			live.add(head_copy_key(el));
 			if (el.localName === 'title') island_title = true;
 		}
 		if (live.size === 0) return;
 		for (const el of Array.from(document.head.children)) {
 			if (!this.page_head.has(el)) continue;
 			if (el.localName === 'link' && STYLESHEET_REL_RE.test(el.getAttribute('rel') ?? '')) continue;
-			if ((island_title && el.localName === 'title') || live.has(el.outerHTML)) el.remove();
+			if ((island_title && el.localName === 'title') || live.has(head_copy_key(el))) el.remove();
 		}
 	}
 
