@@ -154,12 +154,9 @@ A handler that runs at once (posted to an idle box) throws to its poster instead
 		text: (a: { name: string; have: string; want: string }): string =>
 			`slot ${a.name}: this page or process already holds it at version ${a.have}, and this copy wants version ${a.want}.`,
 		details: (): string =>
-			'A process-global slot (`slot(name, version, make)`) is shared by every copy of a package ' +
-			'the process loads. Two copies at different versions of its shape were loaded together: ' +
-			'usually two versions of an ogygia package in one app (a dependency pinned to an older one, ' +
-			'or a federated peer).\n\nIn dev this throws, so the mismatch is fixed where it starts: give ' +
-			'the app one version of each package. In production the second copy keeps a private value ' +
-			'of its own, and this is printed once: the two copies no longer share that state.'
+			`A process-global slot (\`slot(name, version, make)\`) is shared by every copy of a package the process loads. Two copies at different versions of its shape were loaded together: usually two versions of an ogygia package in one app (a dependency pinned to an older one, or a federated peer).
+
+In dev this throws, so the mismatch is fixed where it starts: give the app one version of each package. In production the second copy keeps a private value of its own, and this is printed once: the two copies no longer share that state.`
 	},
 	machine_evict_failed: {
 		text: (a: { name: string; why: string }): string =>
