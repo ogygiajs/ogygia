@@ -60,14 +60,16 @@ describe('the virtual modules’ declarations', () => {
 			devtools: true,
 			devtools_lazy: false,
 			rules: false,
-			beacon: true,
 			client_plugins: false,
+			hooks: ['regionHydrated'],
 			kit_major: 2,
 			version: '1.2.3',
 			dev_server: false
 		});
 		expect(Object.keys(defines).length).toBe(core.CORE_CONSTANTS.length);
 		expect(defines.__OGYGIA_DEVTOOLS__).toBe('true');
+		expect(defines.__OGYGIA_HOOK_REGION_HYDRATED__).toBe('true');
+		expect(defines.__OGYGIA_HOOK_NAVIGATED__).toBe('false');
 		expect(defines.__OGYGIA_VERSION__).toBe('"1.2.3"');
 		expect(defines.__OGYGIA_DEV_HMR_URL__).toBe('""');
 	});

@@ -4,7 +4,7 @@
 // called owns the page; the other hands its calls over.
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 
-type Beacon = typeof import('../src/runtime/beacon.ts');
+type Beacon = typeof import('../src/profiler/beacon.ts');
 
 const g = globalThis as Record<string, unknown>;
 beforeEach(() => {
@@ -27,9 +27,9 @@ afterEach(() => {
 
 test('the second copy hands its marks and hydrations to the first', async () => {
 	// @ts-expect-error a query makes a second module instance
-	const a: Beacon = await import('../src/runtime/beacon.ts?copy=a');
+	const a: Beacon = await import('../src/profiler/beacon.ts?copy=a');
 	// @ts-expect-error a query makes a second module instance
-	const b: Beacon = await import('../src/runtime/beacon.ts?copy=b');
+	const b: Beacon = await import('../src/profiler/beacon.ts?copy=b');
 	a._reset_beacon();
 	b._reset_beacon();
 
@@ -56,14 +56,15 @@ test("ogygia/profiler/client carries no beacon of its own: its marks reach the p
 	const key = Symbol.for('ogygia.beacon');
 	const store = globalThis as Record<symbol, unknown>;
 	// @ts-expect-error a query makes a fresh module instance
-	const { mark } = await import('../../devtools/src/profiler/client.ts?fresh=1');
+	const { mark } = await import('../src/profiler/client.ts?fresh=1');
 	delete store[key];
 	// before any runtime: held on the page, however long the runtime takes
 	mark.start('early').end();
 	await vi.advanceTimersByTimeAsync(60_000);
-	// the page's beacon loads: it takes the held mark as it does, and a new one goes to it at once
+	// the page's beacon boots: it takes the held mark as it does, and a new one goes to it at once
 	// @ts-expect-error a query makes a fresh module instance
-	const beacon: Beacon = await import('../src/runtime/beacon.ts?copy=late');
+	const beacon: Beacon = await import('../src/profiler/beacon.ts?copy=late');
+	beacon.install_beacon();
 	expect(beacon._beacon_state().marks).toBe(1);
 	mark.start('late').end();
 	expect(beacon._beacon_state().marks).toBe(2);

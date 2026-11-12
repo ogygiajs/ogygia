@@ -18,13 +18,46 @@
  * hides.
  */
 import { machine } from '@ogygia/machine';
-import { hole_copy_of } from '../contract/hash.ts';
-import type { RegionRefusal } from './region-endpoint-url.ts';
-import { tool_made } from '../tool-fetches.ts';
-import { paint_blocker } from './render-blocking.ts';
-import { critical_outcome, type CriticalOutcome } from './load-scheduler.ts';
-import { devtools_switched_on } from '../insights/switch.ts';
-import { charge, metered } from './own-cost.ts';
+import {
+	attr_changes,
+	charge,
+	devtools_switched_on,
+	hole_copy_of,
+	metered,
+	paint_blocker,
+	tool_made,
+	without_comments,
+	without_runtime_marks,
+	type AttrChange
+} from '@ogygia/core/internal/instruments';
+import type {
+	CriticalOutcome,
+	CriticalSettledEvent,
+	EntryFallbackEvent,
+	HoleRefusal,
+	NavigatedEvent,
+	WarningEvent
+} from '@ogygia/core/plugin/client';
+
+/** A hole whose answer never came, as the visit reports it. */
+export interface HoleFailed {
+	id: string;
+	reason: HoleRefusal | 'error';
+	final_path?: string;
+	message?: string;
+	attempts: number;
+	t: number;
+}
+
+/** A batch request that carried fewer holes than it was sent for, as the visit reports it. */
+export interface HoleBatchMiss {
+	sent: number;
+	delivered: number;
+	status: number;
+	refused?: 'redirected' | 'document';
+	final_url?: string;
+	ids: string[];
+}
 
 interface Sample {
 	fp: string;
@@ -72,7 +105,9 @@ interface BeaconApi {
 	beacon_hole_batch_missed?: typeof beacon_hole_batch_missed;
 	beacon_entry_fallback?: typeof beacon_entry_fallback;
 	beacon_nav?: typeof beacon_nav;
+	beacon_critical?: typeof beacon_critical;
 }
+type PageGlobals = { [BEACON_KEY]?: BeaconApi };
 let self_api: BeaconApi | undefined;
 /** the page's owning copy when it is not this one, else null */
 function owner(): BeaconApi | null {
@@ -88,16 +123,12 @@ function owner(): BeaconApi | null {
 		beacon_hole_answered,
 		beacon_hole_batch_missed,
 		beacon_entry_fallback,
-		beacon_nav
-	};
-	const g = globalThis as Record<symbol, BeaconApi | undefined>;
-	const o = (g[BEACON_KEY] ??= self_api);
+		beacon_nav,
+		beacon_critical
+	} satisfies Required<BeaconApi>;
+	const o = ((globalThis as PageGlobals)[BEACON_KEY] ??= self_api);
 	return o === self_api ? null : o;
 }
-// (on the page as it loads, not at its first call: `ogygia/profiler/client` finds the page's copy on
-// the global rather than bundling one of its own into the island that marks). The copy that owns
-// the page takes the marks made before it loaded (at the end of the module).
-if (typeof document !== 'undefined') owner();
 
 export function beacon_mark(
 	name: string,
@@ -183,91 +214,6 @@ let visit_firsts: { fp: string; t: number; type: string }[] = [];
 /** the last inputs, any target (a ring): which island something touched while it hydrated */
 const recent_inputs: { t: number; el: WeakRef<Element>; type: string }[] = [];
 
-/** One attribute that differs between the server's markup and the island's after hydrate. */
-export interface AttrChange {
-	tag: string;
-	name: string;
-	from: string | null;
-	to: string | null;
-}
-
-/** `name="value"` pairs of one start tag (`<a href="x" hidden>`), as the browser serializes them. */
-function tag_attrs(tag: string): Map<string, string> {
-	const out = new Map<string, string>();
-	let i = 1;
-	while (i < tag.length && tag[i] !== ' ' && tag[i] !== '>' && tag[i] !== '/') i++;
-	while (i < tag.length) {
-		while (
-			i < tag.length &&
-			(tag[i] === ' ' || tag[i] === '\n' || tag[i] === '\t' || tag[i] === '/')
-		)
-			i++;
-		if (i >= tag.length || tag[i] === '>') break;
-		const start = i;
-		while (i < tag.length && tag[i] !== '=' && tag[i] !== ' ' && tag[i] !== '>') i++;
-		const name = tag.slice(start, i);
-		let value = '';
-		if (tag[i] === '=') {
-			i++;
-			const q = tag[i];
-			if (q === '"' || q === "'") {
-				const end = tag.indexOf(q, i + 1);
-				value = tag.slice(i + 1, end === -1 ? tag.length : end);
-				i = end === -1 ? tag.length : end + 1;
-			} else {
-				const s = i;
-				while (i < tag.length && tag[i] !== ' ' && tag[i] !== '>') i++;
-				value = tag.slice(s, i);
-			}
-		}
-		if (name) out.set(name, value);
-	}
-	return out;
-}
-
-/** The tag's name, lowercase (`<ds-button …>` → `ds-button`). */
-function tag_name(tag: string): string {
-	let i = 1;
-	while (i < tag.length && tag[i] !== ' ' && tag[i] !== '>' && tag[i] !== '/' && tag[i] !== '\n')
-		i++;
-	return tag.slice(1, i).toLowerCase();
-}
-
-/**
- * When two markups (comments out) differ ONLY in attributes — the same elements in the same order, the
- * same text — each attribute that differs (at most 20); `null` when text or elements differ. A walk of
- * both strings tag by tag, no regex: it runs once per changed island.
- */
-export function attr_changes(a: string, b: string): AttrChange[] | null {
-	const out: AttrChange[] = [];
-	let i = 0;
-	let j = 0;
-	while (i < a.length || j < b.length) {
-		const ti = a.indexOf('<', i);
-		const tj = b.indexOf('<', j);
-		// the text before the next tag must match
-		if (a.slice(i, ti === -1 ? a.length : ti) !== b.slice(j, tj === -1 ? b.length : tj))
-			return null;
-		if (ti === -1 || tj === -1) return ti === tj ? out : null;
-		const ei = a.indexOf('>', ti);
-		const ej = b.indexOf('>', tj);
-		const x = a.slice(ti, ei === -1 ? a.length : ei + 1);
-		const y = b.slice(tj, ej === -1 ? b.length : ej + 1);
-		i = ti + x.length;
-		j = tj + y.length;
-		if (x === y) continue;
-		const tag = tag_name(x);
-		if (tag !== tag_name(y) || x[1] === '/' || y[1] === '/') return null;
-		const xa = tag_attrs(x);
-		const ya = tag_attrs(y);
-		for (const [name, v] of xa)
-			if (ya.get(name) !== v && out.length < 20)
-				out.push({ tag, name, from: v, to: ya.has(name) ? ya.get(name)! : null });
-		for (const [name, v] of ya)
-			if (!xa.has(name) && out.length < 20) out.push({ tag, name, from: null, to: v });
-	}
-	return out;
-}
 let visit_shifts: Shift[] = [];
 let visit_longtasks: { t: number; ms: number }[] = [];
 /** the long tasks are frames drawn late (a browser with no long-task timing): see watch_frame_gaps */
@@ -322,31 +268,13 @@ const MAX_FRAMES = 40;
 /** Svelte's hydration warnings (dev): the server and the browser disagreed, Svelte kept the server's */
 let visit_warnings: { code: string; message: string; file?: string; fp?: string; t: number }[] = [];
 
-export function beacon_warning(w: {
-	code: string;
-	message: string;
-	file?: string;
-	fp?: string;
-	t: number;
-}): void {
+export function beacon_warning(w: WarningEvent): void {
 	const o = owner();
 	if (o) return o.beacon_warning(w);
 	if (!collecting()) return;
 	if (!make_room(visit_warnings, 50, (x) => x.t)) return;
 	visit_warnings.push(w);
 	if (early_visit_done) resend_soon();
-}
-/** holes whose answer never came (no retry after): the profiler names them like the devtools do */
-export interface HoleFailed {
-	/** the hole's island id (its endpoint's `?id=`): the report's hole rows name it */
-	id: string;
-	reason: RegionRefusal | 'error';
-	/** what answered instead, as a path (a refused answer) */
-	final_path?: string;
-	/** the error's first line (a failed request), or the server's reason (a refused capability) */
-	message?: string;
-	attempts: number;
-	t: number;
 }
 let visit_holes_failed: HoleFailed[] = [];
 export function beacon_hole_failed(h: HoleFailed): void {
@@ -416,16 +344,6 @@ export interface HoleAnswered {
 	p?: string;
 }
 
-/** A batch request that carried fewer holes than it was sent for (runtime/frame-nav.ts). */
-export interface HoleBatchMiss {
-	sent: number;
-	delivered: number;
-	status: number;
-	refused?: 'redirected' | 'document';
-	final_url?: string;
-	/** the holes' island ids */
-	ids: string[];
-}
 let visit_hole_batches: HoleBatchMiss[] = [];
 
 /** The restorer's log (runtime/restore.ts `__og_restore_log`): its late and mismatched hosts. */
@@ -452,7 +370,7 @@ function restore_log(): {
 	return log?.length ? { restores: log.slice(0, 20) } : {};
 }
 export function beacon_hole_batch_missed(
-	m: Omit<HoleBatchMiss, 'ids'> & { endpoints: string[] }
+	m: Omit<HoleBatchMiss, 'ids'> & { endpoints: readonly string[] }
 ): void {
 	const o = owner();
 	if (o) return o.beacon_hole_batch_missed?.(m);
@@ -512,18 +430,15 @@ export function hole_request_times(
 }
 let visit_holes_answered: HoleAnswered[] = [];
 
-/** An island whose LOCATION failed to load and fell back to its identity fetched fresh
- *  (runtime/entry-locations.ts): the page came from a build whose files are gone. */
-export interface EntryFallback {
-	/** the identity (the stable URL) */
-	entry: string;
-	/** the location that failed */
-	src: string;
-	/** the fresh identity loaded (false: that failed too) */
-	recovered: boolean;
+let visit_entry_fallbacks: EntryFallbackEvent[] = [];
+let critical_held: { outcome: CriticalOutcome; resources: number; waited_ms: number } | null = null;
+/** The load scheduler's critical wait settled: how long it held ogygia's downloads, for the visit. */
+export function beacon_critical(e: CriticalSettledEvent): void {
+	const o = owner();
+	if (o) return o.beacon_critical?.(e);
+	critical_held = { outcome: e.outcome, resources: e.resources, waited_ms: e.waitedMs };
 }
-let visit_entry_fallbacks: EntryFallback[] = [];
-export function beacon_entry_fallback(f: EntryFallback): void {
+export function beacon_entry_fallback(f: EntryFallbackEvent): void {
 	const o = owner();
 	if (o) return o.beacon_entry_fallback?.(f);
 	if (
@@ -1765,7 +1680,7 @@ function build_visit_now(): Record<string, unknown> | null {
 			...(lcp_el && !lcp_el.isConnected && lcp_region?.isConnected
 				? { lcp_replaced: true as const }
 				: {}),
-			...(critical_outcome() ? { held: critical_outcome()! } : {})
+			...(critical_held ? { held: critical_held } : {})
 		},
 		resources,
 		...(all_n > resources.length
@@ -2015,29 +1930,18 @@ function make_profiler(): SelfProfiler | null {
 const failed_fps = new Map<string, string>();
 /** THE IN-APP NAVIGATIONS (the router's body swaps), each on the page's clock: its start, the page
  *  fetched, its stylesheets in, the swap committed. A slow one is a cost the document's own timing
- *  never shows; the islands the new page woke are in the visit's island list, after `swapped`. */
-interface NavRec {
-	from: string;
-	to: string;
-	type: string;
-	t: number;
-	fetched: number;
-	styled: number;
-	swapped: number;
-	/** the page's address as fetched: its resource timing splits the fetch */
-	href?: string;
-}
-/** …and the fetch split, from the page request's own timing: the wait for the server's first
+ *  never shows; the islands the new page woke are in the visit's island list, after `swapped`.
+ *  …and the fetch split, from the page request's own timing: the wait for the server's first
  *  byte, the download and its bytes; `prefetched` when the request began before the click (the
  *  router's hover prefetch: the page was already on its way) */
-type NavOut = Omit<NavRec, 'href'> & {
+type NavOut = Omit<NavigatedEvent, 'href'> & {
 	server?: number;
 	download?: number;
 	bytes?: number;
 	prefetched?: true;
 };
 let visit_navs: NavOut[] = [];
-export function beacon_nav(n: NavRec): void {
+export function beacon_nav(n: NavigatedEvent): void {
 	const o = owner();
 	// (an older owning copy has no such entry: stay quiet)
 	if (o) return o.beacon_nav?.(n);
@@ -2793,19 +2697,6 @@ function island_record(
 	schedule();
 }
 
-/** the attributes the runtime itself sets, empty, on the regions inside an island's markup */
-const RUNTIME_MARKS = [
-	' data-nested=""',
-	' data-hydrated=""',
-	' data-og-kept=""',
-	' data-revalidated=""'
-];
-/** `html` without the runtime's own marks (string search, no regex: it runs per changed hydration) */
-export function without_runtime_marks(html: string): string {
-	for (const m of RUNTIME_MARKS) if (html.includes(m)) html = html.split(m).join('');
-	return html;
-}
-
 /** A HEADLESS island: it renders nothing meant to be seen — no text of its own, and every element
  *  child marked `hidden` (a marker its effects hang on) — so it exists for its effects, and the
  *  screen sizes that would show it are no question. */
@@ -2822,22 +2713,6 @@ function count_of(html: string, needle: string): number {
 	let n = 0;
 	for (let at = html.indexOf(needle); at !== -1; at = html.indexOf(needle, at + needle.length)) n++;
 	return n;
-}
-
-/** `html` with every `<!-- … -->` removed (string search, no regex: it runs per hydration). */
-export function without_comments(html: string): string {
-	let at = html.indexOf('<!--');
-	if (at === -1) return html;
-	let out = '';
-	let from = 0;
-	while (at !== -1) {
-		out += html.slice(from, at);
-		const end = html.indexOf('-->', at + 4);
-		if (end === -1) return out; // an unclosed comment runs to the end
-		from = end + 3;
-		at = html.indexOf('<!--', from);
-	}
-	return out + html.slice(from);
 }
 
 /** Start watching the page's paints, shifts, long tasks and first interactions now (the devtools
@@ -2918,7 +2793,7 @@ export function beacon_page(): BeaconPage | null {
 
 /** @internal tests */
 export function _reset_beacon(): void {
-	const g = globalThis as Record<symbol, BeaconApi | undefined>;
+	const g = globalThis as PageGlobals;
 	if (!self_api || g[BEACON_KEY] === self_api) delete g[BEACON_KEY];
 	target = undefined;
 	queue = [];
@@ -2966,6 +2841,7 @@ export function _reset_beacon(): void {
 	visit_holes_answered = [];
 	visit_hole_batches = [];
 	visit_entry_fallbacks = [];
+	critical_held = null;
 	holes_answered_els = new WeakSet();
 	visit_marks = [];
 	visit_paints = {};
@@ -3007,25 +2883,25 @@ export function _beacon_send_leaving(body: string, slim?: () => string): void {
 	}
 }
 
-// THE FRAMES FROM THE PAGE'S START (a browser with no long-task timing): the vitals start with the
-// first thing the beacon hears — in a build, the first island's wake — and a stall a script made at
-// load came before it. The copy that owns the page watches as it loads, when the page is measured
-// (the profiler's tag, or the devtools); the meta tag is read here, not cached, so a page whose tag
-// comes later still finds it. (At the module's end: every binding the watch touches is set.)
-if (
-	typeof document !== 'undefined' &&
-	owner() === null &&
-	(devtools_measures() || !!document.querySelector('meta[name="ogygia-profiler-beacon"]')) &&
-	!supports('longtask')
-)
-	watch_frame_gaps();
-
-// THE MARKS MADE BEFORE THE BEACON LOADED: `ogygia/profiler/client` leaves them waiting on the page
-// (`ogygia.beacon.waiting`), however late the beacon comes; the copy that owns the page takes them.
 const WAITING_KEY = Symbol.for('ogygia.beacon.waiting');
-if (typeof document !== 'undefined' && owner() === null) {
+
+/**
+ * Claim the page's beacon as the page boots, before any region wakes, and start watching: the
+ * frames from the page's start (a browser with no long-task timing), the marks made before it
+ * loaded, then the paints, shifts, long tasks and first interactions. Another copy that owns the
+ * page watches instead. Idempotent.
+ */
+export function install_beacon(): void {
+	if (typeof document === 'undefined') return;
+	if (owner() !== null) return beacon_watch();
+	if (
+		(devtools_measures() || !!document.querySelector('meta[name="ogygia-profiler-beacon"]')) &&
+		!supports('longtask')
+	)
+		watch_frame_gaps();
 	const g = globalThis as { [WAITING_KEY]?: Parameters<typeof beacon_mark>[] };
 	const waiting = g[WAITING_KEY];
 	delete g[WAITING_KEY];
 	if (waiting) for (const args of waiting) beacon_mark(...args);
+	beacon_watch();
 }

@@ -9,7 +9,10 @@
  * Thresholds are the public web-vitals ones; the island ones are chosen so a healthy page shows
  * none (the lab page's decoys hold that line).
  */
-import { without_comments as strip_comments, without_runtime_marks } from '../runtime/beacon.ts';
+import {
+	without_comments as strip_comments,
+	without_runtime_marks
+} from '../contract/markup-text.ts';
 import type { RegionRefusal } from '../runtime/region-endpoint-url.ts';
 import { hazard_fix, hazard_words, type IslandHazard } from './hydration-hazards.ts';
 import { barrel_left_fix, barrel_left_words, type IslandBarrel } from './barrel-left.ts';

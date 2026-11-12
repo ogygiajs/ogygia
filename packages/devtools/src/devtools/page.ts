@@ -4,7 +4,7 @@
  * `window.__ogygia_page()` (dev-only, devtools builds) so the planted-problem answer key and e2e
  * read the same report the tab shows without opening the panel.
  */
-import { beacon_page, hole_request_times, is_headless } from '@ogygia/core/internal/instruments';
+import { beacon_page, hole_request_times, is_headless } from '../profiler/beacon.ts';
 import { tool_fetch } from '@ogygia/core/internal/instruments';
 import { snapshot } from '@ogygia/core/events';
 import { flights, type Flights } from '@ogygia/machine';
@@ -89,7 +89,7 @@ import {
 	type ServerProfileBrief
 } from '@ogygia/core/insights';
 import { profile_for } from './profile-store.ts';
-import type { BeaconPage } from '@ogygia/core/internal/instruments';
+import type { BeaconPage } from '../profiler/beacon.ts';
 import { analyze_cpu, is_trace, type CpuSummary } from '@ogygia/core/insights';
 import { with_source_lines } from './source-lines.ts';
 import { since_load, type LoadSnapshot, type SinceLoad } from './since-load.ts';

@@ -25,10 +25,12 @@ import { fileURLToPath } from 'node:url';
 import type MagicString from 'magic-string';
 import type { Plugin as VitePlugin } from 'vite';
 import type { ExportMap, Policy } from '../compiler/exports/index.ts';
-import type { ServerRealm } from '../compiler/link/caps.ts';
+import type { ClientRealmFile, ServerRealm } from '../compiler/link/caps.ts';
 import type { CompileEventInput } from '../contract/events.ts';
 import type { BarrelLeftReason } from '../contract/barrels.ts';
 import { OgygiaError } from '../compiler/messages.ts';
+import { parse_module, type AstNode } from '../compiler/parse/oxc.ts';
+import { RUNTIME_HOOK_CONSTANTS, type RuntimeHookName } from '../contract/runtime-hooks.ts';
 
 /** Where `definePlugin` puts the definition on the Vite plugin it returns. A registered symbol, so a
  *  second copy of ogygia in one app still recognizes the first's plugins. */
@@ -253,8 +255,10 @@ export async function find_plugins(list: unknown): Promise<PluginDefinition[]> {
 export interface ResolvedPlugins {
 	/** each server realm, in plugin order (`enforce` applied) */
 	servers: ServerRealm[];
-	/** each browser realm (an absolute path), in plugin order */
-	clients: string[];
+	/** each browser realm (its plugin's name, its absolute path), in plugin order */
+	clients: ClientRealmFile[];
+	/** every runtime hook some browser realm subscribes to */
+	client_hooks: RuntimeHookName[];
 	/** every key any plugin claims inside Kit's `config` page option */
 	route_config: string[];
 	/** a plugin asked for island entries' foreign-hydrate exports */
@@ -372,6 +376,74 @@ function realm_path(plugin: PluginDefinition, realm: 'server' | 'client'): strin
 	return abs.split(path.sep).join('/');
 }
 
+/** The runtime hooks a client realm subscribes to: the keys of the `hooks` object literal in its
+ *  default `defineClient({ … })`, read from the file. */
+export function client_hook_names(plugin: string, file: string): RuntimeHookName[] {
+	const unread = () => new OgygiaError('plugin_client_hooks_unread', { plugin, location: file });
+	const { program } = parse_module(fs.readFileSync(file, 'utf8'), file);
+	if (!program) throw unread();
+	const body = program.body as AstNode[];
+	const consts = new Map<string, AstNode>();
+	for (const s of body)
+		if (s.type === 'VariableDeclaration' && s.kind === 'const')
+			for (const d of s.declarations as AstNode[])
+				if (d.id?.type === 'Identifier' && d.init) consts.set(d.id.name as string, d.init);
+	// what a value is, as written: through casts, parentheses and the module's own `const` names
+	const unwrap = (n: AstNode | null | undefined): AstNode | null | undefined => {
+		const seen = new Set<string>();
+		while (n) {
+			if (
+				n.type === 'TSAsExpression' ||
+				n.type === 'TSSatisfiesExpression' ||
+				n.type === 'ParenthesizedExpression'
+			)
+				n = n.expression;
+			else if (
+				n.type === 'Identifier' &&
+				consts.has(n.name as string) &&
+				!seen.has(n.name as string)
+			) {
+				seen.add(n.name as string);
+				n = consts.get(n.name as string);
+			} else break;
+		}
+		return n;
+	};
+	// a bundler writes `export { client as default }` where the source had `export default client`
+	const default_local = body
+		.filter((s) => s.type === 'ExportNamedDeclaration' && !s.source)
+		.flatMap((s) => s.specifiers as AstNode[])
+		.find((sp) => (sp.exported?.name ?? sp.exported?.value) === 'default')?.local;
+	let value = unwrap(
+		(body.find((s) => s.type === 'ExportDefaultDeclaration')?.declaration as AstNode | undefined) ??
+			default_local
+	);
+	if (value?.type === 'CallExpression') value = unwrap(value.arguments?.[0]);
+	if (value?.type !== 'ObjectExpression') throw unread();
+	const key_of = (p: AstNode): string | null =>
+		p.type !== 'Property' || p.computed
+			? null
+			: p.key.type === 'Identifier'
+				? p.key.name
+				: p.key.type === 'Literal' && typeof p.key.value === 'string'
+					? p.key.value
+					: null;
+	const props = value.properties as AstNode[];
+	if (props.some((p) => key_of(p) === null)) throw unread();
+	const hooks = unwrap(props.find((p) => key_of(p) === 'hooks')?.value);
+	if (!hooks) return [];
+	if (hooks.type !== 'ObjectExpression') throw unread();
+	const names: RuntimeHookName[] = [];
+	for (const p of hooks.properties as AstNode[]) {
+		const key = key_of(p);
+		if (key === null) throw unread();
+		if (!Object.hasOwn(RUNTIME_HOOK_CONSTANTS, key))
+			throw new OgygiaError('plugin_client_hook_unknown', { plugin, hook: key });
+		names.push(key as RuntimeHookName);
+	}
+	return names;
+}
+
 function package_resolves(req: NodeJS.Require, name: string): boolean {
 	try {
 		req.resolve(`${name}/package.json`);
@@ -399,6 +471,7 @@ export function resolve_plugins(
 	const out: ResolvedPlugins = {
 		servers: [],
 		clients: [],
+		client_hooks: [],
 		route_config: [],
 		foreign_hydrate: false,
 		macros: [],
@@ -418,7 +491,11 @@ export function resolve_plugins(
 		if (server)
 			out.servers.push({ name: plugin.name, module: server, options: plugin.options ?? {} });
 		const client = realm_path(plugin, 'client');
-		if (client) out.clients.push(client);
+		if (client) {
+			out.clients.push({ name: plugin.name, module: client });
+			for (const name of client_hook_names(plugin.name, client))
+				if (!out.client_hooks.includes(name)) out.client_hooks.push(name);
+		}
 		plugin.build?.({
 			root,
 			dev,

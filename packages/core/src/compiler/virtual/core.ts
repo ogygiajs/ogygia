@@ -13,7 +13,7 @@ import {
 } from '../link/runtime-entry.ts';
 import { island_deps_module } from '../link/island-deps.ts';
 import { router_css_module } from '../link/router-css.ts';
-import { server_plugins_module, route_config_module } from '../link/caps.ts';
+import { server_plugins_module, route_config_module, client_realms_source } from '../link/caps.ts';
 import {
 	transport_module,
 	transportables_server_module,
@@ -28,8 +28,9 @@ import {
 import { registry_stub_names, registry_stub_source } from '../link/registry-stub.ts';
 import { dev_hmr_client_source } from '../dev/dev-hmr.ts';
 import { PROFILER_MAPS_PLACEHOLDER, REGION_FAMILY } from '../ids.ts';
+import { RUNTIME_HOOK_CONSTANTS, type RuntimeHookName } from '../../contract/runtime-hooks.ts';
 import type { CompileCtx } from '../ctx.ts';
-import type { ServerRealm } from '../link/caps.ts';
+import type { ClientRealmFile, ServerRealm } from '../link/caps.ts';
 import type { Program } from '../program.ts';
 import type {
 	HydrateFeaturesModule,
@@ -79,7 +80,7 @@ export interface CoreApp {
  *  `config` keys they claim. */
 export interface CorePlugins {
 	server: readonly ServerRealm[];
-	client: readonly string[];
+	client: readonly ClientRealmFile[];
 	route_config: readonly string[];
 }
 
@@ -138,17 +139,6 @@ function dev_runtime_of(runtime_dir: string): { dir: string; ts: boolean } | nul
 	return out;
 }
 
-/** The plugins' browser halves for a generated boot: one static import each, and the list to pass. */
-function client_plugins_boot(client: readonly string[]): { imports: string; list: string } {
-	if (!client.length) return { imports: '', list: '' };
-	return {
-		imports: client
-			.map((spec, i) => `import __og_client_${i} from ${JSON.stringify(spec)};\n`)
-			.join(''),
-		list: `[${client.map((_, i) => `__og_client_${i}`).join(', ')}]`
-	};
-}
-
 /** The client-hooks boot snippet for a generated runtime entry: an import of the runtime runner and
  *  a call that dynamic-imports the app's `hooks.client.*` — empty when the app has none. Runs the
  *  file's `init` on boot for csr=false pages (the runner skips a csr=true document). */
@@ -171,7 +161,7 @@ export const runtime: Family = virtual.family({
 	// boot away — the bug that left `sideEffects:false` apps with a runtime that never woke.
 	load(app: CoreApp) {
 		const ch = client_hooks_boot(app.ctx);
-		const cp = client_plugins_boot(app.plugins().client);
+		const cp = client_realms_source(app.plugins().client);
 		return `import { bootDev } from 'ogygia/runtime';\n${ch.imports}${cp.imports}bootDev(${cp.list});\n${ch.call}`;
 	}
 });
@@ -310,16 +300,13 @@ export const devtools_boot: Family = virtual.family({
 		const { ctx } = app;
 		const client = app.plugins().client;
 		if (!client.length) return `export {}`;
-		const cp = client_plugins_boot(client);
+		const cp = client_realms_source(client);
 		return (
 			// the dev server hands `define`s (the plugins' gates among them) to the page as globals
 			// from Vite's env module: it must run before they read them
 			(ctx.is_dev ? `import '/@vite/env';\n` : '') +
 			cp.imports +
 			`import { boot_client_plugins } from ${JSON.stringify(posix(`${ctx.runtime_dir}/client-plugins.js`))};\n` +
-			// the beacon's observers from boot: vitals, resources, long tasks, the CPU sampler
-			`import { beacon_watch } from ${JSON.stringify(posix(`${ctx.runtime_dir}/beacon.js`))};\n` +
-			`beacon_watch();\n` +
 			`boot_client_plugins(${cp.list}, true);\n`
 		);
 	}
@@ -632,8 +619,9 @@ export interface ConstantInput {
 	devtools: boolean;
 	devtools_lazy: boolean;
 	rules: boolean;
-	beacon: boolean;
 	client_plugins: boolean;
+	/** the runtime hooks some plugin's browser half subscribes to */
+	hooks: readonly RuntimeHookName[];
 	kit_major: number | null;
 	version: string;
 	dev_server: boolean;
@@ -669,17 +657,45 @@ export const rules_gate: Constant = virtual.constant({
 	id: '__OGYGIA_RULES__',
 	from: (o: ConstantInput) => o.rules
 });
-/** the profiler's browser half ships (the profiler or devtools is configured); otherwise every
- *  `if (BEACON) …` folds out */
-export const beacon_gate: Constant = virtual.constant({
-	id: '__OGYGIA_BEACON__',
-	from: (o: ConstantInput) => o.beacon
-});
 /** a plugin's browser half is in the boot: the runtime calls its hooks */
 export const client_plugins_gate: Constant = virtual.constant({
 	id: '__OGYGIA_CLIENT_PLUGINS__',
 	from: (o: ConstantInput) => o.client_plugins
 });
+const hook_gate = (name: RuntimeHookName): Constant =>
+	virtual.constant({
+		id: RUNTIME_HOOK_CONSTANTS[name],
+		from: (o: ConstantInput) => o.hooks.includes(name)
+	});
+/** a plugin's browser half subscribes to `regionMount`; otherwise its emit point folds out */
+export const hook_region_mount: Constant = hook_gate('regionMount');
+/** a plugin's browser half subscribes to `regionUnmount` */
+export const hook_region_unmount: Constant = hook_gate('regionUnmount');
+/** a plugin's browser half subscribes to `regionHydrate` (around Svelte's hydrate) */
+export const hook_region_hydrate: Constant = hook_gate('regionHydrate');
+/** a plugin's browser half subscribes to `answerParsed` */
+export const hook_answer_parsed: Constant = hook_gate('answerParsed');
+/** a plugin's browser half subscribes to `answerPlaced` */
+export const hook_answer_placed: Constant = hook_gate('answerPlaced');
+/** a plugin's browser half subscribes to `regionHydrated` */
+export const hook_region_hydrated: Constant = hook_gate('regionHydrated');
+/** a plugin's browser half subscribes to `regionFailed` */
+export const hook_region_failed: Constant = hook_gate('regionFailed');
+/** a plugin's browser half subscribes to `holeAnswered` */
+export const hook_hole_answered: Constant = hook_gate('holeAnswered');
+/** a plugin's browser half subscribes to `holeFailed` */
+export const hook_hole_failed: Constant = hook_gate('holeFailed');
+/** a plugin's browser half subscribes to `holeBatchMissed` */
+export const hook_hole_batch_missed: Constant = hook_gate('holeBatchMissed');
+/** a plugin's browser half subscribes to `entryFallback` */
+export const hook_entry_fallback: Constant = hook_gate('entryFallback');
+/** a plugin's browser half subscribes to `navigated` */
+export const hook_navigated: Constant = hook_gate('navigated');
+/** a plugin's browser half subscribes to `criticalSettled` */
+export const hook_critical_settled: Constant = hook_gate('criticalSettled');
+/** a plugin's browser half subscribes to `warning` */
+export const hook_warning: Constant = hook_gate('warning');
+
 /** the app's Kit major (2, 3), or null when none was found (kit-paths.ts) */
 export const kit_major: Constant<number | null> = virtual.constant({
 	id: '__OGYGIA_KIT_MAJOR__',
@@ -703,8 +719,21 @@ export const CORE_CONSTANTS: readonly Constant<boolean | number | string | null>
 	devtools_gate,
 	devtools_lazy,
 	rules_gate,
-	beacon_gate,
 	client_plugins_gate,
+	hook_region_mount,
+	hook_region_unmount,
+	hook_region_hydrate,
+	hook_answer_parsed,
+	hook_answer_placed,
+	hook_region_hydrated,
+	hook_region_failed,
+	hook_hole_answered,
+	hook_hole_failed,
+	hook_hole_batch_missed,
+	hook_entry_fallback,
+	hook_navigated,
+	hook_critical_settled,
+	hook_warning,
 	kit_major,
 	version,
 	dev_hmr_url

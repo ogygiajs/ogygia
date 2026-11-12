@@ -9,13 +9,14 @@
  * @internal
  */
 export {
-	beacon_record_cpu,
-	beacon_page,
-	hole_request_times,
-	is_headless,
-	type AttrChange,
-	type BeaconPage
-} from './runtime/beacon.ts';
+	attr_changes,
+	without_comments,
+	without_runtime_marks,
+	type AttrChange
+} from './contract/markup-text.ts';
+export { hole_copy_of } from './contract/hash.ts';
+export { devtools_switched_on } from './insights/switch.ts';
+export { metered } from './runtime/own-cost.ts';
 export { props_sidecar_of } from './runtime/sidecar.ts';
 export { import_again } from './runtime/import-again.ts';
 export { download } from './policies.ts';

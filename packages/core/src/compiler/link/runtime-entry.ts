@@ -1,3 +1,5 @@
+import { client_realms_source, type ClientRealmFile } from './caps.ts';
+
 const HYPHEN = /-/g;
 const BACKSLASH = /\\/g;
 
@@ -234,9 +236,10 @@ export function phaseFeatures(marks: RuntimeMarks, phase: FeaturePhase): Feature
 export function generateRuntimeEntrySource(
 	marks: RuntimeMarks,
 	runtimeDir: string,
-	/** the plugins' browser halves (`<plugin>/client` specifiers), in plugin order */
-	clientPlugins: readonly string[] = []
+	/** the plugins' browser halves, in plugin order */
+	clientPlugins: readonly ClientRealmFile[] = []
 ): { code: string; features: FeatureId[] } {
+	const cp = client_realms_source(clientPlugins);
 	const features = phaseFeatures(marks, 'boot');
 	const lines: string[] = [];
 	lines.push(`/** generated ogygia runtime — features: ${features.join(', ') || '(core only)'} */`);
@@ -246,17 +249,11 @@ export function generateRuntimeEntrySource(
 			`import * as ${to_alias(id)} from ${JSON.stringify(runtime_path(runtimeDir, FEATURES[id].module))};`
 		);
 	}
-	clientPlugins.forEach((spec, i) =>
-		lines.push(`import __og_client_${i} from ${JSON.stringify(spec)};`)
-	);
+	if (cp.imports) lines.push(cp.imports.slice(0, -1));
 	lines.push('');
 	lines.push('boot([');
 	for (const id of features) lines.push(`  ${to_alias(id)}.install,`);
-	lines.push(
-		clientPlugins.length
-			? `], [${clientPlugins.map((_, i) => `__og_client_${i}`).join(', ')}]);`
-			: ']);'
-	);
+	lines.push(cp.list ? `], ${cp.list});` : ']);');
 	// Side effects only: the entry boots and exports nothing (no consumer ever read an export).
 	return { code: lines.join('\n') + '\n', features };
 }

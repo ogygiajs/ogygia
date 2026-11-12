@@ -175,18 +175,41 @@ import { defineClient } from '@ogygia/core/plugin/client';
 
 export default defineClient({
   boot({ kitPage }) { /* once, before the first region wakes */ },
-  regionMount(el, { entry, urls }) { /* a region's component started */ },
-  regionUnmount(el, { entry }) { /* …and left the page */ }
+  hooks: {
+    regionMount({ el, entry, urls }) { /* a region's component started */ },
+    regionUnmount({ el, entry }) { /* …and left the page */ }
+  }
 });
 ```
 
-| Hook                               | When it runs                                                                                                                                          |
-| ---------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `boot({ kitPage })`                | Once, as the runtime boots, before any region wakes. `kitPage` is `true` on a `csr = true` page, where Kit hydrates and the region hooks do not fire. |
-| `regionMount(el, { entry, urls })` | A region's component started in the browser. `entry` is its component's stable module URL, `urls` the files it runs from.                             |
-| `regionUnmount(el, { entry })`     | A region's component left the page.                                                                                                                   |
+`boot({ kitPage })` runs once, as the runtime boots, before any region wakes. `kitPage` is `true` on a `csr = true` page, where Kit hydrates and the runtime hooks do not fire.
 
-The browser half is part of the boot's static graph, so it ships to every page. Keep it small and load anything heavy on demand through a dynamic import of its own. When the build contains no browser half, core's calls into these hooks are removed.
+`hooks` subscribes to the runtime's moments. Each takes one event object:
+
+| Hook              | When it runs                                                                                                                      |
+| ----------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| `regionMount`     | A region's component started in the browser. `entry` is its component's stable module URL, `urls` the files it runs from.         |
+| `regionUnmount`   | A region's component left the page.                                                                                               |
+| `regionHydrated`  | A region hydrated: `t0` its wake, `tLoaded` its modules in hand, `tTurn` its turn, `tDone` hydrated, `ssrHtml` the server markup. |
+| `regionFailed`    | A region failed to hydrate, with the error's `message`.                                                                           |
+| `holeAnswered`    | A hole's first answer replaced its fallback.                                                                                      |
+| `holeFailed`      | A hole's answer never came, and no retry follows.                                                                                 |
+| `holeBatchMissed` | A batch request carried fewer holes than it was sent for.                                                                         |
+| `entryFallback`   | A region's file was gone, and its fresh identity loaded instead.                                                                  |
+| `navigated`       | An in-app navigation finished, with its timings.                                                                                  |
+| `criticalSettled` | The wait for the page's critical resources ended: how, how many it waited on, and for how long.                                   |
+| `warning`         | Dev only: a Svelte hydration warning.                                                                                             |
+
+The rules every hook follows:
+
+- Subscribers run in plugin order, the same order as the server hooks.
+- A hook only listens: what it returns is ignored. A promise it returns is never awaited.
+- A hook that throws, or whose promise rejects, is reported once (`client_hook_failed`) and stops nothing else.
+- Every subscriber gets the same event object. In dev it is frozen, so a hook that writes to it fails.
+
+The build reads the keys of `hooks` from the file, so write it as an object literal inside `defineClient({ … })`. A hook no plugin subscribes to is removed from the runtime, with every call to it.
+
+The browser half is part of the boot's static graph, so it ships to every page. Keep it small and load anything heavy on demand through a dynamic import of its own.
 
 ## Helpers
 

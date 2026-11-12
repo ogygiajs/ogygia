@@ -583,6 +583,24 @@ export const BUILD_ERRORS = {
 			\`import.meta.resolve('./server.ts')\`.
 		`
 	},
+	plugin_client_hooks_unread: {
+		text: (a: { plugin: string; location: string }): string =>
+			`plugin \`${a.plugin}\`: the build cannot read the \`hooks\` its client realm \`${a.location}\` subscribes to — write them as an object literal in \`export default defineClient({ hooks: { … } })\`.`,
+		details: (): string => prose`
+			The build reads which runtime hooks a plugin's browser half subscribes to from its
+			file, so a hook nobody uses folds out of the runtime. That needs the default export to
+			be \`defineClient({ … })\` (any part of it may sit in a module-level \`const\`), with \`hooks\` an object literal of
+			plain keys: no spread, no computed key.
+		`
+	},
+	plugin_client_hook_unknown: {
+		text: (a: { plugin: string; hook: string }): string =>
+			`plugin \`${a.plugin}\`: its client realm subscribes to \`${a.hook}\`, which is not a runtime hook.`,
+		details: (): string => prose`
+			A client realm's \`hooks\` keys must name runtime hooks (\`RuntimeHooks\` from
+			\`ogygia/plugin/client\`). A misspelled one would never be called.
+		`
+	},
 	plugin_package_unresolved: {
 		text: (a: { plugin: string; root: string }): string =>
 			`plugin \`${a.plugin}\`: no package by that name resolves from ${a.root} — its name must be its package name.`,

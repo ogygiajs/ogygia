@@ -13,7 +13,7 @@ import {
 	type PageInput,
 	type RegionFact
 } from '../src/insights/page-insights.ts';
-import { without_comments, without_runtime_marks } from '../src/runtime/beacon.ts';
+import { without_comments, without_runtime_marks } from '../src/contract/markup-text.ts';
 
 const region = (
 	fp: string,

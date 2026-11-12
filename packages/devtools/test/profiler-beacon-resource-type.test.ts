@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { resource_type } from '../src/runtime/beacon.ts';
+import { resource_type } from '../src/profiler/beacon.ts';
 
 describe('resource_type: what a file counts as', () => {
 	it('a link is not a stylesheet by itself', () => {
