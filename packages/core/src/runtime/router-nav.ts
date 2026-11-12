@@ -73,6 +73,8 @@ const jump_to_hash = (hash: string) => router_link().jump_to_hash(hash);
 const DEVTOOLS = typeof __OGYGIA_DEVTOOLS__ !== 'undefined' ? __OGYGIA_DEVTOOLS__ : false;
 const HOOK_NAVIGATED =
 	typeof __OGYGIA_HOOK_NAVIGATED__ !== 'undefined' ? __OGYGIA_HOOK_NAVIGATED__ : true;
+const HOOK_NAV_STARTED =
+	typeof __OGYGIA_HOOK_NAV_STARTED__ !== 'undefined' ? __OGYGIA_HOOK_NAV_STARTED__ : true;
 /** The monotonic clock, for devtools nav timings (dead when off). */
 const dt_now = clock.mono;
 
@@ -485,15 +487,13 @@ const pages = (): Pages =>
 		name: 'router pages',
 		key: ['href'],
 		ignore: { purpose: 'a navigation joins the prefetch out for its address: how, not what' },
-		run: (ask, signal): Promise<Fetched> => run_page_fetch(ask, signal),
+		run: (ask, signal, flight): Promise<Fetched> => run_page_fetch(ask, signal, flight),
 		world: (page_world = boot_link().world()),
 		keep: (answer) => (answer.page !== null && answer.cacheable ? PREFETCH_TTL_MS : 0),
 		max: PAGE_CACHE_MAX_BYTES,
 		weigh: (answer) =>
 			Math.max((answer.page?.html.length ?? 0) * 2, PAGE_CACHE_MAX_BYTES / PAGE_CACHE_MAX_ENTRIES)
 	}));
-/** Prefetches still waiting in the load scheduler's queue, by href (a click promotes its one). */
-const queued_prefetch = new Map<string, { promote(cls: 'user'): void }>();
 /** Hrefs whose prefetched HTML was already scanned for island entries — parse once. (URL-level
  *  import dedupe lives in the shared `warm_island_module`.) */
 const warmed_pages = new Set<string>();
@@ -565,10 +565,11 @@ export async function fetch_page(
 	// the kept page after use (one-shot — see navigate()), so the next visit is still fresh.
 	// PREFETCH-HIT.
 	const ask: PageAsk = { href, purpose };
+	// a guess, or the visitor's: a click joining a prefetch out for the page raises it to theirs
+	const { PRIORITY } = boot_link();
+	const priority = purpose === 'prefetch' ? PRIORITY.speculative : PRIORITY.user;
 	for (;;) {
-		// a click joining a prefetch the load scheduler still holds: it is the visitor's now
-		if (purpose !== 'prefetch') queued_prefetch.get(href)?.promote('user');
-		const answer = await pages().get(ask, { signal });
+		const answer = await pages().get(ask, { signal, priority });
 		if (answer !== boot_link().STALE) {
 			// Warm the destination's island JS during the hover/idle runway, so the click path is
 			// swap + hydrate with no first-time import() per island — the module graph is already
@@ -584,29 +585,31 @@ export async function fetch_page(
 	}
 }
 
-/** One page fetch (a flight's work): a prefetch waits for its turn in the load scheduler first. */
-async function run_page_fetch({ href, purpose }: PageAsk, signal: AbortSignal): Promise<Fetched> {
-	const go = () =>
+/** One page fetch (a flight's work): a prefetch waits for its turn in the load scheduler first, at
+ *  its flight's priority (a click joining it raises it: it goes at once, at the visitor's). */
+async function run_page_fetch(
+	{ href, purpose }: PageAsk,
+	signal: AbortSignal,
+	flight: import('@ogygia/machine').InFlight
+): Promise<Fetched> {
+	const go = (priority?: 'high' | 'auto' | 'low') =>
 		net.fetch(href, {
 			signal,
 			headers: nav_headers(purpose),
-			...(purpose === 'prefetch' ? { priority: 'low' } : {})
+			...(priority ? { priority } : {})
 		} as RequestInit);
 	// A prefetch is a guess: it waits for the page's critical resources and shares the background
 	// window (load-scheduler.ts). A navigation never waits.
 	let res: Response;
 	try {
 		if (purpose === 'prefetch') {
-			const { LoadSlot } = boot_link();
-			const slot = new LoadSlot({ kind: 'content', cls: 'speculative', label: href });
-			queued_prefetch.set(href, slot);
+			const { LoadSlot, fetch_priority_of } = boot_link();
+			const slot = new LoadSlot({ kind: 'content', cls: 'speculative', label: href, flight });
 			const release = await slot.ready;
-			// only its own entry: after a cache clear a newer prefetch of the page holds the address
-			if (queued_prefetch.get(href) === slot) queued_prefetch.delete(href);
 			try {
 				// a cache clear ended it while it waited: its turn is given back without a fetch
 				if (signal.aborted) return { page: null, cacheable: false };
-				res = await go();
+				res = await go(fetch_priority_of(slot.cls()));
 			} finally {
 				release();
 			}
@@ -757,6 +760,12 @@ export async function navigate(
 			name: 'nav.start',
 			from: from.pathname + from.search,
 			to: url.pathname + url.search,
+			type
+		});
+	if (HOOK_NAV_STARTED)
+		slots.hooks?.navStarted?.({
+			from: `${from.pathname}${from.search}`,
+			to: `${url.pathname}${url.search}`,
 			type
 		});
 
@@ -1035,7 +1044,8 @@ export async function navigate(
 			fetched: built.fetched,
 			styled: built.styled,
 			swapped: clock.mono(),
-			href: url.href
+			href: url.href,
+			reconciled: built.reconciled
 		});
 	if (DEVTOOLS)
 		dt_emit({

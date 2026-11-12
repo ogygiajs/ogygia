@@ -26,9 +26,6 @@ env:
   TURBO_TEAM: ${{ vars.TURBO_TEAM }}
   TURBO_REMOTE_CACHE_SIGNATURE_KEY: ${{ secrets.TURBO_REMOTE_CACHE_SIGNATURE_KEY }}
   TURBO_REMOTE_CACHE_READ_ONLY: ${{ github.event_name != 'push' }}
-  # A server rule said during a test is printed and attached, not failed, until #925 is fixed
-  # (every page with a server island says rule_capability_not_path): then drop this line.
-  OGYGIA_E2E_SERVER_RULES: report
 
 # A new push to a PR cancels that PR's older runs (main, schedules and manual runs never are)
 concurrency:
