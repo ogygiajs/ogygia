@@ -9,12 +9,12 @@
 // coverage.
 import { el, frag } from '../test/_stubs/dom.ts';
 import { bench } from '@bench/heisenbench/bench';
-import { fingerprint_of, fnv1a, signature_of } from '../src/runtime/hash.ts';
+import { fingerprint_of, fnv1a, signature_of } from '../src/contract/hash.ts';
 import { morph_children } from '../src/runtime/morph.ts';
 import { parse_wire_text } from '../src/runtime/wire-format.ts';
 import {
-	failed_import_url,
 	import_again,
+	is_failed_import,
 	on_reload_needed,
 	retry_url
 } from '../src/runtime/import-again.ts';
@@ -34,6 +34,9 @@ import * as frames from '../src/runtime/frame-store.ts';
 import { mailbox, scope, STALE } from '@ogygia/machine';
 import type { IslandHandle } from '../src/runtime/hydrate-core.ts';
 import { block, header } from './fixtures.ts';
+import { stamp_region_keys } from '../src/runtime/reconcile.ts';
+import { ids_released, record_region_id } from '../src/runtime/region-ids.ts';
+import { RemoteCache } from '../src/shims/kit-remote/remote-cache.ts';
 
 bench(
 	'concurrency gate: hole renders through a gate of four (some slow, some past their time)',
@@ -81,7 +84,8 @@ bench(
 			// each chunk's first download fails as Chromium reports it; the retry gets a fresh URL
 			const load = import_again(
 				() => Promise.reject(new TypeError(`Failed to fetch dynamically imported module: ${url}`)),
-				async (fresh) => fresh
+				async (fresh) => fresh,
+				url
 			);
 			try {
 				await load();
@@ -90,8 +94,8 @@ bench(
 			}
 			const fresh = (await load()) as string;
 			if (fresh === retry_url(url, 1)) loaded++;
-			// a message that names no URL (Safari) or another origin is not retried under a new one
-			if (failed_import_url(new TypeError('Importing a module script failed.')) === null) loaded++;
+			// a message that names no URL (Safari) is read as a failed download too
+			if (is_failed_import(new TypeError('Importing a module script failed.'))) loaded++;
 		}
 		return loaded;
 	},
@@ -331,7 +335,7 @@ bench(
 				const leaving = frames.ensure(a, fetcher, { signal: leave.signal });
 				const twin = frames.ensure(a, fetcher);
 				leave.abort();
-				frames.write({ a, v: frames.ticket(a), html: `<p>batch ${i}</p>` });
+				frames.write({ a, v: frames.stamp(), html: `<p>batch ${i}</p>` });
 				settled.push(leaving, twin);
 				continue;
 			}
@@ -371,20 +375,74 @@ bench(
 		let applied = 0;
 		for (let i = 0; i < n; i++) {
 			const a = `w${i % 50}|p`;
-			const t = frames.ticket(a);
+			const t = frames.stamp();
 			// a refresh, then the slower answer of the request before it (dropped)
 			if (frames.write({ a, v: t, html: `<p>${i}</p>` })) applied++;
 			if (frames.write({ a, v: t - 1, html: `<p>late ${i}</p>` })) applied++;
 			// two commands' answers with data versions, decoded out of order (the older is dropped)
 			if (i % 4 === 0) {
-				if (frames.write({ a, v: frames.ticket(a), d: i + 2, html: `<p>v${i + 2}</p>` })) applied++;
-				if (frames.write({ a, v: frames.ticket(a), d: i + 1, html: `<p>v${i + 1}</p>` })) applied++;
+				if (frames.write({ a, v: frames.stamp(), d: i + 2, html: `<p>v${i + 2}</p>` })) applied++;
+				if (frames.write({ a, v: frames.stamp(), d: i + 1, html: `<p>v${i + 1}</p>` })) applied++;
 			}
 		}
 		let shown = 0;
 		for (let i = 0; i < 50; i++) if (frames.peek(`w${i}|p`) !== null) shown++;
 		frames._reset();
 		return applied * 100 + shown;
+	},
+	{ setup: () => ({ n: 400 }), scale: (_ctx, k) => ({ n: 400 * k }) }
+);
+
+bench(
+	"navigation's reconcile keys: a page of regions, a fifth of them twins (one key each, by their order)",
+	({ n }) => {
+		let html = '';
+		for (let i = 0; i < n; i++) {
+			const fp = (i % 5 === 0 ? 7 : i).toString(16).padStart(16, '0');
+			html += `<ogygia-region entry="/r.js" data-og-fp="${fp}"></ogygia-region>`;
+		}
+		const body = el(`<body>${html}</body>`) as unknown as ParentNode;
+		// the next page's body, then the same regions stamped again (kept from an earlier visit)
+		stamp_region_keys(body);
+		stamp_region_keys(body);
+		return body.querySelectorAll('ogygia-region').length;
+	},
+	{ setup: () => ({ n: 200 }), scale: (_ctx, k) => ({ n: 200 * k }) }
+);
+
+bench(
+	"navigation's departed regions: the shared ids they owned, less the ones a staying region owns",
+	({ n }) => {
+		let html = '';
+		for (let i = 0; i < n; i++) html += `<ogygia-region entry="/r.js"></ogygia-region>`;
+		const body = el(`<body>${html}</body>`) as unknown as ParentNode;
+		const regions = [...body.querySelectorAll('ogygia-region')];
+		for (let i = 0; i < n; i++) {
+			record_region_id(regions[i], `own-${i}`);
+			record_region_id(regions[i], `shared-${i % 10}`);
+		}
+		// half leave the page
+		const departed = regions.filter((_, i) => i % 2 === 0);
+		for (const r of departed) r.remove();
+		return ids_released(departed, body).length;
+	},
+	{ setup: () => ({ n: 200 }), scale: (_ctx, k) => ({ n: 200 * k }) }
+);
+
+bench(
+	'Kit query cache: islands make and look up entries, a navigation releases the ones only departed islands held',
+	({ n }) => {
+		const cache = new RemoteCache();
+		let hit = 0;
+		for (let i = 0; i < n; i++) {
+			// Kit makes each query function's map and stores it, then looks entries up in it
+			if (!cache.query_map.has(`q${i % 20}`)) cache.query_map.set(`q${i % 20}`, new Map());
+			const entries = cache.query_map.get(`q${i % 20}`)!;
+			entries.set(`p${i}`, { resource: { destroy() {} } });
+			if (entries.get(`p${i}`) !== undefined) hit++;
+		}
+		cache.release_instances();
+		return hit;
 	},
 	{ setup: () => ({ n: 400 }), scale: (_ctx, k) => ({ n: 400 * k }) }
 );

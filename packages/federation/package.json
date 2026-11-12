@@ -32,6 +32,10 @@
 			"types": "./dist/vite.d.ts",
 			"default": "./src/vite.ts"
 		},
+		"./shared": {
+			"types": "./dist/shared-state.d.ts",
+			"default": "./src/shared-state.ts"
+		},
 		"./internal/messages": {
 			"types": "./dist/messages.d.ts",
 			"default": "./src/messages.ts"
@@ -47,6 +51,10 @@
 				"types": "./dist/vite.d.ts",
 				"default": "./dist/vite.js"
 			},
+			"./shared": {
+				"types": "./dist/shared-state.d.ts",
+				"default": "./dist/shared-state.js"
+			},
 			"./internal/messages": {
 				"types": "./dist/messages.d.ts",
 				"default": "./dist/messages.js"
@@ -59,12 +67,15 @@
 		"prepublishOnly": "pnpm run build",
 		"check": "tsc -p . && tsc -p test && tsc -p e2e && vitest run",
 		"test": "vitest run",
-		"e2e": "playwright test"
+		"e2e": "playwright test",
+		"e2e:built": "OGYGIA_MFE_BUILD=1 playwright test"
 	},
 	"dependencies": {
-		"@ogygia/machine": "workspace:^"
+		"@ogygia/machine": "workspace:^",
+		"devalue": "catalog:"
 	},
 	"devDependencies": {
+		"@ogygia/compiler": "workspace:*",
 		"@ogygia/config": "workspace:*",
 		"@ogygia/core": "workspace:*",
 		"@ogygia/flags": "workspace:*",
@@ -75,14 +86,17 @@
 		"@sveltejs/kit": "catalog:",
 		"@types/node": "catalog:",
 		"@typescript/native": "catalog:tsgo",
+		"svelte": "catalog:",
 		"tsdown": "catalog:",
 		"typescript": "catalog:",
 		"vite": "catalog:",
 		"vitest": "catalog:"
 	},
 	"peerDependencies": {
+		"@ogygia/compiler": "workspace:^",
 		"@ogygia/core": "workspace:^",
 		"@ogygia/router": "workspace:^",
+		"svelte": "catalog:peers",
 		"vite": "catalog:peers"
 	}
 }

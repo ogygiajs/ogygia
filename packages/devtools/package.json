@@ -25,6 +25,12 @@
 	"sideEffects": [
 		"**/*.css"
 	],
+	"imports": {
+		"#profiler-maps": {
+			"browser": "./src/profiler/maps-browser.ts",
+			"default": "./src/profiler/maps-server.ts"
+		}
+	},
 	"exports": {
 		".": {
 			"types": "./dist/devtools/index.d.ts",
@@ -69,6 +75,13 @@
 		}
 	},
 	"publishConfig": {
+		"imports": {
+			"#profiler-maps": {
+				"types": "./dist/profiler/maps-server.d.ts",
+				"browser": "./dist/profiler/maps-browser.js",
+				"default": "./dist/profiler/maps-server.js"
+			}
+		},
 		"exports": {
 			".": {
 				"types": "./dist/devtools/index.d.ts",
@@ -123,11 +136,14 @@
 	},
 	"dependencies": {
 		"@neodrag/svelte": "catalog:",
+		"@ogygia/insights": "workspace:^",
 		"@ogygia/machine": "workspace:^",
+		"@ogygia/reshape": "workspace:^",
 		"@ogygia/router": "workspace:^",
 		"devalue": "catalog:"
 	},
 	"devDependencies": {
+		"@ogygia/compiler": "workspace:*",
 		"@ogygia/config": "workspace:*",
 		"@ogygia/core": "workspace:*",
 		"@ogygia/tooling": "workspace:*",
@@ -145,6 +161,7 @@
 		"vitest": "catalog:"
 	},
 	"peerDependencies": {
+		"@ogygia/compiler": "workspace:^",
 		"@ogygia/core": "workspace:^",
 		"@sveltejs/kit": "catalog:peers",
 		"svelte": "catalog:peers",

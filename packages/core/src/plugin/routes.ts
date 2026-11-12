@@ -28,10 +28,16 @@ interface RoutesSlot {
 	/** route id (group-stripped) → the claimed keys of its merged config, for every Kit page route */
 	pages: Map<string, RouteConfig>;
 }
+/** The app's route tables, one per process across every copy of this module (the slot): one
+ *  matcher per `routes()` key (a re-run replaces its own) and one config per page route. */
+class RoutesTables implements RoutesSlot {
+	readonly routers = new Map<string, RouteConfigMatcher>();
+	pages = new Map<string, RouteConfig>();
+}
 const slot = shared<RoutesSlot>({
 	name: 'ogygia.route-config',
 	version: 1,
-	make: () => ({ routers: new Map(), pages: new Map() })
+	make: () => new RoutesTables()
 });
 
 /** A `routes()` table joins (keyed: dev re-evaluates hooks.server.ts and calls `routes()` again; a

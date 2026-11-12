@@ -14,6 +14,9 @@ on:
       shard: { type: string, required: false, default: '' }
       adapters: { type: boolean, required: false, default: false }
       browser: { type: string, required: true }
+    secrets:
+      TURBO_TOKEN: { required: false }
+      TURBO_REMOTE_CACHE_SIGNATURE_KEY: { required: false }
 
 jobs:
   run:
@@ -23,18 +26,20 @@ jobs:
     env:
       TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
       TURBO_TEAM: ${{ vars.TURBO_TEAM }}
+      TURBO_REMOTE_CACHE_SIGNATURE_KEY: ${{ secrets.TURBO_REMOTE_CACHE_SIGNATURE_KEY }}
       # (the caller's event: a pull request reads the cache and never writes it)
       TURBO_REMOTE_CACHE_READ_ONLY: ${{ github.event_name != 'push' }}
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          persist-credentials: false
           # a pull request runs only the suites its changes reach (`turbo --affected` diffs against
           # the base branch, so it needs the history)
           fetch-depth: 0
 
-      - uses: pnpm/action-setup@v6
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
 
-      - uses: actions/setup-node@v7
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 22
           cache: pnpm
@@ -49,8 +54,9 @@ jobs:
       - name: Plan
         id: plan
         run: |
-          if [ "${{ github.event_name }}" = "pull_request" ]; then affected=--affected; fi
-          pnpm exec turbo run e2e --concurrency=1 ${{ inputs.filter }} $affected --dry=json > turbo-plan.json
+          if [ "$EVENT" = "pull_request" ]; then affected=--affected; fi
+          # (word-split on purpose: the filter is several --filter flags)
+          pnpm exec turbo run e2e --concurrency=1 $FILTER $affected --dry=json > turbo-plan.json
           node -e '
             const plan = JSON.parse(require("fs").readFileSync("turbo-plan.json", "utf8"));
             const e2e = (plan.tasks ?? []).filter((t) => t.task === "e2e" && t.command !== "<NONEXISTENT>");
@@ -59,13 +65,15 @@ jobs:
             require("fs").appendFileSync(process.env.GITHUB_OUTPUT, `skip=${left.length === 0}\n`);
           '
         env:
+          EVENT: ${{ github.event_name }}
+          FILTER: ${{ inputs.filter }}
           E2E_SHARD: ${{ inputs.shard }}
           OGYGIA_BROWSERS: ${{ inputs.browser }}
           TURBO_SCM_BASE: ${{ github.event.pull_request.base.sha || 'origin/main' }}
 
       # Bun runtime dimension — the adapter e2e suite runs the node-server output under bun too.
       - if: inputs.adapters && steps.plan.outputs.skip != 'true'
-        uses: oven-sh/setup-bun@v2
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
         with:
           bun-version: latest
 
@@ -79,14 +87,18 @@ jobs:
 
       - if: steps.plan.outputs.skip != 'true'
         name: Playwright browser cache
-        uses: actions/cache@v6
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ inputs.browser }}-${{ steps.playwright.outputs.version }}
 
       - if: steps.plan.outputs.skip != 'true'
         name: Install Playwright ${{ inputs.browser }}
-        run: pnpm exec playwright install ${{ inputs.browser != 'chromium' && '--with-deps' || '' }} ${{ inputs.browser }}
+        env:
+          BROWSER: ${{ inputs.browser }}
+        run: |
+          if [ "$BROWSER" = chromium ]; then deps=; else deps=--with-deps; fi
+          pnpm exec playwright install $deps "$BROWSER"
 
       # wrangler (Cloudflare workerd) is fetched on demand by the suite via npx; warm it so the
       # cloudflare adapter boots the real Workers runtime instead of skipping.
@@ -100,9 +112,11 @@ jobs:
       # through the suite config, and turbo hashes both into the `e2e` task.
       - name: Run the e2e suites
         run: |
-          if [ "${{ github.event_name }}" = "pull_request" ]; then affected=--affected; fi
-          pnpm turbo run e2e --concurrency=1 ${{ inputs.filter }} $affected
+          if [ "$EVENT" = "pull_request" ]; then affected=--affected; fi
+          pnpm turbo run e2e --concurrency=1 $FILTER $affected
         env:
+          EVENT: ${{ github.event_name }}
+          FILTER: ${{ inputs.filter }}
           E2E_SHARD: ${{ inputs.shard }}
           OGYGIA_BROWSERS: ${{ inputs.browser }}
           TURBO_SCM_BASE: ${{ github.event.pull_request.base.sha || 'origin/main' }}
@@ -112,27 +126,43 @@ jobs:
           # the Vercel deploy sets its own OGYGIA_SECRET.
           OGYGIA_SECRET: 3f9a2b7c1e5d8046af62c93b1d7e4058a6c2f19b3e8d70425c9a1f6b8d3e07c4
 
-      # Traces (retained on failure) + the html report, for a red run.
+      # Traces (retained on failure) + the html report, for a red run. Gathered by `find` (it skips
+      # node_modules and follows no links) into one folder the upload takes whole: the upload's own
+      # `**` glob walked pnpm's links through every node_modules, and a red run sat in it until the
+      # job's 30 minutes ran out.
+      - if: failure()
+        name: Gather the Playwright report
+        run: |
+          find . -name node_modules -prune -o -name .git -prune -o -type d \
+            \( -name playwright-report -o -name test-results \) -print > e2e-report.txt
+          while read -r d; do mkdir -p "e2e-report/$d" && cp -R "$d/." "e2e-report/$d/"; done < e2e-report.txt
+
       - if: failure()
         name: Upload Playwright report
-        uses: actions/upload-artifact@v7
+        timeout-minutes: 5
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: playwright-report-${{ inputs.id }}-${{ inputs.browser }}
-          path: |
-            **/playwright-report/
-            **/test-results/
-            !**/node_modules/**
+          path: e2e-report/
+          if-no-files-found: ignore
           retention-days: 7
 
       # On main: each suite's Playwright JSON (one per engine and shard), for the tests report
       # (.github/scripts/test-report.ts reads them; .github/workflows/tests-report.yml gathers them).
+      # Gathered the same way, for the same reason.
+      - if: always() && github.event_name != 'pull_request'
+        name: Gather the e2e results
+        run: |
+          find . -name node_modules -prune -o -name .git -prune -o -type f \
+            -path '*/playwright-results/*.json' -print > e2e-results.txt
+          while read -r f; do mkdir -p "e2e-results/$(dirname "$f")" && cp "$f" "e2e-results/$f"; done < e2e-results.txt
+
       - if: always() && github.event_name != 'pull_request'
         name: Upload the e2e results
-        uses: actions/upload-artifact@v7
+        timeout-minutes: 5
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: e2e-results-${{ inputs.id }}-${{ inputs.browser }}
-          path: |
-            **/playwright-results/*.json
-            !**/node_modules/**
+          path: e2e-results/
           if-no-files-found: ignore
           retention-days: 30
