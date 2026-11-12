@@ -57,23 +57,26 @@ export interface Leftover {
 	last_ago?: number;
 }
 
-/** What the page is watched for, made at its first use and kept for the page's life: the live
- *  registrations it mirrors (each leaves as the page takes it back), the islands seen, and the
- *  scroll-holding and `unload` listeners (each list capped). */
-class PageWatch {
-	intervals = new Map<unknown, LeftoverReg>();
-	listeners = new Map<unknown, (LeftoverReg & { on: EventTarget })[]>();
-	islands = new Map<
+/** What the page is watched for, kept for the page's life: the live registrations it mirrors (each
+ *  leaves as the page takes it back), the islands seen, and the scroll-holding and `unload`
+ *  listeners (each list capped). */
+class Ledger {
+	readonly intervals = new Map<unknown, LeftoverReg>();
+	readonly listeners = new Map<unknown, (LeftoverReg & { on: EventTarget })[]>();
+	readonly islands = new Map<
 		string,
 		{ urls: string[]; first: number; gone?: number; els: Map<Element, number> }
 	>();
-	scroll_regs: (ScrollReg & { target: EventTarget; fn: unknown })[] = [];
-	unload_regs: { fn: unknown; frames: string[] }[] = [];
+	readonly scroll_regs: (ScrollReg & { target: EventTarget; fn: unknown })[] = [];
+	readonly unload_regs: { fn: unknown; frames: string[] }[] = [];
+	/** the page's timers and listeners are watched (by whichever copy started first) */
+	watching?: true;
 }
-let page_watch: PageWatch | null = null;
-const watched = (): PageWatch => (page_watch ??= new PageWatch());
+// @why the realm's copy watches and the testing engine a test injects is another copy that reads: one ledger for the page (test: devtools-leftovers-ledger)
+const ledger: Ledger = ((globalThis as { [k: symbol]: Ledger })[Symbol.for('ogygia.leftovers')] ??=
+	new Ledger());
+const { intervals, listeners, islands, scroll_regs, unload_regs } = ledger;
 let own_file = '';
-let installed = false;
 
 /** The file URL of each stack line (Chrome `at f (url:1:2)` / `at url:1:2`, Firefox and Safari
  *  `f@url:1:2`), without its position or query. No regex: this runs on every watched registration. */
@@ -128,11 +131,13 @@ const DEVTOOLS_LAZY =
 
 /** Watch intervals and the global listeners. Once per page; a no-op off the browser. */
 export function watch_leftovers(): void {
-	if (installed || typeof window === 'undefined' || typeof EventTarget === 'undefined') return;
+	// @why the dock's realm and the testing engine's are two copies of this module: the page is watched once (test: devtools-realm)
+	if (ledger.watching || typeof window === 'undefined' || typeof EventTarget === 'undefined')
+		return;
 	if (DEVTOOLS_LAZY && !devtools_switched_on()) return;
 	// (lean testing: the page as it runs without devtools — its timers are its own)
 	if (testing_lean()) return;
-	installed = true;
+	ledger.watching = true;
 	own_file = stack_files(new Error().stack ?? '')[0] ?? '';
 	// (typed as the browser has them: the Node timer types merge into `window`'s)
 	const set_interval = window.setInterval as unknown as (
@@ -160,11 +165,11 @@ export function watch_leftovers(): void {
 			ms,
 			...args
 		);
-		watched().intervals.set(id, reg);
+		intervals.set(id, reg);
 		return id;
 	} as unknown as typeof window.setInterval;
 	window.clearInterval = function (id?: unknown) {
-		watched().intervals.delete(id);
+		intervals.delete(id);
 		return clear_interval.call(window, id);
 	} as unknown as typeof window.clearInterval;
 	const proto = EventTarget.prototype;
@@ -200,7 +205,6 @@ export function watch_leftovers(): void {
 			forget_listener(on, type, fn, typeof opts === 'object' && opts ? !!opts.capture : !!opts);
 		if (fn && SCROLL_TYPES.has(type)) forget_scroll_listener(on, type, fn);
 		if (fn && type === 'unload' && on === window) {
-			const { unload_regs } = watched();
 			const i = unload_regs.findIndex((r) => r.fn === fn);
 			if (i !== -1) unload_regs.splice(i, 1);
 		}
@@ -229,14 +233,12 @@ export interface ScrollReg {
 	forced: boolean;
 	frames: string[];
 }
-
 function note_scroll_listener(
 	on: EventTarget,
 	type: string,
 	fn: unknown,
 	opts?: boolean | AddEventListenerOptions
 ) {
-	const { scroll_regs } = watched();
 	const passive = typeof opts === 'object' && opts ? opts.passive : undefined;
 	const root =
 		on === window || on === document || on === document.documentElement || on === document.body;
@@ -267,7 +269,6 @@ function note_scroll_listener(
 }
 
 function forget_scroll_listener(on: EventTarget, type: string, fn: unknown) {
-	const { scroll_regs } = watched();
 	const i = scroll_regs.findIndex((r) => r.target === on && r.type === type && r.fn === fn);
 	if (i !== -1) scroll_regs.splice(i, 1);
 }
@@ -277,7 +278,6 @@ function forget_scroll_listener(on: EventTarget, type: string, fn: unknown) {
 // same job and keeps the cache) ──
 
 function note_unload_listener(fn: unknown) {
-	const { unload_regs } = watched();
 	if (unload_regs.length >= 20 || unload_regs.some((r) => r.fn === fn)) return;
 	// (code the browser injected has no file: not the page's to fix)
 	const frames = callers(6);
@@ -286,7 +286,7 @@ function note_unload_listener(fn: unknown) {
 
 /** The window `unload` listeners still attached, as scroll registrations (the same owner rule). */
 export function unload_listeners(): ScrollReg[] {
-	return watched().unload_regs.map((r) => ({
+	return unload_regs.map((r) => ({
 		type: 'unload',
 		on: 'window',
 		forced: false,
@@ -296,8 +296,8 @@ export function unload_listeners(): ScrollReg[] {
 
 /** The scroll-holding listeners still attached (an element's, while it is in the page). */
 export function scroll_listeners(): ScrollReg[] {
-	return watched()
-		.scroll_regs.filter((r) => !(r.target instanceof Element) || r.target.isConnected)
+	return scroll_regs
+		.filter((r) => !(r.target instanceof Element) || r.target.isConnected)
 		.map(({ target: _t, fn: _f, ...r }) => r);
 }
 
@@ -340,7 +340,6 @@ function note_listener(
 	capture: boolean,
 	signal?: AbortSignal
 ) {
-	const { listeners } = watched();
 	const list = listeners.get(fn) ?? [];
 	// (the same listener twice is one listener, as the browser counts it)
 	if (list.some((r) => r.on === on && r.type === type && r.capture === capture)) return;
@@ -362,7 +361,6 @@ function note_listener(
 }
 
 function forget_listener(on: EventTarget, type: string, fn: unknown, capture: boolean) {
-	const { listeners } = watched();
 	const list = listeners.get(fn);
 	if (!list) return;
 	const i = list.findIndex((r) => r.on === on && r.type === type && r.capture === capture);
@@ -372,7 +370,6 @@ function forget_listener(on: EventTarget, type: string, fn: unknown, capture: bo
 
 /** An island instance starts (its hydrate begins): `entry` and its file locations. */
 export function leftover_island_seen(el: Element, entry: string, urls: string[]): void {
-	const { islands } = watched();
 	let isl = islands.get(entry);
 	if (!isl) islands.set(entry, (isl = { urls, first: performance.now(), els: new Map() }));
 	for (const u of urls) if (!isl.urls.includes(u)) isl.urls.push(u);
@@ -381,14 +378,13 @@ export function leftover_island_seen(el: Element, entry: string, urls: string[])
 
 /** An island instance left the page (its region disconnected and its app was disposed). */
 export function leftover_island_gone(el: Element, entry: string): void {
-	const isl = watched().islands.get(entry);
+	const isl = islands.get(entry);
 	if (!isl || !isl.els.delete(el)) return;
 	isl.gone = performance.now();
 }
 
 /** Everything watched, as it stands now (for `owned_leftovers`). */
 export function leftover_state(): { regs: LeftoverReg[]; islands: LeftoverIsland[] } {
-	const { intervals, listeners, islands } = watched();
 	const regs: LeftoverReg[] = [...intervals.values()];
 	for (const list of listeners.values()) for (const { on: _, ...r } of list) regs.push(r);
 	const out: LeftoverIsland[] = [];
