@@ -1,6 +1,10 @@
 {
 	"exempt": [
 		{
+			"id": "packages/core/src/runtime/code-origins.ts > import_code",
+			"reason": "one browser import() of a module URL (a real module load, not replayable), constant work; run by packages/core/test/browser/code-origins.test.ts and dev-region-css-import.test.ts"
+		},
+		{
 			"id": "packages/core/src/runtime/entry-locations.ts > recover_location > task:0~d0bd46",
 			"reason": "one rollover wait on the recovery's own scope timer (seconds, a deploy's rollover only), constant work"
 		},
