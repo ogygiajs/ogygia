@@ -9,14 +9,20 @@ fall out as facets of it.
 A region is a call: `component + props`. The call is the **address**. Everything speaks one wire unit:
 
 ```ts
-type Frame = { a: string; v: number; html: string };
+type Frame = { a: string; v: number; d?: number; html: string };
 ```
 
 - `a` — the address. For deferred regions this already exists: the signed endpoint URL serializes the
   call (region id + devalue'd props + MAC). Same call → same URL → same address. No new hashing
   scheme needed for v1; held/live regions can join with an explicit address later.
 - `v` — a version **ticketed at request time, not write time**. A response carrying an older ticket
-  than the last applied write is dropped. This is the entire stale-clobber defense.
+  than the last applied write is dropped. This is the stale-clobber defense for every channel the
+  browser starts itself.
+- `d` — the data version the server gave the region (`region(C, props, { version })`), when it gave
+  one. A command's answer is decoded with no request to ticket it by, so two commands answering one
+  region would otherwise land in decode order (#682). Between two versioned frames the newer `d`
+  wins whatever the tickets; equal `d`, or a frame without one, falls back to the ticket. An
+  unversioned frame that applies clears `d`. Tests: `test/browser/region-version.test.ts`.
 - `html` — the payload. HTML in, morph/swap out. No component trees over the wire.
 
 ## The invariant
@@ -29,7 +35,11 @@ What this buys, mechanically rather than by good intentions:
 
 - A preload/prefetch can never clobber the wrong DOM (different address, nothing bound to it).
 - N instances of the same call share ONE fetch (`ensure()` dedupes on the inflight entry).
-- A stale response can never overwrite a newer one (ticket check in `write()`).
+- A stale response can never overwrite a newer one (data version, then ticket, in `write()`).
+- Every write is a move of the address's `stored-answer` machine (`empty → shown`, `shown → shown`
+  when a newer one applies, `→ kept` with what was dropped and why when an older one is dropped), so
+  `observe()` and a test's trace see each decision. Tests: `test/frame-store.test.ts` › every answer
+  at an address is a move.
 - Every future channel (OOO stream tail, mutation response, SSE someday) is just another writer.
   Transport is a setting, not architecture.
 
