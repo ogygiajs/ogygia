@@ -81,9 +81,12 @@ describe.skipIf(!kit_reader)('read_csr against Kit’s reader, over generated op
 		'export function load() { return {}; }',
 		'import { x } from "./x";'
 	];
+	const EXPORTS_CSR = /^(export (const|let|var) (ssr = true, )?csr\b|.*export \{ (c as )?csr \})/;
 	it('agrees wherever Kit can read a value', () => {
 		fc.assert(
 			fc.property(fc.array(fc.constantFrom(...PIECES), { minLength: 1, maxLength: 5 }), (picks) => {
+				// a module exports one `csr` at most (two is a SyntaxError, and Kit keeps the last)
+				fc.pre(picks.filter((p) => EXPORTS_CSR.test(p)).length <= 1);
 				const src = picks.join('\n');
 				let kit: Record<string, unknown> | null;
 				try {
