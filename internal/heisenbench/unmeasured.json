@@ -4203,6 +4203,46 @@
 		{
 			"id": "packages/federation/src/serve.ts > thaw_notice > every:0~b2197b",
 			"reason": "one typeof check per tag (an inline callback, not replayable on its own), constant work; run by packages/federation/test/thaw-notice-shape.test.ts"
+		},
+		{
+			"id": "packages/postrender/src/server.ts > defineServer:0~48ac6f > page > then:1~a1b2d0",
+			"reason": "a failed deploy check let go (the store said its failure, the next request checks again): nothing"
+		},
+		{
+			"id": "packages/postrender/src/server.ts > servable",
+			"reason": "a stored entry's build label against the build's own `$app/env` version and the wall clock (hidden state), two comparisons; run by packages/postrender/test/deploy.test.ts and handle.test.ts"
+		},
+		{
+			"id": "packages/core/src/frame.ts > mark_written",
+			"reason": "one WeakMap set beside a decoded region value (hidden state), constant work; run by packages/core/test/browser/region-orderings.test.ts and sim-region.test.ts"
+		},
+		{
+			"id": "packages/core/src/frame.ts > written_order",
+			"reason": "one WeakMap read of a decoded region value's write order (hidden state), constant work; run by packages/core/test/browser/region-orderings.test.ts and sim-region.test.ts"
+		},
+		{
+			"id": "packages/federation/src/messages.ts > FEDERATION_WARNINGS > federation_peer_answer_invalid > text",
+			"reason": "a warning's wording, constant text; said in packages/federation/test/peer-answer-invalid.test.ts"
+		},
+		{
+			"id": "packages/federation/src/messages.ts > FEDERATION_WARNINGS > federation_peer_answer_invalid > details",
+			"reason": "a warning's longer wording for its error page, constant text"
+		},
+		{
+			"id": "packages/federation/src/messages.ts > FEDERATION_WARNINGS > federation_peer_unreachable > text",
+			"reason": "a warning's wording, constant text; said in packages/federation/test/peer-unreachable.test.ts"
+		},
+		{
+			"id": "packages/federation/src/messages.ts > FEDERATION_WARNINGS > federation_peer_unreachable > details",
+			"reason": "a warning's longer wording for its error page, constant text"
+		},
+		{
+			"id": "packages/federation/src/peer.ts > HopFailed > constructor",
+			"reason": "a failed hop's error: its message and a status picked from three, constant work; thrown in packages/federation/test/peer-answer-invalid.test.ts and peer-unreachable.test.ts"
+		},
+		{
+			"id": "packages/federation/src/peer.ts > hop_failure_status",
+			"reason": "the status a failed hop answers with: one class check (hidden state: the error's class), constant work; run by packages/federation/test/hole-peer-failure.test.ts"
 		}
 	]
 }
