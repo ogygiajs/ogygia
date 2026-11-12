@@ -5,7 +5,7 @@
  * until a worker takes it. On serverless the next ask lands on a free worker; on one server it is
  * taken once the profile ahead ends. Both the dock's tabs and the run page wait this one way.
  */
-import { policy, STALE, type Policy, type Scope, type Stale } from '@ogygia/machine';
+import { clock, policy, STALE, type Policy, type Scope, type Stale } from '@ogygia/machine';
 
 /** How a profile waits for a busy profiler: asked again every 2 s (or when the 409's
  *  `Retry-After` says), for up to 2 min; a profile ahead longer than that is a stuck one (Reset). */
@@ -40,12 +40,12 @@ export async function fetch_when_free(
 	init: RequestInit = {},
 	{ asking, busy }: BusyWatch = {}
 ): Promise<Response | Stale> {
-	const started = Date.now();
+	const started = clock.mono();
 	for (let n = 1; ; n++) {
 		asking?.();
 		const res = await owner.task((signal) => fetch(url, { ...init, signal }));
 		if (res === STALE || res.status !== 409) return res;
-		const waited = Date.now() - started;
+		const waited = clock.mono() - started;
 		if (n >= PROFILER_BUSY.attempts || waited > PROFILER_BUSY.deadline) return res;
 		busy?.(waited);
 		const wait = busy_wait(res);
