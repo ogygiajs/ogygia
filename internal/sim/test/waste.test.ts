@@ -43,6 +43,26 @@ describe('asked twice', () => {
 		]);
 		expect(asked_twice(w, 'tab-1#1')).toEqual([]);
 	});
+
+	it("passes a held region's remote query asked again by the router's next visit, a back's too (gen 187, seed 187004)", () => {
+		// (a back is a new visit: its regions mount again and ask again, as a page is asked again)
+		const query = '/_app/remote/h1/q?payload=x';
+		const w = world([
+			[query, 200],
+			['/p1', 200],
+			[query, 200]
+		]);
+		// the router swapped pages at 1 (to /p1) and at 2 (back to the held region's page)
+		expect(asked_twice(w, 'tab-1#1', [1, 2])).toEqual([]);
+		// (within one visit it is asked twice)
+		expect(asked_twice(w, 'tab-1#1')).toEqual([`${query} ×2`]);
+		// (a hole's answer is still the document's: its region answers it from the page it held)
+		const hole = world([
+			['/__ogygia__?id=a&props=x', 200],
+			['/__ogygia__?id=a&props=x', 200]
+		]);
+		expect(asked_twice(hole, 'tab-1#1', [1])).toEqual(['/__ogygia__?id=a&props=x ×2']);
+	});
 });
 
 describe('refused', () => {
