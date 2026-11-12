@@ -8,6 +8,9 @@ import { render } from 'svelte/server';
 const { ingest, clear, configure } = await import('@ogygia/core/events');
 const { default: TimelineTab } = await import('../src/devtools/TimelineTab.svelte');
 import type { DevtoolsEvent } from '@ogygia/core/events';
+import { record_hook } from '../src/devtools/hook-record.ts';
+
+const RECORD = Symbol.for('ogygia.hook-record');
 
 let seq = 0;
 const ev = (name: string, t: number, more: Record<string, unknown> = {}) =>
@@ -28,6 +31,7 @@ function lanes(html: string): string[] {
 const html = () => render(TimelineTab, { props: { tick: 0 } }).body;
 
 beforeEach(() => {
+	delete (globalThis as Record<symbol, unknown>)[RECORD];
 	clear();
 	configure({ active: true, cap: 4096 });
 });
@@ -51,6 +55,17 @@ describe('the Timeline tab', () => {
 			ev('region.hydrate.start', 270, { fp: 'new', entry: 'New' }),
 			ev('region.hydrate.done', 280, { fp: 'new', entry: 'New' })
 		]);
+		// (the last navigation is the router's own `navigated` hook, as the dock reads it)
+		record_hook('navigated', {
+			from: '/a',
+			to: '/b',
+			type: 'link',
+			t: 200,
+			fetched: 220,
+			styled: 240,
+			swapped: 260,
+			reconciled: true
+		});
 		expect(lanes(html())).toEqual(['page', 'new']);
 	});
 
