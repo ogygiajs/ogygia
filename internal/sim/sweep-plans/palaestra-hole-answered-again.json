@@ -1,0 +1,38 @@
+{
+	"seed": 30,
+	"steps": 30,
+	"plan": {
+		"actions": [
+			{ "kind": "click", "tab": 0, "nth": 265 },
+			{ "kind": "wait", "ms": 1000 },
+			{ "kind": "click", "tab": 0, "nth": 612 },
+			{ "kind": "wait", "ms": 5000 },
+			{ "kind": "back", "tab": 0 },
+			{ "kind": "click", "tab": 0, "nth": 695 },
+			{ "kind": "eager", "tab": 0, "path": "/dashboard/settings", "nth": 609, "after": 0 },
+			{ "kind": "hover", "tab": 0, "nth": 921 },
+			{ "kind": "wait", "ms": 100 },
+			{ "kind": "open", "path": "/header-refresh" },
+			{ "kind": "press", "tab": 1, "nth": 192 },
+			{ "kind": "twice", "tab": 1, "nth": 913, "after": 300 },
+			{ "kind": "click", "tab": 1, "nth": 908 },
+			{ "kind": "click", "tab": 0, "nth": 633 },
+			{ "kind": "click", "tab": 0, "nth": 260 },
+			{ "kind": "hurry", "tab": 0, "nth": 197, "next": 994, "after": 5 },
+			{ "kind": "click", "tab": 0, "nth": 662 },
+			{ "kind": "back", "tab": 1 },
+			{ "kind": "click", "tab": 1, "nth": 807 },
+			{ "kind": "away", "tab": 1, "nth": 287, "ms": 35000 },
+			{ "kind": "press", "tab": 0, "nth": 752 },
+			{ "kind": "hover", "tab": 0, "nth": 457 },
+			{ "kind": "press", "tab": 1, "nth": 490 },
+			{ "kind": "hurry", "tab": 0, "nth": 746, "next": 325, "after": 150 },
+			{ "kind": "open", "path": "/context" },
+			{ "kind": "click", "tab": 2, "nth": 304 },
+			{ "kind": "reload", "tab": 1 },
+			{ "kind": "click", "tab": 1, "nth": 875 },
+			{ "kind": "press", "tab": 1, "nth": 78 },
+			{ "kind": "twice", "tab": 2, "nth": 107, "after": 0 }
+		]
+	}
+}
