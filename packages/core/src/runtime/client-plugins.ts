@@ -25,6 +25,12 @@ export const HOOK_REGION_HYDRATED: boolean =
 	typeof __OGYGIA_HOOK_REGION_HYDRATED__ !== 'undefined' ? __OGYGIA_HOOK_REGION_HYDRATED__ : true;
 export const HOOK_REGION_FAILED: boolean =
 	typeof __OGYGIA_HOOK_REGION_FAILED__ !== 'undefined' ? __OGYGIA_HOOK_REGION_FAILED__ : true;
+export const HOOK_REGION_WOKE: boolean =
+	typeof __OGYGIA_HOOK_REGION_WOKE__ !== 'undefined' ? __OGYGIA_HOOK_REGION_WOKE__ : true;
+export const HOOK_REGION_MISMATCHED: boolean =
+	typeof __OGYGIA_HOOK_REGION_MISMATCHED__ !== 'undefined'
+		? __OGYGIA_HOOK_REGION_MISMATCHED__
+		: true;
 export const HOOK_HOLE_ANSWERED: boolean =
 	typeof __OGYGIA_HOOK_HOLE_ANSWERED__ !== 'undefined' ? __OGYGIA_HOOK_HOLE_ANSWERED__ : true;
 export const HOOK_HOLE_FAILED: boolean =
@@ -35,10 +41,14 @@ export const HOOK_HOLE_BATCH_MISSED: boolean =
 		: true;
 export const HOOK_ENTRY_FALLBACK: boolean =
 	typeof __OGYGIA_HOOK_ENTRY_FALLBACK__ !== 'undefined' ? __OGYGIA_HOOK_ENTRY_FALLBACK__ : true;
+export const HOOK_NAV_STARTED: boolean =
+	typeof __OGYGIA_HOOK_NAV_STARTED__ !== 'undefined' ? __OGYGIA_HOOK_NAV_STARTED__ : true;
 export const HOOK_NAVIGATED: boolean =
 	typeof __OGYGIA_HOOK_NAVIGATED__ !== 'undefined' ? __OGYGIA_HOOK_NAVIGATED__ : true;
 export const HOOK_CRITICAL_SETTLED: boolean =
 	typeof __OGYGIA_HOOK_CRITICAL_SETTLED__ !== 'undefined' ? __OGYGIA_HOOK_CRITICAL_SETTLED__ : true;
+export const HOOK_LOAD_STARTED: boolean =
+	typeof __OGYGIA_HOOK_LOAD_STARTED__ !== 'undefined' ? __OGYGIA_HOOK_LOAD_STARTED__ : true;
 export const HOOK_WARNING: boolean =
 	typeof __OGYGIA_HOOK_WARNING__ !== 'undefined' ? __OGYGIA_HOOK_WARNING__ : true;
 
@@ -109,12 +119,16 @@ export function boot_client_plugins(list: readonly ClientRealm[], kit_page: bool
 		HOOK_ANSWER_PLACED ||
 		HOOK_REGION_HYDRATED ||
 		HOOK_REGION_FAILED ||
+		HOOK_REGION_WOKE ||
+		HOOK_REGION_MISMATCHED ||
 		HOOK_HOLE_ANSWERED ||
 		HOOK_HOLE_FAILED ||
 		HOOK_HOLE_BATCH_MISSED ||
 		HOOK_ENTRY_FALLBACK ||
+		HOOK_NAV_STARTED ||
 		HOOK_NAVIGATED ||
 		HOOK_CRITICAL_SETTLED ||
+		HOOK_LOAD_STARTED ||
 		HOOK_WARNING
 	) {
 		const h: Partial<RuntimeHooks> = {};
@@ -125,12 +139,16 @@ export function boot_client_plugins(list: readonly ClientRealm[], kit_page: bool
 		if (HOOK_ANSWER_PLACED) h.answerPlaced = joined(list, 'answerPlaced');
 		if (HOOK_REGION_HYDRATED) h.regionHydrated = joined(list, 'regionHydrated');
 		if (HOOK_REGION_FAILED) h.regionFailed = joined(list, 'regionFailed');
+		if (HOOK_REGION_WOKE) h.regionWoke = joined(list, 'regionWoke');
+		if (HOOK_REGION_MISMATCHED) h.regionMismatched = joined(list, 'regionMismatched');
 		if (HOOK_HOLE_ANSWERED) h.holeAnswered = joined(list, 'holeAnswered');
 		if (HOOK_HOLE_FAILED) h.holeFailed = joined(list, 'holeFailed');
 		if (HOOK_HOLE_BATCH_MISSED) h.holeBatchMissed = joined(list, 'holeBatchMissed');
 		if (HOOK_ENTRY_FALLBACK) h.entryFallback = joined(list, 'entryFallback');
+		if (HOOK_NAV_STARTED) h.navStarted = joined(list, 'navStarted');
 		if (HOOK_NAVIGATED) h.navigated = joined(list, 'navigated');
 		if (HOOK_CRITICAL_SETTLED) h.criticalSettled = joined(list, 'criticalSettled');
+		if (HOOK_LOAD_STARTED) h.loadStarted = joined(list, 'loadStarted');
 		if (HOOK_WARNING) h.warning = joined(list, 'warning');
 		slots.hooks = h;
 	}

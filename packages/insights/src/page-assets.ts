@@ -11,7 +11,7 @@
  * imports, bounded in time and count). The score (score.ts) reads the totals.
  */
 
-import { scope } from '@ogygia/machine';
+import { clock, scope } from '@ogygia/machine';
 import { find_unscoped, type UnscopedStyles } from '@ogygia/core/internal/instruments';
 
 export type AssetKind = 'script' | 'style' | 'font' | 'image' | 'other';
@@ -135,7 +135,9 @@ function decode_entities(s: string): string {
 	return s.split('&amp;').join('&').split('&quot;').join('"').split('&#39;').join("'");
 }
 
+// static: font file extensions
 const FONT_EXT = new Set(['woff', 'woff2', 'ttf', 'otf']);
+// static: image file extensions
 const IMG_EXT = new Set(['png', 'jpg', 'jpeg', 'gif', 'webp', 'avif', 'svg', 'ico']);
 
 function ext_of(url: string): string {
@@ -426,7 +428,7 @@ export async function weigh_assets(opts: WeighOptions): Promise<PageAssets> {
 	const { refs, inline, kit_nodes } = scan_assets(opts.html);
 	// Kit's route nodes, as file-name marks (`/nodes/5.`) to find among app.js's dynamic imports
 	const node_marks = kit_nodes.map((n) => `/nodes/${n}.`);
-	const deadline = Date.now() + (opts.budget_ms ?? 6000);
+	const deadline = clock.mono() + (opts.budget_ms ?? 6000);
 	const max_files = opts.max_files ?? 400;
 	const origin = new URL(opts.page_url).origin;
 	// the queue: document refs, then each module's static imports as they are found
@@ -454,7 +456,7 @@ export async function weigh_assets(opts: WeighOptions): Promise<PageAssets> {
 	const worker = async () => {
 		while (
 			at < queue.length &&
-			Date.now() < deadline &&
+			clock.mono() < deadline &&
 			assets.length + missed.length < max_files
 		) {
 			const r = queue[at++];
@@ -514,7 +516,11 @@ export async function weigh_assets(opts: WeighOptions): Promise<PageAssets> {
 		}
 	};
 	// workers pick up imports as they are found: keep going while the queue grows
-	while (at < queue.length && Date.now() < deadline && assets.length + missed.length < max_files) {
+	while (
+		at < queue.length &&
+		clock.mono() < deadline &&
+		assets.length + missed.length < max_files
+	) {
 		await Promise.all(Array.from({ length: Math.min(6, queue.length - at) }, worker));
 	}
 	for (let k = at; k < queue.length; k++)
@@ -809,7 +815,7 @@ async function weigh_one(
 	deadline: number,
 	origin: string
 ): Promise<Weight | Miss> {
-	const left = deadline - Date.now();
+	const left = deadline - clock.mono();
 	if (left < 100) return { miss: 'budget' };
 	try {
 		// (the race's timer is this file's: cleared the moment the file answers)

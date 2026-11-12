@@ -6,6 +6,7 @@
  * `rule_head_adopted` (./rules.ts) checks the head never gains one after the first document.
  */
 
+// static: the http-equiv names the head never adopts
 const DENIED_HTTP_EQUIV = new Set([
 	'refresh',
 	'content-security-policy',

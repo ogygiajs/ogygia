@@ -21,7 +21,7 @@ const definition = (plugin: ReturnType<typeof postrenderPlugin>) =>
 	];
 
 // The server half reads Kit's `$app/env`; outside an app, nothing is building and this is no dev server.
-vi.mock('$app/env', () => ({ building: false, dev: false }));
+vi.mock('$app/env', () => ({ building: false, dev: false, version: 'test' }));
 
 describe('postrender() — the vite value', () => {
 	it('names the package and normalizes its options', () => {
@@ -52,7 +52,8 @@ describe('postrender() — the vite value', () => {
 			transform: () => {},
 			exports: { map: () => Promise.resolve(null) },
 			pinnedImports: () => () => false,
-			regions: { names: () => ({}), barrelWhy: () => [] }
+			regions: { names: () => ({}), barrelWhy: () => [] },
+			definers: () => {}
 		});
 		expect(keys).toEqual(['postrender']);
 	});
@@ -139,6 +140,8 @@ describe('the server realm, started', () => {
 			return c;
 		};
 
+		// (the boot's deploy check, done: its marker write is not the render's)
+		await ask.lastBuild('test');
 		// a visitor's render of /news/ is stored: its write to a remote store is slow
 		store.put = hold(real_put);
 		const first = get();
@@ -180,17 +183,21 @@ describe('the server realm, started', () => {
 			puts.push({ key, ttl: options.ttl });
 			return put(key, entry, options);
 		};
-		install({ store });
+		// (each ask is a boot: a process on the same store)
+		const boot = () => install({ store });
 		const now = vi.spyOn(Date, 'now');
 		const t0 = Date.now();
 		now.mockReturnValue(t0);
 		try {
+			boot();
 			expect(await ask.lastBuild('v1')).toBeUndefined();
 			now.mockReturnValue(t0 + 30 * 86_400_000);
+			boot();
 			expect(await ask.lastBuild('v1')).toBe('v1'); // the same build booting again
 			now.mockReturnValue(t0 + 60 * 86_400_000);
+			boot();
 			expect(await ask.lastBuild('v2')).toBe('v1');
-			// written on every ask, never under the pages' one-day cap
+			// written on every boot's check, never under the pages' one-day cap
 			expect(puts).toHaveLength(3);
 			for (const p of puts) expect(p.ttl).toBeGreaterThan(365 * 86_400);
 		} finally {
