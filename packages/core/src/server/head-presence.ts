@@ -207,13 +207,19 @@ function search_from(re: RegExp, s: string, from: number): number {
  * other `<meta>`, the `<title>`, stylesheets, preconnects, image/font preloads — keeps its place in
  * front of it.
  */
-export function runtime_first(head: string, runtime: string | null, dt_mark = ''): string {
+export function runtime_first(
+	head: string,
+	runtime: string | null,
+	code_origins: readonly string[] = [],
+	dt_mark = ''
+): string {
 	const found = RUNTIME_SCRIPT_ELEMENT_RE.exec(head);
-	const placed = found ? found[0] : runtime;
-	if (placed === null) return head;
+	const was = found ? found[0] : runtime;
+	if (was === null) return head;
+	const origined = with_code_origins(was, code_origins);
 	// DEVTOOLS-FEED: the response's mark leads the tag's attributes (a repeated attribute keeps its
 	// first value, so a mark the markup put on the tag loses)
-	const tag = dt_mark ? '<script ' + DT_MARK + '="' + dt_mark + '"' + placed.slice(7) : placed;
+	const tag = dt_mark ? '<script ' + DT_MARK + '="' + dt_mark + '"' + origined.slice(7) : origined;
 	const rest = found
 		? head.slice(0, found.index) + head.slice(found.index + found[0].length)
 		: head;
@@ -225,6 +231,34 @@ export function runtime_first(head: string, runtime: string | null, dt_mark = ''
 		const close = search_from(HEAD_CLOSE_G, rest, from);
 		at = close === -1 ? rest.length : close;
 	}
-	if (found && found.index === at && tag === placed) return head;
+	if (found && found.index === at && tag === was) return head;
 	return rest.slice(0, at) + tag + rest.slice(at);
+}
+
+/** The runtime script's own code-origins attribute (runtime/code-origins.ts reads it). */
+const CODE_ORIGINS_ATTR_RE = /\sdata-og-origins="[^"]*"/i;
+const RUNTIME_MARK_RE = /\bdata-ogygia-runtime\b/i;
+
+/**
+ * THE ONE WRITE of the origins island code may load from besides the page's own and the runtime's
+ * (`data-og-origins`): at head time, when the render has learned all it will (a peer fragment's own
+ * runtime origin, #856), in place of any the tag carried. http(s) origins only, each once,
+ * space-separated (an origin has no character an attribute must escape).
+ */
+function with_code_origins(tag: string, urls: readonly string[]): string {
+	const origins = new Set<string>();
+	for (const url of urls) {
+		try {
+			const u = new URL(url);
+			if (u.protocol === 'https:' || u.protocol === 'http:') origins.add(u.origin);
+		} catch {
+			// ok: not a URL: no origin to allow
+		}
+	}
+	const bare = tag.replace(CODE_ORIGINS_ATTR_RE, '');
+	if (!origins.size) return bare;
+	return bare.replace(
+		RUNTIME_MARK_RE,
+		(mark) => mark + ' data-og-origins="' + [...origins].join(' ') + '"'
+	);
 }
