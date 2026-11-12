@@ -204,7 +204,7 @@ instance maps in `prepare_spa_document` (pre-swap).
 - Ingest by type alone, or read the mark from anywhere but the head runtime script.
 - Put the mark after the tag's other attributes: a repeated attribute keeps its first value, so leading it beats a mark the markup wrote on the tag.
 
-**Tests:** `packages/core/test/browser/devtools-feed-own-render.test.ts` (client) and `packages/core/test/head-presence.test.ts` (the mark on every placement).
+**Enforced by:** `packages/core/test/browser/devtools-feed-own-render.test.ts` (client), `packages/core/test/head-presence.test.ts` (the mark on every placement).
 
 ---
 
