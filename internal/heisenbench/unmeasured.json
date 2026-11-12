@@ -1161,8 +1161,8 @@
 			"reason": "closes the run's scope (a timer), constant work; proven in packages/devtools/test/profiler-fake-progress.test.ts"
 		},
 		{
-			"id": "packages/devtools/src/profiler/ui/fake-progress.svelte.ts > FakeProgress > [computed]",
-			"reason": "Symbol.dispose: closes the bar's scope (its timers), constant work; proven in packages/devtools/test/profiler-fake-progress.test.ts"
+			"id": "packages/devtools/src/profiler/ui/fake-progress.svelte.ts > FakeProgress > close",
+			"reason": "closes the bar's scope (its timers), constant work; proven in packages/devtools/test/profiler-fake-progress.test.ts"
 		},
 		{
 			"id": "packages/devtools/src/profiler/ui/fake-progress.svelte.ts > FakeProgress > finish > task:0",
@@ -4751,6 +4751,38 @@
 		{
 			"id": "packages/core/src/runtime/code-origins.ts > forget_code_origins",
 			"reason": "browser only: drops the page's read code origins (one write), constant work; proven in packages/core/test/browser/nav-code-origins.test.ts (#1045)"
+		},
+		{
+			"id": "packages/core/src/runtime/core.ts > OgygiaRegion > #teardown > note_left:1~6e248e",
+			"reason": "browser only, dev and e2e builds: the rule's reader of the element's busy machines, handed over at its teardown, constant work; proven in packages/core/test/browser/rules.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/core.ts > OgygiaRegion > #machines",
+			"reason": "browser only, dev and e2e builds: reads the element's four machines' states for the rule on a region that left, constant work; proven in packages/core/test/browser/rules.test.ts and packages/core/test/browser/paint-left-mid-wait.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/rules.ts > note_left",
+			"reason": "browser only, dev and e2e builds: records a region element that left the page (DOM nodes, not cloneable), constant work; proven in packages/core/test/browser/rules.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/region-machines.ts > busy_machines",
+			"reason": "dev and e2e builds only (the rule on a region that left): four compares over a fixed table, constant work; proven in packages/core/test/browser/rules.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/rules.ts > regions_left_at_rest",
+			"reason": "browser only, dev and e2e builds: the rule over the region elements that left the page, linear in those not yet seen at rest; proven in packages/core/test/browser/rules.test.ts and read at the end of every e2e spec"
+		},
+		{
+			"id": "packages/core/src/messages/core.ts > WARNINGS > rule_region_left_busy > details",
+			"reason": "a message's prose for its docs page and dev warning: constant text, printed once when the rule breaks"
+		},
+		{
+			"id": "packages/core/src/messages/core.ts > WARNINGS > rule_region_left_busy > text",
+			"reason": "a message's one line for the dev warning: a template over the rule's detail, printed once when the rule breaks"
+		},
+		{
+			"id": "packages/core/src/server/capped-body.ts > read_capped",
+			"reason": "network bound: reads a request body's pieces until the cap, one copy of the bytes; proven in packages/core/test/batch-body-cap.test.ts and packages/federation/test/body-cap.test.ts (#754, #1091)"
 		}
 	]
 }

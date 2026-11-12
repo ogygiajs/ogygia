@@ -251,6 +251,52 @@ describe('the network', () => {
 		expect(seen['tab-9']).not.toBe(seen['tab-1']);
 	});
 
+	it('a request the client calls off before its answer came reads aborted, though the server answered (palaestra seed 99)', async () => {
+		// (the server's answer, landing after the call-off, wrote its status over `aborted`: the waste
+		// oracle counted a hole's called-off fetch as an ask)
+		const loop = new Loop(rng(1));
+		const net = new Network({ loop, rng: rng(1), faults: new Set() });
+		const called_off = new AbortController();
+		const heard = net
+			.send(
+				'tab-1#1',
+				new Request('https://app.test/slow', { signal: called_off.signal }),
+				() =>
+					new Promise<Response>((answer) =>
+						loop.add('server', 'renders', 300, () => answer(new Response('late')))
+					)
+			)
+			.then(
+				() => 'answered',
+				(e: Error) => e.name
+			);
+		await loop.run(10);
+		called_off.abort();
+		await loop.run(1_000);
+		expect(await heard).toBe('AbortError');
+		expect(net.exchanges.map((e) => e.status)).toEqual(['aborted']);
+	});
+
+	it('each visitor comes from a client address of its own, and its server hops keep it', async () => {
+		// (a crowd of visitors shared one address, so a per-client rate limit saw one client)
+		const loop = new Loop(rng(1));
+		const net = new Network({ loop, rng: rng(1), faults: new Set() });
+		net.address('tab-2', '10.0.1.2');
+		const seen: Record<string, string> = {};
+		const peer = async () => {
+			seen.hop = client_address();
+			return new Response('peer');
+		};
+		for (const tab of ['tab-1', 'tab-2'])
+			void net.send(`${tab}#1`, new Request('https://app.test/'), async () => {
+				seen[tab] = client_address();
+				if (tab === 'tab-2') await net.send('server-0', new Request('https://peer.test/f'), peer);
+				return new Response('x');
+			});
+		await loop.run();
+		expect(seen).toEqual({ 'tab-1': '10.0.0.1', 'tab-2': '10.0.1.2', hop: '10.0.1.2' });
+	});
+
 	it("a server's hop names the document whose request it was answering", async () => {
 		const loop = new Loop(rng(1));
 		const net = new Network({ loop, rng: rng(1), faults: new Set() });
@@ -264,6 +310,39 @@ describe('the network', () => {
 			['tab-1#2', undefined],
 			['server-0', 'tab-1#2']
 		]);
+	});
+
+	it("a server hears its request called off when the connection closes, as a Node server's request signal does", async () => {
+		// (Kit's live-query stream wrote to a body the client had cancelled and, its request never
+		// called off, reported it to handleError as a 500; gen 8, seed 24)
+		const loop = new Loop(rng(1));
+		const net = new Network({ loop, rng: rng(1), faults: new Set() });
+		const heard: Record<string, boolean> = {};
+		const live = (name: string) => async (r: Request) => {
+			r.signal.addEventListener('abort', () => (heard[name] = true));
+			heard[name] = false;
+			// (a body that never ends: a live answer)
+			return new Response(new ReadableStream({ pull: () => new Promise(() => {}) }));
+		};
+		const called_off = new AbortController();
+		const cancelled = net.send('tab-1#1', new Request('https://app.test/cancel'), live('cancel'));
+		void net.send(
+			'tab-1#1',
+			new Request('https://app.test/abort', { signal: called_off.signal }),
+			live('abort')
+		);
+		void net.send('tab-1#2', new Request('https://app.test/left'), live('left'));
+		void net.send('tab-1#3', new Request('https://app.test/whole'), async (r) => {
+			r.signal.addEventListener('abort', () => (heard.whole = true));
+			heard.whole = false;
+			return new Response('x');
+		});
+		await loop.run(1_000);
+		void (await cancelled).body?.cancel();
+		called_off.abort();
+		net.leave('tab-1#2');
+		await loop.run(2_000);
+		expect(heard).toEqual({ cancel: true, abort: true, left: true, whole: false });
 	});
 
 	it('offline fails at once', async () => {
