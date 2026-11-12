@@ -1,21 +1,11 @@
-/**
- * The fence pipeline — the CODE dialect's contracts. A fence flows through fixed stages, each a
- * composition of imported VALUES (core knows the contracts, never the features):
- *
- *   meta (LAYER) → variants (RACE) → highlight (shiki transformers) → chrome
- *
- *  - a {@link MetaParser} enriches `fence.meta` and may rewrite `fence.source` (strip magic comments);
- *    parsers layer, later wins on collision. Default: `[infostring()]`.
- *  - a {@link VariantGenerator} turns one authored fence into N labeled versions bound to a
- *    {@link Preference}; generators race, the first non-null claims the fence (a JS↔TS converter,
- *    package-manager tabs — app-authored values against this contract).
- *
- * These are pure functions over {@link Fence} — unit-testable with no Vite. The wiring into the
- * markdown highlighter + the sticky-choice CSS lives in the pipeline runner (see `code-render.ts`).
- */
 import type { PreferenceSpec } from '@ogygia/core';
 
-/** One code fence, as the pipeline sees it. `raw_meta` is the untouched infostring after the lang. */
+/**
+ * One code fence, as the pipeline sees it. `raw_meta` is the untouched infostring after the lang.
+ * A fence goes through meta parsers (they layer: {@link run_meta}), then variant generators (they
+ * race: {@link run_variants}), then highlighting and chrome (`code-render.ts`). The parsers and
+ * generators are plain values the app passes in; the default meta is `[infostring()]`.
+ */
 export type Fence = {
 	lang: string;
 	raw_meta: string;
@@ -43,8 +33,6 @@ export type VariantGenerator = {
 	ready?: () => Promise<void>;
 };
 
-// ── runners (pure) ──
-
 /** Layer every meta parser over a fence, in order. */
 export function run_meta(parsers: MetaParser[], fence: Fence): Fence {
 	return parsers.reduce((f, p) => p(f), fence);
@@ -62,8 +50,6 @@ export function run_variants(
 	}
 	return null;
 }
-
-// ── built-in meta parsers (VALUES) ──
 
 const QUOTED = /(\w[\w-]*)\s*=\s*"([^"]*)"/g;
 const BARE = /(\w[\w-]*)\s*=\s*([^\s"'{}]+)/g;
@@ -88,7 +74,7 @@ export function infostring(): MetaParser {
 		while ((m = QUOTED.exec(raw))) meta[m[1]!] = m[2]!;
 		BARE.lastIndex = 0;
 		while ((m = BARE.exec(raw))) if (!(m[1]! in meta)) meta[m[1]!] = coerce(m[2]!);
-		if (meta.title && !meta.file) meta.file = meta.title; // `title=` is the common filename spelling
+		if (meta.title && !meta.file) meta.file = meta.title;
 		return { ...fence, meta };
 	};
 }
