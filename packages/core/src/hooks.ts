@@ -81,16 +81,23 @@ import {
 	MIN_SECRET_BYTES
 } from './server/hmac.ts';
 import { expiry_refusal, note_cache_control } from './server/shared-cache.ts';
-import { app_lifetime } from './server/region-endpoint.ts';
+import { app_lifetime, server_delta_on } from './server/region-endpoint.ts';
 import { render_cache_key, cached_render, type RenderKey } from './server/render-cache.ts';
 import { render as render_policy } from './policies.ts';
-import { install_server_rules } from './server/rules.ts';
+import { install_server_rules, note_region_answer } from './server/rules.ts';
 import { B64Url } from './server/payload.ts';
 import { REF_WIRE_KEY, ref_reviver } from './ref.ts';
 import type { RequestContext } from './plugin/index.ts';
 import { current_facts, facts_of, set_current_request, type RequestFacts } from './plugin/facts.ts';
 import { observe_reads } from './plugin/reads.ts';
-import { around, end_request, request_contexts, start_app_plugins } from './plugin/server.ts';
+import {
+	around,
+	end_request,
+	html_pass,
+	request_contexts,
+	start_app_plugins
+} from './plugin/server.ts';
+import type { HtmlPass } from './plugin/index.ts';
 import { end_request_scope, own_response, request_scope } from './plugin/request-scope.ts';
 // PULL-registration at decode time (idempotent; no import-time side effects).
 import { register_wire_kind } from './live-transport.ts';
@@ -119,15 +126,7 @@ import { early_holes_head } from './early-holes-head.ts';
 import { add_early_holes_csp, with_early_holes_meta_csp } from './server/early-holes-csp.ts';
 import { merge_seed_ask, shape_page_data, type SeedKeys } from './server/seed-shape.ts';
 import { html_has_kit_bootstrap } from './runtime/kit-boot.ts';
-import {
-	check_script,
-	mark,
-	settle,
-	STAND_IN_CSS,
-	type TransformKind
-} from './server/reversible.ts';
 import { hole_head } from './server/hole-graph.ts';
-import { restore, restore_adopt } from './runtime/restore.ts';
 import { RateLimiter } from './server/rate-limit.ts';
 import { PageSeed } from './server/page-seed.ts';
 import { analyze, SeedIndex, set_measure_memo_reader, type MeasureMemo } from './seed-refs.ts';
@@ -299,8 +298,8 @@ type RequestBag = {
 	/** a Kit-hydrated document that still carries ogygia's runtime: some region on it is ogygia's to
 	 *  wake (inside a lake, a hole) — the only islands on such a page the context marker can feed. */
 	kit_with_runtime?: boolean;
-	/** the app's transform (#transform_document): what goes before `</head>` (its head assets, the
-	 *  stand-ins' sheet) and first before `</body>` (the dev check, the restorer) — in the one assembly */
+	/** the app's own pass (#pass_document): what goes before `</head>` and first before `</body>` —
+	 *  in the one assembly */
 	transform_head?: string;
 	transform_body?: string;
 	/** The request's shared facts (plugin/facts.ts): what plugins and core learn about this render
@@ -527,13 +526,15 @@ const REGION_FRAME_HEADERS = {
 	'Referrer-Policy': 'no-referrer'
 } as const;
 
+/** Every region response, with those headers. It says how it may be cached: `no-store` (a refusal,
+ *  an error, a dynamic hole) unless the caller names the hole's own policy (PRELOAD-CACHE). */
 function region_response(
 	body: BodyInit | null,
 	init: { status: number; headers?: Record<string, string> }
 ) {
 	return new Response(body, {
 		status: init.status,
-		headers: { ...REGION_FRAME_HEADERS, ...init.headers }
+		headers: { ...REGION_FRAME_HEADERS, 'cache-control': 'no-store', ...init.headers }
 	});
 }
 
@@ -733,10 +734,6 @@ function page_ctx_script(bag: RequestBag | undefined): string {
 	return payload ? emit_ogygia_script('ctx', payload, PAGE_CTX_MARKER) : '';
 }
 
-/** The restorer, inline (runtime/restore.ts — self-contained, so its source runs as is): restores the
- *  document now, and stays as `__og_restore` / `__og_restore_adopt` for hole answers and router swaps. */
-const RESTORER_SCRIPT = `<script data-og-restore>(function(){var r=${restore.toString()};window.__og_restore=r;window.__og_restore_adopt=${restore_adopt.toString()};r(document)})()</script>`;
-
 /** `inner` with the request's owner around it: made before `inner` runs, ended with its response
  *  (or at once when it throws). */
 function owned(inner: Handle): Handle {
@@ -756,13 +753,12 @@ function owned(inner: Handle): Handle {
 class OgygiaHandle {
 	readonly #endpoint: string;
 	readonly #speculation_rules: string;
-	/** The app's server transform (documents and region answers) — see OgygiaHandleOptions. */
-	readonly #transform: OgygiaHandleOptions['transform'];
 	readonly render_rate: RateLimiter;
 	readonly probe_rate: RateLimiter;
 
 	constructor(options: OgygiaHandleOptions = {}) {
-		this.#transform = options.transform;
+		// (the app's own pass is @ogygia/reshape's now; a JS caller still passing it is told where)
+		if ('transform' in options) throw new OgygiaError('handle_transform_moved');
 		// Stored WITHOUT a base prefix. Getting the app's absolute base path inside a hook has no
 		// public, forward-compatible API — `base` from `$app/paths` is deprecated (removed in Kit 3)
 		// and `resolve()` is page-relative here — so instead of prefixing the base we match the request
@@ -868,9 +864,10 @@ class OgygiaHandle {
 			const devtools_personal =
 				DEVTOOLS_LAZY && !building && (devtools_on || switch_in_url(event.url) !== null);
 			facts.private = devtools_personal;
-			// (an app transform renders a router-fetched page as an ANSWER — every host planned,
-			// `#transform_document` — a form a store keyed by path does not hold)
-			facts.answerForm = !!this.#transform && router_fetched(event);
+			// (the app's own pass renders a router-fetched page as an ANSWER — every host planned,
+			// `#pass_document` — a form a store keyed by path does not hold)
+			const pass = html_pass(plugins, event);
+			facts.answerForm = !!pass && router_fetched(event);
 			// Flicker fix: on csr=false pages Kit resolves top-level `await query()` calls during
 			// SSR (populating the internal request store's `remote.implicit`) but only serializes
 			// them into the page when csr===true. We capture the resolved query responses and emit
@@ -938,7 +935,7 @@ class OgygiaHandle {
 			const response = await resolve(event, {
 				transformPageChunk: async ({ html }) =>
 					this.inject_client_seeds(
-						this.#transform ? await this.#transform_document(html, event, bag) : html,
+						pass ? await this.#pass_document(pass, html, event, bag) : html,
 						store?.state,
 						event,
 						bag
@@ -952,11 +949,14 @@ class OgygiaHandle {
 				} catch {
 					// ok: immutable headers: the platform's policy is the app's to allow the script in
 				}
-			// with an app transform a router-fetched page is rendered as an answer (`#transform_document`):
+			// with the app's own pass a router-fetched page is rendered as an answer (`#pass_document`):
 			// a shared cache must keep the two forms apart
-			if (this.#transform && (response.headers.get('content-type') ?? '').includes('text/html'))
+			// and with server-delta navigation, a router-fetched page skips the regions it names
+			// (`x-ogygia-known`): never the copy a visitor who asked for the whole page gets
+			const delta = server_delta_on();
+			if ((pass || delta) && (response.headers.get('content-type') ?? '').includes('text/html'))
 				try {
-					response.headers.append('vary', 'x-ogygia-spa');
+					response.headers.append('vary', delta ? 'x-ogygia-spa, x-ogygia-known' : 'x-ogygia-spa');
 				} catch {
 					// ok: immutable headers; the app's platform's headers win
 				}
@@ -1016,8 +1016,12 @@ class OgygiaHandle {
 		}
 		// POST to the endpoint = a BATCH frame stream (client-side navigation, single-flight): render a set
 		// of signed region calls and flush each as an out-of-order frame in one response.
-		if (event.request.method.toUpperCase() === 'POST') return this.render_batch(event);
-		return this.render_region(event);
+		const answer =
+			event.request.method.toUpperCase() === 'POST'
+				? await this.render_batch(event)
+				: await this.render_region(event);
+		if (RULES) note_region_answer(event.url.pathname, answer);
+		return answer;
 	}
 
 	/**
@@ -1033,9 +1037,8 @@ class OgygiaHandle {
 			return region_denied('cross-site');
 		const ip = client_ip(event);
 		if (!ip) return region_response('Too Many Requests', { status: 429 });
-		if (this.probe_rate.limited(ip) || this.render_rate.limited(ip)) {
-			return region_response('Too Many Requests', { status: 429 });
-		}
+		// (each hole is charged as its own GET would be, in #render_capability: one budget unit, one
+		// render, whichever door it comes in by)
 		// A batch is at most MAX_BATCH signed endpoints (~8.5kB each), so a well-formed body is a few
 		// hundred kB. `request.json()` buffers the WHOLE body before we can slice to 32 — reject an
 		// oversized body up front (O(1) header check) so a single padded POST can't force a large
@@ -1054,11 +1057,15 @@ class OgygiaHandle {
 		if (!Array.isArray(parsed) || parsed.length === 0) {
 			return region_response('Bad Request', { status: 400 });
 		}
-		const calls = parsed.filter((e): e is string => typeof e === 'string').slice(0, MAX_BATCH);
+		// (one call asked twice is one render: its one parcel answers both)
+		const calls = [...new Set(parsed.filter((e): e is string => typeof e === 'string'))].slice(
+			0,
+			MAX_BATCH
+		);
 		// (the stream's signal aborts when the visitor leaves: the holes not rendered yet never are)
 		const stream = batch_stream(
 			calls,
-			(endpoint, signal) => this.#render_capability(endpoint, event, true, signal),
+			(endpoint, signal) => this.#render_capability(endpoint, event, true, signal, ip),
 			request_scope(event.request)
 		);
 
@@ -1073,55 +1080,26 @@ class OgygiaHandle {
 	}
 
 	/**
-	 * THE APP'S TRANSFORM ON A DOCUMENT (server/reversible.ts): the chunk carrying `</head>` (the
-	 * document; a streamed tail chunk passes untouched) is marked, handed to the transform, settled.
-	 * Then the head gets the transform's `data-og-head` assets (deduped) and, when the parser would have
-	 * restructured a tag, the stand-ins' sheet; the body gets the restorer — inline, before `</body>`,
-	 * so it runs before any island wakes, before Kit starts, and before a deferred module upgrades a
-	 * host. It also stays on the page as a global for the runtime's hole answers and router swaps.
+	 * THE APP'S OWN PASS ON A DOCUMENT (`HtmlPass`, @ogygia/reshape): the chunk carrying `</head>` (a
+	 * streamed tail chunk passes untouched), with what only ogygia knows about the page. What the pass
+	 * puts in the head and first before `</body>` rides the seed injection's ONE assembly of the
+	 * document (no splice here, which was another full copy the assembly then re-located).
 	 */
-	async #transform_document(html: string, event: RequestEvent, bag: RequestBag): Promise<string> {
-		const head_end = html.indexOf('</head>');
-		if (head_end === -1) return html;
-		const csr = csr_page_of(html, html.lastIndexOf('</body>'), event, bag);
-		// A page the router fetched is morphed into the live one, whose hosts their runtime already
-		// rendered: it is an ANSWER, every host planned (server/reversible.ts `plan_hosts`) — the router
-		// restores it before the swap, so live and incoming hosts meet in one form.
-		const answer = router_fetched(event);
-		const marked = mark(html, 'document', csr, answer);
-		const out = await this.#transform!(marked ? marked.html : html, {
-			kind: 'document',
-			csr,
-			event
+	async #pass_document(
+		pass: HtmlPass,
+		html: string,
+		event: RequestEvent,
+		bag: RequestBag
+	): Promise<string> {
+		if (html.indexOf('</head>') === -1) return html;
+		const out = await pass.document(html, {
+			csr: csr_page_of(html, html.lastIndexOf('</body>'), event, bag),
+			// (the router morphs a fetched page into the live one: it is rendered as an answer)
+			answer: router_fetched(event)
 		});
-		const s = marked ? settle(out, marked.record, { dev }) : null;
-		// A page loaded as one keeps hosts in the transform's first-load form: if this copy ever reaches
-		// the router (a store, a prerender, a cache), it loads it instead of swapping it in
-		let first_load = false;
-		if (marked && !answer)
-			for (const h of marked.record.hosts.values()) if (!h.planned) first_load = true;
-		// (its head assets and the restorer ride the seed injection's ONE assembly of the document —
-		// no splice here, which was another full copy the assembly then re-located)
-		bag.transform_head =
-			(s?.head.join('') ?? '') +
-			(s?.stand_ins ? `<style data-og-stand-ins>${STAND_IN_CSS}</style>` : '') +
-			(first_load ? '<meta name="ogygia-first-load">' : '');
-		bag.transform_body = (s?.check ? check_script(s.check) : '') + RESTORER_SCRIPT;
-		return s ? s.html : out;
-	}
-
-	/** THE APP'S TRANSFORM ON A REGION ANSWER: marked, transformed, settled. The runtime restores it
-	 *  before insertion (and hoists its `data-og-head` assets), so no stand-in sheet is needed. */
-	async #transform_region(html: string, event: RequestEvent): Promise<string> {
-		const marked = mark(html, 'region', false);
-		const out = await this.#transform!(marked ? marked.html : html, {
-			kind: 'region',
-			csr: false,
-			event
-		});
-		if (!marked) return out;
-		const s = settle(out, marked.record, { dev });
-		return s.check ? s.html + check_script(s.check) : s.html;
+		bag.transform_head = out.head;
+		bag.transform_body = out.body;
+		return out.html;
 	}
 
 	/**
@@ -1827,7 +1805,10 @@ class OgygiaHandle {
 		 *  and stays as it was. */
 		batch = false,
 		/** the batch's: aborts when its visitor left (nothing more is verified, loaded or rendered) */
-		signal?: AbortSignal
+		signal?: AbortSignal,
+		/** the visitor a batch charges, per hole, as its GET would (PROBE-THEN-RENDER): a probe before
+		 *  the MAC, a render after it. Over budget: no parcel, and the hole fetches on its own. */
+		ip?: string
 	): Promise<{ slot: string; html: string } | null> {
 		const q = endpoint.indexOf('?');
 		if (q === -1 || signal?.aborted) return null;
@@ -1835,7 +1816,9 @@ class OgygiaHandle {
 		const { id, payload, sig } = cap;
 
 		if (this.#capability_precheck(cap)) return null;
+		if (ip !== undefined && this.probe_rate.limited(ip)) return null;
 		if (!this.#verify_region_mac(cap, event)) return null;
+		if (ip !== undefined && this.render_rate.limited(ip)) return null;
 
 		const target = capability_target(cap);
 		if (target === null) return null;
@@ -1886,9 +1869,10 @@ class OgygiaHandle {
 		// imported its component. URLs inside are made root-absolute: `asset()` made them relative
 		// to THIS request, and the parcel lands in a page at any depth (server/hole-urls.ts).
 		let html = absolutize_hole_html(region_css_links(target) + body, event.url);
-		// The app's transform, as on the hole's own answer (render_region): a batched hole is the same
+		// The app's own pass, as on the hole's own answer (render_region): a batched hole is the same
 		// answer, and the runtime restores both the same way.
-		if (batch && this.#transform) html = await this.#transform_region(html, event);
+		const pass = batch ? html_pass(plugins, event) : undefined;
+		if (pass) html = await pass.region(html);
 		return { slot: sig, html };
 	}
 
@@ -2036,9 +2020,10 @@ class OgygiaHandle {
 		}
 		// `keepFallback()`: no content — the runtime keeps the page's fallback and marks the hole done.
 		if (body === KEEP_FALLBACK_HTML)
+			// (its hole's own policy, like its answer would carry: a 204 is cacheable by default)
 			return region_response(null, {
 				status: 204,
-				headers: renewed ? { 'cache-control': 'no-store', ...renew_headers } : undefined
+				headers: { 'cache-control': cache_control, ...renew_headers }
 			});
 
 		if (body.length > MAX_REGION_BODY) return region_denied('oversize');
@@ -2048,10 +2033,11 @@ class OgygiaHandle {
 		// runtime, or by a CDN (ESI) — where a `./_app/…` entry would 404 (server/hole-urls.ts).
 		let html = absolutize_hole_html(region_css_links(target) + body, event.url);
 
-		// The app's transform, on the fully assembled answer — marked before it, settled after it, so
-		// the runtime can restore what the transform moved before the answer goes in. Runs on the final
-		// body, so HEAD's `content-length` below and the GET body agree. See OgygiaHandleOptions.
-		if (this.#transform) html = await this.#transform_region(html, event);
+		// The app's own pass, on the fully assembled answer (the runtime restores what it moved before
+		// the answer goes in). Runs on the final body, so HEAD's `content-length` below and the GET
+		// body agree.
+		const pass = html_pass(plugins, event);
+		if (pass) html = await pass.region(html);
 
 		if (method === 'HEAD') {
 			return region_response(null, {
@@ -2110,27 +2096,6 @@ export interface OgygiaHandleOptions {
 	 * pages or your islands endpoint needs the same secret.
 	 */
 	secret?: string;
-	/**
-	 * Post-process the HTML ogygia sends — every document (the chunk carrying `</head>`; a streamed
-	 * tail passes untouched) and every region answer (a hole, a lake remount) — e.g. a web-component
-	 * server render. `html` in, `html` out, may be async; it is on the response path, so keep it fast.
-	 *
-	 * It may reshape Svelte-owned markup. ogygia marks the HTML before the call and restores in the
-	 * browser, before anything hydrates, what the transform moved:
-	 * - a custom element marked `og-h` is one ogygia restores (in Svelte-owned markup, above it, or in
-	 *   a region answer). To reshape it, render its plan: its slot positions as `<slot>` elements
-	 *   wrapping the moved children, `og-shadow="key …"` (the keyed sheets for its shadow root), and
-	 *   optionally `og-keep="attr …"` (attributes you added that survive the restore; never per-render
-	 *   state). One without `og-shadow` is left exactly as Svelte wrote it.
-	 * - `<template data-og-head="key">css</template>` is a shadow sheet; `<style>` / `<link>` with
-	 *   `data-og-head="key"` apply to the page. Both go into `<head>`, once per key.
-	 * - everything else `og-*` is ogygia's: carry it along wherever you move a node; it is gone from
-	 *   the final DOM.
-	 */
-	transform?: (
-		html: string,
-		ctx: { kind: TransformKind; csr: boolean; event: RequestEvent }
-	) => string | Promise<string>;
 }
 
 /**
@@ -2152,20 +2117,6 @@ export interface OgygiaHandleOptions {
 export { ogygiaTransport as transport } from './transport.ts';
 // `document()` — render a held region into a complete ogygia document (a `Response`). Server-only.
 export { document, type DocumentOptions } from './document.ts';
-// The region round-trip for an app that runs a third-party SSR/hydration pass over the document and
-// must not reshape island bytes: `scanRegions()` walks the `<ogygia-region>` subtrees;
-// `liftRegions()` / `restoreRegions()` take them out and splice them back (marks merged). Also on
-// the Kit-free `ogygia/markup` export, for the non-SvelteKit half of a monorepo.
-export {
-	scanRegions,
-	liftRegions,
-	restoreRegions,
-	type RegionSpan,
-	type RegionKind,
-	type LiftedRegion,
-	type LiftResult
-} from './server/split-regions.ts';
-
 export function handle(options: OgygiaHandleOptions = {}): Handle {
 	const instance = new OgygiaHandle(options);
 	return (args) => instance.handle(args);
