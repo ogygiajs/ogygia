@@ -19,6 +19,7 @@ import { availableParallelism } from 'node:os';
 import { join, relative } from 'node:path';
 import { registry, scope } from '@ogygia/machine';
 import { REPO } from './paths.ts';
+import { clock } from '@ogygia/machine';
 
 /** Suites split by spec file across lanes, and how each is built once before its lanes start. */
 const SPLIT: Record<string, { cmd: string[]; cwd: string }> = {
@@ -278,7 +279,7 @@ async function main() {
 	mkdirSync(LOGS, { recursive: true });
 	const timings = read_timings();
 	const plan_lanes = assign(plan(suites, timings), lanes);
-	const started = Date.now();
+	const started = clock.mono();
 
 	console.log('▸ Building the libraries (turbo, cached)');
 	const libs = spawnSync(
@@ -297,12 +298,12 @@ async function main() {
 	for (const suite of suites.filter((s) => s.split)) {
 		const { cmd, cwd } = SPLIT[suite.dir];
 		const log = join(LOGS, `build-${suite.dir.replace(/\//g, '-')}.log`);
-		const t0 = Date.now();
+		const t0 = clock.mono();
 		prebuilds.set(
 			suite.dir,
 			run_process(cmd, join(REPO, cwd), process.env, log).then((code) => {
 				if (code !== 0) console.log(`✗ build ${suite.name} failed\n${tail(log)}\n  log: ${log}`);
-				else console.log(`  built ${suite.name} (${fmt(Date.now() - t0)})`);
+				else console.log(`  built ${suite.name} (${fmt(clock.mono() - t0)})`);
 				return code === 0;
 			})
 		);
@@ -339,14 +340,14 @@ async function main() {
 						: { E2E_PORT_OFFSET: '0' })
 				};
 				const files = run.files?.map((f) => join(REPO, f)) ?? [];
-				const t0 = Date.now();
+				const t0 = clock.mono();
 				const code = await run_process(
 					['pnpm', 'exec', 'playwright', 'test', ...files, '--reporter=list,json'],
 					join(REPO, suite.dir),
 					env,
 					log
 				);
-				const ms = Date.now() - t0;
+				const ms = clock.mono() - t0;
 				read_report(report, totals, fresh);
 				if (!run.files) fresh[suite.dir] = ms;
 				if (code === 0) console.log(`  ✓ ${label}  ${fmt(ms)}  (lane ${lane})`);
@@ -361,7 +362,7 @@ async function main() {
 	writeFileSync(TIMINGS, JSON.stringify({ ...timings, ...fresh }, null, '\t') + '\n');
 	console.log(
 		`\n${failures.length ? '✗' : '✓'} ${totals.passed} passed, ${totals.failed} failed, ` +
-			`${totals.flaky} flaky, ${totals.skipped} skipped in ${fmt(Date.now() - started)}`
+			`${totals.flaky} flaky, ${totals.skipped} skipped in ${fmt(clock.mono() - started)}`
 	);
 	for (const f of failures) console.log(`  ✗ ${f}`);
 	process.exit(failures.length ? 1 : 0);
