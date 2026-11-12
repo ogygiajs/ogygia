@@ -57,7 +57,7 @@ export function federate<P extends Record<string, PeerConfig>>(
 		warn('federation_open_without_keys');
 	}
 
-	const peers = new Map<string, Peer & { keys: readonly string[] }>();
+	const peers = new Map<string, PeerHandle & { keys: readonly string[] }>();
 	const out = {} as { [K in keyof P]: Peer };
 	for (const [peer_name, peer_cfg] of Object.entries(config.peers ?? {}) as [
 		keyof P & string,

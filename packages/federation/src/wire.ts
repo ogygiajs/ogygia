@@ -311,13 +311,21 @@ function pin_graph(json: string, origin: string): string {
 	return JSON.stringify(wire).replaceAll('<', '\\u003C');
 }
 
-/** Pin ASSET refs (island entries, stylesheets, chunks, the island graph) to `origin`; app-local
- *  LINKS stay path-relative — the consuming shell owns the address space they resolve in. */
+/** A region's `endpoint`, pinned to `origin` whatever its path: it is always the answering app's own
+ *  (a server island's hole, a lake's), never a link the consumer resolves in its address space. */
+function pin_endpoint(value: string, origin: string): string {
+	return ABSOLUTE_RE.test(value) ? value : new URL(value, origin + '/').href;
+}
+
+/** Pin ASSET refs (island entries, stylesheets, chunks, the island graph) and region ENDPOINTS to
+ *  `origin`; app-local LINKS stay path-relative — the consuming shell owns the address space they
+ *  resolve in. */
 export function absolutize(html: string, origin: string): string {
 	return html
 		.replace(
 			ASSET_ATTR_RE,
-			(_m, attr: string, value: string) => `${attr}="${pin_asset(value, origin)}"`
+			(_m, attr: string, value: string) =>
+				`${attr}="${attr === 'endpoint' ? pin_endpoint(value, origin) : pin_asset(value, origin)}"`
 		)
 		.replace(
 			GRAPH_SCRIPT_RE,
