@@ -44,6 +44,7 @@ export { defineRun, defining } from './define.ts';
 export { lock, type Lock, type LockToken } from './lock.ts';
 export { noop } from './noop.ts';
 export {
+	buggify,
 	clock,
 	net,
 	random,
