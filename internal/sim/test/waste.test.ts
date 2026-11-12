@@ -63,6 +63,24 @@ describe('held twice', () => {
 			'module preload https://app.test/m.js'
 		]);
 	});
+
+	it("passes one island's props in two regions answered apart, each its own (gen 173, seed 17)", async () => {
+		// (two slots of one peer widget, each a fetched answer that carries its island's props: an
+		// answer stands alone, so taking one away leaves the other's island its props)
+		const { Window } = await import('happy-dom');
+		const w = new Window({ url: 'https://app.test/' });
+		const props = '<script type="application/json" data-ogygia-props="f1">{}</script>';
+		const answer = (n: number) =>
+			`<ogygia-region render="defer" endpoint="/og/frag?slot=${n}"><section>${props}</section></ogygia-region>`;
+		w.document.write(`<html><head></head><body>${answer(1)}${answer(2)}</body></html>`);
+		expect(held_twice(w.document as unknown as Document)).toEqual([]);
+		// (twice in one answer, or in the page's own HTML, is still twice)
+		const x = new Window({ url: 'https://app.test/' });
+		x.document.write(
+			`<html><head></head><body>${props}<ogygia-region endpoint="/og/frag?slot=1">${props}${props}</ogygia-region></body></html>`
+		);
+		expect(held_twice(x.document as unknown as Document)).toEqual(['props f1:{}']);
+	});
 });
 
 describe('warned', () => {
