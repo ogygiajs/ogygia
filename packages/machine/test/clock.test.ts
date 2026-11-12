@@ -2,7 +2,7 @@
 // step (an NTP correction, a VM resume, a laptop waking) moves neither a `keep` TTL nor a retry
 // deadline (#472). A seeded run steps the wall clock forward and back by hours between reads.
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { clock, flights, policy } from '../src/index.ts';
+import { clock, flights, policy, queue } from '../src/index.ts';
 import { under_policy } from '../src/policy.ts';
 
 afterEach(() => {
@@ -76,5 +76,53 @@ describe('a wall-clock step moves no duration', () => {
 		});
 		expect(answer).toBe('ok');
 		expect(tries).toBe(2);
+	});
+});
+
+describe('a retry deadline is counted from the run’s start', () => {
+	it('not from the clock’s zero: a process up for days still retries', async () => {
+		vi.spyOn(clock, 'mono').mockReturnValue(1e9);
+		let tries = 0;
+		const p = policy({ attempts: 2, backoff: 5, jitter: 0, deadline: 1_000 });
+		const answer = await under_policy(p, async () => {
+			if (++tries === 1) throw new Error('blip');
+			return 'ok';
+		});
+		expect(answer).toBe('ok');
+	});
+
+	it('a wait that would end exactly at the deadline is out of time at once', async () => {
+		vi.spyOn(clock, 'mono').mockReturnValue(1e9);
+		const p = policy({ attempts: 2, backoff: 1_000, jitter: 0, deadline: 1_000 });
+		const run = under_policy(p, async () => {
+			throw new Error('blip');
+		});
+		const first = await Promise.race([
+			run.then(
+				() => 'answered',
+				(error: Error) => error.name
+			),
+			new Promise((r) => setTimeout(() => r('still waiting'), 200))
+		]);
+		expect(first).toBe('TimeoutError');
+	});
+});
+
+describe('a queue reads deadlines on the monotonic clock', () => {
+	it('with no `now` of its own, a waiting job is past its deadline once clock.mono() says so (#1014)', () => {
+		let mono = 0;
+		vi.spyOn(clock, 'mono').mockImplementation(() => mono);
+		const log: string[] = [];
+		const q = queue<string>({
+			max: 1,
+			start: (job) => void log.push(job),
+			stale: (job) => void log.push(`stale ${job}`)
+		});
+		q.push('first');
+		q.push('late', 1e12);
+		mono = 2e12;
+		q.release();
+		expect(log).toEqual(['first', 'stale late']);
+		q.release();
 	});
 });
