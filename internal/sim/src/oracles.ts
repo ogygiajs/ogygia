@@ -639,6 +639,16 @@ const KNOWN_EMPTY: ReadonlyArray<{ issue: number; what: string; is: (r: Element)
 			r.getAttribute('live') === '' &&
 			r.hasAttribute('data-og-baked') &&
 			r.parentElement?.closest('ogygia-region[live]') != null
+	},
+	{
+		issue: 948,
+		what: 'a server island inside a server island inside an island stays empty',
+		// (a hole in a lake, its answer shown and then dropped: gen 73, /p3)
+		is: (r) =>
+			r.hasAttribute('data-og-hole') &&
+			!r.hasAttribute('data-hydrated') &&
+			r.getAttribute('when') === 'load' &&
+			r.parentElement?.closest('ogygia-region[wake="none"]') != null
 	}
 ];
 
