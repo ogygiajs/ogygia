@@ -80,7 +80,7 @@
 	}
 	const fmt = (v: number, u: string) =>
 		(u === 's' ? v.toFixed(1) : u === '' ? (v < 1 ? v.toFixed(3) : Math.round(v)) : Math.round(v)) +
-		(u ? ' ' + u : '');
+		(u ? ` ${u}` : '');
 </script>
 
 <div class="bench">

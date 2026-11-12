@@ -94,7 +94,7 @@ export function read_changelog(pkg: string, markdown: string): Release[] {
 		// a wrapped line goes on with the item above it
 		const last = group?.lines.at(-1);
 		if (last && line.startsWith('  ') && line.trim() && !in_deps)
-			last.html += ' ' + inline(line.trim());
+			last.html = `${last.html} ${inline(line.trim())}`;
 	}
 	for (const r of out) r.groups = r.groups.filter((g) => g.lines.length > 0);
 	return out;
@@ -143,7 +143,7 @@ function inline(md: string): string {
 		if (c === '`') {
 			const end = md.indexOf('`', i + 1);
 			if (end > i) {
-				out += `<code>${escape(md.slice(i + 1, end))}</code>`;
+				out = `${out}<code>${escape(md.slice(i + 1, end))}</code>`;
 				i = end + 1;
 				continue;
 			}
@@ -151,7 +151,7 @@ function inline(md: string): string {
 		if (c === '*' && md[i + 1] === '*') {
 			const end = md.indexOf('**', i + 2);
 			if (end > i) {
-				out += `<strong>${inline(md.slice(i + 2, end))}</strong>`;
+				out = `${out}<strong>${inline(md.slice(i + 2, end))}</strong>`;
 				i = end + 2;
 				continue;
 			}

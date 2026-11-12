@@ -37,9 +37,7 @@ async function html(props: Record<string, unknown>) {
 	return body.replace(/<!--[^>]*-->/g, ''); // the hydration markers
 }
 
-const EXPECTED =
-	'<section data-block="hero">hi</section>' +
-	'<section data-block="grid"><section data-block="one"></section><section data-block="two"></section></section>';
+const EXPECTED = `<section data-block="hero">hi</section><section data-block="grid"><section data-block="one"></section><section data-block="two"></section></section>`;
 
 describe('Blocks', () => {
 	it('renders each block of a tree through its registry entry, children inside their parent', async () => {

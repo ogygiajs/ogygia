@@ -29,7 +29,7 @@ let is_dev = false;
 
 test.describe('island-in-island single hydration + dev warn', () => {
 	test.beforeAll(async ({ baseURL }) => {
-		const res = await fetch(baseURL + '/nested');
+		const res = await fetch(`${baseURL}/nested`);
 		ssr_status = res.status;
 		ssr_html = await res.text();
 		is_dev =

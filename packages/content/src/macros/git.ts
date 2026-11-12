@@ -42,7 +42,7 @@ export function parse_git_spec(spec: string): GitSpec {
 /** A slug part: plain letters, digits, `.` and `-` stay, every other character is `_<hex>_`, so a
  *  part never holds the `~` that joins them and two different parts never spell one slug. */
 const slug_part = (part: string): string =>
-	part.replace(NON_SLUG_CHARS_G, (c) => '_' + c.codePointAt(0)!.toString(16) + '_');
+	part.replace(NON_SLUG_CHARS_G, (c) => `_${c.codePointAt(0)!.toString(16)}_`);
 
 /** The cache slug of a spec: its whole spec (owner, repo, ref, sub), the inputs a checkout is made
  *  from. Its checkout and its locked sha live under it, so two loaders on one repo with another

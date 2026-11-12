@@ -113,7 +113,7 @@ export function links(opts: LinkOptions = {}): Check {
 				continue;
 			} else if (href.startsWith('/')) {
 				let rest: string;
-				if (b && (href === b || href.startsWith(b + '/'))) rest = href.slice(b.length);
+				if (b && (href === b || href.startsWith(`${b}/`))) rest = href.slice(b.length);
 				else if (!b) rest = href;
 				else continue;
 				const [p, f] = rest.split('#');

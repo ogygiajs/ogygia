@@ -39,12 +39,12 @@ const PARENT_TRAVERSAL_RE = /(^|[\\/])\.\.([\\/]|$)/;
 
 /** @param relPosix */
 export function foucCssVirtualId(relPosix: string): string {
-	return FOUC_CSS_PREFIX + encodeURIComponent(relPosix.split(PATH_SEP).join('/')) + '.js';
+	return `${FOUC_CSS_PREFIX + encodeURIComponent(relPosix.split(PATH_SEP).join('/'))}.js`;
 }
 
 /** @param relPosix */
 export function foucScopedVirtualId(relPosix: string): string {
-	return FOUC_SCOPED_PREFIX + encodeURIComponent(relPosix.split(PATH_SEP).join('/')) + '.css';
+	return `${FOUC_SCOPED_PREFIX + encodeURIComponent(relPosix.split(PATH_SEP).join('/'))}.css`;
 }
 
 /** @param id */
@@ -119,7 +119,7 @@ export function resolveFoucImportSpec(
 	for (const a of alias) {
 		if (typeof a.find === 'string') {
 			if (spec === a.find) return a.replacement;
-			if (spec.startsWith(a.find + '/')) return a.replacement + spec.slice(a.find.length);
+			if (spec.startsWith(`${a.find}/`)) return a.replacement + spec.slice(a.find.length);
 		} else if (a.find.test(spec)) {
 			return spec.replace(a.find, a.replacement);
 		}
@@ -151,7 +151,7 @@ export async function buildFoucCssModuleSource(
 	if (imports.length === 0) {
 		return 'export {}';
 	}
-	return imports.map((s) => `import ${JSON.stringify(s)};`).join('\n') + '\n';
+	return `${imports.map((s) => `import ${JSON.stringify(s)};`).join('\n')}\n`;
 }
 
 /**

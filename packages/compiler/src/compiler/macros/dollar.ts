@@ -290,7 +290,7 @@ export function rewrite_dollar(
 		// annotations inside them — parse instead of erroring in oxc's JS mode (`.svelte` → JS). The
 		// template-call path below already does this; strip_ts_types then blanks the type spans from the
 		// hoisted factory text (a JS-mode parse yields no TS nodes to strip, so the types would leak).
-		const { program, ok } = parse_module(region.code, id.endsWith('.svelte') ? id + '.ts' : id);
+		const { program, ok } = parse_module(region.code, id.endsWith('.svelte') ? `${id}.ts` : id);
 		if (!ok || !program) continue; // mid-edit unparseable: no transform (marker fails loudly at runtime)
 
 		// SERVER-ONLY imports may never be CAPTURED: on any page that serializes the handle, the
@@ -347,9 +347,7 @@ export function rewrite_dollar(
 							id,
 							src,
 							abs,
-							`$() captures \`${c}\` from the server-only module '${from}' — its value would ship ` +
-								`into client HTML. Do the server work in a remote function and capture ITS result, ` +
-								`or pass a derived, non-secret value instead`
+							`$() captures \`${c}\` from the server-only module '${from}' — its value would ship into client HTML. Do the server work in a remote function and capture ITS result, or pass a derived, non-secret value instead`
 						);
 					}
 				}
@@ -433,7 +431,7 @@ export function rewrite_dollar(
 		// text — a markup `fmt={import.meta.og.$((n: number) => …)}` hoists into the plain-JS manifest
 		// just like a script one, so its annotations must be blanked too.
 		const wrapped = `(${arg_text})`;
-		const { program, ok } = parse_module(wrapped, id.endsWith('.svelte') ? id + '.expr.ts' : id);
+		const { program, ok } = parse_module(wrapped, id.endsWith('.svelte') ? `${id}.expr.ts` : id);
 		if (!ok || !program)
 			misuse(id, src, call.start, `$()'s argument does not parse as an expression`);
 		const stmt = (program.body?.[0] ?? {}) as Node;

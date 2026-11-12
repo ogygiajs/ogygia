@@ -24,7 +24,7 @@ const TALLY_ONE_RE = /data-tally[^>]*>1</;
 const PROMO_TWO_RE = /data-promo[^>]*>2</;
 
 const renders = async (): Promise<Record<string, number>> =>
-	(await (await fetch(origin + '/api/state')).json()).renders ?? {};
+	(await (await fetch(`${origin}/api/state`)).json()).renders ?? {};
 const via = (res: Response) => res.headers.get('x-ogygia-postrender') ?? '';
 
 let cf: EdgeEmulator | undefined;
@@ -47,7 +47,7 @@ test.describe('POSTRENDER (prerender at request time): store/serve/invalidate + 
 				EDGE_CF_URL: cf.base,
 				EDGE_SITE_URL: origin
 			},
-			url: origin + '/api/state',
+			url: `${origin}/api/state`,
 			ready: (res) => res.ok
 		});
 	});
@@ -62,14 +62,14 @@ test.describe('POSTRENDER (prerender at request time): store/serve/invalidate + 
 	// S11 minted), so it stays one test — every check is soft, so a failure never hides the rest.
 	test('the deck: S1 cold→warm→edge … S15 serve-time stitching', async ({ page, context }) => {
 		// ── S1: cold → warm → edge ────────────────────────────────────────────────────────────────
-		const r1 = await fetch(edge + '/fr/fr/c/home');
+		const r1 = await fetch(`${edge}/fr/fr/c/home`);
 		const h1 = await r1.text();
 		check('S1 cold: rendered through the chain', h1.includes('content of home v1'));
 		check('S1 cold: origin stored it', via(r1) === 'stored', via(r1));
 		check('S1 cold: both edges missed', r1.headers.get('x-edge-akamai') === 'miss');
-		const r2 = await fetch(origin + '/fr/fr/c/home');
+		const r2 = await fetch(`${origin}/fr/fr/c/home`);
 		check('S1 warm origin: served from the store', via(r2) === 'hit');
-		const r3 = await fetch(edge + '/fr/fr/c/home');
+		const r3 = await fetch(`${edge}/fr/fr/c/home`);
 		check('S1 edge: akamai answered from its own copy', r3.headers.get('x-edge-akamai') === 'hit');
 		check(
 			'S1: ONE render total',
@@ -78,7 +78,7 @@ test.describe('POSTRENDER (prerender at request time): store/serve/invalidate + 
 		);
 
 		// ── S2: publish → exact URL purge everywhere → ONE re-render ─────────────────────────────
-		const pub = await fetch(origin + '/api/publish', {
+		const pub = await fetch(`${origin}/api/publish`, {
 			method: 'POST',
 			headers: { 'content-type': 'application/json', origin },
 			body: JSON.stringify({ slug: 'home' })
@@ -94,14 +94,14 @@ test.describe('POSTRENDER (prerender at request time): store/serve/invalidate + 
 			'S2 publish: cloudfront got a SIGNED path invalidation',
 			cf!.state().purges.some((p) => p.kind === 'path' && p.value === '/fr/fr/c/home' && p.auth_ok)
 		);
-		const r4 = await fetch(edge + '/fr/fr/c/home');
+		const r4 = await fetch(`${edge}/fr/fr/c/home`);
 		check('S2 after publish: fresh content', (await r4.text()).includes('content of home v2'));
 		check('S2 after publish: exactly one more render', (await renders())['/fr/fr/c/home'] === 2);
 
 		// ── S3: prefix nuke (the locale case) ─────────────────────────────────────────────────────
-		await fetch(edge + '/fr/fr/c/about');
-		await fetch(edge + '/en/us/c/home');
-		await fetch(origin + '/api/publish', {
+		await fetch(`${edge}/fr/fr/c/about`);
+		await fetch(`${edge}/en/us/c/home`);
+		await fetch(`${origin}/api/publish`, {
 			method: 'POST',
 			headers: { 'content-type': 'application/json', origin },
 			body: JSON.stringify({ prefix: '/fr/fr' })
@@ -114,8 +114,8 @@ test.describe('POSTRENDER (prerender at request time): store/serve/invalidate + 
 			'S3 nuke: cloudfront got the wildcard',
 			cf!.state().purges.some((p) => p.kind === 'path' && p.value === '/fr/fr/*')
 		);
-		await fetch(edge + '/fr/fr/c/about');
-		await fetch(edge + '/en/us/c/home');
+		await fetch(`${edge}/fr/fr/c/about`);
+		await fetch(`${edge}/en/us/c/home`);
 		const after_nuke = await renders();
 		check('S3 nuke: the fr subtree re-rendered once more', after_nuke['/fr/fr/c/about'] === 2);
 		check(
@@ -126,14 +126,14 @@ test.describe('POSTRENDER (prerender at request time): store/serve/invalidate + 
 
 		// ── S4: the vary law (CDN cookie-less-key semantics, formalized) ─────────────────────────
 		// Cookied-FIRST on a fresh URL: non-default read → never stores while only cookied traffic.
-		await fetch(origin + '/fr/fr/consent', { headers: { cookie: 'consent=yes' } });
-		await fetch(origin + '/fr/fr/consent', { headers: { cookie: 'consent=yes' } });
+		await fetch(`${origin}/fr/fr/consent`, { headers: { cookie: 'consent=yes' } });
+		await fetch(`${origin}/fr/fr/consent`, { headers: { cookie: 'consent=yes' } });
 		check('S4 cookied-first: stays per-request', (await renders())['/fr/fr/consent'] === 2);
 		// An anonymous render then mints the canonical…
-		const anon = await fetch(origin + '/fr/fr/consent');
+		const anon = await fetch(`${origin}/fr/fr/consent`);
 		check('S4 anon: canonical stored', via(anon) === 'stored');
 		// …and (the documented cookie-less-key trade-off) a cookied visitor now gets the canonical.
-		const cookied = await fetch(origin + '/fr/fr/consent', { headers: { cookie: 'consent=yes' } });
+		const cookied = await fetch(`${origin}/fr/fr/consent`, { headers: { cookie: 'consent=yes' } });
 		check('S4 cookied-after: served the canonical copy', via(cookied) === 'hit');
 		check('S4: renders stopped at 3', (await renders())['/fr/fr/consent'] === 3);
 
@@ -151,7 +151,7 @@ test.describe('POSTRENDER (prerender at request time): store/serve/invalidate + 
 		// The verdict's OTHER word: refused pages (where the app set no cache-control of its own)
 		// are stamped `private, no-store` — per-page proven headers replace blanket CDN rules in
 		// both directions. (The setcookie page carries a Set-Cookie, so no shared cache may keep it.)
-		const refused = await fetch(origin + '/fr/fr/flagged');
+		const refused = await fetch(`${origin}/fr/fr/flagged`);
 		check(
 			'S5: refused page stamped private, no-store',
 			refused.headers.get('cache-control') === 'private, no-store',
@@ -159,7 +159,7 @@ test.describe('POSTRENDER (prerender at request time): store/serve/invalidate + 
 		);
 
 		// ── S6: holes — stored shell, fresh hole, prerender-grade capability ─────────────────────
-		const hole1 = await fetch(origin + '/fr/fr/hole');
+		const hole1 = await fetch(`${origin}/fr/fr/hole`);
 		const hole1_html = (await hole1.text()).replace(AMP_ENTITY_G_RE, '&');
 		const exp = Number(REGION_ENDPOINT_URL_RE.exec(hole1_html)?.[1] ?? 0);
 		check('S6: shell stored', via(hole1) === 'stored');
@@ -168,17 +168,17 @@ test.describe('POSTRENDER (prerender at request time): store/serve/invalidate + 
 			exp > Date.now() / 1000 + 86400 * 30,
 			`exp=${exp}`
 		);
-		const hole2 = await fetch(origin + '/fr/fr/hole');
+		const hole2 = await fetch(`${origin}/fr/fr/hole`);
 		check('S6: second shell is the stored copy', via(hole2) === 'hit');
 		check('S6: shell rendered once', (await renders())['/fr/fr/hole'] === 1);
 		// Browser leg: the hole FETCHES FRESH per visit while the shell stays stored.
 		{
-			await page.goto(origin + '/fr/fr/hole', { waitUntil: 'networkidle' });
+			await page.goto(`${origin}/fr/fr/hole`, { waitUntil: 'networkidle' });
 			const serial_a = (
 				await page.locator('[data-hole-serial]').textContent({ timeout: 8000 })
 			)?.trim();
 			await page.goto('about:blank');
-			await page.goto(origin + '/fr/fr/hole', { waitUntil: 'networkidle' });
+			await page.goto(`${origin}/fr/fr/hole`, { waitUntil: 'networkidle' });
 			const serial_b = (
 				await page.locator('[data-hole-serial]').textContent({ timeout: 8000 })
 			)?.trim();
@@ -191,27 +191,27 @@ test.describe('POSTRENDER (prerender at request time): store/serve/invalidate + 
 		}
 
 		// ── S7: stored redirects ──────────────────────────────────────────────────────────────────
-		const red1 = await fetch(origin + '/fr/fr/redirect-me', { redirect: 'manual' });
+		const red1 = await fetch(`${origin}/fr/fr/redirect-me`, { redirect: 'manual' });
 		check(
 			'S7: 301 with location',
 			red1.status === 301 && red1.headers.get('location') === '/fr/fr/c/home'
 		);
-		const red2 = await fetch(origin + '/fr/fr/redirect-me', { redirect: 'manual' });
+		const red2 = await fetch(`${origin}/fr/fr/redirect-me`, { redirect: 'manual' });
 		check('S7: second redirect served from the store', via(red2) === 'hit');
 		check('S7: redirect rendered once', (await renders())['/fr/fr/redirect-me'] === 1);
 
 		// ── S8: action self-evict ─────────────────────────────────────────────────────────────────
-		await fetch(origin + '/fr/fr/act');
-		const act_warm = await fetch(origin + '/fr/fr/act');
+		await fetch(`${origin}/fr/fr/act`);
+		const act_warm = await fetch(`${origin}/fr/fr/act`);
 		check('S8: stored before the action', via(act_warm) === 'hit');
-		const post = await fetch(origin + '/fr/fr/act', {
+		const post = await fetch(`${origin}/fr/fr/act`, {
 			method: 'POST',
 			headers: { origin, 'content-type': 'application/x-www-form-urlencoded' },
 			body: '',
 			redirect: 'manual'
 		});
 		check('S8: action succeeded', post.status < 400, String(post.status));
-		const act_after = await fetch(origin + '/fr/fr/act');
+		const act_after = await fetch(`${origin}/fr/fr/act`);
 		check(
 			'S8: the action EVICTED its page (fresh render, fresh tally)',
 			TALLY_ONE_RE.test(await act_after.text())
@@ -220,7 +220,7 @@ test.describe('POSTRENDER (prerender at request time): store/serve/invalidate + 
 
 		// ── S9: stampede — the single-flight law ──────────────────────────────────────────────────
 		const volley = await Promise.all(
-			Array.from({ length: 50 }, () => fetch(origin + '/fr/fr/c/stampede'))
+			Array.from({ length: 50 }, () => fetch(`${origin}/fr/fr/c/stampede`))
 		);
 		check(
 			'S9: all 50 answered 200',
@@ -244,30 +244,30 @@ test.describe('POSTRENDER (prerender at request time): store/serve/invalidate + 
 		);
 
 		// ── S10: csr=true page stores the same (csr-agnostic) ────────────────────────────────────
-		const spa1 = await fetch(origin + '/spa');
+		const spa1 = await fetch(`${origin}/spa`);
 		check('S10: Kit-booted page', KIT_BOOT_RE.test(await spa1.text()));
-		const spa2 = await fetch(origin + '/spa');
+		const spa2 = await fetch(`${origin}/spa`);
 		check('S10: stored + served', via(spa2) === 'hit');
 		check('S10: one render', (await renders())['/spa'] === 1);
 
 		// ── S11: failure injection — one edge down never fails a publish ─────────────────────────
-		await fetch(akamai!.base + '/__edge/fail', {
+		await fetch(`${akamai!.base}/__edge/fail`, {
 			method: 'POST',
 			headers: { 'content-type': 'application/json' },
 			body: '{"mode":"purge-500"}'
 		});
-		const pub2 = await fetch(origin + '/api/publish', {
+		const pub2 = await fetch(`${origin}/api/publish`, {
 			method: 'POST',
 			headers: { 'content-type': 'application/json', origin },
 			body: JSON.stringify({ slug: 'home' })
 		});
 		check('S11: publish still succeeds with akamai purge DOWN', (await pub2.json()).ok === true);
-		const r5 = await fetch(origin + '/fr/fr/c/home');
+		const r5 = await fetch(`${origin}/fr/fr/c/home`);
 		check(
 			'S11: origin still evicted + re-rendered (v3)',
 			(await r5.text()).includes('content of home v3')
 		);
-		await fetch(akamai!.base + '/__edge/fail', {
+		await fetch(`${akamai!.base}/__edge/fail`, {
 			method: 'POST',
 			headers: { 'content-type': 'application/json' },
 			body: '{"mode":"none"}'
@@ -277,11 +277,11 @@ test.describe('POSTRENDER (prerender at request time): store/serve/invalidate + 
 		// Warm three pages across TWO locales; all embed the shared 'promo' doc via a declared
 		// source. A doc publish must evict exactly the consumers (reverse-index receipts), origin
 		// AND edges — including the en page a prefix nuke could never reach precisely.
-		await fetch(origin + '/fr/fr/c/home');
-		await fetch(origin + '/fr/fr/c/about');
-		await fetch(origin + '/en/us/c/home');
+		await fetch(`${origin}/fr/fr/c/home`);
+		await fetch(`${origin}/fr/fr/c/about`);
+		await fetch(`${origin}/en/us/c/home`);
 		const counts_before = await renders();
-		const pub3 = await fetch(origin + '/api/publish', {
+		const pub3 = await fetch(`${origin}/api/publish`, {
 			method: 'POST',
 			headers: { 'content-type': 'application/json', origin },
 			body: JSON.stringify({ doc: 'promo' })
@@ -293,10 +293,10 @@ test.describe('POSTRENDER (prerender at request time): store/serve/invalidate + 
 				akamai!.state().purges.some((p) => p.kind === 'url' && p.value === path)
 			);
 		}
-		const promo1 = await fetch(origin + '/fr/fr/c/home');
+		const promo1 = await fetch(`${origin}/fr/fr/c/home`);
 		check('S12: consumer re-rendered with the fresh doc', PROMO_TWO_RE.test(await promo1.text()));
-		await fetch(origin + '/fr/fr/c/about');
-		await fetch(origin + '/en/us/c/home');
+		await fetch(`${origin}/fr/fr/c/about`);
+		await fetch(`${origin}/en/us/c/home`);
 		const counts_after = await renders();
 		for (const path of ['/fr/fr/c/home', '/fr/fr/c/about', '/en/us/c/home'] as const) {
 			check(
@@ -307,7 +307,7 @@ test.describe('POSTRENDER (prerender at request time): store/serve/invalidate + 
 		}
 		// A TRUE non-consumer: every c/[slug] load reads the doc (stampede included), but the consent
 		// canonical never did — its stored copy must survive the doc publish untouched.
-		const bystander = await fetch(origin + '/fr/fr/consent');
+		const bystander = await fetch(`${origin}/fr/fr/consent`);
 		check('S12: a non-consumer page was untouched', via(bystander) === 'hit');
 
 		// ── S13: render:'live' inside a stored page — the self-freshening header ─────────────────
@@ -315,13 +315,13 @@ test.describe('POSTRENDER (prerender at request time): store/serve/invalidate + 
 		// hosted by a small island. Served-from-store documents carry the doc marker, so the lake
 		// revalidates on FIRST mount: a fresh SERVER render carrying the visitor's cookies, swapped
 		// in. Canonical for anonymous, personal for the visitor — on a page that never re-renders.
-		const lh1 = await fetch(origin + '/fr/fr/live-header');
+		const lh1 = await fetch(`${origin}/fr/fr/live-header`);
 		check('S13: shell stored', via(lh1) === 'stored');
 		check(
 			'S13: header baked as canonical (guest) in the first bytes',
 			(await lh1.text()).includes('Hello, guest')
 		);
-		const lh2 = await fetch(origin + '/fr/fr/live-header');
+		const lh2 = await fetch(`${origin}/fr/fr/live-header`);
 		const lh2_html = await lh2.text();
 		check(
 			'S13: second serve is the stored copy + carries the doc marker',
@@ -331,7 +331,7 @@ test.describe('POSTRENDER (prerender at request time): store/serve/invalidate + 
 			// A cookied visitor: the cookie rides the test's context, on a fresh page.
 			await context.addCookies([{ name: 'user', value: 'Puru', url: origin }]);
 			const bpage = await context.newPage();
-			await bpage.goto(origin + '/fr/fr/live-header', { waitUntil: 'domcontentloaded' });
+			await bpage.goto(`${origin}/fr/fr/live-header`, { waitUntil: 'domcontentloaded' });
 			await bpage
 				.waitForFunction(
 					() => document.querySelector('[data-hello]')?.textContent?.includes('Puru'),
@@ -356,7 +356,7 @@ test.describe('POSTRENDER (prerender at request time): store/serve/invalidate + 
 		// The etag/last-modified live on the ENTRY (store level, minted at store time), and the
 		// handle answers plain-HTTP conditionals — which is exactly what makes an Akamai prefresh
 		// (If-Modified-Since) or a browser reload against a stored page a 304, not a re-send.
-		const v1 = await fetch(origin + '/fr/fr/c/home');
+		const v1 = await fetch(`${origin}/fr/fr/c/home`);
 		const etag = v1.headers.get('etag');
 		const last_modified = v1.headers.get('last-modified');
 		check(
@@ -364,11 +364,11 @@ test.describe('POSTRENDER (prerender at request time): store/serve/invalidate + 
 			!!etag && !!last_modified,
 			`${etag} / ${last_modified}`
 		);
-		const v2 = await fetch(origin + '/fr/fr/c/home', { headers: { 'if-none-match': etag ?? '' } });
+		const v2 = await fetch(`${origin}/fr/fr/c/home`, { headers: { 'if-none-match': etag ?? '' } });
 		check('S14: If-None-Match answers 304', v2.status === 304, String(v2.status));
 		check('S14: 304 body is EMPTY', (await v2.text()).length === 0);
 		check('S14: 304 keeps the validators', v2.headers.get('etag') === etag);
-		const v3 = await fetch(origin + '/fr/fr/c/home', {
+		const v3 = await fetch(`${origin}/fr/fr/c/home`, {
 			headers: { 'if-modified-since': last_modified ?? '' }
 		});
 		check(
@@ -376,7 +376,7 @@ test.describe('POSTRENDER (prerender at request time): store/serve/invalidate + 
 			v3.status === 304,
 			String(v3.status)
 		);
-		const v4 = await fetch(origin + '/fr/fr/c/home', { headers: { 'if-none-match': '"nope"' } });
+		const v4 = await fetch(`${origin}/fr/fr/c/home`, { headers: { 'if-none-match': '"nope"' } });
 		check(
 			'S14: a stale validator gets the full 200',
 			v4.status === 200 && (await v4.text()).length > 0
@@ -387,7 +387,7 @@ test.describe('POSTRENDER (prerender at request time): store/serve/invalidate + 
 		// server-side with the visitor's cookies and splices it into the stored bytes. The money
 		// assertion: a cookied visitor's RAW response body carries their name — view-source
 		// personalization on a page whose render counter never moves.
-		const st1 = await fetch(origin + '/fr/fr/stitched');
+		const st1 = await fetch(`${origin}/fr/fr/stitched`);
 		const st1_html = await st1.text();
 		check('S15: shell stored on first serve', via(st1) === 'stored');
 		check(
@@ -401,7 +401,7 @@ test.describe('POSTRENDER (prerender at request time): store/serve/invalidate + 
 			st1.headers.get('cache-control') === 'private, no-store'
 		);
 		check('S15: stitched page mints NO validators', st1.headers.get('etag') === null);
-		const st2 = await fetch(origin + '/fr/fr/stitched', { headers: { cookie: 'user=Puru' } });
+		const st2 = await fetch(`${origin}/fr/fr/stitched`, { headers: { cookie: 'user=Puru' } });
 		const st2_html = await st2.text();
 		check('S15: second serve is the stored shell', via(st2) === 'hit');
 		check(
@@ -409,7 +409,7 @@ test.describe('POSTRENDER (prerender at request time): store/serve/invalidate + 
 			st2_html.includes('Hello, Puru'),
 			st2_html.includes('Hello, guest') ? 'still guest' : '(name absent)'
 		);
-		const st3 = await fetch(origin + '/fr/fr/stitched');
+		const st3 = await fetch(`${origin}/fr/fr/stitched`);
 		check(
 			'S15: next anonymous visitor gets guest bytes again (per-visitor serves)',
 			(await st3.text()).includes('Hello, guest')
@@ -425,7 +425,7 @@ test.describe('POSTRENDER (prerender at request time): store/serve/invalidate + 
 		// Its `+page.server.ts` sets `export const config = { postrender: false }` — Kit's own page
 		// option, untouched by ogygia; the build read the key. The read path must therefore never
 		// take the store path: no store, no `x-ogygia-postrender` header, a plain render every hit.
-		const oo1 = await fetch(origin + '/fr/fr/optout');
+		const oo1 = await fetch(`${origin}/fr/fr/optout`);
 		check(
 			'S16 opt-out: pure page is NOT stored (no postrender header)',
 			via(oo1) === '',
@@ -435,7 +435,7 @@ test.describe('POSTRENDER (prerender at request time): store/serve/invalidate + 
 			'S16 opt-out: page still renders correctly',
 			(await oo1.text()).includes('pure but opted out')
 		);
-		const oo2 = await fetch(origin + '/fr/fr/optout');
+		const oo2 = await fetch(`${origin}/fr/fr/optout`);
 		check(
 			'S16 opt-out: second hit is ALSO per-request (never a stored hit)',
 			via(oo2) === '',
@@ -443,15 +443,15 @@ test.describe('POSTRENDER (prerender at request time): store/serve/invalidate + 
 		);
 		// Kit's merge, layout → page: /quiet's `+layout.ts` sets `config = { postrender: false }`, so
 		// /quiet inherits it (never stored); /quiet/loud's own `+page.server.ts` sets `true` and wins.
-		const q1 = await fetch(origin + '/fr/fr/quiet');
-		const q2 = await fetch(origin + '/fr/fr/quiet');
+		const q1 = await fetch(`${origin}/fr/fr/quiet`);
+		const q2 = await fetch(`${origin}/fr/fr/quiet`);
 		check(
 			'S16 layout config: a page inherits its layout’s `postrender: false` (never stored)',
 			via(q1) === '' && via(q2) === '' && (await renders())['/fr/fr/quiet'] === 2,
 			`${via(q1) || '(none)'} / ${via(q2) || '(none)'}`
 		);
-		const l1 = await fetch(origin + '/fr/fr/quiet/loud');
-		const l2 = await fetch(origin + '/fr/fr/quiet/loud');
+		const l1 = await fetch(`${origin}/fr/fr/quiet/loud`);
+		const l2 = await fetch(`${origin}/fr/fr/quiet/loud`);
 		check(
 			'S16 layout config: the page’s own `postrender: true` overrides its layout (stored)',
 			via(l1) === 'stored' && via(l2) === 'hit' && (await renders())['/fr/fr/quiet/loud'] === 1,
@@ -463,13 +463,13 @@ test.describe('POSTRENDER (prerender at request time): store/serve/invalidate + 
 		// /r/*, so `event.route.id` is null there and the handle asks the mounted table. The layout's
 		// `config: { postrender: true }` reaches /r/stored; the page's `config: { postrender: false }`
 		// on /r/off overrides it; /r/plain sets nothing anywhere and follows the vite-config default.
-		const rf1 = await fetch(origin + '/r/stored');
+		const rf1 = await fetch(`${origin}/r/stored`);
 		check('S17 router: layout opt-in → stored', via(rf1) === 'stored', via(rf1) || '(none)');
 		check('S17 router: the table rendered it', (await rf1.text()).includes('r-stored'));
-		const rf2 = await fetch(origin + '/r/stored');
+		const rf2 = await fetch(`${origin}/r/stored`);
 		check('S17 router: second hit served from the store', via(rf2) === 'hit', via(rf2) || '(none)');
-		const ro1 = await fetch(origin + '/r/off');
-		const ro2 = await fetch(origin + '/r/off');
+		const ro1 = await fetch(`${origin}/r/off`);
+		const ro2 = await fetch(`${origin}/r/off`);
 		check(
 			'S17 router: page-level opt-out overrides its layout (never stored)',
 			via(ro1) === '' && via(ro2) === '',
@@ -479,8 +479,8 @@ test.describe('POSTRENDER (prerender at request time): store/serve/invalidate + 
 			'S17 router: the opted-out page still renders',
 			(await ro2.text()).includes('pure but opted out')
 		);
-		const rp1 = await fetch(origin + '/r/plain');
-		const rp2 = await fetch(origin + '/r/plain');
+		const rp1 = await fetch(`${origin}/r/plain`);
+		const rp2 = await fetch(`${origin}/r/plain`);
 		check(
 			'S17 router: undeclared follows the config default (on)',
 			via(rp1) === 'stored' && via(rp2) === 'hit',
@@ -494,7 +494,7 @@ test.describe('POSTRENDER (prerender at request time): store/serve/invalidate + 
 		// ESI CDN serves the shell from cache and fetches only the include. The edge's leg is
 		// simulated here: the include src fetched straight from origin with a visitor cookie must
 		// answer the PERSONAL header the CDN would splice in.
-		const es1 = await fetch(origin + '/fr/fr/esi');
+		const es1 = await fetch(`${origin}/fr/fr/esi`);
 		const es1_html = await es1.text();
 		check('S18 esi: shell stored on first serve', via(es1) === 'stored');
 		check(
@@ -517,7 +517,7 @@ test.describe('POSTRENDER (prerender at request time): store/serve/invalidate + 
 			'S18 esi: fallback survives inside the wrapper (the non-ESI degrade path)',
 			es1_html.includes('data-stitch-fallback')
 		);
-		const es2 = await fetch(origin + '/fr/fr/esi', { headers: { cookie: 'user=Puru' } });
+		const es2 = await fetch(`${origin}/fr/fr/esi`, { headers: { cookie: 'user=Puru' } });
 		const es2_html = await es2.text();
 		check('S18 esi: second serve is a plain store HIT (no origin re-stitch)', via(es2) === 'hit');
 		check(
@@ -533,7 +533,7 @@ test.describe('POSTRENDER (prerender at request time): store/serve/invalidate + 
 			src.includes('/__ogygia__?') && src.includes('sig='),
 			src.slice(0, 60) || '(none)'
 		);
-		const inc = await fetch(new URL(src, origin + '/fr/fr/esi'), {
+		const inc = await fetch(new URL(src, `${origin}/fr/fr/esi`), {
 			headers: { cookie: 'user=Puru' }
 		});
 		const inc_html = await inc.text();
@@ -555,7 +555,7 @@ test.describe('POSTRENDER (prerender at request time): store/serve/invalidate + 
 		// HIT for the shell AND carries the visitor's name — origin rendered the shell once and only
 		// ever renders the hole. The cloudfront personality (no ESI) passes the tags through: that is
 		// the degrade path, where the client fetches the hole.
-		const ee1 = await fetch(edge + '/fr/fr/esi');
+		const ee1 = await fetch(`${edge}/fr/fr/esi`);
 		const ee1_html = await ee1.text();
 		check(
 			'S19 esi@edge: first edge fetch is a miss that got assembled',
@@ -565,7 +565,7 @@ test.describe('POSTRENDER (prerender at request time): store/serve/invalidate + 
 		);
 		check('S19 esi@edge: no esi tags reach the browser', !ee1_html.includes('<esi:'));
 		check('S19 esi@edge: anonymous include = guest header', ee1_html.includes('Hello, guest'));
-		const ee2 = await fetch(edge + '/fr/fr/esi', { headers: { cookie: 'user=Puru' } });
+		const ee2 = await fetch(`${edge}/fr/fr/esi`, { headers: { cookie: 'user=Puru' } });
 		const ee2_html = await ee2.text();
 		check(
 			'S19 esi@edge: THE MONEY SHOT — cookied request is an edge HIT for the shell…',
@@ -582,13 +582,13 @@ test.describe('POSTRENDER (prerender at request time): store/serve/invalidate + 
 			(await renders())['/fr/fr/esi'] === 1,
 			String((await renders())['/fr/fr/esi'])
 		);
-		const edge_state = (await (await fetch(edge + '/__edge/state')).json()) as { esi: number };
+		const edge_state = (await (await fetch(`${edge}/__edge/state`)).json()) as { esi: number };
 		check(
 			'S19 esi@edge: the edge fetched one include per serve',
 			edge_state.esi >= 2,
 			String(edge_state.esi)
 		);
-		const cfr = await fetch(cf!.base + '/fr/fr/esi', { headers: { cookie: 'user=Puru' } });
+		const cfr = await fetch(`${cf!.base}/fr/fr/esi`, { headers: { cookie: 'user=Puru' } });
 		const cfr_html = await cfr.text();
 		check(
 			'S19 esi@edge: a NON-ESI edge (cloudfront) passes the tags through — the degrade path',
@@ -626,7 +626,7 @@ test.describe('POSTRENDER (prerender at request time): store/serve/invalidate + 
 		}));
 		await new Promise((r) => setTimeout(r, 200));
 		// the editor publishes v2 while it renders: the webhook bumps the doc and invalidates the URL
-		const pub = await fetch(origin + '/api/publish', {
+		const pub = await fetch(`${origin}/api/publish`, {
 			method: 'POST',
 			headers: { 'content-type': 'application/json' },
 			body: JSON.stringify({ slug })
@@ -664,7 +664,7 @@ test.describe('POSTRENDER (prerender at request time): store/serve/invalidate + 
 		const joined = [fetch(origin + path).then(page), fetch(origin + path).then(page)];
 		await new Promise((r) => setTimeout(r, 100));
 		// the editor publishes v2 while it renders: what the waiting requests would get is the old page
-		const pub = await fetch(origin + '/api/publish', {
+		const pub = await fetch(`${origin}/api/publish`, {
 			method: 'POST',
 			headers: { 'content-type': 'application/json' },
 			body: JSON.stringify({ slug })
@@ -696,7 +696,7 @@ test.describe('POSTRENDER (prerender at request time): store/serve/invalidate + 
 		}));
 		await new Promise((r) => setTimeout(r, 200));
 		// a visitor signs up for the newsletter meanwhile: a post that evicts nothing this page is
-		const post = await fetch(origin + '/api/newsletter', {
+		const post = await fetch(`${origin}/api/newsletter`, {
 			method: 'POST',
 			headers: { 'content-type': 'application/json' },
 			body: JSON.stringify({ email: 'a@example.com' })

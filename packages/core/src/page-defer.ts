@@ -35,6 +35,4 @@ export const PAGE_DEFER_REGISTRY_KEY: unique symbol = Symbol.for('ogygia.page-de
  *  installs the live parser. Each call stamps when it arrived (`t[id]`, ms from the navigation): the
  *  devtools Page tab names the streamed `page.data` key that held the document open. Emitted as a classic `<script>` so it runs during parse, before any
  *  streamed resolve script. Kept in sync with the runtime's `install_page_defer` registry shape. */
-export const PAGE_DEFER_BOOTSTRAP: string =
-	`(function(){var K=Symbol.for('ogygia.page-defer'),r=globalThis[K]||(globalThis[K]={});r.q=r.q||[];` +
-	`globalThis.${PAGE_DEFER_GLOBAL}=function(i,o,e){(r.t||(r.t={}))[i]=performance.now();if(r.live)r.live(i,o,e);else r.q.push([i,o,e]);};})();`;
+export const PAGE_DEFER_BOOTSTRAP: string = `(function(){var K=Symbol.for('ogygia.page-defer'),r=globalThis[K]||(globalThis[K]={});r.q=r.q||[];globalThis.${PAGE_DEFER_GLOBAL}=function(i,o,e){(r.t||(r.t={}))[i]=performance.now();if(r.live)r.live(i,o,e);else r.q.push([i,o,e]);};})();`;

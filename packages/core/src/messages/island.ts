@@ -15,7 +15,7 @@ const runtime = (): Published | undefined =>
 	(globalThis as unknown as Record<symbol, Published | undefined>)[Symbol.for('ogygia.messages')];
 /** The code's link with its arguments — what a production build prints (./define.ts `line`). */
 function link(code: string, a?: unknown): string {
-	let url = '[ogygia] https://ogygiajs.dev/e/' + code;
+	let url = `[ogygia] https://ogygiajs.dev/e/${code}`;
 	if (a && typeof a === 'object') {
 		const params = new URLSearchParams();
 		for (const name in a) {
@@ -23,7 +23,7 @@ function link(code: string, a?: unknown): string {
 			if (value != null && value !== '') params.set(name, String(value).slice(0, 300));
 		}
 		const query = params.toString();
-		if (query) url += '?' + query;
+		if (query) url = `${url}?${query}`;
 	}
 	return url;
 }

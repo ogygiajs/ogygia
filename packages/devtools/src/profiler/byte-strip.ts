@@ -236,7 +236,7 @@ function walk_tags(
 			const tag = html.slice(i + 1, j);
 			on_tag(tag, i);
 			if (OPAQUE.includes(tag)) {
-				const close = html.indexOf('</' + tag, j);
+				const close = html.indexOf(`</${tag}`, j);
 				i = close === -1 ? -1 : html.indexOf('<', close + 2);
 				continue;
 			}

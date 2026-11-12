@@ -19,10 +19,10 @@ const POLLUTION = `{"og_polluted":"yes","page":"/evil","key":"${SECRET}","island
 /** `value` as JSON text with `extra` as the first key of every object (`"__proto__":…` or
  *  `"constructor":{"prototype":…}`), at every depth. */
 function hostile(value: unknown, extra: string): string {
-	if (Array.isArray(value)) return '[' + value.map((v) => hostile(v, extra)).join(',') + ']';
+	if (Array.isArray(value)) return `[${value.map((v) => hostile(v, extra)).join(',')}]`;
 	if (value !== null && typeof value === 'object') {
-		const own = Object.entries(value).map(([k, v]) => JSON.stringify(k) + ':' + hostile(v, extra));
-		return '{' + [extra, ...own].join(',') + '}';
+		const own = Object.entries(value).map(([k, v]) => `${JSON.stringify(k)}:${hostile(v, extra)}`);
+		return `{${[extra, ...own].join(',')}}`;
 	}
 	return JSON.stringify(value);
 }
@@ -39,7 +39,7 @@ afterEach(() => {
 });
 
 function make_event(path: string, init?: RequestInit): RequestEvent {
-	const url = new URL('http://localhost' + path);
+	const url = new URL(`http://localhost${path}`);
 	return {
 		url,
 		request: new Request(url, init),

@@ -10,6 +10,7 @@ import {
 } from '../src/profiler/ledger.ts';
 import type { GcMaker } from '../src/profiler/gc.ts';
 import type { RetainedSite } from '../src/profiler/insights.ts';
+import { dedent } from '@ogygia/core/plugin/utils';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // THE LINE LEDGER: every cost the profiler measured, joined on the app line a person edits.
@@ -150,7 +151,7 @@ describe('line ledger', () => {
 		// the profile: attachBrands and matches were inlined into load; all 90 ms landed on line 5
 		const functions = [
 			fn({
-				key: 'load ' + path,
+				key: `load ${path}`,
 				name: 'load',
 				path,
 				line: 2,
@@ -197,7 +198,7 @@ describe('line ledger', () => {
 		] as unknown as GcMaker[];
 		expect(build_ledger({ functions: [], makers })).toEqual([]);
 		const many = Array.from({ length: 60 }, (_, i) =>
-			fn({ key: 'f' + i, name: 'f' + i, path: '/a/src/x.ts', lines: [{ line: i + 1, ms: i + 1 }] })
+			fn({ key: `f${i}`, name: `f${i}`, path: '/a/src/x.ts', lines: [{ line: i + 1, ms: i + 1 }] })
 		);
 		const out = build_ledger({ functions: many, limit: 5 });
 		expect(out).toHaveLength(5);
@@ -370,7 +371,12 @@ describe('line ledger', () => {
 		const map = JSON.stringify({
 			version: 3,
 			sources: ['../src/lib/fmt.ts'],
-			sourcesContent: ['const a = 1;\nexport const b = a + 1;\n'],
+			sourcesContent: [
+				`${dedent`
+				const a = 1;
+				export const b = a + 1;
+			`}\n`
+			],
 			names: [],
 			mappings: 'AAAA'
 		});
@@ -386,27 +392,27 @@ describe('line ledger', () => {
 	});
 
 	it('a map with no mappings (a plugin broke the chain) still resolves by the line’s own text, inside its region', () => {
-		const source = [
-			"import { query } from '$app/server';",
-			'',
-			'export const stock = query(async () => {',
-			"\tconst res = await fetch('/api/stock');",
-			'\tconst j = (await res.json()) as { n: number };',
-			"\tawait log('done');",
-			'\treturn j.n;',
-			'});'
-		].join('\n');
-		const out = [
-			'import { n as query } from "./remote.js";',
-			'//#region src/lib/stock.remote.ts',
-			'var stock = query(async () => {',
-			'\tconst j = await (await fetch("/api/stock")).json();',
-			'\tawait log("done");',
-			'\treturn j.n;',
-			'});',
-			'init_remote_functions(exports, "src/lib/stock.remote.ts");',
-			'//#endregion'
-		].join('\n');
+		const source = dedent`
+			import { query } from '$app/server';
+
+			export const stock = query(async () => {
+				const res = await fetch('/api/stock');
+				const j = (await res.json()) as { n: number };
+				await log('done');
+				return j.n;
+			});
+		`;
+		const out = dedent`
+			import { n as query } from "./remote.js";
+			//#region src/lib/stock.remote.ts
+			var stock = query(async () => {
+				const j = await (await fetch("/api/stock")).json();
+				await log("done");
+				return j.n;
+			});
+			init_remote_functions(exports, "src/lib/stock.remote.ts");
+			//#endregion
+		`;
 		const map = JSON.stringify({
 			version: 3,
 			sources: ['../../src/lib/stock.remote.ts'],

@@ -29,8 +29,7 @@ test('a deferred region’s sheet leaves the head with the page that used it', a
 		if (u.includes('__ogygia__'))
 			return html_response(`${STYLE}<p class="greeting-799" data-served>hello</p>`, ENDPOINT);
 		return html_response(
-			'<!doctype html><html><head><meta name="ogygia-router" content="plain"><title>about</title>' +
-				'</head><body><p data-about>about</p></body></html>',
+			`<!doctype html><html><head><meta name="ogygia-router" content="plain"><title>about</title></head><body><p data-about>about</p></body></html>`,
 			u
 		);
 	};

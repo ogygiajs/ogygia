@@ -45,17 +45,11 @@ export type Finding = {
 	fix: string;
 };
 
-const FIX =
-	'make it a cache() (bounded, owned: @ogygia/machine), move it into its owner (made inside the ' +
-	"scope, function or class that owns it), or, for a fixed table never grown, mark it '// static: <why>'";
+const FIX = `make it a cache() (bounded, owned: @ogygia/machine), move it into its owner (made inside the scope, function or class that owns it), or, for a fixed table never grown, mark it '// static: <why>'`;
 
-const FIX_GROWN =
-	"a '// static:' table is never grown after its initializer: make it a cache(), or move it into " +
-	'its owner';
+const FIX_GROWN = `a '// static:' table is never grown after its initializer: make it a cache(), or move it into its owner`;
 
-const FIX_LET =
-	'a module-level let holding a collection grows by reassignment (x = [...x, o], new Map(x), ' +
-	"x.concat(...)): make it a const cache(), move it into its owner, or, for a fixed table, a const '// static: <why>'";
+const FIX_LET = `a module-level let holding a collection grows by reassignment (x = [...x, o], new Map(x), x.concat(...)): make it a const cache(), move it into its owner, or, for a fixed table, a const '// static: <why>'`;
 
 /** A module-level initializer that holds a collection: an array literal, or a new Map / Set. */
 function is_collection(init: Node | null | undefined): boolean {

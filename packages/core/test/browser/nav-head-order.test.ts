@@ -23,11 +23,7 @@ function serve() {
 		const path = new URL(String(input instanceof Request ? input.url : input), location.href)
 			.pathname;
 		return new Response(
-			'<!doctype html><html><head><meta name="ogygia-router" content="plain">' +
-				GLOBAL +
-				`<style data-test-sheet="page ${path}">[data-page="${path}"]{color:red}</style>` +
-				`<link rel="stylesheet" data-test-sheet="link ${path}" href="${SHEET}#${path}">` +
-				`</head><body><p data-page="${path}">${path}</p></body></html>`,
+			`<!doctype html><html><head><meta name="ogygia-router" content="plain">${GLOBAL}<style data-test-sheet="page ${path}">[data-page="${path}"]{color:red}</style><link rel="stylesheet" data-test-sheet="link ${path}" href="${SHEET}#${path}"></head><body><p data-page="${path}">${path}</p></body></html>`,
 			{ status: 200, headers: { 'content-type': 'text/html' } }
 		);
 	};

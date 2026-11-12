@@ -206,8 +206,8 @@ bench(
 function list(keys: number[]): string {
 	let out = '<ul class="results">';
 	for (const k of keys)
-		out += `<li data-key="r${k}"><a href="/p/${k}">Result ${k}</a><span class="price">${(k * 13) % 997}</span></li>`;
-	return out + '</ul>';
+		out = `${out}<li data-key="r${k}"><a href="/p/${k}">Result ${k}</a><span class="price">${(k * 13) % 997}</span></li>`;
+	return `${out}</ul>`;
 }
 
 bench(
@@ -402,7 +402,7 @@ bench(
 		let html = '';
 		for (let i = 0; i < n; i++) {
 			const fp = (i % 5 === 0 ? 7 : i).toString(16).padStart(16, '0');
-			html += `<ogygia-region entry="/r.js" data-og-fp="${fp}"></ogygia-region>`;
+			html = `${html}<ogygia-region entry="/r.js" data-og-fp="${fp}"></ogygia-region>`;
 		}
 		const body = el(`<body>${html}</body>`) as unknown as ParentNode;
 		// the next page's body, then the same regions stamped again (kept from an earlier visit)
@@ -417,7 +417,7 @@ bench(
 	"navigation's departed regions: the shared ids they owned, less the ones a staying region owns",
 	({ n }) => {
 		let html = '';
-		for (let i = 0; i < n; i++) html += `<ogygia-region entry="/r.js"></ogygia-region>`;
+		for (let i = 0; i < n; i++) html = `${html}<ogygia-region entry="/r.js"></ogygia-region>`;
 		const body = el(`<body>${html}</body>`) as unknown as ParentNode;
 		const regions = [...body.querySelectorAll('ogygia-region')];
 		for (let i = 0; i < n; i++) {

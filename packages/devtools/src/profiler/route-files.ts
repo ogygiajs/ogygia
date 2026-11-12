@@ -48,8 +48,8 @@ export function route_dirs(route: string): {
  *  Endpoints and shared code are never another route's by this. */
 export function another_routes_file(route: string, path: string): boolean {
 	let p = path.startsWith('file://') ? path.slice('file://'.length) : path;
-	if (p.startsWith('routes/')) p = '/src/' + p;
-	else if (p.startsWith('src/routes/')) p = '/' + p;
+	if (p.startsWith('routes/')) p = `/src/${p}`;
+	else if (p.startsWith('src/routes/')) p = `/${p}`;
 	const f = route_file_of(p);
 	if (!f) return false;
 	const mine = route_dirs(route);

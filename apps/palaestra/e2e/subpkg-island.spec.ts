@@ -17,7 +17,7 @@ test.describe('REGRESSION: island host in a workspace sub-package w/o ogygia dep
 	test('SSR: the sub-package island rendered → the build resolved the injected ogygia imports', async ({
 		baseURL
 	}) => {
-		const raw = await (await fetch(baseURL + '/subpkg-island')).text();
+		const raw = await (await fetch(`${baseURL}/subpkg-island`)).text();
 		check('SSR: sub-package island host rendered', SUBPKG_TOOLBAR_RE.test(raw));
 		check('SSR: sub-package island present', SUBPKG_ISLAND_RE.test(raw));
 	});
@@ -26,7 +26,7 @@ test.describe('REGRESSION: island host in a workspace sub-package w/o ogygia dep
 		const errors: string[] = [];
 		page.on('pageerror', (e) => errors.push(e.message));
 		page.on('console', (m) => {
-			if (m.type() === 'error') errors.push('console: ' + m.text());
+			if (m.type() === 'error') errors.push(`console: ${m.text()}`);
 		});
 		await page.goto('/subpkg-island', { waitUntil: 'networkidle' });
 		await page.waitForTimeout(250);

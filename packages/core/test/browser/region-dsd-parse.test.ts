@@ -28,10 +28,7 @@ test('parse_region_html attaches declarative shadow roots (unlike createContextu
 });
 
 test('nested declarative shadow DOM attaches at every level', () => {
-	const nested =
-		'<x-outer><template shadowrootmode="open">' +
-		'<x-inner><template shadowrootmode="open"><span>deep</span></template></x-inner>' +
-		'</template></x-outer>';
+	const nested = `<x-outer><template shadowrootmode="open"><x-inner><template shadowrootmode="open"><span>deep</span></template></x-inner></template></x-outer>`;
 	const frag = parse_region_html(nested);
 	const outer = frag.querySelector('x-outer')!;
 	expect(outer.shadowRoot).not.toBeNull();
@@ -55,10 +52,7 @@ test('fallback (engine without setHTMLUnsafe) attaches DSD via the spec algorith
 	const real = Object.getOwnPropertyDescriptor(proto, 'setHTMLUnsafe');
 	Object.defineProperty(proto, 'setHTMLUnsafe', { value: undefined, configurable: true });
 	try {
-		const nested =
-			'<x-outer><template shadowrootmode="open">' +
-			'<x-inner><template shadowrootmode="open"><span>deep</span></template></x-inner>' +
-			'</template></x-outer>';
+		const nested = `<x-outer><template shadowrootmode="open"><x-inner><template shadowrootmode="open"><span>deep</span></template></x-inner></template></x-outer>`;
 		const frag = parse_region_html(nested);
 		const outer = frag.querySelector('x-outer')!;
 		expect(outer.shadowRoot).not.toBeNull();

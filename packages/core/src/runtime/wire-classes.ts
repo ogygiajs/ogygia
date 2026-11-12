@@ -66,7 +66,7 @@ function load(path: string): Promise<unknown> {
 /** The classes a text names (`"<tag path>#…` appears in it), into `want`. */
 function scan(text: string | null | undefined, want: Set<string>): void {
 	if (!text) return;
-	for (const p of paths) if (!want.has(p) && text.indexOf('"' + p + '#') !== -1) want.add(p);
+	for (const p of paths) if (!want.has(p) && text.indexOf(`"${p}#`) !== -1) want.add(p);
 }
 
 /** The document's seeds, checked once per document (a router swap brings new ones). */

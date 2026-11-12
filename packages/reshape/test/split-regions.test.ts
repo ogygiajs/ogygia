@@ -62,25 +62,19 @@ describe('spans', () => {
 
 describe('cannot be fooled by tag-like text', () => {
 	it('ignores <ogygia-region> inside a CSS comment in an inlined <style> (the reported bug)', () => {
-		const html =
-			`<style>/* the nav-menu hole wraps items in one <ogygia-region> element */ .a{color:red}</style>` +
-			`<ogygia-region entry="/e.js" wake="visible"><b>real</b></ogygia-region>`;
+		const html = `<style>/* the nav-menu hole wraps items in one <ogygia-region> element */ .a{color:red}</style><ogygia-region entry="/e.js" wake="visible"><b>real</b></ogygia-region>`;
 		const all = [...scanRegions(html)];
 		expect(all).toHaveLength(1);
 		expect(html.slice(all[0].innerStart, all[0].innerEnd)).toBe('<b>real</b>');
 	});
 
 	it('ignores <ogygia-region> and stray </ogygia-region> inside an HTML comment', () => {
-		const html =
-			`<!-- authoring note: <ogygia-region> … </ogygia-region> is emitted per island -->` +
-			`<ogygia-region entry="/e.js" wake="load">x</ogygia-region>`;
+		const html = `<!-- authoring note: <ogygia-region> … </ogygia-region> is emitted per island --><ogygia-region entry="/e.js" wake="load">x</ogygia-region>`;
 		expect(kinds(html)).toEqual(['island']);
 	});
 
 	it('ignores tag-like text inside a <script> body', () => {
-		const html =
-			`<script>const s = "</ogygia-region>"; // never a real close\n</script>` +
-			`<ogygia-region wake="none">lake</ogygia-region>`;
+		const html = `<script>const s = "</ogygia-region>"; // never a real close\n</script><ogygia-region wake="none">lake</ogygia-region>`;
 		expect(kinds(html)).toEqual(['lake']);
 	});
 
@@ -117,11 +111,8 @@ describe('cannot be fooled by tag-like text', () => {
 
 describe('nesting', () => {
 	it('yields a login island nested inside a header lake so the caller can protect it', () => {
-		const html =
-			`<ogygia-region wake="none">` + // header lake
-			`  <nav>menu</nav>` +
-			`  <ogygia-region entry="/login.js" wake="interaction"><button>login</button></ogygia-region>` +
-			`</ogygia-region>`;
+		// a header lake
+		const html = `<ogygia-region wake="none">  <nav>menu</nav>  <ogygia-region entry="/login.js" wake="interaction"><button>login</button></ogygia-region></ogygia-region>`;
 		const all = [...scanRegions(html)];
 		// post-order: the nested island closes first, then the lake
 		expect(all.map((r) => r.kind)).toEqual(['island', 'lake']);
@@ -131,19 +122,13 @@ describe('nesting', () => {
 	});
 
 	it('does NOT yield regions strictly inside an island (its subtree is atomic)', () => {
-		const html =
-			`<ogygia-region entry="/host.js" wake="load">` +
-			`  <ogygia-region wake="none">a lake inside an island — not the caller's to touch</ogygia-region>` +
-			`</ogygia-region>`;
+		const html = `<ogygia-region entry="/host.js" wake="load">  <ogygia-region wake="none">a lake inside an island — not the caller's to touch</ogygia-region></ogygia-region>`;
 		// only the island itself
 		expect(kinds(html)).toEqual(['island']);
 	});
 
 	it('yields a hole inside a lake (recurse into lakes and holes)', () => {
-		const html =
-			`<ogygia-region wake="none">` +
-			`<ogygia-region render="defer" when="load" endpoint="/__ogygia__?id=x">fallback</ogygia-region>` +
-			`</ogygia-region>`;
+		const html = `<ogygia-region wake="none"><ogygia-region render="defer" when="load" endpoint="/__ogygia__?id=x">fallback</ogygia-region></ogygia-region>`;
 		expect(kinds(html)).toEqual(['hole', 'lake']);
 	});
 });

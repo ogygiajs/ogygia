@@ -60,7 +60,7 @@ process.on('exit', kill_all);
 const until_up = async (origin) => {
 	for (let i = 0; i < 50; i++) {
 		try {
-			await fetch(origin + '/', { signal: AbortSignal.timeout(500) });
+			await fetch(`${origin}/`, { signal: AbortSignal.timeout(500) });
 			return;
 		} catch {
 			await new Promise((r) => setTimeout(r, 200));
@@ -78,7 +78,7 @@ const check = (label, ok, detail = '') => {
 
 // 1) SSR stitch: dash's widget baked into the shell's first paint (admin KPI = claims arrived)
 {
-	const html = await (await fetch(SHELL + '/')).text();
+	const html = await (await fetch(`${SHELL}/`)).text();
 	check('SSR stitch: dash fragment in shell paint', html.includes('data-testid="dash-fragment"'));
 	check('claims reached dash (admin KPI rendered)', html.includes('data-testid="admin-kpi"'));
 }
@@ -86,7 +86,7 @@ const check = (label, ok, detail = '') => {
 // 2) whole-app mount + identity + three-hop trace + per-team Server-Timing
 {
 	const trace_id = 'a'.repeat(32);
-	const res = await fetch(SHELL + '/cms/', {
+	const res = await fetch(`${SHELL}/cms/`, {
 		headers: { traceparent: `00-${trace_id}-${'b'.repeat(16)}-01` }
 	});
 	const html = await res.text();
@@ -102,12 +102,12 @@ const check = (label, ok, detail = '') => {
 
 // 2b) STATUS CHANNEL: the cms's own 404 page answers 404 THROUGH the shell
 {
-	const res = await fetch(SHELL + '/cms/definitely-missing-page');
+	const res = await fetch(`${SHELL}/cms/definitely-missing-page`);
 	const html = await res.text();
 	check(
 		'status channel: mounted 404 answers 404 (not 200-wrapped)',
 		res.status === 404,
-		'got ' + res.status
+		`got ${res.status}`
 	);
 	check("status channel: the MFE's OWN error page renders", html.includes('does not exist'));
 	// boundary chrome nesting: the error page renders INSIDE its own layout's chrome (the cms
@@ -117,22 +117,22 @@ const check = (label, ok, detail = '') => {
 
 // 2c) kitMount: the SAME cms app mounted from a PLAIN Kit catchall (no ogygia router)
 {
-	const res = await fetch(SHELL + '/cms-kit/');
+	const res = await fetch(`${SHELL}/cms-kit/`);
 	const html = await res.text();
 	check('kitMount: cms home through a plain Kit catchall', html.includes('data-testid="cms-home"'));
 	check('kitMount: identity flows (session claims signed in)', html.includes('salut puru'));
-	const miss = await fetch(SHELL + '/cms-kit/definitely-missing-page');
+	const miss = await fetch(`${SHELL}/cms-kit/definitely-missing-page`);
 	check(
 		'kitMount: upstream 404 → Kit error(404), right status',
 		miss.status === 404,
-		'got ' + miss.status
+		`got ${miss.status}`
 	);
 }
 
 // 3) experiments: sticky assignment auto-carried into the mounted app + QA override
 {
 	const read_stamp = async (q = '') => {
-		const html = await (await fetch(SHELL + '/cms/lab' + q)).text();
+		const html = await (await fetch(`${SHELL}/cms/lab${q}`)).text();
 		return html.match(/data-og-exp="([^"]+)"/)?.[1];
 	};
 	const a = await read_stamp();
@@ -149,7 +149,7 @@ const check = (label, ok, detail = '') => {
 
 // 4) a deferred remote widget: the shell home emits a shell-signed hole; fetching it returns dash
 {
-	const home = await (await fetch(SHELL + '/')).text();
+	const home = await (await fetch(`${SHELL}/`)).text();
 	const hole = home.match(/\/og\/frag\?[^"]+/)?.[0]?.replace(/&amp;/g, '&');
 	check('deferred: the home emitted an /og/frag hole', !!hole);
 	if (hole) {
@@ -157,14 +157,14 @@ const check = (label, ok, detail = '') => {
 		check('deferred: the hole rendered the dash widget', /dash-fragment/.test(frag));
 	}
 	const forged = await fetch(
-		SHELL + '/og/frag?peer=dash&kind=widget&target=kpis&search=&exp=9999999999999&sig=bad'
+		`${SHELL}/og/frag?peer=dash&kind=widget&target=kpis&search=&exp=9999999999999&sig=bad`
 	);
 	check('deferred: a forged hole capability is rejected', forged.status === 403);
 }
 
 // 5) the signature gate: unsigned callers learn nothing
 {
-	const res = await fetch(CMS + '/og/fragment/page?path=/');
+	const res = await fetch(`${CMS}/og/fragment/page?path=/`);
 	check('security: unsigned fragment call → 401', res.status === 401);
 }
 
@@ -180,8 +180,8 @@ const check = (label, ok, detail = '') => {
 		if (m.type() === 'error' || /Failed to hydrate|hydration failed/i.test(m.text()))
 			bad.push(m.text().slice(0, 140));
 	});
-	bpage.on('pageerror', (e) => bad.push('page: ' + e.message.slice(0, 140)));
-	await bpage.goto(SHELL + '/', { waitUntil: 'networkidle' });
+	bpage.on('pageerror', (e) => bad.push(`page: ${e.message.slice(0, 140)}`));
+	await bpage.goto(`${SHELL}/`, { waitUntil: 'networkidle' });
 	await bpage.waitForTimeout(500);
 	const counter = bpage.locator('[data-testid="dash-counter"]').first();
 	const before = await counter.innerText().catch(() => '');
@@ -201,7 +201,7 @@ const check = (label, ok, detail = '') => {
 {
 	procs.dash.kill();
 	await new Promise((r) => setTimeout(r, 300));
-	const res = await fetch(SHELL + '/');
+	const res = await fetch(`${SHELL}/`);
 	const html = await res.text();
 	check('isolation: shell renders 200 with dash dead', res.status === 200);
 	check('isolation: inline card, not a broken page', html.includes('unavailable'));

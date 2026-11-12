@@ -16,14 +16,14 @@ test.describe('REGRESSION: csr=false subtree under csr=true ancestor layout — 
 		baseURL
 	}) => {
 		// SSR: the csr=false subtree under the csr=true ancestor emits REAL regions…
-		const sub = await (await fetch(baseURL + '/mixed-root/sub')).text();
+		const sub = await (await fetch(`${baseURL}/mixed-root/sub`)).text();
 		check(
 			'csr=false subtree: <ogygia-region> emitted under csr=true ancestor',
 			region_count(sub) >= 1,
 			`count=${region_count(sub)}`
 		);
 		// …and the csr=true level emits none (Kit owns it).
-		const top = await (await fetch(baseURL + '/mixed-root')).text();
+		const top = await (await fetch(`${baseURL}/mixed-root`)).text();
 		check(
 			'csr=true ancestor level: zero <ogygia-region>',
 			region_count(top) === 0,
@@ -35,7 +35,7 @@ test.describe('REGRESSION: csr=false subtree under csr=true ancestor layout — 
 		const errors: string[] = [];
 		page.on('pageerror', (e) => errors.push(e.message));
 		page.on('console', (m) => {
-			if (m.type() === 'error') errors.push('console: ' + m.text());
+			if (m.type() === 'error') errors.push(`console: ${m.text()}`);
 		});
 		await page.goto('/mixed-root/sub', { waitUntil: 'networkidle' });
 		await page.waitForTimeout(300);

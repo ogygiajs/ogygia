@@ -199,8 +199,8 @@ function fake_valkey(): ValkeyLike & { data: Map<string, string>; expiry: Map<st
 			for (let i = 0; i < match.length; i++) {
 				const c = match[i];
 				if (c === '\\') source += regex_escape(match[++i]);
-				else if (c === '*') source += '.*';
-				else if (c === '?') source += '.';
+				else if (c === '*') source = `${source}.*`;
+				else if (c === '?') source = `${source}.`;
 				else source += regex_escape(c);
 			}
 			const re = new RegExp(`^${source}$`);
@@ -719,7 +719,7 @@ describe('postrender/stitch', () => {
 
 	it('handles NESTED regions inside the fallback (balanced, not lazy)', () => {
 		const inner = `<ogygia-region entry="x" wake="load">island</ogygia-region>`;
-		const html = hole('/e?a=1', `<p>fb</p>${inner}`) + '<footer>after</footer>';
+		const html = `${hole('/e?a=1', `<p>fb</p>${inner}`)}<footer>after</footer>`;
 		const holes = find_stitch_holes(html);
 		expect(holes).toHaveLength(1);
 		expect(html.slice(holes[0].end)).toBe('<footer>after</footer>');
@@ -730,10 +730,7 @@ describe('postrender/stitch', () => {
 	});
 
 	it('reads region tags as a browser does: a quoted `>`, any case, single quotes, not in a comment, not a value', () => {
-		const html =
-			'<!-- <ogygia-region stitch="edge" endpoint="/gone"></ogygia-region> -->' +
-			'<ogygia-region class="stitch" endpoint="/no">fb</ogygia-region>' +
-			"<ogygia-region data-note=\"a>b\" STITCH='edge' ENDPOINT='/e?a=1&amp;b=2'>fb</ogygia-region>";
+		const html = `<!-- <ogygia-region stitch="edge" endpoint="/gone"></ogygia-region> --><ogygia-region class="stitch" endpoint="/no">fb</ogygia-region><ogygia-region data-note="a>b" STITCH='edge' ENDPOINT='/e?a=1&amp;b=2'>fb</ogygia-region>`;
 		const holes = find_stitch_holes(html);
 		expect(holes.map((h) => [h.endpoint, h.mode])).toEqual([['/e?a=1&b=2', 'edge']]);
 		expect(html.slice(holes[0].start, holes[0].end)).toBe(

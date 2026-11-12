@@ -9,6 +9,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { __set_build_cache_root } from '@ogygia/compiler';
 import { ogygiaPreprocess } from '../src/markdown/index.ts';
+import { dedent } from '@ogygia/core/plugin/utils';
 
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'og-md-cache-key-'));
 __set_build_cache_root(tmp);
@@ -27,7 +28,11 @@ const compile = async (filename: string, content: string): Promise<string> => {
 };
 
 describe('markup cache key', () => {
-	const content = '# Intro\n\nThe same words in both places.\n';
+	const content = `${dedent`
+		# Intro
+
+		The same words in both places.
+	`}\n`;
 
 	it('a moved file with the same content bakes its own CSS key', async () => {
 		const v1 = await compile('/app/src/content/v1/intro.md', content);

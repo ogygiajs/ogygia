@@ -93,10 +93,7 @@ export async function render_fence(
 				html`<button type="button" class="og-variant-btn" data-pref="${pref.name}" data-pref-set="${v.value}"${attr('data-default', v.value === pref.default)}>${v.label}</button>`
 		)
 		.join('');
-	const out =
-		html`<div class="og-code" data-pref="${pref.name}"${attr('data-file', file || null)}>` +
-		`<div class="og-code-controls" role="tablist">${controls}</div>` +
-		panels +
-		`</div>`;
+	const open = html`<div class="og-code" data-pref="${pref.name}"${attr('data-file', file || null)}>`;
+	const out = `${open}<div class="og-code-controls" role="tablist">${controls}</div>${panels}</div>`;
 	return { html: out, count: rendered.length, source: fence.source, ...(file ? { file } : {}) };
 }

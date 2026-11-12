@@ -21,9 +21,7 @@ afterEach(() => {
 /** A page with a region at the top, still asleep (no height), and a tall body below it. */
 function page(): HTMLElement {
 	root = document.createElement('div');
-	root.innerHTML =
-		'<ogygia-region entry="/never-loaded.js" wake="load"><div data-top style="height: 0; overflow: hidden">top</div></ogygia-region>' +
-		'<div style="height: 6000px"></div>';
+	root.innerHTML = `<ogygia-region entry="/never-loaded.js" wake="load"><div data-top style="height: 0; overflow: hidden">top</div></ogygia-region><div style="height: 6000px"></div>`;
 	document.body.prepend(root);
 	return root.querySelector('ogygia-region')!;
 }

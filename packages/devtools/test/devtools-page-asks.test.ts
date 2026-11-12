@@ -51,7 +51,7 @@ async function until<T>(read: () => T | null, ms = 3000): Promise<T | null> {
 
 it("a file's Vary header is asked again after a failed ask", async () => {
 	const s = await later_server(() => ({ headers: { vary: 'Origin' } }));
-	const url = s.origin + '/font.woff2';
+	const url = `${s.origin}/font.woff2`;
 	expect(vary_of(url)).toBe(null); // asked: the connection is refused
 	await new Promise((r) => setTimeout(r, 200));
 	await s.start();
@@ -62,7 +62,7 @@ it("the dev server's pre-bundled packages are asked again after a failed ask", a
 	const s = await later_server(() => ({
 		body: JSON.stringify({ optimized: { svelte: {}, '@scope/pkg/sub': {} } })
 	}));
-	const scripts = [s.origin + '/node_modules/.vite/deps/svelte.js?v=1'];
+	const scripts = [`${s.origin}/node_modules/.vite/deps/svelte.js?v=1`];
 	// (the dev server's realm: only it has pre-bundled packages)
 	record_realm({
 		dev: true,

@@ -21,7 +21,7 @@ const PORTABLE_ENTRY_RE = /og-region\.[^/]+\.js$/;
 
 test.describe('a snippet forwarded THROUGH a plain shell into an island crosses + comes alive', () => {
 	test('SSR', async ({ baseURL }) => {
-		const raw = await (await fetch(baseURL + '/portable-snippet')).text();
+		const raw = await (await fetch(`${baseURL}/portable-snippet`)).text();
 		// The snippet crossed into the island as a hub ref of kind 'snippet' (not a serialized function).
 		check(
 			'SSR: snippet crosses as a portable snippet ref',
@@ -60,7 +60,7 @@ test.describe('a snippet forwarded THROUGH a plain shell into an island crosses 
 		const errors: string[] = [];
 		page.on('pageerror', (e) => errors.push(e.message));
 		page.on('console', (m) => {
-			if (m.type() === 'error') errors.push('console: ' + m.text());
+			if (m.type() === 'error') errors.push(`console: ${m.text()}`);
 		});
 		await page.goto('/portable-snippet', { waitUntil: 'networkidle' });
 		await page.waitForTimeout(250);

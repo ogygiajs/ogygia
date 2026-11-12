@@ -147,9 +147,7 @@ describe('MARK', () => {
 
 describe('tags', () => {
 	it('reads a tag as a browser does: quoted values may hold > and the other quote', () => {
-		const html =
-			'<link rel="stylesheet" data-ogygia-region-css="a>b" href=\'/x.css?q="1"\'><p>x</p>' +
-			'<link data-ogygia-keep href=/y.css>';
+		const html = `<link rel="stylesheet" data-ogygia-region-css="a>b" href='/x.css?q="1"'><p>x</p><link data-ogygia-keep href=/y.css>`;
 		const found = [...tags(html, 'link')];
 		expect(found.map((t) => Object.fromEntries(t.attrs))).toEqual([
 			{ rel: 'stylesheet', 'data-ogygia-region-css': 'a>b', href: '/x.css?q="1"' },

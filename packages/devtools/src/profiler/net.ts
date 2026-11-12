@@ -352,7 +352,7 @@ export function answer_diff(
 	const from = Math.max(0, pre - 24);
 	const to = Math.min(b.length, b.length - suf + 8);
 	let text = new TextDecoder().decode(b.subarray(from, to));
-	if (text.length > 90) text = text.slice(0, 89) + '…';
+	if (text.length > 90) text = `${text.slice(0, 89)}…`;
 	return { bytes, size: Math.max(a.length, b.length), text };
 }
 
@@ -642,7 +642,7 @@ function headers_of(h: Headers): Record<string, string> | undefined {
 	let n = 0;
 	for (const [k, v] of h) {
 		if (n++ >= 40) break;
-		out[k] = v.length > 512 ? v.slice(0, 512) + '…' : v;
+		out[k] = v.length > 512 ? `${v.slice(0, 512)}…` : v;
 	}
 	return n ? out : undefined;
 }
@@ -660,7 +660,7 @@ const utf8_len = (s: string): number => {
 	}
 };
 const clip = (s: string): string =>
-	s.length > MAX_PAYLOAD ? s.slice(0, MAX_PAYLOAD) + '\n… (truncated)' : s;
+	s.length > MAX_PAYLOAD ? `${s.slice(0, MAX_PAYLOAD)}\n… (truncated)` : s;
 
 /** Capture the request body's size (+ a preview for string / form bodies). Never consumes a stream. */
 function capture_req_payload(init: RequestInit | undefined, call: NetCall): void {
@@ -728,7 +728,7 @@ function count_decoded(res: Response, call: NetCall, owner: Scope | undefined): 
 				}
 			}
 			call.bytes = total;
-			call.body_hash = (h >>> 0).toString(16) + ':' + total;
+			call.body_hash = `${(h >>> 0).toString(16)}:${total}`;
 			// (the recordings keeping now, read once the body is in: one that ended meanwhile kept nothing)
 			const k = kept;
 			if (parts && k !== null && k.keepers.size > 0) {

@@ -220,8 +220,9 @@ function table(kind) {
 		(x, y) => rank(worst(x)) - rank(worst(y)) || x.name.localeCompare(y.name)
 	);
 	if (list.length === 0) return '_None._\n';
-	let out =
-		'| Package | Severity | Advisories | Locked here | How it arrives | Notes |\n|---|---|---|---|---|---|\n';
+	let out = `| Package | Severity | Advisories | Locked here | How it arrives | Notes |
+|---|---|---|---|---|---|
+`;
 	for (const row of list) {
 		const advisories = [...row.advisories.values()]
 			.sort((x, y) => rank(x.severity) - rank(y.severity))
@@ -237,18 +238,28 @@ function table(kind) {
 				: '',
 			kind === 'dependency' && row.direct_in.size ? range_note(row) : ''
 		].filter(Boolean);
-		out += `| \`${row.name}\` | ${worst(row)} | ${advisories} | ${[...row.installed].join(', ')} | ${cell(routes.slice(0, 4).join('<br>'))}${routes.length > 4 ? `<br>(+${routes.length - 4} more)` : ''} | ${cell(notes.join('; '))} |\n`;
+		out = `${out}| \`${row.name}\` | ${worst(row)} | ${advisories} | ${[...row.installed].join(', ')} | ${cell(routes.slice(0, 4).join('<br>'))}${routes.length > 4 ? `<br>(+${routes.length - 4} more)` : ''} | ${cell(notes.join('; '))} |\n`;
 	}
 	return out;
 }
 
 const names = published.map((p) => `\`${p.name}\``).join(', ');
 let md = `## Dependency audit: the published packages at ${published[0]?.version ?? '?'}\n\n`;
-md += `Covers ${names}. Checked against the npm advisory database (\`pnpm audit\`). "Locked here" is this repository's lockfile; an app installing a package resolves its own versions within the ranges. "How it arrives" names the package that brings it.\n\n`;
-md += `### Dependencies (installed with a package)\n\n${table('dependency')}\n`;
-md += `### Peer dependencies (installed and updated by the app)\n\n${table('peer')}\n`;
-md += `<details><summary>Dev dependencies: this repository's tooling, never installed by an app (${groups.dev.size} ${groups.dev.size === 1 ? 'package' : 'packages'})</summary>\n\n${table('dev')}\n</details>\n\n`;
+md = `${md}Covers ${names}. Checked against the npm advisory database (\`pnpm audit\`). "Locked here" is this repository's lockfile; an app installing a package resolves its own versions within the ranges. "How it arrives" names the package that brings it.\n\n`;
+const dev_count = `${groups.dev.size} ${groups.dev.size === 1 ? 'package' : 'packages'}`;
+md = `${md}### Dependencies (installed with a package)
+
+${table('dependency')}
+### Peer dependencies (installed and updated by the app)
+
+${table('peer')}
+<details><summary>Dev dependencies: this repository's tooling, never installed by an app (${dev_count})</summary>
+
+${table('dev')}
+</details>
+
+`;
 if (elsewhere)
-	md += `${elsewhere} more ${elsewhere === 1 ? 'advisory is' : 'advisories are'} only in this repository's demo apps and internal tools, which are not part of any published package.\n`;
+	md = `${md}${elsewhere} more ${elsewhere === 1 ? 'advisory is' : 'advisories are'} only in this repository's demo apps and internal tools, which are not part of any published package.\n`;
 process.stdout.write(md);
 process.exit(failing ? 1 : 0);

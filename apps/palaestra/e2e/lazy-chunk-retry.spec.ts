@@ -287,7 +287,7 @@ test.describe('the navigation chunk that fails once is loaded again (#238)', () 
 				.invalidateAll()
 				.then(
 					() => 'ok',
-					(e: unknown) => 'failed: ' + String(e)
+					(e: unknown) => `failed: ${String(e)}`
 				)
 		);
 

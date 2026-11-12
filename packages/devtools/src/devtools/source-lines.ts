@@ -25,7 +25,7 @@ const TABLES_MAX = 256;
 /** An app file's table, as the dev server serves the file (`null`: none to give). */
 async function read_table(file: string): Promise<Lines | null> {
 	try {
-		const r = await tool_fetch('/' + file);
+		const r = await tool_fetch(`/${file}`);
 		const t = r.ok ? await r.text() : '';
 		return t ? parse(t, file) : null;
 	} catch {

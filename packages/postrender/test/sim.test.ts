@@ -81,7 +81,7 @@ describe('postrender, simulated', () => {
 				const get = async (url: Url) => {
 					const g = { url, floor: floor[url], got: '' };
 					gets.push(g);
-					const c = ctx(new Request('http://x.test' + url), { cookies: jar as never });
+					const c = ctx(new Request(`http://x.test${url}`), { cookies: jar as never });
 					mark_handled(c.event, runtime);
 					try {
 						const hit = await server.page?.(c);
@@ -106,7 +106,7 @@ describe('postrender, simulated', () => {
 					}
 				};
 				const post = async (url: Url) => {
-					const c = ctx(new Request('http://x.test' + url, { method: 'POST' }), {
+					const c = ctx(new Request(`http://x.test${url}`, { method: 'POST' }), {
 						cookies: jar as never
 					});
 					mark_handled(c.event, runtime);

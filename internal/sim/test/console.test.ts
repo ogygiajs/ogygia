@@ -9,7 +9,7 @@ import { buttons } from '../src/workload.ts';
 const OUTPUT = fileURLToPath(
 	new URL('../../../apps/palaestra/.svelte-kit/output', import.meta.url)
 );
-const built = existsSync(OUTPUT + '/server/index.js');
+const built = existsSync(`${OUTPUT}/server/index.js`);
 
 describe.skipIf(!built)("a document's console", () => {
 	it('an island that logs as it is pressed hydrates and runs (seed 286)', async () => {

@@ -29,7 +29,7 @@ export const fresh_report = (): BarrelsReport => ({
 
 /** `id` relative to `root` when it is under it. */
 export function short(id: string, root: string): string {
-	return id.startsWith(root + '/') ? id.slice(root.length + 1) : id;
+	return id.startsWith(`${root}/`) ? id.slice(root.length + 1) : id;
 }
 
 const n = (v: number) => v.toLocaleString('en-US');

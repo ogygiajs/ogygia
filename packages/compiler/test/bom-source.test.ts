@@ -15,14 +15,25 @@ import { Compiler, Program, CompileCtx, normalize_import_keys } from '../dist/co
 import { partial_ctx_init } from './_compile-ctx.ts';
 import { stamp_opaque } from '../src/compiler/ownership-stamps.ts';
 import { strip_bom } from '../src/compiler/bom.ts';
+import { dedent } from '@ogygia/core/contract';
 
 const BOM = '﻿';
-const COMPONENT =
-	BOM +
-	`<script>\n\tlet { markup } = $props();\n</script>\n\n<x-el>static</x-el>\n<div class="host">{@html markup}</div>\n`;
-const HOST =
-	BOM +
-	`<script>\n\timport Counter from '$lib/Counter.svelte' with { wake: 'load' };\n</script>\n\n<ds-button>go</ds-button>\n<Counter />\n`;
+const COMPONENT = `${BOM}${dedent`
+	<script>
+		let { markup } = $props();
+	</script>
+
+	<x-el>static</x-el>
+	<div class="host">{@html markup}</div>
+`}\n`;
+const HOST = `${BOM}${dedent`
+	<script>
+		import Counter from '$lib/Counter.svelte' with { wake: 'load' };
+	</script>
+
+	<ds-button>go</ds-button>
+	<Counter />
+`}\n`;
 
 let root = '';
 
@@ -86,8 +97,8 @@ const compiles = (code: string, name: string, generate: 'server' | 'client') =>
 
 describe('a byte-order-marked component', () => {
 	test('strip_bom takes off exactly one leading mark', () => {
-		expect(strip_bom(BOM + 'a')).toBe('a');
-		expect(strip_bom('a' + BOM)).toBe('a' + BOM);
+		expect(strip_bom(`${BOM}a`)).toBe('a');
+		expect(strip_bom(`a${BOM}`)).toBe(`a${BOM}`);
 		expect(strip_bom('a')).toBe('a');
 	});
 

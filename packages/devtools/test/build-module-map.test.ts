@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { dedent } from '@ogygia/core/plugin/utils';
 import { build_module_map } from '../src/build/module-map.ts';
 import { module_category } from '../src/profiler/module-map.ts';
 
@@ -7,9 +8,17 @@ import { module_category } from '../src/profiler/module-map.ts';
 
 describe('build_module_map', () => {
 	it('each module at its lines of the chunk, ids relative to the root, queries dropped', () => {
-		const a = 'function a() {\n\treturn 1;\n}\n';
+		const a = `${dedent`
+			function a() {
+				return 1;
+			}
+		`}\n`;
 		const b = 'export function b() {}\n';
-		const code = `import x from './x.js';\n${a}\n${b}export { a };\n`;
+		const code = `${dedent`
+			import x from './x.js';
+			${a}
+			${b}export { a };
+		`}\n`;
 		const map = build_module_map(
 			{
 				'chunks/lib.js': {
@@ -42,7 +51,10 @@ describe('build_module_map', () => {
 describe('build_module_map: a module starting with a newline', () => {
 	it('the modules after it keep their lines', () => {
 		const a = '\nconst a = 1;\n';
-		const b = 'const b = 2;\nconst c = 3;\n';
+		const b = `${dedent`
+			const b = 2;
+			const c = 3;
+		`}\n`;
 		const code = `// head\n${a}${b}`;
 		const map = build_module_map(
 			{
@@ -66,12 +78,28 @@ describe('build_module_map: a module starting with a newline', () => {
 describe('build_module_map: a module whose imports the bundler dropped', () => {
 	it('is found by its first solid line, and the modules after it keep their lines', () => {
 		// the modules' own code opens with imports; the chunk has them hoisted away
-		const a =
-			"import { x } from './x.js';\nimport { y } from './y.js';\nexport function respond(event) {\n\treturn render_page(event, options);\n}\n";
-		const b =
-			"import { z } from './z.js';\nexport function render_page(event, options) {\n\treturn new Response('ok');\n}\n";
-		const code =
-			"import { x, y, z } from './shared.js';\nexport function respond(event) {\n\treturn render_page(event, options);\n}\nexport function render_page(event, options) {\n\treturn new Response('ok');\n}\n";
+		const a = `${dedent`
+				import { x } from './x.js';
+				import { y } from './y.js';
+				export function respond(event) {
+					return render_page(event, options);
+				}
+			`}\n`;
+		const b = `${dedent`
+				import { z } from './z.js';
+				export function render_page(event, options) {
+					return new Response('ok');
+				}
+			`}\n`;
+		const code = `${dedent`
+				import { x, y, z } from './shared.js';
+				export function respond(event) {
+					return render_page(event, options);
+				}
+				export function render_page(event, options) {
+					return new Response('ok');
+				}
+			`}\n`;
 		const map = build_module_map(
 			{
 				'index.js': {
@@ -95,18 +123,18 @@ describe('build_module_map: a module whose imports the bundler dropped', () => {
 
 describe("build_module_map: the bundler's own region markers", () => {
 	it('each //#region … //#endregion is a module at exactly those lines', () => {
-		const code = [
-			"import { x } from './shared.js';",
-			'//#region ../../node_modules/.pnpm/@sveltejs+kit@2/node_modules/@sveltejs/kit/src/runtime/server/respond.js',
-			'function respond() {',
-			'\treturn 1;',
-			'}',
-			'//#endregion',
-			'//#region src/lib/Card.svelte',
-			'function Card($$renderer) {}',
-			'//#endregion',
-			'export { respond, Card };'
-		].join('\n');
+		const code = dedent`
+			import { x } from './shared.js';
+			//#region ../../node_modules/.pnpm/@sveltejs+kit@2/node_modules/@sveltejs/kit/src/runtime/server/respond.js
+			function respond() {
+				return 1;
+			}
+			//#endregion
+			//#region src/lib/Card.svelte
+			function Card($$renderer) {}
+			//#endregion
+			export { respond, Card };
+		`;
 		const map = build_module_map(
 			{
 				'index.js': {
@@ -127,14 +155,14 @@ describe("build_module_map: the bundler's own region markers", () => {
 
 describe("build_module_map: the app's own folding comments inside a module", () => {
 	it('a //#region that names no module is not a module, and does not end the real one early', () => {
-		const code = [
-			'//#region src/lib/a.ts',
-			'//#region Helpers',
-			'function h() {}',
-			'//#endregion',
-			'function a() {}',
-			'//#endregion'
-		].join('\n');
+		const code = dedent`
+			//#region src/lib/a.ts
+			//#region Helpers
+			function h() {}
+			//#endregion
+			function a() {}
+			//#endregion
+		`;
 		const map = build_module_map(
 			{
 				'x.js': {

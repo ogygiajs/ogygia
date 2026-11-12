@@ -6,6 +6,7 @@ import { describe, expect, it } from 'vitest';
 import { fc } from '@ogygia/config/sim';
 import { parseFrontmatter } from '../src/markdown/frontmatter.ts';
 import { OgygiaError } from '../src/messages/build.ts';
+import { dedent } from '@ogygia/core/plugin/utils';
 
 /** The code of a coded error, else undefined. */
 const code_of = (e: unknown) =>
@@ -56,7 +57,12 @@ describe('frontmatter', () => {
 		fc.assert(
 			fc.property(fc.oneof(yamlish, fc.string()), fc.string({ maxLength: 8 }), (yaml, body) => {
 				try {
-					const { data } = parseFrontmatter(`---\n${yaml}\n---\n${body}`);
+					const { data } = parseFrontmatter(dedent`
+						---
+						${yaml}
+						---
+						${body}
+					`);
 					expect(typeof data).toBe('object');
 				} catch (e) {
 					expect(code_of(e)).toBe('content_frontmatter_invalid');
@@ -69,13 +75,13 @@ describe('frontmatter', () => {
 
 	it('deep nesting is read or refused, never a stack overflow', () => {
 		for (const yaml of [
-			'a: ' + '['.repeat(20_000),
-			'a: ' + '{b: '.repeat(20_000),
-			Array.from({ length: 5_000 }, (_, i) => ' '.repeat(i) + 'k:').join('\n'),
-			Array.from({ length: 5_000 }, (_, i) => ' '.repeat(i) + '- ').join('\n')
+			`a: ${'['.repeat(20_000)}`,
+			`a: ${'{b: '.repeat(20_000)}`,
+			Array.from({ length: 5_000 }, (_, i) => `${' '.repeat(i)}k:`).join('\n'),
+			Array.from({ length: 5_000 }, (_, i) => `${' '.repeat(i)}- `).join('\n')
 		]) {
 			try {
-				parseFrontmatter(`---\n${yaml}\n---\n`);
+				parseFrontmatter(['---', yaml, '---', ''].join('\n'));
 			} catch (e) {
 				expect(code_of(e)).toBe('content_frontmatter_invalid');
 			}
@@ -94,7 +100,10 @@ describe('frontmatter', () => {
 				const yaml = Object.entries(map)
 					.map(([k, v]) => `${k}: ${JSON.stringify(v)}`)
 					.join('\n');
-				expect(parseFrontmatter(`---\n${yaml}\n---\nbody`)).toEqual({ data: map, body: 'body' });
+				expect(parseFrontmatter(['---', yaml, '---', 'body'].join('\n'))).toEqual({
+					data: map,
+					body: 'body'
+				});
 			}),
 			{ numRuns: 1000 }
 		);

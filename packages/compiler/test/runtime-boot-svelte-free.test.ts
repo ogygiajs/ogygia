@@ -28,7 +28,7 @@ const RUNTIME = path.join(SRC, 'runtime');
 // production build (verified: no devtools bytes in the built runtime chunk); it is a dev instrument.
 // The event layer (`src/events`) and the switch (`src/contract/switch.ts`) the boot reaches ARE walked:
 // they live in core and must stay Svelte-free like the rest of it.
-const DEVTOOLS = path.join(SRC, 'devtools') + path.sep;
+const DEVTOOLS = `${path.join(SRC, 'devtools')}${path.sep}`;
 const RUNES = new Set(['$state', '$derived', '$effect', '$props', '$inspect']);
 // Virtual modules that resolve to the APP's own code (the transport codecs from its `src/hooks.ts`):
 // arbitrary app code can import anything — in practice `ogygia` itself, and so Svelte. The boot must
@@ -42,7 +42,7 @@ const BUNDLED_PACKAGES = new Map([
 
 function resolve(from: string, spec: string): string | null {
 	const base = path.resolve(path.dirname(from), spec);
-	for (const c of [base.replace(/\.js$/, '.ts'), base, base + '.ts']) {
+	for (const c of [base.replace(/\.js$/, '.ts'), base, `${base}.ts`]) {
 		if (fs.existsSync(c) && fs.statSync(c).isFile()) return c;
 	}
 	return null;

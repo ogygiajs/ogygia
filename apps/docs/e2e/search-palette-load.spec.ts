@@ -40,14 +40,14 @@ test.beforeAll(async () => {
 			'127.0.0.1'
 		],
 		cwd: root,
-		url: base + '/docs/start/overview',
+		url: `${base}/docs/start/overview`,
 		timeout_ms: 180_000
 	});
 });
 test.afterAll(() => srv?.kill());
 
 async function ready(page: Page) {
-	await page.goto(base + '/docs/start/overview');
+	await page.goto(`${base}/docs/start/overview`);
 	await expect(page.locator(TRIGGER)).toHaveCount(1, { timeout: 60_000 });
 }
 

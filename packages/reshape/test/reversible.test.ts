@@ -17,9 +17,7 @@ const page = (inner: string) => doc(island(inner));
 describe('mark', () => {
 	it('plans the hosts in Svelte-owned markup and around it; tags every custom element’s children', () => {
 		const html = doc(
-			`<demo-card class="shell"><p>server</p></demo-card>` +
-				`<demo-card id="lake-host"><ogygia-region wake="none">${island('<b>x</b>')}</ogygia-region></demo-card>` +
-				island(`<demo-card class="own"><!--[--> Sign in <i>ok</i><!--]--></demo-card>`)
+			`<demo-card class="shell"><p>server</p></demo-card><demo-card id="lake-host"><ogygia-region wake="none">${island('<b>x</b>')}</ogygia-region></demo-card>${island(`<demo-card class="own"><!--[--> Sign in <i>ok</i><!--]--></demo-card>`)}`
 		);
 		const m = mark(html, 'document', false)!;
 		// a server-owned host with nothing Svelte-owned below: no plan
@@ -38,9 +36,7 @@ describe('mark', () => {
 			`<ogygia-region endpoint="/_og/r" render="defer">${inner}</ogygia-region>`;
 		const m = mark(
 			doc(
-				`<demo-nav class="menu"><ul>${hole('<demo-tab>a</demo-tab>')}</ul></demo-nav>` +
-					`<ogygia-region wake="none"><demo-bar>${hole('<i>b</i>')}</demo-bar></ogygia-region>` +
-					`<ogygia-region wake="none"><demo-card><p>lake only</p></demo-card></ogygia-region>`
+				`<demo-nav class="menu"><ul>${hole('<demo-tab>a</demo-tab>')}</ul></demo-nav><ogygia-region wake="none"><demo-bar>${hole('<i>b</i>')}</demo-bar></ogygia-region><ogygia-region wake="none"><demo-card><p>lake only</p></demo-card></ogygia-region>`
 			),
 			'document',
 			false
@@ -57,8 +53,7 @@ describe('mark', () => {
 
 	it('a document the router fetched is an answer: every host planned, as in a region answer', () => {
 		const html = doc(
-			`<demo-card class="shell"><p>server</p></demo-card>` +
-				island(`<demo-card class="own"><i>ok</i></demo-card>`)
+			`<demo-card class="shell"><p>server</p></demo-card>${island(`<demo-card class="own"><i>ok</i></demo-card>`)}`
 		);
 		// loaded as a document, the server-owned host is left to its own runtime
 		expect(mark(html, 'document', false)!.html).toContain('<demo-card og-u="0" class="shell">');
@@ -74,8 +69,7 @@ describe('mark', () => {
 		const m = mark(
 			doc(
 				baked(
-					`<demo-card hidden><p>x</p></demo-card>` +
-						island(`<demo-card class="own"><i>ok</i></demo-card>`)
+					`<demo-card hidden><p>x</p></demo-card>${island(`<demo-card class="own"><i>ok</i></demo-card>`)}`
 				)
 			),
 			'document',

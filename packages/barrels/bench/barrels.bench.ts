@@ -10,6 +10,7 @@ import type { BuildContext, PluginDefinition, StageTransform } from '@ogygia/com
 import { barrels } from '../src/index.ts';
 import { BARRELS_WARNINGS } from '../src/messages.ts';
 import { format_report, fresh_report } from '../src/report.ts';
+import { dedent } from '@ogygia/core/plugin/utils';
 
 /** `n` barrels of four leaves each under one top barrel, a module and a component that import from
  *  them, and a component the parser rejects, as in-memory files. */
@@ -17,13 +18,11 @@ function app(n: number) {
 	const files = new Map<string, string>();
 	for (let b = 0; b < n; b++) {
 		for (let l = 0; l < 4; l++) files.set(`/app/lib/b${b}/L${l}.svelte`, `<p>${b}.${l}</p>`);
-		files.set(
-			`/app/lib/b${b}/index.ts`,
-			Array.from(
-				{ length: 4 },
-				(_, l) => `export { default as C${b}_${l} } from './L${l}.svelte';`
-			).join('\n') + `\nexport type T${b} = number;`
-		);
+		const reexports = Array.from(
+			{ length: 4 },
+			(_, l) => `export { default as C${b}_${l} } from './L${l}.svelte';`
+		).join('\n');
+		files.set(`/app/lib/b${b}/index.ts`, `${reexports}\nexport type T${b} = number;`);
 	}
 	files.set(
 		'/app/lib/index.ts',
@@ -33,17 +32,35 @@ function app(n: number) {
 	const names = Array.from({ length: n }, (_, b) => `C${b}_${b % 4}`);
 	files.set(
 		'/app/src/main.ts',
-		`import { ${names.join(', ')}, nope } from '$lib';\nimport { C0_1 } from '$lib' with { wake: 'load' };\nimport { side } from '$lib/own';\nimport type { T0 } from '$lib';\nimport * as all from '$lib';\nconsole.log(${names.join(', ')}, C0_1, side, all);`
+		dedent`
+			import { ${names.join(', ')}, nope } from '$lib';
+			import { C0_1 } from '$lib' with { wake: 'load' };
+			import { side } from '$lib/own';
+			import type { T0 } from '$lib';
+			import * as all from '$lib';
+			console.log(${names.join(', ')}, C0_1, side, all);
+		`
 	);
 	files.set(
 		'/app/src/App.svelte',
-		`<script module lang="ts">\n\timport { C0_0 } from '$lib';\n</script>\n<script lang="ts">\n\timport { ${names.join(', ')} } from '$lib';\n</script>\n<C0_0 />\n<style>\n\tp { color: red }\n</style>`
+		dedent`
+			<script module lang="ts">
+				import { C0_0 } from '$lib';
+			</script>
+			<script lang="ts">
+				import { ${names.join(', ')} } from '$lib';
+			</script>
+			<C0_0 />
+			<style>
+				p { color: red }
+			</style>
+		`
 	);
 	files.set('/app/src/Broken.svelte', `<script>import { C0_0 } from '$lib';\n<div>`);
 	const read = (id: string): string | null => files.get(id) ?? null;
 	const resolve = async (spec: string, importer: string): Promise<string | null> => {
 		const base = spec.startsWith('$lib')
-			? '/app/lib' + spec.slice(4)
+			? `/app/lib${spec.slice(4)}`
 			: path.posix.join(path.posix.dirname(importer), spec);
 		for (const id of [base, `${base}.ts`, `${base}/index.ts`]) if (files.has(id)) return id;
 		return null;

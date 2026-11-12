@@ -1,6 +1,7 @@
 // `import.meta.og.md(text)` renders static prose; anything that would have to run is a build error.
 import { describe, expect, it } from 'vitest';
 import { render_markdown } from '../src/markdown/render-md.ts';
+import { dedent } from '@ogygia/core/plugin/utils';
 
 const code_of = async (p: Promise<unknown>): Promise<string | undefined> => {
 	try {
@@ -17,7 +18,11 @@ describe('md() component tags', () => {
 		'Some prose, then <Foo /> inline.',
 		'<Foo>child</Foo>',
 		'<ui.Button />',
-		'# Title\n\n<Widget label="x" />\n'
+		`${dedent`
+			# Title
+
+			<Widget label="x" />
+		`}\n`
 	]) {
 		it(`a component tag is a coded build error: ${JSON.stringify(text)}`, async () => {
 			expect(await code_of(render_markdown(null, text))).toBe('content_md_dynamic');
@@ -27,7 +32,14 @@ describe('md() component tags', () => {
 	it('a component tag inside inline code or a fence is text, not an error', async () => {
 		const inline = await render_markdown(null, 'Use `<Foo />` here.');
 		expect(inline).toContain('&lt;Foo');
-		const fence = await render_markdown(null, '```svelte\n<Foo />\n```\n');
+		const fence = await render_markdown(
+			null,
+			`${dedent`
+			\`\`\`svelte
+			<Foo />
+			\`\`\`
+		`}\n`
+		);
 		expect(fence).toContain('Foo');
 	});
 

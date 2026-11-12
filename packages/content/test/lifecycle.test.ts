@@ -11,6 +11,7 @@ import { COLLECTION } from '../src/collection-base.ts';
 import { site as siteRaw } from '../src/site/site.ts';
 import { dimensions } from '../src/site/dimensions.ts';
 import { outline, pick } from '../src/site/outline.ts';
+import { dedent } from '@ogygia/core/plugin/utils';
 
 type Meta = { headings: never[] };
 const schema = v.object({ title: v.string() });
@@ -299,7 +300,11 @@ describe('site search follows the content (#193)', () => {
 			filePath: `content/docs/00-start/0${id.length}-${id}/+doc.svx`,
 			data: { title },
 			meta: { headings: [] },
-			source: async () => `# ${title}\n\n${text}`
+			source: async () => dedent`
+				# ${title}
+
+				${text}
+			`
 		}) as unknown as SourceEntry<Meta>;
 
 	it('a page a live source adds is found by the next search', async () => {
@@ -407,7 +412,11 @@ describe('a live edit that breaks the outline keeps the last good one', () => {
 			filePath: `content/docs/00-start/0${id.length}-${id}/+doc.svx`,
 			data: { title },
 			meta: { headings: [] },
-			source: async () => `# ${title}\n\nThe ${title} page.`
+			source: async () => dedent`
+				# ${title}
+
+				The ${title} page.
+			`
 		}) as unknown as SourceEntry<Meta>;
 
 	it('an entry the outline places nowhere: the nav stays, an error says why, the fix applies', async () => {

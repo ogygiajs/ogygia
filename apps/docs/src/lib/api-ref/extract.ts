@@ -87,7 +87,7 @@ export function dtsPathFor(moduleId: string): string | null {
 		exports?: ExportMap;
 		publishConfig?: { exports?: ExportMap };
 	};
-	const sub = moduleId === name ? '.' : './' + moduleId.slice(name.length + 1);
+	const sub = moduleId === name ? '.' : `./${moduleId.slice(name.length + 1)}`;
 	const types_of = (map: ExportMap | undefined) => {
 		const entry = map?.[sub];
 		return typeof entry === 'object' && entry?.types ? entry.types : null;
@@ -234,7 +234,7 @@ export async function extractModule(moduleId: string): Promise<ApiModule> {
 		let members: ApiMember[] = [];
 		if (ts.isInterfaceDeclaration(decl) || ts.isClassDeclaration(decl)) {
 			const full = stripDeclare(decl.getText());
-			text = full.slice(0, full.indexOf('{')).trim() + ' {/*…*/}';
+			text = `${full.slice(0, full.indexOf('{')).trim()} {/*…*/}`;
 			const container = decl as import('typescript').InterfaceDeclaration;
 			for (const m of container.members) {
 				if (
@@ -300,7 +300,7 @@ export async function extractModule(moduleId: string): Promise<ApiModule> {
 	const rank = { function: 0, component: 1, class: 2, const: 3, interface: 4, type: 5, other: 6 };
 	out.sort((a, b) => rank[a.kind] - rank[b.kind] || a.name.localeCompare(b.name));
 
-	const dists = TYPE_SOURCES.map((name) => path.join(packageRoot(name), 'dist') + path.sep);
+	const dists = TYPE_SOURCES.map((name) => `${path.join(packageRoot(name), 'dist')}${path.sep}`);
 	const files = program
 		.getSourceFiles()
 		.map((f) => f.fileName)

@@ -36,14 +36,14 @@ describe('frame address', () => {
 	it('a renewal (its parameters written again, without the flag) is the same address', () => {
 		const url = new URL(frag('org=a b/c'), 'https://shell.example');
 		url.searchParams.set('exp', '300');
-		expect(frameAddress(url.pathname + '?' + url.searchParams)).toBe(
+		expect(frameAddress(`${url.pathname}?${url.searchParams}`)).toBe(
 			frameAddress(frag('org=a b/c'))
 		);
-		expect(frameAddress(frag('org=acme') + '&renew=1')).toBe(frameAddress(frag('org=acme')));
+		expect(frameAddress(`${frag('org=acme')}&renew=1`)).toBe(frameAddress(frag('org=acme')));
 	});
 
 	it('an endpoint resolved against its page is the same address as written', () => {
-		expect(frameAddress('https://shell.example' + hole('x', 'p'))).toBe(
+		expect(frameAddress(`https://shell.example${hole('x', 'p')}`)).toBe(
 			frameAddress(hole('x', 'p'))
 		);
 	});

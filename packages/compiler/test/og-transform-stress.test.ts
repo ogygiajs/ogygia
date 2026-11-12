@@ -8,6 +8,7 @@
 import { describe, expect, it } from 'vitest';
 import { rewrite_wire, WIRE_EXPR } from '../src/compiler/macros/wire.ts';
 import { og_js_regions } from '../src/compiler/parse/scan.ts';
+import { dedent } from '@ogygia/core/contract';
 
 const MARKUP = ['.svelte'] as const;
 const CODEC = `{ encode: (c) => c.v, decode: (v) => new C(v) }`;
@@ -121,7 +122,12 @@ describe('wire — demented shapes that must still WORK', () => {
 	});
 
 	it('the codec spans many lines with nested braces and a trailing comma', () => {
-		const codec = `{\n\tencode: (c) => ({ a: c.a, b: { deep: c.b } }),\n\tdecode: (d) => new C(d),\n}`;
+		const codec = dedent`
+			{
+				encode: (c) => ({ a: c.a, b: { deep: c.b } }),
+				decode: (d) => new C(d),
+			}
+		`;
 		const out = rewrite_wire(
 			`class C { static wire = import.meta.og.wire(${codec}); }`,
 			'/x.ts',
@@ -138,11 +144,11 @@ describe('wire — demented shapes that must still WORK', () => {
 	});
 
 	it('a .svelte with TWO script blocks — only the one with the class rewrites', () => {
-		const src = [
-			`<script module lang="ts">export class C { static wire = import.meta.og.wire(${CODEC}); }</script>`,
-			`<script lang="ts">let { c } = $props();</script>`,
-			`<b>hi</b>`
-		].join('\n');
+		const src = dedent`
+			<script module lang="ts">export class C { static wire = import.meta.og.wire(${CODEC}); }</script>
+			<script lang="ts">let { c } = $props();</script>
+			<b>hi</b>
+		`;
 		const out = rewrite_wire(src, '/C.svelte', MARKUP);
 		expect(out).toContain(WIRE_EXPR);
 		expect(out).toContain('let { c } = $props();');
@@ -154,11 +160,11 @@ describe('scanner fallback — when the AST bails on an unparseable tail', () =>
 	const BROKEN = '\nconst broken = (';
 
 	it('wire: still rewrites the valid member, comment/string markers untouched', () => {
-		const src = [
-			`// mention import.meta.og.wire() in a comment`,
-			`const doc = "static wire = import.meta.og.wire({})";`,
-			`class C { static wire = import.meta.og.wire(${CODEC}); }` + BROKEN
-		].join('\n');
+		const src = dedent`
+			// mention import.meta.og.wire() in a comment
+			const doc = "static wire = import.meta.og.wire({})";
+			class C { static wire = import.meta.og.wire(${CODEC}); }${BROKEN}
+		`;
 		const out = rewrite_wire(src, '/x.ts', MARKUP);
 		expect(out).toContain(`static [${WIRE_EXPR}] = ${CODEC}`);
 		expect(out).toContain(`// mention import.meta.og.wire() in a comment`);
@@ -166,20 +172,14 @@ describe('scanner fallback — when the AST bails on an unparseable tail', () =>
 	});
 
 	it('wire: a marker inside a REGEX literal is not rewritten by the fallback', () => {
-		const src =
-			`const re = /static wire = import.meta.og.wire/g;\nclass C { static wire = import.meta.og.wire(${CODEC}); }` +
-			BROKEN;
+		const src = `const re = /static wire = import.meta.og.wire/g;\nclass C { static wire = import.meta.og.wire(${CODEC}); }${BROKEN}`;
 		const out = rewrite_wire(src, '/x.ts', MARKUP);
 		expect(out).toContain(`const re = /static wire = import.meta.og.wire/g;`); // regex untouched
 		expect(out).toContain(`static [${WIRE_EXPR}] = ${CODEC}`);
 	});
 
 	it('wire: a marker at a template-literal boundary is not rewritten by the fallback', () => {
-		const src =
-			'const t = `x static wire = import.meta.og.wire() y`;\nclass C { static wire = import.meta.og.wire(' +
-			CODEC +
-			'); }' +
-			BROKEN;
+		const src = `const t = \`x static wire = import.meta.og.wire() y\`;\nclass C { static wire = import.meta.og.wire(${CODEC}); }${BROKEN}`;
 		const out = rewrite_wire(src, '/x.ts', MARKUP);
 		expect(out).toContain('const t = `x static wire = import.meta.og.wire() y`;');
 		expect(out).toContain(`static [${WIRE_EXPR}] = ${CODEC}`);
@@ -303,7 +303,7 @@ describe('robustness — never throws a low-level error, only build-voice or cle
 	const junk = [
 		'{{{{{{',
 		'static wire = import.meta.og.wire(', // truncated
-		'class C { static wire = import.meta.og.wire(' + CODEC, // unbalanced tail
+		`class C { static wire = import.meta.og.wire(${CODEC}`, // unbalanced tail
 		'import.meta.og',
 		'import.meta.og.',
 		'\0\0\0 import.meta.og.wire',

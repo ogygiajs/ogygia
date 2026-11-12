@@ -261,7 +261,7 @@ export function appendTransportRegistrations(
 	if (classes.length === 0 && contexts.length === 0) return null;
 
 	const rel = path.relative(root, id_n).split('\\').join('/');
-	return code + registrationBlock(rel, classes, contexts) + '\n';
+	return `${code + registrationBlock(rel, classes, contexts)}\n`;
 }
 
 function registrationBlock(rel: string, classes: string[], contexts: string[]): string {
@@ -277,8 +277,8 @@ function registrationBlock(rel: string, classes: string[], contexts: string[]): 
 		// no-window realm (dev SSR) would crash at module-eval. See internal-register.ts.
 		`import { ${imports.join(', ')} } from 'ogygia/internal/register';`
 	];
-	for (const name of classes) lines.push(`__OGT(${JSON.stringify(rel + '#' + name)}, ${name});`);
-	for (const name of contexts) lines.push(`__OGC(${JSON.stringify(rel + '#' + name)}, ${name});`);
+	for (const name of classes) lines.push(`__OGT(${JSON.stringify(`${rel}#${name}`)}, ${name});`);
+	for (const name of contexts) lines.push(`__OGC(${JSON.stringify(`${rel}#${name}`)}, ${name});`);
 	return lines.join('\n');
 }
 
@@ -324,6 +324,6 @@ export function appendSvelteModuleRegistrations(
 	const exported = exportedWireClassNames(mod.body, id_n.replace(SVELTE_EXT, '.svelte.ts'));
 	if (exported.length === 0) return null;
 	const rel = path.relative(root, id_n).split('\\').join('/');
-	const block = '\n' + registrationBlock(rel, exported, []) + '\n';
+	const block = `\n${registrationBlock(rel, exported, [])}\n`;
 	return code.slice(0, mod.injectAt) + block + code.slice(mod.injectAt);
 }

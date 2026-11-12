@@ -467,9 +467,7 @@ describe('lift_document — an app’s full HTML → the wire shape', () => {
 				'/_app/ogygia/og-region.bbbbbbbbbbbb.js': '/_app/immutable/og-region.bbbbbbbbbbbb.X1.js'
 			}
 		};
-		const body =
-			'<ogygia-region entry="/_app/ogygia/og-region.aaaaaaaaaaaa.js"></ogygia-region>' +
-			`<script type="application/json" data-ogygia-graph>${JSON.stringify(graph)}</script>`;
+		const body = `<ogygia-region entry="/_app/ogygia/og-region.aaaaaaaaaaaa.js"></ogygia-region><script type="application/json" data-ogygia-graph>${JSON.stringify(graph)}\x3C/script>`;
 		const d = lift_document(`<html><head></head><body>${body}</body></html>`, 'http://cms.test');
 		const json = /data-ogygia-graph>([^<]*)</.exec(d.body)![1];
 		expect(JSON.parse(json)).toEqual({
@@ -518,9 +516,7 @@ describe('lift_document — an app’s full HTML → the wire shape', () => {
 
 	it('takes the runtime only from a real runtime script, never from text that looks like one (#972)', () => {
 		const d = lift_document(
-			`<html><head></head><body><script>s='<script data-ogygia-runtime src="//evil.example/r.js">'</script>` +
-				`<!-- <script data-ogygia-runtime src="//evil.example/c.js"></script> -->` +
-				`<textarea><script data-ogygia-runtime src="//evil.example/t.js"></script></textarea></body></html>`,
+			`<html><head></head><body><script>s='<script data-ogygia-runtime src="//evil.example/r.js">'</script><!-- <script data-ogygia-runtime src="//evil.example/c.js"></script> --><textarea><script data-ogygia-runtime src="//evil.example/t.js"></script></textarea></body></html>`,
 			'https://peer.example'
 		);
 		expect(d.runtime).toBeUndefined();
@@ -528,9 +524,7 @@ describe('lift_document — an app’s full HTML → the wire shape', () => {
 
 	it('lifts no stylesheet a head comment holds, and reads the head past a </head> in script text (#973)', () => {
 		const d = lift_document(
-			`<html><head><!-- <link rel="stylesheet" href="/_app/old.css"> -->` +
-				`<script>x="</head>"</script><link rel="stylesheet" href="/_app/a.css">` +
-				`<styled-thing>y</styled-thing><style>p{color:red}</style><title>t</title></head><body>b</body></html>`,
+			`<html><head><!-- <link rel="stylesheet" href="/_app/old.css"> --><script>x="</head>"</script><link rel="stylesheet" href="/_app/a.css"><styled-thing>y</styled-thing><style>p{color:red}</style><title>t</title></head><body>b</body></html>`,
 			'https://peer.example'
 		);
 		expect(d.css).toEqual([

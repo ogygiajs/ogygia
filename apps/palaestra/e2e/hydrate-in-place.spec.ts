@@ -59,7 +59,7 @@ test.describe('islands adopt SSR root (no discard+recreate / class-less flash)',
 		check(
 			'islands hydrate IN PLACE (SSR root adopted, not re-created)',
 			stats.hydrated > 0 && stats.recreated.length === 0,
-			`${stats.recreated.length}/${stats.hydrated} re-created${stats.recreated.length ? ': ' + stats.recreated.join(', ') : ''}`
+			`${stats.recreated.length}/${stats.hydrated} re-created${stats.recreated.length ? `: ${stats.recreated.join(', ')}` : ''}`
 		);
 		check('no page errors during hydration', errs.length === 0, errs.slice(0, 2).join('; '));
 	});

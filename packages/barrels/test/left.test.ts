@@ -15,6 +15,7 @@ import type {
 } from '@ogygia/compiler/vite';
 import { fixture, type Fixture } from './_fixture.ts';
 import { barrels, type BarrelsOptions } from '../src/index.ts';
+import { dedent } from '@ogygia/core/plugin/utils';
 
 let f: Fixture;
 afterEach(() => f?.dispose());
@@ -141,7 +142,11 @@ describe('each import the plugin leaves on its barrel is told, with the reason',
 			...base,
 			'lib/x1.ts': 'export const dup = 1;',
 			'lib/x2.ts': 'export const dup = 2;',
-			'lib/index.ts': `export { a } from './a';\nexport * from './x1';\nexport * from './x2';`,
+			'lib/index.ts': dedent`
+				export { a } from './a';
+				export * from './x1';
+				export * from './x2';
+			`,
 			'src/x.ts': `import { a, dup } from '$lib';\nconsole.log(a, dup);`
 		});
 		expect(await left_of('src/x.ts')).toEqual([left(f.id('lib/index.ts'), ['dup'], 'ambiguous')]);
@@ -180,8 +185,18 @@ describe('what is not a barrel left behind says nothing', () => {
 		f = fixture({
 			...base,
 			'lib/util.ts': 'export function util() {}\nglobalThis.x = 1;',
-			'lib/index.ts': `export { a } from './a';\nexport { b } from './b';\nexport type T = number;`,
-			'src/x.ts': `import { a, nope } from '$lib';\nimport { util } from '$lib/util';\nimport type { T } from '$lib';\nimport '$lib';\nconsole.log(a, nope, util);`
+			'lib/index.ts': dedent`
+				export { a } from './a';
+				export { b } from './b';
+				export type T = number;
+			`,
+			'src/x.ts': dedent`
+				import { a, nope } from '$lib';
+				import { util } from '$lib/util';
+				import type { T } from '$lib';
+				import '$lib';
+				console.log(a, nope, util);
+			`
 		});
 		expect(await left_of('src/x.ts')).toEqual([]);
 	});

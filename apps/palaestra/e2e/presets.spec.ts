@@ -7,6 +7,7 @@ import {
 import { CTX_EXTRA } from './_ctx-extra.ts';
 import { test, check } from '@ogygia/tooling/e2e';
 import { WRAPPER_VIRTUAL_RE } from '@ogygia/tooling/e2e/re.ts';
+import { dedent } from 'ogygia/plugin/utils';
 
 const VISIBLE_200PX_RE = /visible=\{?"200px"\}?/;
 const VISIBLE_0PX_RE = /visible=\{?"0px"\}?/;
@@ -37,7 +38,7 @@ const base_ctx = {
 	dev: false,
 	virtualPathFor: (_hostId: string, iid: string) => `ogygia:region/entry/${iid}.js`,
 	wrapperPathFor: (_hostId: string, iid: string) => wrapperVirtualId(iid),
-	devUrlFor: (p: string) => '/@id/' + p,
+	devUrlFor: (p: string) => `/@id/${p}`,
 	visibleMargin: '0px',
 	presets: {
 		chart: { wake: 'visible', margin: '200px' },
@@ -47,12 +48,17 @@ const base_ctx = {
 };
 const HOST = '/app/src/routes/+page.svelte';
 const run = (src: string, ctx = base_ctx) => transformHost(src, HOST, ctx);
-const wrap = (imp: string, usage = '<C />') => `<script>\n${imp}\n</script>\n${usage}`;
+const wrap = (imp: string, usage = '<C />') => dedent`
+	<script>
+	${imp}
+	</script>
+	${usage}
+`;
 const wrap_src = (r: ReturnType<typeof run>) => r?.islands?.[0]?.wrapperSource ?? '';
 function expect_error(label: string, src: string, re: RegExp) {
 	try {
 		run(src);
-		check(label + ' (throws)', false, 'no error thrown');
+		check(`${label} (throws)`, false, 'no error thrown');
 	} catch (e) {
 		check(label, re.test((e as Error).message), (e as Error).message.slice(0, 90));
 	}

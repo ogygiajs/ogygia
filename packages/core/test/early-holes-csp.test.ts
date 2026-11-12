@@ -125,9 +125,7 @@ describe('the early start script under a CSP', () => {
 	});
 
 	it('a commented-out policy meta, or a report-only one (which a meta cannot carry), is left as is', () => {
-		const head =
-			'<!-- <meta http-equiv="content-security-policy" content="script-src \'self\'"> -->' +
-			'<meta http-equiv="content-security-policy-report-only" content="script-src \'self\'">';
+		const head = `<!-- <meta http-equiv="content-security-policy" content="script-src 'self'"> --><meta http-equiv="content-security-policy-report-only" content="script-src 'self'">`;
 		expect(with_early_holes_meta_csp(head)).toBe(head);
 	});
 

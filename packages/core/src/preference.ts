@@ -42,8 +42,8 @@ export interface Preference {
 	get(): string;
 }
 
-const KEY = (name: string) => 'og-pref-' + name;
-const ATTR = (name: string) => 'data-pref-' + name;
+const KEY = (name: string) => `og-pref-${name}`;
+const ATTR = (name: string) => `data-pref-${name}`;
 
 /**
  * ONE delegated click handler that wires every preference switcher on the page: a click on any

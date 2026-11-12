@@ -51,7 +51,7 @@ describe('fn kind (og.$ runtime half)', () => {
 	});
 
 	it('a handle travels as its tag and captures: no source rides along', () => {
-		__register_fn('test/z#$0', (p: string) => () => 'ok:' + p);
+		__register_fn('test/z#$0', (p: string) => () => `ok:${p}`);
 		const payload = enc(fn_handle('test/z#$0', ['a']));
 		expect(payload).not.toContain('ok:');
 		// a tag the decoding side's table lacks is refused (test/fn-wire-source.test.ts)

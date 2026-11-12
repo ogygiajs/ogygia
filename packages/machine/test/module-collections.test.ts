@@ -9,7 +9,7 @@ afterEach(() => vi.restoreAllMocks());
 it('the once-per-warning memory is bounded: past its size, the oldest warning can be said again', () => {
 	const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
 	const say = (i: number) =>
-		warn_once('machine_illegal_move', { name: 'm' + i, from: 'a', to: 'b' });
+		warn_once('machine_illegal_move', { name: `m${i}`, from: 'a', to: 'b' });
 	say(0);
 	say(0);
 	expect(warn).toHaveBeenCalledTimes(1);

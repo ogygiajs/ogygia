@@ -71,7 +71,7 @@ export function start_edge_emulator(options: {
 		if (path.endsWith('/*')) {
 			const prefix = path.slice(0, -2);
 			for (const key of cache.keys()) {
-				if (key === prefix || key.startsWith(prefix + '/')) cache.delete(key);
+				if (key === prefix || key.startsWith(`${prefix}/`)) cache.delete(key);
 			}
 		} else {
 			cache.delete(path);

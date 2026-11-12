@@ -34,9 +34,7 @@ function serve(pages: Record<string, { head?: string; body: string }>): void {
 		const page = pages[u.pathname];
 		if (!page) return real_fetch(input);
 		return html_response(
-			'<!doctype html><html><head><meta name="ogygia-router" content="plain"><title>p</title>' +
-				(page.head ?? '') +
-				`</head><body>${page.body}</body></html>`,
+			`<!doctype html><html><head><meta name="ogygia-router" content="plain"><title>p</title>${page.head ?? ''}</head><body>${page.body}</body></html>`,
 			u.href
 		);
 	};
@@ -50,10 +48,7 @@ const go = (path: string) => new SpaRouter().navigate(new URL(path, location.hre
 
 test('a sheet two outer islands share stays while the second is kept and the first left', async () => {
 	document.head.insertAdjacentHTML('beforeend', style('fp-first'));
-	document.body.innerHTML =
-		region('fp-first') +
-		region('fp-second') +
-		`<script type="application/json" data-og-owners>${JSON.stringify({ [SHEET]: ['fp-second'] })}</script>`;
+	document.body.innerHTML = `${region('fp-first')}${region('fp-second')}<script type="application/json" data-og-owners>${JSON.stringify({ [SHEET]: ['fp-second'] })}\x3C/script>`;
 	bootDev();
 	serve({
 		// (the server skipped the island the browser has: nothing on this page writes the sheet)

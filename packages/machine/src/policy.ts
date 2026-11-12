@@ -31,8 +31,8 @@ export interface Policy {
 
 function bad(option: string, value: unknown, rule: string): Error {
 	return machine_error('machine_bad_option', {
-		option: 'policy ' + option,
-		value: Array.isArray(value) ? '[' + value.join(', ') + ']' : String(value),
+		option: `policy ${option}`,
+		value: Array.isArray(value) ? `[${value.join(', ')}]` : String(value),
 		rule
 	});
 }
@@ -91,8 +91,7 @@ export function backoffAfter(p: Policy, n: number, random: number = randomness.f
 /** What tries that ran out of time failed with: the deadline, and the last try's own error. */
 export function out_of_time(deadline: number, error: unknown): DOMException {
 	return new DOMException(
-		`no try was done within ${deadline} ms` +
-			(error === undefined ? '' : ` (last: ${String(error)})`),
+		`no try was done within ${deadline} ms${error === undefined ? '' : ` (last: ${String(error)})`}`,
 		'TimeoutError'
 	);
 }

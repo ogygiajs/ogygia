@@ -162,7 +162,7 @@ function island_of(node: Node | null | undefined): Element | null {
 export function describe_el(el: Element | null | undefined): string {
 	if (!el) return '(unknown)';
 	let s = el.localName;
-	if (el.id) s += '#' + el.id;
+	if (el.id) s = `${s}#${el.id}`;
 	const cls =
 		typeof el.className === 'string'
 			? el.className
@@ -171,7 +171,7 @@ export function describe_el(el: Element | null | undefined): string {
 					.filter((c) => c && !c.startsWith('svelte-'))
 					.slice(0, 2)
 			: [];
-	if (cls.length) s += '.' + cls.join('.');
+	if (cls.length) s = `${s}.${cls.join('.')}`;
 	const text = (el.textContent ?? '').trim().slice(0, 24);
 	return text ? `${s} "${text}${(el.textContent ?? '').trim().length > 24 ? '…' : ''}"` : s;
 }
@@ -465,9 +465,7 @@ export function start_session(prior?: SavedPart[]): Recorder {
 		errors.length < 200 &&
 		errors.push({
 			t: r1(performance.now()),
-			message:
-				'unhandled rejection: ' +
-				String((e.reason as { message?: string })?.message ?? e.reason).slice(0, 280)
+			message: `unhandled rejection: ${String((e.reason as { message?: string })?.message ?? e.reason).slice(0, 280)}`
 		});
 	s.on(globalThis, 'error', on_error);
 	s.on(globalThis, 'unhandledrejection', on_rej);
@@ -477,12 +475,10 @@ export function start_session(prior?: SavedPart[]): Recorder {
 		if (errors.length < 200)
 			errors.push({
 				t: r1(performance.now()),
-				message:
-					'console.error: ' +
-					args
-						.map((a) => (a instanceof Error ? a.message : String(a)))
-						.join(' ')
-						.slice(0, 280)
+				message: `console.error: ${args
+					.map((a) => (a instanceof Error ? a.message : String(a)))
+					.join(' ')
+					.slice(0, 280)}`
 			});
 		console_error.apply(console, args);
 	};

@@ -34,7 +34,7 @@ const app: App = {
 	label: 'x'
 };
 const leg = { ssr: true, universalHooks: null };
-const R = (id: string): string => '\0ogygia:server/' + id;
+const R = (id: string): string => `\0ogygia:server/${id}`;
 
 function table(): VirtualTable<App> {
 	return new VirtualTable<App>(

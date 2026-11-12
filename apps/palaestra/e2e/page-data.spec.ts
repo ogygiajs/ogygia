@@ -64,7 +64,7 @@ test.describe('$page.data reaches islands + load promises STREAM in (marker seed
 	test('stream level: the document ships before either promise settles; resolves stream fast-first', async ({
 		baseURL
 	}) => {
-		const { doc, full, doc_ms, fast_ms, slow_ms } = await stream_probe(baseURL + '/page-data', {
+		const { doc, full, doc_ms, fast_ms, slow_ms } = await stream_probe(`${baseURL}/page-data`, {
 			'sec-fetch-mode': 'navigate',
 			accept: 'text/html'
 		});
@@ -108,7 +108,7 @@ test.describe('$page.data reaches islands + load promises STREAM in (marker seed
 		const errors: string[] = [];
 		page.on('pageerror', (e) => errors.push(e.message));
 		page.on('console', (m) => {
-			if (m.type() === 'error') errors.push('console: ' + m.text());
+			if (m.type() === 'error') errors.push(`console: ${m.text()}`);
 		});
 		await page.goto('/page-data', { waitUntil: 'networkidle' });
 		await page.waitForTimeout(200);

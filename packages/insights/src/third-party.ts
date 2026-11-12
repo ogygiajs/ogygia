@@ -67,7 +67,7 @@ const KNOWN: [string, ThirdPartyKind][] = [
 
 export function kind_of_host(host: string): ThirdPartyKind {
 	for (const [suffix, kind] of KNOWN)
-		if (host === suffix || host.endsWith('.' + suffix)) return kind;
+		if (host === suffix || host.endsWith(`.${suffix}`)) return kind;
 	return 'other';
 }
 
@@ -274,10 +274,7 @@ export function third_party_findings(
 				(tp.cpu_ms ?? 0) >= 200 || tp.blocking > 0 || tp.script_bytes >= 200 * 1024
 					? 'warn'
 					: 'info',
-			message:
-				`${tp.origins.length} other origin${tp.origins.length === 1 ? '' : 's'} served ${served}${tp.cpu_ms !== null ? ` and ran ${Math.round(tp.cpu_ms)} ms on the main thread` : ''}` +
-				`${tp.runtime_loaded ? `; ${tp.runtime_loaded} of their scripts the page never names, loaded by other scripts (how a tag manager or a self-loading library adds code)` : ''}. ` +
-				`The heaviest: ${(heavy.length ? heavy : tp.origins).slice(0, 3).map(label).join('; ')}.`,
+			message: `${tp.origins.length} other origin${tp.origins.length === 1 ? '' : 's'} served ${served}${tp.cpu_ms !== null ? ` and ran ${Math.round(tp.cpu_ms)} ms on the main thread` : ''}${tp.runtime_loaded ? `; ${tp.runtime_loaded} of their scripts the page never names, loaded by other scripts (how a tag manager or a self-loading library adds code)` : ''}. The heaviest: ${(heavy.length ? heavy : tp.origins).slice(0, 3).map(label).join('; ')}.`,
 			fix: [
 				...new Set(
 					(heavy.length ? heavy : tp.origins)

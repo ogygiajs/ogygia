@@ -7,7 +7,7 @@
 	const view = (await post(page.params.slug!))!;
 
 	const pretty = (iso: string) =>
-		new Date(iso + 'T00:00:00Z').toLocaleDateString('en-US', {
+		new Date(`${iso}T00:00:00Z`).toLocaleDateString('en-US', {
 			year: 'numeric',
 			month: 'long',
 			day: 'numeric',

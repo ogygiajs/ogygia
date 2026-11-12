@@ -39,27 +39,19 @@ describe('absolutize_hole_html', () => {
 	});
 
 	it('leaves absolute and foreign (federation) entries alone', () => {
-		const html =
-			'<ogygia-region entry="/_app/immutable/a.js"></ogygia-region>' +
-			'<ogygia-region entry="https://cms.example.com/_app/immutable/b.js"></ogygia-region>';
+		const html = `<ogygia-region entry="/_app/immutable/a.js"></ogygia-region><ogygia-region entry="https://cms.example.com/_app/immutable/b.js"></ogygia-region>`;
 		expect(absolutize_hole_html(html, base)).toBe(html);
 	});
 
 	it('rewrites region-css link hrefs and nothing else in the markup', () => {
-		const html =
-			'<link rel="stylesheet" href="./_app/immutable/assets/hole.css" data-ogygia-region-css>' +
-			'<a href="./relative-link/">keep</a><img src="./img.png">';
+		const html = `<link rel="stylesheet" href="./_app/immutable/assets/hole.css" data-ogygia-region-css><a href="./relative-link/">keep</a><img src="./img.png">`;
 		const out = absolutize_hole_html(html, base);
 		expect(out).toContain('href="/_app/immutable/assets/hole.css" data-ogygia-region-css');
 		expect(out).toContain('<a href="./relative-link/">keep</a><img src="./img.png">');
 	});
 
 	it('reads region tags as a browser does: any case, any quoting, a quoted `>`, not in a comment', () => {
-		const html =
-			'<!-- <ogygia-region entry="./_app/immutable/gone.js"></ogygia-region> -->' +
-			'<OGYGIA-REGION ENTRY="./_app/immutable/a.js"></OGYGIA-REGION>' +
-			"<ogygia-region entry='./_app/immutable/b.js'></ogygia-region>" +
-			'<ogygia-region data-note="a>b" entry="./_app/immutable/c.js"></ogygia-region>';
+		const html = `<!-- <ogygia-region entry="./_app/immutable/gone.js"></ogygia-region> --><OGYGIA-REGION ENTRY="./_app/immutable/a.js"></OGYGIA-REGION><ogygia-region entry='./_app/immutable/b.js'></ogygia-region><ogygia-region data-note="a>b" entry="./_app/immutable/c.js"></ogygia-region>`;
 		const out = absolutize_hole_html(html, base);
 		expect(out).toContain('entry="./_app/immutable/gone.js"');
 		expect(out).toContain('ENTRY="/_app/immutable/a.js"');
@@ -68,9 +60,7 @@ describe('absolutize_hole_html', () => {
 	});
 
 	it('rewrites a region-css link only when the attribute is on it, read as a browser does', () => {
-		const html =
-			'<link rel="stylesheet" href="./_app/immutable/assets/data-ogygia-region-css.css">' +
-			'<LINK REL="stylesheet" HREF="./_app/immutable/assets/hole.css" DATA-OGYGIA-REGION-CSS>';
+		const html = `<link rel="stylesheet" href="./_app/immutable/assets/data-ogygia-region-css.css"><LINK REL="stylesheet" HREF="./_app/immutable/assets/hole.css" DATA-OGYGIA-REGION-CSS>`;
 		const out = absolutize_hole_html(html, base);
 		expect(out).toContain('href="./_app/immutable/assets/data-ogygia-region-css.css"');
 		expect(out).toContain('HREF="/_app/immutable/assets/hole.css"');

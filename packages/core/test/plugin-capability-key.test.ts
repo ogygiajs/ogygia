@@ -59,7 +59,7 @@ describe('a plugin capability', () => {
 
 	it('with its key named but its signature changed is still a bad signature', () => {
 		const minted = v1.mint(message);
-		const forged = address({ ...minted, sig: minted.sig.slice(1) + 'A' });
+		const forged = address({ ...minted, sig: `${minted.sig.slice(1)}A` });
 		const opened = v1.open(forged, message);
 		expect(!opened.ok && opened.response.headers.get('x-ogygia-deny')).toBe('sig');
 	});

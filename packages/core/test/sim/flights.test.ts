@@ -167,7 +167,7 @@ describe('flights, simulated', () => {
 										callers.push(c);
 										return f.get(s.key, { signal: leave?.signal, fresh: s.fresh }).then(
 											(v) => (c.got = v === STALE ? 'STALE' : `run ${v.run}`),
-											(e: unknown) => (c.got = 'failed: ' + String(e))
+											(e: unknown) => (c.got = `failed: ${String(e)}`)
 										);
 									}
 								];

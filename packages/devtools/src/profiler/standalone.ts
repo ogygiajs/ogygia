@@ -181,12 +181,7 @@ export async function build_standalone(html: string, opts: StandaloneOptions): P
 		// (its other attributes as written: the tag's text without its `type` and `src`)
 		const cut = [attr_span(html, t, 'script', 'type')!, attr_span(html, t, 'script', 'src')!];
 		cut.sort((a, b) => a[0] - b[0]);
-		const attrs =
-			html.slice(t.start + 7, cut[0][0]) +
-			' ' +
-			html.slice(cut[0][1], cut[1][0]) +
-			' ' +
-			html.slice(cut[1][1], t.end - 1);
+		const attrs = `${html.slice(t.start + 7, cut[0][0])} ${html.slice(cut[0][1], cut[1][0])} ${html.slice(cut[1][1], t.end - 1)}`;
 		scripts.push({ t, attrs: attrs.replace(WS_G, ' ').trim(), url: new URL(src, base) });
 	}
 	const inlined: Splice[] = [];
@@ -230,7 +225,7 @@ export async function build_standalone(html: string, opts: StandaloneOptions): P
 	const imports: Record<string, string> = {};
 	for (const [key, code] of chunks) {
 		if (!code) continue;
-		imports[key] = 'data:text/javascript;base64,' + Buffer.from(code, 'utf8').toString('base64');
+		imports[key] = `data:text/javascript;base64,${Buffer.from(code, 'utf8').toString('base64')}`;
 	}
 	const map = `<script type="importmap">${JSON.stringify({ imports }).replaceAll('</script', '<\\/script')}</script>`;
 	const note = `<!-- ogygia profiler · standalone report · ${Object.keys(imports).length} chunks inlined${missing.length ? ` · missing: ${missing.join(', ')}` : ''} -->`;

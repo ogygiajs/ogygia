@@ -63,39 +63,48 @@ if (
 	command !== 'bisect'
 ) {
 	const unknown = command && command !== 'help' && !command.startsWith('-');
-	stdout.write(
-		`${strong('ogygia')} ${dim(`v${version}`)}\n\n` +
-			`Usage:\n` +
-			`  ${accent('npx ogygia init')} ${dim('[--markdown] [--no-install] [-y]')}\n` +
-			`  ${accent('npx ogygia site init')} ${dim('[--layout <path>] [--force] [--no-install] [-y]')}\n` +
-			`  ${accent('npx ogygia keys')} ${dim('[name] (mint an Ed25519 pair for fragment-federation signing)')}\n` +
-			`  ${accent('npx ogygia fragments')} ${dim('<origin> [--out <file>] [--check <file>] (typed widget-catalog stubs + CI drift check)')}\n` +
-			`  ${accent('npx ogygia ai')} ${dim('(install the Claude skill + register the MCP server)')}\n` +
-			`  ${accent('npx ogygia mcp')} ${dim('(stdio MCP server — hand ogygia components to an AI)')}\n` +
-			`  ${accent('npx ogygia perf')} ${dim('--url <origin> --pages /a,/b [--baseline f.json] [--budget b.json] [--out f.json] [--md f.md]')}\n` +
-			`  ${accent('npx ogygia bisect')} ${dim('--good <sha> [--bad HEAD] --page /x --build "<cmd>" --start "<cmd>" --url <origin>')}\n\n` +
-			`${strong('perf')}  — renders pages under the SSR profiler on a running server, writes a snapshot, diffs it\n` +
-			`  against a baseline under a budget, prints the verdict (exit 1 on a failure) and a PR comment (--md).\n` +
-			`  ${dim('--runs 5 --key $OGYGIA_PROFILER_SECRET --label "$SHA" --no-fail --pages-file pages.json')}\n\n` +
-			`${strong('bisect')}  — finds the first commit that made a page slower: builds and profiles commits between\n` +
-			`  --good and --bad in a binary search (each in its own worktree) and names the culprit.\n\n` +
-			`${strong('init')}  — wires ogygia into the SvelteKit app in the current directory.\n` +
-			`  --markdown / --no-markdown   turn markdown content collections on/off (else you are asked)\n` +
-			`  -y, --yes                    accept defaults, no prompts\n` +
-			`  --no-install                 edit package.json but skip installing\n\n` +
-			`${strong('site init')}  — scaffolds a docs site (site, content, routes, a Shell layout).\n` +
-			`  --layout <path>              layout route to write (default ${dim('src/routes/+layout.svelte')})\n` +
-			`  --force                      overwrite existing route/site files (the layout always asks)\n` +
-			`  -y, --yes                    accept defaults, no prompts\n\n` +
-			`${strong('keys')}  — prints a caller keypair as env lines (${dim('<NAME>_SIGNING_KEY')} stays with the caller,\n` +
-			`  ${dim('<NAME>_PUBLIC_KEY')} goes to the apps it calls). Redirect where you like: ${dim('npx ogygia keys shell >> keys.env')}\n\n` +
-			`${strong('fragments')}  — typed stubs for an MFE's widget catalog (its unsigned ${dim('__catalog')} manifest).\n` +
-			`  ${dim('--out stubs.ts')} writes the stub; ${dim('--check stubs.ts')} exits 1 when the live catalog drifted (CI).\n\n` +
-			`${strong('ai')}  — installs the ogygia Claude skill into ${dim('.claude/skills/ogygia/')} and registers the MCP\n` +
-			`  server in ${dim('.mcp.json')}, so any agent on this repo gets the mental model + live compiler tools.\n\n` +
-			`${strong('mcp')}  — runs a Model Context Protocol server on stdio. Point an MCP client at it to give an\n` +
-			`  AI the real ogygia compiler: compile a component, read its island map, validate it, explain it.\n`
-	);
+	// (one template, flush left: the CLI runs before the app has core, so no dedent here)
+	stdout.write(`${strong('ogygia')} ${dim(`v${version}`)}
+
+Usage:
+  ${accent('npx ogygia init')} ${dim('[--markdown] [--no-install] [-y]')}
+  ${accent('npx ogygia site init')} ${dim('[--layout <path>] [--force] [--no-install] [-y]')}
+  ${accent('npx ogygia keys')} ${dim('[name] (mint an Ed25519 pair for fragment-federation signing)')}
+  ${accent('npx ogygia fragments')} ${dim('<origin> [--out <file>] [--check <file>] (typed widget-catalog stubs + CI drift check)')}
+  ${accent('npx ogygia ai')} ${dim('(install the Claude skill + register the MCP server)')}
+  ${accent('npx ogygia mcp')} ${dim('(stdio MCP server — hand ogygia components to an AI)')}
+  ${accent('npx ogygia perf')} ${dim('--url <origin> --pages /a,/b [--baseline f.json] [--budget b.json] [--out f.json] [--md f.md]')}
+  ${accent('npx ogygia bisect')} ${dim('--good <sha> [--bad HEAD] --page /x --build "<cmd>" --start "<cmd>" --url <origin>')}
+
+${strong('perf')}  — renders pages under the SSR profiler on a running server, writes a snapshot, diffs it
+  against a baseline under a budget, prints the verdict (exit 1 on a failure) and a PR comment (--md).
+  ${dim('--runs 5 --key $OGYGIA_PROFILER_SECRET --label "$SHA" --no-fail --pages-file pages.json')}
+
+${strong('bisect')}  — finds the first commit that made a page slower: builds and profiles commits between
+  --good and --bad in a binary search (each in its own worktree) and names the culprit.
+
+${strong('init')}  — wires ogygia into the SvelteKit app in the current directory.
+  --markdown / --no-markdown   turn markdown content collections on/off (else you are asked)
+  -y, --yes                    accept defaults, no prompts
+  --no-install                 edit package.json but skip installing
+
+${strong('site init')}  — scaffolds a docs site (site, content, routes, a Shell layout).
+  --layout <path>              layout route to write (default ${dim('src/routes/+layout.svelte')})
+  --force                      overwrite existing route/site files (the layout always asks)
+  -y, --yes                    accept defaults, no prompts
+
+${strong('keys')}  — prints a caller keypair as env lines (${dim('<NAME>_SIGNING_KEY')} stays with the caller,
+  ${dim('<NAME>_PUBLIC_KEY')} goes to the apps it calls). Redirect where you like: ${dim('npx ogygia keys shell >> keys.env')}
+
+${strong('fragments')}  — typed stubs for an MFE's widget catalog (its unsigned ${dim('__catalog')} manifest).
+  ${dim('--out stubs.ts')} writes the stub; ${dim('--check stubs.ts')} exits 1 when the live catalog drifted (CI).
+
+${strong('ai')}  — installs the ogygia Claude skill into ${dim('.claude/skills/ogygia/')} and registers the MCP
+  server in ${dim('.mcp.json')}, so any agent on this repo gets the mental model + live compiler tools.
+
+${strong('mcp')}  — runs a Model Context Protocol server on stdio. Point an MCP client at it to give an
+  AI the real ogygia compiler: compile a component, read its island map, validate it, explain it.
+`);
 	process.exit(unknown ? 1 : 0);
 }
 
@@ -208,7 +217,7 @@ function addOgygiaDep(pf: Preflight, markdown: boolean): void {
 		if (cli_missing)
 			pf.pkg.devDependencies = { ...pf.pkg.devDependencies, '@ogygia/cli': `^${version}` };
 		const indent = JSON_INDENT_RE.exec(pf.pkgRaw)?.[1] ?? '\t';
-		saveFile(cwd, 'package.json', JSON.stringify(pf.pkg, null, indent) + '\n');
+		saveFile(cwd, 'package.json', `${JSON.stringify(pf.pkg, null, indent)}\n`);
 	}
 }
 
@@ -364,9 +373,10 @@ function wireOgygia(pf: Preflight, markdown: boolean, asyncCompiler = false): vo
 	//  in case a build is ever hard-killed before cleanup.)
 	editFile('.gitignore', (c) => {
 		if (c.includes('.ogygia-keep-client')) return c;
-		const line =
-			'# ogygia build-time keep-client route (auto-removed; only survives a crashed build)\n**/.ogygia-keep-client/\n';
-		return c.trim() ? c.replace(TRAILING_LFS_RE, '\n\n') + line : line;
+		const line = `# ogygia build-time keep-client route (auto-removed; only survives a crashed build)
+**/.ogygia-keep-client/
+`;
+		return c.trim() ? `${c.replace(TRAILING_LFS_RE, '\n\n')}${line}` : line;
 	});
 
 	// 5. Ambient types — one reference line so `svelte-check` / `tsc` resolve the `ogygia:*`
@@ -377,10 +387,8 @@ function wireOgygia(pf: Preflight, markdown: boolean, asyncCompiler = false): vo
 		editFile('src/ogygia.d.ts', (c) => {
 			const missing = refs.filter((r) => !c.includes(`"${r}"`));
 			if (!missing.length) return c;
-			return (
-				(c.trim() ? c.replace(TRAILING_LFS_RE, '\n\n') : '') +
-				missing.map((r) => `/// <reference types="${r}" />\n`).join('')
-			);
+			const head = c.trim() ? c.replace(TRAILING_LFS_RE, '\n\n') : '';
+			return `${head}${missing.map((r) => `/// <reference types="${r}" />\n`).join('')}`;
 		});
 		stdout.write(`  ${ok('✓')} src/ogygia.d.ts ${dim('(types)')}\n`);
 	}
@@ -418,16 +426,19 @@ async function run() {
 	wireOgygia(pf, markdown);
 	if (!noInstall) installDeps();
 
-	stdout.write(
-		`\n${ok('✔')} ogygia is wired up.\n\n` +
-			`Next:\n` +
-			`  • Opt a route out of the client: ${dim('export const csr = false')} in its +page.\n` +
-			`  • Make a component interactive:\n` +
-			`      ${dim("import Counter from './Counter.svelte' with { wake: 'load' };")}\n` +
-			(markdown ? `  • Markdown is on: author .md / .svx content collections.\n` : '') +
-			`  • Scaffold a docs site: ${accent('npx ogygia site init')}\n` +
-			`  Docs: ${accent('https://ogygiajs.dev')}\n`
-	);
+	const markdown_line = markdown
+		? `  • Markdown is on: author .md / .svx content collections.\n`
+		: '';
+	stdout.write(`
+${ok('✔')} ogygia is wired up.
+
+Next:
+  • Opt a route out of the client: ${dim('export const csr = false')} in its +page.
+  • Make a component interactive:
+      ${dim("import Counter from './Counter.svelte' with { wake: 'load' };")}
+${markdown_line}  • Scaffold a docs site: ${accent('npx ogygia site init')}
+  Docs: ${accent('https://ogygiajs.dev')}
+`);
 }
 
 // ── `ogygia site init` ─────────────────────────────────────────────────────
@@ -478,31 +489,33 @@ async function ai_install(): Promise<void> {
 	cfg.mcpServers = cfg.mcpServers ?? {};
 	const already = 'ogygia' in cfg.mcpServers;
 	cfg.mcpServers.ogygia = { command: 'npx', args: ['ogygia', 'mcp'] };
-	writeFileSync(abs, JSON.stringify(cfg, null, '\t') + '\n');
+	writeFileSync(abs, `${JSON.stringify(cfg, null, '\t')}\n`);
 	stdout.write(
 		`  ${ok('✓')} ${rel} ${dim(already ? '(ogygia server updated)' : '(ogygia server added)')}\n`
 	);
 
 	// 3. next steps
-	stdout.write(
-		`\n${ok('✓')} done — any agent on this repo now has:\n` +
-			`  • the ${accent('ogygia')} skill — the mental model, read before inventing a workaround.\n` +
-			`  • live tools via the MCP server ${dim('(the compiler, the checker, the profiler, the devtools and more)')}.\n\n` +
-			`  In Claude Code the ${accent('.mcp.json')} server loads on next start ${dim('(approve it when prompted)')}.\n` +
-			// no count here: the tool list lives in mcp.js, which this file loads only by URL (it pulls in
-			// the compiler), so the server's own ready line is where the count and the names are
-			`  Sanity-check the server: ${accent('npx ogygia mcp')} ${dim('→ should log “ready — N tools (…)”, then Ctrl-C.')}\n`
-	);
+	// (no tool count: the list lives in mcp.js, loaded only by URL; the server's ready line counts)
+	stdout.write(`
+${ok('✓')} done — any agent on this repo now has:
+  • the ${accent('ogygia')} skill — the mental model, read before inventing a workaround.
+  • live tools via the MCP server ${dim('(the compiler, the checker, the profiler, the devtools and more)')}.
+
+  In Claude Code the ${accent('.mcp.json')} server loads on next start ${dim('(approve it when prompted)')}.
+  Sanity-check the server: ${accent('npx ogygia mcp')} ${dim('→ should log “ready — N tools (…)”, then Ctrl-C.')}
+`);
 }
 
 async function site_init(): Promise<void> {
 	// argv: site init [--layout p] [--force] [-y] [--no-install]
 	if (argv[1] !== 'init') {
-		stdout.write(
-			`${strong('ogygia site')} ${dim(`v${version}`)}\n\n` +
-				`Usage:\n  ${accent('npx ogygia site init')} ${dim('[--layout <path>] [--force] [--no-install] [-y]')}\n\n` +
-				`Scaffolds a docs site (site + content + routes + a Shell layout).\n`
-		);
+		stdout.write(`${strong('ogygia site')} ${dim(`v${version}`)}
+
+Usage:
+  ${accent('npx ogygia site init')} ${dim('[--layout <path>] [--force] [--no-install] [-y]')}
+
+Scaffolds a docs site (site + content + routes + a Shell layout).
+`);
 		process.exit(argv[1] ? 1 : 0);
 	}
 
@@ -704,8 +717,7 @@ export const prerender = true;
 				: false;
 		if (!proceed) {
 			die(
-				`${strong(layoutRel)} already exists. Re-run with ${accent('--force')} to overwrite it, ` +
-					`or ${accent('--layout <path>')} to write the shell somewhere else.`
+				`${strong(layoutRel)} already exists. Re-run with ${accent('--force')} to overwrite it, or ${accent('--layout <path>')} to write the shell somewhere else.`
 			);
 		}
 		place(layoutRel, layoutBody, true);
@@ -806,14 +818,15 @@ export const load: PageServerLoad = async ({ url }) => {
 
 	if (!noInstallP) installDeps();
 
-	stdout.write(
-		`\n${ok('✔')} your docs site is scaffolded.\n\n` +
-			`Next:\n` +
-			`  • Start it: ${accent('npm run dev')} ${dim(`(then open ${urlBase || '/'})`)}\n` +
-			`  • Write pages in ${dim('src/content/docs')} — the file path is the URL.\n` +
-			`  • Tune the site (nav, versions, i18n) in ${dim('src/lib/docs.ts')}.\n` +
-			`  Docs: ${accent('https://ogygiajs.dev')}\n`
-	);
+	stdout.write(`
+${ok('✔')} your docs site is scaffolded.
+
+Next:
+  • Start it: ${accent('npm run dev')} ${dim(`(then open ${urlBase || '/'})`)}
+  • Write pages in ${dim('src/content/docs')} — the file path is the URL.
+  • Tune the site (nav, versions, i18n) in ${dim('src/lib/docs.ts')}.
+  Docs: ${accent('https://ogygiajs.dev')}
+`);
 }
 
 /** True if any `.svx` file exists anywhere under `dir`. */
@@ -847,16 +860,17 @@ function keys_mint(): void {
 	const raw = argv[1] && !argv[1].startsWith('-') ? argv[1] : 'ogygia';
 	const name = raw.toUpperCase().replace(ENV_NAME_RE, '_').replace(ENV_TRIM_RE, '') || 'OGYGIA';
 	const { publicKey, privateKey } = generateKeyPairSync('ed25519');
-	stdout.write(
-		`export ${name}_SIGNING_KEY=${privateKey.export({ type: 'pkcs8', format: 'der' }).toString('base64')}\n` +
-			`export ${name}_PUBLIC_KEY=${publicKey.export({ type: 'spki', format: 'der' }).toString('base64')}\n`
-	);
-	process.stderr.write(
-		`\n${ok('✓')} minted an Ed25519 pair for caller ${strong(name)}\n` +
-			`  ${dim('SIGNING (private)')} — stays with this app; pass it as ${accent('federate({ key })')}\n` +
-			`  ${dim('PUBLIC')} — give to every app it talks to; list it as ${accent('federate({ peers: { <name>: { key } } })')}\n` +
-			`  keep the private key in your secret store — never commit it\n`
-	);
+	const signing = privateKey.export({ type: 'pkcs8', format: 'der' }).toString('base64');
+	const public_key = publicKey.export({ type: 'spki', format: 'der' }).toString('base64');
+	stdout.write(`export ${name}_SIGNING_KEY=${signing}
+export ${name}_PUBLIC_KEY=${public_key}
+`);
+	process.stderr.write(`
+${ok('✓')} minted an Ed25519 pair for caller ${strong(name)}
+  ${dim('SIGNING (private)')} — stays with this app; pass it as ${accent('federate({ key })')}
+  ${dim('PUBLIC')} — give to every app it talks to; list it as ${accent('federate({ peers: { <name>: { key } } })')}
+  keep the private key in your secret store — never commit it
+`);
 }
 
 // ── fragments ────────────────────────────────────────────────────────────────
@@ -880,12 +894,13 @@ function fragments_stub_source(
 			return `\t${JSON.stringify(n)}: ${shape};`;
 		})
 		.join('\n');
-	return (
-		`// generated by \`npx ogygia fragments ${origin}\` — do not edit\n` +
-		`export type WidgetName = ${union};\n` +
-		`export const WIDGET_NAMES = ${JSON.stringify(names)} as const;\n` +
-		`export interface WidgetProps {\n${props_iface}\n}\n`
-	);
+	return `// generated by \`npx ogygia fragments ${origin}\` — do not edit
+export type WidgetName = ${union};
+export const WIDGET_NAMES = ${JSON.stringify(names)} as const;
+export interface WidgetProps {
+${props_iface}
+}
+`;
 }
 async function fragments_stub(): Promise<void> {
 	const origin = argv[1];
@@ -916,11 +931,10 @@ async function fragments_stub(): Promise<void> {
 		const existing = existsSync(check) ? readFileSync(check, 'utf8') : null;
 		if (existing === null) die(`--check: ${check} does not exist (generate it with --out first)`);
 		if (existing !== source) {
-			stdout.write(
-				`${bad('✗')} widget catalog DRIFTED from ${check}\n` +
-					`  live:      ${names.join(', ') || '(empty)'}\n` +
-					`  regenerate: ${accent(`npx ogygia fragments ${origin} --out ${check}`)}\n`
-			);
+			stdout.write(`${bad('✗')} widget catalog DRIFTED from ${check}
+  live:      ${names.join(', ') || '(empty)'}
+  regenerate: ${accent(`npx ogygia fragments ${origin} --out ${check}`)}
+`);
 			process.exit(1);
 		}
 		stdout.write(`${ok('✓')} widget catalog matches ${check} (${names.length} widget(s))\n`);

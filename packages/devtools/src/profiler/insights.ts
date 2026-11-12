@@ -140,7 +140,7 @@ export function memo_candidates(
 		let sum = 0;
 		for (const m of makers) {
 			if (m.name === f.name && base(m.url) === b) sum += m.allocated;
-			else if (m.caller && m.caller.startsWith(f.name + ' (') && m.caller.includes(b + ':'))
+			else if (m.caller && m.caller.startsWith(`${f.name} (`) && m.caller.includes(`${b}:`))
 				sum += m.allocated;
 		}
 		return sum || undefined;
@@ -297,7 +297,7 @@ export function span_values(spans: readonly SpanRecord[] | undefined): SpanValue
 		for (const k in s.attrs) {
 			const v = s.attrs[k];
 			if (typeof v !== 'number' || !Number.isFinite(v)) continue;
-			const key = s.name + '\0' + k;
+			const key = `${s.name}\0${k}`;
 			let e = by.get(key);
 			if (!e) by.set(key, (e = { values: [], ms: [] }));
 			e.values.push(v);

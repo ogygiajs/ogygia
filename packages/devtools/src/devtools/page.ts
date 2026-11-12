@@ -253,7 +253,7 @@ function shown_under_media(el: Element): string | null {
 const prebundled = flights({
 	name: 'devtools prebundled packages',
 	run: async (dir: string, signal): Promise<string[]> => {
-		const r = await tool_fetch(dir + '_metadata.json', { signal });
+		const r = await tool_fetch(`${dir}_metadata.json`, { signal });
 		// (a server error is "not now": asked again; any other miss is no metadata, for good)
 		if (r.status >= 500) throw new Error(`status ${r.status}`);
 		const m = (r.ok ? await r.json() : null) as { optimized?: Record<string, unknown> } | null;
@@ -690,7 +690,7 @@ function other_origin_refs(): string[] {
 	const out = new Set<string>();
 	for (const el of document.querySelectorAll('script[src],link[href]')) {
 		const url = (el as HTMLScriptElement).src || (el as HTMLLinkElement).href;
-		if (url && !url.startsWith(location.origin + '/')) out.add(url);
+		if (url && !url.startsWith(`${location.origin}/`)) out.add(url);
 	}
 	return [...out];
 }
@@ -799,7 +799,7 @@ function server_brief(path: string): ServerProfileBrief | undefined {
 	}
 	// (its own words, without their closing period: the sentence around it adds one)
 	const trim = (m: string) => {
-		const s = m.length > 200 ? m.slice(0, 200) + '…' : m;
+		const s = m.length > 200 ? `${m.slice(0, 200)}…` : m;
 		return s.endsWith('.') ? s.slice(0, -1) : s;
 	};
 	const comp = [...p.components].sort((a, b) => b.self_ms - a.self_ms)[0];

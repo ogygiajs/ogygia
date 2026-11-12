@@ -52,10 +52,10 @@ export function esi_rewrite(html: string, page_path = '/'): string {
 	let out = '';
 	let last = 0;
 	for (const h of holes) {
-		const abs = new URL(h.endpoint, 'http://o' + page_path);
+		const abs = new URL(h.endpoint, `http://o${page_path}`);
 		const src = escape_amp_quot(abs.pathname + abs.search);
 		out += html.slice(last, h.start);
-		out += `<esi:remove>${html.slice(h.start, h.end)}</esi:remove><esi:include src="${src}" onerror="continue"/>`;
+		out = `${out}<esi:remove>${html.slice(h.start, h.end)}</esi:remove><esi:include src="${src}" onerror="continue"/>`;
 		last = h.end;
 	}
 	out += html.slice(last);
@@ -122,7 +122,7 @@ export async function stitch_html(
 		const fill = rendered[i];
 		if (fill === null) continue;
 		out += html.slice(last, holes[i].start);
-		out += `<div style="display:contents" ${OG_STITCHED}="">${fill}</div>`;
+		out = `${out}<div style="display:contents" ${OG_STITCHED}="">${fill}</div>`;
 		last = holes[i].end;
 	}
 	out += html.slice(last);

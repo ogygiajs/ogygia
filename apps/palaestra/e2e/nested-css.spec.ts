@@ -22,7 +22,7 @@ test.describe('NESTED ISLAND CSS: an inner island links its own sheet', () => {
 	test('SSR: both inner islands’ sheets reach the page while the outer island sleeps', async ({
 		baseURL
 	}) => {
-		const url = baseURL + '/nested-css';
+		const url = `${baseURL}/nested-css`;
 		const res = await fetch(url);
 		const html = await res.text();
 		check('/nested-css returns 200', res.status === 200);
@@ -35,9 +35,9 @@ test.describe('NESTED ISLAND CSS: an inner island links its own sheet', () => {
 			const href = tag.match(HREF_RE)?.[1];
 			if (!href) continue;
 			const r = await fetch(new URL(href, url).href);
-			css += (await r.text()) + '\n';
+			css = `${css}${await r.text()}\n`;
 		}
-		for (const m of html.matchAll(INLINE_STYLE_G)) css += m[1] + '\n';
+		for (const m of html.matchAll(INLINE_STYLE_G)) css = `${css}${m[1]}\n`;
 		for (const tok of TOKENS) check(`inner island sheet on the page (${tok})`, css.includes(tok));
 	});
 

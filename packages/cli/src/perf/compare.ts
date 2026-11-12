@@ -216,9 +216,9 @@ function judge(
 				movers.push({ kind: 'component', name: c.name, base: bv, cur: c.self_ms, delta, over });
 			if (over) failures.push(`${c.name} self time grew ${delta} ms (${b.component_pct}% allowed)`);
 		}
-		const bf = new Map(base.functions.map((f) => [f.name + '|' + f.file, f.self_ms]));
+		const bf = new Map(base.functions.map((f) => [`${f.name}|${f.file}`, f.self_ms]));
 		for (const f of cur.functions) {
-			const bv = bf.get(f.name + '|' + f.file) ?? 0;
+			const bv = bf.get(`${f.name}|${f.file}`) ?? 0;
 			const delta = r1(f.self_ms - bv);
 			if (Math.abs(delta) >= 1)
 				movers.push({

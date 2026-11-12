@@ -43,7 +43,7 @@ export class Rules<C extends string> {
 			try {
 				detail = check();
 			} catch (error) {
-				detail = 'the check threw: ' + String(error);
+				detail = `the check threw: ${String(error)}`;
 			}
 			if (detail !== null) out.push({ code, detail });
 		}
@@ -53,7 +53,7 @@ export class Rules<C extends string> {
 	/** Checks every rule, and says each newly broken one (`say` prints its code). */
 	say(say: (code: C, detail: string) => void): void {
 		for (const b of this.broken()) {
-			const key = b.code + ' ' + b.detail;
+			const key = `${b.code} ${b.detail}`;
 			if (this.#said.has(key)) continue;
 			// (a page with a rule broken a thousand ways says the first few hundred)
 			if (this.#said.size >= SAID_MAX) return;

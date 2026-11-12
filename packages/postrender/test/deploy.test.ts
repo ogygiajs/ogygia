@@ -40,7 +40,7 @@ function boot(version: string, store: MemoryStore) {
 	return async (path: string, rendered = `<p>${version}</p>`): Promise<string | null> => {
 		// (this process runs its own build, whichever booted last)
 		env.version = version;
-		const c = ctx(new Request('http://x.test' + path), { cookies: jar as never });
+		const c = ctx(new Request(`http://x.test${path}`), { cookies: jar as never });
 		mark_handled(c.event, runtime);
 		try {
 			const hit = await server.page?.(c);

@@ -106,7 +106,7 @@ export interface LedgerInput {
 export function pkg_of(file: string): string {
 	const parts = file.split('/');
 	if (!parts[0] || !file.includes('/')) return '';
-	return parts[0].startsWith('@') && parts[1] ? parts[0] + '/' + parts[1] : parts[0];
+	return parts[0].startsWith('@') && parts[1] ? `${parts[0]}/${parts[1]}` : parts[0];
 }
 
 /** the framework the app runs on: SvelteKit, Svelte, ogygia itself, Vite */
@@ -276,7 +276,7 @@ export function build_ledger(input: LedgerInput): LedgerLine[] {
 	}
 	const by = new Map<string, Acc>();
 	const acc = (path: string, file: string, line: number): Acc => {
-		const k = path + '\0' + line;
+		const k = `${path}\0${line}`;
 		let a = by.get(k);
 		if (!a)
 			by.set(
@@ -337,9 +337,9 @@ export function build_ledger(input: LedgerInput): LedgerLine[] {
 			list.push({ path: f.path, ms: f.total_ms });
 			un_by_name.set(f.name, list);
 			if (f.lines?.length) {
-				const m = un_lines.get(f.name + '\0' + f.path) ?? new Map<number, number>();
+				const m = un_lines.get(`${f.name}\0${f.path}`) ?? new Map<number, number>();
 				for (const l of f.lines) m.set(l.line, (m.get(l.line) ?? 0) + l.ms);
-				un_lines.set(f.name + '\0' + f.path, m);
+				un_lines.set(`${f.name}\0${f.path}`, m);
 			}
 		}
 		// KEPT ITS FRAME: its time per render in the profile is at least a quarter of its un-inlined
@@ -350,11 +350,11 @@ export function build_ledger(input: LedgerInput): LedgerLine[] {
 		for (const f of input.functions)
 			if (APP.has(f.category))
 				main_ms.set(
-					f.name + '\0' + f.path,
-					(main_ms.get(f.name + '\0' + f.path) ?? 0) + f.total_ms
+					`${f.name}\0${f.path}`,
+					(main_ms.get(`${f.name}\0${f.path}`) ?? 0) + f.total_ms
 				);
 		const kept_frame = (name: string, path: string, un_ms: number) =>
-			(main_ms.get(name + '\0' + path) ?? 0) / renders >= un_ms * 0.25;
+			(main_ms.get(`${name}\0${path}`) ?? 0) / renders >= un_ms * 0.25;
 		/** an app function called on this line that ran with no frame of its own: its un-inlined time */
 		const inlined_calls = (line: string, caller: string | undefined) => {
 			const out: { name: string; ms: number }[] = [];
@@ -382,7 +382,7 @@ export function build_ledger(input: LedgerInput): LedgerLine[] {
 			const own = here ? inlined_calls(here, caller) : [];
 			// the line's own work, as the un-inlined render measured it; unknown when the caller is not
 			// in that profile, and then only a line with an inlined call of its own is split
-			const caller_lines = caller ? un_lines.get(caller + '\0' + a.path) : undefined;
+			const caller_lines = caller ? un_lines.get(`${caller}\0${a.path}`) : undefined;
 			if (!caller_lines && !own.length) continue;
 			const own_ms = (caller_lines?.get(a.line) ?? 0) + own.reduce((s, c) => s + c.ms, 0);
 			const win = src(a.path, Math.max(1, a.line - 2), a.line + 1);
@@ -439,14 +439,14 @@ export function build_ledger(input: LedgerInput): LedgerLine[] {
 		for (const u of un) {
 			if (!APP.has(u.category)) continue;
 			if (u.key) un_by_key.set(u.key, u);
-			un_by_fn.set(u.name + '\0' + u.path, u);
+			un_by_fn.set(`${u.name}\0${u.path}`, u);
 		}
 		/** where `f` really entered package `pkg`, from the inlining-off render: the app lines (in
 		 *  `f`, or in the app functions it calls, three deep) that call into that package — each
 		 *  given a share of `ms` by what it called there. Empty when that render cannot say */
 		const entered_by = (f: FrameStat, pkg: string, ms: number) => {
 			const found: { path: string; file: string; line: number; w: number; fn: string }[] = [];
-			const start = un_by_fn.get(f.name + '\0' + f.path);
+			const start = un_by_fn.get(`${f.name}\0${f.path}`);
 			if (!start) return only_call(f, ms);
 			const seen = new Set<unknown>([start]);
 			let level: (typeof un)[number][] = [start];
@@ -583,10 +583,10 @@ export function build_ledger(input: LedgerInput): LedgerLine[] {
 		let best = f.lines[0];
 		for (const l of f.lines) if (l.ms > best.ms) best = l;
 		if (best.line > 0 && best.ms > 0)
-			hottest.set(f.path + '\0' + f.line, { file: f.url || short_source(f.path), line: best.line });
+			hottest.set(`${f.path}\0${f.line}`, { file: f.url || short_source(f.path), line: best.line });
 	}
 	const mem_row = (at: { path: string; line: number }): Acc => {
-		const h = hottest.get(at.path + '\0' + at.line);
+		const h = hottest.get(`${at.path}\0${at.line}`);
 		if (!h) return acc(at.path, short_source(at.path), at.line);
 		const a = acc(at.path, h.file, h.line);
 		a.mem_in_fn = true;
@@ -656,7 +656,7 @@ export function build_ledger(input: LedgerInput): LedgerLine[] {
 			path: r.path,
 			file: r.file,
 			line: r.line,
-			...(code ? { code: code.length > 140 ? code.slice(0, 139) + '…' : code } : {}),
+			...(code ? { code: code.length > 140 ? `${code.slice(0, 139)}…` : code } : {}),
 			cpu_ms: r2(r.cpu_ms),
 			alloc_bytes: Math.round(r.alloc_bytes),
 			gc_ms: r2(r.gc_ms),

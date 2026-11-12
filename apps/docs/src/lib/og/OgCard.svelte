@@ -10,9 +10,7 @@
 		home = false
 	}: { title?: string; category?: string; home?: boolean } = $props();
 
-	const palm =
-		'<path d="M4 26 Q16 20 28 26"/><path d="M16 21.5 Q14.5 14 17 8"/>' +
-		'<path d="M17 8 Q12 5 7.5 7"/><path d="M17 8 Q17 4 21 3.5"/><path d="M17 8 Q22 6.5 25.5 9.5"/>';
+	const palm = `<path d="M4 26 Q16 20 28 26"/><path d="M16 21.5 Q14.5 14 17 8"/><path d="M17 8 Q12 5 7.5 7"/><path d="M17 8 Q17 4 21 3.5"/><path d="M17 8 Q22 6.5 25.5 9.5"/>`;
 </script>
 
 <div class="card">

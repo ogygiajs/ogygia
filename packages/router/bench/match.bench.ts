@@ -105,9 +105,7 @@ bench(
 	{
 		setup: () => {
 			const url = new URL(
-				'https://example.test/shop/42?' +
-					Array.from({ length: 40 }, (_, i) => `f${i}=v${i}`).join('&') +
-					'&f1=dup'
+				`https://example.test/shop/42?${Array.from({ length: 40 }, (_, i) => `f${i}=v${i}`).join('&')}&f1=dup`
 			);
 			return { url, request: new Request(url) };
 		}

@@ -9,11 +9,17 @@ import {
 	type LeftoverReg,
 	type ScrollReg
 } from '../src/devtools/leftovers.ts';
+import { dedent } from '@ogygia/core/plugin/utils';
 
 describe('leftovers', () => {
 	it('reads each frame’s file: Chrome, Firefox/Safari, no position, no query', () => {
-		const chrome =
-			'Error\n    at callers (http://a.test/@fs/og/leftovers.ts:80:9)\n    at $effect (http://a.test/src/lib/Ticker.svelte?t=1:7:3)\n    at http://a.test/assets/x.js:1:200\n    at <anonymous>';
+		const chrome = dedent`
+				Error
+				    at callers (http://a.test/@fs/og/leftovers.ts:80:9)
+				    at $effect (http://a.test/src/lib/Ticker.svelte?t=1:7:3)
+				    at http://a.test/assets/x.js:1:200
+				    at <anonymous>
+			`;
 		expect(stack_files(chrome)).toEqual([
 			'http://a.test/@fs/og/leftovers.ts',
 			'http://a.test/src/lib/Ticker.svelte',

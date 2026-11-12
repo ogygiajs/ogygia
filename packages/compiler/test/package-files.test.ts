@@ -13,6 +13,7 @@ import { CompileCtx, type CompileCtxInit, type PackageScan } from '../src/compil
 import { Compiler } from '../src/compiler/driver.ts';
 import { Program } from '../src/compiler/program.ts';
 import { normalize_import_keys, type ImportKeys } from '../src/compiler/region/transform.ts';
+import { dedent } from '@ogygia/core/contract';
 
 let app: string;
 
@@ -205,7 +206,10 @@ describe('undeclared-marks warning', () => {
 		return compiler;
 	};
 	const noop_emit = () => '';
-	const marked = `import W from './W.svelte' with { wake: 'load' };\nexport const t = W;\n`;
+	const marked = `${dedent`
+		import W from './W.svelte' with { wake: 'load' };
+		export const t = W;
+	`}\n`;
 
 	it('a dependency .ts with marks but NO declaration warns loudly (was silent death)', async () => {
 		const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
@@ -221,11 +225,11 @@ describe('undeclared-marks warning', () => {
 	it('a dependency that only MENTIONS a mark (comment, string, error text) does not warn', async () => {
 		const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
 		await make('/nowhere/ogygia').transform_module(
-			[
-				"/** A `with { render: 'deferred', stitch: 'serve' }` hole ships as a normal one. */",
-				"export const fix = `import X from './X.svelte' with { wake: 'load' };`;",
-				'export function fail() { throw new Error("mark its import (`with { region: \'raw\' }`)"); }'
-			].join('\n'),
+			dedent`
+				/** A \`with { render: 'deferred', stitch: 'serve' }\` hole ships as a normal one. */
+				export const fix = \`import X from './X.svelte' with { wake: 'load' };\`;
+				export function fail() { throw new Error("mark its import (\`with { region: 'raw' }\`)"); }
+			`,
 			'/nowhere-app/node_modules/@ogygia/plugin/dist/stitch.js',
 			{ ssr: true, emitFile: noop_emit }
 		);

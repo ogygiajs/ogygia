@@ -122,9 +122,7 @@ const PRELOAD_RANK: Record<string, number> = {
 };
 /** Anchors that can carry a preload policy at all — under (or on) a marked element. The post-nav
  *  scan reads only these; an unmarked anchor has no trigger and was a wasted rank computation. */
-const PRELOAD_MARKED_ANCHORS =
-	'[data-sveltekit-preload-data] a[href], [data-sveltekit-preload-code] a[href], ' +
-	'a[href][data-sveltekit-preload-data], a[href][data-sveltekit-preload-code]';
+const PRELOAD_MARKED_ANCHORS = `[data-sveltekit-preload-data] a[href], [data-sveltekit-preload-code] a[href], a[href][data-sveltekit-preload-data], a[href][data-sveltekit-preload-code]`;
 
 /** Does the page hold an element the fragment points at? `#top` and an empty `#` mean "the top",
  *  which the browser handles. A fragment that matches nothing is an app-managed one (a table row
@@ -271,7 +269,7 @@ export class RouterHistory {
 	find(state: unknown): HistoryEntry | 'foreign' | null {
 		const id = (state as { ogygia?: unknown } | null)?.ogygia;
 		if (typeof id !== 'string') return null;
-		return this.#entries.get(id) ?? (id.startsWith(this.#doc + '.') ? null : 'foreign');
+		return this.#entries.get(id) ?? (id.startsWith(`${this.#doc}.`) ? null : 'foreign');
 	}
 
 	/** The page on screen is being left: keep where it is. */
@@ -309,7 +307,7 @@ export class RouterHistory {
 
 	#add(url: URL): HistoryEntry {
 		const entry: HistoryEntry = {
-			id: this.#doc + '.' + ++this.#n,
+			id: `${this.#doc}.${++this.#n}`,
 			url,
 			scroll: null,
 			focus: null
@@ -840,7 +838,7 @@ export class SpaRouter {
 
 	/** Nearest-ancestor value of `name` (Kit inheritance); empty value -> 'hover'. null if unset. */
 	#preload_attr(el: Element, name: string): string | null {
-		const holder = el.closest('[' + name + ']');
+		const holder = el.closest(`[${name}]`);
 		if (!holder) return null;
 		const v = holder.getAttribute(name);
 		return v === '' || v == null ? 'hover' : v;

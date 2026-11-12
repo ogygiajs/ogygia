@@ -64,7 +64,7 @@ async function start_server() {
 	child.stderr.on('data', (d) => (log += d));
 	for (let i = 0; i < 120; i++) {
 		try {
-			const r = await fetch(base + '/dt-lab');
+			const r = await fetch(`${base}/dt-lab`);
 			if (r.ok) return child;
 		} catch {
 			// not up yet
@@ -72,7 +72,7 @@ async function start_server() {
 		await new Promise((r) => setTimeout(r, 500));
 	}
 	child.kill();
-	throw new Error('dev server did not start:\n' + log.slice(-2000));
+	throw new Error(`dev server did not start:\n${log.slice(-2000)}`);
 }
 
 /** a profiler report of /dt-lab, recorded before the visit: the visit's beacon joins it, and the
@@ -93,7 +93,7 @@ async function record_profile() {
 async function one_run(browser) {
 	const report_id = await record_profile();
 	const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
-	await page.goto(base + '/dt-lab', { waitUntil: 'load' });
+	await page.goto(`${base}/dt-lab`, { waitUntil: 'load' });
 	// a beat first: the browser ignores layout shifts within 500 ms after input (rightly — the visitor
 	// caused them), and the planted shift happens as the first islands wake
 	await page.waitForTimeout(900);
@@ -193,7 +193,7 @@ async function third_run(browser) {
 		if (!report_id) await new Promise((ok) => setTimeout(ok, 2000));
 	}
 	const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
-	await page.goto(base + '/dt-third', { waitUntil: 'load' });
+	await page.goto(`${base}/dt-third`, { waitUntil: 'load' });
 	await page.waitForTimeout(4000);
 	const view = await page.evaluate(() => {
 		const v = window.__ogygia_page?.();
@@ -314,7 +314,7 @@ async function styles_run(browser) {
  *  back. Silent here means the runtime hands out turns promptly. */
 async function held_run(browser) {
 	const page = await browser.newPage({ viewport: { width: 1400, height: 900 } });
-	await page.goto(base + '/dt-many', { waitUntil: 'load' });
+	await page.goto(`${base}/dt-many`, { waitUntil: 'load' });
 	await page.waitForTimeout(2500);
 	await page.mouse.wheel(0, 5000);
 	await page.waitForTimeout(2000);
@@ -340,7 +340,7 @@ async function held_run(browser) {
  *  follow the new page; /dt-styles → /dt-nest keeps nothing and its islands are wakes. */
 async function nav_run(browser) {
 	const page = await browser.newPage({ viewport: { width: 1400, height: 900 } });
-	await page.goto(base + '/dt-lab', { waitUntil: 'load' });
+	await page.goto(`${base}/dt-lab`, { waitUntil: 'load' });
 	await page.waitForTimeout(2500);
 	const go = async (to) => {
 		await page.evaluate((to) => {
@@ -390,7 +390,7 @@ async function nav_slow_run(browser) {
 	}).catch(() => null);
 	const report_id = rec?.headers.get('location')?.split('/').pop() ?? null;
 	const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
-	await page.goto(base + '/dt-nav-fast', { waitUntil: 'load' });
+	await page.goto(`${base}/dt-nav-fast`, { waitUntil: 'load' });
 	await page.waitForTimeout(1500);
 	await page.evaluate(() => (window.__og_key_soft = 1));
 	await page.click('[data-nav-go="slow"]');
@@ -501,7 +501,7 @@ async function nav_slow_run(browser) {
 		}).catch(() => null);
 		const id2 = rec2?.headers.get('location')?.split('/').pop() ?? null;
 		const p2 = await browser.newPage({ viewport: { width: 1280, height: 800 } });
-		await p2.goto(base + '/dt-nav-fast', { waitUntil: 'load' });
+		await p2.goto(`${base}/dt-nav-fast`, { waitUntil: 'load' });
 		await p2.waitForTimeout(1500);
 		await p2.click('[data-nav-go="slow"]');
 		await p2.waitForSelector('[data-nav-page="slow"]', { timeout: 10_000 }).catch(() => {});
@@ -542,7 +542,7 @@ async function lcp_run(browser) {
 		}).catch(() => null);
 		const report_id = rec?.headers.get('location')?.split('/').pop() ?? null;
 		const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
-		await page.goto(base + '/dt-lcp' + q, { waitUntil: 'load' });
+		await page.goto(`${base}/dt-lcp${q}`, { waitUntil: 'load' });
 		await page.waitForTimeout(6500);
 		const tab = await page.evaluate(() => {
 			const f = window.__ogygia_page?.()?.report.findings.find((x) => x.code === 'slow-lcp');
@@ -588,7 +588,7 @@ async function lcp_run(browser) {
 			}).catch(() => null);
 			const id = r?.headers.get('location')?.split('/').pop() ?? null;
 			const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
-			await page.goto(base + '/dt-lcp' + q, { waitUntil: 'load' });
+			await page.goto(`${base}/dt-lcp${q}`, { waitUntil: 'load' });
 			await page.waitForTimeout(4000);
 			await page.goto('about:blank');
 			await page.waitForTimeout(300);
@@ -612,9 +612,9 @@ async function lcp_run(browser) {
 	let reload = null;
 	{
 		const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
-		await page.goto(base + '/dt-lcp', { waitUntil: 'load' });
+		await page.goto(`${base}/dt-lcp`, { waitUntil: 'load' });
 		await page.waitForTimeout(4000);
-		await page.goto(base + '/dt-lcp?quick', { waitUntil: 'load' });
+		await page.goto(`${base}/dt-lcp?quick`, { waitUntil: 'load' });
 		for (let i = 0; i < 10 && !reload?.some((m) => m.what === 'LCP'); i++) {
 			await page.waitForTimeout(500);
 			reload = await page.evaluate(() => window.__ogygia_page?.()?.since?.moved ?? null);
@@ -685,7 +685,7 @@ async function cls_run(browser) {
 		}).catch(() => null);
 		const report_id = rec?.headers.get('location')?.split('/').pop() ?? null;
 		const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
-		await page.goto(base + '/dt-cls' + q, { waitUntil: 'load' });
+		await page.goto(`${base}/dt-cls${q}`, { waitUntil: 'load' });
 		await page.waitForTimeout(3000);
 		const tab = await page.evaluate(() => {
 			const f = window.__ogygia_page?.()?.report.findings.find((x) => x.code === 'shift-cause');
@@ -747,7 +747,7 @@ async function stream_run(browser) {
 	const report_id = rec?.headers.get('location')?.split('/').pop() ?? null;
 	const read = async (q) => {
 		const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
-		await page.goto(base + '/dt-stream' + q, { waitUntil: 'load' });
+		await page.goto(`${base}/dt-stream${q}`, { waitUntil: 'load' });
 		await page.waitForTimeout(1500);
 		const f = await page.evaluate(
 			() =>
@@ -847,7 +847,7 @@ async function ttfb_run(browser) {
 					window.__ogygia_page?.()?.report.findings.find((f) => f.code === 'slow-ttfb')?.message ??
 					null
 			);
-		await page.goto(base + '/dt-ttfb', { waitUntil: 'load' });
+		await page.goto(`${base}/dt-ttfb`, { waitUntil: 'load' });
 		await page.waitForTimeout(1500);
 		before = await msg();
 		await page.click('[data-og-panel-toggle]');
@@ -909,7 +909,7 @@ async function fcp_run(browser) {
 	}).catch(() => null);
 	const report_id = rec?.headers.get('location')?.split('/').pop() ?? null;
 	const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
-	await page.goto(base + '/dt-fcp', { waitUntil: 'load' });
+	await page.goto(`${base}/dt-fcp`, { waitUntil: 'load' });
 	await page.waitForTimeout(1500);
 	const tab = await page.evaluate(() => {
 		const f = window.__ogygia_page?.()?.report.findings.find((x) => x.code === 'slow-fcp');
@@ -1012,7 +1012,7 @@ async function batch_run(browser) {
 		const ctx = await browser.newContext({ viewport: { width: 1400, height: 900 } });
 		if (wall) await ctx.addCookies([{ name: 'og-auth-wall', value: wall, url: base }]);
 		const page = await ctx.newPage();
-		await page.goto(base + '/dt-batch', { waitUntil: 'load' });
+		await page.goto(`${base}/dt-batch`, { waitUntil: 'load' });
 		await page.waitForTimeout(3500);
 		const all = await page.evaluate(() =>
 			(window.__ogygia_page?.()?.report.findings ?? []).map((x) => ({
@@ -1331,7 +1331,7 @@ async function holes_run(browser) {
 async function fallback_run(browser) {
 	// (asked as a browser asks for a page: the server adds the profiler's beacon tag only to a document)
 	const live = await (
-		await fetch(base + '/dt-cache', {
+		await fetch(`${base}/dt-cache`, {
 			headers: { accept: 'text/html', 'sec-fetch-dest': 'document' }
 		})
 	).text();
@@ -1344,10 +1344,10 @@ async function fallback_run(browser) {
 	const read = async (html) => {
 		const page = await browser.newPage({ viewport: { width: 1400, height: 900 } });
 		if (html)
-			await page.route(base + '/dt-cache', (r) =>
+			await page.route(`${base}/dt-cache`, (r) =>
 				r.fulfill({ status: 200, contentType: 'text/html', body: html })
 			);
-		await page.goto(base + '/dt-cache', { waitUntil: 'load' });
+		await page.goto(`${base}/dt-cache`, { waitUntil: 'load' });
 		await page
 			.waitForFunction(() => document.querySelector('[data-probe="probe"][data-ran]'), null, {
 				timeout: 8000
@@ -1493,7 +1493,7 @@ async function preload_run(browser) {
 async function inp_run(browser) {
 	const read = async (mode) => {
 		const page = await browser.newPage({ viewport: { width: 1400, height: 900 } });
-		await page.goto(base + '/dt-inp', { waitUntil: 'load' });
+		await page.goto(`${base}/dt-inp`, { waitUntil: 'load' });
 		await page.waitForTimeout(1800);
 		const box = async (sel) => {
 			const b = await page.locator(sel).boundingBox();
@@ -1598,7 +1598,7 @@ async function inp_run(browser) {
 async function inp_cpu_run(browser) {
 	const read = async (mode, late) => {
 		const page = await browser.newPage({ viewport: { width: 1400, height: 900 } });
-		await page.goto(base + '/dt-inp', { waitUntil: 'load' });
+		await page.goto(`${base}/dt-inp`, { waitUntil: 'load' });
 		await page.waitForTimeout(1800);
 		const done = () =>
 			page
@@ -1704,7 +1704,7 @@ async function held_fail_run(browser) {
 	}).catch(() => null);
 	const report_id = rec?.headers.get('location')?.split('/').pop() ?? null;
 	const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
-	await page.goto(base + '/dt-held', { waitUntil: 'load' });
+	await page.goto(`${base}/dt-held`, { waitUntil: 'load' });
 	await page.waitForTimeout(3000);
 	const view = await page.evaluate(() => {
 		const v = window.__ogygia_page?.();
@@ -1799,7 +1799,7 @@ async function code_run(browser) {
  *  no island tools. */
 async function csr_true_run(browser) {
 	const page = await browser.newPage({ viewport: { width: 1400, height: 900 } });
-	await page.goto(base + '/score-lab-kit', { waitUntil: 'load' });
+	await page.goto(`${base}/score-lab-kit`, { waitUntil: 'load' });
 	await page.waitForTimeout(2500);
 	if (!(await page.locator('[data-og-csr-notice]').count()))
 		await page.click('[data-og-panel-toggle]').catch(() => {});
@@ -2058,7 +2058,7 @@ try {
 						?.report.findings.filter((f) => f.code === 'fp-unstable')
 						.map((f) => f.message) ?? []
 			);
-		await page.goto(base + '/dt-fp', { waitUntil: 'load' });
+		await page.goto(`${base}/dt-fp`, { waitUntil: 'load' });
 		await page.waitForTimeout(1200);
 		const first = await read();
 		await page.reload({ waitUntil: 'load' });
@@ -2109,7 +2109,7 @@ try {
 			await page.waitForTimeout(1500);
 			return read();
 		};
-		await page.goto(base + '/dt-leak', { waitUntil: 'load' });
+		await page.goto(`${base}/dt-leak`, { waitUntil: 'load' });
 		await page.waitForTimeout(1500);
 		await page.evaluate(() => (window.__og_key_marker = 1));
 		const first = await read();
@@ -2201,7 +2201,7 @@ try {
 		const page = await ctx.newPage();
 		const cdp = await ctx.newCDPSession(page);
 		await cdp.send('Performance.enable');
-		await page.goto(base + '/dt-many', { waitUntil: 'load' });
+		await page.goto(`${base}/dt-many`, { waitUntil: 'load' });
 		await page.waitForTimeout(4000);
 		const task = async () =>
 			(await cdp.send('Performance.getMetrics')).metrics.find((m) => m.name === 'TaskDuration')
@@ -2234,7 +2234,7 @@ try {
 			await page.waitForTimeout(wait);
 			return codes();
 		};
-		await page.goto(base + '/detector', { waitUntil: 'load' });
+		await page.goto(`${base}/detector`, { waitUntil: 'load' });
 		await page.waitForTimeout(2500);
 		const first = await codes();
 		const plain = await go('/plain');
@@ -2244,7 +2244,7 @@ try {
 		await go('/plain');
 		await go('/dt-many', 5000);
 		const lab = await go('/dt-lab', 5000);
-		await page.goto(base + '/dt-preload-kit', { waitUntil: 'load' });
+		await page.goto(`${base}/dt-preload-kit`, { waitUntil: 'load' });
 		await page.waitForTimeout(2500);
 		const kit_first = await codes();
 		const kit_next = await go('/score-lab-kit', 3000);
@@ -2279,7 +2279,7 @@ try {
 			}).catch(() => null);
 			const id = rec?.headers.get('location')?.split('/').pop();
 			const page = await browser.newPage({ viewport: { width: 1400, height: 900 } });
-			await page.goto(base + '/dt-lcp' + q, { waitUntil: 'load' });
+			await page.goto(`${base}/dt-lcp${q}`, { waitUntil: 'load' });
 			await page.waitForTimeout(3500);
 			const tab = await page.evaluate(() =>
 				(window.__ogygia_page?.()?.report.findings ?? [])
@@ -2542,7 +2542,7 @@ try {
 	// downloaded-twice plant is its own finding, never this one
 	{
 		const page = await browser.newPage({ viewport: { width: 1400, height: 900 } });
-		await page.goto(base + '/dt-preload-never', { waitUntil: 'load' });
+		await page.goto(`${base}/dt-preload-never`, { waitUntil: 'load' });
 		const read = () =>
 			page.evaluate(() =>
 				(window.__ogygia_page?.()?.report.findings ?? [])
@@ -2554,7 +2554,7 @@ try {
 		const late = await read();
 		await page.close();
 		const twice = await browser.newPage({ viewport: { width: 1400, height: 900 } });
-		await twice.goto(base + '/dt-preload', { waitUntil: 'load' });
+		await twice.goto(`${base}/dt-preload`, { waitUntil: 'load' });
 		await twice.waitForTimeout(3500);
 		const other = await twice.evaluate(
 			() =>
@@ -2643,7 +2643,7 @@ try {
 		const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
 		const errs = [];
 		page.on('pageerror', (e) => errs.push(e.message.slice(0, 120)));
-		await page.goto(base + '/', { waitUntil: 'load' });
+		await page.goto(`${base}/`, { waitUntil: 'load' });
 		await page.waitForTimeout(2000);
 		await page.click('[data-og-panel-toggle]').catch(() => {});
 		await page.click('[data-og-tab="page"]').catch(() => {});
@@ -2685,7 +2685,7 @@ try {
 			const page = await ctx.newPage();
 			const errs = [];
 			page.on('pageerror', (e) => errs.push(e.message));
-			await page.goto(base + '/dt-lab', { waitUntil: 'load' });
+			await page.goto(`${base}/dt-lab`, { waitUntil: 'load' });
 			await page.waitForTimeout(3500);
 			const codes = await page.evaluate(() =>
 				(window.__ogygia_page?.()?.report.findings ?? []).map((f) => f.code)
@@ -2718,7 +2718,7 @@ try {
 				.catch(() => '');
 			// /hell's defer:'load' holes: WebKit fetches the answers its preloads already hold — ogygia's
 			// own preload, matching the runtime's fetch, named as the browser's choice, not the markup's
-			await page.goto(base + '/hell', { waitUntil: 'load' });
+			await page.goto(`${base}/hell`, { waitUntil: 'load' });
 			await page.waitForTimeout(3500);
 			const hole_fix = await page.evaluate(
 				() =>
@@ -2727,7 +2727,7 @@ try {
 			);
 			// /dt-font: WebKit counts no paint until the text shows — its first paint lands just after the
 			// hidden face's file, and that is the finding
-			await page.goto(base + '/dt-font', { waitUntil: 'load' });
+			await page.goto(`${base}/dt-font`, { waitUntil: 'load' });
 			await page.waitForTimeout(3500);
 			// (the dock, remembered open, paints as the page loads: WebKit then counts the dock's text as the
 			// page's first paint — the font finding takes its "after the first paint" form, and the Page tab
@@ -2744,7 +2744,7 @@ try {
 			);
 			// /dt-third: WebKit reports every other origin's file as 0 bytes, Timing-Allow-Origin or not —
 			// the scripts are counted (never "0 KB", never silent), and the ones scripts loaded match Chromium
-			await page.goto(base + '/dt-third', { waitUntil: 'load' });
+			await page.goto(`${base}/dt-third`, { waitUntil: 'load' });
 			await page.waitForTimeout(3500);
 			const third = await page.evaluate(
 				() =>
@@ -2758,7 +2758,7 @@ try {
 			);
 			// /dt-fcp: WebKit says nothing of which files held the paint — the head's own blocking files
 			// (its slow stylesheet) stand in, and the first paint names it as Chromium's word does
-			await page.goto(base + '/dt-fcp', { waitUntil: 'load' });
+			await page.goto(`${base}/dt-fcp`, { waitUntil: 'load' });
 			await page.waitForTimeout(1500);
 			const fcp = await page.evaluate(
 				() =>
@@ -2767,7 +2767,7 @@ try {
 			);
 			// /dt-coi: a cross-origin-isolated page — WebKit gives its request, first byte (and on a dev
 			// server its HTML's end) as 0: the visit stands, its first byte said hidden
-			await page.goto(base + '/dt-coi', { waitUntil: 'load' });
+			await page.goto(`${base}/dt-coi`, { waitUntil: 'load' });
 			await page.waitForTimeout(3500);
 			const coi = await page.evaluate(() => {
 				const v = window.__ogygia_page?.();
@@ -2779,7 +2779,7 @@ try {
 			// /dt-font-late: a preloaded font whose @font-face comes in a stylesheet added after parsing,
 			// answered with Vary: Origin — WebKit fetches it again (the decoy, named in the HTML's own
 			// stylesheet, it reuses); the Vary header is read after the first look, so look twice
-			await page.goto(base + '/dt-font-late', { waitUntil: 'load' });
+			await page.goto(`${base}/dt-font-late`, { waitUntil: 'load' });
 			await page.waitForTimeout(4000);
 			const late_of = () =>
 				page.evaluate(
@@ -2982,7 +2982,7 @@ try {
 		}).catch(() => null);
 		const id = rec?.headers.get('location')?.split('/').pop();
 		const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
-		await page.goto(base + '/dt-lcp', { waitUntil: 'load' });
+		await page.goto(`${base}/dt-lcp`, { waitUntil: 'load' });
 		await page.waitForTimeout(5500);
 		await page.close({ runBeforeUnload: false });
 		let named = false;
@@ -3067,7 +3067,7 @@ try {
 		}).catch(() => null);
 		const report_id = rec?.headers.get('location')?.split('/').pop() ?? null;
 		const page = await browser.newPage({ viewport: { width: 1400, height: 900 } });
-		await page.goto(base + '/dt-restore', { waitUntil: 'load' });
+		await page.goto(`${base}/dt-restore`, { waitUntil: 'load' });
 		await page.waitForTimeout(2500);
 		const r = await page.evaluate(() => ({
 			transformed:
@@ -3127,7 +3127,7 @@ try {
 	// writes "", Svelte's hydrate "true" — the markup change is named with that cause and its fix
 	{
 		const page = await browser.newPage({ viewport: { width: 1400, height: 900 } });
-		await page.goto(base + '/restore-lab', { waitUntil: 'load' });
+		await page.goto(`${base}/restore-lab`, { waitUntil: 'load' });
 		await page.waitForTimeout(2500);
 		const fix = await page.evaluate(
 			() =>

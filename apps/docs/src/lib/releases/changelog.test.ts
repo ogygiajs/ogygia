@@ -4,6 +4,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { group_by_version, kind_of, read_changelog } from './changelog.ts';
+import { dedent } from '@ogygia/core/plugin/utils';
 
 const CORE = `# @ogygia/core
 
@@ -87,15 +88,45 @@ test('"Updated dependencies" is one short line naming the packages, not the comm
 test('a link to anything but http(s) is text, never an href', () => {
 	const r = read_changelog(
 		'x',
-		'# x\n\n## 1.0.0\n\n### Major Changes\n\n- [bad](javascript:alert(1)) **b**\n'
+		`${dedent`
+			# x
+
+			## 1.0.0
+
+			### Major Changes
+
+			- [bad](javascript:alert(1)) **b**
+		`}\n`
 	);
 	assert.doesNotMatch(r[0].groups[0].lines[0].html, /href/);
 	assert.match(r[0].groups[0].lines[0].html, /<strong>b<\/strong>/);
 });
 
 test('releases of many packages group by version, newest version first', () => {
-	const a = read_changelog('a', '# a\n\n## 0.13.0\n\n- one\n\n## 0.12.0\n\n- two\n');
-	const b = read_changelog('b', '# b\n\n## 0.13.0\n\n- three\n');
+	const a = read_changelog(
+		'a',
+		`${dedent`
+			# a
+
+			## 0.13.0
+
+			- one
+
+			## 0.12.0
+
+			- two
+		`}\n`
+	);
+	const b = read_changelog(
+		'b',
+		`${dedent`
+			# b
+
+			## 0.13.0
+
+			- three
+		`}\n`
+	);
 	const v = group_by_version([...a, ...b]);
 	assert.deepEqual(
 		v.map((x) => [x.version, x.releases.map((r) => r.package)]),

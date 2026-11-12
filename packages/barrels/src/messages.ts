@@ -33,8 +33,7 @@ export const BARRELS_WARNINGS = {
 			barrels: string;
 			seconds: string;
 		}): string =>
-			`barrels: ${a.importers} of ${a.files} files rewritten — ${a.imports} barrel imports → leaves ` +
-			`(${a.names} names), ${a.barrels} barrels bypassed, ${a.seconds} s first to last transform`,
+			`barrels: ${a.importers} of ${a.files} files rewritten — ${a.imports} barrel imports → leaves (${a.names} names), ${a.barrels} barrels bypassed, ${a.seconds} s first to last transform`,
 		details: (): string => prose`
 			\`barrels()\` rewrote imports from index files (barrels) to the files that define each
 			name, so an island ships only what it uses. The report counts the rewrites and lists the

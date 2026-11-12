@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { hydration_hazards } from '@ogygia/insights';
 import { hazard_fix, hazard_words } from '../src/profiler/report.ts';
+import { dedent } from '@ogygia/core/plugin/utils';
 
 describe('the report says them', () => {
 	it('each line by file and line, with what it does; the fix per kind', () => {
@@ -29,17 +30,17 @@ describe('the report says them', () => {
 
 describe('hydration_hazards: the lines that draw differently in the browser', () => {
 	it('a top-level await, a browser value in a derived and in the markup', () => {
-		const src = [
-			'<script lang="ts">',
-			"\timport { page } from '$app/state';",
-			'\tlet { site, nav } = $props();',
-			'\tconst fetched = nav ? [] : await site.nav();',
-			"\tconst top_href = $derived(typeof window !== 'undefined' ? window.location.pathname : '/');",
-			'</script>',
-			'',
-			'<p>Built {Date.now()}</p>',
-			'<a href={top_href}>top</a>'
-		].join('\n');
+		const src = dedent`
+			<script lang="ts">
+				import { page } from '$app/state';
+				let { site, nav } = $props();
+				const fetched = nav ? [] : await site.nav();
+				const top_href = $derived(typeof window !== 'undefined' ? window.location.pathname : '/');
+			</script>
+
+			<p>Built {Date.now()}</p>
+			<a href={top_href}>top</a>
+		`;
 		expect(hydration_hazards(src)).toEqual([
 			{ line: 4, code: 'const fetched = nav ? [] : await site.nav();', kind: 'await' },
 			{
@@ -53,14 +54,14 @@ describe('hydration_hazards: the lines that draw differently in the browser', ()
 	});
 
 	it('a top-level `if (typeof window …)` is a guard: a lead, marked, not a prediction', () => {
-		const src = [
-			'<script>',
-			"\tif (typeof window !== 'undefined') {",
-			'\t\twork();',
-			'\t}',
-			'</script>',
-			'<p>same</p>'
-		].join('\n');
+		const src = dedent`
+			<script>
+				if (typeof window !== 'undefined') {
+					work();
+				}
+			</script>
+			<p>same</p>
+		`;
 		expect(hydration_hazards(src)).toEqual([
 			{
 				line: 2,
@@ -73,31 +74,31 @@ describe('hydration_hazards: the lines that draw differently in the browser', ()
 	});
 
 	it('what runs after the wake is never one: callbacks, effects, handlers, the module script', () => {
-		const src = [
-			'<script module>',
-			'\tconst started = Date.now();',
-			'</script>',
-			'<script>',
-			"\timport { onMount } from 'svelte';",
-			'\tlet w = $state(0);',
-			'\tonMount(() => {',
-			'\t\tw = window.innerWidth;',
-			'\t});',
-			'\t$effect(() => {',
-			'\t\tdocument.title = `x`;',
-			'\t});',
-			'\tfunction go() {',
-			'\t\twindow.scrollTo(0, 0);',
-			'\t}',
-			'\tconst load = async () => {',
-			'\t\tawait fetch(`/x`);',
-			'\t};',
-			'\tconst reduced = () =>',
-			"\t\ttypeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches;",
-			'</script>',
-			'<button onclick={() => window.scrollTo(0, 0)}>top {w}</button>',
-			'<p>{mywindow.size}</p>'
-		].join('\n');
+		const src = dedent`
+			<script module>
+				const started = Date.now();
+			</script>
+			<script>
+				import { onMount } from 'svelte';
+				let w = $state(0);
+				onMount(() => {
+					w = window.innerWidth;
+				});
+				$effect(() => {
+					document.title = \`x\`;
+				});
+				function go() {
+					window.scrollTo(0, 0);
+				}
+				const load = async () => {
+					await fetch(\`/x\`);
+				};
+				const reduced = () =>
+					typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+			</script>
+			<button onclick={() => window.scrollTo(0, 0)}>top {w}</button>
+			<p>{mywindow.size}</p>
+		`;
 		expect(hydration_hazards(src)).toEqual([]);
 	});
 });

@@ -179,7 +179,7 @@ function main(): void {
 	if (sweep !== undefined && process.argv.includes('--write')) {
 		const reached = [...all].filter((s) => sweep.has(s)).sort();
 		const covered = ledger.covered.filter((c) => !sweep.has(c.step));
-		writeFileSync(LEDGER, JSON.stringify({ ...ledger, reached, covered }, null, '\t') + '\n');
+		writeFileSync(LEDGER, `${JSON.stringify({ ...ledger, reached, covered }, null, '\t')}\n`);
 		console.log(`wrote ${LEDGER}: ${reached.length} reached`);
 	}
 	console.log(

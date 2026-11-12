@@ -98,7 +98,7 @@ const GENERATOR_VERSION = 'v2';
 
 /** Doc-cache identity: changes whenever the package's d.ts set — or this generator — does. */
 export function expandApiCacheKey(): string {
-	return `api-ref:${GENERATOR_VERSION}:` + distStampCached();
+	return `api-ref:${GENERATOR_VERSION}:${distStampCached()}`;
 }
 
 /** The d.ts files a document's expansions read — Vite watches them in dev. */

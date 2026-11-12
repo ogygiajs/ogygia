@@ -243,7 +243,7 @@ async function start_preview() {
 	);
 	for (let i = 0; i < 120; i++) {
 		try {
-			await fetch(base + '/');
+			await fetch(`${base}/`);
 			return () => child.kill();
 		} catch {
 			await new Promise((r) => setTimeout(r, 500));
@@ -368,7 +368,7 @@ try {
 				r.method() === 'POST' && r.url().includes('/__profiler') ? (r.postData() ?? '') : '';
 			if (d.includes('"visit"')) biggest = Math.max(biggest, d.length);
 		});
-		await page.goto(base + '/hell', { waitUntil: 'load' });
+		await page.goto(`${base}/hell`, { waitUntil: 'load' });
 		await page.waitForTimeout(4000);
 		await page.close();
 	}

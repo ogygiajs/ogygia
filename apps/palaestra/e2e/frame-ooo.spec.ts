@@ -21,7 +21,7 @@ test.describe('out-of-order streaming: staggered regions flush fast-first, not d
 	test('frames arrive fast-first (1s → 2s → 3s), not in declaration order (3, 1, 2)', async ({
 		baseURL
 	}) => {
-		const html = await (await fetch(baseURL + '/ooo')).text();
+		const html = await (await fetch(`${baseURL}/ooo`)).text();
 		// endpoint → its ms (from the region's fallback sibling; simpler: decode the props in order of the DOM).
 		const regions = [...html.matchAll(REGION_ENDPOINT_G_RE)].map((m) => unentity(m[1]));
 		check('page exposes 3 deferred regions', regions.length === 3, `${regions.length}`);
@@ -30,10 +30,10 @@ test.describe('out-of-order streaming: staggered regions flush fast-first, not d
 
 		// sig → seconds: fetch each region once (GET) to read its "settled after Nms" text, so we can label frames.
 		const sig_of = (e: string) => new URLSearchParams(e.slice(e.indexOf('?') + 1)).get('sig') || '';
-		const path = '/' + regions[0].slice(0, regions[0].indexOf('?')).replace(LEADING_DOTS_RE, '');
+		const path = `/${regions[0].slice(0, regions[0].indexOf('?')).replace(LEADING_DOTS_RE, '')}`;
 		const sig_ms = new Map<string, number>();
 		for (const e of regions) {
-			const p = '/' + e.replace(LEADING_DOTS_RE, '');
+			const p = `/${e.replace(LEADING_DOTS_RE, '')}`;
 			const body = await (await fetch(baseURL + p)).text();
 			const ms = Number(body.match(SETTLED_AFTER_RE)?.[1] ?? -1);
 			sig_ms.set(sig_of(e), ms);
@@ -70,12 +70,12 @@ test.describe('out-of-order streaming: staggered regions flush fast-first, not d
 			if (consumed) buf = buf.slice(consumed);
 		}
 
-		check('all three frames arrived', arrival_ms.length === 3, arrival_ms.join(' → ') + 'ms');
+		check('all three frames arrived', arrival_ms.length === 3, `${arrival_ms.join(' → ')}ms`);
 		// Settle order = ascending delay. Declaration order was 300, 50, 150.
 		check(
 			'OUT-OF-ORDER: frames arrived fast-first (1s → 2s → 3s), NOT declaration order (3, 1, 2)',
 			arrival_ms.join(',') === '1,2,3',
-			'arrival: ' + arrival_ms.join(' → ') + 'ms'
+			`arrival: ${arrival_ms.join(' → ')}ms`
 		);
 	});
 });

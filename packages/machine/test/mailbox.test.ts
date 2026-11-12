@@ -191,7 +191,7 @@ describe('mailbox', () => {
 	it('ask() gives the handler’s value, sync or async, in its turn', async () => {
 		const box = mailbox(scope());
 		expect(await box.ask(() => 1)).toBe(1);
-		expect(await box.ask(async (turn) => String(await turn.wait(later('two'))) + '!')).toBe('two!');
+		expect(await box.ask(async (turn) => `${String(await turn.wait(later('two')))}!`)).toBe('two!');
 		const seen: string[] = [];
 		box.post(async (turn) => {
 			seen.push('a');

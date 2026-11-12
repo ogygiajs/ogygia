@@ -114,7 +114,7 @@ benches.forEach((file, i) => {
 
 // 2. every function, and the ones no bench ran
 const list = join(out, 'files.txt');
-writeFileSync(list, source_files(null).join('\n') + '\n');
+writeFileSync(list, `${source_files(null).join('\n')}\n`);
 const targets = join(out, 'targets.json');
 const inventory = join(out, 'inventory.json');
 heisenbench_cli([
@@ -185,7 +185,7 @@ const gate_args = [
 const skipped = join(records, 'skipped.txt');
 if (existsSync(skipped)) {
 	const ids = [...new Set(readFileSync(skipped, 'utf8').split('\n').filter(Boolean))].sort();
-	writeFileSync(join(out, 'skipped.json'), JSON.stringify(ids) + '\n');
+	writeFileSync(join(out, 'skipped.json'), `${JSON.stringify(ids)}\n`);
 	gate_args.push('--skipped', join(out, 'skipped.json'));
 }
 if (values.base) {
@@ -207,7 +207,7 @@ if (values.base) {
 		return to;
 	});
 	const base_list = join(out, 'base-files.txt');
-	writeFileSync(base_list, base_files.join('\n') + '\n');
+	writeFileSync(base_list, `${base_files.join('\n')}\n`);
 	const base_inventory = join(out, 'base-inventory.json');
 	heisenbench_cli(['inventory', '--list', base_list, '--root', base_root, '--out', base_inventory]);
 	gate_args.push('--base-inventory', base_inventory);
@@ -225,12 +225,11 @@ const gone = gone_exemptions(
 	context_path
 );
 if (gone.length) {
-	const md =
-		`\n**${gone.length} exemption${gone.length === 1 ? '' : 's'} naming no function any more.** ` +
-		'Take each out of internal/heisenbench/unmeasured.json (its function was renamed, moved or ' +
-		'deleted; a renamed one that is still unmeasured gets an exemption under its new id):\n\n' +
-		gone.map((e) => `- \`${e.id}\``).join('\n') +
-		'\n';
+	const md = `
+**${gone.length} exemption${gone.length === 1 ? '' : 's'} naming no function any more.** Take each out of internal/heisenbench/unmeasured.json (its function was renamed, moved or deleted; a renamed one that is still unmeasured gets an exemption under its new id):
+
+${gone.map((e) => `- \`${e.id}\``).join('\n')}
+`;
 	writeFileSync(join(out, 'gate.md'), md, { flag: 'a' });
 	for (const e of gone) log(`stale exemption: ${e.id}`);
 	status = 1;

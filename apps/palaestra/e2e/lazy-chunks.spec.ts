@@ -12,6 +12,7 @@
 // it arrives with the first wake, when `hydrate()` needs it anyway.
 // Usage: pnpm exec playwright test lazy-chunks
 import { test, check, replayed_once } from '@ogygia/tooling/e2e';
+import { dedent } from 'ogygia/plugin/utils';
 
 /** A string only the hydrate core carries: the foreign-mutation detector's message code (its wording
  *  is not in a production build). (The `data-og-recovered` MARK it sets is not unique — the boot's
@@ -100,7 +101,12 @@ test.describe('lazy runtime chunks: hydrate core on first wake, navigation on fi
 		check(
 			'boot: every static import of the runtime is modulepreloaded beside it',
 			static_imports.every((u) => hinted.includes(u)),
-			`imports:\n${static_imports.join('\n')}\nhinted:\n${hinted.join('\n')}`
+			dedent`
+				imports:
+				${static_imports.join('\n')}
+				hinted:
+				${hinted.join('\n')}
+			`
 		);
 		// The palaestra has a `hooks.client` (apps/palaestra/src/hooks.client.ts), so this is the
 		// `h`-suffixed runtime name — the one that once went unrecognised and shipped with no preloads.

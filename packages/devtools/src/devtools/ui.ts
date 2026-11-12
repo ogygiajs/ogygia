@@ -163,10 +163,7 @@ function mount_launcher(opts?: { csr_true?: boolean }): void {
 	button.setAttribute(OG_PANEL_TOGGLE, '');
 	button.title = 'ogygia devtools (Alt+O)';
 	button.textContent = 'og devtools';
-	button.style.cssText =
-		'position:fixed;right:24px;bottom:8px;padding:7px 12px;border-radius:999px;border:1px solid rgba(148,163,184,.35);' +
-		'background:#0b1220;color:#e2e8f0;font:600 12px/1 ui-monospace,SFMono-Regular,Menlo,monospace;cursor:pointer;' +
-		'opacity:.55;box-shadow:0 4px 16px rgba(0,0,0,.4)';
+	button.style.cssText = `position:fixed;right:24px;bottom:8px;padding:7px 12px;border-radius:999px;border:1px solid rgba(148,163,184,.35);background:#0b1220;color:#e2e8f0;font:600 12px/1 ui-monospace,SFMono-Regular,Menlo,monospace;cursor:pointer;opacity:.55;box-shadow:0 4px 16px rgba(0,0,0,.4)`;
 	button.onmouseenter = () => (button.style.opacity = '1');
 	button.onmouseleave = () => (button.style.opacity = '.55');
 	const open = () => {

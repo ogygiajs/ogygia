@@ -36,6 +36,7 @@ import Region from '../../core/src/Region.svelte';
 import Tiny from '../../core/test/_fixtures/Tiny.svelte';
 import { Compiler, Program, CompileCtx, normalize_import_keys } from '../dist/compiler/index.js';
 import { partial_ctx_init } from './_compile-ctx.ts';
+import { dedent } from '@ogygia/core/contract';
 
 const region = Region as unknown as Component<Record<string, unknown>>;
 const GRAPH_RE = /<script type="application\/json" data-ogygia-graph>([^<]*)<\/script>/;
@@ -323,9 +324,7 @@ describe('the runtime bootstrap (server/entry-location.ts), shared by every docu
 		set_island_deps({ '/og-runtime.js': ['/chunks/Shared.js'] });
 		const html = runtime_bootstrap();
 		expect(html).toContain(
-			'<script type="module" data-ogygia-runtime src="/chunks/Rt.js" onerror="' +
-				"console.error('[ogygia] https://ogygiajs.dev/e/runtime_load_failed')" +
-				'"></script>'
+			`<script type="module" data-ogygia-runtime src="/chunks/Rt.js" onerror="console.error('[ogygia] https://ogygiajs.dev/e/runtime_load_failed')">\x3C/script>`
 		);
 		expect(html).toContain(
 			'<link rel="modulepreload" href="/chunks/Shared.js" data-ogygia-runtime-dep>'
@@ -340,7 +339,7 @@ describe('the runtime bootstrap (server/entry-location.ts), shared by every docu
 	it('the base / assets prefix applies to the location and every preload', () => {
 		set_entry_locations({ '/og-runtime.js': '/chunks/Rt.js' });
 		set_island_deps({ '/og-runtime.js': ['/chunks/Shared.js'] });
-		const html = runtime_bootstrap((u) => 'https://cdn.test' + u);
+		const html = runtime_bootstrap((u) => `https://cdn.test${u}`);
 		expect(html).toContain('src="https://cdn.test/chunks/Rt.js"');
 		expect(html).toContain('href="https://cdn.test/chunks/Shared.js"');
 	});
@@ -402,7 +401,13 @@ describe('the driver: entries emitted by name, mapped, and shimmed', () => {
 		root = fs.mkdtempSync(path.join(os.tmpdir(), 'og-entry-emit-'));
 		const files: Record<string, string> = {
 			'src/routes/+layout.ts': 'export const csr = false;\n',
-			'src/routes/+page.svelte': `<script>\n\timport Widget from '$lib/Widget.svelte' with { wake: 'visible' };\n\timport Chart from '$lib/Chart.svelte' with { wake: 'idle' };\n</script>\n<Widget /><Chart />\n`,
+			'src/routes/+page.svelte': `${dedent`
+				<script>
+					import Widget from '$lib/Widget.svelte' with { wake: 'visible' };
+					import Chart from '$lib/Chart.svelte' with { wake: 'idle' };
+				</script>
+				<Widget /><Chart />
+			`}\n`,
 			'src/lib/Widget.svelte': `<p>w</p>\n`,
 			'src/lib/Chart.svelte': `<p>c</p>\n`
 		};
@@ -554,7 +559,7 @@ describe('the driver: entries emitted by name, mapped, and shimmed', () => {
 			'_app/immutable/og-locations.H.json',
 			'_app/ogygia.json'
 		]);
-		expect(compiler.location_map_url).toBe('/' + files[0].fileName);
+		expect(compiler.location_map_url).toBe(`/${files[0].fileName}`);
 		const pairs = Object.entries(JSON.parse(files[0].source) as Record<string, string>);
 		expect(pairs).toHaveLength(2); // the two islands (the runtime loads by its script's own src)
 		for (const [identity, hashed] of pairs) {

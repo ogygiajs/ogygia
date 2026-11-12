@@ -56,7 +56,10 @@ describe('coverage', () => {
 		});
 		expect(new_moves('a#1 x -> y\na#1 y -> z', 1).lines).toEqual(['a#1 y -> z']);
 		// (the log kept its last 2 of 5: 3 were read, so its last 2 are new)
-		expect(new_moves('(3 earlier moves let go)\na#1 x -> y\na#1 y -> z', 3)).toEqual({
+		const log = `(3 earlier moves let go)
+a#1 x -> y
+a#1 y -> z`;
+		expect(new_moves(log, 3)).toEqual({
 			lines: ['a#1 x -> y', 'a#1 y -> z'],
 			total: 5
 		});

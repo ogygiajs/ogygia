@@ -22,7 +22,7 @@ vi.mock('node:inspector/promises', async (real) => {
 });
 
 const event = (path: string, method = 'GET'): RequestEvent => {
-	const url = new URL('http://localhost' + path);
+	const url = new URL(`http://localhost${path}`);
 	return {
 		url,
 		request: new Request(url, { method }),

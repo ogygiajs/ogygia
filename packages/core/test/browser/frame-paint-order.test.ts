@@ -39,7 +39,7 @@ test('a static live region: an older tick waiting on its sheet does not paint ov
 	await live('<p data-tick>0</p>');
 	expect(text(el)).toBe('0');
 	// tick 1 needs a sheet still on its way; tick 2 (through the store: a query.live tick) needs none
-	void live(slow_sheet('live') + '<p data-tick>1</p>');
+	void live(`${slow_sheet('live')}<p data-tick>1</p>`);
 	const a = frameAddress(url);
 	write({ a, v: stamp(), html: '<p data-tick>2</p>' });
 	await expect.poll(() => text(el), { timeout: 2_000 }).toBe('2');
@@ -57,7 +57,7 @@ test('a hole: an older frame waiting on its sheet does not paint over a newer on
 	bootDev();
 	await expect.poll(() => text(el), { timeout: 2_000 }).toBe('0');
 	// two refreshes at its address: the older one links a sheet still on its way
-	write({ a, v: stamp(), html: slow_sheet('hole') + '<p data-tick>1</p>' });
+	write({ a, v: stamp(), html: `${slow_sheet('hole')}<p data-tick>1</p>` });
 	write({ a, v: stamp(), html: '<p data-tick>2</p>' });
 	await expect.poll(() => text(el), { timeout: 2_000 }).toBe('2');
 	await tick(600);

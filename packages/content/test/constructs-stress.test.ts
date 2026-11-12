@@ -5,6 +5,7 @@
  * never mistakes a comment/string for a call, never emits unbalanced output.
  */
 import { describe, expect, it, beforeAll, afterAll } from 'vitest';
+import { dedent } from '@ogygia/core/plugin/utils';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -72,11 +73,11 @@ describe('code/md — demented shapes that must WORK', () => {
 	});
 
 	it('the whole family markers appearing together, only code/md rewrite here', async () => {
-		const src = [
-			'const a = import.meta.og.code("x", "ts");',
-			'const b = import.meta.og.md("# hi");',
-			'const c = import.meta.og.wire;' // not ours to touch in rewrite_code
-		].join('\n');
+		const src = dedent`
+			const a = import.meta.og.code("x", "ts");
+			const b = import.meta.og.md("# hi");
+			const c = import.meta.og.wire;
+		`;
 		const out = await rewrite_code(src, '/x.ts', MARKUP, echo);
 		expect((out.match(/__og_html_region\(/g) ?? []).length).toBe(2);
 		expect(out).toContain('import.meta.og.wire'); // left for the wire pass
@@ -87,7 +88,11 @@ describe('code/md — byte-offset integrity under multi-byte unicode', () => {
 	beforeAll(() => __set_build_cache_root(fs.mkdtempSync(path.join(os.tmpdir(), 'og-off-'))));
 
 	it('code() with emoji prose before it splices correctly', async () => {
-		const src = `const flag = "🚩🚩";\nconst x = import.meta.og.code("const y = 1;", "ts");\nconst tail = "🔥";`;
+		const src = dedent`
+			const flag = "🚩🚩";
+			const x = import.meta.og.code("const y = 1;", "ts");
+			const tail = "🔥";
+		`;
 		const out = await rewrite_code(src, '/x.ts', MARKUP, echo);
 		expect(out).toContain(`const flag = "🚩🚩";`);
 		expect(out).toContain(`const tail = "🔥";`);
@@ -170,11 +175,11 @@ describe('.svelte multi-script-block interactions', () => {
 
 	it('a <script module> wire class AND a <script> code() call both rewrite, blocks independent', async () => {
 		const CODEC = `{ encode: (c) => c.v, decode: (v) => new W(v) }`;
-		const src = [
-			`<script module lang="ts">export class W { static wire = import.meta.og.wire(${CODEC}); }</script>`,
-			`<script lang="ts">const snip = import.meta.og.code("const x = 1;", "ts");</script>`,
-			`<div>{snip}</div>`
-		].join('\n');
+		const src = dedent`
+			<script module lang="ts">export class W { static wire = import.meta.og.wire(${CODEC}); }</script>
+			<script lang="ts">const snip = import.meta.og.code("const x = 1;", "ts");</script>
+			<div>{snip}</div>
+		`;
 		// core's own module-macro pass (wire) first, then the content plugin's code macro
 		const wired = rewrite_wire(src, '/C.svelte', MARKUP);
 		expect(wired).toContain("Symbol.for('ogygia.wire')");
@@ -185,10 +190,10 @@ describe('.svelte multi-script-block interactions', () => {
 	});
 
 	it('a DECOY string that looks like a call in another block is not rewritten', async () => {
-		const src = [
-			`<script module>const decoy = "const y = import.meta.og.code('x','ts')";</script>`,
-			`<script>const real = import.meta.og.code("a", "ts");</script>`
-		].join('\n');
+		const src = dedent`
+			<script module>const decoy = "const y = import.meta.og.code('x','ts')";</script>
+			<script>const real = import.meta.og.code("a", "ts");</script>
+		`;
 		const out = await rewrite_code(src, '/C.svelte', MARKUP, echo);
 		expect(out).toContain(`const decoy = "const y = import.meta.og.code('x','ts')"`); // decoy intact
 		expect((out.match(/__og_html_region\(/g) ?? []).length).toBe(1); // only the real one

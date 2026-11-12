@@ -29,7 +29,7 @@ test('edited-while-asleep islands: first click counts, scroll wakes clean, nothi
 	const warns: string[] = [];
 	page.on('pageerror', (e) => errs.push(e.message));
 	page.on('console', (m) => {
-		if (m.type() === 'error') errs.push('console: ' + m.text());
+		if (m.type() === 'error') errs.push(`console: ${m.text()}`);
 		if (m.type() === 'warning') warns.push(m.text());
 	});
 	const res = await page.goto('/island-foreign-edit/', { waitUntil: 'networkidle' });
@@ -88,26 +88,23 @@ test('edited-while-asleep islands: first click counts, scroll wakes clean, nothi
 	const stray = await tap.evaluate((region, ssr) => {
 		const fp = region.getAttribute('data-og-fp') || '';
 		const m = new RegExp(
-			'<ogygia-region[^>]*data-og-fp="' + fp + '"[^>]*>([\\s\\S]*?)</ogygia-region>'
+			`<ogygia-region[^>]*data-og-fp="${fp}"[^>]*>([\\s\\S]*?)</ogygia-region>`
 		).exec(ssr);
 		const holder = document.createElement('template');
 		holder.innerHTML = m ? m[1] : '';
 		const attrs = (root: ParentNode) =>
 			[...root.querySelectorAll('*')].map(
 				(e) =>
-					e.tagName +
-					'[' +
-					[...e.attributes]
-						.map((a) => a.name + '=' + a.value)
+					`${e.tagName}[${[...e.attributes]
+						.map((a) => `${a.name}=${a.value}`)
 						.sort()
-						.join(' ') +
-					']'
+						.join(' ')}]`
 			);
 		const want = attrs(holder.content);
 		const live = attrs(region);
 		return live.length === want.length && live.every((x, i) => x === want[i])
 			? ''
-			: 'live: ' + live.join(' ') + ' | server: ' + want.join(' ');
+			: `live: ${live.join(' ')} | server: ${want.join(' ')}`;
 	}, html);
 	check(
 		'every element keeps exactly its server attributes (no attribute written on the wrong element)',

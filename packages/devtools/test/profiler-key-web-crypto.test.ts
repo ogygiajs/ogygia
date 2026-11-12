@@ -31,7 +31,7 @@ vi.mock('node:crypto', async (real) => {
 const SECRET = 'prof-key-of-16-bytes-or-more';
 
 function event(path: string, init: RequestInit = {}, cookie?: string): RequestEvent {
-	const url = new URL('http://localhost' + path);
+	const url = new URL(`http://localhost${path}`);
 	const headers = new Headers(init.headers);
 	if (cookie) headers.set('cookie', `og_profiler=${cookie}`);
 	return {

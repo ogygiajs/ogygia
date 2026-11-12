@@ -18,6 +18,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { createServer, type Plugin, type RunnableDevEnvironment, type ViteDevServer } from 'vite';
 import { svelte } from '@sveltejs/vite-plugin-svelte';
 import { router_css_module } from '../src/compiler/link/router-css.ts';
+import { dedent } from '@ogygia/core/contract';
 
 const own = (rel: string) => fileURLToPath(new URL(rel, import.meta.url));
 const V = 'ogygia:server/router-css';
@@ -32,7 +33,12 @@ const LOADERS: Array<[string, Load]> = [
 ];
 
 const shell = (color: string) =>
-	`<header class="top">shell</header>\n<style>\n\t.top { color: ${color}; }\n</style>\n`;
+	`${dedent`
+		<header class="top">shell</header>
+		<style>
+			.top { color: ${color}; }
+		</style>
+	`}\n`;
 
 let server: ViteDevServer | null = null;
 let root = '';
@@ -62,16 +68,18 @@ async function start(
 	// a router page module: renders the shell and asks for its head tags
 	write(
 		'src/page.ts',
-		`import Shell from './Shell.svelte';\n` +
-			`import { componentCssHead } from ${JSON.stringify(own('../../core/src/plugin/css.ts'))};\n` +
-			`export const head = () => componentCssHead([Shell]);\n`
+		`${dedent`
+			import Shell from './Shell.svelte';
+			import { componentCssHead } from ${JSON.stringify(own('../../core/src/plugin/css.ts'))};
+			export const head = () => componentCssHead([Shell]);
+		`}\n`
 	);
 	let left = failures;
 	const registry: Plugin = {
 		name: 'router-css-registry',
-		resolveId: (id) => (id === V ? '\0' + V : undefined),
+		resolveId: (id) => (id === V ? `\0${V}` : undefined),
 		async load(id) {
-			if (id !== '\0' + V) return;
+			if (id !== `\0${V}`) return;
 			if (left-- > 0) throw new Error('the registry failed to emit');
 			return router_css_module([path.join(root, 'src/Shell.svelte')], {
 				root,
@@ -83,7 +91,7 @@ async function start(
 		// what the ogygia plugin does on a style-bearing edit (vite/index.ts handleHotUpdate)
 		handleHotUpdate({ file, server }) {
 			if (!/\.(svelte|css)$/.test(file)) return;
-			const mod = server.moduleGraph.getModuleById('\0' + V);
+			const mod = server.moduleGraph.getModuleById(`\0${V}`);
 			if (mod) server.moduleGraph.invalidateModule(mod);
 		}
 	};

@@ -12,8 +12,8 @@ import type { Plan } from '../src/cli.ts';
 
 const APP = fileURLToPath(new URL('../../../apps/sim-gen', import.meta.url));
 const ready = ((): boolean => {
-	if (!existsSync(APP + '/.svelte-kit/sim-builds/v2/server/index.js')) return false;
-	const plan = APP + '/src/lib/gen/plan.json';
+	if (!existsSync(`${APP}/.svelte-kit/sim-builds/v2/server/index.js`)) return false;
+	const plan = `${APP}/src/lib/gen/plan.json`;
 	return existsSync(plan) && JSON.parse(readFileSync(plan, 'utf8')).seed === 77;
 })();
 

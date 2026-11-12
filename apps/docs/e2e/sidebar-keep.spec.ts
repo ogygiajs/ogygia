@@ -34,7 +34,7 @@ test.beforeAll(async () => {
 			'127.0.0.1'
 		],
 		cwd: root,
-		url: base + '/docs/start/overview',
+		url: `${base}/docs/start/overview`,
 		timeout_ms: 180_000
 	});
 });
@@ -44,7 +44,7 @@ test('the sidebar is the same element after a navigation to another section, wit
 	page
 }) => {
 	test.setTimeout(3 * 60_000);
-	await page.goto(base + '/docs/start/overview');
+	await page.goto(`${base}/docs/start/overview`);
 	await expect(page.locator(SWITCHER)).toHaveCount(1, { timeout: 60_000 });
 	await expect(page.locator(SIDEBAR)).toHaveCount(1);
 	await page.locator(SIDEBAR).evaluate((el) => el.setAttribute('data-e2e-before-nav', ''));

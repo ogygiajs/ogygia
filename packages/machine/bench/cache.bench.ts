@@ -3,7 +3,7 @@
 import { bench } from '@bench/heisenbench/bench';
 import { cache, type Cache } from '../src/index.ts';
 
-const keys = (n: number): string[] => Array.from({ length: n }, (_, i) => '/page/' + i);
+const keys = (n: number): string[] => Array.from({ length: n }, (_, i) => `/page/${i}`);
 
 function filled(n: number, max: number): { c: Cache<string, number>; keys: string[] } {
 	const c = cache<string, number>({ max });
@@ -16,7 +16,7 @@ bench(
 	'cache: set into a full cache (each set lets the least recently used go)',
 	({ c, keys }) => {
 		let kept = 0;
-		for (const k of keys) if (c.set(k + '?again', 1)) kept++;
+		for (const k of keys) if (c.set(`${k}?again`, 1)) kept++;
 		return kept;
 	},
 	{

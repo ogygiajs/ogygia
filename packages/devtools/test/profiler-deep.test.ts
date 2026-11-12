@@ -25,17 +25,10 @@ import {
 } from '../src/profiler/gc.ts';
 import { analyze } from '../src/profiler/analyze.ts';
 import { sync_io, memo_candidates, simulate_awaits } from '../src/profiler/insights.ts';
+import { dedent } from '@ogygia/core/plugin/utils';
 
 describe('byte strip', () => {
-	const doc =
-		'<!doctype html><html><head><title>x</title><script data-ogygia-runtime src="/r.js"></script><style>.a{}</style><link rel="stylesheet" href="/a/b.css"></head>' +
-		'<body><p>hi</p>' +
-		'<ogygia-region data-og-fp="0000aaaa1111bbbb" entry="/_app/x.js"><div><template shadowrootmode="open"><b>ds</b></template><script>inner()</script></div></ogygia-region>' +
-		'<template shadowrootmode="open"><i>loose</i></template>' +
-		'<script type="application/ogygia-page">{"data":{"a":1}}</script>' +
-		'<script type="application/ogygia-props" data-ogygia-props>[]</script>' +
-		'<script type="application/ogygia-holes" data-ogygia-holes>{}</script>' +
-		'<script src="/_app/start.js" type="module"></script></body></html>';
+	const doc = `<!doctype html><html><head><title>x</title><script data-ogygia-runtime src="/r.js">\x3C/script><style>.a{}</style><link rel="stylesheet" href="/a/b.css"></head><body><p>hi</p><ogygia-region data-og-fp="0000aaaa1111bbbb" entry="/_app/x.js"><div><template shadowrootmode="open"><b>ds</b></template><script>inner()\x3C/script></div></ogygia-region><template shadowrootmode="open"><i>loose</i></template><script type="application/ogygia-page">{"data":{"a":1}}\x3C/script><script type="application/ogygia-props" data-ogygia-props>[]\x3C/script><script type="application/ogygia-holes" data-ogygia-holes>{}\x3C/script><script src="/_app/start.js" type="module">\x3C/script></body></html>`;
 
 	it('cuts the document into ordered, gap-free segments by what each byte is', () => {
 		const s = byte_strip(doc);
@@ -88,10 +81,7 @@ describe('byte strip', () => {
 	});
 
 	it('names each <img> with no width or height by its src; sized, hidden, scripted and data-width ones are not', () => {
-		const doc2 =
-			'<body><img src="/a/hero.jpg?w=1" alt="x"><img src=/b/plain.png><img width="10" height="10" src="/c/sized.png">' +
-			'<img hidden src="/d/hidden.png"><img data-width="9" data-height="9" src="/e/data.png"><IMG WIDTH=4 SRC="/f/half.png">' +
-			'<script>const s = "<img src=/g/in-script.png>"</script><template><img src="/h/tpl.png"></template></body>';
+		const doc2 = `<body><img src="/a/hero.jpg?w=1" alt="x"><img src=/b/plain.png><img width="10" height="10" src="/c/sized.png"><img hidden src="/d/hidden.png"><img data-width="9" data-height="9" src="/e/data.png"><IMG WIDTH=4 SRC="/f/half.png"><script>const s = "<img src=/g/in-script.png>"\x3C/script><template><img src="/h/tpl.png"></template></body>`;
 		expect(byte_strip(doc2).unsized_images).toEqual([
 			'/a/hero.jpg?w=1',
 			'/b/plain.png',
@@ -102,12 +92,7 @@ describe('byte strip', () => {
 	});
 
 	it('reads the tags as a browser does: a quoted `>`, a comment, a value naming a marker, a data-src', () => {
-		const doc3 =
-			'<html><head><!-- <link rel="stylesheet" href="/gone.css"> -->' +
-			'<script data-note="a>b" type="application/ogygia-page">{}</script>' +
-			'<script type="module" src="/data-ogygia-runtime.js"></script>' +
-			'<LINK REL="preload stylesheet" HREF="/a/b.css"></head>' +
-			'<body><img data-src="/lazy.png" src="/real.png"></body></html>';
+		const doc3 = `<html><head><!-- <link rel="stylesheet" href="/gone.css"> --><script data-note="a>b" type="application/ogygia-page">{}</script><script type="module" src="/data-ogygia-runtime.js"></script><LINK REL="preload stylesheet" HREF="/a/b.css"></head><body><img data-src="/lazy.png" src="/real.png"></body></html>`;
 		const s = byte_strip(doc3);
 		expect(s.segments.filter((x) => x.kind !== 'head' && x.kind !== 'markup')).toEqual([
 			{ kind: 'seed', start: 61, end: 127 },
@@ -121,8 +106,7 @@ describe('byte strip', () => {
 		expect(page_seed(doc)).toBe('{"data":{"a":1}}');
 		expect(
 			page_seed(
-				'<!-- <script type="application/ogygia-page">{"gone":1}</script> -->' +
-					"<script data-note='a>b' TYPE='application/ogygia-page'>{\"data\":{}}</script>"
+				`<!-- <script type="application/ogygia-page">{"gone":1}</script> --><script data-note='a>b' TYPE='application/ogygia-page'>{"data":{}}</script>`
 			)
 		).toBe('{"data":{}}');
 		expect(page_seed('<p>no seed</p>')).toBeNull();
@@ -314,12 +298,22 @@ describe('data river', () => {
 	it('load_return_keys reads the object literals a load returns; spreads and non-literals are unknown', () => {
 		expect(
 			load_return_keys(
-				`export async function load({ fetch }) {\n  const a = await fetch('/x');\n  return { products: await a.json(), 'total': 3, "flags": f, count };\n}`
+				dedent`
+					export async function load({ fetch }) {
+					  const a = await fetch('/x');
+					  return { products: await a.json(), 'total': 3, "flags": f, count };
+					}
+				`
 			)
 		).toEqual(['products', 'total', 'flags', 'count']);
 		expect(
 			load_return_keys(
-				`export const load = async () => {\n if (x) return { a: 1 };\n return ({ b: { nested: 1 }, c: [1,2] });\n}`
+				dedent`
+					export const load = async () => {
+					 if (x) return { a: 1 };
+					 return ({ b: { nested: 1 }, c: [1,2] });
+					}
+				`
 			)
 		).toEqual(['a', 'b', 'c']);
 		expect(
@@ -458,7 +452,7 @@ describe('dom diff + shift boxes', () => {
 			truncated: false
 		});
 		// a huge middle is not diffed token by token
-		const big = html_diff('<p>' + 'a '.repeat(3000) + '</p>', '<p>' + 'b '.repeat(3000) + '</p>');
+		const big = html_diff(`<p>${'a '.repeat(3000)}</p>`, `<p>${'b '.repeat(3000)}</p>`);
 		expect(big.truncated).toBe(true);
 		expect(big.ops.map((o) => o.kind)).toEqual(['same', 'del', 'add', 'same']);
 	});
@@ -503,7 +497,12 @@ describe('sink', () => {
 		});
 		expect(b.size).toBeLessThan(21);
 		const text = b.drain();
-		const rows = parse_sink(text + '\n{bad json\n');
+		const rows = parse_sink(
+			`${dedent`
+			${text}
+			{bad json
+		`}\n`
+		);
 		expect(rows.some((r) => r.k === 'win')).toBe(true);
 		expect(rows.every((r) => r.k === 'req' || r.k === 'win')).toBe(true);
 		expect(b.size).toBe(0);

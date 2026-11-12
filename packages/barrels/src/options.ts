@@ -82,15 +82,15 @@ export function matches(m: Matcher, id: string, spec: string): boolean {
 	if (typeof m === 'function') return m(id) || m(spec);
 	if (m instanceof RegExp) return m.test(id) || m.test(spec);
 	if (m.includes('*')) {
-		const re = new RegExp('^' + m.replace(REGEX_META_G, '\\$&').replace(GLOB_STAR_G, '.*') + '$');
+		const re = new RegExp(`^${m.replace(REGEX_META_G, '\\$&').replace(GLOB_STAR_G, '.*')}$`);
 		return re.test(spec) || re.test(id) || re.test(id.split('/node_modules/').pop() ?? id);
 	}
 	// a plain string: the specifier (or its package prefix), or a path segment of the resolved id
 	return (
 		spec === m ||
-		spec.startsWith(m + '/') ||
-		id.includes('/' + m + '/') ||
-		id.endsWith('/' + m) ||
+		spec.startsWith(`${m}/`) ||
+		id.includes(`/${m}/`) ||
+		id.endsWith(`/${m}`) ||
 		id === m
 	);
 }

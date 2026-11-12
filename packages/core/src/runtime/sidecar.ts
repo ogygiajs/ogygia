@@ -23,7 +23,7 @@ export function props_sidecar_of(region: Element): HTMLScriptElement | null {
 	const fp = region.getAttribute(OG_FP);
 	const root = region.getRootNode() as Document | ShadowRoot | Element;
 	if (fp && 'getElementById' in root) {
-		const keyed = root.getElementById('og-props-' + fp);
+		const keyed = root.getElementById(`og-props-${fp}`);
 		if (keyed) return keyed as HTMLScriptElement;
 	}
 	let sib = region.nextElementSibling;

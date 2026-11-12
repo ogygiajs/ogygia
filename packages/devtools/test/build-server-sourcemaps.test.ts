@@ -26,7 +26,7 @@ describe('server_sourcemaps_plugin', () => {
 		fs.mkdirSync(path.join(client, '_app/immutable/chunks'), { recursive: true });
 		for (const f of ['_app/immutable/a.js', '_app/immutable/chunks/b.js']) {
 			fs.writeFileSync(path.join(client, f), '');
-			fs.writeFileSync(path.join(client, f + '.map'), '{}');
+			fs.writeFileSync(path.join(client, `${f}.map`), '{}');
 		}
 		const bundle = { '_app/immutable/a.js': {}, '_app/immutable/chunks/b.js': {} };
 		(p.writeBundle as unknown as { handler: (o: { dir: string }, b: object) => void }).handler(

@@ -33,7 +33,7 @@ test.describe('page reads inside a mounted MFE island', () => {
 	// reload + console errors). In the long serial run that first load is slow enough to flake the
 	// hydrate wait and dirty the console-error assertion. One throwaway visit per page absorbs it.
 	test.beforeAll(async ({ browser, mfe }) => {
-		for (const url of [mfe.origin('shell') + '/cms/', mfe.origin('cms') + '/cms/']) {
+		for (const url of [`${mfe.origin('shell')}/cms/`, `${mfe.origin('cms')}/cms/`]) {
 			const p = await browser.newPage();
 			await p.goto(url, { waitUntil: 'domcontentloaded' });
 			await p
@@ -45,7 +45,7 @@ test.describe('page reads inside a mounted MFE island', () => {
 	});
 
 	test('the cms-rendered probe island is spliced into the shell document', async ({ mfe }) => {
-		const html = await (await fetch(mfe.origin('shell') + '/cms/')).text();
+		const html = await (await fetch(`${mfe.origin('shell')}/cms/`)).text();
 		expect(
 			html,
 			'the shell splices the cms fragment body (probe rendered server-side by cms)'
@@ -64,7 +64,7 @@ test.describe('page reads inside a mounted MFE island', () => {
 		});
 		page.on('pageerror', (e) => errors.push(e.message));
 
-		await page.goto(mfe.origin('shell') + '/cms/');
+		await page.goto(`${mfe.origin('shell')}/cms/`);
 		await expect(
 			page.locator(HYDRATED_PROBE),
 			'the cms probe island hydrated (foreign delegate path)'
@@ -109,7 +109,7 @@ test.describe('page reads inside a mounted MFE island', () => {
 		const warnings: string[] = [];
 		page.on('console', (m) => m.type() === 'warning' && warnings.push(m.text()));
 
-		await page.goto(mfe.origin('cms') + '/cms/');
+		await page.goto(`${mfe.origin('cms')}/cms/`);
 		await expect(page.locator(HYDRATED_PROBE), 'the probe island hydrated').toBeVisible({
 			timeout: HYDRATE_TIMEOUT
 		});

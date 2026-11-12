@@ -164,7 +164,7 @@ export function runtime_first(
 	if (was === null) return head;
 	const placed = with_code_origins(was, code_origins);
 	// @why a repeated attribute keeps its first value, so the response's mark leads the tag's attributes (test: test/head-presence.test.ts › leads the attributes, so a mark the markup put on the tag loses)
-	const tag = mark ? '<script ' + RESPONSE_MARK + '="' + mark + '"' + placed.slice(7) : placed;
+	const tag = mark ? `<script ${RESPONSE_MARK}="${mark}"${placed.slice(7)}` : placed;
 	const rest = found ? head.slice(0, found.start) + head.slice(found.end) : head;
 	const from = next_tag(rest, 'head', 0)?.end ?? 0;
 	let at = next_tag(rest, 'script', from)?.start ?? Infinity;
@@ -196,6 +196,6 @@ function with_code_origins(tag: string, urls: readonly string[]): string {
 	if (!origins.size) return bare;
 	return bare.replace(
 		RUNTIME_MARK_RE,
-		(mark) => mark + ` ${OG_ORIGINS}="` + [...origins].join(' ') + '"'
+		(mark) => `${mark} ${OG_ORIGINS}="${[...origins].join(' ')}"`
 	);
 }

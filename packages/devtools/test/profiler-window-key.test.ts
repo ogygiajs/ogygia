@@ -10,7 +10,7 @@ import { MemoryStore } from '../src/profiler/storage/index.ts';
 vi.mock('../src/profiler/env.ts', () => ({ detect_dev: () => false }));
 
 function event(path: string, headers: Record<string, string>): RequestEvent {
-	const url = new URL('http://localhost' + path);
+	const url = new URL(`http://localhost${path}`);
 	return {
 		url,
 		request: new Request(url, { headers }),
@@ -26,7 +26,7 @@ it('a production profiler with no secret writes no request under a window id', a
 	const handle = profiler({ store });
 	const nonce = 'n0nce';
 	const sig = createHmac('sha256', 'ogygia-dev-window')
-		.update('window:' + nonce)
+		.update(`window:${nonce}`)
 		.digest('hex')
 		.slice(0, 20);
 	await handle({
@@ -43,10 +43,7 @@ it('a window id signed the old way (a bare HMAC of the nonce, no lifetime) is no
 	const put = vi.spyOn(store, 'putVisit');
 	const handle = profiler({ store, secret });
 	const nonce = 'n0nce';
-	const sig = createHmac('sha256', secret)
-		.update('window:' + nonce)
-		.digest('hex')
-		.slice(0, 20);
+	const sig = createHmac('sha256', secret).update(`window:${nonce}`).digest('hex').slice(0, 20);
 	await handle({
 		event: event('/page', { 'x-og-window': `${nonce}.${sig}` }),
 		resolve: async () => new Response('page')

@@ -83,7 +83,7 @@ export function basename(url: string): string {
 export function short_chunk(url: string | null): string {
 	if (!url) return '';
 	const b = basename(url).replace(JS_EXT_RE, '');
-	return b.length > 24 ? b.slice(0, 23) + '…' : b;
+	return b.length > 24 ? `${b.slice(0, 23)}…` : b;
 }
 
 /** The island id from an entry URL, or '': `<id>` in the dev server's `ogygia:region/entry/<id>.js`
@@ -139,7 +139,7 @@ export function region_name_by_fp(fp: string | null | undefined): string {
 
 /** kB with one decimal. */
 export function kb(bytes: number): string {
-	return (bytes / 1024).toFixed(1) + ' kB';
+	return `${(bytes / 1024).toFixed(1)} kB`;
 }
 
 /** Resource-timing entry for a chunk, matched by hashed basename (unique per build). */

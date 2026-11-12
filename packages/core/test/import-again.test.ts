@@ -96,7 +96,7 @@ describe('import_again', () => {
 		const load = import_again(() => Promise.reject(SAFARI), fresh, file);
 		await expect(load()).rejects.toBe(SAFARI);
 		await expect(load()).resolves.toBe('island');
-		expect(asked).toEqual([file + '?og-retry=1']);
+		expect(asked).toEqual([`${file}?og-retry=1`]);
 		vi.unstubAllGlobals();
 	});
 
@@ -114,7 +114,7 @@ describe('import_again', () => {
 		const load = import_again(() => Promise.reject(dependency), fresh, own);
 		await expect(load()).rejects.toBe(dependency);
 		await load();
-		expect(asked).toEqual([own + '?og-retry=1']);
+		expect(asked).toEqual([`${own}?og-retry=1`]);
 		vi.unstubAllGlobals();
 	});
 
@@ -272,7 +272,7 @@ describe("a peer's island file", () => {
 		const load = import_again(() => Promise.reject(dropped(PEER_FILE)), fresh, PEER_FILE);
 		await expect(load()).rejects.toThrow(PEER_FILE);
 		await expect(load()).resolves.toBe('island');
-		expect(asked).toEqual([PEER_FILE + '?og-retry=1']);
+		expect(asked).toEqual([`${PEER_FILE}?og-retry=1`]);
 		vi.unstubAllGlobals();
 	});
 
@@ -286,7 +286,7 @@ describe("a peer's island file", () => {
 		const load = import_again(() => Promise.reject(SAFARI), fresh, PEER_FILE);
 		await expect(load()).rejects.toBe(SAFARI);
 		await expect(load()).resolves.toBe('island');
-		expect(asked).toEqual([PEER_FILE + '?og-retry=1']);
+		expect(asked).toEqual([`${PEER_FILE}?og-retry=1`]);
 		vi.unstubAllGlobals();
 	});
 
@@ -302,7 +302,7 @@ describe("a peer's island file", () => {
 		const load = import_again(() => Promise.reject(dropped(dep)), fresh, PEER_FILE);
 		await expect(load()).rejects.toThrow(dep);
 		await expect(load()).resolves.toBe('island');
-		expect(asked).toEqual([PEER_FILE + '?og-retry=1']);
+		expect(asked).toEqual([`${PEER_FILE}?og-retry=1`]);
 		// a file that is not http(s) is never asked again by URL
 		const odd = import_again(
 			() => Promise.reject(dropped('data:text/javascript,0')),
@@ -311,7 +311,7 @@ describe("a peer's island file", () => {
 		);
 		await expect(odd()).rejects.toThrow();
 		await odd().catch(() => {});
-		expect(asked).toEqual([PEER_FILE + '?og-retry=1']);
+		expect(asked).toEqual([`${PEER_FILE}?og-retry=1`]);
 		vi.unstubAllGlobals();
 	});
 

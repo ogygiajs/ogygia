@@ -135,7 +135,7 @@ export async function run_module_macros(
 	if (ctx.macros?.length) {
 		let rel: string | undefined;
 		for (const macro of ctx.macros) {
-			if (!out.includes('import.meta.og.' + macro.name)) continue;
+			if (!out.includes(`import.meta.og.${macro.name}`)) continue;
 			rel ??= path.relative(ctx.root, id.split('?')[0]).split(path.sep).join('/');
 			const rewritten = await macro.handler(out, {
 				id: id.split('?')[0],

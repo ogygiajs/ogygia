@@ -10,7 +10,7 @@ export const OWN_PACKAGE_NAMES: readonly string[] = ['ogygia', '@ogygia/core'];
 /** A bare specifier that names core, by either name, or one of its subpaths. */
 export function is_own_specifier(spec: string): boolean {
 	for (const name of OWN_PACKAGE_NAMES)
-		if (spec === name || spec.startsWith(name + '/')) return true;
+		if (spec === name || spec.startsWith(`${name}/`)) return true;
 	return false;
 }
 

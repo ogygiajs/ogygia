@@ -162,7 +162,7 @@ function failure(reason: unknown): void {
 	const message =
 		reason instanceof Error ? reason.message : typeof reason === 'string' ? reason : '';
 	if (message.startsWith('[ogygia]') && !CODE_LINK_RE.test(message))
-		R.uncoded.push('an ogygia error with no code: ' + message.split('\n')[0].slice(0, 160));
+		R.uncoded.push(`an ogygia error with no code: ${message.split('\n')[0].slice(0, 160)}`);
 }
 
 const no_failure_uncoded = (): string | null =>

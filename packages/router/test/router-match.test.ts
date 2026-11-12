@@ -91,7 +91,7 @@ describe('router pattern matching', () => {
 describe('router pattern matching takes time in line with the path', () => {
 	it('a segment with several params answers a long path that almost matches at once', () => {
 		const c = [compile('/[a]-[b]-[c]')];
-		const near_miss = '/' + '-'.repeat(2000) + '/x';
+		const near_miss = `/${'-'.repeat(2000)}/x`;
 		const t = performance.now();
 		expect(match_path(c, near_miss)).toBeNull();
 		expect(performance.now() - t).toBeLessThan(100);
@@ -120,7 +120,7 @@ describe('router pattern matching takes time in line with the path', () => {
 		// the reference is Kit's own shape: each param `([^/]+?)`, fine on paths this short
 		const kit = (pattern: string) =>
 			new RegExp(
-				'^' + pattern.replace(/[.*+?^${}()|\\]/g, '\\$&').replace(/\[[a-z]\]/g, '([^/]+?)') + '/?$'
+				`^${pattern.replace(/[.*+?^${}()|\\]/g, '\\$&').replace(/\[[a-z]\]/g, '([^/]+?)')}/?$`
 			);
 		const patterns = [
 			'/[a]-[b]',
@@ -138,7 +138,7 @@ describe('router pattern matching takes time in line with the path', () => {
 		for (const pattern of patterns) {
 			const c = compile(pattern);
 			for (const tail of paths) {
-				const path = '/' + tail;
+				const path = `/${tail}`;
 				const want = kit(pattern).exec(path);
 				const got = match_one(c, path);
 				const want_params = want
@@ -152,13 +152,13 @@ describe('router pattern matching takes time in line with the path', () => {
 	it('two params with nothing between them answer a long near miss at once (#833)', () => {
 		const c = [compile('/[a][b]')];
 		const t = performance.now();
-		expect(match_path(c, '/' + 'a'.repeat(8000) + '/x')).toBeNull();
+		expect(match_path(c, `/${'a'.repeat(8000)}/x`)).toBeNull();
 		expect(performance.now() - t).toBeLessThan(100);
 	});
 
 	it('a path longer than any route can mean matches nothing', () => {
 		const c = compile_all(['/[...rest]']);
-		expect(match_path(c, '/' + 'a'.repeat(20_000))).toBeNull();
-		expect(match_path(c, '/' + 'a'.repeat(2000))).not.toBeNull();
+		expect(match_path(c, `/${'a'.repeat(20_000)}`)).toBeNull();
+		expect(match_path(c, `/${'a'.repeat(2000)}`)).not.toBeNull();
 	});
 });

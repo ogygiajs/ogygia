@@ -23,18 +23,16 @@ const dash = pair();
 
 writeFileSync(
 	new URL('./keys.env', import.meta.url),
-	[
-		`export SHELL_SIGNING_KEY=${shell.priv}`,
-		`export CMS_SIGNING_KEY=${cms.priv}`,
-		`export DASH_SIGNING_KEY=${dash.priv}`,
-		`export SHELL_PUBLIC_KEY=${shell.pub}`,
-		`export CMS_PUBLIC_KEY=${cms.pub}`,
-		`export DASH_PUBLIC_KEY=${dash.pub}`,
-		`export SHELL_ORIGIN=http://localhost:5190`,
-		`export CMS_ORIGIN=http://localhost:5192`,
-		`export DASH_ORIGIN=http://localhost:5191`,
-		''
-	].join('\n')
+	`export SHELL_SIGNING_KEY=${shell.priv}
+export CMS_SIGNING_KEY=${cms.priv}
+export DASH_SIGNING_KEY=${dash.priv}
+export SHELL_PUBLIC_KEY=${shell.pub}
+export CMS_PUBLIC_KEY=${cms.pub}
+export DASH_PUBLIC_KEY=${dash.pub}
+export SHELL_ORIGIN=http://localhost:5190
+export CMS_ORIGIN=http://localhost:5192
+export DASH_ORIGIN=http://localhost:5191
+`
 );
 
 console.log('wrote keys.env — run:  source keys.env');

@@ -64,9 +64,7 @@ test('an on-demand hole is not warmed by a pointer that merely RESTS where its c
 			headers: { 'content-type': 'text/html' }
 		});
 	};
-	document.body.innerHTML =
-		`<nav><ogygia-region render="defer" when="interaction" style="display:contents" endpoint="${RESTING_ENDPOINT}">` +
-		`<a id="rest">Products</a></ogygia-region></nav>`;
+	document.body.innerHTML = `<nav><ogygia-region render="defer" when="interaction" style="display:contents" endpoint="${RESTING_ENDPOINT}"><a id="rest">Products</a></ogygia-region></nav>`;
 	try {
 		bootDev();
 		await new Promise((r) => setTimeout(r, 200));
@@ -91,9 +89,7 @@ function html_response(html: string): Response {
 }
 
 test('a deferred hole survives Kit wiping its endpoint attribute after connect', async () => {
-	document.body.innerHTML =
-		`<ogygia-region render="defer" when="idle" endpoint="${ENDPOINT}">` +
-		`<p data-testid="fallback">fallback</p></ogygia-region>`;
+	document.body.innerHTML = `<ogygia-region render="defer" when="idle" endpoint="${ENDPOINT}"><p data-testid="fallback">fallback</p></ogygia-region>`;
 	const region = document.querySelector('ogygia-region')!;
 	const calls: string[] = [];
 	const real_fetch = window.fetch;
@@ -135,9 +131,7 @@ test('an on-demand hole fetches on pointer intent and morphs its HTML in (fallba
 		Object.defineProperty(res, 'url', { value: location.origin + ON_DEMAND_ENDPOINT });
 		return res;
 	};
-	document.body.innerHTML =
-		`<ogygia-region render="defer" when="interaction" endpoint="${ON_DEMAND_ENDPOINT}">` +
-		`<ul data-testid="menu"><li id="l1" data-open="true">Products</li></ul></ogygia-region>`;
+	document.body.innerHTML = `<ogygia-region render="defer" when="interaction" endpoint="${ON_DEMAND_ENDPOINT}"><ul data-testid="menu"><li id="l1" data-open="true">Products</li></ul></ogygia-region>`;
 	const region = document.querySelector('ogygia-region')!;
 	const l1_before = document.getElementById('l1')!;
 	try {
@@ -173,9 +167,7 @@ test('an on-demand hole fetches on hover of a descendant (pointerover bubbles th
 		Object.defineProperty(res, 'url', { value: location.origin + HOVER_ENDPOINT });
 		return res;
 	};
-	document.body.innerHTML =
-		`<nav><ogygia-region render="defer" when="interaction" style="display:contents" endpoint="${HOVER_ENDPOINT}">` +
-		`<a id="item">Products</a></ogygia-region></nav>`;
+	document.body.innerHTML = `<nav><ogygia-region render="defer" when="interaction" style="display:contents" endpoint="${HOVER_ENDPOINT}"><a id="item">Products</a></ogygia-region></nav>`;
 	const region = document.querySelector('ogygia-region')!;
 	const item = document.getElementById('item')!;
 	try {
@@ -205,9 +197,7 @@ test('a hole answering 204 keeps the page fallback and marks the region done', a
 		Object.defineProperty(res, 'url', { value: location.origin + KEEP_ENDPOINT });
 		return res;
 	};
-	document.body.innerHTML =
-		`<ogygia-region render="defer" when="load" endpoint="${KEEP_ENDPOINT}">` +
-		`<p data-testid="fallback">anonymous actions</p></ogygia-region>`;
+	document.body.innerHTML = `<ogygia-region render="defer" when="load" endpoint="${KEEP_ENDPOINT}"><p data-testid="fallback">anonymous actions</p></ogygia-region>`;
 	const region = document.querySelector('ogygia-region')!;
 	const fallback = document.querySelector('[data-testid="fallback"]');
 	try {
@@ -252,9 +242,7 @@ test('a hole morph leaves an upgraded host’s attributes alone (keeps its popov
 		Object.defineProperty(res, 'url', { value: location.origin + POPOVER_ENDPOINT });
 		return res;
 	};
-	document.body.innerHTML =
-		`<ogygia-region render="defer" when="interaction" endpoint="${POPOVER_ENDPOINT}">` +
-		`<div><button id="t">Trigger</button><x-pop id="p" class="x-scope"></x-pop></div></ogygia-region>`;
+	document.body.innerHTML = `<ogygia-region render="defer" when="interaction" endpoint="${POPOVER_ENDPOINT}"><div><button id="t">Trigger</button><x-pop id="p" class="x-scope"></x-pop></div></ogygia-region>`;
 	const region = document.querySelector('ogygia-region')!;
 	const pop = document.getElementById('p') as HTMLElement;
 	try {
@@ -310,9 +298,7 @@ test('an on-demand hole with prefetch="idle" warms at idle, keeps its fallback, 
 		Object.defineProperty(res, 'url', { value: location.origin + PREFETCH_ENDPOINT });
 		return res;
 	};
-	document.body.innerHTML =
-		`<ogygia-region render="defer" when="interaction" prefetch="idle" endpoint="${PREFETCH_ENDPOINT}">` +
-		`<ul data-testid="menu"><li id="l1">Products</li></ul></ogygia-region>`;
+	document.body.innerHTML = `<ogygia-region render="defer" when="interaction" prefetch="idle" endpoint="${PREFETCH_ENDPOINT}"><ul data-testid="menu"><li id="l1">Products</li></ul></ogygia-region>`;
 	const region = document.querySelector('ogygia-region')!;
 	const l1_before = document.getElementById('l1')!;
 	try {
@@ -346,9 +332,7 @@ const ACCOUNT_PAGE =
 	'<!DOCTYPE html>\n<html><head><meta name="ogygia-csr" content="true"></head><body><div class="skeleton">…</div><script>window.__sveltekit_x = {}</script></body></html>';
 
 test('a hole answer that was REDIRECTED is refused: the fallback stands, no retry', async () => {
-	document.body.innerHTML =
-		`<ogygia-region render="defer" when="load" endpoint="${REFUSED_REDIRECT_ENDPOINT}">` +
-		`<p data-testid="fallback">fallback</p></ogygia-region>`;
+	document.body.innerHTML = `<ogygia-region render="defer" when="load" endpoint="${REFUSED_REDIRECT_ENDPOINT}"><p data-testid="fallback">fallback</p></ogygia-region>`;
 	const region = document.querySelector('ogygia-region')!;
 	const calls: string[] = [];
 	const real_fetch = window.fetch;
@@ -358,7 +342,7 @@ test('a hole answer that was REDIRECTED is refused: the fallback stands, no retr
 			status: 200,
 			headers: { 'content-type': 'text/html' }
 		});
-		Object.defineProperty(res, 'url', { value: location.origin + '/account/' });
+		Object.defineProperty(res, 'url', { value: `${location.origin}/account/` });
 		Object.defineProperty(res, 'redirected', { value: true });
 		return res;
 	};
@@ -375,9 +359,7 @@ test('a hole answer that was REDIRECTED is refused: the fallback stands, no retr
 });
 
 test('a hole answer that is a WHOLE DOCUMENT is refused: nothing of it enters the page', async () => {
-	document.body.innerHTML =
-		`<ogygia-region render="defer" when="load" endpoint="${REFUSED_DOCUMENT_ENDPOINT}">` +
-		`<p data-testid="fallback">fallback</p></ogygia-region>`;
+	document.body.innerHTML = `<ogygia-region render="defer" when="load" endpoint="${REFUSED_DOCUMENT_ENDPOINT}"><p data-testid="fallback">fallback</p></ogygia-region>`;
 	const region = document.querySelector('ogygia-region')!;
 	const calls: string[] = [];
 	const real_fetch = window.fetch;

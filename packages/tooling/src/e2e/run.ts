@@ -302,7 +302,10 @@ async function main() {
 		prebuilds.set(
 			suite.dir,
 			run_process(cmd, join(REPO, cwd), process.env, log).then((code) => {
-				if (code !== 0) console.log(`✗ build ${suite.name} failed\n${tail(log)}\n  log: ${log}`);
+				if (code !== 0)
+					console.log(`✗ build ${suite.name} failed
+${tail(log)}
+  log: ${log}`);
 				else console.log(`  built ${suite.name} (${fmt(clock.mono() - t0)})`);
 				return code === 0;
 			})
@@ -310,8 +313,7 @@ async function main() {
 	}
 
 	console.log(
-		`▸ ${suites.length} suites in ${plan_lanes.length} lanes` +
-			(Object.keys(timings).length ? '' : ' (first run: balanced by test count)')
+		`▸ ${suites.length} suites in ${plan_lanes.length} lanes${Object.keys(timings).length ? '' : ' (first run: balanced by test count)'}`
 	);
 	const totals: Totals = { passed: 0, failed: 0, flaky: 0, skipped: 0 };
 	const fresh: Record<string, number> = {};
@@ -353,16 +355,17 @@ async function main() {
 				if (code === 0) console.log(`  ✓ ${label}  ${fmt(ms)}  (lane ${lane})`);
 				else {
 					failures.push(`${label}: ${log}`);
-					console.log(`  ✗ ${label}  ${fmt(ms)}  (lane ${lane})\n${tail(log)}\n  log: ${log}`);
+					console.log(`  ✗ ${label}  ${fmt(ms)}  (lane ${lane})
+${tail(log)}
+  log: ${log}`);
 				}
 			}
 		})
 	);
 
-	writeFileSync(TIMINGS, JSON.stringify({ ...timings, ...fresh }, null, '\t') + '\n');
+	writeFileSync(TIMINGS, `${JSON.stringify({ ...timings, ...fresh }, null, '\t')}\n`);
 	console.log(
-		`\n${failures.length ? '✗' : '✓'} ${totals.passed} passed, ${totals.failed} failed, ` +
-			`${totals.flaky} flaky, ${totals.skipped} skipped in ${fmt(clock.mono() - started)}`
+		`\n${failures.length ? '✗' : '✓'} ${totals.passed} passed, ${totals.failed} failed, ${totals.flaky} flaky, ${totals.skipped} skipped in ${fmt(clock.mono() - started)}`
 	);
 	for (const f of failures) console.log(`  ✗ ${f}`);
 	process.exit(failures.length ? 1 : 0);

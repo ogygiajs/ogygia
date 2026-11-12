@@ -4,28 +4,24 @@ import { strip_markup_ts } from '../src/index.ts';
 
 describe('strip_markup_ts', () => {
 	it('cuts every type-only span from the markup and drops lang="ts"', () => {
-		const src = [
-			'<script lang="ts">let a = 1;</script>',
-			'{#snippet row(l: { a: number }, i: number)}<p>{l.a}</p>{/snippet}',
-			'<p>{(a as number).toFixed()} {a!.toString()} {a satisfies number} {foo<string>(a)}</p>',
-			'{#each xs as x: number}{x}{/each}',
-			'<button onclick={(e: MouseEvent): void => go(e)}>x</button>',
-			'<p>{<number>a}</p>'
-		].join('\n');
-		expect(strip_markup_ts(src)).toBe(
-			[
-				'<script>let a = 1;</script>',
-				'{#snippet row(l, i)}<p>{l.a}</p>{/snippet}',
-				'<p>{(a).toFixed()} {a.toString()} {a} {foo(a)}</p>',
-				'{#each xs as x}{x}{/each}',
-				'<button onclick={(e) => go(e)}>x</button>',
-				'<p>{a}</p>'
-			].join('\n')
-		);
+		const src = `<script lang="ts">let a = 1;</script>
+{#snippet row(l: { a: number }, i: number)}<p>{l.a}</p>{/snippet}
+<p>{(a as number).toFixed()} {a!.toString()} {a satisfies number} {foo<string>(a)}</p>
+{#each xs as x: number}{x}{/each}
+<button onclick={(e: MouseEvent): void => go(e)}>x</button>
+<p>{<number>a}</p>`;
+		expect(strip_markup_ts(src)).toBe(`<script>let a = 1;</script>
+{#snippet row(l, i)}<p>{l.a}</p>{/snippet}
+<p>{(a).toFixed()} {a.toString()} {a} {foo(a)}</p>
+{#each xs as x}{x}{/each}
+<button onclick={(e) => go(e)}>x</button>
+<p>{a}</p>`);
 	});
 
 	it('drops lang from a module script too, and keeps other attributes', () => {
-		const src = `<script module lang='ts'>export const k = 1;</script>\n<script lang="ts" generics="T">let { v }: { v: T } = $props();</script>\n<p>{v}</p>`;
+		const src = `<script module lang='ts'>export const k = 1;</script>
+<script lang="ts" generics="T">let { v }: { v: T } = $props();</script>
+<p>{v}</p>`;
 		const out = strip_markup_ts(src);
 		expect(out).toContain('<script module>');
 		expect(out).toContain('<script generics="T">');

@@ -62,9 +62,9 @@ export async function componentCssHead(components: readonly unknown[]): Promise<
 	for (const e of entries) {
 		if (!fresh.has(e.key)) continue;
 		fresh.delete(e.key); // shared child CSS can repeat across components — link once
-		if (e.href) head += `<link rel="stylesheet" href="${e.href}" ${OGYGIA_REGION_CSS}>`;
+		if (e.href) head = `${head}<link rel="stylesheet" href="${e.href}" ${OGYGIA_REGION_CSS}>`;
 		else if (e.css)
-			head += `<style ${OGYGIA_RCSS}>${e.css.replace(STYLE_CLOSE_G, '<\\/style')}</style>`;
+			head = `${head}<style ${OGYGIA_RCSS}>${e.css.replace(STYLE_CLOSE_G, '<\\/style')}</style>`;
 	}
 	return head;
 }

@@ -301,7 +301,7 @@ export function decode(s: string): string {
 		out += s.slice(i, amp);
 		const semi = s.indexOf(';', amp);
 		if (semi === -1 || semi - amp > 10) {
-			out += '&';
+			out = `${out}&`;
 			i = amp + 1;
 			continue;
 		}
@@ -313,7 +313,7 @@ export function decode(s: string): string {
 			if (Number.isFinite(code) && code > 0 && code <= 0x10ffff) ch = String.fromCodePoint(code);
 		} else ch = NAMED[ref];
 		if (ch === undefined) {
-			out += '&';
+			out = `${out}&`;
 			i = amp + 1;
 		} else {
 			out += ch;
@@ -717,7 +717,7 @@ export function mark(
 			const shadow_tpl = name === 'template' && attrs.some((a) => a.name === 'shadowrootmode');
 			if (child_of_host && !shadow_tpl) {
 				const i = parent.next++;
-				insert += ` og-c="${parent.host}.${i}"`;
+				insert = `${insert} og-c="${parent.host}.${i}"`;
 				if (planned[parent.host])
 					hosts.get(parent.host)!.children.set(i, { attrs: attr_map(attrs) });
 			}
@@ -817,10 +817,7 @@ export function mark(
 
 /** How the stand-ins keep their element's box before the restore swaps them back (zero specificity:
  *  the component's own class rules still win). */
-export const STAND_IN_CSS: string =
-	':where(og-as){display:inline}' +
-	':where(og-as[tag=address],og-as[tag=article],og-as[tag=aside],og-as[tag=blockquote],og-as[tag=center],og-as[tag=details],og-as[tag=dialog],og-as[tag=dir],og-as[tag=div],og-as[tag=dl],og-as[tag=dd],og-as[tag=dt],og-as[tag=fieldset],og-as[tag=figcaption],og-as[tag=figure],og-as[tag=footer],og-as[tag=form],og-as[tag=header],og-as[tag=hgroup],og-as[tag=main],og-as[tag=menu],og-as[tag=nav],og-as[tag=ol],og-as[tag=p],og-as[tag=search],og-as[tag=section],og-as[tag=summary],og-as[tag=ul],og-as[tag=h1],og-as[tag=h2],og-as[tag=h3],og-as[tag=h4],og-as[tag=h5],og-as[tag=h6],og-as[tag=pre],og-as[tag=listing],og-as[tag=hr],og-as[tag=xmp]){display:block}' +
-	':where(og-as[tag=li]){display:list-item}:where(og-as[tag=table]){display:table}:where(og-as[tag=button]){display:inline-block}';
+export const STAND_IN_CSS: string = `:where(og-as){display:inline}:where(og-as[tag=address],og-as[tag=article],og-as[tag=aside],og-as[tag=blockquote],og-as[tag=center],og-as[tag=details],og-as[tag=dialog],og-as[tag=dir],og-as[tag=div],og-as[tag=dl],og-as[tag=dd],og-as[tag=dt],og-as[tag=fieldset],og-as[tag=figcaption],og-as[tag=figure],og-as[tag=footer],og-as[tag=form],og-as[tag=header],og-as[tag=hgroup],og-as[tag=main],og-as[tag=menu],og-as[tag=nav],og-as[tag=ol],og-as[tag=p],og-as[tag=search],og-as[tag=section],og-as[tag=summary],og-as[tag=ul],og-as[tag=h1],og-as[tag=h2],og-as[tag=h3],og-as[tag=h4],og-as[tag=h5],og-as[tag=h6],og-as[tag=pre],og-as[tag=listing],og-as[tag=hr],og-as[tag=xmp]){display:block}:where(og-as[tag=li]){display:list-item}:where(og-as[tag=table]){display:table}:where(og-as[tag=button]){display:inline-block}`;
 
 export interface Settled {
 	html: string;
@@ -863,7 +860,7 @@ function rewrite_start(
 	add: string,
 	rename?: string
 ): string {
-	let s = '<' + (rename ?? html.slice(tok.start + 1, tok.name_end));
+	let s = `<${rename ?? html.slice(tok.start + 1, tok.name_end)}`;
 	let at = tok.name_end;
 	for (const a of attrs) {
 		if (!drop.has(a.name)) continue;
@@ -1077,9 +1074,9 @@ export function settle(html: string, record: MarkRecord, opts: { dev?: boolean }
 					reset = attr_diff(attrs, was, new Set());
 				}
 			}
-			if (reset) add += ` og-r="${escape_amp_quot(JSON.stringify(reset))}"`;
+			if (reset) add = `${add} og-r="${escape_amp_quot(JSON.stringify(reset))}"`;
 			if (stand_in) {
-				add += ` tag="${name}"`;
+				add = `${add} tag="${name}"`;
 				stand_ins++;
 			}
 			if (remove.size || add || stand_in) {

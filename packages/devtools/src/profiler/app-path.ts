@@ -6,7 +6,7 @@ function root_of_app(): string | null {
 		try {
 			const cwd = (globalThis as { process?: { cwd?: () => string } }).process?.cwd?.();
 			app_root = cwd ? cwd.split('\\').join('/') : null;
-			if (app_root && !app_root.endsWith('/')) app_root += '/';
+			if (app_root && !app_root.endsWith('/')) app_root = `${app_root}/`;
 		} catch {
 			app_root = null;
 		}

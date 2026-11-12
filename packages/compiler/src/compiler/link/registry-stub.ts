@@ -206,8 +206,8 @@ export function registry_stub_names(id: string): string[] {
 export function registry_stub_source(names: readonly string[]): string {
 	let out = '';
 	for (const n of names) {
-		if (n === 'default') out += 'export default undefined;\n';
-		else if (/^[A-Za-z_$][\w$]*$/.test(n)) out += `export const ${n} = undefined;\n`;
+		if (n === 'default') out = `${out}export default undefined;\n`;
+		else if (/^[A-Za-z_$][\w$]*$/.test(n)) out = `${out}export const ${n} = undefined;\n`;
 	}
 	return out || 'export {};\n';
 }

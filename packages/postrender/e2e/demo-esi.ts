@@ -27,7 +27,7 @@ const head = (t: string) => say(`\n\x1b[1m${t}\x1b[0m`);
 const kv = (k: string, v: string | null | undefined) => say(`   ${k.padEnd(24)} ${v ?? '(none)'}`);
 const snippet = (html: string, needle: string, width = 110) => {
 	const at = html.indexOf(needle);
-	return at === -1 ? '(absent)' : html.slice(at, at + width).replace(/\s+/g, ' ') + '…';
+	return at === -1 ? '(absent)' : `${html.slice(at, at + width).replace(/\s+/g, ' ')}…`;
 };
 
 let srv: SpawnedServer | undefined;
@@ -61,11 +61,11 @@ try {
 			EDGE_CF_URL: cf.base,
 			EDGE_SITE_URL: origin
 		},
-		url: origin + '/api/state',
+		url: `${origin}/api/state`,
 		ready: (res) => res.ok
 	});
 	const renders = async () =>
-		((await (await fetch(origin + '/api/state')).json()).renders ?? {})[PAGE] ?? 0;
+		((await (await fetch(`${origin}/api/state`)).json()).renders ?? {})[PAGE] ?? 0;
 
 	// SERVE=1: boot and STAY UP (cold caches) so a human can click through it in a browser.
 	if (process.env.SERVE) {
@@ -90,7 +90,9 @@ try {
 	kv('surrogate-control', o1.headers.get('surrogate-control'));
 	kv('etag', o1.headers.get('etag'));
 	say(
-		`   the hole in the stored bytes:\n     ${snippet(o1_html, '<esi:remove>')}\n     ${snippet(o1_html, '<esi:include')}`
+		`   the hole in the stored bytes:
+     ${snippet(o1_html, '<esi:remove>')}
+     ${snippet(o1_html, '<esi:include')}`
 	);
 	say(
 		`   ${ok(o1.headers.get('x-ogygia-postrender') === 'stored')} stored ONCE, edge-cacheable, ESI announced`
@@ -123,7 +125,7 @@ try {
 	say(
 		`   ${ok(n === 1)} origin rendered the shell exactly once — every serve after that is edge cache + one hole render`
 	);
-	const st = (await (await fetch(akamai.base + '/__edge/state')).json()) as {
+	const st = (await (await fetch(`${akamai.base}/__edge/state`)).json()) as {
 		hits: number;
 		misses: number;
 		esi: number;

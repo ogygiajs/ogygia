@@ -85,7 +85,7 @@ export async function read_hole(
 		throw new RegionAnswerRefused('forbidden', res.url || endpoint, deny_of(res, endpoint));
 	// the visitor's budget is spent: ask again when it says, not inside its window (#959)
 	if (res.status === 429) throw new RegionAnswerLater(retry_after_ms(res), res.url || endpoint);
-	if (!res.ok) throw new Error('status ' + res.status);
+	if (!res.ok) throw new Error(`status ${res.status}`);
 	// 204: the hole said keepFallback() — the page's fallback stands, nothing to swap.
 	const text = res.status === 204 ? KEEP_FALLBACK_HTML : await res.text();
 	if (res.status !== 204 && is_document_answer(text))

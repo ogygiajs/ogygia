@@ -10,7 +10,7 @@ import { run, trace_difference } from '../src/cli.ts';
 const OUTPUT = fileURLToPath(
 	new URL('../../../apps/palaestra/.svelte-kit/output', import.meta.url)
 );
-const built = existsSync(OUTPUT + '/server/index.js');
+const built = existsSync(`${OUTPUT}/server/index.js`);
 
 describe.skipIf(!built)('replay', () => {
 	for (const seed of [1, 3, 11]) {

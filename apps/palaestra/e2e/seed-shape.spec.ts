@@ -11,7 +11,7 @@ import { test, check } from '@ogygia/tooling/e2e';
 const SEED_RE = /<script type="application\/ogygia-page" data-ogygia-page[^>]*>([^<]*)<\/script>/;
 
 test('the reader page ships `small`, not the 300 KB `big`', async ({ page, baseURL }) => {
-	const html = await (await fetch(baseURL + '/seed-shape')).text();
+	const html = await (await fetch(`${baseURL}/seed-shape`)).text();
 	const m = SEED_RE.exec(html);
 	check('seed present (an island reads $page)', m !== null);
 	const seed = m?.[1] ?? '';
@@ -44,7 +44,7 @@ test('the control page (page.data handed to a helper) ships everything', async (
 	page,
 	baseURL
 }) => {
-	const html = await (await fetch(baseURL + '/seed-shape/all')).text();
+	const html = await (await fetch(`${baseURL}/seed-shape/all`)).text();
 	const m = SEED_RE.exec(html);
 	check('seed present', m !== null);
 	check('seed carries big (doubt goes to all)', (m?.[1] ?? '').includes('BBBBBBBBBB'));

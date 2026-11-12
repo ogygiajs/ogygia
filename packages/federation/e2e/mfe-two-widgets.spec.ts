@@ -9,7 +9,7 @@ import { test, expect } from './mfe.ts';
 
 test.describe('two deferred peer widgets on one page', () => {
 	test('each shows its own answer', async ({ page, mfe }) => {
-		await page.goto(mfe.origin('shell') + '/two-widgets');
+		await page.goto(`${mfe.origin('shell')}/two-widgets`);
 		await expect(page.getByTestId('shell-later')).toHaveText('later, shell', { timeout: 60_000 });
 		await expect(page.getByTestId('widget-acme').locator('h2')).toHaveText('Dashboard · acme', {
 			timeout: 60_000

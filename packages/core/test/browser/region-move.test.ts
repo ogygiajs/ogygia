@@ -32,9 +32,7 @@ function held_fetch() {
 
 test('a hole moved while its fetch is in flight keeps that fetch, and fills once', async () => {
 	const net = held_fetch();
-	document.body.innerHTML =
-		`<div data-from><ogygia-region render="defer" when="load" endpoint="${ENDPOINT}"><p data-testid="fallback">fallback</p></ogygia-region></div>` +
-		'<div data-host></div><div data-to></div>';
+	document.body.innerHTML = `<div data-from><ogygia-region render="defer" when="load" endpoint="${ENDPOINT}"><p data-testid="fallback">fallback</p></ogygia-region></div><div data-host></div><div data-to></div>`;
 	try {
 		bootDev();
 		await expect.poll(() => net.calls.length, { timeout: 10_000 }).toBe(1);

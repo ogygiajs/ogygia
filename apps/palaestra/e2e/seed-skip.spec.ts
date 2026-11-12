@@ -21,7 +21,7 @@ test.describe('SEED SKIP: the page seed ships only for islands that read it', ()
 		baseURL,
 		page
 	}) => {
-		const html = await (await fetch(baseURL + '/page-data')).text();
+		const html = await (await fetch(`${baseURL}/page-data`)).text();
 		check('/page-data: page seed present', SEED_RE.test(html));
 		await page.goto('/page-data', { waitUntil: 'networkidle' });
 		await page.waitForSelector('ogygia-region[data-hydrated]', { timeout: 8000 }).catch(() => {});

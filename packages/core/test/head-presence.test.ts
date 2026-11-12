@@ -6,6 +6,7 @@ import {
 	page_declares_speculation_rules,
 	runtime_first
 } from '../src/server/head-presence.ts';
+import { dedent } from '../src/contract/dedent.ts';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // The `handle()` transform skips injecting a head tag the page already carries. These predicates
@@ -42,7 +43,13 @@ describe('page_declares_router_meta', () => {
 	it('is TRUE regardless of attribute order or quote style', () => {
 		expect(page_declares_router_meta('<meta content="plain" name="ogygia-router">')).toBe(true);
 		expect(page_declares_router_meta("<meta name='ogygia-router' content='vt'>")).toBe(true);
-		expect(page_declares_router_meta('<meta\n  name="ogygia-router"\n  content="vt">')).toBe(true);
+		expect(
+			page_declares_router_meta(dedent`
+			<meta
+			  name="ogygia-router"
+			  content="vt">
+		`)
+		).toBe(true);
 	});
 
 	it('is FALSE with no mention at all', () => {
@@ -122,18 +129,11 @@ const head_start =
 
 describe('runtime_first — before all of the page’s JavaScript, not first in the head', () => {
 	it('moves the tag an island page emitted to just before the app template’s first script', () => {
-		const head =
-			head_start +
-			design_system +
-			'<title>x</title>' +
-			runtime +
-			'<link rel="stylesheet" href="/a.css">';
+		const head = `${
+			head_start + design_system
+		}<title>x</title>${runtime}<link rel="stylesheet" href="/a.css">`;
 		expect(runtime_first(head, null)).toBe(
-			head_start +
-				runtime +
-				design_system +
-				'<title>x</title>' +
-				'<link rel="stylesheet" href="/a.css">'
+			`${head_start + runtime + design_system}<title>x</title><link rel="stylesheet" href="/a.css">`
 		);
 	});
 
@@ -171,13 +171,11 @@ describe('runtime_first — before all of the page’s JavaScript, not first in 
 	});
 
 	it('moves the runtime’s own modulepreload hints WITH it, as one unit', () => {
-		const deps =
-			'<link rel="modulepreload" href="/c/a.js" data-ogygia-runtime-dep>' +
-			'<link rel="modulepreload" href="/c/b.js" data-ogygia-runtime-dep>';
+		const deps = `<link rel="modulepreload" href="/c/a.js" data-ogygia-runtime-dep><link rel="modulepreload" href="/c/b.js" data-ogygia-runtime-dep>`;
 		const css = '<link rel="stylesheet" href="/a.css">';
 		expect(
-			runtime_first(head_start + css + design_system + '<title>x</title>' + runtime + deps, null)
-		).toBe(head_start + css + runtime + deps + design_system + '<title>x</title>');
+			runtime_first(`${head_start + css + design_system}<title>x</title>${runtime}${deps}`, null)
+		).toBe(`${head_start + css + runtime + deps + design_system}<title>x</title>`);
 		// already in place with its hints: untouched
 		const placed = head_start + css + runtime + deps + design_system;
 		expect(runtime_first(placed, null)).toBe(placed);
@@ -186,45 +184,37 @@ describe('runtime_first — before all of the page’s JavaScript, not first in 
 	it('with no JavaScript in the head, it goes last in the head', () => {
 		const head = '<html><head><meta charset="utf-8"><title>t</title></head><body>';
 		expect(runtime_first(head, runtime)).toBe(
-			'<html><head><meta charset="utf-8"><title>t</title>' + runtime + '</head><body>'
+			`<html><head><meta charset="utf-8"><title>t</title>${runtime}</head><body>`
 		);
 		// a head slice with no closing tag: at the end of the slice
-		expect(runtime_first('<title>t</title>', runtime)).toBe('<title>t</title>' + runtime);
+		expect(runtime_first('<title>t</title>', runtime)).toBe(`<title>t</title>${runtime}`);
 	});
 
 	it('leads the scripts when no charset declaration opens the head', () => {
-		expect(runtime_first('<html><head>' + design_system + runtime, null)).toBe(
-			'<html><head>' + runtime + design_system
+		expect(runtime_first(`<html><head>${design_system}${runtime}`, null)).toBe(
+			`<html><head>${runtime}${design_system}`
 		);
 	});
 
 	it('inner head content with no <head> tag (a routeless document): before its first script', () => {
-		expect(runtime_first('<title>t</title>' + design_system + runtime, null)).toBe(
-			'<title>t</title>' + runtime + design_system
+		expect(runtime_first(`<title>t</title>${design_system}${runtime}`, null)).toBe(
+			`<title>t</title>${runtime}${design_system}`
 		);
 	});
 
 	it('returns the same string when the tag is already first, or there is nothing to place', () => {
-		const already = '<html><head><meta charset="utf-8">' + runtime + design_system;
+		const already = `<html><head><meta charset="utf-8">${runtime}${design_system}`;
 		expect(runtime_first(already, null)).toBe(already);
 		expect(runtime_first(already, runtime)).toBe(already);
-		const none = '<html><head>' + design_system;
+		const none = `<html><head>${design_system}`;
 		expect(runtime_first(none, null)).toBe(none);
 	});
 
 	it('does not mistake a prose mention or an inline script body for the tag', () => {
-		const prose =
-			'<html><head>' +
-			design_system +
-			escaped_runtime +
-			'<script>document.querySelector("[data-ogygia-runtime]")</script>';
+		const prose = `<html><head>${design_system}${escaped_runtime}<script>document.querySelector("[data-ogygia-runtime]")\x3C/script>`;
 		expect(runtime_first(prose, null)).toBe(prose);
 		expect(runtime_first(prose, runtime)).toBe(
-			'<html><head>' +
-				runtime +
-				design_system +
-				escaped_runtime +
-				'<script>document.querySelector("[data-ogygia-runtime]")</script>'
+			`<html><head>${runtime}${design_system}${escaped_runtime}<script>document.querySelector("[data-ogygia-runtime]")\x3C/script>`
 		);
 	});
 });
@@ -256,8 +246,7 @@ describe('runtime_first — the response’s mark on the tag it places (RESPONSE
 	it('writes the mark and the code origins on the same tag, the mark first', () => {
 		const out = runtime_first(head_start + runtime, null, ['https://peer.example/x.js'], 'm1');
 		expect(out).toBe(
-			head_start +
-				'<script data-og-mark="m1" type="module" data-ogygia-runtime data-og-origins="https://peer.example" src="/_app/og-runtime.js"></script>'
+			`${head_start}<script data-og-mark="m1" type="module" data-ogygia-runtime data-og-origins="https://peer.example" src="/_app/og-runtime.js">\x3C/script>`
 		);
 	});
 

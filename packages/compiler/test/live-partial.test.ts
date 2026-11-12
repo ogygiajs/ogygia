@@ -109,7 +109,7 @@ describe('transform — SSR binding renders HTML, client leg stays metadata-only
 			dev: false,
 			virtualPathFor: (_h: string, iid: string) => `ogygia:region/entry/${iid}.js`,
 			wrapperPathFor: (_h: string, iid: string) => `ogygia:region/wrapper/${iid}.svelte`,
-			devUrlFor: (p: string) => '/@id/' + p,
+			devUrlFor: (p: string) => `/@id/${p}`,
 			visibleMargin: '0px',
 			presets: {}
 		};
