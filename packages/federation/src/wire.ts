@@ -13,12 +13,14 @@ import {
 } from 'node:crypto';
 import {
 	Needle,
+	next_any_tag,
 	next_tag,
 	OG_MOUNT_MOVED,
 	OG_MOVED,
 	OGYGIA_GRAPH,
 	OGYGIA_RUNTIME,
 	text_of,
+	value_at,
 	type FoundTag
 } from '@ogygia/core/internal/server';
 import { cache } from '@ogygia/machine';
@@ -415,7 +417,11 @@ export function child_traceparent(incoming?: string | null): {
 
 // ── asset absolutizing ───────────────────────────────────────────────────────────────────────
 const ABSOLUTE_RE = /^[a-z][a-z0-9+.-]*:|^\/\//i;
-const ASSET_ATTR_RE = /\b(entry|endpoint|href|src)="([^"]+)"/g;
+/** An attribute that holds an asset ref (its name in lower case): `entry`, `endpoint`, `href`,
+ *  `src`, or a name ending in one after a non-word character (`data-src`, `xlink:href`). */
+const ASSET_ATTR_NAME = /(?:^|[^a-z0-9_])(?:entry|endpoint|href|src)$/;
+// (those names in any case: where an asset ref can be; a tag without one is not read)
+const ASSET_ATTR_ANY_CASE = /entry|endpoint|href|src/gi;
 const ASSET_PATH_RE = /(?:^|\/)(_app|og)\//;
 const ASSET_EXT_RE = /\.(js|css|woff2?)(\?|$)/;
 
@@ -483,18 +489,39 @@ function pin_graphs(html: string, origin: string): string {
 	return pos === 0 ? html : out + html.slice(pos);
 }
 
+/** `html` with the asset refs in the attribute values of its real tags pinned (as the browser
+ *  reads the tags: text that looks like one, in a comment, a code sample or script text, is the
+ *  page's text, #974). */
+function pin_attrs(html: string, origin: string): string {
+	const mark = new Needle(html, ASSET_ATTR_ANY_CASE);
+	if (mark.gone) return html;
+	let out = '';
+	let pos = 0;
+	for (let t = next_any_tag(html, 0); t !== null; t = next_any_tag(html, t.tag.next)) {
+		const held = mark.holds(t.tag);
+		if (mark.gone) break;
+		if (!held) continue;
+		// (in source order: a tag's attributes are read first to last)
+		for (const [name, value] of t.tag.attrs) {
+			if (value === '' || !ASSET_ATTR_NAME.test(name)) continue;
+			const pinned = name.endsWith('endpoint')
+				? pin_endpoint(value, origin)
+				: pin_asset(value, origin);
+			if (pinned === value) continue;
+			const at = value_at(html, t.tag, t.name, name);
+			if (at === -1) continue;
+			out += html.slice(pos, at) + pinned;
+			pos = at + value.length;
+		}
+	}
+	return pos === 0 ? html : out + html.slice(pos);
+}
+
 /** Pin ASSET refs (island entries, stylesheets, chunks, the island graph) and region ENDPOINTS to
  *  `origin`; app-local LINKS stay path-relative — the consuming shell owns the address space they
  *  resolve in. */
 export function absolutize(html: string, origin: string): string {
-	return pin_graphs(
-		html.replace(
-			ASSET_ATTR_RE,
-			(_m, attr: string, value: string) =>
-				`${attr}="${attr === 'endpoint' ? pin_endpoint(value, origin) : pin_asset(value, origin)}"`
-		),
-		origin
-	);
+	return pin_graphs(pin_attrs(html, origin), origin);
 }
 
 // ── document lifting (an app's full HTML → the wire document) ────────────────────────────────
