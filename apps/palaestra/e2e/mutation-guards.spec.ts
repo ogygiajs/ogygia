@@ -8,9 +8,8 @@
 import {
 	transformHost,
 	wrapperVirtualId
-} from '../../../packages/core/dist/compiler/region/transform.js';
+} from '../../../packages/compiler/dist/compiler/region/transform.js';
 import { CTX_EXTRA } from './_ctx-extra.ts';
-import path from 'node:path';
 import { test, check } from '@ogygia/tooling/e2e';
 
 const OGYGIA_RE = /ogygia/i;
@@ -22,9 +21,8 @@ const baseCtx = {
 	root,
 	libDir: '/app/src/lib',
 	readFile: () => null,
-	pathModule: path,
 	dev: false,
-	virtualPathFor: (_hostId: string, iid: string) => `virtual:ogygia/island/${iid}.js`,
+	virtualPathFor: (_hostId: string, iid: string) => `ogygia:region/entry/${iid}.js`,
 	wrapperPathFor: (_hostId: string, iid: string) => wrapperVirtualId(iid),
 	devUrlFor: (p: string) => '/@id/' + p,
 	visibleMargin: '0px',

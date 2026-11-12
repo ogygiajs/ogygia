@@ -29,7 +29,8 @@ import { PageSeed } from './server/page-seed.ts';
 import { page_seed_reducers } from './server/page-stream.ts';
 import { analyze } from './seed-refs.ts';
 import { WIRE_FORMAT_ATTR, WIRE_FORMAT_JSON } from './server/props-wire.ts';
-import runtime_url from 'virtual:ogygia/runtime-url';
+import { runtime_url, router_enabled, view_transitions } from 'ogygia:server';
+import { dev_hmr_url } from './dev-hmr-url.ts';
 import { runtime_bootstrap } from './server/entry-location.ts';
 import { current_facts } from './plugin/facts.ts';
 import { try_get_request_store } from '@sveltejs/kit/internal/server';
@@ -42,11 +43,6 @@ import { take_early_holes } from './context.ts';
 import { early_holes_head } from './early-holes-head.ts';
 import { add_early_holes_csp, with_early_holes_meta_csp } from './server/early-holes-csp.ts';
 const TITLE_TAG_RE = /<title[\s>]/i;
-import dev_hmr_url from 'virtual:ogygia/dev-hmr-url';
-import {
-	enabled as router_enabled,
-	viewTransitions as router_view_transitions
-} from 'virtual:ogygia/router-config';
 import {
 	page_declares_router_meta,
 	page_declares_runtime_script,
@@ -156,7 +152,7 @@ export async function document(
 	// (head-presence guards against prose false-matches). The runtime bootstrap is unconditional —
 	// a document with islands needs it with or without the SPA router.
 	if (router_enabled && !page_declares_router_meta(head_so_far())) {
-		head.push(`<meta name="ogygia-router" content="${router_view_transitions ? 'vt' : 'plain'}">`);
+		head.push(`<meta name="ogygia-router" content="${view_transitions ? 'vt' : 'plain'}">`);
 	}
 	if (runtime_url && !page_declares_runtime_script(head_so_far())) {
 		// (its location, with its static imports' preloads — the same bootstrap a Kit page gets)
