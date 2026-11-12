@@ -5,7 +5,7 @@
  * spine through endpoints and loads (no runtime needed).
  */
 import { describe, it, expect } from 'vitest';
-import { routes, load, redirect, error } from '../src/index.ts';
+import { routes, load, redirect, error, layout, page } from '../src/index.ts';
 
 const req = (path: string, init?: RequestInit) => new Request('http://x' + path, init);
 
@@ -232,5 +232,25 @@ describe('href — rename-safe links off the table keys', () => {
 	);
 	it('fills params + prefixes base', () => {
 		expect(app.href('/docs/[slug]', { slug: 'intro' })).toBe('/b/docs/intro');
+	});
+});
+
+describe('layout names — one name, one layout, across the table', () => {
+	const A = (() => null) as never;
+	const B = (() => null) as never;
+
+	it('two different layouts with the same name throw when the table is built', () => {
+		const one = layout('shell', A);
+		const two = layout('shell', B);
+		expect(() => routes({ ...one({ '/a': page(A) }), ...two({ '/b': page(B) }) })).toThrow(
+			/share the name "shell"/
+		);
+	});
+
+	it('the same layout reused under its one name is fine', () => {
+		const shell = layout('shell', A);
+		expect(() =>
+			routes({ ...shell({ '/a': page(A) }), ...shell({ '/b': page(B) }) })
+		).not.toThrow();
 	});
 });
