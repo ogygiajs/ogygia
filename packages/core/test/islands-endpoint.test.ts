@@ -48,8 +48,13 @@ describe('the islands endpoint', () => {
 		// a render on the new path is a hole render (it renders for a page); the old path is a page now
 		expect(renders_for_a_page(at('/_server/api/__ogygia__'))).toBe(true);
 		expect(renders_for_a_page(at('/__ogygia__'))).toBe(false);
-		// (under the app's base: matched by suffix, as the handler matches it)
-		expect(renders_for_a_page(at('/sub/_server/api/__ogygia__'))).toBe(true);
+	});
+
+	it('the endpoint is one path, the one minted: a page whose path ends the same is a page', () => {
+		configure_islands_endpoint('/api');
+		expect(renders_for_a_page(at('/api'))).toBe(true);
+		expect(renders_for_a_page(at('/docs/api'))).toBe(false);
+		expect(renders_for_a_page(at('/sub/api'))).toBe(false);
 	});
 
 	it('a minted capability names its signing key (`&k=`, outside the MAC)', () => {
