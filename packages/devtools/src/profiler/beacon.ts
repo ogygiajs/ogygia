@@ -122,7 +122,7 @@ let holes_answered_els = new WeakSet<Element>();
 let critical_held: { outcome: CriticalOutcome; resources: number; waited_ms: number } | null = null;
 let island_boxes: WeakMap<Element, { top: number; height: number }> | null = null;
 
-type NavOut = Omit<NavigatedEvent, 'href'> & {
+type NavOut = Omit<NavigatedEvent, 'href' | 'reconciled'> & {
 	server?: number;
 	download?: number;
 	bytes?: number;

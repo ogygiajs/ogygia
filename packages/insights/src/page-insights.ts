@@ -391,7 +391,7 @@ export interface HoleBatch {
 	names: string[];
 }
 
-/** The runtime runs this many hole requests at once (runtime/session.ts `server_gate`). */
+/** The runtime runs this many hole requests at once (runtime/load-scheduler.ts `HOLE_WINDOW`). */
 const HOLE_GATE = 3;
 
 export interface IslandCode {

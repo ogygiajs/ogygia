@@ -713,7 +713,7 @@ function count_decoded(res: Response, call: NetCall, owner: Scope | undefined): 
 			let parts: Uint8Array[] | null = keep ? [] : null;
 			// a fingerprint of the body (FNV-1a over its first BODY_HASH_MAX bytes, and its length):
 			// the same GET answering the same bytes in every render is an answer to cache across requests
-			let h = 0x811c9dc5;
+			let h = 0x811c9dc5; // hash: over a body's bytes as they stream, not a string
 			for (;;) {
 				const { done, value } = await reader.read();
 				if (done) break;
