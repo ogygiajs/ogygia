@@ -8,8 +8,9 @@
  * - The value lives at `globalThis[Symbol.for(name)]`.
  * - `version` is the value's shape, and the only place a version lives: a name carries none. A
  *   copy that asks for another version of a name already held is refused in dev
- *   (`machine_slot_version`, both versions named); in production it keeps a private value of its
- *   own, said once, instead of reading a value of the wrong shape.
+ *   (`machine_slot_version`, both versions named); in production it keeps a private value for its
+ *   version (made once, shared by the copies at that version), said once, instead of reading a
+ *   value of the wrong shape.
  * - A name starts with `ogygia.`: every slot is ours, and spelled where it is made.
  */
 import { DEV } from 'esm-env';
@@ -29,6 +30,8 @@ export interface SlotOptions<T extends object> {
 
 /** The version each slot name was made at, shared like the slots themselves. */
 const VERSIONS = Symbol.for('ogygia.slot.versions');
+/** The values of a name asked for at a version other than the one held (production). */
+const PRIVATE = Symbol.for('ogygia.slot.private');
 /** A version spelled into a name (`.v2`, `_v1`): the version belongs in `version`. */
 const VERSIONED_NAME = /[._]v\d+$/;
 
@@ -59,7 +62,10 @@ export function slot<T extends object>({ name, version, make }: SlotOptions<T>):
 		const a = { name, have: String(have), want: String(version) };
 		if (DEV) throw machine_error('machine_slot_version', a);
 		warn_once('machine_slot_version', a);
-		return make();
+		// (one private value per name and version, made once: every copy at that version shares it,
+		// test/production.test.ts)
+		const own = (g[PRIVATE] ??= Object.create(null)) as Record<string, object>;
+		return (own[`${name}@${version}`] ??= make()) as T;
 	}
 	versions[name] = version;
 	return (g[Symbol.for(name)] ??= make()) as T;
