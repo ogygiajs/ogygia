@@ -4,13 +4,24 @@
  * attacker-controlled URL substrings like `__sveltekit_` (P0).
  */
 import { runtime_session } from './session.ts';
+import { OGYGIA_PAGE, OGYGIA_PROPS, OGYGIA_REMOTE } from '../wire-markup.ts';
+
+const KIT_ASSIGN = /__sveltekit_\w+\s*=/;
+
+/** Whether an inline script (no `src`) is Kit's boot: it assigns a `__sveltekit_*` global, and it is
+ *  not one of ogygia's side-channel scripts (their payload may echo the URL). The DOM probe below and
+ *  the server's string probe (server/html-scan.ts) both ask this. */
+export function is_kit_boot_script(
+	type: string,
+	has: (attr: string) => boolean,
+	text: string
+): boolean {
+	if (type.startsWith('application/ogygia-')) return false;
+	if (has(OGYGIA_PROPS) || has(OGYGIA_PAGE) || has(OGYGIA_REMOTE)) return false;
+	return KIT_ASSIGN.test(text);
+}
 
 export class KitBoot {
-	static #ASSIGN = /__sveltekit_\w+\s*=/;
-	static #SIDECHANNEL =
-		/<script\b[^>]*(?:\bdata-ogygia-(?:props|page|remote)\b|type=["']application\/ogygia-(?:props|page|remote)["'])[^>]*>[\s\S]*?<\/script>/gi;
-	static #INLINE = /<script\b(?![^>]*\bsrc=)[^>]*>[^<]*__sveltekit_\w+\s*=/i;
-
 	/**
 	 * The route fact, when the server stamped it: `<meta name="ogygia-csr" content="true">` on a
 	 * csr=true document. `null` when the document carries no such meta (an older document, a
@@ -25,35 +36,16 @@ export class KitBoot {
 	static document_has(doc: ParentNode = document): boolean {
 		const meta = KitBoot.meta_of(doc);
 		if (meta !== null) return meta;
-		for (const s of doc.querySelectorAll('script:not([src])')) {
-			const type = s.getAttribute('type') || '';
-			if (type.startsWith('application/ogygia-')) continue;
+		for (const s of doc.querySelectorAll('script:not([src])'))
 			if (
-				s.hasAttribute('data-ogygia-props') ||
-				s.hasAttribute('data-ogygia-page') ||
-				s.hasAttribute('data-ogygia-remote')
+				is_kit_boot_script(
+					s.getAttribute('type') || '',
+					(a) => s.hasAttribute(a),
+					s.textContent || ''
+				)
 			)
-				continue;
-			if (KitBoot.#ASSIGN.test(s.textContent || '')) return true;
-		}
+				return true;
 		return false;
-	}
-
-	/** How far before `end` the string check looks. Kit appends its boot script at the END of the
-	 *  body (render.js), right before `</body>`, so this window holds it whenever it exists. */
-	static #WINDOW = 65_536;
-
-	/**
-	 * Same check over an HTML string, bounded to the last 64 KB before `end` (pass the index of
-	 * `</body>`; defaults to the end of the string). A 2.6 MB document is never scanned whole: Kit's
-	 * boot sits at the end of the body, so the window is exact, not a heuristic. The side-channel
-	 * strip still applies inside the window (P0 above); a side-channel script cut by the window's
-	 * start cannot false-match either — its payload never carries a literal `<script` (devalue and
-	 * JSON escape `<`), and `#INLINE` needs one.
-	 */
-	static html_has(html: string, end: number = html.length): boolean {
-		const window = html.slice(Math.max(0, end - KitBoot.#WINDOW), end);
-		return KitBoot.#INLINE.test(window.replace(KitBoot.#SIDECHANNEL, ''));
 	}
 }
 
@@ -70,5 +62,3 @@ export function kit_hydrates_page(): boolean {
 	}
 	return runtime_session.kit_page;
 }
-
-export const html_has_kit_bootstrap: typeof KitBoot.html_has = KitBoot.html_has.bind(KitBoot);

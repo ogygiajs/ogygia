@@ -1,3 +1,5 @@
+import { OG_KEPT } from '../wire-markup.ts';
+
 /** One attribute that differs between the server's markup and the island's after hydrate. */
 export interface AttrChange {
 	tag: string;
@@ -86,7 +88,7 @@ export function attr_changes(a: string, b: string): AttrChange[] | null {
 const RUNTIME_MARKS = [
 	' data-nested=""',
 	' data-hydrated=""',
-	' data-og-kept=""',
+	` ${OG_KEPT}=""`,
 	' data-revalidated=""'
 ];
 
