@@ -250,6 +250,28 @@ export function plan(seed: number): GenPage[] {
 		.map((page) => ({ ...page, roots: page.roots.map(empty) }));
 }
 
+/** The first id of the layout's regions: never one of the pages' (the peer's start at 1000). */
+export const LAYOUT_FIRST = 500;
+
+/** The region tree a seed's layout holds, or null (stream `gen layout`): a hole with a stylesheet of
+ *  its own, after the nav on every page, so a router navigation keeps it on screen while the next
+ *  page's head does not list its sheet (#275); some with an island inside, styled too. */
+export function layout_plan(seed: number): GenNode | null {
+	const r = rng(seed).fork('gen layout');
+	if (!r.chance(0.4)) return null;
+	const children: GenNode[] = r.chance(0.5)
+		? [{ id: LAYOUT_FIRST + 1, kind: 'island', wake: r.pick(WAKES), style: true, children: [] }]
+		: [];
+	return {
+		id: LAYOUT_FIRST,
+		kind: 'hole',
+		wake: r.chance(0.5) ? r.pick(WAKES) : undefined,
+		fallback: r.chance(0.5),
+		style: true,
+		children
+	};
+}
+
 /** A widget the peer app serves (`federate({ widgets })`): a root holding a region tree. */
 export interface GenWidget {
 	readonly name: string;
@@ -619,7 +641,8 @@ export function write(
 	app: string,
 	pages: readonly GenPage[],
 	seed: number,
-	peer: GenPeer | null = null
+	peer: GenPeer | null = null,
+	layout: GenNode | null = null
 ): void {
 	const routes = join(app, 'src', 'routes');
 	const lib = join(app, 'src', 'lib', 'gen');
@@ -631,10 +654,25 @@ export function write(
 	const nav = ['/', ...pages.map((p) => p.path), ...mounted]
 		.map((p) => `<a href="${p}">${p}</a>`)
 		.join(' ');
+	// (the layout's regions, after the nav: the same element on every page)
+	const held = layout
+		? [`\timport ${name(layout)} from '$lib/gen/${name(layout)}.svelte'${attributes(layout)};`]
+		: [];
 	writeFileSync(
 		join(routes, '+layout.svelte'),
-		`<script lang="ts">\n\tlet { children } = $props();\n</script>\n\n<nav>${nav}</nav>\n{@render children()}\n`
+		[
+			'<script lang="ts">',
+			...held,
+			'\tlet { children } = $props();',
+			'</script>',
+			'',
+			`<nav>${nav}</nav>`,
+			...(layout ? [usage(layout, '')] : []),
+			'{@render children()}',
+			''
+		].join('\n')
 	);
+	if (layout) components(lib, [layout], '/');
 	// (the app's pages are server HTML with islands: no Kit client on them)
 	writeFileSync(
 		join(routes, '+layout.ts'),
@@ -721,7 +759,10 @@ export function write(
 		);
 		components(lib, page.roots, page.path);
 	}
-	writeFileSync(join(lib, 'plan.json'), JSON.stringify({ seed, pages, peer }, null, '\t') + '\n');
+	writeFileSync(
+		join(lib, 'plan.json'),
+		JSON.stringify({ seed, pages, peer, layout }, null, '\t') + '\n'
+	);
 }
 
 /** Writes `peer` into the peer app `dir` (apps/sim-gen-peer): its widgets and pages, the router
@@ -831,11 +872,12 @@ function main(): void {
 	);
 	const pages = plan(seed);
 	const peer = peer_plan(seed, pages);
-	write(app, pages, seed, peer);
+	const layout = layout_plan(seed);
+	write(app, pages, seed, peer, layout);
 	const count = (ns: readonly GenNode[]): number =>
 		ns.reduce((s, n) => s + 1 + count(n.children), 0);
 	console.log(
-		`[sim] generated ${pages.length} pages, ${count(pages.flatMap((p) => p.roots))} regions (seed ${seed}) in ${app}`
+		`[sim] generated ${pages.length} pages, ${count(pages.flatMap((p) => p.roots))} regions (seed ${seed})${layout ? `, ${count([layout])} in the layout` : ''} in ${app}`
 	);
 	if (peer) {
 		write_peer(`${app}-peer`, peer, seed);
