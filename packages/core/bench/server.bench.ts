@@ -99,7 +99,7 @@ bench(
 	"reads: a render that asks locals, fetches, the visitor's address, the platform and a copy of the request",
 	async ({ n }) => {
 		let seen = 0;
-		const fetched = async () => new Response('');
+		const fetched: typeof fetch = async () => new Response('');
 		for (let i = 0; i < n; i++) {
 			const headers: Record<string, string> = { 'accept-language': 'en' };
 			if (i % 2) headers.cookie = `vid=v${i}`;
@@ -126,10 +126,9 @@ bench(
 			await event.fetch('https://elsewhere.example.org/y');
 			await event.fetch('http://[bad');
 			event.getClientAddress();
-			const platform = event.platform as Record<string, Record<string, unknown>>;
-			void platform.env.KEY;
-			(platform.context.waitUntil as () => void)();
-			void platform.region;
+			void event.platform.env.KEY;
+			event.platform.context.waitUntil();
+			void event.platform.region;
 			seen += request.headers.has('cookie') ? 1 : 0;
 			for (const [name] of request.headers) seen += name.length;
 			const copy = request.clone();
