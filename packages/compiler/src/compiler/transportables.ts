@@ -16,10 +16,12 @@
  * state chunk.
  *
  * Found: a top-level `export class X` (declaration or `export { X }`), and a default export of a
- * named class (`export default class X`, `export default X`), tagged `#default`.
+ * named class (`export default class X`, `export default X`), tagged `#default`. An anonymous
+ * default wire class is the build error `wire_class_anonymous`.
  */
 import path from 'node:path';
 import { parse_module } from './parse/oxc.ts';
+import { OgygiaError } from './messages.ts';
 
 const CLASS_KW = /\bclass\b/;
 // A real (pre-transform) wire codec member: `static <name> = import.meta.og.wire(…)`. Tight on
@@ -57,10 +59,10 @@ type WireExport = { tag: string; local: string };
 /** Collect the top-level exported classes that carry a wire codec (and only those). */
 function exportedWireClasses(code: string, id_n: string): WireExport[] {
 	const body = parse_body(code, id_n);
-	return body ? exportedWireClassesFromBody(body) : [];
+	return body ? exportedWireClassesFromBody(body, code, id_n) : [];
 }
 
-function exportedWireClassesFromBody(body: AstNode[]): WireExport[] {
+function exportedWireClassesFromBody(body: AstNode[], code: string, id_n: string): WireExport[] {
 	const classNodes = new Map<string, AstNode>(); // every top-level class declaration, by name
 	const exported = new Map<string, string>(); // tag name → local name, for the exported ones
 	for (const node of body) {
@@ -83,6 +85,12 @@ function exportedWireClassesFromBody(body: AstNode[]): WireExport[] {
 			if (decl?.type === 'ClassDeclaration' && decl.id?.name) {
 				classNodes.set(decl.id.name, decl);
 				exported.set('default', decl.id.name);
+			} else if (decl?.type === 'ClassDeclaration' && classHasWireMember(decl)) {
+				// no binding for the registration to pass (test: og-wire "anonymous default wire class")
+				throw new OgygiaError('wire_class_anonymous', {
+					file: id_n,
+					line: code.slice(0, decl.start ?? 0).split('\n').length
+				});
 			} else if (decl?.type === 'Identifier' && decl.name) exported.set('default', decl.name);
 		}
 	}
@@ -157,6 +165,7 @@ function isWireMacroCall(value: unknown): boolean {
 interface AstNode {
 	type: string;
 	name?: string;
+	start?: number;
 	id?: { name: string } | null;
 	declaration?: VarDecl | AstNode | null;
 	source?: unknown;
@@ -267,7 +276,7 @@ export function appendTransportRegistrations(
 	// parse twice).
 	const body = parse_body(code, id_n);
 	if (!body) return null;
-	const classes = maybeClass ? exportedWireClassesFromBody(body) : [];
+	const classes = maybeClass ? exportedWireClassesFromBody(body, code, id_n) : [];
 	const contexts = maybeCtx ? contextExportNamesFromBody(body) : [];
 	if (classes.length === 0 && contexts.length === 0) return null;
 
