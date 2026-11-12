@@ -12,5 +12,5 @@
 		"erasableSyntaxOnly": true,
 		"allowImportingTsExtensions": true
 	},
-	"include": ["src"]
+	"include": ["src", "rules-env.d.ts"]
 }

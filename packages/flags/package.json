@@ -64,6 +64,7 @@
 	},
 	"scripts": {
 		"build": "tsdown",
+		"prepublishOnly": "pnpm run build",
 		"check": "tsc -p . && tsc -p test && vitest run",
 		"test": "vitest run"
 	},
@@ -72,6 +73,7 @@
 		"esm-env": "catalog:"
 	},
 	"devDependencies": {
+		"@ogygia/compiler": "workspace:*",
 		"@ogygia/config": "workspace:*",
 		"@ogygia/core": "workspace:*",
 		"@typescript/native": "catalog:tsgo",
@@ -80,6 +82,7 @@
 		"vitest": "catalog:"
 	},
 	"peerDependencies": {
+		"@ogygia/compiler": "workspace:^",
 		"@ogygia/core": "workspace:^"
 	}
 }
