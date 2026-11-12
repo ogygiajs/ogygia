@@ -7,7 +7,7 @@ Security and performance audits should read this before changing trust boundarie
 
 ## HOLE-TRUST — signed same-origin HTML for deferred regions
 
-**What:** The runtime fetches a capability URL and inserts HTML via `createContextualFragment` + `replaceChildren`. Scripts in that HTML do **not** run; event-handler attributes would.
+**What:** The runtime fetches a capability URL and inserts HTML parsed in one place (`runtime/parse-html.ts` `parse_region_html`: `setHTMLUnsafe` on a template of an inert document, so declarative shadow roots attach) and grafted or swapped in (`replaceChildren`). Scripts in that HTML do **not** run; event-handler attributes would.
 
 **Why:** Deferred / SWR regions are MPA-equivalent: the HTML is produced by _our_ SSR under a verified HMAC. Trust root is the **server MAC**, not the client.
 
