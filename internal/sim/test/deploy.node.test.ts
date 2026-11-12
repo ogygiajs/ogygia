@@ -44,3 +44,36 @@ describe.skipIf(builds.length === 0)('a deploy that keeps old files', () => {
 		}
 	});
 });
+
+describe.skipIf(builds.length === 0)('a deploy that drops old files', () => {
+	// (gen 63: an old page's hole answered by the new build holds the new build's island; the fresh
+	// load, pinned to the old build, asked it for the new loader, got a 404 and ran the old one)
+	it("a load pinned to the old build still gets the live build's file", async () => {
+		const world = await World.make({
+			seed: 1,
+			builds,
+			rollover: { window: 0, old_files: false, purge: true }
+		});
+		try {
+			await world.deploy_next();
+			const tab = world.tab(world.visitor('v'));
+			await world.go(tab, 'goto', '/');
+			const doc = tab.page.mainFrame.document as unknown as Document;
+			const v1 = world.servers.get('v1')![0];
+			const added = [...doc.querySelectorAll('script[src], link[href]')]
+				.map(
+					(el) => new URL(el.getAttribute('src') ?? el.getAttribute('href')!, 'https://x/').pathname
+				)
+				.find((p) => p.startsWith('/_app/immutable/') && !v1.serves(p));
+			expect(added).toBeDefined();
+			const pinned = world.tab(world.visitor('x'));
+			await world.as_of('v1', () => world.go(pinned, 'goto', added!));
+			const got = world.network.exchanges
+				.filter((e) => e.from === pinned.realm && e.url.endsWith(added!))
+				.at(-1)?.status;
+			expect(got).toBe(200);
+		} finally {
+			await world.end();
+		}
+	});
+});
