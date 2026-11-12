@@ -19,12 +19,16 @@ import NestedProbe from './fixtures/NestedProbe.svelte';
 import LakeKitHost from './fixtures/LakeKitHost.svelte';
 import HoleKitHost from './fixtures/HoleKitHost.svelte';
 import LakePageReaderHost from './fixtures/LakePageReaderHost.svelte';
+import HeldHoleCard from './fixtures/HeldHoleCard.svelte';
+import { render_region_html } from '../../src/server/render-region-html.ts';
+import { region } from '../../src/region.ts';
 import { set_page, reset_page } from '../../src/shims/page-store.svelte.ts';
-import { set_request_event_stub } from '../_stubs/virtual-request-event.ts';
-import { csr_true_routes } from '../_stubs/virtual-route-csr.ts';
+import { set_request_event_stub } from '../_stubs/server.request-event.ts';
+import { csr_true_routes } from '../_stubs/server.route-csr.ts';
 
 const COUNTER = '/test/browser/fixtures/Counter.svelte';
 const HEAVY = '/test/browser/fixtures/Heavy.svelte';
+const HELD_HOLE_CARD = '/test/browser/fixtures/HeldHoleCard.svelte';
 
 /** The island shell a page carries: the runtime reads `wake` + `entry`, then the props sidecar. */
 function island(entry: string, body: string, props: Record<string, unknown>, wake = 'load') {
@@ -139,6 +143,9 @@ declare module 'vitest' {
 		/** LakePageReaderHost SSR'd on a csr=true document with `page.data.searchBarMarkup` set: a lake
 		 *  wrapping a `wake:'idle'` island whose markup branches on `page.data` — base64. */
 		lake_page_reader_ssr_b64: string;
+		/** HeldHoleCard baked as a held region that wakes (`render_region_html`, a remote's answer):
+		 *  its server island inside — base64. */
+		held_hole_card_b64: string;
 		/** HYDRATION SCHEDULE: 21 expensive `wake:'load'` islands, 18 below the fold FIRST in document
 		 *  order, then 3 in the viewport — base64. */
 		heavy_schedule_ssr_b64: string;
@@ -161,7 +168,20 @@ function render_on_kit_page(comp: Component): string {
 	}
 }
 
-export default function setup(project: TestProject) {
+export default async function setup(project: TestProject) {
+	// a remote's `await region(Card)`: the binding as the compiler emits it (emit.ts), its schedule a wake
+	const card = HeldHoleCard as unknown as Component<Record<string, unknown>>;
+	const held_card = {
+		__ogRegion: 'held-hole-card',
+		__module: HELD_HOLE_CARD,
+		__hydrate: 'load',
+		__component: card,
+		__sign: () => '',
+		__renderHtml: (props: Record<string, unknown>, wakes?: boolean) =>
+			render_region_html(card, HELD_HOLE_CARD, props, wakes)
+	};
+	const baked = (await region(held_card as never, {} as never)) as { html?: string };
+	project.provide('held_hole_card_b64', b64(baked.html ?? ''));
 	const props = { start: 3 };
 	const { body } = render(Counter, { props });
 	// Root-relative: the browser project's Vite server serves the package root, and the svelte plugin

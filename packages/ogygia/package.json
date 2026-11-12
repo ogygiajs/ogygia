@@ -71,10 +71,6 @@
 			"types": "./dist/internal/compiler-ids.d.ts",
 			"default": "./src/internal/compiler-ids.ts"
 		},
-		"./internal/region-core": {
-			"types": "./dist/internal/region-core.d.ts",
-			"default": "./dist/internal/region-core.js"
-		},
 		"./internal/reconcile": {
 			"svelte": "./src/internal/reconcile.ts",
 			"types": "./dist/internal/reconcile.d.ts",
@@ -87,10 +83,6 @@
 		"./server": {
 			"types": "./dist/server.d.ts",
 			"default": "./src/server.ts"
-		},
-		"./markup": {
-			"types": "./dist/markup.d.ts",
-			"default": "./src/markup.ts"
 		},
 		"./plugin": {
 			"types": "./dist/plugin.d.ts",
@@ -116,20 +108,8 @@
 			"types": "./dist/events.d.ts",
 			"default": "./src/events.ts"
 		},
-		"./insights": {
-			"types": "./dist/insights.d.ts",
-			"default": "./src/insights.ts"
-		},
 		"./types": {
 			"types": "./ambient.d.ts"
-		},
-		"./internal/compiler-browser": {
-			"types": "./dist/internal/compiler-browser.d.ts",
-			"default": "./dist/internal/compiler-browser.js"
-		},
-		"./internal/compiler-browser-full": {
-			"types": "./dist/internal/compiler-browser-full.d.ts",
-			"default": "./dist/internal/compiler-browser-full.js"
 		}
 	},
 	"publishConfig": {
@@ -183,11 +163,6 @@
 				"svelte": "./dist/internal/compiler-ids.js",
 				"default": "./dist/internal/compiler-ids.js"
 			},
-			"./internal/region-core": {
-				"types": "./dist/internal/region-core.d.ts",
-				"svelte": "./dist/internal/region-core.js",
-				"default": "./dist/internal/region-core.js"
-			},
 			"./internal/reconcile": {
 				"types": "./dist/internal/reconcile.d.ts",
 				"svelte": "./dist/internal/reconcile.js",
@@ -196,10 +171,6 @@
 			"./server": {
 				"types": "./dist/server.d.ts",
 				"default": "./dist/server.js"
-			},
-			"./markup": {
-				"types": "./dist/markup.d.ts",
-				"default": "./dist/markup.js"
 			},
 			"./plugin": {
 				"types": "./dist/plugin.d.ts",
@@ -225,24 +196,12 @@
 				"types": "./dist/events.d.ts",
 				"default": "./dist/events.js"
 			},
-			"./insights": {
-				"types": "./dist/insights.d.ts",
-				"default": "./dist/insights.js"
-			},
 			"./internal/compiler": {
 				"types": "./dist/internal/compiler.d.ts",
 				"default": "./dist/internal/compiler.js"
 			},
 			"./types": {
 				"types": "./ambient.d.ts"
-			},
-			"./internal/compiler-browser": {
-				"types": "./dist/internal/compiler-browser.d.ts",
-				"default": "./dist/internal/compiler-browser.js"
-			},
-			"./internal/compiler-browser-full": {
-				"types": "./dist/internal/compiler-browser-full.d.ts",
-				"default": "./dist/internal/compiler-browser-full.js"
 			}
 		}
 	},
@@ -253,6 +212,7 @@
 		"verify:package": "node ../core/scripts/verify-package.ts ."
 	},
 	"dependencies": {
+		"@ogygia/compiler": "workspace:*",
 		"@ogygia/core": "workspace:*"
 	},
 	"devDependencies": {
