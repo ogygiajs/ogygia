@@ -6,13 +6,14 @@
 import type { RequestEvent } from '@sveltejs/kit';
 import type { HtmlPass } from '@ogygia/core/plugin';
 import { DEV as dev } from 'esm-env';
+import { OG_RESTORE, OG_STAND_INS } from '@ogygia/core/internal/server';
 import { check_script, mark, settle, STAND_IN_CSS } from './reversible.ts';
 import { restore, restore_adopt } from './restore.ts';
 import type { ReshapeTransform } from './requests.ts';
 
 /** The restorer, inline (./restore.ts — self-contained, so its source runs as is): restores the
  *  document now, and stays as `__og_restore` / `__og_restore_adopt` for hole answers and router swaps. */
-const RESTORER_SCRIPT = `<script data-og-restore>(function(){var r=${restore.toString()};window.__og_restore=r;window.__og_restore_adopt=${restore_adopt.toString()};r(document)})()</script>`;
+const RESTORER_SCRIPT = `<script ${OG_RESTORE}>(function(){var r=${restore.toString()};window.__og_restore=r;window.__og_restore_adopt=${restore_adopt.toString()};r(document)})()</script>`;
 
 export function reshape_pass(transform: ReshapeTransform, event: RequestEvent): HtmlPass {
 	return {
@@ -38,7 +39,7 @@ export function reshape_pass(transform: ReshapeTransform, event: RequestEvent): 
 				html: s ? s.html : out,
 				head:
 					(s?.head.join('') ?? '') +
-					(s?.stand_ins ? `<style data-og-stand-ins>${STAND_IN_CSS}</style>` : '') +
+					(s?.stand_ins ? `<style ${OG_STAND_INS}>${STAND_IN_CSS}</style>` : '') +
 					(first_load ? '<meta name="ogygia-first-load">' : ''),
 				body: (s?.check ? check_script(s.check) : '') + RESTORER_SCRIPT
 			};
