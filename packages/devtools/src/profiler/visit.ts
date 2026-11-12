@@ -6,8 +6,8 @@
  * the server keeps a few per page). `one_clock` lays a visit out against the server's render on
  * one clock — the report's first picture.
  */
-import { hole_segments, HOLE_SEG_LABEL } from '@ogygia/core/insights';
-import type { NavPhases, PageInteraction, PageNav } from '@ogygia/core/insights';
+import { hole_segments, HOLE_SEG_LABEL } from '@ogygia/insights';
+import type { NavPhases, PageInteraction, PageNav } from '@ogygia/insights';
 import type { RegionRefusal } from '@ogygia/core/internal/instruments';
 
 export interface VisitNav {
@@ -302,6 +302,7 @@ const rect = (v: unknown): [number, number, number, number] | undefined => {
 		: undefined;
 };
 const FP_RE = /^[0-9a-f]{8,32}$/;
+// static: a fixed list of resource types
 const KNOWN_TYPES = new Set([
 	'layout-shift',
 	'longtask',

@@ -34,6 +34,14 @@ export function configure_islands_endpoint(path: string | undefined): void {
 			: '/' + path;
 }
 
+/** THE KIND OF A REQUEST: one rendering on behalf of a page it is not (the islands endpoint, or a
+ *  remote function call: Kit hands that one its page's URL and marks it `isRemoteRequest`), or a
+ *  page request. Read by the render (whose page it is) and by plugins (`ctx.forPage`: postrender
+ *  stores and serves page requests only, #954). */
+export function renders_for_a_page(event: { url: URL; isRemoteRequest?: boolean }): boolean {
+	return event.url.pathname.endsWith(islands_endpoint()) || event.isRemoteRequest === true;
+}
+
 /** Max b64url props blob accepted by the region handle (and refused at mint time). */
 export const MAX_REGION_PROPS_LEN = 8192;
 
