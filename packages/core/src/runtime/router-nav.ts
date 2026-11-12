@@ -428,8 +428,10 @@ function focus_reset(el: HTMLElement) {
 /** The elements whose `tabindex` a navigation's focus lent until they blur, with their own value. */
 const lent = new WeakMap<HTMLElement, string | null>();
 
-/** Head nodes that must never be adopted from SPA HTML (rewrite relative fetches / CSP). */
-function is_dangerous_head_node(node: Element): boolean {
+/** Head nodes that must never be adopted from SPA HTML (rewrite relative fetches / CSP). SPA-HEAD:
+ *  test/browser/spa-head-deny.test.ts.
+ *  @internal */
+export function is_dangerous_head_node(node: Element): boolean {
 	const tag = node.tagName;
 	if (tag === 'BASE') return true;
 	if (tag === 'META') {
