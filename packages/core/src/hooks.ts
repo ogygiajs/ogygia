@@ -203,6 +203,7 @@ import { mark_personal } from './server/personal-response.ts';
 import { OgygiaError, warn } from './messages/server.ts';
 import { ERRORS, WARNINGS } from './messages/core.ts';
 import { define_messages, dev_or_prerender } from './contract/messages.ts';
+import { ask } from './plugin/hooks.ts';
 
 // A prerender words every message, the link after it (contract/messages.ts `dev_or_prerender`).
 (globalThis as unknown as Record<symbol, unknown>)[Symbol.for('ogygia.prerendering')] = building;
@@ -2018,13 +2019,14 @@ class OgygiaHandle {
 			p: hole_copy_key(payload)
 		});
 		// the same split for the browser (devtools, the profiler's beacon), as Server-Timing. Only for
-		// a browser that measures (dev, the devtools cookie, the profiler's flag): no other visitor's
-		// answer tells how loaded the server is
+		// a browser that measures (dev, the devtools cookie, a visitor a plugin vouches for by its own
+		// credentials: the profiler's logged-in user): no other visitor's answer tells how loaded the
+		// server is
 		const timed =
 			timing.queue_ms !== undefined &&
 			(import.meta.env.DEV ||
 				(DEVTOOLS && event.cookies.get(DEVTOOLS_COOKIE) === DEVTOOLS_ON) ||
-				event.cookies.get('og_profiler_beacon') === '1');
+				(await ask.measures(event).catch(() => undefined)) === true); // ok: a failed hook was said (plugin_hook_failed); unproved is not timed
 		const server_timing: Record<string, string> = timed
 			? {
 					'server-timing': `og-queue;dur=${timing.queue_ms!.toFixed(1)}, og-render;dur=${(timing.render_ms ?? 0).toFixed(1)}`

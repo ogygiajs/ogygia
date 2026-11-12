@@ -3249,9 +3249,11 @@ describe('the ogygia / svelte / kit round: islands, seed, holes, lanes, markup v
 		);
 	});
 
-	it('production: the beacon tag needs the flag cookie the login sets (site-wide, no secret), or the key header', async () => {
+	it('production: the beacon tag needs the signed flag cookie the login sets (site-wide), or the key header', async () => {
 		dev_switch.dev = false;
 		try {
+			const { createHmac } = await import('node:crypto');
+			const FLAG = createHmac('sha256', 'prof-key').update('og-profiler-beacon-flag').digest('hex');
 			const handle = profiler({ secret: 'prof-key' });
 			const doc = async (cookies: Record<string, string>, headers: Record<string, string> = {}) =>
 				(
@@ -3264,7 +3266,8 @@ describe('the ogygia / svelte / kit round: islands, seed, holes, lanes, markup v
 					})
 				).text();
 			expect(await doc({})).toBe('false');
-			expect(await doc({ og_profiler_beacon: '1' })).toBe('true');
+			expect(await doc({ og_profiler_beacon: '1' })).toBe('false');
+			expect(await doc({ og_profiler_beacon: FLAG })).toBe('true');
 			expect(await doc({}, { 'x-profiler-key': 'prof-key' })).toBe('true');
 			expect(await doc({}, { 'x-profiler-key': 'wrong' })).toBe('false');
 			// login sets both cookies; logout clears both
@@ -3296,10 +3299,10 @@ describe('the ogygia / svelte / kit round: islands, seed, holes, lanes, markup v
 					})
 				).headers.getSetCookie();
 			expect(await next(`og_profiler=${token}`)).toEqual([
-				expect.stringMatching(/^og_profiler_beacon=1; Path=\/;/)
+				expect.stringMatching(new RegExp(`^og_profiler_beacon=${FLAG}; Path=/;`))
 			]);
 			// flag and session both there: nothing to set
-			expect(await next(`og_profiler=${token}; og_profiler_beacon=1`)).toEqual([]);
+			expect(await next(`og_profiler=${token}; og_profiler_beacon=${FLAG}`)).toEqual([]);
 			const logout = await handle({
 				event: make_event('/__profiler/logout', { 'x-profiler-key': 'prof-key' }),
 				resolve: async () => new Response('no')
@@ -3307,7 +3310,7 @@ describe('the ogygia / svelte / kit round: islands, seed, holes, lanes, markup v
 			const cleared = logout.headers.getSetCookie();
 			expect(cleared).toHaveLength(1);
 			expect(cleared[0].startsWith('og_profiler=;') && cleared[0].includes('Max-Age=0')).toBe(true);
-			const flag_off = await next('og_profiler_beacon=1', '/__profiler/login');
+			const flag_off = await next(`og_profiler_beacon=${FLAG}`, '/__profiler/login');
 			expect(flag_off).toHaveLength(1);
 			expect(
 				flag_off[0].startsWith('og_profiler_beacon=;') && flag_off[0].includes('Max-Age=0')
