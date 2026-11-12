@@ -630,6 +630,15 @@ const KNOWN_EMPTY: ReadonlyArray<{ issue: number; what: string; is: (r: Element)
 			r.getAttribute('render') === 'defer' &&
 			r.closest('[data-gen="widget"], [data-gen="peer-page"]') != null &&
 			(r.getAttribute('endpoint') ?? '').startsWith('/__ogygia__?')
+	},
+	{
+		issue: 945,
+		what: "a held region inside a held region's island stays empty",
+		// (baked empty in the outer query's answer, `live=""`, and left so: gen 63, /p2)
+		is: (r) =>
+			r.getAttribute('live') === '' &&
+			r.hasAttribute('data-og-baked') &&
+			r.parentElement?.closest('ogygia-region[live]') != null
 	}
 ];
 
