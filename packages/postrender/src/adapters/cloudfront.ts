@@ -38,7 +38,10 @@ const hmac = (key: Buffer | string, data: string) =>
 
 /** amz dates: `20260901T120000Z` / `20260901`. */
 function amz_dates(): { datetime: string; date: string } {
-	const iso = new Date().toISOString().replace(DASH_COLON_G, '').replace(MILLISECONDS_RE, '');
+	const iso = new Date(clock.wall())
+		.toISOString()
+		.replace(DASH_COLON_G, '')
+		.replace(MILLISECONDS_RE, '');
 	return { datetime: iso, date: iso.slice(0, 8) };
 }
 
