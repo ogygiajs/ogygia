@@ -124,5 +124,41 @@
 		"wire class: flying -> kept"
 	],
 	"covered": [],
-	"dead": []
+	"dead": [
+		{
+			"step": "batch-stream: sending -> ended",
+			"issue": 1023,
+			"why": "the stream moves only to reading (and stalled by its deadline); its end is stop(), not a step"
+		},
+		{
+			"step": "batch-stream: reading -> ended",
+			"issue": 1023,
+			"why": "the stream moves only to reading (and stalled by its deadline); its end is stop(), not a step"
+		},
+		{
+			"step": "hole: retrying -> failed",
+			"issue": 1023,
+			"why": "the only go('failed') is in #fetch_failed, entered only from fetching"
+		},
+		{
+			"step": "hydrate-drain: waiting -> waiting",
+			"issue": 1023,
+			"why": "drain_after() is called only from drain(), which first moves the drainer to idle"
+		},
+		{
+			"step": "critical resources: kept -> gone",
+			"issue": 1023,
+			"why": "asked only before the gate settles, kept only after: no later get, no expiry, no max"
+		},
+		{
+			"step": "federation peer documents: flying -> flying",
+			"issue": 1023,
+			"why": "the only fresh get is guarded by !seen.flying; the other get joins the flight"
+		},
+		{
+			"step": "wake: cold -> waking",
+			"issue": 1023,
+			"why": "every fire site runs in armed; after waking -> cold nothing fires without re-arming (unsure)"
+		}
+	]
 }
