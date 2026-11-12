@@ -22,6 +22,8 @@ import LakePageReaderHost from './fixtures/LakePageReaderHost.svelte';
 import { set_page, reset_page } from '../../src/shims/page-store.svelte.ts';
 import { set_request_event_stub } from '../_stubs/server.request-event.ts';
 import { csr_true_routes } from '../_stubs/server.route-csr.ts';
+import WokenHoleCard from './fixtures/WokenHoleCard.svelte';
+import { kit_render_context } from '../../src/server/kit-context.ts';
 
 const COUNTER = '/test/browser/fixtures/Counter.svelte';
 const HEAVY = '/test/browser/fixtures/Heavy.svelte';
@@ -145,6 +147,8 @@ declare module 'vitest' {
 		/** Two whole documents of a navigation: seed-ref Counter, `start` 3 then 7 — base64 each. */
 		seed_nav_a_html_b64: string;
 		seed_nav_b_html_b64: string;
+		/** WokenHoleCard as the endpoint answers its hole (the component as the root) — base64. */
+		woken_hole_answer_b64: string;
 	}
 }
 
@@ -243,5 +247,12 @@ export default function setup(project: TestProject) {
 	project.provide(
 		'seed_nav_b_html_b64',
 		b64(seed_nav_document(render(Counter, { props: { start: 7 } }).body, 7, 'bbbbbbbbbbbbbbbb'))
+	);
+
+	// A woken hole's answer as the endpoint renders it (hooks.ts `#render_component`: the component
+	// as the root, in the Kit render context)
+	project.provide(
+		'woken_hole_answer_b64',
+		b64(render(WokenHoleCard as unknown as Component, { context: kit_render_context() }).body)
 	);
 }
