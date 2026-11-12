@@ -32,7 +32,6 @@ import {
 import type { HistoryEntry, HistoryMove, SpaRouter } from './router.ts';
 import { spa_html_cacheable } from './spa-cacheable.ts';
 import { is_dangerous_head_node } from './head-deny.ts';
-import { add_head_owners, adopt_owner_record, head_owners } from '../head-owners.ts';
 import { pin_region_urls } from './entry-locations.ts';
 import { emit as dt_emit } from '../events/bus.ts';
 import {
@@ -65,6 +64,11 @@ const KitBoot = { document_has: (doc: ParentNode) => boot_link().KitBoot.documen
 const regions_in_shadow = () => boot_link().regions_in_shadow();
 const release_head_nodes = (unlisted: readonly Element[]) =>
 	boot_link().release_head_nodes(unlisted);
+const head_owners = (node: Element) => boot_link().head_owners(node);
+const add_head_owners = (node: Element, more: Iterable<string>) =>
+	boot_link().add_head_owners(node, more);
+const adopt_owner_record = (doc: ParentNode, head: ParentNode) =>
+	boot_link().adopt_owner_record(doc, head);
 const session = () => boot_link().runtime_session;
 type Scope = import('@ogygia/machine').Scope;
 type Stale = import('@ogygia/machine').Stale;
