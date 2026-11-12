@@ -18,6 +18,27 @@ describe('parse_trigger', () => {
 		expect(parse_trigger('soon', WAKE)).toBeNull();
 		expect(parse_trigger('', WAKE)).toBeNull();
 	});
+
+	it('a media query is media conditions and media words, never a call or unbalanced parentheses', () => {
+		for (const q of [
+			'(min-width: 600px)',
+			'screen and (min-width: 600px)',
+			'(min-width: 600px) and (max-width: 900px), print and (color)',
+			'not all and (monochrome)',
+			'(width >= calc(300px + 2em))',
+			'(prefers-reduced-motion)'
+		])
+			expect(parse_trigger(q, WAKE), q).toEqual({ on: 'media', query: q });
+		for (const q of [
+			'visible(200px)',
+			'idle()',
+			'screen and(min-width: 1px)',
+			'(min-width: 1px',
+			')(',
+			'soon (x)'
+		])
+			expect(parse_trigger(q, WAKE), q).toBeNull();
+	});
 });
 
 describe('on_schedule', () => {
