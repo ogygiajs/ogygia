@@ -96,9 +96,9 @@ describe('the random app', () => {
 				const files = readdirSync(at);
 				if (!p.postrender) expect(files).not.toContain('+page.ts');
 				else
-					expect(readFileSync(join(at, p.data ? '+page.server.ts' : '+page.ts'), 'utf8')).toContain(
-						'export const config = { postrender: true };'
-					);
+					expect(
+						readFileSync(join(at, p.data || p.flagged ? '+page.server.ts' : '+page.ts'), 'utf8')
+					).toContain('export const config = { postrender: true };');
 			}
 		} finally {
 			rmSync(app, { recursive: true, force: true });
@@ -390,6 +390,40 @@ describe('the random app', () => {
 		);
 		expect(config).toContain("'src/lib/gen/plan.json'");
 		expect(config).toContain('router: plan.router !== false');
+	});
+
+	it('draws a flag some pages read on the server, from its own stream: each read is an exposure the sink takes in batches', () => {
+		const seeds = Array.from({ length: 30 }, (_, i) => i + 1);
+		const pages = seeds.flatMap((s) => plan(s));
+		expect(pages.some((p) => p.flagged)).toBe(true);
+		expect(pages.some((p) => !p.flagged)).toBe(true);
+		const seed = seeds.find((s) => plan(s).some((p) => p.flagged))!;
+		const plain = seeds.find((s) => !plan(s).some((p) => p.flagged))!;
+		const app = mkdtempSync(join(tmpdir(), 'sim-gen-'));
+		try {
+			write(app, plan(plain), plain);
+			const lib = join(app, 'src', 'lib', 'gen');
+			// (the hooks import it either way: an app with no flag has an empty module)
+			expect(readFileSync(join(lib, 'flags.server.ts'), 'utf8')).not.toContain('flag(');
+			write(app, plan(seed), seed);
+			const flags = readFileSync(join(lib, 'flags.server.ts'), 'utf8');
+			expect(flags).toContain("export const gate = flag('gen-gate');");
+			expect(flags).toContain('decide({ exposure:');
+			for (const p of plan(seed)) {
+				const dir = join(app, 'src', 'routes', p.path.slice(1));
+				const page = readFileSync(join(dir, '+page.svelte'), 'utf8');
+				expect(page.includes('data-gen-flag')).toBe(p.flagged === true);
+				if (p.flagged)
+					expect(readFileSync(join(dir, '+page.server.ts'), 'utf8')).toContain('gate: gate(event)');
+			}
+		} finally {
+			rmSync(app, { recursive: true, force: true });
+		}
+		const root = join(import.meta.dirname, '../../../apps/sim-gen');
+		expect(readFileSync(join(root, 'src/hooks.server.ts'), 'utf8')).toContain(
+			"import '$lib/gen/flags.server';"
+		);
+		expect(readFileSync(join(root, 'vite.config.ts'), 'utf8')).toContain('flags()');
 	});
 
 	it('draws a hero image on some pages, from its own stream: the critical wait has a resource to wait for', () => {
