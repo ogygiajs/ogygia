@@ -511,8 +511,9 @@ for twice (content-hashed files and pages left out: a browser's module map keeps
 simulator has no HTTP cache; a remote query is counted per router visit, `og:before-swap` to the
 next: a back is a new visit, and its held region asks again as its page does, gen 187), no POST the app refused (a batch to a path that answers none, #987),
 nothing held twice (a stylesheet, a style, a module preload, a page seed, an island's props within
-one answer: a region fetched apart carries its own, gen 173) and no warning said. `KNOWN_WASTE` there
-is KNOWN's twin. Long tasks and layout shift need a layout engine: the real-browser tier measures
+one answer: a region fetched apart carries its own, gen 173) and no warning said (but one a filed bug
+says, `KNOWN_SAID`: Svelte's `derived_inert` on palaestra's /data is upstream, #1079, and a plain Kit
+app says it too). `KNOWN_WASTE` there is KNOWN's twin. Long tasks and layout shift need a layout engine: the real-browser tier measures
 them (below).
 
 A server's hop the network tampered with puts bytes no server wrote into the page it made: html-sent

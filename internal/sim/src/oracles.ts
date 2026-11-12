@@ -1005,8 +1005,8 @@ export function page_errors(tab: Tab, world?: World, since?: number): Broken | n
 		}
 	);
 	if (errors.length === 0) return null;
-	const known = KNOWN_SAID.filter((k) => errors.some((l) => k.said.test(l)));
-	if (errors.every((l) => known.some((k) => k.said.test(l))))
+	const { left, known } = known_said(errors);
+	if (left.length === 0)
 		return {
 			oracle: 'known',
 			detail: `${tab.page.mainFrame.url}: ${known.map((k) => `#${k.issue} (${k.what})`).join(', ')}`
@@ -1084,8 +1084,24 @@ export const KNOWN_SAID: ReadonlyArray<{ issue: number; what: string; said: RegE
 		what: 'a hole nested in an island is imported as a module after a client navigation',
 		// (the hole's id as a module URL: `/<12 hex>?og-retry=1`; palaestra /prefetch -> /nested)
 		said: /chunk_reload_needed\?url=https%3A%2F%2F[^%]+%2F[0-9a-f]{12}(%3F|$)/
+	},
+	{
+		issue: 1079,
+		what: "Svelte's async mode reads a remote query's derived after its effect ended",
+		// (a plain Kit app warns it too; the stale read it warns of gave palaestra's PendingGreeting
+		// `undefined`, seeds 20257 and a plain Kit app's 124)
+		said: /svelte\.dev\/e\/derived_inert|^unhandled: TypeError: Cannot read properties of undefined \(reading 'greeting'\)/
 	}
 ];
+
+/** `lines` less what a filed bug explains (`KNOWN_SAID`), and which bugs did. */
+export function known_said(lines: readonly string[]): {
+	left: string[];
+	known: { issue: number; what: string }[];
+} {
+	const known = KNOWN_SAID.filter((k) => lines.some((l) => k.said.test(l)));
+	return { left: lines.filter((l) => !known.some((k) => k.said.test(l))), known };
+}
 
 /**
  * No error escaped every page and server to the host process (beyond a network failure's own
@@ -1098,8 +1114,8 @@ export function uncaught(world: World): Broken | null {
 	world.uncaught.length = 0;
 	if (left.length === 0) return null;
 	// (a filed bug's words reach the host too: seed 265, #817's from a press)
-	const known = KNOWN_SAID.filter((k) => left.some((l) => k.said.test(l)));
-	if (left.every((l) => known.some((k) => k.said.test(l))))
+	const { left: unknown, known } = known_said(left);
+	if (unknown.length === 0)
 		return { oracle: 'known', detail: known.map((k) => `#${k.issue} (${k.what})`).join(', ') };
 	return { oracle: 'uncaught', detail: left.join('\n') };
 }

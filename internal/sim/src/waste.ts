@@ -21,7 +21,7 @@
  * them (`@ogygia/tooling/e2e/sim-replay.ts`).
  */
 import type { Tab } from './browser.ts';
-import type { Broken } from './oracles.ts';
+import { known_said, type Broken } from './oracles.ts';
 import { answer_key, is_page_path, type World } from './world.ts';
 
 /** An image's path: the document's image cache keeps one it loaded. */
@@ -237,19 +237,23 @@ export function waste(world: World, tab: Tab): Broken | null {
 	if (!tab.page.mainFrame.url.startsWith('http')) return null;
 	const held = known_waste(doc, held_twice(doc));
 	const asked = known_waste(doc, refused(world, tab.realm));
+	const said = known_said(warned(tab));
 	const found = [
 		...asked.left.map((k) => `refused: ${k}`),
 		...held.left.map((k) => `held twice: ${k}`),
 		...tab.orphans().map((o) => `alive after its owner: ${o}`),
-		...warned(tab).map((l) => `said: ${l.split('\n')[0].slice(0, 200)}`)
+		...said.left.map((l) => `said: ${l.split('\n')[0].slice(0, 200)}`)
 	];
 	if (found.length > 0)
 		return { oracle: 'waste', detail: `${tab.page.mainFrame.url}: ${found.join('\n')}` };
-	const known = [...new Set([...held.known, ...asked.known])];
+	const known = [
+		...new Set([...held.known, ...asked.known].map((i) => KNOWN_WASTE.find((k) => k.issue === i)!)),
+		...said.known
+	];
 	return known.length === 0
 		? null
 		: {
 				oracle: 'known',
-				detail: `${tab.page.mainFrame.url}: ${known.map((i) => `#${i} (${KNOWN_WASTE.find((k) => k.issue === i)!.what})`).join(', ')}`
+				detail: `${tab.page.mainFrame.url}: ${known.map((k) => `#${k.issue} (${k.what})`).join(', ')}`
 			};
 }
