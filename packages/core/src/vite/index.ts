@@ -115,7 +115,7 @@ import {
 } from '../compiler/link/island-deps.ts';
 import { report_seed_shaping } from '../compiler/link/build-output.ts';
 import { follow_pending_page_calls } from '../compiler/link/page-keys.ts';
-import { emit_island_deps_handoff } from '../compiler/link/build-output.ts';
+import { emit_island_deps_handoff, refuse_client_secrets } from '../compiler/link/build-output.ts';
 import { ssr_hosts_handoff_path, parse_ssr_hosts } from '../compiler/link/emit-gate.ts';
 import { router_css_key } from '../compiler/link/router-css.ts';
 import { Program, strip_id } from '../compiler/program.ts';
@@ -1497,6 +1497,12 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 				// `generateBundle`, so a chunk's `imports` there can name a phantom that's gone by write.
 				// By `writeBundle` the bundle reflects the files actually on disk.
 				if (!is_build || server_leg) return;
+
+				// SECRET-SPLIT on the finished client bundle: no signing secret, no signing module
+				refuse_client_secrets(bundle as Record<string, unknown>, [
+					build_secret,
+					process.env.OGYGIA_SECRET?.trim() ?? ''
+				]);
 
 				// FLAG MANIFEST — the inventory the prescan OBSERVED (AST-resolved flag()/experiment()
 				// call sites in modules importing 'ogygia'). Written once per build for CI flag-debt
