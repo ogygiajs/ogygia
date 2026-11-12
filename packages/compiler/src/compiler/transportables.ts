@@ -22,13 +22,6 @@ import path from 'node:path';
 import { parse_module } from './parse/oxc.ts';
 
 const CLASS_KW = /\bclass\b/;
-// A real (pre-transform) wire codec member: `static <name> = import.meta.og.wire(…)`. Tight on
-// purpose — the prescan uses this to catch a wire class BEFORE the macro rewrites it to the computed
-// `static [WIRE_EXPR]` form (which the AST check below sees). A BARE textual mention of the macro (a
-// comment or string that merely names it) must NOT
-// read as a transportable, or the module gets side-effect-imported into every realm by the eager
-// registration manifest — including a Web Worker that references `self`, which then crashes on SSR.
-const WIRE_STATIC_MEMBER = /\bstatic\s+#?\w+\s*=\s*import\.meta\.og\.wire\b/;
 const MODULE_KW = /\bmodule\b/;
 const CONTEXT_MODULE_ATTR = /context\s*=\s*["']module["']/;
 const SVELTE_EXT = /\.svelte$/;
@@ -198,42 +191,14 @@ interface ClassMember {
 }
 
 /**
- * Does this module define an exported class carrying a transportable codec? Used to build
- * the eager-registration manifest so islands never need a manual `import` of the class.
- *
- * Signal: an exported class with a `static` member whose key is COMPUTED (`static [x] = …` /
- * `static [x]() {}`) — every rewritten wire member is exactly that — OR, pre-rewrite, the
- * `import.meta.og.wire` construct marker (prescan reads RAW source, where the blessed spelling
- * `static wire = import.meta.og.wire()` is not yet a computed member). A false positive (an
- * unrelated computed static, the marker in a comment) only eagerly loads one extra module; a
- * transportable class is never missed.
+ * Does this module define an exported class carrying a transportable codec? Used to build the
+ * class loaders, the eager-registration manifest and the `wire` mark, so islands never need a
+ * manual `import` of the class. The registration's own question ({@link appendTransportRegistrations}),
+ * asked of raw or rewritten source alike, so the two cannot disagree.
  */
 export function moduleHasTransportable(code: string, id_n: string): boolean {
 	if (!CLASS_KW.test(code) || !code.includes('static')) return false;
-	if (WIRE_STATIC_MEMBER.test(code)) return true;
-	let body: AstNode[];
-	try {
-		const result = parse_module(code, id_n);
-		if (!result.ok || !result.program) return false;
-		body = (result.program as { body?: AstNode[] }).body ?? [];
-	} catch {
-		return false;
-	}
-	const isTransportableClass = (cls: AstNode | null | undefined): boolean => {
-		const members = (cls?.body as { body?: ClassMember[] } | undefined)?.body ?? [];
-		return members.some((m) => m.static === true && m.computed === true);
-	};
-	for (const node of body) {
-		if (node.type === 'ClassDeclaration' && isTransportableClass(node)) return true;
-		if (
-			node.type === 'ExportNamedDeclaration' &&
-			node.declaration?.type === 'ClassDeclaration' &&
-			isTransportableClass(node.declaration as AstNode)
-		) {
-			return true;
-		}
-	}
-	return false;
+	return exportedWireClassNames(code, id_n).length > 0;
 }
 
 /**
