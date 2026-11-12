@@ -32,6 +32,7 @@
 import { observe, STALE, timers, trace } from '@ogygia/machine';
 import { Rules, type BrokenRule } from '../rules.ts';
 import { warn } from '../messages/core.ts';
+import type { PageGlobals } from '../page-globals.ts';
 import { OG_PREFIX, OGYGIA_PREFIX, unknown_markers } from '../wire-markup.ts';
 
 type RuntimeRule =
@@ -312,7 +313,7 @@ const lakes_paired = (): string | null =>
 
 // ── the head gains no <base>, refresh, CSP or cookie meta (SPA-HEAD) ──
 
-type HeadDeny = (node: Element) => boolean;
+type HeadDeny = Parameters<NonNullable<PageGlobals['__og_head_deny']>>[0];
 
 /** The first document's own candidates (its server sent them, as `outerHTML`): never counted.
  *  Null: not watched yet. */
@@ -340,8 +341,7 @@ function head_not_adopted(): string | null {
 export function watch_head(): void {
 	if (first_head === null) runtime_rules.add('rule_head_adopted', head_not_adopted);
 	first_head = new Set(head_candidates().map((n) => n.outerHTML));
-	(globalThis as { __og_head_deny?: (deny: HeadDeny) => void }).__og_head_deny = (deny) =>
-		(head_deny = deny);
+	(globalThis as PageGlobals).__og_head_deny = (deny) => (head_deny = deny);
 }
 
 // ── the runner ──
@@ -376,7 +376,7 @@ export function install_rules(dev: boolean): void {
 	runtime_rules.add('rule_region_answer_behind', regions_show_their_answers);
 	runtime_rules.add('rule_region_left_busy', regions_left_at_rest);
 	watch_head();
-	(globalThis as { __og_parsed?: (f: DocumentFragment) => void }).__og_parsed = note_parse;
+	(globalThis as PageGlobals).__og_parsed = note_parse;
 	(globalThis as { __ogygia_rules?: () => BrokenRule[] }).__ogygia_rules = () =>
 		runtime_rules.broken();
 	const moves = trace();

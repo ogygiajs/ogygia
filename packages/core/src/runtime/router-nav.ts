@@ -16,6 +16,7 @@
  */
 import { boot_link, router_link, slots } from './slots.ts';
 import { clock, net } from '@ogygia/machine';
+import type { PageGlobals } from '../page-globals.ts';
 import {
 	opts_out_of_reconcile,
 	reconcile_body,
@@ -55,9 +56,7 @@ import { KNOWN_HEADER_CAP } from '../contract/known-copies.ts';
 // chunk). The router's helpers exist only with the router feature; the MPA `invalidateAll` path (no
 // router) touches none of them.
 // (rules on: `rule_head_adopted` checks the head with this chunk's own deny, ./rules.ts)
-(globalThis as { __og_head_deny?: (deny: typeof is_dangerous_head_node) => void }).__og_head_deny?.(
-	is_dangerous_head_node
-);
+(globalThis as PageGlobals).__og_head_deny?.(is_dangerous_head_node);
 
 const KitBoot = { document_has: (doc: ParentNode) => boot_link().KitBoot.document_has(doc) };
 const regions_in_shadow = () => boot_link().regions_in_shadow();
@@ -869,7 +868,7 @@ export async function navigate(
 		if (doc.querySelector('meta[name="ogygia-first-load"]')) return null;
 		// The app's transform reshaped the incoming page: restore it before anything reads it (the
 		// reconcile, the islands' copies). The restorer is the page's own global, when the app has one.
-		(globalThis as { __og_restore?: (root: ParentNode) => number }).__og_restore?.(doc);
+		(globalThis as PageGlobals).__og_restore?.(doc);
 
 		// Same-document hash jumps already returned above (no VT). Cross-route swaps keep VT
 		// even when the target has a hash (A → B#C); scroll snaps after the transition.
@@ -972,7 +971,7 @@ export async function navigate(
 			session().settle_lakes_in(document.body);
 		}
 		// (roots restored in the incoming page adopt their keyed sheets now that they are in this one)
-		(globalThis as { __og_restore_adopt?: () => void }).__og_restore_adopt?.();
+		(globalThis as PageGlobals).__og_restore_adopt?.();
 		// ONE COPY of island head content: an island KEPT across the swap still renders its head live,
 		// and the merge above put the next page's server copy of the same content in beside it — retire
 		// that copy now that the reconcile has settled which islands stayed (runtime/session.ts).

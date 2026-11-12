@@ -1161,10 +1161,6 @@
 			"reason": "closes the run's scope (a timer), constant work; proven in packages/devtools/test/profiler-fake-progress.test.ts"
 		},
 		{
-			"id": "packages/devtools/src/profiler/ui/fake-progress.svelte.ts > FakeProgress > close",
-			"reason": "closes the bar's scope (its timers), constant work; proven in packages/devtools/test/profiler-fake-progress.test.ts"
-		},
-		{
 			"id": "packages/devtools/src/profiler/ui/fake-progress.svelte.ts > FakeProgress > finish > task:0",
 			"reason": "browser only: waits one paint (420 ms on the bar's scope) at 100%, constant work"
 		},
@@ -4277,6 +4273,10 @@
 			"reason": "a stored entry's build label against the build's own `$app/env` version and the wall clock (hidden state), two comparisons; run by packages/postrender/test/deploy.test.ts and handle.test.ts"
 		},
 		{
+			"id": "packages/core/src/frame.ts > is_batch_miss",
+			"reason": "an instanceof check and one name compare on an Error (its prototype is hidden state the recorder does not keep), constant work; proven in packages/core/test/frame-store.test.ts"
+		},
+		{
 			"id": "packages/core/src/frame.ts > mark_written",
 			"reason": "one WeakMap set beside a decoded region value (hidden state), constant work; run by packages/core/test/browser/region-orderings.test.ts and sim-region.test.ts"
 		},
@@ -4753,6 +4753,14 @@
 			"reason": "browser only: drops the page's read code origins (one write), constant work; proven in packages/core/test/browser/nav-code-origins.test.ts (#1045)"
 		},
 		{
+			"id": "packages/core/src/server/capped-body.ts > read_capped",
+			"reason": "network bound: reads a request body's pieces until the cap, one copy of the bytes; proven in packages/core/test/batch-body-cap.test.ts and packages/federation/test/body-cap.test.ts (#754, #1091)"
+		},
+		{
+			"id": "packages/devtools/src/profiler/ui/fake-progress.svelte.ts > FakeProgress > close",
+			"reason": "closes the bar's scope (its timers), constant work; proven in packages/devtools/test/profiler-fake-progress.test.ts"
+		},
+		{
 			"id": "packages/core/src/runtime/core.ts > OgygiaRegion > #teardown > note_left:1~6e248e",
 			"reason": "browser only, dev and e2e builds: the rule's reader of the element's busy machines, handed over at its teardown, constant work; proven in packages/core/test/browser/rules.test.ts"
 		},
@@ -4779,10 +4787,6 @@
 		{
 			"id": "packages/core/src/messages/core.ts > WARNINGS > rule_region_left_busy > text",
 			"reason": "a message's one line for the dev warning: a template over the rule's detail, printed once when the rule breaks"
-		},
-		{
-			"id": "packages/core/src/server/capped-body.ts > read_capped",
-			"reason": "network bound: reads a request body's pieces until the cap, one copy of the bytes; proven in packages/core/test/batch-body-cap.test.ts and packages/federation/test/body-cap.test.ts (#754, #1091)"
 		}
 	]
 }
