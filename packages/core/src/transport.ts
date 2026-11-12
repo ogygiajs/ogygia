@@ -75,12 +75,13 @@ function encode_region(value: unknown): false | EncodedRegion {
 		// Dual region — sign now (this IS the moment of crossing) and drop the component. If it
 		// was awaited, `html` is present and rides along so the client swaps with no fetch.
 		if (f.kind === 'dual') {
-			const sign = f.sign as (id: string, props: Record<string, unknown>) => string;
+			const sign = f.sign as (id: string, props: Record<string, unknown>, wakes: boolean) => string;
 			const props = (f.props ?? {}) as Record<string, unknown>;
 			return pack(
 				f.id as string,
 				props,
-				sign(f.id as string, props),
+				// (a region that wakes: its answer renders as its hydrate does, #906)
+				sign(f.id as string, props, !!f.hydrate),
 				f.module as string,
 				f.hydrate as string,
 				f.hydrateMargin as string,
@@ -191,11 +192,13 @@ export function register_region_kind(): void {
 	});
 }
 
+// static: one family
 const REGION_ONLY = new Set(['region']);
 
 /** Every hub family the ONE `OgygiaRef` transport entry carries (hub v2 phase Y — symmetry).
  *  Region stays in the list for decode-completeness, but the `Region` entry below is first in
  *  object order so regions still ENCODE through it (legacy `EncodedRegion` wire shape kept). */
+// static: every family
 const ALL_FAMILIES = new Set(['wire', 'store', 'snippet', 'fn', 'derived', 'region']);
 
 // Kit calls the transport's `encode` for EVERY value it serializes (each node of a 700 KB load

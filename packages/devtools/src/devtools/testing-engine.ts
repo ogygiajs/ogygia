@@ -35,24 +35,13 @@ type HydrationIsland = ReturnType<typeof hydration_report>['islands'][number];
 /** Which engine answered, and whether in lean testing (switch.ts): on every report. */
 const engine = () => ({ version: TESTING_ENGINE_VERSION, lean: testing_lean() });
 
-/** The decoded size of the engine's own files: what the page fetched while its import ran (ui.ts). */
-let engine_bytes = 0;
-export function note_engine_files(from: number, to: number): void {
-	for (const r of performance.getEntriesByType('resource') as PerformanceResourceTiming[])
-		if (
-			r.startTime >= from &&
-			r.startTime <= to &&
-			(r.initiatorType === 'script' || r.initiatorType === 'link' || r.initiatorType === 'other')
-		)
-			engine_bytes += r.decodedBodySize || 0;
-}
-
 /** What ogygia's measuring cost this page, for a test to subtract: the main-thread time of its own work
  *  (checking islands as they hydrate, building the visit, the testing reports — runtime/own-cost.ts)
- *  and the decoded bytes of the testing engine's files. No visitor with devtools off pays either. */
+ *  and the bytes of the testing engine's files: none, a test injects it. No visitor with devtools off
+ *  pays either. */
 function self_cost(): { script_ms: number; bytes: number; phases: Record<string, number> } {
 	const c = own_cost();
-	return { script_ms: c.ms, bytes: engine_bytes, phases: c.phases };
+	return { script_ms: c.ms, bytes: 0, phases: c.phases };
 }
 
 export async function page_json(cpu_fns = 15): Promise<{
@@ -185,7 +174,9 @@ export async function hydration_json(
 	};
 }
 
-export function record_start(): boolean {
+export async function record_start(): Promise<boolean> {
+	// @why the session names the islands on its page as it starts, and with no dock nothing asked for the names before (test: ogygia-testing e2e › record() across a full page load)
+	await ensure_region_names();
 	if (recording()) return false;
 	start_session();
 	return true;
