@@ -201,14 +201,24 @@ export function tag_attr(attrs: string, name: string): string | null {
 const ISLAND_GRAPH_SCRIPT_G =
 	/<script type="application\/json" data-ogygia-graph>([^<]*)<\/script>/g;
 
-/** A node's URL attribute as the address it names: resolved against the page the node belongs to
- *  (a live node's, the document; a fetched page's, its own address, set by `resolve_head_urls`).
- *  `../a.css` on `/x/y` and `/a.css` are one file, so one key. Empty when absent. */
+/** The address the server's head was written for. This module loads before a navigation first moves
+ *  the address (the router awaits it before any history write), so it is still the load's. */
+const DOCUMENT_BASE = typeof document === 'undefined' ? '' : document.baseURI;
+
+/** A node's URL attribute as the address it names: resolved against the page the node came from
+ *  (the server's head: the address it was written for, not the one a navigation moved to since,
+ *  #821; a fetched page's: its own address, set by `resolve_head_urls`). `../a.css` on `/x/y` and
+ *  `/a.css` are one file, so one key. Empty when absent. */
 function url_of(node: Element, attr: string): string {
 	const value = node.getAttribute(attr);
 	if (!value) return '';
+	// (only a node in the live head can be the server's: a fetched page's or a detached one never is)
+	const base =
+		DOCUMENT_BASE !== '' && node.parentNode === document.head && session().page_head.has(node)
+			? DOCUMENT_BASE
+			: node.baseURI;
 	try {
-		return new URL(value, node.baseURI).href;
+		return new URL(value, base).href;
 	} catch {
 		return value; // (not a URL: compared as written)
 	}
