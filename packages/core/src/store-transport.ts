@@ -152,6 +152,7 @@ export function register_store_kind(): void {
 	});
 }
 
+// static: one family
 const STORE_ONLY = new Set(['store']);
 
 /**
