@@ -16,6 +16,7 @@
  */
 import type { RequestEvent } from '@sveltejs/kit';
 import { warn } from '../messages/server.ts';
+import { slot as shared } from '@ogygia/machine';
 import { current_facts } from './facts.ts';
 
 /** The shared hooks. Each is optional on a plugin; the signature is the contract. */
@@ -39,9 +40,7 @@ export interface ServerHooks {
 type AnyFn = (...args: unknown[]) => unknown;
 type Impl = Record<string, unknown>;
 
-const implementations: Impl[] = ((globalThis as Record<symbol, Impl[] | undefined>)[
-	Symbol.for('ogygia.server-hooks.v1')
-] ??= []);
+const implementations = shared<Impl[]>({ name: 'ogygia.server-hooks', version: 1, make: () => [] });
 
 /** Core only: a set of hook implementations joins (a plugin's server half, or core's own). Keyed by
  *  identity; returns the leave. */
