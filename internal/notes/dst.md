@@ -265,6 +265,19 @@ a swarm over what the visitor does), the rest are fresh seeds. A run's workload 
 `pnpm sim --plan <file>` replays it (the search checks that it gives the same trace). The search's
 own choices hang on which run ends first, so it does not replay as a whole; each run in it does.
 
+## Shrinking
+
+`pnpm sim --app <app> --shrink <plan file>` (a search's plan, or `{ "seed": 4, "steps": 30 }` for
+a seed's own workload; `--known` takes a filed bug's finding when there is no new one): delta
+debugging over the actions (`src/shrink.ts`), several candidates side by side in the pool, keeping
+a candidate only while it fails with the same signature (`ci.ts` `signature`). The shrunk run is
+replayed twice (equal traces, or the shrink says so), and its actions, finding and the trace's
+tail are printed. It writes `plans/<name>.min.json` (`--plan <file> --step N` prints the whole
+trace) and `test/found/<name>.test.ts`, a regression test that runs the plan and expects the
+finding gone: it fails while the bug stands, and skips when the app on disk is not the one it was
+found on (a generated app's seed, from its plan.json). Rename it to say the behavior, and put it
+on the finding's `sim/found-<name>` branch.
+
 ## Findings
 
 A real bug gets a GitHub issue (labels `bug`, `dst`) and a failing test on its own branch
