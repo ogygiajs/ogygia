@@ -387,10 +387,10 @@ describe('route config', () => {
 		expect(route_config('postrender', '/bare', '/bare')).toBeUndefined();
 	});
 	it('the virtual module is server-only and empty without claimed keys', () => {
-		expect(route_config_module(false, '/r', ['postrender'])).toBe(
+		expect(route_config_module(false, R, '/r', ['postrender'])).toBe(
 			'export const route_config = {};'
 		);
-		expect(route_config_module(true, '/r', [])).toBe('export const route_config = {};');
+		expect(route_config_module(true, R, '/r', [])).toBe('export const route_config = {};');
 	});
 });
 

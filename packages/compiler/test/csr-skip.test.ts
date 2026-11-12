@@ -39,7 +39,7 @@ describe('clientBuildWillSkip — chain-resolved csr (Kit parity)', () => {
 			'+page.svelte': '<h1>home</h1>',
 			'about/+page.svelte': '<h1>about</h1>'
 		});
-		expect(clientBuildWillSkip(dir)).toBe(true);
+		expect(clientBuildWillSkip(R, dir)).toBe(true);
 	});
 
 	it('one deep csr=true page under a csr=false root keeps the build alive', () => {
@@ -49,7 +49,7 @@ describe('clientBuildWillSkip — chain-resolved csr (Kit parity)', () => {
 			'kit/+page.svelte': '<h1>kit</h1>',
 			'kit/+page.ts': 'export const csr = true;'
 		});
-		expect(clientBuildWillSkip(dir)).toBe(false);
+		expect(clientBuildWillSkip(R, dir)).toBe(false);
 	});
 
 	it('a csr=true MID-LAYOUT re-scopes its subtree (chain override, both directions)', () => {
@@ -59,7 +59,7 @@ describe('clientBuildWillSkip — chain-resolved csr (Kit parity)', () => {
 			'app/+layout.ts': 'export const csr = true;',
 			'app/+page.svelte': '<h1>app</h1>'
 		});
-		expect(clientBuildWillSkip(dir)).toBe(false);
+		expect(clientBuildWillSkip(R, dir)).toBe(false);
 	});
 
 	it('all pages csr=false but the root LAYOUT NODE unset → Kit does NOT skip (node ≠ false)', () => {
@@ -70,7 +70,7 @@ describe('clientBuildWillSkip — chain-resolved csr (Kit parity)', () => {
 			'about/+page.svelte': '<h1>about</h1>',
 			'about/+page.ts': 'export const csr = false;'
 		});
-		expect(clientBuildWillSkip(dir)).toBe(false);
+		expect(clientBuildWillSkip(R, dir)).toBe(false);
 	});
 
 	it('every node explicitly csr=false (layout AND pages) → skip (the adapters-fixture shape)', () => {
@@ -79,7 +79,7 @@ describe('clientBuildWillSkip — chain-resolved csr (Kit parity)', () => {
 			'+page.svelte': '<h1>home</h1>',
 			'+page.ts': 'export const csr = false;'
 		});
-		expect(clientBuildWillSkip(dir)).toBe(true);
+		expect(clientBuildWillSkip(R, dir)).toBe(true);
 	});
 
 	it('an option-file-only dir (bare `+layout.ts`, no .svelte) still scopes its children', () => {
@@ -88,7 +88,7 @@ describe('clientBuildWillSkip — chain-resolved csr (Kit parity)', () => {
 			'(group)/+layout.ts': 'export const csr = false;',
 			'(group)/docs/+page.svelte': '<h1>docs</h1>'
 		});
-		expect(clientBuildWillSkip(dir)).toBe(true);
+		expect(clientBuildWillSkip(R, dir)).toBe(true);
 	});
 
 	it('the injected keepalive dir is invisible to the prediction', () => {
@@ -97,7 +97,7 @@ describe('clientBuildWillSkip — chain-resolved csr (Kit parity)', () => {
 			'+page.svelte': '<h1>home</h1>',
 			[`${KEEP_CLIENT_DIR}/+layout.ts`]: 'export const csr = true;'
 		});
-		expect(clientBuildWillSkip(dir)).toBe(true);
+		expect(clientBuildWillSkip(R, dir)).toBe(true);
 	});
 
 	it('server option file beats nothing, universal beats server (Kit merge order)', () => {
@@ -106,11 +106,11 @@ describe('clientBuildWillSkip — chain-resolved csr (Kit parity)', () => {
 			'+layout.ts': 'export const csr = true;',
 			'+page.svelte': '<h1>home</h1>'
 		});
-		expect(clientBuildWillSkip(dir)).toBe(false);
+		expect(clientBuildWillSkip(R, dir)).toBe(false);
 	});
 
 	it('missing routes dir → never predicts a skip', () => {
-		expect(clientBuildWillSkip(join(tmpdir(), 'og-csr-definitely-missing'))).toBe(false);
+		expect(clientBuildWillSkip(R, join(tmpdir(), 'og-csr-definitely-missing'))).toBe(false);
 	});
 });
 
@@ -126,7 +126,7 @@ describe('clientBuildWillSkip — symlinked route files and dirs (Kit follows li
 			'tree/about/+page.svelte': '<h1>about</h1>'
 		});
 		symlinkSync(join(dir, 'shared/+layout.ts'), join(dir, 'tree/+layout.ts'));
-		expect(clientBuildWillSkip(join(dir, 'tree'))).toBe(true);
+		expect(clientBuildWillSkip(R, join(dir, 'tree'))).toBe(true);
 	});
 
 	it('a linked route DIRECTORY holding a csr=true page keeps the build alive', () => {
@@ -137,7 +137,7 @@ describe('clientBuildWillSkip — symlinked route files and dirs (Kit follows li
 			'tree/+page.svelte': '<h1>home</h1>'
 		});
 		symlinkSync(join(dir, 'shared/kit'), join(dir, 'tree/kit'));
-		expect(clientBuildWillSkip(join(dir, 'tree'))).toBe(false);
+		expect(clientBuildWillSkip(R, join(dir, 'tree'))).toBe(false);
 	});
 
 	it('a dangling link is ignored, as Kit ignores it', () => {
@@ -146,16 +146,16 @@ describe('clientBuildWillSkip — symlinked route files and dirs (Kit follows li
 			'tree/+page.svelte': '<h1>home</h1>'
 		});
 		symlinkSync(join(dir, 'nowhere'), join(dir, 'tree/gone'));
-		expect(clientBuildWillSkip(join(dir, 'tree'))).toBe(true);
+		expect(clientBuildWillSkip(R, join(dir, 'tree'))).toBe(true);
 	});
 });
 
 describe('read_csr — export shapes', () => {
 	it('reads the TS-annotated form `export const csr: boolean = false`', () => {
 		const dir = routes({ '+layout.ts': 'export const csr: boolean = false;\n' });
-		expect(read_csr(join(dir, '+layout.ts'))).toBe(false);
+		expect(read_csr(R, join(dir, '+layout.ts'))).toBe(false);
 		const dir2 = routes({ '+layout.ts': 'export const csr : boolean = true;\n' });
-		expect(read_csr(join(dir2, '+layout.ts'))).toBe(true);
+		expect(read_csr(R, join(dir2, '+layout.ts'))).toBe(true);
 	});
 
 	it('a COMMENTED-OUT csr export does not win over the real one (regression)', () => {
@@ -166,7 +166,7 @@ describe('read_csr — export shapes', () => {
 			export const csr = false;
 		`}\n`
 		});
-		expect(read_csr(join(dir, '+layout.ts'))).toBe(false);
+		expect(read_csr(R, join(dir, '+layout.ts'))).toBe(false);
 		// Block comment.
 		const dir2 = routes({
 			'+layout.ts': `${dedent`
@@ -174,7 +174,7 @@ describe('read_csr — export shapes', () => {
 				export const csr = false;
 			`}\n`
 		});
-		expect(read_csr(join(dir2, '+layout.ts'))).toBe(false);
+		expect(read_csr(R, join(dir2, '+layout.ts'))).toBe(false);
 		// A `://` inside a string on another line must not be mistaken for a comment and eat the export.
 		const dir3 = routes({
 			'+layout.ts': `${dedent`
@@ -182,6 +182,6 @@ describe('read_csr — export shapes', () => {
 				export const csr = false;
 			`}\n`
 		});
-		expect(read_csr(join(dir3, '+layout.ts'))).toBe(false);
+		expect(read_csr(R, join(dir3, '+layout.ts'))).toBe(false);
 	});
 });
