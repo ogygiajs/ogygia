@@ -2,8 +2,13 @@
  * ORACLES: what must hold, checked at every step or once the world is at rest. Each says what it
  * found broken, or null. Each is precise about what it normalizes away, and why.
  */
+import { writeFileSync } from 'node:fs';
 import type { Tab, Visitor } from './browser.ts';
 import { FOREIGN_MARK, type World } from './world.ts';
+
+/** `SIM_DUMP=<dir>`: an MPA difference writes both sides whole there (`<tab>-<path>-shown.txt`,
+ *  `-fresh.txt`), to read past its first hunk. */
+const DUMP = process.env.SIM_DUMP;
 
 /** What an oracle found broken. */
 export interface Broken {
@@ -566,6 +571,11 @@ export async function mpa_equivalent(
 			detail: `${url}: ${known.map((k) => `#${k.issue} (${k.what})`).join(', ')}`
 		};
 	// (what is left once the filed bugs are set aside: the difference to triage)
+	if (DUMP) {
+		const name = `${DUMP}/${tab.name}-${new URL(url).pathname.replace(/\W+/g, '_')}`;
+		writeFileSync(`${name}-shown.txt`, a);
+		writeFileSync(`${name}-fresh.txt`, b);
+	}
 	const left =
 		known.length > 0 ? `with ${known.map((k) => `#${k.issue}`).join(', ')} set aside, ` : '';
 	return {
