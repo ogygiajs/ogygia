@@ -215,6 +215,8 @@ export interface RunResult {
 	/** What the network did to the tabs' own requests to the app: the real-browser tier does it
 	 *  again (apps/palaestra/e2e/sim-replay.spec.ts). */
 	readonly wire: readonly WireFault[];
+	/** Whether its engine had idle callbacks (a plan of it replays on the same engine). */
+	readonly idle: boolean;
 }
 
 /** A request of tab `tab` (0 is the first) the network dropped or cut: the `nth` (from 0) of the
@@ -255,6 +257,9 @@ export interface Plan {
 	readonly actions: readonly Action[];
 	readonly tail?: string;
 	readonly mix?: Mix;
+	/** Whether its engine has idle callbacks; absent, it does (a plan written before the simulator
+	 *  had engines without them, a sweep plan's too, replays as it was found). */
+	readonly idle?: boolean;
 }
 
 /** `a`, on a tab the world has (a shrunk plan may have dropped the action that opened its tab). */
@@ -303,7 +308,9 @@ export async function run(
 		supplied: SUPPLIED,
 		instances,
 		skew,
-		buggify: BUGGIFY ? { on: 0.3, fires: 0.2 } : undefined
+		buggify: BUGGIFY ? { on: 0.3, fires: 0.2 } : undefined,
+		// (a plan replays on its own engine; a seed's own workload draws one)
+		...(plan ? { idle: plan.idle ?? true } : {})
 	});
 	running = world;
 	world.loop.note(
@@ -518,7 +525,8 @@ export async function run(
 			log: world.loop.log,
 			buggified,
 			coverage: { steps: steps_taken, points: Object.fromEntries(world.buggified) },
-			wire: wire_faults(world)
+			wire: wire_faults(world),
+			idle: world.idle
 		};
 	} finally {
 		await world.end();
@@ -660,7 +668,7 @@ async function guided(): Promise<void> {
 		const mix = g.chance(0.5) ? swarm_mix(g) : parent.plan.mix;
 		return {
 			seed: parent.seed,
-			plan: { actions: parent.plan.actions.slice(0, cut), tail, mix },
+			plan: { actions: parent.plan.actions.slice(0, cut), tail, mix, idle: parent.plan.idle },
 			label: `seed ${parent.seed} ${tail} (${cut} kept${mix ? ', mixed' : ''})`
 		};
 	};
@@ -670,7 +678,7 @@ async function guided(): Promise<void> {
 		worker: number
 	): Promise<void> => {
 		ran++;
-		const plan: Plan = { actions: res.actions, mix: c.plan?.mix };
+		const plan: Plan = { actions: res.actions, mix: c.plan?.mix, idle: res.idle };
 		const fresh = covered.add(res.coverage);
 		if (fresh.length > 0) {
 			kept.push({ seed: c.seed, plan, found: fresh.length });
@@ -764,9 +772,12 @@ async function shrink(file: string): Promise<void> {
 	// (no plan: the seed's own workload, of `steps` actions, spelled out by its run)
 	const plan: Plan =
 		given.plan ??
-		({ actions: (await pool.run(seed, given.steps ?? STEPS, Infinity)).result.actions } as Plan);
+		(await pool.run(seed, given.steps ?? STEPS, Infinity).then(({ result }) => ({
+			actions: result.actions,
+			idle: result.idle
+		})));
 	const ran = (actions: readonly Action[], avoid = -1) =>
-		pool.run(seed, actions.length, Infinity, avoid, { actions, mix: plan.mix });
+		pool.run(seed, actions.length, Infinity, avoid, { actions, mix: plan.mix, idle: plan.idle });
 	const first = (await ran(plan.actions)).result;
 	// (a new finding first; else a filed one's, to shrink its repro)
 	const bad =
@@ -806,7 +817,7 @@ async function shrink(file: string): Promise<void> {
 	const name = slug(found.oracle, target);
 	// (as the run took them: on the tabs it had)
 	items = a.result.actions;
-	const min: Plan = { actions: items, mix: plan.mix };
+	const min: Plan = { actions: items, mix: plan.mix, idle: plan.idle };
 	mkdirSync(PLANS, { recursive: true });
 	const plan_file = join(PLANS, `${name}.min.json`);
 	writeFileSync(plan_file, plan_json(seed, min, a.result));
@@ -1054,7 +1065,8 @@ class Pool {
 				log: [`${oracle}: ${why.split('\n')[0]}`],
 				buggified: [],
 				coverage: { steps: {}, points: {} },
-				wire: []
+				wire: [],
+				idle: job.plan?.idle ?? true
 			}
 		});
 		const done = (message: { result?: RunResult; error?: string; hung?: string }) => {
