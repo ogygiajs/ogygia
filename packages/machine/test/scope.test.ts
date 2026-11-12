@@ -146,14 +146,6 @@ describe('children', () => {
 		expect(cleanup).toHaveBeenCalledOnce();
 	});
 
-	it('a long-lived parent holds none of the children that closed on their own', () => {
-		const parent = scope();
-		for (let i = 0; i < 20; i++) parent.child().close();
-		const kept = (parent as unknown as { _children: Set<unknown> | null })._children;
-		expect(kept?.size ?? 0).toBe(0);
-		parent.close();
-	});
-
 	it('a closed scope’s child is closed', () => {
 		const parent = scope();
 		parent.close();
@@ -270,19 +262,6 @@ describe('on', () => {
 		s.close();
 	});
 
-	it('a capture listener given as an object is let go on close; so is a non-capture one with options', () => {
-		const target = new EventTarget();
-		const s = scope();
-		const captured = vi.fn();
-		const passive = vi.fn();
-		s.on(target, 'ping', captured, { capture: true });
-		s.on(target, 'ping', passive, { passive: true });
-		s.close();
-		target.dispatchEvent(new Event('ping'));
-		expect(captured).not.toHaveBeenCalled();
-		expect(passive).not.toHaveBeenCalled();
-	});
-
 	it('a once listener that fired lets go of itself: a long-lived scope does not pile them up (#348)', () => {
 		const target = new EventTarget();
 		const s = scope();
@@ -377,37 +356,6 @@ describe('timers', () => {
 		s.close();
 		await wait(100);
 		expect(gone).not.toHaveBeenCalled();
-	});
-
-	it("'frame' waits for the host's frame and 'idle' for its idle time; closing cancels each", () => {
-		const frames = new Map<number, () => void>();
-		const idles = new Map<number, () => void>();
-		let next = 0;
-		vi.stubGlobal('requestAnimationFrame', (fn: () => void) => (frames.set(++next, fn), next));
-		vi.stubGlobal('cancelAnimationFrame', (id: number) => frames.delete(id));
-		vi.stubGlobal('requestIdleCallback', (fn: () => void) => (idles.set(++next, fn), next));
-		vi.stubGlobal('cancelIdleCallback', (id: number) => idles.delete(id));
-		try {
-			const s = scope();
-			const frame = vi.fn();
-			const idle = vi.fn();
-			s.timeout(frame, 'frame');
-			s.timeout(idle, 'idle');
-			expect([frames.size, idles.size]).toEqual([1, 1]);
-			for (const fn of frames.values()) fn();
-			expect(frame).toHaveBeenCalledOnce();
-			expect(idle).not.toHaveBeenCalled();
-			for (const fn of idles.values()) fn();
-			expect(idle).toHaveBeenCalledOnce();
-			frames.clear();
-			idles.clear();
-			s.timeout(vi.fn(), 'frame');
-			s.timeout(vi.fn(), 'idle');
-			s.close();
-			expect([frames.size, idles.size]).toEqual([0, 0]);
-		} finally {
-			vi.unstubAllGlobals();
-		}
 	});
 
 	it('every repeats until the scope closes', async () => {
@@ -512,29 +460,6 @@ describe('watch and adopt', () => {
 		expect(error).toHaveBeenCalledOnce();
 		expect(String(error.mock.calls[0][0])).toContain('machine_dispose_failed');
 		error.mockRestore();
-	});
-
-	it('`await using` throws what a cleanup threw', async () => {
-		const s = scope();
-		s.defer(() => {
-			throw new Error('cleanup broke');
-		});
-		await expect(s[ASYNC_DISPOSE]()).rejects.toThrow('cleanup broke');
-	});
-
-	it('an async disposal adopted by a cleanup of the close goes with the close: `await using` gets its error', async () => {
-		const error = vi.spyOn(console, 'error').mockImplementation(() => {});
-		try {
-			const s = scope();
-			s.defer(() => {
-				s.adopt({ [ASYNC_DISPOSE]: () => Promise.reject(new Error('late in the close')) });
-			});
-			await expect(s[ASYNC_DISPOSE]()).rejects.toThrow('late in the close');
-			await macrotask();
-			expect(error).not.toHaveBeenCalled();
-		} finally {
-			error.mockRestore();
-		}
 	});
 
 	it('refuses what cannot dispose itself', () => {

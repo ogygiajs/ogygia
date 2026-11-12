@@ -32,8 +32,10 @@ import type { AstNode } from './parse/oxc.ts';
 /** A cheap presence test before parsing: one of the three shapes could be in this file. */
 const MAY_STAMP_RE =
 	/\{@html|bind:(?:innerHTML|textContent|innerText)|<[a-z][\w.]*-[\w-]*[\s/>]|\sis=/;
+// static: the DOM properties that replace an element's whole content
 const WHOLESALE_BINDS = new Set(['innerHTML', 'textContent', 'innerText']);
 /** Template node kinds that make content dynamic (anything Svelte must walk to bind). */
+// static: Svelte's template node types whose content is made at runtime
 const DYNAMIC_KINDS = new Set([
 	'ExpressionTag',
 	'HtmlTag',

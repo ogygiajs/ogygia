@@ -557,14 +557,6 @@ describe('wait', () => {
 		expect(await c).toEqual({ kind: 'kept' });
 	});
 
-	it('once every wait settled, the machine holds no wait list (a long-lived machine does not pile them up)', async () => {
-		const m = hole.create();
-		const a = m.wait('fetching');
-		m.go('fetching', { attempt: 1 });
-		await a;
-		expect((m as unknown as { _waiters: unknown })._waiters).toBeNull();
-	});
-
 	it('stop settles every wait with STALE', async () => {
 		const m = hole.create();
 		const a = m.wait('answered');

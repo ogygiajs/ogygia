@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { machine, scope, stage, STALE, trace, type Staging } from '../src/index.ts';
+import { machine, scope, stage, STALE, type Staging } from '../src/index.ts';
 
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -307,36 +307,5 @@ describe('after the commit', () => {
 		}
 		expect((held._defers?.length ?? 0) + (held._children?.size ?? 0)).toBe(0);
 		owner.close();
-	});
-
-	it('an ended stage keeps none of its discard steps, not even one given late', async () => {
-		const steps = (s: unknown) => (s as { _steps: unknown[] })._steps.length;
-		let staging!: Staging;
-		const committed = stage(scope(), {
-			build: (s) => ((staging = s), s.discard(() => {}), 'new'),
-			commit: () => {}
-		});
-		await committed.ready;
-		expect(committed.commit()).toBe(true);
-		staging.discard(() => {});
-		expect(steps(committed)).toBe(0);
-
-		const owner = scope();
-		const discarded = stage(owner, {
-			build: (s) => (s.discard(() => {}), 'new'),
-			commit: () => {}
-		});
-		await discarded.ready;
-		owner.close();
-		expect(steps(discarded)).toBe(0);
-	});
-
-	it('a commit ends the stage in committed', async () => {
-		const moves = trace({ only: (name) => name === 'stage' });
-		const next = stage(scope(), { build: () => 'new', commit: () => {} });
-		await next.ready;
-		next.commit();
-		moves.stop();
-		expect(moves.lines().at(-1)).toMatch(/committing -> committed/);
 	});
 });

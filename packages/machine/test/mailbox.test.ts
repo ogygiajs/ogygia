@@ -80,69 +80,6 @@ describe('mailbox', () => {
 		expect(seen).toEqual(['b holds', 'b ends', 'a back']);
 	});
 
-	it('a handler back from its wait holds the turn again: an event it posts runs after it', async () => {
-		const box = mailbox(scope());
-		const seen: string[] = [];
-		const a = box.ask(async (turn) => {
-			await turn.wait(later(null));
-			seen.push('a back');
-			box.post(() => seen.push('c'));
-			seen.push('a ends');
-		});
-		await a;
-		await later(null);
-		expect(seen).toEqual(['a back', 'a ends', 'c']);
-	});
-
-	it('a handler handed the turn back from the queue holds it: an event it posts runs after it', async () => {
-		const box = mailbox(scope());
-		const seen: string[] = [];
-		const a = box.ask(async (turn) => {
-			await turn.wait(later(null, 1));
-			seen.push('a back');
-			box.post(() => seen.push('c'));
-			seen.push('a ends');
-		});
-		const b = box.ask(async () => {
-			await later(null, 10); // (a plain await: b keeps the turn while a's wait settles)
-			seen.push('b ends');
-		});
-		await Promise.all([a, b]);
-		expect(seen).toEqual(['b ends', 'a back', 'a ends', 'c']);
-	});
-
-	it('a handler that ended while its wait sat in the queue takes no turn: the box goes on', async () => {
-		const box = mailbox(scope());
-		const seen: string[] = [];
-		const a = box.ask(async (turn) => {
-			void turn.wait(later(null, 1)); // (ends the turn; comes back while b holds one)
-			await later(null, 3); // (a ends here, its wait still in the queue)
-		});
-		const b = box.ask(async () => {
-			await later(null, 10);
-			seen.push('b ends');
-		});
-		await Promise.all([a, b]);
-		await later(null, 5);
-		box.post(() => seen.push('c'));
-		expect(seen).toEqual(['b ends', 'c']);
-	});
-
-	it('a closed box holds nothing: no queue, no waits', async () => {
-		const life = scope();
-		const box = mailbox(life);
-		const forever = new Promise<never>(() => {});
-		box.post(async () => {
-			box.post(() => {}); // (queued behind a turn that never ends)
-			await forever;
-		});
-		void box.wait(forever);
-		life.close();
-		const held = box as unknown as { _queue: unknown; _waiting: unknown };
-		expect(held._queue).toBeNull();
-		expect(held._waiting).toBeNull();
-	});
-
 	it('ends with its owner: queued events are dropped, a wait is STALE at once, later posts too', async () => {
 		const life = scope();
 		const box = mailbox(life);

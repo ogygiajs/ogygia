@@ -23,7 +23,6 @@
  * The queue keeps the jobs themselves, in the order pushed: no record per job. A start that pushes,
  * cancels or releases runs inside the drain safely: each start takes its job off the front first.
  */
-import { clock } from './clock.ts';
 import { machine_error, report_thrown } from './messages.ts';
 import { MAX_TIMEOUT_MS, scope, type Scope } from './scope.ts';
 
@@ -36,7 +35,7 @@ export interface QueueOptions<J> {
 	start: (job: J) => void;
 	/** Hears a job that will never start: its deadline came, it was cancelled, or the owner closed. */
 	stale?: (job: J) => void;
-	/** The clock deadlines are read on (ms). `clock.mono()` when left out. */
+	/** The clock deadlines are read on (ms). `performance.now()` when left out. */
 	now?: () => number;
 	/** Closing it makes every waiting job stale, and any pushed after. */
 	owner?: Scope;
@@ -83,7 +82,7 @@ class QueueImpl<J> implements Queue<J> {
 		this.#max = o.max;
 		this.#start = o.start;
 		this.#stale = o.stale ?? null;
-		this.#now = o.now ?? clock.mono;
+		this.#now = o.now ?? clock;
 		this.#owner = o.owner ?? null;
 		this.#owner?.defer(() => this.#leave_where(() => true));
 	}
@@ -232,4 +231,8 @@ export function queue<J>(options: QueueOptions<J>): Queue<J> {
 			rule: 'a whole number of at least 1'
 		});
 	return new QueueImpl(options);
+}
+
+function clock(): number {
+	return typeof performance !== 'undefined' ? performance.now() : Date.now();
 }
