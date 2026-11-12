@@ -11,6 +11,7 @@
  */
 import { define_messages, type MessagesOf } from '../contract/messages.ts';
 import { prose } from '../contract/prose.ts';
+import { OG_PREFIX, OGYGIA_KEEP, OGYGIA_PREFIX } from '../wire-markup.ts';
 
 const BUG = 'An ogygia bug: please report it with the page that shows it.';
 
@@ -525,14 +526,14 @@ export const WARNINGS = {
 			${a.element} is a web component that changed its own children in a position Svelte's
 			hydration reads, so the repair had to remove the nodes it added. Render that subtree with
 			{@html} or as static markup (Svelte never reads inside it), put it in a lake
-			(wake: 'none'), or mark the element data-ogygia-keep.
+			(wake: 'none'), or mark the element ${OGYGIA_KEEP}.
 		`,
 		details: (): string => prose`
 			Dev only. A web component inside the island added children where Svelte's hydration
 			expects the server's nodes. To hydrate the island, the repair removed them.
 
 			Render that subtree with \`{@html}\` or as static markup (Svelte never reads inside it),
-			put it in a lake (\`wake: 'none'\`), or mark the element \`data-ogygia-keep\`.
+			put it in a lake (\`wake: 'none'\`), or mark the element \`${OGYGIA_KEEP}\`.
 		`
 	},
 	hydration_discarded: {
@@ -898,11 +899,11 @@ export const WARNINGS = {
 			`rule broken, every page marker is declared: ${a.detail}`,
 		details: (): string => prose`
 			Dev and e2e only (a rule ogygia checks on itself). The page markup ogygia writes and reads
-			back (its \`data-og-*\` and \`data-ogygia-*\` attributes) is declared in one table, so a writer
+			back (its \`${OG_PREFIX}*\` and \`${OGYGIA_PREFIX}*\` attributes) is declared in one table, so a writer
 			and a reader never meet through a name only one of them spells. The page carries a marker
 			the table does not declare: a renamed or misspelled one, or a new one not added to it. Only
-			ogygia's own markers are read: any \`data-ogygia-*\`, and \`data-og-*\` on an \`ogygia-*\`
-			element. An app's own \`data-og-*\` elsewhere is left alone.
+			ogygia's own markers are read: any \`${OGYGIA_PREFIX}*\`, and \`${OG_PREFIX}*\` on an \`ogygia-*\`
+			element. An app's own \`${OG_PREFIX}*\` elsewhere is left alone.
 			${BUG}
 		`
 	},

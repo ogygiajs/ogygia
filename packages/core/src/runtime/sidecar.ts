@@ -8,6 +8,8 @@
  *
  * @packageDocumentation
  */
+import { OG_FP, OGYGIA_PROPS } from '../wire-markup.ts';
+
 const restored_sidecars = new WeakMap<Element, HTMLScriptElement>();
 
 /** Attach a remembered props sidecar to a region whose DOM carries none (see above). */
@@ -18,7 +20,7 @@ export function restore_props_sidecar(region: Element, sidecar: HTMLScriptElemen
 export function props_sidecar_of(region: Element): HTMLScriptElement | null {
 	const restored = restored_sidecars.get(region);
 	if (restored) return restored;
-	const fp = region.getAttribute('data-og-fp');
+	const fp = region.getAttribute(OG_FP);
 	const root = region.getRootNode() as Document | ShadowRoot | Element;
 	if (fp && 'getElementById' in root) {
 		const keyed = root.getElementById('og-props-' + fp);
@@ -26,8 +28,7 @@ export function props_sidecar_of(region: Element): HTMLScriptElement | null {
 	}
 	let sib = region.nextElementSibling;
 	while (sib) {
-		if (sib.tagName === 'SCRIPT' && sib.hasAttribute('data-ogygia-props'))
-			return sib as HTMLScriptElement;
+		if (sib.tagName === 'SCRIPT' && sib.hasAttribute(OGYGIA_PROPS)) return sib as HTMLScriptElement;
 		if (sib.tagName === 'LINK') {
 			sib = sib.nextElementSibling;
 			continue;
@@ -35,7 +36,7 @@ export function props_sidecar_of(region: Element): HTMLScriptElement | null {
 		break;
 	}
 	if (fp) {
-		const found = (root as ParentNode).querySelector?.(`script[data-ogygia-props="${fp}"]`);
+		const found = (root as ParentNode).querySelector?.(`script[${OGYGIA_PROPS}="${fp}"]`);
 		if (found) return found as HTMLScriptElement;
 	}
 	return null;
