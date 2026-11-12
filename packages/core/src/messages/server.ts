@@ -71,16 +71,18 @@ export const SERVER_ERRORS = {
 	islands_endpoint_conflict: {
 		text: (a: { endpoint: string; was: string }): string => prose`
 			handle({ endpoint }) names ${a.endpoint}, but this server already answers holes on
-			${a.was}. ${a.endpoint} stands from here on: pass one endpoint, to the one \`handle()\`.
+			${a.was}. ${a.was} stays: pass one endpoint, to the one \`handle()\`.
 		`,
 		details: (): string => prose`
 			A server has one islands endpoint: the path the handle answers holes on, and the path
-			every capability is minted for. Two \`handle()\` calls in one process named different
-			ones, so the later one replaced the first: a handle still answering on the first path no
-			longer gets the holes, and pages rendered before the change name the old path.
+			every capability is minted for. It is decided once, by the first \`handle()\` (or the
+			first render, when none named one), and never moves: pages already minted and the handle
+			that answers them must name the same path. A later \`handle()\` named another one, so
+			its endpoint is not used. Two copies of ogygia in one server, or two \`handle()\` calls,
+			are the usual cause; one with no \`endpoint\` names the default, \`/__ogygia__\`.
 
-			Pass one \`endpoint\`, to the one \`handle()\`. (Not said in dev, where a reload of the
-			hooks runs \`handle()\` again.)
+			Pass one \`endpoint\`, to the one \`handle()\`. Thrown in dev; in production it is said
+			and the first path stays.
 		`
 	},
 	secret_missing_at_runtime: {
