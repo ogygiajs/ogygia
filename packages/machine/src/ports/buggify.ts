@@ -8,7 +8,7 @@ import { realm } from './realm.ts';
  *
  * A call site is behind its file's own rules constant (a bundler folds a constant of the file, not
  * one imported), so a production build folds the call and the point's name out
- * (packages/core/test/rules-stripped.test.ts proves it):
+ * (packages/core/test/rules-stripped.node.test.ts proves it):
  *
  *   const RULES = import.meta.env?.DEV || (typeof __OGYGIA_RULES__ !== 'undefined' ? __OGYGIA_RULES__ : false);
  *   if (RULES && buggify.fires('outbox.reply-lost')) throw new Error('…');
