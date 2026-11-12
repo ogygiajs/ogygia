@@ -389,22 +389,6 @@
 			"reason": "the e2e harness's end-of-test rules read: Playwright only, runs at the end of every e2e spec that used a page"
 		},
 		{
-			"id": "packages/core/src/hooks.ts > over_budget",
-			"reason": "an error path: one 429 Response per refused request (a Response, not cloneable), constant work; proven in packages/core/test/batch-render-budget.test.ts (#959)"
-		},
-		{
-			"id": "packages/core/src/server/rate-limit.ts > RateLimiter > retry_after_s",
-			"reason": "an error path: reads the visitor's bucket (the limiter's private map, not replayable) and the monotonic clock, constant work; proven in packages/core/test/batch-render-budget.test.ts (#959)"
-		},
-		{
-			"id": "packages/core/src/runtime/region-endpoint-url.ts > RegionAnswerLater > constructor",
-			"reason": "browser only, an error path: the error a 429 throws, two field writes, constant work; proven in packages/core/test/browser/hole-rate-limited.test.ts (#959)"
-		},
-		{
-			"id": "packages/core/src/runtime/region-endpoint-url.ts > retry_after_ms",
-			"reason": "browser only, an error path: reads one header of a live Response (not cloneable) and parses it, constant work; proven in packages/core/test/browser/hole-rate-limited.test.ts (#959)"
-		},
-		{
 			"id": "packages/postrender/src/registry.ts > retracting",
 			"reason": "reads the module's store writes in flight (hidden state), a walk of the few out; proven in packages/postrender/test/plugin.test.ts and packages/postrender/test/sim.test.ts"
 		},
@@ -4659,6 +4643,34 @@
 		{
 			"id": "packages/flags/src/vite.ts > flags > definePlugin:0~de4de4 > build",
 			"reason": "build time: declares the flags definer through the plugin builder (not cloneable), constant work"
+		},
+		{
+			"id": "packages/core/src/hooks.ts > OgygiaHandle > #render_capability > render_component:4~077289",
+			"reason": "the profiler's cache-outcome callback of a batched hole: one assignment to a local, constant work"
+		},
+		{
+			"id": "packages/core/src/hooks.ts > OgygiaHandle > render_region > render_component:4~077289",
+			"reason": "the profiler's cache-outcome callback of a hole render: one assignment to a local, constant work"
+		},
+		{
+			"id": "packages/core/src/server/answer-context.ts > hole_answer_context",
+			"reason": "one hole answer's render context: Kit's context Map (live request objects, not cloneable), copied once with the nested mark when the hole wakes, constant work; proven in packages/core/test/woken-hole-capability.test.ts"
+		},
+		{
+			"id": "packages/core/src/hooks.ts > over_budget",
+			"reason": "an error path: one 429 Response per refused request (a Response, not cloneable), constant work; proven in packages/core/test/batch-render-budget.test.ts (#959)"
+		},
+		{
+			"id": "packages/core/src/server/rate-limit.ts > RateLimiter > retry_after_s",
+			"reason": "an error path: reads the visitor's bucket (the limiter's private map, not replayable) and the monotonic clock, constant work; proven in packages/core/test/batch-render-budget.test.ts (#959)"
+		},
+		{
+			"id": "packages/core/src/runtime/region-endpoint-url.ts > RegionAnswerLater > constructor",
+			"reason": "browser only, an error path: the error a 429 throws, two field writes, constant work; proven in packages/core/test/browser/hole-rate-limited.test.ts (#959)"
+		},
+		{
+			"id": "packages/core/src/runtime/region-endpoint-url.ts > retry_after_ms",
+			"reason": "browser only, an error path: reads one header of a live Response (not cloneable) and parses it, constant work; proven in packages/core/test/browser/hole-rate-limited.test.ts (#959)"
 		},
 		{
 			"id": "packages/compiler/src/compiler/region/transform.ts > say_unparsed",
