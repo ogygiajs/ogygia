@@ -7,7 +7,32 @@
 import { TESTING_ENGINE_VERSION } from '@ogygia/insights';
 import { recorded_realm } from './hook-entries.ts';
 import { hydration_json, page_json, record_start, record_stop, settled } from './testing-engine.ts';
-import type { OgygiaTestingApi } from './ui.ts';
+
+/**
+ * `window.__ogygia_testing`: what `@ogygia/testing` drives through its driver: the page report, each
+ * island's hydration, a recorded session, "settled". Version-stamped so the driver can refuse a
+ * mismatch.
+ */
+export interface OgygiaTestingApi {
+	/** the report shape (testing-version.ts) */
+	version: number;
+	/** whether the app's realm has booted and feeds this engine (`testing()`, or the dock) */
+	readonly live: boolean;
+	/** `cpu_fns`: how many of the page load's hottest functions (default 15) */
+	page(cpu_fns?: number): Promise<unknown>;
+	/** `key_attr`: the attribute that names an island instance; `ignore`: attribute changes to leave out
+	 *  (see testing-engine.ts) */
+	hydration(key_attr?: string, ignore?: unknown[]): Promise<unknown>;
+	record_start(): Promise<boolean>;
+	/** `blocked`: the navigations the test's driver held back during the recording */
+	record_stop(blocked?: { url: string; t: number | null }[]): Promise<unknown>;
+	settled(quiet?: number, timeout?: number): Promise<boolean>;
+}
+declare global {
+	interface Window {
+		__ogygia_testing?: OgygiaTestingApi;
+	}
+}
 import { charge } from '@ogygia/core/internal/instruments';
 import { scope } from '@ogygia/machine';
 import { resume_session, take_saved_session } from './session.ts';

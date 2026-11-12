@@ -30,10 +30,10 @@
  * Vitest / Jest. Every report is plain JSON: keep them (the Playwright fixture attaches them to each
  * test as `ogygia.json`) and `compare` / `toMarkdown` two runs in a CI script.
  *
- * Needs a server with the devtools plugin (`plugins: [ogygia(), devtools(), sveltekit()]`: the dev server, or a preview build: measuring
- * starts for a browser that turned devtools on — the `og_devtools=on` cookie, which `withOgygia` sets
- * for `baseURL`, or without one for the origin of the first page the test opens).
- * `profile()` needs the devtools plugin's profiler, `devtools({ profiler })` (and its key on a build).
+ * Needs `testing()` in the app (`plugins: [ogygia(), testing(), sveltekit()]`, from
+ * `@ogygia/testing/vite`): it hands the runtime's hooks to the engine the test injects, on the dev
+ * server or a preview build. `profile()` needs the devtools plugin's profiler,
+ * `devtools({ profiler })` (and its key on a build).
  */
 import type {
 	PageFinding,
