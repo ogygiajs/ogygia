@@ -3,7 +3,7 @@ import { createHash } from 'node:crypto';
 import { sign, verify, region_mac_message } from '../../core/src/server/hmac.ts';
 import { encode_region_props } from '../../core/src/server/region-props.ts';
 import { MAX_REGION_PROPS_LEN } from '../../core/src/server/endpoint.ts';
-import { html_has_kit_bootstrap } from '../../core/src/runtime/kit-boot.ts';
+import { html_has_kit_bootstrap } from '../../core/src/server/html-scan.ts';
 import { RuntimeSession } from '../../core/src/runtime/session.ts';
 import { islandId } from '../src/compiler/region/transform.ts';
 
