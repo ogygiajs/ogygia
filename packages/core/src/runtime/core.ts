@@ -1432,8 +1432,8 @@ class OgygiaRegion extends HTMLElement {
 	 * when the region leaves the page (it leaves the shared fetch). A failure leaves the
 	 * answer as it was, so a reconnect, a remount or the retry can try again — a transient network
 	 * error never kills the hole for good.
-	 * A deferred hole reuses the browser's `<link rel="preload">` response; an swr REVALIDATE must
-	 * not (the endpoint answers `cache-control: private, max-age=30`, and stale is the whole point).
+	 * A `load` hole takes over the request the head started (HOLE-CACHE); an swr REVALIDATE must not
+	 * reuse an answer (a hole that opts in is `private, max-age=<ttl>`, and stale is the whole point).
 	 */
 	async #fetch_html(turn: Turn, revalidate = false): Promise<void> {
 		if (!FRAMES) return;
