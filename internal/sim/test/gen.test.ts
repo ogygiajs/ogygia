@@ -292,4 +292,36 @@ describe('the random app', () => {
 			rmSync(app, { recursive: true, force: true });
 		}
 	});
+
+	it('draws empty regions, from their own stream: leaves that render nothing, each used inside a marked element', () => {
+		const seeds = Array.from({ length: 40 }, (_, i) => i + 1);
+		const nodes = seeds.flatMap((s) => all(plan(s).flatMap((p) => p.roots)));
+		expect(nodes.some((n) => n.empty === true)).toBe(true);
+		for (const n of nodes.filter((n) => n.empty)) {
+			expect(['island', 'hole', 'lake']).toContain(n.kind);
+			expect(n.children).toEqual([]);
+		}
+		const seed = seeds.find((s) => all(plan(s).flatMap((p) => p.roots)).some((n) => n.empty))!;
+		const app = mkdtempSync(join(tmpdir(), 'sim-gen-'));
+		try {
+			write(app, plan(seed), seed);
+			const lib = join(app, 'src', 'lib', 'gen');
+			const users = readdirSync(lib)
+				.filter((f) => f.endsWith('.svelte'))
+				.map((f) => readFileSync(join(lib, f), 'utf8'));
+			const pages = readdirSync(join(app, 'src', 'routes'), { recursive: true })
+				.filter((f) => String(f).endsWith('+page.svelte'))
+				.map((f) => readFileSync(join(app, 'src', 'routes', String(f)), 'utf8'));
+			for (const n of all(plan(seed).flatMap((p) => p.roots)).filter((n) => n.empty)) {
+				const src = readFileSync(join(lib, `N${n.id}.svelte`), 'utf8');
+				// (nothing after its script: no element, no text)
+				expect(src.slice(src.indexOf('</script>') + '</script>'.length).trim()).toBe('');
+				// (where it is used, a marked element holds it: the region oracle knows it is the app's)
+				const tag = new RegExp(`<div data-gen-empty>\\s*<N${n.id} `);
+				expect([...users, ...pages].some((s) => tag.test(s))).toBe(true);
+			}
+		} finally {
+			rmSync(app, { recursive: true, force: true });
+		}
+	});
 });
