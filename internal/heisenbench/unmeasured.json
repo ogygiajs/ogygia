@@ -4063,6 +4063,18 @@
 		{
 			"id": "packages/devtools/src/server.ts > defineServer:0~6ae004 > handle > next",
 			"reason": "SvelteKit's resolve for a beacon page in a build (a RequestEvent's resolve: not cloneable), then never_stored, constant work of its own"
+		},
+		{
+			"id": "packages/core/src/hooks.ts > OgygiaHandle > #render_capability > render_component:4~077289",
+			"reason": "the profiler's cache-outcome callback of a batched hole: one assignment to a local, constant work"
+		},
+		{
+			"id": "packages/core/src/hooks.ts > OgygiaHandle > render_region > render_component:4~077289",
+			"reason": "the profiler's cache-outcome callback of a hole render: one assignment to a local, constant work"
+		},
+		{
+			"id": "packages/core/src/server/answer-context.ts > hole_answer_context",
+			"reason": "one hole answer's render context: Kit's context Map (live request objects, not cloneable), copied once with the nested mark when the hole wakes, constant work; proven in packages/core/test/woken-hole-capability.test.ts"
 		}
 	]
 }
