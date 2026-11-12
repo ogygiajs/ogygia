@@ -1967,8 +1967,30 @@ async function tool_fragment(args: Attrs): Promise<ToolResult> {
 	);
 }
 
+/** A JSON value's type, in a tool schema's words. */
+const json_type = (v: unknown): string =>
+	Array.isArray(v) ? 'array' : v === null ? 'null' : typeof v;
+
+/** The tool's error for the first argument that is not what its schema declares; null when all are.
+ *  Checked once here, so a tool reads a declared string as a string (test/property-mcp-tools.test.ts). */
+function wrong_args(name: string, args: unknown): ToolResult | null {
+	if (json_type(args) !== 'object')
+		return fail(`\`arguments\` must be an object, not ${json_type(args)}.`);
+	const props = TOOLS.find((t) => t.name === name)?.inputSchema.properties as
+		| Record<string, { type: string }>
+		| undefined;
+	for (const [k, p] of Object.entries(props ?? {})) {
+		const v = (args as Attrs)[k];
+		if (v != null && json_type(v) !== p.type)
+			return fail(`\`${k}\` must be a ${p.type}, not ${json_type(v)}.`);
+	}
+	return null;
+}
+
 /** Run one tool, as the server does for a `tools/call`. @internal Exported for tests. */
 export async function dispatch_tool(name: string, args: Attrs): Promise<ToolResult> {
+	const wrong = wrong_args(name, args);
+	if (wrong) return wrong;
 	switch (name) {
 		case 'ogygia_compile':
 			return tool_compile(args);
