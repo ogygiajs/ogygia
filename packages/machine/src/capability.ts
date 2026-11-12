@@ -23,6 +23,7 @@
  *   const r = region.check(token, 'https://app.example', [id, props]);   // { ok: true, exp, nonce }
  */
 import { machine_error } from './messages.ts';
+import { wall as wall_clock } from './ports/clock.ts';
 import { bytes as random_bytes } from './ports/random.ts';
 
 /** Signs and verifies one message. `sign`'s output is URL-safe (hex or base64url); `verify`
@@ -53,7 +54,7 @@ export interface CapabilityOptions {
 	 *  until `skew` past its expiry, and may claim up to `ttl.max + skew` ahead. For a token minted
 	 *  on one machine and checked on another. */
 	skew?: number;
-	/** The clock, in ms (default `Date.now`). */
+	/** The clock, in ms since the epoch (default `clock.wall`). */
 	now?: () => number;
 }
 
@@ -136,9 +137,9 @@ export function capability(options: CapabilityOptions): Capability {
 	const token_re = random ? TOKEN_RE : FIXED_RE;
 	const skew = options.skew ?? 0;
 	if (!Number.isFinite(skew) || skew < 0) bad('skew', skew, 'a finite number of ms, 0 or more');
-	// (the global clock read at each call, as everywhere else in the package: a test's fake clock
-	// installed after this capability was made still counts)
-	const now = options.now ?? (() => Date.now());
+	// (read at each call: a test's fake clock installed after this capability was made still counts)
+	// wall: a token's expiry is read on another machine (one that mints, one that checks)
+	const now = options.now ?? (() => wall_clock());
 	const head = `${lp(name)}|${lp(String(version))}|`;
 	/** nonce → its token's expiry, while it could still be presented */
 	const seen = new Map<string, number>();
