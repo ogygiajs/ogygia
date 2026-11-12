@@ -28,12 +28,17 @@ works, what is built, and how to add to it.
    - `platform.ts`: a realm's simulated time (epoch + virtual ms + skew), timers, frames (16 ms),
      idle callbacks, randomness, crypto bytes, and a MessageChannel on the loop.
    - `network.ts`: in memory, on the loop, adversarial: delay, reorder, drop, duplicate, cut a body
-     midway, tamper with bytes, redirect a region's request to another origin, offline.
+     midway, tamper with bytes, redirect a region's request to another origin, stall an answer 10 to
+     40 s before it starts or, half the time, after its body's first piece (past a client's own
+     deadline; its own swarm stream, 30% of runs), offline.
    - `server.ts`: a built Kit app (`.svelte-kit/output`) served in process, static files plus
      `Server.respond`. Each instance loads its own copy of the output (its own module graph), placed
      beside the app's output so it resolves the app's dependencies.
    - `browser.ts`: happy-dom browsers, one per visitor (own cookies), with tabs, back, forward,
-     reload. Each document is its own realm (`tab-2#3`), so its timers die with it.
+     reload. Each document is its own realm (`tab-2#3`), so its timers die with it, and a
+     document the tab has left hears nothing more from the network (`Network.leave`: a browser
+     calls off its fetches as it unloads it; a left document's stalled chunk once ran over its
+     closed window, gen 192, seed 11).
    - `world.ts`: ties it together. `World.make({ seed, builds })`, `world.go(tab, 'goto', '/')`.
 
 ## Why happy-dom
@@ -59,6 +64,16 @@ module scripts. Its gaps are handled in the sim, with no patch to happy-dom:
   request on the network, and the answer carries its URL (`test/redirect.test.ts`).
 - It ran an inline module script at once and an external one when its file came: a document's
   module scripts run in its order (`modules_in_order`, `test/modules.test.ts`).
+- It read `interactive` from the start, never fired DOMContentLoaded, and fired `load` before a
+  document's module script had run: a document reads `loading` while its parser runs, then
+  `interactive`, fires DOMContentLoaded (a task of its own) once the module scripts its parser put
+  in it ran, and only then `load` (`content_loaded`, `test/modules.test.ts`). A script waiting for
+  DOMContentLoaded never ran (gen third party's repair mutants all survived), and ogygia's wake
+  gate waited for `load`.
+- It let a navigation land after the tab had started another: the first page's stalled body was
+  written over the newer page, under the first page's URL. A navigation whose document has not
+  come is called off when the tab navigates again (its realm is left, its failure unsaid;
+  `Browsers.navigate`, `test/superseded-navigation.node.test.ts`; palaestra seed 122).
 - It ran a copy of any script: a copy carries "already started" (a script that connected, or one a
   parser marked unexecutable), so the router's head merge ran the next page's early hole start
   again (`scripts_start_once`, `test/scripts.test.ts`; gen 191).
@@ -73,6 +88,13 @@ module scripts. Its gaps are handled in the sim, with no patch to happy-dom:
   the simulated network, read the seed's engine's way (`timeline engine`): `status` (Chromium,
   Firefox: every download an entry with its `responseStatus`, a dropped one 0) or `start` (WebKit:
   no status, no entry for a dropped download). Observer callbacks are tasks of the document.
+- It loads no image by default: every image read `complete` at once, and the critical wait (an
+  incomplete `img[fetchpriority=high]`) was never seen. Images load over the simulated network
+  (`enableImageFileLoading`, `test/images.test.ts`); the waste oracle leaves them out, as the
+  document's image cache keeps one.
+- `element.click()` sends only the click: a visitor's click (`user_click`) sends pointerdown,
+  mousedown, pointerup and mouseup first, as a browser does (the critical gate listens for the first
+  input; `test/workload.test.ts`). The real-browser player's clicks send the same.
 
 Differences in the DOM engine cancel out for the MPA-equivalence oracle (both sides run in it);
 the real-browser tier reruns interesting seeds in Chromium, Firefox and WebKit.
@@ -119,8 +141,11 @@ visitor's workload (`workload.ts`): click links, go to a path, back, forward, re
 go offline and back, wait, and press a button in a region (woken or not yet: a press before an
 island's code came is replayed once it wakes). And three shapes: `away` (follow a link, stay 10 to 50
 s, go back: under the 60 s the frame store keeps a left page's answers), `hurry` (click a link, then
-another 0 to 300 ms later: a navigation called off midway) and `hover` (point at a link or a region:
-the router warms the link's page, an island's code is warmed on intent). A press makes every tab's document the visitor's
+another 0 to 300 ms later: a navigation called off midway), `hover` (point at a link or a region:
+the router warms the link's page, an island's code is warmed on intent) and `eager` (go to a page
+and press a button 0 to 300 ms after its document is in, `World.start`: an input before the first
+paint or during the wait for the page's critical resources; the document it presses in is the
+visitor's, as a press's). A press makes every tab's document the visitor's
 own state, so the MPA check skips each such document (its next one is clean), and the element
 count leaves it out of the leak check.
 
@@ -242,6 +267,14 @@ makes a deploy's first federation request send the deploy thaw. And some seeds k
 page documents (`gen peer cache`: `cache: { ttl }` of 300 ms, 2 s or 30 s), served stale while one
 fetch refreshes them.
 
+Two more streams: `gen layout` (40% of seeds) puts a region tree in the layout, after the nav on every
+page: a hole with a stylesheet of its own (ids from 500), some with a styled island inside. A router
+navigation keeps it on screen while the next page's head does not list its sheet (#275): what the
+region-sheet bookkeeping is for (mutation testing: two survivors there died once it was in). `gen hero`
+(40% of pages) opens a page with `<img src="/hero.png" fetchpriority="high">`, served by the app's
+`hero.png/+server.ts`: the page's critical resource, which island code and background downloads wait
+for (the load scheduler's `critical-gate`).
+
 A build's boot runtime comes from `packages/core/dist/runtime` (the prebuilt runtime a published
 package ships), not from `src`: after a change to core's runtime, `pnpm build:lib` before
 `pnpm sim:builds`, or the app boots the old one (its import-again had no buggify point, while the
@@ -291,7 +324,8 @@ Every document's log is read, by realm, a left one's too (`Tab.moves_by`): a har
 one action replaced the document before it was looked at, and the steps it took last were lost.
 A flights' targets are only the entry steps its options and its file can take: `keep: 0` keeps
 nothing, and with no `get(input, { fresh })` in its file an entry is never forced (`flying -> flying`,
-`kept -> flying`).
+`kept -> flying`); a fresh ask made only under `!x.flying` (a peek showing no flight out) runs a kept
+answer again but never replaces a flight (`flying -> flying` is no target: federation peer documents).
 
 EVERY STEP ACCOUNTED FOR (`src/steps.ts`, test/steps.test.ts). The ledger `internal/sim/steps.json`
 puts each step in exactly one bucket: `reached` (the standard sweep reaches it), `covered` (the fake
@@ -461,7 +495,8 @@ sets that document's answers aside (gen 178). An answer buggify lost on the way
 to CI while more than 50 runs are queued. Findings are grouped by signature (`signature()`: the
 oracle and what it is about, run-specific numbers and hashes out). An open `dst` issue that names
 the signature (`dst-signature: <sig>`, in its body or a comment) gets a count comment at most once
-a day; a new one gets an issue and a `sim/found-<sig>` branch with a seeded test. The results file
+a day (a stack frame's file and position are left out of a signature: a rebuilt app, a mutant's,
+moves them all); a new one gets an issue and a `sim/found-<sig>` branch with a seeded test. The results file
 (`dst-results.json`, an artifact) holds seeds run, rate and findings, for the tests page.
 
 ## Status
