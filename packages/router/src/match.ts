@@ -159,7 +159,6 @@ export function fill(pattern: string, params: Record<string, string | number>): 
 	});
 }
 
-/** The longest pathname any route is matched against (longer: no route, a 404). */
 const MAX_PATH = 8192;
 
 /** First (most-specific) match in a pre-sorted list, or null. */
