@@ -15,7 +15,10 @@
  * it wakes. Pure over the nodes it's handed; reads, never mutates.
  */
 import { hydration_hazards, type IslandHazard } from '../../insights/hydration-hazards.ts';
-import { OWN_FILE_RE } from '../../own-package.ts';
+import type { BarrelLeftReason, IslandBarrel } from '../../contract/barrels.ts';
+import { OWN_FILE_RE } from '../../contract/own-package.ts';
+import { region_family } from '../ids.ts';
+import { OGYGIA_SCHEME } from '../virtual/table.ts';
 
 /** Structural shape of a Vite dev module-graph node (the fields the byte walk reads). */
 export type ByteGraphModule = {
@@ -24,10 +27,15 @@ export type ByteGraphModule = {
 	file?: string | null;
 	transformResult?: { code?: string | null } | null;
 	importedModules?: Iterable<ByteGraphModule>;
+	importers?: Iterable<ByteGraphModule>;
 };
 
-/** An island entry module — `virtual:ogygia/island/<id>.js` (dev url carries the id). */
-const ISLAND_RE = /virtual:ogygia\/island\/([0-9a-f]+)\.js/;
+/** Why the barrel pass left a barrel (its file on disk; its importers' ids): its reasons, if any. */
+export type BarrelWhy = (file: string, importers: Iterable<string>) => BarrelLeftReason[];
+
+/** A region entry module — `ogygia:region/entry/<id>.js` (dev url carries the id). */
+const ISLAND_RE = /ogygia:region\/entry\/([0-9a-f]+)\.js/;
+const ENTRY_PREFIX = region_family('entry');
 
 /** Shared framework / prebundled deps — pruned so per-island totals reflect app code, not Svelte. */
 function is_framework(mod: ByteGraphModule): boolean {
@@ -39,21 +47,21 @@ function is_framework(mod: ByteGraphModule): boolean {
 		// the ogygia package runtime — its modules resolve to `packages/core/src` in dev and
 		// `.../@ogygia/core/dist` in prod; both are shared once per page, not part of an island's cost.
 		OWN_FILE_RE.test(s) ||
-		// SHARED ogygia registries — `virtual:ogygia/transportables` (every wire/store class app-wide),
-		// `.../transport`, `.../fn-manifest`, the manifests. One island importing the transportable
+		// SHARED ogygia registries — `ogygia:region/transportables` (every wire/store class app-wide),
+		// `…/transport`, `ogygia:boot/fn-manifest`, the manifests. One island importing the transportable
 		// registry would otherwise drag in EVERY transportable-defining module (the whole app). These
-		// load once per page. The island's own entry (`virtual:ogygia/island/…`) is the ONE exception —
+		// load once per page. The region's own entry (`ogygia:region/entry/…`) is the ONE exception —
 		// it's the door to the component, so it stays traversable (see `is_glue`).
-		(u.includes('virtual:ogygia/') && !u.includes('virtual:ogygia/island/'))
+		(u.includes(OGYGIA_SCHEME) && !u.includes(ENTRY_PREFIX))
 	);
 }
 
 /**
- * The island's own entry glue (`virtual:ogygia/island/<id>.js`, its wrapper). Traversed THROUGH to
- * reach the real component, but not COUNTED — it's the island's door, not the component's weight.
+ * The region's own entry glue (`ogygia:region/entry/<id>.js`, its wrapper). Traversed THROUGH to
+ * reach the real component, but not COUNTED — it's the region's door, not the component's weight.
  */
 function is_glue(mod: ByteGraphModule): boolean {
-	return (mod.url || mod.id || '').includes('virtual:ogygia/island/');
+	return (mod.url || mod.id || '').includes(ENTRY_PREFIX);
 }
 
 /**
@@ -64,7 +72,8 @@ function is_glue(mod: ByteGraphModule): boolean {
 export function island_subgraph_bytes(
 	modules: Iterable<ByteGraphModule>,
 	/** an app `.svelte` file's source, by its path on disk: what draws differently in the browser */
-	read?: (file: string) => string | undefined
+	read?: (file: string) => string | undefined,
+	why?: BarrelWhy
 ): Record<string, IslandBytes> {
 	const out: Record<string, IslandBytes> = {};
 	for (const mod of modules) {
@@ -78,7 +87,7 @@ export function island_subgraph_bytes(
 		let count = 0;
 		let steps = 0;
 		const each: { file: string; bytes: number }[] = [];
-		const barrels: { file: string; fanout: number }[] = [];
+		const barrels: IslandBarrel[] = [];
 		const hazards: IslandHazard[] = [];
 		while (stack.length && steps++ < 20000) {
 			const n = stack.pop()!;
@@ -126,8 +135,16 @@ export function island_subgraph_bytes(
 					fanout >= BARREL_FANOUT &&
 					code.length <= fanout * BARREL_BYTES_PER_EXPORT &&
 					!file.endsWith('.svelte')
-				)
-					barrels.push({ file, fanout });
+				) {
+					const reasons =
+						why && n.file
+							? why(
+									n.file,
+									[...(n.importers ?? [])].map((m) => m.id || m.file || '')
+								)
+							: [];
+					barrels.push(reasons.length ? { file, fanout, why: reasons } : { file, fanout });
+				}
 				// its lines that draw differently in the browser (its source on disk, not the served code)
 				if (read && n.file && file.endsWith('.svelte') && hazards.length < 5) {
 					const src = read(n.file);
@@ -161,7 +178,7 @@ export interface IslandBytes {
 	/** the heaviest modules (served size, heaviest first): what to look at first */
 	top?: { file: string; bytes: number }[];
 	/** re-export barrels still in the island's graph, with how many app modules each drags in */
-	barrels?: { file: string; fanout: number }[];
+	barrels?: IslandBarrel[];
 	/** its components' lines that draw differently in the browser (a top-level await, a browser-only value) */
 	hazards?: IslandHazard[];
 }

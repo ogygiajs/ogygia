@@ -11,8 +11,8 @@ import type { Component } from 'svelte';
 import Region from '../src/Region.svelte';
 import Tiny from './_fixtures/Tiny.svelte';
 import { region_css_tag } from '../src/server/region-css.ts';
-import { set_island_css, set_inline_css } from './_stubs/virtual-island-deps.ts';
-import { set_request_event_stub } from './_stubs/virtual-request-event.ts';
+import { set_island_css, set_inline_css } from './_stubs/server.region-deps.ts';
+import { set_request_event_stub } from './_stubs/server.request-event.ts';
 
 const region = Region as unknown as Component<Record<string, unknown>>;
 const ENTRY = '/islands/tiny.js';
@@ -54,12 +54,9 @@ describe('region_css_tag', () => {
 		// the dev server's islandCss hands the island's module URL: fetched as CSS it was an empty sheet
 		// and a MIME error per island in strict engines; the runtime imports it for its styles
 		expect(
-			region_css_tag(
-				'./@id/virtual:ogygia/island/abc123.js',
-				'./@id/virtual:ogygia/island/abc123.js'
-			)
+			region_css_tag('./@id/ogygia:region/entry/abc123.js', './@id/ogygia:region/entry/abc123.js')
 		).toBe(
-			'<link rel="modulepreload" href="./@id/virtual:ogygia/island/abc123.js" data-ogygia-region-css>'
+			'<link rel="modulepreload" href="./@id/ogygia:region/entry/abc123.js" data-ogygia-region-css>'
 		);
 		expect(region_css_tag('/a/b.css?v=2', '/a/b.css?v=2')).toContain('rel="stylesheet"');
 	});
