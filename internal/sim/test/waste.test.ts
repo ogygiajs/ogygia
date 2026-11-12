@@ -63,6 +63,34 @@ describe('asked twice', () => {
 		]);
 		expect(asked_twice(hole, 'tab-1#1', [1])).toEqual(['/__ogygia__?id=a&props=x ×2']);
 	});
+
+	it("finds a left page's hole answer a router batch asks for again 20 s later, and passes one asked again after its 60 s linger", () => {
+		// (a page left and come back to: the frame store keeps a left page's answers 60 s; the
+		// frame-store EVICT_TTL mutant at 6 s asked again in a batch and survived)
+		const at = (ms: number[], holes?: string[]) =>
+			({
+				network: {
+					exchanges: ms.map((t, i) => ({
+						id: i + 1,
+						from: 'tab-1#1',
+						method: i === 0 ? 'GET' : 'POST',
+						url: `https://app.test/__ogygia__${i === 0 ? '?id=a&props=x&exp=1&sig=s' : ''}`,
+						at: t,
+						status: 200,
+						cut: false,
+						tampered: false,
+						duplicated: false,
+						redirected: false,
+						...(i > 0 && { holes })
+					}))
+				}
+			}) as unknown as World;
+		const hole = '/__ogygia__?id=a&props=x';
+		expect(asked_twice(at([1000, 21_000], [hole]), 'tab-1#1')).toEqual([`${hole} ×2`]);
+		expect(asked_twice(at([1000, 62_000], [hole]), 'tab-1#1')).toEqual([]);
+		// (a batch that asks another hole is that hole's)
+		expect(asked_twice(at([1000, 21_000], ['/__ogygia__?id=b&props=x']), 'tab-1#1')).toEqual([]);
+	});
 });
 
 describe('refused', () => {
