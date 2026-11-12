@@ -13,6 +13,7 @@ import {
 	inert_custom_elements,
 	inert_parsed_documents,
 	modules_in_order,
+	navigation_starts,
 	scripts_start_once,
 	whole_text_runs
 } from './happy.ts';
@@ -216,6 +217,7 @@ export class World {
 		whole_text_runs();
 		documents_by_namespace();
 		history_by_document();
+		navigation_starts();
 		const w = new World(o);
 		completion_on_the_loop(w.loop);
 		const host = platform({

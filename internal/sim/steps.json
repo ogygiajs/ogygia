@@ -215,7 +215,30 @@
 			"reason": "the dev server's stranded-tab watch: import.meta.env.DEV only, and the simulator runs built apps",
 			"test": "packages/core/test/browser/stale-deps.test.ts",
 			"name": "two islands that fail to import together reload the tab once"
+		},
+		{
+			"step": "region request: probed -> refused",
+			"reason": "a forged capability: the simulator's visitors send only what their pages ask, and its faults tamper with answers, never requests",
+			"test": "packages/core/test/region-request-order.test.ts",
+			"name": "a forged GET is refused after its probe, before any render charge"
+		},
+		{
+			"step": "region request: charged -> refused",
+			"reason": "a visitor past the render budget (100 renders a minute by default): no run asks that many of one server",
+			"test": "packages/core/test/region-request-order.test.ts",
+			"name": "a GET past the render budget is refused after its charge, before any render"
 		}
 	],
-	"dead": []
+	"dead": [
+		{
+			"step": "region request: prechecked -> refused",
+			"issue": 1082,
+			"why": "the probe charge is probed's work: the move to probed follows prechecked unconditionally"
+		},
+		{
+			"step": "region request: verified -> refused",
+			"issue": 1082,
+			"why": "the render charge is charged's work: the move to charged follows verified unconditionally"
+		}
+	]
 }
