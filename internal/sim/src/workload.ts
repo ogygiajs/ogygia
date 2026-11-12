@@ -15,7 +15,8 @@ export type Action =
 	| { kind: 'back' | 'forward' | 'reload'; tab: number }
 	| { kind: 'open'; path: string }
 	| { kind: 'offline' | 'online'; tab: number }
-	| { kind: 'wait'; ms: number };
+	| { kind: 'wait'; ms: number }
+	| { kind: 'deploy' };
 
 export function describe(a: Action): string {
 	switch (a.kind) {
@@ -29,6 +30,8 @@ export function describe(a: Action): string {
 			return `new tab at ${a.path}`;
 		case 'wait':
 			return `wait ${a.ms} ms`;
+		case 'deploy':
+			return 'deploy the next build';
 		default:
 			return `tab ${a.tab}: ${a.kind}`;
 	}
@@ -57,8 +60,14 @@ export function buttons(tab: Tab): HTMLButtonElement[] {
 	) as HTMLButtonElement[];
 }
 
-/** The seed's next action for a world with `tabs` tabs. */
-export function next_action(rng: Rng, tabs: number, paths: readonly string[]): Action {
+/** The seed's next action for a world with `tabs` tabs (`deploys`: a deploy may be drawn; the
+ *  operator's, not a visitor's, and as rare as one in a session should be). */
+export function next_action(
+	rng: Rng,
+	tabs: number,
+	paths: readonly string[],
+	deploys = false
+): Action {
 	const tab = rng.int(Math.max(1, tabs));
 	return rng.weighted<Action>([
 		[{ kind: 'click', tab, nth: rng.int(1000) }, 8],
@@ -70,7 +79,9 @@ export function next_action(rng: Rng, tabs: number, paths: readonly string[]): A
 		[{ kind: 'open', path: rng.pick(paths) }, tabs < 3 ? 1 : 0],
 		[{ kind: 'offline', tab }, 0.5],
 		[{ kind: 'online', tab }, 1],
-		[{ kind: 'wait', ms: rng.pick([16, 100, 1000, 5000]) }, 2]
+		[{ kind: 'wait', ms: rng.pick([16, 100, 1000, 5000]) }, 2],
+		// (weight 0 when there is nothing to deploy: the draw is then the same as without it)
+		[{ kind: 'deploy' }, deploys ? 0.6 : 0]
 	]);
 }
 
@@ -128,6 +139,9 @@ export async function act(
 			return;
 		case 'wait':
 			await world.loop.run(a.ms);
+			return;
+		case 'deploy':
+			if (await world.deploy_next()) await world.quiesce(1000);
 			return;
 	}
 }

@@ -50,7 +50,8 @@ import {
 import { rng } from './rng.ts';
 import type { FaultClass } from './network.ts';
 import type { Visitor } from './browser.ts';
-import { ORIGIN, World } from './world.ts';
+import { ORIGIN, World, type Rollover } from './world.ts';
+import { builds_of } from './builds.ts';
 
 const arg = (flag: string): string | undefined => {
 	const at = process.argv.indexOf(flag);
@@ -62,6 +63,9 @@ const APP = resolve(
 	arg('--app') ?? fileURLToPath(new URL('../../../apps/palaestra', import.meta.url))
 );
 const OUTPUT = join(APP, '.svelte-kit', 'output');
+/** The builds a run starts on and deploys between: the app's two sim builds (`pnpm sim:builds`),
+ *  else its one build, which never deploys. */
+const BUILDS = builds_of(APP).length > 0 ? builds_of(APP) : [{ id: 'v1', output: OUTPUT }];
 const FIRST = Number(arg('--seed') ?? arg('--from') ?? 1);
 const RUNS = arg('--seed') !== undefined ? 1 : Number(arg('--runs') ?? (LONG ? 500 : 20));
 const STEPS = Number(arg('--steps') ?? (LONG ? 40 : 12));
@@ -122,9 +126,20 @@ export async function run(
 	// seed's pick), their clocks up to 5 s apart
 	const instances = r.chance(0.3) ? 2 : 1;
 	const skew = instances > 1 && r.chance(0.5) ? 5_000 : 0;
+	// and how a deploy goes out: at once or rolling (old and new servers side by side for 10 s),
+	// the old build's content-hashed files kept or gone, the CDN purged or not
+	const rollover: Rollover = {
+		window: r.chance(0.5) ? 10_000 : 0,
+		old_files: r.chance(0.5),
+		purge: r.chance(0.5)
+	};
+	// and whether the app set a stable secret (most do; without one, a deploy refuses old holes)
+	const secret = r.chance(0.7) ? 'sim-secret' : undefined;
 	const world = await World.make({
 		seed,
-		builds: [{ id: 'v1', output: OUTPUT }],
+		builds: BUILDS,
+		rollover,
+		secret,
 		faults: new Set(faults),
 		// (an action takes up to its 30 s budget, and a run ends at rest after it: room for all)
 		horizon: (steps + 2) * 60_000,
@@ -133,7 +148,9 @@ export async function run(
 		skew
 	});
 	running = world;
-	world.loop.note(`servers: ${instances}, clocks up to ${skew} ms apart`);
+	world.loop.note(
+		`servers: ${instances}, clocks up to ${skew} ms apart, ${secret ? 'a stable secret' : 'no secret'}`
+	);
 	const actions: Action[] = [];
 	const broken: Broken[] = [];
 	const dirty = new Set<string>();
@@ -149,7 +166,7 @@ export async function run(
 		// (the network's exchanges since the last check: a fault among them explains what was said)
 		let since = 0;
 		for (let i = 0; i < steps && i < stop_at; i++) {
-			const a = next_action(wr, v.tabs.length, PATHS);
+			const a = next_action(wr, v.tabs.length, PATHS, world.deployed.length < BUILDS.length - 1);
 			actions.push(a);
 			log.note(`action ${i + 1}: ${describe(a)}`);
 			await act(world, v, a, ORIGIN);
@@ -213,7 +230,14 @@ export async function run(
 				for (const b of [stuck(t), page_rules(t)])
 					if (b) broken.push({ ...b, detail: `at rest: ${b.detail}` });
 			for (const t of v.tabs) {
-				if (dirty.has(t.name) || pressed.get(t.name) === t.documents || faulted(world, t)) continue;
+				// (a document a deploy failed a download of is degraded as a faulted one is: by the host)
+				if (
+					dirty.has(t.name) ||
+					pressed.get(t.name) === t.documents ||
+					faulted(world, t) ||
+					world.skewed_for(t.realm)
+				)
+					continue;
 				const b = await mpa_equivalent(world, v, t);
 				if (b) broken.push(b);
 			}
@@ -249,10 +273,13 @@ async function timed(seed: number, steps: number, stop_at: number): Promise<RunR
 }
 
 async function main(): Promise<void> {
-	if (!existsSync(join(OUTPUT, 'server', 'index.js'))) {
-		console.error(`no build at ${OUTPUT}: run \`OGYGIA_RULES=1 npx vite build\` in ${APP}`);
+	if (!existsSync(join(BUILDS[0].output, 'server', 'index.js'))) {
+		console.error(
+			`no build at ${OUTPUT}: run \`pnpm sim:builds\` (two builds, with deploys) or \`OGYGIA_RULES=1 npx vite build\` in ${APP}`
+		);
 		process.exit(2);
 	}
+	if (BUILDS.length === 1) console.log('[sim] one build: no deploys (`pnpm sim:builds` makes two)');
 	const started = wall();
 	const pool = new Pool(JOBS);
 	const seeds = Array.from({ length: RUNS }, (_, i) => FIRST + i);

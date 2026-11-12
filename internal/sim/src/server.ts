@@ -5,10 +5,10 @@
  * copy of the output, so two builds (an old and a new one, mid-deploy) and two instances of one
  * build each get their own module graph: their caches and stores are their own, as on two machines.
  *
- * Limits (internal/notes/dst.md): instances share this process's globals, so state ogygia pins to
- * `globalThis` (a few registries keyed by a `Symbol.for`) is shared between them; and every
- * instance's timers run on the one host platform, with the instance's skew read from its request
- * context.
+ * Each instance has its own `Symbol.for` registry (`own_symbols`), so what ogygia keeps on
+ * `globalThis` under one is its own. Limits (internal/notes/dst.md): string-keyed globals are still
+ * shared; and every instance's timers run on the one host platform, each in the context it was set
+ * in (the instance's skew and symbols read from it).
  */
 import { AsyncLocalStorage } from 'node:async_hooks';
 import {
@@ -31,6 +31,36 @@ const native_import = async (url: string): Promise<unknown> => native_require(fi
 
 /** The server instance whose code is running now (for its clock skew), if any. */
 export const current_server = new AsyncLocalStorage<ServerInstance>();
+
+/** The instance whose code is loading or running now, by its registry's tag (its symbols). */
+const registry_of = new AsyncLocalStorage<string>();
+
+/**
+ * EACH INSTANCE ITS OWN SYMBOL REGISTRY, as on its own machine: `Symbol.for(key)` in an instance's
+ * code is that instance's symbol, so the slots ogygia keeps on `globalThis` under a `Symbol.for`
+ * (its request context, signing key, caches, plugin hooks) are the instance's own. One registry
+ * for all once let one instance's hooks answer for another's renders (a hole's `pv=` dropped on
+ * one of two servers). Node's own keys (`nodejs.*`, `Symbol.*`) stay the process's. Returns the
+ * undo.
+ */
+export function own_symbols(): () => void {
+	const host_for = Symbol.for;
+	const host_key_for = Symbol.keyFor;
+	const tagged = (key: string): boolean => !key.startsWith('nodejs.') && !key.startsWith('Symbol.');
+	Symbol.for = (key: string): symbol => {
+		const tag = registry_of.getStore();
+		key = String(key);
+		return host_for(tag !== undefined && tagged(key) ? `${tag}\u0000${key}` : key);
+	};
+	Symbol.keyFor = (sym: symbol): string | undefined => {
+		const key = host_key_for(sym);
+		return key === undefined ? key : key.slice(key.indexOf('\u0000') + 1);
+	};
+	return () => {
+		Symbol.for = host_for;
+		Symbol.keyFor = host_key_for;
+	};
+}
 
 const TYPES: Record<string, string> = {
 	'.js': 'text/javascript',
@@ -69,6 +99,8 @@ export interface ServerInstance {
 	/** ms its wall clock is off. */
 	readonly skew: number;
 	handle(request: Request): Promise<Response>;
+	/** Whether its build has the static file at `path` (decoded). */
+	serves(path: string): boolean;
 	/** Removes its copy of the build (its modules stay loaded in this process). */
 	stop(): void;
 }
@@ -104,50 +136,60 @@ export async function start_server(
 	rmSync(dir, { recursive: true, force: true });
 	link_tree(join(build.output, 'server'), join(dir, 'server'));
 	const files = files_of(build.output);
-	const { Server } = (await native_import(pathToFileURL(join(dir, 'server', 'index.js')).href)) as {
-		Server: new (manifest: unknown) => KitServer;
-	};
-	const { manifest } = (await native_import(
-		pathToFileURL(join(dir, 'server', 'manifest.js')).href
-	)) as {
-		manifest: unknown;
-	};
-	const kit = new Server(manifest);
-	await kit.init({ env: { ...process.env } as Record<string, string> });
+	// (its code loads, and later runs, with its own symbols: `own_symbols`)
+	const tag = `sim-server-${started}`;
+	const kit = await registry_of.run(tag, async () => {
+		const { Server } = (await native_import(
+			pathToFileURL(join(dir, 'server', 'index.js')).href
+		)) as {
+			Server: new (manifest: unknown) => KitServer;
+		};
+		const { manifest } = (await native_import(
+			pathToFileURL(join(dir, 'server', 'manifest.js')).href
+		)) as {
+			manifest: unknown;
+		};
+		const kit = new Server(manifest);
+		await kit.init({ env: { ...process.env } as Record<string, string> });
+		return kit;
+	});
 	const instance: ServerInstance = {
 		name,
 		build,
 		skew,
 		handle: (request) =>
-			current_server.run(instance, async () => {
-				const url = new URL(request.url);
-				const path = decodeURIComponent(url.pathname);
-				// (a static host answers HEAD as it does GET, without the body: a page asks whether a
-				// file is still there, runtime/entry-locations.ts's `is_gone`)
-				const read = request.method === 'GET' || request.method === 'HEAD';
-				const head = request.method === 'HEAD';
-				const asset = read ? files.client.get(path) : undefined;
-				if (asset !== undefined) {
-					const immutable = path.includes('/immutable/');
-					return new Response(head ? null : asset.slice(), {
-						headers: {
-							'content-type': TYPES[extname(path)] ?? 'application/octet-stream',
-							'cache-control': immutable
-								? 'public, max-age=31536000, immutable'
-								: 'public, max-age=0'
-						}
-					});
-				}
-				const page = read
-					? (files.pages.get(path === '/' ? '/index.html' : path + '.html') ??
-						files.pages.get(join(path, 'index.html')))
-					: undefined;
-				if (page !== undefined)
-					return new Response(head ? null : page.slice(), {
-						headers: { 'content-type': TYPES['.html'] }
-					});
-				return kit.respond(request, { getClientAddress: () => '10.0.0.1', platform: {} });
-			}),
+			registry_of.run(tag, () =>
+				current_server.run(instance, async () => {
+					const url = new URL(request.url);
+					const path = decodeURIComponent(url.pathname);
+					// (a static host answers HEAD as it does GET, without the body: a page asks whether a
+					// file is still there, runtime/entry-locations.ts's `is_gone`)
+					const read = request.method === 'GET' || request.method === 'HEAD';
+					const head = request.method === 'HEAD';
+					const asset = read ? files.client.get(path) : undefined;
+					if (asset !== undefined) {
+						const immutable = path.includes('/immutable/');
+						return new Response(head ? null : asset.slice(), {
+							headers: {
+								'content-type': TYPES[extname(path)] ?? 'application/octet-stream',
+								'cache-control': immutable
+									? 'public, max-age=31536000, immutable'
+									: 'public, max-age=0'
+							}
+						});
+					}
+					const page = read
+						? (files.pages.get(path === '/' ? '/index.html' : path + '.html') ??
+							files.pages.get(join(path, 'index.html')))
+						: undefined;
+					if (page !== undefined)
+						return new Response(head ? null : page.slice(), {
+							headers: { 'content-type': TYPES['.html'] }
+						});
+					return kit.respond(request, { getClientAddress: () => '10.0.0.1', platform: {} });
+				})
+			),
+		serves: (path) => files.client.has(path),
 		stop: () => rmSync(dir, { recursive: true, force: true })
 	};
 	return instance;

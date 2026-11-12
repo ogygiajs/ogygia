@@ -362,13 +362,13 @@ function per_render(a: string, b: string): (s: string) => string {
 
 /**
  * A region endpoint's bookkeeping, set aside: its capability's expiry and signature (`exp`, `sig`:
- * the time of the render, in 30-minute steps) and the page-facts part (`pv`, named once the server
- * has seen the hole read `page.data`). The region, its build and its props (`id`, `r`, `props`,
- * `k`) are compared. Seeds 241, 315, 457 (/context, /nested-hole).
+ * the time of the render, in 30-minute steps). The region, its build, its props and the page facts
+ * it renders from (`id`, `r`, `props`, `k`, `pv`) are compared. Seeds 241, 315, 457 (/context,
+ * /nested-hole: a `pv` that came and went was two instances sharing one symbol registry).
  */
 function bookkeeping_out(s: string): string {
 	return s.replace(/ endpoint="([^"]*)"/g, (_, url: string) => {
-		const kept = url.replace(/&(exp|sig)=[^&]*/g, '&$1=<t>').replace(/&pv=[^&]*/g, '');
+		const kept = url.replace(/&(exp|sig)=[^&]*/g, '&$1=<t>');
 		return ` endpoint="${kept}"`;
 	});
 }
@@ -412,7 +412,7 @@ export function first_difference(a: string, b: string, context = 3): string {
 
 /** A hard load of `url` in a new browser with `v`'s cookies, on a network that does not fail it
  *  (a fault there is no finding about the tab), at rest. */
-async function fresh_load(
+async function load_fresh(
 	world: World,
 	v: Visitor,
 	url: string,
@@ -451,6 +451,11 @@ export async function mpa_equivalent(
 	const url = tab.page.mainFrame.url;
 	if (!url.startsWith('http')) return null;
 	let shown = view(tab.page.mainFrame.document as unknown as Document);
+	// (a page a build a deploy replaced answered is compared with a fresh load from that build: an
+	// old page is the old release's, whole)
+	const build = world.build_of(tab.realm);
+	const fresh_load = (w: World, visitor: Visitor, at: string, name: string) =>
+		w.as_of(build, () => load_fresh(w, visitor, at, name));
 	const fresh = await fresh_load(world, v, url, 'fresh');
 	const loaded = view(fresh.tab.page.mainFrame.document as unknown as Document);
 	// (a text that changes on its own at rest is time, not state: a ticking clock in an island the
@@ -607,8 +612,22 @@ export function document_faulted(world: World, tab: Tab): boolean {
 const EXPLAINED =
 	/ogygiajs\.dev\/e\/|Unable to preload CSS|Failed to fetch|network error|stream was cut|Failed to perform request|SyntaxError|Invalid or unexpected token|Unexpected token|Status [45]\d\d|offline|connection lost|Invalid [\w.]+ response/;
 
+/** How the browser, or ogygia with its code, says a module or file did not download. */
+const NOT_DOWNLOADED =
+	/ogygiajs\.dev\/e\/|Failed to fetch dynamically imported module|^error: <(script|link)> \S+ failed|Failed to perform request/;
+
+/**
+ * A failure a deploy explains: the tab asked a build for a content-hashed file only another build
+ * has (an old page's file after its build is gone, or one build's file asked of the other's
+ * servers in a rolling deploy), said as the browser says a download failed, or by ogygia with its
+ * code. ogygia's own words without a code are never excused.
+ */
+function deploy_took(world: World, tab: Tab, line: string): boolean {
+	return NOT_DOWNLOADED.test(line) && world.skewed_for(tab.realm);
+}
+
 /** No uncaught error, unhandled rejection or console error in the page (beyond what a network
- *  fault on this document explains, when `world` is given). */
+ *  fault on this document explains, or a deploy, when `world` is given). */
 export function page_errors(tab: Tab, world?: World, since?: number): Broken | null {
 	// (a fault on the shown document stays its fact: a module whose download was cut fails every
 	// later import of it in that document, as the module map keeps the failure)
@@ -618,7 +637,7 @@ export function page_errors(tab: Tab, world?: World, since?: number): Broken | n
 	// `type="application/ogygia-page"` hid the page data, and the island read a missing field)
 	if (world !== undefined && document_faulted(world, tab)) return null;
 	const errors = [...tab.errors, ...tab.console.filter((l) => l.startsWith('error:'))].filter(
-		(l) => !(excused && EXPLAINED.test(l))
+		(l) => !(excused && EXPLAINED.test(l)) && !(world !== undefined && deploy_took(world, tab, l))
 	);
 	if (errors.length === 0) return null;
 	const known = KNOWN_SAID.filter((k) => errors.some((l) => k.said.test(l)));

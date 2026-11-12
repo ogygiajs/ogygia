@@ -67,9 +67,13 @@ the real-browser tier reruns interesting seeds in Chromium, Firefox and WebKit.
 
 ## Known limits
 
-- Server instances of one world share this process's globals: state ogygia (or the app) pins to
-  `globalThis` is shared between them. What a world's servers pin there is taken off when the
-  world ends, so the next world in the process starts from nothing.
+- Server instances of one world share this process's globals, except the `Symbol.for` registry:
+  each instance has its own (`own_symbols`), so ogygia's slots there (its request context, signing
+  key, caches, plugin hooks) are each instance's, as on two machines. One registry for all once
+  let one instance's hooks answer for the other's renders (a hole's `pv=` came and went). State
+  pinned to `globalThis` under a string is still shared. What a world's servers pin there is taken
+  off when the world ends, so the next world in the process starts from nothing. A server's timer
+  runs in the context it was set in (its instance, its clock skew), as Node's own do.
 - A built app is loaded with Node's own `require` (of ESM), not `import()`, so vitest's module
   runner does not load it a second way (under it, the server's first request never answered).
 - Nothing is garbage collected in a run (`WeakRef` holds, no finalizer runs): collection happens
@@ -103,6 +107,28 @@ go offline and back, wait, and press a button in a region (woken or not yet: a p
 island's code came is replayed once it wakes). A press makes every tab's document the visitor's
 own state, so the MPA check skips each such document (its next one is clean), and the element
 count leaves it out of the leak check.
+
+## Deploys
+
+`pnpm sim:builds` builds the app twice (`src/builds.ts`, both rules builds) into
+`.svelte-kit/sim-builds/{v1,v2}`; palaestra's Counter renders `VITE_SIM_BUILD`, so the two differ
+in code and HTML as two releases do. With both there, a run starts on v1 and the workload may
+`deploy` v2 (rarely: it is the operator's action, not a visitor's). Without them a run has its
+one build and never deploys. How a deploy goes out is the seed's (`Rollover`): at once, or rolling
+(for 10 s a request reaches either build, by even odds); the old build's content-hashed files kept
+by the host or gone with it; the CDN purged or not. And whether the app set a stable
+`OGYGIA_SECRET` (most runs): without one each build signs with its own key.
+
+A download a deploy failed is the deploy's, counted per document (`World.skewed`): a file asked of
+a build that does not have it, or a hole refused for the other build's key
+(`x-ogygia-deny: foreign-key`) when the app has no secret, as ogygia's `secret_missing` warns. In
+such a document, the browser's own words for a failed download and ogygia's coded ones are
+excused, nothing ogygia says without a code is, and the MPA check sets it aside as it does a
+faulted one. Every other page is compared with a fresh load from the build that answered it
+(`World.as_of`, past the CDN): a page of the old release is that release's, whole.
+
+A page's unhandled rejection reaches its own window (`unhandledrejection`), as in a browser; it
+went to the host process, where nothing told it from the simulator's own.
 
 ## Running many
 
