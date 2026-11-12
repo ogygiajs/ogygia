@@ -173,6 +173,12 @@
 			"name": "a parsed document: resolves after the next painted frame, not before it"
 		},
 		{
+			"step": "stage: committing -> discarded",
+			"reason": "a commit that throws: every commit in the packages is the app's own DOM work, which no simulated fault makes throw; only a bug in it would",
+			"test": "packages/machine/test/stage.test.ts",
+			"name": "a commit that throws puts back what it changed, gives back the build, and throws"
+		},
+		{
 			"step": "stale-dep reload: flying -> gone",
 			"reason": "the dev server's stranded-tab watch: import.meta.env.DEV only, and the simulator runs built apps",
 			"test": "packages/core/test/browser/stale-deps.test.ts",
