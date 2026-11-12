@@ -31,17 +31,24 @@ export function asked_twice(
 	world: World,
 	realm: string,
 	swaps: readonly number[] = [],
-	until = Infinity
+	until = Infinity,
+	/** Filled with the hole answers asked again only by a router visit's batch (#1020). */
+	known?: string[]
 ): string[] {
 	const count = new Map<string, number>();
 	/** Each hole answer's asks (virtual ms), its own GETs' and the batches' that named it. */
 	const holes = new Map<string, number[]>();
+	/** The asks a router visit's batch made (sent as the router swapped the page in). */
+	const nav = new Set<string>();
 	for (const [i, e] of world.network.exchanges.entries()) {
 		if (i >= until) break;
 		if (e.from !== realm || e.status !== 200) continue;
 		if (e.cut || e.lost === true || e.tampered || e.duplicated) continue;
 		if (e.method === 'POST') {
-			for (const k of e.holes ?? []) holes.set(k, [...(holes.get(k) ?? []), e.at]);
+			for (const k of e.holes ?? []) {
+				holes.set(k, [...(holes.get(k) ?? []), e.at]);
+				if (swaps.includes(e.at)) nav.add(`${k} ${e.at}`);
+			}
 			continue;
 		}
 		if (e.method !== 'GET') continue;
@@ -60,8 +67,11 @@ export function asked_twice(
 	// a hole answer asked again within its linger after the one before: the store still held it (an
 	// ask later than that may be a page left longer and come back to, its answer let go by design)
 	for (const [k, asks] of holes) {
-		const again = asks.filter((t, i) => i > 0 && t - asks[i - 1] <= LINGER_MS).length;
+		const soon = asks.filter((t, i) => i > 0 && t - asks[i - 1] <= LINGER_MS);
+		// (a router visit's batch asks every `load` hole of its page, held or not: #1020)
+		const again = known ? soon.filter((t) => !nav.has(`${k} ${t}`)).length : soon.length;
 		if (again > 0) count.set(`0 ${k}`, again + 1);
+		else if (soon.length > 0) known?.push(k);
 	}
 	return [...count]
 		.filter(([, n]) => n > 1)
@@ -81,6 +91,7 @@ export function asked_twice_each(
 	disturbed: ReadonlyMap<string, number>
 ): Broken | null {
 	const found: string[] = [];
+	const known = new Set<string>();
 	const exchanges = world.network.exchanges;
 	for (const [realm, s] of swaps) {
 		if (world.skewed_for(realm) || world.fired_in.has(realm)) continue;
@@ -96,9 +107,18 @@ export function asked_twice_each(
 					(typeof e.status === 'number' && e.status >= 500))
 		);
 		const until = Math.min(disturbed.get(realm) ?? Infinity, fault === -1 ? Infinity : fault);
-		for (const k of asked_twice(world, realm, s, until)) found.push(`${realm}: asked twice: ${k}`);
+		const nav: string[] = [];
+		for (const k of asked_twice(world, realm, s, until, nav))
+			found.push(`${realm}: asked twice: ${k}`);
+		if (nav.length > 0) known.add(realm);
 	}
-	return found.length === 0 ? null : { oracle: 'waste', detail: found.join('\n') };
+	if (found.length > 0) return { oracle: 'waste', detail: found.join('\n') };
+	return known.size === 0
+		? null
+		: {
+				oracle: 'known',
+				detail: `${[...known].join(', ')}: #1020 (a router return asks again for hole answers the frame store holds)`
+			};
 }
 
 /** How long core's frame store keeps a left page's hole answer for a quick return (its
