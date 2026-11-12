@@ -20,7 +20,7 @@
  * run), and then fires with its probability.
  */
 import { AsyncLocalStorage } from 'node:async_hooks';
-import type { Loop } from './loop.ts';
+import type { Loop, Task } from './loop.ts';
 import type { Rng } from './rng.ts';
 
 export type FaultClass =
@@ -96,6 +96,11 @@ export function answering_now(): Exchange | undefined {
 const client = new AsyncLocalStorage<string>();
 const VISITOR_ADDRESS = '10.0.0.1';
 const REFERENCE_ADDRESS = '10.0.0.2';
+
+/** A body still coming this long after its head (a quiesce's budget), each piece within
+ *  `LIVE_GAP_MS` of the one before, is a live answer (a live query, server-sent events). */
+const LIVE_AFTER_MS = 30_000;
+const LIVE_GAP_MS = 2_000;
 
 /** The address of the client whose request a server is answering now (Kit's `getClientAddress`).
  *  An oracle's reference load is a client of its own: it shares no per-client budget (a rate
@@ -198,31 +203,52 @@ export class Network {
 	/** Exchanges that were pending when last looked at (`unanswered` prunes it). */
 	readonly #open = new Set<Exchange>();
 
+	/** Pieces of live answers on their way (`#deliver`). */
+	readonly #live = new WeakSet<Task>();
+
+	/** Whether work is on the wire: a request not answered yet, or a piece of a body on its way that
+	 *  is not a live answer's (test/rest.node.test.ts). */
+	busy(): boolean {
+		return (
+			this.unanswered() > 0 ||
+			this.#loop.queued().some((t) => t.realm === 'net' && !this.#live.has(t))
+		);
+	}
+
 	isOffline(realm: string): boolean {
 		return this.#offline.has(realm);
 	}
 
-	readonly #calm = new Set<string>();
+	/** Each calm tab's pace: ms added to every leg of its requests. */
+	readonly #calm = new Map<string, number>();
 
 	/** Spares `tab` (each of its documents) every fault but short delay: an oracle's reference
-	 *  load. */
-	calm(tab: string): void {
-		this.#calm.add(tab);
+	 *  load. `pace` ms are added to each leg: a second reference at another speed shows what is time,
+	 *  not state (a stamp of the render's moment), even when the run draws no delays. */
+	calm(tab: string, pace = 0): void {
+		this.#calm.set(tab, pace);
+	}
+
+	/** The pace of a calm request (its tab's, or for a server's hop, the calm tab's it serves), or
+	 *  null when the faults may hit it. */
+	#pace(realm: string, behalf: string): number | null {
+		return this.#calm.get(realm.split('#')[0]) ?? this.#calm.get(behalf.split('#')[0]) ?? null;
 	}
 
 	#on(f: FaultClass): boolean {
 		return this.#faults.has(f) && this.#rng.chance(this.#rates[f]);
 	}
 
-	/** One leg's latency: 1 ms with no delay faults; with them, mostly short and sometimes long. */
-	#latency(calm = false): number {
-		if (!this.#faults.has('delay')) return 1;
+	/** One leg's latency: 1 ms with no delay faults; with them, mostly short and sometimes long. A
+	 *  calm leg (`pace` not null) is never long, and is `pace` ms slower. */
+	#latency(pace: number | null = null): number {
+		if (!this.#faults.has('delay')) return 1 + (pace ?? 0);
 		const long = this.#faults.has('reorder') && this.#rng.chance(this.#rates.reorder);
 		const ms = long ? this.#rng.between(200, 3000) : this.#rng.between(5, 120);
 		// (a calm leg is never a long one: two long legs on a reference load's peer hop passed the
 		// peer's 5 s timeout, and the app rightly answered 504; gen 23, seed 23023. The same draws
 		// either way, so every other leg of a run replays as it did)
-		return calm && long ? 5 + (ms % 116) : ms;
+		return (pace !== null && long ? 5 + (ms % 116) : ms) + (pace ?? 0);
 	}
 
 	/** Sends `request` from `realm` to `handler`; the answer comes when the loop says. */
@@ -269,7 +295,8 @@ export class Network {
 			signal?.addEventListener('abort', aborted, { once: true });
 			// (a server's hop made while answering a calm tab is calm too: the reference load's peer
 			// hop was dropped, and its page was the peer's 500; gen 12, seed 60)
-			const calm = this.#calm.has(realm.split('#')[0]) || this.#calm.has(behalf.split('#')[0]);
+			const pace = this.#pace(realm, behalf);
+			const calm = pace !== null;
 			if (!calm && this.#on('drop')) {
 				ex.status = 'dropped';
 				loop.add('net', `drop ${ex.id}`, this.#latency(), () => fail('connection lost'));
@@ -311,7 +338,7 @@ export class Network {
 			loop.add(
 				'net',
 				`request ${ex.id} ${request.method} ${new URL(request.url).pathname}`,
-				this.#latency(calm),
+				this.#latency(pace),
 				() => {
 					const copy = dup ? request.clone() : null;
 					const address = calm ? REFERENCE_ADDRESS : VISITOR_ADDRESS;
@@ -329,21 +356,21 @@ export class Network {
 								);
 							if (!lost) ex.status = response.status;
 							ex.build = response.headers.get(ANSWERED_BY) ?? undefined;
-							const leg = this.#latency(calm) + stall - midway;
+							const leg = this.#latency(pace) + stall - midway;
 							loop.add('net', `response ${ex.id} ${response.status}`, leg, () => {
 								if (signal?.aborted || lost) {
 									void response.body?.cancel();
 									return;
 								}
 								this.#on_wire.delete(ex);
-								resolve(this.#deliver(ex, response, cut, tamper, signal, calm, midway));
+								resolve(this.#deliver(ex, response, cut, tamper, signal, pace, midway));
 							});
 						})
 						.catch((error: unknown) => {
 							if (lost) return;
 							this.#on_wire.delete(ex);
 							ex.status = 500;
-							loop.add('net', `error ${ex.id}`, this.#latency(calm), () =>
+							loop.add('net', `error ${ex.id}`, this.#latency(pace), () =>
 								fail(error instanceof Error ? error.message : String(error))
 							);
 						});
@@ -363,7 +390,7 @@ export class Network {
 		cut: boolean,
 		tamper: boolean,
 		signal: AbortSignal | undefined,
-		calm: boolean,
+		pace: number | null,
 		midway = 0
 	): Response {
 		const headers = new Headers(response.headers);
@@ -379,13 +406,18 @@ export class Network {
 		const loop = this.#loop;
 		let to!: ReadableStreamDefaultController<Uint8Array>;
 		let ended = false;
+		const opened = loop.now;
 		let last = loop.now;
 		let piece = 0;
 		const send = (label: string, deliver: () => void): void => {
 			const quiet = piece === 1 ? midway : 0;
-			const at = Math.max(last, loop.now + (piece === 0 ? 0 : this.#latency(calm)) + quiet);
+			const at = Math.max(last, loop.now + (piece === 0 ? 0 : this.#latency(pace)) + quiet);
+			// (a body still coming LIVE_AFTER_MS after its head, each piece soon after the one before,
+			// is a live answer: it never ends, and rest does not wait on it. A stalled body's quiet
+			// piece is written with its head, so it is never one)
+			const live = loop.now - opened >= LIVE_AFTER_MS && at - last <= LIVE_GAP_MS;
 			last = at;
-			loop.add('net', `${label} ${ex.id}.${piece++}`, at - loop.now, () => {
+			const task = loop.add('net', `${label} ${ex.id}.${piece++}`, at - loop.now, () => {
 				if (ended) return;
 				try {
 					deliver();
@@ -393,6 +425,7 @@ export class Network {
 					// ok: the client cancelled the body; what is still on the way is dropped
 				}
 			});
+			if (live) this.#live.add(task);
 		};
 		const stop = (why: string, offline = false): void => {
 			if (offline) ex.lost = true;
