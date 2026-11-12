@@ -7,10 +7,13 @@
  * One global slot: the app's import and the server half the build lists can be two module instances.
  */
 import type { ServerApp } from '@ogygia/core/plugin';
+import { slot as shared } from '@ogygia/machine';
 
-const slot: { app: ServerApp<unknown> | null } = ((
-	globalThis as Record<symbol, { app: ServerApp<unknown> | null } | undefined>
-)[Symbol.for('ogygia.devtools.app.v1')] ??= { app: null });
+const slot = shared<{ app: ServerApp<unknown> | null }>({
+	name: 'ogygia.devtools.app',
+	version: 1,
+	make: () => ({ app: null })
+});
 
 export function set_devtools_app(app: ServerApp<unknown> | null): void {
 	slot.app = app;

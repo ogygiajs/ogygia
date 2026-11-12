@@ -15,7 +15,7 @@ import { renders_for_a_page } from '../server/endpoint.ts';
 import { plugin_capabilities, plugin_signer, type CapabilitySigner } from './capability.ts';
 import { record_server_event } from '../events/server-registry.ts';
 import { warn } from '../messages/server.ts';
-import { say } from '@ogygia/machine';
+import { say, slot as shared } from '@ogygia/machine';
 
 /** One plugin's server half as the build lists it (`ogygia:server/server-plugins`). */
 export interface ServerPluginEntry {
@@ -78,9 +78,11 @@ export function start_plugins(
 /** The leave of the app's plugins as the handle module last started them. One global slot, like the
  *  shared hooks themselves: the handle module runs again in dev (an edit runs a plugin's server half
  *  again, and the handle module that imports it), and its new run must not find the old one there. */
-const app_plugins: { leave: (() => void) | null } = ((globalThis as Record<symbol, unknown>)[
-	Symbol.for('ogygia.app-plugins.v1')
-] ??= { leave: null }) as { leave: (() => void) | null };
+const app_plugins = shared<{ leave: (() => void) | null }>({
+	name: 'ogygia.app-plugins',
+	version: 1,
+	make: () => ({ leave: null })
+});
 
 /** The app's plugins, live: the handle module's start, each time it runs. The plugins of the run
  *  before leave first, so only this run's answer `ask` and hear `notify`. */
