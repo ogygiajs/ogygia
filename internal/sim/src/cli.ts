@@ -51,6 +51,7 @@ import {
 	fallback_stands,
 	live_events,
 	server_rules,
+	styled_regions,
 	stuck,
 	uncaught,
 	type Broken
@@ -358,7 +359,8 @@ export async function run(
 					hydrates_as_sent(t, world),
 					no_foreign_html(t),
 					page_rules(t),
-					leaks.check(t, pressed.get(t.name) === t.documents)
+					leaks.check(t, pressed.get(t.name) === t.documents),
+					live_events(t, world)
 				])
 					// (a known one once: it is told again after every action while the bug stands)
 					if (b && !(b.oracle === 'known' && broken.some((k) => k.detail.endsWith(b.detail))))
@@ -447,9 +449,12 @@ export async function run(
 					// (and no hole that wakes on its own still shows its fallback, pressed or not: a press
 					// changes what a region shows, never whether a hole is owed its answer)
 					fallback_stands(t, world),
-					// (and every live region was heard announcing the tick it shows, unless a press made
-					// the page the visitor's own)
-					pressed.get(t.name) === t.documents ? null : live_events(t, world)
+					// (and every live region was heard announcing the tick it shows, pressed or not: a press
+					// changes a button's own count, which the oracle leaves out, never a tick)
+					live_events(t, world),
+					// (and every region on screen keeps its styles, pressed or not: a soft refresh is a
+					// press, and it must not take a sheet out from under a region it keeps)
+					styled_regions(t, world)
 				])
 					if (b) broken.push({ ...b, detail: `at rest: ${b.detail}` });
 			for (const t of v.tabs) {

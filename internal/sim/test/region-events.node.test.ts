@@ -6,7 +6,7 @@
 import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { live_events } from '../src/oracles.ts';
+import { live_events, styled_regions } from '../src/oracles.ts';
 import { World } from '../src/world.ts';
 
 const OUTPUT = fileURLToPath(
@@ -35,6 +35,12 @@ describe.skipIf(!built)('region events', () => {
 				stat.querySelector('[data-stat-value]')!.textContent
 			);
 			expect(live_events(tab, world)).toBeNull();
+			// (its scoped rules rode its answer as a stylesheet link: read from the loaded sheet, and
+			// missed once that link leaves the head)
+			expect(stat.querySelector('[class*="svelte-"]')).not.toBeNull();
+			expect(styled_regions(tab, world)).toBeNull();
+			for (const l of doc.querySelectorAll('link[data-ogygia-region-css]')) l.remove();
+			expect(styled_regions(tab, world)?.oracle).toBe('unstyled-region');
 		} finally {
 			await world.end();
 		}

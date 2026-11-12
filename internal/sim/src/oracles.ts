@@ -626,14 +626,30 @@ export function fallback_stands(tab: Tab, world: World): Broken | null {
  * `ogygia:hydrated` when that island mounted, followed by `ogygia:live`, the one mount of its module
  * since another module's tick. Mutation testing: a keep-alive tick, or a mount, sent without
  * `bubbles` reached no listener and survived every other oracle (core.ts, gen 196). The tick is
- * {@link own_text}: what the region shows of its own. Set aside: a document a deploy failed a download
- * of, one the visitor pressed in (the caller's), and an island in a document a fault touched (its
- * file may have failed: the tick's HTML stands with nothing to announce, #942). A static tick is
- * judged there too: its morph always announces.
+ * {@link own_text}: what the region shows of its own (a press changes a button's own count, never a
+ * tick: a pressed document is judged too). Judged after every action, not only at rest, once no
+ * region's tick is on its way to the screen (no `live-region` hydrating, no `region-paint`
+ * painting: between a swap and its island's mount the tick shows unannounced, rightly). Set aside: a
+ * document a deploy failed a download of, and an island in a document a fault touched (its file may
+ * have failed: the tick's HTML stands with nothing to announce, #942). A static tick is judged there
+ * too: its morph always announces.
  */
+/** Is a region's tick or answer on its way to the screen in the document `tab` shows (a
+ *  `live-region` hydrating, a `region-paint` painting: their last moves, `__ogygia_moves()`)? */
+function painting(tab: Tab): boolean {
+	const w = tab.page.mainFrame.window as unknown as { __ogygia_moves?: () => string } | undefined;
+	const last = new Map<string, string>();
+	for (const line of (w?.__ogygia_moves?.() ?? '').split('\n')) {
+		const m = /^((?:live-region|region-paint)\S*) \S+ -> (\S+)$/.exec(line);
+		if (m) last.set(m[1], m[2]);
+	}
+	return [...last.values()].some((s) => s === 'hydrating' || s === 'painting');
+}
+
 export function live_events(tab: Tab, world: World): Broken | null {
 	const url = tab.page.mainFrame.url;
 	if (!url.startsWith('http') || world.skewed_for(tab.realm)) return null;
+	if (painting(tab)) return null;
 	const touched = faulted(world, tab);
 	const doc = tab.page.mainFrame.document as unknown as Document;
 	const wrong: string[] = [];
@@ -669,6 +685,37 @@ export function live_events(tab: Tab, world: World): Broken | null {
 	return wrong.length === 0
 		? null
 		: { oracle: 'live-events', detail: `${url}: ${wrong.join('\n')}` };
+}
+
+/**
+ * A REGION ON SCREEN KEEPS ITS STYLES: at rest, every element inside a region that carries a
+ * component's scoped class (`svelte-<hash>`: Svelte puts it only on elements its `<style>` can
+ * match) has that component's rules somewhere in the document (a `<style>`, or a stylesheet link
+ * that loaded). A navigation or a soft refresh takes a region sheet out once no region on the page
+ * says it uses it: an answer that never said so lost its sheet while it stayed on screen. Judged in a
+ * document the visitor pressed in too (a soft refresh is a press: the MPA check sets that document
+ * aside, and the mutants that dropped what a region uses survived it). Set aside: a document a fault
+ * or a deploy touched (a sheet's download may have failed).
+ */
+export function styled_regions(tab: Tab, world: World): Broken | null {
+	const url = tab.page.mainFrame.url;
+	if (!url.startsWith('http') || world.skewed_for(tab.realm) || faulted(world, tab)) return null;
+	const doc = tab.page.mainFrame.document as unknown as Document;
+	const scoped = new Set<string>();
+	for (const el of doc.querySelectorAll('ogygia-region [class*="svelte-"]'))
+		for (const c of el.classList) if (/^svelte-[a-z0-9]+$/.test(c)) scoped.add(c);
+	if (scoped.size === 0) return null;
+	const css: string[] = [];
+	for (const s of doc.querySelectorAll('style')) css.push(s.textContent ?? '');
+	for (const l of doc.querySelectorAll('link[rel~="stylesheet"]')) {
+		const rules = (l as HTMLLinkElement).sheet?.cssRules;
+		if (rules) for (const r of rules) css.push(r.cssText);
+	}
+	const text = css.join('\n');
+	const missing = [...scoped].filter((c) => !text.includes(`.${c}`));
+	return missing.length === 0
+		? null
+		: { oracle: 'unstyled-region', detail: `${url}: no rules for ${missing.join(', ')}` };
 }
 
 /** An empty region a filed bug explains, by its shape and what its document was answered (as

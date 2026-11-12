@@ -215,7 +215,7 @@ describe('a live region announces what it shows', () => {
 	/** A live region showing `tick` of module `entry` (interactive: it has a `wake`), and what a
 	 *  listener on the document heard it say, each with what it showed then. */
 	const at_rest = async (
-		o: { entry: string; tick: number; wake?: boolean; extra?: string },
+		o: { entry: string; tick: number; wake?: boolean; extra?: string; moves?: string },
 		said: Said[],
 		wire: Array<[string, number | 'dropped']> = []
 	) => {
@@ -238,7 +238,13 @@ describe('a live region announces what it shows', () => {
 			name: 'tab-1',
 			documents: 1,
 			heard,
-			page: { mainFrame: { url: 'https://app.test/p1', document: w.document } }
+			page: {
+				mainFrame: {
+					url: 'https://app.test/p1',
+					document: w.document,
+					window: { __ogygia_moves: () => o.moves ?? '' }
+				}
+			}
 		} as unknown as Parameters<typeof live_events>[0];
 		const world = {
 			fired_in: new Map(),
@@ -297,6 +303,26 @@ describe('a live region announces what it shows', () => {
 				])
 			)?.oracle
 		).toBe('live-events');
+	});
+
+	it('waits while a tick is on its way to the screen: swapped in, its island not yet mounted', async () => {
+		const hydrating = 'live-region#2 static -> hydrating';
+		const said: Said[] = [['ogygia:live', 's4', 2]];
+		expect(await at_rest({ entry: 'm4', tick: 3, wake: true, moves: hydrating }, said)).toBeNull();
+		expect(
+			await at_rest(
+				{
+					entry: 'm4',
+					tick: 3,
+					wake: true,
+					moves: `${hydrating}\nlive-region#2 hydrating -> live`
+				},
+				said
+			)
+		).not.toBeNull();
+		expect(
+			await at_rest({ entry: 's4', tick: 3, moves: 'region-paint#5 idle -> painting' }, said)
+		).toBeNull();
 	});
 
 	it('finds a region that showed a tick and said nothing at all', async () => {
