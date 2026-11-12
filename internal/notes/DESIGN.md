@@ -129,8 +129,24 @@ What you get is a **regular** component in the island’s tree (Vite code-splits
 ## DOM
 
 ```html
-<ogygia-region hydrate="load|idle|visible|(media)">   <!-- island -->
-<ogygia-region hydrate="none">                        <!-- lake -->
+<ogygia-region wake="load|idle|visible|(media)">   <!-- island -->
+<ogygia-region wake="none">                        <!-- lake -->
 <ogygia-region render="defer" when="…" endpoint="…">  <!-- server island -->
-<ogygia-region render="defer" when="…" hydrate="…" entry="…module…" endpoint="…">  <!-- deferred client island -->
+<ogygia-region render="defer" when="…" wake="…" entry="…module…" endpoint="…">  <!-- deferred client island -->
 ```
+
+The attribute vocabulary of `<ogygia-region>` (read in `packages/core/src/runtime/region-attrs.ts`
+and the region element in `runtime/core.ts`). It follows the two axes above: when JS wakes, when
+HTML arrives.
+
+| Attribute        | Meaning                                                                            |
+| ---------------- | ---------------------------------------------------------------------------------- |
+| `wake`           | when JS wakes: `none`, `load`, `idle`, `visible`, `interaction`, or a media query  |
+| `render`         | when HTML arrives: omitted (or `page`), or `defer`                                 |
+| `when`           | the schedule for `render="defer"`, or for the revalidate of `remount="swr"`        |
+| `hydrate-margin` | IntersectionObserver rootMargin for the second phase's `wake="visible"`            |
+| `remount`        | how an `{#if}` re-creates a `wake="none"` region: `cache`, `empty` or `swr`        |
+| `max-age`        | the client lake cache's time to live, in ms (optional)                             |
+| `on-expire`      | past `max-age`: `empty` or `fetch` (`swr` defaults to `fetch`, `cache` to `empty`) |
+
+No attribute is named "island" or "lake": those are nicknames, not the mechanism.

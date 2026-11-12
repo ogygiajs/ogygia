@@ -1,22 +1,3 @@
-/**
- * Server-only remote layer for content collections. The ONLY module here that imports
- * `$app/server`, so it must be used from a `.remote.ts` (Kit guarantees those run on the server).
- *
- * `content()` (browser-safe) defines a collection once, importable anywhere. `withRemotes(collection)`
- * augments it with the Kit remotes that cross the wire (and keeps its read methods):
- *
- * ```ts
- * // collections.ts — the ONE definition, browser-safe
- * export const docs = content({ from, format, schema, relations });
- *
- * // docs.remote.ts — server-only
- * import { withRemotes } from '@ogygia/content/server';
- * const r = withRemotes(docs);
- * export const docNav  = r.list({ map: (e) => ({ id: e.id, title: e.data.title }) });
- * export const feed    = r.live.list({ map });
- * export const oneLive = r.live.get({ map, notFound: null });
- * ```
- */
 import { prerender, query } from '$app/server';
 import type { ContentRef, Entry } from './index.ts';
 import { Collection, COLLECTION } from './collection-base.ts';
@@ -29,9 +10,7 @@ export type ListRemote<Out> = () => Promise<Out[]>;
 export type GetRemote<Out> = (id: string) => Promise<Out>;
 
 type RefsOptions<T extends Record<string, unknown>, Out> = {
-	/** `'prerender'` (default for static globs) or `'query'` (default for async/streaming sources). */
 	mode?: ContentMode;
-	/** Kit prerender `dynamic` — default `true` when mode is prerender. */
 	dynamic?: boolean;
 	filter?: (entry: ContentRef<T>) => boolean;
 	map?: (entry: ContentRef<T>) => Out;
@@ -43,7 +22,6 @@ type LiveRefsOptions<T extends Record<string, unknown>, Out> = {
 type LiveGetOptions<T extends Record<string, unknown>, Out> = {
 	filter?: (entry: ContentRef<T>) => boolean;
 	map?: (entry: ContentRef<T>) => Out;
-	/** Yielded when missing / filtered out. Default `null`. */
 	notFound?: Out | null;
 };
 
@@ -51,15 +29,17 @@ type LiveGetOptions<T extends Record<string, unknown>, Out> = {
 export interface WithRemotes<T extends Record<string, unknown>> {
 	refs(): Promise<ContentRef<T>[]>;
 	get(id: string): Promise<Entry<T> | null>;
-	/** Prerendered/query remote over the corpus refs (wire-safe metadata). */
+	/** A remote over the corpus refs (wire-safe metadata). `mode` is `'prerender'` for a static
+	 *  source and `'query'` for one that reads at request time (dynamic or live); a prerender is
+	 *  Kit-`dynamic` unless `dynamic: false`. */
 	list<Out = { id: string; data: T }>(options?: RefsOptions<T, Out>): ListRemote<Out>;
 	live: {
 		list<Out = { id: string; data: T }>(options?: LiveRefsOptions<T, Out>): ListRemote<Out>;
+		/** A live remote for one id; a missing or filtered-out id answers `notFound` (default `null`). */
 		get<Out = { id: string; data: T } | null>(options?: LiveGetOptions<T, Out>): GetRemote<Out>;
 	};
 }
 
-/** Minimal Standard Schema string — avoids a valibot dependency in the library. */
 const string_arg = {
 	['~standard']: {
 		version: 1 as const,
@@ -71,7 +51,6 @@ const string_arg = {
 	}
 };
 
-/** Reach the underlying `Collection` behind a `content()` / `collection()` handle. */
 function collection_of<T extends Record<string, unknown>>(handle: unknown): Collection<T> {
 	const c = (handle as Record<symbol, unknown>)?.[COLLECTION];
 	if (!(c instanceof Collection)) {
@@ -82,7 +61,16 @@ function collection_of<T extends Record<string, unknown>>(handle: unknown): Coll
 
 /**
  * Augment a browser-safe collection with its Kit remotes (and keep its read methods). Server-only
- * (imports `$app/server`) — call it from a `.remote.ts`.
+ * (it imports `$app/server`): call it from a `.remote.ts`.
+ *
+ * ```ts
+ * // docs.remote.ts
+ * import { withRemotes } from '@ogygia/content/server';
+ * const r = withRemotes(docs);
+ * export const docNav  = r.list({ map: (e) => ({ id: e.id, title: e.data.title }) });
+ * export const feed    = r.live.list({ map });
+ * export const oneLive = r.live.get({ map, notFound: null });
+ * ```
  */
 export function withRemotes<T extends Record<string, unknown> = Record<string, unknown>>(
 	handle: unknown
@@ -146,7 +134,7 @@ export function withRemotes<T extends Record<string, unknown> = Record<string, u
 
 				return query.live(string_arg, async function* (id: unknown) {
 					await c.ready();
-					const sent = c.version(); // (as for list: changes after this version are yielded)
+					const sent = c.version();
 					yield await project(id as string);
 					for await (const _ of c.watchChanges(sent)) yield await project(id as string);
 				}) as unknown as GetRemote<Out>;
@@ -155,5 +143,4 @@ export function withRemotes<T extends Record<string, unknown> = Record<string, u
 	};
 }
 
-// ── the site layer's server half ── `remotes(site)` minting (Kit query()/prerender wiring).
 export * from './site/server.ts';
