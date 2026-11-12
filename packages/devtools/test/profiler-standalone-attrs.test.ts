@@ -39,7 +39,7 @@ const SPELLINGS: [type: string, src: string][] = [
 const KEPT: string[] = [
 	'data-ogygia-runtime',
 	'data-n="a>b"',
-	"data-q='say \"src=x\"'",
+	'data-q=\'say "src=x"\'',
 	'data-e="&quot;type=x&quot;"'
 ];
 
