@@ -2145,36 +2145,16 @@
 			"reason": "writes the request's prime state onto a Request (not cloneable), constant work; proven in packages/flags/test/prime-twice.test.ts"
 		},
 		{
-			"id": "packages/core/src/runtime/core.ts > arm_on_demand > set:1~0b08c2",
-			"reason": "browser only: an on-demand region's one firing (forgets its entry, then fires), constant work of its own"
+			"id": "packages/core/src/boundary.ts > BoundarySettings > configure",
+			"reason": "once per configure: refills the allow and deny sets, linear in the names the app configured"
 		},
 		{
-			"id": "packages/core/src/runtime/interaction.ts > noop",
-			"reason": "an empty function, constant work"
+			"id": "packages/core/src/shims/page-store.svelte.ts > WarnedReads > has",
+			"reason": "a set lookup on the process-wide record (not replayable), constant work"
 		},
 		{
-			"id": "packages/core/src/runtime/router-nav.ts > queued_prefetch",
-			"reason": "browser only: makes the queued-prefetch cache once and returns it, constant work"
-		},
-		{
-			"id": "packages/core/src/runtime/router-nav.ts > warmed_pages",
-			"reason": "browser only: makes the warmed-pages cache once and returns it, constant work"
-		},
-		{
-			"id": "packages/core/src/runtime/schedule.ts > TaskHops > constructor",
-			"reason": "browser only, where scheduler.yield() is missing: one MessageChannel per document, constant work"
-		},
-		{
-			"id": "packages/core/src/runtime/schedule.ts > TaskHops > constructor > onmessage",
-			"reason": "browser only, where scheduler.yield() is missing: lands the oldest hop, constant work"
-		},
-		{
-			"id": "packages/core/src/runtime/schedule.ts > TaskHops > hop",
-			"reason": "browser only, where scheduler.yield() is missing: queues one hop and posts one message, constant work"
-		},
-		{
-			"id": "packages/core/src/runtime/svelte-warnings.ts > WarningLog > add",
-			"reason": "browser only: keeps one Svelte hydration warning (at most 100) and tells its listeners, linear in the listeners (a devtools panel or none)"
+			"id": "packages/core/src/shims/page-store.svelte.ts > WarnedReads > set",
+			"reason": "adds one island to the process-wide record, cleared past 1000 (not replayable), constant work"
 		},
 		{
 			"id": "packages/core/src/runtime/router-nav.ts > resolve_head_urls",
@@ -4219,6 +4199,38 @@
 		{
 			"id": "packages/postrender/src/server.ts > deploy_check > flights:0~68fab5 > run > store_call:2~fa5e01",
 			"reason": "the marker write, one store put (I/O, the live store: not cloneable), constant work (#947)"
+		},
+		{
+			"id": "packages/core/src/runtime/core.ts > arm_on_demand > set:1~0b08c2",
+			"reason": "browser only: an on-demand region's one firing (forgets its entry, then fires), constant work of its own"
+		},
+		{
+			"id": "packages/core/src/runtime/interaction.ts > noop",
+			"reason": "an empty function, constant work"
+		},
+		{
+			"id": "packages/core/src/runtime/router-nav.ts > queued_prefetch",
+			"reason": "browser only: makes the queued-prefetch cache once and returns it, constant work"
+		},
+		{
+			"id": "packages/core/src/runtime/router-nav.ts > warmed_pages",
+			"reason": "browser only: makes the warmed-pages cache once and returns it, constant work"
+		},
+		{
+			"id": "packages/core/src/runtime/schedule.ts > TaskHops > constructor",
+			"reason": "browser only, where scheduler.yield() is missing: one MessageChannel per document, constant work"
+		},
+		{
+			"id": "packages/core/src/runtime/schedule.ts > TaskHops > constructor > onmessage",
+			"reason": "browser only, where scheduler.yield() is missing: lands the oldest hop, constant work"
+		},
+		{
+			"id": "packages/core/src/runtime/schedule.ts > TaskHops > hop",
+			"reason": "browser only, where scheduler.yield() is missing: queues one hop and posts one message, constant work"
+		},
+		{
+			"id": "packages/core/src/runtime/svelte-warnings.ts > WarningLog > add",
+			"reason": "browser only: keeps one Svelte hydration warning (at most 100) and tells its listeners, linear in the listeners (a devtools panel or none)"
 		},
 		{
 			"id": "packages/core/src/runtime/nav-handle.ts > flights:0~bc1a2c > import_again:1~6d4297",
