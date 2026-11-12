@@ -120,9 +120,25 @@ const RATES: Record<FaultClass, number> = {
 	stall: 0.02
 };
 
+/** A region request's query values that change with every build or signing key, not with what is
+ *  asked: left out of the request's name, so its fate stays the same when only they move. */
+const VOLATILE_QUERY = ['sig', 'k', 'r', 'v', 'pv', 'exp'];
+
+/** The name a request's fate is drawn under: its document, its method and its address (the volatile
+ *  query values out). */
+export function fate_name(realm: string, method: string, url: string): string {
+	const u = new URL(url);
+	for (const q of VOLATILE_QUERY) u.searchParams.delete(q);
+	return `${realm} ${method} ${u.origin}${u.pathname}${u.search}`;
+}
+
 export class Network {
 	readonly #loop: Loop;
+	/** Each request's fate is drawn from a stream of its own, forked by its name and how many times
+	 *  its document asked it before: a request sent before it never moves its draws (test/core.test.ts
+	 *  "a request's fate is its own"). */
 	readonly #rng: Rng;
+	readonly #asked = new Map<string, number>();
 	readonly #faults: ReadonlySet<FaultClass>;
 	readonly #rates: Record<FaultClass, number>;
 	readonly #offline = new Set<string>();
@@ -235,16 +251,24 @@ export class Network {
 		return this.#calm.get(realm.split('#')[0]) ?? this.#calm.get(behalf.split('#')[0]) ?? null;
 	}
 
-	#on(f: FaultClass): boolean {
-		return this.#faults.has(f) && this.#rng.chance(this.#rates[f]);
+	#on(f: FaultClass, r: Rng): boolean {
+		return this.#faults.has(f) && r.chance(this.#rates[f]);
+	}
+
+	/** The stream `request` from `realm` draws its fate from. */
+	#fate(realm: string, request: Request): Rng {
+		const name = fate_name(realm, request.method, request.url);
+		const n = this.#asked.get(name) ?? 0;
+		this.#asked.set(name, n + 1);
+		return this.#rng.fork(`${name} #${n}`);
 	}
 
 	/** One leg's latency: 1 ms with no delay faults; with them, mostly short and sometimes long. A
 	 *  calm leg (`pace` not null) is never long, and is `pace` ms slower. */
-	#latency(pace: number | null = null): number {
+	#latency(r: Rng, pace: number | null = null): number {
 		if (!this.#faults.has('delay')) return 1 + (pace ?? 0);
-		const long = this.#faults.has('reorder') && this.#rng.chance(this.#rates.reorder);
-		const ms = long ? this.#rng.between(200, 3000) : this.#rng.between(5, 120);
+		const long = this.#faults.has('reorder') && r.chance(this.#rates.reorder);
+		const ms = long ? r.between(200, 3000) : r.between(5, 120);
 		// (a calm leg is never a long one: two long legs on a reference load's peer hop passed the
 		// peer's 5 s timeout, and the app rightly answered 504; gen 23, seed 23023. The same draws
 		// either way, so every other leg of a run replays as it did)
@@ -273,6 +297,7 @@ export class Network {
 		this.exchanges.push(ex);
 		this.#open.add(ex);
 		const loop = this.#loop;
+		const fate = this.#fate(realm, request);
 		return new Promise<Response>((answered, failed) => {
 			// (a document left hears nothing: a drop, a redirect or an error due after it never lands)
 			const heard = () => !this.#left.has(realm);
@@ -297,32 +322,31 @@ export class Network {
 			// hop was dropped, and its page was the peer's 500; gen 12, seed 60)
 			const pace = this.#pace(realm, behalf);
 			const calm = pace !== null;
-			if (!calm && this.#on('drop')) {
+			if (!calm && this.#on('drop', fate)) {
 				ex.status = 'dropped';
-				loop.add('net', `drop ${ex.id}`, this.#latency(), () => fail('connection lost'));
+				loop.add('net', `drop ${ex.id}`, this.#latency(fate), () => fail('connection lost'));
 				return;
 			}
 			// an edge or proxy that sends a region's request to another origin (an open redirect, a
 			// misrouted CDN): the page must never paint what comes back (INVARIANTS.md HOLE-TRUST)
 			const target = new URL(request.url);
-			if (!calm && this.#redirectable(target) && this.#on('redirect')) {
+			if (!calm && this.#redirectable(target) && this.#on('redirect', fate)) {
 				ex.status = 302;
 				ex.redirected = true;
 				const location = ELSEWHERE + target.pathname + target.search;
-				loop.add('net', `redirect ${ex.id}`, this.#latency(), () =>
+				loop.add('net', `redirect ${ex.id}`, this.#latency(fate), () =>
 					resolve(new Response(null, { status: 302, headers: { location } }))
 				);
 				return;
 			}
-			const dup = !calm && this.#on('duplicate');
+			const dup = !calm && this.#on('duplicate', fate);
 			ex.duplicated = dup;
-			const cut = !calm && this.#on('cut');
-			const tamper = !calm && this.#on('tamper');
-			// (drawn only in a run with stalls: every other run's draws stay as they were)
-			const stall = !calm && this.#on('stall') ? this.#rng.between(10_000, 40_000) : 0;
+			const cut = !calm && this.#on('cut', fate);
+			const tamper = !calm && this.#on('tamper', fate);
+			const stall = !calm && this.#on('stall', fate) ? fate.between(10_000, 40_000) : 0;
 			if (stall > 0) ex.stalled = true;
 			// (half of them midway: the head on time, then the body quiet after its first piece)
-			const midway = stall > 0 && this.#rng.chance(0.5) ? stall : 0;
+			const midway = stall > 0 && fate.chance(0.5) ? stall : 0;
 			// (until its answer comes, its tab going offline fails it: `offline`)
 			let lost = false;
 			this.#on_wire.set(ex, (why) => {
@@ -338,7 +362,7 @@ export class Network {
 			loop.add(
 				'net',
 				`request ${ex.id} ${request.method} ${new URL(request.url).pathname}`,
-				this.#latency(pace),
+				this.#latency(fate, pace),
 				() => {
 					const copy = dup ? request.clone() : null;
 					const address = calm ? REFERENCE_ADDRESS : VISITOR_ADDRESS;
@@ -356,21 +380,21 @@ export class Network {
 								);
 							if (!lost) ex.status = response.status;
 							ex.build = response.headers.get(ANSWERED_BY) ?? undefined;
-							const leg = this.#latency(pace) + stall - midway;
+							const leg = this.#latency(fate, pace) + stall - midway;
 							loop.add('net', `response ${ex.id} ${response.status}`, leg, () => {
 								if (signal?.aborted || lost) {
 									void response.body?.cancel();
 									return;
 								}
 								this.#on_wire.delete(ex);
-								resolve(this.#deliver(ex, response, cut, tamper, signal, pace, midway));
+								resolve(this.#deliver(ex, response, fate, cut, tamper, signal, pace, midway));
 							});
 						})
 						.catch((error: unknown) => {
 							if (lost) return;
 							this.#on_wire.delete(ex);
 							ex.status = 500;
-							loop.add('net', `error ${ex.id}`, this.#latency(pace), () =>
+							loop.add('net', `error ${ex.id}`, this.#latency(fate, pace), () =>
 								fail(error instanceof Error ? error.message : String(error))
 							);
 						});
@@ -387,6 +411,7 @@ export class Network {
 	#deliver(
 		ex: Exchange,
 		response: Response,
+		fate: Rng,
 		cut: boolean,
 		tamper: boolean,
 		signal: AbortSignal | undefined,
@@ -411,7 +436,7 @@ export class Network {
 		let piece = 0;
 		const send = (label: string, deliver: () => void): void => {
 			const quiet = piece === 1 ? midway : 0;
-			const at = Math.max(last, loop.now + (piece === 0 ? 0 : this.#latency(pace)) + quiet);
+			const at = Math.max(last, loop.now + (piece === 0 ? 0 : this.#latency(fate, pace)) + quiet);
 			// (a body still coming LIVE_AFTER_MS after its head, each piece soon after the one before,
 			// is a live answer: it never ends, and rest does not wait on it. A stalled body's quiet
 			// piece is written with its head, so it is never one)
@@ -454,17 +479,17 @@ export class Network {
 				}
 				let bytes = read.value;
 				if (bytes.length === 0) continue;
-				if (cut && this.#rng.chance(0.5)) return stop('the stream was cut');
+				if (cut && fate.chance(0.5)) return stop('the stream was cut');
 				if (tamper && !asset && !ex.tampered) {
 					ex.tampered = true;
 					bytes = bytes.slice();
-					const at = this.#rng.int(bytes.length);
-					bytes[at] = bytes[at] ^ (1 + this.#rng.int(255));
+					const at = fate.int(bytes.length);
+					bytes[at] = bytes[at] ^ (1 + fate.int(255));
 				}
 				// (a piece of the server's write may arrive in two: a reader must not assume whole writes)
 				const halves =
-					bytes.length > 1 && this.#rng.chance(0.3)
-						? [bytes.subarray(0, this.#rng.between(1, bytes.length - 1)), null]
+					bytes.length > 1 && fate.chance(0.3)
+						? [bytes.subarray(0, fate.between(1, bytes.length - 1)), null]
 						: [bytes];
 				if (halves[1] === null) halves[1] = bytes.subarray(halves[0]!.length);
 				for (const h of halves) send('chunk', () => to.enqueue(h!));
