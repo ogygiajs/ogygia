@@ -28,6 +28,9 @@ export type LakeCacheEntry = {
  *   - The PAGE owns the head the server sent and everything the router or the runtime puts there for
  *     the page (merged heads, hoisted region sheets, preload links, hints). A navigation replaces
  *     page-owned nodes, and only those.
+ *   - A NAVIGATION owns the next page's sheets it loads inert while it waits, until its commit gives
+ *     them to the page (router-nav.ts `preload_stylesheets`); it ends by taking them out. A soft
+ *     refresh of the page on screen merges around them (#1124).
  *   - An ISLAND owns what its `<svelte:head>` renders live (csr=false: the island hydrates alone, so
  *     its head block renders fresh — hydrate-core.ts `neutralize_head_hydration_markers`). Only the
  *     island's own teardown removes those: Svelte deletes a head block by walking from its first node
