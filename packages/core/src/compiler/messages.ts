@@ -501,8 +501,9 @@ export const BUILD_ERRORS = {
 		text: (a: { package: string; entry: string }): string =>
 			`${a.package}: ogygia.files entry '${a.entry}' escapes the package.`,
 		details: (): string => prose`
-			An \`ogygia.files\` entry points outside its own package (\`../\`), which would compile
-			code the package does not own. List paths inside the package only.
+			An \`ogygia.files\` entry points outside its own package (\`../\`, or a symlink in the
+			package that leads out of it), which would compile code the package does not own. List
+			paths inside the package only.
 		`
 	},
 
