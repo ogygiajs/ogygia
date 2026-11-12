@@ -1,1 +1,1 @@
-export * from '@ogygia/core/vite';
+export * from '@ogygia/compiler/vite';
