@@ -17,6 +17,16 @@
 				"app": "palaestra",
 				"plan": "internal/sim/sweep-plans/palaestra-render-kept.json",
 				"reaches": ["render cache: flying -> kept"]
+			},
+			{
+				"app": "palaestra",
+				"plan": "internal/sim/sweep-plans/palaestra-batch-stalled.json",
+				"reaches": ["batch-stream: sending -> stalled"]
+			},
+			{
+				"app": "palaestra",
+				"plan": "internal/sim/sweep-plans/palaestra-render-kept-gone.json",
+				"reaches": ["render cache: kept -> gone"]
 			}
 		]
 	},
@@ -135,10 +145,18 @@
 		"region-paint: idle -> painting",
 		"region-paint: painting -> idle",
 		"region-paint: painting -> painting",
+		"region request: charged -> rendering",
+		"region request: prechecked -> probed",
+		"region request: probed -> verified",
+		"region request: received -> prechecked",
+		"region request: received -> refused",
+		"region request: rendering -> sent",
+		"region request: verified -> charged",
 		"region-sheet: loading -> failed",
 		"region-sheet: loading -> loaded",
 		"render cache: flying -> gone",
 		"render cache: flying -> kept",
+		"render cache: kept -> gone",
 		"router load: flying -> gone",
 		"router load: flying -> kept",
 		"router load: kept -> gone",
