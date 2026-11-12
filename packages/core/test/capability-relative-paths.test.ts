@@ -11,7 +11,7 @@ vi.mock('ogygia:server/region-ttl', () => ({ region_ttl: 3600, renew_window: 691
 vi.mock('ogygia:server/server-manifest', () => ({ region_url: {}, region_render: {} }));
 vi.mock('ogygia:server/sign', () => ({
 	sign: (_k: string, m: string) => 'sig' + m.length,
-	region_mac_message: (...parts: unknown[]) => parts.join('|')
+	region_sign: (_k: string, audience: string) => 'sig' + audience.length
 }));
 // Kit 2's server `resolve` with `paths.relative` (the default), while rendering `/p0`
 vi.mock('$app/paths', () => ({
