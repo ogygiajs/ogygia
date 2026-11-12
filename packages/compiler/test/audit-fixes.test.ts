@@ -187,6 +187,18 @@ describe('audit fixes — rate limiter', () => {
 		expect(lim.size).toBeLessThanOrEqual(3);
 	});
 
+	it('over() reports a spent budget and charges nothing', () => {
+		const lim = new RateLimiter({ max: 2, windowMs: 60_000 });
+		expect(lim.over('a')).toBe(false);
+		expect(lim.over('a')).toBe(false);
+		lim.limited('a');
+		expect(lim.over('a')).toBe(false);
+		lim.limited('a');
+		expect(lim.over('a')).toBe(true);
+		expect(lim.over('b')).toBe(false);
+		expect(new RateLimiter({ max: 0, windowMs: 1 }).over('a')).toBe(false);
+	});
+
 	it('documents render-rate contract: junk must not call render limited()', () => {
 		const render_lim = new RateLimiter({ max: 2, windowMs: 60_000, cap: 16 });
 		const junk_mac_ok = false;

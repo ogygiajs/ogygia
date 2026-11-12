@@ -7,7 +7,7 @@ import { scope } from '@ogygia/machine';
 import { early_holes_head } from '../../src/early-holes-head.ts';
 import { adopt_early_holes } from '../../src/runtime/early-holes.ts';
 import { join_batch } from '../../src/runtime/frame-nav.ts';
-import { _reset, ensure, peek } from '../../src/runtime/frame-store.ts';
+import { _reset, ensure, peek } from '../_frames.ts';
 import { frameAddress } from '../../src/frame.ts';
 import { done_parcel } from '../../src/server/stream-regions.ts';
 

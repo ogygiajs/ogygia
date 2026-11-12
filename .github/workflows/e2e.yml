@@ -188,6 +188,10 @@ jobs:
       - name: Type-check the bench files
         run: pnpm run check:bench
 
+      # every library the check built (dist/, bundled dependencies included) turns no string into code
+      - name: No eval in the built libraries
+        run: node .github/scripts/built-no-eval.ts
+
       # every module-level Map / Set / growing array in packages/*/src is a cache(), owned by a
       # scope, or a marked fixed table (internal/checks/module-maps.ts, #414): its own tests, then the
       # scan, which fails on any finding (#413)

@@ -40,6 +40,8 @@ import { PAGE_SEED_SELECTOR } from '../page-seed-selector.ts';
 // The boot's session and hint-set reset, handed over through the registry — this lazy module (the
 // hydrate core's and the navigation's) never imports a boot module (./slots.ts `BootLink`).
 const session = () => boot_link().runtime_session;
+const server_channel = (doc: Document, selector: string) =>
+	boot_link().server_channel(doc, selector);
 
 // DEVTOOLS gate — module-local const from the Vite `define` (proven DCE pattern); off → folds out.
 const DEVTOOLS = typeof __OGYGIA_DEVTOOLS__ !== 'undefined' ? __OGYGIA_DEVTOOLS__ : false;
@@ -111,7 +113,7 @@ const foreign_seeds = new WeakMap<Document, PageSeed | null>();
 export function page_seed_of(doc: Document): PageSeed | null {
 	const hit = foreign_seeds.get(doc);
 	if (hit !== undefined) return hit;
-	const el = doc.querySelector(PAGE_SEED_SELECTOR);
+	const el = server_channel(doc, PAGE_SEED_SELECTOR);
 	const seed = el ? parse_page_seed(el) : null;
 	foreign_seeds.set(doc, seed);
 	return seed;
@@ -141,7 +143,7 @@ export function seed_page_once(): void {
 	if (!session().page_seeded) {
 		session().mark_page_seeded();
 		if (typeof document === 'undefined') return;
-		const el = document.querySelector(PAGE_SEED_SELECTOR);
+		const el = server_channel(document, PAGE_SEED_SELECTOR);
 		if (el) apply_page_seed(parse_page_seed(el));
 	}
 	if (session().visit.facts.length) absorb_page_facts();
@@ -207,7 +209,7 @@ export function apply_soft_invalidate_doc(doc: Document): void {
 	if (typeof document === 'undefined') return;
 	// Seed bag only — never release_remote_instances() here (live Query/LiveQuery stay mounted).
 	slots.remoteSeeds?.clear_remote_seeds();
-	apply_remote_seed_text(doc.querySelector(REMOTE_SEED_SELECTOR)?.textContent);
+	apply_remote_seed_text(server_channel(doc, REMOTE_SEED_SELECTOR)?.textContent);
 	session().mark_remote_seeded();
 	// The incoming page seed: parsed once for this document (already, when the router preflighted).
 	apply_page_seed(page_seed_of(doc));
