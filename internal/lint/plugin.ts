@@ -553,6 +553,50 @@ const markup_from_vocabulary = {
 };
 
 /**
+ * `ogygia/wall-clock` (#472): a duration inside one process is measured on the monotonic clock
+ * (`clock.mono()` from @ogygia/machine), which a wall-clock step (an NTP correction, a VM resume)
+ * never moves. `Date.now()` is for a timestamp that leaves the process, or is compared with one
+ * that came from outside, and says so on its line or the line before: `// wall: <why>`.
+ */
+const MESSAGE_WALL =
+	'Date.now() is the wall clock, which steps: measure a duration with clock.mono() from @ogygia/machine, or say why this is a timestamp with `// wall: <why>` on its line or the line before.';
+
+const wall_clock = {
+	meta: {
+		type: 'problem',
+		docs: { description: 'Durations on clock.mono(); a Date.now() says `// wall: <why>`.' }
+	},
+	create(context: Context) {
+		if (!in_source(context)) return {};
+		const calls: Node[] = [];
+		return {
+			CallExpression(node: Node) {
+				const callee = node.callee as Node;
+				if (callee.type !== 'MemberExpression' || callee.computed) return;
+				const object = callee.object as { type?: string; name?: string };
+				const property = callee.property as { name?: string };
+				if (object.type === 'Identifier' && object.name === 'Date' && property.name === 'now')
+					calls.push(node);
+			},
+			'Program:exit'() {
+				if (!calls.length) return;
+				const comments =
+					(
+						context as { sourceCode?: { getAllComments?: () => Comment[] } }
+					).sourceCode?.getAllComments?.() ?? [];
+				const marked = new Set<number>();
+				for (const c of comments) if (/^\s*wall:\s*\S/.test(c.value)) marked.add(c.loc.start.line);
+				for (const call of calls) {
+					const line = (call as Located).loc.start.line;
+					if (marked.has(line) || marked.has(line - 1)) continue;
+					context.report({ node: call, message: MESSAGE_WALL });
+				}
+			}
+		};
+	}
+};
+
+/**
  * `ogygia/one-hash` (#484): a content hash is core's `contract/hash.ts` (`id64` for identity, where a
  * collision serves the wrong thing; `bucket32` for spreading). The FNV-1a offset basis anywhere else
  * is a copy, and says why it must be one with `// hash: <why>` on its line or the line before (a
@@ -664,6 +708,7 @@ export default {
 		'owned-effects': owned_effects,
 		'no-silent-failures': no_silent_failures,
 		'stale-whole': stale_whole,
+		'wall-clock': wall_clock,
 		'compiler-boundary': compiler_boundary
 	}
 };
