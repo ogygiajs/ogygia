@@ -19,7 +19,7 @@ function makeCtx(overrides: Partial<HostCtx> = {}): HostCtx {
 		readFile: () => null,
 		pathModule: path,
 		dev: false,
-		virtualPathFor: (_hostId: string, iid: string) => `virtual:ogygia/island/${iid}.js`,
+		virtualPathFor: (_hostId: string, iid: string) => `ogygia:region/entry/${iid}.js`,
 		// the transform's own fallback when a caller omits it
 		wrapperPathFor: (_hostId: string, iid: string) => wrapperVirtualId(iid),
 		devUrlFor: (p: string) => '/@id/' + p,
@@ -58,8 +58,8 @@ describe('audit fixes — transform contract', () => {
 		expect(r).toBeTruthy();
 		expect(r!.islands.length).toBe(1);
 		// The import lands on the attach binding (which re-exports the wrapper with the descriptor).
-		expect(r!.code).toMatch(/virtual:ogygia\/region\//);
-		expect(r!.islands[0].wrapperPath).toMatch(/virtual:ogygia\/wrapper\//);
+		expect(r!.code).toMatch(/ogygia:region\/binding\//);
+		expect(r!.islands[0].wrapperPath).toMatch(/ogygia:region\/wrapper\//);
 	});
 
 	it('allows this={C} on svelte:component', () => {

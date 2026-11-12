@@ -18,7 +18,7 @@
  * hides.
  */
 import { machine } from '@ogygia/machine';
-import { hole_copy_of } from './hash.ts';
+import { hole_copy_of } from '../contract/hash.ts';
 import type { RegionRefusal } from './region-endpoint-url.ts';
 import { tool_made } from '../tool-fetches.ts';
 import { paint_blocker } from './render-blocking.ts';
@@ -412,7 +412,7 @@ export interface HoleAnswered {
 	/** it came in ONE batch request with this many holes (`left` the batch's, `first`/`end` its
 	 *  own part's landing, out of order) — no request of its own */
 	batch?: number;
-	/** which copy (runtime/hash.ts `hole_copy_of` its endpoint): copies of one component share the id */
+	/** which copy (contract/hash.ts `hole_copy_of` its endpoint): copies of one component share the id */
 	p?: string;
 }
 

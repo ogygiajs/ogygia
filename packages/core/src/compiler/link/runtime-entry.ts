@@ -262,7 +262,7 @@ export function generateRuntimeEntrySource(
 }
 
 /**
- * Emit the HYDRATE-phase feature module (`virtual:ogygia/hydrate-features`), which the hydrate core
+ * Emit the HYDRATE-phase feature module (`ogygia:boot/hydrate-features`), which the hydrate core
  * imports statically and installs as its chunk evaluates — so these features ride the hydrate core's
  * one existing `import()`, sized by the same marks as the boot. `all` (dev / no marks): every one.
  * @param runtimeDir Absolute directory containing the feature modules.
@@ -289,7 +289,7 @@ export function generateHydrateFeaturesSource(
 }
 
 /**
- * Emit `virtual:ogygia/runtime-flags`: build-time constants for code that lives INSIDE the always-on
+ * Emit `ogygia:boot/runtime-flags`: build-time constants for code that lives INSIDE the always-on
  * region element rather than in a feature module, because it works on the element's own state. The
  * bundler inlines an imported `const` and drops the branches it switches off, so the code a flag
  * guards ships exactly when the feature it serves does. Same marks as the entries; `all` (dev / no

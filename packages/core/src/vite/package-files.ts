@@ -16,8 +16,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { globSync } from 'tinyglobby';
 import type { PackageScan } from '../compiler/ctx.ts';
-import { OWN_PACKAGE_NAMES } from '../own-package.ts';
-import { OgygiaError, warn } from '../messages/build.ts';
+import { OWN_PACKAGE_NAMES } from '../contract/own-package.ts';
+import { OgygiaError, warn } from '../compiler/messages.ts';
 
 export type { PackageScan };
 

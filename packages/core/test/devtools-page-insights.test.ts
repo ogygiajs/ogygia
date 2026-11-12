@@ -1426,6 +1426,33 @@ describe('analyze_page', () => {
 			'Toolbar still imports a barrel whole: src/lib/ui/index.ts, and the 8 modules behind it'
 		);
 		expect(f[1].message).toContain("Icons.svelte is 81% of Toolbar's code (41 KB of 51 KB in dev)");
+		// no reason known (the barrel pass is not in the app): the fix names the plugin to add
+		expect(f[0].fix).toContain('barrels() from @ogygia/barrels');
+		expect(f[0].fix).not.toContain('ogygia({ barrels })');
+	});
+
+	it('an island’s barrel says why the barrel pass left it, in its words', () => {
+		const r = analyze_page(
+			page({
+				island_code: [
+					{
+						fp: 't',
+						name: 'Toolbar',
+						bytes: 2_000,
+						top: [{ file: 'src/lib/Toolbar.svelte', bytes: 1_700 }],
+						barrels: [{ file: 'src/lib/ui/index.ts', fanout: 8, why: ['impure', 'pinned'] }]
+					}
+				]
+			}),
+			[],
+			[],
+			2000
+		);
+		const b = r.findings.find((x) => x.code === 'island-barrel')!;
+		expect(b.message).toContain(
+			'barrels() left it: it runs code of its own besides its re-exports; an import of it marks a region, and a region import stays as written'
+		);
+		expect(b.fix).toContain('barrels({ force })');
 	});
 
 	it('a hole whose answer never came is an error, with the cause and where to look', () => {

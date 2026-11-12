@@ -106,7 +106,7 @@ describe('one module, two copies', () => {
 });
 
 const FACADE = '/_app/immutable/og-region.aaaaaaaaaaaa.js';
-const ISLAND_REMOTES_FN_RE = /export function islandRemotes\(_?entry\)\s*\{([^}]*)\}/;
+const ISLAND_REMOTES_FN_RE = /export function region_remotes\(_?entry\)\s*\{([^}]*)\}/;
 
 describe('collectIslandDepModulepreloads', () => {
 	test('walks transitive static imports for og-region facades', () => {
@@ -897,7 +897,7 @@ describe('remotes map', () => {
 			for (const d of r.js['/' + files[i]]) expect(b[d.slice(1)].type).toBe('chunk');
 	});
 
-	describe('the virtual module\u2019s islandRemotes', () => {
+	describe('the virtual module\u2019s region_remotes', () => {
 		test('client leg → null (unused there)', () => {
 			const m = ISLAND_REMOTES_FN_RE.exec(island_deps_module(false, false));
 			expect(m?.[1]).toContain('return null');
@@ -908,10 +908,10 @@ describe('remotes map', () => {
 		});
 		test('prod SSR → reads the handoff\u2019s `remotes` map, null for a missing map or unknown entry', async () => {
 			const m = await with_handoff({ remotes: { '/e/a.js': ['r1'], '/e/b.js': 'nope' } });
-			expect(m.islandRemotes('/e/a.js')).toEqual(['r1']);
-			expect(m.islandRemotes('/e/b.js')).toBeNull();
-			expect(m.islandRemotes('/e/c.js')).toBeNull();
-			expect((await with_handoff({})).islandRemotes('/e/a.js')).toBeNull();
+			expect(m.region_remotes('/e/a.js')).toEqual(['r1']);
+			expect(m.region_remotes('/e/b.js')).toBeNull();
+			expect(m.region_remotes('/e/c.js')).toBeNull();
+			expect((await with_handoff({})).region_remotes('/e/a.js')).toBeNull();
 		});
 	});
 });
@@ -981,13 +981,13 @@ describe('collect_inline_css', () => {
 		expect(collect_inline_css(bundle, hrefs, Number.NaN)).toEqual({});
 	});
 
-	test('the virtual module exposes islandCssInline on every leg (null where nothing is kept)', async () => {
+	test('the virtual module exposes region_css_inline on every leg (null where nothing is kept)', async () => {
 		for (const src of [island_deps_module(false, false), island_deps_module(true, true)])
-			expect((await load_module(src)).islandCssInline('/a.css')).toBeNull();
+			expect((await load_module(src)).region_css_inline('/a.css')).toBeNull();
 		const m = await with_handoff({ css_inline: { '/a.css': 'a{}', '/n.css': 5 } });
-		expect(m.islandCssInline('/a.css')).toBe('a{}');
-		expect(m.islandCssInline('/n.css')).toBeNull();
-		expect(m.islandCssInline('/b.css')).toBeNull();
+		expect(m.region_css_inline('/a.css')).toBe('a{}');
+		expect(m.region_css_inline('/n.css')).toBeNull();
+		expect(m.region_css_inline('/b.css')).toBeNull();
 	});
 });
 

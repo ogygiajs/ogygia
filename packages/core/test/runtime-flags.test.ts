@@ -1,4 +1,4 @@
-// RUNTIME FLAGS (`virtual:ogygia/runtime-flags`): build-time constants for code that lives inside the
+// RUNTIME FLAGS (`ogygia:boot/runtime-flags`): build-time constants for code that lives inside the
 // always-on region element. `FRAMES` follows the `frames` feature exactly — the element's fetch /
 // apply / morph path is only ever reached through the frame store, so a build without the store
 // must not ship that path, and a build with it must keep it.

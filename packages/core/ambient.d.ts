@@ -1,108 +1,16 @@
-// Ambient types for ogygia's build-time virtual modules. The library ships `.svelte`/`.ts` source
-// (Region, OgygiaRouter, …) that import these; the ogygia vite plugin provides them at build time,
-// but a consumer's `svelte-check`/`tsc` needs the declarations to type-check the imports. Keep in sync
-// with packages/core/src/types.d.ts (the library's own build copy). Apps reach this file through
-// `ogygia/types` (the `ogygia` package's ambient.d.ts references it).
-declare module 'virtual:ogygia/runtime-url' {
-	const url: string;
-	export default url;
-}
-declare module 'virtual:ogygia/runtime-entry' {
-	export const __features: string[];
-}
-declare module 'virtual:ogygia/dev-hmr' {
-	/* side-effect only — CSS HMR bridge under csr=false */
-}
-declare module 'virtual:ogygia/dev-hmr-url' {
-	const url: string;
-	export default url;
-}
-declare module 'virtual:ogygia/island-deps' {
-	export function islandDeps(entry: string): string[];
-	/** Public URLs of the CSS assets an island entry (+ its dep chunks) owns — carried with a
-	 *  region response so a server-picked component styles a page that never imported it. */
-	export function islandCss(entry: string): string[];
-	/** og.$ hoisted factories (tag → self-contained source) for the page-inline registration
-	 *  script — prod SSR only; null in dev/client (dev uses the fn-manifest virtual). */
-	export function fnManifest(): Record<string, string> | null;
-	/** An entry's identity (its stable URL) → the content-hashed file it is served from; `null`: none known. */
-	export function entryLocation(identity: string): string | null;
-}
-declare module 'virtual:ogygia/manifest' {
-	export const dev: boolean;
-	export const regions: Record<
-		string,
-		{ kind: 'hydrate' | 'defer' | 'lake'; load?: () => Promise<{ default: unknown }> }
-	>;
-}
-declare module 'virtual:ogygia/server-manifest' {
-	/** The server islands' loaders, one dynamic import away. */
-	export function load_islands(): Promise<typeof import('virtual:ogygia/server-islands')>;
-	/** Server-island id → its built client-chunk URL (the key `islandCss()` is keyed by). */
-	export const island_url: Record<string, string>;
-	/** Server-island id → its component name (`SlowHole`), where the component file is known. */
-	export const island_name: Record<string, string>;
-	export const island_render: Record<string, string>;
-	export const render_island: Record<string, string>;
-}
-declare module 'virtual:ogygia/server-islands' {
-	export const islands: Record<string, () => Promise<{ default: unknown }>>;
-}
-declare module 'virtual:ogygia/region-endpoint' {
-	export function makeRegionEndpoint(entry: string, props?: Record<string, unknown>): string;
-	export function mintServerIsland(
-		entry: string,
-		props: Record<string, unknown>,
-		ttl?: number
-	): string;
-}
-declare module 'virtual:ogygia/secret' {
-	export const buildKey: string;
-	export const buildHadSecret: boolean;
-}
-declare module 'virtual:ogygia/sign' {
-	export function sign(secret: string, message: string): string;
-	export function verify(secret: string, message: string, sig: string): boolean;
-	export function region_mac_message(
-		id: string,
-		exp: number | string,
-		props: string,
-		session?: string,
-		ttl?: number | string,
-		render?: string
-	): string;
-}
-declare module 'virtual:ogygia/request-event' {
-	export function getRequestEvent(): {
-		cookies: { get: (name: string) => string | undefined };
-		[key: string]: unknown;
-	};
-}
-declare module 'virtual:ogygia/rate-limit' {
-	export const rateLimit: { max: number; windowMs: number };
-}
-declare module 'virtual:ogygia/router-config' {
-	export const enabled: boolean;
-	export const viewTransitions: boolean;
-}
-declare module 'virtual:ogygia/session-cookie' {
-	export const sessionCookie: string;
-}
-declare module 'virtual:ogygia/region-ttl' {
-	export const regionTtl: number;
-	export const renewWindow: number;
-}
-declare module 'virtual:ogygia/transport' {
-	export const transport: Record<
-		string,
-		{ encode: (v: unknown) => unknown; decode: (v: unknown) => unknown }
-	>;
-}
-declare module 'virtual:ogygia/kit-wire' {
-	export function stringify_remote_arg(value: unknown, transport: unknown): string;
-	export function stringify_command_arg(value: unknown, transport: unknown): Promise<string>;
-	export function create_remote_key(id: string, payload: string): string;
-}
+// Ambient types for ogygia's build-time virtual modules and its `import.meta.og` surface. The library
+// ships source (Region, OgygiaRouter, …) that imports the virtual modules; the ogygia vite plugin
+// serves them at build time, but a consumer's `svelte-check`/`tsc` needs their declarations. Those
+// are generated from the virtual-module table, one file per realm (./virtual/). Apps reach this
+// file through `ogygia/types` (the `ogygia` package's ambient.d.ts references it).
+
+// oxlint-disable typescript/triple-slash-reference -- ambient module declarations are global: an import would make this file a module
+/// <reference path="./virtual/server.d.ts" />
+/// <reference path="./virtual/boot.d.ts" />
+/// <reference path="./virtual/region.d.ts" />
+/// <reference path="./virtual/dev.d.ts" />
+/// <reference path="./virtual/constants.d.ts" />
+// oxlint-enable typescript/triple-slash-reference
 
 // ── the `import.meta.og` compile surface ─────────────────────────────────────────────
 // ogygia's build-time constructs, under ONE short key — platform-feeling like `import.meta.glob`,

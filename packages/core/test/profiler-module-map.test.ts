@@ -181,11 +181,11 @@ describe('module_category', () => {
 		});
 		expect(module_category('src/lib/inferno/format.ts')).toBeUndefined();
 		// ogygia's generated island wrappers and virtual entries are its code, not the app's
-		expect(module_category('virtual:ogygia/wrapper/4b95bfb97fab.svelte')).toEqual({
+		expect(module_category('ogygia:region/wrapper/4b95bfb97fab.svelte')).toEqual({
 			category: 'dependency',
 			pkg: 'ogygia'
 		});
-		expect(module_category('\\0virtual:ogygia/server-manifest')).toEqual({
+		expect(module_category('\\0ogygia:server/server-manifest')).toEqual({
 			category: 'dependency',
 			pkg: 'ogygia'
 		});
