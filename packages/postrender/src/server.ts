@@ -433,7 +433,9 @@ const server: ServerPlugin<PostrenderServerOptions, State> = defineServer<
 	async page(ctx) {
 		const { event, path, facts, state } = ctx;
 		const runtime = (state.runtime = runtime_of(ctx));
+		// (a page request only: a remote call carries its page's URL, test/remote-call.test.ts)
 		const storing =
+			!ctx.forPage &&
 			!facts.private &&
 			!building &&
 			event.request.method.toUpperCase() === 'GET' &&
