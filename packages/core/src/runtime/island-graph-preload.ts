@@ -20,6 +20,7 @@ import {
 	decode_island_locations
 } from '../island-graph.ts';
 import { note_entry_location } from './entry-locations.ts';
+import { cache } from '@ogygia/machine';
 import { runtime_session } from './session.ts';
 
 const GRAPH_SELECTOR = `script[${ISLAND_GRAPH_ATTR}]`;
@@ -28,11 +29,8 @@ const MODULEPRELOAD_SELECTOR = 'link[rel="modulepreload"]';
 export const GRAPH_PRELOAD_ATTR = 'data-ogygia-graph-preload';
 
 /** entry URL (absolute) → its chunk URLs (absolute). */
-const graph = new Map<string, string[]>();
+const graph = cache<string, string[]>({ name: 'island graph', max: 5000 });
 let read_scripts = new WeakSet<Element>();
-/** Chunk URLs (absolute) already linked: ours with the link we put in, or a modulepreload the HTML
- *  carried (`null`: the page's own, left as it wrote it). */
-let linked: Map<string, HTMLLinkElement | null> | null = null;
 
 type Priority = 'high' | 'auto' | 'low';
 const RANK: Readonly<Record<Priority, number>> = { high: 0, auto: 1, low: 2 };
@@ -75,12 +73,15 @@ function read_document_graphs(): void {
 	}
 }
 
-function linked_map(): Map<string, HTMLLinkElement | null> {
-	if (linked) return linked;
-	linked = new Map();
-	for (const l of document.querySelectorAll(MODULEPRELOAD_SELECTOR)) {
+/** Chunk URLs (absolute) linked in the document now: ours with our link, or a modulepreload someone
+ *  else put in (`null`: the HTML's, or a loader's like Vite's preload helper, left as written). Read
+ *  at each preload, never cached: another loader links chunks later, and a navigation drops links
+ *  (test/browser/island-graph-preload.test.ts, #984). */
+function linked_now(): Map<string, HTMLLinkElement | null> {
+	const linked = new Map<string, HTMLLinkElement | null>();
+	for (const l of document.querySelectorAll<HTMLLinkElement>(MODULEPRELOAD_SELECTOR)) {
 		const url = absolute(l.getAttribute('href') ?? '', location.href);
-		if (url) linked.set(url, null);
+		if (url && !linked.get(url)) linked.set(url, l.hasAttribute(GRAPH_PRELOAD_ATTR) ? l : null);
 	}
 	return linked;
 }
@@ -105,10 +106,10 @@ export function preload_island_graph(
 	if (!graph.has(key)) read_document_graphs();
 	const hrefs = graph.get(key);
 	if (!hrefs || hrefs.length === 0) return;
-	const seen = linked_map();
+	const seen = linked_now();
 	for (const href of hrefs) {
-		if (seen.has(href)) {
-			const ours = seen.get(href);
+		const ours = seen.get(href);
+		if (ours !== undefined) {
 			if (ours && RANK[priority] < RANK[priority_of(ours)])
 				ours.setAttribute('fetchpriority', priority);
 			continue;
@@ -125,9 +126,8 @@ export function preload_island_graph(
 	}
 }
 
-/** Test seam: forget every graph read and every chunk linked. */
+/** Test seam: forget every graph read (what is linked is the document's). */
 export function reset_island_graph(): void {
 	graph.clear();
 	read_scripts = new WeakSet();
-	linked = null;
 }

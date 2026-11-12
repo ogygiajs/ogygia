@@ -150,7 +150,7 @@ describe('peer transport — one per remote app', () => {
 	it('widgetDoc throws a plain Error; doc() throws http errors; a network failure is a 504', async () => {
 		vi.stubGlobal('fetch', async () => new Response('nope', { status: 500 }));
 		const dash = new PeerHandle('dash', { origin: 'http://dash.test' }, 'shell');
-		await expect(dash.widgetDoc('kpis')).rejects.toThrow("fragment 'kpis' answered 500");
+		await expect(dash.widgetDoc('kpis')).rejects.toThrow('fragment app answered a 500');
 		await expect(dash.doc('/p', '')).rejects.toMatchObject({ status: 502 });
 		vi.stubGlobal('fetch', async () => {
 			throw new TypeError('fetch failed');
@@ -184,12 +184,111 @@ describe('Ed25519 signing / verification', () => {
 		const h = sign_headers(priv, 'GET', u, undefined, { sub: 'u1' }, audience);
 		return new Request(u, { headers: h });
 	};
+	/** cms.test checking the calls it receives */
+	const at_cms = { publicKeys: [pub], audience: 'cms.test' };
+
+	describe('the call capability (x-og-cap)', () => {
+		const LEGACY = ['x-og-ts', 'x-og-n', 'x-og-sig'];
+		/** a call as a peer of this release sends it, with only the capability (legacy headers off) */
+		const cap_only = (
+			o: {
+				method?: string;
+				path?: string;
+				body?: string;
+				claims?: Record<string, unknown>;
+				audience?: string;
+			} = {}
+		) => {
+			const u = new URL(`http://cms.test${o.path ?? '/og/fragment/page?path=/p'}`);
+			const body = o.body == null ? undefined : new TextEncoder().encode(o.body);
+			const h = sign_headers(
+				priv,
+				o.method ?? 'POST',
+				u,
+				body,
+				o.claims ?? { sub: 'u1' },
+				o.audience
+			);
+			for (const k of LEGACY) delete h[k];
+			return { headers: h, url: u, body };
+		};
+		const at = (
+			c: { headers: Record<string, string>; url: URL; body?: Uint8Array },
+			change: { method?: string; path?: string; body?: string } = {}
+		) => {
+			const url = new URL(change.path ?? c.url.pathname + c.url.search, 'http://cms.test');
+			const body = change.body == null ? c.body : new TextEncoder().encode(change.body);
+			const req = new Request(url, { method: change.method ?? 'POST', headers: c.headers });
+			return verify_signed_request(at_cms, req, url, body);
+		};
+
+		it('a signed call carries one token that names it', () => {
+			const { headers } = cap_only();
+			expect(headers['x-og-cap']).toMatch(/^v1\.\d{13}\.[\w-]{22}\.[\w-]{86}$/);
+		});
+
+		it('the token alone checks, once', () => {
+			const c = cap_only({ body: 'a=1' });
+			expect(at(c)?.user?.sub).toBe('u1');
+			expect(at(c)).toBeNull();
+		});
+
+		it('a call with its method, path, body, claims or audience changed is refused', () => {
+			expect(at(cap_only({ body: 'a=1' }), { method: 'PUT' })).toBeNull();
+			expect(at(cap_only(), { path: '/og/fragment/page?path=/q' })).toBeNull();
+			expect(at(cap_only({ body: 'a=1' }), { body: 'a=2' })).toBeNull();
+			const c = cap_only();
+			c.headers['x-og-user'] = Buffer.from(JSON.stringify({ sub: 'admin' })).toString('base64');
+			expect(at(c)).toBeNull();
+			expect(at(cap_only({ audience: 'dash.test' }))).toBeNull();
+		});
+
+		it('a token from another key is refused, and a bad token is not saved by good legacy headers', () => {
+			const { privateKey: other } = generateKeyPairSync('ed25519');
+			const u = new URL('http://cms.test/og/fragment/page?path=/p');
+			const theirs = sign_headers(
+				other.export({ type: 'pkcs8', format: 'der' }).toString('base64'),
+				'GET',
+				u
+			);
+			const mine = sign_headers(priv, 'GET', u);
+			const req = new Request(u, { headers: { ...mine, 'x-og-cap': theirs['x-og-cap']! } });
+			expect(verify_signed_request(at_cms, req, u)).toBeNull();
+		});
+
+		it('a call signed the old way only still checks (peers upgrade one at a time)', () => {
+			const u = new URL('http://cms.test/og/fragment/page?path=/p');
+			const h = sign_headers(priv, 'GET', u, undefined, { sub: 'u1' });
+			delete h['x-og-cap'];
+			expect(verify_signed_request(at_cms, new Request(u, { headers: h }), u)?.user?.sub).toBe(
+				'u1'
+			);
+		});
+
+		it('a call is accepted once, whichever of its two signatures arrives first (#822)', () => {
+			const u = new URL('http://cms.test/og/remote/save');
+			const body = new TextEncoder().encode('a=1');
+			const send = (h: Record<string, string>) =>
+				verify_signed_request(at_cms, new Request(u, { method: 'POST', headers: h }), u, body);
+			const stripped = (h: Record<string, string>) => {
+				const copy = { ...h };
+				delete copy['x-og-cap'];
+				return copy;
+			};
+			// the capability first, then the same call with its capability removed
+			const a = sign_headers(priv, 'POST', u, body, { sub: 'u1' });
+			expect(send(a)?.user?.sub).toBe('u1');
+			expect(send(stripped(a))).toBeNull();
+			// the copy without its capability first, then the call as it was sent
+			const b = sign_headers(priv, 'POST', u, body, { sub: 'u1' });
+			expect(send(stripped(b))?.user?.sub).toBe('u1');
+			expect(send(b)).toBeNull();
+		});
+	});
 
 	it('accepts a fresh, correctly-signed request once and returns its claims', () => {
 		const req = signed();
-		expect(verify_signed_request({ publicKeys: [pub] }, req, new URL(req.url))?.user?.sub).toBe(
-			'u1'
-		);
+		expect(verify_signed_request(at_cms, req, new URL(req.url))?.user?.sub).toBe('u1');
 	});
 
 	it('AUDIENCE BINDING: a hop signed for cms.test is rejected at dash.test (same key)', () => {
@@ -197,29 +296,102 @@ describe('Ed25519 signing / verification', () => {
 		const at_dash = new Request('http://dash.test/og/fragment/page?path=/p', {
 			headers: Object.fromEntries(req.headers)
 		});
-		expect(verify_signed_request({ publicKeys: [pub] }, at_dash, new URL(at_dash.url))).toBeNull();
+		const dash = { publicKeys: [pub], audience: 'dash.test' };
+		expect(verify_signed_request(dash, at_dash, new URL(at_dash.url))).toBeNull();
 	});
 
 	it('REPLAY: a byte-identical second delivery is rejected', () => {
 		const req = signed();
 		const url = new URL(req.url);
-		expect(verify_signed_request({ publicKeys: [pub] }, req, url)?.user?.sub).toBe('u1');
+		expect(verify_signed_request(at_cms, req, url)?.user?.sub).toBe('u1');
 		const replayed = new Request(req.url, { headers: Object.fromEntries(req.headers) });
-		expect(verify_signed_request({ publicKeys: [pub] }, replayed, url)).toBeNull();
+		expect(verify_signed_request(at_cms, replayed, url)).toBeNull();
+	});
+
+	it('without an `audience`, the Host a request names is never its audience', () => {
+		const req = signed('cms.test');
+		// a server that builds its URL from the Host header: the hop arrives as if cms.test were here
+		expect(verify_signed_request({ publicKeys: [pub] }, req, new URL(req.url))).toBeNull();
+	});
+
+	it('without an `audience`, the ORIGIN the app is configured with is its audience', () => {
+		vi.stubEnv('ORIGIN', 'http://cms.test');
+		const req = signed('cms.test');
+		expect(verify_signed_request({ publicKeys: [pub] }, req, new URL(req.url))?.user?.sub).toBe(
+			'u1'
+		);
+		vi.stubEnv('ORIGIN', 'http://dash.test');
+		const other = signed('cms.test');
+		expect(verify_signed_request({ publicKeys: [pub] }, other, new URL(other.url))).toBeNull();
+		vi.unstubAllEnvs();
+	});
+
+	it('federate() warns when peers may call in and the app has no audience to check them against', () => {
+		const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+		federate({ name: 'cms', peers: { shell: { origin: 'http://shell.test', key: pub } } });
+		expect(warn.mock.calls.flat().join(' ')).toContain('federation_audience_missing');
+		warn.mockClear();
+		federate({
+			name: 'cms',
+			audience: 'cms.test',
+			peers: { shell: { origin: 'http://shell.test', key: pub } }
+		});
+		expect(warn.mock.calls.flat().join(' ')).not.toContain('federation_audience_missing');
+	});
+
+	/** a call from a peer that signs only the legacy headers (x-og-ts, x-og-n, x-og-sig) */
+	const legacy = () => {
+		const req = signed();
+		const h = Object.fromEntries(req.headers);
+		delete h['x-og-cap'];
+		return new Request(req.url, { headers: h });
+	};
+
+	it('a signature counts once however its base64 is spelled', () => {
+		const req = legacy();
+		const url = new URL(req.url);
+		const sig = req.headers.get('x-og-sig') ?? '';
+		expect(verify_signed_request(at_cms, req, url)?.user?.sub).toBe('u1');
+		const spellings = [
+			sig.replace(/=+$/, ''),
+			`${sig}!`,
+			`${sig.slice(0, 40)}.${sig.slice(40)}`,
+			`${sig.replace(/=+$/, '')}===`,
+			` ${sig}`
+		];
+		for (const spelling of spellings) {
+			const again = new Request(req.url, {
+				headers: { ...Object.fromEntries(req.headers), 'x-og-sig': spelling }
+			});
+			expect(verify_signed_request(at_cms, again, url)).toBeNull();
+		}
+	});
+
+	it('a signature that is not canonical base64 is refused, even the first time', () => {
+		const req = legacy();
+		const sig = req.headers.get('x-og-sig') ?? '';
+		const loose = new Request(req.url, {
+			headers: { ...Object.fromEntries(req.headers), 'x-og-sig': sig.replace(/=+$/, '') }
+		});
+		expect(verify_signed_request(at_cms, loose, new URL(loose.url))).toBeNull();
 	});
 
 	it('NaN timestamp does not bypass the freshness gate', () => {
-		const req = signed();
+		const req = legacy();
 		const forged = new Request(req.url, {
 			headers: { ...Object.fromEntries(req.headers), 'x-og-ts': 'not-a-number' }
 		});
-		expect(verify_signed_request({ publicKeys: [pub] }, forged, new URL(forged.url))).toBeNull();
+		expect(verify_signed_request(at_cms, forged, new URL(forged.url))).toBeNull();
 	});
 
 	it('a second authorized key still verifies (rotation / multi-caller)', () => {
 		const req = signed();
 		expect(
-			verify_signed_request({ publicKeys: [pub2, pub] }, req, new URL(req.url))?.user?.sub
+			verify_signed_request(
+				{ publicKeys: [pub2, pub], audience: 'cms.test' },
+				req,
+				new URL(req.url)
+			)?.user?.sub
 		).toBe('u1');
 	});
 
@@ -435,13 +607,13 @@ describe('remote regions', () => {
 describe('deferred remote holes — the lifetime and renewal of a local hole', () => {
 	const now_sec = () => Math.floor(Date.now() / 1000);
 	/** Mint a deferred remote hole the way a render does (the handle's signer installed). */
-	async function mint(storable = false): Promise<URL> {
+	async function mint(storable = false, path = '/p'): Promise<URL> {
 		install_federation(fed_app()!);
 		const request = new Request('http://shell/x');
 		set_current_request(() => request);
 		if (storable) facts_of(request).storable = true;
 		const { cms } = federate({ name: 'shell', peers: { cms: { origin: 'http://cms.test' } } });
-		const hole = await cms.page('/p', { render: 'deferred' });
+		const hole = await cms.page(path, { render: 'deferred' });
 		set_current_request(null);
 		return new URL((hole as { url: string }).url, 'http://shell');
 	}
@@ -468,8 +640,8 @@ describe('deferred remote holes — the lifetime and renewal of a local hole', (
 		expect(plain).toBeLessThanOrEqual(now_sec() + 3600); // the app's `ttl` (an hour by default)
 		const stored = Number((await mint(true)).searchParams.get('exp'));
 		expect(stored).toBeGreaterThan(now_sec() + 365 * 24 * 3600); // what a local hole gets
-		// the url keeps exp + sig as its tail, which a region's identity cuts off
-		expect([...(await mint()).searchParams.keys()].slice(-2)).toEqual(['exp', 'sig']);
+		// the url keeps exp + sig + k as its tail, which a region's identity cuts off
+		expect([...(await mint()).searchParams.keys()].slice(-3)).toEqual(['exp', 'sig', 'k']);
 	});
 
 	it('answers a live hole with the fragment', async () => {
@@ -519,6 +691,20 @@ describe('deferred remote holes — the lifetime and renewal of a local hole', (
 		expect((await ask_hole(forged))!.headers.get('x-ogygia-deny')).toBe('sig');
 		const early = await ask_hole(renewal(url));
 		expect(early!.headers.get('x-ogygia-deny')).toBe('renew-window');
+	});
+
+	it('a hole signature covers each field on its own, whatever characters the fields hold', async () => {
+		const url = await mint(false, '/docs/v1.2');
+		expect((await ask_hole(url))!.status).toBe(200);
+		const moves: Record<string, string>[] = [
+			{ target: '/docs/v1', search: '2.' },
+			{ kind: 'page./docs/v1', target: '2' }
+		];
+		for (const move of moves) {
+			const other = new URL(url);
+			for (const [k, v] of Object.entries(move)) other.searchParams.set(k, v);
+			expect((await ask_hole(other))!.headers.get('x-ogygia-deny')).toBe('sig');
+		}
 	});
 });
 

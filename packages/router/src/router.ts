@@ -221,7 +221,10 @@ export function routes<const T extends KeyedTable<T>>(
 
 		const canon = canonical_slash(path, slash);
 		if (canon)
-			return new Response(null, { status: 308, headers: { location: base + canon + url.search } });
+			return new Response(null, {
+				status: 308,
+				headers: { location: on_site(base + canon) + url.search }
+			});
 
 		const hit = match_path(compiled, path);
 		// Unmatched — and `when()`-gated-off routes, which contractually DO NOT EXIST for the
@@ -630,6 +633,12 @@ async function validate(
 }
 
 const TRAILING_SLASH = /\/+$/;
+const LEADING_SLASHES = /^[/\\]+/;
+/** A redirect target that stays on this site: exactly one leading `/` and no `\` (test:
+ *  router-dispatch.test.ts › the trailing-slash redirect stays on the site). */
+function on_site(path: string): string {
+	return '/' + path.replace(LEADING_SLASHES, '').replaceAll('\\', '%5C');
+}
 function canonical_slash(path: string, mode: 'ignore' | 'never' | 'always'): string | null {
 	if (mode === 'ignore' || path === '/') return null;
 	const has = path.endsWith('/');

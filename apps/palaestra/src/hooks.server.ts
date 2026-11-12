@@ -3,7 +3,6 @@ import { redirect, type Handle } from '@sveltejs/kit';
 import { handle as ogygiaHandle, document } from 'ogygia/server';
 import { region } from 'ogygia';
 import DocTest from '$lib/doctest/DocTest.svelte';
-import { scoped_render } from '$lib/restorelab/scoped-render';
 
 // A trivial second handle to prove `ogygia.handle()` composes with `sequence()`.
 const passthrough: Handle = async ({ event, resolve }) => resolve(event);
@@ -76,11 +75,7 @@ export const handle = sequence(
 	proxy_front,
 	doc_test,
 	auth_wall,
-	// (the restore lab, e2e/restore.spec.ts: a scoped web-component render as the app's transform)
-	ogygiaHandle({
-		...(process.env.OGYGIA_RESTORE_LAB ? { transform: (html: string) => scoped_render(html) } : {}),
-		...(moved_endpoint ? { endpoint: moved_endpoint } : {})
-	}),
+	ogygiaHandle(moved_endpoint ? { endpoint: moved_endpoint } : {}),
 	corrupt_detector_region,
 	passthrough
 );
