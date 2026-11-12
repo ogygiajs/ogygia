@@ -24,7 +24,7 @@ It is a test helper, not a plugin: nothing goes in `vite.config.ts` for it. It g
 pnpm add -D @ogygia/testing @playwright/test
 ```
 
-The server under test lists the `devtools()` plugin from [`@ogygia/devtools`](/docs/devtools/overview), with `devtools({ profiler: true })` when you use `profile()`. That is the dev server, or a preview build with devtools listed.
+The app under test lists `testing()` from `@ogygia/testing/vite`, and `devtools({ profiler: true })` from [`@ogygia/devtools`](/docs/devtools/overview) when you use `profile()`. That is the dev server, or a preview build with them listed.
 
 ## A first test
 
@@ -52,12 +52,12 @@ test('checkout stays fast', async ({ page, ogygia }) => {
 
 ## With other packages
 
-**[@ogygia/devtools](/docs/devtools/overview)** is the source of every number here. Turn it on for the server under test in the same mode switch you already use, and give the fixture the profiler's key on a build:
+**[@ogygia/devtools](/docs/devtools/overview)** measures the same things in the dock, and its profiler is what `profile()` reads. List `testing()` for the app under test in the same mode switch you already use, add the profiler when you use `profile()`, and give the fixture the profiler's key on a build:
 
 ```ts title=vite.config.ts
 plugins: [
   ogygia(),
-  ...(process.env.E2E ? [devtools({ profiler: true })] : []),
+  ...(process.env.E2E ? [testing(), devtools({ dock: false, profiler: true })] : []),
   sveltekit()
 ]
 ```

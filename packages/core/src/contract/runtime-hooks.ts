@@ -45,6 +45,7 @@ export type HoleRefusal = 'redirected' | 'document' | 'forbidden';
 
 /** A hole whose answer never came (no retry after). */
 export interface HoleFailedEvent {
+	readonly el: Element;
 	/** the hole's island id (its endpoint's `?id=`) */
 	readonly id: string;
 	readonly reason: HoleRefusal | 'error';
@@ -88,6 +89,44 @@ export interface NavigatedEvent {
 	readonly swapped: number;
 	/** the page's address as fetched */
 	readonly href?: string;
+	/** the regions were reconciled in place (false: the whole body was swapped) */
+	readonly reconciled: boolean;
+}
+
+/** An in-app navigation started (before the page is fetched or swapped). */
+export interface NavStartedEvent {
+	readonly from: string;
+	readonly to: string;
+	readonly type: string;
+}
+
+/** A region's schedule fired (`load`, `idle`, `visible`, `interaction`, `media`): it starts to wake,
+ *  or a hole starts to fetch. */
+export interface RegionWokeEvent {
+	readonly el: Element;
+	readonly when: string;
+}
+
+/** How a region's server markup and its live DOM disagreed as it hydrated: Svelte threw the server
+ *  DOM away and rendered again (`recovered`), the runtime put the server markup back (`healed`), or a
+ *  web component's own children were removed so hydration could read the markup (`conflict`). */
+export type RegionMismatch = 'recovered' | 'healed' | 'conflict';
+
+/** A region's markup was changed between the server and its hydration. */
+export interface RegionMismatchedEvent {
+	readonly el: Element;
+	readonly kind: RegionMismatch;
+	/** the first difference, when the runtime could name it (`conflict`: the element) */
+	readonly reason?: string;
+}
+
+/** A download ogygia started on its own left the load scheduler's queue: its class, what it
+ *  fetches, and how long it waited for its slot. */
+export interface LoadStartedEvent {
+	readonly class: 'user' | 'visible' | 'ahead' | 'speculative';
+	readonly kind: 'code' | 'content';
+	readonly label?: string;
+	readonly waitedMs: number;
 }
 
 /** A Svelte hydration warning (dev): the server and the browser disagreed. */
@@ -138,12 +177,16 @@ export interface RuntimeHooks {
 	answerPlaced(e: AnswerPlacedEvent): void;
 	regionHydrated(e: RegionHydratedEvent): void;
 	regionFailed(e: RegionFailedEvent): void;
+	regionWoke(e: RegionWokeEvent): void;
+	regionMismatched(e: RegionMismatchedEvent): void;
 	holeAnswered(e: HoleAnsweredEvent): void;
 	holeFailed(e: HoleFailedEvent): void;
 	holeBatchMissed(e: HoleBatchMissedEvent): void;
 	entryFallback(e: EntryFallbackEvent): void;
+	navStarted(e: NavStartedEvent): void;
 	navigated(e: NavigatedEvent): void;
 	criticalSettled(e: CriticalSettledEvent): void;
+	loadStarted(e: LoadStartedEvent): void;
 	warning(e: WarningEvent): void;
 }
 
@@ -158,11 +201,15 @@ export const RUNTIME_HOOK_CONSTANTS: { readonly [K in RuntimeHookName]: string }
 	answerPlaced: '__OGYGIA_HOOK_ANSWER_PLACED__',
 	regionHydrated: '__OGYGIA_HOOK_REGION_HYDRATED__',
 	regionFailed: '__OGYGIA_HOOK_REGION_FAILED__',
+	regionWoke: '__OGYGIA_HOOK_REGION_WOKE__',
+	regionMismatched: '__OGYGIA_HOOK_REGION_MISMATCHED__',
 	holeAnswered: '__OGYGIA_HOOK_HOLE_ANSWERED__',
 	holeFailed: '__OGYGIA_HOOK_HOLE_FAILED__',
 	holeBatchMissed: '__OGYGIA_HOOK_HOLE_BATCH_MISSED__',
 	entryFallback: '__OGYGIA_HOOK_ENTRY_FALLBACK__',
+	navStarted: '__OGYGIA_HOOK_NAV_STARTED__',
 	navigated: '__OGYGIA_HOOK_NAVIGATED__',
 	criticalSettled: '__OGYGIA_HOOK_CRITICAL_SETTLED__',
+	loadStarted: '__OGYGIA_HOOK_LOAD_STARTED__',
 	warning: '__OGYGIA_HOOK_WARNING__'
 };
