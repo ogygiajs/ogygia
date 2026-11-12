@@ -63,6 +63,10 @@ module scripts. Its gaps are handled in the sim, with no patch to happy-dom:
   node left over: a run is one node (`whole_text_runs`, `test/parser.test.ts`).
 - It hands an intercepted answer back as it is: the sim follows a redirect itself, each leg a
   request on the network, and the answer carries its URL (`test/redirect.test.ts`).
+- Its module map and the V8 loader's were two: an import asked the network for a module a
+  `modulepreload` was still downloading (the runtime's script comes before its preloads, so every
+  runtime chunk was asked twice). An import waits for happy-dom's download and takes its source
+  (`downloading` in `src/modules.ts`, `test/modules.test.ts`; found by the differential).
 - It ran an inline module script at once and an external one when its file came: a document's
   module scripts run in its order (`modules_in_order`, `test/modules.test.ts`).
 - It read `interactive` from the start, never fired DOMContentLoaded, and fired `load` before a
