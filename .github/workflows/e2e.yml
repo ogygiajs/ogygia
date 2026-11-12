@@ -194,7 +194,7 @@ jobs:
 
       # every module-level Map / Set / growing array in packages/*/src is a cache(), owned by a
       # scope, or a marked fixed table (internal/checks/module-maps.ts, #414): its own tests, then the
-      # scan (report mode until #413 sorts every one; then it fails)
+      # scan, which fails on any finding (#413)
       - name: Module-level maps and sets
         run: pnpm run check:maps
 
