@@ -17,8 +17,9 @@ vi.mock('ogygia:server/sign', () => ({
 		_k: string,
 		audience: string,
 		exp: number,
-		c: { id: string; payload: string; session: string; ttl: string; render: string }
-	) => 'sig' + [audience, c.id, exp, c.payload, c.session, c.ttl, c.render].join('|').length
+		c: { id: string; payload: string; session: string; ttl: string; render: string; wakes: string }
+	) =>
+		'sig' + [audience, c.id, exp, c.payload, c.session, c.ttl, c.render, c.wakes].join('|').length
 }));
 
 const { configure_islands_endpoint, islands_endpoint, DEFAULT_ISLANDS_ENDPOINT } =
@@ -69,7 +70,9 @@ describe('the islands endpoint', () => {
 					'W3t9XQ',
 					'',
 					'',
-					'c0ffee0c0ffe'
+					'c0ffee0c0ffe',
+					// (wakes: '' for a hole that does not wake)
+					''
 				].join('|').length
 		);
 	});

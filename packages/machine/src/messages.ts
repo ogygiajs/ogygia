@@ -258,6 +258,11 @@ export function machine_error<C extends keyof Errors>(code: C, a: ArgsOf<C>): Ma
 	return new MachineError(code, line(code, a));
 }
 
+/** The error for an option given a value it cannot take (`machine_bad_option`). */
+export function bad_option(option: string, value: unknown, rule: string): MachineError {
+	return machine_error('machine_bad_option', { option, value: String(value), rule });
+}
+
 /** Prints `code` as an error, with the error that caused it after it (a timer or an observer has no
  *  caller to throw to). */
 export function report<C extends keyof Errors>(code: C, a: ArgsOf<C>, cause?: unknown): void {

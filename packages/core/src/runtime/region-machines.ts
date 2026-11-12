@@ -45,7 +45,7 @@ const hole_steps = {
 	idle: ['armed', 'fetching'],
 	armed: ['idle', 'fetching'],
 	fetching: ['idle', 'retrying', 'offline', 'failed'],
-	retrying: ['idle', 'armed', 'fetching', 'failed'],
+	retrying: ['idle', 'armed', 'fetching'],
 	offline: ['idle', 'armed', 'fetching'],
 	failed: ['idle', 'armed', 'fetching']
 } as const;

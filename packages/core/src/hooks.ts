@@ -55,9 +55,9 @@ import {
 	set_kit_event_reader,
 	set_render_page_port,
 	kit_page_ready,
-	kit_page_facts_tail,
-	kit_render_context
+	kit_page_facts_tail
 } from './server/kit-context.ts';
+import { hole_answer_context } from './server/answer-context.ts';
 import { PAGE_FACTS_HEADER, PAGE_FACTS_ROUTE_HEADER } from './server/page-facts.ts';
 import {
 	configure_render_page,
@@ -496,6 +496,7 @@ set_page_route_config(route_config);
 const plugins = start_app_plugins(server_plugins, {
 	sign: (message) => sign(signing_key().secret, message),
 	verify: (message, signature) => verify(signing_key().secret, message, signature),
+	fingerprint: () => signing_key().fp,
 	lifetime: app_lifetime,
 	deny: region_denied
 });
@@ -559,6 +560,15 @@ function region_response(
 	});
 }
 
+/** A visitor over a budget: the 429 says when its window resets, so a hole asks again after it
+ *  instead of spending its tries inside the window (#959, test/browser/hole-rate-limited.test.ts). */
+function over_budget(limiter: RateLimiter, ip: string): Response {
+	return region_response('Too Many Requests', {
+		status: 429,
+		headers: { 'retry-after': String(limiter.retry_after_s(ip)) }
+	});
+}
+
 /** Why a region request was refused. `foreign-key`: the capability names another signing key than
  *  this deployment's — the page and its islands endpoint came from different deployments. */
 type RegionDeny =
@@ -603,6 +613,8 @@ interface Capability {
 	/** the signature's version (`v`): '' when minted before v3 (its `v1|`/`v2|` MAC) */
 	v: string;
 	ttl: string;
+	/** `'1'`: the hole's component hydrates over the answer (`w`, signed); '' when it does not */
+	wakes: string;
 	sig: string;
 	/** the minter's key fingerprint; null when minted before capabilities named their key */
 	k: string | null;
@@ -610,7 +622,14 @@ interface Capability {
 
 /** What a capability signs beside its expiry, with the session it must be sealed to. */
 function claim_of(cap: Capability, session: string): RegionClaim {
-	return { id: cap.id, payload: cap.payload, session, ttl: cap.ttl, render: cap.render };
+	return {
+		id: cap.id,
+		payload: cap.payload,
+		session,
+		ttl: cap.ttl,
+		render: cap.render,
+		wakes: cap.wakes
+	};
 }
 
 function capability_of(params: URLSearchParams): Capability {
@@ -621,6 +640,7 @@ function capability_of(params: URLSearchParams): Capability {
 		exp: params.get('exp') ?? '',
 		v: params.get('v') ?? '',
 		ttl: params.get('ttl') ?? '',
+		wakes: params.get('w') ?? '',
 		sig: params.get('sig') ?? '',
 		k: params.get('k')
 	};
@@ -1611,6 +1631,8 @@ class OgygiaHandle {
 	async #render_component(
 		load: () => Promise<{ default: unknown }>,
 		props: Record<string, unknown>,
+		/** the hole wakes (its capability's signed `w`): rendered inside an island, as it hydrates */
+		wakes: boolean,
 		cache?: { key: RenderKey; ttl: number },
 		/** the profiler's hole economics: what the cache did for this request */
 		report?: (outcome: 'hit' | 'miss' | 'none') => void,
@@ -1634,7 +1656,7 @@ class OgygiaHandle {
 			const mod = await load();
 			const rendered = render(mod.default as Component<Record<string, unknown>>, {
 				props,
-				context: kit_render_context()
+				context: hole_answer_context(wakes)
 			});
 			// (with what its islands wrote into the head — their graph and their CSS: the endpoint
 			// ships the body only — server/hole-graph.ts)
@@ -1701,6 +1723,7 @@ class OgygiaHandle {
 	#hole_cache(
 		id: string,
 		payload: string,
+		wakes: boolean,
 		event: RequestEvent,
 		ttl: number,
 		reads_page_data: boolean
@@ -1710,7 +1733,8 @@ class OgygiaHandle {
 			id,
 			payload,
 			this.#region_session(event),
-			reads_page_data ? page_url_of(event).href : null
+			reads_page_data ? page_url_of(event).href : null,
+			wakes
 		);
 		observe_reads(event, facts_of(event.request).reads);
 		return { key, ttl };
@@ -1742,7 +1766,8 @@ class OgygiaHandle {
 			(cap.render !== '' && !is_region_id(cap.render)) ||
 			cap.payload.length > MAX_REGION_PROPS_LEN ||
 			!is_region_ttl(cap.ttl) ||
-			(cap.v !== '' && cap.v !== REGION_CAPABILITY_VERSION)
+			(cap.v !== '' && cap.v !== REGION_CAPABILITY_VERSION) ||
+			(cap.wakes !== '' && cap.wakes !== '1')
 		)
 			return 'shape';
 		const expiry = expiry_refusal(
@@ -1870,7 +1895,8 @@ class OgygiaHandle {
 
 		const ttl = Number(cap.ttl) || 0;
 		const reads_page_data = hole_reads_page_data(target);
-		const cache = this.#hole_cache(target, payload, event, ttl, reads_page_data);
+		const wakes = cap.wakes === '1';
+		const cache = this.#hole_cache(target, payload, wakes, event, ttl, reads_page_data);
 		// (the profiler logs each batched hole as its own hole request — only when one listens)
 		const stats = batch && has_batch_hole_listener();
 		const t0 = stats ? performance.now() : 0;
@@ -1880,6 +1906,7 @@ class OgygiaHandle {
 		const body = await this.#render_component(
 			load,
 			props,
+			wakes,
 			cache,
 			stats ? (o) => (outcome = o) : undefined,
 			stats ? timing : undefined,
@@ -1975,9 +2002,8 @@ class OgygiaHandle {
 		r.go('prechecked');
 
 		// Pre-HMAC probe — forged floods hit this, not render() (HMAC-CPU-DOS).
-		if (!r.go('probed') || this.probe_rate.limited(ip)) {
-			return region_response('Too Many Requests', { status: 429 });
-		}
+		if (!r.go('probed')) return region_response('Too Many Requests', { status: 429 });
+		if (this.probe_rate.limited(ip)) return over_budget(this.probe_rate, ip);
 
 		if (renewal) {
 			const fresh = this.#renew_capability(cap, event);
@@ -2004,9 +2030,8 @@ class OgygiaHandle {
 		const renew_headers: Record<string, string> = renewed ? { 'x-ogygia-capability': renewed } : {};
 
 		// Valid capability — now charge the per-IP render budget.
-		if (!r.go('charged') || this.render_rate.limited(ip)) {
-			return region_response('Too Many Requests', { status: 429 });
-		}
+		if (!r.go('charged')) return region_response('Too Many Requests', { status: 429 });
+		if (this.render_rate.limited(ip)) return over_budget(this.render_rate, ip);
 
 		// Its own id, or (minted by another build) an entry of this build rendering its component.
 		const target = capability_target(cap);
@@ -2029,13 +2054,15 @@ class OgygiaHandle {
 
 		const ttl = Number(ttl_raw) || 0;
 		const reads_page_data = hole_reads_page_data(target);
-		const cache = this.#hole_cache(target, payload, event, ttl, reads_page_data);
+		const wakes = cap.wakes === '1';
+		const cache = this.#hole_cache(target, payload, wakes, event, ttl, reads_page_data);
 		const timing: { queue_ms?: number; render_ms?: number } = {};
 		let outcome: 'hit' | 'miss' | 'none' = 'none';
 		if (!r.go('rendering')) return region_response('Region render failed', { status: 500 });
 		const body = await this.#render_component(
 			load,
 			props,
+			wakes,
 			cache,
 			(o) => (outcome = o),
 			timing,
