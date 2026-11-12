@@ -21,6 +21,7 @@ import { capability_lifetime, type CapabilityLifetime } from './capability-lifet
 import { encode_region_props } from './region-props.ts';
 import { stringify } from 'devalue';
 import { record_server_event } from '../events/server-registry.ts';
+import { KNOWN_COPIES_CAP, KNOWN_HEADER_CAP } from '../contract/known-copies.ts';
 
 // DEVTOOLS gate — server realm; off → folds out.
 const DEVTOOLS = typeof __OGYGIA_DEVTOOLS__ !== 'undefined' ? __OGYGIA_DEVTOOLS__ : false;
@@ -109,7 +110,10 @@ export function reuse_known_region(fp: string): boolean {
 		try {
 			const spa = event.request.headers.get('x-ogygia-spa');
 			const known = spa ? event.request.headers.get('x-ogygia-known') : null;
-			if (known) for (const k of known.split(',')) copies.set(k, (copies.get(k) ?? 0) + 1);
+			// over a cap the browser never passes (contract/known-copies.ts): no claim
+			const named = known && known.length <= KNOWN_HEADER_CAP ? known.split(',') : [];
+			if (named.length <= KNOWN_COPIES_CAP)
+				for (const k of named) copies.set(k, (copies.get(k) ?? 0) + 1);
 		} catch {
 			// ok: an unreadable header is no claim: everything renders
 		}
