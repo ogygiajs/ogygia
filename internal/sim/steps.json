@@ -1,11 +1,11 @@
 {
 	"sweep": {
 		"palaestra": {
-			"runs": 100,
+			"runs": 300,
 			"steps": 30
 		},
 		"gens": [191, 192, 193, 194, 195],
-		"runs": 40,
+		"runs": 100,
 		"steps": 30
 	},
 	"reached": [
