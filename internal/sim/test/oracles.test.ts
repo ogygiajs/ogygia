@@ -480,6 +480,16 @@ describe('page errors', () => {
 		expect(page_errors(tab(said), world('https://app.test/_app/x.js'))?.oracle).toBe('page-errors');
 	});
 
+	it("a changed byte in a JSON answer may be said as the parser's bare message (palaestra seed 204)", () => {
+		// (a live query's stream: the remote function's client logs the error's message alone, with
+		// no `SyntaxError` before it)
+		const json = [
+			"error: Expected ':' after property name in JSON at position 11 (line 1 column 12)"
+		];
+		expect(page_errors(tab(json), world('https://app.test/_app/x.js'))).toBeNull();
+		expect(page_errors(tab(json), world('none'))?.oracle).toBe('page-errors');
+	});
+
 	// (a server's hop for the document: a peer's page it was made from; gen 32, seed 32008)
 	const hop = (change: 'tampered' | 'cut') =>
 		({
