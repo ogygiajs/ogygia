@@ -111,6 +111,18 @@ describe('normalize', () => {
 		);
 	});
 
+	it("drops a third party's head element, which a client navigation keeps (gen 262, seed 6)", async () => {
+		const { Window } = await import('happy-dom');
+		const page = (extra: string) => {
+			const w = new Window();
+			w.document.write(
+				`<html><head><title>t</title>${extra}<meta name="a" content="b"></head><body><p>hi</p></body></html>`
+			);
+			return normalize(w.document as unknown as Document);
+		};
+		expect(page('<meta data-gen-third-party="">')).toBe(page(''));
+	});
+
 	it("drops a region's repair mark: a third party edited it before it woke on one load only (gen 192, seed 19)", async () => {
 		// (a third party's script waiting for DOMContentLoaded edits a document load's islands, never a
 		// router visit's: the region shows the same once repaired, and only the mark says it was)

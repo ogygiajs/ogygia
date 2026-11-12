@@ -250,6 +250,9 @@ function press(world: World, tab: Tab, nth: number): boolean {
 	return true;
 }
 
+/** How long a visitor looks at a tab brought to the front before acting in it (ms). */
+const LOOK_MS = 300;
+
 /** Does `a` in `world`, as `visitor`; runs the world to rest after it. */
 export async function act(
 	world: World,
@@ -261,8 +264,15 @@ export async function act(
 ): Promise<void> {
 	const tab = 'tab' in a ? visitor.tabs[a.tab % Math.max(1, visitor.tabs.length)] : undefined;
 	// (the visitor looks at the tab they act in: the others go behind it; the network is not a look)
-	if (tab !== undefined && a.kind !== 'offline' && a.kind !== 'online')
-		world.browsers.focus(visitor, tab);
+	// (one shown again is looked at before the visitor acts in it: its frames come while it is still
+	// the document shown, so a reload's requests are the next document's alone; gen 193, seed 8)
+	if (
+		tab !== undefined &&
+		a.kind !== 'offline' &&
+		a.kind !== 'online' &&
+		world.browsers.focus(visitor, tab)
+	)
+		await world.loop.run(LOOK_MS);
 	switch (a.kind) {
 		case 'click':
 			if (tab !== undefined && click(world, tab, a.nth, origin)) await world.quiesce();

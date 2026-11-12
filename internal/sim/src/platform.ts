@@ -159,6 +159,7 @@ export function platform(
 	};
 	/** Frames asked for while the tab was hidden, by id, in the order asked. */
 	const parked = new Map<number, FrameRequestCallback>();
+	let first_frame = true;
 
 	return {
 		realm: name,
@@ -183,8 +184,12 @@ export function platform(
 		clearInterval: clear,
 		queueMicrotask: (fn) => globalThis.queueMicrotask(fn),
 		requestAnimationFrame: (fn) => {
-			// (a hidden tab paints nothing: the frame waits for the tab to be shown)
-			if (options.hidden?.()) {
+			// (a hidden tab paints nothing: the frame waits for the tab to be shown. A document's first
+			// frame is the DOM library's own: happy-dom writes the document's content in it, after the
+			// platform is installed, and a hidden tab's page still loads; test/hidden-tab.node.test.ts)
+			const library = first_frame;
+			first_frame = false;
+			if (!library && options.hidden?.()) {
 				const id = ++ids;
 				parked.set(id, fn);
 				return id;

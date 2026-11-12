@@ -76,6 +76,10 @@ export function normalize(root: {
 		if (tag === 'link' && /\b(modulepreload|preload|prefetch)\b/.test(el.getAttribute('rel') ?? ''))
 			return;
 		if (el.hasAttribute('data-ogygia-announcer')) return;
+		// (a third party's own head element, which a client navigation keeps, as it keeps what any
+		// script put in the head, and a fresh load of a page without that script never has: gen 262,
+		// seed 6, the `gen head` drift)
+		if (tag === 'meta' && el.hasAttribute('data-gen-third-party')) return;
 		if (el.matches(STORE_MARK)) return;
 		const attrs = [...el.attributes]
 			.filter(

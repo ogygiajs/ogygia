@@ -639,9 +639,10 @@ export class Browsers {
 	/**
 	 * The visitor looks at `tab`: it is shown, and each other tab of theirs goes behind it (one window,
 	 * tabs in a row). A tab whose visibility changed hears `visibilitychange`; one shown again gets the
-	 * animation frames it asked for while hidden.
+	 * animation frames it asked for while hidden. Whether `tab` was hidden.
 	 */
-	focus(v: Visitor, tab: Tab): void {
+	focus(v: Visitor, tab: Tab): boolean {
+		const was_hidden = tab.hidden;
 		for (const t of v.tabs) {
 			const hidden = t !== tab;
 			if (t.hidden === hidden) continue;
@@ -652,6 +653,7 @@ export class Browsers {
 			if (view) doc.dispatchEvent(new view.Event('visibilitychange'));
 			if (!hidden) t.platform?.shown();
 		}
+		return was_hidden;
 	}
 
 	open(v: Visitor): Tab {

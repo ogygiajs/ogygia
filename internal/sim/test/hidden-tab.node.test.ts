@@ -23,6 +23,9 @@ describe.skipIf(!built)('a tab behind another', () => {
 			await act(world, v, { kind: 'background', path: '/' }, 'https://app.test');
 			const back = v.tabs[1];
 			const window = back.page.mainFrame.window as unknown as Window;
+			// (its page loaded all the same: the DOM library writes it in the document's first frame)
+			expect(window.document.head.children.length).toBeGreaterThan(0);
+			expect(window.document.querySelector('ogygia-region')).not.toBeNull();
 			expect(window.document.visibilityState).toBe('hidden');
 			expect(window.document.hidden).toBe(true);
 			const heard: string[] = [];
