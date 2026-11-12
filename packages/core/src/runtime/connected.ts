@@ -5,9 +5,11 @@
  * where a body morph cannot reach it, and the navigation takes the full-swap path. A count, not
  * the `'*'` walk over every element the old shadow-root probe made on each navigation. Its own
  * module: the element (core) writes it, the lazily loaded navigation reads it, and neither needs
- * the other's imports for that.
+ * the other's imports for that. Each region is held by its lifetime in the page (its `#life`): it
+ * leaves when that ends.
  */
-export const connected_regions: Set<Element> = new Set<Element>();
+import { registry, type Registry } from '@ogygia/machine';
+export const connected_regions: Registry<Element> = registry<Element>();
 
 /** Is any connected region inside a shadow root (so a body morph would miss it)? */
 export function regions_in_shadow(): boolean {

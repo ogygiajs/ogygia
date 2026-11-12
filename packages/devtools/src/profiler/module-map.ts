@@ -1,5 +1,5 @@
 /**
- * THE MODULE MAP, read (the build writes it: vite/module-map.ts). A frame in a bundled server chunk
+ * THE MODULE MAP, read (the build writes it: build/module-map.ts). A frame in a bundled server chunk
  * (`…/output/server/chunks/frames.js:12`) with no sourcemap names only the chunk; the map says which
  * source module is at that line, so the frame is filed by what it is — this profiler's own code
  * (overhead, not the app's time), ogygia's runtime or a bundled package (a library), else the app.

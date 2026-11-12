@@ -11,6 +11,7 @@ import {
 	sign as ed_sign,
 	verify as ed_verify
 } from 'node:crypto';
+import { cache } from '@ogygia/machine';
 import { attr, decodeText, html, type Html } from '@ogygia/core/plugin/utils';
 import { capability, type Capability } from '@ogygia/machine';
 
@@ -39,27 +40,20 @@ export const DEFAULT_MAX_BODY: number = 1024 * 1024;
 // ── replay defense ───────────────────────────────────────────────────────────────────────────
 // A signature is unique per (key, payload) and the payload carries `ts`, so a byte-identical
 // REPLAY reuses the same signature — reject one already seen inside its freshness window. Only
-// VERIFIED signatures are recorded (an attacker can't grow this without the private key); expired
-// entries sweep on write, so the map stays bounded to (legit rate × window). Process-local by
-// design: audience binding is the cross-instance guarantee, this is the same-instance backstop.
-const seen_sigs = new Map<string, number>();
+// VERIFIED signatures are recorded (an attacker can't grow this without the private key); each is
+// kept until its freshness window closes, and at most MAX_SEEN_SIGS (the oldest go first), so it
+// stays bounded to (legit rate × window). Process-local by design: audience binding is the
+// cross-instance guarantee, this is the same-instance backstop.
 const MAX_SEEN_SIGS = 100_000;
+const seen_sigs = cache<string, number>({
+	name: 'federation replay guard',
+	max: MAX_SEEN_SIGS,
+	keep: (expires_at) => expires_at - Date.now()
+});
 function replay_seen(sig: string, expires_at: number, now: number): boolean {
-	if (seen_sigs.size > 0) {
-		for (const [k, exp] of seen_sigs) {
-			if (exp <= now) seen_sigs.delete(k);
-			else break; // insertion order ≈ expiry order (uniform window) — stop at the first live one
-		}
-	}
 	if (seen_sigs.has(sig)) return true;
-	if (seen_sigs.size >= MAX_SEEN_SIGS) {
-		for (const [k, exp] of seen_sigs) if (exp <= now) seen_sigs.delete(k);
-		while (seen_sigs.size >= MAX_SEEN_SIGS) {
-			const oldest = seen_sigs.keys().next().value as string;
-			seen_sigs.delete(oldest);
-		}
-	}
-	seen_sigs.set(sig, expires_at);
+	// (a signature whose window already closed is not kept: no replay of it can pass the ts check)
+	if (expires_at > now) seen_sigs.set(sig, expires_at);
 	return false;
 }
 
@@ -96,15 +90,21 @@ const body_hash = (body?: ArrayBuffer | Uint8Array | null) =>
 
 // ── KeyObject caches ─────────────────────────────────────────────────────────────────────────
 // DER parsing dominates the crypto (sign ~48μs fresh vs ~17μs cached). Keys are few and static,
-// so cache parsed KeyObjects by their base64 string, hard-capped as a safety valve.
+// so cache parsed KeyObjects by their base64 string, capped as a safety valve (the least recently
+// used goes first).
 const MAX_CACHED_KEYS = 64;
-const private_keys = new Map<string, ReturnType<typeof createPrivateKey>>();
-const public_keys = new Map<string, ReturnType<typeof createPublicKey>>();
+const private_keys = cache<string, ReturnType<typeof createPrivateKey>>({
+	name: 'federation private keys',
+	max: MAX_CACHED_KEYS
+});
+const public_keys = cache<string, ReturnType<typeof createPublicKey>>({
+	name: 'federation public keys',
+	max: MAX_CACHED_KEYS
+});
 function private_key(b64: string) {
 	let k = private_keys.get(b64);
 	if (!k) {
 		k = createPrivateKey({ key: Buffer.from(b64, 'base64'), format: 'der', type: 'pkcs8' });
-		if (private_keys.size >= MAX_CACHED_KEYS) private_keys.clear();
 		private_keys.set(b64, k);
 	}
 	return k;
@@ -113,7 +113,6 @@ function public_key(b64: string) {
 	let k = public_keys.get(b64);
 	if (!k) {
 		k = createPublicKey({ key: Buffer.from(b64, 'base64'), format: 'der', type: 'spki' });
-		if (public_keys.size >= MAX_CACHED_KEYS) public_keys.clear();
 		public_keys.set(b64, k);
 	}
 	return k;
@@ -131,7 +130,7 @@ const cap_nonce = (token: string): string => token.split('.')[2] ?? '';
 const cap_expiry = (token: string): number => Number(token.split('.')[1]);
 
 /** The mint side, one per private key (as cached as its KeyObject). */
-const minters = new Map<string, Capability>();
+const minters = cache<string, Capability>({ name: 'federation minters', max: MAX_CACHED_KEYS });
 function minter(b64: string): Capability {
 	let cap = minters.get(b64);
 	if (!cap) {
@@ -143,7 +142,6 @@ function minter(b64: string): Capability {
 				verify: () => false // (a minter checks nothing: the receiver brings its keys)
 			}
 		});
-		if (minters.size >= MAX_CACHED_KEYS) minters.clear();
 		minters.set(b64, cap);
 	}
 	return cap;
@@ -152,7 +150,7 @@ function minter(b64: string): Capability {
 /** The check side, one per window (its replay memory is the process's, whatever keys a check
  *  trusts): each token checks once, and a memory full of live ones refuses new calls rather than
  *  forget one. */
-const checkers = new Map<number, Capability>();
+const checkers = cache<number, Capability>({ name: 'federation checkers', max: 8 });
 function checker(skew: number): Capability {
 	let cap = checkers.get(skew);
 	if (!cap) {
@@ -162,7 +160,6 @@ function checker(skew: number): Capability {
 			replay: { max: MAX_SEEN_SIGS },
 			signer: { sign: () => '', verify: () => false } // (every check brings its keys)
 		});
-		if (checkers.size >= 8) checkers.clear();
 		checkers.set(skew, cap);
 	}
 	return cap;
