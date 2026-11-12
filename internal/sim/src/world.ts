@@ -421,7 +421,6 @@ export class World {
 				}
 			}
 		}
-		if (pinned === null && is_page_path(path)) this.#page_build.set(from, id);
 		return id;
 	}
 
@@ -481,36 +480,44 @@ export class World {
 				? this.cdn
 				: { fetch: (r: Request, origin: (r: Request) => Promise<Response>) => origin(r) };
 		const key = answer_key(url);
-		return cdn.fetch(request, async (r) => {
-			// (a batch answers each hole it lists: the fresh load's batch asks the build that answered
-			// the first of them, and each is the batch's build's from now on: gen 77, seed 77025)
-			const holes = await batched(r);
-			const build = this.#build_for(
-				decodeURIComponent(url.pathname),
-				from,
-				holes.length > 0 ? holes[0] : key
-			);
-			if (holes.length > 0)
-				this.#batches.push({ from, keys: holes, build, at: this.network.exchanges.length });
-			const list = this.servers.get(build)!;
-			const answer = await list[this.rng.int(list.length)].handle(r);
-			// (a hole one build signed, refused by another's servers for its key: the deploy's doing
-			// when the app has no stable secret, as ogygia's `secret_missing` says)
-			if (answer.headers.get('x-ogygia-deny') === 'foreign-key' && this.#o.secret === undefined)
-				this.skewed.set(from, (this.skewed.get(from) ?? new Set<string>()).add(url.pathname));
-			// (which build answered rides with the answer, so a cached copy says it too; a page store's
-			// copy is the build's that rendered it: test/stored-build.node.test.ts)
-			const rendered = this.#rendered_by(answer, build);
-			if (this.#pinned === null && is_page_path(decodeURIComponent(url.pathname)))
-				this.#page_build.set(from, rendered);
-			const headers = new Headers(answer.headers);
-			headers.set(ANSWERED_BY, rendered);
-			return new Response(answer.body, {
-				status: answer.status,
-				statusText: answer.statusText,
-				headers
-			});
-		});
+		// (a document's page is the build its answer names, the server's or a cached copy's: a CDN
+		// hit is the build's that rendered the copy, test/cdn-build.node.test.ts)
+		const page = this.#pinned === null && is_page_path(decodeURIComponent(url.pathname));
+		const answered = (response: Response): Response => {
+			const by = response.headers.get(ANSWERED_BY);
+			if (page && by !== null) this.#page_build.set(from, by);
+			return response;
+		};
+		return cdn
+			.fetch(request, async (r) => {
+				// (a batch answers each hole it lists: the fresh load's batch asks the build that answered
+				// the first of them, and each is the batch's build's from now on: gen 77, seed 77025)
+				const holes = await batched(r);
+				const build = this.#build_for(
+					decodeURIComponent(url.pathname),
+					from,
+					holes.length > 0 ? holes[0] : key
+				);
+				if (holes.length > 0)
+					this.#batches.push({ from, keys: holes, build, at: this.network.exchanges.length });
+				const list = this.servers.get(build)!;
+				const answer = await list[this.rng.int(list.length)].handle(r);
+				// (a hole one build signed, refused by another's servers for its key: the deploy's doing
+				// when the app has no stable secret, as ogygia's `secret_missing` says)
+				if (answer.headers.get('x-ogygia-deny') === 'foreign-key' && this.#o.secret === undefined)
+					this.skewed.set(from, (this.skewed.get(from) ?? new Set<string>()).add(url.pathname));
+				// (which build answered rides with the answer, so a cached copy says it too; a page store's
+				// copy is the build's that rendered it: test/stored-build.node.test.ts)
+				const rendered = this.#rendered_by(answer, build);
+				const headers = new Headers(answer.headers);
+				headers.set(ANSWERED_BY, rendered);
+				return new Response(answer.body, {
+					status: answer.status,
+					statusText: answer.statusText,
+					headers
+				});
+			})
+			.then(answered);
 	}
 
 	/** The build each page store's copy is of, by its etag (the render's identity). */
