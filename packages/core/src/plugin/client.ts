@@ -6,16 +6,41 @@
  * anything heavy with a dynamic import of its own, on demand.
  *
  *   export default defineClient({
- *     boot({ kitPage }) { … },                  // once, as the runtime boots (before any region wakes)
- *     regionMount(el, { entry, urls }) { … },  // a region's component started in the browser
- *     regionUnmount(el, { entry }) { … },      // …and left the page
- *     regionHydrate(el) { return () => { … } }, // around Svelte's hydrate over server markup
- *     answerParsed(fragment) { … },            // a region answer parsed, before anything reads it
- *     answerPlaced() { … }                     // …and in the page
+ *     boot({ kitPage }) { … },                     // once, as the runtime boots (before any region wakes)
+ *     hooks: {
+ *       regionMount({ el, entry, urls }) { … },    // a region's component started in the browser
+ *       regionHydrate({ el }) { return () => { … } }, // around Svelte's hydrate over server markup
+ *       answerParsed({ fragment }) { … },          // a region answer parsed, before anything reads it
+ *       regionHydrated({ el, t0, tDone }) { … }    // …and the rest of RuntimeHooks
+ *     }
  *   });
  *
- * With no plugin's client realm in the build, core's calls into these fold away entirely.
+ * The build reads the `hooks` keys from the file, so `hooks` is an object literal written in the
+ * `defineClient` call. A hook nobody subscribes to folds out of the runtime entirely. Hooks are
+ * called as plain functions (no `this`).
  */
+import type { RuntimeHooks } from '../contract/runtime-hooks.ts';
+
+export type {
+	AnswerParsedEvent,
+	AnswerPlacedEvent,
+	CriticalOutcome,
+	CriticalSettledEvent,
+	EntryFallbackEvent,
+	HoleAnsweredEvent,
+	HoleBatchMissedEvent,
+	HoleFailedEvent,
+	HoleRefusal,
+	NavigatedEvent,
+	RegionFailedEvent,
+	RegionHydrateEvent,
+	RegionHydratedEvent,
+	RegionMountEvent,
+	RegionUnmountEvent,
+	RuntimeHookName,
+	RuntimeHooks,
+	WarningEvent
+} from '../contract/runtime-hooks.ts';
 
 /** What `boot` is told about the page. */
 export interface ClientBootContext {
@@ -24,28 +49,12 @@ export interface ClientBootContext {
 	readonly kitPage: boolean;
 }
 
-/** A region whose component runs in the browser, as the region hooks see it. */
-export interface ClientRegion {
-	/** The region's entry (its component's stable module URL). */
-	readonly entry: string;
-}
-
 /** A plugin's browser half. */
 export interface ClientPlugin {
 	/** Once, as the runtime boots: after core's features, before the first region wakes. */
 	boot?(ctx: ClientBootContext): void;
-	/** A region's component started (hydrated, or mounted live). `urls`: the files it runs from. */
-	regionMount?(el: Element, region: ClientRegion & { readonly urls: readonly string[] }): void;
-	/** A region's component left the page. */
-	regionUnmount?(el: Element, region: ClientRegion): void;
-	/** Svelte is about to hydrate a component over `el`'s server markup. The function returned runs
-	 *  right after the hydrate. */
-	regionHydrate?(el: Element): (() => void) | void;
-	/** A region answer (a hole, a lake remount, a router swap) was parsed: `fragment` is inert, and
-	 *  nothing has read it yet. */
-	answerParsed?(fragment: DocumentFragment): void;
-	/** A parsed answer went into the page. */
-	answerPlaced?(): void;
+	/** The runtime moments this plugin subscribes to. */
+	hooks?: Partial<RuntimeHooks>;
 }
 
 /** Typed identity: a plugin's browser half. */
