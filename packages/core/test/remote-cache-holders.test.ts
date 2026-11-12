@@ -5,7 +5,8 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { remote_cache, release_remote_instances } from '../src/shims/kit-remote/remote-cache.ts';
 import { set_current_region } from '../src/current-region.ts';
 
-type Entry = { resource: { destroy(): void } };
+// (the cache's own entry shape: Kit's resource and its destroy may be missing)
+type Entry = { resource?: { destroy?: () => void } };
 
 /** A region stand-in: the cache asks only whether it is still in the page. */
 function region(): Element & { isConnected: boolean } {
