@@ -1,10 +1,10 @@
+<!--
+@component
+One blog post from a `PageView` whose `data` carries the `PostFields`: a dateline (date and author),
+the title (the slug when there is none), the summary and tags, and links to the previous and next
+post. Writes the title (with the site's), summary, author and date into the head.
+-->
 <script lang="ts">
-	/**
-	 * One whole blog POST — the blog genre's answer to `<Doc>`. A pure function of a `PageView` whose
-	 * `data` carries the `PostFields` (`date`, `author?`, `tags`): a dateline, the title, the author,
-	 * tags, the rendered body, and prev/next by date. No sidebar, no on-this-page rail — a post reads
-	 * top to bottom. Styling rides the `.og-*` tokens; blog-specific structure is scoped below.
-	 */
 	import { Region } from '@ogygia/core';
 	import CodeChrome from './CodeChrome.svelte' with { wake: 'load' };
 	import { get_shell_context } from '../context.ts';

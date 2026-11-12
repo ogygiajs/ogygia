@@ -1,13 +1,10 @@
+<!--
+@component
+The blog's page frame: a header (the brand, which links to the blog root, then links, the search
+when `search` is set, the theme toggle, and `actions`) over one main column with no sidebar, where
+`children` (a `<BlogList>` or `<BlogPost>`) render. Needs no `site`.
+-->
 <script lang="ts">
-	/**
-	 * BlogShell — the blog FORM, sibling of the docs `Shell`. Same header bricks (brand, links, search,
-	 * theme, actions) but a CENTERED single-column body: no sidebar, no on-this-page rail. A blog reads
-	 * top to bottom, so `<BlogList>` (index) and `<BlogPost>` (a post) render straight into `children`.
-	 *
-	 * Styling is OPT-IN exactly like `Shell` — import `@ogygia/content/theme.css` + `@ogygia/content/shell.css`
-	 * for the header chrome, and the scoped blog layout below fills the rest. Needs no `site`: a blog's
-	 * header is just links, so nothing here imports the corpus.
-	 */
 	import { page } from '$app/state';
 	import { script } from '@ogygia/core';
 	import { set_shell_context } from '../context.ts';
