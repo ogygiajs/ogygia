@@ -6,10 +6,11 @@
  * `BootLink`). test/browser/side-channel-seeds.test.ts.
  */
 import { RESPONSE_MARK } from '../contract/response-mark.ts';
+import { OGYGIA_RUNTIME } from '../wire-markup.ts';
 
 /** `doc`'s mark: its head's first runtime script's. */
 const mark_of = (doc: Document) =>
-	doc.head?.querySelector('script[data-ogygia-runtime]')?.getAttribute(RESPONSE_MARK);
+	doc.head?.querySelector(`script[${OGYGIA_RUNTIME}]`)?.getAttribute(RESPONSE_MARK);
 
 /** Every element `selector` matches in `doc` that bears `doc`'s mark, in document order. */
 export function server_channels(doc: Document, selector: string): Element[] {
@@ -30,7 +31,7 @@ export function server_channel(doc: Document, selector: string): Element | null 
  * next response's from now on.
  */
 export function adopt_mark(next: Document): void {
-	const live = document.head?.querySelector('script[data-ogygia-runtime]');
+	const live = document.head?.querySelector(`script[${OGYGIA_RUNTIME}]`);
 	const mark = mark_of(next);
 	if (!live) return;
 	if (mark) live.setAttribute(RESPONSE_MARK, mark);

@@ -28,7 +28,8 @@ import Region from './Region.svelte';
 import { PageSeed } from './server/page-seed.ts';
 import { page_seed_reducers } from './server/page-stream.ts';
 import { analyze } from './seed-refs.ts';
-import { WIRE_FORMAT_ATTR, WIRE_FORMAT_JSON } from './server/props-wire.ts';
+import { WIRE_FORMAT_JSON } from './server/props-wire.ts';
+import { OG_FORMAT, OGYGIA_DEV_HMR, OGYGIA_PAGE } from './wire-markup.ts';
 import { runtime_url, router_enabled, view_transitions } from 'ogygia:server';
 import { dev_hmr_url } from './dev-hmr-url.ts';
 import { runtime_bootstrap } from './server/entry-location.ts';
@@ -43,7 +44,7 @@ import { mark_attr, response_mark } from './server/response-mark.ts';
 import { take_early_holes } from './context.ts';
 import { early_holes_head } from './early-holes-head.ts';
 import { add_early_holes_csp, with_early_holes_meta_csp } from './server/early-holes-csp.ts';
-const TITLE_TAG_RE = /<title[\s>]/i;
+import { next_tag } from './wire-markup.ts';
 import {
 	page_declares_router_meta,
 	page_declares_runtime_script,
@@ -147,7 +148,7 @@ export async function document(
 	head.push(r.head);
 	if (options.head) head.push(options.head);
 	const head_so_far = () => head.join('');
-	if (options.title && !TITLE_TAG_RE.test(head_so_far())) {
+	if (options.title && next_tag(head_so_far(), 'title', 0) === null) {
 		head.push(`<title>${escape_text(options.title)}</title>`);
 	}
 	// The same three injections the handle makes into a Kit page, presence-checked the same way
@@ -161,7 +162,7 @@ export async function document(
 		head.push(runtime_bootstrap());
 	}
 	if (dev_hmr_url && !page_declares_dev_hmr_script(head_so_far())) {
-		head.push(`<script type="module" data-ogygia-dev-hmr src="${dev_hmr_url}"></script>`);
+		head.push(`<script type="module" ${OGYGIA_DEV_HMR} src="${dev_hmr_url}"></script>`);
 	}
 	// THE EARLY START (early-holes.ts): this document's `load` holes asked for during the parse
 	const early = take_early_holes();
@@ -196,9 +197,9 @@ export async function document(
 			analyze(data).json && analyze(s.form ?? null).json && analyze(s.error ?? null).json
 		);
 		if (payload) {
-			const format = payload.json ? ` ${WIRE_FORMAT_ATTR}="${WIRE_FORMAT_JSON}"` : '';
+			const format = payload.json ? ` ${OG_FORMAT}="${WIRE_FORMAT_JSON}"` : '';
 			head.push(
-				`<script type="application/ogygia-page" data-ogygia-page${format}${mark_attr(mark_key)}>${payload.text}</script>`
+				`<script type="application/ogygia-page" ${OGYGIA_PAGE}${format}${mark_attr(mark_key)}>${payload.text}</script>`
 			);
 		}
 	}

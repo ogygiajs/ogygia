@@ -6,6 +6,7 @@
  * carries is never the server's (INVARIANTS RESPONSE-MARK, test/browser/side-channel-seeds.test.ts).
  * Internal markup, not an app-facing format.
  */
+import { OG_MARK } from '../wire-markup.ts';
 
 /** The attribute a response's mark is written in. */
-export const RESPONSE_MARK = 'data-og-mark';
+export const RESPONSE_MARK: typeof OG_MARK = OG_MARK;

@@ -6,6 +6,7 @@
 import { add_sink, snapshot, clear, ingest_page_events, type DevtoolsSink } from './bus.ts';
 import { DEVTOOLS_SCHEMA_VERSION, type DevtoolsEvent } from '../contract/events.ts';
 import { server_channels } from '../runtime/response-mark.ts';
+import { OG_DT_INGESTED } from '../wire-markup.ts';
 
 /** The global the {@link install_window_sink window sink} publishes. Distinct from the compile-time
  *  `__OGYGIA_DEVTOOLS__` define (a bare identifier the bundler replaces) — this is a real runtime
@@ -113,9 +114,9 @@ export function ingest_server_events(): number {
 	let total = 0;
 	for (const el of server_channels(
 		document,
-		'script[type="application/ogygia-devtools"]:not([data-og-dt-ingested])'
+		`script[type="application/ogygia-devtools"]:not([${OG_DT_INGESTED}])`
 	)) {
-		el.setAttribute('data-og-dt-ingested', '');
+		el.setAttribute(OG_DT_INGESTED, '');
 		const text = el.textContent;
 		if (!text) continue;
 		try {
