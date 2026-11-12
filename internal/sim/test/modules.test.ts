@@ -140,4 +140,53 @@ describe('modules of a simulated tab', () => {
 			await browser.close();
 		}
 	});
+
+	// palaestra (guided search): Kit's boot import of its app entry was cut, and ogygia's wait for
+	// Kit asked the same file again to learn Kit cannot start; the simulator downloaded it afresh, so
+	// the wait never failed and the island stayed waking. A browser keeps a failed module failed.
+	it("a classic script's failed import stays failed for the document's modules", async () => {
+		use_v8_modules();
+		let asked = 0;
+		const browser = new Browser({
+			settings: {
+				enableJavaScriptEvaluation: true,
+				suppressInsecureJavaScriptEnvironmentWarning: true,
+				fetch: {
+					interceptor: {
+						beforeAsyncRequest: async ({ request, window }) => {
+							const W = window as unknown as { Response: typeof Response };
+							if (new URL(request.url).pathname !== '/app.js')
+								return new W.Response('', { status: 404 }) as never;
+							// (the first download fails; one asked again would come)
+							return (
+								asked++ === 0
+									? new W.Response('', { status: 500 })
+									: new W.Response('export const app = 1;', {
+											headers: { 'content-type': 'text/javascript' }
+										})
+							) as never;
+						}
+					}
+				}
+			}
+		});
+		try {
+			const page = browser.newPage();
+			page.url = 'https://example.com/';
+			page.content =
+				"<script>import('./app.js').catch(() => { window.boot = 'failed'; });</script>";
+			await new Promise((r) => setTimeout(r, 100));
+			const w = page.mainFrame.window as unknown as { boot?: string; again?: string };
+			expect(w.boot).toBe('failed');
+			const script = page.mainFrame.document.createElement('script');
+			script.type = 'module';
+			script.textContent =
+				"import('./app.js').then(() => { window.again = 'came'; }, () => { window.again = 'failed'; });";
+			page.mainFrame.document.body.appendChild(script);
+			await new Promise((r) => setTimeout(r, 100));
+			expect(w.again).toBe('failed');
+		} finally {
+			await browser.close();
+		}
+	});
 });

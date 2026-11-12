@@ -14,6 +14,7 @@
  * import Kit's server internals. The reader rides ONE `globalThis` + `Symbol.for` slot — the
  * PAGE-STATE-SINGLETON law (dist entries can double-evaluate a module).
  */
+import { slot as shared } from '@ogygia/machine';
 
 export const KIT_REQUEST_CONTEXT = '__request__';
 /** Kit's `$app/stores` server side reads `getContext('__svelte__')` — `{ page, navigating, updated }`
@@ -52,10 +53,10 @@ interface Slots {
 	render_page?: RenderPagePort | null;
 }
 
-const SLOT = Symbol.for('ogygia.kit-context');
-const slots: Slots = ((globalThis as unknown as Record<symbol, Slots | undefined>)[SLOT] ??= {
-	reader: null,
-	event_reader: null
+const slots = shared<Slots>({
+	name: 'ogygia.kit-context',
+	version: 1,
+	make: () => ({ reader: null, event_reader: null })
 });
 
 /** hooks.ts installs the request-scoped reader (page snapshot + live event). */
