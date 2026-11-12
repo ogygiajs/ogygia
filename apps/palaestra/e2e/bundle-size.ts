@@ -46,6 +46,8 @@ const { generateRuntimeEntrySource, resolveFeatures } = (await import(
 )) as typeof import('../../../packages/compiler/dist/compiler/link/runtime-entry.js');
 
 const RUNTIME_DIR = join(CORE, 'dist/runtime');
+/** A build constant's name (`__OGYGIA_X__`), as it is left in code when nothing defined it. */
+const BUILD_CONSTANT_RE = /\b__OGYGIA_[A-Z0-9_]+__\b/g;
 const SNAPSHOT = fileURLToPath(new URL('./bundle-size.snapshot.json', import.meta.url));
 // `--compare <json>`: gate against another build's `--json` (the PR's base) instead of the snapshot
 const COMPARE = arg('--compare');
@@ -175,6 +177,15 @@ async function measure(
 	const { output } = await bundle.generate({ format: 'es', minify: true });
 	await bundle.close();
 	const chunks = output.filter((o): o is OutputChunk => o.type === 'chunk');
+	// every build constant is defined, as the plugin's build defines it: one left undefined keeps its
+	// default branch (on) and the bytes behind it, a size no real build ships
+	const undefined_constants = new Set(
+		chunks.flatMap((c) => [...c.code.matchAll(BUILD_CONSTANT_RE)].map((m) => m[0]))
+	);
+	if (undefined_constants.size)
+		throw new Error(
+			`bundle-size: build constants left undefined (define them as the plugin does): ${[...undefined_constants].join(', ')}`
+		);
 	// BOOT is the entry chunk plus everything it imports STATICALLY (a module the entry shares with
 	// a lazy chunk lands in a shared chunk the entry still loads at boot); the rest is lazy.
 	const by_name = new Map(chunks.map((c) => [c.fileName, c]));
