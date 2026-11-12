@@ -176,6 +176,52 @@ describe("render: 'live' carries only what the revalidate endpoint can serialize
 	});
 });
 
+describe('call-site shapes: dotted tags and a hole’s children', () => {
+	const compile = (imports: string, markup: string) => {
+		const src = dedent`
+			<script>
+			${imports}
+			</script>
+			${markup}
+		`;
+		try {
+			transformHost(src, '/app/src/routes/+page.svelte', ctx());
+			return 'ok';
+		} catch (e) {
+			return (e as { code?: string }).code ?? String(e);
+		}
+	};
+	const ISLAND = `import C from './C.svelte' with { wake: 'load' };`;
+	const LAKE = `import C from './C.svelte' with { wake: 'none' };`;
+	const HOLE = `import C from './C.svelte' with { render: 'deferred' };`;
+	const UI = `import * as UI from './ui.ts';`;
+
+	it.each([
+		[`${ISLAND}\n${UI}`, '<C /><UI.Button />', 'ok'],
+		[LAKE, '<C><C.Item /></C>', 'ok'],
+		[ISLAND, '<C.Item />', 'region_dotted_tag'],
+		[HOLE, '<C>{#snippet ogygiaFallback()}<p>…</p>{/snippet}</C>', 'ok'],
+		[
+			HOLE,
+			dedent`
+				<C>
+					{#snippet ogygiaFallback()}<p>…</p>{/snippet}
+				</C>
+			`,
+			'ok'
+		],
+		[HOLE, '<C>{#snippet other()}<p>…</p>{/snippet}</C>', 'region_children_not_portable'],
+		[HOLE, '<C><p>x</p></C>', 'region_children_not_portable'],
+		[
+			HOLE,
+			'<C>{#snippet ogygiaFallback()}<p>…</p>{/snippet}<p>x</p></C>',
+			'region_children_not_portable'
+		]
+	])('%s with %s → %s', (imports, markup, want) => {
+		expect(compile(imports, markup)).toBe(want);
+	});
+});
+
 describe('inline stitch on a hole', () => {
 	it.each([
 		['serve', 'defer:load:stitch:serve'],
