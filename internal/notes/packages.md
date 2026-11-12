@@ -428,7 +428,7 @@ Core rename goes LAST: many build paths key off the package name `ogygia`.
   - ONE MODULE COPY: shell src re-exports resolve to core's src in the workspace (dist when published);
     compiler-emitted specifiers stay `ogygia/...` (apps depend on `ogygia`; `ogygia/internal` and
     `ogygia/internal/server` still resolve head-on to core files via `OGYGIA_INJECTED_FILES`).
-  - SELF-NAME: `src/own-package.ts` (`OWN_PACKAGE_NAMES` = `ogygia`, `@ogygia/core`; `is_own_specifier`;
+  - SELF-NAME: `src/contract/own-package.ts` (`OWN_PACKAGE_NAMES` = `ogygia`, `@ogygia/core`; `is_own_specifier`;
     `OWN_SPECIFIER_SOURCE`; `OWN_FILE_RE` = `…/ogygia|@ogygia/core|packages/core/(src|dist)/…`). Used by
     vite `ssr.noExternal` + `optimizeDeps.exclude` + the dev `optimizeDeps.include` warning; the dev
     include names `ogygia > @ogygia/core > devalue`; package-files skip; island-deps (pkg name + own

@@ -13,18 +13,18 @@ import {
 	WIRE_FORMAT_JSON
 } from '../src/server/props-wire.ts';
 import { analyze, SeedIndex, SEED_REF_KEY, seed_ref_reviver } from '../src/seed-refs.ts';
-import { fingerprint_of } from '../src/runtime/hash.ts';
-import { island_fingerprint } from '../src/server/fingerprint.ts';
+import { fingerprint_of } from '../src/contract/hash.ts';
+import { region_fingerprint } from '../src/server/fingerprint.ts';
 
-describe('island_fingerprint · the server-minted data-og-fp', () => {
+describe('region_fingerprint · the server-minted data-og-fp', () => {
 	it('is 16 hex chars, deterministic, and moves with either input', () => {
-		const fp = island_fingerprint('/_app/immutable/x.js', '{"a":1}');
+		const fp = region_fingerprint('/_app/immutable/x.js', '{"a":1}');
 		expect(fp).toMatch(/^[0-9a-f]{16}$/);
-		expect(island_fingerprint('/_app/immutable/x.js', '{"a":1}')).toBe(fp);
-		expect(island_fingerprint('/_app/immutable/y.js', '{"a":1}')).not.toBe(fp);
-		expect(island_fingerprint('/_app/immutable/x.js', '{"a":2}')).not.toBe(fp);
+		expect(region_fingerprint('/_app/immutable/x.js', '{"a":1}')).toBe(fp);
+		expect(region_fingerprint('/_app/immutable/y.js', '{"a":1}')).not.toBe(fp);
+		expect(region_fingerprint('/_app/immutable/x.js', '{"a":2}')).not.toBe(fp);
 		// entry and text are separate fields: shifting a char across the boundary changes the hash
-		expect(island_fingerprint('/x', 'a{"a":1}')).not.toBe(island_fingerprint('/xa', '{"a":1}'));
+		expect(region_fingerprint('/x', 'a{"a":1}')).not.toBe(region_fingerprint('/xa', '{"a":1}'));
 	});
 });
 

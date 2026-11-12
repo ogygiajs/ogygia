@@ -607,13 +607,13 @@ describe('remote regions', () => {
 describe('deferred remote holes — the lifetime and renewal of a local hole', () => {
 	const now_sec = () => Math.floor(Date.now() / 1000);
 	/** Mint a deferred remote hole the way a render does (the handle's signer installed). */
-	async function mint(storable = false): Promise<URL> {
+	async function mint(storable = false, path = '/p'): Promise<URL> {
 		install_federation(fed_app()!);
 		const request = new Request('http://shell/x');
 		set_current_request(() => request);
 		if (storable) facts_of(request).storable = true;
 		const { cms } = federate({ name: 'shell', peers: { cms: { origin: 'http://cms.test' } } });
-		const hole = await cms.page('/p', { render: 'deferred' });
+		const hole = await cms.page(path, { render: 'deferred' });
 		set_current_request(null);
 		return new URL((hole as { url: string }).url, 'http://shell');
 	}
@@ -691,6 +691,20 @@ describe('deferred remote holes — the lifetime and renewal of a local hole', (
 		expect((await ask_hole(forged))!.headers.get('x-ogygia-deny')).toBe('sig');
 		const early = await ask_hole(renewal(url));
 		expect(early!.headers.get('x-ogygia-deny')).toBe('renew-window');
+	});
+
+	it('a hole signature covers each field on its own, whatever characters the fields hold', async () => {
+		const url = await mint(false, '/docs/v1.2');
+		expect((await ask_hole(url))!.status).toBe(200);
+		const moves: Record<string, string>[] = [
+			{ target: '/docs/v1', search: '2.' },
+			{ kind: 'page./docs/v1', target: '2' }
+		];
+		for (const move of moves) {
+			const other = new URL(url);
+			for (const [k, v] of Object.entries(move)) other.searchParams.set(k, v);
+			expect((await ask_hole(other))!.headers.get('x-ogygia-deny')).toBe('sig');
+		}
 	});
 });
 
