@@ -13,7 +13,7 @@ import {
 	type Stale,
 	type Turn
 } from '@ogygia/machine';
-import { frameAddress, older_by, stands_at, type FrameOrder } from '../frame.ts';
+import { frameAddress, is_batch_miss, older_by, stands_at, type FrameOrder } from '../frame.ts';
 import { OG_BAKED, OG_FP, OG_HOLE, OG_KEPT, OG_STATIC, OGYGIA_REGION_CSS } from '../wire-markup.ts';
 import { import_again, is_failed_import, on_file_load, on_reload_needed } from './import-again.ts';
 import { browser_offline, no_response } from './network.ts';
@@ -1529,7 +1529,7 @@ class OgygiaRegion extends HTMLElement {
 			return await run();
 		} catch (err) {
 			// the batch it joined did not carry it: its own fetch, now (not a failure, no retry wait)
-			if ((err as { name?: string })?.name !== 'OgygiaBatchMiss' || signal.aborted) throw err;
+			if (!is_batch_miss(err) || signal.aborted) throw err;
 			return await run();
 		}
 	}
