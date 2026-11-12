@@ -107,8 +107,9 @@ import {
 	type PageAssets,
 	type Weight,
 	type AssetRef
-} from '@ogygia/core/insights';
-import { BEACON_STANDALONE_TAG } from './beacon-standalone.ts';
+} from '@ogygia/insights';
+import { BEACON_STANDALONE_TAG } from './beacon-tag.ts';
+import { is_document_request } from '../document-request.ts';
 import { build_river, load_return_keys, seed_key_bytes, type River } from './river.ts';
 import { SinkBuffer, type SinkRow } from './sink.ts';
 import {
@@ -149,7 +150,7 @@ import { fnv1a32 } from '@ogygia/core/plugin/utils';
 import { mark_personal, MIN_SECRET_BYTES, RateLimiter } from '@ogygia/core/internal/server';
 import { attr_sites, doc_diff } from './doc-diff.ts';
 import { almost_same_document_pattern } from './patterns.ts';
-import { hydration_hazards } from '@ogygia/core/insights';
+import { hydration_hazards } from '@ogygia/insights';
 import type { IslandHazard } from './report.ts';
 import {
 	constant_work,
@@ -230,19 +231,22 @@ import {
 	vitals_moved,
 	type Since
 } from './compare.ts';
-import { engine_of, vital_parts, type ChunkBarrel, type PageInput } from '@ogygia/core/insights';
+import { engine_of, vital_parts, type ChunkBarrel, type PageInput } from '@ogygia/insights';
 import { label_call, phase_of_frame } from './timeline.ts';
 import { gzip_large } from './compress.ts';
 import { io_kind, mark_left_each_run } from './async-io.ts';
 import {
 	current_request_scope,
-	hole_stats_of,
 	request_scope,
-	request_stats_of,
-	set_batch_hole_listener,
-	hold_request_stats_detail,
 	type BatchHoleStats
 } from '@ogygia/core/internal/server';
+import {
+	hole_stats_of,
+	install_request_stats,
+	request_stats_of,
+	set_batch_hole_listener,
+	hold_request_stats_detail
+} from './request-stats.ts';
 import {
 	chunk_barrels,
 	chunk_contents,
@@ -1331,8 +1335,12 @@ class Profiler {
 		// recording — sampling the process twice, and windows of two recorder locks overlapping
 		// (request-stats' detail is counted for that). An older one's timers stand down at their next tick.
 		(globalThis as Record<symbol, unknown>)[LIVE_PROFILER] = this;
-		// the holes a batch request renders land after the request is logged: each joins the log as it lands
-		if (!this.#disabled) set_batch_hole_listener((request, s) => this.#batch_hole(request, s));
+		if (!this.#disabled) {
+			// a live profiler is what the handle's stats are for, with the plugin or without it (#805)
+			install_request_stats();
+			// the holes a batch request renders land after the request is logged: each joins the log as it lands
+			set_batch_hole_listener((request, s) => this.#batch_hole(request, s));
+		}
 	}
 
 	/** Logged requests by their Request (a batch's holes find their request here), and the holes that
@@ -6868,19 +6876,11 @@ class Profiler {
 		if (!this.ui_enabled) return null;
 		// (never in the profiler's own renders: they ask as a page navigation, and the tag is not the page's)
 		if (event.request.headers.get('x-og-profiler-internal') === '1') return null;
-		const dest = event.request.headers.get('sec-fetch-dest');
-		if (
-			dest
-				? dest !== 'document'
-				: !(event.request.headers.get('accept') ?? '').includes('text/html')
-		)
-			return null;
+		if (!is_document_request(event.request)) return null;
 		if (!this.dev) {
 			const key = event.request.headers.get('x-profiler-key');
 			if (key ? !(await this.#key_ok(key, event)) : !(await this.#flag_ok(event))) return null;
 		}
-		// (with the standalone beacon for a page that never boots the ogygia runtime: a Kit-hydrated
-		// page reports its vitals, long tasks and CPU too — it steps aside when the runtime is there)
 		return `<meta name="${BEACON_META}" content="${this.base}/beacon">${BEACON_STANDALONE_TAG}`;
 	}
 
