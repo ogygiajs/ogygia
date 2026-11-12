@@ -235,7 +235,10 @@ const WRITTEN_FOR = new WeakMap<Element, string>();
 function url_of(node: Element, attr: string): string {
 	const value = node.getAttribute(attr);
 	if (!value) return '';
-	const base = (node.parentNode === document.head && WRITTEN_FOR.get(node)) || node.baseURI;
+	// (the map first: a node never noted, like a fetched page's or one keyed off the page, reads no document)
+	const written = WRITTEN_FOR.get(node);
+	const base =
+		(written !== undefined && node.parentNode === document.head && written) || node.baseURI;
 	try {
 		return new URL(value, base).href;
 	} catch {
