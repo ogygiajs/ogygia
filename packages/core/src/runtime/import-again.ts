@@ -6,7 +6,7 @@
  * the next attempt imports the loader's own file with an `og-retry` query (a static server ignores
  * it; a module never evaluated, so no second copy of its state exists).
  *
- * The loader knows its own file: the build hands each one it (vite/lazy-files.ts), and an island's
+ * The loader knows its own file: the build hands each one it (@ogygia/compiler vite/lazy-files.ts), and an island's
  * caller knows its file. Never the URL a failure names: WebKit's error names none (#385), and
  * Firefox's names the file that failed, which can be a dependency of the one imported: asked for as
  * if it were the loader's own, it ran a second copy of a shared module and stood in for the chunk
@@ -179,7 +179,7 @@ export function import_again<T>(
 	load: () => Promise<T>,
 	fresh: (url: string) => Promise<unknown> = (url) => import(/* @vite-ignore */ url),
 	/** The file `load` imports, resolved against `base`: the build hands each lazy loader its own
-	 *  (vite/lazy-files.ts), and an island's caller knows its file. `null` or left out: not known
+	 *  (@ogygia/compiler vite/lazy-files.ts), and an island's caller knows its file. `null` or left out: not known
 	 *  (a module that shares its chunk with others), and a failure is loaded the same way again. */
 	file?: string | null,
 	/** The URL of the module that holds the loader (its `import.meta.url`). */

@@ -142,3 +142,123 @@ export interface KitWireModule {
 
 /** A module that only runs (it exports nothing). */
 export type SideEffectModule = Record<never, never>;
+
+/** Every region's component name, from the build's prescan (empty on the dev server). */
+export interface DevtoolsMetaModule {
+	region_names: Record<string, string>;
+}
+
+/** The runtime chunk's served URL. */
+export interface RuntimeUrlModule {
+	runtime_url: string;
+}
+
+/** The devtools boot's served URL. */
+export interface DevtoolsBootUrlModule {
+	devtools_boot_url: string;
+}
+
+/** The build's key material, and whether the build had an `OGYGIA_SECRET` (its ids are salted). */
+export interface SecretModule {
+	build_key: string;
+	build_had_secret: boolean;
+}
+
+/** The region endpoint's rate limit. */
+export interface RateLimitModule {
+	rate_limit: { max: number; windowMs: number };
+}
+
+/** The profiler's build maps, packed (null without them). */
+export interface ProfilerMapsModule {
+	profiler_maps: string | null;
+}
+
+/** Whether the SPA router is on, and with view transitions. */
+export interface RouterConfigModule {
+	router_enabled: boolean;
+	view_transitions: boolean;
+}
+
+/** The runtime session cookie's name. */
+export interface SessionCookieModule {
+	session_cookie: string;
+}
+
+/** How long a region capability lives, and the window in which it renews. */
+export interface RegionTtlModule {
+	region_ttl: number;
+	renew_window: number;
+}
+
+/** The csr=true routes, so a csr=false layout's regions degrade to inline under a csr=true leaf. */
+export interface RouteCsrModule {
+	/** route ids (group-stripped) whose effective csr is true */
+	csr_true_routes: ReadonlySet<string>;
+	/** route ids whose ERROR render is hydrated (the layouts' csr; the page's option ignored) */
+	error_csr_true_routes: ReadonlySet<string>;
+	/** the routeless error render: the root layout's own csr (Kit's default `true`) */
+	root_layout_csr_true: boolean;
+}
+
+/**
+ * Each generated virtual module's type, by its id: what the compiler's table fills and what the
+ * generated `virtual/*.d.ts` files declare. The compiler types each entry with its id's shape here.
+ */
+export interface VirtualModules {
+	'ogygia:boot/runtime': SideEffectModule;
+	'ogygia:boot/fn-manifest': SideEffectModule;
+	'ogygia:boot/runtime-entry': SideEffectModule;
+	'ogygia:boot/runtime-flags': RuntimeFlagsModule;
+	'ogygia:boot/hydrate-features': HydrateFeaturesModule;
+	'ogygia:boot/devtools-meta': DevtoolsMetaModule;
+	'ogygia:region/transport': TransportModule;
+	'ogygia:region/transportables': TransportablesModule;
+	'ogygia:region/kit-transport': KitTransportModule;
+	'ogygia:region/transportables-eager': SideEffectModule;
+	'ogygia:dev/hmr': SideEffectModule;
+	'ogygia:dev/devtools-boot': SideEffectModule;
+	'ogygia:server/runtime-url': RuntimeUrlModule;
+	'ogygia:server/devtools-boot-url': DevtoolsBootUrlModule;
+	'ogygia:server/region-deps': RegionDepsModule;
+	'ogygia:server/router-css': SideEffectModule;
+	'ogygia:server/secret': SecretModule;
+	'ogygia:server/kit-wire': KitWireModule;
+	'ogygia:server/rate-limit': RateLimitModule;
+	'ogygia:server/server-plugins': ServerPluginsModule;
+	'ogygia:server/profiler-maps': ProfilerMapsModule;
+	'ogygia:server/router-config': RouterConfigModule;
+	'ogygia:server/session-cookie': SessionCookieModule;
+	'ogygia:server/region-ttl': RegionTtlModule;
+	'ogygia:server/route-csr': RouteCsrModule;
+	'ogygia:server/route-config': RouteConfigModule;
+	'ogygia:server/server-manifest': ServerManifestModule;
+	'ogygia:server/server-regions': ServerRegionsModule;
+}
+
+/** Each build constant's type, by its global's name: the `define`s the compiler inlines. */
+export interface VirtualConstants {
+	__OGYGIA_CONTINUITY_FORMS__: boolean;
+	__OGYGIA_SERVER_DELTA__: boolean;
+	__OGYGIA_DEVTOOLS__: boolean;
+	__OGYGIA_DEVTOOLS_LAZY__: boolean;
+	__OGYGIA_RULES__: boolean;
+	__OGYGIA_CLIENT_PLUGINS__: boolean;
+	__OGYGIA_HOOK_REGION_MOUNT__: boolean;
+	__OGYGIA_HOOK_REGION_UNMOUNT__: boolean;
+	__OGYGIA_HOOK_REGION_HYDRATED__: boolean;
+	__OGYGIA_HOOK_REGION_FAILED__: boolean;
+	__OGYGIA_HOOK_HOLE_ANSWERED__: boolean;
+	__OGYGIA_HOOK_HOLE_FAILED__: boolean;
+	__OGYGIA_HOOK_HOLE_BATCH_MISSED__: boolean;
+	__OGYGIA_HOOK_ENTRY_FALLBACK__: boolean;
+	__OGYGIA_HOOK_NAVIGATED__: boolean;
+	__OGYGIA_HOOK_CRITICAL_SETTLED__: boolean;
+	__OGYGIA_HOOK_WARNING__: boolean;
+	__OGYGIA_HOOK_REGION_HYDRATE__: boolean;
+	__OGYGIA_HOOK_ANSWER_PARSED__: boolean;
+	__OGYGIA_HOOK_ANSWER_PLACED__: boolean;
+	__OGYGIA_KIT_MAJOR__: number | null;
+	__OGYGIA_VERSION__: string;
+	__OGYGIA_DEV_HMR_URL__: string;
+}

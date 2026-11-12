@@ -37,7 +37,7 @@ export const NAV_HANDLE_KEY: unique symbol = Symbol.for('ogygia.nav');
  * it afresh, under a fresh URL (./import-again.ts: the browser keeps the failed one). It once
  * imported the same URL again, which fails at once for the life of the page. Only the refresh is
  * read from the module, so the bundler leaves the rest of the navigation out of its chunk in an app
- * without the router; a retry reads the same part from the file (vite/lazy-files.ts hands the
+ * without the router; a retry reads the same part from the file (@ogygia/compiler vite/lazy-files.ts hands the
  * loader its file).
  */
 const load_refresh = flights({
