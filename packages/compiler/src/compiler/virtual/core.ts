@@ -519,12 +519,13 @@ export const route_csr: Value<RouteCsrModule> = virtual.value<CoreApp, RouteCsrM
 				error_csr_true_routes: new Set(),
 				root_layout_csr_true: true
 			};
-		const routes = app.routes_dir();
+		const dir = app.routes_dir();
+		const r = app.ctx.routes;
 		return {
-			csr_true_routes: new Set(csrTrueRouteIds(routes)),
+			csr_true_routes: new Set(csrTrueRouteIds(r, dir)),
 			// Kit renders a route's error page with its LAYOUT branch only
-			error_csr_true_routes: new Set(errorCsrTrueRouteIds(routes)),
-			root_layout_csr_true: rootLayoutCsrTrue(routes)
+			error_csr_true_routes: new Set(errorCsrTrueRouteIds(r, dir)),
+			root_layout_csr_true: rootLayoutCsrTrue(r, dir)
 		};
 	}
 });
@@ -534,7 +535,7 @@ export const route_config: Family<RouteConfigModule> = virtual.family({
 	id: 'route-config',
 	exports: { route_config: 'route_config' },
 	load: (app: CoreApp, { ssr }) =>
-		route_config_module(ssr, app.routes_dir(), app.plugins().route_config)
+		route_config_module(ssr, app.ctx.routes, app.routes_dir(), app.plugins().route_config)
 });
 
 export const server_manifest: Family<ServerManifestModule> = virtual.family({

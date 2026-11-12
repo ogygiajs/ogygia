@@ -5,8 +5,9 @@
  * of the driver's session; the `Compiler` carries it into `transform()` so that phase never reaches
  * back into the Vite adapter — which is what keeps the driver bundler-agnostic.
  */
-import fs from 'node:fs';
 import { strip_bom } from './bom.ts';
+import { node_fs, type Fs } from './fs.ts';
+import { route_reader, type Routes } from './kit.ts';
 import { islandVirtualId } from './ids.ts';
 import { parse_module, type AstNode } from './parse/oxc.ts';
 import type { ClientRealmFile, ServerRealm } from './link/caps.ts';
@@ -120,9 +121,15 @@ export interface CompileCtxInit {
 	/** Core's event emits compiled in (a plugin's `b.events()`: devtools). Bakes the standalone dock
 	 *  boot for csr=true pages into `ogygia:server/devtools-boot-url`. */
 	devtools: boolean;
+	/** Where the app's files are read from (./fs.ts). Optional (default the disk). */
+	fs?: Fs;
 }
 
 export class CompileCtx {
+	/** Every read of the app's files goes through here (./fs.ts). */
+	readonly fs: Fs;
+	/** Kit's route worlds and route config, read through `fs` (one cache set per file system). */
+	readonly routes: Routes;
 	readonly root: string;
 	readonly base: string;
 	readonly app_dir: string;
@@ -170,6 +177,8 @@ export class CompileCtx {
 	readonly #pkg_roots: Array<{ root: string; name: string }>;
 
 	constructor(init: CompileCtxInit) {
+		this.fs = init.fs ?? node_fs;
+		this.routes = route_reader(this.fs);
 		this.root = init.root;
 		this.base = init.base;
 		this.app_dir = init.app_dir;
@@ -305,12 +314,9 @@ export class CompileCtx {
 
 	/** Read a file as UTF-8, or `null` if it can't be read (the transform tolerates missing deps). */
 	read_file(abs: string): string | null {
-		try {
-			// (a byte-order mark would shift every parser offset against the raw text: ./bom.ts)
-			return strip_bom(fs.readFileSync(abs, 'utf-8'));
-		} catch {
-			return null;
-		}
+		const text = this.fs.read(abs);
+		// (a byte-order mark would shift every parser offset against the raw text: ./bom.ts)
+		return text === null ? null : strip_bom(text);
 	}
 
 	/** Virtual island ENTRY module id for an island id. */
