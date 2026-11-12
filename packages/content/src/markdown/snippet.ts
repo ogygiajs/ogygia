@@ -1,18 +1,8 @@
-/**
- * Build-time render of a ONE-OFF code snippet to a serialized region — the engine behind
- * `import.meta.og.code(source, lang, meta?)`. It reuses the EXACT fence path a markdown code block
- * takes: the app's Shiki config (themes, transformers), the meta pipeline (so the `meta` infostring
- * behaves identically — `twoslash`, `{2-4}`, `file=…`, `// [!code …]`), variant generators, and the
- * content-addressed fence cache. So a snippet in a `.svelte` and the same snippet in a `.svx` fence
- * render byte-for-byte the same, and each renders once across a whole build.
- */
 import { configure_shiki, fence_config_key, render_code_region } from './shiki.ts';
 import { default_pipeline, type CodePipeline } from './code-render.ts';
 import type { MarkdownOptions } from './index.ts';
 import type { SerializedRegion } from '../region-store.ts';
 
-/** Resolve the fence environment (`cfg`, `pipe`, `config_key`) from the app's markdown options —
- *  the same assembly `ogygiaPreprocess()` does, so snippets and fences share one configuration. */
 function code_env(options: MarkdownOptions | null | undefined) {
 	const { code, ...shiki_opts } = options ?? {};
 	const cfg = configure_shiki({
@@ -27,8 +17,10 @@ function code_env(options: MarkdownOptions | null | undefined) {
 }
 
 /**
- * Render `source` (a `lang` snippet, with optional raw `meta` infostring) to a {@link SerializedRegion}
- * using the app's markdown config. Async (Shiki + variant generators load heavy deps). Cached.
+ * The engine behind `import.meta.og.code(source, lang, meta?)`: renders a `lang` snippet (with an
+ * optional `meta` infostring) to a {@link SerializedRegion} through the same fence path a markdown
+ * code block takes (the app's Shiki config, meta parsers, variant generators, the fence cache). The
+ * html matches the same fence in a document, except that a document fence also carries a code id.
  */
 export async function render_snippet(
 	options: MarkdownOptions | null | undefined,

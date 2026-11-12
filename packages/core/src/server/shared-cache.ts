@@ -21,6 +21,7 @@
  * their own evaluation of this module — a module-local map would split the seam.
  */
 import { PRERENDER_REGION_TTL_SEC } from './endpoint.ts';
+import { slot as shared } from '@ogygia/machine';
 import { RENEW_WINDOW_SEC } from '../contract/capability.ts';
 
 export { RENEW_WINDOW_SEC };
@@ -114,9 +115,10 @@ export function expiry_refusal(
 interface Slot {
 	by_request: WeakMap<Request, number>;
 }
-const SLOT_KEY = Symbol.for('ogygia.shared-cache');
-const slot: Slot = ((globalThis as unknown as Record<symbol, Slot>)[SLOT_KEY] ??= {
-	by_request: new WeakMap()
+const slot = shared<Slot>({
+	name: 'ogygia.shared-cache',
+	version: 1,
+	make: () => ({ by_request: new WeakMap() })
 });
 
 /** The handle: a load set `cache-control` on this page request. */
