@@ -105,6 +105,23 @@ describe('a region request, as a machine', () => {
 		]);
 	});
 
+	it('a GET past the render budget is refused after its charge, before any render', async () => {
+		const h = handle();
+		const url = mint_server_region(ID, { n: 1 });
+		// (the budget is 100 renders a minute: ogygia:server/rate-limit above)
+		for (let i = 0; i < 100; i++) await h({ event: event(url), resolve } as never);
+		moves = trace();
+		const res = await h({ event: event(url), resolve } as never);
+		expect(res.status).toBe(429);
+		expect(lines()).toEqual([
+			'received -> prechecked',
+			'prechecked -> probed',
+			'probed -> verified',
+			'verified -> charged',
+			'charged -> refused'
+		]);
+	});
+
 	it('each hole of a batch walks the same steps; a forged one stops at verify', async () => {
 		const h = handle();
 		moves = trace();
