@@ -297,13 +297,13 @@ test("a lazy island's code counts at start only when it loaded before the load e
 const tag_code = (tag: string) => tag.slice(tag.indexOf('>') + 1, tag.lastIndexOf('</script>'));
 
 test('the inline beacon for pages without the runtime is one valid script tag', async () => {
-	const { BEACON_STANDALONE_TAG } = await import('../src/profiler/beacon-standalone.ts');
+	const { BEACON_STANDALONE_TAG } = await import('../src/profiler/beacon-tag.ts');
 	expect(BEACON_STANDALONE_TAG.startsWith('<script data-ogygia-beacon>')).toBe(true);
 	expect(() => new Function(tag_code(BEACON_STANDALONE_TAG))).not.toThrow();
 });
 
 test('the inline beacon names a preload the browser downloaded again (a Kit page has no runtime beacon)', async () => {
-	const { BEACON_STANDALONE_TAG } = await import('../src/profiler/beacon-standalone.ts');
+	const { BEACON_STANDALONE_TAG } = await import('../src/profiler/beacon-tag.ts');
 	const BEACON_STANDALONE_JS = tag_code(BEACON_STANDALONE_TAG);
 	const font = 'https://a.test/f.woff2';
 	const res = (
@@ -351,6 +351,8 @@ test('the inline beacon names a preload the browser downloaded again (a Kit page
 	}
 	const perf = {
 		timeOrigin: 0,
+		now: () => 0,
+		getEntriesByName: () => [],
 		getEntriesByType: (t: string) =>
 			t === 'navigation'
 				? [{ requestStart: 1, responseStart: 5, responseEnd: 9 }]
@@ -360,7 +362,6 @@ test('the inline beacon names a preload the browser downloaded again (a Kit page
 		setResourceTimingBufferSize() {}
 	};
 	const run = new Function(
-		'window',
 		'document',
 		'performance',
 		'PerformanceObserver',
@@ -373,7 +374,6 @@ test('the inline beacon names a preload the browser downloaded again (a Kit page
 		BEACON_STANDALONE_JS
 	);
 	run(
-		{},
 		doc,
 		perf,
 		PO,
@@ -384,8 +384,8 @@ test('the inline beacon names a preload the browser downloaded again (a Kit page
 		() => {},
 		() => Promise.resolve()
 	);
-	listeners.DOMContentLoaded();
 	listeners.visibilitychange();
+	(globalThis as unknown as Record<symbol, { stop(): void }>)[Symbol.for('ogygia.beacon')].stop();
 	const visit = sent.map((b) => JSON.parse(b)).find((b) => b.visit)!.visit;
 	expect(visit.preload_misses).toEqual([
 		{ url: font, type: 'font', bytes: 20_300, as: 'font', crossorigin: null }
