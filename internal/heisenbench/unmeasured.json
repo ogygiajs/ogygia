@@ -4039,6 +4039,98 @@
 		{
 			"id": "packages/core/src/runtime/core.ts > say_island_failed",
 			"reason": "browser only, an error path: says one coded console error for an island that could not start (an Error, not cloneable), constant work; proven in packages/core/test/browser/live-region-failed-file.test.ts (#942)"
+		},
+		{
+			"id": "packages/core/src/frame.ts > frameAddress > sort:0~f5ce9e",
+			"reason": "the sort comparator of a call's parameters (a closure Array.sort calls, not replayable on its own), constant work per pair; frameAddress around it is proven in packages/core/test/frame-address.test.ts (#916)"
+		},
+		{
+			"id": "packages/core/src/kit-paths.ts > app_path",
+			"reason": "reads Kit's build define for paths.base (hidden state: a module constant), one string join, constant work; proven in packages/core/test/capability-relative-paths.test.ts (#925)"
+		},
+		{
+			"id": "packages/core/src/runtime/core.ts > OgygiaRegion > #wake_online",
+			"reason": "browser only, an error path: an island whose code failed offline waits for the window's online event (a live element and window, not cloneable), constant work; proven in packages/core/test/browser/hole-offline.test.ts (#891)"
+		},
+		{
+			"id": "packages/core/src/runtime/core.ts > OgygiaRegion > #wake_online > on:2~9cda26",
+			"reason": "browser only: the online listener, one machine step and one wake, constant work; proven in packages/core/test/browser/hole-offline.test.ts (#891)"
+		},
+		{
+			"id": "packages/core/src/runtime/network.ts > browser_offline",
+			"reason": "browser only: reads navigator.onLine (hidden state: the browser's network), constant work; proven in packages/core/test/browser/hole-offline.test.ts (#891)"
+		},
+		{
+			"id": "packages/core/src/runtime/network.ts > no_response",
+			"reason": "an error path's type check (one instanceof), constant work; proven in packages/core/test/browser/hole-offline.test.ts (#891)"
+		},
+		{
+			"id": "packages/core/src/runtime/router-nav.ts > known_copies",
+			"reason": "browser only: walks the live document's regions once per SPA navigation (a live document, not cloneable), linear in the regions; its list is proven in packages/core/test/property-known-copies.test.ts and apps/palaestra/e2e/delta-copy-count.spec.ts (#846)"
+		},
+		{
+			"id": "packages/core/src/server/region-endpoint.ts > reuse_known_region",
+			"reason": "reads and counts down the request's known copies (hidden state: the request event's map), constant work per region; proven in packages/core/test/property-known-copies.test.ts and packages/core/test/server-delta-opt-in.test.ts (#846)"
+		},
+		{
+			"id": "packages/tooling/src/e2e/index.ts > extend:0~698079 > <anonymous>~24f7e2",
+			"reason": "the e2e harness's per-test server-rules fixture: Playwright only, reads the suite's server log around each test (#928)"
+		},
+		{
+			"id": "packages/tooling/src/e2e/server-log.ts > server_log",
+			"reason": "the e2e harness: reads the suite's log path from the environment (hidden state), Playwright only (#928)"
+		},
+		{
+			"id": "packages/tooling/src/e2e/server-log.ts > append_server_log",
+			"reason": "the e2e harness: appends a server's output to the suite's log file (I/O), Playwright only (#928)"
+		},
+		{
+			"id": "packages/tooling/src/e2e/server-log.ts > server_log_size",
+			"reason": "the e2e harness: the log file's size (I/O), Playwright only (#928)"
+		},
+		{
+			"id": "packages/tooling/src/e2e/server-log.ts > server_log_since",
+			"reason": "the e2e harness: what the log file gained since a byte (I/O), Playwright only (#928)"
+		},
+		{
+			"id": "packages/tooling/src/e2e/server-log.ts > said_rules",
+			"reason": "the e2e harness: the rule codes in a test's slice of the server log, linear in the text; runs at the end of every e2e test, Playwright only (#928)"
+		},
+		{
+			"id": "packages/tooling/src/e2e/tee.ts > on:1~6cefc2",
+			"reason": "the e2e harness's served-app process: passes the app's stdout through to the suite's log (a live child process), Playwright only (#928)"
+		},
+		{
+			"id": "packages/tooling/src/e2e/tee.ts > on:1~d6bbd7",
+			"reason": "the e2e harness's served-app process: passes the app's stderr through to the suite's log (a live child process), Playwright only (#928)"
+		},
+		{
+			"id": "packages/tooling/src/e2e/tee.ts > on:1~a89244",
+			"reason": "the e2e harness's served-app process: hands a signal on to the app (a live child process), Playwright only (#928)"
+		},
+		{
+			"id": "packages/tooling/src/e2e/tee.ts > on:1~6a4c0a",
+			"reason": "the e2e harness's served-app process: exits with the app's code (a live child process), Playwright only (#928)"
+		},
+		{
+			"id": "packages/postrender/src/registry.ts > store_call",
+			"reason": "one call against the app's store (I/O, nothing to replay) and the store-health step around it, constant work; proven in packages/postrender/test/store-failed.test.ts and packages/postrender/test/deploy.test.ts (#947)"
+		},
+		{
+			"id": "packages/postrender/src/server.ts > deploy_check",
+			"reason": "once per boot per store runtime: the shared deploy check keyed on the runtime (a WeakMap of live runtimes, not cloneable), constant work; proven in packages/postrender/test/deploy.test.ts (#947)"
+		},
+		{
+			"id": "packages/postrender/src/server.ts > deploy_check > flights:0~68fab5 > run",
+			"reason": "once per boot: reads the build marker, evicts the old build's tags, writes the marker (I/O against the app's store, nothing to replay); proven in packages/postrender/test/deploy.test.ts (#947)"
+		},
+		{
+			"id": "packages/postrender/src/server.ts > deploy_check > flights:0~68fab5 > run > store_call:2~4a3dd5",
+			"reason": "the marker read, one store get (I/O, the live store: not cloneable), constant work (#947)"
+		},
+		{
+			"id": "packages/postrender/src/server.ts > deploy_check > flights:0~68fab5 > run > store_call:2~fa5e01",
+			"reason": "the marker write, one store put (I/O, the live store: not cloneable), constant work (#947)"
 		}
 	]
 }
