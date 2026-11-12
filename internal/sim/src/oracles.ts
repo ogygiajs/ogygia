@@ -861,18 +861,45 @@ export function faulted(world: World, tab: Tab, since?: number): boolean {
 		return true;
 	return world.network.exchanges.slice(since ?? 0).some(
 		(e) =>
-			(mine(e.from) &&
-				(e.cut ||
-					e.tampered ||
-					e.redirected ||
-					e.status === 'dropped' ||
-					e.status === 'offline' ||
-					e.lost === true ||
-					(typeof e.status === 'number' && e.status >= 500))) ||
+			(mine(e.from) && (failed_on_wire(e) || e.tampered || e.redirected)) ||
 			// (a server's hop for it changed on the way: what the page was made from. A cut one is
 			// a failure the app must answer well, #937)
 			(e.for !== undefined && mine(e.for) && e.tampered) ||
 			kept_changed(e, tab)
+	);
+}
+
+/** Whether the network failed exchange `e`: dropped, offline, cut or broken off, or a server error. */
+function failed_on_wire(e: World['network']['exchanges'][number]): boolean {
+	return (
+		e.cut ||
+		e.status === 'dropped' ||
+		e.status === 'offline' ||
+		e.lost === true ||
+		(typeof e.status === 'number' && e.status >= 500)
+	);
+}
+
+/** The browser's line for an element whose file did not load (`error: <img> /hero.png failed`). */
+const ELEMENT_FAILED = /^error: <\w+> (\S+) failed/;
+
+/**
+ * Whether `line` is an element's failed file whose own download, by its document, the network
+ * failed. The DOM library says why an image failed only after its `error` event, and on the
+ * window's console, so its line carries no reason for EXPLAINED to read (gen 192, seed 19:
+ * test/oracles.test.ts).
+ */
+function element_download_failed(world: World, tab: Tab, line: string): boolean {
+	const src = ELEMENT_FAILED.exec(line)?.[1];
+	if (src === undefined) return false;
+	let url: string;
+	try {
+		url = new URL(src, tab.page.mainFrame.url).href;
+	} catch {
+		return false; // ok: no URL, no download of it
+	}
+	return world.network.exchanges.some(
+		(e) => e.from === tab.realm && e.url === url && failed_on_wire(e)
 	);
 }
 
@@ -954,7 +981,11 @@ export function page_errors(tab: Tab, world?: World, since?: number): Broken | n
 			// (a fault on the document stays its fact: a module whose download was cut fails every
 			// later import of it in that document, as the module map keeps the failure)
 			const excused = faulted(world, by) || faulted(world, by, since);
-			return !(excused && EXPLAINED.test(l)) && !deploy_took(world, by, l);
+			return (
+				!(excused && EXPLAINED.test(l)) &&
+				!element_download_failed(world, by, l) &&
+				!deploy_took(world, by, l)
+			);
 		}
 	);
 	if (errors.length === 0) return null;
