@@ -1496,5 +1496,5 @@ function batch_regions(doc: Document, visit: Scope, dest: URL) {
 	// Through the seam, never a static `frame-nav` import: an app with `router` but no
 	// deferred/live/lake region has no `frames` feature (and no `render="defer"` holes — so
 	// `endpoints` is empty above and we already returned). Optional-chain keeps that honest.
-	void slots.frames?.stream?.(endpoints, visit, dest.href);
+	void slots.frames?.stream?.(endpoints, visit, dest.href); // ok: a batch settles on every end, called off or broken off (frame-nav.ts streamFrames)
 }
