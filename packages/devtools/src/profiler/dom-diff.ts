@@ -22,13 +22,14 @@ export interface HtmlDiff {
 
 const TOKEN_RE = /<!--[\s\S]*?-->|<[^>]+>|[^<]+/g;
 
+/** Tags, comments and text runs; a text run over 40 characters splits on whitespace, so a one-word
+ *  change is one token. */
 export function tokenize_html(s: string): string[] {
 	const out: string[] = [];
 	let m: RegExpExecArray | null;
 	TOKEN_RE.lastIndex = 0;
 	while ((m = TOKEN_RE.exec(s))) {
 		const t = m[0];
-		// split long text runs on whitespace so a one-word change is one token
 		if (t[0] !== '<' && t.length > 40) out.push(...t.split(/(\s+)/).filter(Boolean));
 		else out.push(t);
 	}
@@ -48,7 +49,6 @@ export function html_diff(a: string, b: string): HtmlDiff {
 		};
 	const A = tokenize_html(a);
 	const B = tokenize_html(b);
-	// common prefix / suffix
 	let p = 0;
 	while (p < A.length && p < B.length && A[p] === B[p]) p++;
 	let s = 0;
@@ -64,7 +64,6 @@ export function html_diff(a: string, b: string): HtmlDiff {
 		if (midA.length) ops.push({ kind: 'del', text: midA.join('') });
 		if (midB.length) ops.push({ kind: 'add', text: midB.join('') });
 	} else if (midA.length || midB.length) {
-		// LCS table over the middle
 		const n = midA.length;
 		const m = midB.length;
 		const L = new Uint32Array((n + 1) * (m + 1));

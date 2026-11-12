@@ -1,13 +1,3 @@
-/**
- * EVERY MESSAGE THE POSTRENDER PACKAGE PRINTS, in one place: its code, its wording, what to do about
- * it (core's `@ogygia/core/internal/messages` says how the system works).
- *
- *   throw new OgygiaError('postrender_invalidate_not_source');
- *   warn('postrender_tag_evict_failed', { tag }, e);
- *
- * Postrender runs in the app's server build, so the wording is only passed in dev: a production build
- * prints the code's page alone.
- */
 import {
 	define_messages,
 	dev_or_prerender,
@@ -147,8 +137,7 @@ export const POSTRENDER_WARNINGS = {
 };
 
 type Own = MessagesOf<typeof POSTRENDER_ERRORS, typeof POSTRENDER_WARNINGS>;
-// (the tables reach a dev build and the server's — a prerender words them too; a production browser
-// bundle drops them. `?.`: a plain Node import has no `import.meta.env`, it gets the link alone)
+// @why plain Node has no `import.meta.env`, so it is read with `?.` (test: test/messages-node.test.ts › load under plain Node, which has no import.meta.env)
 const own: Own = /* @__PURE__ */ define_messages(
 	import.meta.env?.DEV || import.meta.env?.SSR ? POSTRENDER_ERRORS : null,
 	import.meta.env?.DEV || import.meta.env?.SSR ? POSTRENDER_WARNINGS : null,
