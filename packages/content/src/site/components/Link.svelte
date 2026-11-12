@@ -1,16 +1,15 @@
+<!--
+@component
+The dialect's `a`: prose links are page addresses, not URLs. A bare href (`regions/held`: no
+scheme, no leading `/`, `#` or `.`) resolves through the site under the shell's mount, so prose
+never hardcodes the mount; an old address in the site's redirect history resolves to its page. Any
+other href, an unknown address, or any href outside a `<Shell>` is left as written.
+-->
 <script lang="ts">
-	/**
-	 * The dialect's `a` — makes prose links ADDRESSES instead of URLs. A bare href (`regions/held`,
-	 * no scheme, no leading `/` `#` `.`) is slug-form: resolved through the site at render, so prose
-	 * never hardcodes the mount and survives re-mounting; declared redirect history resolves to the
-	 * canonical page. Everything else (absolute, external, anchors, relative assets) passes through
-	 * untouched. Outside a `<Shell>` (no context) bare hrefs pass through too — audit still checks them.
-	 */
 	import type { Snippet } from 'svelte';
 	import { get_shell_context } from '../context.ts';
 	import { href_of } from '../outline.ts';
 
-	// ── regexes
 	const URL_SCHEME_RE = /^[a-z][a-z0-9+.-]*:/i;
 
 	let {
@@ -39,10 +38,9 @@
 		if (hit) return href_of(ctx!.base, hit.record.slug) + tail;
 		const canonical = await ctx!.site!.outline.alias(slug);
 		if (canonical) return href_of(ctx!.base, canonical) + tail;
-		return h; // unknown — leave as-written; the audit is the reporting surface
+		return h;
 	}
 
-	// Deliberate init-time snapshot (csr=false SSR): a prose link's target never changes mid-mount.
 	// svelte-ignore state_referenced_locally
 	const resolved = ctx?.site && is_bare(href) ? await resolve(href) : href;
 </script>
