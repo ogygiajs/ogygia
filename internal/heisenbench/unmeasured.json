@@ -109,18 +109,6 @@
 			"reason": "reads the two loops' states into one note: a profiler instance (not cloneable), constant work; proven in packages/devtools/test/profiler-background-refused.test.ts"
 		},
 		{
-			"id": "packages/devtools/src/profiler/index.ts > Profiler > #ids",
-			"reason": "the profiler's window ids, made once per instance (a profiler instance, not cloneable): one lazy import and one call of window_ids, which packages/devtools/bench/window-id.bench.ts measures; proven in packages/devtools/test/profiler-window-id.test.ts"
-		},
-		{
-			"id": "packages/devtools/src/profiler/index.ts > Profiler > #ids > then:0~2b15d2",
-			"reason": "hands the loaded module's window_ids the profiler's secret, mode and audience (a module namespace, not cloneable), constant work; window_ids is benched in packages/devtools/bench/window-id.bench.ts"
-		},
-		{
-			"id": "packages/devtools/src/profiler/window-id.ts > hmac_signer",
-			"reason": "wraps a derived key (a Buffer, not cloneable) in a sign/verify pair, once per profiler; the mint and check it serves are benched in packages/devtools/bench/window-id.bench.ts"
-		},
-		{
 			"id": "packages/devtools/src/profiler/index.ts > Profiler > #refused",
 			"reason": "moves a loop to refused and says it once: a machine and a message (not replayable), constant work; proven in packages/devtools/test/profiler-background-refused.test.ts"
 		},
@@ -1681,6 +1669,30 @@
 			"reason": "browser only: drops every page flight (a one-line predicate); proven in packages/core/test/browser/page-flights.test.ts"
 		},
 		{
+			"id": "packages/federation/src/messages.ts > FEDERATION_WARNINGS > federation_audience_missing > text",
+			"reason": "a warning's wording, constant text; said in packages/federation/test/federation.test.ts"
+		},
+		{
+			"id": "packages/federation/src/messages.ts > FEDERATION_WARNINGS > federation_audience_missing > details",
+			"reason": "a warning's longer wording for its error page, constant text"
+		},
+		{
+			"id": "packages/federation/src/wire.ts > checker > capability:0~070b09 > signer > sign",
+			"reason": "the check side's signer stub: it never signs (every check brings its own keys), no work"
+		},
+		{
+			"id": "packages/federation/src/wire.ts > checker > capability:0~070b09 > signer > verify",
+			"reason": "the check side's signer stub: every check brings its own keys, so this always refuses, no work"
+		},
+		{
+			"id": "packages/federation/src/wire.ts > minter > capability:0~81c9d6 > signer > verify",
+			"reason": "the mint side's verify stub: a minter checks nothing (the receiver brings its keys), no work"
+		},
+		{
+			"id": "packages/federation/src/wire.ts > configured_audience",
+			"reason": "reads the process's ORIGIN once per federate() (hidden state: the environment), one URL parse, constant work; proven in packages/federation/test/federation.test.ts"
+		},
+		{
 			"id": "packages/federation/src/peer.ts > noop",
 			"reason": "the empty handler for a background refresh's failure (the next stale read tries again): no work"
 		},
@@ -2415,6 +2427,18 @@
 		{
 			"id": "packages/core/src/runtime/frame-store.ts > answer_definition",
 			"reason": "builds the stored-answer machine definition (plain data: three states, their steps), once per address entry; its moves are measured by the frame-store bench, the definition itself is not cloneable"
+		},
+		{
+			"id": "packages/devtools/src/profiler/index.ts > Profiler > #ids",
+			"reason": "the profiler's window ids, made once per instance (a profiler instance, not cloneable): one lazy import and one call of window_ids, which packages/devtools/bench/window-id.bench.ts measures; proven in packages/devtools/test/profiler-window-id.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/index.ts > Profiler > #ids > then:0~2b15d2",
+			"reason": "hands the loaded module's window_ids the profiler's secret, mode and audience (a module namespace, not cloneable), constant work; window_ids is benched in packages/devtools/bench/window-id.bench.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/window-id.ts > hmac_signer",
+			"reason": "wraps a derived key (a Buffer, not cloneable) in a sign/verify pair, once per profiler; the mint and check it serves are benched in packages/devtools/bench/window-id.bench.ts"
 		},
 		{
 			"id": "packages/core/src/compiler/macros/pipeline.ts > run_module_macros > refuse",
