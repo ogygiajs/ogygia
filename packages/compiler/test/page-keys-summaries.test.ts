@@ -5,9 +5,14 @@
 import { describe, expect, it } from 'vitest';
 import { dedent } from '@ogygia/core/contract';
 import {
+	follow_pending_page_calls,
+	page_data_keys,
 	page_data_keys_answer,
 	summarize_export,
-	type ExportSummary
+	type AllReason,
+	type ExportSummary,
+	type PageKeys,
+	type PendingCall
 } from '../src/compiler/link/page-keys.ts';
 
 const b = new Set(['b']);
@@ -115,5 +120,106 @@ describe('summarize_export answers exactly', () => {
 		expect(summarize_export('<script>{</script>', '/app/src/lib/H.svelte', 'svelte', 'h', 0)).toBe(
 			'all'
 		);
+	});
+});
+
+/** Reads the browser can take must count: only a test that is true on the server alone
+ *  (`typeof window === 'undefined'`, `import.meta.env.SSR`) or its negation picks a side. */
+describe('a read in a branch the browser can take counts', () => {
+	it.each([
+		'if (!flag) use(page.data.b);',
+		'if (!!flag) use(page.data.b);',
+		'if (flag) use(page.data.b);',
+		'flag && use(page.data.b);',
+		"if (typeof window === 'undefined') {} else use(page.data.b);",
+		"if (typeof window !== 'undefined') use(page.data.b);",
+		"if (typeof window != 'undefined') use(page.data.b);",
+		"if ('undefined' !== typeof document) use(page.data.b);",
+		"if (!(typeof window === 'undefined')) use(page.data.b);",
+		"if (typeof window === 'object') use(page.data.b);",
+		"if (typeof foo === 'undefined') use(page.data.b);",
+		"if (typeof window === 'string') use(page.data.b);",
+		"if (typeof window < 'undefined') use(page.data.b);",
+		"if (void window === 'undefined') use(page.data.b);",
+		"use(typeof window === 'undefined' ? 0 : page.data.b);",
+		'if (import.meta.env.DEV) use(page.data.b);',
+		'if (env.SSR) use(page.data.b);',
+		'if (import.meta.env[SSR]) use(page.data.b);',
+		'if (!import.meta.env.SSR) use(page.data.b);',
+		'if (import.meta.env.SSR) {} else use(page.data.b);'
+	])('%s', (body) => {
+		const code = `import { page } from '$app/state';\n${body}`;
+		const keys = page_data_keys(code, '/app/src/lib/x.ts', 'script');
+		expect(keys === 'all' || keys?.has('b'), JSON.stringify(keys && [...keys])).toBe(true);
+	});
+
+	it.each([
+		"if (typeof window === 'undefined') use(page.data.b);",
+		"if (typeof document == 'undefined') use(page.data.b);",
+		"if ('undefined' === typeof window) use(page.data.b);",
+		"if (!(typeof window !== 'undefined')) use(page.data.b);",
+		'if (import.meta.env.SSR) use(page.data.b);',
+		"typeof window === 'undefined' && use(page.data.b);",
+		"use(typeof window === 'undefined' ? page.data.b : 0);"
+	])('%s is server only', (body) => {
+		const code = dedent`
+			import { page } from '$app/state';
+			use(page.data.a);
+			${body}
+		`;
+		expect(page_data_keys(code, '/app/src/lib/x.ts', 'script')).toEqual(new Set(['a']));
+	});
+});
+
+/** A local function rebound by any assignment form may run another body: never followed. */
+describe('a followed function rebound by destructuring is not followed', () => {
+	it.each([
+		'({ f } = { f: (p) => p.data.b });',
+		'({ x: f } = { x: (p) => p.data.b });',
+		'({ f = (p) => p.data.b } = {});',
+		'[f] = [(p) => p.data.b];',
+		'[f = (p) => p.data.b] = [];',
+		'[...[f]] = [(p) => p.data.b];',
+		'({ ...f } = {});',
+		'((f) = (p) => p.data.b);',
+		'(f as any) = (p) => p.data.b;'
+	])('%s', (rebind) => {
+		const code = dedent`
+			import { page } from '$app/state';
+			let f = (p) => p.url;
+			${rebind}
+			use(f(page));
+		`;
+		const keys = page_data_keys(code, '/app/src/lib/x.ts', 'script');
+		expect(keys === 'all' || keys?.has('b'), JSON.stringify(keys && [...keys])).toBe(true);
+	});
+});
+
+describe('a renamed re-export is followed under its source name', () => {
+	it('`export { g as h }` looks for g, not h, in the source module', async () => {
+		const files: Record<string, string> = {
+			'/r/barrel.ts': "export { g as h } from './impl';",
+			'/r/impl.ts': dedent`
+				export function g(p) { return p.data.b; }
+				export function h(p) { return p.url; }
+			`
+		};
+		const program = {
+			page_keys: new Map<string, PageKeys>([['/app/A.ts', new Set()]]),
+			page_key_reasons: new Map<string, AllReason>(),
+			page_pending: new Map<string, PendingCall[]>([
+				['/app/A.ts', [{ specifier: '/r/barrel', imported: 'h', arg: 0, line: 2 }]]
+			])
+		};
+		await follow_pending_page_calls(
+			program,
+			async (spec, importer) => ({
+				id: spec.startsWith('./')
+					? `${importer.replace(/[^/]+$/, '')}${spec.slice(2)}.ts`
+					: `${spec}.ts`
+			}),
+			(f) => files[f] ?? null
+		);
+		expect(program.page_keys.get('/app/A.ts')).toEqual(new Set(['b']));
 	});
 });
