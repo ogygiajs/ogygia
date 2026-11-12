@@ -21,8 +21,8 @@ import {
 	testing_lean,
 	without_switch,
 	write_switch
-} from '@ogygia/core/insights';
-import { TESTING_ENGINE_VERSION } from '@ogygia/core/insights';
+} from '@ogygia/insights';
+import { TESTING_ENGINE_VERSION } from '@ogygia/insights';
 import { import_again } from '@ogygia/core/internal/instruments';
 import { flights, machine, STALE, type Machine, type Scope } from '@ogygia/machine';
 import { OgygiaError } from '../messages/runtime.ts';
