@@ -3155,6 +3155,10 @@
 		{
 			"id": "packages/core/src/messages/core.ts > WARNINGS > rule_head_adopted > text",
 			"reason": "a rule's message wording (dev and e2e only), constant text; said in packages/core/test/browser/spa-head-deny.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/core.ts > say_island_failed",
+			"reason": "browser only, an error path: says one coded console error for an island that could not start (an Error, not cloneable), constant work; proven in packages/core/test/browser/live-region-failed-file.test.ts (#942)"
 		}
 	]
 }

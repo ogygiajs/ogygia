@@ -357,6 +357,31 @@ type LiveTick = {
 /** A download slot (load-scheduler.ts) asked for by a step whose element then left: its turn still
  *  comes, and is handed straight back. */
 const hand_back = (release: () => void): void => release();
+
+/**
+ * An island that could not start, said once with its code: a woken island's, or a live region's.
+ * The ENTRY FETCH failing (the module never loaded) is told apart from the hydrate throwing (the
+ * module loaded, its code ran and failed). A `Failed to fetch dynamically imported module` on the
+ * island's own entry is not a hydration problem: in dev it almost always means Vite re-optimized deps
+ * and rotated the optimizer hash, so this already-loaded tab is importing dep URLs that no longer
+ * exist — a reload picks up the new graph (the dev bridge carries `@vite/client`, so Vite's own
+ * full-reload does this on the next signal). (each engine words it its own way: is_failed_import
+ * knows them all, WebKit's too, #383)
+ */
+function say_island_failed(entry: string | null, err: unknown): void {
+	if (kit_boot_failed(err)) {
+		// ok: said once for the page by the wait that saw it (kit-page-thread.svelte.ts)
+	} else if (is_failed_import(err)) {
+		if (import.meta.env.DEV) {
+			console.error(new OgygiaError('island_load_failed_stale_deps', { entry }), err);
+			void recover_from_stale_deps(entry); // ok: dev only, never rejects (its failure leaves the error above)
+		} else {
+			console.error(new OgygiaError('island_load_failed', { entry }), err);
+		}
+	} else {
+		console.error(new OgygiaError('island_hydrate_failed', { entry }), err);
+	}
+}
 const nothing = (): void => {};
 /** Whether a wait failed because Kit can no longer start on this page (kit-page-thread.svelte.ts). */
 const kit_boot_failed = (err: unknown): boolean =>
@@ -1737,26 +1762,7 @@ class OgygiaRegion extends HTMLElement {
 					message: (err as { message?: string })?.message ?? String(err),
 					...(t_turn !== undefined ? { turn: t_turn } : {})
 				});
-			// Distinguish the ENTRY FETCH failing (the module never loaded) from the hydrate throwing
-			// (the module loaded, its code ran and failed). A `Failed to fetch dynamically imported
-			// module` on the island's own entry is not a hydration problem: in dev it almost always
-			// means Vite re-optimized deps and rotated the optimizer hash, so this already-loaded tab
-			// is importing dep URLs that no longer exist — a reload picks up the new graph (the dev
-			// bridge carries `@vite/client`, so Vite's own full-reload does this on the next signal).
-			// (each engine words it its own way: is_failed_import knows them all, WebKit's too, #383)
-			const entry = this.getAttribute('entry');
-			if (kit_boot_failed(err)) {
-				// ok: said once for the page by the wait that saw it (kit-page-thread.svelte.ts)
-			} else if (is_failed_import(err)) {
-				if (import.meta.env.DEV) {
-					console.error(new OgygiaError('island_load_failed_stale_deps', { entry }), err);
-					void recover_from_stale_deps(entry); // ok: dev only, never rejects (its failure leaves the error above)
-				} else {
-					console.error(new OgygiaError('island_load_failed', { entry }), err);
-				}
-			} else {
-				console.error(new OgygiaError('island_hydrate_failed', { entry }), err);
-			}
+			say_island_failed(this.getAttribute('entry'), err);
 		} finally {
 			// live (or failed, or not ours): leaving `waking` disarms the capture — its clicks are its own
 			// from here (a click it already queued is still replayed by the wake that queued it). Not
@@ -1862,6 +1868,9 @@ class OgygiaRegion extends HTMLElement {
 			this.#live_props = desc.props;
 			return;
 		}
+		// Same module, its island's file could not load (said once): the tick's server HTML shows, and
+		// nothing loads again (#942, test/browser/live-region-failed-file.test.ts)
+		if (s.kind === 'failed' && s.module === desc.module) return this.#morph_live(desc.html, turn);
 
 		// First tick, the interactive module changed, or it was static: swap + hydrate. (Leaving `live`
 		// disposes its island; leaving `static` drops its subscription; leaving `hydrating` ends that
@@ -1902,8 +1911,9 @@ class OgygiaRegion extends HTMLElement {
 	/**
 	 * Hydrate a live region's swapped-in HTML through the hydrate core's live path — for the visit to
 	 * `hydrating` that swapped it (`mine`): a later tick that took over (another module, a static
-	 * tick) or the region leaving ends it before it mounts. One that could not mount goes back to
-	 * `idle`, so the next tick starts over.
+	 * tick) or the region leaving ends it before it mounts. One whose island could not load or
+	 * hydrate goes `failed`, said once, coded: the same module's later ticks show their HTML and start
+	 * nothing (#942). One that did not mount for another reason goes back to `idle`.
 	 */
 	async #live_hydrate(
 		props: Record<string, unknown>,
@@ -1958,6 +1968,11 @@ class OgygiaRegion extends HTMLElement {
 			this.setAttribute('data-hydrated', '');
 			this.dispatchEvent(new CustomEvent('ogygia:hydrated', { bubbles: true }));
 			this.dispatchEvent(new CustomEvent('ogygia:live', { bubbles: true }));
+		} catch (error) {
+			// (a tick that took over, or the region gone: the failure is no longer this visit's)
+			if (this.#live.now !== mine) return;
+			say_island_failed(this.getAttribute('entry'), error);
+			this.#live.go('failed', { module, error });
 		} finally {
 			if (this.#live.now === mine) this.#live.go('idle');
 		}
