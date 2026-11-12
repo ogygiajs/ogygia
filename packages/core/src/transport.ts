@@ -18,6 +18,7 @@
 import { REGION_BRAND } from './region-brand.ts';
 import { frameAddress } from './frame.ts';
 import { shown_version, ticket, write } from './runtime/frame-store.ts';
+import { vouch_remote_answer } from './runtime/html-sink.ts';
 import { emit as dt_emit } from './events/bus.ts';
 import {
 	register_kind,
@@ -131,8 +132,9 @@ function decode_region(raw: EncodedRegion) {
 		if (raw.x != null && raw.u && typeof document !== 'undefined') {
 			const a = frameAddress(raw.u);
 			const d = raw.d;
-			if (d == null) write({ a, v: ticket(a), html: raw.x });
-			else if (!write({ a, v: ticket(a), d, html: raw.x })) dropped_older(a, d);
+			const html = vouch_remote_answer(raw.x);
+			if (d == null) write({ a, v: ticket(a), html });
+			else if (!write({ a, v: ticket(a), d, html })) dropped_older(a, d);
 		}
 		return {
 			[REGION_BRAND]: true,
