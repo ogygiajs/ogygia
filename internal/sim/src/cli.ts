@@ -65,6 +65,8 @@ const arg = (flag: string): string | undefined => {
 };
 const LONG = process.argv.includes('--long');
 const REPLAY = !process.argv.includes('--no-replay');
+/** Buggify points on (`--no-buggify`: off), in a rules build. */
+const BUGGIFY = !process.argv.includes('--no-buggify');
 const APP = resolve(
 	arg('--app') ?? fileURLToPath(new URL('../../../apps/palaestra', import.meta.url))
 );
@@ -171,6 +173,8 @@ export interface RunResult {
 	readonly ms: number;
 	/** The full trace: loop tasks, actions, each tab's URL and DOM fingerprint, findings. */
 	readonly log: string[];
+	/** The buggify points that fired, `point×times`. */
+	readonly buggified: string[];
 }
 
 /** One seeded run. */
@@ -209,7 +213,8 @@ export async function run(
 		horizon: (steps + 2) * 60_000,
 		supplied: SUPPLIED,
 		instances,
-		skew
+		skew,
+		buggify: BUGGIFY ? { on: 0.3, fires: 0.2 } : undefined
 	});
 	running = world;
 	world.loop.note(
@@ -326,7 +331,20 @@ export async function run(
 			if (c) broken.push(c);
 		}
 		for (const b of broken) log.note(`broken ${b.oracle}: ${b.detail}`);
-		return { seed, faults, actions, broken, steps: world.loop.ran, ms: 0, log: world.loop.log };
+		const buggified = [...world.buggified]
+			.filter(([, b]) => b.fired > 0)
+			.map(([point, b]) => `${point}×${b.fired}`)
+			.sort();
+		return {
+			seed,
+			faults,
+			actions,
+			broken,
+			steps: world.loop.ran,
+			ms: 0,
+			log: world.loop.log,
+			buggified
+		};
 	} finally {
 		await world.end();
 	}
@@ -389,7 +407,7 @@ async function main(): Promise<void> {
 		const fresh = res.broken.filter((b) => b.oracle !== 'known');
 		const mark = fresh.length ? 'FAIL' : res.broken.length ? 'KNWN' : 'ok  ';
 		console.log(
-			`${mark} seed ${seed}  ${res.actions.length} actions, ${res.steps} loop steps, ${Math.round(res.ms)} ms  faults: ${res.faults.join(',') || 'none'}${replay}`
+			`${mark} seed ${seed}  ${res.actions.length} actions, ${res.steps} loop steps, ${Math.round(res.ms)} ms  faults: ${res.faults.join(',') || 'none'}${res.buggified.length ? `  buggify: ${res.buggified.join(',')}` : ''}${replay}`
 		);
 		if (STOP_AT !== Infinity) console.log(res.log.join('\n'));
 		const leak = leaks.find((l) => l.seed === seed);
@@ -506,7 +524,8 @@ class Pool {
 	#spawn(): Worker {
 		const passed = [
 			...(arg('--app') !== undefined ? ['--app', APP] : []),
-			...(arg('--hang-ms') !== undefined ? ['--hang-ms', arg('--hang-ms')!] : [])
+			...(arg('--hang-ms') !== undefined ? ['--hang-ms', arg('--hang-ms')!] : []),
+			...(BUGGIFY ? [] : ['--no-buggify'])
 		];
 		const child = fork(import.meta.filename, ['--worker', ...passed], {
 			execArgv: ['--experimental-vm-modules', '--no-warnings'],
@@ -549,7 +568,8 @@ class Pool {
 				broken: [{ oracle, detail: why }],
 				steps: 0,
 				ms: 0,
-				log: [`${oracle}: ${why.split('\n')[0]}`]
+				log: [`${oracle}: ${why.split('\n')[0]}`],
+				buggified: []
 			}
 		});
 		const done = (message: { result?: RunResult; error?: string; hung?: string }) => {

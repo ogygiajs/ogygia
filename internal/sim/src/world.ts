@@ -65,6 +65,10 @@ export interface WorldOptions {
 	supplied?: readonly string[];
 	/** How a deploy goes out (`World.deploy_next`). Default: at once, old files gone, no purge. */
 	rollover?: Rollover;
+	/** BUGGIFY (@ogygia/machine `buggify`, in rules builds): each point's chance to be on for this
+	 *  run (a swarm: a run tries some rare branches hard and leaves the rest alone), and an on
+	 *  point's chance to fire at each call. Default: off. */
+	buggify?: { readonly on: number; readonly fires: number };
 	/** The app's `OGYGIA_SECRET`, the same for every build (a stable signing key). Unset, each build
 	 *  signs with its own key, and a page of one build gets its holes refused by another's servers
 	 *  (`x-ogygia-deny: foreign-key`, as ogygia's `secret_missing` warns). */
@@ -114,9 +118,14 @@ export class World {
 	/** The server rules a server said broken (`<instance> <code> <detail>`): ogygia's server rules
 	 *  (core server/rules.ts) are said, not thrown, so the host's console is where they surface. */
 	readonly server_rules: string[] = [];
+	/** Each buggify point asked in this run: whether the swarm turned it on, and how often it fired
+	 *  (the coverage a search steers by). */
+	readonly buggified = new Map<string, { on: boolean; asked: number; fired: number }>();
 	/** The build new requests go to (a deploy moves it). */
 	live: string;
 	readonly #o: WorldOptions;
+	/** Each realm's own stream of buggify draws. */
+	readonly #buggify_rng = new Map<string, Rng>();
 	#restore: (() => void) | null = null;
 
 	private constructor(o: WorldOptions) {
@@ -136,9 +145,35 @@ export class World {
 			rng: this.rng,
 			network: this.network,
 			route: (request, from) => this.#route(request, from),
-			origin: ORIGIN
+			origin: ORIGIN,
+			buggify: (realm, point) => this.#buggify(realm, point)
 		});
 		this.live = o.builds[0].id;
+	}
+
+	/**
+	 * Whether `realm` takes the rare branch `point` now. Whether a point is on is the run's (its own
+	 * stream, named by the point, so a new point moves no other's choice); whether it fires is the
+	 * realm's draw. A firing is written into the log, so a replay that takes another branch shows.
+	 */
+	#buggify(realm: string, point: string): boolean {
+		const o = this.#o.buggify;
+		if (o === undefined) return false;
+		let seen = this.buggified.get(point);
+		if (seen === undefined) {
+			seen = { on: this.rng.fork(`buggify swarm ${point}`).chance(o.on), asked: 0, fired: 0 };
+			this.buggified.set(point, seen);
+		}
+		seen.asked++;
+		if (!seen.on) return false;
+		// (a realm's draws by its name without the document: a reload of a tab is the same stream)
+		const key = realm.replace(/#\d+$/, '');
+		let r = this.#buggify_rng.get(key);
+		if (r === undefined) this.#buggify_rng.set(key, (r = this.rng.fork(`buggify ${key}`)));
+		if (!r.chance(o.fires)) return false;
+		seen.fired++;
+		this.loop.note(`buggify ${realm} ${point}`);
+		return true;
 	}
 
 	/** Makes a world from `o` and starts its servers. */
@@ -156,7 +191,9 @@ export class World {
 			loop: w.loop,
 			rng: w.rng,
 			skew: () => current_server.getStore()?.skew ?? 0,
-			node: true
+			node: true,
+			// (each server instance draws as its own realm)
+			buggify: (_, point) => w.#buggify(current_server.getStore()?.name ?? 'server', point)
 		});
 		const restore_platform = install(globalThis, host);
 		const restore_symbols = own_symbols();
