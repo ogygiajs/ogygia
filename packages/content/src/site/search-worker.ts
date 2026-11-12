@@ -1,4 +1,4 @@
-import { flights, STALE } from '@ogygia/machine';
+import { flights, net, STALE } from '@ogygia/machine';
 import { orama_engine, type SearchHit, type SearchIndex } from './search.ts';
 import { OgygiaError } from '../messages/runtime.ts';
 
@@ -21,7 +21,7 @@ type Port = { postMessage(m: SearchWorkerOut): void };
 const indexes = flights({
 	name: 'content search worker index',
 	run: async (url: string): Promise<SearchIndex> => {
-		const res = await fetch(url);
+		const res = await net.fetch(url);
 		if (!res.ok) {
 			throw new OgygiaError('content_search_index_fetch_failed', { url, status: res.status });
 		}

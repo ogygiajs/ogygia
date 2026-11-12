@@ -5,14 +5,18 @@
  * huge match stays cheap. No Svelte: plain DOM, one layer, replaced on each call.
  */
 import { scope, type Scope } from '@ogygia/machine';
+import { OG_HIGHLIGHT } from '@ogygia/core/internal/instruments';
 
 let root: ShadowRoot | null = null;
-let layer: HTMLDivElement | null = null;
-let current: Element[] = [];
-let label = '';
-/** The layer while it is shown: its scroll and resize watch and its queued frame. Hiding it closes. */
-let shown: Scope | null = null;
-let queued = false;
+/** The layer while it is shown: the elements it boxes and their caption, its scroll and resize
+ *  watch and its queued frame (its scope's). Hiding it closes the scope and lets the elements go. */
+let shown: {
+	layer: HTMLDivElement;
+	scope: Scope;
+	els: Element[];
+	label: string;
+	queued: boolean;
+} | null = null;
 const MAX_BOXES = 400;
 
 /** The dock's shadow root (ui-app.ts sets it at mount). */
@@ -21,13 +25,14 @@ export function set_highlight_root(r: ShadowRoot): void {
 }
 
 function draw(): void {
-	queued = false;
-	if (!layer) return;
+	if (!shown) return;
+	shown.queued = false;
+	const { layer, els, label } = shown;
 	layer.textContent = '';
 	const vw = innerWidth;
 	const vh = innerHeight;
 	let n = 0;
-	for (const el of current) {
+	for (const el of els) {
 		if (n >= MAX_BOXES) break;
 		const r = el.getBoundingClientRect();
 		if (!r.width && !r.height) continue;
@@ -47,24 +52,27 @@ function draw(): void {
 }
 
 const schedule = () => {
-	if (queued || !shown) return;
-	queued = true;
-	shown.timeout(draw, 'frame');
+	if (!shown || shown.queued) return;
+	shown.queued = true;
+	shown.scope.timeout(draw, 'frame');
 };
 
 /** Show boxes over `els` (with a caption); `scroll` brings the first into view. */
 export function highlight(els: Element[], caption = '', scroll = false): void {
 	if (!root) return;
-	current = els;
-	label = caption;
-	if (!layer) {
-		layer = document.createElement('div');
-		layer.setAttribute('data-og-highlight', '');
+	if (!shown) {
+		const layer = document.createElement('div');
+		layer.setAttribute(OG_HIGHLIGHT, '');
 		layer.style.cssText = 'position:fixed;inset:0;pointer-events:none;z-index:2147483600';
 		root.prepend(layer);
-		shown = scope();
-		shown.on(globalThis, 'scroll', schedule, { passive: true, capture: true });
-		shown.on(globalThis, 'resize', schedule, { passive: true });
+		const watch = scope();
+		watch.on(globalThis, 'scroll', schedule, { passive: true, capture: true });
+		watch.on(globalThis, 'resize', schedule, { passive: true });
+		watch.defer(() => layer.remove());
+		shown = { layer, scope: watch, els, label: caption, queued: false };
+	} else {
+		shown.els = els;
+		shown.label = caption;
 	}
 	if (scroll && els[0]) {
 		try {
@@ -77,18 +85,11 @@ export function highlight(els: Element[], caption = '', scroll = false): void {
 }
 
 export function clear_highlight(): void {
-	current = [];
-	label = '';
-	if (layer) {
-		layer.remove();
-		layer = null;
-		shown?.close();
-		shown = null;
-		queued = false;
-	}
+	shown?.scope.close();
+	shown = null;
 }
 
 /** How many boxes are shown now (tests). */
 export function highlighted_count(): number {
-	return current.length;
+	return shown?.els.length ?? 0;
 }

@@ -1,3 +1,5 @@
+import { storage } from '@ogygia/machine';
+
 const KEY = 'og-tabs:';
 
 const selected = $state<Record<string, string>>({});
@@ -15,7 +17,7 @@ export function tab_group(group: string) {
 		set value(label: string) {
 			selected[group] = label;
 			try {
-				localStorage.setItem(KEY + group, label);
+				storage.local()?.setItem(KEY + group, label);
 			} catch {
 				// ok: no storage (private mode); the choice is kept in memory only
 			}
@@ -32,7 +34,7 @@ export function hydrate_group(group: string, fallback: string): void {
 	if (selected[group] != null) return;
 	let saved: string | null = null;
 	try {
-		saved = localStorage.getItem(KEY + group);
+		saved = storage.local()?.getItem(KEY + group) ?? null;
 	} catch {
 		// ok: no storage (private mode); the fallback is chosen
 	}
