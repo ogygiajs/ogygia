@@ -20,6 +20,7 @@ import {
 	OGYGIA_RUNTIME,
 	tag_name,
 	text_of,
+	read_capped,
 	type FoundTag
 } from '@ogygia/core/internal/server';
 import { cache } from '@ogygia/machine';
@@ -701,14 +702,12 @@ export const json_error = (status: number, error: string): Response =>
 	json_response({ error, status }, status);
 
 /** Read a request body under a cap BEFORE any verification work (an unauthenticated caller must
- *  never stream gigabytes into this process). Returns `null` when over the cap. */
+ *  never stream gigabytes into this process): read no further than the cap, chunked or not
+ *  (test/body-cap.test.ts). Returns `null` when over the cap. */
 export async function read_capped_body(
 	request: Request,
 	max: number
-): Promise<ArrayBuffer | undefined | null> {
+): Promise<Uint8Array<ArrayBuffer> | undefined | null> {
 	if (request.method === 'GET' || request.method === 'HEAD') return undefined;
-	const cl = Number(request.headers.get('content-length'));
-	if (Number.isFinite(cl) && cl > max) return null;
-	const body = await request.arrayBuffer();
-	return body.byteLength > max ? null : body;
+	return read_capped(request, max);
 }
