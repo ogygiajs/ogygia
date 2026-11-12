@@ -128,6 +128,42 @@ describe('a never-settling load promise is released when the client disconnects'
 	});
 });
 
+describe('a load promise that rejects after the request ended is still handled', () => {
+	const unhandled: unknown[] = [];
+	const on_unhandled = (reason: unknown) => void unhandled.push(reason);
+
+	it('settling the data', async () => {
+		process.on('unhandledRejection', on_unhandled);
+		const request = scope();
+		request.close();
+		let fail!: (e: unknown) => void;
+		const out = settle_deferred({ x: new Promise((_, reject) => (fail = reject)) }, request);
+		fail(new Error('a load promise that failed'));
+		expect(await out).toBe(STALE);
+		await later(null, 20);
+		process.off('unhandledRejection', on_unhandled);
+		expect(unhandled).toEqual([]);
+	});
+
+	it('streaming the data', async () => {
+		unhandled.length = 0;
+		process.on('unhandledRejection', on_unhandled);
+		const request = scope();
+		let fail!: (e: unknown) => void;
+		stream_page_deferred(
+			request,
+			kit_doc(),
+			[{ id: 0, promise: new Promise((_, reject) => (fail = reject)) }],
+			1
+		);
+		request.close();
+		fail(new Error('a load promise that failed'));
+		await later(null, 20);
+		process.off('unhandledRejection', on_unhandled);
+		expect(unhandled).toEqual([]);
+	});
+});
+
 describe('dev: a streamed promise still pending after 10 s is said once', () => {
 	it('navigation stream: one coded warning, none after it settles', async () => {
 		vi.useFakeTimers();
