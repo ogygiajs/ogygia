@@ -4,25 +4,72 @@
  * `widget()`. The peer is request-agnostic: per-request facts (claims, traceparent) are call
  * arguments, so one instance is shared across requests.
  */
-import { flights, STALE, world, type Flights } from '@ogygia/machine';
+import {
+	buggify,
+	clock,
+	flights,
+	net,
+	noop,
+	STALE,
+	timers,
+	world,
+	type Flights
+} from '@ogygia/machine';
 import { error, isHttpError as is_http_error } from '@ogygia/router';
 import type { RegionValue } from '@ogygia/core';
 import { htmlRegion as og_html_region } from '@ogygia/core/plugin';
-import { current_request_scope } from '@ogygia/core/internal/server';
+import { current_request_scope, OG_FRAGMENT_FAILED } from '@ogygia/core/internal/server';
+import { decodeText, escapeAttr } from '@ogygia/core/plugin/utils';
 import { fed_app } from './app.ts';
+import { warn } from './messages.ts';
 import {
+	absolutize,
 	sign_headers,
 	child_traceparent,
 	FRAGMENT_ROUTES_PATH,
 	FRAGMENT_BASE,
+	OFF_SITE_PATH_RE,
 	type Claims,
 	type FragmentDocument,
 	type WidgetDocument
 } from './wire.ts';
-import { mint_hole } from './hole.ts';
+import { hole_url, mint_hole } from './hole.ts';
 import type { Peer, PeerConfig, RemoteDials } from './types.ts';
 
+declare const __OGYGIA_RULES__: boolean | undefined;
+/** Dev and rules builds (a buggify point); folded out of any other. */
+const RULES =
+	import.meta.env?.DEV || (typeof __OGYGIA_RULES__ !== 'undefined' ? __OGYGIA_RULES__ : false);
+
 const HOST_UNSAFE_G = /[^a-zA-Z0-9_-]/g;
+/** A region element's opening tag, and the `endpoint` in it. */
+const REGION_OPEN_RE = /<ogygia-region\b[^>]*>/g;
+const ENDPOINT_ATTR_RE = /(\sendpoint=")([^"]*)(")/;
+
+/** A failed hop, said once with its code: an answer that can't be used (an error status, or not its
+ *  JSON document: `federation_peer_answer_invalid`), or no answer at all (`federation_peer_unreachable`).
+ *  `status` is what a page read, a post or a hole answers: the peer's own 503 or 504 (busy or down,
+ *  worth trying later), 504 for no answer, else a 502. */
+class HopFailed extends Error {
+	override name = 'HopFailed';
+	readonly status: 502 | 503 | 504;
+	constructor(what: string, status: number) {
+		// (the message is what a visitor's error page may show: no peer name, no URL)
+		super(`fragment app ${what}`);
+		this.status = status === 503 || status === 504 ? status : 502;
+	}
+}
+
+/** The status a failed hop answers with, whatever read it: a {@link HopFailed} says its own, an error
+ *  a page read already threw keeps its status, and anything else (a request that ended its own
+ *  hop) is a 504, as a page read's is. Test: test/hole-peer-failure.test.ts (#937). */
+export function hop_failure_status(e: unknown): number {
+	if (e instanceof HopFailed || is_http_error(e)) return e.status;
+	return 504;
+}
+
+/** What a static widget shows when its peer's answer could not be read: the page still renders. */
+const FRAGMENT_FAILED = `<div ${OG_FRAGMENT_FAILED} style="border:1px dashed #dc2626;border-radius:8px;padding:1rem;color:#dc2626">This section is temporarily unavailable.</div>`;
 
 /** The one rule for what the document cache keeps, on the first fill and on every refresh: a
  *  successful answer that is not a redirect. */
@@ -46,8 +93,6 @@ interface Fetched {
 }
 
 type SignedInit = RequestInit & { body?: ArrayBuffer };
-
-const noop = (): void => {};
 
 /**
  * One peer handle. `me` is the federating app's name (the tag prefix a consumed fragment's
@@ -112,11 +157,17 @@ export class PeerHandle implements Peer {
 		const signal = current_request_scope()?.signal;
 		for (;;) {
 			const seen = docs.peek(key);
-			if (seen?.kind === 'kept' && Date.now() - seen.at >= this.#ttl) {
+			// wall: a flights entry's `at` is a wall timestamp
+			if (
+				seen?.kind === 'kept' &&
+				(clock.wall() - seen.at >= this.#ttl ||
+					// (buggify: its ttl just ran out, so it is served stale while a fresh flight runs)
+					(RULES && buggify.fires('federation.doc-stale')))
+			) {
 				// stale: served as it is while one fresh flight refreshes it (an error answer, or a
 				// failure, leaves the good copy kept, and the next stale read tries again)
 				if (!seen.flying) docs.get(read, { fresh: true }).then(undefined, noop); // ok: the good copy stays served and the next stale read tries again; a read with no copy throws the failure
-				return seen.answer.doc;
+				return this.#used(seen.answer.doc);
 			}
 			let answer: Fetched | typeof STALE;
 			try {
@@ -125,7 +176,7 @@ export class PeerHandle implements Peer {
 				if (is_http_error(e)) throw e;
 				error(504, 'This section is temporarily unavailable.');
 			}
-			if (answer !== STALE) return answer.doc;
+			if (answer !== STALE) return this.#used(answer.doc);
 			if (signal?.aborted) throw signal.reason;
 			// a mutation or a thaw dropped the flight this read joined: what it fetched may be the
 			// page from before, so read again
@@ -146,12 +197,14 @@ export class PeerHandle implements Peer {
 	): Promise<FragmentDocument> {
 		this.#sources.bump();
 		try {
-			return await this.#raw_doc(
-				path,
-				search,
-				{ method: 'POST', headers: { 'content-type': content_type, origin: this.origin }, body },
-				claims,
-				traceparent
+			return this.#used(
+				await this.#raw_doc(
+					path,
+					search,
+					{ method: 'POST', headers: { 'content-type': content_type, origin: this.origin }, body },
+					claims,
+					traceparent
+				)
 			);
 		} finally {
 			this.#sources.bump();
@@ -181,9 +234,42 @@ export class PeerHandle implements Peer {
 			}
 			if (res.status < 500 || i === origins.length - 1) break;
 		}
-		if (!res) throw last_err instanceof Error ? last_err : new Error(String(last_err));
-		if (!res.ok) throw new Error(`fragment '${widget_name}' answered ${res.status}`);
-		return (await res.json()) as WidgetDocument;
+		const doc = await this.#answer<WidgetDocument>(res, 'widget', { error: last_err, signal });
+		return { ...doc, html: this.#own_endpoints(doc.html) };
+	}
+
+	/** Every hop's answer, read as the JSON document it should be. No answer at all (down,
+	 *  unreachable, past the timeout) or one that can't be used (an error status, or a body that does
+	 *  not parse: a byte changed on the way, a proxy's error page) is said with its code and thrown as
+	 *  a {@link HopFailed}; a hop the asking request ended itself throws its own error, unsaid. A
+	 *  page's 404 is a document: the peer's own not-found page. test/peer-answer-invalid.test.ts
+	 *  (#929, #931), test/peer-unreachable.test.ts (#933). */
+	async #answer<T>(
+		res: Response | undefined,
+		kind: 'page' | 'widget',
+		none: { error: unknown; signal?: AbortSignal }
+	): Promise<T> {
+		if (!res) {
+			if (none.signal?.aborted)
+				throw none.error instanceof Error ? none.error : new Error(String(none.error));
+			warn('federation_peer_unreachable', { peer: this.name, url: this.origin });
+			throw new HopFailed('gave no answer', 504);
+		}
+		const url = res.url || this.origin;
+		if (!res.ok && !(kind === 'page' && res.status === 404)) {
+			res.body?.cancel().then(undefined, noop); // ok: the answer is not read, only let go
+			const what = `a ${res.status}`;
+			warn('federation_peer_answer_invalid', { peer: this.name, url, what });
+			throw new HopFailed(`answered ${what}`, res.status);
+		}
+		const text = await res.text();
+		try {
+			return JSON.parse(text) as T;
+		} catch {
+			const what = 'something that is not its JSON document';
+			warn('federation_peer_answer_invalid', { peer: this.name, url, what });
+			throw new HopFailed('answered no document', res.status);
+		}
 	}
 
 	async page(path: string, dials: RemoteDials & { search?: string } = {}): Promise<RegionValue> {
@@ -207,7 +293,15 @@ export class PeerHandle implements Peer {
 				new URLSearchParams(props).toString(),
 				dials.claims
 			);
-		const doc = await this.widgetDoc(widget_name, props, { claims: dials.claims });
+		let doc: WidgetDocument;
+		try {
+			doc = await this.widgetDoc(widget_name, props, { claims: dials.claims });
+		} catch (e) {
+			// (said already: the page renders, the card stands in the widget's place)
+			if (e instanceof HopFailed)
+				return { ...og_html_region(FRAGMENT_FAILED), html: FRAGMENT_FAILED };
+			throw e;
+		}
 		return this.#bake_static({ body: doc.html, sources: doc.sources });
 	}
 
@@ -249,9 +343,8 @@ export class PeerHandle implements Peer {
 					this.#cfg.audience
 				)
 			: {};
-		const timeout = AbortSignal.timeout(this.#timeout);
-		return fetch(u, {
-			signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
+		return net.fetch(u, {
+			signal: timers.timeout(this.#timeout, signal),
 			...init,
 			headers: {
 				...(init?.headers as Record<string, string>),
@@ -286,9 +379,120 @@ export class PeerHandle implements Peer {
 			}
 			if (res.status < 500 || i === pool.length - 1) break;
 		}
-		if (!res) throw last_err;
-		if (!res.ok && res.status !== 404) error(502, `fragment app answered ${res.status}`);
-		return (await res.json()) as FragmentDocument;
+		let doc: FragmentDocument;
+		try {
+			doc = await this.#answer<FragmentDocument>(res, 'page', { error: last_err, signal });
+		} catch (e) {
+			if (e instanceof HopFailed) error(e.status, e.message);
+			throw e;
+		}
+		// (an answer read means a response came)
+		const answered = res!.url;
+		// its runtime's origin becomes a code origin of the page that uses it (#856): only from an
+		// answer of this peer's own origins (a redirect elsewhere is not the peer), only http(s)
+		const runtime = doc.runtime === undefined ? null : this.#own_url(doc.runtime, answered);
+		if (runtime === null) delete doc.runtime;
+		return doc;
+	}
+
+	/** `url` when the answer came from one of this peer's origins and it is an http(s) URL, else
+	 *  null. `answered`: the answer's final URL (after any redirect). */
+	#own_url(url: string, answered: string): string | null {
+		try {
+			if (!this.#origins.some((o) => new URL(o).origin === new URL(answered).origin)) return null;
+			const u = new URL(url);
+			return u.protocol === 'https:' || u.protocol === 'http:' ? u.href : null;
+		} catch {
+			return null; // ok: not a URL: no origin to allow
+		}
+	}
+
+	/** A document this request uses: its runtime's origin joins the request's code origins, so the
+	 *  page's runtime loads the peer's islands from where the peer serves them (core
+	 *  runtime/code-origins.ts), and its region endpoints become this request's holes. A kept
+	 *  document is not changed: each request mints its own. */
+	#used(doc: FragmentDocument): FragmentDocument {
+		if (doc.runtime) {
+			const facts = fed_app()?.current();
+			if (facts) (facts.codeOrigins ??= []).push(new URL(doc.runtime).origin);
+		}
+		const body = this.#own_endpoints(doc.body);
+		return body === doc.body ? doc : { ...doc, body };
+	}
+
+	/**
+	 * `html` as this app serves it: each region endpoint of this peer's own (a server island's hole,
+	 * a lake's, on one of its origins) becomes a hole of this app's that forwards there. The browser
+	 * asks its page's origin, as for every hole (INVARIANTS.md · HOLE-TRUST), and chooses no part of
+	 * it. An endpoint on any other origin stays as it came, and the runtime refuses it.
+	 * Test: test/peer-endpoints.test.ts (#910).
+	 */
+	#own_endpoints(html: string): string {
+		if (!html.includes('<ogygia-region')) return html;
+		return html.replace(REGION_OPEN_RE, (tag) =>
+			tag.replace(ENDPOINT_ATTR_RE, (whole, open: string, value: string, close: string) => {
+				const target = this.#own_target(decodeText(value));
+				const url =
+					target === null
+						? ''
+						: hole_url({ peer: this.name, kind: 'endpoint', target, search: '' });
+				return url ? open + escapeAttr(url) + close : whole;
+			})
+		);
+	}
+
+	/** The path and query `url` names on one of this peer's origins (a relative one, on its first),
+	 *  else null. */
+	#own_target(url: string): string | null {
+		try {
+			const u = new URL(url, this.origin + '/');
+			if (!this.#origins.some((o) => new URL(o).origin === u.origin)) return null;
+			return u.pathname + u.search;
+		} catch {
+			return null; // ok: not a URL: nothing to forward to
+		}
+	}
+
+	/**
+	 * Transport: one of this peer's own region endpoints (`target`, a hole its fragment carried), asked
+	 * as the browser would ask it, on this peer's origins only. An expired capability of the peer's is
+	 * renewed by the peer, once. The answer as this app serves it (its assets and endpoints pinned like
+	 * a fragment's), `204` (keep the fallback), or null when the answer is not the region's (a
+	 * redirect, an error status, no answer): the hole says so and the fallback stands.
+	 */
+	async endpoint(
+		target: string,
+		traceparent?: string
+	): Promise<{ status: 200; html: string } | { status: 204 } | null> {
+		if (OFF_SITE_PATH_RE.test(target) || !target.startsWith('/')) return null;
+		const signal = current_request_scope()?.signal;
+		for (const origin of this.#origins) {
+			const u = new URL(target, origin);
+			if (u.origin !== new URL(origin).origin) return null;
+			const ask = (url: URL) =>
+				net.fetch(url, {
+					redirect: 'manual',
+					signal: timers.timeout(this.#timeout, signal),
+					headers: traceparent ? { traceparent } : {}
+				});
+			let res: Response;
+			try {
+				res = await ask(u);
+				if (res.status === 403 && res.headers.get('x-ogygia-deny') === 'expired') {
+					const renewal = new URL(u);
+					renewal.searchParams.set('renew', '1');
+					res = await ask(renewal);
+				}
+			} catch {
+				if (signal?.aborted) return null;
+				continue; // ok: a replica that does not answer: the next is asked
+			}
+			if (res.status >= 500) continue;
+			if (res.status === 204) return { status: 204 };
+			if (res.status !== 200) return null;
+			return { status: 200, html: this.#own_endpoints(absolutize(await res.text(), u.origin)) };
+		}
+		return null;
 	}
 
 	/** Prefix a remote fragment's own receipt tags with THIS peer's name, so the consuming page's

@@ -1,17 +1,3 @@
-/**
- * `@ogygia/flags/openfeature` — bridge an OpenFeature client into ogygia's flag decision seam.
- *
- * The app already creates its own OpenFeature client (any provider — LaunchDarkly, Flagsmith,
- * Unleash, flagd, …); ogygia depends on NO vendor SDK. This adapter is pure structural typing:
- * it hands the client one bulk evaluation per request over exactly the flags the app declares,
- * and returns their decisions. After that one await, an OpenFeature-decided flag is
- * indistinguishable from a native one — same sync reads, same `pick()`, same federation carry.
- *
- *   import { OpenFeature } from '@openfeature/server-sdk';
- *   import { decide } from '@ogygia/flags';
- *   import { openfeature } from '@ogygia/flags/openfeature';
- *   decide({ source: openfeature(OpenFeature.getClient()) });
- */
 import type { FlagSource, FlagQuery, Resolved, CtxLike } from './index.ts';
 import { source_failed } from './source-health.ts';
 
@@ -39,8 +25,8 @@ export interface EvaluationContextLike {
 }
 
 export interface OpenFeatureOptions {
-	/** Build the OpenFeature evaluation context from the request (default: visitor `sub` →
-	 *  `targetingKey`, plus every own key of `c.visitor`). */
+	/** Build the OpenFeature evaluation context from the request (default: visitor `sub`, else
+	 *  an anonymous visitor's `vid` → `targetingKey`, plus every own key of `c.visitor`). */
 	context?: (c: CtxLike) => EvaluationContextLike;
 	/** Also pull each flag's object value as the `.value(c)` payload (one extra eval per flag).
 	 *  Off by default — most flags are variant-only. */
@@ -48,10 +34,22 @@ export interface OpenFeatureOptions {
 }
 
 function default_context(c: CtxLike): EvaluationContextLike {
-	const sub = c.visitor?.sub;
-	return { ...c.visitor, ...(sub ? { targetingKey: sub } : {}) };
+	const key = c.visitor?.sub || c.visitor?.vid;
+	return { ...c.visitor, ...(key ? { targetingKey: key } : {}) };
 }
 
+/**
+ * A flag source over the app's own OpenFeature client (any provider; ogygia depends on no vendor
+ * SDK). One evaluation per declared flag per request: a boolean flag asks with `false` as its
+ * default (a missing key never turns a feature on), a variant flag with its first variant. One
+ * flag whose evaluation throws falls to its native rule and is said; the others keep the answer.
+ * After the one await, a decided flag reads like a native one.
+ *
+ *   import { OpenFeature } from '@openfeature/server-sdk';
+ *   import { decide } from '@ogygia/flags';
+ *   import { openfeature } from '@ogygia/flags/openfeature';
+ *   decide({ source: openfeature(OpenFeature.getClient()) });
+ */
 export function openfeature(
 	client: OpenFeatureClientLike,
 	opts: OpenFeatureOptions = {}
@@ -64,11 +62,9 @@ export function openfeature(
 			queries.map(async (q) => {
 				try {
 					if (q.kind === 'boolean') {
-						// default OFF — a missing key must never silently enable a feature.
 						const on = await client.getBooleanValue(q.name, false, context);
 						out[q.name] = on ? 'on' : 'off';
 					} else {
-						// variant flag: the string value IS the variant name (control default).
 						const variant = await client.getStringValue(q.name, q.variants[0], context);
 						out[q.name] = variant;
 					}
@@ -83,8 +79,6 @@ export function openfeature(
 						}
 					}
 				} catch (error) {
-					// one flag's eval failure falls through to the native rule, not the whole request,
-					// and is said
 					source_failed(error);
 				}
 			})

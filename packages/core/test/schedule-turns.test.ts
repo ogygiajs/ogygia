@@ -12,7 +12,13 @@ import { scope } from '@ogygia/machine';
 /** The regions' lifetime in the page: their snapshots are its. */
 const page = scope();
 
-type Report = (entries: Array<{ target: object; isIntersecting: boolean }>) => void;
+type Report = (
+	entries: Array<{
+		target: object;
+		isIntersecting: boolean;
+		boundingClientRect: { width: number; height: number };
+	}>
+) => void;
 const observers: Report[] = [];
 let s: typeof import('../src/runtime/schedule.ts');
 
@@ -44,7 +50,10 @@ let made = 0;
 const regions = (n: number) =>
 	Array.from({ length: n }, () => ({ id: made++ }) as unknown as Element & { id: number });
 const report = (el: Element, intersecting: boolean) => {
-	for (const cb of observers) cb([{ target: el, isIntersecting: intersecting }]);
+	// (a region with a box of its own: its own report decides, ./viewport.ts)
+	const boundingClientRect = { width: 10, height: 10 };
+	for (const cb of observers)
+		cb([{ target: el, isIntersecting: intersecting, boundingClientRect }]);
 };
 /** Ask for every region's turn; resolves with the regions in the order their turns came. */
 async function turns(els: Array<Element & { id: number }>, ask = els): Promise<number[]> {

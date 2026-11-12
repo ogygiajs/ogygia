@@ -7,7 +7,7 @@ with the `item` snippet; style the rest through the `.og-*` classes.
 <script lang="ts">
 	import type { Snippet } from 'svelte';
 	import { page } from '$app/state';
-	import { scope } from '@ogygia/machine';
+	import { scope, storage } from '@ogygia/machine';
 	import { get_shell_context } from '../context.ts';
 	import { roving } from './roving.ts';
 	import type { Site } from '../site.ts';
@@ -50,7 +50,7 @@ with the `item` snippet; style the rest through the `.og-*` classes.
 	const save = () => {
 		if (scroller) {
 			try {
-				sessionStorage.setItem(`og:sidenav:${the_base}`, String(scroller.scrollTop));
+				storage.session()?.setItem(`og:sidenav:${the_base}`, String(scroller.scrollTop));
 			} catch {
 				// ok: no storage (private mode); the scroll position is not kept
 			}
@@ -77,7 +77,7 @@ with the `item` snippet; style the rest through the `.og-*` classes.
 		run.on(scroller, 'scroll', save, { passive: true });
 		let saved: number | null = null;
 		try {
-			const raw = sessionStorage.getItem(`og:sidenav:${the_base}`);
+			const raw = storage.session()?.getItem(`og:sidenav:${the_base}`);
 			saved = raw == null ? null : Number(raw);
 		} catch {
 			// ok: no storage (private mode); the scroll position is not kept

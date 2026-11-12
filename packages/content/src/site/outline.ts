@@ -1,20 +1,3 @@
-/**
- * `outline()` — the arranger. It takes any number of collections and an arrangement spec and derives
- * ONE normalized tree (`NavTree`) plus an address map. Everything downstream (nav, prev/next,
- * section labels, prerender entries) is a view of this. The outline is itself collection-like: it
- * answers "how the corpora read" the way `content()` answers "what exists".
- *
- * Spec grammar (every form composes with every other):
- *   - a bare collection            → the remainder of it, convention-expanded (NN- order, id-path groups)
- *   - `pick(coll, ...patterns)`    → a flat, ordered selection (exact ids and `*`/`**` globs)
- *   - `{ label, items, ... }`      → an explicit group holding a collection / selection / nested items
- *   - `{ label, href }`            → a plain link
- *   - `() => items`                → a computed subtree (escape hatch)
- *
- * Placement is single-assignment: each entry lands once; a bare collection consumes the not-yet-placed
- * remainder. Unknown pick ids, empty glob matches, slug collisions, and unplaced ("orphan") entries
- * are all build errors, named. That is the safety VitePress's stringly sidebar never had.
- */
 import type { ContentEntry, ContentHandle, Entry } from '../index.ts';
 import type { Crumb, NavItem, NavLeaf, NavRef, NavTree, Resolved } from './types.ts';
 import { title_case } from '../convention.ts';
@@ -33,7 +16,6 @@ export const OUTLINE_TOKEN: unique symbol = Symbol.for('ogygia.content.outline-t
 /** A content collection, as the outline consumes it (the browser-safe `content()` handle). */
 export type Collection = ContentHandle<Record<string, unknown>, unknown>;
 
-/** One entry as the collections here yield it (loose data + meta — the outline is corpus-agnostic). */
 type Ent = ContentEntry<Record<string, unknown>, unknown>;
 
 const SELECTION: unique symbol = Symbol.for('ogygia.pharos.selection');
@@ -85,8 +67,6 @@ export function pick(collection: Collection, ...patterns: string[]): Selection {
 	return { [SELECTION]: true, collection, patterns };
 }
 
-// ── runtime type guards (the spec is user data; discriminate structurally) ──
-
 function is_collection(x: unknown): x is Collection {
 	return (
 		!!x &&
@@ -118,13 +98,10 @@ function is_link(x: unknown): x is LinkSpec {
 	);
 }
 
-// ── small helpers ──
-
 function str(v: unknown): string | undefined {
 	return typeof v === 'string' && v ? v : undefined;
 }
 
-/** Join a base prefix and a slug, both possibly empty, into a clean `a/b` slug (no leading slash). */
 function join_slug(base: string, slug: string): string {
 	return [base, slug]
 		.filter(Boolean)
@@ -150,19 +127,15 @@ function glob_to_regexp(pattern: string): RegExp {
 	return new RegExp(`^${escaped}$`);
 }
 
-// ── the materialized result (built once, memoized) ──
-
 type LeafRecord = Resolved & { title: string; summary?: string; collection: Collection };
 
 type Materialized = {
-	tree: NavTree; // slugs only; hrefs applied per-base at serve time
-	order: string[]; // leaf slugs in reading order
+	tree: NavTree;
+	order: string[];
 	by_slug: Map<string, LeafRecord>;
-	slug_of: Map<number, Map<string, string>>; // collectionIndex → (entryId → slug)
-	aliases: Map<string, string>; // old slug → canonical slug (declared redirect history)
+	slug_of: Map<number, Map<string, string>>;
+	aliases: Map<string, string>;
 	collections: Collection[];
-	/** each collection's catalog version (its world's stamp) taken before its entries were read: one
-	 *  no longer fresh means this materialization is out of date (a live source changed it) */
 	read: Map<Collection, number | null>;
 };
 
@@ -171,7 +144,6 @@ type BuildCtx = {
 	crumbs: Crumb[];
 	section: string | undefined;
 	clean_path: string;
-	/** Address policy from the nearest enclosing group's `slug` (id → slug, before `base`). */
 	slug?: (id: string) => string;
 };
 
@@ -220,34 +192,26 @@ export interface Outline {
 	aliases(ctx?: ReadContext): Promise<Map<string, string>>;
 }
 
-/** Every collection still in the world it was read in. */
 function unchanged(read: Map<Collection, number | null>): boolean {
 	for (const [c, v] of read) if (!catalog_fresh(c, v)) return false;
 	return true;
 }
 
-/** The versions `read`'s collections are at now. */
 function versions_now(read: Map<Collection, number | null>): Map<Collection, number | null> {
 	const now = new Map<Collection, number | null>();
 	for (const c of read.keys()) now.set(c, catalog_version(c));
 	return now;
 }
 
-/** The outline as a class — spec + options + a PER-CONTEXT memoized materialization, each read a
- *  method. Methods are always called attached (through `pharos()`/`dimensions()`), so no binding. */
 class OutlineImpl implements Outline {
 	readonly #spec: OutlineSpec;
 	readonly #opts: OutlineOptions;
-	/** One weave per read context: the last good one is kept, and a weave out for it is joined. */
 	readonly #weaves = flights.keyed<{ key: string; ctx: ReadContext }>()({
 		name: 'content outline weaves',
 		key: ['key'],
 		ignore: { ctx: 'the key spells all of it (ctx_key: every field, sorted)' },
 		run: ({ key, ctx }) => this.#weave(key, ctx)
 	});
-	/** Per read context, when weaving changed content failed: the versions it failed at. The last
-	 *  good weave stands until the content changes again (an editor's next save), as a collection
-	 *  keeps an entry's last good version over one that fails its schema. */
 	readonly #failed = new Map<string, Map<Collection, number | null>>();
 
 	constructor(spec: OutlineSpec, opts: OutlineOptions = {}) {
@@ -255,13 +219,6 @@ class OutlineImpl implements Outline {
 		this.#opts = opts;
 	}
 
-	/**
-	 * Materialize PER CONTEXT, memoized. `{}` is the public/prerendered projection. Woven again once
-	 * a collection it read has changed since (a live source): the nav, pages and addresses follow the
-	 * content (they once stayed as first woven, #193). A failed weave is never kept: the first one
-	 * fails its caller (there is nothing to keep, and the next read weaves again), and one over
-	 * changed content keeps the last good weave and says why, once (#weave).
-	 */
 	async #ready(ctx: ReadContext = {}): Promise<Materialized> {
 		const key = ctx_key(ctx);
 		const seen = this.#weaves.peek({ key });
@@ -272,11 +229,9 @@ class OutlineImpl implements Outline {
 			!unchanged(seen.answer.read) &&
 			!(failed !== undefined && unchanged(failed));
 		const m = await this.#weaves.get({ key, ctx }, { fresh });
-		// (nothing drops a weave and no reader leaves one, so it is never STALE; were it, ask again)
 		return m === STALE ? this.#ready(ctx) : m;
 	}
 
-	/** Weave `ctx`: the new weave, or (it failed over changed content) the last good one. */
 	async #weave(key: string, ctx: ReadContext): Promise<Materialized> {
 		const seen = this.#weaves.peek({ key });
 		const good = seen?.kind === 'kept' ? seen.answer : null;
@@ -316,8 +271,6 @@ class OutlineImpl implements Outline {
 		const m = await this.#ready(ctx);
 		const i = m.order.indexOf(normalize_slug(slug));
 		if (i < 0) return {};
-		// `trail: 'group'` stops prev/next at the top-level section boundary (a neighbor in a different
-		// section is dropped), so reading order never crosses topics. `'site'` = the whole corpus.
 		const here = m.by_slug.get(m.order[i])?.section;
 		const ref = (s: string | undefined): NavRef | undefined => {
 			if (!s) return undefined;
@@ -344,7 +297,27 @@ class OutlineImpl implements Outline {
 	}
 }
 
-/** Weave any number of collections + an arrangement into one derived `Outline`. */
+/**
+ * Weave any number of collections + an arrangement into one derived `Outline`: ONE normalized tree
+ * (`NavTree`) plus an address map. Everything downstream (nav, prev/next, section labels,
+ * prerender entries) is a view of it. It answers "how the corpora read" the way `content()`
+ * answers "what exists".
+ *
+ * Spec grammar (every form composes with every other):
+ *   - a bare collection            → the remainder of it, convention-expanded (NN- order, id-path groups)
+ *   - `pick(coll, ...patterns)`    → a flat, ordered selection (exact ids and `*`/`**` globs)
+ *   - `{ label, items, ... }`      → an explicit group holding a collection / selection / nested items
+ *   - `{ label, href }`            → a plain link, its href kept under any mount base
+ *   - `() => items`                → a computed subtree (escape hatch)
+ *
+ * Each entry is placed once: a later item skips what an earlier one placed, and a bare collection
+ * takes the not-yet-placed remainder. Unknown pick ids, empty glob matches, slug collisions,
+ * unplaced ("orphan") entries and clashing `redirect_from` addresses are build errors, named.
+ *
+ * Each read context weaves once; readers at once share the weave, and later readers keep it until
+ * a collection it read changes. A weave that fails over changed content keeps the last good one
+ * and says why; a first weave that fails is the caller's error.
+ */
 export function outline(spec: OutlineSpec, opts: OutlineOptions = {}): Outline {
 	return new OutlineImpl(spec, opts);
 }
@@ -361,7 +334,6 @@ function to_ref(r: LeafRecord, base: string): NavRef {
 	};
 }
 
-/** Clone a slug-based tree with hrefs resolved for a mount `base`. Links pass through untouched. */
 function with_base(tree: NavTree, base: string): NavTree {
 	return tree.map((item): NavItem => {
 		if (item.kind === 'group') return { ...item, items: with_base(item.items, base) };
@@ -369,8 +341,6 @@ function with_base(tree: NavTree, base: string): NavTree {
 		return { ...item, href: href_of(base, item.slug) };
 	});
 }
-
-// ── materialization ──
 
 async function materialize(
 	spec: OutlineSpec,
@@ -381,7 +351,6 @@ async function materialize(
 	const slug_of = new Map<number, Map<string, string>>();
 	const placed = new Map<Collection, Set<string>>();
 	const entries_cache = new Map<Collection, Ent[]>();
-	// each collection's groups once for this weave; a failed read is not kept (the next ask reads again)
 	const groups_cache = flights({
 		name: 'content outline groups',
 		run: async (c: Collection): Promise<Map<string, GroupMeta>> => (await c.groups?.()) ?? new Map()
@@ -390,11 +359,6 @@ async function materialize(
 	const by_slug = new Map<string, LeafRecord>();
 	const order: string[] = [];
 	const errors: string[] = [];
-	/**
-	 * Per-level structure of one entry, as DATA. Structure comes from the id's path segments (the id
-	 * is the address); order comes from the source's `entry.order` (folder() from `NN-`, a CMS from a
-	 * position field). No filename is parsed here — that lives in `folder()`. Absent order = alphabetical.
-	 */
 	const segs_of = (e: Ent): { key: string; order: number }[] => {
 		const parts = e.id.split('/').filter(Boolean);
 		return parts.map((key, i) => ({ key, order: e.order?.[i] ?? Number.MAX_SAFE_INTEGER }));
@@ -409,8 +373,6 @@ async function materialize(
 		}
 		return a.id.localeCompare(b.id);
 	};
-	// Declared redirect history: old address → canonical slug. Validated after the tree is built
-	// (an alias must not shadow a real slug, and two entries can't claim the same old address).
 	const alias_claims: { alias: string; canonical: string }[] = [];
 	const read_redirects =
 		opts.redirects ?? ((e: Ent) => e.data.redirect_from as string[] | string | undefined);
@@ -427,11 +389,7 @@ async function materialize(
 	const entries_of = async (c: Collection): Promise<Ent[]> => {
 		let e = entries_cache.get(c);
 		if (!e) {
-			// The read context flows to the collection filter here — drafts survive under `{ preview }`.
-			// The entries are stamped with the version taken BEFORE the read: an edit that lands while
-			// it runs (its graph waits on a relation target) is newer than them, and the next read
-			// weaves again (#326). Stamped after, they passed for the edit they never saw. The stamp
-			// waits for the collection's first load, which moves it without changing anything (#545).
+			// @why stamped before the read, an edit landing during it is newer, so the next read weaves again (test: test/lifecycle.test.ts › a change that lands while its entries are graphed: the next read weaves again)
 			const at = await catalog_loaded(c);
 			e = await c.refs(ctx);
 			read.set(c, at);
@@ -439,9 +397,7 @@ async function materialize(
 		}
 		return e;
 	};
-	/** The source's own group decoration (clean dir path → label), memoized. `folder()` / a CMS fills it. */
 	const groups_of = (c: Collection): Promise<Map<string, GroupMeta>> =>
-		// (nothing drops a weave's groups, so this is never STALE)
 		groups_cache.get(c).then((m) => (m === STALE ? new Map<string, GroupMeta>() : m));
 
 	const register_leaf = (
@@ -450,8 +406,6 @@ async function materialize(
 		collection: Collection,
 		ctx: BuildCtx
 	): NavLeaf => {
-		// Address policy: the group's `slug` maps id → address before `base` prefixes it (id unchanged
-		// for nav/relations; only the reader-facing slug moves).
 		const addr = ctx.slug ? ctx.slug(entry.id) : entry.id;
 		const slug = join_slug(ctx.base, addr);
 		const title = str(entry.data.title) ?? entry.id;
@@ -476,7 +430,6 @@ async function materialize(
 			});
 			slug_of.get(col_index)!.set(entry.id, slug);
 			order.push(slug);
-			// Old addresses this entry declares for itself — same base joining as the entry's own slug.
 			const declared = read_redirects(entry);
 			for (const old of typeof declared === 'string'
 				? [declared]
@@ -498,8 +451,6 @@ async function materialize(
 		};
 	};
 
-	// Recursive segment grouping for a bare collection remainder or a glob slice that should nest.
-	// Structure = id segments; order = `entry.order` (data); labels = the source's `groups()` map.
 	const expand_grouped = async (
 		list: Ent[],
 		col_index: number,
@@ -539,7 +490,7 @@ async function materialize(
 				slug: ctx.slug
 			};
 			const child_items: NavItem[] = [];
-			if (b.leaf) child_items.push(register_leaf(b.leaf, col_index, collection, child_ctx)); // a directory index page
+			if (b.leaf) child_items.push(register_leaf(b.leaf, col_index, collection, child_ctx));
 			child_items.push(
 				...(await expand_grouped(
 					b.children,
@@ -555,7 +506,6 @@ async function materialize(
 		return items;
 	};
 
-	// A flat, ordered selection — explicit ids in pattern order, globs convention-ordered.
 	const expand_selection = async (sel: Selection, ctx: BuildCtx): Promise<NavItem[]> => {
 		const col_index = index_of(sel.collection);
 		const all = await entries_of(sel.collection);
@@ -584,13 +534,12 @@ async function materialize(
 		}
 		const items: NavItem[] = [];
 		for (const e of chosen) {
-			if (placed.get(sel.collection)!.has(e.id)) continue; // already placed by an earlier item
+			if (placed.get(sel.collection)!.has(e.id)) continue;
 			items.push(register_leaf(e, col_index, sel.collection, ctx));
 		}
 		return items;
 	};
 
-	// A bare collection — the not-yet-placed remainder, recursively grouped.
 	const expand_collection = async (collection: Collection, ctx: BuildCtx): Promise<NavItem[]> => {
 		const col_index = index_of(collection);
 		const [all, group_map] = await Promise.all([entries_of(collection), groups_of(collection)]);
@@ -611,7 +560,6 @@ async function materialize(
 			crumbs: [...ctx.crumbs, { label: group.label }],
 			section: ctx.section ?? group.label,
 			clean_path: '',
-			// This group's address policy wins for entries beneath it; else inherit the enclosing one.
 			slug: group.slug ?? ctx.slug
 		};
 		const items = await build_items(as_nodes(group.items), child_ctx);
@@ -648,7 +596,6 @@ async function materialize(
 	const root_ctx: BuildCtx = { base: '', crumbs: [], section: undefined, clean_path: '' };
 	const tree = await build_items(is_collection(spec) ? [spec] : spec, root_ctx);
 
-	// Orphan check: every visible entry of every referenced collection must be placed exactly once.
 	for (let i = 0; i < collections.length; i++) {
 		const c = collections[i];
 		const ids = (await entries_of(c)).map((e) => e.id);
@@ -660,7 +607,6 @@ async function materialize(
 			);
 	}
 
-	// Alias validation: an old address must not shadow a live page, and only one entry may claim it.
 	const aliases = new Map<string, string>();
 	for (const { alias, canonical } of alias_claims) {
 		if (by_slug.has(alias))
@@ -680,7 +626,6 @@ async function materialize(
 	return { tree, order, by_slug, slug_of, aliases, collections, read };
 }
 
-/** Normalize a group's `items` (collection | selection | array | thunk) to an OutlineNode[]. */
 function as_nodes(items: GroupSpec['items']): OutlineNode[] {
 	if (Array.isArray(items)) return items;
 	return [items];

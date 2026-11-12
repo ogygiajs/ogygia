@@ -9,11 +9,12 @@ import type { RequestEvent } from '@sveltejs/kit';
 import type { Simplify } from './view.ts';
 import { json_response, redirect_response } from './respond.ts';
 
-/** The visitor's identity — plain claims (`sub`, roles, whatever the app's session carries). */
-export type Visitor = Record<string, unknown> & { sub?: string };
+/** The visitor's identity — plain claims (`sub`, roles, whatever the app's session carries). A
+ *  logged-out visitor has no `sub`: `anonymousVisitor()` gives `vid`, a random id from a cookie. */
+export type Visitor = Record<string, unknown> & { sub?: string; vid?: string };
 
 /** Signature-bound claims attached by the federation handle after verification (fragment federation). */
-const CLAIMS = Symbol.for('ogygia.claims.v1');
+const CLAIMS = Symbol.for('ogygia.claims');
 
 export interface Ctx<
 	P = Record<string, string | undefined>,

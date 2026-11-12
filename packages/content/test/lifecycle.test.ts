@@ -3,8 +3,11 @@
 // first value is built is never missed, and the site's search follows the content.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import * as v from 'valibot';
+import { defineRun } from '@ogygia/machine';
 import { content, folder, json, type Source, type SourceEntry } from '../src/index.ts';
 import { withRemotes } from '../src/server.ts';
+import { GRAPH } from '../src/graph.ts';
+import { COLLECTION } from '../src/collection-base.ts';
 import { site as siteRaw } from '../src/site/site.ts';
 import { dimensions } from '../src/site/dimensions.ts';
 import { outline, pick } from '../src/site/outline.ts';
@@ -309,6 +312,21 @@ describe('site search follows the content (#193)', () => {
 		expect(hits.length).toBeGreaterThan(0);
 	});
 
+	it("a dimensioned site: a page the default coordinate's live source adds is found by the next search", async () => {
+		const { source, push } = liveSource([doc('install', 'Install', 'Run the installer.')]);
+		const en = content({ schema, loader: source });
+		const fr = content({ schema, loader: liveSource([]).source });
+		const d = dimensions({
+			axes: { locale: { values: ['en', 'fr'], default: 'en', fallback: true } },
+			resolve: ({ locale }) => (locale === 'en' ? en : fr)
+		});
+		const s = siteRaw({ outline: d });
+		expect(await s.search('quantum')).toEqual([]);
+		push(doc('quantum', 'Quantum', 'Quantum islands are new.'));
+		await settle();
+		expect((await s.search('quantum')).length).toBeGreaterThan(0);
+	});
+
 	it('a failed first build is not kept: the next search builds again', async () => {
 		const { source, ctl } = liveSource([doc('install', 'Install', 'Run the installer.')]);
 		const s = siteRaw({ outline: content({ schema, loader: source }) });
@@ -476,20 +494,17 @@ describe('a folder sidecar that fails to load once is loaded again (#246)', () =
 });
 
 describe('a collection a newer run of its module replaces stops following (#247)', () => {
-	// What the content dev plugin's mark does in a module run: the run asks the graph for its
-	// wrapper, and the module's content() calls go through it. (A real dev server drives it in
-	// dev-reload.test.ts; here each named run is one run of the same module, to reach the retry
+	// What core's definer marking does in a module run: the run asks for its wrapper
+	// (`defineRun`), and the module's content() calls go through it. (A real dev server drives it
+	// in dev-reload.test.ts; here each named run is one run of the same module, to reach the retry
 	// timer.)
-	const graph = (globalThis as Record<symbol, unknown>)[Symbol.for('ogygia.content.graph')] as {
-		module_run: (module: string) => <F extends (...a: never[]) => unknown>(build: F) => F;
-	};
-	let runs = new Map<string, ReturnType<typeof graph.module_run>>();
+	let runs = new Map<string, ReturnType<typeof defineRun>>();
 	beforeEach(() => {
 		runs = new Map();
 	});
 	const in_run = <T>(r: string, build: () => T): T => {
 		let wrap = runs.get(r);
-		if (!wrap) runs.set(r, (wrap = graph.module_run('/app/src/lib/docs.server.ts')));
+		if (!wrap) runs.set(r, (wrap = defineRun('/app/src/lib/docs.server.ts')));
 		return wrap(build)();
 	};
 
@@ -549,6 +564,18 @@ describe('a collection a newer run of its module replaces stops following (#247)
 			{ done: true, value: undefined },
 			{ done: true, value: undefined }
 		]);
+	});
+
+	it('one an ended run builds later (a lazy content() call) is out of the graph until read', async () => {
+		const run_1 = defineRun('/app/src/lib/lazy.server.ts');
+		const lazy = run_1(() => content({ schema, loader: liveSource([row('a', 'A')]).source }));
+		defineRun('/app/src/lib/lazy.server.ts'); // the module ran again: run 1 ended
+		const c = lazy();
+		const in_graph = () =>
+			[...GRAPH.all].includes((c as unknown as Record<symbol, never>)[COLLECTION]);
+		expect(in_graph()).toBe(false);
+		expect((await c.refs()).map((e) => e.id)).toEqual(['a']);
+		expect(in_graph()).toBe(true);
 	});
 
 	it('a collection the same run builds replaces nothing', async () => {

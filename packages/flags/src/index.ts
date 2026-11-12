@@ -19,7 +19,17 @@ import { fnv1a32, type StandardSchemaV1 } from '@ogygia/core/plugin/utils';
 import { flags_app } from './app.ts';
 import { warn } from './messages.ts';
 import { source_answered, source_failed, source_mark, source_reset } from './source-health.ts';
-import { machine, outbox, policy, say } from '@ogygia/machine';
+import {
+	clock,
+	defining,
+	machine,
+	outbox,
+	policy,
+	registry,
+	say,
+	scope,
+	timers
+} from '@ogygia/machine';
 
 export type CtxLike = {
 	request: Request;
@@ -27,13 +37,13 @@ export type CtxLike = {
 	cookies?: { get(name: string): string | undefined };
 	/** The router's ONE identity (`routes(table, { visitor })`) — read first when present. Open
 	 *  shape (matches the router's `Visitor`): a targeting fn reads app claims off it. */
-	visitor?: (Record<string, unknown> & { sub?: string }) | undefined;
+	visitor?: (Record<string, unknown> & { sub?: string; vid?: string }) | undefined;
 };
 
 /** Written by an upstream shell's identity hop (the fragment feature); absent = the tier is skipped. */
-const CLAIMS = Symbol.for('ogygia.claims.v1');
+const CLAIMS = Symbol.for('ogygia.claims');
 /** Per-request source resolution, cached on the Request (GC'd with it): its {@link Prime}. */
-const RESOLVED = Symbol.for('ogygia.flags.resolved.v2');
+const RESOLVED = Symbol.for('ogygia.flags.resolved');
 
 type Decision = { variant: string; value?: unknown };
 /**
@@ -56,20 +66,24 @@ const pct = (s: string) => fnv1a32(s) % 10000;
 
 type Visitor = NonNullable<CtxLike['visitor']>;
 
+/** A signed-in visitor's `sub`, else a logged-out one's `vid`. */
+const id_of = (v: Visitor | undefined) => v?.sub || v?.vid;
+
 /** Who is this? The router identity (folds in carried claims) when present; raw claims / the
- *  `og-vid` cookie (the router's `anonymousVisitor()` shape) otherwise; undefined = anonymous.
- *  The ONE rule: a flag read hashes on its `sub`, and the source is primed with it as `c.visitor`. */
+ *  `og-vid` cookie (the router's `anonymousVisitor()` shape, `{ vid, anonymous }`) otherwise;
+ *  undefined = nobody. The ONE rule: a flag read hashes on its id (`sub`, else `vid`), and the
+ *  source is primed with it as `c.visitor`. */
 function visitor_of(c: CtxLike): Visitor | undefined {
-	if (c.visitor?.sub) return c.visitor;
+	if (id_of(c.visitor)) return c.visitor;
 	const claims = (c.request as unknown as Record<symbol, Visitor | undefined>)[CLAIMS];
-	if (claims?.sub) return claims;
+	if (id_of(claims)) return claims;
 	const vid = c.cookies?.get('og-vid');
-	return vid ? { sub: vid, anonymous: true } : c.visitor;
+	return vid ? { vid, anonymous: true } : c.visitor;
 }
 
-/** The sticky hash key. Anonymous → '' (weights degrade to the first variant there). */
+/** The sticky hash key. Nobody → '' (weights degrade to the first variant there). */
 function visitor_id(c: CtxLike): string {
-	return visitor_of(c)?.sub ?? '';
+	return id_of(visitor_of(c)) ?? '';
 }
 
 function carried(c: CtxLike, name: string): string | undefined {
@@ -157,7 +171,9 @@ export function decide(opts: DecideOptions): void {
  *
  * Server only: a browser bundle never sends exposures, and drops the queue.
  */
-type QueueStates = { idle: {}; buffering: {} };
+/** `buffering` holds what the next batch takes: the queue is its visit's, made with it and handed
+ *  to the outbox when it ends. */
+type QueueStates = { idle: {}; buffering: { queue: ExposureEvent[] } };
 const queue_steps = { idle: ['buffering'], buffering: ['idle'] } as const;
 const queue_def = /* @__PURE__ */ machine<QueueStates>()({
 	name: 'flags exposures',
@@ -165,8 +181,6 @@ const queue_def = /* @__PURE__ */ machine<QueueStates>()({
 	steps: queue_steps
 });
 const _exposures = /* @__PURE__ */ queue_def.create();
-/** What the next batch takes. */
-let _queue: ExposureEvent[] = [];
 /** A batch given up is said once per failing streak: the next is not said until one is taken. */
 const _sink = /* @__PURE__ */ say({ max: 1 });
 /** The last batch put, until it settles: the request's end waits for it (the outbox sends in
@@ -199,24 +213,28 @@ const _batches = /* @__PURE__ */ outbox<ExposureEvent[]>({
 
 function emit_exposure(e: ExposureEvent): void {
 	if (BROWSER || !_exposure) return;
-	_queue.push(e);
-	if (_queue.length >= _batch.max) {
-		void send(); // ok: send never rejects (a sink failure is said as flags_exposure_failed)
+	const now = _exposures.now;
+	if (now.kind === 'buffering') {
+		now.queue.push(e);
+		if (now.queue.length >= _batch.max) void send(); // ok: send never rejects (a sink failure is said as flags_exposure_failed)
 		return;
 	}
-	if (_exposures.now.kind === 'buffering') return;
-	_exposures.go('buffering');
+	_exposures.go('buffering', { queue: [e] });
+	if (_batch.max <= 1) {
+		void send(); // ok: send never rejects
+		return;
+	}
 	// the age cap, for this visit of `buffering` only: a send or a flush clears it
 	// oxlint-disable-next-line ogygia/owned-effects -- the buffering visit's (its scope clears it, below), but a bare timer: it holds the process open until the queued exposures are sent, which a scope's timer does not
-	const timer = setTimeout(() => void send(), _batch.ms); // ok: send never rejects
-	_exposures.scope.defer(() => clearTimeout(timer));
+	const timer = timers.keep(() => void send(), _batch.ms); // ok: send never rejects
+	_exposures.scope.defer(() => timers.cancel(timer));
 }
 
 /** Everything queued, as one batch into the outbox now (buffering → idle). Settles once the sink
  *  took it or it was given up; never rejects. */
 function send(): Promise<void> {
-	const batch = _queue;
-	_queue = [];
+	const now = _exposures.now;
+	const batch = now.kind === 'buffering' ? now.queue : [];
 	_exposures.move('buffering', 'idle');
 	const sent = _batches.put(batch).then(() => {
 		if (_last_sent === sent) _last_sent = null;
@@ -232,7 +250,7 @@ function send(): Promise<void> {
  * is never a request's problem.
  */
 export function flush_exposures(): Promise<void> | undefined {
-	if (_queue.length > 0) return send();
+	if (_exposures.now.kind === 'buffering') return send();
 	return _last_sent ?? undefined;
 }
 
@@ -241,7 +259,16 @@ export function flush_exposures(): Promise<void> | undefined {
 /** Every constructed flag self-registers here — the complete name list a source is asked for, and
  *  the set federation auto-carries. Import your flags (route modules do this at startup; on plain
  *  Kit, `import './flags'` in hooks.server.ts to prime the source from the first request). */
-const _registry = new Map<string, FlagQuery>();
+const _registry = registry.keyed<string, Definition>();
+
+/** A flag as defined: what a source is asked about, and the layer it is a member of. */
+type Definition = { query: FlagQuery; layer: string | undefined };
+
+/** Who owns a definition made outside a marked call (a build, or a test calling flag() itself):
+ *  this module's run, as long as `_registry` beside it (a reload of this module makes both anew).
+ *  In dev, core marks each flag() call with the run of the module making it (`b.definers()`), and
+ *  that run owns it instead (`defining()`). */
+const DEFINED_HERE = scope();
 
 /**
  * Resolve the source ONCE per request over every registered flag, caching decisions on the
@@ -274,9 +301,10 @@ async function ask_source(c: CtxLike, source: NonNullable<typeof _source>): Prom
 	try {
 		// the source sees the identity a read hashes on: it primes above the router, where no
 		// `c.visitor` exists yet, so a vendor's per-user targeting would otherwise have no key
-		const out = await source([..._registry.values()], { ...c, visitor: visitor_of(c) });
+		const queries = [..._registry.values()].map((d) => d.query);
+		const out = await source(queries, { ...c, visitor: visitor_of(c) });
 		const map: Record<string, Decision> = {};
-		for (const q of _registry.values()) {
+		for (const q of queries) {
 			const raw = out?.[q.name];
 			if (raw === undefined) continue;
 			const norm =
@@ -327,10 +355,11 @@ function override(c: CtxLike, name: string): string | undefined {
 
 // ── layers: mutual exclusion (a `layer: 'name'` string option) ───────────────────────────────
 
-const _layers = new Map<string, string[]>();
+// (a layer's members are the flags defined now with that layer: the registry is the one table)
 function layer_member_for(group: string, v: string): string | undefined {
-	const members = _layers.get(group);
-	if (!members || members.length === 0) return undefined;
+	const members: string[] = [];
+	for (const d of _registry.values()) if (d.layer === group) members.push(d.query.name);
+	if (members.length === 0) return undefined;
 	// Index into a SORTED view: registration order is module-import order, which can differ
 	// between two server builds/replicas — lane assignment must depend only on (group, names,
 	// visitor), never on which chunk loaded first.
@@ -427,16 +456,14 @@ export function flag(
 	const target =
 		typeof shape === 'function' ? (shape as (c: CtxLike) => boolean | undefined) : null;
 
-	_registry.set(name, {
+	_registry.set(
 		name,
-		variants,
-		kind: is_record ? 'variant' : 'boolean'
-	});
-	if (opts.layer) {
-		const members = _layers.get(opts.layer) ?? [];
-		if (!members.includes(name)) members.push(name);
-		_layers.set(opts.layer, members);
-	}
+		{
+			query: { name, variants, kind: is_record ? 'variant' : 'boolean' },
+			layer: opts.layer || undefined
+		},
+		defining() ?? DEFINED_HERE
+	);
 
 	const memo = new WeakMap<Request, string>();
 
@@ -533,7 +560,7 @@ export function flag(
  *  module never throws there — exposure timestamps are 0 in that case (and in dev). */
 function now(): number {
 	try {
-		return Date.now();
+		return clock.wall(); // wall: an exposure's timestamp, sent to the analytics sink
 	} catch {
 		return 0;
 	}

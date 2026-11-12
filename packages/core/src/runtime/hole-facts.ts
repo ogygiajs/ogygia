@@ -1,19 +1,15 @@
 /**
- * THE HOLES RECORD — what the server minted for each deferred hole on a KIT-HYDRATED document,
- * keyed by the hole's identity (`data-og-hole`: the fingerprint of region id + canonical props,
- * computed the same way on both legs). The handle emits it in the document tail
- * (`<script type="application/ogygia-holes">`, server/document-tail.ts), OUTSIDE Kit's root.
+ * The holes record: what the server minted for each deferred hole on a Kit-hydrated document,
+ * keyed by the hole's identity (`data-og-hole`), in the document tail outside Kit's root
+ * (server/document-tail.ts). When Kit gives up hydrating and mounts its root fresh, the client
+ * renders each hole again with no signed address; the record outlives that, so a rebuilt hole gets
+ * its endpoint and sidecar back by identity and fetches (test/browser/hole-rebuild.test.ts).
  *
- * Why it exists: Kit can give up hydrating such a document — a component threw while hydrating,
- * the markup mismatched — and Svelte then clears Kit's root and mounts it fresh. Every hole is
- * rendered again by the client leg, which cannot mint a signed address: `endpoint=""`, no props
- * sidecar, the fallback standing forever (a site header's account holes went dark this way for
- * signed-in visitors). The record survives the rebuild, so a rebuilt hole gets its facts back the
- * moment it connects, by identity — never by position — and fetches exactly as the SSR element
- * would have. Read lazily, parsed once per document.
+ * @packageDocumentation
  */
 import { HOLES_SCRIPT_TYPE } from '../holes-record.ts';
-import { parse_region_html } from './parse-html.ts';
+import { parse_region_html, vouch_page_html } from './html-sink.ts';
+import { server_channel } from './response-mark.ts';
 
 export type HoleFacts = {
 	/** The signed capability URL the server minted. */
@@ -26,11 +22,10 @@ const HOLES_SELECTOR = `script[type="${HOLES_SCRIPT_TYPE}"]`;
 
 type RawRecord = Record<string, { endpoint?: unknown; sidecar?: unknown }>;
 
-/** One parse per document: the record, or `null` when the document carries none. */
 const records = new WeakMap<Document, Map<string, HoleFacts> | null>();
 
 function parse_record(doc: Document): Map<string, HoleFacts> | null {
-	const el = doc.querySelector(HOLES_SELECTOR);
+	const el = server_channel(doc, HOLES_SELECTOR);
 	if (!el) return null;
 	let raw: RawRecord;
 	try {
@@ -51,14 +46,14 @@ function parse_record(doc: Document): Map<string, HoleFacts> | null {
 	return map;
 }
 
-/** The recorded sidecar HTML back into a script element, through the one parser (./parse-html.ts:
- *  inert, nothing runs — the sidecar is a data script, never executable). */
 function sidecar_element(html: string): HTMLScriptElement | null {
-	const el = parse_region_html(html).firstElementChild;
+	// @why the record is the page's own (its server wrote it) and the sidecar a data script, so it is vouched and parsed inert (test: test/browser/hole-facts.test.ts › a recorded sidecar never runs: a script in the record is parsed inert)
+	const el = parse_region_html(vouch_page_html(html)).firstElementChild;
 	return el && el.tagName === 'SCRIPT' ? (el as HTMLScriptElement) : null;
 }
 
-/** The server-minted facts of the hole with this identity on `doc`, or `null`. */
+/** The server-minted facts of the hole with this identity on `doc`, or `null`. The record is
+ *  parsed once per document; a recorded sidecar comes back as an inert script (it never runs). */
 export function hole_facts_of(doc: Document, identity: string): HoleFacts | null {
 	let record = records.get(doc);
 	if (record === undefined) {

@@ -72,11 +72,14 @@ bench(
 	}
 );
 
-/** The replay guard after a busy minute: `expired` signatures past their window, then live ones. */
+/** The replay guard after a busy minute: `expired` signatures at the end of their window, then live
+ *  ones. (A signature is kept until its ts plus the skew window, never longer: the guard's age
+ *  timer, and its sweep, run as they would.) */
 function fill_replay_guard(expired: number): void {
 	wire.seen_sigs.clear();
-	for (let i = 0; i < expired; i++) wire.seen_sigs.set(`old-${i}`, 1);
-	for (let i = 0; i < 200; i++) wire.seen_sigs.set(`live-${i}`, Number.MAX_SAFE_INTEGER);
+	const now = Date.now();
+	for (let i = 0; i < expired; i++) wire.seen_sigs.set(`old-${i}`, now + 1);
+	for (let i = 0; i < 200; i++) wire.seen_sigs.set(`live-${i}`, now + 60_000);
 }
 
 bench(
@@ -93,13 +96,36 @@ bench(
 			fill_replay_guard(1000);
 			return {
 				signer: rotation[2].priv,
-				cfg: { publicKeys: rotation.map((k) => k.pub) },
+				cfg: { publicKeys: rotation.map((k) => k.pub), audience: 'shell.example.test' },
 				body: new TextEncoder().encode(JSON.stringify({ q: 'catalog', page: 2 }))
 			};
 		},
 		scale: (ctx, k) => {
 			fill_replay_guard(1000 * k);
 			return ctx;
+		},
+		teardown: () => wire.seen_sigs.clear()
+	}
+);
+
+bench(
+	'signed hop from a peer on the legacy headers only: verify against three keys in rotation',
+	({ cfg, body, headers, url }) =>
+		verify_signed_request(cfg, new Request(url, { method: 'POST', headers }), url, body),
+	{
+		setup: () => {
+			const rotation = [keys(), keys(), keys()];
+			fill_replay_guard(1000);
+			const url = new URL('https://shell.example.test/og/fragment/page?path=%2Fcatalog');
+			const body = new TextEncoder().encode(JSON.stringify({ q: 'catalog', page: 2 }));
+			const headers = sign_headers(rotation[2].priv, 'POST', url, body, { sub: 'visitor-1' });
+			delete headers['x-og-cap'];
+			return {
+				cfg: { publicKeys: rotation.map((k) => k.pub), audience: 'shell.example.test' },
+				body,
+				headers,
+				url
+			};
 		},
 		teardown: () => wire.seen_sigs.clear()
 	}

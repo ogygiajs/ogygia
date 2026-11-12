@@ -13,19 +13,31 @@ describe('flags()', () => {
 	it('is named by its package and names its server realm, the module beside it', () => {
 		const plugin = flags();
 		expect(plugin.name).toBe('@ogygia/flags');
-		expect((plugin as unknown as Record<symbol, unknown>)[Symbol.for('ogygia.plugin')]).toEqual({
+		const manifest = (plugin as unknown as Record<symbol, Record<string, unknown>>)[
+			Symbol.for('ogygia.plugin')
+		];
+		expect(manifest).toMatchObject({
 			name: '@ogygia/flags',
 			server: new URL('../src/server.ts', import.meta.url).href
 		});
+		// and it names flag() as its definer (a build hook: core marks each call with its module's run)
+		const definers: unknown[] = [];
+		(manifest!.build as (b: unknown) => void)({
+			definers: (module: string, names: string[]) => definers.push({ module, names })
+		});
+		expect(definers).toEqual([{ module: '@ogygia/flags', names: ['flag'] }]);
 	});
 });
 
 describe('the server realm', () => {
-	it('primes the source in `request` and drains exposures in `done`', async () => {
+	it('primes the source in `request`, done before the page reads a flag, and drains exposures in `done`', async () => {
 		const sent: unknown[][] = [];
 		const gate = flag('plugin-test-gate');
 		decide({
-			source: () => ({ 'plugin-test-gate': true }),
+			source: async () => {
+				await new Promise((r) => setTimeout(r, 5));
+				return { 'plugin-test-gate': true };
+			},
 			exposure: (b) => void sent.push(b),
 			batch: { max: 100, ms: 60_000 }
 		});
@@ -56,7 +68,7 @@ describe('the server realm primes the source with the visitor', () => {
 				getAll: () => []
 			};
 			await server.request!(ctx(request, { cookies } as never));
-			expect(seen).toEqual([{ sub: 'v-9', anonymous: true }]);
+			expect(seen).toEqual([{ vid: 'v-9', anonymous: true }]);
 		} finally {
 			decide({ source: undefined });
 		}
