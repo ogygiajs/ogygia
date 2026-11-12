@@ -267,4 +267,29 @@ describe('the random app', () => {
 			rmSync(root, { recursive: true, force: true });
 		}
 	});
+
+	it('draws messy parts where each can be: odd text, big props, a throwing hole with a fallback, a lake with bad HTML', () => {
+		const seeds = Array.from({ length: 40 }, (_, i) => i + 1);
+		const nodes = seeds.flatMap((s) => all(plan(s).flatMap((p) => p.roots)));
+		for (const f of ['odd', 'big', 'throws', 'bad'] as const)
+			expect(nodes.some((n) => n[f] === true)).toBe(true);
+		for (const n of nodes) {
+			if (n.big) expect(n.kind).toBe('island');
+			if (n.throws) expect([n.kind, n.fallback, n.keep]).toEqual(['hole', true, undefined]);
+			if (n.bad) expect(n.kind).toBe('lake');
+		}
+		const seed = seeds.find((s) => all(plan(s).flatMap((p) => p.roots)).some((n) => n.bad))!;
+		const app = mkdtempSync(join(tmpdir(), 'sim-gen-'));
+		try {
+			write(app, plan(seed), seed);
+			for (const n of all(plan(seed).flatMap((p) => p.roots))) {
+				const src = readFileSync(join(app, 'src', 'lib', 'gen', `N${n.id}.svelte`), 'utf8');
+				// (what it writes badly says so: the HTML oracle leaves it to the app)
+				expect(src.includes('data-gen-messy')).toBe(n.bad === true);
+				expect(src.includes('throw new Error')).toBe(n.throws === true);
+			}
+		} finally {
+			rmSync(app, { recursive: true, force: true });
+		}
+	});
 });

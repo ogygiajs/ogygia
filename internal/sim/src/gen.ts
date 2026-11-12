@@ -65,6 +65,17 @@ export interface GenNode {
 	readonly refresh?: boolean;
 	/** An island its parent gives a `Date` prop: its props cross in devalue's lane, not JSON's. */
 	readonly dated?: boolean;
+	/** MESSY, as apps are (stream `gen messy`): text with quotes, `<`, `>`, `&` and unicode, in an
+	 *  attribute and in the text. */
+	readonly odd?: boolean;
+	/** An island its parent gives a very large prop (100 000 characters). */
+	readonly big?: boolean;
+	/** A hole whose server render throws: ogygia keeps its fallback (it always has one) and says so
+	 *  with a code, never a broken page. */
+	readonly throws?: boolean;
+	/** A lake that writes bad HTML on purpose (`{@html}`: a block in a `<p>`), marked
+	 *  `data-gen-messy`, the app's own: what ogygia does around it must stay whole. */
+	readonly bad?: boolean;
 	readonly children: readonly GenNode[];
 }
 
@@ -193,6 +204,23 @@ export function plan(seed: number): GenPage[] {
 		const refresh = n.kind === 'island' && d.chance(0.5);
 		return { ...n, children, reads: true, ...(refresh ? { refresh } : {}) };
 	};
+	// (and the app's messy parts, from its own)
+	const m = rng(seed).fork('gen messy');
+	const messy = (n: GenNode): GenNode => {
+		const children = n.children.map(messy);
+		const odd = m.chance(0.15);
+		const big = n.kind === 'island' && m.chance(0.1);
+		const throws = n.kind === 'hole' && !n.keep && m.chance(0.15);
+		const bad = n.kind === 'lake' && m.chance(0.3);
+		return {
+			...n,
+			children,
+			...(odd ? { odd } : {}),
+			...(big ? { big } : {}),
+			...(throws ? { throws, fallback: true } : {}),
+			...(bad ? { bad } : {})
+		};
+	};
 	const node = trees(r, held);
 	const pages = r.between(3, 6);
 	return Array.from({ length: pages }, (_, i) => ({
@@ -202,9 +230,8 @@ export function plan(seed: number): GenPage[] {
 		.map((page) => (s.chance(0.3) ? { ...page, postrender: true } : page))
 		.map((page) => ({ ...page, roots: page.roots.map(release) }))
 		.map((page) => ({ ...page, roots: page.roots.map(extras) }))
-		.map((page) =>
-			d.chance(0.4) ? { ...page, data: true, roots: page.roots.map(reading) } : page
-		);
+		.map((page) => (d.chance(0.4) ? { ...page, data: true, roots: page.roots.map(reading) } : page))
+		.map((page) => ({ ...page, roots: page.roots.map(messy) }));
 }
 
 /** A widget the peer app serves (`federate({ widgets })`): a root holding a region tree. */
@@ -339,9 +366,9 @@ function usage(n: GenNode, indent: string): string {
 		return `${indent}<N${n.id} label="n${n.id}">\n${indent}\t{#snippet ogygiaFallback()}<p data-gen-fallback>loading n${n.id}…</p>{/snippet}\n${indent}</N${n.id}>`;
 	if (n.kind === 'held' || n.kind === 'live') return `${indent}<${name(n)} />`;
 	// (a fixed instant: what devalue carries, the same in every render)
-	return n.dated
-		? `${indent}<N${n.id} label="n${n.id}" since={new Date(${n.id * 86_400_000})} />`
-		: `${indent}<N${n.id} label="n${n.id}" />`;
+	const since = n.dated ? ` since={new Date(${n.id * 86_400_000})}` : '';
+	const blob = n.big ? ` blob={'x'.repeat(100_000)}` : '';
+	return `${indent}<N${n.id} label="n${n.id}"${since}${blob} />`;
 }
 
 /** A held or live region's remote module: the query that returns it (and the command that changes
@@ -430,6 +457,9 @@ function host(n: GenNode): string {
 	].join('\n');
 }
 
+/** What an odd component says: quotes, markup characters, an entity's spelling and unicode. */
+const ODD_TEXT = `say "hi" & 'bye' <b>not bold</b> a > b &amp; é ü 中文 😀 ​ end`;
+
 /** The component file of `n`. */
 function component(n: GenNode): string {
 	const interactive =
@@ -445,10 +475,11 @@ function component(n: GenNode): string {
 	for (const c of n.children)
 		lines.push(`\timport ${name(c)} from './${name(c)}.svelte'${attributes(c)};`);
 	lines.push(
-		n.dated
-			? "\tlet { label = '', since }: { label?: string; since?: Date; ogygiaFallback?: Snippet } = $props();"
-			: "\tlet { label = '' }: { label?: string; ogygiaFallback?: Snippet } = $props();",
+		`\tlet { label = ''${n.dated ? ', since' : ''}${n.big ? ", blob = ''" : ''} }: { label?: string;${n.dated ? ' since?: Date;' : ''}${n.big ? ' blob?: string;' : ''} ogygiaFallback?: Snippet } = $props();`,
 		...(interactive ? ['\tlet count = $state(0);'] : []),
+		...(n.odd ? [`\tconst note = ${JSON.stringify(ODD_TEXT)};`] : []),
+		// (a render that throws, on the server: the hole's endpoint answers what it can)
+		...(n.throws ? [`\tif (label) throw new Error('n${n.id} throws');`] : []),
 		...(n.keep
 			? ['\tkeepFallback();']
 			: n.slow
@@ -463,6 +494,13 @@ function component(n: GenNode): string {
 		'\t<span>{label}</span>',
 		...(n.dated ? ['\t<time>{since?.toISOString()}</time>'] : []),
 		...(n.reads ? ['\t<i data-gen-page>{page.data.who}</i>'] : []),
+		...(n.odd ? ['\t<b title={note} data-note={note}>{note}</b>'] : []),
+		...(n.big ? ['\t<small>{blob.length}</small>'] : []),
+		...(n.bad
+			? [
+					`\t<div data-gen-messy>{@html '<p>n${n.id} said<div>a block</div></p><a href="#x">a<a href="#y">b</a></a>'}</div>`
+				]
+			: []),
 		...(interactive
 			? ['\t<button onclick={() => (count += 1)}>{label} pressed {count}</button>']
 			: []),
