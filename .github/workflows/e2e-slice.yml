@@ -126,6 +126,11 @@ jobs:
           # the Vercel deploy sets its own OGYGIA_SECRET.
           OGYGIA_SECRET: 3f9a2b7c1e5d8046af62c93b1d7e4058a6c2f19b3e8d70425c9a1f6b8d3e07c4
 
+      # What the suites built (the libraries' dist/, the apps' build output) turns no string into code.
+      - if: steps.plan.outputs.skip != 'true'
+        name: No eval in the built output
+        run: node .github/scripts/built-no-eval.ts
+
       # Traces (retained on failure) + the html report, for a red run.
       - if: failure()
         name: Upload Playwright report
