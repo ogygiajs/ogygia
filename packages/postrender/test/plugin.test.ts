@@ -170,6 +170,34 @@ describe('the server realm, started', () => {
 		server.done?.(first);
 	});
 
+	it('a capture that fails after reading the page sends the page as rendered, and says why it was not stored', async () => {
+		const runtime = install({ store: new MemoryStore() });
+		await ask.lastBuild('test');
+		const jar = { get: () => undefined, getAll: () => [], set: () => {}, delete: () => {} };
+		const c = ctx(new Request('http://x.test/shop/'), { cookies: jar as never });
+		mark_handled(c.event, runtime);
+		expect(await server.page?.(c)).toBeUndefined();
+		// an edge hole whose address is no URL: the ESI rewrite throws once the body is read
+		const html =
+			'<html><head></head><body><p>the shop</p><ogygia-region render="defer" stitch="edge" endpoint="http://[x">fb</ogygia-region></body></html>';
+		const res = new Response(html, { headers: { 'content-type': 'text/html' } });
+		const said: string[] = [];
+		vi.spyOn(console, 'error').mockImplementation((...a: unknown[]) => {
+			said.push(a.map(String).join(' '));
+		});
+		vi.spyOn(console, 'warn').mockImplementation((...a: unknown[]) => {
+			said.push(a.map(String).join(' '));
+		});
+		try {
+			const sent = (await server.response?.(c, res)) ?? res;
+			server.done?.(c);
+			expect(await sent.text()).toContain('<p>the shop</p>');
+			expect(said.some((s) => s.includes('postrender_capture_failed'))).toBe(true);
+		} finally {
+			vi.restoreAllMocks();
+		}
+	});
+
 	it('answers `lastBuild`: nothing the first time, the previous build after that', async () => {
 		expect(await ask.lastBuild('v1')).toBeUndefined();
 		expect(await ask.lastBuild('v2')).toBe('v1');
