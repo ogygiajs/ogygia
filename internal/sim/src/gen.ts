@@ -54,6 +54,9 @@ export interface GenNode {
 export interface GenPage {
 	readonly path: string;
 	readonly roots: readonly GenNode[];
+	/** The page opts in to postrender (`config = { postrender: true }`): its HTML is stored and
+	 *  served again until a publish invalidates it. */
+	readonly postrender?: boolean;
 }
 
 const WAKES: readonly Wake[] = ['load', 'idle', 'visible', 'interaction'];
@@ -128,12 +131,14 @@ export function plan(seed: number): GenPage[] {
 	const k = rng(seed).fork('gen keep');
 	const keep = (n: GenNode): GenNode =>
 		n.kind === 'hole' && n.fallback && k.chance(0.4) ? { ...n, keep: true } : n;
+	// (and whether a page is stored, from its own)
+	const s = rng(seed).fork('gen postrender');
 	const node = trees(r, held);
 	const pages = r.between(3, 6);
 	return Array.from({ length: pages }, (_, i) => ({
 		path: `/p${i}`,
 		roots: Array.from({ length: r.between(1, 4) }, () => node(0)).map(keep)
-	}));
+	})).map((page) => (s.chance(0.3) ? { ...page, postrender: true } : page));
 }
 
 /** A widget the peer app serves (`federate({ widgets })`): a root holding a region tree. */
@@ -509,6 +514,10 @@ export function write(
 		const imports = page.roots.map(
 			(n) => `\timport ${name(n)} from '$lib/gen/${name(n)}.svelte'${attributes(n)};`
 		);
+		// (a stored page says so in Kit's own `config`, in the page's server load when it has one)
+		const config = page.postrender ? ['export const config = { postrender: true };', ''] : [];
+		if (slots.length === 0 && config.length > 0)
+			writeFileSync(join(dir, '+page.ts'), config.join('\n'));
 		if (slots.length > 0) {
 			imports.push(`\timport { Region } from 'ogygia';`, `\tlet { data } = $props();`);
 			writeFileSync(
@@ -516,6 +525,7 @@ export function write(
 				[
 					`import { peer } from '$lib/gen/federation.server';`,
 					'',
+					...config,
 					`export const load = async () => ({`,
 					...slots.map(
 						(s) =>

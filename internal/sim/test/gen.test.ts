@@ -64,6 +64,32 @@ describe('the random app', () => {
 		}
 	});
 
+	it("some pages are stored (postrender), and say so in Kit's config", () => {
+		const seeds = Array.from({ length: 30 }, (_, i) => i + 1);
+		const pages = seeds.flatMap((s) => plan(s));
+		const stored = pages.filter((p) => p.postrender);
+		expect(stored.length).toBeGreaterThan(0);
+		expect(stored.length).toBeLessThan(pages.length);
+		const app = mkdtempSync(join(tmpdir(), 'sim-gen-'));
+		try {
+			// (a stored page with no peer slot says so in a +page.ts of its own)
+			const seed = seeds.find((s) => plan(s).some((p) => p.postrender))!;
+			const drawn = plan(seed);
+			write(app, drawn, seed);
+			for (const p of drawn) {
+				const at = join(app, 'src', 'routes', p.path.slice(1));
+				const files = readdirSync(at);
+				if (!p.postrender) expect(files).not.toContain('+page.ts');
+				else
+					expect(readFileSync(join(at, '+page.ts'), 'utf8')).toContain(
+						'export const config = { postrender: true };'
+					);
+			}
+		} finally {
+			rmSync(app, { recursive: true, force: true });
+		}
+	});
+
 	it('draws held and live regions, never in place of a hole', () => {
 		const seeds = Array.from({ length: 30 }, (_, i) => i + 1);
 		const nodes = seeds.flatMap((s) => all(plan(s).flatMap((p) => p.roots)));

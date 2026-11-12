@@ -217,7 +217,8 @@ their own (`gen held`), so a seed's tree is what it was before they existed.
 Some commands publish (`gen publish`): the command also calls `postrender.invalidate(<its page>)`.
 The app lists `postrender({ default: false })` (opt-in: no page is stored unless it says so) and
 `postrender.handle({ store })` with one `MemoryStore` for every instance and build of a run, as a
-shared cache is. In a federated app the invalidation is announced to the peer: a thaw notice
+shared cache is. Some pages opt in (`config = { postrender: true }`, stream `gen postrender`, 30%),
+so the store holds pages and a publish has something to invalidate. In a federated app the invalidation is announced to the peer: a thaw notice
 through federation's outbox, which the peer applies and passes back on (hop + 1). The same store
 makes a deploy's first federation request send the deploy thaw. And some seeds keep the peer's
 page documents (`gen peer cache`: `cache: { ttl }` of 300 ms, 2 s or 30 s), served stale while one
@@ -285,13 +286,24 @@ on the finding's `sim/found-<name>` branch.
 
 ## The real-browser tier
 
-A plan file carries its app, the run's wire faults (each request of a tab's the network dropped or
-cut, as the `nth` of its `method path` on that tab) and what the run found. A search writes each run
-it keeps to `plans/kept/` (and each failure to `plans/`). `apps/palaestra/e2e/sim-replay.spec.ts`
-plays plans in a real browser on the palaestra's build:
+A plan file carries its app (a generated one's seed too: `gen`), the run's wire faults (each
+request of a tab's the network dropped or cut, as the `nth` of its `method path` on that tab) and
+what the run found. A search writes each run it keeps to `plans/kept/` (and each failure to
+`plans/`). The player (`@ogygia/tooling/e2e/sim-replay.ts`) plays plans in a real browser, one
+spec per app: on the palaestra's build,
 
     SIM_PLANS=<plan.json>,... E2E_NO_BUILD=1 OGYGIA_SECRET=sim-secret \
       npx playwright test e2e/sim-replay --project chromium
+
+and on the generated app on disk (its own rules build, served by `vite preview`; a `sim:browser`
+script, not `e2e`, since the app's pages are not in git):
+
+    SIM_PLANS=<plan.json>,... pnpm --filter sim-gen sim:browser [--project chromium]
+
+A plan of another app is skipped, and so is a generated app's plan when the app on disk is
+another seed's, or has a peer (a second server, not played yet). Gen 60's 8 kept plans pass in
+Chromium, Firefox and WebKit. Offline is the context's (every tab's): a navigation it fails shows
+the browser's error page, as in the simulator, and the run goes on.
 
 The page's clock is Playwright's fake one (`context.clock`), moved on in slices with real time
 between for the network; each wire fault is done again to the same request (`context.route`: a drop
