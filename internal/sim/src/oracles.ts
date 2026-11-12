@@ -1088,6 +1088,12 @@ export const KNOWN_SAID: ReadonlyArray<{ issue: number; what: string; said: RegE
 		// (a plain Kit app warns it too; the stale read it warns of gave palaestra's PendingGreeting
 		// `undefined`, seeds 20257 and a plain Kit app's 124)
 		said: /svelte\.dev\/e\/derived_inert|^unhandled: TypeError: Cannot read properties of undefined \(reading 'greeting'\)/
+	},
+	{
+		issue: 1158,
+		what: 'a hole batch called off while its body comes rejects with nobody listening',
+		// (the reason the network gives a request its page called off: browser.ts `call_off`)
+		said: /^unhandled: AbortError: The operation was aborted\.$/
 	}
 ];
 
