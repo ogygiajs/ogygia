@@ -7,6 +7,9 @@ import {
 	remarkHeadingId,
 	wrap_html
 } from '../src/markdown/index.ts';
+import { warm_shiki } from './_shiki-warm.ts';
+
+warm_shiki();
 
 describe('markdown preset', () => {
 	it('exposes .svx / .md extensions', () => {

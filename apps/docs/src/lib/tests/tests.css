@@ -1,0 +1,324 @@
+/* The /tests pages: the report hub and each package's report. */
+.tests {
+	--t-pass: var(--accent);
+	--t-fail: light-dark(#b42318, #f08a7e);
+	--t-skip: var(--text-faint);
+	padding-top: 2.5rem;
+	padding-bottom: 4rem;
+}
+
+.tests h1 {
+	margin: 0 0 0.75rem;
+	font: 400 clamp(2rem, 5vw, 3rem) / 1.1 var(--font-display);
+	letter-spacing: -0.02em;
+}
+.tests h1 code {
+	font: inherit;
+}
+.tests h2 {
+	margin: 3.5rem 0 1rem;
+	font: 600 1.25rem/1.3 var(--font-body);
+	scroll-margin-top: 4.5rem;
+}
+.tests h3 {
+	margin: 0 0 0.35rem;
+	font: 600 1rem/1.35 var(--font-body);
+}
+.tests .lede {
+	max-width: 44rem;
+	margin: 0;
+	color: var(--text-dim);
+	font-size: 1.0625rem;
+	line-height: 1.6;
+}
+.tests .run {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 0.5rem 1rem;
+	margin-top: 1.5rem;
+	font: 400 0.8125rem/1.4 var(--font-mono);
+	color: var(--text-faint);
+}
+.tests .run a {
+	color: var(--text-dim);
+}
+.tests .crumb {
+	font: 400 0.8125rem/1.4 var(--font-mono);
+	margin: 0 0 1rem;
+}
+.tests .crumb a {
+	color: var(--text-dim);
+}
+
+/* Headline numbers. */
+.tests .headline {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+	gap: 1px;
+	margin-top: 2.5rem;
+	border: 1px solid var(--line);
+	border-radius: var(--r-md);
+	background: var(--line);
+	overflow: hidden;
+}
+.tests .stat {
+	display: flex;
+	flex-direction: column;
+	gap: 0.4rem;
+	padding: 1.25rem 1.25rem 1.1rem;
+	background: var(--bg-raised);
+}
+.tests .stat .n {
+	font: 400 clamp(2rem, 4.5vw, 2.75rem) / 1 var(--font-display);
+	font-variant-numeric: tabular-nums;
+	letter-spacing: -0.02em;
+}
+.tests .stat .what {
+	font-size: 0.875rem;
+	color: var(--text-dim);
+	line-height: 1.45;
+}
+.tests .stat .how-counted {
+	font-size: 0.75rem;
+	color: var(--text-dim);
+	line-height: 1.45;
+}
+.tests .stat details.how-counted summary {
+	cursor: pointer;
+	width: fit-content;
+}
+.tests .stat details.how-counted[open] summary {
+	margin-bottom: 0.25rem;
+}
+.tests .stats {
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(9.5rem, 1fr));
+	gap: 0.75rem;
+	margin: 1rem 0 0;
+	padding: 0;
+	list-style: none;
+}
+.tests .stats li {
+	display: flex;
+	flex-direction: column;
+	gap: 0.3rem;
+	padding: 0.85rem 1rem;
+	border: 1px solid var(--line);
+	border-radius: var(--r-md);
+	background: var(--bg-raised);
+}
+.tests .stats .n {
+	font: 500 1.375rem/1 var(--font-mono);
+	font-variant-numeric: tabular-nums;
+}
+.tests .stats .what {
+	font-size: 0.8125rem;
+	color: var(--text-dim);
+}
+.tests .stats .fail .n {
+	color: var(--t-fail);
+}
+
+/* Tables scroll inside their own box on a phone, never the page. */
+.tests .table-wrap {
+	overflow-x: auto;
+	border: 1px solid var(--line);
+	border-radius: var(--r-md);
+	background: var(--bg-raised);
+}
+.tests table {
+	width: 100%;
+	border-collapse: collapse;
+	font-size: 0.875rem;
+}
+.tests caption {
+	padding: 0.75rem 1rem;
+	text-align: left;
+	font-size: 0.8125rem;
+	color: var(--text-faint);
+	caption-side: bottom;
+	border-top: 1px solid var(--line);
+}
+.tests th,
+.tests td {
+	padding: 0.6rem 1rem;
+	border-bottom: 1px solid var(--line);
+	text-align: left;
+	vertical-align: middle;
+}
+.tests tbody tr:last-child > * {
+	border-bottom: 0;
+}
+.tests thead th {
+	font: 500 0.75rem/1.2 var(--font-mono);
+	letter-spacing: 0.04em;
+	text-transform: uppercase;
+	color: var(--text-faint);
+	white-space: nowrap;
+}
+.tests td.num,
+.tests th.num {
+	text-align: right;
+	font-family: var(--font-mono);
+	font-variant-numeric: tabular-nums;
+	white-space: nowrap;
+}
+.tests td.cov {
+	min-width: 10rem;
+}
+.tests code {
+	font: 400 0.8125rem/1.4 var(--font-mono);
+}
+.tests .nil {
+	color: var(--text-faint);
+}
+
+/* A test's result in one engine: a word and a mark, never colour alone. */
+.tests .res {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.35rem;
+	font: 500 0.75rem/1 var(--font-mono);
+	white-space: nowrap;
+}
+.tests .res::before {
+	font-size: 0.8125rem;
+}
+.tests .res.pass {
+	color: var(--t-pass);
+}
+.tests .res.pass::before {
+	content: '✓';
+}
+.tests .res.fail {
+	color: var(--t-fail);
+}
+.tests .res.fail::before {
+	content: '✕';
+}
+.tests .res.skip {
+	color: var(--t-skip);
+}
+.tests .res.skip::before {
+	content: '–';
+}
+.tests .fails {
+	color: var(--t-fail);
+}
+
+/* Pass / fail / skip as one stacked bar. */
+.tests .split {
+	display: flex;
+	height: 8px;
+	min-width: 8rem;
+	border-radius: 4px;
+	overflow: hidden;
+	background: var(--bg-sunken);
+}
+.tests .split .pass {
+	background: var(--t-pass);
+}
+.tests .split .fail {
+	background: var(--t-fail);
+}
+.tests .split .skip {
+	background: var(--line-strong);
+}
+
+/* A package's grid of tests. Styled here, not in the page, so its rows carry no scoping class:
+   a big package has thousands of them. Columns: test, kind, then one per engine. */
+.tests .grid .file th {
+	padding-top: 0.9rem;
+	background: var(--bg-sunken);
+	font-weight: 400;
+	color: var(--text-dim);
+}
+.tests .grid td:first-child {
+	min-width: 16rem;
+	line-height: 1.45;
+	overflow-wrap: anywhere;
+}
+.tests .grid td:nth-child(2) {
+	white-space: nowrap;
+	color: var(--text-dim);
+	font-size: 0.8125rem;
+}
+.tests .grid .nil {
+	font: 400 0.6875rem/1 var(--font-mono);
+}
+.tests .grid [hidden] {
+	display: none !important;
+}
+.tests .issue {
+	margin-left: 0.35rem;
+	font: 400 0.75rem/1 var(--font-mono);
+	white-space: nowrap;
+}
+.tests .note {
+	margin: -0.25rem 0 1rem;
+	color: var(--text-dim);
+	font-size: 0.875rem;
+}
+/* On a phone each test is a card: its name, its kind, then a result per engine. */
+@media (max-width: 640px) {
+	.tests .grid thead {
+		display: none;
+	}
+	.tests .grid tr[data-kind] {
+		display: grid;
+		grid-template-columns: repeat(4, minmax(0, 1fr));
+		gap: 0.4rem 0.5rem;
+		padding: 0.75rem 1rem;
+		border-bottom: 1px solid var(--line);
+	}
+	.tests .grid tr[data-kind] > td {
+		padding: 0;
+		border: 0;
+	}
+	.tests .grid td:nth-child(-n + 2) {
+		grid-column: 1 / -1;
+		min-width: 0;
+	}
+	.tests .grid td:nth-child(n + 3) {
+		display: flex;
+		flex-direction: column;
+		gap: 0.25rem;
+	}
+	.tests .grid td:nth-child(n + 3)::before {
+		font: 400 0.6875rem/1 var(--font-mono);
+		color: var(--text-faint);
+	}
+	.tests .grid td:nth-child(3)::before {
+		content: 'Node';
+	}
+	.tests .grid td:nth-child(4)::before {
+		content: 'Chromium';
+	}
+	.tests .grid td:nth-child(5)::before {
+		content: 'Firefox';
+	}
+	.tests .grid td:nth-child(6)::before {
+		content: 'WebKit';
+	}
+}
+
+/* How ogygia is tested. */
+.tests .how {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr));
+	gap: 1.75rem 2.5rem;
+}
+.tests .how p {
+	margin: 0;
+	color: var(--text-dim);
+	line-height: 1.6;
+}
+.tests .notice {
+	margin-top: 1.25rem;
+	padding: 0.75rem 1rem;
+	border: 1px dashed var(--warn);
+	border-radius: var(--r-sm);
+	color: var(--warn);
+	font-size: 0.875rem;
+}
