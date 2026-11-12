@@ -44,6 +44,7 @@ export type MarkKey =
 	| 'exp'
 	| 'format'
 	| 'fp'
+	| 'fragmentFailed'
 	| 'head'
 	| 'healed'
 	| 'hide'
@@ -171,6 +172,7 @@ export const OG_DT_INGESTED = 'data-og-dt-ingested';
 export const OG_EXP = 'data-og-exp';
 export const OG_FORMAT = 'data-og-format';
 export const OG_FP = 'data-og-fp';
+export const OG_FRAGMENT_FAILED = 'data-og-fragment-failed';
 export const OG_HEAD = 'data-og-head';
 export const OG_HEALED = 'data-og-healed';
 export const OG_HIDE = 'data-og-hide';
@@ -294,6 +296,7 @@ export const MARK: { readonly [K in MarkKey]: Mark } = {
 	exp: { attr: OG_EXP, by: 'page' },
 	format: { attr: OG_FORMAT, by: 'page' },
 	fp: { attr: OG_FP, by: 'page' },
+	fragmentFailed: { attr: OG_FRAGMENT_FAILED, by: 'page' },
 	head: { attr: OG_HEAD, by: 'page' },
 	healed: { attr: OG_HEALED, by: 'page' },
 	hide: { attr: OG_HIDE, by: 'devtools' },
