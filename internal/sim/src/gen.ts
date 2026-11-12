@@ -83,6 +83,13 @@ export interface GenNode {
 	 *  lake with no element and no text. Where it is used, `<div data-gen-empty>` holds it, so the
 	 *  region oracle knows an empty `<ogygia-region>` there is the app's. */
 	readonly empty?: boolean;
+	/** An island a third party's script changes while it sleeps (stream `gen third party`): an
+	 *  inline script after it, in the page's own HTML, puts an element of its own in the island once
+	 *  the document is parsed, after the runtime read the island's server markup and before it wakes.
+	 *  Its wake puts the server's markup back (the repair) before it hydrates. Only one that wakes on
+	 *  its own (`load`, `idle`): after a router visit the script is inert, and an island still asleep
+	 *  there would rightly differ from a fresh load. */
+	readonly thirdParty?: boolean;
 	readonly children: readonly GenNode[];
 }
 
@@ -262,8 +269,40 @@ export function plan(seed: number): GenPage[] {
 		.map((page) => ({ ...page, roots: page.roots.map(empty) }))
 		.map((page) => (hr.chance(0.4) ? { ...page, hero: true } : page))
 		.map((page) => ({ ...page, roots: page.roots.map(switching) }))
-		.map(flagging(seed));
+		.map(flagging(seed))
+		.map(third_party(seed));
 }
+
+/** Some islands a third party's script changes while they sleep (their own stream, `gen third
+ *  party`): an island that wakes on its own, in the page's own HTML (under islands and plain markup
+ *  only: an answer's or a lake's HTML is inserted, not parsed with the page). */
+function third_party(seed: number): (page: GenPage) => GenPage {
+	const t = rng(seed).fork('gen third party');
+	const walk = (n: GenNode, page: boolean): GenNode => {
+		const children = n.children.map((c) =>
+			walk(c, page && (n.kind === 'island' || n.kind === 'plain'))
+		);
+		const on =
+			page &&
+			n.kind === 'island' &&
+			(n.wake === 'load' || n.wake === 'idle') &&
+			!n.empty &&
+			t.chance(0.3);
+		return on ? { ...n, children, thirdParty: true } : { ...n, children };
+	};
+	return (page) => ({ ...page, roots: page.roots.map((n) => walk(n, true)) });
+}
+
+/** The third party's script after an island (`thirdParty`): once the document is parsed it puts an
+ *  element of its own first in the island's markup. In `{@html}`, spelled so the component's own
+ *  parser never meets a closing script tag. */
+const THIRD_PARTY_CODE = [
+	'(function(){var s=document.currentScript;document.addEventListener("DOMContentLoaded",function(){',
+	'var r=s&&s.previousElementSibling;var el=r&&(r.matches("[data-gen]")?r:r.querySelector("[data-gen]"));',
+	'if(el){var b=document.createElement("b");b.setAttribute("data-gen-third-party","");',
+	'b.textContent="third party";el.prepend(b);}})})()'
+].join('');
+const THIRD_PARTY = `{@html '<scr' + 'ipt>${THIRD_PARTY_CODE}</scr' + 'ipt>'}`;
 
 /** Some apps read a flag on some pages (their own stream, `gen flags`): 40% of seeds, half their
  *  pages. */
@@ -484,7 +523,8 @@ function usage(n: GenNode, indent: string): string {
 	// (a fixed instant: what devalue carries, the same in every render)
 	const since = n.dated ? ` since={new Date(${n.id * 86_400_000})}` : '';
 	const blob = n.big ? ` blob={'x'.repeat(100_000)}` : '';
-	return `${indent}<N${n.id} label="n${n.id}"${since}${blob} />`;
+	const third = n.thirdParty ? `\n${indent}${THIRD_PARTY}` : '';
+	return `${indent}<N${n.id} label="n${n.id}"${since}${blob} />${third}`;
 }
 
 /** A held or live region's remote module: the query that returns it (and the command that changes
