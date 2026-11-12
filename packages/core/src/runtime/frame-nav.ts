@@ -9,10 +9,10 @@
 // This is Ryan's test made concrete: request new server-component data on navigation, flush part of
 // the response, let the rest come in as the server's async settles.
 // ─────────────────────────────────────────────────────────────────────────────
-import { machine, STALE, type Scope } from '@ogygia/machine';
+import { cache, machine, STALE, type Scope } from '@ogygia/machine';
 import { frameAddress } from '../frame.ts';
 import { stream } from '../policies.ts';
-import { is_idle, reserve, release, ticket, write } from './frame-store.ts';
+import { is_idle, reserve, release, stamp, write } from './frame-store.ts';
 import { is_allowed_region_endpoint, vouch_region_answer } from './html-sink.ts';
 import { runtime_session } from './session.ts';
 import { emit as dt_emit } from '../events/bus.ts';
@@ -32,7 +32,10 @@ let batch_seq = 0;
 /** A batched hole's timing, for the hole's own report of its answer (beacon `holes_answered`): the
  *  batch left at `left`, this hole's part landed at `at` (page time), `size` holes rode it. Bounded:
  *  the newest 64 endpoints (the measuring browser only). */
-const batched = new Map<string, { left: number; at: number; size: number }>();
+const batched = cache<string, { left: number; at: number; size: number }>({
+	name: 'batched hole timings',
+	max: 64
+});
 
 /** How the batch that carried `endpoint` timed it, or undefined (it rode no batch). */
 export function batch_times(
@@ -138,7 +141,7 @@ export async function streamFrames(
 	// slot (sig) → store address, so an arriving parcel routes to the right call. RESERVE each address
 	// up front: a region binder that connects (body swap) before its frame lands joins this batch via
 	// ensure() instead of firing its own fetch — one request for the whole route, no waterfall. Each
-	// part takes its ticket NOW, as it is asked for, like any fetch: a refresh asked after the batch
+	// part takes its stamp NOW, as it is asked for, like any fetch: a refresh asked after the batch
 	// is newer, and the batch's part landing after it is dropped (test/sim/frame-order.test.ts).
 	const bySig = new Map<string, { a: string; v: number }>();
 	// (a measuring browser: slot → endpoint, to name and time each part as it lands)
@@ -148,7 +151,7 @@ export async function streamFrames(
 		const s = sigOf(e);
 		if (s) {
 			const a = frameAddress(e);
-			bySig.set(s, { a, v: ticket(a) });
+			bySig.set(s, { a, v: stamp() });
 			endpoint_of?.set(s, e);
 			reserved.push(a);
 			reserve(a);
@@ -226,9 +229,7 @@ export async function streamFrames(
 					// (timed BEFORE the write: the write applies the part, and the hole reports its answer then)
 					if (HOOK_HOLE_ANSWERED) {
 						const ep = endpoint_of!.get(p.slot)!;
-						batched.delete(ep);
 						batched.set(ep, { left, at: performance.now(), size: reserved.length });
-						if (batched.size > 64) batched.delete(batched.keys().next().value!);
 					}
 					// (the sink's gate, ./html-sink.ts: the batch's answer stayed same-origin)
 					const html = vouch_region_answer(path, res, p.html);

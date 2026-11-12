@@ -14,6 +14,7 @@ export {
 	renew,
 	renewal,
 	reserve,
+	stamp,
 	subscribe,
 	ticket
 } from '../src/runtime/frame-store.ts';
