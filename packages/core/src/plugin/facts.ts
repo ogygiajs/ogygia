@@ -13,7 +13,7 @@
  * through the other.
  */
 import { slot as shared } from '@ogygia/machine';
-import { note_visitor_read, Reads } from './reads.ts';
+import { note_visitor_read, read_set, type Reads } from './reads.ts';
 
 export interface RequestFacts {
 	/** This render MAY be stored and served to others later (a plugin decided so before the render):
@@ -55,7 +55,7 @@ export function facts_of(request: Request): RequestFacts {
 			request,
 			(facts = {
 				storable: false,
-				reads: new Reads(),
+				reads: read_set(),
 				streamed: false,
 				private: false,
 				answerForm: false,

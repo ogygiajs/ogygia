@@ -1,0 +1,1 @@
+{"seed":160002,"steps":0,"plan":{"actions":[],"mix":{"click":1,"press":0,"goto":1,"back":1,"forward":1,"reload":1,"open":3,"offline":3,"online":0,"wait":1,"deploy":1,"outage":1}},"app":"/Users/puruvj/Projects/sk-islands-dst/apps/sim-gen","gen":160,"wire":[],"found":["[crash] its worker exited (null) after 1 runs; it last said:"]}
