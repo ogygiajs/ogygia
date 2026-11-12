@@ -55,7 +55,6 @@ stateDiagram-v2
     retrying --> idle
     retrying --> armed
     retrying --> fetching
-    retrying --> failed
     offline --> idle
     offline --> armed
     offline --> fetching
