@@ -19,8 +19,7 @@
 // A mark with no reason does not count. `WeakMap` / `WeakSet` hold nothing alive and pass. Parsed
 // with oxc (`rolldown/utils`, as core's compiler parses).
 //
-//   node internal/checks/module-maps.ts          report each offender (exit 0)
-//   node internal/checks/module-maps.ts --fail   the same, failing when there is one
+//   node internal/checks/module-maps.ts          name each offender, failing when there is one
 import { readdirSync, readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import path from 'node:path';
@@ -246,7 +245,6 @@ function sources(): string[] {
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
-	const fail = process.argv.includes('--fail');
 	const all: Finding[] = [];
 	for (const file of sources())
 		all.push(...find_unowned(path.relative(repo, file), readFileSync(file, 'utf8')));
@@ -257,8 +255,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
 				: `${f.file}:${f.line}  ${f.name}: a module-level ${f.kind}. Fix: ${f.fix}`
 		);
 	console.log(
-		`${all.length} finding(s): module-level maps, sets or growing arrays neither a cache() nor a fixed table, and fixed tables grown` +
-			(fail ? '' : ' (report mode: not failing; #413 sorts them, then this fails)')
+		`${all.length} finding(s): module-level maps, sets or growing arrays neither a cache() nor a fixed table, and fixed tables grown`
 	);
-	if (fail && all.length) process.exit(1);
+	if (all.length) process.exit(1);
 }
