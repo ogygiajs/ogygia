@@ -12,7 +12,7 @@ const CODE_ID_META_STRIP_RE = /\s*ogygia-code-id=\S+/;
  */
 
 import type { ShikiTransformer } from 'shiki';
-import { flights, STALE, type Flights } from '@ogygia/machine';
+import { cache, flights, STALE, type Flights } from '@ogygia/machine';
 import { createHash } from 'node:crypto';
 import { attr } from '@ogygia/core/plugin/utils';
 import { render_fence, default_pipeline, type CodePipeline } from './code-render.ts';
@@ -147,7 +147,8 @@ const highlighters: Flights<
 	name: 'shiki highlighter',
 	key: ['key'],
 	ignore: { cfg: 'every config with one key has the same themes and languages' },
-	max: MAX_HIGHLIGHTERS,
+	// (one start per key at a time; what landed is kept by `kept`, which disposes what it lets go)
+	keep: 0,
 	run: ({ cfg }) =>
 		import('shiki').then(({ createHighlighter }) =>
 			createHighlighter({
@@ -157,18 +158,13 @@ const highlighters: Flights<
 		)
 });
 
-/** The highlighters handed out, by their key: one the flights no longer keeps is disposed. */
-const handed = new Map<Highlighter, string>();
-
-/** Disposes the highlighters the flights let go (the least recently used, past the cap). */
-function let_go(): void {
-	for (const [h, key] of handed) {
-		const e = highlighters.peek({ key });
-		if (e?.kind === 'kept' && e.answer === h) continue;
-		handed.delete(h);
-		h.dispose();
-	}
-}
+/** The highlighters made, by their key: past the cap the least recently used goes, and is
+ *  disposed (as is each when the cache ends). */
+const kept = cache<string, Highlighter>({
+	name: 'shiki highlighters',
+	max: MAX_HIGHLIGHTERS,
+	onEvict: (_key, h) => h.dispose()
+});
 
 /** A theme object's name for Shiki: its own, or (it has none) one made from its contents, so two
  *  unnamed themes are two names. */
@@ -232,9 +228,12 @@ function theme_key(cfg: ResolvedShiki) {
 
 async function get_highlighter(cfg: ResolvedShiki) {
 	const key = theme_key(cfg);
+	const have = kept.get(key);
+	if (have !== undefined) return have;
 	const h = await highlighters.get({ key, cfg });
-	if (h !== STALE) handed.set(h, key);
-	let_go();
+	if (h === STALE) return h;
+	// (two callers that joined one start both land here: the first keeps it, the second finds it)
+	if (kept.peek(key) === undefined) kept.set(key, h);
 	return h;
 }
 

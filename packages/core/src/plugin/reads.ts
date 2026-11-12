@@ -79,6 +79,7 @@ export function note_visitor_read(request_reads: Reads, input: string): void {
 
 /** Personal request headers: reading one is a per-visitor read. Everything else (host,
  *  sec-fetch-*, accept-encoding, …) is delivery plumbing. */
+// static: a fixed list of header names
 const PERSONAL_HEADERS: ReadonlySet<string> = new Set([
 	'cookie',
 	'authorization',
@@ -108,7 +109,9 @@ function is_personal_header(name: string): boolean {
 
 /** Members of `platform` that are the same for every request: the app's bindings, and the
  *  platform's hand-off for work past the response. Everything else there is per request. */
+// static: the platform members every request shares
 const SHARED_PLATFORM: ReadonlySet<string> = new Set(['env', 'caches']);
+// static: the platform context members every request shares
 const SHARED_PLATFORM_CONTEXT: ReadonlySet<string> = new Set([
 	'waitUntil',
 	'passThroughOnException'
