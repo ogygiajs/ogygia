@@ -165,6 +165,14 @@ that imports its children with their import attributes; the tree is in
 `src/lib/gen/plan.json`. Then `pnpm sim:builds --app ../../apps/sim-gen` and
 `pnpm sim --app ../../apps/sim-gen`. Federation is not generated yet (it needs two apps).
 
+Some regions are held: a remote query returns `region(N, props)` (`src/lib/gen/h<k>.remote.ts`,
+its schedule baked on the import: a wake, or `region: 'raw'`), and a host renders it with
+`<Region of>`: plain server markup awaiting the query (some with a placeholder), or an island
+reading the query's `.current` (some with a button: a command that bumps the server's count and
+answers with the region, single flight). Some are live: a `query.live` yields the region anew on
+each tick (every 0.7 s or 3 s), in an island host. Held and live regions draw from a stream of
+their own (`gen held`), so a seed's tree is what it was before they existed.
+
 ## Running many
 
 `pnpm sim --runs 200 [--from 41] [--steps 30] [--jobs N]`: seeds run in a pool of worker
@@ -194,9 +202,16 @@ isolation, leaks and bounded memory (a document's listeners, intervals, observer
 children and elements must not grow visit after visit of one URL; for listeners, the same code
 must be what grows: ogygia's wake delegation and Svelte's event delegation are installed once per
 document, the first time a page of that kind is visited, and the leak report names what each visit
-added), every wait settles (`stuck`: at
-rest, no machine is left in a state of work under way, any state whose name ends in `ing`), the
-rules once more at rest, and the watchdog (`hung`).
+added), every wait settles (`stuck`: at rest, no machine is left in a state of work under way,
+any state whose name ends in `ing`), every region shows something (`empty-region`: at rest, no
+`<ogygia-region>` is left with nothing in it, but a hole with no fallback still waiting to be seen
+or touched), the rules once more at rest, and the watchdog (`hung`).
+
+Each line a page says is judged by the document that said it (`Tab.said_by`): one action can show
+several documents, and an old page's failed download is not the next page's. The first document is
+looked at before the visitor acts. What moves by itself in the MPA check (a ticking text, a live
+region's tick in its endpoint) is masked by its content, looked at for 4 s, and lined up with the
+other side's same line where it moved on one side only.
 
 ## Always on
 
