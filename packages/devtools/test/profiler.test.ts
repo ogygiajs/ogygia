@@ -5792,6 +5792,28 @@ describe('standalone HTML export', () => {
 		};
 		expect(Object.keys(map.imports)).toContain(key);
 	});
+
+	it('reads the page’s tags as a browser does: a quoted `>`, a comment, rel tokens, any case', async () => {
+		const files: Record<string, string> = {
+			'/r.js': 'export {};',
+			'/a.css': 'a{}',
+			'/island.js': 'export default 1;'
+		};
+		const asked: string[] = [];
+		const html =
+			'<html><head><!-- <link rel="stylesheet" href="/gone.css"> -->' +
+			'<LINK REL="preload stylesheet" HREF="/a.css">' +
+			'<script type="module" data-note="a>b" src="/r.js"></script></head>' +
+			"<body><OGYGIA-REGION ENTRY='/island.js' wake=load>hi</OGYGIA-REGION></body></html>";
+		const out = await build_standalone(html, {
+			page_url: 'http://h/__profiler/report/abc',
+			load: async (url) => (asked.push(new URL(url).pathname), files[new URL(url).pathname] ?? null)
+		});
+		expect(asked).not.toContain('/gone.css');
+		expect(out).toContain('<style data-standalone="/a.css">a{}</style>');
+		expect(out).toContain('data-standalone="/r.js"');
+		expect(out).toContain("ENTRY='og://chunks/island.js'");
+	});
 });
 
 describe('compare + history', () => {

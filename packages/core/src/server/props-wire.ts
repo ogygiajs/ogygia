@@ -45,14 +45,10 @@ import {
 	SEED_REF_KEY,
 	type SeedIndex
 } from '../seed-refs.ts';
+import { OG_FORMAT, OG_WIRE, OGYGIA_PROPS } from '../wire-markup.ts';
 
-/** The sidecar attribute naming a non-devalue payload format; absent = devalue. */
-export const WIRE_FORMAT_ATTR = 'data-og-format';
-/** The one non-devalue format: plain JSON, read with `JSON.parse`. */
+/** The one non-devalue format (`OG_FORMAT`; absent = devalue): plain JSON, read with `JSON.parse`. */
 export const WIRE_FORMAT_JSON = 'json';
-/** On a props sidecar: the transportable classes its props carry (tag paths, space-separated) —
- *  what the browser loads before it decodes them. */
-export const WIRE_CLASSES_ATTR = 'data-og-wire';
 
 /** Island props cross classes, stores, snippets, og.$ fns and resumable deriveds. */
 // static: the prop families that cross the wire
@@ -256,12 +252,12 @@ export function props_sidecar(
 	// crossing render root) may repeat a fingerprint the tail — or another root — already carries, so
 	// it is keyed by attribute only; the runtime finds it as the region's next sibling.
 	return (
-		'<script type="application/ogygia-props" data-ogygia-props' +
+		`<script type="application/ogygia-props" ${OGYGIA_PROPS}` +
 		(fp ? `="${fp}"` + (place === 'tail' ? ` id="og-props-${fp}"` : '') : '') +
-		(w.json ? ` ${WIRE_FORMAT_ATTR}="${WIRE_FORMAT_JSON}"` : '') +
+		(w.json ? ` ${OG_FORMAT}="${WIRE_FORMAT_JSON}"` : '') +
 		// (the transportable classes the browser loads before it decodes these props)
 		(wire_modules.length
-			? ` ${WIRE_CLASSES_ATTR}="${wire_modules.join(' ').replaceAll('"', '&quot;')}"`
+			? ` ${OG_WIRE}="${wire_modules.join(' ').replaceAll('"', '&quot;')}"`
 			: '') +
 		'>' +
 		w.text +
