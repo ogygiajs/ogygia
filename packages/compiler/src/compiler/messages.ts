@@ -100,6 +100,17 @@ export const BUILD_ERRORS = {
 			constant.
 		`
 	},
+	macro_outside_app: {
+		text: (a: { file: string; macro: string }): string =>
+			`${a.file} — import.meta.og.${a.macro}() is used in an installed package that does not declare this file in "ogygia.files".`,
+		details: (): string => prose`
+			The \`import.meta.og.*\` macros (\`bake\` runs code at build time) work in the app's own
+			source, and in the files a package lists under \`"ogygia.files"\` in its package.json.
+			An installed file outside that list that uses one fails the build, and nothing in it
+			runs. If the package is meant to ship ogygia code, add the file (or a glob for it) to
+			that package's \`"ogygia.files"\`; otherwise it should not use the macro.
+		`
+	},
 	macro_bake_arity: {
 		text: (a: { file: string; line: number }): string =>
 			`${a.file}:${a.line} — import.meta.og.bake(fn) takes exactly one argument (a function).`,
@@ -500,8 +511,9 @@ export const BUILD_ERRORS = {
 		text: (a: { package: string; entry: string }): string =>
 			`${a.package}: ogygia.files entry '${a.entry}' escapes the package.`,
 		details: (): string => prose`
-			An \`ogygia.files\` entry points outside its own package (\`../\`), which would compile
-			code the package does not own. List paths inside the package only.
+			An \`ogygia.files\` entry points outside its own package (\`../\`, or a symlink in the
+			package that leads out of it), which would compile code the package does not own. List
+			paths inside the package only.
 		`
 	},
 
