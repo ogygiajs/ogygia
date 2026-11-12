@@ -3425,6 +3425,26 @@
 			"reason": "browser only: reads invalidate_all off the retried module, one property read; proven in packages/core/test/browser/nav-handle-routerless-retry.test.ts"
 		},
 		{
+			"id": "packages/core/src/runtime/stale-deps.ts > make_watch",
+			"reason": "dev only, browser only: builds the page's one stale-dep watch on first use (a flights definition, not cloneable), constant work; proven in packages/core/test/browser/stale-deps.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/stale-deps.ts > make_watch > call:0~5cbf83 > run",
+			"reason": "dev only, browser only: the watch's run, one call into confirm_and_reload, constant work; proven in packages/core/test/browser/stale-deps.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/stale-deps.ts > recover_from_stale_deps",
+			"reason": "dev only, browser only: an island entry failed to import; joins the page's one watch (module state, not cloneable), constant work; proven in packages/core/test/browser/stale-deps.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/stale-deps.ts > recover_from_stale_deps > reload",
+			"reason": "dev only, browser only: the default reload, location.reload() (the live tab), constant work"
+		},
+		{
+			"id": "packages/core/src/runtime/stale-deps.ts > confirm_and_reload",
+			"reason": "dev only, browser only, an error path: reads sessionStorage and fetches the entry once per stale tab (the network and the live tab, not recorded), constant work; proven in packages/core/test/browser/stale-deps.test.ts"
+		},
+		{
 			"id": "packages/compiler/src/vite/lazy-files.ts > dev_url",
 			"reason": "dev only: a module id to its /@fs/ URL, one replace, once per loader per transform (the plugin's build path is proven in packages/compiler/test/lazy-files.test.ts)"
 		},
