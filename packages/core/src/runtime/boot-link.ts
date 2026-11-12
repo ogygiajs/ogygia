@@ -27,6 +27,7 @@ import {
 import { runtime_session } from './session.ts';
 import { regions_in_shadow } from './connected.ts';
 import { release_head_nodes } from './region-sheets.ts';
+import { add_head_owners, adopt_owner_record, head_owners } from '../head-owners.ts';
 import { yield_task } from './schedule.ts';
 import { HOOK_REGION_HYDRATE, client_region_hydrate } from './client-plugins.ts';
 import {
@@ -61,6 +62,9 @@ export function link_boot(): void {
 		runtime_session,
 		regions_in_shadow,
 		release_head_nodes,
+		head_owners,
+		add_head_owners,
+		adopt_owner_record,
 		yield_task,
 		region_hydrate: HOOK_REGION_HYDRATE ? client_region_hydrate : no_region_hydrate,
 		walk_enters,

@@ -64,6 +64,11 @@ const KitBoot = { document_has: (doc: ParentNode) => boot_link().KitBoot.documen
 const regions_in_shadow = () => boot_link().regions_in_shadow();
 const release_head_nodes = (unlisted: readonly Element[]) =>
 	boot_link().release_head_nodes(unlisted);
+const head_owners = (node: Element) => boot_link().head_owners(node);
+const add_head_owners = (node: Element, more: Iterable<string>) =>
+	boot_link().add_head_owners(node, more);
+const adopt_owner_record = (doc: ParentNode, head: ParentNode) =>
+	boot_link().adopt_owner_record(doc, head);
 const session = () => boot_link().runtime_session;
 type Scope = import('@ogygia/machine').Scope;
 type Stale = import('@ogygia/machine').Stale;
@@ -1324,6 +1329,8 @@ function merge_head(new_head: HTMLHeadElement): Element[] {
 	// for the next page's copy either (the island may be torn down in the reconcile that follows —
 	// the copy the page needs goes in, and the one-copy rule retires it again if the island stays).
 	// Nodes that are not ours at all (a third-party inject) stay, as under Kit's own router.
+	// (the owners the page being left listed for its shared sheets: its tail is still in the body)
+	adopt_owner_record(document, current);
 	const current_nodes = live_page_head();
 	const next_keys = new Set<string>();
 	for (const node of Array.from(new_head.children)) {
@@ -1352,7 +1359,11 @@ function merge_head(new_head: HTMLHeadElement): Element[] {
 			live.set(key, install_head_style(node, current, head_slot(node, live)));
 			continue;
 		}
-		if (existing) continue;
+		if (existing) {
+			// the node it has stays, owned also by the islands the next page's copy names (#854)
+			if (node.hasAttribute(OG_OWNER)) add_head_owners(existing, head_owners(node));
+			continue;
+		}
 		const at = head_slot(node, live);
 		if (node.tagName === 'STYLE') {
 			live.set(key, install_head_style(node, current, at));
