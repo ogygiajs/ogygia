@@ -7,8 +7,7 @@ import {
 	session_cookie,
 	region_ttl,
 	renew_window,
-	sign,
-	region_mac_message,
+	region_sign,
 	get_request_event,
 	region_url,
 	region_render,
@@ -16,7 +15,7 @@ import {
 } from 'ogygia:server';
 import { app_path } from '../kit-paths.ts';
 import { building } from '$app/env';
-import { islands_endpoint, MAX_REGION_PROPS_LEN } from './endpoint.ts';
+import { capability_query, islands_endpoint, MAX_REGION_PROPS_LEN } from './endpoint.ts';
 import { capability_lifetime, type CapabilityLifetime } from './capability-lifetime.ts';
 import { encode_region_props } from './region-props.ts';
 import { stringify } from 'devalue';
@@ -151,13 +150,13 @@ export function mint_region_capability(entry: string, payload: string, ttl = 0):
 	// `r`: what the endpoint renders (the component), signed — a build that no longer has this `id`
 	// (another schedule, preset or salt) still answers it (compiler/region/identity.ts `renderId`)
 	const render = region_render[entry] ?? '';
-	const sig = sign(key.secret, region_mac_message(entry, exp, payload, session, ttl_field, render));
-	const ttl_param = ttl_field ? `&ttl=${ttl_field}` : '';
+	// for the app's islands endpoint (its audience), without the base: the handle matches by suffix
+	const claim = { id: entry, payload, session, ttl: ttl_field, render };
+	const sig = region_sign(key.secret, islands_endpoint(), exp, claim);
 	if (DEVTOOLS)
 		record_server_event({ domain: 'server', name: 'server.capability.minted', id: entry, ttl });
-	// `k`: the minter's key fingerprint, outside the MAC (server/signing-key.ts)
 	// a path from the app's root, never page-relative: the HTML that carries it moves
-	const url = `${app_path(islands_endpoint())}?id=${encodeURIComponent(entry)}${render ? `&r=${render}` : ''}&props=${payload}&exp=${exp}${ttl_param}&sig=${sig}&k=${key.fp}`;
+	const url = app_path(islands_endpoint()) + capability_query(claim, String(exp), sig, key.fp);
 	if (RULES) note_minted_capability(url);
 	return url;
 }

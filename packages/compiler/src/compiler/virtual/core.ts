@@ -409,7 +409,7 @@ export const sign: RequestEntry<CoreApp> = virtual.request({
 	realm: 'server',
 	id: 'sign',
 	module: { core: 'server/hmac' },
-	exports: { sign: 'sign', verify: 'verify', region_mac_message: 'region_mac_message' }
+	exports: { sign: 'sign', region_sign: 'region_sign' }
 });
 
 export const request_event: RequestEntry<CoreApp> = virtual.request({
