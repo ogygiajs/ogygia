@@ -11,6 +11,7 @@ its pull request says why it is safe (or which INVARIANTS.md section covers it).
 | file | in | what | n |
 | --- | --- | --- | --- |
 | `packages/cli/src/cli.ts` | `site_init` | `searchParams('q')` | 1 |
+| `packages/cli/src/mcp.ts` | `sends_to_login` | `headers.get('location')` | 1 |
 | `packages/cli/src/mcp.ts` | `tool_profile` | `headers.get('content-type')` | 1 |
 | `packages/core/src/hooks.ts` | `#region_session` | `cookies.get(session_cookie)` | 1 |
 | `packages/core/src/hooks.ts` | `#render_hole` | `cookies.get(TESTING_COOKIE)` | 1 |
@@ -22,7 +23,6 @@ its pull request says why it is safe (or which INVARIANTS.md section covers it).
 | `packages/core/src/hooks.ts` | `render_batch` | `headers.get('sec-fetch-mode')` | 1 |
 | `packages/core/src/hooks.ts` | `render_batch` | `headers.get('sec-fetch-site')` | 1 |
 | `packages/core/src/hooks.ts` | `render_batch` | `request.json()` | 1 |
-| `packages/core/src/hooks.ts` | `render_region` | `cookies.get('og_profiler_beacon')` | 1 |
 | `packages/core/src/hooks.ts` | `render_region` | `cookies.get(DEVTOOLS_COOKIE)` | 1 |
 | `packages/core/src/hooks.ts` | `render_region` | `headers.get('sec-fetch-site')` | 1 |
 | `packages/core/src/hooks.ts` | `render_region` | `searchParams('renew')` | 1 |
@@ -69,7 +69,6 @@ its pull request says why it is safe (or which INVARIANTS.md section covers it).
 | `packages/devtools/src/profiler/index.ts` | `#auth_guard` | `searchParams(AFTER_LOGIN_PARAM)` | 1 |
 | `packages/devtools/src/profiler/index.ts` | `#authed` | `headers.get('x-profiler-key')` | 1 |
 | `packages/devtools/src/profiler/index.ts` | `#beacon` | `request.text()` | 1 |
-| `packages/devtools/src/profiler/index.ts` | `#beacon_tag` | `cookies.get('og_profiler_beacon')` | 1 |
 | `packages/devtools/src/profiler/index.ts` | `#beacon_tag` | `headers.get('accept')` | 1 |
 | `packages/devtools/src/profiler/index.ts` | `#beacon_tag` | `headers.get('sec-fetch-dest')` | 1 |
 | `packages/devtools/src/profiler/index.ts` | `#beacon_tag` | `headers.get('x-og-profiler-internal')` | 2 |
@@ -81,6 +80,7 @@ its pull request says why it is safe (or which INVARIANTS.md section covers it).
 | `packages/devtools/src/profiler/index.ts` | `#cookie_diagnosis` | `cookies.get(SESSION_COOKIE)` | 1 |
 | `packages/devtools/src/profiler/index.ts` | `#cookie_diagnosis` | `headers.get('cookie')` | 1 |
 | `packages/devtools/src/profiler/index.ts` | `#flag_cookie` | `cookies.get('og_profiler_beacon')` | 1 |
+| `packages/devtools/src/profiler/index.ts` | `#flag_session` | `cookies.get('og_profiler_beacon')` | 1 |
 | `packages/devtools/src/profiler/index.ts` | `#login` | `request.json()` | 1 |
 | `packages/devtools/src/profiler/index.ts` | `#report_posted` | `headers.get('content-type')` | 1 |
 | `packages/devtools/src/profiler/index.ts` | `#report_posted` | `headers.get('x-og-encoding')` | 1 |
@@ -194,7 +194,7 @@ its pull request says why it is safe (or which INVARIANTS.md section covers it).
 | `packages/devtools/src/devtools/ui.ts` | `was_open` | `JSON.parse` | 1 |
 | `packages/devtools/src/profiler/analyze.ts` | `clean_url` | `decodeURIComponent` | 1 |
 | `packages/devtools/src/profiler/analyze.ts` | `text_nearby` | `JSON.parse` | 1 |
-| `packages/devtools/src/profiler/crypto.ts` | `ogp_decode` | `JSON.parse` | 1 |
+| `packages/devtools/src/profiler/crypto.ts` | `(module)` | `JSON.parse` | 1 |
 | `packages/devtools/src/profiler/crypto.ts` | `recover_ogp_bytes` | `Buffer.from base64` | 1 |
 | `packages/devtools/src/profiler/embedded-maps.ts` | `loaded` | `JSON.parse` | 1 |
 | `packages/devtools/src/profiler/embedded-maps.ts` | `source_index` | `JSON.parse` | 1 |
@@ -269,7 +269,7 @@ its pull request says why it is safe (or which INVARIANTS.md section covers it).
 
 ## Secrets and keys: environment secrets, MACs, key derivation, signatures
 
-21 entries.
+27 entries.
 
 | file | in | what | n |
 | --- | --- | --- | --- |
@@ -283,8 +283,14 @@ its pull request says why it is safe (or which INVARIANTS.md section covers it).
 | `packages/core/src/server/hmac.ts` | `derive_mac_key` | `hkdfSync` | 1 |
 | `packages/core/src/server/hmac.ts` | `sha256` | `createHmac` | 1 |
 | `packages/core/src/server/hmac.ts` | `verify` | `timingSafeEqual` | 1 |
-| `packages/core/src/vite/index.ts` | `ogygia` | `env OGYGIA_SECRET` | 3 |
-| `packages/devtools/src/profiler/index.ts` | `#key_matches` | `timingSafeEqual` | 2 |
+| `packages/core/src/vite/index.ts` | `ogygia` | `env OGYGIA_SECRET` | 4 |
+| `packages/devtools/src/profiler/index.ts` | `#flag_mac` | `createHmac` | 1 |
+| `packages/devtools/src/profiler/index.ts` | `#flag_mac` | `hkdfSync` | 1 |
+| `packages/devtools/src/profiler/index.ts` | `#flag_session` | `timingSafeEqual` | 1 |
+| `packages/devtools/src/profiler/index.ts` | `#key_ok` | `timingSafeEqual` | 1 |
+| `packages/devtools/src/profiler/index.ts` | `#session_mac` | `createHmac` | 1 |
+| `packages/devtools/src/profiler/index.ts` | `#session_mac` | `hkdfSync` | 1 |
+| `packages/devtools/src/profiler/index.ts` | `#session_ok` | `timingSafeEqual` | 1 |
 | `packages/devtools/src/profiler/index.ts` | `constructor` | `env OGYGIA_PROFILER_SECRET` | 1 |
 | `packages/devtools/src/profiler/window-id.ts` | `hmac_signer` | `createHmac` | 1 |
 | `packages/devtools/src/profiler/window-id.ts` | `hmac_signer` | `timingSafeEqual` | 1 |
