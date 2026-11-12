@@ -2,6 +2,7 @@
 // for every caller of a resolver, and each policy's own answer over that one graph.
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { fc } from '@ogygia/config/sim';
 import { EVERY_BARREL, ExportIndex, Shapes, type Policy } from '../src/compiler/exports/index.ts';
 import {
 	collectFoucCssReachable,
@@ -199,6 +200,47 @@ describe('the export index: one graph, a policy per caller', () => {
 		expect(map.entries.get('x')).toEqual({ id: '/app/lib/a.ts', name: 'x' });
 		expect(map.entries.get('y')).toEqual({ id: '/app/lib/b.ts', name: 'y' });
 	}, 2000);
+
+	it('any graph of star exports ends, and every name a star reaches is found', async () => {
+		const MODS = ['a', 'b', 'c', 'd'];
+		const mod = fc.record({
+			impure: fc.boolean(),
+			stars: fc.subarray(MODS)
+		});
+		await fc.assert(
+			fc.asyncProperty(fc.tuple(...MODS.map(() => mod)), async (mods) => {
+				const files: Record<string, string> = {
+					'/app/lib/index.ts': `export * from './a';`
+				};
+				mods.forEach((m, i) => {
+					const name = MODS[i];
+					files[`/app/lib/${name}.ts`] = [
+						m.impure ? `console.log('${name}');` : '',
+						`export const ${name}_own = 1;`,
+						...m.stars.map((s) => `export * from './${s}';`)
+					].join('\n');
+				});
+				// the spec's GetExportedNames: every module a star chain from `a` reaches
+				const reached = new Set<string>();
+				const visit = (name: string) => {
+					if (reached.has(name)) return;
+					reached.add(name);
+					for (const s of mods[MODS.indexOf(name)].stars) visit(s);
+				};
+				visit('a');
+				const map = (await graph(files).index.map('/app/lib/index.ts', '$lib', EVERY_BARREL))!;
+				for (const name of reached)
+					expect(map.entries.get(`${name}_own`), JSON.stringify(files)).toEqual({
+						id: `/app/lib/${name}.ts`,
+						name: `${name}_own`
+					});
+			}),
+			{
+				seed: Number(process.env.OGYGIA_FUZZ_SEED ?? 5),
+				numRuns: Number(process.env.OGYGIA_FUZZ_RUNS ?? 200)
+			}
+		);
+	}, 10_000);
 
 	it('a file deleted in dev leaves no barrel pointing at it', async () => {
 		const g = graph({
