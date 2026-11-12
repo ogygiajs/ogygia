@@ -93,7 +93,7 @@ describe('join_batch', () => {
 		install_frames();
 		const frag = `/og/frag?peer=dash&kind=widget&search=org%3D1&exp=9&sig=w1`;
 		// (what router-nav's batch_regions hands the frames feature: every load hole of the next page)
-		await slots.frames!.stream!([frag, ep('n1'), ep('n2')], scope());
+		await slots.frames!.stream!([frag, ep('n1'), ep('n2')], scope(), location.href);
 		expect(urls).toEqual(['/__ogygia__']);
 		expect(posts).toEqual([[ep('n1'), ep('n2')]]);
 	});
