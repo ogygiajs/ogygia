@@ -35,6 +35,9 @@ import { vouch_page_html as html } from '../src/runtime/html-sink.ts';
 import { mailbox, scope, STALE } from '@ogygia/machine';
 import type { IslandHandle } from '../src/runtime/hydrate-core.ts';
 import { block, header } from './fixtures.ts';
+import { stamp_region_keys } from '../src/runtime/reconcile.ts';
+import { ids_released, record_region_id } from '../src/runtime/region-ids.ts';
+import { RemoteCache } from '../src/shims/kit-remote/remote-cache.ts';
 
 bench(
 	'concurrency gate: hole renders through a gate of four (some slow, some past their time)',
@@ -389,6 +392,60 @@ bench(
 		for (let i = 0; i < 50; i++) if (frames.peek(`w${i}|p`) !== null) shown++;
 		frames._reset();
 		return applied * 100 + shown;
+	},
+	{ setup: () => ({ n: 400 }), scale: (_ctx, k) => ({ n: 400 * k }) }
+);
+
+bench(
+	"navigation's reconcile keys: a page of regions, a fifth of them twins (one key each, by their order)",
+	({ n }) => {
+		let html = '';
+		for (let i = 0; i < n; i++) {
+			const fp = (i % 5 === 0 ? 7 : i).toString(16).padStart(16, '0');
+			html += `<ogygia-region entry="/r.js" data-og-fp="${fp}"></ogygia-region>`;
+		}
+		const body = el(`<body>${html}</body>`) as unknown as ParentNode;
+		// the next page's body, then the same regions stamped again (kept from an earlier visit)
+		stamp_region_keys(body);
+		stamp_region_keys(body);
+		return body.querySelectorAll('ogygia-region').length;
+	},
+	{ setup: () => ({ n: 200 }), scale: (_ctx, k) => ({ n: 200 * k }) }
+);
+
+bench(
+	"navigation's departed regions: the shared ids they owned, less the ones a staying region owns",
+	({ n }) => {
+		let html = '';
+		for (let i = 0; i < n; i++) html += `<ogygia-region entry="/r.js"></ogygia-region>`;
+		const body = el(`<body>${html}</body>`) as unknown as ParentNode;
+		const regions = [...body.querySelectorAll('ogygia-region')];
+		for (let i = 0; i < n; i++) {
+			record_region_id(regions[i], `own-${i}`);
+			record_region_id(regions[i], `shared-${i % 10}`);
+		}
+		// half leave the page
+		const departed = regions.filter((_, i) => i % 2 === 0);
+		for (const r of departed) r.remove();
+		return ids_released(departed, body).length;
+	},
+	{ setup: () => ({ n: 200 }), scale: (_ctx, k) => ({ n: 200 * k }) }
+);
+
+bench(
+	'Kit query cache: islands make and look up entries, a navigation releases the ones only departed islands held',
+	({ n }) => {
+		const cache = new RemoteCache();
+		let hit = 0;
+		for (let i = 0; i < n; i++) {
+			// Kit makes each query function's map and stores it, then looks entries up in it
+			if (!cache.query_map.has(`q${i % 20}`)) cache.query_map.set(`q${i % 20}`, new Map());
+			const entries = cache.query_map.get(`q${i % 20}`)!;
+			entries.set(`p${i}`, { resource: { destroy() {} } });
+			if (entries.get(`p${i}`) !== undefined) hit++;
+		}
+		cache.release_instances();
+		return hit;
 	},
 	{ setup: () => ({ n: 400 }), scale: (_ctx, k) => ({ n: 400 * k }) }
 );
