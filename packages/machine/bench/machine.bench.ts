@@ -375,11 +375,11 @@ bench(
 		const q = queue<number>({
 			max: 4,
 			now: () => clock,
-			start: (job) => {
+			start: (job, place) => {
 				started++;
 				void Promise.resolve().then(() => {
 					clock++;
-					q.release(); // the render ends
+					place.release(); // the render ends
 				});
 				void job;
 			},

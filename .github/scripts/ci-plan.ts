@@ -13,7 +13,7 @@
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { appendFileSync } from 'node:fs';
-import { is_stacked } from './ci-stack.ts';
+import { is_batched, is_stacked } from './ci-stack.ts';
 
 type Slice = {
 	name: string;
@@ -57,11 +57,12 @@ const BROWSER_JOBS = ['firefox', 'webkit', 'firefox-stable'] as const;
 
 const env = process.env;
 const pull_request = env.EVENT === 'pull_request';
+const labels = JSON.parse(env.LABELS || '[]') as string[];
+// (a batched PR's e2e and browser jobs run on its batch, and `ci ok` stays red: ci-stack.ts)
+const batched = pull_request && is_batched(labels);
 // (a stacked PR's e2e and browser jobs run once, on its stack's PR into main: ci-stack.ts)
-const stacked =
-	pull_request &&
-	is_stacked(env.PR_BASE ?? '') &&
-	!(JSON.parse(env.LABELS || '[]') as string[]).includes('ci:full');
+const stacked = pull_request && is_stacked(env.PR_BASE ?? '') && !labels.includes('ci:full');
+const elsewhere = stacked || batched;
 // (the base commit itself: a stacked PR's `base_ref` was seen to read `main` on CI, its base sha
 // was right)
 const base = env.BASE_SHA || (env.BASE_REF ? `origin/${env.BASE_REF}` : 'origin/main');
@@ -71,6 +72,14 @@ const summary: string[] = ['### CI plan', ''];
 function output(name: string, value: unknown): void {
 	out[name] = typeof value === 'string' ? value : JSON.stringify(value);
 }
+
+// (set before any early return: `ci ok` reads it on every path, so a batched PR is never green)
+output('batched', batched ? 'true' : 'false');
+if (batched)
+	summary.push(
+		'Batched (`batched` label): e2e and the opt-in sets run on its ci/integration-* batch; it lands only through that batch, so `ci ok` is red here.',
+		''
+	);
 
 function done(): void {
 	if (env.GITHUB_OUTPUT)
@@ -215,7 +224,7 @@ const browsers =
 	browser_tasks.length === 0
 		? []
 		: BROWSER_JOBS.filter((b) => !passed(`browsers-pass-${b}-${browsers_hash}`));
-output('browsers', stacked ? [] : browsers);
+output('browsers', elsewhere ? [] : browsers);
 output('browsers_hash', browsers_hash);
 summary.push(`browsers: ${browsers.join(', ') || 'none'} (inputs ${browsers_hash}).`);
 
@@ -233,8 +242,8 @@ for (const browser of ENGINES)
 			`e2e ${slice.name}, ${browser}: ${e2e.length} task(s), ${left.length} to run${left.length ? ` (${left.map((t) => t.taskId).join(', ')})` : ''}.`
 		);
 	}
-output('e2e_chromium', stacked ? [] : chromium);
-output('e2e_engines', stacked ? [] : engines);
+output('e2e_chromium', elsewhere ? [] : chromium);
+output('e2e_engines', elsewhere ? [] : engines);
 if (stacked)
 	summary.push(
 		`Stacked on \`${env.PR_BASE}\`: no e2e or browser jobs here (they run on the integration PR or the stack's PR into main; \`ci:full\` runs them).`

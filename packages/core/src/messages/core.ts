@@ -932,6 +932,16 @@ export const WARNINGS = {
 			on an older answer, or never got the newest. ${BUG}
 		`
 	},
+	rule_region_left_busy: {
+		text: (a: { detail: string }): string =>
+			`rule broken, a region that left the page is at rest: ${a.detail}`,
+		details: (): string => prose`
+			Dev and e2e only (a rule ogygia checks on itself). A region element runs a few state
+			machines: its fetch, its wake, its live mode, its paint. When the element leaves the page,
+			each goes back to rest, so nothing of it waits on something that can no longer happen. One
+			of them was still in the middle of its work after the element left. ${BUG}
+		`
+	},
 	rule_parse_upgraded: {
 		text: (a: { detail: string }): string => `rule broken, a parsed answer is inert: ${a.detail}`,
 		details: (): string => prose`
