@@ -65,13 +65,14 @@ async function with_store<T>(
 ): Promise<T | null> {
 	const db = await open_db();
 	if (!db) return null;
+	// (the connection is this call's: closed however the call ends, test/profiler-ui-store-close.test.ts)
 	try {
 		const tx = db.transaction(name, mode);
-		const out = await fn(tx.objectStore(name));
-		db.close();
-		return out;
+		return await fn(tx.objectStore(name));
 	} catch {
-		return null;
+		return null; // ok: best-effort store (a quota, a missing store): the caller reads empty
+	} finally {
+		db.close();
 	}
 }
 
