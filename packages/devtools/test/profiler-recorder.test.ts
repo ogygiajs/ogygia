@@ -10,6 +10,8 @@ import { span_recording } from '../src/profiler/span.ts';
 import { MemoryStore, type ProfilerStore } from '../src/profiler/storage/index.ts';
 
 const dev_switch = vi.hoisted(() => ({ dev: true }));
+/** a production profiler's secret (at least 16 bytes) */
+const KEY = 'prof-key-of-16-bytes-or-more';
 vi.mock('../src/profiler/env.ts', () => ({ detect_dev: () => dev_switch.dev }));
 
 type Handle = ReturnType<typeof profiler>;
@@ -93,8 +95,8 @@ describe('the recorder has one owner', () => {
 		globalThis.fetch = (async () =>
 			new Response('data', { headers: { 'content-length': '4' } })) as typeof fetch;
 		try {
-			const handle = profiler({ secret: 'k', serverTiming: true });
-			const key = { 'x-profiler-key': 'k' };
+			const handle = profiler({ secret: KEY, serverTiming: true });
+			const key = { 'x-profiler-key': KEY };
 			expect(
 				(await call(handle, '/__profiler/window/start', { method: 'POST', headers: key })).status
 			).toBe(200);
@@ -214,7 +216,7 @@ describe('the recorder has one owner', () => {
 			new Response('data', { headers: { 'content-length': '4' } })) as typeof fetch;
 		vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
 		try {
-			const handle = profiler({ secret: 'k', serverTiming: true });
+			const handle = profiler({ secret: KEY, serverTiming: true });
 			const visitor = async () =>
 				(
 					await handle({
@@ -228,7 +230,7 @@ describe('the recorder has one owner', () => {
 			// a header-profiled request whose page never answers
 			const held = gate();
 			const wedged = handle({
-				event: make_event('/wedged', { headers: { 'x-profile': 'k' } }),
+				event: make_event('/wedged', { headers: { 'x-profile': KEY } }),
 				resolve: async () => {
 					await held.opened;
 					return new Response('late');
