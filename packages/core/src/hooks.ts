@@ -121,7 +121,9 @@ import {
 	MAX_REGION_PROPS_LEN,
 	REGION_CAPABILITY_VERSION,
 	is_region_id,
-	is_region_ttl
+	is_region_ttl,
+	is_signed_number,
+	REGION_EXP_DIGITS
 } from './server/endpoint.ts';
 import { batch_stream } from './server/stream-regions.ts';
 import {
@@ -1813,7 +1815,8 @@ class OgygiaHandle {
 	/**
 	 * Every check a capability passes BEFORE any HMAC (P5-HMAC-CPU), in order: charset/length (ids
 	 * are 12-hex from the transform; `ttl` is signed, but charset-gated here so a forged value never
-	 * reaches a response header), expiry (a renewal instead needs one inside the renew window: a URL
+	 * reaches a response header; `exp` and `ttl` in their one spelling, server/endpoint.ts
+	 * `is_signed_number`), expiry (a renewal instead needs one inside the renew window: a URL
 	 * that has not expired never renews), and the signing key it names. Null when it passes, else why
 	 * it is refused.
 	 */
@@ -1823,6 +1826,7 @@ class OgygiaHandle {
 			(cap.render !== '' && !is_region_id(cap.render)) ||
 			cap.payload.length > MAX_REGION_PROPS_LEN ||
 			!is_region_ttl(cap.ttl) ||
+			!is_signed_number(cap.exp, REGION_EXP_DIGITS) ||
 			(cap.v !== '' && cap.v !== REGION_CAPABILITY_VERSION) ||
 			(cap.wakes !== '' && cap.wakes !== '1')
 		)
