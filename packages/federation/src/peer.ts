@@ -25,17 +25,26 @@ import type { Peer, PeerConfig, RemoteDials } from './types.ts';
 
 const HOST_UNSAFE_G = /[^a-zA-Z0-9_-]/g;
 
-/** A peer's answer that can't be used: an error status, or not its JSON document
- *  (`federation_peer_answer_invalid`, said once). `status` is what a page read or a post answers:
- *  the peer's own 503 or 504 (busy or down, worth trying later), else a 502. */
-class AnswerInvalid extends Error {
-	override name = 'AnswerInvalid';
+/** A failed hop, said once with its code: an answer that can't be used (an error status, or not its
+ *  JSON document: `federation_peer_answer_invalid`), or no answer at all (`federation_peer_unreachable`).
+ *  `status` is what a page read, a post or a hole answers: the peer's own 503 or 504 (busy or down,
+ *  worth trying later), 504 for no answer, else a 502. */
+class HopFailed extends Error {
+	override name = 'HopFailed';
 	readonly status: 502 | 503 | 504;
 	constructor(what: string, status: number) {
 		// (the message is what a visitor's error page may show: no peer name, no URL)
-		super(`fragment app answered ${what}`);
+		super(`fragment app ${what}`);
 		this.status = status === 503 || status === 504 ? status : 502;
 	}
+}
+
+/** The status a failed hop answers with, whatever read it: a {@link HopFailed} says its own, an error
+ *  a page read already threw keeps its status, and anything else (a request that ended its own
+ *  hop) is a 504, as a page read's is. Test: test/hole-peer-failure.test.ts (#937). */
+export function hop_failure_status(e: unknown): number {
+	if (e instanceof HopFailed || is_http_error(e)) return e.status;
+	return 504;
 }
 
 /** What a static widget shows when its peer's answer could not be read: the page still renders. */
@@ -200,21 +209,32 @@ export class PeerHandle implements Peer {
 			}
 			if (res.status < 500 || i === origins.length - 1) break;
 		}
-		if (!res) throw last_err instanceof Error ? last_err : new Error(String(last_err));
-		return this.#answer<WidgetDocument>(res, 'widget');
+		return this.#answer<WidgetDocument>(res, 'widget', { error: last_err, signal });
 	}
 
-	/** Every hop's answer, read as the JSON document it should be. One that can't be used (an error
-	 *  status, or a body that does not parse: a byte changed on the way, a proxy's error page) is
-	 *  said with its code and thrown as an {@link AnswerInvalid}. A page's 404 is a document: the
-	 *  peer's own not-found page. test/peer-answer-invalid.test.ts (#929, #931). */
-	async #answer<T>(res: Response, kind: 'page' | 'widget'): Promise<T> {
+	/** Every hop's answer, read as the JSON document it should be. No answer at all (down,
+	 *  unreachable, past the timeout) or one that can't be used (an error status, or a body that does
+	 *  not parse: a byte changed on the way, a proxy's error page) is said with its code and thrown as
+	 *  a {@link HopFailed}; a hop the asking request ended itself throws its own error, unsaid. A
+	 *  page's 404 is a document: the peer's own not-found page. test/peer-answer-invalid.test.ts
+	 *  (#929, #931), test/peer-unreachable.test.ts (#933). */
+	async #answer<T>(
+		res: Response | undefined,
+		kind: 'page' | 'widget',
+		none: { error: unknown; signal?: AbortSignal }
+	): Promise<T> {
+		if (!res) {
+			if (none.signal?.aborted)
+				throw none.error instanceof Error ? none.error : new Error(String(none.error));
+			warn('federation_peer_unreachable', { peer: this.name, url: this.origin });
+			throw new HopFailed('gave no answer', 504);
+		}
 		const url = res.url || this.origin;
 		if (!res.ok && !(kind === 'page' && res.status === 404)) {
 			res.body?.cancel().then(undefined, noop); // ok: the answer is not read, only let go
 			const what = `a ${res.status}`;
 			warn('federation_peer_answer_invalid', { peer: this.name, url, what });
-			throw new AnswerInvalid(what, res.status);
+			throw new HopFailed(`answered ${what}`, res.status);
 		}
 		const text = await res.text();
 		try {
@@ -222,7 +242,7 @@ export class PeerHandle implements Peer {
 		} catch {
 			const what = 'something that is not its JSON document';
 			warn('federation_peer_answer_invalid', { peer: this.name, url, what });
-			throw new AnswerInvalid('no document', res.status);
+			throw new HopFailed('answered no document', res.status);
 		}
 	}
 
@@ -252,7 +272,7 @@ export class PeerHandle implements Peer {
 			doc = await this.widgetDoc(widget_name, props, { claims: dials.claims });
 		} catch (e) {
 			// (said already: the page renders, the card stands in the widget's place)
-			if (e instanceof AnswerInvalid)
+			if (e instanceof HopFailed)
 				return { ...og_html_region(FRAGMENT_FAILED), html: FRAGMENT_FAILED };
 			throw e;
 		}
@@ -333,11 +353,10 @@ export class PeerHandle implements Peer {
 			}
 			if (res.status < 500 || i === pool.length - 1) break;
 		}
-		if (!res) throw last_err;
 		try {
-			return await this.#answer<FragmentDocument>(res, 'page');
+			return await this.#answer<FragmentDocument>(res, 'page', { error: last_err, signal });
 		} catch (e) {
-			if (e instanceof AnswerInvalid) error(e.status, e.message);
+			if (e instanceof HopFailed) error(e.status, e.message);
 			throw e;
 		}
 	}
