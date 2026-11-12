@@ -13,10 +13,6 @@
 			"reason": "the holes of one task sorted into batches: a DOM read and the frame store (not recorded), linear in the holes that joined; run by packages/core/test/browser/hole-batch.test.ts"
 		},
 		{
-			"id": "packages/core/src/runtime/frame-store.ts > schedule_evict > timeout:0~981b61",
-			"reason": "an idle entry's linger ending on a real timer (not replayable), constant work"
-		},
-		{
 			"id": "packages/devtools/src/devtools/testing-engine.ts > settle_poll",
 			"reason": "polls the page's event snapshot until it is quiet (a live page, not recorded); linear in the snapshot's events per step"
 		},
@@ -171,14 +167,6 @@
 		{
 			"id": "packages/core/src/messages/core.ts > WARNINGS > rule_parse_upgraded > text",
 			"reason": "a rule's message wording (dev and e2e only), constant text; said in packages/core/test/browser/inert-parse.test.ts"
-		},
-		{
-			"id": "packages/core/src/messages/core.ts > WARNINGS > restore_late > details",
-			"reason": "a message's wording, constant text; said in packages/core/test/browser/inert-parse.test.ts"
-		},
-		{
-			"id": "packages/core/src/messages/core.ts > WARNINGS > restore_late > text",
-			"reason": "a message's wording (one tag name), constant text; said in packages/core/test/browser/inert-parse.test.ts"
 		},
 		{
 			"id": "packages/core/src/messages/core.ts > WARNINGS > rule_old_page_open > details",
@@ -347,10 +335,6 @@
 		{
 			"id": "packages/machine/src/world.ts > FinalizationRegistry:0~d08e61",
 			"reason": "runs when the garbage collector frees a flights: one Set delete, never on a timeline a bench can drive; proven in packages/machine/test/process.node.test.ts"
-		},
-		{
-			"id": "packages/tooling/src/e2e/index.ts > extend:0~aecd13 > page",
-			"reason": "the e2e harness's end-of-test rules read: Playwright only, runs at the end of every e2e spec that used a page"
 		},
 		{
 			"id": "packages/postrender/src/registry.ts > retracting",
@@ -617,14 +601,6 @@
 			"reason": "browser only: drops a static live region's subscription when an interactive tick takes over, constant work; proven in packages/core/test/browser/live-region.test.ts"
 		},
 		{
-			"id": "packages/core/src/runtime/core.ts > OgygiaRegion > #apply_live > subscribe:1~0fe909",
-			"reason": "browser only: a frame at a static live region's address, posted to its mailbox, constant work; proven in packages/core/test/browser/live-region.test.ts and region-orderings.test.ts"
-		},
-		{
-			"id": "packages/core/src/runtime/core.ts > OgygiaRegion > #apply_live > subscribe:1~0fe909 > post:0~fc2088",
-			"reason": "browser only: hands that frame to the morph in its turn, constant work; proven in packages/core/test/browser/live-region.test.ts"
-		},
-		{
 			"id": "packages/core/src/runtime/core.ts > OgygiaRegion > #fire_prefetch > post:0~906789",
 			"reason": "browser only: hands a prefetch to the mailbox, constant work; proven in packages/core/test/browser/prefetch-owner.test.ts"
 		},
@@ -837,20 +813,8 @@
 			"reason": "settles the request's own flight (needs a live request context), constant work; proven in packages/postrender/e2e/postrender.spec.ts S20 and S21"
 		},
 		{
-			"id": "packages/core/src/runtime/beacon.ts > on_show",
-			"reason": "browser only: the page shown again (its tab, a back/forward cache restore) reopens the visit, one compare-and-set move; proven in packages/core/test/browser/beacon-visit-reopen.test.ts"
-		},
-		{
-			"id": "packages/core/src/runtime/beacon.ts > schedule > addEventListener:1",
-			"reason": "browser only: the pageshow listener (a back/forward cache restore), constant work; proven in packages/core/test/browser/beacon-visit-reopen.test.ts"
-		},
-		{
 			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > show",
 			"reason": "browser only, inside the inlined standalone beacon script: reopens the visit, constant work; proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts"
-		},
-		{
-			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > addEventListener:1 > addEventListener:1",
-			"reason": "browser only, inside the inlined standalone beacon script: the pageshow listener, constant work; proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts"
 		},
 		{
 			"id": "packages/devtools/src/profiler/index.ts > Profiler > #take",
@@ -891,10 +855,6 @@
 		{
 			"id": "packages/devtools/src/profiler/index.ts > disown_spans",
 			"reason": "takes a capture's span recorder out, handing spans back to the newest left: runs only as a V8 inspector capture ends, linear in the captures open (one or two); proven in packages/devtools/test/profiler-recorder.test.ts"
-		},
-		{
-			"id": "packages/core/src/hooks.ts > OgygiaHandle > render_batch > batch_stream:1~4b5cdf",
-			"reason": "the handle's one-line hand-off of a batch call (and the stream's signal) to #render_capability; the handle runs only inside a Kit server build, and batch_stream itself is benched (packages/core/bench/server.bench.ts)"
 		},
 		{
 			"id": "packages/content/src/markdown/index.ts > ogygiaPreprocess > flights:0 > run",
@@ -1137,10 +1097,6 @@
 			"reason": "the e2e harness: trims one browser name, constant work"
 		},
 		{
-			"id": "packages/tooling/src/e2e/config.ts > suite > defineConfig:0~a4fcc5 > map:0~e75143",
-			"reason": "the e2e harness: one Playwright project per engine when a config loads, constant work"
-		},
-		{
 			"id": "packages/machine/src/mailbox.ts > <anonymous>~371caf",
 			"reason": "runs once at module load: makes the one closed mailbox, constant work"
 		},
@@ -1171,26 +1127,6 @@
 		{
 			"id": "packages/core/src/runtime/import-again.ts > flights:0",
 			"reason": "browser only: an island file's one load at a time (the dynamic import() of its URL, and the immediate retry under a fresh URL after a dropped download); proven in packages/core/test/browser/import-file-one-retry.test.ts (#271) and apps/palaestra/e2e/lazy-chunk-retry.spec.ts (#261)"
-		},
-		{
-			"id": "packages/core/src/runtime/import-again.ts > entries_landed",
-			"reason": "browser only: waits (a PerformanceObserver, at most 1 s on its own scope timer) for a failed island file's timing entry, constant work; proven in packages/core/test/browser/import-response.test.ts"
-		},
-		{
-			"id": "packages/core/src/runtime/import-again.ts > entries_landed > Promise:0~3dc0a8",
-			"reason": "browser only: waits (a PerformanceObserver, at most 1 s on its own scope timer) for a failed island file's timing entry, constant work; proven in packages/core/test/browser/import-response.test.ts"
-		},
-		{
-			"id": "packages/core/src/runtime/import-again.ts > entries_landed > Promise:0~3dc0a8 > PerformanceObserver:0~0c8732",
-			"reason": "browser only: the observer's callback, linear in the timeline entries it is handed; proven in packages/core/test/browser/import-response.test.ts"
-		},
-		{
-			"id": "packages/core/src/runtime/import-again.ts > entries_landed > Promise:0~3dc0a8 > done",
-			"reason": "browser only: closes the wait's scope and settles it, constant work; proven in packages/core/test/browser/import-response.test.ts"
-		},
-		{
-			"id": "packages/core/src/runtime/import-again.ts > entries_landed > Promise:0~3dc0a8 > timeout:0~e9cbf4",
-			"reason": "browser only: the wait's 1 s bound on its own scope timer, constant work; proven in packages/core/test/browser/import-response.test.ts"
 		},
 		{
 			"id": "packages/core/src/runtime/entry-locations.ts > flights:0",
@@ -1521,18 +1457,6 @@
 			"reason": "the simulation harness (#314): test infrastructure, run only by the simulation tests"
 		},
 		{
-			"id": "packages/config/src/sim.ts > Run > play > segment > then:0~f48eb5",
-			"reason": "the simulation harness (#314): test infrastructure, run only by the simulation tests"
-		},
-		{
-			"id": "packages/config/src/sim.ts > Run > play > segment > then:0~f48eb5 > then:0~174022",
-			"reason": "the simulation harness (#314): test infrastructure, run only by the simulation tests"
-		},
-		{
-			"id": "packages/config/src/sim.ts > Run > play > segment > then:0~f48eb5 > then:1~174022",
-			"reason": "the simulation harness (#314): test infrastructure, run only by the simulation tests"
-		},
-		{
 			"id": "packages/config/src/sim.ts > Run > settle",
 			"reason": "the simulation harness (#314): test infrastructure, run only by the simulation tests"
 		},
@@ -1717,14 +1641,6 @@
 			"reason": "reads the request's kept page facts (a Request, not cloneable), constant work; run by packages/core/test/render-page.test.ts"
 		},
 		{
-			"id": "packages/core/src/server/render-page.ts > request_local:0~4ff58e > call:0~cb82dd > run",
-			"reason": "the request's page-facts look-up (event.fetch of the page, a RequestEvent nothing can clone), once per request; run by packages/core/test/render-page.test.ts"
-		},
-		{
-			"id": "packages/core/src/server/render-page.ts > request_local:0~4ff58e > call:0~cb82dd > run > then:0~14e8e7",
-			"reason": "the request's page-facts look-up (event.fetch of the page, a RequestEvent nothing can clone), once per request; run by packages/core/test/render-page.test.ts"
-		},
-		{
 			"id": "packages/devtools/src/profiler/index.ts > Profiler > #record_page > finally:0~9b8aec",
 			"reason": "closes the store write bound's scope, constant work"
 		},
@@ -1829,14 +1745,6 @@
 			"reason": "the navigation's wait for the next page's sheets (a scope and live link elements, not cloneable), constant work; proven in packages/core/test/browser/nav-called-off-sheets.test.ts (#267)"
 		},
 		{
-			"id": "packages/core/src/runtime/router.ts > SpaRouter > scan_preload_links > on_idle:1~3fa4ff",
-			"reason": "the router's preload scan in idle time on the page visit (the live document's anchors and an observer, not cloneable), linear in the marked anchors"
-		},
-		{
-			"id": "packages/core/src/runtime/router.ts > SpaRouter > scan_preload_links > on_idle:1~3fa4ff > IntersectionObserver:0~a9d7c5",
-			"reason": "the viewport observer's callback (live intersection entries, not cloneable), linear in the entries"
-		},
-		{
 			"id": "packages/core/src/runtime/router.ts > on_idle > run",
 			"reason": "runs an idle callback once and cancels its twin timer (scope timers, not cloneable), constant work"
 		},
@@ -1875,10 +1783,6 @@
 		{
 			"id": "packages/cli/src/perf/measure.ts > measure > timeout:0~032695",
 			"reason": "the profiler call's deadline firing (one abort) against a server that hangs, constant work"
-		},
-		{
-			"id": "packages/core/src/runtime/beacon.ts > resend_soon > timeout:0~5bb08a",
-			"reason": "browser only: the visit's re-send firing 1.5 s after a late change (one flush_visit), constant work of its own"
 		},
 		{
 			"id": "packages/devtools/src/profiler/index.ts > Profiler > #pause",
@@ -1993,10 +1897,6 @@
 			"reason": "escapes one character of a git spec's slug part, constant work; run by packages/content/test/loaders.test.ts"
 		},
 		{
-			"id": "packages/flags/src/index.ts > outbox:0~82c77f > giveUp",
-			"reason": "one warning per failing streak of the exposure sink, constant work; proven in packages/flags/test/exposure-queue.test.ts"
-		},
-		{
 			"id": "packages/postrender/src/registry.ts > outbox:0~54d733 > giveUp",
 			"reason": "says a store that never took an evict (the store's failing streak), constant work; proven in packages/postrender/test/store-failed.test.ts"
 		},
@@ -2045,10 +1945,6 @@
 			"reason": "browser only: one coded error when the session recorder's chunk fails to load, constant work"
 		},
 		{
-			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > stand_down > catch:0~a1b2d0",
-			"reason": "browser only, inlined into the page: a constant no-op for a sampler stop that rejects as the beacon ends"
-		},
-		{
 			"id": "packages/devtools/src/profiler/storage/sqlite.ts > load_driver",
 			"reason": "a require of a driver module (a module object, not cloneable), constant work; proven in packages/devtools/test/profiler-sqlite-open.test.ts"
 		},
@@ -2065,10 +1961,6 @@
 			"reason": "browser only: a constant no-op mapping the sheet's settled state to void; proven in packages/core/test/browser/region-sheet-failed.test.ts (#274)"
 		},
 		{
-			"id": "packages/core/src/runtime/region-sheets.ts > release_sheets",
-			"reason": "browser only: after a navigation's swap, takes out the unlisted region sheets no connected region uses (live head elements, not cloneable), linear in regions and sheets; proven in apps/palaestra/e2e/hole-kept-sheet.spec.ts (#275)"
-		},
-		{
 			"id": "packages/core/src/runtime/region-sheets.ts > sheet_of",
 			"reason": "browser only: makes a link's download machine and its load/error listeners (a live link element, not cloneable), constant work; proven in packages/core/test/browser/region-sheet-failed.test.ts (#274)"
 		},
@@ -2083,10 +1975,6 @@
 		{
 			"id": "packages/core/src/runtime/region-sheets.ts > use_sheets",
 			"reason": "browser only: records the head sheets a region's painted answer uses (a WeakMap write keyed by a live element, not cloneable), constant work; proven in apps/palaestra/e2e/hole-kept-sheet.spec.ts (#275)"
-		},
-		{
-			"id": "packages/core/src/runtime/router-nav.ts > release_sheets",
-			"reason": "browser only: hands the head merge's unlisted sheets to the boot's release_sheets (live elements, not cloneable), one call; proven in apps/palaestra/e2e/hole-kept-sheet.spec.ts (#275)"
 		},
 		{
 			"id": "packages/devtools/src/profiler/index.ts > Profiler > #busy",
@@ -2119,10 +2007,6 @@
 		{
 			"id": "packages/core/src/wire-markup.ts > tags",
 			"reason": "a generator (not recorded): one pattern jump per tag, the tag itself read by read_tag (benched in packages/core/bench/markup.bench.ts, a scan of a whole document too); proven in packages/core/test/wire-markup.test.ts"
-		},
-		{
-			"id": "packages/core/src/compiler/link/location-map.ts > by_key",
-			"reason": "build time: one comparison of two keys, a sort's callback (not recorded), constant work; proven in packages/core/test/entry-locations.test.ts"
 		},
 		{
 			"id": "packages/content/src/markdown/shiki.ts > render_code_region > replace:1~7326ff",
@@ -2171,10 +2055,6 @@
 		{
 			"id": "packages/core/src/runtime/router-nav.ts > hold_scroll > on:2~0f2971",
 			"reason": "browser only: the visitor's input ends the hold (one scope close)"
-		},
-		{
-			"id": "packages/core/src/runtime/router-nav.ts > hold_scroll > on:2~641bd9",
-			"reason": "browser only: a scroll elsewhere ends the hold (one comparison, one scope close)"
 		},
 		{
 			"id": "packages/core/src/runtime/router-nav.ts > hold_scroll > timeout:0~0f2971",
@@ -2249,40 +2129,12 @@
 			"reason": "say(): one dev warning a file says once, constant work"
 		},
 		{
-			"id": "packages/core/src/compiler/debarrel/plugin.ts > debarrel > transform > rewrite_svelte:4~85d86d > once:1~fc2896",
-			"reason": "say(): one build warning a skipped component says once, constant work"
-		},
-		{
-			"id": "packages/core/src/compiler/region/transform.ts > say_unparsed",
-			"reason": "the build warning for a host the parser cannot read, said once per file, constant work"
-		},
-		{
-			"id": "packages/core/src/compiler/region/transform.ts > warn_unparsed > once:1~087a4c",
-			"reason": "say(): one build warning per unparsed file, constant work"
-		},
-		{
 			"id": "packages/core/src/plugin/css.ts > componentCssHead > once:1~695de0",
 			"reason": "say(): one dev warning for the process, constant work"
 		},
 		{
 			"id": "packages/core/src/runtime/hydrate-core.ts > PropMutationGuard > #warn > once:1~6adcde",
 			"reason": "say(): one dev warning per mutated prop path, constant work"
-		},
-		{
-			"id": "packages/core/src/runtime/import-again.ts > import_again > <anonymous>~106f1d > catch:0~ce98b7 > once:1~b3964f",
-			"reason": "say(): the page's one reload message, constant work"
-		},
-		{
-			"id": "packages/core/src/runtime/restore-report.ts > report > once:1~a177c8",
-			"reason": "say(): one warning per late host, constant work"
-		},
-		{
-			"id": "packages/core/src/store-transport.ts > __og_store > <anonymous>~221e3f > once:1~fd8aa8",
-			"reason": "say(): one warning per unbranded store tag, constant work"
-		},
-		{
-			"id": "packages/core/src/vite/style-preprocess.ts > preprocess_component_for_css > once:1~832199",
-			"reason": "say(): one build warning for the process, constant work"
 		},
 		{
 			"id": "packages/flags/src/index.ts > flag > bucket > once:1~0367ec",
@@ -2493,40 +2345,8 @@
 			"reason": "the plugin factory: one definePlugin, once per config"
 		},
 		{
-			"id": "packages/core/src/runtime/client-plugins.ts > client_answer_parsed",
-			"reason": "browser only: hands a parsed region answer (a DocumentFragment: not replayable) to the client plugins that hook it, linear in them"
-		},
-		{
-			"id": "packages/core/src/runtime/client-plugins.ts > client_answer_placed",
-			"reason": "browser only: tells the client plugins that hook it a region answer was placed, linear in them"
-		},
-		{
 			"id": "packages/core/src/runtime/client-plugins.ts > client_region_hydrate",
 			"reason": "browser only: asks the client plugins that hook a region's hydrate (a DOM element: not replayable), linear in them (a handful), once per hydrate; nothing at all without one"
-		},
-		{
-			"id": "packages/core/src/runtime/client-plugins.ts > client_region_hydrate > <anonymous>~761ca0",
-			"reason": "browser only: runs each plugin's after-hydrate callback, linear in them (a handful)"
-		},
-		{
-			"id": "packages/reshape/src/client.ts > defineClient:0~5f52a9 > answerParsed",
-			"reason": "browser only: runs the page's inline restorer over one parsed answer (a DocumentFragment: not replayable)"
-		},
-		{
-			"id": "packages/reshape/src/client.ts > defineClient:0~5f52a9 > answerPlaced",
-			"reason": "browser only: one call of the page's inline adopt, constant work of its own"
-		},
-		{
-			"id": "packages/reshape/src/client.ts > defineClient:0~5f52a9 > boot",
-			"reason": "browser only: reshape's boot, once per page: wraps the inline restorer to report what it recorded"
-		},
-		{
-			"id": "packages/reshape/src/client.ts > defineClient:0~5f52a9 > regionHydrate",
-			"reason": "browser only: notes a region host's own class tokens before Svelte's hydrate (a DOM element: not replayable), once per hydrate; proven in packages/reshape/test/browser/host-classes.test.ts"
-		},
-		{
-			"id": "packages/reshape/src/client.ts > defineClient:0~5f52a9 > regionHydrate > <anonymous>~0199e1",
-			"reason": "browser only: puts the noted class tokens back after hydrate (DOM state: not replayable); proven in packages/reshape/test/browser/host-classes.test.ts"
 		},
 		{
 			"id": "packages/reshape/src/host-classes.ts > keep_host_classes",
@@ -2554,10 +2374,6 @@
 		},
 		{
 			"id": "packages/reshape/src/restore-report.ts > report",
-			"reason": "moved from packages/core/src/runtime/restore-report.ts with reshape (#608): never ran here, browser state; the gate on this base does not follow a file across packages, and the moved tests (packages/reshape/test) prove it"
-		},
-		{
-			"id": "packages/reshape/src/restore-report.ts > report > once:1~a177c8",
 			"reason": "moved from packages/core/src/runtime/restore-report.ts with reshape (#608): never ran here, browser state; the gate on this base does not follow a file across packages, and the moved tests (packages/reshape/test) prove it"
 		},
 		{
@@ -2709,10 +2525,6 @@
 			"reason": "the escape callback of one character (a table lookup, constant work); quote's escapes are proven in packages/barrels/test/rewrite.test.ts"
 		},
 		{
-			"id": "packages/core/src/compiler/dev/region-bytes.ts > island_subgraph_bytes > map:0~c49ee0",
-			"reason": "a barrel row's importers to their ids (one property read each), only with the dev server's live module graph; proven in packages/core/test/region-bytes.test.ts"
-		},
-		{
 			"id": "packages/devtools/src/profiler/report.ts > ogygia_findings > flatMap:0~283e13",
 			"reason": "the reasons of at most three listed barrels (constant work); proven in packages/devtools/test/profiler.test.ts"
 		},
@@ -2735,10 +2547,6 @@
 		{
 			"id": "packages/content/src/messages/build.ts > CONTENT_BUILD_WARNINGS > content_leaked_to_client > text",
 			"reason": "a message table entry: wording only"
-		},
-		{
-			"id": "packages/content/src/messages/build.ts > CONTENT_BUILD_WARNINGS > content_leaked_to_client > text > map:0~63a78f",
-			"reason": "a message table entry: wording only (indents at most five module lines)"
 		},
 		{
 			"id": "packages/content/src/vite/leaks.ts > content_leaks",
@@ -2767,10 +2575,6 @@
 		{
 			"id": "packages/devtools/src/profiler/request-stats.ts > hold_request_stats_detail",
 			"reason": "returns a release closure (a function, not cloneable), constant work; proven in packages/devtools/test/request-stats-detail.test.ts"
-		},
-		{
-			"id": "packages/devtools/src/profiler/request-stats.ts > hold_request_stats_detail > <anonymous>~4ba179",
-			"reason": "lets go of one hold in a module-level set (not replayable: process state), constant work; proven in packages/devtools/test/request-stats-detail.test.ts"
 		},
 		{
 			"id": "packages/core/src/contract/trigger.ts > on_schedule",
@@ -2917,40 +2721,12 @@
 			"reason": "the profiler's window ids, made once per instance (a profiler instance, not cloneable): one lazy import and one call of window_ids, which packages/devtools/bench/window-id.bench.ts measures; proven in packages/devtools/test/profiler-window-id.test.ts"
 		},
 		{
-			"id": "packages/devtools/src/profiler/index.ts > Profiler > #ids > then:0~2b15d2",
-			"reason": "hands the loaded module's window_ids the profiler's secret, mode and audience (a module namespace, not cloneable), constant work; window_ids is benched in packages/devtools/bench/window-id.bench.ts"
-		},
-		{
 			"id": "packages/devtools/src/profiler/window-id.ts > hmac_signer",
 			"reason": "wraps a derived key (a Buffer, not cloneable) in a sign/verify pair, once per profiler; the mint and check it serves are benched in packages/devtools/bench/window-id.bench.ts"
 		},
 		{
-			"id": "packages/core/src/compiler/macros/pipeline.ts > run_module_macros > refuse",
-			"reason": "throws the coded build error (not replayable), constant work; proven in packages/core/test/macros-own-source.test.ts"
-		},
-		{
-			"id": "packages/core/src/compiler/driver.ts > Compiler > macros > run_module_macros:2~cee8e9 > ownSource",
-			"reason": "forwards to CompileCtx.is_own_source, one call; proven in packages/core/test/macros-own-source.test.ts"
-		},
-		{
-			"id": "packages/core/src/compiler/ctx.ts > CompileCtx > is_own_source",
-			"reason": "one substring test and the declared-package lookup (a CompileCtx, hidden state), constant work per declared root"
-		},
-		{
-			"id": "packages/core/src/compiler/messages.ts > BUILD_ERRORS > macro_outside_app > text",
-			"reason": "a message's wording, constant text; said in packages/core/test/macros-own-source.test.ts"
-		},
-		{
-			"id": "packages/core/src/compiler/messages.ts > BUILD_ERRORS > macro_outside_app > details",
-			"reason": "a message's wording, constant text; said in packages/core/test/macros-own-source.test.ts"
-		},
-		{
 			"id": "packages/postrender/src/server.ts > credentialed",
 			"reason": "two header lookups on the request (a Request, not cloneable), once per request, constant work; proven in packages/postrender/test/plugin.test.ts"
-		},
-		{
-			"id": "packages/core/src/vite/package-files.ts > discover_package_files > inside",
-			"reason": "a closure over the package's real root (not replayable), one prefix compare; proven in packages/core/test/package-files.test.ts"
 		},
 		{
 			"id": "packages/core/src/server/rules.ts > note_region_answer",
@@ -3025,18 +2801,6 @@
 			"reason": "browser only, an error path: says one coded console error for an island that could not start (an Error, not cloneable), constant work; proven in packages/core/test/browser/live-region-failed-file.test.ts (#942)"
 		},
 		{
-			"id": "packages/compiler/src/compiler/virtual/core.ts > family:0~04bf59 > load > server_manifest_module:3~e7ea15",
-			"reason": "the server manifest's dev URL of one registered region (a lambda handed to the generator), constant work; the bench session registers no region"
-		},
-		{
-			"id": "packages/compiler/src/compiler/virtual/core.ts > family:0~04bf59 > load > server_manifest_module:4~126d93",
-			"reason": "the server manifest's public URL of one registered region (a lambda handed to the generator), constant work; the bench session registers no region"
-		},
-		{
-			"id": "packages/compiler/src/compiler/virtual/core.ts > family:0~359af7 > load > router_css_module:1~4ebdf0 > read_file",
-			"reason": "one file read for the server router's CSS, a pass-through to the host fs (the router-css generator's own tests read real routes)"
-		},
-		{
 			"id": "packages/compiler/src/compiler/messages.ts > BUILD_ERRORS > virtual_wrong_realm > details",
 			"reason": "a message table entry: wording only"
 		},
@@ -3051,10 +2815,6 @@
 		{
 			"id": "packages/compiler/src/compiler/messages.ts > BUILD_ERRORS > virtual_duplicate > details",
 			"reason": "a message table entry: wording only"
-		},
-		{
-			"id": "packages/compiler/src/compiler/virtual/core.ts > map:0~fa4377",
-			"reason": "declares the six driver-resolved families once, as core.ts loads; constant, never per build"
 		},
 		{
 			"id": "packages/compiler/src/compiler/virtual/table.ts > virtual > family",
@@ -3135,10 +2895,6 @@
 		{
 			"id": "packages/compiler/src/vite/plugin-api.ts > NO_SEAMS > pinned_imports",
 			"reason": "a constant throw for a plugin list resolved outside ogygia(); proven in packages/core/test/plugins.test.ts"
-		},
-		{
-			"id": "packages/compiler/src/vite/plugin-api.ts > resolve_plugins > build:0~4ffc6b > transform",
-			"reason": "one push of a plugin's stage transform (a function: not replayable), constant work; proven in packages/core/test/plugins.test.ts"
 		},
 		{
 			"id": "packages/compiler/src/compiler/exports/index.ts > EVERY_BARREL > forced",
@@ -3249,14 +3005,6 @@
 			"reason": "browser only: reports one plugin's failed hook once (a Set has and add, one console.error); proven in packages/core/test/runtime-hooks-compose.test.ts"
 		},
 		{
-			"id": "packages/core/src/runtime/client-plugins.ts > joined > <anonymous>~76c203",
-			"reason": "browser only: one hook event to each subscriber in turn, linear in the subscribers (a handful); each subscriber's own work is its plugin's"
-		},
-		{
-			"id": "packages/core/src/runtime/client-plugins.ts > joined > <anonymous>~76c203 > catch:0~d63084",
-			"reason": "browser only: a subscriber's rejected promise to report, constant work"
-		},
-		{
 			"id": "packages/compiler/src/vite/plugin-api.ts > client_hook_names > unread",
 			"reason": "builds one OgygiaError for an unreadable realm, constant work"
 		},
@@ -3283,18 +3031,6 @@
 		{
 			"id": "packages/compiler/src/vite/plugin-api.ts > client_hook_names > find:0~de07eb",
 			"reason": "one top-level statement against export default (an oxc AST node: not replayable), constant work; proven in packages/core/test/plugins.test.ts"
-		},
-		{
-			"id": "packages/compiler/src/vite/plugin-api.ts > client_hook_names > filter:0~08f42a",
-			"reason": "one top-level statement against a const declaration (an oxc AST node: not replayable), constant work; proven in packages/core/test/plugins.test.ts"
-		},
-		{
-			"id": "packages/compiler/src/vite/plugin-api.ts > client_hook_names > flatMap:0~15075b",
-			"reason": "one const declaration to its declarators (an oxc AST node: not replayable), constant work; proven in packages/core/test/plugins.test.ts"
-		},
-		{
-			"id": "packages/compiler/src/vite/plugin-api.ts > client_hook_names > find:0~e53b3e",
-			"reason": "one declarator against the exported name (an oxc AST node: not replayable), constant work; proven in packages/core/test/plugins.test.ts"
 		},
 		{
 			"id": "packages/compiler/src/vite/plugin-api.ts > client_hook_names > some:0~21370e",
@@ -3911,10 +3647,6 @@
 		{
 			"id": "packages/devtools/src/page-beacon-start.ts > start_page_beacon > then:0~6c8c0d",
 			"reason": "browser only: starts the loaded beacon (a module: not cloneable), constant work of its own"
-		},
-		{
-			"id": "packages/devtools/src/page-beacon-start.ts > start_page_beacon > then:1~491fd5",
-			"reason": "browser only: a failed chunk download, said once per page (a module flag), constant work"
 		},
 		{
 			"id": "packages/devtools/src/client.ts > plugin > hooks > regionMount",
