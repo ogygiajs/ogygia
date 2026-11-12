@@ -2,6 +2,8 @@
 // with its line and its fix. Run by plain node: `node --test internal/checks/module-maps.test.ts`.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 import { find_unowned } from './module-maps.ts';
 
 const names = (source: string): string[] =>
@@ -167,4 +169,17 @@ test('each finding says the fix', () => {
 	assert.match(f!.fix, /\/\/ static:/);
 	assert.match(f!.fix, /owner/);
 	assert.doesNotMatch(f!.fix, /\/\/ owned:/);
+});
+
+test('the scan fails on a finding (no report mode), and the packages have none (#413)', () => {
+	const run = spawnSync(
+		process.execPath,
+		[fileURLToPath(new URL('./module-maps.ts', import.meta.url))],
+		{
+			encoding: 'utf8'
+		}
+	);
+	assert.doesNotMatch(run.stdout, /report mode/, 'the scan only reports');
+	assert.match(run.stdout, /^0 finding\(s\)/m, run.stdout);
+	assert.equal(run.status, 0);
 });
