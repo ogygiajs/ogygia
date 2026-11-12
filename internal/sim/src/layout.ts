@@ -282,6 +282,8 @@ export function install_layout(window: object, loop: Loop, realm: string): void 
 	const observers = new Set<Observer>();
 	let frame: { cancelled: boolean } | null = null;
 	let dirty = true;
+	/** The layout the last frame made (or a look made, before any frame). */
+	let last_boxes: Map<Element, Box> | null = null;
 	/** The next frame, once: every observer looks then, from one layout. */
 	const ask_frame = () => {
 		if (frame !== null && !frame.cancelled) return;
@@ -289,10 +291,11 @@ export function install_layout(window: object, loop: Loop, realm: string): void 
 		frame = loop.add(realm, 'intersection', wait, () => {
 			frame = null;
 			if (w.closed) return;
-			const at = dirty ? boxes(w.document) : null;
+			// (the frame keeps the layout it made, observers or not: test/layout.test.ts)
+			if (dirty) last_boxes = boxes(w.document);
 			dirty = false;
 			// (a copy: a callback may stop an observer)
-			for (const o of Array.from(observers)) o.look(at);
+			for (const o of Array.from(observers)) o.look();
 		});
 	};
 	// (the document changed: what is on screen may have; the host's own ear, not the page's)
@@ -310,7 +313,6 @@ export function install_layout(window: object, loop: Loop, realm: string): void 
 			characterData: true
 		});
 	};
-	let last_boxes: Map<Element, Box> | null = null;
 	class Observer {
 		readonly #callback: Callback;
 		readonly #margin: [number, number, number, number];
@@ -343,8 +345,7 @@ export function install_layout(window: object, loop: Loop, realm: string): void 
 			return [];
 		}
 		/** At a frame: each target new or changed, reported. */
-		look(fresh: Map<Element, Box> | null): void {
-			if (fresh !== null) last_boxes = fresh;
+		look(): void {
 			const at = last_boxes ?? (last_boxes = boxes(w.document));
 			const [t, r, b, l] = this.#margin;
 			const root = { x: -l, y: -t, w: VIEWPORT.w + l + r, h: VIEWPORT.h + t + b };
