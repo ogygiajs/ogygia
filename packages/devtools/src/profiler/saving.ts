@@ -1,12 +1,12 @@
-// The arithmetic of savings that do not overlap, on its own (no imports): the forecast, the
-// compare's fix check and the report page's "pick your fixes" all count one way, and the page runs
-// it in the browser.
-
 /**
  * What a set of savings (each already one per group: no two share a line) takes off one render of
  * `now` ms together. EACH RESOURCE CAPPED BY WHAT THE RENDER USED: every saving on the clock (the
  * wait fixes and the waits deleted) takes off at most the render's waiting; every CPU saving at most
- * its CPU. Past that they overlap in a way the lines do not show.
+ * its CPU. Past that they overlap in a way the lines do not show. Never the whole render: what
+ * serves it (routing, the response) stays.
+ *
+ * The forecast, the compare's fix check and the report page's "pick your fixes" all count with
+ * this; the module imports nothing, so the page runs it in the browser.
  */
 export function saving_of(
 	set: readonly { ms: number; wait: boolean; kind: string }[],
@@ -43,7 +43,6 @@ export function saving_of(
 	[cpu, del_cpu] = cap(cpu, del_cpu, caps.cpu);
 	const del = del_cpu + del_wait;
 	let total = cpu + wait + del;
-	// and never the whole render: what serves it (routing, the response) stays
 	if (total > now * 0.97) {
 		total = now * 0.97;
 		clamped = true;
