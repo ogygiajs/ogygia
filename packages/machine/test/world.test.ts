@@ -85,6 +85,36 @@ describe('a world', () => {
 		for (const key of [0, KEYS_KEPT + 499, -1]) expect(w.fresh(after, [key])).toBe(true);
 	});
 
+	it('a key moved again goes to the back of the line: past KEYS_KEPT, the oldest move folds, not its newest', () => {
+		const w = world.keyed<number>();
+		w.bump([-1]);
+		for (let i = 0; i < KEYS_KEPT - 1; i++) w.bump([i]);
+		const read = w.stamp();
+		w.bump([-1]);
+		w.bump([KEYS_KEPT]);
+		// 0's move folds into the floor; it came before `read`, so what read 1 is still good
+		expect(w.fresh(read, [1])).toBe(true);
+		expect(w.fresh(read, [-1])).toBe(false);
+	});
+
+	it('a watcher hears each move, the keys it moved or null, until it stops watching', () => {
+		const w = world.keyed<string>();
+		const heard: (string[] | null)[] = [];
+		const owner = {};
+		const stop = watch_world(w, owner, (o, keys) => {
+			expect(o).toBe(owner);
+			heard.push(keys === null ? null : [...keys]);
+		});
+		w.bump(['a']);
+		w.bump();
+		stop?.();
+		w.bump(['b']);
+		expect(heard).toEqual([['a'], null]);
+		expect(
+			watch_world({ stamp: () => 0, fresh: () => true, bump: () => {} }, owner, () => {})
+		).toBe(null);
+	});
+
 	it('a whole move is never undone by a later key folding into the floor', () => {
 		const w = world.keyed<number>();
 		w.bump(Array.from({ length: KEYS_KEPT }, (_, i) => i));

@@ -1,9 +1,9 @@
+<!--
+@component
+The bottom bar: a nav (labelled `label`, "Site" by default) that holds `lead` (a brand) at its start
+and `actions` (buttons such as search, theme, menu) at its end.
+-->
 <script lang="ts">
-	/**
-	 * A fixed bottom action bar — the mobile chrome anchor (thumb-reachable by default; that is the
-	 * point of bottom-first nav). A layout container only: `lead` (brand) on the left, `actions`
-	 * (buttons: search, theme, menu) on the right. What those buttons DO is the composing shell's job.
-	 */
 	import type { Snippet } from 'svelte';
 
 	let {

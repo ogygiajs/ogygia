@@ -2,8 +2,6 @@
 	import { flights, STALE } from '@ogygia/machine';
 	import { download, import_again } from '@ogygia/core/internal/instruments';
 
-	/** The heavy half's download, once for the page: kept once it lands, and a failed one is asked for
-	 *  again under a fresh URL (the browser keeps a failed module URL failed). */
 	const palette = flights({
 		name: 'search palette',
 		run: import_again(() => import('./SearchPalette.svelte')),
@@ -11,27 +9,20 @@
 	});
 </script>
 
+<!--
+@component
+Full-text search, the ⌘K command palette. This is the light half, an island: a real link to the search
+page (so a page without JS still searches) and the keys that open the palette (⌘K or Ctrl+K, or a
+lone `/`). The heavy half (`SearchPalette.svelte`: the dialog, the search worker, the index) loads on
+the first intent: a hover, a focus, a click or a key. A page that never searches pays almost nothing.
+-->
 <script lang="ts">
-	/**
-	 * Full-text search — the ⌘K command palette. THIS component is the LIGHT half: the SSR'd trigger
-	 * (a real `<a href="/search">`, so no-JS users get the results page) plus the global keybinding.
-	 * The heavy half — Bits UI Dialog+Command, the Orama worker, the index fetch — lives in
-	 * `SearchPalette.svelte`, dynamically imported on FIRST INTENT (trigger click, ⌘K, `/`). A docs
-	 * page that never searches pays ~nothing for search.
-	 *
-	 * An ISLAND (`with { wake }`): SSR renders just the trigger; on hydrate the keybinding arms.
-	 *
-	 * `mode`: `'dialog'` (default) = the command palette; `'inline'` = the bare Command (input + list)
-	 * for the mobile sheet, which already provides the modal — inline mounts its palette immediately
-	 * (the sheet opening WAS the intent).
-	 */
 	import { onMount } from 'svelte';
 	import { on } from 'svelte/events';
 	import { get_shell_context } from '../context.ts';
 	import type { SearchHit } from '../search.ts';
 	import type SearchPaletteT from './SearchPalette.svelte';
 
-	// ── regexes
 	const TEXT_FIELD_TAG_RE = /^(input|textarea|select)$/i;
 
 	let {
@@ -46,6 +37,9 @@
 		base?: string;
 		endpoint?: string;
 		query?: (q: string) => Promise<SearchHit[]>;
+		/** `'dialog'` (default): the command palette. `'inline'`: the bare input and list, for the mobile
+		 *  sheet, which is already the modal; it mounts the palette at once (opening the sheet was the
+		 *  intent). */
 		mode?: 'dialog' | 'inline';
 		/** No-JS fallback URL — a real `/search` page. Default `${base}/search`. */
 		action?: string;
@@ -62,15 +56,12 @@
 	// svelte-ignore state_referenced_locally
 	let open = $state(mode === 'inline');
 	let Palette = $state<typeof SearchPaletteT | null>(null);
-	/** An open asked for while the palette loads: a second Ctrl/Cmd+K meanwhile takes it back (#279). */
+	// @why an open asked for while the palette loads: a second Ctrl/Cmd+K meanwhile takes it back (test: apps/docs/e2e/search-palette-load.spec.ts › Ctrl/Cmd+K twice while the palette loads leaves it closed)
 	let opening = false;
 
-	/** First intent: pull the heavy half (Bits + worker + index all start from its mount). Whether it
-	 *  is in: a failed download is not kept, so the next intent asks for it again (#272). */
 	async function wake_palette(): Promise<boolean> {
 		if (Palette) return true;
 		try {
-			// (nothing drops the palette's load, so it is never STALE)
 			const m = await palette.get();
 			if (m === STALE) return false;
 			Palette = m.default;
@@ -89,17 +80,14 @@
 	}
 
 	onMount(() => {
-		// inline mode (a sheet) — the sheet opening was the intent; mount the palette now.
 		if (mode === 'inline') void wake_palette(); // ok: never rejects (a failed download answers false)
 
-		// ⌘K / Ctrl-K (or a lone `/`) opens the palette from anywhere — dialog mode only.
+		// @why the keys open a dialog; a sheet is already open, so it leaves them to the page (test: test/browser/search.test.ts › in a sheet, mounts the palette at once and leaves the keys to the page)
 		if (mode !== 'dialog') return;
 		return on(window, 'keydown', (e: KeyboardEvent) => {
 			const k = e.key.toLowerCase();
 			const el = e.target as HTMLElement | null;
-			// A bare `/` must NOT hijack search while the user is typing — including in a contenteditable
-			// EDITOR (CodeMirror and friends are `contenteditable` divs, not <input>/<textarea>), where `/`
-			// is a real character (division, comments, closing tags, regex).
+			// @why a slash typed in a field or a code editor (a contenteditable) is text, not a search (test: test/browser/search.test.ts › leaves a slash typed in a text field or an editor alone)
 			const typing = TEXT_FIELD_TAG_RE.test(el?.tagName ?? '') || el?.isContentEditable === true;
 			if ((e.metaKey || e.ctrlKey) && k === 'k') {
 				e.preventDefault();

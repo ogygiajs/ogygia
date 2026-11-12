@@ -1,12 +1,3 @@
-/**
- * postrender — keying. v1 keying law (internal/notes/freeze.md, RESTRUCTURE): the key IS the
- * URL pathname. Zero sources, zero markers; `invalidate(url)` is exact because a CMS publish
- * payload carries its urlPath, and bulk eviction is a key-prefix scan (`invalidateWhere({
- * prefix: '/fr/fr/' })` — locale nukes are one case of it, not the contract). Query-stringed
- * requests are never stored (a `?` is an unbounded personalization axis — utm, search,
- * pagination — v1 keeps the store bounded).
- */
-
 /** The store key for a request URL: the decoded pathname, verbatim (trailing slash preserved —
  *  `/fr/fr/` and `/fr/fr` are different documents to Kit and to the CDN). */
 export function store_key(pathname: string): string {
