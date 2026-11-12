@@ -17,12 +17,7 @@ import { import_again, is_failed_import, on_reload_needed } from './import-again
 // feature module of its own, and without the frame store it has nowhere to land anyway.
 import { FRAMES } from 'ogygia:boot';
 import { kit_hydrates_page } from './kit-boot.ts';
-import {
-	init_shadow_registries,
-	parse_region_html,
-	restore_adopt_sheets,
-	restore_markup
-} from './parse-html.ts';
+import { init_shadow_registries, parse_region_html } from './parse-html.ts';
 import {
 	mark_region_changed,
 	region_changed,
@@ -107,12 +102,13 @@ import {
 import {
 	CLIENT_PLUGINS,
 	boot_client_plugins,
+	client_answer_parsed,
+	client_answer_placed,
 	client_region_mount,
 	client_region_unmount
 } from './client-plugins.ts';
 import type { ClientPlugin } from '../plugin/client.ts';
 import { OgygiaError, warn, line } from '../messages/core.ts';
-import { report_restores } from './restore-report.ts';
 import { disclose_version } from './disclose-version.ts';
 
 // DEVTOOLS gate — module-local const from the Vite `define` (the proven DCE pattern): when off, every
@@ -362,6 +358,9 @@ type LiveTick = {
  *  comes, and is handed straight back. */
 const hand_back = (release: () => void): void => release();
 const nothing = (): void => {};
+/** Whether a wait failed because Kit can no longer start on this page (kit-page-thread.svelte.ts). */
+const kit_boot_failed = (err: unknown): boolean =>
+	(err as { code?: unknown } | null)?.code === 'kit_boot_failed';
 
 /** Where a live snippet's pending hydrate waits on its host region (region-snippet.ts `hold_host`). */
 const SNIPPET_BOOTS = Symbol.for('ogygia.snippet-boots');
@@ -533,9 +532,9 @@ export function region_fragment(html: string): {
 				)
 				.then(() => undefined)
 		: Promise.resolve();
-	// The app's transform reshaped the answer: restore it first — before the pristine copies below,
-	// before the morph, before any upgrade (the fragment is inert: nothing upgrades in it)
-	restore_markup(frag);
+	// The app's own pass reshaped the answer (@ogygia/reshape): restored first — before the pristine
+	// copies below, before the morph, before any upgrade (the fragment is inert: nothing upgrades in it)
+	if (CLIENT_PLUGINS) client_answer_parsed(frag);
 	// Pre-capture each nested self-hydrating island's PRISTINE markup while the fragment is still
 	// disconnected. Once inserted, a swapped-in foreign runtime (a web-component upgrade) can reach a raw
 	// custom element inside the island — attaching a shadow, its normalization dropping neighbouring
@@ -684,7 +683,7 @@ class OgygiaRegion extends HTMLElement {
 	absorbKeptProps(next: Element): void {
 		if (!this.#app?.set_props || !loaded_core) return;
 		try {
-			this.#app.set_props(loaded_core.read_region_props(next));
+			this.#app.set_props(loaded_core.absorb_region_props(this, next));
 		} catch {
 			// ok: malformed incoming props: the live props it has are kept
 		}
@@ -1264,7 +1263,7 @@ class OgygiaRegion extends HTMLElement {
 		}
 		if (morph) morph(this, Array.from(frag.childNodes));
 		else this.replaceChildren(frag);
-		restore_adopt_sheets();
+		if (CLIENT_PLUGINS) client_answer_placed();
 		init_shadow_registries(this);
 		absorb_page_facts_now();
 		this.#answered('answered');
@@ -1347,7 +1346,7 @@ class OgygiaRegion extends HTMLElement {
 			for (const el of this.querySelectorAll('ogygia-region'))
 				if (el instanceof OgygiaRegion) el.#box.post((t) => el.#renew(t));
 		}
-		restore_adopt_sheets();
+		if (CLIENT_PLUGINS) client_answer_placed();
 		init_shadow_registries(this);
 		absorb_page_facts_now();
 		this.dispatchEvent(new CustomEvent('ogygia:live', { bubbles: true }));
@@ -1746,7 +1745,9 @@ class OgygiaRegion extends HTMLElement {
 			// bridge carries `@vite/client`, so Vite's own full-reload does this on the next signal).
 			// (each engine words it its own way: is_failed_import knows them all, WebKit's too, #383)
 			const entry = this.getAttribute('entry');
-			if (is_failed_import(err)) {
+			if (kit_boot_failed(err)) {
+				// ok: said once for the page by the wait that saw it (kit-page-thread.svelte.ts)
+			} else if (is_failed_import(err)) {
 				if (import.meta.env.DEV) {
 					console.error(new OgygiaError('island_load_failed_stale_deps', { entry }), err);
 					void recover_from_stale_deps(entry); // ok: dev only, never rejects (its failure leaves the error above)
@@ -1880,7 +1881,7 @@ class OgygiaRegion extends HTMLElement {
 		use_sheets(this, sheets);
 		slots.lakes.settle_in(frag);
 		this.replaceChildren(frag);
-		restore_adopt_sheets();
+		if (CLIENT_PLUGINS) client_answer_placed();
 		init_shadow_registries(this);
 		await this.#live_hydrate(desc.props, mine, desc.module, turn);
 	}
@@ -1892,6 +1893,7 @@ class OgygiaRegion extends HTMLElement {
 	 * It waits for `visit` (the wake's, or the live tick's): a region that left stops waiting, and the
 	 * wait ends with the last region in it.
 	 */
+	/** Fails with `kit_boot_failed` when Kit can no longer start (its own files failed to load). */
 	#kit_page_ready(core: HydrateCore, visit: Scope): Promise<unknown> | null {
 		if (!kit_hydrates_page() || !ours_on_kit_document(this)) return null;
 		return core.kit_page_thread(visit.signal);
@@ -1935,7 +1937,12 @@ class OgygiaRegion extends HTMLElement {
 				release();
 			}
 			if (!ours()) return;
-			if (!ours(await turn.wait(this.#kit_page_ready(core, this.#live.scope)))) return;
+			// (Kit cannot start: the region keeps its swapped HTML, and the wait said why)
+			const kit = await turn.wait(this.#kit_page_ready(core, this.#live.scope)).catch((err) => {
+				if (kit_boot_failed(err)) return STALE;
+				throw err;
+			});
+			if (!ours(kit)) return;
 			if (CLIENT_PLUGINS) client_region_mount(this);
 			const app = core.hydrate_live(this, entry, mod, props);
 			if (!app) return;
@@ -2074,8 +2081,6 @@ export function boot(
 		warn,
 		line
 	};
-	// what the server transform's restorer recorded, said out loud (./restore-report.ts)
-	report_restores();
 	// What the lazy chunks use from the boot, handed over through the registry (./boot-link.ts).
 	link_boot();
 	for (const install of installers) install();
