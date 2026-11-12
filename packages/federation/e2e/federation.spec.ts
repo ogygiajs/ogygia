@@ -49,6 +49,21 @@ test.describe('fragment federation v2', () => {
 		if (!BUILT) expect(res.headers.get('x-ogygia-postrender')).toBe('would-store');
 	});
 
+	test('a static widget whose peer answers an error status shows its card; the page renders (#931)', async ({
+		page,
+		mfe
+	}) => {
+		const res = await page.goto(mfe.origin('shell') + '/widget-down');
+		expect(res?.status()).toBe(200);
+		await expect(
+			page.getByTestId('retired-dash').locator('[data-og-fragment-failed]')
+		).toBeVisible();
+		await expect(page.getByTestId('still-here')).toBeVisible();
+		await expect(page.getByTestId('static-dash').locator('h2')).toHaveText('Dashboard · acme');
+		// (a production build prints the code's link alone, so the code is what is looked for)
+		expect(mfe.logs.shell.join('')).toContain('federation_peer_answer_invalid');
+	});
+
 	test('a DEFERRED remote widget loads in the browser, in place of its placeholder', async ({
 		page,
 		mfe

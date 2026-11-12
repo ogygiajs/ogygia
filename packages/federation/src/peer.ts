@@ -10,6 +10,7 @@ import type { RegionValue } from '@ogygia/core';
 import { htmlRegion as og_html_region } from '@ogygia/core/plugin';
 import { current_request_scope } from '@ogygia/core/internal/server';
 import { fed_app } from './app.ts';
+import { warn } from './messages.ts';
 import {
 	sign_headers,
 	child_traceparent,
@@ -23,6 +24,23 @@ import { mint_hole } from './hole.ts';
 import type { Peer, PeerConfig, RemoteDials } from './types.ts';
 
 const HOST_UNSAFE_G = /[^a-zA-Z0-9_-]/g;
+
+/** A peer's answer that can't be used: an error status, or not its JSON document
+ *  (`federation_peer_answer_invalid`, said once). `status` is what a page read or a post answers:
+ *  the peer's own 503 or 504 (busy or down, worth trying later), else a 502. */
+class AnswerInvalid extends Error {
+	override name = 'AnswerInvalid';
+	readonly status: 502 | 503 | 504;
+	constructor(what: string, status: number) {
+		// (the message is what a visitor's error page may show: no peer name, no URL)
+		super(`fragment app answered ${what}`);
+		this.status = status === 503 || status === 504 ? status : 502;
+	}
+}
+
+/** What a static widget shows when its peer's answer could not be read: the page still renders. */
+const FRAGMENT_FAILED =
+	'<div data-og-fragment-failed style="border:1px dashed #dc2626;border-radius:8px;padding:1rem;color:#dc2626">This section is temporarily unavailable.</div>';
 
 /** The one rule for what the document cache keeps, on the first fill and on every refresh: a
  *  successful answer that is not a redirect. */
@@ -183,8 +201,29 @@ export class PeerHandle implements Peer {
 			if (res.status < 500 || i === origins.length - 1) break;
 		}
 		if (!res) throw last_err instanceof Error ? last_err : new Error(String(last_err));
-		if (!res.ok) throw new Error(`fragment '${widget_name}' answered ${res.status}`);
-		return (await res.json()) as WidgetDocument;
+		return this.#answer<WidgetDocument>(res, 'widget');
+	}
+
+	/** Every hop's answer, read as the JSON document it should be. One that can't be used (an error
+	 *  status, or a body that does not parse: a byte changed on the way, a proxy's error page) is
+	 *  said with its code and thrown as an {@link AnswerInvalid}. A page's 404 is a document: the
+	 *  peer's own not-found page. test/peer-answer-invalid.test.ts (#929, #931). */
+	async #answer<T>(res: Response, kind: 'page' | 'widget'): Promise<T> {
+		const url = res.url || this.origin;
+		if (!res.ok && !(kind === 'page' && res.status === 404)) {
+			res.body?.cancel().then(undefined, noop); // ok: the answer is not read, only let go
+			const what = `a ${res.status}`;
+			warn('federation_peer_answer_invalid', { peer: this.name, url, what });
+			throw new AnswerInvalid(what, res.status);
+		}
+		const text = await res.text();
+		try {
+			return JSON.parse(text) as T;
+		} catch {
+			const what = 'something that is not its JSON document';
+			warn('federation_peer_answer_invalid', { peer: this.name, url, what });
+			throw new AnswerInvalid('no document', res.status);
+		}
 	}
 
 	async page(path: string, dials: RemoteDials & { search?: string } = {}): Promise<RegionValue> {
@@ -208,7 +247,15 @@ export class PeerHandle implements Peer {
 				new URLSearchParams(props).toString(),
 				dials.claims
 			);
-		const doc = await this.widgetDoc(widget_name, props, { claims: dials.claims });
+		let doc: WidgetDocument;
+		try {
+			doc = await this.widgetDoc(widget_name, props, { claims: dials.claims });
+		} catch (e) {
+			// (said already: the page renders, the card stands in the widget's place)
+			if (e instanceof AnswerInvalid)
+				return { ...og_html_region(FRAGMENT_FAILED), html: FRAGMENT_FAILED };
+			throw e;
+		}
 		return this.#bake_static({ body: doc.html, sources: doc.sources });
 	}
 
@@ -288,8 +335,12 @@ export class PeerHandle implements Peer {
 			if (res.status < 500 || i === pool.length - 1) break;
 		}
 		if (!res) throw last_err;
-		if (!res.ok && res.status !== 404) error(502, `fragment app answered ${res.status}`);
-		return (await res.json()) as FragmentDocument;
+		try {
+			return await this.#answer<FragmentDocument>(res, 'page');
+		} catch (e) {
+			if (e instanceof AnswerInvalid) error(e.status, e.message);
+			throw e;
+		}
 	}
 
 	/** Prefix a remote fragment's own receipt tags with THIS peer's name, so the consuming page's
