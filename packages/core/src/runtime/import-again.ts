@@ -24,6 +24,7 @@
  * its message (`on_reload_needed`).
  */
 import {
+	buggify,
 	cache,
 	flights,
 	machine,
@@ -34,6 +35,10 @@ import {
 	STALE,
 	type Scope
 } from '@ogygia/machine';
+
+// dev and rules builds (a buggify point); folded out of any other
+const RULES =
+	import.meta.env?.DEV || (typeof __OGYGIA_RULES__ !== 'undefined' ? __OGYGIA_RULES__ : false);
 
 /** How long a failed import waits for its file's timing entry before it reads as "no response". */
 const ENTRY_WAIT_MS = 1000;
@@ -73,6 +78,9 @@ function hear_responses(): void {
 }
 
 function heard(url: string, status: number | null): void {
+	// (buggify: the entry never comes, as WebKit gives a dropped download none: a wait for it runs
+	// out, and the import reads as one with no response)
+	if (RULES && buggify.fires('import-again.entry-missed')) return;
 	// (a response heard for a URL is kept over a later entry with none)
 	const now = status ?? responses.peek(url) ?? null;
 	responses.set(url, now);
@@ -171,6 +179,14 @@ const reload = say({ max: 1 });
 /** The boot hands over its message for a chunk no retry can load. */
 export function on_reload_needed(say: (url: string, error: unknown) => void): void {
 	say_reload_needed = say;
+}
+
+/** What the page notes of an island file's load (the boot's: region-sheets.ts `note_code_sheets`). */
+let note_file_load: <T>(url: string, loading: Promise<T>) => Promise<T> = (_url, loading) =>
+	loading;
+/** The boot hands over what it notes of each island file's load. */
+export function on_file_load(note: <T>(url: string, loading: Promise<T>) => Promise<T>): void {
+	note_file_load = note;
 }
 
 /**
@@ -292,14 +308,18 @@ const file_loads = flights({
 				(again = import_again(() => import(/* @vite-ignore */ url), undefined, url))
 			);
 		const load = again;
-		return load().catch(async (error: unknown) => {
-			if (!is_failed_import(error)) throw error;
-			// (an engine can reject the import before the response's timing entry is in the timeline:
-			// Firefox on a loaded machine, by more than one task)
-			const status = await response_landed(url);
-			if (status === null) return load();
-			throw error;
-		});
+		// (the sheets the file's load puts in the head are the regions' that run it: region-sheets.ts)
+		return note_file_load(
+			url,
+			load().catch(async (error: unknown) => {
+				if (!is_failed_import(error)) throw error;
+				// (an engine can reject the import before the response's timing entry is in the timeline:
+				// Firefox on a loaded machine, by more than one task)
+				const status = await response_landed(url);
+				if (status === null) return load();
+				throw error;
+			})
+		);
 	}
 });
 

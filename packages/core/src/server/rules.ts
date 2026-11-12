@@ -14,7 +14,7 @@
  * Each area tells this module what it holds (`note_response_end`) only when rules are on: every call
  * site folds out of a build without them.
  */
-import { cache, observe, type AnyMachine, type Scope } from '@ogygia/machine';
+import { cache, observe, timers, trace, type AnyMachine, type Scope } from '@ogygia/machine';
 import { Rules } from '../rules.ts';
 import { warn } from '../messages/server.ts';
 
@@ -31,7 +31,7 @@ type ServerRule =
 
 /** The few breaks found so far (10 each, at most). */
 class Breaks {
-	/** The first region answers that left without their headers (CAPABILITY-URL, PRELOAD-CACHE). */
+	/** The first region answers that left without their headers (CAPABILITY-URL, HOLE-CACHE). */
 	readonly answers: string[] = [];
 	/** The first capability URLs minted with more than a path (CAPABILITY-URL, HOLE-TRUST). */
 	readonly mints: string[] = [];
@@ -147,7 +147,7 @@ function check_soon(): void {
 	if (pending) return;
 	pending = true;
 	// oxlint-disable-next-line ogygia/owned-effects -- the server's rule check, a task after the responses that asked for it: it ends itself, and the rules outlive every request
-	setTimeout(() => {
+	timers.keep(() => {
 		pending = false;
 		server_rules.say((code, detail) => warn(code, { detail }));
 	}, 0);
@@ -175,4 +175,11 @@ export function install_server_rules(): void {
 		if (unkeyed !== null) kept_unkeyed.set(machine, `"${name}" kept a render that read ${unkeyed}`);
 		else if (kept_unkeyed.size !== 0) kept_unkeyed.delete(machine);
 	});
+	// the server's machine moves, one line each (its last SERVER_MOVES), for a harness to read: the
+	// browser's `__ogygia_moves()` (../runtime/rules.ts), under a symbol a process keeps one of
+	const moves = trace({ max: SERVER_MOVES });
+	(globalThis as Record<symbol, unknown>)[Symbol.for('ogygia.server.moves')] = () => moves.text();
 }
+
+/** Moves the server's trace keeps: many requests' worth between two reads. */
+const SERVER_MOVES = 5000;

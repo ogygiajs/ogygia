@@ -16,6 +16,8 @@
  * before it: `// oxlint-disable-next-line ogygia/no-promise-cache -- <why>`.
  */
 
+import { readFileSync } from 'node:fs';
+
 type Node = { type: string; [key: string]: unknown };
 type Context = {
 	filename?: string;
@@ -520,6 +522,385 @@ const stale_whole = {
 	}
 };
 
+/** All of `packages/<pkg>/src`, `@ogygia/machine` included: every package's source holds the
+ *  comment shapes. */
+const ALL_SOURCE = /(^|\/)packages\/([^/]+)\/src\//;
+
+type Ranged = Node & { range: [number, number] };
+type FullComment = Comment & { range: [number, number]; loc: { start: { line: number } } };
+
+/** Directives a tool reads, which say why after ` -- `. */
+const REASONED =
+	/^\s*(oxlint-disable(-next-line|-line)?|eslint-disable(-next-line|-line)?|@ts-expect-error)\b/;
+/** Directives a tool reads, which need no reason. */
+const FREE =
+	/^\s*(oxlint-enable|eslint-enable|svelte-ignore|[@#]__PURE__|[@#]__NO_SIDE_EFFECTS__|@vite-ignore|oxfmt-ignore|prettier-ignore|\/ <reference )/;
+const WHY = /^ @why (\S.*?) \(test: (\S+) › (.+)\)$/;
+/** A JSDoc that is only a type (`@type {…}`, `@satisfies {…}`): the checker reads it, as in a
+ *  `.svelte` file's JS script. Its text, `*` gutters dropped, is the tag and its braces alone. */
+const TYPE_ONLY = /^@(type|satisfies)\s*\{[\s\S]*\}$/;
+/** TSDoc's file-level block: it documents the module, so it sits before any code. */
+const PACKAGE_DOC = /(^|\s)@packageDocumentation(\s|$)/;
+
+const MESSAGE_FREE =
+	'A comment in package source is JSDoc on an export, a tool directive (`-- <reason>`), or `// @why <fact> (test: <file> › <name>)`. Make this one a test, a rule, a type or clearer code, or delete it (#512).';
+const MESSAGE_JSDOC =
+	'JSDoc documents an export (or a member of an exported class or type). This one sits on something not exported: make it a clearer name, a test or a type, or delete it (#512).';
+const MESSAGE_REASON =
+	'A directive says why after ` -- `: `oxlint-disable-next-line <rule> -- <reason>`.';
+const MESSAGE_WHY =
+	'A `@why` is one line, `// @why <fact> (test: <file> › <name>)`, directly above the statement it explains, and names a test that exists (the file, from the package or the repository root, holds the name).';
+
+/** The start of every node whose JSDoc feeds an export's hover: exported declarations and the
+ *  members of exported classes, types and object constants, everything in an ambient block, and a
+ *  component's props type (the type of its `$props()`) with its members. */
+function documentable(program: Node): Set<number> {
+	const starts = new Set<number>();
+	const named = new Set<string>();
+	for (const s of program.body as Node[])
+		if (s.type === 'ExportNamedDeclaration' && !s.declaration)
+			for (const spec of (s.specifiers as Node[]) ?? [])
+				named.add((spec.local as { name?: string }).name ?? '');
+	const walk = (n: unknown, all: boolean): void => {
+		if (!n || typeof n !== 'object') return;
+		if (Array.isArray(n)) {
+			for (const x of n) walk(x, all);
+			return;
+		}
+		const node = n as Ranged;
+		if (typeof node.type !== 'string') return;
+		if (all || MEMBER.has(node.type)) starts.add(node.range[0]);
+		const code = node.type.includes('Function') || node.type === 'StaticBlock';
+		for (const key in node) {
+			if (key === 'parent' || key === 'loc' || key === 'range') continue;
+			if (code && !all && key === 'body') continue;
+			const v = node[key];
+			if (v && typeof v === 'object') walk(v, all);
+		}
+	};
+	for (const s of program.body as Node[])
+		if (s.type === 'VariableDeclaration')
+			for (const d of s.declarations as Node[]) {
+				const init = d.init as Node | null;
+				if (init?.type !== 'CallExpression') continue;
+				if ((init.callee as { name?: string }).name !== '$props') continue;
+				const type = (d.id as { typeAnnotation?: { typeAnnotation?: Node } }).typeAnnotation
+					?.typeAnnotation;
+				if (type?.type === 'TSTypeReference')
+					named.add((type.typeName as { name?: string }).name ?? '');
+				else if (type) walk(type, false);
+			}
+	const declared_name = (d: Node): string | undefined =>
+		(d.id as { name?: string } | undefined)?.name ??
+		((d.declarations as Node[] | undefined)?.[0]?.id as { name?: string } | undefined)?.name;
+	for (const s of program.body as Ranged[]) {
+		const ambient =
+			(s.type === 'TSModuleDeclaration' && s.declare === true) ||
+			(s.type === 'TSModuleDeclaration' && (s as { kind?: string }).kind === 'global');
+		if (ambient) {
+			walk(s, true);
+			continue;
+		}
+		if (s.type === 'ExportNamedDeclaration' || s.type === 'ExportDefaultDeclaration') {
+			starts.add(s.range[0]);
+			walk(s.declaration, false);
+			const d = s.declaration as Node | undefined;
+			if (d?.type === 'TSModuleDeclaration') walk(d, true);
+		} else {
+			const name = declared_name(s);
+			if (name !== undefined && named.has(name)) {
+				starts.add(s.range[0]);
+				walk(s, false);
+			}
+		}
+	}
+	return starts;
+}
+
+const MEMBER = new Set([
+	'MethodDefinition',
+	'PropertyDefinition',
+	'AccessorProperty',
+	'TSPropertySignature',
+	'TSMethodSignature',
+	'TSIndexSignature',
+	'TSCallSignatureDeclaration',
+	'TSConstructSignatureDeclaration',
+	'TSEnumMember',
+	'Property'
+]);
+
+const test_files = new Map<string, string | null>();
+function test_text(path: string): string | null {
+	if (!test_files.has(path)) {
+		let text: string | null;
+		try {
+			text = readFileSync(path, 'utf8');
+		} catch {
+			text = null;
+		}
+		test_files.set(path, text);
+	}
+	return test_files.get(path) ?? null;
+}
+
+/** Does the `@why`'s test exist: a file (from the package or the repository root) holding the name? */
+function why_test_exists(file: string, test: string, test_name: string): boolean {
+	const m = ALL_SOURCE.exec(file);
+	if (!m) return false;
+	const root = file.slice(0, m.index + m[1].length);
+	for (const base of [`${root}packages/${m[2]}/`, root]) {
+		const text = test_text(base + test);
+		if (text !== null && text.includes(test_name)) return true;
+	}
+	return false;
+}
+
+/**
+ * `ogygia/structured-comments` (#512): in `packages/<pkg>/src`, a comment is one of three shapes:
+ * JSDoc on an export (or on a member of an exported class, type or object constant, on a
+ * component's props type and its members, or a `@packageDocumentation` block before any code), a
+ * tool directive (`oxlint-disable…` and
+ * `@ts-expect-error` with ` -- <reason>`; `svelte-ignore`, `@__PURE__`, `@vite-ignore`, formatter
+ * ignores, `/// <reference>` as they are; a JSDoc that is only `@type {…}` or `@satisfies {…}`), or
+ * a one-line `// @why <fact> (test: <file> › <name>)` directly above its statement, whose test
+ * exists. A bin's `#!` line is not a comment. Anything else is a finding. `.d.ts` files are
+ * documented like exports and are not read.
+ */
+const structured_comments = {
+	meta: {
+		type: 'suggestion',
+		docs: {
+			description:
+				'Package source comments are JSDoc on exports, reasoned directives, or tested @why lines.'
+		}
+	},
+	create(context: Context) {
+		const file = (context.filename ?? context.getFilename?.() ?? '').replaceAll('\\', '/');
+		if (!ALL_SOURCE.test(file) || file.endsWith('.d.ts')) return {};
+		return {
+			Program(program: Node) {
+				const source = context as {
+					sourceCode?: { getAllComments?: () => FullComment[]; text?: string };
+				};
+				const comments = source.sourceCode?.getAllComments?.() ?? [];
+				const text = source.sourceCode?.text ?? '';
+				let starts: Set<number> | null = null;
+				for (const c of comments) {
+					const node = c as unknown as Node;
+					const value = c.value;
+					if (c.range[0] === 0 && text.startsWith('#!')) continue;
+					if (REASONED.test(value)) {
+						if (!/\s--\s+\S/.test(value)) context.report({ node, message: MESSAGE_REASON });
+						continue;
+					}
+					if (FREE.test(value)) continue;
+					if (c.type === 'Block' && value.startsWith('*')) {
+						if (PACKAGE_DOC.test(value) && text.slice(0, c.range[0]).trim() === '') continue;
+						if (TYPE_ONLY.test(value.replace(/^[^\S\n]*\*/gm, '').trim())) continue;
+						starts ??= documentable(program);
+						const next = text.slice(c.range[1]).search(/\S/);
+						if (next < 0 || !starts.has(c.range[1] + next))
+							context.report({ node, message: MESSAGE_JSDOC });
+						continue;
+					}
+					if (c.type === 'Line' && value.startsWith(' @why')) {
+						const m = WHY.exec(value);
+						const line_start = text.lastIndexOf('\n', c.range[0] - 1) + 1;
+						const own_line = text.slice(line_start, c.range[0]).trim() === '';
+						const after = text.slice(c.range[1]).match(/^[^\S\n]*\n([^\n]*)/);
+						const above = after !== null && after[1].trim() !== '';
+						if (!m || !own_line || !above || !why_test_exists(file, m[2], m[3]))
+							context.report({ node, message: MESSAGE_WHY });
+						continue;
+					}
+					context.report({ node, message: MESSAGE_FREE });
+				}
+			}
+		};
+	}
+};
+
+// ── markup-from-vocabulary ──
+// A marker's name is spelled once, in core's wire-markup.ts (#479): a package writes `OG_HOLE`, not
+// the attribute's text, so a renamed or retired marker cannot leave a stale copy behind.
+
+const MARKER_TEXT = /data-og(?:ygia)?-/;
+const VOCABULARY = /(^|\/)packages\/core\/src\/wire-markup\.ts$/;
+const MESSAGE_MARKER =
+	'A `data-og-*` / `data-ogygia-*` marker is spelled once, in packages/core/src/wire-markup.ts: import its constant (core: ../wire-markup.ts; the compiler: @ogygia/core/contract; other packages: @ogygia/core/internal/server on the server, @ogygia/core/internal/instruments in the browser).';
+
+const markup_from_vocabulary = {
+	meta: {
+		type: 'problem',
+		docs: { description: 'Package source names markers through the wire-markup.ts constants.' }
+	},
+	create(context: Context) {
+		const file = (context.filename ?? context.getFilename?.() ?? '').replaceAll('\\', '/');
+		if (!/(^|\/)packages\/[^/]+\/src\//.test(file) || VOCABULARY.test(file)) return {};
+		const check = (node: Node, text: unknown) => {
+			if (typeof text === 'string' && MARKER_TEXT.test(text))
+				context.report({ node, message: MESSAGE_MARKER });
+		};
+		return {
+			Literal(node: Node) {
+				check(node, node.value);
+			},
+			TemplateElement(node: Node) {
+				check(node, (node.value as { raw?: string } | undefined)?.raw);
+			}
+		};
+	}
+};
+
+/**
+ * `ogygia/ports` (DST): every source of nondeterminism goes through a port of @ogygia/machine
+ * (packages/machine/src/ports.ts), so a simulated run (internal/sim) owns all of it and one seed
+ * replays a run. Package source calls none of these raw: timers, the platform's timer-backed
+ * `AbortSignal.timeout` and the browser's task hooks (`timers`, `tasks`), the clocks, `new Date()`
+ * included (`clock.mono()` for a duration, which a wall-clock step never moves; `clock.wall()` for
+ * a timestamp that leaves the process: #472), randomness (`random`), the
+ * network (`net`), what is on screen (`seen`) and storage (`storage`). It grew out of
+ * `ogygia/wall-clock`, which it replaces: `Date.now()` is `clock.wall()`.
+ *
+ * A raw call that must stay says why on its line or the line before: `// port-ok: <why>`. Code that
+ * runs at build time (the compiler, Vite plugins, the CLI, test tooling) is not part of a running
+ * app and is not simulated: `.oxlintrc.json` turns the rule off there.
+ */
+const PORT_CALLS: Record<string, string> = {
+	setTimeout: 'timers.after()',
+	setInterval: 'timers.every()',
+	queueMicrotask: 'tasks.micro()',
+	requestAnimationFrame: 'tasks.frame()',
+	requestIdleCallback: 'tasks.idle()',
+	fetch: 'net.fetch()',
+	randomUUID: 'random.uuid()'
+};
+const PORT_MEMBERS: Record<string, Record<string, string>> = {
+	Date: { now: 'clock.wall() (a timestamp) or clock.mono() (a duration)' },
+	performance: { now: 'clock.mono()' },
+	Math: { random: 'random.float()' },
+	crypto: { getRandomValues: 'random.bytes()', randomUUID: 'random.uuid()' },
+	// (a timer of the platform's own, which no simulated run can reach: a federation hop's)
+	AbortSignal: { timeout: 'timers.timeout()' }
+};
+const PORT_NEWS: Record<string, string> = {
+	IntersectionObserver: 'seen.observer()',
+	EventSource: 'net.stream()'
+};
+const PORT_READS: Record<string, string> = {
+	localStorage: 'storage.local()',
+	sessionStorage: 'storage.session()'
+};
+/** Node's own randomness, imported from `node:crypto` (the process's, not the realm's). */
+const PORT_IMPORTS: Record<string, string> = {
+	randomBytes: 'random.bytes()',
+	randomFillSync: 'random.bytes()',
+	randomInt: 'random.float()',
+	randomUUID: 'random.uuid()',
+	getRandomValues: 'random.bytes()'
+};
+const CRYPTO_MODULES = new Set(['node:crypto', 'crypto']);
+/** The objects a platform global is read through (`window.setTimeout`, `globalThis.fetch`). */
+const REALMS = new Set(['window', 'globalThis', 'self']);
+/** The ports themselves: ports.ts and its modules under ports/. */
+const PORTS_FILE = /(^|\/)packages\/machine\/src\/ports(\.ts$|\/)/;
+const IN_PACKAGE_SOURCE = /(^|\/)packages\/[^/]+\/src\//;
+
+const port_message = (raw: string, port: string): string =>
+	`${raw} is nondeterministic: go through the port, ${port} from @ogygia/machine (a simulated run owns it), or say why it stays raw with \`// port-ok: <why>\` on its line or the line before.`;
+
+const ports = {
+	meta: {
+		type: 'problem',
+		docs: { description: 'Nondeterminism goes through the ports of @ogygia/machine.' }
+	},
+	create(context: Context) {
+		const file = (context.filename ?? context.getFilename?.() ?? '').replaceAll('\\', '/');
+		if (!IN_PACKAGE_SOURCE.test(file) || PORTS_FILE.test(file)) return {};
+		const found: Array<{ node: Node; message: string }> = [];
+		const name_of = (n: unknown): string | undefined =>
+			(n as Node | undefined)?.type === 'Identifier' ? (n as { name?: string }).name : undefined;
+		/** `x` itself, or `window.x` / `globalThis.x` / `self.x`: the global's name, if it is one. */
+		const global_name = (n: Node): string | undefined => {
+			const own = name_of(n);
+			if (own !== undefined) return own;
+			if (n.type !== 'MemberExpression' || n.computed) return undefined;
+			const realm = name_of(n.object);
+			return realm !== undefined && REALMS.has(realm) ? name_of(n.property) : undefined;
+		};
+		const member = (n: Node): string | undefined => {
+			if (n.type !== 'MemberExpression' || n.computed) return undefined;
+			const object = global_name(n.object as Node);
+			const property = name_of(n.property);
+			if (object === undefined || property === undefined) return undefined;
+			const port = PORT_MEMBERS[object]?.[property];
+			return port === undefined ? undefined : `${object}.${property}()|${port}`;
+		};
+		return {
+			ImportDeclaration(node: Node) {
+				const from = (node.source as { value?: unknown } | undefined)?.value;
+				if (typeof from !== 'string' || !CRYPTO_MODULES.has(from)) return;
+				for (const s of (node as { specifiers?: Node[] }).specifiers ?? []) {
+					const name = name_of((s as { imported?: Node }).imported);
+					if (name !== undefined && Object.hasOwn(PORT_IMPORTS, name))
+						found.push({
+							node: s,
+							message: port_message(`${from}'s ${name}()`, PORT_IMPORTS[name])
+						});
+				}
+			},
+			CallExpression(node: Node) {
+				const callee = node.callee as Node;
+				const m = member(callee);
+				if (m !== undefined) {
+					const [raw, port] = m.split('|');
+					found.push({ node, message: port_message(raw, port) });
+					return;
+				}
+				const name = global_name(callee);
+				if (name !== undefined && Object.hasOwn(PORT_CALLS, name))
+					found.push({ node, message: port_message(`${name}()`, PORT_CALLS[name]) });
+			},
+			NewExpression(node: Node) {
+				const name = global_name(node.callee as Node);
+				if (name !== undefined && Object.hasOwn(PORT_NEWS, name))
+					found.push({ node, message: port_message(`new ${name}()`, PORT_NEWS[name]) });
+				// (`new Date(x)` is a plain value; with no argument it reads the clock)
+				else if (name === 'Date' && !(node as { arguments?: unknown[] }).arguments?.length)
+					found.push({ node, message: port_message('new Date()', 'new Date(clock.wall())') });
+			},
+			Identifier(node: Node) {
+				const name = (node as { name?: string }).name;
+				if (name === undefined || !Object.hasOwn(PORT_READS, name)) return;
+				const parent = (node as { parent?: Node }).parent;
+				// (a property named so, `x.localStorage` off a non-realm, or a key, is not the global)
+				if (parent?.type === 'MemberExpression' && parent.property === node) {
+					const realm = name_of(parent.object);
+					if (realm === undefined || !REALMS.has(realm)) return;
+				}
+				if (parent?.type === 'Property' && parent.key === node) return;
+				found.push({ node, message: port_message(name, PORT_READS[name]) });
+			},
+			'Program:exit'() {
+				if (!found.length) return;
+				const comments =
+					(
+						context as { sourceCode?: { getAllComments?: () => Comment[] } }
+					).sourceCode?.getAllComments?.() ?? [];
+				const marked = new Set<number>();
+				for (const c of comments)
+					if (/^\s*port-ok:\s*\S/.test(c.value)) marked.add(c.loc.start.line);
+				for (const f of found) {
+					const line = (f.node as Located).loc.start.line;
+					if (marked.has(line) || marked.has(line - 1)) continue;
+					context.report(f);
+				}
+			}
+		};
+	}
+};
+
 /**
  * `ogygia/one-hash` (#484): a content hash is core's `contract/hash.ts` (`id64` for identity, where a
  * collision serves the wrong thing; `bucket32` for spreading). The FNV-1a offset basis anywhere else
@@ -626,11 +1007,14 @@ const compiler_boundary = {
 export default {
 	meta: { name: 'ogygia' },
 	rules: {
+		'markup-from-vocabulary': markup_from_vocabulary,
 		'one-hash': one_hash,
 		'no-promise-cache': no_promise_cache,
 		'owned-effects': owned_effects,
 		'no-silent-failures': no_silent_failures,
 		'stale-whole': stale_whole,
-		'compiler-boundary': compiler_boundary
+		'structured-comments': structured_comments,
+		'compiler-boundary': compiler_boundary,
+		ports
 	}
 };
