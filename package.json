@@ -32,7 +32,7 @@
 		"format": "oxfmt .",
 		"format:check": "git ls-files -z | xargs -0 oxfmt --check --no-error-on-unmatched-pattern",
 		"lint": "oxlint",
-		"lint:test": "node --test internal/lint/*.test.ts",
+		"lint:test": "node --test internal/lint/*.test.ts internal/checks/*.test.ts",
 		"ci:test": "node --test .github/scripts/*.test.ts"
 	},
 	"devDependencies": {
