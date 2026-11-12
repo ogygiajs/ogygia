@@ -181,7 +181,20 @@ slow on the server, some with a fallback), lakes and plain components, nested up
 to 6 pages that link to each other (router on, csr=false). Each region is a component of its own
 that imports its children with their import attributes; the tree is in
 `src/lib/gen/plan.json`. Then `pnpm sim:builds --app ../../apps/sim-gen` and
-`pnpm sim --app ../../apps/sim-gen`. Federation is not generated yet (it needs two apps).
+`pnpm sim --app ../../apps/sim-gen`.
+
+About half the seeds draw a peer (`peer_plan`, its own stream `gen peer`): another team's app,
+written into `apps/sim-gen-peer`. It serves widgets (`federate({ widgets })`, each a root holding
+a region tree, imported `with { region: 'raw' }`) and pages (`expose:` a server router, base
+`/peer`). The app gets `src/lib/gen/federation.server.ts` (one `federate()`, the peer at
+`PEER_ORIGIN`), slots on its pages (a `+page.server.ts` load returning
+`peer.widget(name, props, { render: 'static' | 'deferred' })`, rendered with `<Region of>`, some
+deferred ones with a placeholder), and the peer's pages mounted under `/peer`: by a server router's
+`mount(peer)` in `src/lib/gen/mount.server.ts` (the app's hooks sequence it after ogygia's), or by a
+Kit catchall's `mount.kit(peer)`. The peer's regions are numbered from 1000, so its `n1003` is never
+the app's `n3`. Build the peer once (`OGYGIA_RULES=1 vite build` in apps/sim-gen-peer); the CLI reads
+the peer from the app's `plan.json`, so `pnpm sim --app ../../apps/sim-gen` runs it with no flags
+(`--peers peer=../../apps/sim-gen-peer`, `/peer/q<i>` added to the paths).
 
 Some regions are held: a remote query returns `region(N, props)` (`src/lib/gen/h<k>.remote.ts`,
 its schedule baked on the import: a wake, or `region: 'raw'`), and a host renders it with
@@ -205,6 +218,8 @@ reaching it is reported `horizon`. The summary goes to `internal/sim/results.jso
 A real bug gets a GitHub issue (labels `bug`, `dst`) and a failing test on its own branch
 `sim/found-<name>` (`internal/sim/test/found/`). Until its fix lands, its shape is in `KNOWN`
 (oracles.ts): a seed whose only difference a filed bug explains is counted `known`, not failed.
+An empty region a filed bug explains is in `KNOWN_EMPTY` (by the region's shape), and a line a
+page says because of one in `KNOWN_SAID`.
 
 ## Adding an oracle
 
