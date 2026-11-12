@@ -25,6 +25,9 @@ interface Loader {
 	load(url: string, code?: string): Promise<vm.Module>;
 	/** Puts a module whose source has arrived into the map, unrun (a `modulepreload`). */
 	prime(url: string, code: string): void;
+	/** Puts a module whose download failed elsewhere (happy-dom's own fetch) into the map, failed: a
+	 *  browser keeps it failed for the document's life, so a later import fails too. */
+	fail(url: string, error: unknown): void;
 }
 
 const LOADER = Symbol('ogygia.sim.modules');
@@ -38,7 +41,7 @@ const download_failed = (error: unknown): boolean =>
 	typeof error === 'object' &&
 	error !== null &&
 	(unfetched.has(error) ||
-		String((error as Error).message).startsWith('Failed to perform request'));
+		/^Failed to (perform request|read response body)/.test(String((error as Error).message)));
 
 /** The window's module loader (one per document: modules are per document, as in a browser). */
 function loader_of(window: Window): Loader {
@@ -139,7 +142,14 @@ function make_loader(window: Window): Loader {
 	};
 	return {
 		load: async (url, code) => ready(await load(url, code)),
-		prime: (url, code) => void load(url, code)
+		prime: (url, code) => void load(url, code),
+		fail: (url, error) => {
+			if (modules.has(url)) return;
+			if (typeof error === 'object' && error !== null) unfetched.add(error);
+			const m = Promise.reject(error);
+			m.catch(() => {});
+			modules.set(url, m);
+		}
 	};
 }
 
@@ -203,6 +213,24 @@ export function use_v8_modules(): void {
 	// download anywhere in its graph is the browser's one TypeError there too, named by the module
 	// asked for, in the page's realm (it threw the loader's own words, or happy-dom's DOMException)
 	const factory = (ModuleFactory as unknown as { prototype: Record<string, unknown> }).prototype;
+	// (one module map per document: a file happy-dom failed to download, for a classic script's
+	// `import()` or a `modulepreload`, stays failed for the document's own imports too, as in a
+	// browser; test/modules.test.ts)
+	const get_module = factory.getModule as (...a: unknown[]) => Promise<unknown>;
+	factory.getModule = async function (
+		this: { window: Window; parentURL: URL | string },
+		url: string,
+		options?: { with?: { type?: string } },
+		...rest: unknown[]
+	) {
+		try {
+			return await get_module.call(this, url, options, ...rest);
+		} catch (error) {
+			if ((options?.with?.type ?? 'esm') === 'esm' && download_failed(error))
+				loader_of(this.window).fail(new URL(url, String(this.parentURL)).href, error);
+			throw error;
+		}
+	};
 	const import_module = factory.importModule as (...a: unknown[]) => Promise<unknown>;
 	factory.importModule = async function (
 		this: { window: { TypeError: typeof TypeError }; parentURL: URL | string },
