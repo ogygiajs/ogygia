@@ -48,6 +48,9 @@ export interface Tab {
 	readonly said_by: Map<string, string>;
 	/** The document's simulated platform (its outstanding timers, for the leak oracle). */
 	platform: ReturnType<typeof platform> | null;
+	/** Behind another of its visitor's tabs (`Browsers.focus`): its document's `visibilityState` is
+	 *  `hidden`, and its animation frames wait until it is shown, as a browser's do. */
+	hidden: boolean;
 	/** What the shown document holds now (the leak oracle's sample). */
 	held(): Held;
 	/** The listeners it holds, each as `window|document <type> <its code's hash>` (with
@@ -317,10 +320,17 @@ export class Browsers {
 			name: tab.realm,
 			loop: this.#o.loop,
 			rng: this.#o.rng,
-			buggify: this.#o.buggify
+			buggify: this.#o.buggify,
+			hidden: () => tab.hidden
 		};
 		const p = platform(options);
 		install(window, p);
+		// (a tab behind another says so, as a browser's does: `Browsers.focus`)
+		for (const [key, value] of [
+			['visibilityState', () => (tab.hidden ? 'hidden' : 'visible')],
+			['hidden', () => tab.hidden]
+		] as const)
+			Object.defineProperty(window.document, key, { get: value, configurable: true });
 		// (an engine with no idle callbacks: Safari)
 		if (this.#o.idle === false) {
 			const w = window as unknown as Record<string, unknown>;
@@ -626,6 +636,24 @@ export class Browsers {
 	}
 
 	/** Opens a tab for `v` (blank until it goes somewhere). */
+	/**
+	 * The visitor looks at `tab`: it is shown, and each other tab of theirs goes behind it (one window,
+	 * tabs in a row). A tab whose visibility changed hears `visibilitychange`; one shown again gets the
+	 * animation frames it asked for while hidden.
+	 */
+	focus(v: Visitor, tab: Tab): void {
+		for (const t of v.tabs) {
+			const hidden = t !== tab;
+			if (t.hidden === hidden) continue;
+			t.hidden = hidden;
+			this.#o.loop.note(`${t.name} ${hidden ? 'hidden' : 'shown'}`);
+			const doc = t.page.mainFrame.document as unknown as Document;
+			const view = doc.defaultView as (Window & typeof globalThis) | null;
+			if (view) doc.dispatchEvent(new view.Event('visibilitychange'));
+			if (!hidden) t.platform?.shown();
+		}
+	}
+
 	open(v: Visitor): Tab {
 		const name = `tab-${++this.#tabs}`;
 		const page = v.browser.newPage();
@@ -640,6 +668,7 @@ export class Browsers {
 			errors: [],
 			console: [],
 			platform: null,
+			hidden: false,
 			held: () => ({ listeners: 0, intervals: 0, observers: 0, head: 0, elements: 0 }),
 			listening: () => [],
 			watching: () => [],

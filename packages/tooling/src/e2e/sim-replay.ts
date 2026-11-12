@@ -20,7 +20,7 @@ type Action =
 	| { kind: 'click' | 'press'; tab: number; nth: number }
 	| { kind: 'goto'; tab: number; path: string }
 	| { kind: 'back' | 'forward' | 'reload' | 'offline' | 'online'; tab: number }
-	| { kind: 'open'; path: string }
+	| { kind: 'open' | 'background'; path: string }
 	| { kind: 'wait'; ms: number }
 	| { kind: 'deploy' }
 	| { kind: 'away'; tab: number; nth: number; ms: number }
@@ -401,7 +401,9 @@ async function play(
 			case 'reload':
 				await navigated(tab.reload());
 				break;
-			case 'open': {
+			// (a tab opened behind: Playwright brings a new page to the front, so it loads shown here)
+			case 'open':
+			case 'background': {
 				const t = await context.newPage();
 				tabs.push(t);
 				watch(t);
