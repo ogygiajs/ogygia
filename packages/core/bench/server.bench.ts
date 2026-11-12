@@ -17,6 +17,22 @@ import { ask, notify } from '../src/plugin/hooks.ts';
 import { facts_of } from '../src/plugin/facts.ts';
 import { observe_reads, open_reads } from '../src/plugin/reads.ts';
 import type { RequestContext, ServerApp } from '../src/plugin/index.ts';
+import { ref_names, set_ref_names_reader } from '../src/ref.ts';
+import { __register_transportable, wire } from '../src/live-transport.ts';
+import { hole_identity } from '../src/server/props-wire.ts';
+
+/** A wired instance a hole's props can hold (a ref: named by its place, #816). */
+class BenchBadge {
+	label: string;
+	constructor(label = '') {
+		this.label = label;
+	}
+	static [wire] = {
+		encode: (b: BenchBadge) => b.label,
+		decode: (label: string) => new BenchBadge(label)
+	};
+}
+__register_transportable('bench/badge.ts#BenchBadge', BenchBadge);
 
 const tick = () => new Promise<void>((r) => setTimeout(r, 0));
 
@@ -237,4 +253,24 @@ bench(
 		return answered;
 	},
 	{ setup: () => ({ n: 40, plugins: 6 }), scale: (_ctx, k) => ({ n: 40 * k, plugins: 6 }) }
+);
+
+bench(
+	"a request's holes: each one's identity, a third holding a wired instance (named by its place in the hole's props)",
+	({ n }) => {
+		const names = ref_names();
+		set_ref_names_reader(() => names);
+		let out = '';
+		try {
+			for (let i = 0; i < n; i++) {
+				const shared = new BenchBadge(`b${i}`);
+				const props = i % 3 === 0 ? { a: shared, b: shared, id: i } : { id: i, label: `hole ${i}` };
+				out = hole_identity(`/holes/h${i % 8}.js`, props);
+			}
+		} finally {
+			set_ref_names_reader(null);
+		}
+		return out.length;
+	},
+	{ setup: () => ({ n: 200 }), scale: (_ctx, k) => ({ n: 200 * k }) }
 );
