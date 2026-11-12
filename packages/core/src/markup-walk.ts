@@ -660,6 +660,17 @@ export class MarkupCursor {
 	}
 }
 
+/** The text of `html` as written, cut where the browser cuts it: each tag and comment, and each
+ *  raw-text element's text (a script's, a style's), becomes one space. Character references are
+ *  left as written. For a reader that wants words, not markup (a search index, an error page's
+ *  first line). */
+export function markup_text(html: string): string {
+	let out = '';
+	const at = new MarkupCursor(html);
+	while (at.next()) out += at.kind === 0 && !at.raw ? html.slice(at.start, at.end) : ' ';
+	return out;
+}
+
 /** Hand each attribute of the tag whose name ends at `from` to `visit`, in source order, as the
  *  browser reads them (`markup_tokens`' `ne`): its name `html[ns, ne)` as written (any case,
  *  repeats included) and its value `html[vs, ve)`, `vq` the quote's char code (0 unquoted, -1 bare).
