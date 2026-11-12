@@ -182,6 +182,25 @@ export const KNOWN: ReadonlyArray<{
 		}
 	},
 	{
+		issue: 954,
+		what: "a remote call from a stored page is answered with the stored page's HTML",
+		// (a held or live region's query failed on one side only: the generated host's error line;
+		// each host's subtree set aside)
+		applies: (shown, fresh) => host_errors(shown) !== host_errors(fresh),
+		forgive: (s) => {
+			const out: string[] = [];
+			let inside: string | null = null;
+			for (const line of s.split('\n')) {
+				const indent = /^ */.exec(line)![0];
+				if (inside !== null && indent.length > inside.length) continue;
+				inside = null;
+				out.push(line);
+				if (/^<div data-gen="(held|live)-host"/.test(line.trim())) inside = indent;
+			}
+			return out.join('\n');
+		}
+	},
+	{
 		issue: 891,
 		what: 'a hole that failed while offline never loads once the network is back',
 		// (a hole of the tab still shows its fallback, unanswered, where the fresh load's same hole
@@ -419,6 +438,11 @@ function peer_hop_failed(e: World['network']['exchanges'][number]): boolean {
 /** A normalized DOM's generated peer widgets, by what each says it is (`w<k> for r<slot>`). */
 function widget_labels(s: string): string {
 	return [...s.matchAll(/"(w\d+ for r\d+)"/g)].map((m) => m[1]).join(',');
+}
+
+/** The generated held and live hosts that show their query's error (#954). */
+function host_errors(s: string): number {
+	return s.split('\n').filter((l) => l.trim().startsWith('<span data-gen-error')).length;
 }
 
 /** The first lines where two normalized DOMs differ, for a report. */
