@@ -44,16 +44,15 @@
  * pointer reaches an armed island or input lands.
  */
 
-import { flights, registry, STALE, type Scope, type Stale } from '@ogygia/machine';
+import { flights, noop, registry, STALE, type Scope, type Stale } from '@ogygia/machine';
 import { LoadSlot } from './load-scheduler.ts';
-
-const noop = (): void => {};
 import { import_again } from './import-again.ts';
 import { slots } from './slots.ts';
 import { warm_island_module } from './region-endpoint-url.ts';
 import { island_entry_of } from './entry-locations.ts';
 import { OgygiaError } from '../messages/core.ts';
 import { download } from '../policies.ts';
+import { OG_WOKE } from '../wire-markup.ts';
 
 /** Feature entry: fill the `interaction` slot — wake a cold island on first use, warm on hover. */
 export function install(): void {
@@ -277,7 +276,7 @@ function wake(a: Armed, e: Event): void {
 	a.state = 'woken';
 	// what woke it, for `hydratedBy()` (hydration-info.ts): a visitor did — its first click is a replay,
 	// whatever schedule the island had
-	region.setAttribute('data-og-woke', 'interaction');
+	region.setAttribute(OG_WOKE, 'interaction');
 
 	// Typed-so-far values + focus, captured as ADDRESSES (hydration may replace the nodes).
 	const fields = snapshot_fields(region);

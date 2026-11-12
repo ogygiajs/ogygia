@@ -25,6 +25,7 @@
  * `restore_late` in every build). Answers are parsed inert (./parse-html.ts, #382), so this is the
  * page-load case: a component runtime that upgraded first.
  */
+/* oxlint-disable ogygia/markup-from-vocabulary -- restore() ships as its own source (restore.toString()): it may name nothing outside itself, so it spells its markers */
 export function restore(root: Document | DocumentFragment | Element): number {
 	const doc: Document = (root as Node).ownerDocument ?? (root as Document);
 	const head = document.head;
@@ -357,6 +358,7 @@ export function restore(root: Document | DocumentFragment | Element): number {
 		list.push({
 			kind,
 			host: host.localName,
+			// port-ok: inlined as text by restore.toString() (no imports)
 			t: Math.round(performance.now()),
 			...(diff ? { diff: diff.slice(0, 300) } : {}),
 			...(island ? { island } : {})
@@ -486,6 +488,7 @@ export function restore_adopt(): void {
 		__og_adopt?: { shadow: ShadowRoot; sheets: CSSStyleSheet[] }[];
 		__og_init?: ShadowRoot[];
 	};
+	// port-ok: inlined as text by restore_adopt.toString() (no imports)
 	const now = performance.now();
 	const waiting = (root: ShadowRoot & { __og_out?: number }) =>
 		now - (root.__og_out ??= now) < 30_000;

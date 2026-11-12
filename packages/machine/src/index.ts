@@ -44,8 +44,18 @@ export { defineRun, defining } from './define.ts';
 export { lock, type Lock, type LockToken } from './lock.ts';
 export { noop } from './noop.ts';
 export { slot, type SlotOptions } from './slot.ts';
+export {
+	clock,
+	net,
+	random,
+	seen,
+	storage,
+	tasks,
+	timers,
+	type Platform,
+	type TimerHandle
+} from './ports.ts';
 export { queue, type Queue, type QueueOptions } from './queue.ts';
-export { clock } from './clock.ts';
 export { mailbox, type Mailbox, type Turn } from './mailbox.ts';
 export type { Fresh } from './stale.ts';
 export { outbox, type Outbox, type OutboxOptions } from './outbox.ts';

@@ -132,12 +132,21 @@ import { error_route_is_csr_true, route_is_csr_true, take_early_holes } from './
 import { early_holes_head } from './early-holes-head.ts';
 import { add_early_holes_csp, with_early_holes_meta_csp } from './server/early-holes-csp.ts';
 import { merge_seed_ask, shape_page_data, type SeedKeys } from './server/seed-shape.ts';
-import { html_has_kit_bootstrap } from './runtime/kit-boot.ts';
+import { html_has_kit_bootstrap } from './server/html-scan.ts';
 import { hole_head } from './server/hole-graph.ts';
 import { RateLimiter } from './server/rate-limit.ts';
 import { PageSeed } from './server/page-seed.ts';
 import { analyze, SeedIndex, set_measure_memo_reader, type MeasureMemo } from './seed-refs.ts';
-import { WIRE_FORMAT_ATTR, WIRE_FORMAT_JSON } from './server/props-wire.ts';
+import { WIRE_FORMAT_JSON } from './server/props-wire.ts';
+import {
+	OG_FORMAT,
+	OGYGIA_DEV_HMR,
+	OGYGIA_DEVTOOLS_BOOT,
+	OGYGIA_FNM,
+	OGYGIA_PAGE,
+	OGYGIA_PROVIDE_PAGE,
+	OGYGIA_SPECULATE
+} from './wire-markup.ts';
 import {
 	stage_deferred,
 	settle_deferred,
@@ -155,7 +164,7 @@ import { stringify } from 'devalue';
 import { serialize_provided_context } from './context-bridge.ts';
 import { escape_script_text } from './escape.ts';
 import { hole_copy_key } from './contract/hash.ts';
-import { PAGE_CTX_MARKER, set_ctx_recorder } from './context-registry.ts';
+import { set_ctx_recorder } from './context-registry.ts';
 import {
 	set_ask_scope_opener,
 	set_page_recorder,
@@ -544,7 +553,7 @@ const REGION_FRAME_HEADERS = {
 } as const;
 
 /** Every region response, with those headers. It says how it may be cached: `no-store` (a refusal,
- *  an error, a dynamic hole) unless the caller names the hole's own policy (PRELOAD-CACHE). */
+ *  an error, a dynamic hole) unless the caller names the hole's own policy (HOLE-CACHE). */
 function region_response(
 	body: BodyInit | null,
 	init: { status: number; headers?: Record<string, string> }
@@ -765,7 +774,7 @@ function csr_page_of(
 function page_ctx_script(bag: RequestBag | undefined): string {
 	if (!bag?.ctx?.size) return '';
 	const payload = serialize_provided_context(bag.ctx);
-	return payload ? emit_ogygia_script('ctx', payload, PAGE_CTX_MARKER) : '';
+	return payload ? emit_ogygia_script('ctx', payload, OGYGIA_PROVIDE_PAGE) : '';
 }
 
 /** `inner` with the request's owner around it: made before `inner` runs, ended with its response
@@ -1149,7 +1158,7 @@ class OgygiaHandle {
 		// Kit hands one chunk at a time (ONE chunk for a non-streamed page). Two facts about a chunk
 		// decide everything below, each found with one bounded scan (server/document-assembly.ts):
 		// `</head>` from the front, `</body>` from the back. The chunk is assembled ONCE at the end.
-		const t_start = performance.now();
+		const t_start = clock.mono();
 		const spans = locate(html);
 		const head = spans.head_end === -1 ? null : html.slice(0, spans.head_end);
 		// THE EARLY START (early-holes.ts): the requests of this page's `load` holes start during the
@@ -1181,8 +1190,8 @@ class OgygiaHandle {
 				// devtools is compiled in (`devtools_boot_url` is non-empty only then, dev-only), inject a
 				// standalone dock boot so the launcher is on EVERY dev page — on this csr=true page it
 				// renders a "csr=true — open a csr=false page" notice, since there are no islands here.
-				if (devtools_boot_url && !head.includes('data-ogygia-devtools-boot')) {
-					head_inject += `<script type="module" data-ogygia-devtools-boot src="${devtools_boot_url}"></script>`;
+				if (devtools_boot_url && !head.includes(OGYGIA_DEVTOOLS_BOOT)) {
+					head_inject += `<script type="module" ${OGYGIA_DEVTOOLS_BOOT} src="${devtools_boot_url}"></script>`;
 				}
 				if (bag) bag.kit_with_runtime = page_declares_runtime_script(head);
 			}
@@ -1246,7 +1255,7 @@ class OgygiaHandle {
 			// Firefox prefetches them, everything else ignores the JSON. Presence-checked so a page
 			// authoring its own rules wins; per-link opt-out via `data-ogygia-speculate="off"`.
 			if (!router_enabled && !page_declares_speculation_rules(probe)) {
-				head_inject += `<script type="speculationrules" data-ogygia-speculate>${this.#speculation_rules}</script>`;
+				head_inject += `<script type="speculationrules" ${OGYGIA_SPECULATE}>${this.#speculation_rules}</script>`;
 			}
 			if (router_enabled && !page_declares_router_meta(probe)) {
 				head_inject += `<meta name="ogygia-router" content="${view_transitions ? 'vt' : 'plain'}">`;
@@ -1271,7 +1280,7 @@ class OgygiaHandle {
 			// skips) kept a poisoned tab after a re-optimize until a manual reload, reporting only
 			// "hydration failed". `dev_hmr_url` is empty outside `vite serve`, so this stays dev-only.
 			if (dev_hmr_url && !page_declares_dev_hmr_script(probe)) {
-				head_inject += `<script type="module" data-ogygia-dev-hmr src="${kit_asset(dev_hmr_url)}"></script>`;
+				head_inject += `<script type="module" ${OGYGIA_DEV_HMR} src="${kit_asset(dev_hmr_url)}"></script>`;
 				// The page's sub-app scope (its route id's first segment) for the dev CSS bridge:
 				// a changed stylesheet joins this page only when the plugin derives the same scope
 				// among its owners — two route-group sub-apps never paint each other in dev.
@@ -1410,8 +1419,7 @@ class OgygiaHandle {
 				emit_ogygia_script(
 					'page',
 					page_payload.text,
-					'data-ogygia-page' +
-						(page_payload.json ? ` ${WIRE_FORMAT_ATTR}="${WIRE_FORMAT_JSON}"` : '')
+					OGYGIA_PAGE + (page_payload.json ? ` ${OG_FORMAT}="${WIRE_FORMAT_JSON}"` : '')
 				)
 			);
 			if (DEVTOOLS)
@@ -1450,7 +1458,7 @@ class OgygiaHandle {
 				const entries = Object.entries(fnm)
 					.map(([tag, src]) => `${JSON.stringify(tag)}:(${src})`)
 					.join(',');
-				fnm_script = `<script data-ogygia-fnm>globalThis.__OG_FNM=Object.assign(globalThis.__OG_FNM||{},{${entries}});</script>`;
+				fnm_script = `<script ${OGYGIA_FNM}>globalThis.__OG_FNM=Object.assign(globalThis.__OG_FNM||{},{${entries}});</script>`;
 				fnm_script_cache.set(fnm, fnm_script);
 			}
 			scripts.push(fnm_script);
@@ -1474,7 +1482,7 @@ class OgygiaHandle {
 		if (event && request_stats_wanted()) {
 			const size = bag!.tail.size;
 			record_request_stats(event.request, {
-				transform_ms: Math.round((performance.now() - t_start) * 100) / 100,
+				transform_ms: Math.round((clock.mono() - t_start) * 100) / 100,
 				islands: size.props,
 				hints: size.hints,
 				holes: size.holes,
@@ -1666,14 +1674,14 @@ class OgygiaHandle {
 					if (!timing) return render_gate.run(render_body, gated);
 					// the wait for a slot, and the time in it. A slot is held for the whole render,
 					// awaits included: a hole waiting on slow data keeps the next one queued
-					const asked = performance.now();
+					const asked = clock.mono();
 					return render_gate.run(async () => {
-						const entered = performance.now();
+						const entered = clock.mono();
 						timing.queue_ms = entered - asked;
 						try {
 							return await render_body();
 						} finally {
-							timing.render_ms = performance.now() - entered;
+							timing.render_ms = clock.mono() - entered;
 						}
 					}, gated);
 				},
@@ -1756,7 +1764,7 @@ class OgygiaHandle {
 			return 'shape';
 		const expiry = expiry_refusal(
 			cap.exp,
-			Math.floor(Date.now() / 1000), // wall: against the capability's signed epoch expiry
+			Math.floor(clock.wall() / 1000), // wall: against the capability's signed epoch expiry
 			renewal,
 			app_lifetime.renew_window
 		);
@@ -1862,7 +1870,7 @@ class OgygiaHandle {
 		const cache = this.#hole_cache(target, payload, wakes, event, ttl, reads_page_data);
 		// (the profiler logs each batched hole as its own hole request — only when one listens)
 		const stats = batch && has_batch_hole_listener();
-		const t0 = stats ? performance.now() : 0;
+		const t0 = stats ? clock.mono() : 0;
 		const timing: { queue_ms?: number; render_ms?: number } = {};
 		let outcome: 'hit' | 'miss' | 'none' = 'none';
 		const body = await this.#render_component(
@@ -1887,7 +1895,7 @@ class OgygiaHandle {
 					: {}),
 				...(region_name?.[target] ? { name: region_name[target] } : {}),
 				p: hole_copy_key(payload),
-				ms: performance.now() - t0,
+				ms: clock.mono() - t0,
 				status: body === null ? 500 : 200
 			});
 		// (an answer nobody waits on any more is not shaped: the stream drops it)
