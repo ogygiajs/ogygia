@@ -8,7 +8,7 @@ import { clock, flights, net, STALE, timers, world, type Flights } from '@ogygia
 import { error, isHttpError as is_http_error } from '@ogygia/router';
 import type { RegionValue } from '@ogygia/core';
 import { htmlRegion as og_html_region } from '@ogygia/core/plugin';
-import { current_request_scope } from '@ogygia/core/internal/server';
+import { current_request_scope, OG_FRAGMENT_FAILED } from '@ogygia/core/internal/server';
 import { fed_app } from './app.ts';
 import { warn } from './messages.ts';
 import {
@@ -48,8 +48,7 @@ export function hop_failure_status(e: unknown): number {
 }
 
 /** What a static widget shows when its peer's answer could not be read: the page still renders. */
-const FRAGMENT_FAILED =
-	'<div data-og-fragment-failed style="border:1px dashed #dc2626;border-radius:8px;padding:1rem;color:#dc2626">This section is temporarily unavailable.</div>';
+const FRAGMENT_FAILED = `<div ${OG_FRAGMENT_FAILED} style="border:1px dashed #dc2626;border-radius:8px;padding:1rem;color:#dc2626">This section is temporarily unavailable.</div>`;
 
 /** The one rule for what the document cache keeps, on the first fill and on every refresh: a
  *  successful answer that is not a redirect. */
