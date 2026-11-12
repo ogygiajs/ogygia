@@ -374,26 +374,60 @@ function own_state_out(s: string): string {
 	return out.join('\n');
 }
 
-/** How long the MPA check looks again for text that moves by itself. */
-const LIVE_LOOK_MS = 2_000;
+/** How long the MPA check looks again for what moves by itself: longer than the slowest tick the
+ *  apps make (a generated app's live query ticks every 3 s; generated app 3, seed 60). */
+const LIVE_LOOK_MS = 4_000;
 
-/** The text lines of a normalized DOM that changed between two looks at the same page (none when
- *  its shape changed: then nothing is masked, and the difference stands). */
-function live_lines(before: string, after: string): number[] {
+/** An element line's tag, or null for a text line. */
+const tag_of = (line: string): string | null => /^ *<([^\s>]+)/.exec(line)?.[1] ?? null;
+
+/** The lines of a normalized DOM that changed between two looks at the same page, as they read
+ *  before and after: a text, or an element's attributes (a live region's tick carries its props in
+ *  its endpoint). By content, not place: a place in one side is another line in the other (seed
+ *  26). None when its shape changed: then nothing is masked, and the difference stands. */
+function live_lines(before: string, after: string): string[] {
 	const [a, b] = [before.split('\n'), after.split('\n')];
 	if (a.length !== b.length) return [];
-	const out: number[] = [];
-	for (let i = 0; i < a.length; i++)
-		if (a[i] !== b[i] && /^ *"/.test(a[i]) && /^ *"/.test(b[i])) out.push(i);
+	const out: string[] = [];
+	for (let i = 0; i < a.length; i++) {
+		if (a[i] === b[i]) continue;
+		const [x, y] = [tag_of(a[i]), tag_of(b[i])];
+		if ((x === null && /^ *"/.test(a[i]) && /^ *"/.test(b[i])) || (x !== null && x === y))
+			out.push(a[i], b[i]);
+	}
 	return out;
 }
 
-/** `s` with its text lines at `lines` replaced by a mark (indent kept). */
-function mask(s: string, lines: ReadonlySet<number>): string {
+/** `a` and `b` with a line that moved on one side taken as the other side's same line: the moving
+ *  thing, masked where it moved, may not have moved in the other's look (a live region's tick every
+ *  3 s caught on one side only; generated app 6, seed 76). Text for text, an element for an element
+ *  of its tag, at the same place. */
+function live_aligned(a: string, b: string): [string, string] {
+	const [x, y] = [a.split('\n'), b.split('\n')];
+	if (x.length !== y.length) return [a, b];
+	const moved = (l: string) => / <live>>$|^ *"<live>"$/.test(l);
+	const kin = (l: string, m: string) =>
+		/^ *"/.test(l) ? /^ *"/.test(m) : tag_of(l) !== null && tag_of(l) === tag_of(m);
+	for (let i = 0; i < x.length; i++) {
+		if (moved(x[i]) && !moved(y[i]) && kin(x[i], y[i])) y[i] = x[i];
+		else if (moved(y[i]) && !moved(x[i]) && kin(y[i], x[i])) x[i] = y[i];
+	}
+	return [x.join('\n'), y.join('\n')];
+}
+
+/** `s` with each line that reads as one of `lines` replaced by a mark (indent kept; an element
+ *  keeps its tag). */
+function mask(s: string, lines: ReadonlySet<string>): string {
 	if (lines.size === 0) return s;
 	return s
 		.split('\n')
-		.map((l, i) => (lines.has(i) && /^ *"/.test(l) ? `${/^ */.exec(l)![0]}"<live>"` : l))
+		.map((l) => {
+			if (!lines.has(l)) return l;
+			const indent = /^ */.exec(l)![0];
+			if (/^ *"/.test(l)) return `${indent}"<live>"`;
+			const tag = tag_of(l);
+			return tag === null ? l : `${indent}<${tag} <live>>`;
+		})
 		.join('\n');
 }
 
@@ -563,7 +597,8 @@ export async function mpa_equivalent(
 	shown = bookkeeping_out(mask(shown, live));
 	const said = [...fresh.tab.errors, ...fresh.tab.console];
 	await world.browsers.close(fresh.visitor, fresh.tab);
-	if (first_difference(own_state_out(shown), own_state_out(again)) === '') return null;
+	if (first_difference(...live_aligned(own_state_out(shown), own_state_out(again))) === '')
+		return null;
 	// (what the server makes anew each render, a stamp, a counter, a fresh id, differs between two
 	// fresh loads as well: it is the render's, not the tab's state. A second fresh load, and what
 	// differs between the two is marked on every side: seeds 107, 188, 268, 280, 326, 340, 477)
@@ -580,11 +615,10 @@ export async function mpa_equivalent(
 			again = render(again);
 			shown = render(shown);
 		}
-		diff = first_difference(own_state_out(shown), own_state_out(again));
+		diff = first_difference(...live_aligned(own_state_out(shown), own_state_out(again)));
 		if (diff === '' || world.servers.get(world.live)!.length < 2) break;
 	}
-	again = own_state_out(again);
-	shown = own_state_out(shown);
+	[shown, again] = live_aligned(own_state_out(shown), own_state_out(again));
 	if (diff === '') return null;
 	// a difference a filed bug explains is that bug, counted apart until its fix lands
 	// (in order: each judged on what the ones before it left)
@@ -596,6 +630,9 @@ export async function mpa_equivalent(
 		known.push(k);
 		[a, b] = [k.forgive(a, b), k.forgive(b, a)];
 	}
+	// (what moved, lined up once more: a filed bug's lines set aside may have put them in place)
+	[a, b] = live_aligned(a, b);
+	if (a === b && known.length === 0) return null;
 	if (known.length > 0 && a === b)
 		return {
 			oracle: 'known',
@@ -612,6 +649,54 @@ export async function mpa_equivalent(
 	return {
 		oracle: 'mpa-equivalence',
 		detail: `${url}\n${left}${first_difference(a, b)}${said.length ? `\nthe fresh load said:\n${said.join('\n')}` : ''}`
+	};
+}
+
+/**
+ * EVERY REGION SHOWS SOMETHING: at rest, no `<ogygia-region>` of the page is empty (no element, no
+ * text): a region is a piece of the page, and one left with nothing in it never showed (its answer,
+ * its fallback or its server render). Set aside where the document was faulted (a fault may leave
+ * a region without its answer; the MPA check judges those) and inside an element the visitor's own
+ * press changed. A filed bug's shape is `known`.
+ */
+export function regions_show(tab: Tab, world: World): Broken | null {
+	const url = tab.page.mainFrame.url;
+	// (nor where a deploy or a missing secret failed an answer: a hole refused for another build's
+	// key keeps its fallback, as `secret_missing` warns; generated app 3, seed 53)
+	if (!url.startsWith('http') || faulted(world, tab) || world.skewed_for(tab.realm)) return null;
+	const doc = tab.page.mainFrame.document as unknown as Document;
+	const empty = [...doc.querySelectorAll('ogygia-region')].filter(
+		(r) =>
+			r.children.length === 0 &&
+			(r.textContent ?? '').trim() === '' &&
+			// (a hole with no fallback still waiting for its moment: seen, or the visitor's intent)
+			!(
+				r.getAttribute('render') === 'defer' &&
+				!r.hasAttribute('data-hydrated') &&
+				/^(visible|interaction)$/.test(r.getAttribute('when') ?? '')
+			)
+	);
+	if (empty.length === 0) return null;
+	// #901: a server island inside a woken held region is adopted as an empty lake
+	const held = (r: Element) =>
+		r.getAttribute('wake') === 'none' &&
+		r.parentElement?.closest('ogygia-region[live="true"][render="defer"]') != null;
+	const open = (r: Element) =>
+		`<${r.localName}${[...r.attributes]
+			.filter((a) => a.name !== 'endpoint')
+			.map((a) => ` ${a.name}="${a.value}"`)
+			.join('')}>`;
+	if (empty.every(held))
+		return {
+			oracle: 'known',
+			detail: `${url}: #901 (a server island inside a woken held region never shows)`
+		};
+	return {
+		oracle: 'empty-region',
+		detail: `${url}: ${empty
+			.filter((r) => !held(r))
+			.map(open)
+			.join('\n')}`
 	};
 }
 
@@ -722,7 +807,12 @@ export function outage_only(world: World, tab: Tab): boolean {
 			(typeof e.status === 'number' && e.status >= 500)
 		)
 			return false;
-		if (e.status === 'offline' || e.lost) outage = true;
+		if (e.status === 'offline' || e.lost) {
+			// (a remote function's call the outage failed: Kit's query keeps its error, and asking
+			// again is the app's to do, not ogygia's; generated app 3, seed 48, a held region's host)
+			if (new URL(e.url).pathname.startsWith('/_app/remote/')) return false;
+			outage = true;
+		}
 	}
 	return outage;
 }
@@ -794,15 +884,25 @@ function deploy_took(world: World, tab: Tab, line: string): boolean {
 /** No uncaught error, unhandled rejection or console error in the page (beyond what a network
  *  fault on this document explains, or a deploy, when `world` is given). */
 export function page_errors(tab: Tab, world?: World, since?: number): Broken | null {
-	// (a fault on the shown document stays its fact: a module whose download was cut fails every
-	// later import of it in that document, as the module map keeps the failure)
-	const excused = world !== undefined && (faulted(world, tab) || faulted(world, tab, since));
-	// (a document whose own HTML was changed or cut on the way is not the page the server sent:
-	// what its scripts then do is the network's, a TypeError too. Seed 150: a flipped byte in
-	// `type="application/ogygia-page"` hid the page data, and the island read a missing field)
-	if (world !== undefined && document_faulted(world, tab)) return null;
+	// (each line judged by the document that said it: an action can show several; seed 78)
+	const said_in = (l: string): Tab => {
+		const realm = tab.said_by?.get(l) ?? tab.realm;
+		return realm === tab.realm ? tab : { ...tab, realm };
+	};
 	const errors = [...tab.errors, ...tab.console.filter((l) => l.startsWith('error:'))].filter(
-		(l) => !(excused && EXPLAINED.test(l)) && !(world !== undefined && deploy_took(world, tab, l))
+		(l) => {
+			if (world === undefined) return true;
+			const by = said_in(l);
+			// (a document whose own HTML was changed or cut on the way is not the page the server
+			// sent: what its scripts then do is the network's, a TypeError too. Seed 150: a flipped
+			// byte in `type="application/ogygia-page"` hid the page data, and the island read a
+			// missing field)
+			if (document_faulted(world, by)) return false;
+			// (a fault on the document stays its fact: a module whose download was cut fails every
+			// later import of it in that document, as the module map keeps the failure)
+			const excused = faulted(world, by) || faulted(world, by, since);
+			return !(excused && EXPLAINED.test(l)) && !deploy_took(world, by, l);
+		}
 	);
 	if (errors.length === 0) return null;
 	const known = KNOWN_SAID.filter((k) => errors.some((l) => k.said.test(l)));

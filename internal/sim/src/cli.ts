@@ -44,6 +44,7 @@ import {
 	normalize,
 	page_errors,
 	page_rules,
+	regions_show,
 	stuck,
 	uncaught,
 	type Broken
@@ -160,22 +161,10 @@ export async function run(
 	const log = world.loop;
 	try {
 		const v = world.visitor('visitor');
-		const first = world.tab(v);
-		await world.go(first, 'goto', '/');
-		const wr = world.rng.fork('workload');
 		// (the network's exchanges since the last check: a fault among them explains what was said)
 		let since = 0;
-		for (let i = 0; i < steps && i < stop_at; i++) {
-			const a = next_action(wr, v.tabs.length, PATHS, world.deployed.length < BUILDS.length - 1);
-			actions.push(a);
-			log.note(`action ${i + 1}: ${describe(a)}`);
-			await act(world, v, a, ORIGIN);
-			// (a press changes an island's state: the document shows the visitor's own state from then
-			// on, kept across client navigations, which no fresh load has; its next document is clean.
-			// And it may change the server's (a cart, a counter a command bumps), which every other
-			// tab's document predates: seed 221, /cart-b in another tab)
-			if (a.kind === 'press' || (a.kind === 'outage' && a.during === 'press'))
-				for (const t of v.tabs) pressed.set(t.name, t.documents);
+		/** Each tab looked at, after `what`: its DOM and what it holds in the trace, and the oracles. */
+		const look = (what: string): void => {
 			for (const t of v.tabs) {
 				const doc = t.page.mainFrame.document as unknown as Document;
 				log.note(`${t.name} ${t.page.mainFrame.url} dom ${fingerprint(normalize(doc))}`);
@@ -194,13 +183,34 @@ export async function run(
 				])
 					// (a known one once: it is told again after every action while the bug stands)
 					if (b && !(b.oracle === 'known' && broken.some((k) => k.detail.endsWith(b.detail))))
-						broken.push({ ...b, detail: `after ${describe(a)}: ${b.detail}` });
+						broken.push({ ...b, detail: `after ${what}: ${b.detail}` });
 				t.errors.length = 0;
 				t.console.length = 0;
+				t.said_by.clear();
 			}
 			since = world.network.exchanges.length;
 			const u = uncaught(world);
-			if (u) broken.push({ ...u, detail: `after ${describe(a)}: ${u.detail}` });
+			if (u) broken.push({ ...u, detail: `after ${what}: ${u.detail}` });
+		};
+		const first = world.tab(v);
+		await world.go(first, 'goto', '/');
+		// (the first document is looked at before the visitor acts: what it said is its own, judged
+		// by its own faults, not the next document's; generated-app seed 88, a cut runtime whose
+		// changed onerror text no longer read as ogygia's code)
+		look('the first load');
+		const wr = world.rng.fork('workload');
+		for (let i = 0; i < steps && i < stop_at && !broken.some((b) => b.oracle !== 'known'); i++) {
+			const a = next_action(wr, v.tabs.length, PATHS, world.deployed.length < BUILDS.length - 1);
+			actions.push(a);
+			log.note(`action ${i + 1}: ${describe(a)}`);
+			await act(world, v, a, ORIGIN);
+			// (a press changes an island's state: the document shows the visitor's own state from then
+			// on, kept across client navigations, which no fresh load has; its next document is clean.
+			// And it may change the server's (a cart, a counter a command bumps), which every other
+			// tab's document predates: seed 221, /cart-b in another tab)
+			if (a.kind === 'press' || (a.kind === 'outage' && a.during === 'press'))
+				for (const t of v.tabs) pressed.set(t.name, t.documents);
+			look(describe(a));
 			// (past its horizon the world stops: nothing after it would be a finding about the app)
 			if (world.loop.now >= world.loop.horizon)
 				broken.push({
@@ -227,7 +237,12 @@ export async function run(
 			// AT REST, every tab (a faulted one too: a failure must end a wait as surely as an
 			// answer): no machine left mid-work, and ogygia's rules hold
 			for (const t of v.tabs)
-				for (const b of [stuck(t, world), page_rules(t)])
+				for (const b of [
+					stuck(t, world),
+					page_rules(t),
+					// (and every region shows something, unless a press made the page the visitor's own)
+					pressed.get(t.name) === t.documents ? null : regions_show(t, world)
+				])
 					if (b) broken.push({ ...b, detail: `at rest: ${b.detail}` });
 			for (const t of v.tabs) {
 				// (a document a deploy failed a download of is degraded as a faulted one is: by the host.
