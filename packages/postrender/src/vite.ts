@@ -12,7 +12,7 @@
  * unless a page or a layout above it sets `config = { postrender: true }`. Kit merges `config` from
  * the layouts into the page (the page's own key wins), and so does the build that reads it.
  */
-import { definePlugin, type OgygiaPlugin } from '@ogygia/core/vite';
+import { definePlugin, type OgygiaPlugin } from '@ogygia/compiler/vite';
 import type { PostrenderServerOptions } from './server.ts';
 
 export interface PostrenderOptions {
