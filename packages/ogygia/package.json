@@ -245,7 +245,8 @@
 		"verify:package": "node ../core/scripts/verify-package.ts ."
 	},
 	"dependencies": {
-		"@ogygia/core": "workspace:*"
+		"@ogygia/core": "workspace:*",
+		"@ogygia/insights": "workspace:*"
 	},
 	"devDependencies": {
 		"@ogygia/config": "workspace:*",

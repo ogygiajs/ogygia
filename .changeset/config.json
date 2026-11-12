@@ -18,7 +18,8 @@
 			"@ogygia/cli",
 			"@ogygia/router",
 			"@ogygia/machine",
-			"@ogygia/barrels"
+			"@ogygia/barrels",
+			"@ogygia/insights"
 		]
 	],
 	"format": "auto",

@@ -12,8 +12,8 @@ import {
 	vital_parts,
 	type PageInput,
 	type RegionFact
-} from '../src/insights/page-insights.ts';
-import { without_comments, without_runtime_marks } from '../src/contract/markup-text.ts';
+} from '../src/page-insights.ts';
+import { without_comments, without_runtime_marks } from '@ogygia/core/internal/instruments';
 
 const region = (
 	fp: string,

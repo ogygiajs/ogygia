@@ -5,7 +5,7 @@
  * The beacon hears the runtime through its hooks.
  */
 import { defineClient, type ClientPlugin } from '@ogygia/core/plugin/client';
-import { devtools_switched_on } from '@ogygia/core/insights';
+import { devtools_switched_on } from '@ogygia/core/internal/instruments';
 import { install_devtools_ui } from './devtools/ui.ts';
 import {
 	watch_leftovers,

@@ -121,10 +121,6 @@
 			"types": "./dist/events/index.d.ts",
 			"default": "./src/events/index.ts"
 		},
-		"./insights": {
-			"types": "./dist/insights/index.d.ts",
-			"default": "./src/insights/index.ts"
-		},
 		"./types": {
 			"types": "./ambient.d.ts"
 		},
@@ -234,10 +230,6 @@
 			"./events": {
 				"types": "./dist/events/index.d.ts",
 				"default": "./dist/events/index.js"
-			},
-			"./insights": {
-				"types": "./dist/insights/index.d.ts",
-				"default": "./dist/insights/index.js"
 			},
 			"./internal/compiler": {
 				"types": "./dist/compiler/index.d.ts",

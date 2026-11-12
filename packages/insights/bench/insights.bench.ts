@@ -1,9 +1,9 @@
 // The page insights the devtools read from a visit: what the largest paint's download shared the
 // network with, on a long page of images below the first screen.
 import { bench } from '@bench/heisenbench/bench';
-import { lcp_rivals, type PageInput } from '../src/insights/page-insights.ts';
-import { barrel_left_fix, barrel_left_words } from '../src/insights/barrel-left.ts';
-import { BARREL_LEFT_REASONS } from '../src/contract/barrels.ts';
+import { lcp_rivals, type PageInput } from '../src/page-insights.ts';
+import { barrel_left_fix, barrel_left_words } from '../src/barrel-left.ts';
+import { BARREL_LEFT_REASONS } from '../../core/src/contract/barrels.ts';
 
 /** A visit whose hero image downloads beside `images` eager images far below the first screen
  *  (every third one a copy of another under a new query), among twice as many other files. */

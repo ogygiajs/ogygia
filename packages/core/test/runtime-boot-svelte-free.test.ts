@@ -26,7 +26,7 @@ const SRC = path.resolve(__dirname, '../src');
 const RUNTIME = path.join(SRC, 'runtime');
 // The devtools graph is imported by core but dead-code-eliminated behind `__OGYGIA_DEVTOOLS__` in a
 // production build (verified: no devtools bytes in the built runtime chunk); it is a dev instrument.
-// The event layer (`src/events`) and the switch (`src/insights/switch.ts`) the boot reaches ARE walked:
+// The event layer (`src/events`) and the switch (`src/contract/switch.ts`) the boot reaches ARE walked:
 // they live in core and must stay Svelte-free like the rest of it.
 const DEVTOOLS = path.join(SRC, 'devtools') + path.sep;
 const RUNES = new Set(['$state', '$derived', '$effect', '$props', '$inspect']);

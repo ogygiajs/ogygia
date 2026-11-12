@@ -4,7 +4,7 @@
  * where the primitives they point at live:
  *
  * - `ogygia/compiler-boundary`: inside core, the compiler side (`compiler/`, `vite/`) uses the core
- *   side only through `contract/`, `insights/` and two server services; the core side never uses
+ *   side only through `contract/` and two server services; the core side never uses
  *   the compiler side (#488).
  * - `ogygia/no-promise-cache`: async work that callers share is a `flights()` (one flight per key,
  *   a success kept, a failure never kept, work stopped when its last caller leaves). A `Map` or
@@ -528,11 +528,11 @@ const stale_whole = {
 const CORE_SRC = /(^|\/)packages\/core\/src\//;
 const COMPILER_SIDE = /^(compiler|vite)\//;
 /** What the compiler side may import from the core side, besides `contract/`. */
-const COMPILER_MAY_USE = /^(contract\/|insights\/|server\/endpoint\.ts$|server\/hmac\.ts$)/;
+const COMPILER_MAY_USE = /^(contract\/|server\/endpoint\.ts$|server\/hmac\.ts$)/;
 const MESSAGE_CORE_USES_COMPILER =
 	'The core side (contract/ included) imports the compiler side (compiler/, vite/). Move what both need into contract/ (#488).';
 const MESSAGE_COMPILER_USES_CORE =
-	'The compiler side imports the core side outside contract/, insights/, server/endpoint and server/hmac. Move what both need into contract/ (#488).';
+	'The compiler side imports the core side outside contract/, server/endpoint and server/hmac. Move what both need into contract/ (#488).';
 
 /** `spec` from `file`, relative to core's src/, or null when it is not a relative path into it. */
 function core_target(file: string, spec: string): string | null {

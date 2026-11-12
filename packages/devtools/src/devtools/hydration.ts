@@ -7,10 +7,10 @@ import { snapshot } from '@ogygia/core/events';
 import type { AttrChange } from '@ogygia/core/internal/instruments';
 import { beacon_page } from '../profiler/beacon.ts';
 import { all_regions, region_name } from './regions.ts';
-import { html_diff, type HtmlDiff } from '@ogygia/core/insights';
-import type { HydrationStatus } from '@ogygia/core/insights';
+import { html_diff, type HtmlDiff } from '@ogygia/insights';
+import type { HydrationStatus } from '@ogygia/insights';
 
-export type { HydrationStatus } from '@ogygia/core/insights';
+export type { HydrationStatus } from '@ogygia/insights';
 export const STATUS_RANK: Record<HydrationStatus, number> = {
 	failed: 0,
 	recovered: 1,

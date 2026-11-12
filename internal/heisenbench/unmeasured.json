@@ -1873,12 +1873,12 @@
 			"reason": "wraps the handle with the request's owner (a Kit request event nothing can clone); its parts are proven in packages/core/test/request-scope.test.ts"
 		},
 		{
-			"id": "packages/core/src/insights/page-assets.ts > weigh_one > Promise:0~9ee1b9 > timeout:0~e7251f",
-			"reason": "a file's budget race timer on its own scope (a fetched Response, not cloneable), constant work; run by packages/core/test/profiler-page-assets.test.ts"
+			"id": "packages/insights/src/page-assets.ts > weigh_one > Promise:0~9ee1b9 > timeout:0~e7251f",
+			"reason": "a file's budget race timer on its own scope (a fetched Response, not cloneable), constant work; run by packages/insights/test/profiler-page-assets.test.ts"
 		},
 		{
-			"id": "packages/core/src/insights/page-assets.ts > weigh_one > finally:0~4a8350",
-			"reason": "a file's budget race timer on its own scope (a fetched Response, not cloneable), constant work; run by packages/core/test/profiler-page-assets.test.ts"
+			"id": "packages/insights/src/page-assets.ts > weigh_one > finally:0~4a8350",
+			"reason": "a file's budget race timer on its own scope (a fetched Response, not cloneable), constant work; run by packages/insights/test/profiler-page-assets.test.ts"
 		},
 		{
 			"id": "packages/core/src/messages/server.ts > SERVER_WARNINGS > request_cleanup_failed > details",
@@ -3159,6 +3159,14 @@
 		{
 			"id": "packages/devtools/src/server.ts > after > transformPageChunk",
 			"reason": "SvelteKit's page transform (an async hook: not recorded): runs the inner then the outer transform, constant work of its own"
+		},
+		{
+			"id": "packages/tooling/src/e2e/packed.ts > pack_ogygia > map:0~dfb3e5",
+			"reason": "e2e tooling: one `pnpm pack` per released-together package (a child process), run once per suite by apps/palaestra/e2e/adapters.spec.ts and kit3.spec.ts"
+		},
+		{
+			"id": "packages/tooling/src/e2e/packed.ts > use_packed > map:0~59ea86",
+			"reason": "e2e tooling: one override line per released-together package (three), run once per suite by apps/palaestra/e2e/adapters.spec.ts and kit3.spec.ts"
 		},
 		{
 			"id": "packages/devtools/src/messages/runtime.ts > DEVTOOLS_WARNINGS > devtools_page_beacon_load_failed > text",

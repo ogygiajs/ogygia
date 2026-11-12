@@ -1,7 +1,8 @@
 /**
- * `ogygia/insights` — the analysis engine shared by the devtools dock, the profiler's report and
- * `@ogygia/testing`: pure functions from what the browser measured (a page visit, a recorded session)
- * to findings, plus the switch cookies and the testing engine's version they agree on.
+ * `@ogygia/insights` (`ogygia/insights`) — the analysis engine shared by the devtools dock, the
+ * profiler's report and `@ogygia/testing`: pure functions from what the browser measured (a page
+ * visit, a recorded session) to findings, and the testing engine's version. The switch cookies and the
+ * compiler's hydration hazards live in core; they are re-exported here so the three readers agree.
  */
 export {
 	analyze_page,
@@ -84,7 +85,7 @@ export {
 	hazard_fix,
 	hazard_words,
 	type IslandHazard
-} from './hydration-hazards.ts';
+} from '@ogygia/core/internal/instruments';
 export { apply_attr_rules, type AttrRule } from './attr-rules.ts';
 export {
 	barrel_left_fix,
@@ -106,5 +107,5 @@ export {
 	testing_lean,
 	without_switch,
 	write_switch
-} from './switch.ts';
+} from '@ogygia/core/internal/instruments';
 export { TESTING_ENGINE_VERSION } from './testing-version.ts';

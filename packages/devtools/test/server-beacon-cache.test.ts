@@ -1,7 +1,7 @@
 // A build's dock adds the beacon only to the documents of a browser that switched devtools on (a
 // cookie, or `?og-devtools=on`), so such a document is that browser's own: a shared cache must not keep it.
 import { afterAll, beforeAll, expect, test, vi } from 'vitest';
-import { DEVTOOLS_COOKIE, DEVTOOLS_ON, DEVTOOLS_PARAM } from '@ogygia/core/insights';
+import { DEVTOOLS_COOKIE, DEVTOOLS_ON, DEVTOOLS_PARAM } from '@ogygia/insights';
 
 // (the dock's build flags are read once, as the module loads: one copy of it, loaded as a build's)
 let server: typeof import('../src/server.ts').default;

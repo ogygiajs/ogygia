@@ -2,7 +2,7 @@
 // its report to what happened since the navigation, shifted to start there.
 import { describe, it, expect } from 'vitest';
 import { since_nav } from '../src/devtools/page.ts';
-import { analyze_page } from '@ogygia/core/insights';
+import { analyze_page } from '@ogygia/insights';
 import type { BeaconPage } from '../src/profiler/beacon.ts';
 
 const page: BeaconPage = {
