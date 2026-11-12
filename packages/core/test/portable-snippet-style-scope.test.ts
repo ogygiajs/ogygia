@@ -15,14 +15,14 @@ const ctx = {
 	readFile: () => null,
 	pathModule: path,
 	dev: false,
-	virtualPathFor: (_h: string, iid: string) => `virtual:ogygia/island/${iid}.js`,
-	wrapperPathFor: (_h: string, iid: string) => `virtual:ogygia/wrapper/${iid}.svelte`,
+	virtualPathFor: (_h: string, iid: string) => `ogygia:region/entry/${iid}.js`,
+	wrapperPathFor: (_h: string, iid: string) => `ogygia:region/wrapper/${iid}.svelte`,
 	devUrlFor: (p: string) => p,
 	visibleMargin: '200px',
 	presets: {},
 	importKeys: {},
 	idSalt: '',
-	clientBindingStub: 'virtual:ogygia/client-binding-stub',
+	clientBindingStub: 'ogygia:region/client-binding-stub',
 	routeCsr: undefined,
 	linkVirtualIsland: true
 };
@@ -49,7 +49,7 @@ const synth_of = (source: string) =>
 		.find((s?: string) => !!s && s.includes('og-scope-probe'))!;
 
 const compiled = (synth: string) =>
-	compile(synth.replace("import 'virtual:ogygia/transportables-eager';", ''), {
+	compile(synth.replace("import 'ogygia:region/transportables-eager';", ''), {
 		filename: 'entry.svelte',
 		generate: 'server'
 	});

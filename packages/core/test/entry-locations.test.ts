@@ -6,7 +6,7 @@
  * name is a shim of it. Layer by layer:
  *   build     — the driver emits by name, keeps refs, maps identity → location, writes the shims
  *   collector — every handoff map keyed by identity, the entry's own file never its own dependency
- *   handoff   — `entryLocation` reads it at render time (the server bundle is built first)
+ *   handoff   — `entry_location` reads it at render time (the server bundle is built first)
  *   server    — the one runtime bootstrap, Region's `src`, preload hints, the graph's `s` map
  * (the browser's half: test/browser/entry-location*.test.ts; the real two-build proof:
  * internal/checks/cache-bust-check.ts)
@@ -30,7 +30,7 @@ import {
 import { DocumentTail, island_graph_script } from '../src/server/document-tail.ts';
 import { entry_src, runtime_bootstrap } from '../src/server/entry-location.ts';
 import { plan_props_wire } from '../src/server/props-wire.ts';
-import { set_entry_locations, set_island_deps } from './_stubs/virtual-island-deps.ts';
+import { set_entry_locations, set_island_deps } from './_stubs/server.region-deps.ts';
 import Region from '../src/Region.svelte';
 import Tiny from './_fixtures/Tiny.svelte';
 import { Compiler, Program, CompileCtx, normalize_import_keys } from '../dist/compiler/index.js';
@@ -194,7 +194,7 @@ describe('the collector keys every map by IDENTITY, the location being a hashed 
 });
 
 // ── the handoff, read at render time ──────────────────────────────────────────────────────────────
-describe('entryLocation: the handoff read at render time', () => {
+describe('entry_location: the handoff read at render time', () => {
 	const load_module = async (src: string) => {
 		const file = path.join(
 			os.tmpdir(),
@@ -219,26 +219,28 @@ describe('entryLocation: the handoff read at render time', () => {
 				entries: { '/_app/immutable/og-region.aaaaaaaaaaaa.js': '/_app/immutable/chunks/LocA.js' }
 			})
 		);
-		expect(m.entryLocation('/_app/immutable/og-region.aaaaaaaaaaaa.js')).toBe(
+		expect(m.entry_location('/_app/immutable/og-region.aaaaaaaaaaaa.js')).toBe(
 			'/_app/immutable/chunks/LocA.js'
 		);
-		expect(m.entryLocation('/_app/immutable/og-region.ffffffffffff.js')).toBeNull();
-		expect(m.entryLocation('')).toBeNull();
+		expect(m.entry_location('/_app/immutable/og-region.ffffffffffff.js')).toBeNull();
+		expect(m.entry_location('')).toBeNull();
 	});
 	it('a handoff from before hashing (no entries), or a malformed one → null (the identity is served)', async () => {
-		expect((await load_module(with_handoff({ js: {} }))).entryLocation('/x.js')).toBeNull();
+		expect((await load_module(with_handoff({ js: {} }))).entry_location('/x.js')).toBeNull();
 		expect(
-			(await load_module(with_handoff({ entries: 'nope' }))).entryLocation('/x.js')
+			(await load_module(with_handoff({ entries: 'nope' }))).entry_location('/x.js')
 		).toBeNull();
 		expect(
-			(await load_module(with_handoff({ entries: { '/x.js': 42 } }))).entryLocation('/x.js')
+			(await load_module(with_handoff({ entries: { '/x.js': 42 } }))).entry_location('/x.js')
 		).toBeNull();
 	});
 	it('the client leg knows no location; in dev the identity is the location', async () => {
-		expect((await load_module(island_deps_module(false, false))).entryLocation('/x.js')).toBeNull();
+		expect(
+			(await load_module(island_deps_module(false, false))).entry_location('/x.js')
+		).toBeNull();
 		const dev = await load_module(island_deps_module(true, true));
-		expect(dev.entryLocation('/x.js')).toBe('/x.js');
-		expect(dev.entryLocation('')).toBeNull();
+		expect(dev.entry_location('/x.js')).toBe('/x.js');
+		expect(dev.entry_location('')).toBeNull();
 	});
 });
 

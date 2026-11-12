@@ -95,7 +95,7 @@ export interface HoleStat {
 	/** response cache max-age in seconds (0 = no-store) */
 	ttl: number;
 	count: number;
-	/** each copy by its key (runtime/hash.ts `hole_copy_key`) with its props preview — what the
+	/** each copy by its key (contract/hash.ts `hole_copy_key`) with its props preview — what the
 	 *  browser's report and the hole's requests name a copy by (at most 12) */
 	copies?: { p: string; props: string }[];
 }
@@ -144,7 +144,7 @@ export interface HoleRequestStats {
 	queue_ms?: number;
 	/** its component's name (the server manifest's): names the hole where no page row does */
 	name?: string;
-	/** which copy (runtime/hash.ts `hole_copy_key` of its props payload): copies share the id */
+	/** which copy (contract/hash.ts `hole_copy_key` of its props payload): copies share the id */
 	p?: string;
 }
 

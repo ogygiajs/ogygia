@@ -57,7 +57,7 @@ test.describe('dev: a stale-dep entry-fetch failure recovers the tab', () => {
 		});
 		// The DYNAMIC IMPORT (`?import`) of an island 404s — the stale-hash symptom. The plain fetch
 		// (the watchdog's confirm) is left alone, so the watchdog sees a live module and reloads.
-		await page.route(/virtual:ogygia\/island\/[^?]*\.js\?import/, (r) => r.abort());
+		await page.route(/ogygia:region\/entry\/[^?]*\.js\?import/, (r) => r.abort());
 
 		await page.goto(`${base}/interaction`, { waitUntil: 'networkidle' });
 		await page.locator('[data-i-btn]').click(); // wakes the interaction island → import fails

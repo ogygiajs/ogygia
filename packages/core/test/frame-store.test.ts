@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { STALE } from '@ogygia/machine';
+import { observe, STALE } from '@ogygia/machine';
 import * as frames from '../src/runtime/frame-store.ts';
 
 afterEach(() => frames._reset());
@@ -80,6 +80,69 @@ describe('frame-store: staleness', () => {
 		slow.resolve('SLOW-old'); // ticket 1 arrives late — dropped
 		expect(await pSlow).toBe('FAST-new');
 		expect(frames.peek('/r?sig=1')?.html).toBe('FAST-new');
+	});
+});
+
+describe('frame-store: every answer at an address is a move', () => {
+	/** The stored-answer moves heard while `run` writes, one line each. */
+	function moves_of(run: () => void): string[] {
+		const heard: string[] = [];
+		const off = observe((name, from, to) => {
+			if (name === 'stored-answer') heard.push(`${from.kind} -> ${to ? to.kind : 'stopped'}`);
+		});
+		try {
+			run();
+		} finally {
+			off();
+		}
+		return heard;
+	}
+
+	it('an applied answer, a newer one, and each dropped one are moves of the address’s stored answer', () => {
+		const heard = moves_of(() => {
+			frames.write({ a: '/x', v: 1, html: 'a' });
+			frames.write({ a: '/x', v: 2, html: 'b' });
+			frames.write({ a: '/x', v: 1, html: 'older request' });
+			frames.write({ a: '/x', v: 3, d: 5, html: 'c' });
+			frames.write({ a: '/x', v: 4, d: 4, html: 'older data' });
+		});
+		expect(heard).toEqual([
+			'empty -> shown',
+			'shown -> shown',
+			'shown -> kept',
+			'kept -> shown',
+			'shown -> kept'
+		]);
+		expect(frames.peek('/x')).toEqual({ v: 3, html: 'c' });
+	});
+
+	it('a dropped answer’s move names what was dropped and why, and keeps what is shown', () => {
+		const states: object[] = [];
+		const off = observe((name, _from, to) => {
+			if (name === 'stored-answer' && to) states.push(to);
+		});
+		frames.write({ a: '/y', v: 2, d: 7, html: 'shown' });
+		frames.write({ a: '/y', v: 3, d: 6, html: 'older data' });
+		frames.write({ a: '/y', v: 1, d: 7, html: 'older request' });
+		off();
+		expect(states).toEqual([
+			{ kind: 'shown', v: 2, d: 7, html: 'shown' },
+			{ kind: 'kept', v: 2, d: 7, html: 'shown', dropped: { v: 3, d: 6, why: 'older data' } },
+			{ kind: 'kept', v: 2, d: 7, html: 'shown', dropped: { v: 1, d: 7, why: 'older request' } }
+		]);
+	});
+
+	it('an address the store lets go ends its stored answer', () => {
+		vi.useFakeTimers();
+		try {
+			const heard = moves_of(() => {
+				frames.write({ a: '/gone', v: 1, html: 'x' });
+				vi.advanceTimersByTime(60_000);
+			});
+			expect(heard).toEqual(['empty -> shown', 'shown -> stopped']);
+		} finally {
+			vi.useRealTimers();
+		}
 	});
 });
 

@@ -12,7 +12,7 @@
  */
 
 import { scope } from '@ogygia/machine';
-import { find_unscoped, type UnscopedStyles } from '../unscoped-css.ts';
+import { find_unscoped, type UnscopedStyles } from '../contract/unscoped-css.ts';
 
 export type AssetKind = 'script' | 'style' | 'font' | 'image' | 'other';
 
@@ -386,7 +386,7 @@ export interface Weight {
 	imports?: string[];
 	/** its dynamic imports (resolved) — followed only where the page names them (Kit's route nodes) */
 	dynamic?: string[];
-	/** a stylesheet's unscoped fallbacks (see unscoped-css.ts) */
+	/** a stylesheet's unscoped fallbacks (see contract/unscoped-css.ts) */
 	unscoped?: UnscopedStyles[];
 	/** a font's `Vary` header (Safari refetches a font preload that varies by Origin when its
 	 *  @font-face comes late) */
