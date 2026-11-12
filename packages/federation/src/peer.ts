@@ -38,6 +38,15 @@ class AnswerInvalid extends Error {
 	}
 }
 
+/** The status a failed hop answers with, whatever read it: an answer that can't be used says its
+ *  own (502, or the peer's 503 or 504), an error a page read already threw keeps its status, and no
+ *  answer at all (down, unreachable, timed out) is a 504, as a page read's is. Test:
+ *  test/hole-peer-failure.test.ts (#937). */
+export function hop_failure_status(e: unknown): number {
+	if (e instanceof AnswerInvalid || is_http_error(e)) return e.status;
+	return 504;
+}
+
 /** What a static widget shows when its peer's answer could not be read: the page still renders. */
 const FRAGMENT_FAILED =
 	'<div data-og-fragment-failed style="border:1px dashed #dc2626;border-radius:8px;padding:1rem;color:#dc2626">This section is temporarily unavailable.</div>';
