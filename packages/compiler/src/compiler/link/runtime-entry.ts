@@ -1,3 +1,4 @@
+import { dedent } from '@ogygia/core/contract';
 import { client_realms_source, type ClientRealmFile } from './caps.ts';
 
 const HYPHEN = /-/g;
@@ -307,8 +308,16 @@ export function generateHydrateFeaturesSource(
  * - `FRAMES`: the `frames` feature is in the build — some region streams HTML (a deferred hole, a
  *   live region, a lake). Without the frame store a region's fetch has nowhere to land, so the
  *   element's fetch / apply / morph / renew path is dead code then.
+ * - `WIRE`: the `wire` feature (the codec) is in the build up front. Without it, a wake whose props
+ *   carry a live value the marks did not predict loads the codec on use (core runtime/wire-on-use.ts),
+ *   and that path is dead code in a build that has it.
  */
 export function generateRuntimeFlagsSource(marks: RuntimeMarks, all = false): string {
-	const frames = all || resolveFeatures(marks).includes('frames');
-	return `export const FRAMES = ${frames};\n`;
+	const features = resolveFeatures(marks);
+	const frames = all || features.includes('frames');
+	const wire = all || features.includes('wire');
+	return `${dedent`
+		export const FRAMES = ${frames};
+		export const WIRE = ${wire};
+	`}\n`;
 }

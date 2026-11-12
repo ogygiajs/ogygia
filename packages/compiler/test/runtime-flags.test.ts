@@ -29,6 +29,15 @@ describe('runtime flags', () => {
 		expect(flag({ complete: true, defer: ['visible'] })).toBe(true);
 	});
 
+	it('WIRE is the wire feature: off where a wake must load the codec on use', () => {
+		const wire = (marks: RuntimeMarks, all = false) =>
+			/WIRE = (true|false)/.exec(generateRuntimeFlagsSource(marks, all))![1] === 'true';
+		expect(wire({ complete: true, hydrate: ['load'] })).toBe(false);
+		expect(wire({ complete: true, hydrate: ['load'], wire: true })).toBe(true);
+		expect(wire({})).toBe(true);
+		expect(wire({ complete: true, hydrate: ['load'] }, true)).toBe(true);
+	});
+
 	it('incomplete marks and dev keep every flag on', () => {
 		expect(flag({})).toBe(true);
 		expect(flag({ complete: true, hydrate: ['load'] }, true)).toBe(true);
