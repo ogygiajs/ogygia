@@ -1,7 +1,7 @@
 // A peer's answer that is not the JSON document it should be (a byte tampered on the way, a proxy's
 // HTML error page) is a failed hop, said with a code: never an unhandled SyntaxError that turns the
 // shell's whole page into a 500. A static widget shows the boundary card in its place, a page read
-// is a 504, a mutation a 502, and a deferred hole answers empty.
+// or a mutation is a 502 (the upstream answered no document), and a deferred hole answers empty.
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { isHttpError } from '@ogygia/router';
 import { PeerHandle } from '../src/peer.ts';
@@ -32,10 +32,10 @@ describe("a peer's answer that is not its JSON document", () => {
 		expect(said(warned)).toBe(true);
 	});
 
-	it('a page read: a 504 the page handles, and the code said', async () => {
+	it('a page read: a 502 the page handles, and the code said', async () => {
 		const { dash, warned } = peer(BROKEN);
 		const e = await dash.doc('/p', '').catch((err: unknown) => err);
-		expect(isHttpError(e) && e.status).toBe(504);
+		expect(isHttpError(e) && e.status).toBe(502);
 		expect(said(warned)).toBe(true);
 	});
 

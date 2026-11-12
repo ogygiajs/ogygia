@@ -10,6 +10,7 @@ import type { RegionValue } from '@ogygia/core';
 import { htmlRegion as og_html_region } from '@ogygia/core/plugin';
 import { current_request_scope } from '@ogygia/core/internal/server';
 import { fed_app } from './app.ts';
+import { warn } from './messages.ts';
 import {
 	sign_headers,
 	child_traceparent,
@@ -23,6 +24,18 @@ import { mint_hole } from './hole.ts';
 import type { Peer, PeerConfig, RemoteDials } from './types.ts';
 
 const HOST_UNSAFE_G = /[^a-zA-Z0-9_-]/g;
+
+/** A peer's answer that is not its JSON document (`federation_peer_answer_invalid`, said once). */
+class AnswerInvalid extends Error {
+	override name = 'AnswerInvalid';
+	constructor(peer: string) {
+		super(`federation_peer_answer_invalid: '${peer}' answered no document`);
+	}
+}
+
+/** What a static widget shows when its peer's answer could not be read: the page still renders. */
+const FRAGMENT_FAILED =
+	'<div data-og-fragment-failed style="border:1px dashed #dc2626;border-radius:8px;padding:1rem;color:#dc2626">This section is temporarily unavailable.</div>';
 
 /** The one rule for what the document cache keeps, on the first fill and on every refresh: a
  *  successful answer that is not a redirect. */
@@ -183,7 +196,20 @@ export class PeerHandle implements Peer {
 		}
 		if (!res) throw last_err instanceof Error ? last_err : new Error(String(last_err));
 		if (!res.ok) throw new Error(`fragment '${widget_name}' answered ${res.status}`);
-		return (await res.json()) as WidgetDocument;
+		return this.#answer<WidgetDocument>(res);
+	}
+
+	/** A hop's answer, read as the JSON document it should be. One that does not parse (a byte
+	 *  changed on the way, a proxy's error page) is said with its code and thrown as an
+	 *  {@link AnswerInvalid}: test/peer-answer-invalid.test.ts (#929). */
+	async #answer<T>(res: Response): Promise<T> {
+		const text = await res.text();
+		try {
+			return JSON.parse(text) as T;
+		} catch {
+			warn('federation_peer_answer_invalid', { peer: this.name, url: res.url || this.origin });
+			throw new AnswerInvalid(this.name);
+		}
 	}
 
 	async page(path: string, dials: RemoteDials & { search?: string } = {}): Promise<RegionValue> {
@@ -207,7 +233,15 @@ export class PeerHandle implements Peer {
 				new URLSearchParams(props).toString(),
 				dials.claims
 			);
-		const doc = await this.widgetDoc(widget_name, props, { claims: dials.claims });
+		let doc: WidgetDocument;
+		try {
+			doc = await this.widgetDoc(widget_name, props, { claims: dials.claims });
+		} catch (e) {
+			// (said already: the page renders, the card stands in the widget's place)
+			if (e instanceof AnswerInvalid)
+				return { ...og_html_region(FRAGMENT_FAILED), html: FRAGMENT_FAILED };
+			throw e;
+		}
 		return this.#bake_static({ body: doc.html, sources: doc.sources });
 	}
 
@@ -288,7 +322,12 @@ export class PeerHandle implements Peer {
 		}
 		if (!res) throw last_err;
 		if (!res.ok && res.status !== 404) error(502, `fragment app answered ${res.status}`);
-		return (await res.json()) as FragmentDocument;
+		try {
+			return await this.#answer<FragmentDocument>(res);
+		} catch (e) {
+			if (e instanceof AnswerInvalid) error(502, 'fragment app answered no document');
+			throw e;
+		}
 	}
 
 	/** Prefix a remote fragment's own receipt tags with THIS peer's name, so the consuming page's
