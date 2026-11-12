@@ -200,7 +200,7 @@ export function routes<const T extends KeyedTable<T>>(
 		if (base) {
 			if (path === base) path = '/';
 			else if (path.startsWith(base + '/')) path = path.slice(base.length);
-			else return undefined; // not under our base → not ours
+			else return undefined;
 		}
 		path = canonical_slash(path, slash) ?? path;
 		const hit = match_path(compiled, path);
@@ -216,7 +216,7 @@ export function routes<const T extends KeyedTable<T>>(
 		if (base) {
 			if (path === base) path = '/';
 			else if (path.startsWith(base + '/')) path = path.slice(base.length);
-			else return null; // not under our base → not ours
+			else return null;
 		}
 
 		const canon = canonical_slash(path, slash);
@@ -227,8 +227,6 @@ export function routes<const T extends KeyedTable<T>>(
 			});
 
 		const hit = match_path(compiled, path);
-		// Unmatched — and `when()`-gated-off routes, which contractually DO NOT EXIST for the
-		// request: the app's 404/error page under an owned base; fall-through without one.
 		const unmatched = async (): Promise<Response | null> => {
 			if (base && opts.miss) {
 				const ctx = make_ctx({}, url, request, event, href_fn, '', opts.visitor);
@@ -244,9 +242,6 @@ export function routes<const T extends KeyedTable<T>>(
 					throw thrown;
 				}
 			}
-			// An unmatched PAGE request under an owned base renders the root error BOUNDARY as
-			// HTML with 404 — a browser hitting a dead URL deserves the app's 404 page, not JSON
-			// (the long-noted `miss answers JSON` gap). Non-HTML requests (fetch/API) keep JSON.
 			if (base && opts.error && (request.method === 'GET' || request.method === 'HEAD')) {
 				const accept = request.headers.get('accept') ?? '';
 				if (accept.includes('text/html')) {
@@ -272,27 +267,16 @@ export function routes<const T extends KeyedTable<T>>(
 				}
 			}
 			if (base) return not_found();
-			return null; // no base → fall through to the rest of the app
+			return null;
 		};
 		if (!hit) return unmatched();
 
 		const leaf = by_pattern.get(hit.pattern)!;
 		const ctx = make_ctx(hit.params, url, request, event, href_fn, hit.pattern, opts.visitor);
-		// (the flag SOURCE was primed above the page split, by the flags plugin's `request` stage, so
-		// every `flag(c)` read below stays sync)
-		// Pre-decide the table's `flags` — force their buckets into the request so a mount carries
-		// them even if no page here reads them (each read self-records for federation auto-carry).
 		if (opts.flags) for (const f of opts.flags) f(ctx);
-
-		// `when()` gate: OFF → this route does not exist for this request (the unmatched contract,
-		// verbatim). Checked AFTER the source primes, so a vendor kill switch gates whole routes,
-		// and the decision self-registers for federation carry like any other flag read.
 		if (leaf.when && !leaf.when(ctx)) return unmatched();
 
-		// `c.setHeaders` must reach the Response WE build — Kit's own setHeaders only applies to
-		// `resolve()`-built responses, and a router-rendered document bypasses resolve entirely
-		// (found when a load's Server-Timing header silently vanished). Existing headers win so a
-		// handler's explicit Response headers are never clobbered.
+		// @why Kit's setHeaders reaches only resolve()-built responses, and the router builds its own (test: packages/router/test/router-dispatch.test.ts › applies collected headers to the built response)
 		const with_collected = (res: Response): Response => {
 			if (ctx.collected_headers?.size) {
 				for (const [k, v] of ctx.collected_headers) {
@@ -303,8 +287,6 @@ export function routes<const T extends KeyedTable<T>>(
 		};
 
 		try {
-			// Table-wide load (the no-chrome guard) runs before every route, gating endpoints too. A
-			// load may return a Response to short-circuit (a guard's redirect/deny) — v1 parity.
 			if (root_load) {
 				const rl = await root_load(ctx);
 				if (rl instanceof Response) return with_collected(rl);
@@ -320,7 +302,6 @@ export function routes<const T extends KeyedTable<T>>(
 	async function render_page(node: PageDef, ctx: Ctx, method: string, url: URL): Promise<Response> {
 		const m = HEAD_AS_GET(method);
 
-		// Route input: coerce/validate path params (bad → 404) and query (bad → 400) into typed ctx.
 		if (node.params_schema) {
 			const v = await validate(node.params_schema, ctx.params);
 			if (v.issues) return not_found();
@@ -339,7 +320,7 @@ export function routes<const T extends KeyedTable<T>>(
 		if (m === 'POST') {
 			const act = pick_action(node, url);
 			if (!act) return method_not_allowed(page_allow(node));
-			const out = await act(ctx); // throws redirect/error caught by dispatch's try
+			const out = await act(ctx);
 			if (out instanceof Response) return out;
 			if (is_action_failure(out)) {
 				form = out.data;
