@@ -478,6 +478,19 @@ export const BUILD_ERRORS = {
 			renewed. Write a number, such as \`30 * 24 * 3600\` for 30 days, or \`0\` to never renew.
 		`
 	},
+	secret_in_client_chunk: {
+		text: (a: { file: string; what: string }): string => prose`
+			the client build's ${a.file} holds ${a.what}. Browsers must never be able to sign region
+			addresses: the build stops.
+		`,
+		details: (): string => prose`
+			The secret that signs region addresses, or a server module that signs with it, ended up in
+			a file the browser downloads. Usually a universal or client module imports a server-only
+			module, or reads \`OGYGIA_SECRET\` and puts it in its output. Find the import that brings it
+			into the client and move that code to a server-only file (\`+page.server.ts\`,
+			\`hooks.server.ts\`, \`$lib/server\`).
+		`
+	},
 	secret_too_short: {
 		text: (a: { min_bytes: number }): string =>
 			`OGYGIA_SECRET is too short for production builds (need ≥${a.min_bytes} UTF-8 bytes).`,

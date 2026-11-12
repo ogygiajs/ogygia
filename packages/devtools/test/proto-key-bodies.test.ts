@@ -12,7 +12,9 @@ const dev_switch = vi.hoisted(() => ({ dev: true }));
 vi.mock('../src/profiler/env.ts', () => ({ detect_dev: () => dev_switch.dev }));
 
 const PROTO_NAMES = Object.getOwnPropertyNames(Object.prototype).sort();
-const POLLUTION = '{"og_polluted":"yes","page":"/evil","key":"prof-key","islands":[]}';
+// (a production profiler opens only on a secret of 16 bytes or more)
+const SECRET = 'prof-key-0123456789';
+const POLLUTION = `{"og_polluted":"yes","page":"/evil","key":"${SECRET}","islands":[]}`;
 
 /** `value` as JSON text with `extra` as the first key of every object (`"__proto__":…` or
  *  `"constructor":{"prototype":…}`), at every depth. */
@@ -53,7 +55,7 @@ function make_event(path: string, init?: RequestInit): RequestEvent {
 	} as unknown as RequestEvent;
 }
 
-const KEY = { 'x-profiler-key': 'prof-key' };
+const KEY = { 'x-profiler-key': SECRET };
 
 describe('the beacon', () => {
 	const bodies: unknown[] = [
@@ -86,7 +88,7 @@ describe('the beacon', () => {
 	];
 
 	it('takes a `__proto__` or `constructor` key at any depth as plain data, or refuses it', async () => {
-		const handle = profiler({ secret: 'prof-key' });
+		const handle = profiler({ secret: SECRET });
 		const post = (body: string) =>
 			handle({
 				event: make_event('/__profiler/beacon', { method: 'POST', body }),
@@ -104,7 +106,7 @@ describe('the beacon', () => {
 
 describe('a report carried with the request', () => {
 	it('a dump with a `__proto__` or `constructor` key at any depth is opened as data, or refused', async () => {
-		const made = profiler({ secret: 'prof-key' });
+		const made = profiler({ secret: SECRET });
 		const rec = await made({
 			event: make_event('/__profiler/page?p=/p&runs=1&cold=0', { headers: KEY }),
 			resolve: async () => new Response('<html></html>')
@@ -118,7 +120,7 @@ describe('a report carried with the request', () => {
 		).json();
 		for (const extra of EXTRAS) {
 			// another instance each time: it never saw the report, so it opens the one carried
-			const other = profiler({ secret: 'prof-key' });
+			const other = profiler({ secret: SECRET });
 			for (const [headers, body] of [
 				[{ 'content-type': 'application/json' }, hostile(dump, extra)],
 				[
@@ -145,7 +147,7 @@ describe('the unlock', () => {
 	it('a key under `__proto__` is no key', async () => {
 		dev_switch.dev = false;
 		try {
-			const handle = profiler({ secret: 'prof-key' });
+			const handle = profiler({ secret: SECRET });
 			const unlock = (body: string) =>
 				handle({
 					event: make_event('/__profiler/login', {
@@ -158,7 +160,7 @@ describe('the unlock', () => {
 			for (const extra of EXTRAS)
 				expect((await unlock(hostile({ next: '/__profiler' }, extra))).status).toBe(401);
 			// (the right key, said plainly, still unlocks)
-			expect((await unlock(JSON.stringify({ key: 'prof-key' }))).status).toBe(200);
+			expect((await unlock(JSON.stringify({ key: SECRET }))).status).toBe(200);
 		} finally {
 			dev_switch.dev = true;
 		}
