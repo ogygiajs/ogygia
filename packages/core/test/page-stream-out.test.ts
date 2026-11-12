@@ -114,3 +114,18 @@ it('the request ending drops what is still out: a value that settles after is ne
 	expect(walked).toBe(false);
 	expect(unhandled).toEqual([]);
 });
+
+it('the request ending before a promise is streamed still handles its rejection', async () => {
+	const request = scope();
+	let fail!: (e: unknown) => void;
+	stream_page_deferred(
+		request,
+		kit_document(),
+		[{ id: 0, promise: new Promise((_, reject) => (fail = reject)) }],
+		1
+	);
+	request.close();
+	fail(new Error('a load promise that failed'));
+	await new Promise((r) => setTimeout(r, 20));
+	expect(unhandled).toEqual([]);
+});
