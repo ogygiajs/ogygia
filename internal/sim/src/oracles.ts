@@ -202,10 +202,14 @@ export const KNOWN: ReadonlyArray<{
 	},
 	{
 		issue: 891,
-		what: 'a hole that failed while offline never loads once the network is back',
-		// (a hole of the tab still shows its fallback, unanswered, where the fresh load's same hole
-		// answered: the tab's block is taken as the fresh one's)
+		what: 'a hole or an island that failed while offline never loads once the network is back',
+		// (a hole of the tab still shows its fallback, unanswered, or an island never woke, where the
+		// fresh load's same region answered or woke: the tab's block is taken as the fresh one's)
 		applies: (shown, fresh) => given_up(shown, fresh).size > 0,
+		seen: (world, tab) =>
+			world.network.exchanges.some(
+				(e) => e.from === tab.realm && (e.status === 'offline' || e.lost === true)
+			),
 		forgive: (s, other) => {
 			const gone = given_up(s, other);
 			if (gone.size === 0) return s;
@@ -245,23 +249,27 @@ function region_at(lines: string[], at: number): { text: string; end: number } |
 }
 
 /**
- * Holes of `s` still unanswered (a deferred region's opening line without `data-hydrated`) whose
- * same hole in `other` answered: each opening line, with the answered block that stands for it.
+ * Holes of `s` still unanswered and islands never woken (a deferred region's or an island's opening
+ * line without `data-hydrated`) whose same region in `other` answered or woke: each opening line,
+ * with the answered block that stands for it.
  */
 function given_up(s: string, other: string): Map<string, string> {
 	// (by the hole's id: an answer writes its endpoint back resolved, the server's relative one
-	// reads another way before it)
-	const opener = (l: string) => / data-og-hole="([^"]+)"/.exec(l)?.[1] ?? l;
+	// reads another way before it; a region with none, a peer's frame hole or an island, by its
+	// line less the mark: gens 87 and 88)
+	const opener = (l: string) =>
+		/ data-og-hole="([^"]+)"/.exec(l)?.[1] ?? l.replace(' data-hydrated=""', '');
+	const waits = (l: string) => / render="defer"| wake="/.test(l);
 	const answered = new Map<string, string>();
 	const lines = other.split('\n');
 	for (let i = 0; i < lines.length; i++) {
 		const block = region_at(lines, i);
-		if (block === null || !/ render="defer"/.test(lines[i])) continue;
+		if (block === null || !waits(lines[i])) continue;
 		if (lines[i].includes(' data-hydrated=""')) answered.set(opener(lines[i]), block.text);
 	}
 	const out = new Map<string, string>();
 	for (const line of s.split('\n')) {
-		if (line.includes(' data-hydrated=""') || !/ render="defer"/.test(line)) continue;
+		if (line.includes(' data-hydrated=""') || !waits(line)) continue;
 		const answer = answered.get(opener(line));
 		if (answer !== undefined) out.set(line, answer);
 	}
