@@ -4,6 +4,7 @@ import { content } from '../src/index.ts';
 import type { Heading, Source, SourceEntry } from '../src/index.ts';
 import { site as siteRaw } from '../src/site/site.ts';
 import { dimensions, is_dimensioned } from '../src/site/dimensions.ts';
+import { build_docs } from '../src/site/search.ts';
 import type { NavGroup, NavLeaf, NavTree } from '../src/site/types.ts';
 
 type Meta = { headings: Heading[] };
@@ -244,5 +245,13 @@ describe('dimensions — site load/entries integration (the real mount)', () => 
 		expect(slugs.has('fr/guide/c')).toBe(true); // fallback page still prerenders
 		expect(slugs.has('v1/guide/a')).toBe(true);
 		expect(slugs.has('v1/guide/b')).toBe(false); // no page, no fallback
+	});
+});
+
+describe('dimensions — search', () => {
+	it('indexes the default coordinate only: a fallback page is never a second hit', async () => {
+		const docs = await build_docs(dim());
+		expect(docs.map((d) => d.slug).sort()).toEqual(['guide/a', 'guide/b', 'guide/c']);
+		expect(docs.map((d) => d.title).sort()).toEqual(['A en', 'B en', 'C en']);
 	});
 });
