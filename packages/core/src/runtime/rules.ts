@@ -16,7 +16,7 @@
  * Each area tells this module what it holds (`note_mount`, `note_visit`, `watch_router`) only when
  * rules are on (`RULES`): every call site folds out of a build without them.
  */
-import { observe, STALE } from '@ogygia/machine';
+import { observe, STALE, trace } from '@ogygia/machine';
 import { Rules, type BrokenRule } from '../rules.ts';
 import { warn } from '../messages/core.ts';
 
@@ -172,7 +172,9 @@ function check_soon(): void {
 }
 
 /** Rules on: `globalThis.__ogygia_rules()` gives what is broken now (for e2e); in dev they are also
- *  checked after machine moves, and what broke is said with its code. */
+ *  checked after machine moves, and what broke is said with its code. `globalThis.__ogygia_moves()`
+ *  gives this document's machine moves, one line each (the last 500), for a failing e2e test to
+ *  print. */
 export function install_rules(dev: boolean): void {
 	if (installed || typeof window === 'undefined') return;
 	installed = true;
@@ -183,6 +185,8 @@ export function install_rules(dev: boolean): void {
 	(globalThis as { __og_parsed?: (f: DocumentFragment) => void }).__og_parsed = note_parse;
 	(globalThis as { __ogygia_rules?: () => BrokenRule[] }).__ogygia_rules = () =>
 		runtime_rules.broken();
+	const moves = trace();
+	(globalThis as { __ogygia_moves?: () => string }).__ogygia_moves = () => moves.text();
 	// oxlint-disable-next-line ogygia/owned-effects -- the rules' ear for failures nobody caught, installed once: it lives as long as the document
 	window.addEventListener('unhandledrejection', (event) => failure(event.reason));
 	// oxlint-disable-next-line ogygia/owned-effects -- the rules' ear for failures nobody caught, installed once: it lives as long as the document

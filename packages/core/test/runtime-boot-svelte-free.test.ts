@@ -33,7 +33,7 @@ const RUNES = new Set(['$state', '$derived', '$effect', '$props', '$inspect']);
 // Virtual modules that resolve to the APP's own code (the transport codecs from its `src/hooks.ts`):
 // arbitrary app code can import anything — in practice `ogygia` itself, and so Svelte. The boot must
 // never reach one; it is how the app's transport graph once put Svelte's runtime into `<head>`.
-const APP_CODE = new Set(['virtual:ogygia/transport']);
+const APP_CODE = new Set(['ogygia:region/transport']);
 // The workspace packages the runtime bundles in (not the app's own dependencies): their modules are
 // part of the graph like core's own, so a lazy chunk and the boot that both import one share a file.
 const BUNDLED_PACKAGES = new Map([

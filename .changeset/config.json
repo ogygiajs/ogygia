@@ -10,13 +10,15 @@
 			"@ogygia/core",
 			"@ogygia/flags",
 			"@ogygia/postrender",
+			"@ogygia/reshape",
 			"@ogygia/federation",
 			"@ogygia/content",
 			"@ogygia/devtools",
 			"@ogygia/testing",
 			"@ogygia/cli",
 			"@ogygia/router",
-			"@ogygia/machine"
+			"@ogygia/machine",
+			"@ogygia/barrels"
 		]
 	],
 	"format": "auto",

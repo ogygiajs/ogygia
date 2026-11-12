@@ -1,8 +1,8 @@
 /**
- * `virtual:ogygia/server-manifest` emitter — the SERVER islands' data the `ogygiaHandle()` handle
+ * `ogygia:server/server-manifest` emitter — the SERVER islands' data the `ogygiaHandle()` handle
  * reads (id → CSS-key url, so a server-picked (held) hole can ship its scoped CSS with its response;
  * names; render identities) and `load_islands()`, the one dynamic import of
- * `virtual:ogygia/server-islands`, which holds each island's loader. Populated in BOTH dev and build
+ * `ogygia:server/server-regions`, which holds each island's loader. Populated in BOTH dev and build
  * (unlike the client manifest, which dev fills from URLs); the client build gets empty maps. A
  * whole-program emitter: it reads the Program's descriptor registry.
  *
@@ -14,7 +14,7 @@
  * they are two away, whatever the chunking (rolldown 1.2.16 regrouped it and exposed exactly this).
  */
 import type { Program } from '../program.ts';
-import { V_SERVER_ISLANDS } from '../ids.ts';
+import { V_SERVER_REGIONS } from '../ids.ts';
 import { dedent } from '../dedent.ts';
 
 /** The SERVER-island ids the manifest carries right now (deferred / server-picked regions). */
@@ -35,12 +35,12 @@ export function server_manifest_module(
 ): string {
 	if (!ssr) {
 		return dedent`
-			export const load_islands = () => Promise.resolve({ islands: {} });
-			export const island_url = {};
-			export const island_name = {};
-			export const island_render = {};
-			export const render_island = {};
-			export const island_reads_page_data = null;
+			export const load_server_regions = () => Promise.resolve({ regions: {} });
+			export const region_url = {};
+			export const region_name = {};
+			export const region_render = {};
+			export const render_region = {};
+			export const region_reads_page_data = null;
 		`;
 	}
 	const urls: string[] = [];
@@ -74,41 +74,41 @@ export function server_manifest_module(
 	}
 	const entries = [...by_render].map(([r, iid]) => `${JSON.stringify(r)}: ${JSON.stringify(iid)}`);
 	return dedent`
-		export const load_islands = () => import(${JSON.stringify(V_SERVER_ISLANDS)});
+		export const load_server_regions = () => import(${JSON.stringify(V_SERVER_REGIONS)});
 
-		export const island_url = {
+		export const region_url = {
 			${urls.join(',\n\t')}
 		};
 
-		export const island_name = {
+		export const region_name = {
 			${names.join(',\n\t')}
 		};
 
-		export const island_render = {
+		export const region_render = {
 			${renders.join(',\n\t')}
 		};
 
-		export const render_island = {
+		export const render_region = {
 			${entries.join(',\n\t')}
 		};
 
 		// id → does the hole's SERVER tree read \`page.data\` (the page lookup a hole needs: server/
 		// render-page.ts). Known only once every module is transformed: a build patches the
 		// placeholder in renderChunk (driver \`patch_page_data_reads\`); dev leaves \`null\` (unknown → look up).
-		export const island_reads_page_data = ${is_dev ? 'null' : PAGE_DATA_READS_PLACEHOLDER};
+		export const region_reads_page_data = ${is_dev ? 'null' : PAGE_DATA_READS_PLACEHOLDER};
 	`;
 }
 
-/** `virtual:ogygia/server-islands`: each SERVER island's loader, `id → () => import(entry)` (empty on
+/** `ogygia:server/server-regions`: each SERVER island's loader, `id → () => import(entry)` (empty on
  *  the client). Imported only by the manifest's `load_islands()` — never statically. */
-export function server_islands_module(ssr: boolean, program: Program): string {
+export function server_regions_module(ssr: boolean, program: Program): string {
 	const entries: string[] = [];
 	if (ssr)
 		for (const [iid, virtualPath] of program.by_id)
 			if (program.registry.get(virtualPath)?.server)
 				entries.push(`${JSON.stringify(iid)}: () => import(${JSON.stringify(virtualPath)})`);
 	return dedent`
-		export const islands = {
+		export const regions = {
 			${entries.join(',\n\t')}
 		};
 	`;
