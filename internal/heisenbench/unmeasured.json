@@ -4843,6 +4843,26 @@
 		{
 			"id": "packages/core/src/runtime/code-origins.ts > import_code",
 			"reason": "one browser import() of a module URL (a real module load, not replayable), constant work; run by packages/core/test/browser/code-origins.test.ts and dev-region-css-import.test.ts"
+		},
+		{
+			"id": "packages/core/src/events/bus.ts > ingest_page_events",
+			"reason": "writes the devtools ring (hidden state: the page's event bus), linear in the events handed in; proven in packages/core/test/browser/devtools-feed-own-render.test.ts and side-channel-seeds.test.ts"
+		},
+		{
+			"id": "packages/core/src/events/bus.ts > push_stamped",
+			"reason": "writes the devtools ring (hidden state: the page's event bus), linear in the events handed in; proven in packages/core/test/browser/devtools-feed-own-render.test.ts and side-channel-seeds.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/router-nav.ts > adopt_mark",
+			"reason": "browser only: hands the head merge's next document to the boot's adopt_mark (one registry read), constant work; proven in packages/core/test/browser/page-facts-visit.test.ts and soft-refresh-page-on-screen.test.ts (#893)"
+		},
+		{
+			"id": "packages/core/src/runtime/response-mark.ts > adopt_mark",
+			"reason": "browser only: the live head's runtime script takes the next document's mark (two head reads, one attribute write), constant work; proven in packages/core/test/browser/page-facts-visit.test.ts and soft-refresh-page-on-screen.test.ts (#893)"
+		},
+		{
+			"id": "packages/core/src/runtime/response-mark.ts > server_channels",
+			"reason": "browser only: the devtools channels of the live document bearing its mark (a DOM query, not recorded), linear in the channels; proven in packages/core/test/browser/devtools-feed-own-render.test.ts (#893)"
 		}
 	]
 }
