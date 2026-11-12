@@ -131,27 +131,43 @@ jobs:
         name: No eval in the built output
         run: node .github/scripts/built-no-eval.ts
 
-      # Traces (retained on failure) + the html report, for a red run.
+      # Traces (retained on failure) + the html report, for a red run. Gathered by `find` (it skips
+      # node_modules and follows no links) into one folder the upload takes whole: the upload's own
+      # `**` glob walked pnpm's links through every node_modules, and a red run sat in it until the
+      # job's 30 minutes ran out.
+      - if: failure()
+        name: Gather the Playwright report
+        run: |
+          find . -name node_modules -prune -o -name .git -prune -o -type d \
+            \( -name playwright-report -o -name test-results \) -print > e2e-report.txt
+          while read -r d; do mkdir -p "e2e-report/$d" && cp -R "$d/." "e2e-report/$d/"; done < e2e-report.txt
+
       - if: failure()
         name: Upload Playwright report
+        timeout-minutes: 5
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: playwright-report-${{ inputs.id }}-${{ inputs.browser }}
-          path: |
-            **/playwright-report/
-            **/test-results/
-            !**/node_modules/**
+          path: e2e-report/
+          if-no-files-found: ignore
           retention-days: 7
 
       # On main: each suite's Playwright JSON (one per engine and shard), for the tests report
       # (.github/scripts/test-report.ts reads them; .github/workflows/tests-report.yml gathers them).
+      # Gathered the same way, for the same reason.
+      - if: always() && github.event_name != 'pull_request'
+        name: Gather the e2e results
+        run: |
+          find . -name node_modules -prune -o -name .git -prune -o -type f \
+            -path '*/playwright-results/*.json' -print > e2e-results.txt
+          while read -r f; do mkdir -p "e2e-results/$(dirname "$f")" && cp "$f" "e2e-results/$f"; done < e2e-results.txt
+
       - if: always() && github.event_name != 'pull_request'
         name: Upload the e2e results
+        timeout-minutes: 5
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: e2e-results-${{ inputs.id }}-${{ inputs.browser }}
-          path: |
-            **/playwright-results/*.json
-            !**/node_modules/**
+          path: e2e-results/
           if-no-files-found: ignore
           retention-days: 30
