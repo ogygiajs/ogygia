@@ -53,6 +53,21 @@ export function answer_key(url: URL): string {
 	return s ? `${url.pathname}?${s}` : url.pathname;
 }
 
+/** The keys ({@link answer_key}) of the holes a batch asks for: a `POST /__ogygia__` whose body is
+ *  a JSON list of hole addresses (core's runtime/frame-nav.ts); none for any other request. */
+async function batched(request: Request): Promise<string[]> {
+	const url = new URL(request.url);
+	if (request.method !== 'POST' || url.pathname !== '/__ogygia__') return [];
+	try {
+		const list: unknown = JSON.parse(await request.clone().text());
+		return Array.isArray(list)
+			? list.filter((h) => typeof h === 'string').map((h) => answer_key(new URL(h, url)))
+			: [];
+	} catch {
+		return []; // ok: not a batch (another POST to the endpoint): no hole is named
+	}
+}
+
 export interface WorldOptions {
 	seed: number;
 	/** The builds a deploy moves between: the first is live at the start. */
@@ -335,13 +350,24 @@ export class World {
 	 *  the new release's. */
 	answers_of(realm: string): ReadonlyMap<string, string> {
 		const of = new Map<string, string>();
-		for (const e of this.network.exchanges) {
+		const batches = this.#batches.filter((b) => b.from === realm);
+		let next = 0;
+		for (const [i, e] of this.network.exchanges.entries()) {
+			// (a batch's answers, in the order they came among the exchanges)
+			for (; next < batches.length && batches[next].at <= i; next++)
+				for (const k of batches[next].keys) of.set(k, batches[next].build);
 			if (e.from !== realm || e.build === undefined) continue;
 			const url = new URL(e.url);
 			if (!url.pathname.startsWith('/_app/immutable/')) of.set(answer_key(url), e.build);
 		}
+		for (; next < batches.length; next++)
+			for (const k of batches[next].keys) of.set(k, batches[next].build);
 		return of;
 	}
+
+	/** Each batch of holes a realm's document sent (`POST /__ogygia__`): the holes' keys, the build
+	 *  that answered, and how many exchanges there were by then. */
+	readonly #batches: Array<{ from: string; keys: string[]; build: string; at: number }> = [];
 
 	/** Runs `work` with every request sent to `build` (the MPA check's fresh load of an old page
 	 *  asks the build that page is of), or, for a request `answers` names, to the build that answered
@@ -457,7 +483,16 @@ export class World {
 				: { fetch: (r: Request, origin: (r: Request) => Promise<Response>) => origin(r) };
 		const key = answer_key(url);
 		return cdn.fetch(request, async (r) => {
-			const build = this.#build_for(decodeURIComponent(url.pathname), from, key);
+			// (a batch answers each hole it lists: the fresh load's batch asks the build that answered
+			// the first of them, and each is the batch's build's from now on: gen 77, seed 77025)
+			const holes = await batched(r);
+			const build = this.#build_for(
+				decodeURIComponent(url.pathname),
+				from,
+				holes.length > 0 ? holes[0] : key
+			);
+			if (holes.length > 0)
+				this.#batches.push({ from, keys: holes, build, at: this.network.exchanges.length });
 			const list = this.servers.get(build)!;
 			const answer = await list[this.rng.int(list.length)].handle(r);
 			// (a hole one build signed, refused by another's servers for its key: the deploy's doing
