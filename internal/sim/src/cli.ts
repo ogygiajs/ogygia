@@ -45,6 +45,7 @@ import {
 	page_errors,
 	page_rules,
 	regions_show,
+	server_rules,
 	stuck,
 	uncaught,
 	type Broken
@@ -250,8 +251,9 @@ export async function run(
 				t.said_by.clear();
 			}
 			since = world.network.exchanges.length;
-			const u = uncaught(world);
-			if (u) broken.push({ ...u, detail: `after ${what}: ${u.detail}` });
+			for (const u of [uncaught(world), server_rules(world)])
+				if (u && !(u.oracle === 'known' && broken.some((k) => k.detail.endsWith(u.detail))))
+					broken.push({ ...u, detail: `after ${what}: ${u.detail}` });
 		};
 		const first = world.tab(v);
 		await world.go(first, 'goto', '/');

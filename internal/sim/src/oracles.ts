@@ -1052,6 +1052,28 @@ export function uncaught(world: World): Broken | null {
 	return { oracle: 'uncaught', detail: left.join('\n') };
 }
 
+/** A server rule a filed bug breaks, as KNOWN_SAID is for what a page says. */
+const KNOWN_SERVER_RULES: ReadonlyArray<{ issue: number; what: string; said: RegExp }> = [
+	{
+		issue: 910,
+		what: "a peer's server island keeps a relative endpoint",
+		said: /^peer-\S+ rule_capability_not_path \.\/__ogygia__/
+	}
+];
+
+/** No server said one of ogygia's server rules broken (core server/rules.ts: a scope left open, a
+ *  kept failure, a region answer a shared cache may keep, a capability minted as more than a path).
+ *  Reading it takes what it read. */
+export function server_rules(world: World): Broken | null {
+	const said = [...new Set(world.server_rules)];
+	world.server_rules.length = 0;
+	if (said.length === 0) return null;
+	const known = KNOWN_SERVER_RULES.filter((k) => said.some((l) => k.said.test(l)));
+	if (said.every((l) => known.some((k) => k.said.test(l))))
+		return { oracle: 'known', detail: known.map((k) => `#${k.issue} (${k.what})`).join(', ') };
+	return { oracle: 'server-rules', detail: said.join('\n') };
+}
+
 /** A shared cache never hands one visitor's personal bytes to another (cdn.ts records each hit
  *  served across cookies; any is a finding until the oracle can compare against the origin). */
 export function no_cross_visitor_cache(world: World): Broken | null {
