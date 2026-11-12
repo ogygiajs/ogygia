@@ -185,6 +185,11 @@ const SUPPLIED = ['/wake-gate-slow.js'];
 const FAULTS: FaultClass[] = ['delay', 'reorder', 'drop', 'duplicate', 'cut', 'tamper', 'redirect'];
 
 /** FNV-1a, hex: a DOM's fingerprint in the trace. */
+/** The visitor presses a button in it (once or twice, or as an outage starts). */
+function presses(a: Action): boolean {
+	return a.kind === 'press' || a.kind === 'twice' || (a.kind === 'outage' && a.during === 'press');
+}
+
 function fingerprint(s: string): string {
 	let h = 0x811c9dc5;
 	for (let i = 0; i < s.length; i++) h = Math.imul(h ^ s.charCodeAt(i), 0x01000193);
@@ -389,11 +394,7 @@ export async function run(
 			actions.push(a);
 			log.note(`action ${i + 1}: ${describe(a)}`);
 			// (what a press or a deploy does is on purpose: each document's asks are judged up to it)
-			if (
-				a.kind === 'press' ||
-				a.kind === 'deploy' ||
-				(a.kind === 'outage' && a.during === 'press')
-			)
+			if (presses(a) || a.kind === 'deploy')
 				for (const t of v.tabs)
 					if (!disturbed.has(t.realm)) disturbed.set(t.realm, world.network.exchanges.length);
 			// (an eager press comes once the next document is in: the marks are that document's)
@@ -407,8 +408,7 @@ export async function run(
 			// on, kept across client navigations, which no fresh load has; its next document is clean.
 			// And it may change the server's (a cart, a counter a command bumps), which every other
 			// tab's document predates: seed 221, /cart-b in another tab)
-			if (a.kind === 'press' || (a.kind === 'outage' && a.during === 'press'))
-				for (const t of v.tabs) pressed.set(t.name, t.documents);
+			if (presses(a)) for (const t of v.tabs) pressed.set(t.name, t.documents);
 			look(describe(a));
 			// (past its horizon the world stops: nothing after it would be a finding about the app)
 			if (world.loop.now >= world.loop.horizon)
