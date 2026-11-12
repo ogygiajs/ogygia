@@ -11,7 +11,7 @@ with no line, or a line naming something that does not exist (`internal/checks/i
 
 ## HOLE-TRUST — signed same-origin HTML for deferred regions
 
-**What:** The runtime fetches a capability URL and inserts HTML parsed in one place (`runtime/parse-html.ts` `parse_region_html`: `setHTMLUnsafe` on a template of an inert document, so declarative shadow roots attach) and grafted or swapped in (`replaceChildren`). Scripts in that HTML do **not** run; event-handler attributes would.
+**What:** The runtime fetches a capability URL and inserts the HTML it answered. Every string becomes DOM in one module, `packages/core/src/runtime/html-sink.ts`: region HTML is parsed with `setHTMLUnsafe` into a template of a document with no browsing context (inert: nothing in it is built or run until it is inserted; declarative shadow roots attach), then grafted or swapped in (`replaceChildren`); a fetched page is parsed with `DOMParser`. The sink takes only a `VerifiedHtml`, and only its vouchers make one, each named by what it checked (a same-origin endpoint whose answer stayed same-origin, a page fetch that landed on this origin, HTML the page itself holds, an answer of the app's own remote transport). Scripts in that HTML do **not** run; event-handler attributes would.
 
 **Why:** Deferred / SWR regions are MPA-equivalent: the HTML is produced by _our_ SSR under a verified HMAC. Trust root is the **server MAC**, not the client.
 
@@ -20,9 +20,9 @@ with no line, or a line naming something that does not exist (`internal/checks/i
 - Pipe hole HTML through a generic sanitizer (DOMPurify etc.) without allowing `ogygia-region` and lake structure — it silently breaks holes.
 - Treat absolute `endpoint` URLs as a primary XSS bug; mint always emits a **path-only** URL. The client same-origin check is defense-in-depth for prior HTML injection.
 
-**Client check:** `is_allowed_region_endpoint` + final `response.url` origin. Abort in-flight fetches on disconnect.
+**Client check:** `is_allowed_region_endpoint` + final `response.url` origin, for a hole's own fetch and for a batch of holes alike; a soft refresh merges only a page that landed on this origin. Abort in-flight fetches on disconnect.
 
-**Enforced by:** `packages/compiler/test/audit-fixes.test.ts > allows same-origin relative and absolute; rejects cross-origin`
+**Enforced by:** `ogygia/html-sink`, `internal/lint/html-sink.test.ts > package source that turns a string into DOM, or casts to VerifiedHtml, is refused`, `packages/compiler/test/audit-fixes.test.ts > allows same-origin relative and absolute; rejects cross-origin`, `packages/core/test/browser/batch-same-origin.test.ts`, `packages/core/test/browser/soft-refresh-foreign-landing.test.ts`
 
 ---
 
@@ -79,13 +79,13 @@ A client build fails (`secret_in_client_chunk`) when a chunk or asset holds a si
 
 ## PROBE-THEN-RENDER — rate limit ordering
 
-**What:** Pre-HMAC probe limiter → verify MAC → render limiter → render (with process concurrency gate). The same order holds for each hole of a batch POST: every hole is probed, verified and charged on its own, and one call asked twice in a batch renders once.
+**What:** Pre-HMAC probe limiter → verify MAC → render limiter → render (with process concurrency gate). The order is a machine (`packages/core/src/server/region-request.ts`: received → prechecked → probed → verified → charged → rendering → sent, or refused) that a GET, a renewal and each hole of a batch walk, so rendering or charging the render budget before verify is an illegal move. Each hole of a batch POST is probed, verified and charged on its own, and one call asked twice in a batch renders once.
 
 **Why:** Forged floods must not burn render CPU or reveal id existence (uniform 403). A batch must not buy more renders than the same holes asked one by one.
 
 **Do not:** Charge the render budget before verify. Charge a batch once for all its holes. Trust `X-Forwarded-For` when `getClientAddress()` fails — fail closed (429).
 
-**Enforced by:** `apps/palaestra/e2e/region-rate.spec.ts > a forged flood is all 403, never 429, and a valid request still serves after it`, `packages/compiler/test/audit-fixes.test.ts > documents render-rate contract: junk must not call render limited()`
+**Enforced by:** `apps/palaestra/e2e/region-rate.spec.ts > a forged flood is all 403, never 429, and a valid request still serves after it`, `packages/compiler/test/audit-fixes.test.ts > documents render-rate contract: junk must not call render limited()`, `packages/core/test/region-request-order.test.ts`
 
 ---
 
@@ -228,6 +228,21 @@ a kept island’s live query then freezes and its next read throws (#817,
 - Skip `clear_route_csr_cache()` on dev route-topology changes — the watcher covers `+page/+layout(.server).(svelte|js|ts)`.
 
 **Enforced by:** `packages/compiler/test/route-csr.test.ts` (declaration forms × chain shapes × layout folds × cache, plus the transform strip/keep seam), `apps/palaestra/e2e/deep-csr.spec.ts` (real build of internal/repro-deep-csr, browser truth in both worlds).
+
+---
+
+## DEVTOOLS-FEED — the devtools stream takes only this response's own server channel
+
+**What:** On a devtools build, the handle picks one random mark per response (`hooks.ts` `dt_new_mark`), writes it as `data-og-dt` on its `application/ogygia-devtools` side channel and on the head runtime script (`head-presence.ts` `runtime_first`, so every head path stamps it). At boot the client ingests only channels whose mark equals the head runtime script's (`events/sinks.ts` `ingest_server_events`); no mark there means nothing is ingested. Only well-formed server events pass `ingest` (#879).
+
+**Why:** Page markup (a CMS block, an HTML field rendered raw) can carry its own channel with well-formed events. It cannot know a mark made for this response, so the dock, a trace or a sink shows only what the server recorded.
+
+**Do not:**
+
+- Ingest by type alone, or read the mark from anywhere but the head runtime script.
+- Put the mark after the tag's other attributes: a repeated attribute keeps its first value, so leading it beats a mark the markup wrote on the tag.
+
+**Enforced by:** `packages/core/test/browser/devtools-feed-own-render.test.ts` (client), `packages/core/test/head-presence.test.ts` (the mark on every placement).
 
 ---
 
