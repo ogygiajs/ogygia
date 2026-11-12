@@ -50,13 +50,14 @@ describe('fn kind (og.$ runtime half)', () => {
 		expect(() => fn_handle('test/ghost#$0', [])).toThrow(/fn_handle\("test\/ghost#\$0"\)/);
 	});
 
-	it('registry MISS + source on the wire → rebuilt from the payload (the prod fallback)', () => {
+	it('a handle travels as its tag and captures: no source rides along', () => {
 		__register_fn('test/z#$0', (p: string) => () => 'ok:' + p);
 		const payload = enc(fn_handle('test/z#$0', ['a']));
-		// a bundle that never loaded the generated module: ghost tag, but the source rides along
-		const forged = payload.replaceAll('test/z#$0', 'test/zz#$missing');
-		const revived = dec(forged) as () => string;
-		expect(revived()).toBe('ok:a');
+		expect(payload).not.toContain('ok:');
+		// a tag the decoding side's table lacks is refused (test/fn-wire-source.test.ts)
+		expect(() => dec(payload.replaceAll('test/z#$0', 'test/zz#$missing'))).toThrow(
+			/cannot revive fn "test\/zz#\$missing"/
+		);
 	});
 
 	it('registry miss + NO source → throws naming the tag', () => {

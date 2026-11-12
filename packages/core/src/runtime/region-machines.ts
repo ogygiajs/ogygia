@@ -1,4 +1,4 @@
-import { machine, type Machine } from '@ogygia/machine';
+import { machine, type Machine, type MachineGraph } from '@ogygia/machine';
 import type { IslandHandle } from './hydrate-core.ts';
 
 type HoleStates = {
@@ -6,14 +6,16 @@ type HoleStates = {
 	armed: { attempts: number };
 	fetching: { attempts: number; revalidate: boolean };
 	retrying: { attempts: number; revalidate: boolean };
+	offline: { revalidate: boolean };
 	failed: {};
 };
 
 const hole_steps = {
 	idle: ['armed', 'fetching'],
 	armed: ['idle', 'fetching'],
-	fetching: ['idle', 'retrying', 'failed'],
-	retrying: ['idle', 'armed', 'fetching', 'failed'],
+	fetching: ['idle', 'retrying', 'offline', 'failed'],
+	retrying: ['idle', 'armed', 'fetching'],
+	offline: ['idle', 'armed', 'fetching'],
 	failed: ['idle', 'armed', 'fetching']
 } as const;
 
@@ -28,10 +30,17 @@ const hole_definition = machine<HoleStates>()({
  * {@link Answer}). `idle`: not asked yet, or its fetch ended. `armed`: its `when` (and `prefetch`)
  * schedule waits; every listener a schedule arms ends when the hole leaves `armed`. `fetching`: its
  * own fetch is in flight (`revalidate`: past the browser cache). `retrying`: a fetch failed and it
- * waits to try again. `failed`: refused, or out of tries; the fallback (or the answer before)
- * stands. `attempts` counts the fetches that failed before.
+ * waits to try again. `offline`: a fetch failed for the network while the browser is offline; it
+ * asks again, with fresh tries, once the browser is back online (#891). `failed`: refused, or out of
+ * tries; the fallback (or the answer before) stands. `attempts` counts the fetches that failed
+ * before.
  */
 export type Hole = Machine<HoleStates, typeof hole_steps>;
+
+/** The hole's fetch machine as data (internal/notes/flows/holes.md draws it). */
+export function hole_graph(): MachineGraph {
+	return hole_definition.graph();
+}
 
 /** A hole's fetch machine, idle. */
 export function create_hole(): Hole {
@@ -44,10 +53,11 @@ type AnswerStates = {
 	kept: {};
 };
 
+// @why each answer is a visit of its own, a second one too, so the trace sees every answer on screen (test: test/browser/hole-lifecycle.test.ts › a hole answered twice moves once per answer, and the second answer is the one on screen)
 const answer_steps = {
 	none: ['answered', 'kept'],
-	answered: ['kept'],
-	kept: ['answered']
+	answered: ['answered', 'kept'],
+	kept: ['answered', 'kept']
 } as const;
 
 const answer_definition = machine<AnswerStates>()({
@@ -60,6 +70,11 @@ const answer_definition = machine<AnswerStates>()({
  *  in. `kept`: it answered `keepFallback()`, so the fallback stands as its answer. */
 export type Answer = Machine<AnswerStates, typeof answer_steps>;
 
+/** The hole's answer machine as data (internal/notes/flows/holes.md draws it). */
+export function answer_graph(): MachineGraph {
+	return answer_definition.graph();
+}
+
 /** A hole's answer machine: nothing on screen yet. */
 export function create_answer(): Answer {
 	return answer_definition.create();
@@ -70,14 +85,16 @@ type WakeStates = {
 	armed: {};
 	waking: {};
 	awake: {};
+	offline: { error: unknown };
 	failed: { error: unknown };
 };
 
 const wake_steps = {
-	cold: ['armed', 'waking'],
+	cold: ['armed'],
 	armed: ['cold', 'waking'],
-	waking: ['cold', 'awake', 'failed'],
+	waking: ['cold', 'awake', 'offline', 'failed'],
 	awake: ['cold'],
+	offline: ['cold', 'armed'],
 	failed: ['cold']
 } as const;
 
@@ -89,8 +106,15 @@ const wake_definition = machine<WakeStates>()({
 
 /** An island's hydration. `cold`: asleep, nothing armed. `armed`: its schedule (and the capture of
  *  early input) waits. `waking`: its module and the hydrate core load, then its hydrate step runs.
- *  `awake`: hydrated. `failed`: hydrating threw; its server markup stays as it is. */
+ *  `awake`: hydrated. `offline`: its code failed to download while the browser is offline; it wakes
+ *  again once the browser is back online, its server markup staying meanwhile (`error`: the failed
+ *  download, #891). `failed`: hydrating threw; its server markup stays as it is. */
 export type Wake = Machine<WakeStates, typeof wake_steps>;
+
+/** The wake machine's states and steps, as data (internal/notes/flows/region-wake.md draws it). */
+export function wake_graph(): MachineGraph {
+	return wake_definition.graph();
+}
 
 /** An island's wake machine, cold. */
 export function create_wake(): Wake {
@@ -102,13 +126,15 @@ type LiveStates = {
 	static: {};
 	hydrating: { module: string };
 	live: { module: string; app: IslandHandle };
+	failed: { module: string; error: unknown };
 };
 
 const live_steps = {
 	idle: ['static', 'hydrating'],
 	static: ['idle', 'hydrating'],
-	hydrating: ['idle', 'static', 'hydrating', 'live'],
-	live: ['idle', 'static', 'hydrating']
+	hydrating: ['idle', 'static', 'hydrating', 'live', 'failed'],
+	live: ['idle', 'static', 'hydrating'],
+	failed: ['idle', 'static', 'hydrating']
 } as const;
 
 const live_definition = machine<LiveStates>()({
@@ -120,7 +146,9 @@ const live_definition = machine<LiveStates>()({
 /** A live region, driven by `applyLive`. `idle`: no tick yet, or its island could not hydrate (the
  *  next tick starts over). `static`: the frame store's frames morph into it. `hydrating`: an
  *  interactive tick's HTML is in; its island loads and hydrates. `live`: its island is live; a tick
- *  of the same module pushes props, and leaving disposes it. */
+ *  of the same module pushes props, and leaving disposes it. `failed`: its island's file could not
+ *  load (said once, coded); a tick of the same module shows its HTML and loads nothing, another
+ *  module or a static tick starts afresh (#942). */
 export type Live = Machine<LiveStates, typeof live_steps>;
 
 /** A live region's machine, before its first tick. */
