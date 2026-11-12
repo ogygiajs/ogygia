@@ -2,7 +2,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { render } from 'svelte/server';
 import type { Component } from 'svelte';
-import { set_request_event_stub } from './_stubs/virtual-request-event.ts';
+import { set_request_event_stub } from './_stubs/server.request-event.ts';
 import AwakeLakeHost from './_fixtures/AwakeLakeHost.svelte';
 
 const OUTER_RE = /<ogygia-region entry="\/islands\/outer\.js" wake="load"/;
