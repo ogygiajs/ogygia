@@ -118,18 +118,27 @@ export async function run(
 	const r = rng(seed).fork('swarm');
 	// swarm testing: each run turns on its own subset of fault classes
 	const faults = FAULTS.filter(() => r.chance(0.4));
+	// and its own servers: sometimes two instances behind the front door (each request to the
+	// seed's pick), their clocks up to 5 s apart
+	const instances = r.chance(0.3) ? 2 : 1;
+	const skew = instances > 1 && r.chance(0.5) ? 5_000 : 0;
 	const world = await World.make({
 		seed,
 		builds: [{ id: 'v1', output: OUTPUT }],
 		faults: new Set(faults),
 		// (an action takes up to its 30 s budget, and a run ends at rest after it: room for all)
 		horizon: (steps + 2) * 60_000,
-		supplied: SUPPLIED
+		supplied: SUPPLIED,
+		instances,
+		skew
 	});
 	running = world;
+	world.loop.note(`servers: ${instances}, clocks up to ${skew} ms apart`);
 	const actions: Action[] = [];
 	const broken: Broken[] = [];
 	const dirty = new Set<string>();
+	/** The document each tab had when it was last pressed in (by tab name). */
+	const pressed = new Map<string, number>();
 	const leaks = new Leaks();
 	const log = world.loop;
 	try {
@@ -145,6 +154,11 @@ export async function run(
 			log.note(`action ${i + 1}: ${describe(a)}`);
 			await act(world, v, a, ORIGIN);
 			if (a.kind === 'offline') dirty.add(v.tabs[a.tab % v.tabs.length]?.name ?? '');
+			// (a press changes an island's state: the document shows the visitor's own state from then
+			// on, kept across client navigations, which no fresh load has; its next document is clean.
+			// And it may change the server's (a cart, a counter a command bumps), which every other
+			// tab's document predates: seed 221, /cart-b in another tab)
+			if (a.kind === 'press') for (const t of v.tabs) pressed.set(t.name, t.documents);
 			for (const t of v.tabs) {
 				const doc = t.page.mainFrame.document as unknown as Document;
 				log.note(`${t.name} ${t.page.mainFrame.url} dom ${fingerprint(normalize(doc))}`);
@@ -159,7 +173,7 @@ export async function run(
 					hydrates_as_sent(t, world),
 					no_foreign_html(t),
 					page_rules(t),
-					leaks.check(t)
+					leaks.check(t, pressed.get(t.name) === t.documents)
 				])
 					// (a known one once: it is told again after every action while the bug stands)
 					if (b && !(b.oracle === 'known' && broken.some((k) => k.detail.endsWith(b.detail))))
@@ -199,7 +213,7 @@ export async function run(
 				for (const b of [stuck(t), page_rules(t)])
 					if (b) broken.push({ ...b, detail: `at rest: ${b.detail}` });
 			for (const t of v.tabs) {
-				if (dirty.has(t.name) || faulted(world, t)) continue;
+				if (dirty.has(t.name) || pressed.get(t.name) === t.documents || faulted(world, t)) continue;
 				const b = await mpa_equivalent(world, v, t);
 				if (b) broken.push(b);
 			}

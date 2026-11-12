@@ -199,6 +199,14 @@ export const KNOWN: ReadonlyArray<{
 		}
 	},
 	{
+		issue: 840,
+		what: "a kept region takes the server placeholder's skip marks",
+		// (a region of the tab carries data-og-skipped, which no fresh load has)
+		applies: (shown) => / data-og-skipped=""/.test(shown),
+		forgive: (s) =>
+			s.replace(/^( *<ogygia-region .*)$/gm, (l) => l.replace(/ data-og-(skipped|opaque)=""/g, ''))
+	},
+	{
 		issue: 807,
 		what: 'a region of the page left stays after a client navigation',
 		// (the tab holds every region the fresh load has, and more; after #804, which sets
@@ -352,6 +360,19 @@ function per_render(a: string, b: string): (s: string) => string {
 			.join('\n');
 }
 
+/**
+ * A region endpoint's bookkeeping, set aside: its capability's expiry and signature (`exp`, `sig`:
+ * the time of the render, in 30-minute steps) and the page-facts part (`pv`, named once the server
+ * has seen the hole read `page.data`). The region, its build and its props (`id`, `r`, `props`,
+ * `k`) are compared. Seeds 241, 315, 457 (/context, /nested-hole).
+ */
+function bookkeeping_out(s: string): string {
+	return s.replace(/ endpoint="([^"]*)"/g, (_, url: string) => {
+		const kept = url.replace(/&(exp|sig)=[^&]*/g, '&$1=<t>').replace(/&pv=[^&]*/g, '');
+		return ` endpoint="${kept}"`;
+	});
+}
+
 /** A normalized DOM's kit-island stamps. */
 function kit_stamps(s: string): string {
 	return head_blocks(s)
@@ -440,23 +461,32 @@ export async function mpa_equivalent(
 		...live_lines(shown, view(tab.page.mainFrame.document as unknown as Document)),
 		...live_lines(loaded, view(fresh.tab.page.mainFrame.document as unknown as Document))
 	]);
-	let again = mask(loaded, live);
-	shown = mask(shown, live);
+	let again = bookkeeping_out(mask(loaded, live));
+	shown = bookkeeping_out(mask(shown, live));
 	const said = [...fresh.tab.errors, ...fresh.tab.console];
 	await world.browsers.close(fresh.visitor, fresh.tab);
 	if (first_difference(own_state_out(shown), own_state_out(again)) === '') return null;
 	// (what the server makes anew each render, a stamp, a counter, a fresh id, differs between two
 	// fresh loads as well: it is the render's, not the tab's state. A second fresh load, and what
 	// differs between the two is marked on every side: seeds 107, 188, 268, 280, 326, 340, 477)
-	const second = await fresh_load(world, v, url, 'fresh-2');
-	const render = per_render(
-		loaded,
-		view(second.tab.page.mainFrame.document as unknown as Document)
-	);
-	await world.browsers.close(second.visitor, second.tab);
-	again = own_state_out(render(again));
-	shown = own_state_out(render(shown));
-	const diff = first_difference(shown, again);
+	// (and a third, when two servers each count their own renders: two loads can meet the same
+	// count on two instances, but of three, two come from one instance; seed 221, a cart's stamp)
+	const looks = [loaded];
+	let diff = '';
+	for (const n of [2, 3]) {
+		const more = await fresh_load(world, v, url, `fresh-${n}`);
+		looks.push(view(more.tab.page.mainFrame.document as unknown as Document));
+		await world.browsers.close(more.visitor, more.tab);
+		for (const other of looks.slice(0, -1)) {
+			const render = per_render(other, looks.at(-1)!);
+			again = render(again);
+			shown = render(shown);
+		}
+		diff = first_difference(own_state_out(shown), own_state_out(again));
+		if (diff === '' || world.servers.get(world.live)!.length < 2) break;
+	}
+	again = own_state_out(again);
+	shown = own_state_out(shown);
 	if (diff === '') return null;
 	// a difference a filed bug explains is that bug, counted apart until its fix lands
 	// (in order: each judged on what the ones before it left)
@@ -561,7 +591,12 @@ export function faulted(world: World, tab: Tab, since?: number): boolean {
  *  in `/` and a click to /static.) */
 export function document_faulted(world: World, tab: Tab): boolean {
 	const own = world.network.exchanges.find((e) => e.from === tab.realm);
-	return own !== undefined && (own.tampered || own.cut);
+	if (own !== undefined && (own.tampered || own.cut)) return true;
+	// (or the page the router brought in: the last answer for its URL; seed 53, a changed byte in
+	// the /dashboard/orders HTML a client navigation swapped in)
+	const url = tab.page.mainFrame.url.split('#')[0];
+	const brought = world.network.exchanges.findLast((e) => e.from === tab.realm && e.url === url);
+	return brought !== undefined && (brought.tampered || brought.cut);
 }
 
 /** What a page may say when the network failed it: ogygia's coded reports, the network's own
@@ -665,13 +700,24 @@ export function uncaught(world: World): Broken | null {
 	const any_fault = world.browsers.visitors.some((v) => v.tabs.some((t) => faulted(world, t)));
 	const left = world.uncaught.filter((l) => !(any_fault && EXPLAINED.test(l.split('\n')[0])));
 	world.uncaught.length = 0;
-	return left.length === 0 ? null : { oracle: 'uncaught', detail: left.join('\n') };
+	if (left.length === 0) return null;
+	// (a filed bug's words reach the host too: seed 265, #817's from a press)
+	const known = KNOWN_SAID.filter((k) => left.some((l) => k.said.test(l)));
+	if (left.every((l) => known.some((k) => k.said.test(l))))
+		return { oracle: 'known', detail: known.map((k) => `#${k.issue} (${k.what})`).join(', ') };
+	return { oracle: 'uncaught', detail: left.join('\n') };
 }
 
 /** A shared cache never hands one visitor's personal bytes to another (cdn.ts records each hit
  *  served across cookies; any is a finding until the oracle can compare against the origin). */
 export function no_cross_visitor_cache(world: World): Broken | null {
-	const crossed = world.cdn.crossed.filter((c) => c.made_for !== '' || c.served_to !== '');
+	// (a file whose name carries its content's hash is the same bytes for everyone: seed 8, the
+	// runtime's chunk, made for a visitor with no cookies and served to one with a locale cookie)
+	const crossed = world.cdn.crossed.filter(
+		(c) =>
+			(c.made_for !== '' || c.served_to !== '') &&
+			!new URL(c.url).pathname.startsWith('/_app/immutable/')
+	);
 	return crossed.length === 0
 		? null
 		: {
@@ -697,8 +743,10 @@ export class Leaks {
 	readonly #samples = new Map<string, Array<Record<string, number>>>();
 	/** Each tab's last sample's key: the same key twice running is one visit. */
 	readonly #at = new Map<string, string>();
-	/** Notes `tab`'s sample now; what grew, if it has grown visit after visit. */
-	check(tab: Tab): Broken | null {
+	/** Notes `tab`'s sample now; what grew, if it has grown visit after visit. `pressed`: the
+	 *  visitor pressed in this document, so an island may hold more of their own (a list they
+	 *  added to): its elements are theirs, and only what is held (listeners, timers) is judged. */
+	check(tab: Tab, pressed = false): Broken | null {
 		const url = tab.page.mainFrame.url;
 		if (!url.startsWith('http')) return null;
 		const key = `${tab.realm} ${url.split('#')[0]}`;
@@ -727,7 +775,8 @@ export class Leaks {
 					i === 0 || s[field] - less * s.explained > run[i - 1][field] - less * run[i - 1].explained
 			);
 		let known = false;
-		for (const field of ['listeners', 'intervals', 'observers', 'head', 'elements']) {
+		const fields = ['listeners', 'intervals', 'observers', 'head', 'elements'];
+		for (const field of pressed ? fields.slice(0, -1) : fields) {
 			if (!grew(field)) continue;
 			// (head nodes a filed bug explains are set aside: if then it does not grow, it is known)
 			if ((field === 'head' || field === 'elements') && !grew(field, 1)) {

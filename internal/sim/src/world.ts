@@ -11,6 +11,7 @@ import {
 	history_by_document,
 	inert_custom_elements,
 	inert_parsed_documents,
+	modules_in_order,
 	whole_text_runs
 } from './happy.ts';
 import { Cdn } from './cdn.ts';
@@ -88,6 +89,7 @@ export class World {
 	/** Makes a world from `o` and starts its servers. */
 	static async make(o: WorldOptions): Promise<World> {
 		use_v8_modules();
+		modules_in_order();
 		inert_parsed_documents();
 		inert_custom_elements();
 		whole_text_runs();
@@ -121,11 +123,17 @@ export class World {
 		};
 		process.on('unhandledRejection', uncaught);
 		process.on('uncaughtException', uncaught);
+		// a world's servers start from nothing: what they pin on `globalThis` (an app's in-memory
+		// store, a counter a command bumps) is taken off when the world ends, so the next world in
+		// this process does not start with it (a seed's replay runs after other seeds)
+		const globals = new Set(Reflect.ownKeys(globalThis));
 		w.#restore = () => {
 			process.off('unhandledRejection', uncaught);
 			process.off('uncaughtException', uncaught);
 			globalThis.fetch = real_fetch;
 			restore();
+			for (const key of Reflect.ownKeys(globalThis))
+				if (!globals.has(key)) delete (globalThis as Record<PropertyKey, unknown>)[key];
 		};
 		await w.deploy(o.builds[0]);
 		return w;

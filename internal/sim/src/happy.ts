@@ -6,7 +6,8 @@
  * - `inert_parsed_documents`: a parsed document loads nothing.
  * - `completion_on_the_loop`: a document's `load` event and `readyState` come on virtual time.
  */
-import { HTMLLinkElement } from 'happy-dom';
+import { HTMLLinkElement, HTMLScriptElement } from 'happy-dom';
+import ECMAScriptModule from 'happy-dom/lib/module/ECMAScriptModule.js';
 import AsyncTaskManager from 'happy-dom/lib/async-task-manager/AsyncTaskManager.js';
 import BrowserFrame from 'happy-dom/lib/browser/BrowserFrame.js';
 import BrowserFrameNavigator from 'happy-dom/lib/browser/utilities/BrowserFrameNavigator.js';
@@ -157,6 +158,96 @@ export function whole_text_runs(): void {
 		plain.call(this, text);
 		const now = node?.lastChild;
 		if (now?.nodeType === 3) made.add(now);
+	};
+}
+
+/**
+ * A document's module scripts run in its order, as a browser runs them: each one its parser put in
+ * the document (not `async`) runs after the ones above it, once they have run or failed to load.
+ * happy-dom runs an inline module at once and an external one when its file comes, so an inline
+ * module ran before the runtime's module above it (/island-foreign-edit: a foreign tool edited the
+ * islands before the runtime kept their server markup). Idempotent. test/modules.test.ts.
+ */
+export function modules_in_order(): void {
+	const script = HTMLScriptElement.prototype as unknown as Record<symbol | string, unknown>;
+	if (script.__ordered) return;
+	script.__ordered = true;
+	type Entry = {
+		url: string;
+		inline: boolean;
+		started: boolean;
+		done: Promise<void>;
+		finish: () => void;
+	};
+	const queues = new WeakMap<object, Entry[]>();
+	/** The document its own parser is parsing now (what it connects is parser-inserted). */
+	let parsing: unknown = null;
+	/** The inline module being connected (happy-dom evaluates it in the same call). */
+	let current: Entry | null = null;
+	const parser = HTMLParser.prototype as unknown as {
+		parse(this: { window: { document: unknown } }, ...a: unknown[]): unknown;
+	};
+	const parse = parser.parse;
+	parser.parse = function (...a: unknown[]) {
+		const was = parsing;
+		if (a[1] === this.window.document) parsing = a[1];
+		try {
+			return parse.apply(this, a);
+		} finally {
+			parsing = was;
+		}
+	};
+	const connect = script[PropertySymbol.connectedToDocument] as (this: unknown) => unknown;
+	script[PropertySymbol.connectedToDocument] = function (this: HTMLScriptElement) {
+		const doc = this.ownerDocument;
+		if (parsing !== doc || this.getAttribute('type') !== 'module' || this.hasAttribute('async'))
+			return connect.call(this);
+		const src = this.getAttribute('src');
+		let finish = (): void => {};
+		const done = new Promise<void>((r) => (finish = r));
+		const entry: Entry = {
+			url: src === null ? '' : new URL(src, doc.location.href).href,
+			inline: src === null,
+			started: false,
+			done,
+			finish
+		};
+		const list = queues.get(doc) ?? [];
+		queues.set(doc, list);
+		list.push(entry);
+		if (src !== null) {
+			// (one that never runs, its file failed, lets the ones below it go on)
+			this.addEventListener('load', () => entry.finish(), { once: true });
+			this.addEventListener('error', () => entry.finish(), { once: true });
+			return connect.call(this);
+		}
+		current = entry;
+		try {
+			return connect.call(this);
+		} finally {
+			current = null;
+		}
+	};
+	const module = ECMAScriptModule.prototype as unknown as Record<symbol | string, unknown>;
+	const evaluate = module.evaluate as (this: unknown, ...a: unknown[]) => Promise<unknown>;
+	module.evaluate = async function (this: Record<symbol | string, unknown>, ...a: unknown[]) {
+		const doc = (this[PropertySymbol.window] as { document?: object } | undefined)?.document;
+		const list = doc === undefined ? undefined : queues.get(doc);
+		const href = String((this.url as { href?: string })?.href ?? this.url);
+		const entry =
+			list === undefined
+				? undefined
+				: current !== null && list.includes(current) && !current.started
+					? current
+					: list.find((e) => !e.inline && !e.started && e.url === href);
+		if (list === undefined || entry === undefined) return evaluate.apply(this, a);
+		entry.started = true;
+		try {
+			await Promise.all(list.slice(0, list.indexOf(entry)).map((e) => e.done));
+			return await evaluate.apply(this, a);
+		} finally {
+			entry.finish();
+		}
 	};
 }
 
