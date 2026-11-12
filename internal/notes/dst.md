@@ -351,8 +351,11 @@ the sweep before its seeds and fails the job after them when it failed.
 
 MUTATION, DAILY: dst.yml's `mutate` job (cron `43 3 * * *`) runs `src/mutate.ts` over
 `internal/sim/mutants.json` on main's code, over gens 188 (an empty island that wakes: it kills the
-repair's `> 0` mutant), 191, 192 and 193, with `--budget-min 60` (no mutant starts after an hour; the last line says
-how many it judged of the list, and when) and uploads it (`dst-mutation`). The always-on job's batch
+repair's `> 0` mutant), 191, 192, 193 and 220 (a text-only third party on a page root: it kills
+`align_to`'s last `return true` -> false), with `--budget-min 60` (no mutant starts after an hour; the last line says
+how many it judged of the list, and when) and uploads it (`dst-mutation`). Each listed mutant names
+its line's `code`, and goes on the line that holds it, so the list outlives main's lines moving
+(`test/mutate.test.ts` checks that every one applies). The always-on job's batch
 log line and summary say both numbers: steps accounted, and the latest finished mutation run's kill
 rate with its date.
 
