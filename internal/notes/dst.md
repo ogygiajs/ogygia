@@ -95,8 +95,9 @@ host fails), so no run touches the real network.
 Every seed runs twice, the second time in another worker process, and the two traces (every loop
 task, every action, each tab's URL, DOM fingerprint and what it holds, what broke) must be equal
 byte for byte: a difference is a nondeterminism leak, fixed before any finding is trusted.
-`SIM_SITES=1` labels each timer with the code that set it, to find one. `SIM_STACKS=1` puts the
-stack of each uncaught error, console warning and console error in what the page said.
+`SIM_SITES=1` labels each timer and listener with the code that set it, to find one.
+`SIM_STACKS=1` puts the stack of each uncaught error, console warning and console error in what the
+page said. `SIM_DUMP=<dir>` writes both sides of an MPA difference whole, past its first hunk.
 
 ## A run
 
@@ -118,6 +119,12 @@ one build and never deploys. How a deploy goes out is the seed's (`Rollover`): a
 (for 10 s a request reaches either build, by even odds); the old build's content-hashed files kept
 by the host or gone with it; the CDN purged or not. And whether the app set a stable
 `OGYGIA_SECRET` (most runs): without one each build signs with its own key.
+
+What is not a file (a page, a hole, an endpoint) is answered by whichever build is live when it is
+asked: a hole an old page fetches after a deploy is the new release's. The front door marks each
+answer with the build that gave it (a cached copy carries the mark), each document keeps what
+answered its requests, and the MPA check's fresh load sends each of the same requests to that
+build (`World.answers_of`, `answer_key`: path and query, less a hole's expiry and signature).
 
 A download a deploy failed is the deploy's, counted per document (`World.skewed`): a file asked of
 a build that does not have it, or a hole refused for the other build's key
@@ -141,8 +148,9 @@ live stream) breaks off (`Exchange.lost`).
 THE OUTAGE OVER, THE PAGE RECOVERS: a document only an outage touched (no other fault) is
 MPA-checked at rest like any other (`outage-recovery`): an answer it gave up on while offline is
 owed once the network is back (#891). Set aside: a document whose own load failed (the browser's
-error page, an empty document), and one a script or stylesheet of which failed to load (a browser
-never loads one again; ogygia says `runtime_load_failed`).
+error page, an empty document), one a script or stylesheet of which failed to load (a browser
+never loads one again; ogygia says `runtime_load_failed`), and one ogygia says needs a reload
+(`chunk_reload_needed`: a module's dependency failed, and the browser keeps it failed, #262).
 
 Rest waits for requests a server is still working on (a hole that renders in 3 s): its answer is
 not a loop task until it comes.
@@ -183,7 +191,10 @@ is what differs between two fresh loads: a stamp, a counter, a fresh id the serv
 render), a region hydrates the HTML the server sent (`ssr-hydrate`: no `hydration_mismatch`, no
 `hydration_discarded`), no page paints HTML another origin answered (`foreign-html`), cache
 isolation, leaks and bounded memory (a document's listeners, intervals, observers, `<head>`
-children and elements must not grow visit after visit of one URL), every wait settles (`stuck`: at
+children and elements must not grow visit after visit of one URL; for listeners, the same code
+must be what grows: ogygia's wake delegation and Svelte's event delegation are installed once per
+document, the first time a page of that kind is visited, and the leak report names what each visit
+added), every wait settles (`stuck`: at
 rest, no machine is left in a state of work under way, any state whose name ends in `ing`), the
 rules once more at rest, and the watchdog (`hung`).
 
