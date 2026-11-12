@@ -24,6 +24,7 @@ import WindowBrowserContext from 'happy-dom/lib/window/WindowBrowserContext.js';
 import HappyEventTarget from 'happy-dom/lib/event/EventTarget.js';
 import EventPhaseEnum from 'happy-dom/lib/event/EventPhaseEnum.js';
 import type { Loop, Task } from './loop.ts';
+import { stamp } from './timeline.ts';
 
 /**
  * A parsed document (`DOMParser`, a `<template>`'s content) is inert, as in a browser: it has no
@@ -256,12 +257,15 @@ function content_loaded(
 ): void {
 	const doc = window.document;
 	doc[PropertySymbol.readyState] = 'interactive';
+	stamp(window, 'domInteractive');
 	doc.dispatchEvent(new window.Event('readystatechange'));
 	void Promise.all(modules.map((m) => m.done)).then(() =>
 		window.setTimeout(() => {
 			try {
+				stamp(window, 'domContentLoadedEventStart');
 				doc.dispatchEvent(new window.Event('DOMContentLoaded', { bubbles: true }));
 			} finally {
+				stamp(window, 'domContentLoadedEventEnd');
 				window[PropertySymbol.readyStateManager].endTask(holding);
 			}
 		}, 0)
@@ -527,8 +531,13 @@ export function restore_history(frame: object, saved: SavedHistory): void {
 	saved.items.forEach((item, i) => (item[DOC] = saved.docs[i]));
 }
 
-/** What a page's main frame does as one of its navigations starts (`go`: the navigation). */
-type Starts = (frame: object, go: () => Promise<unknown>) => Promise<unknown>;
+/** What a page's main frame does as one of its navigations starts (`go`: the navigation; `type`:
+ *  how its document is reached, as its navigation timing names it). */
+type Starts = (
+	frame: object,
+	go: () => Promise<unknown>,
+	type: 'navigate' | 'reload' | 'back_forward'
+) => Promise<unknown>;
 const STARTS = new WeakMap<object, Starts>();
 
 /** `page`'s main frame's navigations start through `starts` (`navigation_starts`). */
@@ -567,7 +576,8 @@ export function navigation_starts(): void {
 					starting--;
 				}
 			};
-			return starts ? starts(o.frame, go) : go();
+			const type = step === 'navigate' ? 'navigate' : step === 'reload' ? 'reload' : 'back_forward';
+			return starts ? starts(o.frame, go, type) : go();
 		};
 	}
 }
@@ -654,7 +664,11 @@ export function window_load_events(): void {
 			event[PropertySymbol.dispatching] === true
 		)
 			return real.call(this, e);
+		// (its navigation timing: the document is complete as load starts)
+		stamp(this, 'domComplete');
+		stamp(this, 'loadEventStart');
 		const kept = at_window(this, event);
+		stamp(this, 'loadEventEnd');
 		const show = new this.Event('pageshow') as Ev;
 		Object.defineProperty(show, 'persisted', { value: false });
 		show[PropertySymbol.dispatching] = true;
