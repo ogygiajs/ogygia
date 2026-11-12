@@ -445,6 +445,14 @@
 			"reason": "browser only: ends the open form restore window (one machine move), constant work; proven in apps/palaestra/e2e/continuity.spec.ts"
 		},
 		{
+			"id": "packages/core/src/runtime/form-continuity.ts > region_names",
+			"reason": "browser only: one attribute read per region (Elements, not cloneable), linear in the page's regions, once per page left or restored; proven in packages/core/test/browser/form-restore-region-identity.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/form-continuity.ts > arm_form_restore > read_names",
+			"reason": "browser only: one query of the page's regions, then region_names; proven in packages/core/test/browser/form-restore-region-identity.test.ts"
+		},
+		{
 			"id": "packages/core/src/runtime/interaction.ts > wake > then:1 > then:1",
 			"reason": "browser only: the replay chunk failed to load again after a failed wake: reports it, constant work"
 		},
