@@ -113,8 +113,10 @@ export function is_failed_import(error: unknown): boolean {
 }
 
 /**
- * The URL a failed dynamic import names, if it names one we can load again (http(s), this origin).
- * WebKit names none: there `known`, the file the caller imported, is it (#383).
+ * The URL a failed dynamic import names, if it names one we can load again: http(s), on an origin
+ * code was already asked from, the page's own or the one of `known` (the file the caller imported:
+ * a peer's island lives on the peer's origin, #956). An origin only an error's text names is never
+ * one: a retry goes only where a first load went. WebKit names none: there `known` is it (#383).
  */
 export function failed_import_url(error: unknown, known?: string): string | null {
 	const message = error instanceof Error ? error.message : typeof error === 'string' ? error : '';
@@ -125,11 +127,20 @@ export function failed_import_url(error: unknown, known?: string): string | null
 			? known
 			: null;
 	if (named === null) return null;
+	const url = loadable(named);
+	if (url === null) return null;
+	if (typeof location !== 'undefined' && url.origin !== location.origin) {
+		const asked = own_file(known);
+		if (asked === null || new URL(asked).origin !== url.origin) return null;
+	}
+	return url.href;
+}
+
+/** `href` as an absolute http(s) URL, or `null`. */
+function loadable(href: string): URL | null {
 	try {
-		const url = new URL(named, typeof location !== 'undefined' ? location.href : undefined);
-		if (url.protocol !== 'http:' && url.protocol !== 'https:') return null;
-		if (typeof location !== 'undefined' && url.origin !== location.origin) return null;
-		return url.href;
+		const url = new URL(href, typeof location !== 'undefined' ? location.href : undefined);
+		return url.protocol === 'http:' || url.protocol === 'https:' ? url : null;
 	} catch {
 		return null;
 	}
@@ -137,12 +148,7 @@ export function failed_import_url(error: unknown, known?: string): string | null
 
 /** `known` (a caller's own file) as an absolute URL we can load again, or `null`. */
 function own_file(known: string | undefined): string | null {
-	if (known === undefined) return null;
-	try {
-		return new URL(known, typeof location !== 'undefined' ? location.href : undefined).href;
-	} catch {
-		return null;
-	}
+	return known === undefined ? null : (loadable(known)?.href ?? null);
 }
 
 /** `url` with its retry mark: a URL the module map has not seen. */
