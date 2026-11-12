@@ -67,6 +67,14 @@ export class RateLimiter {
 		return false;
 	}
 
+	/** @returns true if this IP has spent its budget for the window, charging nothing (a budget
+	 *  spent only on failures checks first, and charges with {@link limited} when one happens). */
+	over(ip: string): boolean {
+		if (this.#max <= 0) return false;
+		const b = this.#buckets.get(ip);
+		return b !== undefined && clock.mono() - b.t < this.#windowMs && b.n >= this.#max;
+	}
+
 	/** Whole seconds until `ip`'s window resets (at least 1), for a 429's `Retry-After` (#959). */
 	retry_after_s(ip: string): number {
 		const b = this.#buckets.get(ip);
