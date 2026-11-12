@@ -86,11 +86,15 @@ export class Hmac {
 	 *   URL's `r`: the component the endpoint renders, compiler/region/identity.ts `renderId`). Signing
 	 *   it lets a build that no longer has `id` (another schedule, preset or salt) answer the
 	 *   capability with its own entry for that component, and only for that component. Every current
-	 *   mint is `v2`.
+	 *   mint of a hole that does not wake is `v2`.
+	 * - `v3|id|exp|props|session|ttl|render|wakes` — the same six, plus "wakes" (the URL's `w=1`): the
+	 *   hole's component hydrates over its answer, so the endpoint renders it inside an island, as
+	 *   the hydrate does (#906). Every mint of a hole that wakes is `v3`.
 	 *
-	 * The version follows from the URL: a capability with `r` is checked as `v2`, one without as `v1`.
-	 * A `v2` MAC never verifies as `v1` (the prefix and the field count differ), so stripping `r` or
-	 * swapping it for another component breaks the signature. Empty `session`/`ttl` are still fields
+	 * The version follows from the URL: a capability with `w` is checked as `v3`, else one with `r`
+	 * as `v2`, one without either as `v1`. No version's MAC verifies as another's (the prefix and the
+	 * field count differ), so stripping `r` or `w`, adding `w`, or swapping `r` for another component
+	 * breaks the signature. Empty `session`/`ttl` are still fields
 	 * (prerender / unbound / no-store) — never optional concat. `ttl` is the response cache max-age in
 	 * seconds (`''` = no-store); signing it keeps a harvested URL from being re-pointed at a longer
 	 * browser cache.
@@ -101,9 +105,11 @@ export class Hmac {
 		props: string,
 		session = '',
 		ttl: number | string = '',
-		render = ''
+		render = '',
+		wakes = ''
 	): string {
 		const v1 = `${lp(String(id))}|${lp(String(exp))}|${lp(String(props))}|${lp(String(session))}|${lp(String(ttl))}`;
+		if (wakes !== '') return `v3|${v1}|${lp(String(render))}|${lp(String(wakes))}`;
 		return render === '' ? `v1|${v1}` : `v2|${v1}|${lp(String(render))}`;
 	}
 }
