@@ -20,7 +20,6 @@ import {
 	OGYGIA_RUNTIME,
 	tag_name,
 	text_of,
-	value_at,
 	type FoundTag
 } from '@ogygia/core/internal/server';
 import { cache } from '@ogygia/machine';
@@ -434,10 +433,7 @@ export function child_traceparent(incoming?: string | null): {
 
 // ── asset absolutizing ───────────────────────────────────────────────────────────────────────
 const ABSOLUTE_RE = /^[a-z][a-z0-9+.-]*:|^\/\//i;
-/** An attribute that holds an asset ref (its name in lower case): `entry`, `endpoint`, `href`,
- *  `src`, or a name ending in one after a non-word character (`data-src`, `xlink:href`). */
-const ASSET_ATTR_NAME = /(?:^|[^a-z0-9_])(?:entry|endpoint|href|src)$/;
-// (those names in any case: where an asset ref can be; a tag without one is not read)
+// (the asset attributes' names in any case (`asset_suffix`) in any case: where an asset ref can be; a tag without one is not read)
 const ASSET_ATTR_ANY_CASE = /entry|endpoint|href|src/gi;
 const ASSET_PATH_RE = /(?:^|\/)(_app|og)\//;
 const ASSET_EXT_RE = /\.(js|css|woff2?)(\?|$)/;
@@ -489,7 +485,9 @@ function pin_endpoint(value: string, origin: string): string {
 }
 
 /** Where the asset name (`entry`, `endpoint`, `href`, `src`, in any ASCII case) that ends
- *  `html[ns, ne)`, an attribute's name as written, starts, or -1. */
+ *  `html[ns, ne)`, an attribute's name as written, starts, or -1. An attribute holds an asset ref
+ *  when its name is one, or ends in one after a character no word holds (`data-src`,
+ *  `xlink:href`). */
 function asset_suffix(html: string, ns: number, ne: number): number {
 	// (told apart by their last letter: most names are out there)
 	switch (html.charCodeAt(ne - 1) | 32) {
@@ -506,7 +504,8 @@ function asset_suffix(html: string, ns: number, ne: number): number {
 	}
 }
 
-/** Are `html[a, a_end)` and `html[b, b_end)` one ASCII name, in any case? */
+/** Are `html[a, a_end)` and `html[b, b_end)` one name as the browser keeps it (ASCII letters in any
+ *  case, the rest as written)? */
 function same_name(html: string, a: number, a_end: number, b: number, b_end: number): boolean {
 	if (a_end - a !== b_end - b) return false;
 	for (; a < a_end; a++, b++) {
@@ -545,18 +544,11 @@ export function absolutize(html: string, origin: string): string {
 	let pos = 0;
 	/** the asset names this tag has had, as spans (a repeat is not the attribute: the first is) */
 	const seen: number[] = [];
-	/** a name past ASCII: the tag is read again by `pin_tag` */
-	let past_ascii = false;
 	const pin_value = (ns: number, ne: number, vs: number, ve: number): void => {
-		if (past_ascii) return;
 		const suffix = asset_suffix(html, ns, ne);
 		if (suffix === -1) return;
-		for (let k = ns; k < ne; k++)
-			if (html.charCodeAt(k) > 127) {
-				past_ascii = true;
-				return;
-			}
-		// (the asset name is the whole name, or follows a character no word holds: `data-src`)
+		// (the asset name is the whole name, or follows a character no word holds: `data-src`; one
+		// past ASCII is none, as the browser keeps it as written, #1115)
 		if (suffix > ns) {
 			let c = html.charCodeAt(suffix - 1);
 			if (c >= 65 && c <= 90) c += 32;
@@ -572,22 +564,6 @@ export function absolutize(html: string, origin: string): string {
 		out += html.slice(pos, vs) + pinned;
 		pos = ve;
 	};
-	/** A tag with a name past ASCII, read as its `attrs` map reads it (names in Unicode lower case,
-	 *  each value found again by `value_at`). */
-	const pin_tag = (t: FoundTag): void => {
-		const tag = tag_name(html, t);
-		for (const [name, value] of t.attrs) {
-			if (value === '' || !ASSET_ATTR_NAME.test(name)) continue;
-			const pinned = name.endsWith('endpoint')
-				? pin_endpoint(value, origin)
-				: pin_asset(value, origin);
-			if (pinned === value) continue;
-			const at = value_at(html, t, tag, name);
-			if (at === -1) continue;
-			out += html.slice(pos, at) + pinned;
-			pos = at + value.length;
-		}
-	};
 	let graphs_done = graphs.gone;
 	for (let i = 0; ;) {
 		// (each tag's attributes are pinned as the walk reads them, first to last; a tag the input
@@ -595,13 +571,11 @@ export function absolutize(html: string, origin: string): string {
 		const out_before = out;
 		const pos_before = pos;
 		seen.length = 0;
-		past_ascii = false;
 		const t = next_any_tag(html, i, pin_value);
-		if (t === null || past_ascii) {
+		if (t === null) {
 			out = out_before;
 			pos = pos_before;
-			if (t === null) break;
-			pin_tag(t);
+			break;
 		}
 		i = t.next;
 		if (graphs_done) continue;

@@ -8,8 +8,9 @@
  * walk HTML, so the two never share a chunk the boot has to fetch (palaestra e2e/lazy-chunks.spec.ts).
  */
 
-/** One tag `tags()` found: where it starts and ends in the HTML, and its attributes (names in
- *  lower case, a bare attribute's value `''`). `attr(name)` reads one attribute without building
+/** One tag `tags()` found: where it starts and ends in the HTML, and its attributes (names as the
+ *  browser keeps them: ASCII letters in lower case, the rest as written; a bare attribute's value
+ *  `''`). `attr(name)` reads one attribute without building
  *  `attrs`; `attrs` is read once, on first use. */
 export interface FoundTag {
 	readonly start: number;
@@ -53,6 +54,17 @@ function name_end(html: string, from: number): number {
 		if (c === 62 || c === 47 || c === 32 || c === 9 || c === 10 || c === 12 || c === 13 || c !== c)
 			return j;
 	}
+}
+
+/** `html[from, to)`, a tag or attribute name, as the browser keeps it: its ASCII letters in lower
+ *  case, every other character as written (`toLowerCase()` would fold `Ä` too, #1115). */
+function name_of(html: string, from: number, to: number): string {
+	const name = html.slice(from, to);
+	for (let k = from; k < to; k++) {
+		const c = html.charCodeAt(k);
+		if (c >= 65 && c <= 90) return name.replace(/[A-Z]+/g, (up) => up.toLowerCase());
+	}
+	return name;
 }
 
 /** Is `html[from, to)` the lower-case ASCII `name`, in any case? */
@@ -266,7 +278,7 @@ class Tag implements FoundTag {
 		const all = new Map<string, string>();
 		const html = this.#html;
 		read_attrs(html, this.#after, (ns, ne, vs, ve) => {
-			const name = html.slice(ns, ne).toLowerCase();
+			const name = name_of(html, ns, ne);
 			if (!all.has(name)) all.set(name, html.slice(vs, ve));
 		});
 		return (this.#all = all);
@@ -494,9 +506,9 @@ export function next_any_tag(
 	return null;
 }
 
-/** The name of `tag`, a start tag of `html`, in lower case. */
+/** The name of `tag`, a start tag of `html`, as the browser keeps it (ASCII in lower case). */
 export function tag_name(html: string, tag: FoundTag): string {
-	return html.slice(tag.start + 1, name_end(html, tag.start + 1)).toLowerCase();
+	return name_of(html, tag.start + 1, name_end(html, tag.start + 1));
 }
 
 /** Where a marker's text sits in `html`, read forward with the tags of one walk: a tag whose span
