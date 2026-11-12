@@ -119,6 +119,8 @@ export function cache<K, V>(o: CacheOptions<K, V>): Cache<K, V> {
 	const name = o.name ?? 'cache';
 	const weigh = o.weigh;
 	const on_evict = o.onEvict;
+	/** Whether anyone hears a value go (no notice is queued for none). */
+	const noticed = on_evict !== undefined;
 	const in_use = o.pinned;
 	const world = o.world as World<unknown> | undefined;
 	/** Least recently used first. */
@@ -140,12 +142,16 @@ export function cache<K, V>(o: CacheOptions<K, V>): Cache<K, V> {
 
 	/** Lets every value past its age go (but `except`'s, which a set is replacing). */
 	const sweep = (now: number, except?: K): void => {
-		for (const [key, h] of held) {
-			if (h.until > now || (except !== undefined && key === except)) continue;
+		// (each entry read by index, not taken apart: the walk is over every value)
+		for (const e of held) {
+			const h = e[1];
+			if (h.until > now) continue;
+			const key = e[0];
+			if (except !== undefined && key === except) continue;
 			held.delete(key);
 			if (key === newest) newest = NO_KEY;
 			weight_now -= h.weight;
-			due.push([key, h.value, 'age']);
+			if (noticed) due.push([key, h.value, 'age']);
 		}
 	};
 
@@ -173,7 +179,7 @@ export function cache<K, V>(o: CacheOptions<K, V>): Cache<K, V> {
 			held.delete(k);
 			if (k === newest) newest = NO_KEY;
 			weight_now -= h.weight;
-			due.push([k, h.value, 'size']);
+			if (noticed) due.push([k, h.value, 'size']);
 		}
 		return true;
 	};
@@ -205,7 +211,7 @@ export function cache<K, V>(o: CacheOptions<K, V>): Cache<K, V> {
 	};
 
 	const let_all_go = (why: EvictWhy): void => {
-		for (const [key, h] of held) due.push([key, h.value, why]);
+		if (noticed) for (const [key, h] of held) due.push([key, h.value, why]);
 		held.clear();
 		newest = NO_KEY;
 		weight_now = 0;
@@ -296,7 +302,7 @@ export function cache<K, V>(o: CacheOptions<K, V>): Cache<K, V> {
 				if (key !== newest) held.delete(key);
 				weight_now -= old.weight;
 				// (a replace, whatever the old value's age: the key goes on holding a value)
-				due.push([key, old.value, 'delete']);
+				if (noticed) due.push([key, old.value, 'delete']);
 			}
 			const until = ms === Infinity ? Infinity : now + ms;
 			newest_h = { value, weight, until, stamp };
@@ -315,7 +321,7 @@ export function cache<K, V>(o: CacheOptions<K, V>): Cache<K, V> {
 			held.delete(key);
 			if (key === newest) newest = NO_KEY;
 			weight_now -= h.weight;
-			due.push([key, h.value, 'delete']);
+			if (noticed) due.push([key, h.value, 'delete']);
 			tell();
 			return true;
 		},
