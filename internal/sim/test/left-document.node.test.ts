@@ -45,4 +45,36 @@ describe.skipIf(!built)('a document the tab has left', () => {
 			await world.end();
 		}
 	});
+
+	it("says nothing of an import its unload failed, a classic script's or a module's", async () => {
+		// (Kit's boot imports its entry files with no catch; the tab went back while one stalled, the
+		// unload failed the import, and the left page's rejection reached the host as the run's
+		// uncaught error: palaestra seed 20004, /csr-chrome/kit)
+		const world = await World.make({
+			seed: 1,
+			builds: [{ id: 'v1', output: OUTPUT }],
+			faults: new Set(['stall']),
+			rates: { stall: 1 }
+		});
+		try {
+			const tab = world.tab(world.visitor('v'));
+			await world.go(tab, 'goto', '/');
+			await world.quiesce();
+			const doc = tab.page.mainFrame.document as unknown as Document;
+			for (const type of ['', 'module']) {
+				const s = doc.createElement('script');
+				if (type) s.type = type;
+				s.textContent = `import('/_app/immutable/left-${type || 'classic'}.js')`;
+				doc.body.append(s);
+			}
+			await world.loop.run(50);
+			await world.go(tab, 'goto', '/about');
+			expect(tab.documents).toBe(2);
+			await world.loop.run(60_000);
+			await world.quiesce();
+			expect(world.uncaught).toEqual([]);
+		} finally {
+			await world.end();
+		}
+	});
 });

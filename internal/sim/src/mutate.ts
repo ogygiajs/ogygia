@@ -34,8 +34,11 @@ export interface Mutant {
 	readonly id?: string;
 	/** From the repo root: `packages/<pkg>/src/...`. */
 	readonly file: string;
-	/** 1-based. */
+	/** 1-based. With `code`, where to start looking. */
 	readonly line: number;
+	/** The line's own code (trimmed): the mutant goes on the line that holds it, the nearest to
+	 *  `line` of several, so a list outlives its file's lines moving. */
+	readonly code?: string;
 	readonly operator: string;
 	/** The text it changes on its line (the first match), and what to; else the operator's own. */
 	readonly from?: string;
@@ -70,11 +73,21 @@ const OPERATORS: Record<string, ReadonlyArray<readonly [string | RegExp, string]
 	]
 };
 
+/** The index of the line holding `m.code`, the nearest to `m.line` of several. Throws when none does. */
+function line_of(lines: readonly string[], m: Mutant): number {
+	let best = -1;
+	for (const [i, l] of lines.entries())
+		if (l.trim() === m.code && (best < 0 || Math.abs(i + 1 - m.line) < Math.abs(best + 1 - m.line)))
+			best = i;
+	if (best < 0) throw new Error(`${name(m)}: no line holds ${m.code}`);
+	return best;
+}
+
 /** `text` with `m` applied: its line's first match of its text changed. Throws when it does not
  *  apply, so a mutant that changes nothing is never judged. */
 export function apply_mutant(text: string, m: Mutant): string {
 	const lines = text.split('\n');
-	const at = m.line - 1;
+	const at = m.code === undefined ? m.line - 1 : line_of(lines, m);
 	const line = lines[at];
 	if (line === undefined) throw new Error(`${name(m)}: no line ${m.line}`);
 	const pairs: ReadonlyArray<readonly [string | RegExp, string]> =
