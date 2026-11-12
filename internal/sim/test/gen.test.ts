@@ -9,6 +9,7 @@ import {
 	layout_plan,
 	peer_plan,
 	plan,
+	router_plan,
 	write,
 	write_peer,
 	type GenNode,
@@ -368,6 +369,27 @@ describe('the random app', () => {
 		} finally {
 			rmSync(app, { recursive: true, force: true });
 		}
+	});
+
+	it("draws an app without the router for some seeds, from its own stream: plan.json says so and the app's vite config reads it", () => {
+		const seeds = Array.from({ length: 30 }, (_, i) => i + 1);
+		expect(seeds.some((s) => router_plan(s))).toBe(true);
+		expect(seeds.some((s) => !router_plan(s))).toBe(true);
+		const seed = seeds.find((s) => !router_plan(s))!;
+		const app = mkdtempSync(join(tmpdir(), 'sim-gen-'));
+		try {
+			write(app, plan(seed), seed, null, null, false);
+			const written = JSON.parse(readFileSync(join(app, 'src', 'lib', 'gen', 'plan.json'), 'utf8'));
+			expect(written.router).toBe(false);
+		} finally {
+			rmSync(app, { recursive: true, force: true });
+		}
+		const config = readFileSync(
+			join(import.meta.dirname, '../../../apps/sim-gen/vite.config.ts'),
+			'utf8'
+		);
+		expect(config).toContain("'src/lib/gen/plan.json'");
+		expect(config).toContain('router: plan.router !== false');
 	});
 
 	it('draws a hero image on some pages, from its own stream: the critical wait has a resource to wait for', () => {
