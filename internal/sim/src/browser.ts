@@ -11,6 +11,7 @@
  */
 import { Browser, type BrowserPage, type BrowserWindow } from 'happy-dom';
 import CookieStringUtility from 'happy-dom/lib/cookie/urilities/CookieStringUtility.js';
+import * as PropertySymbol from 'happy-dom/lib/PropertySymbol.js';
 import WindowBrowserContext from 'happy-dom/lib/window/WindowBrowserContext.js';
 import type { Loop } from './loop.ts';
 import type { Network } from './network.ts';
@@ -158,6 +159,12 @@ export class Browsers {
 								const cookies = jar.cookieContainer.getCookies(url, false);
 								if (cookies.length > 0)
 									headers.set('cookie', CookieStringUtility.cookiesToString(cookies));
+								// the page it came from, by the request's policy (happy-dom works it out before
+								// the interceptor and adds the header after it: test/referer.test.ts)
+								const referrer = (request as unknown as Record<symbol, unknown>)[
+									PropertySymbol.referrer
+								];
+								if (referrer instanceof URL) headers.set('referer', referrer.href);
 								// a browser sends its document's origin with every request that is not a GET
 								// or HEAD (happy-dom does not; Kit refuses a remote call without it: 403)
 								if (method !== 'GET' && method !== 'HEAD' && !headers.has('origin'))
