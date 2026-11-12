@@ -83,6 +83,17 @@ const RAW_TEXT = [
 function raw_name(html: string, from: number, to: number): string | null {
 	const len = to - from;
 	if (len < 3 || len > 9) return null;
+	// (only s, t, x, i, n and p start one: most names are out at their first letter)
+	const first = html.charCodeAt(from) | 32;
+	if (
+		first !== 115 &&
+		first !== 116 &&
+		first !== 120 &&
+		first !== 105 &&
+		first !== 110 &&
+		first !== 112
+	)
+		return null;
 	for (const r of RAW_TEXT) if (name_is(html, from, to, r)) return r;
 	return null;
 }
@@ -211,6 +222,70 @@ function read_attrs(html: string, j: number, sink: AttrSink | null): number {
 	}
 }
 
+/**
+ * Where a tag whose attributes start at `j` ends: `read_attrs(html, j, null)`, by jumps (#1037). Only
+ * a quoted value can hold a `>`, and a value starts only at an `=` that follows a name: so from each
+ * attribute boundary the next `=` and `>` are found by search, and the text between, names and bare
+ * attributes, is never stepped through. An `=` is a name's first character (not a value's start)
+ * when nothing but whitespace stands between it and the boundary, or a `/` does just before it.
+ * Pinned to `read_attrs` by test/markup-walk-twin.test.ts.
+ */
+/** The last `=` search: `indexOf('=', from)` of `html` was `at`. A walk goes forward, and a tag with
+ *  no `=` would search far past its own `>`: the next search from a later point reuses the answer
+ *  while it still lies ahead (or there is none). */
+const EQ = { html: '', from: 0, at: -1 };
+
+/** `html.indexOf('=', j)`, the last answer reused when it holds. */
+function next_eq(html: string, j: number): number {
+	if (html === EQ.html && j >= EQ.from && (EQ.at === -1 || EQ.at >= j)) return EQ.at;
+	EQ.html = html;
+	EQ.from = j;
+	return (EQ.at = html.indexOf('=', j));
+}
+
+function tag_end(html: string, j: number): number {
+	const n = html.length;
+	// (`bound`: where the attributes being read began, after the tag's name or the last value)
+	let bound = j;
+	for (;;) {
+		const gt = html.indexOf('>', j);
+		if (gt === -1) return -1;
+		const eq = next_eq(html, j);
+		if (eq === -1 || eq > gt) return gt + 1;
+		let p = eq - 1;
+		while (p >= bound && is_space(html.charCodeAt(p))) p--;
+		if (p < bound || html.charCodeAt(p) === 47) {
+			// (a name that starts with `=`: the `=` is its first character, so the next `=` after it
+			// ends it as any name)
+			bound = eq;
+			j = eq + 1;
+			continue;
+		}
+		// a value: quoted, it may hold `>`; unquoted, it runs to whitespace or `>`
+		j = eq + 1;
+		let c = html.charCodeAt(j);
+		while (c <= 32 && is_space(c)) c = html.charCodeAt(++j);
+		if (j >= n) return -1;
+		if (c === 34 || c === 39) {
+			const close = html.indexOf(c === 34 ? '"' : "'", j + 1);
+			if (close === -1) return -1;
+			j = close + 1;
+		} else {
+			for (; j < n; j++) {
+				c = html.charCodeAt(j);
+				if (c === 62 || (c <= 32 && is_space(c))) break;
+			}
+		}
+		bound = j;
+	}
+}
+
+/** TEST: `tag_end` and the step-by-step read it must agree with (test/markup-walk-twin.test.ts). */
+export const __tag_end_twin = {
+	jumps: tag_end,
+	steps: (html: string, j: number): number => read_attrs(html, j, null)
+};
+
 class Tag implements FoundTag {
 	readonly start: number;
 	readonly end: number;
@@ -302,7 +377,7 @@ function step(html: string, i: number): boolean {
 			const d = html.charCodeAt(lt + 2);
 			if (is_letter(d)) {
 				const ne = name_end(html, lt + 3);
-				const end = read_attrs(html, ne, null);
+				const end = tag_end(html, ne);
 				if (end === -1) return false;
 				TOKEN.kind = 2;
 				TOKEN.lt = lt;
@@ -325,7 +400,7 @@ function step(html: string, i: number): boolean {
 			continue;
 		}
 		const ne = name_end(html, lt + 2);
-		const end = read_attrs(html, ne, null);
+		const end = tag_end(html, ne);
 		if (end === -1) return false;
 		TOKEN.kind = 1;
 		TOKEN.lt = lt;
@@ -361,8 +436,14 @@ export function value_at(html: string, tag: FoundTag, name: string, attr: string
 
 /** The start tag whose name ends at `after` (its `<` at `lt`), up to its `>`. Null when the HTML
  *  ends inside it (an unclosed tag or quoted value), as a browser drops it. */
-export function read_tag(html: string, lt: number, after: number): FoundTag | null {
-	const end = read_attrs(html, after, null);
+export function read_tag(
+	html: string,
+	lt: number,
+	after: number,
+	/** just past its `>`, when the walk already read it (`TOKEN.end`): not read again */
+	known_end = -1
+): FoundTag | null {
+	const end = known_end === -1 ? tag_end(html, after) : known_end;
 	if (end === -1) return null;
 	const raw = raw_name(html, lt + 1, after);
 	let next = end;
@@ -384,7 +465,8 @@ export function next_tag(html: string, name: string, from: number): FoundTag | n
 			i = TOKEN.end;
 			continue;
 		}
-		if (name_is(html, TOKEN.ns, TOKEN.ne, name)) return read_tag(html, TOKEN.lt, TOKEN.ne);
+		if (name_is(html, TOKEN.ns, TOKEN.ne, name))
+			return read_tag(html, TOKEN.lt, TOKEN.ne, TOKEN.end);
 		i = after_start(html);
 		if (i === -1) return null;
 	}
@@ -408,7 +490,7 @@ export function next_open_or_close(
 			continue;
 		}
 		if (name_is(html, TOKEN.ns, TOKEN.ne, name)) {
-			const tag = read_tag(html, TOKEN.lt, TOKEN.ne);
+			const tag = read_tag(html, TOKEN.lt, TOKEN.ne, TOKEN.end);
 			return tag === null ? null : { tag };
 		}
 		i = after_start(html);
@@ -423,23 +505,24 @@ export function* tags(html: string, name: string, from = 0): Generator<FoundTag>
 	for (let t = next_tag(html, name, from); t !== null; t = next_tag(html, name, t.next)) yield t;
 }
 
-/** The first start tag of any name in `html` from `from` (as `next_tag` reads one), with its name in
- *  lower case, or null: for a rewrite that reads every tag (federation's asset pinning). */
-export function next_any_tag(
-	html: string,
-	from: number
-): { readonly name: string; readonly tag: FoundTag } | null {
+/** The first start tag of any name in `html` from `from` (as `next_tag` reads one), or null: for a
+ *  rewrite that reads every tag (federation's asset pinning). Its name, when wanted, is
+ *  `tag_name(html, tag)`: a walk over every tag makes no string per tag. */
+export function next_any_tag(html: string, from: number): FoundTag | null {
 	let i = from;
 	while (step(html, i)) {
 		if (TOKEN.kind === 2) {
 			i = TOKEN.end;
 			continue;
 		}
-		const name = html.slice(TOKEN.ns, TOKEN.ne).toLowerCase();
-		const tag = read_tag(html, TOKEN.lt, TOKEN.ne);
-		return tag === null ? null : { name, tag };
+		return read_tag(html, TOKEN.lt, TOKEN.ne, TOKEN.end);
 	}
 	return null;
+}
+
+/** The name of `tag`, a start tag of `html`, in lower case. */
+export function tag_name(html: string, tag: FoundTag): string {
+	return html.slice(tag.start + 1, name_end(html, tag.start + 1)).toLowerCase();
 }
 
 /** Where a marker's text sits in `html`, read forward with the tags of one walk: a tag whose span

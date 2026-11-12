@@ -18,6 +18,7 @@ import {
 	OG_MOVED,
 	OGYGIA_GRAPH,
 	OGYGIA_RUNTIME,
+	tag_name,
 	text_of,
 	value_at,
 	type FoundTag
@@ -497,18 +498,18 @@ function pin_attrs(html: string, origin: string): string {
 	if (mark.gone) return html;
 	let out = '';
 	let pos = 0;
-	for (let t = next_any_tag(html, 0); t !== null; t = next_any_tag(html, t.tag.next)) {
-		const held = mark.holds(t.tag);
+	for (let t = next_any_tag(html, 0); t !== null; t = next_any_tag(html, t.next)) {
+		const held = mark.holds(t);
 		if (mark.gone) break;
 		if (!held) continue;
 		// (in source order: a tag's attributes are read first to last)
-		for (const [name, value] of t.tag.attrs) {
+		for (const [name, value] of t.attrs) {
 			if (value === '' || !ASSET_ATTR_NAME.test(name)) continue;
 			const pinned = name.endsWith('endpoint')
 				? pin_endpoint(value, origin)
 				: pin_asset(value, origin);
 			if (pinned === value) continue;
-			const at = value_at(html, t.tag, t.name, name);
+			const at = value_at(html, t, tag_name(html, t), name);
 			if (at === -1) continue;
 			out += html.slice(pos, at) + pinned;
 			pos = at + value.length;
