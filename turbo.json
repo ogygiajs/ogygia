@@ -1,5 +1,7 @@
 {
 	"$schema": "https://turborepo.com/schema.json",
+	"remoteCache": { "signature": true },
+	"globalDependencies": [".github/turbo-cache-epoch"],
 	"tasks": {
 		"build": {
 			"dependsOn": ["^build"],
