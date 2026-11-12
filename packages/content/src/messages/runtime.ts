@@ -175,6 +175,17 @@ export const CONTENT_ERRORS = {
 			minute), and reads the whole source again then, so a change made meanwhile is not lost.
 		`
 	},
+	content_site_context_failed: {
+		text: (): string =>
+			'site(): the `context` function threw; this request reads the public pages only:',
+		details: (): string => prose`
+			The \`context\` function passed to \`site()\` threw while it read a request. The site
+			still answers, with the context empty: drafts, previews and anything else your
+			\`filter\` opens through the context stay hidden for this request. The error follows
+			the message. Fix \`context\` so it returns an object for every request (return \`{}\`
+			when there is no session).
+		`
+	},
 	content_live_change_failed: {
 		text: (): string => 'a live change could not be applied:',
 		details: (): string => prose`

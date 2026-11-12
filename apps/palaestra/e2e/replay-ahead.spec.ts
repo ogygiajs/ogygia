@@ -40,7 +40,9 @@ test('an early click wakes the island without waiting for the replay half to dow
 	const start = Date.now();
 	const t0 = () => Date.now() - start;
 	const asked = await hold(page, t0);
-	await page.goto('/wake-switch', { waitUntil: 'load' });
+	// (not `load`: WebKit holds the load event for a module preload still on its way, here the
+	// switch's own held code, and by then the island is live)
+	await page.goto('/wake-switch', { waitUntil: 'domcontentloaded' });
 	await page.waitForTimeout(1000);
 	const sw = page.locator('[data-wake-switch]');
 	await expect(page.locator('ogygia-region[data-hydrated]')).toHaveCount(0); // its code is held

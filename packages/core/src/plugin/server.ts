@@ -6,17 +6,18 @@
 import type { RequestEvent } from '@sveltejs/kit';
 import { try_get_request_store } from '@sveltejs/kit/internal/server';
 import type { Handle } from '../kit-handle.ts';
-import type { RequestContext, ResolveOptions, ServerApp, ServerPlugin } from './index.ts';
+import type { HtmlPass, RequestContext, ResolveOptions, ServerApp, ServerPlugin } from './index.ts';
 import { current_facts, facts_of, note_per_visitor, type RequestFacts } from './facts.ts';
 import { observe_reads } from './reads.ts';
 import { ask, notify, register_hooks } from './hooks.ts';
 import { route_config } from './routes.ts';
-import { plugin_capabilities, type CapabilitySigner } from './capability.ts';
+import { renders_for_a_page } from '../server/endpoint.ts';
+import { plugin_capabilities, plugin_signer, type CapabilitySigner } from './capability.ts';
 import { record_server_event } from '../events/server-registry.ts';
 import { warn } from '../messages/server.ts';
 import { say } from '@ogygia/machine';
 
-/** One plugin's server half as the build lists it (`virtual:ogygia/server-plugins`). */
+/** One plugin's server half as the build lists it (`ogygia:server/server-plugins`). */
 export interface ServerPluginEntry {
 	name: string;
 	options: unknown;
@@ -43,6 +44,7 @@ export function start_plugins(
 	const plugins = entries.map(({ name, options, server }) => {
 		// (once per message, of the last 1024 said: a message with a URL in it never grows the server)
 		const warned = say();
+		const own = plugin_signer(name, signer);
 		const app: ServerApp<unknown> = {
 			name,
 			options,
@@ -52,9 +54,9 @@ export function start_plugins(
 			current: current_facts,
 			perVisitor: note_per_visitor,
 			observeReads: (event) => observe_reads(event, facts_of(event.request).reads),
-			sign: signer.sign,
-			verify: signer.verify,
-			capability: plugin_capabilities(name, signer),
+			sign: own.sign,
+			verify: own.verify,
+			capability: plugin_capabilities(own),
 			devtools: record_server_event,
 			keepAlive: keep_alive,
 			warn(message) {
@@ -205,6 +207,18 @@ function wait_until_of(platform: unknown): ((work: Promise<unknown>) => void) | 
 	return null;
 }
 
+/** The app's own pass over `event`'s HTML: the first plugin's answer, or undefined. */
+export function html_pass(
+	plugins: readonly LivePlugin[],
+	event: RequestEvent
+): HtmlPass | undefined {
+	for (const { def } of plugins) {
+		const pass = def.pass?.(event);
+		if (pass) return pass;
+	}
+	return undefined;
+}
+
 /** The per-plugin contexts of one request. */
 export function request_contexts(
 	plugins: readonly LivePlugin[],
@@ -216,9 +230,11 @@ export function request_contexts(
 	const route_id = event.route?.id;
 	const route_cfg = (key: string) => route_config(key, route_id, path);
 	const per_visitor = (reason: string) => note_per_visitor(event.request, reason);
+	const for_page = renders_for_a_page(event);
 	return plugins.map(({ def, app }) => ({
 		event,
 		path,
+		forPage: for_page,
 		state: def.state?.(),
 		options: app.options,
 		app,

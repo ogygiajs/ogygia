@@ -12,13 +12,13 @@
  * behind a load balancer.
  *
  * NOT for a hole's identity (`data-og-hole`): the client leg of a Kit-hydrated document recomputes
- * that one, so it stays on the universal `fingerprint_of` (runtime/hash.ts) on both legs.
+ * that one, so it stays on the universal `fingerprint_of` (contract/hash.ts) on both legs.
  *
  * Server-only (`node:crypto`), reached from Region.svelte through the client-stubbed
- * `virtual:ogygia/region-endpoint` — Region computes a fingerprint only on the server.
+ * `ogygia:server/region-endpoint` — Region computes a fingerprint only on the server.
  */
 import { createHash } from 'node:crypto';
 
-export function island_fingerprint(entry: string, canonical: string): string {
+export function region_fingerprint(entry: string, canonical: string): string {
 	return createHash('sha1').update(entry).update(' ').update(canonical).digest('hex').slice(0, 16);
 }
