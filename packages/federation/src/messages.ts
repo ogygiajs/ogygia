@@ -77,7 +77,7 @@ export const FEDERATION_WARNINGS = {
 	federation_peer_answer_invalid: {
 		text: (a: { peer: string; url: string }): string => prose`
 			The peer '${a.peer}' answered ${a.url} with something that is not its JSON document, so
-			the hop failed: a static widget shows its boundary card, a page read is a 504.
+			the hop failed: a static widget shows its boundary card, a page read or a post is a 502.
 		`,
 		details: (): string => prose`
 			A peer answers a fragment or widget request with a JSON document. This answer did not
