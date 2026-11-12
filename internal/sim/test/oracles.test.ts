@@ -879,4 +879,25 @@ describe.skipIf(!built)('oracles on the palaestra build', () => {
 			await world.end();
 		}
 	});
+
+	it("the fresh load carries the visitor's httpOnly cookies too", async () => {
+		// (Kit's `cookies.set` is httpOnly by default: the reference load was sent without the locale
+		// a command had set, and showed the other language; palaestra seed 20004, /header-refresh)
+		const world = await World.make({ seed: 2, builds: [{ id: 'v1', output: OUTPUT }] });
+		try {
+			const v = world.visitor('alice');
+			const tab = world.tab(v);
+			await world.go(tab, 'goto', '/header-refresh');
+			await world.quiesce();
+			(tab.page.mainFrame.document.querySelector('[data-hl-switch]') as HTMLElement).click();
+			await world.quiesce();
+			await world.go(tab, 'reload');
+			await world.quiesce();
+			const doc = tab.page.mainFrame.document as unknown as Document;
+			expect(doc.querySelector('[data-hl-header]')!.getAttribute('data-locale')).toBe('fr');
+			expect(await mpa_equivalent(world, v, tab)).toBeNull();
+		} finally {
+			await world.end();
+		}
+	});
 });
