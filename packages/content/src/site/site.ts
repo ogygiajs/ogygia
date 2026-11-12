@@ -260,7 +260,8 @@ class OgygiaSite implements Site {
 		if (!this.#context) return {};
 		try {
 			return this.#context(event as { url: URL; request?: Request; cookies?: unknown }) ?? {};
-		} catch {
+		} catch (e) {
+			console.error(new OgygiaError('content_site_context_failed'), e);
 			return {};
 		}
 	}

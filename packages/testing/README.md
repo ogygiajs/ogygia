@@ -8,7 +8,7 @@ Testing for [ogygia](https://ogygiajs.dev): the devtools and the profiler as tes
 pnpm add -D @ogygia/testing @playwright/test
 ```
 
-It is a test helper, not a plugin. The server under test lists the `devtools()` plugin from `@ogygia/devtools` (and `devtools({ profiler: true })` for `profile()`).
+The app under test lists `testing()` from `@ogygia/testing/vite` beside `ogygia()` (and `devtools({ profiler: true })` from `@ogygia/devtools` for `profile()`). The fixture injects the testing engine into each page; `testing()` hands it the runtime's hooks. A visitor has no engine, so nothing of it runs.
 
 ## Use
 
