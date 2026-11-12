@@ -191,7 +191,12 @@ export function use_v8_modules(): void {
 	const evaluate = module.evaluate as (...a: unknown[]) => Promise<object>;
 	module.evaluate = async function (this: unknown, ...a: unknown[]) {
 		const exports = await evaluate.apply(this, a);
-		await RUNNING.get(exports);
+		const running = RUNNING.get(exports);
+		// (happy-dom hands a document its tab has left an empty namespace, the module never run; in
+		// a browser that document's code stops, so its `import()` never settles: palaestra seed 270,
+		// test/modules.test.ts)
+		if (running === undefined) return new Promise<never>(() => {});
+		await running;
 		return exports;
 	};
 	// a classic script's `import()` (Kit's bootstrap) goes through happy-dom's factory: a failed

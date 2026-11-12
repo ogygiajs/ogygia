@@ -48,6 +48,9 @@ export interface GenNode {
 	readonly placeholder?: boolean;
 	/** A live region's ticks, this many ms apart. */
 	readonly every?: number;
+	/** A live region whose ticks cycle through three regions: its own, another interactive module
+	 *  (`A<id>`) and a static one (`S<id>`): its island is swapped, hydrated anew or dropped. */
+	readonly switches?: boolean;
 	/** An island whose markup the next release changes (an element only build v2 renders), as a
 	 *  release changes a component: what hydrates one build's HTML with the other's code meets. */
 	readonly changes?: boolean;
@@ -80,6 +83,15 @@ export interface GenNode {
 	 *  lake with no element and no text. Where it is used, `<div data-gen-empty>` holds it, so the
 	 *  region oracle knows an empty `<ogygia-region>` there is the app's. */
 	readonly empty?: boolean;
+	/** An island a third party's script changes while it sleeps (stream `gen third party`): an
+	 *  inline script after it, in the page's own HTML, puts an element of its own in the island once
+	 *  the document is parsed, after the runtime read the island's server markup and before it wakes.
+	 *  Its wake puts the server's markup back (the repair) before it hydrates. Only one that wakes on
+	 *  its own (`load`, `idle`): after a router visit the script is inert, and an island still asleep
+	 *  there would rightly differ from a fresh load. `prepend` puts an element of its own first;
+	 *  `retag` swaps the island's first `<span>` for a `<b>` with the same content (the element count
+	 *  kept: the repair's tag check sees it, which a prepended element never reaches). */
+	readonly thirdParty?: 'prepend' | 'retag';
 	readonly children: readonly GenNode[];
 }
 
@@ -91,6 +103,12 @@ export interface GenPage {
 	readonly postrender?: boolean;
 	/** The page has a server load (`{ who }`), which some of its regions read. */
 	readonly data?: boolean;
+	/** The page opens with a hero image (`fetchpriority="high"`): its critical resource, which island
+	 *  code and background downloads wait for (the load scheduler's critical gate). */
+	readonly hero?: boolean;
+	/** The page's server load reads the app's flag (`gate(event)`): each read is an exposure, which the
+	 *  sink takes in batches (`flags exposures`). */
+	readonly flagged?: boolean;
 }
 
 const WAKES: readonly Wake[] = ['load', 'idle', 'visible', 'interaction'];
@@ -236,6 +254,9 @@ export function plan(seed: number): GenPage[] {
 			!(n.dated || n.changes || n.style);
 		return plain && e.chance(0.15) ? { ...n, children, empty: true } : { ...n, children };
 	};
+	// (and whether a page opens with a hero image, from its own)
+	const hr = rng(seed).fork('gen hero');
+	const switching = switcher(seed);
 	const node = trees(r, held);
 	const pages = r.between(3, 6);
 	return Array.from({ length: pages }, (_, i) => ({
@@ -247,7 +268,135 @@ export function plan(seed: number): GenPage[] {
 		.map((page) => ({ ...page, roots: page.roots.map(extras) }))
 		.map((page) => (d.chance(0.4) ? { ...page, data: true, roots: page.roots.map(reading) } : page))
 		.map((page) => ({ ...page, roots: page.roots.map(messy) }))
-		.map((page) => ({ ...page, roots: page.roots.map(empty) }));
+		.map((page) => ({ ...page, roots: page.roots.map(empty) }))
+		.map((page) => (hr.chance(0.4) ? { ...page, hero: true } : page))
+		.map((page) => ({ ...page, roots: page.roots.map(switching) }))
+		.map(flagging(seed))
+		.map(third_party(seed));
+}
+
+/** Some islands a third party's script changes while they sleep (their own stream, `gen third
+ *  party`): an island that wakes on its own, in the page's own HTML (under islands and plain markup
+ *  only: an answer's or a lake's HTML is inserted, not parsed with the page). */
+function third_party(seed: number): (page: GenPage) => GenPage {
+	const t = rng(seed).fork('gen third party');
+	// (which edit, from a stream of its own: the islands it touches stay as they were drawn)
+	const k = rng(seed).fork('gen third party kind');
+	const walk = (n: GenNode, page: boolean): GenNode => {
+		const children = n.children.map((c) =>
+			walk(c, page && (n.kind === 'island' || n.kind === 'plain'))
+		);
+		const on =
+			page &&
+			n.kind === 'island' &&
+			(n.wake === 'load' || n.wake === 'idle') &&
+			!n.empty &&
+			t.chance(0.3);
+		return on
+			? { ...n, children, thirdParty: k.chance(0.5) ? 'retag' : 'prepend' }
+			: { ...n, children };
+	};
+	return (page) => ({ ...page, roots: page.roots.map((n) => walk(n, true)) });
+}
+
+/** The third party's script after an island (`thirdParty`): once the document is parsed it edits the
+ *  island's markup (`edit`, with the island's `[data-gen]` element as `el`). In `{@html}`, spelled
+ *  so the component's own parser never meets a closing script tag. */
+const third_party_script = (edit: string): string =>
+	`{@html '<scr' + 'ipt>${[
+		'(function(){var s=document.currentScript;document.addEventListener("DOMContentLoaded",function(){',
+		'var r=s&&s.previousElementSibling;var el=r&&(r.matches("[data-gen]")?r:r.querySelector("[data-gen]"));',
+		`if(el){${edit}}})})()`
+	].join('')}</scr' + 'ipt>'}`;
+const THIRD_PARTY = {
+	prepend: third_party_script(
+		'var b=document.createElement("b");b.setAttribute("data-gen-third-party","");b.textContent="third party";el.prepend(b);'
+	),
+	retag: third_party_script(
+		'var f=el.firstElementChild;if(f&&f.localName==="span"){var b=document.createElement("b");while(f.firstChild)b.appendChild(f.firstChild);f.replaceWith(b);}'
+	)
+};
+
+/** Some apps read a flag on some pages (their own stream, `gen flags`): 40% of seeds, half their
+ *  pages. */
+function flagging(seed: number): (page: GenPage) => GenPage {
+	const f = rng(seed).fork('gen flags');
+	const on = f.chance(0.4);
+	return (page) => (on && f.chance(0.5) ? { ...page, flagged: true } : page);
+}
+
+/** The app's flags (`src/lib/gen/flags.server.ts`, imported by its hooks): a kill switch, off for
+ *  every visitor (so a fresh load decides the same), and an exposure sink that takes batches of 3 or
+ *  what came in 500 ms. Empty when no page reads it. */
+function app_flags(pages: readonly GenPage[]): string {
+	if (!pages.some((p) => p.flagged)) return 'export {};\n';
+	return [
+		`import { decide, flag } from '@ogygia/flags';`,
+		'',
+		`export const gate = flag('gen-gate');`,
+		'',
+		`// (the sink: what an analytics pipeline would take; counted so a run can see it was reached)`,
+		`const seen = globalThis as unknown as { __sim_gen_exposures?: number };`,
+		`const take = (n: number) => (seen.__sim_gen_exposures = (seen.__sim_gen_exposures ?? 0) + n);`,
+		`decide({ exposure: (events) => void take(events.length), batch: { max: 3, ms: 500 } });`,
+		''
+	].join('\n');
+}
+
+/** Some live regions switch (their own stream, `gen live switch`): drawn per live region in tree
+ *  order, so every other draw stays where it was. */
+function switcher(seed: number): (n: GenNode) => GenNode {
+	const sw = rng(seed).fork('gen live switch');
+	const walk = (n: GenNode): GenNode => {
+		const children = n.children.map(walk);
+		return n.kind === 'live' && sw.chance(0.5)
+			? { ...n, children, switches: true }
+			: { ...n, children };
+	};
+	return walk;
+}
+
+/** The hero image the app serves (`/hero.png`): a 1x1 PNG, loaded over the simulated network. */
+const HERO_ROUTE = [
+	`// (a page's hero: its critical resource, loaded over the simulated network)`,
+	`const PNG = Uint8Array.from(`,
+	`\tatob('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=='),`,
+	`\t(c) => c.charCodeAt(0)`,
+	`);`,
+	'',
+	`export const GET = () =>`,
+	`\tnew Response(PNG, {`,
+	`\t\theaders: { 'content-type': 'image/png', 'cache-control': 'public, max-age=31536000, immutable' }`,
+	`\t});`,
+	''
+].join('\n');
+
+/** Whether a seed's app runs the router (stream `gen router`): most do; one without it navigates
+ *  page to page, and its `invalidateAll()` is the document's own soft refresh (loaded on first use). */
+export function router_plan(seed: number): boolean {
+	return !rng(seed).fork('gen router').chance(0.25);
+}
+
+/** The first id of the layout's regions: never one of the pages' (the peer's start at 1000). */
+export const LAYOUT_FIRST = 500;
+
+/** The region tree a seed's layout holds, or null (stream `gen layout`): a hole with a stylesheet of
+ *  its own, after the nav on every page, so a router navigation keeps it on screen while the next
+ *  page's head does not list its sheet (#275); some with an island inside, styled too. */
+export function layout_plan(seed: number): GenNode | null {
+	const r = rng(seed).fork('gen layout');
+	if (!r.chance(0.4)) return null;
+	const children: GenNode[] = r.chance(0.5)
+		? [{ id: LAYOUT_FIRST + 1, kind: 'island', wake: r.pick(WAKES), style: true, children: [] }]
+		: [];
+	return {
+		id: LAYOUT_FIRST,
+		kind: 'hole',
+		wake: r.chance(0.5) ? r.pick(WAKES) : undefined,
+		fallback: r.chance(0.5),
+		style: true,
+		children
+	};
 }
 
 /** A widget the peer app serves (`federate({ widgets })`): a root holding a region tree. */
@@ -387,7 +536,8 @@ function usage(n: GenNode, indent: string): string {
 	// (a fixed instant: what devalue carries, the same in every render)
 	const since = n.dated ? ` since={new Date(${n.id * 86_400_000})}` : '';
 	const blob = n.big ? ` blob={'x'.repeat(100_000)}` : '';
-	return `${indent}<N${n.id} label="n${n.id}"${since}${blob} />`;
+	const third = n.thirdParty ? `\n${indent}${THIRD_PARTY[n.thirdParty]}` : '';
+	return `${indent}<N${n.id} label="n${n.id}"${since}${blob} />${third}`;
 }
 
 /** A held or live region's remote module: the query that returns it (and the command that changes
@@ -400,13 +550,21 @@ function remote(n: GenNode, page: string): string {
 		`import { region } from 'ogygia';`,
 		...(n.publish ? [`import { postrender } from '@ogygia/postrender';`] : []),
 		`import N${n.id} from './N${n.id}.svelte' with ${mark};`,
+		...(n.switches
+			? [
+					`import A${n.id} from './A${n.id}.svelte' with { wake: 'load' };`,
+					`import S${n.id} from './S${n.id}.svelte' with { region: 'raw' };`
+				]
+			: []),
 		''
 	];
+	// (a switching one cycles: its own region, another interactive module, a static one)
+	const shown = n.switches ? `[N${n.id}, A${n.id}, S${n.id}][n % 3]` : `N${n.id}`;
 	if (n.kind === 'live')
 		lines.push(
 			`export const live${n.id} = query.live(async function* () {`,
 			`\tfor (let n = 0; ; n++) {`,
-			`\t\tyield await region(N${n.id}, { label: \`n${n.id} tick \${n}\` });`,
+			`\t\tyield await region(${shown}, { label: \`n${n.id} tick \${n}\` });`,
 			`\t\tawait new Promise((r) => setTimeout(r, ${n.every}));`,
 			`\t}`,
 			`});`
@@ -548,6 +706,24 @@ function component(n: GenNode): string {
 	return lines.join('\n');
 }
 
+/** A switching live region's other regions: another interactive module (a button), or a static one. */
+function switched(n: GenNode, interactive: boolean): string {
+	return [
+		'<script lang="ts">',
+		"\tlet { label = '' }: { label?: string } = $props();",
+		...(interactive ? ['\tlet count = $state(0);'] : []),
+		'</script>',
+		'',
+		`<div data-gen="${interactive ? 'live-other' : 'live-static'}" data-build={import.meta.env.VITE_SIM_BUILD}>`,
+		'\t<span>{label}</span>',
+		...(interactive
+			? ['\t<button onclick={() => (count += 1)}>{label} other pressed {count}</button>']
+			: []),
+		'</div>',
+		''
+	].join('\n');
+}
+
 /** Where a federated app mounts its peer's pages. */
 export const MOUNT = '/peer';
 
@@ -608,6 +784,10 @@ function components(lib: string, roots: readonly GenNode[], page: string): void 
 			writeFileSync(join(lib, `H${n.id}.svelte`), host(n));
 			writeFileSync(join(lib, `h${n.id}.remote.ts`), remote(n, page));
 		}
+		if (n.switches) {
+			writeFileSync(join(lib, `A${n.id}.svelte`), switched(n, true));
+			writeFileSync(join(lib, `S${n.id}.svelte`), switched(n, false));
+		}
 		n.children.forEach(walk);
 	};
 	roots.forEach(walk);
@@ -619,7 +799,9 @@ export function write(
 	app: string,
 	pages: readonly GenPage[],
 	seed: number,
-	peer: GenPeer | null = null
+	peer: GenPeer | null = null,
+	layout: GenNode | null = null,
+	router = true
 ): void {
 	const routes = join(app, 'src', 'routes');
 	const lib = join(app, 'src', 'lib', 'gen');
@@ -631,17 +813,35 @@ export function write(
 	const nav = ['/', ...pages.map((p) => p.path), ...mounted]
 		.map((p) => `<a href="${p}">${p}</a>`)
 		.join(' ');
+	// (the layout's regions, after the nav: the same element on every page)
+	const held = layout
+		? [`\timport ${name(layout)} from '$lib/gen/${name(layout)}.svelte'${attributes(layout)};`]
+		: [];
 	writeFileSync(
 		join(routes, '+layout.svelte'),
-		`<script lang="ts">\n\tlet { children } = $props();\n</script>\n\n<nav>${nav}</nav>\n{@render children()}\n`
+		[
+			'<script lang="ts">',
+			...held,
+			'\tlet { children } = $props();',
+			'</script>',
+			'',
+			`<nav>${nav}</nav>`,
+			...(layout ? [usage(layout, '')] : []),
+			'{@render children()}',
+			''
+		].join('\n')
 	);
+	if (layout) components(lib, [layout], '/');
 	// (the app's pages are server HTML with islands: no Kit client on them)
 	writeFileSync(
 		join(routes, '+layout.ts'),
 		'export const csr = false;\nexport const prerender = false;\n'
 	);
 	writeFileSync(join(routes, '+page.svelte'), `<h1>generated app, seed ${seed}</h1>\n`);
+	mkdirSync(join(routes, 'hero.png'), { recursive: true });
+	writeFileSync(join(routes, 'hero.png', '+server.ts'), HERO_ROUTE);
 	writeFileSync(join(lib, 'mount.server.ts'), app_mount(peer));
+	writeFileSync(join(lib, 'flags.server.ts'), app_flags(pages));
 	if (peer) {
 		writeFileSync(join(lib, 'federation.server.ts'), app_federation(peer));
 		if (peer.mount === 'kit') {
@@ -686,18 +886,21 @@ export function write(
 		);
 		// (a stored page says so in Kit's own `config`, in the page's server load when it has one)
 		const config = page.postrender ? ['export const config = { postrender: true };', ''] : [];
-		if (slots.length === 0 && !page.data && config.length > 0)
-			writeFileSync(join(dir, '+page.ts'), config.join('\n'));
-		if (slots.length > 0)
-			imports.push(`\timport { Region } from 'ogygia';`, `\tlet { data } = $props();`);
-		if (slots.length > 0 || page.data)
+		const server = slots.length > 0 || page.data || page.flagged;
+		if (!server && config.length > 0) writeFileSync(join(dir, '+page.ts'), config.join('\n'));
+		if (slots.length > 0) imports.push(`\timport { Region } from 'ogygia';`);
+		if (slots.length > 0 || page.flagged) imports.push(`\tlet { data } = $props();`);
+		if (server)
 			writeFileSync(
 				join(dir, '+page.server.ts'),
 				[
-					...(slots.length > 0 ? [`import { peer } from '$lib/gen/federation.server';`, ''] : []),
+					...(slots.length > 0 ? [`import { peer } from '$lib/gen/federation.server';`] : []),
+					...(page.flagged ? [`import { gate } from '$lib/gen/flags.server';`] : []),
+					...(slots.length > 0 || page.flagged ? [''] : []),
 					...config,
-					`export const load = async () => ({`,
+					`export const load = async (${page.flagged ? 'event' : ''}) => ({`,
 					...(page.data ? [`\twho: '${page.path.slice(1)} data',`] : []),
+					...(page.flagged ? [`\tgate: gate(event),`] : []),
 					...slots.map(
 						(s) =>
 							`\tr${s.id}: await peer.widget('${s.widget}', { label: 'r${s.id}' }, { render: '${s.render}' }),`
@@ -714,6 +917,10 @@ export function write(
 				'</script>',
 				'',
 				`<h1>${page.path}</h1>`,
+				...(page.hero
+					? ['<img src="/hero.png" fetchpriority="high" alt="" width="1" height="1" />']
+					: []),
+				...(page.flagged ? ['<p data-gen-flag>gate {data.gate}</p>'] : []),
 				...page.roots.map((n) => usage(n, '')),
 				...slots.map(slot_usage),
 				''
@@ -721,7 +928,10 @@ export function write(
 		);
 		components(lib, page.roots, page.path);
 	}
-	writeFileSync(join(lib, 'plan.json'), JSON.stringify({ seed, pages, peer }, null, '\t') + '\n');
+	writeFileSync(
+		join(lib, 'plan.json'),
+		JSON.stringify({ seed, pages, peer, layout, router }, null, '\t') + '\n'
+	);
 }
 
 /** Writes `peer` into the peer app `dir` (apps/sim-gen-peer): its widgets and pages, the router
@@ -831,11 +1041,13 @@ function main(): void {
 	);
 	const pages = plan(seed);
 	const peer = peer_plan(seed, pages);
-	write(app, pages, seed, peer);
+	const layout = layout_plan(seed);
+	const router = router_plan(seed);
+	write(app, pages, seed, peer, layout, router);
 	const count = (ns: readonly GenNode[]): number =>
 		ns.reduce((s, n) => s + 1 + count(n.children), 0);
 	console.log(
-		`[sim] generated ${pages.length} pages, ${count(pages.flatMap((p) => p.roots))} regions (seed ${seed}) in ${app}`
+		`[sim] generated ${pages.length} pages, ${count(pages.flatMap((p) => p.roots))} regions (seed ${seed})${layout ? `, ${count([layout])} in the layout` : ''}${router ? '' : ', no router'} in ${app}`
 	);
 	if (peer) {
 		write_peer(`${app}-peer`, peer, seed);

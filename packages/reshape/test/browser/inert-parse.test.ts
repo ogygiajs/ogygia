@@ -1,5 +1,5 @@
 // A PARSED ANSWER IS INERT IN EVERY ENGINE (#382). Region and hole answers become DOM in one place
-// (core's runtime/parse-html.ts) and are restored before they go in (src/restore.ts). Nothing in them
+// (core's runtime/html-sink.ts) and are restored before they go in (src/restore.ts). Nothing in them
 // may be built by a component's constructor before that: a host upgraded first already has the root
 // its constructor made, and the restore came too late.
 //
@@ -10,11 +10,17 @@
 //   every defined custom element of the content when the template's document has a window.
 import { afterEach, expect, test, vi } from 'vitest';
 import { transformMarkup } from '../../src/reversible.ts';
-import { parse_region_html } from '../../../core/src/runtime/parse-html.ts';
+import {
+	parse_region_html as parse,
+	vouch_page_html
+} from '../../../core/src/runtime/html-sink.ts';
 import { restore, restore_adopt } from '../../src/restore.ts';
 import { report_restores } from '../../src/restore-report.ts';
 import { install_rules, runtime_rules } from '../../../core/src/runtime/rules.ts';
 import { fake_scoped } from '../fixtures/fake-scoped-render.ts';
+
+// (a test's markup stands in for the page's own, so it goes through the sink like an answer would)
+const parse_region_html = (html: string): DocumentFragment => parse(vouch_page_html(html));
 
 const SHEET = '<template data-og-head="demo-card.shadow">b{color:rgb(255, 0, 0)}</template>';
 
