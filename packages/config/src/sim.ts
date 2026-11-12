@@ -499,13 +499,22 @@ class Run implements Sim {
 	}
 }
 
+/** The run whose clock and fetch are installed: one at a time, as they swap the realm's globals. */
+let installed: Run | null = null;
+
 /** One run: `body` under a clock and a fetch the scheduler owns; throws the rules it broke. */
 export async function simulate(
 	s: fc.Scheduler,
 	body: (sim: Sim) => Promise<void>,
 	options: SimOptions = {}
 ): Promise<void> {
+	// (a test that timed out leaves its runs going: the next test's would share its swapped clock)
+	if (installed !== null)
+		throw new Error(
+			'a simulated run started while another is still out (did an earlier test time out?)'
+		);
 	const run = new Run(s, options);
+	installed = run;
 	run._install();
 	let broken: string[];
 	try {
@@ -514,6 +523,7 @@ export async function simulate(
 		broken = run._end();
 	} finally {
 		run._uninstall();
+		installed = null;
 	}
 	if (broken.length > 0) throw new Error(`broken rules:\n  ${broken.join('\n  ')}`);
 }
