@@ -88,9 +88,9 @@ const APP = fileURLToPath(new URL('../../../../${o.app}', import.meta.url));
 const GEN: number | null = ${o.gen};
 const ready = ((): boolean => {
 	const built = ['/.svelte-kit/sim-builds/v1', '/.svelte-kit/output'];
-	if (!built.some((b) => existsSync(APP + b + '/server/index.js'))) return false;
+	if (!built.some((b) => existsSync(\`\${APP}\${b}/server/index.js\`))) return false;
 	if (GEN === null) return true;
-	const plan = APP + '/src/lib/gen/plan.json';
+	const plan = \`\${APP}/src/lib/gen/plan.json\`;
 	return existsSync(plan) && JSON.parse(readFileSync(plan, 'utf8')).seed === GEN;
 })();
 

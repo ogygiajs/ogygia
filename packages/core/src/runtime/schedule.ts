@@ -209,17 +209,15 @@ export function yield_task(): Promise<void> {
 export function background_start(fn: () => void): void {
 	// ONE background task drains every start queued meanwhile (a task per island: each hydrate turn
 	// outranked the next island's start, so its import began late); it yields past a time budget
-	B.starts.push(fn);
-	if (!B.armed) {
-		B.armed = true;
-		post_background(drain_background);
-	}
+	// (a drain is out exactly while a start waits: a start leaves only after it ran, so the first
+	// one queued into an empty list is the one that posts it)
+	if (B.starts.push(fn) === 1) post_background(drain_background);
 }
 
-/** The starts queued for the background drain (each leaves as it runs), and whether a drain is out. */
+/** The starts queued for the background drain: each leaves after it ran, so a drain is out exactly
+ *  while one is here (test/schedule-background.test.ts). */
 class BackgroundStarts {
 	readonly starts: (() => void)[] = [];
-	armed = false;
 }
 const B = new BackgroundStarts();
 /** a drain yields to the page after this long, and continues in a new background task */
@@ -236,7 +234,6 @@ function drain_background(): void {
 	} finally {
 		B.starts.splice(0, i);
 		if (B.starts.length) post_background(drain_background);
-		else B.armed = false;
 	}
 }
 
@@ -254,7 +251,7 @@ function post_background(fn: () => void): void {
 			// ok: an invalid-priority throw (an older postTask); the fallback below runs it
 		}
 	}
-	// oxlint-disable-next-line ogygia/owned-effects -- the process's one background drain (`B.armed`), one task: it ends itself, and a start queued in it belongs to whoever queued it
+	// oxlint-disable-next-line ogygia/owned-effects -- the process's one background drain (out while `B.starts` holds one), one task: it ends itself, and a start queued in it belongs to whoever queued it
 	timers.after(fn, 0);
 }
 
