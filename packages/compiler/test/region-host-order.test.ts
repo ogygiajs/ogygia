@@ -21,10 +21,13 @@ const HOST = dedent`
 	<C0 />
 `;
 
-function registry_after(order: readonly string[]) {
+function registry_after(order: readonly string[], drop?: string) {
 	const files = memory_fs({
 		[PAGE]: HOST,
-		[LAYOUT]: `${HOST}\n<slot />\n`,
+		[LAYOUT]: dedent`
+			${HOST}
+			<slot />
+		`,
 		[`${ROOT}/src/routes/+layout.ts`]: `export const csr = false;\n`,
 		[`${ROOT}/src/lib/C0.svelte`]: `<p>C0</p>\n`
 	});
@@ -67,8 +70,17 @@ function registry_after(order: readonly string[]) {
 		const r = compiler.transform(files.read(f)!, f, { ssr: true });
 		if (r) program.register(r as Parameters<Program['register']>[0], f);
 	}
+	if (drop) program.unregister_host(drop);
 	return [...program.registry].sort(([a], [b]) => (a < b ? -1 : 1));
 }
+
+const hosts = (rows: ReturnType<typeof registry_after>) => new Set(rows.map(([, e]) => e.hostPath));
+
+test('a region whose first host lets go names the host that still holds it', () => {
+	// (the layout sorts first: drop it, and the page's rows must show, in either order)
+	expect(hosts(registry_after([PAGE, LAYOUT], LAYOUT))).toEqual(new Set([PAGE]));
+	expect(hosts(registry_after([LAYOUT, PAGE], LAYOUT))).toEqual(new Set([PAGE]));
+});
 
 test('a region a page and its layout share names the same host whichever registers last', () => {
 	const a = registry_after([PAGE, LAYOUT]);
