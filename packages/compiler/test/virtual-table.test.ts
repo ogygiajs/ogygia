@@ -9,6 +9,8 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { VirtualTable } from '../src/compiler/virtual/resolver.ts';
+import { route_reader } from '../src/compiler/kit.ts';
+import { node_fs } from '../src/compiler/fs.ts';
 import {
 	CORE_PARTS,
 	CORE_VIRTUALS,
@@ -245,7 +247,7 @@ describe('the virtual-module table', () => {
 		const root = fs.mkdtempSync(path.join(os.tmpdir(), 'og-reads-'));
 		fs.mkdirSync(path.join(root, 'src/routes'), { recursive: true });
 		const core_app = {
-			ctx: { root, is_dev: true },
+			ctx: { root, is_dev: true, routes: route_reader(node_fs) },
 			routes_dir: () => path.join(root, 'src/routes'),
 			plugins: () => ({ server: [], client: [], route_config: [] })
 		} as unknown as CoreApp;
