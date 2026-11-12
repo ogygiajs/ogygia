@@ -252,6 +252,7 @@ import {
 	region_page_why
 } from 'ogygia:server';
 import { set_span_recorder, type SpanAttrs, type SpanRecord, type SpanRecorder } from './span.ts';
+import type { WindowIds } from './window-id.ts';
 import {
 	flights,
 	clock,
@@ -4567,22 +4568,25 @@ class Profiler {
 	// every instance writes such a request to the shared store (its visit rows, under the window's own
 	// key) BEFORE it answers — a frozen instance never finishes a write after; and stop, on whichever
 	// instance, gathers them. The CPU profile stays the starting instance's: sampling is per process.
-	async #window_sign(nonce: string): Promise<string> {
-		const { createHmac } = await import('node:crypto');
-		return createHmac('sha256', this.secret || 'ogygia-dev-window')
-			.update('window:' + nonce)
-			.digest('hex')
-			.slice(0, 20);
+	// (the ids are a capability, ./window-id.ts: a production profiler with no secret has none)
+	readonly #window_ids = flights({
+		name: 'profiler window ids',
+		run: () =>
+			import('./window-id.ts').then((m) =>
+				m.window_ids(this.secret, this.dev, 'profiler:' + this.base)
+			)
+	});
+	async #ids(): Promise<WindowIds | null> {
+		const ids = await this.#window_ids.get();
+		// (never dropped, so never STALE; if it were, no ids: a window id is refused, never trusted)
+		return ids === STALE ? null : ids;
 	}
 
-	/** A window id from a request, when its signature holds; else null. */
+	/** A window id from a request, when it checks; else null. */
 	async #window_id_of(request: Request): Promise<string | null> {
 		const raw = request.headers.get(WINDOW_HEADER);
-		if (!raw || raw.length > 80) return null;
-		const dot = raw.indexOf('.');
-		if (dot <= 0) return null;
-		const nonce = raw.slice(0, dot);
-		return (await this.#window_sign(nonce)) === raw.slice(dot + 1) ? raw : null;
+		if (!raw) return null;
+		return (await this.#ids())?.check(raw) ?? null;
 	}
 
 	/** A request in a window: written to the store, awaited (see above). */
@@ -4650,8 +4654,10 @@ class Profiler {
 		// a BACKGROUND window (the trap, the always-on sampler) holding the recorder is short: wait
 		// for it (as a page profile does); another page profile is the real conflict
 		await this.#wait_for_background();
-		const nonce = Math.random().toString(36).slice(2, 12) + Date.now().toString(36); // wall: unique across restarts
-		const id = `${nonce}.${await this.#window_sign(nonce)}`;
+		const ids = await this.#ids();
+		if (ids === null)
+			return busy('A window needs the profiler’s secret: set OGYGIA_PROFILER_SECRET.');
+		const id = ids.mint();
 		// (a window started meanwhile holds the recorder: this take fails)
 		const token = this.#take('background');
 		if (token === null) return busy('Another recording holds the recorder. Try again in a moment.');

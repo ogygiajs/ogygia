@@ -9,7 +9,7 @@
  * exact signing/requesting code, not a mock of it.
  */
 import { createHmac, createHash } from 'node:crypto';
-import { net, random } from '@ogygia/machine';
+import { clock, net, random } from '@ogygia/machine';
 import type { PostrenderMeta, EdgeAdapter } from '../types.ts';
 import { prefix_tags, normalize_prefix } from '../key.ts';
 import { OgygiaError } from '../messages.ts';
@@ -35,7 +35,7 @@ export interface AkamaiConfig {
 
 /** EdgeGrid timestamp: `yyyyMMddTHH:mm:ss+0000`. */
 function edgegrid_timestamp(): string {
-	const d = new Date();
+	const d = new Date(clock.wall());
 	const pad = (n: number) => String(n).padStart(2, '0');
 	return (
 		`${d.getUTCFullYear()}${pad(d.getUTCMonth() + 1)}${pad(d.getUTCDate())}` +
