@@ -132,6 +132,7 @@ import {
 	dedupe_head_links,
 	runtime_first
 } from './server/head-presence.ts';
+import { code_origins } from './plugin/hooks.ts';
 import { locate, assemble } from './server/document-assembly.ts';
 import { error_route_is_csr_true, route_is_csr_true, take_early_holes } from './context.ts';
 import { early_holes_head } from './early-holes-head.ts';
@@ -1248,7 +1249,9 @@ class OgygiaHandle {
 			// The runtime an island inside a lake emitted goes before the head's JavaScript here too
 			// (see the csr=false path below): its regions keep their server markup from the first connect.
 			const ordered =
-				head === null ? null : with_early_csp(runtime_first(head, null, dt_mark_of(bag)));
+				head === null
+					? null
+					: with_early_csp(runtime_first(head, null, code_origins(), dt_mark_of(bag)));
 			return assemble(html, spans, ordered === head ? null : ordered, head_inject, tail);
 		}
 
@@ -1301,7 +1304,10 @@ class OgygiaHandle {
 				router_enabled && runtime_url && !page_declares_runtime_script(probe)
 					? runtime_bootstrap(kit_asset)
 					: null;
-			const ordered = with_early_csp(runtime_first(probe, runtime_tag, dt_mark_of(bag)));
+			// (with the code origins the plugins and this render named: runtime/code-origins.ts)
+			const ordered = with_early_csp(
+				runtime_first(probe, runtime_tag, code_origins(), dt_mark_of(bag))
+			);
 			if (ordered !== probe) head_out = ordered;
 			// The DEV bridge is NOT gated on the router — it carries `@vite/client`, and Vite's own
 			// full-reload recovery must reach EVERY csr=false page. A dep re-optimization rotates the
