@@ -218,7 +218,9 @@ Some commands publish (`gen publish`): the command also calls `postrender.invali
 The app lists `postrender({ default: false })` (opt-in: no page is stored unless it says so) and
 `postrender.handle({ store })` with one `MemoryStore` for every instance and build of a run, as a
 shared cache is. Some pages opt in (`config = { postrender: true }`, stream `gen postrender`, 30%),
-so the store holds pages and a publish has something to invalidate. In a federated app the invalidation is announced to the peer: a thaw notice
+so the store holds pages and a publish has something to invalidate. And some islands change their
+markup in the next release (stream `gen release`, 30%: an element only build v2 renders), so the two
+builds differ as releases do and one build's HTML hydrated with the other's code shows (#947). In a federated app the invalidation is announced to the peer: a thaw notice
 through federation's outbox, which the peer applies and passes back on (hop + 1). The same store
 makes a deploy's first federation request send the deploy thaw. And some seeds keep the peer's
 page documents (`gen peer cache`: `cache: { ttl }` of 300 ms, 2 s or 30 s), served stale while one
@@ -249,7 +251,9 @@ all off. Points: `flights.not-kept` (an answer not kept), `outbox.reply-lost` (t
 a send and its reply was lost: sent again), `import-again.entry-missed` (a download's timing entry
 never comes, as WebKit gives a dropped one none), `federation.doc-stale` (a peer document's ttl just
 ran out), `hole.fetch-lost` (a hole's answer lost on the way: it tries again, or gives up, as it
-would; it reaches the hole's `retrying` steps without a drop fault).
+would; it reaches the hole's `retrying` steps without a drop fault), `postrender.store-down` (a
+page store call fails, a shared store's blip: the page renders fresh and is not kept; the `postrender
+store` machine's `ok <-> failing`).
 
 ## Coverage
 
