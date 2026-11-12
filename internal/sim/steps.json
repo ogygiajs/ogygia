@@ -12,12 +12,18 @@
 		"batch stream: streaming -> cancelled",
 		"batch stream: streaming -> ended",
 		"batch-stream: reading -> reading",
+		"batch-stream: reading -> stalled",
 		"batch-stream: sending -> reading",
+		"batch-stream: sending -> stalled",
 		"build location map: flying -> gone",
 		"build location map: flying -> kept",
 		"critical resources: flying -> gone",
 		"critical resources: flying -> kept",
 		"critical-gate: fresh -> settled",
+		"critical-gate: fresh -> touched",
+		"critical-gate: fresh -> waiting",
+		"critical-gate: touched -> settled",
+		"critical-gate: waiting -> settled",
 		"current build map: flying -> gone",
 		"current build map: flying -> kept",
 		"current build map: kept -> gone",
@@ -32,6 +38,8 @@
 		"federation peer documents: flying -> kept",
 		"federation peer documents: kept -> flying",
 		"federation peer documents: kept -> gone",
+		"form-restore: idle -> open",
+		"form-restore: open -> idle",
 		"frames: flying -> gone",
 		"hole-answer: answered -> answered",
 		"hole-answer: kept -> kept",
@@ -46,6 +54,7 @@
 		"hole: fetching -> offline",
 		"hole: fetching -> retrying",
 		"hole: idle -> armed",
+		"hole: idle -> fetching",
 		"hole: offline -> armed",
 		"hole: retrying -> armed",
 		"hole: retrying -> idle",
@@ -72,7 +81,6 @@
 		"kit page thread: flying -> gone",
 		"live-region: failed -> idle",
 		"live-region: hydrating -> failed",
-		"live-region: hydrating -> idle",
 		"live-region: hydrating -> live",
 		"live-region: idle -> hydrating",
 		"live-region: idle -> static",
@@ -123,7 +131,10 @@
 		"stage: built -> committing",
 		"stage: built -> discarded",
 		"stage: committing -> committed",
+		"stage: committing -> discarded",
 		"stored-answer: empty -> shown",
+		"stored-answer: kept -> shown",
+		"stored-answer: shown -> kept",
 		"stored-answer: shown -> shown",
 		"wake: armed -> cold",
 		"wake: armed -> waking",
@@ -136,7 +147,8 @@
 		"wake: waking -> failed",
 		"wake: waking -> offline",
 		"wire class: flying -> gone",
-		"wire class: flying -> kept"
+		"wire class: flying -> kept",
+		"wire class: kept -> gone"
 	],
 	"covered": [
 		{
@@ -156,12 +168,6 @@
 			"reason": "the dev server's stranded-tab watch: import.meta.env.DEV only, and the simulator runs built apps",
 			"test": "packages/core/test/browser/stale-deps.test.ts",
 			"name": "two islands that fail to import together reload the tab once"
-		},
-		{
-			"step": "stage: committing -> discarded",
-			"reason": "a commit throws only when the runtime's own swap does (a region's element callbacks report their errors, they do not throw into it): no app or fault the simulator plays makes it",
-			"test": "packages/machine/test/stage.test.ts",
-			"name": "a commit that throws puts back what it changed, gives back the build, and throws"
 		}
 	],
 	"dead": [
