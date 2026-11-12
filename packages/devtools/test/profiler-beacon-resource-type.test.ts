@@ -1,29 +1,87 @@
-import { describe, expect, it } from 'vitest';
-import { resource_type } from '../src/profiler/beacon.ts';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { standalone_beacon, type PageBeacon } from '../src/profiler/beacon-standalone.ts';
 
-describe('resource_type: what a file counts as', () => {
+const KEY = Symbol.for('ogygia.beacon');
+
+afterEach(() => {
+	(globalThis as unknown as Record<symbol, PageBeacon | undefined>)[KEY]?.stop();
+	vi.unstubAllGlobals();
+});
+
+/** each file's type in the page beacon's visit: `[name, initiator, link as]` */
+function types_of(files: [string, string, string?][]): string[] {
+	const entries = files.map(([name, initiatorType], i) => ({
+		name: `https://a.test/${name}?${i}`,
+		initiatorType,
+		transferSize: 1,
+		encodedBodySize: 1,
+		decodedBodySize: 1,
+		startTime: i,
+		responseEnd: i + 1,
+		duration: 1
+	}));
+	const links = files.flatMap(([, , as], i) =>
+		as === undefined
+			? []
+			: [{ href: entries[i].name, getAttribute: (n: string) => (n === 'as' ? as : null) }]
+	);
+	vi.stubGlobal('document', {
+		visibilityState: 'visible',
+		readyState: 'complete',
+		querySelector: () => null,
+		querySelectorAll: (s: string) => (s.startsWith('link') ? links : []),
+		addEventListener: () => {}
+	});
+	vi.stubGlobal('addEventListener', () => {});
+	vi.stubGlobal('innerWidth', 1);
+	vi.stubGlobal('innerHeight', 1);
+	vi.stubGlobal('location', { pathname: '/p', origin: 'https://a.test', href: 'https://a.test/p' });
+	vi.stubGlobal('performance', {
+		timeOrigin: 0,
+		now: () => 0,
+		getEntriesByType: (t: string) =>
+			t === 'navigation'
+				? [{ requestStart: 1, responseStart: 5, responseEnd: 9 }]
+				: t === 'resource'
+					? entries
+					: [],
+		getEntriesByName: () => [],
+		setResourceTimingBufferSize() {}
+	});
+	standalone_beacon();
+	const api = (globalThis as unknown as Record<symbol, PageBeacon>)[KEY];
+	const visit = api.page().visit as { resources: { url: string; type: string }[] };
+	return entries.map((e) => visit.resources.find((r) => r.url === e.name)!.type);
+}
+
+describe('the page beacon: what a file counts as', () => {
 	it('a link is not a stylesheet by itself', () => {
-		// a modulepreload (Chromium says `other`; a link initiator must not turn it into CSS either)
-		expect(resource_type('js', 'link', 'script')).toBe('script');
-		expect(resource_type('', 'link', 'script')).toBe('script');
-		// a fetch preload (`as="fetch"`, no extension): an API answer
-		expect(resource_type('', 'link', 'fetch')).toBe('fetch');
-		expect(resource_type('woff2', 'link', 'font')).toBe('font');
-		expect(resource_type('', 'link', 'image')).toBe('img');
-		expect(resource_type('', 'link', 'document')).toBe('other');
-		// a stylesheet link without an extension (a font service's css2?family=…)
-		expect(resource_type('', 'link')).toBe('css');
-		expect(resource_type('css', 'link', 'style')).toBe('css');
+		expect(
+			types_of([
+				['a.js', 'link', 'script'],
+				['b', 'link', 'script'],
+				['c', 'link', 'fetch'],
+				['d.woff2', 'link', 'font'],
+				['e', 'link', 'image'],
+				['f', 'link', 'document'],
+				['g', 'link'],
+				['h.css', 'link', 'style']
+			])
+		).toEqual(['script', 'script', 'fetch', 'font', 'img', 'other', 'css', 'css']);
 	});
 
 	it('the extension first, then what started it', () => {
-		expect(resource_type('png', 'css')).toBe('img');
-		expect(resource_type('woff2', 'css')).toBe('font');
-		expect(resource_type('', 'css')).toBe('css');
-		expect(resource_type('', 'script')).toBe('script');
-		expect(resource_type('css', 'script')).toBe('css');
-		expect(resource_type('', 'fetch')).toBe('fetch');
-		expect(resource_type('', 'xmlhttprequest')).toBe('fetch');
-		expect(resource_type('', 'other')).toBe('other');
+		expect(
+			types_of([
+				['a.png', 'css'],
+				['b.woff2', 'css'],
+				['c', 'css'],
+				['d', 'script'],
+				['e.css', 'script'],
+				['f', 'fetch'],
+				['g', 'xmlhttprequest'],
+				['h', 'other']
+			])
+		).toEqual(['img', 'font', 'css', 'script', 'css', 'fetch', 'fetch', 'other']);
 	});
 });

@@ -2581,6 +2581,610 @@
 			"reason": "one property of the realm's object against the key hooks (an oxc AST node: not replayable), constant work; proven in packages/core/test/plugins.test.ts"
 		},
 		{
+			"id": "packages/devtools/src/profiler/beacon.ts > beacon_critical",
+			"reason": "browser only: keeps the critical wait's three numbers for the visit (module state: not replayable), constant work"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > _restart_page_beacon",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: not cloneable); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > addEventListener:1~dfd6f3",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: never ran); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > api > changed",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: not replayable); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > api > hydrated",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: not replayable); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > api > input_on",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: not replayable); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > api > join",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: not cloneable); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > api > keep_traces",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: never ran); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > api > nav_at",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: not replayable); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > api > page",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: not replayable); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > api > record_cpu",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: not recorded); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > api > record_cpu > Promise:0~ae73a0",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: never ran); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > api > send",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: not replayable); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > api > shift",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: never ran); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > api > shift > room:2~73a327",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: never ran); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > api > state",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: not replayable); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > attr_changes",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: not replayable); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > bare",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: not replayable); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > beacon_mark",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: not replayable); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > build_visit",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: not replayable); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > build_visit_now",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: not replayable); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > build_visit_now > filter:0~8f06f4",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: not replayable); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > build_visit_now > filter:0~a73cb8",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: not replayable); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > build_visit_now > find:0~0a6610",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: never ran); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > build_visit_now > find:0~bc3069",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: never ran); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > build_visit_now > find:0~e3ec81",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: never ran); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > build_visit_now > map:0~2193e7",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: not replayable); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > build_visit_now > map:0~65cce3",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: not replayable); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > build_visit_now > map:0~c1fd37",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: not recorded); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > build_visit_now > nav > map:0~f96977",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: never ran); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > build_visit_now > sort:0~4c8f5b",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: never ran); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > build_visit_now > sort:0~573645",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: never ran); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > build_visit_now > sort:0~b014bc",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: not replayable); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > build_visit_now > type_of",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: not replayable); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > charge",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: not replayable); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > copy_of",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: not replayable); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > describe_target",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: never ran); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > dom_shape",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: never ran); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > dom_shape > brief",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: never ran); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > dom_shape > sort:0~5ea730",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: never ran); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > ext_of",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: not replayable); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > flush",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: never ran); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > flush_cpu",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: not recorded); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > flush_visit",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: never ran); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > flush_visit > send:1~6c0c97",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: never ran); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > font_faces_of",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: not replayable); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > font_faces_of > filter:0~f6e8db",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: never ran); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > font_faces_of > map:0~6868ce",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: never ran); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > font_urls",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: never ran); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > fp_of",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: never ran); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > images_eager_below",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: never ran); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > images_unsized",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: never ran); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > interaction_seen",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: never ran); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > interaction_seen > setTimeout:0~60830c",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: never ran); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > interaction_with_scripts",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: never ran); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > interaction_with_scripts > sort:0~573645",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: never ran); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > keep_trace",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: never ran); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > make_profiler",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: not replayable); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > nav_entry",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: not replayable); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > nav_phases",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: not replayable); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > nav_phases > put",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: not replayable); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > observe",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: not replayable); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > observe > addEventListener:1~be19cd",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: never ran); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > observe > first",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: not cloneable); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > observe > first > <anonymous>~289846",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: never ran); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > observe > note_input",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: not cloneable); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > observe > note_input > <anonymous>~2e916d",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: never ran); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > observe > watch:1~39305c",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: never ran); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > observe > watch:1~501833",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: never ran); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > observe > watch:1~501833 > room:2~72d4ff",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: never ran); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > observe > watch:1~9b53b9",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: never ran); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > observe > watch:1~a64809",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: never ran); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > observe > watch:1~a64809 > push:0~c17dba > map:0~36304b",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: never ran); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > observe > watch:1~a64809 > push:0~c17dba > sort:0~e31e69",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: never ran); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > observe > watch:1~a64809 > push:0~ea2ba0 > map:0~e32754",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: never ran); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > observe > watch:1~a64809 > room:2~1b81bf",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: never ran); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > observe > watch:1~a64809 > room:2~4aabdf",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: never ran); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > observe > watch:1~a64809 > some:0~f26c7b",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: never ran); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > observe > watch:1~c38d55",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: not replayable); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > observe > watch:1~c7b584",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: never ran); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > observe > watch:1~c7b584 > room:2~3a8aa2",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: never ran); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > observe > watch:1~e7079f",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: never ran); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > open_db",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: never ran); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > open_db > Promise:0~9a7258",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: never ran); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > open_db > Promise:0~9a7258 > onblocked",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: never ran); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > open_db > Promise:0~9a7258 > onerror",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: never ran); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > open_db > Promise:0~9a7258 > onsuccess",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: never ran); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > open_db > Promise:0~9a7258 > onupgradeneeded",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: never ran); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > oversized_images",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: never ran); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > paint_blocker",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: not replayable); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > paint_blocker > <anonymous>~824531",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: never ran); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > paint_blocker > <anonymous>~e89c1b",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: not replayable); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > post_trace",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: never ran); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > preloads_never_used",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: never ran); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > preloads_never_used > read_sheets",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: never ran); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > preloads_never_used > some:0~de3412",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: never ran); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > rect_of",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: never ran); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > resend_soon",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: not replayable); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > resend_soon > setTimeout:0~e2c5ea",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: never ran); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > resource_type",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: not replayable); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > room",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: not replayable); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > room > findIndex:0~9d1681",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: not replayable); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > schedule",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: not replayable); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > send_after_preload_check",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: never ran); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > send_after_preload_check > addEventListener:1~32c758",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: never ran); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > start_cpu",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: not replayable); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > start_cpu > check",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: never ran); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > start_interaction_cpu",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: never ran); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > start_interaction_cpu > setTimeout:0~60830c",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: never ran); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > stop",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: not replayable); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > stop > catch:0~a1b2d0",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: never ran); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > stop_interaction_cpu",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: not recorded); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > store_visit",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: not recorded); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > store_visit > onsuccess",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: never ran); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > store_visit > onsuccess > arr",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: never ran); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > store_visit > onsuccess > onsuccess",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: never ran); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > store_visit > onsuccess > rec > union:2~90267e",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: never ran); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > store_visit > onsuccess > rec > visit > union:2~0564b0",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: never ran); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > store_visit > onsuccess > rec > visit > union:2~3b3bc2",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: never ran); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > store_visit > onsuccess > rec > visit > union:2~8ba958",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: never ran); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > store_visit > onsuccess > rec > visit > union:2~9ce3d0",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: never ran); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > store_visit > onsuccess > rec > visit > union:2~bd1f02",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: never ran); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > store_visit > onsuccess > union",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: never ran); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > supports",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: not replayable); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > tag_attrs",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: not replayable); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > tag_name",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: not replayable); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > tool_made",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: not replayable); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > unquote",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: never ran); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > unsupported_types",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: not replayable); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > unsupported_types > filter:0~b0de67",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: not replayable); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > watch_frame_gaps",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: not replayable); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > watch_frame_gaps > tick",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: never ran); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > watch_frame_gaps > tick > room:2~3a8aa2",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: never ran); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/document-request.ts > is_document_request",
+			"reason": "two header reads of a Request (not cloneable), constant work, once per request"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon.ts > page",
+			"reason": "browser only: the page beacon on a globalThis key (hidden state), one property read"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon.ts > beacon_warning > room:2~73a327",
+			"reason": "browser only: one warning's time for the page beacon's room check, constant work"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon.ts > island_record > room:2~e000b1",
+			"reason": "browser only: one island's start time for the page beacon's room check, constant work"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon.ts > describe_region",
+			"reason": "browser only: a DOM element to a short label (not replayable), at most a 30-character slice"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon.ts > part > visit",
+			"reason": "browser only: copies the regions' visit lists for the page beacon (module state: not replayable), linear in the kept entries; proven in packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon.ts > part > snapshots",
+			"reason": "browser only: the hydrated snapshots, re-read from the DOM on the final send (not replayable), linear in the kept snapshots"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon.ts > part > waking",
+			"reason": "browser only: whether a region is still waking (a DOM query: not replayable), one querySelectorAll"
+		},
+		{
+			"id": "packages/devtools/src/server.ts > dock_measures",
+			"reason": "a RequestEvent (not cloneable) to whether the dock measures it: a header read and a cookie read, once per request"
+		},
+		{
+			"id": "packages/devtools/src/server.ts > WITH_PAGE_BEACON > transformPageChunk",
+			"reason": "SvelteKit's page transform (an async hook: not recorded): two indexOf calls and one join over the head, once per document"
+		},
+		{
+			"id": "packages/devtools/src/server.ts > after",
+			"reason": "joins two resolve options into one, once per request, constant work"
+		},
+		{
+			"id": "packages/devtools/src/server.ts > after > transformPageChunk",
+			"reason": "SvelteKit's page transform (an async hook: not recorded): runs the inner then the outer transform, constant work of its own"
+		},
+		{
+			"id": "packages/devtools/src/messages/runtime.ts > DEVTOOLS_WARNINGS > devtools_page_beacon_load_failed > text",
+			"reason": "a message table entry: wording only"
+		},
+		{
+			"id": "packages/devtools/src/messages/runtime.ts > DEVTOOLS_WARNINGS > devtools_page_beacon_load_failed > details",
+			"reason": "a message table entry: wording only"
+		},
+		{
+			"id": "packages/devtools/src/page-beacon-start.ts > start_page_beacon",
+			"reason": "browser only, a build's switched-on dock: loads and starts the page beacon once per document (its loader, a function: not cloneable); proven in packages/devtools/e2e/dock-switch.spec.ts"
+		},
+		{
+			"id": "packages/devtools/src/page-beacon-start.ts > start_page_beacon > load",
+			"reason": "browser only: the default loader, one dynamic import of the beacon's chunk, once per document"
+		},
+		{
+			"id": "packages/devtools/src/page-beacon-start.ts > start_page_beacon > then:0~6c8c0d",
+			"reason": "browser only: starts the loaded beacon (a module: not cloneable), constant work of its own"
+		},
+		{
+			"id": "packages/devtools/src/page-beacon-start.ts > start_page_beacon > then:1~491fd5",
+			"reason": "browser only: a failed chunk download, said once per page (a module flag), constant work"
+		},
+		{
 			"id": "packages/devtools/src/client.ts > plugin > hooks > regionMount",
 			"reason": "browser only: hands one hook event (a DOM element: not replayable) to the leftovers watch, constant work of its own"
 		},
@@ -2625,12 +3229,16 @@
 			"reason": "browser only: hands one hook event to beacon_warning, constant work of its own"
 		},
 		{
-			"id": "packages/devtools/src/profiler/beacon.ts > beacon_critical",
-			"reason": "browser only: keeps the critical wait's three numbers for the visit (module state: not replayable), constant work"
-		},
-		{
 			"id": "packages/devtools/src/client.ts > plugin > boot",
 			"reason": "browser only: the dock's boot, once per page: installs the beacon and, with the dock on, the dock UI and the leftovers watch"
+		},
+		{
+			"id": "packages/devtools/src/server.ts > never_stored",
+			"reason": "sets one header on a Response (not cloneable), or copies its headers once when they are immutable; once per document that carries the beacon in a build; proven in packages/devtools/test/devtools-cache-headers.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/server.ts > defineServer:0~6ae004 > handle > next",
+			"reason": "SvelteKit's resolve for a beacon page in a build (a RequestEvent's resolve: not cloneable), then never_stored, constant work of its own"
 		},
 		{
 			"id": "packages/core/src/server/rules.ts > no_kept_unkeyed_read",

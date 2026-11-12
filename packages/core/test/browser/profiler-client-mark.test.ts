@@ -3,11 +3,8 @@
 // without the tag nothing is queued or sent.
 import { expect, test } from 'vitest';
 import { mark } from '../../../devtools/src/profiler/client.ts';
-import {
-	_reset_beacon,
-	_beacon_state,
-	beacon_mark
-} from '../../../devtools/src/profiler/beacon.ts';
+import { _reset_beacon, _beacon_state } from '../../../devtools/src/profiler/beacon.ts';
+import { _restart_page_beacon } from '../../../devtools/src/profiler/beacon-standalone.ts';
 
 function with_tag(): { meta: HTMLMetaElement; sent: string[]; restore: () => void } {
 	_reset_beacon();
@@ -15,9 +12,7 @@ function with_tag(): { meta: HTMLMetaElement; sent: string[]; restore: () => voi
 	meta.name = 'ogygia-profiler-beacon';
 	meta.content = '/__profiler/beacon';
 	document.head.appendChild(meta);
-	// (the page's beacon claims its global as it loads — `mark` finds it there; after a reset, any
-	// call claims it again, once the tag is in: an unnamed mark records nothing)
-	beacon_mark('', 0);
+	_restart_page_beacon();
 	const sent: string[] = [];
 	const orig = navigator.sendBeacon;
 	navigator.sendBeacon = ((_url: string, body: string) => {
@@ -85,6 +80,9 @@ test('mark: a function, a promise, a failing one, an event and a handle — one 
 
 test('mark without the beacon tag: runs the work, queues nothing', async () => {
 	_reset_beacon();
+	(globalThis as unknown as Record<symbol, { stop(): void } | undefined>)[
+		Symbol.for('ogygia.beacon')
+	]?.stop();
 	const sent: string[] = [];
 	const orig = navigator.sendBeacon;
 	navigator.sendBeacon = ((_u: string, b: string) => (

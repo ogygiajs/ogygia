@@ -29,8 +29,10 @@ it('a mark made 11 s before the beacon loads reaches it', async () => {
 	const { mark } = await import('../src/profiler/client.ts');
 	mark.start('early.boot').end();
 	await new Promise((r) => setTimeout(r, 11_000));
+	const { _restart_page_beacon } = await import('../src/profiler/beacon-standalone.ts');
 	const { beacon_page, install_beacon } = await import('../src/profiler/beacon.ts');
-	install_beacon();
+	_restart_page_beacon();
+	install_beacon(false);
 	const page = beacon_page();
 	expect(page?.marks.map((m) => m.name)).toContain('early.boot');
 }, 20_000);

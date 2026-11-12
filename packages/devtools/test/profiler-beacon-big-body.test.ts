@@ -3,6 +3,7 @@
 // profiler never got the page's browser side. The send now goes by size and by whether the page is
 // still there.
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
+import { _restart_page_beacon, type PageBeacon } from '../src/profiler/beacon-standalone.ts';
 
 const g = globalThis as Record<string, unknown>;
 let beacons: number[];
@@ -24,6 +25,7 @@ beforeEach(() => {
 		cookie: ''
 	};
 	g.addEventListener = () => {};
+	vi.stubGlobal('location', new URL('http://localhost/'));
 	// the browser's limits: both refuse a body over 64 KB
 	vi.stubGlobal('navigator', {
 		sendBeacon: (_u: string, body: string) => {
@@ -39,14 +41,27 @@ beforeEach(() => {
 			: Promise.resolve(new Response(null, { status: 204 }));
 	});
 });
+/** the page beacon's one send path, on a fresh beacon after each reset */
+function page_beacon() {
+	let api = _restart_page_beacon();
+	return {
+		_reset_beacon: () => void (api = _restart_page_beacon()),
+		_beacon_send: (body: string, slim?: () => string) => api.send(body, slim),
+		_beacon_send_leaving: (body: string, slim?: () => string) => api.send(body, slim, true)
+	};
+}
+
 afterEach(() => {
+	(globalThis as unknown as Record<symbol, PageBeacon | undefined>)[
+		Symbol.for('ogygia.beacon')
+	]?.stop();
 	delete g.document;
 	delete g.addEventListener;
 	vi.unstubAllGlobals();
 });
 
 test('a small body goes by sendBeacon, as before', async () => {
-	const b = await import('../src/profiler/beacon.ts');
+	const b = page_beacon();
 	b._reset_beacon();
 	b._beacon_send('x'.repeat(1000));
 	expect(beacons).toEqual([1000]);
@@ -54,7 +69,7 @@ test('a small body goes by sendBeacon, as before', async () => {
 });
 
 test('a big body while the page is open goes by an ordinary request, which has no size limit', async () => {
-	const b = await import('../src/profiler/beacon.ts');
+	const b = page_beacon();
 	b._reset_beacon();
 	b._beacon_send('x'.repeat(100_000), () => 'slim');
 	expect(beacons).toEqual([]);
@@ -62,7 +77,7 @@ test('a big body while the page is open goes by an ordinary request, which has n
 });
 
 test('a big body as the page goes away sends the slim copy; nothing that cannot fit is tried', async () => {
-	const b = await import('../src/profiler/beacon.ts');
+	const b = page_beacon();
 	b._reset_beacon();
 	visibility = 'hidden';
 	b._beacon_send('x'.repeat(100_000), () => 'y'.repeat(12_000));
@@ -74,7 +89,7 @@ test('a big body as the page goes away sends the slim copy; nothing that cannot 
 });
 
 test('the 64 KB is shared by everything queued at once: a hide that sends several fits them or slims them', async () => {
-	const b = await import('../src/profiler/beacon.ts');
+	const b = page_beacon();
 	b._reset_beacon();
 	visibility = 'hidden';
 	// the visit (40 KB) takes most of the room; a 30 KB message after it does not fit what is left —
@@ -102,7 +117,7 @@ test('the 64 KB is shared by everything queued at once: a hide that sends severa
 });
 
 test('a page leaving by a link still reads "visible": the hide sends the slim copy as a beacon, not an ordinary request the navigation cancels', async () => {
-	const b = await import('../src/profiler/beacon.ts');
+	const b = page_beacon();
 	b._reset_beacon();
 	visibility = 'visible';
 	b._beacon_send_leaving('x'.repeat(62_000), () => 'y'.repeat(9_000));
@@ -114,7 +129,7 @@ test('a page leaving by a link still reads "visible": the hide sends the slim co
 });
 
 test('a refused request never becomes a page error', async () => {
-	const b = await import('../src/profiler/beacon.ts');
+	const b = page_beacon();
 	b._reset_beacon();
 	const unhandled = vi.fn();
 	process.on('unhandledRejection', unhandled);
