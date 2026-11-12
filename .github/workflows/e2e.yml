@@ -250,16 +250,20 @@ jobs:
           node-version: 22
           cache: pnpm
 
-      - name: Install and build core (this PR)
+      # (core's runtime and the compiler's runtime entry that bundles it)
+      - name: Install and build core and the compiler (this PR)
         run: |
           pnpm install --frozen-lockfile
-          pnpm turbo run build --filter=@ogygia/core...
+          pnpm turbo run build --filter=@ogygia/core... --filter=@ogygia/compiler...
 
-      - name: Install and build core (the base)
+      - name: Install and build core and the compiler (the base)
         working-directory: .size-base
         run: |
           pnpm install --frozen-lockfile
-          pnpm turbo run build --filter=@ogygia/core...
+          filters=(--filter=@ogygia/core...)
+          # (a base from before @ogygia/compiler has the runtime entry inside core)
+          if [ -d packages/compiler ]; then filters+=(--filter=@ogygia/compiler...); fi
+          pnpm turbo run build "${filters[@]}"
 
       - name: Measure the base
         run: node apps/palaestra/e2e/bundle-size.ts --core .size-base/packages/core --json > size-base.json
