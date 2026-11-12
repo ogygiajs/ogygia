@@ -58,6 +58,11 @@ const hole_definition = machine<HoleStates>()({
 
 export type Hole = Machine<HoleStates, typeof hole_steps>;
 
+/** The hole's fetch machine as data (internal/notes/flows/holes.md draws it). */
+export function hole_graph(): MachineGraph {
+	return hole_definition.graph();
+}
+
 /** A hole's fetch machine, idle. */
 export function create_hole(): Hole {
 	return hole_definition.create();
@@ -86,6 +91,11 @@ const answer_definition = machine<AnswerStates>()({
 });
 
 export type Answer = Machine<AnswerStates, typeof answer_steps>;
+
+/** The hole's answer machine as data (internal/notes/flows/holes.md draws it). */
+export function answer_graph(): MachineGraph {
+	return answer_definition.graph();
+}
 
 /** A hole's answer machine: nothing on screen yet. */
 export function create_answer(): Answer {

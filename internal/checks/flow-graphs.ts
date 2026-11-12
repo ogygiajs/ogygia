@@ -19,14 +19,20 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { MachineGraph } from '../../packages/machine/src/index.ts';
 import { navigation_graph } from '../../packages/core/src/runtime/navigation.ts';
-import { wake_graph } from '../../packages/core/src/runtime/region-machines.ts';
+import {
+	answer_graph,
+	hole_graph,
+	wake_graph
+} from '../../packages/core/src/runtime/region-machines.ts';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '../..');
 
 /** Each machine a note draws: its marker name, the note, and its graph. */
 export const FLOWS: { name: string; note: string; graph: () => MachineGraph }[] = [
 	{ name: 'navigation', note: 'internal/notes/flows/navigation.md', graph: navigation_graph },
-	{ name: 'wake', note: 'internal/notes/flows/region-wake.md', graph: wake_graph }
+	{ name: 'wake', note: 'internal/notes/flows/region-wake.md', graph: wake_graph },
+	{ name: 'hole', note: 'internal/notes/flows/holes.md', graph: hole_graph },
+	{ name: 'hole-answer', note: 'internal/notes/flows/holes.md', graph: answer_graph }
 ];
 
 /** A machine's graph as a Mermaid state diagram: every step, a timed step labelled with its wait. */
