@@ -65,7 +65,7 @@ with no line, or a line naming something that does not exist (`internal/checks/i
 
 ## SECRET-SPLIT — empty client secret, SSR-only mint
 
-**What:** `virtual:ogygia/secret` is `''` on the client; sign/verify stubs no-op. SSR uses `OGYGIA_SECRET` or a per-build baked fallback. Sign/verify **HKDF-derive** a MAC key (`ogygia-mac-v1`); when `OGYGIA_SECRET` is set, region ids use a separate HKDF salt (`ogygia-id-salt-v1`). Capability MAC messages are `v1|` + UTF-8 length-prefixed fields (not raw `\0` concat). Production builds reject an `OGYGIA_SECRET` shorter than 16 UTF-8 bytes.
+**What:** `virtual:ogygia/secret` is `''` on the client; sign/verify stubs no-op. SSR uses `OGYGIA_SECRET` or a per-build baked fallback. Sign/verify **HKDF-derive** a MAC key (`ogygia-mac-v1`); when `OGYGIA_SECRET` is set, region ids use a separate HKDF salt (`ogygia-id-salt-v1`). Region capabilities are minted as v3 (`&v=3`): `capability()` from `@ogygia/machine` with no nonce, its length-prefixed message naming the capability, its version and its audience (the islands endpoint), so links stay byte-identical within an expiry window; the older `v1|`/`v2|` length-prefixed MACs are still verified (pages cached before the upgrade) and a renewal re-signs them as v3 (`packages/core/test/region-capability.test.ts`). Production builds reject an `OGYGIA_SECRET` shorter than 16 UTF-8 bytes.
 
 **Why:** Browsers must never mint capabilities. Multi-instance deploys without a shared env need the baked fallback so all replicas agree. Domain-separated keys + length-prefixed fields close classic MAC footguns without requiring the env var on every local demo.
 
