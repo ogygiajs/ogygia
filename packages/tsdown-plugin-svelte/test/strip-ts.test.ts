@@ -15,7 +15,8 @@ describe('strip_markup_ts', () => {
 <p>{(a).toFixed()} {a.toString()} {a} {foo(a)}</p>
 {#each xs as x}{x}{/each}
 <button onclick={(e) => go(e)}>x</button>
-<p>{a}</p>`);	});
+<p>{a}</p>`);
+	});
 
 	it('drops lang from a module script too, and keeps other attributes', () => {
 		const src = `<script module lang='ts'>export const k = 1;</script>
