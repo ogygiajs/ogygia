@@ -6,6 +6,8 @@
 	"scripts": {
 		"sim": "node --experimental-vm-modules --no-warnings src/cli.ts",
 		"sim:long": "node --experimental-vm-modules --no-warnings src/cli.ts --long",
+		"sim:builds": "node --no-warnings src/builds.ts",
+		"sim:gen": "node --no-warnings src/gen.ts",
 		"check": "tsc -p . && vitest run",
 		"test": "vitest run"
 	},
@@ -16,6 +18,8 @@
 	"devDependencies": {
 		"@types/node": "catalog:",
 		"fast-check": "catalog:",
+		"parse5": "catalog:sim",
+		"rolldown": "catalog:",
 		"typescript": "catalog:tsgo",
 		"vitest": "catalog:"
 	}
