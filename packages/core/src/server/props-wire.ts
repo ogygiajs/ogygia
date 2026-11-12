@@ -31,12 +31,13 @@
  */
 import { stringify } from 'devalue';
 import { escape_script_text } from '../escape.ts';
-import { REF_WIRE_KEY, ref_reducer } from '../ref.ts';
+import { REF_WIRE_KEY, placed, ref_reducer, with_local_names } from '../ref.ts';
 import { register_wire_kind } from '../live-transport.ts';
 import { register_store_kind, register_derived_kind } from '../store-transport.ts';
 import { register_snippet_kind } from '../region-snippet.ts';
 import { register_fn_kind } from '../fn-transport.ts';
 import { OgygiaError } from '../messages/server.ts';
+import { fingerprint_of } from '../contract/hash.ts';
 import {
 	analyze,
 	json_culprit,
@@ -113,7 +114,8 @@ export interface WireText {
 }
 
 export interface PropsWire {
-	/** The canonical, seed-independent text — what the fingerprint hashes. */
+	/** The canonical, seed-independent text — what the fingerprint hashes. Its refs are in place
+	 *  form (ref.ts `placed`), so the same props give the same text on every render. */
 	readonly canonical: string;
 	/** Whether the canonical text is plain JSON (the lane the props qualify for). */
 	readonly json: boolean;
@@ -139,6 +141,29 @@ export interface PropsWire {
  * The wire text is produced once per seed: identical islands share one plan, and a tail rendered
  * twice against the same index (a test, a re-render) plans and serializes once.
  */
+/**
+ * A hole's IDENTITY (`data-og-hole`): the fingerprint of its entry and canonical props. Region
+ * computes it on both legs, so the browser leg finds the facts the server minted for the hole by it
+ * (runtime/hole-facts.ts). `wire`: the props' plan, when the caller has one already.
+ *
+ * A stateful ref in the props has no name both legs share: the server names it by its request's
+ * place, the browser by an id of its own. So props that hold one are written again with LOCAL names
+ * (ref.ts `with_local_names`: places counted within these props alone), which either leg repeats
+ * (#816). One instance held twice still differs from two equal instances. The endpoint decodes a
+ * hole's props fresh, never by id, so a ref's local place is all of it the identity needs.
+ */
+export function hole_identity(
+	entry: string,
+	props: unknown,
+	wire: PropsWire | null = null
+): string {
+	const canonical = (wire ?? plan_props_wire(props || {}, entry)).canonical;
+	const text = canonical.includes(REF_WIRE_KEY)
+		? with_local_names(() => stringify_props(props || {}, entry))
+		: canonical;
+	return fingerprint_of(entry, '', text);
+}
+
 export function plan_props_wire(value: unknown, entry: string): PropsWire {
 	const shape = analyze(value);
 	const refs = { count: 0, keys: [] as string[] };
@@ -174,8 +199,10 @@ export function plan_props_wire(value: unknown, entry: string): PropsWire {
 		};
 	}
 	const wire_modules = new Set<string>();
-	const canonical = stringify_props(value, entry, null, wire_modules);
-	const plain: WireText = { text: canonical, json: false };
+	const text = stringify_props(value, entry, null, wire_modules);
+	// (a ref's id is fence + place; only the place is the same on the next render: ref.ts RefNames)
+	const canonical = placed(text);
+	const plain: WireText = { text, json: false };
 	let culprit: string | null | undefined;
 	return {
 		canonical,
