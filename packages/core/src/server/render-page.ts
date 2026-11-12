@@ -20,16 +20,17 @@
  */
 import type { RequestEvent } from '@sveltejs/kit';
 import * as devalue from 'devalue';
-import { flights, type Scope } from '@ogygia/machine';
+import { flights, STALE, type Scope } from '@ogygia/machine';
 import { request_local } from '../plugin/request-scope.ts';
 import { open_reads } from '../plugin/reads.ts';
-import { islands_endpoint } from './endpoint.ts';
+import { renders_for_a_page } from './endpoint.ts';
 import type { KitPage } from './kit-context.ts';
 import type { PageSnapshot } from '../page-seed-registry.ts';
 import { look_up_page, type PageFacts } from './page-facts.ts';
 import { merge_seed_ask, shape_page_data, type SeedAsk, type SeedKeys } from './seed-shape.ts';
 import { PAGE_FACTS_SCRIPT_TYPE } from '../page-facts-script.ts';
 import { line } from '../messages/server.ts';
+import { bucket32 } from '../contract/hash.ts';
 
 type Transport = Record<
 	string,
@@ -43,19 +44,15 @@ export function configure_render_page(o: { warn: ((message: string) => void) | n
 	warn = o.warn;
 }
 
-/** A request rendering on behalf of a page it is not: the islands endpoint or a remote call. */
-export function renders_for_a_page(event: RequestEvent): boolean {
-	return (
-		event.url.pathname.endsWith(islands_endpoint()) ||
-		(event as { isRemoteRequest?: boolean }).isRemoteRequest === true
-	);
-}
+export { renders_for_a_page };
 
 /** The page a request renders for: the same-origin Referer of a request rendering for a page, else
- *  the request's own url. */
+ *  the request's own url. The page is the render's identity, not a read about the visitor: a
+ *  render that sees it is keyed by it, or not kept (test/render-cache-page-identity.test.ts). */
 export function page_url_of(event: RequestEvent): URL {
 	if (!renders_for_a_page(event)) return event.url;
-	const referer = event.request.headers.get('referer');
+	// (past the instance's watched `get`, plugin/reads.ts: the render's own read of it still counts)
+	const referer = Headers.prototype.get.call(event.request.headers, 'referer');
 	if (!referer) return event.url;
 	try {
 		const page = new URL(referer);
@@ -95,10 +92,14 @@ const looked_up = request_local((owner: Scope) =>
 	})
 );
 
+/** The answer each request's look-up gave (null: unavailable), held by the request itself: a render
+ *  reads what it was answered, not whatever the flight still keeps (#993,
+ *  test/render-page-not-kept.test.ts). */
+const answered = new WeakMap<Request, PageFacts | null>();
+
 /** The page's facts this request looked up, or undefined. */
 function facts_of(request: Request): PageFacts | undefined {
-	const entry = looked_up(request).peek({});
-	return entry?.kind === 'kept' ? (entry.answer ?? undefined) : undefined;
+	return answered.get(request) ?? undefined;
 }
 
 /**
@@ -116,12 +117,16 @@ export function prepare_render_page(
 	if (!(reads_data ?? (event as { isRemoteRequest?: boolean }).isRemoteRequest === true)) return;
 	const page = page_url_of(event);
 	if (page === event.url) return;
-	const look_up = looked_up(event.request);
-	if (look_up.peek({})?.kind === 'kept') return;
+	const request = event.request;
+	if (answered.has(request)) return;
 	const decoders: Record<string, (v: unknown) => unknown> = {};
 	for (const name in transport ?? {}) decoders[name] = transport![name].decode;
 	// (STALE only once the request has ended: the render goes on without the facts)
-	return look_up.get({ page, fetch: event.fetch, decoders }).then(() => {});
+	return looked_up(request)
+		.get({ page, fetch: event.fetch, decoders })
+		.then((facts) => {
+			if (facts !== STALE) answered.set(request, facts);
+		});
 }
 
 /**
@@ -137,8 +142,13 @@ export function render_page(
 		// FOR A PAGE: the Referer's page — its looked-up facts, else its url alone
 		const facts = facts_of(event.request);
 		const data = facts && warn ? watched_data(facts, warn) : (facts?.data ?? {});
+		const url = facts?.url ?? page_url_of(event);
 		return {
-			url: facts?.url ?? page_url_of(event),
+			// (its page's url: a read of it is in the render's read set too)
+			get url() {
+				open_reads()?.page();
+				return url;
+			},
 			params: facts?.params ?? {},
 			route: facts?.route ?? { id: null },
 			status: 200,
@@ -167,6 +177,7 @@ export function render_page(
 }
 
 /** Reads a component makes without meaning a page key (Svelte, devalue, a thenable check). */
+// static: the property names that are never page keys
 const NOT_A_KEY = new Set([
 	'then',
 	'toJSON',
@@ -230,15 +241,10 @@ export function render_page_version(
 	return v;
 }
 
-/** 32-bit FNV-1a, base36: a version tag, not a security boundary. */
-function fnv1a(text: string): string {
-	let h = 0x811c9dc5;
-	for (let i = 0; i < text.length; i++) {
-		h ^= text.charCodeAt(i);
-		h = Math.imul(h, 0x01000193);
-	}
-	return (h >>> 0).toString(36);
-}
+/** 32-bit FNV-1a, base36: a version tag, not a security boundary (the same tags as before #484). */
+// hash: 32 bits on purpose: it only tags a version (a collision costs one missed re-render, never
+// wrong content), and a wider tag would re-tag every hole on deploy for no correctness gain
+const fnv1a = (text: string): string => bucket32(text).toString(36);
 
 const asks_of = new WeakMap<Request, SeedKeys>();
 

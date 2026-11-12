@@ -25,7 +25,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { rolldown, type OutputChunk } from 'rolldown';
-import type { RuntimeMarks } from '../../../packages/core/dist/compiler/link/runtime-entry.js';
+import type { RuntimeMarks } from '../../../packages/compiler/dist/compiler/link/runtime-entry.js';
 
 /** The value after `flag` on the command line, if any. */
 const arg = (flag: string): string | undefined => {
@@ -37,11 +37,29 @@ const arg = (flag: string): string | undefined => {
 const CORE = arg('--core')
 	? resolve(arg('--core')!)
 	: fileURLToPath(new URL('../../../packages/core', import.meta.url));
+// (a checkout from before @ogygia/compiler has the runtime entry inside core)
+const COMPILER_ENTRY = join(CORE, '../compiler/dist/compiler/link/runtime-entry.js');
 const { generateRuntimeEntrySource, resolveFeatures } = (await import(
-	pathToFileURL(join(CORE, 'dist/compiler/link/runtime-entry.js')).href
-)) as typeof import('../../../packages/core/dist/compiler/link/runtime-entry.js');
+	pathToFileURL(
+		existsSync(COMPILER_ENTRY) ? COMPILER_ENTRY : join(CORE, 'dist/compiler/link/runtime-entry.js')
+	).href
+)) as typeof import('../../../packages/compiler/dist/compiler/link/runtime-entry.js');
 
 const RUNTIME_DIR = join(CORE, 'dist/runtime');
+const CORE_VERSION = (
+	JSON.parse(readFileSync(join(CORE, 'package.json'), 'utf8')) as { version: string }
+).version;
+// Each runtime hook's build constant (on only when a plugin's browser half subscribes), as the plugin
+// defines them; a checkout from before the runtime hooks has none.
+const HOOKS_FILE = join(CORE, 'dist/contract/runtime-hooks.js');
+const HOOK_CONSTANTS: string[] = existsSync(HOOKS_FILE)
+	? Object.values(
+			((await import(pathToFileURL(HOOKS_FILE).href)) as { RUNTIME_HOOK_CONSTANTS: object })
+				.RUNTIME_HOOK_CONSTANTS
+		)
+	: [];
+/** A build constant's name (`__OGYGIA_X__`), as it is left in code when nothing defined it. */
+const BUILD_CONSTANT_RE = /\b__OGYGIA_[A-Z0-9_]+__\b/g;
 const SNAPSHOT = fileURLToPath(new URL('./bundle-size.snapshot.json', import.meta.url));
 // `--compare <json>`: gate against another build's `--json` (the PR's base) instead of the snapshot
 const COMPARE = arg('--compare');
@@ -163,7 +181,11 @@ async function measure(
 				// the profiler's browser half and plugin hooks: on only for an app that configured the
 				// profiler or devtools, or installs a client plugin (the kitchen-sink profile does)
 				__OGYGIA_BEACON__: String(extras),
-				__OGYGIA_CLIENT_PLUGINS__: String(extras)
+				__OGYGIA_CLIENT_PLUGINS__: String(extras),
+				// the installed version the runtime discloses (`window.__ogygia.v`), as the plugin defines it
+				__OGYGIA_VERSION__: JSON.stringify(CORE_VERSION),
+				// every hook subscribed in the kitchen sink (the beacon's and a client plugin's), none elsewhere
+				...Object.fromEntries(HOOK_CONSTANTS.map((id) => [id, String(extras)]))
 			}
 		},
 		logLevel: 'silent'
@@ -171,6 +193,15 @@ async function measure(
 	const { output } = await bundle.generate({ format: 'es', minify: true });
 	await bundle.close();
 	const chunks = output.filter((o): o is OutputChunk => o.type === 'chunk');
+	// every build constant is defined, as the plugin's build defines it: one left undefined keeps its
+	// default branch (on) and the bytes behind it, a size no real build ships
+	const undefined_constants = new Set(
+		chunks.flatMap((c) => [...c.code.matchAll(BUILD_CONSTANT_RE)].map((m) => m[0]))
+	);
+	if (undefined_constants.size)
+		throw new Error(
+			`bundle-size: build constants left undefined (define them as the plugin does): ${[...undefined_constants].join(', ')}`
+		);
 	// BOOT is the entry chunk plus everything it imports STATICALLY (a module the entry shares with
 	// a lazy chunk lands in a shared chunk the entry still loads at boot); the rest is lazy.
 	const by_name = new Map(chunks.map((c) => [c.fileName, c]));

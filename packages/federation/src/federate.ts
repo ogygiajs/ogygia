@@ -7,12 +7,13 @@
  * Called at server module-eval (in or under hooks.server.ts). The handle reads the registration
  * back to serve `/og/fragment/*`, `/og/thaw`, and the deferred remote-region holes.
  */
-import { outbox, policy, type Outbox } from '@ogygia/machine';
+import { net, outbox, policy, timers, type Outbox } from '@ogygia/machine';
 import { fed_app } from './app.ts';
 import { warn } from './messages.ts';
 import { PeerHandle } from './peer.ts';
 import { set_federation, current_federation } from './registry.ts';
 import {
+	configured_audience,
 	sign_headers,
 	THAW_PATH,
 	type Claims,
@@ -56,8 +57,13 @@ export function federate<P extends Record<string, PeerConfig>>(
 	if ((config.expose || config.widgets) && !has_inbound && !config.open) {
 		warn('federation_open_without_keys');
 	}
+	// FAIL-CLOSED: peers may call in, but there is no audience to check their hops against, so
+	// every signed call is refused (wire.ts `verify_signed_request`)
+	if (has_inbound && config.audience == null && configured_audience() == null) {
+		warn('federation_audience_missing', { name: config.name });
+	}
 
-	const peers = new Map<string, Peer & { keys: readonly string[] }>();
+	const peers = new Map<string, PeerHandle & { keys: readonly string[] }>();
 	const out = {} as { [K in keyof P]: Peer };
 	for (const [peer_name, peer_cfg] of Object.entries(config.peers ?? {}) as [
 		keyof P & string,
@@ -79,6 +85,10 @@ export function federate<P extends Record<string, PeerConfig>>(
 		name: config.name,
 		key: config.key,
 		peers,
+		// (a peer's handle above already parsed each one)
+		code_origins: Object.values(config.peers ?? {})
+			.flatMap((p) => p.origin)
+			.map((o) => new URL(o).origin),
 		visitor: config.visitor,
 		expose: config.expose,
 		base: config.base ?? '',
@@ -120,11 +130,11 @@ const PEER_TRY_MS = 5000;
 async function post_thaw(t: Thaw, signal: AbortSignal): Promise<void> {
 	const u = new URL(THAW_PATH, t.peer.origin);
 	const signed = t.fed.key ? sign_headers(t.fed.key, 'POST', u, t.body, undefined) : {};
-	const res = await fetch(u, {
+	const res = await net.fetch(u, {
 		method: 'POST',
 		headers: { 'content-type': 'application/json', ...signed },
 		body: t.body,
-		signal: AbortSignal.any([signal, AbortSignal.timeout(PEER_TRY_MS)])
+		signal: timers.timeout(PEER_TRY_MS, signal)
 	});
 	if (!res.ok) throw new Error(`${t.peer_name} answered ${res.status}`);
 }

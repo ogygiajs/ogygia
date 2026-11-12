@@ -47,7 +47,8 @@ link to `<main>`.
 	set_shell_context({ site, base: the_base, components: site.components });
 
 	// svelte-ignore state_referenced_locally
-	const tree: NavTree = await site.nav({ base: the_base, slug: page.params.slug ?? '' });
+	const tree: NavTree =
+		sidebar === undefined ? await site.nav({ base: the_base, slug: page.params.slug ?? '' }) : [];
 </script>
 
 <div class="og-shell">

@@ -1,4 +1,5 @@
 import { fileURLToPath } from 'node:url';
+import { inline_markup_names } from '@ogygia/config/tsdown';
 import { svelte } from '@ogygia/tsdown-plugin-svelte';
 import { defineConfig } from 'tsdown';
 
@@ -11,8 +12,8 @@ const pkg_root = fileURLToPath(new URL('.', import.meta.url));
 
 // Build the library's JS/TS modules to dist/ with .d.ts, PRESERVING the source module
 // structure (`unbundle`). Structure must stay parallel because:
-//   - the vite plugin resolves sibling modules via `new URL('../runtime/index.js', ...)` /
-//     `../shims/*.js` (fileURLToPath) — those targets must exist at the same relative paths;
+//   - the compiler (@ogygia/compiler) addresses core's built files by path, through
+//     contract/core-files.ts (`dist/runtime`, `dist/shims/*.js`, …);
 //   - the `.svelte` wrappers import `./server/*.js` relatively.
 //
 // The `.svelte` COMPONENTS (with templates) are NOT compiled here — they ship as raw source
@@ -30,7 +31,7 @@ export default defineConfig({
 	dts: true,
 	clean: true,
 	treeshake: false, // keep every module intact; nothing here is dead code
-	plugins: [svelte({ root: pkg_root })],
+	plugins: [svelte({ root: pkg_root }), inline_markup_names()],
 	deps: {
 		// never inline — peers / deps / consumer-resolved specifiers
 		neverBundle: [
@@ -39,8 +40,6 @@ export default defineConfig({
 			'svelte/server',
 			/^@sveltejs\/kit(\/|$)/,
 			'devalue',
-			'magic-string',
-			'estree-walker',
 			'vite',
 			// lazy optional peer of JsToTs — bundling would freeze a store path (it once
 			// resolved to typescript/lib/version.js and shipped a ts with no ScriptTarget)
@@ -48,7 +47,10 @@ export default defineConfig({
 			// consumer-resolved specifiers
 			/^node:/,
 			/^virtual:/,
+			/^ogygia:/,
 			/^\$app\//,
+			// the package's own `imports` (`#region-server`): the app's bundler picks browser or server
+			/^#/,
 			/\.svelte$/, // the 3 wrapper components (shipped as source)
 			'ogygia/runtime',
 			'ogygia/internal',

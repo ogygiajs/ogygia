@@ -11,7 +11,8 @@ import { spawn_server, port, type SpawnedServer } from '@ogygia/tooling/e2e/serv
 
 const PORT = port(3104);
 const ORIGIN = `http://localhost:${PORT}`;
-const KEY = 'e2e-beacon';
+// (16 bytes or more: a production profiler refuses a shorter secret, #760)
+const KEY = 'e2e-beacon-profiler-key';
 // (the devtools lab, built by this suite's globalSetup)
 const app = fileURLToPath(new URL('./app', import.meta.url));
 const dir = mkdtempSync(join(tmpdir(), 'og-beacon-'));
@@ -71,7 +72,7 @@ async function open(page: Page): Promise<void> {
 	// the standalone beacon is the one reporting (no runtime on this page)
 	expect(
 		await page.evaluate(() => ({
-			standalone: (window as { __og_beacon_standalone?: number }).__og_beacon_standalone === 1,
+			standalone: !!(window as unknown as Record<symbol, unknown>)[Symbol.for('ogygia.beacon')],
 			runtime: !!document.querySelector('script[data-ogygia-runtime]')
 		}))
 	).toEqual({ standalone: true, runtime: false });
@@ -113,4 +114,20 @@ test('coming back to the tab opens the visit again: the next hide sends it', asy
 	await visibility(page, 'visible');
 	await visibility(page, 'hidden');
 	expect(await visits(page)).toBeGreaterThan(first);
+});
+
+test('a Kit page reports its vitals once and its visit, with no regions, from the one page beacon', async ({
+	page
+}) => {
+	await open(page);
+	await visibility(page, 'hidden');
+	const bodies = await page.evaluate(() =>
+		(window as unknown as { __posts: string[] }).__posts.map(
+			(b) => JSON.parse(b) as { vitals?: object; visit?: { islands: unknown[] } }
+		)
+	);
+	expect(bodies.filter((b) => b.vitals && !b.visit)).toHaveLength(1);
+	const visits = bodies.filter((b) => b.visit);
+	expect(visits.length).toBeGreaterThan(0);
+	expect(visits.at(-1)!.visit!.islands).toEqual([]);
 });
