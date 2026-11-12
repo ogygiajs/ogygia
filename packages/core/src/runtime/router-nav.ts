@@ -492,9 +492,12 @@ const pages = (): Pages =>
 		weigh: (answer) =>
 			Math.max((answer.page?.html.length ?? 0) * 2, PAGE_CACHE_MAX_BYTES / PAGE_CACHE_MAX_ENTRIES)
 	}));
-/** Hrefs whose prefetched HTML was already scanned for island entries — parse once. (URL-level
- *  import dedupe lives in the shared `warm_island_module`.) */
-const warmed_pages = new Set<string>();
+type Memo<K, V> = import('@ogygia/machine').Cache<K, V>;
+/** Hrefs whose prefetched HTML was already scanned for island entries — parse once (the least
+ *  recently warmed go first). (URL-level import dedupe lives in the shared `warm_island_module`.) */
+let warmed_pages_memo: Memo<string, true> | undefined;
+const warmed_pages = () =>
+	(warmed_pages_memo ??= boot_link().cache({ name: 'warmed pages', max: 512 }));
 /** (Hard SPA navigations are the router's own machine, `r.nav` (./navigation.ts), so a "same
  *  document" decision there can stop one in flight: SpaRouter.supersede. The soft refresh is its
  *  machine too, `boot_link().soft` (./soft-refresh.ts): the boot holds it, as a page without the
@@ -642,8 +645,8 @@ async function run_page_fetch(
  * A cheap attribute scan avoids building a whole detached Document during the hover window.
  */
 function warm_modules(href: string, html: string) {
-	if (warmed_pages.has(href)) return;
-	warmed_pages.add(href);
+	if (warmed_pages().has(href)) return;
+	warmed_pages().set(href, true);
 	// URL-level dedupe + failure-retry live in the shared warmer (one scheme for
 	// router/visible/interaction warms). The page's island graph first, so each warm below preloads
 	// its island's whole graph with it.

@@ -46,13 +46,17 @@ const HOLD_FOR_VIEWPORT_MS = 1000;
 // are all pending at once): two heaps by connect order, the turns of regions in the viewport and
 // the rest (a region's report moves its turns across; the entry left behind is skipped), each
 // region's turns, and the turns still waiting for their snapshot, in request order.
-let pending_count = 0;
-let next_seq = 0;
-const heap_vis: Turn[] = [];
-const heap_rest: Turn[] = [];
-const turns_of = new Map<Element, Turn[]>();
-const unsnapped: Turn[] = [];
-let unsnapped_head = 0;
+class PendingTurns {
+	count = 0;
+	next_seq = 0;
+	readonly heap_vis: Turn[] = [];
+	readonly heap_rest: Turn[] = [];
+	readonly turns_of = new Map<Element, Turn[]>();
+	readonly unsnapped: Turn[] = [];
+	unsnapped_head = 0;
+}
+/** The document's pending turns (its one scheduler's: a turn leaves at its pick or its region's leaving). */
+const P = new PendingTurns();
 /**
  * The drain, as a machine:
  *
@@ -79,20 +83,24 @@ let next_order = 0;
 const in_viewport = new WeakMap<Element, boolean>();
 /** Each region's viewport snapshot while it runs (closing it stops the snapshot). */
 const snapshot_of = new WeakMap<Element, () => void>();
-/** Regions whose hydrate has STARTED (module in flight) and not yet taken its turn. */
-const loading = new Set<Element>();
-/** The loading regions the snapshot says intersect the viewport (what a hold waits for). */
-const loading_vis = new Set<Element>();
+/** Regions whose hydrate has STARTED (module in flight) and not yet taken its turn (held weakly: a
+ *  region gone is let go), and those of them the snapshot says intersect the viewport (what a hold
+ *  waits for: each leaves at its turn, its settle or its region's leaving). */
+class LoadingRegions {
+	readonly all = new WeakSet<Element>();
+	readonly on_screen = new Set<Element>();
+}
+const L = new LoadingRegions();
 
-/** Keep `loading_vis` in step after `el`'s loading state or snapshot changed. */
+/** Keep the on-screen loading regions in step after `el`'s loading state or snapshot changed. */
 function sync_loading(el: Element): void {
-	if (loading.has(el) && in_viewport.get(el) === true) loading_vis.add(el);
-	else loading_vis.delete(el);
+	if (L.all.has(el) && in_viewport.get(el) === true) L.on_screen.add(el);
+	else L.on_screen.delete(el);
 }
 
 function stop_loading(el: Element): boolean {
-	loading_vis.delete(el);
-	return loading.delete(el);
+	L.on_screen.delete(el);
+	return L.all.delete(el);
 }
 
 /** Connect order, then request order: the pick order within one heap. */
@@ -134,20 +142,20 @@ function heap_top(h: Turn[], vis: boolean): Turn | undefined {
 /** File each pending turn of `el` in the heap its snapshot now says. */
 function refile(el: Element): void {
 	const vis = in_viewport.get(el) === true;
-	for (const t of turns_of.get(el) ?? []) {
+	for (const t of P.turns_of.get(el) ?? []) {
 		if (t.vis === vis) continue;
 		t.vis = vis;
-		heap_push(vis ? heap_vis : heap_rest, t);
+		heap_push(vis ? P.heap_vis : P.heap_rest, t);
 	}
 }
 
 /** The turn leaves the queue (taken, or its region went away). */
 function retire(t: Turn): void {
 	t.done = true;
-	pending_count--;
-	const list = turns_of.get(t.el)!;
+	P.count--;
+	const list = P.turns_of.get(t.el)!;
 	list.splice(list.indexOf(t), 1);
-	if (!list.length) turns_of.delete(t.el);
+	if (!list.length) P.turns_of.delete(t.el);
 }
 
 /**
@@ -156,19 +164,24 @@ function retire(t: Turn): void {
  * keeps the continuation at the current task's priority); else a message hop — a `MessageChannel`
  * post lands as a task without the 4 ms clamp `setTimeout` carries.
  */
-let channel: MessageChannel | null = null;
-const hops: Array<() => void> = [];
+class TaskHops {
+	readonly channel = new MessageChannel();
+	/** The hops posted and not yet landed, in order (each lands in its own task). */
+	readonly waiting: Array<() => void> = [];
+	constructor() {
+		this.channel.port1.onmessage = () => this.waiting.shift()?.();
+	}
+	hop(resolve: () => void): void {
+		this.waiting.push(resolve);
+		this.channel.port2.postMessage(null);
+	}
+}
+/** The message-channel hop, made at the first yield that needs it (the document's). */
+let hops: TaskHops | null = null;
 export function yield_task(): Promise<void> {
 	const s = (globalThis as { scheduler?: { yield?: () => Promise<void> } }).scheduler;
 	if (s && typeof s.yield === 'function') return s.yield();
-	return new Promise<void>((resolve) => {
-		if (!channel) {
-			channel = new MessageChannel();
-			channel.port1.onmessage = () => hops.shift()?.();
-		}
-		hops.push(resolve);
-		channel.port2.postMessage(null);
-	});
+	return new Promise<void>((resolve) => (hops ??= new TaskHops()).hop(resolve));
 }
 
 /**
@@ -181,15 +194,19 @@ export function yield_task(): Promise<void> {
 export function background_start(fn: () => void): void {
 	// ONE background task drains every start queued meanwhile (a task per island: each hydrate turn
 	// outranked the next island's start, so its import began late); it yields past a time budget
-	background_queue.push(fn);
-	if (!background_armed) {
-		background_armed = true;
+	B.starts.push(fn);
+	if (!B.armed) {
+		B.armed = true;
 		post_background(drain_background);
 	}
 }
 
-const background_queue: (() => void)[] = [];
-let background_armed = false;
+/** The starts queued for the background drain (each leaves as it runs), and whether a drain is out. */
+class BackgroundStarts {
+	readonly starts: (() => void)[] = [];
+	armed = false;
+}
+const B = new BackgroundStarts();
 /** a drain yields to the page after this long, and continues in a new background task */
 const BACKGROUND_BUDGET_MS = 30;
 
@@ -197,14 +214,14 @@ function drain_background(): void {
 	const until = now() + BACKGROUND_BUDGET_MS;
 	let i = 0;
 	try {
-		while (i < background_queue.length) {
-			background_queue[i++]();
+		while (i < B.starts.length) {
+			B.starts[i++]();
 			if (now() >= until) break;
 		}
 	} finally {
-		background_queue.splice(0, i);
-		if (background_queue.length) post_background(drain_background);
-		else background_armed = false;
+		B.starts.splice(0, i);
+		if (B.starts.length) post_background(drain_background);
+		else B.armed = false;
 	}
 }
 
@@ -222,7 +239,7 @@ function post_background(fn: () => void): void {
 			// ok: an invalid-priority throw (an older postTask); the fallback below runs it
 		}
 	}
-	// oxlint-disable-next-line ogygia/owned-effects -- the process's one background drain (`background_armed`), one task: it ends itself, and a start queued in it belongs to whoever queued it
+	// oxlint-disable-next-line ogygia/owned-effects -- the process's one background drain (`B.armed`), one task: it ends itself, and a start queued in it belongs to whoever queued it
 	setTimeout(fn, 0);
 }
 
@@ -299,7 +316,7 @@ export function register_region(el: Element, owner: Scope): void {
 		in_viewport.set(el, intersecting);
 		sync_loading(el);
 		refile(el);
-		if (pending_count) schedule_drain();
+		if (P.count) schedule_drain();
 	});
 	snapshot_of.set(el, stop);
 	// (the owner ending stops this snapshot only: a later one of the element is another owner's.
@@ -318,7 +335,7 @@ export function unregister_region(el: Element): void {
 	stop_snapshot(el);
 	in_viewport.delete(el);
 	stop_loading(el);
-	const list = turns_of.get(el);
+	const list = P.turns_of.get(el);
 	// (the latest request first, as the turns always resolved here)
 	if (list) {
 		for (const turn of list.slice().reverse()) {
@@ -326,7 +343,7 @@ export function unregister_region(el: Element): void {
 			turn.resolve();
 		}
 	}
-	if (pending_count) schedule_drain();
+	if (P.count) schedule_drain();
 }
 
 function stop_snapshot(el: Element): void {
@@ -338,14 +355,14 @@ function stop_snapshot(el: Element): void {
 
 /** The island's module is in flight: a viewport island here holds ready islands below the fold. */
 export function hydrate_started(el: Element): void {
-	loading.add(el);
+	L.all.add(el);
 	sync_loading(el);
 }
 
 /** The hydrate attempt is over (turn taken, or it never got there — no entry, a failed import). */
 export function hydrate_settled(el: Element): void {
 	if (!stop_loading(el)) return;
-	if (pending_count) schedule_drain();
+	if (P.count) schedule_drain();
 }
 
 /**
@@ -358,18 +375,18 @@ export function hydrate_turn(el: Element): Promise<void> {
 		const turn: Turn = {
 			el,
 			order: order_of.get(el) ?? (order_of.set(el, next_order), next_order++),
-			seq: next_seq++,
+			seq: P.next_seq++,
 			queued_at: now(),
 			resolve,
 			vis: in_viewport.get(el) === true,
 			done: false
 		};
-		pending_count++;
-		heap_push(turn.vis ? heap_vis : heap_rest, turn);
-		const list = turns_of.get(el);
+		P.count++;
+		heap_push(turn.vis ? P.heap_vis : P.heap_rest, turn);
+		const list = P.turns_of.get(el);
 		if (list) list.push(turn);
-		else turns_of.set(el, [turn]);
-		if (!in_viewport.has(el)) unsnapped.push(turn);
+		else P.turns_of.set(el, [turn]);
+		if (!in_viewport.has(el)) P.unsnapped.push(turn);
 		schedule_drain();
 	});
 }
@@ -398,19 +415,19 @@ function drain_after(ms: number): void {
  * wait are behind for good (the clock only moves on) and leave the queue.
  */
 function first_unsnapped(t: number): Turn | undefined {
-	while (unsnapped_head < unsnapped.length) {
-		const p = unsnapped[unsnapped_head];
+	while (P.unsnapped_head < P.unsnapped.length) {
+		const p = P.unsnapped[P.unsnapped_head];
 		if (!p.done && !in_viewport.has(p.el) && SNAPSHOT_WAIT_MS - (t - p.queued_at) > 0) return p;
-		unsnapped_head++;
+		P.unsnapped_head++;
 	}
-	unsnapped.length = unsnapped_head = 0;
+	P.unsnapped.length = P.unsnapped_head = 0;
 	return undefined;
 }
 
 /** One turn per call: pick the best pending region, hand it its task; the next pick after a yield. */
 function drain(): void {
 	drainer.go('idle');
-	if (!pending_count) return;
+	if (!P.count) return;
 	const t = now();
 	const hidden = typeof document !== 'undefined' && document.visibilityState === 'hidden';
 	// Viewport-first needs the snapshot: hold the FIRST picks until every queued region has
@@ -421,23 +438,23 @@ function drain(): void {
 		if (p) return drain_after(SNAPSHOT_WAIT_MS - (t - p.queued_at));
 	}
 	// the best: a region in the viewport before one that is not, connect order within each
-	const turn = (heap_top(heap_vis, true) ?? heap_top(heap_rest, false))!;
+	const turn = (heap_top(P.heap_vis, true) ?? heap_top(P.heap_rest, false))!;
 	// The best ready island is below the fold while a viewport island is still waiting for its
 	// module: hold — that island's turn request (or its settling) re-drains. Bounded, so a chunk
 	// that never arrives cannot stall the page.
-	if (!hidden && !turn.vis && loading_vis.size) {
+	if (!hidden && !turn.vis && L.on_screen.size) {
 		const left = HOLD_FOR_VIEWPORT_MS - (t - turn.queued_at);
 		if (left > 0) return drain_after(left);
 	}
-	heap_pop(turn.vis ? heap_vis : heap_rest);
+	heap_pop(turn.vis ? P.heap_vis : P.heap_rest);
 	retire(turn);
 	stop_loading(turn.el);
 	stop_snapshot(turn.el);
 	turn.resolve(); // the island's hydrate step runs as this task's microtask continuation
-	if (pending_count) schedule_drain(); // the next island in the next task
+	if (P.count) schedule_drain(); // the next island in the next task
 }
 
 /** Test seam: is a hydration turn queued or being drained right now? */
 export function schedule_idle(): boolean {
-	return pending_count === 0 && drainer.now.kind !== 'queued';
+	return P.count === 0 && drainer.now.kind !== 'queued';
 }
