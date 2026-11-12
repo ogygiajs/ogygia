@@ -7,11 +7,12 @@
 import path from 'node:path';
 import type { Plugin } from 'vite';
 import { strip_id, type Program } from '../compiler/program.ts';
+import { is_generated_specifier } from '../compiler/virtual/table.ts';
 
 /**
  * Rewrite vite-plugin-svelte island sourcemap `sources` so Vite treats them as virtual.
  *
- * Svelte emits the basename of `virtual:ogygia/island/<id>.svelte` (just `<id>.svelte`).
+ * Svelte emits the basename of `ogygia:region/entry/<id>.svelte` (just `<id>.svelte`).
  * That string does not match Vite's `virtualSourceRE`, so `injectSourcesContent` tries a
  * disk read and warns "points to missing source files". Pointing sources back at the
  * full virtual module id silences the warning (and keeps maps coherent).
@@ -26,7 +27,7 @@ export function rewrite_island_sourcemap_sources(
 	let changed = false;
 	const next = sources.map((s) => {
 		if (typeof s !== 'string') return s;
-		if (s === moduleId || s.startsWith('virtual:') || s.includes('\0')) return s;
+		if (s === moduleId || is_generated_specifier(s) || s.includes('\0')) return s;
 		// Basename-only (or other relative) .svelte source for this virtual module.
 		if (s.endsWith('.svelte') && !s.includes('/') && !path.isAbsolute(s)) {
 			changed = true;
@@ -49,7 +50,7 @@ export function island_sourcemaps_plugin(deps: {
 		transform(code, id) {
 			const bare = strip_id(id);
 			if (!is_island_path(bare)) return null;
-			// A generated WRAPPER virtual (`virtual:ogygia/wrapper/<hash>.svelte`) is glue with no source
+			// A generated WRAPPER virtual (`ogygia:region/wrapper/<hash>.svelte`) is glue with no source
 			// on disk. vite-plugin-svelte emits a map whose `sources` is the bare `<hash>.svelte` basename
 			// with no `sourcesContent`; Vite then disk-probes it and warns "points to missing source files"
 			// — once per island, on every dev page. Rewriting the sources to the virtual id does NOT stick
