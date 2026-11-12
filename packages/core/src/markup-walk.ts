@@ -261,12 +261,6 @@ class Tag implements FoundTag {
 		this.#after = after;
 	}
 
-	/** Where the attributes of `tag`, a start tag of `html`, start: read already when the walk
-	 *  found it. */
-	static attrs_from(html: string, tag: FoundTag): number {
-		return #after in tag && tag.#html === html ? tag.#after : name_end(html, tag.start + 1);
-	}
-
 	get attrs(): Map<string, string> {
 		if (this.#all !== null) return this.#all;
 		const all = new Map<string, string>();
@@ -303,8 +297,9 @@ const TOKEN = {
 };
 
 /** From `i` (in the data state), read up to the next start or end tag into `TOKEN`; false when
- *  none comes. Comments and bogus comments are stepped over. */
-function step(html: string, i: number): boolean {
+ *  none comes. Comments and bogus comments are stepped over. A start tag's attributes go to `sink`
+ *  as they are read (before the tag is known to end: when the input ends inside it, step is false). */
+function step(html: string, i: number, sink: AttrSink | null): boolean {
 	const n = html.length;
 	while (i < n) {
 		const lt = html.indexOf('<', i);
@@ -320,8 +315,8 @@ function step(html: string, i: number): boolean {
 				!(e === 62 || e === 32 || e === 47 || e !== e || (e <= 13 && e >= 9 && e !== 11))
 			)
 				e = html.charCodeAt(++ne);
-			const end = e === 62 ? ne + 1 : read_attrs(html, ne, null);
-			if (end === -1) return false;
+			const end = e === 62 ? ne + 1 : read_attrs(html, ne, sink);
+			if (end < 0) return false;
 			TOKEN.kind = 1;
 			TOKEN.lt = lt;
 			TOKEN.ns = lt + 1;
@@ -393,19 +388,6 @@ function after_start(html: string): number {
 	return raw_close(html, TOKEN.end, raw);
 }
 
-/** Each attribute of `tag`, a start tag of `html`, in source order, as spans: its name
- *  `html[ns, ne)` (as written: any case, repeats included) and its value `html[vs, ve)` (`vq` the
- *  quote's char code, 0 when unquoted, -1 when bare). `visit` returning true stops the read. For a
- *  rewrite that reads every attribute of many tags without building `attrs` (federation's asset
- *  pinning). */
-export function each_attr(
-	html: string,
-	tag: FoundTag,
-	visit: (ns: number, ne: number, vs: number, ve: number, vq: number) => boolean | void
-): void {
-	read_attrs(html, Tag.attrs_from(html, tag), visit);
-}
-
 /** Where the attribute `attr` (lower case) of `tag`, a `<name …>` start tag of `html`, has its value
  *  start (inside its quotes), or -1 when it is absent or has no value: where a rewrite of the value
  *  splices. A function, not a `FoundTag` method, so a bundle that never rewrites leaves it out. */
@@ -448,7 +430,7 @@ function found(html: string, lt: number, end: number, raw: string | null, after:
  *  `t`: the loop form of `tags()` for hot paths. */
 export function next_tag(html: string, name: string, from: number): FoundTag | null {
 	let i = from;
-	while (step(html, i)) {
+	while (step(html, i, null)) {
 		if (TOKEN.kind === 2) {
 			i = TOKEN.end;
 			continue;
@@ -470,7 +452,7 @@ export function next_open_or_close(
 	from: number
 ): { readonly tag: FoundTag } | { readonly close: number; readonly end: number } | null {
 	let i = from;
-	while (step(html, i)) {
+	while (step(html, i, null)) {
 		if (TOKEN.kind === 2) {
 			if (name_is(html, TOKEN.ns, TOKEN.ne, name)) return { close: TOKEN.lt, end: TOKEN.end };
 			i = TOKEN.end;
@@ -491,10 +473,18 @@ export function* tags(html: string, name: string, from = 0): Generator<FoundTag>
 
 /** The first start tag of any name in `html` from `from` (as `next_tag` reads one), or null: for a
  *  rewrite that reads every tag (federation's asset pinning). Its name, when wanted, is
- *  `tag_name(html, tag)`: a walk over every tag makes no string per tag. */
-export function next_any_tag(html: string, from: number): FoundTag | null {
+ *  `tag_name(html, tag)`: a walk over every tag makes no string per tag. `visit` is handed each of
+ *  its attributes, in source order, while the walk reads the tag (once, not read again): its name
+ *  `html[ns, ne)` as written (any case, repeats included) and its value `html[vs, ve)` (`vq` the
+ *  quote's char code, 0 when unquoted, -1 when bare). Null: no tag, or the HTML ended inside one
+ *  (whose attributes may have been visited). */
+export function next_any_tag(
+	html: string,
+	from: number,
+	visit: ((ns: number, ne: number, vs: number, ve: number, vq: number) => void) | null = null
+): FoundTag | null {
 	let i = from;
-	while (step(html, i)) {
+	while (step(html, i, visit)) {
 		if (TOKEN.kind === 2) {
 			i = TOKEN.end;
 			continue;
@@ -560,7 +550,7 @@ export function text_of(html: string, tag: FoundTag, name: string): string | nul
 		return close === -1 ? null : html.slice(tag.end, close);
 	}
 	// (not raw text: up to its first `</name` the walk reads, past comments and raw text inside)
-	for (let i = tag.end; step(html, i);) {
+	for (let i = tag.end; step(html, i, null);) {
 		if (TOKEN.kind === 2 && name_is(html, TOKEN.ns, TOKEN.ne, name))
 			return html.slice(tag.end, TOKEN.lt);
 		i = TOKEN.kind === 2 ? TOKEN.end : after_start(html);

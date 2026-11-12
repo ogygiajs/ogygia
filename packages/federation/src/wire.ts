@@ -11,7 +11,6 @@ import {
 	verify as ed_verify
 } from 'node:crypto';
 import {
-	each_attr,
 	Needle,
 	next_any_tag,
 	next_tag,
@@ -507,6 +506,19 @@ function asset_suffix(html: string, ns: number, ne: number): number {
 	}
 }
 
+/** Are `html[a, a_end)` and `html[b, b_end)` one ASCII name, in any case? */
+function same_name(html: string, a: number, a_end: number, b: number, b_end: number): boolean {
+	if (a_end - a !== b_end - b) return false;
+	for (; a < a_end; a++, b++) {
+		let x = html.charCodeAt(a);
+		let y = html.charCodeAt(b);
+		if (x >= 65 && x <= 90) x += 32;
+		if (y >= 65 && y <= 90) y += 32;
+		if (x !== y) return false;
+	}
+	return true;
+}
+
 /** Does `html[ns, ne)` end with the lower-case ASCII `suffix`, in any ASCII case? */
 function ends_with(html: string, ns: number, ne: number, suffix: string): boolean {
 	const len = suffix.length;
@@ -527,23 +539,22 @@ function ends_with(html: string, ns: number, ne: number, suffix: string): boolea
  *  a code sample or script text, is the page's text, #974): the asset refs in their attribute
  *  values, and the JSON of every `script[data-ogygia-graph]` (as the runtime selects them). */
 export function absolutize(html: string, origin: string): string {
-	// (a tag the text is not inside cannot carry it: most skip the attribute read)
-	const assets = new Needle(html, ASSET_ATTR_ANY_CASE);
 	const graphs = new Needle(html, GRAPH_ANY_CASE);
-	if (assets.gone && graphs.gone) return html;
+	if (graphs.gone && new Needle(html, ASSET_ATTR_ANY_CASE).gone) return html;
 	let out = '';
 	let pos = 0;
-	/** the lower-case asset names this tag has had (a repeat is not the attribute: the first is) */
-	let seen: string[] | null = null;
-	/** a name past ASCII: the tag is read by `pin_tag` */
+	/** the asset names this tag has had, as spans (a repeat is not the attribute: the first is) */
+	const seen: number[] = [];
+	/** a name past ASCII: the tag is read again by `pin_tag` */
 	let past_ascii = false;
-	const pin_value = (ns: number, ne: number, vs: number, ve: number): boolean | void => {
+	const pin_value = (ns: number, ne: number, vs: number, ve: number): void => {
+		if (past_ascii) return;
 		const suffix = asset_suffix(html, ns, ne);
 		if (suffix === -1) return;
 		for (let k = ns; k < ne; k++)
 			if (html.charCodeAt(k) > 127) {
 				past_ascii = true;
-				return true;
+				return;
 			}
 		// (the asset name is the whole name, or follows a character no word holds: `data-src`)
 		if (suffix > ns) {
@@ -551,10 +562,9 @@ export function absolutize(html: string, origin: string): string {
 			if (c >= 65 && c <= 90) c += 32;
 			if ((c >= 97 && c <= 122) || (c >= 48 && c <= 57) || c === 95) return;
 		}
-		const name = html.slice(ns, ne).toLowerCase();
-		if (seen === null) seen = [name];
-		else if (seen.includes(name)) return;
-		else seen.push(name);
+		for (let k = 0; k < seen.length; k += 2)
+			if (same_name(html, seen[k], seen[k + 1], ns, ne)) return;
+		seen.push(ns, ne);
 		if (vs === ve) return;
 		const value = html.slice(vs, ve);
 		const pinned = ne - suffix === 8 ? pin_endpoint(value, origin) : pin_asset(value, origin);
@@ -579,24 +589,24 @@ export function absolutize(html: string, origin: string): string {
 		}
 	};
 	let graphs_done = graphs.gone;
-	for (let t = next_any_tag(html, 0); t !== null; t = next_any_tag(html, t.next)) {
-		const in_assets = !assets.gone && assets.holds(t);
-		const in_graphs = !graphs_done && graphs.holds(t);
-		if (graphs.gone) graphs_done = true;
-		if (assets.gone && graphs_done) break;
-		// (in source order: a tag's attributes are read first to last)
-		if (in_assets) {
-			const out_before = out;
-			const pos_before = pos;
-			seen = null;
-			past_ascii = false;
-			each_attr(html, t, pin_value);
-			if (past_ascii) {
-				out = out_before;
-				pos = pos_before;
-				pin_tag(t);
-			}
+	for (let i = 0; ;) {
+		// (each tag's attributes are pinned as the walk reads them, first to last; a tag the input
+		// ends inside is no tag, and its pins are dropped)
+		const out_before = out;
+		const pos_before = pos;
+		seen.length = 0;
+		past_ascii = false;
+		const t = next_any_tag(html, i, pin_value);
+		if (t === null || past_ascii) {
+			out = out_before;
+			pos = pos_before;
+			if (t === null) break;
+			pin_tag(t);
 		}
+		i = t.next;
+		if (graphs_done) continue;
+		const in_graphs = graphs.holds(t);
+		if (graphs.gone) graphs_done = true;
 		if (!in_graphs || tag_name(html, t) !== 'script' || t.attr(OGYGIA_GRAPH) === undefined)
 			continue;
 		const json = text_of(html, t, 'script');
