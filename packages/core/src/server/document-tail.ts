@@ -38,7 +38,6 @@ import { HEAD_OWNERS_ATTR } from '../head-owners.ts';
 import { encode_island_graph } from '../island-graph.ts';
 import {
 	OG_LOCATIONS,
-	OG_ORIGINS,
 	OGYGIA_GRAPH,
 	OGYGIA_HOLES,
 	OGYGIA_RUNTIME,
@@ -103,8 +102,8 @@ const RUNTIME_LOAD_FAILED = "console.error('[ogygia] https://ogygiajs.dev/e/runt
  * runtime instead of one round trip after it. Normal priority — the runtime cannot run without
  * them. `data-ogygia-runtime-dep` keeps them attached to the script when the handle moves it
  * (head-presence.ts `runtime_first`). `locations`: the build's location map, which the runtime reads
- * for a load that arrives with an identity alone (runtime/entry-locations.ts). `code_origins`: the
- * other origins island code may load from (`data-og-origins`, runtime/code-origins.ts).
+ * for a load that arrives with an identity alone (runtime/entry-locations.ts). Its code origins are
+ * written at head time (head-presence.ts `runtime_first`).
  *
  * The runtime cannot say that it failed to load: when its file or one of its static imports fails to
  * download, none of it runs, every island stays server markup, and nothing of ogygia's was logged
@@ -115,14 +114,11 @@ const RUNTIME_LOAD_FAILED = "console.error('[ogygia] https://ogygiajs.dev/e/runt
 export function runtime_bootstrap_tags(
 	src: string,
 	deps: readonly string[],
-	locations: string | null = null,
-	code_origins: readonly string[] = []
+	locations: string | null = null
 ): string {
-	const origins = code_origins_attr(code_origins);
 	let html =
 		`<script type="module" ${OGYGIA_RUNTIME}` +
 		(locations ? ` ${OG_LOCATIONS}="` + locations + '"' : '') +
-		(origins ? ` ${OG_ORIGINS}="` + origins + '"' : '') +
 		' src="' +
 		src +
 		'" onerror="' +
@@ -131,24 +127,6 @@ export function runtime_bootstrap_tags(
 	for (const dep of deps)
 		html += '<link rel="modulepreload" href="' + dep + `" ${OGYGIA_RUNTIME_DEP}>`;
 	return html;
-}
-
-/**
- * The origins island code may load from besides the page's own and the runtime's (a federation
- * peer's), as the runtime's script names them (runtime/code-origins.ts reads them): http(s) origins
- * only, each once, space-separated. An origin has no character an attribute must escape.
- */
-function code_origins_attr(urls: readonly string[]): string {
-	const out = new Set<string>();
-	for (const url of urls) {
-		try {
-			const u = new URL(url);
-			if (u.protocol === 'https:' || u.protocol === 'http:') out.add(u.origin);
-		} catch {
-			// ok: not a URL: no origin to allow
-		}
-	}
-	return [...out].join(' ');
 }
 
 /**

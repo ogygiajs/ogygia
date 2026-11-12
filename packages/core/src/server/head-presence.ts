@@ -15,9 +15,11 @@
  * `&lt;`, never a bare `<`, so it is not a tag; a tag's attributes end at its own `>` (quotes kept),
  * so a `<script>` whose BODY mentions the attribute (inline JS) can't false-match either.
  */
+import { DT_MARK } from '../contract/events.ts';
 import {
 	Needle,
 	next_tag,
+	OG_ORIGINS,
 	OGYGIA_DEV_HMR,
 	OGYGIA_RUNTIME,
 	OGYGIA_RUNTIME_DEP,
@@ -155,7 +157,8 @@ function runtime_unit(head: string): { start: number; end: number } | null {
  * no earlier. `runtime` is the tag to place when the head has none yet (`null` = only reorder what
  * is there; the tag an island page emits sits wherever Kit's head slot is, after the app's own
  * scripts in `app.html`). With no JavaScript in the head it goes last in it. Returns `head` itself
- * when there is nothing to move.
+ * when there is nothing to move. `dt_mark`: a devtools response's mark, written on the tag it places
+ * (the same one its devtools side channel bears: DEVTOOLS-FEED).
  *
  * Why BEFORE THE JS: module and deferred scripts run in document order once parsing ends, and the
  * runtime's custom-element definition is what makes every `<ogygia-region>` connect and keep its
@@ -172,10 +175,19 @@ function runtime_unit(head: string): { start: number; end: number } | null {
  * other `<meta>`, the `<title>`, stylesheets, preconnects, image/font preloads — keeps its place in
  * front of it.
  */
-export function runtime_first(head: string, runtime: string | null): string {
+export function runtime_first(
+	head: string,
+	runtime: string | null,
+	code_origins: readonly string[] = [],
+	dt_mark = ''
+): string {
 	const found = runtime_unit(head);
-	const tag = found ? head.slice(found.start, found.end) : runtime;
-	if (tag === null) return head;
+	const was = found ? head.slice(found.start, found.end) : runtime;
+	if (was === null) return head;
+	const placed = with_code_origins(was, code_origins);
+	// DEVTOOLS-FEED: the response's mark leads the tag's attributes (a repeated attribute keeps its
+	// first value, so a mark the markup put on the tag loses)
+	const tag = dt_mark ? '<script ' + DT_MARK + '="' + dt_mark + '"' + placed.slice(7) : placed;
 	const rest = found ? head.slice(0, found.start) + head.slice(found.end) : head;
 	// no `<head>` in this slice (a routeless document's inner head): search the whole content
 	const from = next_tag(rest, 'head', 0)?.end ?? 0;
@@ -187,6 +199,34 @@ export function runtime_first(head: string, runtime: string | null): string {
 		HEAD_CLOSE_G.lastIndex = from;
 		at = HEAD_CLOSE_G.exec(rest)?.index ?? rest.length;
 	}
-	if (found && found.start === at) return head;
+	if (found && found.start === at && tag === was) return head;
 	return rest.slice(0, at) + tag + rest.slice(at);
+}
+
+/** The runtime script's own code-origins attribute (runtime/code-origins.ts reads it). */
+const CODE_ORIGINS_ATTR_RE = new RegExp(`\\s${OG_ORIGINS}="[^"]*"`, 'i');
+const RUNTIME_MARK_RE = new RegExp(`\\b${OGYGIA_RUNTIME}\\b`, 'i');
+
+/**
+ * THE ONE WRITE of the origins island code may load from besides the page's own and the runtime's
+ * (`data-og-origins`): at head time, when the render has learned all it will (a peer fragment's own
+ * runtime origin, #856), in place of any the tag carried. http(s) origins only, each once,
+ * space-separated (an origin has no character an attribute must escape).
+ */
+function with_code_origins(tag: string, urls: readonly string[]): string {
+	const origins = new Set<string>();
+	for (const url of urls) {
+		try {
+			const u = new URL(url);
+			if (u.protocol === 'https:' || u.protocol === 'http:') origins.add(u.origin);
+		} catch {
+			// ok: not a URL: no origin to allow
+		}
+	}
+	const bare = tag.replace(CODE_ORIGINS_ATTR_RE, '');
+	if (!origins.size) return bare;
+	return bare.replace(
+		RUNTIME_MARK_RE,
+		(mark) => mark + ` ${OG_ORIGINS}="` + [...origins].join(' ') + '"'
+	);
 }

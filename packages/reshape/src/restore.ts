@@ -22,7 +22,7 @@
  * too late. The root is the component's own and is left to it; the light DOM still goes back to
  * Svelte's form, and the server's rendered copy is dropped (slotted beside the component's own
  * render it would show twice). It is reported (`ogygia:restore-late` on the host, the log, and
- * `restore_late` in every build). Answers are parsed inert (./parse-html.ts, #382), so this is the
+ * `restore_late` in every build). Answers are parsed inert (core's runtime/html-sink.ts, #382), so this is the
  * page-load case: a component runtime that upgraded first.
  */
 /* oxlint-disable ogygia/markup-from-vocabulary -- restore() ships as its own source (restore.toString()): it may name nothing outside itself, so it spells its markers */
@@ -350,6 +350,7 @@ export function restore(root: Document | DocumentFragment | Element): number {
 		const want = check?.[k];
 		if (want === undefined) return;
 		const tpl = doc.createElement('template');
+		// oxlint-disable-next-line ogygia/html-sink -- inlined by `restore.toString()` (no imports): the page's own check record, parsed into an inert template, compared, never inserted
 		tpl.innerHTML = want;
 		const diff = differ(tpl.content, host, `<${host.localName}>`);
 		if (!diff) return;

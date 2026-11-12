@@ -39,11 +39,16 @@ import {
 	type World
 } from '@ogygia/machine';
 import { older_by, stands_at, type DropWhy, type Frame } from '../frame.ts';
+import type { VerifiedHtml } from './html-sink.ts';
 import { watch, notify, watcher_count } from '../ref-watch.ts';
 
 /** The store's fetch at an address. `flight` is the address's flight: its priority is the most
  *  urgent caller's, raised as callers join (a queued download follows it: load-scheduler.ts). */
-export type FrameFetcher = (signal: AbortSignal, flight: InFlight) => Promise<string>;
+export type FrameFetcher = (signal: AbortSignal, flight: InFlight) => Promise<VerifiedHtml>;
+
+/** A frame as the store holds it: its HTML vouched for (./html-sink.ts), as everything the store
+ *  hands on goes into a region's DOM. */
+export type StoredFrame = Frame & { html: VerifiedHtml };
 
 /** Frame addresses live in the hub's watcher space under a namespace, so region binders subscribe
  *  through the ONE hub `watch`/`notify` primitive (hub v2 phase W) — the frame store no longer owns
@@ -63,11 +68,11 @@ export function hold_refusal(a: string, err: unknown): void {
 /** What a flight at an address runs: the store's own fetch, or a batch's part arriving through an
  *  external stream (the batch's promise, settled by the frame written there or failed by the
  *  batch's end). The input of the call that started the flight is the one that runs. */
-type FrameAsk = { a: string; work: FrameFetcher | Promise<string> };
+type FrameAsk = { a: string; work: FrameFetcher | Promise<VerifiedHtml> };
 
 /** An applied answer: its stamp `v`, its data version `d` (`Frame.d`, when it had one), and its
- *  HTML. */
-type Shown = { v: number; d: number | undefined; html: string };
+ *  HTML, vouched for (./html-sink.ts): the stored answer holds verified HTML only. */
+type Shown = { v: number; d: number | undefined; html: VerifiedHtml };
 
 type AnswerStates = {
 	/** Nothing applied at the address yet. */
@@ -95,7 +100,7 @@ type Entry = {
 	/** A batch's part promised here: ANY frame written at the address (the batch's part, or a forced
 	 *  fetch that landed first) settles it, and `release()` fails it when the batch ends with no
 	 *  frame there. */
-	batch: { settle: (html: string) => void; fail: (err: unknown) => void } | null;
+	batch: { settle: (html: VerifiedHtml) => void; fail: (err: unknown) => void } | null;
 	/** The fresh capability a renewal at this address answered (an expired one is re-signed once):
 	 *  the address's, so every element bound here moves onto it, not only the one that fetched. */
 	renewed: string | null;
@@ -112,7 +117,7 @@ const EVICT_TTL = 60_000;
  *  fetched one never does). A page binds a few dozen; a long session's idle ones are what goes. */
 const MAX_ADDRESSES = 2000;
 
-type FrameFlights = Flights<FrameAsk, string, Pick<FrameAsk, 'a'>>;
+type FrameFlights = Flights<FrameAsk, VerifiedHtml, Pick<FrameAsk, 'a'>>;
 
 /** The store: its entries, its fetches in flight and its world, in one scope. */
 type Store = {
@@ -172,7 +177,7 @@ function make_store(): Store {
 				key: ['a'],
 				ignore: { work: 'one flight per address: a fetch or a batch part out there is joined' },
 				keep: 0,
-				run: ({ a, work }, signal, flight): Promise<string> =>
+				run: ({ a, work }, signal, flight): Promise<VerifiedHtml> =>
 					typeof work === 'function' ? fetch_frame(a, work, signal, flight) : work
 			})
 		)
@@ -209,7 +214,7 @@ async function fetch_frame(
 	fetcher: FrameFetcher,
 	signal: AbortSignal,
 	flight: InFlight
-): Promise<string> {
+): Promise<VerifiedHtml> {
 	const t = stamp();
 	const html = await fetcher(signal, flight);
 	if (!signal.aborted) write({ a, v: t, html });
@@ -279,7 +284,7 @@ export function is_idle(a: string): boolean {
  * Write a frame. Applied only if newer than the current content (`older_by`); older writes are
  * dropped (a `kept` move) and reported `false`. Subscribers are notified on apply.
  */
-export function write(f: Frame): boolean {
+export function write(f: StoredFrame): boolean {
 	const e = entry(f.a);
 	const s = shown_of(e);
 	const why = older_by(f, s);
@@ -319,7 +324,7 @@ export function write(f: Frame): boolean {
 export function reserve(a: string): void {
 	const e = entry(a);
 	if (shown_of(e) !== null || flying(a)) return;
-	const batch = new Promise<string>((settle, fail) => {
+	const batch = new Promise<VerifiedHtml>((settle, fail) => {
 		e.batch = { settle, fail };
 	});
 	batch.catch(() => {}); // ok: a part no flight waits on (a forced fetch took its place) is not unhandled
@@ -352,7 +357,7 @@ export const BATCH_MISS = 'OgygiaBatchMiss';
  * frame — catches up without a request). Returns an unsubscribe fn. While subscribed the entry
  * stays; after the last unsubscribe it lingers EVICT_TTL then goes (unless re-bound).
  */
-export function subscribe(a: string, cb: (f: Frame) => void): () => void {
+export function subscribe(a: string, cb: (f: StoredFrame) => void): () => void {
 	const e = entry(a);
 	// Ongoing notifications ride the hub's watcher set; immediate replay of already-applied
 	// content stays here (a late binder catching a frame that landed before it mounted).
@@ -389,7 +394,7 @@ export async function ensure(
 	a: string,
 	fetcher: FrameFetcher,
 	opts: { force?: boolean; signal?: AbortSignal; priority?: number } = {}
-): Promise<string | Stale> {
+): Promise<VerifiedHtml | Stale> {
 	const { signal, priority } = opts;
 	const st = store();
 	const e = entry(a);
