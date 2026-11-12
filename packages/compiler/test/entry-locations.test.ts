@@ -448,6 +448,7 @@ describe('the driver: entries emitted by name, mapped, and shimmed', () => {
 					presets: {},
 					import_keys: normalize_import_keys(undefined),
 					resolve_alias: [],
+					is_build: true,
 					pkg_root: '/nowhere/ogygia',
 					app_shims: {
 						'$app/state': '/x/a.js',
@@ -569,8 +570,11 @@ describe('the driver: entries emitted by name, mapped, and shimmed', () => {
 	});
 	it('a second build in one process (watch) emits every island again and maps them all', () => {
 		const compiler = make();
+		compiler.start_leg('client');
 		compiler.emit_build_chunks(fake_emit().emit, { emitRuntime: true });
 		compiler.location_maps((ref: string) => `_app/immutable/chunks/${ref}.js`);
+		compiler.start_leg('client');
+		compiler.prescan();
 		const again = fake_emit();
 		compiler.emit_build_chunks(again.emit, { emitRuntime: true });
 		expect(again.emitted.filter((c) => c.name!.startsWith('og-region.')).length).toBe(2);
