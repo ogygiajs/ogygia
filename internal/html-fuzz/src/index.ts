@@ -370,6 +370,51 @@ export function start_tags(html: string, context?: string): StartTag[] {
 	});
 }
 
+/** One token the browser's tokenizer cuts: a start tag, an end tag, or a comment (a bogus comment
+ *  and a doctype too), at `[start, end)` of the source. */
+export interface MarkupToken {
+	kind: 'start' | 'end' | 'comment';
+	start: number;
+	end: number;
+}
+
+/** Records every tag, comment and doctype token the tokenizer hands the tree builder. */
+class TokenRecorder extends Parser<DefaultTreeAdapterMap> {
+	seen: MarkupToken[] = [];
+	#see(kind: MarkupToken['kind'], token: { location: Token.Location | null }): void {
+		const at = token.location;
+		if (at) this.seen.push({ kind, start: at.startOffset, end: at.endOffset });
+	}
+	override onStartTag(token: Token.TagToken): void {
+		this.#see('start', token);
+		super.onStartTag(token);
+	}
+	override onEndTag(token: Token.TagToken): void {
+		this.#see('end', token);
+		super.onEndTag(token);
+	}
+	override onComment(token: Token.CommentToken): void {
+		this.#see('comment', token);
+		super.onComment(token);
+	}
+	override onDoctype(token: Token.DoctypeToken): void {
+		this.#see('comment', token);
+		super.onDoctype(token);
+	}
+}
+
+/** Every tag and comment token in the document `html`, in source order, as the browser's tokenizer
+ *  cuts them (the tree builder drives it, so a raw-text element's text holds none). */
+export function markup_tokens_of(html: string): MarkupToken[] {
+	const parser = new TokenRecorder({
+		sourceCodeLocationInfo: true,
+		treeAdapter: defaultTreeAdapter
+	});
+	parser.seen = [];
+	parser.tokenizer.write(html, true);
+	return parser.seen;
+}
+
 /** `html` as the children of a `context` element (`'body'`, `'head'`, `'div'`), the way
  *  `innerHTML` or `createContextualFragment` parses it. */
 export function parse_in(html: string, context = 'body'): T.DocumentFragment {

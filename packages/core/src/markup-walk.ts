@@ -299,7 +299,7 @@ class Tag implements FoundTag {
 
 /** The walk's last token (one record, read synchronously right after `step`). */
 const TOKEN = {
-	/** 1: a start tag, 2: an end tag. */
+	/** 1: a start tag, 2: an end tag, 3: a comment (only when `step` is asked for them). */
 	kind: 0,
 	/** `<` of the tag, where its name starts and ends, and just past its `>`. */
 	lt: 0,
@@ -309,9 +309,10 @@ const TOKEN = {
 };
 
 /** From `i` (in the data state), read up to the next start or end tag into `TOKEN`; false when
- *  none comes. Comments and bogus comments are stepped over. A start tag's attributes go to `sink`
- *  as they are read (before the tag is known to end: when the input ends inside it, step is false). */
-function step(html: string, i: number, sink: AttrSink | null): boolean {
+ *  none comes. Comments and bogus comments are stepped over, or read as a token when `comments`.
+ *  A start tag's attributes go to `sink` as they are read (before the tag is known to end: when the
+ *  input ends inside it, step is false). */
+function step(html: string, i: number, sink: AttrSink | null, comments = false): boolean {
 	const n = html.length;
 	while (i < n) {
 		const lt = html.indexOf('<', i);
@@ -338,8 +339,9 @@ function step(html: string, i: number, sink: AttrSink | null): boolean {
 		}
 		if (c === 33 /* ! */ && html.startsWith('<!--', lt)) {
 			// (`<!-->` and `<!--->` are whole comments; else the first `-->` or `--!>` ends it)
-			if (html.charCodeAt(lt + 4) === 62) i = lt + 5;
-			else if (html.startsWith('->', lt + 4)) i = lt + 6;
+			let end: number;
+			if (html.charCodeAt(lt + 4) === 62) end = lt + 5;
+			else if (html.startsWith('->', lt + 4)) end = lt + 6;
 			else {
 				// (each `--` in the comment, in order: the first one followed by `>` or `!>` ends it)
 				let k = html.indexOf('--', lt + 4);
@@ -347,21 +349,24 @@ function step(html: string, i: number, sink: AttrSink | null): boolean {
 					if (k === -1) return false;
 					const e = html.charCodeAt(k + 2);
 					if (e === 62) {
-						i = k + 3;
+						end = k + 3;
 						break;
 					}
 					if (e === 33 && html.charCodeAt(k + 3) === 62) {
-						i = k + 4;
+						end = k + 4;
 						break;
 					}
 					k = html.indexOf('--', k + 1);
 				}
 			}
+			if (comments) return comment_token(lt, end);
+			i = end;
 			continue;
 		}
 		if (c === 33 /* ! */ || c === 63 /* ? */) {
 			const gt = html.indexOf('>', lt + 2);
 			if (gt === -1) return false;
+			if (comments) return comment_token(lt, gt + 1);
 			i = gt + 1;
 			continue;
 		}
@@ -384,12 +389,22 @@ function step(html: string, i: number, sink: AttrSink | null): boolean {
 			}
 			const gt = html.indexOf('>', lt + 2);
 			if (gt === -1) return false;
+			if (comments) return comment_token(lt, gt + 1);
 			i = gt + 1;
 			continue;
 		}
 		i = lt + 1;
 	}
 	return false;
+}
+
+/** `TOKEN` as the comment `[lt, end)` (a bogus one, or a doctype, too). */
+function comment_token(lt: number, end: number): true {
+	TOKEN.kind = 3;
+	TOKEN.lt = lt;
+	TOKEN.ns = TOKEN.ne = lt;
+	TOKEN.end = end;
+	return true;
 }
 
 /** Where the walk goes on after the start tag in `TOKEN`: past its text when it is a raw-text
@@ -569,4 +584,35 @@ export function text_of(html: string, tag: FoundTag, name: string): string | nul
 		if (i === -1) return null;
 	}
 	return null;
+}
+
+/** What a piece of `markup_tokens` is: text (a raw-text element's whole text too), a start tag, an
+ *  end tag, or a comment (a bogus comment and a doctype too). */
+export type MarkupKind = 0 | 1 | 2 | 3;
+
+/** `html` cut into the pieces the browser's tokenizer reads, in order and covering it whole: each
+ *  `[start, end)` handed to `visit` with its kind. For a reader that splits markup at its tags (a
+ *  diff), where a `<` inside a value, a comment or a script is not a tag. Past where the HTML ends
+ *  inside a tag or comment, the rest is one text piece. `ne`: where a tag's name ends (its name is
+ *  `html[start + 1, ne)` for a start tag, `html[start + 2, ne)` for an end tag; `start` otherwise). */
+export function markup_tokens(
+	html: string,
+	visit: (kind: MarkupKind, start: number, end: number, ne: number) => void
+): void {
+	const n = html.length;
+	let i = 0;
+	while (i < n && step(html, i, null, true)) {
+		const kind = TOKEN.kind as MarkupKind;
+		const lt = TOKEN.lt;
+		const ne = TOKEN.ne;
+		const end = TOKEN.end;
+		// (read before `visit`, which may walk again and so overwrite TOKEN)
+		let next = kind === 1 ? after_start(html) : end;
+		if (next === -1) next = n;
+		if (lt > i) visit(0, i, lt, i);
+		visit(kind, lt, end, ne);
+		if (next > end) visit(0, end, next, end);
+		i = next;
+	}
+	if (i < n) visit(0, i, n, i);
 }
