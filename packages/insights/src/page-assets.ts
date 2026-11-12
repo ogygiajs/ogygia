@@ -135,7 +135,9 @@ function decode_entities(s: string): string {
 	return s.split('&amp;').join('&').split('&quot;').join('"').split('&#39;').join("'");
 }
 
+// static: font file extensions
 const FONT_EXT = new Set(['woff', 'woff2', 'ttf', 'otf']);
+// static: image file extensions
 const IMG_EXT = new Set(['png', 'jpg', 'jpeg', 'gif', 'webp', 'avif', 'svg', 'ico']);
 
 function ext_of(url: string): string {
