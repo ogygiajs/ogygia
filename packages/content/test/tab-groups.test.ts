@@ -1,5 +1,5 @@
 // A tab group's choice: shared by every block with the same group, saved, and safe without storage.
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 function memory_storage(): Storage {
 	const m = new Map<string, string>();
@@ -24,10 +24,13 @@ const no_storage = {
 	}
 };
 
+const load = () => import('../src/site/components/tab-groups.svelte.ts');
+
+// (the first import compiles the module and its graph, slow on a loaded machine: done once here, so
+// each test's fresh copy is only an evaluation)
+beforeAll(() => load(), 60_000);
 beforeEach(() => vi.resetModules());
 afterEach(() => vi.unstubAllGlobals());
-
-const load = () => import('../src/site/components/tab-groups.svelte.ts');
 
 describe('tab groups', () => {
 	it('two blocks of one group share the choice, and the choice is saved', async () => {
