@@ -43,6 +43,49 @@ function round_trip(p: string, values: Record<string, string>) {
 	return m && m.params;
 }
 
+describe('fill never builds a URL of another origin', () => {
+	const ORIGIN = 'https://app.test';
+	// (patterns whose first segment a param fills: an empty one there would start the path with `//`)
+	const LEADING = [
+		'/[a]/[...b]',
+		'/[a]/[b]',
+		'/[[a]]/[b]/x',
+		'/[...a]',
+		'/[a]',
+		'/[a]/x',
+		'/[[a]]/[[b]]'
+	];
+
+	it('whatever the params, the filled path stays on the origin it is read against, or is refused', () => {
+		fc.assert(
+			fc.property(
+				fc.constantFrom(...LEADING),
+				fc.string({ unit: fc.constantFrom('/', '\\', ':', '.', 'evil.example', ''), maxLength: 4 }),
+				fc.string({ unit: fc.constantFrom('/', '\\', ':', '.', 'evil.example', ''), maxLength: 4 }),
+				(p, a, b) => {
+					let filled: string;
+					try {
+						filled = fill(p, { a, b });
+					} catch {
+						return; // refused
+					}
+					expect(new URL(filled, ORIGIN).origin).toBe(ORIGIN);
+				}
+			),
+			{ seed: SEED, numRuns: 3000 }
+		);
+	});
+
+	it('an empty param that fills a first segment is refused (#1142)', () => {
+		expect(() => fill('/[a]/[...b]', { a: '', b: 'evil.example' })).toThrow(/empty segment/);
+		expect(() => fill('/[a]/[b]', { b: 'evil.example' })).toThrow(/empty segment/);
+		expect(() => fill('/[[a]]/[b]/x', {})).toThrow(/empty segment/);
+		expect(() => fill('/[...a]', { a: '//evil.example' })).toThrow(/empty segment/);
+		expect(fill('/[...a]', { a: '\\evil.example' })).toBe('/%5Cevil.example');
+		expect(fill('/[a]', { a: '' })).toBe('/');
+	});
+});
+
 describe('fill, read back through the URL parser', () => {
 	it('gives back the params as filled, or refuses them', () => {
 		fc.assert(
@@ -57,7 +100,8 @@ describe('fill, read back through the URL parser', () => {
 					const back = round_trip(p, values);
 					if (back === null) {
 						// refused: only a value the URL parser would drop as a dot segment (a rest value
-						// keeps its `/`, so each of its pieces is a segment of its own, #538)
+						// keeps its `/`, so each of its pieces is a segment of its own, #538, and an empty
+						// piece is refused too)
 						const rest = new Set(
 							compile(p)
 								.params.filter((s) => s.rest)
@@ -66,7 +110,7 @@ describe('fill, read back through the URL parser', () => {
 						const dot = (v: string) => v === '.' || v === '..';
 						expect(
 							Object.entries(values).some(([k, v]) =>
-								rest.has(k) ? v.split('/').some(dot) : dot(v)
+								rest.has(k) ? v.split('/').some((p) => p === '' || dot(p)) : dot(v)
 							)
 						).toBe(true);
 						return;
@@ -89,6 +133,12 @@ describe('fill, read back through the URL parser', () => {
 		// a rest value keeps its `/`, so a dot piece of it is a dot segment
 		expect(() => fill('/f/[...rest]', { rest: 'a/../b' })).toThrow(/dot segment/);
 		expect(fill('/f/[...rest]', { rest: 'a/.b/c' })).toBe('/f/a/.b/c');
+		// …and an empty piece is an empty segment: refused, so a value never builds `//host`
+		// (a URL of another origin) or a path that routes elsewhere
+		expect(() => fill('/[...p]', { p: '/evil.example.com' })).toThrow(/empty segment/);
+		expect(() => fill('/f/[...rest]', { rest: 'a//b' })).toThrow(/empty segment/);
+		expect(() => fill('/f/[...rest]', { rest: 'a/' })).toThrow(/empty segment/);
+		expect(fill('/[...p]', { p: '' })).toBe('/');
 		// a dot inside a segment is kept: the URL parser drops only a whole `.` or `..` segment
 		expect(fill('/d/[id].json', { id: '.' })).toBe('/d/..json');
 		expect(fill('/posts/[id]', { id: '...' })).toBe('/posts/...');
