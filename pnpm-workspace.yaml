@@ -58,6 +58,8 @@ catalog:
   playwright: ^1.62.1
   axe-core: ^4.13.0
   fast-check: ^4.10.2
+  # the spec HTML parser the differential tests compare ogygia's own HTML readers against
+  parse5: ~8.0.1
   # runtime
   devalue: ^5.9.3
   esm-env: ^1.2.2
