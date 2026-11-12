@@ -182,9 +182,12 @@ export function stage_deferred(
  * `page_promise_pending`.
  */
 export function settle_deferred(value: unknown, owner: Scope, path = ''): Promise<unknown | Stale> {
+	// (started before the task: a closed owner never runs its work, and every promise still needs
+	// its rejection handled)
+	const settling = settle_all(value);
 	return owner.task(async () => {
 		const quiet = say_if_pending(owner, path);
-		const settled = await settle_all(value);
+		const settled = await settling;
 		quiet();
 		return settled;
 	});
@@ -352,24 +355,28 @@ export function stream_page_deferred(
 				maybe_close();
 			};
 			const stream_one = (id: number, promise: PromiseLike<unknown>) => {
+				// (its outcome is read before the task: a closed owner never runs its work, and the
+				// promise's rejection still needs handling)
+				const outcome = Promise.resolve(promise).then(
+					(value) => ({ ok: true as const, value }),
+					(error: unknown) => ({ ok: false as const, error })
+				);
 				void owner
-					.task(() => promise)
-					.then(
-						(value) => {
-							if (value === STALE) return; // the request ended: the stream closed with it
-							let staged: ReturnType<typeof stage_deferred>;
-							try {
-								staged = stage_deferred(value, next_id);
-							} catch (error) {
-								return settled(id, false, error);
-							}
-							next_id = staged.next_id;
-							pending += staged.deferred.length;
-							for (const n of staged.deferred) stream_one(n.id, n.promise);
-							settled(id, true, staged.staged);
-						},
-						(error) => settled(id, false, error)
-					);
+					.task(() => outcome)
+					.then((out) => {
+						if (out === STALE) return; // the request ended: the stream closed with it
+						if (!out.ok) return settled(id, false, out.error);
+						let staged: ReturnType<typeof stage_deferred>;
+						try {
+							staged = stage_deferred(out.value, next_id);
+						} catch (error) {
+							return settled(id, false, error);
+						}
+						next_id = staged.next_id;
+						pending += staged.deferred.length;
+						for (const n of staged.deferred) stream_one(n.id, n.promise);
+						settled(id, true, staged.staged);
+					}); // ok: the outcome never rejects, and the body settles its own failures
 			};
 			for (const { id, promise } of deferred) stream_one(id, promise);
 			maybe_close();
