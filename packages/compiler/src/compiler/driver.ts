@@ -48,7 +48,7 @@ import {
 	APP_SHIM_IMPORT,
 	FOREIGN_HYDRATE_MARK
 } from './region/emit.ts';
-import { location_map_files } from './link/location-map.ts';
+import { by_key, location_map_files } from './link/location-map.ts';
 import { context_string_keys, source_uses_ogygia_context } from './link/context-detect.ts';
 import { collect_flag_sites, FLAGS_SPEC } from './flags.ts';
 import { router_css_roots } from './link/router-css.ts';
@@ -662,8 +662,10 @@ export class Compiler implements CoreApp {
 		// The page seed and the MPA navigation handle are for island code that reaches Kit's page world
 		// (the closure walk above). Islands the walk never saw count as readers: a federated peer's,
 		// hydrated by this app's runtime against this page, and whatever a plugin's browser half wakes.
+		// A federated app's page carries a peer's regions, whatever its own are (`foreign`).
+		runtime_marks.foreign = ctx.foreign_hydrate;
 		runtime_marks.page =
-			program.island_reads_page || ctx.foreign_hydrate || ctx.client_plugins.length > 0;
+			program.island_reads_page || runtime_marks.foreign || ctx.client_plugins.length > 0;
 		// prescan walked every host — the capability marks are now COMPLETE, so the generated sticky
 		// runtime entry can bundle only the features this app uses (else it stays kitchen-sink).
 		runtime_marks.complete = true;
@@ -959,7 +961,9 @@ export class Compiler implements CoreApp {
 		const islands = new Map<string, string>();
 		const locations: Record<string, string> = {};
 		const served = (file: string) => (file.startsWith('/') ? file : '/' + file);
-		for (const [rid, ref] of this.island_entry_refs) {
+		// by island id: the bundler emits entries in no stable order, and the handoff is output (#490)
+		const refs = [...this.island_entry_refs].sort(by_key);
+		for (const [rid, ref] of refs) {
 			const file = get_file_name(ref);
 			const identity = this.island_public_url(rid);
 			islands.set(file, identity);

@@ -27,13 +27,16 @@ import {
 	scope,
 	STALE,
 	type Flights,
+	type InFlight,
 	type Scope,
 	type Stale
 } from '@ogygia/machine';
-import type { Frame } from '../frame.ts';
+import { older_by, stands_at, type DropWhy, type Frame } from '../frame.ts';
 import { watch, notify, watcher_count } from '../ref-watch.ts';
 
-export type FrameFetcher = (signal: AbortSignal) => Promise<string>;
+/** The store's fetch at an address. `flight` is the address's flight: its priority is the most
+ *  urgent caller's, raised as callers join (a queued download follows it: load-scheduler.ts). */
+export type FrameFetcher = (signal: AbortSignal, flight: InFlight) => Promise<string>;
 
 /** Frame addresses live in the hub's watcher space under a namespace, so region binders subscribe
  *  through the ONE hub `watch`/`notify` primitive (hub v2 phase W) — the frame store no longer owns
@@ -59,9 +62,6 @@ type FrameAsk = { a: string; work: FrameFetcher | Promise<string> };
  *  and its HTML. */
 type Shown = { v: number; d: number | undefined; html: string };
 
-/** Why a written answer was dropped: an older request's (by ticket), or older data (by version). */
-type DropWhy = 'older request' | 'older data';
-
 type AnswerStates = {
 	/** Nothing applied at the address yet. */
 	empty: {};
@@ -85,8 +85,6 @@ type StoredAnswer = ReturnType<ReturnType<typeof answer_definition>['create']>;
 type Entry = {
 	/** What is applied at the address, as a machine. */
 	answer: StoredAnswer;
-	/** Monotonic ticket source — every fetch START takes the next ticket. */
-	seq: number;
 	/** A batch's part promised here: ANY frame written at the address (the batch's part, or a forced
 	 *  fetch that landed first) settles it, and `release()` fails it when the batch ends with no
 	 *  frame there. */
@@ -115,15 +113,21 @@ const EVICT_TTL = 60_000;
 const GLOBAL_KEY = '__ogygia_frames__';
 const FLIGHTS_KEY = '__ogygia_frame_flights__';
 const ANSWER_KEY = '__ogygia_frame_answer__';
+const CLOCK_KEY = '__ogygia_frame_clock__';
 type FrameFlights = Flights<FrameAsk, string, Pick<FrameAsk, 'a'>>;
 type FramesHost = {
 	[GLOBAL_KEY]?: Map<string, Entry>;
 	[FLIGHTS_KEY]?: FrameFlights;
 	[ANSWER_KEY]?: ReturnType<typeof answer_definition>;
+	[CLOCK_KEY]?: { n: number };
 };
 const store_host = (typeof globalThis !== 'undefined' ? globalThis : {}) as FramesHost;
 const entries: Map<string, Entry> = (store_host[GLOBAL_KEY] ??= new Map());
 const answers = (store_host[ANSWER_KEY] ??= answer_definition());
+/** The one ticket source, for every address and every life of an entry: an entry let go and made
+ *  again never hands out a ticket an earlier one did, so tickets order across it (a live tick's
+ *  ticket against the answer there: test/browser/region-orderings.test.ts). */
+const clock: { n: number } = (store_host[CLOCK_KEY] ??= { n: 0 });
 
 /** The answer applied at an entry, if any. */
 function shown_of(e: Entry): Shown | null {
@@ -139,16 +143,21 @@ function frame_flights(): FrameFlights {
 		key: ['a'],
 		ignore: { work: 'one flight per address: a fetch or a batch part out there is joined' },
 		keep: 0,
-		run: ({ a, work }, signal): Promise<string> =>
-			typeof work === 'function' ? fetch_frame(a, work, signal) : work
+		run: ({ a, work }, signal, flight): Promise<string> =>
+			typeof work === 'function' ? fetch_frame(a, work, signal, flight) : work
 	}));
 }
 
 /** A fetch at an address takes its ticket at its start, and writes what it got (a newer write may
  *  have raced past it: the answer is whatever the store then holds). */
-async function fetch_frame(a: string, fetcher: FrameFetcher, signal: AbortSignal): Promise<string> {
+async function fetch_frame(
+	a: string,
+	fetcher: FrameFetcher,
+	signal: AbortSignal,
+	flight: InFlight
+): Promise<string> {
 	const t = ticket(a);
-	const html = await fetcher(signal);
+	const html = await fetcher(signal, flight);
 	if (!signal.aborted) write({ a, v: t, html });
 	const e = entries.get(a);
 	return (e && shown_of(e)?.html) ?? html;
@@ -160,14 +169,7 @@ const flying = (a: string): boolean => store_host[FLIGHTS_KEY]?.peek({ a }) !== 
 function entry(a: string): Entry {
 	let e = entries.get(a);
 	if (!e) {
-		e = {
-			answer: answers.create(),
-			seq: 0,
-			batch: null,
-			evict: null,
-			renewed: null,
-			refused: null
-		};
+		e = { answer: answers.create(), batch: null, evict: null, renewed: null, refused: null };
 		entries.set(a, e);
 	}
 	return e;
@@ -196,10 +198,10 @@ function schedule_evict(a: string, e: Entry): void {
 }
 
 /** Applied content for an address, if any. */
-export function peek(a: string): { v: number; html: string } | null {
+export function peek(a: string): Shown | null {
 	const e = entries.get(a);
 	const s = e && shown_of(e);
-	return s ? { v: s.v, html: s.html } : null;
+	return s ? { v: s.v, d: s.d, html: s.html } : null;
 }
 
 /** The data version of the content applied at an address, if it had one. */
@@ -226,18 +228,8 @@ export function is_idle(a: string): boolean {
 
 /** Next request ticket for an address. External channels (streaming, mutations) use this too. */
 export function ticket(a: string): number {
-	return ++entry(a).seq;
-}
-
-/**
- * Why a frame is not newer than the answer its address shows, or `null` when it is: by data version
- * when both carry one and they differ (the server knows which data is newer, whatever order the
- * answers arrived in), else by request ticket. Anything is newer than nothing.
- */
-function older_by(f: Frame, s: Shown | null): DropWhy | null {
-	if (s === null) return null;
-	if (f.d !== undefined && s.d !== undefined && f.d !== s.d) return f.d > s.d ? null : 'older data';
-	return f.v > s.v ? null : 'older request';
+	entry(a);
+	return ++clock.n;
 }
 
 /**
@@ -258,9 +250,8 @@ export function write(f: Frame): boolean {
 		});
 		return false;
 	}
-	if (f.v > e.seq) e.seq = f.v; // foreign ticket (streamed/mutation frame) — keep seq monotonic
-	// (newer data under an older ticket keeps the ticket order going)
-	e.answer.go('shown', { v: s !== null && s.v > f.v ? s.v : f.v, d: f.d, html: f.html });
+	if (f.v > clock.n) clock.n = f.v; // foreign ticket (streamed/mutation frame) — keep the clock monotonic
+	e.answer.go('shown', { ...stands_at(s, f), html: f.html });
 	e.refused = null;
 	// Fulfil a batch's part, whoever wrote the frame (the batch, or a forced fetch that landed
 	// first): a binder that joined via ensure() unblocks, and no per-region fetch ever starts. The
@@ -329,7 +320,7 @@ export function subscribe(a: string, cb: (f: Frame) => void): () => void {
 	// content stays here (a late binder catching a frame that landed before it mounted).
 	const off = watch(frame_id(a), cb as (v: unknown) => void);
 	const s = shown_of(e);
-	if (s !== null) cb({ a, v: s.v, html: s.html });
+	if (s !== null) cb({ a, v: s.v, d: s.d, html: s.html });
 	return () => {
 		off();
 		schedule_evict(a, e);
@@ -351,13 +342,16 @@ export function subscribe(a: string, cb: (f: Frame) => void): () => void {
  * fetch is aborted only once its LAST caller left — one unmounting element must not kill a fetch
  * its twin still awaits. Rejections propagate to every joined caller; retry policy stays with the
  * caller (the element).
+ *
+ * `priority` is how soon this caller needs it (its load class, ./load-class.ts): a fetch out at a
+ * lower one, a warm still waiting for a background turn, is raised to it, never lowered.
  */
 export async function ensure(
 	a: string,
 	fetcher: FrameFetcher,
-	opts: { force?: boolean; signal?: AbortSignal } = {}
+	opts: { force?: boolean; signal?: AbortSignal; priority?: number } = {}
 ): Promise<string | Stale> {
-	const { signal } = opts;
+	const { signal, priority } = opts;
 	const f = frame_flights();
 	const e = entry(a);
 	let fresh = opts.force === true;
@@ -368,7 +362,7 @@ export async function ensure(
 			const refused = e.refused;
 			e.refused = null;
 			if (!fresh && refused !== null) throw refused;
-			const html = await f.get({ a, work: fetcher }, { signal, fresh });
+			const html = await f.get({ a, work: fetcher }, { signal, fresh, priority });
 			// STALE: this caller left, the store was reset, or a forced fetch took the place of the
 			// one it waited on: then it asks again (and joins that one)
 			if (html !== STALE || signal?.aborted || frame_flights() !== f) return html;
