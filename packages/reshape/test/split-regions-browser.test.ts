@@ -73,6 +73,13 @@ describe('scanRegions reads the page as the browser does', () => {
 			expect(found(`<${raw}>${LAKE}</${raw}>`), raw).toEqual([]);
 	});
 
+	it('a region’s attributes: names in lower case, values unquoted, spaces around `=`', () => {
+		const [span] = [
+			...scanRegions('<ogygia-region entry="./a.js" WAKE=none data-x = "y z"></ogygia-region>')
+		];
+		expect(span.attrs).toEqual({ entry: './a.js', wake: 'none', 'data-x': 'y z' });
+	});
+
 	it('the first of two same-name attributes decides the kind', () => {
 		expect(found('<ogygia-region wake="none" wake="load"></ogygia-region>')).toEqual([[0, 'lake']]);
 	});
