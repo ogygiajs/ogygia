@@ -14,6 +14,7 @@ import {
 	type Turn
 } from '@ogygia/machine';
 import { frameAddress, older_by, stands_at, type FrameOrder } from '../frame.ts';
+import { on_trigger, WAKE } from '../contract/trigger.ts';
 import { OG_BAKED, OG_FP, OG_HOLE, OG_KEPT, OG_STATIC, OGYGIA_REGION_CSS } from '../wire-markup.ts';
 import { import_again, is_failed_import, on_file_load, on_reload_needed } from './import-again.ts';
 import { browser_offline, no_response } from './network.ts';
@@ -1063,24 +1064,37 @@ class OgygiaRegion extends HTMLElement {
 		// starts nothing (#335).
 		const armed = owner.scope;
 		const start = () => background_start(() => void (armed.closed || fire()));
-		if (when === 'idle') this.#on_idle(fire, owner);
-		else if (when === 'visible') this.#on_visible(start, visible_margin, owner);
-		else if (when === 'load') start();
-		else if (when === 'interaction') {
-			// (by the machine it drives, not by the region: a hole's island that wakes on a visitor is
-			// the island's wake, whatever the hole's own `when` was — #338)
-			if (owner === this.#hole) {
-				// a visitor's gesture: this region's downloads are the `user` class from here on
-				arm_on_demand(
-					this,
-					() => {
-						this.#visitor = NO_REPLAY; // (a hole's answer: nothing of the visitor's to replay)
-						return fire();
-					},
-					owner.scope
-				);
-			} else this.#on_interaction(fire);
-		} else this.#on_media(when, start, owner); // a media query string
+		const trigger = on_trigger(
+			when,
+			WAKE,
+			{
+				idle: (f) => this.#on_idle(f, owner),
+				visible: () => this.#on_visible(start, visible_margin, owner),
+				load: start,
+				media: (query) => this.#on_media(query, start, owner),
+				interaction: (f) => {
+					// (by the machine it drives, not by the region: a hole's island that wakes on a
+					// visitor is the island's wake, whatever the hole's own `when` was — #338)
+					if (owner === this.#hole) {
+						// a visitor's gesture: this region's downloads are the `user` class from here on
+						arm_on_demand(
+							this,
+							() => {
+								this.#visitor = NO_REPLAY; // (a hole's answer: nothing of the visitor's to replay)
+								return f();
+							},
+							owner.scope
+						);
+					} else this.#on_interaction(f);
+				}
+			},
+			fire
+		);
+		if (!trigger)
+			warn('region_wake_unknown', {
+				region: this.getAttribute('entry') || this.getAttribute(OG_HOLE) || 'ogygia-region',
+				value: when
+			});
 	}
 
 	/**
@@ -1687,7 +1701,6 @@ class OgygiaRegion extends HTMLElement {
 	}
 
 	#on_media(q: string, fire: () => unknown, owner: Leaves) {
-		if (!q) return void fire(); // ok: a wake; its hydrate says its own failure
 		const mql = matchMedia(q);
 		if (mql.matches) return void fire(); // ok: a wake; its hydrate says its own failure
 		const off = owner.scope.on(mql, 'change', (e) => {

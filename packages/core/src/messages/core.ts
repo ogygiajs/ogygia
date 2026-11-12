@@ -436,6 +436,21 @@ export const WARNINGS = {
 			Equal versions, and answers without a version, keep the one that arrived last.
 		`
 	},
+	region_wake_unknown: {
+		text: (a: { region: string; value: string }): string => prose`
+			region ${a.region}: its wake "${a.value}" is not a trigger, so it wakes on load. Use
+			load, idle, visible, interaction or a media query.
+		`,
+		details: (): string => prose`
+			A region's \`wake\` (or a hole's \`when\`) names when it runs: \`load\`, \`idle\`,
+			\`visible\`, \`interaction\`, or a media query (a \`(\` with a \`)\` after it). This one
+			names none of them: a typo, or a value an app computed at runtime (\`region()\`'s
+			options). The build refuses an unknown value it can see on an import; this one reached
+			the page. The region wakes on load, the one fallback for a value no trigger holds.
+
+			Fix the value where it is made.
+		`
+	},
 	hole_without_address: {
 		text: (a: { region: string }): string => prose`
 			deferred region ${a.region} was rendered in the browser with no server-minted address,
