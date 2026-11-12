@@ -10,6 +10,7 @@
 			"@ogygia/core",
 			"@ogygia/flags",
 			"@ogygia/postrender",
+			"@ogygia/reshape",
 			"@ogygia/federation",
 			"@ogygia/content",
 			"@ogygia/devtools",
