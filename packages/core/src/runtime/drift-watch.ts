@@ -1,18 +1,3 @@
-/**
- * WHICH SLEEPING ISLANDS WERE TOUCHED. An island keeps its server markup from its first connect and,
- * at its wake, used to parse that copy and walk it against the live DOM (hydrate-core
- * `repair_if_drifted`) — every island, though almost always nothing had touched it: two thirds of
- * Svelte's own hydrate time on a page of heavy islands, measured. One `MutationObserver` over the
- * document now marks an island CHANGED when a node or a text in it changes (the comparison ignores
- * attributes, and so does this); the wake runs the comparison, and the repair, only for a changed
- * one. Nothing is decided by timing: the wake takes the observer's pending records first.
- *
- * The observer runs only while some island sleeps with a copy (a page whose islands are all awake
- * pays nothing for later DOM work). An island that leaves the document while it sleeps is marked
- * changed: nothing watched it meanwhile. A browser without MutationObserver: every island compares,
- * as before.
- */
-
 import { walk_enters } from './ownership.ts';
 
 const REGION = 'ogygia-region';
@@ -23,11 +8,6 @@ const supported = typeof MutationObserver !== 'undefined';
 
 function mark(records: MutationRecord[]): void {
 	for (const r of records) {
-		// Every region the change sits in (a change deep in a nested island changes its host's sequence
-		// too) — unless, between the change and that region, an element sits whose inside Svelte's walk
-		// never reads (runtime/ownership.ts: `{@html}` / static / kept / a slot / a hydrated region). A
-		// web component reworking its own light DOM there is not the island drifting, and arming the
-		// repair for it would only cost a comparison that finds nothing to do.
 		let hidden = false;
 		for (let n: Node | null = r.target; n; n = n.parentNode) {
 			if (n.nodeType !== 1) continue;
@@ -38,7 +18,14 @@ function mark(records: MutationRecord[]): void {
 	}
 }
 
-/** A region kept its server copy: watch until it wakes (pair with {@link unwatch_region}). */
+/**
+ * A region kept its server copy: watch until it wakes (pair with {@link unwatch_region}). One
+ * `MutationObserver` over the document, running only while some region sleeps with a copy, marks a
+ * region changed when a node or a text in it changes (attributes do not count, as the wake's
+ * comparison ignores them), and every region around it too, up to an element whose inside Svelte's
+ * walk never reads (`walk_enters`: a web component reworking its own light DOM there is not the
+ * island drifting). The wake compares, and repairs, only a changed region (`region_changed`).
+ */
 export function watch_region(): void {
 	if (!supported || ++sleeping > 1) return;
 	// oxlint-disable-next-line ogygia/owned-effects -- one observer for the document, shared by every sleeping region: each region's sleep is its own (core.ts), and the last one to end disconnects it
@@ -63,7 +50,8 @@ export function mark_region_changed(region: Element): void {
 }
 
 /** Was anything in this region's markup touched since it kept its copy? Read at the wake, BEFORE the
- *  runtime itself edits the island (lakes lifted): the pending records are taken first. */
+ *  runtime itself edits the island (lakes lifted): the pending records are taken first, so nothing is
+ *  decided by timing. In a browser without MutationObserver, always true: every region compares. */
 export function region_changed(region: Element): boolean {
 	if (!supported) return true;
 	if (observer && sleeping > 0) mark(observer.takeRecords());
