@@ -4,7 +4,7 @@
 // at most one island, and each mode lets go of the other's machinery when it takes over.
 import { afterEach, expect, inject, test } from 'vitest';
 import { bootDev } from '../../src/runtime/full.ts';
-import { _reset, ticket, write } from '../../src/runtime/frame-store.ts';
+import { _reset, stamp, write } from '../../src/runtime/frame-store.ts';
 import { frameAddress } from '../../src/frame.ts';
 
 const LABEL = '/test/browser/fixtures/Label.svelte';
@@ -113,7 +113,7 @@ test('a static region that turns interactive stops taking the store’s frames',
 	// a frame at its old address (a mutation that returned the static region) must not morph over
 	// the live island
 	const a = frameAddress(url);
-	write({ a, v: ticket(a), html: '<p data-testid="static">from the store</p>' });
+	write({ a, v: stamp(), html: '<p data-testid="static">from the store</p>' });
 	await new Promise((r) => setTimeout(r, 300));
 	expect(live.querySelector('[data-testid="static"]'), 'the live island was left alone').toBeNull();
 	expect(label_text(live)).toBe('one');

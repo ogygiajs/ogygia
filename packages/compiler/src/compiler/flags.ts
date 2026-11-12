@@ -35,6 +35,7 @@ type AstNode = {
 	[k: string]: unknown;
 };
 
+// static: the import attribute kinds this pass rewrites
 const KINDS = new Set(['flag']);
 /** Cheap pre-parse gate — most modules import ogygia for other reasons. */
 const MAYBE_RE = /\bflag\b/;

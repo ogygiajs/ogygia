@@ -52,7 +52,8 @@ describe('postrender() — the vite value', () => {
 			transform: () => {},
 			exports: { map: () => Promise.resolve(null) },
 			pinnedImports: () => () => false,
-			regions: { names: () => ({}), barrelWhy: () => [] }
+			regions: { names: () => ({}), barrelWhy: () => [] },
+			definers: () => {}
 		});
 		expect(keys).toEqual(['postrender']);
 	});
