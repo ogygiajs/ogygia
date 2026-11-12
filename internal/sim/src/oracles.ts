@@ -374,26 +374,41 @@ function own_state_out(s: string): string {
 	return out.join('\n');
 }
 
-/** How long the MPA check looks again for text that moves by itself. */
-const LIVE_LOOK_MS = 2_000;
+/** How long the MPA check looks again for what moves by itself: longer than the slowest tick the
+ *  apps make (a generated app's live query ticks every 3 s; generated app 3, seed 60). */
+const LIVE_LOOK_MS = 4_000;
 
-/** The text lines of a normalized DOM that changed between two looks at the same page (none when
- *  its shape changed: then nothing is masked, and the difference stands). */
+/** An element line's tag, or null for a text line. */
+const tag_of = (line: string): string | null => /^ *<([^\s>]+)/.exec(line)?.[1] ?? null;
+
+/** The lines of a normalized DOM that changed between two looks at the same page: a text, or an
+ *  element's attributes (a live region's tick carries its props in its endpoint). None when its
+ *  shape changed: then nothing is masked, and the difference stands. */
 function live_lines(before: string, after: string): number[] {
 	const [a, b] = [before.split('\n'), after.split('\n')];
 	if (a.length !== b.length) return [];
 	const out: number[] = [];
-	for (let i = 0; i < a.length; i++)
-		if (a[i] !== b[i] && /^ *"/.test(a[i]) && /^ *"/.test(b[i])) out.push(i);
+	for (let i = 0; i < a.length; i++) {
+		if (a[i] === b[i]) continue;
+		const [x, y] = [tag_of(a[i]), tag_of(b[i])];
+		if ((x === null && /^ *"/.test(a[i]) && /^ *"/.test(b[i])) || (x !== null && x === y))
+			out.push(i);
+	}
 	return out;
 }
 
-/** `s` with its text lines at `lines` replaced by a mark (indent kept). */
+/** `s` with its lines at `lines` replaced by a mark (indent kept; an element keeps its tag). */
 function mask(s: string, lines: ReadonlySet<number>): string {
 	if (lines.size === 0) return s;
 	return s
 		.split('\n')
-		.map((l, i) => (lines.has(i) && /^ *"/.test(l) ? `${/^ */.exec(l)![0]}"<live>"` : l))
+		.map((l, i) => {
+			if (!lines.has(i)) return l;
+			const indent = /^ */.exec(l)![0];
+			if (/^ *"/.test(l)) return `${indent}"<live>"`;
+			const tag = tag_of(l);
+			return tag === null ? l : `${indent}<${tag} <live>>`;
+		})
 		.join('\n');
 }
 
@@ -768,7 +783,12 @@ export function outage_only(world: World, tab: Tab): boolean {
 			(typeof e.status === 'number' && e.status >= 500)
 		)
 			return false;
-		if (e.status === 'offline' || e.lost) outage = true;
+		if (e.status === 'offline' || e.lost) {
+			// (a remote function's call the outage failed: Kit's query keeps its error, and asking
+			// again is the app's to do, not ogygia's; generated app 3, seed 48, a held region's host)
+			if (new URL(e.url).pathname.startsWith('/_app/remote/')) return false;
+			outage = true;
+		}
 	}
 	return outage;
 }

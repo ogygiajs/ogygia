@@ -211,6 +211,8 @@ function host(n: GenNode): string {
 		`<div data-gen="${n.kind}-host">`,
 		'\t{#if value.current}',
 		'\t\t<Region of={value.current} />',
+		'\t{:else if value.error}',
+		`\t\t<span data-gen-error>n${n.id} failed</span>`,
 		'\t{:else}',
 		`\t\t<span data-gen-pending>connecting n${n.id}…</span>`,
 		'\t{/if}',
