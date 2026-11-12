@@ -183,6 +183,40 @@ export function whole_text_runs(): void {
 	};
 }
 
+/** A window whose document its own parser parses (`modules_in_order`). */
+interface ParsedWindow {
+	document: EventTarget & { [key: symbol]: unknown };
+	Event: typeof Event;
+	setTimeout(fn: () => void, ms: number): unknown;
+	[key: symbol]: { startTask(): number; endTask(id: number): void };
+}
+
+/**
+ * The document is parsed: it reads `interactive`, and once the module scripts its parser put in it
+ * have run (or failed to load), DOMContentLoaded fires, a task of its own, as in a browser; then
+ * `load` may come (`holding` kept it back). happy-dom reads `interactive` from the start and never
+ * fires it: a script waiting for it never ran, and ogygia's wake gate waited for `load`
+ * (test/modules.test.ts).
+ */
+function content_loaded(
+	window: ParsedWindow,
+	modules: ReadonlyArray<{ done: Promise<void> }>,
+	holding: number
+): void {
+	const doc = window.document;
+	doc[PropertySymbol.readyState] = 'interactive';
+	doc.dispatchEvent(new window.Event('readystatechange'));
+	void Promise.all(modules.map((m) => m.done)).then(() =>
+		window.setTimeout(() => {
+			try {
+				doc.dispatchEvent(new window.Event('DOMContentLoaded', { bubbles: true }));
+			} finally {
+				window[PropertySymbol.readyStateManager].endTask(holding);
+			}
+		}, 0)
+	);
+}
+
 /**
  * A document's module scripts run in its order, as a browser runs them: each one its parser put in
  * the document (not `async`) runs after the ones above it, once they have run or failed to load.
@@ -207,16 +241,24 @@ export function modules_in_order(): void {
 	/** The inline module being connected (happy-dom evaluates it in the same call). */
 	let current: Entry | null = null;
 	const parser = HTMLParser.prototype as unknown as {
-		parse(this: { window: { document: unknown } }, ...a: unknown[]): unknown;
+		parse(this: { window: ParsedWindow }, ...a: unknown[]): unknown;
 	};
 	const parse = parser.parse;
 	parser.parse = function (...a: unknown[]) {
 		const was = parsing;
-		if (a[1] === this.window.document) parsing = a[1];
+		const own = a[1] === this.window.document && parsing !== a[1];
+		if (!own) return parse.apply(this, a);
+		const window = this.window;
+		const doc = window.document;
+		// (the document is loading while its parser runs, and `load` waits for DOMContentLoaded)
+		doc[PropertySymbol.readyState] = 'loading';
+		const holding = window[PropertySymbol.readyStateManager].startTask();
+		parsing = doc;
 		try {
 			return parse.apply(this, a);
 		} finally {
 			parsing = was;
+			content_loaded(window, [...(queues.get(doc) ?? [])], holding);
 		}
 	};
 	const connect = script[PropertySymbol.connectedToDocument] as (this: unknown) => unknown;
