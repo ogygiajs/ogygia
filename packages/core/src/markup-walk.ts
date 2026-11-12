@@ -391,6 +391,32 @@ export function next_tag(html: string, name: string, from: number): FoundTag | n
 	return null;
 }
 
+/** The first start or end tag named `name` in `html` from `from`, read as `next_tag` reads them:
+ *  `{ tag }` for a start tag (go on from `tag.next`), `{ close, end }` for an end tag (its `<` and
+ *  just past its `>`; go on from `end`), or null. For a scan that balances an element's own tags
+ *  (postrender's stitch holes). */
+export function next_open_or_close(
+	html: string,
+	name: string,
+	from: number
+): { readonly tag: FoundTag } | { readonly close: number; readonly end: number } | null {
+	let i = from;
+	while (step(html, i)) {
+		if (TOKEN.kind === 2) {
+			if (name_is(html, TOKEN.ns, TOKEN.ne, name)) return { close: TOKEN.lt, end: TOKEN.end };
+			i = TOKEN.end;
+			continue;
+		}
+		if (name_is(html, TOKEN.ns, TOKEN.ne, name)) {
+			const tag = read_tag(html, TOKEN.lt, TOKEN.ne);
+			return tag === null ? null : { tag };
+		}
+		i = after_start(html);
+		if (i === -1) return null;
+	}
+	return null;
+}
+
 /** Each `<name …>` start tag in `html` from `from`, in order, read the way a browser reads one.
  *  `name` is a tag name (lower case: letters, digits, `-`). */
 export function* tags(html: string, name: string, from = 0): Generator<FoundTag> {
