@@ -8,6 +8,7 @@ import {
 	document_faulted,
 	faulted,
 	hydrates_as_sent,
+	KNOWN,
 	Leaks,
 	mpa_equivalent,
 	normalize,
@@ -66,6 +67,28 @@ describe('normalize', () => {
 	});
 });
 
+describe('known', () => {
+	it("#993's hole without its page's data, on either side (gen 175, seed 175003)", () => {
+		const k = KNOWN.find((x) => x.issue === 993)!;
+		const page = (who: string[]) =>
+			[
+				'title: ',
+				'<html>',
+				'  <body>',
+				'    <div data-gen="hole">',
+				'      <i data-gen-page="">',
+				...who.map((l) => `        ${l}`),
+				'      <span>',
+				'        "n19"'
+			].join('\n');
+		const shown = page([]);
+		const fresh = page(['"p2 data"']);
+		expect(k.applies(shown, fresh)).toBe(true);
+		expect(k.applies(fresh, fresh)).toBe(false);
+		expect(k.forgive(shown, fresh)).toBe(k.forgive(fresh, shown));
+	});
+});
+
 describe('hydrates as sent', () => {
 	it("a changed byte in a peer's deferred widget excuses its mismatch (gen 87, seed 34)", () => {
 		const tab = {
@@ -108,6 +131,7 @@ describe('page errors', () => {
 	// (the document's own load is its realm's first request)
 	const world = (tampered: string) =>
 		({
+			fired_in: new Map(),
 			network: {
 				exchanges: ['https://app.test/split-brain', 'https://app.test/_app/x.js'].map((url, i) => ({
 					id: i + 1,
@@ -133,6 +157,7 @@ describe('page errors', () => {
 	// (a server's hop for the document: a peer's page it was made from; gen 32, seed 32008)
 	const hop = (change: 'tampered' | 'cut') =>
 		({
+			fired_in: new Map(),
 			network: {
 				exchanges: [
 					{ id: 1, from: 'tab-1#6', url: 'https://app.test/peer/q0', status: 200 },
@@ -161,6 +186,7 @@ describe('page errors', () => {
 	// kept it, `cache: { ttl }`: this document, and the MPA check's fresh load, may be shown it)
 	it("a changed byte in a peer's page the server fetched for another document is this one's too", () => {
 		const world = {
+			fired_in: new Map(),
 			network: {
 				exchanges: [
 					{ id: 1, from: 'tab-0#2', url: 'https://app.test/peer/q0', status: 200 },

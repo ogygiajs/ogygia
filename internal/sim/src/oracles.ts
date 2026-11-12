@@ -154,6 +154,26 @@ export const KNOWN: ReadonlyArray<{
 		seen: (world) => world.network.exchanges.some(peer_hop_failed)
 	},
 	{
+		issue: 993,
+		what: 'a hole renders with an empty page.data when its page-facts look-up answer is not kept',
+		// (the generated `<i data-gen-page>` shows its page's data on one side only, buggify's
+		// flights.not-kept fired: gen 175, seed 175003; each such element's text set aside)
+		applies: (shown, fresh) => page_data_text(shown) !== page_data_text(fresh),
+		forgive: (s) => {
+			const out: string[] = [];
+			let inside: string | null = null;
+			for (const line of s.split('\n')) {
+				const indent = /^ */.exec(line)![0];
+				if (inside !== null && indent.length > inside.length) continue;
+				inside = null;
+				out.push(line);
+				if (line.trim().startsWith('<i data-gen-page=')) inside = indent;
+			}
+			return out.join('\n');
+		},
+		seen: (world) => (world.buggified.get('flights.not-kept')?.fired ?? 0) > 0
+	},
+	{
 		issue: 966,
 		what: "a mounted peer page's stylesheet stays in the head after a router navigation away",
 		// (a peer's sheet, `crossorigin`, in the tab's head and not in the fresh load's: gen 158)
@@ -333,6 +353,22 @@ function peer_hop_failed(e: World['network']['exchanges'][number]): boolean {
 			e.tampered ||
 			(typeof e.status === 'number' ? e.status >= 500 : e.status !== 'pending'))
 	);
+}
+
+/** What each generated `<i data-gen-page>` in a normalized DOM says (#993). */
+function page_data_text(s: string): string {
+	const out: string[] = [];
+	const lines = s.split('\n');
+	for (const [i, line] of lines.entries())
+		if (line.trim().startsWith('<i data-gen-page=')) {
+			const next = lines[i + 1] ?? '';
+			out.push(
+				next.length - next.trimStart().length > line.length - line.trimStart().length
+					? next.trim()
+					: ''
+			);
+		}
+	return out.join(',');
 }
 
 /** The peer stylesheets (`crossorigin`) in `s`'s head that `other`'s lacks (#966). */
