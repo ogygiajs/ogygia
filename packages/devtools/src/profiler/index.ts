@@ -63,7 +63,7 @@ import {
 	type RequestEntry,
 	type RouteAgg
 } from './report.ts';
-import { ogp_encode, ogp_decode, is_ogp, recover_ogp_bytes } from './crypto.ts';
+import { ogp_encode, ogp_decode, is_ogp, recover_ogp_bytes, OGP_MAX_UNPACKED } from './crypto.ts';
 import {
 	AFTER_LOGIN_PARAM,
 	SESSION_COOKIE,
@@ -3231,12 +3231,22 @@ class Profiler {
 					return new Response('That is not an ogygia .ogp report.', { status: 400 });
 				dump = await ogp_decode(bytes, this.secret);
 			} else if (ctx.request.headers.get('x-og-encoding') === 'gzip') {
+				// (under the .ogp lane's cap: test/profiler-report-gzip-cap.test.ts)
 				const { gunzipSync } = await import('node:zlib');
-				dump = JSON.parse(new TextDecoder().decode(gunzipSync(raw)));
+				let json: Uint8Array;
+				try {
+					json = gunzipSync(raw, { maxOutputLength: OGP_MAX_UNPACKED });
+				} catch (e) {
+					if ((e as { code?: unknown })?.code !== 'ERR_BUFFER_TOO_LARGE') throw e;
+					throw new OgygiaError('devtools_profiler_upload_too_large', { limit: OGP_MAX_UNPACKED });
+				}
+				dump = JSON.parse(new TextDecoder().decode(json));
 			} else {
 				dump = JSON.parse(new TextDecoder().decode(raw));
 			}
-		} catch {
+		} catch (e) {
+			if (e instanceof OgygiaError && e.code === 'devtools_profiler_upload_too_large')
+				return new Response(e.message, { status: 413 });
 			return new Response('The request carried no report this server can open.', { status: 400 });
 		}
 		if (!is_dump(dump))
