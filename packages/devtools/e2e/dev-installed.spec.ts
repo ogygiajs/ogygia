@@ -5,7 +5,7 @@
 //
 // The regression (field report, 2026-09-29): Vite pre-bundled the installed package's
 // `ogygia/runtime` (the dev boot) into `.vite/deps`, while everything the compiler writes — the
-// island modules and their `ogygia/internal`, `virtual:ogygia/hydrate-features` — imports ogygia's
+// island modules and their `ogygia/internal`, `ogygia:boot/hydrate-features` — imports ogygia's
 // files by path. The page ran two copies of ogygia's stateful modules: the wire feature installed
 // into one `slots`, the hydrate core read the other, and every island with a snippet prop failed
 // ("wired prop but no wire feature in this build"). A workspace-linked ogygia is never pre-bundled,
@@ -30,6 +30,7 @@ let srv: SpawnedServer | null = null;
 function real(name: string): string {
 	for (const dir of [
 		path.join(core, 'node_modules'),
+		path.join(repo, 'packages', 'compiler', 'node_modules'),
 		path.join(repo, 'packages', 'devtools', 'node_modules'),
 		path.join(repo, 'packages', 'devtools', 'e2e', 'app', 'node_modules'),
 		path.join(repo, 'node_modules')
@@ -103,9 +104,13 @@ test.describe('dev: an installed (not linked) ogygia runs as one copy in the bro
 		};
 		unpack(pkg, path.join(nm, 'ogygia'));
 		unpack(core, path.join(nm, '@ogygia', 'core'));
+		// (ogygia's other half: the compiler and its build-time dependencies)
+		unpack(path.join(repo, 'packages', 'compiler'), path.join(nm, '@ogygia', 'compiler'));
 		// (core's own dependency, released with it)
 		unpack(path.join(repo, 'packages', 'machine'), path.join(nm, '@ogygia', 'machine'));
 		unpack(path.join(repo, 'packages', 'devtools'), path.join(nm, '@ogygia', 'devtools'));
+		// (devtools' own dependency, released with it)
+		unpack(path.join(repo, 'packages', 'insights'), path.join(nm, '@ogygia', 'insights'));
 		for (const dep of [
 			'svelte',
 			'@sveltejs',

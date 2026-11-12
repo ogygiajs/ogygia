@@ -19,6 +19,7 @@
  */
 import type { ShikiTransformer } from 'shiki';
 
+// static: the languages whose fences show the marker syntax itself, a fixed list
 const SKIP_LANGS = new Set(['diff', 'yaml', 'yml', 'markdown', 'md', 'mdx', 'svx']);
 
 type DiffState = { add: Set<number>; remove: Set<number> };

@@ -21,10 +21,11 @@
  * markup (same component, same props), so addresses stay valid; a tag-name check guards drift.
  *
  * WHAT SURVIVES THE WAKE:
- * - **Clicks are queued + replayed.** While waking, `click` events are `preventDefault()`ed and
- *   recorded (address + coordinates); after hydration each re-dispatches at its address. Cancel-
- *   then-replay means a checkbox / link / summary activates exactly ONCE — on the replay, where
- *   the island's handlers exist. Enter/Space activation arrives as a derived click → same path.
+ * - **Clicks are queued + replayed.** While waking, `click` events are `preventDefault()`ed, kept
+ *   from the page's handlers (`stopPropagation()`), and recorded (address + coordinates); after
+ *   hydration each re-dispatches at its address. Cancel-then-replay means a checkbox / link /
+ *   summary activates exactly ONCE — on the replay, where the island's handlers exist, even when
+ *   they were live before the wake ended. Enter/Space activation arrives as a derived click → same path.
  * - **Typing lands natively and is restored.** Characters are in the DOM before hydration starts;
  *   hydration resets `.value` from SSR state, so field values (+ checkedness + selection) are
  *   snapshotted at wake and re-applied at the field's address, with `input`/`change` events so
@@ -43,14 +44,17 @@
  * pointer reaches an armed island or input lands.
  */
 
-import { flights, STALE, type Scope, type Stale } from '@ogygia/machine';
+import { flights, registry, STALE, type Scope, type Stale } from '@ogygia/machine';
 import { LoadSlot } from './load-scheduler.ts';
+
+const noop = (): void => {};
 import { import_again } from './import-again.ts';
 import { slots } from './slots.ts';
 import { warm_island_module } from './region-endpoint-url.ts';
 import { island_entry_of } from './entry-locations.ts';
 import { OgygiaError } from '../messages/core.ts';
 import { download } from '../policies.ts';
+import { OG_WOKE } from '../wire-markup.ts';
 
 /** Feature entry: fill the `interaction` slot — wake a cold island on first use, warm on hover. */
 export function install(): void {
@@ -148,6 +152,8 @@ type Armed = {
 	state: 'armed' | 'woken' | 'over';
 	warmed: boolean;
 	queued: QueuedClick[];
+	/** Takes its entry out (only its own: a newer arming of the region holds another). */
+	forget: () => void;
 };
 
 /**
@@ -156,11 +162,12 @@ type Armed = {
  * with it (the region that comes back is server markup of a new visit, with a capture of its own).
  */
 function disarm(a: Armed, over: boolean): void {
-	if (armed.get(a.region) === a) armed.delete(a.region);
+	a.forget();
 	if (over && a.state === 'woken') a.state = 'over';
 }
 
-const armed = new Map<Element, Armed>();
+/** Each armed region's arming, held by the region's lifetime in the page (it goes with it). */
+const armed = registry.keyed<Element, Armed>();
 let installed = false;
 
 /** THE REPLAY HALF, loaded once, when the first region arms. A download that fails is tried again
@@ -239,7 +246,11 @@ function wake(a: Armed, e: Event): void {
 		const addr = element_address(region, e.target);
 		if (addr) {
 			const me = e as MouseEvent;
+			// a queued click is the replay's alone: canceled, and kept from the island's handlers too —
+			// they can be live before its wake ends (hydrated, not yet marked) and would hear it twice
+			// (test/browser/interaction-delegated.test.ts)
 			e.preventDefault();
+			e.stopPropagation();
 			// `e.target` is already retargeted to the shadow HOST; keep the real deepest node too.
 			const path = typeof e.composedPath === 'function' ? e.composedPath() : [];
 			const deep = path.length && path[0] !== e.target ? path[0] : null;
@@ -267,7 +278,7 @@ function wake(a: Armed, e: Event): void {
 	a.state = 'woken';
 	// what woke it, for `hydratedBy()` (hydration-info.ts): a visitor did — its first click is a replay,
 	// whatever schedule the island had
-	region.setAttribute('data-og-woke', 'interaction');
+	region.setAttribute(OG_WOKE, 'interaction');
 
 	// Typed-so-far values + focus, captured as ADDRESSES (hydration may replace the nodes).
 	const fields = snapshot_fields(region);
@@ -316,8 +327,17 @@ export function arm_interaction(
 	fire: WakeFn,
 	owner: Scope
 ): (over?: boolean) => void {
-	const a: Armed = { region, warm, fire, owner, state: 'armed', warmed: false, queued: [] };
-	armed.set(region, a);
+	const a: Armed = {
+		region,
+		warm,
+		fire,
+		owner,
+		state: 'armed',
+		warmed: false,
+		queued: [],
+		forget: noop
+	};
+	a.forget = armed.set(region, a, owner);
 	install_listeners();
 	replay_ahead();
 	return (over = false) => disarm(a, over);

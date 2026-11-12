@@ -110,7 +110,7 @@ export interface ProfilerDeps {
 	/** `session_problem`: why a login that just succeeded still has no session (null otherwise). */
 	login_props(c: Ctx): { base: string; next: string; session_problem: string | null };
 	login(c: Ctx): Promise<Response>;
-	logout(c: Ctx): Response;
+	logout(c: Ctx): Promise<Response>;
 	upload(c: Ctx): Promise<Response>;
 	report_stored(id: string | undefined): StoredReport | undefined;
 	/** Like `report_stored`, but falls through to the configured storage backend (SQLite/Redis/
@@ -182,7 +182,7 @@ export function build_profiler_router(d: ProfilerDeps): Router<{
 		(c: Ctx) => ReturnType<ProfilerDeps['login_props']>,
 		{ default: CtxFn<Promise<Response>> }
 	>;
-	readonly '/logout': { readonly GET: CtxFn<Response> };
+	readonly '/logout': { readonly GET: CtxFn<Promise<Response>> };
 	readonly '/view': ProfilerPage<() => { base: string }, { default: CtxFn<Promise<Response>> }>;
 	readonly '/reports.json': { readonly GET: CtxFn<Promise<Response>> };
 	readonly '/report/[id]': ProfilerPage<

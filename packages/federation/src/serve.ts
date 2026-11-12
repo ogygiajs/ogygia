@@ -7,9 +7,18 @@
  * handle owns all of it, so a `federate()` in hooks.server.ts is the whole wiring.
  */
 import { version } from '$app/env';
-import { backoffAfter, flights, machine, policy, type Policy } from '@ogygia/machine';
+import {
+	backoffAfter,
+	clock,
+	flights,
+	machine,
+	policy,
+	random,
+	type Policy
+} from '@ogygia/machine';
 import type { RequestEvent } from '@sveltejs/kit';
 import type { ServerApp } from '@ogygia/core/plugin';
+import { OG_MOVED } from '@ogygia/core/internal/server';
 import { current_federation } from './registry.ts';
 import { begin_source_capture, broadcast_thaw, deploy_thaws } from './federate.ts';
 import { set_hole_signer } from './hole.ts';
@@ -28,11 +37,13 @@ import {
 	USER_HEADER_NAME,
 	FRAGMENT_ROUTES_PATH,
 	FRAGMENT_BASE,
+	OFF_SITE_PATH_RE,
 	THAW_PATH,
 	type Claims,
 	type VerifyConfig
 } from './wire.ts';
 import type { Federation, Peer } from './types.ts';
+import { hop_failure_status } from './peer.ts';
 
 const HOLE_PATH = '/og/frag';
 
@@ -43,9 +54,11 @@ function inbound_verify(fed: Federation): VerifyConfig {
 	return { publicKeys, audience: fed.audience, skewMs: fed.skew_ms };
 }
 
-/** The HMAC-signed message for a deferred hole capability (peer + kind + target + search + exp). */
+/** The HMAC-signed message for a deferred hole capability (peer + kind + target + search + exp).
+ *  Version 2: the fields as one JSON array, so no two holes share a message (version 1 joined them
+ *  with dots): test/federation.test.ts › "a hole signature covers each field on its own". */
 const hole_message = (peer: string, kind: string, target: string, search: string, exp: string) =>
-	`frag.${peer}.${kind}.${target}.${search}.${exp}`;
+	`frag/2:${JSON.stringify([peer, kind, target, search, exp])}`;
 
 /**
  * Install the hole signer: a deferred hole is one of the app's own capabilities (`app.capability`),
@@ -55,9 +68,10 @@ const hole_message = (peer: string, kind: string, target: string, search: string
  */
 export function install_federation(app: ServerApp): void {
 	set_hole_signer(({ peer, kind, target, search = '' }) => {
-		const { exp, sig } = app.capability.mint((e) => hole_message(peer, kind, target, search, e));
-		// `exp` + `sig` last: the volatile tail a region's identity cuts off
-		const q = new URLSearchParams({ peer, kind, target, search, exp, sig });
+		const { exp, sig, k } = app.capability.mint((e) => hole_message(peer, kind, target, search, e));
+		// `exp`, `sig` and `k` (the key it names, #1007) last: the volatile tail a region's identity
+		// cuts off
+		const q = new URLSearchParams({ peer, kind, target, search, exp, sig, k });
 		return `${HOLE_PATH}?${q}`;
 	});
 }
@@ -117,7 +131,7 @@ export function deploy_thaw_check(fed: Federation): Promise<void> {
 	if (fed.deploy !== 'auto') return Promise.resolve();
 	const s = deploy.now;
 	if (s.kind === 'checking') return s.run;
-	if (s.kind === 'done' || Date.now() < s.after) return Promise.resolve();
+	if (s.kind === 'done' || clock.mono() < s.after) return Promise.resolve();
 	const run = check_deploy(fed, s.owed).then(checked);
 	deploy.move('unchecked', 'checking', { run });
 	return run;
@@ -129,7 +143,8 @@ type Checked = { done: true } | { done: false; owed: Owed | null };
 /** A check ended: done, or tried again by a request after DEPLOY_RETRY_MS. */
 function checked(c: Checked): void {
 	if (c.done) deploy.move('checking', 'done');
-	else deploy.move('checking', 'unchecked', { after: Date.now() + DEPLOY_RETRY_MS, owed: c.owed });
+	else
+		deploy.move('checking', 'unchecked', { after: clock.mono() + DEPLOY_RETRY_MS, owed: c.owed });
 }
 
 /** One check (it never throws). `owed`: the thaw an earlier check found due, still owed. */
@@ -142,7 +157,7 @@ async function check_deploy(fed: Federation, owed: Owed | null): Promise<Checked
 			// (throws when the store cannot answer: a check to try again, not "no store")
 			const seen = await app.ask.lastBuild(version);
 			if (seen === undefined || seen === version) return { done: true };
-			owed = { id: crypto.randomUUID(), peers: new Set(fed.peers.keys()), rounds: 0 };
+			owed = { id: random.uuid(), peers: new Set(fed.peers.keys()), rounds: 0 };
 		}
 		const missed = await broadcast_thaw(
 			fed,
@@ -186,18 +201,29 @@ export async function serve_federation(event: RequestEvent): Promise<Response | 
 	return null;
 }
 
+/**
+ * The URL an exposed table is asked at: always on the app's own origin. Path and search are set
+ * apart, so neither can re-home it; a path that would (`//host`, `/\host`) is refused (null).
+ * Test: serve-expose.test.ts.
+ */
+function expose_target(origin: string, base: string, path: string, search: string): URL | null {
+	if (OFF_SITE_PATH_RE.test(path)) return null;
+	const target = new URL(origin);
+	target.pathname = base + (path.startsWith('/') ? path : '/' + path);
+	target.search = search;
+	return target.origin === origin ? target : null;
+}
+
 // ── expose: the whole route table as a fragment document ─────────────────────────────────────
 async function serve_expose(fed: Federation, event: RequestEvent): Promise<Response | null> {
 	if (!fed.expose) return json_error(404, 'this app exposes no route table (federate({ expose }))');
 	const { url, request } = event;
-	const t0 = performance.now();
+	const t0 = clock.mono();
 	const trace = child_traceparent(request.headers.get('traceparent'));
 	const path = url.searchParams.get('path') ?? '/';
 	const search = url.searchParams.get('search') ?? '';
-	const target = new URL(
-		fed.base + (path.startsWith('/') ? path : '/' + path) + search,
-		url.origin
-	);
+	const target = expose_target(url.origin, fed.base, path, search);
+	if (!target) return json_error(400, 'path must start with exactly one "/"');
 
 	const body = await read_capped_body(request, fed.max_body);
 	if (body === null) return json_error(413, 'body too large');
@@ -225,7 +251,7 @@ async function serve_expose(fed: Federation, event: RequestEvent): Promise<Respo
 	}
 
 	const doc = (d: Record<string, unknown>) => {
-		const ms = Math.round((performance.now() - t0) * 10) / 10;
+		const ms = Math.round((clock.mono() - t0) * 10) / 10;
 		return json_response(
 			{
 				...d,
@@ -272,7 +298,7 @@ async function serve_widget(fed: Federation, event: RequestEvent, name: string):
 	const def = fed.widgets.get(name);
 	if (!def) return json_error(404, `unknown fragment '${name}'`);
 	const trace = child_traceparent(request.headers.get('traceparent'));
-	const t0 = performance.now();
+	const t0 = clock.mono();
 	const props: Record<string, string> = {};
 	for (const [k, v] of url.searchParams) props[k] = v;
 
@@ -285,7 +311,7 @@ async function serve_widget(fed: Federation, event: RequestEvent, name: string):
 		capture.end();
 	}
 	if (baked?.html == null) return json_error(500, 'fragment did not bake');
-	const ms = Math.round((performance.now() - t0) * 10) / 10;
+	const ms = Math.round((clock.mono() - t0) * 10) / 10;
 	return json_response(
 		{
 			html: absolutize(baked.html, url.origin),
@@ -316,6 +342,17 @@ async function serve_hole(fed: Federation, event: RequestEvent): Promise<Respons
 	if (!opened.ok) return opened.response;
 	const peer = fed.peers.get(peer_name);
 	if (!peer) return new Response('unknown peer', { status: 404 });
+	const traceparent = child_traceparent(event.request.headers.get('traceparent')).traceparent;
+	// one of the peer's own region endpoints, its fragment carried: no hop, no claims (the peer
+	// signed what it renders into its own capability). Not the region's answer: a 502, the
+	// fallback stands and the runtime says so.
+	if (kind === 'endpoint') {
+		const got = await peer.endpoint(target, traceparent);
+		if (got === null) return new Response('bad gateway', { status: 502, headers: NO_STORE });
+		if (got.status === 204)
+			return new Response(null, { status: 204, headers: { ...NO_STORE, ...opened.headers } });
+		return hole_html(got.html, opened.headers);
+	}
 
 	// claims are derived HERE, server-side, from the shell's own session — never from the browser
 	const claims = fed.visitor?.({
@@ -324,9 +361,8 @@ async function serve_hole(fed: Federation, event: RequestEvent): Promise<Respons
 		cookies: event.cookies,
 		locals: event.locals
 	});
-	const traceparent = child_traceparent(event.request.headers.get('traceparent')).traceparent;
 	// (a renewal's answer carries the fresh capability, which the runtime adopts for later fetches)
-	const answer = (html: string) => hole_html(html, opened.headers);
+	const answer = (html: string, status = 200) => hole_html(html, opened.headers, status);
 	try {
 		if (kind === 'widget') {
 			const props: Record<string, string> = {};
@@ -335,24 +371,27 @@ async function serve_hole(fed: Federation, event: RequestEvent): Promise<Respons
 			return answer(wdoc.html);
 		}
 		const doc = await peer.doc(target, search, claims, traceparent);
-		if (doc.location) return answer(String(moved_card('data-og-moved', 'section', doc.location)));
+		if (doc.location) return answer(String(moved_card(OG_MOVED, 'section', doc.location)));
 		return answer((doc.css?.join('') ?? '') + (doc.head ?? '') + doc.body);
-	} catch {
-		return answer('');
+	} catch (e) {
+		// a failed hop is an error status, never an empty success: the region keeps its fallback and
+		// the runtime asks again (test/hole-peer-failure.test.ts, #937). A bad answer was said by the
+		// peer's reader.
+		return answer('', hop_failure_status(e));
 	}
 }
 
-/** A hole response: the runtime swaps this HTML into the region element and its islands wake. */
-function hole_html(html: string, headers: Record<string, string>): Response {
+/** A hole response: the runtime swaps this HTML into the region element and its islands wake (an
+ *  error status: it keeps the fallback and tries again). */
+function hole_html(html: string, headers: Record<string, string>, status = 200): Response {
 	return new Response(html, {
-		status: 200,
-		headers: {
-			'content-type': 'text/html; charset=utf-8',
-			'cache-control': 'no-store',
-			...headers
-		}
+		status,
+		headers: { 'content-type': 'text/html; charset=utf-8', ...NO_STORE, ...headers }
 	});
 }
+
+/** A hole's answer is per visitor and per capability: never kept by a cache. */
+const NO_STORE = { 'cache-control': 'no-store' };
 
 // ── thaw: /og/thaw (a peer's publish/deploy notice) ──────────────────────────────────────────
 const NOTICE_TTL_MS = 10 * 60_000;
@@ -403,7 +442,7 @@ async function apply_thaw(n: Received): Promise<number> {
 	// chain: tell MY consumers, with the tags I just applied, hop+1 (an outbox send, kept alive past
 	// this answer; a consumer that never took it is said)
 	void broadcast_thaw(n.fed, {
-		id: n.id || crypto.randomUUID(),
+		id: n.id || random.uuid(),
 		hop: n.hop + 1,
 		tags: n.tags === 'all' ? 'all' : local
 	}); // ok: broadcast_thaw never rejects (an outbox put never does)
@@ -434,20 +473,15 @@ async function serve_thaw(fed: Federation, event: RequestEvent): Promise<Respons
 	}
 	if (!sender) return json_error(401, 'invalid or missing signature');
 
-	let notice: { id?: string; hop?: number; tags?: string[] | 'all' };
+	let notice: Notice | null;
 	try {
-		notice = JSON.parse(new TextDecoder().decode(body ?? new Uint8Array()));
+		notice = thaw_notice(JSON.parse(new TextDecoder().decode(body ?? new Uint8Array())));
 	} catch {
-		return json_error(400, 'bad notice');
+		notice = null;
 	}
-	const received: Received = {
-		fed,
-		id: notice.id ?? '',
-		hop: notice.hop ?? 0,
-		tags: notice.tags ?? [],
-		sender,
-		sender_name
-	};
+	// (not the notice's shape: refused, never asked again, never passed on — test/thaw-notice-shape)
+	if (notice === null) return json_error(400, 'bad notice');
+	const received: Received = { fed, ...notice, sender, sender_name };
 	if (received.id && applied_notices.peek({ id: received.id })?.kind === 'kept')
 		return json_response({ ok: true, deduped: true });
 	try {
@@ -461,6 +495,19 @@ async function serve_thaw(fed: Federation, event: RequestEvent): Promise<Respons
 }
 
 /** `p:<path>` → `p:<peer>:<path>`; `s:…`/`r:…` → `r:<peer>:…`; `a:…` → `a:<peer>`. */
+type Notice = { id: string; hop: number; tags: string[] | 'all' };
+
+/** A parsed notice as the notice it is (a field left out: none, hop 0, no tags), or null when any
+ *  field is another type: `hop + 1` must stay a number the hop cap (federate.ts) can stop. */
+function thaw_notice(v: unknown): Notice | null {
+	if (v === null || typeof v !== 'object' || Array.isArray(v)) return null;
+	const { id = '', hop = 0, tags = [] } = v as Record<string, unknown>;
+	if (typeof id !== 'string' || !Number.isSafeInteger(hop) || (hop as number) < 0) return null;
+	if (tags !== 'all' && !(Array.isArray(tags) && tags.every((t) => typeof t === 'string')))
+		return null;
+	return { id, hop: hop as number, tags: tags as string[] | 'all' };
+}
+
 function map_thaw_tags(peer: string, tags: string[] | 'all'): string[] {
 	if (tags === 'all') return [];
 	return tags.map((t) => {

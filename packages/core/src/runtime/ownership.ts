@@ -31,17 +31,16 @@
  * (`order_owner`), and whether a child EXISTS by the render's doing (`render_made`): one element, four
  * facets, one place. The morph's matching, attribute sync and removal all read them.
  */
+import { OG_BAKED, OG_HTML, OG_OPAQUE, OGYGIA_KEEP } from '../wire-markup.ts';
 
 /** The owner of an element, for the writers that consult it. */
 export type Owner = 'foreign' | 'region' | 'page' | 'static' | 'walk';
 
-/** The compiler's server-only stamp: Svelte's hydration never walks inside this element. */
-export const OPAQUE_ATTR = 'data-og-opaque';
-/** The compiler's server-only stamp on an element holding an `{@html}` BESIDE other children: its
- *  child elements may be `{@html}` content, which Svelte never walks into. (PROD output opens an
- *  `{@html}` block with the same `<!---->` as any separator, so the exact range is not knowable from
- *  the DOM; its child elements are compared by tag and position only, never entered.) */
-export const HTML_PARENT_ATTR = 'data-og-html';
+// The compiler's server-only stamps (compiler/ownership-stamps.ts): `OG_OPAQUE`, an element Svelte's
+// hydration never walks inside; `OG_HTML`, an element holding an `{@html}` BESIDE other children,
+// whose child elements may be `{@html}` content (PROD output opens an `{@html}` block with the same
+// `<!---->` as any separator, so the exact range is not knowable from the DOM: its child elements
+// are compared by tag and position only, never entered).
 
 const REGION = 'ogygia-region';
 const SLOT = 'ogygia-slot';
@@ -50,8 +49,7 @@ const SLOT = 'ogygia-slot';
  *  `data-persist` (on a region, keep names a navigation-surviving island instead — not foreign). */
 export function is_declared_foreign(el: Element): boolean {
 	return (
-		el.localName !== REGION &&
-		(el.hasAttribute('data-ogygia-keep') || el.hasAttribute('data-persist'))
+		el.localName !== REGION && (el.hasAttribute(OGYGIA_KEEP) || el.hasAttribute('data-persist'))
 	);
 }
 
@@ -62,7 +60,7 @@ export function is_region_owned(el: Element): boolean {
 	const name = el.localName;
 	if (!name.includes('-')) return false;
 	if (el.hasAttribute('data-hydrated')) return true;
-	return name === REGION && el.hasAttribute('data-ogygia-keep');
+	return name === REGION && el.hasAttribute(OGYGIA_KEEP);
 }
 
 /**
@@ -74,8 +72,7 @@ export function owner_of(el: Element): Owner {
 	if (is_declared_foreign(el)) return 'foreign';
 	if (is_region_owned(el)) return 'region';
 	if (el.localName === SLOT) return 'page';
-	if (el.hasAttribute(OPAQUE_ATTR) || el.parentElement?.hasAttribute(HTML_PARENT_ATTR))
-		return 'static';
+	if (el.hasAttribute(OG_OPAQUE) || el.parentElement?.hasAttribute(OG_HTML)) return 'static';
 	return 'walk';
 }
 
@@ -133,7 +130,7 @@ export function order_owner(el: Element): 'render' | 'element' {
 	// (ogygia's own element never rearranges what it holds: a fallback, an answer — the render's order;
 	// but a BAKED live region's content is hosted by Svelte's `{@html}`, whose anchor comments sit among
 	// the answer's nodes: its children are partly another owner's, so it matches by identity)
-	if (el.localName === REGION) return el.hasAttribute(BAKED_ATTR) ? 'element' : 'render';
+	if (el.localName === REGION) return el.hasAttribute(OG_BAKED) ? 'element' : 'render';
 	return is_self_owned(el) ? 'element' : 'render';
 }
 
@@ -147,10 +144,6 @@ export function order_owner(el: Element): 'render' | 'element' {
 export function slots_light_dom(el: Element): boolean {
 	return el.shadowRoot !== null && is_upgraded_ce(el);
 }
-
-/** A live region whose first HTML was baked into the page by Svelte's `{@html}` (Region.svelte,
- *  PromiseRegionAwait): kept for the element's life — Svelte's block anchors stay among its children. */
-export const BAKED_ATTR = 'data-og-baked';
 
 /** The nodes ogygia placed under an element-ordered parent (a morph's claim or insertion, the restore
  *  putting Svelte's children back into a planned host). One per document across bundles: the inlined
@@ -187,6 +180,7 @@ export function render_made(node: Node, render_tags: ReadonlySet<string>): boole
 // starts, which is before any island wakes (the wake gate waits for DOMContentLoaded and a frame),
 // and each navigation renews it; any other root's starts at its first reconcile.
 
+// static: the empty answer, shared and never written
 const NO_TAGS: ReadonlySet<string> = new Set();
 const server_attrs = new WeakMap<Element, ReadonlySet<string>>();
 
