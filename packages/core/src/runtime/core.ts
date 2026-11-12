@@ -49,6 +49,7 @@ import {
 	pin_build_map,
 	pin_region_urls
 } from './entry-locations.ts';
+import { code_origins } from './code-origins.ts';
 import { load_devalue, needs_devalue } from './devalue-lane.ts';
 import {
 	is_awake,
@@ -2215,6 +2216,8 @@ export function boot(
 	for (const install of installers) install();
 	// The build's location map, pinned to this page's address before any navigation moves it
 	pin_build_map();
+	// The origins island code may load from, read while the head is still the server's alone
+	code_origins();
 	// An island whose file was gone (this page outlived its build) woke on the current build's file:
 	// the devtools timeline and the beacon hear it (entry-locations.ts imports neither)
 	on_entry_fallback((report) => {

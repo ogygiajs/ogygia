@@ -85,6 +85,10 @@ export function federate<P extends Record<string, PeerConfig>>(
 		name: config.name,
 		key: config.key,
 		peers,
+		// (a peer's handle above already parsed each one)
+		code_origins: Object.values(config.peers ?? {})
+			.flatMap((p) => p.origin)
+			.map((o) => new URL(o).origin),
 		visitor: config.visitor,
 		expose: config.expose,
 		base: config.base ?? '',
