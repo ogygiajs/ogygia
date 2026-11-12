@@ -266,6 +266,39 @@ describe('the network', () => {
 		]);
 	});
 
+	it("a server hears its request called off when the connection closes, as a Node server's request signal does", async () => {
+		// (Kit's live-query stream wrote to a body the client had cancelled and, its request never
+		// called off, reported it to handleError as a 500; gen 8, seed 24)
+		const loop = new Loop(rng(1));
+		const net = new Network({ loop, rng: rng(1), faults: new Set() });
+		const heard: Record<string, boolean> = {};
+		const live = (name: string) => async (r: Request) => {
+			r.signal.addEventListener('abort', () => (heard[name] = true));
+			heard[name] = false;
+			// (a body that never ends: a live answer)
+			return new Response(new ReadableStream({ pull: () => new Promise(() => {}) }));
+		};
+		const called_off = new AbortController();
+		const cancelled = net.send('tab-1#1', new Request('https://app.test/cancel'), live('cancel'));
+		void net.send(
+			'tab-1#1',
+			new Request('https://app.test/abort', { signal: called_off.signal }),
+			live('abort')
+		);
+		void net.send('tab-1#2', new Request('https://app.test/left'), live('left'));
+		void net.send('tab-1#3', new Request('https://app.test/whole'), async (r) => {
+			r.signal.addEventListener('abort', () => (heard.whole = true));
+			heard.whole = false;
+			return new Response('x');
+		});
+		await loop.run(1_000);
+		void (await cancelled).body?.cancel();
+		called_off.abort();
+		net.leave('tab-1#2');
+		await loop.run(2_000);
+		expect(heard).toEqual({ cancel: true, abort: true, left: true, whole: false });
+	});
+
 	it('offline fails at once', async () => {
 		const loop = new Loop(rng(1));
 		const net = new Network({ loop, rng: rng(1), faults: new Set() });
