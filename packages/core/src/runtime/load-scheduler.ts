@@ -32,7 +32,7 @@
  */
 import { after_document_painted, yield_task } from './schedule.ts';
 import { kit_hydrates_page } from './kit-boot.ts';
-import { flights, machine, type InFlight, type Stale } from '@ogygia/machine';
+import { clock, flights, machine, type InFlight, type Stale } from '@ogygia/machine';
 import { emit as dt_emit } from '../events/bus.ts';
 import { class_at, CLASSES, PRIORITY, type LoadClass } from './load-class.ts';
 import { on_screen, watch_viewport } from './viewport.ts';
@@ -401,9 +401,7 @@ function leave_queue(): void {
 
 function noop(): void {}
 
-function now(): number {
-	return typeof performance !== 'undefined' ? performance.now() : Date.now();
-}
+const now = clock.mono;
 
 /** Test seam: a fresh document. */
 export function reset_load_scheduler(): void {
