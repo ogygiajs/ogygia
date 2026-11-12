@@ -11,12 +11,15 @@ const OUTPUT = fileURLToPath(
 	new URL('../../../apps/palaestra/.svelte-kit/output', import.meta.url)
 );
 const built = existsSync(`${OUTPUT}/server/index.js`);
+// (every answer is held 10 to 40 s on the way, so whether the left document's lands before or after
+// its tab moves on is the seed's: under seed 41 each is still on the way, and each request draws its
+// own fate, so that holds while their names do; each test checks it first)
+const SEED = 41;
 
 describe.skipIf(!built)('a document the tab has left', () => {
 	it('never hears the answer to a request it made, and holds nothing in flight', async () => {
-		// (every answer is held 10 to 40 s on the way: the first document's comes after it is left)
 		const world = await World.make({
-			seed: 1,
+			seed: SEED,
 			builds: [{ id: 'v1', output: OUTPUT }],
 			faults: new Set(['stall']),
 			rates: { stall: 1 }
@@ -36,6 +39,8 @@ describe.skipIf(!built)('a document the tab has left', () => {
 				);
 			await world.go(tab, 'goto', '/');
 			expect(tab.documents).toBe(2);
+			// (its answer was still on the way when the tab left it)
+			expect(world.network.exchanges.find((e) => e.url.endsWith('/?slow'))?.status).toBe('aborted');
 			await world.loop.run(60_000);
 			await world.quiesce();
 			expect(heard).toEqual([]);
@@ -51,7 +56,7 @@ describe.skipIf(!built)('a document the tab has left', () => {
 		// unload failed the import, and the left page's rejection reached the host as the run's
 		// uncaught error: palaestra seed 20004, /csr-chrome/kit)
 		const world = await World.make({
-			seed: 1,
+			seed: SEED,
 			builds: [{ id: 'v1', output: OUTPUT }],
 			faults: new Set(['stall']),
 			rates: { stall: 1 }
@@ -70,6 +75,10 @@ describe.skipIf(!built)('a document the tab has left', () => {
 			await world.loop.run(50);
 			await world.go(tab, 'goto', '/about');
 			expect(tab.documents).toBe(2);
+			// (both downloads were still on the way when the tab left)
+			expect(
+				world.network.exchanges.filter((e) => e.url.includes('/left-')).map((e) => e.status)
+			).toEqual(['aborted', 'aborted']);
 			await world.loop.run(60_000);
 			await world.quiesce();
 			expect(world.uncaught).toEqual([]);
