@@ -378,6 +378,22 @@ store answered with a newer build's copy (the deploy dropped the old one's, #949
 the world says it went `astray` and the check sets it aside. Region sheets an answer lifted into the
 head are compared in any order (each went in as its answer landed; gen 143), the page's own in theirs.
 
+## Good HTML, no waste
+
+`src/html.ts`: every HTML answer a server of the app gave (`World.html`, as the server sent it)
+through parse5 and through the tree its source says before a parser repairs it, and every document
+at rest as code built it: the content model (no block in a `<p>`, nested `<a>`/`<form>`, nothing
+interactive in a `<button>`, a table's own children, no id twice, no head-only element in the body,
+no empty `<title>`) and end tags that close another element (`html-sent`, `html-kept`). What the app
+writes badly on purpose carries `data-gen-messy` (the random app's `gen messy` stream: odd text, big
+props, throwing holes, bad `{@html}` in lakes) and is the app's.
+
+`src/waste.ts` (`waste`): at rest, in a document no fault, deploy or press touched, no answer asked
+for twice (content-hashed files and pages left out: a browser's module map keeps a file, and the
+simulator has no HTTP cache), nothing held twice (a stylesheet, a style, island props, a page seed, a
+module preload) and no warning said. Long tasks and layout shift need a layout engine: they belong
+to the real-browser tier (a PerformanceObserver in Chromium during plan replay; not built yet).
+
 ## Always on
 
 `.github/workflows/dst.yml` (schedule every 6 h and dispatch only, never a PR) runs
