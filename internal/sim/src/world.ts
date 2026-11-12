@@ -345,9 +345,9 @@ export class World {
 		return this.#page_build.get(realm) ?? this.live;
 	}
 
-	/** The build that answered each of `realm`'s requests for what is not a file (a page, a hole, an
-	 *  endpoint), by {@link answer_key}, its latest answer's: a hole a page asks for after a deploy is
-	 *  the new release's. */
+	/** The build that answered each of `realm`'s requests, by {@link answer_key}, its latest answer's:
+	 *  a hole a page asks for after a deploy is the new release's, and a file the old build gave in a
+	 *  rolling deploy's window is the old build's (gen 88, seed 88020; test/deploy.node.test.ts). */
 	answers_of(realm: string): ReadonlyMap<string, string> {
 		const of = new Map<string, string>();
 		const batches = this.#batches.filter((b) => b.from === realm);
@@ -357,8 +357,7 @@ export class World {
 			for (; next < batches.length && batches[next].at <= i; next++)
 				for (const k of batches[next].keys) of.set(k, batches[next].build);
 			if (e.from !== realm || e.build === undefined) continue;
-			const url = new URL(e.url);
-			if (!url.pathname.startsWith('/_app/immutable/')) of.set(answer_key(url), e.build);
+			of.set(answer_key(new URL(e.url)), e.build);
 		}
 		for (; next < batches.length; next++)
 			for (const k of batches[next].keys) of.set(k, batches[next].build);
