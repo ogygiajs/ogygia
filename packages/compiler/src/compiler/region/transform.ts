@@ -178,15 +178,18 @@ export type ImportKeys = {
 };
 
 /** The three delivery modes the `render` attribute accepts. */
+// static: the region `render` modes
 const RENDER_MODES = new Set(['static', 'deferred', 'live']);
 
 const JS_IDENT = /^[A-Za-z_$][\w$]*$/;
 
 // ── store-crossing detection (portable snippets) ────────────────────────────────────────────
 /** Store constructor callees marking a host declaration as store-like (best-effort signal). */
+// static: svelte/store's constructors
 const STORE_CTORS = new Set(['writable', 'readable', 'derived', 'toStore', 'fromStore']);
 /** `$name` subscription reads anywhere in a file (heuristic store signal; runes filtered out). */
 const STORE_SUB_RE = /\$([A-Za-z_][\w$]*)/g;
+// static: Svelte's runes
 const RUNE_NAMES = new Set(['state', 'derived', 'effect', 'props', 'bindable', 'inspect', 'host']);
 /** 1-based `line:col` for an offset — trace addresses in store-crossing warnings (cold path). */
 function line_col(src: string, offset: number): string {
@@ -212,6 +215,7 @@ function warn_once(key: string, speak: () => void): void {
 // region, an ON-DEMAND hole) and `SCHEDULE` (a prefetch, a revalidation: never `interaction`, which
 // is the swap, and never `none`, which is no schedule).
 /** Inline attribute keys accepted after normalization (canonical internal names). */
+// static: the import attribute keys a region takes
 const ATTR_SCHEMA = new Set(['hydrate', 'defer', 'margin', 'keep', 'stitch', 'prefetch']);
 /** AST fragment child-key names walked when descending the template. */
 const CHILD_KEYS = [
@@ -575,7 +579,9 @@ function script_lang_attr(scriptNode: SvelteNode) {
 	return '';
 }
 
+// static: the `remount` shorthands
 const REMOUNT_SHORTHANDS = new Set(['cache', 'empty', 'swr']);
+// static: what `remount.onExpire` takes
 const REMOUNT_ON_EXPIRE = new Set(['empty', 'fetch']);
 
 /**
@@ -728,6 +734,7 @@ function parse_remount(raw: unknown, err: OptErr, names: string) {
  * Svelte 5 event attributes (`onclick`, …) that cannot cross devalue for remount:swr.
  * Deliberately NOT `/^on[a-z]+$/` — that falsely rejects data props like `online={x}`.
  */
+// static: Svelte's event attributes
 const SWR_EVENT_ATTR = new Set([
 	'onclick',
 	'ondblclick',

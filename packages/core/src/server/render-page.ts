@@ -20,7 +20,7 @@
  */
 import type { RequestEvent } from '@sveltejs/kit';
 import * as devalue from 'devalue';
-import { flights, type Scope } from '@ogygia/machine';
+import { flights, STALE, type Scope } from '@ogygia/machine';
 import { request_local } from '../plugin/request-scope.ts';
 import { open_reads } from '../plugin/reads.ts';
 import { renders_for_a_page } from './endpoint.ts';
@@ -90,10 +90,14 @@ const looked_up = request_local((owner: Scope) =>
 	})
 );
 
+/** The answer each request's look-up gave (null: unavailable), held by the request itself: a render
+ *  reads what it was answered, not whatever the flight still keeps (#993,
+ *  test/render-page-not-kept.test.ts). */
+const answered = new WeakMap<Request, PageFacts | null>();
+
 /** The page's facts this request looked up, or undefined. */
 function facts_of(request: Request): PageFacts | undefined {
-	const entry = looked_up(request).peek({});
-	return entry?.kind === 'kept' ? (entry.answer ?? undefined) : undefined;
+	return answered.get(request) ?? undefined;
 }
 
 /**
@@ -111,12 +115,16 @@ export function prepare_render_page(
 	if (!(reads_data ?? (event as { isRemoteRequest?: boolean }).isRemoteRequest === true)) return;
 	const page = page_url_of(event);
 	if (page === event.url) return;
-	const look_up = looked_up(event.request);
-	if (look_up.peek({})?.kind === 'kept') return;
+	const request = event.request;
+	if (answered.has(request)) return;
 	const decoders: Record<string, (v: unknown) => unknown> = {};
 	for (const name in transport ?? {}) decoders[name] = transport![name].decode;
 	// (STALE only once the request has ended: the render goes on without the facts)
-	return look_up.get({ page, fetch: event.fetch, decoders }).then(() => {});
+	return looked_up(request)
+		.get({ page, fetch: event.fetch, decoders })
+		.then((facts) => {
+			if (facts !== STALE) answered.set(request, facts);
+		});
 }
 
 /**
