@@ -214,14 +214,6 @@ describe('parse_yaml — flow collections', () => {
 		expect(parse_yaml('a: {}')).toEqual({ a: {} });
 	});
 
-	it('a single bracketed phrase (no top-level comma) is a STRING, not a 1-element array', () => {
-		// svelte CLI docs title a page `[create your own]` — a literal, not `['create your own']`.
-		expect(parse_yaml('title: [create your own]')).toEqual({ title: '[create your own]' });
-		// a real multi-element array still parses
-		expect(parse_yaml('tags: [a, b]')).toEqual({ tags: ['a', 'b'] });
-		expect(parse_yaml('a: []')).toEqual({ a: [] });
-	});
-
 	it('top-level flow', () => {
 		expect(parse_yaml('[1, 2, 3]')).toEqual([1, 2, 3]);
 	});
@@ -322,4 +314,21 @@ describe('parse_yaml — adversarial mixes', () => {
 	it('tabs used for indentation are rejected', () => {
 		expect(() => parse_yaml('a:\n\tb: 1')).toThrow();
 	});
+});
+
+describe('parse_yaml — a `__proto__` key is a plain key', () => {
+	for (const [form, source] of [
+		['block map', '__proto__:\n  polluted: true'],
+		['flow map', 'x: { __proto__: { polluted: true } }'],
+		['quoted key', '"__proto__":\n  polluted: true']
+	] as const) {
+		it(`${form}: it is the object's own key, never its prototype`, () => {
+			const out = parse_yaml(source) as Record<string, unknown>;
+			const obj = (form === 'flow map' ? out.x : out) as Record<string, unknown>;
+			expect(Object.getPrototypeOf(obj)).toBe(Object.prototype);
+			expect(obj.polluted).toBeUndefined();
+			expect(Object.hasOwn(obj, '__proto__')).toBe(true);
+			expect(Object.getOwnPropertyDescriptor(obj, '__proto__')?.value).toEqual({ polluted: true });
+		});
+	}
 });

@@ -1,5 +1,5 @@
 import type { Plugin as VitePlugin } from 'vite';
-import { definePlugin, type OgygiaPlugin } from '@ogygia/core/vite';
+import { definePlugin, type OgygiaPlugin } from '@ogygia/compiler/vite';
 
 /**
  * `federation()`: fragment federation, listed beside `ogygia()` in vite.config `plugins`.
