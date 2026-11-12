@@ -149,3 +149,54 @@ describe('the mobile bar switches its sheet between views', () => {
 		expect(swap.style.height).toBe('');
 	});
 });
+
+// The sheet closes on a link that navigates this tab (#634); a click that opens elsewhere or goes
+// nowhere (a modifier or middle click, a new-tab or download link, a handler that prevented it)
+// leaves the visitor on this page, so the menu stays open.
+describe('a link picked in the mobile sheet', () => {
+	/** the sheet open over `links`, and whether a click (as `init`) on link `i` left it open */
+	async function stays_open(i: number, init: MouseEventInit, prevent = false): Promise<boolean> {
+		const target = document.createElement('div');
+		document.body.append(target);
+		const tree: NavTree = [
+			{ kind: 'leaf', slug: 'a', href: '/a', title: 'A' },
+			{ kind: 'leaf', slug: 'b', href: '/b', title: 'B' }
+		];
+		const app = mount(ShellBar, { target, props: { nav: tree } });
+		flushSync();
+		const menu = await until(() => target.querySelector<HTMLButtonElement>('.og-cbar-menu'));
+		menu.click();
+		const links = await until(() => {
+			const all = document.querySelectorAll<HTMLAnchorElement>('.og-sheet-swap a[href]');
+			return all.length ? all : null;
+		});
+		const link = links[i % links.length];
+		if (i === 1) link.target = '_blank';
+		if (i === 2) link.setAttribute('download', '');
+		// (never navigate the test page)
+		const stop = (e: Event) => e.preventDefault();
+		if (prevent) link.addEventListener('click', stop);
+		document.addEventListener('click', stop);
+		link.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, ...init }));
+		document.removeEventListener('click', stop);
+		flushSync();
+		// (the menu button says whether the sheet is open; the sheet itself may still be fading out)
+		const open = menu.getAttribute('aria-expanded') === 'true';
+		await unmount(app);
+		return open;
+	}
+
+	it('closes the sheet on a plain click', async () => {
+		expect(await stays_open(0, {})).toBe(false);
+	});
+
+	it('keeps it open on a modifier or middle click, a new-tab or download link, or a prevented click', async () => {
+		expect(await stays_open(0, { metaKey: true })).toBe(true);
+		expect(await stays_open(0, { ctrlKey: true })).toBe(true);
+		expect(await stays_open(0, { shiftKey: true })).toBe(true);
+		expect(await stays_open(0, { button: 1 })).toBe(true);
+		expect(await stays_open(1, {})).toBe(true);
+		expect(await stays_open(2, {})).toBe(true);
+		expect(await stays_open(0, {}, true)).toBe(true);
+	});
+});
