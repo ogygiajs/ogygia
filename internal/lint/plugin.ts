@@ -721,6 +721,38 @@ const structured_comments = {
 	}
 };
 
+// ── markup-from-vocabulary ──
+// A marker's name is spelled once, in core's wire-markup.ts (#479): a package writes `OG_HOLE`, not
+// the attribute's text, so a renamed or retired marker cannot leave a stale copy behind.
+
+const MARKER_TEXT = /data-og(?:ygia)?-/;
+const VOCABULARY = /(^|\/)packages\/core\/src\/wire-markup\.ts$/;
+const MESSAGE_MARKER =
+	'A `data-og-*` / `data-ogygia-*` marker is spelled once, in packages/core/src/wire-markup.ts: import its constant (core: ../wire-markup.ts; the compiler: @ogygia/core/contract; other packages: @ogygia/core/internal/server on the server, @ogygia/core/internal/instruments in the browser).';
+
+const markup_from_vocabulary = {
+	meta: {
+		type: 'problem',
+		docs: { description: 'Package source names markers through the wire-markup.ts constants.' }
+	},
+	create(context: Context) {
+		const file = (context.filename ?? context.getFilename?.() ?? '').replaceAll('\\', '/');
+		if (!/(^|\/)packages\/[^/]+\/src\//.test(file) || VOCABULARY.test(file)) return {};
+		const check = (node: Node, text: unknown) => {
+			if (typeof text === 'string' && MARKER_TEXT.test(text))
+				context.report({ node, message: MESSAGE_MARKER });
+		};
+		return {
+			Literal(node: Node) {
+				check(node, node.value);
+			},
+			TemplateElement(node: Node) {
+				check(node, (node.value as { raw?: string } | undefined)?.raw);
+			}
+		};
+	}
+};
+
 /**
  * `ogygia/one-hash` (#484): a content hash is core's `contract/hash.ts` (`id64` for identity, where a
  * collision serves the wrong thing; `bucket32` for spreading). The FNV-1a offset basis anywhere else
@@ -827,6 +859,7 @@ const compiler_boundary = {
 export default {
 	meta: { name: 'ogygia' },
 	rules: {
+		'markup-from-vocabulary': markup_from_vocabulary,
 		'one-hash': one_hash,
 		'no-promise-cache': no_promise_cache,
 		'owned-effects': owned_effects,
