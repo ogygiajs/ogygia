@@ -17,7 +17,13 @@ import {
 import { note_entry_location } from './entry-locations.ts';
 import { register_island_graph } from './island-graph-preload.ts';
 import { props_sidecar_of } from './sidecar.ts';
-import { parse_region_html } from './parse-html.ts';
+import {
+	parse_page_document,
+	parse_region_html,
+	set_inner_html,
+	vouch_page_answer,
+	vouch_page_html
+} from './html-sink.ts';
 import { runtime_session } from './session.ts';
 import { regions_in_shadow } from './connected.ts';
 import { release_head_nodes } from './region-sheets.ts';
@@ -50,6 +56,10 @@ export function link_boot(): void {
 		note_entry_location,
 		props_sidecar_of,
 		parse_region_html,
+		parse_page_document,
+		set_inner_html,
+		vouch_page_answer,
+		vouch_page_html,
 		runtime_session,
 		regions_in_shadow,
 		release_head_nodes,

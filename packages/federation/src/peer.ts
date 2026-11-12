@@ -9,18 +9,21 @@ import { error, isHttpError as is_http_error } from '@ogygia/router';
 import type { RegionValue } from '@ogygia/core';
 import { htmlRegion as og_html_region } from '@ogygia/core/plugin';
 import { current_request_scope, OG_FRAGMENT_FAILED } from '@ogygia/core/internal/server';
+import { decodeText, escapeAttr } from '@ogygia/core/plugin/utils';
 import { fed_app } from './app.ts';
 import { warn } from './messages.ts';
 import {
+	absolutize,
 	sign_headers,
 	child_traceparent,
 	FRAGMENT_ROUTES_PATH,
 	FRAGMENT_BASE,
+	OFF_SITE_PATH_RE,
 	type Claims,
 	type FragmentDocument,
 	type WidgetDocument
 } from './wire.ts';
-import { mint_hole } from './hole.ts';
+import { hole_url, mint_hole } from './hole.ts';
 import type { Peer, PeerConfig, RemoteDials } from './types.ts';
 
 declare const __OGYGIA_RULES__: boolean | undefined;
@@ -29,6 +32,9 @@ const RULES =
 	import.meta.env?.DEV || (typeof __OGYGIA_RULES__ !== 'undefined' ? __OGYGIA_RULES__ : false);
 
 const HOST_UNSAFE_G = /[^a-zA-Z0-9_-]/g;
+/** A region element's opening tag, and the `endpoint` in it. */
+const REGION_OPEN_RE = /<ogygia-region\b[^>]*>/g;
+const ENDPOINT_ATTR_RE = /(\sendpoint=")([^"]*)(")/;
 
 /** A failed hop, said once with its code: an answer that can't be used (an error status, or not its
  *  JSON document: `federation_peer_answer_invalid`), or no answer at all (`federation_peer_unreachable`).
@@ -220,7 +226,8 @@ export class PeerHandle implements Peer {
 			}
 			if (res.status < 500 || i === origins.length - 1) break;
 		}
-		return this.#answer<WidgetDocument>(res, 'widget', { error: last_err, signal });
+		const doc = await this.#answer<WidgetDocument>(res, 'widget', { error: last_err, signal });
+		return { ...doc, html: this.#own_endpoints(doc.html) };
 	}
 
 	/** Every hop's answer, read as the JSON document it should be. No answer at all (down,
@@ -394,13 +401,90 @@ export class PeerHandle implements Peer {
 
 	/** A document this request uses: its runtime's origin joins the request's code origins, so the
 	 *  page's runtime loads the peer's islands from where the peer serves them (core
-	 *  runtime/code-origins.ts). */
+	 *  runtime/code-origins.ts), and its region endpoints become this request's holes. A kept
+	 *  document is not changed: each request mints its own. */
 	#used(doc: FragmentDocument): FragmentDocument {
 		if (doc.runtime) {
 			const facts = fed_app()?.current();
 			if (facts) (facts.codeOrigins ??= []).push(new URL(doc.runtime).origin);
 		}
-		return doc;
+		const body = this.#own_endpoints(doc.body);
+		return body === doc.body ? doc : { ...doc, body };
+	}
+
+	/**
+	 * `html` as this app serves it: each region endpoint of this peer's own (a server island's hole,
+	 * a lake's, on one of its origins) becomes a hole of this app's that forwards there. The browser
+	 * asks its page's origin, as for every hole (INVARIANTS.md · HOLE-TRUST), and chooses no part of
+	 * it. An endpoint on any other origin stays as it came, and the runtime refuses it.
+	 * Test: test/peer-endpoints.test.ts (#910).
+	 */
+	#own_endpoints(html: string): string {
+		if (!html.includes('<ogygia-region')) return html;
+		return html.replace(REGION_OPEN_RE, (tag) =>
+			tag.replace(ENDPOINT_ATTR_RE, (whole, open: string, value: string, close: string) => {
+				const target = this.#own_target(decodeText(value));
+				const url =
+					target === null
+						? ''
+						: hole_url({ peer: this.name, kind: 'endpoint', target, search: '' });
+				return url ? open + escapeAttr(url) + close : whole;
+			})
+		);
+	}
+
+	/** The path and query `url` names on one of this peer's origins (a relative one, on its first),
+	 *  else null. */
+	#own_target(url: string): string | null {
+		try {
+			const u = new URL(url, this.origin + '/');
+			if (!this.#origins.some((o) => new URL(o).origin === u.origin)) return null;
+			return u.pathname + u.search;
+		} catch {
+			return null; // ok: not a URL: nothing to forward to
+		}
+	}
+
+	/**
+	 * Transport: one of this peer's own region endpoints (`target`, a hole its fragment carried), asked
+	 * as the browser would ask it, on this peer's origins only. An expired capability of the peer's is
+	 * renewed by the peer, once. The answer as this app serves it (its assets and endpoints pinned like
+	 * a fragment's), `204` (keep the fallback), or null when the answer is not the region's (a
+	 * redirect, an error status, no answer): the hole says so and the fallback stands.
+	 */
+	async endpoint(
+		target: string,
+		traceparent?: string
+	): Promise<{ status: 200; html: string } | { status: 204 } | null> {
+		if (OFF_SITE_PATH_RE.test(target) || !target.startsWith('/')) return null;
+		const signal = current_request_scope()?.signal;
+		for (const origin of this.#origins) {
+			const u = new URL(target, origin);
+			if (u.origin !== new URL(origin).origin) return null;
+			const ask = (url: URL) =>
+				net.fetch(url, {
+					redirect: 'manual',
+					signal: timers.timeout(this.#timeout, signal),
+					headers: traceparent ? { traceparent } : {}
+				});
+			let res: Response;
+			try {
+				res = await ask(u);
+				if (res.status === 403 && res.headers.get('x-ogygia-deny') === 'expired') {
+					const renewal = new URL(u);
+					renewal.searchParams.set('renew', '1');
+					res = await ask(renewal);
+				}
+			} catch {
+				if (signal?.aborted) return null;
+				continue; // ok: a replica that does not answer: the next is asked
+			}
+			if (res.status >= 500) continue;
+			if (res.status === 204) return { status: 204 };
+			if (res.status !== 200) return null;
+			return { status: 200, html: this.#own_endpoints(absolutize(await res.text(), u.origin)) };
+		}
+		return null;
 	}
 
 	/** Prefix a remote fragment's own receipt tags with THIS peer's name, so the consuming page's

@@ -19,7 +19,7 @@
  * @packageDocumentation
  */
 import { render } from 'svelte/server';
-import { clock } from '@ogygia/machine';
+import { clock, say } from '@ogygia/machine';
 import type { Component } from 'svelte';
 import type { RequestEvent } from '@sveltejs/kit';
 import type { Handle } from './kit-handle.ts';
@@ -77,12 +77,15 @@ import { kit_asset } from './kit-paths.ts';
 import {
 	sign,
 	verify,
-	region_mac_message,
+	region_sign,
+	region_verify,
+	type RegionClaim,
 	secret_has_min_entropy,
 	MIN_SECRET_BYTES
 } from './server/hmac.ts';
 import { expiry_refusal, note_cache_control } from './server/shared-cache.ts';
 import { app_lifetime, server_delta_on } from './server/region-endpoint.ts';
+import { region_request, type RegionRequest } from './server/region-request.ts';
 import { render_cache_key, cached_render, type RenderKey } from './server/render-cache.ts';
 import { render as render_policy } from './policies.ts';
 import { install_server_rules, note_region_answer } from './server/rules.ts';
@@ -112,9 +115,11 @@ import { register_store_kind, register_derived_kind } from './store-transport.ts
 import { register_snippet_kind } from './region-snippet.ts';
 import { register_fn_kind } from './fn-transport.ts';
 import {
+	capability_query,
 	configure_islands_endpoint,
 	islands_endpoint,
 	MAX_REGION_PROPS_LEN,
+	REGION_CAPABILITY_VERSION,
 	is_region_id,
 	is_region_ttl
 } from './server/endpoint.ts';
@@ -135,7 +140,7 @@ import { add_early_holes_csp, with_early_holes_meta_csp } from './server/early-h
 import { merge_seed_ask, shape_page_data, type SeedKeys } from './server/seed-shape.ts';
 import { html_has_kit_bootstrap } from './server/html-scan.ts';
 import { hole_head } from './server/hole-graph.ts';
-import { RateLimiter } from './server/rate-limit.ts';
+import { RateLimiter, is_shared_address } from './server/rate-limit.ts';
 import { PageSeed } from './server/page-seed.ts';
 import { analyze, SeedIndex, set_measure_memo_reader, type MeasureMemo } from './seed-refs.ts';
 import { WIRE_FORMAT_JSON } from './server/props-wire.ts';
@@ -215,6 +220,7 @@ import { mark_personal } from './server/personal-response.ts';
 import { OgygiaError, warn } from './messages/server.ts';
 import { ERRORS, WARNINGS } from './messages/core.ts';
 import { define_messages, dev_or_prerender } from './contract/messages.ts';
+import { ask } from './plugin/hooks.ts';
 
 // A prerender words every message, the link after it (contract/messages.ts `dev_or_prerender`).
 (globalThis as unknown as Record<symbol, unknown>)[Symbol.for('ogygia.prerendering')] = building;
@@ -623,6 +629,8 @@ interface Capability {
 	render: string;
 	payload: string;
 	exp: string;
+	/** the signature's version (`v`): '' when minted before v3 (its `v1|`/`v2|` MAC) */
+	v: string;
 	ttl: string;
 	/** `'1'`: the hole's component hydrates over the answer (`w`, signed); '' when it does not */
 	wakes: string;
@@ -631,22 +639,30 @@ interface Capability {
 	k: string | null;
 }
 
+/** What a capability signs beside its expiry, with the session it must be sealed to. */
+function claim_of(cap: Capability, session: string): RegionClaim {
+	return {
+		id: cap.id,
+		payload: cap.payload,
+		session,
+		ttl: cap.ttl,
+		render: cap.render,
+		wakes: cap.wakes
+	};
+}
+
 function capability_of(params: URLSearchParams): Capability {
 	return {
 		id: params.get('id') ?? '',
 		render: params.get('r') ?? '',
 		payload: params.get('props') ?? '',
 		exp: params.get('exp') ?? '',
+		v: params.get('v') ?? '',
 		ttl: params.get('ttl') ?? '',
 		wakes: params.get('w') ?? '',
 		sig: params.get('sig') ?? '',
 		k: params.get('k')
 	};
-}
-
-/** The message a capability's MAC signs, at `exp`, for `session`: its every signed field. */
-function capability_message(cap: Capability, exp: string, session: string): string {
-	return region_mac_message(cap.id, exp, cap.payload, session, cap.ttl, cap.render, cap.wakes);
 }
 
 /**
@@ -809,6 +825,8 @@ class OgygiaHandle {
 	readonly #speculation_rules: string;
 	readonly render_rate: RateLimiter;
 	readonly probe_rate: RateLimiter;
+	/** a render budget spent by a proxy's address, said once (#894) */
+	readonly #shared_address = say({ max: 1 });
 
 	constructor(options: OgygiaHandleOptions = {}) {
 		// (the app's own pass is @ogygia/reshape's now; a JS caller still passing it is told where)
@@ -840,6 +858,16 @@ class OgygiaHandle {
 			max: rate_limit.max <= 0 ? 0 : Math.max(rate_limit.max * 5, 120),
 			windowMs: rate_limit.windowMs
 		});
+	}
+
+	/** Charges `ip` one render; true when its budget is spent. A spent budget of an address no visitor
+	 *  has is a proxy's, shared by every visitor behind it: said once (server/rate-limit.ts
+	 *  `is_shared_address`, #894). */
+	#render_over(ip: string): boolean {
+		if (!this.render_rate.limited(ip)) return false;
+		if (is_shared_address(ip))
+			this.#shared_address.once('shared', () => warn('rate_limit_shared_address', { address: ip }));
+		return true;
 	}
 
 	// The public handle: the plugins' `handle` hooks (a profiler timing the render and serving its UI)
@@ -1797,6 +1825,7 @@ class OgygiaHandle {
 			(cap.render !== '' && !is_region_id(cap.render)) ||
 			cap.payload.length > MAX_REGION_PROPS_LEN ||
 			!is_region_ttl(cap.ttl) ||
+			(cap.v !== '' && cap.v !== REGION_CAPABILITY_VERSION) ||
 			(cap.wakes !== '' && cap.wakes !== '1')
 		)
 			return 'shape';
@@ -1821,22 +1850,27 @@ class OgygiaHandle {
 	 */
 	#renew_capability(cap: Capability, event: RequestEvent): Capability | null {
 		if (this.#region_session(event) !== '') return null;
-		const { secret } = signing_key();
-		if (!verify(secret, capability_message(cap, cap.exp, ''), cap.sig)) return null;
-		const exp = String(app_lifetime.renewed_expiry());
+		const key = signing_key();
+		const claim = claim_of(cap, '');
+		const late = app_lifetime.renew_window;
+		if (!region_verify(key.secret, islands_endpoint(), cap.v, cap.exp, claim, cap.sig, late))
+			return null;
+		// (re-signed as the current version, whichever it was minted as)
+		const exp = app_lifetime.renewed_expiry();
 		return {
 			...cap,
-			exp,
-			sig: sign(secret, capability_message(cap, exp, '')),
-			k: signing_key().fp
+			exp: String(exp),
+			v: REGION_CAPABILITY_VERSION,
+			sig: region_sign(key.secret, islands_endpoint(), exp, claim),
+			k: key.fp
 		};
 	}
 
-	/** THE auth check: session-bound region MAC verify (its render identity inside, when it has one). */
+	/** THE auth check: the region capability's signature, for this endpoint, sealed to the session
+	 *  cookie (if any), with its render identity inside when it has one (server/hmac.ts). */
 	#verify_region_mac(cap: Capability, event: RequestEvent): boolean {
-		// The capability seals the session cookie (if any) into the signed message.
-		const session = session_cookie ? (event.cookies.get(session_cookie) ?? '') : '';
-		return verify(signing_key().secret, capability_message(cap, cap.exp, session), cap.sig);
+		const claim = claim_of(cap, this.#region_session(event));
+		return region_verify(signing_key().secret, islands_endpoint(), cap.v, cap.exp, claim, cap.sig);
 	}
 
 	/** Eval the island module (registers transportable codecs the reviver needs on a cold-start defer),
@@ -1881,18 +1915,34 @@ class OgygiaHandle {
 		/** the batch's: aborts when its visitor left (nothing more is verified, loaded or rendered) */
 		signal?: AbortSignal,
 		/** the visitor a batch charges, per hole, as its GET would (PROBE-THEN-RENDER): a probe before
-		 *  the MAC, a render after it. Over budget: no parcel, and the hole fetches on its own. */
+		 *  the MAC, a render after it. Over budget: no parcel, and the hole fetches on its own. A
+		 *  postrender stitch (its own stored page, no visitor) is charged nothing. */
 		ip?: string
+	): Promise<{ slot: string; html: string } | null> {
+		const r = region_request.create();
+		const parcel = await this.#capability_parcel(r, endpoint, event, batch, signal, ip);
+		r.go(parcel === null ? 'refused' : 'sent');
+		return parcel;
+	}
+
+	/** {@link #render_capability}'s steps, each move taken before its work (server/region-request.ts). */
+	async #capability_parcel(
+		r: RegionRequest,
+		endpoint: string,
+		event: RequestEvent,
+		batch: boolean,
+		signal: AbortSignal | undefined,
+		ip: string | undefined
 	): Promise<{ slot: string; html: string } | null> {
 		const q = endpoint.indexOf('?');
 		if (q === -1 || signal?.aborted) return null;
 		const cap = capability_of(new URLSearchParams(endpoint.slice(q + 1)));
 		const { id, payload, sig } = cap;
 
-		if (this.#capability_precheck(cap)) return null;
-		if (ip !== undefined && this.probe_rate.limited(ip)) return null;
-		if (!this.#verify_region_mac(cap, event)) return null;
-		if (ip !== undefined && this.render_rate.limited(ip)) return null;
+		if (this.#capability_precheck(cap) || !r.go('prechecked')) return null;
+		if (!r.go('probed') || (ip !== undefined && this.probe_rate.limited(ip))) return null;
+		if (!this.#verify_region_mac(cap, event) || !r.go('verified')) return null;
+		if (!r.go('charged') || (ip !== undefined && this.#render_over(ip))) return null;
 
 		const target = capability_target(cap);
 		if (target === null) return null;
@@ -1911,6 +1961,7 @@ class OgygiaHandle {
 		const t0 = stats ? clock.mono() : 0;
 		const timing: { queue_ms?: number; render_ms?: number } = {};
 		let outcome: 'hit' | 'miss' | 'none' = 'none';
+		if (!r.go('rendering')) return null;
 		const body = await this.#render_component(
 			load,
 			props,
@@ -1961,7 +2012,16 @@ class OgygiaHandle {
 	 * A renewal (`&renew=1`) swaps the first three for its own: shape + renew window → probe →
 	 * anonymous-only re-verify of the original tuple + re-sign; then the same render rate + render.
 	 */
-	async render_region(event: RequestEvent) {
+	async render_region(event: RequestEvent): Promise<Response> {
+		const r = region_request.create();
+		const res = await this.#region_answer(r, event);
+		// (a success with no render before it is an illegal move: `sent` is only reached rendering)
+		r.go(res.status < 300 ? 'sent' : 'refused');
+		return res;
+	}
+
+	/** {@link render_region}'s steps, each move taken before its work (server/region-request.ts). */
+	async #region_answer(r: RegionRequest, event: RequestEvent): Promise<Response> {
 		const method = event.request.method.toUpperCase();
 		if (method !== 'GET' && method !== 'HEAD') {
 			return region_response('Method Not Allowed', {
@@ -1998,8 +2058,10 @@ class OgygiaHandle {
 				warn('endpoint_foreign_key', { id, key: String(cap.k), own: signing_key().fp });
 			return region_denied(refused);
 		}
+		r.go('prechecked');
 
 		// Pre-HMAC probe — forged floods hit this, not render() (HMAC-CPU-DOS).
+		if (!r.go('probed')) return region_response('Too Many Requests', { status: 429 });
 		if (this.probe_rate.limited(ip)) return over_budget(this.probe_rate, ip);
 
 		if (renewal) {
@@ -2007,7 +2069,7 @@ class OgygiaHandle {
 			if (!fresh)
 				return region_denied(this.#region_session(event) !== '' ? 'renew-session' : 'sig');
 			cap = fresh;
-			renewed = `${url.pathname}?id=${encodeURIComponent(id)}${cap.render ? `&r=${cap.render}` : ''}&props=${payload}&exp=${cap.exp}${ttl_raw ? `&ttl=${ttl_raw}` : ''}${cap.wakes ? `&w=${cap.wakes}` : ''}&sig=${cap.sig}&k=${cap.k}`;
+			renewed = url.pathname + capability_query(cap, cap.exp, cap.sig, cap.k ?? '');
 		} else {
 			// Verify (session-bound) before consulting the manifest — bad MAC never distinguishes
 			// unknown vs known id.
@@ -2016,6 +2078,7 @@ class OgygiaHandle {
 				return region_denied('sig');
 			}
 		}
+		if (!r.go('verified')) return region_denied('sig');
 
 		// Cache policy travels signed in the URL: a positive `ttl` opts this hole into a private browser
 		// cache; absent/0 keeps it dynamic (`no-store`). A hole is fresh-per-request by default. A
@@ -2026,7 +2089,8 @@ class OgygiaHandle {
 		const renew_headers: Record<string, string> = renewed ? { 'x-ogygia-capability': renewed } : {};
 
 		// Valid capability — now charge the per-IP render budget.
-		if (this.render_rate.limited(ip)) return over_budget(this.render_rate, ip);
+		if (!r.go('charged')) return region_response('Too Many Requests', { status: 429 });
+		if (this.#render_over(ip)) return over_budget(this.render_rate, ip);
 
 		// Its own id, or (minted by another build) an entry of this build rendering its component.
 		const target = capability_target(cap);
@@ -2053,6 +2117,7 @@ class OgygiaHandle {
 		const cache = this.#hole_cache(target, payload, wakes, event, ttl, reads_page_data);
 		const timing: { queue_ms?: number; render_ms?: number } = {};
 		let outcome: 'hit' | 'miss' | 'none' = 'none';
+		if (!r.go('rendering')) return region_response('Region render failed', { status: 500 });
 		const body = await this.#render_component(
 			load,
 			props,
@@ -2076,13 +2141,14 @@ class OgygiaHandle {
 			p: hole_copy_key(payload)
 		});
 		// the same split for the browser (devtools, the profiler's beacon), as Server-Timing. Only for
-		// a browser that measures (dev, the devtools cookie, the profiler's flag): no other visitor's
-		// answer tells how loaded the server is
+		// a browser that measures (dev, the devtools cookie, a visitor a plugin vouches for by its own
+		// credentials: the profiler's logged-in user): no other visitor's answer tells how loaded the
+		// server is
 		const timed =
 			timing.queue_ms !== undefined &&
 			(import.meta.env.DEV ||
 				(DEVTOOLS && event.cookies.get(DEVTOOLS_COOKIE) === DEVTOOLS_ON) ||
-				event.cookies.get('og_profiler_beacon') === '1');
+				(await ask.measures(event).catch(() => undefined)) === true); // ok: a failed hook was said (plugin_hook_failed); unproved is not timed
 		const server_timing: Record<string, string> = timed
 			? {
 					'server-timing': `og-queue;dur=${timing.queue_ms!.toFixed(1)}, og-render;dur=${(timing.render_ms ?? 0).toFixed(1)}`
@@ -2186,8 +2252,9 @@ export interface OgygiaHandleOptions {
  */
 // Also surfaced here so `import * as ogygia from 'ogygia/server'` has `ogygia.transport` — but the
 // actual Kit transport hook must live in the UNIVERSAL hooks (client needs decode), so wire it
-// from `'ogygia'` in src/hooks.ts, not here.
-export { ogygiaTransport as transport } from './transport.ts';
+// from `'ogygia'` in src/hooks.ts, not here. This module is server-only: the server realm's
+// transport, which refuses ogygia values a browser sent (./server/transport.ts).
+export { ogygiaServerTransport as transport } from './server/transport.ts';
 // `document()` — render a held region into a complete ogygia document (a `Response`). Server-only.
 export { document, type DocumentOptions } from './document.ts';
 export function handle(options: OgygiaHandleOptions = {}): Handle {
