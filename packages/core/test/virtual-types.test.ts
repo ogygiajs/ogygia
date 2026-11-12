@@ -77,9 +77,7 @@ describe('the virtual modules’ declarations', () => {
 		expect(realm).toContain(
 			`export const region_ttl: import('../dist/compiler/virtual/table.js').ValueOf<typeof import('../dist/compiler/virtual/core.js').region_ttl>['region_ttl'];`
 		);
-		expect(realm).toContain(
-			`export { sign, verify, region_mac_message } from '../dist/server/hmac.js';`
-		);
+		expect(realm).toContain(`export { sign, region_sign } from '../dist/server/hmac.js';`);
 		expect(realm).toContain(
 			`export const region_css: import('../dist/compiler/virtual/table.js').ModuleOf<typeof import('../dist/compiler/virtual/core.js').region_deps>['region_css'];`
 		);

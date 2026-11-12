@@ -3199,6 +3199,10 @@
 		{
 			"id": "packages/core/src/runtime/html-sink.ts > init_shadow_registries",
 			"reason": "browser only: gives inserted shadow roots the page's registry (moved from parse-html.ts); proven in packages/core/test/browser/inert-parse.test.ts"
+		},
+		{
+			"id": "packages/core/src/hooks.ts > claim_of",
+			"reason": "copies five fields of a parsed capability into the claim it signs, constant work; the handle runs only inside a Kit server build, and the signing it feeds is benched (packages/core/bench/region-capability.bench.ts)"
 		}
 	]
 }

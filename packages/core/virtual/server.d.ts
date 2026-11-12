@@ -48,7 +48,7 @@ export const render_region: import('../dist/compiler/virtual/table.js').ModuleOf
 export const region_reads_page_data: import('../dist/compiler/virtual/table.js').ModuleOf<typeof import('../dist/compiler/virtual/core.js').server_manifest>['region_reads_page_data'];
 export const server_plugins: import('../dist/compiler/virtual/table.js').ModuleOf<typeof import('../dist/compiler/virtual/core.js').server_plugins>['plugins'];
 export const session_cookie: import('../dist/compiler/virtual/table.js').ValueOf<typeof import('../dist/compiler/virtual/core.js').session_cookie>['session_cookie'];
-export { sign, verify, region_mac_message } from '../dist/server/hmac.js';
+export { sign, region_sign } from '../dist/server/hmac.js';
 }
 declare module 'ogygia:server/devtools-boot-url' {
 export const devtools_boot_url: import('../dist/compiler/virtual/table.js').ValueOf<typeof import('../dist/compiler/virtual/core.js').devtools_boot_url>['devtools_boot_url'];
@@ -117,5 +117,5 @@ declare module 'ogygia:server/session-cookie' {
 export const session_cookie: import('../dist/compiler/virtual/table.js').ValueOf<typeof import('../dist/compiler/virtual/core.js').session_cookie>['session_cookie'];
 }
 declare module 'ogygia:server/sign' {
-export { sign, verify, region_mac_message } from '../dist/server/hmac.js';
+export { sign, region_sign } from '../dist/server/hmac.js';
 }
