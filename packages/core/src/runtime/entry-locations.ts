@@ -10,11 +10,14 @@
  * is known, else the identity (on the dev server, the module itself; in a build, a name, no file).
  */
 import { import_file } from './import-again.ts';
-import { backoffAfter, flights, scope, STALE } from '@ogygia/machine';
+import { code_url_or_refuse, is_location_of } from './code-origins.ts';
+import { backoffAfter, cache, flights, net, scope, STALE } from '@ogygia/machine';
 import { rollover } from '../policies.ts';
+import { OG_LOCATIONS } from '../wire-markup.ts';
 
-/** absolute identity → absolute location */
-const locations = new Map<string, string>();
+/** absolute identity → absolute location: the islands of the pages this document has seen (a build
+ *  names a few hundred; the least recently read go first past this, and are found again) */
+const locations = cache<string, string>({ name: 'entry locations', max: 10_000 });
 
 /** A load that fell back to its identity: who hears about it (the runtime registers the devtools
  *  and beacon reporter at boot). This module imports nothing: app code (a portable snippet) uses it
@@ -26,8 +29,8 @@ export function on_entry_fallback(reporter: (report: EntryFallbackReport) => voi
 }
 
 /** Resolved URLs by base + url: every wake, warm and graph read asks again for the same few
- *  entries, and each ask was a `new URL()` parse (bounded: cleared past a few thousand). */
-const resolved_urls = new Map<string, string>();
+ *  entries, and each ask was a `new URL()` parse (the least recently asked go first). */
+const resolved_urls = cache<string, string>({ name: 'resolved entry urls', max: 4000 });
 
 function absolute(url: string, base?: string): string {
 	const b = base ?? location.href;
@@ -40,19 +43,26 @@ function absolute(url: string, base?: string): string {
 	} catch {
 		out = url;
 	}
-	if (resolved_urls.size > 4000) resolved_urls.clear();
 	resolved_urls.set(key, out);
 	return out;
 }
 
-/** Remember where an entry is served from. `base`: the document the pair was read from. */
+/** Remember where an entry is served from. `base`: the document the pair was read from. Only the
+ *  same island's built file on an allowed origin is kept (./code-origins.ts `is_location_of`): one
+ *  element's `src` must not re-point the code of every region with its identity. */
 export function note_entry_location(
 	entry: string | null | undefined,
 	src: string | null | undefined,
 	base?: string
 ): void {
 	if (!entry || !src || src === entry) return;
-	locations.set(absolute(entry, base), absolute(src, base));
+	set_location(absolute(entry, base), absolute(src, base));
+}
+
+/** The one write into the map: a pair that is not an identity and its own file is dropped. */
+function set_location(identity: string, location: string, only_new = false): void {
+	if (only_new && locations.has(identity)) return;
+	if (is_location_of(identity, location)) locations.set(identity, location);
 }
 
 /** The known location of an entry, or undefined. */
@@ -70,20 +80,20 @@ export function entry_location(entry: string, base?: string): string | undefined
  * (the dev server, a page that outlived its build): the identity is loaded, as before. A failed read
  * is not kept: the next identity-only load asks again (a blip must not cost the page every later one).
  */
-const BUILD_MAP_ATTR = 'data-og-locations';
+// (one local name for the five reads: the minifier keeps the string once)
+const BUILD_MAP_ATTR = OG_LOCATIONS;
 /** The map's read: whether it filled the locations. One read at a time, kept once it did. */
 const build_map = flights({
 	name: 'build location map',
 	run: (url: string) =>
-		fetch(url) // ok: a map that could not be read is not kept: the next load asks again, and loads keep their stable URLs meanwhile
+		net // ok: a map that could not be read is not kept: the next load asks again, and loads keep their stable URLs meanwhile
+			.fetch(url)
 			.then((res) => (res.ok ? (res.json() as Promise<Record<string, string>>) : null))
 			.catch(() => null)
 			.then((map) => {
 				if (!map) return false;
-				for (const stable in map) {
-					const identity = absolute(stable, url);
-					if (!locations.has(identity)) locations.set(identity, absolute(map[stable], url));
-				}
+				for (const stable in map)
+					set_location(absolute(stable, url), absolute(map[stable], url), true);
 				return true;
 			}),
 	keep: (filled) => (filled ? Infinity : 0)
@@ -155,7 +165,8 @@ export function island_entry_of(el: Element): string | null {
 const current_maps = flights({
 	name: 'current build map',
 	run: (file: string) =>
-		fetch(file, { cache: 'no-cache' }) // ok: a map that could not be read is not kept: the next ask reads again
+		net // ok: a map that could not be read is not kept: the next ask reads again
+			.fetch(file, { cache: 'no-cache' })
 			.then((res) => (res.ok ? (res.json() as Promise<Record<string, string>>) : null))
 			.catch(() => null),
 	// (a map that could not be read is not kept: the next ask reads again)
@@ -183,13 +194,16 @@ async function current_location(entry: string): Promise<string | null | undefine
 	// (STALE: a recovery dropped it meanwhile, as one it could not use)
 	if (!pairs || pairs === STALE) return undefined;
 	for (const name in pairs)
-		if (absolute(name, file) === identity) return absolute(pairs[name], file);
+		if (absolute(name, file) === identity) {
+			const location = absolute(pairs[name], file);
+			return is_location_of(identity, location) ? location : null;
+		}
 	return null;
 }
 
 /** The host says this file is not there (it does not say so of a file that failed another way). */
 function is_gone(url: string): Promise<boolean> {
-	return fetch(url, { method: 'HEAD', cache: 'no-store' }).then(
+	return net.fetch(url, { method: 'HEAD', cache: 'no-store' }).then(
 		(res) => res.status === 404 || res.status === 410,
 		() => false
 	);
@@ -233,6 +247,12 @@ export function import_entry<T>(
 	entry: string,
 	url: string = entry_location(entry) ?? entry
 ): Promise<T> {
+	// (an identity on an origin the page loads no code from asks nothing of it, not even its map)
+	try {
+		code_url_or_refuse(entry);
+	} catch (refused) {
+		return Promise.reject(refused);
+	}
 	if (entry_location(entry)) return load_entry<T>(entry, url);
 	const map = read_build_map();
 	return (map ?? Promise.resolve()).then(async () => {
@@ -244,8 +264,13 @@ export function import_entry<T>(
 }
 
 function load_entry<T>(entry: string, url: string): Promise<T> {
-	// (through its file's loader: a dropped download is asked for again, never the failed URL — #261)
-	const loaded = import_file<T>(url);
+	let loaded: Promise<T>;
+	try {
+		// (through its file's loader: a dropped download is asked for again, never the failed URL — #261)
+		loaded = import_file<T>(code_url_or_refuse(url, entry));
+	} catch (refused) {
+		return Promise.reject(refused);
+	}
 	return loaded.catch(async (error: unknown) => {
 		// a build's identity is a name: the current build's map names its file. Any other identity
 		// (the dev server's module) is a file itself, fetched fresh past the cache that failed.
@@ -254,7 +279,7 @@ function load_entry<T>(entry: string, url: string): Promise<T> {
 			? await recover_location(entry, failed)
 			: absolute(entry);
 		if (!current || current === failed) throw error;
-		const retry = import_file<T>(current);
+		const retry = import_file<T>(code_url_or_refuse(current, entry));
 		// said out loud: the page's HTML is one build, this island's code the current one (devtools'
 		// timeline, and the beacon — the Page tab and the profiler name it)
 		const report = (recovered: boolean) => fallback_reporter?.({ entry, src: url, recovered });

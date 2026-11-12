@@ -6,7 +6,8 @@
 	"scripts": {
 		"types": "node src/types.ts",
 		"check": "node src/check.ts",
-		"unmeasured": "node src/unmeasured.ts"
+		"unmeasured": "node src/unmeasured.ts",
+		"test": "node --test \"test/*.test.ts\""
 	},
 	"heisenbench": {
 		"repo": "https://github.com/ogygiajs/bench.git",
