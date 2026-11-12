@@ -512,9 +512,23 @@ region kinds, runtime marks, route worlds, each transform's output.
 
 Oracles: two cold compiles agree; directory listing order and transform order change nothing
 (`src/order.ts`). `DST_RUNS=3000 pnpm test` for a long search. Each finding becomes an issue and a
-failing test in the compiler (the first: #1358). Next, from the compiler study (section G.4): dev
-equals cold (random edit sequences, then a fresh compile of the final files), Kit 2 vs Kit 3 vs
-watch topologies, metamorphic edits (renames, comments, an unused import).
+failing test in the compiler (the first: #1358).
+
+Dev matches a cold start (`src/dev.ts`, `test/dev-cold.test.ts`): a dev server held in memory runs
+the plugin's hooks for each file event in Vite's order (`watchChange`, `handleHotUpdate`, the
+transform hook) and plays Vite's part with a module cache: a page load walks the module graph from
+the components and the table modules, through the plugin's `resolveId`, `load` and `transform`, and
+a cached module is served again until something invalidates it (Vite re-runs no plugin for a
+file's importers). After random edits (files added, changed, deleted, one at a time, in a seeded
+order), what dev serves, and its registry, marks and route worlds, must equal a fresh dev server on
+the final files. Dev may hold more of two grow-only facts (`GROW_ONLY`: the island graph and the
+runtime marks: a superset is safe), never less. A filed bug the model works around is in `KNOWN`
+(`DST_KNOWN=` turns them off): it makes the model do what the fix will make the plugin do, so a
+search goes on past it.
+
+Next, from the compiler study (section G.4): Kit 2 vs Kit 3 vs watch topologies, metamorphic edits
+(renames, comments, an unused import), and wider apps (regions, lakes, remotes, wire classes,
+router pages).
 
 ## Findings
 
