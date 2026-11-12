@@ -140,6 +140,9 @@ export interface Federation {
 	readonly name: string;
 	readonly key: string | undefined;
 	readonly peers: ReadonlyMap<string, Peer & { readonly keys: readonly string[] }>;
+	/** Every peer's origins (replicas included): where its islands' code loads from on this app's
+	 *  pages (core's `codeOrigins` hook). */
+	readonly code_origins: readonly string[];
 	readonly visitor: VisitorResolver | undefined;
 	readonly expose: Router | undefined;
 	readonly base: string;

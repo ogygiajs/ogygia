@@ -22,10 +22,11 @@ import {
 	cms_page,
 	edit_while_asleep,
 	grid_page,
-	ISLAND_SRCS,
+	ISLAND_ENTRIES,
 	in_view,
 	page_head,
 	server_copy,
+	src_of,
 	strip_whitespace,
 	type PageRegion
 } from './hydration-page.ts';
@@ -35,7 +36,7 @@ import { RuntimeSession } from '../src/runtime/session.ts';
 import island_module from '../test/_stubs/island-module.ts';
 import { link_boot } from '../src/runtime/boot-link.ts';
 import { __heisenbench as core_private, boot } from '../src/runtime/core.ts';
-import { import_entry } from '../src/runtime/entry-locations.ts';
+import { import_entry, note_entry_location } from '../src/runtime/entry-locations.ts';
 import {
 	__heisenbench as hydrate_core,
 	hydrate_island,
@@ -106,12 +107,14 @@ function page_of(blocks: number): Booted {
  * The page, and the lazy chunks a wake imports loaded ahead of the window: the hydrate core, the
  * interaction replay, and every island module the page names. Node resolves an `import()`
  * with a filesystem call Heisenbench does not allow inside the window; in a browser each is a
- * fetch, not ogygia's work.
+ * fetch, not ogygia's work. Each island's location is noted first, as its element's connect notes
+ * it: an identity with no known location would ask the network for the build's map.
  */
 async function booted_page(blocks: number): Promise<Booted> {
 	await core_private.hydrate_core.get();
 	await interaction_private.replay();
-	await Promise.all(ISLAND_SRCS.map((src) => import_entry(src, src)));
+	for (const entry of ISLAND_ENTRIES) note_entry_location(entry, src_of(entry));
+	await Promise.all(ISLAND_ENTRIES.map((entry) => import_entry(entry)));
 	return page_of(blocks);
 }
 
