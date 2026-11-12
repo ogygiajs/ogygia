@@ -35,4 +35,20 @@ describe('shrinking a failing run', () => {
 		expect(src).toContain('//   1. tab 0: reload');
 		expect(src).toContain('signature(b) === "abc123"');
 	});
+
+	it("types the plan it writes, so the package's type check passes with it (gen 61)", () => {
+		const src = regression_test({
+			name: 'leak-abc123',
+			app: 'apps/sim-gen',
+			gen: 61,
+			seed: 36,
+			plan: { actions: [{ kind: 'open', path: '/p0' }] },
+			oracle: 'leak',
+			signature: 'abc123',
+			detail: 'after tab 1: back',
+			actions: ['new tab at /p0']
+		});
+		expect(src).toContain("import type { Plan } from '../../src/cli.ts';");
+		expect(src).toContain('const PLAN: Plan = {');
+	});
 });
