@@ -8,7 +8,7 @@ import { afterEach, expect, test, vi } from 'vitest';
 import { check_script, STAND_IN_TAGS, transformMarkup } from '../../src/reversible.ts';
 import { restore, restore_adopt } from '../../src/restore.ts';
 import { fake_scoped } from '../fixtures/fake-scoped-render.ts';
-import { init_shadow_registries } from '../../../core/src/runtime/parse-html.ts';
+import { init_shadow_registries } from '../../../core/src/runtime/html-sink.ts';
 
 const SHEET = '<template data-og-head="demo-card.shadow">b{color:rgb(255, 0, 0)}</template>';
 const island = (inner: string) =>
