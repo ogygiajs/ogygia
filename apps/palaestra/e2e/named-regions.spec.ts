@@ -1,12 +1,11 @@
-// asRegion — `import.meta.og.asRegion(Comp, timing)` marks a NAMED / barrel import as a placed
-// island (the macro alternative to `import X with { wake }`, which is default-import-only). Proves
-// three things against the built palaestra /as-region page:
+// Named regions: `import { Ticker } from '$lib/barrel' with { wake }` marks a NAMED / barrel import as
+// a placed island. Proves three things against the built palaestra /named-regions page:
 //   1. both barrel components SSR + hydrate (Ticker wake:'load', Flag wake:'visible'),
 //   2. a NON-component barrel export (brandConfig) still works as an ordinary value in the shell,
 //   3. TREE-SHAKING — the unused barrel exports (a heavy component + a huge constant) never reach the
 //      client build, so an island off a huge barrel ships lean, not the whole barrel.
 //
-// Usage: pnpm exec playwright test as-region
+// Usage: pnpm exec playwright test named-regions
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -14,7 +13,7 @@ import { test, check, sleep } from '@ogygia/tooling/e2e';
 
 const repo = fileURLToPath(new URL('../../..', import.meta.url));
 
-test.describe('import.meta.og.asRegion: barrel/named-import islands SSR+hydrate; unused barrel exports tree-shaken', () => {
+test.describe('marked named imports: barrel islands SSR+hydrate; unused barrel exports tree-shaken', () => {
 	test.use({ viewport: { width: 1000, height: 900 } });
 
 	// ── 1 + 2. browser: SSR + hydration + mixed barrel export ────────────────────────────────────────
@@ -44,7 +43,10 @@ test.describe('import.meta.og.asRegion: barrel/named-import islands SSR+hydrate;
 		// Flag — wake:'visible' → hydrates once scrolled into view.
 		const flag = page.locator('[data-flag] button').first();
 		await flag.waitFor();
-		check('named regions: flag SSR prop (on=true)', (await flag.textContent())!.includes('flag is ON'));
+		check(
+			'named regions: flag SSR prop (on=true)',
+			(await flag.textContent())!.includes('flag is ON')
+		);
 		await flag.scrollIntoViewIfNeeded();
 		await sleep(300);
 		await flag.click();

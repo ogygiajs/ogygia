@@ -11,5 +11,5 @@ import { Ticker as TickerRegion } from './barrel' with { wake: 'visible' };
 export const registry: Array<{ name: string; component: unknown }> = [
 	{ name: 'tsreg-widget', component: TsRegWidget },
 	{ name: 'tsreg-raw', component: TsRegRaw },
-	{ name: 'tsreg-asregion', component: TickerRegion }
+	{ name: 'tsreg-named', component: TickerRegion }
 ];

@@ -8,7 +8,7 @@
 	import { brandConfig } from '$lib/barrel';
 </script>
 
-<h1 data-static-shell>asRegion — barrel islands</h1>
+<h1 data-static-shell>Named regions — barrel islands</h1>
 <p data-static-shell data-brand>Brand: {brandConfig.name}</p>
 
 <TickerIsland start={10} label="Barrel ticker" />
