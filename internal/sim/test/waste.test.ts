@@ -151,6 +151,25 @@ describe('asked twice in every document, up to what first disturbed it', () => {
 		// (a press in tab-1#2 before its second ask: exchange 4)
 		expect(asked_twice_each(w, docs, new Map([['tab-1#2', 4]]))).toBeNull();
 	});
+
+	it("counts a router visit's batch asking a held answer again as #1020's", () => {
+		const w = run([['tab-1#1', hole, 200]]);
+		w.network.exchanges.push({
+			...w.network.exchanges[0],
+			id: 2,
+			method: 'POST',
+			url: 'https://app.test/__ogygia__',
+			at: 5000,
+			holes: [hole]
+		});
+		// (sent as the router swapped the page in: the navigation's batch)
+		expect(asked_twice_each(w, new Map([['tab-1#1', [5000]]]), new Map())).toEqual({
+			oracle: 'known',
+			detail: 'tab-1#1: #1020 (a router return asks again for hole answers the frame store holds)'
+		});
+		// (any other batch asking it again is waste)
+		expect(asked_twice_each(w, new Map([['tab-1#1', [4000]]]), new Map())?.oracle).toBe('waste');
+	});
 });
 
 describe('refused', () => {
