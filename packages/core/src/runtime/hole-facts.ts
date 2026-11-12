@@ -13,7 +13,7 @@
  * would have. Read lazily, parsed once per document.
  */
 import { HOLES_SCRIPT_TYPE } from '../holes-record.ts';
-import { parse_region_html } from './parse-html.ts';
+import { parse_region_html, vouch_page_html } from './html-sink.ts';
 
 export type HoleFacts = {
 	/** The signed capability URL the server minted. */
@@ -51,10 +51,11 @@ function parse_record(doc: Document): Map<string, HoleFacts> | null {
 	return map;
 }
 
-/** The recorded sidecar HTML back into a script element, through the one parser (./parse-html.ts:
- *  inert, nothing runs — the sidecar is a data script, never executable). */
+/** The recorded sidecar HTML back into a script element, through the one parser (./html-sink.ts:
+ *  inert, nothing runs — the sidecar is a data script, never executable). The record is the page's
+ *  own (its server wrote it into the document). */
 function sidecar_element(html: string): HTMLScriptElement | null {
-	const el = parse_region_html(html).firstElementChild;
+	const el = parse_region_html(vouch_page_html(html)).firstElementChild;
 	return el && el.tagName === 'SCRIPT' ? (el as HTMLScriptElement) : null;
 }
 
