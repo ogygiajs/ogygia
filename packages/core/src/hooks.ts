@@ -187,6 +187,7 @@ import { set_server_devtools_recorder } from './events/server-registry.ts';
 import { drop_dead_kit_resolves } from './server/dead-kit-resolves.ts';
 import {
 	DEVTOOLS_SCHEMA_VERSION,
+	DT_MARK,
 	type DevtoolsEvent,
 	type DevtoolsEventInput
 } from './contract/events.ts';
@@ -498,7 +499,22 @@ const plugins = start_app_plugins(server_plugins, {
 // DEVTOOLS: per-request event buffers, keyed off the request bag by a side WeakMap so RequestBag stays
 // pristine (and free) when devtools is off. GC'd with the bag; never a global ring (which would mix
 // concurrent SSR requests). Unreferenced ⇒ tree-shaken when the gate is off.
-const dt_buffers = new WeakMap<RequestBag, { events: DevtoolsEvent[]; seq: number }>();
+// `mark`: random per response, on its side channel and its head runtime script (DEVTOOLS-FEED), so
+// the client takes no channel the page's markup carries.
+const dt_buffers = new WeakMap<
+	RequestBag,
+	{ events: DevtoolsEvent[]; seq: number; mark: string }
+>();
+function dt_new_mark(): string {
+	const bytes = crypto.getRandomValues(new Uint8Array(12));
+	let hex = '';
+	for (const b of bytes) hex += b.toString(16).padStart(2, '0');
+	return hex;
+}
+/** This response's devtools mark ('' off devtools, or with no buffer: a lean or devtools-off visit). */
+function dt_mark_of(bag: RequestBag | undefined): string {
+	return (DEVTOOLS && bag && dt_buffers.get(bag)?.mark) || '';
+}
 // Stamp the envelope with THIS request's own seq/clock and push into its buffer.
 function dt_record(bag: RequestBag | undefined, input: DevtoolsEventInput): void {
 	const buf = bag ? dt_buffers.get(bag) : undefined;
@@ -924,7 +940,7 @@ class OgygiaHandle {
 				!building &&
 				(event.cookies.get(TESTING_COOKIE) === TESTING_LEAN ||
 					event.url.searchParams.get(TESTING_PARAM) === TESTING_LEAN);
-			if (devtools_on && !lean) dt_buffers.set(bag, { events: [], seq: 0 });
+			if (devtools_on && !lean) dt_buffers.set(bag, { events: [], seq: 0, mark: dt_new_mark() });
 			// Hang the bag off the request for the rest of it — the render's own Kit store and the
 			// streamed tail chunks (late regions, resolve scripts, after `resolve()` returned) all
 			// carry this same `Request` and find it.
@@ -1190,7 +1206,8 @@ class OgygiaHandle {
 			if (head === null && !tail) return html;
 			// The runtime an island inside a lake emitted goes before the head's JavaScript here too
 			// (see the csr=false path below): its regions keep their server markup from the first connect.
-			const ordered = head === null ? null : with_early_csp(runtime_first(head, null));
+			const ordered =
+				head === null ? null : with_early_csp(runtime_first(head, null, dt_mark_of(bag)));
 			return assemble(html, spans, ordered === head ? null : ordered, head_inject, tail);
 		}
 
@@ -1243,7 +1260,7 @@ class OgygiaHandle {
 				router_enabled && runtime_url && !page_declares_runtime_script(probe)
 					? runtime_bootstrap(kit_asset)
 					: null;
-			const ordered = with_early_csp(runtime_first(probe, runtime_tag));
+			const ordered = with_early_csp(runtime_first(probe, runtime_tag, dt_mark_of(bag)));
 			if (ordered !== probe) head_out = ordered;
 			// The DEV bridge is NOT gated on the router — it carries `@vite/client`, and Vite's own
 			// full-reload recovery must reach EVERY csr=false page. A dep re-optimization rotates the
@@ -1544,7 +1561,11 @@ class OgygiaHandle {
 		const dt_buf = DEVTOOLS && bag ? dt_buffers.get(bag) : undefined;
 		if (DEVTOOLS && dt_buf && dt_buf.events.length) {
 			scripts.push(
-				emit_ogygia_script('devtools', escape_script_text(JSON.stringify(dt_buf.events)))
+				emit_ogygia_script(
+					'devtools',
+					escape_script_text(JSON.stringify(dt_buf.events)),
+					`${DT_MARK}="${dt_buf.mark}"`
+				)
 			);
 		}
 	}
