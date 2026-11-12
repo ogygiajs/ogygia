@@ -1,18 +1,23 @@
-/**
- * Search worker — builds the Orama index off the main thread and answers queries. Instantiated by
- * the `<Search>` brick via `new Worker(new URL('./search-worker.js', import.meta.url))`. Ingests the
- * prerendered `search.json` documents; the heavy engine (optional peer) is lazy-loaded inside.
- *
- * Messages in:  { type: 'load', url } | { type: 'query', id, q, base, limit }
- * Messages out: { type: 'ready' } | { type: 'error', message } (the index failed to load)
- *             | { type: 'result', id, hits } | { type: 'error', id, message } (that query failed)
- */
 import { flights, net, STALE } from '@ogygia/machine';
-import { orama_engine, type SearchIndex } from './search.ts';
+import { orama_engine, type SearchHit, type SearchIndex } from './search.ts';
 import { OgygiaError } from '../messages/runtime.ts';
 
-/** The index, by the url it is built from: one download shared by the queries waiting on it. A
- *  failed one is not kept, so the next query downloads it again. */
+/** What `SearchClient` sends its worker: build the index from the prerendered `search.json` at
+ *  `url`, or answer a query against the index of the last `load`. */
+export type SearchWorkerIn =
+	| { type: 'load'; url: string }
+	| { type: 'query'; id: number; q?: string; base?: string; limit?: number };
+
+/** What the worker answers: an `error` with an `id` answers that query; one without answers the
+ *  `load`. */
+export type SearchWorkerOut =
+	| { type: 'ready' }
+	| { type: 'result'; id: number; hits: SearchHit[] }
+	| { type: 'error'; id?: number; message: string };
+
+type Port = { postMessage(m: SearchWorkerOut): void };
+
+// @why a failed index download is not kept (test: test/search-client.test.ts › the index failed to download once: the next query downloads it again and is answered)
 const indexes = flights({
 	name: 'content search worker index',
 	run: async (url: string): Promise<SearchIndex> => {
@@ -26,34 +31,26 @@ const indexes = flights({
 		return engine.build(docs);
 	}
 });
-/** The url the last `load` named: the index queries are answered from. */
 let index_url: string | null = null;
 
-/** The index of `index_url` (a newer `load` dropped the one this waited on: then that one's). */
 async function index_now(url: string): Promise<SearchIndex> {
 	const index = await indexes.get(url);
+	// @why a query whose index a newer load dropped is answered from the new one (test: test/search-client.test.ts › a newer load replaces the index a waiting query was going to read: it is answered from the new one)
 	return index === STALE ? index_now(index_url ?? url) : index;
 }
 
 self.onmessage = async (e: MessageEvent) => {
-	const msg = e.data as {
-		type: string;
-		url?: string;
-		id?: number;
-		q?: string;
-		base?: string;
-		limit?: number;
-	};
+	const msg = e.data as SearchWorkerIn;
 
 	if (msg.type === 'load' && msg.url) {
-		// a new index: the one before (and its download, if still out) goes
+		// @why a new load drops the index before it, and its download if still out (test: test/search-client.test.ts › a newer load replaces the index a waiting query was going to read: it is answered from the new one)
 		indexes.drop(() => true);
 		index_url = msg.url;
 		try {
 			await index_now(msg.url);
-			(self as unknown as Worker).postMessage({ type: 'ready' });
+			(self as unknown as Port).postMessage({ type: 'ready' });
 		} catch (err) {
-			(self as unknown as Worker).postMessage({
+			(self as unknown as Port).postMessage({
 				type: 'error',
 				message: err instanceof Error ? err.message : String(err)
 			});
@@ -65,10 +62,10 @@ self.onmessage = async (e: MessageEvent) => {
 		try {
 			const index = await index_now(index_url);
 			const hits = await index.query(msg.q ?? '', { limit: msg.limit ?? 10, base: msg.base ?? '' });
-			(self as unknown as Worker).postMessage({ type: 'result', id: msg.id, hits });
+			(self as unknown as Port).postMessage({ type: 'result', id: msg.id, hits });
 		} catch (err) {
-			// answered with the query's id: an error without one reached no query (it waited forever)
-			(self as unknown as Worker).postMessage({
+			// @why a failed query is answered with its id, or it waits forever (test: test/search-client.test.ts › the index failed to build: a query is answered `error` with ITS id)
+			(self as unknown as Port).postMessage({
 				type: 'error',
 				id: msg.id,
 				message: err instanceof Error ? err.message : String(err)

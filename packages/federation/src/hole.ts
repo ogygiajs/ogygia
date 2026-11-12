@@ -10,6 +10,7 @@
  * unset and the mint degrades to an empty inert region rather than throwing.
  */
 import type { DeferredRegion } from '@ogygia/core';
+import { slot as shared } from '@ogygia/machine';
 import { deferredRegion } from '@ogygia/core/plugin';
 import type { Claims } from './wire.ts';
 
@@ -30,9 +31,10 @@ export type HoleSigner = (spec: HoleSpec) => string | null;
 interface HoleSlot {
 	signer: HoleSigner | null;
 }
-const SLOT = Symbol.for('ogygia.federation.hole');
-const slot: HoleSlot = ((globalThis as unknown as Record<symbol, HoleSlot | undefined>)[SLOT] ??= {
-	signer: null
+const slot = shared<HoleSlot>({
+	name: 'ogygia.federation.hole',
+	version: 1,
+	make: () => ({ signer: null })
 });
 
 /** hooks.ts installs the signer once (it holds the region secret). */

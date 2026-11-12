@@ -1,8 +1,32 @@
 {
 	"exempt": [
 		{
+			"id": "packages/devtools/src/devtools/highlight.ts > highlight > defer:0~248bad",
+			"reason": "browser only: the highlight layer's scope takes its layer out as it closes, constant work"
+		},
+		{
+			"id": "packages/devtools/src/devtools/leftovers.ts > watched",
+			"reason": "browser only: the page's leftovers record, made at its first use, constant work"
+		},
+		{
+			"id": "packages/devtools/src/devtools/profile-store.ts > set_profile > map:0~39039e",
+			"reason": "one profile out of each kept entry (64 at most) while the newest 8 are saved, constant work per entry; devtools-profile-store.test.ts runs it"
+		},
+		{
+			"id": "packages/devtools/src/devtools/source-lines.ts > flights:0~fc7528 > run",
+			"reason": "browser only: one app file's read through the dev server (tool_fetch), once per file"
+		},
+		{
+			"id": "packages/devtools/src/devtools/source-lines.ts > read_table",
+			"reason": "browser only: a dev server fetch of one app file, then the map parse (lines_of_map, measured on its own)"
+		},
+		{
 			"id": "packages/machine/src/flights.ts > Flown > get _weight",
 			"reason": "the flights' total kept weight, read from its cache: one field read, constant work; run by packages/machine/test/flights.test.ts"
+		},
+		{
+			"id": "packages/machine/src/cache.ts > Store > get weight",
+			"reason": "the cache's total kept weight: one field read, constant work; run by packages/machine/test/cache.test.ts"
 		},
 		{
 			"id": "packages/core/src/runtime/entry-locations.ts > recover_location > task:0~d0bd46",
@@ -15,10 +39,6 @@
 		{
 			"id": "packages/core/src/runtime/frame-nav.ts > gather",
 			"reason": "the holes of one task sorted into batches: a DOM read and the frame store (not recorded), linear in the holes that joined; run by packages/core/test/browser/hole-batch.test.ts"
-		},
-		{
-			"id": "packages/core/src/runtime/frame-nav.ts > send_batches",
-			"reason": "browser only: a set of holes grouped by endpoint path into batch POSTs over the frame store (not recorded), linear in the holes; run by packages/core/test/browser/hole-batch.test.ts and nav-batch-page.test.ts"
 		},
 		{
 			"id": "packages/core/src/runtime/frame-store.ts > live",
@@ -243,26 +263,6 @@
 		{
 			"id": "packages/core/src/messages/server.ts > SERVER_WARNINGS > rule_request_scope_open > text",
 			"reason": "a rule's message wording (dev and e2e only), constant text; said in packages/core/test/server-rules.test.ts"
-		},
-		{
-			"id": "packages/core/src/messages/server.ts > SERVER_ERRORS > remote_arg_not_data > text",
-			"reason": "a message's wording, constant text; said in packages/core/test/remote-arg-plain-data.test.ts"
-		},
-		{
-			"id": "packages/core/src/messages/server.ts > SERVER_ERRORS > remote_arg_not_data > details",
-			"reason": "a message's wording, constant text; said in packages/core/test/remote-arg-plain-data.test.ts"
-		},
-		{
-			"id": "packages/core/src/server/transport.ts > ogygiaServerTransport > Region > decode",
-			"reason": "refuses with a thrown 400 (Kit's error(), not replayable), constant work; proven in packages/core/test/remote-arg-plain-data.test.ts"
-		},
-		{
-			"id": "packages/core/src/server/transport.ts > ogygiaServerTransport > [computed] > decode",
-			"reason": "refuses with a thrown 400 (Kit's error(), not replayable), one Set lookup; proven in packages/core/test/remote-arg-plain-data.test.ts"
-		},
-		{
-			"id": "packages/core/src/server/transport.ts > refuse",
-			"reason": "throws Kit's 400 with a worded message (not replayable), constant work; proven in packages/core/test/remote-arg-plain-data.test.ts"
 		},
 		{
 			"id": "packages/core/src/rules.ts > Rules > add",
@@ -2045,8 +2045,48 @@
 			"reason": "writes the request's prime state onto a Request (not cloneable), constant work; proven in packages/flags/test/prime-twice.test.ts"
 		},
 		{
-			"id": "packages/core/src/markup-walk.ts > tags",
-			"reason": "a generator (not recorded): one pattern jump per tag, the tag itself read by read_tag (benched in packages/core/bench/markup.bench.ts, a scan of a whole document too); proven in packages/core/test/wire-markup.test.ts"
+			"id": "packages/content/src/markdown/shiki.ts > cache:0~7f893a > onEvict",
+			"reason": "disposes one highlighter past the cap (a Shiki object, never ran in tests: the cap is never reached), constant work of its own"
+		},
+		{
+			"id": "packages/devtools/src/profiler/embedded-maps.ts > embedded_source > map:0~31820d",
+			"reason": "profiler only: lists the known app roots for one source path, linear in the roots (one per app)"
+		},
+		{
+			"id": "packages/devtools/src/profiler/net.ts > keeping",
+			"reason": "profiler only: reads the module's kept-answers state (hidden state), constant work"
+		},
+		{
+			"id": "packages/core/src/runtime/core.ts > arm_on_demand > set:1~0b08c2",
+			"reason": "browser only: an on-demand region's one firing (forgets its entry, then fires), constant work of its own"
+		},
+		{
+			"id": "packages/core/src/runtime/interaction.ts > noop",
+			"reason": "an empty function, constant work"
+		},
+		{
+			"id": "packages/core/src/runtime/router-nav.ts > queued_prefetch",
+			"reason": "browser only: makes the queued-prefetch cache once and returns it, constant work"
+		},
+		{
+			"id": "packages/core/src/runtime/router-nav.ts > warmed_pages",
+			"reason": "browser only: makes the warmed-pages cache once and returns it, constant work"
+		},
+		{
+			"id": "packages/core/src/runtime/schedule.ts > TaskHops > constructor",
+			"reason": "browser only, where scheduler.yield() is missing: one MessageChannel per document, constant work"
+		},
+		{
+			"id": "packages/core/src/runtime/schedule.ts > TaskHops > constructor > onmessage",
+			"reason": "browser only, where scheduler.yield() is missing: lands the oldest hop, constant work"
+		},
+		{
+			"id": "packages/core/src/runtime/schedule.ts > TaskHops > hop",
+			"reason": "browser only, where scheduler.yield() is missing: queues one hop and posts one message, constant work"
+		},
+		{
+			"id": "packages/core/src/runtime/svelte-warnings.ts > WarningLog > add",
+			"reason": "browser only: keeps one Svelte hydration warning (at most 100) and tells its listeners, linear in the listeners (a devtools panel or none)"
 		},
 		{
 			"id": "packages/core/src/boundary.ts > BoundarySettings > configure",
@@ -2059,6 +2099,62 @@
 		{
 			"id": "packages/core/src/shims/page-store.svelte.ts > WarnedReads > set",
 			"reason": "adds one island to the process-wide record, cleared past 1000 (not replayable), constant work"
+		},
+		{
+			"id": "packages/content/src/collection-base.ts > Collection > constructor > defer:0~2dc470",
+			"reason": "dev only: a collection's module ran again, so the old collection is disposed; one call, constant work of its own"
+		},
+		{
+			"id": "packages/core/src/vite/definers.ts > definers_plugin",
+			"reason": "dev only: builds one Vite plugin object (functions, not cloneable), once per server, constant work"
+		},
+		{
+			"id": "packages/core/src/vite/definers.ts > definers_plugin > transform",
+			"reason": "dev only: a Vite transform hook (the plugin context, not replayable); a substring test per module, then mark_definer_calls"
+		},
+		{
+			"id": "packages/core/src/vite/definers.ts > definers_plugin > transform > some:0~b700ad",
+			"reason": "dev only: one substring test per declared definer module, linear in the definers (a handful)"
+		},
+		{
+			"id": "packages/core/src/vite/definers.ts > mark_definer_calls > find:0~96804f",
+			"reason": "dev only: matches one import's source against the declared definer modules, linear in the definers (a handful)"
+		},
+		{
+			"id": "packages/core/src/vite/definers.ts > nodes",
+			"reason": "dev only: a generator over a parsed module's AST (not recorded), linear in its nodes; run by packages/core/test/definers.test.ts through mark_definer_calls"
+		},
+		{
+			"id": "packages/core/src/vite/index.ts > ogygia > definers_plugin:0~db4cb5",
+			"reason": "dev only: hands the plugins' definer list to the dev transform, constant work"
+		},
+		{
+			"id": "packages/core/src/vite/plugin-api.ts > resolve_plugins > build:0~e195ce > definers",
+			"reason": "build time: records one plugin's definer module and names, constant work per plugin"
+		},
+		{
+			"id": "packages/flags/src/vite.ts > flags > definePlugin:0~de4de4 > build",
+			"reason": "build time: declares the flags definer through the plugin builder (not cloneable), constant work"
+		},
+		{
+			"id": "packages/machine/src/define.ts > defineRun",
+			"reason": "dev only: a module's new run ends the run before it and returns its wrapper (a function, not cloneable), constant work of its own"
+		},
+		{
+			"id": "packages/machine/src/define.ts > defineRun > <anonymous>~bc014d",
+			"reason": "dev only: the wrapper for one definer call (a function, not cloneable), constant work"
+		},
+		{
+			"id": "packages/machine/src/define.ts > defineRun > <anonymous>~bc014d > <anonymous>~90dfa6",
+			"reason": "dev only: runs one definer call under its module's run and puts the outer run back, constant work of its own"
+		},
+		{
+			"id": "packages/machine/src/define.ts > defining",
+			"reason": "reads the process-wide defining host on globalThis (hidden state), constant work"
+		},
+		{
+			"id": "packages/machine/src/define.ts > defining_host",
+			"reason": "reads or makes the process-wide defining host on globalThis (not cloneable), constant work"
 		},
 		{
 			"id": "packages/core/src/runtime/router-nav.ts > resolve_head_urls",
@@ -3945,38 +4041,6 @@
 			"reason": "the marker write, one store put (I/O, the live store: not cloneable), constant work (#947)"
 		},
 		{
-			"id": "packages/core/src/runtime/core.ts > arm_on_demand > set:1~0b08c2",
-			"reason": "browser only: an on-demand region's one firing (forgets its entry, then fires), constant work of its own"
-		},
-		{
-			"id": "packages/core/src/runtime/interaction.ts > noop",
-			"reason": "an empty function, constant work"
-		},
-		{
-			"id": "packages/core/src/runtime/router-nav.ts > queued_prefetch",
-			"reason": "browser only: makes the queued-prefetch cache once and returns it, constant work"
-		},
-		{
-			"id": "packages/core/src/runtime/router-nav.ts > warmed_pages",
-			"reason": "browser only: makes the warmed-pages cache once and returns it, constant work"
-		},
-		{
-			"id": "packages/core/src/runtime/schedule.ts > TaskHops > constructor",
-			"reason": "browser only, where scheduler.yield() is missing: one MessageChannel per document, constant work"
-		},
-		{
-			"id": "packages/core/src/runtime/schedule.ts > TaskHops > constructor > onmessage",
-			"reason": "browser only, where scheduler.yield() is missing: lands the oldest hop, constant work"
-		},
-		{
-			"id": "packages/core/src/runtime/schedule.ts > TaskHops > hop",
-			"reason": "browser only, where scheduler.yield() is missing: queues one hop and posts one message, constant work"
-		},
-		{
-			"id": "packages/core/src/runtime/svelte-warnings.ts > WarningLog > add",
-			"reason": "browser only: keeps one Svelte hydration warning (at most 100) and tells its listeners, linear in the listeners (a devtools panel or none)"
-		},
-		{
 			"id": "packages/core/src/runtime/nav-handle.ts > flights:0~bc1a2c > import_again:1~6d4297",
 			"reason": "browser only: a retry of the soft refresh's download imports its file by URL (a network load, not recorded), only after the first download failed; proven in packages/core/test/browser/nav-handle-routerless-retry.test.ts"
 		},
@@ -4373,72 +4437,12 @@
 			"reason": "browser only: one record_hook of a hook event, constant work of its own"
 		},
 		{
-			"id": "packages/devtools/src/devtools/highlight.ts > highlight > defer:0~248bad",
-			"reason": "browser only: the highlight layer's scope takes its layer out as it closes, constant work"
+			"id": "packages/core/src/runtime/frame-nav.ts > send_batches",
+			"reason": "browser only: a set of holes grouped by endpoint path into batch POSTs over the frame store (not recorded), linear in the holes; run by packages/core/test/browser/hole-batch.test.ts and nav-batch-page.test.ts"
 		},
 		{
-			"id": "packages/devtools/src/devtools/leftovers.ts > watched",
-			"reason": "browser only: the page's leftovers record, made at its first use, constant work"
-		},
-		{
-			"id": "packages/devtools/src/devtools/profile-store.ts > set_profile > map:0~39039e",
-			"reason": "one profile out of each kept entry (64 at most) while the newest 8 are saved, constant work per entry; devtools-profile-store.test.ts runs it"
-		},
-		{
-			"id": "packages/devtools/src/devtools/source-lines.ts > flights:0~fc7528 > run",
-			"reason": "browser only: one app file's read through the dev server (tool_fetch), once per file"
-		},
-		{
-			"id": "packages/devtools/src/devtools/source-lines.ts > read_table",
-			"reason": "browser only: a dev server fetch of one app file, then the map parse (lines_of_map, measured on its own)"
-		},
-		{
-			"id": "packages/devtools/src/profiler/embedded-maps.ts > embedded_source > map:0~31820d",
-			"reason": "profiler only: lists the known app roots for one source path, linear in the roots (one per app)"
-		},
-		{
-			"id": "packages/devtools/src/profiler/net.ts > keeping",
-			"reason": "profiler only: reads the module's kept-answers state (hidden state), constant work"
-		},
-		{
-			"id": "packages/content/src/markdown/shiki.ts > cache:0~7f893a > onEvict",
-			"reason": "disposes one highlighter past the cap (a Shiki object, never ran in tests: the cap is never reached), constant work of its own"
-		},
-		{
-			"id": "packages/content/src/collection-base.ts > Collection > constructor > defer:0~2dc470",
-			"reason": "dev only: a collection's module ran again, so the old collection is disposed; one call, constant work of its own"
-		},
-		{
-			"id": "packages/core/src/vite/definers.ts > definers_plugin",
-			"reason": "dev only: builds one Vite plugin object (functions, not cloneable), once per server, constant work"
-		},
-		{
-			"id": "packages/core/src/vite/definers.ts > definers_plugin > transform",
-			"reason": "dev only: a Vite transform hook (the plugin context, not replayable); a substring test per module, then mark_definer_calls"
-		},
-		{
-			"id": "packages/core/src/vite/definers.ts > definers_plugin > transform > some:0~b700ad",
-			"reason": "dev only: one substring test per declared definer module, linear in the definers (a handful)"
-		},
-		{
-			"id": "packages/core/src/vite/definers.ts > mark_definer_calls > find:0~96804f",
-			"reason": "dev only: matches one import's source against the declared definer modules, linear in the definers (a handful)"
-		},
-		{
-			"id": "packages/core/src/vite/definers.ts > nodes",
-			"reason": "dev only: a generator over a parsed module's AST (not recorded), linear in its nodes; run by packages/core/test/definers.test.ts through mark_definer_calls"
-		},
-		{
-			"id": "packages/core/src/vite/index.ts > ogygia > definers_plugin:0~db4cb5",
-			"reason": "dev only: hands the plugins' definer list to the dev transform, constant work"
-		},
-		{
-			"id": "packages/core/src/vite/plugin-api.ts > resolve_plugins > build:0~e195ce > definers",
-			"reason": "build time: records one plugin's definer module and names, constant work per plugin"
-		},
-		{
-			"id": "packages/flags/src/vite.ts > flags > definePlugin:0~de4de4 > build",
-			"reason": "build time: declares the flags definer through the plugin builder (not cloneable), constant work"
+			"id": "packages/core/src/markup-walk.ts > tags",
+			"reason": "a generator (not recorded): one pattern jump per tag, the tag itself read by read_tag (benched in packages/core/bench/markup.bench.ts, a scan of a whole document too); proven in packages/core/test/wire-markup.test.ts"
 		},
 		{
 			"id": "packages/postrender/src/server.ts > defineServer:0~48ac6f > page > then:1~a1b2d0",
@@ -4605,26 +4609,6 @@
 			"reason": "a message's wording, constant text; said in packages/core/test/macros-own-source.test.ts"
 		},
 		{
-			"id": "packages/machine/src/define.ts > defineRun",
-			"reason": "dev only: a module's new run ends the run before it and returns its wrapper (a function, not cloneable), constant work of its own"
-		},
-		{
-			"id": "packages/machine/src/define.ts > defineRun > <anonymous>~bc014d",
-			"reason": "dev only: the wrapper for one definer call (a function, not cloneable), constant work"
-		},
-		{
-			"id": "packages/machine/src/define.ts > defineRun > <anonymous>~bc014d > <anonymous>~90dfa6",
-			"reason": "dev only: runs one definer call under its module's run and puts the outer run back, constant work of its own"
-		},
-		{
-			"id": "packages/machine/src/define.ts > defining",
-			"reason": "reads the process-wide defining host on globalThis (hidden state), constant work"
-		},
-		{
-			"id": "packages/machine/src/define.ts > defining_host",
-			"reason": "reads or makes the process-wide defining host on globalThis (not cloneable), constant work"
-		},
-		{
 			"id": "packages/core/src/head-owners.ts > head_owners",
 			"reason": "browser only: one head tag's data-og-owner split (a DOM element, not cloneable), linear in its owners (a few); proven in packages/core/test/browser/head-owner-release.test.ts and property-head-owner.test.ts"
 		},
@@ -4647,6 +4631,26 @@
 		{
 			"id": "packages/core/src/runtime/region-sheets.ts > release_head_nodes > filter:0~db55d7",
 			"reason": "browser only: one owner looked up in the page's owner set, constant work; proven in packages/core/test/browser/head-owner-release.test.ts"
+		},
+		{
+			"id": "packages/core/src/messages/server.ts > SERVER_ERRORS > remote_arg_not_data > text",
+			"reason": "a message's wording, constant text; said in packages/core/test/remote-arg-plain-data.test.ts"
+		},
+		{
+			"id": "packages/core/src/messages/server.ts > SERVER_ERRORS > remote_arg_not_data > details",
+			"reason": "a message's wording, constant text; said in packages/core/test/remote-arg-plain-data.test.ts"
+		},
+		{
+			"id": "packages/core/src/server/transport.ts > ogygiaServerTransport > Region > decode",
+			"reason": "refuses with a thrown 400 (Kit's error(), not replayable), constant work; proven in packages/core/test/remote-arg-plain-data.test.ts"
+		},
+		{
+			"id": "packages/core/src/server/transport.ts > ogygiaServerTransport > [computed] > decode",
+			"reason": "refuses with a thrown 400 (Kit's error(), not replayable), one Set lookup; proven in packages/core/test/remote-arg-plain-data.test.ts"
+		},
+		{
+			"id": "packages/core/src/server/transport.ts > refuse",
+			"reason": "throws Kit's 400 with a worded message (not replayable), constant work; proven in packages/core/test/remote-arg-plain-data.test.ts"
 		},
 		{
 			"id": "packages/devtools/src/profiler/index.ts > Profiler > measures",
@@ -4877,16 +4881,80 @@
 			"reason": "writes the devtools ring (hidden state: the page's event bus), linear in the events handed in; proven in packages/core/test/browser/devtools-feed-own-render.test.ts and side-channel-seeds.test.ts"
 		},
 		{
-			"id": "packages/core/src/runtime/router-nav.ts > adopt_mark",
-			"reason": "browser only: hands the head merge's next document to the boot's adopt_mark (one registry read), constant work; proven in packages/core/test/browser/page-facts-visit.test.ts and soft-refresh-page-on-screen.test.ts (#893)"
-		},
-		{
-			"id": "packages/core/src/runtime/response-mark.ts > adopt_mark",
-			"reason": "browser only: the live head's runtime script takes the next document's mark (two head reads, one attribute write), constant work; proven in packages/core/test/browser/page-facts-visit.test.ts and soft-refresh-page-on-screen.test.ts (#893)"
-		},
-		{
 			"id": "packages/core/src/runtime/response-mark.ts > server_channels",
 			"reason": "browser only: the devtools channels of the live document bearing its mark (a DOM query, not recorded), linear in the channels; proven in packages/core/test/browser/devtools-feed-own-render.test.ts (#893)"
+		},
+		{
+			"id": "packages/machine/src/slot.ts > slot",
+			"reason": "reads and writes the process-wide slot table on globalThis (hidden state), constant work per call; proven in packages/machine/test/slot.test.ts"
+		},
+		{
+			"id": "packages/content/src/graph.ts > slot:0~99f6b2 > make",
+			"reason": "a slot's maker: builds the slot's empty starting value, once per process, constant work"
+		},
+		{
+			"id": "packages/core/src/plugin/facts.ts > shared:0~10f321 > make",
+			"reason": "a slot's maker: builds the slot's empty starting value, once per process, constant work"
+		},
+		{
+			"id": "packages/core/src/plugin/hooks.ts > shared:0~9213e0 > make",
+			"reason": "a slot's maker: builds the slot's empty starting value, once per process, constant work"
+		},
+		{
+			"id": "packages/core/src/plugin/routes.ts > shared:0~e1c6f2 > make",
+			"reason": "a slot's maker: builds the slot's empty starting value, once per process, constant work"
+		},
+		{
+			"id": "packages/core/src/server/kit-context.ts > shared:0~04506e > make",
+			"reason": "a slot's maker: builds the slot's empty starting value, once per process, constant work"
+		},
+		{
+			"id": "packages/core/src/server/shared-cache.ts > shared:0~2c10ac > make",
+			"reason": "a slot's maker: builds the slot's empty starting value, once per process, constant work"
+		},
+		{
+			"id": "packages/devtools/src/app.ts > shared:0~a92432 > make",
+			"reason": "a slot's maker: builds the slot's empty starting value, once per process, constant work"
+		},
+		{
+			"id": "packages/federation/src/hole.ts > shared:0~9f6b81 > make",
+			"reason": "a slot's maker: builds the slot's empty starting value, once per process, constant work"
+		},
+		{
+			"id": "packages/federation/src/registry.ts > shared:0~e07cb9 > make",
+			"reason": "a slot's maker: builds the slot's empty starting value, once per process, constant work"
+		},
+		{
+			"id": "packages/content/src/bridge.ts > slot:0~959d03 > make",
+			"reason": "a slot's maker: builds the slot's empty starting value, once per process, constant work"
+		},
+		{
+			"id": "packages/core/src/plugin/request-scope.ts > shared:0~5bce76 > make",
+			"reason": "a slot's maker: builds the slot's empty starting value, once per process, constant work"
+		},
+		{
+			"id": "packages/core/src/plugin/server.ts > shared:0~f8205a > make",
+			"reason": "a slot's maker: builds the slot's empty starting value, once per process, constant work"
+		},
+		{
+			"id": "packages/postrender/src/registry.ts > shared:0~4e63eb > make",
+			"reason": "a slot's maker: builds the slot's empty starting value, once per process, constant work"
+		},
+		{
+			"id": "packages/postrender/src/app.ts > shared:0~2ec32d > make",
+			"reason": "a slot's maker: builds the slot's empty starting value, once per process, constant work"
+		},
+		{
+			"id": "packages/core/src/runtime/router-nav.ts > adopt_response",
+			"reason": "browser only: hands the head merge's next document to the boot's adopt_response (one registry read), constant work; proven in packages/core/test/browser/page-facts-visit.test.ts, soft-refresh-page-on-screen.test.ts and nav-code-origins.test.ts (#893, #1045)"
+		},
+		{
+			"id": "packages/core/src/runtime/response-mark.ts > adopt_response",
+			"reason": "browser only: the live head's runtime script takes the next document's mark and code origins (two head reads, two attribute writes), constant work; proven in packages/core/test/browser/page-facts-visit.test.ts, soft-refresh-page-on-screen.test.ts and nav-code-origins.test.ts (#893, #1045)"
+		},
+		{
+			"id": "packages/core/src/runtime/code-origins.ts > forget_code_origins",
+			"reason": "browser only: drops the page's read code origins (one write), constant work; proven in packages/core/test/browser/nav-code-origins.test.ts (#1045)"
 		}
 	]
 }

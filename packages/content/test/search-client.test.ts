@@ -167,4 +167,35 @@ describe('the search worker: a failed query is answered with its id', () => {
 			title: 'Install'
 		});
 	});
+
+	it('a newer load replaces the index a waiting query was going to read: it is answered from the new one', async () => {
+		const doc = (title: string) => ({
+			id: title,
+			slug: title,
+			anchor: '',
+			title,
+			section: 'Start',
+			heading: '',
+			text: 'Run the installer.'
+		});
+		let release_old!: () => void;
+		vi.stubGlobal('fetch', async (url: string) => {
+			if (url === '/old.json') await new Promise<void>((r) => (release_old = r));
+			return Response.json([doc(url === '/old.json' ? 'Old' : 'New')]);
+		});
+		await import('../src/site/search-worker.ts');
+		const old_load = self_fake.onmessage!({
+			data: { type: 'load', url: '/old.json' }
+		} as MessageEvent);
+		const query = self_fake.onmessage!({
+			data: { type: 'query', id: 9, q: 'installer' }
+		} as MessageEvent);
+		await self_fake.onmessage!({ data: { type: 'load', url: '/new.json' } } as MessageEvent);
+		release_old();
+		await Promise.all([old_load, query]);
+		const result = posted.find((m) => (m as { id?: number }).id === 9) as {
+			hits: { title: string }[];
+		};
+		expect(result.hits.map((h) => h.title)).toEqual(['New']);
+	});
 });

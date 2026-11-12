@@ -1,11 +1,7 @@
 /**
- * THE PAGE'S EARLY HOLE REQUESTS, TAKEN OVER (../early-holes.ts). The head started each `load`
- * hole's request during the parse and parked it on one global; at boot each becomes the flight at
- * its frame-store address, its response read the one way every hole answer is (./hole-fetch.ts
- * `read_hole`). The hole's own wake joins that flight, a batch finds the address in flight and
- * leaves it out, and the response is read once. The flight's first caller is the page visit, and
- * the flight's signal cancels the parked request: one nobody joined is cancelled with the visit.
- * Part of the frames feature (./frames.ts): no hole, no code.
+ * The page's early hole requests, taken over at boot (the head started them: ../early-holes.ts).
+ *
+ * @packageDocumentation
  */
 import { scope, type Scope } from '@ogygia/machine';
 import { EARLY_HOLES_KEY, type EarlyHole } from '../early-holes.ts';
@@ -16,8 +12,13 @@ import { read_hole } from './hole-fetch.ts';
 const PARKED = Symbol.for(EARLY_HOLES_KEY);
 type Host = { [PARKED]?: readonly EarlyHole[] };
 
-/** Take the parked requests over, once (the global is emptied): each the flight at its address,
- *  with `visit` its first caller. */
+/**
+ * Take the parked requests over, once (the global is emptied). Each becomes the flight at its
+ * frame-store address, its response read the way every hole answer is (./hole-fetch.ts
+ * `read_hole`): the hole's own wake joins it, a batch leaves the address out, and the response is
+ * read once. `visit` is its first caller, so a request nobody joined is cancelled with the visit;
+ * a refused answer waits at its address for the hole that asks.
+ */
 export function adopt_early_holes(visit: Scope): void {
 	const host = globalThis as Host;
 	const parked = host[PARKED];
@@ -28,7 +29,7 @@ export function adopt_early_holes(visit: Scope): void {
 		ensure(
 			address,
 			async (signal) => {
-				// (the flight's signal is the request's: its last caller leaving cancels it in the network)
+				// @why its last caller leaving cancels the request in the network (test: test/browser/early-holes.test.ts › that nobody joins, left before its answer lands: cancelled in the network, nothing written, nothing unhandled)
 				const tie = scope();
 				tie.on(signal, 'abort', () => controller.abort(signal.reason));
 				try {
