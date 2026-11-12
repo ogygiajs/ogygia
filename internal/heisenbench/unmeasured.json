@@ -4779,6 +4779,10 @@
 		{
 			"id": "packages/core/src/runtime/page-defer.ts > unresolved",
 			"reason": "one coded error made for a promise that can no longer settle, once per promise: constant work"
+		},
+		{
+			"id": "packages/core/src/server/kit-context.ts > held_root_context",
+			"reason": "returns a Map holding Kit's page and stores contexts (not cloneable): kit_render_context plus two set() calls, constant work, once per held region render; proven in packages/core/test/held-region-runtime.test.ts"
 		}
 	]
 }
