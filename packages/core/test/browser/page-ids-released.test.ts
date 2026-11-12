@@ -55,3 +55,17 @@ test('a region that reunites with an object another region made owns it too', ()
 	);
 	expect(disposed).toEqual([]);
 });
+
+test('an object no region resolved is released by the next navigation', () => {
+	boot_page(['a']);
+	// the page's own value (a module-scope resolve): no region captured it
+	resolve(ref(1), 'page');
+	reconcile_body(
+		document.body,
+		parsed_body('<ogygia-region data-key="a"><p>a</p></ogygia-region>'),
+		morph_children
+	);
+	expect(disposed).toEqual([1]);
+	// the next page that carries the id decodes it fresh
+	expect((resolve(ref(7), 'page') as { n: number }).n).toBe(7);
+});
