@@ -1,18 +1,29 @@
 // What `runtime/region-sheets.ts` states, against the source, in a real browser: a link that loaded
 // before anyone looked counts as loaded; a link whose download fails is failed; a navigation takes
 // out an unlisted region sheet only when no connected region's answer uses it (#275).
+import { scope } from '@ogygia/machine';
 import { afterEach, expect, it } from 'vitest';
 import { connected_regions } from '../../src/runtime/connected.ts';
-import { release_sheets, sheet_of, use_sheets } from '../../src/runtime/region-sheets.ts';
+import { release_head_nodes, sheet_of, use_sheets } from '../../src/runtime/region-sheets.ts';
 
 const SHEET = '/test/browser/fixtures/region-sheet.css';
 const added: Element[] = [];
+/** The test regions' lifetime in the page: each test's end ends it. */
+let page = scope();
 afterEach(() => {
-	for (const el of added.splice(0)) {
-		el.remove();
-		connected_regions.delete(el);
-	}
+	page.close();
+	page = scope();
+	for (const el of added.splice(0)) el.remove();
 });
+
+/** A region on the page. */
+function on_page_region(): Element {
+	const region = document.createElement('ogygia-region');
+	document.body.append(region);
+	added.push(region);
+	connected_regions.add(region, page);
+	return region;
+}
 
 function link(href: string): HTMLLinkElement {
 	const l = document.createElement('link');
@@ -56,11 +67,9 @@ it('a navigation keeps an unlisted region sheet a connected region uses, and tak
 	const kept = link(`${SHEET}?kept`);
 	const gone = link(`${SHEET}?gone`);
 	document.head.append(kept, gone);
-	const region = document.createElement('ogygia-region');
-	added.push(region);
-	connected_regions.add(region);
+	const region = on_page_region();
 	use_sheets(region, [kept]);
-	release_sheets([kept, gone]);
+	release_head_nodes([kept, gone]);
 	expect(kept.isConnected).toBe(true);
 	expect(gone.isConnected).toBe(false);
 });
@@ -68,11 +77,9 @@ it('a navigation keeps an unlisted region sheet a connected region uses, and tak
 it('a region whose new answer stops using a sheet lets it go', () => {
 	const l = link(`${SHEET}?swapped`);
 	document.head.append(l);
-	const region = document.createElement('ogygia-region');
-	added.push(region);
-	connected_regions.add(region);
+	const region = on_page_region();
 	use_sheets(region, [l]);
 	use_sheets(region, []);
-	release_sheets([l]);
+	release_head_nodes([l]);
 	expect(l.isConnected).toBe(false);
 });
