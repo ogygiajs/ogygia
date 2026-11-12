@@ -14,6 +14,7 @@ import {
 	errorCsrTrueRouteIds,
 	hasAnyCsrFalseRoute,
 	is_route_component,
+	is_route_file,
 	page_route_config,
 	routeCsrIsFalse,
 	routeCsrIsTrue
@@ -58,6 +59,24 @@ describe('a route file with a layout reset is a route component', () => {
 			expect(is_route_component(name, 'page')).toBe(false);
 		}
 	);
+});
+
+describe('a dev edit to a route file clears the route answers', () => {
+	it.each([
+		'+page.svelte',
+		'+page@.svelte',
+		'+page.md',
+		'+layout@(app).svelte',
+		'+error.svelte',
+		'+page.ts',
+		'+page.server.js',
+		'+layout.server.ts'
+	])('%s is a route file', (name) => {
+		expect(is_route_file(name)).toBe(true);
+	});
+	it.each(['+server.ts', 'Page.svelte', 'page.ts', '+page.d.ts'])('%s is not', (name) => {
+		expect(is_route_file(name)).toBe(false);
+	});
 });
 
 describe('a page with a layout reset', () => {
