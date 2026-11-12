@@ -89,7 +89,13 @@ import { render_cache_key, cached_render, type RenderKey } from './server/render
 import { render as render_policy } from './policies.ts';
 import { install_server_rules, note_region_answer } from './server/rules.ts';
 import { B64Url } from './server/payload.ts';
-import { REF_WIRE_KEY, ref_reviver } from './ref.ts';
+import {
+	REF_WIRE_KEY,
+	ref_names,
+	ref_reviver,
+	set_ref_names_reader,
+	type RefNames
+} from './ref.ts';
 import type { RequestContext } from './plugin/index.ts';
 import { current_facts, facts_of, set_current_request, type RequestFacts } from './plugin/facts.ts';
 import { observe_reads } from './plugin/reads.ts';
@@ -339,6 +345,16 @@ set_ctx_recorder((key, value) => {
 const doc_asks = new WeakMap<Request, { wanted: boolean; keys: SeedKeys | null }>();
 const request_of = () =>
 	(try_get_request_store() as { event?: RequestEvent } | undefined)?.event?.request;
+// THE NAMES OF A RENDER (ref.ts RefNames): every ref one request mints is named by it, off the same
+// `Request` — any request, page or hole or remote call, so two answers in one tab never share an id.
+const ref_names_of = new WeakMap<Request, RefNames>();
+set_ref_names_reader(() => {
+	const request = request_of();
+	if (!request) return null;
+	let names = ref_names_of.get(request);
+	if (names === undefined) ref_names_of.set(request, (names = ref_names()));
+	return names;
+});
 set_ask_scope_opener(() => {
 	const request = request_of();
 	if (request && !bags.has(request) && !doc_asks.has(request))

@@ -7,7 +7,6 @@ import type { PreprocessorGroup } from 'svelte/compiler';
 import { configure_build_cache } from '../compiler/build-cache.ts';
 import { content_css_key } from '../contract/content.ts';
 import { island_sourcemaps_plugin } from './sourcemaps.ts';
-import { server_sourcemaps_plugin } from './server-sourcemaps.ts';
 import { install_dev_client_maps, install_dev_maps, install_dev_page_keys } from './dev-maps.ts';
 import {
 	is_island_path,
@@ -45,7 +44,8 @@ export type {
 	TransformEvent,
 	StageTransform,
 	ExportsSeam,
-	PinnedDecl
+	PinnedDecl,
+	RegionsSeam
 } from './plugin-api.ts';
 export type {
 	ExportMap,
@@ -78,8 +78,6 @@ import {
 	kit_inline_style_threshold
 } from '../compiler/kit.ts';
 import { load_kit_dirs } from './kit-dirs.ts';
-import { write_module_map } from './module-map.ts';
-import { fill_profiler_maps } from './profiler-maps.ts';
 import { DEFAULT_REGION_TTL_SEC } from '../server/endpoint.ts';
 import { RENEW_WINDOW_SEC } from '../contract/capability.ts';
 import { derive_id_salt, secret_has_min_entropy, MIN_SECRET_BYTES } from '../server/hmac.ts';
@@ -106,7 +104,6 @@ import {
 	needs_island_entry_full_reload
 } from '../compiler/dev/hmr.ts';
 import { derive_css_scope_owners, type DevGraphModule } from '../compiler/dev/css-scope.ts';
-import { island_subgraph_bytes } from '../compiler/dev/region-bytes.ts';
 import {
 	collectIslandDepModulepreloads,
 	collect_inline_css,
@@ -380,8 +377,6 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 		return last_leg_server ?? is_ssr;
 	};
 	let content_scanned = false;
-	/** the server build's output, waiting for closeBundle to fill the profiler's maps module */
-	let maps_pending: { dir: string; bundle: Record<string, unknown> } | null = null;
 	let vite_server: ViteDevServer | null = null;
 	/** absolute path to Kit's internal wire-protocol module (deep import) */
 	let kit_wire_path: string | null = null;
@@ -436,6 +431,10 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 			return (decl) =>
 				decl.attribute_keys.some((k) => keys.has(k)) ||
 				(locals.size > 0 && decl.specs.some((s) => locals.has(s.local)));
+		},
+		regions: {
+			names: () => compiler.region_names(),
+			barrelWhy: (file, importers) => barrel_why(file, importers)
 		}
 	};
 	// Why a barrel stayed (`t.emit`), per environment and stage (a stage's run forgets only its own
@@ -1034,51 +1033,6 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 						root
 					);
 				}
-				// Devtools: serve the live `island id → component name` map so the dock can label a
-				// region "Counter" instead of a hashed entry. A middleware (not a virtual module) so it
-				// reads the CURRENT registry at request time — the dock fetches it after mount, by which
-				// point every island app-wide is registered, so the map is complete and never stale.
-				if (!devtools_effective) return;
-				// The browser's JS Self-Profiling API needs the document to opt in: every dev response
-				// carries the policy, so the Page tab can sample the main thread while islands wake
-				// (the trace stays in the page — runtime/beacon.ts). Dev only, like all of devtools.
-				server.middlewares.use((_req, res, next) => {
-					res.setHeader('document-policy', 'js-profiling');
-					next();
-				});
-				server.middlewares.use((req, res, next) => {
-					if ((req.url || '').split('?')[0] !== '/__ogygia_devtools_meta') return next();
-					// `names`: island id → component name (live registry). `bytes`: island id → its
-					// transitive dev-module-graph size (wrapper + component + everything imported), so the
-					// Bytes tab can show real cost instead of the wrapper chunk alone. Both read live, so
-					// the map is complete once the dock fetches (post-mount, islands registered).
-					const envs = (
-						server as unknown as {
-							environments?: Record<
-								string,
-								{ moduleGraph?: { idToModuleMap?: Map<string, unknown> } }
-							>;
-						}
-					).environments;
-					const client_modules = envs?.client?.moduleGraph?.idToModuleMap?.values();
-					// (each app component's source, read once a request: its lines that draw differently in the browser)
-					const sources = new Map<string, string | undefined>();
-					const read = (file: string) => {
-						if (!sources.has(file)) {
-							try {
-								sources.set(file, fs.readFileSync(file, 'utf8'));
-							} catch {
-								sources.set(file, undefined);
-							}
-						}
-						return sources.get(file);
-					};
-					const bytes = client_modules
-						? island_subgraph_bytes(client_modules as never, read, barrel_why)
-						: {};
-					res.setHeader('content-type', 'application/json');
-					res.end(JSON.stringify({ names: compiler.region_names(), bytes }));
-				});
 			},
 
 			watchChange(id, change) {
@@ -1437,23 +1391,9 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 				}
 			},
 
-			// THE PROFILER'S MAPS, FILLED: after every plugin's writeBundle (the chunks are final on disk)
-			// and BEFORE Kit's own sequential closeBundle runs the adapter, which copies what it finds
-			closeBundle: {
-				order: 'pre',
-				sequential: true,
-				handler() {
-					// (each build leg's end, and the dev server closing: its word on barrels is done)
-					barrels_left.clear();
-					if (!maps_pending) return;
-					const { dir, bundle } = maps_pending;
-					maps_pending = null;
-					try {
-						fill_profiler_maps(dir, bundle, root);
-					} catch {
-						// ok: the profiler then reads the files beside the chunks, where they exist
-					}
-				}
+			// (each build leg's end, and the dev server closing: its word on barrels is done)
+			closeBundle() {
+				barrels_left.clear();
 			},
 
 			async writeBundle(_options, bundle) {
@@ -1473,22 +1413,6 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 								leg: server_leg ? 'server' : 'browser'
 							})
 						);
-				}
-				// THE MODULE MAP (server build, profiler on): which source module sits at which lines of
-				// each server chunk. A build without sourcemaps — the normal one — leaves the profiler only
-				// chunk names (`chunks/frames.js`): with this it still tells its own code, ogygia's and a
-				// bundled package's from the app's. Written beside the chunks, so it travels with them.
-				if (is_build && server_leg && measure && _options.dir) {
-					try {
-						write_module_map(_options.dir, bundle as Record<string, unknown>, root);
-					} catch {
-						// ok: a module map is a nicety; the build never fails over it
-					}
-					// ...and the same, with every chunk's sourcemap, written INTO the profiler's maps module:
-					// the one copy that survives any adapter (vite/profiler-maps.ts) — in closeBundle
-					// below, once every plugin's writeBundle has run (Kit rewrites remote-function chunks
-					// in its own) and before Kit's closeBundle hands the output to the adapter
-					maps_pending = { dir: _options.dir, bundle: bundle as Record<string, unknown> };
 				}
 				// Client only — Kit builds SSR first, so Region.svelte reads this JSON at render
 				// (prerender / live SSR), not at SSR-bundle `load()` time.
@@ -1687,8 +1611,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 		},
 		// the plugins' `post` stage: on what the region transform made of the module
 		stage_host('post'),
-		island_sourcemaps_plugin({ program, is_island_path }),
-		server_sourcemaps_plugin(() => measure)
+		island_sourcemaps_plugin({ program, is_island_path })
 	];
 }
 

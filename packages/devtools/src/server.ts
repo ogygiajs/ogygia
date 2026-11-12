@@ -7,7 +7,7 @@
  */
 import { defineServer, type ServerApp, type ServerPlugin } from '@ogygia/core/plugin';
 import { set_devtools_app } from './app.ts';
-import { want_request_stats } from '@ogygia/core/internal/server';
+import { install_request_stats } from './profiler/request-stats.ts';
 import { flights, say, STALE } from '@ogygia/machine';
 import type { ProfilerHandle, ProfilerOptions } from './profiler/index.ts';
 import { profiler_demand_skip } from './profiler/on-demand.ts';
@@ -64,7 +64,7 @@ async function mount(options: ProfilerOptions): Promise<ProfilerHandle | null> {
 const server: ServerPlugin<DevtoolsServerOptions> = defineServer<DevtoolsServerOptions>({
 	setup(app) {
 		set_devtools_app(app as ServerApp<unknown>);
-		if (app.options.profiler) want_request_stats();
+		if (app.options.profiler) install_request_stats();
 	},
 	async handle({ event, options }, next) {
 		const config = options.profiler;
