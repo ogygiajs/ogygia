@@ -147,6 +147,67 @@ describe('appendTransportRegistrations — inject ONLY for wire classes', () => 
 	});
 });
 
+describe('a default-exported wire class is registered under `#default` (#1169)', () => {
+	const reg = (src: string) => appendTransportRegistrations(src, '/app/cart.ts', '/app');
+	const WIRE_MEMBER = `static [Symbol.for('ogygia.wire')] = ${CODEC};`;
+
+	it.each([
+		['export default class Cart', `export default class Cart { ${WIRE_MEMBER} }`, 'Cart'],
+		[
+			'class Cart; export default Cart',
+			`class Cart { ${WIRE_MEMBER} }\nexport default Cart;`,
+			'Cart'
+		],
+		[
+			'export default class Cart, raw spelling',
+			`export default class Cart { static wire = import.meta.og.wire(${CODEC}); }`,
+			'Cart'
+		]
+	])('%s', (_, src, local) => {
+		expect(moduleHasTransportable(src, '/app/cart.ts')).toBe(true);
+		const out = reg(src);
+		expect(out).not.toBe(null);
+		expect(out).toContain(`__OGT("cart.ts#default", ${local});`);
+	});
+
+	it('a plain default-exported class is not registered', () => {
+		expect(reg(`export default class Plain { x = 1; }`)).toBe(null);
+		expect(reg(`class Plain {}\nexport default Plain;`)).toBe(null);
+	});
+
+	it('a default export of something else is not taken for a class', () => {
+		const src = dedent`
+			export class C { ${WIRE_MEMBER} }
+			const C2 = 1;
+			export default C2;
+		`;
+		const out = reg(src)!;
+		expect(out).toContain('__OGT("cart.ts#C", C);');
+		expect(out).not.toContain('#default');
+	});
+
+	it('an anonymous default wire class is a build error that asks for a name', () => {
+		const src = dedent`
+			import x from './x.ts';
+
+			export default class { ${WIRE_MEMBER} }
+		`;
+		let err: unknown;
+		try {
+			reg(src);
+		} catch (e) {
+			err = e;
+		}
+		expect((err as { code?: string } | undefined)?.code).toBe('wire_class_anonymous');
+		expect(String(err)).toContain('/app/cart.ts:3');
+		expect(String(err)).toContain('https://ogygiajs.dev/e/wire_class_anonymous');
+	});
+
+	it('an anonymous default class with no wire codec is left alone', () => {
+		expect(reg(`export default class { x = 1; }`)).toBe(null);
+	});
+});
+
 describe('runtime — explicit codec round-trip', () => {
 	class Point {
 		x = 0;

@@ -30,7 +30,7 @@ look, import the two stylesheets once (in the root layout); for your own, style 
 	import Switcher from './Switcher.svelte' with { wake: 'load' };
 	import Search from './Search.svelte' with { wake: 'idle' };
 	import ThemeToggle from './ThemeToggle.svelte' with { wake: 'load' };
-	import ShellBar from './ShellBar.svelte' with { wake: 'load' };
+	import ShellBar from './ShellBar.svelte' with { wake: 'load', keep: 'og-shell-bar' };
 	import type { NavTree } from '../types.ts';
 	import type { Snippet } from 'svelte';
 
