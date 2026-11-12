@@ -22,10 +22,10 @@ import { is_deferred, ours_on_kit_document, region_ssr_truncated } from './regio
 import { boot_link, slots, type LiftedLake } from './slots.ts';
 import { report_thrown } from '../report-thrown.ts';
 import type { HeadMark } from './session.ts';
-import { keep_host_classes, note_host_classes } from './host-classes.ts';
-import { install as install_hydrate_features } from 'virtual:ogygia/hydrate-features';
+import { install_hydrate_features } from 'ogygia:boot';
 import { emit as dt_emit } from '../events/bus.ts';
 import { warn } from '../messages/lazy.ts';
+import { OG_FP, OG_HEALED, OG_RECOVERED, OGYGIA_KEEP } from '../wire-markup.ts';
 import { say } from '@ogygia/machine';
 
 // The page's seeds, through their features' slots (`page`, `remote-seeds`: hydrate phase, installed
@@ -47,13 +47,21 @@ install_hydrate_features();
 // module (./slots.ts `BootLink`: a module both import is split out of the runtime chunk).
 const kit_hydrates_page = () => boot_link().kit_hydrates_page();
 const props_sidecar_of = (region: Element) => boot_link().props_sidecar_of(region);
-const parse_region_html = (html: string) => boot_link().parse_region_html(html);
+// (the region's own server copy: the page's HTML, ./html-sink.ts `vouch_page_html`)
+const parse_own_html = (html: string) =>
+	boot_link().parse_region_html(boot_link().vouch_page_html(html));
+const set_own_inner_html = (el: Element, html: string) =>
+	boot_link().set_inner_html(el, boot_link().vouch_page_html(html));
 // DOM ownership (./ownership.ts), through the registry like every boot helper
 const walk_enters = (el: Element) => boot_link().walk_enters(el);
 const is_self_owned = (el: Element) => boot_link().is_self_owned(el);
 
 // DEVTOOLS gate — module-local const from the Vite `define` (proven DCE pattern); off → folds out.
 const DEVTOOLS = typeof __OGYGIA_DEVTOOLS__ !== 'undefined' ? __OGYGIA_DEVTOOLS__ : false;
+const HOOK_REGION_MISMATCHED =
+	typeof __OGYGIA_HOOK_REGION_MISMATCHED__ !== 'undefined'
+		? __OGYGIA_HOOK_REGION_MISMATCHED__
+		: true;
 
 /** The morph target for hydration repair: the server sequence Svelte's walk binds — see `repair_markup`. */
 const REPAIR_MORPH = { target: 'walk' } as const;
@@ -346,14 +354,14 @@ export function repair_if_drifted(
 	region: HTMLElement,
 	ssr_html: string
 ): { repaired: boolean; reason: string | null; conflict: string | null } {
-	// Parse through the ONE DSD-aware parser (parse-html.ts): the content stays inert (a template's
+	// Parse through the ONE DSD-aware parser (html-sink.ts): the content stays inert (a template's
 	// content never upgrades — attaching a declarative shadow root is a parse step, not an upgrade), but
 	// a `<template shadowrootmode>` in the copy is consumed into a shadow root instead of lingering as an
 	// inert light-DOM child. That keeps `want`'s light-DOM sequence consistent with a live region whose
 	// hosts already carry shadow roots, so a server copy that happens to carry DSD can't trip
 	// sequence_differs. Today ssr_html is the region's own live innerHTML (never serialises a shadow), so
 	// this is belt-and-braces — but it means there is no second, DSD-unaware parse to drift.
-	const content = parse_region_html(ssr_html);
+	const content = parse_own_html(ssr_html);
 	// The copy under a region of its own — in the parse fragment's inert document, so the element never
 	// upgrades — lifted by the very routine that lifted the live island (what it leaves in a lake, it
 	// leaves in both).
@@ -363,7 +371,10 @@ export function repair_if_drifted(
 	if (!sequence_differs(region, want)) return { repaired: false, reason: null, conflict: null };
 	// Name the drift BEFORE repairing (repair rewrites the live sequence). The string is read only by
 	// the DEV console + devtools, so a prod-without-devtools build skips building it (the walk DCEs).
-	const reason = import.meta.env.DEV || DEVTOOLS ? describe_divergence(region, want) : null;
+	const reason =
+		import.meta.env.DEV || DEVTOOLS || (HOOK_REGION_MISMATCHED && slots.hooks?.regionMismatched)
+			? describe_divergence(region, want)
+			: null;
 	conflict = null;
 	repair_markup(region, want);
 	const met = conflict;
@@ -394,7 +405,7 @@ function align_to(live: Element, want: Element | DocumentFragment): boolean {
 			if (is_self_owned(child)) note_conflict(child);
 			const morph = slots.morph;
 			if (morph) morph(child, Array.from(want_elements[i].childNodes), REPAIR_MORPH);
-			else child.innerHTML = (want_elements[i] as Element).innerHTML;
+			else set_own_inner_html(child, (want_elements[i] as Element).innerHTML);
 		}
 	}
 	// This level: drop every live text / comment node, then put the server's back around the
@@ -464,6 +475,13 @@ function region_prop_revivers(): Record<string, (d: never) => unknown> | undefin
 				}
 			};
 	return cached_revivers;
+}
+
+/** A KEPT region reads the props of its incoming twin (`next`, the new page's copy): the ids they
+ *  resolve are the kept region's from now on (R3 ownership), so its removal on a later navigation
+ *  disposes them. */
+export function absorb_region_props(region: Element, next: Element): Record<string, unknown> {
+	return capture_region_ids(region, () => read_region_props(next));
 }
 
 /**
@@ -741,9 +759,9 @@ export function hydrate_island(
 		const wrapped = foreign ? props : prop_guard.wrap(props, entry);
 		// Keep needs SPA navigation — a full-page load throws the DOM away, so there is nothing
 		// to relocate. Warn (dev) when the router is off on this page.
-		const keep = region.hasAttribute('data-ogygia-keep') && !!slots.Pushable;
+		const keep = region.hasAttribute(OGYGIA_KEEP) && !!slots.Pushable;
 		if (keep && import.meta.env.DEV && !document.querySelector('meta[name="ogygia-router"]')) {
-			warn('keep_without_router', { entry, key: region.getAttribute('data-ogygia-keep') || '' });
+			warn('keep_without_router', { entry, key: region.getAttribute(OGYGIA_KEEP) || '' });
 		}
 
 		/**
@@ -784,7 +802,7 @@ export function hydrate_island(
 				const app = hydrate(Component, {
 					target: region,
 					props: pushed ? pushed.props : wrapped,
-					context: nested_context(provided_ctx),
+					context: nested_context(provided_ctx, region),
 					...recovery
 				});
 				return handle(app, unmount_app, entry, pushed);
@@ -804,9 +822,9 @@ export function hydrate_island(
 		// that attempt by design, so without this the recovery warning below could never say WHY the
 		// walk failed — only that the pre-hydrate check saw drift, which repair may well have fixed.
 		let strict_error: unknown = null;
-		// (a web component's own class tokens on its host: Svelte's hydration writes `class` whole —
-		// runtime/host-classes.ts puts the component's back after it)
-		const host_classes = note_host_classes(region);
+		// (the plugins around Svelte's hydrate: @ogygia/reshape puts a web component's own class
+		// tokens back on its host, since Svelte's hydration writes `class` whole)
+		const after_hydrate = boot_link().region_hydrate(region);
 		try {
 			out = quietly(() => attempt(false));
 			healed = repaired;
@@ -814,18 +832,24 @@ export function hydrate_island(
 			strict_error = err;
 			out = attempt(true);
 		}
-		keep_host_classes(host_classes);
+		after_hydrate?.();
 		if (healed) {
 			// The reason is the "why" — recorded on the element so DOM inspection shows it, carried on
 			// the devtools event, and appended to the console line. Empty string when unknown.
-			region.setAttribute('data-og-healed', drift.reason || '');
+			region.setAttribute(OG_HEALED, drift.reason || '');
 			if (DEVTOOLS)
 				dt_emit({
 					domain: 'runtime',
 					name: 'region.hydrate.healed',
 					entry,
-					fp: region.getAttribute('data-og-fp') || undefined,
+					fp: region.getAttribute(OG_FP) || undefined,
 					reason: drift.reason || undefined
+				});
+			if (HOOK_REGION_MISMATCHED)
+				slots.hooks?.regionMismatched?.({
+					el: region,
+					kind: 'healed',
+					...(drift.reason ? { reason: drift.reason } : {})
 				});
 			if (import.meta.env.DEV) warn('island_healed', { entry, drift: drift.reason });
 		}
@@ -837,9 +861,11 @@ export function hydrate_island(
 					domain: 'runtime',
 					name: 'region.hydrate.conflict',
 					entry,
-					fp: region.getAttribute('data-og-fp') || undefined,
+					fp: region.getAttribute(OG_FP) || undefined,
 					reason: drift.conflict
 				});
+			if (HOOK_REGION_MISMATCHED)
+				slots.hooks?.regionMismatched?.({ el: region, kind: 'conflict', reason: drift.conflict });
 			if (import.meta.env.DEV) warn('ownership_conflict', { element: drift.conflict }, entry);
 		}
 
@@ -867,14 +893,20 @@ export function hydrate_island(
 			// there was still the mutated one). Null when the sequences matched yet Svelte recovered
 			// anyway — a mismatch our walk does not see (an attribute, a Svelte-internal anchor) — then
 			// the general guidance below stands on its own.
-			region.setAttribute('data-og-recovered', drift.reason || '');
+			region.setAttribute(OG_RECOVERED, drift.reason || '');
 			if (DEVTOOLS)
 				dt_emit({
 					domain: 'runtime',
 					name: 'region.hydrate.recovered',
 					entry,
-					fp: region.getAttribute('data-og-fp') || undefined,
+					fp: region.getAttribute(OG_FP) || undefined,
 					reason: drift.reason || undefined
+				});
+			if (HOOK_REGION_MISMATCHED)
+				slots.hooks?.regionMismatched?.({
+					el: region,
+					kind: 'recovered',
+					...(drift.reason ? { reason: drift.reason } : {})
 				});
 			warn('hydration_discarded', {
 				entry,
@@ -923,13 +955,21 @@ export function hydrate_live(
 		return null;
 	}
 	const provided_ctx = capture_region_ids(region, () => slots.context?.(region));
-	const host_classes = note_host_classes(region);
+	const after_hydrate = boot_link().region_hydrate(region);
 	const pushed = new slots.Pushable(prop_guard.wrap(props, entry));
-	const app = hydrate(mod.default, {
-		target: region,
-		props: pushed.props,
-		context: nested_context(provided_ctx)
-	});
-	keep_host_classes(host_classes);
+	// (the region hydrating now: what its island reads while it hydrates is its own, e.g. the Kit
+	// queries it holds, shims/kit-remote/remote-cache.ts)
+	set_current_region(region);
+	let app: unknown;
+	try {
+		app = hydrate(mod.default, {
+			target: region,
+			props: pushed.props,
+			context: nested_context(provided_ctx, region)
+		});
+	} finally {
+		set_current_region(null);
+	}
+	after_hydrate?.();
 	return handle(app, unmount_app, entry, pushed);
 }
