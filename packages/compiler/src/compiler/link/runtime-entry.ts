@@ -31,6 +31,10 @@ export type RuntimeMarks = {
 	 *  cannot follow (a package, an unresolvable import), or a client plugin / federation that hands
 	 *  the runtime islands the walk never saw. Gates the page seed and the MPA navigation handle. */
 	page?: boolean;
+	/** The page can carry regions this build never compiled (federation: a peer's fragment brings its
+	 *  own islands, holes and lakes, at run time). Their kinds are unknown here, so every feature a
+	 *  region in the HTML can need is in: test/page-mark.test.ts › "foreign regions" (#909). */
+	foreign?: boolean;
 };
 
 export type FeatureId =
@@ -79,7 +83,7 @@ export const FEATURES: Record<FeatureId, FeatureDef> = {
 		deps: [],
 		// every island that hydrates on the client: a scheduled one is armed too until it is live
 		// (a lake — `none` — never hydrates)
-		detect: (m) => (m.hydrate || []).some((w) => w !== 'none')
+		detect: (m) => m.foreign === true || (m.hydrate || []).some((w) => w !== 'none')
 	},
 	forms: {
 		module: 'form-continuity.js',
@@ -101,7 +105,7 @@ export const FEATURES: Record<FeatureId, FeatureDef> = {
 	lakes: {
 		module: 'lakes.js',
 		deps: [],
-		detect: (m) => m.lakes === true || (m.hydrate || []).includes('none')
+		detect: (m) => m.foreign === true || m.lakes === true || (m.hydrate || []).includes('none')
 	},
 	morph: {
 		module: 'morph.js',
@@ -111,7 +115,11 @@ export const FEATURES: Record<FeatureId, FeatureDef> = {
 		// #apply must MORPH that live node, not replace it (a plain swap re-creates a menu open right
 		// now; core.ts #apply). The frames feature already tracks `defer` for the same streamed HTML.
 		detect: (m) =>
-			m.live === true || m.morph === true || m.router === true || (m.defer || []).length > 0
+			m.foreign === true ||
+			m.live === true ||
+			m.morph === true ||
+			m.router === true ||
+			(m.defer || []).length > 0
 	},
 	live: {
 		module: 'live.js',
@@ -162,7 +170,11 @@ export const FEATURES: Record<FeatureId, FeatureDef> = {
 		// island / held region), a live/morphing region, or a lake. A plain load-hydrated app has
 		// none of these and tree-shakes the store away. (The router's single-flight nav imports the store separately.)
 		detect: (m) =>
-			(m.defer || []).length > 0 || m.live === true || m.morph === true || m.lakes === true
+			m.foreign === true ||
+			(m.defer || []).length > 0 ||
+			m.live === true ||
+			m.morph === true ||
+			m.lakes === true
 	},
 	context: {
 		module: 'context.js',
