@@ -583,8 +583,18 @@ class Scan {
 			throw new All(`the whole page is passed to \`${name}(…)\``, at);
 		}
 		if (parent.type === 'ArrayExpression') {
-			// only as a `derived([...])` source list
-			return;
+			// `derived([…, page, …], fn)`'s source list: the callback's parameter is tracked in pass 1.
+			// Any other array carries the whole page on (test: page-keys-soundness `[page][0]`).
+			const call = parent.__parent as Node | null;
+			if (
+				call?.type === 'CallExpression' &&
+				call.callee?.type === 'Identifier' &&
+				call.callee.name === 'derived' &&
+				call.arguments?.[0] === parent &&
+				call.arguments.length >= 2
+			)
+				return;
+			throw new All('the whole page is put in an array', at);
 		}
 		// `Object.keys(page)` reads names, never values: nothing of `data` can leave through it
 		if (
@@ -618,6 +628,10 @@ class Scan {
 		if (owner.type === 'MemberExpression' && owner_key === 'object') {
 			const k = member_name(owner);
 			if (k === null) throw new All('`page.data[…]` is indexed with an expression', at);
+			// `page.data.k(…)` hands `page.data` to the method as `this` (`hasOwnProperty('x')` reads x)
+			const call = unwrap_up(owner);
+			if (call.parent?.type === 'CallExpression' && call.key === 'callee')
+				throw new All(`\`page.data.${k}(…)\` is called with \`page.data\` as \`this\``, at);
 			this.keys.add(k);
 			return;
 		}
