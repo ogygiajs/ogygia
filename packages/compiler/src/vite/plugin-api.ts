@@ -33,6 +33,7 @@ import {
 	type RuntimeHookName
 } from '@ogygia/core/contract';
 import { OgygiaError } from '../compiler/messages.ts';
+import type { Definers } from './definers.ts';
 import { parse_module, type AstNode } from '../compiler/parse/oxc.ts';
 
 /** Where `definePlugin` puts the definition on the Vite plugin it returns. A registered symbol, so a
@@ -90,8 +91,8 @@ export interface MarkupSource {
 	/** The format's modules, absolute path → their post-preprocess Svelte source. A module only ever
 	 *  renders on the server, so no client chunk carries its CSS: the build ships, as one client asset
 	 *  per module, the scoped CSS of its own `<style>` and of every component it imports (and plain
-	 *  style imports). The plugin keeps filling this map; the build reads it late. */
-	modules?: ReadonlyMap<string, string>;
+	 *  style imports). The plugin keeps filling it ([path, source] pairs); the build reads it late. */
+	modules?: Iterable<readonly [string, string]>;
 }
 
 /** What the build hands back for a markup source: run the region transform on preprocessed Svelte. */
@@ -188,6 +189,11 @@ export interface BuildContext {
 	/** A source format that becomes Svelte through a preprocessor (markdown): register it, get the
 	 *  island transform to call from that preprocessor. */
 	markup(source: MarkupSource): MarkupRegions;
+	/** Calls that define things for the life of the module making them (`content`, `flag`): exported
+	 *  as `names` from `module`. In dev each such call in a server module is marked with its module's
+	 *  run (./definers.ts), so a definition deleted from the code leaves when the module reloads; the
+	 *  definer reads the run with `defining()` from @ogygia/machine. */
+	definers(module: string, names: readonly string[]): void;
 	/** Compile core's EVENT emits in, browser and server (`ogygia/events`: island wakes, server renders,
 	 *  hub mints, navigations) — off, every emit folds away. `lazy`: measure only once a viewer opens a
 	 *  tool (the page carries a launcher; a preview build). */
@@ -271,6 +277,8 @@ export interface ResolvedPlugins {
 	macros: { name: string; handler: MacroHandler }[];
 	/** markup sources (a preprocessor format with islands) */
 	markup: MarkupSource[];
+	/** the definer calls plugins named (`b.definers()`): marked in dev with their module's run */
+	definers: Definers[];
 	/** a plugin asked for core's events (`lazy`: measure once a tool opens), or false */
 	events: false | { lazy: boolean };
 	/** a plugin asked for the build's measurement data */
@@ -481,6 +489,7 @@ export function resolve_plugins(
 		foreign_hydrate: false,
 		macros: [],
 		markup: [],
+		definers: [],
 		events: false,
 		measure: false,
 		files: [],
@@ -536,6 +545,9 @@ export function resolve_plugins(
 			markup(source) {
 				out.markup.push(source);
 				return { transform: markup_transform };
+			},
+			definers(module, names) {
+				out.definers.push({ module, names: [...names] });
 			},
 			events(options) {
 				// eager wins: one plugin measuring from boot outranks another's launcher-only ask

@@ -2143,6 +2143,10 @@ try {
 	{
 		const read = async (path) => {
 			const page = await browser.newPage({ viewport: { width: 1400, height: 900 } });
+			// (the testing engine, as @ogygia/testing injects it: its hydration() reads the diff)
+			await page.addInitScript({
+				path: fileURLToPath(new URL('../../packages/testing/dist/engine.js', import.meta.url))
+			});
 			await page.goto(base + path, { waitUntil: 'load' });
 			await page.waitForTimeout(2000);
 			const f = await page.evaluate(() =>

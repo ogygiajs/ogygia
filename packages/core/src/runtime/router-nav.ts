@@ -73,6 +73,8 @@ const jump_to_hash = (hash: string) => router_link().jump_to_hash(hash);
 const DEVTOOLS = typeof __OGYGIA_DEVTOOLS__ !== 'undefined' ? __OGYGIA_DEVTOOLS__ : false;
 const HOOK_NAVIGATED =
 	typeof __OGYGIA_HOOK_NAVIGATED__ !== 'undefined' ? __OGYGIA_HOOK_NAVIGATED__ : true;
+const HOOK_NAV_STARTED =
+	typeof __OGYGIA_HOOK_NAV_STARTED__ !== 'undefined' ? __OGYGIA_HOOK_NAV_STARTED__ : true;
 /** The monotonic clock, for devtools nav timings (dead when off). */
 const dt_now = clock.mono;
 
@@ -492,9 +494,12 @@ const pages = (): Pages =>
 		weigh: (answer) =>
 			Math.max((answer.page?.html.length ?? 0) * 2, PAGE_CACHE_MAX_BYTES / PAGE_CACHE_MAX_ENTRIES)
 	}));
-/** Hrefs whose prefetched HTML was already scanned for island entries — parse once. (URL-level
- *  import dedupe lives in the shared `warm_island_module`.) */
-const warmed_pages = new Set<string>();
+type Memo<K, V> = import('@ogygia/machine').Cache<K, V>;
+/** Hrefs whose prefetched HTML was already scanned for island entries — parse once (the least
+ *  recently warmed go first). (URL-level import dedupe lives in the shared `warm_island_module`.) */
+let warmed_pages_memo: Memo<string, true> | undefined;
+const warmed_pages = () =>
+	(warmed_pages_memo ??= boot_link().cache({ name: 'warmed pages', max: 512 }));
 /** (Hard SPA navigations are the router's own machine, `r.nav` (./navigation.ts), so a "same
  *  document" decision there can stop one in flight: SpaRouter.supersede. The soft refresh is its
  *  machine too, `boot_link().soft` (./soft-refresh.ts): the boot holds it, as a page without the
@@ -642,8 +647,8 @@ async function run_page_fetch(
  * A cheap attribute scan avoids building a whole detached Document during the hover window.
  */
 function warm_modules(href: string, html: string) {
-	if (warmed_pages.has(href)) return;
-	warmed_pages.add(href);
+	if (warmed_pages().has(href)) return;
+	warmed_pages().set(href, true);
 	// Match `entry="…"` on ogygia-region open tags in our own SSR output (module URLs never contain
 	// a double-quote), collecting the distinct client-island module specifiers. URL-level dedupe +
 	// failure-retry live in the shared warmer (one scheme for router/visible/interaction warms).
@@ -758,6 +763,12 @@ export async function navigate(
 			name: 'nav.start',
 			from: from.pathname + from.search,
 			to: url.pathname + url.search,
+			type
+		});
+	if (HOOK_NAV_STARTED)
+		slots.hooks?.navStarted?.({
+			from: `${from.pathname}${from.search}`,
+			to: `${url.pathname}${url.search}`,
 			type
 		});
 
@@ -1036,7 +1047,8 @@ export async function navigate(
 			fetched: built.fetched,
 			styled: built.styled,
 			swapped: performance.now(),
-			href: url.href
+			href: url.href,
+			reconciled: built.reconciled
 		});
 	if (DEVTOOLS)
 		dt_emit({
