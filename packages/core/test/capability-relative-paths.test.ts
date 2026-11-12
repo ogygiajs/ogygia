@@ -27,4 +27,17 @@ describe("a capability minted under Kit's relative paths", () => {
 	it('is a path from the root, not one relative to the page being rendered', () => {
 		expect(mint_server_region('abc123', {})).toMatch(/^\/__ogygia__\?id=abc123&/);
 	});
+
+	it("is a path from the root under the app's base (paths.base)", async () => {
+		// Kit's build define: the configured base, absolute, whatever `paths.relative` says
+		const g = globalThis as { __SVELTEKIT_PATHS_BASE__?: string };
+		g.__SVELTEKIT_PATHS_BASE__ = '/shop';
+		vi.resetModules();
+		try {
+			const fresh = await import('../src/server/region-endpoint.ts');
+			expect(fresh.mint_server_region('abc123', {})).toMatch(/^\/shop\/__ogygia__\?id=abc123&/);
+		} finally {
+			delete g.__SVELTEKIT_PATHS_BASE__;
+		}
+	});
 });
