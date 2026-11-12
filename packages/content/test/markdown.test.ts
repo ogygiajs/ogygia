@@ -280,7 +280,11 @@ describe('scoped heading ids', () => {
 	});
 
 	it('an explicit {#id} reserves it: a later heading that slugs to it gets a suffix', async () => {
-		const code = await render(['## Setup {#install}', '', '## Install'].join('\n'));
+		const code = await render(dedent`
+			## Setup {#install}
+
+			## Install
+		`);
 		expect(code).toContain('id="install"');
 		expect(code).toContain('id="install-1"');
 	});

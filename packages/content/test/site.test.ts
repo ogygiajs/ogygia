@@ -801,7 +801,15 @@ describe('search — projection', () => {
 						filePath: 'content/docs/00-start/00-odd/+doc.svx',
 						data: { title: 'Odd' },
 						meta: { headings: [] },
-						source: async () => '# Odd\n\nLead text.\n\n## Extra\n\nMore text.'
+						source: async () => dedent`
+							# Odd
+
+							Lead text.
+
+							## Extra
+
+							More text.
+						`
 					}
 				]),
 				schema: docSchema

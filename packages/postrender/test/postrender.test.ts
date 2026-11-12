@@ -199,8 +199,8 @@ function fake_valkey(): ValkeyLike & { data: Map<string, string>; expiry: Map<st
 			for (let i = 0; i < match.length; i++) {
 				const c = match[i];
 				if (c === '\\') source += regex_escape(match[++i]);
-				else if (c === '*') source += '.*';
-				else if (c === '?') source += '.';
+				else if (c === '*') source = `${source}.*`;
+				else if (c === '?') source = `${source}.`;
 				else source += regex_escape(c);
 			}
 			const re = new RegExp(`^${source}$`);

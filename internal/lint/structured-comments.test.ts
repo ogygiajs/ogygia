@@ -212,17 +212,18 @@ test('a @packageDocumentation block passes at the top of a file; anywhere else i
 });
 
 test('an `// ok: <reason>` note passes, as the no-silent-failures rules ask for it; a bare `ok:` is reported', () => {
-	const src = [
-		'export async function f(p: Promise<void>) {', // 1
-		'\tp.catch(() => {}); // ok: the caller reports it', // 2
-		'\ttry {', // 3
-		'\t\tawait p;', // 4
-		'\t} catch {', // 5
-		'\t\t// ok: a second read is fine', // 6
-		'\t}', // 7
-		'\tp.catch(() => {}); // ok:', // 8
-		'}' // 9
-	].join('\n');
+	// (line 8 is the bare `ok:`)
+	const src = dedent`
+		export async function f(p: Promise<void>) {
+			p.catch(() => {}); // ok: the caller reports it
+			try {
+				await p;
+			} catch {
+				// ok: a second read is fine
+			}
+			p.catch(() => {}); // ok:
+		}
+	`;
 	assert.deepEqual(findings({ [A]: src }), { [A]: [8] });
 });
 

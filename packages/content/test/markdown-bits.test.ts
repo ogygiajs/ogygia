@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { render_markdown } from '../src/markdown/render-md.ts';
 import { render_snippet } from '../src/markdown/snippet.ts';
 import { remarkLinks } from '../src/markdown/remark-links.ts';
+import { dedent } from '@ogygia/core/plugin/utils';
 
 describe('md(): a markdown string rendered at build time', () => {
 	it('renders static prose to html', async () => {
@@ -11,18 +12,32 @@ describe('md(): a markdown string rendered at build time', () => {
 	});
 
 	it('content that compiles to something dynamic is a build error', async () => {
-		await expect(render_markdown(null, '<script>let a = 1;</script>\n\nHi.')).rejects.toMatchObject(
-			{
-				code: 'content_md_dynamic'
-			}
-		);
+		await expect(
+			render_markdown(
+				null,
+				dedent`
+			<script>let a = 1;</script>
+
+			Hi.
+		`
+			)
+		).rejects.toMatchObject({
+			code: 'content_md_dynamic'
+		});
 	});
 });
 
 describe('code(): a snippet rendered at build time', () => {
 	it('renders the same code html as the same fence in a markdown document, but for its code id', async () => {
 		const snippet = await render_snippet(null, 'let a = 1;', 'js', 'file="a.js"');
-		const fence = await render_markdown(null, '```js file="a.js"\nlet a = 1;\n```');
+		const fence = await render_markdown(
+			null,
+			dedent`
+				\`\`\`js file="a.js"
+				let a = 1;
+				\`\`\`
+			`
+		);
 		expect(snippet.html).toContain('data-file="a.js"');
 		expect(fence.replace(/ id="code-[^"]*"/, '')).toBe(snippet.html);
 	});

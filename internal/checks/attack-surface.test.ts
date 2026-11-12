@@ -56,21 +56,21 @@ test('comments, secrets and routes', () => {
 });
 
 test("a usage sample in a Svelte component's markup comment is not a surface", () => {
-	const src = [
-		'<!--',
-		'@component',
-		"A head script: `{@html script((k) => k, 'og-theme')}`",
-		'',
-		'```ts',
-		"export const load = async ({ url }) => url.searchParams.get('q');",
-		'```',
-		'-->',
-		'<!-- one line: {@html x} -->',
-		'<script lang="ts">',
-		"\tconst q = page.url.searchParams.get('q');",
-		'</script>',
-		'{@html note}'
-	].join('\n');
+	const src = dedent`
+		<!--
+		@component
+		A head script: \`{@html script((k) => k, 'og-theme')}\`
+
+		\`\`\`ts
+		export const load = async ({ url }) => url.searchParams.get('q');
+		\`\`\`
+		-->
+		<!-- one line: {@html x} -->
+		<script lang="ts">
+			const q = page.url.searchParams.get('q');
+		</script>
+		{@html note}
+	`;
 	assert.deepEqual(
 		scan_file('C.svelte', src)
 			.map((e) => `${e.kind} ${e.where} ${e.what} ${e.count}`)

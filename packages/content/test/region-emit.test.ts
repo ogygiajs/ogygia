@@ -117,7 +117,12 @@ describe('try_region_emit', () => {
 
 	it('reads a Svelte 5 `<script module>` as the module script, as it does `context="module"`', () => {
 		const out = try_region_emit(
-			`<script module>\nexport const metadata = {"title":"X"};\n</script>\n<p>hi</p>`,
+			dedent`
+				<script module>
+				export const metadata = {"title":"X"};
+				</script>
+				<p>hi</p>
+			`,
 			[]
 		);
 		expect(out!.html).toBe('<p>hi</p>');

@@ -416,7 +416,14 @@ describe('parse_yaml — adversarial mixes', () => {
 
 describe('parse_yaml — the rest of the supported subset', () => {
 	it('nests at any consistent indent width (four spaces)', () => {
-		expect(parse_yaml('a:\n    b:\n        c: 1\n    d: 2')).toEqual({ a: { b: { c: 1 }, d: 2 } });
+		expect(
+			parse_yaml(dedent`
+			a:
+			    b:
+			        c: 1
+			    d: 2
+		`)
+		).toEqual({ a: { b: { c: 1 }, d: 2 } });
 	});
 
 	it('double-quoted escapes: \\r \\0 \\b \\f \\/', () => {
@@ -449,16 +456,42 @@ describe('parse_yaml — the rest of the supported subset', () => {
 	});
 
 	it('chomping: |+ keeps the trailing blank lines, >- strips the last newline', () => {
-		expect(parse_yaml('a: |+\n  x\n\nb: 1')).toEqual({ a: 'x\n\n', b: 1 });
-		expect(parse_yaml('a: >-\n  x\n  y')).toEqual({ a: 'x y' });
+		expect(
+			parse_yaml(dedent`
+			a: |+
+			  x
+
+			b: 1
+		`)
+		).toEqual({ a: 'x\n\n', b: 1 });
+		expect(
+			parse_yaml(dedent`
+			a: >-
+			  x
+			  y
+		`)
+		).toEqual({ a: 'x y' });
 	});
 
 	it('an explicit indent indicator (|1) keeps the spaces past it', () => {
-		expect(parse_yaml('a: |1\n   x\n   y')).toEqual({ a: '  x\n  y\n' });
+		expect(
+			parse_yaml(dedent`
+			a: |1
+			   x
+			   y
+		`)
+		).toEqual({ a: '  x\n  y\n' });
 	});
 
 	it('anchors, aliases, tags and merge keys stay plain text', () => {
-		expect(parse_yaml('a: &x 1\nb: *x\nc: !!str 5\n<<: *x')).toEqual({
+		expect(
+			parse_yaml(dedent`
+			a: &x 1
+			b: *x
+			c: !!str 5
+			<<: *x
+		`)
+		).toEqual({
 			a: '&x 1',
 			b: '*x',
 			c: '!!str 5',
@@ -467,7 +500,13 @@ describe('parse_yaml — the rest of the supported subset', () => {
 	});
 
 	it('a second document after an inner --- is not read', () => {
-		expect(parse_yaml('a: 1\n---\nb: 2')).toEqual({ a: 1 });
+		expect(
+			parse_yaml(dedent`
+			a: 1
+			---
+			b: 2
+		`)
+		).toEqual({ a: 1 });
 	});
 
 	it('an empty key is rejected with its line', () => {
@@ -490,32 +529,89 @@ describe('parseFrontmatter', () => {
 	it('no opening fence: no data, the whole text is the body', () => {
 		expect(parseFrontmatter('# Hi\n')).toEqual({ data: {}, body: '# Hi\n' });
 		// a rule (`---`) later in the text is not a fence
-		expect(parseFrontmatter('Hi\n---\nbody')).toEqual({ data: {}, body: 'Hi\n---\nbody' });
+		expect(
+			parseFrontmatter(dedent`
+			Hi
+			---
+			body
+		`)
+		).toEqual({
+			data: {},
+			body: dedent`
+			Hi
+			---
+			body
+		`
+		});
 	});
 
 	it('no closing fence: no data, the whole text is the body', () => {
-		expect(parseFrontmatter('---\ntitle: x\n# Hi\n')).toEqual({
+		expect(
+			parseFrontmatter(
+				`${dedent`
+			---
+			title: x
+			# Hi
+		`}\n`
+			)
+		).toEqual({
 			data: {},
-			body: '---\ntitle: x\n# Hi\n'
+			body: `${dedent`
+				---
+				title: x
+				# Hi
+			`}\n`
 		});
 	});
 
 	it('a byte order mark before the fence is dropped', () => {
-		expect(parseFrontmatter('\uFEFF---\ntitle: x\n---\nbody')).toEqual({
+		expect(
+			parseFrontmatter(
+				String.fromCharCode(0xfeff) +
+					dedent`
+						---
+						title: x
+						---
+						body
+					`
+			)
+		).toEqual({
 			data: { title: 'x' },
 			body: 'body'
 		});
 	});
 
 	it('frontmatter that is a list or a scalar gives no data', () => {
-		expect(parseFrontmatter('---\n- a\n- b\n---\nbody').data).toEqual({});
-		expect(parseFrontmatter('---\njust text\n---\nbody').data).toEqual({});
+		expect(
+			parseFrontmatter(dedent`
+			---
+			- a
+			- b
+			---
+			body
+		`).data
+		).toEqual({});
+		expect(
+			parseFrontmatter(dedent`
+			---
+			just text
+			---
+			body
+		`).data
+		).toEqual({});
 	});
 
 	it('a parse failure is reported as invalid frontmatter, with the reason', () => {
-		expect(() => parseFrontmatter('---\na:\n\tb: 1\n---\n')).toThrow(
-			/invalid frontmatter YAML: .*tabs are not allowed for indentation/
-		);
+		expect(() =>
+			parseFrontmatter(
+				`${dedent`
+			---
+			a:
+				b: 1
+			---
+		`}\n`
+			)
+		).toThrow(/invalid frontmatter YAML: .*tabs are not allowed for indentation/);
 	});
 });
 
@@ -528,14 +624,34 @@ describe('the markdown preprocessor reads frontmatter with parse_yaml, not js-ya
 	};
 
 	it('no stays a string and {@const} stays the title', async () => {
-		const meta = await metadata('---\ncountry: no\ntitle: {@const}\n---\n\nHi\n');
+		const meta = await metadata(
+			`${dedent`
+			---
+			country: no
+			title: {@const}
+			---
+
+			Hi
+		`}\n`
+		);
 		expect(meta.country).toBe('no');
 		expect(meta.title).toBe('{@const}');
 	});
 
 	it('frontmatter that is a list gives no fields', async () => {
 		const none = await metadata('Hi\n');
-		expect(await metadata('---\n- a\n- b\n---\n\nHi\n')).toEqual(none);
+		expect(
+			await metadata(
+				`${dedent`
+			---
+			- a
+			- b
+			---
+
+			Hi
+		`}\n`
+			)
+		).toEqual(none);
 	});
 });
 

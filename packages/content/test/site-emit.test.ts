@@ -2,6 +2,7 @@
 import { describe, expect, it } from 'vitest';
 import { build_llms, build_sitemap } from '../src/site/emit.ts';
 import type { NavTree } from '../src/site/types.ts';
+import { dedent } from '@ogygia/core/plugin/utils';
 
 const tree: NavTree = [
 	{ kind: 'leaf', slug: 'intro', href: '/docs/intro', title: 'Intro' },
@@ -35,20 +36,19 @@ describe('emissions over a nested nav tree', () => {
 	it('llms.txt flattens a nested group into its section, with summaries and plain links', () => {
 		const txt = build_llms(tree, 'https://example.com', { title: 'T' });
 		expect(txt).toBe(
-			[
-				'# T',
-				'',
-				'## Pages',
-				'',
-				'- [Intro](https://example.com/docs/intro)',
-				'',
-				'## Guide',
-				'',
-				'- [A](https://example.com/docs/guide/a): first',
-				'- [B](https://example.com/docs/guide/deep/b)',
-				'- [Elsewhere](https://example.com/x)',
-				''
-			].join('\n')
+			`${dedent`
+				# T
+
+				## Pages
+
+				- [Intro](https://example.com/docs/intro)
+
+				## Guide
+
+				- [A](https://example.com/docs/guide/a): first
+				- [B](https://example.com/docs/guide/deep/b)
+				- [Elsewhere](https://example.com/x)
+			`}\n`
 		);
 	});
 });
