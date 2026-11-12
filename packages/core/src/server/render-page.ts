@@ -23,7 +23,7 @@ import * as devalue from 'devalue';
 import { flights, type Scope } from '@ogygia/machine';
 import { request_local } from '../plugin/request-scope.ts';
 import { open_reads } from '../plugin/reads.ts';
-import { islands_endpoint } from './endpoint.ts';
+import { renders_for_a_page } from './endpoint.ts';
 import type { KitPage } from './kit-context.ts';
 import type { PageSnapshot } from '../page-seed-registry.ts';
 import { look_up_page, type PageFacts } from './page-facts.ts';
@@ -44,13 +44,7 @@ export function configure_render_page(o: { warn: ((message: string) => void) | n
 	warn = o.warn;
 }
 
-/** A request rendering on behalf of a page it is not: the islands endpoint or a remote call. */
-export function renders_for_a_page(event: RequestEvent): boolean {
-	return (
-		event.url.pathname.endsWith(islands_endpoint()) ||
-		(event as { isRemoteRequest?: boolean }).isRemoteRequest === true
-	);
-}
+export { renders_for_a_page };
 
 /** The page a request renders for: the same-origin Referer of a request rendering for a page, else
  *  the request's own url. */
