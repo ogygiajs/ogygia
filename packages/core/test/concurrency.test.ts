@@ -83,6 +83,17 @@ describe('ConcurrencyGate: one deadline per call (the region render timeout, #19
 	beforeEach(() => vi.useFakeTimers());
 	afterEach(() => vi.useRealTimers());
 
+	it('a free slot is taken whatever the deadline: a deadline already due runs the body and is its run timeout', async () => {
+		const g = new ConcurrencyGate(1);
+		const b = bodies();
+		const call = g.run(b.body('due'), { deadline_ms: 0 });
+		const caught = call.catch((e: Error) => e.message);
+		await vi.advanceTimersByTimeAsync(0);
+		expect(b.order).toEqual(['due']); // it started
+		expect(await caught).toBe('region render timeout'); // the run timeout, not the queue's
+		b.end(0);
+	});
+
 	it('a body past its deadline is abandoned: its caller gets the timeout, its slot goes on', async () => {
 		const g = new ConcurrencyGate(1);
 		const b = bodies();
