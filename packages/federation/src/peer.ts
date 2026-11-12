@@ -18,7 +18,12 @@ import {
 import { error, isHttpError as is_http_error } from '@ogygia/router';
 import type { RegionValue } from '@ogygia/core';
 import { htmlRegion as og_html_region } from '@ogygia/core/plugin';
-import { current_request_scope, OG_FRAGMENT_FAILED } from '@ogygia/core/internal/server';
+import {
+	current_request_scope,
+	next_tag,
+	OG_FRAGMENT_FAILED,
+	value_at
+} from '@ogygia/core/internal/server';
 import { decodeText, escapeAttr } from '@ogygia/core/plugin/utils';
 import { fed_app } from './app.ts';
 import { warn } from './messages.ts';
@@ -44,9 +49,9 @@ const RULES =
 	import.meta.env?.DEV || (typeof __OGYGIA_RULES__ !== 'undefined' ? __OGYGIA_RULES__ : false);
 
 const HOST_UNSAFE_G = /[^a-zA-Z0-9_-]/g;
-/** A region element's opening tag, and the `endpoint` in it. */
-const REGION_OPEN_RE = /<ogygia-region\b[^>]*>/g;
-const ENDPOINT_ATTR_RE = /(\sendpoint=")([^"]*)(")/;
+/** A region element's tag name, and a cheap test for whether `html` may hold one. */
+const REGION = 'ogygia-region';
+const REGION_NEEDLE = /<ogygia-region/i;
 
 /** A failed hop, said once with its code: an answer that can't be used (an error status, or not its
  *  JSON document: `federation_peer_answer_invalid`), or no answer at all (`federation_peer_unreachable`).
@@ -437,17 +442,25 @@ export class PeerHandle implements Peer {
 	 * Test: test/peer-endpoints.test.ts (#910).
 	 */
 	#own_endpoints(html: string): string {
-		if (!html.includes('<ogygia-region')) return html;
-		return html.replace(REGION_OPEN_RE, (tag) =>
-			tag.replace(ENDPOINT_ATTR_RE, (whole, open: string, value: string, close: string) => {
-				const target = this.#own_target(decodeText(value));
-				const url =
-					target === null
-						? ''
-						: hole_url({ peer: this.name, kind: 'endpoint', target, search: '' });
-				return url ? open + escapeAttr(url) + close : whole;
-			})
-		);
+		if (!REGION_NEEDLE.test(html)) return html;
+		let out = '';
+		let kept = 0;
+		for (let t = next_tag(html, REGION, 0); t !== null; t = next_tag(html, REGION, t.next)) {
+			const value = t.attr('endpoint');
+			if (!value) continue;
+			const at = value_at(html, t, REGION, 'endpoint');
+			const target = at === -1 ? null : this.#own_target(decodeText(value));
+			if (target === null) continue;
+			const url = hole_url({ peer: this.name, kind: 'endpoint', target, search: '' });
+			if (!url) continue;
+			// (the new value is written in double quotes whatever quoted the old one: `escapeAttr`
+			// escapes for those, and a path may hold a `'`)
+			const q = html.charCodeAt(at - 1);
+			const quoted = q === 34 || q === 39 ? 1 : 0;
+			out += `${html.slice(kept, at - quoted)}"${escapeAttr(url)}"`;
+			kept = at + value.length + quoted;
+		}
+		return kept === 0 ? html : out + html.slice(kept);
 	}
 
 	/** The path and query `url` names on one of this peer's origins (a relative one, on its first),
