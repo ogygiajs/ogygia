@@ -801,6 +801,14 @@
 			"reason": "browser only: the navigation's commit, the head merge and body reconcile on the live document (not cloneable), linear in the page; proven in every palaestra navigation e2e and packages/core/test/browser/nav-swap-fails.test.ts (#276)"
 		},
 		{
+			"id": "packages/core/src/runtime/router-nav.ts > live_page_head",
+			"reason": "browser only: reads the live <head>'s page-owned nodes (not cloneable), linear in the head; proven in packages/core/test/browser/nav-head-order.test.ts (#794)"
+		},
+		{
+			"id": "packages/core/src/runtime/router-nav.ts > head_slot",
+			"reason": "browser only: walks a parsed head node's earlier siblings against the live <head> (not cloneable), linear in the head; proven in packages/core/test/browser/nav-head-order.test.ts (#794)"
+		},
+		{
 			"id": "packages/core/src/runtime/router-nav.ts > apply_sheet",
 			"reason": "browser only: gives a live link element its media back (two attribute writes), constant work; proven in packages/core/test/browser/nav-sheets-inert.test.ts (#267)"
 		},
@@ -1669,30 +1677,6 @@
 			"reason": "browser only: drops every page flight (a one-line predicate); proven in packages/core/test/browser/page-flights.test.ts"
 		},
 		{
-			"id": "packages/federation/src/messages.ts > FEDERATION_WARNINGS > federation_audience_missing > text",
-			"reason": "a warning's wording, constant text; said in packages/federation/test/federation.test.ts"
-		},
-		{
-			"id": "packages/federation/src/messages.ts > FEDERATION_WARNINGS > federation_audience_missing > details",
-			"reason": "a warning's longer wording for its error page, constant text"
-		},
-		{
-			"id": "packages/federation/src/wire.ts > checker > capability:0~070b09 > signer > sign",
-			"reason": "the check side's signer stub: it never signs (every check brings its own keys), no work"
-		},
-		{
-			"id": "packages/federation/src/wire.ts > checker > capability:0~070b09 > signer > verify",
-			"reason": "the check side's signer stub: every check brings its own keys, so this always refuses, no work"
-		},
-		{
-			"id": "packages/federation/src/wire.ts > minter > capability:0~81c9d6 > signer > verify",
-			"reason": "the mint side's verify stub: a minter checks nothing (the receiver brings its keys), no work"
-		},
-		{
-			"id": "packages/federation/src/wire.ts > configured_audience",
-			"reason": "reads the process's ORIGIN once per federate() (hidden state: the environment), one URL parse, constant work; proven in packages/federation/test/federation.test.ts"
-		},
-		{
 			"id": "packages/federation/src/peer.ts > noop",
 			"reason": "the empty handler for a background refresh's failure (the next stale read tries again): no work"
 		},
@@ -2427,6 +2411,34 @@
 		{
 			"id": "packages/core/src/runtime/frame-store.ts > answer_definition",
 			"reason": "builds the stored-answer machine definition (plain data: three states, their steps), once per address entry; its moves are measured by the frame-store bench, the definition itself is not cloneable"
+		},
+		{
+			"id": "packages/core/src/runtime/router-nav.ts > adopt_title",
+			"reason": "browser only: reads the parsed document's title and writes the live document's (not cloneable), constant work; proven in packages/core/test/browser/nav-no-title.test.ts"
+		},
+		{
+			"id": "packages/federation/src/messages.ts > FEDERATION_WARNINGS > federation_audience_missing > text",
+			"reason": "a warning's wording, constant text; said in packages/federation/test/federation.test.ts"
+		},
+		{
+			"id": "packages/federation/src/messages.ts > FEDERATION_WARNINGS > federation_audience_missing > details",
+			"reason": "a warning's longer wording for its error page, constant text"
+		},
+		{
+			"id": "packages/federation/src/wire.ts > checker > capability:0~070b09 > signer > sign",
+			"reason": "the check side's signer stub: it never signs (every check brings its own keys), no work"
+		},
+		{
+			"id": "packages/federation/src/wire.ts > checker > capability:0~070b09 > signer > verify",
+			"reason": "the check side's signer stub: every check brings its own keys, so this always refuses, no work"
+		},
+		{
+			"id": "packages/federation/src/wire.ts > minter > capability:0~81c9d6 > signer > verify",
+			"reason": "the mint side's verify stub: a minter checks nothing (the receiver brings its keys), no work"
+		},
+		{
+			"id": "packages/federation/src/wire.ts > configured_audience",
+			"reason": "reads the process's ORIGIN once per federate() (hidden state: the environment), one URL parse, constant work; proven in packages/federation/test/federation.test.ts"
 		},
 		{
 			"id": "packages/devtools/src/profiler/index.ts > Profiler > #ids",
