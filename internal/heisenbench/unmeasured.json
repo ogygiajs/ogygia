@@ -4783,6 +4783,10 @@
 		{
 			"id": "packages/core/src/messages/core.ts > WARNINGS > rule_region_left_busy > text",
 			"reason": "a message's one line for the dev warning: a template over the rule's detail, printed once when the rule breaks"
+		},
+		{
+			"id": "packages/core/src/frame.ts > is_batch_miss",
+			"reason": "an instanceof check and one name compare on an Error (its prototype is hidden state the recorder does not keep), constant work; proven in packages/core/test/frame-store.test.ts"
 		}
 	]
 }
