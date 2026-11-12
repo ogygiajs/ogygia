@@ -433,6 +433,9 @@ export async function mpa_equivalent(
 	const fresh_load = (w: World, visitor: Visitor, at: string, name: string) =>
 		w.as_of(build, () => load_fresh(w, visitor, at, name), world.answers_of(tab.realm));
 	const fresh = await fresh_load(world, v, url, 'fresh');
+	// (no reference: the build the page is of could not give it again, its stored copies dropped and
+	// a newer build's handed out instead, gen 131, seed 131003)
+	if (world.astray(fresh.tab.realm)) return null;
 	const loaded = view(fresh.tab.page.mainFrame.document as unknown as Document);
 	// (a text that changes on its own at rest is time, not state: a ticking clock in an island the
 	// navigation kept has run longer than the fresh load's. Each side is looked at once more a

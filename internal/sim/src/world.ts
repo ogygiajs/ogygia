@@ -393,6 +393,16 @@ export class World {
 		return (this.skewed.get(realm)?.size ?? 0) > 0;
 	}
 
+	/** Realms of a pinned load whose page came rendered by another build than the one asked: the page
+	 *  store handed out a newer build's copy (it dropped the old build's at the deploy, #949). */
+	readonly #astray = new Set<string>();
+
+	/** Whether a pinned load in `realm` got another build's page than the one it asked for: it is no
+	 *  reference for that build's page (test/pinned-store.node.test.ts). */
+	astray(realm: string): boolean {
+		return this.#astray.has(realm);
+	}
+
 	/** The build a request goes to now: the pinned one (`as_of`), else the live one, or during a
 	 *  rolling deploy's window, by even odds, the one before it. A content-hashed file only another
 	 *  build has goes to that build when the host keeps old files, a pinned load's too (gen 65,
@@ -509,6 +519,12 @@ export class World {
 				// (which build answered rides with the answer, so a cached copy says it too; a page store's
 				// copy is the build's that rendered it: test/stored-build.node.test.ts)
 				const rendered = this.#rendered_by(answer, build);
+				if (
+					this.#pinned !== null &&
+					rendered !== build &&
+					is_page_path(decodeURIComponent(url.pathname))
+				)
+					this.#astray.add(from);
 				const headers = new Headers(answer.headers);
 				headers.set(ANSWERED_BY, rendered);
 				return new Response(answer.body, {
