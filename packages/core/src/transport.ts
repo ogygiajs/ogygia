@@ -18,6 +18,7 @@
 import { REGION_BRAND } from './region-brand.ts';
 import { frameAddress, mark_written, type FrameOrder } from './frame.ts';
 import { shown_version, ticket, write } from './runtime/frame-store.ts';
+import { vouch_remote_answer } from './runtime/html-sink.ts';
 import { emit as dt_emit } from './events/bus.ts';
 import {
 	register_kind,
@@ -134,8 +135,9 @@ function decode_region(raw: EncodedRegion) {
 			const a = frameAddress(raw.u);
 			const v = ticket(a);
 			const d = raw.d;
-			if (d == null) write({ a, v, html: raw.x });
-			else if (!write({ a, v, d, html: raw.x })) dropped_older(a, d);
+			const html = vouch_remote_answer(raw.x);
+			if (d == null) write({ a, v, html });
+			else if (!write({ a, v, d, html })) dropped_older(a, d);
 			order = d == null ? { v } : { v, d };
 		}
 		const value = {
@@ -225,10 +227,10 @@ function ensure_all_kinds(): (value: unknown) => Ref | undefined {
  * underneath (hub v2 phase Y): `Region` preserves the legacy region wire shape/tag for
  * compatibility; `OgygiaRef` carries EVERY OTHER hub kind through the same `ref_reducer` /
  * `ref_reviver` the island seams use — so a universal `load` can put a store, wire class, fn or
- * resumable derived in `page.data`, and a remote function can take/return one, all by identity.
- * Kit routes remote args + load data through this same `transport`, so the symmetry is total.
- * Decode is REQUEST-scoped on the server (no `document`) — client-sent identity never memoizes
- * across requests — and PAGE-scoped in the browser (reunification).
+ * resumable derived in `page.data`, and a remote function can return one, all by identity. This is
+ * the BROWSER realm's transport: decode is PAGE-scoped (reunification). The server realm's
+ * (./server/transport.ts) encodes the same way and refuses every kind at decode, as the server
+ * decodes only what a browser sent (a remote function's argument), which is plain data.
  */
 export const ogygiaTransport: {
 	Region: {

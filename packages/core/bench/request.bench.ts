@@ -153,6 +153,7 @@ function event_of(
 /** The request bag, the way the handle builds one before it resolves the page. */
 function bag_of(request: Request): Bag {
 	const bag: Bag = {
+		request,
 		ctx: new Map(),
 		page: null,
 		seed_wanted: false,
