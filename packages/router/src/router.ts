@@ -514,8 +514,6 @@ export function routes<const T extends KeyedTable<T>>(
 					out.push({ path: base + leaf.pattern });
 					continue;
 				}
-				// a DYNAMIC pattern with declared param sets prerenders each filled path (Kit's
-				// per-route `entries` export); without them it's skipped (crawled or SSR'd live)
 				const list = leaf.def.entries ? await leaf.def.entries() : null;
 				if (list) for (const params of list) out.push({ path: base + fill(leaf.pattern, params) });
 			}
@@ -528,15 +526,12 @@ export function routes<const T extends KeyedTable<T>>(
 	return self;
 }
 
-// ── endpoints ─────────────────────────────────────────────────────────────────────────────────────
 async function run_endpoint(node: EndpointDef, ctx: Ctx, method: string): Promise<Response> {
 	const m = HEAD_AS_GET(method);
 	const allow = [...node.methods.keys()];
 	if (method === 'OPTIONS' && !node.methods.has('OPTIONS')) return options_response(allow);
 	const e = node.methods.get(m);
 	if (!e) return method_not_allowed(allow);
-	// Body schema (POST/PUT/PATCH): validate the parsed JSON body → typed `c.input` (400 on failure).
-	// Path params stay on `c.params`; query on `c.search`/`c.url` — three clean surfaces, no grab-bag.
 	if (e.bodySchema) {
 		let body: unknown = undefined;
 		const ct = ctx.request.headers.get('content-type') ?? '';
@@ -555,7 +550,6 @@ async function run_endpoint(node: EndpointDef, ctx: Ctx, method: string): Promis
 	return finalize(await e.handler(ctx));
 }
 
-/** Run a Standard Schema; issues normalized to `{ message, path }[]`. */
 async function validate(
 	schema: StandardSchemaV1,
 	input: unknown
@@ -567,7 +561,6 @@ async function validate(
 	return { value: r.value };
 }
 
-// ── helpers ─────────────────────────────────────────────────────────────────────────────────────
 const TRAILING_SLASH = /\/+$/;
 const LEADING_SLASHES = /^[/\\]+/;
 /** A redirect target that stays on this site: exactly one leading `/` and no `\` (test:
@@ -600,7 +593,4 @@ function page_allow(node: PageDef): string[] {
 	return a;
 }
 
-// `fill` moved to match.ts — shared with the typed `api()` client (one token grammar).
-
-// re-export the component type so LayoutChain's props stay in one vocabulary
 export type { Component };
