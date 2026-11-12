@@ -14,7 +14,8 @@
  *
  * A leaf: island-side code (./entry-locations.ts) imports it.
  */
-import { OgygiaError } from '../messages/island.ts';
+// (the boot's own table: this module is boot code, test/runtime-boot-svelte-free.test.ts)
+import { OgygiaError } from '../messages/core.ts';
 
 /** The runtime script's attribute naming the extra origins (space-separated). */
 export const CODE_ORIGINS_ATTR = 'data-og-origins';
