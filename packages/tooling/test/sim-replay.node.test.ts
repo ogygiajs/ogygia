@@ -116,27 +116,37 @@ describe('layout shift and long tasks, judged', () => {
 });
 
 describe('an eager press, at the moment of the load the simulator pressed at', () => {
-	const with_moves = (moves: string): BrowserPlan => ({
+	const with_moves = (moves: string, dom = ''): BrowserPlan => ({
 		...plan('/apps/palaestra'),
 		plan: { actions: [{ kind: 'eager', tab: 0, path: '/x', nth: 1, after: 60 }] },
 		seen: [
 			{ after: 'first load', tabs: [], requests: [] },
 			{
 				after: '1 eager',
-				tabs: [{ url: '', dom: '', moves, heard: [], said: [] }],
+				tabs: [{ url: '', dom, moves, heard: [], said: [] }],
 				requests: []
 			}
 		]
 	});
 
 	// the differential (palaestra 3 and 5): the simulator loads a page in a few virtual ms, with no
-	// CPU time, so its press `after` ms came once the critical wait had settled, and Chromium's,
-	// whose load takes longer, came before it: each side tested another moment of the load
-	it('after the critical wait settled, when the simulator pressed then', () => {
+	// CPU time, so its press `after` ms came once the load was at rest, and Chromium's, whose load
+	// takes longer, came before it (its critical wait touched, its island woken by the press): each
+	// side tested another moment of the load
+	it('at rest, when the simulator pressed once its critical wait settled and its islands woke', () => {
 		const p = with_moves(
-			'wake#1 cold -> armed\ncritical-gate#1 fresh -> settled\nwake#1 armed -> waking'
+			'wake#1 cold -> armed\ncritical-gate#1 fresh -> settled\nwake#1 armed -> waking\nwake#1 waking -> awake',
+			'<ogygia-region data-hydrated="" wake="load">'
 		);
-		expect(eager_waits_for(p, 0)).toBe('settled');
+		expect(eager_waits_for(p, 0)).toBe('rest');
+	});
+
+	it('at once, when the press woke an island in the simulator', () => {
+		const p = with_moves(
+			'critical-gate#1 fresh -> settled\nwake#1 armed -> waking\nwake#1 waking -> awake',
+			'<ogygia-region data-hydrated="" data-og-woke="interaction" wake="load">'
+		);
+		expect(eager_waits_for(p, 0)).toBe(null);
 	});
 
 	it('at once, when the simulator pressed while it waited', () => {
