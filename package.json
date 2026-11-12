@@ -30,7 +30,7 @@
 		"ci:version": "changeset version",
 		"ci:release": "changeset publish",
 		"format": "oxfmt .",
-		"format:check": "oxfmt --check .",
+		"format:check": "git ls-files -z | xargs -0 oxfmt --check --no-error-on-unmatched-pattern",
 		"lint": "oxlint",
 		"lint:test": "node --test internal/lint/*.test.ts",
 		"sim": "pnpm --filter ogygia-internal-sim sim",
