@@ -7,13 +7,52 @@
  */
 import { fs, path, dir_entries } from '../host.ts';
 import { islandDepsHandoffPath } from './island-deps.ts';
-import { line } from '../messages.ts';
+import { OgygiaError, line } from '../messages.ts';
 
 const BACKSLASH_G = /\\/g;
 const SINGLE_QUOTE_G = /'/g;
 const DOUBLE_QUOTE_G = /"/g;
 const LINE_SEPARATOR_G = /\u2028/g;
 const PARAGRAPH_SEPARATOR_G = /\u2029/g;
+
+/** The modules that hold or use the signing key: server-only, never in a client chunk. */
+/** (the `virtual:ogygia/secret` and `sign` modules' CLIENT legs are an empty string and no-op stubs:
+ *  the secret check below covers what they would hold) */
+const SECRET_MODULE_RE = /[\\/](?:src|dist)[\\/]server[\\/](?:hmac|signing-key)\.[jt]s$/;
+
+/**
+ * SECRET-SPLIT, checked on the finished CLIENT bundle (internal/notes/INVARIANTS.md): no chunk or
+ * asset holds a signing secret (`OGYGIA_SECRET`, the build's own key), and no chunk holds a module
+ * that signs. Whatever put one there, the browser could then mint capabilities: the build fails.
+ * `secrets` shorter than 16 characters are not looked for (too likely to match by chance; a
+ * production `OGYGIA_SECRET` that short is refused earlier).
+ */
+export function refuse_client_secrets(
+	bundle: Record<string, unknown>,
+	secrets: readonly string[]
+): void {
+	const sought = secrets.filter((s) => s.length >= 16);
+	for (const [key, out] of Object.entries(bundle)) {
+		const o = out as {
+			type?: string;
+			fileName?: string;
+			code?: string;
+			source?: unknown;
+			moduleIds?: string[];
+		};
+		const file = o.fileName ?? key;
+		const text = o.type === 'chunk' ? o.code : typeof o.source === 'string' ? o.source : '';
+		if (text && sought.some((s) => text.includes(s)))
+			throw new OgygiaError('secret_in_client_chunk', { file, what: 'a signing secret' });
+		const signer =
+			o.type === 'chunk' ? o.moduleIds?.find((id) => SECRET_MODULE_RE.test(id)) : undefined;
+		if (signer)
+			throw new OgygiaError('secret_in_client_chunk', {
+				file,
+				what: `the server module ${path.basename(signer)}`
+			});
+	}
+}
 
 /**
  * Write the island-deps handoff JSON (the map SSR reads at render): the stable path under Kit's
