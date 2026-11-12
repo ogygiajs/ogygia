@@ -560,6 +560,15 @@ const PORT_READS: Record<string, string> = {
 	localStorage: 'storage.local()',
 	sessionStorage: 'storage.session()'
 };
+/** Node's own randomness, imported from `node:crypto` (the process's, not the realm's). */
+const PORT_IMPORTS: Record<string, string> = {
+	randomBytes: 'random.bytes()',
+	randomFillSync: 'random.bytes()',
+	randomInt: 'random.float()',
+	randomUUID: 'random.uuid()',
+	getRandomValues: 'random.bytes()'
+};
+const CRYPTO_MODULES = new Set(['node:crypto', 'crypto']);
 /** The objects a platform global is read through (`window.setTimeout`, `globalThis.fetch`). */
 const REALMS = new Set(['window', 'globalThis', 'self']);
 /** The ports themselves: ports.ts and its modules under ports/. */
@@ -597,6 +606,18 @@ const ports = {
 			return port === undefined ? undefined : `${object}.${property}()|${port}`;
 		};
 		return {
+			ImportDeclaration(node: Node) {
+				const from = (node.source as { value?: unknown } | undefined)?.value;
+				if (typeof from !== 'string' || !CRYPTO_MODULES.has(from)) return;
+				for (const s of (node as { specifiers?: Node[] }).specifiers ?? []) {
+					const name = name_of((s as { imported?: Node }).imported);
+					if (name !== undefined && Object.hasOwn(PORT_IMPORTS, name))
+						found.push({
+							node: s,
+							message: port_message(`${from}'s ${name}()`, PORT_IMPORTS[name])
+						});
+				}
+			},
 			CallExpression(node: Node) {
 				const callee = node.callee as Node;
 				const m = member(callee);
