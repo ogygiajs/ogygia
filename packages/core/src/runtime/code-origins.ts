@@ -40,10 +40,12 @@ export function code_origins(): ReadonlySet<string> {
 	const set = new Set<string>([location.origin]);
 	const own = origin_of(import.meta.url);
 	if (own) set.add(own);
+	// the FIRST runtime script, attribute or not: with none on the server's, a later one is markup's
+	// (test/browser/property-code-origins.test.ts)
 	const script =
 		typeof document === 'undefined'
 			? null
-			: document.head?.querySelector(`script[data-ogygia-runtime][${CODE_ORIGINS_ATTR}]`);
+			: document.head?.querySelector('script[data-ogygia-runtime]');
 	for (const named of (script?.getAttribute(CODE_ORIGINS_ATTR) ?? '').split(' ')) {
 		const origin = named && origin_of(named);
 		if (origin && origin === named) set.add(origin);
