@@ -38,7 +38,8 @@ export function encode_island_graph(
 ): string {
 	const h: string[] = [];
 	const index = new Map<string, number>();
-	const e: Record<string, number[]> = {};
+	// (no prototype: an entry named `__proto__` is a key like any other, test/property-decoders)
+	const e: Record<string, number[]> = Object.create(null);
 	for (const [entry, hrefs] of graph) {
 		const ids: number[] = [];
 		for (const href of hrefs) {
