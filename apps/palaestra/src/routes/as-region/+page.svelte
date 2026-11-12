@@ -1,15 +1,11 @@
 <script lang="ts">
-	// asRegion — mark barrel/named imports as placed islands (the macro alternative to the
-	// `import X from '…' with { wake }` import-attribute form, which is default-import-only).
-	//
-	// `{ Ticker, Flag }` are consumed ONLY by asRegion → the transform strips this import from the host
-	// (the island entries import the components themselves, straight from the barrel).
-	import { Ticker, Flag } from '$lib/barrel';
-	// `brandConfig` is a NON-component barrel export used normally in the shell → this import stays.
+	// Named imports of a barrel, marked as placed islands: one `with` covers every name its import
+	// binds, so different schedules go on separate lines. The island entries import the components
+	// themselves, straight from the barrel; the host never imports these names.
+	import { Ticker as TickerIsland } from '$lib/barrel' with { wake: 'load' };
+	import { Flag as FlagIsland } from '$lib/barrel' with { wake: 'visible' };
+	// `brandConfig` is a NON-component barrel export used normally in the shell: a plain import.
 	import { brandConfig } from '$lib/barrel';
-
-	const TickerIsland = import.meta.og.asRegion(Ticker, { wake: 'load' });
-	const FlagIsland = import.meta.og.asRegion(Flag, { wake: 'visible' });
 </script>
 
 <h1 data-static-shell>asRegion — barrel islands</h1>

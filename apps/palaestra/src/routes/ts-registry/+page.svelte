@@ -2,7 +2,7 @@
 	// Consume the `.ts` registry three ways — all placed the way Builder's SDK places a
 	// `customComponents` entry (by reference, via `<svelte:component>`), plus the raw one via `region()`:
 	//   - `Widget`  = a `with { wake }` mountable binding (default import).
-	//   - `Ticker`  = an `asRegion(...)` mountable binding of a NAMED barrel import.
+	//   - `Ticker`  = a `with { wake }` mountable binding of a NAMED barrel import.
 	//   - `rawDescriptor` = a `region: 'raw'` held descriptor → rendered through `region()` + `<Region>`.
 	import type { Component } from 'svelte';
 	import { Region, region } from 'ogygia';
