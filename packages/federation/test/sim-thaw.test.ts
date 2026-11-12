@@ -72,6 +72,7 @@ describe('a thaw notice arriving, simulated', () => {
 				});
 				federate({
 					name: 'shell',
+					audience: 'shell.test',
 					peers: {
 						cms: { origin: 'http://cms.test', key: cms_pub },
 						dash: { origin: 'http://dash.test' }
@@ -116,6 +117,11 @@ describe('a thaw notice arriving, simulated', () => {
 					for (const id of ['n1', 'n2'] as const)
 						if (forwarded.includes(ids[id]) && !applies.some((a) => a.id === id && a.ok))
 							return `${id} passed on, never applied`;
+					return null;
+				});
+				sim.finally('every notice that arrived was let in (its signature verified)', () => {
+					for (const id of new Set(copies))
+						if (!applies.some((a) => a.id === id)) return `${id} never reached the store`;
 					return null;
 				});
 				sim.finally(
