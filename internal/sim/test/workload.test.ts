@@ -62,11 +62,9 @@ describe('the workload', () => {
 		window.document.body.append(button);
 		const heard: string[] = [];
 		for (const type of ['pointerdown', 'mousedown', 'pointerup', 'mouseup', 'click'])
-			window.document.addEventListener(type, (e) => heard.push(`${e.type} ${e.isTrusted}`), {
-				capture: true
-			});
+			window.document.addEventListener(type, (e) => heard.push(e.type), { capture: true });
 		user_click(button as unknown as Element);
-		expect(heard.map((h) => h.split(' ')[0])).toEqual([
+		expect(heard).toEqual([
 			'pointerdown',
 			'mousedown',
 			'pointerup',

@@ -183,6 +183,18 @@ function choices(
 	];
 }
 
+/** A visitor's click on `el`: the pointer goes down and up on it, then the click, as a browser
+ *  sends them (`element.click()` alone sends only the click, and the page never hears an input). */
+export function user_click(el: Element): void {
+	const view = el.ownerDocument.defaultView as Window & typeof globalThis;
+	const at = { bubbles: true, cancelable: true, composed: true, button: 0 };
+	el.dispatchEvent(new view.PointerEvent('pointerdown', { ...at, buttons: 1, isPrimary: true }));
+	el.dispatchEvent(new view.MouseEvent('mousedown', { ...at, buttons: 1 }));
+	el.dispatchEvent(new view.PointerEvent('pointerup', { ...at, isPrimary: true }));
+	el.dispatchEvent(new view.MouseEvent('mouseup', at));
+	(el as HTMLElement).click();
+}
+
 /** Clicks link `nth` (of the tab's links, wrapping); false when it has none. */
 function click(world: World, tab: Tab, nth: number, origin: string): boolean {
 	const found = links(tab, origin);
@@ -190,7 +202,7 @@ function click(world: World, tab: Tab, nth: number, origin: string): boolean {
 	const link = found[nth % found.length];
 	// (the trace names the link, so a shrunk repro can click it by its address)
 	world.loop.note(`${tab.name} clicks ${link.getAttribute('href')}`);
-	link.click();
+	user_click(link);
 	return true;
 }
 
@@ -204,7 +216,7 @@ function press(world: World, tab: Tab, nth: number): boolean {
 	world.loop.note(
 		`${tab.name} presses "${(button.textContent ?? '').trim().slice(0, 40)}" in ${region?.getAttribute('entry') ?? '?'}`
 	);
-	button.click();
+	user_click(button);
 	return true;
 }
 
