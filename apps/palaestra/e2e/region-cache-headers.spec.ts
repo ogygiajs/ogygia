@@ -1,4 +1,4 @@
-// EVERY REGION RESPONSE SAYS HOW IT MAY BE CACHED (PRELOAD-CACHE, internal/notes/INVARIANTS.md). A
+// EVERY REGION RESPONSE SAYS HOW IT MAY BE CACHED (HOLE-CACHE, internal/notes/INVARIANTS.md). A
 // hole's answer carries its own policy (`no-store`, or `private, max-age` when it opted in), and so
 // does an empty `keepFallback()` answer (a 204 is cacheable by default). A refusal or an error is
 // `no-store`. Usage: pnpm exec playwright test region-cache-headers
