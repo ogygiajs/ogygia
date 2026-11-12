@@ -22,7 +22,8 @@ export function bake(): OgygiaPlugin {
 					rewrite_bake(code, m.id, {
 						alias: m.alias,
 						root: m.root,
-						markupExts: m.markupExts
+						markupExts: m.markupExts,
+						watch: m.watch
 					}),
 				{ last: true }
 			);
