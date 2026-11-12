@@ -4,7 +4,8 @@
  *
  * - no answer asked for twice: the same request (method, path and query, less a hole's expiry and
  *   signature) answered 200 twice in one document, but a content-hashed file (a browser's module
- *   map and cache keep it; the simulator has neither, so it may fetch one again) and a page (a
+ *   map and cache keep it; the simulator has neither, so it may fetch one again), an image (the
+ *   document's image cache keeps it: a router swap that brings it back loads none) and a page (a
  *   navigation back asks again by design), and a remote query counted per router visit (a back is
  *   a new visit: a held region mounts and asks again, as its page is asked again); a hole's answer,
  *   by its own GET or a router batch's part, counts when asked again within the 60 s the frame
@@ -22,6 +23,9 @@
 import type { Tab } from './browser.ts';
 import type { Broken } from './oracles.ts';
 import { answer_key, is_page_path, type World } from './world.ts';
+
+/** An image's path: the document's image cache keeps one it loaded. */
+const IMAGE = /\.(?:png|jpe?g|gif|webp|avif|svg|ico)$/i;
 
 /** The requests a document had answered twice, by key (see the top). `swaps`: when the router
  *  swapped the document's page (`og:before-swap`, virtual ms): a remote query (`/_app/remote/`) is
@@ -54,7 +58,7 @@ export function asked_twice(
 		if (e.method !== 'GET') continue;
 		const url = new URL(e.url);
 		const path = decodeURIComponent(url.pathname);
-		if (path.startsWith('/_app/immutable/') || is_page_path(path)) continue;
+		if (path.startsWith('/_app/immutable/') || is_page_path(path) || IMAGE.test(path)) continue;
 		if (path === '/__ogygia__') {
 			const k = answer_key(url);
 			holes.set(k, [...(holes.get(k) ?? []), e.at]);

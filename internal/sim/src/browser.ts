@@ -126,6 +126,8 @@ export class Browsers {
 				disableJavaScriptFileLoading: false,
 				// (stylesheets load over the simulated network: the router moves them between pages)
 				enableCSSFileLoading: true,
+				// (and images: one not yet come is not `complete`, which the critical wait reads)
+				enableImageFileLoading: true,
 				navigator: {
 					userAgent: 'Mozilla/5.0 (ogygia-sim) AppleWebKit/537.36 Chrome/140.0 Safari/537.36'
 				},
