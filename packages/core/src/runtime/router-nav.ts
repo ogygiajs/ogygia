@@ -15,7 +15,7 @@
  * way.
  */
 import { boot_link, router_link, slots } from './slots.ts';
-import { clock } from '@ogygia/machine';
+import { clock, net } from '@ogygia/machine';
 import { dispose_scope } from '../ref.ts';
 import {
 	NO_RECONCILE_SELECTOR,
@@ -64,6 +64,11 @@ const KitBoot = { document_has: (doc: ParentNode) => boot_link().KitBoot.documen
 const regions_in_shadow = () => boot_link().regions_in_shadow();
 const release_head_nodes = (unlisted: readonly Element[]) =>
 	boot_link().release_head_nodes(unlisted);
+const head_owners = (node: Element) => boot_link().head_owners(node);
+const add_head_owners = (node: Element, more: Iterable<string>) =>
+	boot_link().add_head_owners(node, more);
+const adopt_owner_record = (doc: ParentNode, head: ParentNode) =>
+	boot_link().adopt_owner_record(doc, head);
 const session = () => boot_link().runtime_session;
 type Scope = import('@ogygia/machine').Scope;
 type Stale = import('@ogygia/machine').Stale;
@@ -594,7 +599,7 @@ async function run_page_fetch(
 	flight: import('@ogygia/machine').InFlight
 ): Promise<Fetched> {
 	const go = (priority?: 'high' | 'auto' | 'low') =>
-		fetch(href, {
+		net.fetch(href, {
 			signal,
 			headers: nav_headers(purpose),
 			...(priority ? { priority } : {})
@@ -752,7 +757,7 @@ export async function navigate(
 	// THE NAVIGATION'S OWN CLOCK (the beacon's: a slow in-app navigation is a page's cost the
 	// document timing never sees): its start, the page fetched and its styles in (the build's), the
 	// swap committed
-	const nav_t0 = performance.now();
+	const nav_t0 = clock.mono();
 	if (DEVTOOLS)
 		dt_emit({
 			domain: 'nav',
@@ -809,7 +814,7 @@ export async function navigate(
 		const page = await fetch_page(url.href, signal, purpose);
 		if (page === null || signal.aborted) return null;
 		const { html } = page;
-		const fetched = performance.now();
+		const fetched = clock.mono();
 		// one-shot; always fresh on real navigation (a fetch already out again for it is left be)
 		pages().drop(({ href }, entry) => href === url.href && entry.kind === 'kept' && !entry.flying);
 
@@ -889,7 +894,7 @@ export async function navigate(
 		const sheets: InertSheet[] = [];
 		await preload_stylesheets(doc.head, attempt, sheets, discard);
 		if (signal.aborted) return null;
-		const styled = performance.now();
+		const styled = clock.mono();
 		// The transition starts in a task of its own: everything above is a finished task by then, and
 		// the frame it captures is not the one that parsed 2 MB of HTML.
 		await yield_task();
@@ -1042,7 +1047,7 @@ export async function navigate(
 			t: nav_t0,
 			fetched: built.fetched,
 			styled: built.styled,
-			swapped: performance.now(),
+			swapped: clock.mono(),
 			href: url.href,
 			reconciled: built.reconciled
 		});
@@ -1317,6 +1322,8 @@ function merge_head(new_head: HTMLHeadElement): Element[] {
 	// for the next page's copy either (the island may be torn down in the reconcile that follows —
 	// the copy the page needs goes in, and the one-copy rule retires it again if the island stays).
 	// Nodes that are not ours at all (a third-party inject) stay, as under Kit's own router.
+	// (the owners the page being left listed for its shared sheets: its tail is still in the body)
+	adopt_owner_record(document, current);
 	const current_nodes = live_page_head();
 	const next_keys = new Set<string>();
 	for (const node of Array.from(new_head.children)) {
@@ -1345,7 +1352,11 @@ function merge_head(new_head: HTMLHeadElement): Element[] {
 			live.set(key, install_head_style(node, current, head_slot(node, live)));
 			continue;
 		}
-		if (existing) continue;
+		if (existing) {
+			// the node it has stays, owned also by the islands the next page's copy names (#854)
+			if (node.hasAttribute(OG_OWNER)) add_head_owners(existing, head_owners(node));
+			continue;
+		}
 		const at = head_slot(node, live);
 		if (node.tagName === 'STYLE') {
 			live.set(key, install_head_style(node, current, at));
