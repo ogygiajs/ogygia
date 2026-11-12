@@ -32,6 +32,9 @@ export interface GenNode {
 	readonly slow?: number;
 	/** A hole the page gives a fallback. */
 	readonly fallback?: boolean;
+	/** A hole with a fallback that keeps it (`keepFallback()`: the endpoint answers 204). Only a
+	 *  page's own root hole: nested in an island, a hole renders inline, where it may not. */
+	readonly keep?: boolean;
 	/** A held region's host: plain server markup awaiting the query in the page's render
 	 *  (`'page'`), or an island reading the query's `.current` (`'island'`). */
 	readonly host?: 'page' | 'island';
@@ -121,11 +124,15 @@ export function plan(seed: number): GenPage[] {
 			children: n.children
 		};
 	};
+	// (and whether a root hole keeps its fallback, from its own)
+	const k = rng(seed).fork('gen keep');
+	const keep = (n: GenNode): GenNode =>
+		n.kind === 'hole' && n.fallback && k.chance(0.4) ? { ...n, keep: true } : n;
 	const node = trees(r, held);
 	const pages = r.between(3, 6);
 	return Array.from({ length: pages }, (_, i) => ({
 		path: `/p${i}`,
-		roots: Array.from({ length: r.between(1, 4) }, () => node(0))
+		roots: Array.from({ length: r.between(1, 4) }, () => node(0)).map(keep)
 	}));
 }
 
@@ -337,13 +344,21 @@ function component(n: GenNode): string {
 	const interactive =
 		n.kind === 'island' ||
 		((n.kind === 'hole' || n.kind === 'held' || n.kind === 'live') && n.wake !== undefined);
-	const lines = ['<script lang="ts">', "\timport type { Snippet } from 'svelte';"];
+	const lines = [
+		'<script lang="ts">',
+		"\timport type { Snippet } from 'svelte';",
+		...(n.keep ? ["\timport { keepFallback } from 'ogygia';"] : [])
+	];
 	for (const c of n.children)
 		lines.push(`\timport ${name(c)} from './${name(c)}.svelte'${attributes(c)};`);
 	lines.push(
 		"\tlet { label = '' }: { label?: string; ogygiaFallback?: Snippet } = $props();",
 		...(interactive ? ['\tlet count = $state(0);'] : []),
-		...(n.slow ? [`\tawait new Promise((r) => setTimeout(r, ${n.slow}));`] : []),
+		...(n.keep
+			? ['\tkeepFallback();']
+			: n.slow
+				? [`\tawait new Promise((r) => setTimeout(r, ${n.slow}));`]
+				: []),
 		'</script>',
 		'',
 		`<div data-gen="${n.kind}" data-build={import.meta.env.VITE_SIM_BUILD}>`,

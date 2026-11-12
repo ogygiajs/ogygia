@@ -52,6 +52,18 @@ describe('the random app', () => {
 		}
 	});
 
+	it('some root holes with a fallback keep it, and no other region does', () => {
+		const seeds = Array.from({ length: 30 }, (_, i) => i + 1);
+		const pages = seeds.flatMap((s) => plan(s));
+		const kept = all(pages.flatMap((p) => p.roots)).filter((n) => n.keep);
+		expect(kept.length).toBeGreaterThan(0);
+		const roots = new Set(pages.flatMap((p) => p.roots));
+		for (const n of kept) {
+			expect(roots.has(n)).toBe(true);
+			expect([n.kind, n.fallback]).toEqual(['hole', true]);
+		}
+	});
+
 	it('draws held and live regions, never in place of a hole', () => {
 		const seeds = Array.from({ length: 30 }, (_, i) => i + 1);
 		const nodes = seeds.flatMap((s) => all(plan(s).flatMap((p) => p.roots)));
