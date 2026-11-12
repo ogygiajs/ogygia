@@ -164,6 +164,7 @@ export function standalone_beacon(): void {
 	};
 	if (g[KEY] || typeof document === 'undefined') return;
 
+	// oxlint-disable-next-line ogygia/markup-from-vocabulary -- inlined through toString(): it names nothing outside itself
 	const ISLAND_SEL = 'ogygia-region[data-og-fp]';
 	const KEEPALIVE_MAX = 60000;
 	const MAX_SEEN_RESOURCES = 3000;
@@ -289,6 +290,7 @@ export function standalone_beacon(): void {
 		const n = node as Node | null | undefined;
 		const el =
 			n && n.nodeType === 1 ? (n as Element) : n && n.nodeType === 3 ? n.parentElement : null;
+		// oxlint-disable-next-line ogygia/markup-from-vocabulary -- inlined through toString(): it names nothing outside itself
 		return el?.closest?.(ISLAND_SEL)?.getAttribute('data-og-fp') ?? undefined;
 	};
 	const describe_target = (node: Node | null | undefined): string => {
@@ -401,6 +403,7 @@ export function standalone_beacon(): void {
 		for (const m of [
 			' data-nested=""',
 			' data-hydrated=""',
+			// oxlint-disable-next-line ogygia/markup-from-vocabulary -- inlined through toString(): it names nothing outside itself
 			' data-og-kept=""',
 			' data-revalidated=""'
 		])
@@ -998,6 +1001,7 @@ export function standalone_beacon(): void {
 			}
 			const islands: { fp: string; nodes: number }[] = [];
 			for (const r of document.querySelectorAll(ISLAND_SEL)) {
+				// oxlint-disable-next-line ogygia/markup-from-vocabulary -- inlined through toString(): it names nothing outside itself
 				const fp = r.getAttribute('data-og-fp');
 				if (fp) islands.push({ fp, nodes: r.getElementsByTagName('*').length });
 			}
@@ -1168,6 +1172,7 @@ export function standalone_beacon(): void {
 				}
 			}
 			const runtime_src =
+				// oxlint-disable-next-line ogygia/markup-from-vocabulary -- inlined through toString(): it names nothing outside itself
 				(document.querySelector('script[data-ogygia-runtime]') as HTMLScriptElement | null)?.src ??
 				'';
 			const counted = new Set<string>();

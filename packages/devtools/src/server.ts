@@ -13,7 +13,12 @@ import {
 	type ServerPlugin
 } from '@ogygia/core/plugin';
 import type { RequestEvent } from '@sveltejs/kit';
-import { DEVTOOLS_COOKIE, DEVTOOLS_ON, switch_in_url } from '@ogygia/core/internal/instruments';
+import {
+	DEVTOOLS_COOKIE,
+	DEVTOOLS_ON,
+	OGYGIA_BEACON,
+	switch_in_url
+} from '@ogygia/core/internal/instruments';
 import { BEACON_STANDALONE_TAG } from './profiler/beacon-tag.ts';
 import { is_document_request } from './document-request.ts';
 import { set_devtools_app } from './app.ts';
@@ -87,7 +92,7 @@ function dock_measures(event: RequestEvent): boolean {
 const WITH_PAGE_BEACON: ResolveOptions = {
 	transformPageChunk: ({ html }) => {
 		const at = html.indexOf('</head>');
-		if (at === -1 || html.lastIndexOf('<script data-ogygia-beacon>', at) !== -1) return html;
+		if (at === -1 || html.lastIndexOf(`<script ${OGYGIA_BEACON}>`, at) !== -1) return html;
 		return `${html.slice(0, at)}${BEACON_STANDALONE_TAG}${html.slice(at)}`;
 	}
 };
