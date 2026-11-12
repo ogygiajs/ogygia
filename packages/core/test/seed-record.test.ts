@@ -11,7 +11,7 @@ import type { Component } from 'svelte';
 import Region from '../src/Region.svelte';
 import Tiny from './_fixtures/Tiny.svelte';
 import { set_page_recorder } from '../src/page-seed-registry.ts';
-import { set_reads_page, set_island_remotes, set_page_keys } from './_stubs/virtual-island-deps.ts';
+import { set_reads_page, set_island_remotes, set_page_keys } from './_stubs/server.region-deps.ts';
 import { region as make_region } from '../src/region.ts';
 
 // `render()`'s body is a LAZY getter — the component runs on first read, so every render here reads it.

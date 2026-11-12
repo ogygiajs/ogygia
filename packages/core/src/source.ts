@@ -10,8 +10,8 @@
  * The recorder and observer ride ONE `globalThis` slot: several module instances (dist entries,
  * a plugin package beside core) must share the seam.
  */
-// The house hash — runtime/hash.ts owns FNV-1a (region fps, flag buckets); never re-rolled.
-import { fnv1a } from './runtime/hash.ts';
+// The house hash — contract/hash.ts owns FNV-1a (region fps, flag buckets); never re-rolled.
+import { fnv1a } from './contract/hash.ts';
 import { report_thrown } from './report-thrown.ts';
 
 interface SourceSlots {

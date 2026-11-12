@@ -366,8 +366,7 @@ function read_flow_map(p: Cursor): Record<string, unknown> {
 		}
 		skip_ws(p);
 		if (p.s[p.i] === ':') p.i++;
-		const value = read_flow_node(p);
-		obj[key] = value;
+		set_key(obj, key, read_flow_node(p));
 		skip_ws(p);
 		const c = p.s[p.i];
 		if (c === ',') {
@@ -588,15 +587,30 @@ function parse_mapping(ctx: Ctx, indent: number): Record<string, unknown> {
 		ctx.i++;
 		const clean = strip_comment(value_part).trim();
 
-		if (is_block_scalar_indicator(clean)) {
-			obj[key] = parse_block_scalar(ctx, indent, clean);
-		} else if (clean === '') {
-			obj[key] = parse_child(ctx, indent);
-		} else {
-			obj[key] = parse_scalar(clean);
-		}
+		set_key(
+			obj,
+			key,
+			is_block_scalar_indicator(clean)
+				? parse_block_scalar(ctx, indent, clean)
+				: clean === ''
+					? parse_child(ctx, indent)
+					: parse_scalar(clean)
+		);
 	}
 	return obj;
+}
+
+/** Sets a parsed key as the object's own, as `JSON.parse` does: a `__proto__` key never sets its
+ *  prototype (test: frontmatter.test.ts › a `__proto__` key is a plain key). */
+function set_key(obj: Record<string, unknown>, key: string, value: unknown): void {
+	if (key === '__proto__')
+		Object.defineProperty(obj, key, {
+			value,
+			writable: true,
+			enumerable: true,
+			configurable: true
+		});
+	else obj[key] = value;
 }
 
 /** Dispatch a block node at column `indent`: sequence, mapping, or scalar. */
@@ -641,6 +655,16 @@ export type FrontmatterResult = {
  * Minimal `---` YAML frontmatter split. Body is unused for glob catalogs
  * (Content comes from the Vite module); data is schema-validated.
  */
+/** What the parser stopped at, as words: a coded parser error without its own `[ogygia] ` prefix
+ *  and link line, so the outer error prints them once. */
+function reason_of(e: unknown): string {
+	const message = e instanceof Error ? e.message : String(e);
+	if (!(e instanceof OgygiaError)) return message;
+	const link = message.lastIndexOf('\nhttps://ogygiajs.dev/e/');
+	const words = link === -1 ? message : message.slice(0, link);
+	return words.startsWith('[ogygia] ') ? words.slice('[ogygia] '.length) : words;
+}
+
 export function parseFrontmatter(source: string): FrontmatterResult {
 	const text = source.replace(BOM, '');
 	if (!text.startsWith('---')) {
@@ -659,9 +683,9 @@ export function parseFrontmatter(source: string): FrontmatterResult {
 			data = parsed as Record<string, unknown>;
 		}
 	} catch (e) {
+		// (the parser's own invalid-frontmatter error is already the answer: wrapped, it would say so twice)
 		if (e instanceof OgygiaError && e.code === 'content_frontmatter_invalid') throw e;
-		const msg = e instanceof Error ? e.message : String(e);
-		throw new OgygiaError('content_frontmatter_invalid', { reason: msg });
+		throw new OgygiaError('content_frontmatter_invalid', { reason: reason_of(e) });
 	}
 	return { data, body: after };
 }
