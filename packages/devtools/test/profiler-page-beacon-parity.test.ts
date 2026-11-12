@@ -34,6 +34,10 @@ const MARKUP = [
 	'<p data-nested="" data-og-kept="">a<!-- note -->b</p>',
 	'<a href=x tabindex="0">y</a>',
 	'<b>unclosed <!-- comment',
+	'<!-- a --!><p>x</p>',
+	'<!--><p>x</p><!---><i>y</i>',
+	'<script>s="<!--"</script><p>y</p><!--z-->',
+	'<a title="<!--">y</a><!--z-->',
 	''
 ];
 
