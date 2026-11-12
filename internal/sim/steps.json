@@ -244,16 +244,5 @@
 			"name": "answers an error and keeps no id; the retry with the same id is applied"
 		}
 	],
-	"dead": [
-		{
-			"step": "region request: prechecked -> refused",
-			"issue": 1082,
-			"why": "the probe charge is probed's work: the move to probed follows prechecked unconditionally"
-		},
-		{
-			"step": "region request: verified -> refused",
-			"issue": 1082,
-			"why": "the render charge is charged's work: the move to charged follows verified unconditionally"
-		}
-	]
+	"dead": []
 }
