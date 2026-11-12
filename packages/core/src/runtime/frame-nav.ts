@@ -9,7 +9,7 @@
 // This is Ryan's test made concrete: request new server-component data on navigation, flush part of
 // the response, let the rest come in as the server's async settles.
 // ─────────────────────────────────────────────────────────────────────────────
-import { machine, STALE, type Scope } from '@ogygia/machine';
+import { machine, STALE, type MachineGraph, type Scope } from '@ogygia/machine';
 import { frameAddress } from '../frame.ts';
 import { stream } from '../policies.ts';
 import { is_idle, reserve, release, ticket, write } from './frame-store.ts';
@@ -104,6 +104,12 @@ const batch_stream = machine<{ sending: {}; reading: {}; stalled: {}; ended: {} 
 		reading: { ms: STALL_MS, to: 'stalled' }
 	}
 });
+
+/** The batch stream's machine as data (test/machine-steps.test.ts holds each step to where it is
+ *  taken). */
+export function batch_stream_graph(): MachineGraph {
+	return batch_stream.graph();
+}
 
 function sigOf(endpoint: string): string | null {
 	const q = endpoint.indexOf('?');

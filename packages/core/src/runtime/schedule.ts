@@ -23,7 +23,14 @@
  * first one.
  */
 import { watch_viewport } from './viewport.ts';
-import { clock, flights, machine, type Scope, type Stale } from '@ogygia/machine';
+import {
+	clock,
+	flights,
+	machine,
+	type MachineGraph,
+	type Scope,
+	type Stale
+} from '@ogygia/machine';
 
 type Turn = {
 	el: Element;
@@ -63,7 +70,7 @@ let unsnapped_head = 0;
  * meanwhile runs sooner and works out the waits again, and a sooner wait replaces a later one
  * (#236). One state in place of the `draining` flag beside a `wait_timer` and its `wait_at`.
  */
-const drainer = machine<{ idle: {}; queued: {}; waiting: { at: number } }>()({
+const drain_definition = machine<{ idle: {}; queued: {}; waiting: { at: number } }>()({
 	name: 'hydrate-drain',
 	initial: 'idle',
 	steps: {
@@ -71,7 +78,13 @@ const drainer = machine<{ idle: {}; queued: {}; waiting: { at: number } }>()({
 		queued: ['idle'],
 		waiting: ['queued', 'waiting']
 	}
-}).create();
+});
+const drainer = drain_definition.create();
+
+/** The drain's machine as data (test/machine-steps.test.ts holds each step to where it is taken). */
+export function drain_graph(): MachineGraph {
+	return drain_definition.graph();
+}
 /** Connect-order stamp per region — document order at upgrade, insertion order after a morph. */
 const order_of = new WeakMap<Element, number>();
 let next_order = 0;
