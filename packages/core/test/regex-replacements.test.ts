@@ -63,7 +63,7 @@ describe('regex replacements answer what the regex did', () => {
 		];
 		for (const s of inputs) {
 			expect(is_region_id(s)).toBe(/^[0-9a-f]{12}$/.test(s));
-			expect(is_region_ttl(s)).toBe(/^(|[0-9]{1,7})$/.test(s));
+			expect(is_region_ttl(s)).toBe(/^(|0|[1-9][0-9]{0,6})$/.test(s));
 			expect(is_lower_hex(s, 64)).toBe(/^[0-9a-f]{64}$/.test(s));
 		}
 	});
