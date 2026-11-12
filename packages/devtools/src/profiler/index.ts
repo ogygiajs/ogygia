@@ -28,6 +28,7 @@
  */
 
 import type { RequestEvent } from '@sveltejs/kit';
+import { mac_hex, mac_key, random_id, same_key, same_text } from './key-check.ts';
 import type { Handle } from '@ogygia/core/plugin';
 import {
 	analyze,
@@ -146,7 +147,7 @@ import {
 import { module_imports, route_imports } from './route-imports.ts';
 import { app_relative } from './app-path.ts';
 import { fnv1a32 } from '@ogygia/core/plugin/utils';
-import { mark_personal } from '@ogygia/core/internal/server';
+import { mark_personal, MIN_SECRET_BYTES, RateLimiter } from '@ogygia/core/internal/server';
 import { attr_sites, doc_diff } from './doc-diff.ts';
 import { almost_same_document_pattern } from './patterns.ts';
 import { hydration_hazards } from '@ogygia/insights';
@@ -1118,7 +1119,14 @@ function serverless_work_budget_ms(): number {
 	return Math.max(req - SERVERLESS_RESERVE_MS, Math.floor(req * 0.5));
 }
 
-type HashFn = (algo: string) => { update(s: string): { digest(enc: 'hex'): string } };
+/** A profiler session's life: a login lasts a working day. */
+const SESSION_MS = 12 * 60 * 60 * 1000;
+/** The most logouts remembered at once (each until its session would have expired). */
+const MAX_REVOKED = 4096;
+/** A session id: `s1.<random id>.<expiry, ms>.<HMAC of the three>`. */
+const SESSION_RE = /^s1\.([A-Za-z0-9_-]{24})\.(\d{13})\.([0-9a-f]{64})$/;
+/** The beacon flag: `f1.<its session's id>.<that session's expiry>.<HMAC of the three>`. */
+const FLAG_RE = /^f1\.([A-Za-z0-9_-]{24})\.(\d{13})\.([0-9a-f]{64})$/;
 
 /**
  * Page mode renders the SAME page N times, so its outbound calls are the same handful repeated N
@@ -1164,6 +1172,16 @@ class Profiler {
 	readonly secret: string;
 	readonly ui_enabled: boolean;
 	readonly #disabled: boolean;
+	/** The secret meets the production floor (dev: always): only then does a key or session count. */
+	readonly #secret_ok: boolean;
+	/** Wrong keys per address (the login form and the key headers): a spent budget is refused
+	 *  before any compare; a right key spends nothing. */
+	readonly #key_fails = new RateLimiter({ max: 10, windowMs: 15 * 60_000 });
+	/** Sessions ended by a logout before their expiry (session id → its expiry), at most
+	 *  {@link MAX_REVOKED}; each is dropped once it would have expired anyway. */
+	readonly #revoked = new Map<string, number>();
+	#session_key: Promise<CryptoKey> | null = null;
+	#flag_key: Promise<CryptoKey> | null = null;
 
 	// ---- state ------------------------------------------------------------
 	readonly #ring: RequestEntry[] = [];
@@ -1281,7 +1299,13 @@ class Profiler {
 		// default it ON in dev but OFF in production unless explicitly enabled.
 		this.want_server_timing = options.serverTiming ?? this.dev;
 		this.secret = options.secret ?? process.env.OGYGIA_PROFILER_SECRET ?? '';
-		this.ui_enabled = options.enabled !== false && (this.dev || this.secret !== '');
+		// (production: a secret under the floor opens nothing; test/profiler-login-guard.test.ts)
+		const bytes = Buffer.byteLength(this.secret, 'utf8');
+		this.#secret_ok = this.dev || bytes >= MIN_SECRET_BYTES;
+		if (!this.#secret_ok && bytes > 0 && options.enabled !== false)
+			console.error(new OgygiaError('devtools_profiler_secret_short', { bytes }));
+		this.ui_enabled =
+			options.enabled !== false && (this.dev || (this.secret !== '' && this.#secret_ok));
 		this.#disabled = options.enabled === false;
 		this.#trap = options.trap && options.trap.over > 0 ? options.trap : null;
 		if (options.store) {
@@ -2711,25 +2735,123 @@ class Profiler {
 	}
 
 	// ---- auth -------------------------------------------------------------
-	async #key_matches(provided: string | null | undefined): Promise<boolean> {
+	/** Is this request's visitor the profiler's logged-in user? Its session cookie stays on the
+	 *  profiler's path, so a region request carries only the site-wide beacon flag: signed for that
+	 *  one session (`#flag_value`), it ends with it. */
+	async measures(event: RequestEvent): Promise<boolean> {
 		if (this.dev) return true;
-		if (!this.secret || !provided) return false;
+		return this.#flag_ok(event);
+	}
+
+	/** Does the request carry a live session (any of its `og_profiler` values)? Dev: always. */
+	async #has_session(event: RequestEvent): Promise<boolean> {
+		if (this.dev) return true;
+		for (const value of session_cookie_values(event))
+			if (await this.#session_ok(value)) return true;
+		return false;
+	}
+
+	/** The live session the request carries (its id and expiry), or null. Dev: none needed. */
+	async #live_session(event: RequestEvent): Promise<{ nonce: string; exp: string } | null> {
+		for (const value of session_cookie_values(event)) {
+			if (!(await this.#session_ok(value))) continue;
+			const [, nonce, exp] = SESSION_RE.exec(value!)!;
+			return { nonce: nonce!, exp: exp! };
+		}
+		return null;
+	}
+
+	/** The beacon flag for one session: `f1.<session id>.<its expiry>.<MAC>`, under a key derived
+	 *  for flags alone, so it ends when the session does (expiry, logout, a changed secret). */
+	async #flag_value(nonce: string, exp: string): Promise<string> {
+		return `f1.${nonce}.${exp}.${await this.#flag_mac(nonce, exp)}`;
+	}
+
+	/** The flag MAC (hex): HMAC-SHA256 under a key derived from the secret for flags alone. */
+	async #flag_mac(nonce: string, exp: string): Promise<string> {
+		this.#flag_key ??= mac_key(this.secret, 'ogygia-profiler-flag-v1');
+		return mac_hex(await this.#flag_key, `f1|${nonce}|${exp}`);
+	}
+
+	/** The session id of the live beacon flag the request carries, or null: signed by this
+	 *  profiler, not expired, its session not logged out. */
+	async #flag_session(event: RequestEvent): Promise<string | null> {
+		if (!this.secret || !this.#secret_ok) return null;
+		const m = FLAG_RE.exec(event.cookies.get('og_profiler_beacon') ?? '');
+		if (!m) return null;
+		const [, nonce, exp, mac] = m as unknown as [string, string, string, string];
+		const now = Date.now();
+		const at = Number(exp);
+		if (!(at > now && at <= now + SESSION_MS) || this.#revoked.has(nonce)) return null;
+		return same_text(await this.#flag_mac(nonce, exp), mac) ? nonce : null;
+	}
+
+	/** Does the request carry a live beacon flag? */
+	async #flag_ok(event: RequestEvent): Promise<boolean> {
+		return (await this.#flag_session(event)) !== null;
+	}
+
+	/** The address a key attempt is charged to (one shared budget where the platform has none). */
+	#address(event: RequestEvent): string {
 		try {
-			const { createHash, timingSafeEqual } = await import('node:crypto');
-			const h = (str: string) => createHash('sha256').update(str).digest();
-			return (
-				timingSafeEqual(h(provided), h(this.secret)) ||
-				timingSafeEqual(h(provided), h(this.#cookie_token(createHash)))
-			);
+			return event.getClientAddress();
 		} catch {
-			return provided === this.secret;
+			return ''; // ok: no address on this platform: every attempt shares one budget
 		}
 	}
 
-	#cookie_token(createHash: HashFn): string {
-		return createHash('sha256')
-			.update('og-profiler:' + this.secret)
-			.digest('hex');
+	/** Is this the secret (the login form, `x-profiler-key`, `x-profile`)? A wrong key spends the
+	 *  address's budget; once it is spent, nothing is compared until the window passes. */
+	async #key_ok(provided: string | null | undefined, event: RequestEvent): Promise<boolean> {
+		if (this.dev) return true;
+		if (!this.secret || !this.#secret_ok || !provided) return false;
+		const ip = this.#address(event);
+		if (this.#key_fails.over(ip)) return false;
+		const ok = await same_key(provided, this.secret);
+		if (!ok) this.#key_fails.limited(ip);
+		return ok;
+	}
+
+	/** The session MAC (hex): HMAC-SHA256 under a key derived from the secret for sessions alone. */
+	async #session_mac(nonce: string, exp: string): Promise<string> {
+		this.#session_key ??= mac_key(this.secret, 'ogygia-profiler-session-v1');
+		return mac_hex(await this.#session_key, `s1|${nonce}|${exp}`);
+	}
+
+	/** A new session id: random, expiring after {@link SESSION_MS}, signed. */
+	async #new_session(): Promise<string> {
+		const nonce = random_id(18);
+		const exp = String(Date.now() + SESSION_MS);
+		return `s1.${nonce}.${exp}.${await this.#session_mac(nonce, exp)}`;
+	}
+
+	/** A session id this profiler signed, not expired, not logged out. */
+	async #session_ok(value: string | null | undefined): Promise<boolean> {
+		if (!this.secret || !this.#secret_ok || !value) return false;
+		const m = SESSION_RE.exec(value);
+		if (!m) return false;
+		const [, nonce, exp, mac] = m as unknown as [string, string, string, string];
+		const now = Date.now();
+		const at = Number(exp);
+		if (!(at > now && at <= now + SESSION_MS) || this.#revoked.has(nonce)) return false;
+		return same_text(await this.#session_mac(nonce, exp), mac);
+	}
+
+	/** Logout: every session the request carried ends now, on this instance (another instance
+	 *  still has it until it expires; changing the secret ends every session everywhere). */
+	async #revoke_sessions(event: RequestEvent): Promise<void> {
+		const now = Date.now();
+		for (const [nonce, exp] of this.#revoked) if (exp <= now) this.#revoked.delete(nonce);
+		for (const value of session_cookie_values(event)) {
+			if (!(await this.#session_ok(value))) continue;
+			const [, nonce, exp] = SESSION_RE.exec(value)!;
+			this.#revoked.set(nonce!, Number(exp));
+		}
+		while (this.#revoked.size > MAX_REVOKED) {
+			const oldest = this.#revoked.keys().next().value;
+			if (oldest === undefined) break;
+			this.#revoked.delete(oldest);
+		}
 	}
 
 	/** Cookie header that starts / clears a profiler session (Set-Cookie value). */
@@ -2739,8 +2861,8 @@ class Profiler {
 		// SameSite=Lax (not Strict): the login POST is a fetch and the follow-up to the profiler is a
 		// navigation; behind a proxy/CDN (Amplify) a Strict cookie can be dropped on that hop, which
 		// looked like "the password does nothing". Lax still isn't sent cross-site, and it's HttpOnly.
-		// A one-year Max-Age so the session survives (it was a session cookie, lost on some setups).
-		const age = token === '' ? '' : '; Max-Age=31536000';
+		// A Max-Age (not a browser-session cookie, lost on some setups) as long as the session lives.
+		const age = token === '' ? '' : `; Max-Age=${SESSION_MS / 1000}`;
 		return `${SESSION_COOKIE}=${token}; Path=${this.base}; HttpOnly; SameSite=Lax${secure}${clear}${age}`;
 	}
 
@@ -2748,9 +2870,15 @@ class Profiler {
 	 *  "this browser is the profiler's user, put the beacon tag in its documents". The session
 	 *  cookie stays scoped to the profiler's own path (the `/beacon` POST is under it, so the
 	 *  runtime's post still carries the real session). Set with the session, cleared with it. */
-	#beacon_cookie(on: boolean, event: RequestEvent): string {
+	async #beacon_cookie(
+		session: { nonce: string; exp: string } | null,
+		event: RequestEvent
+	): Promise<string> {
 		const secure = event.url.protocol === 'https:' ? '; Secure' : '';
-		return `og_profiler_beacon=${on ? '1' : ''}; Path=/; HttpOnly; SameSite=Lax${secure}${on ? '' : '; Max-Age=0'}`;
+		if (!session) return `og_profiler_beacon=; Path=/; HttpOnly; SameSite=Lax${secure}; Max-Age=0`;
+		const value = await this.#flag_value(session.nonce, session.exp);
+		const age = Math.max(0, Math.floor((Number(session.exp) - Date.now()) / 1000));
+		return `og_profiler_beacon=${value}; Path=/; HttpOnly; SameSite=Lax${secure}; Max-Age=${age}`;
 	}
 
 	/**
@@ -2766,8 +2894,10 @@ class Profiler {
 		} | null;
 		const key = String(body?.key ?? '');
 		const next = this.#safe_next(String(body?.next ?? this.base)); // no open redirect
-		if (!(await this.#key_matches(key))) return ctx.json({ ok: false }, { status: 401 });
-		const { createHash } = await import('node:crypto');
+		// (an address that spent its wrong keys waits out the window, whatever it sends now)
+		if (!this.dev && this.#key_fails.over(this.#address(ctx.event!)))
+			return ctx.json({ ok: false }, { status: 429, headers: { 'retry-after': '900' } });
+		if (!(await this.#key_ok(key, ctx.event!))) return ctx.json({ ok: false }, { status: 401 });
 		// `next` carries the after-login marker: if the navigation it drives still arrives without a
 		// session, the guard explains why instead of looping back here (#auth_guard).
 		const res = ctx.json({
@@ -2781,10 +2911,7 @@ class Profiler {
 		// into a plain object) keep only the last of several, and with the beacon flag last, the
 		// session was the one lost ("logged in, but no og_profiler arrived"). The flag follows on the
 		// next response (#flag_cookie).
-		res.headers.append(
-			'set-cookie',
-			this.#session_cookie(this.#cookie_token(createHash), ctx.event!)
-		);
+		res.headers.append('set-cookie', this.#session_cookie(await this.#new_session(), ctx.event!));
 		return res;
 	}
 
@@ -2797,10 +2924,9 @@ class Profiler {
 		// Every `og_profiler` value the browser sent, not only the one Kit's parser picked: a real
 		// browser session can carry a large cookie jar from the app it is logged into, and a parser
 		// that keeps the FIRST of two same-named cookies, or trips on a neighbour, must not lock the
-		// profiler's user out. Any value that matches is a session.
-		for (const value of session_cookie_values(event))
-			if (await this.#key_matches(value)) return true;
-		return this.#key_matches(event.request.headers.get('x-profiler-key'));
+		// profiler's user out. Any value that is a live session counts.
+		if (await this.#has_session(event)) return true;
+		return this.#key_ok(event.request.headers.get('x-profiler-key'), event);
 	}
 
 	/**
@@ -2838,13 +2964,12 @@ class Profiler {
 	 *  that keeps one per response must not lose the session for it. */
 	async #flag_cookie(event: RequestEvent, res: Response): Promise<Response> {
 		if (this.dev || !this.secret || res.headers.has('set-cookie')) return res;
-		const flag = event.cookies.get('og_profiler_beacon') === '1';
-		const values = session_cookie_values(event);
-		let session = false;
-		for (const v of values) if (await this.#key_matches(v)) session = true;
-		if (session === flag) return res;
+		// (a flag for another session, an ended one, or an older form is replaced on the next response)
+		const session = await this.#live_session(event);
+		const flag = await this.#flag_session(event);
+		if (session ? flag === session.nonce : !event.cookies.get('og_profiler_beacon')) return res;
 		const out = new Response(res.body, res);
-		out.headers.append('set-cookie', this.#beacon_cookie(session, event));
+		out.headers.append('set-cookie', await this.#beacon_cookie(session, event));
 		return out;
 	}
 
@@ -4461,7 +4586,8 @@ class Profiler {
 	}
 
 	/** Clear the session cookie and bounce to the dashboard. */
-	#logout(ctx: RouteCtx): Response {
+	async #logout(ctx: RouteCtx): Promise<Response> {
+		await this.#revoke_sessions(ctx.event!);
 		const res = ctx.redirect(this.base);
 		// (one Set-Cookie: the beacon flag is cleared on the next response, #flag_cookie)
 		res.headers.append('set-cookie', this.#session_cookie('', ctx.event!));
@@ -6763,8 +6889,7 @@ class Profiler {
 		if (!is_document_request(event.request)) return null;
 		if (!this.dev) {
 			const key = event.request.headers.get('x-profiler-key');
-			if (key ? !(await this.#key_matches(key)) : event.cookies.get('og_profiler_beacon') !== '1')
-				return null;
+			if (key ? !(await this.#key_ok(key, event)) : !(await this.#flag_ok(event))) return null;
 		}
 		return `<meta name="${BEACON_META}" content="${this.base}/beacon">${BEACON_STANDALONE_TAG}`;
 	}
@@ -6843,7 +6968,8 @@ class Profiler {
 		// Header-triggered single-request profile? Decided FIRST, because it is one of the three
 		// reasons a request gets a network-attribution context at all.
 		const profile_header = event.request.headers.get('x-profile');
-		const key_ok = !!profile_header && this.ui_enabled && (await this.#key_matches(profile_header));
+		const key_ok =
+			!!profile_header && this.ui_enabled && (await this.#key_ok(profile_header, event));
 		// Take the recorder slot atomically (no await between the check and the take): two concurrent
 		// header-profiled requests must not both start a recording and collide on the one process-wide
 		// inspector. If it's busy, this request just renders un-profiled rather than waiting.
@@ -7218,10 +7344,15 @@ class Profiler {
  * See the class doc and README for what it captures. Visit `<path>` (default
  * /__profiler) — in prod, log in (or send the x-profiler-key header).
  */
-export function profiler(options: ProfilerOptions = {}): Handle {
+export function profiler(options: ProfilerOptions = {}): ProfilerHandle {
 	const instance = new Profiler(options);
-	return (args) => instance.handle(args);
+	return Object.assign((args: Parameters<Handle>[0]) => instance.handle(args), {
+		measures: (event: RequestEvent) => instance.measures(event)
+	});
 }
+
+/** The profiler's handle, and the shared `measures` hook's answer (../server.ts). */
+export type ProfilerHandle = Handle & { measures(event: RequestEvent): Promise<boolean> };
 
 // ---------------------------------------------------------------------------
 

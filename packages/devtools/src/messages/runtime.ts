@@ -76,6 +76,17 @@ export const DEVTOOLS_ERRORS = {
 			report back (the error follows the message), so the report is answered as not found.
 		`
 	},
+	devtools_profiler_secret_short: {
+		text: (a: { bytes: number }): string =>
+			`the profiler secret is ${a.bytes} bytes, under the 16 a production profiler needs; its pages stay closed`,
+		details: (): string => prose`
+			In production the profiler opens its pages, its \`x-profiler-key\` header and its
+			\`x-profile\` header only to a secret of at least 16 bytes (\`profiler({ secret })\` or
+			\`OGYGIA_PROFILER_SECRET\`): a shorter one can be guessed. Until then the profiler
+			records as usual and nobody can log in to it. Set a longer secret, for example the output
+			of \`openssl rand -hex 32\`.
+		`
+	},
 	devtools_dock_load_failed: {
 		text: (): string => 'the devtools dock’s code failed to load (click its button to try again):',
 		details: (): string => prose`
