@@ -14,7 +14,7 @@
  * Each area tells this module what it holds (`note_response_end`) only when rules are on: every call
  * site folds out of a build without them.
  */
-import { observe, timers, type AnyMachine, type Scope } from '@ogygia/machine';
+import { observe, timers, trace, type AnyMachine, type Scope } from '@ogygia/machine';
 import { Rules } from '../rules.ts';
 import { warn } from '../messages/server.ts';
 
@@ -155,4 +155,11 @@ export function install_server_rules(): void {
 		if (unkeyed !== null) kept_unkeyed.set(machine, `"${name}" kept a render that read ${unkeyed}`);
 		else if (kept_unkeyed.size !== 0) kept_unkeyed.delete(machine);
 	});
+	// the server's machine moves, one line each (its last SERVER_MOVES), for a harness to read: the
+	// browser's `__ogygia_moves()` (../runtime/rules.ts), under a symbol a process keeps one of
+	const moves = trace({ max: SERVER_MOVES });
+	(globalThis as Record<symbol, unknown>)[Symbol.for('ogygia.server.moves')] = () => moves.text();
 }
+
+/** Moves the server's trace keeps: many requests' worth between two reads. */
+const SERVER_MOVES = 5000;
