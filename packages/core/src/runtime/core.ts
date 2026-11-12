@@ -10,7 +10,7 @@ import {
 	type Stale,
 	type Turn
 } from '@ogygia/machine';
-import { frameAddress } from '../frame.ts';
+import { frameAddress, older_by, stands_at, type FrameOrder } from '../frame.ts';
 import { import_again, is_failed_import, on_reload_needed } from './import-again.ts';
 import { browser_offline, no_response } from './network.ts';
 // Build-time constants (compiler/link/runtime-entry.ts `generateRuntimeFlagsSource`): `FRAMES` is
@@ -34,6 +34,7 @@ import {
 	RegionAnswerRefused
 } from './region-endpoint-url.ts';
 import { fetch_hole } from './hole-fetch.ts';
+import { recover_from_stale_deps } from './stale-deps.ts';
 import {
 	island_entry_of,
 	import_entry,
@@ -113,6 +114,7 @@ import {
 	HOOK_REGION_HYDRATED,
 	HOOK_REGION_MOUNT,
 	HOOK_REGION_UNMOUNT,
+	HOOK_REGION_WOKE,
 	HOOK_WARNING,
 	boot_client_plugins,
 	client_region_mount
@@ -300,36 +302,6 @@ const load_island = (entry: string, cls: LoadClass = 'visible') => {
 	return import_entry<IslandModule>(entry, island_module_url(entry));
 };
 
-/**
- * DEV watchdog for a stranded tab (dev only; the branch is dead in a production build). Under
- * `csr = false` Kit ships no client bootstrap, so a Vite dep re-optimization — which rotates the
- * optimizer's browserHash — can leave a tab that was loaded under the old hash importing island dep
- * URLs (`svelte.js?v=<old>`) that now 404, and Vite's own full-reload does not always reach a
- * csr=false page. The island entry then throws `Failed to fetch dynamically imported module` on
- * wake, and nothing recovers it.
- *
- * We CONFIRM it is staleness, not a genuinely-missing module: re-fetch the entry URL, and reload
- * only when the server still serves it (200) — a real 404 is a different bug and must stay visible.
- * A timestamp in `sessionStorage` bounds it to one reload per few seconds, so a genuinely broken
- * entry (200 that keeps failing to import) never loops.
- */
-const STALE_DEP_RELOAD_KEY = 'ogygia:dev:dep-reload';
-const STALE_DEP_RELOAD_WINDOW_MS = 6000;
-async function recover_from_stale_deps(entry: string | null): Promise<void> {
-	if (!import.meta.env.DEV || !entry || typeof location === 'undefined') return;
-	try {
-		const last = Number(sessionStorage.getItem(STALE_DEP_RELOAD_KEY) || 0);
-		// wall: the last reload's time lives in sessionStorage, across page loads
-		if (Date.now() - last < STALE_DEP_RELOAD_WINDOW_MS) return; // already reloaded — don't loop
-		const res = await fetch(island_module_url(entry), { cache: 'no-store' });
-		if (!res.ok) return; // a real 404 — leave the error visible, it is not a re-optimize
-		sessionStorage.setItem(STALE_DEP_RELOAD_KEY, String(Date.now())); // wall: read by the next page load
-		location.reload();
-	} catch {
-		// ok: dev only: storage or fetch blocked; the error said before this stays, and the dev reloads by hand
-	}
-}
-
 function dom_ready() {
 	if (typeof document === 'undefined' || document.readyState !== 'loading')
 		return Promise.resolve();
@@ -358,6 +330,9 @@ type LiveTick = {
 	url?: string;
 	hydrate?: string;
 	hydrateMargin?: string;
+	/** The order its HTML was written at its address with as it was decoded; absent when it never
+	 *  went through the frame store. */
+	written?: FrameOrder | undefined;
 };
 
 /** A download slot (load-scheduler.ts) asked for by a step whose element then left: its turn still
@@ -380,7 +355,7 @@ function say_island_failed(entry: string | null, err: unknown): void {
 	} else if (is_failed_import(err)) {
 		if (import.meta.env.DEV) {
 			console.error(new OgygiaError('island_load_failed_stale_deps', { entry }), err);
-			void recover_from_stale_deps(entry); // ok: dev only, never rejects (its failure leaves the error above)
+			if (entry) void recover_from_stale_deps(island_module_url(entry)); // ok: dev only, never rejects (its failure leaves the error above)
 		} else {
 			console.error(new OgygiaError('island_load_failed', { entry }), err);
 		}
@@ -677,6 +652,9 @@ class OgygiaRegion extends HTMLElement {
 	#live_props: Record<string, unknown> | null = null;
 	/** A static live region's subscription to its address, while it is static. */
 	#live_unsub: (() => void) | null = null;
+	/** Where the HTML a static tick painted itself stands in its address's order (`older_by`): a frame
+	 *  not newer than it is older than what is on screen. */
+	#live_painted: FrameOrder | null = null;
 	// The two wake targets, bound once per element (not per connect): `#arm` hands them to a
 	// schedule, and `load` calls them straight — no closure built on the connect path. Each returns
 	// its promise: the interaction feature awaits it to know when the island is live (replay).
@@ -956,11 +934,18 @@ class OgygiaRegion extends HTMLElement {
 		return async (signal, flight) => {
 			// HTML is content: on screen it never waits for the page's critical resources; off screen it
 			// is background work (load-scheduler.ts). Every caller of the address shares this fetch, so
-			// it goes at the most urgent one's class (its flight's). The server gate still caps what one
+			// it goes at the most urgent one's class (its flight's). The holes window caps what one
 			// page asks of the origin at once.
 			// (a class that follows this hole's place on screen is re-read as it moves)
 			const el = typeof cls === 'function' ? this : undefined;
-			const slot = new LoadSlot({ kind: 'content', cls, label: endpoint, el, flight });
+			const slot = new LoadSlot({
+				kind: 'content',
+				cls,
+				label: endpoint,
+				el,
+				flight,
+				window: 'holes'
+			});
 			const release = await slot.ready;
 			try {
 				return await this.#fetch_region(
@@ -981,16 +966,14 @@ class OgygiaRegion extends HTMLElement {
 		priority: 'high' | 'auto' | 'low',
 		signal: AbortSignal
 	) {
-		return runtime_session.server_gate.run(() => {
-			// (./hole-fetch.ts: the same read of the answer `preload()` makes. A renewed capability is
-			// the address's, kept in the store: every element bound there adopts it — #adopt_renewed)
-			const address = frameAddress(endpoint);
-			return fetch_hole(endpoint, {
-				revalidate,
-				priority,
-				signal,
-				renewed: (fresh) => slots.frames?.renew(address, fresh)
-			});
+		// (./hole-fetch.ts: the same read of the answer `preload()` makes. A renewed capability is
+		// the address's, kept in the store: every element bound there adopts it — #adopt_renewed)
+		const address = frameAddress(endpoint);
+		return fetch_hole(endpoint, {
+			revalidate,
+			priority,
+			signal,
+			renewed: (fresh) => slots.frames?.renew(address, fresh)
 		});
 	}
 
@@ -1026,12 +1009,13 @@ class OgygiaRegion extends HTMLElement {
 		// capture wakes it at once (a gesture: the `user` class) and replays the click when it is live.
 		// `interaction` is the island with no other trigger.
 		if (fire === this.#fire_hydrate && when !== 'interaction') this.#catch_early_input(fire);
-		if (DEVTOOLS) {
+		if (DEVTOOLS || (HOOK_REGION_WOKE && slots.hooks?.regionWoke)) {
 			// Wrap so the schedule FIRING is observable (interaction/visible/idle "when did it actually
 			// wake, and why" is the story a timeline instrument tells). Off → `fire` is used directly.
 			const raw = fire;
 			fire = () => {
-				dt_emit({ domain: 'runtime', name: 'wake.fired', ...dt_ids(this), when });
+				if (DEVTOOLS) dt_emit({ domain: 'runtime', name: 'wake.fired', ...dt_ids(this), when });
+				if (HOOK_REGION_WOKE) slots.hooks?.regionWoke?.({ el: this, when });
 				return raw();
 			};
 		}
@@ -1557,6 +1541,7 @@ class OgygiaRegion extends HTMLElement {
 			}
 			if (id)
 				slots.hooks.holeFailed?.({
+					el: this,
 					id,
 					reason: refused ? err.reason : 'error',
 					...(final_path ? { finalPath: final_path } : {}),
@@ -1886,11 +1871,11 @@ class OgygiaRegion extends HTMLElement {
 		const last = this.#live_last;
 		if (last === null || this.#live.now.kind !== 'idle') return;
 		// (in the connect's turn: the turn is the tick's until it ends)
-		return this.#apply_live(last, turn, true);
+		return this.#apply_live(last, turn);
 	}
 
-	/** One live tick, in its turn. `again`: its last tick, gone on with as it is put back. */
-	async #apply_live(desc: LiveTick, turn: Turn, again = false): Promise<void> {
+	/** One live tick, in its turn (or its last tick, gone on with as it is put back). */
+	async #apply_live(desc: LiveTick, turn: Turn): Promise<void> {
 		// Keep the element self-describing so the fallback fetch path still works if ever needed.
 		this.setAttribute('render', 'defer');
 		this.setAttribute('entry', desc.module || desc.id);
@@ -1910,19 +1895,17 @@ class OgygiaRegion extends HTMLElement {
 		// `static` disposes an island an interactive tick hydrated.
 		if (!interactive) {
 			if (this.#live.now.kind !== 'static') this.#live.go('static');
-			let replayed = false;
+			const frames = slots.frames;
 			if (desc.url && !this.#live_unsub) {
-				// (each later frame a turn of its own. The one the store hands over as it binds is older
-				// than this tick, which paints instead — unless this is its last tick gone on with as it
-				// is put back: then the store's frame is the newest it has)
+				// (each frame a turn of its own, the one the store hands over as it binds too)
 				const box = this.#box;
-				let binding = true;
-				const off = slots.frames?.subscribe(frameAddress(desc.url), (f) => {
-					if (binding && !again) return;
-					replayed ||= binding;
-					box.post((t) => this.#morph_live(f.html, t));
+				const off = frames?.subscribe(frameAddress(desc.url), (f) => {
+					box.post((t) => {
+						if (older_by(f, this.#live_painted) !== null) return;
+						this.#live_painted = stands_at(this.#live_painted, f);
+						return this.#morph_live(f.html, t);
+					});
 				});
-				binding = false;
 				if (off) {
 					this.#live_unsub = off;
 					this.#live.scope.defer(() => {
@@ -1931,10 +1914,28 @@ class OgygiaRegion extends HTMLElement {
 					});
 				}
 			}
-			if (!replayed) await this.#morph_live(desc.html, turn);
+			// The store's one ordering (`older_by`) decides. A tick stands where its HTML was written at
+			// its address, or, written nowhere, at its arrival (the store's next ticket, taken once: put
+			// back, it is the same tick). It paints its own HTML only when it is newer than both the
+			// answer the store holds (that one, its write or newer, the subscription paints) and what is
+			// on screen (put back after the store let the address go, what it showed stays: #774) —
+			// test/browser/region-orderings.test.ts.
+			const address = desc.url ? frameAddress(desc.url) : null;
+			const held = address && frames ? frames.peek(address) : null;
+			const mine = address && frames ? (desc.written ??= { v: frames.ticket(address) }) : null;
+			if (mine === null) await this.#morph_live(desc.html, turn);
+			else if (older_by(mine, held) === null && older_by(mine, this.#live_painted) === null) {
+				this.#live_painted = stands_at(
+					held && held.v > (this.#live_painted?.v ?? 0) ? held : this.#live_painted,
+					mine
+				);
+				await this.#morph_live(desc.html, turn);
+			}
 			return;
 		}
 
+		// (an island takes the screen: no frame is on it, and the next static tick's frame is newer)
+		this.#live_painted = null;
 		const s = this.#live.now;
 		// Keep-alive: same interactive module, already mounted → reactive prop push, no DOM churn.
 		if (s.kind === 'live' && s.module === desc.module) {
