@@ -9,6 +9,7 @@
 import type { RegionValue } from '@ogygia/core';
 import type { Router } from '@ogygia/router';
 import type { Claims } from './wire.ts';
+import type { PeerHandle } from './peer.ts';
 
 /** Visitor claims resolver — `federate({ visitor })`. Reads the LIVE event (cookies, locals);
  *  runs on the shell for every hop, including hole-time fetches of deferred remote regions. */
@@ -139,7 +140,11 @@ export interface Peer {
 export interface Federation {
 	readonly name: string;
 	readonly key: string | undefined;
-	readonly peers: ReadonlyMap<string, Peer & { readonly keys: readonly string[] }>;
+	/** The handles (the transport the handle forwards a hole through), with each peer's keys. */
+	readonly peers: ReadonlyMap<string, PeerHandle & { readonly keys: readonly string[] }>;
+	/** Every peer's origins (replicas included): where its islands' code loads from on this app's
+	 *  pages (core's `codeOrigins` hook). */
+	readonly code_origins: readonly string[];
 	readonly visitor: VisitorResolver | undefined;
 	readonly expose: Router | undefined;
 	readonly base: string;

@@ -18,6 +18,7 @@
  */
 import { machine, type Machine } from '@ogygia/machine';
 import { connected_regions } from './connected.ts';
+import { head_owners } from '../head-owners.ts';
 import { OG_FP, OG_OWNER, OGYGIA_REGION_CSS } from '../wire-markup.ts';
 import { runtime_session } from './session.ts';
 
@@ -138,14 +139,19 @@ export function use_code_sheets(region: Element, module: object): void {
 /**
  * After a navigation's swap: of the region head nodes the new page's head does not list
  * (`unlisted`: region sheets, and every tag that names an owning region), take out each one no
- * region on the page uses or owns any more. A tag names its owner (`data-og-owner`, the outermost
- * island's fingerprint) because the server skips a region the browser already has, and the tags
- * its inner regions wrote with it (#806). "On the page" is read from the document: a region the
+ * region on the page uses or owns any more. A tag names its owners (`data-og-owner`, the outermost
+ * islands' fingerprints, space-separated) because the server skips a region the browser already
+ * has, and the tags its inner regions wrote with it (#806). A sheet several outer islands share
+ * names them all (#854, head-owners.ts). "On the page" is read from the document: a region the
  * swap took out leaves `connected_regions` only at its teardown, a microtask later, and uses no
  * sheet from the moment it left (#799, test/browser/nav-region-sheet-left.test.ts).
+ *
+ * Every owner list is cut to the owners still on the page (kept to its first when none is): one
+ * that left can come back only rendered again, and its tags name it again then.
  */
 export function release_head_nodes(unlisted: readonly Element[]): void {
-	if (unlisted.length === 0) return;
+	const shared = document.head.querySelectorAll(`[${OG_OWNER}*=" "]`);
+	if (unlisted.length === 0 && shared.length === 0) return;
 	const used = new Set<Element>();
 	const owners = new Set<string>();
 	for (const region of connected_regions) {
@@ -159,8 +165,13 @@ export function release_head_nodes(unlisted: readonly Element[]): void {
 	}
 	for (const node of unlisted) {
 		if (used.has(node)) continue;
-		const owner = node.getAttribute(OG_OWNER);
-		if (owner !== null && owners.has(owner)) continue;
+		if (head_owners(node).some((o) => owners.has(o))) continue;
 		node.remove();
+	}
+	for (const node of Array.from(shared)) {
+		if (!node.isConnected) continue;
+		const list = head_owners(node);
+		const on_page = list.filter((o) => owners.has(o));
+		node.setAttribute(OG_OWNER, (on_page.length ? on_page : list.slice(0, 1)).join(' '));
 	}
 }

@@ -3,6 +3,7 @@
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { parseAst } from 'rolldown/parseAst';
 import { describe, expect, it } from 'vitest';
 import {
 	is_marker,
@@ -17,6 +18,57 @@ import * as vocabulary from '../src/wire-markup.ts';
 
 const PACKAGES = fileURLToPath(new URL('../../', import.meta.url));
 const DIST = fileURLToPath(new URL('../dist/', import.meta.url));
+
+type Ast = {
+	type: string;
+	name?: string;
+	value?: unknown;
+	[key: string]: unknown;
+};
+const id = (n: unknown): string | undefined => {
+	const node = n as Ast;
+	return node.type === 'Identifier'
+		? node.name
+		: typeof node.value === 'string'
+			? node.value
+			: undefined;
+};
+const literal = (n: unknown): unknown =>
+	(n as Ast | null)?.type === 'Literal' ? (n as Ast).value : undefined;
+
+/** The value `file` (a built module) exports as `name`: a constant it declares with a literal, or
+ *  one it takes from a relative module, followed there. Undefined when it exports no such constant. */
+function exported_constant(file: string, name: string): unknown {
+	const body = parseAst(readFileSync(file, 'utf8')).body as unknown as Ast[];
+	let local: string | undefined;
+	for (const s of body) {
+		if (s.type !== 'ExportNamedDeclaration') continue;
+		const declaration = s.declaration as Ast | null;
+		if (declaration?.type === 'VariableDeclaration')
+			for (const d of declaration.declarations as Ast[])
+				if (id(d.id) === name) return literal(d.init);
+		for (const sp of s.specifiers as Ast[]) {
+			if (id(sp.exported) !== name) continue;
+			const from = (s.source as Ast | null)?.value;
+			if (typeof from === 'string')
+				return exported_constant(path.resolve(path.dirname(file), from), id(sp.local)!);
+			local = id(sp.local);
+		}
+	}
+	if (local === undefined) return undefined;
+	for (const s of body) {
+		if (s.type === 'VariableDeclaration')
+			for (const d of s.declarations as Ast[]) if (id(d.id) === local) return literal(d.init);
+		if (s.type === 'ImportDeclaration')
+			for (const sp of s.specifiers as Ast[])
+				if (sp.type === 'ImportSpecifier' && id(sp.local) === local)
+					return exported_constant(
+						path.resolve(path.dirname(file), (s.source as Ast).value as string),
+						id(sp.imported)!
+					);
+	}
+	return undefined;
+}
 
 /** Every `data-og*` name spelled in a package's source. */
 function spelled(): Map<string, string> {
@@ -83,13 +135,12 @@ describe('MARK', () => {
 		expect(imported).toEqual([]);
 	});
 
-	it('an entry that re-exports a marker constant exports its value (the compiler loads contract/)', async () => {
+	it('an entry that re-exports a marker constant exports its value (the compiler loads contract/)', () => {
+		// (read from the built text, not imported: the server entry's graph is the whole server, and
+		// loading it took over 5 s on a busy runner)
 		const entries = ['contract/index.js', 'internal-server.js', 'internal-instruments.js'];
 		const values: Record<string, unknown> = {};
-		for (const e of entries) {
-			const mod = (await import(path.join(DIST, e))) as Record<string, unknown>;
-			values[e] = mod.OG_HTML;
-		}
+		for (const e of entries) values[e] = exported_constant(path.join(DIST, e), 'OG_HTML');
 		expect(values).toEqual(Object.fromEntries(entries.map((e) => [e, 'data-og-html'])));
 	});
 });

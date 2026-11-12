@@ -4,6 +4,7 @@
 import { describe, expect, it } from 'vitest';
 import { Browser } from 'happy-dom';
 import { use_v8_modules } from '../src/modules.ts';
+import { modules_in_order } from '../src/happy.ts';
 
 const FILES: Record<string, string> = {
 	'/a.js': 'export let n = 0; export function bump() { n++; }',
@@ -14,7 +15,9 @@ const FILES: Record<string, string> = {
 		'export const nullish = globalThis.nope ?? import.meta.url;\n' +
 		'export const returned = where();',
 	'/shared.js': "import './slow.js'; export const shared = 'ran';",
-	'/slow.js': 'export const slow = 1;'
+	'/first.js': "import './slow.js'; (globalThis.order ??= []).push('first');",
+	'/slow.js': 'export const slow = 1;',
+	'/state.js': "import './slow.js'; globalThis.order.push('module ' + document.readyState);"
 };
 
 async function run(v8: boolean, content?: string): Promise<string> {
@@ -70,5 +73,29 @@ describe('modules of a simulated tab', () => {
 			"<script type=\"module\">import './shared.js'; import './gone.js';</script>" +
 			'<script type="module">import { shared } from \'./shared.js\'; document.body.textContent = shared;</script>';
 		expect(await run(true, page)).toBe('ran');
+	});
+
+	// /island-foreign-edit: an inline module ran before the runtime's module above it, so the
+	// foreign tool edited the islands before the runtime kept their server markup
+	it("the document's module scripts run in its order, an inline one after a slower one above it", async () => {
+		modules_in_order();
+		const page =
+			'<script type="module" src="/first.js"></script>' +
+			"<script type=\"module\">(globalThis.order ??= []).push('inline'); document.body.textContent = globalThis.order.join(' ');</script>";
+		expect(await run(true, page)).toBe('first inline');
+	});
+
+	// (happy-dom reads `interactive` from the start and never fires DOMContentLoaded: a third party's
+	// script waiting for it never ran, gen 192's repair mutants all survived, and ogygia's wake gate
+	// waited for `load`)
+	it('the document is loading while parsed, then fires DOMContentLoaded once its modules ran, then load', async () => {
+		modules_in_order();
+		const page =
+			'<script>globalThis.order = [document.readyState];' +
+			"document.addEventListener('DOMContentLoaded', () => order.push('dcl ' + document.readyState));" +
+			"addEventListener('load', () => { order.push('load ' + document.readyState); document.body.textContent = order.join(' '); });" +
+			'</script>' +
+			'<script type="module" src="/state.js"></script>';
+		expect(await run(true, page)).toBe('loading module interactive dcl interactive load complete');
 	});
 });

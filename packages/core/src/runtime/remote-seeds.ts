@@ -21,7 +21,7 @@ function seed_once(): void {
 	if (session.remote_seeded) return;
 	session.mark_remote_seeded();
 	if (typeof document === 'undefined') return;
-	const text = document.querySelector(REMOTE_SEED_SELECTOR)?.textContent;
+	const text = boot_link().server_channel(document, REMOTE_SEED_SELECTOR)?.textContent;
 	if (text) seed_query_responses(text);
 }
 

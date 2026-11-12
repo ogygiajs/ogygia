@@ -2,8 +2,13 @@
  * ORACLES: what must hold, checked at every step or once the world is at rest. Each says what it
  * found broken, or null. Each is precise about what it normalizes away, and why.
  */
-import type { Tab, Visitor } from './browser.ts';
-import type { World } from './world.ts';
+import { writeFileSync } from 'node:fs';
+import { own_text, type Tab, type Visitor } from './browser.ts';
+import { answer_key, FOREIGN_MARK, is_page_path, type World } from './world.ts';
+
+/** `SIM_DUMP=<dir>`: an MPA difference writes both sides whole there (`<tab>-<path>-shown.txt`,
+ *  `-fresh.txt`), to read past its first hunk. */
+const DUMP = process.env.SIM_DUMP;
 
 /** What an oracle found broken. */
 export interface Broken {
@@ -35,7 +40,13 @@ export interface Broken {
  *   region (`data-key`);
  * - a hole's `data-revalidated` mark: its answer was fetched again once its cached copy went
  *   stale, which a tab that stayed long enough sees and a fresh load does not (the answer itself
- *   is compared).
+ *   is compared);
+ * - a region's repair mark (`data-og-healed`): a third party edited its server markup before it
+ *   woke, which a script waiting for DOMContentLoaded does on a document load and never on a router
+ *   visit; what the repaired region shows is compared (gen 192, seed 19);
+ * - a page store's mark (`<meta name="ogygia-stored">`): the copy came from the store, where the
+ *   render that filled it did not say so; the page itself is compared (delivery, as a CDN's
+ *   header is).
  *
  * Kept on purpose: every element, attribute and text a visitor can see or a script can read,
  * including ogygia's region attributes, because a region that differs after a navigation from a
@@ -65,11 +76,15 @@ export function normalize(root: {
 		if (tag === 'link' && /\b(modulepreload|preload|prefetch)\b/.test(el.getAttribute('rel') ?? ''))
 			return;
 		if (el.hasAttribute('data-ogygia-announcer')) return;
+		if (el.matches(STORE_MARK)) return;
 		const attrs = [...el.attributes]
 			.filter(
 				(a) =>
 					a.name !== 'nonce' &&
-					!(tag === 'ogygia-region' && (a.name === 'data-key' || a.name === 'data-revalidated'))
+					!(
+						tag === 'ogygia-region' &&
+						(a.name === 'data-key' || a.name === 'data-revalidated' || a.name === 'data-og-healed')
+					)
 			)
 			.map((a) =>
 				(tag === 'link' && a.name === 'href') || /^\.\.?\//.test(a.value)
@@ -83,8 +98,11 @@ export function normalize(root: {
 			for (const child of el.childNodes) walk(child, depth + 1, out);
 			return;
 		}
-		// stylesheets in their order, then the rest of the head, sorted
+		// stylesheets in their order, then the region sheets answers lifted, sorted (each went in as
+		// its answer landed: which came first is the network's, and a region's scoped rules never
+		// meet another's), then the rest of the head, sorted
 		const sheets: string[] = [];
+		const lifted: string[] = [];
 		const rest: string[] = [];
 		for (const child of el.children) {
 			const one: string[] = [];
@@ -93,27 +111,15 @@ export function normalize(root: {
 			const sheet =
 				child.tagName === 'STYLE' ||
 				(child.tagName === 'LINK' && /\bstylesheet\b/.test(child.getAttribute('rel') ?? ''));
-			(sheet ? sheets : rest).push(one.join('\n'));
+			(!sheet ? rest : child.hasAttribute('data-ogygia-region-css') ? lifted : sheets).push(
+				one.join('\n')
+			);
 		}
-		out.push(...sheets, ...rest.sort());
+		out.push(...sheets, ...lifted.sort(), ...rest.sort());
 	};
 	const out: string[] = [`title: ${root.title}`];
 	if (root.documentElement) walk(root.documentElement, 0, out);
 	return out.join('\n');
-}
-
-/** `<head>`'s children (blocks of a normalized DOM), each with its subtree, and where they sit. */
-function head_blocks(s: string): { before: string[]; blocks: string[][]; after: string[] } {
-	const lines = s.split('\n');
-	const at = lines.findIndex((l) => l === '  <head>');
-	if (at === -1) return { before: lines, blocks: [], after: [] };
-	const blocks: string[][] = [];
-	let i = at + 1;
-	for (; i < lines.length && lines[i].startsWith('    '); i++) {
-		if (!lines[i].startsWith('     ')) blocks.push([lines[i]]);
-		else blocks[blocks.length - 1]?.push(lines[i]);
-	}
-	return { before: lines.slice(0, at + 1), blocks, after: lines.slice(i) };
 }
 
 /**
@@ -127,125 +133,98 @@ export const KNOWN: ReadonlyArray<{
 	what: string;
 	applies(shown: string, fresh: string): boolean;
 	forgive(normalized: string, other: string): string;
+	/** The bug's mark on the document itself, when the DOM alone does not show it. */
+	seen?(world: World, tab: Tab): boolean;
 }> = [
 	{
-		issue: 786,
-		what: 'an empty <title> after client navigations, or two titles on a page visited again',
-		// (an empty one: no text line under it; and the empty one a page with a title fills in,
-		// beside its own: seed 443, /soft-race → a page with no title → back)
-		applies: (shown, fresh) => titles(shown).length > titles(fresh).length,
+		issue: 937,
+		what: 'a deferred peer region whose peer failed is answered as an empty success',
+		// (a peer widget the fresh load shows is missing whole from the tab, and a server's hop to a
+		// peer failed in the run: cut, dropped, tampered, or a 5xx; each widget set aside whole)
+		applies: (shown, fresh) => widgets(shown) < widgets(fresh),
 		forgive: (s) => {
-			const h = head_blocks(s);
-			const first = h.blocks.find((b) => b[0] === '    <title>' && b.length > 1);
-			const blocks = h.blocks.filter((b) => b[0] !== '    <title>' || b === first);
-			return [...h.before, ...blocks.flat(), ...h.after].join('\n');
-		}
-	},
-	{
-		issue: 799,
-		what: "a left page's region sheet kept for one navigation",
-		// (the tab holds a region sheet the fresh load does not, or one more copy of it: the left
-		// page's lifted sheet beside the next page's own, its href written another way; seeds 385,
-		// 415, /server → /nested, gone with #800's fix)
-		applies: (shown, fresh) => {
-			const there = new Map<string, number>();
-			for (const s of region_sheets(fresh)) there.set(s, (there.get(s) ?? 0) + 1);
-			return region_sheets(shown).some((s) => {
-				const n = there.get(s) ?? 0;
-				there.set(s, n - 1);
-				return n <= 0;
-			});
-		},
-		forgive: (s) => {
-			const h = head_blocks(s);
-			const blocks = h.blocks.filter((b) => !b[0].includes('data-ogygia-region-css='));
-			return [...h.before, ...blocks.flat(), ...h.after].join('\n');
-		}
-	},
-	{
-		issue: 794,
-		what: "a page's styles above the app's after client navigations",
-		// (the same stylesheets, in another order)
-		applies: (shown, fresh) => {
-			const sheets = (s: string) =>
-				head_blocks(s)
-					.blocks.filter((b) => /^ {4}<style\b|rel="stylesheet"/.test(b[0]))
-					.map((b) => b.join('\n'));
-			const [a, b] = [sheets(shown), sheets(fresh)];
-			return a.join('\n') !== b.join('\n') && a.sort().join('\n') === b.sort().join('\n');
-		},
-		forgive: (s) => {
-			const h = head_blocks(s);
-			const blocks = h.blocks.map((b) => b.join('\n')).sort();
-			return [...h.before, ...blocks, ...h.after].join('\n');
-		}
-	},
-	{
-		issue: 804,
-		what: 'a wire-class prop gives a region a new fingerprint every render',
-		// (the regions' fingerprints differ; with them set aside, nothing else may)
-		applies: (shown, fresh) => fingerprints(shown) !== fingerprints(fresh),
-		forgive: (s) => s.replace(/ data-og-fp="[0-9a-f]+"/g, ' data-og-fp="<fp>"')
-	},
-	{
-		issue: 806,
-		what: 'a page brought in by the router lacks its kit-island stamp',
-		// (the fresh load has a stamp the tab does not)
-		applies: (shown, fresh) => kit_stamps(shown) !== kit_stamps(fresh),
-		forgive: (s) => {
-			const h = head_blocks(s);
-			const blocks = h.blocks.filter((b) => !b[0].includes('name="ogygia-kit-island"'));
-			return [...h.before, ...blocks.flat(), ...h.after].join('\n');
-		}
-	},
-	{
-		issue: 807,
-		what: 'a region of the page left stays after a client navigation',
-		// (the tab holds every region the fresh load has, and more; after #804, which sets
-		// fingerprints aside, so regions are compared by what they show)
-		applies: (shown, fresh) => {
-			const [a, b] = [regions(shown), regions(fresh)];
-			return a.length > b.length && b.every((r) => a.includes(r));
-		},
-		forgive: (s, other) => {
-			const keep = new Set(regions(other));
-			const lines = s.split('\n');
 			const out: string[] = [];
-			for (let i = 0; i < lines.length; i++) {
-				const block = region_at(lines, i);
-				if (block === null || keep.has(block.text)) out.push(lines[i]);
-				else i = block.end - 1;
+			let inside: string | null = null;
+			for (const line of s.split('\n')) {
+				const indent = /^ */.exec(line)![0];
+				if (inside !== null && indent.length > inside.length) continue;
+				inside = null;
+				if (line.trim().startsWith('<section data-gen="widget"')) {
+					inside = indent;
+					continue;
+				}
+				out.push(line);
 			}
+			return out.join('\n');
+		},
+		seen: (world) => world.network.exchanges.some(peer_hop_failed)
+	},
+	{
+		issue: 993,
+		what: 'a hole renders with an empty page.data when its page-facts look-up answer is not kept',
+		// (the generated `<i data-gen-page>` shows its page's data on one side only, buggify's
+		// flights.not-kept fired: gen 175, seed 175003; each such element's text set aside)
+		applies: (shown, fresh) => page_data_text(shown) !== page_data_text(fresh),
+		forgive: (s) => without_page_data(s),
+		seen: (world) => (world.buggified.get('flights.not-kept')?.fired ?? 0) > 0
+	},
+	{
+		issue: 995,
+		what: "a router navigation's hole batch is sent with the old page as Referer",
+		// (the same shape as #993, in a document that sent a batch of holes: gen 190, seed 190007)
+		applies: (shown, fresh) => page_data_text(shown) !== page_data_text(fresh),
+		forgive: (s) => without_page_data(s),
+		seen: (world, tab) =>
+			world.network.exchanges.some(
+				(e) =>
+					e.from === tab.realm && e.method === 'POST' && new URL(e.url).pathname === '/__ogygia__'
+			)
+	},
+	{
+		issue: 966,
+		what: "a mounted peer page's stylesheet stays in the head after a router navigation away",
+		// (a peer's sheet, `crossorigin`, in the tab's head and not in the fresh load's: gen 158)
+		applies: (shown, fresh) => stale_peer_sheets(shown, fresh).length > 0,
+		forgive: (s, other) => {
+			const stale = new Set(stale_peer_sheets(s, other));
+			return s
+				.split('\n')
+				.filter((l) => !stale.has(l))
+				.join('\n');
+		}
+	},
+	{
+		issue: 1039,
+		what: "a held region's stylesheet stays inside the next page's held region after a navigation",
+		// (a region sheet link right inside a baked held region, on one side only: gen 194, seed 72;
+		// each such link set aside)
+		applies: (shown, fresh) => baked_sheets(shown).join('\n') !== baked_sheets(fresh).join('\n'),
+		forgive: (s) => {
+			const out = s.split('\n');
+			for (const i of baked_sheet_lines(s).reverse()) out.splice(i, 1);
 			return out.join('\n');
 		}
 	}
 ];
 
-/** The `<title>` elements in a normalized DOM's head, each whole. */
-function titles(s: string): string[] {
-	return head_blocks(s)
-		.blocks.filter((b) => b[0] === '    <title>')
-		.map((b) => b.join('\n'));
-}
-
-/** A normalized DOM's regions (`<ogygia-region>` subtrees), each as its text. */
-function regions(s: string): string[] {
+/** The lines (by number) of region sheet links right inside a baked held region. */
+function baked_sheet_lines(s: string): number[] {
 	const lines = s.split('\n');
-	const found: string[] = [];
-	for (let i = 0; i < lines.length; i++) {
-		const block = region_at(lines, i);
-		if (block !== null) found.push(block.text);
+	const out: number[] = [];
+	for (let i = 1; i < lines.length; i++) {
+		if (!/^ *<link [^>]*data-ogygia-region-css/.test(lines[i])) continue;
+		const indent = /^ */.exec(lines[i])![0].length;
+		let p = i - 1;
+		while (p >= 0 && /^ */.exec(lines[p])![0].length >= indent) p--;
+		if (p >= 0 && /^ *<ogygia-region [^>]*data-og-baked/.test(lines[p])) out.push(i);
 	}
-	return found;
+	return out;
 }
 
-/** The region whose opening line is `lines[at]`, with the line after its subtree; null if none. */
-function region_at(lines: string[], at: number): { text: string; end: number } | null {
-	const m = /^( *)<ogygia-region\b/.exec(lines[at]);
-	if (m === null) return null;
-	let end = at + 1;
-	while (end < lines.length && /^ */.exec(lines[end])![0].length > m[1].length) end++;
-	return { text: lines.slice(at, end).join('\n'), end };
+/** The region sheet links right inside a baked held region, each with its region's line. */
+function baked_sheets(s: string): string[] {
+	const lines = s.split('\n');
+	return baked_sheet_lines(s).map((i) => lines[i].trim());
 }
 
 /**
@@ -273,26 +252,107 @@ function own_state_out(s: string): string {
 	return out.join('\n');
 }
 
-/** How long the MPA check looks again for text that moves by itself. */
-const LIVE_LOOK_MS = 2_000;
+/** How long the MPA check looks again for what moves by itself: longer than the slowest tick the
+ *  apps make (a generated app's live query ticks every 3 s; generated app 3, seed 60). */
+const LIVE_LOOK_MS = 4_000;
 
-/** The text lines of a normalized DOM that changed between two looks at the same page (none when
- *  its shape changed: then nothing is masked, and the difference stands). */
-function live_lines(before: string, after: string): number[] {
+/** An element line's tag, or null for a text line. */
+const tag_of = (line: string): string | null => /^ *<([^\s>]+)/.exec(line)?.[1] ?? null;
+
+/** The lines of a normalized DOM that changed between two looks at the same page, as they read
+ *  before and after: a text, or an element's attributes (a live region's tick carries its props in
+ *  its endpoint). By content, not place: a place in one side is another line in the other (seed
+ *  26). None when its shape changed: then nothing is masked, and the difference stands. */
+function live_lines(before: string, after: string): string[] {
 	const [a, b] = [before.split('\n'), after.split('\n')];
 	if (a.length !== b.length) return [];
-	const out: number[] = [];
-	for (let i = 0; i < a.length; i++)
-		if (a[i] !== b[i] && /^ *"/.test(a[i]) && /^ *"/.test(b[i])) out.push(i);
+	const out: string[] = [];
+	for (let i = 0; i < a.length; i++) {
+		if (a[i] === b[i]) continue;
+		const [x, y] = [tag_of(a[i]), tag_of(b[i])];
+		if ((x === null && /^ *"/.test(a[i]) && /^ *"/.test(b[i])) || (x !== null && x === y))
+			out.push(a[i], b[i]);
+	}
 	return out;
 }
 
-/** `s` with its text lines at `lines` replaced by a mark (indent kept). */
-function mask(s: string, lines: ReadonlySet<number>): string {
+/** Each live region's lines in a normalized DOM (its own line and everything inside it), in
+ *  document order. */
+function live_regions(s: string): Array<{ from: number; to: number }> {
+	const lines = s.split('\n');
+	const out: Array<{ from: number; to: number }> = [];
+	for (let i = 0; i < lines.length; i++) {
+		if (tag_of(lines[i]) !== 'ogygia-region' || !lines[i].includes(' live="true"')) continue;
+		const indent = /^ */.exec(lines[i])![0].length;
+		let to = i + 1;
+		while (to < lines.length && /^ */.exec(lines[to])![0].length > indent) to++;
+		out.push({ from: i, to });
+	}
+	return out;
+}
+
+/**
+ * The live regions (by their place among the page's live regions) whose content changed its shape
+ * between two looks at the same page: a tick that brings another component (a switching live
+ * region cycles three; gen 194, seed 25). What moved in place is `live_lines`'.
+ */
+export function reshaped_live(before: string, after: string): Set<number> {
+	const [a, b] = [before.split('\n'), after.split('\n')];
+	const [x, y] = [live_regions(before), live_regions(after)];
+	const out = new Set<number>();
+	if (x.length !== y.length) return out;
+	const shape = (lines: string[], r: { from: number; to: number }) =>
+		lines
+			.slice(r.from + 1, r.to)
+			.map((l) => (/^ *"/.test(l) ? `${/^ */.exec(l)![0]}"` : `${/^ */.exec(l)![0]}${tag_of(l)}`))
+			.join('\n');
+	for (let i = 0; i < x.length; i++) if (shape(a, x[i]) !== shape(b, y[i])) out.add(i);
+	return out;
+}
+
+/** `s` with each live region of `which` (by its place) one line: what moves by itself, whole. */
+export function live_regions_out(s: string, which: ReadonlySet<number>): string {
+	if (which.size === 0) return s;
+	const lines = s.split('\n');
+	const regions = live_regions(s);
+	for (let i = regions.length - 1; i >= 0; i--) {
+		if (!which.has(i)) continue;
+		const { from, to } = regions[i];
+		lines.splice(from, to - from, `${/^ */.exec(lines[from])![0]}<ogygia-region <live>>`);
+	}
+	return lines.join('\n');
+}
+
+/** `a` and `b` with a line that moved on one side taken as the other side's same line: the moving
+ *  thing, masked where it moved, may not have moved in the other's look (a live region's tick every
+ *  3 s caught on one side only; generated app 6, seed 76). Text for text, an element for an element
+ *  of its tag, at the same place. */
+function live_aligned(a: string, b: string): [string, string] {
+	const [x, y] = [a.split('\n'), b.split('\n')];
+	if (x.length !== y.length) return [a, b];
+	const moved = (l: string) => / <live>>$|^ *"<live>"$/.test(l);
+	const kin = (l: string, m: string) =>
+		/^ *"/.test(l) ? /^ *"/.test(m) : tag_of(l) !== null && tag_of(l) === tag_of(m);
+	for (let i = 0; i < x.length; i++) {
+		if (moved(x[i]) && !moved(y[i]) && kin(x[i], y[i])) y[i] = x[i];
+		else if (moved(y[i]) && !moved(x[i]) && kin(y[i], x[i])) x[i] = y[i];
+	}
+	return [x.join('\n'), y.join('\n')];
+}
+
+/** `s` with each line that reads as one of `lines` replaced by a mark (indent kept; an element
+ *  keeps its tag). */
+function mask(s: string, lines: ReadonlySet<string>): string {
 	if (lines.size === 0) return s;
 	return s
 		.split('\n')
-		.map((l, i) => (lines.has(i) && /^ *"/.test(l) ? `${/^ */.exec(l)![0]}"<live>"` : l))
+		.map((l) => {
+			if (!lines.has(l)) return l;
+			const indent = /^ */.exec(l)![0];
+			if (/^ *"/.test(l)) return `${indent}"<live>"`;
+			const tag = tag_of(l);
+			return tag === null ? l : `${indent}<${tag} <live>>`;
+		})
 		.join('\n');
 }
 
@@ -352,25 +412,71 @@ function per_render(a: string, b: string): (s: string) => string {
 			.join('\n');
 }
 
-/** A normalized DOM's kit-island stamps. */
-function kit_stamps(s: string): string {
-	return head_blocks(s)
-		.blocks.filter((b) => b[0].includes('name="ogygia-kit-island"'))
-		.map((b) => b[0].trim())
-		.sort()
-		.join('\n');
+/**
+ * A region endpoint's bookkeeping, set aside: its capability's expiry and signature (`exp`, `sig`:
+ * the time of the render, in 30-minute steps). The region, its build, its props and the page facts
+ * it renders from (`id`, `r`, `props`, `k`, `pv`) are compared. Seeds 241, 315, 457 (/context,
+ * /nested-hole: a `pv` that came and went was two instances sharing one symbol registry).
+ */
+function bookkeeping_out(s: string): string {
+	return s.replace(/ endpoint="([^"]*)"/g, (_, url: string) => {
+		const kept = url.replace(/&(exp|sig)=[^&]*/g, '&$1=<t>');
+		return ` endpoint="${kept}"`;
+	});
 }
 
-/** A normalized DOM's region fingerprints, in order. */
-function fingerprints(s: string): string {
-	return [...s.matchAll(/ data-og-fp="([0-9a-f]+)"/g)].map((m) => m[1]).join(',');
+/** How many generated peer widgets a normalized DOM shows. */
+function widgets(s: string): number {
+	return s.split('\n').filter((l) => l.trim().startsWith('<section data-gen="widget"')).length;
 }
 
-/** The region sheets (`data-ogygia-region-css`) in a normalized DOM's head, each whole. */
-function region_sheets(s: string): string[] {
-	return head_blocks(s)
-		.blocks.filter((b) => b[0].includes('data-ogygia-region-css='))
-		.map((b) => b.join('\n'));
+/** A server's hop to a peer's fragment that failed (#937: the shell answers its hole empty). */
+function peer_hop_failed(e: World['network']['exchanges'][number]): boolean {
+	return (
+		e.from.startsWith('server') &&
+		e.url.includes('/og/fragment/') &&
+		(e.cut ||
+			e.tampered ||
+			(typeof e.status === 'number' ? e.status >= 500 : e.status !== 'pending'))
+	);
+}
+
+/** A normalized DOM less what each generated `<i data-gen-page>` says (#993, #995). */
+function without_page_data(s: string): string {
+	const out: string[] = [];
+	let inside: string | null = null;
+	for (const line of s.split('\n')) {
+		const indent = /^ */.exec(line)![0];
+		if (inside !== null && indent.length > inside.length) continue;
+		inside = null;
+		out.push(line);
+		if (line.trim().startsWith('<i data-gen-page=')) inside = indent;
+	}
+	return out.join('\n');
+}
+
+/** What each generated `<i data-gen-page>` in a normalized DOM says (#993). */
+function page_data_text(s: string): string {
+	const out: string[] = [];
+	const lines = s.split('\n');
+	for (const [i, line] of lines.entries())
+		if (line.trim().startsWith('<i data-gen-page=')) {
+			const next = lines[i + 1] ?? '';
+			out.push(
+				next.length - next.trimStart().length > line.length - line.trimStart().length
+					? next.trim()
+					: ''
+			);
+		}
+	return out.join(',');
+}
+
+/** The peer stylesheets (`crossorigin`) in `s`'s head that `other`'s lacks (#966). */
+function stale_peer_sheets(s: string, other: string): string[] {
+	const theirs = new Set(other.split('\n'));
+	return s
+		.split('\n')
+		.filter((l) => /^ {4}<link crossorigin="".* rel="stylesheet">$/.test(l) && !theirs.has(l));
 }
 
 /** The first lines where two normalized DOMs differ, for a report. */
@@ -391,7 +497,7 @@ export function first_difference(a: string, b: string, context = 3): string {
 
 /** A hard load of `url` in a new browser with `v`'s cookies, on a network that does not fail it
  *  (a fault there is no finding about the tab), at rest. */
-async function fresh_load(
+async function load_fresh(
 	world: World,
 	v: Visitor,
 	url: string,
@@ -430,33 +536,59 @@ export async function mpa_equivalent(
 	const url = tab.page.mainFrame.url;
 	if (!url.startsWith('http')) return null;
 	let shown = view(tab.page.mainFrame.document as unknown as Document);
+	// (a page a build a deploy replaced answered is compared with a fresh load from that build: an
+	// old page is the old release's, whole)
+	const build = world.build_of(tab.realm);
+	const fresh_load = (w: World, visitor: Visitor, at: string, name: string) =>
+		w.as_of(build, () => load_fresh(w, visitor, at, name), world.answers_of(tab.realm));
 	const fresh = await fresh_load(world, v, url, 'fresh');
-	const loaded = view(fresh.tab.page.mainFrame.document as unknown as Document);
+	// (no reference: the build the page is of could not give it again, its stored copies dropped and
+	// a newer build's handed out instead, gen 131, seed 131003)
+	if (world.astray(fresh.tab.realm)) return null;
+	let loaded = view(fresh.tab.page.mainFrame.document as unknown as Document);
 	// (a text that changes on its own at rest is time, not state: a ticking clock in an island the
 	// navigation kept has run longer than the fresh load's. Each side is looked at once more a
 	// moment later, and a text line that moved by itself is masked on both: seed 289)
 	await world.loop.run(LIVE_LOOK_MS);
-	const live = new Set([
-		...live_lines(shown, view(tab.page.mainFrame.document as unknown as Document)),
-		...live_lines(loaded, view(fresh.tab.page.mainFrame.document as unknown as Document))
+	let shown_later = view(tab.page.mainFrame.document as unknown as Document);
+	let loaded_later = view(fresh.tab.page.mainFrame.document as unknown as Document);
+	// (and a live region whose tick brought another shape on either side is set aside whole on
+	// every side: gen 194, seed 25)
+	const moving = new Set([
+		...reshaped_live(shown, shown_later),
+		...reshaped_live(loaded, loaded_later)
 	]);
-	let again = mask(loaded, live);
-	shown = mask(shown, live);
+	const whole = (s: string) => live_regions_out(s, moving);
+	[shown, shown_later, loaded, loaded_later] = [shown, shown_later, loaded, loaded_later].map(
+		whole
+	);
+	const live = new Set([...live_lines(shown, shown_later), ...live_lines(loaded, loaded_later)]);
+	let again = bookkeeping_out(mask(loaded, live));
+	shown = bookkeeping_out(mask(shown, live));
 	const said = [...fresh.tab.errors, ...fresh.tab.console];
 	await world.browsers.close(fresh.visitor, fresh.tab);
-	if (first_difference(own_state_out(shown), own_state_out(again)) === '') return null;
+	if (first_difference(...live_aligned(own_state_out(shown), own_state_out(again))) === '')
+		return null;
 	// (what the server makes anew each render, a stamp, a counter, a fresh id, differs between two
 	// fresh loads as well: it is the render's, not the tab's state. A second fresh load, and what
 	// differs between the two is marked on every side: seeds 107, 188, 268, 280, 326, 340, 477)
-	const second = await fresh_load(world, v, url, 'fresh-2');
-	const render = per_render(
-		loaded,
-		view(second.tab.page.mainFrame.document as unknown as Document)
-	);
-	await world.browsers.close(second.visitor, second.tab);
-	again = own_state_out(render(again));
-	shown = own_state_out(render(shown));
-	const diff = first_difference(shown, again);
+	// (and a third, when two servers each count their own renders: two loads can meet the same
+	// count on two instances, but of three, two come from one instance; seed 221, a cart's stamp)
+	const looks = [loaded];
+	let diff = '';
+	for (const n of [2, 3]) {
+		const more = await fresh_load(world, v, url, `fresh-${n}`);
+		looks.push(whole(view(more.tab.page.mainFrame.document as unknown as Document)));
+		await world.browsers.close(more.visitor, more.tab);
+		for (const other of looks.slice(0, -1)) {
+			const render = per_render(other, looks.at(-1)!);
+			again = render(again);
+			shown = render(shown);
+		}
+		diff = first_difference(...live_aligned(own_state_out(shown), own_state_out(again)));
+		if (diff === '' || world.servers.get(world.live)!.length < 2) break;
+	}
+	[shown, again] = live_aligned(own_state_out(shown), own_state_out(again));
 	if (diff === '') return null;
 	// a difference a filed bug explains is that bug, counted apart until its fix lands
 	// (in order: each judged on what the ones before it left)
@@ -464,16 +596,24 @@ export async function mpa_equivalent(
 	let a = shown;
 	let b = again;
 	for (const k of KNOWN) {
-		if (!k.applies(a, b)) continue;
+		if ((k.seen && !k.seen(world, tab)) || !k.applies(a, b)) continue;
 		known.push(k);
 		[a, b] = [k.forgive(a, b), k.forgive(b, a)];
 	}
+	// (what moved, lined up once more: a filed bug's lines set aside may have put them in place)
+	[a, b] = live_aligned(a, b);
+	if (a === b && known.length === 0) return null;
 	if (known.length > 0 && a === b)
 		return {
 			oracle: 'known',
 			detail: `${url}: ${known.map((k) => `#${k.issue} (${k.what})`).join(', ')}`
 		};
 	// (what is left once the filed bugs are set aside: the difference to triage)
+	if (DUMP) {
+		const name = `${DUMP}/${tab.name}-${new URL(url).pathname.replace(/\W+/g, '_')}`;
+		writeFileSync(`${name}-shown.txt`, a);
+		writeFileSync(`${name}-fresh.txt`, b);
+	}
 	const left =
 		known.length > 0 ? `with ${known.map((k) => `#${k.issue}`).join(', ')} set aside, ` : '';
 	return {
@@ -481,6 +621,235 @@ export async function mpa_equivalent(
 		detail: `${url}\n${left}${first_difference(a, b)}${said.length ? `\nthe fresh load said:\n${said.join('\n')}` : ''}`
 	};
 }
+
+/**
+ * EVERY REGION SHOWS SOMETHING: at rest, no `<ogygia-region>` of the page is empty (no element, no
+ * text): a region is a piece of the page, and one left with nothing in it never showed (its answer,
+ * its fallback or its server render). Set aside where the document was faulted (a fault may leave
+ * a region without its answer; the MPA check judges those) and inside an element the visitor's own
+ * press changed. A filed bug's shape is `known`.
+ */
+export function regions_show(tab: Tab, world: World): Broken | null {
+	const url = tab.page.mainFrame.url;
+	// (nor where a deploy or a missing secret failed an answer: a hole refused for another build's
+	// key keeps its fallback, as `secret_missing` warns; generated app 3, seed 53)
+	if (!url.startsWith('http') || faulted(world, tab) || world.skewed_for(tab.realm)) return null;
+	const doc = tab.page.mainFrame.document as unknown as Document;
+	const empty = [...doc.querySelectorAll('ogygia-region')].filter(
+		(r) =>
+			r.children.length === 0 &&
+			(r.textContent ?? '').trim() === '' &&
+			// (the app's own empty component, in the element the random app marks: src/gen.ts `empty`)
+			!r.parentElement?.hasAttribute('data-gen-empty') &&
+			// (a hole with no fallback still waiting for its moment: seen, or the visitor's intent)
+			!(
+				r.getAttribute('render') === 'defer' &&
+				!r.hasAttribute('data-hydrated') &&
+				/^(visible|interaction)$/.test(r.getAttribute('when') ?? '')
+			)
+	);
+	if (empty.length === 0) return null;
+	const open = (r: Element) =>
+		`<${r.localName}${[...r.attributes]
+			.filter((a) => a.name !== 'endpoint')
+			.map((a) => ` ${a.name}="${a.value}"`)
+			.join('')}>`;
+	const is = (k: (typeof KNOWN_EMPTY)[number], r: Element) => k.is(r, world, tab.realm);
+	const known = KNOWN_EMPTY.filter((k) => empty.some((r) => is(k, r)));
+	const left = empty.filter((r) => !KNOWN_EMPTY.some((k) => is(k, r)));
+	if (left.length === 0)
+		return {
+			oracle: 'known',
+			detail: `${url}: ${known.map((k) => `#${k.issue} (${k.what})`).join(', ')}`
+		};
+	return { oracle: 'empty-region', detail: `${url}: ${left.map(open).join('\n')}` };
+}
+
+/**
+ * A HOLE'S FALLBACK DOES NOT STAND: at rest, no deferred region that wakes on its own (`load`,
+ * `idle`) still shows the generated app's fallback (`data-gen-fallback`) in a document no fault or
+ * deploy touched: its answer was owed. The MPA check cannot see it (the fresh load runs the same code
+ * and stands there too: a mutant whose holes never fetched survived it). Set aside: a fallback the
+ * app keeps on purpose (`keepFallback()`, marked `data-gen-kept`), and holes that wait for the
+ * visitor or the screen.
+ */
+export function fallback_stands(tab: Tab, world: World): Broken | null {
+	const url = tab.page.mainFrame.url;
+	if (!url.startsWith('http') || world.skewed_for(tab.realm)) return null;
+	// (in a document a fault touched, only a hole never asked for at all: its own request may have
+	// failed, but none to fail is no fault's; a batch's body is not seen, so a document that sent one
+	// is judged only untouched)
+	const touched = faulted(world, tab);
+	const mine = world.network.exchanges.filter((e) => e.from === tab.realm);
+	if (touched && mine.some((e) => e.method === 'POST')) return null;
+	const asked = new Set(
+		mine.filter((e) => e.method === 'GET').map((e) => answer_key(new URL(e.url)))
+	);
+	const doc = tab.page.mainFrame.document as unknown as Document;
+	const standing = [...doc.querySelectorAll('ogygia-region[render="defer"]')].filter((r) => {
+		if (!/^(load|idle|)$/.test(r.getAttribute('when') ?? '')) return false;
+		const fallback = r.querySelector(':scope > [data-gen-fallback]');
+		if (fallback === null || fallback.hasAttribute('data-gen-kept')) return false;
+		if (!touched) return true;
+		const endpoint = r.getAttribute('endpoint');
+		return endpoint !== null && !asked.has(answer_key(new URL(endpoint, url)));
+	});
+	if (standing.length === 0) return null;
+	// (a region a filed bug leaves empty stands on its fallback for the same reason: #910's hole asks
+	// the app's endpoint, which refuses it)
+	const is = (k: (typeof KNOWN_EMPTY)[number], r: Element) => k.is(r, world, tab.realm);
+	const left = standing.filter((r) => !KNOWN_EMPTY.some((k) => is(k, r)));
+	if (left.length === 0) {
+		const known = KNOWN_EMPTY.filter((k) => standing.some((r) => is(k, r)));
+		return {
+			oracle: 'known',
+			detail: `${url}: ${known.map((k) => `#${k.issue} (${k.what})`).join(', ')}`
+		};
+	}
+	return {
+		oracle: 'fallback-stands',
+		detail: `${url}: ${left.map((r) => r.querySelector('[data-gen-fallback]')!.textContent).join(', ')}`
+	};
+}
+
+/**
+ * A LIVE REGION ANNOUNCES WHAT IT SHOWS: at rest, each live region (the random app's, inside its
+ * `[data-gen="live-host"]`; palaestra's live partials) was last heard, by a listener on the document,
+ * saying `ogygia:live` about the tick it shows now: every paint of a tick says it (a morph, a swap's
+ * mount, a kept-alive island's new props). And one showing an island (it has a `wake`) said
+ * `ogygia:hydrated` when that island mounted, followed by `ogygia:live`, the one mount of its module
+ * since another module's tick. Mutation testing: a keep-alive tick, or a mount, sent without
+ * `bubbles` reached no listener and survived every other oracle (core.ts, gen 196). The tick is
+ * {@link own_text}: what the region shows of its own (a press changes a button's own count, never a
+ * tick: a pressed document is judged too). Judged after every action, not only at rest, once no
+ * region's tick is on its way to the screen (no `live-region` hydrating, no `region-paint`
+ * painting: between a swap and its island's mount the tick shows unannounced, rightly). Set aside: a
+ * document a deploy failed a download of, and an island in a document a fault touched (its file may
+ * have failed: the tick's HTML stands with nothing to announce, #942). A static tick is judged there
+ * too: its morph always announces.
+ */
+/** Is a region's tick or answer on its way to the screen in the document `tab` shows (a
+ *  `live-region` hydrating, a `region-paint` painting: their last moves, `__ogygia_moves()`)? */
+function painting(tab: Tab): boolean {
+	const w = tab.page.mainFrame.window as unknown as { __ogygia_moves?: () => string } | undefined;
+	const last = new Map<string, string>();
+	for (const line of (w?.__ogygia_moves?.() ?? '').split('\n')) {
+		const m = /^((?:live-region|region-paint)\S*) \S+ -> (\S+)$/.exec(line);
+		if (m) last.set(m[1], m[2]);
+	}
+	return [...last.values()].some((s) => s === 'hydrating' || s === 'painting');
+}
+
+export function live_events(tab: Tab, world: World): Broken | null {
+	const url = tab.page.mainFrame.url;
+	if (!url.startsWith('http') || world.skewed_for(tab.realm)) return null;
+	if (painting(tab)) return null;
+	const touched = faulted(world, tab);
+	const doc = tab.page.mainFrame.document as unknown as Document;
+	const wrong: string[] = [];
+	for (const r of doc.querySelectorAll(
+		'[data-gen="live-host"] > ogygia-region, [data-live-interactive] > ogygia-region, [data-live-static] > ogygia-region'
+	)) {
+		const now = own_text(r);
+		if (now === '') continue;
+		const island = r.hasAttribute('wake');
+		if (island && touched) continue;
+		const entry = r.getAttribute('entry') ?? '';
+		const said = tab.heard.get(r) ?? [];
+		const live = said.filter((h) => h.type === 'ogygia:live').at(-1);
+		const what = `<ogygia-region entry="${entry}"> showing "${now}"`;
+		if (live === undefined) {
+			wrong.push(`${what}: never said ogygia:live`);
+			continue;
+		}
+		if (live.entry !== entry || live.shown !== now) {
+			wrong.push(`${what}: last said ogygia:live showing "${live.shown}" (${live.entry})`);
+			continue;
+		}
+		if (!island) continue;
+		// (its mount: back past this module's ticks, a hydrated and then a live)
+		let i = said.length - 1;
+		while (i >= 0 && said[i].type === 'ogygia:live' && said[i].entry === entry) i--;
+		const mount = said[i];
+		if (mount?.type !== 'ogygia:hydrated' || mount.entry !== entry)
+			wrong.push(`${what}: its island mounted and never said ogygia:hydrated`);
+		else if (said[i + 1]?.type !== 'ogygia:live')
+			wrong.push(`${what}: its island mounted and said ogygia:hydrated, no ogygia:live`);
+	}
+	return wrong.length === 0
+		? null
+		: { oracle: 'live-events', detail: `${url}: ${wrong.join('\n')}` };
+}
+
+/**
+ * A REGION ON SCREEN KEEPS ITS STYLES: at rest, every element inside a region that carries a
+ * component's scoped class (`svelte-<hash>`: Svelte puts it only on elements its `<style>` can
+ * match) has that component's rules somewhere in the document (a `<style>`, or a stylesheet link
+ * that loaded). A navigation or a soft refresh takes a region sheet out once no region on the page
+ * says it uses it: an answer that never said so lost its sheet while it stayed on screen. Judged in a
+ * document the visitor pressed in too (a soft refresh is a press: the MPA check sets that document
+ * aside, and the mutants that dropped what a region uses survived it). Set aside: a document a fault
+ * or a deploy touched (a sheet's download may have failed).
+ */
+export function styled_regions(tab: Tab, world: World): Broken | null {
+	const url = tab.page.mainFrame.url;
+	if (!url.startsWith('http') || world.skewed_for(tab.realm) || faulted(world, tab)) return null;
+	const doc = tab.page.mainFrame.document as unknown as Document;
+	const scoped = new Set<string>();
+	for (const el of doc.querySelectorAll('ogygia-region [class*="svelte-"]'))
+		for (const c of el.classList) if (/^svelte-[a-z0-9]+$/.test(c)) scoped.add(c);
+	if (scoped.size === 0) return null;
+	const css: string[] = [];
+	for (const s of doc.querySelectorAll('style')) css.push(s.textContent ?? '');
+	for (const l of doc.querySelectorAll('link[rel~="stylesheet"]')) {
+		const rules = (l as HTMLLinkElement).sheet?.cssRules;
+		if (rules) for (const r of rules) css.push(r.cssText);
+	}
+	const text = css.join('\n');
+	const missing = [...scoped].filter((c) => !text.includes(`.${c}`));
+	return missing.length === 0
+		? null
+		: { oracle: 'unstyled-region', detail: `${url}: no rules for ${missing.join(', ')}` };
+}
+
+/** An empty region a filed bug explains, by its shape and what its document was answered (as
+ *  KNOWN is for an MPA difference). */
+const KNOWN_EMPTY: ReadonlyArray<{
+	issue: number;
+	what: string;
+	is: (r: Element, world: World, realm: string) => boolean;
+}> = [
+	{
+		issue: 1007,
+		what: 'a peer region another deployment refused reads as a bad signature, not its key',
+		// (a rolling deploy with no secret: its `/og/frag` refused `sig`, so the deploy's skew is
+		// not seen; gen 195, seed 31)
+		is: (r, world, realm) =>
+			r.getAttribute('render') === 'defer' &&
+			!r.hasAttribute('data-hydrated') &&
+			(r.getAttribute('endpoint') ?? '').startsWith('/og/frag?') &&
+			world.frag_refused.has(realm)
+	},
+	{
+		issue: 937,
+		what: 'a deferred peer region whose peer failed is answered as an empty success',
+		// (its hole fetched and answered, with nothing: the shell's hop to the peer failed)
+		is: (r) =>
+			r.getAttribute('render') === 'defer' &&
+			r.hasAttribute('data-hydrated') &&
+			(r.getAttribute('endpoint') ?? '').startsWith('/og/frag?')
+	},
+	{
+		issue: 910,
+		what: "a server island inside a peer's widget never shows",
+		// (its hole asks the app's endpoint, which refuses it: the generated peer's widget root,
+		// `<section data-gen="widget">`, or a mounted page of it, `<main data-gen="peer-page">`)
+		is: (r) =>
+			r.getAttribute('render') === 'defer' &&
+			r.closest('[data-gen="widget"], [data-gen="peer-page"]') != null &&
+			(r.getAttribute('endpoint') ?? '').startsWith('/__ogygia__?')
+	}
+];
 
 /**
  * EVERY WAIT SETTLES: once the world is at rest (nothing on the wire, nothing due within 2 s), no
@@ -500,32 +869,25 @@ export function stuck(tab: Tab): Broken | null {
 	const held = [...last].filter(([, state]) => state.endsWith('ing'));
 	if (held.length === 0) return null;
 	const detail = `${tab.page.mainFrame.url}: at rest, still ${held.map(([id, s]) => `${id} ${s}`).join(', ')}`;
-	// #820: on a page Kit hydrates, Kit's client that never came leaves its islands' wakes waiting
-	if (held.every(([id, s]) => id.startsWith('wake#') && s === 'waking') && kit_never_came(tab))
-		return {
-			oracle: 'known',
-			detail: `${detail}: #820 (an island waits for a Kit that never came)`
-		};
 	return { oracle: 'stuck', detail };
 }
 
-/** A page Kit hydrates (its start entry is in the document) whose Kit never published its page. */
-function kit_never_came(tab: Tab): boolean {
-	const w = tab.page.mainFrame.window as unknown as Record<symbol, unknown> & {
-		document: Document;
-	};
-	const kit = [...w.document.querySelectorAll('script, link')].some((e) =>
-		/\/_app\/immutable\/entry\/start\./.test(e.textContent + (e.getAttribute('href') ?? ''))
-	);
-	return kit && w[Symbol.for('ogygia.kit-page')] == null;
-}
-
 /** ogygia's own rules, in the page (`__ogygia_rules()`, built in with OGYGIA_RULES=1). */
-export function page_rules(tab: Tab): Broken | null {
+export function page_rules(tab: Tab, world?: World): Broken | null {
 	const w = tab.page.mainFrame.window as unknown as {
 		__ogygia_rules?: () => Array<{ code: string; detail: string }>;
 	};
-	const broken = w.__ogygia_rules?.() ?? [];
+	// (a marker no code wrote: a changed byte in what the document was sent made it; gen 195, seed
+	// 97, `data-ogygia-regiontcss`)
+	const changed =
+		world !== undefined &&
+		(document_faulted(world, tab) ||
+			world.network.exchanges.some(
+				(e) => e.tampered && (e.from === tab.realm || e.for === tab.realm)
+			));
+	const broken = (w.__ogygia_rules?.() ?? []).filter(
+		(b) => !(changed && b.code === 'rule_markup_known')
+	);
 	return broken.length === 0
 		? null
 		: { oracle: 'rules', detail: broken.map((b) => `${b.code}: ${b.detail}`).join('\n') };
@@ -536,53 +898,201 @@ export function page_rules(tab: Tab): Broken | null {
  * offline, or a server error)? Such a page may report it, and may differ from a fresh load until
  * it loads again: the oracles excuse what the fault explains, and nothing else.
  */
+/** Does `tab` show the browser's own page for a navigation that failed (nothing of the app: an
+ *  empty document where the page would be)? A back or a link followed while offline. */
+export function error_page(tab: Tab): boolean {
+	const doc = tab.page.mainFrame.document as unknown as Document;
+	return (
+		doc.documentElement.attributes.length === 0 &&
+		(doc.head?.childNodes.length ?? 0) === 0 &&
+		(doc.body?.childNodes.length ?? 0) === 0
+	);
+}
+
+/** The buggify points that lose an answer on the way, as a dropped request does. */
+const LOSSY_POINTS = ['hole.fetch-lost'];
+
+/** Did buggify lose an answer of `realm`'s on the way? */
+function lost_answers(world: World, realm: string): boolean {
+	const fired = world.fired_in.get(realm);
+	return fired !== undefined && LOSSY_POINTS.some((p) => fired.has(p));
+}
+
+/**
+ * Was the document `tab` shows touched only by an outage (its tab offline for a while: requests
+ * that failed to fetch, bodies that broke off), and nothing else the network does? Such a page is
+ * back on the network now, and owes what a fresh load shows once it is at rest: an answer it gave
+ * up on during the outage is asked for again. Not a page a script or stylesheet of which failed
+ * (a browser never loads one again), nor one whose own load failed (the browser's error page).
+ */
+export function outage_only(world: World, tab: Tab): boolean {
+	if (world.browsers.lacks_a_file(tab.realm) || error_page(tab) || lost_answers(world, tab.realm))
+		return false;
+	let outage = false;
+	let first = true;
+	for (const e of world.network.exchanges) {
+		if (e.from !== tab.realm) continue;
+		// (its own load failed: what it shows is the browser's error page, not the app's)
+		if (first && (e.status === 'offline' || e.lost)) return false;
+		first = false;
+		if (
+			e.cut ||
+			e.tampered ||
+			e.redirected ||
+			e.status === 'dropped' ||
+			(typeof e.status === 'number' && e.status >= 500)
+		)
+			return false;
+		if (e.status === 'offline' || e.lost) {
+			// (a remote function's call the outage failed: Kit's query keeps its error, and asking
+			// again is the app's to do, not ogygia's; generated app 3, seed 48, a held region's host)
+			if (new URL(e.url).pathname.startsWith('/_app/remote/')) return false;
+			outage = true;
+		}
+	}
+	return outage;
+}
+
 export function faulted(world: World, tab: Tab, since?: number): boolean {
 	// (the document it shows, and the one it is loading, whose request may be what failed; or,
 	// `since` an exchange, any document of the tab: what it said since then may be an earlier one's)
 	const next = `${tab.name}#${tab.documents + 1}`;
 	const mine = (from: string): boolean =>
 		since === undefined ? from === tab.realm || from === next : from.startsWith(`${tab.name}#`);
-	return world.network.exchanges
-		.slice(since ?? 0)
-		.some(
-			(e) =>
-				mine(e.from) &&
-				(e.cut ||
-					e.tampered ||
-					e.status === 'dropped' ||
-					e.status === 'offline' ||
-					(typeof e.status === 'number' && e.status >= 500))
-		);
+	// (an answer buggify lost on the way is a dropped request's: the hole may give up, as it would;
+	// palaestra seed 85, test/lost-answers.node.test.ts)
+	if ([...world.fired_in.keys()].some((realm) => mine(realm) && lost_answers(world, realm)))
+		return true;
+	return world.network.exchanges.slice(since ?? 0).some(
+		(e) =>
+			(mine(e.from) && (failed_on_wire(e) || e.tampered || e.redirected)) ||
+			// (a server's hop for it changed on the way: what the page was made from. A cut one is
+			// a failure the app must answer well, #937)
+			(e.for !== undefined && mine(e.for) && e.tampered) ||
+			kept_changed(e, tab)
+	);
 }
 
-/** Was the HTML of the document `tab` shows changed or cut on its way? */
-export function document_faulted(world: World, tab: Tab): boolean {
-	const url = tab.page.mainFrame.url.split('#')[0];
-	return world.network.exchanges.some(
-		(e) => e.from === tab.realm && e.method === 'GET' && e.url === url && (e.tampered || e.cut)
+/** Whether the network failed exchange `e`: dropped, offline, cut or broken off, or a server error. */
+function failed_on_wire(e: World['network']['exchanges'][number]): boolean {
+	return (
+		e.cut ||
+		e.status === 'dropped' ||
+		e.status === 'offline' ||
+		e.lost === true ||
+		(typeof e.status === 'number' && e.status >= 500)
 	);
+}
+
+/** The browser's line for an element whose file did not load (`error: <img> /hero.png failed`). */
+const ELEMENT_FAILED = /^error: <\w+> (\S+) failed/;
+
+/**
+ * Whether `line` is an element's failed file whose own download, by its document, the network
+ * failed. The DOM library says why an image failed only after its `error` event, and on the
+ * window's console, so its line carries no reason for EXPLAINED to read (gen 192, seed 19:
+ * test/oracles.test.ts).
+ */
+function element_download_failed(world: World, tab: Tab, line: string): boolean {
+	const src = ELEMENT_FAILED.exec(line)?.[1];
+	if (src === undefined) return false;
+	let url: string;
+	try {
+		url = new URL(src, tab.page.mainFrame.url).href;
+	} catch {
+		return false; // ok: no URL, no download of it
+	}
+	return world.network.exchanges.some(
+		(e) => e.from === tab.realm && e.url === url && failed_on_wire(e)
+	);
+}
+
+/** A peer's page a server's hop got changed on the way, for any document: the app keeps a peer's
+ *  page documents (`cache: { ttl }`), so a later document of that page, and the MPA check's fresh
+ *  load, may be shown the changed copy (gen 125, seed 125013). By the hop's `path` and the page's. */
+function kept_changed(e: World['network']['exchanges'][number], tab: Tab): boolean {
+	if (!e.tampered || e.for === undefined) return false;
+	const hop = new URL(e.url);
+	if (!hop.pathname.endsWith('/og/fragment/page')) return false;
+	const path = hop.searchParams.get('path');
+	return path !== null && new URL(tab.page.mainFrame.url).pathname.endsWith(path);
+}
+
+/** Was the HTML of the document `tab` shows changed or cut on its way? (Its own load is the first
+ *  request of its realm, whatever URL the router has moved it to since: seed 471, a changed byte
+ *  in `/` and a click to /static.) */
+export function document_faulted(world: World, tab: Tab): boolean {
+	const own = world.network.exchanges.find((e) => e.from === tab.realm);
+	if (own !== undefined && (own.tampered || own.cut)) return true;
+	// (or a page the router brought in: any page answer this document had, as the router keeps
+	// what it fetched and swaps it in again on a back, and an error there may leave the address
+	// where it was; seed 53, a changed byte in the /dashboard/orders HTML a client navigation
+	// swapped in; seed 837, a back to / whose changed HTML the router had kept)
+	// (and a back to a page an earlier document of the tab loaded: history shows its HTML again)
+	const here = new URL(tab.page.mainFrame.url).pathname;
+	return world.network.exchanges.some((e) => {
+		if (!(e.tampered || e.cut)) return false;
+		// (or what a server fetched to make this document's answers: a changed byte in a peer's page
+		// is in the page, as one in the page's own HTML would be; gen 32, seed 32008, `pe�r-page` in
+		// a mounted peer page)
+		if ((e.for === tab.realm && e.tampered) || kept_changed(e, tab)) return true;
+		const path = new URL(e.url).pathname;
+		if (e.from === tab.realm) return is_page_path(path);
+		return e.from.startsWith(`${tab.name}#`) && path === here;
+	});
 }
 
 /** What a page may say when the network failed it: ogygia's coded reports, the network's own
  *  failures (a script cut midway fails to parse), Vite's preload helper on a sheet whose
  *  download failed (seeds 65, 425), and Kit's remote functions on an answer they cannot read
- *  ("Invalid query.live response": seed 193, a changed byte in a live query's stream). An uncaught
- *  TypeError is never excused. */
+ *  ("Invalid query.live response": seed 193, a changed byte in a live query's stream), and an
+ *  inline handler a changed byte broke (the runtime script's `onerror`, as the DOM library says
+ *  it fails to compile: generated-app seed 88), and the JSON parser's bare message for a changed
+ *  byte in a JSON answer (a live query's client logs it without `SyntaxError`: palaestra seed 204).
+ *  An uncaught TypeError is never excused. */
 const EXPLAINED =
-	/ogygiajs\.dev\/e\/|Unable to preload CSS|Failed to fetch|network error|stream was cut|Failed to perform request|SyntaxError|Invalid or unexpected token|Unexpected token|Status [45]\d\d|offline|connection lost|Invalid [\w.]+ response/;
+	/ogygiajs\.dev\/e\/|Unable to preload CSS|Failed to fetch|network error|stream was cut|Failed to perform request|SyntaxError|Invalid or unexpected token|Unexpected token|Status [45]\d\d|offline|connection lost|Invalid [\w.]+ response|Failed to read the 'on\w+' property| in JSON at position \d+/;
+
+/** How the browser, or ogygia with its code, says a module or file did not download. */
+const NOT_DOWNLOADED =
+	/ogygiajs\.dev\/e\/|Failed to fetch dynamically imported module|^error: <(script|link)> \S+ failed|Failed to perform request/;
+
+/**
+ * A failure a deploy explains: the tab asked a build for a content-hashed file only another build
+ * has (an old page's file after its build is gone, or one build's file asked of the other's
+ * servers in a rolling deploy), said as the browser says a download failed, or by ogygia with its
+ * code. ogygia's own words without a code are never excused.
+ */
+function deploy_took(world: World, tab: Tab, line: string): boolean {
+	return NOT_DOWNLOADED.test(line) && world.skewed_for(tab.realm);
+}
 
 /** No uncaught error, unhandled rejection or console error in the page (beyond what a network
- *  fault on this document explains, when `world` is given). */
+ *  fault on this document explains, or a deploy, when `world` is given). */
 export function page_errors(tab: Tab, world?: World, since?: number): Broken | null {
-	// (a fault on the shown document stays its fact: a module whose download was cut fails every
-	// later import of it in that document, as the module map keeps the failure)
-	const excused = world !== undefined && (faulted(world, tab) || faulted(world, tab, since));
-	// (a document whose own HTML was changed or cut on the way is not the page the server sent:
-	// what its scripts then do is the network's, a TypeError too. Seed 150: a flipped byte in
-	// `type="application/ogygia-page"` hid the page data, and the island read a missing field)
-	if (world !== undefined && document_faulted(world, tab)) return null;
+	// (each line judged by the document that said it: an action can show several; seed 78)
+	const said_in = (l: string): Tab => {
+		const realm = tab.said_by?.get(l) ?? tab.realm;
+		return realm === tab.realm ? tab : { ...tab, realm };
+	};
 	const errors = [...tab.errors, ...tab.console.filter((l) => l.startsWith('error:'))].filter(
-		(l) => !(excused && EXPLAINED.test(l))
+		(l) => {
+			if (world === undefined) return true;
+			const by = said_in(l);
+			// (a document whose own HTML was changed or cut on the way is not the page the server
+			// sent: what its scripts then do is the network's, a TypeError too. Seed 150: a flipped
+			// byte in `type="application/ogygia-page"` hid the page data, and the island read a
+			// missing field)
+			if (document_faulted(world, by)) return false;
+			// (a fault on the document stays its fact: a module whose download was cut fails every
+			// later import of it in that document, as the module map keeps the failure)
+			const excused = faulted(world, by) || faulted(world, by, since);
+			return (
+				!(excused && EXPLAINED.test(l)) &&
+				!element_download_failed(world, by, l) &&
+				!deploy_took(world, by, l)
+			);
+		}
 	);
 	if (errors.length === 0) return null;
 	const known = KNOWN_SAID.filter((k) => errors.some((l) => k.said.test(l)));
@@ -594,11 +1104,66 @@ export function page_errors(tab: Tab, world?: World, since?: number): Broken | n
 	return { oracle: 'page-errors', detail: errors.join('\n') };
 }
 
+/**
+ * NO FOREIGN HTML: a page never paints HTML another origin answered. Region HTML is trusted
+ * because the app's own server made it (INVARIANTS.md HOLE-TRUST); a `redirect` fault sends a
+ * region's request elsewhere, and what comes back is marked. Read from the tab's document.
+ */
+export function no_foreign_html(tab: Tab): Broken | null {
+	const doc = tab.page.mainFrame.document as unknown as Document;
+	const painted = [...doc.querySelectorAll(`[${FOREIGN_MARK}]`)];
+	if (painted.length === 0) return null;
+	return {
+		oracle: 'foreign-html',
+		detail: `${tab.page.mainFrame.url}: ${painted.map((e) => e.outerHTML.slice(0, 200)).join('\n')}`
+	};
+}
+
+/** Svelte's and ogygia's words for a region whose server HTML did not hydrate as it was. */
+const UNHYDRATED = /svelte\.dev\/e\/hydration_mismatch|ogygiajs\.dev\/e\/hydration_discarded/;
+
+/** Pages of the test app that serve HTML their islands do not hydrate as it is, on purpose, each
+ *  with its reason. Never add one for HTML ogygia itself got wrong. */
+const UNHYDRATED_BY_DESIGN: ReadonlyArray<{ path: RegExp; why: string }> = [
+	{
+		path: /^\/detector$/,
+		why: "its hooks strip one region's hydration anchors, for the foreign-mutation detector's e2e"
+	}
+];
+
+/**
+ * THE SERVER'S HTML IS THE LIVE PAGE: a region hydrates the HTML the server sent as it is. Svelte
+ * says `hydration_mismatch` when the DOM is not what its code expects, and ogygia then discards
+ * the server's HTML and renders anew (`hydration_discarded`): what the visitor saw first was not
+ * what the page is. Excused when the document's own HTML was changed or cut on the way.
+ */
+export function hydrates_as_sent(tab: Tab, world?: World): Broken | null {
+	const said = tab.console.filter((l) => UNHYDRATED.test(l));
+	if (said.length === 0) return null;
+	if (world !== undefined && document_faulted(world, tab)) return null;
+	// (nor when a changed or cut byte reached what a region renders from: a remote function's
+	// answer or a hole's, a peer's deferred widget's too, its props then not what the server
+	// rendered; generated app 8, seed 61, a changed byte in a live query's tick; gen 87, seed 34,
+	// in a widget's `/og/frag`)
+	if (
+		world !== undefined &&
+		world.network.exchanges.some(
+			(e) =>
+				e.from === tab.realm &&
+				(e.tampered || e.cut) &&
+				/^\/(_app\/remote\/|__ogygia__|og\/frag)/.test(new URL(e.url).pathname)
+		)
+	)
+		return null;
+	const url = tab.page.mainFrame.url;
+	if (UNHYDRATED_BY_DESIGN.some((d) => d.path.test(new URL(url).pathname))) return null;
+	const detail = `${url}: ${said.map((l) => l.split('\n')[0]).join('\n')}`;
+	return { oracle: 'ssr-hydrate', detail };
+}
+
 /** What a page says because of a filed bug, as KNOWN is for a DOM difference: a seed that says
  *  only these is counted `known`, not failed. Each entry goes when its fix lands. */
-export const KNOWN_SAID: ReadonlyArray<{ issue: number; what: string; said: RegExp }> = [
-	{ issue: 817, what: 'a kept island loses its live query', said: /No cached query found/ }
-];
+export const KNOWN_SAID: ReadonlyArray<{ issue: number; what: string; said: RegExp }> = [];
 
 /**
  * No error escaped every page and server to the host process (beyond a network failure's own
@@ -609,13 +1174,40 @@ export function uncaught(world: World): Broken | null {
 	const any_fault = world.browsers.visitors.some((v) => v.tabs.some((t) => faulted(world, t)));
 	const left = world.uncaught.filter((l) => !(any_fault && EXPLAINED.test(l.split('\n')[0])));
 	world.uncaught.length = 0;
-	return left.length === 0 ? null : { oracle: 'uncaught', detail: left.join('\n') };
+	if (left.length === 0) return null;
+	// (a filed bug's words reach the host too: seed 265, #817's from a press)
+	const known = KNOWN_SAID.filter((k) => left.some((l) => k.said.test(l)));
+	if (left.every((l) => known.some((k) => k.said.test(l))))
+		return { oracle: 'known', detail: known.map((k) => `#${k.issue} (${k.what})`).join(', ') };
+	return { oracle: 'uncaught', detail: left.join('\n') };
+}
+
+/** A server rule a filed bug breaks, as KNOWN_SAID is for what a page says. */
+const KNOWN_SERVER_RULES: ReadonlyArray<{ issue: number; what: string; said: RegExp }> = [];
+
+/** No server said one of ogygia's server rules broken (core server/rules.ts: a scope left open, a
+ *  kept failure, a region answer a shared cache may keep, a capability minted as more than a path).
+ *  Reading it takes what it read. */
+export function server_rules(world: World): Broken | null {
+	const said = [...new Set(world.server_rules)];
+	world.server_rules.length = 0;
+	if (said.length === 0) return null;
+	const known = KNOWN_SERVER_RULES.filter((k) => said.some((l) => k.said.test(l)));
+	if (said.every((l) => known.some((k) => k.said.test(l))))
+		return { oracle: 'known', detail: known.map((k) => `#${k.issue} (${k.what})`).join(', ') };
+	return { oracle: 'server-rules', detail: said.join('\n') };
 }
 
 /** A shared cache never hands one visitor's personal bytes to another (cdn.ts records each hit
  *  served across cookies; any is a finding until the oracle can compare against the origin). */
 export function no_cross_visitor_cache(world: World): Broken | null {
-	const crossed = world.cdn.crossed.filter((c) => c.made_for !== '' || c.served_to !== '');
+	// (a file whose name carries its content's hash is the same bytes for everyone: seed 8, the
+	// runtime's chunk, made for a visitor with no cookies and served to one with a locale cookie)
+	const crossed = world.cdn.crossed.filter(
+		(c) =>
+			(c.made_for !== '' || c.served_to !== '') &&
+			!new URL(c.url).pathname.startsWith('/_app/immutable/')
+	);
 	return crossed.length === 0
 		? null
 		: {
@@ -635,77 +1227,130 @@ const LEAK_VISITS = 3;
  * and URL: what a document holds on its Nth visit of a URL may differ from its first (a page
  * visited since may install what lives as long as the document), but it must not GROW visit after
  * visit. Growth over {@link LEAK_VISITS} visits in a row, in one count, is what a visit that keeps
- * something after it ends looks like.
+ * something after it ends looks like. For listeners and observers, the same code must be what grows:
+ * a visit that leaks one adds the same closure again each time.
  */
 export class Leaks {
 	readonly #samples = new Map<string, Array<Record<string, number>>>();
+	/** Each sample's listeners, by label (to name the ones that grew). */
+	readonly #listening = new Map<string, string[][]>();
+	/** Each sample's observers, by kind and callback code. */
+	readonly #watching = new Map<string, string[][]>();
+	/** Each document met, numbered. */
+	readonly #docs = new WeakMap<object, number>();
+	#docs_made = 0;
 	/** Each tab's last sample's key: the same key twice running is one visit. */
 	readonly #at = new Map<string, string>();
-	/** Notes `tab`'s sample now; what grew, if it has grown visit after visit. */
-	check(tab: Tab): Broken | null {
+	/** Notes `tab`'s sample now; what grew, if it has grown visit after visit. `pressed`: the
+	 *  visitor pressed in this document, so an island may hold more of their own (a list they
+	 *  added to): its elements are theirs, and only what is held (listeners, timers) is judged. */
+	check(tab: Tab, pressed = false): Broken | null {
 		const url = tab.page.mainFrame.url;
 		if (!url.startsWith('http')) return null;
-		const key = `${tab.realm} ${url.split('#')[0]}`;
+		// (by the document itself too: a navigation that failed swaps the document in the DOM
+		// library's same window, where a browser would make a new one; generated-app seed 71)
+		const doc = tab.page.mainFrame.document as unknown as object;
+		let n = this.#docs.get(doc);
+		if (n === undefined) this.#docs.set(doc, (n = this.#docs_made++));
+		const key = `${tab.realm}.${n} ${url.split('#')[0]}`;
 		const list = this.#samples.get(key) ?? [];
 		const held = tab.held();
 		// (a module preload stays in the head once added, as Vite's own do: one per chunk the app
-		// has, so bounded by the app, not by the visits; set aside)
-		const preloads = preloads_in_head(tab);
+		// has, so bounded by the app, not by the visits; and a page store's mark is delivery: set
+		// aside)
+		const delivery = delivery_in_head(tab);
 		const now: Record<string, number> = {
 			...held,
-			head: held.head - preloads,
-			elements: held.elements - preloads,
-			explained: explained_head(tab)
+			head: held.head - delivery,
+			elements: held.elements - delivery
 		};
 		// (one sample per visit, its latest: the visit may still have been settling)
-		if (this.#at.get(tab.name) === key && list.length > 0) list[list.length - 1] = now;
-		else list.push(now);
+		const labels = this.#listening.get(key) ?? [];
+		const watches = this.#watching.get(key) ?? [];
+		if (this.#at.get(tab.name) === key && list.length > 0) {
+			list[list.length - 1] = now;
+			labels[labels.length - 1] = tab.listening();
+			watches[watches.length - 1] = tab.watching();
+		} else {
+			list.push(now);
+			labels.push(tab.listening());
+			watches.push(tab.watching());
+		}
 		this.#at.set(tab.name, key);
 		this.#samples.set(key, list);
+		this.#listening.set(key, labels);
+		this.#watching.set(key, watches);
 		if (list.length < LEAK_VISITS) return null;
 		const run = list.slice(-LEAK_VISITS);
 		// (BOUNDED MEMORY: the head and the element count too; a page visited again is the same page)
-		const grew = (field: string, less = 0) =>
-			run.every(
-				(s, i) =>
-					i === 0 || s[field] - less * s.explained > run[i - 1][field] - less * run[i - 1].explained
-			);
-		let known = false;
-		for (const field of ['listeners', 'intervals', 'observers', 'head', 'elements']) {
+		const grew = (field: string) => run.every((s, i) => i === 0 || s[field] > run[i - 1][field]);
+		const fields = ['listeners', 'intervals', 'observers', 'head', 'elements'];
+		for (const field of pressed ? fields.slice(0, -1) : fields) {
 			if (!grew(field)) continue;
-			// (head nodes a filed bug explains are set aside: if then it does not grow, it is known)
-			if ((field === 'head' || field === 'elements') && !grew(field, 1)) {
-				known = true;
-				continue;
-			}
+			// (listeners: one code added again on every visit, not new code on each: a page's first
+			// visit of a kind installs a delegation once for the document, as ogygia's wake and
+			// Svelte's event delegation do, and visits of new kinds of region add new code each;
+			// generated-app 6, seed 12)
+			if (field === 'listeners' && growing(labels.slice(-LEAK_VISITS)).length === 0) continue;
+			// (observers too: the timing observer, the viewport tracker's and its children's are each
+			// made once for the document, the first time a visit needs one; gen 195, seed 195005)
+			if (field === 'observers' && growing(watches.slice(-LEAK_VISITS)).length === 0) continue;
 			return {
 				oracle: 'leak',
-				detail: `${url}: ${field} grew visit after visit in one document: ${run.map((s) => s[field]).join(' → ')}${field === 'intervals' ? `\nrunning: ${tab.platform?.pending().join(', ')}` : ''}`
+				detail: `${url}: ${field} grew visit after visit in one document: ${run.map((s) => s[field]).join(' → ')}${field === 'intervals' ? `\nrunning: ${tab.platform?.pending().join(', ')}` : ''}${
+					field === 'listeners'
+						? labels
+								.slice(-LEAK_VISITS + 1)
+								.map(
+									(l, i) =>
+										`\nvisit ${i + 2} added: ${added(labels[labels.length - LEAK_VISITS + i], l).join(', ')}`
+								)
+								.join('')
+						: ''
+				}`
 			};
 		}
-		return known
-			? {
-					oracle: 'known',
-					detail: `${url}: #799 (a left page's region sheet kept), #821 (a second runtime script after a navigation to another depth)`
-				}
-			: null;
+		return null;
 	}
 }
 
-/** The module preloads in a tab's head. */
-function preloads_in_head(tab: Tab): number {
-	const head = (tab.page.mainFrame.document as unknown as Document).head;
-	return head ? head.querySelectorAll('link[rel="modulepreload"]').length : 0;
+/** The listeners (by target, type and code; the line that added one set aside) held more times in
+ *  each sample than in the one before. */
+function growing(samples: string[][]): string[] {
+	const counts = samples.map((labels) => {
+		const c = new Map<string, number>();
+		for (const l of labels) {
+			const base = l.split(' @ ')[0];
+			c.set(base, (c.get(base) ?? 0) + 1);
+		}
+		return c;
+	});
+	return [...counts[counts.length - 1].keys()].filter((l) =>
+		counts.every((c, i) => i === 0 || (c.get(l) ?? 0) > (counts[i - 1].get(l) ?? 0))
+	);
 }
 
-/**
- * Head nodes a filed bug explains: runtime scripts past the first (#821) and region sheets (#799
- * keeps a left page's for a navigation; until it is fixed a sheet's coming and going is set aside).
- */
-function explained_head(tab: Tab): number {
+/** What `after` holds that `before` did not, each label as many times as it is in excess. */
+function added(before: string[], after: string[]): string[] {
+	const left = new Map<string, number>();
+	for (const l of before) left.set(l, (left.get(l) ?? 0) + 1);
+	const more: string[] = [];
+	for (const l of after) {
+		const n = left.get(l) ?? 0;
+		if (n > 0) left.set(l, n - 1);
+		else more.push(l);
+	}
+	return more;
+}
+
+/** A page store's mark on a copy it served (`<meta name="ogygia-stored">`): delivery, not the
+ *  page. The MPA check drops it (gen 63, seed 26), and the leak check does not count it: a stored
+ *  visit brings it in once (gen 61, seed 36). */
+const STORE_MARK = 'meta[name="ogygia-stored"]';
+
+/** What the head holds that a visit does not leak: the module preloads (one per chunk the app
+ *  has, kept once added, as Vite's own are) and a page store's mark. */
+function delivery_in_head(tab: Tab): number {
 	const head = (tab.page.mainFrame.document as unknown as Document).head;
-	if (!head) return 0;
-	const runtime = head.querySelectorAll('script[data-ogygia-runtime]').length;
-	const sheets = head.querySelectorAll('[data-ogygia-region-css]').length;
-	return Math.max(0, runtime - 1) + sheets;
+	return head ? head.querySelectorAll(`link[rel="modulepreload"], ${STORE_MARK}`).length : 0;
 }

@@ -17,6 +17,7 @@
 import vm from 'node:vm';
 import Module from 'happy-dom/lib/module/ECMAScriptModule.js';
 import Compiler from 'happy-dom/lib/module/ECMAScriptModuleCompiler.js';
+import ModuleFactory from 'happy-dom/lib/module/ModuleFactory.js';
 
 type Window = object & { fetch(url: string): Promise<Response>; location: { href: string } };
 
@@ -27,6 +28,17 @@ interface Loader {
 }
 
 const LOADER = Symbol('ogygia.sim.modules');
+
+/** Errors of a module's download (not of its parse or its run). */
+const unfetched = new WeakSet<object>();
+
+/** Whether `error` is a module's failed download: the loader's, or happy-dom's own fetch of a
+ *  classic script's `import()` (its words, a `DOMException`). */
+const download_failed = (error: unknown): boolean =>
+	typeof error === 'object' &&
+	error !== null &&
+	(unfetched.has(error) ||
+		String((error as Error).message).startsWith('Failed to perform request'));
 
 /** The window's module loader (one per document: modules are per document, as in a browser). */
 function loader_of(window: Window): Loader {
@@ -52,15 +64,13 @@ function make_loader(window: Window): Loader {
 				} catch (error) {
 					// a download anywhere in its graph failed: the browser names the module asked for,
 					// not the dependency (Chromium: "Failed to fetch dynamically imported module: <url>")
-					if (!unfetched.has(error as object)) throw error;
+					if (!download_failed(error)) throw error;
 					throw new (window as unknown as { TypeError: typeof TypeError }).TypeError(
 						`Failed to fetch dynamically imported module: ${href}`
 					);
 				}
 			}) as never
 		});
-	/** Errors of a module's download (not of its parse or its run). */
-	const unfetched = new WeakSet<object>();
 	const fetch_code = async (url: string): Promise<string> => {
 		try {
 			const r = await window.fetch(url);
@@ -183,5 +193,24 @@ export function use_v8_modules(): void {
 		const exports = await evaluate.apply(this, a);
 		await RUNNING.get(exports);
 		return exports;
+	};
+	// a classic script's `import()` (Kit's bootstrap) goes through happy-dom's factory: a failed
+	// download anywhere in its graph is the browser's one TypeError there too, named by the module
+	// asked for, in the page's realm (it threw the loader's own words, or happy-dom's DOMException)
+	const factory = (ModuleFactory as unknown as { prototype: Record<string, unknown> }).prototype;
+	const import_module = factory.importModule as (...a: unknown[]) => Promise<unknown>;
+	factory.importModule = async function (
+		this: { window: { TypeError: typeof TypeError }; parentURL: URL | string },
+		url: string,
+		...rest: unknown[]
+	) {
+		try {
+			return await import_module.call(this, url, ...rest);
+		} catch (error) {
+			if (!download_failed(error)) throw error;
+			throw new this.window.TypeError(
+				`Failed to fetch dynamically imported module: ${new URL(url, String(this.parentURL)).href}`
+			);
+		}
 	};
 }
