@@ -11,7 +11,8 @@ import {
 	plan,
 	write,
 	write_peer,
-	type GenNode
+	type GenNode,
+	type GenPage
 } from '../src/gen.ts';
 
 const all = (ns: readonly GenNode[]): GenNode[] => ns.flatMap((n) => [n, ...all(n.children)]);
@@ -333,6 +334,33 @@ describe('the random app', () => {
 					n.style === true
 				);
 			expect(JSON.parse(readFileSync(join(lib, 'plan.json'), 'utf8')).layout).toEqual(layout);
+		} finally {
+			rmSync(app, { recursive: true, force: true });
+		}
+	});
+
+	it('draws a hero image on some pages, from its own stream: the critical wait has a resource to wait for', () => {
+		const seeds = Array.from({ length: 20 }, (_, i) => i + 1);
+		const pages = seeds.flatMap((s) => plan(s));
+		expect(pages.some((p) => p.hero)).toBe(true);
+		expect(pages.some((p) => !p.hero)).toBe(true);
+		// (the trees stay what they were: the hero is drawn apart)
+		const strip = (ps: readonly GenPage[]) => ps.map(({ hero: _, ...p }) => p);
+		expect(strip(plan(3))).toEqual(strip(plan(3)));
+		const seed = seeds.find((s) => plan(s).some((p) => p.hero))!;
+		const app = mkdtempSync(join(tmpdir(), 'sim-gen-'));
+		try {
+			const drawn = plan(seed);
+			write(app, drawn, seed);
+			for (const p of drawn) {
+				const src = readFileSync(
+					join(app, 'src', 'routes', p.path.slice(1), '+page.svelte'),
+					'utf8'
+				);
+				expect(src.includes('<img src="/hero.png" fetchpriority="high"')).toBe(p.hero === true);
+			}
+			const image = readFileSync(join(app, 'src', 'routes', 'hero.png', '+server.ts'), 'utf8');
+			expect(image).toContain("'content-type': 'image/png'");
 		} finally {
 			rmSync(app, { recursive: true, force: true });
 		}
