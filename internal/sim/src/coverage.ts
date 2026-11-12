@@ -105,7 +105,15 @@ function files(dir: string): string[] {
  */
 export function universe(root: string): Map<string, MachineDef> {
 	const out = new Map<string, MachineDef>();
-	const flights_named: Array<{ name: string; pkg: string; file: string }> = [];
+	const flights_named: Array<{
+		name: string;
+		pkg: string;
+		file: string;
+		/** `keep: 0`: it keeps no answer. */
+		keeps_none: boolean;
+		/** Its file asks a flights `fresh` (`.get(input, { fresh })`). */
+		fresh: boolean;
+	}> = [];
 	let flights_steps: Record<string, string[]> | null = null;
 	for (const pkg of PACKAGES)
 		for (const file of files(join(root, 'packages', pkg, 'src'))) {
@@ -118,6 +126,22 @@ export function universe(root: string): Map<string, MachineDef> {
 					for (const d of s.declarations as Node[])
 						if (is(d.id, 'Identifier')) consts.set(d.id.name as string, d.init);
 			const rel = file.slice(root.length + 1);
+			// (a forced run, `get(input, { fresh })`, anywhere in the file: the only way an entry goes
+			// flying -> flying or kept -> flying)
+			let fresh = false;
+			walk(ast, (n) => {
+				if (
+					is(n, 'CallExpression') &&
+					is(n.callee, 'MemberExpression') &&
+					is((n.callee as Node).property, 'Identifier') &&
+					((n.callee as Node).property as Node).name === 'get' &&
+					(n.arguments as unknown[]).some(
+						(a) => is(a, 'ObjectExpression') && prop(a, 'fresh') !== undefined
+					)
+				)
+					fresh = true;
+			});
+			const named_here = flights_named.length;
 			walk(ast, (n) => {
 				if (!is(n, 'CallExpression')) return;
 				const callee = n.callee as Node;
@@ -153,11 +177,27 @@ export function universe(root: string): Map<string, MachineDef> {
 						is(callee.callee, 'MemberExpression') &&
 						names_flights((callee.callee as Node).object));
 				const name = is_flights ? literal(prop(config, 'name')) : null;
-				if (name !== null) flights_named.push({ name, pkg, file: rel });
+				if (name === null) return;
+				const keep = bare(prop(config, 'keep'));
+				const keeps_none = is(keep, 'Literal') && keep.value === 0;
+				flights_named.push({ name, pkg, file: rel, keeps_none, fresh: false });
 			});
+			for (let i = named_here; i < flights_named.length; i++) flights_named[i].fresh = fresh;
 		}
-	if (flights_steps !== null)
-		for (const f of flights_named) {
+	// (set in the walk's callback, which the compiler does not follow)
+	const generic = flights_steps as Record<string, string[]> | null;
+	if (generic !== null)
+		for (const { keeps_none, fresh, ...f } of flights_named) {
+			// (only the steps its options and its file's calls can take: no `fresh` ask, no forced run;
+			// `keep: 0`, no kept answer)
+			const flights_steps = Object.fromEntries(
+				Object.entries(generic!).map(([from, tos]) => [
+					from,
+					keeps_none && from === 'kept'
+						? []
+						: tos.filter((to) => !(keeps_none && to === 'kept') && (fresh || !(to === 'flying')))
+				])
+			);
 			const same = out.get(f.name);
 			// (a flights named as a machine is: one name in the moves, so its steps are both's)
 			const steps = same
