@@ -3,8 +3,8 @@
  *
  * The transform runs in plain Node (no browser, no WASM stub — the oxc parser auto-loads), so an AI
  * client (Claude Desktop / Claude Code / any MCP host) can hand ogygia a `.svelte` source and get back
- * the island map, the rewritten host, the wire shape, and any rule violations — the same currency the
- * Observatory shows a human, in a form an AI can reason over.
+ * the island map, the rewritten host, the wire shape, and any rule violations, in a form an AI can
+ * reason over.
  *
  * Transport is stdio, newline-delimited JSON-RPC 2.0 (the MCP stdio contract). Hand-rolled on purpose:
  * zero runtime deps beyond ogygia's own compiler, so `npx ogygia mcp` just works wherever ogygia is
@@ -15,7 +15,6 @@
 import { createInterface } from 'node:readline';
 import { createRequire } from 'node:module';
 import { flights, scope, STALE } from '@ogygia/machine';
-import { gzipSync } from 'node:zlib';
 import { readdirSync, readFileSync, type Dirent } from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -28,7 +27,7 @@ import {
 	collect_flag_sites,
 	flags_manifest,
 	type FlagSite
-} from '@ogygia/core/internal/compiler';
+} from '@ogygia/compiler';
 import { line } from './messages.ts';
 
 /** The profiler's report reading (`@ogygia/devtools/report`), as these tools use it: loaded from the
@@ -67,13 +66,8 @@ export async function load_profiler_reading(): Promise<ProfilerReading | null> {
 // ── regexes
 const TRAILING_SLASH_RE = /\/$/;
 const HTTP_URL_RE = /^https?:\/\//i;
-const LOGIN_FORM_RE = /id="og-login"/;
 const HTML_TAG_G = /<[^>]+>/g;
 const WS_G = /\s+/g;
-const PLUS_G = /\+/g;
-const SLASH_G = /\//g;
-const TRAILING_EQUALS_RE = /=+$/;
-const HASH_SUFFIX_RE = /#.*$/;
 const BACKSLASH_G = /\\/g;
 const UNKNOWN_PRESET_RE = /unknown preset/i;
 const SVELTE_EXT_RE = /\.svelte$/;
@@ -83,6 +77,7 @@ const { version } = require('../package.json') as { version: string };
 
 const PROTOCOL_VERSION = '2024-11-05';
 const SERVER_NAME = 'ogygia';
+// static: the import-attribute keys that mark a region, a fixed list
 const MARK_KEYS = new Set(['wake', 'fetch', 'render', 'region', 'keep', 'preset', 'margin']);
 
 type Attrs = Record<string, unknown>;
@@ -102,13 +97,12 @@ type HostIsland = {
 };
 type HostResult = { code?: string; islands?: HostIsland[] } | null;
 
-// The Observatory's build_ctx, in Node: real path, no file reads (single-source REPL), dev shape.
+// A build_ctx for one source: real path, no file reads, dev shape.
 function build_ctx(ssr: boolean, route_csr = false) {
 	return {
 		root: '/repl',
 		libDir: '/repl/src/lib',
 		readFile: () => null,
-		pathModule: path as never,
 		dev: true,
 		virtualPathFor: (_host: string, iid: string) => islandVirtualId(iid),
 		wrapperPathFor: (_host: string, iid: string) => wrapperVirtualId(iid),
@@ -394,36 +388,6 @@ const TOOLS = [
 		}
 	},
 	{
-		name: 'ogygia_observatory',
-		description:
-			'Bundle one or more files into a shareable, CLIENT-ONLY ogygia Observatory link so the user can see ' +
-			'their code compiled + running live in the browser (island map, byte ledger, wire, hydrating preview). ' +
-			'The files are gzip-packed into the URL # fragment, which browsers never send to a server — nothing ' +
-			'hits any server. Great for showing the user how one of their real pages becomes islands. Pass `files` ' +
-			'(a map of filename → source; App.svelte is the entry) or a single `source`.',
-		inputSchema: {
-			type: 'object',
-			properties: {
-				files: {
-					type: 'object',
-					description:
-						'Map of filename → source. App.svelte is the entry; include the components it imports.',
-					additionalProperties: { type: 'string' }
-				},
-				source: {
-					type: 'string',
-					description: 'Single-file convenience: the component source (paired with `filename`).'
-				},
-				filename: { type: 'string', description: 'Name for `source` (default App.svelte).' },
-				base: {
-					type: 'string',
-					description:
-						'Observatory base URL (default the public docs Observatory; use a localhost URL to target a dev build).'
-				}
-			}
-		}
-	},
-	{
 		name: 'ogygia_flags',
 		description:
 			'Inventory every flag() call site in a project — the same AST collector the build ' +
@@ -704,7 +668,7 @@ function render_story(url: string, events: DtEvent[]): string {
 	);
 }
 
-/** What the page's restorer said (an app with `ogygia.handle({ transform })`), or '' when nothing. */
+/** What the page's restorer said (an app with `reshape.handle(transform)`), or '' when nothing. */
 function restore_section(
 	events: { type: string; detail: { host?: string; diff?: string } }[]
 ): string {
@@ -749,7 +713,7 @@ async function tool_debug(args: Attrs): Promise<ToolResult> {
 	}
 	try {
 		const page = await browser.newPage();
-		// the app's server transform (ogygia.handle({ transform })): a host the restore reached too late,
+		// the app's server transform (reshape.handle(transform)): a host the restore reached too late,
 		// or one it could not put back exactly (the dev check) — listened for before the page's own
 		// inline restorer runs
 		await page.addInitScript(() => {
@@ -1507,6 +1471,15 @@ const NOT_MOUNTED = (base: string, where: string) =>
 	`  plugins: [ogygia(), devtools({ profiler: true /* or { secret, path, … } */ }), sveltekit()]\n\n` +
 	`ogygia.handle() mounts it for you — no hooks wiring needed. Restart the server, then retry.`;
 
+/** A locked profiler sends a visitor without a session to `<base>/login` (devtools profiler
+ *  `#auth_guard`): is `res` that redirect? Proved by test/mcp-profile-locked.test.ts. */
+function sends_to_login(res: Response, base: string): boolean {
+	if (res.status < 300 || res.status >= 400) return false;
+	const to = res.headers.get('location');
+	if (!to) return false;
+	return new URL(to, base).pathname === new URL(base + '/login').pathname;
+}
+
 /** Who holds the profiler's recorder, as its 409 says (devtools profiler `#busy`). */
 type BusyHolder = { kind: string; age_ms: number; stale: boolean };
 
@@ -1566,8 +1539,8 @@ async function tool_profile(args: Attrs): Promise<ToolResult> {
 	}
 
 	// Confirm the profiler is mounted AND we're authed — clean messages beat a cryptic failure. A locked
-	// profiler serves its login PAGE at 200 (not 401), so sniff for it: no key → ask for one, wrong key
-	// → say so, before we bother recording.
+	// profiler redirects to its login page (not 401), so look for that: no key → ask for one, wrong
+	// key → say so, before we bother recording.
 	{
 		const key_h: Record<string, string> = key ? { 'x-profiler-key': key } : {};
 		let pre: Response;
@@ -1583,8 +1556,8 @@ async function tool_profile(args: Attrs): Promise<ToolResult> {
 			);
 		}
 		if (pre.status === 404) return fail(NOT_MOUNTED(profiler_base, origin));
-		const pre_body = await pre.text().catch(() => '');
-		if (LOGIN_FORM_RE.test(pre_body))
+		await pre.body?.cancel().catch(() => {}); // ok: only the status and Location are read
+		if (sends_to_login(pre, origin + profiler_base))
 			return fail(
 				key
 					? `The profiler on ${origin} rejected that \`key\` (still locked). Confirm its secret with the user.`
@@ -1694,55 +1667,9 @@ async function tool_profile_open(args: Attrs): Promise<ToolResult> {
 	);
 }
 
-// ── ogygia_observatory — bundle files into a client-only Observatory link ──────────────────────────
-
-const DEFAULT_OBSERVATORY = 'https://ogygiajs.dev/observatory';
-
-/** `#<base64url(gzip(json))>` — the EXACT single-string format the Observatory decodes (browser gunzip).
- *  The payload is `{ f: files }` (files only; the app fills in default UI state). */
-function observatory_link(files: Record<string, string>, base: string): string {
-	const gz = gzipSync(Buffer.from(JSON.stringify({ f: files }), 'utf8'));
-	const b64url = gz
-		.toString('base64')
-		.replace(PLUS_G, '-')
-		.replace(SLASH_G, '_')
-		.replace(TRAILING_EQUALS_RE, '');
-	return `${base.replace(HASH_SUFFIX_RE, '')}#${b64url}`;
-}
-
-function tool_observatory(args: Attrs): ToolResult {
-	let files: Record<string, string> = {};
-	if (args.files && typeof args.files === 'object' && !Array.isArray(args.files)) {
-		for (const [k, v] of Object.entries(args.files as Record<string, unknown>))
-			if (typeof v === 'string') files[k] = v;
-	} else if (typeof args.source === 'string') {
-		files[String(args.filename ?? 'App.svelte')] = args.source;
-	}
-	const names = Object.keys(files);
-	if (!names.length)
-		return fail(
-			'Provide `files` (a map of filename → source) or `source` (+ optional `filename`).'
-		);
-	if (!names.some((n) => n.endsWith('.svelte')))
-		return text(
-			`⚠️ No .svelte file given — the Observatory renders a Svelte component (App.svelte is the entry). Add one.\n\nFiles: ${names.join(', ')}`
-		);
-
-	const base = String(args.base ?? DEFAULT_OBSERVATORY);
-	const url = observatory_link(files, base);
-	const long =
-		url.length > 8000
-			? `\n\n⚠️ The link is ${url.length} chars — some tools truncate very long URLs. Trim to the files that matter if it breaks.`
-			: '';
-	return text(
-		`Open this in the ogygia Observatory to see ${names.length === 1 ? 'this component' : `these ${names.length} files`} compiled live — the island map, byte ledger, wire payloads, and a real hydrating preview:\n\n` +
-			`${url}\n\n` +
-			`🔒 Client-only: the code is packed into the URL's **# fragment**, which browsers NEVER send to a server — nothing here touches ogygia's (or anyone's) servers. It compiles entirely in your browser.${long}`
-	);
-}
-
 // ── ogygia_scan — walk a real project, map every island + lint the whole codebase ──────────────────
 
+// static: the folders a project scan never walks into, a fixed list
 const SKIP_DIRS = new Set([
 	'node_modules',
 	'.svelte-kit',
@@ -2050,8 +1977,30 @@ async function tool_fragment(args: Attrs): Promise<ToolResult> {
 	);
 }
 
+/** A JSON value's type, in a tool schema's words. */
+const json_type = (v: unknown): string =>
+	Array.isArray(v) ? 'array' : v === null ? 'null' : typeof v;
+
+/** The tool's error for the first argument that is not what its schema declares; null when all are.
+ *  Checked once here, so a tool reads a declared string as a string (test/property-mcp-tools.test.ts). */
+function wrong_args(name: string, args: unknown): ToolResult | null {
+	if (json_type(args) !== 'object')
+		return fail(`\`arguments\` must be an object, not ${json_type(args)}.`);
+	const props = TOOLS.find((t) => t.name === name)?.inputSchema.properties as
+		| Record<string, { type: string }>
+		| undefined;
+	for (const [k, p] of Object.entries(props ?? {})) {
+		const v = (args as Attrs)[k];
+		if (v != null && json_type(v) !== p.type)
+			return fail(`\`${k}\` must be a ${p.type}, not ${json_type(v)}.`);
+	}
+	return null;
+}
+
 /** Run one tool, as the server does for a `tools/call`. @internal Exported for tests. */
 export async function dispatch_tool(name: string, args: Attrs): Promise<ToolResult> {
+	const wrong = wrong_args(name, args);
+	if (wrong) return wrong;
 	switch (name) {
 		case 'ogygia_compile':
 			return tool_compile(args);
@@ -2067,8 +2016,6 @@ export async function dispatch_tool(name: string, args: Attrs): Promise<ToolResu
 			return tool_profile(args);
 		case 'ogygia_profile_open':
 			return tool_profile_open(args);
-		case 'ogygia_observatory':
-			return tool_observatory(args);
 		case 'ogygia_scan':
 			return tool_scan(args);
 		case 'ogygia_flags':
@@ -2097,7 +2044,13 @@ function log(...parts: unknown[]): void {
 }
 
 function handle(msg: Rpc): void {
-	const { id, method, params } = msg;
+	const { id, params } = msg;
+	const method = typeof msg.method === 'string' ? msg.method : undefined;
+	if (method === undefined) {
+		if (id != null)
+			send({ jsonrpc: '2.0', id, error: { code: -32600, message: 'Invalid Request: no method' } });
+		return;
+	}
 	if (method === 'initialize') {
 		send({
 			jsonrpc: '2.0',
@@ -2115,7 +2068,7 @@ function handle(msg: Rpc): void {
 		return;
 	}
 	if (method === 'tools/call') {
-		const name = String(params?.name ?? '');
+		const name = typeof params?.name === 'string' ? params.name : '';
 		const args = (params?.arguments as Attrs) ?? {};
 		dispatch_tool(name, args)
 			.then((result) => send({ jsonrpc: '2.0', id, result }))
@@ -2132,8 +2085,9 @@ function handle(msg: Rpc): void {
 		send({ jsonrpc: '2.0', id, result: {} });
 		return;
 	}
-	// Notifications (no id) — nothing to answer.
-	if (method?.startsWith('notifications/') || id == null) return;
+	// Notifications (no id): nothing to answer. A message with an id is a request, whatever its
+	// method says.
+	if (id == null) return;
 	send({ jsonrpc: '2.0', id, error: { code: -32601, message: `Method not found: ${method}` } });
 }
 
@@ -2153,10 +2107,23 @@ export async function runMcp(): Promise<void> {
 			log('dropped non-JSON line');
 			continue;
 		}
+		// (not one message: nothing to answer, and no id to answer it with)
+		if (!msg || typeof msg !== 'object' || Array.isArray(msg)) {
+			log('dropped a line that is not one JSON-RPC message');
+			continue;
+		}
 		try {
 			handle(msg);
 		} catch (e) {
-			log('handler threw:', e instanceof Error ? e.message : String(e));
+			// every request is answered once: a client waits for its id (test/mcp-every-request.test.ts)
+			const message = e instanceof Error ? e.message : String(e);
+			log('handler threw:', message);
+			if (msg.id != null)
+				send({
+					jsonrpc: '2.0',
+					id: msg.id,
+					error: { code: -32603, message: `Internal error: ${message}` }
+				});
 		}
 	}
 }
