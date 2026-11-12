@@ -23,7 +23,7 @@
  * One global slot, not module scope: a plugin package and core can end up as two module instances
  * of this file (src beside dist, a dual install), and both must find the same owner.
  */
-import { noop, scope, type Scope } from '@ogygia/machine';
+import { noop, scope, slot as shared, type Scope } from '@ogygia/machine';
 import { current_request } from './facts.ts';
 import { warn } from '../messages/server.ts';
 import { note_response_end } from '../server/rules.ts';
@@ -36,9 +36,11 @@ const RULES =
 type Entry = { owner: Scope; locals: Map<object, unknown> | null };
 type Slot = { by_request: WeakMap<Request, Entry> };
 
-const slot: Slot = ((globalThis as Record<symbol, Slot | undefined>)[
-	Symbol.for('ogygia.request-scope.v1')
-] ??= { by_request: new WeakMap() });
+const slot = shared<Slot>({
+	name: 'ogygia.request-scope',
+	version: 1,
+	make: () => ({ by_request: new WeakMap() })
+});
 
 function entry_of(request: Request): Entry {
 	let entry = slot.by_request.get(request);
