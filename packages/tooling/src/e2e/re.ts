@@ -1,11 +1,11 @@
-// Shared regexes for the e2e specs — ONE definition per pattern the suites keep re-deriving:
-// the region tag and its attributes, the runtime/Kit bootstrap markers, Vite dev URL shapes,
-// HTML entities in attribute values, fixture-app page markers. Import the ones you need; a
-// pattern that only one spec uses stays a top-level const in that spec (house law: regexes are
-// hoisted, never inline). Global (`g`) patterns are for `match`/`matchAll`/`replace` — never
-// `.test()` them in a loop (lastIndex).
+/**
+ * Regexes several e2e specs share, one definition each. A name ending in `_G_RE` is global (`g`):
+ * use it with `match`, `matchAll` or `replace`, not `.test()`, which keeps `lastIndex` between
+ * calls.
+ *
+ * @packageDocumentation
+ */
 
-// ── <ogygia-region> ───────────────────────────────────────────────────────────────────────
 /** Any region tag (a presence probe). */
 export const REGION_TAG_RE = /<ogygia-region[\s/>]/;
 /** Every region opening tag — `html.match(REGION_TAG_G_RE)?.length` counts regions. */
@@ -29,7 +29,6 @@ export const REGION_CSS_LINK_RE = /data-ogygia-region-css/;
 /** A generated wrapper module id. */
 export const WRAPPER_VIRTUAL_RE = /ogygia:region\/wrapper\//;
 
-// ── runtime / Kit bootstrap ──────────────────────────────────────────────────────────────
 /** The runtime bootstrap `<script data-ogygia-runtime>`. */
 export const RUNTIME_SCRIPT_RE = /data-ogygia-runtime/;
 /** Every runtime bootstrap SCRIPT (not its `data-ogygia-runtime-dep` preload links) — count them. */
@@ -51,35 +50,39 @@ export const EARLY_HOLES_RE =
 /** The stamp a page store (postrender) puts on a copy it serves. */
 export const STORED_META_RE = /<meta name="ogygia-stored"[^>]*>/;
 
-// ── Vite dev URL shapes ──────────────────────────────────────────────────────────────────
+/** A Vite dev URL through `/@id/`. */
 export const VITE_ID_RE = /\/@id\//;
+/** A Vite dev URL through `/@fs/`. */
 export const VITE_FS_RE = /\/@fs\//;
+/** Vite's dev client. */
 export const VITE_CLIENT_RE = /@vite\/client/;
 
-// ── HTML entity forms an attribute value can carry (normalize before URL matching) ───────
+/** `&amp;` in an attribute value: replace it with `&` before matching a URL. */
 export const AMP_ENTITY_G_RE = /&amp;/g;
+/** `&#38;` in an attribute value: replace it with `&` before matching a URL. */
 export const AMP_NUMERIC_G_RE = /&#38;/g;
 
-// ── remote functions ─────────────────────────────────────────────────────────────────────
 /** A Kit remote-function request (`/_app/remote/…`). */
 export const REMOTE_PATH_RE = /\/_app\/remote\//;
 /** The reactive `query.current` readout on /data. */
 export const REACTIVE_CURRENT_RE = /reactive current: \d+/;
 
-// ── console noise to ignore ──────────────────────────────────────────────────────────────
+/** A favicon request, console noise a spec ignores. */
 export const FAVICON_RE = /favicon/;
 
-// ── federation (examples/mfe) ────────────────────────────────────────────────────────────
-/** The foreign page-read dev warning. */
+/** The foreign page-read dev warning (examples/mfe). */
 export const FOREIGN_WARN_RE = /was read inside a mounted MFE island/;
 
-// ── fixture-app page markers shared by several suites ────────────────────────────────────
+/** The fixture app's chrome header. */
 export const CHROME_HEADER_RE = /data-chrome-header/;
+/** The fixture app's bumper counter showing 5. */
 export const BUMPER_5_RE = /data-bumper-n[^>]*>5</;
+/** The fixture app's portable bar, through its closing footer. */
 export const PORTABLE_BAR_RE = /data-portable-bar[\s\S]*?<\/footer>/;
 
-// ── string utilities ─────────────────────────────────────────────────────────────────────
+/** Every non-digit, to strip a counter's text down to its number. */
 export const NON_DIGIT_G_RE = /\D/g;
+/** Leading `.` and `/` characters of a relative path. */
 export const LEADING_DOTS_RE = /^[./]+/;
 /** A `1` anywhere in a counter's text (the "clicked once" probe). */
 export const ONE_RE = /1/;

@@ -1,11 +1,9 @@
 /**
- * THE WIRE FORMAT of a side-channel script, read back. The server emits two lanes
- * (server/props-wire.ts): plain JSON under `data-og-format="json"` (a payload with nothing devalue
- * exists for — the common CMS props and seed), and devalue otherwise. This is the ONE place the
- * client tells them apart: every seed / props / remote read goes through `parse_wire_text`. devalue
- * itself is loaded only for a page that has a devalue-lane script (./devalue-lane.ts).
+ * The wire format of a side-channel script, read back. The server (server/props-wire.ts) writes
+ * two lanes: plain JSON under `data-og-format="json"` for a payload with nothing devalue exists
+ * for, and devalue otherwise. The JSON lane never asks for devalue.
  *
- * Pure (no DOM types beyond an attribute read) so the runtime, the shims and the tests share it.
+ * @packageDocumentation
  */
 import { boot_link } from './slots.ts';
 import { OG_FORMAT } from '../wire-markup.ts';
@@ -22,7 +20,6 @@ export function wire_is_json(el: Element): boolean {
 export function parse_wire_text(
 	text: string,
 	json: boolean,
-	// each reviver names its own payload type; devalue takes them as `(value: any) => any`
 	revivers?: Record<string, (value: never) => unknown>
 ): unknown {
 	if (json) return JSON.parse(text);

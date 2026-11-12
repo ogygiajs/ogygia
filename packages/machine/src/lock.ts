@@ -1,16 +1,3 @@
-/**
- * A lock with an owner: only the token that took it can free it.
- *
- *   const recorder = lock();
- *   const token = recorder.take();          // null while someone holds it
- *   if (token !== null) try { ... } finally { recorder.free(token); }
- *
- *   const token = await recorder.acquire(signal); // waits its turn, first come first served
- *
- * A late `free` from an owner that already lost the lock (a reset, a timeout) is refused, so it
- * can never free the lock out from under whoever holds it now.
- */
-
 /** Proof of holding a lock. Each `take` or `acquire` gets a new one. */
 export type LockToken = number & { readonly __lock_token: true };
 
@@ -37,7 +24,6 @@ type Waiter = {
 };
 
 class Owned implements Lock {
-	/** The token holding it, 0 when free. */
 	#owner = 0;
 	#minted = 0;
 	#queue: Waiter[] = [];
@@ -86,7 +72,18 @@ class Owned implements Lock {
 	}
 }
 
-/** A new, free lock. */
+/**
+ * A new, free lock with an owner: only the token that took it can free it.
+ *
+ *   const recorder = lock();
+ *   const token = recorder.take();          // null while someone holds it
+ *   if (token !== null) try { ... } finally { recorder.free(token); }
+ *
+ *   const token = await recorder.acquire(signal); // waits its turn, first come first served
+ *
+ * A late `free` from an owner that already lost the lock (a reset, a timeout) is refused, so it
+ * can never free the lock out from under whoever holds it now.
+ */
 export function lock(): Lock {
 	return new Owned();
 }
