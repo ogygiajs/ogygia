@@ -1,0 +1,30 @@
+{
+	"seed": 3,
+	"steps": 3,
+	"plan": {
+		"actions": [
+			{ "kind": "goto", "tab": 0, "path": "/bench-cms" },
+			{ "kind": "click", "tab": 1, "nth": 489 },
+			{ "kind": "back", "tab": 0 }
+		],
+		"mix": {
+			"click": 3,
+			"press": 0,
+			"goto": 0,
+			"back": 3,
+			"forward": 0,
+			"reload": 3,
+			"open": 3,
+			"offline": 1,
+			"online": 0,
+			"wait": 1,
+			"deploy": 1,
+			"outage": 0,
+			"away": 3,
+			"hurry": 1,
+			"hover": 0,
+			"eager": 1,
+			"twice": 3
+		}
+	}
+}
