@@ -1,18 +1,3 @@
-/**
- * postrender — tier-2 store on Cloudflare Workers KV (BYO binding, under adapter-cloudflare). KV has no sets and no scans — but it lists by key PREFIX, which our
- * keying law turns into everything needed: keys are `og:a:<pathname>` (subtree eviction = one
- * prefixed list) and the og.source reverse index rides SENTINEL keys `og:t:<tag>:<pathname>`
- * (tag eviction = one prefixed list, member encoded in the key itself).
- *
- * KNOWN CONTRACT DIFFERENCES (documented, not hidden): KV is eventually consistent (~60s edge
- * propagation — an invalidation may serve the old copy briefly at far POPs) and `expirationTtl`
- * has a 60-second floor (shorter policy TTLs are clamped up).
- *
- * The binding is the Worker's `env`, importable at module scope where `postrender.handle()` is made:
- *
- *   import { env } from 'cloudflare:workers';
- *   postrender.handle({ store: new CloudflareKvStore(env.PAGES) })
- */
 import type { PostrenderEntry, PostrenderPutOptions, PostrenderStore } from '../types.ts';
 import { normalize_prefix, subtree_prefix } from '../key.ts';
 
@@ -31,6 +16,18 @@ export interface KvNamespaceLike {
 	}): Promise<{ keys: { name: string }[]; list_complete: boolean; cursor?: string }>;
 }
 
+/**
+ * A store on Cloudflare Workers KV, with the Worker's own binding. KV has no sets and no scans but
+ * lists by key prefix: pages are `og:a:<pathname>` (subtree eviction is one list) and each tag is
+ * a set of sentinel keys `og:t:<tag>:<pathname>` (tag eviction is one list).
+ *
+ * Differences from the other stores: KV is eventually consistent (an invalidation can serve the
+ * old copy for about a minute at far locations), and a TTL under 60 seconds is raised to 60, KV's
+ * floor.
+ *
+ *   import { env } from 'cloudflare:workers';
+ *   postrender.handle({ store: new CloudflareKvStore(env.PAGES) })
+ */
 export class CloudflareKvStore implements PostrenderStore {
 	#kv: KvNamespaceLike;
 
@@ -57,7 +54,6 @@ export class CloudflareKvStore implements PostrenderStore {
 		const expirationTtl = Math.max(KV_MIN_TTL, ttl);
 		await kv.put(KEY_NS + key, JSON.stringify(entry), { expirationTtl });
 		for (const tag of tags ?? []) {
-			// Sentinel key: the member IS the suffix — one list() recovers the whole tag set.
 			await kv.put(`${TAG_NS}${tag}:${key}`, '1', { expirationTtl });
 		}
 	}

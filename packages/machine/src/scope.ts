@@ -23,6 +23,7 @@
  * first time they are needed. A scope nothing was given to costs one small object.
  */
 import { machine_error, report } from './messages.ts';
+import { noop } from './noop.ts';
 import { tasks, timers } from './ports.ts';
 import { STALE, whole, type Fresh, type Stale } from './stale.ts';
 
@@ -130,8 +131,6 @@ export const MAX_TIMEOUT_MS = 2_147_483_647;
 export function is_time(ms: unknown): ms is number {
 	return typeof ms === 'number' && Number.isFinite(ms) && ms >= 0 && ms <= MAX_TIMEOUT_MS;
 }
-
-const noop = (): void => {};
 
 /**
  * Every scope is one of these. Fields are plain (`_`), not `#private`: a machine reads and writes
