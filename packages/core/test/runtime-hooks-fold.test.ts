@@ -5,14 +5,15 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { rolldown } from 'rolldown';
 import { RUNTIME_HOOK_CONSTANTS, type RuntimeHookName } from '../src/contract/runtime-hooks.ts';
+import { dedent } from '../src/contract/dedent.ts';
 
 const SRC = fileURLToPath(new URL('../src/', import.meta.url));
-const ENTRY = [
-	`import { boot } from ${JSON.stringify(`${SRC}runtime/core.ts`)};`,
-	`import { install as frames } from ${JSON.stringify(`${SRC}runtime/frames.ts`)};`,
-	`import { install as router } from ${JSON.stringify(`${SRC}runtime/router.ts`)};`,
-	`boot([frames, router], [{ boot() {} }]);`
-].join('\n');
+const ENTRY = dedent`
+	import { boot } from ${JSON.stringify(`${SRC}runtime/core.ts`)};
+	import { install as frames } from ${JSON.stringify(`${SRC}runtime/frames.ts`)};
+	import { install as router } from ${JSON.stringify(`${SRC}runtime/router.ts`)};
+	boot([frames, router], [{ boot() {} }]);
+`;
 const HOOKS = Object.keys(RUNTIME_HOOK_CONSTANTS) as RuntimeHookName[];
 
 async function build(subscribed: readonly RuntimeHookName[]): Promise<string> {

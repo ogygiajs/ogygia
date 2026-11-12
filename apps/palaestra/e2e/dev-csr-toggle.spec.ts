@@ -65,7 +65,7 @@ test.describe('PAGE-CSR dev leg: a csr-export toggle refreshes ogygia:server/rou
 				'127.0.0.1'
 			],
 			cwd: palaestra,
-			url: base + '/',
+			url: `${base}/`,
 			timeout_ms: 120_000
 		});
 	});

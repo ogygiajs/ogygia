@@ -4,6 +4,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { highlight } from '../src/markdown/shiki.ts';
 import { ogygiaPreprocess } from '../src/markdown/index.ts';
+import { dedent } from '@ogygia/core/plugin/utils';
 
 const fail = vi.hoisted(() => ({ highlighter: 0, mdsvex: 0, highlighters: 0 }));
 
@@ -66,7 +67,14 @@ describe('the markdown preprocessor never keeps a failed start (#248)', () => {
 		const pp = ogygiaPreprocess();
 		// (a page no run has rendered before: a rendered page is kept in the build cache on disk)
 		const nonce = `${Date.now()}-${Math.random()}`;
-		const page = { content: `# Hello\n\nThe first page, ${nonce}.`, filename: '/x/first.md' };
+		const page = {
+			content: dedent`
+			# Hello
+
+			The first page, ${nonce}.
+		`,
+			filename: '/x/first.md'
+		};
 		await expect(pp.markup!(page)).rejects.toThrow('a plugin failed to load');
 		const out = (await pp.markup!(page)) as { code: string };
 		expect(out.code).toContain(`<p>The first page, ${nonce}.</p>`);

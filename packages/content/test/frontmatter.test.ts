@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { parse_yaml } from '../src/markdown/frontmatter.ts';
+import { parse_yaml, parseFrontmatter } from '../src/markdown/frontmatter.ts';
+import { ogygiaPreprocess } from '../src/markdown/index.ts';
+import { dedent } from '@ogygia/core/plugin/utils';
 
 describe('parse_yaml — empty & trivial', () => {
 	it('empty string → {}', () => {
@@ -59,7 +61,11 @@ describe('parse_yaml — flat mappings & scalar types', () => {
 	});
 
 	it('multiple keys in one block', () => {
-		const out = parse_yaml('title: Post\ndraft: false\nviews: 10');
+		const out = parse_yaml(dedent`
+			title: Post
+			draft: false
+			views: 10
+		`);
 		expect(out).toEqual({ title: 'Post', draft: false, views: 10 });
 	});
 });
@@ -119,31 +125,66 @@ describe('parse_yaml — comments', () => {
 
 describe('parse_yaml — nested block mappings', () => {
 	it('two-level nesting', () => {
-		const src = 'author:\n  name: Ada\n  age: 36';
+		const src = dedent`
+			author:
+			  name: Ada
+			  age: 36
+		`;
 		expect(parse_yaml(src)).toEqual({ author: { name: 'Ada', age: 36 } });
 	});
 
 	it('three-level nesting', () => {
-		const src = 'a:\n  b:\n    c: 1\n    d: two';
+		const src = dedent`
+			a:
+			  b:
+			    c: 1
+			    d: two
+		`;
 		expect(parse_yaml(src)).toEqual({ a: { b: { c: 1, d: 'two' } } });
 	});
 });
 
 describe('parse_yaml — block sequences', () => {
 	it('simple scalar sequence', () => {
-		expect(parse_yaml('tags:\n  - a\n  - b\n  - c')).toEqual({ tags: ['a', 'b', 'c'] });
+		expect(
+			parse_yaml(dedent`
+			tags:
+			  - a
+			  - b
+			  - c
+		`)
+		).toEqual({ tags: ['a', 'b', 'c'] });
 	});
 
 	it('sequence at the SAME indent as its key', () => {
-		expect(parse_yaml('tags:\n- x\n- y')).toEqual({ tags: ['x', 'y'] });
+		expect(
+			parse_yaml(dedent`
+			tags:
+			- x
+			- y
+		`)
+		).toEqual({ tags: ['x', 'y'] });
 	});
 
 	it('typed items in a sequence', () => {
-		expect(parse_yaml('nums:\n  - 1\n  - 2\n  - 3')).toEqual({ nums: [1, 2, 3] });
+		expect(
+			parse_yaml(dedent`
+			nums:
+			  - 1
+			  - 2
+			  - 3
+		`)
+		).toEqual({ nums: [1, 2, 3] });
 	});
 
 	it('sequence of maps', () => {
-		const src = 'people:\n  - name: a\n    age: 1\n  - name: b\n    age: 2';
+		const src = dedent`
+			people:
+			  - name: a
+			    age: 1
+			  - name: b
+			    age: 2
+		`;
 		expect(parse_yaml(src)).toEqual({
 			people: [
 				{ name: 'a', age: 1 },
@@ -153,7 +194,13 @@ describe('parse_yaml — block sequences', () => {
 	});
 
 	it('nested sequences (- - x)', () => {
-		const src = 'grid:\n  - - 1\n    - 2\n  - - 3\n    - 4';
+		const src = dedent`
+			grid:
+			  - - 1
+			    - 2
+			  - - 3
+			    - 4
+		`;
 		expect(parse_yaml(src)).toEqual({
 			grid: [
 				[1, 2],
@@ -163,7 +210,13 @@ describe('parse_yaml — block sequences', () => {
 	});
 
 	it('empty sequence item → null', () => {
-		expect(parse_yaml('a:\n  -\n  - x')).toEqual({ a: [null, 'x'] });
+		expect(
+			parse_yaml(dedent`
+			a:
+			  -
+			  - x
+		`)
+		).toEqual({ a: [null, 'x'] });
 	});
 
 	it('top-level sequence', () => {
@@ -221,28 +274,66 @@ describe('parse_yaml — flow collections', () => {
 
 describe('parse_yaml — block scalars', () => {
 	it('literal | keeps newlines', () => {
-		const src = 'body: |\n  line1\n  line2';
-		expect(parse_yaml(src)).toEqual({ body: 'line1\nline2\n' });
+		const src = dedent`
+			body: |
+			  line1
+			  line2
+		`;
+		expect(parse_yaml(src)).toEqual({
+			body: `${dedent`
+			line1
+			line2
+		`}\n`
+		});
 	});
 
 	it('folded > joins lines with spaces', () => {
-		const src = 'body: >\n  line1\n  line2';
+		const src = dedent`
+			body: >
+			  line1
+			  line2
+		`;
 		expect(parse_yaml(src)).toEqual({ body: 'line1 line2\n' });
 	});
 
 	it('literal strip |- has no trailing newline', () => {
-		const src = 'body: |-\n  a\n  b';
+		const src = dedent`
+			body: |-
+			  a
+			  b
+		`;
 		expect(parse_yaml(src)).toEqual({ body: 'a\nb' });
 	});
 
 	it('folded blank line becomes a paragraph break', () => {
-		const src = 'body: >\n  a\n\n  b';
-		expect(parse_yaml(src)).toEqual({ body: 'a\nb\n' });
+		const src = dedent`
+			body: >
+			  a
+
+			  b
+		`;
+		expect(parse_yaml(src)).toEqual({
+			body: `${dedent`
+			a
+			b
+		`}\n`
+		});
 	});
 
 	it('block scalar followed by another key', () => {
-		const src = 'body: |\n  hi\n  there\ntitle: T';
-		expect(parse_yaml(src)).toEqual({ body: 'hi\nthere\n', title: 'T' });
+		const src = dedent`
+			body: |
+			  hi
+			  there
+			title: T
+		`;
+		expect(parse_yaml(src)).toEqual({
+			body: `${dedent`
+			hi
+			there
+		`}\n`,
+			title: 'T'
+		});
 	});
 });
 
@@ -261,21 +352,21 @@ describe('parse_yaml — dates stay strings', () => {
 
 describe('parse_yaml — adversarial mixes', () => {
 	it('maps and sequences deeply mixed', () => {
-		const src = [
-			'title: My Post',
-			'draft: false',
-			'author:',
-			'  name: Ada',
-			'  links:',
-			'    - https://a.example',
-			'    - https://b.example',
-			'tags: [js, "ya:ml", yes]',
-			'meta:',
-			'  - key: k1',
-			'    vals: [1, 2]',
-			'  - key: k2',
-			'    vals: []'
-		].join('\n');
+		const src = dedent`
+			title: My Post
+			draft: false
+			author:
+			  name: Ada
+			  links:
+			    - https://a.example
+			    - https://b.example
+			tags: [js, "ya:ml", yes]
+			meta:
+			  - key: k1
+			    vals: [1, 2]
+			  - key: k2
+			    vals: []
+		`;
 		expect(parse_yaml(src)).toEqual({
 			title: 'My Post',
 			draft: false,
@@ -296,7 +387,14 @@ describe('parse_yaml — adversarial mixes', () => {
 	});
 
 	it('blank lines between entries are ignored', () => {
-		expect(parse_yaml('a: 1\n\n\nb: 2')).toEqual({ a: 1, b: 2 });
+		expect(
+			parse_yaml(dedent`
+			a: 1
+
+
+			b: 2
+		`)
+		).toEqual({ a: 1, b: 2 });
 	});
 
 	it('trailing whitespace on lines is tolerated', () => {
@@ -312,7 +410,248 @@ describe('parse_yaml — adversarial mixes', () => {
 	});
 
 	it('tabs used for indentation are rejected', () => {
-		expect(() => parse_yaml('a:\n\tb: 1')).toThrow();
+		expect(() => parse_yaml('a:\n\tb: 1')).toThrow(/tabs are not allowed for indentation/);
+	});
+});
+
+describe('parse_yaml — the rest of the supported subset', () => {
+	it('nests at any consistent indent width (four spaces)', () => {
+		expect(
+			parse_yaml(dedent`
+			a:
+			    b:
+			        c: 1
+			    d: 2
+		`)
+		).toEqual({ a: { b: { c: 1 }, d: 2 } });
+	});
+
+	it('double-quoted escapes: \\r \\0 \\b \\f \\/', () => {
+		expect(parse_yaml('a: "x\\ry"')).toEqual({ a: 'x\ry' });
+		expect(parse_yaml('a: "x\\0y"')).toEqual({ a: 'x\0y' });
+		expect(parse_yaml('a: "x\\by"')).toEqual({ a: 'x\by' });
+		expect(parse_yaml('a: "x\\fy"')).toEqual({ a: 'x\fy' });
+		expect(parse_yaml('a: "x\\/y"')).toEqual({ a: 'x/y' });
+	});
+
+	it('typed plain scalars: .inf, .nan, hex 0x, octal 0o, null casings', () => {
+		expect(parse_yaml('a: .inf')).toEqual({ a: Infinity });
+		expect(parse_yaml('a: -.Inf')).toEqual({ a: -Infinity });
+		expect(Number.isNaN((parse_yaml('a: .nan') as { a: number }).a)).toBe(true);
+		expect(parse_yaml('a: 0x1F')).toEqual({ a: 31 });
+		expect(parse_yaml('a: -0x10')).toEqual({ a: -16 });
+		expect(parse_yaml('a: 0o17')).toEqual({ a: 15 });
+		expect(parse_yaml('a: -0o17')).toEqual({ a: -15 });
+		expect(parse_yaml('a: Null')).toEqual({ a: null });
+		expect(parse_yaml('a: NULL')).toEqual({ a: null });
+	});
+
+	it('# inside a single-quoted value or a flow collection is NOT a comment', () => {
+		expect(parse_yaml("a: 'x # y'")).toEqual({ a: 'x # y' });
+		expect(parse_yaml('a: [x #y, z]')).toEqual({ a: ['x #y', 'z'] });
+	});
+
+	it('a colon inside a single-quoted key does not split it', () => {
+		expect(parse_yaml("'a: b': 1")).toEqual({ 'a: b': 1 });
+	});
+
+	it('chomping: |+ keeps the trailing blank lines, >- strips the last newline', () => {
+		expect(
+			parse_yaml(dedent`
+			a: |+
+			  x
+
+			b: 1
+		`)
+		).toEqual({ a: 'x\n\n', b: 1 });
+		expect(
+			parse_yaml(dedent`
+			a: >-
+			  x
+			  y
+		`)
+		).toEqual({ a: 'x y' });
+	});
+
+	it('an explicit indent indicator (|1) keeps the spaces past it', () => {
+		expect(
+			parse_yaml(dedent`
+			a: |1
+			   x
+			   y
+		`)
+		).toEqual({ a: '  x\n  y\n' });
+	});
+
+	it('anchors, aliases, tags and merge keys stay plain text', () => {
+		expect(
+			parse_yaml(dedent`
+			a: &x 1
+			b: *x
+			c: !!str 5
+			<<: *x
+		`)
+		).toEqual({
+			a: '&x 1',
+			b: '*x',
+			c: '!!str 5',
+			'<<': '*x'
+		});
+	});
+
+	it('a second document after an inner --- is not read', () => {
+		expect(
+			parse_yaml(dedent`
+			a: 1
+			---
+			b: 2
+		`)
+		).toEqual({ a: 1 });
+	});
+
+	it('an empty key is rejected with its line', () => {
+		expect(() => parse_yaml(': value')).toThrow(/empty mapping key in line: ": value"/);
+	});
+
+	it('a byte order mark before the first line is dropped', () => {
+		expect(parse_yaml('\uFEFFa: 1')).toEqual({ a: 1 });
+		expect(parse_yaml('\uFEFF- a\n- b')).toEqual(['a', 'b']);
+	});
+
+	it('only a top-level : makes a flow mapping (a nested one stays text)', () => {
+		expect(parse_yaml('title: {#each items as { id: x }}')).toEqual({
+			title: '{#each items as { id: x }}'
+		});
+	});
+});
+
+describe('parseFrontmatter', () => {
+	it('no opening fence: no data, the whole text is the body', () => {
+		expect(parseFrontmatter('# Hi\n')).toEqual({ data: {}, body: '# Hi\n' });
+		// a rule (`---`) later in the text is not a fence
+		expect(
+			parseFrontmatter(dedent`
+			Hi
+			---
+			body
+		`)
+		).toEqual({
+			data: {},
+			body: dedent`
+			Hi
+			---
+			body
+		`
+		});
+	});
+
+	it('no closing fence: no data, the whole text is the body', () => {
+		expect(
+			parseFrontmatter(
+				`${dedent`
+			---
+			title: x
+			# Hi
+		`}\n`
+			)
+		).toEqual({
+			data: {},
+			body: `${dedent`
+				---
+				title: x
+				# Hi
+			`}\n`
+		});
+	});
+
+	it('a byte order mark before the fence is dropped', () => {
+		expect(
+			parseFrontmatter(
+				String.fromCharCode(0xfeff) +
+					dedent`
+						---
+						title: x
+						---
+						body
+					`
+			)
+		).toEqual({
+			data: { title: 'x' },
+			body: 'body'
+		});
+	});
+
+	it('frontmatter that is a list or a scalar gives no data', () => {
+		expect(
+			parseFrontmatter(dedent`
+			---
+			- a
+			- b
+			---
+			body
+		`).data
+		).toEqual({});
+		expect(
+			parseFrontmatter(dedent`
+			---
+			just text
+			---
+			body
+		`).data
+		).toEqual({});
+	});
+
+	it('a parse failure is reported as invalid frontmatter, with the reason', () => {
+		expect(() =>
+			parseFrontmatter(
+				`${dedent`
+			---
+			a:
+				b: 1
+			---
+		`}\n`
+			)
+		).toThrow(/invalid frontmatter YAML: .*tabs are not allowed for indentation/);
+	});
+});
+
+describe('the markdown preprocessor reads frontmatter with parse_yaml, not js-yaml', () => {
+	const metadata = async (src: string): Promise<Record<string, unknown>> => {
+		const out = await ogygiaPreprocess().markup?.({ content: src, filename: '/x/fm.md' });
+		const m = /export const metadata = (\{.*?\});/s.exec((out as { code: string }).code);
+		if (!m) throw new Error('no metadata export found');
+		return JSON.parse(m[1]!);
+	};
+
+	it('no stays a string and {@const} stays the title', async () => {
+		const meta = await metadata(
+			`${dedent`
+			---
+			country: no
+			title: {@const}
+			---
+
+			Hi
+		`}\n`
+		);
+		expect(meta.country).toBe('no');
+		expect(meta.title).toBe('{@const}');
+	});
+
+	it('frontmatter that is a list gives no fields', async () => {
+		const none = await metadata('Hi\n');
+		expect(
+			await metadata(
+				`${dedent`
+			---
+			- a
+			- b
+			---
+
+			Hi
+		`}\n`
+			)
+		).toEqual(none);
 	});
 });
 

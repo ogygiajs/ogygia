@@ -30,7 +30,7 @@
 
 	let { el, tick = 0, onclose } = $props();
 
-	const kb = (n) => (n < 1024 ? n + ' B' : (n / 1024).toFixed(1) + ' KB');
+	const kb = (n) => (n < 1024 ? `${n} B` : `${(n / 1024).toFixed(1)} KB`);
 
 	// Every transportable crosses under ONE devalue custom type ('OgygiaRef'). Decode it to a labelled
 	// placeholder — NOT the live instance (`wire.resolve` has side effects) — so the viewer stays inert.

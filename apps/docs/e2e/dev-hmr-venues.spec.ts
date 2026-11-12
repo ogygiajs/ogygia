@@ -13,6 +13,7 @@ import { fileURLToPath } from 'node:url';
 import type { Page } from '@playwright/test';
 import { test, check, sleep, REPO as root } from '@ogygia/tooling/e2e';
 import { spawn_server, type SpawnedServer } from '@ogygia/tooling/e2e/servers.ts';
+import { dedent } from '@ogygia/core/plugin/utils';
 
 const docs = fileURLToPath(new URL('..', import.meta.url));
 const PORT = 5174;
@@ -29,7 +30,10 @@ const MARK_B = 'HMR_VENUE_MARK_B';
 const TOC_A = 'Features';
 const TOC_B = 'HMRFeaturesX';
 const CSS_A = '/* HMR_CSS_A */';
-const CSS_B = '/* HMR_CSS_B */\nhtml { --hmr-probe: 1; }\n';
+const CSS_B = `${dedent`
+	/* HMR_CSS_B */
+	html { --hmr-probe: 1; }
+`}\n`;
 
 function with_backup(file: string, mutator: (s: string) => string) {
 	const orig = fs.readFileSync(file, 'utf8');
@@ -108,7 +112,7 @@ test.describe('dev HMR venues under csr=false (docs app): page/layout shell full
 				'127.0.0.1'
 			],
 			cwd: root,
-			url: base + '/',
+			url: `${base}/`,
 			timeout_ms: 120_000
 		});
 	});
@@ -118,7 +122,7 @@ test.describe('dev HMR venues under csr=false (docs app): page/layout shell full
 	test('five venues: +page.svelte, +layout.svelte, SideNav.svelte, toc-items.ts, app.css', async ({
 		page
 	}) => {
-		await page.goto(base + '/', { waitUntil: 'networkidle', timeout: 30000 });
+		await page.goto(`${base}/`, { waitUntil: 'networkidle', timeout: 30000 });
 		await sleep(1500);
 
 		const bridge = await page.evaluate(() => ({

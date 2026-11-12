@@ -64,9 +64,58 @@ describe('registry: live entries, each owned', () => {
 		}
 		expect(seen).toEqual(['a', 'c']);
 	});
+
+	it('a snapshot is every entry in add order, not cut short by a removal while it is walked', () => {
+		const r = registry<string>();
+		const owner = scope();
+		r.add('a', owner);
+		const remove_b = r.add('b', owner);
+		const walked: string[] = [];
+		for (const e of r.snapshot()) {
+			walked.push(e);
+			if (e === 'a') remove_b();
+		}
+		expect(walked).toEqual(['a', 'b']);
+		expect(r.snapshot()).toEqual(['a']);
+	});
+
+	it('a snapshot is the same array until an entry is added or removed', () => {
+		const r = registry<string>();
+		const owner = scope();
+		r.add('a', owner);
+		const one = r.snapshot();
+		expect(r.snapshot()).toBe(one);
+		const remove = r.add('b', owner);
+		const two = r.snapshot();
+		expect(two).not.toBe(one);
+		expect(two).toEqual(['a', 'b']);
+		remove();
+		expect(r.snapshot()).toEqual(['a']);
+		owner.close();
+		expect(r.snapshot()).toEqual([]);
+	});
 });
 
 describe('keyed registry: definitions by name, each owned by its defining module', () => {
+	it('the definitions walk in the order they were last set, live', () => {
+		const defs = registry.keyed<string, number>();
+		const owner = scope();
+		defs.set('a', 1, owner);
+		defs.set('b', 2, owner);
+		defs.set('a', 3, owner); // (set again: it moves to the end)
+		expect([...defs.entries()]).toEqual([
+			['b', 2],
+			['a', 3]
+		]);
+		const remove_c = defs.set('c', 4, owner);
+		const seen: number[] = [];
+		for (const v of defs.values()) {
+			seen.push(v);
+			if (v === 2) remove_c();
+		}
+		expect(seen).toEqual([2, 3]);
+	});
+
 	it('a definition is found by its key; one set again under its key replaces the old', () => {
 		const defs = registry.keyed<string, number>();
 		const mod = scope();

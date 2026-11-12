@@ -15,7 +15,7 @@ afterEach(() => {
 });
 
 const ctx = (path: string) => {
-	const url = 'http://s' + path;
+	const url = `http://s${path}`;
 	return { request: new Request(url), url: new URL(url), cookies: { get: () => undefined } };
 };
 

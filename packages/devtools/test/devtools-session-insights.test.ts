@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { analyze_session, session_timeline } from '@ogygia/insights';
 import type { SessionData } from '../src/devtools/session.ts';
+import { dedent } from '@ogygia/core/plugin/utils';
 
 const base = (over: Partial<SessionData> = {}): SessionData => ({
 	from: 0,
@@ -37,8 +38,12 @@ describe('analyze_session', () => {
 		};
 		const log = {
 			t: 11,
-			message:
-				'console.error: OgygiaError: [ogygia] hydration failed for x.js\nhttps://ogygiajs.dev/e/island_hydrate_failed?entry=x.js boom\n\tin <unknown>\n\tin X.svelte'
+			message: dedent`
+					console.error: OgygiaError: [ogygia] hydration failed for x.js
+					https://ogygiajs.dev/e/island_hydrate_failed?entry=x.js boom
+						in <unknown>
+						in X.svelte
+				`
 		};
 		const own = { t: 12, message: 'TypeError: nope\n    at f (a.js:1)' };
 		const r = analyze_session(base({ hooks: [failed], errors: [log, own] }), names, 'http://x/x');

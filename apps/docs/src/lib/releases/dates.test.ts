@@ -4,6 +4,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { dates_from_registry, dates_from_tags, merge_dates } from './dates.ts';
+import { dedent } from '@ogygia/core/plugin/utils';
 
 /** A registry document as `GET https://registry.npmjs.org/@ogygia/core` answers, cut down. */
 const REGISTRY = {
@@ -35,7 +36,11 @@ test('a document without `time` (or not a document) gives no dates', () => {
 test("release tags: `<package>@<version> <day>`, and the older `v<version>` tags are ogygia's", () => {
 	assert.deepEqual(
 		dates_from_tags(
-			'@ogygia/core@0.12.3 2026-11-07\nv0.5.0 2026-08-12\narchive/lts-0.8 2026-10-01\n'
+			`${dedent`
+				@ogygia/core@0.12.3 2026-11-07
+				v0.5.0 2026-08-12
+				archive/lts-0.8 2026-10-01
+			`}\n`
 		),
 		{ '@ogygia/core@0.12.3': '2026-11-07', 'ogygia@0.5.0': '2026-08-12' }
 	);

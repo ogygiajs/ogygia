@@ -12,6 +12,7 @@ import {
 	resolveFeatures
 } from '../dist/compiler/link/runtime-entry.js';
 import { partial_ctx_init } from './_compile-ctx.ts';
+import { dedent } from '@ogygia/core/contract';
 
 const roots: string[] = [];
 afterEach(() => {
@@ -23,7 +24,12 @@ function marks_for(island: string, extra: Record<string, string> = {}, init: obj
 	roots.push(root);
 	const files: Record<string, string> = {
 		'src/routes/+layout.ts': 'export const csr = false;\n',
-		'src/routes/+page.svelte': `<script>\n\timport Island from '$lib/Island.svelte' with { wake: 'load' };\n</script>\n<Island />\n`,
+		'src/routes/+page.svelte': `${dedent`
+			<script>
+				import Island from '$lib/Island.svelte' with { wake: 'load' };
+			</script>
+			<Island />
+		`}\n`,
 		'src/lib/Island.svelte': island,
 		...extra
 	};
@@ -69,13 +75,23 @@ function marks_for(island: string, extra: Record<string, string> = {}, init: obj
 	return program.runtime_marks;
 }
 
-const script = (imports: string) => `<script>\n${imports}\n</script>\n<button>x</button>\n`;
+const script = (imports: string) =>
+	`${dedent`
+	<script>
+	${imports}
+	</script>
+	<button>x</button>
+`}\n`;
 
 describe('page mark', () => {
 	test('an island importing only Svelte, local helpers and assets reads no page', () => {
 		const marks = marks_for(
 			script(
-				`\timport { untrack } from 'svelte';\n\timport { fly } from 'svelte/transition';\n\timport { n } from './helper';\n\timport './island.css';\n\timport { dev } from '$app/environment';`
+				`	import { untrack } from 'svelte';
+	import { fly } from 'svelte/transition';
+	import { n } from './helper';
+	import './island.css';
+	import { dev } from '$app/environment';`
 			),
 			{ 'src/lib/helper.ts': `export const n = 1;\n`, 'src/lib/island.css': `p {}\n` }
 		);
@@ -87,7 +103,10 @@ describe('page mark', () => {
 
 	test('`$app/state` anywhere in the closure is a reader', () => {
 		const marks = marks_for(script(`\timport { read } from './helper';`), {
-			'src/lib/helper.ts': `import { page } from '$app/state';\nexport const read = () => page.data;\n`
+			'src/lib/helper.ts': `${dedent`
+				import { page } from '$app/state';
+				export const read = () => page.data;
+			`}\n`
 		});
 		expect(marks.page).toBe(true);
 		expect(resolveFeatures(marks)).toEqual(expect.arrayContaining(['page', 'mpa-nav']));

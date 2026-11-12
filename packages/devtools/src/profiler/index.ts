@@ -2090,13 +2090,13 @@ class Profiler {
 						if (!nm || nm.startsWith('(')) continue;
 						const c = fn.ranges[0]?.count ?? 0;
 						if (c > 0) {
-							const k = nm + '\0' + script.url;
+							const k = `${nm}\0${script.url}`;
 							counts[k] = (counts[k] ?? 0) + c;
 							// ...and by its script id, which the CPU profile's frames carry too: a script
 							// made from a string (the dev server's modules) is `/app/x.ts` here and
 							// `file:///app/x.ts` there
 							if (script.scriptId) {
-								const ki = nm + '\0#' + script.scriptId;
+								const ki = `${nm}\0#${script.scriptId}`;
 								counts[ki] = (counts[ki] ?? 0) + c;
 							}
 						}
@@ -2901,7 +2901,7 @@ class Profiler {
 		// session, the guard explains why instead of looping back here (#auth_guard).
 		const res = ctx.json({
 			ok: true,
-			next: next + (next.includes('?') ? '&' : '?') + AFTER_LOGIN_PARAM + '=1'
+			next: `${next + (next.includes('?') ? '&' : '?') + AFTER_LOGIN_PARAM}=1`
 		});
 		// never let a CDN/edge cache this response — a cached login strips Set-Cookie and the session
 		// silently never seats (a classic serverless/Amplify symptom: 200 ok, but you loop on login)
@@ -3171,9 +3171,7 @@ class Profiler {
 	async #report_html(stored: StoredReport, ctx: RouteCtx): Promise<Response> {
 		if (this.dev) {
 			return new Response(
-				'The standalone HTML export needs a built app (vite build + preview, or your production ' +
-					'deploy): on the dev server the page’s code is hundreds of unbundled modules. Export the ' +
-					'.ogp here and open it on a built server, or run the export there.',
+				`The standalone HTML export needs a built app (vite build + preview, or your production deploy): on the dev server the page’s code is hundreds of unbundled modules. Export the .ogp here and open it on a built server, or run the export there.`,
 				{ status: 400, headers: { 'content-type': 'text/plain; charset=utf-8' } }
 			);
 		}
@@ -3446,11 +3444,10 @@ class Profiler {
 			if (!on_path || on_path.save_ms >= p.save_ms * 0.8) continue;
 			p.naive_save_ms = p.save_ms;
 			p.save_ms = on_path.save_ms;
-			p.evidence +=
-				`. Started together they would save ${p.naive_save_ms} ms of waiting, but only about ${on_path.save_ms} ms comes off the render` +
-				(on_path.bound_by
-					? `: ${on_path.bound_by} runs about as long beside them and still sets the end`
-					: ': other work runs as long beside them');
+			const bound = on_path.bound_by
+				? `: ${on_path.bound_by} runs about as long beside them and still sets the end`
+				: ': other work runs as long beside them';
+			p.evidence = `${p.evidence}. Started together they would save ${p.naive_save_ms} ms of waiting, but only about ${on_path.save_ms} ms comes off the render${bound}`;
 		}
 		patterns.push(...waits);
 		// the same answer every render: the GETs that returned identical bytes in each profiled run
@@ -3891,7 +3888,7 @@ class Profiler {
 				const rels: string[] = [];
 				const add = (dir: string, names: string[]) => {
 					for (const n of names)
-						for (const ext of ['.ts', '.js']) rels.push(`routes/${dir ? dir + '/' : ''}${n}${ext}`);
+						for (const ext of ['.ts', '.js']) rels.push(`routes/${dir ? `${dir}/` : ''}${n}${ext}`);
 				};
 				for (const d of dirs.above('src')) add(d, ['+layout.server', '+layout']);
 				add(dirs.own('src'), ['+page.server', '+page']);
@@ -4149,8 +4146,8 @@ class Profiler {
 		// (nothing drops the list, so it is never STALE)
 		const all = await this.#svelte_files.get();
 		if (all === STALE) return [];
-		const leaf = '/' + name + '.svelte';
-		return all ? all.filter((f) => f === name + '.svelte' || f.endsWith(leaf)) : [];
+		const leaf = `/${name}.svelte`;
+		return all ? all.filter((f) => f === `${name}.svelte` || f.endsWith(leaf)) : [];
 	}
 
 	async #lineage_for(stored: StoredReport, body: string): Promise<Lineage | undefined> {
@@ -4664,7 +4661,7 @@ class Profiler {
 		const q = ctx.url.searchParams;
 		// typed into a form: `docs/overview` means `/docs/overview` (never a URL of another site)
 		let path = (q.get('p') ?? '').trim();
-		if (path && !path.startsWith('/') && !path.includes('://')) path = '/' + path;
+		if (path && !path.startsWith('/') && !path.includes('://')) path = `/${path}`;
 		if (!path.startsWith('/') || path.startsWith('//')) {
 			return error(400, 'Give a path on this site, like /docs/overview.');
 		}
@@ -4707,7 +4704,7 @@ class Profiler {
 		name: 'profiler window ids',
 		run: () =>
 			import('./window-id.ts').then((m) =>
-				m.window_ids(this.secret, this.dev, 'profiler:' + this.base)
+				m.window_ids(this.secret, this.dev, `profiler:${this.base}`)
 			)
 	});
 	async #ids(): Promise<WindowIds | null> {
@@ -5242,12 +5239,11 @@ class Profiler {
 									: `${Math.round(limit_ms)} ms`;
 							// (an extra render for a clean one is not a render asked for: no note)
 							if (i < runs)
-								budget_note =
-									`Ran ${i} of ${runs} renders — trimmed to fit the ` +
-									(serverless
+								budget_note = `Ran ${i} of ${runs} renders — trimmed to fit the ${
+									serverless
 										? `${budget_label} serverless budget`
-										: `${budget_label} limit on one recording`) +
-									` (the page renders in ~${Math.round(warmup_ms ?? 0)} ms). Fewer runs, same accuracy per run.`;
+										: `${budget_label} limit on one recording`
+								} (the page renders in ~${Math.round(warmup_ms ?? 0)} ms). Fewer runs, same accuracy per run.`;
 							break;
 						}
 						const t = performance.now();
@@ -5260,8 +5256,7 @@ class Profiler {
 							// clear the recording state so the site is not held hostage to this page.
 							budget_note =
 								i > 0
-									? `Ran ${i} of ${runs} renders — stopped early, a later render hung ` +
-										`(the page or an upstream call did not return within ${Math.round(PER_RENDER_TIMEOUT_MS / 1000)}s).`
+									? `Ran ${i} of ${runs} renders — stopped early, a later render hung (the page or an upstream call did not return within ${Math.round(PER_RENDER_TIMEOUT_MS / 1000)}s).`
 									: undefined;
 							break;
 						}
@@ -5295,9 +5290,7 @@ class Profiler {
 			if (run_ms.length === 0) {
 				return error(
 					504,
-					'The page did not return in time to profile it. It (or an upstream call it makes) is ' +
-						'either hung or slower than the recording budget — try a lighter path, or check that ' +
-						'page for a stuck request.'
+					`The page did not return in time to profile it. It (or an upstream call it makes) is either hung or slower than the recording budget — try a lighter path, or check that page for a stuck request.`
 				);
 			}
 			// ANOTHER VISITOR ON THIS SAME PAGE, mid-render: their work runs the same lines, so no stack
@@ -5685,7 +5678,7 @@ class Profiler {
 								try {
 									const path = new URL(u).pathname;
 									const rel = app_asset_rel(path);
-									return chunk_contents(rel ? '/' + rel : path);
+									return chunk_contents(rel ? `/${rel}` : path);
 								} catch {
 									return null;
 								}
@@ -5791,9 +5784,7 @@ class Profiler {
 			if (!is_ogp(bytes)) {
 				return ctx.json(
 					{
-						error:
-							'That file is not an ogygia .ogp profile. If you moved it between machines, copy it as a ' +
-							'binary file — a text editor or chat can silently re-encode it.'
+						error: `That file is not an ogygia .ogp profile. If you moved it between machines, copy it as a binary file — a text editor or chat can silently re-encode it.`
 					},
 					{ status: 400 }
 				);
@@ -6556,7 +6547,7 @@ class Profiler {
 		if (this.dev && origin) {
 			for (const n of profile.nodes) {
 				const u = n.callFrame.url;
-				if (u.startsWith(origin + '/')) {
+				if (u.startsWith(`${origin}/`)) {
 					n.callFrame.url = u.slice(origin.length);
 					rewritten++;
 				}
@@ -6582,7 +6573,7 @@ class Profiler {
 			}
 			// the handoff keys chunks by their served path; a rewritten local file still carries it
 			const rel = app_asset_rel(path);
-			if (rel) path = '/' + rel;
+			if (rel) path = `/${rel}`;
 			const inside = chunk_contents(path);
 			if (inside) {
 				if (inside.every((s) => s === 'svelte runtime')) return 'svelte';
@@ -6610,7 +6601,7 @@ class Profiler {
 		// handoff keys — `M` in og-region.<id>.js was SiteHeader all along)
 		const served = (p: string) => {
 			const rel = app_asset_rel(p);
-			return rel ? '/' + rel : p;
+			return rel ? `/${rel}` : p;
 		};
 		const renamer = chunk_component_renamer((p) => chunk_contents(served(p)));
 		const run = (p: CpuProfile) => analyze(p, resolver, undefined, undefined, renamer, url_hint);
@@ -6904,7 +6895,7 @@ class Profiler {
 		await this.#init();
 
 		const on_ui_path =
-			event.url.pathname === this.base || event.url.pathname.startsWith(this.base + '/');
+			event.url.pathname === this.base || event.url.pathname.startsWith(`${this.base}/`);
 		if (this.ui_enabled && on_ui_path) {
 			return this.#ui(event);
 		}
@@ -6914,8 +6905,7 @@ class Profiler {
 		// looks like the profiler is broken. This tells the developer exactly what to set.
 		if (!this.#disabled && !this.ui_enabled && !this.dev && this.secret === '' && on_ui_path) {
 			return new Response(
-				'ogygia profiler is installed but disabled: set OGYGIA_PROFILER_SECRET (or ' +
-					'`ogygia({ profiler: { secret } })`) to enable the UI in production.',
+				`ogygia profiler is installed but disabled: set OGYGIA_PROFILER_SECRET (or \`ogygia({ profiler: { secret } })\`) to enable the UI in production.`,
 				{
 					status: 404,
 					headers: { 'content-type': 'text/plain; charset=utf-8', 'cache-control': 'no-store' }

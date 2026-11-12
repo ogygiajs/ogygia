@@ -16,6 +16,7 @@ import {
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { dedent } from '@ogygia/core/contract';
 
 /** A generated module, loaded as the server would load it. */
 async function load_module(src: string) {
@@ -180,7 +181,7 @@ describe('collectIslandDepModulepreloads', () => {
 				imports: ['_app/immutable/chunks/shared.js']
 			}
 		};
-		expect(collectIslandDepModulepreloads(bundle, [], null, null, null, rt).js['/' + rt]).toEqual([
+		expect(collectIslandDepModulepreloads(bundle, [], null, null, null, rt).js[`/${rt}`]).toEqual([
 			'/_app/immutable/chunks/helper.js',
 			'/_app/immutable/chunks/shared.js'
 		]);
@@ -205,7 +206,7 @@ describe('collectIslandDepModulepreloads', () => {
 				imports: ['_app/immutable/a.js']
 			}
 		};
-		expect(collectIslandDepModulepreloads(bundle).js['/' + facade]).toEqual([
+		expect(collectIslandDepModulepreloads(bundle).js[`/${facade}`]).toEqual([
 			'/_app/immutable/a.js',
 			'/_app/immutable/b.js'
 		]);
@@ -251,9 +252,7 @@ describe('collectIslandDepModulepreloads', () => {
 	// source reader the map stays empty (the handoff is byte-stable for builds that never ask).
 	describe('interactivity', () => {
 		const SRC: Record<string, string> = {
-			'/app/src/lib/Card.svelte':
-				'<script>let n = $state(0); let el; $effect(() => {});</script>' +
-				'<button onclick={() => n++} bind:this={el} use:tip>{n}</button><input on:input={f}>',
+			'/app/src/lib/Card.svelte': `<script>let n = $state(0); let el; $effect(() => {});\x3C/script><button onclick={() => n++} bind:this={el} use:tip>{n}</button><input on:input={f}>`,
 			'/app/src/lib/Static.svelte': '<h1>{title}</h1>',
 			'/app/node_modules/lib/Widget.svelte': '<button onclick={x}>dep</button>'
 		};
@@ -310,10 +309,18 @@ describe('collectIslandDepModulepreloads', () => {
 
 		test("the lines that draw differently in the browser: the app's and the site kit's, never another package's", () => {
 			const src: Record<string, string> = {
-				'/app/src/lib/Clock.svelte':
-					"<script>\n\tconst where = typeof window === 'undefined' ? 'server' : 'browser';\n</script>\n<p>{where}</p>",
-				'/app/node_modules/ogygia/dist/content/site/components/Sidebar.svelte':
-					'<script>\n\tlet { site } = $props();\n\tconst tree = await site.nav();\n</script>',
+				'/app/src/lib/Clock.svelte': dedent`
+						<script>
+							const where = typeof window === 'undefined' ? 'server' : 'browser';
+						</script>
+						<p>{where}</p>
+					`,
+				'/app/node_modules/ogygia/dist/content/site/components/Sidebar.svelte': dedent`
+						<script>
+							let { site } = $props();
+							const tree = await site.nav();
+						</script>
+					`,
 				'/app/node_modules/lib/Widget.svelte': '<p>{Date.now()}</p>'
 			};
 			const b = {
@@ -703,7 +710,7 @@ describe('collectIslandDepModulepreloads', () => {
 				viteMetadata: { importedCss: new Set(['_app/immutable/shared.ef01.css']) }
 			}
 		};
-		expect(collectIslandDepModulepreloads(bundle).css['/' + facade]).toEqual([
+		expect(collectIslandDepModulepreloads(bundle).css[`/${facade}`]).toEqual([
 			'/_app/immutable/card.abcd.css',
 			'/_app/immutable/shared.ef01.css'
 		]);
@@ -807,7 +814,7 @@ describe('remotes map', () => {
 	test('several remotes → every one, deduped and sorted (byte-stable handoff)', () => {
 		const b = bundle([
 			facade([SESSION, FOOTER], ['_app/immutable/chunks/dep.js']),
-			chunk('_app/immutable/chunks/dep.js', [FOOTER + '?og-region', SESSION])
+			chunk('_app/immutable/chunks/dep.js', [`${FOOTER}?og-region`, SESSION])
 		]);
 		const r = collectIslandDepModulepreloads(b, [], hash_of);
 		expect(r.remotes[FACADE]).toEqual(
@@ -890,11 +897,11 @@ describe('remotes map', () => {
 		const r = collectIslandDepModulepreloads(b, [], hash_of);
 		const ms = performance.now() - t0;
 		expect(Object.keys(r.remotes).length).toBe(300);
-		for (let i = 0; i < 300; i++) expect(r.remotes['/' + files[i]]).toEqual(reference(files[i]));
+		for (let i = 0; i < 300; i++) expect(r.remotes[`/${files[i]}`]).toEqual(reference(files[i]));
 		expect(ms).toBeLessThan(2000);
 		// and the static-only preload walk never lists a dynamic-only chunk
 		for (let i = 0; i < 300; i++)
-			for (const d of r.js['/' + files[i]]) expect(b[d.slice(1)].type).toBe('chunk');
+			for (const d of r.js[`/${files[i]}`]) expect(b[d.slice(1)].type).toBe('chunk');
 	});
 
 	describe('the virtual module\u2019s region_remotes', () => {
@@ -927,7 +934,7 @@ describe('collect_inline_css', () => {
 		'_app/immutable/assets/Big.def.css': {
 			type: 'asset',
 			fileName: '_app/immutable/assets/Big.def.css',
-			source: '.b{' + 'x'.repeat(600) + '}'
+			source: `.b{${'x'.repeat(600)}}`
 		},
 		'_app/immutable/assets/Bytes.ghi.css': {
 			type: 'asset',

@@ -117,7 +117,7 @@ function main(): void {
 	if (process.argv.includes('--write')) {
 		const r = [...all].filter((s) => reached.has(s)).sort();
 		const covered = ledger.covered.filter((c) => !reached.has(c.step));
-		writeFileSync(LEDGER, JSON.stringify({ ...ledger, reached: r, covered }, null, '\t') + '\n');
+		writeFileSync(LEDGER, `${JSON.stringify({ ...ledger, reached: r, covered }, null, '\t')}\n`);
 		console.log(`wrote ${LEDGER}: ${r.length} reached`);
 	}
 	const summary = {
@@ -135,7 +135,7 @@ function main(): void {
 				!ledger.dead.some((d) => d.step === s)
 		)
 	};
-	writeFileSync(join(out, 'steps.json'), JSON.stringify(summary, null, '\t') + '\n');
+	writeFileSync(join(out, 'steps.json'), `${JSON.stringify(summary, null, '\t')}\n`);
 	console.log(
 		`steps accounted: ${a.accounted}/${a.total} (sweep reached ${summary.reached}, covered ${summary.covered}, dead ${summary.dead})`
 	);

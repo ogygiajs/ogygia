@@ -1,10 +1,16 @@
 import { describe, expect, it } from 'vitest';
 import { try_region_emit, unescape_svelte } from '../src/markdown/region-emit.ts';
 import { escape_svelte, fence_embed } from '../src/markdown/shiki.ts';
+import { dedent } from '@ogygia/core/plugin/utils';
 
 /** A compiled-module skeleton: module script (metadata) + template markup. */
 const mod = (template: string, script = `export const metadata = {"title":"X"};`) =>
-	`<script context="module">\n${script}\n</script>\n${template}`;
+	dedent`
+		<script context="module">
+		${script}
+		</script>
+		${template}
+	`;
 
 describe('unescape_svelte', () => {
 	it('is the exact inverse of escape_svelte', () => {
@@ -26,7 +32,12 @@ describe('try_region_emit', () => {
 			`<pre class="shiki"><code>function load() { return { user }; }</code></pre>`
 		);
 		const out = try_region_emit(
-			mod(`<h2 id="a">Title</h2>\n<p>prose</p>\n${fence}\n<p>after</p>`),
+			mod(dedent`
+				<h2 id="a">Title</h2>
+				<p>prose</p>
+				${fence}
+				<p>after</p>
+			`),
 			[]
 		);
 		expect(out).not.toBeNull();
@@ -44,6 +55,12 @@ describe('try_region_emit', () => {
 		const line = `export const __ogygia_source = () => import('./x.md?raw');`;
 		const out = try_region_emit(mod('<p>hi</p>'), [line]);
 		expect(out!.code).toContain(line);
+	});
+
+	it('a fence with backticks, backslashes and `${` lands in the region exactly as highlighted', () => {
+		const html = `<pre class="shiki"><code>const x = \`hi \${name}\`; // a \\ b</code></pre>`;
+		const out = try_region_emit(mod(`<p>x</p>\n${fence_embed(html)}`), []);
+		expect(out!.html).toBe(`<p>x</p>\n${html}`);
 	});
 
 	it('does not confuse digits in prose with fence tokens', () => {
@@ -96,5 +113,19 @@ describe('try_region_emit', () => {
 		expect(out).not.toBeNull();
 		expect(out!.html).toBe('<p>bare</p>');
 		expect(out!.code).toContain('__ogygia_region');
+	});
+
+	it('reads a Svelte 5 `<script module>` as the module script, as it does `context="module"`', () => {
+		const out = try_region_emit(
+			dedent`
+				<script module>
+				export const metadata = {"title":"X"};
+				</script>
+				<p>hi</p>
+			`,
+			[]
+		);
+		expect(out!.html).toBe('<p>hi</p>');
+		expect(out!.code).toContain('export const metadata = {"title":"X"};');
 	});
 });

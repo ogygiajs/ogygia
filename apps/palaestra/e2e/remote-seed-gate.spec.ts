@@ -147,7 +147,7 @@ const rows: Row[] = [
 
 test.describe('REMOTE SEED GATE: the remote seed ships only for remotes an island can call', () => {
 	for (const row of rows) {
-		test(`${row.path} → ${row.seed ? 'seed [' + row.has.slice(0, 3).join(', ') + (row.has.length > 3 ? ', …' : '') + ']' : 'NO seed'}`, async ({
+		test(`${row.path} → ${row.seed ? `seed [${row.has.slice(0, 3).join(', ')}${row.has.length > 3 ? ', …' : ''}]` : 'NO seed'}`, async ({
 			baseURL,
 			page
 		}) => {
@@ -175,7 +175,7 @@ test.describe('REMOTE SEED GATE: the remote seed ships only for remotes an islan
 			// hydrate: every island wakes, nothing fetches a remote unless the row says so
 			const fetches: string[] = [];
 			page.on('request', (r) => {
-				if (r.url().includes(KIT_REMOTE_ENDPOINT)) fetches.push(r.method() + ' ' + r.url());
+				if (r.url().includes(KIT_REMOTE_ENDPOINT)) fetches.push(`${r.method()} ${r.url()}`);
 			});
 			const errors: string[] = [];
 			page.on('pageerror', (e) => errors.push(e.message));
@@ -224,7 +224,7 @@ test.describe('REMOTE SEED GATE: the remote seed ships only for remotes an islan
 	}) => {
 		// A page-level promise `of` on a Kit page is awaited in the render (async mode) — never a LATE
 		// slot, which only the streamed-router path fills — and the row exists for the seeds' fail-open.
-		const html = await (await fetch(baseURL + '/remote-seed-gate/held')).text();
+		const html = await (await fetch(`${baseURL}/remote-seed-gate/held`)).text();
 		check(
 			'page seed ships (fail-open: the promise’s module is unknown at SSR)',
 			html.includes('application/ogygia-page')
@@ -256,7 +256,7 @@ test.describe('REMOTE SEED GATE: the remote seed ships only for remotes an islan
 		baseURL,
 		page
 	}) => {
-		const html = await (await fetch(baseURL + '/remote-seed-gate/kit')).text();
+		const html = await (await fetch(`${baseURL}/remote-seed-gate/kit`)).text();
 		check('/kit: lake rendered', html.includes('Lake, resolved on the server:'));
 		check('/kit: no application/ogygia-remote seed', !REMOTE_SEED_RE.test(html));
 		check('/kit: Kit inlined its own remote data', KIT_DATA_RE.test(html));

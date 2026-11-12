@@ -41,7 +41,7 @@ export function capability_expired(
 /** The renewal request for an expired capability `endpoint` (the handle re-signs it, anonymous
  *  holes only, and answers the fresh capability in `x-ogygia-capability`). */
 export function renewal_url(endpoint: string): string {
-	return endpoint + (endpoint.includes('?') ? '&' : '?') + 'renew=1';
+	return `${endpoint + (endpoint.includes('?') ? '&' : '?')}renew=1`;
 }
 
 /** A whole HTML document starts with a doctype or `<html>`; a region answer never does. */
@@ -150,7 +150,7 @@ export function island_module_url(entry: string, base?: string): string {
 	if (located) return located;
 	if (entry.startsWith('/') || ABSOLUTE_URL_SCHEME.test(entry)) return entry;
 	const b = base ?? location.href;
-	const key = b + '\n' + entry;
+	const key = `${b}\n${entry}`;
 	const hit = module_urls.get(key);
 	if (hit !== undefined) return hit;
 	const resolved = new URL(entry, b);

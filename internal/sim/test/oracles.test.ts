@@ -28,7 +28,7 @@ import {
 const OUTPUT = fileURLToPath(
 	new URL('../../../apps/palaestra/.svelte-kit/output', import.meta.url)
 );
-const built = existsSync(OUTPUT + '/server/index.js');
+const built = existsSync(`${OUTPUT}/server/index.js`);
 
 describe('a live region whose tick changes its shape', () => {
 	// (gen 194: a switching live region cycles its own region, another interactive one and a static
@@ -94,19 +94,19 @@ describe('normalize', () => {
 		const { Window } = await import('happy-dom');
 		const w = new Window();
 		w.document.write(
-			'<html><head><title>t</title><script nonce="x">1</script></head><body>\n  <!--[--><p class="a" nonce="y">hi</p><!--]-->\n</body></html>'
+			`<html><head><title>t</title><script nonce="x">1\x3C/script></head><body>
+  <!--[--><p class="a" nonce="y">hi</p><!--]-->
+</body></html>`
 		);
 		expect(normalize(w.document as unknown as Document)).toBe(
-			[
-				'title: t',
-				'<html>',
-				'  <head>',
-				'    <title>',
-				'      "t"',
-				'  <body>',
-				'    <p class="a">',
-				'      "hi"'
-			].join('\n')
+			`title: t
+<html>
+  <head>
+    <title>
+      "t"
+  <body>
+    <p class="a">
+      "hi"`
 		);
 	});
 
@@ -209,13 +209,11 @@ describe('known', () => {
 	it("#1067's kept island with the last page's fingerprint (palaestra /props-tail, /formkeep)", () => {
 		const k = KNOWN.find((x) => x.issue === 1067)!;
 		const page = (fp: string, kept = ' data-ogygia-keep="player"') =>
-			[
-				'title: ',
-				'<html>',
-				'  <body>',
-				`    <ogygia-region data-hydrated="" data-og-fp="${fp}"${kept} wake="load">`,
-				'      <div class="island">'
-			].join('\n');
+			`title: ${''}
+<html>
+  <body>
+    <ogygia-region data-hydrated="" data-og-fp="${fp}"${kept} wake="load">
+      <div class="island">`;
 		expect(k.applies(page('aaa'), page('bbb'))).toBe(true);
 		expect(k.forgive(page('aaa'), page('bbb'))).toBe(k.forgive(page('bbb'), page('aaa')));
 		// (only a kept region's: another region's fingerprint is still a finding)
@@ -225,13 +223,11 @@ describe('known', () => {
 	it("#1071's kept head link resolving under the page's path (palaestra /lab/deep/x)", () => {
 		const k = KNOWN.find((x) => x.issue === 1071)!;
 		const page = (href: string) =>
-			[
-				'title: ',
-				'<html>',
-				'  <head>',
-				`    <link href="${href}" rel="stylesheet">`,
-				'  <body>'
-			].join('\n');
+			`title: ${''}
+<html>
+  <head>
+    <link href="${href}" rel="stylesheet">
+  <body>`;
 		const shown = page('/lab/_app/immutable/assets/14.x.css');
 		const fresh = page('/_app/immutable/assets/14.x.css');
 		expect(k.applies(shown, fresh)).toBe(true);

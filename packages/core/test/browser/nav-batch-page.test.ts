@@ -33,8 +33,7 @@ test('a navigation’s hole batch names the page it leads to as its referrer', a
 				headers: { 'content-type': 'text/html' }
 			});
 		const res = new Response(
-			'<!doctype html><html><head><meta name="ogygia-router" content="plain"><title>p0</title>' +
-				`</head><body>${hole('a')}${hole('b')}</body></html>`,
+			`<!doctype html><html><head><meta name="ogygia-router" content="plain"><title>p0</title></head><body>${hole('a')}${hole('b')}</body></html>`,
 			{ status: 200, headers: { 'content-type': 'text/html' } }
 		);
 		Object.defineProperty(res, 'url', { value: u.href });

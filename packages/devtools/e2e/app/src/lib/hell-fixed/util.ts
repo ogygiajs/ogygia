@@ -82,7 +82,7 @@ export function renderSpecs(
 	return specs.map((s) => ({ label: specLabel(s.key), text: formatUnit(Number(s.value), s.unit) }));
 }
 export function specLabel(key: string): string {
-	return humanize(key.replace(/_/g, ' ')) + ':';
+	return `${humanize(key.replace(/_/g, ' '))}:`;
 }
 export function humanize(s: string): string {
 	return s

@@ -21,7 +21,7 @@ const ENTRY_HASH_RE = /entry="([^"]*og-region\.[0-9a-f]+\.js)"/g;
 
 test.describe('islands in a {#snippet} to a plain shell: marks survive + top-level await SSRs', () => {
 	test('SSR', async ({ baseURL }) => {
-		const res = await fetch(baseURL + '/snippet-islands');
+		const res = await fetch(`${baseURL}/snippet-islands`);
 		check('SSR: page renders (no await_invalid 500)', res.status === 200, `status=${res.status}`);
 		const raw = await res.text();
 
@@ -57,7 +57,7 @@ test.describe('islands in a {#snippet} to a plain shell: marks survive + top-lev
 		const errors: string[] = [];
 		page.on('pageerror', (e) => errors.push(e.message));
 		page.on('console', (m) => {
-			if (m.type() === 'error') errors.push('console: ' + m.text());
+			if (m.type() === 'error') errors.push(`console: ${m.text()}`);
 		});
 		await page.goto('/snippet-islands', { waitUntil: 'networkidle' });
 		await page.waitForTimeout(250);

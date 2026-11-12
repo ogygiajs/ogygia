@@ -6,6 +6,7 @@
  */
 
 /** lines `from`..`to` of a source (1-based, inclusive), untrimmed */
+import { dedent } from '@ogygia/core/plugin/utils';
 export type SourceReader = (
 	path: string,
 	from: number,
@@ -1230,7 +1231,7 @@ export function constant_work(
 			for (const x of t) open += x === '{' ? 1 : x === '}' ? -1 : 0;
 			while (open > 0 && end + 1 < T.length) {
 				end++;
-				text += '\n' + lines[end];
+				text = `${text}\n${lines[end]}`;
 				for (const x of T[end]) {
 					all.push(x);
 					open += x === '{' ? 1 : x === '}' ? -1 : 0;
@@ -1434,7 +1435,7 @@ export function constant_work(
 			let text = lines[i];
 			const all = [...t];
 			for (let j = i + 1; open > 0 && j < body1; j++) {
-				text += '\n' + lines[j];
+				text = `${text}\n${lines[j]}`;
 				for (const x of T[j]) {
 					all.push(x);
 					open +=
@@ -1718,7 +1719,7 @@ export function load_inputs(source: string): string[] | null {
 			if (arrow === -1 || all[arrow - 1] !== ')') {
 				// `async event => …`: one bare parameter
 				return arrow > 0 && is_id_start((all[arrow - 1] ?? '').charCodeAt(0))
-					? ['*' + all[arrow - 1]]
+					? [`*${all[arrow - 1]}`]
 					: [];
 			}
 			let back = 0;
@@ -1736,7 +1737,7 @@ export function load_inputs(source: string): string[] | null {
 				if (--d === 0) break;
 			}
 			// the whole event taken as one parameter (`(event) =>`): it may read anything — `*event`
-			else if (d === 1 && is_id_start(x.charCodeAt(0)) && all[k - 1] === '(') names.push('*' + x);
+			else if (d === 1 && is_id_start(x.charCodeAt(0)) && all[k - 1] === '(') names.push(`*${x}`);
 			// a field taken from the event: a name in key position (`{ url, locals: { user } }`)
 			else if (
 				d === 2 &&
@@ -1992,15 +1993,15 @@ export function formatter_rewrite(
 				`factory|${ctor}`,
 				snake,
 				(n) =>
-					[
-						`const ${n}_cache = new Map${types.map}();`,
-						`function ${n}(locale${types.loc}, options${types.opt}) {`,
-						`\tconst key = \`\${String(locale)}|\${JSON.stringify(options)}\`;`,
-						`\tlet f = ${n}_cache.get(key);`,
-						`\tif (!f) ${n}_cache.set(key, (f = new Intl.${ctor}(locale, options)));`,
-						`\treturn f;`,
-						`}`
-					].join('\n'),
+					dedent`
+						const ${n}_cache = new Map${types.map}();
+						function ${n}(locale${types.loc}, options${types.opt}) {
+							const key = \`\${String(locale)}|\${JSON.stringify(options)}\`;
+							let f = ${n}_cache.get(key);
+							if (!f) ${n}_cache.set(key, (f = new Intl.${ctor}(locale, options)));
+							return f;
+						}
+					`,
 				(n) => [`${n}_cache`]
 			);
 			edits.push({ start: at, end: args.end, text: `${name}(${args.inner})` });
@@ -2080,7 +2081,14 @@ export function formatter_rewrite(
 		...(tops.length ? [`// ${where}:`, ...tops] : []),
 		...(reused.size ? [`// uses ${[...reused].join(', ')}, added by the change above`] : [])
 	];
-	return { before: line, after: `${head.join('\n')}\n// the line:\n${changed}` };
+	return {
+		before: line,
+		after: dedent`
+		${head.join('\n')}
+		// the line:
+		${changed}
+	`
+	};
 }
 
 export interface FormatterRewriteOptions {

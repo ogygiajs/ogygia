@@ -156,7 +156,7 @@ async function ran(page) {
 /** A page whose document is `html` (a cache's copy) while everything else comes from the server. */
 async function page_with_document(context, html) {
 	const page = await context.newPage();
-	await page.route(BASE + '/dt-cache', (route) =>
+	await page.route(`${BASE}/dt-cache`, (route) =>
 		route.fulfill({ status: 200, contentType: 'text/html', body: html })
 	);
 	return page;
@@ -224,7 +224,7 @@ try {
 	const html1 = await (async () => {
 		const s = await serve(one.dir);
 		try {
-			return await (await fetch(BASE + '/dt-cache')).text();
+			return await (await fetch(`${BASE}/dt-cache`)).text();
 		} finally {
 			await stop(s);
 		}
@@ -267,7 +267,7 @@ try {
 			// an island keeps its whole stable name as the prefix; the runtime its `og-runtime.` part
 			(id_file.startsWith('og-runtime.')
 				? /^og-runtime[.-]/.test(loc_file)
-				: loc_file.startsWith(id_file.slice(0, -'.js'.length) + '.'))
+				: loc_file.startsWith(`${id_file.slice(0, -'.js'.length)}.`))
 		);
 	};
 	check(
@@ -317,7 +317,7 @@ try {
 		);
 		const current = JSON.parse(fs.readFileSync(path.join(client, 'ogygia.json'), 'utf8'));
 		const island = ids.find((k) => k.includes('og-region'));
-		const key = './ogygia/' + island.split('/').pop();
+		const key = `./ogygia/${island.split('/').pop()}`;
 		check(
 			'the current build’s map names each island’s file',
 			new URL(current[key], 'http://x/_app/ogygia.json').pathname === two.entries[island],
@@ -336,7 +336,7 @@ try {
 	let server = await serve(one.dir);
 	const page = await context.newPage();
 	page.on('pageerror', (e) => errors.push(e.message));
-	await page.goto(BASE + '/dt-cache', { waitUntil: 'load' });
+	await page.goto(`${BASE}/dt-cache`, { waitUntil: 'load' });
 	const before = await ran(page);
 	check(
 		'build 1 runs build 1',
@@ -406,7 +406,7 @@ try {
 			() => (window as unknown as { __og_doc?: number }).__og_doc === 2
 		);
 		check('deploy-nav: within one build, a link swaps the page', kept, kept ? 'swapped' : 'loaded');
-		await page.goto(BASE + '/dt-cache', { waitUntil: 'load' });
+		await page.goto(`${BASE}/dt-cache`, { waitUntil: 'load' });
 	}
 	const stable_hits = [];
 	page.on(
@@ -431,18 +431,18 @@ try {
 	// (the page is a static file the server serves, never a routed response: Playwright turns the
 	// HTTP cache off for a page with a route, and this check is about that cache)
 	{
-		const map_head = await fetch(BASE + '/_app/ogygia.json', { method: 'HEAD' });
+		const map_head = await fetch(`${BASE}/_app/ogygia.json`, { method: 'HEAD' });
 		check(
 			'current map: the host does not serve it immutable',
 			map_head.ok && !/immutable/.test(map_head.headers.get('cache-control') ?? ''),
 			`${map_head.status} ${map_head.headers.get('cache-control') ?? '(no cache-control)'}`
 		);
-		const html2_live = await (await fetch(BASE + '/dt-cache')).text();
+		const html2_live = await (await fetch(`${BASE}/dt-cache`)).text();
 		await stop(server);
 		fs.writeFileSync(path.join(two.dir, 'client/og-control.html'), strip_locations(html2_live));
 		server = await serve(two.dir);
 		const control = await context.newPage();
-		await control.goto(BASE + '/og-control.html', { waitUntil: 'load' });
+		await control.goto(`${BASE}/og-control.html`, { waitUntil: 'load' });
 		const c = await ran(control);
 		check(
 			'current map: a page that names no location runs build 2 through it',
@@ -464,7 +464,7 @@ try {
 	);
 	server = await serve(merged);
 	const kept = await page_with_document(context, html1);
-	await kept.goto(BASE + '/dt-cache', { waitUntil: 'load' });
+	await kept.goto(`${BASE}/dt-cache`, { waitUntil: 'load' });
 	const k = await ran(kept);
 	check(
 		'stale-kept: a cached build-1 page runs build 1 throughout (the live hole answers from build 2)',
@@ -482,7 +482,7 @@ try {
 	const gone_errors = [];
 	const gone = await page_with_document(gone_ctx, html1);
 	gone.on('pageerror', (e) => gone_errors.push(e.message));
-	await gone.goto(BASE + '/dt-cache', { waitUntil: 'load' });
+	await gone.goto(`${BASE}/dt-cache`, { waitUntil: 'load' });
 	const g = await ran(gone);
 	check(
 		'stale-gone: each island finds build 2’s file through the current map, and runs it (none left dead)',
@@ -568,7 +568,7 @@ try {
 			const p = await ctx.newPage();
 			const statuses = [];
 			p.on('response', (r) => r.url().includes('/_app/immutable/') && statuses.push(r.status()));
-			await p.goto(BASE + '/dt-cache', { waitUntil: 'load' });
+			await p.goto(`${BASE}/dt-cache`, { waitUntil: 'load' });
 			await ran(p);
 			// (past the report's second of clock slack: else the warm-up visit reads as the report's own)
 			await p.waitForTimeout(1600);
@@ -582,7 +582,7 @@ try {
 			// file a moment ago)
 			statuses.length = 0;
 			if (rewrite === 'no-store') await p.reload({ waitUntil: 'load' });
-			else await p.goto(BASE + '/dt-cache', { waitUntil: 'load' });
+			else await p.goto(`${BASE}/dt-cache`, { waitUntil: 'load' });
 			await ran(p);
 			// what the browser itself saw, each URL once — the counts the report must quote: files that
 			// came back as a 304 (headers only, no body), and files that came down whole on a reload
@@ -680,7 +680,7 @@ try {
 			.then((r) => r.json())
 			.catch(() => null);
 		const p = await ctx.newPage();
-		await p.goto(BASE + '/dt-inp', { waitUntil: 'load' });
+		await p.goto(`${BASE}/dt-inp`, { waitUntil: 'load' });
 		// past the load trace (8 s, or longer while islands still wake): the interaction sampler runs
 		await p.waitForTimeout(11_000);
 		const b = await p.locator('[data-inp="save"]').boundingBox();
@@ -709,7 +709,7 @@ try {
 		);
 	}
 
-	const html2 = await (await fetch(BASE + '/dt-cache')).text();
+	const html2 = await (await fetch(`${BASE}/dt-cache`)).text();
 
 	// ── regions with an identity alone (the browser rendered them, or they came over the wire) ──
 	// The build's page, every region's `src` dropped and nothing else: the runtime's script still
@@ -733,7 +733,7 @@ try {
 			if (/\/ogygia\/og-(region|runtime)\./.test(r.url())) stable.push(r.url());
 			if (r.url().includes('/og-locations.')) maps.push(r.url());
 		});
-		await p.goto(BASE + '/dt-cache', { waitUntil: 'load' });
+		await p.goto(`${BASE}/dt-cache`, { waitUntil: 'load' });
 		const a = await ran(p);
 		check(
 			'identity alone: every island runs build 2, loaded by its location',

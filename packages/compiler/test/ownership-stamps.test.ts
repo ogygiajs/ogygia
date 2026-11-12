@@ -3,13 +3,24 @@
 // subtrees alone (runtime/ownership.ts); the runtime can't tell them apart from the DOM by itself.
 import { describe, expect, test } from 'vitest';
 import { stamp_opaque } from '../src/compiler/ownership-stamps.ts';
+import { dedent } from '@ogygia/core/contract';
 
 const S = (src: string) => stamp_opaque(src, '/app/src/lib/X.svelte');
 
 describe('stamp_opaque', () => {
 	test('an element whose only child is {@html} (whitespace aside) is stamped', () => {
-		expect(S('<div class="w">\n\t{@html widget}\n</div>')).toBe(
-			'<div data-og-opaque class="w">\n\t{@html widget}\n</div>'
+		expect(
+			S(dedent`
+			<div class="w">
+				{@html widget}
+			</div>
+		`)
+		).toBe(
+			dedent`
+				<div data-og-opaque class="w">
+					{@html widget}
+				</div>
+			`
 		);
 		expect(S('<x-widget id="w">{@html markup}</x-widget>')).toBe(
 			'<x-widget data-og-opaque id="w">{@html markup}</x-widget>'

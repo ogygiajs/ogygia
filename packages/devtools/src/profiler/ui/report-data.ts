@@ -104,12 +104,11 @@ export function island_rows(a: Analysis, meta: ReportMeta, extras: ReportExtras)
 		if (beacon_seen && !cl && (r.wake === 'load' || r.wake === 'idle' || r.wake === 'visible'))
 			advice = `Never reported hydrating in your visits while other islands did. A '${r.wake}' island that ${r.wake === 'visible' ? 'never intersects the viewport (can the page scroll? is it hidden?)' : 'throws on wake (the browser console has it)'} never wakes.`;
 		else if (cl && cl.recovered > 0)
-			advice =
-				`${cl.recovered} of ${cl.n} hydrations threw the server DOM away and re-rendered: the markup the browser found was not what the server sent. It paid for the render twice and flashed.` +
-				(cl.reason ? ` Why: ${cl.reason}.` : '') +
-				(lines.length
+			advice = `${cl.recovered} of ${cl.n} hydrations threw the server DOM away and re-rendered: the markup the browser found was not what the server sent. It paid for the render twice and flashed.${cl.reason ? ` Why: ${cl.reason}.` : ''}${
+				lines.length
 					? ` ${hazard_words(lines)}`
-					: ' Look for a post-SSR pass, or a script that edits it before the wake.');
+					: ' Look for a post-SSR pass, or a script that edits it before the wake.'
+			}`;
 		else if (render_read)
 			advice = `Its own code reads ${render_read.reads ?? 'a browser-only value'} while rendering (${render_read.file.split('/').pop()}:${render_read.line}): the browser draws it differently, so its markup changes as it wakes. Read it after the wake ($effect, onMount), or pass it in as a prop.`;
 		else if (marks === 0 && r.wake !== 'none')
@@ -334,7 +333,7 @@ export interface WaitRow {
 export function waiting_rows(net: NetCall[], io: IoOp[]): WaitRow[] {
 	const rows = new Map<string, WaitRow>();
 	const add = (caller: string, kind: string, ms: number, open = false) => {
-		const key = caller + '|' + kind;
+		const key = `${caller}|${kind}`;
 		const r = rows.get(key) ?? { caller, kind, count: 0, ms: 0, open: 0 };
 		r.count++;
 		r.ms += ms;
@@ -386,10 +385,10 @@ export function top_hosts(net: NetCall[]): HostRow[] {
 export function short_url(url: string): string {
 	try {
 		const u = new URL(url);
-		const path = u.pathname.length > 48 ? u.pathname.slice(0, 45) + '…' : u.pathname;
+		const path = u.pathname.length > 48 ? `${u.pathname.slice(0, 45)}…` : u.pathname;
 		return u.host + path + (u.search ? '?…' : '');
 	} catch {
-		return url.length > 64 ? url.slice(0, 61) + '…' : url;
+		return url.length > 64 ? `${url.slice(0, 61)}…` : url;
 	}
 }
 
@@ -397,9 +396,9 @@ function wf_url(url: string): string {
 	try {
 		const u = new URL(url);
 		const s = u.pathname + u.search;
-		return s.length > 44 ? s.slice(0, 43) + '…' : s;
+		return s.length > 44 ? `${s.slice(0, 43)}…` : s;
 	} catch {
-		return url.length > 44 ? url.slice(0, 43) + '…' : url;
+		return url.length > 44 ? `${url.slice(0, 43)}…` : url;
 	}
 }
 

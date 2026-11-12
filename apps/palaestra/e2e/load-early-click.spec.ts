@@ -13,7 +13,7 @@ const HOLD_MS = 1500;
 
 /** Every island's file names: its built location and its stable name (the fallback a lost one takes). */
 async function island_files(base: string): Promise<string[]> {
-	const html = await (await fetch(base + '/load-early-click')).text();
+	const html = await (await fetch(`${base}/load-early-click`)).text();
 	const names: string[] = [];
 	for (const [tag] of html.matchAll(REGION_RE))
 		for (const re of [SRC_RE, ENTRY_RE]) {
@@ -26,7 +26,7 @@ async function island_files(base: string): Promise<string[]> {
 /** Hold the islands' code for `HOLD_MS`, then let it through; or (`abort`) drop it then. */
 async function hold_islands(page: Page, files: string[], abort = false): Promise<void> {
 	await page.route(
-		(url) => files.some((f) => url.pathname.endsWith('/' + f)),
+		(url) => files.some((f) => url.pathname.endsWith(`/${f}`)),
 		async (r) => {
 			await new Promise((done) => setTimeout(done, HOLD_MS));
 			await (abort ? r.abort() : r.continue());

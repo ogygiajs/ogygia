@@ -50,7 +50,7 @@ describe('put', () => {
 		let n = 0;
 		const box = outbox({
 			send: async () => {
-				throw new Error('down ' + ++n);
+				throw new Error(`down ${++n}`);
 			},
 			retry: quick({ attempts: 3 }),
 			giveUp: give_up

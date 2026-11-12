@@ -22,6 +22,7 @@ import { gzipSync } from 'node:zlib';
 import { fileURLToPath } from 'node:url';
 import { performance } from 'node:perf_hooks';
 import path from 'node:path';
+import { dedent } from 'ogygia/plugin/utils';
 
 const repo = fileURLToPath(new URL('../../..', import.meta.url));
 const label = process.argv[2] || 'unlabeled';
@@ -35,26 +36,31 @@ const ctx = {
 	dev: false,
 	virtualPathFor: (_h: string, iid: string) => `ogygia:region/entry/${iid}.js`,
 	wrapperPathFor: (_h: string, iid: string) => `ogygia:region/wrapper/${iid}.svelte`,
-	devUrlFor: (p: string) => '/@id/' + p,
+	devUrlFor: (p: string) => `/@id/${p}`,
 	visibleMargin: '0px',
 	presets: {}
 };
 const HOST = '/app/src/routes/+page.svelte';
 
 // ---- representative host sources ----
-const wrap = (imports: string, markup: string) => `<script>\n${imports}\n</script>\n${markup}`;
+const wrap = (imports: string, markup: string) => dedent`
+	<script>
+	${imports}
+	</script>
+	${markup}
+`;
 
 // (A) island-heavy host: 6 imports across strategies + a couple usages each
 const heavy = wrap(
-	[
-		`import A from '$lib/A.svelte' with { wake: 'load' };`,
-		`import B from '$lib/B.svelte' with { wake: 'visible' };`,
-		`import C from '$lib/C.svelte' with { wake: 'idle' };`,
-		`import D from '$lib/D.svelte' with { wake: 'interaction' };`,
-		`import E from '$lib/E.svelte' with { render: 'deferred' };`,
-		`import F from '$lib/F.svelte' with { render: 'deferred', fetch: 'visible' };`,
-		`const items = [1,2,3];`
-	].join('\n'),
+	dedent`
+		import A from '$lib/A.svelte' with { wake: 'load' };
+		import B from '$lib/B.svelte' with { wake: 'visible' };
+		import C from '$lib/C.svelte' with { wake: 'idle' };
+		import D from '$lib/D.svelte' with { wake: 'interaction' };
+		import E from '$lib/E.svelte' with { render: 'deferred' };
+		import F from '$lib/F.svelte' with { render: 'deferred', fetch: 'visible' };
+		const items = [1,2,3];
+	`,
 	`<A n={1}/><A n={2}/><B/><C/><D/>{#each items as i}<E name={i}/>{/each}<F/>`
 );
 
@@ -134,19 +140,24 @@ const file = path.join(repo, 'internal/notes/perf-checkpoints.md');
 if (!existsSync(file)) {
 	writeFileSync(
 		file,
-		'# ogygia perf checkpoints\n\n' +
-			'transformHost µs/call (lower better) · runtime chunk gzip B · docs cold build s. Recorded by `node apps/palaestra/e2e/bench.ts <label>`.\n\n' +
-			'| label | heavy µs | children µs | plain µs | docs rt gz | pg rt gz | docs build s |\n' +
-			'| --- | --- | --- | --- | --- | --- | --- |\n'
+		`# ogygia perf checkpoints
+
+transformHost µs/call (lower better) · runtime chunk gzip B · docs cold build s. Recorded by \`node apps/palaestra/e2e/bench.ts <label>\`.
+
+| label | heavy µs | children µs | plain µs | docs rt gz | pg rt gz | docs build s |
+| --- | --- | --- | --- | --- | --- | --- |
+`
 	);
 }
-const row =
-	`| ${label} ` +
-	`| ${(mHeavy * 1000).toFixed(1)} ` +
-	`| ${(mChildren * 1000).toFixed(1)} ` +
-	`| ${(mPlain * 1000).toFixed(1)} ` +
-	`| ${docsRt ? docsRt.gz : '-'} ` +
-	`| ${pgRt ? pgRt.gz : '-'} ` +
-	`| ${docsBuildMs ? (docsBuildMs / 1000).toFixed(2) : '-'} |\n`;
+const cells = [
+	label,
+	(mHeavy * 1000).toFixed(1),
+	(mChildren * 1000).toFixed(1),
+	(mPlain * 1000).toFixed(1),
+	docsRt ? docsRt.gz : '-',
+	pgRt ? pgRt.gz : '-',
+	docsBuildMs ? (docsBuildMs / 1000).toFixed(2) : '-'
+];
+const row = `| ${cells.join(' | ')} |\n`;
 appendFileSync(file, row);
 console.log(`\n✓ checkpoint '${label}' appended to internal/notes/perf-checkpoints.md\n`);

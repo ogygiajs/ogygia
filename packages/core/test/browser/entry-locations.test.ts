@@ -48,18 +48,18 @@ describe('the map', () => {
 	});
 
 	test('relative pairs resolve against the document they were read from', () => {
-		const at = location.origin + '/deep/page/';
+		const at = `${location.origin}/deep/page/`;
 		note_entry_location(
 			'./_app/ogygia/og-region.cccccccccccc.js',
 			'./_app/immutable/og-region.cccccccccccc.X1.js',
 			at
 		);
-		expect(entry_location(at + '_app/ogygia/og-region.cccccccccccc.js')).toBe(
-			at + '_app/immutable/og-region.cccccccccccc.X1.js'
+		expect(entry_location(`${at}_app/ogygia/og-region.cccccccccccc.js`)).toBe(
+			`${at}_app/immutable/og-region.cccccccccccc.X1.js`
 		);
 		// …and the same identity written root-relative on that origin is the same key
 		expect(entry_location('/deep/page/_app/ogygia/og-region.cccccccccccc.js', at)).toBe(
-			at + '_app/immutable/og-region.cccccccccccc.X1.js'
+			`${at}_app/immutable/og-region.cccccccccccc.X1.js`
 		);
 	});
 
@@ -97,21 +97,21 @@ describe('the map', () => {
 	});
 
 	test('an island graph script carries locations for entries no element has (its `s` map)', () => {
-		const doc = location.origin + '/p/';
+		const doc = `${location.origin}/p/`;
 		const text = encode_island_graph(
 			new Map([['./i/og-region.000000000002.js', ['./i/chunks/Dep.js']]]),
 			new Map([['/i/og-region.000000000003.js', './i/og-region.000000000003.Snip1.js']])
 		);
 		register_island_graph(text, doc);
-		expect(entry_location(location.origin + '/i/og-region.000000000003.js')).toBe(
-			location.origin + '/p/i/og-region.000000000003.Snip1.js'
+		expect(entry_location(`${location.origin}/i/og-region.000000000003.js`)).toBe(
+			`${location.origin}/p/i/og-region.000000000003.Snip1.js`
 		);
 		// a graph without `s` (an older server) notes nothing
 		register_island_graph(
 			encode_island_graph(new Map([['/i/og-region.000000000004.js', []]])),
 			doc
 		);
-		expect(entry_location(location.origin + '/i/og-region.000000000004.js')).toBeUndefined();
+		expect(entry_location(`${location.origin}/i/og-region.000000000004.js`)).toBeUndefined();
 	});
 });
 
@@ -124,16 +124,16 @@ describe('import_entry: the location, then the current build’s, once', () => {
 	const GONE = '/test/browser/fixtures/immutable/og-region.';
 
 	test('a known location is what gets imported', async () => {
-		const identity = LOCATED_ID + '?t=1';
-		note_entry_location(identity, LOCATED + '?t=1');
+		const identity = `${LOCATED_ID}?t=1`;
+		note_entry_location(identity, `${LOCATED}?t=1`);
 		const m = await import_entry<{ default: string }>(identity);
 		expect(m.default).toBe('located');
 		expect(requested('og-region.0000000000c1.js?t=1')).toHaveLength(0);
 	});
 
 	test('the location failing, the current build’s map names the file to load (a page that outlived its build)', async () => {
-		const identity = BUILD + '000000000aa1.js';
-		note_entry_location(identity, GONE + '000000000aa1.Aa11Bb22.js');
+		const identity = `${BUILD}000000000aa1.js`;
+		note_entry_location(identity, `${GONE}000000000aa1.Aa11Bb22.js`);
 		const m = await import_entry<{ default: string }>(identity);
 		expect(m.default).toBe('current');
 		expect(requested('Aa11Bb22.js')).toHaveLength(1);
@@ -141,14 +141,14 @@ describe('import_entry: the location, then the current build’s, once', () => {
 	});
 
 	test('no location anywhere on the page: the current build’s, without a failed load first', async () => {
-		const m = await import_entry<{ default: string }>(BUILD + '000000000aa2.js');
+		const m = await import_entry<{ default: string }>(`${BUILD}000000000aa2.js`);
 		expect(m.default).toBe('current');
 		expect(requested('og-region.000000000aa2.js')).toHaveLength(0);
 		expect(requested(CURRENT_MAP)).toHaveLength(1); // read once for the document
 	});
 
 	test('not a build’s identity (the dev server’s module): no other file is its location, the module itself loads', async () => {
-		const identity = IDENTITY + '?t=3';
+		const identity = `${IDENTITY}?t=3`;
 		note_entry_location(identity, '/test/browser/fixtures/gone-Qq11Rr22.js');
 		expect(entry_location(identity)).toBeUndefined();
 		const m = await import_entry<{ default: string }>(identity);
@@ -163,17 +163,17 @@ describe('import_entry: the location, then the current build’s, once', () => {
 	});
 
 	test('both gone: one try at the current build’s file, then the error stands (never a loop)', async () => {
-		const identity = BUILD + '000000000aa3.js';
-		note_entry_location(identity, GONE + '000000000aa3.Gg77Hh88.js');
+		const identity = `${BUILD}000000000aa3.js`;
+		note_entry_location(identity, `${GONE}000000000aa3.Gg77Hh88.js`);
 		await expect(import_entry(identity)).rejects.toThrow();
 		expect(requested('Gg77Hh88.js')).toHaveLength(1);
 		expect(requested('og-region.000000000aa3.GoneToo9.js')).toHaveLength(1);
 	});
 
 	test('an explicit url wins over the map (the caller already resolved it)', async () => {
-		const identity = IDENTITY + '?t=5';
+		const identity = `${IDENTITY}?t=5`;
 		note_entry_location(identity, '/test/browser/fixtures/gone-Ii99Jj00.js');
-		const m = await import_entry<{ default: string }>(identity, LOCATED + '?t=5');
+		const m = await import_entry<{ default: string }>(identity, `${LOCATED}?t=5`);
 		expect(m.default).toBe('located');
 	});
 });
@@ -184,21 +184,21 @@ describe('a fallback is reported (the runtime wires devtools and the beacon to i
 		on_entry_fallback((r) => reports.push(r));
 		const ok = '/test/browser/fixtures/ogygia/og-region.000000000aa6.js';
 		const GONE = '/test/browser/fixtures/immutable/og-region.';
-		note_entry_location(ok, GONE + '000000000aa6.Kk11Ll22.js');
+		note_entry_location(ok, `${GONE}000000000aa6.Kk11Ll22.js`);
 		await import_entry(ok);
 		const bad = '/test/browser/fixtures/ogygia/og-region.000000000aa7.js';
-		note_entry_location(bad, GONE + '000000000aa7.Oo55Pp66.js');
+		note_entry_location(bad, `${GONE}000000000aa7.Oo55Pp66.js`);
 		await import_entry(bad).catch(() => {});
 		await expect.poll(() => reports.length).toBe(2);
 		expect(reports[0]).toEqual({
 			entry: ok,
-			src: abs(GONE + '000000000aa6.Kk11Ll22.js'),
+			src: abs(`${GONE}000000000aa6.Kk11Ll22.js`),
 			recovered: true
 		});
 		expect(reports[1]).toMatchObject({ entry: bad, recovered: false });
 		// a load that worked reports nothing
-		const fine = LOCATED_ID + '?t=8';
-		note_entry_location(fine, LOCATED + '?t=8');
+		const fine = `${LOCATED_ID}?t=8`;
+		note_entry_location(fine, `${LOCATED}?t=8`);
 		await import_entry(fine);
 		await new Promise((r) => setTimeout(r, 50));
 		expect(reports).toHaveLength(2);
@@ -207,13 +207,13 @@ describe('a fallback is reported (the runtime wires devtools and the beacon to i
 
 describe('the warmer goes to the location', () => {
 	test('warming an identity fetches its location, and dedupes by it', async () => {
-		const identity = LOCATED_ID + '?t=6';
-		note_entry_location(identity, LOCATED + '?t=6');
+		const identity = `${LOCATED_ID}?t=6`;
+		note_entry_location(identity, `${LOCATED}?t=6`);
 		warm_island_module(identity);
 		await expect.poll(() => requested('Loc.js?t=6').length, { timeout: 5000 }).toBe(1);
 		expect(requested('og-region.0000000000c1.js?t=6')).toHaveLength(0);
 		expect(is_warmed_module(identity)).toBe(true);
-		expect(is_warmed_module(LOCATED + '?t=6')).toBe(true);
+		expect(is_warmed_module(`${LOCATED}?t=6`)).toBe(true);
 		warm_island_module(identity);
 		await new Promise((r) => setTimeout(r, 100));
 		expect(requested('Loc.js?t=6')).toHaveLength(1);

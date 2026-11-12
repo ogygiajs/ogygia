@@ -517,7 +517,7 @@ class PropMutationGuard {
 	readonly #warned = say();
 
 	#warn(entry: string, prop_path: string) {
-		this.#warned.once(entry + '' + prop_path, () =>
+		this.#warned.once(`${entry}${prop_path}`, () =>
 			warn('prop_mutation', { prop: prop_path, entry })
 		);
 	}

@@ -31,9 +31,7 @@ beforeEach(() => {
 	prepare_spa_document();
 	window.fetch = async () =>
 		new Response(
-			'<!doctype html><html><head><meta name="ogygia-router" content="plain">' +
-				`<script type="text/x-og-key-depth" src="../${ASSET}"></script>` +
-				'</head><body><p data-page="orders">orders</p></body></html>',
+			`<!doctype html><html><head><meta name="ogygia-router" content="plain"><script type="text/x-og-key-depth" src="../${ASSET}">\x3C/script></head><body><p data-page="orders">orders</p></body></html>`,
 			{ status: 200, headers: { 'content-type': 'text/html' } }
 		);
 });
@@ -55,7 +53,7 @@ test('a navigation to a page at another depth keeps one head node for the same f
 		.not.toBeNull();
 	await expect.poll(() => r.nav.now.kind, { timeout: 2_000 }).toBe('idle');
 	const files = [...document.head.querySelectorAll('script[type="text/x-og-key-depth"]')].map(
-		(s) => new URL(s.getAttribute('src')!, location.origin + '/shop/nested').pathname
+		(s) => new URL(s.getAttribute('src')!, `${location.origin}/shop/nested`).pathname
 	);
 	expect(files).toEqual([FILE]);
 	// the node from the first page stayed: kept, not taken out and put back

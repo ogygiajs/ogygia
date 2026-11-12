@@ -49,11 +49,9 @@ describe("a finding's signature", () => {
 	it('is the same for an uncaught error whose stack points into another build', () => {
 		const at = (file: string, line: number, column: number) => ({
 			oracle: 'uncaught',
-			detail: [
-				'after tab 0: click link #3: TypeError: c.navigate is not a function',
-				`    at Object.navigate (https://app.test/_app/immutable/${file}:${line}:${column})`,
-				`    at https://app.test/_app/immutable/${file}:${line}:${column + 40}`
-			].join('\n')
+			detail: `after tab 0: click link #3: TypeError: c.navigate is not a function
+    at Object.navigate (https://app.test/_app/immutable/${file}:${line}:${column})
+    at https://app.test/_app/immutable/${file}:${line}:${column + 40}`
 		});
 		const base = signature(at('og-runtime-9038e5f3.BbtuYXh-.js', 6, 52784));
 		expect(signature(at('og-runtime-9038e5f3.B4tu7Xh-.js', 6, 52784))).toBe(base);

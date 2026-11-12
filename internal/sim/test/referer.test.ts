@@ -11,7 +11,7 @@ import { World } from '../src/world.ts';
 const OUTPUT = fileURLToPath(
 	new URL('../../../apps/palaestra/.svelte-kit/output', import.meta.url)
 );
-const built = existsSync(OUTPUT + '/server/index.js');
+const built = existsSync(`${OUTPUT}/server/index.js`);
 
 describe.skipIf(!built)('a page request', () => {
 	it('says the page it came from', async () => {

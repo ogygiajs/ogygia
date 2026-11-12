@@ -19,7 +19,7 @@ test.describe('query.live partials: swap no-fetch, keep-alive, static morph', ()
 	test('SSR: csr=false page shows the pending placeholders and the host island', async ({
 		baseURL
 	}) => {
-		const res = await fetch(baseURL + '/live-partial');
+		const res = await fetch(`${baseURL}/live-partial`);
 		const html = await res.text();
 		check('/live-partial returns 200', res.status === 200);
 		check('/live-partial ships NO Kit bootstrap (csr=false)', !KIT_MARKER_RE.test(html));

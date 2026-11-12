@@ -29,7 +29,7 @@
 		);
 	});
 	const s = new Sortable(() => filtered, 'self_ms');
-	const row_key = (f: Row) => f.key ?? f.name + ' ' + f.url;
+	const row_key = (f: Row) => f.key ?? `${f.name} ${f.url}`;
 	let open = $state<string | null>(null);
 	const cols = $derived(hasAlloc ? 7 : 6);
 	// a finding's `#fn=<key>` link opens + scrolls to its row

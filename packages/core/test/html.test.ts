@@ -89,7 +89,7 @@ describe('html', () => {
 		expect(String(html`<div class="og-code" data-pref="${'pm'}">`)).toBe(
 			'<div class="og-code" data-pref="pm">'
 		);
-		expect(html`${0}${null}${undefined}${false}` + '').toBe('0');
+		expect(`${html`${0}${null}${undefined}${false}`}`).toBe('0');
 	});
 });
 
@@ -111,6 +111,12 @@ describe('html.svelte (text written into Svelte markup, #469)', () => {
 		// between tags, markup made elsewhere is placed as is
 		expect(String(html.svelte`<p>${trusted_html('<b>ok</b>', 'test')}</p>`)).toBe(
 			'<p><b>ok</b></p>'
+		);
+	});
+
+	it('an Html value between tags keeps its braces: its markup is placed as is', () => {
+		expect(String(html.svelte`<p>${trusted_html('<b>{count}</b>', 'a test')}</p>`)).toBe(
+			'<p><b>{count}</b></p>'
 		);
 	});
 

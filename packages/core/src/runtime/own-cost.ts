@@ -1,12 +1,12 @@
 /**
- * What MEASURING costs the page's main thread, by phase (ms): the work devtools and the profiler's
- * beacon do only because someone measures — checking each island's markup as it hydrates, building the
- * visit, the testing API's reports. A visitor with devtools off pays none of it, so a test subtracts it
- * (`page().ogygia`) and a CPU comparison across ogygia versions stays about the page.
+ * What measuring costs the page's main thread, by phase (ms): the time the devtools and the
+ * profiler's beacon spend only because someone measures, so a CPU comparison can leave it out.
+ *
+ * @packageDocumentation
  */
 import { clock } from '@ogygia/machine';
 
-// (one ledger for the page: the runtime and the devtools chunks can each carry a copy of this module)
+// @why the runtime and devtools chunks each carry a copy (test: test/own-cost.test.ts › two copies of the module (the runtime and the devtools chunks) keep one ledger)
 const spent: Record<string, number> = ((globalThis as Record<symbol, Record<string, number>>)[
 	Symbol.for('ogygia.own-cost')
 ] ??= {});

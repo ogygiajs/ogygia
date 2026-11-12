@@ -30,7 +30,7 @@ function makeCtx(overrides: Partial<HostCtx> = {}): HostCtx {
 		dev: false,
 		virtualPathFor: (_hostId: string, iid: string) => `ogygia:region/entry/${iid}.js`,
 		wrapperPathFor: (_hostId: string, iid: string) => `ogygia:region/wrapper/${iid}.svelte`,
-		devUrlFor: (p: string) => '/@id/' + p,
+		devUrlFor: (p: string) => `/@id/${p}`,
 		visibleMargin: '0px',
 		presets: {},
 		...overrides

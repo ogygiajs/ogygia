@@ -20,6 +20,7 @@ import { is_script_request } from '@ogygia/compiler';
 import { fixture, type Fixture } from './_fixture.ts';
 import { barrels, type BarrelsOptions } from '../src/index.ts';
 import { format_report } from '../src/report.ts';
+import { dedent } from '@ogygia/core/plugin/utils';
 
 let f: Fixture;
 afterEach(() => f?.dispose());
@@ -27,13 +28,28 @@ afterEach(() => f?.dispose());
 const app = (): Record<string, string> => ({
 	'package.json': JSON.stringify({ name: 'app', type: 'module' }),
 	'index.html': `<script type="module" src="/src/main.ts"></script>`,
-	'src/main.ts': `import { Button, util } from '$lib';\nimport { pkgLeaf } from '@scope/ui';\nimport App from './App.svelte';\nconsole.log(Button, util, pkgLeaf, App);`,
-	'src/App.svelte': `<script lang="ts">\n\timport { Card } from '$lib';\n</script>\n<Card />`,
+	'src/main.ts': dedent`
+		import { Button, util } from '$lib';
+		import { pkgLeaf } from '@scope/ui';
+		import App from './App.svelte';
+		console.log(Button, util, pkgLeaf, App);
+	`,
+	'src/App.svelte': dedent`
+		<script lang="ts">
+			import { Card } from '$lib';
+		</script>
+		<Card />
+	`,
 	'lib/Button.svelte': '<button>b</button>',
 	'lib/Card.svelte': '<div>c</div>',
 	'lib/Unused.svelte': '<div>never imported: must not be in the graph</div>',
 	'lib/util.ts': 'export function util() { return "util-marker"; }',
-	'lib/index.ts': `export { default as Button } from './Button.svelte';\nexport { default as Card } from './Card.svelte';\nexport { default as Unused } from './Unused.svelte';\nexport { util } from './util';`,
+	'lib/index.ts': dedent`
+		export { default as Button } from './Button.svelte';
+		export { default as Card } from './Card.svelte';
+		export { default as Unused } from './Unused.svelte';
+		export { util } from './util';
+	`,
 	'node_modules/@scope/ui/package.json': JSON.stringify({
 		name: '@scope/ui',
 		type: 'module',
@@ -89,7 +105,16 @@ describe('which ids are importers', () => {
 		// <style> was reported "skipped" (3,233 false warnings in one production build)
 		f = fixture({
 			...app(),
-			'src/App.svelte': `<script lang="ts">\n\timport { Card } from '$lib';\n</script>\n<Card />\n<p class="x">x</p>\n<style>\n\t.x { color: red }\n</style>`
+			'src/App.svelte': dedent`
+				<script lang="ts">
+					import { Card } from '$lib';
+				</script>
+				<Card />
+				<p class="x">x</p>
+				<style>
+					.x { color: red }
+				</style>
+			`
 		});
 		const cfg = config(f);
 		cfg.plugins = [cfg.plugins[0], cfg.plugins[1], svelte({ configFile: false, emitCss: true })];
@@ -208,7 +233,11 @@ describe('vite build', () => {
 		for (let i = 0; i < 12; i++) {
 			files[`lib/b${i}/leaf.ts`] = `export const v${i} = ${i};`;
 			files[`lib/b${i}/index.ts`] = `export { v${i} } from './leaf';`;
-			files['src/main.ts'] += `\nimport { v${i} } from '$lib/b${i}';\nconsole.log(v${i});`;
+			files['src/main.ts'] = dedent`
+					${files['src/main.ts']}
+					import { v${i} } from '$lib/b${i}';
+					console.log(v${i});
+				`;
 		}
 		f = fixture(files);
 		const lines: string[] = [];
@@ -386,7 +415,11 @@ describe('beside ogygia()', { timeout: 30_000 }, () => {
 		f = fixture({
 			'lib/util.ts': 'export const util = 1;',
 			'lib/index.ts': `export { util } from './util';`,
-			'src/app.ts': `import { Action } from 'svelte/action';\nimport { util } from '$lib';\nimport { deep } from '@vendor/pkg/src/types';`
+			'src/app.ts': dedent`
+				import { Action } from 'svelte/action';
+				import { util } from '$lib';
+				import { deep } from '@vendor/pkg/src/types';
+			`
 		});
 		const cfg = config(f, true);
 		const throws: Plugin = {
@@ -399,7 +432,11 @@ describe('beside ogygia()', { timeout: 30_000 }, () => {
 		};
 		cfg.plugins.push(throws);
 		expect(await source_stage(cfg, 'src/app.ts')).toBe(
-			`import { Action } from 'svelte/action';\nimport { util } from '${f.id('lib/util.ts')}';\nimport { deep } from '@vendor/pkg/src/types';`
+			dedent`
+				import { Action } from 'svelte/action';
+				import { util } from '${f.id('lib/util.ts')}';
+				import { deep } from '@vendor/pkg/src/types';
+			`
 		);
 	});
 });

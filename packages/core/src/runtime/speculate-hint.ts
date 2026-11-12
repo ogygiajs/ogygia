@@ -25,7 +25,7 @@ export function speculate_url(url: string | URL, kind: 'prefetch' | 'prerender')
 	}
 	if (target.origin !== location.origin) return;
 	const href = target.pathname + target.search;
-	const key = kind + '\0' + href;
+	const key = `${kind}\0${href}`;
 	if (hinted.has(key)) return;
 	hinted.set(key, true);
 	const script = document.createElement('script');

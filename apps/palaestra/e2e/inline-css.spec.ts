@@ -23,7 +23,7 @@ test.describe('inline region css under Kit’s inlineStyleThreshold', () => {
 	}) => {
 		// Kit serves the page at `/inline-css` (trailing slash redirected away); the head's relative
 		// asset hrefs (`./_app/…`) resolve against THAT url, the way the browser does.
-		const res = await fetch(baseURL + '/inline-css');
+		const res = await fetch(`${baseURL}/inline-css`);
 		const html = await res.text();
 		const head = html.slice(0, html.indexOf('</head>'));
 		const inlined = [...head.matchAll(INLINE_STYLE_G)].map((m) => ({ href: m[1], css: m[2] }));

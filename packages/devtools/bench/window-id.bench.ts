@@ -21,7 +21,7 @@ bench(
 		setup: () => {
 			const ids = window_ids(SECRET, false, 'profiler:/__profiler')!;
 			const live = ids.mint();
-			const forged = live.slice(0, -2) + 'AA';
+			const forged = `${live.slice(0, -2)}AA`;
 			const sent: (string | null)[] = [];
 			for (let i = 0; i < 30; i++) sent.push(i % 3 === 0 ? forged : i % 3 === 1 ? null : live);
 			return { ids, sent };

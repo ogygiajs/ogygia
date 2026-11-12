@@ -29,7 +29,7 @@ function sign_headers(
 
 test.describe('fragment federation v2', () => {
 	test('mount(): the shell renders the whole cms app under /cms/', async ({ mfe }) => {
-		const html = await (await fetch(mfe.origin('shell') + '/cms/')).text();
+		const html = await (await fetch(`${mfe.origin('shell')}/cms/`)).text();
 		expect(html, 'the cms home (its own route table) rendered under the shell').toContain(
 			'cms-home'
 		);
@@ -39,7 +39,7 @@ test.describe('fragment federation v2', () => {
 	test('a remote widget as a STATIC region is baked into the shell home (storable)', async ({
 		mfe
 	}) => {
-		const res = await fetch(mfe.origin('shell') + '/');
+		const res = await fetch(`${mfe.origin('shell')}/`);
 		const html = await res.text();
 		expect(html, 'dash rendered its kpis on the dash server, baked into the shell SSR').toContain(
 			'Dashboard · acme'
@@ -53,7 +53,7 @@ test.describe('fragment federation v2', () => {
 		page,
 		mfe
 	}) => {
-		const res = await page.goto(mfe.origin('shell') + '/widget-down');
+		const res = await page.goto(`${mfe.origin('shell')}/widget-down`);
 		expect(res?.status()).toBe(200);
 		await expect(
 			page.getByTestId('retired-dash').locator('[data-og-fragment-failed]')
@@ -68,14 +68,14 @@ test.describe('fragment federation v2', () => {
 		page,
 		mfe
 	}) => {
-		await page.goto(mfe.origin('shell') + '/');
+		await page.goto(`${mfe.origin('shell')}/`);
 		const deferred = page.getByTestId('deferred-dash');
 		await expect(deferred.locator('h2')).toHaveText('Dashboard · live-inc', { timeout: 30_000 });
 		await expect(deferred.getByTestId('deferred-loading')).toHaveCount(0);
 	});
 
 	test('a DEFERRED remote widget is a shell-signed hole the browser fetches', async ({ mfe }) => {
-		const html = await (await fetch(mfe.origin('shell') + '/')).text();
+		const html = await (await fetch(`${mfe.origin('shell')}/`)).text();
 		const m = html.match(/\/og\/frag\?[^"]+/);
 		expect(m, 'the deferred region emitted an /og/frag hole endpoint').toBeTruthy();
 		const hole = m![0].replace(/&amp;/g, '&');
@@ -88,14 +88,14 @@ test.describe('fragment federation v2', () => {
 	});
 
 	test('the fragment endpoints REQUIRE a signature (401 without one)', async ({ mfe }) => {
-		const cms = await fetch(mfe.origin('cms') + '/og/fragment/page?path=/');
+		const cms = await fetch(`${mfe.origin('cms')}/og/fragment/page?path=/`);
 		expect(cms.status, 'cms expose is signature-gated').toBe(401);
-		const dash = await fetch(mfe.origin('dash') + '/og/fragment/kpis?org=acme');
+		const dash = await fetch(`${mfe.origin('dash')}/og/fragment/kpis?org=acme`);
 		expect(dash.status, 'dash widgets are signature-gated').toBe(401);
 	});
 
 	test('the __catalog manifest is unsigned inventory (names + prop names)', async ({ mfe }) => {
-		const res = await fetch(mfe.origin('dash') + '/og/fragment/__catalog');
+		const res = await fetch(`${mfe.origin('dash')}/og/fragment/__catalog`);
 		expect(res.status).toBe(200);
 		const cat = (await res.json()) as {
 			names: string[];
@@ -108,9 +108,9 @@ test.describe('fragment federation v2', () => {
 	test('cross-app THAW: a signed notice AS a peer is accepted; unsigned is 401', async ({
 		mfe
 	}) => {
-		const u = new URL(mfe.origin('shell') + '/og/thaw');
+		const u = new URL(`${mfe.origin('shell')}/og/thaw`);
 		const body = Buffer.from(
-			JSON.stringify({ id: 'e2e-' + Date.now(), hop: 0, tags: ['p:/kpis'] })
+			JSON.stringify({ id: `e2e-${Date.now()}`, hop: 0, tags: ['p:/kpis'] })
 		);
 		const ab = body.buffer.slice(body.byteOffset, body.byteOffset + body.byteLength) as ArrayBuffer;
 

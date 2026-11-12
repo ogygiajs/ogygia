@@ -20,6 +20,7 @@ import path from 'node:path';
 import { __set_build_cache_root } from '@ogygia/compiler';
 import { ogygiaPreprocess } from '../src/markdown/index.ts';
 import { bridge } from '../src/bridge.ts';
+import { dedent } from '@ogygia/core/plugin/utils';
 
 // The markup hook now consults the doc-level markup cache — isolate it, or a previous run's
 // entry short-circuits before the bridge is consulted.
@@ -73,7 +74,11 @@ describe('island-transform ownership', () => {
 		};
 		const pp = ogygiaPreprocess({});
 		const out = await pp.markup!({
-			content: '# hello\n\nsome prose\n',
+			content: `${dedent`
+				# hello
+
+				some prose
+			`}\n`,
 			filename: '/app/src/content/docs/x/+doc.svx'
 		});
 		expect(out).toBeDefined(); // content compiled

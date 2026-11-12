@@ -507,7 +507,7 @@ export function component_name_from_file(url: string): string | undefined {
 		return kind === 'page' || kind === 'layout' || kind === 'error' ? `_${kind}` : undefined;
 	}
 	let name = base.replace(NON_IDENT_G, '_');
-	if (/^\d/.test(name)) name = '_' + name;
+	if (/^\d/.test(name)) name = `_${name}`;
 	return name.charAt(0).toUpperCase() + name.slice(1);
 }
 
@@ -856,7 +856,7 @@ export class SourceMapResolver {
 	line_at_source(source: string, line: number, max = 56): string | undefined {
 		const row = this.#lines_of(source)?.[line - 1]?.trim();
 		if (!row) return undefined;
-		return row.length > max ? row.slice(0, max - 1) + '…' : row;
+		return row.length > max ? `${row.slice(0, max - 1)}…` : row;
 	}
 
 	/** The function name written in the ORIGINAL source at a mapped position (1-based line and
@@ -1133,7 +1133,7 @@ export class SourceMapResolver {
 		let entry = this.#cache.get(path);
 		if (entry === undefined) {
 			entry = null;
-			const raw = this.#read(path + '.map');
+			const raw = this.#read(`${path}.map`);
 			if (raw) {
 				try {
 					const map = JSON.parse(raw) as SourceMapLike;
@@ -1543,7 +1543,7 @@ export function analyze(
 		for (const n of profile.nodes) {
 			if (!owned(n.id)) continue;
 			const r = resolved.get(n.id)!;
-			resolved.set(n.id, { ...r, category: 'profiler', key: 'profiler:' + r.name + ' ' + r.url });
+			resolved.set(n.id, { ...r, category: 'profiler', key: `profiler:${r.name} ${r.url}` });
 		}
 	}
 
@@ -1640,8 +1640,8 @@ export function analyze(
 			// (code made from a string — the dev server's modules — is `/app/x.ts` in the coverage and
 			// `file:///app/x.ts` here: its script id is the same in both)
 			const c =
-				call_counts[(f.functionName || '') + '\0' + f.url] ??
-				(f.scriptId ? call_counts[(f.functionName || '') + '\0#' + f.scriptId] : undefined);
+				call_counts[`${f.functionName || ''}\0${f.url}`] ??
+				(f.scriptId ? call_counts[`${f.functionName || ''}\0#${f.scriptId}`] : undefined);
 			if (c && (r.category !== 'component' || strip_bundler_suffix(f.functionName) === r.name)) {
 				calls_by_key.set(r.key, c);
 			}
@@ -1870,7 +1870,7 @@ export function analyze(
 			const us = node_total_us.get(id) ?? 0;
 			if (us <= 0) continue;
 			const frames = frames_above(id);
-			const sig = frames.map((f) => f.n + '\0' + f.f).join('\n');
+			const sig = frames.map((f) => `${f.n}\0${f.f}`).join('\n');
 			const seen = by_path.get(sig);
 			if (seen) seen.ms += us;
 			else by_path.set(sig, { ms: us, frames });
@@ -1909,13 +1909,13 @@ export function analyze(
 		for (const child of app_children(node)) {
 			const fn = to_flame(child);
 			if (!fn) continue;
-			const existing = merged.get(fn.n + ' ' + fn.f);
+			const existing = merged.get(`${fn.n} ${fn.f}`);
 			if (existing) {
 				existing.t += fn.t;
 				existing.s += fn.s;
 				if (fn.ch) existing.ch = [...(existing.ch ?? []), ...fn.ch];
 			} else {
-				merged.set(fn.n + ' ' + fn.f, fn);
+				merged.set(`${fn.n} ${fn.f}`, fn);
 			}
 		}
 		for (const m of merged.values()) children.push(m);

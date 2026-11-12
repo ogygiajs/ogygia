@@ -9,11 +9,10 @@ import { modules_in_order } from '../src/happy.ts';
 const FILES: Record<string, string> = {
 	'/a.js': 'export let n = 0; export function bump() { n++; }',
 	'/b.js': "import { n, bump } from './a.js'; bump(); export const seen = n;",
-	'/meta.js':
-		'function where() { return import.meta.url; }\n' +
-		'export const ternary = globalThis.nope ? 0 : import.meta.url;\n' +
-		'export const nullish = globalThis.nope ?? import.meta.url;\n' +
-		'export const returned = where();',
+	'/meta.js': `function where() { return import.meta.url; }
+export const ternary = globalThis.nope ? 0 : import.meta.url;
+export const nullish = globalThis.nope ?? import.meta.url;
+export const returned = where();`,
 	'/shared.js': "import './slow.js'; export const shared = 'ran';",
 	'/first.js': "import './slow.js'; (globalThis.order ??= []).push('first');",
 	'/slow.js': 'export const slow = 1;',
@@ -48,10 +47,7 @@ async function run(v8: boolean, content?: string): Promise<string> {
 		page.url = 'https://example.com/';
 		page.content =
 			content ??
-			'<script type="module">' +
-				"import { seen } from './b.js'; import * as m from './meta.js';" +
-				"document.body.textContent = [seen, m.ternary, m.nullish, m.returned].join(' ');" +
-				'</script>';
+			`<script type="module">import { seen } from './b.js'; import * as m from './meta.js';document.body.textContent = [seen, m.ternary, m.nullish, m.returned].join(' ');\x3C/script>`;
 		await page.waitUntilComplete();
 		await new Promise((r) => setTimeout(r, 100));
 		return page.mainFrame.document.body.textContent ?? '';
@@ -69,9 +65,7 @@ describe('modules of a simulated tab', () => {
 	// seed 368: V8 left the shared module half linked, and the next graph failed with V8's own
 	// "can not be resolved on module … that is not linked", an error no browser says
 	it('a graph whose download failed leaves its modules usable by the next graph', async () => {
-		const page =
-			"<script type=\"module\">import './shared.js'; import './gone.js';</script>" +
-			'<script type="module">import { shared } from \'./shared.js\'; document.body.textContent = shared;</script>';
+		const page = `<script type="module">import './shared.js'; import './gone.js';\x3C/script><script type="module">import { shared } from './shared.js'; document.body.textContent = shared;\x3C/script>`;
 		expect(await run(true, page)).toBe('ran');
 	});
 
@@ -79,9 +73,7 @@ describe('modules of a simulated tab', () => {
 	// foreign tool edited the islands before the runtime kept their server markup
 	it("the document's module scripts run in its order, an inline one after a slower one above it", async () => {
 		modules_in_order();
-		const page =
-			'<script type="module" src="/first.js"></script>' +
-			"<script type=\"module\">(globalThis.order ??= []).push('inline'); document.body.textContent = globalThis.order.join(' ');</script>";
+		const page = `<script type="module" src="/first.js">\x3C/script><script type="module">(globalThis.order ??= []).push('inline'); document.body.textContent = globalThis.order.join(' ');\x3C/script>`;
 		expect(await run(true, page)).toBe('first inline');
 	});
 
@@ -90,12 +82,7 @@ describe('modules of a simulated tab', () => {
 	// waited for `load`)
 	it('the document is loading while parsed, then fires DOMContentLoaded once its modules ran, then load', async () => {
 		modules_in_order();
-		const page =
-			'<script>globalThis.order = [document.readyState];' +
-			"document.addEventListener('DOMContentLoaded', () => order.push('dcl ' + document.readyState));" +
-			"addEventListener('load', () => { order.push('load ' + document.readyState); document.body.textContent = order.join(' '); });" +
-			'</script>' +
-			'<script type="module" src="/state.js"></script>';
+		const page = `<script>globalThis.order = [document.readyState];document.addEventListener('DOMContentLoaded', () => order.push('dcl ' + document.readyState));addEventListener('load', () => { order.push('load ' + document.readyState); document.body.textContent = order.join(' '); });\x3C/script><script type="module" src="/state.js">\x3C/script>`;
 		expect(await run(true, page)).toBe('loading module interactive dcl interactive load complete');
 	});
 

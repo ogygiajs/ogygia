@@ -273,7 +273,7 @@ class Run implements Sim {
 			try {
 				detail = check();
 			} catch (error) {
-				detail = 'the check threw: ' + String(error);
+				detail = `the check threw: ${String(error)}`;
 			}
 			if (detail !== null) this.broke(name, detail);
 		}
@@ -515,7 +515,7 @@ export async function simulate(
 	} finally {
 		run._uninstall();
 	}
-	if (broken.length > 0) throw new Error('broken rules:\n  ' + broken.join('\n  '));
+	if (broken.length > 0) throw new Error(`broken rules:\n  ${broken.join('\n  ')}`);
 }
 
 /**

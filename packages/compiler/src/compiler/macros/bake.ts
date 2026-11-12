@@ -16,6 +16,7 @@
  * violations surface as build-voice errors naming the file and line. Node-only.
  */
 import fs from 'node:fs';
+import { dedent } from '@ogygia/core/contract';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { uneval } from 'devalue';
@@ -202,7 +203,7 @@ function bake_plugin(
 				let mapped: string | null = null;
 				if (typeof find === 'string') {
 					if (source === find) mapped = replacement;
-					else if (source.startsWith(find + '/'))
+					else if (source.startsWith(`${find}/`))
 						mapped = path.join(replacement, source.slice(find.length + 1));
 				} else if (find.test(source)) {
 					mapped = source.replace(find, replacement);
@@ -354,15 +355,24 @@ export async function rewrite_bake(
 	// The eval entry: only the imports the bake fns actually use (so a `.svelte`'s component imports
 	// never enter the Node bundle), then a `__run` that awaits every bake fn in order.
 	const runners = found.calls.map((c, i) => `		r[${i}] = await (${c.fn})();`).join('\n');
-	const entry_code =
-		eval_imports(found.imports, found.calls)
-			.map((i) => i.text)
-			.join('\n') +
-		`\nexport async function __run() {\n\tconst r = [];\n${runners}\n\treturn r;\n}\n`;
+	const imports = eval_imports(found.imports, found.calls)
+		.map((i) => i.text)
+		.join('\n');
+	const run = dedent`
+		export async function __run() {
+			const r = [];
+		${runners}
+			return r;
+		}
+	`;
+	const entry_code = `${dedent`
+		${imports}
+		${run}
+	`}\n`;
 
 	// Content hash: module id + the exact eval entry (imports + fns) → address the bundle & re-bake
 	// only when inputs change.
-	const hash = hash_of(id + '\0' + entry_code);
+	const hash = hash_of(`${id}\0${entry_code}`);
 
 	let results: unknown[];
 	try {

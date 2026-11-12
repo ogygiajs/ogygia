@@ -100,7 +100,7 @@ function resolve_static(dir: string, url_path: string): string | null {
 	const p = decodeURIComponent(url_path.split('?')[0]);
 	const candidates = p.endsWith('/')
 		? [join(dir, p, 'index.html')]
-		: [join(dir, p), join(dir, p + '.html'), join(dir, p, 'index.html')];
+		: [join(dir, p), join(dir, `${p}.html`), join(dir, p, 'index.html')];
 	for (const c of candidates) {
 		try {
 			if (statSync(c).isFile()) return c;
@@ -296,11 +296,11 @@ async function status(url: string): Promise<number> {
 }
 
 async function drive(page: Page, base: string, errors: string[]) {
-	const html = await (await fetch(base + '/')).text();
+	const html = await (await fetch(`${base}/`)).text();
 	check('page server-rendered (SSR HTML present)', SSR_TITLE_RE.test(html));
 
 	const src = html.match(RUNTIME_SCRIPT_RE)?.[1];
-	const rt = src ? new URL(src, base + '/').pathname : undefined;
+	const rt = src ? new URL(src, `${base}/`).pathname : undefined;
 	check('runtime script referenced in HTML', !!rt, rt || 'none');
 	if (rt) {
 		check(
@@ -310,12 +310,12 @@ async function drive(page: Page, base: string, errors: string[]) {
 		);
 		check(
 			'runtime script serves 200 (the 404 regression)',
-			(await status(new URL(src!, base + '/').href)) === 200,
+			(await status(new URL(src!, `${base}/`).href)) === 200,
 			rt
 		);
 	}
 
-	await page.goto(base + '/', { waitUntil: 'load', timeout: 15000 });
+	await page.goto(`${base}/`, { waitUntil: 'load', timeout: 15000 });
 	const counter = page.locator('[data-counter]').first();
 	await counter.waitFor({ timeout: 10000 });
 	const before = (await counter.textContent())?.trim();

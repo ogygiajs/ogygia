@@ -105,7 +105,7 @@ it_with_layout_shift('control: the layout-shift observer reports a real shift', 
 
 for (const layout of LAYOUTS) {
 	test(`${layout.name}: hydrating shifts nothing, never paints the island empty, never styles the region`, async () => {
-		document.body.innerHTML = `<style>${layout.style}</style>` + layout.page(counter());
+		document.body.innerHTML = `<style>${layout.style}</style>${layout.page(counter())}`;
 		await frames(3);
 		const before = Math.round(document.querySelector(`${REGION} p`)!.getBoundingClientRect().top);
 		const { cls, tops, style_writes } = await probe(hydrate);

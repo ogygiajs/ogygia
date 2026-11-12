@@ -213,7 +213,7 @@ export function mint(value: unknown, only?: ReadonlySet<string>): Ref | undefine
 			// (a stateless kind names it by its content: the same on every render)
 			i =
 				kind.stable_id?.(d) ??
-				(names === null ? mint_id() : names.fence + '~' + (names.next++).toString(36));
+				(names === null ? mint_id() : `${names.fence}~${(names.next++).toString(36)}`);
 			ids.set(value as object, i);
 		}
 		const ref: Ref = { k: kind.k, i, d };

@@ -32,20 +32,21 @@ describe('dedupe_head_links · modulepreload', () => {
 
 	it('dedupes across interleaved per-island blocks (the real emission shape)', () => {
 		// island 1: facade + shared deps; island 2: its facade + the SAME shared deps
-		const html =
+		const html = `${
 			hint('/og-region.aaa.js') +
 			hint('/chunks/shared1.js') +
 			hint('/chunks/shared2.js') +
 			hint('/og-region.bbb.js') +
 			hint('/chunks/shared1.js') +
-			hint('/chunks/shared2.js') +
-			'</head>';
+			hint('/chunks/shared2.js')
+		}</head>`;
 		expect(dedupe_head_links(html)).toBe(
-			hint('/og-region.aaa.js') +
+			`${
+				hint('/og-region.aaa.js') +
 				hint('/chunks/shared1.js') +
 				hint('/chunks/shared2.js') +
-				hint('/og-region.bbb.js') +
-				'</head>'
+				hint('/og-region.bbb.js')
+			}</head>`
 		);
 	});
 
@@ -61,15 +62,15 @@ describe('dedupe_head_links · modulepreload', () => {
 	});
 
 	it('dedupes the low-priority hints every island emits (two islands, shared deps)', () => {
-		const html = low('/a.js') + low('/shared.js') + low('/b.js') + low('/shared.js') + '</head>';
+		const html = `${low('/a.js') + low('/shared.js') + low('/b.js') + low('/shared.js')}</head>`;
 		expect(dedupe_head_links(html)).toBe(
-			low('/a.js') + low('/shared.js') + low('/b.js') + '</head>'
+			`${low('/a.js') + low('/shared.js') + low('/b.js')}</head>`
 		);
 	});
 
 	it('first occurrence wins regardless of attributes (no priority arbitration: every hint is low)', () => {
-		const html = low('/x.js') + hint('/x.js') + hint('/y.js') + low('/y.js') + '</head>';
-		expect(dedupe_head_links(html)).toBe(low('/x.js') + hint('/y.js') + '</head>');
+		const html = `${low('/x.js') + hint('/x.js') + hint('/y.js') + low('/y.js')}</head>`;
+		expect(dedupe_head_links(html)).toBe(`${low('/x.js') + hint('/y.js')}</head>`);
 	});
 });
 

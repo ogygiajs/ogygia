@@ -3,6 +3,7 @@
  * attributes and type modifiers preserved, sourcemaps, the mark-skip policy, and the cursed spellings.
  */
 import { afterEach, describe, expect, it } from 'vitest';
+import { dedent } from '@ogygia/core/plugin/utils';
 import { fixture, type Fixture } from './_fixture.ts';
 import MagicString from 'magic-string';
 import { rewrite_imports } from '../src/rewrite.ts';
@@ -18,7 +19,13 @@ const base = () => ({
 	'lib/Card.svelte': '<div/>',
 	'lib/types.ts': 'export type T = number; export interface I {}',
 	'lib/ns.ts': 'export const one = 1;',
-	'lib/index.ts': `export { a, b as bee } from './a';\nexport { default as Button } from './Button.svelte';\nexport { default as Card } from './Card.svelte';\nexport type { T, I } from './types';\nexport * as ns from './ns';`
+	'lib/index.ts': dedent`
+		export { a, b as bee } from './a';
+		export { default as Button } from './Button.svelte';
+		export { default as Card } from './Card.svelte';
+		export type { T, I } from './types';
+		export * as ns from './ns';
+	`
 });
 
 describe('rewrite — output shapes', () => {
@@ -28,7 +35,12 @@ describe('rewrite — output shapes', () => {
 			'src/app.ts': `import { a, bee as B, Button, Card } from '$lib';\nconsole.log(a, B, Button, Card);`
 		});
 		expect(await f.rewrite('src/app.ts')).toBe(
-			`import { a, b as B } from ${q(f, 'lib/a.ts')};\nimport Button from ${q(f, 'lib/Button.svelte')};\nimport Card from ${q(f, 'lib/Card.svelte')};\nconsole.log(a, B, Button, Card);`
+			dedent`
+				import { a, b as B } from ${q(f, 'lib/a.ts')};
+				import Button from ${q(f, 'lib/Button.svelte')};
+				import Card from ${q(f, 'lib/Card.svelte')};
+				console.log(a, B, Button, Card);
+			`
 		);
 	});
 
@@ -45,22 +57,42 @@ describe('rewrite — output shapes', () => {
 	it('the skip policy leaves an import with a listed attribute key untouched — the ogygia mark stays on the barrel', async () => {
 		f = fixture({
 			...base(),
-			'src/app.ts': `import { Button } from '$lib' with { wake: 'visible' };\nimport { Card } from '$lib';\nimport { a } from '$lib' with { render: 'deferred', fetch: 'load' };`
+			'src/app.ts': dedent`
+				import { Button } from '$lib' with { wake: 'visible' };
+				import { Card } from '$lib';
+				import { a } from '$lib' with { render: 'deferred', fetch: 'load' };
+			`
 		});
 		const skip = (decl: { attribute_keys: string[] }) =>
 			decl.attribute_keys.some((k) => k === 'wake' || k === 'render');
 		expect(await f.rewrite('src/app.ts', undefined, { skip })).toBe(
-			`import { Button } from '$lib' with { wake: 'visible' };\nimport Card from ${q(f, 'lib/Card.svelte')};\nimport { a } from '$lib' with { render: 'deferred', fetch: 'load' };`
+			dedent`
+				import { Button } from '$lib' with { wake: 'visible' };
+				import Card from ${q(f, 'lib/Card.svelte')};
+				import { a } from '$lib' with { render: 'deferred', fetch: 'load' };
+			`
 		);
 	});
 
 	it('type-only: an `import type {}` declaration is left alone (erased, no edge); a mixed import splits, and a leaf that only gets `type` specifiers is imported `type`', async () => {
 		f = fixture({
 			...base(),
-			'src/app.ts': `import type { T } from '$lib';\nimport { type I, a } from '$lib';\nimport type { T as TT, I as II } from '$lib';\nimport { type T as T3, a as a3, bee as b3 } from '$lib';`
+			'src/app.ts': dedent`
+				import type { T } from '$lib';
+				import { type I, a } from '$lib';
+				import type { T as TT, I as II } from '$lib';
+				import { type T as T3, a as a3, bee as b3 } from '$lib';
+			`
 		});
 		expect(await f.rewrite('src/app.ts')).toBe(
-			`import type { T } from '$lib';\nimport type { I } from ${q(f, 'lib/types.ts')};\nimport { a } from ${q(f, 'lib/a.ts')};\nimport type { T as TT, I as II } from '$lib';\nimport type { T as T3 } from ${q(f, 'lib/types.ts')};\nimport { a as a3, b as b3 } from ${q(f, 'lib/a.ts')};`
+			dedent`
+				import type { T } from '$lib';
+				import type { I } from ${q(f, 'lib/types.ts')};
+				import { a } from ${q(f, 'lib/a.ts')};
+				import type { T as TT, I as II } from '$lib';
+				import type { T as T3 } from ${q(f, 'lib/types.ts')};
+				import { a as a3, b as b3 } from ${q(f, 'lib/a.ts')};
+			`
 		);
 		// the `type` modifier survives when a leaf gets both kinds
 		f.write('lib/mixed.ts', 'export const v = 1; export type V = 1;');
@@ -100,7 +132,11 @@ describe('rewrite — output shapes', () => {
 		f = fixture({
 			'lib/x.ts': 'export const same = 1; export const x = 1;',
 			'lib/y.ts': 'export const same = 2;',
-			'lib/index.ts': `export * from './x';\nexport * from './y';\nexport const own = 3;`,
+			'lib/index.ts': dedent`
+				export * from './x';
+				export * from './y';
+				export const own = 3;
+			`,
 			'src/app.ts': `import { x, same, own, nope } from '$lib';`
 		});
 		expect(await f.rewrite('src/app.ts'), 'impure + not forced → untouched').toBeNull();
@@ -141,11 +177,23 @@ describe('rewrite — output shapes', () => {
 	it('two imports of the same barrel in one file are both rewritten; other imports are left byte-identical', async () => {
 		f = fixture({
 			...base(),
-			'src/app.ts': `import fs from 'node:fs';\nimport { a } from '$lib';\nimport { helper } from './helper';\nimport { Button } from '$lib';\nexport const x = a;`,
+			'src/app.ts': dedent`
+				import fs from 'node:fs';
+				import { a } from '$lib';
+				import { helper } from './helper';
+				import { Button } from '$lib';
+				export const x = a;
+			`,
 			'src/helper.ts': 'export const helper = 1;'
 		});
 		expect(await f.rewrite('src/app.ts')).toBe(
-			`import fs from 'node:fs';\nimport { a } from ${q(f, 'lib/a.ts')};\nimport { helper } from './helper';\nimport Button from ${q(f, 'lib/Button.svelte')};\nexport const x = a;`
+			dedent`
+				import fs from 'node:fs';
+				import { a } from ${q(f, 'lib/a.ts')};
+				import { helper } from './helper';
+				import Button from ${q(f, 'lib/Button.svelte')};
+				export const x = a;
+			`
 		);
 	});
 
@@ -164,11 +212,27 @@ describe('rewrite — output shapes', () => {
 		f = fixture({
 			'lib/a.ts':
 				'export const a = 1; export const ünï = 2; export const k = 3; const s = 4; export { s as "str-name" };',
-			'lib/index.ts': `export { a, ünï } from './a';\nexport { k as "kebab-name" } from './a';\nexport { "str-name" as viaString } from './a';`,
-			'src/app.ts': `import{a}from"$lib"\nimport {\n  /* leading */ ünï, // trailing\n} from '$lib'\nimport { "kebab-name" as kebab, viaString } from '$lib';\nconst z = 1`
+			'lib/index.ts': dedent`
+				export { a, ünï } from './a';
+				export { k as "kebab-name" } from './a';
+				export { "str-name" as viaString } from './a';
+			`,
+			'src/app.ts': dedent`
+				import{a}from"$lib"
+				import {
+				  /* leading */ ünï, // trailing
+				} from '$lib'
+				import { "kebab-name" as kebab, viaString } from '$lib';
+				const z = 1
+			`
 		});
 		expect(await f.rewrite('src/app.ts')).toBe(
-			`import { a } from ${q(f, 'lib/a.ts')};\nimport { ünï } from ${q(f, 'lib/a.ts')};\nimport { k as kebab, "str-name" as viaString } from ${q(f, 'lib/a.ts')};\nconst z = 1`
+			dedent`
+				import { a } from ${q(f, 'lib/a.ts')};
+				import { ünï } from ${q(f, 'lib/a.ts')};
+				import { k as kebab, "str-name" as viaString } from ${q(f, 'lib/a.ts')};
+				const z = 1
+			`
 		);
 	});
 
@@ -205,7 +269,11 @@ describe('rewrite — output shapes', () => {
 	it('emits a high-resolution sourcemap that still maps the untouched tail of the file', async () => {
 		f = fixture({
 			...base(),
-			'src/app.ts': `import { a } from '$lib';\n\nexport const tail = a + 1;`
+			'src/app.ts': dedent`
+				import { a } from '$lib';
+
+				export const tail = a + 1;
+			`
 		});
 		const i = f.index();
 		const importer = f.id('src/app.ts');

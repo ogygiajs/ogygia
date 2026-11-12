@@ -12,12 +12,10 @@ import {
 	type Mutant
 } from '../src/mutate.ts';
 
-const SRC = [
-	'function f(a, b) {',
-	'\tif (a === b && a > 0) return true;',
-	'\treturn false;',
-	'}'
-].join('\n');
+const SRC = `function f(a, b) {
+\tif (a === b && a > 0) return true;
+\treturn false;
+}`;
 
 describe('a mutant', () => {
 	it('changes the first match on its line, and only there', () => {

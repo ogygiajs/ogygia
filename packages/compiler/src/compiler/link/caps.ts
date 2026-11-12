@@ -5,7 +5,7 @@
  */
 
 import { page_route_config } from '../kit.ts';
-import { dedent } from '../dedent.ts';
+import { dedent } from '@ogygia/core/contract';
 
 /**
  * `server-plugins` — SERVER only: each plugin's server half, one static import per plugin, in the

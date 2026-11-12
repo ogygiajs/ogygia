@@ -44,7 +44,7 @@ test.describe('pure csr=true app: direct interactive <Region> degrades to Kit, n
 				args: ['preview', '--port', String(PORT), '--strictPort'],
 				cwd: app,
 				env: { ORIGIN: BASE },
-				url: BASE + '/',
+				url: `${BASE}/`,
 				timeout_ms: 30_000
 			});
 		} catch (e) {
@@ -119,7 +119,7 @@ test.describe('pure csr=true app: direct interactive <Region> degrades to Kit, n
 				runtime404.push(`${r.status()} ${r.url()}`);
 		});
 
-		await page.goto(BASE + '/', { waitUntil: 'networkidle', timeout: 60000 });
+		await page.goto(`${BASE}/`, { waitUntil: 'networkidle', timeout: 60000 });
 		const widget = page.locator('[data-inner-widget]');
 		await widget.waitFor({ timeout: 8000 }).catch(() => {});
 		const before = ((await widget.textContent().catch(() => '')) || '').trim();

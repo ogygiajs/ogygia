@@ -10,7 +10,7 @@ import { World } from '../src/world.ts';
 const OUTPUT = fileURLToPath(
 	new URL('../../../apps/palaestra/.svelte-kit/output', import.meta.url)
 );
-const built = existsSync(OUTPUT + '/server/index.js');
+const built = existsSync(`${OUTPUT}/server/index.js`);
 
 describe.skipIf(!built)('a navigation the tab started again elsewhere', () => {
 	it('never lands: the tab shows the page it went to since, at its own URL, and says nothing', async () => {

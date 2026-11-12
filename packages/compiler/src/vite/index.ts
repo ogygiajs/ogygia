@@ -1,6 +1,7 @@
 import path from 'node:path';
 import fs from 'node:fs';
 import crypto from 'node:crypto';
+import { dedent } from '@ogygia/core/contract';
 import { isMainThread } from 'node:worker_threads';
 import { loadEnv, type Plugin, type Rolldown, type ViteDevServer } from 'vite';
 import type { PreprocessorGroup } from 'svelte/compiler';
@@ -167,11 +168,11 @@ const ROUTE_HOST_OR_OPTION_RE = /[\\/]\+(page|layout)(\.server)?\.(svelte|js|ts)
 // this document navigates through Kit's router, never through the ogygia one — which, on a document
 // it does not own, could only fall back to a full load (a customer's green-band chips inside a live
 // island reloaded the whole account page on every click).
-const KIT_PAGE_THREAD =
-	`\nimport { page as __og_kit_page, navigating as __og_kit_nav } from '$app/state';\n` +
-	`import * as __og_kit_navigation from '$app/navigation';\n` +
-	`globalThis[Symbol.for('ogygia.kit-page')] = ` +
-	`{ page: __og_kit_page, navigating: __og_kit_nav, navigation: __og_kit_navigation };\n`;
+const KIT_PAGE_THREAD = `\n${dedent`
+	import { page as __og_kit_page, navigating as __og_kit_nav } from '$app/state';
+	import * as __og_kit_navigation from '$app/navigation';
+	globalThis[Symbol.for('ogygia.kit-page')] = { page: __og_kit_page, navigating: __og_kit_nav, navigation: __og_kit_navigation };
+`}\n`;
 // Which ogygia a csr=true page runs, on `window.__ogygia.v` — Kit runs that page, and the ogygia
 // runtime boots there only for what Kit cannot do (a deferred region, a lake); a page with neither
 // runs no ogygia runtime, so Kit's entry discloses it too. Where the runtime does boot, it adds the
@@ -623,7 +624,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 					page_files = resolved.page_modules.files.map(real_posix);
 					for (const p of resolved.files)
 						if (!pkg_scan.some((s) => s.name === p.name)) {
-							plugin_file_roots.push(real_posix(p.root) + '/');
+							plugin_file_roots.push(`${real_posix(p.root)}/`);
 							pkg_scan.push({
 								name: p.name,
 								root: real_posix(p.root),
@@ -1089,14 +1090,12 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 						d ^= __outHash.get(k)!;
 						d = Math.imul(d, 0x01000193) >>> 0;
 					}
-					console.error(
-						'\n[ogygia-prof] ' +
-							JSON.stringify({
-								...__prof,
-								transformDigest: (d >>> 0).toString(16),
-								transformFiles: keys.length
-							})
-					);
+					const summary = JSON.stringify({
+						...__prof,
+						transformDigest: (d >>> 0).toString(16),
+						transformFiles: keys.length
+					});
+					console.error(`\n[ogygia-prof] ${summary}`);
 				}
 			},
 			handleHotUpdate({ file, server }) {
@@ -1115,7 +1114,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 				//    join event instead; each open page joins ONLY css its own route scope imports, so the
 				//    `(docs)` and `playground` sub-apps can never paint each other in dev.
 				if (DEV_CSS_FILE_RE.test(file) && !file.includes('/node_modules/')) {
-					const src_prefix = path.join(root, 'src') + path.sep;
+					const src_prefix = `${path.join(root, 'src')}${path.sep}`;
 					if (path.normalize(file).startsWith(src_prefix)) {
 						const envs = (
 							server as unknown as {
@@ -1136,7 +1135,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 								envs?.ssr?.moduleGraph,
 								client_graph
 							]);
-							const web_path = '/' + path.relative(root, file).split(path.sep).join('/');
+							const web_path = `/${path.relative(root, file).split(path.sep).join('/')}`;
 							server.ws.send({
 								type: 'custom',
 								event: 'ogygia:css',
@@ -1449,7 +1448,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 						const manifest = flags_manifest(program.flag_sites);
 						fs.writeFileSync(
 							path.join(dir, 'flags-manifest.json'),
-							JSON.stringify(manifest, null, '\t') + '\n'
+							`${JSON.stringify(manifest, null, '\t')}\n`
 						);
 						console.log(line('flags_manifest_written', { count: manifest.names.length }));
 					} catch {
@@ -1519,7 +1518,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 				for (const [key, ref] of router_css_refs) {
 					try {
 						const file = this.getFileName(ref);
-						map.css[key] = [file.startsWith('/') ? file : '/' + file];
+						map.css[key] = [file.startsWith('/') ? file : `/${file}`];
 					} catch {
 						// ok: an asset the bundle dropped: the page goes unstyled rather than link a 404
 					}
@@ -1532,7 +1531,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 					try {
 						const file = this.getFileName(ref);
 						const key = compiler.island_public_url(iid);
-						(map.css[key] ??= []).push(file.startsWith('/') ? file : '/' + file);
+						(map.css[key] ??= []).push(file.startsWith('/') ? file : `/${file}`);
 					} catch {
 						// ok: an asset the bundle dropped: the hole goes unstyled rather than link a 404
 					}
@@ -1547,7 +1546,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 				for (const [key, ref] of content_css_refs) {
 					try {
 						const file = this.getFileName(ref);
-						content_css[key] = [file.startsWith('/') ? file : '/' + file];
+						content_css[key] = [file.startsWith('/') ? file : `/${file}`];
 					} catch {
 						// ok: an asset the bundle dropped: the body goes unstyled rather than link a 404
 					}
@@ -1599,7 +1598,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 							}
 						}
 						if (found.length)
-							barrels['/' + (chunk.fileName || key)] = found
+							barrels[`/${chunk.fileName || key}`] = found
 								.sort((a, b) => b.fanout - a.fanout)
 								.slice(0, 3);
 					}

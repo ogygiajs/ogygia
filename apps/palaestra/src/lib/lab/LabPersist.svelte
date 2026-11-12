@@ -14,7 +14,7 @@
 
 	onMount(() => {
 		mounts += 1;
-		hydratedAt = new Date().toLocaleTimeString() + '.' + String(Date.now() % 1000).padStart(3, '0');
+		hydratedAt = `${new Date().toLocaleTimeString()}.${String(Date.now() % 1000).padStart(3, '0')}`;
 	});
 </script>
 

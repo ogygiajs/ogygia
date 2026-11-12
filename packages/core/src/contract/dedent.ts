@@ -23,22 +23,55 @@ const LEADING_INDENT_RE = /^[\t ]*/;
  * (a generated block) never decides the indent. Values are interpolated as a template literal would
  * (cooked strings: `\\n` in the template is a newline).
  */
-export function dedent(text: string): string;
-export function dedent(strings: TemplateStringsArray, ...values: unknown[]): string;
-export function dedent(first: string | TemplateStringsArray, ...values: unknown[]): string {
+function dedent_fn(text: string): string;
+function dedent_fn(strings: TemplateStringsArray, ...values: unknown[]): string;
+function dedent_fn(first: string | TemplateStringsArray, ...values: unknown[]): string {
 	if (typeof first === 'string') return dedent_text(first);
-	// a placeholder per value (a character no template text holds), de-indented as plain text
-	let text = first[0];
-	for (let i = 1; i < first.length; i++) text += SLOT + (i - 1) + SLOT + first[i];
-	const flat = dedent_text(text);
+	return fill(dedent_text(slotted(first)), values);
+}
+
+/**
+ * `dedent.inline`: markup or code that must end up on ONE line, written as a block. The template's
+ * text is de-indented as by `dedent`, then its lines are joined with nothing between them, so every
+ * space in the result is one the author wrote (` rel=…` on its own line keeps its leading space).
+ * Values go in after, as they are. One-line JS written this way ends each statement with `;`.
+ *
+ *     dedent.inline`
+ *         <link
+ *          rel="modulepreload"
+ *          href="${href}">
+ *     ` // → '<link rel="modulepreload" href="…">'
+ */
+function inline(strings: TemplateStringsArray, ...values: unknown[]): string {
+	return fill(dedent_text(slotted(strings)).split('\n').join(''), values);
+}
+
+/** Strip the common indentation from a block (see the module's comment); `dedent.inline` joins it
+ *  onto one line. */
+export const dedent: {
+	(text: string): string;
+	(strings: TemplateStringsArray, ...values: unknown[]): string;
+	inline(strings: TemplateStringsArray, ...values: unknown[]): string;
+} = /* @__PURE__ */ Object.assign(dedent_fn, { inline });
+
+/** A template's text with a placeholder per value (a character no template text holds), so it is
+ *  de-indented as plain text and the values go in after. */
+function slotted(strings: TemplateStringsArray): string {
+	let text = strings[0];
+	for (let i = 1; i < strings.length; i++) text = `${text}${SLOT}${i - 1}${SLOT}${strings[i]}`;
+	return text;
+}
+
+/** `flat` with each placeholder replaced by its value. */
+function fill(flat: string, values: unknown[]): string {
 	if (values.length === 0) return flat;
 	let out = '';
 	let at = 0;
 	for (;;) {
 		const open = flat.indexOf(SLOT, at);
-		if (open === -1) return out + flat.slice(at);
+		if (open === -1) return `${out}${flat.slice(at)}`;
 		const close = flat.indexOf(SLOT, open + 1);
-		out += flat.slice(at, open) + String(values[Number(flat.slice(open + 1, close))]);
+		out = `${out}${flat.slice(at, open)}${String(values[Number(flat.slice(open + 1, close))])}`;
 		at = close + 1;
 	}
 }

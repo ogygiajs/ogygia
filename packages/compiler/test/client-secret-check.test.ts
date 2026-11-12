@@ -49,14 +49,11 @@ describe('the client bundle holds no signing secret', () => {
 		];
 		const json = (s: string) => JSON.stringify(s);
 		const single = (s: string) =>
-			"'" + JSON.stringify(s).slice(1, -1).replaceAll('\\"', '"').replaceAll("'", "\\'") + "'";
+			`'${JSON.stringify(s).slice(1, -1).replaceAll('\\"', '"').replaceAll("'", "\\'")}'`;
 		const ascii = (s: string) =>
-			JSON.stringify(s).replace(
-				/[^\x20-\x7e]/gu,
-				(c) => '\\u{' + c.codePointAt(0)!.toString(16) + '}'
-			);
+			JSON.stringify(s).replace(/[^\x20-\x7e]/gu, (c) => `\\u{${c.codePointAt(0)!.toString(16)}}`);
 		const latin = (s: string) =>
-			JSON.stringify(s).replace(/[\x80-\xff]/g, (c) => '\\x' + c.charCodeAt(0).toString(16));
+			JSON.stringify(s).replace(/[\x80-\xff]/g, (c) => `\\x${c.charCodeAt(0).toString(16)}`);
 		const solidus = (s: string) => JSON.stringify(s).replaceAll('/', '\\/');
 		for (const secret of HARD)
 			for (const [form, write] of Object.entries({ json, single, ascii, latin, solidus })) {

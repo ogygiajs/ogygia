@@ -25,7 +25,7 @@ const script = document.createElement('script');
 script.setAttribute('data-ogygia-runtime', '');
 script.setAttribute(
 	'data-og-locations',
-	(depth > 0 ? '../'.repeat(depth) : './') + DIR.slice(1) + 'og-locations.test.json'
+	`${depth > 0 ? '../'.repeat(depth) : './'}${DIR.slice(1)}og-locations.test.json`
 );
 document.head.append(script);
 pin_build_map(); // the runtime's boot, before any navigation
@@ -36,18 +36,18 @@ test('read after a navigation moved the address: the map is the one the page nam
 	history.pushState(null, '', '/a/deeper/page/');
 	try {
 		// (a location the page itself wrote, a later build's, is kept: the map only fills gaps)
-		const written = DIR + 'ogygia/og-region.0000000000c3.js';
-		note_entry_location(written, DIR + 'immutable/og-region.0000000000c3.New.js');
+		const written = `${DIR}ogygia/og-region.0000000000c3.js`;
+		note_entry_location(written, `${DIR}immutable/og-region.0000000000c3.New.js`);
 
-		const identity = DIR + 'ogygia/og-region.0000000000c1.js';
+		const identity = `${DIR}ogygia/og-region.0000000000c1.js`;
 		const m = await import_entry<{ default: string }>(identity);
 		expect(m.default).toBe('located');
-		expect(entry_location(identity)).toBe(abs(DIR + 'immutable/og-region.0000000000c1.Loc.js'));
+		expect(entry_location(identity)).toBe(abs(`${DIR}immutable/og-region.0000000000c1.Loc.js`));
 		expect(requested('ogygia/og-region.0000000000c1.js')).toHaveLength(0);
 
-		expect(entry_location(written)).toBe(abs(DIR + 'immutable/og-region.0000000000c3.New.js'));
+		expect(entry_location(written)).toBe(abs(`${DIR}immutable/og-region.0000000000c3.New.js`));
 
-		await import_entry(DIR + 'entry-located.ts'); // a miss the map does not name: loads itself
+		await import_entry(`${DIR}entry-located.ts`); // a miss the map does not name: loads itself
 		expect(requested('og-locations.test.json')).toHaveLength(1);
 	} finally {
 		history.pushState(null, '', page);

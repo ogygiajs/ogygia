@@ -33,7 +33,7 @@
 	// the pattern recognised on a line, for its badge
 	const pattern_at = $derived.by(() => {
 		const m = new Map<string, Pattern>();
-		for (const p of patterns) for (const s of p.sites) m.set(s.path + ':' + s.line, p);
+		for (const p of patterns) for (const s of p.sites) m.set(`${s.path}:${s.line}`, p);
 		return m;
 	});
 

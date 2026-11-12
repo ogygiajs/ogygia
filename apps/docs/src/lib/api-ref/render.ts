@@ -4,6 +4,7 @@
  * and CodeChrome's header bar. No bespoke markup, no bespoke CSS.
  */
 import type { ApiExport, ApiModule } from './extract.ts';
+import { dedent } from '@ogygia/core/plugin/utils';
 
 /**
  * Make JSDoc PROSE svelte-safe: the generated markdown compiles as a Svelte template, where a stray
@@ -49,14 +50,23 @@ const KIND_LABEL: Record<ApiExport['kind'], string> = {
 };
 
 function fence(code: string): string {
-	return '```ts\n' + code.trim() + '\n```';
+	return dedent`
+		\`\`\`ts
+		${code.trim()}
+		\`\`\`
+	`;
 }
 
 function section(e: ApiExport): string {
 	const parts: string[] = [];
 	parts.push(`## \`${e.name}\``);
 	parts.push(`<span class="api-kind api-kind--${e.kind}">${KIND_LABEL[e.kind]}</span>`);
-	if (e.deprecated) parts.push(`::: warning Deprecated\n${mdSafe(e.deprecated)}\n:::`);
+	if (e.deprecated)
+		parts.push(dedent`
+		::: warning Deprecated
+		${mdSafe(e.deprecated)}
+		:::
+	`);
 	if (e.doc) parts.push(mdSafe(e.doc));
 	if (e.text) parts.push(fence(e.text));
 	if (e.params.length) {
@@ -77,8 +87,13 @@ function section(e: ApiExport): string {
 
 export function renderModule(mod: ApiModule): string {
 	const names = mod.exports.map((e) => `\`${e.name}\``).join(' · ');
-	const head = [`\`\`\`ts\nimport { … } from '${mod.id}';\n\`\`\``, `**Exports** ${names}`].join(
-		'\n\n'
-	);
+	const head = [
+		dedent`
+		\`\`\`ts
+		import { … } from '${mod.id}';
+		\`\`\`
+	`,
+		`**Exports** ${names}`
+	].join('\n\n');
 	return [head, ...mod.exports.map(section)].join('\n\n');
 }

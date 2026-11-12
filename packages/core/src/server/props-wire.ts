@@ -251,16 +251,11 @@ export function props_sidecar(
 	// one sidecar per fingerprint for the whole page. An ADJACENT sidecar (a hole's answer, a baked or
 	// crossing render root) may repeat a fingerprint the tail — or another root — already carries, so
 	// it is keyed by attribute only; the runtime finds it as the region's next sibling.
-	return (
-		`<script type="application/ogygia-props" ${OGYGIA_PROPS}` +
-		(fp ? `="${fp}"` + (place === 'tail' ? ` id="og-props-${fp}"` : '') : '') +
-		(w.json ? ` ${OG_FORMAT}="${WIRE_FORMAT_JSON}"` : '') +
-		// (the transportable classes the browser loads before it decodes these props)
-		(wire_modules.length
-			? ` ${OG_WIRE}="${wire_modules.join(' ').replaceAll('"', '&quot;')}"`
-			: '') +
-		'>' +
-		w.text +
-		'</script>'
-	);
+	const fp_attr = fp ? `="${fp}"${place === 'tail' ? ` id="og-props-${fp}"` : ''}` : '';
+	const format_attr = w.json ? ` ${OG_FORMAT}="${WIRE_FORMAT_JSON}"` : '';
+	// (the transportable classes the browser loads before it decodes these props)
+	const classes_attr = wire_modules.length
+		? ` ${OG_WIRE}="${wire_modules.join(' ').replaceAll('"', '&quot;')}"`
+		: '';
+	return `<script type="application/ogygia-props" ${OGYGIA_PROPS}${fp_attr}${format_attr}${classes_attr}>${w.text}</script>`;
 }

@@ -53,7 +53,7 @@ export function use_packed(app: string, packed: PackedOgygia): void {
 	const pkg_file = join(app, 'package.json');
 	const pkg = JSON.parse(readFileSync(pkg_file, 'utf8'));
 	pkg.dependencies = { ...pkg.dependencies, ogygia: `file:${packed.ogygia}` };
-	writeFileSync(pkg_file, JSON.stringify(pkg, null, 2) + '\n');
+	writeFileSync(pkg_file, `${JSON.stringify(pkg, null, 2)}\n`);
 	const ws = join(app, 'pnpm-workspace.yaml');
 	const before = existsSync(ws) ? readFileSync(ws, 'utf8') : '';
 	if (/^overrides:/m.test(before))

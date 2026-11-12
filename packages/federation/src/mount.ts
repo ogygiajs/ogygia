@@ -1,10 +1,3 @@
-/**
- * `mount(peer)` — one route-table entry renders a whole remote app under shell chrome, and
- * `mount.kit(peer)` does it from a plain SvelteKit catchall. The peer comes from `federate()`; all
- * transport policy (signing, timeout, SWR cache, coalescing) lives on it. Ported from the v1
- * `mount()` — the wire behavior (status/redirect/form translation, canary, streaming) is unchanged;
- * it just takes a `Peer` instead of a `client()`.
- */
 import { clock } from '@ogygia/machine';
 import { page, redirect, type PageDef, type ComponentPick, type Ctx } from '@ogygia/router';
 import { fed_app } from './app.ts';
@@ -22,7 +15,6 @@ export interface MountOptions {
 	stream?: boolean | { fallback?: string | unknown };
 }
 
-/** The on-behalf-of claims for a hop: the table's ONE identity + auto-carried flag decisions. */
 function claims_for(c: Ctx, user_override?: (c: Ctx) => Claims | undefined): Claims | undefined {
 	const base = user_override ? user_override(c) : (c.visitor as Claims | undefined);
 	const buckets = fed_app()?.facts(c.request).assignments;
@@ -36,11 +28,6 @@ function claims_for(c: Ctx, user_override?: (c: Ctx) => Claims | undefined): Cla
 const SKELETON = `<div ${OG_MOUNT_FALLBACK} style="min-height:6rem;border-radius:8px;background:linear-gradient(90deg,#f3f4f6,#e5e7eb,#f3f4f6)"></div>`;
 const FAILED = `<div ${OG_MOUNT_FAILED} style="border:1px dashed #dc2626;border-radius:8px;padding:1rem;color:#dc2626">This section is temporarily unavailable.</div>`;
 
-/**
- * `'/cms/[...rest]': mount(cms)` where `cms` is a peer from `federate()`. A per-request resolver
- * (`mount(v2.pick({ off, on }))` or `mount((c) => peer)`) is the canary / blue-green form —
- * A/B-of-infrastructure with the same `pick` verb that chooses components.
- */
 function mount_fn(
 	target: Peer | ComponentPick | ((c: Ctx) => Peer),
 	opts: MountOptions = {}
@@ -73,7 +60,7 @@ function mount_fn(
 			const rest = (c.params as { rest?: string }).rest ?? '';
 			try {
 				const doc = await peer.doc(
-					'/' + rest,
+					`/${rest}`,
 					c.url.search,
 					claims_for(c, opts.user),
 					child_traceparent(c.request.headers.get('traceparent')).traceparent
@@ -113,7 +100,7 @@ function mount_fn(
 			const trace = child_traceparent(c.request.headers.get('traceparent'));
 			const t0 = clock.mono();
 			const doc = await peer.doc(
-				'/' + rest,
+				`/${rest}`,
 				c.url.search,
 				claims_for(c, opts.user),
 				trace.traceparent
@@ -121,9 +108,7 @@ function mount_fn(
 			const hop_ms = Math.round((clock.mono() - t0) * 10) / 10;
 			if (doc.location) redirect(doc.status as 301 | 302 | 303 | 307 | 308, doc.location);
 			c.setHeaders?.({
-				'server-timing':
-					`${peer.label};dur=${hop_ms}` +
-					(doc.server_ms != null ? `, ${peer.label}-render;dur=${doc.server_ms}` : ''),
+				'server-timing': `${peer.label};dur=${hop_ms}${doc.server_ms != null ? `, ${peer.label}-render;dur=${doc.server_ms}` : ''}`,
 				...(doc.trace ? { 'x-og-trace': doc.trace.trace_id } : {})
 			});
 			return { doc };
@@ -138,7 +123,7 @@ function mount_action(resolve_peer: (c: Ctx) => Peer, opts: MountOptions) {
 		const rest = (c.params as { rest?: string }).rest ?? '';
 		const body = await c.request.arrayBuffer();
 		const doc = await peer.postDoc(
-			'/' + rest,
+			`/${rest}`,
 			c.url.search,
 			body,
 			c.request.headers.get('content-type') ?? 'application/x-www-form-urlencoded',
@@ -150,7 +135,6 @@ function mount_action(resolve_peer: (c: Ctx) => Peer, opts: MountOptions) {
 	};
 }
 
-// ── mount.kit: mounting WITHOUT ogygia's router ──────────────────────────────────────────────
 type KitMountEvent = {
 	params: Partial<Record<string, string>>;
 	url: URL;
@@ -181,14 +165,12 @@ export function kit_mount(
 			const rest = e.params[param] ?? '';
 			const trace = child_traceparent(e.request.headers.get('traceparent'));
 			const t0 = clock.mono();
-			const doc = await peer.doc('/' + rest, e.url.search, opts.user?.(e), trace.traceparent);
+			const doc = await peer.doc(`/${rest}`, e.url.search, opts.user?.(e), trace.traceparent);
 			const hop_ms = Math.round((clock.mono() - t0) * 10) / 10;
 			const { error: kit_error, redirect: kit_redirect } = await kit();
 			if (doc.location) kit_redirect(doc.status as 301, doc.location);
 			e.setHeaders?.({
-				'server-timing':
-					`${peer.label};dur=${hop_ms}` +
-					(doc.server_ms != null ? `, ${peer.label}-render;dur=${doc.server_ms}` : ''),
+				'server-timing': `${peer.label};dur=${hop_ms}${doc.server_ms != null ? `, ${peer.label}-render;dur=${doc.server_ms}` : ''}`,
 				...(doc.trace ? { 'x-og-trace': doc.trace.trace_id } : {})
 			});
 			if (doc.status >= 400) kit_error(doc.status, doc.title || 'This section is unavailable.');
@@ -199,7 +181,7 @@ export function kit_mount(
 				const rest = e.params[param] ?? '';
 				const body = await e.request.arrayBuffer();
 				const doc = await peer.postDoc(
-					'/' + rest,
+					`/${rest}`,
 					e.url.search,
 					body,
 					e.request.headers.get('content-type') ?? 'application/x-www-form-urlencoded',
@@ -214,7 +196,13 @@ export function kit_mount(
 	};
 }
 
-/** `mount(peer)` in a table, or `mount.kit(peer)` from a Kit catchall. */
+/**
+ * Renders a whole remote app under the shell's chrome. In a route table:
+ * `'/cms/[...rest]': mount(cms)`, where `cms` is a peer from `federate()`; the peer owns transport
+ * (signing, timeout, cache, coalescing). From a plain SvelteKit catchall without ogygia's router:
+ * `export const load = mount.kit(cms).load`. For a canary or blue-green switch, pass a per-request
+ * choice instead of a peer: `mount(v2.pick({ off, on }))` or `mount((c) => peer)`.
+ */
 export const mount: typeof mount_fn & { kit: typeof kit_mount } = Object.assign(mount_fn, {
 	kit: kit_mount
 });

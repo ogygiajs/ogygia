@@ -39,7 +39,7 @@ test.describe('PAGE-CSR invariant: csr=false ONLY in a deep catch-all — root-l
 			args: ['build/index.js'],
 			cwd: dir,
 			env: { PORT: String(PORT), ORIGIN: base },
-			url: base + '/spa',
+			url: `${base}/spa`,
 			ready: (res) => res.ok
 		});
 	});
@@ -47,7 +47,7 @@ test.describe('PAGE-CSR invariant: csr=false ONLY in a deep catch-all — root-l
 
 	// ── SSR: the csr=false world ──────────────────────────────────────────────────────────────
 	test('SSR: the csr=false world', async () => {
-		const content = await (await fetch(base + '/content/hello')).text();
+		const content = await (await fetch(`${base}/content/hello`)).text();
 		check('SSR /content: page rendered', CONTENT_PAGE_RE.test(content));
 		check(
 			'SSR /content: Header chrome is a REAL region (not stripped — the regression)',
@@ -63,7 +63,7 @@ test.describe('PAGE-CSR invariant: csr=false ONLY in a deep catch-all — root-l
 
 	// ── SSR: the csr=true world ───────────────────────────────────────────────────────────────
 	test('SSR: the csr=true world', async () => {
-		const spa = await (await fetch(base + '/spa')).text();
+		const spa = await (await fetch(`${base}/spa`)).text();
 		check('SSR /spa: page rendered', SPA_PAGE_RE.test(spa));
 		check('SSR /spa: Kit IS booted (csr=true)', KIT_BOOT_RE.test(spa));
 	});
@@ -77,7 +77,7 @@ test.describe('PAGE-CSR invariant: csr=false ONLY in a deep catch-all — root-l
 			const errors: string[] = [];
 			page.on('pageerror', (e) => errors.push(e.message));
 			page.on('console', (m) => {
-				if (m.type() === 'error') errors.push('console: ' + m.text());
+				if (m.type() === 'error') errors.push(`console: ${m.text()}`);
 			});
 			await page.goto(base + route, { waitUntil: 'networkidle' });
 			await page.waitForTimeout(300);

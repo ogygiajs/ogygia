@@ -592,13 +592,13 @@ export function browser_of(ua: string | undefined): string | null {
 			if (c < 48 || c > 57) break;
 			v += ua[i];
 		}
-		return v ? ' ' + v : '';
+		return v ? ` ${v}` : '';
 	};
-	if (ua.includes('Edg/')) return 'Edge' + major('Edg/');
-	if (ua.includes('OPR/')) return 'Opera' + major('OPR/');
-	if (ua.includes('Firefox/')) return 'Firefox' + major('Firefox/');
-	if (ua.includes('Chrome/')) return 'Chrome' + major('Chrome/');
-	if (ua.includes('Safari/') && ua.includes('Version/')) return 'Safari' + major('Version/');
+	if (ua.includes('Edg/')) return `Edge${major('Edg/')}`;
+	if (ua.includes('OPR/')) return `Opera${major('OPR/')}`;
+	if (ua.includes('Firefox/')) return `Firefox${major('Firefox/')}`;
+	if (ua.includes('Chrome/')) return `Chrome${major('Chrome/')}`;
+	if (ua.includes('Safari/') && ua.includes('Version/')) return `Safari${major('Version/')}`;
 	return null;
 }
 
@@ -975,9 +975,7 @@ export function analyze_page(
 		findings.push({
 			code: 'recovered',
 			severity: 'error',
-			message:
-				`${list(rewired.map((r) => r.name))} threw away the server HTML and rendered again in the browser (a flash and a double render): ${one ? 'its' : 'their'} markup arrived with Svelte's hidden block markers unpaired (${one ? '' : `${rewired[0].name}: `}${m[0]} opening, ${m[1]} closing), and a render always pairs them. ` +
-				`Something rewrote ${one ? 'it' : 'them'} between the server and the browser; the markup the component drew is the same.`,
+			message: `${list(rewired.map((r) => r.name))} threw away the server HTML and rendered again in the browser (a flash and a double render): ${one ? 'its' : 'their'} markup arrived with Svelte's hidden block markers unpaired (${one ? '' : `${rewired[0].name}: `}${m[0]} opening, ${m[1]} closing), and a render always pairs them. Something rewrote ${one ? 'it' : 'them'} between the server and the browser; the markup the component drew is the same.`,
 			fix: 'Find the rewrite: a transformPageChunk or HTML middleware after the render, an edge rewriter, or a proxy that strips HTML comments. Keep it out of ogygia-region subtrees (or run it before ogygia’s render), and let comments through.',
 			fps: rewired.map((r) => r.fp)
 		});
@@ -989,9 +987,7 @@ export function analyze_page(
 		findings.push({
 			code: 'recovered',
 			severity: 'error',
-			message:
-				`${list(same.map((r) => r.name))} threw away the server HTML and rendered again in the browser (a flash and a double render) — and drew the same markup ${one ? 'it' : 'they'} threw away: only Svelte's hidden block markers disagreed. ` +
-				`${one ? 'Its' : 'Their'} code drew no other tree: the island's host and its server render disagree on structure (a wrapper of ogygia's), or a block ({#if}, {#each}) took another branch to the same output.`,
+			message: `${list(same.map((r) => r.name))} threw away the server HTML and rendered again in the browser (a flash and a double render) — and drew the same markup ${one ? 'it' : 'they'} threw away: only Svelte's hidden block markers disagreed. ${one ? 'Its' : 'Their'} code drew no other tree: the island's host and its server render disagree on structure (a wrapper of ogygia's), or a block ({#if}, {#each}) took another branch to the same output.`,
 			fix: "Report it to ogygia with this page and how the island is placed (keep:, inside a snippet, nested in another island): a host that hydrates in another shape than it renders is ogygia's bug. If a block's two branches draw the same thing, give them one branch.",
 			fps: same.map((r) => r.fp)
 		});
@@ -1009,14 +1005,11 @@ export function analyze_page(
 		findings.push({
 			code: 'recovered',
 			severity: 'error',
-			message:
-				`${list(recovered.map((r) => r.name))} threw away the server HTML and rendered again in the browser (a flash and a double render). ` +
-				(touched
+			message: `${list(recovered.map((r) => r.name))} threw away the server HTML and rendered again in the browser (a flash and a double render). ${
+				touched
 					? 'Something changed the markup between the server and hydration.'
-					: 'No script in the browser edited ' +
-						(recovered.length === 1 ? 'it' : 'them') +
-						' before waking: either its HTML was rewritten on the way from the server, or the component itself drew a different tree in the browser.' +
-						(lines.length ? ` ${hazard_words(lines)}` : '')),
+					: `No script in the browser edited ${recovered.length === 1 ? 'it' : 'them'} before waking: either its HTML was rewritten on the way from the server, or the component itself drew a different tree in the browser.${lines.length ? ` ${hazard_words(lines)}` : ''}`
+			}`,
 			fix: touched
 				? 'Look for a script that edits the page before islands wake (an A/B tool, a DOM injector), or markup the browser rewrites (invalid nesting like a <div> in a <p>).'
 				: lines.length
@@ -1063,12 +1056,11 @@ export function analyze_page(
 		findings.push({
 			code: 'markup-changed',
 			severity: 'warn',
-			message:
-				`${list(changed.map((r) => r.name))} rendered different markup in the browser than on the server, so the page changes as it wakes.` +
-				(d
+			message: `${list(changed.map((r) => r.name))} rendered different markup in the browser than on the server, so the page changes as it wakes.${
+				d
 					? ` First difference in ${changed[0].name}: server "${clip(d.server)}", browser "${clip(d.now)}".`
-					: '') +
-				(changed_lines.length && !bool ? ` ${hazard_words(changed_lines)}` : ''),
+					: ''
+			}${changed_lines.length && !bool ? ` ${hazard_words(changed_lines)}` : ''}`,
 			fix: bool
 				? `\`${bool.name}\` on <${bool.tag}> is written bare: the server writes ${bool.name}="" and Svelte's hydrate sets it to "${bool.now}" — Svelte hands a custom element its attributes as values, and a bare attribute's value is \`true\`. So the island's markup changes as it wakes, and CSS or the component reading the value sees two. Give it a value, the same on both sides: \`${bool.name}=""\` (or \`${bool.name}="true"\` when the component reads it as a flag).`
 				: changed_lines.length
@@ -1106,11 +1098,11 @@ export function analyze_page(
 		findings.push({
 			code: 'hydration-shift',
 			severity: shifted.some((r) => r.shift >= 0.1) ? 'warn' : 'info',
-			message:
-				`Hydrating ${list(shifted.map((r) => `${r.name} (CLS ${r.shift})`))} moved the layout: the island's size changed when it woke.` +
-				(page.shifts_from === 'boxes'
+			message: `Hydrating ${list(shifted.map((r) => `${r.name} (CLS ${r.shift})`))} moved the layout: the island's size changed when it woke.${
+				page.shifts_from === 'boxes'
 					? " (Estimated: this browser reports no layout shifts, so each is the island's box before and after it woke, scored the way a layout shift is.)"
-					: ''),
+					: ''
+			}`,
 			fix: 'Render the island at its final size on the server (the same content, or a placeholder with a fixed height), so waking it changes nothing on screen.',
 			fps: shifted.map((r) => r.fp)
 		});
@@ -1172,13 +1164,13 @@ export function analyze_page(
 		findings.push({
 			code: 'queued',
 			severity: 'info',
-			message:
-				`${list(queued.map((r) => `${r.name} (${r.queue_ms} ms)`))} had its code but waited for its turn` +
-				(holders.length && held_ms >= (top[0]?.[1] ?? 0)
+			message: `${list(queued.map((r) => `${r.name} (${r.queue_ms} ms)`))} had its code but waited for its turn${
+				holders.length && held_ms >= (top[0]?.[1] ?? 0)
 					? `, held for ${list(holders.map(([n, h]) => `${n} (${Math.round(h.ms)} ms${h.failed ? ', which then failed' : ''})`))} on the first screen, still loading ${holders.length === 1 ? 'its' : 'their'} code: viewport first, the islands a visitor sees wake before the ones below.`
 					: top.length && top[0][1] >= 10
 						? `, behind ${list(top.map(([n, m]) => `${n} (${Math.round(m)} ms)`))}: islands hydrate one per task, viewport first.`
-						: ': islands hydrate after the page is parsed and painted, one per task, viewport first.'),
+						: ': islands hydrate after the page is parsed and painted, one per task, viewport first.'
+			}`,
 			fix:
 				holders.length && held_ms >= (top[0]?.[1] ?? 0)
 					? `The first-screen island${holders.length === 1 ? '' : 's'} loading slowly ${holders.length === 1 ? 'is' : 'are'} the cost: make ${holders.length === 1 ? 'its' : 'their'} code smaller or faster to load${holders.some(([, h]) => h.failed) ? ' (and fix the one that failed)' : ''}. The hold is bounded (a second), so a module that never comes cannot stall the rest.`
@@ -1257,9 +1249,7 @@ export function analyze_page(
 			findings.push({
 				code: 'held-idle',
 				severity: 'warn',
-				message:
-					`${held.length === 1 ? held[0].r.name : `${held.length} islands`} had ${held.length === 1 ? 'its' : 'their'} code but waited ${held.length === 1 ? Math.round(held[0].idle) : `about ${Math.round(med)}`} ms for ${held.length === 1 ? 'its' : 'their'} turn while no other island was hydrating and nothing on the first screen was still loading. ` +
-					`Nothing on the page explains the wait: ogygia's scheduler held ${held.length === 1 ? 'it' : 'them'}.`,
+				message: `${held.length === 1 ? held[0].r.name : `${held.length} islands`} had ${held.length === 1 ? 'its' : 'their'} code but waited ${held.length === 1 ? Math.round(held[0].idle) : `about ${Math.round(med)}`} ms for ${held.length === 1 ? 'its' : 'their'} turn while no other island was hydrating and nothing on the first screen was still loading. Nothing on the page explains the wait: ogygia's scheduler held ${held.length === 1 ? 'it' : 'them'}.`,
 				fix: 'This is ogygia’s own wait, not your code. Please report it with this page: the island names, their wake, and whether it happened on load or on a scroll.',
 				fps: held.slice(0, 20).map((h) => h.r.fp)
 			});
@@ -1273,11 +1263,11 @@ export function analyze_page(
 		findings.push({
 			code: 'slow-module',
 			severity: 'info',
-			message:
-				`${list(slow.map((r) => `${r.name} (${r.load_ms} ms)`))} waited a long time for its code to arrive.` +
-				(compiled.length
+			message: `${list(slow.map((r) => `${r.name} (${r.load_ms} ms)`))} waited a long time for its code to arrive.${
+				compiled.length
 					? ` ${compiled.length === slow.length ? 'Most of the wait' : `For ${list(compiled.map((r) => r.name))}, most of it`} was the dev server compiling the files on this first request: reload for a warm reading.`
-					: ''),
+					: ''
+			}`,
 			fix: "Check the island's imports in the Bytes tab: a big dependency, or a chain of imports loaded one after another. (Dev serves modules one by one; a build is faster.)",
 			fps: slow.map((r) => r.fp)
 		});
@@ -1305,13 +1295,13 @@ export function analyze_page(
 			code: 'eager-offscreen',
 			// (its own code a big share of the first load: a warning past 50 KB moved off it)
 			severity: own_total >= EAGER_BELOW_WARN ? 'warn' : 'info',
-			message:
-				`${list(eager_below.map((r) => r.name))} start${one ? 's' : ''} below the first screen but load${one ? 's' : ''} code at page load.` +
-				(!own_total
+			message: `${list(eager_below.map((r) => r.name))} start${one ? 's' : ''} below the first screen but load${one ? 's' : ''} code at page load.${
+				!own_total
 					? ''
 					: own_total < EAGER_BELOW_SMALL
 						? ` Only ${kb(own_total)} of it is ${one ? 'its own' : 'theirs alone'} (the rest other islands load too): a later wake saves ${one ? 'its' : 'their'} hydration on the first load more than bytes.`
-						: ` ${kb(own_total)} of it ${one ? 'is its own' : 'is theirs alone'} (no other island loads it): that much leaves the first load with a later wake.`),
+						: ` ${kb(own_total)} of it ${one ? 'is its own' : 'is theirs alone'} (no other island loads it): that much leaves the first load with a later wake.`
+			}`,
 			fix: "Use wake='visible': its code loads when it scrolls into view, and the islands on the first screen wake sooner.",
 			fps: eager_below.map((r) => r.fp)
 		});
@@ -1399,12 +1389,9 @@ export function analyze_page(
 		findings.push({
 			code: 'eager-hidden',
 			severity: own_total >= EAGER_BELOW_WARN ? 'warn' : 'info',
-			message:
-				`${list(names)} draw${one ? 's' : ''} nothing on this screen (${vw ? `${vw} px wide` : 'this size'}) but load${one ? 's' : ''} ${one ? 'its' : 'their'} code at page load: ` +
-				`${[...shows, ...(bare ? [bare] : [])].join('; ')}.` +
-				(own_total
-					? ` ${kb(own_total)} of that code ${one ? 'is its own' : 'is theirs alone'}.`
-					: ''),
+			message: `${list(names)} draw${one ? 's' : ''} nothing on this screen (${vw ? `${vw} px wide` : 'this size'}) but load${one ? 's' : ''} ${one ? 'its' : 'their'} code at page load: ${[...shows, ...(bare ? [bare] : [])].join('; ')}.${
+				own_total ? ` ${kb(own_total)} of that code ${one ? 'is its own' : 'is theirs alone'}.` : ''
+			}`,
 			fix:
 				(shown.length === 1
 					? `Wake ${one ? 'it' : shown[0]} by that media query (\`with { wake: '${first_q}' }\`): the code loads only on the screens that show it, and wakes there as the screen changes.`
@@ -1429,11 +1416,11 @@ export function analyze_page(
 			findings.push({
 				code: 'late-interactive',
 				severity: compiling.length === late.length ? 'info' : 'warn',
-				message:
-					`${list(late.map((r) => `${r.name} (${Math.round(r.done - lcp)} ms)`))} on the first screen woke long after the page looked finished (LCP ${Math.round(lcp)} ms). A visitor can click it and get nothing in that gap.` +
-					(compiling.length
+				message: `${list(late.map((r) => `${r.name} (${Math.round(r.done - lcp)} ms)`))} on the first screen woke long after the page looked finished (LCP ${Math.round(lcp)} ms). A visitor can click it and get nothing in that gap.${
+					compiling.length
 						? ` ${compiling.length === late.length ? 'Most of the gap' : `For ${list(compiling.map((r) => r.name))}, most of it`} was the dev server compiling its code on this first request: reload for a warm reading.`
-						: ''),
+						: ''
+				}`,
 				fix: 'Shrink what it loads and what hydrates before it, or render it as plain HTML (a lake) if it does not need to be interactive at once.',
 				fps: late.map((r) => r.fp)
 			});
@@ -1706,11 +1693,11 @@ export function analyze_page(
 		findings.push({
 			code: 'dom-large',
 			severity: 'warn',
-			message:
-				`The page has ${n(dom.nodes)} elements${dom.depth ? ` (nested ${dom.depth} deep; the most children, ${n(dom.widest.children)}, under ${dom.widest.at})` : ''}` +
-				(held
+			message: `The page has ${n(dom.nodes)} elements${dom.depth ? ` (nested ${dom.depth} deep; the most children, ${n(dom.widest.children)}, under ${dom.widest.at})` : ''}${
+				held
 					? `, ${n(held.nodes)} of them inside ${name_of(held.fp)}: an island hydrates over every element of its own, so it pays for all of them as it wakes.`
-					: ': every element costs memory and style and layout work on each change.'),
+					: ': every element costs memory and style and layout work on each change.'
+			}`,
 			fix: held
 				? `Render fewer at once in ${name_of(held.fp)}: page or window a long list (only what is on screen), and keep big static markup outside the island (a lake costs nothing to hydrate).`
 				: 'Render fewer at once: page or window long lists (only what is on screen), and flatten markup that nests wrappers for layout alone.',
@@ -1738,7 +1725,7 @@ export function analyze_page(
 	// ── the vitals themselves ──
 	for (const v of vitals) {
 		if (v.rating === 'good') continue;
-		const head = `${v.label} is ${v.key === 'cls' ? v.value : `${Math.round(v.value)} ms`} (${v.rating === 'poor' ? 'poor' : 'needs work'}; good is ${v.key === 'cls' ? '≤ ' + LIMITS[v.key][0] : '≤ ' + LIMITS[v.key][0] + ' ms'}).`;
+		const head = `${v.label} is ${v.key === 'cls' ? v.value : `${Math.round(v.value)} ms`} (${v.rating === 'poor' ? 'poor' : 'needs work'}; good is ${v.key === 'cls' ? `≤ ${LIMITS[v.key][0]}` : `≤ ${LIMITS[v.key][0]} ms`}).`;
 		const why =
 			v.key === 'inp'
 				? explain_interaction(
@@ -2243,22 +2230,20 @@ export function analyze_page(
 			code: 'preload-unused',
 			severity: 'warn',
 			message: `${list(misses.map((m) => `${file(m.url)} (${kb(m.bytes)})`))} ${misses.length === 1 ? 'was' : 'were'} preloaded, then downloaded again: the browser could not use the preload${misses.length === 1 ? '' : 's'}, and the page paid ${kb(wasted)} twice.`,
-			fix:
-				`${[...new Set(misses.map(why))].map((w) => w[0].toUpperCase() + w.slice(1)).join('. ')}.` +
+			fix: `${[...new Set(misses.map(why))].map((w) => w[0].toUpperCase() + w.slice(1)).join('. ')}.${[
 				// (what to do, once per cause present)
-				[
-					misses.some(safari_fetch)
-						? ' No attribute changes a fetch preload in Safari: to start the request early there too, begin it in an inline script and hand its promise to the code that reads it — or drop the preload where Safari is most of the traffic.'
-						: '',
-					misses.some(safari_font)
-						? page.dev
-							? " For the fonts: a build drops the dev server's habits (its CSS linked, its files answered by the host), so check whether the host also answers fonts with Vary: Origin and whether a stylesheet naming them is added by script."
-							: ' For the fonts: answer them without `Vary: Origin` (a font is the same whoever asks; a CORS header alone does not need it), or name them in a stylesheet the HTML links.'
-						: '',
-					misses.some((m) => !safari_fetch(m) && !safari_font(m))
-						? ' The preload and the request must match exactly, or the browser fetches the file again.'
-						: ''
-				].join(''),
+				misses.some(safari_fetch)
+					? ' No attribute changes a fetch preload in Safari: to start the request early there too, begin it in an inline script and hand its promise to the code that reads it — or drop the preload where Safari is most of the traffic.'
+					: '',
+				misses.some(safari_font)
+					? page.dev
+						? " For the fonts: a build drops the dev server's habits (its CSS linked, its files answered by the host), so check whether the host also answers fonts with Vary: Origin and whether a stylesheet naming them is added by script."
+						: ' For the fonts: answer them without `Vary: Origin` (a font is the same whoever asks; a CORS header alone does not need it), or name them in a stylesheet the HTML links.'
+					: '',
+				misses.some((m) => !safari_fetch(m) && !safari_font(m))
+					? ' The preload and the request must match exactly, or the browser fetches the file again.'
+					: ''
+			].join('')}`,
 			fps: []
 		});
 	}
@@ -2391,16 +2376,17 @@ export function analyze_page(
 		findings.push({
 			code: 'slow-navigation',
 			severity: ms >= SLOW_NAV_WARN_MS ? 'warn' : 'info',
-			message:
-				`The in-app navigation to ${n.to} took ${Math.round(ms)} ms before the new page showed: ${parts.map((p) => p.text).join(', ')}.` +
-				(top.key === 'fetch' && !heavy_page ? server_sentence : '') +
+			message: [
+				`The in-app navigation to ${n.to} took ${Math.round(ms)} ms before the new page showed: ${parts.map((p) => p.text).join(', ')}.`,
+				top.key === 'fetch' && !heavy_page ? server_sentence : '',
 				// (devtools: the profiler's last run of the page it went to, when its request log is not here)
-				(top.key === 'fetch' && !heavy_page && !srv && page.server_profiles
+				top.key === 'fetch' && !heavy_page && !srv && page.server_profiles
 					? server_says(page.server_profiles[n.to.split('?')[0]]).replace('this page', 'that page')
-					: '') +
-				(woke.length
+					: '',
+				woke.length
 					? ` Then ${woke.length === 1 ? 'its island woke' : `${woke.length} islands woke`} over ${Math.round(Math.max(0, wake_end - n.swapped))} ms${heaviest && heaviest.ms >= 20 ? ` (${heaviest.name} ${Math.round(heaviest.ms)} ms to hydrate)` : ''}.`
-					: ''),
+					: ''
+			].join(''),
 			fix:
 				top.key === 'fetch' && heavy_page
 					? `The page itself is the wait: ${n.bytes ? `${kb_of(n.bytes)} of HTML` : 'its HTML'} took longer to download than the server took to answer. Send less (render below-the-fold parts later, trim repeated markup and inline data), and make sure it is compressed.`
@@ -3372,12 +3358,12 @@ function path_of(url: string): string {
 function list(names: string[]): string {
 	const uniq = [...new Set(names)];
 	if (uniq.length <= 1) return uniq[0] ?? '';
-	if (uniq.length <= 4) return uniq.slice(0, -1).join(', ') + ' and ' + uniq[uniq.length - 1];
-	return uniq.slice(0, 3).join(', ') + ` and ${uniq.length - 3} more`;
+	if (uniq.length <= 4) return `${uniq.slice(0, -1).join(', ')} and ${uniq[uniq.length - 1]}`;
+	return `${uniq.slice(0, 3).join(', ')} and ${uniq.length - 3} more`;
 }
 function clip(s: string): string {
 	const one = s.split('\n').join(' ');
-	return one.length > 70 ? one.slice(0, 69) + '…' : one;
+	return one.length > 70 ? `${one.slice(0, 69)}…` : one;
 }
 function short(url: string): string {
 	const q = url.indexOf('?');

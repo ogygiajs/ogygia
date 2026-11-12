@@ -7,6 +7,7 @@ import {
 	type Fence,
 	type VariantGenerator
 } from '../src/markdown/code.ts';
+import { dedent } from '@ogygia/core/plugin/utils';
 
 const fence = (over: Partial<Fence> = {}): Fence => ({
 	lang: 'js',
@@ -25,7 +26,11 @@ describe('fence meta parsers', () => {
 	});
 
 	it('slash_meta() reads /// file:/copy:/link: and STRIPS them from source', () => {
-		const src = '/// file: App.svelte\n/// copy: false\nconst a = 1;';
+		const src = dedent`
+			/// file: App.svelte
+			/// copy: false
+			const a = 1;
+		`;
 		const f = run_meta([slash_meta()], fence({ source: src }));
 		expect(f.meta).toEqual({ file: 'App.svelte', copy: false });
 		expect(f.source).toBe('const a = 1;');

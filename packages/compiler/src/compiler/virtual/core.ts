@@ -71,6 +71,7 @@ import {
 	type RequestEntry,
 	type ValueEntry
 } from './table.ts';
+import { dedent } from '@ogygia/core/contract';
 
 /** What core's entries read off the compile session (the driver implements it). */
 export interface CoreApp {
@@ -119,13 +120,13 @@ type Family<M = Record<never, never>> = FamilyEntry<CoreApp, M>;
 const BACKSLASH_G = /\\/g;
 const posix = (p: string): string => p.replace(BACKSLASH_G, '/');
 /** A served dev URL for a virtual module (Vite's `/@id/` form of its resolved id). */
-const dev_url = (id: string): string => '/@id/__x00__' + id;
+const dev_url = (id: string): string => `/@id/__x00__${id}`;
 /** The id the bundler keys an entry's module by. */
 const key = specifier_of;
 
 /** A core module (its path under `src/`, no extension) → the built file next to the runtime. */
 export const core_path = (app: CoreApp, module: string): string =>
-	posix(path.join(path.dirname(app.ctx.runtime_dir), module + '.js'));
+	posix(path.join(path.dirname(app.ctx.runtime_dir), `${module}.js`));
 
 /**
  * The runtime the dev boot runs, as the app resolves `ogygia/runtime` (the package's exports map:
@@ -179,7 +180,11 @@ export const runtime: Family = virtual.family({
 	load(app: CoreApp) {
 		const ch = client_hooks_boot(app.ctx);
 		const cp = client_realms_source(app.plugins().client);
-		return `import { bootDev } from 'ogygia/runtime';\n${ch.imports}${cp.imports}bootDev(${cp.list});\n${ch.call}`;
+		return dedent`
+			import { bootDev } from 'ogygia/runtime';
+			${ch.imports}${cp.imports}bootDev(${cp.list});
+			${ch.call}
+		`;
 	}
 });
 
@@ -192,14 +197,15 @@ export const fn_manifest: Family = virtual.family({
 	// is a rename-proof PLACEHOLDER — a globalThis bridge + a token `renderChunk` patches once every
 	// transform has contributed.
 	load(app: CoreApp) {
-		const bridge = `import { __register_fn } from 'ogygia/internal';\nglobalThis.__og_reg_fn = __register_fn;\n`;
-		if (!app.ctx.is_dev) return bridge + `/*__OGYGIA_FN_MANIFEST__*/`;
-		return (
-			bridge +
-			[...app.dollar_hoists.entries()]
-				.map(([tag, src]) => `globalThis.__og_reg_fn(${JSON.stringify(tag)}, (${src}));`)
-				.join('\n')
-		);
+		const bridge = `${dedent`
+			import { __register_fn } from 'ogygia/internal';
+			globalThis.__og_reg_fn = __register_fn;
+		`}\n`;
+		if (!app.ctx.is_dev) return `${bridge}/*__OGYGIA_FN_MANIFEST__*/`;
+		const hoists = [...app.dollar_hoists.entries()]
+			.map(([tag, src]) => `globalThis.__og_reg_fn(${JSON.stringify(tag)}, (${src}));`)
+			.join('\n');
+		return `${bridge}${hoists}`;
 	}
 });
 
@@ -318,14 +324,13 @@ export const devtools_boot: Family = virtual.family({
 		const client = app.plugins().client;
 		if (!client.length) return `export {}`;
 		const cp = client_realms_source(client);
-		return (
-			// the dev server hands `define`s (the plugins' gates among them) to the page as globals
-			// from Vite's env module: it must run before they read them
-			(ctx.is_dev ? `import '/@vite/env';\n` : '') +
-			cp.imports +
-			`import { boot_client_plugins } from ${JSON.stringify(posix(`${ctx.runtime_dir}/client-plugins.js`))};\n` +
-			`boot_client_plugins(${cp.list}, true);\n`
-		);
+		// the dev server hands `define`s (the plugins' gates among them) to the page as globals
+		// from Vite's env module: it must run before they read them
+		const env = ctx.is_dev ? `import '/@vite/env';\n` : '';
+		const from = JSON.stringify(posix(`${ctx.runtime_dir}/client-plugins.js`));
+		return `${env}${cp.imports}import { boot_client_plugins } from ${from};
+boot_client_plugins(${cp.list}, true);
+`;
 	}
 });
 

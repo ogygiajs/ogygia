@@ -27,20 +27,4 @@ export function late_chunk(id: string, html: string): string {
  * swaps each into its slot immediately (stylesheet links hoist to head first so the swap never
  * paints unstyled). Kept dependency-free and tiny — it must run before any module script can.
  */
-export const LATE_BOOT_SCRIPT: string =
-	`<script ${OG_LATE_BOOT}>(function(){` +
-	`function ap(t){var id=t.getAttribute("${OG_LATE}");var s=document.querySelector(` +
-	`'og-late-slot[${OG_SLOT}="'+id+'"]');if(!s){t.remove();return}` +
-	'var c=t.content;var ls=c.querySelectorAll(\'link[rel="stylesheet"],style\');' +
-	'for(var i=0;i<ls.length;i++){var l=ls[i];var h=l.getAttribute&&l.getAttribute("href");' +
-	"if(h&&document.head.querySelector('link[href=\"'+h+'\"]'))l.remove();" +
-	'else document.head.appendChild(l)}' +
-	'while(s.firstChild)s.removeChild(s.firstChild);s.appendChild(c);t.remove()}' +
-	'var mo=new MutationObserver(function(ms){for(var i=0;i<ms.length;i++){var ad=ms[i].addedNodes;' +
-	'for(var j=0;j<ad.length;j++){var n=ad[j];if(n.nodeType===1&&n.tagName==="TEMPLATE"&&' +
-	`n.hasAttribute("${OG_LATE}"))ap(n)}}});` +
-	'mo.observe(document.documentElement,{childList:true,subtree:true});' +
-	'addEventListener("DOMContentLoaded",function(){' +
-	`var ts=document.querySelectorAll("template[${OG_LATE}]");` +
-	'for(var i=0;i<ts.length;i++)ap(ts[i]);mo.disconnect()},{once:true});' +
-	'})()</script>';
+export const LATE_BOOT_SCRIPT: string = `<script ${OG_LATE_BOOT}>(function(){function ap(t){var id=t.getAttribute("${OG_LATE}");var s=document.querySelector('og-late-slot[${OG_SLOT}="'+id+'"]');if(!s){t.remove();return}var c=t.content;var ls=c.querySelectorAll('link[rel="stylesheet"],style');for(var i=0;i<ls.length;i++){var l=ls[i];var h=l.getAttribute&&l.getAttribute("href");if(h&&document.head.querySelector('link[href="'+h+'"]'))l.remove();else document.head.appendChild(l)}while(s.firstChild)s.removeChild(s.firstChild);s.appendChild(c);t.remove()}var mo=new MutationObserver(function(ms){for(var i=0;i<ms.length;i++){var ad=ms[i].addedNodes;for(var j=0;j<ad.length;j++){var n=ad[j];if(n.nodeType===1&&n.tagName==="TEMPLATE"&&n.hasAttribute("${OG_LATE}"))ap(n)}}});mo.observe(document.documentElement,{childList:true,subtree:true});addEventListener("DOMContentLoaded",function(){var ts=document.querySelectorAll("template[${OG_LATE}]");for(var i=0;i<ts.length;i++)ap(ts[i]);mo.disconnect()},{once:true});})()\x3C/script>`;

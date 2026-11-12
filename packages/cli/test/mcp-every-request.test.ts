@@ -15,7 +15,7 @@ function serve(lines: string[]): { id: unknown }[] {
 		process.execPath,
 		['-e', `import(${JSON.stringify(MCP)}).then((m) => m.runMcp())`],
 		{
-			input: lines.join('\n') + '\n',
+			input: `${lines.join('\n')}\n`,
 			encoding: 'utf8',
 			timeout: 30_000
 		}

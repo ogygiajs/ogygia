@@ -27,7 +27,7 @@ const server = spawn(
 const base = `http://127.0.0.1:${PORT}`;
 for (let i = 0; i < 100; i++) {
 	try {
-		await fetch(base + '/bench-cms');
+		await fetch(`${base}/bench-cms`);
 		break;
 	} catch {
 		await new Promise((r) => setTimeout(r, 200));
@@ -58,7 +58,7 @@ async function run() {
 	await cdp.send('Profiler.enable');
 	await cdp.send('Profiler.setSamplingInterval', { interval: 250 });
 	await cdp.send('Profiler.start');
-	await page.goto(base + '/bench-cms', { waitUntil: 'load' });
+	await page.goto(`${base}/bench-cms`, { waitUntil: 'load' });
 	// every load island hydrated (the visible ones are in the viewport too on this page shape)
 	await page.waitForFunction(
 		() => {

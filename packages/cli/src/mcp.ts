@@ -13,6 +13,7 @@
  * @packageDocumentation
  */
 import { createInterface } from 'node:readline';
+import { dedent } from '@ogygia/core/plugin/utils';
 import { createRequire } from 'node:module';
 import { flights, scope, STALE } from '@ogygia/machine';
 import { readdirSync, readFileSync, type Dirent } from 'node:fs';
@@ -106,7 +107,7 @@ function build_ctx(ssr: boolean, route_csr = false) {
 		dev: true,
 		virtualPathFor: (_host: string, iid: string) => islandVirtualId(iid),
 		wrapperPathFor: (_host: string, iid: string) => wrapperVirtualId(iid),
-		devUrlFor: (virtual: string) => '/@id/' + virtual,
+		devUrlFor: (virtual: string) => `/@id/${virtual}`,
 		visibleMargin: undefined,
 		presets: {},
 		importKeys: undefined,
@@ -213,10 +214,7 @@ const fail = (s: string): ToolResult => ({ content: [{ type: 'text', text: s }],
 const TOOLS = [
 	{
 		name: 'ogygia_compile',
-		description:
-			'Compile a Svelte component through the real ogygia transform (as it runs at build). Returns the ' +
-			'island map (which imports became islands, with their render/wake dials and real ids) and the ' +
-			'rewritten host module. Use this to see exactly what ogygia does to a component.',
+		description: `Compile a Svelte component through the real ogygia transform (as it runs at build). Returns the island map (which imports became islands, with their render/wake dials and real ids) and the rewritten host module. Use this to see exactly what ogygia does to a component.`,
 		inputSchema: {
 			type: 'object',
 			properties: {
@@ -233,9 +231,7 @@ const TOOLS = [
 	},
 	{
 		name: 'ogygia_islands',
-		description:
-			'The island map only (no rewritten code): each marked import → its primitive (island / lake / ' +
-			'server island / live / held region), its render+wake dials, and its build id. The fast overview.',
+		description: `The island map only (no rewritten code): each marked import → its primitive (island / lake / server island / live / held region), its render+wake dials, and its build id. The fast overview.`,
 		inputSchema: {
 			type: 'object',
 			properties: { source: { type: 'string', description: 'The .svelte component source.' } },
@@ -244,10 +240,7 @@ const TOOLS = [
 	},
 	{
 		name: 'ogygia_check',
-		description:
-			'Check a component against ogygia rules. Runs the real transform and reports any [ogygia] build ' +
-			'error it raises (writing to captured host state, illegal nesting, a non-literal macro argument, an ' +
-			'island dynamic-import, …). Use this to validate a component an AI wrote before trusting it.',
+		description: `Check a component against ogygia rules. Runs the real transform and reports any [ogygia] build error it raises (writing to captured host state, illegal nesting, a non-literal macro argument, an island dynamic-import, …). Use this to validate a component an AI wrote before trusting it.`,
 		inputSchema: {
 			type: 'object',
 			properties: {
@@ -258,9 +251,7 @@ const TOOLS = [
 	},
 	{
 		name: 'ogygia_explain',
-		description:
-			'Explain, in prose, what happens to each marked component at runtime: where its HTML comes from, ' +
-			'when (or whether) its JS runs, and how its props cross the island boundary. The teaching view.',
+		description: `Explain, in prose, what happens to each marked component at runtime: where its HTML comes from, when (or whether) its JS runs, and how its props cross the island boundary. The teaching view.`,
 		inputSchema: {
 			type: 'object',
 			properties: { source: { type: 'string', description: 'The .svelte component source.' } },
@@ -269,16 +260,7 @@ const TOOLS = [
 	},
 	{
 		name: 'ogygia_debug',
-		description:
-			'Debug a REAL running page. Loads a URL of your running ogygia app in a headless browser, lets its ' +
-			'islands hydrate (scrolls to trigger `visible` islands; optionally clicks a selector to trigger an ' +
-			'`interaction` one), then returns the ACTUAL runtime story per island from the devtools event bus: ' +
-			'SSR → wire → connected → woke → hydrated (with timings), plus anomalies (SSR’d-but-never-connected, ' +
-			'hydration failures), and for an app with a server transform any host the restore reached too late or ' +
-			'could not put back exactly. Requires `devtools()` from `@ogygia/devtools/vite` listed beside `ogygia()` ' +
-			'in the app’s vite.config (its dock on, the default) and Playwright installed. On the dev server the ' +
-			'stream is always on; on a build, add `?og-devtools=on` to the URL so the server’s half of the story ' +
-			'is in it too. Use this to see what really happened instead of reasoning from source.',
+		description: `Debug a REAL running page. Loads a URL of your running ogygia app in a headless browser, lets its islands hydrate (scrolls to trigger \`visible\` islands; optionally clicks a selector to trigger an \`interaction\` one), then returns the ACTUAL runtime story per island from the devtools event bus: SSR → wire → connected → woke → hydrated (with timings), plus anomalies (SSR’d-but-never-connected, hydration failures), and for an app with a server transform any host the restore reached too late or could not put back exactly. Requires \`devtools()\` from \`@ogygia/devtools/vite\` listed beside \`ogygia()\` in the app’s vite.config (its dock on, the default) and Playwright installed. On the dev server the stream is always on; on a build, add \`?og-devtools=on\` to the URL so the server’s half of the story is in it too. Use this to see what really happened instead of reasoning from source.`,
 		inputSchema: {
 			type: 'object',
 			properties: {
@@ -304,17 +286,7 @@ const TOOLS = [
 	},
 	{
 		name: 'ogygia_profile',
-		description:
-			'Profile the SERVER-SIDE render of a route — runs the whole thing itself, nothing to download. ' +
-			'ASK THE USER which URL to profile before calling (they prefer to name the host): a full URL like ' +
-			'`http://localhost:5173/fr/fr` (local) or `https://app.com/fr/fr` (remote). Pass it as `url`. ' +
-			'A bare path is accepted too, but then the tool just asks you for the URL (and lists any local ' +
-			'server it can see). Records N renders and returns a digest: verdict (compute- vs io-bound), render ' +
-			'p50, CPU findings, time-by-category, hottest functions + components (Svelte names each after its ' +
-			'file), network, heap. Clears a stale session (auto /reset + retry); leaves a live recording alone and says the profiler is busy. Requires the profiler ' +
-			'turned on: `devtools({ profiler: true })` from `@ogygia/devtools/vite` in the app’s vite.config ' +
-			'(the tool tells you how if missing). Prod build = real numbers; dev ' +
-			'is indicative (the digest says which). For a report you already downloaded, use ogygia_profile_open.',
+		description: `Profile the SERVER-SIDE render of a route — runs the whole thing itself, nothing to download. ASK THE USER which URL to profile before calling (they prefer to name the host): a full URL like \`http://localhost:5173/fr/fr\` (local) or \`https://app.com/fr/fr\` (remote). Pass it as \`url\`. A bare path is accepted too, but then the tool just asks you for the URL (and lists any local server it can see). Records N renders and returns a digest: verdict (compute- vs io-bound), render p50, CPU findings, time-by-category, hottest functions + components (Svelte names each after its file), network, heap. Clears a stale session (auto /reset + retry); leaves a live recording alone and says the profiler is busy. Requires the profiler turned on: \`devtools({ profiler: true })\` from \`@ogygia/devtools/vite\` in the app’s vite.config (the tool tells you how if missing). Prod build = real numbers; dev is indicative (the digest says which). For a report you already downloaded, use ogygia_profile_open.`,
 		inputSchema: {
 			type: 'object',
 			properties: {
@@ -344,14 +316,7 @@ const TOOLS = [
 	},
 	{
 		name: 'ogygia_profile_open',
-		description:
-			'Open a downloaded `.ogp` profile and return the same digest as ogygia_profile — verdict, render ' +
-			'p50, CPU findings, time-by-category, hottest functions + components, network, heap. A `.ogp` is the ' +
-			'encrypted trace you download when a live report can’t be kept (serverless/Amplify evict it, or the ' +
-			'browser can’t render it). It decrypts entirely from the FILE — no running server, no profiler ' +
-			'login. The file is AES-encrypted with the key it was exported with; pass that as `key`. If you don’t ' +
-			'have it, ask the user for the export key and retry. That key is the ONLY thing needed — it is not ' +
-			'the app’s profiler secret, and holding the file + its key already authorizes reading it.',
+		description: `Open a downloaded \`.ogp\` profile and return the same digest as ogygia_profile — verdict, render p50, CPU findings, time-by-category, hottest functions + components, network, heap. A \`.ogp\` is the encrypted trace you download when a live report can’t be kept (serverless/Amplify evict it, or the browser can’t render it). It decrypts entirely from the FILE — no running server, no profiler login. The file is AES-encrypted with the key it was exported with; pass that as \`key\`. If you don’t have it, ask the user for the export key and retry. That key is the ONLY thing needed — it is not the app’s profiler secret, and holding the file + its key already authorizes reading it.`,
 		inputSchema: {
 			type: 'object',
 			properties: {
@@ -370,12 +335,7 @@ const TOOLS = [
 	},
 	{
 		name: 'ogygia_scan',
-		description:
-			'Scan a WHOLE ogygia project: walks a directory for .svelte files, runs the real transform on each, ' +
-			'and returns the entire island architecture (every island / lake / server island / held region, by ' +
-			'file, with its render+wake dials) PLUS a lint pass — hard [ogygia] errors and soft anti-patterns the ' +
-			'transform allows (island-in-island, wake:none+deferred, interaction+deferred). Use it to understand or ' +
-			'audit a real app, not one snippet.',
+		description: `Scan a WHOLE ogygia project: walks a directory for .svelte files, runs the real transform on each, and returns the entire island architecture (every island / lake / server island / held region, by file, with its render+wake dials) PLUS a lint pass — hard [ogygia] errors and soft anti-patterns the transform allows (island-in-island, wake:none+deferred, interaction+deferred). Use it to understand or audit a real app, not one snippet.`,
 		inputSchema: {
 			type: 'object',
 			properties: {
@@ -389,11 +349,7 @@ const TOOLS = [
 	},
 	{
 		name: 'ogygia_flags',
-		description:
-			'Inventory every flag() call site in a project — the same AST collector the build ' +
-			'uses (real import bindings from ogygia, renames + namespaces included, literal names only). ' +
-			'Live-scans src/, and diffs against the last build manifest (node_modules/.ogygia/flags-manifest.json) ' +
-			'when present. Use it to audit rollouts, find dead flags, or list what ?og-exp can override.',
+		description: `Inventory every flag() call site in a project — the same AST collector the build uses (real import bindings from ogygia, renames + namespaces included, literal names only). Live-scans src/, and diffs against the last build manifest (node_modules/.ogygia/flags-manifest.json) when present. Use it to audit rollouts, find dead flags, or list what ?og-exp can override.`,
 		inputSchema: {
 			type: 'object',
 			properties: {
@@ -407,11 +363,7 @@ const TOOLS = [
 	},
 	{
 		name: 'ogygia_fragment',
-		description:
-			'Probe a federated ogygia app origin. Reports whether its fragment endpoint verifies signatures ' +
-			'(an unsigned request should get 401 — a 200 means the endpoint is OPEN) and fetches the unsigned ' +
-			'__catalog widget manifest (names + props, plus the typed-stub command). Use it BEFORE writing ' +
-			'mount(peer) / peer.page() / peer.widget() code against a peer, or to sanity-check an exposed app in review.',
+		description: `Probe a federated ogygia app origin. Reports whether its fragment endpoint verifies signatures (an unsigned request should get 401 — a 200 means the endpoint is OPEN) and fetches the unsigned __catalog widget manifest (names + props, plus the typed-stub command). Use it BEFORE writing mount(peer) / peer.page() / peer.widget() code against a peer, or to sanity-check an exposed app in review.`,
 		inputSchema: {
 			type: 'object',
 			properties: {
@@ -459,12 +411,22 @@ function tool_compile(args: Attrs): ToolResult {
 		null,
 		2
 	);
-	return text(
-		`# ogygia transform — ${filename}${csr ? ' (csr=true leg)' : ''}\n\n` +
-			`## Island map (${out.islands.length})\n${map}\n\n` +
-			`## Structured\n\`\`\`json\n${structured}\n\`\`\`\n\n` +
-			`## Rewritten host module\n\`\`\`js\n${out.code}\n\`\`\``
-	);
+	return text(dedent`
+		# ogygia transform — ${filename}${csr ? ' (csr=true leg)' : ''}
+
+		## Island map (${out.islands.length})
+		${map}
+
+		## Structured
+		\`\`\`json
+		${structured}
+		\`\`\`
+
+		## Rewritten host module
+		\`\`\`js
+		${out.code}
+		\`\`\`
+	`);
 }
 
 function tool_islands(args: Attrs): ToolResult {
@@ -486,7 +448,13 @@ function tool_islands(args: Attrs): ToolResult {
 		id: i.id
 	}));
 	return text(
-		`${out.islands.length} marked region(s)\n\n\`\`\`json\n${JSON.stringify(structured, null, 2)}\n\`\`\``
+		dedent`
+			${out.islands.length} marked region(s)
+
+			\`\`\`json
+			${JSON.stringify(structured, null, 2)}
+			\`\`\`
+		`
 	);
 }
 
@@ -497,14 +465,22 @@ function tool_check(args: Attrs): ToolResult {
 		compile(source, 'App.svelte', true, false);
 	} catch (e) {
 		const msg = e instanceof Error ? e.message : String(e);
-		return text(`❌ FAILS ogygia rules\n\n${msg}`);
+		return text(dedent`
+			❌ FAILS ogygia rules
+
+			${msg}
+		`);
 	}
 	// The client leg can raise its own errors (captured writes surface there); run it too.
 	try {
 		compile(source, 'App.svelte', false, false);
 	} catch (e) {
 		const msg = e instanceof Error ? e.message : String(e);
-		return text(`❌ FAILS ogygia rules (client leg)\n\n${msg}`);
+		return text(dedent`
+			❌ FAILS ogygia rules (client leg)
+
+			${msg}
+		`);
 	}
 	return text('✅ passes ogygia rules — the transform accepts this component.');
 }
@@ -540,7 +516,11 @@ function tool_explain(args: Attrs): ToolResult {
 			: '';
 		return `• ${i.component}: an island. Its own hydration root; JS wakes on ${wake}. Props cross by value (devalue) — functions never cross, captured host state is a snapshot.${keep}`;
 	});
-	return text(`How this page behaves at runtime:\n\n${lines.join('\n')}`);
+	return text(dedent`
+		How this page behaves at runtime:
+
+		${lines.join('\n')}
+	`);
 }
 
 // ── ogygia_debug — the RUNTIME half: drive a headless browser over a real page ─────────────────────
@@ -652,20 +632,28 @@ function render_story(url: string, events: DtEvent[]): string {
 
 	const boot = global.find((e) => e.name === 'runtime.boot');
 	const navs = global.filter((e) => e.name.startsWith('nav.'));
-	const header =
-		`# Runtime story — ${url}\n\n` +
-		`${by_fp.size} island(s) · ${events.length} events` +
-		(boot
-			? ` · runtime booted (${(boot.installers as string[] | undefined)?.join(', ') || 'installers ran'})`
-			: '') +
-		(navs.length ? ` · ${navs.filter((n) => n.name === 'nav.finish').length} navigation(s)` : '');
+	const booted = boot
+		? ` · runtime booted (${(boot.installers as string[] | undefined)?.join(', ') || 'installers ran'})`
+		: '';
+	const navigated = navs.length
+		? ` · ${navs.filter((n) => n.name === 'nav.finish').length} navigation(s)`
+		: '';
+	const header = dedent`
+		# Runtime story — ${url}
 
-	return (
-		`${header}\n\n${blocks.join('\n\n')}` +
-		(warnings.length
-			? `\n\n## ⚠️ Warnings (${warnings.length})\n${warnings.map((w) => `- ${w}`).join('\n')}`
-			: '\n\n## ✅ No lifecycle anomalies detected.')
-	);
+		${by_fp.size} island(s) · ${events.length} events${booted}${navigated}
+	`;
+
+	const verdict = warnings.length
+		? `## ⚠️ Warnings (${warnings.length})\n${warnings.map((w) => `- ${w}`).join('\n')}`
+		: '## ✅ No lifecycle anomalies detected.';
+	return dedent`
+		${header}
+
+		${blocks.join('\n\n')}
+
+		${verdict}
+	`;
 }
 
 /** What the page's restorer said (an app with `reshape.handle(transform)`), or '' when nothing. */
@@ -678,7 +666,10 @@ function restore_section(
 			? `- a host (#${e.detail.host ?? '?'}) already had a shadow root when the restore reached it: something upgraded it first (a module script before the restorer, or an insertion ogygia did not make). It was left as served, so its island will heal or re-render.`
 			: `- the transform broke hydration markup: ${e.detail.diff ?? `<${e.detail.host ?? '?'}>`}. Carry every og-* mark along, and render og-h hosts only by their plan (<slot> wrappers, og-shadow, og-keep).`
 	);
-	return `\n\n## ⚠️ Server transform (${events.length})\n${lines.join('\n')}`;
+	return `\n\n${dedent`
+		## ⚠️ Server transform (${events.length})
+		${lines.join('\n')}
+	`}`;
 }
 
 /** Load a REAL page in a headless browser, let its islands hydrate, and read the devtools stream. */
@@ -739,9 +730,7 @@ async function tool_debug(args: Attrs): Promise<ToolResult> {
 		);
 		if (!has_hook)
 			return fail(
-				`${url} loaded, but window.__ogygia_devtools is absent — the app runs without the devtools. List them beside ` +
-					`ogygia() in vite.config (\`import { devtools } from '@ogygia/devtools/vite'\`, then ` +
-					`\`plugins: [ogygia(), devtools(), sveltekit()]\`, the dock left on), restart the dev server or rebuild, then retry.`
+				`${url} loaded, but window.__ogygia_devtools is absent — the app runs without the devtools. List them beside ogygia() in vite.config (\`import { devtools } from '@ogygia/devtools/vite'\`, then \`plugins: [ogygia(), devtools(), sveltekit()]\`, the dock left on), restart the dev server or rebuild, then retry.`
 			);
 		await page.waitForTimeout(wait);
 		if (do_scroll) {
@@ -1142,7 +1131,16 @@ function render_patterns(r: ProfileReport): string {
 									: '';
 					// the change, written out: replace these lines with this
 					const rw = s.rewrite
-						? `\n      Change at ${s.rewrite.file}:${s.rewrite.line}, replace:\n\`\`\`\n${s.rewrite.before}\n\`\`\`\n      with:\n\`\`\`\n${s.rewrite.after}\n\`\`\``
+						? `\n${dedent`
+							      Change at ${s.rewrite.file}:${s.rewrite.line}, replace:
+							\`\`\`
+							${s.rewrite.before}
+							\`\`\`
+							      with:
+							\`\`\`
+							${s.rewrite.after}
+							\`\`\`
+						`}`
 						: '';
 					const loc = s.module ? `${s.module} (built ${s.file}:${s.line})` : `${s.file}:${s.line}`;
 					return `\n   - ${loc}: \`${s.code ?? ''}\`${said}${via}${rw}`;
@@ -1155,7 +1153,11 @@ function render_patterns(r: ProfileReport): string {
 			const example = p.example?.after
 				? `\n   Example: \`${p.example.before ?? ''}\` → \`${(p.example.after ?? '').split('\n').join(' ')}\``
 				: '';
-			return `${i + 1}. **${p.title}**${save}\n   ${p.evidence ?? ''}${sites}\n   Fix: ${p.fix ?? ''}${example}`;
+			return dedent`
+				${i + 1}. **${p.title}**${save}
+				   ${p.evidence ?? ''}${sites}
+				   Fix: ${p.fix ?? ''}${example}
+			`;
 		})
 		.join('\n');
 }
@@ -1287,14 +1289,17 @@ export function render_profile(
 	// here is one render's worth.
 	const n = Math.max(1, runs.length);
 	const per = (ms: number | undefined) => Math.round(((ms ?? 0) / n) * 100) / 100;
-	const head =
-		`# SSR profile — ${target}${runs.length ? ` · ${runs.length} run(s)` : ''}\n\n` +
-		`**${s.verdict ?? 'profiled'}** · render p50 ~${median(runs).toFixed(2)}ms` +
-		(runs.length ? ` (runs: ${runs.join(', ')})` : '') +
-		(s.busy_ms != null
+	const run_list = runs.length ? ` (runs: ${runs.join(', ')})` : '';
+	const busy =
+		s.busy_ms != null
 			? ` · CPU busy ${per(s.busy_ms)}ms per render (${s.busy_pct}% of the window)`
-			: '') +
-		(s.rss_mb != null ? ` · RSS ${s.rss_mb} MB` : '');
+			: '';
+	const rss = s.rss_mb != null ? ` · RSS ${s.rss_mb} MB` : '';
+	const head = dedent`
+		# SSR profile — ${target}${runs.length ? ` · ${runs.length} run(s)` : ''}
+
+		**${s.verdict ?? 'profiled'}** · render p50 ~${median(runs).toFixed(2)}ms${run_list}${busy}${rss}
+	`;
 
 	// In dev, profiler instrumentation dominates the window — say so, so the numbers aren't over-read.
 	const prof_overhead = (r.budget ?? []).find((b) => b.category === 'profiler');
@@ -1390,45 +1395,85 @@ export function render_profile(
 			? `Run order skews this: both ran on one server after renders that kept ${sn.order.kept_mb} MB alive each; restart between profiles to compare.`
 			: sn.same
 				? `No real change since the last profile (${sn.a_ms} → ${sn.b_ms}ms, within the runs' own spread).`
-				: `${sn.b_ms !== undefined && sn.a_ms !== undefined ? `${sn.b_ms - sn.a_ms > 0 ? '+' : ''}${Math.round((sn.b_ms - sn.a_ms) * 10) / 10}ms since the last profile (${sn.a_ms} → ${sn.b_ms}ms)` : 'Since the last profile'}${sn.moved.length ? ', mostly:\n' + sn.moved.map((m) => `- ${m.status} ${m.path[m.path.length - 1]}${m.at && m.kind !== 'line' ? ` @ ${m.at}` : ''}: ${m.d_ms > 0 ? '+' : ''}${m.d_ms}ms`).join('\n') : '.'}${sn.fix_check ? `\nThe fixed patterns promised ~${sn.fix_check.predicted_ms}ms; the render moved ${sn.fix_check.measured_ms}ms (${sn.fix_check.verdict}).` : ''}`;
-	return (
-		head +
-		dev_note +
-		(since
-			? `\n\n## Since your last profile of this page\n${since}` +
-				(sn?.score && sn.score.a !== sn.score.b
-					? `\nScore ${sn.score.a} → ${sn.score.b} (${sn.score.a_grade} → ${sn.score.b_grade})${sn.score.moved.length ? ': ' + sn.score.moved.map((m) => `${m.label} ${m.a} → ${m.b}`).join(', ') : ''}.`
-					: '')
-			: '') +
+				: `${sn.b_ms !== undefined && sn.a_ms !== undefined ? `${sn.b_ms - sn.a_ms > 0 ? '+' : ''}${Math.round((sn.b_ms - sn.a_ms) * 10) / 10}ms since the last profile (${sn.a_ms} → ${sn.b_ms}ms)` : 'Since the last profile'}${sn.moved.length ? `, mostly:\n${sn.moved.map((m) => `- ${m.status} ${m.path[m.path.length - 1]}${m.at && m.kind !== 'line' ? ` @ ${m.at}` : ''}: ${m.d_ms > 0 ? '+' : ''}${m.d_ms}ms`).join('\n')}` : '.'}${sn.fix_check ? `\nThe fixed patterns promised ~${sn.fix_check.predicted_ms}ms; the render moved ${sn.fix_check.measured_ms}ms (${sn.fix_check.verdict}).` : ''}`;
+	const score =
+		sn?.score && sn.score.a !== sn.score.b
+			? `\nScore ${sn.score.a} → ${sn.score.b} (${sn.score.a_grade} → ${sn.score.b_grade})${sn.score.moved.length ? `: ${sn.score.moved.map((m) => `${m.label} ${m.a} → ${m.b}`).join(', ')}` : ''}.`
+			: '';
+	const shared = r.shared?.length
+		? `\n\n${dedent`
+			## These fixes make other pages faster too
+			${r.shared
+				.map(
+					(f) =>
+						`- \`${f.where}:${f.line}\` (${f.title}): ${f.pages.map((p) => `${p.page} ~${Math.round(p.ms * 10) / 10}ms`).join(', ')}; ~${Math.round(f.total_ms * 10) / 10}ms per render in all`
+				)
+				.join('\n')}
+		`}`
+		: '';
+	return [
+		head,
+		dev_note,
+		since
+			? `\n\n${dedent`
+			## Since your last profile of this page
+			${since}${score}
+		`}`
+			: '',
 		// the forecast heads the plan (said once); an older report's plain sum stays with the patterns
-		(plan
-			? `\n\n## Do this, in order (each: where to edit, and what it is worth)\n${fc ? forecast_line : ''}${plan}`
-			: '') +
+		plan
+			? `\n\n${dedent`
+				## Do this, in order (each: where to edit, and what it is worth)
+				${fc ? forecast_line : ''}${plan}
+			`}`
+			: '',
 		// the same slow line on other profiled pages: fixed once, all of them faster
-		(r.shared?.length
-			? `\n\n## These fixes make other pages faster too\n${r.shared
-					.map(
-						(f) =>
-							`- \`${f.where}:${f.line}\` (${f.title}): ${f.pages.map((p) => `${p.page} ~${Math.round(p.ms * 10) / 10}ms`).join(', ')}; ~${Math.round(f.total_ms * 10) / 10}ms per render in all`
-					)
-					.join('\n')}`
-			: '') +
-		(patterns
-			? `\n\n## Slow patterns (fix these first)\n${plan && fc ? render_patterns(r) : patterns}`
-			: '') +
-		(r.drill
-			? `\n\n## Where one render went (${r.drill.ms}ms, down to the line; every level adds up)\n${render_drill(r.drill)}`
-			: '') +
-		(ledger ? `\n\n## The exact lines (your code, costliest first, per render)\n${ledger}` : '') +
-		(findings ? `\n\n## Findings\n${findings}` : '') +
-		(budget ? `\n\n## ${budget_title}\n${budget}` : '') +
-		(hot ? `\n\n## Hottest functions (self ms per render)\n${hot}` : '') +
-		(comps
-			? `\n\n## Components (self ms per render; ×N = renders of it in one page render)\n${comps}`
-			: '') +
-		`\n\n## Network: ${net_line}  ·  Memory: ${mem_line}` +
+		shared,
+		patterns
+			? `\n\n${dedent`
+				## Slow patterns (fix these first)
+				${plan && fc ? render_patterns(r) : patterns}
+			`}`
+			: '',
+		r.drill
+			? `\n\n${dedent`
+				## Where one render went (${r.drill.ms}ms, down to the line; every level adds up)
+				${render_drill(r.drill)}
+			`}`
+			: '',
+		ledger
+			? `\n\n${dedent`
+			## The exact lines (your code, costliest first, per render)
+			${ledger}
+		`}`
+			: '',
+		findings
+			? `\n\n${dedent`
+			## Findings
+			${findings}
+		`}`
+			: '',
+		budget
+			? `\n\n${dedent`
+			## ${budget_title}
+			${budget}
+		`}`
+			: '',
+		hot
+			? `\n\n${dedent`
+			## Hottest functions (self ms per render)
+			${hot}
+		`}`
+			: '',
+		comps
+			? `\n\n${dedent`
+				## Components (self ms per render; ×N = renders of it in one page render)
+				${comps}
+			`}`
+			: '',
+		`\n\n## Network: ${net_line}  ·  Memory: ${mem_line}`,
 		links
-	);
+	].join('');
 }
 
 /** Record an SSR profile of a route on the running app + return the digested findings. */
@@ -1465,11 +1510,14 @@ async function find_local_profiler(base: string, key: string): Promise<string[]>
 	return (await Promise.all(probes)).filter((o): o is string => !!o);
 }
 
-const NOT_MOUNTED = (base: string, where: string) =>
-	`The profiler is not mounted at ${base} on ${where}. Install @ogygia/devtools and turn it on in vite.config.ts:\n\n` +
-	`  import { devtools } from '@ogygia/devtools/vite';\n` +
-	`  plugins: [ogygia(), devtools({ profiler: true /* or { secret, path, … } */ }), sveltekit()]\n\n` +
-	`ogygia.handle() mounts it for you — no hooks wiring needed. Restart the server, then retry.`;
+const NOT_MOUNTED = (base: string, where: string) => dedent`
+	The profiler is not mounted at ${base} on ${where}. Install @ogygia/devtools and turn it on in vite.config.ts:
+
+	  import { devtools } from '@ogygia/devtools/vite';
+	  plugins: [ogygia(), devtools({ profiler: true /* or { secret, path, … } */ }), sveltekit()]
+
+	ogygia.handle() mounts it for you — no hooks wiring needed. Restart the server, then retry.
+`;
 
 /** A locked profiler sends a visitor without a session to `<base>/login` (devtools profiler
  *  `#auth_guard`): is `res` that redirect? Proved by test/mcp-profile-locked.test.ts. */
@@ -1477,7 +1525,7 @@ function sends_to_login(res: Response, base: string): boolean {
 	if (res.status < 300 || res.status >= 400) return false;
 	const to = res.headers.get('location');
 	if (!to) return false;
-	return new URL(to, base).pathname === new URL(base + '/login').pathname;
+	return new URL(to, base).pathname === new URL(`${base}/login`).pathname;
 }
 
 /** Who holds the profiler's recorder, as its 409 says (devtools profiler `#busy`). */
@@ -1523,18 +1571,22 @@ async function tool_profile(args: Attrs): Promise<ToolResult> {
 		origin = u.origin;
 		route = u.pathname + u.search;
 	} else {
-		route = raw.startsWith('/') ? raw : '/' + raw;
+		route = raw.startsWith('/') ? raw : `/${raw}`;
 		if (explicit_origin) {
 			origin = explicit_origin;
 		} else {
 			const hits = await find_local_profiler(profiler_base, key);
 			const suggest = hits.length
-				? `\n\nRunning locally right now with the profiler mounted — reply with one to use it:\n${hits.map((h) => `  • ${h}${route}`).join('\n')}`
+				? `\n\n${dedent`
+					Running locally right now with the profiler mounted — reply with one to use it:
+					${hits.map((h) => `  • ${h}${route}`).join('\n')}
+				`}`
 				: `\n\n(No local server with the profiler is up — start \`vite dev\` / \`vite preview\`, or give a remote URL.)`;
-			return fail(
-				`Which URL should I profile \`${route}\` on? Ask the user, then call ogygia_profile again with the full \`url\`.\n\n` +
-					`Local looks like http://localhost:5173${route}; remote like https://your-app.com${route}.${suggest}`
-			);
+			return fail(dedent`
+				Which URL should I profile \`${route}\` on? Ask the user, then call ogygia_profile again with the full \`url\`.
+
+				Local looks like http://localhost:5173${route}; remote like https://your-app.com${route}.${suggest}
+			`);
 		}
 	}
 
@@ -1566,7 +1618,7 @@ async function tool_profile(args: Attrs): Promise<ToolResult> {
 	}
 
 	const record_once = () => {
-		const rec = new URL(origin + profiler_base + '/page');
+		const rec = new URL(`${origin + profiler_base}/page`);
 		rec.searchParams.set('p', route);
 		rec.searchParams.set('format', 'json');
 		rec.searchParams.set('runs', String(runs));
@@ -1597,7 +1649,7 @@ async function tool_profile(args: Attrs): Promise<ToolResult> {
 		const holder = await busy_holder(res);
 		if (holder?.stale !== true) return fail(busy_message(origin, holder));
 		try {
-			const reset = new URL(origin + profiler_base + '/reset');
+			const reset = new URL(`${origin + profiler_base}/reset`);
 			const reset_h: Record<string, string> = key ? { 'x-profiler-key': key } : {};
 			await fetch_timeout(reset, { redirect: 'manual', headers: reset_h }, 5000);
 			res = await record_once();
@@ -1663,7 +1715,11 @@ async function tool_profile_open(args: Attrs): Promise<ToolResult> {
 	report.links = undefined; // the source server is gone — its report URLs would 404
 	const node = (dump.meta as { node?: string }).node;
 	return text(
-		`> Imported from \`${file}\`${node ? ` · Node ${node}` : ''}\n\n` + render_profile('', report)
+		dedent`
+			> Imported from \`${file}\`${node ? ` · Node ${node}` : ''}
+
+			${render_profile('', report)}
+		`
 	);
 }
 
@@ -1744,7 +1800,7 @@ function tool_scan(args: Attrs): ToolResult {
 		try {
 			const r = transformHost(
 				source,
-				'/' + rel(f).replace(BACKSLASH_G, '/'),
+				`/${rel(f).replace(BACKSLASH_G, '/')}`,
 				build_ctx(true)
 			) as HostResult;
 			for (const isl of r?.islands ?? [])
@@ -1807,23 +1863,27 @@ function tool_scan(args: Attrs): ToolResult {
 		.join(' · ');
 	const errs = violations.filter((v) => v.severity === 'error');
 	const warns = violations.filter((v) => v.severity === 'warn');
+	const vio_lines = [...errs, ...warns]
+		.map((v) => `- ${v.severity === 'error' ? '❌' : '⚠️'} ${v.file}: ${v.msg}`)
+		.join('\n');
 	const vio_block = violations.length
-		? `\n\n## ⚠️ Findings (${violations.length})\n` +
-			[...errs, ...warns]
-				.map((v) => `- ${v.severity === 'error' ? '❌' : '⚠️'} ${v.file}: ${v.msg}`)
-				.join('\n')
+		? `\n\n${dedent`
+			## ⚠️ Findings (${violations.length})
+			${vio_lines}
+		`}`
 		: `\n\n## ✅ No rule violations across ${files.length} files.`;
 
 	const preset_note = preset_marks
 		? `\n\n> ${preset_marks} import(s) use a \`preset\` — resolved from your \`ogygia({ presets })\` config at build, not checked here.`
 		: '';
-	return text(
-		`# ogygia scan — ${dir}\n\n` +
-			`${islands.length} marked region(s) across ${by_file.size} file(s) (${files.length} .svelte scanned) · ${kind_summary}\n\n` +
-			`## Island map\n${map_lines}` +
-			vio_block +
-			preset_note
-	);
+	return text(dedent`
+		# ogygia scan — ${dir}
+
+		${islands.length} marked region(s) across ${by_file.size} file(s) (${files.length} .svelte scanned) · ${kind_summary}
+
+		## Island map
+		${map_lines}${vio_block}${preset_note}
+	`);
 }
 
 // ── flags: the build's own AST collector, run live over src/ ─────────────────────────────────
@@ -1881,9 +1941,7 @@ function tool_flags(args: Attrs): ToolResult {
 
 	if (!live.flags.length && !manifest)
 		return text(
-			`No flag() call sites under ${dir}/src (${files.length} file(s) scanned), and no ` +
-				`build manifest. Flags are defined with \`flag('name', …)\` from '@ogygia/flags' ` +
-				`— literal names only (a dynamic first argument is invisible to the inventory).`
+			`No flag() call sites under ${dir}/src (${files.length} file(s) scanned), and no build manifest. Flags are defined with \`flag('name', …)\` from '@ogygia/flags' — literal names only (a dynamic first argument is invisible to the inventory).`
 		);
 
 	const by_name = new Map<string, FlagSite[]>();
@@ -1905,13 +1963,15 @@ function tool_flags(args: Attrs): ToolResult {
 			? `\n\n> ⚠️ In the last build's manifest but NOT in source now (deleted or renamed since): ${stale.join(', ')}. Rebuild to refresh.`
 			: `\n\n> Matches the last build's manifest.`;
 
-	return text(
-		`# ogygia flags — ${dir}\n\n` +
-			`${live.names.length} flag(s) · ${live.flags.length} call site(s) across ${files.length} scanned file(s)\n\n` +
-			site_lines +
-			manifest_note +
-			`\n\n> Override in dev: \`?og-exp=<name>:<variant>\` (repeat or comma-separate). Prod honors overrides only behind \`decide({ overrides })\`.`
-	);
+	return text(dedent`
+		# ogygia flags — ${dir}
+
+		${live.names.length} flag(s) · ${live.flags.length} call site(s) across ${files.length} scanned file(s)
+
+		${site_lines}${manifest_note}
+
+		> Override in dev: \`?og-exp=<name>:<variant>\` (repeat or comma-separate). Prod honors overrides only behind \`decide({ overrides })\`.
+	`);
 }
 
 // ── fragment: probe a federation MFE origin ──────────────────────────────────────────────────
@@ -1959,22 +2019,29 @@ async function tool_fragment(args: Attrs): Promise<ToolResult> {
 				widgets?: Record<string, { props?: string[] }>;
 			};
 			const names = manifest.names ?? [];
+			const listed = names
+				.map((n) => `- \`${n}(${(manifest.widgets?.[n]?.props ?? []).join(', ')})\``)
+				.join('\n');
 			widgets_block = names.length
-				? names
-						.map((n) => `- \`${n}(${(manifest.widgets?.[n]?.props ?? []).join(', ')})\``)
-						.join('\n') +
-					`\n\nTyped stubs: \`npx ogygia fragments ${origin} --out src/lib/widgets.ts\` (add \`--check\` in CI to fail on drift).`
+				? dedent`
+					${listed}
+
+					Typed stubs: \`npx ogygia fragments ${origin} --out src/lib/widgets.ts\` (add \`--check\` in CI to fail on drift).
+				`
 				: 'Catalog mounted, zero widgets declared.';
 		} catch {
 			widgets_block = '__catalog returned non-JSON — not an ogygia widget catalog.';
 		}
 	}
 
-	return text(
-		`# ogygia fragment probe — ${origin}\n\n` +
-			`- routes endpoint (\`/og/fragment/page\`): ${posture}\n\n` +
-			`## Widgets (\`__catalog\`)\n${widgets_block}`
-	);
+	return text(dedent`
+		# ogygia fragment probe — ${origin}
+
+		- routes endpoint (\`/og/fragment/page\`): ${posture}
+
+		## Widgets (\`__catalog\`)
+		${widgets_block}
+	`);
 }
 
 /** A JSON value's type, in a tool schema's words. */
@@ -2037,10 +2104,10 @@ type Rpc = {
 };
 
 function send(msg: Record<string, unknown>): void {
-	process.stdout.write(JSON.stringify(msg) + '\n');
+	process.stdout.write(`${JSON.stringify(msg)}\n`);
 }
 function log(...parts: unknown[]): void {
-	process.stderr.write('[ogygia mcp] ' + parts.map(String).join(' ') + '\n');
+	process.stderr.write(`[ogygia mcp] ${parts.map(String).join(' ')}\n`);
 }
 
 function handle(msg: Rpc): void {

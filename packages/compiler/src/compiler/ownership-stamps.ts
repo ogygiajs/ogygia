@@ -159,6 +159,6 @@ export function stamp_opaque(raw: string, filename: string): string | null {
 	visit(ast.fragment?.nodes);
 	if (!at.length) return null;
 	const s = new MagicString(source);
-	for (const { pos, attr } of at) s.appendLeft(pos, ' ' + attr);
+	for (const { pos, attr } of at) s.appendLeft(pos, ` ${attr}`);
 	return s.toString();
 }

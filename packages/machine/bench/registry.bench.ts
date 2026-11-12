@@ -4,7 +4,7 @@
 import { bench } from '@bench/heisenbench/bench';
 import { registry, scope } from '../src/index.ts';
 
-const keys = (n: number): string[] => Array.from({ length: n }, (_, i) => 'def/' + i);
+const keys = (n: number): string[] => Array.from({ length: n }, (_, i) => `def/${i}`);
 
 bench(
 	'registry: add under an owner, walk, remove half, then the owner ends',

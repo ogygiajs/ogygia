@@ -46,7 +46,7 @@
 		void tick;
 		void bump;
 		profiles_version();
-		return profile_for(path.startsWith('/') ? path : '/' + path);
+		return profile_for(path.startsWith('/') ? path : `/${path}`);
 	});
 	const elapsed = $derived.by(() => {
 		void tick; // the panel's pulse moves the counter
@@ -61,7 +61,7 @@
 		error = '';
 		running = true;
 		started = performance.now();
-		const p = path.startsWith('/') ? path : '/' + path;
+		const p = path.startsWith('/') ? path : `/${path}`;
 		try {
 			if ((await run_profile(p, runs, BASE, owner)) === null) return; // the tab was left
 			bump++;
@@ -74,16 +74,16 @@
 
 	const ms = (/** @type {number} */ n) =>
 		n >= 1000
-			? (n / 1000).toFixed(2) + ' s'
+			? `${(n / 1000).toFixed(2)} s`
 			: n >= 10
-				? Math.round(n) + ' ms'
-				: n.toFixed(1) + ' ms';
+				? `${Math.round(n)} ms`
+				: `${n.toFixed(1)} ms`;
 	const kb = (/** @type {number} */ n) =>
 		n < 1024
-			? n + ' B'
+			? `${n} B`
 			: n < 1048576
-				? (n / 1024).toFixed(1) + ' KB'
-				: (n / 1048576).toFixed(2) + ' MB';
+				? `${(n / 1024).toFixed(1)} KB`
+				: `${(n / 1048576).toFixed(2)} MB`;
 	function el_of(/** @type {string | null} */ fp) {
 		return fp ? document.querySelector(`ogygia-region[data-og-fp="${fp}"]`) : null;
 	}

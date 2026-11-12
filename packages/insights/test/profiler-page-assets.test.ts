@@ -53,8 +53,7 @@ describe('scan_assets', () => {
 
 	test('tags are read as a browser reads them: a quoted `>`, an upper-case close', () => {
 		const { refs } = scan_assets(
-			`<head><link rel="stylesheet" title="a>b" href="/x.css">` +
-				`<script>var a = 1</SCRIPT><link rel=stylesheet href=/y.css></head>`
+			`<head><link rel="stylesheet" title="a>b" href="/x.css"><script>var a = 1</SCRIPT><link rel=stylesheet href=/y.css></head>`
 		);
 		expect(refs.map((r) => r.url)).toEqual(['/x.css', '/y.css']);
 	});
@@ -84,7 +83,7 @@ describe('Kit route nodes', () => {
 			'/_app/immutable/entry/app.A.js':
 				'const n=[()=>r(()=>import("../nodes/0.N0.js")),()=>r(()=>import("../nodes/1.N1.js")),()=>r(()=>import("../nodes/5.N5.js")),()=>r(()=>import("../nodes/50.N50.js"))];',
 			'/_app/immutable/nodes/0.N0.js': 'layout',
-			'/_app/immutable/nodes/5.N5.js': 'import"../chunks/editor.E.js";' + 'p'.repeat(100),
+			'/_app/immutable/nodes/5.N5.js': `import"../chunks/editor.E.js";${'p'.repeat(100)}`,
 			'/_app/immutable/chunks/editor.E.js': 'e'.repeat(50_000),
 			'/_app/immutable/nodes/1.N1.js': 'other route',
 			'/_app/immutable/nodes/50.N50.js': 'other route'
@@ -112,7 +111,7 @@ describe('Kit route nodes', () => {
 			'<html><head><script type="module" data-ogygia-runtime src="/_app/immutable/og-runtime.R.js"></script></head><body></body></html>';
 		const files: Record<string, string> = {
 			'/_app/immutable/og-runtime.R.js': 'const h=()=>import(`./chunks/hydrate.H.js`);export{h};',
-			'/_app/immutable/chunks/hydrate.H.js': 'import{a}from"./svelte.S.js";' + 'x'.repeat(2000),
+			'/_app/immutable/chunks/hydrate.H.js': `import{a}from"./svelte.S.js";${'x'.repeat(2000)}`,
 			'/_app/immutable/chunks/svelte.S.js': 'y'.repeat(3000)
 		};
 		const r = await weigh_assets({
@@ -145,7 +144,7 @@ describe('weigh_assets', () => {
 	test('weighs every file, follows static imports, keeps lazy islands apart', async () => {
 		const files: Record<string, string> = {
 			'/_app/immutable/entry/start.X.js': 'import{a}from"../chunks/big.Y.js";export const s=1;',
-			'/_app/immutable/chunks/big.Y.js': 'x'.repeat(5000) + ';import"./dep.W.js";',
+			'/_app/immutable/chunks/big.Y.js': `${'x'.repeat(5000)};import"./dep.W.js";`,
 			'/_app/immutable/chunks/dep.W.js': 'y'.repeat(1000),
 			'/_app/immutable/entry/app.Z.js': 'z'.repeat(300),
 			'/_app/immutable/assets/0.abc.css': '.a{}'.repeat(100),

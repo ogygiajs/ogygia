@@ -23,10 +23,10 @@ const { prepare_render_page, render_page, render_page_version } =
 	await import('../src/server/render-page.ts');
 
 const kit_data = (data: Record<string, unknown>) =>
-	JSON.stringify({
+	`${JSON.stringify({
 		type: 'data',
 		nodes: [{ type: 'data', data: JSON.parse(devalue.stringify(data)), uses: {} }]
-	}) + '\n';
+	})}\n`;
 
 describe('a render for a page, its look-up not kept', () => {
 	it('renders with the facts its look-up answered', async () => {

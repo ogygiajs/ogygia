@@ -24,7 +24,7 @@ const PLANTED = {
 
 const browser = await chromium.launch();
 const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
-await page.goto(base + '/dt-session', { waitUntil: 'load' });
+await page.goto(`${base}/dt-session`, { waitUntil: 'load' });
 await page.waitForTimeout(9000); // past the page-load sampler's 8 s (one sampler at a time)
 if (!(await page.locator('[data-og-tab="record"]').count()))
 	await page.locator('[data-og-panel-toggle]').click();

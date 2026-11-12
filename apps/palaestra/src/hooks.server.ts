@@ -48,8 +48,8 @@ const auth_wall: Handle = async ({ event, resolve }) => {
 		if (mode === 'redirect') redirect(302, '/hole-wall/account/');
 		if (mode === 'document') {
 			return new Response(
-				'<!DOCTYPE html>\n<html><head><meta name="ogygia-csr" content="true"></head>' +
-					'<body><div data-wall-skeleton class="skeleton">…</div></body></html>',
+				`<!DOCTYPE html>
+<html><head><meta name="ogygia-csr" content="true"></head><body><div data-wall-skeleton class="skeleton">…</div></body></html>`,
 				{ status: 200, headers: { 'content-type': 'text/html; charset=utf-8' } }
 			);
 		}

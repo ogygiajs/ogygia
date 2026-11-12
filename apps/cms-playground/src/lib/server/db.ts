@@ -5,6 +5,7 @@
  * the ogygia loader talks to those over HTTP like it would to a real CMS.
  */
 
+import { dedent } from 'ogygia/plugin/utils';
 export type CmsCategory = {
 	id: string;
 	name: string;
@@ -85,7 +86,13 @@ export const pages: CmsPage[] = [
 				type: 'Code',
 				props: {
 					lang: 'ts',
-					code: 'const raw = {\n  get: (id) => fetch(`${CMS}/pages/${id}`).then(to_record),\n  list: () => fetch(`${CMS}/pages?full=1`).then(to_records),\n  ids: () => fetch(`${CMS}/pages`).then(to_ids)\n};'
+					code: dedent`
+						const raw = {
+						  get: (id) => fetch(\`\${CMS}/pages/\${id}\`).then(to_record),
+						  list: () => fetch(\`\${CMS}/pages?full=1\`).then(to_records),
+						  ids: () => fetch(\`\${CMS}/pages\`).then(to_ids)
+						};
+					`
 				}
 			},
 			{

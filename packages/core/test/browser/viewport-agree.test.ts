@@ -32,10 +32,7 @@ afterEach(() => {
 
 test('a visible hole whose content is a fixed button on screen fetches, as the load class says', async () => {
 	// the region sits at the end of a long page; the button it renders is fixed at the top
-	document.body.innerHTML =
-		`<div style="height:${innerHeight * 4}px"></div>` +
-		`<ogygia-region render="defer" when="visible" endpoint="${ep('view00000001')}">` +
-		`<button style="position:fixed;top:64px;left:8px">open</button></ogygia-region>`;
+	document.body.innerHTML = `<div style="height:${innerHeight * 4}px"></div><ogygia-region render="defer" when="visible" endpoint="${ep('view00000001')}"><button style="position:fixed;top:64px;left:8px">open</button></ogygia-region>`;
 	const region = document.querySelector('ogygia-region')!;
 	expect(viewport_class(region), 'the load scheduler sees it on screen').toBe('visible');
 	bootDev();
@@ -48,9 +45,7 @@ test('a visible hole whose content is a fixed button on screen fetches, as the l
 });
 
 test('a visible hole that is display: contents fetches when what it renders is on screen', async () => {
-	document.body.innerHTML =
-		`<ogygia-region render="defer" when="visible" style="display:contents" endpoint="${ep('view00000002')}">` +
-		`<p style="margin:0">fallback</p></ogygia-region>`;
+	document.body.innerHTML = `<ogygia-region render="defer" when="visible" style="display:contents" endpoint="${ep('view00000002')}"><p style="margin:0">fallback</p></ogygia-region>`;
 	const region = document.querySelector('ogygia-region')!;
 	expect(viewport_class(region), 'the load scheduler sees it on screen').toBe('visible');
 	bootDev();
@@ -63,10 +58,7 @@ test('a visible hole that is display: contents fetches when what it renders is o
 });
 
 test('a visible hole off screen with its fixed content off screen too waits', async () => {
-	document.body.innerHTML =
-		`<div style="height:${innerHeight * 4}px"></div>` +
-		`<ogygia-region render="defer" when="visible" endpoint="${ep('view00000003')}">` +
-		`<button style="position:fixed;top:${innerHeight + 200}px">far</button></ogygia-region>`;
+	document.body.innerHTML = `<div style="height:${innerHeight * 4}px"></div><ogygia-region render="defer" when="visible" endpoint="${ep('view00000003')}"><button style="position:fixed;top:${innerHeight + 200}px">far</button></ogygia-region>`;
 	const region = document.querySelector('ogygia-region')!;
 	expect(viewport_class(region)).toBe('ahead');
 	bootDev();

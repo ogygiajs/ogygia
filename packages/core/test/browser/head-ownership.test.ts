@@ -6,14 +6,7 @@ import { beforeEach, expect, test } from 'vitest';
 import { RuntimeSession } from '../../src/runtime/session.ts';
 
 const LD = '<script type="application/ld+json">{"@type":"BreadcrumbList"}</script>';
-const SERVER_HEAD =
-	'<meta charset="utf-8">' +
-	'<title>Server title</title>' +
-	LD +
-	'<meta name="island" content="x">' +
-	'<style>.hero{color:red}</style>' +
-	'<link rel="preload" as="image" href="/hero.avif">' +
-	'<link rel="stylesheet" href="/island.css">';
+const SERVER_HEAD = `<meta charset="utf-8"><title>Server title</title>${LD}<meta name="island" content="x"><style>.hero{color:red}</style><link rel="preload" as="image" href="/hero.avif"><link rel="stylesheet" href="/island.css">`;
 
 let s: RuntimeSession;
 beforeEach(() => {
@@ -103,8 +96,7 @@ test('the mark finds what a scan of the head finds, in head order', () => {
 
 test('the island’s live copy stays, the page’s identical copies go', () => {
 	const live = island_renders(
-		LD +
-			'<meta name="island" content="x"><style>.hero{color:red}</style><link rel="preload" as="image" href="/hero.avif">'
+		`${LD}<meta name="island" content="x"><style>.hero{color:red}</style><link rel="preload" as="image" href="/hero.avif">`
 	);
 	expect(document.head.querySelectorAll('script[type="application/ld+json"]').length).toBe(1);
 	expect(document.head.querySelectorAll('meta[name="island"]').length).toBe(1);

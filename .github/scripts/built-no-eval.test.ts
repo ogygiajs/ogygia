@@ -21,20 +21,24 @@ test('every way built code turns a string into code is found', () => {
 		'setTimeout(<string>)',
 		'setInterval(<string>)'
 	]);
-	assert.deepEqual(eval_sites('a\nb\neval(s)', 'x.js')[0].line, 3);
+	assert.deepEqual(
+		eval_sites(
+			`a
+b
+eval(s)`,
+			'x.js'
+		)[0].line,
+		3
+	);
 });
 
 test('what only looks like it is left alone', () => {
 	assert.deepEqual(
-		whats(
-			[
-				'const m = { eval: 1 }; m.eval(s); obj.Function(s);',
-				'"eval(s)"; // eval(s)',
-				'/eval\\(/.test(s);',
-				'setTimeout(() => go(), 1); setTimeout(fn, 1);',
-				'class A { eval() {} }'
-			].join('\n')
-		),
+		whats(`const m = { eval: 1 }; m.eval(s); obj.Function(s);
+"eval(s)"; // eval(s)
+/eval\\(/.test(s);
+setTimeout(() => go(), 1); setTimeout(fn, 1);
+class A { eval() {} }`),
 		[]
 	);
 	assert.deepEqual(whats('export const x = 1; import("./y.js");'), []);

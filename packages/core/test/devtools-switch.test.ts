@@ -11,7 +11,7 @@ import {
 
 describe('the devtools switch', () => {
 	it('reads on / off from the URL, nothing otherwise', () => {
-		const at = (q: string) => switch_in_url(new URL('https://a.test/p' + q));
+		const at = (q: string) => switch_in_url(new URL(`https://a.test/p${q}`));
 		expect(at('?og-devtools=on')).toBe(true);
 		expect(at('?og-devtools=1')).toBe(true);
 		expect(at('?og-devtools=off')).toBe(false);

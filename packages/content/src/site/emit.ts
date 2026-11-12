@@ -1,15 +1,6 @@
-/**
- * Emissions — machine-facing serializations of the site, the second audience docs have in 2026.
- * Pure functions over a resolved `NavTree`: a sitemap for crawlers, an `llms.txt` index for models.
- * No I/O, no request — `site()` wraps these in GET handlers that supply the origin. Leaf hrefs are
- * already mount-resolved (root-relative), so an absolute URL is just `origin + href`.
- *
- * (Per-page raw `.md` / `llms-full.txt` need the entry SOURCE text, which the content pillar does not
- * retain — it stores compiled bodies. That waits on a raw-source companion; it is not here yet.)
- */
 import type { NavItem, NavLeaf, NavTree } from './types.ts';
+import { dedent } from '@ogygia/core/plugin/utils';
 
-// ── regexes
 const FRONTMATTER_BLOCK_RE = /^﻿?---\r?\n[\s\S]*?\r?\n---\r?\n?/;
 const LEADING_WS_RE = /^\s+/;
 const XML_SPECIAL_G = /[&<>"']/g;
@@ -27,7 +18,6 @@ function xml_escape(s: string): string {
 	);
 }
 
-/** Depth-first list of every leaf under a set of items (nested groups flattened). */
 function leaves_of(items: NavTree): NavLeaf[] {
 	const out: NavLeaf[] = [];
 	for (const item of items) {
@@ -37,15 +27,20 @@ function leaves_of(items: NavTree): NavLeaf[] {
 	return out;
 }
 
-/** A sitemap.xml over every leaf, absolute-URL'd against `origin`. */
+/** A sitemap.xml over every leaf, nested groups included. A leaf's `href` is root-relative, so its
+ *  URL is `origin + href`. */
 export function build_sitemap(tree: NavTree, origin: string): string {
 	const urls = leaves_of(tree)
 		.map((l) => `  <url><loc>${xml_escape(origin + l.href)}</loc></url>`)
 		.join('\n');
-	return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls}\n</urlset>\n`;
+	return `${dedent`
+		<?xml version="1.0" encoding="UTF-8"?>
+		<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+		${urls}
+		</urlset>
+	`}\n`;
 }
 
-/** One `- [title](url): summary` line for a leaf or link. */
 function bullet(item: NavItem, origin: string): string | null {
 	if (item.kind === 'leaf')
 		return `- [${item.title}](${origin + item.href})${item.summary ? `: ${item.summary}` : ''}`;
@@ -53,7 +48,6 @@ function bullet(item: NavItem, origin: string): string | null {
 	return null;
 }
 
-/** Flatten a section's items to bullet lines (nested groups contribute their leaves). */
 function section_bullets(items: NavTree, origin: string): string[] {
 	const out: string[] = [];
 	for (const item of items) {
@@ -70,7 +64,8 @@ export type LlmsOptions = { title?: string; description?: string };
 
 /**
  * An `llms.txt` index (llmstxt.org shape): an H1 title, an optional blockquote description, then one
- * H2 per top-level group with a bulleted link list. Loose top-level pages/links go under `## Pages`.
+ * H2 per top-level group with a bulleted link list (a nested group's leaves join its section). Loose
+ * top-level pages and links go under `## Pages`.
  */
 export function build_llms(tree: NavTree, origin: string, opts: LlmsOptions = {}): string {
 	const lines: string[] = [`# ${opts.title ?? 'Documentation'}`, ''];
@@ -93,10 +88,8 @@ export function build_llms(tree: NavTree, origin: string, opts: LlmsOptions = {}
 		lines.push('');
 	}
 
-	return lines.join('\n').replace(EXCESS_BLANK_LINES_G, '\n\n').trimEnd() + '\n';
+	return `${lines.join('\n').replace(EXCESS_BLANK_LINES_G, '\n\n').trimEnd()}\n`;
 }
-
-// ── RSS — the blog genre's emission ──────────────────────────────────────────────
 
 /** One feed item. `href` is root-relative (the emitter absolutizes); `date` is ISO `YYYY-MM-DD`. */
 export type RssItem = { href: string; title: string; description?: string; date: string };
@@ -125,7 +118,7 @@ export function build_rss(origin: string, opts: RssOptions): string {
 				`\t\t\t<link>${xml_escape(url)}</link>`,
 				`\t\t\t<guid isPermaLink="true">${xml_escape(url)}</guid>`,
 				...(p.description ? [`\t\t\t<description>${xml_escape(p.description)}</description>`] : []),
-				`\t\t\t<pubDate>${new Date(p.date + 'T00:00:00Z').toUTCString()}</pubDate>`,
+				`\t\t\t<pubDate>${new Date(`${p.date}T00:00:00Z`).toUTCString()}</pubDate>`,
 				`\t\t</item>`
 			].join('\n');
 		})

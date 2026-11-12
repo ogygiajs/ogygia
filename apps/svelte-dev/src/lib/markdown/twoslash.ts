@@ -77,7 +77,7 @@ function banner_for(lang: string, source: string): string {
 	// twoslash how to treat the main file; svelte fences MUST be `.svelte` for twoslash-svelte.
 	const main = lang === 'svelte' ? 'App.svelte' : lang === 'ts' ? 'index.ts' : 'index.js';
 	lines.push(`// @filename: ${main}`, '// ---cut---');
-	return lines.join('\n') + '\n';
+	return `${lines.join('\n')}\n`;
 }
 
 /** The marker line twoslash's cut consumes on success. If it survives to the rendered HTML, twoslash

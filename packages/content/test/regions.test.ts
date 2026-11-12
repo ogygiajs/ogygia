@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { rewrite_regions, region_key } from '../src/macros/regions.ts';
+import { dedent } from '@ogygia/core/plugin/utils';
 
 let dir: string;
 let registry_id: string;
@@ -47,11 +48,11 @@ describe('rewrite_regions', () => {
 	});
 
 	it('ignores the marker in a comment or string', () => {
-		const src = [
-			`// import.meta.og.regions('./blocks/*.svelte')`,
-			`const s = "import.meta.og.regions('x')";`,
-			`export const r = import.meta.og.regions('./blocks/Hero.svelte');`
-		].join('\n');
+		const src = dedent`
+			// import.meta.og.regions('./blocks/*.svelte')
+			const s = "import.meta.og.regions('x')";
+			export const r = import.meta.og.regions('./blocks/Hero.svelte');
+		`;
 		const out = rewrite_regions(src, registry_id);
 		expect((out.match(/with \{ region: 'raw' \}/g) ?? []).length).toBe(1); // only the real call
 		expect(out).toContain(`// import.meta.og.regions('./blocks/*.svelte')`);

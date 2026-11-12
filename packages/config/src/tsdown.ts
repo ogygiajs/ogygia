@@ -129,7 +129,7 @@ export function inline_markup_names() {
 					const name = (s.local as { name: string }).name;
 					const value = local.get(name);
 					if (value !== undefined && exported.has(name))
-						text += `const ${name} = ${JSON.stringify(value)};`;
+						text = `${text}const ${name} = ${JSON.stringify(value)};`;
 				}
 				const end = text === '' && code[decl.end] === '\n' ? decl.end + 1 : decl.end;
 				edits.push({ start: decl.start, end, text });

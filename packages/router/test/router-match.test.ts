@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { compile, compile_all, match_one, match_path } from '../src/match.ts';
+import { compile, compile_all, fill, match_one, match_path } from '../src/match.ts';
 
 describe('router pattern matching', () => {
 	it('matches root, static, and params', () => {
@@ -52,6 +52,12 @@ describe('router pattern matching', () => {
 		expect(match_path(t, '/docs/x/y')!.pattern).toBe('/docs/[...r]');
 	});
 
+	it('ranks a required [param] above an [[optional]] one in the same place', () => {
+		const s = compile_all(['/[[lang]]/docs', '/[section]/docs']);
+		expect(match_path(s, '/en/docs')!.pattern).toBe('/[section]/docs');
+		expect(match_path(s, '/docs')!.pattern).toBe('/[[lang]]/docs');
+	});
+
 	it('distinguishes dot-suffixed and nested variants (the profiler /report cases)', () => {
 		const s = compile_all(['/report/[id]', '/report/[id].json', '/report/[id]/raw']);
 		expect(match_path(s, '/report/abc.json')!.pattern).toBe('/report/[id].json');
@@ -63,12 +69,29 @@ describe('router pattern matching', () => {
 		expect(() => compile('docs/[slug]')).toThrow(/must start with/);
 		expect(() => compile('/a/[...rest]/b')).toThrow(/must be last/);
 	});
+
+	it('rejects a segment with a stray bracket left after its valid [param] groups', () => {
+		expect(() => compile('/a/[b')).toThrow(/malformed segment/);
+		expect(() => compile('/a/b]c')).toThrow(/malformed segment/);
+		expect(() => compile('/a/[id]]')).toThrow(/malformed segment/);
+	});
+
+	it('hands back a param with a malformed %xx as it was, instead of throwing', () => {
+		expect(match_one(compile('/u/[name]'), '/u/%E0%A4%A')!.params).toEqual({ name: '%E0%A4%A' });
+	});
+
+	it('fill() puts URL-encoded params into every token kind, and nothing for a missing one', () => {
+		expect(fill('/[[lang]]/docs/[slug]/[...rest]', { lang: 'en', slug: 'a b', rest: 'x' })).toBe(
+			'/en/docs/a%20b/x'
+		);
+		expect(fill('/docs/[slug]', {})).toBe('/docs/');
+	});
 });
 
 describe('router pattern matching takes time in line with the path', () => {
 	it('a segment with several params answers a long path that almost matches at once', () => {
 		const c = [compile('/[a]-[b]-[c]')];
-		const near_miss = '/' + '-'.repeat(2000) + '/x';
+		const near_miss = `/${'-'.repeat(2000)}/x`;
 		const t = performance.now();
 		expect(match_path(c, near_miss)).toBeNull();
 		expect(performance.now() - t).toBeLessThan(100);
@@ -97,7 +120,7 @@ describe('router pattern matching takes time in line with the path', () => {
 		// the reference is Kit's own shape: each param `([^/]+?)`, fine on paths this short
 		const kit = (pattern: string) =>
 			new RegExp(
-				'^' + pattern.replace(/[.*+?^${}()|\\]/g, '\\$&').replace(/\[[a-z]\]/g, '([^/]+?)') + '/?$'
+				`^${pattern.replace(/[.*+?^${}()|\\]/g, '\\$&').replace(/\[[a-z]\]/g, '([^/]+?)')}/?$`
 			);
 		const patterns = [
 			'/[a]-[b]',
@@ -115,7 +138,7 @@ describe('router pattern matching takes time in line with the path', () => {
 		for (const pattern of patterns) {
 			const c = compile(pattern);
 			for (const tail of paths) {
-				const path = '/' + tail;
+				const path = `/${tail}`;
 				const want = kit(pattern).exec(path);
 				const got = match_one(c, path);
 				const want_params = want
@@ -129,13 +152,13 @@ describe('router pattern matching takes time in line with the path', () => {
 	it('two params with nothing between them answer a long near miss at once (#833)', () => {
 		const c = [compile('/[a][b]')];
 		const t = performance.now();
-		expect(match_path(c, '/' + 'a'.repeat(8000) + '/x')).toBeNull();
+		expect(match_path(c, `/${'a'.repeat(8000)}/x`)).toBeNull();
 		expect(performance.now() - t).toBeLessThan(100);
 	});
 
 	it('a path longer than any route can mean matches nothing', () => {
 		const c = compile_all(['/[...rest]']);
-		expect(match_path(c, '/' + 'a'.repeat(20_000))).toBeNull();
-		expect(match_path(c, '/' + 'a'.repeat(2000))).not.toBeNull();
+		expect(match_path(c, `/${'a'.repeat(20_000)}`)).toBeNull();
+		expect(match_path(c, `/${'a'.repeat(2000)}`)).not.toBeNull();
 	});
 });

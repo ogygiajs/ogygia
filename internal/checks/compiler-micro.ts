@@ -11,6 +11,7 @@
 import { transformHost } from '../../packages/compiler/dist/compiler/region/transform.js';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
+import { dedent } from '@ogygia/core/plugin/utils';
 
 const root = path.join(process.cwd(), 'apps/palaestra');
 const ctx: Parameters<typeof transformHost>[2] = {
@@ -50,14 +51,31 @@ function time(src: string, id: string): { ms: number; det: boolean } {
 	return { ms: ts[2], det };
 }
 const manyIslands = (n: number) =>
-	`<script>\n${Array.from({ length: n }, (_, i) => `\timport C${i} from '$lib/C${i}.svelte' with { wake: '${['load', 'idle', 'visible', 'interaction'][i % 4]}' };`).join('\n')}\n</script>\n${Array.from({ length: n }, (_, i) => `<C${i} start={${i}} />`).join('\n')}`;
+	dedent`
+		<script>
+		${Array.from({ length: n }, (_, i) => `\timport C${i} from '$lib/C${i}.svelte' with { wake: '${['load', 'idle', 'visible', 'interaction'][i % 4]}' };`).join('\n')}
+		</script>
+		${Array.from({ length: n }, (_, i) => `<C${i} start={${i}} />`).join('\n')}
+	`;
 const nest = (d: number) => {
 	let inner = '<C start={0} />';
 	for (let i = 0; i < d; i++) inner = `<Wrap>${inner}</Wrap>`;
-	return `<script>\n\timport C from '$lib/C.svelte' with { wake: 'load' };\n\timport Wrap from '$lib/Wrap.svelte' with { wake: 'visible' };\n</script>\n${inner}`;
+	return dedent`
+		<script>
+			import C from '$lib/C.svelte' with { wake: 'load' };
+			import Wrap from '$lib/Wrap.svelte' with { wake: 'visible' };
+		</script>
+		${inner}
+	`;
 };
 const content = (kb: number) =>
-	`<script>\n\timport C from '$lib/C.svelte' with { wake: 'load' };\n</script>\n<C start={0} />\n${('lorem ipsum dolor sit amet '.repeat(30) + '\n\n').repeat(Math.ceil((kb * 1024) / 850))}`;
+	dedent`
+		<script>
+			import C from '$lib/C.svelte' with { wake: 'load' };
+		</script>
+		<C start={0} />
+		${`${'lorem ipsum dolor sit amet '.repeat(30)}\n\n`.repeat(Math.ceil((kb * 1024) / 850))}
+	`;
 
 console.log('\x1b[1m\x1b[36m▸ compiler micro-stress — transformHost on pathological inputs\x1b[0m');
 let detAll = true;

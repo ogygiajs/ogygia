@@ -50,7 +50,7 @@ function check_realm(id: string, realm: Realm, env: Env): void {
 
 /** Is this specifier (or resolved id) in ogygia's virtual namespace? */
 export const is_virtual_specifier = (source: string): boolean =>
-	source.startsWith(OGYGIA_SCHEME) || source.startsWith('\0' + OGYGIA_SCHEME);
+	source.startsWith(OGYGIA_SCHEME) || source.startsWith(`\0${OGYGIA_SCHEME}`);
 
 export class VirtualTable<A> {
 	/** specifier or alias → its one-module entry */

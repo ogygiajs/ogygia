@@ -918,8 +918,7 @@ export const BUILD_WARNINGS = {
 	},
 	page_seed_report: {
 		text: (a: { islands: number; pinned: number; keys: number; unpinned: number }): string =>
-			`page seed: ${a.islands} island${a.islands === 1 ? '' : 's'} read page.data — ` +
-			`${a.pinned} pinned to ${a.keys} key${a.keys === 1 ? '' : 's'}, ${a.unpinned} ship all of it`,
+			`page seed: ${a.islands} island${a.islands === 1 ? '' : 's'} read page.data — ${a.pinned} pinned to ${a.keys} key${a.keys === 1 ? '' : 's'}, ${a.unpinned} ship all of it`,
 		details: (): string => prose`
 			An island that reads \`page.data\` gets a copy of it in the page. When the build can see
 			which keys it reads, the island is pinned to them and only those ship. When it cannot (the

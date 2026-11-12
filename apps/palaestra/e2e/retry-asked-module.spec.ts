@@ -18,9 +18,9 @@ test.describe('a retried import', () => {
 		baseURL
 	}) => {
 		// the Outer region's module, read from a page served as usual
-		const html = await (await fetch(baseURL + '/nested')).text();
+		const html = await (await fetch(`${baseURL}/nested`)).text();
 		const src = /<ogygia-region[^>]*\ssrc="([^"]+)"/.exec(html)?.[1] ?? '';
-		const code = await (await fetch(new URL(src, baseURL + '/nested').href)).text();
+		const code = await (await fetch(new URL(src, `${baseURL}/nested`).href)).text();
 		const nested = NESTED_IMPORT_RE.exec(code)?.[1] ?? '';
 		check('the Outer module imports its nested island as it loads', nested !== '', src);
 
@@ -28,7 +28,7 @@ test.describe('a retried import', () => {
 		// ask: every request before the first retry fails)
 		let cut = 0;
 		await page.route(
-			(url) => url.pathname.endsWith('/' + nested) && !url.searchParams.has('og-retry'),
+			(url) => url.pathname.endsWith(`/${nested}`) && !url.searchParams.has('og-retry'),
 			async (route) => {
 				cut++;
 				await route.abort('connectionreset');

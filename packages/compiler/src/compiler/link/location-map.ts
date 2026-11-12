@@ -26,7 +26,7 @@ export const CURRENT_LOCATIONS_FILE = 'ogygia.json';
 /** A path from `from_file`'s directory to `to_file` (both output-relative), always dot-led. */
 function relative_specifier(from_file: string, to_file: string): string {
 	const rel = path.posix.relative(path.posix.dirname(from_file), to_file);
-	return rel.startsWith('.') ? rel : './' + rel;
+	return rel.startsWith('.') ? rel : `./${rel}`;
 }
 
 /** Orders `[key, value]` pairs by key: what the build writes from the bundler's entries, which it
@@ -55,7 +55,7 @@ export function location_map_files(
 	const list = [...pairs].sort(by_key);
 	if (!list.length) return [];
 	const hashed_dir = `${app_dir}/immutable`;
-	const hashed_source = map_source(hashed_dir + '/og-locations.json', list);
+	const hashed_source = map_source(`${hashed_dir}/og-locations.json`, list);
 	const current = `${app_dir}/${CURRENT_LOCATIONS_FILE}`;
 	return [
 		{ fileName: `${hashed_dir}/og-locations.${hash(hashed_source)}.json`, source: hashed_source },

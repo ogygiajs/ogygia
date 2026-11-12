@@ -394,15 +394,15 @@ export function next_slot_id(key = ''): string {
 			const hole = url?.pathname.endsWith(islands_endpoint())
 				? (url.searchParams.get('id') ?? '').slice(0, 6)
 				: '';
-			slot_seq_by_request.set(event, (seq = { prefix: hole ? hole + '-' : '', n: new Map() }));
+			slot_seq_by_request.set(event, (seq = { prefix: hole ? `${hole}-` : '', n: new Map() }));
 		}
 		// (each entry's tag hashed once per request: the next copies only count)
 		let c = seq.n.get(key);
-		if (!c) seq.n.set(key, (c = { n: 0, tag: key ? fnv1a32(key).toString(36) + '-' : '' }));
-		return 'og' + seq.prefix + c.tag + (++c.n).toString(36);
+		if (!c) seq.n.set(key, (c = { n: 0, tag: key ? `${fnv1a32(key).toString(36)}-` : '' }));
+		return `og${seq.prefix}${c.tag}${(++c.n).toString(36)}`;
 	}
 	_slot_seq = (_slot_seq + 1) & 0x7fffffff;
-	return 'og' + _slot_seq.toString(36);
+	return `og${_slot_seq.toString(36)}`;
 }
 
 /** The serialize-only stand-in for in-place children: a branded value the codec reduces to a `slot`
@@ -458,10 +458,10 @@ export function register_snippet_kind(): void {
  */
 function snippet_stable_id(d: unknown): string | undefined {
 	const desc = d as RegionSnippetDescriptor;
-	if (desc.m === 'slot') return 'slot:' + desc.id;
-	if (desc.m === 'static') return 's' + fnv1a(desc.h);
+	if (desc.m === 'slot') return `slot:${desc.id}`;
+	if (desc.m === 'static') return `s${fnv1a(desc.h)}`;
 	if (desc.m === 'live' && analyze(desc.p).json)
-		return 'l' + fnv1a(desc.e + '\0' + JSON.stringify(desc.p));
+		return `l${fnv1a(`${desc.e}\0${JSON.stringify(desc.p)}`)}`;
 	return undefined;
 }
 

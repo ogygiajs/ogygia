@@ -62,7 +62,7 @@
 		const dpr = window.devicePixelRatio || 1;
 		const w = canvas.clientWidth || 900;
 		const h = Math.min(600, Math.max(260, depth(zoom) * ROW + 10));
-		canvas.style.height = h + 'px';
+		canvas.style.height = `${h}px`;
 		canvas.width = w * dpr;
 		canvas.height = h * dpr;
 		ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -84,7 +84,7 @@
 				ctx.beginPath();
 				ctx.rect(x + 4, y, width - 8, ROW);
 				ctx.clip();
-				ctx.fillText(node.n + ' (' + node.t.toFixed(1) + 'ms)', x + 5, y + 14);
+				ctx.fillText(`${node.n} (${node.t.toFixed(1)}ms)`, x + 5, y + 14);
 				ctx.restore();
 			}
 			ctx.globalAlpha = 1;

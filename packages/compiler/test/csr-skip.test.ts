@@ -3,6 +3,7 @@ import { mkdtempSync, mkdirSync, writeFileSync, rmSync, symlinkSync } from 'node
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { clientBuildWillSkip, read_csr, KEEP_CLIENT_DIR } from '../src/compiler/kit.ts';
+import { dedent } from '@ogygia/core/contract';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // The Kit client-build skip predicate — the issue #4/#1 regression suite.
@@ -159,16 +160,27 @@ describe('read_csr — export shapes', () => {
 
 	it('a COMMENTED-OUT csr export does not win over the real one (regression)', () => {
 		// Line comment above the real export — the real `false` must win, not the commented `true`.
-		const dir = routes({ '+layout.ts': '// export const csr = true\nexport const csr = false;\n' });
+		const dir = routes({
+			'+layout.ts': `${dedent`
+			// export const csr = true
+			export const csr = false;
+		`}\n`
+		});
 		expect(read_csr(join(dir, '+layout.ts'))).toBe(false);
 		// Block comment.
 		const dir2 = routes({
-			'+layout.ts': '/* export const csr = true */\nexport const csr = false;\n'
+			'+layout.ts': `${dedent`
+				/* export const csr = true */
+				export const csr = false;
+			`}\n`
 		});
 		expect(read_csr(join(dir2, '+layout.ts'))).toBe(false);
 		// A `://` inside a string on another line must not be mistaken for a comment and eat the export.
 		const dir3 = routes({
-			'+layout.ts': 'const u = "https://x.test";\nexport const csr = false;\n'
+			'+layout.ts': `${dedent`
+				const u = "https://x.test";
+				export const csr = false;
+			`}\n`
 		});
 		expect(read_csr(join(dir3, '+layout.ts'))).toBe(false);
 	});

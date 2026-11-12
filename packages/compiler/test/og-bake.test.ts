@@ -1,4 +1,5 @@
 import { describe, expect, it, beforeAll, afterAll } from 'vitest';
+import { dedent } from '@ogygia/core/contract';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -24,8 +25,11 @@ describe('rewrite_bake — validation (no execution)', () => {
 		expect(await rewrite_bake(src, '/app/x.ts', NO_ALIAS)).toBe(src);
 	});
 	it('ignores the marker inside a comment or string', async () => {
-		const src =
-			'// import.meta.og.bake(() => 1)\nconst s = "import.meta.og.bake(x)";\nexport const y = 2;';
+		const src = dedent`
+				// import.meta.og.bake(() => 1)
+				const s = "import.meta.og.bake(x)";
+				export const y = 2;
+			`;
 		expect(await rewrite_bake(src, '/app/x.ts', NO_ALIAS)).toBe(src);
 	});
 });
@@ -47,11 +51,11 @@ describe('rewrite_bake — real build-time evaluation', () => {
 	const opts = () => ({ alias: [], root: dir });
 
 	it('executes an imported fn at build and inlines its devalue-serialized result (Date survives)', async () => {
-		const src = [
-			`import { buildNav } from './data';`,
-			`const nav = import.meta.og.bake(() => buildNav());`,
-			`export { nav };`
-		].join('\n');
+		const src = dedent`
+			import { buildNav } from './data';
+			const nav = import.meta.og.bake(() => buildNav());
+			export { nav };
+		`;
 		const out = await rewrite_bake(src, path.join(dir, 'mod.ts'), opts());
 		expect(out).not.toContain('import.meta.og.bake');
 		expect(out.replace(/\s/g, '')).toContain('items:["home","about"]');
@@ -65,23 +69,23 @@ describe('rewrite_bake — real build-time evaluation', () => {
 	});
 
 	it('drops an import that only fed a baked fn (ship the answer, not the computation)', async () => {
-		const src = [
-			`import { buildNav } from './data';`,
-			`const nav = import.meta.og.bake(() => buildNav().count);`,
-			`export { nav };`
-		].join('\n');
+		const src = dedent`
+			import { buildNav } from './data';
+			const nav = import.meta.og.bake(() => buildNav().count);
+			export { nav };
+		`;
 		const out = await rewrite_bake(src, path.join(dir, 'mod.ts'), opts());
 		expect(out).not.toContain(`import { buildNav }`); // dead after baking → removed
 		expect(out).toContain('const nav = (2)');
 	});
 
 	it('KEEPS an import still used outside the baked fn', async () => {
-		const src = [
-			`import { buildNav, HELPER_ONLY } from './data';`,
-			`const nav = import.meta.og.bake(() => buildNav().count);`,
-			`export const extra = HELPER_ONLY;`, // still used → import must stay
-			`export { nav };`
-		].join('\n');
+		const src = dedent`
+			import { buildNav, HELPER_ONLY } from './data';
+			const nav = import.meta.og.bake(() => buildNav().count);
+			export const extra = HELPER_ONLY;
+			export { nav };
+		`;
 		const out = await rewrite_bake(src, path.join(dir, 'mod.ts'), opts());
 		expect(out).toContain(`import { buildNav, HELPER_ONLY } from './data';`);
 		expect(out).toContain('const nav = (2)');

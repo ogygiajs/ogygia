@@ -14,6 +14,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { Compiler, Program, CompileCtx, normalize_import_keys } from '../dist/compiler/index.js';
 import { partial_ctx_init } from './_compile-ctx.ts';
+import { dedent } from '@ogygia/core/contract';
 
 const FAN = 40;
 const DEPTH = 30;
@@ -97,48 +98,91 @@ beforeAll(() => {
 	write('src/lib/Block.svelte', '<p>block</p>\n');
 	write(
 		'src/lib/registry.ts',
-		`import Block from './Block.svelte' with { wake: 'visible' };\nexport const blocks = { block: Block };\n`
+		`${dedent`
+			import Block from './Block.svelte' with { wake: 'visible' };
+			export const blocks = { block: Block };
+		`}\n`
 	);
 
 	// (1) wide fan-out over a deep shared chain, reaching no registry
 	let barrel = '';
 	for (let i = 0; i < FAN; i++) {
-		write(`src/lib/fan/m${i}.ts`, `import { c } from '../chain/c0';\nexport const m${i} = c;\n`);
-		barrel += `export * from './fan/m${i}';\n`;
+		write(
+			`src/lib/fan/m${i}.ts`,
+			`${dedent`
+			import { c } from '../chain/c0';
+			export const m${i} = c;
+		`}\n`
+		);
+		barrel = `${barrel}export * from './fan/m${i}';\n`;
 	}
 	write('src/lib/barrel.ts', barrel);
 	for (let d = 0; d < DEPTH; d++) {
 		const next =
 			d + 1 < DEPTH
-				? `import { c as n } from './c${d + 1}';\nexport const c = n;\n`
+				? `${dedent`
+					import { c as n } from './c${d + 1}';
+					export const c = n;
+				`}\n`
 				: 'export const c = 1;\n';
 		write(`src/lib/chain/c${d}.ts`, next);
 	}
 	write(
 		'src/routes/fan/+page.svelte',
-		`<script>\n\timport * as b from '$lib/barrel';\n</script>\n`
+		`${dedent`
+			<script>
+				import * as b from '$lib/barrel';
+			</script>
+		`}\n`
 	);
 
 	// (2) a registry behind a plain helper
 	write(
 		'src/lib/factory.ts',
-		`import { blocks } from './registry';\nexport const pick = (k: string) => blocks[k];\n`
+		`${dedent`
+			import { blocks } from './registry';
+			export const pick = (k: string) => blocks[k];
+		`}\n`
 	);
 	write(
 		'src/routes/helper/+page.svelte',
-		`<script>\n\timport { pick } from '$lib/factory';\n</script>\n`
+		`${dedent`
+			<script>
+				import { pick } from '$lib/factory';
+			</script>
+		`}\n`
 	);
 
 	// (3) cycles: a → b → a with b → registry; x → y → x reaching nothing
-	write('src/lib/cyc/a.ts', `import { b } from './b';\nexport const a = () => b;\n`);
+	write(
+		'src/lib/cyc/a.ts',
+		`${dedent`
+		import { b } from './b';
+		export const a = () => b;
+	`}\n`
+	);
 	write(
 		'src/lib/cyc/b.ts',
-		`import { a } from './a';\nimport { blocks } from '../registry';\nexport const b = () => [a, blocks];\n`
+		`${dedent`
+			import { a } from './a';
+			import { blocks } from '../registry';
+			export const b = () => [a, blocks];
+		`}\n`
 	);
-	write('src/lib/cyc/x.ts', `import { y } from './y';\nexport const x = () => y;\n`);
+	write(
+		'src/lib/cyc/x.ts',
+		`${dedent`
+		import { y } from './y';
+		export const x = () => y;
+	`}\n`
+	);
 	write(
 		'src/lib/cyc/y.ts',
-		`import { x } from './x';\nimport { c } from '../chain/c0';\nexport const y = () => [x, c];\n`
+		`${dedent`
+			import { x } from './x';
+			import { c } from '../chain/c0';
+			export const y = () => [x, c];
+		`}\n`
 	);
 	write('src/routes/cyc/+page.svelte', '<p>cyc</p>\n');
 });

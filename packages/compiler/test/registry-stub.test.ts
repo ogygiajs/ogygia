@@ -14,6 +14,7 @@ import {
 	static_script_specs,
 	REGISTRY_CLIENT_QUERY
 } from '../src/compiler/link/registry-stub.ts';
+import { dedent } from '@ogygia/core/contract';
 
 const REGISTRY = `
 import Hero from './Hero.svelte' with { wake: 'visible' };
@@ -59,12 +60,16 @@ describe('stub id + source', () => {
 	test('round-trips the names through the id; source declares each as undefined', () => {
 		const id = registry_stub_id('src/lib/registry.ts', ['factory', 'default', 'blocks', 'blocks']);
 		expect(is_registry_stub_id(id)).toBe(true);
-		expect(is_registry_stub_id('\0' + id)).toBe(true);
+		expect(is_registry_stub_id(`\0${id}`)).toBe(true);
 		expect(is_registry_stub_id('ogygia:region/entry/x.js')).toBe(false);
-		expect(registry_stub_names('\0' + id)).toEqual(['blocks', 'default', 'factory']);
+		expect(registry_stub_names(`\0${id}`)).toEqual(['blocks', 'default', 'factory']);
 		const src = registry_stub_source(registry_stub_names(id));
 		expect(src).toBe(
-			'export const blocks = undefined;\nexport default undefined;\nexport const factory = undefined;\n'
+			`${dedent`
+				export const blocks = undefined;
+				export default undefined;
+				export const factory = undefined;
+			`}\n`
 		);
 	});
 	test('no names → an empty module', () => {
@@ -79,17 +84,17 @@ describe('registry_client_source', () => {
 	const FILE = '/app/src/lib/registry.ts';
 
 	test('blanks marked imports, keeps plain ones, re-exports and style imports byte-for-byte', () => {
-		const src = [
-			`import Hero from './Hero.svelte' with { wake: 'visible' };`,
-			`import Held from './Held.svelte' with { region: 'raw' };`,
-			`import Hole from './Hole.svelte' with { render: 'deferred' };`,
-			`import Heading from './Heading.svelte';`,
-			`import { Banner } from './plain-barrel';`,
-			`import './rows.css';`,
-			`import type { Props } from './types';`,
-			`export { default as Row } from './Row.svelte';`,
-			`export const blocks = { hero: Hero, held: Held, hole: Hole, heading: Heading, banner: Banner };`
-		].join('\n');
+		const src = dedent`
+			import Hero from './Hero.svelte' with { wake: 'visible' };
+			import Held from './Held.svelte' with { region: 'raw' };
+			import Hole from './Hole.svelte' with { render: 'deferred' };
+			import Heading from './Heading.svelte';
+			import { Banner } from './plain-barrel';
+			import './rows.css';
+			import type { Props } from './types';
+			export { default as Row } from './Row.svelte';
+			export const blocks = { hero: Hero, held: Held, hole: Hole, heading: Heading, banner: Banner };
+		`;
 		const out = registry_client_source(src, FILE, KEYS)!;
 		expect(out).toContain('const Hero = undefined;');
 		expect(out).toContain('const Held = undefined;');
@@ -119,11 +124,11 @@ describe('registry_client_source', () => {
 	});
 
 	test('asRegion: the call blanks, its component import drops, sibling names stay', () => {
-		const src = [
-			`import { Card, Plain } from './barrel';`,
-			`export const Island = import.meta.og.asRegion(Card, { wake: 'load' });`,
-			`export { Plain };`
-		].join('\n');
+		const src = dedent`
+			import { Card, Plain } from './barrel';
+			export const Island = import.meta.og.asRegion(Card, { wake: 'load' });
+			export { Plain };
+		`;
 		const out = registry_client_source(src, FILE, KEYS)!;
 		expect(out).toContain(`import { Plain } from './barrel';`);
 		expect(out).toContain('const Card = undefined;');
@@ -165,15 +170,15 @@ describe('registry_client_source', () => {
 
 describe('static_script_specs', () => {
 	test('value imports, side-effect imports and re-exports; never type-only or dynamic', () => {
-		const src = [
-			`import A from './a';`,
-			`import './side.css';`,
-			`import type { T } from './types';`,
-			`export { b } from './b';`,
-			`export * from './c';`,
-			`export type { U } from './utypes';`,
-			`const lazy = () => import('./lazy');`
-		].join('\n');
+		const src = dedent`
+			import A from './a';
+			import './side.css';
+			import type { T } from './types';
+			export { b } from './b';
+			export * from './c';
+			export type { U } from './utypes';
+			const lazy = () => import('./lazy');
+		`;
 		expect(static_script_specs(src, '/app/x.ts')).toEqual(['./a', './side.css', './b', './c']);
 	});
 	test('unparsable → null', () => {

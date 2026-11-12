@@ -32,6 +32,7 @@ import {
 } from '../src/compiler/ids.ts';
 import { BUILD_ERRORS } from '../src/compiler/messages.ts';
 import { CORE_VALUE_NAMES } from '../src/compiler/virtual/value-names.ts';
+import { dedent } from '@ogygia/core/plugin/utils';
 
 const table = new VirtualTable<CoreApp>(CORE_VIRTUALS, core_path, CORE_VALUE_NAMES, CORE_PARTS);
 const app = (ctx: Partial<CoreApp['ctx']>): CoreApp => ({ ctx }) as unknown as CoreApp;
@@ -140,7 +141,10 @@ describe('the virtual-module table', () => {
 		const id = table.resolve('ogygia:region/registry-stub/a.js?names=default,b')!;
 		expect(id).toBe(RESOLVED('ogygia:region/registry-stub/a.js?names=default,b'));
 		expect(table.load(id, app({}), leg(false))).toBe(
-			'export default undefined;\nexport const b = undefined;\n'
+			`${dedent`
+				export default undefined;
+				export const b = undefined;
+			`}\n`
 		);
 	});
 
@@ -196,19 +200,19 @@ describe('the virtual-module table', () => {
 	});
 
 	it('imports a realm module’s names from the entries that have them', () => {
-		const code = [
-			`import { region_ttl, region_css as css, sign } from 'ogygia:server';`,
-			`export { kit_transport as transport } from "ogygia:region";`,
-			`import type { X } from 'ogygia:server';`,
-			`import * as all from 'ogygia:boot';`
-		].join('\n');
+		const code = dedent`
+			import { region_ttl, region_css as css, sign } from 'ogygia:server';
+			export { kit_transport as transport } from "ogygia:region";
+			import type { X } from 'ogygia:server';
+			import * as all from 'ogygia:boot';
+		`;
 		expect(table.split_realm_imports(code)).toBe(
-			[
-				`import { region_ttl } from 'ogygia:server/region-ttl'; import { region_css as css } from 'ogygia:server/region-deps'; import { sign } from 'ogygia:server/sign';`,
-				`export { transport } from "ogygia:region/kit-transport";`,
-				`import type { X } from 'ogygia:server';`,
-				`import * as all from 'ogygia:boot';`
-			].join('\n')
+			dedent`
+				import { region_ttl } from 'ogygia:server/region-ttl'; import { region_css as css } from 'ogygia:server/region-deps'; import { sign } from 'ogygia:server/sign';
+				export { transport } from "ogygia:region/kit-transport";
+				import type { X } from 'ogygia:server';
+				import * as all from 'ogygia:boot';
+			`
 		);
 		expect(table.split_realm_imports(`import { x } from './a.ts';`)).toBeNull();
 		// a name the realm module does not have stays, for the bundler to refuse
@@ -248,7 +252,7 @@ describe('the virtual-module table', () => {
 		const fresh = () => {
 			const t = new VirtualTable<CoreApp>(CORE_VIRTUALS, core_path, CORE_VALUE_NAMES, CORE_PARTS);
 			for (const id of ['route-csr', 'route-config', 'server-plugins', 'rate-limit'])
-				t.load(RESOLVED('ogygia:server/' + id), core_app, leg(true));
+				t.load(RESOLVED(`ogygia:server/${id}`), core_app, leg(true));
 			return t;
 		};
 		expect(fresh().bump('routes').sort()).toEqual([

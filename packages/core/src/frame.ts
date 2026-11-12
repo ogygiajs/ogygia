@@ -99,7 +99,7 @@ export function frameAddress(endpoint: string): string {
 	for (const [k, v] of new URLSearchParams(url.slice(q + 1)))
 		if (!CAPABILITY_PARAMS.has(k)) call.push([k, v]);
 	call.sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0));
-	return path + '?' + new URLSearchParams(call);
+	return `${path}?${new URLSearchParams(call)}`;
 }
 
 /** A path as the browser asks it: a relative one (`./__ogygia__`) resolved against the document,

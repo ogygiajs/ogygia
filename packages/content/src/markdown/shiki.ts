@@ -324,7 +324,7 @@ export function fence_config_key(
 		String(cfg.wrapperClass),
 		cfg.transformers.map((t) => t.name ?? '?').join(','),
 		`m${pipe.meta.length}`,
-		pipe.variants.map((g) => g.pref.name + ':' + (g.cache_key ?? '')).join(',')
+		pipe.variants.map((g) => `${g.pref.name}:${g.cache_key ?? ''}`).join(',')
 	];
 }
 

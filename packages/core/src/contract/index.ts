@@ -9,6 +9,7 @@ export * from './barrels.ts';
 export * from './capability.ts';
 export * from './content.ts';
 export * from './core-files.ts';
+export * from './dedent.ts';
 export type * from './events.ts';
 export * from './hash.ts';
 export * from './hydration-hazards.ts';

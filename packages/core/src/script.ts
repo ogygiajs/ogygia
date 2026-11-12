@@ -242,11 +242,11 @@ export function script(
 				const url = imports[name];
 				if (typeof url !== 'string' || !url)
 					throw new OgygiaError('script_import_not_url', { name });
-				lines += `import * as __og_m${n} from ${escape_script_text(JSON.stringify(url))};`;
-				mods += (n ? ',' : '') + `${escape_script_text(JSON.stringify(name))}:__og_m${n}`;
+				lines = `${lines}import * as __og_m${n} from ${escape_script_text(JSON.stringify(url))};`;
+				mods = `${mods}${n ? ',' : ''}${escape_script_text(JSON.stringify(name))}:__og_m${n}`;
 				n++;
 			}
-			call = `{${mods}}` + (call ? ',' + call : '');
+			call = `{${mods}}${call ? `,${call}` : ''}`;
 		}
 		const src = fn_source(o.run);
 		// A bundler rewrote the function before it reached us: Vite's SSR transform turns an `import()`
@@ -272,7 +272,7 @@ export function script(
 		const v = o[key];
 		if (v === undefined || v === null || v === false) continue;
 		if (!is_attr_name(key)) throw new OgygiaError('script_bad_attribute', { key });
-		attrs += v === true ? ' ' + key : ` ${key}="${escape_attr(String(v))}"`;
+		attrs += v === true ? ` ${key}` : ` ${key}="${escape_attr(String(v))}"`;
 	}
 	return `<script${attrs}>${body}</script>`;
 }
@@ -299,13 +299,13 @@ export function close_safe(code: string): string {
 	let last = 0;
 	for (let i = code.indexOf('<'); i !== -1; i = code.indexOf('<', i + 1)) {
 		if (code.startsWith('!--', i + 1)) {
-			out += code.slice(last, i) + '\\x3C';
+			out = `${out}${code.slice(last, i)}\\x3C`;
 			last = i + 1;
 		} else if (
 			code.charCodeAt(i + 1) === 47 /* / */ &&
 			code.slice(i + 2, i + 8).toLowerCase() === 'script'
 		) {
-			out += code.slice(last, i + 1) + '\\';
+			out = `${out}${code.slice(last, i + 1)}\\`;
 			last = i + 1;
 		}
 	}

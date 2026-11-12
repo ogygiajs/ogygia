@@ -42,7 +42,7 @@ function kit_data(nodes: (Record<string, unknown> | null)[], chunks: string[] = 
 					}
 		)
 	});
-	return [line, ...chunks].join('\n') + '\n';
+	return `${[line, ...chunks].join('\n')}\n`;
 }
 
 const answer = (body: string, headers: Record<string, string> = {}, status = 200) =>
@@ -125,7 +125,7 @@ describe('look_up_page: Kit’s data answer, decoded like its client does', () =
 				{ Money: (v: unknown) => v instanceof Money && v.cents }
 			)
 		);
-		const body = JSON.stringify({ type: 'data', nodes: [{ type: 'data', data: flat }] }) + '\n';
+		const body = `${JSON.stringify({ type: 'data', nodes: [{ type: 'data', data: flat }] })}\n`;
 		const facts = await look_up_page(new URL('https://a.test/x'), async () => answer(body), {
 			Money: (c) => new Money(c as number)
 		});
@@ -144,7 +144,7 @@ describe('look_up_page: Kit’s data answer, decoded like its client does', () =
 		});
 		// a node whose `slow` key is a Promise (devalue's reducer form: ["Promise", <its id>], id 1)
 		const flat = [{ slow: 1, n: 2 }, ['Promise', 3], 7, 1];
-		push(JSON.stringify({ type: 'data', nodes: [{ type: 'data', data: flat }] }) + '\n');
+		push(`${JSON.stringify({ type: 'data', nodes: [{ type: 'data', data: flat }] })}\n`);
 		const facts = await look_up_page(
 			new URL('https://a.test/x'),
 			async () => new Response(stream),
@@ -155,7 +155,7 @@ describe('look_up_page: Kit’s data answer, decoded like its client does', () =
 		const data = facts.data as { slow: Promise<unknown>; n: number };
 		expect(data.n).toBe(7);
 		push(
-			JSON.stringify({ type: 'chunk', id: 1, data: JSON.parse(devalue.stringify('later')) }) + '\n'
+			`${JSON.stringify({ type: 'chunk', id: 1, data: JSON.parse(devalue.stringify('later')) })}\n`
 		);
 		close();
 		await expect(data.slow).resolves.toBe('later');
@@ -166,7 +166,7 @@ describe('look_up_page: Kit’s data answer, decoded like its client does', () =
 		expect(
 			await look_up_page(
 				at,
-				async () => answer(JSON.stringify({ type: 'redirect', location: '/login' }) + '\n'),
+				async () => answer(`${JSON.stringify({ type: 'redirect', location: '/login' })}\n`),
 				{}
 			)
 		).toEqual({ miss: 'a load redirected to /login' });
@@ -174,7 +174,7 @@ describe('look_up_page: Kit’s data answer, decoded like its client does', () =
 			await look_up_page(
 				at,
 				async () =>
-					answer(JSON.stringify({ type: 'data', nodes: [{ type: 'error', error: {} }] }) + '\n'),
+					answer(`${JSON.stringify({ type: 'data', nodes: [{ type: 'error', error: {} }] })}\n`),
 				{}
 			)
 		).toEqual({ miss: 'a load threw' });

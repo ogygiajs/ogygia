@@ -20,8 +20,7 @@ function serve() {
 			.pathname;
 		const title = path.startsWith('/titled-') ? `<title>${path}</title>` : '';
 		return new Response(
-			'<!doctype html><html><head><meta name="ogygia-router" content="plain">' +
-				`${title}</head><body><p data-page="${path}">${path}</p></body></html>`,
+			`<!doctype html><html><head><meta name="ogygia-router" content="plain">${title}</head><body><p data-page="${path}">${path}</p></body></html>`,
 			{ status: 200, headers: { 'content-type': 'text/html' } }
 		);
 	};

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { handle_parts } from '../src/profiler/source-scan.ts';
 import { phase_of_stack } from '../src/profiler/timeline.ts';
+import { dedent } from '@ogygia/core/plugin/utils';
 
 const reader = (text: string) => (_p: string, a: number, b: number) => {
 	const lines = text.split('\n');
@@ -9,24 +10,24 @@ const reader = (text: string) => (_p: string, a: number, b: number) => {
 
 describe('handle_parts: the handle functions a hooks file borrows from other modules', () => {
 	it('reads sequence(...) and follows the imports to their files', () => {
-		const src = [
-			"import { sequence } from '@sveltejs/kit/hooks';",
-			"import { redirect, type Handle } from '@sveltejs/kit';",
-			"import { handle as ogygiaHandle } from 'ogygia/server';",
-			"import { ds_ssr } from '$lib/hell/ds-ssr';",
-			'import {',
-			'\tguard as authGuard,',
-			'\tother',
-			"} from './auth.js';",
-			'const local: Handle = async ({ event, resolve }) => resolve(event);',
-			'export const handle: Handle = sequence(',
-			'\t// the design-system pass',
-			'\tds_ssr,',
-			'\tauthGuard,',
-			'\togygiaHandle(),',
-			'\tlocal',
-			');'
-		].join('\n');
+		const src = dedent`
+			import { sequence } from '@sveltejs/kit/hooks';
+			import { redirect, type Handle } from '@sveltejs/kit';
+			import { handle as ogygiaHandle } from 'ogygia/server';
+			import { ds_ssr } from '$lib/hell/ds-ssr';
+			import {
+				guard as authGuard,
+				other
+			} from './auth.js';
+			const local: Handle = async ({ event, resolve }) => resolve(event);
+			export const handle: Handle = sequence(
+				// the design-system pass
+				ds_ssr,
+				authGuard,
+				ogygiaHandle(),
+				local
+			);
+		`;
 		const parts = handle_parts(reader(src), 'src/hooks.server.ts');
 		// the exported name, with its module's stem; not the package handle, the factory call or the local
 		expect([...parts]).toEqual([

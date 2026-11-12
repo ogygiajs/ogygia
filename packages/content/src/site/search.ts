@@ -1,18 +1,3 @@
-/**
- * Search — the brain and its engine seam.
- *
- * The 80/20 shape: what ships here is the ENUMERABLE path — entries are projected into
- * section-granular documents (split by heading, so hits deep-link to `#anchors`), an engine adapter
- * builds an in-memory index lazily (single-flight, memoized, invalidated when a collection's
- * catalog version changes), and `site.search(q)` queries it. The same documents serialize to a
- * prerendered `search.json` (`site.emit.search`) that the client worker ingests.
- *
- * Deliberately NOT here (the user-pluggable 20%): CMS-native search delegation, hybrid merging,
- * per-shard weights. A remote backend plugs in as a plain `query` function on the `<Search>` brick.
- *
- * The default engine is **Orama** (optional peer, lazy-loaded). The adapter contract is tiny, so an
- * engine swap (MiniSearch, FlexSearch, custom) is a one-line `engine:` option.
- */
 import type { Heading, LinkRef } from '../index.ts';
 import { href_of, OUTLINE_TOKEN, type Collection, type Outline } from './outline.ts';
 import { is_dimensioned } from './dimensions.ts';
@@ -20,7 +5,6 @@ import { OgygiaError } from '../messages/runtime.ts';
 import { flights, STALE } from '@ogygia/machine';
 import { escapeText as esc_html } from '@ogygia/core/plugin/utils';
 
-// ── regexes
 const FRONTMATTER_BLOCK_RE = /^﻿?---\r?\n[\s\S]*?\r?\n---\r?\n?/;
 const SCRIPT_BLOCK_G = /<script[\s\S]*?<\/script>/gi;
 const STYLE_BLOCK_G = /<style[\s\S]*?<\/style>/gi;
@@ -84,13 +68,11 @@ export type SearchOptions = {
 	base?: string;
 };
 
-// ── projection: entries → section documents ─────────────────────────────────
-
 /** Light markdown/svx strip for index text: fences, tags, inline markers. Not a parser — good
  *  enough for tokenization. */
 export function strip_prose(src: string): string {
 	return src
-		.replace(FRONTMATTER_BLOCK_RE, '') // frontmatter
+		.replace(FRONTMATTER_BLOCK_RE, '')
 		.replace(SCRIPT_BLOCK_G, '')
 		.replace(STYLE_BLOCK_G, '')
 		.replace(CODE_FENCE_G, ' ')
@@ -124,7 +106,6 @@ export function split_sections(
 		const ht = heading_text(line);
 		if (ht !== null) {
 			chunks.push({ heading: current.heading, text: current.lines.join('\n') });
-			// Align to the collected headings in order; fall back to a text-only match.
 			const collected = headings[next_heading];
 			current = { heading: collected ?? null, lines: [] };
 			next_heading += 1;
@@ -138,11 +119,14 @@ export function split_sections(
 		.filter((c) => c.text || c.heading);
 }
 
-/** Build every searchable document for the outline's leaves (optionally scoped to collections). */
+/**
+ * Build every searchable document for the outline's leaves (optionally scoped to collections): one
+ * per section, keyed `slug#anchor` (the bare slug for the heading-less part, all of it in one
+ * document), or one per data-only entry from its display fields. A dimensioned site indexes its
+ * default coordinate only, so a fallback page is never a second hit.
+ */
 export async function build_docs(ol: Outline, only?: Collection[]): Promise<SearchDoc[]> {
 	const docs: SearchDoc[] = [];
-	// A dimensioned site: index only the DEFAULT coordinate (canonical). Otherwise every fallback page
-	// under /hi, /v1, … re-indexes the same content and search shows it as duplicate hits.
 	const addrs = is_dimensioned(ol) ? await ol.canonicalAddresses() : await ol.addresses();
 	for (const slug of addrs) {
 		const hit = await ol.resolve(slug);
@@ -156,10 +140,6 @@ export async function build_docs(ol: Outline, only?: Collection[]): Promise<Sear
 
 		if (entry.source) {
 			const chunks = split_sections(await entry.source(), headings);
-			// Chunks are keyed by `slug#anchor` (bare slug for the heading-less intro). `split_sections`
-			// can emit more than one heading-less chunk per page — MERGE their text into one doc rather
-			// than pushing a duplicate id (Orama's `insert` throws on a repeated id, which would kill the
-			// whole index build). Merging keeps the text searchable without duplicate hits.
 			const by_key = new Map<string, SearchDoc>();
 			for (const c of chunks) {
 				const anchor = c.heading?.id ?? '';
@@ -182,7 +162,6 @@ export async function build_docs(ol: Outline, only?: Collection[]): Promise<Sear
 				docs.push(doc);
 			}
 		} else {
-			// Data-only entry (JSON/CMS without source): index its display fields.
 			const summary = typeof data.summary === 'string' ? data.summary : '';
 			const extra = Object.values(entry.data)
 				.filter((v): v is string => typeof v === 'string')
@@ -208,8 +187,6 @@ function extract_headings(meta: unknown): Heading[] {
 	}
 	return [];
 }
-
-// ── the default engine: Orama (optional peer, lazy) ─────────────────────────
 
 type OramaModule = typeof import('@orama/orama');
 
@@ -248,15 +225,15 @@ export function excerpt_of(text: string, terms: string[], span = 150): string {
 	let from = 0;
 	if (any)
 		for (const m of window.matchAll(new RegExp(any, 'gi'))) {
-			out += esc_html(window.slice(from, m.index)) + `<mark>${esc_html(m[0])}</mark>`;
+			out = `${out}${esc_html(window.slice(from, m.index))}<mark>${esc_html(m[0])}</mark>`;
 			from = m.index + m[0].length;
 		}
 	out += esc_html(window.slice(from));
 	return (start > 0 ? '…' : '') + out + (start + span < text.length ? '…' : '');
 }
 
-/** Title-match re-rank: a hit whose TITLE carries the query outranks body matches (svelte.dev's
- *  feel — searching "snippet" puts the `{#snippet …}` page first, sections after). */
+/** Title-match re-rank: a hit whose TITLE carries the query outranks body matches, and the page
+ *  itself outranks its sections (searching "snippet" puts the `{#snippet …}` page first). */
 export function rerank(hits: SearchHit[], query: string): SearchHit[] {
 	const q = query.toLowerCase();
 	const terms = q.split(WS_RE).filter(Boolean);
@@ -267,14 +244,18 @@ export function rerank(hits: SearchHit[], query: string): SearchHit[] {
 		if (title.includes(q)) m *= 4;
 		else if (terms.every((t) => title.includes(t))) m *= 2;
 		if (heading && terms.every((t) => heading.includes(t))) m *= 1.5;
-		// the PAGE doc (no anchor) with a matching title is the canonical entry — nudge it up
 		if (!h.href.includes('#') && title.includes(q)) m *= 1.5;
 		return { ...h, score: h.score * m };
 	});
 	return scored.sort((a, b) => b.score - a.score);
 }
 
-/** The default engine — Orama over the section documents, title/heading boosted. */
+/**
+ * The default engine: Orama (an optional peer, loaded on first use) over the section documents,
+ * title and heading boosted, then `rerank`ed. It fetches three times the limit, so `rerank` can lift
+ * a page whose title is the query above a section the engine scored higher. Each document goes in
+ * under its row, so two that share an id are both indexed.
+ */
 export function orama_engine(): SearchEngine {
 	let mod: OramaModule | null = null;
 	return {
@@ -287,9 +268,6 @@ export function orama_engine(): SearchEngine {
 				schema: { title: 'string', heading: 'string', text: 'string', section: 'string' }
 			});
 			const by_id = new Map<string, SearchDoc>();
-			// Insert under a synthetic per-row id (the array index), NOT `d.id`: Orama's `insert` throws
-			// on a repeated id, and a single duplicate would abort the WHOLE index build. Decoupling the
-			// engine's id from the doc's slug-id makes the build robust to any accidental collision.
 			docs.forEach((d, i) => {
 				const rid = String(i);
 				by_id.set(rid, d);
@@ -303,8 +281,6 @@ export function orama_engine(): SearchEngine {
 			});
 			return {
 				async query(q, { limit, base }) {
-					// Over-fetch, then re-rank by title match and trim — orama's tf scoring alone lets
-					// term-dense body chunks outrank the page whose TITLE is the query.
 					const res = await mod!.search(db, {
 						term: q,
 						limit: limit * 3,
@@ -333,20 +309,15 @@ export function orama_engine(): SearchEngine {
 	};
 }
 
-// ── the brain: lazy, memoized, version-invalidated ──────────────────────────
-
 export type SearchBrain = (q: string, opts?: SearchOptions) => Promise<SearchHit[]>;
 
 /**
  * Create `site.search`. The index builds on first query (single-flight), from ALL leaves (or the
- * scoped subset — each distinct scope gets its own memoized index). Rebuilds when any contributing
- * collection's catalog version changes (live sources).
+ * scoped subset: each distinct scope gets its own index; `base` applies at query time). It is built
+ * from one materialization of the outline, so a new one (the content changed) builds it again, and
+ * a failed build is never kept. The same documents serialize to `search.json` (`site.emit.search`).
  */
 export function create_search(ol: Outline, engine: SearchEngine): SearchBrain {
-	// One memoized index per distinct scope (base is applied at query time, not indexed), built from
-	// one materialization of the outline: a new one (the content changed) builds the index again. A
-	// failed build is never kept. (It was built once, ever: a page a live source added was never
-	// found, and one failed build failed every search, #193.)
 	const indexes = flights.keyed<{
 		scope_id: string;
 		from: unknown;
@@ -371,14 +342,12 @@ export function create_search(ol: Outline, engine: SearchEngine): SearchBrain {
 		const limit = opts.limit ?? 10;
 		const base = opts.base ?? '';
 		const scope_id = opts.in ? opts.in.map((c) => scope_tag(c)).join(',') : '*';
-		// (an outline this package did not make has no token: built once, as before)
 		const from = token ? await token.call(ol) : null;
 		const input = { scope_id, from, in: opts.in };
 		const kept = indexes.peek({ scope_id });
 		let built = await indexes.get(input, {
 			fresh: kept?.kind === 'kept' && kept.answer.from !== from
 		});
-		// (one that was out for an older materialization: built again from this one)
 		if (built !== STALE && built.from !== from) built = await indexes.get(input, { fresh: true });
 		// (a newer query's build took its place meanwhile: that one answers)
 		if (built === STALE) return search(q, opts);
@@ -387,7 +356,6 @@ export function create_search(ol: Outline, engine: SearchEngine): SearchBrain {
 	return search;
 }
 
-// Identity tags for scope memo keys (WeakMap-backed counter; no naming registry).
 const scope_tags = new WeakMap<object, number>();
 let scope_seq = 0;
 function scope_tag(c: Collection): number {

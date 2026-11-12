@@ -43,6 +43,7 @@ const in_memory: SearchEngine = {
 };
 import { SearchClient } from '../src/site/search-client.ts';
 import { CONTENT_ERRORS } from '../src/messages/runtime.ts';
+import { dedent } from '@ogygia/core/plugin/utils';
 
 type Meta = { headings: never[] };
 const schema = v.object({ title: v.string() });
@@ -55,7 +56,11 @@ const doc = (i: number, title: unknown = `Page ${i}`): SourceEntry<Meta> =>
 		order: [0, i],
 		data: { title },
 		meta: { headings: [] },
-		source: async () => `# Page ${i}\n\nThe text of page ${i}, with islands.`
+		source: async () => dedent`
+			# Page ${i}
+
+			The text of page ${i}, with islands.
+		`
 	}) as unknown as SourceEntry<Meta>;
 
 /** A live source over `rows`: `emit(change)` announces a change; `drop()` drops the connection. */

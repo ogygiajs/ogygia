@@ -146,7 +146,7 @@ test('the address bar and the history model: checked once no navigation is out',
 	nav.now = { kind: 'loading' }; // a navigation out: the bar moves at its commit
 	expect(rules()).toEqual([]);
 	nav.now = { kind: 'idle' };
-	entry.url = new URL(location.href + '#a-fragment'); // a fragment is the same page
+	entry.url = new URL(`${location.href}#a-fragment`); // a fragment is the same page
 	expect(rules()).toEqual([]);
 	history.replaceState({ ogygia: 'doc.2' }, '');
 	expect(rules()[0]?.detail).toBe('the address bar is on entry doc.2, the history model on doc.1');
@@ -157,9 +157,7 @@ test('the address bar and the history model: checked once no navigation is out',
 test('every marker declared: the app’s own data-og-* attributes are the app’s, ogygia’s misspelled ones are broken', () => {
 	const markup = () => rules().filter((b) => b.code === 'rule_markup_known');
 	// an app's Open Graph tooling, on its own elements and on a web component ogygia restored
-	document.body.innerHTML =
-		'<div data-og-image="/a.png" data-og-title="A"></div>' +
-		'<x-widget data-og-title="B" data-og-kept=""></x-widget>';
+	document.body.innerHTML = `<div data-og-image="/a.png" data-og-title="A"></div><x-widget data-og-title="B" data-og-kept=""></x-widget>`;
 	expect(markup()).toEqual([]);
 	// ogygia's own namespace, or a marker on ogygia's own element, misspelled
 	document.body.innerHTML =

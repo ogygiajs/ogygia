@@ -16,7 +16,7 @@ describe('the unscoped-fallback marker', () => {
 	it('carries the file name only and the reason, and reads back', () => {
 		const m = unscoped_marker('/home/ci/app/src/lib/Card.svelte', 'Unexpected token');
 		expect(m).toBe('/*! ogygia-unscoped: Card.svelte | Unexpected token */\n');
-		expect(find_unscoped(m + '.row{color:red}')).toEqual([
+		expect(find_unscoped(`${m}.row{color:red}`)).toEqual([
 			{ file: 'Card.svelte', why: 'Unexpected token' }
 		]);
 	});
@@ -124,7 +124,7 @@ describe('styles findings', () => {
 });
 
 describe('the profiler finds the marker in the files it weighs', () => {
-	const css_with = unscoped_marker('/src/lib/Card.svelte', 'Unexpected token') + '.row{color:red}';
+	const css_with = `${unscoped_marker('/src/lib/Card.svelte', 'Unexpected token')}.row{color:red}`;
 	const fetch_url = async (u: string) =>
 		new Response(u.endsWith('a.css') ? css_with : '.ok{}', {
 			headers: { 'content-type': 'text/css' }

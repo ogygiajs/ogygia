@@ -84,11 +84,11 @@ test.describe('server-island fetch timing load/idle/visible/media', () => {
 		);
 
 		// --- the visible hole must NOT have fetched yet (below the fold) ---
-		const visibleFetchedBefore = islandReqs.some((u) => u.includes('id=' + idVisible));
+		const visibleFetchedBefore = islandReqs.some((u) => u.includes(`id=${idVisible}`));
 		check(
 			'visible hole did NOT fetch before scroll (network)',
 			!visibleFetchedBefore,
-			islandReqs.filter((u) => u.includes('id=' + idVisible)).join(' | ') || '(none)'
+			islandReqs.filter((u) => u.includes(`id=${idVisible}`)).join(' | ') || '(none)'
 		);
 		check(
 			'visible hole still shows its fallback before scroll',
@@ -96,14 +96,14 @@ test.describe('server-island fetch timing load/idle/visible/media', () => {
 		);
 		check(
 			'load hole DID fetch (network)',
-			islandReqs.some((u) => u.includes('id=' + idLoad))
+			islandReqs.some((u) => u.includes(`id=${idLoad}`))
 		);
 
 		// PREFETCH: warmed at idle (one request, no intent), NOT swapped (fallback stands); the hover
 		// then swaps from the frame store with no second request.
 		check(
 			'prefetch hole fetched at idle, before any hover (network)',
-			islandReqs.some((u) => u.includes('id=' + idPrefetch)),
+			islandReqs.some((u) => u.includes(`id=${idPrefetch}`)),
 			islandReqs.map((u) => u.match(ENDPOINT_ID_RE)?.[1]).join(',')
 		);
 		check(
@@ -111,7 +111,7 @@ test.describe('server-island fetch timing load/idle/visible/media', () => {
 			(await page.locator('[data-fallback-prefetch]').count()) > 0
 		);
 		const prefetch_requests_before = islandReqs.filter((u) =>
-			u.includes('id=' + idPrefetch)
+			u.includes(`id=${idPrefetch}`)
 		).length;
 		await page.locator('[data-defer="prefetch"] ogygia-region').hover();
 		await page
@@ -124,8 +124,8 @@ test.describe('server-island fetch timing load/idle/visible/media', () => {
 		);
 		check(
 			'the hover joined the warm frame — no second request',
-			islandReqs.filter((u) => u.includes('id=' + idPrefetch)).length === prefetch_requests_before,
-			`${prefetch_requests_before} → ${islandReqs.filter((u) => u.includes('id=' + idPrefetch)).length}`
+			islandReqs.filter((u) => u.includes(`id=${idPrefetch}`)).length === prefetch_requests_before,
+			`${prefetch_requests_before} → ${islandReqs.filter((u) => u.includes(`id=${idPrefetch}`)).length}`
 		);
 
 		// --- scroll the visible hole into view -> it fetches + fills ---
@@ -137,7 +137,7 @@ test.describe('server-island fetch timing load/idle/visible/media', () => {
 
 		check(
 			'visible hole fetched AFTER scroll (network)',
-			islandReqs.some((u) => u.includes('id=' + idVisible))
+			islandReqs.some((u) => u.includes(`id=${idVisible}`))
 		);
 		check(
 			'visible hole filled after scroll',

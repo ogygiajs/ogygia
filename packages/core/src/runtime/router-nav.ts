@@ -297,7 +297,7 @@ function resolve_srcset(value: string, page: URL): string {
 			descriptor = value.slice(from, i).trim();
 		}
 		const resolved = page_relative_resolved(url, page);
-		out.push(descriptor ? resolved + ' ' + descriptor : resolved);
+		out.push(descriptor ? `${resolved} ${descriptor}` : resolved);
 	}
 	return out.join(', ');
 }
@@ -697,7 +697,7 @@ function build_of(d: Document): string | null {
 	const s = d.querySelector(`script[${OGYGIA_RUNTIME}]`);
 	if (!s) return null;
 	const file = (v: string | null) => (v ? v.slice(v.lastIndexOf('/') + 1) : '');
-	return file(s.getAttribute('src')) + ' ' + file(s.getAttribute(OG_LOCATIONS));
+	return `${file(s.getAttribute('src'))} ${file(s.getAttribute(OG_LOCATIONS))}`;
 }
 
 /** A next page's stylesheet, loaded before its commit and styling nothing until then: the link,
@@ -1261,9 +1261,7 @@ function announce(dest: URL) {
 		el.setAttribute('aria-live', 'assertive');
 		el.setAttribute('aria-atomic', 'true');
 		// Visually hidden but readable by AT (the standard sr-only recipe — NOT display:none).
-		el.style.cssText =
-			'position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;' +
-			'clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap;border:0';
+		el.style.cssText = `position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap;border:0`;
 		announcer = el;
 	}
 	if (el.parentNode !== document.body) document.body.appendChild(el);

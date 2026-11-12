@@ -40,9 +40,9 @@ const releaseDates = (): Plugin => {
 	return {
 		name: 'docs-release-dates',
 		configResolved: (config) => void (cache_dir = config.cacheDir),
-		resolveId: (id) => (id === ID ? '\0' + ID : null),
+		resolveId: (id) => (id === ID ? `\0${ID}` : null),
 		async load(id) {
-			if (id !== '\0' + ID) return null;
+			if (id !== `\0${ID}`) return null;
 			return `export default ${JSON.stringify(await release_dates(published(), cache_dir))};`;
 		}
 	};

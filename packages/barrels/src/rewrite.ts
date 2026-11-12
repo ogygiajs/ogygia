@@ -55,8 +55,7 @@ const JS_STRING_ESCAPES: Record<string, string> = {
 	'\u2029': '\\u2029'
 };
 
-const quote = (s: string) =>
-	"'" + s.replace(JS_STRING_ESCAPE_RE, (c) => JS_STRING_ESCAPES[c]) + "'";
+const quote = (s: string) => `'${s.replace(JS_STRING_ESCAPE_RE, (c) => JS_STRING_ESCAPES[c])}'`;
 
 /** Rewrite one module's import declarations. `offset` maps positions when `code` is a slice of a
  *  bigger file (a Svelte `<script>` block): edits are applied to `ms` at `offset + pos`. `id`
@@ -117,7 +116,7 @@ export async function rewrite_imports(
 				continue;
 			}
 			const namespace = 'namespace' in entry;
-			const key = namespace ? entry.id + '\0*' : entry.id;
+			const key = namespace ? `${entry.id}\0*` : entry.id;
 			const group = by_leaf.get(key) ?? { id: entry.id, namespace, items: [] };
 			group.items.push({ spec, leaf: entry });
 			by_leaf.set(key, group);

@@ -1,15 +1,3 @@
-/**
- * EVERY MESSAGE CONTENT'S RUNTIME PRINTS — collections, sources, the docs site, search — in one place:
- * its code, its wording, what to do about it (core's `@ogygia/core/internal/messages` says how the
- * system works).
- *
- *   throw new OgygiaError('content_duplicate_id', { id });
- *   warn('content_block_unregistered', { type });
- *
- * It runs in the app's server build and its pages, so the wording is only passed in dev: a production
- * build prints the code's page alone. The build side (the Vite plugin, the macros, the markdown
- * compiler) has its own (./build.ts).
- */
 import {
 	define_messages,
 	dev_or_prerender,
@@ -233,8 +221,7 @@ export const CONTENT_ERRORS = {
 	},
 	content_search_engine_missing: {
 		text: (): string =>
-			'search needs the optional peer dependency "@orama/orama". Install it:\n' +
-			'  npm i @orama/orama   (or the pnpm / yarn / bun equivalent)',
+			`search needs the optional peer dependency "@orama/orama". Install it:\n  npm i @orama/orama   (or the pnpm / yarn / bun equivalent)`,
 		details: (): string => prose`
 			The docs site's default search engine is an optional peer dependency, so it is not
 			installed with \`@ogygia/content\`. Install \`@orama/orama\` in the app, or give the
@@ -305,8 +292,6 @@ export const CONTENT_WARNINGS = {
 };
 
 type Own = MessagesOf<typeof CONTENT_ERRORS, typeof CONTENT_WARNINGS>;
-// (the tables reach a dev build and the server's — a prerender words them too; a production browser
-// bundle drops them. `?.`: a plain Node import has no `import.meta.env`, it gets the link alone)
 const own: Own = /* @__PURE__ */ define_messages(
 	import.meta.env?.DEV || import.meta.env?.SSR ? CONTENT_ERRORS : null,
 	import.meta.env?.DEV || import.meta.env?.SSR ? CONTENT_WARNINGS : null,

@@ -15,9 +15,7 @@ const ENDPOINT = '/__ogygia__?id=deadbeef1234&props=W3t9XQ&exp=9999999999&sig=st
 // the first's id would ride the cached frame and never fetch.
 const ENDPOINT2 = '/__ogygia__?id=deadbeef5678&props=W3t9XQ&exp=9999999999&sig=stub';
 // The answer renders the SAME top-level shell id as the fallback, plus the deeper links it never had.
-const ANSWER =
-	'<x-menu-item id="mm-top-0"><span data-top>Top</span>' +
-	'<a id="mm-deep-a" data-deep href="#">Deep A</a><a id="mm-deep-b" data-deep href="#">Deep B</a></x-menu-item>';
+const ANSWER = `<x-menu-item id="mm-top-0"><span data-top>Top</span><a id="mm-deep-a" data-deep href="#">Deep A</a><a id="mm-deep-b" data-deep href="#">Deep B</a></x-menu-item>`;
 
 let real_fetch: typeof fetch;
 let fetched: string[];
@@ -44,10 +42,7 @@ afterEach(() => {
 });
 
 test('a hole answer morphs over an already-upgraded, already-open fallback: identity + open state survive, deeper links graft in', async () => {
-	document.body.innerHTML =
-		`<ogygia-region render="defer" when="load" endpoint="${ENDPOINT}" data-og-hole="mm">` +
-		'<x-menu-item id="mm-top-0"><span data-top>Top</span></x-menu-item>' +
-		'</ogygia-region>';
+	document.body.innerHTML = `<ogygia-region render="defer" when="load" endpoint="${ENDPOINT}" data-og-hole="mm"><x-menu-item id="mm-top-0"><span data-top>Top</span></x-menu-item></ogygia-region>`;
 	const region = document.querySelector('ogygia-region') as HTMLElement;
 
 	bootDev();
@@ -80,10 +75,7 @@ test('a hole answer morphs over an already-upgraded, already-open fallback: iden
 });
 
 test('a plain placeholder fallback (nothing to keep) still fills from the answer', async () => {
-	document.body.innerHTML =
-		`<ogygia-region render="defer" when="load" endpoint="${ENDPOINT2}" data-og-hole="mm2">` +
-		'<div data-fallback>loading</div>' +
-		'</ogygia-region>';
+	document.body.innerHTML = `<ogygia-region render="defer" when="load" endpoint="${ENDPOINT2}" data-og-hole="mm2"><div data-fallback>loading</div></ogygia-region>`;
 	const region = document.querySelector('ogygia-region') as HTMLElement;
 
 	bootDev();

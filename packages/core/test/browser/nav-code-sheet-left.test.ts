@@ -31,8 +31,7 @@ function html_response(html: string, url: string): Response {
 test('a sheet an island’s file brought leaves the head with the page that used it', async () => {
 	window.fetch = async (input) =>
 		html_response(
-			'<!doctype html><html><head><meta name="ogygia-router" content="plain"><title>about</title>' +
-				'</head><body><p data-about>about</p></body></html>',
+			`<!doctype html><html><head><meta name="ogygia-router" content="plain"><title>about</title></head><body><p data-about>about</p></body></html>`,
 			String(input)
 		);
 	document.body.innerHTML = counter_html();
@@ -52,17 +51,13 @@ test('the sheet comes back with a page whose island runs that file again', async
 	const island_page = () => {
 		const doc = new DOMParser().parseFromString(counter_html(), 'text/html');
 		doc.querySelector('ogygia-region')!.setAttribute('entry', ENTRY);
-		return (
-			'<!doctype html><html><head><meta name="ogygia-router" content="plain"><title>counter</title>' +
-			`</head><body>${doc.body.innerHTML}</body></html>`
-		);
+		return `<!doctype html><html><head><meta name="ogygia-router" content="plain"><title>counter</title></head><body>${doc.body.innerHTML}</body></html>`;
 	};
 	window.fetch = async (input) => {
 		const u = String(input);
 		if (u.includes('-again')) return html_response(island_page(), u);
 		return html_response(
-			'<!doctype html><html><head><meta name="ogygia-router" content="plain"><title>about</title>' +
-				'</head><body><p data-about>about</p></body></html>',
+			`<!doctype html><html><head><meta name="ogygia-router" content="plain"><title>about</title></head><body><p data-about>about</p></body></html>`,
 			u
 		);
 	};

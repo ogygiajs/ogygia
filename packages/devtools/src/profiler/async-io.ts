@@ -196,7 +196,7 @@ export class IoRecorder {
 			// the answer)
 			if (++this.#promise_count % PROMISE_SAMPLE_EVERY === 0 && this.#promise_sites.size < 200) {
 				const site = nearest_own_or_dep_site() ?? null;
-				const k = site ? site.fn + '\0' + site.file + '\0' + site.line : '';
+				const k = site ? `${site.fn}\0${site.file}\0${site.line}` : '';
 				const hit = this.#promise_sites.get(k);
 				if (hit) hit.n++;
 				else this.#promise_sites.set(k, { n: 1, site });
@@ -252,7 +252,7 @@ export function mark_left_each_run(
 		const ri = windows.findIndex((w) => o.start >= w.start && o.start <= w.end);
 		if (ri === -1) continue;
 		const s = o.caller_site;
-		const k = s.file + '\0' + s.line + '\0' + s.column;
+		const k = `${s.file}\0${s.line}\0${s.column}`;
 		const g = by_site.get(k) ?? { runs: new Set<number>(), ops: [] };
 		g.runs.add(ri);
 		g.ops.push(o);

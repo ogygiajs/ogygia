@@ -1,4 +1,5 @@
 import { describe, it, expect, afterEach } from 'vitest';
+import { dedent } from '@ogygia/core/contract';
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -88,7 +89,10 @@ describe('read_route_config — export shapes', () => {
 	});
 
 	it('nothing is stripped: the route module stays exactly what Kit reads', () => {
-		const src = 'export const config = { postrender: false };\nexport const load = () => ({});\n';
+		const src = `${dedent`
+			export const config = { postrender: false };
+			export const load = () => ({});
+		`}\n`;
 		const dir = routes({ 'a/+page.ts': src });
 		read_route_config(join(dir, 'a/+page.ts'), KEYS);
 		expect(readFileSync(join(dir, 'a/+page.ts'), 'utf8')).toBe(src);

@@ -7,6 +7,7 @@ import {
 	remarkHeadingId,
 	wrap_html
 } from '../src/markdown/index.ts';
+import { dedent } from '@ogygia/core/plugin/utils';
 import { warm_shiki } from './_shiki-warm.ts';
 
 warm_shiki();
@@ -92,7 +93,14 @@ describe('code dialect — shiki transformers passthrough', () => {
 			}
 		};
 		const pp = ogygiaPreprocess({ code: { transformers: [stamp] } });
-		const out = await pp.markup?.({ content: '```ts\nconst a = 1;\n```', filename: '/x/page.md' });
+		const out = await pp.markup?.({
+			content: dedent`
+			\`\`\`ts
+			const a = 1;
+			\`\`\`
+		`,
+			filename: '/x/page.md'
+		});
 		expect((out as { code: string }).code).toContain('data-tx="on"');
 	});
 
@@ -108,7 +116,14 @@ describe('code dialect — shiki transformers passthrough', () => {
 					: null
 		};
 		const pp = ogygiaPreprocess({ code: { variants: [casing as never] } });
-		const out = await pp.markup?.({ content: '```bash\necho hi\n```', filename: '/x/page.md' });
+		const out = await pp.markup?.({
+			content: dedent`
+			\`\`\`bash
+			echo hi
+			\`\`\`
+		`,
+			filename: '/x/page.md'
+		});
 		const c = (out as { code: string }).code; // inside {@html `...`}; only backtick/backslash/${ are escaped, not "
 		expect(c).toContain('class="og-code"');
 		expect(c).toContain('data-pref="case"');
@@ -132,7 +147,14 @@ describe('code dialect — shiki transformers passthrough', () => {
 					: null
 		};
 		const pp = ogygiaPreprocess({ code: { variants: [casing as never] } });
-		const out = await pp.markup?.({ content: '```ts\nconst a = 1;\n```', filename: '/x/page.md' });
+		const out = await pp.markup?.({
+			content: dedent`
+			\`\`\`ts
+			const a = 1;
+			\`\`\`
+		`,
+			filename: '/x/page.md'
+		});
 		expect((out as { code: string }).code).not.toContain('og-code');
 		expect((out as { code: string }).code).toContain('data-lang="ts"');
 	});
@@ -150,7 +172,11 @@ describe('code dialect — shiki transformers passthrough', () => {
 		};
 		const pp = ogygiaPreprocess({ code: { transformers: [echo] } });
 		const out = await pp.markup?.({
-			content: '```js {1,3}\nconst a = 1;\n```',
+			content: dedent`
+				\`\`\`js {1,3}
+				const a = 1;
+				\`\`\`
+			`,
 			filename: '/x/page.md'
 		});
 		expect((out as { code: string }).code).toContain('data-raw="{1,3}"');
@@ -194,7 +220,15 @@ describe('prose dialect — remark/rehype passthrough', () => {
 
 describe('scoped heading ids', () => {
 	it('joins the ancestor path for auto-slugged headings', async () => {
-		const code = await render(['# A', '', '## B', '', '### C', '', '## D'].join('\n'));
+		const code = await render(dedent`
+			# A
+
+			## B
+
+			### C
+
+			## D
+		`);
 		expect(code).toContain('<h1 id="a">');
 		expect(code).toContain('id="a-b"');
 		expect(code).toContain('id="a-b-c"');
@@ -204,7 +238,15 @@ describe('scoped heading ids', () => {
 	});
 
 	it('metadata.headings carries the SAME scoped ids', async () => {
-		const code = await render(['# A', '', '## B', '', '### C', '', '## D'].join('\n'));
+		const code = await render(dedent`
+			# A
+
+			## B
+
+			### C
+
+			## D
+		`);
 		const { headings } = metadataOf(code);
 		// h1 is outside the default collect range (min 2) but still scopes its descendants.
 		expect(headings).toEqual([
@@ -215,21 +257,52 @@ describe('scoped heading ids', () => {
 	});
 
 	it('keeps an explicit {#id} verbatim and scopes its children under it', async () => {
-		const code = await render(['## Setup {#install}', '', '### Step'].join('\n'));
+		const code = await render(dedent`
+			## Setup {#install}
+
+			### Step
+		`);
 		expect(code).toContain('id="install"'); // verbatim, NOT the `setup` slug, NOT prefixed
 		expect(code).not.toContain('id="setup"');
 		expect(code).toContain('id="install-step"'); // child scopes under the explicit id
 	});
 
 	it('de-dupes colliding scoped ids with a numeric suffix', async () => {
-		const code = await render(['# A', '', '## B', '', '## B'].join('\n'));
+		const code = await render(dedent`
+			# A
+
+			## B
+
+			## B
+		`);
 		expect(code).toContain('id="a-b"');
 		expect(code).toContain('id="a-b-1"');
+	});
+
+	it('an explicit {#id} reserves it: a later heading that slugs to it gets a suffix', async () => {
+		const code = await render(dedent`
+			## Setup {#install}
+
+			## Install
+		`);
+		expect(code).toContain('id="install"');
+		expect(code).toContain('id="install-1"');
+	});
+
+	it('a heading with inline code shows its braces in metadata.headings, not entities', async () => {
+		const code = await render('## The `{count}` prop');
+		expect(metadataOf(code).headings).toEqual([
+			{ depth: 2, id: 'the-count-prop', text: 'The {count} prop' }
+		]);
 	});
 });
 
 describe('code-block ids', () => {
-	const FENCE = ['```ts', 'const x = 1;', '```'].join('\n');
+	const FENCE = dedent`
+		\`\`\`ts
+		const x = 1;
+		\`\`\`
+	`;
 
 	it('stamps a scoped `slug-code-<hash>` id onto the <pre> in the SSR HTML', async () => {
 		const code = await render(['## Install', '', FENCE].join('\n'));
@@ -268,16 +341,16 @@ describe('tab component injection (plain barrel)', () => {
 	// TabGroup is a plain, overridable wrapper (its internal island carries the `wake`), so the injected
 	// import is an ordinary barrel — no island mark, no `ogygia/content/tab-group` specifier, no upgrade.
 	const INJECTED = `import { TabGroup, Tab } from '@ogygia/content';`;
-	const CODE_GROUP = [
-		'::: code-group',
-		'```bash [npm]',
-		'npm i ogygia',
-		'```',
-		'```bash [pnpm]',
-		'pnpm add ogygia',
-		'```',
-		':::'
-	].join('\n');
+	const CODE_GROUP = dedent`
+		::: code-group
+		\`\`\`bash [npm]
+		npm i ogygia
+		\`\`\`
+		\`\`\`bash [pnpm]
+		pnpm add ogygia
+		\`\`\`
+		:::
+	`;
 
 	it('::: code-group injects the plain TabGroup + Tab barrel import', async () => {
 		const code = await render(['# T', '', CODE_GROUP].join('\n'));
@@ -290,19 +363,23 @@ describe('tab component injection (plain barrel)', () => {
 	});
 
 	it('does not inject when no tab syntax is used', async () => {
-		const code = await render('# Plain page\n\nNo tabs here.');
+		const code = await render(dedent`
+			# Plain page
+
+			No tabs here.
+		`);
 		expect(code).not.toContain(INJECTED);
 	});
 
 	it("leaves an author's `import { TabGroup, Tab } from 'ogygia/content'` untouched (no upgrade)", async () => {
 		const code = await render(
-			[
-				'<script>',
-				"\timport { TabGroup, Tab } from '@ogygia/content';",
-				'</script>',
-				'',
-				'<TabGroup group="pm"><Tab label="npm">hi</Tab></TabGroup>'
-			].join('\n')
+			dedent`
+				<script>
+					import { TabGroup, Tab } from '@ogygia/content';
+				</script>
+
+				<TabGroup group="pm"><Tab label="npm">hi</Tab></TabGroup>
+			`
 		);
 		// TabGroup is a plain component — the author import stays a plain barrel, never split or marked
 		expect(code).toMatch(/import \{ TabGroup, Tab \} from '@ogygia\/content';/);
@@ -328,28 +405,28 @@ describe('tab component injection (plain barrel)', () => {
 
 	it('an import inside a fenced code SAMPLE is not treated as a real import (Shiki escapes it)', async () => {
 		const code = await render(
-			[
-				'# T',
-				'',
-				'```svelte',
-				'<script>',
-				"\timport { TabGroup, Tab } from '@ogygia/content';",
-				'</script>',
-				'```'
-			].join('\n')
+			dedent`
+				# T
+
+				\`\`\`svelte
+				<script>
+					import { TabGroup, Tab } from '@ogygia/content';
+				</script>
+				\`\`\`
+			`
 		);
 		expect(code).not.toContain('ogygia/content/tab-group');
 	});
 
 	it('leaves sibling barrel specifiers untouched (no split)', async () => {
 		const code = await render(
-			[
-				'<script>',
-				"\timport { Doc, TabGroup, Tab } from '@ogygia/content';",
-				'</script>',
-				'',
-				'<TabGroup group="pm"><Tab label="npm">hi</Tab></TabGroup>'
-			].join('\n')
+			dedent`
+				<script>
+					import { Doc, TabGroup, Tab } from '@ogygia/content';
+				</script>
+
+				<TabGroup group="pm"><Tab label="npm">hi</Tab></TabGroup>
+			`
 		);
 		expect(code).toMatch(/import \{ Doc, TabGroup, Tab \} from '@ogygia\/content';/);
 		expect(code).not.toContain('ogygia/content/tab-group');
@@ -370,14 +447,20 @@ describe('content preset dispatch (v3 config surface)', () => {
 			islandBridge.markdownConfig = { wrapperClass: 'default-wrap' };
 			islandBridge.contentPresets = { pg: { markdown: { wrapperClass: 'preset-wrap' } } };
 			const pp = ogygiaPresetPreprocess();
-			const doc = '# Hi\n\n```js\nlet a = 1;\n```\n';
+			const doc = `${dedent`
+				# Hi
+
+				\`\`\`js
+				let a = 1;
+				\`\`\`
+			`}\n`;
 
 			const plain = (await pp.markup?.({ content: doc, filename: '/x/a.md' })) as { code: string };
 			expect(plain.code).toContain('default-wrap');
 			expect(plain.code).not.toContain('preset-wrap');
 
 			const variant = (await pp.markup?.({
-				content: doc + '\n<!--og_preset:pg-->',
+				content: `${doc}\n<!--og_preset:pg-->`,
 				filename: '/x/a.md'
 			})) as { code: string };
 			expect(variant.code).toContain('preset-wrap');

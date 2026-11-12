@@ -6,6 +6,7 @@ import { describe, expect, it } from 'vitest';
 import type { Plugin } from 'vite';
 import { ogygia } from '../dist/vite/index.js';
 import { regionId, regionIdentity, wrapperVirtualId } from '../dist/compiler/region/transform.js';
+import { dedent } from '@ogygia/core/contract';
 
 const ROOT = '/nonexistent-ogygia-test-app';
 // A shared LIB component, not a route host: `routeCsrIsTrue` treats a `+page.svelte` with no
@@ -41,7 +42,12 @@ describe('unresolvable marked package specifier', () => {
 	it('resolveId throws an actionable [ogygia] error for the re-emitted specifier', async () => {
 		const plugin = make_plugin();
 		const ctx = { resolve: async () => null, emitFile: () => '' };
-		const src = `<script>\nimport TabGroup from '${SPEC}' with { wake: 'load' };\n</script>\n<TabGroup />`;
+		const src = dedent`
+			<script>
+			import TabGroup from '${SPEC}' with { wake: 'load' };
+			</script>
+			<TabGroup />
+		`;
 		// Register the host (SSR leg) so the wrapper virtual is in the registry. `transform` is async
 		// (the macro leg awaits), so await it before reading the registry it populates.
 		await handler(plugin.transform!).call(ctx as never, src, HOST, { moduleType: 'js', ssr: true });
@@ -57,7 +63,12 @@ describe('unresolvable marked package specifier', () => {
 	it('relative imports from a generated module keep the quiet null fall-through', async () => {
 		const plugin = make_plugin();
 		const ctx = { resolve: async () => null, emitFile: () => '' };
-		const src = `<script>\nimport TabGroup from '${SPEC}' with { wake: 'load' };\n</script>\n<TabGroup />`;
+		const src = dedent`
+			<script>
+			import TabGroup from '${SPEC}' with { wake: 'load' };
+			</script>
+			<TabGroup />
+		`;
 		await handler(plugin.transform!).call(ctx as never, src, HOST, { moduleType: 'js', ssr: true });
 		const iid = regionId(regionIdentity(SPEC, { strategy: 'load', options: {} }));
 		await expect(

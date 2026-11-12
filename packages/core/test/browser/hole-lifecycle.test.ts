@@ -237,8 +237,7 @@ test('a hole whose prefetch and island both wait to be visible stops watching fo
 	window.fetch = async () => html(counter());
 	// fetched at idle, warmed when visible, its island wakes when visible: far below the fold
 	const [el] = insert(
-		`<div style="height:5000px"></div>` +
-			interactive_hole(ep('life00000005'), 'when="idle" prefetch="visible" wake="visible"')
+		`<div style="height:5000px"></div>${interactive_hole(ep('life00000005'), 'when="idle" prefetch="visible" wake="visible"')}`
 	);
 	bootDev();
 	await expect.poll(() => el.querySelector('button') !== null, { timeout: 5_000 }).toBe(true);

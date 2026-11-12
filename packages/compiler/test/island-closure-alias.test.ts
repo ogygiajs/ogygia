@@ -10,15 +10,30 @@ import os from 'node:os';
 import path from 'node:path';
 import { Compiler, Program, CompileCtx, normalize_import_keys } from '../dist/compiler/index.js';
 import { partial_ctx_init } from './_compile-ctx.ts';
+import { dedent } from '@ogygia/core/contract';
 
 let root = '';
 
 const files: Record<string, string> = {
 	'src/routes/+layout.ts': 'export const csr = false;\n',
-	'src/routes/+page.svelte': `<script>\n\timport Reader from '$lib/Reader.svelte' with { wake: 'load' };\n</script>\n<Reader />\n`,
-	'src/lib/Reader.svelte': `<script>\n\timport { page_name } from '$boot/read-page';\n\timport { relative_helper } from './relative-helper';\n</script>\n<p>{page_name()} {relative_helper()}</p>\n`,
+	'src/routes/+page.svelte': `${dedent`
+		<script>
+			import Reader from '$lib/Reader.svelte' with { wake: 'load' };
+		</script>
+		<Reader />
+	`}\n`,
+	'src/lib/Reader.svelte': `${dedent`
+		<script>
+			import { page_name } from '$boot/read-page';
+			import { relative_helper } from './relative-helper';
+		</script>
+		<p>{page_name()} {relative_helper()}</p>
+	`}\n`,
 	'src/lib/relative-helper.ts': `export const relative_helper = () => 'r';\n`,
-	'src/lib/boot/read-page.ts': `import { page } from '$app/state';\nexport const page_name = () => String(page.data.name ?? '');\n`,
+	'src/lib/boot/read-page.ts': `${dedent`
+		import { page } from '$app/state';
+		export const page_name = () => String(page.data.name ?? '');
+	`}\n`,
 	'src/lib/boot/deeper.ts': `export const deeper = 1;\n`
 };
 
@@ -121,7 +136,7 @@ describe('island closure walk follows app aliases', () => {
 
 	test('a RegExp alias (Kit’s shape for `key/*`) is followed too', () => {
 		const { compiler, program } = make_compiler([
-			{ find: /^\$boot\/(.+)$/, replacement: path.join(root, 'src/lib/boot') + '/$1' }
+			{ find: /^\$boot\/(.+)$/, replacement: `${path.join(root, 'src/lib/boot')}/$1` }
 		]);
 		compiler.prescan();
 		expect(program.island_graph.has(path.join(root, 'src/lib/boot/read-page.ts'))).toBe(true);

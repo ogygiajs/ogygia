@@ -6,6 +6,7 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import { JsToTs } from '../src/lib/markdown/js-to-ts.ts';
 import type { Fence, Variant } from '@ogygia/content/markdown';
+import { dedent } from 'ogygia/plugin/utils';
 
 const gen = new JsToTs();
 beforeAll(() => gen.ready());
@@ -48,7 +49,12 @@ describe('@type on variable statements', () => {
 
 	it('dedupes imports from the same module across declarations', () => {
 		const out = ts_of(
-			`/** @type {import('./$types').PageLoad} */\nlet a;\n/** @type {import('./$types').ActionData} */\nlet b;`
+			dedent`
+				/** @type {import('./$types').PageLoad} */
+				let a;
+				/** @type {import('./$types').ActionData} */
+				let b;
+			`
 		);
 		expect(out!.match(/import type/g)!.length).toBe(1);
 		expect(out).toContain(`import type { PageLoad, ActionData } from './$types';`);
@@ -56,7 +62,12 @@ describe('@type on variable statements', () => {
 
 	it('appends the type import after an existing import', () => {
 		const out = ts_of(
-			`import { writable } from 'svelte/store';\n\n/** @type {import('./x').T} */\nlet v;`
+			dedent`
+				import { writable } from 'svelte/store';
+
+				/** @type {import('./x').T} */
+				let v;
+			`
 		);
 		const import_order = out!.indexOf(`from 'svelte/store'`) < out!.indexOf(`import type { T }`);
 		expect(import_order).toBe(true);
@@ -68,7 +79,12 @@ describe('@type on variable statements', () => {
 describe('@type on function declarations', () => {
 	it('rewrites an exported function to a typed const arrow', () => {
 		const out = ts_of(
-			`/** @type {import('./$types').PageServerLoad} */\nexport function load() {\n\treturn { user };\n}`
+			dedent`
+				/** @type {import('./$types').PageServerLoad} */
+				export function load() {
+					return { user };
+				}
+			`
 		);
 		expect(out).toContain(`export const load: PageServerLoad = () => {`);
 		expect(out).toContain(`import type { PageServerLoad } from './$types';`);
@@ -78,13 +94,23 @@ describe('@type on function declarations', () => {
 
 	it('preserves async on the arrow', () => {
 		const out = ts_of(
-			`/** @type {import('./x').Fn} */\nexport async function go() {\n\treturn 1;\n}`
+			dedent`
+				/** @type {import('./x').Fn} */
+				export async function go() {
+					return 1;
+				}
+			`
 		);
 		expect(out).toContain(`export const go: Fn = async () => {`);
 	});
 
 	it('converts a non-exported function too', () => {
-		const out = ts_of(`/** @type {import('./x').Fn} */\nfunction go() {\n\treturn 1;\n}`);
+		const out = ts_of(dedent`
+			/** @type {import('./x').Fn} */
+			function go() {
+				return 1;
+			}
+		`);
 		expect(out).toContain(`const go: Fn = () => {`);
 		expect(out).not.toContain('export const');
 	});
@@ -93,7 +119,12 @@ describe('@type on function declarations', () => {
 describe('@satisfies', () => {
 	it('appends satisfies to a const object (the actions shape)', () => {
 		const out = ts_of(
-			`/** @satisfies {import('./$types').Actions} */\nexport const actions = {\n\tdefault: async ({ request }) => {}\n};`
+			dedent`
+				/** @satisfies {import('./$types').Actions} */
+				export const actions = {
+					default: async ({ request }) => {}
+				};
+			`
 		);
 		expect(out).toContain(`} satisfies Actions;`);
 		expect(out).toContain(`import type { Actions } from './$types';`);
@@ -102,7 +133,12 @@ describe('@satisfies', () => {
 
 	it('wraps a function declaration in parens with satisfies', () => {
 		const out = ts_of(
-			`/** @satisfies {import('./x').Fn} */\nexport function go() {\n\treturn 1;\n}`
+			dedent`
+				/** @satisfies {import('./x').Fn} */
+				export function go() {
+					return 1;
+				}
+			`
 		);
 		expect(out).toContain(`export const go = (() => {`);
 		expect(out!.trimEnd().endsWith(`}) satisfies Fn;`)).toBe(true);
@@ -120,28 +156,56 @@ describe('@satisfies', () => {
 describe('@param / @returns', () => {
 	it('annotates parameters and return type in place (no const conversion)', () => {
 		const out = ts_of(
-			`/**\n * @param {string} name\n * @param {number} age\n * @returns {string}\n */\nexport function greet(name, age) {\n\treturn name;\n}`
+			dedent`
+				/**
+				 * @param {string} name
+				 * @param {number} age
+				 * @returns {string}
+				 */
+				export function greet(name, age) {
+					return name;
+				}
+			`
 		);
 		expect(out).toContain(`export function greet(name: string, age: number): string {`);
 	});
 
 	it('annotates arrow-function property assignments', () => {
 		const out = ts_of(
-			`export const handlers = {\n\t/** @param {MouseEvent} event */\n\tclick: (event) => {}\n};`
+			dedent`
+				export const handlers = {
+					/** @param {MouseEvent} event */
+					click: (event) => {}
+				};
+			`
 		);
 		expect(out).toContain(`click: (event: MouseEvent) => {}`);
 	});
 
 	it('annotates method declarations', () => {
 		const out = ts_of(
-			`const obj = {\n\t/** @param {string} id */\n\tfind(id) {\n\t\treturn id;\n\t}\n};`
+			dedent`
+				const obj = {
+					/** @param {string} id */
+					find(id) {
+						return id;
+					}
+				};
+			`
 		);
 		expect(out).toContain(`find(id: string) {`);
 	});
 
 	it('throws on @type on a property method (site-kit named error)', () => {
 		expect(() =>
-			gen.generate(fence(`const o = {\n\t/** @type {import('./x').T} */\n\tgo: () => {}\n};`))
+			gen.generate(
+				fence(dedent`
+				const o = {
+					/** @type {import('./x').T} */
+					go: () => {}
+				};
+			`)
+			)
 		).toThrow('@type on property methods does nothing');
 	});
 });
@@ -166,7 +230,13 @@ describe('@type casts', () => {
 describe('JSDoc comment handling', () => {
 	it('keeps the comment text when a block has prose + a tag', () => {
 		const out = ts_of(
-			`/**\n * Greets the user.\n * @param {string} name\n */\nfunction greet(name) {}`
+			dedent`
+				/**
+				 * Greets the user.
+				 * @param {string} name
+				 */
+				function greet(name) {}
+			`
 		);
 		expect(out).toContain('Greets the user.');
 		expect(out).not.toContain('@param');
@@ -187,12 +257,20 @@ describe('JSDoc comment handling', () => {
 
 describe('filename rewrites in the TS variant', () => {
 	it('renames /// file: …js to .ts', () => {
-		const out = ts_of(`/// file: +page.server.js\n/** @type {number} */\nlet n;`);
+		const out = ts_of(dedent`
+			/// file: +page.server.js
+			/** @type {number} */
+			let n;
+		`);
 		expect(out).toContain(`/// file: +page.server.ts`);
 	});
 
 	it('renames // @filename: index.js to index.ts', () => {
-		const out = ts_of(`// @filename: index.js\n/** @type {number} */\nlet n;`);
+		const out = ts_of(dedent`
+			// @filename: index.js
+			/** @type {number} */
+			let n;
+		`);
 		expect(out).toContain(`// @filename: index.ts`);
 	});
 });
@@ -211,14 +289,25 @@ describe('fence claiming', () => {
 	});
 
 	it('every plain-script svelte fence gets a lang="ts" variant (svelte.dev rule)', () => {
-		const src = `<script>\n\tlet count = 0;\n</script>\n\n<button>{count}</button>`;
+		const src = dedent`
+			<script>
+				let count = 0;
+			</script>
+
+			<button>{count}</button>
+		`;
 		const out = ts_of(src, 'svelte');
 		expect(out).toContain(`<script lang="ts">`);
 		expect(out).toContain(`let count = 0;`);
 	});
 
 	it('converts JSDoc inside a svelte script block', () => {
-		const src = `<script>\n\t/** @type {import('./$types').PageProps} */\n\tlet { data } = $props();\n</script>`;
+		const src = dedent`
+			<script>
+				/** @type {import('./$types').PageProps} */
+				let { data } = $props();
+			</script>
+		`;
 		const out = ts_of(src, 'svelte');
 		expect(out).toContain(`<script lang="ts">`);
 		expect(out).toContain(`let { data }: PageProps = $props();`);
@@ -226,7 +315,16 @@ describe('fence claiming', () => {
 	});
 
 	it('leaves a TS-authored svelte fence alone', () => {
-		expect(ts_of(`<script lang="ts">\n\tlet a: number = 1;\n</script>`, 'svelte')).toBeNull();
+		expect(
+			ts_of(
+				dedent`
+			<script lang="ts">
+				let a: number = 1;
+			</script>
+		`,
+				'svelte'
+			)
+		).toBeNull();
 	});
 
 	it('leaves a svelte fence with no script alone', () => {
@@ -237,27 +335,27 @@ describe('fence claiming', () => {
 // ── the exact state-management page fence (the reported bug, end to end) ────────
 
 describe('the state-management regression fence', () => {
-	const source = [
-		`let user;`,
-		``,
-		`/** @type {import('./$types').PageServerLoad} */`,
-		`export function load() {`,
-		`\treturn { user };`,
-		`}`,
-		``,
-		`/** @satisfies {import('./$types').Actions} */`,
-		`export const actions = {`,
-		`\tdefault: async ({ request }) => {`,
-		`\t\tconst data = await request.formData();`,
-		``,
-		`\t\t// NEVER DO THIS!`,
-		`\t\tuser = {`,
-		`\t\t\tname: data.get('name'),`,
-		`\t\t\tembarrassingSecret: data.get('secret')`,
-		`\t\t};`,
-		`\t}`,
-		`}`
-	].join('\n');
+	const source = dedent`
+		let user;
+
+		/** @type {import('./$types').PageServerLoad} */
+		export function load() {
+			return { user };
+		}
+
+		/** @satisfies {import('./$types').Actions} */
+		export const actions = {
+			default: async ({ request }) => {
+				const data = await request.formData();
+
+				// NEVER DO THIS!
+				user = {
+					name: data.get('name'),
+					embarrassingSecret: data.get('secret')
+				};
+			}
+		}
+	`;
 
 	it('claims the fence and produces the svelte.dev TS shape', () => {
 		const out = ts_of(source);

@@ -16,7 +16,14 @@ const mint_site = (
 ) => siteRaw({ outline: outlineArg, ...opts });
 import { remarkLinks } from '../src/markdown/remark-links.ts';
 import { rehypeOverrides, SLOT_TAG } from '../src/markdown/rehype-overrides.ts';
-import { build_docs, orama_engine, split_sections, strip_prose } from '../src/site/search.ts';
+import {
+	build_docs,
+	orama_engine,
+	rerank,
+	split_sections,
+	strip_prose
+} from '../src/site/search.ts';
+import { dedent } from '@ogygia/core/plugin/utils';
 
 type Meta = { headings: Heading[] };
 
@@ -98,14 +105,26 @@ function searchable() {
 				data: { title: 'Install' },
 				meta: { headings: [{ depth: 2, id: 'setup', text: 'Setup' }] },
 				source: async () =>
-					'# Install\n\nGet started fast.\n\n## Setup\n\nRun the installer with npm.'
+					dedent`
+						# Install
+
+						Get started fast.
+
+						## Setup
+
+						Run the installer with npm.
+					`
 			},
 			{
 				id: 'regions/held',
 				filePath: 'content/docs/01-regions/00-held/+doc.svx',
 				data: { title: 'Held regions' },
 				meta: { headings: [] },
-				source: async () => '# Held\n\nServer chosen islands.'
+				source: async () => dedent`
+					# Held
+
+					Server chosen islands.
+				`
 			}
 		]),
 		schema: docSchema
@@ -336,6 +355,120 @@ describe('outline — build-time safety', () => {
 		const site = mint_site(outline([a, b])); // both mint slug 'dup'
 		await expect(site.nav()).rejects.toThrow(/slug collision/);
 	});
+
+	it('errors on a glob pick that matches nothing', async () => {
+		const docs = docsFixture();
+		const site = mint_site(outline([{ label: 'X', items: pick(docs, 'nothing/**') }, docs]));
+		await expect(site.nav()).rejects.toThrow(/pick pattern 'nothing\/\*\*' matched nothing/);
+	});
+});
+
+describe('outline — placement and addresses', () => {
+	const tiny = (
+		entries: SourceEntry<Meta>[],
+		filter?: (e: { data: { draft?: boolean } }, ctx: Record<string, unknown>) => boolean
+	) =>
+		content({
+			loader: fromArray(entries),
+			schema: v.object({
+				title: v.string(),
+				draft: v.optional(v.boolean(), false),
+				redirect_from: v.optional(v.array(v.string()), [])
+			}),
+			...(filter ? { filter } : {})
+		});
+
+	it('one weave per read context: readers at once share it, a later reader keeps it', async () => {
+		const docs = tiny([page('p', 'x/00-p.json', { title: 'P' })]);
+		const refs = docs.refs.bind(docs);
+		await refs(); // loaded first: a first load moves the collection's version, and the outline weaves again
+		let reads = 0;
+		docs.refs = (ctx) => {
+			reads++;
+			return refs(ctx);
+		};
+		const ol = outline(docs);
+		await Promise.all([ol.addresses(), ol.tree(), ol.addresses({})]);
+		await ol.addresses();
+		expect(reads).toBe(1);
+		await ol.addresses({ preview: true });
+		expect(reads).toBe(2);
+	});
+
+	it('an entry an earlier item placed is skipped by a later pick, not placed twice', async () => {
+		const docs = docsFixture();
+		const ol = outline([
+			{ label: 'First', items: pick(docs, 'start/install') },
+			{ label: 'All start', items: pick(docs, 'start/*') },
+			docs
+		]);
+		expect((await ol.addresses()).filter((a) => a === 'start/install')).toHaveLength(1);
+	});
+
+	it('a link keeps its own href under any mount base', async () => {
+		const tree = await outline([{ label: 'Home', href: '/home' }]).tree('/docs');
+		expect(tree).toEqual([{ kind: 'link', label: 'Home', href: '/home' }]);
+	});
+
+	it("a nested group without a `slug` takes the enclosing group's address policy", async () => {
+		const docs = tiny([page('a/b', 'x/00-a/00-b.json', { title: 'B' })]);
+		const ol = outline([
+			{
+				label: 'Outer',
+				slug: (id) => id.split('/').pop()!,
+				items: [{ label: 'Inner', items: docs }]
+			}
+		]);
+		expect(await ol.addresses()).toEqual(['b']);
+	});
+
+	it('a group base with stray slashes still makes a clean slug', async () => {
+		const docs = tiny([page('p', 'x/00-p.json', { title: 'P' })]);
+		const ol = outline([{ label: 'G', base: 'guide/', items: docs }]);
+		expect(await ol.addresses()).toEqual(['guide/p']);
+	});
+
+	it('a directory with its own page leads its group with that page', async () => {
+		const docs = tiny([
+			page('guide', 'x/00-guide.json', { title: 'Guide' }),
+			page('guide/one', 'x/00-guide/00-one.json', { title: 'One' })
+		]);
+		const tree = await outline(docs).tree();
+		const g = groups(tree)[0];
+		expect(g.items.map((n) => (n.kind === 'leaf' ? n.slug : n.kind))).toEqual([
+			'guide',
+			'guide/one'
+		]);
+	});
+
+	it('siblings follow their order; with no order they go by id', async () => {
+		const docs = tiny([
+			{ id: 'b', filePath: 'b.json', order: [0], data: { title: 'B' }, meta: { headings: [] } },
+			{ id: 'a', filePath: 'a.json', order: [1], data: { title: 'A' }, meta: { headings: [] } },
+			{ id: 'd', filePath: 'd.json', data: { title: 'D' }, meta: { headings: [] } },
+			{ id: 'c', filePath: 'c.json', data: { title: 'C' }, meta: { headings: [] } }
+		]);
+		expect(await outline(docs).addresses()).toEqual(['b', 'a', 'c', 'd']);
+	});
+
+	it("an entry's old address joins its group's base, like its own slug", async () => {
+		const docs = tiny([page('p', 'x/00-p.json', { title: 'P', redirect_from: ['old'] })]);
+		const ol = outline([{ label: 'G', base: 'guide', items: docs }]);
+		expect(await ol.alias('guide/old')).toBe('guide/p');
+	});
+
+	it('the read context reaches the collection filter: a draft is placed only under preview', async () => {
+		const docs = tiny(
+			[
+				page('p', 'x/00-p.json', { title: 'P' }),
+				page('d', 'x/01-d.json', { title: 'D', draft: true })
+			],
+			(e, ctx) => !e.data.draft || ctx.preview === true
+		);
+		const ol = outline(docs);
+		expect(await ol.addresses()).toEqual(['p']);
+		expect(await ol.addresses({ preview: true })).toEqual(['p', 'd']);
+	});
 });
 
 describe('emissions', () => {
@@ -402,7 +535,15 @@ describe('emissions — raw markdown (from entry.source)', () => {
 					filePath: 'content/docs/00-start/00-install/+doc.svx',
 					data: { title: 'Install' },
 					meta: { headings: [] },
-					source: async () => '---\ntitle: Install\n---\n\n# Install\n\nRun the installer.'
+					source: async () => dedent`
+						---
+						title: Install
+						---
+
+						# Install
+
+						Run the installer.
+					`
 				},
 				{
 					id: 'data-state/stores',
@@ -418,7 +559,11 @@ describe('emissions — raw markdown (from entry.source)', () => {
 		const emit = mint_site(sourced()).emit.raw();
 		const res = await emit.GET({ params: { slug: 'start/install' } });
 		expect(res.headers.get('content-type')).toBe('text/markdown; charset=utf-8');
-		expect(await res.text()).toBe('# Install\n\nRun the installer.');
+		expect(await res.text()).toBe(dedent`
+			# Install
+
+			Run the installer.
+		`);
 	});
 
 	it('keeps frontmatter when asked', async () => {
@@ -596,14 +741,38 @@ describe('link audit', () => {
 
 describe('search — projection', () => {
 	it('strip_prose removes frontmatter, code, tags, markdown syntax', () => {
-		const src =
-			'---\ntitle: X\n---\n\n<script>let a=1;</script>\n\n# Heading\n\nSome **bold** and `code` and [a link](/x).\n\n```ts\nconst y = 2;\n```\n';
+		const src = `${dedent`
+				---
+				title: X
+				---
+
+				<script>let a=1;</script>
+
+				# Heading
+
+				Some **bold** and \`code\` and [a link](/x).
+
+				\`\`\`ts
+				const y = 2;
+				\`\`\`
+			`}\n`;
 		expect(strip_prose(src)).toBe('Heading Some bold and code and a link.');
 	});
 
 	it('split_sections chunks by heading, aligned to collected headings', () => {
-		const source =
-			'# Install\n\nLead text.\n\n## Setup\n\nRun the installer.\n\n## Usage\n\nUse it well.';
+		const source = dedent`
+				# Install
+
+				Lead text.
+
+				## Setup
+
+				Run the installer.
+
+				## Usage
+
+				Use it well.
+			`;
 		const headings = [
 			{ depth: 2 as const, id: 'setup', text: 'Setup' },
 			{ depth: 2 as const, id: 'usage', text: 'Usage' }
@@ -620,6 +789,36 @@ describe('search — projection', () => {
 		expect(install.map((d) => d.anchor)).toEqual(['', 'setup']); // lead + one heading chunk
 		expect(install.find((d) => d.anchor === 'setup')?.id).toBe('start/install#setup');
 		expect(docs.find((d) => d.slug === 'regions/held')?.heading).toBe('');
+	});
+
+	it('a page with two heading-less sections is one document holding both, never two with one id', async () => {
+		// `## Extra` is a heading in the source the collected headings do not list: its section has none
+		const site = mint_site(
+			content({
+				loader: fromArray([
+					{
+						id: 'start/odd',
+						filePath: 'content/docs/00-start/00-odd/+doc.svx',
+						data: { title: 'Odd' },
+						meta: { headings: [] },
+						source: async () => dedent`
+							# Odd
+
+							Lead text.
+
+							## Extra
+
+							More text.
+						`
+					}
+				]),
+				schema: docSchema
+			})
+		);
+		const docs = await build_docs(site.outline);
+		expect(docs.map((d) => d.id)).toEqual(['start/odd']);
+		expect(docs[0].text).toContain('Lead text');
+		expect(docs[0].text).toContain('More text');
 	});
 });
 
@@ -652,6 +851,79 @@ describe('search — engine + brain (Orama)', () => {
 		expect(hits[0].href).toBe('/docs/a');
 	});
 
+	it('orama_engine: a page whose title is the query answers first even when the engine ranks its section above it', async () => {
+		const doc = (anchor: string, heading: string, text: string, title = 'Snippets') => ({
+			id: anchor ? `snippets#${anchor}` : 'snippets',
+			slug: title.toLowerCase(),
+			anchor,
+			title,
+			section: 'Start',
+			heading,
+			text
+		});
+		const index = await orama_engine().build([
+			doc('', '', 'A short intro to the page.'),
+			doc('usage', 'Usage', 'Pass a snippet to the region.'),
+			doc('', 'Props', 'A region takes props.', 'Regions'),
+			doc('', 'Inside', 'A lake holds markup.', 'Lakes')
+		]);
+		// the section scores higher in the engine; only a wider fetch lets rerank see the page
+		expect((await index.query('snippet', { limit: 2, base: '' })).map((h) => h.href)).toEqual([
+			'/snippets',
+			'/snippets#usage'
+		]);
+		expect((await index.query('snippet', { limit: 1, base: '' })).map((h) => h.href)).toEqual([
+			'/snippets'
+		]);
+	});
+
+	it('orama_engine builds and finds two documents that share an id', async () => {
+		const engine = orama_engine();
+		const doc = (text: string) => ({
+			id: 'same',
+			slug: 'same',
+			anchor: '',
+			title: 'Same',
+			section: 'Start',
+			heading: '',
+			text
+		});
+		const index = await engine.build([doc('alpha words'), doc('beta words')]);
+		expect(await index.query('alpha', { limit: 5, base: '' })).toHaveLength(1);
+		expect(await index.query('beta', { limit: 5, base: '' })).toHaveLength(1);
+	});
+
+	it('rerank: a hit whose title carries the query outranks a higher-scored body match', () => {
+		const hit = (title: string, href: string, score: number) => ({
+			href,
+			slug: href,
+			title,
+			section: 'S',
+			heading: '',
+			excerpt: '',
+			score
+		});
+		const ranked = rerank(
+			[hit('Other', '/other', 3), hit('Snippets', '/snippets#use', 1)],
+			'snippet'
+		);
+		expect(ranked.map((h) => h.title)).toEqual(['Snippets', 'Other']);
+	});
+
+	it('rerank: of two hits whose title carries the query, the page itself outranks its section', () => {
+		const hit = (href: string, score: number) => ({
+			href,
+			slug: 'snippets',
+			title: 'Snippets',
+			section: 'S',
+			heading: '',
+			excerpt: '',
+			score
+		});
+		const ranked = rerank([hit('/snippets#more', 1.2), hit('/snippets', 1)], 'snippet');
+		expect(ranked.map((h) => h.href)).toEqual(['/snippets', '/snippets#more']);
+	});
+
 	it('site.search() returns ranked hits with mount-based hrefs; scoping pre-filters', async () => {
 		const site = mint_site(searchable());
 		const hits = await site.search('installer', { base: '/docs' });
@@ -667,7 +939,11 @@ describe('search — engine + brain (Orama)', () => {
 					filePath: 'other/00-z/+doc.svx',
 					data: { title: 'Z' },
 					meta: { headings: [] },
-					source: async () => '# Z\n\nnothing here'
+					source: async () => dedent`
+						# Z
+
+						nothing here
+					`
 				}
 			]),
 			schema: docSchema

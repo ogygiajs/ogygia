@@ -198,12 +198,12 @@
 		return typeof window === 'undefined'
 			? /** @param {{ push(html: string): void }} renderer */
 				(renderer) => {
-					renderer.push(LT + 'ogygia-region' + attrs() + GT);
+					renderer.push(`${LT}ogygia-region${attrs()}${GT}`);
 					inner?.(/** @type {never} */ (renderer));
-					renderer.push(LT + '/ogygia-region' + GT);
+					renderer.push(`${LT}/ogygia-region${GT}`);
 				}
 			: createRawSnippet(() => ({
-					render: () => LT + 'ogygia-region' + attrs() + GT + LT + '/ogygia-region' + GT,
+					render: () => `${LT}ogygia-region${attrs()}${GT}${LT}/ogygia-region${GT}`,
 					setup
 				}));
 	}
@@ -738,24 +738,8 @@
 	// one has no address; the runtime finds the hole's facts by identity, as for a hole Kit rebuilt.
 	const hole_attrs = () => {
 		/** @param {string} name @param {unknown} v */
-		const a = (name, v) =>
-			v == null || v === '' ? '' : ' ' + name + '="' + escape_attr(String(v)) + '"';
-		return (
-			' entry="' +
-			escape_attr(server_region_entry) +
-			'" render="defer"' +
-			a('stitch', __stitch) +
-			a('prefetch', __prefetch) +
-			a('when', __defer) +
-			a('wake', __hydrate) +
-			a('margin', __margin) +
-			a('hydrate-margin', __hydrateMargin) +
-			' endpoint="' +
-			escape_attr(server_endpoint) +
-			'"' +
-			a('data-og-hole', server_identity) +
-			a('src', server_region_src)
-		);
+		const a = (name, v) => (v == null || v === '' ? '' : ` ${name}="${escape_attr(String(v))}"`);
+		return ` entry="${escape_attr(server_region_entry)}" render="defer"${a('stitch', __stitch)}${a('prefetch', __prefetch)}${a('when', __defer)}${a('wake', __hydrate)}${a('margin', __margin)}${a('hydrate-margin', __hydrateMargin)} endpoint="${escape_attr(server_endpoint)}"${a('data-og-hole', server_identity)}${a('src', server_region_src)}`;
 	};
 	const hole_adopt = adopt_region(
 		hole_attrs,
@@ -780,7 +764,7 @@
 	// hole ships no JS wherever it sits (the client wrapper has no component — emit.ts), and the
 	// islands authored inside it emit real regions (LakeBoundary) and wake on their own.
 	const hole_frozen = adopt_region(
-		() => ' entry="' + escape_attr(String(__entry || '')) + '" wake="none" remount="cache"',
+		() => ` entry="${escape_attr(String(__entry || ''))}" wake="none" remount="cache"`,
 		(renderer) => {
 			const Component = /** @type {(r: unknown, p: unknown) => void} */ (
 				/** @type {unknown} */ (__component)
@@ -871,12 +855,12 @@
 	const lake_attrs = $derived.by(() => {
 		/** @param {unknown} v */
 		const esc = (v) => escape_attr(String(v));
-		let s = ' entry="' + esc(__entry || '') + '" wake="none" remount="' + esc(__remount) + '"';
-		if (lake_swr) s += ' when="' + esc(__when) + '"';
-		if (__maxAge != null) s += ' max-age="' + esc(String(__maxAge)) + '"';
-		if (__onExpire) s += ' on-expire="' + esc(__onExpire) + '"';
-		if (lake_swr && __margin) s += ' margin="' + esc(__margin) + '"';
-		if (lake_endpoint) s += ' endpoint="' + esc(lake_endpoint) + '"';
+		let s = ` entry="${esc(__entry || '')}" wake="none" remount="${esc(__remount)}"`;
+		if (lake_swr) s = `${s} when="${esc(__when)}"`;
+		if (__maxAge != null) s = `${s} max-age="${esc(String(__maxAge))}"`;
+		if (__onExpire) s = `${s} on-expire="${esc(__onExpire)}"`;
+		if (lake_swr && __margin) s = `${s} margin="${esc(__margin)}"`;
+		if (lake_endpoint) s = `${s} endpoint="${esc(lake_endpoint)}"`;
 		return s;
 	});
 	const lake_adopt = adopt_region(
@@ -907,14 +891,7 @@
 		!nested && ((is_island && !is_csr) || is_server || holds_live) && claimRuntimeEmit()
 			? runtime_bootstrap(kit_asset) +
 				(dev_hmr_url
-					? LT +
-						'script type="module" data-ogygia-dev-hmr src="' +
-						kit_asset(dev_hmr_url) +
-						'"' +
-						GT +
-						LT +
-						'/script' +
-						GT
+					? `${LT}script type="module" data-ogygia-dev-hmr src="${kit_asset(dev_hmr_url)}"${GT}${LT}/script${GT}`
 					: '')
 			: '';
 	// Held dual: the component was server-picked (a registry), so its CSS is on no page stylesheet —
@@ -953,14 +930,7 @@
 	const kit_island_meta = $derived.by(() => {
 		if (!is_island || !island_inline || !island_entry || !claim_kit_island(island_entry)) return '';
 		const content = escape_amp_quot(String(island_entry));
-		return (
-			LT +
-			'meta name="ogygia-kit-island" content="' +
-			content +
-			'"' +
-			head_owner_attr(tag_owner) +
-			GT
-		);
+		return `${LT}meta name="ogygia-kit-island" content="${content}"${head_owner_attr(tag_owner)}${GT}`;
 	});
 
 	// A content BODY (an inline region from a `.svx`/`.md`) carries its own scoped `<style>`, but the
@@ -1044,7 +1014,7 @@
 	/** @param {import('./region.ts').DeferredRegion} f */
 	function identity(f) {
 		try {
-			return f.id + ' ' + stringify_devalue(f.props);
+			return `${f.id} ${stringify_devalue(f.props)}`;
 		} catch {
 			return f.id;
 		}

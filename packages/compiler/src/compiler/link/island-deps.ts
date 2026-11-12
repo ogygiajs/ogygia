@@ -5,7 +5,7 @@
  * Pure over the bundle it is handed. Covered by unit tests.
  */
 import path from 'node:path';
-import { dedent } from '../dedent.ts';
+import { dedent } from '@ogygia/core/contract';
 import { merge_page_keys, type PageKeys } from './page-keys.ts';
 import {
 	hydration_hazards,
@@ -48,7 +48,7 @@ export function remote_hash_of(module_id: string, cwd: string): string | null {
 	const id = module_id.split('?')[0].replace(BACKSLASH_G, '/');
 	if (!REMOTE_MODULE_RE.test(id)) return null;
 	const root = cwd.replace(BACKSLASH_G, '/').replace(TRAILING_SLASH_RE, '');
-	const rel = id.startsWith(root + '/') ? id.slice(root.length + 1) : path.posix.relative(root, id);
+	const rel = id.startsWith(`${root}/`) ? id.slice(root.length + 1) : path.posix.relative(root, id);
 	return kit_remote_hash(rel);
 }
 const TRAILING_SLASH_RE = /\/+$/;
@@ -243,7 +243,7 @@ export function collectIslandDepModulepreloads(
 		const chunk = bundle[fileName];
 		const imported = chunk?.viteMetadata?.importedCss;
 		if (!imported) return [];
-		return [...imported].map((f) => (f.startsWith('/') ? f : '/' + f));
+		return [...imported].map((f) => (f.startsWith('/') ? f : `/${f}`));
 	};
 
 	const walk = (fileName: string, seen: Set<string>, css_acc: string[]): string[] => {
@@ -259,7 +259,7 @@ export function collectIslandDepModulepreloads(
 			// prerender. A missing preload only costs a waterfall, so skipping phantoms is safe.
 			const dep = bundle[imp];
 			if (!dep || dep.type !== 'chunk') continue;
-			deps.push(imp.startsWith('/') ? imp : '/' + imp);
+			deps.push(imp.startsWith('/') ? imp : `/${imp}`);
 			css_acc.push(...css_of(imp));
 			deps.push(...walk(imp, seen, css_acc));
 		}
@@ -273,7 +273,7 @@ export function collectIslandDepModulepreloads(
 			: ISLAND_FACADE_RE.test(fileName)
 				? fileName.startsWith('/')
 					? fileName
-					: '/' + fileName
+					: `/${fileName}`
 				: null;
 	for (const [key, chunk] of Object.entries(bundle)) {
 		if (chunk.type !== 'chunk') continue;
@@ -287,7 +287,7 @@ export function collectIslandDepModulepreloads(
 		const css_acc = css_of(fileName);
 		const raw = walk(fileName, seen, css_acc);
 		const uniq: string[] = [];
-		const have = new Set<string>([entryUrl, '/' + fileName.replace(LEADING_SLASH, '')]);
+		const have = new Set<string>([entryUrl, `/${fileName.replace(LEADING_SLASH, '')}`]);
 		for (const d of raw) {
 			if (have.has(d)) continue;
 			have.add(d);
@@ -363,7 +363,7 @@ export function collectIslandDepModulepreloads(
 		const chunk = bundle[runtime_key];
 		if (chunk && chunk.type === 'chunk') {
 			// (keyed by the runtime's identity, like an island's)
-			js[entries?.runtime ?? '/' + runtime_key] = [
+			js[entries?.runtime ?? `/${runtime_key}`] = [
 				...new Set(walk(runtime_key, new Set([runtime_key]), []))
 			];
 		}
@@ -373,7 +373,7 @@ export function collectIslandDepModulepreloads(
 	const contents: Record<string, string[]> = {};
 	const heavy: Record<string, ChunkHeavy> = {};
 	const summarize = (s: string) => {
-		const url = s.startsWith('/') ? s : '/' + s;
+		const url = s.startsWith('/') ? s : `/${s}`;
 		if (contents[url]) return;
 		const chunk = bundle[s];
 		const ids = chunk?.moduleIds ?? [];
@@ -497,7 +497,7 @@ export function duplicate_modules(
 			if (!ids.has(id)) {
 				const from = module_origin(id);
 				ids.set(id, {
-					file: c.file.startsWith('/') ? c.file : '/' + c.file,
+					file: c.file.startsWith('/') ? c.file : `/${c.file}`,
 					bytes: c.size_of?.(id) ?? 0,
 					...(from ? { from } : {})
 				});
@@ -587,7 +587,7 @@ export function summarize_chunk_contents(
 		if (OWN_FILE_RE.test(id)) add(pkgs, 'ogygia runtime', raw);
 		else {
 			const rel = SRC_IN_PATH_RE.exec(id);
-			add(files, rel ? 'src/' + rel[1] : id.split('/').slice(-2).join('/'), raw);
+			add(files, rel ? `src/${rel[1]}` : id.split('/').slice(-2).join('/'), raw);
 		}
 	}
 	const out = [...ordered(files).slice(0, max_files), ...ordered(pkgs).slice(0, max_pkgs)];
@@ -702,7 +702,7 @@ export function collect_inline_css(
 		const item = bundle[key];
 		if (item.type !== 'asset') continue;
 		const file = item.fileName || key;
-		by_href.set(file.startsWith('/') ? file : '/' + file, item);
+		by_href.set(file.startsWith('/') ? file : `/${file}`, item);
 	}
 	for (const href of hrefs) {
 		if (href in out) continue;

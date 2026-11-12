@@ -97,7 +97,7 @@ bench('machine: create a machine per region', ({ n }) => crowd(n).length, {
 /** A chain of `n` states, each stepping to the next and back to the first: a definition to grow. */
 function chain_steps(n: number): Record<string, string[]> {
 	const steps: Record<string, string[]> = {};
-	for (let i = 0; i < n; i++) steps['s' + i] = i + 1 < n ? ['s' + (i + 1), 's0'] : ['s0'];
+	for (let i = 0; i < n; i++) steps[`s${i}`] = i + 1 < n ? [`s${i + 1}`, 's0'] : ['s0'];
 	return steps;
 }
 
@@ -355,7 +355,7 @@ bench(
 		});
 		const out: Promise<unknown>[] = [];
 		for (let i = 0; i < n; i++) {
-			const url = '/chunk/' + (i % 50);
+			const url = `/chunk/${i % 50}`;
 			// a guess, then the joins that need it more (and some that need it less)
 			out.push(chunks.get(url, { priority: i % 4 }));
 		}
@@ -412,7 +412,7 @@ bench(
 		});
 		const out: Promise<unknown>[] = [];
 		for (let i = 0; i < n; i++) {
-			const href = '/page/' + (i % 40);
+			const href = `/page/${i % 40}`;
 			const ctl = new AbortController();
 			out.push(pages.get(href).catch(() => null));
 			out.push(pages.get(href, { signal: ctl.signal }).catch(() => null));
@@ -425,7 +425,7 @@ bench(
 		const settled = await Promise.all(out);
 		// revalidations of what is kept now: each one beside its kept answer
 		const again: Promise<unknown>[] = [];
-		for (let i = 0; i < 40; i += 2) again.push(pages.get('/page/' + i, { fresh: true }));
+		for (let i = 0; i < 40; i += 2) again.push(pages.get(`/page/${i}`, { fresh: true }));
 		await Promise.allSettled(again);
 		pages[Symbol.dispose]();
 		return settled.filter((v) => v === STALE).length;
@@ -791,11 +791,11 @@ bench(
 			const a = page.stamp();
 			const b = tags.stamp();
 			if (i % 7 === 0) page.bump();
-			if (i % 3 === 0) tags.bump(['t' + (i % 50), 'all']);
+			if (i % 3 === 0) tags.bump([`t${i % 50}`, 'all']);
 			if (i % 97 === 0) tags.bump();
 			if (i % 13 === 0) tags.bump([]);
 			if (page.fresh(a)) fresh++;
-			if (tags.fresh(b, ['t' + (i % 60)])) fresh++;
+			if (tags.fresh(b, [`t${i % 60}`])) fresh++;
 			if (tags.fresh(b)) fresh++;
 		}
 		// more keys than it keeps: the oldest fold into the floor
@@ -818,17 +818,17 @@ bench(
 			touches: (doc: { tags: string[] }) => doc.tags,
 			run: async (path: string) => {
 				await Promise.resolve();
-				return { tags: ['p:' + path, 's:' + (path.length % 3)] };
+				return { tags: [`p:${path}`, `s:${path.length % 3}`] };
 			}
 		});
 		const whole = world();
 		const pages = flights({ world: whole, run: async (href: string) => href });
 		const out: Promise<unknown>[] = [];
 		for (let i = 0; i < n; i++) {
-			const path = '/doc/' + (i % 30);
+			const path = `/doc/${i % 30}`;
 			out.push(docs.get(path), pages.get(path));
-			if (i % 5 === 0) tags.bump(['s:' + (i % 3)]);
-			if (i % 9 === 0) tags.bump(['p:' + path]);
+			if (i % 5 === 0) tags.bump([`s:${i % 3}`]);
+			if (i % 9 === 0) tags.bump([`p:${path}`]);
 			if (i % 23 === 0) whole.bump();
 			if (i % 31 === 0) out.push(docs.get(path, { fresh: true }));
 		}

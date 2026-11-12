@@ -458,7 +458,7 @@ set_render_page_port({
 			(try_get_request_store() as TransportStore | undefined)?.event,
 			bag_of()?.page ?? undefined
 		);
-		return v ? '&pv=' + v : '';
+		return v ? `&pv=${v}` : '';
 	}
 });
 set_kit_page_reader(() => {
@@ -727,7 +727,7 @@ function region_css_links(id: string): string {
  * the side-channel shape (page / remote / ctx / devtools).
  */
 function emit_ogygia_script(subtype: string, escaped_payload: string, marker = ''): string {
-	return `<script type="application/ogygia-${subtype}"${marker ? ' ' + marker : ''}>${escaped_payload}</script>`;
+	return `<script type="application/ogygia-${subtype}"${marker ? ` ${marker}` : ''}>${escaped_payload}</script>`;
 }
 
 const DOUBLE_QUOTE_G = /"/g;
@@ -1231,7 +1231,7 @@ class OgygiaHandle {
 				// standalone dock boot so the launcher is on EVERY dev page — on this csr=true page it
 				// renders a "csr=true — open a csr=false page" notice, since there are no islands here.
 				if (devtools_boot_url && !head.includes(OGYGIA_DEVTOOLS_BOOT)) {
-					head_inject += `<script type="module" ${OGYGIA_DEVTOOLS_BOOT} src="${devtools_boot_url}"></script>`;
+					head_inject = `${head_inject}<script type="module" ${OGYGIA_DEVTOOLS_BOOT} src="${devtools_boot_url}"></script>`;
 				}
 				if (bag) bag.kit_with_runtime = page_declares_runtime_script(head);
 			}
@@ -1298,10 +1298,10 @@ class OgygiaHandle {
 			// Firefox prefetches them, everything else ignores the JSON. Presence-checked so a page
 			// authoring its own rules wins; per-link opt-out via `data-ogygia-speculate="off"`.
 			if (!router_enabled && !page_declares_speculation_rules(probe)) {
-				head_inject += `<script type="speculationrules" ${OGYGIA_SPECULATE}>${this.#speculation_rules}</script>`;
+				head_inject = `${head_inject}<script type="speculationrules" ${OGYGIA_SPECULATE}>${this.#speculation_rules}</script>`;
 			}
 			if (router_enabled && !page_declares_router_meta(probe)) {
-				head_inject += `<meta name="ogygia-router" content="${view_transitions ? 'vt' : 'plain'}">`;
+				head_inject = `${head_inject}<meta name="ogygia-router" content="${view_transitions ? 'vt' : 'plain'}">`;
 			}
 			// The runtime bootstrap goes FIRST in `<head>` (head-presence.ts `runtime_first`): the one
 			// an island page emitted moves up from Kit's head slot, and an island-less page gets it
@@ -1326,12 +1326,12 @@ class OgygiaHandle {
 			// skips) kept a poisoned tab after a re-optimize until a manual reload, reporting only
 			// "hydration failed". `dev_hmr_url` is empty outside `vite serve`, so this stays dev-only.
 			if (dev_hmr_url && !page_declares_dev_hmr_script(probe)) {
-				head_inject += `<script type="module" ${OGYGIA_DEV_HMR} src="${kit_asset(dev_hmr_url)}"></script>`;
+				head_inject = `${head_inject}<script type="module" ${OGYGIA_DEV_HMR} src="${kit_asset(dev_hmr_url)}"></script>`;
 				// The page's sub-app scope (its route id's first segment) for the dev CSS bridge:
 				// a changed stylesheet joins this page only when the plugin derives the same scope
 				// among its owners — two route-group sub-apps never paint each other in dev.
 				const scope = (event?.route.id ?? '').split('/').filter(Boolean)[0] ?? '';
-				head_inject += `<meta name="ogygia-dev-scope" content="${scope.replace(DOUBLE_QUOTE_G, '')}">`;
+				head_inject = `${head_inject}<meta name="ogygia-dev-scope" content="${scope.replace(DOUBLE_QUOTE_G, '')}">`;
 			}
 		}
 
@@ -1469,9 +1469,7 @@ class OgygiaHandle {
 				emit_ogygia_script(
 					'page',
 					page_payload.text,
-					OGYGIA_PAGE +
-						(page_payload.json ? ` ${OG_FORMAT}="${WIRE_FORMAT_JSON}"` : '') +
-						mark_attr(bag!.request)
+					`${OGYGIA_PAGE}${page_payload.json ? ` ${OG_FORMAT}="${WIRE_FORMAT_JSON}"` : ''}${mark_attr(bag!.request)}`
 				)
 			);
 			if (DEVTOOLS)

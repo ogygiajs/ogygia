@@ -11,6 +11,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { brotliCompressSync } from 'node:zlib';
 import { rolldown } from 'rolldown';
+import { dedent } from '../src/contract/dedent.ts';
 
 const SRC = fileURLToPath(new URL('../src/', import.meta.url));
 const RUNTIME_RULES = [
@@ -48,18 +49,20 @@ async function build(entry: string, rules: boolean): Promise<string> {
 	return output.map((o) => ('code' in o ? o.code : '')).join('\n');
 }
 
-const RUNTIME_ENTRY =
-	`import { boot } from ${JSON.stringify(SRC + 'runtime/core.ts')};\n` +
-	`import { install } from ${JSON.stringify(SRC + 'runtime/router.ts')};\n` +
-	`boot([install]);\n`;
+const RUNTIME_ENTRY = `${dedent`
+	import { boot } from ${JSON.stringify(`${SRC}runtime/core.ts`)};
+	import { install } from ${JSON.stringify(`${SRC}runtime/router.ts`)};
+	boot([install]);
+`}\n`;
 // The response path, and the checks installed as the handle installs them (hooks.ts: its `RULES`
 // guard, word for word; the handle itself reads virtual modules a bare build cannot resolve).
-const SERVER_ENTRY =
-	`export { own_response } from ${JSON.stringify(SRC + 'plugin/request-scope.ts')};\n` +
-	`export { flights } from '@ogygia/machine';\n` +
-	`import { install_server_rules } from ${JSON.stringify(SRC + 'server/rules.ts')};\n` +
-	`const RULES = import.meta.env?.DEV || (typeof __OGYGIA_RULES__ !== 'undefined' ? __OGYGIA_RULES__ : false);\n` +
-	`if (RULES) install_server_rules();\n`;
+const SERVER_ENTRY = `${dedent`
+	export { own_response } from ${JSON.stringify(`${SRC}plugin/request-scope.ts`)};
+	export { flights } from '@ogygia/machine';
+	import { install_server_rules } from ${JSON.stringify(`${SRC}server/rules.ts`)};
+	const RULES = import.meta.env?.DEV || (typeof __OGYGIA_RULES__ !== 'undefined' ? __OGYGIA_RULES__ : false);
+	if (RULES) install_server_rules();
+`}\n`;
 
 describe('rules never ship in a production build', () => {
 	it('the runtime boot with its router: none of them off, every one on', async () => {
@@ -102,12 +105,12 @@ const SERVER_POINTS = [
 	'federation.doc-stale',
 	'postrender.store-down'
 ];
-const SERVER_POINTS_ENTRY =
-	SERVER_ENTRY +
-	// (by path: a bare name does not resolve from the entry's temporary folder)
-	`export { outbox } from ${JSON.stringify(SRC + '../../machine/src/outbox.ts')};\n` +
-	`export { PeerHandle } from ${JSON.stringify(SRC + '../../federation/src/peer.ts')};\n` +
-	`export { store_get } from ${JSON.stringify(SRC + '../../postrender/src/registry.ts')};\n`;
+// (by path: a bare name does not resolve from the entry's temporary folder)
+const SERVER_POINTS_ENTRY = `${SERVER_ENTRY}${dedent`
+	export { outbox } from ${JSON.stringify(`${SRC}../../machine/src/outbox.ts`)};
+	export { PeerHandle } from ${JSON.stringify(`${SRC}../../federation/src/peer.ts`)};
+	export { store_get } from ${JSON.stringify(`${SRC}../../postrender/src/registry.ts`)};
+`}\n`;
 
 describe('buggify points never ship in a production build', () => {
 	it('the runtime boot: none of them off, every one on', async () => {

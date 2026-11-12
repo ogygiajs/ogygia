@@ -1,14 +1,3 @@
-/**
- * Content CHECKS — corpus-wide invariants that keep docs from rotting, as pluggable VALUES. The link
- * audit is one instance; freshness SLAs, ownership, style linting are others. A check speaks in
- * {@link Finding}s (file-anchored, severity-tagged), and runs two ways:
- *  - `page(slug)` — in `site.load`, so an ERROR finding throws in EVERY render mode (dev open, SSR,
- *    prerender), which Kit's prerender-only crawler can't give you.
- *  - `site()` — whole-corpus, for `site.check()` (CI / vitest / dynamic sites) as plain data, never throws.
- *
- * Structural invariants (orphans, slug collisions, `NN-` verification) are NOT checks — they are
- * always-on build errors in the outline/`folder()`. Checks are opt-in POLICY.
- */
 import type { LinkRef } from '../index.ts';
 import { href_of, type Outline } from './outline.ts';
 import type { ReadContext } from './site.ts';
@@ -35,8 +24,11 @@ export type Finding = {
 export type CheckContext = { outline: Outline; base: string; ctx: ReadContext };
 
 /**
- * A content check. Implement `page` (per-page, runs in `load`), `site` (whole-corpus), or both. A
- * check with only `page` gets a default `site` that runs `page` over every address.
+ * A content check: opt-in policy over the corpus, speaking in {@link Finding}s. `page` runs in
+ * `site.load`, so an `'error'` finding fails the page in dev, SSR and prerender alike. `site` runs
+ * for `site.check()` and returns the findings as data. A check with only `page` gets a `site` that
+ * runs `page` over every address. Structural errors (orphans, slug collisions) are not checks: the
+ * outline always raises them.
  */
 export type Check = {
 	name: string;
@@ -44,7 +36,6 @@ export type Check = {
 	site?: (cx: CheckContext) => Finding[] | Promise<Finding[]>;
 };
 
-/** Pull `headings` off a source-derived meta (`markdown` supplies it), defensively. */
 function headings_of(meta: unknown): Array<{ id: string }> {
 	if (meta && typeof meta === 'object' && 'headings' in meta) {
 		const h = (meta as { headings: unknown }).headings;
@@ -52,7 +43,6 @@ function headings_of(meta: unknown): Array<{ id: string }> {
 	}
 	return [];
 }
-/** Pull `links` off a source-derived meta (`markdown` supplies it), defensively. */
 function links_of(meta: unknown): LinkRef[] {
 	if (meta && typeof meta === 'object' && 'links' in meta) {
 		const l = (meta as { links: unknown }).links;
@@ -60,8 +50,8 @@ function links_of(meta: unknown): LinkRef[] {
 	}
 	return [];
 }
-/** Did the format collect link data at all? `links: []` counts; an absent property does not. */
 function has_link_data(meta: unknown): boolean {
+	// @why `links: []` is link data, a missing `links` is not (test: test/site-checks.test.ts › a page with no links property is warned about once and passes; links: [] is link data)
 	return !!meta && typeof meta === 'object' && 'links' in meta;
 }
 
@@ -120,17 +110,18 @@ export function links(opts: LinkOptions = {}): Check {
 				path = slug;
 				frag = href.slice(1);
 			} else if (URL_SCHEME.test(href) || href.startsWith('//')) {
-				continue; // external — not ours to judge
+				continue;
 			} else if (href.startsWith('/')) {
 				let rest: string;
-				if (b && (href === b || href.startsWith(b + '/'))) rest = href.slice(b.length);
+				if (b && (href === b || href.startsWith(`${b}/`))) rest = href.slice(b.length);
 				else if (!b) rest = href;
-				else continue; // absolute but outside the mount — the app's business
+				else continue;
 				const [p, f] = rest.split('#');
 				path = p.replace(EDGE_SLASHES_G, '');
 				frag = f;
 			} else {
-				continue; // relative (colocated asset etc.) — not judged
+				// @why a relative link (a colocated asset) is not judged (test: test/site-checks.test.ts › a relative link (a colocated asset) is not judged)
+				continue;
 			}
 
 			const at = {
@@ -184,8 +175,6 @@ export function links(opts: LinkOptions = {}): Check {
 		}
 	};
 }
-
-// ── runners (used by ogygia: load throws on errors, site.check() returns data) ──
 
 /** Run every check's `page` pass for one slug. */
 export async function run_page_checks(

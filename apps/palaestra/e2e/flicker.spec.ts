@@ -31,7 +31,7 @@ test.describe('SSR-resolved query seeding: zero-flash hydration', () => {
 		const remoteReqs: string[] = [];
 		page.on('request', (r) => {
 			const u = r.url();
-			if (REMOTE_PATH_RE.test(u)) remoteReqs.push(r.method() + ' ' + u);
+			if (REMOTE_PATH_RE.test(u)) remoteReqs.push(`${r.method()} ${u}`);
 		});
 
 		// hard reload

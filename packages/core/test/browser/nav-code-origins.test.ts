@@ -14,17 +14,14 @@ const real_fetch = window.fetch;
 const home = location.href;
 const NEXT = '/nav-code-origins-next';
 const PEER = 'https://peer-cdn.example';
-const PEER_FILE = PEER + '/_app/immutable/og-region.abc.js';
+const PEER_FILE = `${PEER}/_app/immutable/og-region.abc.js`;
 
 /** The head runtime stand-in, as the server writes it: its response's mark, and the origins it names. */
 const runtime = (mark: string, origins = '') =>
-	`<script type="application/x-runtime-stand-in" data-og-mark="${mark}" data-ogygia-runtime` +
-	(origins ? ` data-og-origins="${origins}"` : '') +
-	'></script>';
+	`<script type="application/x-runtime-stand-in" data-og-mark="${mark}" data-ogygia-runtime${origins ? ` data-og-origins="${origins}"` : ''}></script>`;
 
 const page = (who: string, head_runtime: string) =>
-	'<!doctype html><html><head><meta name="ogygia-router" content="plain">' +
-	`<title>page ${who}</title>${head_runtime}</head><body><p>${who}</p></body></html>`;
+	`<!doctype html><html><head><meta name="ogygia-router" content="plain"><title>page ${who}</title>${head_runtime}</head><body><p>${who}</p></body></html>`;
 
 beforeEach(() => {
 	link_boot();

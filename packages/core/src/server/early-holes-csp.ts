@@ -42,7 +42,7 @@ function with_hash(policy: string): string {
 		if (lower.length === 1 && lower[0] === "'none'") return policy;
 		if (lower.includes("'unsafe-inline'") && !sources.some((s) => NONCE_OR_HASH_RE.test(s)))
 			return policy;
-		parts[at] = parts[at]!.replace(/\s*$/, '') + ' ' + EARLY_HOLES_SOURCE;
+		parts[at] = `${parts[at]!.replace(/\s*$/, '')} ${EARLY_HOLES_SOURCE}`;
 		return parts.join(';');
 	}
 	return policy;
@@ -76,7 +76,7 @@ export function with_early_holes_meta_csp(head: string): string {
 		if (next === policy) continue;
 		const quoted = head[at - 1] === '"' || head[at - 1] === "'";
 		const from = quoted ? at - 1 : at;
-		out += head.slice(kept, from) + '"' + next.replaceAll('"', '&quot;') + '"';
+		out = `${out}${head.slice(kept, from)}"${next.replaceAll('"', '&quot;')}"`;
 		kept = at + policy.length + (quoted ? 1 : 0);
 	}
 	return kept === 0 ? head : out + head.slice(kept);

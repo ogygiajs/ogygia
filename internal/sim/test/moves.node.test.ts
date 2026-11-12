@@ -10,7 +10,7 @@ import { World } from '../src/world.ts';
 const OUTPUT = fileURLToPath(
 	new URL('../../../apps/palaestra/.svelte-kit/output', import.meta.url)
 );
-const built = existsSync(OUTPUT + '/server/index.js');
+const built = existsSync(`${OUTPUT}/server/index.js`);
 
 describe.skipIf(!built)("a document's moves", () => {
 	it('are still read once the tab shows the next document', async () => {

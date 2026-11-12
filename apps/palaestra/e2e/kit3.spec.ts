@@ -145,7 +145,7 @@ test.describe('SvelteKit 3: build + dev on the packed ogygia (self-building fixt
 					PROTOCOL_HEADER: 'x-forwarded-proto',
 					OGYGIA_SECRET: SECRET
 				},
-				url: base + '/'
+				url: `${base}/`
 			});
 			const context = await browser.newContext({ extraHTTPHeaders: PROTO });
 			await exercise(await context.newPage(), base, '/', false);
@@ -176,12 +176,12 @@ test.describe('SvelteKit 3: build + dev on the packed ogygia (self-building fixt
 				],
 				cwd: APP,
 				env: { OGYGIA_SECRET: SECRET },
-				url: base + '/',
+				url: `${base}/`,
 				timeout_ms: 120_000
 			});
 			// warm both pages first: dev discovers island deps on first render (one re-optimize)
-			await fetch(base + '/');
-			await fetch(base + '/kit');
+			await fetch(`${base}/`);
+			await fetch(`${base}/kit`);
 			await sleep(1500);
 			const context = await browser.newContext();
 			await exercise(await context.newPage(), base, '/', false);

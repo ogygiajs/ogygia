@@ -1,4 +1,5 @@
 import { describe, expect, it, afterEach } from 'vitest';
+import { dedent } from '@ogygia/core/plugin/utils';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -101,12 +102,12 @@ describe('find_loader_calls', () => {
 		expect(calls[0]!.args).toBe(`'sveltejs/svelte'`);
 	});
 	it('finds all four loader kinds', () => {
-		const src = [
-			`a(import.meta.og.loader.markdown('./docs/**/*.svx'))`,
-			`b(import.meta.og.loader.folder('../content/**'))`,
-			`c(import.meta.og.loader.json('./authors/*.json'))`,
-			`d(import.meta.og.loader.git('a/b'))`
-		].join('\n');
+		const src = dedent`
+			a(import.meta.og.loader.markdown('./docs/**/*.svx'))
+			b(import.meta.og.loader.folder('../content/**'))
+			c(import.meta.og.loader.json('./authors/*.json'))
+			d(import.meta.og.loader.git('a/b'))
+		`;
 		expect(find_loader_calls(src).map((c) => c.method)).toEqual([
 			'markdown',
 			'folder',
@@ -130,23 +131,23 @@ describe('find_loader_calls', () => {
 		expect(calls[0]!.args).toBe(`'a/b', { note: 'has ) paren' }`);
 	});
 	it('AST path: ignores the marker inside a comment or string (only real call nodes count)', () => {
-		const src = [
-			`// see import.meta.og.loader.git() for details`,
-			`/** import.meta.og.loader.markdown() is a build construct */`,
-			`const doc = "call import.meta.og.loader.json() like this";`,
-			`export const real = import.meta.og.loader.git('sveltejs/svelte');`
-		].join('\n');
+		const src = dedent`
+			// see import.meta.og.loader.git() for details
+			/** import.meta.og.loader.markdown() is a build construct */
+			const doc = "call import.meta.og.loader.json() like this";
+			export const real = import.meta.og.loader.git('sveltejs/svelte');
+		`;
 		const calls = find_loader_calls(src);
 		expect(calls).toHaveLength(1);
 		expect(calls[0]!.method).toBe('git');
 	});
 	it('scanner fallback: still ignores comments/strings when the source does not parse', () => {
 		// A deliberately unparseable tail forces the AST path to bail → scanner fallback.
-		const src = [
-			`// import.meta.og.loader.git() in a comment`,
-			`const real = import.meta.og.loader.git('a/b');`,
-			`const broken = (`
-		].join('\n');
+		const src = dedent`
+			// import.meta.og.loader.git() in a comment
+			const real = import.meta.og.loader.git('a/b');
+			const broken = (
+		`;
 		const calls = find_loader_calls(src);
 		expect(calls).toHaveLength(1);
 		expect(calls[0]!.method).toBe('git');

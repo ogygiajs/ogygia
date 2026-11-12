@@ -1,20 +1,3 @@
-/**
- * A tsdown plugin that ships a library's Svelte components the way svelte-package does, inside a
- * normal tsdown build:
- *
- *   - every `.svelte` under `src` is preprocessed (its script's TS transpiled), its markup's TS cut
- *     (`strip_markup_ts`) and `lang="ts"` dropped, then emitted into the output dir at the same
- *     path as a raw, plain-JS component. It is NOT compiled: the consumer's own Svelte compiles it,
- *     so the library never bakes in a Svelte version. Templates may use TypeScript freely.
- *   - standalone `.css` files are copied as they are.
- *   - `.svelte.d.ts` types are generated beside each component with svelte2tsx (the engine
- *     svelte-package uses). tsdown stays in charge of the `.ts` declarations.
- *   - relative `./x.ts` imports in both (a source written with real extensions) become `./x.js`,
- *     the built modules they sit beside.
- *
- * Assets are emitted in `buildStart` and types copied in `writeBundle`, so tsdown's `clean` never
- * wipes them.
- */
 import { existsSync, globSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -38,15 +21,13 @@ export interface SvelteOptions {
 	tsconfig?: string;
 }
 
-/** The scratch tsconfig the component types are emitted with (found by name from `src` upward). */
 const DTS_TSCONFIG = '.svelte-dts.tsconfig.json';
 
 interface EmitContext {
 	emitFile(file: { type: 'asset'; fileName: string; source: string | Uint8Array }): string;
 }
 
-/** the path of `abs` inside `dir`, with forward slashes */
-const rel_to = (dir: string, abs: string) => relative(dir, abs).split('\\').join('/');
+const slash_relative = (dir: string, abs: string) => relative(dir, abs).split('\\').join('/');
 
 const RELATIVE_TS_SPECIFIER =
 	/(\bfrom\s*|\bimport\s*\(\s*|\bimport\s+)(['"])(\.{1,2}\/[^'"\n]+?)\.ts\2/g;
@@ -68,6 +49,12 @@ async function default_preprocess(): Promise<PreprocessorGroup> {
 	}
 }
 
+/**
+ * A tsdown plugin that ships a library's Svelte components the way svelte-package does: each
+ * `.svelte` under `src` lands in the output dir as preprocessed, uncompiled, TypeScript-free source
+ * with a `.svelte.d.ts` beside it, and each `.css` is copied as it is. Relative `./x.ts` imports
+ * in both name the built `./x.js`.
+ */
 export function svelte(options: SvelteOptions = {}) {
 	const root = resolve(options.root ?? process.cwd());
 	const src = resolve(root, options.src ?? 'src');
@@ -78,7 +65,7 @@ export function svelte(options: SvelteOptions = {}) {
 			const pre = options.preprocess ?? (await default_preprocess());
 			for (const file of globSync('**/*.{svelte,css}', { cwd: src })) {
 				const abs = join(src, file);
-				const fileName = rel_to(src, abs);
+				const fileName = slash_relative(src, abs);
 				let source = readFileSync(abs, 'utf8');
 				if (abs.endsWith('.svelte')) {
 					({ code: source } = await preprocess(source, pre, { filename: abs }));
@@ -90,40 +77,35 @@ export function svelte(options: SvelteOptions = {}) {
 		async writeBundle() {
 			if (options.dts === false) return;
 			const { emitDts } = await import('svelte2tsx');
-			// svelte2tsx also emits `.ts` declarations tsdown already owns: emit into a scratch dir,
-			// then graft only the component `*.svelte.d.ts` onto the output
-			const tmp = join(root, '.svelte-dts');
-			rmSync(tmp, { recursive: true, force: true });
-			// the library's own tsconfig, with `isolatedDeclarations` off: svelte2tsx's generated
-			// component code never carries the annotations it demands, so a library that turns it on
-			// for its `.ts` would otherwise get no component types at all
+			const all_types = join(root, '.svelte-dts');
+			rmSync(all_types, { recursive: true, force: true });
 			const base = resolve(root, options.tsconfig ?? 'tsconfig.json');
 			const scratch = join(root, DTS_TSCONFIG);
 			if (existsSync(base))
 				writeFileSync(
 					scratch,
 					JSON.stringify({
-						extends: './' + rel_to(root, base),
+						extends: `./${slash_relative(root, base)}`,
 						compilerOptions: { isolatedDeclarations: false }
 					})
 				);
 			try {
 				await emitDts({
 					libRoot: src,
-					declarationDir: tmp,
+					declarationDir: all_types,
 					svelteShimsPath: fileURLToPath(import.meta.resolve('svelte2tsx/svelte-shims-v4.d.ts')),
 					...(existsSync(scratch) ? { tsconfig: DTS_TSCONFIG } : {})
 				});
 				for (const file of globSync('**/*.svelte', { cwd: src })) {
-					const rel = rel_to(src, join(src, file)) + '.d.ts';
-					const from = join(tmp, rel);
+					const rel = `${slash_relative(src, join(src, file))}.d.ts`;
+					const from = join(all_types, rel);
 					if (!existsSync(from)) continue;
 					const to = join(out, rel);
 					mkdirSync(dirname(to), { recursive: true });
 					writeFileSync(to, js_specifiers(readFileSync(from, 'utf8')));
 				}
 			} finally {
-				rmSync(tmp, { recursive: true, force: true });
+				rmSync(all_types, { recursive: true, force: true });
 				rmSync(scratch, { force: true });
 			}
 		}

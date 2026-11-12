@@ -45,7 +45,7 @@ beforeEach(async () => {
 	held = await Promise.all(
 		Array.from(
 			{ length: BACKGROUND_WINDOW },
-			(_, i) => new LoadSlot({ kind: 'content', cls: 'ahead', label: 'held' + i }).ready
+			(_, i) => new LoadSlot({ kind: 'content', cls: 'ahead', label: `held${i}` }).ready
 		)
 	);
 });
@@ -58,9 +58,7 @@ afterEach(() => {
 
 /** An on-demand hole that warms its HTML at load: the warm queues behind the full window. */
 function warming_hole(endpoint: string): HTMLElement {
-	document.body.innerHTML =
-		`<ogygia-region render="defer" when="interaction" prefetch="load" endpoint="${endpoint}">` +
-		`<p data-fallback>fallback</p></ogygia-region>`;
+	document.body.innerHTML = `<ogygia-region render="defer" when="interaction" prefetch="load" endpoint="${endpoint}"><p data-fallback>fallback</p></ogygia-region>`;
 	return document.querySelector('ogygia-region')!;
 }
 

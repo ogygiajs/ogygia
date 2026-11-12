@@ -13,7 +13,7 @@ const seg = (
 
 const line = (o: Partial<LedgerLine> & Pick<LedgerLine, 'file' | 'line'>): LedgerLine =>
 	({
-		path: '/app/' + o.file,
+		path: `/app/${o.file}`,
 		cpu_ms: 0,
 		alloc_bytes: 0,
 		gc_ms: 0,
@@ -857,7 +857,7 @@ describe('build_drill', () => {
 		const site = (file: string, line: number, via?: { file: string; line: number }[]) =>
 			({
 				file,
-				path: '/abs/' + file,
+				path: `/abs/${file}`,
 				line,
 				...(via ? { via: via.map((v) => ({ ...v, path: '' })) } : {})
 			}) as never;

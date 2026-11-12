@@ -7,6 +7,7 @@
 import { describe, test, expect } from 'vitest';
 import { Compiler, Program, CompileCtx, normalize_import_keys } from '../dist/compiler/index.js';
 import { partial_ctx_init } from './_compile-ctx.ts';
+import { dedent } from '@ogygia/core/contract';
 
 const ROOT = '/standalone-app';
 
@@ -50,7 +51,12 @@ function make_compiler() {
 describe('standalone driver (no Vite)', () => {
 	test('Compiler.transform rewrites a marked host island and reports it', () => {
 		const { compiler } = make_compiler();
-		const src = `<script>\nimport TabGroup from 'some-pkg/tabs' with { wake: 'load' };\n</script>\n<TabGroup />`;
+		const src = dedent`
+			<script>
+			import TabGroup from 'some-pkg/tabs' with { wake: 'load' };
+			</script>
+			<TabGroup />
+		`;
 		const result = compiler.transform(src, `${ROOT}/src/lib/Widget.svelte`, { ssr: true }) as {
 			code: string;
 			islands: unknown[];
@@ -66,8 +72,18 @@ describe('standalone driver (no Vite)', () => {
 		// `#{$i}` threw css_expected_identifier in the parse, and the host's region import was left a
 		// plain import in silence: the island never became one
 		const { compiler } = make_compiler();
-		const style = `<style lang="scss">\n@for $i from 1 through 3 { :global(.ql-indent-#{$i}) { padding-left: #{$i * 3}em; } }\n</style>`;
-		const src = `<script>\nimport TabGroup from 'some-pkg/tabs' with { wake: 'load' };\n</script>\n<TabGroup />\n${style}`;
+		const style = dedent`
+			<style lang="scss">
+			@for $i from 1 through 3 { :global(.ql-indent-#{$i}) { padding-left: #{$i * 3}em; } }
+			</style>
+		`;
+		const src = dedent`
+			<script>
+			import TabGroup from 'some-pkg/tabs' with { wake: 'load' };
+			</script>
+			<TabGroup />
+			${style}
+		`;
 		const result = compiler.transform(src, `${ROOT}/src/lib/ScssHost.svelte`, { ssr: true }) as {
 			code: string;
 			islands: unknown[];
@@ -79,7 +95,12 @@ describe('standalone driver (no Vite)', () => {
 
 	test('Compiler.transform is memoized (same source → same result object)', () => {
 		const { compiler } = make_compiler();
-		const src = `<script>\nimport TabGroup from 'some-pkg/tabs' with { wake: 'load' };\n</script>\n<TabGroup />`;
+		const src = dedent`
+			<script>
+			import TabGroup from 'some-pkg/tabs' with { wake: 'load' };
+			</script>
+			<TabGroup />
+		`;
 		const id = `${ROOT}/src/lib/Widget.svelte`;
 		const a = compiler.transform(src, id, { ssr: true });
 		const b = compiler.transform(src, id, { ssr: true });
@@ -88,7 +109,10 @@ describe('standalone driver (no Vite)', () => {
 
 	test('Compiler.macros hoists an import.meta.og.$ factory into dollar_hoists', async () => {
 		const { compiler } = make_compiler();
-		const src = `const make = import.meta.og.$(() => 42);\nexport const x = make;\n`;
+		const src = `${dedent`
+			const make = import.meta.og.$(() => 42);
+			export const x = make;
+		`}\n`;
 		const out = await compiler.macros(src, `${ROOT}/src/lib/store.ts`);
 		expect(out.touched).toBe(true);
 		expect(out.code).not.toContain('import.meta.og.$'); // the marker is gone
@@ -105,7 +129,10 @@ describe('standalone driver (no Vite)', () => {
 
 	test('Compiler.ts_regions mints a `with { wake }` load-region import', () => {
 		const { compiler, program } = make_compiler();
-		const src = `import { load } from './data.remote' with { wake: 'load' };\nexport { load };\n`;
+		const src = `${dedent`
+			import { load } from './data.remote' with { wake: 'load' };
+			export { load };
+		`}\n`;
 		const result = compiler.ts_regions(src, `${ROOT}/src/lib/feed.ts`) as { code: string } | null;
 		// A ts-region mint either rewrites the module (island descriptors) or no-ops if the attribute
 		// form isn't a region here; either way the call runs with no Vite and the Program is intact.

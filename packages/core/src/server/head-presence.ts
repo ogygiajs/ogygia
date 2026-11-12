@@ -1,20 +1,3 @@
-/**
- * Presence checks for the head tags the `handle()` transform injects (the router meta, the runtime
- * bootstrap, the dev-HMR script, MPA speculation rules). Each must detect a REAL element, never the
- * tag's name as TEXT.
- *
- * Why this exists as its own module: a page that DOCUMENTS one of these tags in a code block renders
- * it HTML-escaped — `` `<meta name="ogygia-router" content="plain">` `` becomes
- * `<code>&lt;meta name="ogygia-router" content="plain"></code>`. A substring check like
- * `html.includes('name="ogygia-router"')` false-matches that prose and suppresses the injection; for
- * the router marker that silently drops the whole page to full-page navigation (no marker → the
- * client router hands off to `location.href`, so no SPA and no view transition). The changelog page
- * documents exactly these tags, which is how the bug surfaced.
- *
- * Every check reads real start tags through `tags()` (../wire-markup.ts): the escaped copy carries
- * `&lt;`, never a bare `<`, so it is not a tag; a tag's attributes end at its own `>` (quotes kept),
- * so a `<script>` whose BODY mentions the attribute (inline JS) can't false-match either.
- */
 import { RESPONSE_MARK } from '../contract/response-mark.ts';
 import {
 	Needle,
@@ -26,8 +9,6 @@ import {
 	type FoundTag
 } from '../wire-markup.ts';
 
-/** The first `<name …>` from `from` that carries `needle` (wire-markup.ts `Needle`) in a way `test`
- *  accepts, or null. A head without the needle reads no tag. */
 function find_tag(
 	html: string,
 	name: string,
@@ -53,34 +34,36 @@ function has_tag(
 	return find_tag(html, name, needle, test) !== null;
 }
 
-/** A real `<meta name="ogygia-router" …>` element — a page opting a route out of view transitions. */
+/** Does the page carry a real `<meta name="ogygia-router" …>` element (any letter case)? An
+ *  HTML-escaped copy in prose (`&lt;meta …`, a page that documents the tag) is not one. */
 export function page_declares_router_meta(html: string): boolean {
 	return has_tag(html, 'meta', 'ogygia-router', (t) => t.attr('name') === 'ogygia-router');
 }
 
-/** A real runtime bootstrap `<script … data-ogygia-runtime …>` (Region emits it on island pages). */
+/** Does the page carry a real runtime bootstrap `<script … data-ogygia-runtime …>`? Only the
+ *  opening tag counts: an escaped copy in prose, or an inline script whose body names the
+ *  attribute, is not one. Any letter case. */
 export function page_declares_runtime_script(html: string): boolean {
 	return has_tag(html, 'script', RUNTIME_NEEDLE_G, is_runtime);
 }
 
 const is_runtime = (t: FoundTag) => t.attr(OGYGIA_RUNTIME) !== undefined;
-/** A `rel` holding the `modulepreload` token, in any case, as a browser reads it. */
 const is_modulepreload = (t: FoundTag) => MODULEPRELOAD_TOKEN.test(t.attr('rel') ?? '');
 
-/** A real dev-HMR `<script … data-ogygia-dev-hmr …>`. */
+/** Does the page carry a real dev-HMR `<script … data-ogygia-dev-hmr …>` (not an escaped copy in
+ *  prose)? Any letter case. */
 export function page_declares_dev_hmr_script(html: string): boolean {
 	return has_tag(html, 'script', DEV_HMR_NEEDLE_G, (t) => t.attr(OGYGIA_DEV_HMR) !== undefined);
 }
 
-/** A real `<script type="speculationrules" …>` (a page authoring its own MPA speculation rules).
- *  The type reads as a browser reads it: spaces around it trimmed, in any case. */
+/** Does the page author its own `<script type="speculationrules" …>` (not an escaped copy in
+ *  prose)? The type reads as a browser reads it: spaces around it trimmed, in any case. */
 export function page_declares_speculation_rules(html: string): boolean {
 	return has_tag(html, 'script', SPECULATION_NEEDLE_G, (t) =>
 		SPECULATION_TYPE.test(t.attr('type') ?? '')
 	);
 }
 
-// The name needles: global so a search starts at a tag (`lastIndex`), case-blind as names are.
 const RUNTIME_NEEDLE_G = new RegExp(OGYGIA_RUNTIME, 'gi');
 const DEV_HMR_NEEDLE_G = new RegExp(OGYGIA_DEV_HMR, 'gi');
 const SPECULATION_NEEDLE_G = /speculationrules/gi;
@@ -109,7 +92,6 @@ export function dedupe_head_links(head: string): string {
 	if (t === null) return head;
 	const sheets = new Set<string>();
 	const hints = new Set<string>();
-	// (the kept spans are joined once at the end, and only when a duplicate was dropped)
 	let out: string[] | null = null;
 	let kept = 0;
 	for (; t !== null; t = next_tag(head, 'link', t.next)) {
@@ -130,15 +112,8 @@ export function dedupe_head_links(head: string): string {
 	return out.join('');
 }
 
-// The `</head>` close: an end tag (tags() reads start tags). Global, so a search starts at an offset
-// (`lastIndex`) instead of on a sliced copy of the head.
 const HEAD_CLOSE_G = /<\/head\s*>/gi;
 
-/**
- * The whole runtime bootstrap element (its `<script … data-ogygia-runtime></script>`) together with
- * the modulepreload hints for its imports that follow it (document-tail.ts `runtime_bootstrap_tags`):
- * they move as one unit. `[start, end)` in `head`, or null.
- */
 function runtime_unit(head: string): { start: number; end: number } | null {
 	const script = find_tag(head, 'script', RUNTIME_NEEDLE_G, is_runtime);
 	if (script === null || !head.startsWith('</script>', script.end)) return null;
@@ -156,9 +131,12 @@ function runtime_unit(head: string): { start: number; end: number } | null {
  * the first `<script>` or `<link rel="modulepreload">` the app's template and the page carry, and
  * no earlier. `runtime` is the tag to place when the head has none yet (`null` = only reorder what
  * is there; the tag an island page emits sits wherever Kit's head slot is, after the app's own
- * scripts in `app.html`). With no JavaScript in the head it goes last in it. Returns `head` itself
- * when there is nothing to move. `mark`: the response's mark, written on the tag it places (the one
- * every side channel of the response bears: RESPONSE-MARK).
+ * scripts in `app.html`). The modulepreload hints that follow the tag (`data-ogygia-runtime-dep`)
+ * move with it, as one unit. The search starts after `<head …>`; a slice with no `<head>` (a
+ * routeless document's inner head) is searched whole, and a modulepreload hint counts only when it
+ * comes before the first script. With no JavaScript in the head it goes last in it, before
+ * `</head>`. Returns `head` itself when there is nothing to move. `mark`: the response's mark,
+ * written on the tag it places (the one every side channel of the response bears: RESPONSE-MARK).
  *
  * Why BEFORE THE JS: module and deferred scripts run in document order once parsing ends, and the
  * runtime's custom-element definition is what makes every `<ogygia-region>` connect and keep its
@@ -185,14 +163,11 @@ export function runtime_first(
 	const was = found ? head.slice(found.start, found.end) : runtime;
 	if (was === null) return head;
 	const placed = with_code_origins(was, code_origins);
-	// RESPONSE-MARK: the response's mark leads the tag's attributes (a repeated attribute keeps its
-	// first value, so a mark the markup put on the tag loses)
-	const tag = mark ? '<script ' + RESPONSE_MARK + '="' + mark + '"' + placed.slice(7) : placed;
+	// @why a repeated attribute keeps its first value, so the response's mark leads the tag's attributes (test: test/head-presence.test.ts › leads the attributes, so a mark the markup put on the tag loses)
+	const tag = mark ? `<script ${RESPONSE_MARK}="${mark}"${placed.slice(7)}` : placed;
 	const rest = found ? head.slice(0, found.start) + head.slice(found.end) : head;
-	// no `<head>` in this slice (a routeless document's inner head): search the whole content
 	const from = next_tag(rest, 'head', 0)?.end ?? 0;
 	let at = next_tag(rest, 'script', from)?.start ?? Infinity;
-	// (a modulepreload hint counts only when it comes before that script)
 	const hint = find_tag(rest, 'link', MODULEPRELOAD_NEEDLE_G, is_modulepreload, from);
 	if (hint !== null && hint.start < at) at = hint.start;
 	if (at === Infinity) {
@@ -203,17 +178,11 @@ export function runtime_first(
 	return rest.slice(0, at) + tag + rest.slice(at);
 }
 
-/** The runtime script's own code-origins attribute (runtime/code-origins.ts reads it). */
 const CODE_ORIGINS_ATTR_RE = new RegExp(`\\s${OG_ORIGINS}="[^"]*"`, 'i');
 const RUNTIME_MARK_RE = new RegExp(`\\b${OGYGIA_RUNTIME}\\b`, 'i');
 
-/**
- * THE ONE WRITE of the origins island code may load from besides the page's own and the runtime's
- * (`data-og-origins`): at head time, when the render has learned all it will (a peer fragment's own
- * runtime origin, #856), in place of any the tag carried. http(s) origins only, each once,
- * space-separated (an origin has no character an attribute must escape).
- */
 function with_code_origins(tag: string, urls: readonly string[]): string {
+	// @why the one write of `data-og-origins` is at head time, when the render has learned all it will, in place of any the tag carried (test: test/code-origins.test.ts › a runtime script the page emitted gets them too, in place of any it carried)
 	const origins = new Set<string>();
 	for (const url of urls) {
 		try {
@@ -227,6 +196,6 @@ function with_code_origins(tag: string, urls: readonly string[]): string {
 	if (!origins.size) return bare;
 	return bare.replace(
 		RUNTIME_MARK_RE,
-		(mark) => mark + ` ${OG_ORIGINS}="` + [...origins].join(' ') + '"'
+		(mark) => `${mark} ${OG_ORIGINS}="${[...origins].join(' ')}"`
 	);
 }

@@ -55,12 +55,9 @@ const shape = (html: string, pick: (h: Element) => unknown) =>
 
 // Svelte's shape: `{#each}` tabs, each an `{#if}` tab + an `{#if}` panel, block markers around them
 const tab = (n: number, show: boolean, with_panel: boolean) =>
-	'<!--[-->' +
-	(show ? `<!--[-->${item(n)}<!--]-->` : '<!--[!--><!--]-->') +
-	(with_panel ? `<!--[-->${panel(n)}<!--]-->` : '<!--[!--><!--]-->') +
-	'<!--]-->';
+	`<!--[-->${show ? `<!--[-->${item(n)}<!--]-->` : '<!--[!--><!--]-->'}${with_panel ? `<!--[-->${panel(n)}<!--]-->` : '<!--[!--><!--]-->'}<!--]-->`;
 const menu = (ids: number[], shown: (n: number) => boolean, panels: boolean) =>
-	'<!--[-->' + ids.map((n) => tab(n, shown(n), panels)).join('') + '<!--]-->';
+	`<!--[-->${ids.map((n) => tab(n, shown(n), panels)).join('')}<!--]-->`;
 
 function mount(tag: string, html: string) {
 	const host = document.createElement(tag);
@@ -113,7 +110,7 @@ test('a slotting element: an identical answer moves and replaces nothing', async
 });
 
 test('an element that renders its own light DOM (no shadow root) keeps its arrangement: an identical answer moves nothing', async () => {
-	const html = '<!--[-->' + panel(1) + '<!--]--><!--[-->' + panel(2) + '<!--]-->';
+	const html = `<!--[-->${panel(1)}<!--]--><!--[-->${panel(2)}<!--]-->`;
 	const host = document.createElement('so-shell');
 	host.innerHTML = html;
 	document.body.append(host); // connecting, its runtime moves the panels after the markers

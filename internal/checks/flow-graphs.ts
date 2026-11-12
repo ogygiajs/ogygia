@@ -24,6 +24,7 @@ import {
 	hole_graph,
 	wake_graph
 } from '../../packages/core/src/runtime/region-machines.ts';
+import { dedent } from '@ogygia/core/plugin/utils';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '../..');
 
@@ -59,7 +60,13 @@ export function redraw(text: string, name: string, graph: MachineGraph): string 
 	const end = text.indexOf('<!-- /graph -->', start);
 	if (start < 0 || end < 0) throw new Error(`no <!-- graph:${name} --> … <!-- /graph --> block`);
 	// (blank lines around the block, as the formatter writes them)
-	return `${text.slice(0, start + open.length)}\n\n${mermaid(graph)}\n\n${text.slice(end)}`;
+	return dedent`
+		${text.slice(0, start + open.length)}
+
+		${mermaid(graph)}
+
+		${text.slice(end)}
+	`;
 }
 
 /** The notes whose diagram differs from the code, after rewriting them (unless `check`). */

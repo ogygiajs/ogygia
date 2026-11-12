@@ -62,7 +62,7 @@ export function fill_profiler_maps(
 	}
 	if (!target) return false;
 	const maps: Record<string, string> = {};
-	const src = path.join(root, 'src') + path.sep;
+	const src = `${path.join(root, 'src')}${path.sep}`;
 	/** chunks the build wrote no map for */
 	const mapless = new Set<string>();
 	for (const c of chunks) {
@@ -70,7 +70,7 @@ export function fill_profiler_maps(
 		if (file === target.file) continue;
 		let raw: string;
 		try {
-			raw = fs.readFileSync(file + '.map', 'utf8');
+			raw = fs.readFileSync(`${file}.map`, 'utf8');
 		} catch {
 			// a build without maps: the module map names each chunk line's module, and the app's
 			// own sources below are what its lines are matched to
@@ -98,7 +98,7 @@ export function fill_profiler_maps(
 		const at = path.join(client_dir, chunk);
 		if (!maps_app_code(raw, path.dirname(at), src)) continue;
 		const slim = slim_map(raw, path.dirname(at), src);
-		if (slim !== undefined) maps['client/' + chunk.split(path.sep).join('/')] = slim;
+		if (slim !== undefined) maps[`client/${chunk.split(path.sep).join('/')}`] = slim;
 	}
 	fs.rmSync(stash, { recursive: true, force: true });
 	// the module map from the chunks AS WRITTEN: a plugin can rewrite a chunk after the bundle was

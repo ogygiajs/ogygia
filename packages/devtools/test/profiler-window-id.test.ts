@@ -12,7 +12,7 @@ it('an id it minted checks; the same id under another secret does not', () => {
 	const ids = window_ids(SECRET, false)!;
 	const id = ids.mint();
 	expect(ids.check(id)).toBe(id);
-	expect(window_ids(SECRET + '-rotated', false)!.check(id)).toBeNull();
+	expect(window_ids(`${SECRET}-rotated`, false)!.check(id)).toBeNull();
 });
 
 it('an id ends after its lifetime', () => {

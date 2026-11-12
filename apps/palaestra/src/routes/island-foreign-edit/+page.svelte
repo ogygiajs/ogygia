@@ -51,8 +51,7 @@
 		customElements.define('foreign-strip', ForeignStrip);
 	}
 	// (the closing tag is split so it does not end this component's own <script> block)
-	const foreign_tool =
-		`<script type="module">(${define_foreign_strip.toString()})();</` + 'script>';
+	const foreign_tool = `<script type="module">(${define_foreign_strip.toString()})();\x3C/script>`;
 </script>
 
 <svelte:head>{@html foreign_tool}</svelte:head>

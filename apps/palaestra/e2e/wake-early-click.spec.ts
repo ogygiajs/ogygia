@@ -126,9 +126,7 @@ test.describe('an early click on a visible island acts once, at wake (#260)', ()
 			const after = await flips(page);
 			const seen = await clicks(page);
 			runs.push(
-				`run ${i}: early click ${was_held ? 'held' : 'not held'}; ` +
-					`flips at wake ${at_wake}, after the next click ${after}; clicks at document ` +
-					seen.map((c) => (c.trusted ? 'T' : 'r') + (c.live ? 'L' : '-')).join(' ')
+				`run ${i}: early click ${was_held ? 'held' : 'not held'}; flips at wake ${at_wake}, after the next click ${after}; clicks at document ${seen.map((c) => (c.trusted ? 'T' : 'r') + (c.live ? 'L' : '-')).join(' ')}`
 			);
 			await context.close();
 		}

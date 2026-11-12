@@ -1,11 +1,3 @@
-/**
- * `routes(table, opts?)` — the router. A flat table of `pattern → page()/get()` values (layout chains
- * ride on each page entry via `layout(...)()`); at construction we compile the keys into a match
- * table. A request matches one entry, runs its branch loads CONCURRENTLY (memoized — see load()),
- * merges their data (Kit's cascade), then renders the page through its layout chain via `document()`,
- * or runs the endpoint. Control flow is the throwable `redirect`/`error` and returnable `fail`
- * (respond.ts). The whole table is exposed as a typed `$infer` map. See internal/notes/router-v2.md.
- */
 import type { RequestEvent } from '@sveltejs/kit';
 import type { Component } from 'svelte';
 import { document } from '@ogygia/core/server';
@@ -114,9 +106,7 @@ export interface Router<T extends TableShape = RouteTable> {
 
 interface Leaf {
 	pattern: string;
-	/** a page value, or an endpoint object compiled to its method map at construction */
 	def: PageDef | EndpointDef;
-	/** `when()` gate — off means the route does not exist for this request. */
 	when?: (c: Ctx) => boolean;
 }
 
@@ -139,10 +129,15 @@ export function when<T extends object>(gate: (c: Ctx) => boolean, entry: T): T {
 }
 
 const HEAD_AS_GET = (m: string) => (m === 'HEAD' ? 'GET' : m);
-// A mounted document's title lands in a RAW head string — escape it (every text-into-markup
-// emitter escapes; the wire is trusted federation, the law is unconditional).
 const LAST_SLASH_RE = /\/$/;
 
+/**
+ * The router: a flat table of `pattern → page()` or endpoint values, with layouts wrapped around
+ * page entries by `layout(...)(table)`. A request matches one entry. A page runs its loads at the
+ * same time (each load once per request), merges their data outermost first, and renders through
+ * its layouts; an endpoint runs its verb. `redirect()` and `error()` throw, `fail()` returns.
+ * `typeof app.$infer` types the whole table.
+ */
 export function routes<const T extends KeyedTable<T>>(
 	typed: T,
 	opts: RoutesOptions = {}
@@ -152,7 +147,6 @@ export function routes<const T extends KeyedTable<T>>(
 	const slash = opts.slash ?? 'ignore';
 	const root_load = to_load(opts.load);
 
-	// Validate layout-name uniqueness across the whole table (a layout is keyed by name in `$infer`).
 	const seen_layout = new Map<string, AnyComponent>();
 	for (const key in table) {
 		const def = table[key];
@@ -170,9 +164,8 @@ export function routes<const T extends KeyedTable<T>>(
 
 	const leaves: Leaf[] = Object.keys(table).map((pattern) => {
 		const raw = table[pattern];
-		// A `when()` gate rides the raw entry; endpoint compilation would drop it, so lift it here.
+		// @why compile_endpoint drops `__ogwhen`, so an endpoint's gate is read off the raw entry (test: packages/federation/test/router-when.test.ts › endpoint: off → fall-through (null, no base); on via ?og-exp → served)
 		const gate = (raw as { __ogwhen?: (c: Ctx) => boolean }).__ogwhen;
-		// Endpoint objects (`{ GET, POST, … }`) compile to their method map once here; pages pass through.
 		return {
 			pattern,
 			def: is_page(raw) ? raw : compile_endpoint(raw as Endpoint),
@@ -182,11 +175,6 @@ export function routes<const T extends KeyedTable<T>>(
 	const compiled: CompiledPattern[] = compile_all(leaves.map((l) => l.pattern));
 	const by_pattern = new Map(leaves.map((l) => [l.pattern, l]));
 
-	// ROUTE CONFIG (plugin/routes.ts), merged like Kit's `config`: the table, then each layout
-	// outermost → innermost (`layouts` is OUTERMOST-first), then the page; a later level replaces a
-	// key, top level only. Static, so merged once per leaf. Endpoints are never pages → `{}` ("mine,
-	// nothing set" — the plugin applies its default). Registered under a key so a dev re-evaluation of
-	// hooks.server.ts REPLACES this table's matcher instead of shadowing it.
 	const NO_CONFIG: RouteConfig = {};
 	const config_of = new Map<string, RouteConfig>();
 	for (const leaf of leaves) {
@@ -195,12 +183,12 @@ export function routes<const T extends KeyedTable<T>>(
 		for (const l of leaf.def.layouts) merged = { ...merged, ...l.config };
 		config_of.set(leaf.pattern, { ...merged, ...leaf.def.config });
 	}
-	register_route_config(base + '|' + leaves.map((l) => l.pattern).join(','), (pathname) => {
+	register_route_config(`${base}|${leaves.map((l) => l.pattern).join(',')}`, (pathname) => {
 		let path = pathname;
 		if (base) {
 			if (path === base) path = '/';
-			else if (path.startsWith(base + '/')) path = path.slice(base.length);
-			else return undefined; // not under our base → not ours
+			else if (path.startsWith(`${base}/`)) path = path.slice(base.length);
+			else return undefined;
 		}
 		path = canonical_slash(path, slash) ?? path;
 		const hit = match_path(compiled, path);
@@ -215,8 +203,8 @@ export function routes<const T extends KeyedTable<T>>(
 		let path = url.pathname;
 		if (base) {
 			if (path === base) path = '/';
-			else if (path.startsWith(base + '/')) path = path.slice(base.length);
-			else return null; // not under our base → not ours
+			else if (path.startsWith(`${base}/`)) path = path.slice(base.length);
+			else return null;
 		}
 
 		const canon = canonical_slash(path, slash);
@@ -227,8 +215,6 @@ export function routes<const T extends KeyedTable<T>>(
 			});
 
 		const hit = match_path(compiled, path);
-		// Unmatched — and `when()`-gated-off routes, which contractually DO NOT EXIST for the
-		// request: the app's 404/error page under an owned base; fall-through without one.
 		const unmatched = async (): Promise<Response | null> => {
 			if (base && opts.miss) {
 				const ctx = make_ctx({}, url, request, event, href_fn, '', opts.visitor);
@@ -244,9 +230,6 @@ export function routes<const T extends KeyedTable<T>>(
 					throw thrown;
 				}
 			}
-			// An unmatched PAGE request under an owned base renders the root error BOUNDARY as
-			// HTML with 404 — a browser hitting a dead URL deserves the app's 404 page, not JSON
-			// (the long-noted `miss answers JSON` gap). Non-HTML requests (fetch/API) keep JSON.
 			if (base && opts.error && (request.method === 'GET' || request.method === 'HEAD')) {
 				const accept = request.headers.get('accept') ?? '';
 				if (accept.includes('text/html')) {
@@ -272,27 +255,16 @@ export function routes<const T extends KeyedTable<T>>(
 				}
 			}
 			if (base) return not_found();
-			return null; // no base → fall through to the rest of the app
+			return null;
 		};
 		if (!hit) return unmatched();
 
 		const leaf = by_pattern.get(hit.pattern)!;
 		const ctx = make_ctx(hit.params, url, request, event, href_fn, hit.pattern, opts.visitor);
-		// (the flag SOURCE was primed above the page split, by the flags plugin's `request` stage, so
-		// every `flag(c)` read below stays sync)
-		// Pre-decide the table's `flags` — force their buckets into the request so a mount carries
-		// them even if no page here reads them (each read self-records for federation auto-carry).
 		if (opts.flags) for (const f of opts.flags) f(ctx);
-
-		// `when()` gate: OFF → this route does not exist for this request (the unmatched contract,
-		// verbatim). Checked AFTER the source primes, so a vendor kill switch gates whole routes,
-		// and the decision self-registers for federation carry like any other flag read.
 		if (leaf.when && !leaf.when(ctx)) return unmatched();
 
-		// `c.setHeaders` must reach the Response WE build — Kit's own setHeaders only applies to
-		// `resolve()`-built responses, and a router-rendered document bypasses resolve entirely
-		// (found when a load's Server-Timing header silently vanished). Existing headers win so a
-		// handler's explicit Response headers are never clobbered.
+		// @why Kit's setHeaders reaches only resolve()-built responses, and the router builds its own (test: packages/router/test/router-dispatch.test.ts › applies collected headers to the built response)
 		const with_collected = (res: Response): Response => {
 			if (ctx.collected_headers?.size) {
 				for (const [k, v] of ctx.collected_headers) {
@@ -303,8 +275,6 @@ export function routes<const T extends KeyedTable<T>>(
 		};
 
 		try {
-			// Table-wide load (the no-chrome guard) runs before every route, gating endpoints too. A
-			// load may return a Response to short-circuit (a guard's redirect/deny) — v1 parity.
 			if (root_load) {
 				const rl = await root_load(ctx);
 				if (rl instanceof Response) return with_collected(rl);
@@ -320,7 +290,6 @@ export function routes<const T extends KeyedTable<T>>(
 	async function render_page(node: PageDef, ctx: Ctx, method: string, url: URL): Promise<Response> {
 		const m = HEAD_AS_GET(method);
 
-		// Route input: coerce/validate path params (bad → 404) and query (bad → 400) into typed ctx.
 		if (node.params_schema) {
 			const v = await validate(node.params_schema, ctx.params);
 			if (v.issues) return not_found();
@@ -339,7 +308,7 @@ export function routes<const T extends KeyedTable<T>>(
 		if (m === 'POST') {
 			const act = pick_action(node, url);
 			if (!act) return method_not_allowed(page_allow(node));
-			const out = await act(ctx); // throws redirect/error caught by dispatch's try
+			const out = await act(ctx);
 			if (out instanceof Response) return out;
 			if (is_action_failure(out)) {
 				form = out.data;
@@ -352,9 +321,7 @@ export function routes<const T extends KeyedTable<T>>(
 			return method_not_allowed(page_allow(node));
 		}
 
-		// Branch loads: the table-wide root load, then every layout's (outermost→inner), then the page's
-		// — CONCURRENTLY. Each is memoized on ctx (root_load already ran in dispatch, so it's a cache
-		// hit here), merged into `data` in branch order (last wins).
+		// @why no waterfall: a branch's loads run together (test: packages/router/test/router-dispatch.test.ts › the layouts’ and the page’s loads all run before any of them ends (no waterfall))
 		const load_defs: (LoadDef | undefined)[] = [
 			root_load,
 			...node.layouts.map((l) => l.load),
@@ -363,21 +330,11 @@ export function routes<const T extends KeyedTable<T>>(
 		const results = await Promise.all(load_defs.map((l) => (l ? l(ctx) : undefined)));
 		const data: Record<string, unknown> = {};
 		for (const r of results) {
-			if (r instanceof Response) return r; // a load may short-circuit (redirect / custom response)
+			if (r instanceof Response) return r;
 			if (r && typeof r === 'object') Object.assign(data, r);
 		}
 
 		const chain = node.layouts.map((l) => l.component);
-		// ONE slot resolution — bare component, ComponentPick, and mount()'s html view all take
-		// the same door: a branded per-request resolver, run post-loads (so a mounted wire doc
-		// rides `data`). Resolver ARMS are covered by build-time CSS discovery exactly like bare
-		// components — discovery walks the router module's .svelte IMPORT specs, never the table
-		// values, so anything an arm can return was already an import. Free for `$infer`: types
-		// come from LOADS, never components.
-		// STREAMED page (`page(async function* (c, data) { yield region(...); ... })`): the FIRST
-		// yield renders in the document and the page flushes; later yields ride the same response
-		// as late template chunks (see stream.ts). Non-GET renders run the generator to COMPLETION
-		// and show the final yield — actions need a whole answer, streaming is a GET affair.
 		let gen_rest: AsyncGenerator<unknown> | null = null;
 		let gen_first_html: string | null = null;
 		if (is_stream_slot(node.component)) {
@@ -410,18 +367,11 @@ export function routes<const T extends KeyedTable<T>>(
 							node.component as { __ogpick: (c: Ctx, data: Record<string, unknown>) => unknown }
 						).__ogpick(ctx, data)
 					: node.component;
-		// An html view renders through the router's own pure-HTML component (RawHtml.svelte, the
-		// twin of og_html_region's) — the wire document is just html + css, no bespoke page component. Its css tags
-		// + escaped title join the DOCUMENT head (the router owns the head; a component would have
-		// needed <svelte:head>).
 		const html_view =
 			typeof resolved === 'object' && resolved !== null && '__oghtml' in resolved
 				? (resolved as PageHtmlView)
 				: null;
 		const page_component = html_view ? (RawHtml as AnyComponent) : (resolved as AnyComponent);
-		// STATUS CHANNEL: a view carrying an error status (a mounted app's own 404/500 page)
-		// answers with THAT status through the shell — never a 200-wrapped error page. 2xx/3xx
-		// view statuses don't override (redirects already threw; action-fail status stands).
 		if (html_view?.status && html_view.status >= 400) status = html_view.status;
 		const of = region(LayoutChain as never, {
 			chain,
@@ -433,12 +383,10 @@ export function routes<const T extends KeyedTable<T>>(
 		const css_head =
 			(await router_css_head(html_view ? chain : [...chain, page_component])) +
 			(html_view
-				? // (the title is plain text: escaped once, here)
-					(html_view.title ? String(html`<title>${html_view.title}</title>`) : '') +
+				? (html_view.title ? String(html`<title>${html_view.title}</title>`) : '') +
 					(html_view.css?.join('') ?? '') +
 					(html_view.head ?? '')
 				: '');
-		// this document delivers late chunks (a GET's streamed response): its promise `of`s may register
 		if (m === 'GET') open_late_scope();
 		const res = await document(of, {
 			status,
@@ -453,9 +401,6 @@ export function routes<const T extends KeyedTable<T>>(
 			}
 		});
 		if (method === 'HEAD') return new Response(null, res);
-		// Late content remains — a page generator's later yields, and/or LATE REGIONS the render
-		// registered (`<Region of={promise}>` holes, armed via the handle's ALS) — chunk it all
-		// down THIS response in readiness order (one connection, closes when every source ends).
 		const late = take_late_regions();
 		const chunk_src =
 			gen_rest && late?.length
@@ -465,7 +410,6 @@ export function routes<const T extends KeyedTable<T>>(
 					: late?.length
 						? late_region_chunks(late)
 						: null;
-		// (and every late region that registers while those chunks bake, until none is left)
 		if (chunk_src && m === 'GET')
 			return stream_document(
 				await res.text(),
@@ -477,8 +421,6 @@ export function routes<const T extends KeyedTable<T>>(
 		return res;
 	}
 
-	// A thrown redirect/error/fail from a load, action, or handler. redirect → 303/…; error →
-	// nearest layout boundary component (or root `opts.error`), else JSON; anything else re-throws.
 	async function handle_thrown(
 		thrown: unknown,
 		def: PageDef | EndpointDef,
@@ -489,36 +431,27 @@ export function routes<const T extends KeyedTable<T>>(
 		if (!is_http_error(thrown)) throw thrown;
 
 		const { status, message } = thrown;
-		// Endpoints (and pages with no boundary) → JSON error.
 		if ((def as { __ogkind?: string }).__ogkind === 'endpoint')
 			return json_response({ error: message, status }, { status });
 		const pnode = def as PageDef;
 
-		// The failing DEPTH is knowable: loads are memoized on ctx, so re-awaiting settles
-		// instantly for anything that already ran (and runs the rest — an action's throw still
-		// wants live chrome, exactly like Kit rendering +error under working layouts). The
-		// shallowest REJECTED load names the failing layer; everything above it has real data.
+		// @why an error page renders only inside layouts whose loads ended well; the memoized loads, awaited again, name the one that failed (test: packages/router/test/router-dispatch.test.ts › a layout load’s error skips that layout’s own error page: the one above renders, without the failed layout)
 		const load_defs: (LoadDef | undefined)[] = [
 			root_load,
 			...pnode.layouts.map((l) => l.load),
 			pnode.load
 		];
-		// async-wrapped: a load that throws SYNCHRONOUSLY (plain `error(404)` body) must become a
-		// rejection here, not escape the map — allSettled can only see promises that exist
 		const settled = await Promise.allSettled(
 			load_defs.map(async (l) => (l ? await l(ctx) : undefined))
 		);
-		let failing = settled.length; // nothing rejected → the throw came from an action/handler
+		let failing = settled.length;
 		for (let i = 0; i < settled.length; i++) {
 			if (settled[i].status === 'rejected') {
 				failing = i;
 				break;
 			}
 		}
-		// layouts whose loads SUCCEEDED (index 0 = the table-wide load, i+1 = layouts[i]):
-		// the failing layout's own chrome cannot render — it has no data
 		const renderable = failing === 0 ? 0 : Math.min(failing - 1, pnode.layouts.length);
-		// merged data of every fulfilled load — the surviving chrome (and the boundary) read it
 		const data: Record<string, unknown> = {};
 		for (const s of settled) {
 			if (
@@ -530,9 +463,6 @@ export function routes<const T extends KeyedTable<T>>(
 				Object.assign(data, s.value);
 		}
 
-		// Nearest boundary whose OWN layout still has data — its error page renders INSIDE that
-		// layout's chrome (Kit's shape: +error.svelte lives inside its layout). A failure in
-		// layout k can only use a boundary above k; a page-load failure can use the innermost.
 		let boundary = -1;
 		for (let i = renderable - 1; i >= 0; i--) {
 			if (pnode.layouts[i].error) {
@@ -543,7 +473,6 @@ export function routes<const T extends KeyedTable<T>>(
 		const err_component = boundary >= 0 ? pnode.layouts[boundary].error! : opts.error;
 		if (!err_component) return json_response({ error: message, status }, { status });
 
-		// chrome INCLUDES the boundary's own layout — the error page renders inside it
 		const chrome = (boundary >= 0 ? pnode.layouts.slice(0, boundary + 1) : []).map(
 			(l) => l.component
 		);
@@ -585,8 +514,6 @@ export function routes<const T extends KeyedTable<T>>(
 					out.push({ path: base + leaf.pattern });
 					continue;
 				}
-				// a DYNAMIC pattern with declared param sets prerenders each filled path (Kit's
-				// per-route `entries` export); without them it's skipped (crawled or SSR'd live)
 				const list = leaf.def.entries ? await leaf.def.entries() : null;
 				if (list) for (const params of list) out.push({ path: base + fill(leaf.pattern, params) });
 			}
@@ -599,15 +526,12 @@ export function routes<const T extends KeyedTable<T>>(
 	return self;
 }
 
-// ── endpoints ─────────────────────────────────────────────────────────────────────────────────────
 async function run_endpoint(node: EndpointDef, ctx: Ctx, method: string): Promise<Response> {
 	const m = HEAD_AS_GET(method);
 	const allow = [...node.methods.keys()];
 	if (method === 'OPTIONS' && !node.methods.has('OPTIONS')) return options_response(allow);
 	const e = node.methods.get(m);
 	if (!e) return method_not_allowed(allow);
-	// Body schema (POST/PUT/PATCH): validate the parsed JSON body → typed `c.input` (400 on failure).
-	// Path params stay on `c.params`; query on `c.search`/`c.url` — three clean surfaces, no grab-bag.
 	if (e.bodySchema) {
 		let body: unknown = undefined;
 		const ct = ctx.request.headers.get('content-type') ?? '';
@@ -626,7 +550,6 @@ async function run_endpoint(node: EndpointDef, ctx: Ctx, method: string): Promis
 	return finalize(await e.handler(ctx));
 }
 
-/** Run a Standard Schema; issues normalized to `{ message, path }[]`. */
 async function validate(
 	schema: StandardSchemaV1,
 	input: unknown
@@ -638,19 +561,18 @@ async function validate(
 	return { value: r.value };
 }
 
-// ── helpers ─────────────────────────────────────────────────────────────────────────────────────
 const TRAILING_SLASH = /\/+$/;
 const LEADING_SLASHES = /^[/\\]+/;
 /** A redirect target that stays on this site: exactly one leading `/` and no `\` (test:
  *  router-dispatch.test.ts › the trailing-slash redirect stays on the site). */
 function on_site(path: string): string {
-	return '/' + path.replace(LEADING_SLASHES, '').replaceAll('\\', '%5C');
+	return `/${path.replace(LEADING_SLASHES, '').replaceAll('\\', '%5C')}`;
 }
 function canonical_slash(path: string, mode: 'ignore' | 'never' | 'always'): string | null {
 	if (mode === 'ignore' || path === '/') return null;
 	const has = path.endsWith('/');
 	if (mode === 'never' && has) return path.replace(TRAILING_SLASH, '') || '/';
-	if (mode === 'always' && !has) return path + '/';
+	if (mode === 'always' && !has) return `${path}/`;
 	return null;
 }
 
@@ -671,7 +593,4 @@ function page_allow(node: PageDef): string[] {
 	return a;
 }
 
-// `fill` moved to match.ts — shared with the typed `api()` client (one token grammar).
-
-// re-export the component type so LayoutChain's props stay in one vocabulary
 export type { Component };
