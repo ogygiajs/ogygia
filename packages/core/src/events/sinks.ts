@@ -3,7 +3,7 @@
  * listener over {@link ./bus.js the bus}; none touches framework internals. Load only what you use —
  * the REPL wants `postMessage`, our e2e wants the `window` hook, a bug report wants a trace.
  */
-import { add_sink, snapshot, clear, ingest, type DevtoolsSink } from './bus.ts';
+import { add_sink, snapshot, clear, ingest_page_events, type DevtoolsSink } from './bus.ts';
 import { DEVTOOLS_SCHEMA_VERSION, type DevtoolsEvent } from '../contract/events.ts';
 
 /** The global the {@link install_window_sink window sink} publishes. Distinct from the compile-time
@@ -115,7 +115,7 @@ export function ingest_server_events(): number {
 		if (!text) continue;
 		try {
 			const events: unknown = JSON.parse(text);
-			if (Array.isArray(events)) total += ingest(events);
+			if (Array.isArray(events)) total += ingest_page_events(events);
 		} catch {
 			// ok: a malformed devtools side-channel never breaks boot; its events are left out
 		}
