@@ -8,7 +8,10 @@ const ctx = () => ({ request: new Request('http://s/x'), url: new URL('http://s/
 const BOOL: FlagQuery = { name: 'kill', variants: ['off', 'on'], kind: 'boolean' };
 const VARIANT: FlagQuery = { name: 'hero', variants: ['control', 'bold'], kind: 'variant' };
 
-afterEach(() => vi.restoreAllMocks());
+afterEach(() => {
+	vi.restoreAllMocks();
+	vi.useRealTimers();
+});
 
 describe('ofrep()', () => {
 	it('reads a boolean value as the on or off variant', async () => {
@@ -34,13 +37,21 @@ describe('ofrep()', () => {
 	});
 
 	it('gives up after 800 ms by default', async () => {
-		const timeout = vi.spyOn(AbortSignal, 'timeout');
+		vi.useFakeTimers();
+		let signal: AbortSignal | undefined;
 		const source = ofrep({
 			url: 'http://flags.test',
-			fetch: (async () => Response.json({ flags: [] })) as typeof fetch
+			fetch: ((_url: string, init: RequestInit) => {
+				signal = init.signal ?? undefined;
+				return new Promise<Response>(() => {});
+			}) as typeof fetch
 		});
-		await source([BOOL], ctx());
-		expect(timeout).toHaveBeenCalledWith(800);
+		// ok: the timeout's rejection is not this test's claim
+		void Promise.resolve(source([BOOL], ctx())).catch(() => {});
+		await vi.advanceTimersByTimeAsync(799);
+		expect(signal?.aborted).toBe(false);
+		await vi.advanceTimersByTimeAsync(1);
+		expect(signal?.aborted).toBe(true);
 	});
 
 	it('stops asking when the request ends first, and reports no failure', async () => {
