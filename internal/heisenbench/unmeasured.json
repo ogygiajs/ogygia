@@ -597,10 +597,6 @@
 			"reason": "browser only: the hole's fetch as a task of its `fetching` visit, constant work besides the fetch; proven in packages/core/test/browser/hole-twins.test.ts"
 		},
 		{
-			"id": "packages/core/src/runtime/core.ts > OgygiaRegion > #fetch_region > run:0 > fetch_hole:1 > renewed",
-			"reason": "browser only: a renewal's fresh capability handed to the frame store, constant work; proven in packages/core/test/browser/hole-renewal.test.ts"
-		},
-		{
 			"id": "packages/core/src/runtime/core.ts > OgygiaRegion > #apply > after_html_swap:2",
 			"reason": "browser only: a settled lake wakes the regions that waited on it (one DOM walk); proven in packages/core/test/browser/lake-swr-remount.test.ts"
 		},
@@ -1935,10 +1931,6 @@
 		{
 			"id": "packages/core/src/runtime/beacon.ts > resend_soon > timeout:0~5bb08a",
 			"reason": "browser only: the visit's re-send firing 1.5 s after a late change (one flush_visit), constant work of its own"
-		},
-		{
-			"id": "packages/core/src/runtime/load-scheduler.ts > watch_scroll > on_scroll > timeout:0~791980",
-			"reason": "browser only: a scroll's frame runs one drain of the queue and closes the watch once it is empty; constant work of its own"
 		},
 		{
 			"id": "packages/devtools/src/profiler/index.ts > Profiler > #pause",
@@ -3995,6 +3987,174 @@
 		{
 			"id": "packages/core/src/messages/core.ts > WARNINGS > rule_region_answer_behind > text",
 			"reason": "a message's one line for the dev warning: a template over the rule's detail, printed once when the rule breaks"
+		},
+		{
+			"id": "packages/machine/src/queue.ts > QueueImpl > #arm > timeout:0~5b3150",
+			"reason": "the deadlines' one timer firing: hands over to #expire, constant work"
+		},
+		{
+			"id": "packages/machine/src/queue.ts > QueueImpl > #expire",
+			"reason": "a timer's callback over the waiting jobs, linear in them; queue.test.ts runs it under fake timers (not replayable: it reads the clock)"
+		},
+		{
+			"id": "packages/machine/src/queue.ts > QueueImpl > #expire > leave_where:0~9dd123",
+			"reason": "the deadline test #leave_where applies, one comparison"
+		},
+		{
+			"id": "packages/machine/src/queue.ts > QueueImpl > #leave_where",
+			"reason": "the waiting jobs a deadline or the owner's close picks, linear in them; queue.test.ts runs it (not replayable: stale hooks with side effects)"
+		},
+		{
+			"id": "packages/machine/src/queue.ts > QueueImpl > constructor > defer:0~b785c2",
+			"reason": "the queue's owner closing: hands over to #leave_where, constant work"
+		},
+		{
+			"id": "packages/machine/src/queue.ts > QueueImpl > constructor > defer:0~b785c2 > leave_where:0~8b94d4",
+			"reason": "the owner's close picks every waiting job, constant work"
+		},
+		{
+			"id": "packages/machine/src/queue.ts > QueueImpl > get holding",
+			"reason": "a getter, one read"
+		},
+		{
+			"id": "packages/machine/src/queue.ts > clock",
+			"reason": "the default clock (performance.now), one read; every test and bench passes its own"
+		},
+		{
+			"id": "packages/core/src/runtime/router.ts > SpaRouter > scan_preload_links > on_idle:1~4ff29d > once_on_screen:2~719a25",
+			"reason": "browser only: a viewport-preload link came on screen, one warm of its page (fetch_page, measured by the router benches)"
+		},
+		{
+			"id": "packages/core/src/runtime/viewport.ts > Tracker > #follow > MutationObserver:0~c14ef5",
+			"reason": "browser only: a box-less region's content was swapped; it hands the records to #swapped, constant work"
+		},
+		{
+			"id": "packages/core/src/runtime/viewport.ts > Tracker > #swapped",
+			"reason": "browser only: a box-less region's content swap, linear in its records (a handful per swap); viewport-shared.test.ts runs it in three engines"
+		},
+		{
+			"id": "packages/core/src/runtime/viewport.ts > Tracker > watch > queueMicrotask:0~813366",
+			"reason": "browser only: a late watcher of an element observed for another gets its decision in a microtask, constant work"
+		},
+		{
+			"id": "packages/core/src/runtime/viewport.ts > stand_ins",
+			"reason": "browser only: the children of a box-less region, at most 16 (WIDTH); viewport-shared.test.ts runs it in three engines"
+		},
+		{
+			"id": "packages/core/src/runtime/viewport.ts > measure",
+			"reason": "browser only: one getBoundingClientRect read against the viewport, constant work (node has no layout)"
+		},
+		{
+			"id": "packages/core/src/runtime/viewport.ts > reset_viewport",
+			"reason": "test seam: closes the tracker's scope, constant work"
+		},
+		{
+			"id": "packages/core/src/runtime/viewport.ts > tracker_count",
+			"reason": "test seam: the number of observers, constant work"
+		},
+		{
+			"id": "packages/core/src/runtime/region-endpoint-url.ts > make_warms > call:0~93991a > run > onRaise:0~1a69dd",
+			"reason": "browser only: a more urgent warm joins one whose import is already on the wire, and its graph links are raised (one preload_island_graph call, measured by its own bench)"
+		},
+		{
+			"id": "packages/core/src/runtime/region-endpoint-url.ts > reset_island_warms > drop:0~8b94d4",
+			"reason": "test seam: the predicate that drops every warm, constant work"
+		},
+		{
+			"id": "packages/core/src/runtime/core.ts > OgygiaRegion > #fetch_region > fetch_hole:1~0557ca > renewed",
+			"reason": "browser only: a renewal's fresh capability handed to the frame store, constant work; proven in packages/core/test/browser/hole-renewal.test.ts"
+		},
+		{
+			"id": "packages/core/src/frame.ts > frameAddress > sort:0~f5ce9e",
+			"reason": "the sort comparator of a call's parameters (a closure Array.sort calls, not replayable on its own), constant work per pair; frameAddress around it is proven in packages/core/test/frame-address.test.ts (#916)"
+		},
+		{
+			"id": "packages/core/src/kit-paths.ts > app_path",
+			"reason": "reads Kit's build define for paths.base (hidden state: a module constant), one string join, constant work; proven in packages/core/test/capability-relative-paths.test.ts (#925)"
+		},
+		{
+			"id": "packages/core/src/runtime/core.ts > OgygiaRegion > #wake_online",
+			"reason": "browser only, an error path: an island whose code failed offline waits for the window's online event (a live element and window, not cloneable), constant work; proven in packages/core/test/browser/hole-offline.test.ts (#891)"
+		},
+		{
+			"id": "packages/core/src/runtime/core.ts > OgygiaRegion > #wake_online > on:2~9cda26",
+			"reason": "browser only: the online listener, one machine step and one wake, constant work; proven in packages/core/test/browser/hole-offline.test.ts (#891)"
+		},
+		{
+			"id": "packages/core/src/runtime/network.ts > browser_offline",
+			"reason": "browser only: reads navigator.onLine (hidden state: the browser's network), constant work; proven in packages/core/test/browser/hole-offline.test.ts (#891)"
+		},
+		{
+			"id": "packages/core/src/runtime/network.ts > no_response",
+			"reason": "an error path's type check (one instanceof), constant work; proven in packages/core/test/browser/hole-offline.test.ts (#891)"
+		},
+		{
+			"id": "packages/core/src/runtime/router-nav.ts > known_copies",
+			"reason": "browser only: walks the live document's regions once per SPA navigation (a live document, not cloneable), linear in the regions; its list is proven in packages/core/test/property-known-copies.test.ts and apps/palaestra/e2e/delta-copy-count.spec.ts (#846)"
+		},
+		{
+			"id": "packages/core/src/server/region-endpoint.ts > reuse_known_region",
+			"reason": "reads and counts down the request's known copies (hidden state: the request event's map), constant work per region; proven in packages/core/test/property-known-copies.test.ts and packages/core/test/server-delta-opt-in.test.ts (#846)"
+		},
+		{
+			"id": "packages/tooling/src/e2e/index.ts > extend:0~698079 > <anonymous>~24f7e2",
+			"reason": "the e2e harness's per-test server-rules fixture: Playwright only, reads the suite's server log around each test (#928)"
+		},
+		{
+			"id": "packages/tooling/src/e2e/server-log.ts > server_log",
+			"reason": "the e2e harness: reads the suite's log path from the environment (hidden state), Playwright only (#928)"
+		},
+		{
+			"id": "packages/tooling/src/e2e/server-log.ts > append_server_log",
+			"reason": "the e2e harness: appends a server's output to the suite's log file (I/O), Playwright only (#928)"
+		},
+		{
+			"id": "packages/tooling/src/e2e/server-log.ts > server_log_size",
+			"reason": "the e2e harness: the log file's size (I/O), Playwright only (#928)"
+		},
+		{
+			"id": "packages/tooling/src/e2e/server-log.ts > server_log_since",
+			"reason": "the e2e harness: what the log file gained since a byte (I/O), Playwright only (#928)"
+		},
+		{
+			"id": "packages/tooling/src/e2e/server-log.ts > said_rules",
+			"reason": "the e2e harness: the rule codes in a test's slice of the server log, linear in the text; runs at the end of every e2e test, Playwright only (#928)"
+		},
+		{
+			"id": "packages/tooling/src/e2e/tee.ts > on:1~6cefc2",
+			"reason": "the e2e harness's served-app process: passes the app's stdout through to the suite's log (a live child process), Playwright only (#928)"
+		},
+		{
+			"id": "packages/tooling/src/e2e/tee.ts > on:1~d6bbd7",
+			"reason": "the e2e harness's served-app process: passes the app's stderr through to the suite's log (a live child process), Playwright only (#928)"
+		},
+		{
+			"id": "packages/tooling/src/e2e/tee.ts > on:1~a89244",
+			"reason": "the e2e harness's served-app process: hands a signal on to the app (a live child process), Playwright only (#928)"
+		},
+		{
+			"id": "packages/tooling/src/e2e/tee.ts > on:1~6a4c0a",
+			"reason": "the e2e harness's served-app process: exits with the app's code (a live child process), Playwright only (#928)"
+		},
+		{
+			"id": "packages/postrender/src/registry.ts > store_call",
+			"reason": "one call against the app's store (I/O, nothing to replay) and the store-health step around it, constant work; proven in packages/postrender/test/store-failed.test.ts and packages/postrender/test/deploy.test.ts (#947)"
+		},
+		{
+			"id": "packages/postrender/src/server.ts > deploy_check",
+			"reason": "once per boot per store runtime: the shared deploy check keyed on the runtime (a WeakMap of live runtimes, not cloneable), constant work; proven in packages/postrender/test/deploy.test.ts (#947)"
+		},
+		{
+			"id": "packages/postrender/src/server.ts > deploy_check > flights:0~68fab5 > run",
+			"reason": "once per boot: reads the build marker, evicts the old build's tags, writes the marker (I/O against the app's store, nothing to replay); proven in packages/postrender/test/deploy.test.ts (#947)"
+		},
+		{
+			"id": "packages/postrender/src/server.ts > deploy_check > flights:0~68fab5 > run > store_call:2~4a3dd5",
+			"reason": "the marker read, one store get (I/O, the live store: not cloneable), constant work (#947)"
+		},
+		{
+			"id": "packages/postrender/src/server.ts > deploy_check > flights:0~68fab5 > run > store_call:2~fa5e01",
+			"reason": "the marker write, one store put (I/O, the live store: not cloneable), constant work (#947)"
 		}
 	]
 }

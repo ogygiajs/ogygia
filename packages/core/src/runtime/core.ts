@@ -86,10 +86,12 @@ import {
 	unregister_region,
 	yield_task
 } from './schedule.ts';
-import { once_visible } from './observe.ts';
+import { once_on_screen } from './viewport.ts';
 import { sheet_of, use_sheets, type RegionSheet } from './region-sheets.ts';
 import { preload_island_graph } from './island-graph-preload.ts';
 import { fetch_priority_of, LoadSlot, viewport_class, type LoadClass } from './load-scheduler.ts';
+import { PRIORITY } from './load-class.ts';
+import type { FrameFetcher } from './frame-store.ts';
 import { connected_regions } from './connected.ts';
 import { restore_props_sidecar } from './sidecar.ts';
 import { hole_facts_of } from './hole-facts.ts';
@@ -834,7 +836,11 @@ class OgygiaRegion extends HTMLElement {
 		}
 		// while it sleeps with a copy, a touch marks it for the comparison at its wake (drift-watch.ts)
 		if (this.#ssr_html !== null) this.#watch();
-		if (slots.lakes.wait_for_boundary(this, boundary)) return;
+		// A region whose markup is the lake's waits for the lake to settle (its host island's hydrate
+		// lifts and restores it). A deferred one's HTML is remote, never the lake's, so it keeps its own
+		// schedule, as under the nested rule above: a host woken by a press may never wake
+		// (e2e/hole-in-lake.spec.ts, #948)
+		if (!deferred && slots.lakes.wait_for_boundary(this, boundary)) return;
 		this.#scheduled = true;
 		// A hole that had its answer, put back on the page: its schedule is spent (#336)
 		if (deferred && this.#answer.now.kind !== 'none') {
@@ -927,9 +933,12 @@ class OgygiaRegion extends HTMLElement {
 		if (!endpoint || !is_allowed_region_endpoint(endpoint)) return;
 		const address = frameAddress(endpoint);
 		if (DEVTOOLS) dt_emit({ domain: 'runtime', name: 'region.prefetch', ...dt_ids(this) });
-		// a warm ahead of the hole's own schedule: background work (load-scheduler.ts)
+		// a warm ahead of the hole's own schedule: background work (load-scheduler.ts), raised when the
+		// hole's own fetch or `preload()` joins it
 		void slots.frames
-			?.ensure(address, this.#frame_fetcher(endpoint, false, 'ahead'))
+			?.ensure(address, this.#frame_fetcher(endpoint, false, 'ahead'), {
+				priority: PRIORITY.ahead
+			})
 			?.catch(() => {}); // ok: a warm ahead; the hole's own fetch asks again and says its failure
 	}
 
@@ -939,18 +948,32 @@ class OgygiaRegion extends HTMLElement {
 	 * marker on a 204 (`keepFallback()` on the server). A revalidate bypasses the browser cache
 	 * (the endpoint may answer `private, max-age`, and stale is the whole point of revalidating).
 	 */
-	#frame_fetcher(endpoint: string, revalidate: boolean, cls: LoadClass | (() => LoadClass)) {
-		const class_now = typeof cls === 'function' ? cls : () => cls;
-		return async (signal: AbortSignal) => {
+	#frame_fetcher(
+		endpoint: string,
+		revalidate: boolean,
+		cls: LoadClass | (() => LoadClass)
+	): FrameFetcher {
+		return async (signal, flight) => {
 			// HTML is content: on screen it never waits for the page's critical resources; off screen it
-			// is background work (load-scheduler.ts). The server gate still caps what one page asks of
-			// the origin at once.
-			const release = await new LoadSlot({ kind: 'content', cls, label: endpoint }).ready;
+			// is background work (load-scheduler.ts). Every caller of the address shares this fetch, so
+			// it goes at the most urgent one's class (its flight's). The holes window caps what one
+			// page asks of the origin at once.
+			// (a class that follows this hole's place on screen is re-read as it moves)
+			const el = typeof cls === 'function' ? this : undefined;
+			const slot = new LoadSlot({
+				kind: 'content',
+				cls,
+				label: endpoint,
+				el,
+				flight,
+				window: 'holes'
+			});
+			const release = await slot.ready;
 			try {
 				return await this.#fetch_region(
 					endpoint,
 					revalidate,
-					fetch_priority_of(class_now()),
+					fetch_priority_of(slot.cls()),
 					signal
 				);
 			} finally {
@@ -965,16 +988,14 @@ class OgygiaRegion extends HTMLElement {
 		priority: 'high' | 'auto' | 'low',
 		signal: AbortSignal
 	) {
-		return runtime_session.server_gate.run(() => {
-			// (./hole-fetch.ts: the same read of the answer `preload()` makes. A renewed capability is
-			// the address's, kept in the store: every element bound there adopts it — #adopt_renewed)
-			const address = frameAddress(endpoint);
-			return fetch_hole(endpoint, {
-				revalidate,
-				priority,
-				signal,
-				renewed: (fresh) => slots.frames?.renew(address, fresh)
-			});
+		// (./hole-fetch.ts: the same read of the answer `preload()` makes. A renewed capability is
+		// the address's, kept in the store: every element bound there adopts it — #adopt_renewed)
+		const address = frameAddress(endpoint);
+		return fetch_hole(endpoint, {
+			revalidate,
+			priority,
+			signal,
+			renewed: (fresh) => slots.frames?.renew(address, fresh)
 		});
 	}
 
@@ -1480,10 +1501,11 @@ class OgygiaRegion extends HTMLElement {
 		// not an expired capability (only its own GET renews it).
 		if (!revalidate && frames.join && !endpoint.includes('&ttl=') && !capability_expired(endpoint))
 			await frames.join(endpoint);
-		const fetcher = this.#frame_fetcher(endpoint, revalidate, () =>
-			this.#visitor ? 'user' : viewport_class(this)
-		);
-		const run = () => frames.ensure(address, fetcher, { force: revalidate, signal });
+		const cls = () => (this.#visitor ? 'user' : viewport_class(this));
+		const fetcher = this.#frame_fetcher(endpoint, revalidate, cls);
+		// (joining a warm out for the address: it is raised to this hole's class)
+		const run = () =>
+			frames.ensure(address, fetcher, { force: revalidate, signal, priority: PRIORITY[cls()] });
 		try {
 			return await run();
 		} catch (err) {
@@ -1638,10 +1660,11 @@ class OgygiaRegion extends HTMLElement {
 		const off_cap = s.timeout(first, 2000);
 	}
 
-	/** `visible`: the shared observer for this margin (observe.ts) — fires once, on first entry. */
+	/** `visible`: the one viewport tracker for this margin (viewport.ts) — fires once, the first time
+	 *  the region (or, with no box of its own, what it renders) is on screen. */
 	#on_visible(fire: () => unknown, root_margin: string | undefined, owner: Leaves) {
 		const rootMargin = root_margin || this.getAttribute('margin') || '0px';
-		owner.scope.defer(once_visible(this, rootMargin, () => void fire())); // ok: a wake; its hydrate says its own failure
+		owner.scope.defer(once_on_screen(this, rootMargin, () => void fire())); // ok: a wake; its hydrate says its own failure
 	}
 
 	#on_media(q: string, fire: () => unknown, owner: Leaves) {
@@ -1696,7 +1719,7 @@ class OgygiaRegion extends HTMLElement {
 			// Its downloads wait for their slot (load-scheduler.ts): a gesture's never wait; otherwise
 			// the class follows the viewport, re-read while queued (an island scrolled into view moves up).
 			const cls = () => (this.#visitor ? 'user' : viewport_class(this));
-			const slot = new LoadSlot({ kind: 'code', cls, label: entry });
+			const slot = new LoadSlot({ kind: 'code', cls, label: entry, el: this });
 			const release = await turn.wait(slot.ready);
 			// (gone while it queued: the slot, when it comes, goes straight back)
 			if (release === STALE) return void slot.ready.then(hand_back); // ok: a slot's turn never fails
@@ -1993,7 +2016,7 @@ class OgygiaRegion extends HTMLElement {
 			const entry = island_entry_of(this);
 			if (!entry) return;
 			const cls = () => viewport_class(this);
-			const slot = new LoadSlot({ kind: 'code', cls, label: entry });
+			const slot = new LoadSlot({ kind: 'code', cls, label: entry, el: this });
 			const release = await turn.wait(slot.ready);
 			// (gone while it queued: the slot, when it comes, goes straight back)
 			if (release === STALE) return void slot.ready.then(hand_back); // ok: a slot's turn never fails
