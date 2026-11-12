@@ -93,12 +93,16 @@
 			"reason": "the replacement for the pre's attributes: one concatenation, constant work; proven in packages/content/test/fence-escaping.test.ts"
 		},
 		{
-			"id": "packages/core/src/server/page-stream.ts > stream_page_deferred > ReadableStream:0~352846 > cancel",
-			"reason": "the stream's cancel closes its owner: constant work"
+			"id": "packages/core/src/messages/server.ts > SERVER_WARNINGS > page_promise_pending > details",
+			"reason": "a message's wording, read once when the warning is shown: constant work"
 		},
 		{
-			"id": "packages/core/src/server/page-stream.ts > stream_page_deferred > ReadableStream:0~352846 > start > stream_one > then:1~0cd750",
-			"reason": "a rejected promise settled as a failure: constant work"
+			"id": "packages/core/src/messages/server.ts > SERVER_WARNINGS > page_promise_pending > text",
+			"reason": "a message's wording, read once when the warning is shown: constant work"
+		},
+		{
+			"id": "packages/core/src/server/page-stream.ts > say_if_pending > timeout:0~8e3e3b",
+			"reason": "dev only: one warning after 10 s, at most once per response: constant work; proven in packages/core/test/page-stream-request-owned.test.ts"
 		},
 		{
 			"id": "packages/devtools/src/devtools/page.ts > asked",
