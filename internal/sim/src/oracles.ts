@@ -41,6 +41,9 @@ export interface Broken {
  * - a hole's `data-revalidated` mark: its answer was fetched again once its cached copy went
  *   stale, which a tab that stayed long enough sees and a fresh load does not (the answer itself
  *   is compared);
+ * - a region's repair mark (`data-og-healed`): a third party edited its server markup before it
+ *   woke, which a script waiting for DOMContentLoaded does on a document load and never on a router
+ *   visit; what the repaired region shows is compared (gen 192, seed 19);
  * - a page store's mark (`<meta name="ogygia-stored">`): the copy came from the store, where the
  *   render that filled it did not say so; the page itself is compared (delivery, as a CDN's
  *   header is).
@@ -78,7 +81,10 @@ export function normalize(root: {
 			.filter(
 				(a) =>
 					a.name !== 'nonce' &&
-					!(tag === 'ogygia-region' && (a.name === 'data-key' || a.name === 'data-revalidated'))
+					!(
+						tag === 'ogygia-region' &&
+						(a.name === 'data-key' || a.name === 'data-revalidated' || a.name === 'data-og-healed')
+					)
 			)
 			.map((a) =>
 				(tag === 'link' && a.name === 'href') || /^\.\.?\//.test(a.value)
