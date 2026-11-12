@@ -545,6 +545,8 @@ export function regions_show(tab: Tab, world: World): Broken | null {
 		(r) =>
 			r.children.length === 0 &&
 			(r.textContent ?? '').trim() === '' &&
+			// (the app's own empty component, in the element the random app marks: src/gen.ts `empty`)
+			!r.parentElement?.hasAttribute('data-gen-empty') &&
 			// (a hole with no fallback still waiting for its moment: seen, or the visitor's intent)
 			!(
 				r.getAttribute('render') === 'defer' &&

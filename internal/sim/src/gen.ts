@@ -76,6 +76,10 @@ export interface GenNode {
 	/** A lake that writes bad HTML on purpose (`{@html}`: a block in a `<p>`), marked
 	 *  `data-gen-messy`, the app's own: what ogygia does around it must stay whole. */
 	readonly bad?: boolean;
+	/** A region whose component renders nothing at all (stream `gen empty`): a leaf island, hole or
+	 *  lake with no element and no text. Where it is used, `<div data-gen-empty>` holds it, so the
+	 *  region oracle knows an empty `<ogygia-region>` there is the app's. */
+	readonly empty?: boolean;
 	readonly children: readonly GenNode[];
 }
 
@@ -221,6 +225,17 @@ export function plan(seed: number): GenPage[] {
 			...(bad ? { bad } : {})
 		};
 	};
+	// (and an empty region, from its own: a leaf with nothing else to show)
+	const e = rng(seed).fork('gen empty');
+	const empty = (n: GenNode): GenNode => {
+		const children = n.children.map(empty);
+		const plain =
+			children.length === 0 &&
+			(n.kind === 'island' || n.kind === 'hole' || n.kind === 'lake') &&
+			!(n.odd || n.big || n.bad || n.throws || n.keep || n.reads || n.refresh) &&
+			!(n.dated || n.changes || n.style);
+		return plain && e.chance(0.15) ? { ...n, children, empty: true } : { ...n, children };
+	};
 	const node = trees(r, held);
 	const pages = r.between(3, 6);
 	return Array.from({ length: pages }, (_, i) => ({
@@ -231,7 +246,8 @@ export function plan(seed: number): GenPage[] {
 		.map((page) => ({ ...page, roots: page.roots.map(release) }))
 		.map((page) => ({ ...page, roots: page.roots.map(extras) }))
 		.map((page) => (d.chance(0.4) ? { ...page, data: true, roots: page.roots.map(reading) } : page))
-		.map((page) => ({ ...page, roots: page.roots.map(messy) }));
+		.map((page) => ({ ...page, roots: page.roots.map(messy) }))
+		.map((page) => ({ ...page, roots: page.roots.map(empty) }));
 }
 
 /** A widget the peer app serves (`federate({ widgets })`): a root holding a region tree. */
@@ -362,6 +378,8 @@ function name(n: GenNode): string {
 
 /** Where `n` is used: its tag, with a fallback for a hole that has one. */
 function usage(n: GenNode, indent: string): string {
+	if (n.empty)
+		return `${indent}<div data-gen-empty>\n${usage({ ...n, empty: false }, `${indent}\t`)}\n${indent}</div>`;
 	if (n.kind === 'hole' && n.fallback)
 		return `${indent}<N${n.id} label="n${n.id}">\n${indent}\t{#snippet ogygiaFallback()}<p data-gen-fallback>loading n${n.id}…</p>{/snippet}\n${indent}</N${n.id}>`;
 	if (n.kind === 'held' || n.kind === 'live') return `${indent}<${name(n)} />`;
@@ -462,6 +480,14 @@ const ODD_TEXT = `say "hi" & 'bye' <b>not bold</b> a > b &amp; é ü 中文 😀
 
 /** The component file of `n`. */
 function component(n: GenNode): string {
+	if (n.empty)
+		return [
+			'<script lang="ts">',
+			"\timport type { Snippet } from 'svelte';",
+			"\tlet { label = '' }: { label?: string; ogygiaFallback?: Snippet } = $props();",
+			'</script>',
+			''
+		].join('\n');
 	const interactive =
 		n.kind === 'island' ||
 		((n.kind === 'hole' || n.kind === 'held' || n.kind === 'live') && n.wake !== undefined);

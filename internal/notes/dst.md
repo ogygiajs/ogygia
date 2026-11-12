@@ -399,7 +399,9 @@ at rest as code built it: the content model (no block in a `<p>`, nested `<a>`/`
 interactive in a `<button>`, a table's own children, no id twice, no head-only element in the body,
 no empty `<title>`) and end tags that close another element (`html-sent`, `html-kept`). What the app
 writes badly on purpose carries `data-gen-messy` (the random app's `gen messy` stream: odd text, big
-props, throwing holes, bad `{@html}` in lakes) and is the app's.
+props, throwing holes, bad `{@html}` in lakes) and is the app's. Some leaves render nothing at all
+(`gen empty`: an island, hole or lake with no element and no text), each used inside
+`<div data-gen-empty>`, which the region oracle leaves to the app.
 
 `src/waste.ts` (`waste`): at rest, in a document no fault, deploy or press touched, no answer asked
 for twice (content-hashed files and pages left out: a browser's module map keeps a file, and the
