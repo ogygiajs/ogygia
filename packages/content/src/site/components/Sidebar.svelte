@@ -1,10 +1,10 @@
+<!--
+@component
+The nav tree, drawn: groups nest, leaves link, plain links pass through. Pass the tree as `nav` (a
+precomputed tree: transform it and hand it back), or a `site` to read it from. Draw a leaf yourself
+with the `item` snippet; style the rest through the `.og-*` classes.
+-->
 <script lang="ts">
-	/**
-	 * The nav tree, rendered. A pure function of `NavTree`: groups nest recursively, leaves link,
-	 * plain links pass through. Inside `<Shell>` it reads the site from context; standalone it takes
-	 * `{site}` (or a precomputed `{nav}` — the wrap pattern: transform the data, hand it back).
-	 * Customize per-item with the `item` snippet; everything else is CSS via `.og-*` hooks.
-	 */
 	import type { Snippet } from 'svelte';
 	import { page } from '$app/state';
 	import { scope, storage } from '@ogygia/machine';
@@ -13,7 +13,6 @@
 	import type { Site } from '../site.ts';
 	import type { NavLeaf, NavTree } from '../types.ts';
 
-	// ── regexes
 	const NON_IDENT_CHARS_G = /[^a-zA-Z0-9_-]+/g;
 
 	let {
@@ -30,48 +29,22 @@
 	} = $props();
 
 	const ctx = get_shell_context();
-	// Init-time snapshot ONLY for the standalone fetch path (no `nav` prop) — that fetch runs once in
-	// this csr=false SSR pass.
 	// svelte-ignore state_referenced_locally
 	const the_site = site ?? ctx?.site;
 	// svelte-ignore state_referenced_locally
 	const the_base = base ?? ctx?.base ?? '';
 	// svelte-ignore state_referenced_locally
 	const fetched: NavTree = nav ? [] : the_site ? await the_site.nav({ base: the_base }) : [];
-	// The tree is REACTIVE to the `nav` prop: this island is commonly KEPT (`keep: 'og-sidebar'`), and
-	// on every SPA navigation the router pushes the incoming page's props into the persisted app
-	// (`absorbKeptProps` → its pushable props). A version/locale switch therefore swaps the tree IN
-	// PLACE — new links, new base prefixes — without a re-mount, so the active chip still glides.
+	// @why a kept sidebar gets each page's tree as a new `nav` prop, without a re-mount (test: apps/docs/e2e/sidebar-keep.spec.ts › the sidebar is the same element after a navigation to another section, with the new tree)
 	const tree: NavTree = $derived(nav ?? fetched);
 
 	const path = $derived(page.url.pathname);
 
-	/**
-	 * A stable, unique `view-transition-name` for one nav row. The page cross-fade is a View Transition,
-	 * so the LIVE sidebar DOM is hidden behind the VT snapshot mid-nav — a JS/CSS slide of the marker
-	 * wouldn't be visible. Instead the highlight box (a chip carrying `view-transition-name: og-nav-active`)
-	 * lives behind the ACTIVE row; when the active class moves to the new leaf, the VT captures the chip at
-	 * the new row and slides it there for us. But a named element paints ABOVE the page snapshot, so a
-	 * bare chip would cover the labels it passes. Fix: give every row its OWN VT layer (a unique name here,
-	 * a shared `view-transition-class` in CSS) and force the chip BENEATH them by z-index — so each label
-	 * stays put in its own layer and the chip glides underneath. Names must be unique per document; the
-	 * key (href/label) is, so we sanitise it to a valid custom-ident and prefix by row kind.
-	 */
 	function vt_name(prefix: string, key: string): string {
+		// @why each row is its own view-transition layer, so the active chip glides beneath the labels (test: test/browser/sidebar.test.ts › gives every row its own view-transition name, a valid identifier)
 		return `${prefix}-${key.replace(NON_IDENT_CHARS_G, '-')}`;
 	}
 
-	/**
-	 * SCROLL CONTINUITY + active-in-view. This island is KEPT, so its DOM rides the body swap — but
-	 * the element that actually SCROLLS is usually the surrounding panel (skin-owned, outside the
-	 * kept node), which is a FRESH element on every navigation: the nav survived, its scroll didn't.
-	 * So the component owns the behavior, skin-agnostically: per navigation it re-finds the live
-	 * scroller (itself if scrollable, else the nearest scrollable ancestor), restores the
-	 * session-saved position, keeps saving on scroll, and — the docs-site contract — centers the
-	 * active row whenever it would otherwise sit outside the visible window (deep links land
-	 * centered too, since a fresh load has nothing saved). The hidden mobile clone (the Sheet's
-	 * instance) skips all of it via the `offsetParent` gate.
-	 */
 	let nav_el: HTMLElement | null = $state(null);
 	let scroller: HTMLElement | null = null;
 	const save = () => {
@@ -94,13 +67,12 @@
 	}
 	let first_sync = true;
 	$effect(() => {
-		void path; // re-run per navigation (props push into the kept app)
+		void path;
 		const el = nav_el;
 		if (!el || el.offsetParent === null) return;
-		// The panel is a new element each nav: the saver binds to the live one.
 		scroller = find_scroller(el);
 		if (!scroller) return;
-		// (this run's saver: the next navigation's run, or the unmount, lets go of it)
+		// @why the panel is the skin's, so the saver goes with the sidebar, not the panel (test: test/browser/sidebar.test.ts › lets go of the panel when it unmounts: scrolling the panel after saves nothing)
 		const run = scope();
 		run.on(scroller, 'scroll', save, { passive: true });
 		let saved: number | null = null;
@@ -111,16 +83,16 @@
 			// ok: no storage (private mode); the scroll position is not kept
 		}
 		if (saved != null && Number.isFinite(saved)) scroller.scrollTop = saved;
-		// Center the active row when it sits outside the window (scroller-relative math — never
-		// scrollIntoView, which would drag the PAGE scroll along with it).
 		const active = el.querySelector<HTMLElement>('[aria-current="page"]');
 		if (active) {
 			const s_rect = scroller.getBoundingClientRect();
 			const a_rect = active.getBoundingClientRect();
 			const outside = a_rect.top < s_rect.top || a_rect.bottom > s_rect.bottom;
+			// @why an active row out of view is centered in the panel (test: test/browser/sidebar.test.ts › centers the active row in the panel when it starts out of view)
 			if (outside || (first_sync && saved == null)) {
 				const target =
 					scroller.scrollTop + (a_rect.top - s_rect.top) - s_rect.height / 2 + a_rect.height / 2;
+				// @why the panel scrolls, never the page, as scrollIntoView would (test: test/browser/sidebar.test.ts › moves only the panel, never the page)
 				scroller.scrollTo({
 					top: Math.max(0, target),
 					behavior: first_sync ? 'instant' : 'smooth'
