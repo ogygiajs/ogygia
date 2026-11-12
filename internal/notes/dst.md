@@ -186,7 +186,8 @@ app's `<NAME>_PUBLIC_KEY` and `<NAME>_ORIGIN`, and `ORIGIN`, the keys drawn from
 
 `apps/sim-gen` is an app nobody wrote by hand: `pnpm sim:gen --seed N` (`src/gen.ts`) writes its
 pages and regions from a seed. Islands on every schedule, holes (some woken once they land, some
-slow on the server, some with a fallback), lakes and plain components, nested up to 3 deep, on 3
+slow on the server, some with a fallback, and some of a page's root holes keep it: `keepFallback()`,
+its own stream `gen keep`), lakes and plain components, nested up to 3 deep, on 3
 to 6 pages that link to each other (router on, csr=false). Each region is a component of its own
 that imports its children with their import attributes; the tree is in
 `src/lib/gen/plan.json`. Then `pnpm sim:builds --app ../../apps/sim-gen` and
