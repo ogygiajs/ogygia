@@ -15,12 +15,19 @@
 	"files": [
 		"dist",
 		"README.md",
-		"ambient.d.ts"
+		"ambient.d.ts",
+		"virtual"
 	],
 	"type": "module",
 	"sideEffects": [
 		"**/*.css"
 	],
+	"imports": {
+		"#region-server": {
+			"browser": "./src/region-server.browser.ts",
+			"default": "./src/region-server.ts"
+		}
+	},
 	"exports": {
 		".": {
 			"svelte": "./src/index.ts",
@@ -90,10 +97,6 @@
 			"types": "./dist/hooks.d.ts",
 			"default": "./src/hooks.ts"
 		},
-		"./markup": {
-			"types": "./dist/markup.d.ts",
-			"default": "./src/markup.ts"
-		},
 		"./plugin": {
 			"types": "./dist/plugin/index.d.ts",
 			"default": "./src/plugin/index.ts"
@@ -135,6 +138,13 @@
 		}
 	},
 	"publishConfig": {
+		"imports": {
+			"#region-server": {
+				"types": "./dist/region-server.d.ts",
+				"browser": "./dist/region-server.browser.js",
+				"default": "./dist/region-server.js"
+			}
+		},
 		"exports": {
 			".": {
 				"types": "./dist/index.d.ts",
@@ -201,10 +211,6 @@
 				"types": "./dist/hooks.d.ts",
 				"default": "./dist/hooks.js"
 			},
-			"./markup": {
-				"types": "./dist/markup.d.ts",
-				"default": "./dist/markup.js"
-			},
 			"./plugin": {
 				"types": "./dist/plugin/index.d.ts",
 				"default": "./dist/plugin/index.js"
@@ -252,7 +258,7 @@
 		"access": "public"
 	},
 	"scripts": {
-		"build": "tsdown",
+		"build": "node scripts/virtual-types.ts && tsdown",
 		"test": "vitest run",
 		"test:node": "vitest run --project node",
 		"test:browser": "vitest run --project browser",

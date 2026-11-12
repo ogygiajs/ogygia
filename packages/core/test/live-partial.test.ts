@@ -11,7 +11,7 @@ import { ogygiaTransport } from '../dist/transport.js';
 import { transformHost } from '../dist/compiler/region/transform.js';
 import { HOST_CTX_DEFAULTS } from './_host-ctx.ts';
 
-/** A fake SSR partial-binding (what `virtual:ogygia/region/<iid>.js` exports on the server leg). */
+/** A fake SSR partial-binding (what `ogygia:region/binding/<iid>.js` exports on the server leg). */
 function fakeBinding(overrides: Record<string, unknown> = {}) {
 	const Comp = () => {};
 	return {
@@ -109,8 +109,8 @@ describe('transform — SSR binding renders HTML, client leg stays metadata-only
 			readFile: () => null,
 			pathModule: path,
 			dev: false,
-			virtualPathFor: (_h: string, iid: string) => `virtual:ogygia/island/${iid}.js`,
-			wrapperPathFor: (_h: string, iid: string) => `virtual:ogygia/wrapper/${iid}.svelte`,
+			virtualPathFor: (_h: string, iid: string) => `ogygia:region/entry/${iid}.js`,
+			wrapperPathFor: (_h: string, iid: string) => `ogygia:region/wrapper/${iid}.svelte`,
 			devUrlFor: (p: string) => '/@id/' + p,
 			visibleMargin: '0px',
 			presets: {}

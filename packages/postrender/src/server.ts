@@ -1,6 +1,6 @@
 /**
  * The postrender plugin's server half (imported by the build through
- * `virtual:ogygia/server-plugins`, with the `postrender({ ttl, default })` options).
+ * `ogygia:server/server-plugins`, with the `postrender({ ttl, default })` options).
  *
  * `page`: the read path. A GET, no query string, not prerendering, on a route that opts in: a stored
  * copy answers — Kit, loads and Svelte never run. A concurrent cold miss JOINS the in-flight render
@@ -63,6 +63,8 @@ interface State {
 	obs: Observation | null;
 	/** the request was eligible to be stored */
 	eligible: boolean;
+	/** its render is not stored: the request carried the visitor's credentials */
+	credentials: boolean;
 }
 
 type Ctx = RequestContext<PostrenderServerOptions, State>;
@@ -344,16 +346,26 @@ async function capture(
 	return { stored: true, entry, response: postrender_response(entry, 'stored') };
 }
 
+/** What a route lets postrender store: nothing, pages from requests without the visitor's
+ *  credentials (`true`), or also from requests with them (`'with-credentials'`). */
+type Storing = false | true | 'with-credentials';
+
 /** This request's value for the `postrender` key of Kit's `config` (the route's, merged from its
- *  layouts), or the app-wide default when no level sets a boolean. */
-function opted_in(ctx: Ctx): boolean {
+ *  layouts), or the app-wide default when no level sets one. */
+function opted_in(ctx: Ctx): Storing {
 	const declared = ctx.routeConfig('postrender');
-	if (typeof declared === 'boolean') return declared;
+	if (typeof declared === 'boolean' || declared === 'with-credentials') return declared;
 	if (declared !== undefined)
 		ctx.app.warn(
-			`\`config.postrender\` must be true or false (got ${JSON.stringify(declared)}); the app-wide default applies.`
+			`\`config.postrender\` must be true, false or 'with-credentials' (got ${JSON.stringify(declared)}); the app-wide default applies.`
 		);
 	return ctx.options.default;
+}
+
+/** The request carries the visitor's credentials: a cookie or an `authorization` header. Read
+ *  before the render's reads are watched (they are not the render's). */
+function credentialed(request: Request): boolean {
+	return request.headers.has('cookie') || request.headers.has('authorization');
 }
 
 const server: ServerPlugin<PostrenderServerOptions, State> = defineServer<
@@ -364,12 +376,12 @@ const server: ServerPlugin<PostrenderServerOptions, State> = defineServer<
 		set_postrender_app(app);
 	},
 
-	state: () => ({ runtime: null, flight: null, obs: null, eligible: false }),
+	state: () => ({ runtime: null, flight: null, obs: null, eligible: false, credentials: false }),
 
 	async page(ctx) {
 		const { event, path, facts, state } = ctx;
 		const runtime = (state.runtime = runtime_of(ctx));
-		const eligible =
+		const storing =
 			!facts.private &&
 			!building &&
 			event.request.method.toUpperCase() === 'GET' &&
@@ -377,7 +389,11 @@ const server: ServerPlugin<PostrenderServerOptions, State> = defineServer<
 			!path.endsWith('__data.json') &&
 			!facts.answerForm &&
 			opted_in(ctx);
-		if (!eligible) return;
+		if (!storing) return;
+		// A request with the visitor's credentials is answered from the store, but its render is
+		// stored only where the route says the page is the same with them: test/plugin.test.ts › "a
+		// page rendered for one visitor is never served to another"
+		const may_store = storing === 'with-credentials' || !credentialed(event.request);
 		state.eligible = true;
 		if (dev) {
 			// observe only: the verdict teaches in `response`, nothing stores
@@ -390,6 +406,17 @@ const server: ServerPlugin<PostrenderServerOptions, State> = defineServer<
 		if (hit && within_ttl(hit, ctx.options.ttl) && !retracting(path)) {
 			ctx.app.devtools({ domain: 'server', name: 'server.postrender', op: 'hit', url: path });
 			return serve(hit, 'hit', ctx);
+		}
+		if (!may_store) {
+			state.credentials = true;
+			ctx.app.devtools({
+				domain: 'server',
+				name: 'server.postrender',
+				op: 'skip',
+				url: path,
+				reason: 'credentials'
+			});
+			return;
 		}
 		let flight = enter_flight(path);
 		while ('joined' in flight) {
@@ -480,6 +507,9 @@ const server: ServerPlugin<PostrenderServerOptions, State> = defineServer<
 			} catch {
 				settle(null);
 			}
+		} else if (state.credentials) {
+			// (rendered for this visitor: no shared cache keeps it either)
+			stamp_no_store(response);
 		} else if (dev && obs && state.eligible) {
 			dev_postrender_note(response, ctx, obs);
 		}
