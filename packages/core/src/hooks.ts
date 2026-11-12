@@ -70,6 +70,7 @@ import {
 	render_page_version
 } from './server/render-page.ts';
 import { absolutize_hole_html } from './server/hole-urls.ts';
+import { read_capped } from './server/capped-body.ts';
 import { KEEP_FALLBACK_HTML, is_keep_fallback } from './keep-fallback.ts';
 import { set_source_recorder } from './source.ts';
 import { building, dev } from '$app/env';
@@ -123,7 +124,9 @@ import {
 	MAX_REGION_PROPS_LEN,
 	REGION_CAPABILITY_VERSION,
 	is_region_id,
-	is_region_ttl
+	is_region_ttl,
+	is_signed_number,
+	REGION_EXP_DIGITS
 } from './server/endpoint.ts';
 import { batch_stream } from './server/stream-regions.ts';
 import {
@@ -541,8 +544,8 @@ function dt_record(bag: RequestBag | undefined, input: DevtoolsEventInput): void
 // transform outside it, passes its bag to `dt_record` directly)
 if (DEVTOOLS) set_server_devtools_recorder((input) => dt_record(bag_of(), input));
 
-/** Cap on a batch POST body before `request.json()` buffers it. 32 endpoints × ~8.5kB (props cap
- *  8192 + URL overhead) ≈ 270kB; 512kB leaves margin. Rejected up front via `content-length`. */
+/** Cap on a batch POST body. 32 endpoints × ~8.5kB (props cap 8192 + URL overhead) ≈ 270kB;
+ *  512kB leaves margin. Read no further than the cap (server/capped-body.ts). */
 const MAX_BATCH_BODY = 512 * 1024;
 
 /** Abort waiting on slow region SSR (work may continue — see INVARIANTS · RENDER-TIMEOUT): the
@@ -1143,18 +1146,18 @@ class OgygiaHandle {
 		if (!ip) return region_response('Too Many Requests', { status: 429 });
 		// (each hole is charged as its own GET would be, in #render_capability: one budget unit, one
 		// render, whichever door it comes in by)
-		// A batch is at most MAX_BATCH signed endpoints (~8.5kB each), so a well-formed body is a few
-		// hundred kB. `request.json()` buffers the WHOLE body before we can slice to 32 — reject an
-		// oversized body up front (O(1) header check) so a single padded POST can't force a large
-		// buffer. Platform adapters cap the body too, but this makes the bound explicit and covers
-		// adapters that don't. (Chunked uploads without content-length still rely on the platform cap.)
-		const content_length = Number(event.request.headers.get('content-length'));
-		if (Number.isFinite(content_length) && content_length > MAX_BATCH_BODY) {
-			return region_response('Payload Too Large', { status: 413 });
+		// A batch is at most MAX_BATCH signed endpoints (~8.5kB each): a body past the cap is refused
+		// as soon as it passes it, chunked or not (test/batch-body-cap.test.ts)
+		let body: Uint8Array | null;
+		try {
+			body = await read_capped(event.request, MAX_BATCH_BODY);
+		} catch {
+			return region_response('Bad Request', { status: 400 });
 		}
+		if (body === null) return region_response('Payload Too Large', { status: 413 });
 		let parsed: unknown;
 		try {
-			parsed = await event.request.json();
+			parsed = JSON.parse(new TextDecoder().decode(body));
 		} catch {
 			return region_response('Bad Request', { status: 400 });
 		}
@@ -1787,9 +1790,9 @@ class OgygiaHandle {
 				told_abandoned.add(e as Error);
 				warn('region_render_abandoned', { ms: RENDER_TIMEOUT_MS });
 			}
-			// The response is an opaque 500 ("Region render failed"); the reason belongs in the dev
-			// terminal — a hole that throws only on the dev server is otherwise a blind hunt.
-			if (import.meta.env.DEV) warn('region_render_failed', e);
+			// The response is an opaque 500 ("Region render failed"); the reason belongs in the
+			// server's log, in production as in dev (test/hole-throw-said.test.ts)
+			warn('region_render_failed', e);
 			return null;
 		}
 	}
@@ -1834,7 +1837,8 @@ class OgygiaHandle {
 	/**
 	 * Every check a capability passes BEFORE any HMAC (P5-HMAC-CPU), in order: charset/length (ids
 	 * are 12-hex from the transform; `ttl` is signed, but charset-gated here so a forged value never
-	 * reaches a response header), expiry (a renewal instead needs one inside the renew window: a URL
+	 * reaches a response header; `exp` and `ttl` in their one spelling, server/endpoint.ts
+	 * `is_signed_number`), expiry (a renewal instead needs one inside the renew window: a URL
 	 * that has not expired never renews), and the signing key it names. Null when it passes, else why
 	 * it is refused.
 	 */
@@ -1844,6 +1848,7 @@ class OgygiaHandle {
 			(cap.render !== '' && !is_region_id(cap.render)) ||
 			cap.payload.length > MAX_REGION_PROPS_LEN ||
 			!is_region_ttl(cap.ttl) ||
+			!is_signed_number(cap.exp, REGION_EXP_DIGITS) ||
 			(cap.v !== '' && cap.v !== REGION_CAPABILITY_VERSION) ||
 			(cap.wakes !== '' && cap.wakes !== '1')
 		)

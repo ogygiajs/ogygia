@@ -149,8 +149,9 @@ export const SERVER_WARNINGS = {
 	region_render_failed: {
 		text: (): string => 'region render failed:',
 		details: (): string => prose`
-			Dev only. A region's server render threw, so the islands endpoint answered 500 and the page
-			keeps the region's fallback. The error follows the message.
+			A region's server render threw, so the islands endpoint answered 500 and the page keeps
+			the region's fallback. The error follows the message, in the server's log only: the
+			visitor's answer says nothing of it.
 		`
 	},
 	rate_limit_shared_address: {

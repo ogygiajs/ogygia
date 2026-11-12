@@ -11,6 +11,10 @@ import server from '../src/server.ts';
 
 startPlugin(server, { name: '@ogygia/flags' });
 
+/** How long a request waits for a flag source (src/index.ts); a constant here so the test fails on
+ *  a source that has none (it would wait forever). */
+const SOURCE_DEADLINE_MS = 1_000;
+
 const ctx = () => {
 	const url = 'http://s/x';
 	return {
@@ -101,6 +105,23 @@ describe('a failing flag source is said', () => {
 		expect(broken(c)).toBe(true); // native
 		expect(fine(c)).toBe(false); // the source's answer
 		expect(said()).toHaveLength(1);
+	});
+
+	it('a source that never answers holds no request: past its deadline the flags fall to their native rule, and it is said', async () => {
+		vi.useFakeTimers();
+		try {
+			decide({ source: () => new Promise(() => {}) });
+			const f = flag('sf-hangs', 100);
+			const c = ctx();
+			let primed = false;
+			void prime_flags(c).then(() => (primed = true));
+			await vi.advanceTimersByTimeAsync(SOURCE_DEADLINE_MS + 1);
+			expect(primed).toBe(true);
+			expect(f(c)).toBe(true); // native decides
+			expect(said()).toHaveLength(1);
+		} finally {
+			vi.useRealTimers();
+		}
 	});
 
 	it('a request where one flag still fails does not end the streak, though the source answered the rest', async () => {

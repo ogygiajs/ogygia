@@ -6,7 +6,7 @@ its pull request says why it is safe (or which INVARIANTS.md section covers it).
 
 ## Request inputs: headers, query, cookies and bodies read from a request
 
-128 entries.
+125 entries.
 
 | file | in | what | n |
 | --- | --- | --- | --- |
@@ -23,10 +23,8 @@ its pull request says why it is safe (or which INVARIANTS.md section covers it).
 | `packages/core/src/hooks.ts` | `#render_hole` | `headers.get('content-type')` | 3 |
 | `packages/core/src/hooks.ts` | `#render_hole` | `searchParams(TESTING_PARAM)` | 1 |
 | `packages/core/src/hooks.ts` | `devtools_switch` | `cookies.get(DEVTOOLS_COOKIE)` | 1 |
-| `packages/core/src/hooks.ts` | `render_batch` | `headers.get('content-length')` | 1 |
 | `packages/core/src/hooks.ts` | `render_batch` | `headers.get('sec-fetch-mode')` | 1 |
 | `packages/core/src/hooks.ts` | `render_batch` | `headers.get('sec-fetch-site')` | 1 |
-| `packages/core/src/hooks.ts` | `render_batch` | `request.json()` | 1 |
 | `packages/core/src/hooks.ts` | `router_fetched` | `headers.get('x-ogygia-spa')` | 1 |
 | `packages/core/src/plugin/request-scope.ts` | `body_unread` | `headers.get('etag')` | 1 |
 | `packages/core/src/plugin/request-scope.ts` | `body_unread` | `headers.get('if-none-match')` | 1 |
@@ -41,6 +39,7 @@ its pull request says why it is safe (or which INVARIANTS.md section covers it).
 | `packages/core/src/runtime/router-nav.ts` | `(module)` | `headers.get('cache-control')` | 1 |
 | `packages/core/src/runtime/router-nav.ts` | `(module)` | `headers.get('content-disposition')` | 1 |
 | `packages/core/src/runtime/router-nav.ts` | `(module)` | `headers.get('content-type')` | 1 |
+| `packages/core/src/server/capped-body.ts` | `(module)` | `headers.get('content-length')` | 1 |
 | `packages/core/src/server/early-holes-csp.ts` | `add_early_holes_csp` | `headers.get(name)` | 1 |
 | `packages/core/src/server/page-facts.ts` | `(module)` | `headers.get(PAGE_FACTS_ROUTE_HEADER)` | 1 |
 | `packages/core/src/server/region-endpoint.ts` | `region_session` | `cookies.get(session_cookie)` | 1 |
@@ -115,13 +114,11 @@ its pull request says why it is safe (or which INVARIANTS.md section covers it).
 | `packages/federation/src/serve.ts` | `serve_expose` | `searchParams('search')` | 1 |
 | `packages/federation/src/serve.ts` | `serve_hole` | `headers.get('traceparent')` | 1 |
 | `packages/federation/src/serve.ts` | `serve_widget` | `headers.get('traceparent')` | 1 |
-| `packages/federation/src/wire.ts` | `(module)` | `headers.get('content-length')` | 1 |
 | `packages/federation/src/wire.ts` | `(module)` | `headers.get(CAP_HEADER)` | 1 |
 | `packages/federation/src/wire.ts` | `(module)` | `headers.get(NONCE_HEADER)` | 1 |
 | `packages/federation/src/wire.ts` | `(module)` | `headers.get(SIG_HEADER)` | 1 |
 | `packages/federation/src/wire.ts` | `(module)` | `headers.get(TS_HEADER)` | 1 |
 | `packages/federation/src/wire.ts` | `(module)` | `headers.get(USER_HEADER)` | 1 |
-| `packages/federation/src/wire.ts` | `(module)` | `request.arrayBuffer()` | 1 |
 | `packages/flags/src/index.ts` | `override` | `searchParams('og-exp')` | 1 |
 | `packages/insights/src/page-assets.ts` | `weigh_one` | `headers.get('content-encoding')` | 1 |
 | `packages/insights/src/page-assets.ts` | `weigh_one` | `headers.get('content-length')` | 1 |
@@ -141,7 +138,7 @@ its pull request says why it is safe (or which INVARIANTS.md section covers it).
 
 ## Decoders: text turned into values (JSON, devalue, base64, URI escapes)
 
-100 entries.
+101 entries.
 
 | file | in | what | n |
 | --- | --- | --- | --- |
@@ -164,6 +161,7 @@ its pull request says why it is safe (or which INVARIANTS.md section covers it).
 | `packages/core/src/events/sinks.ts` | `ingest_server_events` | `JSON.parse` | 1 |
 | `packages/core/src/head-owners.ts` | `adopt_owner_record` | `JSON.parse` | 1 |
 | `packages/core/src/hooks.ts` | `decode_pathname` | `decodeURIComponent` | 1 |
+| `packages/core/src/hooks.ts` | `render_batch` | `JSON.parse` | 1 |
 | `packages/core/src/island-graph.ts` | `decode_island_graph` | `JSON.parse` | 1 |
 | `packages/core/src/island-graph.ts` | `decode_island_locations` | `JSON.parse` | 1 |
 | `packages/core/src/runtime/hole-facts.ts` | `parse_record` | `JSON.parse` | 1 |

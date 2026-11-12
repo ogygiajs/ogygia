@@ -145,62 +145,7 @@ export const KNOWN: ReadonlyArray<{
 	forgive(normalized: string, other: string): string;
 	/** The bug's mark on the document itself, when the DOM alone does not show it. */
 	seen?(world: World, tab: Tab): boolean;
-}> = [
-	{
-		issue: 1039,
-		what: "a held region's stylesheet stays inside the next page's held region after a navigation",
-		// (a region sheet link right inside a baked held region, on one side only: gen 194, seed 72;
-		// each such link set aside)
-		applies: (shown, fresh) => baked_sheets(shown).join('\n') !== baked_sheets(fresh).join('\n'),
-		forgive: (s) => {
-			const out = s.split('\n');
-			for (const i of baked_sheet_lines(s).reverse()) out.splice(i, 1);
-			return out.join('\n');
-		}
-	},
-	{
-		issue: 1067,
-		what: "a kept island keeps the last page's data-og-fp after a client navigation",
-		// (a kept region's opening line, its fingerprint set aside: palaestra /props-tail, /formkeep)
-		applies: (shown, fresh) => kept_fps(shown).join('\n') !== kept_fps(fresh).join('\n'),
-		forgive: (s) =>
-			s
-				.split('\n')
-				.map((l) => (KEPT_REGION.test(l) ? l.replace(/ data-og-fp="[^"]*"/, '') : l))
-				.join('\n')
-	}
-];
-
-/** The opening line of a region the router keeps across navigations (`keep`). */
-const KEPT_REGION = /^ *<ogygia-region [^>]*data-ogygia-keep=/;
-
-/** Each kept region's `data-og-fp`. */
-function kept_fps(s: string): string[] {
-	return s
-		.split('\n')
-		.filter((l) => KEPT_REGION.test(l))
-		.map((l) => / data-og-fp="([^"]*)"/.exec(l)?.[1] ?? '');
-}
-
-/** The lines (by number) of region sheet links right inside a baked held region. */
-function baked_sheet_lines(s: string): number[] {
-	const lines = s.split('\n');
-	const out: number[] = [];
-	for (let i = 1; i < lines.length; i++) {
-		if (!/^ *<link [^>]*data-ogygia-region-css/.test(lines[i])) continue;
-		const indent = /^ */.exec(lines[i])![0].length;
-		let p = i - 1;
-		while (p >= 0 && /^ */.exec(lines[p])![0].length >= indent) p--;
-		if (p >= 0 && /^ *<ogygia-region [^>]*data-og-baked/.test(lines[p])) out.push(i);
-	}
-	return out;
-}
-
-/** The region sheet links right inside a baked held region, each with its region's line. */
-function baked_sheets(s: string): string[] {
-	const lines = s.split('\n');
-	return baked_sheet_lines(s).map((i) => lines[i].trim());
-}
+}> = [];
 
 /**
  * Islands of the test app that keep their own client state across a navigation by design, as a

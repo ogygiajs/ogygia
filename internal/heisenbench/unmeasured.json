@@ -4751,6 +4751,10 @@
 		{
 			"id": "packages/core/src/runtime/code-origins.ts > forget_code_origins",
 			"reason": "browser only: drops the page's read code origins (one write), constant work; proven in packages/core/test/browser/nav-code-origins.test.ts (#1045)"
+		},
+		{
+			"id": "packages/core/src/server/capped-body.ts > read_capped",
+			"reason": "network bound: reads a request body's pieces until the cap, one copy of the bytes; proven in packages/core/test/batch-body-cap.test.ts and packages/federation/test/body-cap.test.ts (#754, #1091)"
 		}
 	]
 }
