@@ -16,6 +16,9 @@ on:
 env:
   TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
   TURBO_TEAM: ${{ vars.TURBO_TEAM }}
+  TURBO_REMOTE_CACHE_SIGNATURE_KEY: ${{ secrets.TURBO_REMOTE_CACHE_SIGNATURE_KEY }}
+  # (a pull request reads the cache and never writes it: only main's runs fill it)
+  TURBO_REMOTE_CACHE_READ_ONLY: ${{ github.event_name != 'push' }}
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -34,10 +37,11 @@ jobs:
     outputs:
       run: ${{ steps.gate.outputs.run }}
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           sparse-checkout: .github/scripts
-      - uses: actions/setup-node@v7
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 22
       - name: Gate
@@ -62,9 +66,11 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@v7
-      - uses: pnpm/action-setup@v6
-      - uses: actions/setup-node@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 22
           cache: pnpm
@@ -84,7 +90,7 @@ jobs:
             echo '| --- | ---: | ---: | ---: | ---: |'
             node -e 'const s=require(process.env.RUNNER_TEMP+"/raw/coverage-summary.json");for(const [p,c] of Object.entries(s))console.log(`| ${p} | ${c.lines} | ${c.branches} | ${c.functions} | ${c.statements} |`)'
           } >> "$GITHUB_STEP_SUMMARY" || true # ok: no report, nothing to summarise (the run step's own output says why)
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:
           name: coverage-${{ github.sha }}
