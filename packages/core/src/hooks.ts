@@ -19,7 +19,7 @@
  * @packageDocumentation
  */
 import { render } from 'svelte/server';
-import { clock } from '@ogygia/machine';
+import { clock, say } from '@ogygia/machine';
 import type { Component } from 'svelte';
 import type { RequestEvent } from '@sveltejs/kit';
 import type { Handle } from './kit-handle.ts';
@@ -134,7 +134,7 @@ import { add_early_holes_csp, with_early_holes_meta_csp } from './server/early-h
 import { merge_seed_ask, shape_page_data, type SeedKeys } from './server/seed-shape.ts';
 import { html_has_kit_bootstrap } from './runtime/kit-boot.ts';
 import { hole_head } from './server/hole-graph.ts';
-import { RateLimiter } from './server/rate-limit.ts';
+import { RateLimiter, is_shared_address } from './server/rate-limit.ts';
 import { PageSeed } from './server/page-seed.ts';
 import { analyze, SeedIndex, set_measure_memo_reader, type MeasureMemo } from './seed-refs.ts';
 import { WIRE_FORMAT_ATTR, WIRE_FORMAT_JSON } from './server/props-wire.ts';
@@ -770,6 +770,8 @@ class OgygiaHandle {
 	readonly #speculation_rules: string;
 	readonly render_rate: RateLimiter;
 	readonly probe_rate: RateLimiter;
+	/** a render budget spent by a proxy's address, said once (#894) */
+	readonly #shared_address = say({ max: 1 });
 
 	constructor(options: OgygiaHandleOptions = {}) {
 		// (the app's own pass is @ogygia/reshape's now; a JS caller still passing it is told where)
@@ -801,6 +803,16 @@ class OgygiaHandle {
 			max: rate_limit.max <= 0 ? 0 : Math.max(rate_limit.max * 5, 120),
 			windowMs: rate_limit.windowMs
 		});
+	}
+
+	/** Charges `ip` one render; true when its budget is spent. A spent budget of an address no visitor
+	 *  has is a proxy's, shared by every visitor behind it: said once (server/rate-limit.ts
+	 *  `is_shared_address`, #894). */
+	#render_over(ip: string): boolean {
+		if (!this.render_rate.limited(ip)) return false;
+		if (is_shared_address(ip))
+			this.#shared_address.once('shared', () => warn('rate_limit_shared_address', { address: ip }));
+		return true;
 	}
 
 	// The public handle: the plugins' `handle` hooks (a profiler timing the render and serving its UI)
@@ -1833,7 +1845,7 @@ class OgygiaHandle {
 		if (this.#capability_precheck(cap)) return null;
 		if (ip !== undefined && this.probe_rate.limited(ip)) return null;
 		if (!this.#verify_region_mac(cap, event)) return null;
-		if (ip !== undefined && this.render_rate.limited(ip)) return null;
+		if (ip !== undefined && this.#render_over(ip)) return null;
 
 		const target = capability_target(cap);
 		if (target === null) return null;
@@ -1967,7 +1979,7 @@ class OgygiaHandle {
 		const renew_headers: Record<string, string> = renewed ? { 'x-ogygia-capability': renewed } : {};
 
 		// Valid capability — now charge the per-IP render budget.
-		if (this.render_rate.limited(ip)) {
+		if (this.#render_over(ip)) {
 			return region_response('Too Many Requests', { status: 429 });
 		}
 

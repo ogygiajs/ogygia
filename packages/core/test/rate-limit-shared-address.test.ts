@@ -22,6 +22,7 @@ vi.mock('ogygia:server/server-manifest', () => ({
 }));
 
 const { handle } = await import('../src/hooks.ts');
+const { is_shared_address } = await import('../src/server/rate-limit.ts');
 const { mint_server_region } = await import('../src/server/region-endpoint.ts');
 
 function event(url: string, address: string) {
@@ -85,4 +86,39 @@ describe('region endpoint: a render budget spent by a shared address', () => {
 		expect(await gets('192.168.1.20', 2)).toEqual([200, 200]);
 		expect(said()).toBe(0);
 	});
+});
+
+describe('an address no visitor on the internet has', () => {
+	it.each([
+		'10.1.2.3',
+		'127.0.0.1',
+		'169.254.10.1',
+		'172.16.0.1',
+		'172.31.255.254',
+		'192.168.0.10',
+		'100.64.0.1',
+		'100.127.255.1',
+		'::1',
+		'fc00::1',
+		'fd12:3456::1',
+		'fe80::1',
+		'febf::1',
+		'::ffff:10.0.0.1',
+		'::FFFF:127.0.0.1'
+	])('%s is shared', (ip) => expect(is_shared_address(ip)).toBe(true));
+
+	it.each([
+		'203.0.113.7',
+		'8.8.8.8',
+		'172.15.0.1',
+		'172.32.0.1',
+		'192.169.0.1',
+		'100.63.0.1',
+		'100.128.0.1',
+		'11.0.0.1',
+		'2001:db8::1',
+		'fec0::1',
+		'::ffff:8.8.8.8',
+		'::2'
+	])('%s is a visitor’s', (ip) => expect(is_shared_address(ip)).toBe(false));
 });
