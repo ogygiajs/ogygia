@@ -10,7 +10,7 @@
 import fs from 'node:fs';
 import { test, check } from '@ogygia/tooling/e2e';
 import { AMP_ENTITY_G_RE, ENDPOINT_ATTR_RE } from '@ogygia/tooling/e2e/re.ts';
-import { region_mac_message, sign } from '../../../packages/core/dist/server/hmac.js';
+import { region_mac_message, region_sign, sign } from '../../../packages/core/dist/server/hmac.js';
 
 const ENV_SECRET_RE = /^OGYGIA_SECRET=(.+)$/m;
 const ENV_FILE = new URL('../.env', import.meta.url);
@@ -29,20 +29,46 @@ async function hole_endpoint(base: string, path: string): Promise<string> {
 	return m ? new URL(m[1].replace(AMP_ENTITY_G_RE, '&'), base + path).href : '';
 }
 
-/** `endpoint` as another build would have minted it: its own `id`, this `r` ('' = a v1 capability). */
+/** `endpoint` as another build would have minted it: its own `id`, this `r`. With an `r`, a
+ *  current build's (v3, for the islands endpoint); with none, one minted before render ids and
+ *  before v3 (a `v1|` MAC, no `v`), as a page cached across those upgrades still carries. */
 function minted_as(endpoint: string, id: string, r: string): string {
 	const u = new URL(endpoint);
 	const p = u.searchParams;
+	const exp = p.get('exp') ?? '';
 	p.set('id', id);
-	if (r) p.set('r', r);
-	else p.delete('r');
-	p.set(
-		'sig',
-		sign(
-			SECRET,
-			region_mac_message(id, p.get('exp') ?? '', p.get('props') ?? '', '', p.get('ttl') ?? '', r)
-		)
-	);
+	if (r) {
+		p.set('r', r);
+		p.set(
+			'sig',
+			region_sign(SECRET, u.pathname, Number(exp), {
+				id,
+				payload: p.get('props') ?? '',
+				session: '',
+				ttl: p.get('ttl') ?? '',
+				render: r,
+				wakes: p.get('w') ?? ''
+			})
+		);
+	} else {
+		p.delete('r');
+		p.delete('v');
+		p.set(
+			'sig',
+			sign(
+				SECRET,
+				region_mac_message(
+					id,
+					exp,
+					p.get('props') ?? '',
+					'',
+					p.get('ttl') ?? '',
+					'',
+					p.get('w') ?? ''
+				)
+			)
+		);
+	}
 	return u.href;
 }
 
