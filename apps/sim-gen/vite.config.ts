@@ -2,6 +2,7 @@ import { sveltekit } from '@sveltejs/kit/vite';
 import { ogygia } from 'ogygia/vite';
 import { federation } from '@ogygia/federation/vite';
 import { router } from '@ogygia/router/vite';
+import { flags } from '@ogygia/flags/vite';
 import { postrender } from '@ogygia/postrender/vite';
 import { defineConfig } from 'vite';
 import { existsSync, readFileSync } from 'node:fs';
@@ -32,6 +33,8 @@ export default defineConfig({
 		ogygia({ router: plan.router !== false, presets }),
 		federation(),
 		router(),
+		// (a seed's flag: its reads reported, its exposures flushed at each request's end)
+		flags(),
 		postrender({ default: false }),
 		sveltekit()
 	]

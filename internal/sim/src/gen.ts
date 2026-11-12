@@ -97,6 +97,9 @@ export interface GenPage {
 	/** The page opens with a hero image (`fetchpriority="high"`): its critical resource, which island
 	 *  code and background downloads wait for (the load scheduler's critical gate). */
 	readonly hero?: boolean;
+	/** The page's server load reads the app's flag (`gate(event)`): each read is an exposure, which the
+	 *  sink takes in batches (`flags exposures`). */
+	readonly flagged?: boolean;
 }
 
 const WAKES: readonly Wake[] = ['load', 'idle', 'visible', 'interaction'];
@@ -258,7 +261,34 @@ export function plan(seed: number): GenPage[] {
 		.map((page) => ({ ...page, roots: page.roots.map(messy) }))
 		.map((page) => ({ ...page, roots: page.roots.map(empty) }))
 		.map((page) => (hr.chance(0.4) ? { ...page, hero: true } : page))
-		.map((page) => ({ ...page, roots: page.roots.map(switching) }));
+		.map((page) => ({ ...page, roots: page.roots.map(switching) }))
+		.map(flagging(seed));
+}
+
+/** Some apps read a flag on some pages (their own stream, `gen flags`): 40% of seeds, half their
+ *  pages. */
+function flagging(seed: number): (page: GenPage) => GenPage {
+	const f = rng(seed).fork('gen flags');
+	const on = f.chance(0.4);
+	return (page) => (on && f.chance(0.5) ? { ...page, flagged: true } : page);
+}
+
+/** The app's flags (`src/lib/gen/flags.server.ts`, imported by its hooks): a kill switch, off for
+ *  every visitor (so a fresh load decides the same), and an exposure sink that takes batches of 3 or
+ *  what came in 500 ms. Empty when no page reads it. */
+function app_flags(pages: readonly GenPage[]): string {
+	if (!pages.some((p) => p.flagged)) return 'export {};\n';
+	return [
+		`import { decide, flag } from '@ogygia/flags';`,
+		'',
+		`export const gate = flag('gen-gate');`,
+		'',
+		`// (the sink: what an analytics pipeline would take; counted so a run can see it was reached)`,
+		`const seen = globalThis as unknown as { __sim_gen_exposures?: number };`,
+		`const take = (n: number) => (seen.__sim_gen_exposures = (seen.__sim_gen_exposures ?? 0) + n);`,
+		`decide({ exposure: (events) => void take(events.length), batch: { max: 3, ms: 500 } });`,
+		''
+	].join('\n');
 }
 
 /** Some live regions switch (their own stream, `gen live switch`): drawn per live region in tree
@@ -758,6 +788,7 @@ export function write(
 	mkdirSync(join(routes, 'hero.png'), { recursive: true });
 	writeFileSync(join(routes, 'hero.png', '+server.ts'), HERO_ROUTE);
 	writeFileSync(join(lib, 'mount.server.ts'), app_mount(peer));
+	writeFileSync(join(lib, 'flags.server.ts'), app_flags(pages));
 	if (peer) {
 		writeFileSync(join(lib, 'federation.server.ts'), app_federation(peer));
 		if (peer.mount === 'kit') {
@@ -802,18 +833,21 @@ export function write(
 		);
 		// (a stored page says so in Kit's own `config`, in the page's server load when it has one)
 		const config = page.postrender ? ['export const config = { postrender: true };', ''] : [];
-		if (slots.length === 0 && !page.data && config.length > 0)
-			writeFileSync(join(dir, '+page.ts'), config.join('\n'));
-		if (slots.length > 0)
-			imports.push(`\timport { Region } from 'ogygia';`, `\tlet { data } = $props();`);
-		if (slots.length > 0 || page.data)
+		const server = slots.length > 0 || page.data || page.flagged;
+		if (!server && config.length > 0) writeFileSync(join(dir, '+page.ts'), config.join('\n'));
+		if (slots.length > 0) imports.push(`\timport { Region } from 'ogygia';`);
+		if (slots.length > 0 || page.flagged) imports.push(`\tlet { data } = $props();`);
+		if (server)
 			writeFileSync(
 				join(dir, '+page.server.ts'),
 				[
-					...(slots.length > 0 ? [`import { peer } from '$lib/gen/federation.server';`, ''] : []),
+					...(slots.length > 0 ? [`import { peer } from '$lib/gen/federation.server';`] : []),
+					...(page.flagged ? [`import { gate } from '$lib/gen/flags.server';`] : []),
+					...(slots.length > 0 || page.flagged ? [''] : []),
 					...config,
-					`export const load = async () => ({`,
+					`export const load = async (${page.flagged ? 'event' : ''}) => ({`,
 					...(page.data ? [`\twho: '${page.path.slice(1)} data',`] : []),
+					...(page.flagged ? [`\tgate: gate(event),`] : []),
 					...slots.map(
 						(s) =>
 							`\tr${s.id}: await peer.widget('${s.widget}', { label: 'r${s.id}' }, { render: '${s.render}' }),`
@@ -833,6 +867,7 @@ export function write(
 				...(page.hero
 					? ['<img src="/hero.png" fetchpriority="high" alt="" width="1" height="1" />']
 					: []),
+				...(page.flagged ? ['<p data-gen-flag>gate {data.gate}</p>'] : []),
 				...page.roots.map((n) => usage(n, '')),
 				...slots.map(slot_usage),
 				''
