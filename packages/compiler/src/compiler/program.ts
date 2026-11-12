@@ -14,6 +14,7 @@
  */
 import path from 'node:path';
 import { renderId } from './region/identity.ts';
+import { same_module_path } from './dev/hmr.ts';
 import type { RuntimeMarks } from './link/runtime-entry.ts';
 
 /** Strip a `?query` off a module id (host vs component vs Vite watch paths). */
@@ -370,6 +371,34 @@ export class Program {
 			if (isl.componentPath) island_graph.add(isl.componentPath);
 		}
 		host_index.set(key, idx);
+	}
+
+	/** A deleted component: every region of it goes, with every host's claim on it (a claim kept
+	 *  would outrank the next host to mark it: test/region-host-order.test.ts). Returns the virtual
+	 *  paths that went. */
+	drop_component(componentPath: string): Set<string> {
+		const gone = new Set<string>();
+		const ids = new Set<string>();
+		for (const [vpath, entry] of this.registry)
+			if (same_module_path(entry.componentPath, componentPath)) ids.add(entry.id);
+		for (const id of ids) {
+			for (const rows of this.#rows.get(id)?.values() ?? [])
+				for (const [vpath] of rows) gone.add(vpath);
+			for (const [vpath, entry] of this.registry) if (entry.id === id) gone.add(vpath);
+			this.#rows.delete(id);
+			this.id_hosts.delete(id);
+			this.by_id.delete(id);
+			this.region_kinds.delete(id);
+		}
+		for (const vpath of gone) {
+			this.registry.delete(vpath);
+			this.island_graph.delete(vpath);
+		}
+		for (const idx of this.host_index.values()) {
+			for (const id of ids) idx.ids.delete(id);
+			for (const vpath of gone) idx.vpaths.delete(vpath);
+		}
+		return gone;
 	}
 
 	/** Each region id's rows, by the host that claimed them (test/region-host-order.test.ts). */
