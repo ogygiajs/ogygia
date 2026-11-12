@@ -200,7 +200,9 @@ export class World {
 				const rule = /ogygiajs\.dev\/e\/(rule_[a-z_]+)(?:\?detail=(\S*))?/.exec(line);
 				const server = current_server.getStore();
 				if (rule !== null && server !== undefined) {
-					const detail = rule[2] === undefined ? '' : decodeURIComponent(rule[2]);
+					// (a query's encoding: `+` is a space)
+					const detail =
+						rule[2] === undefined ? '' : decodeURIComponent(rule[2].replaceAll('+', ' '));
 					w.server_rules.push(`${server.name} ${rule[1]} ${detail}`.trim());
 				}
 				host_console[to].apply(this, args);

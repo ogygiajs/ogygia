@@ -1055,9 +1055,9 @@ export function uncaught(world: World): Broken | null {
 /** A server rule a filed bug breaks, as KNOWN_SAID is for what a page says. */
 const KNOWN_SERVER_RULES: ReadonlyArray<{ issue: number; what: string; said: RegExp }> = [
 	{
-		issue: 910,
-		what: "a peer's server island keeps a relative endpoint",
-		said: /^peer-\S+ rule_capability_not_path \.\/__ogygia__/
+		issue: 925,
+		what: "a capability minted relative to the page, under Kit's default paths.relative",
+		said: /^\S+ rule_capability_not_path ((\.\.?\/)+__ogygia__(; |$))+$/
 	}
 ];
 
