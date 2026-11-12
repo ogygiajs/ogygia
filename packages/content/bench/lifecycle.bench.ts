@@ -4,10 +4,10 @@
 // client over a stand-in worker (the browser's Worker is the client's only browser need).
 import { bench } from '@bench/heisenbench/bench';
 import * as v from 'valibot';
+import { defineRun, registry, type Registry } from '@ogygia/machine';
 // (the site layer reaches the package's own Svelte components, written for experimental.async:
 // Heisenbench compiles them with the package's svelte.config.js)
 import { content, folder, json, type Source, type SourceEntry } from '../src/index.ts';
-import { defineRun } from '@ogygia/machine';
 import { site } from '../src/site/site.ts';
 import { dimensions } from '../src/site/dimensions.ts';
 import { create_search, type SearchEngine } from '../src/site/search.ts';
@@ -17,10 +17,11 @@ import { outline, pick } from '../src/site/outline.ts';
  *  graph read walks all of them: each run starts from an empty graph, or a run would walk the
  *  collections every earlier run made and count more than the one before. */
 function fresh<T>(ctx: T): T {
-	const graph = (globalThis as Record<symbol, { all?: Set<unknown> } | undefined>)[
+	const graph = (globalThis as Record<symbol, { all?: Registry<unknown> } | undefined>)[
 		Symbol.for('ogygia.content.graph')
 	];
-	graph?.all?.clear();
+	// (a registry holds what its owners hold: a fresh one is an empty graph)
+	if (graph) graph.all = registry();
 	return ctx;
 }
 
@@ -256,7 +257,7 @@ bench(
 		let found = 0;
 		const kept: ReturnType<typeof content>[] = [];
 		for (let run = 0; run < n; run++) {
-			// what core's dev transform puts at the top of each run of a module that calls content()
+			// (what core's definer marking does at the top of each run of a module that calls content())
 			const marked = defineRun('/app/src/lib/docs.server.ts');
 			const rows = Array.from({ length: 10 }, (_, i) => doc(i));
 			const src = live_source(rows);
@@ -274,6 +275,8 @@ bench(
 	},
 	{ setup: () => fresh({ n: 12 }), scale: (_ctx, k) => fresh({ n: 12 * k }) }
 );
+
+// (the marking of a module's content() calls is core's definer marking now: its bench is core's)
 
 /** The browser's Worker, stood in for: answers the client as the search worker does. */
 class StandInWorker {

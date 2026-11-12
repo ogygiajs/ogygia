@@ -91,8 +91,8 @@ export interface MarkupSource {
 	/** The format's modules, absolute path → their post-preprocess Svelte source. A module only ever
 	 *  renders on the server, so no client chunk carries its CSS: the build ships, as one client asset
 	 *  per module, the scoped CSS of its own `<style>` and of every component it imports (and plain
-	 *  style imports). The plugin keeps filling this map; the build reads it late. */
-	modules?: ReadonlyMap<string, string>;
+	 *  style imports). The plugin keeps filling it ([path, source] pairs); the build reads it late. */
+	modules?: Iterable<readonly [string, string]>;
 }
 
 /** What the build hands back for a markup source: run the region transform on preprocessed Svelte. */

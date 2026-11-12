@@ -16,9 +16,11 @@ import {
 	flights,
 	machine,
 	policy,
+	scope,
 	world,
 	type Flights,
 	type Policy,
+	type Scope,
 	type World
 } from '@ogygia/machine';
 import { GRAPH } from './graph.ts';
@@ -165,6 +167,9 @@ export class Collection<
 		}
 	});
 	readonly #life: CollectionLife = collection_life.create();
+	/** Its time in the graph: from when it joins (made, or read again after a dispose) until it is
+	 *  disposed. The graph holds it under this scope. */
+	#in_graph: Scope = scope();
 	/** The live connection, while it is open: one per collection. A read that fails leaves it open
 	 *  (an async iterator's `return()` waits behind its pull, so it cannot be closed while the source
 	 *  is quiet), and the next read listens on it again instead of opening another. */
@@ -194,7 +199,7 @@ export class Collection<
 		// this plugin's definer). The module's next run ends it, and the collection with it: the new
 		// run builds the one that replaces it, and one deleted from the code is gone. In the graph
 		// first: a run already ended disposes it at once, which takes it out again (lifecycle.test.ts).
-		GRAPH.all.add(this as unknown as Collection<Record<string, unknown>>);
+		GRAPH.all.add(this as unknown as Collection<Record<string, unknown>>, this.#in_graph);
 		defining()?.defer(() => this.#dispose());
 	}
 
@@ -206,7 +211,7 @@ export class Collection<
 	#dispose(): void {
 		if (this.#life.now.kind === 'disposed') return;
 		this.#life.go('disposed');
-		GRAPH.all.delete(this as unknown as Collection<Record<string, unknown>>);
+		this.#in_graph.close(); // (it leaves the graph)
 		// its watchers end (see watchChanges)
 		this.#disposals++;
 		for (const wake of this.#waiters) wake();
@@ -214,8 +219,10 @@ export class Collection<
 
 	/** A disposed collection read again: back in the graph, to start when its catalog is needed. */
 	#awake(): void {
-		if (this.#life.move('disposed', 'idle'))
-			GRAPH.all.add(this as unknown as Collection<Record<string, unknown>>);
+		if (this.#life.move('disposed', 'idle')) {
+			this.#in_graph = scope();
+			GRAPH.all.add(this as unknown as Collection<Record<string, unknown>>, this.#in_graph);
+		}
 	}
 
 	/** Leaving `running`: the live connection closed (its pull may never answer: nothing waits on
