@@ -11,6 +11,7 @@
  * router graph). List rules (not document rules) so each hint targets exactly the asked URL.
  */
 import { cache } from '@ogygia/machine';
+import { OGYGIA_SPECULATE_HINT } from '../wire-markup.ts';
 const hinted = cache<string, true>({ name: 'speculation hints', max: 512 });
 
 export function speculate_url(url: string | URL, kind: 'prefetch' | 'prerender'): void {
@@ -29,7 +30,7 @@ export function speculate_url(url: string | URL, kind: 'prefetch' | 'prerender')
 	hinted.set(key, true);
 	const script = document.createElement('script');
 	script.type = 'speculationrules';
-	script.setAttribute('data-ogygia-speculate-hint', '');
+	script.setAttribute(OGYGIA_SPECULATE_HINT, '');
 	script.textContent = JSON.stringify({ [kind]: [{ urls: [href] }] });
 	document.head.appendChild(script);
 }

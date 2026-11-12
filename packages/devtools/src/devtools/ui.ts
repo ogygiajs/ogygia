@@ -22,7 +22,11 @@ import {
 	without_switch,
 	write_switch
 } from '@ogygia/insights';
-import { import_again } from '@ogygia/core/internal/instruments';
+import {
+	import_again,
+	OG_PANEL_TOGGLE,
+	OGYGIA_DEVTOOLS_HOST
+} from '@ogygia/core/internal/instruments';
 import { machine, STALE, type Machine, type Scope } from '@ogygia/machine';
 import { OgygiaError } from '../messages/runtime.ts';
 
@@ -94,7 +98,7 @@ function mount_launcher(opts?: { csr_true?: boolean }): void {
 	// ONE dock per document, whichever copy of this module asks: a Kit-hydrated page with holes
 	// boots both the standalone dock and the ogygia runtime, and two copies of this module (two
 	// URLs for one file) each have their own `dock` — the host element is the shared truth
-	if (dock || document.querySelector('[data-ogygia-devtools-host]')) return;
+	if (dock || document.querySelector(`[${OGYGIA_DEVTOOLS_HOST}]`)) return;
 	// a session the page before was recording (a full page load mid-session) goes on here — the
 	// recorder loads only then (the key: session.ts SAVED_KEY)
 	try {
@@ -114,7 +118,7 @@ function mount_launcher(opts?: { csr_true?: boolean }): void {
 	// elements — nothing a page can write out-stacks it. Everything inside the shadow root then only
 	// orders against itself.
 	const host = document.createElement('div');
-	host.setAttribute('data-ogygia-devtools-host', '');
+	host.setAttribute(OGYGIA_DEVTOOLS_HOST, '');
 	host.style.cssText = 'position:fixed;top:0;left:0;width:0;height:0;z-index:2147483647';
 	document.documentElement.appendChild(host);
 	const root = host.attachShadow({ mode: 'open' });
@@ -156,7 +160,7 @@ function mount_launcher(opts?: { csr_true?: boolean }): void {
 				}
 			);
 	};
-	button.setAttribute('data-og-panel-toggle', '');
+	button.setAttribute(OG_PANEL_TOGGLE, '');
 	button.title = 'ogygia devtools (Alt+O)';
 	button.textContent = 'og devtools';
 	button.style.cssText = `position:fixed;right:24px;bottom:8px;padding:7px 12px;border-radius:999px;border:1px solid rgba(148,163,184,.35);background:#0b1220;color:#e2e8f0;font:600 12px/1 ui-monospace,SFMono-Regular,Menlo,monospace;cursor:pointer;opacity:.55;box-shadow:0 4px 16px rgba(0,0,0,.4)`;
@@ -246,7 +250,7 @@ export function devtools_off(): void {
 		dock = null;
 	}
 	// (the host another copy of this module made: the shared truth, see mount_launcher)
-	document.querySelector('[data-ogygia-devtools-host]')?.remove();
+	document.querySelector(`[${OGYGIA_DEVTOOLS_HOST}]`)?.remove();
 }
 
 /**

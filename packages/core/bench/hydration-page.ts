@@ -15,7 +15,8 @@
  * Setup only: nothing here runs inside a measured window, except the stand-ins' own callbacks.
  */
 import { DomElement, document, el, frag, type DomNode } from '../test/_stubs/dom.ts';
-import { ISLAND_GRAPH_ATTR, encode_island_graph } from '../src/island-graph.ts';
+import { encode_island_graph } from '../src/island-graph.ts';
+import { OGYGIA_GRAPH as ISLAND_GRAPH_ATTR } from '../src/wire-markup.ts';
 import { block, header, island_entry } from './fixtures.ts';
 import { dedent } from '../src/contract/dedent.ts';
 

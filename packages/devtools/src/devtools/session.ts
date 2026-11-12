@@ -11,6 +11,7 @@
  *  - the runtime hooks: islands woken, hydrations, failures, recoveries, navigations, hole fetches.
  * Elements are kept by WeakRef so the tab can point at them without holding the page alive.
  */
+import { OG_FP, OGYGIA_DEVTOOLS_HOST } from '@ogygia/core/internal/instruments';
 import { flights, machine, STALE } from '@ogygia/machine';
 import { all_regions, region_name } from './regions.ts';
 import { on_hook } from './hook-entries.ts';
@@ -149,7 +150,7 @@ export function session_waiting(): boolean {
 	}
 }
 
-const ISLAND = 'ogygia-region[data-og-fp]';
+const ISLAND = `ogygia-region[${OG_FP}]`;
 const r1 = (n: number) => Math.round(n * 10) / 10;
 
 function island_of(node: Node | null | undefined): Element | null {
@@ -290,7 +291,7 @@ export function start_session(prior?: SavedPart[]): Recorder {
 					presentation: r1(Math.max(0, e.startTime + e.duration - e.processingEnd)),
 					id: e.interactionId ?? 0,
 					target: describe_el(el),
-					fp: island?.getAttribute('data-og-fp') ?? null,
+					fp: island?.getAttribute(OG_FP) ?? null,
 					el: el ? new WeakRef(el) : null
 				});
 			}
@@ -339,7 +340,7 @@ export function start_session(prior?: SavedPart[]): Recorder {
 				t: r1(e.startTime),
 				value: Math.round((e.value ?? 0) * 10000) / 10000,
 				input: !!e.hadRecentInput,
-				fp: island_of(node)?.getAttribute('data-og-fp') ?? null,
+				fp: island_of(node)?.getAttribute(OG_FP) ?? null,
 				el: el ? new WeakRef(el) : null
 			});
 		}
@@ -353,7 +354,7 @@ export function start_session(prior?: SavedPart[]): Recorder {
 			for (const m of records) {
 				const island = island_of(m.target);
 				muts.set(island, (muts.get(island) ?? 0) + 1);
-				const fp = island?.getAttribute('data-og-fp') ?? null;
+				const fp = island?.getAttribute(OG_FP) ?? null;
 				if (!seen.has(fp) && mut_log.length < 20_000) {
 					seen.add(fp);
 					mut_log.push({ t: now, fp });
@@ -367,11 +368,11 @@ export function start_session(prior?: SavedPart[]): Recorder {
 	const on_click = (e: MouseEvent) => {
 		if (clicks.length >= 2000) return;
 		const el = e.target instanceof Element ? e.target : null;
-		if (el?.closest('[data-ogygia-devtools-host]')) return;
+		if (el?.closest(`[${OGYGIA_DEVTOOLS_HOST}]`)) return;
 		clicks.push({
 			t: r1(e.timeStamp),
 			target: describe_el(el),
-			fp: island_of(el)?.getAttribute('data-og-fp') ?? null,
+			fp: island_of(el)?.getAttribute(OG_FP) ?? null,
 			el: el ? new WeakRef(el) : null,
 			...(el && looks_clickable(el) ? { clickable: true as const } : {})
 		});
@@ -384,10 +385,10 @@ export function start_session(prior?: SavedPart[]): Recorder {
 	let handling: { target: string; fp: string | null; until: number } | null = null;
 	const on_input = (e: Event) => {
 		const el = e.target instanceof Element ? e.target : null;
-		if (!el || el.closest('[data-ogygia-devtools-host]')) return;
+		if (!el || el.closest(`[${OGYGIA_DEVTOOLS_HOST}]`)) return;
 		handling = {
 			target: describe_el(el),
-			fp: island_of(el)?.getAttribute('data-og-fp') ?? null,
+			fp: island_of(el)?.getAttribute(OG_FP) ?? null,
 			until: performance.now() + 50
 		};
 	};
@@ -409,7 +410,7 @@ export function start_session(prior?: SavedPart[]): Recorder {
 			t: r1(now),
 			type: n.navigationType ?? '',
 			source: by ? describe_el(by) : (input?.target ?? null),
-			fp: by ? (island_of(by)?.getAttribute('data-og-fp') ?? null) : (input?.fp ?? null)
+			fp: by ? (island_of(by)?.getAttribute(OG_FP) ?? null) : (input?.fp ?? null)
 		});
 	};
 	if (navigation) s.on(navigation, 'navigate', on_navigate);
@@ -515,7 +516,7 @@ export function start_session(prior?: SavedPart[]): Recorder {
 			requests,
 			mutations: [...muts]
 				.map(([el, count]) => ({
-					fp: el?.getAttribute('data-og-fp') ?? null,
+					fp: el?.getAttribute(OG_FP) ?? null,
 					count,
 					el: el ? new WeakRef(el) : null
 				}))

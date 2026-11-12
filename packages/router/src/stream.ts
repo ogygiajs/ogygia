@@ -23,7 +23,7 @@
  */
 import { lateChunk as late_chunk, LATE_BOOT_SCRIPT } from '@ogygia/core/plugin';
 import { escapeText as escape_text } from '@ogygia/core/plugin/utils';
-import { cleanup_failed } from '@ogygia/core/internal/server';
+import { cleanup_failed, next_tag, OG_LATE_ERROR, text_of } from '@ogygia/core/internal/server';
 import { scope, STALE, type Scope } from '@ogygia/machine';
 
 /** The slot id for the page position (one streamed slot per page in v1). */
@@ -67,7 +67,13 @@ export function is_stream_slot(v: unknown): v is (...args: never[]) => AsyncGene
 	return Object.prototype.toString.call(v) === '[object AsyncGeneratorFunction]';
 }
 
-const HEAD_CLOSE_RE = /<\/head>/i;
+/** Where the document's head ends (its `</head` end tag), or -1 when it has none. */
+function head_end(html: string): number {
+	const head = next_tag(html, 'head', 0);
+	const text = head === null ? null : text_of(html, head, 'head');
+	return text === null ? -1 : head!.end + text.length;
+}
+
 const NO_TRANSFORM_RE = /no-transform/i;
 
 /**
@@ -101,7 +107,9 @@ export function stream_document(
 	/** the request's owner: its end (the visitor left) ends the stream too */
 	request?: Scope
 ): Response {
-	const with_boot = full_html.replace(HEAD_CLOSE_RE, `${LATE_BOOT_SCRIPT}</head>`);
+	const at = head_end(full_html);
+	const with_boot =
+		at === -1 ? full_html : `${full_html.slice(0, at)}${LATE_BOOT_SCRIPT}${full_html.slice(at)}`;
 	const cut = with_boot.lastIndexOf('</body>');
 	const head_part = cut === -1 ? with_boot : with_boot.slice(0, cut);
 	const tail_part = cut === -1 ? '' : with_boot.slice(cut);
@@ -149,7 +157,7 @@ export function stream_document(
 /** The in-slot failure card (message escaped) — a stream must never end broken or empty. */
 export function error_card_html(e: unknown): string {
 	const msg = e instanceof Error ? e.message : String(e);
-	return `<div data-og-late-error style="border:1px dashed #dc2626;border-radius:8px;padding:1rem;color:#dc2626">This section failed to load. ${escape_text(msg)}</div>`;
+	return `<div ${OG_LATE_ERROR} style="border:1px dashed #dc2626;border-radius:8px;padding:1rem;color:#dc2626">This section failed to load. ${escape_text(msg)}</div>`;
 }
 
 /** Drain registered LATE REGIONS (`<Region of={promise}>` holes) in COMPLETION order — the slot

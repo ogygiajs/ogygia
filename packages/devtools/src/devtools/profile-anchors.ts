@@ -11,6 +11,7 @@
  * per profile and invalidated by the caller (the tick).
  */
 import type { SlimProfile } from './profile-store.ts';
+import { OG_FP, OGYGIA_DEVTOOLS_HOST } from '@ogygia/core/internal/instruments';
 
 export interface Anchor {
 	key: string;
@@ -50,7 +51,7 @@ export function all_elements(doc: Document = document): Element[] {
 	const out: Element[] = [];
 	const walk = (root: Document | ShadowRoot) => {
 		for (const el of root.querySelectorAll('*')) {
-			if (el.hasAttribute('data-ogygia-devtools-host')) continue;
+			if (el.hasAttribute(OGYGIA_DEVTOOLS_HOST)) continue;
 			out.push(el);
 			if (el.shadowRoot) walk(el.shadowRoot);
 		}
@@ -116,7 +117,7 @@ export function page_anchors(p: SlimProfile, doc: Document = document): Anchor[]
 
 	// the heaviest islands (server render, then props): where each one sits
 	const islands = p.islands
-		.filter((i) => i.fp && doc.querySelector(`ogygia-region[data-og-fp="${i.fp}"]`))
+		.filter((i) => i.fp && doc.querySelector(`ogygia-region[${OG_FP}="${i.fp}"]`))
 		.sort(
 			(a, b) => (b.ssr_ms ?? 0) - (a.ssr_ms ?? 0) || (b.props_bytes ?? 0) - (a.props_bytes ?? 0)
 		)
@@ -135,7 +136,7 @@ export function page_anchors(p: SlimProfile, doc: Document = document): Anchor[]
 			]
 				.filter(Boolean)
 				.join(' · '),
-			find: () => [...doc.querySelectorAll(`ogygia-region[data-og-fp="${fp}"]`)],
+			find: () => [...doc.querySelectorAll(`ogygia-region[${OG_FP}="${fp}"]`)],
 			count: 1
 		});
 	}
@@ -178,9 +179,7 @@ export function page_anchors(p: SlimProfile, doc: Document = document): Anchor[]
 	// the largest paint
 	if (p.lcp && (p.lcp.fp || p.lcp.tag)) {
 		const find = () => {
-			const island = p.lcp!.fp
-				? doc.querySelector(`ogygia-region[data-og-fp="${p.lcp!.fp}"]`)
-				: null;
+			const island = p.lcp!.fp ? doc.querySelector(`ogygia-region[${OG_FP}="${p.lcp!.fp}"]`) : null;
 			if (island && p.lcp!.tag && safe_tag(p.lcp!.tag)) {
 				const inner = island.querySelector(p.lcp!.tag);
 				if (inner) return [inner];

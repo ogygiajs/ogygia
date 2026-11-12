@@ -25,6 +25,7 @@
  * `restore_late` in every build). Answers are parsed inert (./parse-html.ts, #382), so this is the
  * page-load case: a component runtime that upgraded first.
  */
+/* oxlint-disable ogygia/markup-from-vocabulary -- restore() ships as its own source (restore.toString()): it may name nothing outside itself, so it spells its markers */
 export function restore(root: Document | DocumentFragment | Element): number {
 	const doc: Document = (root as Node).ownerDocument ?? (root as Document);
 	const head = document.head;

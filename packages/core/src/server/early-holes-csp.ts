@@ -14,6 +14,7 @@
  */
 import { createHash } from 'node:crypto';
 import { EARLY_HOLES_TAG } from '../early-holes-head.ts';
+import { next_tag, value_at } from '../wire-markup.ts';
 
 /** The text between a tag's `<script…>` and `</script>`: what a CSP hash covers. */
 export function script_text(tag: string): string {
@@ -56,16 +57,29 @@ export function with_early_holes_csp(header: string): string {
 	return header.split(',').map(with_hash).join(',');
 }
 
-const META_CSP_G =
-	/(<meta\b[^>]*\bhttp-equiv\s*=\s*["']?content-security-policy["']?[^>]*\bcontent\s*=\s*")([^"]*)(")/gi;
+const HTTP_EQUIV_RE = /http-equiv/i;
 
 /** A head's `<meta http-equiv="content-security-policy">` policies, each with the hash where its
- *  script would be blocked. A head with none comes back as itself. */
+ *  script would be blocked. A head with none comes back as itself. A rewritten value is written
+ *  double-quoted: the hash source's own quotes would end a single-quoted or unquoted one. */
 export function with_early_holes_meta_csp(head: string): string {
-	return head.replace(
-		META_CSP_G,
-		(_m, open: string, policy: string, close: string) => open + with_early_holes_csp(policy) + close
-	);
+	// (most heads carry no http-equiv at all: one search answers them)
+	if (!HTTP_EQUIV_RE.test(head)) return head;
+	let out = '';
+	let kept = 0;
+	for (let t = next_tag(head, 'meta', 0); t !== null; t = next_tag(head, 'meta', t.next)) {
+		if (t.attr('http-equiv')?.toLowerCase() !== 'content-security-policy') continue;
+		const at = value_at(head, t, 'meta', 'content');
+		if (at === -1) continue;
+		const policy = t.attr('content')!;
+		const next = with_early_holes_csp(policy);
+		if (next === policy) continue;
+		const quoted = head[at - 1] === '"' || head[at - 1] === "'";
+		const from = quoted ? at - 1 : at;
+		out = `${out}${head.slice(kept, from)}"${next.replaceAll('"', '&quot;')}"`;
+		kept = at + policy.length + (quoted ? 1 : 0);
+	}
+	return kept === 0 ? head : out + head.slice(kept);
 }
 
 const CSP_HEADERS = ['content-security-policy', 'content-security-policy-report-only'] as const;

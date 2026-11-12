@@ -26,6 +26,7 @@ import { props_sidecar_of } from './sidecar.ts';
 import { yield_task } from './schedule.ts';
 import { slots } from './slots.ts';
 import { download } from '../policies.ts';
+import { OG_WIRE, OGYGIA_PROVIDE, OGYGIA_PROVIDE_PAGE } from '../wire-markup.ts';
 
 /** Feature entry: fill the `wire_classes` slot. */
 export function install(): void {
@@ -91,13 +92,13 @@ export function wire_classes_for(region: Element): Promise<unknown> | null {
 	const want = new Set<string>();
 	if (wire_all) for (const p of paths) want.add(p);
 	else {
-		const stamp = props_sidecar_of(region)?.getAttribute('data-og-wire');
+		const stamp = props_sidecar_of(region)?.getAttribute(OG_WIRE);
 		if (stamp) for (const p of stamp.split(' ')) if (p) want.add(p);
 		for (let el = region.parentElement; el; el = el.parentElement)
 			if (el.tagName === 'OGYGIA-PROVIDE')
-				scan(el.querySelector(':scope > script[data-ogygia-provide]')?.textContent, want);
+				scan(el.querySelector(`:scope > script[${OGYGIA_PROVIDE}]`)?.textContent, want);
 		const doc = region.ownerDocument;
-		scan(doc.querySelector('script[data-ogygia-provide-page]')?.textContent, want);
+		scan(doc.querySelector(`script[${OGYGIA_PROVIDE_PAGE}]`)?.textContent, want);
 		for (const p of classes_in_seeds(doc)) want.add(p);
 	}
 	if (!want.size) return null;

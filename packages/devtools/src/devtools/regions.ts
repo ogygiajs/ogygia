@@ -4,7 +4,7 @@
  * No Svelte, no styling: the `.svelte` components own all presentation.
  */
 import { cache, type Cache } from '@ogygia/machine';
-import { props_sidecar_of } from '@ogygia/core/internal/instruments';
+import { OG_FP, props_sidecar_of } from '@ogygia/core/internal/instruments';
 import { tool_made } from '@ogygia/core/internal/instruments';
 import type { IslandBarrel, IslandHazard } from '@ogygia/insights';
 
@@ -47,7 +47,7 @@ export function region_info(el: Element): RegionInfo {
 		wake: el.getAttribute('wake') || (kind === 'hole' ? 'fetch' : 'load'),
 		entry: el.getAttribute('entry'),
 		src: el.getAttribute('src'),
-		fp: el.getAttribute('data-og-fp'),
+		fp: el.getAttribute(OG_FP),
 		hydrated: el.hasAttribute('data-hydrated') || !!parent?.hasAttribute('data-hydrated'),
 		...(parent ? { rides: parent } : {})
 	};
@@ -131,7 +131,7 @@ export function region_transitive(entry: string | null | undefined): {
 /** Component name for a region fingerprint — joined to its live `<ogygia-region>` in the DOM. */
 export function region_name_by_fp(fp: string | null | undefined): string {
 	if (!fp || typeof document === 'undefined') return fp || '';
-	const el = document.querySelector(`ogygia-region[data-og-fp="${CSS.escape(fp)}"]`);
+	const el = document.querySelector(`ogygia-region[${OG_FP}="${CSS.escape(fp)}"]`);
 	const entry = el?.getAttribute('entry');
 	const name = entry ? region_name(entry) : '';
 	return name || fp;

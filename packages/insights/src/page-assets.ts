@@ -12,7 +12,14 @@
  */
 
 import { clock, scope } from '@ogygia/machine';
-import { find_unscoped, type UnscopedStyles } from '@ogygia/core/internal/instruments';
+import {
+	find_unscoped,
+	OGYGIA_RUNTIME,
+	read_tag,
+	text_of,
+	type FoundTag,
+	type UnscopedStyles
+} from '@ogygia/core/internal/instruments';
 
 export type AssetKind = 'script' | 'style' | 'font' | 'image' | 'other';
 
@@ -86,43 +93,10 @@ export interface PageAssets {
 
 // ── the scanner ──
 
-/** Attributes of one start tag (`<tag a="1" b c='2'>`), names lower-cased; valueless → ''. */
-export function tag_attrs(tag: string): Map<string, string> {
+/** Attributes of one start tag `tags()` read, names lower-cased, values entity-decoded; valueless → ''. */
+export function tag_attrs(tag: FoundTag): Map<string, string> {
 	const out = new Map<string, string>();
-	let i = 1;
-	// skip the tag name
-	while (i < tag.length && !is_space(tag.charCodeAt(i)) && tag[i] !== '>' && tag[i] !== '/') i++;
-	while (i < tag.length) {
-		while (i < tag.length && (is_space(tag.charCodeAt(i)) || tag[i] === '/')) i++;
-		if (i >= tag.length || tag[i] === '>') break;
-		const ns = i;
-		while (
-			i < tag.length &&
-			!is_space(tag.charCodeAt(i)) &&
-			tag[i] !== '=' &&
-			tag[i] !== '>' &&
-			tag[i] !== '/'
-		)
-			i++;
-		const name = tag.slice(ns, i).toLowerCase();
-		while (i < tag.length && is_space(tag.charCodeAt(i))) i++;
-		let value = '';
-		if (tag[i] === '=') {
-			i++;
-			while (i < tag.length && is_space(tag.charCodeAt(i))) i++;
-			const q = tag[i];
-			if (q === '"' || q === "'") {
-				const end = tag.indexOf(q, i + 1);
-				value = tag.slice(i + 1, end === -1 ? tag.length : end);
-				i = end === -1 ? tag.length : end + 1;
-			} else {
-				const vs = i;
-				while (i < tag.length && !is_space(tag.charCodeAt(i)) && tag[i] !== '>') i++;
-				value = tag.slice(vs, i);
-			}
-		}
-		if (name && !out.has(name)) out.set(name, decode_entities(value));
-	}
+	for (const [name, value] of tag.attrs) out.set(name, decode_entities(value));
 	return out;
 }
 
@@ -294,15 +268,18 @@ export function scan_assets(html: string): {
 			i = html.indexOf('<', i + 1);
 			continue;
 		}
-		const close = html.indexOf('>', i);
-		if (close === -1) break;
-		const tag = html.slice(i, close + 1);
-		const name = tag_name(tag);
+		let e = i + 1;
+		while (e < html.length && !is_space(html.charCodeAt(e)) && html[e] !== '>' && html[e] !== '/')
+			e++;
+		const name = html.slice(i + 1, e).toLowerCase();
+		const tag = read_tag(html, i, e);
+		if (tag === null) break;
 		const in_head = head_end !== -1 && i < head_end;
 		if (name === 'script') {
 			const a = tag_attrs(tag);
-			const end = html.indexOf('</script', close);
-			const body = end === -1 ? '' : html.slice(close + 1, end);
+			const text = text_of(html, tag, 'script');
+			const end = text === null ? -1 : tag.end + text.length;
+			const body = text ?? '';
 			const type = (a.get('type') ?? '').toLowerCase();
 			const is_js =
 				type === '' ||
@@ -318,7 +295,7 @@ export function scan_assets(html: string): {
 						'script',
 						type !== 'module' && !a.has('async') && !a.has('defer') && in_head
 					);
-					if (refs.length > n && a.has('data-ogygia-runtime')) refs[n].runtime = true;
+					if (refs.length > n && a.has(OGYGIA_RUNTIME)) refs[n].runtime = true;
 				}
 			} else if (is_js) {
 				inline.script += body.length;
@@ -331,9 +308,9 @@ export function scan_assets(html: string): {
 			continue;
 		}
 		if (name === 'style') {
-			const end = html.indexOf('</style', close);
-			if (end !== -1) inline.style += end - close - 1;
-			i = end === -1 ? -1 : html.indexOf('<', end + 7);
+			const text = text_of(html, tag, 'style');
+			if (text !== null) inline.style += text.length;
+			i = text === null ? -1 : html.indexOf('<', tag.end + text.length + 7);
 			continue;
 		}
 		if (name === 'link') {
@@ -355,7 +332,7 @@ export function scan_assets(html: string): {
 			if ((a.get('loading') ?? '').toLowerCase() !== 'lazy')
 				add(a.get('src'), 'image', 'img', false);
 		}
-		i = html.indexOf('<', close + 1);
+		i = html.indexOf('<', tag.end);
 	}
 	return { refs, inline, kit_nodes };
 }
@@ -371,12 +348,6 @@ function words(s: string): string[] {
 	}
 	if (w) out.push(w);
 	return out;
-}
-
-function tag_name(tag: string): string {
-	let e = 1;
-	while (e < tag.length && !is_space(tag.charCodeAt(e)) && tag[e] !== '>' && tag[e] !== '/') e++;
-	return tag.slice(1, e).toLowerCase();
 }
 
 // ── the weigher ──

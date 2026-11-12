@@ -7,7 +7,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import { assemble, locate } from '../src/server/document-assembly.ts';
-import { html_has_kit_bootstrap } from '../src/runtime/kit-boot.ts';
+import { html_has_kit_bootstrap } from '../src/server/html-scan.ts';
 
 const doc = (body: string, head = '<title>t</title>') =>
 	`<!doctype html><html><head>${head}</head><body>${body}</body></html>`;

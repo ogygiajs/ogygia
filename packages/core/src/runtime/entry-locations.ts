@@ -12,6 +12,7 @@
 import { import_file } from './import-again.ts';
 import { backoffAfter, cache, flights, scope, STALE } from '@ogygia/machine';
 import { rollover } from '../policies.ts';
+import { OG_LOCATIONS } from '../wire-markup.ts';
 
 /** absolute identity → absolute location: the islands of the pages this document has seen (a build
  *  names a few hundred; the least recently read go first past this, and are found again) */
@@ -70,7 +71,8 @@ export function entry_location(entry: string, base?: string): string | undefined
  * (the dev server, a page that outlived its build): the identity is loaded, as before. A failed read
  * is not kept: the next identity-only load asks again (a blip must not cost the page every later one).
  */
-const BUILD_MAP_ATTR = 'data-og-locations';
+// (one local name for the five reads: the minifier keeps the string once)
+const BUILD_MAP_ATTR = OG_LOCATIONS;
 /** The map's read: whether it filled the locations. One read at a time, kept once it did. */
 const build_map = flights({
 	name: 'build location map',

@@ -6,6 +6,16 @@
  * system rendered, and plain markup. Pure: a string in, ordered segments out. The report draws
  * the strip with the time each byte left the server and the time the browser had it.
  */
+import {
+	next_tag,
+	OG_FP,
+	OGYGIA_HOLES,
+	OGYGIA_PROPS,
+	OGYGIA_RUNTIME,
+	read_tag,
+	text_of,
+	type FoundTag
+} from '@ogygia/core/internal/server';
 import { scanRegions } from '@ogygia/reshape';
 
 export type StripKind =
@@ -57,53 +67,80 @@ export function left_at(offset: number, chunks: { end: number; t: number }[]): n
 	return chunks.length ? chunks[chunks.length - 1].t : undefined;
 }
 
-const SCRIPT_RE = /<script\b([^>]*)>[\s\S]*?<\/script\s*>/gi;
-const STYLE_RE = /<style\b[^>]*>[\s\S]*?<\/style\s*>/gi;
-const LINK_RE = /<link\b[^>]*>/gi;
-const TEMPLATE_RE = /<template\b[^>]*\bshadowrootmode\b[^>]*>[\s\S]*?<\/template\s*>/gi;
-const HEAD_END_RE = /<\/head\s*>/i;
-const REL_STYLESHEET_RE = /\brel\s*=\s*["']?(?:[^"'>\s]*\s)?stylesheet\b/i;
-const FP_ATTR = 'data-og-fp';
+// (a `rel` holds a token as a browser reads it: split on spaces, in any case)
+const REL_STYLESHEET = /(?:^|[\t\n\f\r ])stylesheet(?:[\t\n\f\r ]|$)/i;
 
-function script_kind(attrs: string): { kind: StripKind; label?: string } {
-	if (/data-ogygia-runtime/.test(attrs)) return { kind: 'runtime' };
-	if (/data-ogygia-props/.test(attrs)) return { kind: 'props' };
-	if (/data-ogygia-holes/.test(attrs)) return { kind: 'holes' };
-	if (/application\/ogygia-page/.test(attrs)) return { kind: 'seed' };
-	if (/application\/ogygia-remote/.test(attrs)) return { kind: 'remote-seed' };
-	const type = /\btype\s*=\s*["']?([^"'\s>]+)/i.exec(attrs)?.[1];
-	const src = /\bsrc\s*=\s*["']?([^"'\s>]+)/i.exec(attrs)?.[1];
+function script_kind(t: FoundTag): { kind: StripKind; label?: string } {
+	if (t.attr(OGYGIA_RUNTIME) !== undefined) return { kind: 'runtime' };
+	if (t.attr(OGYGIA_PROPS) !== undefined) return { kind: 'props' };
+	if (t.attr(OGYGIA_HOLES) !== undefined) return { kind: 'holes' };
+	const type = t.attr('type');
+	const mime = type?.toLowerCase();
+	if (mime === 'application/ogygia-page') return { kind: 'seed' };
+	if (mime === 'application/ogygia-remote') return { kind: 'remote-seed' };
+	const src = t.attr('src');
 	return {
 		kind: 'script',
 		label: src ? `src ${src.split('/').pop()}` : type ? `type ${type}` : 'inline'
 	};
 }
 
+/** Where the element `t` opens ends: past its end tag (its raw text runs to the first `</name`),
+ *  or -1 when it never closes. */
+function element_end(html: string, t: FoundTag, name: string): number {
+	const text = text_of(html, t, name);
+	if (text === null) return -1;
+	const gt = html.indexOf('>', t.end + text.length);
+	return gt === -1 ? -1 : gt + 1;
+}
+
+/** Each `<name>` raw-text element (`script`, `style`) as a span, start tag through end tag. */
+function raw_spans(html: string, name: string, on: (t: FoundTag, end: number) => void): void {
+	for (let t = next_tag(html, name, 0); t !== null;) {
+		const end = element_end(html, t, name);
+		if (end === -1) return;
+		on(t, end);
+		t = next_tag(html, name, end);
+	}
+}
+
+/** The text of the document's page seed (the first script the strip names `seed`), or null. */
+export function page_seed(html: string): string | null {
+	for (let t = next_tag(html, 'script', 0); t !== null;) {
+		const text = text_of(html, t, 'script');
+		if (text === null) return null;
+		if (script_kind(t).kind === 'seed') return text;
+		t = next_tag(html, 'script', t.end + text.length);
+	}
+	return null;
+}
+
 export function byte_strip(html: string): ByteStrip {
 	const spans: StripSegment[] = [];
-	let m: RegExpExecArray | null;
-	SCRIPT_RE.lastIndex = 0;
-	while ((m = SCRIPT_RE.exec(html)))
-		spans.push({ ...script_kind(m[1]), start: m.index, end: m.index + m[0].length });
-	STYLE_RE.lastIndex = 0;
-	while ((m = STYLE_RE.exec(html)))
-		spans.push({ kind: 'style', start: m.index, end: m.index + m[0].length });
-	LINK_RE.lastIndex = 0;
-	while ((m = LINK_RE.exec(html)))
-		if (REL_STYLESHEET_RE.test(m[0]))
+	raw_spans(html, 'script', (t, end) => spans.push({ ...script_kind(t), start: t.start, end }));
+	raw_spans(html, 'style', (t, end) => spans.push({ kind: 'style', start: t.start, end }));
+	for (let t = next_tag(html, 'link', 0); t !== null; t = next_tag(html, 'link', t.next))
+		if (REL_STYLESHEET.test(t.attr('rel') ?? ''))
 			spans.push({
 				kind: 'css-link',
-				start: m.index,
-				end: m.index + m[0].length,
-				label: /\bhref\s*=\s*["']?([^"'\s>]+)/i.exec(m[0])?.[1]?.split('/').pop()
+				start: t.start,
+				end: t.end,
+				label: t.attr('href')?.split('/').pop()
 			});
 	let shadow_bytes = 0;
 	let shadow_count = 0;
-	TEMPLATE_RE.lastIndex = 0;
-	while ((m = TEMPLATE_RE.exec(html))) {
-		shadow_bytes += m[0].length;
+	// (a template that is not a shadow root is passed by its start tag: one may sit inside it)
+	for (let t = next_tag(html, 'template', 0); t !== null;) {
+		if (t.attr('shadowrootmode') === undefined) {
+			t = next_tag(html, 'template', t.next);
+			continue;
+		}
+		const end = element_end(html, t, 'template');
+		if (end === -1) break;
+		shadow_bytes += end - t.start;
 		shadow_count++;
-		spans.push({ kind: 'shadow', start: m.index, end: m.index + m[0].length });
+		spans.push({ kind: 'shadow', start: t.start, end });
+		t = next_tag(html, 'template', end);
 	}
 	// regions: every top-level one is a segment (an island's bytes are one block, whatever is inside)
 	try {
@@ -121,7 +158,7 @@ export function byte_strip(html: string): ByteStrip {
 				kind,
 				start: r.start,
 				end: r.end,
-				label: r.attrs[FP_ATTR] ?? r.attrs.entry ?? r.attrs.name
+				label: r.attrs[OG_FP] ?? r.attrs.entry ?? r.attrs.name
 			});
 		}
 	} catch {
@@ -129,8 +166,8 @@ export function byte_strip(html: string): ByteStrip {
 	}
 	spans.sort((a, b) => a.start - b.start || b.end - a.end);
 	// drop spans inside an earlier one (a script inside an island is the island's bytes), fill gaps
-	const head_end = HEAD_END_RE.exec(html);
-	const head_at = head_end ? head_end.index + head_end[0].length : 0;
+	const head = next_tag(html, 'head', 0);
+	const head_at = head === null ? 0 : Math.max(0, element_end(html, head, 'head'));
 	const out: StripSegment[] = [];
 	let pos = 0;
 	const fill = (to: number) => {
@@ -218,39 +255,18 @@ export function count_elements(html: string, start: number, end: number): number
 /** IMAGES THE BROWSER CANNOT HOLD ROOM FOR: each `<img>` with no `width` or no `height` attribute
  *  (and not `hidden`): until its file arrives the browser does not know its height, so the page
  *  below it moves when it does — unless CSS sizes it. Their `src`s (the first 8), in the order of the
- *  page. `lower` is the lowercased document (tags), `raw` the document as sent (to read the `src`). No regex. */
+ *  page. `lower` is the lowercased document (where the tags are), `raw` the document as sent (each
+ *  `<img>` read from it, so the `src` keeps its case). */
 export function unsized_images(lower: string, raw: string): string[] {
 	const out: string[] = [];
 	walk_tags(lower, 0, lower.length, (tag, at) => {
 		if (tag !== 'img' || out.length >= 8) return;
-		const close = lower.indexOf('>', at);
-		if (close === -1) return;
-		const attrs = lower.slice(at + 4, close);
-		const has = (name: string) => {
-			let k = attrs.indexOf(name);
-			while (k !== -1) {
-				const before = attrs.charCodeAt(k - 1);
-				const after = attrs.charCodeAt(k + name.length);
-				// (a whole attribute name: `data-width=` is not `width=`)
-				if (
-					(k === 0 || before === 32 || before === 9 || before === 10 || before === 13) &&
-					(after === 61 || after === 32 || after === 62 || Number.isNaN(after))
-				)
-					return true;
-				k = attrs.indexOf(name, k + 1);
-			}
-			return false;
-		};
+		const img = read_tag(raw, at, at + 4);
+		if (img === null) return;
+		const has = (name: string) => img.attr(name) !== undefined;
 		if ((has('width') && has('height')) || has('hidden')) return;
-		// (the src as written: a quoted value after `src=`)
-		const s = attrs.indexOf('src=');
-		if (s === -1) return;
-		const q = raw.charAt(at + 4 + s + 4);
-		const quoted = q === '"' || q === "'";
-		const from = at + 4 + s + (quoted ? 5 : 4);
-		let to = quoted ? raw.indexOf(q, from) : from;
-		if (!quoted) while (to < close && raw.charCodeAt(to) > 32 && raw.charCodeAt(to) !== 62) to++;
-		out.push(raw.slice(from, to === -1 ? from : to).slice(0, 300));
+		const src = img.attr('src');
+		if (src !== undefined) out.push(src.slice(0, 300));
 	});
 	return out;
 }

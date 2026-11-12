@@ -47,6 +47,7 @@
  * attributes, never light DOM. All three are exported, Kit-free, from `@ogygia/reshape`, for the
  * non-SvelteKit half of a monorepo where these SSR passes usually live.
  */
+import { next_tag, read_tag, value_at } from '@ogygia/core/internal/server';
 import {
 	// (a value re-emitted into a double-quoted attribute exactly as it was: `<` kept)
 	escapeAttr as escape_attr,
@@ -345,13 +346,11 @@ export function* scanRegions(html: string): Generator<RegionSpan, void, undefine
 
 const LIFT_TAG = 'og-lift';
 
-// The `<og-lift>` placeholder, matched LOOSELY: the foreign renderer annotates it, so anchor only on
-// the tag name and consume an optional close.
-const LIFT_PLACEHOLDER_RE = /<og-lift\b([^>]*)>(?:<\/og-lift>)?/gi;
+// The `<og-lift>` placeholder is read as any start tag of that name (the foreign renderer annotates
+// it), and an end tag right after it goes with it.
+const LIFT_CLOSE = `</${LIFT_TAG}>`;
 // Split an attribute value into whitespace-separated tokens (class lists).
 const WS_SPLIT_RE = /\s+/;
-// The region opening tag's own `class="…"` attribute, for a class-token union on restore.
-const CLASS_ATTR_RE = /(\sclass\s*=\s*)("[^"]*"|'[^']*'|[^\s/>]+)/i;
 // A trailing self-closing `/` (with surrounding space) at the end of an opening-tag head.
 const TRAILING_SELF_CLOSE_RE = /\s*\/\s*$/;
 // Trailing whitespace at the end of an opening-tag head.
@@ -451,17 +450,21 @@ function merge_class(head: string, existing: string | undefined, added: string):
 		}
 	if (!changed) return [head, false];
 
-	const merged = [...have].join(' ');
-	const rewritten = head.replace(
-		CLASS_ATTR_RE,
-		(_m, prefix: string) => `${prefix}"${escape_attr(merged)}"`
-	);
-	return [rewritten, true];
+	const merged = `"${escape_attr([...have].join(' '))}"`;
+	// (the head is the region's opening tag without its `>`: read back as a tag to find `class`)
+	const open = `${head}>`;
+	const tag = read_tag(open, 0, 1 + REGION_TAG.length);
+	const at = tag === null ? -1 : value_at(open, tag, REGION_TAG, 'class');
+	if (at === -1) return [head, false];
+	const quoted = head[at - 1] === '"' || head[at - 1] === "'";
+	const from = quoted ? at - 1 : at;
+	const to = at + tag!.attr('class')!.length + (quoted ? 1 : 0);
+	return [`${head.slice(0, from)}${merged}${head.slice(to)}`, true];
 }
 
 /** Transplant a placeholder's renderer-stamped marks onto the region's opening tag. Only marks the
  *  region does not already own are added; `class` is unioned; the region's light DOM is untouched. */
-function merge_marks(region: LiftedRegion, marks: Record<string, string>): string {
+function merge_marks(region: LiftedRegion, marks: ReadonlyMap<string, string>): string {
 	const gt = region.openTag.lastIndexOf('>');
 	if (gt === -1) return region.outerHtml; // defensive: not a well-formed opening tag
 
@@ -472,16 +475,16 @@ function merge_marks(region: LiftedRegion, marks: Record<string, string>): strin
 	const additions: string[] = [];
 	let changed = false;
 
-	for (const name in marks) {
+	for (const [name, value] of marks) {
 		if (name === 'data-i') continue;
 		if (name === 'class') {
-			const [next, did] = merge_class(head, region.attrs.class, marks.class);
+			const [next, did] = merge_class(head, region.attrs.class, value);
 			head = next;
 			changed ||= did;
 			continue;
 		}
 		if (name in region.attrs) continue; // never clobber the region's own attribute
-		additions.push(`${name}="${escape_attr(marks[name])}"`);
+		additions.push(`${name}="${escape_attr(value)}"`);
 		changed = true;
 	}
 
@@ -500,10 +503,14 @@ function merge_marks(region: LiftedRegion, marks: Record<string, string>): strin
 export function restoreRegions(shell: string, regions: readonly LiftedRegion[]): string {
 	if (regions.length === 0) return shell;
 	const by_index = new Map(regions.map((r) => [r.index, r]));
-	LIFT_PLACEHOLDER_RE.lastIndex = 0;
-	return shell.replace(LIFT_PLACEHOLDER_RE, (whole, raw: string) => {
-		const marks = parse_attr_string(raw);
-		const region = by_index.get(Number(marks['data-i']));
-		return region === undefined ? whole : merge_marks(region, marks);
-	});
+	let out = '';
+	let kept = 0;
+	for (let t = next_tag(shell, LIFT_TAG, 0); t !== null; t = next_tag(shell, LIFT_TAG, t.next)) {
+		const region = by_index.get(Number(t.attr('data-i')));
+		if (region === undefined) continue;
+		out += shell.slice(kept, t.start) + merge_marks(region, t.attrs);
+		const close = shell.slice(t.end, t.end + LIFT_CLOSE.length);
+		kept = t.end + (close.toLowerCase() === LIFT_CLOSE ? LIFT_CLOSE.length : 0);
+	}
+	return out + shell.slice(kept);
 }

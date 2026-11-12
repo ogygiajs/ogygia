@@ -17,6 +17,8 @@
  * servers are refused upstream — their module graph is Vite's, not a bundle.
  */
 
+import { next_tag, text_of, value_at, type FoundTag } from '@ogygia/core/internal/server';
+
 export interface StandaloneOptions {
 	/** the report page's own URL (relative hrefs resolve against it) */
 	page_url: string;
@@ -26,14 +28,64 @@ export interface StandaloneOptions {
 	max_bytes?: number;
 }
 
-const STYLESHEET_RE = /<link\b[^>]*\brel=["']stylesheet["'][^>]*>/gi;
-const MODULEPRELOAD_RE = /<link\b[^>]*\brel=["']modulepreload["'][^>]*>/gi;
-const HREF_RE = /\bhref=["']([^"']+)["']/i;
-const MODULE_SCRIPT_RE =
-	/<script\b([^>]*\btype=["']module["'][^>]*)\bsrc=["']([^"']+)["']([^>]*)><\/script>/gi;
-const REGION_TAG_RE = /<ogygia-region\b[^>]*>/gi;
-const REGION_ENTRY_RE = /((?<![\w-])entry=["'])([^"']+)(["'])/i;
-const REGION_SRC_RE = /((?<![\w-])src=["'])([^"']+)(["'])/i;
+// (a `rel` holds a token as a browser reads it: split on spaces, in any case)
+const STYLESHEET_REL = /(?:^|[\t\n\f\r ])stylesheet(?:[\t\n\f\r ]|$)/i;
+const MODULEPRELOAD_REL = /(?:^|[\t\n\f\r ])modulepreload(?:[\t\n\f\r ]|$)/i;
+const SCRIPT_CLOSE = '</script>';
+const WS_G = /\s+/g;
+
+/** One rewrite of `html`: `[at, end)` becomes `text`. */
+interface Splice {
+	at: number;
+	end: number;
+	text: string;
+}
+
+function apply(html: string, splices: Splice[]): string {
+	let out = '';
+	let pos = 0;
+	for (const s of splices) {
+		out += html.slice(pos, s.at) + s.text;
+		pos = s.end;
+	}
+	return out + html.slice(pos);
+}
+
+/** Every `<name>` start tag of `html`, in order. */
+function all_tags(html: string, name: string): FoundTag[] {
+	const out: FoundTag[] = [];
+	for (let t = next_tag(html, name, 0); t !== null; t = next_tag(html, name, t.next)) out.push(t);
+	return out;
+}
+
+/** Where the attribute `attr` of `t` (a `<name …>` tag) is written, name through value (and its
+ *  closing quote), or null when it is absent or bare. */
+function attr_span(html: string, t: FoundTag, name: string, attr: string): [number, number] | null {
+	const value = t.attr(attr);
+	const at = value === undefined ? -1 : value_at(html, t, name, attr);
+	if (at === -1) return null;
+	const q = html.charCodeAt(at - 1);
+	const quoted = q === 34 || q === 39;
+	let from = quoted ? at - 2 : at - 1;
+	while (html.charCodeAt(from) !== 61) from--; // back to its `=`
+	from--;
+	for (let c = html.charCodeAt(from); c === 32 || (c >= 9 && c <= 13); c = html.charCodeAt(from))
+		from--;
+	return [from - attr.length + 1, at + value!.length + (quoted ? 1 : 0)];
+}
+
+/** Where the document's head ends (its `</head` end tag), or -1. */
+function head_end(html: string): number {
+	const head = next_tag(html, 'head', 0);
+	const text = head === null ? null : text_of(html, head, 'head');
+	return text === null ? -1 : head!.end + text.length;
+}
+
+/** `html` with `text` put where its head ends (unchanged when it has no head end). */
+function before_head_end(html: string, text: string): string {
+	const at = head_end(html);
+	return at === -1 ? html : html.slice(0, at) + text + html.slice(at);
+}
 /** a static or dynamic import of a RELATIVE specifier inside a built chunk — quoted, or a
  *  template literal with no interpolation (Vite emits `import(\`./chunks/x.js\`)`) */
 const IMPORT_RE = /((?:\bfrom|\bimport)\s*\(?\s*)(["'`])(\.{1,2}\/[^"'`$]+)\2/g;
@@ -94,62 +146,79 @@ export async function build_standalone(html: string, opts: StandaloneOptions): P
 	};
 
 	// 1. stylesheets → <style>
-	const sheets: { tag: string; url: URL }[] = [];
-	for (const m of html.matchAll(STYLESHEET_RE)) {
-		const href = HREF_RE.exec(m[0])?.[1];
-		if (href) sheets.push({ tag: m[0], url: new URL(href, base) });
+	const sheets: { t: FoundTag; url: URL }[] = [];
+	for (const t of all_tags(html, 'link')) {
+		if (!STYLESHEET_REL.test(t.attr('rel') ?? '')) continue;
+		const href = t.attr('href');
+		if (href) sheets.push({ t, url: new URL(href, base) });
 	}
+	const styles: Splice[] = [];
 	for (const s of sheets) {
 		const css = await fetch_text(s.url);
-		html = html.replace(
-			s.tag,
-			css === null
-				? ''
-				: `<style data-standalone="${s.url.pathname}">${css.replaceAll('</style', '<\\/style')}</style>`
-		);
-	}
-	// 2. modulepreload hints: nothing to preload from a file
-	html = html.replace(MODULEPRELOAD_RE, '');
-	// 3. module scripts with a src → inline modules (their imports go through the map)
-	const scripts: { tag: string; attrs: string; url: URL }[] = [];
-	for (const m of html.matchAll(MODULE_SCRIPT_RE)) {
-		scripts.push({
-			tag: m[0],
-			attrs: `${m[1]} ${m[3]}`.replace(/\s+/g, ' ').trim(),
-			url: new URL(m[2], base)
+		styles.push({
+			at: s.t.start,
+			end: s.t.end,
+			text:
+				css === null
+					? ''
+					: `<style data-standalone="${s.url.pathname}">${css.replaceAll('</style', '<\\/style')}</style>`
 		});
 	}
+	html = apply(html, styles);
+	// 2. modulepreload hints: nothing to preload from a file
+	html = apply(
+		html,
+		all_tags(html, 'link')
+			.filter((t) => MODULEPRELOAD_REL.test(t.attr('rel') ?? ''))
+			.map((t) => ({ at: t.start, end: t.end, text: '' }))
+	);
+	// 3. module scripts with a src (and no text) → inline modules (their imports go through the map)
+	const scripts: { t: FoundTag; attrs: string; url: URL }[] = [];
+	for (const t of all_tags(html, 'script')) {
+		const src = t.attr('src');
+		if (!src || t.attr('type')?.toLowerCase() !== 'module') continue;
+		if (html.slice(t.end, t.end + SCRIPT_CLOSE.length).toLowerCase() !== SCRIPT_CLOSE) continue;
+		// (its other attributes as written: the tag's text without its `type` and `src`)
+		const cut = [attr_span(html, t, 'script', 'type')!, attr_span(html, t, 'script', 'src')!];
+		cut.sort((a, b) => a[0] - b[0]);
+		const attrs = `${html.slice(t.start + 7, cut[0][0])} ${html.slice(cut[0][1], cut[1][0])} ${html.slice(cut[1][1], t.end - 1)}`;
+		scripts.push({ t, attrs: attrs.replace(WS_G, ' ').trim(), url: new URL(src, base) });
+	}
+	const inlined: Splice[] = [];
 	for (const s of scripts) {
 		const key = await add_chunk(s.url);
 		const code = chunks.get(key) ?? '';
-		html = html.replace(
-			s.tag,
-			`<script type="module" ${s.attrs.replace(/\btype=["']module["']/i, '').trim()} data-standalone="${s.url.pathname}">${code.replaceAll('</script', '<\\/script')}</script>`
-		);
+		inlined.push({
+			at: s.t.start,
+			end: s.t.end + SCRIPT_CLOSE.length,
+			text: `<script type="module" ${s.attrs} data-standalone="${s.url.pathname}">${code.replaceAll('</script', '<\\/script')}</script>`
+		});
 		chunks.delete(key); // inlined, not in the map
 	}
+	html = apply(html, inlined);
 	// 4. island files → og: keys. The file is the region's `src` (its content-hashed location; the
 	// `entry` is a name, no file); `entry` and `src` both name its key, so the runtime finds it by
 	// either. A region with no `src` (a dev page) names its file by `entry`.
 	const entries: URL[] = [];
-	html = html.replace(REGION_TAG_RE, (tag) => {
-		const src = REGION_SRC_RE.exec(tag)?.[2];
-		const file = src ?? REGION_ENTRY_RE.exec(tag)?.[2];
-		if (!file) return tag;
+	const keyed: Splice[] = [];
+	for (const t of all_tags(html, 'ogygia-region')) {
+		const src = t.attr('src') || undefined;
+		const entry = t.attr('entry') || undefined;
+		const file = src ?? entry;
+		if (!file) continue;
 		const u = new URL(file, base);
 		entries.push(u);
 		const key = key_of(u);
-		let out = tag.replace(
-			REGION_ENTRY_RE,
-			(_m, open: string, _v: string, close: string) => open + key + close
-		);
-		if (src)
-			out = out.replace(
-				REGION_SRC_RE,
-				(_m, open: string, _v: string, close: string) => open + key + close
-			);
-		return out;
-	});
+		for (const [attr, value] of [
+			['entry', entry],
+			['src', src]
+		] as const) {
+			const at = value === undefined ? -1 : value_at(html, t, 'ogygia-region', attr);
+			if (at !== -1) keyed.push({ at, end: at + value!.length, text: key });
+		}
+	}
+	keyed.sort((a, b) => a.at - b.at);
+	html = apply(html, keyed);
 	for (const u of entries) await add_chunk(u);
 
 	// 5. the import map: every chunk as a data: URL, before the first module script
@@ -160,10 +229,10 @@ export async function build_standalone(html: string, opts: StandaloneOptions): P
 	}
 	const map = `<script type="importmap">${JSON.stringify({ imports }).replaceAll('</script', '<\\/script')}</script>`;
 	const note = `<!-- ogygia profiler · standalone report · ${Object.keys(imports).length} chunks inlined${missing.length ? ` · missing: ${missing.join(', ')}` : ''} -->`;
-	const at = html.search(/<script\b/i);
+	const first = next_tag(html, 'script', 0);
 	html =
-		at === -1
-			? html.replace(/<\/head>/i, `${map}</head>`)
-			: html.slice(0, at) + map + html.slice(at);
-	return html.replace(/<\/head>/i, `<meta name="ogygia-standalone" content="1">${note}</head>`);
+		first === null
+			? before_head_end(html, map)
+			: html.slice(0, first.start) + map + html.slice(first.start);
+	return before_head_end(html, `<meta name="ogygia-standalone" content="1">${note}`);
 }

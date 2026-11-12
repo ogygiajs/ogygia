@@ -23,6 +23,7 @@ import { dispose_ids } from '../ref.ts';
 import { boot_link, morph_sync_attributes, slots } from './slots.ts';
 import { ids_released } from './region-ids.ts';
 import { emit as dt_emit } from '../events/bus.ts';
+import { OG_FP, OG_NO_RECONCILE, OGYGIA_KEEP } from '../wire-markup.ts';
 
 // DEVTOOLS gate — module-local const from the Vite `define` (proven DCE pattern); off → folds out.
 const DEVTOOLS = typeof __OGYGIA_DEVTOOLS__ !== 'undefined' ? __OGYGIA_DEVTOOLS__ : false;
@@ -103,7 +104,7 @@ export function region_signature(el: Element): string {
  * the server-delta skip decision rides on.
  */
 export function region_props_fp(el: Element): string {
-	const emitted = el.getAttribute('data-og-fp');
+	const emitted = el.getAttribute(OG_FP);
 	if (emitted !== null && emitted !== '') return emitted;
 	return fingerprint_of(
 		el.getAttribute('entry') ?? '',
@@ -156,7 +157,7 @@ export function stamp_region_keys(root: ParentNode): void {
 		// (e.g. a `track` prop following the route) KEEPS the live island and prop-pushes the new
 		// props into it — NOT re-mounts it (which resets state, breaking the persist contract). Only
 		// a NON-kept region keys by props-fingerprint (patch when its inputs change).
-		const keep = el.getAttribute('data-ogygia-keep');
+		const keep = el.getAttribute(OGYGIA_KEEP);
 		if (keep !== null) {
 			el.setAttribute(RECONCILE_KEY, `k ${keep}`);
 		} else if (el.hasAttribute('data-persist')) {
@@ -168,9 +169,9 @@ export function stamp_region_keys(root: ParentNode): void {
 			stamp(el, `r ${region_props_fp(el)}`);
 		}
 	}
-	for (const el of root.querySelectorAll('[data-ogygia-keep]')) {
+	for (const el of root.querySelectorAll(`[${OGYGIA_KEEP}]`)) {
 		if (el.getAttribute(RECONCILE_KEY) !== null || el.id !== '') continue;
-		el.setAttribute(RECONCILE_KEY, `k ${el.getAttribute('data-ogygia-keep') ?? ''}`);
+		el.setAttribute(RECONCILE_KEY, `k ${el.getAttribute(OGYGIA_KEEP) ?? ''}`);
 	}
 }
 
@@ -183,7 +184,7 @@ export function stamp_region_keys(root: ParentNode): void {
  * shadow root. An author forces the fallback with `data-og-no-reconcile` — the only thing checked
  * here, on either document.
  */
-export const NO_RECONCILE_SELECTOR = '[data-og-no-reconcile]';
+export const NO_RECONCILE_SELECTOR: string = `[${OG_NO_RECONCILE}]`;
 
 /** Reconcile the live body toward the parsed next body IN PLACE (no replaceWith). `morph` is the
  *  keyed morpher (slots.morph / morph_children). After this, `live` IS the reconciled tree: matched

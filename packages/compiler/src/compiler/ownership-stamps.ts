@@ -26,7 +26,7 @@ import MagicString from 'magic-string';
 import { blank_styles } from './blank-styles.ts';
 import { strip_bom } from './bom.ts';
 // the runtime's reader and this writer share the constants
-import { HTML_PARENT_ATTR, OPAQUE_ATTR } from '@ogygia/core/contract';
+import { OG_HTML, OG_OPAQUE } from '@ogygia/core/contract';
 import type { AstNode } from './parse/oxc.ts';
 
 /** A cheap presence test before parsing: one of the three shapes could be in this file. */
@@ -94,7 +94,7 @@ function is_custom_element(el: Node): boolean {
 
 /** Does Svelte's hydration walk never enter this element's children? */
 function opaque(el: Node): boolean {
-	if ((el.attributes ?? []).some((a: Node) => a.type === 'Attribute' && a.name === OPAQUE_ATTR))
+	if ((el.attributes ?? []).some((a: Node) => a.type === 'Attribute' && a.name === OG_OPAQUE))
 		return false; // already stamped
 	const kids: Node[] = (el.fragment?.nodes ?? []).filter((n: Node) => !is_blank(n));
 	if (kids.length === 1 && kids[0].type === 'HtmlTag') return true;
@@ -137,20 +137,19 @@ export function stamp_opaque(raw: string, filename: string): string | null {
 	const visit = (nodes: Node[] | undefined) => {
 		for (const n of nodes ?? []) {
 			if (n.type === 'RegularElement' && opaque(n)) {
-				at.push({ pos: n.start + 1 + String(n.name).length, attr: OPAQUE_ATTR });
+				at.push({ pos: n.start + 1 + String(n.name).length, attr: OG_OPAQUE });
 				continue;
 			}
 			// an `{@html}` BESIDE other children: its parent stays walked, but the child elements it
-			// produced must not be entered (see HTML_PARENT_ATTR)
+			// produced must not be entered (runtime/ownership.ts reads OG_HTML)
 			if (
 				n.type === 'RegularElement' &&
 				(n.fragment?.nodes ?? []).some((c: Node) => c.type === 'HtmlTag') &&
 				!(n.attributes ?? []).some(
-					(a: Node) =>
-						a.type === 'Attribute' && (a.name === HTML_PARENT_ATTR || a.name === OPAQUE_ATTR)
+					(a: Node) => a.type === 'Attribute' && (a.name === OG_HTML || a.name === OG_OPAQUE)
 				)
 			)
-				at.push({ pos: n.start + 1 + String(n.name).length, attr: HTML_PARENT_ATTR });
+				at.push({ pos: n.start + 1 + String(n.name).length, attr: OG_HTML });
 			for (const k of CHILD_KEYS) {
 				const child = n[k];
 				if (child && Array.isArray(child.nodes)) visit(child.nodes);

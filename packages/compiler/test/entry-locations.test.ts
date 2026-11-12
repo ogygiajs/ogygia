@@ -381,14 +381,16 @@ describe('Region writes the identity as `entry` and the location as `src`', () =
 // ── the router's next-page warm reads both off the fetched HTML ───────────────────────────────────
 describe("the router's warm scan: identity and location off an open tag", () => {
 	it('reads each attribute exactly, never a longer name that ends the same', async () => {
-		const { tag_attr } = await import('../../core/src/runtime/router-nav.ts');
-		const attrs =
-			' entry="./_app/immutable/og-region.aaaaaaaaaaaa.js" data-src="./nope.js" src="./_app/immutable/chunks/Loc.js" wake="load"';
-		expect(tag_attr(attrs, 'entry')).toBe('./_app/immutable/og-region.aaaaaaaaaaaa.js');
-		expect(tag_attr(attrs, 'src')).toBe('./_app/immutable/chunks/Loc.js');
-		expect(tag_attr(' entry="/a.js" data-src="/b.js"', 'src')).toBeNull();
-		expect(tag_attr(' entry="/a.js"', 'src')).toBeNull();
-		expect(tag_attr(' src="/unterminated', 'src')).toBeNull();
+		const { tags } = await import('../../core/src/wire-markup.ts');
+		const attrs = (open: string) => [...tags(open, 'ogygia-region')][0]?.attrs;
+		const found = attrs(
+			'<ogygia-region entry="./_app/immutable/og-region.aaaaaaaaaaaa.js" data-src="./nope.js" src="./_app/immutable/chunks/Loc.js" wake="load">'
+		);
+		expect(found?.get('entry')).toBe('./_app/immutable/og-region.aaaaaaaaaaaa.js');
+		expect(found?.get('src')).toBe('./_app/immutable/chunks/Loc.js');
+		expect(attrs('<ogygia-region entry="/a.js" data-src="/b.js">')?.get('src')).toBeUndefined();
+		expect(attrs('<ogygia-region entry="/a.js">')?.get('src')).toBeUndefined();
+		expect(attrs('<ogygia-region src="/unterminated>')).toBeUndefined();
 	});
 });
 

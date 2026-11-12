@@ -168,6 +168,14 @@ describe('dedupe_head_links · one pass', () => {
 		expect(dedupe_head_links(html)).toBe(html);
 	});
 
+	it('reads each link as a browser does: a quoted > stays in its value, a comment is not a link', () => {
+		const odd = '<link rel="stylesheet" data-note="a>b" href=\'/a.css\'>';
+		const html = `<head>${kit('/a.css')}<!-- ${kit('/c.css')} -->${odd}${kit('/c.css')}</head>`;
+		expect(dedupe_head_links(html)).toBe(
+			`<head>${kit('/a.css')}<!-- ${kit('/c.css')} -->${kit('/c.css')}</head>`
+		);
+	});
+
 	it('handles both families in one document in one call', () => {
 		const html = `<head>${kit('/a.css')}${hint('/a.js')}${og('/a.css')}${low('/a.js')}${hint('/b.js')}</head>`;
 		expect(dedupe_head_links(html)).toBe(

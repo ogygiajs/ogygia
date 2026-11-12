@@ -40,6 +40,7 @@ import { analyze } from './seed-refs.ts';
 import { fnv1a, fnv1a32 } from './contract/hash.ts';
 import { import_entry } from './runtime/entry-locations.ts';
 import { OgygiaError } from './messages/island.ts';
+import { OG_SLOT, OG_STATIC, OGYGIA_REGION_CSS } from './wire-markup.ts';
 
 /**
  * A hand-written SERVER component that renders a bare snippet: svelte has no public API to
@@ -70,7 +71,7 @@ const WRAP_OPEN = '<ogygia-snippet style="display:contents">';
 const WRAP_CLOSE = '</ogygia-snippet>';
 // A frozen snippet is adopted HTML nothing hydrates, like slot children: marked, so a region inside it
 // wakes on its own instead of waiting on the host island's hydration (runtime/core.ts).
-const STATIC_OPEN = '<ogygia-snippet data-og-static style="display:contents">';
+const STATIC_OPEN = `<ogygia-snippet ${OG_STATIC} style="display:contents">`;
 
 // A live snippet renders in a root of its own on both legs, yet it belongs to the tree that renders
 // it: it takes that tree's contexts — the page's, and "inside an awake region" (context.ts). Without
@@ -116,7 +117,7 @@ function make(desc: RegionSnippetDescriptor, live_entry: Component | null = null
 	// capture the marked element's HTML NOW, while it is still in the pre-hydration DOM, so re-creates
 	// re-inject the same markup (a nested `<ogygia-region>` inside re-wakes itself on reconnect).
 	if (desc.m === 'slot') {
-		const el = BROWSER ? document.querySelector(`ogygia-slot[data-og-slot="${desc.id}"]`) : null;
+		const el = BROWSER ? document.querySelector(`ogygia-slot[${OG_SLOT}="${desc.id}"]`) : null;
 		const h = el ? (el as HTMLElement).outerHTML : slot_marker_open(desc.id) + SLOT_MARKER_CLOSE;
 		const slot_snip = createRawSnippet(() => ({
 			render: () => h,
@@ -160,7 +161,7 @@ function make(desc: RegionSnippetDescriptor, live_entry: Component | null = null
 		// (a modulepreload, as region_css_tag writes a dev module href: as a stylesheet link the browser
 		// fetched the module a second time as CSS — Safari logged "non CSS MIME types are not allowed")
 		const dev_css_link = DEV
-			? `<link rel="modulepreload" href="${desc.e}" data-ogygia-region-css>`
+			? `<link rel="modulepreload" href="${desc.e}" ${OGYGIA_REGION_CSS}>`
 			: '';
 		const server_snip = ((renderer: ServerRenderer, ...args: unknown[]) => {
 			// Server snippet args arrive as raw values; forward call-time params as `__ogArgs`.
@@ -360,7 +361,7 @@ export function prepare_region_props(input: Record<string, unknown>): Record<str
 /** The SSR marker that fences an island's in-place children so the client can adopt exactly that range.
  *  `display:contents` keeps it layout-neutral. */
 export function slot_marker_open(id: string): string {
-	return `<ogygia-slot data-og-slot="${id}" style="display:contents">`;
+	return `<ogygia-slot ${OG_SLOT}="${id}" style="display:contents">`;
 }
 export const SLOT_MARKER_CLOSE = '</ogygia-slot>';
 

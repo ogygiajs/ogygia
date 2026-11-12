@@ -98,7 +98,7 @@ import {
 	type ClientWindows,
 	type InteractionCpu
 } from './client-windows.ts';
-import { byte_strip, type ByteStrip } from './byte-strip.ts';
+import { byte_strip, page_seed, type ByteStrip } from './byte-strip.ts';
 import { stream_tail } from './stream-tail.ts';
 import {
 	weigh_assets,
@@ -1063,8 +1063,6 @@ const ANSWER_RENDERS = 3;
 const INSPECTOR_ERR = /inspector/;
 const WIN_DRIVE_RE = /^[A-Za-z]:[\\/]/;
 const QUERY_SUFFIX_RE = /\?.*$/;
-/** the seed script in a rendered document (report time, one document: not a hot path) */
-const SEED_SCRIPT_RE = /<script\b[^>]*type="application\/ogygia-page"[^>]*>([\s\S]*?)<\/script>/i;
 const SRC_RELATIVE_RE = /(?:^|[/\\])src[/\\](.*)$/;
 const BACKSLASH_G = /\\/g;
 const PATH_SEP_RE = /[/\\]/;
@@ -3178,8 +3176,8 @@ class Profiler {
 			by_entry.set(r.entry, { name: island_name(r), keys });
 		}
 		// the seed's bytes per key (JSON lane; a devalue seed measures as nothing per key)
-		const seed_m = SEED_SCRIPT_RE.exec(body);
-		const seed = seed_m ? seed_key_bytes(seed_m[1]) : {};
+		const seed_text = page_seed(body);
+		const seed = seed_text !== null ? seed_key_bytes(seed_text) : {};
 		if (!calls.length && !Object.keys(seed).length && !by_entry.size) return undefined;
 		return build_river({ calls, lanes: river_lanes, islands: [...by_entry.values()], seed });
 	}
@@ -4187,8 +4185,8 @@ class Profiler {
 			return { name: info.name, file, island: false, reads: data_reads(src, data_prop_names(src)) };
 		});
 		if (!components.length && !islands.length) return undefined;
-		const seed_m = SEED_SCRIPT_RE.exec(body);
-		const seed = seed_m ? seed_key_bytes(seed_m[1]) : {};
+		const seed_text = page_seed(body);
+		const seed = seed_text !== null ? seed_key_bytes(seed_text) : {};
 		const lineage = build_lineage({
 			components: [...components, ...islands],
 			lanes: lineage_lanes,

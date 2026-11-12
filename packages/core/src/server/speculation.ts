@@ -3,6 +3,7 @@
  * into every page head when the SPA router is OFF (`router: false`). Pure: no build state, one
  * deterministic string. Covered by unit tests.
  */
+import { OGYGIA_SPECULATE } from '../wire-markup.ts';
 
 /**
  * Static Speculation Rules for MPA mode (`router: false`) — the server handle injects them into
@@ -25,10 +26,10 @@ export function mpaSpeculationRules(endpoint = '/__ogygia__'): string {
 				or: [
 					{
 						not: {
-							selector_matches: '[data-ogygia-speculate="off"], [data-ogygia-speculate="off"] *'
+							selector_matches: `[${OGYGIA_SPECULATE}="off"], [${OGYGIA_SPECULATE}="off"] *`
 						}
 					},
-					{ selector_matches: '[data-ogygia-speculate="on"], [data-ogygia-speculate="on"] *' }
+					{ selector_matches: `[${OGYGIA_SPECULATE}="on"], [${OGYGIA_SPECULATE}="on"] *` }
 				]
 			}
 		]
