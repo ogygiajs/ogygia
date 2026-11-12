@@ -151,11 +151,23 @@ export function match_one(c: CompiledPattern, pathname: string): PathMatch | nul
 const fill_token = /\[(\.\.\.)?\[?([a-zA-Z_$][\w$]*)\]?\]/g;
 
 /** Fills a pattern's `[param]`, `[[optional]]` and `[...rest]` tokens from `params`, URL-encoded;
- *  a missing one becomes empty. */
+ *  a missing one becomes empty. Throws on a value that would fill a whole segment with `.` or `..`:
+ *  every URL parser drops that segment, so the URL would name another route (`%2e` is read as a
+ *  dot too). Test: test/property-fill-match.test.ts. */
 export function fill(pattern: string, params: Record<string, string | number>): string {
-	return pattern.replace(fill_token, (_m, _rest, name: string) => {
+	return pattern.replace(fill_token, (m, _rest, name: string, at: number) => {
 		const val = params[name];
-		return val == null ? '' : encodeURIComponent(String(val));
+		const out = val == null ? '' : encodeURIComponent(String(val));
+		const end = at + m.length;
+		if (
+			(out === '.' || out === '..') &&
+			pattern[at - 1] === '/' &&
+			(end === pattern.length || pattern[end] === '/')
+		)
+			throw new Error(
+				`[@ogygia/router] the param "${name}" is ${JSON.stringify(out)}, a dot segment a URL drops: it would name another route than ${pattern}`
+			);
+		return out;
 	});
 }
 
