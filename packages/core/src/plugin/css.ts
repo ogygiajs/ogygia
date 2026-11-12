@@ -14,6 +14,7 @@ import { flights, say } from '@ogygia/machine';
 import { router_css_active, router_css_of } from '../router-css.ts';
 import { claim_region_css } from '../context.ts';
 import { warn } from '../messages/server.ts';
+import { OGYGIA_RCSS, OGYGIA_REGION_CSS } from '../wire-markup.ts';
 
 // ── regexes
 const STYLE_CLOSE_G = /<\/style/gi;
@@ -61,9 +62,9 @@ export async function componentCssHead(components: readonly unknown[]): Promise<
 	for (const e of entries) {
 		if (!fresh.has(e.key)) continue;
 		fresh.delete(e.key); // shared child CSS can repeat across components — link once
-		if (e.href) head += `<link rel="stylesheet" href="${e.href}" data-ogygia-region-css>`;
+		if (e.href) head += `<link rel="stylesheet" href="${e.href}" ${OGYGIA_REGION_CSS}>`;
 		else if (e.css)
-			head += `<style data-ogygia-rcss>${e.css.replace(STYLE_CLOSE_G, '<\\/style')}</style>`;
+			head += `<style ${OGYGIA_RCSS}>${e.css.replace(STYLE_CLOSE_G, '<\\/style')}</style>`;
 	}
 	return head;
 }
