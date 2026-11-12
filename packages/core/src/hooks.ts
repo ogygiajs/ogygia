@@ -84,7 +84,7 @@ import { expiry_refusal, note_cache_control } from './server/shared-cache.ts';
 import { app_lifetime } from './server/region-endpoint.ts';
 import { render_cache_key, cached_render, type RenderKey } from './server/render-cache.ts';
 import { render as render_policy } from './policies.ts';
-import { install_server_rules } from './server/rules.ts';
+import { install_server_rules, note_region_answer } from './server/rules.ts';
 import { B64Url } from './server/payload.ts';
 import { REF_WIRE_KEY, ref_reviver } from './ref.ts';
 import type { RequestContext } from './plugin/index.ts';
@@ -525,13 +525,15 @@ const REGION_FRAME_HEADERS = {
 	'Referrer-Policy': 'no-referrer'
 } as const;
 
+/** Every region response, with those headers. It says how it may be cached: `no-store` (a refusal,
+ *  an error, a dynamic hole) unless the caller names the hole's own policy (PRELOAD-CACHE). */
 function region_response(
 	body: BodyInit | null,
 	init: { status: number; headers?: Record<string, string> }
 ) {
 	return new Response(body, {
 		status: init.status,
-		headers: { ...REGION_FRAME_HEADERS, ...init.headers }
+		headers: { ...REGION_FRAME_HEADERS, 'cache-control': 'no-store', ...init.headers }
 	});
 }
 
@@ -1010,8 +1012,12 @@ class OgygiaHandle {
 		}
 		// POST to the endpoint = a BATCH frame stream (client-side navigation, single-flight): render a set
 		// of signed region calls and flush each as an out-of-order frame in one response.
-		if (event.request.method.toUpperCase() === 'POST') return this.render_batch(event);
-		return this.render_region(event);
+		const answer =
+			event.request.method.toUpperCase() === 'POST'
+				? await this.render_batch(event)
+				: await this.render_region(event);
+		if (RULES) note_region_answer(event.url.pathname, answer);
+		return answer;
 	}
 
 	/**
@@ -2009,9 +2015,10 @@ class OgygiaHandle {
 		}
 		// `keepFallback()`: no content — the runtime keeps the page's fallback and marks the hole done.
 		if (body === KEEP_FALLBACK_HTML)
+			// (its hole's own policy, like its answer would carry: a 204 is cacheable by default)
 			return region_response(null, {
 				status: 204,
-				headers: renewed ? { 'cache-control': 'no-store', ...renew_headers } : undefined
+				headers: { 'cache-control': cache_control, ...renew_headers }
 			});
 
 		if (body.length > MAX_REGION_BODY) return region_denied('oversize');
