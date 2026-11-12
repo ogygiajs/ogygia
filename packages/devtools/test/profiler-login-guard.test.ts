@@ -133,7 +133,9 @@ describe('profiler login: the session', () => {
 		const { login, token_of, page, run } = prod();
 		const mine = token_of(await login(SECRET));
 		const other = token_of(await login(SECRET));
-		await run(event('/__profiler/logout', { cookie: `og_profiler=${mine}` }));
+		await run(
+			event('/__profiler/logout', { cookie: `og_profiler=${mine}`, init: { method: 'POST' } })
+		);
 		expect((await page(mine)).headers.get('location')).toMatch(/\/login/);
 		expect((await page(other)).status).toBe(200);
 	});
