@@ -53,12 +53,155 @@ export interface BrowserPlan {
 	readonly found?: readonly string[];
 }
 
+/** What a page's performance observers reported (Chromium only): a layout shift that came right
+ *  after a region's content changed, or a script that ran over 50 ms. */
+export type PerfEntry =
+	| {
+			kind: 'shift';
+			tab: number;
+			url: string;
+			value: number;
+			regions: string[];
+	  }
+	| {
+			kind: 'task';
+			tab: number;
+			url: string;
+			duration: number;
+			source: string;
+			fn: string;
+	  };
+
+/** CLS at or over this, from regions filling in, in one document, fails the run (web.dev's "poor"
+ *  starts above 0.25, "good" ends at 0.1). */
+export const REGION_SHIFT_LIMIT = 0.1;
+/** A task at or over this, in a file of ogygia's, fails the run (the long-task line). */
+export const LONG_TASK_MS = 50;
+
+/**
+ * Judges what the observers reported. `owned`: is the file at a URL ogygia's code (its runtime, or a
+ * chunk that holds its coded messages)? Each region-caused shift and each long task is noted; a
+ * document whose region-caused shifts add up to {@link REGION_SHIFT_LIMIT}, and a long task in
+ * ogygia's code, fail.
+ */
+export function judge_perf(
+	entries: readonly PerfEntry[],
+	owned: (url: string) => boolean
+): { noted: string[]; failing: string[] } {
+	const noted: string[] = [];
+	const failing: string[] = [];
+	const by_doc = new Map<string, number>();
+	for (const e of entries) {
+		if (e.kind === 'shift') {
+			const doc = `tab ${e.tab} ${e.url}`;
+			by_doc.set(doc, (by_doc.get(doc) ?? 0) + e.value);
+			noted.push(`${doc}: a shift of ${e.value.toFixed(4)} after ${e.regions.join(', ')}`);
+		} else {
+			const line = `tab ${e.tab} ${e.url}: a ${Math.round(e.duration)} ms task in ${e.source}${e.fn ? ` (${e.fn})` : ''}`;
+			noted.push(line);
+			if (e.duration >= LONG_TASK_MS && owned(e.source)) failing.push(`ogygia's code: ${line}`);
+		}
+	}
+	for (const [doc, sum] of by_doc)
+		if (sum >= REGION_SHIFT_LIMIT)
+			failing.push(`${doc}: regions filling in shifted the layout by ${sum.toFixed(4)}`);
+	return { noted, failing };
+}
+
+/**
+ * Runs in every document before its own scripts (Chromium): a MutationObserver notes when a
+ * region's content changes once the page is parsed, a `layout-shift` observer sends each shift no
+ * input caused that came within 100 ms of such a change (with the regions), and a
+ * `long-animation-frame` observer sends each script that ran over 50 ms. Time is a new
+ * `PerformanceMark`'s, the browser's own clock, as the entries' are: the page's `performance.now`
+ * and an event's `timeStamp` follow the fake clock.
+ */
+export function perf_watch(): void {
+	type Sent = Record<string, unknown>;
+	const w = window as unknown as {
+		__sim_perf?: (e: Sent) => void;
+		__sim_input?: () => void;
+	};
+	const send = (e: Sent) => void w.__sim_perf?.({ ...e, url: location.href });
+	const now = () => new PerformanceMark('sim').startTime;
+	let parsed = false;
+	// oxlint-disable-next-line ogygia/owned-effects -- runs in the replayed page (an init script, no imports): the document's record for its whole life
+	document.addEventListener('DOMContentLoaded', () => (parsed = true));
+	let input = -Infinity;
+	w.__sim_input = () => (input = now());
+	const fills: Array<{ t: number; region: string }> = [];
+	const KEEP = ['entry', 'wake', 'render', 'when', 'endpoint'];
+	const describe = (el: Element) =>
+		`<ogygia-region${[...el.attributes]
+			.filter((a) => KEEP.includes(a.name))
+			.map((a) => ` ${a.name}="${a.value.slice(0, 48)}"`)
+			.join('')}>`;
+	// oxlint-disable-next-line ogygia/owned-effects -- runs in the replayed page (an init script, no imports): the document's record for its whole life
+	new MutationObserver((records) => {
+		if (!parsed) return;
+		const t = now();
+		for (const r of records) {
+			const at = r.target instanceof Element ? r.target : r.target.parentElement;
+			const region = at?.closest('ogygia-region');
+			if (region) fills.push({ t, region: describe(region) });
+		}
+		if (fills.length > 200) fills.splice(0, fills.length - 200);
+	}).observe(document, { childList: true, subtree: true, characterData: true });
+	try {
+		// oxlint-disable-next-line ogygia/owned-effects -- runs in the replayed page (an init script, no imports): the document's record for its whole life
+		new PerformanceObserver((list) => {
+			for (const e of list.getEntries() as unknown as Array<{
+				startTime: number;
+				value: number;
+				hadRecentInput: boolean;
+			}>) {
+				// (one the visitor's action caused, as CLS leaves out a shift within 500 ms of input)
+				if (e.hadRecentInput || e.startTime - input < 500) continue;
+				const by = fills.filter((f) => f.t <= e.startTime && e.startTime - f.t < 100);
+				if (by.length === 0) continue;
+				send({
+					kind: 'shift',
+					value: e.value,
+					regions: [...new Set(by.map((f) => f.region))].slice(0, 3)
+				});
+			}
+		}).observe({ type: 'layout-shift', buffered: true });
+	} catch {
+		// ok: an engine with no layout-shift entries (the run notes none)
+	}
+	try {
+		// oxlint-disable-next-line ogygia/owned-effects -- runs in the replayed page (an init script, no imports): the document's record for its whole life
+		new PerformanceObserver((list) => {
+			for (const e of list.getEntries() as unknown as Array<{
+				scripts?: Array<{
+					duration: number;
+					sourceURL: string;
+					sourceFunctionName: string;
+				}>;
+			}>)
+				for (const s of e.scripts ?? [])
+					if (s.duration > 50 && s.sourceURL)
+						send({
+							kind: 'task',
+							duration: s.duration,
+							source: s.sourceURL,
+							fn: s.sourceFunctionName
+						});
+		}).observe({ type: 'long-animation-frame', buffered: true });
+	} catch {
+		// ok: an engine with no long-animation-frame entries
+	}
+}
+
 /** The plans SIM_PLANS names, read. */
 function plans(): Array<{ file: string; plan: BrowserPlan }> {
 	return (process.env.SIM_PLANS ?? '')
 		.split(',')
 		.filter(Boolean)
-		.map((file) => ({ file, plan: JSON.parse(readFileSync(file, 'utf8')) as BrowserPlan }));
+		.map((file) => ({
+			file,
+			plan: JSON.parse(readFileSync(file, 'utf8')) as BrowserPlan
+		}));
 }
 
 /** The generated app on disk at `app`: its seed and whether it drew a peer, or null for an app
@@ -66,7 +209,10 @@ function plans(): Array<{ file: string; plan: BrowserPlan }> {
 function generated(app: string): { seed: number; peer: boolean } | null {
 	const at = join(app, 'src', 'lib', 'gen', 'plan.json');
 	if (!existsSync(at)) return null;
-	const p = JSON.parse(readFileSync(at, 'utf8')) as { seed: number; peer?: unknown };
+	const p = JSON.parse(readFileSync(at, 'utf8')) as {
+		seed: number;
+		peer?: unknown;
+	};
 	return { seed: p.seed, peer: p.peer != null };
 }
 
@@ -162,6 +308,15 @@ async function play(
 		});
 	};
 	watch(page);
+	// LAYOUT SHIFT AND LONG TASKS: Chromium's observers, in every document (the others report none)
+	const perf: PerfEntry[] = [];
+	const chromium = context.browser()?.browserType().name() === 'chromium';
+	if (chromium) {
+		await context.exposeBinding('__sim_perf', ({ page: from }, e: Omit<PerfEntry, 'tab'>) => {
+			perf.push({ ...e, tab: tabs.indexOf(from) } as PerfEntry);
+		});
+		await context.addInitScript(perf_watch);
+	}
 	// (the requests on the wire, every tab's)
 	let flying = 0;
 	context.on('request', () => flying++);
@@ -191,6 +346,11 @@ async function play(
 	await pass(context, 2000);
 	for (const [i, a] of p.plan.actions.entries()) {
 		const tab = 'tab' in a ? tabs[a.tab % tabs.length] : page;
+		// (what the visitor does next is input: a shift it causes is the visitor's, not a region's)
+		if (chromium)
+			await tab
+				.evaluate(() => (window as unknown as { __sim_input?: () => void }).__sim_input?.())
+				.catch(() => {}); // ok: a tab on the browser's error page has no observers
 		switch (a.kind) {
 			case 'click':
 				await nth_of(tab, LINKS, a.nth);
@@ -225,7 +385,10 @@ async function play(
 				await pass(context, a.ms);
 				break;
 			case 'deploy':
-				info.annotations.push({ type: 'not played', description: `action ${i + 1}: a deploy` });
+				info.annotations.push({
+					type: 'not played',
+					description: `action ${i + 1}: a deploy`
+				});
 				break;
 			case 'outage':
 				if (a.during !== 'wait') await nth_of(tab, a.during === 'click' ? LINKS : BUTTONS, a.nth);
@@ -255,6 +418,29 @@ async function play(
 			description: errors.filter((e) => !judged.includes(e)).join('\n')
 		});
 	check('no page error, no coded error', judged.length === 0, judged.join('\n'));
+	if (chromium) {
+		// (a file is ogygia's when it is its runtime or holds its coded messages)
+		const owned = new Map<string, boolean>();
+		for (const e of perf)
+			if (e.kind === 'task' && !owned.has(e.source)) {
+				const text = await context.request
+					.get(e.source)
+					.then((r) => r.text())
+					.catch(() => '');
+				owned.set(e.source, /\/og-runtime-/.test(e.source) || text.includes('ogygiajs.dev/e/'));
+			}
+		const { noted, failing } = judge_perf(perf, (u) => owned.get(u) === true);
+		if (noted.length > 0)
+			info.annotations.push({
+				type: 'layout shift and long tasks',
+				description: noted.join('\n')
+			});
+		check(
+			'no layout shift from regions filling in, no long task in ogygia',
+			failing.length === 0,
+			failing.join('\n')
+		);
+	}
 	for (const [i, t] of tabs.entries()) {
 		const last = new Map<string, string>();
 		for (const line of ((await moves(t)) ?? '').split('\n')) {
