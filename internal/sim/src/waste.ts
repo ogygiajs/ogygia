@@ -44,14 +44,27 @@ export function asked_twice(
 	const holes = new Map<string, number[]>();
 	/** The asks a router visit's batch made (sent as the router swapped the page in). */
 	const nav = new Set<string>();
+	// (the router sends a visit's batch once it has the next page and before it swaps it in: a wait for
+	// the page's sheets comes between, so a batch from the visit's page fetch to its swap is the visit's)
+	const fetched = world.network.exchanges
+		.filter((e) => e.from === realm && e.method === 'GET' && e.status === 200)
+		.filter((e) => is_page_path(decodeURIComponent(new URL(e.url).pathname)))
+		.map((e) => e.at);
+	const visits = (t: number): boolean => {
+		const next = swaps.find((s) => s >= t);
+		if (next === undefined) return false;
+		const since = Math.max(...swaps.filter((s) => s < t));
+		return next === t || fetched.some((f) => f > since && f <= t);
+	};
 	for (const [i, e] of world.network.exchanges.entries()) {
 		if (i >= until) break;
 		if (e.from !== realm || e.status !== 200) continue;
-		if (e.cut || e.lost === true || e.tampered || e.duplicated) continue;
+		// (a stalled answer the page may have given up on: asking again is its recovery)
+		if (e.cut || e.lost === true || e.tampered || e.duplicated || e.stalled === true) continue;
 		if (e.method === 'POST') {
 			for (const k of e.holes ?? []) {
 				holes.set(k, [...(holes.get(k) ?? []), e.at]);
-				if (swaps.includes(e.at)) nav.add(`${k} ${e.at}`);
+				if (visits(e.at)) nav.add(`${k} ${e.at}`);
 			}
 			continue;
 		}
