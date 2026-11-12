@@ -31,6 +31,7 @@
  *   replaces it.
  */
 import { DEV } from 'esm-env';
+import { clock } from './clock.ts';
 import { machine_error, report } from './messages.ts';
 import { DISPOSE, MAX_TIMEOUT_MS, scope, type Scope } from './scope.ts';
 import type { World } from './world.ts';
@@ -161,12 +162,12 @@ class Store<K, V> implements Cache<K, V> {
 
 	peek(key: K): V | undefined {
 		const h = this._held.get(key);
-		return h === undefined || h.until <= Date.now() ? undefined : h.value;
+		return h === undefined || h.until <= clock.mono() ? undefined : h.value;
 	}
 
 	has(key: K): boolean {
 		const h = this._held.get(key);
-		return h !== undefined && h.until > Date.now();
+		return h !== undefined && h.until > clock.mono();
 	}
 
 	set(key: K, value: V, options?: SetOptions): boolean {
@@ -177,7 +178,7 @@ class Store<K, V> implements Cache<K, V> {
 				throw bad('stamp', String(options.stamp), 'given only to a cache made with a world');
 			stamp = options.stamp;
 		} else if (this._world !== undefined) stamp = this._world.stamp();
-		const now = Date.now();
+		const now = clock.mono();
 		const old = this._held.get(key);
 		if (old !== undefined && old.until > now && old.stamp > stamp) return false;
 		const ms = typeof this._keep === 'function' ? this._keep(value, key) : this._keep;
@@ -218,7 +219,7 @@ class Store<K, V> implements Cache<K, V> {
 	}
 
 	entries(): Array<[K, V]> {
-		const now = Date.now();
+		const now = clock.mono();
 		const out: Array<[K, V]> = [];
 		for (const [key, h] of this._held) if (h.until > now) out.push([key, h.value]);
 		return out;
@@ -232,8 +233,8 @@ class Store<K, V> implements Cache<K, V> {
 	_live(key: K): Held<V> | undefined {
 		const h = this._held.get(key);
 		if (h === undefined) return undefined;
-		if (h.until > Date.now()) return h;
-		this._sweep(Date.now());
+		if (h.until > clock.mono()) return h;
+		this._sweep(clock.mono());
 		this._tell();
 		return undefined;
 	}
@@ -298,7 +299,7 @@ class Store<K, V> implements Cache<K, V> {
 		this._stop_timer = this._scope.timeout(
 			() => {
 				this._timer_at = Infinity;
-				const fired = Date.now();
+				const fired = clock.mono();
 				this._swept_at = fired;
 				this._sweep(fired);
 				this._arm(fired);
