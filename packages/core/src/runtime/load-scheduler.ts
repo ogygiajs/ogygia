@@ -43,6 +43,8 @@ export { fetch_priority_of, type LoadClass } from './load-class.ts';
 
 const HOOK_CRITICAL_SETTLED =
 	typeof __OGYGIA_HOOK_CRITICAL_SETTLED__ !== 'undefined' ? __OGYGIA_HOOK_CRITICAL_SETTLED__ : true;
+const HOOK_LOAD_STARTED =
+	typeof __OGYGIA_HOOK_LOAD_STARTED__ !== 'undefined' ? __OGYGIA_HOOK_LOAD_STARTED__ : true;
 
 const DEVTOOLS = typeof __OGYGIA_DEVTOOLS__ !== 'undefined' ? __OGYGIA_DEVTOOLS__ : false;
 
@@ -301,6 +303,13 @@ export class LoadSlot {
 				kind: this.kind,
 				label: this.label,
 				waited_ms: Math.round(now() - this.queued_at)
+			});
+		if (HOOK_LOAD_STARTED)
+			slots.hooks?.loadStarted?.({
+				class: cls,
+				kind: this.kind,
+				...(this.label !== undefined ? { label: this.label } : {}),
+				waitedMs: Math.round(now() - this.queued_at)
 			});
 		this.#resolve(() => {
 			if (released) return;
