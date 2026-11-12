@@ -14,24 +14,28 @@
  * next: nothing to invalidate. A router warm reads the NEXT page's graph out of its fetched HTML
  * (`register_island_graph`) before that page is in the DOM.
  */
-import {
-	ISLAND_GRAPH_ATTR,
-	decode_island_graph,
-	decode_island_locations
-} from '../island-graph.ts';
+import { decode_island_graph, decode_island_locations } from '../island-graph.ts';
+import { OGYGIA_GRAPH, OGYGIA_GRAPH_PRELOAD } from '../wire-markup.ts';
 import { note_entry_location } from './entry-locations.ts';
+import { code_url } from './code-origins.ts';
+import { cache } from '@ogygia/machine';
 import { runtime_session } from './session.ts';
 
-const GRAPH_SELECTOR = `script[${ISLAND_GRAPH_ATTR}]`;
+const GRAPH_SELECTOR = `script[${OGYGIA_GRAPH}]`;
 const MODULEPRELOAD_SELECTOR = 'link[rel="modulepreload"]';
-/** Marks a link this module inserted (tests and devtools tell them from the HTML's own). */
-export const GRAPH_PRELOAD_ATTR = 'data-ogygia-graph-preload';
 
 /** entry URL (absolute) → its chunk URLs (absolute). */
-const graph = new Map<string, string[]>();
+const graph = cache<string, string[]>({ name: 'island graph', max: 5000 });
 let read_scripts = new WeakSet<Element>();
-/** Chunk URLs (absolute) already linked — ours, or a modulepreload the HTML carried. */
-let linked: Set<string> | null = null;
+
+type Priority = 'high' | 'auto' | 'low';
+const RANK: Readonly<Record<Priority, number>> = { high: 0, auto: 1, low: 2 };
+
+/** A link's priority as it stands (none written: `auto`). */
+function priority_of(link: HTMLLinkElement): Priority {
+	const p = link.getAttribute('fetchpriority');
+	return p === 'high' || p === 'low' ? p : 'auto';
+}
 
 function absolute(href: string, base: string): string | null {
 	try {
@@ -65,12 +69,15 @@ function read_document_graphs(): void {
 	}
 }
 
-function linked_set(): Set<string> {
-	if (linked) return linked;
-	linked = new Set();
-	for (const l of document.querySelectorAll(MODULEPRELOAD_SELECTOR)) {
+/** Chunk URLs (absolute) linked in the document now: ours with our link, or a modulepreload someone
+ *  else put in (`null`: the HTML's, or a loader's like Vite's preload helper, left as written). Read
+ *  at each preload, never cached: another loader links chunks later, and a navigation drops links
+ *  (test/browser/island-graph-preload.test.ts, #984). */
+function linked_now(): Map<string, HTMLLinkElement | null> {
+	const linked = new Map<string, HTMLLinkElement | null>();
+	for (const l of document.querySelectorAll<HTMLLinkElement>(MODULEPRELOAD_SELECTOR)) {
 		const url = absolute(l.getAttribute('href') ?? '', location.href);
-		if (url) linked.add(url);
+		if (url && !linked.get(url)) linked.set(url, l.hasAttribute(OGYGIA_GRAPH_PRELOAD) ? l : null);
 	}
 	return linked;
 }
@@ -79,11 +86,15 @@ function linked_set(): Set<string> {
  * Start fetching every chunk `entry`'s code needs: one modulepreload link per chunk not linked yet.
  * Call it in the same task as the entry's `import()`. An entry the page has no graph for (dev, an
  * island inside a fetched hole answer) preloads nothing — its `import()` still finds its chunks.
+ *
+ * A chunk already linked is the load this one joins (the island's `import()` reuses its fetch): one
+ * we linked at a lower priority (a speculative warm) is raised to this one's, never lowered
+ * (priority inheritance, #437). The browser applies it to a fetch it has not sent yet.
  */
 export function preload_island_graph(
 	entry: string,
 	base: string = location.href,
-	priority: 'high' | 'auto' | 'low' = 'auto'
+	priority: Priority = 'auto'
 ): void {
 	if (typeof document === 'undefined') return;
 	const key = absolute(entry, base);
@@ -91,24 +102,31 @@ export function preload_island_graph(
 	if (!graph.has(key)) read_document_graphs();
 	const hrefs = graph.get(key);
 	if (!hrefs || hrefs.length === 0) return;
-	const seen = linked_set();
+	const seen = linked_now();
 	for (const href of hrefs) {
-		if (seen.has(href)) continue;
-		seen.add(href);
+		// (a chunk on an origin the page loads no code from is never asked for: ./code-origins.ts)
+		if (code_url(href) === null) continue;
+		const ours = seen.get(href);
+		if (ours !== undefined) {
+			if (ours && RANK[priority] < RANK[priority_of(ours)])
+				ours.setAttribute('fetchpriority', priority);
+			continue;
+		}
 		const link = document.createElement('link');
 		link.rel = 'modulepreload';
 		// the load class's priority (load-scheduler.ts); the island's `import()` reuses this in-flight fetch
 		if (priority !== 'auto') link.setAttribute('fetchpriority', priority);
 		link.href = href;
-		link.setAttribute(GRAPH_PRELOAD_ATTR, '');
+		// (marks a link this module inserted: tests and devtools tell them from the HTML's own)
+		link.setAttribute(OGYGIA_GRAPH_PRELOAD, '');
+		seen.set(href, link);
 		runtime_session.claim_page_head(link); // the page's (session.ts); a navigation may drop it
 		document.head.appendChild(link);
 	}
 }
 
-/** Test seam: forget every graph read and every chunk linked. */
+/** Test seam: forget every graph read (what is linked is the document's). */
 export function reset_island_graph(): void {
 	graph.clear();
 	read_scripts = new WeakSet();
-	linked = null;
 }

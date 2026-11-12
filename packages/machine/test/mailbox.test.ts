@@ -80,6 +80,69 @@ describe('mailbox', () => {
 		expect(seen).toEqual(['b holds', 'b ends', 'a back']);
 	});
 
+	it('a handler back from its wait holds the turn again: an event it posts runs after it', async () => {
+		const box = mailbox(scope());
+		const seen: string[] = [];
+		const a = box.ask(async (turn) => {
+			await turn.wait(later(null));
+			seen.push('a back');
+			box.post(() => seen.push('c'));
+			seen.push('a ends');
+		});
+		await a;
+		await later(null);
+		expect(seen).toEqual(['a back', 'a ends', 'c']);
+	});
+
+	it('a handler handed the turn back from the queue holds it: an event it posts runs after it', async () => {
+		const box = mailbox(scope());
+		const seen: string[] = [];
+		const a = box.ask(async (turn) => {
+			await turn.wait(later(null, 1));
+			seen.push('a back');
+			box.post(() => seen.push('c'));
+			seen.push('a ends');
+		});
+		const b = box.ask(async () => {
+			await later(null, 10); // (a plain await: b keeps the turn while a's wait settles)
+			seen.push('b ends');
+		});
+		await Promise.all([a, b]);
+		expect(seen).toEqual(['b ends', 'a back', 'a ends', 'c']);
+	});
+
+	it('a handler that ended while its wait sat in the queue takes no turn: the box goes on', async () => {
+		const box = mailbox(scope());
+		const seen: string[] = [];
+		const a = box.ask(async (turn) => {
+			void turn.wait(later(null, 1)); // (ends the turn; comes back while b holds one)
+			await later(null, 3); // (a ends here, its wait still in the queue)
+		});
+		const b = box.ask(async () => {
+			await later(null, 10);
+			seen.push('b ends');
+		});
+		await Promise.all([a, b]);
+		await later(null, 5);
+		box.post(() => seen.push('c'));
+		expect(seen).toEqual(['b ends', 'c']);
+	});
+
+	it('a closed box holds nothing: no queue, no waits', async () => {
+		const life = scope();
+		const box = mailbox(life);
+		const forever = new Promise<never>(() => {});
+		box.post(async () => {
+			box.post(() => {}); // (queued behind a turn that never ends)
+			await forever;
+		});
+		void box.wait(forever);
+		life.close();
+		const held = box as unknown as { _queue: unknown; _waiting: unknown };
+		expect(held._queue).toBeNull();
+		expect(held._waiting).toBeNull();
+	});
+
 	it('ends with its owner: queued events are dropped, a wait is STALE at once, later posts too', async () => {
 		const life = scope();
 		const box = mailbox(life);
@@ -152,6 +215,23 @@ describe('mailbox', () => {
 		expect(await dropped).toBe(STALE);
 		hold();
 		await held;
+	});
+
+	it('a queued ask that has run leaves the wait list, so a long-lived box does not grow (#564)', async () => {
+		const box = mailbox(scope());
+		for (let i = 0; i < 100; i++) {
+			let release!: () => void;
+			// (held on a plain await, not turn.wait: the ask below is queued, not started)
+			box.post(async () => {
+				await new Promise<void>((r) => (release = r));
+			});
+			const asked = box.ask(() => i);
+			release();
+			expect(await asked).toBe(i);
+			await later(null, 0);
+		}
+		// (an internal look: the list holds only the waits still out)
+		expect((box as unknown as { _waiting: Set<unknown> | null })._waiting?.size ?? 0).toBe(0);
 	});
 
 	it('throws a handler’s failure to its asker, and a wait’s rejection back in the turn', async () => {

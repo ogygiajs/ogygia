@@ -1,8 +1,11 @@
 import { defineConfig, type PlaywrightTestConfig } from '@playwright/test';
+import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { SERVER_LOG_ENV } from './server-log.ts';
 import { port } from './servers.ts';
 
 const BUILD = fileURLToPath(new URL('./build.ts', import.meta.url));
+const TEE = fileURLToPath(new URL('./tee.ts', import.meta.url));
 
 export interface SuiteOptions {
 	/** This suite's port: the served app's (its `baseURL`). Unique across the repo's suites. */
@@ -49,12 +52,23 @@ export function e2e_browsers(): Array<'chromium' | 'firefox' | 'webkit'> {
  *   collide; one suite split into groups on one machine moves each group by `E2E_PORT_OFFSET`.
  * - `serve`: build, then preview, in one command chain, so the preview loads exactly the build it
  *   just made (not a `globalSetup`: Playwright starts the webServer before it). Never a server left
- *   over from an earlier run. `ORIGIN` is set for remote commands and form CSRF checks.
+ *   over from an earlier run. `ORIGIN` is set for remote commands and form CSRF checks. The chain
+ *   runs through tee.ts, so its output is also kept in the suite's server log (one file per port,
+ *   named where the runner and every worker load the config), where each test reads what the
+ *   server said while it ran.
  * - `build`: the app is built in a `globalSetup`, and nothing is served.
  */
 export function suite(opts: SuiteOptions): PlaywrightTestConfig {
 	const served_port = port(opts.port);
 	const base = `http://localhost:${served_port}`;
+	process.env[SERVER_LOG_ENV] ??= join(
+		process.cwd(),
+		'node_modules/.cache/ogygia-e2e',
+		`server-${served_port}.log`
+	);
+	const serve_command =
+		opts.command ??
+		`node ${BUILD} && node node_modules/vite/bin/vite.js preview --port ${served_port} --strictPort`;
 	return defineConfig({
 		projects: e2e_browsers().map((browserName) => ({ name: browserName, use: { browserName } })),
 		testDir: 'e2e',
@@ -67,18 +81,33 @@ export function suite(opts: SuiteOptions): PlaywrightTestConfig {
 		retries: 0,
 		timeout: 180_000,
 		expect: { timeout: 10_000 },
-		reporter: process.env.CI ? [['list'], ['html', { open: 'never' }]] : [['list']],
+		// (in CI, also a JSON report per engine for the tests report: .github/scripts/test-report.ts)
+		reporter: process.env.CI
+			? [
+					['list'],
+					['html', { open: 'never' }],
+					[
+						'json',
+						{
+							outputFile: `playwright-results/${process.env.OGYGIA_BROWSERS || 'chromium'}${process.env.E2E_SHARD ? `-${process.env.E2E_SHARD.replace('/', 'of')}` : ''}.json`
+						}
+					]
+				]
+			: [['list']],
 		use: { baseURL: base, trace: 'retain-on-failure' },
 		...(opts.build ? { globalSetup: BUILD, metadata: { build: opts.build } } : {}),
 		...(opts.serve
 			? {
 					webServer: {
-						command:
-							opts.command ??
-							`node ${BUILD} && node node_modules/vite/bin/vite.js preview --port ${served_port} --strictPort`,
+						command: `node ${TEE}`,
 						cwd: opts.serve,
 						url: base + (opts.ready ?? '/'),
-						env: { ORIGIN: base, ...opts.env },
+						env: {
+							ORIGIN: base,
+							...opts.env,
+							OGYGIA_E2E_SERVE_COMMAND: serve_command,
+							[SERVER_LOG_ENV]: process.env[SERVER_LOG_ENV]!
+						},
 						reuseExistingServer: false,
 						timeout: 240_000
 					}

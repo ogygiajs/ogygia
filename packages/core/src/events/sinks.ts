@@ -3,8 +3,10 @@
  * listener over {@link ./bus.js the bus}; none touches framework internals. Load only what you use —
  * the REPL wants `postMessage`, our e2e wants the `window` hook, a bug report wants a trace.
  */
-import { add_sink, snapshot, clear, ingest, type DevtoolsSink } from './bus.ts';
-import { DEVTOOLS_SCHEMA_VERSION, type DevtoolsEvent } from './schema.ts';
+import { add_sink, snapshot, clear, ingest_page_events, type DevtoolsSink } from './bus.ts';
+import { DEVTOOLS_SCHEMA_VERSION, type DevtoolsEvent } from '../contract/events.ts';
+import { server_channels } from '../runtime/response-mark.ts';
+import { OG_DT_INGESTED } from '../wire-markup.ts';
 
 /** The global the {@link install_window_sink window sink} publishes. Distinct from the compile-time
  *  `__OGYGIA_DEVTOOLS__` define (a bare identifier the bundler replaces) — this is a real runtime
@@ -103,22 +105,23 @@ export function to_trace(): DevtoolsTrace {
  * render sits in the same `window.__ogygia_devtools` timeline as its client wake — correlated by
  * fingerprint. Idempotent per document via a marker attribute; no-op off the browser or when the
  * script is absent. Returns how many server events were ingested.
+ *
+ * Only a channel bearing the response's mark is read (RESPONSE-MARK), so a channel the page's
+ * markup carries is not the server's (test/browser/devtools-feed-own-render.test.ts).
  */
 export function ingest_server_events(): number {
 	if (typeof document === 'undefined') return 0;
 	let total = 0;
-	for (const el of document.querySelectorAll(
-		'script[type="application/ogygia-devtools"]:not([data-og-dt-ingested])'
+	for (const el of server_channels(
+		document,
+		`script[type="application/ogygia-devtools"]:not([${OG_DT_INGESTED}])`
 	)) {
-		el.setAttribute('data-og-dt-ingested', '');
+		el.setAttribute(OG_DT_INGESTED, '');
 		const text = el.textContent;
 		if (!text) continue;
 		try {
-			const events = JSON.parse(text) as DevtoolsEvent[];
-			if (Array.isArray(events) && events.length) {
-				ingest(events);
-				total += events.length;
-			}
+			const events: unknown = JSON.parse(text);
+			if (Array.isArray(events)) total += ingest_page_events(events);
 		} catch {
 			// ok: a malformed devtools side-channel never breaks boot; its events are left out
 		}
