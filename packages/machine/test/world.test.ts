@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { flights, STALE, world } from '../src/index.ts';
-import { KEYS_KEPT } from '../src/world.ts';
+import { KEYS_KEPT, watch_world } from '../src/world.ts';
 import { macrotask } from './_tick.ts';
 import { DISPOSE } from './_dispose.ts';
 
@@ -83,6 +83,39 @@ describe('a world', () => {
 		for (const key of [0, KEYS_KEPT + 499, -1]) expect(w.fresh(before, [key])).toBe(false);
 		const after = w.stamp();
 		for (const key of [0, KEYS_KEPT + 499, -1]) expect(w.fresh(after, [key])).toBe(true);
+	});
+
+	it('a whole move is never undone by a later key folding into the floor', () => {
+		const w = world.keyed<number>();
+		w.bump(Array.from({ length: KEYS_KEPT }, (_, i) => i));
+		const before = w.stamp();
+		w.bump(); // every stamp so far is out of date, for every key
+		w.bump([-1]);
+		expect(w.fresh(before, [-5])).toBe(false);
+	});
+
+	it('a key moved again is the newest in line: the next fold takes an older key', () => {
+		const w = world.keyed<number>();
+		w.bump([-1]);
+		w.bump(Array.from({ length: KEYS_KEPT - 1 }, (_, i) => i));
+		const mid = w.stamp();
+		w.bump([-1]); // -1 again: now the newest, not the oldest
+		w.bump([-2]); // one key too many: the oldest (0..) folds, at mid
+		expect(w.fresh(mid, [-3])).toBe(true);
+		expect(w.fresh(mid, [-1])).toBe(false);
+	});
+
+	it('a watcher let go hears no more moves, and its owner is no longer watched for collection', () => {
+		const w = world();
+		const hear = vi.fn();
+		const unregister = vi.spyOn(FinalizationRegistry.prototype, 'unregister');
+		const unwatch = watch_world(w, {}, hear)!;
+		w.bump();
+		unwatch();
+		w.bump();
+		expect(hear).toHaveBeenCalledOnce();
+		expect(unregister).toHaveBeenCalledOnce();
+		unregister.mockRestore();
 	});
 
 	it('a stamp from the future is never fresh', () => {
@@ -202,6 +235,47 @@ describe('flights in a world', () => {
 		expect(docs.peek(undefined)).toBeUndefined();
 		await expect(docs.get()).rejects.toBe(bad);
 		expect(docs.peek(undefined)).toBeUndefined();
+	});
+
+	it('with no touches, a move of some keys still ends the flights out at once', async () => {
+		const w = world.keyed<string>();
+		const d = deferred<string>();
+		let aborted = false;
+		const pages = flights({
+			world: w,
+			run: (_: string, signal) => {
+				signal.addEventListener('abort', () => (aborted = true));
+				return d.promise;
+			}
+		});
+		const out = pages.get('/out');
+		w.bump(['x']);
+		expect(aborted).toBe(true);
+		expect(await out).toBe(STALE);
+	});
+
+	it('with touches, a whole move drops every kept answer and ends the flights out', async () => {
+		const w = world.keyed<string>();
+		const d = deferred<{ tags: string[] }>();
+		const docs = flights({
+			world: w,
+			touches: (a: { tags: string[] }) => a.tags,
+			run: (p: string) => (p === 'out' ? d.promise : Promise.resolve({ tags: [p] }))
+		});
+		await docs.get('kept');
+		const out = docs.get('out');
+		w.bump();
+		expect(docs.peek('kept')).toBeUndefined();
+		expect(await out).toBe(STALE);
+	});
+
+	it('a disposed flights lets go of its world: the world holds no watcher for it', async () => {
+		const w = world();
+		const docs = flights({ world: w, run: async () => 1 });
+		const watchers = (w as unknown as { _watchers: Set<unknown> })._watchers;
+		expect(watchers.size).toBe(1);
+		docs[DISPOSE]();
+		expect(watchers.size).toBe(0);
 	});
 
 	it('a disposed flights stops hearing its world', async () => {

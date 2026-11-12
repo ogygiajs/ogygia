@@ -33,7 +33,12 @@
 	const iso = $derived(data.date ?? '');
 	const pretty = $derived(
 		iso
-			? new Date(iso).toLocaleDateString('en', { year: 'numeric', month: 'long', day: 'numeric' })
+			? new Date(iso).toLocaleDateString('en', {
+					year: 'numeric',
+					month: 'long',
+					day: 'numeric',
+					timeZone: 'UTC'
+				})
 			: ''
 	);
 	const prev = $derived(view.trail.prev);
