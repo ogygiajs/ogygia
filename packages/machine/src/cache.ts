@@ -21,7 +21,7 @@
  *   by one timer of the cache's own scope, for the value due first.
  * - `onEvict(key, value, why)` hears every value that goes, after the cache let it go, in the order
  *   they went: 'age' (past its keep), 'size' (past max), 'delete' (`delete`, `clear`, or a `set`
- *   that replaced it), 'end' (the owner ended, or the cache was disposed). A notice that throws is
+ *   that replaced it with another value: the same value set again stays, its age starting over), 'end' (the owner ended, or the cache was disposed). A notice that throws is
  *   reported (`machine_evict_failed`) and the others still run. A `set` or `delete` inside a notice
  *   is a normal call: what it lets go is heard after the notices already due.
  * - Owned: by `owner` (its end ends the cache), or by itself (`[Symbol.dispose]`, for a scope to
@@ -63,6 +63,9 @@ export interface CacheOptions<K, V> {
 export interface SetOptions {
 	/** When the value was made (`world.stamp()` when its work started). Default: the world now. */
 	stamp?: number;
+	/** How long this value stays, in ms, in place of the cache's `keep` (the caller knows it already:
+	 *  the cache's own is not asked). */
+	keep?: number;
 }
 
 export interface Cache<K, V> {
@@ -317,54 +320,81 @@ class Store<K, V> implements CacheStore<K, V> {
 	}
 
 	peek(key: K): V | undefined {
-		const h = this._held.get(key);
-		return h === undefined || h.until <= clock.mono() ? undefined : h.value;
+		const h = key === this._newest ? this._newest_h : this._held.get(key);
+		// (a value kept for ever needs no clock)
+		return h === undefined || (h.until !== Infinity && h.until <= clock.mono())
+			? undefined
+			: h.value;
 	}
 
 	has(key: K): boolean {
-		const h = this._held.get(key);
-		return h !== undefined && h.until > clock.mono();
+		const h = key === this._newest ? this._newest_h : this._held.get(key);
+		return h !== undefined && (h.until === Infinity || h.until > clock.mono());
 	}
 
 	set(key: K, value: V, options?: SetOptions): boolean {
 		if (this._life.closed) return false;
 		const world = this._world;
 		let stamp = 0;
-		if (options?.stamp !== undefined) {
-			if (world === undefined)
-				throw bad_option('stamp', options.stamp, 'given only to a cache made with a world');
-			stamp = options.stamp;
+		let ms: number | undefined;
+		if (options !== undefined) {
+			ms = options.keep;
+			if (ms !== undefined && !(typeof ms === 'number' && ms >= 0))
+				throw bad_option('keep', ms, 'a time in ms of 0 or more');
+			if (options.stamp !== undefined) {
+				if (world === undefined)
+					throw bad_option('stamp', options.stamp, 'given only to a cache made with a world');
+				stamp = options.stamp;
+			} else if (world !== undefined) stamp = world.stamp();
 		} else if (world !== undefined) stamp = world.stamp();
 		const now = clock.mono();
 		const held = this._held;
-		const old = held.get(key);
+		const is_newest = key === this._newest;
+		const old = is_newest ? this._newest_h : held.get(key);
 		if (old !== undefined && old.until > now && old.stamp > stamp) return false;
-		const keep = this._keep;
-		const ms = typeof keep === 'function' ? keep(value, key) : keep;
+		if (ms === undefined) {
+			const keep = this._keep;
+			ms = typeof keep === 'function' ? keep(value, key) : keep;
+		}
 		const weigh = this._weigh;
 		const weight = weigh === undefined ? 1 : weigh(value, key);
 		if (!(ms > 0) || !(weight >= 0 && weight <= this._max)) return false;
-		if (!this._room_for(now, key, weight, old)) {
+		// (room to spare, the common case, needs no call)
+		const over = this._weight - (this._max - weight + (old === undefined ? 0 : old.weight));
+		if (over > 0 && !this._room_for(now, key, weight, old)) {
 			this._tell();
 			return false;
 		}
-		if (old !== undefined) {
-			// (room_for never lets `key` go: the newest is still last, and a set in place keeps it so)
-			if (key !== this._newest) held.delete(key);
-			this._weight -= old.weight;
-			// (a replace, whatever the old value's age: the key goes on holding a value)
-			if (this._on_evict !== undefined) this._due.push([key, old.value, 'delete']);
-		}
 		const until = ms === Infinity ? Infinity : now + ms;
-		const h = { value, weight, until, stamp };
-		held.set(key, h);
-		this._newest = key;
-		this._newest_h = h;
+		if (old !== undefined) {
+			this._weight -= old.weight;
+			// (a replace, whatever the old value's age: the key goes on holding a value. The value it
+			// already holds, set again, is kept on, not let go)
+			if (this._on_evict !== undefined && old.value !== value)
+				this._due.push([key, old.value, 'delete']);
+			// (the key's record, written in place: room_for never lets `key` go, so the newest is
+			// still last and stays put; any other moves to the end)
+			old.value = value;
+			old.weight = weight;
+			old.until = until;
+			old.stamp = stamp;
+			if (!is_newest) {
+				held.delete(key);
+				held.set(key, old);
+				this._newest = key;
+				this._newest_h = old;
+			}
+		} else {
+			const h = { value, weight, until, stamp };
+			held.set(key, h);
+			this._newest = key;
+			this._newest_h = h;
+		}
 		this._weight += weight;
 		// (the new value due before the timer: the timer moves to it, no walk of the others)
 		const at = Math.max(until, this._swept_at + SWEEP_MS);
 		if (at < this._timer_at) this._set_timer(at, now);
-		this._tell();
+		if (this._due.length !== 0) this._tell();
 		return true;
 	}
 

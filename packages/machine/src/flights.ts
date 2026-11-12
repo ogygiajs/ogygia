@@ -25,8 +25,9 @@
  *   so work that reads a field its key leaves out does not compile, unless `ignore` names that field
  *   with the reason (the input of the call that started the flight is then the one that runs).
  *   `peek` and `drop` name a keyed flights' keys by those fields too (`peek({ href })`). The fields
- *   are spelled into one string one way everywhere: a string by its text, an object by identity
- *   (a field left out and one set to `undefined` are one key; `1` and `'1'` are two).
+ *   are spelled into one string one way everywhere (one field is its own key): a string by its
+ *   text, an object by identity (a field left out and one set to `undefined` are one key; `1` and
+ *   `'1'` are two).
  * - A failure (after the tries its `retry` policy gives, inside the one flight) fails every caller
  *   that joined it, and is never kept: the next `get` starts a new flight. A failing key costs one
  *   round of tries per wave of callers, not one per caller.
@@ -311,9 +312,11 @@ function key_part(v: unknown): string {
 	}
 }
 
-/** The key of a keyed flights' input: its key fields, in their order, spelled one way. */
-export function key_of(fields: readonly PropertyKey[], input: unknown): string {
+/** The key of a keyed flights' input: its key fields, in their order, spelled one way. One field is
+ *  its own key: a Map tells values apart exactly as their spelling does, with no string to make. */
+export function key_of(fields: readonly PropertyKey[], input: unknown): unknown {
 	const of = input as Record<PropertyKey, unknown>;
+	if (fields.length === 1) return of[fields[0]!];
 	let key = '';
 	for (const f of fields) key += key_part(of[f]);
 	return key;
@@ -332,7 +335,7 @@ class Flown<I, V, K> implements Flights<I, V, K> {
 	/** A keyed flights' key fields (`null`: the input itself is the key). */
 	_fields: readonly PropertyKey[] | null;
 	/** A keyed flights' keys as callers name them (its key fields), by the spelled key. */
-	_keys: Map<string, K> | null;
+	_keys: Map<unknown, K> | null;
 	_keep: number | ((answer: V, input: I) => number);
 	_max: number;
 	_weigh: ((answer: V, input: I) => number) | undefined;
@@ -508,7 +511,7 @@ class Flown<I, V, K> implements Flights<I, V, K> {
 		// (a Map lets an entry be deleted while it is walked)
 		for (const [key, m] of this._entries) {
 			const view = this._view(m, now);
-			if (view === undefined || test(keys === null ? (key as K) : keys.get(key as string)!, view))
+			if (view === undefined || test(keys === null ? (key as K) : keys.get(key)!, view))
 				this._remove(key, m);
 		}
 	}
@@ -574,7 +577,7 @@ class Flown<I, V, K> implements Flights<I, V, K> {
 				// the key as callers name it (drop's predicate): its fields only, never the rest
 				const named: Record<PropertyKey, unknown> = {};
 				for (const f of fields) named[f] = (input as Record<PropertyKey, unknown>)[f];
-				this._keys!.set(key as string, named as K);
+				this._keys!.set(key, named as K);
 			}
 		}
 		const visit = entry.now;
@@ -708,7 +711,7 @@ class Flown<I, V, K> implements Flights<I, V, K> {
 	_remove(key: unknown, m: Entry): void {
 		if (this._entries.get(key) === m) {
 			this._entries.delete(key);
-			this._keys?.delete(key as string);
+			this._keys?.delete(key);
 			this._kept.delete(key);
 		}
 		if (m.now.kind !== 'gone') m.go('gone');
