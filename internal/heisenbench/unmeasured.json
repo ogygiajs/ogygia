@@ -2649,6 +2649,14 @@
 			"reason": "one Map read and one compare per decoded versioned answer; the warning and devtools event only in dev or with devtools on, constant work"
 		},
 		{
+			"id": "packages/core/src/frame.ts > mark_written",
+			"reason": "one WeakMap set beside a decoded region value (hidden state), constant work; run by packages/core/test/browser/region-orderings.test.ts and sim-region.test.ts"
+		},
+		{
+			"id": "packages/core/src/frame.ts > written_order",
+			"reason": "one WeakMap read of a decoded region value's write order (hidden state), constant work; run by packages/core/test/browser/region-orderings.test.ts and sim-region.test.ts"
+		},
+		{
 			"id": "packages/core/src/runtime/frame-store.ts > shown_version",
 			"reason": "one Map read of the shown answer's version at an address, constant work"
 		},
