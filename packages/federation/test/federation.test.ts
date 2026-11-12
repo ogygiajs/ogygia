@@ -484,6 +484,38 @@ describe('lift_document — an app’s full HTML → the wire shape', () => {
 		expect(d.body).toContain('entry="http://cms.test/_app/ogygia/og-region.aaaaaaaaaaaa.js"');
 	});
 
+	it('reads the document’s tags as a browser does', () => {
+		const html = `<html><HEAD data-x="a>b">
+			<!-- <title>gone</title><link rel="stylesheet" href="/_app/immutable/gone.css"> -->
+			<TITLE lang="en">CMS</TITLE>
+			<meta name="description" content="a charset of colours">
+			<meta name="VIEWPORT" content="width=device-width">
+			<link rel=stylesheet href="/_app/immutable/a.css">
+			<LINK REL="Canonical" HREF="/cms/p">
+			<script type="module" data-ogygia-runtime src='/_app/ogygia/runtime.js'></script>
+		</HEAD><body class="a>b"><p>hi</p>
+		<script data-ogygia-graph type="application/json">{"h":["/_app/immutable/chunks/S.js"]}</script>
+		</BODY></html>`;
+		const d = lift_document(html, 'http://cms.test');
+		expect(d.title).toBe('CMS');
+		expect(d.css).toEqual(['<link rel=stylesheet href="http://cms.test/_app/immutable/a.css">']);
+		expect(d.head).toContain('a charset of colours');
+		expect(d.head).toContain('REL="Canonical"');
+		expect(d.head).not.toContain('VIEWPORT');
+		expect(d.runtime).toBe('http://cms.test/_app/ogygia/runtime.js');
+		expect(d.body.startsWith('<p>hi</p>')).toBe(true);
+		expect(d.body).toContain('{"h":["http://cms.test/_app/immutable/chunks/S.js"]}');
+	});
+
+	it('carries a head meta whole when its quoted content holds a `>`', () => {
+		const meta = '<meta name="description" content="render with &lt;Region>, then mount">';
+		const d = lift_document(
+			`<html><head>${meta}<title>x</title></head><body></body></html>`,
+			'http://cms.test'
+		);
+		expect(d.head).toBe(meta);
+	});
+
 	// peer HTML is untrusted: a graph body that is not a graph object passes through, never throws
 	it('a graph that is not an object passes through as it came', () => {
 		for (const text of ['null', '7', '"x"', '[1]', '{bad'])
