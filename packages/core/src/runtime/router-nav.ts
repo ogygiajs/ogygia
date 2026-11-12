@@ -223,14 +223,21 @@ const ATTACHMENT = /^\s*attachment\b/i;
 /** Kit remote-function POSTs live under `…/_app/remote/…` (or custom `appDir`). */
 const REMOTE_MUTATION_PATH = /\/remote(?:\/|$|\?)/;
 
-/** A node's URL attribute as the address it names. Every head URL is written root-relative before
- *  its page's address can move (`own_live_head`, `resolve_head_urls`), so the node's own base
- *  reads it right. `../a.css` on `/x/y` and `/a.css` are one file, so one key. Empty when absent. */
+/** The address each of the page's live head nodes was written for, noted before the address moves
+ *  (`own_live_head`). A fetched page's nodes need none: they are made absolute (`resolve_head_urls`). */
+const WRITTEN_FOR = new WeakMap<Element, string>();
+
+/** A node's URL attribute as the address it names: resolved against the page the node came from
+ *  (a live node of the page: the address it was written for, not the one a navigation moved to
+ *  since, #821; a fetched page's: its own address, set by `resolve_head_urls`). The live head's URLs
+ *  are read this way, never rewritten (`own_live_head`). `../a.css` on `/x/y` and `/a.css` are one
+ *  file, so one key. Empty when absent. */
 function url_of(node: Element, attr: string): string {
 	const value = node.getAttribute(attr);
 	if (!value) return '';
+	const base = (node.parentNode === document.head && WRITTEN_FOR.get(node)) || node.baseURI;
 	try {
-		return new URL(value, node.baseURI).href;
+		return new URL(value, base).href;
 	} catch {
 		return value; // (not a URL: compared as written)
 	}
@@ -269,13 +276,26 @@ export function resolve_head_urls(head: HTMLHeadElement, page: URL): void {
 }
 
 /**
- * The live head's URLs belong to the page on screen, `page` (#821, #1071). The server writes them
- * page-relative, and so may a runtime that adds a node for the page; a node kept across a move of the
- * address would name another file under the next one (a parked sheet, turned on, would fetch it).
- * Made root-relative, as a fetched page's are, before anything keys them or the address moves.
+ * The page on screen, `page`, owns its live head nodes' URLs (#821, #1071): each node the page holds
+ * is noted with the address it was written for, while the address is still that one, so the merge
+ * reads it right after the address moves (`url_of`). The URLs stay as written: setting a fetched
+ * node's URL again, even to the same file, fetches it again (a loaded sheet fires `load` again in
+ * all three engines: nav-head-key-depth.test.ts). The one exception is a PARKED sheet (a disabled
+ * stylesheet link): the browser has not fetched it, and fetches it once something turns it on,
+ * under the address of that moment. So it alone is made absolute now.
  */
 function own_live_head(page: URL): void {
-	resolve_head_urls(document.head, page);
+	const owned = session().page_head;
+	for (const el of document.head.children) {
+		if (!owned.has(el) || WRITTEN_FOR.has(el)) continue; // (not ours, or noted already)
+		WRITTEN_FOR.set(el, page.href);
+		if (el.localName !== 'link' || !(el as HTMLLinkElement).disabled) continue;
+		if (!/(?:^|\s)stylesheet(?:\s|$)/i.test(el.getAttribute('rel') ?? '')) continue;
+		const value = el.getAttribute('href');
+		if (value === null || value.trim() === '') continue;
+		const resolved = page_relative_resolved(value, page);
+		if (resolved !== value) el.setAttribute('href', resolved);
+	}
 }
 
 /** A candidate list (`a.png 1x, b.png 2x`) with each URL resolved against `page`. */

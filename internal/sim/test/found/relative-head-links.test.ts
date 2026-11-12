@@ -32,7 +32,9 @@ describe.skipIf(!existsSync(`${OUTPUT}/server/index.js`))(
 				await world.quiesce();
 				expect(tab.page.mainFrame.url).toBe('https://app.test/lab/deep/x');
 				const now = tab.page.mainFrame.document as unknown as Document;
-				const sheets = [...now.head.querySelectorAll('link[rel=stylesheet]')].map(
+				// (a parked sheet: the one the browser fetches later, under the address of that moment; a
+				// loaded one stays as its page wrote it, the oracle reads it so)
+				const sheets = [...now.head.querySelectorAll('link[rel=stylesheet][disabled]')].map(
 					(l) => new URL(l.getAttribute('href')!, tab.page.mainFrame.url).pathname
 				);
 				expect(sheets.filter((p) => !p.startsWith('/_app/'))).toEqual([]);
