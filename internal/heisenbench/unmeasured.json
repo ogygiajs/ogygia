@@ -198,7 +198,31 @@
 		},
 		{
 			"id": "packages/devtools/src/profiler/index.ts > Profiler > #session_mac",
-			"reason": "one HMAC under a key derived once (node:crypto, a profiler instance), constant work; proven in packages/devtools/test/profiler-login-guard.test.ts"
+			"reason": "one HMAC under a key derived once (Web Crypto, a profiler instance), constant work; proven in packages/devtools/test/profiler-login-guard.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/key-check.ts > sha256",
+			"reason": "one Web Crypto digest (async, not recorded), work linear in the text; proven in packages/devtools/test/profiler-key-web-crypto.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/key-check.ts > sha256_hex",
+			"reason": "one Web Crypto digest and a 32-byte hex (async, not recorded), work linear in the text; proven in packages/devtools/test/profiler-key-web-crypto.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/key-check.ts > same_key",
+			"reason": "two Web Crypto digests and a 32-byte constant-time compare (async, not recorded), work linear in the keys; proven in packages/devtools/test/profiler-key-web-crypto.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/key-check.ts > mac_key",
+			"reason": "one Web Crypto HKDF key derivation (async, not recorded), done once per profiler and use; proven in packages/devtools/test/profiler-key-web-crypto.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/key-check.ts > mac_hex",
+			"reason": "one Web Crypto HMAC and a 32-byte hex (async, not recorded), work linear in the message; proven in packages/devtools/test/profiler-key-web-crypto.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/key-check.ts > random_id",
+			"reason": "random bytes (hidden state, not replayable) and a base64url of them, constant work; proven in packages/devtools/test/profiler-login-guard.test.ts"
 		},
 		{
 			"id": "packages/devtools/src/profiler/index.ts > Profiler > #new_session",
@@ -226,11 +250,11 @@
 		},
 		{
 			"id": "packages/devtools/src/profiler/index.ts > Profiler > #flag_value",
-			"reason": "one HMAC under the secret (node:crypto, a profiler instance), constant work; proven in packages/devtools/test/profiler-measures.test.ts"
+			"reason": "one HMAC under the secret (Web Crypto, a profiler instance), constant work; proven in packages/devtools/test/profiler-measures.test.ts"
 		},
 		{
 			"id": "packages/devtools/src/profiler/index.ts > Profiler > #flag_mac",
-			"reason": "one HMAC under a key derived once for flags (node:crypto, a profiler instance), constant work; proven in packages/devtools/test/profiler-measures.test.ts"
+			"reason": "one HMAC under a key derived once for flags (Web Crypto, a profiler instance), constant work; proven in packages/devtools/test/profiler-measures.test.ts"
 		},
 		{
 			"id": "packages/devtools/src/profiler/index.ts > Profiler > #flag_session",
