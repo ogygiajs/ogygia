@@ -240,7 +240,8 @@ describe('leaks', () => {
 			platform: null,
 			page: { mainFrame: { url: 'https://app.test/', document: doc } },
 			held: () => ({ listeners: now.length, intervals: 0, observers: 0, head: 0, elements: 0 }),
-			listening: () => now
+			listening: () => now,
+			watching: () => []
 		} as unknown as Parameters<Leaks['check']>[0];
 		let found: ReturnType<Leaks['check']> = null;
 		for (const list of lists) {
@@ -311,7 +312,8 @@ describe('leaks', () => {
 				head: d.head.children.length,
 				elements: count()
 			}),
-			listening: () => []
+			listening: () => [],
+			watching: () => []
 		} as unknown as Parameters<Leaks['check']>[0];
 		const visit = () => {
 			const found = leaks.check(tab);

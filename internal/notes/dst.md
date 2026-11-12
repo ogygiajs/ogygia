@@ -359,7 +359,8 @@ isolation, leaks and bounded memory (a document's listeners, intervals, observer
 children and elements must not grow visit after visit of one URL; for listeners, the same code
 must be what grows: ogygia's wake delegation and Svelte's event delegation are installed once per
 document, the first time a page of that kind is visited, and the leak report names what each visit
-added), every wait settles (`stuck`: at rest, no machine is left in a state of work under way,
+added; for observers too, by kind and callback: import-again's timing observer and the viewport
+tracker's are each made once for the document, gen 195), every wait settles (`stuck`: at rest, no machine is left in a state of work under way,
 any state whose name ends in `ing`), every region shows something (`empty-region`: at rest, no
 `<ogygia-region>` is left with nothing in it, but a hole with no fallback still waiting to be seen
 or touched), the rules once more at rest, and the watchdog (`hung`).

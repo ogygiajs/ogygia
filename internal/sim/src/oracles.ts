@@ -924,13 +924,15 @@ const LEAK_VISITS = 3;
  * and URL: what a document holds on its Nth visit of a URL may differ from its first (a page
  * visited since may install what lives as long as the document), but it must not GROW visit after
  * visit. Growth over {@link LEAK_VISITS} visits in a row, in one count, is what a visit that keeps
- * something after it ends looks like. For listeners, the same code must be what grows: a visit that
- * leaks one adds the same closure again each time.
+ * something after it ends looks like. For listeners and observers, the same code must be what grows:
+ * a visit that leaks one adds the same closure again each time.
  */
 export class Leaks {
 	readonly #samples = new Map<string, Array<Record<string, number>>>();
 	/** Each sample's listeners, by label (to name the ones that grew). */
 	readonly #listening = new Map<string, string[][]>();
+	/** Each sample's observers, by kind and callback code. */
+	readonly #watching = new Map<string, string[][]>();
 	/** Each document met, numbered. */
 	readonly #docs = new WeakMap<object, number>();
 	#docs_made = 0;
@@ -961,16 +963,20 @@ export class Leaks {
 		};
 		// (one sample per visit, its latest: the visit may still have been settling)
 		const labels = this.#listening.get(key) ?? [];
+		const watches = this.#watching.get(key) ?? [];
 		if (this.#at.get(tab.name) === key && list.length > 0) {
 			list[list.length - 1] = now;
 			labels[labels.length - 1] = tab.listening();
+			watches[watches.length - 1] = tab.watching();
 		} else {
 			list.push(now);
 			labels.push(tab.listening());
+			watches.push(tab.watching());
 		}
 		this.#at.set(tab.name, key);
 		this.#samples.set(key, list);
 		this.#listening.set(key, labels);
+		this.#watching.set(key, watches);
 		if (list.length < LEAK_VISITS) return null;
 		const run = list.slice(-LEAK_VISITS);
 		// (BOUNDED MEMORY: the head and the element count too; a page visited again is the same page)
@@ -983,6 +989,9 @@ export class Leaks {
 			// Svelte's event delegation do, and visits of new kinds of region add new code each;
 			// generated-app 6, seed 12)
 			if (field === 'listeners' && growing(labels.slice(-LEAK_VISITS)).length === 0) continue;
+			// (observers too: the timing observer, the viewport tracker's and its children's are each
+			// made once for the document, the first time a visit needs one; gen 195, seed 195005)
+			if (field === 'observers' && growing(watches.slice(-LEAK_VISITS)).length === 0) continue;
 			return {
 				oracle: 'leak',
 				detail: `${url}: ${field} grew visit after visit in one document: ${run.map((s) => s[field]).join(' → ')}${field === 'intervals' ? `\nrunning: ${tab.platform?.pending().join(', ')}` : ''}${

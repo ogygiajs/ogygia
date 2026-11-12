@@ -44,6 +44,9 @@ export interface Tab {
 	/** The listeners it holds, each as `window|document <type> <its code's hash>` (with
 	 *  `SIM_SITES=1`, and the line that added it): the leak oracle's per-listener counts. */
 	listening(): string[];
+	/** The observers observing, each as `<Name> <its callback's code hash>`: the leak oracle's
+	 *  per-observer counts. */
+	watching(): string[];
 	/** Observers still observing whose every watched element has left the document (their owner
 	 *  ended and nothing disconnected them), each as `<Name> watching <the first one's tag>`. */
 	orphans(): string[];
@@ -436,6 +439,8 @@ export class Browsers {
 		const observing = new Set<object>();
 		/** What each observer watches (an element; a PerformanceObserver watches none). */
 		const watched = new WeakMap<object, { name: string; targets: Set<Element> }>();
+		/** Each observer as its kind and its callback's code (the leak check's per-observer counts). */
+		const made_by = new WeakMap<object, string>();
 		const w = window as unknown as Record<string, unknown>;
 		for (const name of [
 			'IntersectionObserver',
@@ -446,6 +451,10 @@ export class Browsers {
 			const Real = w[name] as (new (...a: unknown[]) => object) | undefined;
 			if (typeof Real !== 'function') continue;
 			const Counted = class extends Real {
+				constructor(...a: unknown[]) {
+					super(...a);
+					made_by.set(this, `${name} ${code_of(a[0])}`);
+				}
 				observe(...a: unknown[]): unknown {
 					observing.add(this);
 					if (a[0] !== null && typeof a[0] === 'object' && 'isConnected' in a[0]) {
@@ -489,6 +498,7 @@ export class Browsers {
 				(d as unknown as Document).querySelectorAll('ogygia-region *').length
 		});
 		tab.listening = () => [...listeners.values()].sort();
+		tab.watching = () => [...observing].map((o) => made_by.get(o) ?? 'observer').sort();
 		tab.orphans = () => {
 			const out: string[] = [];
 			for (const o of observing) {
@@ -552,6 +562,7 @@ export class Browsers {
 			platform: null,
 			held: () => ({ listeners: 0, intervals: 0, observers: 0, head: 0, elements: 0 }),
 			listening: () => [],
+			watching: () => [],
 			orphans: () => [],
 			swaps: [],
 			said_by: new Map()
