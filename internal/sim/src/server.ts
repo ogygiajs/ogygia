@@ -23,6 +23,7 @@ import {
 import { join, extname } from 'node:path';
 import { createRequire } from 'node:module';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { client_address } from './network.ts';
 
 /** Node's own `import()`: a built app is plain ESM, and a test runner's module transform (vitest's)
  *  must not load it a second, different way. */
@@ -235,7 +236,7 @@ export async function start_server(
 							return new Response(head ? null : page.slice(), {
 								headers: { 'content-type': TYPES['.html'] }
 							});
-						return kit.respond(request, { getClientAddress: () => '10.0.0.1', platform: {} });
+						return kit.respond(request, { getClientAddress: client_address, platform: {} });
 					})
 				)
 			),

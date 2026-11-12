@@ -67,6 +67,18 @@ export const ANSWERED_BY = 'x-sim-build';
  *  document's behalf (a calm tab's reference load is calm all the way to a peer). */
 const asked_by = new AsyncLocalStorage<string>();
 
+/** The client a server is answering: the visitor's address, or the reference load's. */
+const client = new AsyncLocalStorage<string>();
+const VISITOR_ADDRESS = '10.0.0.1';
+const REFERENCE_ADDRESS = '10.0.0.2';
+
+/** The address of the client whose request a server is answering now (Kit's `getClientAddress`).
+ *  An oracle's reference load is a client of its own: it shares no per-client budget (a rate
+ *  limit) with the run's visitor, whose own traffic may have used it up (gen 78, seed 78013). */
+export function client_address(): string {
+	return client.getStore() ?? VISITOR_ADDRESS;
+}
+
 const RATES: Record<FaultClass, number> = {
 	delay: 1,
 	reorder: 0.3,
@@ -231,17 +243,17 @@ export class Network {
 				this.#latency(calm),
 				() => {
 					const copy = dup ? request.clone() : null;
-					void asked_by
-						.run(behalf, () => handler(request))
+					const address = calm ? REFERENCE_ADDRESS : VISITOR_ADDRESS;
+					const answer = (r: Request) =>
+						asked_by.run(behalf, () => client.run(address, () => handler(r)));
+					void answer(request)
 						.then(async (response) => {
 							// the duplicate is answered too, and its answer thrown away (as a proxy's retry)
 							if (copy !== null)
-								await asked_by
-									.run(behalf, () => handler(copy))
-									.then(
-										(r) => r.body?.cancel(),
-										() => {}
-									);
+								await answer(copy).then(
+									(r) => r.body?.cancel(),
+									() => {}
+								);
 							if (!lost) ex.status = response.status;
 							ex.build = response.headers.get(ANSWERED_BY) ?? undefined;
 							loop.add('net', `response ${ex.id} ${response.status}`, this.#latency(calm), () => {
