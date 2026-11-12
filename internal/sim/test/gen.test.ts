@@ -10,6 +10,7 @@ import {
 	peer_plan,
 	plan,
 	router_plan,
+	shape_plan,
 	write,
 	write_peer,
 	type GenNode,
@@ -600,5 +601,61 @@ describe('the random app', () => {
 		} finally {
 			rmSync(app, { recursive: true, force: true });
 		}
+	});
+
+	// real apps (apps/palaestra, examples/mfe, apps/docs) time a hole with `fetch`; `wake` on a hole
+	// is deprecated (a build warning on every generated hole), and a hole ships no JS: the generated
+	// hole's button and count, written as if it woke once it landed, never worked
+	it('times a hole with fetch, never wake, and gives it no state or button of its own', () => {
+		const seeds = Array.from({ length: 10 }, (_, i) => i + 1);
+		const seed = seeds.find((s) =>
+			all(plan(s).flatMap((p) => p.roots)).some((n) => n.kind === 'hole' && n.wake && !n.maxAge)
+		)!;
+		const app = mkdtempSync(join(tmpdir(), 'sim-gen-'));
+		try {
+			const drawn = plan(seed);
+			write(app, drawn, seed);
+			const lib = join(app, 'src', 'lib', 'gen');
+			const sources = readdirSync(lib)
+				.filter((f) => f.endsWith('.svelte'))
+				.map((f) => readFileSync(join(lib, f), 'utf8'));
+			const routes = drawn.map((p) =>
+				readFileSync(join(app, 'src', 'routes', p.path.slice(1), '+page.svelte'), 'utf8')
+			);
+			for (const src of [...sources, ...routes])
+				expect(src).not.toMatch(/render: 'deferred', wake:/);
+			expect([...sources, ...routes].some((s) => /render: 'deferred', fetch: '/.test(s))).toBe(
+				true
+			);
+			for (const n of all(drawn.flatMap((p) => p.roots)).filter((n) => n.kind === 'hole'))
+				expect(readFileSync(join(lib, `N${n.id}.svelte`), 'utf8')).not.toContain('$state(');
+			// (and a kept render's preset: the app's config is checked in)
+			const config = readFileSync(
+				new URL('../../../apps/sim-gen/vite.config.ts', import.meta.url),
+				'utf8'
+			);
+			expect(config).not.toContain('{ wake }');
+			expect(config).toContain('{ fetch }');
+		} finally {
+			rmSync(app, { recursive: true, force: true });
+		}
+	});
+
+	it("draws some apps' island wakes as real apps have them, from their own stream: mostly load, then visible, a media query on some", () => {
+		const islands = (s: number) =>
+			all(plan(s).flatMap((p) => p.roots)).filter((n) => n.kind === 'island');
+		const seeds = Array.from({ length: 200 }, (_, i) => i + 1);
+		const shaped = seeds.filter((s) => shape_plan(s) === 'real');
+		expect(shaped.length).toBeGreaterThan(50);
+		expect(shaped.length).toBeLessThan(150);
+		const wakes = shaped.flatMap((s) => islands(s).map((n) => n.wake!));
+		const share = (w: string) => wakes.filter((x) => x === w).length / wakes.length;
+		expect(share('load')).toBeGreaterThan(0.55);
+		expect(share('visible')).toBeGreaterThan(0.12);
+		expect(wakes.some((w) => w.startsWith('('))).toBe(true);
+		// (an app drawn the other way keeps its trees as they were: the shape is drawn apart)
+		const drawn = seeds.filter((s) => shape_plan(s) === 'drawn');
+		const all_wakes = drawn.flatMap((s) => islands(s).map((n) => n.wake!));
+		expect(all_wakes.some((w) => w.startsWith('('))).toBe(false);
 	});
 });
