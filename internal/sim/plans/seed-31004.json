@@ -1,0 +1,1 @@
+{"seed":31004,"steps":1,"plan":{"actions":[{"kind":"click","tab":0,"nth":368}]},"app":"/Users/puruvj/Projects/sk-islands-dst/apps/sim-gen","wire":[{"tab":0,"method":"GET","path":"/_app/immutable/chunks/A7Hc-4Og.js","nth":1,"kind":"drop"}],"found":["[page-errors] after tab 0: click link #368: error: TypeError: Cannot read properties of null (reading 'Symbol(contentType)')"]}
