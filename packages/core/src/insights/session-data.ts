@@ -2,7 +2,7 @@
  * What a recorded session holds (the recorder: devtools/session.ts; what it says:
  * session-insights.ts). Types only, so the analysis reads them without the recorder.
  */
-import type { DevtoolsEvent } from '../events/schema.ts';
+import type { DevtoolsEvent } from '../contract/events.ts';
 
 export interface SessionInteraction {
 	t: number;

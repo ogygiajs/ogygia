@@ -21,8 +21,8 @@ import { uneval } from 'devalue';
 import { og_member } from './wire.ts';
 import { parse_module, type AstNode } from '../parse/oxc.ts';
 import { og_js_regions } from '../parse/scan.ts';
-import { BuildCache } from '../../build-cache.ts';
-import { OgygiaError } from '../../messages/build.ts';
+import { BuildCache } from '../build-cache.ts';
+import { OgygiaError } from '../messages.ts';
 
 // ── regexes
 const REGEX_SPECIAL_G = /[.*+?^${}()|[\]\\]/g;

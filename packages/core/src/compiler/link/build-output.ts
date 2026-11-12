@@ -1,67 +1,19 @@
 /**
  * Whole-program build-output side effects — the work the adapter's `writeBundle` does AFTER the
- * client bundle is on disk: the content-leak guardrail, and writing / inlining the island-deps
- * handoff so SSR can `modulepreload` a hydrate island's chunks and style a server-picked hole. Pure
- * over the finished bundle + the app root (fs is the only side effect); the adapter owns only the
- * Vite `this.getFileName` resolution and the trigger.
+ * client bundle is on disk: writing / inlining the island-deps handoff so SSR can `modulepreload` a
+ * hydrate island's chunks and style a server-picked hole. Pure over the finished bundle + the app
+ * root (fs is the only side effect); the adapter owns only the Vite `this.getFileName` resolution
+ * and the trigger.
  */
 import { fs, path, dir_entries } from '../host.ts';
 import { islandDepsHandoffPath } from './island-deps.ts';
-import { warn, line } from '../../messages/build.ts';
+import { line } from '../messages.ts';
 
-const CORPUS_RE = /\.(svx|md)(\?|$)/;
-/** A `?…type=style…` / `lang.css` sub-import id — a CSS face, never a corpus JS leak. */
-const CONTENT_STYLE_QUERY_RE = /[?&](?:type=style|lang\.css)/;
 const BACKSLASH_G = /\\/g;
 const SINGLE_QUOTE_G = /'/g;
 const DOUBLE_QUOTE_G = /"/g;
 const LINE_SEPARATOR_G = /\u2028/g;
 const PARAGRAPH_SEPARATOR_G = /\u2029/g;
-
-/**
- * Guardrail: a content collection must never reach a CLIENT chunk. Ground truth is the finished
- * bundle. A compiled corpus module (.svx/.md) in a client chunk means a `content()` collection was
- * imported into client-shipped code (usually an island), which drags its eager `import.meta.glob` —
- * every doc — into the browser. On a csr=false site the corpus renders server-side and should never
- * appear here, so any hit is a real leak. A warning, not a throw: the guardrail must never break a build.
- */
-export function warn_content_leaks(
-	bundle: Record<string, unknown>,
-	root: string,
-	is_island_path: (id: string) => boolean
-): void {
-	try {
-		const leaks: Array<{ chunk: string; modules: string[] }> = [];
-		for (const [key, chunk] of Object.entries(bundle)) {
-			if ((chunk as { type?: string }).type !== 'chunk') continue;
-			const ids: string[] =
-				(chunk as { moduleIds?: string[] }).moduleIds ??
-				Object.keys((chunk as { modules?: Record<string, unknown> }).modules ?? {});
-			// A `?…type=style…`/`lang.css` sub-import is the content module's CSS FACE, emitted on
-			// purpose (see the client-leg content-CSS emit) — it carries no corpus JS, so it is not
-			// a leak. Only a real corpus JS module counts.
-			const corpus = ids.filter(
-				(id) => CORPUS_RE.test(id) && !is_island_path(id) && !CONTENT_STYLE_QUERY_RE.test(id)
-			);
-			if (corpus.length)
-				leaks.push({ chunk: (chunk as { fileName?: string }).fileName ?? key, modules: corpus });
-		}
-		if (leaks.length) {
-			const all = [...new Set(leaks.flatMap((l) => l.modules))];
-			warn('content_leaked_to_client', {
-				count: all.length,
-				chunk: leaks[0].chunk,
-				// the first five, one a line
-				modules: all
-					.slice(0, 5)
-					.map((m) => path.relative(root, m.split('?')[0]))
-					.join('\n')
-			});
-		}
-	} catch {
-		// ok: a guardrail never breaks the build; the check is skipped
-	}
-}
 
 /**
  * Write the island-deps handoff JSON (the map SSR reads at render): the stable path under Kit's
