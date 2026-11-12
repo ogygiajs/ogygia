@@ -138,6 +138,7 @@ export class PeerHandle implements Peer {
 		const signal = current_request_scope()?.signal;
 		for (;;) {
 			const seen = docs.peek(key);
+			// wall: a flights entry's `at` is a wall timestamp
 			if (seen?.kind === 'kept' && Date.now() - seen.at >= this.#ttl) {
 				// stale: served as it is while one fresh flight refreshes it (an error answer, or a
 				// failure, leaves the good copy kept, and the next stale read tries again)

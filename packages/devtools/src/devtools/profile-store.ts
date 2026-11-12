@@ -192,7 +192,7 @@ export function slim_profile(r: WireRecord): SlimProfile {
 	return {
 		id: String(r?.id ?? ''),
 		page: String(target.page ?? ''),
-		at: num(r?.created) ?? Date.now(),
+		at: num(r?.created) ?? Date.now(), // wall: a stored profile's epoch time
 		runs,
 		render_ms: Math.round(median(runs) * 10) / 10,
 		...(typeof target.cache_control === 'string' && target.cache_control
