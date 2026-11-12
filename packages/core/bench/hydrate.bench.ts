@@ -419,8 +419,13 @@ async function warm_page(srcs: string[]): Promise<number> {
 
 bench(
 	'island warm: a prefetch warms a page of islands, the visitor reaches for some',
-	() => warm_page(ISLAND_SRCS),
-	{ setup: () => Promise.all(ISLAND_SRCS.map((src) => import_entry(src, src))).then(() => ({})) }
+	() => warm_page(ISLAND_ENTRIES),
+	{
+		setup: () => {
+			for (const entry of ISLAND_ENTRIES) note_entry_location(entry, src_of(entry));
+			return Promise.all(ISLAND_ENTRIES.map((entry) => import_entry(entry))).then(() => ({}));
+		}
+	}
 );
 
 bench('background drain: wake starts as the page grows', ({ regions }) => drain_starts(regions), {

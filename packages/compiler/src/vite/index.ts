@@ -33,6 +33,7 @@ import {
 	type ChunkBarrel
 } from '@ogygia/core/contract';
 import { island_sourcemaps_plugin } from './sourcemaps.ts';
+import { lazy_files } from './lazy-files.ts';
 import { install_dev_client_maps, install_dev_maps, install_dev_page_keys } from './dev-maps.ts';
 import {
 	is_island_path,
@@ -1609,7 +1610,8 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 		},
 		// the plugins' `post` stage: on what the region transform made of the module
 		stage_host('post'),
-		island_sourcemaps_plugin({ program, is_island_path })
+		island_sourcemaps_plugin({ program, is_island_path }),
+		lazy_files()
 	];
 }
 
