@@ -12,7 +12,7 @@
 import { machine, STALE, type MachineGraph, type Scope } from '@ogygia/machine';
 import { frameAddress } from '../frame.ts';
 import { stream } from '../policies.ts';
-import { is_idle, reserve, release, ticket, write } from './frame-store.ts';
+import { is_idle, reserve, release, stamp, write } from './frame-store.ts';
 import { runtime_session } from './session.ts';
 import { emit as dt_emit } from '../events/bus.ts';
 import { slots } from './slots.ts';
@@ -140,7 +140,7 @@ export async function streamFrames(
 	// slot (sig) → store address, so an arriving parcel routes to the right call. RESERVE each address
 	// up front: a region binder that connects (body swap) before its frame lands joins this batch via
 	// ensure() instead of firing its own fetch — one request for the whole route, no waterfall. Each
-	// part takes its ticket NOW, as it is asked for, like any fetch: a refresh asked after the batch
+	// part takes its stamp NOW, as it is asked for, like any fetch: a refresh asked after the batch
 	// is newer, and the batch's part landing after it is dropped (test/sim/frame-order.test.ts).
 	const bySig = new Map<string, { a: string; v: number }>();
 	// (a measuring browser: slot → endpoint, to name and time each part as it lands)
@@ -150,7 +150,7 @@ export async function streamFrames(
 		const s = sigOf(e);
 		if (s) {
 			const a = frameAddress(e);
-			bySig.set(s, { a, v: ticket(a) });
+			bySig.set(s, { a, v: stamp() });
 			endpoint_of?.set(s, e);
 			reserved.push(a);
 			reserve(a);
