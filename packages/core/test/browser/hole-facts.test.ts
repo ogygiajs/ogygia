@@ -1,14 +1,22 @@
 // The holes record, read back (src/runtime/hole-facts.ts): what the server minted for each hole on a
 // Kit-hydrated document, found by the hole's identity, parsed once per document.
 import { expect, test } from 'vitest';
+import { RESPONSE_MARK } from '../../src/contract/response-mark.ts';
 import { hole_facts_of } from '../../src/runtime/hole-facts.ts';
+import { OGYGIA_RUNTIME } from '../../src/wire-markup.ts';
 
-/** A document whose tail carries `record` (a string is written as it is). */
+/** A document whose tail carries `record` (a string is written as it is), as its server wrote it:
+ *  the record bears the mark the head runtime script bears. */
 const doc_with = (record: unknown) => {
 	const text = typeof record === 'string' ? record : JSON.stringify(record);
 	const doc = document.implementation.createHTMLDocument('');
+	const runtime = doc.createElement('script');
+	runtime.setAttribute(OGYGIA_RUNTIME, '');
+	runtime.setAttribute(RESPONSE_MARK, 'm1');
+	doc.head.append(runtime);
 	const script = doc.createElement('script');
 	script.type = 'application/ogygia-holes';
+	script.setAttribute(RESPONSE_MARK, 'm1');
 	script.textContent = text;
 	doc.body.append(script);
 	return { doc, script };
