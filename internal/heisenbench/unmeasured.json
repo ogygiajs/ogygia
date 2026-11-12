@@ -4683,6 +4683,30 @@
 		{
 			"id": "packages/machine/src/define.ts > defining_host",
 			"reason": "reads or makes the process-wide defining host on globalThis (not cloneable), constant work"
+		},
+		{
+			"id": "packages/core/src/head-owners.ts > head_owners",
+			"reason": "browser only: one head tag's data-og-owner split (a DOM element, not cloneable), linear in its owners (a few); proven in packages/core/test/browser/head-owner-release.test.ts and property-head-owner.test.ts"
+		},
+		{
+			"id": "packages/core/src/head-owners.ts > add_head_owners",
+			"reason": "browser only, once per kept owned head tag per navigation: a few owners added to one DOM attribute, linear in them; proven in packages/core/test/browser/shared-sheet-owners.test.ts"
+		},
+		{
+			"id": "packages/core/src/head-owners.ts > adopt_owner_record",
+			"reason": "browser only, once per navigation: one JSON record read from the leaving document and matched against the head's region sheets (DOM, not cloneable), linear in the head's sheets; proven in packages/core/test/browser/shared-sheet-owners.test.ts"
+		},
+		{
+			"id": "packages/core/src/head-owners.ts > adopt_owner_record > filter:0~62b502",
+			"reason": "browser only: the string check over one sheet's listed owners (a few), constant work each; proven in packages/core/test/browser/shared-sheet-owners.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/region-sheets.ts > release_head_nodes > some:0~db55d7",
+			"reason": "browser only: one owner looked up in the page's owner set, constant work; proven in packages/core/test/browser/property-head-owner.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/region-sheets.ts > release_head_nodes > filter:0~db55d7",
+			"reason": "browser only: one owner looked up in the page's owner set, constant work; proven in packages/core/test/browser/head-owner-release.test.ts"
 		}
 	]
 }
