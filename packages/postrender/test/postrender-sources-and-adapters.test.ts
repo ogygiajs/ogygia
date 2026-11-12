@@ -103,6 +103,12 @@ describe('upstash store (REST command shapes)', () => {
 		expect(calls.some((c) => c[0] === 'EXPIRE')).toBe(false);
 	});
 
+	it('escapes glob characters of a prefix in the SCAN pattern', async () => {
+		const store = new UpstashStore({ url: 'https://x.upstash.io', token: 't' });
+		await store.evictWhere({ prefix: '/a*?/' });
+		expect(calls).toContainEqual(['SCAN', '0', 'MATCH', 'og:a:/a\\*\\?/*', 'COUNT', '250']);
+	});
+
 	it('a root prefix scans every key', async () => {
 		const store = new UpstashStore({ url: 'https://x.upstash.io', token: 't' });
 		await store.evictWhere({ prefix: '/' });
@@ -165,6 +171,20 @@ describe('cloudflare KV store', () => {
 			}
 		};
 	}
+
+	it('clamps a TTL under 60 seconds up to KV’s 60-second floor, for the page and its tag keys', async () => {
+		const ttls: unknown[] = [];
+		const kv = fake_kv();
+		const store = new CloudflareKvStore({
+			...kv,
+			async put(key, value, opts) {
+				ttls.push(opts?.expirationTtl);
+				return kv.put(key, value, opts);
+			}
+		});
+		await store.put('/a', page_entry(), { ttl: 10, tags: ['t'] });
+		expect(ttls).toEqual([60, 60]);
+	});
 
 	it('round-trips, prefix-evicts, and runs the sentinel-key tag index', async () => {
 		const kv = fake_kv();
