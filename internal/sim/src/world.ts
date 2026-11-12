@@ -338,11 +338,6 @@ export class World {
 	 *  asked (a realm: a tab's document, `tab-1#2`). */
 	readonly skewed = new Map<string, Set<string>>();
 
-	/** The realms whose peer region address (`/og/frag`) a server refused as `sig` while the app
-	 *  has no secret: another build's key, which a plugin capability cannot name (#1007; goes with
-	 *  its fix, when the refusal says `foreign-key` and `skewed` holds it). */
-	readonly frag_refused = new Set<string>();
-
 	/** The build every request goes to while it is set (`as_of`). */
 	#pinned: string | null = null;
 
@@ -549,12 +544,6 @@ export class World {
 				// when the app has no stable secret, as ogygia's `secret_missing` says)
 				if (answer.headers.get('x-ogygia-deny') === 'foreign-key' && this.#o.secret === undefined)
 					this.skewed.set(from, (this.skewed.get(from) ?? new Set<string>()).add(url.pathname));
-				if (
-					answer.headers.get('x-ogygia-deny') === 'sig' &&
-					this.#o.secret === undefined &&
-					url.pathname === '/og/frag'
-				)
-					this.frag_refused.add(from);
 				// (which build answered rides with the answer, so a cached copy says it too; a page store's
 				// copy is the build's that rendered it: test/stored-build.node.test.ts)
 				const rendered = this.#rendered_by(answer, build);
@@ -645,7 +634,26 @@ export class World {
 	 * so whether a page was "complete" would depend on the host's speed, and the run would not
 	 * replay.)
 	 */
-	async quiesce(budget = 30_000, gap = 2_000): Promise<void> {
+	/**
+	 * Runs the loop until the world is AT REST, however long that takes (up to the run's horizon):
+	 * what the oracles judge. A quiesce gives up after its budget, which a visitor's next action may
+	 * well do; a body stalled after its first piece (up to 40 s) is still work in flight, and a page
+	 * judged while its runtime chunk was still coming had not booted (gen 196, seed 16).
+	 */
+	async rest(): Promise<void> {
+		// (only the wire keeps it waiting: a live region ticks for good, and its ticks end a quiesce
+		// by its budget, as before)
+		// (a quiesce whose next task is past its budget returns without running it: step to it)
+		while (!(await this.quiesce()) && this.loop.next_at <= this.loop.horizon && !this.#wire_quiet())
+			await this.loop.step();
+	}
+
+	#wire_quiet(): boolean {
+		return this.loop.next_of('net') === Infinity && this.network.unanswered() === 0;
+	}
+
+	/** True when the world came to rest; false when the budget or the horizon ended the wait. */
+	async quiesce(budget = 30_000, gap = 2_000): Promise<boolean> {
 		const end = this.loop.now + budget;
 		for (;;) {
 			await this.loop.settle();
@@ -654,8 +662,8 @@ export class World {
 			// (nor is a request a server is still working on: its answer is not a task until it
 			// comes, and the server's own timer may be due past the gap, a hole that renders in 3 s;
 			// seed 46, /ooo)
-			const quiet = this.loop.next_of('net') === Infinity && this.network.unanswered() === 0;
-			if (next > end || (quiet && next > this.loop.now + gap) || next > this.loop.horizon) return;
+			if (this.#wire_quiet() && next > this.loop.now + gap) return true;
+			if (next > end || next > this.loop.horizon) return false;
 			await this.loop.step();
 		}
 	}

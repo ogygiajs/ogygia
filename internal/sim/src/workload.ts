@@ -29,6 +29,9 @@ export type Action =
 	/** Go to `path` and press button `nth` `after` ms in, while the page still loads: an input before
 	 *  the first paint, or during the wait for the page's critical resources. */
 	| { kind: 'eager'; tab: number; path: string; nth: number; after: number }
+	/** Press button `nth`, then the same one again `after` ms later: two refreshes or two commands
+	 *  under way at once. */
+	| { kind: 'twice'; tab: number; nth: number; after: number }
 	| {
 			kind: 'outage';
 			tab: number;
@@ -63,6 +66,8 @@ export function describe(a: Action): string {
 			return `tab ${a.tab}: point at link or region #${a.nth}`;
 		case 'eager':
 			return `tab ${a.tab}: go to ${a.path}, press button #${a.nth} ${a.after} ms in`;
+		case 'twice':
+			return `tab ${a.tab}: press button #${a.nth}, then again ${a.after} ms later`;
 		case 'outage':
 			return `tab ${a.tab}: ${a.during === 'wait' ? 'an outage' : `${a.during} #${a.nth}, then an outage`} ${a.after} ms in, for ${a.lasts} ms`;
 		default:
@@ -114,7 +119,8 @@ export const ACTION_KINDS: readonly Action['kind'][] = [
 	'away',
 	'hurry',
 	'hover',
-	'eager'
+	'eager',
+	'twice'
 ];
 
 /** The seed's next action for a world with `tabs` tabs (`deploys`: a deploy may be drawn; the
@@ -195,7 +201,8 @@ function choices(
 				after: rng.pick([0, 5, 20, 60, 150, 300])
 			},
 			1
-		]
+		],
+		[{ kind: 'twice', tab, nth: rng.int(1000), after: rng.pick([0, 5, 20, 60, 150, 300]) }, 1]
 	];
 }
 
@@ -302,6 +309,12 @@ export async function act(
 			if (tab === undefined) return;
 			await world.start(tab, 'goto', a.path, a.after);
 			if (buttons(tab).length > 0) pressing();
+			press(world, tab, a.nth);
+			await world.quiesce();
+			return;
+		case 'twice':
+			if (tab === undefined || !press(world, tab, a.nth)) return;
+			await world.loop.run(a.after);
 			press(world, tab, a.nth);
 			await world.quiesce();
 			return;

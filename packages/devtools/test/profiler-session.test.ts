@@ -17,7 +17,7 @@ import {
 const dev_switch = vi.hoisted(() => ({ dev: true }));
 vi.mock('../src/profiler/env.ts', () => ({ detect_dev: () => dev_switch.dev }));
 
-const SECRET = 'prof-key';
+const SECRET = 'prof-key-of-16-bytes-or-more';
 const BIG_JAR = Array.from({ length: 40 }, (_, i) => `app_cookie_${i}=${'x'.repeat(180)}`).join(
 	'; '
 );
