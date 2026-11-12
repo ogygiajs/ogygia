@@ -1,13 +1,10 @@
+<!--
+@component
+One overridable markdown element, `tag`, with its attributes and children. It renders the component
+the shell context's `components` map gives for the tag; else `Link` for `a`, so a slug-form href
+resolves under the base; else the plain element.
+-->
 <script lang="ts">
-	/**
-	 * The element-override slot. The markdown compiler rewrites overridable tags (`[x](y)` →
-	 * `<Og__Slot tag="a" href="y">x`) into this ONE component; here — at render, in app-land — we
-	 * look the tag up in the site's component map and render that component, else the plain element.
-	 *
-	 * The map holds real component VALUES and lives in `site(outline, { components })`, reaching us
-	 * via the shell context. No import paths in config; the compiler only ever knew the tag NAMES.
-	 * Built-in default: `a → Link` (id-form + redirect-aware links for plain markdown, zero config).
-	 */
 	import type { Component, Snippet } from 'svelte';
 	import { get_shell_context } from '../context.ts';
 	import Link from './Link.svelte';
