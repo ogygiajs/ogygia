@@ -146,15 +146,21 @@ describe('deadline', () => {
 
 	it('a job with a deadline still goes stale on time after another waiting job is cancelled', async () => {
 		vi.useFakeTimers();
-		const { q, log } = heard({ max: 1, now: () => Date.now() });
-		q.push('first');
-		q.push('plain');
-		q.push('later', Date.now() + 40);
-		q.cancel('plain');
-		q.push('sooner', Date.now() + 20);
-		q.cancel('sooner');
+		// a job with no deadline cancelled: the timer stays for the one with a deadline
+		const a = heard({ max: 1, now: () => Date.now() });
+		a.q.push('first');
+		a.q.push('plain');
+		a.q.push('later', Date.now() + 40);
+		a.q.cancel('plain');
+		// a job with an earlier deadline cancelled: the timer moves on to the later one
+		const b = heard({ max: 1, now: () => Date.now() });
+		b.q.push('first');
+		b.q.push('later', Date.now() + 40);
+		b.q.push('sooner', Date.now() + 20);
+		b.q.cancel('sooner');
 		await vi.advanceTimersByTimeAsync(50);
-		expect(log).toEqual(['first', 'stale plain', 'stale sooner', 'stale later']);
+		expect(a.log).toEqual(['first', 'stale plain', 'stale later']);
+		expect(b.log).toEqual(['first', 'stale sooner', 'stale later']);
 		expect(vi.getTimerCount()).toBe(0);
 	});
 
