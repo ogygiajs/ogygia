@@ -33,34 +33,6 @@
 			"reason": "the holes of one task sorted into batches: a DOM read and the frame store (not recorded), linear in the holes that joined; run by packages/core/test/browser/hole-batch.test.ts"
 		},
 		{
-			"id": "packages/core/src/runtime/frame-store.ts > live",
-			"reason": "reads the hub's watcher count and the store's flights (module state by design: one store per document), constant work; run by packages/core/test/frame-store.test.ts"
-		},
-		{
-			"id": "packages/core/src/runtime/frame-store.ts > make_store",
-			"reason": "makes the document's one store (a scope, a cache, a flights, a world) once per document or reset, constant work; run by packages/core/test/frame-store.test.ts"
-		},
-		{
-			"id": "packages/core/src/runtime/frame-store.ts > make_store > cache:0~f09d8f > keep",
-			"reason": "an entry's linger, from whether it is bound or fetched (live), constant work; run by packages/core/test/frame-store.test.ts"
-		},
-		{
-			"id": "packages/core/src/runtime/frame-store.ts > make_store > cache:0~f09d8f > onEvict",
-			"reason": "an entry let go: a reservation failed at the store's end, or a live entry put back, constant work; run by packages/core/test/frame-store.test.ts"
-		},
-		{
-			"id": "packages/core/src/runtime/frame-store.ts > make_store > s > call:0~2f2cb8 > run",
-			"reason": "a flight's work: the store's fetch or a batch part's promise, handed on (constant work); run by packages/core/test/frame-store.test.ts"
-		},
-		{
-			"id": "packages/core/src/runtime/frame-store.ts > stamp",
-			"reason": "one bump and one read of the store's world (module state by design), constant work; run by packages/core/test/frame-store.test.ts"
-		},
-		{
-			"id": "packages/core/src/runtime/frame-store.ts > store",
-			"reason": "the document's one store, made on first use (module state by design), constant work; run by packages/core/test/frame-store.test.ts"
-		},
-		{
 			"id": "packages/devtools/src/devtools/testing-engine.ts > settle_poll",
 			"reason": "polls the page's event snapshot until it is quiet (a live page, not recorded); linear in the snapshot's events per step"
 		},
@@ -959,14 +931,6 @@
 		{
 			"id": "packages/content/src/markdown/shiki.ts > call:0~7e49c8 > run > then:0~a452b6",
 			"reason": "hands the loaded Shiki module to createHighlighter: Shiki's WASM engine, which a measuring window refuses; proven in packages/content/test/markdown-start.test.ts"
-		},
-		{
-			"id": "packages/content/src/vite/hmr.ts > content_runs",
-			"reason": "makes the dev plugin object (a name, apply and a transform hook), constant work; its transform's work is mark_content_calls, benched in packages/content/bench/lifecycle.bench.ts"
-		},
-		{
-			"id": "packages/content/src/vite/hmr.ts > content_runs > transform",
-			"reason": "Vite's dev transform hook: skips a client module or one that does not name @ogygia/content, else hands it to mark_content_calls (benched in packages/content/bench/lifecycle.bench.ts); proven against a real Vite dev server in packages/content/test/dev-reload.test.ts"
 		},
 		{
 			"id": "packages/core/src/hooks.ts > start_app_plugins:1~7cbc84 > sign",
@@ -2151,6 +2115,62 @@
 		{
 			"id": "packages/flags/src/index.ts > set_prime",
 			"reason": "writes the request's prime state onto a Request (not cloneable), constant work; proven in packages/flags/test/prime-twice.test.ts"
+		},
+		{
+			"id": "packages/content/src/collection-base.ts > Collection > constructor > defer:0~2dc470",
+			"reason": "dev only: a collection's module ran again, so the old collection is disposed; one call, constant work of its own"
+		},
+		{
+			"id": "packages/core/src/vite/definers.ts > definers_plugin",
+			"reason": "dev only: builds one Vite plugin object (functions, not cloneable), once per server, constant work"
+		},
+		{
+			"id": "packages/core/src/vite/definers.ts > definers_plugin > transform",
+			"reason": "dev only: a Vite transform hook (the plugin context, not replayable); a substring test per module, then mark_definer_calls"
+		},
+		{
+			"id": "packages/core/src/vite/definers.ts > definers_plugin > transform > some:0~b700ad",
+			"reason": "dev only: one substring test per declared definer module, linear in the definers (a handful)"
+		},
+		{
+			"id": "packages/core/src/vite/definers.ts > mark_definer_calls > find:0~96804f",
+			"reason": "dev only: matches one import's source against the declared definer modules, linear in the definers (a handful)"
+		},
+		{
+			"id": "packages/core/src/vite/definers.ts > nodes",
+			"reason": "dev only: a generator over a parsed module's AST (not recorded), linear in its nodes; run by packages/core/test/definers.test.ts through mark_definer_calls"
+		},
+		{
+			"id": "packages/core/src/vite/index.ts > ogygia > definers_plugin:0~db4cb5",
+			"reason": "dev only: hands the plugins' definer list to the dev transform, constant work"
+		},
+		{
+			"id": "packages/core/src/vite/plugin-api.ts > resolve_plugins > build:0~e195ce > definers",
+			"reason": "build time: records one plugin's definer module and names, constant work per plugin"
+		},
+		{
+			"id": "packages/flags/src/vite.ts > flags > definePlugin:0~de4de4 > build",
+			"reason": "build time: declares the flags definer through the plugin builder (not cloneable), constant work"
+		},
+		{
+			"id": "packages/machine/src/registry.ts > defineRun",
+			"reason": "dev only: a module's new run ends the run before it and returns its wrapper (a function, not cloneable), constant work of its own"
+		},
+		{
+			"id": "packages/machine/src/registry.ts > defineRun > <anonymous>~bc014d",
+			"reason": "dev only: the wrapper for one definer call (a function, not cloneable), constant work"
+		},
+		{
+			"id": "packages/machine/src/registry.ts > defineRun > <anonymous>~bc014d > <anonymous>~90dfa6",
+			"reason": "dev only: runs one definer call under its module's run and puts the outer run back, constant work of its own"
+		},
+		{
+			"id": "packages/machine/src/registry.ts > defining",
+			"reason": "reads the process-wide defining host on globalThis (hidden state), constant work"
+		},
+		{
+			"id": "packages/machine/src/registry.ts > defining_host",
+			"reason": "reads or makes the process-wide defining host on globalThis (not cloneable), constant work"
 		},
 		{
 			"id": "packages/core/src/runtime/router-nav.ts > resolve_head_urls",
@@ -4195,6 +4215,34 @@
 		{
 			"id": "packages/postrender/src/server.ts > deploy_check > flights:0~68fab5 > run > store_call:2~fa5e01",
 			"reason": "the marker write, one store put (I/O, the live store: not cloneable), constant work (#947)"
+		},
+		{
+			"id": "packages/core/src/runtime/frame-store.ts > live",
+			"reason": "reads the hub's watcher count and the store's flights (module state by design: one store per document), constant work; run by packages/core/test/frame-store.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/frame-store.ts > make_store",
+			"reason": "makes the document's one store (a scope, a cache, a flights, a world) once per document or reset, constant work; run by packages/core/test/frame-store.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/frame-store.ts > make_store > cache:0~f09d8f > keep",
+			"reason": "an entry's linger, from whether it is bound or fetched (live), constant work; run by packages/core/test/frame-store.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/frame-store.ts > make_store > cache:0~f09d8f > onEvict",
+			"reason": "an entry let go: a reservation failed at the store's end, or a live entry put back, constant work; run by packages/core/test/frame-store.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/frame-store.ts > make_store > s > call:0~2f2cb8 > run",
+			"reason": "a flight's work: the store's fetch or a batch part's promise, handed on (constant work); run by packages/core/test/frame-store.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/frame-store.ts > stamp",
+			"reason": "one bump and one read of the store's world (module state by design), constant work; run by packages/core/test/frame-store.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/frame-store.ts > store",
+			"reason": "the document's one store, made on first use (module state by design), constant work; run by packages/core/test/frame-store.test.ts"
 		},
 		{
 			"id": "packages/core/src/runtime/nav-handle.ts > flights:0~bc1a2c > import_again:1~6d4297",
