@@ -52,7 +52,13 @@ export interface Exchange {
 	redirected: boolean;
 	/** Its body broke off as its tab went offline (`status` stays the answer's). */
 	lost?: boolean;
+	/** The build whose server gave the answer the client got (its {@link ANSWERED_BY} header). */
+	build?: string;
 }
+
+/** The header the front door puts on each answer: the build that answered it (a cached copy says
+ *  it too). Read off the answer the client gets, not a duplicate's thrown away (seed 53). */
+export const ANSWERED_BY = 'x-sim-build';
 
 const RATES: Record<FaultClass, number> = {
 	delay: 1,
@@ -215,6 +221,7 @@ export class Network {
 									() => {}
 								);
 							if (!lost) ex.status = response.status;
+							ex.build = response.headers.get(ANSWERED_BY) ?? undefined;
 							loop.add('net', `response ${ex.id} ${response.status}`, this.#latency(), () => {
 								if (signal?.aborted || lost) {
 									void response.body?.cancel();

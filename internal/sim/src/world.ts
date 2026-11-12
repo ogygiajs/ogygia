@@ -17,7 +17,7 @@ import {
 import { Cdn } from './cdn.ts';
 import { Loop } from './loop.ts';
 import { use_v8_modules } from './modules.ts';
-import { ELSEWHERE, Network, type FaultClass } from './network.ts';
+import { ANSWERED_BY, ELSEWHERE, Network, type FaultClass } from './network.ts';
 import { install, platform } from './platform.ts';
 import { rng, type Rng } from './rng.ts';
 import {
@@ -32,9 +32,6 @@ export const ORIGIN = 'https://app.test';
 
 /** The attribute on every element of HTML another origin answers (`no_foreign_html` looks for it). */
 export const FOREIGN_MARK = 'data-sim-foreign';
-
-/** The header the front door puts on each answer: the build that answered it. */
-const BUILD_HEADER = 'x-sim-build';
 
 /** A request's key among a document's answers: its path and query, less what a render signs anew
  *  each time (a hole's expiry and signature), so a fresh load's same request is the same key. */
@@ -240,13 +237,17 @@ export class World {
 		return this.#page_build.get(realm) ?? this.live;
 	}
 
-	/** The build that answered each realm's requests for what is not a file (a page, a hole, an
-	 *  endpoint), by {@link answer_key}: a hole a page asks for after a deploy is the new release's. */
-	readonly #answered = new Map<string, Map<string, string>>();
-
-	/** What answered `realm`'s requests (by {@link answer_key}), each request's build. */
+	/** The build that answered each of `realm`'s requests for what is not a file (a page, a hole, an
+	 *  endpoint), by {@link answer_key}, its latest answer's: a hole a page asks for after a deploy is
+	 *  the new release's. */
 	answers_of(realm: string): ReadonlyMap<string, string> {
-		return this.#answered.get(realm) ?? new Map();
+		const of = new Map<string, string>();
+		for (const e of this.network.exchanges) {
+			if (e.from !== realm || e.build === undefined) continue;
+			const url = new URL(e.url);
+			if (!url.pathname.startsWith('/_app/immutable/')) of.set(answer_key(url), e.build);
+		}
+		return of;
 	}
 
 	/** Runs `work` with every request sent to `build` (the MPA check's fresh load of an old page
@@ -347,7 +348,7 @@ export class World {
 				? this.cdn
 				: { fetch: (r: Request, origin: (r: Request) => Promise<Response>) => origin(r) };
 		const key = answer_key(url);
-		const answer = cdn.fetch(request, async (r) => {
+		return cdn.fetch(request, async (r) => {
 			const build = this.#build_for(decodeURIComponent(url.pathname), from, key);
 			const list = this.servers.get(build)!;
 			const answer = await list[this.rng.int(list.length)].handle(r);
@@ -357,21 +358,12 @@ export class World {
 				this.skewed.set(from, (this.skewed.get(from) ?? new Set<string>()).add(url.pathname));
 			// (which build answered rides with the answer, so a cached copy says it too)
 			const headers = new Headers(answer.headers);
-			headers.set(BUILD_HEADER, build);
+			headers.set(ANSWERED_BY, build);
 			return new Response(answer.body, {
 				status: answer.status,
 				statusText: answer.statusText,
 				headers
 			});
-		});
-		if (url.pathname.startsWith('/_app/immutable/')) return answer;
-		return answer.then((a) => {
-			const build = a.headers.get(BUILD_HEADER);
-			if (build !== null) {
-				const of = this.#answered.get(from) ?? new Map<string, string>();
-				this.#answered.set(from, of.set(key, build));
-			}
-			return a;
 		});
 	}
 
