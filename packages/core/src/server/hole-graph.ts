@@ -13,14 +13,12 @@
  *   runtime hoists these tags from an answer into `<head>` before the swap, deduped by href.
  *
  * URLs are made root-absolute (the graph here, the CSS tags by the answer's own absolutizing pass):
- * the answer lands in a page at any depth, and a `./_app/…` resolved there would 404. indexOf only.
+ * the answer lands in a page at any depth, and a `./_app/…` resolved there would 404. Tags are read the way a browser reads them (wire-markup.ts).
  */
-import {
-	ISLAND_GRAPH_ATTR,
-	decode_island_graph,
-	decode_island_locations
-} from '../island-graph.ts';
+import { decode_island_graph, decode_island_locations } from '../island-graph.ts';
+import { Needle, next_tag, OGYGIA_GRAPH, text_of } from '../wire-markup.ts';
 import { island_graph_script } from './document-tail.ts';
+import { region_css_tags } from './html-scan.ts';
 
 function root_absolute(value: string, base: URL): string {
 	if (!value.startsWith('./') && !value.startsWith('../')) return value;
@@ -32,45 +30,28 @@ function root_absolute(value: string, base: URL): string {
 	}
 }
 
-/** What the answer carries of the render's head: its islands' graph and their CSS ('' for none). */
+/** What the answer carries of the render's head: its islands' graph and their CSS (html-scan.ts
+ *  `region_css_tags`, the scan a held region carries its sheets forward by), '' for none. */
 export function hole_head(head: string, base: URL | undefined): string {
-	return (base ? hole_graph_script(head, base) : '') + head_region_css(head);
+	return (base ? hole_graph_script(head, base) : '') + region_css_tags(head);
 }
 
-const REGION_CSS_ATTR = 'data-ogygia-region-css';
+// (the attribute's name in any case: where a graph script can be; a script without it is not read)
+const GRAPH_ANY_CASE = new RegExp(OGYGIA_GRAPH, 'gi');
 
-/** Every region-CSS tag in the head, as written (`<link … data-ogygia-region-css>` or
- *  `<style data-ogygia-region-css="…">…</style>`). */
-export function head_region_css(head: string): string {
-	let out = '';
-	for (
-		let at = head.indexOf(REGION_CSS_ATTR);
-		at !== -1;
-		at = head.indexOf(REGION_CSS_ATTR, at + 1)
-	) {
-		const start = head.lastIndexOf('<', at);
-		if (start === -1) continue;
-		const is_style = head.startsWith('<style', start);
-		const end = is_style ? head.indexOf('</style>', at) : head.indexOf('>', at);
-		if (end === -1) break;
-		const stop = is_style ? end + '</style>'.length : end + 1;
-		out += head.slice(start, stop);
-		at = stop - 1;
-	}
-	return out;
-}
-
-/** One graph script for the answer (or '' when the render's head carries none). */
+/** One graph script for the answer (or '' when the render's head carries none): every
+ *  `script[data-ogygia-graph]`, as the runtime selects them. */
 export function hole_graph_script(head: string, base: URL): string {
-	let at = head.indexOf(ISLAND_GRAPH_ATTR);
-	if (at === -1) return '';
+	const mark = new Needle(head, GRAPH_ANY_CASE);
+	if (mark.gone) return '';
 	const graph = new Map<string, string[]>();
 	const locations = new Map<string, string>();
-	for (; at !== -1; at = head.indexOf(ISLAND_GRAPH_ATTR, at + ISLAND_GRAPH_ATTR.length)) {
-		const open = head.indexOf('>', at);
-		const close = open === -1 ? -1 : head.indexOf('</script', open);
-		if (close === -1) break;
-		const text = head.slice(open + 1, close);
+	for (let t = next_tag(head, 'script', 0); t !== null; t = next_tag(head, 'script', t.next)) {
+		const held = mark.holds(t);
+		if (mark.gone) break;
+		if (!held || t.attr(OGYGIA_GRAPH) === undefined) continue;
+		const text = text_of(head, t, 'script');
+		if (text === null) break;
 		for (const [entry, hrefs] of decode_island_graph(text)) {
 			const key = root_absolute(entry, base);
 			if (!graph.has(key))
@@ -81,7 +62,6 @@ export function hole_graph_script(head: string, base: URL): string {
 		}
 		for (const [entry, src] of decode_island_locations(text))
 			locations.set(root_absolute(entry, base), root_absolute(src, base));
-		at = close;
 	}
 	return island_graph_script(graph, locations);
 }

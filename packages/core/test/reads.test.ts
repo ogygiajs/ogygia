@@ -1,13 +1,13 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { Reads, note_visitor_read, open_reads, set_open_reads } from '../src/plugin/reads.ts';
+import { note_visitor_read, open_reads, read_set, set_open_reads } from '../src/plugin/reads.ts';
 
 afterEach(() => set_open_reads(null));
 
 describe('read sets', () => {
 	it('a read lands in its own set and in every set around it; the first one names each', () => {
-		const page = new Reads();
-		const hole = new Reads(page);
-		const inner = new Reads(hole);
+		const page = read_set();
+		const hole = read_set(page);
+		const inner = read_set(hole);
 		page.visitor('flag:hero');
 		inner.visitor('cookie:session');
 		expect(inner.perVisitor).toBe('cookie:session');
@@ -16,20 +16,20 @@ describe('read sets', () => {
 	});
 
 	it('a page.data read lands in every set around it', () => {
-		const page = new Reads();
-		const hole = new Reads(page);
+		const page = read_set();
+		const hole = read_set(page);
 		hole.page();
 		expect(hole.pageData).toBe(true);
 		expect(page.pageData).toBe(true);
 	});
 
 	it("a read with no work running lands in the request's set; under work, in both", () => {
-		const request = new Reads();
+		const request = read_set();
 		note_visitor_read(request, 'header:authorization');
 		expect(request.perVisitor).toBe('header:authorization');
 
-		const other = new Reads();
-		const work = new Reads();
+		const other = read_set();
+		const work = read_set();
 		set_open_reads(() => work);
 		note_visitor_read(other, 'cookie:x');
 		expect(work.perVisitor).toBe('cookie:x');
@@ -37,10 +37,12 @@ describe('read sets', () => {
 	});
 
 	it('two module instances of this file (a plugin package and core) share the running set', async () => {
-		const copy =
-			(await import('../src/plugin/reads.ts?copy')) as typeof import('../src/plugin/reads.ts');
+		const copy = (await import(
+			// @ts-expect-error -- `?copy` loads a second instance of the module; TypeScript has no declaration for the query
+			'../src/plugin/reads.ts?copy'
+		)) as typeof import('../src/plugin/reads.ts');
 		expect(copy.open_reads).not.toBe(open_reads);
-		const work = new Reads();
+		const work = read_set();
 		set_open_reads(() => work);
 		expect(copy.open_reads()).toBe(work);
 	});

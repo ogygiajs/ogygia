@@ -15,21 +15,28 @@
 	"files": [
 		"dist",
 		"README.md",
-		"ambient.d.ts"
+		"ambient.d.ts",
+		"virtual"
 	],
 	"type": "module",
 	"sideEffects": [
 		"**/*.css"
 	],
+	"imports": {
+		"#region-server": {
+			"browser": "./src/region-server.browser.ts",
+			"default": "./src/region-server.ts"
+		}
+	},
 	"exports": {
 		".": {
 			"svelte": "./src/index.ts",
 			"types": "./dist/index.d.ts",
 			"default": "./src/index.ts"
 		},
-		"./vite": {
-			"types": "./dist/vite/index.d.ts",
-			"default": "./dist/vite/index.js"
+		"./contract": {
+			"types": "./dist/contract/index.d.ts",
+			"default": "./dist/contract/index.js"
 		},
 		"./runtime": {
 			"types": "./dist/runtime/index.d.ts",
@@ -68,31 +75,14 @@
 			"types": "./dist/internal-register.d.ts",
 			"default": "./src/internal-register.ts"
 		},
-		"./internal/compiler-ids": {
-			"svelte": "./src/compiler/ids.ts",
-			"types": "./dist/compiler/ids.d.ts",
-			"default": "./src/compiler/ids.ts"
-		},
-		"./internal/region-core": {
-			"types": "./dist/region-core.d.ts",
-			"default": "./dist/region-core.js"
-		},
 		"./internal/reconcile": {
 			"svelte": "./src/internal-reconcile.ts",
 			"types": "./dist/internal-reconcile.d.ts",
 			"default": "./src/internal-reconcile.ts"
 		},
-		"./internal/compiler": {
-			"types": "./dist/compiler/index.d.ts",
-			"default": "./dist/compiler/index.js"
-		},
 		"./server": {
 			"types": "./dist/hooks.d.ts",
 			"default": "./src/hooks.ts"
-		},
-		"./markup": {
-			"types": "./dist/markup.d.ts",
-			"default": "./src/markup.ts"
 		},
 		"./plugin": {
 			"types": "./dist/plugin/index.d.ts",
@@ -118,32 +108,27 @@
 			"types": "./dist/events/index.d.ts",
 			"default": "./src/events/index.ts"
 		},
-		"./insights": {
-			"types": "./dist/insights/index.d.ts",
-			"default": "./src/insights/index.ts"
-		},
 		"./types": {
 			"types": "./ambient.d.ts"
-		},
-		"./internal/compiler-browser": {
-			"types": "./dist/compiler/browser.d.ts",
-			"default": "./dist/compiler/browser.js"
-		},
-		"./internal/compiler-browser-full": {
-			"types": "./dist/compiler/browser-full.d.ts",
-			"default": "./dist/compiler/browser-full.js"
 		}
 	},
 	"publishConfig": {
+		"imports": {
+			"#region-server": {
+				"types": "./dist/region-server.d.ts",
+				"browser": "./dist/region-server.browser.js",
+				"default": "./dist/region-server.js"
+			}
+		},
 		"exports": {
 			".": {
 				"types": "./dist/index.d.ts",
 				"svelte": "./dist/index.js",
 				"default": "./dist/index.js"
 			},
-			"./vite": {
-				"types": "./dist/vite/index.d.ts",
-				"default": "./dist/vite/index.js"
+			"./contract": {
+				"types": "./dist/contract/index.d.ts",
+				"default": "./dist/contract/index.js"
 			},
 			"./runtime": {
 				"types": "./dist/runtime/index.d.ts",
@@ -182,16 +167,6 @@
 				"svelte": "./dist/internal-register.js",
 				"default": "./dist/internal-register.js"
 			},
-			"./internal/compiler-ids": {
-				"types": "./dist/compiler/ids.d.ts",
-				"svelte": "./dist/compiler/ids.js",
-				"default": "./dist/compiler/ids.js"
-			},
-			"./internal/region-core": {
-				"types": "./dist/region-core.d.ts",
-				"svelte": "./dist/region-core.js",
-				"default": "./dist/region-core.js"
-			},
 			"./internal/reconcile": {
 				"types": "./dist/internal-reconcile.d.ts",
 				"svelte": "./dist/internal-reconcile.js",
@@ -200,10 +175,6 @@
 			"./server": {
 				"types": "./dist/hooks.d.ts",
 				"default": "./dist/hooks.js"
-			},
-			"./markup": {
-				"types": "./dist/markup.d.ts",
-				"default": "./dist/markup.js"
 			},
 			"./plugin": {
 				"types": "./dist/plugin/index.d.ts",
@@ -229,24 +200,8 @@
 				"types": "./dist/events/index.d.ts",
 				"default": "./dist/events/index.js"
 			},
-			"./insights": {
-				"types": "./dist/insights/index.d.ts",
-				"default": "./dist/insights/index.js"
-			},
-			"./internal/compiler": {
-				"types": "./dist/compiler/index.d.ts",
-				"default": "./dist/compiler/index.js"
-			},
 			"./types": {
 				"types": "./ambient.d.ts"
-			},
-			"./internal/compiler-browser": {
-				"types": "./dist/compiler/browser.d.ts",
-				"default": "./dist/compiler/browser.js"
-			},
-			"./internal/compiler-browser-full": {
-				"types": "./dist/compiler/browser-full.d.ts",
-				"default": "./dist/compiler/browser-full.js"
 			}
 		},
 		"access": "public"
@@ -263,13 +218,11 @@
 	"dependencies": {
 		"@ogygia/machine": "workspace:^",
 		"devalue": "catalog:",
-		"esm-env": "catalog:",
-		"estree-walker": "^3.0.3",
-		"magic-string": "catalog:",
-		"tinyglobby": "^0.2.17"
+		"esm-env": "catalog:"
 	},
 	"devDependencies": {
 		"@ogygia/config": "workspace:*",
+		"@ogygia/tooling": "workspace:*",
 		"@ogygia/tsdown-plugin-svelte": "workspace:*",
 		"@sveltejs/kit": "catalog:",
 		"@sveltejs/vite-plugin-svelte": "catalog:",
