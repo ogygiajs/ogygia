@@ -32,7 +32,7 @@ import {
 	split_first_string,
 	parse_module,
 	type OgCall
-} from '@ogygia/core/internal/compiler-browser';
+} from '@ogygia/core/internal/compiler';
 import { parse_git_spec, git_glob_pattern, type GitSpec } from './git.ts';
 import { bridge } from '../bridge.ts';
 import { OgygiaError } from '../messages/build.ts';

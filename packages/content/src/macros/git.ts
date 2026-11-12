@@ -9,13 +9,10 @@
  * The spec is ONE literal string, `owner/repo[@ref][:path]`, so the plugin parses it without touching
  * the (verbatim, forwarded) folder-options object — which may hold regex literals. Node-only.
  */
+import fs from 'node:fs';
 import { createRequire } from 'node:module';
-import {
-	fs,
-	path,
-	BuildCache,
-	configure_build_cache
-} from '@ogygia/core/internal/compiler-browser';
+import path from 'node:path';
+import { BuildCache, configure_build_cache } from '@ogygia/core/internal/compiler';
 import { OgygiaError } from '../messages/build.ts';
 
 // git's own corners of the shared build cache: resolved shas (kv) + the checkout trees (a dir).

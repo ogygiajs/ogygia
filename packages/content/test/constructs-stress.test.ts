@@ -11,7 +11,8 @@ import path from 'node:path';
 import { rewrite_code, type CodeCall } from '../src/macros/code.ts';
 import { rewrite_regions } from '../src/macros/regions.ts';
 import { rewrite_loaders } from '../src/macros/loaders.ts';
-import { __set_build_cache_root, run_browser_macros } from '@ogygia/core/internal/compiler-browser';
+import { __set_build_cache_root } from '@ogygia/core/internal/compiler';
+import { rewrite_wire } from '../../core/src/compiler/macros/wire.ts';
 
 const MARKUP = ['.svelte'] as const;
 const echo = async (c: CodeCall) =>
@@ -175,7 +176,7 @@ describe('.svelte multi-script-block interactions', () => {
 			`<div>{snip}</div>`
 		].join('\n');
 		// core's own module-macro pass (wire) first, then the content plugin's code macro
-		const { code: wired } = await run_browser_macros(src, '/C.svelte');
+		const wired = rewrite_wire(src, '/C.svelte', MARKUP);
 		expect(wired).toContain("Symbol.for('ogygia.wire')");
 		const coded = await rewrite_code(wired, '/C.svelte', MARKUP, echo);
 		expect(coded).toContain('__og_html_region(');

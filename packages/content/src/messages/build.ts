@@ -10,7 +10,7 @@
  * own (./runtime.ts).
  */
 import { define_messages, prose, type MessagesOf } from '@ogygia/core/internal/messages';
-import { dedent } from '@ogygia/core/internal/compiler-browser';
+import { dedent } from '@ogygia/core/internal/compiler';
 
 /** The errors: `throw new OgygiaError(code, args)`. */
 export const CONTENT_BUILD_ERRORS = {

@@ -118,14 +118,6 @@
 		},
 		"./types": {
 			"types": "./ambient.d.ts"
-		},
-		"./internal/compiler-browser": {
-			"types": "./dist/internal/compiler-browser.d.ts",
-			"default": "./dist/internal/compiler-browser.js"
-		},
-		"./internal/compiler-browser-full": {
-			"types": "./dist/internal/compiler-browser-full.d.ts",
-			"default": "./dist/internal/compiler-browser-full.js"
 		}
 	},
 	"publishConfig": {
@@ -227,14 +219,6 @@
 			},
 			"./types": {
 				"types": "./ambient.d.ts"
-			},
-			"./internal/compiler-browser": {
-				"types": "./dist/internal/compiler-browser.d.ts",
-				"default": "./dist/internal/compiler-browser.js"
-			},
-			"./internal/compiler-browser-full": {
-				"types": "./dist/internal/compiler-browser-full.d.ts",
-				"default": "./dist/internal/compiler-browser-full.js"
 			}
 		}
 	},
