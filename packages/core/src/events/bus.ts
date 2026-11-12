@@ -132,6 +132,7 @@ export function emit(input: DevtoolsEventInput): void {
 	}
 }
 
+// static: the event domains the bus stamps, the ones ingest takes
 const DOMAINS: ReadonlySet<unknown> = new Set([
 	'compile',
 	'server',
