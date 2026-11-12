@@ -18,7 +18,7 @@ import { boot_link, router_link, slots } from './slots.ts';
 import { clock, net } from '@ogygia/machine';
 import { dispose_scope } from '../ref.ts';
 import {
-	NO_RECONCILE_SELECTOR,
+	opts_out_of_reconcile,
 	reconcile_body,
 	stamp_region_keys,
 	swap_body
@@ -929,8 +929,8 @@ export async function navigate(
 			RECONCILE_NAV &&
 			!!slots.morph &&
 			!regions_in_shadow() &&
-			!document.body.querySelector(NO_RECONCILE_SELECTOR) &&
-			!doc.body.querySelector(NO_RECONCILE_SELECTOR);
+			!opts_out_of_reconcile(document.body) &&
+			!opts_out_of_reconcile(doc.body);
 		// Pull the a11y announcer out of the body before the reconcile — it isn't in the incoming
 		// HTML, so a body morph would remove it. Re-attached (with the new title) by `announce`.
 		announcer?.remove();
