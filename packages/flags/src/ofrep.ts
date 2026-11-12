@@ -9,6 +9,7 @@
  *   decide({ source: ofrep({ url: 'http://flagd:8016' }) });
  */
 import { request_scope } from '@ogygia/core/internal/server';
+import { net, timers } from '@ogygia/machine';
 import type { FlagSource, FlagQuery, Resolved, CtxLike } from './index.ts';
 
 // ── regexes
@@ -43,7 +44,7 @@ function default_context(c: CtxLike): Record<string, unknown> {
 
 export function ofrep(opts: OfrepOptions): FlagSource {
 	const ctx_of = opts.context ?? default_context;
-	const f = opts.fetch ?? fetch;
+	const f = opts.fetch ?? net.fetch;
 	const endpoint = opts.url.replace(TRAILING_SLASH_RE, '') + '/ofrep/v1/evaluate/flags/bulk';
 	const timeout = opts.timeout ?? 800;
 	return async (queries: FlagQuery[], c: CtxLike): Promise<Record<string, Resolved>> => {
@@ -55,7 +56,7 @@ export function ofrep(opts: OfrepOptions): FlagSource {
 				headers: { 'content-type': 'application/json', ...opts.headers },
 				body: JSON.stringify({ context: ctx_of(c) }),
 				// (or the request ending first: nobody reads the answer then)
-				signal: AbortSignal.any([AbortSignal.timeout(timeout), ended])
+				signal: timers.timeout(timeout, ended)
 			});
 			// whole endpoint down → all native, and said (prime_flags: flags_source_failed)
 			if (!res.ok) throw new Error(`OFREP ${endpoint} answered ${res.status}`);
