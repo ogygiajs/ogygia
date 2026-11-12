@@ -251,6 +251,32 @@ describe('the network', () => {
 		expect(seen['tab-9']).not.toBe(seen['tab-1']);
 	});
 
+	it('a request the client calls off before its answer came reads aborted, though the server answered (palaestra seed 99)', async () => {
+		// (the server's answer, landing after the call-off, wrote its status over `aborted`: the waste
+		// oracle counted a hole's called-off fetch as an ask)
+		const loop = new Loop(rng(1));
+		const net = new Network({ loop, rng: rng(1), faults: new Set() });
+		const called_off = new AbortController();
+		const heard = net
+			.send(
+				'tab-1#1',
+				new Request('https://app.test/slow', { signal: called_off.signal }),
+				() =>
+					new Promise<Response>((answer) =>
+						loop.add('server', 'renders', 300, () => answer(new Response('late')))
+					)
+			)
+			.then(
+				() => 'answered',
+				(e: Error) => e.name
+			);
+		await loop.run(10);
+		called_off.abort();
+		await loop.run(1_000);
+		expect(await heard).toBe('AbortError');
+		expect(net.exchanges.map((e) => e.status)).toEqual(['aborted']);
+	});
+
 	it('each visitor comes from a client address of its own, and its server hops keep it', async () => {
 		// (a crowd of visitors shared one address, so a per-client rate limit saw one client)
 		const loop = new Loop(rng(1));
