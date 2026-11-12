@@ -13,6 +13,7 @@ import {
 	faulted,
 	hydrates_as_sent,
 	KNOWN,
+	known_said,
 	Leaks,
 	live_events,
 	mpa_equivalent,
@@ -967,5 +968,16 @@ describe.skipIf(!built)('a warning a filed bug says', () => {
 		} finally {
 			await world.end();
 		}
+	});
+});
+
+describe('what a filed bug says', () => {
+	it("is #1158's: the AbortError of a batch called off while its body came, nobody listening", () => {
+		const said = known_said([
+			'unhandled: AbortError: The operation was aborted.',
+			'unhandled: TypeError: something else'
+		]);
+		expect(said.known.map((k) => k.issue)).toEqual([1158]);
+		expect(said.left).toEqual(['unhandled: TypeError: something else']);
 	});
 });
