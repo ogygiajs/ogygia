@@ -56,6 +56,21 @@ describe('the workload', () => {
 		);
 	});
 
+	it('presses a button while a page is still loading (an input before the first paint)', () => {
+		const r = rng(17);
+		const eager: Action[] = [];
+		for (let i = 0; i < 3000; i++) {
+			const a = next_action(r, 1, ['/', '/a']);
+			if (a.kind === 'eager') eager.push(a);
+		}
+		expect(eager.length).toBeGreaterThan(0);
+		for (const a of eager) if (a.kind === 'eager') expect(a.after).toBeLessThanOrEqual(300);
+		expect(ACTION_KINDS).toContain('eager');
+		expect(say({ kind: 'eager', tab: 0, path: '/a', nth: 2, after: 5 })).toBe(
+			'tab 0: go to /a, press button #2 5 ms in'
+		);
+	});
+
 	it("a visitor's click is a pointer's: down, up, then the click, as a browser sends them", () => {
 		const window = new Window();
 		const button = window.document.createElement('button');
