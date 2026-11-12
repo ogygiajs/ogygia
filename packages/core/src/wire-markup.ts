@@ -476,6 +476,7 @@ function name_is(html: string, from: number, to: number, name: string): boolean 
 }
 
 /** The elements whose text the tokenizer reads raw, up to their own end tag. */
+// static: the raw-text element names
 const RAW_TEXT = [
 	'script',
 	'style',
