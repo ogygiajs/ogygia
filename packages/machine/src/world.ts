@@ -42,8 +42,9 @@ class Stamped<K> implements World<K> {
 	bump(keys?: Iterable<K>): void {
 		if (keys === undefined) {
 			this._floor = ++this._at;
-			this._moved.clear();
-			this._tell(null);
+			// (a world nobody keys or watches, the common case, moves by its stamp alone)
+			if (this._moved.size !== 0) this._moved.clear();
+			if (this._watchers.size !== 0) this._tell(null);
 			return;
 		}
 		const moved = new Set(keys);

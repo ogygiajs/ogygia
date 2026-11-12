@@ -21,6 +21,38 @@ const PARAGRAPH_SEPARATOR_G = /\u2029/g;
  *  the secret check below covers what they would hold) */
 const SECRET_MODULE_RE = /[\\/](?:src|dist)[\\/]server[\\/](?:hmac|signing-key)\.[jt]s$/;
 
+/** A string-literal escape as JS and JSON write it: `\xHH`, `\u{H…}`, `\uHHHH`, or `\` + one character. */
+const ESCAPE_G = /\\(?:x([0-9a-fA-F]{2})|u\{([0-9a-fA-F]{1,6})\}|u([0-9a-fA-F]{4})|([\s\S]))/g;
+const SINGLE_ESCAPES: Record<string, string> = {
+	n: '\n',
+	r: '\r',
+	t: '\t',
+	b: '\b',
+	f: '\f',
+	v: '\v',
+	'0': '\0',
+	'\n': ''
+};
+
+/**
+ * `text` with every string-literal escape read as the literal reads it, so a secret a bundler
+ * inlined as an escaped literal (`"pa\"ss"`, `'it\'s'`, `"café"`, `"a\/b"`) is found as
+ * itself (#1044). Text outside literals only gains matches by it, never loses one: the scan
+ * looks in both.
+ */
+function unescaped(text: string): string {
+	if (!text.includes('\\')) return text;
+	return text.replace(ESCAPE_G, (_m, x?: string, cp?: string, u?: string, c?: string) => {
+		if (x !== undefined) return String.fromCharCode(parseInt(x, 16));
+		if (cp !== undefined) {
+			const n = parseInt(cp, 16);
+			return n <= 0x10ffff ? String.fromCodePoint(n) : '';
+		}
+		if (u !== undefined) return String.fromCharCode(parseInt(u, 16));
+		return SINGLE_ESCAPES[c!] ?? c!;
+	});
+}
+
 /**
  * SECRET-SPLIT, checked on the finished CLIENT bundle (internal/notes/INVARIANTS.md): no chunk or
  * asset holds a signing secret (`OGYGIA_SECRET`, the build's own key), and no chunk holds a module
@@ -43,7 +75,8 @@ export function refuse_client_secrets(
 		};
 		const file = o.fileName ?? key;
 		const text = o.type === 'chunk' ? o.code : typeof o.source === 'string' ? o.source : '';
-		if (text && sought.some((s) => text.includes(s)))
+		const read = text ? unescaped(text) : '';
+		if (text && sought.some((s) => text.includes(s) || read.includes(s)))
 			throw new OgygiaError('secret_in_client_chunk', { file, what: 'a signing secret' });
 		const signer =
 			o.type === 'chunk' ? o.moduleIds?.find((id) => SECRET_MODULE_RE.test(id)) : undefined;

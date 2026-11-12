@@ -30,11 +30,14 @@ describe('flags()', () => {
 });
 
 describe('the server realm', () => {
-	it('primes the source in `request` and drains exposures in `done`', async () => {
+	it('primes the source in `request`, done before the page reads a flag, and drains exposures in `done`', async () => {
 		const sent: unknown[][] = [];
 		const gate = flag('plugin-test-gate');
 		decide({
-			source: () => ({ 'plugin-test-gate': true }),
+			source: async () => {
+				await new Promise((r) => setTimeout(r, 5));
+				return { 'plugin-test-gate': true };
+			},
 			exposure: (b) => void sent.push(b),
 			batch: { max: 100, ms: 60_000 }
 		});
