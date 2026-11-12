@@ -13,6 +13,7 @@ import { Browser, type BrowserPage, type BrowserWindow } from 'happy-dom';
 import CookieStringUtility from 'happy-dom/lib/cookie/urilities/CookieStringUtility.js';
 import * as PropertySymbol from 'happy-dom/lib/PropertySymbol.js';
 import WindowBrowserContext from 'happy-dom/lib/window/WindowBrowserContext.js';
+import { on_navigation_start, restore_history, save_history, type SavedHistory } from './happy.ts';
 import type { Loop } from './loop.ts';
 import type { Network } from './network.ts';
 import { install, message_channel, platform, site, SITES, type RealmOptions } from './platform.ts';
@@ -32,11 +33,14 @@ export interface Tab {
 	realm: string;
 	/** Documents it has shown (and navigations called off before theirs came: each took a realm). */
 	documents: number;
-	/** Hard navigations it started: only the latest is still going (`navigate`). */
+	/** Navigations it started, the visitor's or the page's: only the latest is still going. */
 	navigations: number;
 	/** A navigation started and its document has not come yet: its requests are realm
 	 *  `#documents + 1`'s. */
 	awaiting: boolean;
+	/** The tab's history as it was before that navigation started (`awaiting`): what calling it
+	 *  off puts back. */
+	before: SavedHistory | null;
 	/** What the page reported: uncaught errors, failed scripts, console errors. */
 	readonly errors: string[];
 	readonly console: string[];
@@ -304,6 +308,7 @@ export class Browsers {
 		this.#leave(tab);
 		tab.documents++;
 		tab.awaiting = false;
+		tab.before = null;
 		tab.realm = `${tab.name}#${tab.documents}`;
 		const options: RealmOptions = {
 			name: tab.realm,
@@ -622,6 +627,7 @@ export class Browsers {
 			documents: 0,
 			navigations: 0,
 			awaiting: false,
+			before: null,
 			errors: [],
 			console: [],
 			platform: null,
@@ -646,6 +652,7 @@ export class Browsers {
 		}
 		v.tabs.push(tab);
 		this.#windows.set(page.mainFrame.window, tab);
+		on_navigation_start(page, (frame, go) => this.#start(tab, frame, go));
 		// (happy-dom reports a failed script or stylesheet here, then fires `error` on its element:
 		// the element's listener, in #arrive, says it with this text)
 		const pc = page.console as unknown as Record<string, (...a: unknown[]) => void>;
@@ -664,15 +671,6 @@ export class Browsers {
 	 */
 	navigate(tab: Tab, how: 'goto' | 'back' | 'forward' | 'reload', path = '/'): Promise<void> {
 		const page = tab.page;
-		// a navigation whose document has not come yet is called off by this one, as a browser does:
-		// its document never comes (happy-dom wrote it over the newer page once its stalled body
-		// ended, under its own URL; palaestra seed 122), and its requests' realm is never shown
-		if (tab.awaiting) {
-			tab.documents++;
-			this.#o.network.leave(`${tab.name}#${tab.documents}`);
-		}
-		tab.awaiting = true;
-		const mine = ++tab.navigations;
 		const go =
 			how === 'goto'
 				? page.goto(new URL(path, this.#o.origin).href)
@@ -682,17 +680,51 @@ export class Browsers {
 						? page.goForward()
 						: page.reload();
 		// (one called off says nothing: the visitor called it off)
-		const latest = () => tab.navigations === mine;
+		const mine = tab.navigations;
 		return go.then(
-			() => {
-				if (latest()) tab.awaiting = false;
-			},
+			() => {},
 			(error: unknown) => {
-				if (!latest()) return;
-				tab.awaiting = false;
+				if (tab.navigations !== mine) return;
 				tab.errors.push(`navigation: ${error instanceof Error ? error.message : String(error)}`);
 			}
 		);
+	}
+
+	/**
+	 * A navigation of `tab`'s main frame starts (`go`), the visitor's or the page's. One whose
+	 * document has not come yet is called off by it, as a browser does: its document never comes
+	 * (happy-dom wrote it over the newer page once its stalled body ended, under its own URL;
+	 * palaestra seed 122), its requests' realm is never shown, and it never was an entry: happy-dom
+	 * adds a navigation's entry as it starts, a browser once its document comes, so the history is
+	 * put back as it was before it, and a back goes back from the page on screen (palaestra seed
+	 * 20958: the router handed a click to the browser, and the visitor went back meanwhile).
+	 */
+	#start(tab: Tab, frame: object, go: () => Promise<unknown>): Promise<unknown> {
+		if (tab.awaiting && tab.before !== null) {
+			tab.documents++;
+			this.#o.network.leave(`${tab.name}#${tab.documents}`);
+			restore_history(frame, tab.before);
+		}
+		tab.awaiting = false;
+		tab.before = null;
+		const before = save_history(frame);
+		const window = () => (frame as { window: unknown }).window;
+		const shown = window();
+		const mine = ++tab.navigations;
+		const going = go();
+		// (a new document is on its way when the frame's window was replaced: a step within the
+		// document, a fragment or a `pushState` entry, replaces none)
+		if (window() !== shown) {
+			tab.awaiting = true;
+			tab.before = before;
+		}
+		const end = () => {
+			if (tab.navigations !== mine) return;
+			tab.awaiting = false;
+			tab.before = null;
+		};
+		void going.then(end, end);
+		return going;
 	}
 
 	/** The tab leaves the document it shows (it moves on, or closes): a browser unloads it, so its

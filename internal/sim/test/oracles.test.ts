@@ -6,6 +6,7 @@ import { describe, expect, it } from 'vitest';
 import { World } from '../src/world.ts';
 import { user_click } from '../src/workload.ts';
 import type { Heard } from '../src/browser.ts';
+import { waste } from '../src/waste.ts';
 import {
 	document_faulted,
 	fallback_stands,
@@ -931,6 +932,25 @@ describe.skipIf(!built)('oracles on the palaestra build', () => {
 			const doc = tab.page.mainFrame.document as unknown as Document;
 			expect(doc.querySelector('[data-hl-header]')!.getAttribute('data-locale')).toBe('fr');
 			expect(await mpa_equivalent(world, v, tab)).toBeNull();
+		} finally {
+			await world.end();
+		}
+	});
+});
+
+describe.skipIf(!built)('a warning a filed bug says', () => {
+	it("is the bug's, not waste: /data's derived_inert is upstream (#1079)", async () => {
+		// (a remote query in {#await} in a boundary, beside another async boundary, warns on a plain
+		// load with no ogygia at all; waste-b320c6)
+		const world = await World.make({ seed: 2, builds: [{ id: 'v1', output: OUTPUT }] });
+		try {
+			const tab = world.tab(world.visitor('alice'));
+			await world.go(tab, 'goto', '/data');
+			await world.quiesce();
+			expect(waste(world, tab)).toEqual({
+				oracle: 'known',
+				detail: `https://app.test/data: #1079 (Svelte's async mode reads a remote query's derived after its effect ended)`
+			});
 		} finally {
 			await world.end();
 		}

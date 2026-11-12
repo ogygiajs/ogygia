@@ -74,7 +74,13 @@ module scripts. Its gaps are handled in the sim, with no patch to happy-dom:
 - It let a navigation land after the tab had started another: the first page's stalled body was
   written over the newer page, under the first page's URL. A navigation whose document has not
   come is called off when the tab navigates again (its realm is left, its failure unsaid;
-  `Browsers.navigate`, `test/superseded-navigation.node.test.ts`; palaestra seed 122).
+  `Browsers.#start`, `test/superseded-navigation.node.test.ts`; palaestra seed 122). The page's
+  own navigations too (`location.assign`, a form's submit: every start goes through
+  `navigation_starts`), and the one called off never was an entry: happy-dom adds a navigation's
+  entry as it starts, a browser once its document comes, so its history is put back and a back goes
+  back from the page on screen (the router handed a click to the browser, the visitor went back,
+  and the stalled page landed on the back's document: palaestra seed 20958,
+  `rule_address_bar_drift`).
 - It ran a copy of any script: a copy carries "already started" (a script that connected, or one a
   parser marked unexecutable), so the router's head merge ran the next page's early hole start
   again (`scripts_start_once`, `test/scripts.test.ts`; gen 191).
@@ -505,8 +511,9 @@ for twice (content-hashed files and pages left out: a browser's module map keeps
 simulator has no HTTP cache; a remote query is counted per router visit, `og:before-swap` to the
 next: a back is a new visit, and its held region asks again as its page does, gen 187), no POST the app refused (a batch to a path that answers none, #987),
 nothing held twice (a stylesheet, a style, a module preload, a page seed, an island's props within
-one answer: a region fetched apart carries its own, gen 173) and no warning said. `KNOWN_WASTE` there
-is KNOWN's twin. Long tasks and layout shift need a layout engine: the real-browser tier measures
+one answer: a region fetched apart carries its own, gen 173) and no warning said (but one a filed bug
+says, `KNOWN_SAID`: Svelte's `derived_inert` on palaestra's /data is upstream, #1079, and a plain Kit
+app says it too). `KNOWN_WASTE` there is KNOWN's twin. Long tasks and layout shift need a layout engine: the real-browser tier measures
 them (below).
 
 A server's hop the network tampered with puts bytes no server wrote into the page it made: html-sent

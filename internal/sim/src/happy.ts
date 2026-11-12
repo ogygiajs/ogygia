@@ -5,6 +5,7 @@
  *
  * - `inert_parsed_documents`: a parsed document loads nothing.
  * - `completion_on_the_loop`: a document's `load` event and `readyState` come on virtual time.
+ * - `navigation_starts`: the simulator hears each navigation of a page start, whoever started it.
  */
 import { HTMLLinkElement, HTMLScriptElement } from 'happy-dom';
 import ECMAScriptModule from 'happy-dom/lib/module/ECMAScriptModule.js';
@@ -443,6 +444,82 @@ export function history_by_document(): void {
 	nav.navigateSteps = function (this: unknown, o: Traverse) {
 		return o.steps ? traverse((x) => x.steps ?? 0, steps).call(this, o) : steps.call(this, o);
 	};
+}
+
+/** A frame's history as it stood: its entries, the one it was on, and each entry's document. */
+export interface SavedHistory {
+	readonly items: readonly HistoryItem[];
+	readonly current: HistoryItem;
+	readonly docs: readonly (number | undefined)[];
+}
+
+/** Saves `frame`'s history (`history_by_document`'s documents too). */
+export function save_history(frame: object): SavedHistory {
+	const history = (frame as Frame)[PropertySymbol.history] as {
+		items: HistoryItem[];
+		currentItem: HistoryItem;
+	};
+	return {
+		items: [...history.items],
+		current: history.currentItem,
+		docs: history.items.map((item) => item[DOC])
+	};
+}
+
+/** Puts `frame`'s history back as `saved` holds it. */
+export function restore_history(frame: object, saved: SavedHistory): void {
+	const history = (frame as Frame)[PropertySymbol.history] as {
+		items: HistoryItem[];
+		currentItem: HistoryItem;
+	};
+	history.items.splice(0, history.items.length, ...saved.items);
+	history.currentItem = saved.current;
+	saved.items.forEach((item, i) => (item[DOC] = saved.docs[i]));
+}
+
+/** What a page's main frame does as one of its navigations starts (`go`: the navigation). */
+type Starts = (frame: object, go: () => Promise<unknown>) => Promise<unknown>;
+const STARTS = new WeakMap<object, Starts>();
+
+/** `page`'s main frame's navigations start through `starts` (`navigation_starts`). */
+export function on_navigation_start(page: object, starts: Starts): void {
+	STARTS.set(page, starts);
+}
+
+/**
+ * Every hard navigation of a page starts in happy-dom's navigator, whoever asked (the visitor, the
+ * page's `location`, a form's submit, `history.back()`): each start of a main frame's goes through
+ * the hook its page set (`on_navigation_start`), before anything of it is done (a traversal's step
+ * through the entries too, `history_by_document`'s: install this after it). Idempotent.
+ */
+export function navigation_starts(): void {
+	const nav = BrowserFrameNavigator as unknown as Record<string, unknown> & { __starts?: boolean };
+	if (nav.__starts) return;
+	nav.__starts = true;
+	// (inside a start: back calls `navigate` for its document, and the outer one is the start)
+	let starting = 0;
+	for (const step of [
+		'navigate',
+		'navigateBack',
+		'navigateForward',
+		'navigateSteps',
+		'reload'
+	] as const) {
+		const real = nav[step] as (this: unknown, o: { frame: Frame }) => Promise<unknown>;
+		nav[step] = function (this: unknown, o: { frame: Frame }) {
+			const page = (o.frame as unknown as { page: { mainFrame: unknown } }).page;
+			const starts = starting === 0 && page.mainFrame === o.frame ? STARTS.get(page) : undefined;
+			const go = () => {
+				starting++;
+				try {
+					return real.call(this, o);
+				} finally {
+					starting--;
+				}
+			};
+			return starts ? starts(o.frame, go) : go();
+		};
+	}
 }
 
 let driving: Loop | null = null;
