@@ -164,6 +164,14 @@ export function on_reload_needed(say: (url: string, error: unknown) => void): vo
 	say_reload_needed = say;
 }
 
+/** What the page notes of an island file's load (the boot's: region-sheets.ts `note_code_sheets`). */
+let note_file_load: <T>(url: string, loading: Promise<T>) => Promise<T> = (_url, loading) =>
+	loading;
+/** The boot hands over what it notes of each island file's load. */
+export function on_file_load(note: <T>(url: string, loading: Promise<T>) => Promise<T>): void {
+	note_file_load = note;
+}
+
 /**
  * `load` (a bundler-resolved `() => import('./x.ts')`), and after it fails to download, its `file`
  * under a fresh URL on each later call; once it has loaded, every later call is that load (a fresh
@@ -283,14 +291,18 @@ const file_loads = flights({
 				(again = import_again(() => import(/* @vite-ignore */ url), undefined, url))
 			);
 		const load = again;
-		return load().catch(async (error: unknown) => {
-			if (!is_failed_import(error)) throw error;
-			// (an engine can reject the import before the response's timing entry is in the timeline:
-			// Firefox on a loaded machine, by more than one task)
-			const status = await response_landed(url);
-			if (status === null) return load();
-			throw error;
-		});
+		// (the sheets the file's load puts in the head are the regions' that run it: region-sheets.ts)
+		return note_file_load(
+			url,
+			load().catch(async (error: unknown) => {
+				if (!is_failed_import(error)) throw error;
+				// (an engine can reject the import before the response's timing entry is in the timeline:
+				// Firefox on a loaded machine, by more than one task)
+				const status = await response_landed(url);
+				if (status === null) return load();
+				throw error;
+			})
+		);
 	}
 });
 
