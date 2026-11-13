@@ -49,6 +49,7 @@ jobs:
       browsers_hash: ${{ steps.plan.outputs.browsers_hash }}
       check_hash: ${{ steps.plan.outputs.check_hash }}
       size_hash: ${{ steps.plan.outputs.size_hash }}
+      batched: ${{ steps.plan.outputs.batched }}
     # (reads the Actions cache list: a pass the browser and size jobs remembered)
     permissions:
       contents: read
@@ -137,6 +138,11 @@ jobs:
 
       - name: CI scripts' own tests
         run: pnpm run ci:test
+
+      # every step of every machine the packages define is reached by the simulator's sweep, taken
+      # by a named real test, or dead and filed (internal/sim/steps.json): a new step in no bucket fails
+      - name: Every machine step accounted for
+        run: node internal/sim/src/steps.ts
 
       # What `check` would run, asked of turbo first: when every check task is a cache hit, nothing
       # runs a browser (a replay only prints the stored logs), so the browser's setup is skipped.
@@ -310,6 +316,17 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
+      # A batched PR (ci-stack.ts) skipped its e2e: it lands only through its batch's green run, so
+      # its own `ci ok` is never green. Removing the label needs a new push: a rerun keeps the old labels.
+      - name: Not a batched PR
+        env:
+          BATCHED: ${{ needs.plan.outputs.batched }}
+        run: |
+          if [ "$BATCHED" = true ]; then
+            echo "::error::This PR carries \`batched\`: its e2e runs on its ci/integration-* batch, and it lands only through that batch."
+            exit 1
+          fi
+
       - name: Every needed job passed
         env:
           RESULTS: ${{ toJSON(needs) }}

@@ -99,6 +99,32 @@ test('in dev, a subscriber that writes to the payload fails, and the next one se
 	expect(codes()[0]).toContain('`writer`');
 });
 
+test('a plugin whose boot throws is reported, and the boot and the plugins after it carry on', () => {
+	const booted: string[] = [];
+	expect(() =>
+		boot_client_plugins(
+			[
+				{ name: 'a', client: { boot: () => void booted.push('a') } },
+				{
+					name: 'bad',
+					client: {
+						boot() {
+							throw new Error('boom');
+						}
+					}
+				},
+				{ name: 'c', client: { boot: () => void booted.push('c') } }
+			],
+			false
+		)
+	).not.toThrow();
+	expect(booted).toEqual(['a', 'c']);
+	expect(codes()).toHaveLength(1);
+	expect(codes()[0]).toContain('client_hook_failed');
+	expect(codes()[0]).toContain('`bad`');
+	expect(codes()[0]).toContain('`boot`');
+});
+
 test('a hook with no subscriber stays empty', () => {
 	boot_client_plugins([{ name: 'a', client: { boot() {} } }], false);
 	expect(slots.hooks?.navigated).toBeUndefined();
