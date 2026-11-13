@@ -284,6 +284,53 @@ export function sites_of(file: string, source: string): Site[] {
 	return out;
 }
 
+/** Where `source` is, by function: each named function or class (`Class > method`, `fn > inner`, the
+ *  path a site's id names), with its span. An anonymous function is its named parent's, as a site
+ *  in it is. */
+export function functions_of(
+	file: string,
+	source: string
+): { readonly path: string; readonly start: number; readonly end: number }[] {
+	const { program } = parseSync(file, source);
+	const out: { path: string; start: number; end: number }[] = [];
+	const walk = (node: Node, parent: Node | null, path: readonly string[]): void => {
+		let here = path;
+		if (
+			FUNCTIONS.has(node.type) ||
+			node.type === 'ClassDeclaration' ||
+			node.type === 'ClassExpression'
+		) {
+			const name = fn_name(node, parent);
+			if (name !== null) {
+				here = [...path, name];
+				out.push({ path: here.join(' > '), start: node.start, end: node.end });
+			}
+		}
+		for (const key in node) {
+			if (key === 'type' || key === 'start' || key === 'end') continue;
+			const v = node[key];
+			if (Array.isArray(v)) {
+				for (const c of v)
+					if (c && typeof c === 'object' && 'type' in c) walk(c as Node, node, here);
+			} else if (v && typeof v === 'object' && 'type' in v) walk(v as Node, node, here);
+		}
+	};
+	walk(program as unknown as Node, null, []);
+	return out;
+}
+
+/** The path of the innermost named function around offset `at` (`(module)` when none is). */
+export function function_at(
+	functions: readonly { readonly path: string; readonly start: number; readonly end: number }[],
+	at: number
+): string {
+	let best: { path: string; start: number; end: number } | null = null;
+	for (const f of functions)
+		if (f.start <= at && at < f.end && (best === null || f.end - f.start < best.end - best.start))
+			best = f;
+	return best?.path ?? '(module)';
+}
+
 /** Which source the inventory reads: the packages, and the files in them it leaves out. */
 export interface Scope {
 	/** Package directories under packages/: their src/ is read. */
@@ -325,6 +372,9 @@ export interface Fired {
 	readonly point?: string;
 	/** Or the sim fault that does. */
 	readonly fault?: string;
+	/** Or the random app's shape that does (a gen stream, as gen.ts forks it: `gen messy` draws a hole
+	 *  whose render throws, whose answer is a 500). */
+	readonly shape?: string;
 	/** Which simulator fires it: the app simulator (internal/sim, the default) or the compiler's
 	 *  (a dev session's edits, fs and watcher faults, against a cold build). */
 	readonly sim?: 'app' | 'compiler';
@@ -397,6 +447,8 @@ export function account_failures(
 		faults: ReadonlySet<string>;
 		/** The mutants the daily run judges (mutants.json, not `equivalent`). */
 		mutants: ReadonlySet<string>;
+		/** The random app's shapes: the streams gen.ts forks (`gen messy`, …). */
+		shapes: ReadonlySet<string>;
 		base?: ReadonlySet<string>;
 		fired?: ReadonlySet<string>;
 	}
@@ -426,8 +478,10 @@ export function account_failures(
 		const pkg = /^packages\/([^/]+)\//.exec(f.site)?.[1];
 		if (pkg !== undefined && build_time.has(pkg))
 			failures.push(`${f.site}: a build-time package's site is covered by a test, never fired`);
-		if ((f.point === undefined) === (f.fault === undefined))
-			failures.push(`${f.site}: a fired site names one point or one fault`);
+		const by = [f.point, f.fault, f.shape].filter((x) => x !== undefined).length;
+		if (by !== 1) failures.push(`${f.site}: a fired site names one point, fault or shape`);
+		else if (f.shape !== undefined && !o.shapes.has(f.shape))
+			failures.push(`${f.site}: no app shape '${f.shape}' in gen.ts`);
 		else if (f.point !== undefined && !o.points.has(f.point))
 			failures.push(`${f.site}: no buggify point '${f.point}' in the packages' source`);
 		else if (f.fault !== undefined && (f.sim ?? 'app') === 'app' && !o.faults.has(f.fault))
@@ -477,6 +531,11 @@ export function account_failures(
 /** The buggify points `source` asks: each `fires('<point>')`. */
 export function points_in(source: string): string[] {
 	return [...source.matchAll(/\bfires\(\s*['"]([^'"]+)['"]\s*\)/g)].map((m) => m[1]);
+}
+
+/** The random app's shapes: each stream gen.ts forks, `.fork('gen …')`. */
+export function shapes_in(gen_source: string): string[] {
+	return [...gen_source.matchAll(/\.fork\('(gen [^']+)'\)/g)].map((m) => m[1]);
 }
 
 /** The sim's fault classes, from network.ts's `FaultClass` union. */
@@ -593,6 +652,7 @@ export function check_failures(
 		points,
 		faults: new Set(faults_in(readFileSync(join(ROOT, 'internal/sim/src/network.ts'), 'utf8'))),
 		mutants: new Set(mutants),
+		shapes: new Set(shapes_in(readFileSync(join(ROOT, 'internal/sim/src/gen.ts'), 'utf8'))),
 		...o
 	});
 }

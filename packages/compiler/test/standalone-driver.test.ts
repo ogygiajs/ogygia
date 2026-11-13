@@ -5,7 +5,7 @@
 // from the public `ogygia/internal/compiler` entry (../dist/compiler/index.js), never `ogygia/vite`.
 
 import { describe, test, expect } from 'vitest';
-import { Compiler, Program, CompileCtx, normalize_import_keys } from '../dist/compiler/index.js';
+import { Compiler, Program, CompileCtx, normalize_import_keys } from '../src/compiler/index.ts';
 import { partial_ctx_init } from './_compile-ctx.ts';
 import { dedent } from '@ogygia/core/contract';
 

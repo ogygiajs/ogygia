@@ -2,7 +2,7 @@
 	{
 		"id": "hole-fetch-once-negated",
 		"file": "packages/core/src/runtime/core.ts",
-		"line": 1449,
+		"in": "OgygiaRegion > fetch_html",
 		"code": "if (!revalidate && this.#answer.now.kind !== 'none') return;",
 		"operator": "equality",
 		"from": "!== 'none'",
@@ -11,7 +11,7 @@
 	{
 		"id": "evict-ttl-shorter",
 		"file": "packages/core/src/runtime/frame-store.ts",
-		"line": 114,
+		"in": "(module)",
 		"code": "const EVICT_TTL = 60_000;",
 		"operator": "literal",
 		"from": "60_000",
@@ -20,7 +20,7 @@
 	{
 		"id": "repair-lakes-not-lifted",
 		"file": "packages/core/src/runtime/hydrate-core.ts",
-		"line": 370,
+		"in": "repair_if_drifted",
 		"code": "slots.lakes.lift(want);",
 		"operator": "statement",
 		"from": "slots.lakes.lift(want);",
@@ -29,7 +29,7 @@
 	{
 		"id": "repair-tag-change-lines-up",
 		"file": "packages/core/src/runtime/hydrate-core.ts",
-		"line": 392,
+		"in": "align_to",
 		"code": "if (live_elements[i].tagName !== want_elements[i].tagName) return false;",
 		"operator": "boolean",
 		"from": "return false",
@@ -38,7 +38,7 @@
 	{
 		"id": "repair-aligned-level-fails",
 		"file": "packages/core/src/runtime/hydrate-core.ts",
-		"line": 423,
+		"in": "align_to",
 		"code": "return true;",
 		"operator": "boolean",
 		"from": "true",
@@ -47,7 +47,7 @@
 	{
 		"id": "repair-empty-island-discarded",
 		"file": "packages/core/src/runtime/hydrate-core.ts",
-		"line": 891,
+		"in": "hydrate_island",
 		"code": "if (ssr_children.length > 0 && !ssr_children.some((el) => region.contains(el))) {",
 		"operator": "relational",
 		"from": " > 0",
@@ -56,7 +56,7 @@
 	{
 		"id": "head-markers-never-neutralized",
 		"file": "packages/core/src/runtime/hydrate-core.ts",
-		"line": 126,
+		"in": "(module)",
 		"code": "let head_markers_neutralized = false;",
 		"operator": "boolean",
 		"from": "false",
@@ -65,7 +65,7 @@
 	{
 		"id": "head-markers-left",
 		"file": "packages/core/src/runtime/hydrate-core.ts",
-		"line": 694,
+		"in": "hydrate_island",
 		"code": "neutralize_head_hydration_markers();",
 		"operator": "statement",
 		"from": "neutralize_head_hydration_markers();",
@@ -74,7 +74,7 @@
 	{
 		"id": "idle-fallback-never-fires",
 		"file": "packages/core/src/runtime/core.ts",
-		"line": 1669,
+		"in": "OgygiaRegion > on_idle",
 		"code": "s.timeout(() => fire(), 200);",
 		"operator": "statement",
 		"from": "s.timeout(() => fire(), 200);",
@@ -83,7 +83,7 @@
 	{
 		"id": "hidden-document-waits-for-a-frame",
 		"file": "packages/core/src/runtime/schedule.ts",
-		"line": 286,
+		"in": "until_painted > painted",
 		"code": "if (document.visibilityState === 'hidden' || typeof requestAnimationFrame !== 'function')",
 		"operator": "logical",
 		"from": "||",
@@ -92,7 +92,7 @@
 	{
 		"id": "head-page-copy-kept",
 		"file": "packages/core/src/runtime/hydrate-core.ts",
-		"line": 741,
+		"in": "hydrate_island",
 		"code": "head_mark = kit_hydrates_page() ? null : boot_link().runtime_session.mark_head();",
 		"operator": "statement",
 		"from": "head_mark = kit_hydrates_page() ? null : boot_link().runtime_session.mark_head();",
@@ -101,7 +101,7 @@
 	{
 		"id": "paint-gate-loading-passes",
 		"file": "packages/core/src/runtime/schedule.ts",
-		"line": 306,
+		"in": "dom_content_loaded",
 		"code": "if (document.readyState === 'loading') return false;",
 		"operator": "boolean",
 		"from": "false",
@@ -111,7 +111,7 @@
 	{
 		"id": "viewport-hold-at-zero",
 		"file": "packages/core/src/runtime/schedule.ts",
-		"line": 457,
+		"in": "drain",
 		"code": "if (left > 0) return drain_after(left);",
 		"operator": "relational",
 		"from": "> ",
@@ -121,7 +121,7 @@
 	{
 		"id": "snapshot-registered-twice",
 		"file": "packages/core/src/runtime/schedule.ts",
-		"line": 326,
+		"in": "register_region",
 		"code": "if (snapshot_of.has(el) || owner.closed) return;",
 		"operator": "logical",
 		"from": "||",
@@ -131,7 +131,7 @@
 	{
 		"id": "visible-margin-dropped",
 		"file": "packages/core/src/runtime/core.ts",
-		"line": 1700,
+		"in": "OgygiaRegion > on_visible",
 		"code": "const rootMargin = root_margin || this.getAttribute('margin') || '0px';",
 		"operator": "logical",
 		"from": "n || t",
@@ -140,7 +140,7 @@
 	{
 		"id": "peer-body-rewrite-inverted",
 		"file": "packages/federation/src/peer.ts",
-		"line": 434,
+		"in": "PeerHandle > used",
 		"code": "return body === doc.body ? doc : { ...doc, body };",
 		"operator": "equality",
 		"from": "dy =",
@@ -149,25 +149,25 @@
 	{
 		"id": "fragment-body-tag-missed",
 		"file": "packages/federation/src/wire.ts",
-		"line": 668,
-		"code": "if (html.slice(i + 2, i + 6).toLowerCase() === 'body') {",
+		"in": "lift_document",
+		"code": "const close = body_tag === null ? -1 : body_end(html);",
 		"operator": "equality",
-		"from": "() =",
-		"to": "() !"
+		"from": "===",
+		"to": "!=="
 	},
 	{
-		"id": "fragment-body-tag-end-narrowed",
-		"file": "packages/federation/src/wire.ts",
-		"line": 671,
-		"code": "if (c === 62 || c === 47 || c === 32 || (c >= 9 && c <= 13)) return i;",
-		"operator": "logical",
-		"from": "||",
-		"to": "&&"
+		"id": "hidden-document-reads-shown",
+		"file": "packages/core/src/runtime/schedule.ts",
+		"in": "drain",
+		"code": "const hidden = typeof document !== 'undefined' && document.visibilityState === 'hidden';",
+		"operator": "equality",
+		"from": "!",
+		"to": "="
 	},
 	{
 		"id": "federation-rules-gate-inverted",
 		"file": "packages/federation/src/peer.ts",
-		"line": 49,
+		"in": "(module)",
 		"code": "import.meta.env?.DEV || (typeof __OGYGIA_RULES__ !== 'undefined' ? __OGYGIA_RULES__ : false);",
 		"operator": "equality",
 		"from": "__ !",
@@ -177,7 +177,7 @@
 	{
 		"id": "federation-rules-gate-and",
 		"file": "packages/federation/src/peer.ts",
-		"line": 49,
+		"in": "(module)",
 		"code": "import.meta.env?.DEV || (typeof __OGYGIA_RULES__ !== 'undefined' ? __OGYGIA_RULES__ : false);",
 		"operator": "logical",
 		"from": "||",
@@ -187,11 +187,75 @@
 	{
 		"id": "federation-rules-gate-on",
 		"file": "packages/federation/src/peer.ts",
-		"line": 49,
+		"in": "(module)",
 		"code": "import.meta.env?.DEV || (typeof __OGYGIA_RULES__ !== 'undefined' ? __OGYGIA_RULES__ : false);",
 		"operator": "boolean",
 		"from": "fals",
 		"to": "tru",
 		"equivalent": "RULES only gates a buggify point, and buggify.fires is false unless a simulator installed its hook: on in a build without rules, the point still never fires"
+	},
+	{
+		"id": "reshape-children-not-put-back",
+		"file": "packages/reshape/src/restore.ts",
+		"in": "restore",
+		"code": "host.appendChild(c.node);",
+		"operator": "statement",
+		"from": "host.appendChild(c.node);",
+		"to": "void c;"
+	},
+	{
+		"id": "reshape-render-left-in-light-dom",
+		"file": "packages/reshape/src/restore.ts",
+		"in": "restore",
+		"code": "if (shadow) shadow.appendChild(n);",
+		"operator": "statement",
+		"from": "shadow.appendChild(n);",
+		"to": "void n;"
+	},
+	{
+		"id": "reshape-stand-in-kept",
+		"file": "packages/reshape/src/restore.ts",
+		"in": "restore > swap_stand_ins",
+		"code": "as.replaceWith(real);",
+		"operator": "statement",
+		"from": "as.replaceWith(real);",
+		"to": "void real;"
+	},
+	{
+		"id": "router-page-lost-not-handed-off",
+		"file": "packages/core/src/runtime/router-nav.ts",
+		"in": "navigate",
+		"code": "if (built === null) return hand_off();",
+		"operator": "statement",
+		"from": "return hand_off();",
+		"to": "return;"
+	},
+	{
+		"id": "hole-retry-never-fetches",
+		"file": "packages/core/src/runtime/core.ts",
+		"in": "OgygiaRegion > fetch_failed",
+		"code": "return this.#connect(turn);",
+		"nth": 1,
+		"operator": "statement",
+		"from": "return this.#connect(turn);",
+		"to": "return;"
+	},
+	{
+		"id": "hole-error-answer-swapped-in",
+		"file": "packages/core/src/runtime/hole-fetch.ts",
+		"in": "read_hole",
+		"code": "if (!res.ok) throw new Error(`status ${res.status}`);",
+		"operator": "statement",
+		"from": "if (!res.ok)",
+		"to": "if (false)"
+	},
+	{
+		"id": "peer-replica-down-not-skipped",
+		"file": "packages/federation/src/peer.ts",
+		"in": "PeerHandle > endpoint",
+		"code": "if (res.status >= 500) continue;",
+		"operator": "statement",
+		"from": "continue;",
+		"to": "return null;"
 	}
 ]
