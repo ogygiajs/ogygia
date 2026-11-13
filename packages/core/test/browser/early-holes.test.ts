@@ -130,6 +130,25 @@ describe('a hole the page started early', () => {
 		}
 	});
 
+	it('whose request fails before the runtime takes it over (or with no runtime at all): nothing unhandled', async () => {
+		vi.spyOn(window, 'fetch').mockImplementation(() =>
+			Promise.reject(new TypeError('Failed to fetch'))
+		);
+		const unhandled: unknown[] = [];
+		const on_unhandled = (e: PromiseRejectionEvent) => {
+			unhandled.push(e.reason);
+			e.preventDefault();
+		};
+		window.addEventListener('unhandledrejection', on_unhandled);
+		try {
+			start_early([ep('f1')]);
+			await new Promise((r) => setTimeout(r, 50));
+			expect(unhandled).toEqual([]);
+		} finally {
+			window.removeEventListener('unhandledrejection', on_unhandled);
+		}
+	});
+
 	it('a refused answer stays at its address: the hole that wakes later is refused too, and asks nothing', async () => {
 		vi.spyOn(window, 'fetch').mockImplementation(
 			async () => new Response('<!doctype html><html><body>sign in</body></html>', { status: 200 })
