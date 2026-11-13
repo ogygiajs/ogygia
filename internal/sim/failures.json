@@ -22,14 +22,7 @@
 			"tsdown-plugin-svelte"
 		],
 		"exclude": [],
-		"build_time": [
-			"bake",
-			"barrels",
-			"cli",
-			"config",
-			"tooling",
-			"tsdown-plugin-svelte"
-		]
+		"build_time": ["bake", "barrels", "cli", "config", "tooling", "tsdown-plugin-svelte"]
 	},
 	"fired": [
 		{
@@ -3570,25 +3563,17 @@
 	"step_points": [
 		{
 			"point": "flights.evicted-early",
-			"steps": [
-				"render cache: kept -> gone",
-				"router pages: kept -> gone"
-			],
+			"steps": ["render cache: kept -> gone", "router pages: kept -> gone"],
 			"how": "a kept answer's keep runs out at its next read: the entry goes and the caller runs the work again (any flights)"
 		},
 		{
 			"point": "flights.not-kept",
-			"steps": [
-				"render cache: flying -> gone",
-				"router pages: flying -> gone"
-			],
+			"steps": ["render cache: flying -> gone", "router pages: flying -> gone"],
 			"how": "an answer is not kept, as one too heavy for max: the next caller runs the work again (any flights)"
 		},
 		{
 			"point": "batch.part-lost",
-			"steps": [
-				"frame-part: promised -> missed"
-			],
+			"steps": ["frame-part: promised -> missed"],
 			"how": "a navigation batch's parcel for a hole is lost (as a body cut short would): its reservation is missed when the batch ends, and the hole fetches on its own. Batches are rare in a random run, so its kill is proved aimed (--buggify-aim batch.part-lost, gen 191: unreleased, the hole stands on its fallback and its binder is stuck)",
 			"killed_by": "batch-undelivered-never-released"
 		}
