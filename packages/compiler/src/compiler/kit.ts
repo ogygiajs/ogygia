@@ -327,55 +327,200 @@ function own_csr(dir: string, universal: string[], server: string[]) {
 	return csr;
 }
 
+// A component route file, as Kit's `analyze` reads one: `+page`, `+layout` or `+error`, a `@`
+// reset on a page or layout (`+page@.svelte`, `+layout@(app).svelte`), any component extension.
+const ROUTE_COMPONENT_RE = /^\+(?:(page|layout)(?:@(.*))?|(error))\.[^.]+$/;
 const SCRIPT_FILE_RE = /\.[cm]?[jt]s$/;
+const ROUTE_MODULE_RE = /^\+(page|layout)(\.server)?\.[jt]s$/;
+
+function route_component(
+	name: string
+): { kind: 'page' | 'layout' | 'error'; reset?: string } | null {
+	if (SCRIPT_FILE_RE.test(name)) return null;
+	const m = ROUTE_COMPONENT_RE.exec(name);
+	if (!m) return null;
+	return m[3] ? { kind: 'error' } : { kind: m[1] as 'page' | 'layout', reset: m[2] };
+}
 
 /**
- * A route COMPONENT of `kind`: `+page.svelte`, or the same file in any other extension the app
- * compiles to a component (`+page.md`, `+page.svx`): every `+page.*` but the option scripts. Kit
- * routes all of them alike, so the csr topology does too — a markdown page counted for nothing
- * here, and its layout's world and its own client leg were decided as if it did not exist.
+ * A route COMPONENT of `kind`: `+page.svelte`, a page with a layout reset (`+page@.svelte`,
+ * `+page@(app).svelte`), or either in any other extension the app compiles to a component
+ * (`+page.md`, `+page.svx`): every `+page` file but the option scripts, as Kit routes them.
  */
 export function is_route_component(name: string, kind: 'page' | 'layout'): boolean {
-	return name.startsWith(`+${kind}.`) && !SCRIPT_FILE_RE.test(name);
+	return route_component(name)?.kind === kind;
 }
 
-/**
- * Own-chain Kit-effective `csr === false` for one route host — Kit's per-PAGE rule verbatim:
- * walk the layout option files root → host dir (then the page's own option files), deepest
- * declaration wins. `undefined` in sources means Kit's default (`true`).
- */
-function own_chain_csr_false(hostFile: string, routesDir: string, layouts_only = false) {
-	let csr; // undefined => Kit default (true)
-	const dir = path.dirname(hostFile);
-	const rel = path.relative(routesDir, dir);
-	const parts = rel ? rel.split(path.sep) : [];
-	let cur = routesDir;
-	const chain = [cur];
-	for (const p of parts) {
-		cur = path.join(cur, p);
-		chain.push(cur);
+/** A file whose change can move a route's csr or config: a route component or an option module. */
+export function is_route_file(name: string): boolean {
+	return route_component(name) !== null || ROUTE_MODULE_RE.test(name);
+}
+
+type RouteNodeKind = 'layout' | 'error' | 'leaf';
+// One of Kit's `PageNode`s: a directory's layout, error page or page.
+interface RouteNode {
+	readonly kind: RouteNodeKind;
+	readonly route: Route;
+	component: string | null;
+	reset: string | undefined;
+	// where Kit takes this node's inherited options from, set the way create_manifest_data sets it
+	parent: RouteNode | null;
+	// a leaf: the layouts it renders in, root first
+	layouts: RouteNode[];
+	// a layout: the leaves that render in it
+	pages: RouteNode[];
+}
+interface Route {
+	readonly dir: string;
+	readonly segment: string;
+	readonly parent: Route | null;
+	layout: RouteNode | null;
+	error: RouteNode | null;
+	leaf: RouteNode | null;
+}
+interface RouteTree {
+	readonly routes: Route[];
+	readonly nodes: RouteNode[];
+	readonly csr: Map<RouteNode, boolean | undefined>;
+}
+
+const _route_trees = cache<string, RouteTree>({ name: 'route trees', max: ROOTS_MAX });
+
+/** Kit's route tree of a routes directory, read once until a route file changes. */
+function route_tree(routesDir: string): RouteTree {
+	let tree = _route_trees.get(routesDir);
+	if (!tree) _route_trees.set(routesDir, (tree = build_route_tree(routesDir)));
+	return tree;
+}
+
+/** The layouts a node starting at `route` renders in, deepest first, as create_manifest_data walks
+ *  them: up the routes, a `@` reset skipping to the route its segment names. */
+function layouts_up(route: Route | null, reset: string | undefined): RouteNode[] {
+	const out: RouteNode[] = [];
+	for (let current = route; current; current = current.parent) {
+		if (reset !== undefined && current.segment !== reset) continue;
+		if (current.layout) {
+			out.push(current.layout);
+			reset = current.layout.reset;
+		} else reset = undefined;
 	}
-	for (const d of chain) csr = own_csr(d, LAYOUT_UNIVERSAL, LAYOUT_SERVER) ?? csr;
-	if (!layouts_only && is_route_component(path.basename(hostFile), 'page'))
-		csr = own_csr(dir, PAGE_UNIVERSAL, PAGE_SERVER) ?? csr;
-	return csr === false;
+	return out;
+}
+
+function build_route_tree(routesDir: string): RouteTree {
+	const routes: Route[] = [];
+	const node = (kind: RouteNodeKind, route: Route): RouteNode => ({
+		kind,
+		route,
+		component: null,
+		reset: undefined,
+		parent: null,
+		layouts: [],
+		pages: []
+	});
+	const walk = (dir: string, segment: string, parent: Route | null) => {
+		const route: Route = { dir, segment, parent, layout: null, error: null, leaf: null };
+		routes.push(route);
+		const entries = fs.existsSync(dir) ? route_entries(dir) : [];
+		for (const e of entries) {
+			if (!e.is_file) continue;
+			const component = route_component(e.name);
+			const kind = component?.kind ?? ROUTE_MODULE_RE.exec(e.name)?.[1];
+			if (kind === 'error') route.error ??= node('error', route);
+			else if (kind === 'layout') route.layout ??= node('layout', route);
+			else if (kind === 'page') route.leaf ??= node('leaf', route);
+			const owner = kind === 'page' ? route.leaf : kind === 'layout' ? route.layout : route.error;
+			if (component && owner) {
+				owner.component = e.name;
+				owner.reset = component.reset;
+			}
+		}
+		for (const e of entries)
+			if (e.is_dir && e.name !== KEEP_CLIENT_DIR) walk(path.join(dir, e.name), e.name, route);
+	};
+	walk(routesDir, '', null);
+	const root = routes[0];
+	root.layout ??= node('layout', root); // Kit's fallback root layout and error page
+	root.error ??= node('error', root);
+
+	for (const route of routes) {
+		const leaf = route.leaf;
+		if (!leaf) continue;
+		let at = leaf;
+		for (const layout of layouts_up(route, leaf.reset)) {
+			leaf.layouts.unshift(layout);
+			layout.pages.push(leaf);
+			at.parent = at = layout;
+		}
+	}
+	for (const route of routes) {
+		if (!route.error) continue;
+		for (let current: Route | null = route; current; current = current.parent)
+			if (current.layout) {
+				route.error.parent = current.layout;
+				break;
+			}
+	}
+	const nodes = routes.flatMap((r) => [r.layout, r.error, r.leaf].filter((n) => n !== null));
+	return { routes, nodes, csr: new Map() };
+}
+
+/** A node's csr as Kit's static analysis computes it: its own option, else its parent's. */
+function node_csr(tree: RouteTree, node: RouteNode): boolean | undefined {
+	if (tree.csr.has(node)) return tree.csr.get(node);
+	const csr = node_own_csr(node) ?? (node.parent ? node_csr(tree, node.parent) : undefined);
+	tree.csr.set(node, csr);
+	return csr;
+}
+
+function node_own_csr(node: RouteNode): boolean | undefined {
+	const dir = node.route.dir;
+	if (node.kind === 'leaf') return own_csr(dir, PAGE_UNIVERSAL, PAGE_SERVER);
+	if (node.kind === 'layout') return own_csr(dir, LAYOUT_UNIVERSAL, LAYOUT_SERVER);
+	return undefined;
+}
+
+/** The csr a page rendered in `layout` would read from the layouts: for a layout no page uses. */
+function layout_chain_csr(layout: RouteNode): boolean | undefined {
+	let csr;
+	for (const node of [...layouts_up(layout.route.parent, layout.reset).reverse(), layout])
+		csr = node_own_csr(node) ?? csr;
+	return csr;
+}
+
+/** The leaves Kit renders a page component for. */
+function page_leaves(tree: RouteTree): RouteNode[] {
+	return tree.nodes.filter((n) => n.kind === 'leaf' && n.component !== null);
+}
+
+/** The node a route component file is: its directory's page or layout. */
+function host_node(hostFile: string, routesDir: string): RouteNode | null {
+	if (!hostFile.startsWith(routesDir)) return null;
+	const kind = route_component(path.basename(hostFile))?.kind;
+	if (kind !== 'page' && kind !== 'layout') return null;
+	const dir = path.dirname(hostFile);
+	const route = route_tree(routesDir).routes.find((r) => r.dir === dir);
+	return (kind === 'page' ? route?.leaf : route?.layout) ?? null;
+}
+
+/** A route's Kit `route.id`, group-stripped (`normalize_route_id`). */
+function route_id_of(route: Route, routesDir: string): string {
+	const rel = path.relative(routesDir, route.dir);
+	return normalize_route_id(`/${rel ? rel.split(path.sep).join('/') : ''}`);
 }
 
 /**
- * The ERROR-RENDER csr of every page route: Kit renders a page's `+error.svelte` with the LAYOUT
- * branch only (`PageNodes(layouts)` in its server renderer — the page node is dropped), so `csr`
- * for a 404 / 500 under a `csr = false` page is the layouts' answer, usually `true`. A document
- * keyed on the page's csr there is rendered client-off while Kit hydrates it: the lakes came out
- * in their bare form, Kit's hydration mismatched, and a site's header vanished on every error page
- * (customer deploy, 2026-09-15). Same walk as {@link csrTrueRouteIds}, page option files ignored.
+ * The ERROR-RENDER csr of every page route: Kit renders a page's `+error.svelte` with the page's
+ * layouts only (`PageNodes(layouts)` in its server renderer, the page node dropped), so `csr` for a
+ * 404 / 500 under a `csr = false` page is the layouts' answer, usually `true`.
  */
 export function errorCsrTrueRouteIds(routesDir: string): string[] {
+	const tree = route_tree(routesDir);
 	const ids = new Set<string>();
-	for (const page of pageLeaves(routesDir)) {
-		if (own_chain_csr_false(page, routesDir, true)) continue;
-		const rel = path.relative(routesDir, path.dirname(page));
-		const raw = `/${rel ? rel.split(path.sep).join('/') : ''}`;
-		ids.add(normalize_route_id(raw));
+	for (const leaf of page_leaves(tree)) {
+		const deepest = leaf.layouts.at(-1);
+		if (deepest && node_csr(tree, deepest) === false) continue;
+		ids.add(route_id_of(leaf.route, routesDir));
 	}
 	return [...ids];
 }
@@ -383,7 +528,8 @@ export function errorCsrTrueRouteIds(routesDir: string): string[] {
 /** The error-render csr of a ROUTELESS response (no route matched: Kit renders the root layout and
  *  the root error page) — the root layout's own option, Kit's default `true` when unset. */
 export function rootLayoutCsrTrue(routesDir: string): boolean {
-	return !own_chain_csr_false(path.join(routesDir, '+page.svelte'), routesDir, true);
+	const tree = route_tree(routesDir);
+	return node_csr(tree, tree.routes[0].layout!) !== false;
 }
 
 // ── PAGE-CSR invariant (see internal/notes/INVARIANTS.md) ────────────────────────────────────
@@ -398,49 +544,35 @@ export function rootLayoutCsrTrue(routesDir: string): boolean {
 // Judging a layout by its own partial chain is the bug this exists to prevent: `csr = false`
 // declared BELOW the root layout used to flip the root chrome into the strip path while Kit
 // shipped no client for those pages — dead Header/BootEffects.
-// routesDir → (pageDir → csrIsFalse): each a whole route tree's, made at once
-const _page_worlds = cache<string, Map<string, boolean>>({ name: 'page worlds', max: ROOTS_MAX });
-
-function page_worlds(routesDir: string): Map<string, boolean> {
-	let m = _page_worlds.get(routesDir);
-	if (!m) {
-		m = new Map();
-		for (const page of pageLeaves(routesDir))
-			m.set(path.dirname(page), own_chain_csr_false(page, routesDir));
-		_page_worlds.set(routesDir, m);
-	}
-	return m;
-}
-
-/** The worlds of the pages a layout serves (its dir + everything below). */
-function layout_page_worlds(layoutDir: string, routesDir: string) {
+/** The worlds of the pages a layout serves: the pages that render in it, resets honoured. */
+function layout_page_worlds(tree: RouteTree, layout: RouteNode) {
 	let any_false = false;
 	let any_true = false;
-	const prefix = layoutDir + path.sep;
-	for (const [dir, is_false] of page_worlds(routesDir)) {
-		if (dir !== layoutDir && !dir.startsWith(prefix)) continue;
-		if (is_false) any_false = true;
+	for (const leaf of layout.pages) {
+		if (leaf.component === null) continue;
+		if (node_csr(tree, leaf) === false) any_false = true;
 		else any_true = true;
 	}
 	return { any_false, any_true };
 }
 
 /**
- * Kit-effective `csr === false` for a `+page.svelte` / `+layout.svelte` host. Pages use Kit's
- * own-chain rule; a LAYOUT is csr=false exactly when EVERY page it serves is csr=false (a layout
- * with no pages below — endpoint-only subtree — falls back to its own chain).
- * @param hostFile abs path to a route `.svelte`
+ * Kit-effective `csr === false` for a page or layout host. A page reads Kit's chain: its own
+ * option, else the layouts it renders in (a `@` reset skips the ones between). A LAYOUT is
+ * csr=false exactly when EVERY page it serves is csr=false; a layout no page renders in reads its
+ * own chain.
+ * @param hostFile abs path to a route component
  * @param routesDir abs `src/routes`
  */
 export function routeCsrIsFalse(hostFile: string, routesDir: string): boolean {
-	if (!hostFile.startsWith(routesDir)) return false;
-	const base = path.basename(hostFile);
-	if (is_route_component(base, 'page')) return own_chain_csr_false(hostFile, routesDir);
-	if (!is_route_component(base, 'layout')) return false;
-	const { any_false, any_true } = layout_page_worlds(path.dirname(hostFile), routesDir);
+	const node = host_node(hostFile, routesDir);
+	if (!node) return false;
+	const tree = route_tree(routesDir);
+	if (node.kind === 'leaf') return node_csr(tree, node) === false;
+	const { any_false, any_true } = layout_page_worlds(tree, node);
 	if (any_false && !any_true) return true; // every page it serves is csr=false
 	if (any_false || any_true) return false; // mixed (or pure-true) → not the false world
-	return own_chain_csr_false(hostFile, routesDir); // no pages below — own chain
+	return layout_chain_csr(node) === false; // no pages: its own chain
 }
 
 /**
@@ -452,15 +584,14 @@ export function routeCsrIsFalse(hostFile: string, routesDir: string): boolean {
  * (shared components): their csr depends on which page renders them, so they keep their islands.
  */
 export function routeCsrIsTrue(hostFile: string, routesDir: string): boolean {
-	const base = path.basename(hostFile);
-	const is_page = is_route_component(base, 'page');
-	if (!is_page && !is_route_component(base, 'layout')) return false;
-	if (!hostFile.startsWith(routesDir)) return false;
-	if (is_page) return !own_chain_csr_false(hostFile, routesDir);
-	const { any_false, any_true } = layout_page_worlds(path.dirname(hostFile), routesDir);
-	if (any_false) return false; // some page below gets no Kit client — never strip its chrome
-	if (any_true) return true; // every page below is Kit-hydrated
-	return !own_chain_csr_false(hostFile, routesDir); // no pages below — own chain
+	const node = host_node(hostFile, routesDir);
+	if (!node) return false;
+	const tree = route_tree(routesDir);
+	if (node.kind === 'leaf') return node_csr(tree, node) !== false;
+	const { any_false, any_true } = layout_page_worlds(tree, node);
+	if (any_false) return false; // some page it serves gets no Kit client: never strip its chrome
+	if (any_true) return true; // every page it serves is Kit-hydrated
+	return layout_chain_csr(node) !== false; // no pages: its own chain
 }
 
 /**
@@ -489,19 +620,6 @@ function route_entries(dir: string): Array<{ name: string; is_dir: boolean; is_f
 	return out;
 }
 
-function pageLeaves(routesDir: string) {
-	const leaves: string[] = [];
-	const walk = (dir: string) => {
-		for (const e of route_entries(dir)) {
-			const full = path.join(dir, e.name);
-			if (e.is_dir) walk(full);
-			else if (is_route_component(e.name, 'page')) leaves.push(full);
-		}
-	};
-	walk(routesDir);
-	return leaves;
-}
-
 /** Kit's `route.id` for a page host, with layout GROUP segments (`(app)`) stripped — the same
  *  normalization {@link csrTrueRouteIds} applies, so the two sides match whether or not Kit keeps
  *  groups in `route.id`. Root → `/`. */
@@ -521,14 +639,10 @@ export function normalize_route_id(id: string): string {
  * only the csr=true exceptions land here.
  */
 export function csrTrueRouteIds(routesDir: string): string[] {
+	const tree = route_tree(routesDir);
 	const ids = new Set<string>();
-	// Derived from the SAME per-page map the compile-side world decisions use (PAGE-CSR invariant).
-	for (const [dir, is_false] of page_worlds(routesDir)) {
-		if (is_false) continue; // Kit does NOT hydrate → keep islands
-		const rel = path.relative(routesDir, dir);
-		const raw = `/${rel ? rel.split(path.sep).join('/') : ''}`;
-		ids.add(normalize_route_id(raw));
-	}
+	for (const leaf of page_leaves(tree))
+		if (node_csr(tree, leaf) !== false) ids.add(route_id_of(leaf.route, routesDir));
 	return [...ids];
 }
 
@@ -541,60 +655,20 @@ const _page_config = cache<string, Record<string, Record<string, unknown>>>({
 	max: ROOTS_MAX
 });
 
-// A `+page.*` file: svelte host, universal, OR server — a route dir with ANY of these produces a
-// page RESPONSE. Unlike csr (which is about hydrating a rendered `+page.svelte`), route config
-// can concern a redirect-only route (a `+page.server.ts` that throws `redirect()`, no
-// `+page.svelte`: a stored redirect), so the enumeration includes those too.
-const PAGE_FILE_RE = /^\+page(\.server)?\.(svelte|js|ts)$/;
-
-/** Every route dir with a `+page.*` file — a route that produces a page response (rendered HTML or
- *  a stored redirect). Broader than {@link pageLeaves} (svelte-only) on purpose. */
-function config_page_dirs(routesDir: string): string[] {
-	const dirs = new Set<string>();
-	const walk = (dir: string) => {
-		for (const e of route_entries(dir)) {
-			const full = path.join(dir, e.name);
-			if (e.is_dir) walk(full);
-			else if (PAGE_FILE_RE.test(e.name) || is_route_component(e.name, 'page')) dirs.add(dir);
-		}
-	};
-	walk(routesDir);
-	return [...dirs];
-}
-
-/** One page DIR's merged config, claimed keys only — Kit's own merge (`get_config`): the layout chain
- *  root → the dir (its own `+layout` included), then the page; at each level the server module, then
- *  the universal one; a later level replaces a key, top level only. A key no level sets is absent. */
-function own_chain_config(
-	pageDir: string,
-	routesDir: string,
-	keys: readonly string[]
-): Record<string, unknown> {
-	const rel = path.relative(routesDir, pageDir);
-	const parts = rel ? rel.split(path.sep) : [];
-	let cur = routesDir;
-	const chain = [cur];
-	for (const p of parts) {
-		cur = path.join(cur, p);
-		chain.push(cur);
-	}
+/** One page's merged config, claimed keys only: the layouts it renders in, root first, then the
+ *  page; at each level the server module, then the universal one; a later level replaces a key,
+ *  top level only. A key no level sets is absent. */
+function page_config(leaf: RouteNode, keys: readonly string[]): Record<string, unknown> {
 	let merged: Record<string, unknown> = {};
-	for (const d of chain)
-		for (const f of CONFIG_FILES_LAYOUT)
-			merged = { ...merged, ...read_route_config(path.join(d, f), keys) };
-	for (const f of CONFIG_FILES_PAGE)
-		merged = { ...merged, ...read_route_config(path.join(pageDir, f), keys) };
+	for (const node of [...leaf.layouts, leaf])
+		for (const f of node.kind === 'leaf' ? CONFIG_FILES_PAGE : CONFIG_FILES_LAYOUT)
+			merged = { ...merged, ...read_route_config(path.join(node.route.dir, f), keys) };
 	return merged;
 }
 
-/** A page directory's Kit `route.id`, group-stripped (`normalize_route_id`). */
-function page_route_id(dir: string, routesDir: string): string {
-	const rel = path.relative(routesDir, dir);
-	return normalize_route_id(`/${rel ? rel.split(path.sep).join('/') : ''}`);
-}
-
-/** Every page route id (group-stripped) → its merged config, claimed keys only. A key no level sets
- *  is absent, so the plugin applies its default; a page that sets none maps to `{}`. */
+/** Every page route id (group-stripped) → its merged config, claimed keys only. Every route with a
+ *  `+page` file counts, a redirect-only `+page.server.ts` too. A key no level sets is absent, so the
+ *  plugin applies its default; a page that sets none maps to `{}`. */
 export function page_route_config(
 	routesDir: string,
 	keys: readonly string[]
@@ -603,8 +677,8 @@ export function page_route_config(
 	let m = _page_config.get(memo);
 	if (!m) {
 		m = {};
-		for (const dir of config_page_dirs(routesDir))
-			m[page_route_id(dir, routesDir)] = own_chain_config(dir, routesDir, keys);
+		for (const leaf of route_tree(routesDir).nodes)
+			if (leaf.kind === 'leaf') m[route_id_of(leaf.route, routesDir)] = page_config(leaf, keys);
 		_page_config.set(memo, m);
 	}
 	return m;
@@ -634,7 +708,7 @@ export function hasAnyCsrTrueRoute(routesDir: string): boolean {
 export function clear_route_csr_cache(): void {
 	_csr_of_file.clear();
 	_has_csr_true.clear();
-	_page_worlds.clear();
+	_route_trees.clear();
 	_page_config.clear();
 	_config_of_file.clear();
 }
@@ -645,69 +719,18 @@ export function clear_route_csr_cache(): void {
 export const KEEP_CLIENT_DIR = '.ogygia-keep-client';
 
 /**
- * Collects every route node's EFFECTIVE csr the way Kit does — a node exists per `+page` and per
- * `+layout` (component OR standalone module), and Kit's static analysis resolves each node's
- * `page_options` through the LAYOUT CHAIN (`page_options = { ...parent_options, ...own }`), so a
- * root-layout `csr = false` makes every option-less descendant node `csr === false` too. Layout
- * groups like `(ogygia)/+layout.ts` count too.
- *
- * Issue #4/#1 root cause lived here: reading each node's OWN csr only, a fresh app with `csr =
- * false` in nothing but the root layout looked like "client build runs" (pages read `undefined`),
- * so the keepalive was never injected — while Kit, resolving the chain, skipped the client build
- * and the runtime `<script src>` 404'd.
- * @returns one entry per node (undefined = unset anywhere up-chain)
- */
-function collectNodeEffectiveCsr(routesDir: string) {
-	const nodes = [];
-	let saw_root_layout = false;
-	const walk = (dir: string, is_root: boolean, inherited: boolean | undefined) => {
-		const entries = route_entries(dir);
-		const names = new Set(entries.filter((e) => e.is_file).map((e) => e.name));
-		const has = (list: string[]) => list.some((f) => names.has(f));
-		const has_component = (kind: 'page' | 'layout') =>
-			[...names].some((n) => is_route_component(n, kind));
-
-		// This dir's layout value carries down the chain whether or not a layout NODE exists here
-		// (Kit merges parent options first; a dir with only `+layout.ts` still re-scopes children).
-		const layout_own = own_csr(dir, LAYOUT_UNIVERSAL, LAYOUT_SERVER);
-		const chain = layout_own !== undefined ? layout_own : inherited;
-
-		// layout node: +layout.svelte (or .md, …), +layout.js/ts, or +layout.server.js/ts
-		if (has_component('layout') || has(LAYOUT_UNIVERSAL) || has(LAYOUT_SERVER)) {
-			if (is_root) saw_root_layout = true;
-			nodes.push(chain);
-		}
-		// page node: +page.svelte (or .md, …), +page.js/ts, or +page.server.js/ts
-		if (has_component('page') || has(PAGE_UNIVERSAL) || has(PAGE_SERVER)) {
-			const page_own = own_csr(dir, PAGE_UNIVERSAL, PAGE_SERVER);
-			nodes.push(page_own !== undefined ? page_own : chain);
-		}
-		for (const e of entries) {
-			if (!e.is_dir) continue;
-			if (e.name === KEEP_CLIENT_DIR) continue; // ignore our own injected keepalive
-			walk(path.join(dir, e.name), false, chain);
-		}
-	};
-	walk(routesDir, true, undefined);
-	// Kit always synthesizes a root layout node; if the app has none, it carries null options
-	// (csr unset) — which alone is enough to keep the client build alive.
-	if (!saw_root_layout) nodes.push(undefined);
-	return nodes;
-}
-
-/**
- * Replicates Kit's `manifest_data.nodes.every(n => n.page_options?.csr === false)` — the exact
- * condition under which Kit skips the client build — with `page_options` CHAIN-RESOLVED exactly as
- * Kit's static analysis resolves it. A single node whose effective csr is `true` or simply unset
- * keeps the build alive. When this is true, ogygia's runtime is never emitted, so index.ts injects
- * the keepalive. Deviations (a `+page@` reset, a statically-unanalysable option file) can only err
- * toward injecting a keepalive Kit didn't need — a harmless extra client build, never a 404.
+ * Replicates Kit's `manifest_data.nodes.every(n => n.page_options?.csr === false)`, the exact
+ * condition under which Kit skips the client build, over every node of the route tree (layouts,
+ * error pages and pages, Kit's fallback root layout and error page included) with each node's csr
+ * resolved as Kit resolves it. A single node whose csr is `true` or unset keeps the build alive.
+ * When this is true, ogygia's runtime is never emitted, so index.ts injects the keepalive (its own
+ * directory is not part of the tree). A statically unanalysable option file can only err toward a
+ * keepalive Kit did not need: a harmless extra client build, never a 404.
  */
 export function clientBuildWillSkip(routesDir: string): boolean {
 	if (!fs.existsSync(routesDir)) return false;
-	const nodes = collectNodeEffectiveCsr(routesDir);
-	if (nodes.length === 0) return false;
-	return nodes.every((csr) => csr === false);
+	const tree = route_tree(routesDir);
+	return tree.nodes.every((node) => node_csr(tree, node) === false);
 }
 
 /**
@@ -716,7 +739,8 @@ export function clientBuildWillSkip(routesDir: string): boolean {
  */
 export function hasAnyCsrFalseRoute(routesDir: string): boolean {
 	if (!fs.existsSync(routesDir)) return false;
-	return pageLeaves(routesDir).some((page_file) => routeCsrIsFalse(page_file, routesDir));
+	const tree = route_tree(routesDir);
+	return page_leaves(tree).some((leaf) => node_csr(tree, leaf) === false);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
