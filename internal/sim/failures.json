@@ -567,6 +567,30 @@
 			"reason": "a streamed load promise that rejects: proved: dropping the rejection's handler turns the test red",
 			"test": "packages/core/test/page-stream-out.test.ts",
 			"name": "a promise that rejects streams as a failure, with its error, never as a value"
+		},
+		{
+			"site": "packages/core/src/runtime/entry-locations.ts > pin_region_urls > catch:0",
+			"reason": "a relative region URL against a base that is no URL: the sim's pages always have one: proved: that failure thrown instead of kept as written turns the test red",
+			"test": "packages/core/test/pin-region-urls.test.ts",
+			"name": "a relative value against a base that is no URL stays as written, and the pin goes on"
+		},
+		{
+			"site": "packages/core/src/runtime/entry-locations.ts > current_location > stale:0",
+			"reason": "two islands' recoveries in a rollover, one dropping the map while the other's read of it is out: a timing no sweep seed is known to hit: proved: that STALE read as a map turns the test red",
+			"test": "packages/core/test/browser/entry-location-map-race.test.ts",
+			"name": "a read of the map that another recovery drops while it is out is read again, and both islands wake"
+		},
+		{
+			"site": "packages/core/src/runtime/entry-locations.ts > load_entry > catch:0",
+			"reason": "a location on an origin the page loads no code from, handed in for a known identity: no app the sim generates writes one: proved: the refusal thrown instead of rejected turns the test red",
+			"test": "packages/core/test/browser/code-origins.test.ts",
+			"name": "handed in as the location of a known identity: refused as a rejection, never thrown"
+		},
+		{
+			"site": "packages/core/src/runtime/entry-locations.ts > load_entry > reject:0",
+			"reason": "a recovery whose current file fails too: proved: dropping the failure's report turns the test red",
+			"test": "packages/core/test/browser/entry-locations.test.ts",
+			"name": "recovered, and not: each once, with the identity and the location that failed"
 		}
 	],
 	"impossible": [
@@ -1239,10 +1263,6 @@
 		"packages/core/src/runtime/devalue-lane.ts > with_devalue > reject:0",
 		"packages/core/src/runtime/devalue-lane.ts > with_devalue > stale:0",
 		"packages/core/src/runtime/drift-watch.ts > watch_region > observer:0",
-		"packages/core/src/runtime/entry-locations.ts > pin_region_urls > catch:0",
-		"packages/core/src/runtime/entry-locations.ts > current_location > stale:0",
-		"packages/core/src/runtime/entry-locations.ts > load_entry > catch:0",
-		"packages/core/src/runtime/entry-locations.ts > load_entry > reject:0",
 		"packages/core/src/runtime/foreign-props.ts > foreign_region_prop_revivers > OgygiaRef > throw:0",
 		"packages/core/src/runtime/form-continuity.ts > url_of > catch:0",
 		"packages/core/src/runtime/frame-nav.ts > streamFrames > stale:0",
