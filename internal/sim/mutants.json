@@ -127,5 +127,14 @@
 		"from": "||",
 		"to": "&&",
 		"equivalent": "a region is registered at most once while its snapshot stands (a connect once per #scheduled, which only teardown clears after unregistering; the phase-2 wake once per cold wake, and only for a hole), and with its owner closed the snapshot the mutant starts is stopped at once by the closed scope's defer"
+	},
+	{
+		"id": "visible-margin-dropped",
+		"file": "packages/core/src/runtime/core.ts",
+		"line": 1700,
+		"code": "const rootMargin = root_margin || this.getAttribute('margin') || '0px';",
+		"operator": "logical",
+		"from": "n || t",
+		"to": "n && t"
 	}
 ]
