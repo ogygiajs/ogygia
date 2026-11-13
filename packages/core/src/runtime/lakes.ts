@@ -38,7 +38,6 @@ export function settle_in(root: ParentNode): void {
 	runtime_session.settle_lakes_in(root);
 }
 
-/** The lakes `parent`'s own hydrate holds and releases: nearest region is `parent`. */
 const hosted_lakes_of = (parent: Element) =>
 	[...parent.querySelectorAll(FROZEN_SELECTOR)].filter(
 		(l) => l.parentElement?.closest('ogygia-region') === parent

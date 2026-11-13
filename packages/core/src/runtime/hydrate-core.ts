@@ -715,15 +715,6 @@ export function hydrate_island(
 	// CSS (an inline region is block-in-inline; block changes its children's containing block and
 	// anonymous boxes) and cost a customer hero a 0.69 layout shift, plus a forced layout per island.
 
-	// THE HYDRATION SOURCE OF TRUTH is the island's server markup, not whatever the live DOM is
-	// now. An island can sleep for a long time (`visible`, `interaction`), and other scripts edit
-	// the page meanwhile — a design-system runtime stripping whitespace text nodes while it
-	// "hydrates" the header around it, an A/B tool, a translator. Svelte's walk then meets a
-	// different node sequence and, left to itself, throws the server DOM away and re-renders the
-	// island client-side: a flash, DSD/foreign content destroyed, and the tap that woke the
-	// island replayed onto a discarded node (a login dropdown needed two clicks). So, BEFORE the
-	// walk runs (see sequence_differs for why before), the live sequence is compared with the
-	// server's and put back when it drifted; the walk then sees the server's sequence.
 	// The head as it stands before this island renders into it: whatever the hydrate adds is the
 	// island's own (runtime/session.ts — who owns each node in <head>). The step is synchronous, so
 	// nothing else writes the head in between.
