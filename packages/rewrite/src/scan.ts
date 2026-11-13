@@ -46,13 +46,28 @@ export interface ScanState {
 	open: { name: string; depth: number } | null;
 	/** chunks with no match not read yet: read only when a later chunk has one */
 	pending: string[];
+	/** open `<template>` elements */
+	templates: number;
 }
 
 export function scan_state(region: boolean): ScanState {
-	return { in_body: region, regions: [], foreign: 0, open: null, pending: [] };
+	return { in_body: region, regions: [], foreign: 0, open: null, pending: [], templates: 0 };
 }
 
 const NONE: Matcher = { test: () => false, needles: [] };
+
+const RAW_TEXT: ReadonlySet<string> = new Set([
+	'script',
+	'style',
+	'textarea',
+	'title',
+	'xmp',
+	'iframe',
+	'noembed',
+	'noframes',
+	'noscript',
+	'plaintext'
+]);
 
 /** One outermost matched element of a chunk: its span, its name, and whether it sits in
  *  Svelte-owned markup. */
@@ -67,9 +82,12 @@ export interface Scanned {
 	spans: Span[];
 	/** the name of a matched element the chunk ends inside, if it started in this chunk */
 	split: string | null;
+	/** the chunk ends where a script may go: outside every region, matched element, template,
+	 *  svg or math, and outside any tag, comment or raw text (`false` when it was not read) */
+	safe: boolean;
 }
 
-const NOTHING: Scanned = { spans: [], split: null };
+const NOTHING: Scanned = { spans: [], split: null, safe: false };
 
 /** May this chunk hold a match? A few native searches: a chunk that answers no is not read until a
  *  later chunk has one (what it opened or closed then decides that chunk's reading). */
@@ -85,8 +103,14 @@ export function may_match(html: string, m: Matcher, state: ScanState): boolean {
  * from `state` (updated for the next chunk). In a document, an element counts from `<body` on.
  * `csr`: the body is Svelte's (a Kit-hydrated page), lakes and holes aside.
  */
-export function scan(html: string, m: Matcher, state: ScanState, csr: boolean): Scanned {
-	if (!may_match(html, m, state)) {
+export function scan(
+	html: string,
+	m: Matcher,
+	state: ScanState,
+	csr: boolean,
+	force = false
+): Scanned {
+	if (!force && !may_match(html, m, state)) {
 		state.pending.push(html);
 		return NOTHING;
 	}
@@ -103,9 +127,12 @@ function read(html: string, m: Matcher, state: ScanState, csr: boolean): Scanned
 	let open = state.open;
 	let start = -1;
 	let owned = false;
+	let clean = true;
 	for (const at = new MarkupCursor(html); at.next();) {
+		clean = at.kind !== 0 || (!at.raw && !opens_at(html, at.start, at.end));
 		if (at.kind === 1) {
 			const name = tag_name(html, at.start + 1, at.ne);
+			if (RAW_TEXT.has(name)) clean = false;
 			if (open !== null) {
 				if (name === open.name) open.depth++;
 				continue;
@@ -115,7 +142,8 @@ function read(html: string, m: Matcher, state: ScanState, csr: boolean): Scanned
 				continue;
 			}
 			if (state.foreign > 0) continue;
-			if (name === 'body') state.in_body = true;
+			if (name === 'template') state.templates++;
+			else if (name === 'body') state.in_body = true;
 			else if (name === 'ogygia-region') state.regions.push(region_at(html, at.ne) === 'island');
 			else if (state.in_body && custom_name(name) && m.test(name)) {
 				open = { name, depth: 1 };
@@ -136,8 +164,24 @@ function read(html: string, m: Matcher, state: ScanState, csr: boolean): Scanned
 			if (state.foreign > 0) {
 				if (name === 'svg' || name === 'math') state.foreign--;
 			} else if (name === 'ogygia-region') state.regions.pop();
+			else if (name === 'template' && state.templates > 0) state.templates--;
 		}
 	}
 	state.open = open;
-	return { spans, split: open !== null && start !== -1 ? open.name : null };
+	const safe =
+		clean &&
+		open === null &&
+		state.regions.length === 0 &&
+		state.foreign === 0 &&
+		state.templates === 0;
+	return { spans, split: open !== null && start !== -1 ? open.name : null, safe };
+}
+
+function opens_at(html: string, from: number, to: number): boolean {
+	if (to !== html.length) return false;
+	for (let lt = html.indexOf('<', from); lt !== -1 && lt < to; lt = html.indexOf('<', lt + 1)) {
+		const c = html.charCodeAt(lt + 1) | 32;
+		if ((c >= 97 && c <= 122) || c === 33 || c === 47 || c === 63) return true;
+	}
+	return false;
 }

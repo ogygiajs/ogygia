@@ -3,6 +3,7 @@ import type { HtmlPass } from '@ogygia/core/plugin';
 import { closeSafe, escapeAttr } from '@ogygia/core/plugin/utils';
 import { MarkupCursor, OG_HEAD, OG_RESTORE, OG_STAND_INS } from '@ogygia/core/internal/instruments';
 import { DEV } from 'esm-env';
+import { buggify } from '@ogygia/machine';
 import {
 	check_script,
 	closes_all,
@@ -65,6 +66,10 @@ export const RESTORE_CALL: string = `<script ${OG_RESTORE}>__og_restore(document
 export const RESTORE_CALL_FULL: string = `<script ${OG_RESTORE}>__og_restore(document)</script>`;
 
 const FIRST_LOAD = '<meta name="ogygia-first-load">';
+
+declare const __OGYGIA_RULES__: boolean | undefined;
+const RULES: boolean =
+	import.meta.env?.DEV || (typeof __OGYGIA_RULES__ !== 'undefined' ? __OGYGIA_RULES__ : false);
 
 interface Unit {
 	el: string;
@@ -146,6 +151,7 @@ class Response {
 	stand_ins = false;
 	first_load = false;
 	buffer: string[] | null = null;
+	waiting = '';
 
 	constructor(steps: readonly Step[], event: RequestEvent, opts: PassOptions) {
 		this.steps = steps;
@@ -180,11 +186,36 @@ async function render_one(
 	ctx: RewriteContext
 ): Promise<{ ok: unknown } | { error: string }> {
 	try {
-		const out = await render([el], ctx);
+		const out = await call_render(render, [el], ctx);
 		return Array.isArray(out) && out.length === 1 ? { ok: out[0] } : { error: count_error(out, 1) };
 	} catch (thrown) {
 		return { error: message_of(thrown) };
 	}
+}
+
+async function call_render(
+	render: ElementRewrite['render'],
+	els: readonly RewriteElement[],
+	ctx: RewriteContext
+): Promise<unknown> {
+	if (RULES && buggify.fires('rewrite.render-throws'))
+		throw new Error('the render threw (buggify)');
+	const out: unknown = await render(els, ctx);
+	if (!RULES || !Array.isArray(out)) return out;
+	if (buggify.fires('rewrite.render-count')) return out.slice(1);
+	return out.map((r: unknown) => {
+		const html = typeof r === 'string' ? r : (r as { html?: unknown } | null)?.html;
+		if (typeof html !== 'string') return r;
+		let bad = html;
+		if (buggify.fires('rewrite.render-malformed')) bad = `${bad}<div>`;
+		if (buggify.fires('rewrite.render-strips-marks')) bad = bad.replaceAll(' og-h=', ' data-gone=');
+		if (bad === html) return r;
+		return typeof r === 'string' ? bad : { ...(r as object), html: bad };
+	});
+}
+
+function cancelled(ctx: RewriteContext): boolean {
+	return ctx.signal.aborted || (RULES && buggify.fires('rewrite.signal-fires'));
 }
 
 async function render_targets(
@@ -206,17 +237,17 @@ async function render_targets(
 	}
 	let results: unknown[] | null = null;
 	try {
-		const out = await render(unique, ctx);
+		const out = await call_render(render, unique, ctx);
 		if (Array.isArray(out) && out.length === unique.length) results = out;
 		// oxlint-disable-next-line ogygia/no-silent-failures -- a failed batch is retried one element at a time below, and each element that still fails is said with its code
 	} catch {
 		results = null;
 	}
-	if (ctx.signal.aborted) return targets.map(() => null);
+	if (cancelled(ctx)) return targets.map(() => null);
 	const outcome: (Rendered | Failure)[] = [];
 	if (results === null) {
 		const each = await Promise.all(unique.map((el) => render_one(render, el, ctx)));
-		if (ctx.signal.aborted) return targets.map(() => null);
+		if (cancelled(ctx)) return targets.map(() => null);
 		for (let i = 0; i < unique.length; i++) {
 			const e = each[i];
 			outcome[i] =
@@ -410,14 +441,19 @@ async function rewrite_chunk(
 	res: Response,
 	page: { csr: boolean; answer: boolean; body: boolean }
 ): Promise<Out | null> {
-	const scanned = scan(html, res.any!, res.scan, page.csr);
+	const scanned = scan(html, res.any!, res.scan, page.csr, res.waiting !== '');
 	if (scanned.split)
 		res.failed({
 			code: 'rewrite_element_split',
 			name: scanned.split,
 			error: 'it did not close before its chunk ended'
 		});
-	if (!scanned.spans.length) return null;
+	if (!scanned.spans.length) {
+		if (res.waiting === '') return null;
+		const tail: string[] = [html];
+		const body = place(res, '', scanned.safe, page.body, tail);
+		return { html: tail.join(''), head: '', body };
+	}
 	const all = page.answer;
 	const units: Unit[] = scanned.spans.map((span) => {
 		const el = html.slice(span.start, span.end);
@@ -464,16 +500,21 @@ async function rewrite_chunk(
 		res.first_load = true;
 		(res.head_open ? head : lead).push(FIRST_LOAD);
 	}
-	let body = '';
-	if (restored || stand_ins) {
-		body = (check ? check_script(check) : '') + restore_script(res, full);
-		if (page.body === false) {
-			out.push(body);
-			body = '';
-		}
-	}
+	const script =
+		restored || stand_ins ? (check ? check_script(check) : '') + restore_script(res, full) : '';
 	out[lead_at] = lead.join('');
+	const body = place(res, script, scanned.safe, page.body, out);
 	return { html: out.join(''), head: head.join(''), body };
+}
+
+function place(res: Response, script: string, safe: boolean, body: boolean, out: string[]): string {
+	const all = `${res.waiting}${script}`;
+	res.waiting = '';
+	if (!all) return '';
+	if (body) return all;
+	if (safe) out.push(all);
+	else res.waiting = all;
+	return '';
 }
 
 function restore_script(res: Response, full: boolean): string {
@@ -543,9 +584,34 @@ export function rewrite_pass(
 				res.buffer = null;
 				return rewrite_whole(doc, res, 'document', page.csr, page.answer);
 			}
-			const out = res.any ? await rewrite_chunk(html, res, page) : null;
+			if (RULES && html.length > 1 && res.any && buggify.fires('rewrite.chunk-split')) {
+				const mid = html.length >> 1;
+				const a = html.slice(0, mid);
+				const first = (await rewrite_chunk(a, res, { ...page, body: false })) ?? {
+					html: a,
+					head: '',
+					body: ''
+				};
+				const b = html.slice(mid);
+				const second = (await rewrite_chunk(b, res, page)) ?? { html: b, head: '', body: '' };
+				if (page.head) res.head_open = false;
+				return {
+					html: `${first.html}${second.html}`,
+					head: `${first.head}${second.head}`,
+					body: second.body
+				};
+			}
+			const out = (res.any ? await rewrite_chunk(html, res, page) : null) ?? {
+				html,
+				head: '',
+				body: ''
+			};
 			if (page.head) res.head_open = false;
-			return out ?? { html, head: '', body: '' };
+			if (page.done && res.waiting) {
+				out.html = `${out.html}${res.waiting}`;
+				res.waiting = '';
+			}
+			return out;
 		},
 		async region(html) {
 			return (await rewrite_whole(html, res, 'region', false, true)).html;
