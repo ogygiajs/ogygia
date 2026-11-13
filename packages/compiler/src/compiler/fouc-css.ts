@@ -1,18 +1,3 @@
-/**
- * csr=false FOUC without dual-owning island component JS.
- *
- * Kit only links stylesheets from the *client* page graph. Importing the authored `.svelte`
- * for that purpose (0.4.1) puts the same default-export module in the page graph and the
- * `emitFile` island entry → Rolldown thin-facades `og-region.*`.
- *
- * Hosts instead import `ogygia:region/fouc-css/<encoded>.js` which side-effect-imports:
- *   - plain `.css` files reachable from the entry
- *   - `ogygia:region/fouc-scoped/<encoded>.css` for each `.svelte` with a `<style>` block
- * Aggregator ids end in `.js` and scoped ids in `.css` so vite-plugin-svelte / Vite classify
- * them correctly (never as `.svelte` components). Scoped CSS is compiled with the real
- * filename so hashes match SSR.
- */
-
 import path from 'node:path';
 import { compile, parse } from 'svelte/compiler';
 import { walk } from 'estree-walker';
@@ -74,11 +59,6 @@ export function foucRelFromId(id: string): string | null {
 	} catch {
 		rel = encoded; // ok: not percent-encoded: the id holds the path as is (the check below still runs)
 	}
-	// SECURITY: this rel is `path.join(root, rel)` + `readFileSync` in the dev `load()` hook. A FOUC
-	// id is minted from a module path in our own graph, so a legit rel is always root-relative with no
-	// `..`. Reject traversal / absolute specifiers — otherwise a crafted request to the dev server
-	// (`…/fouc-scoped/..%2F..%2Fetc%2Fpasswd.css`) would read files outside the project (Vite's
-	// `server.fs.allow` does NOT cover a plugin's own `fs.readFileSync`). Mirrors content/source.ts.
 	if (
 		rel.startsWith('/') ||
 		rel.startsWith('\\') ||
@@ -105,8 +85,6 @@ export async function buildFoucCssModuleSource(
 	for (const e of entries) {
 		if (e.kind !== 'scoped') imports.push(e.abs);
 		else {
-			// (a scoped sheet is addressed by its root-relative path — the dev `load` refuses `..` — so
-			// a component outside the app's root cannot ride this module)
 			const rel = posix_rel(e.abs);
 			if (!rel.startsWith('../') && !path.isAbsolute(rel)) imports.push(foucScopedVirtualId(rel));
 		}
@@ -157,7 +135,6 @@ export const through_caller = (
 const SCRIPT_MODULE_EXT = /\.(?:[cm]?[jt]sx?|svelte\.[jt]s)$/;
 const RESOLVE_SUFFIXES = ['', '.ts', '.js', '/index.ts', '/index.js'];
 const NODE_MODULES_RE = /[\\/]node_modules[\\/]/;
-/** every name a module exports — a namespace import, or a module reached for its own code */
 const ALL = '*';
 
 /**
@@ -203,7 +180,6 @@ export async function collectFoucCssReachable(
 	const entries: Array<{ kind: 'scoped' | 'css'; abs: string }> = [];
 	const seen_css = new Set<string>();
 	const seen_svelte = new Set<string>();
-	/** script module → the names already followed (`*`: all of them) */
 	const seen_names = new Map<string, Set<string>>();
 
 	const visit = async (abs: string, names: ReadonlySet<string>, spec: string): Promise<void> => {
@@ -245,21 +221,18 @@ export async function collectFoucCssReachable(
 		const wanted = names.has(ALL) ? [ALL] : [...names].filter((n) => !done.has(n));
 		if (!wanted.length) return;
 		for (const n of wanted) done.add(n);
-		// a barrel: each name to its leaf (only the names taken)
 		const map = await barrels.map(abs, spec, EVERY_BARREL, resolve);
-		if (map && map.left === null && !wanted.includes(ALL)) {
+		if (map) {
 			const own: string[] = [];
 			for (const n of wanted) {
 				const entry = map.entries.get(n);
 				if (entry && typeof entry === 'object')
 					await visit(entry.id, new Set(['namespace' in entry ? ALL : entry.name]), entry.id);
-				else own.push(n); // its own code, ambiguous, or unseen (an opaque star): the module itself
+				else own.push(n);
 			}
 			if (!own.length && !map.opaque) return;
 		}
-		// a module with code of its own (or every name of a barrel): every import it makes
 		if (NODE_MODULES_RE.test(abs)) return;
-		// (the shape the index parsed: one parse per module, its imports and exports both)
 		const shape = barrels.shapes.get(abs);
 		if (!shape) return;
 		await follow(
@@ -277,7 +250,6 @@ export async function collectFoucCssReachable(
 				})),
 			abs
 		);
-		// (`export … from` in a module with code of its own: what it re-exports may be what renders)
 		await follow(
 			shape.exports.flatMap((e) =>
 				e.kind === 'reexport' && !e.type_only
@@ -333,9 +305,6 @@ export function compileFoucScopedCss(
 		keepScript?: boolean;
 	} = {}
 ): string {
-	// (the whole source first even when not preprocessed: stripping the script first made every
-	// template with a `bind:` or a script name throw, and the dev router leg shipped 11 of the
-	// profiler's 37 styled components unscoped)
 	const inputs = opts.keepScript ? [source] : [source, without_scripts(source)];
 	let err: unknown;
 	for (const input of inputs) {
@@ -345,7 +314,6 @@ export function compileFoucScopedCss(
 				generate: 'client',
 				css: 'external',
 				discloseVersion: false,
-				// a hole component may `await` at the top level (async Svelte); the CSS is the same either way
 				experimental: { async: true }
 			});
 			return result.css?.code ?? '';
@@ -364,36 +332,31 @@ export function svelteHasStyle(source: string): boolean {
 	return STYLE_OPEN.test(source);
 }
 
-/**
- * Unwrap `:global(SELECTOR)` → `SELECTOR`. `:global(...)` is a Svelte construct, not CSS — left
- * literal in a raw style body (the fallback below never runs the Svelte compiler) the browser drops
- * the whole rule. This fallback already ships styles UNSCOPED, so a global-wrapped selector is just
- * the selector. Balanced-paren scan so `:global(x:not(.y))` unwraps to `x:not(.y)`, not `x:not(.y`.
- */
+const GLOBAL_OPEN = ':global(';
+
 function unwrap_global(css: string) {
 	let out = '';
 	let i = 0;
 	while (i < css.length) {
-		const at = css.indexOf(':global(', i);
+		const at = css.indexOf(GLOBAL_OPEN, i);
 		if (at === -1) {
 			out += css.slice(i);
 			break;
 		}
 		out += css.slice(i, at);
+		const inner = at + GLOBAL_OPEN.length;
 		let depth = 1;
-		let j = at + 8; // past ':global('
+		let j = inner;
 		for (; j < css.length && depth > 0; j++) {
 			if (css[j] === '(') depth++;
 			else if (css[j] === ')') depth--;
 		}
-		// css.slice(inner) excludes the closing ')' consumed by the loop.
-		out += css.slice(at + 8, j - 1);
+		out += css.slice(inner, j - 1);
 		i = j;
 	}
 	return out;
 }
 
-/** @param source */
 function extractRawStyleBodies(source: string) {
 	return unwrap_global(
 		component_blocks(source)
@@ -414,11 +377,6 @@ function without_scripts(source: string): string {
 	return out + source.slice(at);
 }
 
-/**
- * Static import sources from a Svelte file's script blocks (default + side-effect).
- * @param source
- * @param filename
- */
 /** A component's static imports: each specifier with the names it takes (`*` for a namespace;
  *  none for a bare `import 'x'`). Type-only imports are left out: they bring nothing at runtime. */
 export function listStaticImports(
@@ -427,7 +385,6 @@ export function listStaticImports(
 ): Array<{ source: string; names: Set<string> }> {
 	const out: Array<{ source: string; names: Set<string> }> = [];
 	try {
-		// (blanked styles: a raw SCSS `<style>` threw here and dropped to the regex fallback)
 		const ast = parse(blank_styles(source), { filename, modern: true });
 		const scripts = [ast.instance, ast.module].filter(Boolean);
 		for (const block of scripts) {

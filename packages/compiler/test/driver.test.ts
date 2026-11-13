@@ -85,6 +85,20 @@ describe('the transform cache', () => {
 		expect(server.code).not.toContain('ogygia:region/fouc-css/');
 		expect(client.code).toContain('ogygia:region/fouc-css/');
 	});
+
+	test('registering a transform keeps it cached: the same source again is not transformed again', () => {
+		const { compiler, program } = make_compiler(counting({}).fs);
+		const src = dedent`
+			<script>
+			import X from './X.svelte' with { wake: 'load' };
+			</script>
+			<X />
+		`;
+		const id = `${ROOT}/src/routes/+page.svelte`;
+		const first = compiler.transform(src, id);
+		program.register(first as never, id);
+		expect(compiler.transform(src, id)).toBe(first);
+	});
 });
 
 describe('a generated entry lowers against its real source file', () => {
