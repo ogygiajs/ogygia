@@ -14,6 +14,7 @@
 import { afterEach, expect, test } from 'vitest';
 import type { RequestEvent } from '@sveltejs/kit';
 import { fc } from '@ogygia/config/html-fuzz';
+import { sim_params } from '@ogygia/config/sim';
 import { rewrite_pass, step_of, type Failure } from '../../src/pass.ts';
 import { restore } from '../../src/restore.ts';
 import type { ElementRewrite, RewriteElement, RewriteResult } from '../../src/types.ts';
@@ -154,7 +155,7 @@ afterEach(() => {
 	for (const t of Array.from(document.querySelectorAll('[data-og-head]'))) t.remove();
 });
 
-const RUNS = Number(import.meta.env?.VITE_REWRITE_SIM_RUNS ?? 60);
+const SWARM = sim_params({ runs: 60, seed: 1676 });
 
 test('a seeded swarm of streamed pages through two failing rewrites restores what Svelte rendered, says every failure, and restores once', async () => {
 	await fc.assert(
@@ -238,7 +239,7 @@ test('a seeded swarm of streamed pages through two failing rewrites restores wha
 				expect(doc.body.innerHTML).toBe(before);
 			}
 		),
-		{ numRuns: RUNS, seed: Number(import.meta.env?.VITE_REWRITE_SIM_SEED ?? 1676) }
+		SWARM
 	);
 });
 
@@ -278,6 +279,6 @@ test('region answers: every host restored in the fragment, nothing left, idempot
 				expect(restore(box)).toBe(0);
 			}
 		),
-		{ numRuns: 40, seed: 1676 }
+		sim_params({ runs: 40, seed: 1676 })
 	);
 });
