@@ -125,7 +125,8 @@ describe('moduleHasTransportable: the eager manifest signal', () => {
 		[`export const x = { static: true, class: 1 };`, false],
 		[`export class C {`, false],
 		[`class C { static x = 1; }`, false],
-		[`class C { static [k] = 1; }\nconst = ;`, false]
+		// unparsable: the safe answer (#1486)
+		[`class C { static [k] = 1; }\nconst = ;`, true]
 	])('`%s` → %s', (src, want) => {
 		expect(moduleHasTransportable(src, '/app/src/lib/m.ts')).toBe(want);
 	});
