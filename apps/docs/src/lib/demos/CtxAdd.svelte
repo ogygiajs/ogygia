@@ -1,8 +1,8 @@
 <script lang="ts">
 	import '$lib/styles/widget.css';
-	import { cartCtx } from './cart-store.svelte.ts';
+	import { getCart } from './cart-store.svelte.ts';
 
-	const cart = cartCtx.get();
+	const cart = getCart();
 	let n = $state(0);
 </script>
 
