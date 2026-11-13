@@ -40,6 +40,7 @@ function split_module(code: string): { module_body: string; template: string } {
 	};
 }
 
+// markup-ok: Svelte source, not HTML: a component's name keeps its case and its dots, which HTML folds
 const COMPONENT_TAG_RE = /<([A-Z][\w$]*(?:\.[\w$]+)*|[a-z_$][\w$]*(?:\.[\w$]+)+)(?=[\s/>])/;
 
 /** The first component tag (`<Foo`, `<Foo.Bar`, `<ui.Button`) in a compiled module; null when
