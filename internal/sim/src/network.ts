@@ -271,6 +271,11 @@ export class Network {
 		this.#calm.set(tab, pace);
 	}
 
+	/** Is `realm` a calm tab's document (an oracle's reference load)? */
+	is_calm(realm: string): boolean {
+		return this.#calm.has(realm.split('#')[0]!);
+	}
+
 	/** The pace of a calm request (its tab's, or for a server's hop, the calm tab's it serves), or
 	 *  null when the faults may hit it. */
 	#pace(realm: string, behalf: string): number | null {
