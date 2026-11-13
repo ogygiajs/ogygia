@@ -46,7 +46,7 @@ it('a window that reaches its cap and then fails to stop leaves no unhandled rej
 	const on_unhandled = (reason: unknown) => unhandled.push(reason);
 	process.on('unhandledRejection', on_unhandled);
 	try {
-		vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+		vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval'] });
 		const handle = profiler({ secret: 'k' });
 		const res = await handle({
 			event: event('/__profiler/window/start', 'POST'),

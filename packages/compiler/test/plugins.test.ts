@@ -209,6 +209,77 @@ describe('realms, named by the plugin', () => {
 			/plugin_client_hooks_unread|cannot read/
 		);
 	});
+	it('a client realm is read through casts and parentheses; a const that names itself is no answer', () => {
+		const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'og-client-hooks-'));
+		const file = (name: string, code: string) => {
+			const f = path.join(dir, name);
+			fs.writeFileSync(f, `${code}\n`);
+			return f;
+		};
+		const as = file('as.ts', `export default ({ hooks: { navigated() {} } } as ClientPlugin);`);
+		const sat = file(
+			'sat.ts',
+			`export default defineClient({ hooks: ({ holeFailed() {} }) satisfies Hooks });`
+		);
+		const cycle = file('cycle.ts', `const a = a;\nexport default defineClient(a);`);
+		expect(client_hook_names('p', as)).toEqual(['navigated']);
+		expect(client_hook_names('p', sat)).toEqual(['holeFailed']);
+		expect(() => client_hook_names('p', cycle)).toThrow(/plugin_client_hooks_unread|cannot read/);
+	});
+	it('a macro or a route config key two plugins both claim is refused, naming the first', () => {
+		const both = (build: (b: BuildContext) => void) => () =>
+			resolve_plugins(
+				[def({ name: '@ogygia/flags', build }), def({ name: '@ogygia/barrels', build })],
+				APP,
+				true
+			);
+		expect(both((b) => b.macro('shared', (c: string) => c))).toThrow(/plugin_macro_claimed/);
+		expect(both((b) => b.routeConfig('shared'))).toThrow(/route_config_key_claimed/);
+	});
+	it('without ogygia() a plugin reading the region table is told so', () => {
+		for (const read of [
+			(b: BuildContext) => b.regions.names(),
+			(b: BuildContext) => b.regions.barrelWhy('x', [])
+		])
+			expect(() =>
+				resolve_plugins([def({ name: '@ogygia/flags', build: (b) => void read(b) })], APP, true)
+			).toThrow(/no region table without ogygia\(\)/);
+	});
+	it('a client realm that does not parse, or whose defineClient spreads, cannot be read', () => {
+		const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'og-client-unread-'));
+		const broken = path.join(dir, 'broken.ts');
+		fs.writeFileSync(broken, `export default defineClient({ hooks: {\n`);
+		const spread = path.join(dir, 'spread.ts');
+		fs.writeFileSync(spread, `export default defineClient({ ...base, hooks: {} });\n`);
+		expect(() => client_hook_names('p', broken)).toThrow(/plugin_client_hooks_unread|cannot read/);
+		expect(() => client_hook_names('p', spread)).toThrow(/plugin_client_hooks_unread|cannot read/);
+	});
+	it('a plugin may not name a macro core defines (`wire`, `$`, `source`, `store`)', () => {
+		for (const name of ['wire', '$', 'source', 'store'])
+			expect(() =>
+				resolve_plugins(
+					[def({ name: '@ogygia/flags', build: (b) => b.macro(name, (c: string) => c) })],
+					APP,
+					true
+				)
+			).toThrow(/plugin_macro_name_invalid/);
+	});
+	it('events: one plugin measuring from boot outranks another asking only from the launcher', () => {
+		const events = (...lazy: boolean[]) =>
+			resolve_plugins(
+				lazy.map((l, i) =>
+					def({
+						name: ['@ogygia/flags', '@ogygia/barrels', '@ogygia/devtools'][i],
+						build: (b) => b.events({ lazy: l })
+					})
+				),
+				APP,
+				true
+			).events;
+		expect(events(true)).toEqual({ lazy: true });
+		expect(events(true, false)).toEqual({ lazy: false });
+		expect(events(false, true)).toEqual({ lazy: false });
+	});
 	it('macros run in plugin order, a `last` one after every other, whatever its place', () => {
 		const h = (code: string) => code;
 		const out = resolve_plugins(

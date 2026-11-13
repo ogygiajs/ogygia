@@ -173,6 +173,18 @@ describe('wire gating — the four detection legs', () => {
 		expect(marks.wire).not.toBe(true);
 	});
 
+	it("a .ts registry mints no lake: `wake: 'none'` there fails, so every .ts wake region wakes", () => {
+		expect(() =>
+			marks_for(
+				`${dedent`
+					import Still from './Still.svelte' with { wake: 'none' };
+					export const blocks = { still: Still };
+				`}\n`,
+				'/app/src/lib/lake-blocks.ts'
+			)
+		).toThrow(expect.objectContaining({ code: 'wake_strategy_unknown' }));
+	});
+
 	it('EXCLUDE: a .ts registry of deferred (server) islands stays lean', () => {
 		const marks = marks_for(
 			`${dedent`

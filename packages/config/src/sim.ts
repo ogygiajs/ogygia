@@ -154,7 +154,10 @@ const SETTLE_ROUNDS = 1000;
 const encoder = new TextEncoder();
 const noop = (): void => {};
 
-const env = (globalThis as { process?: { env: Record<string, string | undefined> } }).process?.env;
+declare const __OGYGIA_SIM_ENV__: Readonly<Record<string, string>> | undefined;
+const env: Readonly<Record<string, string | undefined>> | undefined =
+	(globalThis as { process?: { env: Record<string, string | undefined> } }).process?.env ??
+	(typeof __OGYGIA_SIM_ENV__ !== 'undefined' ? __OGYGIA_SIM_ENV__ : undefined);
 /** A whole number from the environment (a seed, a run count), or undefined when unset. Anything
  *  else throws: a typo must not run with `NaN` as its seed (core's test/property-seeded.test.ts). */
 const env_number = (name: string): number | undefined => {
@@ -166,6 +169,18 @@ const env_number = (name: string): number | undefined => {
 	return n;
 };
 const only = env?.OGYGIA_SIM_ONLY || undefined;
+
+/** A property's run count and seed: `OGYGIA_SIM_RUNS` and `OGYGIA_SIM_SEED` when the run was started
+ *  with them (in a browser test too: `sim_define` hands them over), else the test's own. */
+export function sim_params(defaults: { runs: number; seed: number }): {
+	numRuns: number;
+	seed: number;
+} {
+	return {
+		numRuns: env_number('OGYGIA_SIM_RUNS') ?? defaults.runs,
+		seed: env_number('OGYGIA_SIM_SEED') ?? defaults.seed
+	};
+}
 
 // Every property a test runs through this `fc` is seeded (314 unless `OGYGIA_FUZZ_SEED` says), so
 // CI tries the same inputs every time; a test's own `seed` wins (core's test/property-seeded.test.ts).
@@ -554,8 +569,7 @@ simulate.check = async function check<Ts extends unknown[]>(
 			simulate(s, (sim) => body(sim, ...(args as Ts)), options)
 	);
 	await fc.assert(property as fc.IAsyncProperty<unknown[]>, {
-		numRuns: env_number('OGYGIA_SIM_RUNS') ?? options.runs ?? 200,
-		seed: env_number('OGYGIA_SIM_SEED') ?? options.seed ?? 314,
+		...sim_params({ runs: options.runs ?? 200, seed: options.seed ?? 314 }),
 		...(options.path === undefined ? {} : { path: options.path })
 	});
 };

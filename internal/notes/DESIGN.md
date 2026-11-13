@@ -30,6 +30,8 @@ import A from './A.svelte' with { hydrate: 'load' };
 
 **Props** are real Svelte props into the wrapper (serialized with devalue for the region/endpoint). Put UI and lakes **inside** the island `.svelte` file — host children/snippets (except reserved `ogygiaFallback` on defer) cannot cross the boundary.
 
+A deferred island declares `ogygiaFallback` in its own props by hand. A preprocessor that typed it at the import site was built and reverted (2026-09-01): svelte-check types the original source and ignores what script preprocessors return, so no preprocessor can add call-site types.
+
 ## When JS runs / when HTML arrives
 
 Same timing words for both:

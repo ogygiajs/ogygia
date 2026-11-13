@@ -30,7 +30,11 @@ works, what is built, and how to add to it.
    - `network.ts`: in memory, on the loop, adversarial: delay, reorder, drop, duplicate, cut a body
      midway, tamper with bytes, redirect a region's request to another origin, stall an answer 10 to
      40 s before it starts or, half the time, after its body's first piece (past a client's own
-     deadline; its own swarm stream, 30% of runs), offline.
+     deadline; its own swarm stream, 30% of runs), offline, and `down`: a peer served at two origins
+     answers 500 or 503 at its first. A GET it answered excuses nothing: the app owes the next
+     origin's answer, so a page whose only failed hops were such GETs is judged whole (a stalled hop
+     beside it still excuses the app's 504). The MPA check reads the replica as its first origin
+     (its files, and a region sheet lifted beside the same file at the first: `replicas_as_one`).
    - `server.ts`: a built Kit app (`.svelte-kit/output`) served in process, static files plus
      `Server.respond`. Each instance loads its own copy of the output (its own module graph), placed
      beside the app's output so it resolves the app's dependencies.
@@ -329,7 +333,7 @@ check sees a `<style>` held twice when it does not). Mutation: hydrate-core's he
 place, or the page copy kept, died on gen 262. The order those styles stand in after a return is
 #1107 (`KNOWN`).
 
-A RESHAPE PASS (`gen reshape`, 35% of apps; `@ogygia/reshape`): the app's own pass over the HTML
+A RESHAPE PASS (`gen reshape`, 35% of apps; `@ogygia/rewrite`): the app's own pass over the HTML
 ogygia sends, as a handle in front of ogygia's (`src/lib/gen/reshape.server.ts`, written by
 `app_reshape`), on every document and region answer. Half of the regions (`gen reshape boxes`) hold
 their label in an `<x-gen-box>`, a web component whose server render (the pass, reduced to its
@@ -343,7 +347,7 @@ The pass also fails as an app's does, through buggify points in the app's code: 
 (#1569), so the oracles that judge every page (no 500, no hydration mismatch, the MPA check against
 a fresh load the pass may not have failed on) are what say a failing pass leaves the page whole.
 Gens 24 (trims, links,
-no router), 10 (links, router) and 196 run it. Mutation of `packages/reshape/src/restore.ts` runs
+no router), 10 (links, router) and 196 run it. Mutation of `packages/rewrite/src/restore.ts` runs
 on gens 24 and 10.
 
 ## Tabs behind, and engines without idle callbacks
@@ -434,8 +438,8 @@ EVERY FAILURE SITE ACCOUNTED FOR (`src/failures.ts`, test/failures.test.ts), the
 what can fail. The inventory parses (oxc) every package's `src` (the ledger's `scope`) and finds
 each failure site: a `catch`, a `.catch(` or a two-handler `.then`, a `fetch`, a `!res.ok`, a STALE
 check, an `import()`, a storage call, a `JSON.parse`, a timer, a `new …Observer`, a retry `policy(`,
-an abort, an error event, a stream call, a message, a `throw`, a machine `.move(` (refused when the
-state moved on), an `{ ok: false }` result, a crypto call, a body that may be null (the file's header
+an abort, an error event, a stream call, a message, a `throw`, a machine `.move('from', 'to')`
+(refused when the state moved on; a text edit's or a dependency mark's `.move` is none), an `{ ok: false }` result, a crypto call, a body that may be null (the file's header
 lists what each matches). The scope's `build_time` packages (cli, bake, barrels, config, tooling,
 tsdown-plugin-svelte) no simulator runs: their sites are `covered`, never `fired`. The compiler's
 are fired by the compiler's own simulator (`sim: "compiler"`). Each has a stable id, `file > enclosing function > kind:n` (n counts that kind in that
@@ -455,14 +459,34 @@ then break the recovery and see a seed fail, twice on the same build (the re-run
 mutant goes in mutants.json and its id in `killed_by`. A site that fires but whose broken recovery
 nobody notices wants an oracle or a test first.
 
+THE LEDGER AUTOPILOT (`src/autopilot.ts`, test/autopilot.test.ts) moves baseline sites a real test
+already checks to `covered` in bulk. It puts a probe on each baseline site's recovery path (a catch
+body, a `.catch` or rejection handler, a `!res.ok`, STALE or null-body check when it holds, a throw,
+an `{ ok: false }`), runs a package's tests once per project to learn which tests reach it, takes
+the probes out, then breaks each reached recovery (a catch emptied or made to rethrow, a handler made
+to rethrow, a check never true, a throw removed, a failed result made ok) and reruns only the tests
+that reached it, under a time limit. A reaching test that fails twice on the same mutant (the re-run
+rule) is the site's `covered` test. A site whose mutants all leave its tests green SURVIVED (a test
+runs the path and checks nothing: a buggify or test gap), and one no test reaches is left for a
+buggify point. The source is put back after every pass and checked byte for byte; Ctrl-C puts it
+back too. `node src/autopilot.ts --package core --project node --project browser [--apply]`; its
+map, results (resumable), patch and report go to `--out` (default `.scratch/autopilot/<pkg>`).
+
 MUTATION, DAILY: dst.yml's `mutate` job (cron `43 3 * * *`) runs `src/mutate.ts` over
-`internal/sim/mutants.json` on main's code, over gens 10 (the router with a reshape pass: the network
+`internal/sim/mutants.json` on main's code, over gens 1 (a Kit mount of a peer with its refused and
+missing pages: a 400 taken as no error, an error that says nothing, and an exposed page answered as
+a redirect, which the mount then fails on with a 5xx though the peer gave its page whole and in
+time (`Exchange.ended_at`), die by `peer-answers`), 10
+(the router with a reshape pass: the network
 faults alone kill a navigation that never hands a lost page fetch to the browser, and a hole that
 never fetches again after its retry wait, both by `stuck`), 24 (a reshape pass that trims, with links: it
 kills restore.ts's children not put back and its render left in the light DOM, by `ssr-hydrate`,
-and a stand-in left as `<og-as>`, by `html-kept`: no reshape mark is left at rest), 121 (a peer at
+and a stand-in left as `<og-as>`, by `html-kept`: no reshape mark is left at rest; and trimmed text
+left trimmed, by `text-restored`: a boxed island's `  pad  ` comes back with its whitespace, read
+off the page's `og-t` marks as it passed), 121 (a peer at
 two origins: its first replica down (`down`) and no answer asked of the next dies by
-`mpa-equivalence`), 188 (an empty island that wakes: it kills the
+`mpa-equivalence`, and a widget's, a page's or a hole's failover that keeps a 500, never asks the
+replica, or asks it after an answer, by `peer-failover`), 188 (an empty island that wakes: it kills the
 repair's `> 0` mutant), 191 (a hole whose render throws: an error answer swapped in for its
 fallback dies by `html-kept`), 192, 193, 220 (a text-only third party on a page root: it kills
 `align_to`'s last `return true` -> false) and 262 (islands with a `<svelte:head>`, one a third party
@@ -595,6 +619,16 @@ region kinds, runtime marks, route worlds, each transform's output.
 Oracles: two cold compiles agree; directory listing order and transform order change nothing
 (`src/order.ts`). `DST_RUNS=3000 pnpm test` for a long search. Each finding becomes an issue and a
 failing test in the compiler (the first: #1358).
+
+Mutation: `internal/compiler-dst/mutants.json`, judged by `src/mutate.ts --compiler-dst` (the
+simulator compiles the package sources, so nothing is built; a test that fails twice on the mutant
+and never on the baseline kills it), daily beside the sim's list. Its first kills are dev's
+invalidation (`invalidate_for_file`'s affected files and changed regions), and the driver's lists a
+build reads in order (`island_scan_entries`, `server_island_css_roots`, `ssr_transformed_hosts`):
+the snapshot holds them unsorted (`lists`), so the order oracle sees a list that follows the
+listing or transform order. Survived (gaps): `router_css_roots` unsorted (the drawn apps have no
+router pages), `entry_locations` (needs a bundle's end), `regions_print` (dev's change check),
+`routes_changed` keeping a route world, and `moved()` not invalidated.
 
 Dev matches a cold start (`src/dev.ts`, `test/dev-cold.test.ts`): a dev server held in memory runs
 the plugin's hooks for each file event in Vite's order (`watchChange`, `handleHotUpdate`, the

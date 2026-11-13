@@ -8,6 +8,7 @@ import { dedent } from '../../../packages/core/src/contract/dedent.ts';
 import { memory_fs } from '../../../packages/compiler/src/compiler/fs.ts';
 import { LIB, ROOT, ROUTES } from '../src/app.ts';
 import { session, transform_module, type Leg, type Session } from '../src/session.ts';
+import { page_reads } from '../../../packages/data-shake/src/index.ts';
 
 const PAGE = `${ROUTES}/+page.svelte`;
 
@@ -166,13 +167,19 @@ describe('a transform', () => {
 			</script>
 			<p>{page.data.title}</p>
 		`;
-		const f = files({ [reader]: src });
-		const b = build(f);
-		await transform_module(b, reader, 'client');
-		expect(b.program.page_keys.get(reader)).toEqual(new Set(['title']));
-		const d = dev(f);
-		await transform_module(d, reader, 'client');
-		expect(d.program.page_keys.has(reader)).toBe(false);
+		const f: Record<string, string> = files({ [reader]: src });
+		const with_plugin = (dev: boolean) => {
+			const reads = page_reads((file) => f[file] ?? null);
+			const s = session(memory_fs(f), { dev, page_reads: reads });
+			s.compiler.prescan();
+			return { s, reads };
+		};
+		const b = with_plugin(false);
+		await transform_module(b.s, reader, 'client');
+		expect(b.reads.keys(reader)).toEqual(new Set(['title']));
+		const d = with_plugin(true);
+		await transform_module(d.s, reader, 'client');
+		expect(d.reads.keys(reader)).toBe(null);
 	});
 
 	it('reads past a byte-order mark', async () => {
