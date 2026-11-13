@@ -118,8 +118,11 @@ describe('failure sites', () => {
 		]);
 	});
 
-	it('does not count a successful call as a failure', () => {
-		expect(ids('function f(res) { if (res.ok) go(); x.then(ok); }')).toEqual([]);
+	it('does not count a successful call as a failure, nor a function of its own named verify', () => {
+		expect(ids('function f(res) { if (res.ok) go(); x.then(ok); verify(host, k); }')).toEqual([]);
+		expect(ids('function f() { hmac.verify(sig); }')).toEqual([
+			'packages/x/src/a.ts > f > crypto:0'
+		]);
 	});
 
 	it('reads the buggify points a source asks, and the sim fault classes', () => {
