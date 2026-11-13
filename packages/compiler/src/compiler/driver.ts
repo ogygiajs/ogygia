@@ -83,6 +83,8 @@ import { RESOLVED, V_RUNTIME_ENTRY, region_family } from './ids.ts';
 import { is_generated_specifier } from './virtual/table.ts';
 import { OgygiaError, warn } from './messages.ts';
 import type { Program, RegisterResult } from './program.ts';
+import type { FileFacts } from './scan-facts.ts';
+import type { Query } from './queries.ts';
 import type { CompileCtx } from './ctx.ts';
 
 /** A file-local transform result: the Vite `{ code, map }` plus the descriptors the linker registers. */
@@ -193,11 +195,6 @@ function scan_kind(name: string): 'svelte' | 'script' | null {
 }
 const SCAN_SCRIPT_RE = /\.(?:ts|js|mjs)$/;
 const REMOTE_FILE_RE = /\.remote\.[jt]s$/;
-/** Put `item` in `set` or take it out. */
-function set_has(set: Set<string>, item: string, has: boolean): void {
-	if (has) set.add(item);
-	else set.delete(item);
-}
 function extract_module_specs(src: string): string[] {
 	MODULE_SPEC_RE.lastIndex = 0;
 	const specs: string[] = [];
@@ -264,56 +261,53 @@ export class Compiler implements CoreApp {
 	 */
 	#scan_facts(full: string, src: string | null, kind: 'svelte' | 'script'): void {
 		const ctx = this.#ctx!;
-		const program = this.program;
-		const { runtime_marks, wire_crossers, transportable_modules, module_specs, router_modules } =
-			program;
+		const { runtime_marks, scan } = this.program;
 		const dev = ctx.is_dev;
-		const regions_before = dev ? this.#facts_print(full, 'regions') : '';
-		const styles_before = dev ? this.#facts_print(full, 'styles') : '';
+		const marks_before = dev ? JSON.stringify(runtime_marks) : '';
+		const since = scan.db.revision;
 
-		const remote = kind === 'script' && REMOTE_FILE_RE.test(full);
-		const specs = src === null ? [] : extract_module_specs(src);
-		if (src !== null) {
+		if (src === null) scan.set(full, null);
+		else {
+			const remote = kind === 'script' && REMOTE_FILE_RE.test(full);
+			const specs = extract_module_specs(src);
+			const page_importers = ctx.page_importers;
+			const facts: FileFacts = {
+				crosses_wire: remote || source_crosses_wire(src),
+				// Transportable classes go into the eager-registration manifest so an island receiving
+				// one as a prop never has to import the class itself. A `<script module>` one is keyed
+				// by the .svelte path (side-effect-importing the component runs its module registration).
+				transportable:
+					kind === 'svelte'
+						? svelteModuleHasTransportable(src, full)
+						: moduleHasTransportable(src, full),
+				// Router-css closure data: this module's import specs + whether it is a page module
+				// (`b.pageModules()`: it imports a page specifier, or is named by path).
+				specs,
+				router:
+					(page_importers.length > 0 && specs.some((s) => page_importers.includes(s))) ||
+					ctx.page_files.includes(full),
+				flag_sites: specs.includes(FLAGS_SPEC)
+					? collect_flag_sites(src, full, flag_site_file(ctx, full))
+					: []
+			};
+			scan.set(full, facts);
 			if (!runtime_marks.context && source_uses_ogygia_context(src)) runtime_marks.context = true;
 			// A remote query's SSR result can only be seeded where the app HAS a remote function.
 			if (remote) runtime_marks.remoteSeeds = true;
+			// A transportable class means island props can carry a live wired object, revived through
+			// the wire codec: this app needs the wire runtime.
+			if (facts.transportable) runtime_marks.wire = true;
 		}
-		set_has(wire_crossers, full, src !== null && (remote || source_crosses_wire(src)));
-		// Router-css closure data: this module's import specs + whether it is a page module
-		// (`b.pageModules()`: it imports a page specifier, or is named by path).
-		if (specs.length) module_specs.set(full, specs);
-		else module_specs.delete(full);
-		const page_importers = ctx.page_importers;
-		set_has(
-			router_modules,
-			full,
-			(page_importers.length > 0 && specs.some((s) => page_importers.includes(s))) ||
-				ctx.page_files.includes(full)
-		);
-		if (specs.includes(FLAGS_SPEC))
-			program.flag_sites_by_file.set(
-				full,
-				collect_flag_sites(src!, full, flag_site_file(ctx, full))
-			);
-		else program.flag_sites_by_file.delete(full);
-		// Transportable classes go into the eager-registration manifest so an island receiving one as
-		// a prop never has to import the class itself. A `<script module>` one is keyed by the .svelte
-		// path (side-effect-importing the component runs its module registration).
-		set_has(
-			transportable_modules,
-			full,
-			src !== null &&
-				(kind === 'svelte'
-					? svelteModuleHasTransportable(src, full)
-					: moduleHasTransportable(src, full))
-		);
-		// A transportable class means island props can carry a live wired object, revived through the
-		// wire codec: this app needs the wire runtime.
-		if (transportable_modules.size > 0) runtime_marks.wire = true;
 
 		if (!dev) return;
-		if (this.#facts_print(full, 'regions') !== regions_before) this.#moved.add('regions');
-		if (this.#facts_print(full, 'styles') !== styles_before) this.#moved.add('styles');
+		const changed = (q: Query<string, unknown>) => scan.db.changed_since(q, 'all', since);
+		if (
+			JSON.stringify(runtime_marks) !== marks_before ||
+			changed(scan.wire_crossers) ||
+			changed(scan.transportable_modules)
+		)
+			this.#moved.add('regions');
+		if (changed(scan.module_specs) || changed(scan.router_modules)) this.#moved.add('styles');
 	}
 
 	/** How the prescan's walk reads `id`: the app's `src/` and the declared package surfaces, minus
@@ -332,18 +326,6 @@ export class Compiler implements CoreApp {
 		} else return null;
 		const segments = rest.split('/').slice(0, -1);
 		return segments.includes('node_modules') || segments.includes(ISLAND_DIR) ? null : kind;
-	}
-
-	/** One file's scan facts that `part`'s readers read, as text (dev only: the change check above). */
-	#facts_print(full: string, part: 'regions' | 'styles'): string {
-		const p = this.program;
-		return part === 'regions'
-			? JSON.stringify([
-					p.runtime_marks,
-					p.wire_crossers.has(full),
-					p.transportable_modules.has(full)
-				])
-			: JSON.stringify([p.module_specs.get(full), p.router_modules.has(full)]);
 	}
 
 	/** The marks and one host's rows, as text (dev only: the change check above). */
@@ -710,12 +692,15 @@ export class Compiler implements CoreApp {
 			// Page modules named by path (`b.pageModules({ files })`): roots whatever they import. One the
 			// walks above did not reach still needs its import specs for the closure.
 			for (const f of ctx.page_files) {
-				program.router_modules.add(f);
-				if (!program.module_specs.has(f)) {
-					const src = ctx.read_file(f);
-					const specs = src == null ? [] : extract_module_specs(src);
-					if (specs.length) program.module_specs.set(f, specs);
-				}
+				if (program.scan.has(f)) continue;
+				const src = ctx.read_file(f);
+				program.scan.set(f, {
+					crosses_wire: false,
+					transportable: false,
+					specs: src == null ? [] : extract_module_specs(src),
+					router: true,
+					flag_sites: []
+				});
 			}
 			if (P) prof.prescanMs += performance.now() - __ps;
 		}

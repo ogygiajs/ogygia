@@ -15,6 +15,7 @@
 import path from 'node:path';
 import { renderId } from './region/identity.ts';
 import type { RuntimeMarks } from './link/runtime-entry.ts';
+import { scan_facts, type ScanFacts } from './scan-facts.ts';
 
 /** Strip a `?query` off a module id (host vs component vs Vite watch paths). */
 export const strip_id = (id: string): string => (id ? id.split('?')[0] : id);
@@ -113,21 +114,27 @@ export class Program {
 	 *  chunk — or drag its imports into a client build whose server pass never saw them (a
 	 *  `.remote.ts` there fails Kit's "expected to find metadata" check). */
 	readonly ssr_transformed: Set<string> = new Set();
-	/** Absolute paths of app modules that define a transportable class (the scan's per-file fact). */
-	readonly transportable_modules: Set<string> = new Set();
+	/** Every scanned file's facts, and the app-wide answers folded from them (./scan-facts.ts). */
+	readonly scan: ScanFacts = scan_facts();
+	/** Absolute paths of app modules that define a transportable class, in scan order. */
+	get transportable_modules(): ReadonlySet<string> {
+		return this.scan.db.get(this.scan.transportable_modules, 'all');
+	}
 
 	/** PAGE MODULES (`b.pageModules()`: importers of a page specifier such as `'@ogygia/router'`, plus
 	 *  files named directly — server-router definition sites) + every walked
 	 *  module's import specifiers — the build data `ogygia:server/router-css` computes its
-	 *  component closure from (see link/router-css.ts). Per-file facts of the scan. */
-	readonly router_modules: Set<string> = new Set();
-	readonly module_specs: Map<string, string[]> = new Map();
-	/** flag()/experiment() call sites the scan OBSERVED (modules importing 'ogygia' only), by file —
-	 *  written to node_modules/.ogygia/flags-manifest.json at build for CI flag-debt diffs. */
-	readonly flag_sites_by_file: Map<string, import('./flags.ts').FlagSite[]> = new Map();
-	/** Every file's flag sites, in scan order. */
-	get flag_sites(): import('./flags.ts').FlagSite[] {
-		return [...this.flag_sites_by_file.values()].flat();
+	 *  component closure from (see link/router-css.ts). */
+	get router_modules(): ReadonlySet<string> {
+		return this.scan.db.get(this.scan.router_modules, 'all');
+	}
+	get module_specs(): ReadonlyMap<string, readonly string[]> {
+		return this.scan.db.get(this.scan.module_specs, 'all');
+	}
+	/** flag()/experiment() call sites the scan OBSERVED (modules importing 'ogygia' only), in scan
+	 *  order — written to node_modules/.ogygia/flags-manifest.json at build for CI flag-debt diffs. */
+	get flag_sites(): readonly import('./flags.ts').FlagSite[] {
+		return this.scan.db.get(this.scan.flag_sites, 'all');
 	}
 	/** SEED SHAPING: per module (query-less id, forward slashes), the top-level `page.data` keys its
 	 *  code reads — `'all'` when a read could not be pinned to a literal key. Recorded by the driver's
@@ -149,8 +156,10 @@ export class Program {
 	get crosses_wire(): boolean {
 		return this.wire_crossers.size > 0;
 	}
-	/** The files that make {@link crosses_wire} true (the scan's per-file fact). */
-	readonly wire_crossers: Set<string> = new Set();
+	/** The files that make {@link crosses_wire} true. */
+	get wire_crossers(): ReadonlySet<string> {
+		return this.scan.db.get(this.scan.wire_crossers, 'all');
+	}
 
 	/** Island code can reach Kit's page world (`$app/state` and kin, or something the island-closure
 	 *  walk could not follow — driver.ts `mark_island_closure`). Folded into `runtime_marks.page` at
