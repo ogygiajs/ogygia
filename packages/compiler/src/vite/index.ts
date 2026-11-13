@@ -154,9 +154,6 @@ import { flags_manifest } from '../compiler/flags.ts';
 // when Kit's client boots and NEVER on a csr=false page — the append target for the kit-world page
 // thread (see the transform hook).
 const KIT_CLIENT_APP_RE = /\/generated\/(?:build\/|dev\/)?client(-optimized)?\/app\.js$/;
-// A route host (`+page`/`+layout.svelte`) or option file (`.js`/`.ts`, `.server` too): a dev change
-// to any of these can shift the csr topology OR a plugin's key inside `export const config`.
-const ROUTE_HOST_OR_OPTION_RE = /[\\/]\+(page|layout)(\.server)?\.(svelte|js|ts)$/;
 // Appended INLINE (no extra module): publishes Kit's REAL reactive `page`/`navigating` on the
 // well-known slot the island `$app/*` shims read through (`kit_bridge()` in shims/kit-bridge; the
 // `$page` shim builds its live store from this `page`). Importer is Kit's own entry — never
@@ -1052,16 +1049,17 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 			watchChange(id, change) {
 				// before anything re-emits: a module's parse, and what every export index built from it
 				shapes.invalidate(id, change.event);
-				// A route add/remove/rename or a `csr` export flip changes the csr topology → drop the
-				// memoized answers AND re-run the baked `ogygia:server/route-csr` module. The second
-				// half is load-bearing: context.ts imports `csr_true_routes` through the SSR module
-				// graph, so without invalidation the SERVER leg keeps deciding island-vs-inline from a
-				// STALE set while Kit flips immediately — `<ogygia-region>` shells on a Kit-booted page
-				// with the runtime withheld = dead chrome (hit at a consumer after toggling `csr`).
+				// A route add/remove/rename or a `csr` export flip changes the csr topology → the route
+				// answers are read again AND the baked `ogygia:server/route-csr` module re-runs. The
+				// second half is load-bearing: context.ts imports `csr_true_routes` through the SSR
+				// module graph, so without invalidation the SERVER leg keeps deciding island-vs-inline
+				// from a STALE set while Kit flips immediately — `<ogygia-region>` shells on a Kit-booted
+				// page with the runtime withheld = dead chrome (hit at a consumer after toggling `csr`).
 				// (a plugin's key inside `export const config` add/flip changes the baked values too, and a
-				// host compiled for its old csr is compiled again: driver `routes_changed`)
-				if (is_dev && ROUTE_HOST_OR_OPTION_RE.test(id)) {
-					const ids = compiler.routes_changed();
+				// host compiled for its old csr is compiled again: driver `routes_changed`.) Every file
+				// event goes in: the route answers know which files they read (kit.ts `Routes.touch`).
+				if (is_dev) {
+					const ids = compiler.routes_changed(id, change.event);
 					if (vite_server) for (const mid of ids) invalidate_module_id(vite_server, mid);
 				}
 				// Unlink often skips handleHotUpdate; drop islands that still import the deleted file.

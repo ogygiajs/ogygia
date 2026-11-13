@@ -1,4 +1,4 @@
-import { describe, it, expect, afterEach } from 'vitest';
+import { describe, it, expect, afterEach, beforeEach } from 'vitest';
 import { dedent } from '@ogygia/core/contract';
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -21,11 +21,14 @@ import {
 // accepts any key inside `config`. This suite pins the read, the merge, and the run-time answer.
 // ─────────────────────────────────────────────────────────────────────────────
 
-const R = route_reader(node_fs);
+/** The disk, read through a reader of its own per test (a fresh set of answers). */
+let R = route_reader(node_fs);
 const dirs: string[] = [];
+beforeEach(() => {
+	R = route_reader({ ...node_fs });
+});
 afterEach(() => {
 	for (const d of dirs.splice(0)) rmSync(d, { recursive: true, force: true });
-	R.clear();
 	clear_route_config();
 });
 
@@ -191,14 +194,14 @@ describe('page_route_config — Kit’s merge', () => {
 		expect(route_config('postrender', null, '/dash')).toBe(undefined); // no route: never '/'
 	});
 
-	it('a route-file change is seen after the topology cache clears (the dev watcher)', () => {
+	it('a route-file change is seen after its file event (the dev watcher)', () => {
 		const dir = routes({
 			'a/+page.svelte': '<h1>a</h1>',
 			'a/+page.ts': 'export const config = { postrender: true };'
 		});
 		expect(page_route_config(R, dir, KEYS)['/a']).toEqual({ postrender: true });
 		writeFileSync(join(dir, 'a/+page.ts'), 'export const config = { postrender: false };');
-		R.clear();
+		expect(R.touch(join(dir, 'a/+page.ts'), 'update')).toBe(true);
 		expect(page_route_config(R, dir, KEYS)['/a']).toEqual({ postrender: false });
 	});
 });

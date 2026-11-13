@@ -10,6 +10,7 @@ import { Program } from '../src/compiler/program.ts';
 import { CompileCtx } from '../src/compiler/ctx.ts';
 import { normalize_import_keys } from '../src/compiler/region/transform.ts';
 import { memory_fs, type MemoryFs } from '../src/compiler/fs.ts';
+import type { FileEvent } from '../src/compiler/kit.ts';
 import { partial_ctx_init } from './_compile-ctx.ts';
 import { dedent } from '@ogygia/core/contract';
 
@@ -62,9 +63,9 @@ function dev_compiler(files: MemoryFs) {
 	return { compiler, program };
 }
 
-/** The plugin's `watchChange` for a route file (vite/index.ts): the module ids it invalidates. */
-function dev_route_change(compiler: Compiler): string[] {
-	return compiler.routes_changed();
+/** The plugin's `watchChange` for a file (vite/index.ts): the module ids it invalidates. */
+function dev_route_change(compiler: Compiler, file: string, event: FileEvent): string[] {
+	return compiler.routes_changed(file, event);
 }
 
 const transform = (compiler: Compiler, files: MemoryFs) =>
@@ -77,7 +78,7 @@ test('a page that becomes csr=false while dev runs is compiled again, with its r
 	expect(program.registry.size).toBe(0); // csr=true: Kit hydrates the page whole
 
 	files.set(LAYOUT_OPTIONS, `export const csr = false;\n`);
-	expect(dev_route_change(compiler)).toContain(PAGE);
+	expect(dev_route_change(compiler, LAYOUT_OPTIONS, 'create')).toContain(PAGE);
 	await transform(compiler, files);
 	expect(program.registry.size).toBeGreaterThan(0);
 });
@@ -93,7 +94,7 @@ test('a page that becomes csr=true while dev runs is compiled again, and lets it
 	expect(program.registry.size).toBeGreaterThan(0);
 
 	files.set(LAYOUT_OPTIONS, null);
-	expect(dev_route_change(compiler)).toContain(PAGE);
+	expect(dev_route_change(compiler, LAYOUT_OPTIONS, 'delete')).toContain(PAGE);
 	await transform(compiler, files);
 	expect(program.registry.size).toBe(0);
 });
@@ -109,13 +110,13 @@ test('a page whose csr flips and flips back while dev runs has its regions again
 	expect(program.registry.size).toBeGreaterThan(0);
 
 	files.set(LAYOUT_OPTIONS, null);
-	expect(dev_route_change(compiler)).toContain(PAGE);
+	expect(dev_route_change(compiler, LAYOUT_OPTIONS, 'delete')).toContain(PAGE);
 	await transform(compiler, files);
 	expect(program.registry.size).toBe(0);
 
 	// back to the first world, page source unchanged: compiled again, not answered from before
 	files.set(LAYOUT_OPTIONS, `export const csr = false;\n`);
-	expect(dev_route_change(compiler)).toContain(PAGE);
+	expect(dev_route_change(compiler, LAYOUT_OPTIONS, 'create')).toContain(PAGE);
 	await transform(compiler, files);
 	expect(program.registry.size).toBeGreaterThan(0);
 });
@@ -129,5 +130,27 @@ test('a route change that leaves a host its csr compiles nothing again', async (
 	const { compiler } = dev_compiler(files);
 	await transform(compiler, files);
 	files.set(`${ROOT}/src/routes/b/+page.svelte`, `<h1>b</h1>\n`);
-	expect(dev_route_change(compiler)).not.toContain(PAGE);
+	expect(dev_route_change(compiler, `${ROOT}/src/routes/b/+page.svelte`, 'create')).not.toContain(
+		PAGE
+	);
+});
+
+test('an edit that leaves every route option as it was invalidates nothing', async () => {
+	const files = memory_fs({
+		[PAGE]: IDLE_PAGE,
+		[LAYOUT_OPTIONS]: `export const csr = false;\n`,
+		[`${ROOT}/src/lib/C0.svelte`]: `<p>C0</p>\n`
+	});
+	const { compiler } = dev_compiler(files);
+	await transform(compiler, files);
+	files.set(PAGE, `${IDLE_PAGE}<p>more</p>\n`);
+	expect(dev_route_change(compiler, PAGE, 'update')).toEqual([]);
+	files.set(
+		LAYOUT_OPTIONS,
+		dedent`
+			// a comment
+			export const csr = false;
+		`
+	);
+	expect(dev_route_change(compiler, LAYOUT_OPTIONS, 'update')).toEqual([]);
 });
