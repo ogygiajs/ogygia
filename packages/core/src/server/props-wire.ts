@@ -161,6 +161,25 @@ export function hole_identity(
 	return fingerprint_of(entry, '', text);
 }
 
+/**
+ * A lake's IDENTITY (`data-og-lake`): a hole's identity over the lake's props, so two lakes of one
+ * component with different props are two lakes. Its function props (children, snippets, callbacks)
+ * stay out: they never cross, and each leg compiles its own. Props no wire can carry give no
+ * identity (`''`): the lake is then known by its entry, and by its place among the lakes that share
+ * it (runtime/lakes.ts).
+ */
+export function lake_identity(entry: string, props: Record<string, unknown> | undefined): string {
+	if (!entry) return '';
+	const rest: Record<string, unknown> = {};
+	for (const key in props) if (typeof props[key] !== 'function') rest[key] = props[key];
+	try {
+		return hole_identity(entry, rest);
+	} catch {
+		// ok: a lake renders on the server alone, so any prop is allowed; one no wire carries leaves the lake known by its entry and place
+		return '';
+	}
+}
+
 export function plan_props_wire(value: unknown, entry: string): PropsWire {
 	const shape = analyze(value);
 	const refs = { count: 0, keys: [] as string[] };

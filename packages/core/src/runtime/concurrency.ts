@@ -1,25 +1,3 @@
-/**
- * Shared concurrency gate — client region fetches (SI-STORM) and server region SSR (M1).
- * Caps in-flight work; waiters queue FIFO. Does not cancel running work (see INVARIANTS.md).
- *
- * The promise: never more than `limit` bodies running that someone still waits on (#195), and a
- * call with a deadline answers within it.
- * - A freed slot is HANDED to the next waiter in the same step: it is never free in between, so a
- *   call arriving while the waiter resumes queues behind it instead of entering beside it.
- * - `deadline_ms` covers the whole call, the wait for a slot and the run together. A waiter whose
- *   deadline passes gives up and never runs. A body still running at its deadline is ABANDONED: its
- *   caller gets the timeout and its slot goes to the next call at once. Svelte's `render()` cannot
- *   be cancelled, so the body runs on, counted in `abandoned` until it ends; it never blocks a slot,
- *   or a hung upstream (renders that never end) would hold every slot and take every hole down.
- * - A call's `signal` aborting while it waits takes it out of the queue: a body nobody waits on any
- *   more never starts, and never holds a slot.
- *
- * Each call owns its timers and its listener on `signal` (a scope): they are let go the moment the
- * call settles, whichever way. The promises above are test/concurrency.test.ts and
- * test/batch-stream-cancel.test.ts.
- *
- * @packageDocumentation
- */
 import { clock, queue, scope, type Place, type Queue, type Scope } from '@ogygia/machine';
 
 export interface GateOptions {
@@ -82,6 +60,7 @@ export class ConcurrencyGate {
 			return await within(call, body, deadline - clock.mono(), () => {
 				if (!holds) return;
 				holds = false;
+				// @why Svelte's server `render()` cannot be cancelled: an abandoned body runs on (test: test/concurrency.test.ts › four renders on a hung upstream never stop the fifth hole: it renders at once)
 				this.#abandoned++;
 				slot.release();
 			});

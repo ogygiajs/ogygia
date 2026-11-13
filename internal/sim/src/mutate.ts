@@ -8,7 +8,7 @@
  * run first in the same sandbox), when a seed does not finish, or when the build fails; else it
  * SURVIVED: the simulator missed it, which names a missing oracle or app shape. test/mutate.test.ts.
  *
- *   node src/mutate.ts --mutants <file.json> [--gens 191,192,193] [--palaestra] [--seeds 20]
+ *   node src/mutate.ts --mutants <file.json> [--gens 191,192,550+33+36] [--palaestra] [--seeds 20]
  *     [--jobs 4] [--sandbox <dir>] [--out <file.jsonl>] [--budget-min <minutes>]
  *
  * One line per mutant goes to `--out` as it is judged (what it was, killed or survived, by what),
@@ -192,8 +192,29 @@ function arg(flag: string): string | undefined {
 	return at === -1 ? undefined : process.argv[at + 1];
 }
 
-/** A target: a generated app's seed, or the palaestra. */
-type Target = { name: string; gen: number | null };
+/** A target: a generated app's seed, or the palaestra, and the seeds it runs past the run's own
+ *  range (`extra`). */
+export type Target = { name: string; gen: number | null; extra: number[] };
+
+/** The targets `--gens` names (`550+33+36`: gen 550, and seeds 33 and 36 past the range), then the
+ *  palaestra when asked. */
+export function targets(gens: string, palaestra: boolean): Target[] {
+	return [
+		...gens
+			.split(',')
+			.filter(Boolean)
+			.map((spec) => {
+				const [gen, ...extra] = spec.split('+').map(Number);
+				return { name: `gen${gen}`, gen: gen!, extra };
+			}),
+		...(palaestra ? [{ name: 'palaestra', gen: null, extra: [] }] : [])
+	];
+}
+
+/** Seeds 1 to `range`, then each of `extra` past it, in order. */
+export function seed_list(range: number, extra: readonly number[]): number[] {
+	return [...Array.from({ length: range }, (_, i) => i + 1), ...extra.filter((s) => s > range)];
+}
 
 /** Runs `cmd` in `cwd`, its output to `log`; whether it succeeded. */
 function sh(cwd: string, cmd: string, log: string): boolean {
@@ -217,33 +238,39 @@ function build_app(box: string, t: Target, log: string): boolean {
 	return sh(sim, `nice -n 10 node --no-warnings src/builds.ts --app ../../apps/sim-gen`, log);
 }
 
-/** Runs the seed set on `target` (built); each seed's finding signatures, by `<target>:<seed>`. */
+/** Runs `seeds` on `target` (built), each unbroken range of them in one run; each seed's finding
+ *  signatures, by `<target>:<seed>`. */
 function run_seeds(
 	box: string,
 	t: Target,
-	seeds: number,
+	seeds: readonly number[],
 	jobs: number,
-	log: string,
-	from = 1
+	log: string
 ): Map<string, string[]> {
 	const sim = join(box, 'internal', 'sim');
 	const app = t.gen === null ? '../../apps/palaestra' : '../../apps/sim-gen';
 	const results = join(sim, 'results.json');
-	rmSync(results, { force: true });
-	sh(
-		sim,
-		`nice -n 10 node --experimental-vm-modules --no-warnings src/cli.ts --app ${app} --runs ${seeds} --from ${from} --steps 30 --jobs ${jobs}`,
-		log
-	);
 	const out = new Map<string, string[]>();
-	if (!existsSync(results)) return out;
-	const r = JSON.parse(readFileSync(results, 'utf8')) as {
-		findings: Array<{ seed: number; oracle: string; detail: string }>;
-		replay_leaks: number[];
-	};
-	for (let s = from; s < from + seeds; s++) out.set(`${t.name}:${s}`, []);
-	for (const f of r.findings) out.get(`${t.name}:${f.seed}`)?.push(`${f.oracle} ${signature(f)}`);
-	for (const s of r.replay_leaks) out.get(`${t.name}:${s}`)?.push('replay leak');
+	for (let i = 0; i < seeds.length;) {
+		const from = seeds[i]!;
+		let runs = 1;
+		while (seeds[i + runs] === from + runs) runs++;
+		i += runs;
+		rmSync(results, { force: true });
+		sh(
+			sim,
+			`nice -n 10 node --experimental-vm-modules --no-warnings src/cli.ts --app ${app} --runs ${runs} --from ${from} --steps 30 --jobs ${jobs}`,
+			log
+		);
+		if (!existsSync(results)) continue;
+		const r = JSON.parse(readFileSync(results, 'utf8')) as {
+			findings: Array<{ seed: number; oracle: string; detail: string }>;
+			replay_leaks: number[];
+		};
+		for (let s = from; s < from + runs; s++) out.set(`${t.name}:${s}`, []);
+		for (const f of r.findings) out.get(`${t.name}:${f.seed}`)?.push(`${f.oracle} ${signature(f)}`);
+		for (const s of r.replay_leaks) out.get(`${t.name}:${s}`)?.push('replay leak');
+	}
 	return out;
 }
 
@@ -269,11 +296,7 @@ function main(): void {
 	if (list === undefined)
 		throw new Error('--mutants <file.json>: a list of { file, line, operator, from?, to? }');
 	const mutants = JSON.parse(readFileSync(list, 'utf8')) as Mutant[];
-	const gens = (arg('--gens') ?? '191,192,193').split(',').filter(Boolean).map(Number);
-	const targets: Target[] = [
-		...gens.map((g) => ({ name: `gen${g}`, gen: g })),
-		...(process.argv.includes('--palaestra') ? [{ name: 'palaestra', gen: null }] : [])
-	];
+	const run_on = targets(arg('--gens') ?? '191,192,193', process.argv.includes('--palaestra'));
 	const seeds = Number(arg('--seeds') ?? 20);
 	const jobs = Number(arg('--jobs') ?? 4);
 	// (no mutant starts once the budget is spent: the daily job's is about an hour)
@@ -295,9 +318,9 @@ function main(): void {
 	for (const pkg of baseline_packages(mutants))
 		if (!build_packages(box, pkg, log)) throw new Error(`could not build ${pkg} (${log})`);
 	const base = new Map<string, string[]>();
-	for (const t of targets) {
+	for (const t of run_on) {
 		if (!build_app(box, t, log)) throw new Error(`${t.name}: the baseline build failed (${log})`);
-		for (const [k, v] of run_seeds(box, t, seeds, jobs, log)) base.set(k, v);
+		for (const [k, v] of run_seeds(box, t, seed_list(seeds, t.extra), jobs, log)) base.set(k, v);
 		console.log(
 			`baseline ${t.name}: ${[...base].filter(([k, v]) => k.startsWith(`${t.name}:`) && v.length).length} seeds with findings`
 		);
@@ -328,12 +351,12 @@ function main(): void {
 		let v = { killed: false, by: [] as string[] };
 		if (!build_packages(box, pkg, log)) failed = 'the package build failed';
 		else
-			for (const t of targets) {
+			for (const t of run_on) {
 				if (!build_app(box, t, log)) {
 					failed = `${t.name}: the app build failed`;
 					break;
 				}
-				for (const [k, s] of run_seeds(box, t, seeds, jobs, log)) now.set(k, s);
+				for (const [k, s] of run_seeds(box, t, seed_list(seeds, t.extra), jobs, log)) now.set(k, s);
 				// (judged on the targets run so far: a kill needs no more)
 				const so_far = new Map([...base].filter(([k]) => now.has(k) || k.startsWith(`${t.name}:`)));
 				v = verdict(so_far, now);
@@ -343,7 +366,7 @@ function main(): void {
 				const by = confirmed(v.by, (target, seed) =>
 					target !== t.name
 						? []
-						: (run_seeds(box, t, 1, 1, log, seed).get(`${target}:${seed}`) ?? ['did not finish'])
+						: (run_seeds(box, t, [seed], 1, log).get(`${target}:${seed}`) ?? ['did not finish'])
 				);
 				for (const b of v.by.filter((b) => !by.includes(b))) console.log(`  noise: ${b}`);
 				v = { killed: by.length > 0, by };
