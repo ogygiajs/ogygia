@@ -48,6 +48,7 @@ import {
 	page_errors,
 	peer_answers,
 	page_rules,
+	text_restored,
 	regions_show,
 	fallback_stands,
 	islands_wake,
@@ -459,6 +460,8 @@ export async function run(
 			// (and no document's island load gate opened before it was parsed)
 			parsed_first(t),
 			page_rules(t, world),
+			// (and a reshaped page's trimmed text came back with its whitespace)
+			text_restored(t, world),
 			// (and every region shows something, unless a press made the page the visitor's own)
 			pressed.get(t.name) === t.documents ? null : regions_show(t, world),
 			// (and no hole that wakes on its own still shows its fallback, pressed or not: a press
