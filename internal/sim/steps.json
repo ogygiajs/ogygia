@@ -194,6 +194,36 @@
 	],
 	"covered": [
 		{
+			"step": "region-life: detached -> connected",
+			"reason": "new with the region life machine (it replaced the element's lifetime fields): the next sweep's --write moves it to reached if the fake browser takes it",
+			"test": "packages/core/test/browser/region-life.test.ts",
+			"name": "a region connects, schedules, and a move keeps its lifetime"
+		},
+		{
+			"step": "region-life: connected -> scheduled",
+			"reason": "new with the region life machine (it replaced the element's lifetime fields): the next sweep's --write moves it to reached if the fake browser takes it",
+			"test": "packages/core/test/browser/region-life.test.ts",
+			"name": "a region connects, schedules, and a move keeps its lifetime"
+		},
+		{
+			"step": "region-life: connected -> detached",
+			"reason": "new with the region life machine (it replaced the element's lifetime fields): the next sweep's --write moves it to reached if the fake browser takes it",
+			"test": "packages/core/test/browser/region-life.test.ts",
+			"name": "a live region that never scheduled leaves from connected"
+		},
+		{
+			"step": "region-life: scheduled -> connected",
+			"reason": "new with the region life machine (it replaced the element's lifetime fields): the next sweep's --write moves it to reached if the fake browser takes it",
+			"test": "packages/core/test/browser/region-life.test.ts",
+			"name": "a hole whose fetch failed connects afresh for its retry"
+		},
+		{
+			"step": "region-life: scheduled -> detached",
+			"reason": "new with the region life machine (it replaced the element's lifetime fields): the next sweep's --write moves it to reached if the fake browser takes it",
+			"test": "packages/core/test/browser/region-life.test.ts",
+			"name": "a scheduled region removed for good is detached once"
+		},
+		{
 			"step": "lake: open -> waited",
 			"reason": "new with the lake machine (it replaced two WeakSets): the next sweep's --write moves it to reached if the fake browser takes it",
 			"test": "packages/core/test/lake-settle.test.ts",

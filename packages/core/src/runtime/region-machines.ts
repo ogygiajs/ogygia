@@ -1,5 +1,76 @@
-import { machine, type Machine, type MachineGraph } from '@ogygia/machine';
+import {
+	machine,
+	mailbox,
+	scope,
+	type Mailbox,
+	type Machine,
+	type MachineGraph,
+	type Scope
+} from '@ogygia/machine';
 import type { IslandHandle } from './hydrate-core.ts';
+
+/** What a region element holds for one lifetime in the page: the scope everything it holds across
+ *  its machines' visits is given to, and the mailbox its events take turns in (open while it is). */
+type Lifetime = { life: Scope; box: Mailbox };
+
+type RegionStates = {
+	detached: Lifetime;
+	connected: Lifetime;
+	scheduled: Lifetime;
+};
+
+const region_steps = {
+	detached: ['connected'],
+	connected: ['scheduled', 'detached'],
+	scheduled: ['connected', 'detached']
+} as const;
+
+const region_definition = machine<RegionStates>()({
+	name: 'region-life',
+	initial: 'detached',
+	steps: region_steps
+});
+
+const NOT_CONNECTED = scope();
+NOT_CONNECTED.close();
+/** A region out of the page holds nothing: anything given to its lifetime is let go at once, every
+ *  post to its mailbox is dropped and every wait in it is `STALE`. */
+const DETACHED: Lifetime = { life: NOT_CONNECTED, box: mailbox(NOT_CONNECTED) };
+
+/**
+ * A region element's lifetime in the page (core.ts). `detached`: before its first connect, and
+ * after it left the page (its lifetime closed). `connected`: in the page, a lifetime of its own (a
+ * move, out and back in one task, is no removal: it keeps it). `scheduled`: its connect armed its
+ * schedule (or found its answer), so a connect again stops there; a fetch that failed goes back to
+ * `connected` for its retry to connect afresh.
+ */
+export type RegionLife = Machine<RegionStates, typeof region_steps>;
+
+/** The region life machine as data. */
+export function region_life_graph(): MachineGraph {
+	return region_definition.graph();
+}
+
+/** A region element's life machine, detached. */
+export function create_region_life(): RegionLife {
+	return region_definition.create(DETACHED);
+}
+
+/** A new lifetime in the page: its scope and its mailbox. */
+export function new_lifetime(): Lifetime {
+	const life = scope();
+	return { life, box: mailbox(life) };
+}
+
+/** The lifetime ended: what `detached` holds. */
+export function detached(): Lifetime {
+	return DETACHED;
+}
+
+/** The lifetime a state holds, as data for the next one (a state's value carries its `kind`). */
+export function lifetime_of(now: Lifetime): Lifetime {
+	return { life: now.life, box: now.box };
+}
 
 type HoleStates = {
 	idle: {};
