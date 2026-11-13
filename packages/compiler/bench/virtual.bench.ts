@@ -100,7 +100,12 @@ function compiler(root: string, is_dev: boolean): Compiler {
 	);
 	// what a build's transforms leave for the generated modules: an og.$ factory, a transportable class
 	c.dollar_hoists.set('og$0', '() => 1');
-	c.program.transportable_modules.add(`${root}/src/lib/money.ts`);
+	c.program.scan.set(`${root}/src/lib/money.ts`, {
+		crosses_wire: false,
+		transportable: true,
+		specs: [],
+		router: false
+	});
 	return c;
 }
 

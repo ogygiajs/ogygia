@@ -49,7 +49,6 @@ import { by_key, location_map_files } from './link/location-map.ts';
 import { context_string_keys, source_uses_ogygia_context } from './link/context-detect.ts';
 import { router_css_roots } from './link/router-css.ts';
 import { source_crosses_wire } from './link/transport.ts';
-import { server_island_ids } from './link/server-manifest.ts';
 import type { SourceMap } from 'magic-string';
 import { relocate, relocations_of, type RelocateCx } from './link/relocations.ts';
 import { same_module_path, island_vpaths_affected_by_file } from './dev/hmr.ts';
@@ -81,6 +80,8 @@ import { is_generated_specifier } from './virtual/table.ts';
 import { OgygiaError, warn } from './messages.ts';
 import { new_leg, type BuildLeg } from './leg.ts';
 import type { Program, RegisterResult } from './program.ts';
+import type { FileFacts } from './scan-facts.ts';
+import type { Query } from './queries.ts';
 import type { CompileCtx } from './ctx.ts';
 
 /** A file-local transform result: the Vite `{ code, map }` plus the descriptors the linker registers. */
@@ -231,6 +232,13 @@ function prescan_rel(
 ): string {
 	return (ctx.pkg_identity(full) ?? path.relative(ctx.root, full)).split(path.sep).join('/');
 }
+function scan_kind(name: string): 'svelte' | 'script' | null {
+	if (name.endsWith('.svelte')) return 'svelte';
+	if (SCAN_SCRIPT_RE.test(name) && !name.endsWith('.d.ts')) return 'script';
+	return null;
+}
+const SCAN_SCRIPT_RE = /\.(?:ts|js|mjs)$/;
+const REMOTE_FILE_RE = /\.remote\.[jt]s$/;
 
 /** First-party packages with a build half an app turns on by listing their plugin: importing one
  *  without the plugin is said once (packages/flags/test/inventory-build.test.ts). */
@@ -337,30 +345,104 @@ export class Compiler implements CoreApp {
 		if (leg?.life.now.kind === 'open') leg.life.go('closed');
 	}
 
-	/**
-	 * DEV: the server-island ids the last emitted `ogygia:server/server-manifest` carried. A HOST edit
-	 * drops its islands' rows (`invalidate_for_file`) and invalidates the manifest; Kit re-imports the
-	 * handle BEFORE the page transform re-registers them, so that manifest is emitted WITHOUT the ids —
-	 * and nothing re-invalidated it afterwards: every hole answered 403 until a restart. The adapter
-	 * asks `server_manifest_stale()` after each transform and invalidates again when a registered
-	 * server id is missing from this set. `null` until the first emit (nothing to compare).
-	 */
-	#emitted_server_ids: Set<string> | null = null;
+	/** DEV: the parts a transform changed since the last `moved()`. */
+	readonly #moved = new Set<Part>();
 
-	/** True (once) when a server island registered since the last manifest emit — re-invalidate it. */
-	server_manifest_stale(): boolean {
-		const emitted = this.#emitted_server_ids;
-		if (!emitted) return false;
-		for (const id of server_island_ids(this.program)) {
-			if (!emitted.has(id)) {
-				this.#emitted_server_ids = null; // the next emit records the fresh set
-				return true;
-			}
-		}
-		return false;
+	/**
+	 * DEV, after each transform: the virtual modules whose last load read a part (the registry, the
+	 * marks, a file's scan facts) that the transform has since changed, for the adapter to invalidate.
+	 * One rule for every reader: the server manifest emitted while a host's rows were dropped for its
+	 * edit (every hole answered 403 until a restart), the runtime entry chosen before a page's first
+	 * `idle` region (it never woke: test/dev-regions-reload.test.ts), and the wire loaders, Kit's
+	 * codecs and the router CSS roots read before a file's facts changed (test/dev-scan-facts.test.ts).
+	 */
+	moved(): string[] {
+		const ids = [...this.#moved].flatMap((part) => this.#virtuals.bump(part));
+		this.#moved.clear();
+		return ids;
 	}
-	note_server_ids(ids: Set<string>): void {
-		this.#emitted_server_ids = ids;
+
+	/** Register a transform's regions; in dev, note whether that moved what `regions` readers read. */
+	#register(result: TransformResult, host: string): void {
+		if (!this.#ctx!.is_dev) return this.program.register(result, host);
+		const before = this.#regions_print(host);
+		this.program.register(result, host);
+		if (this.#regions_print(host) !== before) this.#moved.add('regions');
+	}
+
+	/**
+	 * One file's scan facts: what the prescan reads of every file, and the dev transform reads again of
+	 * the file it transforms (a file added or edited while dev runs). Replaces the file's old facts
+	 * (`src` null: a deleted file has none). The marks only grow: a feature too many is safe.
+	 */
+	#scan_facts(full: string, src: string | null, kind: 'svelte' | 'script'): readonly string[] {
+		const ctx = this.#ctx;
+		const { runtime_marks, scan } = this.program;
+		const dev = ctx.is_dev;
+		const marks_before = dev ? JSON.stringify(runtime_marks) : '';
+		const since = scan.db.revision;
+		let specs: string[] = [];
+
+		if (src === null) scan.set(full, null);
+		else {
+			const remote = kind === 'script' && REMOTE_FILE_RE.test(full);
+			specs = extract_module_specs(src);
+			const page_importers = ctx.page_importers;
+			const facts: FileFacts = {
+				crosses_wire: remote || source_crosses_wire(src),
+				transportable:
+					kind === 'svelte'
+						? svelteModuleHasTransportable(src, full)
+						: moduleHasTransportable(src, full),
+				specs,
+				router:
+					(page_importers.length > 0 && specs.some((s) => page_importers.includes(s))) ||
+					ctx.page_files.includes(full)
+			};
+			scan.set(full, facts);
+			if (!runtime_marks.context && source_uses_ogygia_context(src)) runtime_marks.context = true;
+			if (remote) runtime_marks.remoteSeeds = true;
+			if (facts.transportable) runtime_marks.wire = true;
+		}
+
+		if (!dev) return specs;
+		const changed = (q: Query<string, unknown>) => scan.db.changed_since(q, 'all', since);
+		if (
+			JSON.stringify(runtime_marks) !== marks_before ||
+			changed(scan.wire_crossers) ||
+			changed(scan.transportable_modules)
+		)
+			this.#moved.add('regions');
+		if (changed(scan.module_specs) || changed(scan.router_modules)) this.#moved.add('styles');
+		return specs;
+	}
+
+	/** How the prescan's walk reads `id`: the app's `src/` and the declared package surfaces, minus
+	 *  `node_modules` and generated island dirs beneath them. Null: the walk never reaches it. */
+	#scans(id: string): 'svelte' | 'script' | null {
+		const ctx = this.#ctx!;
+		const kind = scan_kind(id);
+		if (!kind || !path.isAbsolute(id)) return null;
+		const posix_id = id.split(path.sep).join('/');
+		const src_dir = `${path.join(ctx.root, 'src').split(path.sep).join('/')}/`;
+		let rest: string;
+		if (posix_id.startsWith(src_dir)) rest = posix_id.slice(src_dir.length);
+		else if (ctx.in_declared_pkg(posix_id)) {
+			const dir = ctx.pkg_scan.flatMap((p) => p.dirs).find((d) => posix_id.startsWith(`${d}/`));
+			rest = dir === undefined ? '' : posix_id.slice(dir.length + 1);
+		} else return null;
+		const segments = rest.split('/').slice(0, -1);
+		return segments.includes('node_modules') || segments.includes(ISLAND_DIR) ? null : kind;
+	}
+
+	/** The marks and one host's rows, as text (dev only: the change check above). */
+	#regions_print(host: string): string {
+		const { registry, host_index, runtime_marks } = this.program;
+		const rows = [...(host_index.get(host_key(host))?.vpaths ?? [])].sort().map((vpath) => {
+			const e = registry.get(vpath);
+			return [vpath, e?.hostPath, e?.server, e?.source, e?.ssrSource, e?.clientSource];
+		});
+		return JSON.stringify([runtime_marks, rows]);
 	}
 	readonly #ctx: CompileCtx;
 	/** The resolved compile context (the bundler's resolved config, read once it is resolved). */
@@ -478,7 +560,6 @@ export class Compiler implements CoreApp {
 	with_ctx(ctx: CompileCtx): Compiler {
 		const next = new Compiler(this.program, this.profiler, ctx);
 		next.#build = this.#build;
-		next.#emitted_server_ids = this.#emitted_server_ids;
 		return next;
 	}
 
@@ -543,7 +624,7 @@ export class Compiler implements CoreApp {
 			linkVirtual: true
 		}) as TransformResult | null;
 		if (!result || !result.islands?.length) return null;
-		this.program.register(result, filename);
+		this.#register(result, filename);
 		return result.code;
 	}
 
@@ -669,20 +750,15 @@ export class Compiler implements CoreApp {
 		const ctx = this.#ctx;
 		const { prof, P } = this.profiler;
 		const program = this.program;
-		const { registry, island_graph, transportable_modules, runtime_marks } = program;
+		const { registry, island_graph, runtime_marks } = program;
 		const root = ctx.root;
 
 		const src_dir = path.join(root, 'src');
 		clean_stale_ogygia_dirs(src_dir);
-		// PAGE MODULES (`b.pageModules({ importers })`): a module importing one of these specifiers renders
-		// pages outside Kit's routes — a router-css root (link/router-css.ts).
-		const page_importers = ctx.page_importers;
-		const imports_page_spec = (specs: string[]): boolean =>
-			page_importers.length > 0 && specs.some((s) => page_importers.includes(s));
 		// PLUGIN READERS (`b.prescan`): each module importing what one asked for is handed to it; a
 		// first-party package imported with its plugin not listed is noted, and said at the end.
 		const unlisted = new Map<string, string>();
-		const read_for_plugins = (full: string, src: string, specs: string[]) => {
+		const read_for_plugins = (full: string, src: string, specs: readonly string[]) => {
 			for (const hook of ctx.prescans)
 				if (specs.some((s) => hook.imports.includes(s)))
 					hook.module({ file: full, rel: prescan_rel(ctx, full), code: src });
@@ -691,48 +767,18 @@ export class Compiler implements CoreApp {
 					unlisted.set(s, prescan_rel(ctx, full));
 		};
 		const scan_file = (full: string, name: string) => {
-			if (name.endsWith('.svelte')) {
-				const src = ctx.read_file(full);
-				if (src == null) return;
-				if (!runtime_marks.context && source_uses_ogygia_context(src)) runtime_marks.context = true;
-				if (!program.crosses_wire && source_crosses_wire(src)) program.crosses_wire = true;
-				{
-					// Router-css closure data: this module's import specs + whether it is a page module.
-					const specs = extract_module_specs(src);
-					if (specs.length) program.module_specs.set(full, specs);
-					if (imports_page_spec(specs)) program.router_modules.add(full);
-					read_for_plugins(full, src, specs);
-				}
-				// A `<script module>` transportable class goes in the manifest too (keyed by the
-				// .svelte path — side-effect-importing the component runs its module registration).
-				if (svelteModuleHasTransportable(src, full)) transportable_modules.add(full);
+			const kind = scan_kind(name);
+			if (!kind) return;
+			const src = ctx.read_file(full);
+			if (src == null) return;
+			read_for_plugins(full, src, this.#scan_facts(full, src, kind));
+			if (kind === 'svelte') {
 				const result = this.transform(src, full);
 				if (result) program.register(result, full);
-			} else if (
-				(name.endsWith('.ts') || name.endsWith('.js') || name.endsWith('.mjs')) &&
-				!name.endsWith('.d.ts')
-			) {
+			} else {
 				// `.ts` / `.js` region mints (load / remote functions). Discover them up front so a
 				// deferred region's server-manifest entry exists before the endpoint is ever hit —
 				// lazy transform order would otherwise leave the id missing (403 on first fetch).
-				const src = ctx.read_file(full);
-				if (src == null) return;
-				if (!runtime_marks.context && source_uses_ogygia_context(src)) runtime_marks.context = true;
-				const remote = name.endsWith('.remote.ts') || name.endsWith('.remote.js');
-				// A remote query's SSR result can only be seeded where the app HAS a remote function.
-				if (remote) runtime_marks.remoteSeeds = true;
-				if (!program.crosses_wire && (remote || source_crosses_wire(src)))
-					program.crosses_wire = true;
-				{
-					// Router-css closure data: this module's import specs + whether it is a page module.
-					const specs = extract_module_specs(src);
-					if (specs.length) program.module_specs.set(full, specs);
-					if (imports_page_spec(specs)) program.router_modules.add(full);
-					read_for_plugins(full, src, specs);
-				}
-				// Transportable classes go into the eager-registration manifest so an island
-				// receiving one as a prop never has to import the class itself.
-				if (moduleHasTransportable(src, full)) transportable_modules.add(full);
 				const result = this.ts_regions(src, full);
 				if (result) program.register(result, full);
 			}
@@ -769,12 +815,14 @@ export class Compiler implements CoreApp {
 			// Page modules named by path (`b.pageModules({ files })`): roots whatever they import. One the
 			// walks above did not reach still needs its import specs for the closure.
 			for (const f of ctx.page_files) {
-				program.router_modules.add(f);
-				if (!program.module_specs.has(f)) {
-					const src = ctx.read_file(f);
-					const specs = src == null ? [] : extract_module_specs(src);
-					if (specs.length) program.module_specs.set(f, specs);
-				}
+				if (program.scan.has(f)) continue;
+				const src = ctx.read_file(f);
+				program.scan.set(f, {
+					crosses_wire: false,
+					transportable: false,
+					specs: src == null ? [] : extract_module_specs(src),
+					router: true
+				});
 			}
 			if (P) prof.prescanMs += performance.now() - __ps;
 		}
@@ -838,9 +886,6 @@ export class Compiler implements CoreApp {
 			}
 		}
 
-		// A transportable class (`static wire = import.meta.og.wire(…)`) means island props can carry a
-		// live wired object, revived through the wire codec — so this app needs the wire runtime.
-		if (transportable_modules.size > 0) runtime_marks.wire = true;
 		// The page seed and the MPA navigation handle are for island code that reaches Kit's page world
 		// (the closure walk above). Islands the walk never saw count as readers: a federated peer's,
 		// hydrated by this app's runtime against this page, and whatever a plugin's browser half wakes.
@@ -1655,6 +1700,10 @@ export class Compiler implements CoreApp {
 		// server leg of a build: this module is in the server bundle's real graph (see
 		// Program.ssr_transformed / link/emit-gate.ts)
 		if (ssr && ctx.is_build) program.ssr_transformed.add(host_key(id_n));
+		if (ctx.is_dev && is_script_request(id)) {
+			const kind = this.#scans(id_n);
+			if (kind) this.#scan_facts(path.normalize(id_n), code, kind);
+		}
 
 		// SEED SHAPING: a module that imports Kit's page store is read ONCE here, on the compiler's
 		// parsers, for the top-level `page.data` keys it can reach (link/page-keys.ts). Recorded by
@@ -1729,7 +1778,7 @@ export class Compiler implements CoreApp {
 			// stayed un-rewritten and exploded at runtime as `undefined.code`).
 			const result = this.transform(out, id_n, { ssr }) as TransformResult | null;
 			if (result) {
-				program.register(result, id_n);
+				this.#register(result, id_n);
 				this.#mark_registered_closures(result);
 				out = result.code;
 				map = result.map;
@@ -1788,7 +1837,7 @@ export class Compiler implements CoreApp {
 		if (nm_ts !== null && (nm_ts === false || ctx.in_declared_pkg(id_n)) && !is_island_path(id_n)) {
 			const result = this.ts_regions(out, id_n) as TransformResult | null;
 			if (result) {
-				program.register(result, id_n);
+				this.#register(result, id_n);
 				this.#mark_registered_closures(result);
 				if (ctx.is_build && ssr) this.#emit_late_server_regions(leg, emitFile, result);
 				out = result.code;
@@ -1918,6 +1967,9 @@ export class Compiler implements CoreApp {
 		}
 
 		if (deleted) {
+			const kind = this.#scans(file);
+			if (kind) this.#scan_facts(path.normalize(file), null, kind);
+			for (const id of this.moved()) invalidate(id);
 			// (a copy: the loop deletes from the registry)
 			for (const [vpath, entry] of Array.from(registry.entries())) {
 				if (!same_module_path(entry.componentPath, file)) continue;

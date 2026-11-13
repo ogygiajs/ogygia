@@ -1320,11 +1320,8 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 					emitFile: (chunk) => this.emitFile(chunk),
 					watch: (file) => this.addWatchFile(file)
 				});
-				// DEV: a host edit dropped its server islands from the manifest the handle already
-				// re-imported (empty of them); this transform just registered them again — invalidate the
-				// manifest once more so the NEXT endpoint request sees the ids (driver: server_manifest_stale).
-				if (is_dev && vite_server && compiler.server_manifest_stale())
-					for (const mid of compiler.changed('regions')) invalidate_module_id(vite_server, mid);
+				if (is_dev && vite_server)
+					for (const mid of compiler.moved()) invalidate_module_id(vite_server, mid);
 				// DEV: an island this transform registered (a file added while the server runs) pulled
 				// modules into the island world that the server may already hold transformed for a
 				// non-island importer — with Kit's real `$app/*`, which never boots on a csr=false page.

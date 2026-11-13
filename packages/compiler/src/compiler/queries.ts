@@ -70,6 +70,9 @@ export interface Queries extends QueryCtx {
 	refresh<A, V>(query: Query<A, V>, arg: A): boolean;
 	/** Whether anything read this input or answer (and it is still remembered). */
 	holds<A, V>(query: Query<A, V>, arg: A): boolean;
+	/** Whether `query(arg)` is different now from what it was at revision `since` (one not held
+	 *  is computed now, as of the current revision). */
+	changed_since<A, V>(query: Query<A, V>, arg: A, since: number): boolean;
 	/** Whether any derived answer held now is different from what it was at revision `since`
 	 *  (each is checked, and computed again if what it read changed). */
 	answers_changed_since(since: number): boolean;
@@ -185,6 +188,10 @@ export function queries(name: string, max: number = QUERIES_MAX): Queries {
 			return set_input(query, arg, query.run(db, arg));
 		},
 		holds: (query, arg) => slots.has(id_of(erase(query), arg)),
+		changed_since(typed, arg, since) {
+			const query = erase(typed);
+			return fresh(query, arg, id_of(query, arg)).changed > since;
+		},
 		answers_changed_since(since) {
 			for (const [id, slot] of slots.entries()) {
 				if (slot.query.kind === 'input') continue;

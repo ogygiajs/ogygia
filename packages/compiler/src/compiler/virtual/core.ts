@@ -84,8 +84,6 @@ export interface CoreApp {
 	runtime_chunk_url(): string;
 	region_names(): Record<string, string>;
 	router_css_roots(): string[];
-	/** dev: the server-region ids a server manifest was just emitted with */
-	note_server_ids(ids: Set<string>): void;
 	/** the app's Kit routes directory */
 	routes_dir(): string;
 	/** the plugins listed beside `ogygia()` */
@@ -109,8 +107,6 @@ export const CORE_PARTS: Parts<CoreApp> = {
 	runtime_chunk_url: 'regions',
 	region_names: 'regions',
 	router_css_roots: 'styles',
-	// (a report the load makes, not a read)
-	note_server_ids: null,
 	routes_dir: 'routes',
 	plugins: 'plugins'
 };
@@ -553,7 +549,6 @@ export const server_manifest: Family<ServerManifestModule> = virtual.family({
 	load(app: CoreApp, { ssr }) {
 		const { ctx, program } = app;
 		if (ssr) app.prescan();
-		if (ssr && ctx.is_dev) app.note_server_ids(new Set(server_island_ids(program)));
 		return server_manifest_module(ssr, program, ctx.is_dev, (vp: string) => ctx.dev_url_for(vp));
 	}
 });
