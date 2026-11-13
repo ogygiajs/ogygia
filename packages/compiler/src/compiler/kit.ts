@@ -225,13 +225,6 @@ export function kit_inline_style_threshold(root: string): number {
 // ogygia" runtime gate.
 // ─────────────────────────────────────────────────────────────────────────────
 
-const CSR_EXPORT = /export\s+const\s+csr(?:\s*:\s*boolean)?\s*=\s*(true|false)/;
-// Comment strippers for the csr reader: a COMMENTED-OUT `export const csr` must never win the
-// first-match read. Block comments, plus WHOLE-LINE `//` only (a partial-line
-// `//` is left so it can't eat a `://` inside a string; a trailing comment can't flip the reading).
-const BLOCK_COMMENT_G = /\/\*[\s\S]*?\*\//g;
-const LINE_COMMENT_G = /^[ \t]*\/\/.*$/gm;
-
 /** Read `export const csr = true|false` from a route options file; `undefined` if unset/absent. */
 export function read_csr(r: Routes, file: string): boolean | undefined {
 	if (r.csr_of_file.has(file)) return r.csr_of_file.get(file);
@@ -241,16 +234,14 @@ export function read_csr(r: Routes, file: string): boolean | undefined {
 }
 
 function read_csr_uncached(files: Fs, file: string): boolean | undefined {
-	const text = files.read(file);
-	if (text === null) return undefined;
-	// Strip comments so a COMMENTED-OUT `export const csr = …` never wins the (first-match) regex —
-	// e.g. a stale `// export const csr = true` above a real `export const csr = false` would
-	// otherwise read `true` and make ogygia strip islands from a page Kit renders csr=false. Block
-	// comments, plus WHOLE-LINE `//` comments only (a partial-line `//` is left so it can't eat a
-	// `://` inside a string; a trailing comment can't flip the reading — the real export matches first).
-	const src = text.replace(BLOCK_COMMENT_G, '').replace(LINE_COMMENT_G, '');
-	const m = CSR_EXPORT.exec(src);
-	return m ? m[1] === 'true' : undefined;
+	const src = files.read(file);
+	if (src === null) return undefined; // ok: no such option file on this level
+	if (!src.includes('csr')) return undefined;
+	// parsed, like Kit: text in a comment or a string is no export (test: read-csr-kit.test.ts)
+	const { program, ok } = parse_module(src, file);
+	if (!ok || !program) return undefined; // Kit cannot read it either
+	const value = literal_value(page_option(program, 'csr'));
+	return typeof value === 'boolean' ? value : undefined;
 }
 
 // ── ROUTE CONFIG (the keys plugins claim inside Kit's `config` page option: plugin/routes.ts) ──
@@ -275,19 +266,42 @@ function unwrap_expression(node: AstNode | null | undefined): AstNode | null {
 	return n;
 }
 
-/** The object literal `export const config = {…}` declares in `program`, or null. */
-function config_object(program: AstNode): AstNode | null {
-	for (const statement of program.body ?? []) {
+/**
+ * The value a page option file exports as `name`, the forms Kit reads: `export const|let|var name =
+ * …` (any declarator of the statement), or `export { local as name }` of a top-level declaration.
+ * Null when there is none, or it comes from another module (`export { name } from …`).
+ */
+function page_option(program: AstNode, name: string): AstNode | null {
+	const body: AstNode[] = program.body ?? [];
+	const declared = (local: string): AstNode | null => {
+		for (const statement of body) {
+			const declaration =
+				statement.type === 'ExportNamedDeclaration' ? statement.declaration : statement;
+			if (declaration?.type !== 'VariableDeclaration') continue;
+			for (const d of declaration.declarations ?? [])
+				if (d.id?.type === 'Identifier' && d.id.name === local) return d.init ?? null;
+		}
+		return null;
+	};
+	const name_of = (n: AstNode | null | undefined) =>
+		n?.type === 'Identifier' ? n.name : typeof n?.value === 'string' ? n.value : null;
+	for (const statement of body) {
 		if (statement.type !== 'ExportNamedDeclaration') continue;
-		const declaration = statement.declaration;
-		if (declaration?.type !== 'VariableDeclaration') continue;
-		for (const d of declaration.declarations ?? []) {
-			if (d.id?.type !== 'Identifier' || d.id.name !== 'config') continue;
-			const init = unwrap_expression(d.init);
-			return init?.type === 'ObjectExpression' ? init : null;
+		for (const d of statement.declaration?.declarations ?? [])
+			if (d.id?.type === 'Identifier' && d.id.name === name) return d.init ?? null;
+		for (const s of statement.specifiers ?? []) {
+			if (name_of(s.exported) !== name) continue;
+			const local = name_of(s.local);
+			return statement.source || local === null ? null : declared(local);
 		}
 	}
 	return null;
+}
+
+/** The object literal `export const config = {…}` declares in `program`, or null. */
+function config_object(program: AstNode): AstNode | null {
+	const init = unwrap_expression(page_option(program, 'config'));
+	return init?.type === 'ObjectExpression' ? init : null;
 }
 
 /** A plain literal value (boolean, number, string, null), or `NOT_LITERAL`. */
