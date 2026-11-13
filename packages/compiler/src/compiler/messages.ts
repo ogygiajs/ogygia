@@ -670,6 +670,17 @@ export const BUILD_ERRORS = {
 			realm module knows them without running it. This one now returns other names: the
 			generated list is stale. Run \`node packages/core/scripts/virtual-types.ts\`. ${BUG}
 		`
+	},
+	build_leg_unclear: {
+		text: (a: { leg: string; open: number }): string =>
+			a.leg
+				? `The bundler called ogygia in environment \`${a.leg}\`, which never started a build.`
+				: `The bundler called ogygia with no environment while ${a.open} environments build.`,
+		details: (): string => prose`
+			Each bundler environment (\`ssr\`, \`client\`) builds its own output, and ogygia keeps what
+			each one emits apart. A call it cannot place in one environment would put one
+			environment's files in the other's output. ${BUG}
+		`
 	}
 };
 
