@@ -176,7 +176,7 @@ Options: `packages`, `force`, `keep` (matchers: a package name or specifier pref
 
 ### `pageKeys()`
 
-Seed shaping is a plugin, `pageKeys()` from `@ogygia/page-keys`, listed beside `ogygia()`. It takes no options.
+Seed shaping is a plugin, `pageKeys()` from `@ogygia/page-keys`, listed beside `ogygia()`. It takes no options. [`postrender()`](/docs/postrender/guide) requires it: an app that lists `postrender()` without it fails the build with `plugin_needs_plugin`.
 
 ```ts
 import { pageKeys } from '@ogygia/page-keys';

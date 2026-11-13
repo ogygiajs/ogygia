@@ -62,6 +62,10 @@ export interface PluginDefinition<Options = unknown> {
 	options?: Options;
 	/** Run before (`'pre'`) or after (`'post'`) the other plugins, in every realm. */
 	enforce?: 'pre' | 'post';
+	/** The plugins this one needs listed beside it: each one's package name, its call and the
+	 *  package to import it from. One the app does not list fails the build
+	 *  (`plugin_needs_plugin`), naming the line to add. */
+	needs?: readonly { name: string; call: string; from: string }[];
 	/** Build-time contributions, with the build context. */
 	build?(b: BuildContext): void;
 }
@@ -416,6 +420,14 @@ export function check_plugins(plugins: readonly unknown[]): PluginDefinition[] {
 			}
 		}
 	}
+	for (const plugin of plugins as PluginDefinition[])
+		for (const need of plugin.needs ?? [])
+			if (!seen.has(need.name))
+				throw new OgygiaError('plugin_needs_plugin', {
+					plugin: plugin.name,
+					needs: need.call,
+					from: need.from
+				});
 	return plugins as PluginDefinition[];
 }
 

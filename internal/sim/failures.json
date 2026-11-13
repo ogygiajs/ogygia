@@ -58,6 +58,12 @@
 	],
 	"covered": [
 		{
+			"site": "packages/compiler/src/vite/plugin-api.ts > check_plugins > throw:4",
+			"reason": "a config error, at config time: a plugin listed without a plugin it needs (postrender() without pageKeys())",
+			"test": "packages/compiler/test/plugins.test.ts",
+			"name": "a plugin that needs another fails the build while the app does not list it, naming the line to add"
+		},
+		{
 			"site": "packages/core/src/runtime/seeds.ts > watch_unshipped > parse:0",
 			"reason": "rules builds only: a left-out list that does not parse (the server writes it, so only a mangled document)",
 			"test": "packages/core/test/browser/seed-unshipped.test.ts",
