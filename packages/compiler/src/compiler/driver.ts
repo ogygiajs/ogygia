@@ -32,12 +32,8 @@ import {
 import { run_module_macros } from './macros/pipeline.ts';
 import { is_script_request } from './script-request.ts';
 import { resolveFeatures } from './link/runtime-entry.ts';
-import {
-	resolveFoucImportSpec,
-	FOUC_CSS_PREFIX,
-	FOUC_SCOPED_PREFIX,
-	type FoucAlias
-} from './fouc-css.ts';
+import { FOUC_CSS_PREFIX, FOUC_SCOPED_PREFIX } from './fouc-css.ts';
+import { resolve_app_spec } from './app-spec.ts';
 import {
 	moduleHasTransportable,
 	svelteModuleHasTransportable,
@@ -453,6 +449,7 @@ export class Compiler implements CoreApp {
 			importKeys: ctx.import_keys,
 			idSalt: ctx.id_salt,
 			pkg_identity: (abs: string) => ctx.pkg_identity(abs),
+			alias: ctx.app_spec.alias,
 			linkVirtualIsland: link_virtual,
 			clientBindingStub: CLIENT_BINDING_STUB,
 			routeCsr: route_csr,
@@ -484,7 +481,8 @@ export class Compiler implements CoreApp {
 			appDir: ctx.app_dir,
 			importKeys: ctx.import_keys,
 			idSalt: ctx.id_salt,
-			pkg_identity: (abs: string) => ctx.pkg_identity(abs)
+			pkg_identity: (abs: string) => ctx.pkg_identity(abs),
+			alias: ctx.app_spec.alias
 		});
 	}
 
@@ -728,10 +726,10 @@ export class Compiler implements CoreApp {
 	mark_island_closure(componentAbs: string): string[] {
 		const ctx = this.#ctx!;
 		const { island_graph } = this.program;
-		const aliases = ctx.resolve_alias as readonly FoucAlias[];
+		const spec_ctx = ctx.app_spec;
 		const added: string[] = [];
 		const resolve_dep = (spec: string, importerAbs: string): string | null => {
-			const base = resolveFoucImportSpec(spec, importerAbs, ctx.libDir, aliases);
+			const base = resolve_app_spec(spec, importerAbs, spec_ctx);
 			if (!base) return null; // a bare package specifier — the lazy resolveId marking is the backstop
 			for (const ext of ISLAND_DEP_EXTS) {
 				try {
@@ -859,7 +857,7 @@ export class Compiler implements CoreApp {
 		// directly (the profiler's router). The walk's recursion is bounded by prescanned module_specs,
 		// so profiler-router's type-import of `./index.js` dead-ends instead of dragging the host graph in.
 		const roots = new Set(
-			router_css_roots(this.program.router_modules, this.program.module_specs, ctx.libDir)
+			router_css_roots(this.program.router_modules, this.program.module_specs, ctx.app_spec)
 		);
 		const sorted = [...roots].sort();
 		if (ctx.is_build) this.#router_css_roots_cache = sorted;
