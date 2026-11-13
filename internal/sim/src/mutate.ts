@@ -139,6 +139,19 @@ export function verdict(
 	return { killed: by.length > 0, by };
 }
 
+/** What of a kill's `by` a second run of its seed finds again (`again(target, seed)`: that seed's
+ *  findings on the same build). A finding the second run does not find is noise, not the mutant's
+ *  (one timing-bound finding "killed" many mutants alike); a build that failed stands. */
+export function confirmed(
+	by: readonly string[],
+	again: (target: string, seed: number) => readonly string[]
+): string[] {
+	return by.filter((b) => {
+		const m = /^(\S+):(\d+) (.+)$/.exec(b);
+		return m === null || again(m[1], Number(m[2])).includes(m[3]);
+	});
+}
+
 /** The command that clones `from` to `to` copy-on-write (built packages and installed modules
  *  included): APFS's clone on macOS, a reflink where the Linux filesystem has one (else a copy). */
 export function clone_command(platform: string, from: string, to: string): string {
@@ -210,7 +223,8 @@ function run_seeds(
 	t: Target,
 	seeds: number,
 	jobs: number,
-	log: string
+	log: string,
+	from = 1
 ): Map<string, string[]> {
 	const sim = join(box, 'internal', 'sim');
 	const app = t.gen === null ? '../../apps/palaestra' : '../../apps/sim-gen';
@@ -218,7 +232,7 @@ function run_seeds(
 	rmSync(results, { force: true });
 	sh(
 		sim,
-		`nice -n 10 node --experimental-vm-modules --no-warnings src/cli.ts --app ${app} --runs ${seeds} --from 1 --steps 30 --jobs ${jobs}`,
+		`nice -n 10 node --experimental-vm-modules --no-warnings src/cli.ts --app ${app} --runs ${seeds} --from ${from} --steps 30 --jobs ${jobs}`,
 		log
 	);
 	const out = new Map<string, string[]>();
@@ -227,7 +241,7 @@ function run_seeds(
 		findings: Array<{ seed: number; oracle: string; detail: string }>;
 		replay_leaks: number[];
 	};
-	for (let s = 1; s <= seeds; s++) out.set(`${t.name}:${s}`, []);
+	for (let s = from; s < from + seeds; s++) out.set(`${t.name}:${s}`, []);
 	for (const f of r.findings) out.get(`${t.name}:${f.seed}`)?.push(`${f.oracle} ${signature(f)}`);
 	for (const s of r.replay_leaks) out.get(`${t.name}:${s}`)?.push('replay leak');
 	return out;
@@ -313,6 +327,16 @@ function main(): void {
 				// (judged on the targets run so far: a kill needs no more)
 				const so_far = new Map([...base].filter(([k]) => now.has(k) || k.startsWith(`${t.name}:`)));
 				v = verdict(so_far, now);
+				if (!v.killed) continue;
+				// (each finding run once more, on this target's build as it stands: noise is not a kill)
+				// (an earlier target's findings were run again with its own build, and were noise)
+				const by = confirmed(v.by, (target, seed) =>
+					target !== t.name
+						? []
+						: (run_seeds(box, t, 1, 1, log, seed).get(`${target}:${seed}`) ?? ['did not finish'])
+				);
+				for (const b of v.by.filter((b) => !by.includes(b))) console.log(`  noise: ${b}`);
+				v = { killed: by.length > 0, by };
 				if (v.killed) break;
 			}
 		if (failed !== undefined) v = verdict(base, now, failed);
