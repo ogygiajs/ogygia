@@ -50,6 +50,7 @@ export const SERVER_ERRORS = {
 		`
 	},
 	handle_transform_moved: {
+		until: '0.15',
 		text: (): string => prose`
 			handle({ transform }) moved to @ogygia/reshape: list reshape() beside ogygia() in
 			vite.config, and pass the transform to reshape.handle(transform), before ogygia.handle()

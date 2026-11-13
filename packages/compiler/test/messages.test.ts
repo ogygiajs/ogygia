@@ -192,6 +192,10 @@ describe('a tombstone (a code that only points at a removed spelling) names the 
 	});
 
 	it('the build breaks once the version reaches a tombstone’s release, so it is deleted then', () => {
+		for (const e of Object.values(TABLES)) {
+			const until = (e as { until?: string }).until;
+			if (until !== undefined) expect(until).toMatch(/^\d+\.\d+$/);
+		}
 		const due = Object.entries(TABLES)
 			.filter(([, e]) => {
 				const until = (e as { until?: string }).until;
