@@ -221,3 +221,100 @@ describe('og.$ in TEMPLATE expressions (props in markup)', () => {
 		expect(code).toContain(`import { __og_$, __og_boundary } from 'ogygia/internal';`);
 	});
 });
+
+describe('og.$ in a typed module hoists plain JS (#1556)', () => {
+	const svelte_ts = (body: string) =>
+		`<script lang="ts">\n\tconst rate: number = 2;\n\tconst f = import.meta.og.$(${body});\n</script>`;
+	const hoist = (src: string, id = 'src/routes/p.svelte') => {
+		const { hoists } = rewrite_dollar(src, id, id, SVELTE);
+		expect(hoists).toHaveLength(1);
+		return hoists[0]!.factory_src;
+	};
+	const call = (factory: string, ...args: unknown[]): unknown =>
+		(new Function(`return (${factory});`)() as (...c: unknown[]) => (...a: unknown[]) => unknown)(
+			2
+		)(...args);
+
+	it.each([
+		['a parameter annotation and a return type', '(n: number): number => n * rate', [3], 6],
+		['generics on the function and on a call', '<T,>(n: T): T => ((v: T) => v)<T>(n)', [3], 3],
+		[
+			'as, satisfies and a non-null !',
+			'(n: unknown) => ((n as number) satisfies number)! * rate',
+			[3],
+			6
+		],
+		[
+			'an instantiation expression',
+			'(n: number) => { const id = <T,>(v: T) => v; const g = id<number>; return g(n); }',
+			[3],
+			3
+		],
+		['an angle-bracket assertion', '(n: unknown) => <number>n * rate', [3], 6],
+		['an optional parameter', '(n?: number) => (n ?? 1) * rate', [undefined], 2],
+		['a definite assignment', '(n: number) => { let x!: number; x = n; return x * rate; }', [3], 6],
+		[
+			'a local type alias and interface',
+			'(n: number) => { type X = number; interface Y { a: X } const y: Y = { a: n }; return y.a; }',
+			[3],
+			3
+		],
+		[
+			'a declare and an overload',
+			'(n: number) => { declare const z: number; function g(a: number): number; function g(a: number) { return a; } return g(n); }',
+			[3],
+			3
+		],
+		[
+			'a this parameter',
+			'(n: number) => { const o = { k: n, m(this: { k: number }, a?: number) { return this.k + (a ?? 0); } }; return o.m(); }',
+			[3],
+			3
+		],
+		[
+			'class modifiers, abstract members and implements',
+			'(n: number) => { interface I { v: number } abstract class A { abstract w(): void; } class C extends A implements I { private readonly p?: number; declare q: number; public v: number = n; [k: string]: unknown; override w() {} protected m!: number; } return new C().v; }',
+			[3],
+			3
+		],
+		[
+			'a type-only namespace',
+			'(n: number) => { namespace T { export type V = number } const v: T.V = n; return v; }',
+			[3],
+			3
+		]
+	])('%s', (_name, body, args, expected) => {
+		expect(call(hoist(svelte_ts(body)), ...args)).toBe(expected);
+	});
+
+	it('a typed markup mark hoists plain JS', () => {
+		const src = `<script lang="ts">\n\tconst rate = 2;\n</script>\n<Island fmt={import.meta.og.$((n?: number): number => (n ?? 1) * rate)} />`;
+		expect(call(hoist(src), 3)).toBe(6);
+	});
+
+	it('a typed value mark asserts the plain expression', () => {
+		const src = `type S = { v: number };\nconst s = { v: 1 };\nexport const x = import.meta.og.$(<S>s);`;
+		expect(run(src).code).toMatch(/__og_boundary\(\(\s+s\), "src\/routes\/x\.ts:3"\)/);
+	});
+
+	it.each([
+		['an enum', '() => { enum E { A } return E.A; }', /enum/],
+		[
+			'a namespace with values',
+			'() => { namespace N { export const v = 1 } return N.v; }',
+			/namespace/
+		],
+		[
+			'a parameter property',
+			'() => { class C { constructor(public v: number) {} } return new C(1).v; }',
+			/parameter property/
+		]
+	])('TS with runtime meaning (%s) fails the build at its line', (_name, body, problem) => {
+		expect(() =>
+			rewrite_dollar(svelte_ts(body), 'src/routes/p.svelte', 'src/routes/p.svelte', SVELTE)
+		).toThrow(problem);
+		expect(() =>
+			rewrite_dollar(svelte_ts(body), 'src/routes/p.svelte', 'src/routes/p.svelte', SVELTE)
+		).toThrow(/p\.svelte:3/);
+	});
+});
