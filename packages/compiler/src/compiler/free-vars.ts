@@ -113,8 +113,6 @@ function is_reference(
 		case 'MethodDefinition':
 		case 'PropertyDefinition':
 			return key !== 'key' || parent.computed;
-		case 'ClassExpression':
-			return key !== 'id';
 		case 'ImportSpecifier':
 		case 'ImportDefaultSpecifier':
 		case 'ImportNamespaceSpecifier':
@@ -147,11 +145,6 @@ function add_expression_refs(expr: SvelteNode, svelte_bound: Set<string>, sink: 
 		enter(node, parent, key) {
 			if (SCOPE_TYPES.has(node.type)) {
 				scopes.push(scope_bindings(node));
-			} else if (node.type === 'ClassDeclaration') {
-				const id = (node as { id?: { name: string } | null }).id;
-				if (id) scopes[scopes.length - 1].add(id.name);
-			} else if (node.type === 'VariableDeclarator') {
-				collect_pattern_names(node.id, scopes[scopes.length - 1]);
 			} else if (node.type === 'AssignmentExpression') {
 				record_writes(node.left);
 			} else if (node.type === 'UpdateExpression') {
@@ -197,6 +190,7 @@ function var_names(node: SvelteNode | null | undefined, out: Set<string>) {
 			break;
 		case 'Program':
 		case 'BlockStatement':
+		case 'StaticBlock':
 			for (const s of node.body) var_names(s, out);
 			break;
 		case 'ExportNamedDeclaration':
@@ -238,14 +232,16 @@ const SCOPE_TYPES: ReadonlySet<string> = new Set([
 	'CatchClause',
 	'SwitchStatement',
 	'Program',
-	'BlockStatement'
+	'BlockStatement',
+	'StaticBlock',
+	'ClassExpression'
 ]);
 
 /**
  * The names a scope binds for its whole extent, hoisting included: a function its parameters, its
  * own name and every `var`, `let`, `const`, class and function its body declares; a block, a
- * `switch` or a program what it declares (a program also its imports and `var`s); a loop its head's
- * declarations; a catch clause its parameter (test/og-dollar.test.ts, test/free-vars-patterns.test.ts).
+ * `switch` or a program what it declares (a program and a class static block also their `var`s, a
+ * program its imports); a class expression its own name; a loop its head's declarations; a catch clause its parameter (test/og-dollar.test.ts, test/free-vars-patterns.test.ts).
  */
 export function scope_bindings(node: SvelteNode): Set<string> {
 	const out = new Set<string>();
@@ -258,7 +254,9 @@ export function scope_bindings(node: SvelteNode): Set<string> {
 			var_names(fn.body, out);
 		}
 	} else if (node.type === 'BlockStatement') lexical_names(node.body, out);
-	else if (node.type === 'Program') {
+	else if (node.type === 'ClassExpression') {
+		if (node.id) out.add(node.id.name);
+	} else if (node.type === 'Program' || node.type === 'StaticBlock') {
 		lexical_names(node.body, out);
 		var_names(node, out);
 	} else if (node.type === 'SwitchStatement')
