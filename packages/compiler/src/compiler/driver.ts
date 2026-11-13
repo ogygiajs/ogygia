@@ -1698,6 +1698,8 @@ export class Compiler implements CoreApp {
 			const k = page_keys.get(c);
 			if (k !== undefined) return k === 'all' || k.size > 0 || page_pending.has(c);
 			if (page_pending.has(c)) return true;
+			// Kit's page module is what is read: its own halves (`state/server.js`) are not a reader
+			if (KIT_PAGE_MODULE_RE.test(c)) return false;
 			// a page reader seed shaping could not read (a barrel, `getStores()`, an `import()`): unknown
 			return (
 				!!info &&
