@@ -115,7 +115,6 @@ describe('a byte-order-marked component', () => {
 		const id = path.join(root, 'src/lib/Widget.svelte');
 		compiler.start_leg('ssr', true);
 		const res = await compiler.transform_module(COMPONENT, id, {
-			ssr: true,
 			leg: compiler.leg({ name: 'ssr', server: true }),
 			emitFile: () => 'ref'
 		});
@@ -131,7 +130,6 @@ describe('a byte-order-marked component', () => {
 			const env = { name: ssr ? 'ssr' : 'client', server: ssr };
 			compiler.start_leg(env.name, env.server);
 			const res = await compiler.transform_module(HOST, id, {
-				ssr,
 				leg: compiler.leg(env),
 				emitFile: () => 'ref'
 			});

@@ -1180,7 +1180,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 				return [];
 			},
 
-			async resolveId(source, importer, options) {
+			async resolveId(source, importer) {
 				// ogygia's OWN injected imports (`ogygia/internal` / `…/server`, written by the transform into
 				// a host or a generated island module) resolve to ogygia's own files DIRECTLY (see
 				// OGYGIA_INJECTED_FILES) — never via `this.resolve` (unreliable off a synthetic importer, can
@@ -1196,7 +1196,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 					if (awaiting) return awaiting;
 				}
 
-				const ssr = options?.ssr === true;
+				const ssr = leg_of(this).server;
 
 				// CLIENT build: Kit's client remote runtime needs `app` (never boots under csr=false).
 				// Plan A: reuse Kit's OWN remote primitives, redirecting `__sveltekit/remote` at Kit's
@@ -1227,11 +1227,11 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 				});
 			},
 
-			async load(id, options) {
+			async load(id) {
 				const compiler = compiler_of(session, 'load');
-				// Per-request only. `config.build.ssr` stays set for Kit apps and must NOT decide
-				// client vs server virtuals — that leaked `$app/server` into the browser guard.
-				const ssr = options?.ssr === true;
+				// The request's leg (its environment), never `config.build.ssr`: that stays set for Kit
+				// apps and leaked `$app/server` into the browser guard.
+				const ssr = leg_of(this).server;
 
 				const fouc_bare = id.startsWith('\0') ? id.slice(1) : id;
 				if (isFoucCssId(fouc_bare)) {
@@ -1294,7 +1294,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 				});
 			},
 
-			async transform(code, id, options) {
+			async transform(code, id) {
 				const compiler = compiler_of(session, 'transform');
 				let source = code;
 
@@ -1302,7 +1302,8 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 				// entry (see KIT_PAGE_THREAD above), and the version it discloses. Client leg only — the
 				// SSR graph renders islands against Kit's real modules already, and this file is
 				// client-world by construction.
-				if (!options?.ssr && KIT_CLIENT_APP_RE.test(id)) {
+				const leg = leg_of(this);
+				if (!leg.server && KIT_CLIENT_APP_RE.test(id)) {
 					source += KIT_PAGE_THREAD + KIT_DISCLOSE_VERSION;
 				}
 				// a realm module's names, imported from the entries that have them (the graph a page
@@ -1314,8 +1315,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 				// the transform-time island entry) is threaded in. The driver's result is
 				// bundler-neutral (`map: unknown`); cast it to Vite's transform shape at this boundary.
 				const result = await compiler.transform_module(source, id, {
-					ssr: options?.ssr === true,
-					leg: leg_of(this),
+					leg,
 					emitFile: (chunk) => this.emitFile(chunk)
 				});
 				// DEV: a host edit dropped its server islands from the manifest the handle already
