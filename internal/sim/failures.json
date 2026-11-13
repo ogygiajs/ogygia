@@ -254,6 +254,24 @@
 	],
 	"covered": [
 		{
+			"site": "packages/compiler/src/compiler/region/transform.ts > refuse_unknown_attributes > throw:0",
+			"reason": "an attribute ogygia does not know on a component import fails the build instead of leaving a plain import",
+			"test": "packages/compiler/test/partial-transform.test.ts",
+			"name": "a misspelt key, alone on a .svelte import, is named with the keys there are"
+		},
+		{
+			"site": "packages/compiler/src/vite/options.ts > assert_known_options > throw:0",
+			"reason": "the barrels option points at its plugin until 0.15",
+			"test": "packages/compiler/test/config-surface.test.ts",
+			"name": "rejects barrels (now the @ogygia/barrels plugin), any value"
+		},
+		{
+			"site": "packages/compiler/src/vite/options.ts > assert_known_options > throw:1",
+			"reason": "a key ogygia() does not have fails the build instead of doing nothing",
+			"test": "packages/compiler/test/config-surface.test.ts",
+			"name": "`%s` is an unknown option, named with the keys there are"
+		},
+		{
 			"site": "packages/compiler/src/vite/paths.ts > runtime_inputs > catch:0",
 			"reason": "an unbuilt runtime directory cannot be read: it adds no input",
 			"test": "packages/compiler/test/runtime-hash.test.ts",
@@ -3737,7 +3755,6 @@
 		"packages/compiler/src/compiler/region/transform.ts > FileCompilation > resolve_region_mark > throw:20",
 		"packages/compiler/src/compiler/region/transform.ts > FileCompilation > resolve_region_mark > throw:21",
 		"packages/compiler/src/compiler/region/transform.ts > FileCompilation > resolve_region_mark > throw:22",
-		"packages/compiler/src/compiler/region/transform.ts > FileCompilation > resolve_region_mark > throw:23",
 		"packages/compiler/src/compiler/region/transform.ts > FileCompilation > assert_portable_children > throw:0",
 		"packages/compiler/src/compiler/region/transform.ts > FileCompilation > visit_usages > throw:0",
 		"packages/compiler/src/compiler/region/transform.ts > FileCompilation > analyze > catch:0",
@@ -3769,8 +3786,6 @@
 		"packages/compiler/src/vite/index.ts > ogygia > writeBundle > catch:0",
 		"packages/compiler/src/vite/index.ts > ogygia > writeBundle > catch:1",
 		"packages/compiler/src/vite/index.ts > ogygia > writeBundle > catch:2",
-		"packages/compiler/src/vite/options.ts > assert_no_legacy_options > throw:0",
-		"packages/compiler/src/vite/options.ts > assert_no_legacy_options > throw:1",
 		"packages/compiler/src/vite/options.ts > validate_region_presets > throw:0",
 		"packages/compiler/src/vite/options.ts > validate_region_presets > throw:1",
 		"packages/compiler/src/vite/options.ts > resolve_options > throw:0",
