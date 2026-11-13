@@ -62,6 +62,24 @@
 			"reason": "a lake prop no wire carries makes the fingerprint throw: the lake gets no identity and is known by its entry and place",
 			"test": "packages/core/test/lake-identity.test.ts",
 			"name": "props no wire carries give no identity, so the lake is known by its entry and place"
+		},
+		{
+			"site": "packages/reshape/src/index.ts > handle > throw:0",
+			"reason": "a config error, at the first request: no app the sim generates leaves reshape() out of vite.config",
+			"test": "packages/reshape/test/plugin.test.ts",
+			"name": "refuses every request while reshape() is not in vite.config, naming the fix"
+		},
+		{
+			"site": "packages/reshape/src/restore.ts > restore > sheet_for > catch:0",
+			"reason": "an engine without constructable stylesheets: happy-dom has them",
+			"test": "packages/reshape/test/browser/restore.test.ts",
+			"name": "a DOM without adoptable sheets or CSS.escape (jsdom): a <style> per root"
+		},
+		{
+			"site": "packages/reshape/src/restore.ts > restore > watch > observer:0",
+			"reason": "a Kit-hydrated page (csr=true): the random app is csr=false",
+			"test": "packages/reshape/test/browser/restore.test.ts",
+			"name": "a Kit-hydrated page: a watched host that leaves the document leaves the watch, a moved one stays, and the observer goes with the last one"
 		}
 	],
 	"impossible": [],
@@ -1738,11 +1756,8 @@
 		"packages/postrender/src/server.ts > invalidate > throw:1",
 		"packages/postrender/src/server.ts > lastBuild > stale:0",
 		"packages/postrender/src/stitch.ts > stitch_html > .catch:0",
-		"packages/reshape/src/index.ts > handle > throw:0",
 		"packages/reshape/src/restore-report.ts > report > reject:0",
 		"packages/reshape/src/restore-report.ts > report > import:0",
-		"packages/reshape/src/restore.ts > restore > watch > observer:0",
-		"packages/reshape/src/restore.ts > restore > sheet_for > catch:0",
 		"packages/reshape/src/restore.ts > restore > reset > parse:0",
 		"packages/reshape/src/restore.ts > restore > reset > catch:0",
 		"packages/reshape/src/restore.ts > restore > original > parse:0",
