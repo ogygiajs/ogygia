@@ -183,6 +183,16 @@ describe('normalize', () => {
 		expect(page('<meta name="ogygia-stored" content="hit">')).toBe(page(''));
 	});
 
+	it("drops a reshape pass's first-load mark: a document loaded as one has it, the router's answer of the same page never does (gen 10, seed 10)", async () => {
+		const { Window } = await import('happy-dom');
+		const page = (head: string) => {
+			const w = new Window();
+			w.document.write(`<html><head><title>t</title>${head}</head><body><p>hi</p></body></html>`);
+			return normalize(w.document as unknown as Document);
+		};
+		expect(page('<meta name="ogygia-first-load">')).toBe(page(''));
+	});
+
 	it("takes the region sheets answers lifted into the head in any order, and the page's own in theirs (gen 143, seed 143019)", async () => {
 		const { Window } = await import('happy-dom');
 		const page = (...hrefs: string[]) => {
