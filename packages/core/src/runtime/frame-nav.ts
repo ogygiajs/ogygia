@@ -220,7 +220,7 @@ export async function streamFrames(
 				})
 			);
 		} catch {
-			return; // network error — release() in finally lets bound regions fall back to their own fetch
+			return; // ok: network error; release() in finally lets bound regions fall back to their own fetch
 		}
 		if (res === STALE) return; // no answer at all for STALL_MS
 		stream.go('reading');

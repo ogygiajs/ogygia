@@ -684,7 +684,7 @@ function decode_pathname(pathname: string): string | null {
 	try {
 		return decodeURIComponent(pathname);
 	} catch {
-		return null;
+		return null; // ok: the caller answers 400
 	}
 }
 
@@ -694,7 +694,7 @@ function client_ip(event: RequestEvent): string | null {
 	try {
 		return event.getClientAddress();
 	} catch {
-		return null;
+		return null; // ok: fail closed: the callers answer 429
 	}
 }
 
