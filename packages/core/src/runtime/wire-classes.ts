@@ -1,26 +1,3 @@
-/**
- * THE TRANSPORTABLE CLASSES AN ISLAND NEEDS, loaded before it decodes its props. An `[ogygia.wire]`
- * class revives through its registered codec, and its module registers it when it loads. The client
- * build carries a map of lazy loaders (`ogygia:region/transportables`), and an island loads just what
- * it carries:
- * - its props: the server stamped the classes on the props sidecar (`data-og-wire`, tag paths);
- * - the context it reads: the `<ogygia-provide>` payloads around it and the page's context root;
- * - the page's seeds (`page.data`, the remote-query seed), checked once per document.
- * The small texts are checked for each class's tag path (`"<path>#`). An app that sends wired values
- * through Kit's `transport` (`wire_all`: remote functions, loads) gets every class with every island:
- * those values decode synchronously whenever they arrive. Each module loads once.
- *
- * A download that fails is tried again at once, and a failure is never kept: the wake it failed for
- * decodes without the class (the decode says which class is missing), and the next wake that needs
- * it loads it afresh, under a fresh URL (./import-again.ts: the browser keeps the failed one).
- * test/browser/wire-classes.test.ts holds these.
- *
- * A BOOT-phase feature (link/runtime-entry.ts), installed only when the app has transportable
- * classes: without one the loader map is empty, and the bundler cannot see that through the virtual
- * module.
- *
- * @packageDocumentation
- */
 import { cache, flights } from '@ogygia/machine';
 import { wire_loaders, wire_all } from 'ogygia:region';
 import { import_again } from './import-again.ts';
