@@ -219,3 +219,9 @@ describe('the warmer goes to the location', () => {
 		expect(requested('Loc.js?t=6')).toHaveLength(1);
 	});
 });
+
+test('a location that is not a URL is kept as written: it names no file, and nothing is noted', () => {
+	const identity = `${LOCATED_ID}?t=7`;
+	expect(() => note_entry_location(identity, 'http://[')).not.toThrow();
+	expect(entry_location(identity)).toBeUndefined();
+});
