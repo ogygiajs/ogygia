@@ -53,15 +53,42 @@ export interface ScanState {
 	open: { name: string; depth: number } | null;
 	/** chunks with no match not read yet: read only when a later chunk has one */
 	pending: string[];
+	/** open `<template>` elements */
+	templates: number;
+	/** the end of the last chunk read that its own markup left open (a tag, a comment, a raw-text
+	 *  element): read again in front of the next chunk, so it reads as the browser does */
+	carry: string;
 	/** the page's open elements, as the parser keeps them */
 	tags: PageTags;
 }
 
 export function scan_state(region: boolean): ScanState {
-	return { in_body: region, regions: [], foreign: 0, open: null, pending: [], tags: [] };
+	return {
+		in_body: region,
+		regions: [],
+		foreign: 0,
+		open: null,
+		pending: [],
+		templates: 0,
+		carry: '',
+		tags: []
+	};
 }
 
 const NONE: Matcher = { test: () => false, needles: [] };
+
+const RAW_TEXT: ReadonlySet<string> = new Set([
+	'script',
+	'style',
+	'textarea',
+	'title',
+	'xmp',
+	'iframe',
+	'noembed',
+	'noframes',
+	'noscript',
+	'plaintext'
+]);
 
 /** One outermost matched element of a chunk: its span, its name, and whether it sits in
  *  Svelte-owned markup. */
@@ -78,9 +105,12 @@ export interface Scanned {
 	spans: Span[];
 	/** the name of a matched element the chunk ends inside, if it started in this chunk */
 	split: string | null;
+	/** the chunk ends where a script may go: outside every region, matched element, template,
+	 *  svg or math, and outside any tag, comment or raw text (`false` when it was not read) */
+	safe: boolean;
 }
 
-const NOTHING: Scanned = { spans: [], split: null };
+const NOTHING: Scanned = { spans: [], split: null, safe: false };
 
 /** May this chunk hold a match? A few native searches: a chunk that answers no is not read until a
  *  later chunk has one (what it opened or closed then decides that chunk's reading). */
@@ -96,8 +126,14 @@ export function may_match(html: string, m: Matcher, state: ScanState): boolean {
  * from `state` (updated for the next chunk). In a document, an element counts from `<body` on.
  * `csr`: the body is Svelte's (a Kit-hydrated page), lakes and holes aside.
  */
-export function scan(html: string, m: Matcher, state: ScanState, csr: boolean): Scanned {
-	if (!may_match(html, m, state)) {
+export function scan(
+	html: string,
+	m: Matcher,
+	state: ScanState,
+	csr: boolean,
+	force = false
+): Scanned {
+	if (!force && state.carry === '' && !may_match(html, m, state)) {
 		state.pending.push(html);
 		return NOTHING;
 	}
@@ -109,15 +145,24 @@ export function scan(html: string, m: Matcher, state: ScanState, csr: boolean): 
 	return read(html, m, state, csr);
 }
 
-function read(html: string, m: Matcher, state: ScanState, csr: boolean): Scanned {
+function read(chunk: string, m: Matcher, state: ScanState, csr: boolean): Scanned {
+	const offset = state.carry.length;
+	const html = offset ? `${state.carry}${chunk}` : chunk;
+	state.carry = '';
 	const spans: Span[] = [];
 	let open = state.open;
 	let start = -1;
 	let owned = false;
+	let carry_from = -1;
+	let raw_from = -1;
 	let context: readonly string[] = [];
 	for (const at = new MarkupCursor(html); at.next();) {
+		carry_from = -1;
+		if (at.kind === 0) carry_from = at.raw ? raw_from : opens_at(html, at.start, at.end);
+		else if (at.kind === 2) raw_from = -1;
 		if (at.kind === 1) {
 			const name = tag_name(html, at.start + 1, at.ne);
+			if (RAW_TEXT.has(name)) carry_from = raw_from = at.start;
 			if (open !== null) {
 				if (name === open.name) open.depth++;
 				continue;
@@ -127,7 +172,8 @@ function read(html: string, m: Matcher, state: ScanState, csr: boolean): Scanned
 				continue;
 			}
 			if (state.foreign > 0) continue;
-			if (name === 'body') state.in_body = true;
+			if (name === 'template') state.templates++;
+			else if (name === 'body') state.in_body = true;
 			else if (name === 'ogygia-region') state.regions.push(region_at(html, at.ne) === 'island');
 			if (state.in_body && custom_name(name) && m.test(name)) {
 				open = { name, depth: 1 };
@@ -150,10 +196,33 @@ function read(html: string, m: Matcher, state: ScanState, csr: boolean): Scanned
 				if (name === 'svg' || name === 'math') state.foreign--;
 			} else {
 				if (name === 'ogygia-region') state.regions.pop();
+				else if (name === 'template' && state.templates > 0) state.templates--;
 				page_close(state.tags, name);
 			}
 		}
 	}
 	state.open = open;
-	return { spans, split: open !== null && start !== -1 ? open.name : null };
+	if (carry_from !== -1) state.carry = html.slice(carry_from);
+	const safe =
+		carry_from === -1 &&
+		open === null &&
+		state.regions.length === 0 &&
+		state.foreign === 0 &&
+		state.templates === 0;
+	let split = open !== null && start !== -1 ? open.name : null;
+	const own: Span[] = [];
+	for (const s of spans)
+		if (s.start >= offset) own.push({ ...s, start: s.start - offset, end: s.end - offset });
+		else split ??= s.name;
+	return { spans: own, split, safe };
+}
+
+function opens_at(html: string, from: number, to: number): number {
+	if (to !== html.length) return -1;
+	for (let lt = html.indexOf('<', from); lt !== -1 && lt < to; lt = html.indexOf('<', lt + 1)) {
+		if (lt + 1 === to) return lt;
+		const c = html.charCodeAt(lt + 1) | 32;
+		if ((c >= 97 && c <= 122) || c === 33 || c === 47 || c === 63) return lt;
+	}
+	return -1;
 }
