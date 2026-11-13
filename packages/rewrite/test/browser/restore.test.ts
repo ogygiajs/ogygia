@@ -820,6 +820,7 @@ test('putting attributes back never adds an event handler, a srcdoc or a javascr
 
 test('self-contained: the function source runs on its own (the handle inlines it)', async () => {
 	await served('<demo-card class="own"> inline </demo-card>');
+	// oxlint-disable-next-line typescript/no-implied-eval -- the test proves the function's own source runs with no module scope
 	const standalone = new Function(`return (${restore.toString()})`)() as typeof restore;
 	expect(standalone(document)).toBe(1);
 	expect(document.querySelector('demo-card')!.innerHTML).toBe(' inline ');
