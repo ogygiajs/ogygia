@@ -590,6 +590,7 @@ export async function run(
 				// (NO WASTE: a document the network or an outage touched asks again on purpose)
 				const w = faulted(world, t) ? null : waste(world, t);
 				if (w) broken.push(w);
+				log.note(`${t.name} ${t.page.mainFrame.url} judged against a fresh load`);
 				const b = await mpa_equivalent(world, v, t);
 				if (b)
 					broken.push(outage && b.oracle !== 'known' ? { ...b, oracle: 'outage-recovery' } : b);
