@@ -18,6 +18,11 @@
  * - `rule_region_answer_behind`: a region bound to a frame-store address shows the answer the
  *   address holds (./frame-store.ts tickets): it was handed the newest, and painted it once no paint
  *   is out.
+ * - `rule_region_left_busy`: a region element that left the page has every machine at rest (its
+ *   hole's fetch, its wake, its live mode, its paint): no visit of it waits on what can no longer
+ *   happen (#1132). Read from a task after its teardown.
+ * - `rule_lake_restored`: an island's hydrate gives back every lake it lifted (./lakes.ts
+ *   `restore` pairs them by position: a count that differs drops a lake's content).
  * - `rule_head_adopted`: the head never gains a `<base>` or a refresh / CSP / cookie meta after the
  *   first document (SPA-HEAD, ./head-deny.ts).
  * - `rule_seed_key_unshipped`: island code reads no `page.data` key the server had and the shaped
@@ -29,6 +34,7 @@
 import { observe, STALE, timers, trace } from '@ogygia/machine';
 import { Rules, type BrokenRule } from '../rules.ts';
 import { warn } from '../messages/core.ts';
+import type { PageGlobals } from '../page-globals.ts';
 import { OG_PREFIX, OGYGIA_PREFIX, unknown_markers } from '../wire-markup.ts';
 
 type RuntimeRule =
@@ -39,7 +45,9 @@ type RuntimeRule =
 	| 'rule_parse_upgraded'
 	| 'rule_markup_known'
 	| 'rule_region_answer_behind'
+	| 'rule_region_left_busy'
 	| 'rule_head_adopted'
+	| 'rule_lake_restored'
 	| 'rule_seed_key_unshipped';
 
 /** The runtime's rules. */
@@ -49,15 +57,18 @@ export const runtime_rules: Rules<RuntimeRule> = /* @__PURE__ */ new Rules<Runti
 
 /** What the runtime's rules track while they are on (dev, a rules build): the region elements
  *  that hold an island now and how many (each leaves at its unmount), the page visits made (each
- *  leaves once closed, at the next check), the regions bound to a frame-store address now (each
+ *  leaves once closed, at the next check), the regions that left the page and are not yet seen at
+ *  rest (each leaves once it is, or is back), the regions bound to a frame-store address now (each
  *  leaves when it lets its address go), and the few breaks found so far (10 each, at most). */
 class RuleRows {
 	readonly mounts = new Map<Element, number>();
 	readonly shows = new Map<Element, Shows>();
+	readonly left = new Map<Element, () => readonly string[]>();
 	readonly visits: Array<{ visit: Visit; n: number }> = [];
 	readonly uncoded: string[] = [];
 	readonly parsed_built: string[] = [];
 	readonly unshipped_reads: string[] = [];
+	readonly lakes_unpaired: string[] = [];
 }
 const R = new RuleRows();
 
@@ -82,6 +93,31 @@ function one_mount_per_region(): string | null {
 		// check runs a task after the moves)
 		if (!region.isConnected)
 			return `${entry_of(region)} left the page with its island still mounted`;
+	}
+	return null;
+}
+
+// ── a region that left the page is at rest ──
+
+/** A region element left the page (its teardown ran): `busy` reads its machines not at rest, as
+ *  `name state` (./region-machines.ts `busy_machines`). */
+export function note_left(region: Element, busy: () => readonly string[]): void {
+	R.left.set(region, busy);
+}
+
+function regions_left_at_rest(): string | null {
+	for (const [region, read_busy] of R.left) {
+		// (put back: its machines are the page's again)
+		if (region.isConnected) {
+			R.left.delete(region);
+			continue;
+		}
+		const busy = read_busy();
+		if (busy.length === 0) {
+			R.left.delete(region);
+			continue;
+		}
+		return `${entry_of(region)} left the page with ${busy.join(', ')}`;
 	}
 	return null;
 }
@@ -279,9 +315,23 @@ function note_unshipped_read(key: string): void {
 const no_unshipped_read = (): string | null =>
 	R.unshipped_reads.length === 0 ? null : R.unshipped_reads.join('; ');
 
+// ── a hydrate gives back every lake it lifted ──
+
+/** An island's hydrate lifted `lifted` lakes out of `region` and found `found` to give them back to
+ *  (./lakes.ts `restore`, which pairs them by position): a count that differs drops content. */
+export function note_lake_restore(region: Element, lifted: number, found: number): void {
+	if (lifted !== found && R.lakes_unpaired.length < 10)
+		R.lakes_unpaired.push(
+			`${entry_of(region)} lifted ${lifted} lake(s) and its hydrate rendered ${found}`
+		);
+}
+
+const lakes_paired = (): string | null =>
+	R.lakes_unpaired.length === 0 ? null : R.lakes_unpaired.join('; ');
+
 // ── the head gains no <base>, refresh, CSP or cookie meta (SPA-HEAD) ──
 
-type HeadDeny = (node: Element) => boolean;
+type HeadDeny = Parameters<NonNullable<PageGlobals['__og_head_deny']>>[0];
 
 /** The first document's own candidates (its server sent them, as `outerHTML`): never counted.
  *  Null: not watched yet. */
@@ -309,8 +359,7 @@ function head_not_adopted(): string | null {
 export function watch_head(): void {
 	if (first_head === null) runtime_rules.add('rule_head_adopted', head_not_adopted);
 	first_head = new Set(head_candidates().map((n) => n.outerHTML));
-	(globalThis as { __og_head_deny?: (deny: HeadDeny) => void }).__og_head_deny = (deny) =>
-		(head_deny = deny);
+	(globalThis as PageGlobals).__og_head_deny = (deny) => (head_deny = deny);
 }
 
 // ── the runner ──
@@ -340,10 +389,12 @@ export function install_rules(dev: boolean): void {
 	runtime_rules.add('rule_old_page_open', no_old_page_open);
 	runtime_rules.add('rule_failure_uncoded', no_failure_uncoded);
 	runtime_rules.add('rule_parse_upgraded', no_parse_upgraded);
+	runtime_rules.add('rule_lake_restored', lakes_paired);
 	runtime_rules.add('rule_markup_known', markup_known);
 	runtime_rules.add('rule_region_answer_behind', regions_show_their_answers);
+	runtime_rules.add('rule_region_left_busy', regions_left_at_rest);
 	watch_head();
-	(globalThis as { __og_parsed?: (f: DocumentFragment) => void }).__og_parsed = note_parse;
+	(globalThis as PageGlobals).__og_parsed = note_parse;
 	runtime_rules.add('rule_seed_key_unshipped', no_unshipped_read);
 	(globalThis as { __og_unshipped_read?: (key: string) => void }).__og_unshipped_read =
 		note_unshipped_read;
