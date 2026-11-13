@@ -1,27 +1,3 @@
-/**
- * ONE NOTION OF "ON SCREEN" (#444), for every feature that asks it: `wake: 'visible'` (islands,
- * holes, lakes), the hydration scheduler's viewport snapshot, the load scheduler's class (an island's
- * code, a hole's HTML: `visible` or `ahead`) and the router's `viewport` prefetch.
- *
- * ONE IntersectionObserver per root margin, owned by the tracker's scope (the document's: a test's
- * reset closes it). An observer per island (150 on a measured page) is 150 observers the browser
- * walks on every scroll; one per margin walks the same targets in one pass. Any number of watchers per
- * element: the scheduler's snapshot and a `visible` wake both watch an island at `0px`, and one
- * leaving does not silence the other.
- *
- * ONE RULE (`decide`) for an element with no box of its own. A region whose content is out of flow
- * (a `position: fixed` button) or that is `display: contents` has no area, and where such a box sits
- * says nothing (`display: contents` reports 0,0). So what it renders decides: its first children
- * (bounded: the first few levels, the first few children of each), and it is on screen when one of
- * them is. With no area and nothing of its own on screen, a line of its own still counts (an empty
- * hole at the fold). The observers read the rule off their reports (each such element's children are
- * watched for it, and a swap of its content is heard); a read before any report measures, so the
- * load scheduler's class and the wake agree. One function watching twice is two watches; a watcher
- * that joins late gets the state known. Tests: test/browser/viewport-shared.test.ts,
- * viewport-agree.test.ts.
- *
- * @packageDocumentation
- */
 import { scope, seen, tasks, type Scope } from '@ogygia/machine';
 
 type Heard = (on: boolean) => void;
@@ -37,6 +13,7 @@ function stand_ins(el: Element): Element[] {
 	return out;
 }
 
+// @why an element that is `display: contents` reports a 0,0 box, and an out-of-flow child's box is not its parent's (test: test/browser/viewport-agree.test.ts › a visible hole that is display: contents fetches when what it renders is on screen)
 function decide(
 	el: Element,
 	depth: number,

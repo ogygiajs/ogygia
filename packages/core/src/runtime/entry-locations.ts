@@ -1,33 +1,3 @@
-/**
- * ENTRY IDENTITY → LOCATION, the browser's half (server/entry-location.ts is the server's).
- *
- * An island's `entry` is its IDENTITY: the stable URL every key uses (the island graph, the
- * fingerprint, the devtools' names). The file to import is its LOCATION — content-hashed, so an
- * `immutable` cache never serves a stale one. The server writes it beside the identity: the region
- * element's `src`, and the island graph's `s` map for an entry no element carries (a portable
- * snippet's), and the build's location maps for the rest (`import_entry`). Every loader resolves
- * through `island_module_url` (region-endpoint-url.ts), which asks here first: the location once one
- * is known, else the identity (on the dev server, the module itself; in a build, a name, no file).
- * Only the same island's built file on an allowed origin is ever a location.
- *
- * THIS BUILD'S LOCATION MAP (compiler/link/location-map.ts, content-hashed): every island entry's
- * location by identity, for a load that arrives with an identity alone (a region the browser
- * rendered, a held region from the wire, a snippet whose host carried no graph). The runtime's
- * script names it (`data-og-locations`); it is read once, on the first such load. It only fills
- * gaps: a location a page wrote (a later build's, after a navigation) always wins.
- *
- * THE CURRENT BUILD'S MAP (`<appDir>/ogygia.json`, a fixed name): a page that outlived its build
- * reads it when its own files are gone and wakes on the current code. Revalidated (`no-cache`), read
- * once per document per app, a failed read never kept. During a deploy's rollover an edge can still
- * answer the old build's map, naming the file that just failed: when the host says that file is gone
- * (404 or 410) the map is asked again while the rollover settles. A file that failed another way is
- * not asked about again. A load that fell back is reported (devtools' timeline, the beacon).
- *
- * Tests: test/browser/entry-locations, entry-location-map, -retry, -rollover, -rollover-gone,
- * -fallback, -broken, and code-origins.
- *
- * @packageDocumentation
- */
 import { import_file } from './import-again.ts';
 import { code_url_or_refuse, is_location_of } from './code-origins.ts';
 import { backoffAfter, cache, flights, net, scope, STALE } from '@ogygia/machine';
