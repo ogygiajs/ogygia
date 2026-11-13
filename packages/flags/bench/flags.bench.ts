@@ -3,7 +3,9 @@
 // a fresh request (reads are memoized per request, as on a real server).
 import { bench } from '@bench/heisenbench/bench';
 import { startPlugin } from '@ogygia/core/plugin/testing';
+import { dedent } from '@ogygia/core/plugin/utils';
 import { decide, flag, flush_exposures, type CtxLike } from '../src/index.ts';
+import { collect_flag_sites } from '../src/inventory.ts';
 import { FLAGS_WARNINGS } from '../src/messages.ts';
 import server from '../src/server.ts';
 
@@ -98,4 +100,29 @@ bench(
 		return n;
 	},
 	{ setup: () => ({ c: visitor(7) }) }
+);
+
+/** A module declaring `flags` flags, each among a few lines of other code. */
+function flags_module(flags: number): string {
+	let src = `${dedent`
+		import { flag } from '@ogygia/flags';
+		import { format } from '$lib/format';
+	`}\n\n`;
+	for (let i = 0; i < flags; i++)
+		src = `${dedent`
+			${src}export const flag${i} = flag('flag-${i}', { a: 50, b: 50 });
+			export const label${i} = format('label ${i}');
+		`}\n\n`;
+	return src;
+}
+
+// Growth: the inventory is linear in the module's size. It was quadratic while each flag's line
+// was counted from the top of the file.
+bench(
+	'flag inventory: the flag calls of a module as it grows',
+	({ source }) => collect_flag_sites(source, '/app/src/lib/flags.ts', 'src/lib/flags.ts').length,
+	{
+		setup: () => ({ source: flags_module(20) }),
+		scale: (_ctx, k) => ({ source: flags_module(20 * k) })
+	}
 );
