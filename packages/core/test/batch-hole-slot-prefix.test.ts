@@ -90,6 +90,21 @@ describe('slot ids in a hole’s answer', () => {
 		]);
 	});
 
+	it('one region twice in one batch (other props): each hole mints its own ids, never the other’s', async () => {
+		const res = await handle()({
+			event: event('/__ogygia__', {
+				method: 'POST',
+				body: JSON.stringify([mint_server_region(A, { n: 1 }), mint_server_region(A, { n: 2 })]),
+				headers: { 'content-type': 'application/json', 'sec-fetch-site': 'same-origin' }
+			}),
+			resolve
+		} as never);
+		const minted = ids(await res.text());
+		expect(minted).toHaveLength(2);
+		for (const id of minted) expect(id).toMatch(/^ogaaaaaa-/);
+		expect(new Set(minted).size).toBe(2);
+	});
+
 	it('holes fetched in one batch: a render root inside one never mints a page’s id', async () => {
 		const minted = ids(await (await batch([A, C])).text());
 		expect(minted).toHaveLength(2);
