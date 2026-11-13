@@ -11,9 +11,7 @@
  *     on it: a kept island absorbs the incoming page's props BEFORE the router applies that page's
  *     seed, so its references must resolve against the incoming seed, not the current one. The
  *     navigation's soft-invalidate then applies the SAME parse — never a second one.
- * A parse count of one per document is what `test/browser/seed-single-parse.test.ts` pins; the old
- * two-cache shape (a per-element cache the morph reused across pages) handed a navigated page the
- * previous page's data — the stale-reference regression that test also carries.
+ * A parse count of one per document is what `test/browser/seed-single-parse.test.ts` pins.
  *
  * WIRE FORMATS: a seed or props script carries `data-og-format="json"` when its payload is plain
  * JSON (no custom types, no seed references) — then it is `JSON.parse`d, nothing else. Without the
@@ -25,7 +23,20 @@
  * no second reader, and the morph carries the next page's seed in (already blank, parsed in the
  * navigation's preflight). Devtools keeps the text: its byte ledger reads it. A props SIDECAR is
  * never blanked: a region can read it again — an island moved by its host's snippet adoption
- * disconnects, reconnects and hydrates anew (the island-children shape).
+ * disconnects, reconnects and hydrates anew (the island-children shape). The parse installs the
+ * streamed-value resolver first, so a value whose resolve ran before the runtime settles the promise
+ * the seed revives (test/browser/seed-defer-order.test.ts).
+ *
+ * ONE PAGE, NOT TWO (server/render-page.ts): an answer rendered outside its page (a hole, a region a
+ * remote call refreshed) carries the `page.data` keys its islands read. They join the page store at
+ * the next hydrate, once, before those islands wake, and only the page's own: the facts queued on its
+ * visit, never the ones a page left before them brought (test/browser/page-facts-visit.test.ts). On a
+ * Kit-hydrated page Kit owns `page.data`, and dev says to refresh it (`invalidateAll()`) first.
+ *
+ * A lazy module (the hydrate core's and the navigation's): it reaches the boot's session through the
+ * registry, never by import (@ogygia/compiler test/runtime-boot-svelte-free.test.ts).
+ *
+ * @packageDocumentation
  */
 import { parse_sidecar_text, parse_wire_text } from './wire-format.ts';
 import { page_state, set_page, reset_page, type PageSnapshot } from '../shims/page-store.svelte.ts';
@@ -38,19 +49,15 @@ import { boot_link, slots } from './slots.ts';
 import { warn } from '../messages/lazy.ts';
 import { PAGE_SEED_SELECTOR } from '../page-seed-selector.ts';
 
-// The boot's session and hint-set reset, handed over through the registry — this lazy module (the
-// hydrate core's and the navigation's) never imports a boot module (./slots.ts `BootLink`).
 const session = () => boot_link().runtime_session;
 const server_channel = (doc: Document, selector: string) =>
 	boot_link().server_channel(doc, selector);
 
-// DEVTOOLS gate — module-local const from the Vite `define` (proven DCE pattern); off → folds out.
 const DEVTOOLS = typeof __OGYGIA_DEVTOOLS__ !== 'undefined' ? __OGYGIA_DEVTOOLS__ : false;
 
 export { PAGE_SEED_SELECTOR };
 const REMOTE_SEED_SELECTOR = 'script[type="application/ogygia-remote"]';
 
-// (the props / seed lane reader lives in wire-format.ts; re-exported for this module's old importers)
 export { parse_sidecar_text };
 
 /**
@@ -71,16 +78,10 @@ export function seed_parse_count(): number {
 	return parses;
 }
 
-/** Parse one page-seed script; `null` when malformed. Blanks the text once parsed (see above). */
 function parse_page_seed(el: Element): PageSeed | null {
 	parses++;
 	try {
-		// Install the live resolver (drains any resolve script that raced ahead) BEFORE reviving, so a
-		// defer marker becomes a pending Promise that a queued resolution can settle immediately. Both
-		// the seed and the streamed resolves revive with the app's transport decoders, so a load's
-		// CUSTOM types round-trip into islands.
 		install_page_defer(transport_decoders);
-		// (what the seed revives is its page's: a navigation keeps it while that page is on screen)
 		const raw = capture_region_ids(
 			el.ownerDocument,
 			() => parse_sidecar_text(el, page_defer_revivers(transport_decoders)) as PageSeed
@@ -93,7 +94,6 @@ function parse_page_seed(el: Element): PageSeed | null {
 	}
 }
 
-/** Feed a parsed seed into the `$app/state` page store (the devalue href string becomes a `URL`). */
 function apply_page_seed(raw: PageSeed | null): void {
 	if (!raw) return;
 	let url: URL | undefined;
@@ -108,7 +108,6 @@ function apply_page_seed(raw: PageSeed | null): void {
 	set_page({ ...raw, url });
 }
 
-/** Foreign (fetched) documents' seeds, one parse per `Document`. */
 const foreign_seeds = new WeakMap<Document, PageSeed | null>();
 
 /**
@@ -137,7 +136,6 @@ export function seed_data_of(doc: Document): unknown {
 	return page_seed_of(doc)?.data;
 }
 
-/** Apply `application/ogygia-remote` text into the reused Kit query seed bag. */
 function apply_remote_seed_text(text: string | null | undefined): void {
 	if (!text) return;
 	slots.remoteSeeds?.seed_query_responses(text);
@@ -155,16 +153,6 @@ export function seed_page_once(): void {
 	if (session().visit.facts.length) absorb_page_facts();
 }
 
-/**
- * ONE PAGE, NOT TWO (server/render-page.ts): an answer rendered outside its page — a hole, a region a
- * remote call refreshed — carries the `page.data` keys its islands read, as the server just looked
- * them up. They join the page store before those islands wake, so the islands hydrate against the
- * values their HTML was rendered from, and every island reading the same keys sees them too (the
- * page's data changed: a locale saved, a sign-in). On a Kit-hydrated page Kit owns `page.data`: the
- * page's data is older than the answer's, and dev says to refresh it (`invalidateAll()`) first.
- * Only the page's own: the facts queued on its visit (runtime/session.ts `PageVisit`), never the
- * ones a page left before them brought (#269).
- */
 function absorb_page_facts(): void {
 	const queued = session().visit.facts.splice(0);
 	let merged: Record<string, unknown> | null = null;
@@ -214,11 +202,9 @@ function absorb_page_facts(): void {
  */
 export function apply_soft_invalidate_doc(doc: Document): void {
 	if (typeof document === 'undefined') return;
-	// Seed bag only — never release_remote_instances() here (live Query/LiveQuery stay mounted).
 	slots.remoteSeeds?.clear_remote_seeds();
 	apply_remote_seed_text(server_channel(doc, REMOTE_SEED_SELECTOR)?.textContent);
 	session().mark_remote_seeded();
-	// The incoming page seed: parsed once for this document (already, when the router preflighted).
 	apply_page_seed(page_seed_of(doc));
 	session().mark_page_seeded();
 }

@@ -1,3 +1,15 @@
+/**
+ * A region endpoint's address and answer (capability expiry with five minutes of clock slack,
+ * renewal, refusals, `Retry-After`), and THE ONE ISLAND-MODULE WARMER: the router's next-page
+ * prefetch warm, core's visible-island idle warm and the interaction feature's pointerenter warm all
+ * come here. One warm per module, keyed by its absolute URL (an identity warms its location), timed
+ * by the load scheduler at its class, its graph's links raised with it. A failed warm is not kept,
+ * so the real wake retries; warming is never fatal. An identity with no known location, and code on
+ * an origin the page loads none from, are not warmed. Tests: test/shared-cache.test.ts,
+ * test/browser/entry-locations, preload-priority and code-origins.
+ *
+ * @packageDocumentation
+ */
 import { clock } from '@ogygia/machine';
 import type { HoleRefusal } from '../contract/runtime-hooks.ts';
 import { preload_island_graph } from './island-graph-preload.ts';
@@ -13,10 +25,8 @@ import { cache } from '@ogygia/machine';
  *  foreign-origin checks. */
 export const ABSOLUTE_URL_SCHEME: RegExp = /^[a-z][a-z0-9+.-]*:/i;
 
-// (the same-origin checks are the HTML sink's gate: ./html-sink.ts)
 export { is_allowed_region_endpoint, is_same_origin_response } from './html-sink.ts';
 
-/** How far this browser's clock may run behind the server's and still see an expiry. */
 const CLOCK_SKEW_SEC = 300;
 
 /**
@@ -27,7 +37,7 @@ const CLOCK_SKEW_SEC = 300;
  */
 export function capability_expired(
 	endpoint: string,
-	now_ms: number = clock.wall(), // wall: against the server's signed epoch `exp`
+	now_ms: number = clock.wall(),
 	page_origin: string = location.origin
 ): boolean {
 	try {
@@ -44,7 +54,6 @@ export function renewal_url(endpoint: string): string {
 	return `${endpoint + (endpoint.includes('?') ? '&' : '?')}renew=1`;
 }
 
-/** A whole HTML document starts with a doctype or `<html>`; a region answer never does. */
 const DOCUMENT_START_RE = /^\s*(?:<!doctype\b|<html\b)/i;
 
 /**
@@ -109,7 +118,6 @@ export function retry_after_ms(res: Response): number | null {
 	if (!v) return null;
 	if (/^\d+$/.test(v)) return Number(v) * 1000;
 	const at = Date.parse(v);
-	// wall: an HTTP date is a moment on the wall clock
 	return Number.isNaN(at) ? null : Math.max(0, at - clock.wall());
 }
 
@@ -145,7 +153,6 @@ export function deny_of(res: Response, endpoint: string): string {
  */
 export function island_module_url(entry: string, base?: string): string {
 	if (!entry) return entry;
-	// its LOCATION, once the server named one (entry-locations.ts); else the identity as written
 	const located = entry_location(entry, base);
 	if (located) return located;
 	if (entry.startsWith('/') || ABSOLUTE_URL_SCHEME.test(entry)) return entry;
@@ -158,21 +165,9 @@ export function island_module_url(entry: string, base?: string): string {
 	module_urls.set(key, out);
 	return out;
 }
-/** A relative entry resolved against its document, by base + entry (asked on every wake and warm;
- *  the least recently asked go first). */
 const module_urls = cache<string, string>({ name: 'island module urls', max: 4000 });
 
-// ── the ONE island-module warmer ─────────────────────────────────────────────
-// Every "get this island's JS into the module cache before it's needed" call site funnels here:
-// the router's next-page prefetch warm, core's visible-island idle warm, and the interaction
-// feature's pointerenter warm. One URL-level dedupe set replaces three inconsistent schemes
-// (`import()` is idempotent, but re-parsing the specifier on every hover isn't free). A failed
-// warm is not kept, so the real wake — or a later warm — retries; warming is never fatal.
-/** A warm's ask: the module's key, and the file it names as the caller that started it spelled it. */
 type Warm = { key: string; entry: string; base: string | undefined; url: CodeUrl };
-/** One warm per module, kept once it landed: a warm with a more urgent class joining one raises it
- *  (#437: still queued, it starts now at that class; started, its graph links are raised). Made at
- *  the first warm: a module that only checks an endpoint makes none. */
 let warm_flights: Flights<Warm, unknown, Pick<Warm, 'key'>> | undefined;
 const warms = () => (warm_flights ??= make_warms());
 const make_warms = () =>
@@ -185,8 +180,6 @@ const make_warms = () =>
 			url: 'the key before it was made absolute'
 		},
 		run: async ({ entry, base, url }, _signal, flight) => {
-			// a warm is the load scheduler's to time (load-scheduler.ts): a hover is the visitor's, a page
-			// prefetch's warm is speculative
 			const slot = new LoadSlot({
 				kind: 'code',
 				cls: class_at(flight.priority),
@@ -195,11 +188,8 @@ const make_warms = () =>
 			});
 			const release = await slot.ready;
 			try {
-				// the whole graph with the entry, at the class it started with; a later raise lifts it
 				preload_island_graph(entry, base, fetch_priority_of(slot.cls()));
 				flight.onRaise((p) => preload_island_graph(entry, base, fetch_priority_of(class_at(p))));
-				// (through the file's loader the island's own load uses: a warm that failed leaves the load a
-				// fresh URL to ask, not the failed one — #261)
 				return await import_file(url);
 			} catch {
 				return STALE; // ok: a warm that failed is not kept (STALE); the island's own load asks again and says its failure
@@ -215,8 +205,6 @@ export function reset_island_warms(): void {
 	warm_flights = undefined;
 }
 
-/** The warmer's key: the resolved module as an absolute URL (a location arrives absolute, an href
- *  off a page root-relative — the same file must be one key). */
 function warm_key(url: string): string {
 	try {
 		return new URL(url, location.href).href;
@@ -233,9 +221,7 @@ export function warm_island_module(
 ): void {
 	const url = island_module_url(entry, base);
 	if (!url) return;
-	// a build's identity with no known location names no file: the load finds it (import_entry)
 	if (!entry_location(entry, base) && url.includes('/ogygia/og-region.')) return;
-	// (code on an origin the page loads none from is not warmed: its load says why, ./code-origins.ts)
 	const code = code_url(url);
 	if (code === null) return;
 	void warms().get({ key: warm_key(url), entry, base, url: code }, { priority: PRIORITY[cls] }); // ok: a warm that failed answers STALE, never rejects: nothing to hear
