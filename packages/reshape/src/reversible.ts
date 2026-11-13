@@ -28,7 +28,13 @@
 import { escapeAttr as escape_amp_quot } from '@ogygia/core/plugin/utils';
 // (both realms load this module, the browser in tests: the browser realm's entry, which the build
 // writes out as the two literals)
-import { OG_BAKED, OG_HEAD } from '@ogygia/core/internal/instruments';
+import {
+	MarkupCursor,
+	next_any_tag,
+	OG_BAKED,
+	OG_HEAD,
+	visit_attrs
+} from '@ogygia/core/internal/instruments';
 
 // ─── tokenizer ─────────────────────────────────────────────────────────────────────────────────────
 
@@ -40,17 +46,6 @@ type Tok =
 	| { t: 'raw'; start: number; end: number }
 	| { t: 'other'; start: number; end: number };
 
-// static: HTML's raw-text elements
-const RAW = new Set([
-	'script',
-	'style',
-	'textarea',
-	'title',
-	'xmp',
-	'iframe',
-	'noembed',
-	'noframes'
-]);
 // static: HTML's void elements
 const VOID = new Set([
 	'area',
@@ -78,19 +73,8 @@ function is_alpha(c: number): boolean {
 	return (c >= 65 && c <= 90) || (c >= 97 && c <= 122);
 }
 
-/** Index of the `>` ending the tag at `open`, respecting quoted values; `html.length` if none. */
-function tag_end(html: string, open: number): number {
-	let quote = 0;
-	for (let i = open + 1; i < html.length; i++) {
-		const c = html.charCodeAt(i);
-		if (quote) {
-			if (c === quote) quote = 0;
-		} else if (c === 34 || c === 39) quote = c;
-		else if (c === 62) return i;
-	}
-	return html.length;
-}
-
+/** Where a tag name starting at `from` ends: for `has_custom_element`'s hop, which only asks whether
+ *  a page may hold a custom element (a false yes costs one full read by the walk, never a miss). */
 function read_name(html: string, from: number): number {
 	let i = from;
 	while (i < html.length) {
@@ -99,26 +83,6 @@ function read_name(html: string, from: number): number {
 		i++;
 	}
 	return i;
-}
-
-/** The raw-text body end (`<` of the matching `</name`), or `html.length`. */
-function raw_end(html: string, from: number, name: string): number {
-	let at = from;
-	for (;;) {
-		const lt = html.indexOf('</', at);
-		if (lt === -1) return html.length;
-		let ok = true;
-		for (let k = 0; k < name.length; k++) {
-			const c = html.charCodeAt(lt + 2 + k);
-			if ((c >= 65 && c <= 90 ? c + 32 : c) !== name.charCodeAt(k)) {
-				ok = false;
-				break;
-			}
-		}
-		const after = html.charCodeAt(lt + 2 + name.length);
-		if (ok && (Number.isNaN(after) || is_space(after) || after === 62 || after === 47)) return lt;
-		at = lt + 2;
-	}
 }
 
 /** A tag name, lower-cased only when it has an upper-case letter (the common case allocates nothing
@@ -144,79 +108,36 @@ class Lexer {
 	end = 0;
 	name_end = 0;
 	self = false;
-	#html: string;
-	#i = 0;
-	/** the raw-text element just opened: its body is the next token */
-	#raw = '';
+	readonly #html: string;
+	readonly #at: MarkupCursor;
 	constructor(html: string) {
 		this.#html = html;
-	}
-	#set(t: Tok['t'], start: number, end: number): true {
-		this.t = t;
-		this.start = start;
-		this.end = end;
-		this.#i = end;
-		return true;
+		this.#at = new MarkupCursor(html);
 	}
 	next(): boolean {
+		const at = this.#at;
+		if (!at.next()) return false;
 		const html = this.#html;
-		const n = html.length;
-		let i = this.#i;
-		if (this.#raw) {
-			const name = this.#raw;
-			this.#raw = '';
-			const re = raw_end(html, i, name);
-			if (re > i) return this.#set('raw', i, re);
-			i = this.#i = re;
+		this.start = at.start;
+		this.end = at.end;
+		switch (at.kind) {
+			case 0:
+				this.t = at.raw ? 'raw' : 'text';
+				break;
+			case 1:
+				this.t = 'start';
+				this.name = tag_name(html, at.start + 1, at.ne);
+				this.name_end = at.ne;
+				this.self = html.charCodeAt(at.end - 2) === 47;
+				break;
+			case 2:
+				this.t = 'end';
+				this.name = tag_name(html, at.start + 2, at.ne);
+				break;
+			default:
+				this.t = html.startsWith('<!--', at.start) ? 'comment' : 'other';
 		}
-		if (i >= n) return false;
-		const lt = html.indexOf('<', i);
-		if (lt === -1) return this.#set('text', i, n);
-		const c1 = html.charCodeAt(lt + 1);
-		const is_tag =
-			is_alpha(c1) || (c1 === 47 && is_alpha(html.charCodeAt(lt + 2))) || c1 === 33 || c1 === 63;
-		if (!is_tag) {
-			// a stray `<` is text: keep scanning for the next real tag, one text token for the run
-			let j = lt + 1;
-			for (;;) {
-				const nx = html.indexOf('<', j);
-				if (nx === -1) {
-					j = n;
-					break;
-				}
-				const d = html.charCodeAt(nx + 1);
-				if (
-					is_alpha(d) ||
-					(d === 47 && is_alpha(html.charCodeAt(nx + 2))) ||
-					d === 33 ||
-					d === 63
-				) {
-					j = nx;
-					break;
-				}
-				j = nx + 1;
-			}
-			return this.#set('text', i, j);
-		}
-		if (lt > i) return this.#set('text', i, lt);
-		if (html.startsWith('<!--', lt)) {
-			const close = html.indexOf('-->', lt + 4);
-			return this.#set('comment', lt, close === -1 ? n : close + 3);
-		}
-		if (c1 === 33 || c1 === 63) return this.#set('other', lt, tag_end(html, lt) + 1);
-		if (c1 === 47) {
-			const ne = read_name(html, lt + 2);
-			this.name = tag_name(html, lt + 2, ne);
-			return this.#set('end', lt, tag_end(html, lt) + 1);
-		}
-		const ne = read_name(html, lt + 1);
-		const name = tag_name(html, lt + 1, ne);
-		const gt = tag_end(html, lt);
-		this.name = name;
-		this.name_end = ne;
-		this.self = html.charCodeAt(gt - 1) === 47;
-		if (RAW.has(name) && !this.self) this.#raw = name;
-		return this.#set('start', lt, gt + 1);
+		return true;
 	}
 }
 
@@ -236,46 +157,19 @@ const NO_ATTRS: readonly Attr[] = Object.freeze([]) as readonly Attr[];
 // static: the empty set, shared and never written
 const NO_REMOVE = new Set<string>();
 
-function parse_attrs(html: string, from: number, to: number): Attr[] {
+/** The attributes of the start tag whose name ends at `from`, read by core's tag walk as the browser
+ *  reads them, in source order (repeats included: a remover drops every copy). */
+function parse_attrs(html: string, from: number): Attr[] {
 	const out: Attr[] = [];
-	let i = from;
-	while (i < to) {
-		let c = html.charCodeAt(i);
-		if (is_space(c) || c === 47) {
-			i++;
-			continue;
-		}
-		const ns = i;
-		while (i < to) {
-			c = html.charCodeAt(i);
-			if (is_space(c) || c === 61 || c === 62 || c === 47) break;
-			i++;
-		}
-		const name = html.slice(ns, i).toLowerCase();
-		let j = i;
-		while (j < to && is_space(html.charCodeAt(j))) j++;
-		if (html.charCodeAt(j) === 61) {
-			j++;
-			while (j < to && is_space(html.charCodeAt(j))) j++;
-			const q = html.charCodeAt(j);
-			let value: string;
-			if (q === 34 || q === 39) {
-				const close = html.indexOf(q === 34 ? '"' : "'", j + 1);
-				const e = close === -1 || close > to ? to : close;
-				value = html.slice(j + 1, e);
-				j = e + 1;
-			} else {
-				const vs = j;
-				while (j < to && !is_space(html.charCodeAt(j)) && html.charCodeAt(j) !== 62) j++;
-				value = html.slice(vs, j);
-			}
-			if (name) out.push({ name, value: decode(value), start: ns, end: j });
-			i = j;
-		} else {
-			if (name) out.push({ name, value: '', start: ns, end: i });
-			if (i === ns) i++;
-		}
-	}
+	visit_attrs(html, from, (ns, ne, vs, ve, vq) => {
+		out.push({
+			name: html.slice(ns, ne).toLowerCase(),
+			value: vq === -1 ? '' : decode(html.slice(vs, ve)),
+			start: ns,
+			// (past the closing quote of a quoted value)
+			end: vq === -1 ? ne : vq === 0 ? ve : ve + 1
+		});
+	});
 	return out;
 }
 
@@ -628,7 +522,7 @@ function plan_hosts(html: string, kind: TransformKind, csr: boolean, answer: boo
 			// a hole: ogygia swaps its inside rather than hydrating it — not Svelte-owned, but reached into
 			let swapped = false;
 			if (name === 'ogygia-region') {
-				const region = region_kind(parse_attrs(html, tok.name_end, tok.end - 1));
+				const region = region_kind(parse_attrs(html, tok.name_end));
 				owned = region === 'island';
 				swapped = region === 'hole';
 			}
@@ -651,7 +545,7 @@ function plan_hosts(html: string, kind: TransformKind, csr: boolean, answer: boo
 /** Is there any custom element (in a document: after `<body`) — a hop from `<` to `<` reading only
  *  tag names, no tokenization. Most pages of most apps have none, and then there is nothing to mark. */
 function has_custom_element(html: string, document: boolean): boolean {
-	let at = document ? html.indexOf('<body') : 0;
+	let at = document ? html.indexOf('<body') : 0; // markup-ok: a prefilter, a false yes only
 	if (at === -1) return false;
 	for (at = html.indexOf('<', at); at !== -1; at = html.indexOf('<', at + 1)) {
 		if (!is_alpha(html.charCodeAt(at + 1))) continue;
@@ -705,7 +599,7 @@ export function mark(
 				(custom && planned[next_k] === true) || (child_of_host && planned[parent.host] === true);
 			const attrs =
 				name === 'ogygia-region' || name === 'template' || recorded
-					? parse_attrs(html, tok.name_end, tok.end - 1)
+					? parse_attrs(html, tok.name_end)
 					: (NO_ATTRS as Attr[]);
 			// (a Kit-hydrated document: Svelte owns its whole body, lakes and holes aside)
 			let owned =
@@ -882,10 +776,12 @@ export function settle(html: string, record: MarkRecord, opts: { dev?: boolean }
 	for (let at = html.indexOf(' og-shadow='); at !== -1; at = html.indexOf(' og-shadow=', at + 11)) {
 		const lt = html.lastIndexOf('<', at);
 		if (lt === -1) continue;
-		const gt = tag_end(html, lt);
-		if (gt < at) continue; // (a `<` inside an attribute value: not this tag's start)
-		const h = parse_attrs(html, read_name(html, lt + 1), gt).find((a) => a.name === 'og-h');
-		if (h) plan.add(Number(h.value));
+		// (the tag that starts there, read by core's walk, must hold the mark: a `<` inside an
+		// attribute value, or text, is not this tag's start)
+		const t = next_any_tag(html, lt);
+		if (t === null || t.start !== lt || t.end <= at) continue;
+		const h = t.attr('og-h');
+		if (h !== undefined) plan.add(Number(decode(h)));
 	}
 	/** Does the tag at `[from, to)` hold `needle`? A forward-only cursor: tags come in document order,
 	 *  so each occurrence is searched for once (a search from every tag is quadratic in the gaps). */
@@ -1001,7 +897,7 @@ export function settle(html: string, record: MarkRecord, opts: { dev?: boolean }
 			const head_attr = head_in(tok.start, tok.end);
 			const attrs =
 				has_og || head_attr || close !== -1
-					? parse_attrs(html, tok.name_end, tok.end - 1)
+					? parse_attrs(html, tok.name_end)
 					: (NO_ATTRS as Attr[]);
 			// a head asset in a document's body: lifted into the head (deduped by key)
 			if (doc && head_attr && !has_og) {
