@@ -242,7 +242,7 @@ function url_of(node: Element, attr: string): string {
 	try {
 		return new URL(value, base).href;
 	} catch {
-		return value; // (not a URL: compared as written)
+		return value; // ok: not a URL: compared as written
 	}
 }
 
@@ -858,7 +858,7 @@ export async function navigate(
 			try {
 				dest = new URL(page.url, url);
 			} catch {
-				dest = url;
+				dest = url; // ok: a page URL that does not parse keeps the address asked for
 			}
 		}
 

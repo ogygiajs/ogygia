@@ -52,7 +52,7 @@ function fp_drift(nav = 0): FpDrift[] {
 	try {
 		store = JSON.parse(sessionStorage.getItem(FPS_KEY) ?? '{}') as Record<string, KeptIsland[]>;
 	} catch {
-		store = {};
+		store = {}; // ok: storage blocked or unreadable: no drift shown, this load starts fresh
 	}
 	const drift = fp_compare(store[page] ?? [], now);
 	store[page] = now;
@@ -131,7 +131,7 @@ export function region_facts(): RegionFact[] {
 		try {
 			return e ? new URL(e, location.href).href : '';
 		} catch {
-			return '';
+			return ''; // ok: not a URL: no entry to name
 		}
 	};
 	for (const r of all_regions()) {
@@ -206,7 +206,7 @@ function shown_under_media(el: Element): string | null {
 		try {
 			return target.matches(sel);
 		} catch {
-			return false; // a selector this browser cannot match
+			return false; // ok: a selector this browser cannot match hides nothing here
 		}
 	};
 	let budget = 20000;
@@ -238,7 +238,7 @@ function shown_under_media(el: Element): string | null {
 		try {
 			rules = sheet.cssRules;
 		} catch {
-			continue; // cross-origin: unreadable
+			continue; // ok: a cross-origin sheet cannot be read; the others still are
 		}
 		const hit = walk(rules, null, null);
 		if (hit) return hit;
@@ -377,7 +377,7 @@ export function hole_waits(since: number = last_nav()?.t ?? -Infinity, fcp = 0):
 		try {
 			id = e.endpoint ? (new URL(e.endpoint, location.href).searchParams.get('id') ?? '') : '';
 		} catch {
-			id = '';
+			id = ''; // ok: not a URL: the hole goes unnamed
 		}
 		const rect = el?.getBoundingClientRect();
 		// how long the visitor SAW the fallback: from the first paint (or the hole's own start, when
@@ -455,7 +455,7 @@ export function hole_batches(since: number = last_nav()?.t ?? -Infinity): HoleBa
 				try {
 					id = new URL(ep, location.href).searchParams.get('id') ?? '';
 				} catch {
-					id = '';
+					id = ''; // ok: not a URL: named 'a hole' below
 				}
 				return (id && region_names()[id]) || 'a hole';
 			});
@@ -705,7 +705,7 @@ export function unmeasured(cpu_off?: string | null): string[] {
 	try {
 		types = PerformanceObserver.supportedEntryTypes ?? [];
 	} catch {
-		types = [];
+		types = []; // ok: no PerformanceObserver here: each missing kind is listed below
 	}
 	const out: string[] = [];
 	// (a wake that moved the layout is estimated instead, from each island's box before and after)
@@ -844,7 +844,7 @@ function not_restored_reasons(): string[] {
 			.filter(Boolean)
 			.slice(0, 6);
 	} catch {
-		return [];
+		return []; // ok: a browser without the reasons gives none
 	}
 }
 
@@ -1118,7 +1118,7 @@ function previous_load(): LoadSnapshot | null {
 		const raw = sessionStorage.getItem(LOAD_KEY + location.pathname);
 		prev_load = raw ? (JSON.parse(raw) as LoadSnapshot) : null;
 	} catch {
-		prev_load = null;
+		prev_load = null; // ok: storage blocked or unreadable: no last load to compare with
 	}
 	return prev_load;
 }

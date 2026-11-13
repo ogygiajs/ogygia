@@ -68,7 +68,7 @@ export function props_preview(props: unknown, max = 80): string {
 		if (!s || s === '{}' || s === '[]') return '';
 		return s.length > max ? `${s.slice(0, max - 1)}…` : s;
 	} catch {
-		return '';
+		return ''; // ok: a preview only; props that do not stringify show none
 	}
 }
 

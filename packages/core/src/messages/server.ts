@@ -177,6 +177,18 @@ export const SERVER_WARNINGS = {
 			render is abandoned while no other is.
 		`
 	},
+	page_promise_pending: {
+		text: (a: { path: string; ms: number }): string =>
+			`a promise in the load data of ${a.path || 'a page'} is still pending after ${a.ms} ms: its response stays open until it settles`,
+		details: (): string => prose`
+			Dev only. A load returned a promise (Kit streaming), and the page's response waits for it:
+			a page load streams its value into islands after the document, a router fetch settles it
+			before the document goes out. There is no deadline: a slow stream is allowed, and the wait
+			ends when the visitor leaves. A promise that never settles keeps the response open (and,
+			on a router fetch, the page unsent) for as long as the visitor stays. Give the work behind
+			it a timeout of its own. Said once per response.
+		`
+	},
 	endpoint_props_decode_failed: {
 		text: (): string => 'region endpoint 403: island module load / props decode failed',
 		details: (): string => prose`
