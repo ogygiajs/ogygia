@@ -130,7 +130,7 @@ test.describe('SvelteKit 3: build + dev on the packed ogygia (self-building fixt
 		browser
 	}) => {
 		test.setTimeout(5 * 60_000);
-		const env = { ...process.env, OGYGIA_SECRET: SECRET };
+		const env = { ...process.env, OGYGIA_SECRET: SECRET, OGYGIA_RULES: '1' };
 		expect(run('pnpm', ['run', 'build'], { cwd: APP, env }), 'Kit 3 production build').toBe(true);
 		const base = `http://127.0.0.1:${BUILD_PORT}`;
 		let srv: SpawnedServer | undefined;

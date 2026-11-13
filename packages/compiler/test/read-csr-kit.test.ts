@@ -1,3 +1,4 @@
+// oracle: route_csr
 // A route option file's `csr`, read the way Kit reads it. Kit decides with a parser
 // (`statically_analyse_page_options`) and, at run time, the module's value. A pattern read disagreed
 // with both on code an app can write (`export let`, several declarators, `export { }`, a string
