@@ -52,20 +52,6 @@ function write_app(): string {
 }
 
 function compiler(root: string, is_dev: boolean): Compiler {
-	const c = new Compiler(new Program({ forms: true, router: true }), {
-		prof: {
-			transformMs: 0,
-			transformN: 0,
-			transformHit: 0,
-			prescanMs: 0,
-			bakeMs: 0,
-			bakeN: 0,
-			resolveMs: 0,
-			loadMs: 0
-		},
-		P: false,
-		outHash: new Map()
-	});
 	const init: Partial<CompileCtxInit> = {
 		root,
 		base: '/',
@@ -95,15 +81,31 @@ function compiler(root: string, is_dev: boolean): Compiler {
 		measure: true,
 		devtools: false
 	};
-	c.configure(new CompileCtx(init as CompileCtxInit));
+	const c = new Compiler(
+		new Program({ forms: true, router: true }),
+		{
+			prof: {
+				transformMs: 0,
+				transformN: 0,
+				transformHit: 0,
+				prescanMs: 0,
+				macroMs: 0,
+				macroN: 0,
+				resolveMs: 0,
+				loadMs: 0
+			},
+			P: false,
+			outHash: new Map()
+		},
+		new CompileCtx(init as CompileCtxInit)
+	);
 	// what a build's transforms leave for the generated modules: an og.$ factory, a transportable class
 	c.dollar_hoists.set('og$0', '() => 1');
 	c.program.scan.set(`${root}/src/lib/money.ts`, {
 		crosses_wire: false,
 		transportable: true,
 		specs: [],
-		router: false,
-		flag_sites: []
+		router: false
 	});
 	return c;
 }

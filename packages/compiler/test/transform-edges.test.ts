@@ -1,5 +1,5 @@
 // Edges of the region transform the mutation pass found unpinned: which ids are ogygia's own glue,
-// the `.ts` asRegion option reader (configured names and their defaults), and what a
+// the `.ts` region import's option reader (only the configured names), and what a
 // `render: 'live'` region may carry (only what the revalidate endpoint can serialize).
 import { describe, expect, it, vi } from 'vitest';
 import path from 'node:path';
@@ -51,11 +51,10 @@ describe('is_island_path: ogygia glue ids, by family and extension', () => {
 	});
 });
 
-describe('asRegion in a .ts module: the option reader', () => {
+describe('a marked named import in a .ts module: the option reader', () => {
 	const compile = (opts: string, keys?: Record<string, string>) => {
 		const src = dedent`
-			import { H } from '$lib/H.svelte';
-			const X = import.meta.og.asRegion(H, ${opts});
+			import { H as X } from '$lib/H.svelte' with ${opts};
 			export { X };
 		`;
 		try {
@@ -71,43 +70,57 @@ describe('asRegion in a .ts module: the option reader', () => {
 		[`{ 'wake': 'load' }`, undefined, 'region:load'],
 		[`{ region: 'raw' }`, undefined, 'region:raw'],
 		[`{ render: 'deferred', fetch: 'idle' }`, undefined, 'defer:idle'],
-		// a configured name, and the default name beside it, both read
+		// a configured name is read (asRegion also read the default name beside it; an import
+		// attribute reads the configured one, as a `.svelte` host's import does)
 		[`{ hydrate: 'load' }`, { wake: 'hydrate' }, 'region:load'],
-		[`{ wake: 'load' }`, { wake: 'hydrate' }, 'region:load'],
 		[`{ held: 'raw' }`, { region: 'held' }, 'region:raw'],
-		[`{ region: 'raw' }`, { region: 'held' }, 'region:raw'],
-		[`{ show: 'deferred', when: 'idle' }`, { render: 'show', fetch: 'when' }, 'defer:idle'],
-		[`{ render: 'deferred', fetch: 'idle' }`, { render: 'show', fetch: 'when' }, 'defer:idle']
+		[`{ show: 'deferred', when: 'idle' }`, { render: 'show', fetch: 'when' }, 'defer:idle']
 	])('%s with keys %j → %s', (opts, keys, want) => {
 		expect(compile(opts, keys)).toBe(want);
 	});
 
-	it.each([
-		[`{ ['wake']: 'load' }`, /options must be a plain object of string-valued keys/],
-		[`{ ...o }`, /options must be a plain object of string-valued keys/],
-		[`{ wake: 1 }`, /option `wake` must be a string literal/],
-		['{ wake: `load` }', /option `wake` must be a string literal/],
-		[`{ color: 'red' }`, /unknown option `color`/],
-		[`{ render: 'deferred', region: 'raw' }`, /`render` and `region` are different markers/],
-		[`'load'`, /needs an options object/]
-	])('%s is refused', (opts, re) => {
-		expect(compile(opts)).toMatch(re);
-	});
+	it.each([[`{ color: 'red' }`], [`{ render: 'deferred', region: 'raw' }`]])(
+		'%s is refused',
+		(opts) => {
+			expect(compile(opts)).toMatch(/^refused: /);
+		}
+	);
 
 	it.each([
-		`const X = og.asRegion(H, { wake: 'load' });`,
-		`const X = window.og.asRegion(H, { wake: 'load' });`,
-		`const X = import.meta.env.asRegion(H, { wake: 'load' });`,
-		`const X = import.meta.og.region(H, { wake: 'load' });`,
-		`const X = import.meta.og['asRegion'](H, { wake: 'load' });`
-	])('only import.meta.og.asRegion is the macro: %s', (line) => {
-		const src = dedent`
-			import { H } from '$lib/H.svelte';
-			${line}
+		[`{ wake: 'load' }`, { wake: 'hydrate' }],
+		[`{ region: 'raw' }`, { region: 'held' }],
+		[`{ render: 'deferred', fetch: 'idle' }`, { render: 'show', fetch: 'when' }]
+	])(
+		'with a renamed key, %s under the default name stays a plain import (keys %j)',
+		(opts, keys) => {
+			const src = dedent`
+			import { H as X } from '$lib/H.svelte' with ${opts};
 			export { X };
 		`;
-		const out = transformTsRegions(src, '/app/src/lib/r.ts', ctx());
-		expect(out?.islands ?? []).toEqual([]);
+			expect(transformTsRegions(src, '/app/src/lib/r.ts', ctx(keys))).toBeNull();
+		}
+	);
+
+	it('asRegion is gone: a call is refused with the line to write', () => {
+		expect(
+			compile(`{ wake: 'load' }`).length > 0 &&
+				(() => {
+					try {
+						transformTsRegions(
+							dedent`
+								import { H } from '$lib/H.svelte';
+								const X = import.meta.og.asRegion(H, { wake: 'load' });
+								export { X };
+							`,
+							'/app/src/lib/r.ts',
+							ctx()
+						);
+						return 'compiled';
+					} catch (e) {
+						return (e as Error).message;
+					}
+				})()
+		).toMatch(/import \{ H as X \} from '\$lib\/H\.svelte' with \{ wake: 'load' \}/);
 	});
 });
 

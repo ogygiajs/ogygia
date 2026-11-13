@@ -1,19 +1,3 @@
-/**
- * QUERIES: incremental computation. An answer the compiler derives from the app's files is a
- * query: a pure function of other queries, down to INPUTS (a file's text, a directory's listing)
- * that only the outside world changes. The database remembers each answer with the queries it read,
- * so after an input changes it computes again only what read it, and an answer that comes out the
- * same stops there (early cutoff): its readers keep theirs. Nothing is cleared by hand, and a dev
- * session's answers are always the ones a cold start on the same files gives (test/queries.test.ts
- * checks exactly that, over random edits).
- *
- * Revisions: every input change is a new revision. An answer records the revision it last changed
- * at and the one it was last checked at; a read in a later revision checks the answer's
- * dependencies first (in the order they were read: a dependency read after one that changed may not
- * be read at all now), and runs it again only if one of them changed.
- *
- * Internal to the compiler (study G.6): not exported from the package.
- */
 import { cache, type Cache } from '@ogygia/machine';
 
 /** What a query's body reads other queries through. */
@@ -52,7 +36,6 @@ export function derived<A, V>(
 	return { name, kind: 'derived', key, run, equal };
 }
 
-/** A query with its types let go: the database keeps every kind side by side. */
 type Erased = Query<unknown, unknown>;
 const erase = <A, V>(query: Query<A, V>): Erased => query as unknown as Erased;
 
@@ -65,7 +48,8 @@ export interface Dep {
 	readonly seen: number;
 }
 
-interface Slot {
+/** What the database remembers of `query(arg)`. */
+export interface Slot {
 	readonly query: Erased;
 	readonly arg: unknown;
 	value: unknown;
@@ -109,21 +93,35 @@ export interface Reads {
 	readonly deps: readonly Dep[];
 }
 
-/** Answers a process remembers per database (an evicted one is computed again when next read). */
 const QUERIES_MAX = 100_000;
 
-/** A database of queries. `name` names its store in messages. */
+/**
+ * A database of queries. `name` names its store in messages; `max` is how many answers it
+ * remembers (one let go is computed again when next read).
+ *
+ * An answer the compiler derives from the app's files is a query: a pure function of other
+ * queries, down to INPUTS (a file's text, a directory's listing) that only the outside world
+ * changes. The database remembers each answer with the queries it read, so after an input changes
+ * it computes again only what read it, and an answer that comes out the same stops there (early
+ * cutoff): its readers keep theirs. Nothing is cleared by hand, and a dev session's answers are
+ * always the ones a cold start on the same files gives (test/queries.test.ts checks exactly that,
+ * over random edits).
+ *
+ * Revisions: every input change is a new revision. An answer records the revision it last changed
+ * at and the one it was last checked at; a read in a later revision checks the answer's
+ * dependencies first (in the order they were read: a dependency read after one that changed may not
+ * be read at all now), and runs it again only if one of them changed.
+ *
+ * Internal to the compiler: not exported from the package.
+ */
 export function queries(name: string, max: number = QUERIES_MAX): Queries {
 	const slots: Cache<string, Slot> = cache({ name, max });
 	let revision = 0;
-	/** the deps of each answer being computed, innermost last */
 	const frames: Dep[][] = [];
-	/** the ids being computed (a query that reads itself, however deep, is a bug) */
 	const running = new Set<string>();
 
 	const id_of = (query: Erased, arg: unknown) => `${query.name}\0${query.key(arg)}`;
 
-	/** The slot for `query(arg)`, checked for this revision. */
 	function fresh(query: Erased, arg: unknown, id: string): Slot {
 		const held = slots.get(id);
 		if (held && held.verified === revision) return held;
@@ -146,7 +144,6 @@ export function queries(name: string, max: number = QUERIES_MAX): Queries {
 
 	function deps_unchanged(reader: { readonly deps: readonly Dep[] }): boolean {
 		for (const d of reader.deps) {
-			// (a dependency let go is unknown: read again, so the answer is computed again)
 			if (!slots.has(d.id)) return false;
 			if (fresh(d.query, d.arg, d.id).changed !== d.seen) return false;
 		}
@@ -166,7 +163,6 @@ export function queries(name: string, max: number = QUERIES_MAX): Queries {
 			running.delete(id);
 		}
 		if (old && query.equal(old.value, value)) {
-			// early cutoff: the same answer keeps its revision, so its readers keep theirs
 			old.deps = deps;
 			old.verified = revision;
 			return old;
@@ -219,7 +215,7 @@ export function queries(name: string, max: number = QUERIES_MAX): Queries {
 		set: (query, arg, value) => set_input(erase(query), arg, value),
 		refresh(typed, arg) {
 			const query = erase(typed);
-			if (!slots.has(id_of(query, arg))) return false; // nothing read it: nothing to tell
+			if (!slots.has(id_of(query, arg))) return false;
 			return set_input(query, arg, query.run(db, arg));
 		},
 		holds: (query, arg) => slots.has(id_of(erase(query), arg)),

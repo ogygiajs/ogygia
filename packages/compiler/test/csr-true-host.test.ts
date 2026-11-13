@@ -1,5 +1,5 @@
 // A csr=true route host: Kit compiles and hydrates the page, so its own wake islands become plain
-// imports and a wake `asRegion(Comp, …)` becomes `Comp`. Checked on the compiled text itself, plus a
+// imports (`asRegion` is refused, as everywhere). Checked on the compiled text itself, plus a
 // property over generated import blocks: every wake import loses its `with` clause, every other
 // import stays byte for byte, and the output still parses.
 import { describe, expect, it, vi } from 'vitest';
@@ -94,7 +94,7 @@ describe('csr=true host: region imports become plain imports', () => {
 		expect(out.code).toContain(`import B from './B.svelte' with { type: 'wake' };`);
 	});
 
-	it('turns `asRegion(Comp, …)` into the plain component, beside declarations with no call', () => {
+	it('refuses `asRegion(Comp, …)` as a csr=false page does, printing the import to write', () => {
 		const src = host(
 			dedent`
 				import Counter from './Counter.svelte';
@@ -104,10 +104,23 @@ describe('csr=true host: region imports become plain imports', () => {
 			`,
 			'<Live />'
 		);
-		const out = transformHost(src, HOST, ctx())!;
-		expect(out.code).toContain('const n = 1;');
-		expect(out.code).toContain('const Live = Counter;');
-		expect(out.code).not.toContain('asRegion');
+		expect(() => transformHost(src, HOST, ctx())).toThrow(
+			expect.objectContaining({
+				code: 'as_region_removed',
+				message: expect.stringContaining(
+					`import Live from './Counter.svelte' with { wake: 'load' };`
+				)
+			})
+		);
+	});
+
+	it('strips the mark off a named import too', () => {
+		const out = transformHost(
+			host(`import { Counter } from './parts' with { wake: 'load' };`, '<Counter />'),
+			HOST,
+			ctx()
+		)!;
+		expect(out.code).toContain(`import { Counter } from './parts';`);
 	});
 
 	it('maps the output back to the source it was given', () => {

@@ -2,7 +2,7 @@
 title: Packaging
 summary: Publish a package of Svelte components that become islands in a consumer's ogygia app. Either ship the components and let the consumer choose the strategy, or declare ogygia.files and ship your own marks and routes.
 related:
-  - macros/asregion
+  - regions/client-islands
   - regions/timing-nesting
   - reference/constraints
 ---
@@ -44,15 +44,13 @@ The [boundary rules](/docs/regions/timing-nesting) apply to a library component 
 
 ## Barrel exports
 
-When you re-export from an index, the consumer cannot attach `with { … }` to a named import. The [`asRegion`](/docs/macros/asregion) macro covers that case, used **on their side** in their build:
+When you re-export from an index, the consumer marks the named import, **on their side** in their build:
 
 ```ts
-import { Widget } from 'my-widgets';
-
-const WidgetIsland = import.meta.og.asRegion(Widget, { wake: 'visible' });
+import { Widget } from 'my-widgets' with { wake: 'visible' };
 ```
 
-`asRegion` works with barrels (region identity is keyed on the export name) and runs in the consumer's app, so it is the answer whenever the mark cannot sit on the import itself, and you ship nothing for it.
+Region identity is keyed on the export name, the island imports `Widget` from your index by name, and the bundler tree-shakes the rest. You ship nothing for it.
 
 ## Marks inside your package: `ogygia.files`
 
