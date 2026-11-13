@@ -100,7 +100,7 @@ function is_import_meta_og(node: SvelteNode, prop: string): boolean {
 }
 
 /** Keys that are never children (positions, back links, analysis data). */
-const SKIP_KEYS = new Set(['start', 'end', 'loc', 'range', 'parent', 'metadata']);
+const SKIP_KEYS = new Set(['start', 'end', 'loc', 'range', 'parent', 'metadata']); // static: six AST keys
 
 /** Depth-first, in source order, with the chain of ancestors (nearest last). `visit` returning
  *  `false` skips the node's children. */
@@ -237,6 +237,7 @@ function declared_names(roots: unknown[]): Set<string> {
 }
 
 /** The tags whose `on…` attributes are event handlers (on a component, `on…` is a prop). */
+// static: Svelte's element node types, a fixed list
 const DOM_ELEMENTS = new Set([
 	'RegularElement',
 	'SvelteElement',
