@@ -19,6 +19,34 @@ On a `csr = false` page nothing runs in the browser, which is what you want for 
 
 Nothing else on the page changes. If a part never needs JavaScript, leave it unmarked so it stays HTML, or make it a [lake](/docs/regions/lakes) when it sits inside an island.
 
+## Named and barrel imports
+
+The mark works on a named import too, so a component that only reaches you through a barrel (a design system's `index.ts`, a `@company/ui` package) is marked the same way:
+
+```svelte
+<script>
+  import { Header } from '@company/ui' with { wake: 'load' };
+  import { Ticker as FastTicker } from '@company/ui' with { wake: 'idle' };
+</script>
+
+<Header />
+<FastTicker />
+```
+
+The island imports `Header` from `@company/ui` by its export name, and the bundler tree-shakes the barrel as it would anywhere else, so one marked component out of a hundred ships one component. Each named export is its own region: two exports of one barrel never collide. It works the same in a `.ts` or `.js` registry, where the marked binding is a [mountable held binding](/docs/regions/held-regions#mountable-ts-bindings), and re-exporting it (`export { Header }`) exports the region.
+
+**One `with` covers every name in its import.** Everything in the braces becomes a region, so put components with different schedules, and anything that is not a component, on separate lines:
+
+```ts
+import { Header, Footer } from '@company/ui' with { wake: 'load' }; // both are regions
+import { Search } from '@company/ui' with { wake: 'idle' };        // its own schedule
+import { formatDate } from '@company/ui';                          // not a component: no mark
+```
+
+The build checks this. A marked name used as anything but a component (called, read into with `.`, spread, `typeof`, put in text, `{@render}`, an action) fails with the line and the plain import line to move it to. So does a mark on `import * as ui`, on `import type`, or on an import that binds no name.
+
+Import organizers: TypeScript's organize imports, `eslint-plugin-import-x` and Biome never merge a marked import with a plain one. `eslint-plugin-import`'s `import/no-duplicates` autofix does: it can move a plain name under a `with`, merge two different `with` clauses into one, or drop one. Turn that rule off, or use `import-x/no-duplicates`.
+
 ## The schedules
 
 The word you give `wake` decides when the island's JavaScript runs: `load` runs it immediately, `visible` when the island scrolls into view, and `interaction` on the first pointer, key or focus inside it (the click that woke it is replayed, and typed text stays). There are also `idle` and CSS media queries, and [Timing & nesting](/docs/regions/timing-nesting) is the full reference for all of them, including `visible` margins and nested regions.

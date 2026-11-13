@@ -42,9 +42,9 @@ export default defineConfig({
 		}),
 		// The barrel rewrite, ON for the whole palaestra: every e2e run builds and serves the app the
 		// way a customer with it does. REGRESSION (customer build, 2026-09-15): the pass rewrote
-		// `import { Ticker } from '$lib/barrel'` fed to `asRegion(Ticker)` into a leaf import, the
-		// transform minted a different island id from the one the prescan derived from the raw file,
-		// and the server manifest imported a virtual entry nobody registered. The /as-region and
+		// a barrel import that carried a region's identity into a leaf import, the transform minted a
+		// different island id from the one the prescan derived from the raw file, and the server
+		// manifest imported a virtual entry nobody registered. The /named-regions and
 		// /ts-registry fixtures are that shape; with this on, the build is the test.
 		barrels(),
 		sveltekit()
