@@ -1730,6 +1730,12 @@
 			"reason": "`catch { // ok: not a URL: no origin to allow }`: proved: the catch made to rethrow turns the test red, twice",
 			"test": "packages/core/test/code-origins.test.ts",
 			"name": "as origins, http(s) only, each once"
+		},
+		{
+			"site": "packages/core/src/runtime/viewport.ts > Tracker > constructor > throw:0",
+			"reason": "no IntersectionObserver: the watch throws to its caller before a tracker is kept (#1727)",
+			"test": "packages/core/test/browser/viewport-no-observer.test.ts",
+			"name": "a watch that threw for want of an observer leaves no tracker that breaks when the page ends"
 		}
 	],
 	"impossible": [
