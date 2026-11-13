@@ -2813,6 +2813,10 @@
 			"reason": "a message table entry: wording only"
 		},
 		{
+			"id": "packages/compiler/src/compiler/messages.ts > BUILD_ERRORS > option_unknown > details",
+			"reason": "a message table entry: wording only"
+		},
+		{
 			"id": "packages/compiler/src/compiler/messages.ts > BUILD_ERRORS > option_unknown > text",
 			"reason": "a message table entry: wording only"
 		},
