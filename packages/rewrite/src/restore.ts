@@ -241,7 +241,7 @@ export function restore(root: Document | DocumentFragment | Element, lite?: numb
 			const real = doc.createElement(tag);
 			for (const a of Array.from(as.attributes))
 				if (a.name !== 'tag' && !a.name.toLowerCase().startsWith('on'))
-					real.setAttribute(a.name, a.value);
+					real.setAttributeNode(a.cloneNode() as Attr);
 			while (as.firstChild) real.appendChild(as.firstChild);
 			as.replaceWith(real);
 		}
