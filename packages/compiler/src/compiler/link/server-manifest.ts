@@ -17,15 +17,6 @@ import type { Program } from '../program.ts';
 import { V_SERVER_REGIONS } from '../ids.ts';
 import { dedent } from '@ogygia/core/contract';
 
-/** The SERVER-island ids the manifest carries right now (deferred / server-picked regions). */
-export function server_island_ids(program: Program): string[] {
-	const ids: string[] = [];
-	for (const [iid, virtualPath] of program.by_id) {
-		if (program.registry.get(virtualPath)?.server) ids.push(iid);
-	}
-	return ids;
-}
-
 export function server_manifest_module(
 	ssr: boolean,
 	program: Program,
