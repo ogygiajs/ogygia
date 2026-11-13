@@ -232,6 +232,12 @@
 			"name": "a capture armed again while the first one’s wake loads catches the next click, and the first leaves it alone"
 		},
 		{
+			"step": "wire codec: flying -> gone",
+			"reason": "a wake loads the codec only in a build that left it out while the server still sent a live value; every sweep app's build either ships the codec up front or sends none",
+			"test": "packages/core/test/browser/wire-on-use.test.ts",
+			"name": "an island whose props hold a live value hydrates in a build without the wire codec"
+		},
+		{
 			"step": "critical resources: kept -> gone",
 			"reason": "a page asks only before the gate settles, and the answer is kept only after it: no later get, no expiry, no max; only reset_load_scheduler() drops it, which a test's reset calls",
 			"test": "packages/core/test/browser/load-scheduler.test.ts",

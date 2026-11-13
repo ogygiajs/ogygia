@@ -23,6 +23,8 @@ const import_codec = import_again(() => import('../live-transport.ts'));
 const codec_load = flights({
 	name: 'wire codec',
 	run: () => import_codec().then((m) => m.install()),
+	// once installed, `slots.wire` answers every later wake: a kept answer would never be read
+	keep: 0,
 	retry: download
 });
 
