@@ -5,7 +5,14 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { judge_perf, unplayable, type BrowserPlan, type PerfEntry } from '../src/e2e/sim-replay.ts';
+import { dedent } from '../../core/src/contract/dedent.ts';
+import {
+	eager_waits_for,
+	judge_perf,
+	unplayable,
+	type BrowserPlan,
+	type PerfEntry
+} from '../src/e2e/sim-replay.ts';
 
 const made: string[] = [];
 afterEach(() => {
@@ -106,5 +113,58 @@ describe('layout shift and long tasks, judged', () => {
 			"ogygia's code: tab 0 https://app.test/: a 80 ms task in https://app.test/_app/immutable/og-runtime-1.js (f)"
 		]);
 		expect(r.noted).toHaveLength(2);
+	});
+});
+
+describe('an eager press, at the moment of the load the simulator pressed at', () => {
+	const with_moves = (moves: string, dom = ''): BrowserPlan => ({
+		...plan('/apps/palaestra'),
+		plan: { actions: [{ kind: 'eager', tab: 0, path: '/x', nth: 1, after: 60 }] },
+		seen: [
+			{ after: 'first load', tabs: [], requests: [] },
+			{
+				after: '1 eager',
+				tabs: [{ url: '', dom, moves, heard: [], said: [] }],
+				requests: []
+			}
+		]
+	});
+
+	// the differential (palaestra 3 and 5): the simulator loads a page in a few virtual ms, with no
+	// CPU time, so its press `after` ms came once the load was at rest, and Chromium's, whose load
+	// takes longer, came before it (its critical wait touched, its island woken by the press): each
+	// side tested another moment of the load
+	it('at rest, when the simulator pressed once its critical wait settled and its islands woke', () => {
+		const p = with_moves(
+			dedent`
+				wake#1 cold -> armed
+				critical-gate#1 fresh -> settled
+				wake#1 armed -> waking
+				wake#1 waking -> awake
+			`,
+			'<ogygia-region data-hydrated="" wake="load">'
+		);
+		expect(eager_waits_for(p, 0)).toBe('rest');
+	});
+
+	it('at once, when the press woke an island in the simulator', () => {
+		const p = with_moves(
+			dedent`
+				critical-gate#1 fresh -> settled
+				wake#1 armed -> waking
+				wake#1 waking -> awake
+			`,
+			'<ogygia-region data-hydrated="" data-og-woke="interaction" wake="load">'
+		);
+		expect(eager_waits_for(p, 0)).toBe(null);
+	});
+
+	it('at once, when the simulator pressed while it waited', () => {
+		const p = with_moves('critical-gate#1 fresh -> touched\ncritical-gate#1 touched -> settled');
+		expect(eager_waits_for(p, 0)).toBe(null);
+	});
+
+	it('at once, in a plan with nothing seen', () => {
+		expect(eager_waits_for(plan('/apps/palaestra'), 0)).toBe(null);
 	});
 });

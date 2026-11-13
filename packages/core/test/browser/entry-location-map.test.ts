@@ -5,6 +5,7 @@
 //
 // Its own file: the map is read once per document, and module state is shared by a file's tests.
 import { expect, test } from 'vitest';
+import { observe } from '@ogygia/machine';
 import {
 	entry_location,
 	import_entry,
@@ -51,5 +52,25 @@ test('read after a navigation moved the address: the map is the one the page nam
 		expect(requested('og-locations.test.json')).toHaveLength(1);
 	} finally {
 		history.pushState(null, '', page);
+	}
+});
+
+test('a map whose keep ran out is read again by the next identity-only load', async () => {
+	const moves: string[] = [];
+	const off = observe((name, from, to) => {
+		if (name === 'build location map' && to) moves.push(`${from.kind} -> ${to.kind}`);
+	});
+	const platform = globalThis as { buggify?: (point: string) => boolean };
+	try {
+		// (its keep runs out at this read, as a short keep's would: the simulator's buggify point)
+		platform.buggify = (point) => point === 'flights.evicted-early';
+		const load = import_entry(`${DIR}entry-located.ts`);
+		delete platform.buggify;
+		await load;
+		expect(moves).toEqual(['kept -> gone', 'flying -> kept']);
+		expect(requested('og-locations.test.json')).toHaveLength(2);
+	} finally {
+		delete platform.buggify;
+		off();
 	}
 });
