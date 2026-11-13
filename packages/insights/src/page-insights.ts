@@ -16,6 +16,8 @@ import {
 	without_runtime_marks,
 	OWN_PACKAGE_NAMES,
 	REGION_RENDER_CONCURRENCY,
+	tags,
+	text_of,
 	type IslandHazard,
 	type RegionRefusal
 } from '@ogygia/core/internal/instruments';
@@ -492,22 +494,26 @@ export interface HeldOpen {
 	islands?: number;
 }
 
+/** The page seed script's `type` (core's PAGE_SEED_SELECTOR). */
+const PAGE_SEED_TYPE = 'application/ogygia-page';
+
 /**
  * The page seed's defer ids → the `page.data` key each stands for (top level and one level down):
  * the seed (`application/ogygia-page`, the flat devalue form) holds a defer marker `[name, i]` per
  * streamed promise, the marker's payload the id the streamed resolve script settles. From the whole
- * document's HTML or the seed script's own text. indexOf only.
+ * document's HTML or the seed script's own text.
  */
 export function defer_keys(html: string, marker = 'OgygiaDefer'): Map<number, string> {
 	const out = new Map<number, string>();
 	let text = html;
-	const at = html.indexOf('application/ogygia-page');
-	if (at !== -1) {
-		const open = html.indexOf('>', at);
-		const close = html.indexOf('</script', open);
-		if (open === -1 || close === -1) return out;
-		text = html.slice(open + 1, close);
-	}
+	// (the seed's own script, as core's tag walk reads it: not the page facts beside it)
+	for (const tag of tags(html, 'script'))
+		if (tag.attr('type')?.trim().toLowerCase() === PAGE_SEED_TYPE) {
+			const seed = text_of(html, tag, 'script');
+			if (seed === null) return out;
+			text = seed;
+			break;
+		}
 	let arr: unknown[];
 	try {
 		const parsed = JSON.parse(text);
