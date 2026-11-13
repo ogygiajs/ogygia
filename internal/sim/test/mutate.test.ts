@@ -1,5 +1,6 @@
 // Mutation testing through the simulator (src/mutate.ts): a mutant is one change at one line of a
-// package's source; it is killed when a seed finds what that seed did not find on the code as it is.
+// package's source, found by its function and its code (no line number is stored: lines move); it
+// is killed when a seed finds what that seed did not find on the code as it is.
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
@@ -21,14 +22,11 @@ const SRC = `function f(a, b) {
 }`;
 
 describe('a mutant', () => {
+	const IF = 'if (a === b && a > 0) return true;';
+	const X = 'packages/core/src/x.ts';
+
 	it('changes the first match on its line, and only there', () => {
-		const m = {
-			file: 'packages/core/src/x.ts',
-			line: 2,
-			operator: 'equality',
-			from: '===',
-			to: '!=='
-		};
+		const m = { file: X, in: 'f', code: IF, operator: 'equality', from: '===', to: '!==' };
 		expect(apply_mutant(SRC, m).split('\n')[1]).toBe('\tif (a !== b && a > 0) return true;');
 		expect(
 			apply_mutant(SRC, m)
@@ -38,27 +36,25 @@ describe('a mutant', () => {
 	});
 
 	it('spells its change by operator when it names no text', () => {
-		const at = (operator: string, line: number) =>
-			apply_mutant(SRC, { file: 'packages/core/src/x.ts', line, operator }).split('\n')[line - 1];
-		expect(at('logical', 2)).toBe('\tif (a === b || a > 0) return true;');
-		expect(at('relational', 2)).toBe('\tif (a === b && a >= 0) return true;');
-		expect(at('boolean', 2)).toBe('\tif (a === b && a > 0) return false;');
-		expect(at('boolean', 3)).toBe('\treturn true;');
+		const at = (operator: string, code: string, line: number) =>
+			apply_mutant(SRC, { file: X, in: 'f', code, operator }).split('\n')[line - 1];
+		expect(at('logical', IF, 2)).toBe('\tif (a === b || a > 0) return true;');
+		expect(at('relational', IF, 2)).toBe('\tif (a === b && a >= 0) return true;');
+		expect(at('boolean', IF, 2)).toBe('\tif (a === b && a > 0) return false;');
+		expect(at('boolean', 'return false;', 3)).toBe('\treturn true;');
 	});
 
 	it('refuses one that does not apply (its text is not on its line), rather than change nothing', () => {
 		expect(() =>
 			apply_mutant(SRC, {
-				file: 'packages/core/src/x.ts',
-				line: 3,
+				file: X,
+				in: 'f',
+				code: 'return false;',
 				operator: 'x',
 				from: '===',
 				to: '!=='
 			})
-		).toThrow(/line 3/);
-		expect(() =>
-			apply_mutant(SRC, { file: 'packages/core/src/x.ts', line: 9, operator: 'boolean' })
-		).toThrow(/line 9/);
+		).toThrow(/nothing to change.*return false/);
 	});
 
 	it('names the package it builds', () => {
@@ -66,20 +62,49 @@ describe('a mutant', () => {
 		expect(() => package_of('internal/sim/src/cli.ts')).toThrow(/package/);
 	});
 
-	it('finds its line by its code when the source moved, the nearest of several', () => {
-		// (the daily list's lines went stale as main moved: both mutants changed a comment line or
-		// threw, and the job judged nothing)
-		const moved = ['// a', '// b', SRC, '\treturn false;'].join('\n');
-		const m = {
-			file: 'packages/core/src/x.ts',
-			line: 3,
+	it('still applies after lines above it move: it is found by its function and its code, never a line number', () => {
+		const m = { file: X, in: 'f', code: 'return false;', operator: 'boolean' };
+		const before = apply_mutant(SRC, m);
+		const moved = ['// a', '// b', 'const c = 1;', SRC].join('\n');
+		const after = apply_mutant(moved, m).split('\n');
+		expect(after[5]).toBe('\treturn true;');
+		expect(after.slice(3).join('\n')).toBe(before);
+	});
+
+	it('looks only in its own function: the same code in another is not it', () => {
+		const two = `function g() {\n\treturn false;\n}\n${SRC}`;
+		const out = apply_mutant(two, {
+			file: X,
+			in: 'f',
 			code: 'return false;',
 			operator: 'boolean'
-		};
-		const out = apply_mutant(moved, m).split('\n');
-		expect(out[4]).toBe('\treturn true;');
-		expect(out[6]).toBe('\treturn false;');
-		expect(() => apply_mutant(moved, { ...m, code: 'return maybe;' })).toThrow(/return maybe/);
+		}).split('\n');
+		expect(out[1]).toBe('\treturn false;');
+		expect(out[5]).toBe('\treturn true;');
+		const nested = `class K {\n\tm() {\n\t\tconst inner = () => {\n\t\t\treturn false;\n\t\t};\n\t\treturn false;\n\t}\n}`;
+		const deep = apply_mutant(nested, {
+			file: X,
+			in: 'K > m > inner',
+			code: 'return false;',
+			operator: 'boolean'
+		}).split('\n');
+		expect(deep[3]).toBe('\t\t\treturn true;');
+		expect(deep[5]).toBe('\t\treturn false;');
+	});
+
+	it('needs nth when its code is on two lines of one function, and nth picks one (0-based)', () => {
+		const twice = `function f(a) {\n\tif (a) return false;\n\treturn false;\n\treturn false;\n}`;
+		const m = { file: X, in: 'f', code: 'return false;', operator: 'boolean' };
+		expect(() => apply_mutant(twice, m)).toThrow(/2 lines.*nth/);
+		expect(apply_mutant(twice, { ...m, nth: 1 }).split('\n')[3]).toBe('\treturn true;');
+		expect(apply_mutant(twice, { ...m, nth: 0 }).split('\n')[2]).toBe('\treturn true;');
+		expect(() => apply_mutant(twice, { ...m, nth: 2 })).toThrow(/nth 2/);
+	});
+
+	it('throws loudly when its function, or its code in it, is not found', () => {
+		const m = { file: X, in: 'f', code: 'return false;', operator: 'boolean' };
+		expect(() => apply_mutant(SRC, { ...m, in: 'g' })).toThrow(/no line in g holds/);
+		expect(() => apply_mutant(SRC, { ...m, code: 'return maybe;' })).toThrow(/return maybe/);
 	});
 
 	it('of the daily list applies to the code as it is', () => {
@@ -89,6 +114,8 @@ describe('a mutant', () => {
 		) as Mutant[];
 		for (const m of list) {
 			expect(m.code, `${m.id} names its line's code`).toBeTypeOf('string');
+			expect(m.in, `${m.id} names its function`).toBeTypeOf('string');
+			expect(m, `${m.id} stores no line number`).not.toHaveProperty('line');
 			expect(() => apply_mutant(readFileSync(root + m.file, 'utf8'), m)).not.toThrow();
 		}
 	});
@@ -165,7 +192,8 @@ describe('a mutation run', () => {
 	it('sets apart a mutant written up as equivalent: never run, said with its reason, out of the rate', () => {
 		const m = (equivalent?: string): Mutant => ({
 			file: 'packages/core/src/runtime/schedule.ts',
-			line: 1,
+			in: 'f',
+			code: 'return true;',
 			operator: 'boolean',
 			...(equivalent ? { equivalent } : {})
 		});
@@ -181,7 +209,7 @@ describe('a mutation run', () => {
 	});
 
 	it("builds, before its baseline, every package a mutant's build would (a clone's stale dependents killed every mutant alike)", () => {
-		const m = (file: string): Mutant => ({ file, line: 1, operator: 'statement' });
+		const m = (file: string): Mutant => ({ file, in: 'f', code: 'x;', operator: 'statement' });
 		expect(
 			baseline_packages([
 				m('packages/core/src/runtime/core.ts'),
