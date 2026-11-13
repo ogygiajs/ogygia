@@ -444,14 +444,17 @@ bench(
 		for (let i = 0; i < n; i++) html = `${html}<ogygia-region entry="/r.js"></ogygia-region>`;
 		const body = el(`<body>${html}</body>`) as unknown as ParentNode;
 		const regions = [...body.querySelectorAll('ogygia-region')];
+		const held: string[] = [];
 		for (let i = 0; i < n; i++) {
 			record_region_id(regions[i], `own-${i}`);
 			record_region_id(regions[i], `shared-${i % 10}`);
+			held.push(`own-${i}`);
 		}
-		// half leave the page
+		for (let i = 0; i < 10 && i < n; i++) held.push(`shared-${i}`);
+		// half leave the page; the next page's seed owns nothing
 		const departed = regions.filter((_, i) => i % 2 === 0);
 		for (const r of departed) r.remove();
-		return ids_released(departed, body).length;
+		return ids_released(held, departed, body, {}).length;
 	},
 	{ setup: () => ({ n: 200 }), scale: (_ctx, k) => ({ n: 200 * k }) }
 );
