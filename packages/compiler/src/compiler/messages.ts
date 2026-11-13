@@ -208,6 +208,21 @@ export const BUILD_ERRORS = {
 			says what is wrong and what to write.
 		`
 	},
+	region_attribute_unknown: {
+		text: (a: { host: string; names: string; key: string; known: string }): string =>
+			`${a.host}: import ${a.names} — \`${a.key}\` is not an attribute ogygia has. A component import takes ${a.known}.`,
+		details: (): string => prose`
+			An import of a \`.svelte\` component carries an attribute in its \`with\` clause that
+			ogygia does not read: a misspelling (\`wkae\`), a retired key (\`partial\`), or an option
+			that belongs in a preset (\`margin\`, \`maxAge\`). It is refused rather than ignored, so the
+			import never silently stays a plain component.
+
+			The message lists the keys a component import takes, by this app's own names when
+			\`ogygia({ importKeys })\` renames them. Options like \`margin\` go in
+			\`ogygia({ presets })\`, named with \`preset\`. Attributes on any other import
+			(\`with { type: 'json' }\`) are not ogygia's and are left alone.
+		`
+	},
 	as_region_removed: {
 		text: (a: { host: string; fixes: string }): string =>
 			`${a.host}: import.meta.og.asRegion is gone. Mark the import itself; a named import takes the same options:\n${a.fixes}`,

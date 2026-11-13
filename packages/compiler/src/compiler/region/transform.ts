@@ -263,6 +263,72 @@ function normalize_import_keys_uncached(overrides?: Partial<ImportKeys> | null):
 	return { wake, fetch, render, preset, region };
 }
 
+const COMPONENT_ATTRS_RE = /\.svelte['"]\s*(?:with|assert)\s*\{([^}]*)\}/g;
+const COMPONENT_SPEC_RE = /\.svelte$/;
+const ATTR_KEY_RE = /(?:^|,)\s*(?:(['"])(.*?)\1|([\w$-]+))\s*:/g;
+
+/** An attribute on a component import that is not ogygia's: the standard `type`, and a default key
+ *  name the app gave up to another tool by renaming it (`ogygia({ importKeys })`). */
+function foreign_attribute(key: string, import_keys: ImportKeys): boolean {
+	if (key === 'type') return true;
+	const role = (DEFAULT_IMPORT_KEYS as Record<string, string>)[key];
+	return role !== undefined && (import_keys as Record<string, string>)[key] !== key;
+}
+
+/** The keys a component import takes, by this app's names. */
+function component_attribute_keys(import_keys: ImportKeys): string[] {
+	return [
+		import_keys.wake,
+		import_keys.fetch,
+		import_keys.render,
+		import_keys.preset,
+		import_keys.region,
+		'keep',
+		'stitch',
+		'prefetch'
+	];
+}
+
+/** Cheap source scan: does a `.svelte` import's `with { … }` name a key that is neither ogygia's
+ *  nor foreign? Only then is a host with no region key parsed, to fail it. */
+function has_unknown_component_attribute(source: string, import_keys: ImportKeys): boolean {
+	if (!source.includes('.svelte')) return false;
+	const known = component_attribute_keys(import_keys);
+	for (const m of source.matchAll(COMPONENT_ATTRS_RE))
+		for (const k of m[1].matchAll(ATTR_KEY_RE)) {
+			const key = k[2] ?? k[3];
+			if (!known.includes(key) && !foreign_attribute(key, import_keys)) return true;
+		}
+	return false;
+}
+
+/**
+ * A component import (`.svelte`) with no region key carries only attributes that are not ogygia's
+ * (`type`, a default name the app renamed away): any other (a misspelling, a retired key) fails the
+ * build, never leaving a plain import. An import with a region key has its own checks; an import
+ * of anything else (`type: 'json'`) is not ogygia's.
+ */
+function refuse_unknown_attributes(
+	spec: string,
+	keys: Iterable<string>,
+	import_keys: ImportKeys,
+	host: string,
+	names: string
+): void {
+	if (!COMPONENT_SPEC_RE.test(spec)) return;
+	const known = component_attribute_keys(import_keys);
+	const all = [...keys];
+	if (all.some((k) => known.includes(k))) return;
+	for (const key of all)
+		if (!foreign_attribute(key, import_keys))
+			throw new OgygiaError('region_attribute_unknown', {
+				host,
+				names,
+				key,
+				known: known.map((k) => `\`${k}\``).join(', ')
+			});
+}
+
 const HINT_CACHE = new WeakMap<ImportKeys, RegExp>();
 /**
  * Cheap source-scan regex matching any of the configured import-attribute key names.
@@ -1091,7 +1157,12 @@ class FileCompilation {
 		const import_keys = this.#import_keys;
 		const has_island_hint = import_keys_hint(import_keys).test(source);
 
-		if (!has_island_hint && !source.includes('{#snippet') && !source.includes('asRegion')) {
+		if (
+			!has_island_hint &&
+			!source.includes('{#snippet') &&
+			!source.includes('asRegion') &&
+			!has_unknown_component_attribute(source, import_keys)
+		) {
 			return { done: null };
 		}
 
@@ -1140,6 +1211,13 @@ class FileCompilation {
 
 			const inline = new Map();
 			for (const a of attr_list) inline.set(a.key.name ?? a.key.value, String(a.value.value));
+			refuse_unknown_attributes(
+				String(node.source.value),
+				inline.keys(),
+				import_keys,
+				rel_host,
+				node.specifiers.map((sp: SvelteNode) => sp.local.name).join(', ')
+			);
 			if (!region_keys.some((k) => inline.has(k))) continue;
 			const bindings = marked_import_bindings(node, source, rel_host);
 			const names = bindings.map((b) => b.local).join(', ');
@@ -1971,6 +2049,7 @@ class TsRegionCompilation {
 		const fetchKey = import_keys.fetch;
 		if (
 			!source.includes('asRegion') &&
+			!has_unknown_component_attribute(source, import_keys) &&
 			(!import_keys_hint(import_keys).test(source) ||
 				(!source.includes('with') && !source.includes('assert')))
 		)
@@ -1995,6 +2074,14 @@ class TsRegionCompilation {
 			)
 				continue;
 			const attrs = import_attrs_of(node);
+			if (node.type === 'ImportDeclaration' && attrs.size > 0)
+				refuse_unknown_attributes(
+					String(node.source?.value ?? ''),
+					attrs.keys(),
+					import_keys,
+					rel_host,
+					(node.specifiers ?? []).map((sp: SvelteNode) => sp.local?.name).join(', ')
+				);
 			const has_render = attrs.has(renderKey);
 			const has_region = attrs.has(regionKey);
 			const has_wake = attrs.has(wakeKey);

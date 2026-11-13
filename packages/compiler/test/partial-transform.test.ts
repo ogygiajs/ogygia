@@ -116,11 +116,19 @@ describe('an import attribute ogygia does not know, on a component import, fails
 		expect(() => transformHost(alone, host, makeCtx())).toThrow(/e\/region_attribute_unknown/);
 	});
 
-	test('with renamed keys, the default spelling is the unknown one, and the message lists the renamed', () => {
-		const src = page(`import Card from '$lib/Card.svelte' with { wake: 'load' };`);
-		expect(() =>
-			transformHost(src, host, makeCtx({ importKeys: { wake: 'hydrate' } } as never))
-		).toThrow(/`wake`[\s\S]*`hydrate`[\s\S]*e\/region_attribute_unknown/);
+	test('with renamed keys, a default name given up to another tool is left alone, and a typo lists the renamed keys', () => {
+		const ctx = makeCtx({ importKeys: { wake: 'hydrate' } } as never);
+		const given_up = page(`import Card from '$lib/Card.svelte' with { wake: 'load' };`);
+		expect(() => transformHost(given_up, host, ctx)).not.toThrow();
+		const typo = page(`import Card from '$lib/Card.svelte' with { hydrat: 'load' };`);
+		expect(() => transformHost(typo, host, ctx)).toThrow(
+			/`hydrat`[\s\S]*`hydrate`[\s\S]*e\/region_attribute_unknown/
+		);
+	});
+
+	test('the standard `type` attribute on a component import is not ogygia’s', () => {
+		const src = page(`import Card from '$lib/Card.svelte' with { type: 'css' };`);
+		expect(transformHost(src, host, makeCtx())).toBe(null);
 	});
 
 	test('an attribute on an import that is not a component is left alone', () => {
