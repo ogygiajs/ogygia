@@ -5009,6 +5009,10 @@
 			"reason": "one push per macro pass that changed the module, constant work per pass"
 		},
 		{
+			"id": "packages/bake/src/bake.ts > evaluate > build:0~602b6c > build > rolldownOptions > external",
+			"reason": "build only: the bake bundle's external test, one prefix check per import the bundler asks about"
+		},
+		{
 			"id": "packages/bake/src/bake.ts > call:0~16f6c5 > run",
 			"reason": "build only: one bake call's evaluation in the build's Node, once per call site per build; its cost is the app's own function"
 		},
