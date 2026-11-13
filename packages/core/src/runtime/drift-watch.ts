@@ -4,7 +4,6 @@ import { walk_enters } from './ownership.ts';
 const REGION = 'ogygia-region';
 const changed = new WeakSet<Element>();
 let observer: MutationObserver | null = null;
-/** The regions sleeping with a copy: each held while its sleep is open. */
 const sleepers = registry<Element>();
 const supported = typeof MutationObserver !== 'undefined';
 const WATCHED: MutationObserverInit = { childList: true, characterData: true, subtree: true };
