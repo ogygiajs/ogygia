@@ -950,12 +950,12 @@ export const { peer } = federate({
 }
 
 /** The app's server hook beside ogygia's (`src/lib/gen/mount.server.ts`): the peer's pages
- *  mounted under `/peer` by a server router, or nothing. A federated app's hook imports its
- *  federation either way, as the guide asks: every server instance serves `/og/` from boot. */
+ *  mounted under `/peer` by a server router, or nothing. It imports the federation either way
+ *  (test/gen.test.ts: gen 220 seed 19). */
 function app_mount(peer: GenPeer | null): string {
 	if (peer?.mount !== 'router')
 		return `import type { Handle } from '@sveltejs/kit';
-${peer ? `// (federate() registers the app with the handle on boot: its holes are answered from the first request)\nimport './federation.server.ts';\n` : ''}
+${peer ? `import './federation.server.ts';\n` : ''}
 export const handle: Handle = ({ event, resolve }) => resolve(event);
 `;
 	return `import type { Handle } from '@sveltejs/kit';
