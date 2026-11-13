@@ -1912,7 +1912,9 @@ class OgygiaHandle {
 				[REF_WIRE_KEY]: ref_reviver(false)
 			} as Parameters<typeof devalue.parse>[1]);
 		} catch (e) {
-			if (import.meta.env.DEV) warn('endpoint_props_decode_failed', e);
+			// in production as in dev: reached only with a capability this key signed, and the
+			// answer stays opaque (test/hole-props-decode-said.test.ts)
+			warn('endpoint_props_decode_failed', e);
 			return null;
 		}
 		if (props === null || typeof props !== 'object' || Array.isArray(props)) return null;
