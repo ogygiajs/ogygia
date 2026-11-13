@@ -8,7 +8,15 @@
  * patched for, is said (`relocation_unpatched`, test/relocations.test.ts).
  */
 import { V_FN_MANIFEST } from '../ids.ts';
-import { PAGE_DATA_READS_TOKEN } from './server-manifest.ts';
+import path from 'node:path';
+import {
+	LATE_SERVER_REGIONS_TOKEN,
+	PAGE_DATA_READS_TOKEN,
+	SERVER_MAP_TOKENS,
+	server_manifest_maps,
+	server_regions,
+	type ServerManifestMaps
+} from './server-manifest.ts';
 import type { Program } from '../program.ts';
 import { fn_manifest_registrations } from '../macros/dollar.ts';
 
@@ -25,6 +33,13 @@ export type GraphInfo = {
 export interface RelocateCx {
 	readonly program: Program;
 	readonly dollar_hoists: ReadonlyMap<string, string>;
+	/** A region's public URL, the key its CSS is handed off under. */
+	public_url(iid: string): string;
+	/** The leg's late server regions' chunk refs, by island id. */
+	readonly late_server_regions: ReadonlyMap<string, string>;
+	/** The chunk being finished, and an emitted chunk's file name by its ref. */
+	readonly chunk_file: string;
+	file_name(ref: string): string;
 	graph(id: string): GraphInfo;
 	module_ids(): Iterable<string>;
 }
@@ -72,7 +87,7 @@ const PAGE_DATA_READS: Relocation = {
 	server_only: true,
 	carrier: null,
 	value(cx) {
-		const { page_keys, page_pending, by_id, registry } = cx.program;
+		const { page_keys, page_pending } = cx.program;
 		const clean = (id: string) => id.split('?')[0].split('\\').join('/');
 		const imports_kit_page = (ids: readonly string[]) =>
 			ids.some((d) => KIT_PAGE_MODULE_RE.test(clean(d)));
@@ -117,23 +132,81 @@ const PAGE_DATA_READS: Relocation = {
 			return false;
 		};
 		const out: Record<string, boolean> = {};
-		for (const [iid, virtual_path] of by_id) {
-			const reg = registry.get(virtual_path);
-			if (!reg?.server) continue;
+		for (const [iid, , reg] of server_regions(cx.program)) {
 			const root = reg.componentPath ? ids_by_path.get(clean(reg.componentPath)) : undefined;
 			// (a component the graph does not know: unknown, so it looks up: a wrong `false` would
 			// render a hole with an empty page.data)
 			out[iid] = root === undefined ? true : reads(root);
 		}
-		// the token sits in a string literal the bundler may have re-quoted: escape for that quote (the
-		// JSON is ids and booleans only: its one special character is `"`)
+		// (the token sits in a string literal the bundler may have re-quoted)
 		const json = JSON.stringify(out);
-		const escaped = json.split('"').join('\\"');
-		return (quote) => (quote === '"' ? escaped : json);
+		return (quote) => in_literal(json, quote);
 	}
 };
 
-export const RELOCATIONS: readonly Relocation[] = [FN_MANIFEST, PAGE_DATA_READS];
+/** `text` as the inside of a string literal quoted with `quote` (a bundler may re-quote one). */
+function in_literal(text: string, quote: string): string {
+	let out = '';
+	for (const c of text)
+		out +=
+			c === '\\' || c === quote || (quote === '`' && c === '$')
+				? `\\${c}`
+				: c === '\n'
+					? '\\n'
+					: c === '\r'
+						? '\\r'
+						: c === ' '
+							? '\\u2028'
+							: c === ' '
+								? '\\u2029'
+								: c;
+	return out;
+}
+
+/** One of the server manifest's maps, from the final registry (link/server-manifest.ts, #1420). */
+const server_map = (name: keyof ServerManifestMaps): Relocation => ({
+	name: `server ${name}`,
+	token: SERVER_MAP_TOKENS[name],
+	server_only: true,
+	carrier: null,
+	value(cx) {
+		const json = JSON.stringify(
+			server_manifest_maps(cx.program, (iid) => cx.public_url(iid))[name]
+		);
+		return (quote) => in_literal(json, quote);
+	}
+});
+
+/** The loaders of the server regions found after `server-regions` was written: each its own
+ *  emitted chunk, imported by its path from the chunk being finished. */
+const LATE_SERVER_REGIONS: Relocation = {
+	name: 'late server regions',
+	token: LATE_SERVER_REGIONS_TOKEN,
+	server_only: true,
+	carrier: null,
+	value(cx) {
+		const from = path.posix.dirname(cx.chunk_file);
+		// (sorted by id, as every server region list: test/server-manifest-late-order.test.ts)
+		const late = [...cx.late_server_regions].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
+		const loaders = late.map(([iid, ref]) => {
+			const rel = path.posix.relative(from, cx.file_name(ref));
+			const spec = rel.startsWith('.') ? rel : `./${rel}`;
+			return `${JSON.stringify(iid)}: () => import(${JSON.stringify(spec)})`;
+		});
+		const object = `{${loaders.join(', ')}}`;
+		return () => object;
+	}
+};
+
+export const RELOCATIONS: readonly Relocation[] = [
+	FN_MANIFEST,
+	PAGE_DATA_READS,
+	server_map('region_url'),
+	server_map('region_name'),
+	server_map('region_render'),
+	server_map('render_region'),
+	LATE_SERVER_REGIONS
+];
 
 /** The relocations a leg's chunks carry. */
 export const relocations_of = (server: boolean): readonly Relocation[] =>
