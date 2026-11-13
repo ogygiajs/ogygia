@@ -333,22 +333,6 @@ function swallows(handler: unknown): boolean {
 	return is_fallback(body);
 }
 
-/** The packages whose fallback catches are not swept yet (#1286): there, only an empty catch or
- *  handler (`() => {}`, `=> null`, `=> undefined`, `=> void 0`, `noop`) is refused, as before.
- *  Each sweep takes its package out; the list and `empty_handler` go with the last. */
-const FALLBACKS_UNSWEPT_RE = /\/packages\/(compiler)\//;
-
-/** The handlers refused before #1286: they do nothing at all. */
-function empty_handler(handler: unknown): boolean {
-	const h = handler as Node | undefined;
-	if (h?.type === 'Identifier') return true;
-	const body = (h as Node).body as Node;
-	if (body.type === 'BlockStatement') return (body.body as unknown[]).length === 0;
-	if (body.type === 'Identifier') return (body as { name?: string }).name === 'undefined';
-	if (body.type === 'Literal') return (body as { value?: unknown }).value === null;
-	return body.type === 'UnaryExpression' && body.operator === 'void';
-}
-
 /** A `catch` that does nothing with the failure but fall back (it never reads its error). */
 function catch_falls_back(clause: Node): boolean {
 	const statements = (clause.body as Node).body as unknown[];
@@ -407,23 +391,17 @@ const no_silent_failures = {
 		const refuse = (node: Node) => {
 			if (!marked(node)) context.report({ node, message: MESSAGE_SILENT });
 		};
-		const unswept = FALLBACKS_UNSWEPT_RE.test(
-			(context.filename ?? context.getFilename?.() ?? '').replaceAll('\\', '/')
-		);
-		const swallowed = (handler: unknown): boolean =>
-			swallows(handler) && (!unswept || empty_handler(handler));
 		return {
 			CatchClause(node: Node) {
-				if (!catch_falls_back(node)) return;
-				if (!unswept || ((node.body as Node).body as unknown[]).length === 0) refuse(node);
+				if (catch_falls_back(node)) refuse(node);
 			},
 			CallExpression(node: Node) {
 				const callee = node.callee as Node;
 				if (callee?.type !== 'MemberExpression') return;
 				const name = (callee.property as { name?: string }).name;
 				const args = node.arguments as unknown[];
-				if (name === 'catch' && swallowed(args[0])) refuse(node);
-				else if (name === 'then' && args.length > 1 && swallowed(args[1])) refuse(node);
+				if (name === 'catch' && swallows(args[0])) refuse(node);
+				else if (name === 'then' && args.length > 1 && swallows(args[1])) refuse(node);
 			},
 			UnaryExpression(node: Node) {
 				if (node.operator !== 'void') return;

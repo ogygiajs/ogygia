@@ -73,7 +73,7 @@ export function foucRelFromId(id: string): string | null {
 	try {
 		rel = decodeURIComponent(encoded);
 	} catch {
-		rel = encoded;
+		rel = encoded; // ok: not percent-encoded: the id holds the path as is (the check below still runs)
 	}
 	// SECURITY: this rel is `path.join(root, rel)` + `readFileSync` in the dev `load()` hook. A FOUC
 	// id is minted from a module path in our own graph, so a legit rel is always root-relative with no
@@ -223,7 +223,7 @@ export async function collectFoucCssReachable(
 			try {
 				return fs.readFileSync(p, 'utf8');
 			} catch {
-				return null;
+				return null; // ok: null is "not there": resolution tries the next candidate path by it
 			}
 		});
 	const resolve = async (spec: string, importer: string): Promise<string | null> => {

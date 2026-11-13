@@ -49,7 +49,7 @@ function parse_body(code: string, id_n: string): AstNode[] | null {
 		if (!result.ok || !result.program) return null;
 		return (result.program as { body?: AstNode[] }).body ?? [];
 	} catch {
-		return null;
+		return null; // ok: null is "did not parse"; the registration adds nothing to a module the bundler refuses
 	}
 }
 
@@ -237,7 +237,7 @@ export function moduleHasTransportable(code: string, id_n: string): boolean {
 		if (!result.ok || !result.program) return false;
 		body = (result.program as { body?: AstNode[] }).body ?? [];
 	} catch {
-		return false;
+		return false; // ok: NOT safe, filed as #1486; #1487 (on #1313) makes it the safe true
 	}
 	const isTransportableClass = (cls: AstNode | null | undefined): boolean => {
 		const members = (cls?.body as { body?: ClassMember[] } | undefined)?.body ?? [];

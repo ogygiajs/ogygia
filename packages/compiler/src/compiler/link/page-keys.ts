@@ -290,7 +290,7 @@ export function parse_roots(code: string, id: string, kind: 'svelte' | 'script')
 		// Blank its inside (same length, offsets kept) and parse the scripts and the template.
 		ast = parse(blank_styles(code), { modern: true, filename: id });
 	} catch {
-		return null;
+		return null; // ok: null is "did not parse"; seed shaping answers 'all' for it, the context hint says nothing
 	}
 	const roots: Node[] = [];
 	if (ast.module?.content) roots.push(ast.module.content);
@@ -992,7 +992,7 @@ async function summarize_call(
 		try {
 			resolved = await resolve(specifier, from);
 		} catch {
-			resolved = null;
+			resolved = null; // ok: unresolved answers 'all' just below, with the reason in the build report
 		}
 		if (!resolved?.id)
 			return { keys: 'all', why: `\`${specifier}\` could not be resolved from the caller` };
@@ -1044,6 +1044,6 @@ function read_file_sync(file: string): string | null {
 	try {
 		return fs.readFileSync(file, 'utf8');
 	} catch {
-		return null;
+		return null; // ok: an unreadable helper answers 'all' in summarize_call, with the reason
 	}
 }

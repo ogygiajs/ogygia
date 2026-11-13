@@ -58,7 +58,7 @@ export function resolve_kit_paths(root: string): KitPaths {
 		);
 		if (fs.existsSync(remoteIdx)) kit_remote_index = remoteIdx;
 	} catch {
-		kit_wire_path = null; // fall back to the built-in devalue codec (no transport)
+		kit_wire_path = null; // ok: no Kit resolves (a standalone compile): the built-in devalue codec, no transport
 	}
 	// the app's universal hooks (default src/hooks.{ts,js}) for `transport`
 	for (const f of ['hooks.ts', 'hooks.js']) {
@@ -95,7 +95,7 @@ export function kit_major(root: string): number | null {
 		const major = Number.parseInt(pkg.version ?? '', 10);
 		return Number.isFinite(major) ? major : null;
 	} catch {
-		return null;
+		return null; // ok: no Kit resolves from the app root: the documented null (a standalone compile)
 	}
 }
 
@@ -292,7 +292,7 @@ function read_route_config_uncached(
 	try {
 		src = fs.readFileSync(file, 'utf-8');
 	} catch {
-		return out; // no such module on this level
+		return out; // ok: no such module on this level, so it sets no config
 	}
 	// cheap out — the common module mentions neither `config` nor a claimed key
 	if (!src.includes('config') || !keys.some((k) => src.includes(k))) return out;
@@ -480,7 +480,7 @@ function route_entries(dir: string): Array<{ name: string; is_dir: boolean; is_f
 				is_dir = st.isDirectory();
 				is_file = st.isFile();
 			} catch {
-				continue; // dangling link — Kit ignores it too
+				continue; // ok: a dangling link, which Kit ignores too
 			}
 		}
 		out.push({ name: e.name, is_dir, is_file });
@@ -773,7 +773,7 @@ export function clean_stale_ogygia_dirs(dir: string): void {
 	try {
 		entries = fs.readdirSync(dir, { withFileTypes: true });
 	} catch {
-		return;
+		return; // ok: a directory that is not there holds nothing stale
 	}
 	for (const entry of entries) {
 		if (!entry.isDirectory()) continue;

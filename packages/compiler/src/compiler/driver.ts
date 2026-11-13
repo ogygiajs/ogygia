@@ -579,7 +579,7 @@ export class Compiler implements CoreApp {
 			try {
 				entries = fs.readdirSync(dir, { withFileTypes: true });
 			} catch {
-				return;
+				return; // ok: an app with no src/ (or a directory removed mid-scan) has nothing to scan
 			}
 			for (const entry of entries) {
 				const full = path.join(dir, entry.name);
@@ -1329,7 +1329,7 @@ export class Compiler implements CoreApp {
 		try {
 			resolved = await resolve(source, importer, { skipSelf: true });
 		} catch {
-			return null;
+			return null; // ok: an edge the resolver refuses is not forked: the real module stays (bytes, never a missing style); the bundler reports the import
 		}
 		if (!resolved?.id || resolved.id.startsWith('\0')) return null;
 		const target = strip_id(resolved.id);

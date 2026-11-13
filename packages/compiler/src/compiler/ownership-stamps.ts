@@ -131,7 +131,7 @@ export function stamp_opaque(raw: string, filename: string): string | null {
 	try {
 		ast = parse(blank_styles(source), { modern: true, filename }) as unknown as Node;
 	} catch {
-		return null;
+		return null; // ok: no stamps is the safe answer (under); Svelte's own compile reports the syntax
 	}
 	const at: { pos: number; attr: string }[] = [];
 	const visit = (nodes: Node[] | undefined) => {

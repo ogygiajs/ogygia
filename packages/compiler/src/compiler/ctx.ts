@@ -309,7 +309,7 @@ export class CompileCtx {
 			// (a byte-order mark would shift every parser offset against the raw text: ./bom.ts)
 			return strip_bom(fs.readFileSync(abs, 'utf-8'));
 		} catch {
-			return null;
+			return null; // ok: null is "no such file"; each caller says what a missing file means
 		}
 	}
 

@@ -126,7 +126,7 @@ export function emit_island_deps_handoff(root: string, json: string, out_dir: st
 			try {
 				entries = fs.readdirSync(dir, { withFileTypes: true });
 			} catch {
-				return;
+				return; // ok: no server output here; the server reads the handoff file instead
 			}
 			for (const e of entries) {
 				const full = path.join(dir, e.name);
@@ -139,7 +139,7 @@ export function emit_island_deps_handoff(root: string, json: string, out_dir: st
 				try {
 					code = fs.readFileSync(full, 'utf8');
 				} catch {
-					continue;
+					continue; // ok: an unpatched chunk keeps its token, and the server reads the handoff file
 				}
 				if (!code.includes(token)) continue;
 				fs.writeFileSync(full, code.split(token).join(inline));

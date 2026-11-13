@@ -67,7 +67,7 @@ export function router_css_roots(
 		try {
 			return fs.statSync(p).isFile();
 		} catch {
-			return false;
+			return false; // ok: "is there a file here?": no; the next suffix is tried
 		}
 	}
 ): string[] {

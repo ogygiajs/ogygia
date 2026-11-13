@@ -203,7 +203,7 @@ function bundler_resolve(ctx: {
 			const r = await ctx.resolve(spec, importer, { skipSelf: true });
 			return r && !r.external ? r.id : null;
 		} catch {
-			return null; // (Vite throws for a specifier this importer cannot resolve)
+			return null; // ok: Vite throws for a specifier this importer cannot resolve: unresolved, as a null answer is
 		}
 	};
 }
@@ -403,7 +403,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 		try {
 			return fs.readFileSync(abs, 'utf-8');
 		} catch {
-			return null;
+			return null; // ok: null is "no such file" (the CSS walk tries candidates; a markup scan skips it)
 		}
 	};
 
@@ -1227,13 +1227,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 					const code = await buildFoucCssModuleSource(abs, {
 						root,
 						libDir,
-						readFile: (p) => {
-							try {
-								return fs.readFileSync(p, 'utf8');
-							} catch {
-								return null;
-							}
-						}
+						readFile
 						// (no bundler resolver: this module names each sheet by its root-relative path, so it
 						// carries the app's own files — an island's exact chunk CSS reaches the page through its
 						// region-CSS link: Region.svelte `island_css_html`)
@@ -1489,13 +1483,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 					// (Program.page_keys); the collector unions them over each island's closure.
 					(module_id) => program.page_keys.get(module_id) ?? null,
 					// WAKE ADVISOR: the collector counts what each island's own components do
-					(id) => {
-						try {
-							return fs.readFileSync(id, 'utf8');
-						} catch {
-							return null;
-						}
-					},
+					readFile,
 					// The runtime entry, by the file the bundler named: its static imports become the
 					// preload hints beside the runtime script, keyed by the runtime's identity.
 					entries.runtime_file,
