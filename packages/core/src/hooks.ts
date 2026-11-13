@@ -158,6 +158,7 @@ import {
 	OGYGIA_PROVIDE_PAGE,
 	OGYGIA_SPECULATE
 } from './wire-markup.ts';
+import { body_end, head_end } from './markup-walk.ts';
 import {
 	stage_deferred,
 	settle_deferred,
@@ -1187,11 +1188,9 @@ class OgygiaHandle {
 		event: RequestEvent,
 		bag: RequestBag
 	): Promise<string> {
-		// markup-ok: Kit's document, located as document-assembly.ts does (one walk for it: #1410)
-		if (html.indexOf('</head>') === -1) return html;
+		if (head_end(html) === -1) return html;
 		const out = await pass.document(html, {
-			// markup-ok: Kit's document, located as document-assembly.ts does (#1410)
-			csr: csr_page_of(html, html.lastIndexOf('</body>'), event, bag),
+			csr: csr_page_of(html, body_end(html), event, bag),
 			// (the router morphs a fetched page into the live one: it is rendered as an answer)
 			answer: router_fetched(event)
 		});

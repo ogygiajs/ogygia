@@ -1,6 +1,10 @@
 {
 	"exempt": [
 		{
+			"id": "packages/core/src/runtime/ownership.ts > in_render_block",
+			"reason": "browser only (DOM comments): runs only for a child of an element stamped data-og-html, a scan of its earlier siblings; nested-island-drift.test.ts runs it"
+		},
+		{
 			"id": "packages/devtools/src/devtools/highlight.ts > highlight > defer:0~248bad",
 			"reason": "browser only: the highlight layer's scope takes its layer out as it closes, constant work"
 		},
@@ -1143,6 +1147,10 @@
 		{
 			"id": "packages/devtools/src/profiler/ui/fake-progress.svelte.ts > FakeProgress > #stop",
 			"reason": "closes the run's scope (a timer), constant work; proven in packages/devtools/test/profiler-fake-progress.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/ui/fake-progress.svelte.ts > FakeProgress > close",
+			"reason": "closes the bar's scope (its timers), constant work; proven in packages/devtools/test/profiler-fake-progress.test.ts"
 		},
 		{
 			"id": "packages/devtools/src/profiler/ui/fake-progress.svelte.ts > FakeProgress > finish > task:0",
@@ -3525,6 +3533,18 @@
 			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: not replayable); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
 		},
 		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > tag_name_end",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: not replayable); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > tag_end",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: not replayable); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > pieces",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: not replayable); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
 			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > tool_made",
 			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: not replayable); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
 		},
@@ -4713,62 +4733,6 @@
 			"reason": "browser only: drops the page's read code origins (one write), constant work; proven in packages/core/test/browser/nav-code-origins.test.ts (#1045)"
 		},
 		{
-			"id": "packages/core/src/server/capped-body.ts > read_capped",
-			"reason": "network bound: reads a request body's pieces until the cap, one copy of the bytes; proven in packages/core/test/batch-body-cap.test.ts and packages/federation/test/body-cap.test.ts (#754, #1091)"
-		},
-		{
-			"id": "packages/devtools/src/profiler/ui/fake-progress.svelte.ts > FakeProgress > close",
-			"reason": "closes the bar's scope (its timers), constant work; proven in packages/devtools/test/profiler-fake-progress.test.ts"
-		},
-		{
-			"id": "packages/core/src/runtime/core.ts > OgygiaRegion > #teardown > note_left:1~6e248e",
-			"reason": "browser only, dev and e2e builds: the rule's reader of the element's busy machines, handed over at its teardown, constant work; proven in packages/core/test/browser/rules.test.ts"
-		},
-		{
-			"id": "packages/core/src/runtime/core.ts > OgygiaRegion > #machines",
-			"reason": "browser only, dev and e2e builds: reads the element's four machines' states for the rule on a region that left, constant work; proven in packages/core/test/browser/rules.test.ts and packages/core/test/browser/paint-left-mid-wait.test.ts"
-		},
-		{
-			"id": "packages/core/src/runtime/rules.ts > note_left",
-			"reason": "browser only, dev and e2e builds: records a region element that left the page (DOM nodes, not cloneable), constant work; proven in packages/core/test/browser/rules.test.ts"
-		},
-		{
-			"id": "packages/core/src/runtime/region-machines.ts > busy_machines",
-			"reason": "dev and e2e builds only (the rule on a region that left): four compares over a fixed table, constant work; proven in packages/core/test/browser/rules.test.ts"
-		},
-		{
-			"id": "packages/core/src/runtime/rules.ts > regions_left_at_rest",
-			"reason": "browser only, dev and e2e builds: the rule over the region elements that left the page, linear in those not yet seen at rest; proven in packages/core/test/browser/rules.test.ts and read at the end of every e2e spec"
-		},
-		{
-			"id": "packages/core/src/messages/core.ts > WARNINGS > rule_region_left_busy > details",
-			"reason": "a message's prose for its docs page and dev warning: constant text, printed once when the rule breaks"
-		},
-		{
-			"id": "packages/core/src/messages/core.ts > WARNINGS > rule_region_left_busy > text",
-			"reason": "a message's one line for the dev warning: a template over the rule's detail, printed once when the rule breaks"
-		},
-		{
-			"id": "packages/core/src/runtime/form-continuity.ts > region_names",
-			"reason": "browser only: one attribute read per region (Elements, not cloneable), linear in the page's regions, once per page left or restored; proven in packages/core/test/browser/form-restore-region-identity.test.ts"
-		},
-		{
-			"id": "packages/core/src/runtime/form-continuity.ts > arm_form_restore > read_names",
-			"reason": "browser only: one query of the page's regions, then region_names; proven in packages/core/test/browser/form-restore-region-identity.test.ts"
-		},
-		{
-			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > tag_name_end",
-			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: not replayable); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
-		},
-		{
-			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > tag_end",
-			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: not replayable); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
-		},
-		{
-			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > pieces",
-			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: not replayable); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
-		},
-		{
 			"id": "packages/core/src/messages/core.ts > ERRORS > page_promise_unresolved > details",
 			"reason": "a message's wording, read once when the error is shown: constant work"
 		},
@@ -4805,6 +4769,38 @@
 			"reason": "returns a Map holding Kit's page and stores contexts (not cloneable): kit_render_context plus two set() calls, constant work, once per held region render; proven in packages/core/test/held-region-runtime.test.ts"
 		},
 		{
+			"id": "packages/core/src/server/capped-body.ts > read_capped",
+			"reason": "network bound: reads a request body's pieces until the cap, one copy of the bytes; proven in packages/core/test/batch-body-cap.test.ts and packages/federation/test/body-cap.test.ts (#754, #1091)"
+		},
+		{
+			"id": "packages/core/src/runtime/core.ts > OgygiaRegion > #teardown > note_left:1~6e248e",
+			"reason": "browser only, dev and e2e builds: the rule's reader of the element's busy machines, handed over at its teardown, constant work; proven in packages/core/test/browser/rules.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/core.ts > OgygiaRegion > #machines",
+			"reason": "browser only, dev and e2e builds: reads the element's four machines' states for the rule on a region that left, constant work; proven in packages/core/test/browser/rules.test.ts and packages/core/test/browser/paint-left-mid-wait.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/rules.ts > note_left",
+			"reason": "browser only, dev and e2e builds: records a region element that left the page (DOM nodes, not cloneable), constant work; proven in packages/core/test/browser/rules.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/region-machines.ts > busy_machines",
+			"reason": "dev and e2e builds only (the rule on a region that left): four compares over a fixed table, constant work; proven in packages/core/test/browser/rules.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/rules.ts > regions_left_at_rest",
+			"reason": "browser only, dev and e2e builds: the rule over the region elements that left the page, linear in those not yet seen at rest; proven in packages/core/test/browser/rules.test.ts and read at the end of every e2e spec"
+		},
+		{
+			"id": "packages/core/src/messages/core.ts > WARNINGS > rule_region_left_busy > details",
+			"reason": "a message's prose for its docs page and dev warning: constant text, printed once when the rule breaks"
+		},
+		{
+			"id": "packages/core/src/messages/core.ts > WARNINGS > rule_region_left_busy > text",
+			"reason": "a message's one line for the dev warning: a template over the rule's detail, printed once when the rule breaks"
+		},
+		{
 			"id": "packages/core/src/messages/server.ts > SERVER_WARNINGS > page_promise_pending > details",
 			"reason": "a message's wording, read once when the warning is shown: constant work"
 		},
@@ -4817,8 +4813,16 @@
 			"reason": "dev only: one warning after 10 s, at most once per response: constant work; proven in packages/core/test/page-stream-request-owned.test.ts"
 		},
 		{
-			"id": "packages/core/src/runtime/ownership.ts > in_render_block",
-			"reason": "browser only (DOM comments): runs only for a child of an element stamped data-og-html, a scan of its earlier siblings; nested-island-drift.test.ts runs it"
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > tag_name_end",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: not replayable); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > tag_end",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: not replayable); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > pieces",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: not replayable); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
 		},
 		{
 			"id": "packages/core/src/runtime/form-continuity.ts > url_of",
@@ -4827,6 +4831,14 @@
 		{
 			"id": "packages/core/src/runtime/form-continuity.ts > region_kind",
 			"reason": "browser only: two attribute reads per region (Elements, not cloneable); proven in packages/core/test/browser/form-restore-region-identity.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/form-continuity.ts > region_names",
+			"reason": "browser only: one attribute read per region (Elements, not cloneable), linear in the page's regions, once per page left or restored; proven in packages/core/test/browser/form-restore-region-identity.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/form-continuity.ts > arm_form_restore > read_names",
+			"reason": "browser only: one query of the page's regions, then region_names; proven in packages/core/test/browser/form-restore-region-identity.test.ts"
 		},
 		{
 			"id": "packages/core/src/messages/core.ts > WARNINGS > page_payload_unreadable > details",
