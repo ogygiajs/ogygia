@@ -16,6 +16,8 @@ import {
 	without_runtime_marks,
 	OWN_PACKAGE_NAMES,
 	REGION_RENDER_CONCURRENCY,
+	tags,
+	text_of,
 	type IslandHazard,
 	type RegionRefusal
 } from '@ogygia/core/internal/instruments';
@@ -492,29 +494,33 @@ export interface HeldOpen {
 	islands?: number;
 }
 
+/** The page seed script's `type` (core's PAGE_SEED_SELECTOR). */
+const PAGE_SEED_TYPE = 'application/ogygia-page';
+
 /**
  * The page seed's defer ids → the `page.data` key each stands for (top level and one level down):
  * the seed (`application/ogygia-page`, the flat devalue form) holds a defer marker `[name, i]` per
  * streamed promise, the marker's payload the id the streamed resolve script settles. From the whole
- * document's HTML or the seed script's own text. indexOf only.
+ * document's HTML or the seed script's own text.
  */
 export function defer_keys(html: string, marker = 'OgygiaDefer'): Map<number, string> {
 	const out = new Map<number, string>();
 	let text = html;
-	const at = html.indexOf('application/ogygia-page');
-	if (at !== -1) {
-		const open = html.indexOf('>', at);
-		const close = html.indexOf('</script', open);
-		if (open === -1 || close === -1) return out;
-		text = html.slice(open + 1, close);
-	}
+	// (the seed's own script, as core's tag walk reads it: not the page facts beside it)
+	for (const tag of tags(html, 'script'))
+		if (tag.attr('type')?.trim().toLowerCase() === PAGE_SEED_TYPE) {
+			const seed = text_of(html, tag, 'script');
+			if (seed === null) return out;
+			text = seed;
+			break;
+		}
 	let arr: unknown[];
 	try {
 		const parsed = JSON.parse(text);
 		if (!Array.isArray(parsed)) return out;
 		arr = parsed;
 	} catch {
-		return out;
+		return out; // ok: not a JSON list: nothing to read from it
 	}
 	// (every value is an index into the array; a reducer is [name, index])
 	const id_of = (i: unknown): number | null => {
@@ -751,7 +757,7 @@ export function encoding_only(a: string, b: string): boolean {
 	try {
 		return decodeURIComponent(a) === decodeURIComponent(b);
 	} catch {
-		return false;
+		return false; // ok: a malformed escape is not the same URL written another way
 	}
 }
 
@@ -2448,7 +2454,7 @@ export function analyze_page(
 			try {
 				return new URL(u, 'http://x').pathname;
 			} catch {
-				return u;
+				return u; // ok: not a URL: shown as given
 			}
 		};
 		if (h.reason === 'forbidden') {
@@ -2496,7 +2502,7 @@ export function analyze_page(
 		try {
 			host = new URL(s.url).host;
 		} catch {
-			continue;
+			continue; // ok: an inline or malformed script URL has no host to weigh
 		}
 		host_ms.set(host, Math.max(host_ms.get(host) ?? 0, 0) + (cpu?.by_host?.[host] ? 0 : s.ms));
 	}
@@ -3239,7 +3245,7 @@ function explain_interaction(
 		try {
 			return new URL(url, origin).origin === origin;
 		} catch {
-			return true;
+			return true; // ok: not a URL: counted as the page's own, as with no origin known
 		}
 	};
 	// SAMPLED: when a trace of this interaction was taken, the function that ran — by its real name
@@ -3351,7 +3357,7 @@ function path_of(url: string): string {
 		const u = new URL(url, 'http://x');
 		return u.pathname + u.search;
 	} catch {
-		return url;
+		return url; // ok: not a URL: shown as given
 	}
 }
 

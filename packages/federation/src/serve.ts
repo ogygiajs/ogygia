@@ -479,7 +479,7 @@ async function serve_thaw(fed: Federation, event: RequestEvent): Promise<Respons
 	try {
 		notice = thaw_notice(JSON.parse(new TextDecoder().decode(body ?? new Uint8Array())));
 	} catch {
-		notice = null;
+		notice = null; // ok: not JSON is not the notice's shape: refused just below
 	}
 	// (not the notice's shape: refused, never asked again, never passed on — test/thaw-notice-shape)
 	if (notice === null) return json_error(400, 'bad notice');

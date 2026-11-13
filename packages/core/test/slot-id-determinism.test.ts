@@ -1,10 +1,10 @@
 /**
  * Slot marker ids are PER REQUEST: the same page rendered twice mints the same ids (byte-identical
- * HTML across requests), a hole endpoint render prefixes its ids with its region id so a spliced
+ * HTML across requests), a hole's render prefixes its ids with its region id so a spliced
  * hole never collides with the page's own markers, and off-request the process counter stands in.
  */
 import { afterEach, describe, expect, it } from 'vitest';
-import { next_slot_id } from '../src/region-snippet.ts';
+import { hole_slot_sequence, next_slot_id } from '../src/region-snippet.ts';
 import { set_kit_event_reader } from '../src/server/kit-context.ts';
 
 // the handle installs this reader in an app; here each test installs its own request
@@ -28,11 +28,14 @@ describe('next_slot_id', () => {
 		expect(first).toEqual(['og1', 'og2', 'og3']);
 	});
 
-	it('a hole endpoint render prefixes its ids with its region id (no collision when spliced)', () => {
+	it('a hole’s render prefixes its ids with its region id (no collision when spliced)', () => {
 		const h = hole_event();
 		set_request_event_stub(() => h);
-		expect(next_slot_id()).toBe('oga77ff8-1');
-		expect(next_slot_id()).toBe('oga77ff8-2');
+		const seq = hole_slot_sequence('a77ff8566c02');
+		expect(next_slot_id('', seq)).toBe('oga77ff8-1');
+		expect(next_slot_id('', seq)).toBe('oga77ff8-2');
+		// (the request's own sequence is the page's, never the hole's)
+		expect(next_slot_id()).toBe('og1');
 	});
 
 	it('counted per island: another island starting first (async SSR) never shifts this one’s id', () => {

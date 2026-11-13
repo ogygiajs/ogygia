@@ -307,7 +307,7 @@ function claims_of(user_b64: string): { user?: Claims } | null {
 			user: JSON.parse(Buffer.from(user_b64, 'base64').toString()) as Claims
 		};
 	} catch {
-		return null; // signed but unparseable claims = reject
+		return null; // ok: signed but unparseable claims: the caller rejects the request
 	}
 }
 
@@ -508,7 +508,7 @@ function pin_graph(json: string, origin: string): string {
 	try {
 		wire = JSON.parse(json);
 	} catch {
-		return json;
+		return json; // ok: not a graph: peer HTML passes through as it came
 	}
 	// (peer HTML: anything that is not a graph object passes through as it came)
 	if (!wire || typeof wire !== 'object' || Array.isArray(wire)) return json;
@@ -663,6 +663,7 @@ function element_of(html: string, tag: FoundTag, name: string): string | null {
 
 /** Where the document's last `</body` end tag starts, at or after `from`, or -1. */
 function last_body_close(html: string, from: number): number {
+	// markup-ok: a document's last `</body`, from the back (one walk for it: #1410)
 	for (let i = html.lastIndexOf('</'); i >= from && i !== -1; i = html.lastIndexOf('</', i - 1)) {
 		if (html.slice(i + 2, i + 6).toLowerCase() === 'body') {
 			const c = html.charCodeAt(i + 6);
