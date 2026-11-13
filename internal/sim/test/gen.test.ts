@@ -185,7 +185,7 @@ describe('the random app', () => {
 			expect(load).toContain(`peer.widget('${slot.widget}'`);
 			expect(load).toContain(`render: '${slot.render}'`);
 			expect(lib(app, 'mount.server.ts')).toContain(
-				peer.mount === 'router' ? 'mount(peer)' : 'resolve(event)'
+				peer.mount === 'router' ? 'mount(peer' : 'resolve(event)'
 			);
 		} finally {
 			rmSync(root, { recursive: true, force: true });
@@ -215,16 +215,16 @@ describe('the random app', () => {
 		}
 	});
 
-	it("draws a peer's edge pages from their own stream: one it lacks, one that moved, one that shows the visitor, each linked from its pages", () => {
+	it("draws a peer's edge pages from their own stream: one it lacks, one that moved, one that shows the visitor, one it refuses, each linked from its pages", () => {
 		const seeds = Array.from({ length: 60 }, (_, i) => i + 1);
 		const peers = seeds.map((s) => peer_plan(s, plan(s))).filter((p) => p !== null);
-		for (const edge of ['gone', 'moved', 'who'] as const) {
+		for (const edge of ['gone', 'moved', 'who', 'bad'] as const) {
 			expect(peers.some((p) => p.edges[edge])).toBe(true);
 			expect(peers.some((p) => !p.edges[edge])).toBe(true);
 		}
 		const root = mkdtempSync(join(tmpdir(), 'sim-gen-'));
 		try {
-			for (const edge of ['gone', 'moved', 'who'] as const) {
+			for (const edge of ['gone', 'moved', 'who', 'bad'] as const) {
 				const seed = seeds.find((s) => peer_plan(s, plan(s))?.edges[edge])!;
 				const peer = peer_plan(seed, plan(seed))!;
 				const dir = join(root, `${edge}-peer`);
@@ -235,6 +235,8 @@ describe('the random app', () => {
 				if (edge === 'gone') expect(router).not.toContain(`'/gone'`);
 				if (edge === 'moved')
 					expect(router).toContain(`'/moved': page(Q0, { load: () => redirect(307, '/peer/q0') })`);
+				if (edge === 'bad')
+					expect(router).toContain(`'/bad': page(Q0, { load: () => error(400, 'a bad request') })`);
 				if (edge === 'who') {
 					expect(router).toContain(
 						`'/who': page(Who, { load: (c) => ({ sub: user(c)?.sub ?? '' }) })`
@@ -377,7 +379,7 @@ describe('the random app', () => {
 			for (const n of nodes)
 				expect(lib(`N${n.id}.svelte`).includes('<style>')).toBe(n.style === true);
 			for (const [i, p] of peer.pages.entries()) {
-				expect(lib('router.ts').includes(`page(Q${i}, { load:`)).toBe(p.data === true);
+				expect(lib('router.ts').includes(`'${p.path}': page(Q${i}, { load:`)).toBe(p.data === true);
 				expect(lib(`Q${i}.svelte`).includes('{data.who}')).toBe(p.data === true);
 			}
 		} finally {
