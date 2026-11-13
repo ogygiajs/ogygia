@@ -42,30 +42,27 @@ export class Filters {
   });
 }
 
-export const filtersCtx = ogygia.createContext<Filters>('filters');
+export const [getFilters, setFilters] = ogygia.createContext<Filters>('filters');
 ```
 
-Provide it once, above the tiles:
+Set it once, above the tiles:
 
 ```svelte title=+page.svelte
 <!-- this page ships no JS of its own -->
 <script>
-  import { Provide } from 'ogygia';
   import RangePicker from './RangePicker.svelte' with { wake: 'load' };
   import Revenue from './Revenue.svelte' with { wake: 'load' };
   import TopProducts from './TopProducts.svelte' with { wake: 'visible' };
-  import { Filters, filtersCtx } from './filters.svelte.js';
+  import { Filters, setFilters } from './filters.svelte.js';
 
-  const filters = new Filters();
+  setFilters(new Filters());
 </script>
 
-<Provide values={[filtersCtx(filters)]}>
-  <RangePicker />
-  <div class="grid">
-    <Revenue />
-    <TopProducts />
-  </div>
-</Provide>
+<RangePicker />
+<div class="grid">
+  <Revenue />
+  <TopProducts />
+</div>
 ```
 
 Each tile is a separate bundle, but all of them hold **one live object**. When the picker writes `filters.range`, every tile that read the context sees the change, without a store library, an event bus or props threaded through the tree. A `visible` tile that hydrates later joins the _current_ instance, selections included. [State & context](/docs/data-state/state-context) explains how the wire contract makes this work.
@@ -77,9 +74,9 @@ Each tile owns its query. If you derive the call from the shared filters, the ti
 ```svelte title=Revenue.svelte
 <script>
   import { getStats } from './dashboard.remote';
-  import { filtersCtx } from './filters.svelte.js';
+  import { getFilters } from './filters.svelte.js';
 
-  const filters = filtersCtx.get();
+  const filters = getFilters();
   const stats = $derived(getStats(filters.range));
 </script>
 

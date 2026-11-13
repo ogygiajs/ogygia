@@ -15,6 +15,9 @@ import {
 } from '@ogygia/core/contract';
 import { is_generated_specifier } from '../virtual/table.ts';
 
+/** The server module's string slot the client leg writes the deps JSON into (link/relocations.ts). */
+export const ISLAND_DEPS_INLINE_TOKEN = '__OGYGIA_ISLAND_DEPS_INLINE__';
+
 /** Deterministic island facade filename (content-hashed Vite deps are separate). */
 const ISLAND_FACADE_RE = /(?:^|\/)og-region\.[0-9a-f]+\.js$/;
 const LEADING_SLASH = /^\//;
@@ -789,7 +792,7 @@ export function island_deps_module(
 		// is dropped there. The fs walk stays the fallback for adapter-node and dev-preview (the whole
 		// server dir ships). Unpatched, the token starts with '_' (char 95), the guard is false, and
 		// the walk runs. A bad patch degrades to the walk, never crashes the server at import.
-		const __OG_INLINE = '__OGYGIA_ISLAND_DEPS_INLINE__';
+		const __OG_INLINE = '${ISLAND_DEPS_INLINE_TOKEN}';
 		let cache = null;
 		// Why the last read found no handoff (null: it has one). The server says it once, with a
 		// code (island_deps_handoff_missing). A read that failed is never kept: the next one tries

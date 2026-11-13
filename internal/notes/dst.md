@@ -182,7 +182,10 @@ count leaves it out of the leak check.
 
 `pnpm sim:builds` builds the app twice (`src/builds.ts`, both rules builds) into
 `.svelte-kit/sim-builds/{v1,v2}`; palaestra's Counter renders `VITE_SIM_BUILD`, so the two differ
-in code and HTML as two releases do. With both there, a run starts on v1 and the workload may
+in code and HTML as two releases do. Each build's Kit version is its id (the apps' configs read
+`VITE_SIM_BUILD`; the generated peer's is `peer`), so a rebuild of the same code is the same world:
+Kit's own version, the build's moment, renamed every chunk it reaches, each request drew another
+fate, and a seed ran another run on each rebuild (`test/builds.test.ts`). With both there, a run starts on v1 and the workload may
 `deploy` v2 (rarely: it is the operator's action, not a visitor's). Without them a run has its
 one build and never deploys. How a deploy goes out is the seed's (`Rollover`): at once, or rolling
 (for 10 s a request reaches either build, by even odds); the old build's content-hashed files kept
@@ -416,7 +419,10 @@ log line and summary say both numbers: steps accounted, and the latest finished 
 rate with its date. A mutant no run can tell from the code as it is is written up in the list with
 its reason (`equivalent`): it is never run, the run says it (`EQUIV`), and it stays out of the rate.
 A kill stands only when a second run of its seed, on the same build, finds the same again: a
-timing-bound finding that "killed" many mutants alike is said as `noise` and kills nothing.
+timing-bound finding that "killed" many mutants alike is said as `noise` and kills nothing. A
+mutant's build is a rebuild, so it meets the baseline's world only because two builds of the same
+code are the same (above): before, one seed's finding "killed" 18 federation mutants alike, a log
+label's among them (gen 208, seed 13), and each replayed, on its own build.
 
 `--guided N` searches by coverage: a run that reaches a step or fires a point no run before it had
 is kept (its seed and its actions); most next runs mutate a kept one (its first actions up to a

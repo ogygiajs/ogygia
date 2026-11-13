@@ -45,16 +45,17 @@ function make_compiler() {
 			transformN: 0,
 			transformHit: 0,
 			prescanMs: 0,
-			bakeMs: 0,
-			bakeN: 0,
+			macroMs: 0,
+			macroN: 0,
 			resolveMs: 0,
 			loadMs: 0
 		},
 		P: false,
 		outHash: new Map<string, number>()
 	};
-	const compiler = new Compiler(program, profiler);
-	compiler.configure(
+	const compiler = new Compiler(
+		program,
+		profiler,
 		new CompileCtx(
 			partial_ctx_init({
 				root,
@@ -112,8 +113,9 @@ describe('a byte-order-marked component', () => {
 	test('through the compiler’s transform, server leg: stamped and compiles', async () => {
 		const compiler = make_compiler();
 		const id = path.join(root, 'src/lib/Widget.svelte');
+		compiler.start_leg('ssr', true);
 		const res = await compiler.transform_module(COMPONENT, id, {
-			ssr: true,
+			leg: compiler.leg({ name: 'ssr', server: true }),
 			emitFile: () => 'ref'
 		});
 		expect(res).not.toBeNull();
@@ -125,7 +127,12 @@ describe('a byte-order-marked component', () => {
 		const id = path.join(root, 'src/routes/+page.svelte');
 		for (const ssr of [true, false]) {
 			const compiler = make_compiler();
-			const res = await compiler.transform_module(HOST, id, { ssr, emitFile: () => 'ref' });
+			const env = { name: ssr ? 'ssr' : 'client', server: ssr };
+			compiler.start_leg(env.name, env.server);
+			const res = await compiler.transform_module(HOST, id, {
+				leg: compiler.leg(env),
+				emitFile: () => 'ref'
+			});
 			expect(res, `ssr=${ssr}`).not.toBeNull();
 			expect(res!.code).toContain('<ds-button');
 			expect(res!.code).not.toContain('<ds-butto ');
