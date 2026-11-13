@@ -156,7 +156,6 @@ function bag_of(request: Request): Bag {
 		request,
 		ctx: new Map(),
 		page: null,
-		seed_wanted: false,
 		seed_keys: null,
 		seed_asks: request_stats_detailed() ? new Map() : null,
 		remotes_wanted: new Set(),
@@ -165,8 +164,6 @@ function bag_of(request: Request): Bag {
 		deferred: null,
 		defer_next_id: 0,
 		late: null,
-		late_next: 0,
-		late_open: false,
 		seed_reducers: null,
 		facts: facts_of(request)
 	};

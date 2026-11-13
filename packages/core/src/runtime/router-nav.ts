@@ -16,9 +16,9 @@
  */
 import { boot_link, router_link, slots } from './slots.ts';
 import { clock, net } from '@ogygia/machine';
-import { dispose_scope } from '../ref.ts';
+import type { PageGlobals } from '../page-globals.ts';
 import {
-	NO_RECONCILE_SELECTOR,
+	opts_out_of_reconcile,
 	reconcile_body,
 	stamp_region_keys,
 	swap_body
@@ -56,9 +56,7 @@ import { KNOWN_HEADER_CAP } from '../contract/known-copies.ts';
 // chunk). The router's helpers exist only with the router feature; the MPA `invalidateAll` path (no
 // router) touches none of them.
 // (rules on: `rule_head_adopted` checks the head with this chunk's own deny, ./rules.ts)
-(globalThis as { __og_head_deny?: (deny: typeof is_dangerous_head_node) => void }).__og_head_deny?.(
-	is_dangerous_head_node
-);
+(globalThis as PageGlobals).__og_head_deny?.(is_dangerous_head_node);
 
 const KitBoot = { document_has: (doc: ParentNode) => boot_link().KitBoot.document_has(doc) };
 const regions_in_shadow = () => boot_link().regions_in_shadow();
@@ -870,7 +868,7 @@ export async function navigate(
 		if (doc.querySelector('meta[name="ogygia-first-load"]')) return null;
 		// The app's transform reshaped the incoming page: restore it before anything reads it (the
 		// reconcile, the islands' copies). The restorer is the page's own global, when the app has one.
-		(globalThis as { __og_restore?: (root: ParentNode) => number }).__og_restore?.(doc);
+		(globalThis as PageGlobals).__og_restore?.(doc);
 
 		// Same-document hash jumps already returned above (no VT). Cross-route swaps keep VT
 		// even when the target has a hash (A → B#C); scroll snaps after the transition.
@@ -929,8 +927,8 @@ export async function navigate(
 			RECONCILE_NAV &&
 			!!slots.morph &&
 			!regions_in_shadow() &&
-			!document.body.querySelector(NO_RECONCILE_SELECTOR) &&
-			!doc.body.querySelector(NO_RECONCILE_SELECTOR);
+			!opts_out_of_reconcile(document.body) &&
+			!opts_out_of_reconcile(doc.body);
 		// Pull the a11y announcer out of the body before the reconcile — it isn't in the incoming
 		// HTML, so a body morph would remove it. Re-attached (with the new title) by `announce`.
 		announcer?.remove();
@@ -953,8 +951,8 @@ export async function navigate(
 		if (reconcile) {
 			// THE nav path: diff the live body toward the parsed one IN PLACE. Matched regions
 			// (same fingerprint) keep their live hydrated node and island state; changed regions
-			// re-mount; shell + keep-chrome (data-ogygia-keep) morph in place. Selective dispose of
-			// only REMOVED regions' hub ids happens inside reconcile_body.
+			// re-mount; shell + keep-chrome (data-ogygia-keep) morph in place. Both paths release
+			// the hub ids nothing on the next page owns, inside the swap.
 			reconcile_body(document.body, doc.body, slots.morph!);
 			built.reconciled = true;
 			adopt_title(doc);
@@ -973,10 +971,9 @@ export async function navigate(
 			swap_body(document.body, doc.body);
 			adopt_title(doc);
 			session().settle_lakes_in(document.body);
-			dispose_scope('page');
 		}
 		// (roots restored in the incoming page adopt their keyed sheets now that they are in this one)
-		(globalThis as { __og_restore_adopt?: () => void }).__og_restore_adopt?.();
+		(globalThis as PageGlobals).__og_restore_adopt?.();
 		// ONE COPY of island head content: an island KEPT across the swap still renders its head live,
 		// and the merge above put the next page's server copy of the same content in beside it — retire
 		// that copy now that the reconcile has settled which islands stayed (runtime/session.ts).

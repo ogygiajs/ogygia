@@ -44,7 +44,16 @@
  * pointer reaches an armed island or input lands.
  */
 
-import { flights, noop, registry, STALE, type Scope, type Stale } from '@ogygia/machine';
+import {
+	flights,
+	machine,
+	noop,
+	registry,
+	STALE,
+	type Machine,
+	type Scope,
+	type Stale
+} from '@ogygia/machine';
 import { LoadSlot } from './load-scheduler.ts';
 import { import_again } from './import-again.ts';
 import { slots } from './slots.ts';
@@ -135,11 +144,26 @@ export type QueuedClick = {
 	init: MouseEventInit;
 };
 
+const arming_steps = {
+	armed: ['woken'],
+	woken: ['over'],
+	over: []
+} as const;
+
+const arming_definition = machine<{ armed: {}; woken: {}; over: {} }>()({
+	name: 'interaction-arming',
+	initial: 'armed',
+	steps: arming_steps
+});
+
+/** `armed`: waiting for a visitor. `woken`: its wake is out, its clicks queue. `over`: disarmed
+ *  while woken because the region left: its wake's end replays nothing. */
+type Arming = Machine<{ armed: {}; woken: {}; over: {} }, typeof arming_steps>;
+
 /**
  * One arming of a region — what its own capture listeners used to close over. Each arming is its
  * own: a region put back after it left arms a new one, and only the arming that holds the region's
- * entry may delete it. `state`: `armed` (waiting for a visitor), `woken` (its wake is out, its clicks
- * queue), `over` (disarmed while woken because the region left: its wake's end replays nothing).
+ * entry may delete it. Where it stands is its `arming` machine.
  */
 type Armed = {
 	region: Element;
@@ -147,7 +171,7 @@ type Armed = {
 	fire: WakeFn;
 	/** the region's lifetime in the page: the replay's frame is its */
 	owner: Scope;
-	state: 'armed' | 'woken' | 'over';
+	arming: Arming;
 	warmed: boolean;
 	queued: QueuedClick[];
 	/** Takes its entry out (only its own: a newer arming of the region holds another). */
@@ -161,7 +185,7 @@ type Armed = {
  */
 function disarm(a: Armed, over: boolean): void {
 	a.forget();
-	if (over && a.state === 'woken') a.state = 'over';
+	if (over) a.arming.move('woken', 'over');
 }
 
 /** Each armed region's arming, held by the region's lifetime in the page (it goes with it). */
@@ -272,8 +296,7 @@ function wake(a: Armed, e: Event): void {
 			});
 		}
 	}
-	if (a.state !== 'armed') return;
-	a.state = 'woken';
+	if (!a.arming.move('armed', 'woken')) return;
 	// what woke it, for `hydratedBy()` (hydration-info.ts): a visitor did — its first click is a replay,
 	// whatever schedule the island had
 	region.setAttribute(OG_WOKE, 'interaction');
@@ -287,12 +310,12 @@ function wake(a: Armed, e: Event): void {
 	const replayed = replay();
 	Promise.all([replayed, Promise.resolve(a.fire(replayed))]).then(
 		([r]) => {
-			if (a.state === 'over') return;
+			if (a.arming.now.kind === 'over') return;
 			disarm(a, false);
 			if (r !== STALE) r.after_wake(region, fields, active_addr, queued, a.owner);
 		},
 		(err) => {
-			if (a.state === 'over') return;
+			if (a.arming.now.kind === 'over') return;
 			// Hydration FAILED (chunk 404, network drop). Disarm so the region stops canceling
 			// clicks — native behavior (links, form posts, checkboxes) must keep working on the
 			// dead-but-real HTML. Replay the swallowed clicks so the failed one still acts.
@@ -330,7 +353,7 @@ export function arm_interaction(
 		warm,
 		fire,
 		owner,
-		state: 'armed',
+		arming: arming_definition.create(),
 		warmed: false,
 		queued: [],
 		forget: noop
