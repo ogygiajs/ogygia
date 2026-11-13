@@ -285,6 +285,6 @@ export function render_page_facts_script(
 		// (devalue output is `<`-safe by itself: no second pass for the script element)
 		return `<script type="${PAGE_FACTS_SCRIPT_TYPE}">${devalue.stringify(shape_page_data(facts.data, keys), encoders)}</script>`;
 	} catch {
-		return '';
+		return ''; // ok: as said above, a value that does not serialize ships no facts
 	}
 }
