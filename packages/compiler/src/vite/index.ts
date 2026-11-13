@@ -53,7 +53,6 @@ export {
 } from '../compiler/region/transform.ts';
 export { rewrite_lake_import_to_placeholder } from '../compiler/region/emit.ts';
 export type { ImportKeys } from '../compiler/region/transform.ts';
-// the BUILD side of a plugin (design: internal/notes/packages.md, plugin API v2)
 export { definePlugin } from './plugin-api.ts';
 export type {
 	OgygiaPlugin,
@@ -151,47 +150,23 @@ import { CompileCtx, type PackageScan } from '../compiler/ctx.ts';
 import { discover_package_files } from './package-files.ts';
 import { async_twin_redirect, svelte_async_enabled } from './late-island.ts';
 
-// Kit's generated CLIENT app entry — Kit 2 dev serves `generated/client/app.js` and the build inputs
-// `generated/client-optimized/app.js`; Kit 3 nests both under `generated/dev/` and `generated/build/`
-// (`kit.outDir` is configurable, so match from `generated/`). The one module that evaluates exactly
-// when Kit's client boots and NEVER on a csr=false page — the append target for the kit-world page
-// thread (see the transform hook).
 const KIT_CLIENT_APP_RE = /\/generated\/(?:build\/|dev\/)?client(-optimized)?\/app\.js$/;
-// Appended INLINE (no extra module): publishes Kit's REAL reactive `page`/`navigating` on the
-// well-known slot the island `$app/*` shims read through (`kit_bridge()` in shims/kit-bridge; the
-// `$page` shim builds its live store from this `page`). Importer is Kit's own entry — never
-// island-graph — so `$app/state` here is KIT'S REAL module, already in Kit's client graph. Never
-// `$app/stores`: Kit 3 removed it (subscribing throws). Runs at module-eval, BEFORE
-// `kit.start()`'s synchronous hydrate flush, so a shared component's first `page.data` read
-// already sees Kit's truth (the app product-list crash read `{}` from the never-seeded island
-// store there).
-// `navigation` is Kit's REAL `$app/navigation` (goto, invalidate, preload, the hooks): an island on
-// this document navigates through Kit's router, never through the ogygia one — which, on a document
-// it does not own, could only fall back to a full load (a customer's green-band chips inside a live
-// island reloaded the whole account page on every click).
 const KIT_PAGE_THREAD = `\n${dedent`
 	import { page as __og_kit_page, navigating as __og_kit_nav } from '$app/state';
 	import * as __og_kit_navigation from '$app/navigation';
 	globalThis[Symbol.for('ogygia.kit-page')] = { page: __og_kit_page, navigating: __og_kit_nav, navigation: __og_kit_navigation };
 `}\n`;
-// Which ogygia a csr=true page runs, on `window.__ogygia.v` — Kit runs that page, and the ogygia
-// runtime boots there only for what Kit cannot do (a deferred region, a lake); a page with neither
-// runs no ogygia runtime, so Kit's entry discloses it too. Where the runtime does boot, it adds the
-// same version (runtime/disclose-version.ts): the Set keeps one.
 const KIT_DISCLOSE_VERSION = `((globalThis.__ogygia ??= {}).v ??= new Set()).add(${JSON.stringify(OGYGIA_VERSION)});\n`;
 import { scan_entry_pattern, KIT_REMOTE_CLIENT, KIT_REMOTE_STATE, RUNTIME_HASH } from './paths.ts';
 
 import type { OgygiaOptions } from './options.ts';
 import { OgygiaError, warn, line } from '../compiler/messages.ts';
 
-/** css-ish file the dev bridge manages (mirrors the bridge's glob). */
 const DEV_CSS_FILE_RE = /\.(css|scss|sass|less|styl)$/;
 const BACKSLASH_G = /\\/g;
 
 const CSS_EXT_RE = /\.css$/;
 const STYLE_BEARING_FILE_RE = /\.(svelte|css|scss|sass|less|styl)$/;
-/** The bundler's resolver as the CSS walk's (compiler/fouc-css.ts `collectFoucCssReachable`): what
- *  the build resolves, the walk reaches — a package's `exports`, a workspace link, an alias. */
 function bundler_resolve(ctx: {
 	resolve(
 		source: string,
@@ -226,8 +201,6 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 	const visibleMargin = options.visible?.margin;
 	const presets = options.presets || {};
 	validate_region_presets(presets);
-	// The app's ogygia plugins: Vite plugins listed beside this one, found in the `config` hook (where
-	// the list, the root and the mode are known). Standalone has no handle to wire them into.
 	let app_plugins: PluginDefinition[] = [];
 	let server_plugins: ServerRealm[] = [];
 	let client_plugins: ClientRealmFile[] = [];
@@ -236,29 +209,18 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 	let foreign_hydrate = false;
 	let macros: ResolvedPlugins['macros'] = [];
 	let prescans: ResolvedPlugins['prescans'] = [];
-	/** the names of the plugins listed beside ogygia() */
 	let listed_plugins: string[] = [];
 	let stage_transforms: ResolvedPlugins['transforms'] = [];
 	let markup: ResolvedPlugins['markup'] = [];
 	let definers: ResolvedPlugins['definers'] = [];
 	const import_keys = normalize_import_keys(options.importKeys);
-	// What the plugins asked of the build (their `build` hooks, run in `config` below): the build's
-	// measurement data (`b.measure()`, the profiler) and core's event emits (`b.events()`, devtools).
 	let measure = false;
-	// Compile surfaces beyond the app's src — ONE mechanism for a plugin's own pages (`b.files()`: the
-	// profiler UI and its server-router module) and for dependencies that declare `"ogygia": { "files":
-	// […] }` in their package.json. Filled in the config hook (root known); captured by reference into
-	// the CompileCtx built in configResolved.
 	const pkg_scan: PackageScan[] = [];
-	/** the roots of plugins' own pages (`b.files()`), as module-id prefixes */
 	const plugin_file_roots: string[] = [];
 	let declared_scanned = false;
-	// PAGE MODULES (`b.pageModules()`: a programmatic router) — the router-css roots: importers of these
-	// specifiers, and these files (real POSIX paths, like the scan's).
 	let page_importers: string[] = [];
 	let page_files: string[] = [];
 
-	// Router / rate-limit / session / ttl / continuity / server-delta → the flat config (pure derivation).
 	const {
 		rate_limit,
 		session_cookie,
@@ -269,44 +231,12 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 		continuity_forms,
 		server_delta
 	} = resolve_options(options, DEFAULT_REGION_TTL_SEC, RENEW_WINDOW_SEC);
-	// Core's event emits compiled in (a plugin's `b.events()`), and its lazy form (launcher only, no
-	// measuring until someone opens a tool) — everything downstream reads these (define, CompileCtx,
-	// dev middleware).
 	let devtools_effective = false;
 	let devtools_lazy = false;
 
-	// The Program — the cross-file linker / island graph, made with the compiler at each resolve (the
-	// compiler makes each later build of a watch its own: `compiler.program`). It owns the descriptor
-	// registry + the feature-mark bag (seeded from the two app-wide config flags), and the behavior over
-	// them (register / unregister_host / note_runtime_mark). Never module-global, so Kit's throwaway
-	// plugin instance has a different Program and can't leak into the real build.
-	// The feature-selected runtime chunk name lives on the driver as `compiler.runtime_chunk_filename()`
-	// (RUNTIME_HASH ⊕ the scan's feature_hash — see CompileCtx.runtime_chunk_filename); buildStart's
-	// emitFile and the runtime-url virtual both read it, so both build legs compute the same immutable name.
-
-	// HMAC key for signing region capability URLs (defer / remount:swr). Default: a fresh
-	// per-build random baked into the SERVER bundle only (never a client chunk). Optional
-	// `OGYGIA_SECRET` overrides that so rolling deploys / long-lived cached HTML keep verifying.
-	// Sign/verify HKDF-derive a MAC key from this material (`ogygia-mac-v1`).
 	const build_secret = crypto.randomBytes(32).toString('hex');
-	/** Salt for region ids — HKDF from stable env only (never per-build random, or SSR/client
-	 *  builds would disagree). Empty when unset (dev + default per-build signing). */
 	let id_salt = '';
 
-	// THE CSS OF A SUBTREE NO CLIENT CHUNK CARRIES. Three kinds of root render without a client chunk
-	// of their own, so no page stylesheet carries their CSS or their children's: a router page (a
-	// runtime value, not a Kit route), a server-only hole (`render: 'deferred'` with no client chunk),
-	// and a content module (it renders on the server only; the leak-free corpus never enters the
-	// client graph). Each root gets its whole tree CSS (every scoped `<style>` + plain style imports,
-	// in cascade order) as ONE dedicated asset, which rolldown's shared-chunk CSS hoisting cannot
-	// scatter (every profiler page wraps Shell). The walk reaches what the build resolves
-	// (compiler/fouc-css.ts), and a file compiles once per build however many roots reach it.
-	// Preprocessed, script kept (TS stripped): a raw `svelte.compile` throws on scss or a script-reading
-	// template (`$store`) and falls back to UNSCOPED bodies, leaking a component's CSS across the
-	// document. A plain `.css` import ships verbatim; a preprocessor dialect file (.scss/…) is skipped.
-	// `own`: the root's source when it is not the file on disk (a content module's post-mdsvex Svelte);
-	// the root's own CSS is then the caller's. `skip`: files whose CSS ships some other way. Each
-	// file's CSS compiles once per leg (`BuildLeg.compiled_css`).
 	const preprocess_css: PreprocessCss = (source, abs) =>
 		preprocess_component_for_css(source, abs, root);
 	const tree_css_walk = (
@@ -348,29 +278,16 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 			return parts.join('\n');
 		};
 	};
-	// tag → self-contained factory source from og.$ rewrites (served by the fn-manifest virtual so
-	// client bundles can register factories pre-hydration; the payload-source fallback covers bundles
-	// that miss it) now lives on the driver as `compiler.dollar_hoists` — the macro leg fills it.
 
 	let root: string;
 	let base = '';
-	/** SvelteKit `config.kit.appDir` (default `_app`) — read from Kit's `__SVELTEKIT_APP_DIR__` define. */
 	let app_dir = '_app';
 	let libDir: string;
 	let is_dev = false;
-	/** the app compiles with Svelte's async mode (vite-plugin-svelte's resolved options): Region
-	 *  imports the awaiting LateIsland (late-island.ts) */
 	let svelte_async = false;
-	/** Resolved `resolve.alias` entries — an island's closure walk, and every plugin macro (bake()'s
-	 *  eval bundle resolves `$lib` with them). */
 	let resolve_alias: { find: string | RegExp; replacement: string }[] = [];
 	let is_build = false;
 	let is_ssr = false;
-	/** The leg a build hook runs in: the hook's ENVIRONMENT — Vite's environment API builds `ssr` and
-	 *  `client` in one app build (Kit 3), where `config.build.ssr` is false for both, so the client's
-	 *  work (the runtime chunk, the islands, their names) ran in the server leg too and landed in the
-	 *  server output — every island 404'd. A hook the bundler calls without one runs in the one leg
-	 *  open (driver `Compiler.leg`; two open is refused). */
 	const env_of = (ctx: unknown): { name: string; server: boolean } | null => {
 		const env = (ctx as { environment?: { name?: string; config?: { consumer?: string } } } | null)
 			?.environment;
@@ -379,18 +296,11 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 	};
 	const leg_of = (ctx: unknown): BuildLeg => compiler_of(session, 'leg').leg(env_of(ctx));
 	let vite_server: ViteDevServer | null = null;
-	/** absolute path to Kit's internal wire-protocol module (deep import) */
 	let kit_wire_path: string | null = null;
-	/** absolute path to Kit's client remote-functions entry (Plan A reuse) */
 	let kit_remote_index: string | null = null;
-	/** absolute path to the app's universal hooks (for `transport`), if present */
 	let universal_hooks: string | null = null;
-	/** absolute path to the app's client hooks (src/hooks.client.*), if present — its `init` runs on
-	 *  boot for csr=false pages (Kit never runs it there). */
 	let client_hooks: string | null = null;
-	/** absolute path to Kit 3's client codec module (`#app/internal/transport`); null on Kit 2 */
 	let kit_transport_init: string | null = null;
-	/** true once the process-exit cleanup for the injected keep-client route is registered */
 	let keep_client_cleanup_armed = false;
 
 	const readFile = (abs: string) => {
@@ -401,15 +311,10 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 		}
 	};
 
-	// The app's module shapes, each parsed once (compiler/exports/): the CSS walk's indexes and the
-	// plugins' (`b.exports`) read the same ones. An index is per resolver: the CSS walk resolves past
-	// this plugin, a stage transform through it, so they share parses, never resolutions.
 	const shapes = new Shapes((abs) => {
 		const code = readFile(abs);
 		return code == null ? null : strip_bom(code);
 	});
-	// The plugins' seams (vite/plugin-api.ts): one export index per environment, resolved as the
-	// transformed module resolves (through every plugin's resolveId, this one's included)
 	const transform_indexes = new Map<string, ExportIndex<TransformContext>>();
 	const seams: BuildSeams = {
 		exports: {
@@ -426,7 +331,6 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 				return index.map(file, spec, policy, t);
 			}
 		},
-		// a region's identity is on its marked import alone (default or named), so the code is not read
 		pinned_imports() {
 			const keys = new Set(Object.values(import_keys));
 			return (decl) => decl.attribute_keys.some((k) => keys.has(k));
@@ -436,10 +340,6 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 			barrelWhy: (file, importers) => barrel_why(file, importers)
 		}
 	};
-	// Why a barrel stayed (`t.emit`), per environment and stage (a stage's run forgets only its own
-	// earlier word on the module): what the findings read back for a barrel an island still imports
-	// whole. Each leg keeps its own (`BuildLeg.barrels_left`), dropped with its build.
-	/** Why the browser's `barrel` stayed, by every stage. */
 	const barrel_why = (barrel: string, importers: Iterable<string>): BarrelLeftReason[] => {
 		const ids = [...importers];
 		const found = new Set<BarrelLeftReason>();
@@ -448,8 +348,6 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 			for (const r of client?.barrels_said(stage)?.why(barrel, ids) ?? []) found.add(r);
 		return BARREL_LEFT_REASONS.filter((r) => found.has(r));
 	};
-	// A stage's host: runs the plugins' transforms of `stage` over one MagicString of the module, so
-	// the stage is one result and one map wherever the app lists the plugins
 	const stage_host = (stage: TransformStage): Plugin => ({
 		name: `ogygia:${stage}`,
 		enforce: 'pre',
@@ -458,7 +356,6 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 			if (mine.length === 0) return null;
 			const left = leg_of(this).barrels_left(stage);
 			left.forget(id);
-			// edits land by parser offsets: no byte-order mark in front of them (compiler/bom.ts)
 			const code = strip_bom(raw);
 			const edit = new MagicString(code);
 			const t: TransformContext = {
@@ -505,27 +402,8 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 	const __P = !!process.env.OGYGIA_PROFILE;
 	const __outHash = new Map<string, number>();
 
-	// The driver — the bundler-agnostic compile session (Program + transform cache + profiler). It holds
-	// the whole file-local + discovery front-end (transform / ts_regions / macros / prescan / emit /
-	// resolve_id / transform_module / …). It is made in configResolved with its CompileCtx, once the
-	// build is resolved (root/dev/id_salt known); each hook takes it from the session (./session.ts)
-	// and injects the Vite primitives it owns.
 	const session = new_session();
 
-	// ── keep-client route injection ──────────────────────────────────────────
-	// All-csr=false apps make Kit skip its ENTIRE client build, so ogygia's runtime is never emitted
-	// and islands 404 at runtime. Fix: during a build, inject a URL-less keepalive layout — a single
-	// `csr = true` node with no `+page`, so no servable URL — which flips Kit's `skip_client_build`
-	// check and lets Kit's OWN client build run (honoring the user's preprocessors, appDir, etc.). It
-	// is removed at process exit, so nothing is left on disk. This is fully de-internalified — it
-	// consults NO SvelteKit internal:
-	//   • WHO injects: only the main build thread (`isMainThread`). Kit runs its postbuild analyse/
-	//     prerender tasks in worker THREADS that re-load the Vite config; there `isMainThread` is
-	//     false, so they never re-create the dir. (Public Node API — not Kit's `SVELTEKIT_FORK`.)
-	//   • WHEN we clean up: `process.on('exit')`, which fires once the whole build (client build +
-	//     workers + prerender, however Kit nests them) has finished. No dependency on Kit's hook
-	//     ordering. Worst case (a hard crash) leaves a gitignored dir that self-heals next run.
-	/** Register the one-time process-exit cleanup (main thread only). */
 	const arm_keep_client_cleanup = (r: string) => {
 		if (keep_client_cleanup_armed) return;
 		keep_client_cleanup_armed = true;
@@ -543,9 +421,6 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 		if (mod) server.moduleGraph.invalidateModule(mod);
 	};
 
-	// Drop the cached virtual island modules + registry rows for `file` when a HOST changes or an ENTRY
-	// is deleted — the driver (`compiler.invalidate_for_file`) owns the island-graph mutations + the
-	// affected-module walk; this binds Vite's module invalidation and the server guard. No server → no-op.
 	const invalidate_islands_for_file = (
 		file: string,
 		{
