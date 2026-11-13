@@ -1,14 +1,14 @@
-# @ogygia/page-keys
+# @ogygia/data-shake
 
 Seed shaping for [ogygia](https://ogygiajs.dev) apps. An island that reads `page.data` through `$app/state` or `$app/stores` gets the page's data in its seed. Without this plugin that seed is all of `page.data`. With it, the build reads each module for the top-level `page.data` keys it can reach, and the page ships only the keys its islands read. A server hole whose code reads none skips the lookup.
 
 ```ts
 // vite.config.ts
 import { ogygia } from 'ogygia/vite';
-import { pageKeys } from '@ogygia/page-keys';
+import { dataShake } from '@ogygia/data-shake/vite';
 
 export default defineConfig({
-	plugins: [ogygia(), pageKeys(), sveltekit()]
+	plugins: [ogygia(), dataShake(), sveltekit()]
 });
 ```
 

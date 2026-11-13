@@ -65,7 +65,7 @@ export interface RelocateCx {
 	facade_file(id: string): string | undefined;
 	graph(id: string): GraphInfo;
 	module_ids(): Iterable<string>;
-	/** The seed-shaping plugin's answers (`pageKeys()`); null when none is listed, and then every
+	/** The seed-shaping plugin's answers (`dataShake()`); null when none is listed, and then every
 	 *  hole looks the page up. */
 	readonly page_reads: Pick<PageReadsSink, 'keys'> | null;
 }

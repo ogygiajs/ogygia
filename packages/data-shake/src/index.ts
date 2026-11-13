@@ -13,7 +13,7 @@ import {
 const SCRIPT_MODULE_RE = /\.(?:[cm]?[jt]sx?)$/;
 
 /**
- * Seed shaping, listed beside `ogygia()` (`plugins: [ogygia(), pageKeys(), sveltekit()]`).
+ * Seed shaping, listed beside `ogygia()` (`plugins: [ogygia(), dataShake(), sveltekit()]`).
  *
  * An island that reads `page.data` through `$app/state` / `$app/stores` gets the page seed. Without
  * this plugin that seed is all of `page.data`, and every server hole looks it up. With it, the build
@@ -21,9 +21,9 @@ const SCRIPT_MODULE_RE = /\.(?:[cm]?[jt]sx?)$/;
  * keys its islands read, and a hole whose tree reads none skips the lookup. Any read the analysis
  * cannot pin answers `'unknown'`, and that region gets all of `page.data` as before.
  */
-export function pageKeys(): OgygiaPlugin {
+export function dataShake(): OgygiaPlugin {
 	return definePlugin({
-		name: '@ogygia/page-keys',
+		name: '@ogygia/data-shake',
 		build(b) {
 			b.pageReads(page_reads());
 		}

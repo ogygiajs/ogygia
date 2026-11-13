@@ -1,5 +1,5 @@
 {
-	"name": "@ogygia/page-keys",
+	"name": "@ogygia/data-shake",
 	"version": "0.13.0",
 	"description": "Seed shaping for ogygia apps: each island gets only the page.data keys its code reads",
 	"keywords": [
@@ -14,7 +14,7 @@
 	"repository": {
 		"type": "git",
 		"url": "git+https://github.com/ogygiajs/ogygia.git",
-		"directory": "packages/page-keys"
+		"directory": "packages/data-shake"
 	},
 	"files": [
 		"dist",

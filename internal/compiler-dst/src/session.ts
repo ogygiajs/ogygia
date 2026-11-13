@@ -33,7 +33,7 @@ export interface Session {
 /** How a session runs: a build (the default), or a dev server. */
 export interface SessionOptions {
 	readonly dev?: boolean;
-	/** The seed-shaping plugin's answers (`pageKeys()`), when the app lists it. */
+	/** The seed-shaping plugin's answers (`dataShake()`), when the app lists it. */
 	readonly page_reads?: PageReadsSink | null;
 }
 

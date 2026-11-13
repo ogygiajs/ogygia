@@ -69,7 +69,7 @@
 		"@ogygia/config": "workspace:*",
 		"@ogygia/core": "workspace:*",
 		"@ogygia/flags": "workspace:*",
-		"@ogygia/page-keys": "workspace:*",
+		"@ogygia/data-shake": "workspace:*",
 		"@ogygia/router": "workspace:*",
 		"@ogygia/tooling": "workspace:*",
 		"@playwright/test": "catalog:",

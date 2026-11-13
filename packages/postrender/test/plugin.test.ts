@@ -14,7 +14,7 @@ import { install, mark_handled, reset_for_tests } from '../src/registry.ts';
 import { MemoryStore } from '../src/memory-store.ts';
 import type { PostrenderEntry } from '../src/types.ts';
 import { find_plugins, resolve_plugins } from '../../compiler/src/vite/plugin-api.ts';
-import { pageKeys } from '@ogygia/page-keys';
+import { dataShake } from '@ogygia/data-shake/vite';
 import { fileURLToPath } from 'node:url';
 
 const POSTRENDER_APP = fileURLToPath(new URL('../e2e/app', import.meta.url));
@@ -65,14 +65,14 @@ describe('postrender() — the vite value', () => {
 		expect(keys).toEqual(['postrender']);
 	});
 
-	it('listed without pageKeys() it fails the build, naming the line to add; beside it, seeds are shaped', async () => {
+	it('listed without dataShake() it fails the build, naming the line to add; beside it, seeds are shaped', async () => {
 		await expect(find_plugins([postrenderPlugin()])).rejects.toMatchObject({
 			code: 'plugin_needs_plugin'
 		});
 		await expect(find_plugins([postrenderPlugin()])).rejects.toThrow(
-			/`@ogygia\/postrender` needs `pageKeys\(\)`.*`@ogygia\/page-keys`/
+			/`@ogygia\/postrender` needs `dataShake\(\)`.*`@ogygia\/page-keys`/
 		);
-		const found = await find_plugins([postrenderPlugin(), pageKeys()]);
+		const found = await find_plugins([postrenderPlugin(), dataShake()]);
 		expect(resolve_plugins(found, POSTRENDER_APP, true).page_reads).not.toBeNull();
 	});
 });

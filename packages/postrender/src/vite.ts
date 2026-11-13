@@ -21,7 +21,7 @@ export interface PostrenderOptions {
  * `config = { postrender: true }`. `config` merges from the layouts into the page, the page's own
  * key winning, as Kit merges it.
  *
- * Needs `pageKeys()` from `@ogygia/page-keys` listed beside it: a deferred region whose code reads
+ * Needs `dataShake()` from `@ogygia/data-shake` listed beside it: a deferred region whose code reads
  * no `page.data` then skips the page look-up, which would render the stored page again.
  */
 export function postrender(options: PostrenderOptions = {}): OgygiaPlugin<PostrenderServerOptions> {
@@ -32,7 +32,7 @@ export function postrender(options: PostrenderOptions = {}): OgygiaPlugin<Postre
 			ttl: Math.min(86400, Math.max(1, Math.floor(options.ttl ?? 86400))),
 			default: options.default ?? true
 		},
-		needs: [{ name: '@ogygia/page-keys', call: 'pageKeys()', from: '@ogygia/page-keys' }],
+		needs: [{ name: '@ogygia/data-shake', call: 'dataShake()', from: '@ogygia/data-shake' }],
 		build(b) {
 			b.routeConfig('postrender');
 		}

@@ -186,7 +186,7 @@
 	"covered": [
 		{
 			"site": "packages/compiler/src/vite/plugin-api.ts > check_plugins > throw:4",
-			"reason": "a config error, at config time: a plugin listed without a plugin it needs (postrender() without pageKeys())",
+			"reason": "a config error, at config time: a plugin listed without a plugin it needs (postrender() without dataShake())",
 			"test": "packages/compiler/test/plugins.test.ts",
 			"name": "a plugin that needs another fails the build while the app does not list it, naming the line to add"
 		},
@@ -205,7 +205,7 @@
 		{
 			"site": "packages/compiler/src/compiler/parse/roots.ts > parse_roots > catch:0",
 			"reason": "a component Svelte cannot parse: the analysis that asked gives up safely (seed shaping ships all)",
-			"test": "packages/page-keys/test/page-keys-summaries.test.ts",
+			"test": "packages/data-shake/test/page-keys-summaries.test.ts",
 			"name": "a component that does not parse gives up"
 		},
 		{

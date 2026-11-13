@@ -1,7 +1,7 @@
 import { sveltekit } from '@sveltejs/kit/vite';
 import { ogygia } from 'ogygia/vite';
 import { postrender } from '@ogygia/postrender/vite';
-import { pageKeys } from '@ogygia/page-keys';
+import { dataShake } from '@ogygia/data-shake/vite';
 import { flags } from '@ogygia/flags/vite';
 import { federation } from '@ogygia/federation/vite';
 import { router } from '@ogygia/router/vite';
@@ -12,5 +12,5 @@ export default defineConfig({
 	// static dash widget and is stored; a publish or deploy on the dash team clears it via a cross-app
 	// thaw notice (federation v2). The /cms/* mount pages read the shell's decided flags, so they stay
 	// per-request.
-	plugins: [ogygia(), postrender(), pageKeys(), flags(), federation(), router(), sveltekit()]
+	plugins: [ogygia(), postrender(), dataShake(), flags(), federation(), router(), sveltekit()]
 });

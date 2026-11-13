@@ -5785,11 +5785,11 @@
 			"reason": "dev and rules builds only: one set lookup per page.data key, constant work per key; proven in packages/core/test/seed-shaping-oracle.test.ts"
 		},
 		{
-			"id": "packages/page-keys/src/index.ts > pageKeys",
+			"id": "packages/data-shake/src/index.ts > dataShake",
 			"reason": "config time: one plugin definition per vite.config load, constant work"
 		},
 		{
-			"id": "packages/page-keys/src/index.ts > pageKeys > definePlugin:0~0ce4a1 > build",
+			"id": "packages/data-shake/src/index.ts > dataShake > definePlugin:0~0ce4a1 > build",
 			"reason": "build only: makes the plugin's page_reads (measured in the page-keys bench) and hands it to the build, once per build"
 		}
 	]
