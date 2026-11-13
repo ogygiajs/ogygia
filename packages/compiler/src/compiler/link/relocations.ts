@@ -1,14 +1,3 @@
-/**
- * VALUES KNOWN ONLY AT THE END OF A LEG: RELOCATIONS. A virtual module loads before the bundler has
- * transformed every module, so a value that needs every transform (the `og.$` factories, which holes
- * read `page.data`) is written as a token, and each finished chunk has its tokens replaced at
- * renderChunk from the final records. This table is every such token: what stands for it, which
- * legs carry it, the module that writes it, and how its value is made. The patches are counted per
- * leg, and a leg whose output still holds a token, or whose bundle holds a carrier no chunk was
- * patched for, is said (`relocation_unpatched`, test/relocations.test.ts). One value comes from a
- * LATER leg (`WRITTEN_RELOCATIONS`: the client leg's island deps, written into the server leg's
- * files on disk), counted on the leg that writes it.
- */
 import { V_FN_MANIFEST } from '../ids.ts';
 import path from 'node:path';
 import {
@@ -25,14 +14,11 @@ import { ISLAND_DEPS_INLINE_TOKEN } from './island-deps.ts';
 import type { Program } from '../program.ts';
 import { fn_manifest_registrations } from '../macros/dollar.ts';
 
-/** Kit's page modules, where the alias sends `$app/state` and `$app/stores`. */
 const KIT_PAGE_MODULE_RE = /\/@sveltejs\/kit\/src\/runtime\/app\/(?:state|stores)(?:[/.]|$)/;
 
-// (by code point: in source, either one ends a line inside a regex literal)
 const LINE_SEPARATOR = String.fromCharCode(0x2028);
 const PARAGRAPH_SEPARATOR = String.fromCharCode(0x2029);
 
-/** `text` as the inside of a string literal in either quote (a bundler may pick either one). */
 function in_any_literal(text: string): string {
 	let out = '';
 	for (const c of text)
@@ -47,7 +33,6 @@ function in_any_literal(text: string): string {
 	return out;
 }
 
-/** The path from the chunk `from` to the file `to` (both bundle-relative), as an import spells it. */
 function relative_file(from: string, to: string): string {
 	const up = from.split('/').slice(0, -1);
 	const down = to.split('/');
@@ -103,10 +88,6 @@ export interface Relocation<Cx = RelocateCx> {
 	value(cx: Cx): (quote: string, part: string) => string;
 }
 
-/**
- * The fn-manifest's `og.$` factory registrations, through the globalThis bridge the placeholder
- * module installed (rename-proof under minification).
- */
 const FN_MANIFEST: Relocation = {
 	name: 'fn manifest',
 	token: '/*__OGYGIA_FN_MANIFEST__*/',
@@ -118,13 +99,6 @@ const FN_MANIFEST: Relocation = {
 	}
 };
 
-/**
- * The server manifest's page-data answer: per server island (a hole), does its SERVER tree (the
- * component and everything it imports, statically or dynamically: a registry's blocks) read
- * `page.data`? The transform recorded each module's reads (`page_keys`, seed shaping). A hole that
- * never reads it never pays the page lookup (server/render-page.ts). One walk per hole, sharing what
- * earlier walks proved: a walk that ends with no reader proves every module it visited reads nothing.
- */
 const PAGE_DATA_READS: Relocation = {
 	name: 'page data reads',
 	token: PAGE_DATA_READS_TOKEN,
@@ -140,15 +114,12 @@ const PAGE_DATA_READS: Relocation = {
 			const k = page_keys.get(c);
 			if (k !== undefined) return k === 'all' || k.size > 0 || page_pending.has(c);
 			if (page_pending.has(c)) return true;
-			// Kit's page module is what is read: its own halves (`state/server.js`) are not a reader
 			if (KIT_PAGE_MODULE_RE.test(c)) return false;
-			// a page reader seed shaping could not read (a barrel, `getStores()`, an `import()`): unknown
 			return (
 				!!info &&
 				(imports_kit_page(info.importedIds) || imports_kit_page(info.dynamicallyImportedIds))
 			);
 		};
-		// a component path → the graph's id for it (a graph id may carry a query or another separator)
 		const ids_by_path = new Map<string, string>();
 		for (const id of cx.module_ids()) if (!id.startsWith('\0')) ids_by_path.set(clean(id), id);
 		const proven_clean = new Set<string>();
@@ -178,17 +149,13 @@ const PAGE_DATA_READS: Relocation = {
 		const out: Record<string, boolean> = {};
 		for (const [iid, , reg] of server_regions(cx.program)) {
 			const root = reg.componentPath ? ids_by_path.get(clean(reg.componentPath)) : undefined;
-			// (a component the graph does not know: unknown, so it looks up: a wrong `false` would
-			// render a hole with an empty page.data)
 			out[iid] = root === undefined ? true : reads(root);
 		}
-		// (the token sits in a string literal the bundler may have re-quoted)
 		const json = JSON.stringify(out);
 		return (quote) => in_literal(json, quote);
 	}
 };
 
-/** `text` as the inside of a string literal quoted with `quote` (a bundler may re-quote one). */
 function in_literal(text: string, quote: string): string {
 	let out = '';
 	for (const c of text)
@@ -207,7 +174,6 @@ function in_literal(text: string, quote: string): string {
 	return out;
 }
 
-/** One of the server manifest's maps, from the final registry (link/server-manifest.ts, #1420). */
 const server_map = (name: keyof ServerManifestMaps): Relocation => ({
 	name: `server ${name}`,
 	token: SERVER_MAP_TOKENS[name],
@@ -221,8 +187,6 @@ const server_map = (name: keyof ServerManifestMaps): Relocation => ({
 	}
 });
 
-/** The loaders of the server regions found after `server-regions` was written: each its own
- *  emitted chunk, imported by its path from the chunk being finished. */
 const LATE_SERVER_REGIONS: Relocation = {
 	name: 'late server regions',
 	token: LATE_SERVER_REGIONS_TOKEN,
@@ -230,7 +194,6 @@ const LATE_SERVER_REGIONS: Relocation = {
 	carrier: null,
 	value(cx) {
 		const from = path.posix.dirname(cx.chunk_file);
-		// (sorted by id, as every server region list: test/server-manifest-late-order.test.ts)
 		const late = [...cx.late_server_regions].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
 		const loaders = late.map(([iid, ref]) => {
 			const rel = path.posix.relative(from, cx.file_name(ref));
@@ -262,6 +225,14 @@ export const FILE: Relocation = {
 	}
 };
 
+/**
+ * Values known only at the end of a leg. A virtual module loads before the bundler has transformed
+ * every module, so a value that needs every transform (the `og.$` factories, which holes read
+ * `page.data`) is written as a token, and each finished chunk has its tokens replaced at
+ * renderChunk from the final records. This table is every such token. A leg whose output still
+ * holds a token, or whose bundle holds a carrier no chunk was patched for, is said
+ * (`relocation_unpatched`). One value comes from a later leg: {@link WRITTEN_RELOCATIONS}.
+ */
 export const RELOCATIONS: readonly Relocation[] = [
 	FN_MANIFEST,
 	PAGE_DATA_READS,
@@ -278,12 +249,6 @@ export interface WrittenCx {
 	readonly island_deps: string;
 }
 
-/**
- * The client leg's island deps (link/island-deps.ts), inlined in the SERVER bundle so serverless
- * tracing keeps it. Kit writes the server bundle first, so the client leg patches those files on
- * disk at its end (link/build-output.ts). The slot is a string literal the bundler may re-quote:
- * both quotes are escaped.
- */
 const ISLAND_DEPS: Relocation<WrittenCx> = {
 	name: 'island deps',
 	token: ISLAND_DEPS_INLINE_TOKEN,
