@@ -41,25 +41,39 @@ const erase = <A, V>(query: Query<A, V>): Erased => query as unknown as Erased;
 
 /** One read: which answer, and the revision it had last changed at when it was read. */
 export interface Dep {
-	readonly id: string;
-	readonly query: Erased;
-	readonly arg: unknown;
+	readonly slot: Slot;
 	/** the revision the dependency had last changed at when it was read */
-	readonly seen: number;
+	seen: number;
+}
+
+/** A reader's reads, in order: an answer's, or a watched reader's. `tail` is how many of `deps` the
+ *  run going on now has read (a recompute that reads the same answers in the same order reuses
+ *  each `Dep` in place). */
+export interface Frame {
+	readonly deps: Dep[];
+	tail: number;
 }
 
 /** What the database remembers of `query(arg)`. */
-export interface Slot {
+export interface Slot extends Frame {
 	readonly query: Erased;
 	readonly arg: unknown;
+	readonly key: string;
 	value: unknown;
-	/** the revision this answer last changed at */
+	/** the revision this answer last changed at (`NO_VALUE`: it has none yet) */
 	changed: number;
-	/** the revision this answer was last checked at */
+	/** the revision this answer was last checked at; or `MUST_RUN` (it never ran, or its last run
+	 *  threw: it runs when next read), `RUNNING` (a read of it now is a cycle), `LET_GO` (the bound
+	 *  let it go: a reader that read it runs again) or `RUNNING_LET_GO` (let go while it runs: still a
+	 *  cycle to read, and let go when its run ends) */
 	verified: number;
-	/** what it read, in order (an input reads nothing) */
-	deps: readonly Dep[];
 }
+
+const NO_VALUE = -1;
+const MUST_RUN = -1;
+const RUNNING = -2;
+const LET_GO = -3;
+const RUNNING_LET_GO = -4;
 
 export interface Queries extends QueryCtx {
 	/** The current revision: one more for each input change. */
@@ -89,9 +103,7 @@ export interface Queries extends QueryCtx {
 }
 
 /** What a watched reader read (`watch`), each as it was when read. */
-export interface Reads {
-	readonly deps: readonly Dep[];
-}
+export type Reads = Frame;
 
 const QUERIES_MAX = 100_000;
 
@@ -110,83 +122,174 @@ const QUERIES_MAX = 100_000;
  * Revisions: every input change is a new revision. An answer records the revision it last changed
  * at and the one it was last checked at; a read in a later revision checks the answer's
  * dependencies first (in the order they were read: a dependency read after one that changed may not
- * be read at all now), and runs it again only if one of them changed.
+ * be read at all now), and runs it again only if one of them changed. The check walks its own
+ * stack, so a chain of answers of any depth never grows the call stack.
  *
  * Internal to the compiler: not exported from the package.
  */
 export function queries(name: string, max: number = QUERIES_MAX): Queries {
-	const slots: Cache<string, Slot> = cache({ name, max });
+	const table = new Map<Erased, Map<string, Slot>>();
+	let last_query: Erased | undefined;
+	let last_keyed = new Map<string, Slot>();
+	const held: Cache<Slot, Slot> = cache({ name, max, onEvict: let_go });
 	let revision = 0;
-	const frames: Dep[][] = [];
-	const running = new Set<string>();
+	let current: Frame | undefined;
 
-	const id_of = (query: Erased, arg: unknown) => `${query.name}\0${query.key(arg)}`;
+	function let_go(slot: Slot): void {
+		if (slot.verified === RUNNING) {
+			slot.verified = RUNNING_LET_GO;
+			return;
+		}
+		const keyed = table.get(slot.query);
+		if (keyed?.get(slot.key) === slot) keyed.delete(slot.key);
+		slot.verified = LET_GO;
+	}
 
-	function fresh(query: Erased, arg: unknown, id: string): Slot {
-		const held = slots.get(id);
-		if (held && held.verified === revision) return held;
-		if (query.kind === 'input') {
-			if (held) {
-				held.verified = revision;
-				return held;
+	function find(query: Erased, arg: unknown): Slot | undefined {
+		return table.get(query)?.get(query.key(arg));
+	}
+
+	function slot_of(query: Erased, arg: unknown): Slot {
+		let keyed = last_keyed;
+		if (query !== last_query) {
+			const had = table.get(query);
+			if (had === undefined) table.set(query, (keyed = new Map()));
+			else keyed = had;
+			last_query = query;
+			last_keyed = keyed;
+		}
+		const key = query.key(arg);
+		let slot = keyed.get(key);
+		if (slot === undefined) {
+			slot = {
+				query,
+				arg,
+				key,
+				value: undefined,
+				changed: NO_VALUE,
+				verified: MUST_RUN,
+				deps: [],
+				tail: 0
+			};
+			keyed.set(key, slot);
+			held.set(slot, slot);
+		}
+		return slot;
+	}
+
+	function fresh(slot: Slot): Slot {
+		const v = slot.verified;
+		if (v === revision) return slot;
+		held.get(slot);
+		if (v >= 0 && (slot.query.kind === 'input' || deps_unchanged(slot))) slot.verified = revision;
+		else compute(slot);
+		return slot;
+	}
+
+	function deps_unchanged(root: Frame): boolean {
+		let node: Frame = root;
+		let i = 0;
+		let below: Array<Frame | number> | undefined;
+		descend: for (;;) {
+			const deps = node.deps;
+			let same = true;
+			for (; i < deps.length; i++) {
+				const d = deps[i];
+				const s = d.slot;
+				const v = s.verified;
+				if (v !== revision) {
+					if (v === LET_GO) {
+						same = false;
+						break;
+					}
+					held.get(s);
+					if (v < 0) compute(s);
+					else if (s.query.kind === 'input') s.verified = revision;
+					else {
+						(below ??= []).push(node, i);
+						node = s;
+						i = 0;
+						continue descend;
+					}
+				}
+				if (s.changed !== d.seen) {
+					same = false;
+					break;
+				}
 			}
-			const value = query.run(db, arg);
-			const slot: Slot = { query, arg, value, changed: revision, verified: revision, deps: [] };
-			slots.set(id, slot);
-			return slot;
+			for (;;) {
+				if (node === root) return same;
+				const slot = node as Slot;
+				if (same) slot.verified = revision;
+				else compute(slot);
+				i = below!.pop() as number;
+				node = below!.pop() as Frame;
+				const d = node.deps[i];
+				if (d?.slot !== slot || slot.changed !== d.seen) {
+					same = false;
+					continue;
+				}
+				i++;
+				continue descend;
+			}
 		}
-		if (held && deps_unchanged(held)) {
-			held.verified = revision;
-			return held;
-		}
-		return compute(query, arg, id, held);
 	}
 
-	function deps_unchanged(reader: { readonly deps: readonly Dep[] }): boolean {
-		for (const d of reader.deps) {
-			if (!slots.has(d.id)) return false;
-			if (fresh(d.query, d.arg, d.id).changed !== d.seen) return false;
-		}
-		return true;
-	}
-
-	function compute(query: Erased, arg: unknown, id: string, old: Slot | undefined): Slot {
-		if (running.has(id)) throw new Error(`query cycle: ${id.replace('\0', ' ')}`);
-		running.add(id);
-		const deps: Dep[] = [];
-		frames.push(deps);
+	function compute(slot: Slot): void {
+		if (slot.verified === RUNNING || slot.verified === RUNNING_LET_GO)
+			throw new Error(`query cycle: ${slot.query.name} ${slot.key}`);
+		const outer = current;
+		current = slot;
+		slot.tail = 0;
+		slot.verified = RUNNING;
 		let value: unknown;
 		try {
-			value = query.run(db, arg);
+			value = slot.query.run(db, slot.arg);
+		} catch (e) {
+			const let_go_now = slot.verified === RUNNING_LET_GO;
+			slot.verified = MUST_RUN;
+			if (let_go_now) let_go(slot);
+			else if (slot.changed === NO_VALUE) held.delete(slot);
+			throw e;
 		} finally {
-			frames.pop();
-			running.delete(id);
+			current = outer;
 		}
-		if (old && query.equal(old.value, value)) {
-			old.deps = deps;
-			old.verified = revision;
-			return old;
-		}
-		const slot: Slot = { query, arg, value, changed: revision, verified: revision, deps };
-		slots.set(id, slot);
-		return slot;
+		if (slot.deps.length !== slot.tail) slot.deps.length = slot.tail;
+		if (slot.verified === RUNNING_LET_GO) {
+			slot.verified = MUST_RUN;
+			let_go(slot);
+		} else slot.verified = revision;
+		if (slot.changed !== NO_VALUE && slot.query.equal(slot.value, value)) return;
+		slot.value = value;
+		slot.changed = revision;
+	}
+
+	function link(frame: Frame, slot: Slot): void {
+		const deps = frame.deps;
+		const i = frame.tail++;
+		if (i < deps.length) {
+			const d = deps[i];
+			if (d.slot === slot) d.seen = slot.changed;
+			else deps[i] = { slot, seen: slot.changed };
+		} else deps.push({ slot, seen: slot.changed });
 	}
 
 	function set_input(query: Erased, arg: unknown, value: unknown): boolean {
 		if (query.kind !== 'input') throw new Error(`query ${query.name} is not an input`);
-		const id = id_of(query, arg);
-		const held = slots.peek(id);
-		if (held && query.equal(held.value, value)) return false;
+		const had = find(query, arg);
+		if (had && query.equal(had.value, value)) return false;
 		revision++;
-		slots.set(id, { query, arg, value, changed: revision, verified: revision, deps: [] });
+		const slot = had ?? slot_of(query, arg);
+		if (had) held.get(had);
+		slot.value = value;
+		slot.changed = revision;
+		slot.verified = revision;
 		return true;
 	}
 
-	function read<A, V>(typed: Query<A, V>, arg: A, into: Dep[] | undefined): V {
-		const query = erase(typed);
-		const id = id_of(query, arg);
-		const slot = fresh(query, arg, id);
-		into?.push({ id, query, arg, seen: slot.changed });
+	function read<A, V>(typed: Query<A, V>, arg: A, into: Frame | undefined): V {
+		const slot = fresh(slot_of(typed as unknown as Erased, arg));
+		if (into) link(into, slot);
 		return slot.value as V;
 	}
 
@@ -194,14 +297,15 @@ export function queries(name: string, max: number = QUERIES_MAX): Queries {
 		get revision() {
 			return revision;
 		},
-		get: (query, arg) => read(query, arg, frames.at(-1)),
+		get: (query, arg) => read(query, arg, current),
 		watch(reader) {
-			const deps: Dep[] = [];
-			frames.push(deps);
+			const reads: Frame = { deps: [], tail: 0 };
+			const outer = current;
+			current = reads;
 			try {
-				return { value: reader({ get: (query, arg) => read(query, arg, deps) }), reads: { deps } };
+				return { value: reader({ get: (query, arg) => read(query, arg, reads) }), reads };
 			} finally {
-				frames.pop();
+				current = outer;
 			}
 		},
 		moved(reads) {
@@ -214,19 +318,18 @@ export function queries(name: string, max: number = QUERIES_MAX): Queries {
 		set: (query, arg, value) => set_input(erase(query), arg, value),
 		refresh(typed, arg) {
 			const query = erase(typed);
-			if (!slots.has(id_of(query, arg))) return false;
+			if (!find(query, arg)) return false;
 			return set_input(query, arg, query.run(db, arg));
 		},
-		holds: (query, arg) => slots.has(id_of(erase(query), arg)),
+		holds: (query, arg) => find(erase(query), arg) !== undefined,
 		changed_since(typed, arg, since) {
-			const query = erase(typed);
-			return fresh(query, arg, id_of(query, arg)).changed > since;
+			return fresh(slot_of(erase(typed), arg)).changed > since;
 		},
 		answers_changed_since(since) {
-			for (const [id, slot] of slots.entries()) {
-				if (slot.query.kind === 'input') continue;
+			for (const [slot] of held.entries()) {
+				if (slot.query.kind === 'input' || slot.verified === LET_GO) continue;
 				try {
-					if (fresh(slot.query, slot.arg, id).changed > since) return true;
+					if (fresh(slot).changed > since) return true;
 				} catch {
 					return true; // ok: an answer that now throws has changed; its reader reports the error
 				}
@@ -235,9 +338,10 @@ export function queries(name: string, max: number = QUERIES_MAX): Queries {
 		},
 		reread() {
 			let moved = false;
-			for (const [, slot] of slots.entries())
+			for (const [slot] of held.entries())
 				if (
 					slot.query.kind === 'input' &&
+					slot.verified !== LET_GO &&
 					set_input(slot.query, slot.arg, slot.query.run(db, slot.arg))
 				)
 					moved = true;
