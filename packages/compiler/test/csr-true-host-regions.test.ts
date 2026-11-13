@@ -50,7 +50,11 @@ const SERVER_DRIVEN: Array<[string, string, string]> = [
 	],
 	[
 		'an asRegion held region',
-		`import W from './W.svelte';\nconst D = import.meta.og.asRegion(W, { region: 'raw' });\nexport const regions = { D };`,
+		dedent`
+			import W from './W.svelte';
+			const D = import.meta.og.asRegion(W, { region: 'raw' });
+			export const regions = { D };
+		`,
 		''
 	]
 ];
