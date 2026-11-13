@@ -1,8 +1,3 @@
-/**
- * The rewrite plugin's server realm (named by `rewrite()`): it answers ogygia's `pass` for every
- * request a `rewrite()` handle wrapped, and notes each request ogygia's handle starts, so a rewrite
- * listed after it is refused.
- */
 import { defineServer, type ServerPlugin } from '@ogygia/core/plugin';
 import { rewrite_pass } from './pass.ts';
 import { slot } from './requests.ts';

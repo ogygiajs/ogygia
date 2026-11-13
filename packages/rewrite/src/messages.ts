@@ -1,12 +1,3 @@
-/**
- * EVERY MESSAGE THE REWRITE PACKAGE PRINTS, in one place: its code, its wording, what to do about it
- * (core's `@ogygia/core/internal/messages` says how the system works).
- *
- *   throw new OgygiaError('rewrite_plugin_missing');
- *
- * A rewrite runs in the app's server, so the wording is only passed in dev and while prerendering: a
- * production server prints the code's page alone.
- */
 import {
 	define_messages,
 	dev_or_prerender,
@@ -123,8 +114,6 @@ export const REWRITE_WARNINGS = {
 };
 
 type Own = MessagesOf<typeof REWRITE_ERRORS, typeof REWRITE_WARNINGS>;
-// (the tables reach a dev build and the server's — a prerender words them too; a production browser
-// bundle drops them)
 const own: Own = /* @__PURE__ */ define_messages(
 	DEV || !BROWSER ? REWRITE_ERRORS : null,
 	DEV || !BROWSER ? REWRITE_WARNINGS : null,

@@ -39,9 +39,9 @@ export async function check(
 		const r = await pass.document(html, {
 			csr,
 			answer: false,
-			// markup-ok: a test's one piece of markup, read once: does it carry the head's end
+			// oxlint-disable-next-line ogygia/one-markup-walk -- a test's one piece of markup, read once: does it carry the head's end
 			head: html.indexOf('</head>') !== -1,
-			// markup-ok: and the body's
+			// oxlint-disable-next-line ogygia/one-markup-walk -- and the body's
 			body: html.indexOf('</body>') !== -1,
 			done: true
 		});

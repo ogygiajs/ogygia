@@ -1,10 +1,8 @@
-/**
- * `rewrite()`: the rewrite plugin, listed beside `ogygia()` in vite.config `plugins`. No options. It
- * turns on what a `rewrite()` handle needs: its server realm runs the rewrites, its browser realm
- * puts back what they moved.
- */
 import { definePlugin, type OgygiaPlugin } from '@ogygia/compiler/vite';
 
+/** The rewrite plugin, listed beside `ogygia()` in vite.config `plugins`. No options: it turns on
+ *  what a `rewrite()` handle needs (its server realm runs the rewrites, its browser realm puts back
+ *  what they moved). */
 export function rewrite(): OgygiaPlugin {
 	return definePlugin({
 		name: '@ogygia/rewrite',

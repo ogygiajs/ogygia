@@ -39,21 +39,19 @@ interface OpenFrame {
 }
 
 /**
- * Yield every `<ogygia-region>` in `html`, in document order, an island's subtree treated as atomic
- * (its nested regions are not yielded). One linear pass, O(html length); allocates no copy of the
- * document. Tag-like text in a comment, a raw-text element or an attribute value is never counted.
+ * Yield every `<ogygia-region>` in `html`, a region after the regions nested in it, an island's
+ * subtree treated as atomic (its nested regions are not yielded; an island inside a lake is). One
+ * linear pass; tag-like text in a comment, a raw-text element or an attribute value is never
+ * counted. An unterminated region is still yielded, its span its opening tag alone.
  */
 export function* scanRegions(html: string): Generator<RegionSpan, void, undefined> {
 	const stack: OpenFrame[] = [];
-	// (core's tag walk: comments, raw-text elements' text and quoted values hold no tag, as the
-	// browser reads them; one linear pass)
 	let i = 0;
 	for (
 		let at = next_open_or_close(html, REGION_TAG, 0);
 		at !== null;
 		at = next_open_or_close(html, REGION_TAG, i)
 	) {
-		// Closing `</ogygia-region>`.
 		if ('close' in at) {
 			const frame = stack.pop();
 			if (frame?.emit) {
@@ -64,37 +62,27 @@ export function* scanRegions(html: string): Generator<RegionSpan, void, undefine
 			i = at.end;
 			continue;
 		}
-		// Opening `<ogygia-region …>`: its attributes as the browser keeps them (the first of two).
-		{
-			const t = at.tag;
-			i = t.next;
-			const parent_sealed = stack.length > 0 && stack[stack.length - 1].sealed;
-			const attrs: Record<string, string> = Object.fromEntries(t.attrs);
-			const kind = classify(attrs);
-			const self_closing = html.charCodeAt(t.end - 2) === 47;
-			// Emit this region unless it is STRICTLY INSIDE an island (a nested login island in a
-			// header lake IS emitted — the caller must protect it). Its own subtree is sealed when it
-			// is an island, or when it already sits inside one.
-			const emit = !parent_sealed;
-			const sealed = parent_sealed || kind === 'island';
-			const node: RegionSpan = {
-				kind,
-				start: t.start,
-				end: t.end, // filled at the close; a self-closed / unterminated region keeps this
-				innerStart: t.end,
-				innerEnd: t.end,
-				attrs,
-				depth: stack.length
-			};
-			if (self_closing) {
-				if (emit) yield node; // no subtree to seal
-			} else {
-				stack.push({ node, emit, sealed });
-			}
-		}
+		const t = at.tag;
+		i = t.next;
+		const parent_sealed = stack.length > 0 && stack[stack.length - 1].sealed;
+		const attrs: Record<string, string> = Object.fromEntries(t.attrs);
+		const kind = classify(attrs);
+		const self_closing = html.charCodeAt(t.end - 2) === 47;
+		const emit = !parent_sealed;
+		const sealed = parent_sealed || kind === 'island';
+		const node: RegionSpan = {
+			kind,
+			start: t.start,
+			end: t.end,
+			innerStart: t.end,
+			innerEnd: t.end,
+			attrs,
+			depth: stack.length
+		};
+		if (self_closing) {
+			if (emit) yield node;
+		} else stack.push({ node, emit, sealed });
 	}
-	// Unterminated regions (malformed HTML) drain here without a close — surfaced with their
-	// parse-time `end`/`innerEnd` so a caller never loses a region silently.
 	while (stack.length) {
 		const frame = stack.pop()!;
 		if (frame.emit) yield frame.node;

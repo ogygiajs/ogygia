@@ -1,8 +1,3 @@
-/**
- * `@ogygia/rewrite`: an app's own render over the HTML ogygia sends (a web-component server render, a
- * translation proxy), as a Kit handle listed before `ogygia.handle()`. ogygia marks the HTML before
- * the render and puts back what the render moved in Svelte's markup before anything hydrates.
- */
 import type { RequestEvent } from '@sveltejs/kit';
 import { check, check_event } from './check.ts';
 import { OgygiaError } from './messages.ts';
