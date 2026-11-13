@@ -120,7 +120,7 @@ describe('patch_page_data_reads: a page reader seed shaping could not read', () 
 
 	test("Kit's page module importing its own halves is not a reader of the page", () => {
 		const KIT_STATE_SERVER = '/app/node_modules/@sveltejs/kit/src/runtime/app/state/server.js';
-		const kit_graph = {
+		const kit_graph: Record<string, { importedIds: string[]; dynamicallyImportedIds: string[] }> = {
 			...graph,
 			[KIT_STATE]: { importedIds: [KIT_STATE_SERVER], dynamicallyImportedIds: [] },
 			[KIT_STATE_SERVER]: { importedIds: [], dynamicallyImportedIds: [] }
