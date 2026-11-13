@@ -1,27 +1,45 @@
 ---
 title: Server transforms
-summary: Post-process the HTML ogygia sends, even inside islands. `reshape.handle(transform)` from `@ogygia/reshape` runs your transform over every document and every hole answer, and before anything hydrates, ogygia puts back whatever the transform moved in Svelte's markup.
+summary: Render custom elements on the server, or rewrite the whole page, even inside islands. `rewrite()` from `@ogygia/rewrite` is a Kit handle; before anything hydrates, ogygia puts back whatever your render moved in Svelte's markup.
 related:
   - regions/server-islands
   - regions/lakes
   - reference/constraints
 ---
 
-Some apps run one more pass over the HTML after rendering, such as a server render for web components, a translation proxy or a tool that edits markup. Islands make this difficult, because an island hydrates against the exact markup Svelte rendered. A pass that moves a node, trims a space or wraps a child breaks the hydration walk, and the island throws its server DOM away.
+Some apps run one more pass over the HTML after rendering: a server render for web components, a translation proxy, a tool that edits markup. Islands make this hard, because an island hydrates against the exact markup Svelte rendered. A pass that moves a node, trims a space or wraps a child breaks the hydration walk, and the island throws its server DOM away.
 
-The `@ogygia/reshape` plugin lets that pass run anyway. You hand your transform to it, and ogygia marks the HTML before your transform runs, reads what the transform did afterwards, and in the browser restores exactly what hydration needs before anything hydrates. Apps without such a pass don't install it and ship none of this.
+`@ogygia/rewrite` lets that pass run anyway. ogygia marks the HTML before your render, reads what it did after, and in the browser puts back exactly what hydration needs before anything hydrates. Apps without such a pass don't install it and ship none of this.
 
 ```bash
-pnpm add @ogygia/reshape
+pnpm add @ogygia/rewrite
 ```
 
 ```ts
 // vite.config.ts
 import { ogygia } from 'ogygia/vite';
-import { reshape } from '@ogygia/reshape/vite';
+import { rewrite } from '@ogygia/rewrite/vite';
 
 export default defineConfig({
-  plugins: [ogygia(), reshape(), sveltekit()]
+  plugins: [ogygia(), rewrite(), sveltekit()]
+});
+```
+
+`rewrite()` in vite.config takes no options. Leave it out and every request fails with `rewrite_plugin_missing`.
+
+## Rendering custom elements
+
+```ts
+// src/lib/server/components.ts
+import { rewrite } from '@ogygia/rewrite';
+import { renderBatch } from '$lib/server/renderer';
+
+export const components = rewrite({
+  match: 'my-',
+  async render(elements, ctx) {
+    const rendered = await renderBatch(elements.map((el) => el.html), { signal: ctx.signal });
+    return rendered.map((r) => ({ html: r.html, sheets: r.sheets }));
+  }
 });
 ```
 
@@ -29,134 +47,111 @@ export default defineConfig({
 // src/hooks.server.ts
 import { sequence } from '@sveltejs/kit/hooks';
 import * as ogygia from 'ogygia/server';
-import * as reshape from '@ogygia/reshape';
-import { renderComponents } from '$lib/server/components';
+import { components } from '$lib/server/components';
 
-export const handle = sequence(
-  reshape.handle(async (html, { kind, csr, event }) =>
-    renderComponents(html, { fragment: kind === 'region' })
-  ),
-  ogygia.handle()
-);
+export const handle = sequence(components, ogygia.handle());
 ```
 
-`reshape.handle()` goes before `ogygia.handle()`. A request it does not wrap gets no pass.
+- **`match`** picks the elements: a tag prefix (`'my-'`), a list of tags (`['my-card', 'my-nav']`), or a test on the name. Only the outermost match is sent. A match inside it goes with it.
+- **`render(elements, ctx)`** is called once per chunk of the page, with every match in that chunk, and once per region answer. It returns one result per element, in order: `{ html, sheets }`, or just the HTML string.
+- **`ctx`** has `kind` (`'document'` or `'region'`), `csr` (Kit hydrates the page), `url`, `event`, and `signal`, which fires when the request is cancelled.
+- A chunk with no match goes out byte for byte, and `render` is not called.
 
-To write the transform in a module of its own, type it with `ReshapeTransform`:
+Each element's `html` has ogygia's marks numbered from 0, so the same element has the same bytes on every page. A cache can key on it. Equal elements in one call are sent once.
 
-```ts
-// src/lib/server/transform.ts
-import type { ReshapeTransform } from '@ogygia/reshape';
-import { renderComponents } from '$lib/server/components';
+### The page streams
 
-export const transform: ReshapeTransform = (html, { kind }) =>
-  renderComponents(html, { fragment: kind === 'region' });
-```
+A streamed page goes chunk by chunk. Each chunk's matches are rendered in one call and sent with that chunk. An element that starts in one chunk and ends in a later one (an `{#await}` inside it) goes out unrendered, and dev says `rewrite_element_split`.
 
-The transform runs on:
+### When a render fails
 
-- **every document**, meaning the chunk that carries `</head>`. A streamed page's tail (the scripts that settle its streamed promises) passes around it untouched, so the page keeps streaming.
-- **every region answer**, such as a [server island](/docs/regions/server-islands)'s answer or a lake remount. In that case `kind` is `'region'`.
+- If the batch throws or returns the wrong number of results, each element is tried again on its own.
+- An element that still fails goes out as ogygia rendered it and renders in the browser. Only that element is affected. ogygia warns `rewrite_element_failed` once per response and element name, in every build.
+- A result that drops `og-h` from an element ogygia restores goes out the same way, with `rewrite_marks_lost`.
+- A result whose HTML does not close what it opens fails too: it would take in the rest of the page.
+- When the request was cancelled, nothing is retried and nothing is said.
 
-It may be async. Because it sits on the response path, keep it fast.
+## Rendering an element ogygia restores
 
-## What a transform may do
-
-You can rewrite anything outside the custom elements that ogygia marks with `og-h`. ogygia puts `og-h` on each custom element (a tag with a `-` in its name) that it will restore:
-
-- one in markup Svelte owns (an island, or the whole body of a [Kit-hydrated page](/docs/regions/client-islands));
-- one in server-owned markup with Svelte-owned markup below it (a component around an island in a [lake](/docs/regions/lakes));
-- every one in a region answer, since the page morphs an answer over live elements.
-
-A host without `og-h` is entirely yours: render it however you like, and let its own runtime adopt it later.
-
-## Rendering an `og-h` host: its plan
-
-To reshape an `og-h` host, render it in "scoped" form with three additions:
+An element `render` gets with `restored: true` carries `og-h`. ogygia puts it back for Svelte before anything hydrates, so render it in "scoped" form with three additions:
 
 ```html
-<my-button og-h="7" og-shadow="my-button.shadow" og-keep="icon-name" icon-name="star" class="sc-my-button-h">
+<my-button og-h="0" og-shadow="my-button.shadow" og-keep="icon-name" icon-name="star" class="sc-my-button-h">
   <span class="btn sc-my-button">
-    <slot class="sc-my-button sc-my-button-s"><!--og-c 7.0-->Sign in</slot>
+    <slot class="sc-my-button sc-my-button-s"><!--og-c 0.0 t-->Sign in</slot>
   </span>
 </my-button>
 ```
 
-- **`<slot>` wrappers.** Where the component would slot the host's children, wrap them in a real `<slot>` element. Outside a shadow root a `<slot>` renders as if it were not there, so the page paints exactly like your scoped render. Give it the classes any other element of the tree would have, and put slot fallback content inside it, before the children.
-- **`og-shadow="key …"`** names the keyed stylesheets for the host's shadow root (see [Stylesheets](#stylesheets)).
-- **`og-keep="attr …"`** (optional) lists attributes you added to the host that must survive the restore, for example an attribute your component reads before the island hydrates. A kept attribute must stay true of the live element at all times rather than describing one render, because a hole answer copies attributes onto live elements.
+- **`<slot>` wrappers.** Where the component would slot the host's children, wrap them in a real `<slot>` element. Outside a shadow root a `<slot>` renders as if it were not there, so the page paints exactly like your scoped render.
+- **`og-shadow="key …"`** names the shadow sheets for the host's root (see [Sheets](#sheets)).
+- **`og-keep="attr …"`** (optional) lists attributes you added that must survive the restore. A kept attribute must stay true of the live element, since a hole answer copies attributes onto live elements.
 
-An `og-h` host without `og-shadow` is left exactly as Svelte wrote it, which is what you want for components you don't render on the server.
+An `og-h` element without `og-shadow` is left exactly as Svelte wrote it. Every other `og-*` mark is ogygia's: carry it along wherever you move a node. Don't put a marker of your own between an ogygia mark comment and its node.
 
-Every other `og-*` mark belongs to ogygia (`og-c` on each child, `og-t` before text a serializer might trim). Carry these marks along wherever you move a node; none of them reaches the final DOM.
+An element with `restored: false` is yours: render it any way you like.
 
-A mark comment sits immediately before its node. If your renderer marks each node it moves with a comment of its own (a relocation marker), don't put that marker between ogygia's mark and its node, at least on `og-h` hosts. Otherwise ogygia reads the node as dropped, and the restore puts it back twice.
+ogygia restores an element when it sits in markup Svelte owns (an island, or the whole body of a [Kit-hydrated page](/docs/regions/client-islands)), when Svelte-owned markup or a hole sits inside it, and always in a region answer.
 
-### A transform that caches its renders
+## Sheets
 
-ogygia numbers hosts across the whole document, so the same block carries different ids on another page, and a render cache keyed on the block's markup would never hit. `localizeMarks` renumbers a block's marks from 0 for the cache key, and maps the document's ids back onto the render:
+A result's `sheets` are `{ key, css, scope }`:
 
-```ts
-import { localizeMarks } from '@ogygia/reshape';
+- `scope: 'page'` becomes a `<style>` for the document;
+- `scope: 'shadow'` is a sheet a restored element names in `og-shadow`, built once and adopted by every root that names its key.
 
-const local = localizeMarks(block);
-const rendered = cache.get(local.html) ?? cache.set(local.html, await render(local.html)).get(local.html);
-return local.back(rendered);
-```
-
-## Stylesheets
-
-Tag head assets with `data-og-head="key"`, anywhere in a document or an answer:
-
-- `<style data-og-head="…">` or `<link data-og-head="…">` applies to the page;
-- `<template data-og-head="…">css</template>` is a shadow sheet, built once into a shared `CSSStyleSheet` and adopted by every root that names its key in `og-shadow`.
-
-ogygia moves them into `<head>`, once per key, and keeps all their other attributes.
+Each key goes out once per response. While the head is still open, a sheet goes into `<head>`. Once it has gone out, a sheet goes inline right before the first element that needs it. In a region answer it goes inline, and the runtime moves it into the head.
 
 ## What ogygia restores, and when
 
-For each planned host, innermost first and in one task, ogygia restores:
+For each restored element, innermost first and in one task:
 
-1. an open shadow root, with its keyed sheets;
-2. the rendered tree, moved into that root, so its `<slot>` wrappers become real slots;
-3. Svelte's children back in the light DOM, in order and exactly as Svelte rendered them, with attributes your render added removed and text it trimmed or dropped put back;
-4. the host's attributes, back to Svelte's except for those listed in `og-keep`.
+1. an open shadow root, with its sheets;
+2. the rendered tree moved into it, so its `<slot>` wrappers become real slots;
+3. Svelte's children back in the light DOM, exactly as Svelte rendered them;
+4. the element's attributes back to Svelte's, except those in `og-keep`.
 
-The restore runs before anything else reads the markup:
+It runs before anything reads the markup: inline, right after the chunk that has the element (the first one carries the restorer, a later one a short call); on a region answer before it goes in; on an incoming page before a router swap. A page where nothing was restored ships no restorer.
 
-- **for the first document**, as an inline script at the end of the body, so before any island wakes, before Kit starts and before a deferred module script upgrades a custom element;
-- **for a region answer**, on the answer before it goes into the page (there is no paint in between, and nothing upgrades in an inert fragment);
-- **for a router swap**, on the incoming page before the swap.
+A tag the HTML parser would restructure where your render made it (an `<a>` in the page's `<a>`, a `<div>` in a `<p>`) ships as a stand-in and comes back as the real element.
 
-The restore always creates the shadow root itself. A host that already has one by the time the restore reaches it was upgraded first, so it is left as served, with an `ogygia:restore-late` event, and is never restored into a root that the component's own constructor made.
+## Several rewrites
 
-### Tags the HTML parser would restructure
+```ts
+export const handle = sequence(faq, components, ogygia.handle());
+```
 
-Your tree lives in the light DOM, so the HTML parser applies its rules to it in the page's context: an `<a>` inside the page's `<a>` closes the outer link, and a `<div>` inside a `<p>` closes the paragraph. After your transform, ogygia finds every start tag the parser would restructure, where your render produced either the tag or the element it would close, and ships it as a stand-in (`<og-as tag="a">`) with a zero-specificity stylesheet that preserves its box. The restore turns each stand-in back into the real element. Misnesting that comes from the page itself is left alone.
+They run in the order listed, on one marking of the HTML: a later one sees an earlier one's output, marks intact. A rewrite listed after `ogygia.handle()` fails with `rewrite_after_ogygia`.
+
+## The whole page
+
+```ts
+export const pdf = rewrite({
+  page: async (html, ctx) => toPrintable(html)
+});
+```
+
+`page` gets the whole document or region answer. A document it runs on is held until its last chunk. A `page` function that throws, or drops ogygia's marks, sends the HTML as ogygia rendered it and says `rewrite_page_failed` (dev throws it). `pdf.html(str)` runs the function on a plain string, outside any request.
+
+## Testing a rewrite
+
+```ts
+import { components } from '$lib/server/components';
+
+it('restores the light DOM exactly', async () => {
+  const r = await components.check(markup, { kind: 'region' });
+  expect(r.failed).toEqual([]);
+  expect(r.mismatches).toEqual([]);
+  expect(r.restored).toBeGreaterThan(0);
+});
+```
+
+`.check(html, { kind, csr })` runs the whole round trip: mark, your render, settle, then (with a DOM, as in vitest browser mode or jsdom) parse, restore, and compare each restored element with Svelte's original. `failed` lists each element whose render failed. Without a DOM, `dom` is `null` and `mismatches` is empty.
 
 ## The dev check
 
-In dev, ogygia sends each planned host's original children along with the page, and after restoring every host the restore compares it with them: node types, tags, text, comments and attributes. `class` is compared as a set of tokens and `style` as its declarations, with either one treated as absent when empty, since a serializer's rewrite of those paints the same. A difference is reported as an error in the console, naming the first node that differs, and as an `ogygia:restore-mismatch` event:
+In dev, ogygia sends each restored element's original children with the page, and the restore compares them: node types, tags, text, comments and attributes. A difference is an error in the console naming the first node that differs, and an `ogygia:restore-mismatch` event:
 
 ```
-[ogygia] the transform broke hydration markup: <my-button> > [1]: Svelte has <i>, the restored markup has nothing
+[ogygia] the rewrite broke hydration markup: <my-button> > [1]: Svelte has <i>, the restored markup has nothing
 ```
-
-## Testing a transform
-
-`@ogygia/reshape` runs the same round trip outside the app, so a test can harvest markup and run your transform over it:
-
-```ts
-import { transformMarkup, checkScript, restore } from '@ogygia/reshape';
-
-const settled = await transformMarkup(islandHtml, renderComponents, { kind: 'region', dev: true });
-const tpl = document.createElement('template');
-// (the dev check's payload in front: restore then compares each host with Svelte's markup)
-tpl.innerHTML = checkScript(settled.check ?? {}) + settled.html;
-restore(tpl.content);
-// tpl.content now holds what hydration will see
-```
-
-`restore` runs in jsdom as is; without adoptable stylesheets, it gives each shadow root a `<style>` element instead.
-
-`@ogygia/reshape` also provides `scanRegions`, `liftRegions` and `restoreRegions` for a pass that needs to know where the regions are. It does not need Kit, so it runs anywhere.
