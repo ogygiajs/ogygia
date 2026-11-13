@@ -158,9 +158,10 @@ function federation(seed: number): { env: Record<string, string>; peers: WorldOp
 	});
 	const second = GEN_PEER?.origins === 2 ? `https://${PEERS[0].name}2.test` : null;
 	if (second) common[`${PEERS[0].name.toUpperCase()}2_ORIGIN`] = second;
-	const peers = apps.slice(1).map((a, i) => ({
+	const peers: Array<NonNullable<WorldOptions['peers']>[number]> = apps.slice(1).map((a, i) => ({
 		origin: a.origin,
-		build: { id: a.name, output: PEERS[i].output, env: env_of(a) }
+		build: { id: a.name, output: PEERS[i].output, env: env_of(a) },
+		...(i === 0 && second ? { replica: second } : {})
 	}));
 	if (second)
 		peers.push({
@@ -313,6 +314,8 @@ export async function run(
 	const faults = FAULTS.filter(() => r.chance(0.4));
 	// (stalls on a stream of their own: the swarm's other draws stay as they were)
 	if (rng(seed).fork('swarm stall').chance(0.3)) faults.push('stall');
+	// (a peer replica down, on its own stream too; only a peer at two origins has one)
+	if (GEN_PEER?.origins === 2 && rng(seed).fork('swarm down').chance(0.4)) faults.push('down');
 	// (a calm run draws the same, then drops it: its other draws stay the seed's)
 	if (CALM) faults.length = 0;
 	// and its own servers: sometimes two instances behind the front door (each request to the
