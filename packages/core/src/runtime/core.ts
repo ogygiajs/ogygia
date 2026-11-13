@@ -647,7 +647,6 @@ class OgygiaRegion extends HTMLElement {
 		}
 		if (!this.#hole_armed()) return;
 		this.#arm(when, this.#fire_server);
-		// a hand-written `prefetch` the compiler would refuse (`interaction`, or `when`'s own) arms nothing
 		const prefetch = this.getAttribute('prefetch');
 		if (prefetch && prefetch !== when && prefetch !== 'interaction') {
 			this.#arm(prefetch, this.#fire_prefetch);
