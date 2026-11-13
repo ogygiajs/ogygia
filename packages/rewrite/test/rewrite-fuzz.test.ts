@@ -31,7 +31,7 @@ const markup = html_arb({
 	],
 	attrs: ['class', 'wake', 'endpoint', 'entry', 'shadowrootmode', 'title', 'data-og-head', 'is'],
 	values: ['none', 'open', '/e.js', 'a b', 'x-a', '<x-a>', '&amp;'],
-	texts: ['  spaced  ', '<x-a>', '</x-a>', 'og-h="0"', '&nbsp;', '<!--og-c 0.0 t-->']
+	texts: ['  spaced  ', '<x-a>', '</x-a>', 'og-h="0"', '&nbsp;', '<!--og-x 0.0 t-->']
 });
 
 const cuts = (html: string) =>
@@ -50,6 +50,7 @@ const cuts = (html: string) =>
 		});
 
 const TOKEN = '<!--rendered-->';
+const FIRST_LOAD = '<meta name="ogygia-first-load">';
 const beside = (els: readonly RewriteElement[]) => els.map((el) => `${el.html}${TOKEN}`);
 
 async function through(
@@ -116,7 +117,8 @@ describe('a render that only adds beside each element', () => {
 			);
 			for (const [html, chunks] of cases) {
 				const out = await through(chunks, csr, answer, beside);
-				expect(out.html.replaceAll(TOKEN, ''), JSON.stringify(chunks)).toBe(html);
+				const page = out.html.replaceAll(TOKEN, '').replace(FIRST_LOAD, '');
+				expect(page, JSON.stringify(chunks)).toBe(html);
 				expect(out.region.replaceAll(TOKEN, ''), html).toBe(html);
 			}
 		});

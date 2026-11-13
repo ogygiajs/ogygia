@@ -1,7 +1,7 @@
 import type { RequestEvent } from '@sveltejs/kit';
 import type { HtmlPass } from '@ogygia/core/plugin';
 import { closeSafe, escapeAttr } from '@ogygia/core/plugin/utils';
-import { OG_HEAD, OG_RESTORE, OG_STAND_INS } from '@ogygia/core/internal/instruments';
+import { MarkupCursor, OG_HEAD, OG_RESTORE, OG_STAND_INS } from '@ogygia/core/internal/instruments';
 import { DEV } from 'esm-env';
 import {
 	check_script,
@@ -11,6 +11,7 @@ import {
 	mark_with,
 	remap,
 	restored_ids,
+	root_attr,
 	settle,
 	STAND_IN_CSS,
 	type MarkRecord
@@ -262,34 +263,24 @@ function judge(el: RewriteElement, out: unknown): Rendered | Failure {
 }
 
 function outer_mark(html: string): { html: string; attr: string } | null {
-	const gt = html.indexOf('>');
-	const at = html.indexOf(' og-c=');
-	if (at === -1 || at > gt) return null;
-	const q = html.charCodeAt(at + 6);
-	let end: number;
-	if (q === 34 || q === 39) end = html.indexOf(String.fromCharCode(q), at + 7) + 1;
-	else {
-		end = at + 6;
-		while (end < gt && !/[\s/>]/.test(html[end])) end++;
-	}
-	if (end <= 0 || end > gt) return null;
-	return { html: html.slice(0, at) + html.slice(end), attr: html.slice(at, end) };
+	const a = root_attr(html, 'og-c');
+	if (a === null) return null;
+	let from = a.start;
+	while (from > 0 && /\s/.test(html[from - 1])) from--;
+	return {
+		html: `${html.slice(0, from)}${html.slice(a.end)}`,
+		attr: ` ${html.slice(a.start, a.end)}`
+	};
 }
 
 function with_outer_mark(html: string, attr: string): string {
-	for (let lt = html.indexOf('<'); lt !== -1; lt = html.indexOf('<', lt + 1)) {
-		const c = html.charCodeAt(lt + 1);
-		if (!((c >= 65 && c <= 90) || (c >= 97 && c <= 122))) continue;
-		let ne = lt + 2;
-		while (ne < html.length && !/[\s/>]/.test(html[ne])) ne++;
-		return html.slice(0, ne) + attr + html.slice(ne);
-	}
+	for (const at = new MarkupCursor(html); at.next();)
+		if (at.kind === 1) return `${html.slice(0, at.ne)}${attr}${html.slice(at.ne)}`;
 	return html;
 }
 
 function starts_restored(html: string): boolean {
-	const at = html.indexOf('og-h=');
-	return at !== -1 && at < html.indexOf('>');
+	return root_attr(html, 'og-h') !== null;
 }
 
 async function run_steps(
@@ -323,7 +314,7 @@ async function run_steps(
 		const out = await render_targets(step.render, targets, ctx, res);
 		for (let t = targets.length - 1; t >= 0; t--) {
 			const r = out[t];
-			if (!r) continue;
+			if (!r || (r.html === targets[t].element.html && !r.sheets?.length)) continue;
 			const { unit, start, end, back } = targets[t];
 			unit.cur = unit.cur.slice(0, start) + back(r.html) + unit.cur.slice(end);
 			unit.changed = true;

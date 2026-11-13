@@ -627,7 +627,11 @@ export function mark_with(
 			if (name === 'body') in_body = true;
 			const close = implied_close(stack, name);
 			if (close === DROP) continue;
-			if (close !== -1) cut(stack, close);
+			let escapes = false;
+			if (close !== -1) {
+				for (let j = close; j < stack.length; j++) if (stack[j].host !== -1) escapes = true;
+				cut(stack, close);
+			}
 			const parent = top();
 			const foreign = name === 'svg' || name === 'math' || !!parent?.foreign;
 			const custom = in_body && is_custom(name, foreign);
@@ -646,7 +650,7 @@ export function mark_with(
 			if (name === 'ogygia-region') owned = region_kind(attrs) === 'island';
 			// the child tag: this element is child i of the custom element above it (a declarative
 			// shadow template is not a child once parsed: it becomes the host's shadow root)
-			let insert = '';
+			let insert = escapes && in_body ? ' og-s' : '';
 			const shadow_tpl = name === 'template' && attrs.some((a) => a.name === 'shadowrootmode');
 			if (child_of_host && !shadow_tpl) {
 				const i = parent.next++;
@@ -991,16 +995,12 @@ export function settle(html: string, record: MarkRecord, opts: { dev?: boolean }
 			}
 			const og_c = has_og ? attrs.find((a) => a.name === 'og-c') : undefined;
 			const og_h = has_og ? attrs.find((a) => a.name === 'og-h' || a.name === 'og-u') : undefined;
+			const og_s = has_og && attrs.some((a) => a.name === 'og-s');
 			const foreign = name === 'svg' || name === 'math' || !!parent?.foreign;
 			const is_host = !!og_h;
 			// the render introduced this element: inside a host, not a tagged child, or inherited
-			const introduced = og_c
-				? false
-				: parent
-					? parent.host !== -1
-						? true
-						: parent.introduced
-					: false;
+			const introduced =
+				og_c || og_s ? false : parent ? (parent.host !== -1 ? true : parent.introduced) : false;
 			// a start tag the parser would restructure, where the render made either side of it
 			let stand_in = false;
 			if ((close !== -1 || drop) && !foreign) {
@@ -1013,6 +1013,7 @@ export function settle(html: string, record: MarkRecord, opts: { dev?: boolean }
 			}
 			// the rewrite (a tag without ogygia's marks has nothing to remove: no Set made for it)
 			const remove = has_og ? new Set<string>() : NO_REMOVE;
+			if (og_s) remove.add('og-s');
 			let add = '';
 			// ONE attribute reset per element: a planned host's own (it honours og-keep) wins over its
 			// reset as a tagged child of the host above (the same attributes, without og-keep)
@@ -1117,33 +1118,57 @@ function read_id(s: string, at: number): { id: number; end: number } | null {
 
 /** Rewrite every host id in ogygia's marks through `map` (ids it lacks stay). */
 export function remap(html: string, map: (id: number) => number | undefined): string {
-	// ONE forward walk over `og-` (a search per prefix at every step is quadratic when one prefix is
-	// rare or absent), then what follows says which mark it is: `og-h="` / `og-u="` / `og-c="`, or the
-	// comments `<!--og-c ` / `<!--og-t `. The input itself comes back when no id moves.
-	let out = '';
+	if (html.indexOf('og-') === -1) return html;
+	const parts: string[] = [];
 	let pos = 0;
-	for (let a = html.indexOf('og-'); a !== -1; a = html.indexOf('og-', a + 3)) {
-		const c = html.charCodeAt(a + 3);
-		let id_at = -1;
-		if ((c === 104 || c === 117 || c === 99) && html.charCodeAt(a + 4) === 61) {
-			const q = html.charCodeAt(a + 5);
-			id_at = q === 34 || q === 39 ? a + 6 : a + 5;
-		} else if (
-			(c === 99 || c === 116) &&
-			html.charCodeAt(a + 4) === 32 &&
-			html.startsWith('<!--', a - 4)
-		)
-			id_at = a + 5;
-		if (id_at === -1) continue;
-		const r = read_id(html, id_at);
-		if (!r) continue;
+	const move = (at: number) => {
+		const r = read_id(html, at);
+		if (!r) return;
 		const to = map(r.id);
-		if (to === undefined || to === r.id) continue;
-		out += html.slice(pos, id_at) + to;
+		if (to === undefined || to === r.id) return;
+		parts.push(html.slice(pos, at), String(to));
 		pos = r.end;
-		a = r.end - 3;
+	};
+	for (const at = new MarkupCursor(html); at.next();) {
+		if (at.kind === 1)
+			visit_attrs(html, at.ne, (ns, ne, vs, _ve, vq) => {
+				if (vq !== -1 && ne - ns === 4 && is_id_mark(html, ns)) move(vs);
+			});
+		else if (at.kind !== 0 && at.kind !== 2 && is_id_comment(html, at.start)) move(at.start + 9);
 	}
-	return pos === 0 ? html : out + html.slice(pos);
+	if (pos === 0) return html;
+	parts.push(html.slice(pos));
+	return parts.join('');
+}
+
+function is_id_mark(html: string, at: number): boolean {
+	if ((html.charCodeAt(at) | 32) !== 111 || (html.charCodeAt(at + 1) | 32) !== 103) return false;
+	if (html.charCodeAt(at + 2) !== 45) return false;
+	const c = html.charCodeAt(at + 3) | 32;
+	return c === 104 || c === 117 || c === 99;
+}
+
+function is_id_comment(html: string, at: number): boolean {
+	return html.startsWith('<!--og-c ', at) || html.startsWith('<!--og-t ', at);
+}
+
+/** The value of the attribute `name` on the start tag `html` opens with, and its span. */
+export function root_attr(
+	html: string,
+	name: string
+): { start: number; end: number; value: string } | null {
+	const at = new MarkupCursor(html);
+	if (!at.next() || at.kind !== 1) return null;
+	let found: { start: number; end: number; value: string } | null = null;
+	visit_attrs(html, at.ne, (ns, ne, vs, ve, vq) => {
+		if (found !== null || html.slice(ns, ne).toLowerCase() !== name) return;
+		found = {
+			start: ns,
+			end: vq === -1 ? ne : vq === 0 ? ve : ve + 1,
+			value: vq === -1 ? '' : html.slice(vs, ve)
+		};
+	});
+	return found;
 }
 
 /** An element's marks renumbered from 0 in order of appearance, so the same element has the same
@@ -1171,11 +1196,15 @@ const same = (html: string): string => html;
 /** The ids of the hosts ogygia restores (`og-h`) in `html`, quoted any way a serializer writes them. */
 export function restored_ids(html: string): Set<number> {
 	const out = new Set<number>();
-	for (let a = html.indexOf('og-h='); a !== -1; a = html.indexOf('og-h=', a + 5)) {
-		const q = html.charCodeAt(a + 5);
-		const r = read_id(html, q === 34 || q === 39 ? a + 6 : a + 5);
-		if (r) out.add(r.id);
-	}
+	if (html.indexOf('og-') === -1) return out;
+	for (const at = new MarkupCursor(html); at.next();)
+		if (at.kind === 1)
+			visit_attrs(html, at.ne, (ns, ne, vs, _ve, vq) => {
+				if (vq === -1 || ne - ns !== 4 || !is_id_mark(html, ns)) return;
+				if ((html.charCodeAt(ns + 3) | 32) !== 104) return;
+				const r = read_id(html, vs);
+				if (r) out.add(r.id);
+			});
 	return out;
 }
 
