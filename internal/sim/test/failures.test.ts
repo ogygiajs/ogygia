@@ -258,6 +258,15 @@ describe('failure sites accounted', () => {
 		expect(shapes_in("const m = rng(seed).fork('gen messy');")).toEqual(['gen messy']);
 	});
 
+	it("passes a site a point of the random app's own code fires, with no orphan check for it", () => {
+		const a = account_failures(
+			SITES,
+			ledger({ fired: [{ site: 'f > catch:0', point: 'gen.pass-throws', how: '' }] }),
+			{ ...o, points: new Set(), app_points: new Set(['gen.pass-throws', 'gen.unused']) }
+		);
+		expect(a.failures).toEqual([]);
+	});
+
 	it('fails a fired site whose point did not fire in the sweep', () => {
 		const a = account_failures(SITES, ledger(), { ...o, fired: new Set<string>() });
 		expect(a.failures).toEqual(["f > catch:0: its point 'p.lost' did not fire in the sweep"]);

@@ -256,5 +256,23 @@
 		"operator": "statement",
 		"from": "continue;",
 		"to": "return null;"
+	},
+	{
+		"id": "reshape-fallback-without-restorer",
+		"file": "packages/reshape/src/pass.ts",
+		"line": 87,
+		"code": "if (out === null) return { html, head: '', body: RESTORER_SCRIPT };",
+		"operator": "statement",
+		"from": "body: RESTORER_SCRIPT };",
+		"to": "body: '' };"
+	},
+	{
+		"id": "reshape-fallback-off",
+		"file": "packages/reshape/src/pass.ts",
+		"line": 87,
+		"code": "if (out === null) return { html, head: '', body: RESTORER_SCRIPT };",
+		"operator": "statement",
+		"from": "if (out === null) return { html, head: '', body: RESTORER_SCRIPT };",
+		"to": "if (out === null) throw new Error('the pass failed');"
 	}
 ]

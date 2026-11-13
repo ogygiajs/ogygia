@@ -91,6 +91,12 @@
 			"shape": "gen messy",
 			"how": "the refusal of that 500 (status N): fetch_failed retries, then the fallback stands",
 			"killed_by": "hole-error-answer-swapped-in"
+		},
+		{
+			"site": "packages/reshape/src/pass.ts > transformed > catch:0",
+			"point": "gen.reshape-throws",
+			"how": "the random app's pass throws (a point in its own code): the answer goes out as ogygia rendered it, a document still with the restorer",
+			"killed_by": "reshape-fallback-off"
 		}
 	],
 	"covered": [
@@ -111,12 +117,6 @@
 			"reason": "a Kit-hydrated page (csr=true): the random app is csr=false",
 			"test": "packages/reshape/test/browser/restore.test.ts",
 			"name": "a Kit-hydrated page: a watched host that leaves the document leaves the watch, a moved one stays, and the observer goes with the last one"
-		},
-		{
-			"site": "packages/reshape/src/pass.ts > transformed > catch:0",
-			"reason": "the random app's transform fails only on its fault points, which wait on dst/reshape-faults",
-			"test": "packages/reshape/test/pass-failed.test.ts",
-			"name": "a transform that throws: the page goes out as ogygia rendered it, said once with reshape_pass_failed (gen 10, seed 10)"
 		},
 		{
 			"site": "packages/reshape/src/pass.ts > transformed > throw:0",
