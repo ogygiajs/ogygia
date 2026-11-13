@@ -2898,7 +2898,8 @@ class Profiler {
 	 */
 	async #login(ctx: RouteCtx): Promise<Response> {
 		const raw = await read_capped(ctx.request, MAX_LOGIN_BODY);
-		if (raw === null) return ctx.json({ ok: false }, { status: 413 });
+		if (raw === 'too large') return ctx.json({ ok: false }, { status: 413 });
+		if (raw === 'unreadable') return ctx.json({ ok: false }, { status: 400 });
 		let sent: unknown = null;
 		try {
 			sent = JSON.parse(new TextDecoder().decode(raw));
@@ -3255,7 +3256,9 @@ class Profiler {
 		let dump: unknown;
 		try {
 			const raw = await read_capped(ctx.request, MAX_POSTED_REPORT);
-			if (raw === null) return new Response('That report is too large.', { status: 413 });
+			if (raw === 'too large') return new Response('That report is too large.', { status: 413 });
+			if (raw === 'unreadable')
+				return new Response('The report did not arrive whole.', { status: 400 });
 			if ((ctx.request.headers.get('content-type') ?? '').startsWith('application/octet-stream')) {
 				const bytes = recover_ogp_bytes(raw);
 				if (!is_ogp(bytes))
@@ -5841,7 +5844,9 @@ class Profiler {
 			// Tolerate a `.ogp` mangled by a text-y transfer between machines (a prepended BOM, or the whole
 			// file base64-encoded) — recover the raw bytes before checking the magic.
 			const raw = await read_capped(ctx.request, MAX_POSTED_REPORT);
-			if (raw === null)
+			if (raw === 'unreadable')
+				return ctx.json({ error: 'The file did not arrive whole.' }, { status: 400 });
+			if (raw === 'too large')
 				return ctx.json(
 					{
 						error: `That file is over ${MAX_POSTED_REPORT / 1_048_576} MB, past any real profile.`
@@ -6729,7 +6734,8 @@ class Profiler {
 		try {
 			// (read no further than the largest kind; each kind's own cap is checked below)
 			const raw = await read_capped(ctx.request, MAX_BEACON_CPU_BODY);
-			if (raw === null) return new Response(null, { status: 413 });
+			if (raw === 'too large') return new Response(null, { status: 413 });
+			if (raw === 'unreadable') return new Response(null, { status: 400 });
 			const text = new TextDecoder().decode(raw);
 			// a CPU trace is the one big body (samples + stacks); a visit is a few hundred resources;
 			// everything else stays small
