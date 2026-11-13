@@ -13,6 +13,7 @@
 	"devDependencies": {
 		"@types/node": "catalog:",
 		"fast-check": "catalog:",
+		"svelte": "catalog:",
 		"typescript": "catalog:tsgo",
 		"vitest": "catalog:"
 	}

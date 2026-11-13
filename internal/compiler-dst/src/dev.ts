@@ -43,9 +43,10 @@ export const VIRTUALS = [
  *   edited).
  * - #1376: a transform that changed the registry or the marks reloads what read them.
  * - #1399: the server manifest's lines are compared sorted (`as_judged`).
+ * - #1317: seed shaping misses a page passed as a parameter default (reads.ts `KNOWN_READS`).
  */
 export const KNOWN: ReadonlySet<number> = new Set(
-	(process.env.DST_KNOWN ?? '1375,1376,1399').split(',').filter(Boolean).map(Number)
+	(process.env.DST_KNOWN ?? '1317,1375,1376,1399').split(',').filter(Boolean).map(Number)
 );
 
 /** A served module as the oracles compare it. #1399 (the server manifest in registration order):

@@ -531,10 +531,15 @@ session, both legs) serve each leg the same modules and emit the same chunks, an
 modules requested in a seeded order serves the same bytes (found #1399). The app's marks cover
 islands of every wake, lakes, server islands (with a fetch timing) and `region: 'raw'`.
 
+Sound analyses (`src/reads.ts`, `test/sound.test.ts`): a component drawn from `page.data` read
+shapes (members, literals, destructuring, aliases, helpers, `$derived`, markup, the `$app/stores`
+store, spreads, computed keys), rendered by Svelte on the server with `page.data` a recording
+Proxy: every key it read is within what seed shaping predicted (`'all'` predicts every key). A shape
+a filed bug explains (#1317: a page as a parameter default) is not drawn while it is in `KNOWN`.
+
 Next, from the compiler study (section G.4): watch (a second build in one session: compiler 5's
-F1 work, #1386), metamorphic edits (renames, comments, an unused import), sound analyses (what a
-region reads is within what the compiler predicted), and wider apps (remotes, wire classes,
-router pages).
+F1 work, #1386), metamorphic edits (renames, comments, an unused import), more analyses under the
+soundness oracle (hole reads, wire crossing), and wider apps (remotes, wire classes, router pages).
 
 ## Findings
 

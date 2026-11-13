@@ -935,6 +935,9 @@ importers:
       fast-check:
         specifier: 'catalog:'
         version: 4.10.2
+      svelte:
+        specifier: 'catalog:'
+        version: 5.57.3
       typescript:
         specifier: catalog:tsgo
         version: 7.0.2
