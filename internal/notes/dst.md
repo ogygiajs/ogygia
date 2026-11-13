@@ -445,7 +445,9 @@ mutant goes in mutants.json and its id in `killed_by`. A site that fires but who
 nobody notices wants an oracle or a test first.
 
 MUTATION, DAILY: dst.yml's `mutate` job (cron `43 3 * * *`) runs `src/mutate.ts` over
-`internal/sim/mutants.json` on main's code, over gens 24 (a reshape pass that trims, with links: it
+`internal/sim/mutants.json` on main's code, over gens 10 (the router with a reshape pass: the network
+faults alone kill a navigation that never hands a lost page fetch to the browser, and a hole that
+never fetches again after its retry wait, both by `stuck`), 24 (a reshape pass that trims, with links: it
 kills restore.ts's children not put back and its render left in the light DOM, by `ssr-hydrate`,
 and a stand-in left as `<og-as>`, by `html-kept`: no reshape mark is left at rest),
 188 (an empty island that wakes: it kills the
