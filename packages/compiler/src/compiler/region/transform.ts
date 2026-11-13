@@ -306,10 +306,8 @@ function refuse_unknown_attributes(
 ): void {
 	if (!COMPONENT_SPEC_RE.test(spec)) return;
 	const known = component_attribute_keys(import_keys);
-	const all = [...keys];
-	if (all.some((k) => known.includes(k))) return;
-	for (const key of all)
-		if (!foreign_attribute(key, import_keys))
+	for (const key of keys)
+		if (!known.includes(key) && !foreign_attribute(key, import_keys))
 			throw new OgygiaError('region_attribute_unknown', {
 				host,
 				names,

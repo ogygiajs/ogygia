@@ -425,8 +425,8 @@ describe('transformTsRegions — the module rules', () => {
 		).toBe('held_render_live');
 	});
 
-	test('region beside another key, or render beside a foreign key, is a mixed marker set', () => {
-		for (const attrs of [`region: 'raw', fetch: 'load'`, `render: 'deferred', margin: '1px'`])
+	test('region beside another key, or render beside a key it does not take, is a mixed marker set', () => {
+		for (const attrs of [`region: 'raw', fetch: 'load'`, `render: 'deferred', keep: 'x'`])
 			expect(
 				code_of(() => ts(`import C from './C.svelte' with { ${attrs} };\nexport const b = C;`))
 			).toBe('held_marker_mixed');

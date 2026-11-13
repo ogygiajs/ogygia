@@ -4305,10 +4305,6 @@
 			"reason": "once per attributed import a host already parses, over its few attribute keys"
 		},
 		{
-			"id": "packages/compiler/src/compiler/region/transform.ts > refuse_unknown_attributes > some:0~cd37e9",
-			"reason": "over an import's few attribute keys"
-		},
-		{
 			"id": "packages/compiler/src/compiler/region/transform.ts > refuse_unknown_attributes > OgygiaError:1~5816b6 > map:0~86ff3f",
 			"reason": "builds the message once, as the build fails"
 		},
