@@ -8,10 +8,12 @@
  * hydration. WARM (not a wake): the pointer moving over the region prefetches the island module, so
  * by the time the press lands the chunk is usually cached and the wake is one microtask.
  *
- * DELEGATED: the listeners live on the DOCUMENT, once — five per armed island used to be five
- * hundred on a page of interaction islands. An event resolves to the nearest ARMED region above its
- * target (`closest`, walking up past nested regions that are not armed) and that region's state
- * handles it exactly as its own capture listener did.
+ * DELEGATED: the listeners live on the DOCUMENT, once. An event resolves to the nearest ARMED region
+ * above its target (`closest`, walking up past nested regions that are not armed, never past a live
+ * one: a click inside an awake island is that island's) and that region's state handles it exactly
+ * as its own capture listener did. Each arming is its own: a region put back after it left arms a
+ * new one, and only the arming that holds the region's entry may delete it; a region that left while
+ * woken replays nothing.
  *
  * HYDRATION REPLACES NODES. Svelte's hydrate pass may recreate the region's DOM, so nothing
  * captured before the wake can be replayed/restored by node reference — the original elements are
@@ -41,7 +43,12 @@
  * The capture (this module) is what must run synchronously inside the first event. The RESTORE +
  * REPLAY half (./interaction-replay.ts) is only needed once an island has woken, so it is off the
  * boot path: asked for as background work once an island arms (`replay_ahead`), and at once when a
- * pointer reaches an armed island or input lands.
+ * pointer reaches an armed island or input lands. If the hydration fails, the region is disarmed (its
+ * dead-but-real HTML keeps native behavior) and the queued clicks replay onto the server markup. A
+ * click inside an open shadow root replays on the node it hit. Tests:
+ * test/browser/interaction-delegated, interaction-rearm, interaction-replay-claims, hydrated-by.
+ *
+ * @packageDocumentation
  */
 
 import {
@@ -68,18 +75,15 @@ export function install(): void {
 	slots.interaction = (el, fire, owner) => {
 		const warm = () => {
 			const entry = island_entry_of(el);
-			if (entry) warm_island_module(entry, undefined, 'user'); // a hover: the visitor is reaching for it
+			if (entry) warm_island_module(entry, undefined, 'user');
 		};
 		return arm_interaction(el, warm, fire, owner);
 	};
 }
 
 const WAKE_EVENTS = ['pointerdown', 'keydown', 'focusin', 'click'] as const;
-// any region: an `interaction` one, and a scheduled one (`load` / `idle` / `visible` / media) not live
-// yet — the `armed` map says which are armed
 const ARMED_SELECTOR = 'ogygia-region';
 
-/** Form controls whose typed value must survive hydration. */
 const VALUE_SELECTOR = 'input, textarea, select';
 
 /** Child-index path from `region` down to `el` — survives node replacement by position. */
@@ -156,60 +160,38 @@ const arming_definition = machine<{ armed: {}; woken: {}; over: {} }>()({
 	steps: arming_steps
 });
 
-/** `armed`: waiting for a visitor. `woken`: its wake is out, its clicks queue. `over`: disarmed
- *  while woken because the region left: its wake's end replays nothing. */
 type Arming = Machine<{ armed: {}; woken: {}; over: {} }, typeof arming_steps>;
 
-/**
- * One arming of a region — what its own capture listeners used to close over. Each arming is its
- * own: a region put back after it left arms a new one, and only the arming that holds the region's
- * entry may delete it. Where it stands is its `arming` machine.
- */
 type Armed = {
 	region: Element;
 	warm: () => void;
 	fire: WakeFn;
-	/** the region's lifetime in the page: the replay's frame is its */
 	owner: Scope;
 	arming: Arming;
 	warmed: boolean;
 	queued: QueuedClick[];
-	/** Takes its entry out (only its own: a newer arming of the region holds another). */
 	forget: () => void;
 };
 
-/**
- * Ends an arming: its entry goes, if it is still the region's (a newer arming's stays). `over`: the
- * region left the page while it was woken — the visit that queued its clicks is over, and they go
- * with it (the region that comes back is server markup of a new visit, with a capture of its own).
- */
 function disarm(a: Armed, over: boolean): void {
 	a.forget();
 	if (over) a.arming.move('woken', 'over');
 }
 
-/** Each armed region's arming, held by the region's lifetime in the page (it goes with it). */
 const armed = registry.keyed<Element, Armed>();
 let installed = false;
 
-/** THE REPLAY HALF, loaded once, when the first region arms. A download that fails is tried again
- *  at once and never kept: the next wake (or the failure path below) loads it afresh. */
 type Replay = typeof import('./interaction-replay.ts');
 const load_replay = flights({
 	name: 'interaction replay',
 	run: import_again(() => import('./interaction-replay.ts')),
 	retry: download
 });
-/** (Never STALE: nothing drops the replay half.) */
 function replay(): Promise<Replay | Stale> {
-	// Link what the replay chunk uses from this module right where the chunk is loaded, so whoever
-	// loads it (the feature's arm, or a direct `arm_interaction`) has linked it (./slots.ts `BootLink`).
 	slots.interaction_link ??= { resolve_address };
 	return load_replay.get();
 }
 
-/** The nearest ARMED region above an event's target (past nested regions that are not armed), never
- *  past a live one: a click inside an awake island is that island's, whatever sleeps around it. */
 function armed_region_of(target: EventTarget | null): Armed | null {
 	let el = target instanceof Element ? target.closest(ARMED_SELECTOR) : null;
 	while (el) {
@@ -221,8 +203,6 @@ function armed_region_of(target: EventTarget | null): Armed | null {
 	return null;
 }
 
-/** A click that opens a link elsewhere (a new tab or window): the browser does it on the server markup,
- *  and a replayed — untrusted — click could not. */
 function opens_elsewhere(e: MouseEvent, target: Element): boolean {
 	return (e.button !== 0 || e.ctrlKey || e.metaKey || e.shiftKey) && !!target.closest('a[href]');
 }
@@ -233,16 +213,12 @@ function on_wake_event(e: Event): void {
 	if (a) wake(a, e);
 }
 
-/** `pointerover` bubbles (unlike `pointerenter`) — the pointer crossing INTO an armed region, from
- *  any descendant, warms its module once. */
 function on_warm_event(e: Event): void {
 	if (armed.size === 0) return;
 	const a = armed_region_of(e.target);
 	if (!a || a.warmed) return;
 	a.warmed = true;
 	a.warm();
-	// the pointer is reaching for an island: the replay half, ahead of its press (a warm: a download
-	// that fails is asked for again by the press, which says its failure)
 	replay().catch(() => {}); // ok: a warm ahead; the press loads it again and says a failure
 }
 
@@ -258,8 +234,6 @@ function install_listeners(): void {
 
 function wake(a: Armed, e: Event): void {
 	const { region, queued } = a;
-	// While waking (and before), clicks are canceled + queued: their activation happens once,
-	// on the replay, when the island's handlers exist. Everything else passes through natively.
 	if (
 		e.type === 'click' &&
 		e.target instanceof Element &&
@@ -268,12 +242,8 @@ function wake(a: Armed, e: Event): void {
 		const addr = element_address(region, e.target);
 		if (addr) {
 			const me = e as MouseEvent;
-			// a queued click is the replay's alone: canceled, and kept from the island's handlers too —
-			// they can be live before its wake ends (hydrated, not yet marked) and would hear it twice
-			// (test/browser/interaction-delegated.test.ts)
 			e.preventDefault();
 			e.stopPropagation();
-			// `e.target` is already retargeted to the shadow HOST; keep the real deepest node too.
 			const path = typeof e.composedPath === 'function' ? e.composedPath() : [];
 			const deep = path.length && path[0] !== e.target ? path[0] : null;
 			queued.push({
@@ -297,11 +267,8 @@ function wake(a: Armed, e: Event): void {
 		}
 	}
 	if (!a.arming.move('armed', 'woken')) return;
-	// what woke it, for `hydratedBy()` (hydration-info.ts): a visitor did — its first click is a replay,
-	// whatever schedule the island had
 	region.setAttribute(OG_WOKE, 'interaction');
 
-	// Typed-so-far values + focus, captured as ADDRESSES (hydration may replace the nodes).
 	const fields = snapshot_fields(region);
 	const active = document.activeElement;
 	const active_addr =
@@ -316,9 +283,6 @@ function wake(a: Armed, e: Event): void {
 		},
 		(err) => {
 			if (a.arming.now.kind === 'over') return;
-			// Hydration FAILED (chunk 404, network drop). Disarm so the region stops canceling
-			// clicks — native behavior (links, form posts, checkboxes) must keep working on the
-			// dead-but-real HTML. Replay the swallowed clicks so the failed one still acts.
 			disarm(a, false);
 			// (the replay half itself may be what failed: asked for again; if it fails again the
 			// clicks are lost, and said so, never left as an unhandled rejection)
@@ -364,7 +328,6 @@ export function arm_interaction(
 	return (over = false) => disarm(a, over);
 }
 
-/** The replay half's warm is queued (one at a time: the first island armed while none is). */
 let replay_queued = false;
 
 /**
