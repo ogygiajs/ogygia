@@ -57,10 +57,10 @@ describe('a rewrite() handle', () => {
 		expect(order).toEqual(['one', 'two']);
 	});
 
-	it('listed after ogygia.handle() is refused with rewrite_after_ogygia', () => {
+	it('listed after ogygia.handle() is refused with rewrite_after_ogygia', async () => {
 		startPlugin(server, { name: '@ogygia/rewrite' });
 		const event = event_of(new Request('http://x/'));
-		server.request!({ event } as never);
+		await server.request!({ event } as never);
 		expect(() => same({ event, resolve: ok })).toThrow(/rewrite_after_ogygia/);
 	});
 });
