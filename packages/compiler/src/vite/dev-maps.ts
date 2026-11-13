@@ -1,11 +1,3 @@
-/**
- * THE DEV SERVER'S SOURCE MAPS, FOR THE PROFILER: Vite's module runner evaluates each server module's
- * transformed code inside an `AsyncFunction` (`"use strict";\n` first), with `//# sourceURL=<id>`, so a
- * CPU profile names the module by its id and its lines are the transformed code's, shifted by the
- * function's own header. The map from that code back to the source is in the SSR module graph. This
- * puts a lookup on a global the profiler (loaded by the same process) reads: module id → the map,
- * shifted to the lines V8 reports.
- */
 import type { ViteDevServer } from 'vite';
 import type { PageReads } from './plugin-api.ts';
 
@@ -48,7 +40,6 @@ export function install_dev_page_keys(
 		const component = component_of(iid)?.split('?')[0];
 		const graph = ssr();
 		if (!component || !graph) return undefined;
-		// the component and the app modules below it
 		const files: string[] = [];
 		const seen = new Set<string>();
 		let level: string[] = [component];
@@ -77,7 +68,6 @@ export function install_dev_page_keys(
 	};
 }
 
-/** lines V8 counts before a module's first line: the `AsyncFunction` header, and `"use strict";` */
 function runner_offset(): number {
 	const AsyncFunction = async function () {}.constructor as new (...a: string[]) => () => unknown;
 	const src = new AsyncFunction('a', 'b', '/*code*/').toString();
@@ -140,7 +130,6 @@ export function install_dev_maps(server: ViteDevServer): void {
 	(globalThis as Record<symbol, unknown>)[DEV_MAPS] = (id: string): string | undefined => {
 		const map = graph()?.getModuleById(id)?.transformResult?.map;
 		if (!map || typeof map.mappings !== 'string') return undefined;
-		// shifted by the lines in front of the module's own first line
 		return JSON.stringify({ ...map, mappings: ';'.repeat(offset) + map.mappings });
 	};
 }

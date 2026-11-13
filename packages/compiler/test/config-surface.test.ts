@@ -118,4 +118,44 @@ describe('router absorbs continuity', () => {
 		expect(() => ogygia({ router: false })).not.toThrow();
 		expect(() => ogygia({ router: { viewTransitions: false, forms: false } })).not.toThrow();
 	});
+
+	const router = (r: Parameters<typeof resolve_options>[0]) => {
+		const c = resolve_options(r, 3600);
+		return [c.router_enabled, c.router_view_transitions, c.continuity_forms, c.server_delta];
+	};
+
+	it('on by default with view transitions and forms; server delta only when written', () => {
+		expect(router({})).toEqual([true, true, true, false]);
+		expect(router({ router: { serverDelta: true } })).toEqual([true, true, true, true]);
+		expect(router({ router: { viewTransitions: false, forms: false } })).toEqual([
+			true,
+			false,
+			false,
+			false
+		]);
+	});
+
+	it('router: false takes view transitions, forms and server delta with it', () => {
+		expect(router({ router: false })).toEqual([false, false, false, false]);
+	});
+});
+
+describe('the region endpoint', () => {
+	it('rate limit: 60 a minute by default, clamped at 0 and 1 ms, off with false', () => {
+		expect(resolve_options({}, 3600).rate_limit).toEqual({ max: 60, windowMs: 60_000 });
+		expect(resolve_options({ rateLimit: { max: -5, windowMs: 0 } }, 3600).rate_limit).toEqual({
+			max: 0,
+			windowMs: 1
+		});
+		expect(resolve_options({ rateLimit: false }, 3600).rate_limit).toEqual({
+			max: 0,
+			windowMs: 60_000
+		});
+	});
+
+	it('session cookie: the name when one is written, else unbound', () => {
+		expect(resolve_options({ sessionCookie: 'sid' }, 3600).session_cookie).toBe('sid');
+		expect(resolve_options({ sessionCookie: '' }, 3600).session_cookie).toBe('');
+		expect(resolve_options({}, 3600).session_cookie).toBe('');
+	});
 });
