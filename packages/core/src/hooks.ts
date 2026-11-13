@@ -269,8 +269,8 @@ if (RULES) install_server_rules();
 /** The monotonic clock, for server-realm devtools timestamps. */
 const dt_now = clock.mono;
 
-// Drop-in `setContext` bridge. A layout that imports `setContext` from `ogygia` records each string
-// key into this per-request bag during SSR; `inject_client_seeds` reads it back and emits ONE
+// Drop-in `setContext` bridge. A layout that imports `setContext` from `ogygia` records each key that
+// crosses (by its name, ./context-key.ts) into this per-request bag during SSR; `inject_client_seeds` reads it back and emits ONE
 // `<script data-ogygia-provide-page>` before `</body>` that every island seeds `getContext` from —
 // so a plain `setContext` in a csr=false layout reaches child islands (separate hydration roots).
 // Server-only (this file never ships to the browser); on the client the recorder is never installed

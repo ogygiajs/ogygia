@@ -794,7 +794,7 @@ export const WARNINGS = {
 	},
 	context_dropped: {
 		text: (a: { key: string }): string =>
-			`context '${a.key}' could not be serialized for islands and was dropped.`,
+			`context ${a.key} could not be serialized for islands and was dropped.`,
 		details: (): string => prose`
 			Dev only. A context value set above islands could not be serialized, so islands do not see
 			it. Pass plain data, or a wired value.
@@ -802,7 +802,7 @@ export const WARNINGS = {
 	},
 	context_unserializable: {
 		text: (a: { key: string; path?: string; detail: string }): string =>
-			`context '${a.key}'${a.path ? ` @ ${a.path}` : ''}: ${a.detail}`,
+			`context ${a.key}${a.path ? ` @ ${a.path}` : ''}: ${a.detail}`,
 		details: (): string => prose`
 			Dev only. Part of a context value set above islands does not cross into them: \`path\`
 			names where, \`detail\` what. Pass plain data there.

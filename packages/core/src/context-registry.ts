@@ -12,7 +12,7 @@
  */
 import { server_ports } from './server-ports.ts';
 
-type Recorder = (key: string, value: unknown) => void;
+type Recorder = (name: string, value: unknown) => void;
 
 /** Server (`hooks.ts`) installs a request-scoped recorder. */
 export function set_ctx_recorder(fn: Recorder | null): void {
