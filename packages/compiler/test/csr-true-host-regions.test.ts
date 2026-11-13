@@ -81,7 +81,7 @@ describe('a csr=true route host hands its wake islands to Kit as plain component
 		);
 		const page = transformHost(src, HOST, ctx(true))!;
 		expect(page.code).toContain(`import C from './C.svelte';`);
-		expect(page.islands.map((i: { strategy: string }) => i.strategy)).toEqual(['server']);
+		expect(page.islands.map((i) => i.strategy)).toEqual(['server']);
 	});
 
 	it('turns a wake asRegion into the component', () => {
