@@ -53,6 +53,19 @@ const next_nav = (page: import('@playwright/test').Page) =>
 const nav_done = (page: import('@playwright/test').Page) =>
 	page.evaluate(() => (window as unknown as { __e2e_nav?: Promise<void> }).__e2e_nav);
 
+test("the devtools launcher leaves the bottom bar's buttons clickable (#1156)", async ({
+	page
+}) => {
+	test.setTimeout(3 * 60_000);
+	await page.goto(`${base}/docs/start/overview`);
+	await expect(page.locator(`ogygia-region[data-hydrated] ${MENU}`)).toHaveCount(1, {
+		timeout: 60_000
+	});
+	await expect(page.locator('[data-og-panel-toggle]')).toBeAttached({ timeout: 30_000 });
+	for (const button of await page.locator(`${BAR} button`).all())
+		await button.click({ trial: true, timeout: 5_000 });
+});
+
 test('a link picked in the mobile sheet closes it; the bar stays, with the new page marked', async ({
 	page
 }) => {
@@ -67,10 +80,9 @@ test('a link picked in the mobile sheet closes it; the bar stays, with the new p
 		(el as unknown as { __e2e_kept: boolean }).__e2e_kept = true;
 	});
 
-	// (by keyboard: the dev server's devtools dock sits over the bottom bar)
 	await next_nav(page);
-	await page.locator(MENU).press('Enter');
-	await page.locator('.og-sheet a[href="/docs/regions/regions"]').first().press('Enter');
+	await page.locator(MENU).click({ timeout: 10_000 });
+	await page.locator('.og-sheet a[href="/docs/regions/regions"]').first().click();
 	await nav_done(page);
 	await expect(page).toHaveURL(/\/docs\/regions\/regions$/);
 
