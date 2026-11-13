@@ -7,11 +7,8 @@
  * `getContext('key')`, unchanged, reads a (csr=false) layout's context across the island-root split.
  * A `[ogygia.wire]` value resolves to the one live instance (shared + reactive); a plain value is a
  * per-consumer snapshot.
- *
- * `createContext(key)` is optional TYPED sugar over the same string key — callable to make a
- * `<Provide>` entry, `.get()` to read (typed). Nothing DOM-specific on the consumer side.
  */
-import { getContext, setContext as svelte_set_context } from 'svelte';
+import { getContext, hasContext, setContext as svelte_set_context } from 'svelte';
 import { parse, stringify } from 'devalue';
 import { DEV } from 'esm-env';
 import { REF_WIRE_KEY, ref_reducer, ref_reviver, batch } from './ref.ts';
@@ -20,7 +17,7 @@ import { REF_WIRE_KEY, ref_reducer, ref_reviver, batch } from './ref.ts';
 import { register_wire_kind } from './live-transport.ts';
 import { register_store_kind, register_derived_kind } from './store-transport.ts';
 import { register_snippet_kind } from './region-snippet.ts';
-import { register_fn_kind, is_branded_fn } from './fn-transport.ts';
+import { register_fn_kind } from './fn-transport.ts';
 
 function ensure_ctx_kinds(): void {
 	register_wire_kind();
@@ -31,10 +28,11 @@ function ensure_ctx_kinds(): void {
 }
 import { boundary_problems } from './boundary.ts';
 import { record_ctx, type SetContextOptions } from './context-registry.ts';
+import { key_label, key_name, key_of } from './contract/context-key.ts';
 import { boot_link } from './runtime/slots.ts';
 import { OGYGIA_PROVIDE, OGYGIA_PROVIDE_PAGE } from './wire-markup.ts';
 import { escape_script_text } from './escape.ts';
-import { warn } from './messages/island.ts';
+import { OgygiaError, warn } from './messages/island.ts';
 
 /** The `<Provide>` seam carries classes, stores AND snippets (a snippet freezes/travels live). */
 // static: the value families a provided context carries
@@ -44,10 +42,24 @@ const PROVIDE_FAMILIES = new Set(['wire', 'store', 'snippet', 'fn', 'derived']);
 // static: the value families the bridge carries
 const BRIDGE_FAMILIES = new Set(['wire', 'store', 'fn', 'derived']);
 
-/** Serialize a context value for the DOM — same codec as island props (one hub key). */
-export function serialize_context(value: unknown): string {
+/** A provider's values keyed by the names they cross under; a key that cannot cross is left out
+ *  (and said in dev). */
+export function crossing_values(values: object): Record<string, unknown> {
+	const out: Record<string, unknown> = {};
+	for (const key of Reflect.ownKeys(values)) {
+		const name = key_name(key);
+		if (name !== null) out[name] = (values as Record<PropertyKey, unknown>)[key];
+		else if (DEV) warn('context_key_one_off', { key: key_label(key) });
+	}
+	return out;
+}
+
+/** Serialize a `<Provide>`'s values for the DOM — same codec as island props (one hub key). */
+export function serialize_context(values: object): string {
 	ensure_ctx_kinds();
-	return escape_script_text(stringify(value, { [REF_WIRE_KEY]: ref_reducer(PROVIDE_FAMILIES) }));
+	return escape_script_text(
+		stringify(crossing_values(values), { [REF_WIRE_KEY]: ref_reducer(PROVIDE_FAMILIES) })
+	);
 }
 
 /**
@@ -112,13 +124,14 @@ function warn_ctx_size(map: Map<string, unknown>, total: number): void {
 	sizes.sort((a, b) => b[1] - a[1]);
 	const top = sizes
 		.slice(0, 3)
-		.map(([k, n]) => `'${k}' ~${(n / 1024).toFixed(1)}kB`)
+		.map(([k, n]) => `${key_label(key_of(k))} ~${(n / 1024).toFixed(1)}kB`)
 		.join(', ');
 	warn('context_marker_large', { size: (total / 1024).toFixed(1), top });
 }
 
 /** DEV: explain a dropped (or degraded-but-bridged) context key via the classifier. */
-function warn_boundary(key: string, value: unknown, dropped: boolean): void {
+function warn_boundary(name: string, value: unknown, dropped: boolean): void {
+	const key = key_label(key_of(name));
 	const problems = boundary_problems(value, key);
 	if (dropped && problems.length === 0) {
 		warn('context_dropped', { key });
@@ -142,7 +155,8 @@ function parse_ctx(text: string | null | undefined): Record<string, unknown> | u
 		return batch(() =>
 			parse(text, { [REF_WIRE_KEY]: ref_reviver(true) } as Parameters<typeof parse>[1])
 		) as Record<string, unknown>;
-	} catch {
+	} catch (e) {
+		if (DEV) warn('page_payload_unreadable', { what: 'context marker' }, e);
 		return undefined;
 	}
 }
@@ -160,14 +174,19 @@ function parse_ctx(text: string | null | undefined): Record<string, unknown> | u
  * neither exists (the common case: nothing to seed, no cost). Same decode codec as island props (a
  * `[ogygia.wire]` value revives to its one live instance).
  */
-export function collect_provided_context(start: Element | null): Map<string, unknown> | undefined {
+export function collect_provided_context(
+	start: Element | null
+): Map<string | symbol, unknown> | undefined {
 	let el: Element | null = start;
-	let map: Map<string, unknown> | undefined;
+	let map: Map<string | symbol, unknown> | undefined;
 	const fold = (values: Record<string, unknown> | undefined) => {
 		if (!values) return;
 		map ??= new Map();
 		// Nearest wins: the scoped walk sees the closest provider FIRST, and the page root LAST.
-		for (const k in values) if (!map.has(k)) map.set(k, values[k]);
+		for (const name in values) {
+			const key = key_of(name);
+			if (!map.has(key)) map.set(key, values[name]);
+		}
 	};
 	while (el) {
 		if (el.tagName === 'OGYGIA-PROVIDE') {
@@ -198,37 +217,82 @@ function page_ctx(): Record<string, unknown> | undefined {
 	}).value;
 }
 
-/** A typed context handle: callable to make a `<Provide>` entry, `.get()` to read (typed). */
-export interface Context<T> {
-	/** `theme('dark')` → `{ theme: 'dark' }` — an entry for `<Provide values={[ … ]}>`. */
+/** The old callable form of a context, keyed by the plain string name. */
+export interface CallableContext<T> {
+	/**
+	 * `theme('dark')` → `{ theme: 'dark' }` — an entry for `<Provide values={[ … ]}>`.
+	 *
+	 * @deprecated Destructure instead: `const [getTheme, setTheme] = createContext<Theme>('theme')`,
+	 * and call `setTheme('dark')` in the component above. The new form keys by `Symbol.for(name)`, so
+	 * move a context's provider and its readers together.
+	 */
 	(value: T): Record<string, unknown>;
-	/** Typed read — plain `getContext(key)` under the hood (seeded across islands), or the default. */
+	/**
+	 * Typed read of the string key, or the default.
+	 *
+	 * @deprecated Destructure instead: `const [getTheme] = createContext<Theme>('theme')`.
+	 */
 	get(): T | undefined;
-	/** The underlying string key, for `getContext(theme.key)` interop. */
+	/**
+	 * The string key, for `getContext(theme.key)`.
+	 *
+	 * @deprecated The new form's key is `Symbol.for(name)`.
+	 */
 	readonly key: string;
 }
 
 /**
- * Typed sugar over a string context key, shared with plain `getContext`. Callable to produce a
- * `<Provide>` entry, `.get()` to read (typed). The key is the same string plain `getContext` uses, so
- * typed and untyped code read the same context. An optional default is returned when nothing is
- * provided above.
+ * What `createContext(name)` returns: Svelte's `[get, set, has]`, keyed by `Symbol.for(name)`, so a
+ * value set above reaches every region in the browser too. It is also callable, the old form.
+ */
+export type Context<T> = readonly [get: () => T, set: (value: T) => T, has: () => boolean] &
+	CallableContext<T>;
+
+/**
+ * A typed context, in Svelte's `createContext` shape: `[get, set, has]`. Its key is
+ * `Symbol.for(name)`, so it crosses into regions (each wakes as its own root in the browser) and is the
+ * same key as a plain `setContext(Symbol.for(name), …)`. The setter is `setContext` from `ogygia`, so
+ * a value set in a csr=false layout reaches every region on the page. `get` throws when nothing above
+ * set it, like Svelte's; `has` asks first.
  *
  * ```ts
- * export const theme = createContext<'light' | 'dark'>('theme', 'light');
- * // provide: <Provide values={[ theme('dark') ]}>…</Provide>
- * // read:    theme.get()          // typed
- * //          getContext('theme')  // untyped — same key, same value
+ * import { createContext } from 'ogygia';
+ * export const [getRuntime, setRuntime] = createContext<AppRuntime>('app-runtime');
+ * // in a layout:  setRuntime(runtime);
+ * // in a region:  const runtime = getRuntime();
  * ```
+ *
+ * A value with methods crosses as a wired class (`static wire = import.meta.og.wire(…)`): every
+ * region gets the one live instance.
  */
-export function createContext<T>(key: string, defaultValue?: T): Context<T> {
-	const ctx = ((value: T): Record<string, unknown> => ({ [key]: value })) as Context<T>;
-	Object.defineProperty(ctx, 'key', { value: key, enumerable: true });
-	ctx.get = (): T | undefined => {
-		const v = getContext<T | undefined>(key);
-		return v !== undefined ? v : defaultValue;
+export function createContext<T>(name: string): Context<T>;
+/**
+ * @deprecated A default belongs to the old callable form (`theme.get()`). Destructure instead and
+ * ask `has()`: `const [getTheme, , hasTheme] = createContext<Theme>('theme')`.
+ */
+export function createContext<T>(name: string, defaultValue: T): Context<T>;
+export function createContext<T>(name: string, defaultValue?: T): Context<T> {
+	const key = Symbol.for(name);
+	const has = (): boolean => hasContext(key);
+	const get = (): T => {
+		if (!hasContext(key)) throw new OgygiaError('context_missing', { key: key_label(key) });
+		return getContext<T>(key);
 	};
-	return ctx;
+	const set = (value: T): T => setContext(key, value);
+	const ctx = (value: T): Record<string, unknown> => ({ [name]: value });
+	return Object.defineProperties(ctx, {
+		key: { value: name, enumerable: true },
+		get: {
+			value: (): T | undefined => {
+				const v = getContext<T | undefined>(name);
+				return v !== undefined ? v : defaultValue;
+			}
+		},
+		0: { value: get },
+		1: { value: set },
+		2: { value: has },
+		[Symbol.iterator]: { value: () => [get, set, has][Symbol.iterator]() }
+	}) as unknown as Context<T>;
 }
 
 /**
@@ -238,8 +302,8 @@ export function createContext<T>(key: string, defaultValue?: T): Context<T> {
  * It does exactly what Svelte's does (sets context for same-root descendants + the SSR-nested tree),
  * AND on the server records the value so the handle can emit one page-level marker every island seeds
  * from — closing the gap where a plain `setContext` shows up on the server but is gone on the client
- * (child islands are separate hydration roots). Only string keys bridge (they must serialize and be
- * read by `getContext('key')`); a symbol key is Svelte-only, same-root, no bridge.
+ * (child islands are separate hydration roots). A string key and a shared `Symbol.for(name)` key
+ * bridge; a one-off `Symbol()` key has no twin in the browser and stays same-root.
  *
  * GRANULARITY: the optional third argument is the explicit marker — `{ islands: false }` keeps a key
  * host-native (same-root context works, nothing serializes). The default bridges: a missing key in an
@@ -250,13 +314,7 @@ export function createContext<T>(key: string, defaultValue?: T): Context<T> {
  * `<Provide>`, which wraps its subtree and beats the root on the same key.
  */
 export function setContext<T>(key: unknown, value: T, opts?: SetContextOptions): T {
-	// Only string keys can bridge (islands read `getContext('key')`), and a function value can never
-	// serialize — record neither. Native setContext still runs, so same-root reads are unchanged; a
-	// store or class instance is recorded but dropped later by `serialize_provided_context` if it can't
-	// serialize, so it never crashes the page.
-	// a BARE function can never serialize — but an og.$-branded one is a transportable fn ref
-	if (typeof key === 'string' && (typeof value !== 'function' || is_branded_fn(value)))
-		record_ctx(key, value, opts);
+	record_ctx(key, value, opts);
 	return svelte_set_context(key, value);
 }
 

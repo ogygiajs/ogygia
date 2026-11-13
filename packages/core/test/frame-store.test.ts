@@ -318,15 +318,31 @@ describe('frame-store: reservation (single-flight navigation)', () => {
 		expect(frames.peek('/r?sig=1')?.html).toBe('FROM-BATCH');
 	});
 
-	it('release() fails an undelivered reservation so the binder falls back to its own fetch', async () => {
+	it('release() misses an undelivered reservation, so the binder that joined it fetches on its own', async () => {
 		frames.reserve('/r?sig=1');
-		const joined = frames.ensure('/r?sig=1', vi.fn());
+		const own = deferred('OWN');
+		const spy = vi.fn(own.fetcher);
+		const joined = frames.ensure('/r?sig=1', spy);
+		expect(spy).not.toHaveBeenCalled(); // joined the batch
 		frames.release('/r?sig=1'); // batch ended, no frame for this address
-		await expect(joined).rejects.toThrow(/no frame/);
-		// A fresh ensure now starts a real fetch (reservation cleared).
-		const spy = vi.fn(deferred('LATE').fetcher);
-		frames.ensure('/r?sig=1', spy);
-		expect(spy).toHaveBeenCalledTimes(1);
+		await vi.waitFor(() => expect(spy).toHaveBeenCalledTimes(1));
+		own.resolve();
+		expect(await joined).toBe('OWN');
+		// A fresh ensure now finds the content (reservation over).
+		const later = vi.fn(deferred('LATE').fetcher);
+		expect(await frames.ensure('/r?sig=1', later)).toBe('OWN');
+		expect(later).not.toHaveBeenCalled();
+	});
+
+	it('a binder that joined a reservation and left is not fetched for when the batch misses', async () => {
+		frames.reserve('a');
+		const leave = new AbortController();
+		const spy = vi.fn(deferred().fetcher);
+		const leaving = frames.ensure('a', spy, { signal: leave.signal });
+		leave.abort();
+		frames.release('a');
+		expect(await leaving).toBe(STALE);
+		expect(spy).not.toHaveBeenCalled();
 	});
 
 	it('the last joiner leaving a reservation lets it go, and a later binder still joins the batch', async () => {

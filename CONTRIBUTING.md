@@ -68,6 +68,11 @@ comment above (`// svelte-ignore <code>` or `// oxlint-disable-next-line <rule>`
 exception: the devtools fixture app's planted-problem folders, whose code shape is the test, are
 listed once in its `svelte.config.js` with the reason.
 
+**Comments.** New code in `packages/*/src` adds no unstructured comments: a comment is JSDoc on an
+export, a tool directive with ` -- <reason>`, an `// ok: <reason>` note, or a one-line
+`// @why <fact> (test: <file> › <name>)` whose test exists. CI's `check` job fails on any other
+comment a PR adds (`node internal/checks/new-comments.ts`); old comments never fail it.
+
 See `apps/palaestra/e2e/README.md` for core's suite list.
 
 ## Bench files

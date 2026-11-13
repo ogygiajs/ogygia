@@ -57,6 +57,26 @@ describe('a simulated document has a layout, and its IntersectionObserver report
 		expect(seen).toEqual(['208 below true']);
 	});
 
+	it('reports nothing while its tab is hidden, as a browser runs no rendering there; what it owes comes at the first frame once shown', async () => {
+		const loop = new Loop(rng(1));
+		const w = new Window({ url: 'https://app.test/' });
+		let hidden = true;
+		const layout = install_layout(w as never, loop, 'tab-1#1', () => hidden);
+		w.document.write('<html><head></head><body><p id="top">top</p></body></html>');
+		const IO = (w as unknown as { IntersectionObserver: IO }).IntersectionObserver;
+		const seen: string[] = [];
+		const io = new IO((entries) => {
+			for (const e of entries) seen.push(`${loop.now} ${e.target.id} ${e.isIntersecting}`);
+		});
+		io.observe(w.document.getElementById('top') as unknown as Element);
+		await loop.run(500);
+		expect(seen).toEqual([]);
+		hidden = false;
+		layout.shown();
+		await loop.run(100);
+		expect(seen).toEqual(['512 top true']);
+	});
+
 	it('a root margin widens the viewport', async () => {
 		const { loop, IO, seen, $ } = page(
 			'<div style="height: 1000px"></div><p id="near">near</p><div style="height: 2000px"></div><p id="far">far</p>'

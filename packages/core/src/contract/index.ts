@@ -8,6 +8,7 @@
 export * from './barrels.ts';
 export * from './capability.ts';
 export * from './content.ts';
+export * from './context-key.ts';
 export * from './core-files.ts';
 export * from './dedent.ts';
 export type * from './events.ts';

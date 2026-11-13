@@ -1,7 +1,9 @@
 import { RESPONSE_MARK } from '../contract/response-mark.ts';
 import {
+	attr_spans,
 	Needle,
 	next_tag,
+	read_tag,
 	OG_ORIGINS,
 	OGYGIA_DEV_HMR,
 	OGYGIA_RUNTIME,
@@ -178,9 +180,6 @@ export function runtime_first(
 	return rest.slice(0, at) + tag + rest.slice(at);
 }
 
-const CODE_ORIGINS_ATTR_RE = new RegExp(`\\s${OG_ORIGINS}="[^"]*"`, 'i');
-const RUNTIME_MARK_RE = new RegExp(`\\b${OGYGIA_RUNTIME}\\b`, 'i');
-
 function with_code_origins(tag: string, urls: readonly string[]): string {
 	// @why the one write of `data-og-origins` is at head time, when the render has learned all it will, in place of any the tag carried (test: test/code-origins.test.ts › a runtime script the page emitted gets them too, in place of any it carried)
 	const origins = new Set<string>();
@@ -192,10 +191,25 @@ function with_code_origins(tag: string, urls: readonly string[]): string {
 			// ok: not a URL: no origin to allow
 		}
 	}
-	const bare = tag.replace(CODE_ORIGINS_ATTR_RE, '');
+	const bare = without_attr(tag, OG_ORIGINS);
 	if (!origins.size) return bare;
-	return bare.replace(
-		RUNTIME_MARK_RE,
-		(mark) => `${mark} ${OG_ORIGINS}="${[...origins].join(' ')}"`
-	);
+	const script = read_tag(bare, 0, SCRIPT_OPEN.length);
+	const at = script === null ? undefined : attr_spans(bare, script, 'script', OGYGIA_RUNTIME)[0];
+	if (at === undefined) return bare;
+	return `${bare.slice(0, at[1])} ${OG_ORIGINS}="${[...origins].join(' ')}"${bare.slice(at[1])}`;
+}
+
+const SCRIPT_OPEN = '<script';
+
+/** `unit` (a `<script …>` tag first) with every copy of its start tag's attribute `attr` cut. */
+function without_attr(unit: string, attr: string): string {
+	const script = read_tag(unit, 0, SCRIPT_OPEN.length);
+	if (script === null) return unit;
+	let out = '';
+	let from = 0;
+	for (const [start, end] of attr_spans(unit, script, 'script', attr)) {
+		out += unit.slice(from, start);
+		from = end;
+	}
+	return from === 0 ? unit : out + unit.slice(from);
 }

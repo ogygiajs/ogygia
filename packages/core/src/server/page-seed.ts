@@ -39,7 +39,7 @@ function keep_serializable(value: unknown, stringify_fn: typeof stringify): unkn
 			stringify_fn(v);
 			return true;
 		} catch {
-			return false;
+			return false; // ok: that is the answer: this value does not cross
 		}
 	};
 	const put = (out: Record<string, unknown>, key: string, v: unknown) => {
@@ -76,7 +76,7 @@ function keep_serializable(value: unknown, stringify_fn: typeof stringify): unkn
 				try {
 					e = (v as Record<string, unknown>)[key];
 				} catch {
-					continue; // a getter that throws: devalue could not read it either
+					continue; // ok: a getter that throws: devalue could not read it either
 				}
 				const c = keep(e);
 				if (c !== DROP) put(out, key, c);
@@ -178,7 +178,7 @@ export class PageSeed {
 			}
 			return { text: raw, json: false };
 		} catch {
-			return null;
+			return null; // ok: a reducer threw on the plain base itself; the page ships no seed, never a 500
 		}
 	}
 }

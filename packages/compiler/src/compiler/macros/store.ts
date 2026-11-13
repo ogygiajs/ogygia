@@ -24,6 +24,7 @@ import { og_js_regions } from '../parse/scan.ts';
 import { parse_module, type AstNode } from '../parse/oxc.ts';
 import { og_member } from './wire.ts';
 import { OgygiaError, warn } from '../messages.ts';
+import { splice_text, type Edit } from '../splice.ts';
 
 const MARKER = 'import.meta.og.store';
 
@@ -123,11 +124,20 @@ export function rewrite_store(
 	rel_id: string,
 	markup_exts: readonly string[]
 ): string {
-	if (!src.includes(MARKER)) return src;
-	const regions = og_js_regions(src, id, markup_exts);
-	if (!regions) return src;
+	return splice_text(src, store_edits(src, id, rel_id, markup_exts));
+}
 
-	type Edit = { start: number; end: number; text: string };
+/** The edits `rewrite_store` makes to `src`: none when there is nothing to do. */
+export function store_edits(
+	src: string,
+	id: string,
+	rel_id: string,
+	markup_exts: readonly string[]
+): Edit[] {
+	if (!src.includes(MARKER)) return [];
+	const regions = og_js_regions(src, id, markup_exts);
+	if (!regions) return [];
+
 	const edits: Edit[] = [];
 	let seq = 0;
 	let needs_import = false;
@@ -193,17 +203,7 @@ export function rewrite_store(
 			needs_import = false;
 		}
 	}
-
-	if (!edits.length) return src;
-	edits.sort((a, b) => a.start - b.start);
-	let out = '';
-	let last = 0;
-	for (const e of edits) {
-		out += src.slice(last, e.start) + e.text;
-		last = e.end;
-	}
-	out += src.slice(last);
-	return out;
+	return edits;
 }
 
 /**
@@ -226,12 +226,21 @@ export function auto_brand_stores(
 	rel_id: string,
 	markup_exts: readonly string[]
 ): string {
-	if (!src.includes('subscribe') && !src.includes('writable') && !src.includes('readable'))
-		return src;
-	const regions = og_js_regions(src, id, markup_exts);
-	if (!regions) return src;
+	return splice_text(src, auto_brand_edits(src, id, rel_id, markup_exts));
+}
 
-	type Edit = { start: number; end: number; text: string };
+/** The edits `auto_brand_stores` makes to `src`: none when there is nothing to do. */
+export function auto_brand_edits(
+	src: string,
+	id: string,
+	rel_id: string,
+	markup_exts: readonly string[]
+): Edit[] {
+	if (!src.includes('subscribe') && !src.includes('writable') && !src.includes('readable'))
+		return [];
+	const regions = og_js_regions(src, id, markup_exts);
+	if (!regions) return [];
+
 	const edits: Edit[] = [];
 	let seq = 0;
 	let needs_import = false;
@@ -334,15 +343,5 @@ export function auto_brand_stores(
 			needs_import = false;
 		}
 	}
-
-	if (!edits.length) return src;
-	edits.sort((a, b) => a.start - b.start);
-	let out = '';
-	let last = 0;
-	for (const e of edits) {
-		out += src.slice(last, e.start) + e.text;
-		last = e.end;
-	}
-	out += src.slice(last);
-	return out;
+	return edits;
 }

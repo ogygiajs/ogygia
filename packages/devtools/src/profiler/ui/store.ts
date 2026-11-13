@@ -65,12 +65,11 @@ async function with_store<T>(
 ): Promise<T | null> {
 	const db = await open_db();
 	if (!db) return null;
-	// (the connection is this call's: closed however the call ends, test/profiler-ui-store-close.test.ts)
 	try {
 		const tx = db.transaction(name, mode);
 		return await fn(tx.objectStore(name));
 	} catch {
-		return null; // ok: best-effort store (a quota, a missing store): the caller reads empty
+		return null; // ok: null is "not stored": callers show it (KeepLocal says it could not keep it)
 	} finally {
 		db.close();
 	}

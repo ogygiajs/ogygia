@@ -12,13 +12,19 @@ import {
 	fallback_stands,
 	faulted,
 	hydrates_as_sent,
+	islands_wake,
 	KNOWN,
+	known_said,
 	Leaks,
 	live_events,
 	mpa_equivalent,
+	gate_open_early,
+	no_viewport_wait,
 	normalize,
+	parsed_first,
 	live_regions_out,
 	page_errors,
+	peer_answers,
 	reshaped_live,
 	page_rules,
 	regions_show,
@@ -110,6 +116,18 @@ describe('normalize', () => {
 		);
 	});
 
+	it("drops a third party's head element, which a client navigation keeps (gen 262, seed 6)", async () => {
+		const { Window } = await import('happy-dom');
+		const page = (extra: string) => {
+			const w = new Window();
+			w.document.write(
+				`<html><head><title>t</title>${extra}<meta name="a" content="b"></head><body><p>hi</p></body></html>`
+			);
+			return normalize(w.document as unknown as Document);
+		};
+		expect(page('<meta data-gen-third-party="">')).toBe(page(''));
+	});
+
 	it("drops a region's repair mark: a third party edited it before it woke on one load only (gen 192, seed 19)", async () => {
 		// (a third party's script waiting for DOMContentLoaded edits a document load's islands, never a
 		// router visit's: the region shows the same once repaired, and only the mark says it was)
@@ -122,6 +140,37 @@ describe('normalize', () => {
 			return normalize(w.document as unknown as Document);
 		};
 		expect(page(' data-og-healed="children"')).toBe(page(''));
+	});
+
+	it('keeps an address no URL can be made of as it is: a tampered byte in a link (gen 45, seed 32)', async () => {
+		const { Window } = await import('happy-dom');
+		const w = new Window({ url: 'https://app.test/peer/q0' });
+		w.document.write(
+			`<html><head><link rel="stylesheet" href="https://peer.tes�/a.css"></head><body></body></html>`
+		);
+		expect(normalize(w.document as unknown as Document)).toContain(
+			'href="https://peer.tes�/a.css"'
+		);
+	});
+
+	it('reads the base address once: in happy-dom each read walks the document and grows every element (palaestra seed 216 ran out of memory)', async () => {
+		const { Window } = await import('happy-dom');
+		const w = new Window({ url: 'https://app.test/' });
+		w.document.write(
+			`<html><head><link rel="stylesheet" href="./a.css"></head><body>${'<p class="a" id="b">x</p>'.repeat(50)}</body></html>`
+		);
+		const doc = w.document as unknown as Document;
+		let reads = 0;
+		const root = {
+			documentElement: doc.documentElement,
+			title: doc.title,
+			get baseURI() {
+				reads++;
+				return doc.baseURI;
+			}
+		};
+		normalize(root);
+		expect(reads).toBeLessThanOrEqual(1);
 	});
 
 	it("drops a page store's mark: a stored copy is the render it kept (gen 63, seed 26)", async () => {
@@ -183,23 +232,21 @@ describe('known', () => {
 		expect(excused(page([sheet]), page([]))).toEqual([]);
 	});
 
-	it("#1071's kept head link resolving under the page's path (palaestra /lab/deep/x)", () => {
-		const k = KNOWN.find((x) => x.issue === 1071)!;
-		const page = (href: string) =>
-			`title: ${''}
+	it("#1107's island head styles in the order the islands woke (gen 262, seed 25)", () => {
+		const k = KNOWN.find((x) => x.issue === 1107)!;
+		const style = (n: number) => `    <style data-gen-head="n${n}">
+      ".h${n} { color: inherit; }"`;
+		const page = (...ns: number[]) => `title:
 <html>
   <head>
-    <link href="${href}" rel="stylesheet">
+${ns.map(style).join('\n')}
+    <link href="/a.css" rel="stylesheet">
   <body>`;
-		const shown = page('/lab/_app/immutable/assets/14.x.css');
-		const fresh = page('/_app/immutable/assets/14.x.css');
-		expect(k.applies(shown, fresh)).toBe(true);
-		expect(k.applies(fresh, fresh)).toBe(false);
-		expect(k.forgive(shown, fresh)).toBe(fresh);
-		// (another file is still a finding)
-		expect(k.forgive(shown, page('/_app/immutable/assets/15.x.css'))).not.toBe(
-			page('/_app/immutable/assets/15.x.css')
-		);
+		expect(k.applies(page(1, 3), page(3, 1))).toBe(true);
+		expect(k.forgive(page(1, 3), page(3, 1))).toBe(k.forgive(page(3, 1), page(1, 3)));
+		// (the same order, or another island's style missing, is not it)
+		expect(k.applies(page(1, 3), page(1, 3))).toBe(false);
+		expect(k.applies(page(1, 3), page(3))).toBe(false);
 	});
 });
 
@@ -253,9 +300,17 @@ describe('every region shows something', () => {
 
 describe("a hole's fallback does not stand", () => {
 	/** `wire`: the document's requests, each `[url, status]`. */
-	const at_rest = async (body: string, wire: Array<[string, number | 'dropped']> = []) => {
+	const at_rest = async (
+		body: string,
+		wire: Array<[string, number | 'dropped']> = [],
+		/** A script of the document failed to load (its runtime: none of its holes is ever asked). */
+		lacks_a_file = false,
+		/** Buggify lost an answer of the document's on the way (`hole.fetch-lost`). */
+		lost = false
+	) => {
 		const { Window } = await import('happy-dom');
-		const w = new Window({ url: 'https://app.test/p1' });
+		// (the simulator's viewport: src/layout.ts)
+		const w = new Window({ url: 'https://app.test/p1', width: 1280, height: 720 });
 		w.document.write(`<html><body>${body}</body></html>`);
 		const tab = {
 			realm: 'tab-1#1',
@@ -264,7 +319,8 @@ describe("a hole's fallback does not stand", () => {
 			page: { mainFrame: { url: 'https://app.test/p1', document: w.document } }
 		} as unknown as Parameters<typeof fallback_stands>[0];
 		const world = {
-			fired_in: new Map(),
+			fired_in: new Map(lost ? [['tab-1#1', new Set(['hole.fetch-lost'])]] : []),
+			browsers: { lacks_a_file: () => lacks_a_file },
 			network: {
 				exchanges: wire.map(([url, status], i) => ({
 					id: i + 1,
@@ -303,6 +359,19 @@ describe("a hole's fallback does not stand", () => {
 		).toBeNull();
 	});
 
+	// generated app 12 (real shapes), seed 22: a dropped chunk of the runtime, and the peer page's
+	// load hole was never asked: the runtime never ran, as runtime_load_failed says
+	it('passes one never asked for in a document whose runtime failed to load', async () => {
+		const chunk: [string, 'dropped'] = ['/_app/immutable/chunks/x.js', 'dropped'];
+		expect(await at_rest(hole('load', 'data-gen-fallback'), [chunk], true)).toBeNull();
+	});
+
+	// generated app 208, seed 120: a nested hole of a hidden tab's peer page, its three tries each
+	// lost by buggify before a request went out, so the wire never saw it asked
+	it('passes one never seen asked in a document whose answers buggify lost (a lost answer leaves no exchange)', async () => {
+		expect(await at_rest(hole('load', 'data-gen-fallback'), [], false, true)).toBeNull();
+	});
+
 	it('passes one that keeps it by design, one waiting for the visitor, and an answered one', async () => {
 		expect(await at_rest(hole('load', 'data-gen-fallback data-gen-kept'))).toBeNull();
 		expect(await at_rest(hole('interaction', 'data-gen-fallback'))).toBeNull();
@@ -325,6 +394,141 @@ describe("a hole's fallback does not stand", () => {
 			`<main data-gen="peer-page">${hole('load', 'data-gen-fallback')}</main>${hole('idle', 'data-gen-fallback')}`
 		);
 		expect(both?.oracle).toBe('fallback-stands');
+	});
+
+	// (a block 1000 px tall puts what follows it below the 720 px viewport)
+	const fold = (px: number) => `<div style="height: ${px}px"></div>`;
+
+	it('finds a visible hole its margin reaches still on its fallback, and passes one beyond it', async () => {
+		const visible = (margin: string) =>
+			`<ogygia-region render="defer" when="visible" margin="${margin}" endpoint="/__ogygia__?id=a"><p data-gen-fallback>loading n1…</p></ogygia-region>`;
+		expect((await at_rest(fold(800) + visible('200px')))?.oracle).toBe('fallback-stands');
+		expect(await at_rest(fold(1000) + visible('200px'))).toBeNull();
+	});
+
+	it("finds a hole whose prefetch is owed never warmed (a mutant that dropped the prefetch's margin survived)", async () => {
+		const warm = (prefetch: string, margin = '') =>
+			`<ogygia-region render="defer" when="interaction" prefetch="${prefetch}"${margin ? ` margin="${margin}"` : ''} endpoint="/__ogygia__?id=a"><p data-gen-fallback>loading n1…</p></ogygia-region>`;
+		const cold = await at_rest(fold(800) + warm('visible', '200px'));
+		expect(cold?.oracle).toBe('fallback-stands');
+		expect(cold?.detail).toContain('never warmed');
+		expect((await at_rest(warm('idle')))?.oracle).toBe('fallback-stands');
+		// (warmed: its endpoint was asked; and one beyond its margin owes nothing yet)
+		expect(await at_rest(warm('idle'), [['/__ogygia__?id=a&exp=1&sig=s', 200]])).toBeNull();
+		expect(await at_rest(fold(1000) + warm('visible', '200px'))).toBeNull();
+	});
+});
+
+describe('an island that wakes on its own is awake', () => {
+	/** `wire`: the document's requests, each `[url, status]`; `hidden`: the tab is behind another. */
+	const at_rest = async (
+		body: string,
+		wire: Array<[string, number | 'dropped']> = [],
+		hidden = false
+	) => {
+		const { Window } = await import('happy-dom');
+		// (the simulator's viewport: src/layout.ts)
+		const w = new Window({ url: 'https://app.test/p1', width: 1280, height: 720 });
+		w.document.write(`<html><body>${body}</body></html>`);
+		const tab = {
+			realm: 'tab-1#1',
+			name: 'tab-1',
+			documents: 1,
+			hidden,
+			page: { mainFrame: { url: 'https://app.test/p1', document: w.document } }
+		} as unknown as Parameters<typeof islands_wake>[0];
+		const world = {
+			fired_in: new Map(),
+			network: {
+				exchanges: wire.map(([url, status], i) => ({
+					id: i + 1,
+					from: 'tab-1#1',
+					method: 'GET',
+					url: `https://app.test${url}`,
+					status,
+					cut: false,
+					tampered: false,
+					redirected: false
+				})),
+				busy_for: () => false
+			},
+			browsers: { lacks_a_file: () => false },
+			skewed_for: () => false
+		} as unknown as Parameters<typeof islands_wake>[1];
+		return islands_wake(tab, world);
+	};
+	const island = (wake: string, hydrated = false) =>
+		`<ogygia-region wake="${wake}" entry="/_app/n1.js"${hydrated ? ' data-hydrated=""' : ''}><div data-gen="island">n1</div></ogygia-region>`;
+
+	it('finds a load or idle island still asleep at rest (a mutant whose wakes never ran survived)', async () => {
+		const load = await at_rest(island('load'));
+		expect(load?.oracle).toBe('islands-wake');
+		expect(load?.detail).toContain('wake="load"');
+		expect((await at_rest(island('idle')))?.oracle).toBe('islands-wake');
+	});
+
+	it('passes an awake one, one waiting for the visitor or the screen, and one in a faulted document', async () => {
+		expect(await at_rest(island('load', true))).toBeNull();
+		expect(await at_rest(island('interaction'))).toBeNull();
+		expect(await at_rest(fold(1000) + island('visible'))).toBeNull();
+		// (one in a lake inside an island still waiting for the screen waits with it)
+		expect(
+			await at_rest(
+				`${fold(1000)}<ogygia-region wake="visible" entry="/_app/n3.js"><ogygia-region wake="none">${island('load')}</ogygia-region></ogygia-region>`
+			)
+		).toBeNull();
+		expect(await at_rest(island('load'), [['/_app/n1.js', 'dropped']])).toBeNull();
+		// (and one in a lake whose host never hydrates: a held region's baked markup)
+		const lake = `<ogygia-region wake="none">${island('load')}</ogygia-region>`;
+		expect(await at_rest(`<ogygia-region live data-og-baked>${lake}</ogygia-region>`)).toBeNull();
+		// (but one in a lake whose host island woke is owed its wake)
+		expect(
+			(
+				await at_rest(
+					`<ogygia-region wake="load" entry="/_app/n3.js" data-hydrated>${lake}</ogygia-region>`
+				)
+			)?.oracle
+		).toBe('islands-wake');
+	});
+
+	// (a block 1000 px tall puts what follows it below the 720 px viewport)
+	const fold = (px: number) => `<div style="height: ${px}px"></div>`;
+	const visible = (margin?: string) =>
+		`<ogygia-region wake="visible" entry="/_app/n2.js"${margin ? ` margin="${margin}"` : ''}><div data-gen="island">n2</div></ogygia-region>`;
+
+	it('finds a visible island on screen still asleep, and one below the fold its margin reaches (a mutant that dropped the margin survived)', async () => {
+		const on = await at_rest(visible());
+		expect(on?.oracle).toBe('islands-wake');
+		expect(on?.detail).toContain('wake="visible"');
+		// (800 px down: 80 px below the fold, inside a 200 px margin)
+		expect((await at_rest(fold(800) + visible('200px')))?.oracle).toBe('islands-wake');
+		// (a margin in % is of the viewport's height: 50% is 360 px)
+		expect((await at_rest(fold(1000) + visible('50%')))?.oracle).toBe('islands-wake');
+	});
+
+	it('passes a visible island below the fold and its margin, and one in a tab behind another', async () => {
+		expect(await at_rest(fold(1000) + visible())).toBeNull();
+		expect(await at_rest(fold(1000) + visible('200px'))).toBeNull();
+		expect(await at_rest(visible(), [], true)).toBeNull();
+		// (an island inside one below the fold waits with it)
+		expect(
+			await at_rest(
+				`${fold(1000)}<ogygia-region wake="visible" entry="/_app/n3.js">${island('load')}</ogygia-region>`
+			)
+		).toBeNull();
+	});
+
+	it('owes a media island its wake only while its query matches (the viewport is 1280 px wide)', async () => {
+		expect((await at_rest(island('(min-width: 800px)')))?.oracle).toBe('islands-wake');
+		expect(await at_rest(island('(max-width: 600px)'))).toBeNull();
+	});
+
+	it("owes a hole's island its wake once the hole's own answer is owed", async () => {
+		const hole = (when: string, wake: string) =>
+			`<ogygia-region entry="/_app/n4.js" render="defer" when="${when}" wake="${wake}" endpoint="/_ogygia/r/n4"><div data-gen="hole">n4</div></ogygia-region>`;
+		expect((await at_rest(hole('load', 'load')))?.oracle).toBe('islands-wake');
+		expect(await at_rest(hole('interaction', 'load'))).toBeNull();
+		expect(await at_rest(fold(1000) + hole('visible', 'load'))).toBeNull();
 	});
 });
 
@@ -458,6 +662,18 @@ describe('a live region announces what it shows', () => {
 				[['ogygia:live', 's4', 5]]
 			)
 		).toBeNull();
+	});
+
+	it("leaves out a nested remote query's own waiting or failed line: its answer comes later, no tick of this region's (gen 650)", async () => {
+		for (const line of [
+			'<span data-gen-pending>connecting n13…</span>',
+			'<span data-gen-error>n13 failed</span>'
+		])
+			expect(
+				await at_rest({ entry: 's4', tick: 5, extra: `<div data-gen="live-host">${line}</div>` }, [
+					['ogygia:live', 's4', 5]
+				])
+			).toBeNull();
 	});
 
 	it("sets aside an island in a document a fault touched (its file may have failed: it shows the tick's HTML, #942), never a static tick", async () => {
@@ -917,5 +1133,116 @@ describe.skipIf(!built)('a warning a filed bug says', () => {
 		} finally {
 			await world.end();
 		}
+	});
+});
+
+describe('what a filed bug says', () => {
+	it("is #1158's: the AbortError of a batch called off while its body came, nobody listening", () => {
+		const said = known_said([
+			'unhandled: AbortError: The operation was aborted.',
+			'unhandled: TypeError: something else'
+		]);
+		expect(said.known.map((k) => k.issue)).toEqual([1158]);
+		expect(said.left).toEqual(['unhandled: TypeError: something else']);
+	});
+});
+
+describe('a document nobody has looked at', () => {
+	const tab = (moves: string, o: { hidden?: boolean; seen?: boolean } = {}) =>
+		({
+			realm: 'tab-1#2',
+			hidden: o.hidden ?? true,
+			seen: new Set(o.seen ? ['tab-1#2'] : []),
+			page: {
+				mainFrame: { url: 'https://app.test/p1', window: { __ogygia_moves: () => moves } }
+			}
+		}) as unknown as Parameters<typeof no_viewport_wait>[0];
+	const waited = 'hydrate-drain#1 queued -> idle\nhydrate-drain#1 idle -> waiting';
+
+	it('never holds its islands for a viewport it does not have (schedule.ts: a hidden document skips the snapshot and the hold)', () => {
+		expect(no_viewport_wait(tab('hydrate-drain#1 idle -> queued'))?.oracle).toBeUndefined();
+		const found = no_viewport_wait(tab(waited));
+		expect(found?.oracle).toBe('viewport-wait');
+		expect(found?.detail).toContain('https://app.test/p1');
+	});
+
+	it("opens no island's gate before the document is parsed (schedule.ts: the paint gate waits for DOMContentLoaded)", () => {
+		// (a click before it is parsed only marks the gate touched; it opens after the paint all the same)
+		expect(gate_open_early('critical-gate#1 fresh -> touched')).toBe(false);
+		expect(
+			gate_open_early('hydrate-drain#1 idle -> queued\ncritical-gate#1 fresh -> settled')
+		).toBe(true);
+		expect(gate_open_early('critical-gate#1 fresh -> waiting')).toBe(true);
+		const t = (early: string | null) =>
+			({
+				page: { mainFrame: { url: 'https://app.test/p1' } },
+				early_gate: early
+			}) as unknown as Parameters<typeof parsed_first>[0];
+		expect(parsed_first(t(null))).toBeNull();
+		expect(parsed_first(t('https://app.test/p1'))?.oracle).toBe('paint-gate');
+	});
+
+	it('leaves out a document that was shown, or is shown now: it had a viewport to wait for', () => {
+		expect(no_viewport_wait(tab(waited, { seen: true }))).toBeNull();
+		expect(no_viewport_wait(tab(waited, { hidden: false }))).toBeNull();
+	});
+});
+
+describe("a mounted peer's page answers as the peer did", () => {
+	/** `wire`: the tab's requests and the server's hops for its document, each `[url, status, for?]`. */
+	const judged = async (
+		body: string,
+		wire: Array<[string, number | 'dropped', string?]> = [],
+		at = '/peer/q0'
+	) => {
+		const { Window } = await import('happy-dom');
+		const w = new Window({ url: `https://app.test${at}` });
+		w.document.write(`<html><body>${body}</body></html>`);
+		const tab = {
+			realm: 'tab-1#1',
+			name: 'tab-1',
+			documents: 1,
+			page: { mainFrame: { url: `https://app.test${at}`, document: w.document } }
+		} as unknown as Parameters<typeof peer_answers>[0];
+		const world = {
+			fired_in: new Map(),
+			network: {
+				exchanges: wire.map(([url, status, hop], i) => ({
+					id: i + 1,
+					from: hop === undefined ? 'tab-1#1' : 'server-0',
+					...(hop === undefined ? {} : { for: hop }),
+					method: 'GET',
+					url: hop === undefined ? `https://app.test${url}` : `https://peer.test${url}`,
+					status,
+					cut: false,
+					tampered: false,
+					redirected: false
+				}))
+			}
+		} as unknown as Parameters<typeof peer_answers>[1];
+		return peer_answers(tab, world, 0);
+	};
+
+	it("finds a page the peer lacks answered as found, and one that moved answered where it was (a mutant that lost the peer's status survived)", async () => {
+		expect((await judged('', [['/peer/gone', 200]]))?.oracle).toBe('peer-answers');
+		expect((await judged('', [['/peer/moved', 200]]))?.oracle).toBe('peer-answers');
+		expect(await judged('', [['/peer/gone', 404]])).toBeNull();
+		expect(await judged('', [['/peer/moved', 307]])).toBeNull();
+	});
+
+	it("passes one the network failed, or whose hop to the peer failed: the app's answer for it is its own", async () => {
+		expect(await judged('', [['/peer/gone', 'dropped']])).toBeNull();
+		expect(await judged('', [['/peer/gone', 502]])).toBeNull();
+		expect(
+			await judged('', [
+				['/og/fragment/page?path=/gone', 'dropped', 'tab-1#1'],
+				['/peer/gone', 200]
+			])
+		).toBeNull();
+	});
+
+	it("finds a peer's page that shows another visitor than the app's (a mutant that dropped the claims survived), and passes the app's", async () => {
+		expect((await judged('<p data-gen-who></p>', [], '/peer/who'))?.oracle).toBe('peer-answers');
+		expect(await judged('<p data-gen-who>visitor</p>', [], '/peer/who')).toBeNull();
 	});
 });

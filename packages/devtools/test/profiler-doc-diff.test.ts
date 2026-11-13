@@ -93,3 +93,44 @@ describe('doc_diff', () => {
 		expect(d.groups.map((g) => [g.what, g.count])).toEqual([['<li> added in the later render', 2]]);
 	});
 });
+
+// The documents are cut at their tags the way the browser reads them (#1370): a `<` or `>` inside a
+// value, a comment or a script is not a tag edge, and every quoting of a value is read.
+describe('doc_diff reads tags as the browser does', () => {
+	const groups = (a: string, b: string) =>
+		doc_diff(
+			`<body><h1>Shop</h1>${a}<p>end</p></body>`,
+			`<body><h1>Shop</h1>${b}<p>end</p></body>`
+		)!.groups.map((g) => [g.what, g.count, g.a, g.b]);
+
+	/** `data-track` written each way the browser reads it, holding `v`. */
+	const spellings = (v: string) => [`data-track="${v}"`, `data-track='${v}'`, `data-track=${v}`];
+	/** Values before it that a hand parser trips on. */
+	const before = ['', 'title="x>y"', "title='a<b'", 'title="say \'hi\'"', 'title="&quot;=&gt;"'];
+
+	for (const lead of before)
+		for (const [i, one] of spellings('1').entries()) {
+			const two = spellings('2')[i];
+			it(`an attribute: <a ${lead} ${one}>`, () => {
+				expect(groups(`<a ${lead} ${one}>A</a>`, `<a ${lead} ${two}>A</a>`)).toEqual([
+					['data-track on <a>', 1, '1', '2']
+				]);
+			});
+		}
+
+	it('a script whose text holds `<` changes as the script’s text', () => {
+		expect(groups('<script>if(a<b)go(1)</script>', '<script>if(a<b)go(2)</script>')).toEqual([
+			['text in <script>', 1, 'if(a<b)go(1)', 'if(a<b)go(2)']
+		]);
+	});
+
+	it('a comment holding a tag changes as a comment marker', () => {
+		expect(groups('<!-- <b>1</b> -->', '<!-- <b>2</b> -->')).toEqual([
+			['comment markers (<!--…-->)', 1, '<!-- <b>1</b> -->', '<!-- <b>2</b> -->']
+		]);
+	});
+
+	it('text after a `<` that opens no tag is the text of the tag before it', () => {
+		expect(groups('<p>1 < 2</p>', '<p>1 < 3</p>')).toEqual([['text in <p>', 1, '1 < 2', '1 < 3']]);
+	});
+});
