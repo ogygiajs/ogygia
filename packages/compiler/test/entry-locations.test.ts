@@ -420,21 +420,22 @@ describe('the driver: entries emitted by name, mapped, and shimmed', () => {
 
 	const make = () => {
 		const program = new Program({ forms: true, router: true });
-		const compiler = new Compiler(program, {
-			prof: {
-				transformMs: 0,
-				transformN: 0,
-				transformHit: 0,
-				prescanMs: 0,
-				macroMs: 0,
-				macroN: 0,
-				resolveMs: 0,
-				loadMs: 0
+		const compiler = new Compiler(
+			program,
+			{
+				prof: {
+					transformMs: 0,
+					transformN: 0,
+					transformHit: 0,
+					prescanMs: 0,
+					macroMs: 0,
+					macroN: 0,
+					resolveMs: 0,
+					loadMs: 0
+				},
+				P: false,
+				outHash: new Map()
 			},
-			P: false,
-			outHash: new Map()
-		});
-		compiler.configure(
 			new CompileCtx(
 				partial_ctx_init({
 					root,
