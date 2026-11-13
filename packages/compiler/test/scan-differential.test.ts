@@ -86,7 +86,8 @@ const piece: fc.Arbitrary<string> = fc.oneof(
 		`const r4 = [/'/, /"/];`,
 		`const r5 = !/'/.test(a) && /"/.test(b);`,
 		`const r6 = ++/'/.lastIndex;`,
-		`const q = "/'";`
+		`const q = "/'";`,
+		`const ü = 4; const d10 = ü / 2 / ü;`
 	),
 	fc.constant(`const z = 'x';`)
 );
@@ -101,7 +102,13 @@ describe('find_og_calls keeps its place (#1441)', () => {
 		[
 			'a postfix increment before a division',
 			`let i = 0; const d = i++ / 2; const s = "'";\n${CALL}`
-		]
+		],
+		[
+			'a division after a name that ends in a non-ASCII letter',
+			`const café = 4; const x = café / 2; ${CALL}`
+		],
+		['a division after a non-ASCII name', `const 𝒳 = 4; const x = 𝒳 / 2; ${CALL}`],
+		['a regex after a non-ASCII space', `const x = /'/.test(s);\n${CALL}`]
 	])('past %s', (_, code) => {
 		expect(scanned(code)).toEqual(oxc_calls(code));
 		expect(scanned(code)).toHaveLength(1);
