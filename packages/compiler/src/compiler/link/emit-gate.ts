@@ -19,7 +19,7 @@ import { host_key } from '../program.ts';
 
 export const SSR_HOSTS_HANDOFF = 'og-ssr-hosts.json';
 
-/** `<outDir>/og-ssr-hosts.json` — written by the server leg, read by the client leg. */
+/** `<outDir>/og-ssr-hosts.json` — written by the server leg, read by the client leg (`ServerHandoff`). */
 export function ssr_hosts_handoff_path(out_dir: string): string {
 	return path.join(out_dir, SSR_HOSTS_HANDOFF);
 }
@@ -38,8 +38,39 @@ export function island_host_loaded(
 	return loaded.has(host_key(host_path));
 }
 
-/** Parse the handoff file's contents into the set `island_host_loaded` consumes. */
-export function parse_ssr_hosts(json: string): Set<string> {
-	const arr = JSON.parse(json);
-	return new Set(Array.isArray(arr) ? arr.filter((x) => typeof x === 'string') : []);
+/** A server-only region and the component file it renders (`Compiler.server_island_css_roots`). */
+export interface ServerRegionRoot {
+	iid: string;
+	abs: string;
+}
+
+/**
+ * What the server leg hands the client leg when it ends. `hosts`: every module it transformed (the
+ * emit gate). `server_regions`: its FINAL server-only regions, a library host it reached late
+ * included: the client leg builds each one's styles from this list, since in Kit 2 its own program
+ * never sees a host only the server bundle imports (test/server-region-late.test.ts).
+ */
+export interface ServerHandoff {
+	hosts: string[];
+	server_regions: ServerRegionRoot[];
+}
+
+/** Parse the handoff file. A malformed one gates nothing and names no region (never a throw on shape). */
+export function parse_server_handoff(json: string): {
+	loaded: Set<string>;
+	server_regions: ServerRegionRoot[];
+} {
+	const raw: unknown = JSON.parse(json);
+	const o = (raw && typeof raw === 'object' ? raw : {}) as Partial<
+		Record<keyof ServerHandoff, unknown>
+	>;
+	const hosts = Array.isArray(o.hosts) ? o.hosts : [];
+	const regions = Array.isArray(o.server_regions) ? o.server_regions : [];
+	return {
+		loaded: new Set(hosts.filter((x): x is string => typeof x === 'string')),
+		server_regions: regions.filter(
+			(r): r is ServerRegionRoot =>
+				!!r && typeof r === 'object' && typeof r.iid === 'string' && typeof r.abs === 'string'
+		)
+	};
 }

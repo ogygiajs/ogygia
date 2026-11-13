@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { join } from 'node:path';
 import {
 	island_host_loaded,
-	parse_ssr_hosts,
+	parse_server_handoff,
 	ssr_hosts_handoff_path
 } from '../src/compiler/link/emit-gate.ts';
 import { host_key } from '../src/compiler/program.ts';
@@ -51,12 +51,24 @@ describe('the handoff file', () => {
 		expect(ssr_hosts_handoff_path('/app/.svelte-kit-v2')).toBe(
 			'/app/.svelte-kit-v2/og-ssr-hosts.json'
 		);
-		const set = parse_ssr_hosts(JSON.stringify([...loaded].sort()));
-		expect(set).toEqual(loaded);
+		const server_regions = [{ iid: 'r1', abs: join(root, 'lib/Slow.svelte') }];
+		const handoff = parse_server_handoff(
+			JSON.stringify({ hosts: [...loaded].sort(), server_regions })
+		);
+		expect(handoff.loaded).toEqual(loaded);
+		expect(handoff.server_regions).toEqual(server_regions);
 	});
 
 	it('tolerates a malformed handoff (nothing gated, never a throw on shape)', () => {
-		expect(parse_ssr_hosts('{"not":"an array"}').size).toBe(0);
-		expect(parse_ssr_hosts('[1, null, "/a/b.svelte"]')).toEqual(new Set(['/a/b.svelte']));
+		expect(parse_server_handoff('["/a/b.svelte"]').loaded.size).toBe(0);
+		const mixed = parse_server_handoff(
+			JSON.stringify({
+				hosts: [1, null, '/a/b.svelte'],
+				server_regions: [null, { iid: 'r1' }, { iid: 'r2', abs: '/a/c.svelte' }]
+			})
+		);
+		expect(mixed.loaded).toEqual(new Set(['/a/b.svelte']));
+		expect(mixed.server_regions).toEqual([{ iid: 'r2', abs: '/a/c.svelte' }]);
+		expect(parse_server_handoff('null').server_regions).toEqual([]);
 	});
 });

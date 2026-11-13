@@ -138,7 +138,12 @@ import { report_seed_shaping } from '../compiler/link/build-output.ts';
 import { follow_pending_page_calls } from '../compiler/link/page-keys.ts';
 import { unpatched } from '../compiler/link/relocations.ts';
 import { emit_island_deps_handoff, refuse_client_secrets } from '../compiler/link/build-output.ts';
-import { ssr_hosts_handoff_path, parse_ssr_hosts } from '../compiler/link/emit-gate.ts';
+import {
+	ssr_hosts_handoff_path,
+	parse_server_handoff,
+	type ServerHandoff,
+	type ServerRegionRoot
+} from '../compiler/link/emit-gate.ts';
 import { router_css_key } from '../compiler/link/router-css.ts';
 import { Program, strip_id } from '../compiler/program.ts';
 import { Compiler } from '../compiler/driver.ts';
@@ -989,10 +994,13 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 					// Gated on the SERVER leg's real module graph (link/emit-gate.ts): an island whose host
 					// the server bundle never loaded gets no chunk. No handoff → every prescanned island.
 					let loaded: Set<string> | null = null;
+					// The holes whose styles this leg builds: the server leg's final list when it handed
+					// one off (a host only it reached late included), else this program's own.
+					let server_regions: ServerRegionRoot[] | null = null;
 					try {
-						loaded = parse_ssr_hosts(
+						({ loaded, server_regions } = parse_server_handoff(
 							fs.readFileSync(ssr_hosts_handoff_path(kit_dirs(root).out_dir), 'utf8')
-						);
+						));
 					} catch {
 						// ok: no server-leg handoff (a standalone or client-only build)
 					}
@@ -1017,7 +1025,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 					// Holes: handed off under the island's public URL key, which `region_css_links` already
 					// resolves through `islandCss()`, so the hole response links it and the client hoists it.
 					const hole_css_by_abs = new Map<string, string>();
-					for (const { iid, abs } of compiler.server_island_css_roots()) {
+					for (const { iid, abs } of server_regions ?? compiler.server_island_css_roots()) {
 						let ref = hole_css_by_abs.get(abs);
 						if (ref === undefined) {
 							const source = await tree_css(abs);
@@ -1084,7 +1092,11 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 					try {
 						const handoff = ssr_hosts_handoff_path(kit_dirs(root).out_dir);
 						fs.mkdirSync(path.dirname(handoff), { recursive: true });
-						fs.writeFileSync(handoff, JSON.stringify(compiler.ssr_transformed_hosts()));
+						const out: ServerHandoff = {
+							hosts: compiler.ssr_transformed_hosts(),
+							server_regions: compiler.server_island_css_roots()
+						};
+						fs.writeFileSync(handoff, JSON.stringify(out));
 					} catch (e) {
 						// best effort — without it the client leg emits every prescanned island
 						if (isMainThread) warn('island_handoff_write_failed', e);
