@@ -21,6 +21,24 @@ test('the build’s redirect stub: the path it sends the visitor to', () => {
 	);
 });
 
+test('the meta tag is read as the browser reads it (#1370)', () => {
+	// single quotes, unquoted, spaces around `=`
+	expect(refresh_target(`<meta http-equiv='refresh' content='0;url=/a'>`, origin)).toBe('/a');
+	expect(refresh_target('<meta http-equiv=refresh content="0;url=/b">', origin)).toBe('/b');
+	expect(refresh_target('<meta http-equiv = "refresh" content = "0;url=/c">', origin)).toBe('/c');
+	// a `>` inside a quoted value does not end the tag
+	expect(refresh_target('<meta http-equiv="refresh" content="0;url=/d?x=>1">', origin)).toBe(
+		'/d?x=%3E1'
+	);
+	// a refresh written in a script's text or a comment is no tag
+	expect(
+		refresh_target('<script>s=\'<meta http-equiv="refresh" content="0;url=/e">\'</script>', origin)
+	).toBeNull();
+	expect(
+		refresh_target('<!-- <meta http-equiv="refresh" content="0;url=/f"> -->', origin)
+	).toBeNull();
+});
+
 test('not a stub: no refresh, another origin, no url, a real page', () => {
 	expect(refresh_target('<p>hi</p>', origin)).toBeNull();
 	expect(
