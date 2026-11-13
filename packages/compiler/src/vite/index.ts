@@ -65,6 +65,7 @@ export type {
 	BuildContext,
 	MacroHandler,
 	MacroContext,
+	PrescanHook,
 	MarkupSource,
 	MarkupRegions,
 	TransformStage,
@@ -98,6 +99,7 @@ import { assert_no_legacy_options, validate_region_presets, resolve_options } fr
 import {
 	clientBuildWillSkip,
 	hasAnyCsrFalseRoute,
+	is_route_file,
 	clear_route_csr_cache,
 	keep_client_dir,
 	inject_keep_client_route,
@@ -137,7 +139,11 @@ import {
 import { report_seed_shaping } from '../compiler/link/build-output.ts';
 import { follow_pending_page_calls } from '../compiler/link/page-keys.ts';
 import { emit_island_deps_handoff, refuse_client_secrets } from '../compiler/link/build-output.ts';
-import { ssr_hosts_handoff_path, parse_ssr_hosts } from '../compiler/link/emit-gate.ts';
+import {
+	server_handoff_path,
+	server_handoff_json,
+	read_server_handoff
+} from '../compiler/link/emit-gate.ts';
 import { router_css_key } from '../compiler/link/router-css.ts';
 import { Program, strip_id } from '../compiler/program.ts';
 import { Compiler } from '../compiler/driver.ts';
@@ -145,7 +151,6 @@ import { core_defines } from '../compiler/virtual/core.ts';
 import { CompileCtx, type PackageScan } from '../compiler/ctx.ts';
 import { discover_package_files } from './package-files.ts';
 import { async_twin_redirect, svelte_async_enabled } from './late-island.ts';
-import { flags_manifest } from '../compiler/flags.ts';
 
 // Kit's generated CLIENT app entry — Kit 2 dev serves `generated/client/app.js` and the build inputs
 // `generated/client-optimized/app.js`; Kit 3 nests both under `generated/dev/` and `generated/build/`
@@ -153,9 +158,6 @@ import { flags_manifest } from '../compiler/flags.ts';
 // when Kit's client boots and NEVER on a csr=false page — the append target for the kit-world page
 // thread (see the transform hook).
 const KIT_CLIENT_APP_RE = /\/generated\/(?:build\/|dev\/)?client(-optimized)?\/app\.js$/;
-// A route host (`+page`/`+layout.svelte`) or option file (`.js`/`.ts`, `.server` too): a dev change
-// to any of these can shift the csr topology OR a plugin's key inside `export const config`.
-const ROUTE_HOST_OR_OPTION_RE = /[\\/]\+(page|layout)(\.server)?\.(svelte|js|ts)$/;
 // Appended INLINE (no extra module): publishes Kit's REAL reactive `page`/`navigating` on the
 // well-known slot the island `$app/*` shims read through (`kit_bridge()` in shims/kit-bridge; the
 // `$page` shim builds its live store from this `page`). Importer is Kit's own entry — never
@@ -234,6 +236,9 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 	let route_config: string[] = [];
 	let foreign_hydrate = false;
 	let macros: ResolvedPlugins['macros'] = [];
+	let prescans: ResolvedPlugins['prescans'] = [];
+	/** the names of the plugins listed beside ogygia() */
+	let listed_plugins: string[] = [];
 	let stage_transforms: ResolvedPlugins['transforms'] = [];
 	let markup: ResolvedPlugins['markup'] = [];
 	let definers: ResolvedPlugins['definers'] = [];
@@ -367,7 +372,8 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 	/** the app compiles with Svelte's async mode (vite-plugin-svelte's resolved options): Region
 	 *  imports the awaiting LateIsland (late-island.ts) */
 	let svelte_async = false;
-	/** Resolved `resolve.alias` entries — passed to bake()'s rolldown eval so `$lib` etc. resolve. */
+	/** Resolved `resolve.alias` entries — an island's closure walk, and every plugin macro (bake()'s
+	 *  eval bundle resolves `$lib` with them). */
 	let resolve_alias: { find: string | RegExp; replacement: string }[] = [];
 	let is_build = false;
 	let is_ssr = false;
@@ -511,8 +517,8 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 		transformN: 0,
 		transformHit: 0,
 		prescanMs: 0,
-		bakeMs: 0,
-		bakeN: 0,
+		macroMs: 0,
+		macroN: 0,
 		resolveMs: 0,
 		loadMs: 0
 	};
@@ -614,9 +620,11 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 						route_config,
 						foreign_hydrate,
 						macros,
+						prescans,
 						markup,
 						definers
 					} = resolved);
+					listed_plugins = app_plugins.map((p) => p.name);
 					measure = resolved.measure;
 					devtools_effective = resolved.events !== false;
 					devtools_lazy = resolved.events !== false && resolved.events.lazy;
@@ -797,7 +805,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 						// ok: a define that is not JSON keeps the `_app` default
 					}
 				}
-				// Normalize resolve.alias (array or object form) to `{ find, replacement }[]` for bake().
+				// Normalize resolve.alias (array or object form) to `{ find, replacement }[]`.
 				const ra = config.resolve?.alias ?? [];
 				resolve_alias = Array.isArray(ra)
 					? ra.map((a) => ({ find: a.find, replacement: a.replacement }))
@@ -871,6 +879,8 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 						import_keys,
 						resolve_alias,
 						macros,
+						prescans,
+						plugins: listed_plugins,
 						// (the id prefix, not the native path: every consumer `startsWith`s a module id)
 						pkg_root: CORE_ROOT_ID,
 						build_secret,
@@ -941,7 +951,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 				const server_leg = server_leg_of(this);
 				last_leg_server = server_leg;
 				if (is_build && server_leg)
-					fs.rmSync(ssr_hosts_handoff_path(kit_dirs(root).out_dir), { force: true });
+					fs.rmSync(server_handoff_path(kit_dirs(root).out_dir), { force: true });
 				// CLIENT build (Kit-driven): emit the runtime chunk. Kit builds the SERVER bundle FIRST,
 				// then the client, so the server can't learn a hash the LATER client build produces — a
 				// forward handoff is impossible. Instead the filename is a deterministic SOURCE-content
@@ -985,14 +995,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 					// region — the driver owns the naming + dedup; `this.emitFile` is the injected primitive.
 					// Gated on the SERVER leg's real module graph (link/emit-gate.ts): an island whose host
 					// the server bundle never loaded gets no chunk. No handoff → every prescanned island.
-					let loaded: Set<string> | null = null;
-					try {
-						loaded = parse_ssr_hosts(
-							fs.readFileSync(ssr_hosts_handoff_path(kit_dirs(root).out_dir), 'utf8')
-						);
-					} catch {
-						// ok: no server-leg handoff (a standalone or client-only build)
-					}
+					const loaded = read_server_handoff(kit_dirs(root).out_dir)?.hosts ?? null;
 					const skipped = compiler.emit_build_chunks((chunk) => this.emitFile(chunk), {
 						emitRuntime: emit_runtime,
 						loaded
@@ -1056,7 +1059,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 				// graph, so without invalidation the SERVER leg keeps deciding island-vs-inline from a
 				// STALE set while Kit flips immediately — `<ogygia-region>` shells on a Kit-booted page
 				// with the runtime withheld = dead chrome (hit at a consumer after toggling `csr`).
-				if (is_dev && ROUTE_HOST_OR_OPTION_RE.test(id)) {
+				if (is_dev && is_route_file(path.basename(id))) {
 					clear_route_csr_cache();
 					// (a plugin's key inside `export const config` add/flip changes the baked values too)
 					if (vite_server)
@@ -1075,9 +1078,12 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 				const server_leg = server_leg_of(this);
 				if (is_build && server_leg && !standalone) {
 					try {
-						const handoff = ssr_hosts_handoff_path(kit_dirs(root).out_dir);
+						const handoff = server_handoff_path(kit_dirs(root).out_dir);
 						fs.mkdirSync(path.dirname(handoff), { recursive: true });
-						fs.writeFileSync(handoff, JSON.stringify(compiler.ssr_transformed_hosts()));
+						fs.writeFileSync(
+							handoff,
+							server_handoff_json(compiler.ssr_transformed_hosts(), build_secret)
+						);
 					} catch (e) {
 						// best effort — without it the client leg emits every prescanned island
 						if (isMainThread) warn('island_handoff_write_failed', e);
@@ -1298,7 +1304,8 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 				// bundler-neutral (`map: unknown`); cast it to Vite's transform shape at this boundary.
 				const result = await compiler.transform_module(source, id, {
 					ssr: options?.ssr === true,
-					emitFile: (chunk) => this.emitFile(chunk)
+					emitFile: (chunk) => this.emitFile(chunk),
+					watch: (file) => this.addWatchFile(file)
 				});
 				// DEV: a host edit dropped its server islands from the manifest the handle already
 				// re-imported (empty of them); this transform just registered them again — invalidate the
@@ -1432,29 +1439,17 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 				// By `writeBundle` the bundle reflects the files actually on disk.
 				if (!is_build || server_leg) return;
 
-				// SECRET-SPLIT on the finished client bundle: no signing secret, no signing module
+				// SECRET-SPLIT on the finished client bundle: no signing secret, no signing module. The key
+				// is the one the SERVER leg baked, from its handoff: under Kit 2 that leg ran its own
+				// plugin instance, whose per-build random this one never saw.
 				refuse_client_secrets(bundle as Record<string, unknown>, [
-					build_secret,
+					read_server_handoff(kit_dirs(root).out_dir)?.build_key ?? build_secret,
 					process.env.OGYGIA_SECRET?.trim() ?? ''
 				]);
 
-				// FLAG MANIFEST — the inventory the prescan OBSERVED (AST-resolved flag()/experiment()
-				// call sites in modules importing 'ogygia'). Written once per build for CI flag-debt
-				// diffs; the client leg runs last, so the file reflects the completed build.
-				if (program.flag_sites.length && isMainThread) {
-					try {
-						const dir = path.join(root, 'node_modules', '.ogygia');
-						fs.mkdirSync(dir, { recursive: true });
-						const manifest = flags_manifest(program.flag_sites);
-						fs.writeFileSync(
-							path.join(dir, 'flags-manifest.json'),
-							`${JSON.stringify(manifest, null, '\t')}\n`
-						);
-						console.log(line('flags_manifest_written', { count: manifest.names.length }));
-					} catch {
-						// ok: a read-only file system never fails the build over an inventory
-					}
-				}
+				// The plugins' prescan readers: the client leg runs last, so what they saw is the
+				// completed build (`flags()` writes its flag inventory here).
+				if (isMainThread) for (const hook of prescans) hook.written?.();
 
 				// `page`: per island entry, whether its chunk closure bundles the `$app/state` /
 				// `$app/stores` shim — the handle seeds `page.data` only for islands that read it.
@@ -1610,7 +1605,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 					...(measure ? { page_why, barrels } : {}),
 					content_css,
 					css_inline,
-					fn_manifest: Object.fromEntries(compiler.dollar_hoists),
+					fn_manifest: compiler.fn_manifest(),
 					// identity (the stable URL SSR bakes) → location (the content-hashed file to load)
 					entries: entries.locations,
 					// the same, as one file the browser reads (the runtime's script tag names it)

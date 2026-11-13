@@ -45,8 +45,8 @@ function marks_for(island: string, extra: Record<string, string> = {}, init: obj
 			transformN: 0,
 			transformHit: 0,
 			prescanMs: 0,
-			bakeMs: 0,
-			bakeN: 0,
+			macroMs: 0,
+			macroN: 0,
 			resolveMs: 0,
 			loadMs: 0
 		},
@@ -154,7 +154,7 @@ describe('foreign regions', () => {
 	test('an app with no deferred region of its own does not ship the frame store', () => {
 		const marks = marks_for(island);
 		expect(resolveFeatures(marks)).not.toContain('frames');
-		expect(generateRuntimeFlagsSource(marks)).toContain('FRAMES = false');
+		expect(generateRuntimeFlagsSource(marks, '/rt')).toContain('FRAMES = false');
 	});
 
 	test("a federated app ships what a peer's regions need, with no region of its own needing it", () => {
@@ -162,6 +162,6 @@ describe('foreign regions', () => {
 		expect(resolveFeatures(marks)).toEqual(
 			expect.arrayContaining(['frames', 'morph', 'lakes', 'interaction'])
 		);
-		expect(generateRuntimeFlagsSource(marks)).toContain('FRAMES = true');
+		expect(generateRuntimeFlagsSource(marks, '/rt')).toContain('FRAMES = true');
 	});
 });
