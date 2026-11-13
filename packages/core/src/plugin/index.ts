@@ -85,9 +85,11 @@ export interface PluginCapabilities {
 	 *  refuses it as `foreign-key`, not as a bad signature. */
 	mint(message: (exp: string) => string): { exp: string; sig: string; k: string };
 	/** Check a request for a capability `mint` made, by its URL's `exp` and `sig` (with `renew=1`, the
-	 *  runtime's one retry of an expired one). Refused: the response to answer with, the 403 a region
-	 *  request gets. Accepted: headers to send with the answer (a renewal's carry the fresh URL). */
-	open(url: URL, message: (exp: string) => string): CapabilityOpened;
+	 *  runtime's one retry of an expired one), charging the visitor's region budgets as a region hole
+	 *  does (the probe before the signature, the render after). Refused: the response to answer with,
+	 *  the 403 or 429 a region request gets. Accepted: headers to send with the answer (a renewal's
+	 *  carry the fresh URL). */
+	open(event: RequestEvent, message: (exp: string) => string): CapabilityOpened;
 }
 
 /** What `capability.open` decided. */
