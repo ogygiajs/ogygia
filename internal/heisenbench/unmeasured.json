@@ -5919,6 +5919,10 @@
 		{
 			"id": "packages/core/src/runtime/seeds.ts > merge_page_facts > filter:0~deb9e1",
 			"reason": "dev builds only: compares the facts' few keys with the page's, for a warning; proven in packages/core/test/browser/page-facts-visit.test.ts"
+		},
+		{
+			"id": "packages/bake/src/bake.ts > evaluate > build:0~602b6c > build > rolldownOptions > external",
+			"reason": "build only: the bake build's external test, one startsWith per import it resolves"
 		}
 	]
 }
