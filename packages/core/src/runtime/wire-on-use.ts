@@ -7,7 +7,7 @@
  * core, and the props parse finds it installed (test/browser/wire-on-use.test.ts).
  *
  * In a build with the codec (runtime-flags `load_wire_codec` is `null`) this answers nothing, and
- * the bundler drops it. A download that fails is tried again at once, and a failure is never kept.
+ * the bundler drops it (test/wire-on-use-fold.test.ts). A download that fails is tried again at once, and a failure is never kept.
  *
  * @packageDocumentation
  */
@@ -19,21 +19,17 @@ import { slots } from './slots.ts';
 import { download } from '../policies.ts';
 import { REF_WIRE_KEY } from '../ref-key.ts';
 
-// null in a build with the codec: then all below folds out (the boot-file budget,
-// apps/palaestra/e2e/lazy-chunks.spec.ts), so the calls are pure
 const import_codec = load_wire_codec && /* @__PURE__ */ import_again(load_wire_codec);
 
 const codec_load = /* @__PURE__ */ flights({
 	name: 'wire codec',
 	run: () => import_codec!().then((m) => m.install()),
-	// once installed, `slots.wire` answers every later wake: a kept answer would never be read
 	keep: 0,
 	retry: download
 });
 
 /** The codec's load, when this region's props carry a live value and the codec is not in yet. */
 export function wire_for_wake(region: Element): Promise<unknown> | undefined {
-	// the imported constant, not `import_codec`: the bundler folds only an imported `null`
 	if (load_wire_codec === null || slots.wire) return undefined;
 	if (!props_sidecar_of(region)?.textContent?.includes(REF_WIRE_KEY)) return undefined;
 	return codec_load.get();

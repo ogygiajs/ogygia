@@ -6,6 +6,8 @@
  * answer of the app's own remote transport. The string-to-DOM APIs (`setHTMLUnsafe`, `innerHTML =`,
  * `DOMParser`, `createContextualFragment`, …) and a cast to `VerifiedHtml` are a lint error anywhere
  * else in package source (`ogygia/html-sink`).
+ *
+ * @packageDocumentation
  */
 
 import type { PageGlobals } from '../page-globals.ts';
@@ -30,7 +32,6 @@ export function is_allowed_region_endpoint(
 		const url = new URL(endpoint, page_origin);
 		if (url.protocol !== 'http:' && url.protocol !== 'https:') return false;
 		if (url.origin !== page_origin) return false;
-		// Reject if the final response could redirect cross-origin — checked by caller via res.url.
 		return true;
 	} catch {
 		return false; // ok: not a URL: refused (fail closed)
@@ -42,7 +43,7 @@ export function is_same_origin_response(
 	res: Response,
 	page_origin: string = location.origin
 ): boolean {
-	if (!res.url) return true; // older environments — rely on request URL check
+	if (!res.url) return true;
 	try {
 		return new URL(res.url).origin === page_origin;
 	} catch {
@@ -134,9 +135,6 @@ export function parse_region_html(html: VerifiedHtml): DocumentFragment {
 }
 
 let inert: Document | null = null;
-/** The runtime's one document with no browsing context, made on first use. (A DOM with no
- *  `document.implementation`, a server-side DOM a bench runs on, parses in the page's own: it has
- *  no custom elements to build.) */
 function inert_document(): Document {
 	return (inert ??=
 		typeof document.implementation?.createHTMLDocument === 'function'
@@ -163,6 +161,8 @@ export function attach_declarative_shadows(root: DocumentFragment | ShadowRoot):
 	}
 }
 
+const SHOW_ELEMENT = 1;
+
 /**
  * Shadow roots attached while the markup sat in an inert document — a declarative shadow root the
  * parse above attached, a restored one — get no custom element registry in a browser with scoped
@@ -175,7 +175,7 @@ export function init_shadow_registries(under: Node): void {
 	if (typeof ce.initialize !== 'function') return;
 	const scopes: Node[] = [under];
 	for (let q = 0; q < scopes.length; q++) {
-		const walk = document.createTreeWalker(scopes[q], 1 /* SHOW_ELEMENT */);
+		const walk = document.createTreeWalker(scopes[q], SHOW_ELEMENT);
 		for (let n = walk.nextNode(); n; n = walk.nextNode()) {
 			const sr = (n as Element).shadowRoot as
 				| (ShadowRoot & { customElementRegistry?: unknown })

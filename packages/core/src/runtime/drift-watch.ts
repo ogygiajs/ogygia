@@ -38,7 +38,6 @@ function rewatch(): void {
 export function watch_region(sleep: Scope, region: Element): void {
 	if (!supported || sleep.closed) return;
 	sleepers.add(region, sleep);
-	// (the registry's entry is a child of `sleep`: it has left by the time this runs)
 	sleep.defer(rewatch);
 	// oxlint-disable-next-line ogygia/owned-effects -- one observer for every sleeping region: each region's sleep owns its place in `sleepers`, and each sleep's end watches only the regions left
 	observer ??= new MutationObserver(note_island_touched);
