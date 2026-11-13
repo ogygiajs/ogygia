@@ -90,7 +90,9 @@ function dock_measures(event: RequestEvent): boolean {
 /** The page beacon in the document's head, once: a profiler that put it there already is left so. */
 const WITH_PAGE_BEACON: ResolveOptions = {
 	transformPageChunk: ({ html }) => {
+		// markup-ok: Kit's document, located as core's document-assembly.ts does (#1410)
 		const at = html.indexOf('</head>');
+		// markup-ok: the profiler's own beacon tag, written byte for byte by beacon-tag.ts
 		if (at === -1 || html.lastIndexOf(`<script ${OGYGIA_BEACON}>`, at) !== -1) return html;
 		return `${html.slice(0, at)}${BEACON_STANDALONE_TAG}${html.slice(at)}`;
 	}

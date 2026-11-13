@@ -44,7 +44,7 @@ function looks_clickable(el: Element): boolean {
 	try {
 		return getComputedStyle(el).cursor === 'pointer';
 	} catch {
-		return false;
+		return false; // ok: an element with no style (detached) is not clickable
 	}
 }
 
@@ -123,7 +123,7 @@ export function take_saved_session(): SavedPart[] | null {
 		if (raw) parts = JSON.parse(raw) as SavedPart[];
 		sessionStorage.removeItem(SAVED_KEY);
 	} catch {
-		parts = null;
+		parts = null; // ok: storage blocked or unreadable: no earlier page's session to go on with
 	}
 	return parts?.length ? parts : null;
 }
@@ -146,7 +146,7 @@ export function session_waiting(): boolean {
 	try {
 		return !!sessionStorage.getItem(SAVED_KEY);
 	} catch {
-		return false;
+		return false; // ok: storage blocked: nothing could have been saved
 	}
 }
 
@@ -502,7 +502,7 @@ export function start_session(prior?: SavedPart[]): Recorder {
 		try {
 			prof = new Ctor({ sampleInterval: 10, maxBufferSize: 60_000 });
 		} catch {
-			cpu_off = 'no-policy';
+			cpu_off = 'no-policy'; // ok: the Session tab says why there are no CPU samples
 		}
 	const heap0 =
 		(performance as { memory?: { usedJSHeapSize: number } }).memory?.usedJSHeapSize ?? null;
@@ -586,7 +586,7 @@ export function start_session(prior?: SavedPart[]): Recorder {
 				try {
 					cpu = await prof.stop();
 				} catch {
-					cpu = null;
+					cpu = null; // ok: the profiler would not stop: the session keeps the rest without CPU samples
 				}
 			}
 			const here = collect(cpu);

@@ -9,16 +9,15 @@ import {
 
 export { PAGE_DEFER_BOOTSTRAP } from '../page-defer.ts';
 
-type Deferred = {
-	promise: Promise<unknown>;
-	resolve: (v: unknown) => void;
-	reject: (e: unknown) => void;
-};
+type Settle = { resolve: (v: unknown) => void; reject: (e: unknown) => void };
 interface Registry {
 	q?: Array<[id: number, ok: boolean, encoded: string]>;
 	live?: (id: number, ok: boolean, encoded: string) => void;
-	deferreds?: Map<number, Deferred>;
-	settled?: Map<number, { ok: boolean; value: unknown }>;
+	/** each id's one promise, from its first read or its resolve, for the document's life (#1435) */
+	// oxlint-disable-next-line ogygia/no-promise-cache -- not a cache: a streamed value's one promise per id, a rejection included (it is the value the server sent)
+	promises?: Map<number, Promise<unknown>>;
+	/** the ones of those still waiting for their value */
+	waiting?: Map<number, Settle>;
 	revivers?: Record<string, (payload: never) => unknown>;
 	t?: Record<number, number>;
 	/** resolves that came and are still on their way in (devalue loading) */
@@ -50,25 +49,14 @@ function to_error(value: unknown): Error {
  */
 export function create_deferred(id: number): Promise<unknown> {
 	const r = reg();
-	const deferreds = (r.deferreds ??= new Map());
-	const existing = deferreds.get(id);
-	if (existing) return existing.promise;
-	const early = r.settled?.get(id);
-	if (early) {
-		r.settled!.delete(id);
-		if (early.ok) return Promise.resolve(early.value);
-		const p = Promise.reject(to_error(early.value));
-		p.catch(() => {}); // ok: the same promise is handed back, and its `{#await}` sees the rejection; resolve raced ahead of the island — guard before `{#await}` attaches its :catch
-		return p;
-	}
-	let resolve!: (v: unknown) => void;
-	let reject!: (e: unknown) => void;
-	const promise = new Promise<unknown>((res, rej) => {
-		resolve = res;
-		reject = rej;
-	});
+	const promises = (r.promises ??= new Map());
+	const existing = promises.get(id);
+	if (existing) return existing;
+	let settle_it!: Settle;
+	const promise = new Promise<unknown>((resolve, reject) => (settle_it = { resolve, reject }));
 	promise.catch(() => {}); // ok: the same promise is handed back, and its `{#await}` sees the rejection; no unhandled-rejection noise if a rejected leaf goes un-awaited
-	deferreds.set(id, { promise, resolve, reject });
+	promises.set(id, promise);
+	(r.waiting ??= new Map()).set(id, settle_it);
 	if (r.loaded && !r.arriving?.has(id)) settle(id, false, unresolved('stream'));
 	return promise;
 }
@@ -85,21 +73,27 @@ function document_loaded(): void {
 	const r = reg();
 	r.loaded = true;
 	// (settle deletes from the map it walks: a Map's for…of sees each key once all the same)
-	for (const id of r.deferreds?.keys() ?? [])
+	for (const id of r.waiting?.keys() ?? [])
 		if (!r.arriving?.has(id)) settle(id, false, unresolved('stream'));
 }
 
+/** `id`'s value came: its waiting promise settles, or, read by nobody yet, it is kept as a settled
+ *  promise for its first read (a resolve that raced ahead of the seed). A promise settles once. */
 function settle(id: number, ok: boolean, value: unknown): void {
 	const r = reg();
 	r.arriving?.delete(id);
-	const d = r.deferreds?.get(id);
-	if (d) {
-		r.deferreds!.delete(id);
-		if (ok) d.resolve(value);
-		else d.reject(to_error(value));
-	} else {
-		(r.settled ??= new Map()).set(id, { ok, value });
+	const waiting = r.waiting?.get(id);
+	if (waiting) {
+		r.waiting!.delete(id);
+		if (ok) waiting.resolve(value);
+		else waiting.reject(to_error(value));
+		return;
 	}
+	const promises = (r.promises ??= new Map());
+	if (promises.has(id)) return;
+	const promise = ok ? Promise.resolve(value) : Promise.reject(to_error(value));
+	promise.catch(() => {}); // ok: the same promise is handed back, and its `{#await}` sees the rejection; resolve raced ahead of the island — guard before `{#await}` attaches its :catch
+	promises.set(id, promise);
 }
 
 /** Install the live resolver (which parses the encoded value with the full reviver map, so a value
