@@ -43,7 +43,8 @@ import {
 	route_config,
 	runtime_url,
 	devtools_boot_url,
-	server_plugins
+	server_plugins,
+	handoff_problem
 } from 'ogygia:server';
 import { dev_hmr_url } from './dev-hmr-url.ts';
 import { REGION_BRAND } from './region-brand.ts';
@@ -120,6 +121,7 @@ import {
 	capability_query,
 	configure_islands_endpoint,
 	islands_endpoint,
+	is_islands_endpoint,
 	MAX_REGION_PROPS_LEN,
 	REGION_CAPABILITY_VERSION,
 	is_region_id,
@@ -825,6 +827,26 @@ class OgygiaHandle {
 	readonly probe_rate: RateLimiter;
 	/** a render budget spent by a proxy's address, said once (#894) */
 	readonly #shared_address = say({ max: 1 });
+	/** The client build's handoff problem, said once while it lasts (production: dev reads none). */
+	readonly #handoff_said = say({ max: 2 });
+
+	#check_handoff(): void {
+		const p = handoff_problem();
+		if (!p) {
+			this.#handoff_said.ok('missing');
+			this.#handoff_said.ok('unreadable');
+			return;
+		}
+		this.#handoff_said.once(p.kind, () =>
+			console.error(
+				new OgygiaError('island_deps_handoff_missing', {
+					kind: p.kind,
+					tried: p.tried.join(', '),
+					error: p.error ?? ''
+				})
+			)
+		);
+	}
 
 	constructor(options: OgygiaHandleOptions = {}) {
 		// (the app's own pass is @ogygia/reshape's now; a JS caller still passing it is told where)
@@ -885,6 +907,7 @@ class OgygiaHandle {
 		// the region endpoint (deferred/live holes, the per-visitor leg of a cached page) all see what
 		// it set up (flags prime their source here). Its `done` stage runs at the request's end, always
 		// (flags drain exposures: the serverless-safe tail). No plugins: straight through, no wrapper.
+		if (!import.meta.env.DEV) this.#check_handoff();
 		const facts = facts_of(event.request);
 		if (plugins.length === 0) return this.#route(event, resolve, path, NO_CTXS, facts);
 		const ctxs = request_contexts(plugins, event, path, facts, (endpoint) =>
@@ -917,11 +940,9 @@ class OgygiaHandle {
 		ctxs: readonly RequestContext<unknown, unknown>[],
 		facts: RequestFacts
 	): Promise<Response> {
-		// Compare against the DECODED request pathname so the percent-encoded UTF-8 the browser
-		// sends matches our raw-emoji literal regardless of how Kit hands us the URL. Suffix match
-		// (not `===`) so it works under any `paths.base` without needing the base at all: the request
-		// arrives at `<base>/__ogygia__`, and the endpoint is a leading-slash, clash-safe path.
-		if (!path.endsWith(this.#endpoint)) {
+		// The endpoint's one path under the app's base, the path minted: a page whose path only ends
+		// the same is a page (test/islands-endpoint.test.ts)
+		if (!is_islands_endpoint(path)) {
 			// PAGE FACTS (server/page-facts.ts): a render outside its page looks the page up through
 			// Kit's own data request. Nothing renders here: no bag, no store. The answer names the
 			// route and params Kit matched, which the data alone does not carry.

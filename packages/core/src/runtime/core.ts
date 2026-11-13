@@ -1049,7 +1049,7 @@ class OgygiaRegion extends HTMLElement {
 		// starts nothing (#335).
 		const armed = owner.scope;
 		const start = () => background_start(() => void (armed.closed || fire()));
-		on_trigger(
+		const trigger = on_trigger(
 			when,
 			WAKE,
 			{
@@ -1075,6 +1075,11 @@ class OgygiaRegion extends HTMLElement {
 			},
 			fire
 		);
+		if (!trigger)
+			warn('region_wake_unknown', {
+				region: this.getAttribute('entry') || this.getAttribute(OG_HOLE) || 'ogygia-region',
+				value: when
+			});
 	}
 
 	/**

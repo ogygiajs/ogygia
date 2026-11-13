@@ -96,6 +96,7 @@ function key_of(page) {
 async function check(page, k) {
 	const headers = { 'x-profiler-key': key };
 	const rec = await fetch(`${base}/__profiler/page?p=${page}&runs=3`, {
+		method: 'POST',
 		headers,
 		redirect: 'manual'
 	});
@@ -197,6 +198,7 @@ async function measure(page, fresh = async () => {}) {
 		// memory alive slows the next profile on the same heap
 		await fresh();
 		const rec = await fetch(`${base}/__profiler/page?p=${page}&runs=3`, {
+			method: 'POST',
 			headers,
 			redirect: 'manual'
 		});
