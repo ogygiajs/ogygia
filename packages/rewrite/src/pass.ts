@@ -1,8 +1,9 @@
 import type { RequestEvent } from '@sveltejs/kit';
 import type { HtmlPass } from '@ogygia/core/plugin';
 import { closeSafe, escapeAttr } from '@ogygia/core/plugin/utils';
-import { OG_HEAD, OG_RESTORE, OG_STAND_INS } from '@ogygia/core/internal/instruments';
+import { MarkupCursor, OG_HEAD, OG_RESTORE, OG_STAND_INS } from '@ogygia/core/internal/instruments';
 import { DEV } from 'esm-env';
+import { buggify } from '@ogygia/machine';
 import {
 	check_script,
 	closes_all,
@@ -11,6 +12,7 @@ import {
 	mark_with,
 	remap,
 	restored_ids,
+	root_attr,
 	settle,
 	STAND_IN_CSS,
 	type MarkRecord
@@ -64,6 +66,10 @@ export const RESTORE_CALL: string = `<script ${OG_RESTORE}>__og_restore(document
 export const RESTORE_CALL_FULL: string = `<script ${OG_RESTORE}>__og_restore(document)</script>`;
 
 const FIRST_LOAD = '<meta name="ogygia-first-load">';
+
+declare const __OGYGIA_RULES__: boolean | undefined;
+const RULES: boolean =
+	import.meta.env?.DEV || (typeof __OGYGIA_RULES__ !== 'undefined' ? __OGYGIA_RULES__ : false);
 
 interface Unit {
 	el: string;
@@ -145,6 +151,7 @@ class Response {
 	stand_ins = false;
 	first_load = false;
 	buffer: string[] | null = null;
+	waiting = '';
 
 	constructor(steps: readonly Step[], event: RequestEvent, opts: PassOptions) {
 		this.steps = steps;
@@ -179,11 +186,25 @@ async function render_one(
 	ctx: RewriteContext
 ): Promise<{ ok: unknown } | { error: string }> {
 	try {
-		const out = await render([el], ctx);
+		const out = await call_render(render, [el], ctx);
 		return Array.isArray(out) && out.length === 1 ? { ok: out[0] } : { error: count_error(out, 1) };
 	} catch (thrown) {
 		return { error: message_of(thrown) };
 	}
+}
+
+async function call_render(
+	render: ElementRewrite['render'],
+	els: readonly RewriteElement[],
+	ctx: RewriteContext
+): Promise<unknown> {
+	if (RULES && buggify.fires('rewrite.render-throws'))
+		throw new Error('the render threw (buggify)');
+	return render(els, ctx);
+}
+
+function cancelled(ctx: RewriteContext): boolean {
+	return ctx.signal.aborted || (RULES && buggify.fires('rewrite.signal-fires'));
 }
 
 async function render_targets(
@@ -205,17 +226,17 @@ async function render_targets(
 	}
 	let results: unknown[] | null = null;
 	try {
-		const out = await render(unique, ctx);
+		const out = await call_render(render, unique, ctx);
 		if (Array.isArray(out) && out.length === unique.length) results = out;
 		// oxlint-disable-next-line ogygia/no-silent-failures -- a failed batch is retried one element at a time below, and each element that still fails is said with its code
 	} catch {
 		results = null;
 	}
-	if (ctx.signal.aborted) return targets.map(() => null);
+	if (cancelled(ctx)) return targets.map(() => null);
 	const outcome: (Rendered | Failure)[] = [];
 	if (results === null) {
 		const each = await Promise.all(unique.map((el) => render_one(render, el, ctx)));
-		if (ctx.signal.aborted) return targets.map(() => null);
+		if (cancelled(ctx)) return targets.map(() => null);
 		for (let i = 0; i < unique.length; i++) {
 			const e = each[i];
 			outcome[i] =
@@ -262,34 +283,24 @@ function judge(el: RewriteElement, out: unknown): Rendered | Failure {
 }
 
 function outer_mark(html: string): { html: string; attr: string } | null {
-	const gt = html.indexOf('>');
-	const at = html.indexOf(' og-c=');
-	if (at === -1 || at > gt) return null;
-	const q = html.charCodeAt(at + 6);
-	let end: number;
-	if (q === 34 || q === 39) end = html.indexOf(String.fromCharCode(q), at + 7) + 1;
-	else {
-		end = at + 6;
-		while (end < gt && !/[\s/>]/.test(html[end])) end++;
-	}
-	if (end <= 0 || end > gt) return null;
-	return { html: html.slice(0, at) + html.slice(end), attr: html.slice(at, end) };
+	const a = root_attr(html, 'og-c');
+	if (a === null) return null;
+	let from = a.start;
+	while (from > 0 && /\s/.test(html[from - 1])) from--;
+	return {
+		html: `${html.slice(0, from)}${html.slice(a.end)}`,
+		attr: ` ${html.slice(a.start, a.end)}`
+	};
 }
 
 function with_outer_mark(html: string, attr: string): string {
-	for (let lt = html.indexOf('<'); lt !== -1; lt = html.indexOf('<', lt + 1)) {
-		const c = html.charCodeAt(lt + 1);
-		if (!((c >= 65 && c <= 90) || (c >= 97 && c <= 122))) continue;
-		let ne = lt + 2;
-		while (ne < html.length && !/[\s/>]/.test(html[ne])) ne++;
-		return html.slice(0, ne) + attr + html.slice(ne);
-	}
+	for (const at = new MarkupCursor(html); at.next();)
+		if (at.kind === 1) return `${html.slice(0, at.ne)}${attr}${html.slice(at.ne)}`;
 	return html;
 }
 
 function starts_restored(html: string): boolean {
-	const at = html.indexOf('og-h=');
-	return at !== -1 && at < html.indexOf('>');
+	return root_attr(html, 'og-h') !== null;
 }
 
 async function run_steps(
@@ -323,7 +334,7 @@ async function run_steps(
 		const out = await render_targets(step.render, targets, ctx, res);
 		for (let t = targets.length - 1; t >= 0; t--) {
 			const r = out[t];
-			if (!r) continue;
+			if (!r || (r.html === targets[t].element.html && !r.sheets?.length)) continue;
 			const { unit, start, end, back } = targets[t];
 			unit.cur = unit.cur.slice(0, start) + back(r.html) + unit.cur.slice(end);
 			unit.changed = true;
@@ -419,14 +430,19 @@ async function rewrite_chunk(
 	res: Response,
 	page: { csr: boolean; answer: boolean; body: boolean }
 ): Promise<Out | null> {
-	const scanned = scan(html, res.any!, res.scan, page.csr);
+	const scanned = scan(html, res.any!, res.scan, page.csr, res.waiting !== '');
 	if (scanned.split)
 		res.failed({
 			code: 'rewrite_element_split',
 			name: scanned.split,
 			error: 'it did not close before its chunk ended'
 		});
-	if (!scanned.spans.length) return null;
+	if (!scanned.spans.length) {
+		if (res.waiting === '') return null;
+		const tail: string[] = [html];
+		const body = place(res, '', scanned.safe, page.body, tail);
+		return { html: tail.join(''), head: '', body };
+	}
 	const all = page.answer;
 	const units: Unit[] = scanned.spans.map((span) => {
 		const el = html.slice(span.start, span.end);
@@ -448,12 +464,15 @@ async function rewrite_chunk(
 	let full = false;
 	let check: Record<string, string> | null = null;
 	let first_load = false;
-	let lead_at = -1;
+	let meta_at = -1;
+	let style_at = -1;
 	for (let i = 0; i < units.length; i++) {
 		const span = scanned.spans[i];
 		const s = settle_unit(units[i], res, all);
 		out.push(html.slice(pos, span.start));
-		if (lead_at === -1) lead_at = out.push('') - 1;
+		const slot = out.push('') - 1;
+		if (meta_at === -1 && s.first_load) meta_at = slot;
+		if (style_at === -1 && s.stand_ins) style_at = slot;
 		if (units[i].changed) out.push(sheets_for(units[i], res, head));
 		out.push(s.html);
 		pos = span.end;
@@ -464,25 +483,31 @@ async function rewrite_chunk(
 		if (s.check) Object.assign((check ??= {}), s.check);
 	}
 	out.push(html.slice(pos));
-	const lead: string[] = [];
 	if (stand_ins && !res.stand_ins) {
 		res.stand_ins = true;
-		(res.head_open ? head : lead).push(`<style ${OG_STAND_INS}>${STAND_IN_CSS}</style>`);
+		const style = `<style ${OG_STAND_INS}>${STAND_IN_CSS}</style>`;
+		if (res.head_open) head.push(style);
+		else out[style_at] = style;
 	}
 	if (first_load && !res.first_load) {
 		res.first_load = true;
-		(res.head_open ? head : lead).push(FIRST_LOAD);
+		if (res.head_open) head.push(FIRST_LOAD);
+		else out[meta_at] = `${out[meta_at]}${FIRST_LOAD}`;
 	}
-	let body = '';
-	if (restored || stand_ins) {
-		body = (check ? check_script(check) : '') + restore_script(res, full);
-		if (page.body === false) {
-			out.push(body);
-			body = '';
-		}
-	}
-	out[lead_at] = lead.join('');
+	const script =
+		restored || stand_ins ? (check ? check_script(check) : '') + restore_script(res, full) : '';
+	const body = place(res, script, scanned.safe, page.body, out);
 	return { html: out.join(''), head: head.join(''), body };
+}
+
+function place(res: Response, script: string, safe: boolean, body: boolean, out: string[]): string {
+	const all = `${res.waiting}${script}`;
+	res.waiting = '';
+	if (!all) return '';
+	if (body) return all;
+	if (safe) out.push(all);
+	else res.waiting = all;
+	return '';
 }
 
 function restore_script(res: Response, full: boolean): string {
@@ -552,9 +577,17 @@ export function rewrite_pass(
 				res.buffer = null;
 				return rewrite_whole(doc, res, 'document', page.csr, page.answer);
 			}
-			const out = res.any ? await rewrite_chunk(html, res, page) : null;
+			const out = (res.any ? await rewrite_chunk(html, res, page) : null) ?? {
+				html,
+				head: '',
+				body: ''
+			};
 			if (page.head) res.head_open = false;
-			return out ?? { html, head: '', body: '' };
+			if (page.done && res.waiting) {
+				out.html = `${out.html}${res.waiting}`;
+				res.waiting = '';
+			}
+			return out;
 		},
 		async region(html) {
 			return (await rewrite_whole(html, res, 'region', false, true)).html;

@@ -222,6 +222,16 @@ describe('settle', () => {
 	});
 });
 
+describe('a page tag that closes a custom element around it', () => {
+	it('is the page’s, not the render’s: settle never makes it a stand-in (found by the round-trip fuzz)', () => {
+		const html = '<li><x-b class="q"><li title="t">a</li></x-b></li>';
+		const m = mark(html, 'region', false)!;
+		const s = settle(`${m.html}<!--r-->`, m.record);
+		expect(s.stand_ins).toBe(0);
+		expect(s.html).toBe(`${html}<!--r-->`);
+	});
+});
+
 describe('closes_all', () => {
 	it('takes HTML that closes what it opens, implied closes and voids included', () => {
 		for (const ok of [
