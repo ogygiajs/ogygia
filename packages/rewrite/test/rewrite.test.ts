@@ -297,7 +297,7 @@ describe('element rewrites: failures cost only the element', () => {
 		expect(failed).toEqual([]);
 	});
 
-	it('a request cancelled while the elements are retried one at a time: shipped as is, nothing said', async () => {
+	it('a request cancelled while the elements are retried one at a time: shipped as is, nothing said, and no element’s render starts after the cancel (found by the long rewrite sim)', async () => {
 		const ac = new AbortController();
 		const render = vi.fn(async (els: readonly RewriteElement[]) => {
 			if (els.length > 1) throw new Error('batch down');
@@ -307,7 +307,7 @@ describe('element rewrites: failures cost only the element', () => {
 		const { chunk, failed } = chunked([{ match: 'demo-', render }], event_of(ac.signal));
 		const out = await chunk(page);
 		expect(out).toEqual({ html: page, head: '', body: '' });
-		expect(render).toHaveBeenCalledTimes(3);
+		expect(render.mock.calls.map((c) => c[0].length)).toEqual([2, 1]);
 		expect(failed).toEqual([]);
 	});
 
