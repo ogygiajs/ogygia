@@ -5,18 +5,14 @@
  * `window.__og_restore` so every later run — a hole answer, a router swap — reports its own.
  */
 import { say } from '@ogygia/machine';
-
-type RestoreWindow = {
-	__og_restore?: (root: ParentNode) => number;
-	__og_restore_log?: { kind: 'late' | 'mismatch'; host?: string; diff?: string }[];
-};
+import type { PageGlobals } from '@ogygia/core/plugin/client';
 
 let reported = 0;
 /** The element names a late restore was said for on this page (once each, the latest 1024). */
 const late_said = say();
 
 function report(): void {
-	const log = (window as RestoreWindow).__og_restore_log;
+	const log = (window as PageGlobals).__og_restore_log;
 	if (!log) return;
 	// (a log made anew, a test's: start from its top)
 	if (reported > log.length) reported = 0;
@@ -41,7 +37,7 @@ function report(): void {
 
 export function report_restores(): void {
 	if (typeof window === 'undefined') return;
-	const w = window as RestoreWindow;
+	const w = window as PageGlobals;
 	const run = w.__og_restore;
 	if (run)
 		w.__og_restore = (root) => {

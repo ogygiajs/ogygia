@@ -24,7 +24,7 @@
  *
  * The tail exists only for a Kit page render: `hooks.ts` creates one per request and installs the
  * reader; Region.svelte writes to it only when it also knows it renders inside Kit's page pass
- * (its `kit_page_pass` context mark). Every other render root — a hole endpoint, a baked ticket, a
+ * (its `render_root` is 'kit'). Every other render root — a hole endpoint, a baked ticket, a
  * streamed late region, a router document, a foreign fragment — gets `null` and keeps hints in its
  * head and sidecars adjacent, so its HTML stays self-contained wherever it is spliced.
  *
@@ -33,6 +33,7 @@
  */
 import type { SeedIndex } from '../seed-refs.ts';
 import { escape_script_text } from '../escape.ts';
+import { server_ports } from '../server-ports.ts';
 import { HOLES_SCRIPT_TYPE } from '../holes-record.ts';
 import { HEAD_OWNERS_ATTR } from '../head-owners.ts';
 import { encode_island_graph } from '../island-graph.ts';
@@ -344,14 +345,13 @@ export class DocumentTail {
 
 type TailReader = () => DocumentTail | null;
 
-let reader: TailReader | null = null;
-
 /** Server (`hooks.ts`) installs a request-scoped reader; `null` uninstalls. */
 export function set_tail_reader(fn: TailReader | null): void {
-	reader = fn;
+	const ports = server_ports();
+	if (ports) ports.tail_reader = fn;
 }
 
 /** The current request's tail, or `null` when this render has none (client, endpoint, test). */
 export function document_tail(): DocumentTail | null {
-	return reader ? reader() : null;
+	return server_ports()?.tail_reader?.() ?? null;
 }
