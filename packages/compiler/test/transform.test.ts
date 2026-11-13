@@ -2,7 +2,7 @@
 // virtual modules, path+strategy dedupe, props/fallback/children rules, defer+hydrate, lakes,
 // presets, and csr-independent emit metadata.
 
-import { describe, test, expect, vi } from 'vitest';
+import { describe, test, expect } from 'vitest';
 import {
 	transformHost,
 	normalize_import_keys,
@@ -478,43 +478,28 @@ describe('defer / server islands', () => {
 		);
 	});
 
-	test('the deprecated render: deferred + wake timing is the same hole as fetch, with a warning naming it', () => {
-		const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
-		try {
-			const old = run(
-				wrap(`import G from './G.svelte' with { render: 'deferred', wake: 'visible' };`, '<G />')
-			)!;
-			const now = run(
-				wrap(`import G from './G.svelte' with { render: 'deferred', fetch: 'visible' };`, '<G />')
-			)!;
-			expect(old.islands[0].kind).toBe('defer');
-			expect(old.islands[0].id).toBe(now.islands[0].id);
-			expect(old.islands[0].wrapperSource).toBe(now.islands[0].wrapperSource);
-			const said = warn.mock.calls.map((c) => String(c[0]));
-			expect(
-				said.filter((m) =>
-					/deprecated\. Write `render: 'deferred', fetch: 'visible'` instead/.test(m)
-				)
-			).toHaveLength(1);
-			// a preset says it too
-			const preset = run(
-				wrap(`import G from './G.svelte' with { preset: 'later' };`, '<G />'),
-				makeCtx({ presets: { later: { render: 'deferred', wake: 'idle' } } })
-			)!;
-			expect(preset.islands[0].wrapperSource).toMatch(/__defer=\{"idle"\}/);
-			expect(
-				warn.mock.calls.some((c) =>
-					/preset 'later' times .*Write `render: 'deferred', fetch: 'idle'` instead/.test(
-						String(c[0])
-					)
-				)
-			).toBe(true);
-		} finally {
-			warn.mockRestore();
-		}
+	test('wake on a render: deferred import fails the build, naming the fetch to write', () => {
+		expectThrows(
+			() =>
+				run(
+					wrap(`import G from './G.svelte' with { render: 'deferred', wake: 'visible' };`, '<G />')
+				),
+			/ships no JS, so `wake` never applies[\s\S]*fetch: 'visible'[\s\S]*e\/hole_wake_removed/
+		);
 	});
 
-	test('a hole timed with both fetch and wake fails, keeping fetch', () => {
+	test('wake on a render: deferred preset fails the build too, naming the preset', () => {
+		expectThrows(
+			() =>
+				run(
+					wrap(`import G from './G.svelte' with { preset: 'later' };`, '<G />'),
+					makeCtx({ presets: { later: { render: 'deferred', wake: 'idle' } } })
+				),
+			/preset 'later'[\s\S]*fetch: 'idle'[\s\S]*e\/hole_wake_removed/
+		);
+	});
+
+	test('a hole with both fetch and wake fails on its wake', () => {
 		expectThrows(
 			() =>
 				run(
@@ -523,7 +508,7 @@ describe('defer / server islands', () => {
 						'<G />'
 					)
 				),
-			/twice.*Keep `fetch`/
+			/e\/hole_wake_removed/
 		);
 	});
 

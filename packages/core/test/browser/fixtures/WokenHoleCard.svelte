@@ -1,5 +1,5 @@
 <script lang="ts">
-	// A server island's component that wakes (`render: 'deferred', wake: 'load'`), with another server
+	// A server island's component that wakes (`render: 'deferred', fetch: 'load'`), with another server
 	// island inside it: woken-hole-nested.test.ts answers its hole with the endpoint's render of it.
 	import Region from '../../../src/Region.svelte';
 	import Label from './Label.svelte';
