@@ -157,6 +157,24 @@
 			"point": "router.commit-throws",
 			"how": "a commit that throws is kept as out.failed: what was built is given back, and the navigation hands off to the browser (#276)",
 			"killed_by": "router-commit-failed-not-handed-off"
+		},
+		{
+			"site": "packages/core/src/runtime/hole-fetch.ts > read_hole > throw:2",
+			"point": "hole.answer-later",
+			"how": "the point itself, on the 429's own throw: the answer comes back later, and fetch_failed waits (the Retry-After, else the backoff) and asks again, never gives up as on a refusal. The sim fires it at most twice in a document (CAPPED_POINTS), so a hole on its fallback at rest is a broken retry. Proved aimed (--buggify-aim hole.answer-later, gens 191 and 10: baselines clean; a 429 read as a refusal dies on gen191:1 by fallback-stands)",
+			"killed_by": "hole-answer-later-treated-as-refused"
+		},
+		{
+			"site": "packages/core/src/runtime/frame-store.ts > reserve > stale:0",
+			"point": "batch.part-lost",
+			"how": "a batch part the batch did not carry is missed: its wait answers STALE, never an empty answer, so a joined binder asks again. Proved aimed (--buggify-aim batch.part-lost, gens 191 and 10: an empty answer in its place leaves the hole on its fallback, gen191:8 fallback-stands)",
+			"killed_by": "missed-part-lands-empty"
+		},
+		{
+			"site": "packages/core/src/runtime/frame-store.ts > ensure > stale:0",
+			"point": "batch.part-lost",
+			"how": "a binder that joined a missed part gets STALE and asks again: its own fetch runs. Proved aimed (--buggify-aim batch.part-lost, gens 191 and 10: one that returns the STALE leaves the hole waiting, gen191:9 stuck)",
+			"killed_by": "missed-part-joiner-not-asking-again"
 		}
 	],
 	"covered": [
@@ -243,6 +261,108 @@
 			"reason": "a shadow root that refuses a sheet (an engine's own refusal): happy-dom adopts every sheet",
 			"test": "packages/reshape/test/browser/restore.test.ts",
 			"name": "a root that cannot adopt its sheet leaves the others in the answer theirs"
+		},
+		{
+			"site": "packages/core/src/runtime/entry-locations.ts > run > fetch:0",
+			"reason": "the build map's read failing on the network: only an identity-only load reads it, and the sim's faults touch that document; proved: a failed read kept (keep: () => Infinity) turns the test red",
+			"test": "packages/core/test/browser/entry-location-map-unread.test.ts",
+			"name": "a map read the network failed is not kept: the load goes on as written, and the next identity-only load reads it again"
+		},
+		{
+			"site": "packages/core/src/runtime/entry-locations.ts > run > .catch:0",
+			"reason": "as above; proved: the read's rejection let through (the .catch removed) turns the test red",
+			"test": "packages/core/test/browser/entry-location-map-unread.test.ts",
+			"name": "a map read the network failed is not kept: the load goes on as written, and the next identity-only load reads it again"
+		},
+		{
+			"site": "packages/core/src/runtime/frame-store.ts > ensure > throw:0",
+			"reason": "a refused early hole answer the hole asks for later: the sim's apps do not refuse an early hole; proved: the held refusal not thrown turns the test red",
+			"test": "packages/core/test/browser/early-holes.test.ts",
+			"name": "a refused answer stays at its address: the hole that wakes later is refused too, and asks nothing"
+		},
+		{
+			"site": "packages/core/src/runtime/early-holes.ts > adopt_early_holes > .catch:0",
+			"reason": "as above; proved: the refusal dropped (catch -> nothing) turns the test red",
+			"test": "packages/core/test/browser/early-holes.test.ts",
+			"name": "a refused answer stays at its address: the hole that wakes later is refused too, and asks nothing"
+		},
+		{
+			"site": "packages/core/src/runtime/early-holes.ts > adopt_early_holes > error-event:0",
+			"reason": "an early hole nobody joins whose visit ends before it answers: no sim oracle sees a request left in the network; proved: the abort not passed on turns the test red",
+			"test": "packages/core/test/browser/early-holes.test.ts",
+			"name": "that nobody joins, left before its answer lands: cancelled in the network, nothing written, nothing unhandled"
+		},
+		{
+			"site": "packages/core/src/runtime/hole-fetch.ts > read_hole > throw:1",
+			"reason": "a capability the server refuses (403): the sim's holes are all signed by their own server; proved: the refusal skipped (a 403 retried as an error) turns the test red",
+			"test": "packages/core/test/browser/hole-refused.test.ts",
+			"name": "a hole whose endpoint answers 403 asks once, keeps its fallback, and says the server’s reason"
+		},
+		{
+			"site": "packages/core/src/runtime/hole-fetch.ts > read_hole > throw:4",
+			"reason": "a whole document answered in place of the region (a handle in front of ogygia's) the sim's apps do not have; proved: the refusal skipped turns the test red",
+			"test": "packages/core/test/browser/hole-refused.test.ts",
+			"name": "a hole whose endpoint answers a whole document asks once, keeps its fallback, and says what answered"
+		},
+		{
+			"site": "packages/core/src/runtime/entry-locations.ts > run > fetch:1",
+			"reason": "the current build's map read failing needs a deploy's rollover the random app does not draw; proved: a failed read kept (keep: () => Infinity) turns the test red",
+			"test": "packages/core/test/browser/entry-location-retry.test.ts",
+			"name": "one failed read of the current map: the load asks again, and wakes"
+		},
+		{
+			"site": "packages/core/src/runtime/entry-locations.ts > is_gone > fetch:0",
+			"reason": "an edge still answering the old build's map is a rollover the sim does not draw; proved: a map naming the failed file taken without asking the host turns the test red",
+			"test": "packages/core/test/browser/entry-location-rollover.test.ts",
+			"name": "a map that names the file that just failed is the old one: asked again, and wakes"
+		},
+		{
+			"site": "packages/core/src/runtime/entry-locations.ts > load_entry > .catch:0",
+			"reason": "a location that 404s after a deploy; proved: the failure thrown with no recovery turns the test red",
+			"test": "packages/core/test/browser/entry-location-fallback.test.ts",
+			"name": "the location 404s: the island wakes on the current build’s file"
+		},
+		{
+			"site": "packages/core/src/runtime/entry-locations.ts > import_entry > catch:0",
+			"reason": "an identity on an origin the page loads no code from: no app the sim generates writes one; proved: the refusal skipped turns the test red",
+			"test": "packages/core/test/browser/code-origins.test.ts",
+			"name": "is not imported as written: refused with its code, nothing requested"
+		},
+		{
+			"site": "packages/core/src/runtime/hole-fetch.ts > read_hole > throw:0",
+			"reason": "a same-origin redirect of a hole (a handle in front of ogygia's) the sim's redirect fault does not make; proved: the refusal skipped turns the test red",
+			"test": "packages/core/test/browser/hole-cross-origin-redirect.test.ts",
+			"name": "a hole answer redirected on its own origin is refused the same way"
+		},
+		{
+			"site": "packages/core/src/runtime/hole-fetch.ts > fetch_hole > throw:0",
+			"reason": "a foreign endpoint handed to preload(): no generated app does; proved: the throw skipped turns the test red",
+			"test": "packages/core/test/browser/preload-hole.test.ts",
+			"name": "a region whose address is another origin is not preloaded: no request goes out"
+		},
+		{
+			"site": "packages/core/src/runtime/import-again.ts > import_again > next > .catch:1",
+			"reason": "a dropped island download in a document a fault touched is set aside by the oracles; proved: the failed URL never noted turns the test red",
+			"test": "packages/core/test/browser/import-file-one-retry.test.ts",
+			"name": "two loads of one file that fail together share one retry, and get one copy of the module"
+		},
+		{
+			"site": "packages/core/src/runtime/import-again.ts > run > .catch:0",
+			"reason": "as above; proved: a failure with no timing entry not asked again turns the test red",
+			"test": "packages/core/test/browser/import-file-one-retry.test.ts",
+			"name": "two loads of one file that fail together share one retry, and get one copy of the module"
+		},
+		{
+			"site": "packages/reshape/src/restore-report.ts > report > import:0",
+			"reason": "the sim never writes a restore mismatch or a late host to the log, so the wording chunk is never asked for; the test's Vite fails that chunk's load, so the real import rejects in 3 engines",
+			"test": "packages/reshape/test/browser-chunk-lost/restore-report.test.ts",
+			"name": "a restore report whose wording chunk does not load says nothing, throws nothing, and keeps the log"
+		},
+		{
+			"site": "packages/reshape/src/restore-report.ts > report > reject:0",
+			"reason": "the import's rejection, as above: with the handler gone the run fails on an unhandled rejection in 3 engines (proved)",
+			"test": "packages/reshape/test/browser-chunk-lost/restore-report.test.ts",
+			"name": "a restore report whose wording chunk does not load says nothing, throws nothing, and keeps the log"
 		},
 		{
 			"site": "packages/core/src/server/page-facts.ts > read_first_line > catch:0",
@@ -915,21 +1035,13 @@
 		"packages/core/src/runtime/devalue-lane.ts > with_devalue > reject:0",
 		"packages/core/src/runtime/devalue-lane.ts > with_devalue > stale:0",
 		"packages/core/src/runtime/drift-watch.ts > watch_region > observer:0",
-		"packages/core/src/runtime/early-holes.ts > adopt_early_holes > .catch:0",
-		"packages/core/src/runtime/early-holes.ts > adopt_early_holes > error-event:0",
 		"packages/core/src/runtime/entry-locations.ts > absolute > catch:0",
-		"packages/core/src/runtime/entry-locations.ts > run > .catch:0",
-		"packages/core/src/runtime/entry-locations.ts > run > fetch:0",
 		"packages/core/src/runtime/entry-locations.ts > pin_region_urls > catch:0",
 		"packages/core/src/runtime/entry-locations.ts > run > .catch:1",
-		"packages/core/src/runtime/entry-locations.ts > run > fetch:1",
 		"packages/core/src/runtime/entry-locations.ts > current_location > stale:0",
 		"packages/core/src/runtime/entry-locations.ts > is_gone > reject:0",
-		"packages/core/src/runtime/entry-locations.ts > is_gone > fetch:0",
 		"packages/core/src/runtime/entry-locations.ts > recover_location > timer:0",
-		"packages/core/src/runtime/entry-locations.ts > import_entry > catch:0",
 		"packages/core/src/runtime/entry-locations.ts > load_entry > catch:0",
-		"packages/core/src/runtime/entry-locations.ts > load_entry > .catch:0",
 		"packages/core/src/runtime/entry-locations.ts > load_entry > throw:0",
 		"packages/core/src/runtime/entry-locations.ts > load_entry > reject:0",
 		"packages/core/src/runtime/foreign-props.ts > foreign_region_prop_revivers > OgygiaRef > throw:0",
@@ -942,20 +1054,12 @@
 		"packages/core/src/runtime/frame-nav.ts > streamFrames > .catch:1",
 		"packages/core/src/runtime/frame-store.ts > fetch_frame > abort:0",
 		"packages/core/src/runtime/frame-store.ts > write > refused:0",
-		"packages/core/src/runtime/frame-store.ts > reserve > stale:0",
 		"packages/core/src/runtime/frame-store.ts > reserve > reject:0",
 		"packages/core/src/runtime/frame-store.ts > release > refused:0",
-		"packages/core/src/runtime/frame-store.ts > ensure > throw:0",
-		"packages/core/src/runtime/frame-store.ts > ensure > stale:0",
 		"packages/core/src/runtime/frame-store.ts > ensure > abort:0",
 		"packages/core/src/runtime/hole-facts.ts > parse_record > parse:0",
 		"packages/core/src/runtime/hole-facts.ts > parse_record > catch:0",
-		"packages/core/src/runtime/hole-fetch.ts > fetch_hole > throw:0",
 		"packages/core/src/runtime/hole-fetch.ts > start_hole > fetch:0",
-		"packages/core/src/runtime/hole-fetch.ts > read_hole > throw:0",
-		"packages/core/src/runtime/hole-fetch.ts > read_hole > throw:1",
-		"packages/core/src/runtime/hole-fetch.ts > read_hole > throw:2",
-		"packages/core/src/runtime/hole-fetch.ts > read_hole > throw:4",
 		"packages/core/src/runtime/hole-fetch.ts > read_hole > throw:5",
 		"packages/core/src/runtime/html-sink.ts > is_allowed_region_endpoint > catch:0",
 		"packages/core/src/runtime/html-sink.ts > is_same_origin_response > catch:0",
@@ -968,11 +1072,9 @@
 		"packages/core/src/runtime/import-again.ts > import_again > next > .catch:0",
 		"packages/core/src/runtime/import-again.ts > import_again > next > refused:0",
 		"packages/core/src/runtime/import-again.ts > import_again > next > throw:0",
-		"packages/core/src/runtime/import-again.ts > import_again > next > .catch:1",
 		"packages/core/src/runtime/import-again.ts > import_again > next > refused:1",
 		"packages/core/src/runtime/import-again.ts > import_again > next > throw:1",
 		"packages/core/src/runtime/import-again.ts > import_again > next > reject:0",
-		"packages/core/src/runtime/import-again.ts > run > .catch:0",
 		"packages/core/src/runtime/import-again.ts > run > throw:0",
 		"packages/core/src/runtime/import-again.ts > run > throw:1",
 		"packages/core/src/runtime/import-again.ts > import_file > stale:0",
@@ -1912,8 +2014,6 @@
 		"packages/postrender/src/server.ts > invalidate > throw:1",
 		"packages/postrender/src/server.ts > lastBuild > stale:0",
 		"packages/postrender/src/stitch.ts > stitch_html > .catch:0",
-		"packages/reshape/src/restore-report.ts > report > reject:0",
-		"packages/reshape/src/restore-report.ts > report > import:0",
 		"packages/router/src/client-api.ts > api > call > not-ok:0",
 		"packages/router/src/client-api.ts > api > call > .catch:0",
 		"packages/router/src/client-api.ts > api > call > throw:0",

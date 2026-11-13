@@ -414,5 +414,35 @@
 		"from": "return hand_off(out.failed.error, built.written);",
 		"to": "return;",
 		"aim": "router.commit-throws"
+	},
+	{
+		"id": "hole-answer-later-treated-as-refused",
+		"file": "packages/core/src/runtime/core.ts",
+		"in": "OgygiaRegion > fetch_failed",
+		"code": "const refused = err instanceof RegionAnswerRefused;",
+		"operator": "statement",
+		"from": "err instanceof RegionAnswerRefused;",
+		"to": "err instanceof RegionAnswerRefused || err instanceof RegionAnswerLater;",
+		"aim": "hole.answer-later"
+	},
+	{
+		"id": "missed-part-joiner-not-asking-again",
+		"file": "packages/core/src/runtime/frame-store.ts",
+		"in": "ensure",
+		"code": "if (html !== STALE || signal?.aborted || st.life.closed) return html;",
+		"operator": "statement",
+		"from": "if (html !== STALE || signal?.aborted || st.life.closed) return html;",
+		"to": "return html;",
+		"aim": "batch.part-lost"
+	},
+	{
+		"id": "missed-part-lands-empty",
+		"file": "packages/core/src/runtime/frame-store.ts",
+		"in": "reserve",
+		"code": "const landed = part.wait('landed').then((s) => (s === STALE ? STALE : s.html));",
+		"operator": "statement",
+		"from": "(s === STALE ? STALE : s.html)",
+		"to": "(s === STALE ? ('' as VerifiedHtml) : s.html)",
+		"aim": "batch.part-lost"
 	}
 ]

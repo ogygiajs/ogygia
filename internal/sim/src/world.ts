@@ -42,6 +42,11 @@ export const FOREIGN_MARK = 'data-sim-foreign';
 /** The buggify points that lose an answer on the way, as a dropped request does. */
 export const LOSSY_POINTS: readonly string[] = ['hole.fetch-lost'];
 
+/** The buggify points a document fires at most so many times. A hole whose every try comes back
+ *  later (a 429) gives up as it should, and no oracle can tell that from a retry that broke; at most
+ *  twice in a document, every hole's third try answers (test/answer-later.node.test.ts). */
+export const CAPPED_POINTS: ReadonlyMap<string, number> = new Map([['hole.answer-later', 2]]);
+
 /** At rest after ticks: how far off a page's next task must be (a frame is 16 ms, a hydrate turn's
  *  snapshot wait 48; a page's own timers that come back every second or so are not a tick being
  *  taken in), and how long rest looks for that between ticks before it judges the pages anyway. */
@@ -178,6 +183,8 @@ export class World {
 	readonly #o: WorldOptions;
 	/** Each realm's own stream of buggify draws. */
 	readonly #buggify_rng = new Map<string, Rng>();
+	/** How often each capped point fired in each realm (`<realm> <point>`). */
+	readonly #fired_by_realm = new Map<string, number>();
 	#restore: (() => void) | null = null;
 
 	private constructor(o: WorldOptions) {
@@ -227,12 +234,17 @@ export class World {
 		if (!seen.on) return false;
 		// (a reference load is spared what loses an answer, as the network spares it every fault)
 		if (LOSSY_POINTS.includes(point) && this.network.is_calm(realm)) return false;
+		const cap = CAPPED_POINTS.get(point);
+		const counted = `${realm} ${point}`;
+		if (cap !== undefined && (this.#fired_by_realm.get(counted) ?? 0) >= cap) return false;
 		// (a realm's draws by its name without the document: a reload of a tab is the same stream)
 		const key = realm.replace(/#\d+$/, '');
 		let r = this.#buggify_rng.get(key);
 		if (r === undefined) this.#buggify_rng.set(key, (r = this.rng.fork(`buggify ${key}`)));
 		if (!r.chance(o.fires)) return false;
 		seen.fired++;
+		if (cap !== undefined)
+			this.#fired_by_realm.set(counted, (this.#fired_by_realm.get(counted) ?? 0) + 1);
 		this.fired_in.set(realm, (this.fired_in.get(realm) ?? new Set<string>()).add(point));
 		this.loop.note(`buggify ${realm} ${point}`);
 		return true;
