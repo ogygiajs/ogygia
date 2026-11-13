@@ -2,7 +2,8 @@
 	import PageHead from '$lib/PageHead.svelte';
 	import VersionPicker from '$lib/tests/VersionPicker.svelte';
 	import RatioNote from '$lib/tests/RatioNote.svelte';
-	import { KINDS, count, percent, slug_of } from '$lib/tests/data';
+	import Robustness from '$lib/tests/Robustness.svelte';
+	import { KINDS, count, percent, robustness_view, slug_of } from '$lib/tests/data';
 	import '$lib/tests/tests.css';
 
 	let { data } = $props();
@@ -24,6 +25,7 @@
 	const share = (n: number, total: number) => (total ? (n / total) * 100 : 0);
 	const ratio = (test: number, src: number) => (src ? (test / src).toFixed(2) : '–');
 	const day = $derived(s.date.slice(0, 10));
+	const robust = $derived(robustness_view(s.robustness, s.commit));
 </script>
 
 <PageHead
@@ -176,6 +178,10 @@
 			</tbody>
 		</table>
 	</div>
+
+	{#if robust}
+		<Robustness view={robust} />
+	{/if}
 
 	<h2 id="how">How the testing works</h2>
 	<div class="how">

@@ -3,7 +3,7 @@
 // place it piles up. The gate lists them and fails until they are taken out.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { gone_exemptions } from '../src/stale.ts';
+import { gone_exemptions, unexempted_new_functions } from '../src/stale.ts';
 
 const fn = (id: string) => ({ id });
 const ex = (id: string) => ({ id, reason: 'why' });
@@ -41,4 +41,25 @@ test('none gone: an empty list', () => {
 		gone_exemptions([ex('a.ts > one')], { functions: [fn('a.ts > one')] }, context_path),
 		[]
 	);
+});
+
+test('ids-only: a function the base does not have and no exemption names is listed', () => {
+	const base = { functions: [fn('a.ts > one')] };
+	const now = { functions: [fn('a.ts > one'), fn('a.ts > two'), fn('b.ts > three')] };
+	assert.deepEqual(
+		unexempted_new_functions(now, base, [ex('b.ts > three')], context_path).map((f) => f.id),
+		['a.ts > two']
+	);
+});
+
+test('a function whose shape hash changed is not new: its place is in the base', () => {
+	const base = { functions: [fn('a.ts > flights:0~111111 > run')] };
+	const now = { functions: [fn('a.ts > flights:0~222222 > run')] };
+	assert.deepEqual(unexempted_new_functions(now, base, [], context_path), []);
+});
+
+test('an exemption of the call a new function sits in covers it', () => {
+	const base = { functions: [] };
+	const now = { functions: [fn('a.ts > table:0~3fa9c2 > run')] };
+	assert.deepEqual(unexempted_new_functions(now, base, [ex('a.ts > table:0')], context_path), []);
 });
