@@ -382,7 +382,10 @@ never comes, as WebKit gives a dropped one none), `federation.doc-stale` (a peer
 ran out), `hole.fetch-lost` (a hole's answer lost on the way: it tries again, or gives up, as it
 would; it reaches the hole's `retrying` steps without a drop fault), `postrender.store-down` (a
 page store call fails, a shared store's blip: the page renders fresh and is not kept; the `postrender
-store` machine's `ok <-> failing`).
+store` machine's `ok <-> failing`), `hole.answer-later` (a hole's answer comes back as a 429: it waits
+and asks again; a document fires it at most twice, `CAPPED_POINTS`, so every hole's third try
+answers and a hole left on its fallback is a broken retry). The ledger names the rest
+(`internal/sim/failures.json`).
 
 ## Coverage
 
