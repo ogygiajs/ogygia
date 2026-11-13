@@ -25,9 +25,11 @@ import {
 	live_regions_out,
 	page_errors,
 	peer_answers,
+	peer_fails_over,
 	reshaped_live,
 	page_rules,
 	regions_show,
+	replicas_as_one,
 	styled_regions
 } from '../src/oracles.ts';
 
@@ -116,6 +118,34 @@ describe('normalize', () => {
 		);
 	});
 
+	it("reads a peer's replica as its first origin: the replica's files, and its region sheet lifted beside the same file at the first origin (gen 23, seed 22; gen 121, seed 11)", async () => {
+		const { Window } = await import('happy-dom');
+		const replicas = new Map([['https://peer2.test', 'https://peer.test']]);
+		const css = '/_app/immutable/assets/og-region.a.css';
+		const page = (head: string, region: string) => {
+			const w = new Window({ url: 'https://app.test/p3' });
+			w.document.write(
+				`<html><head><title>t</title>${head}</head><body><ogygia-region src="${region}/_app/r.js"><link data-ogygia-region-css rel="stylesheet" href="https://peer.test${css}"><p>w</p></ogygia-region></body></html>`
+			);
+			const doc = w.document as unknown as Document;
+			return replicas_as_one(doc, normalize(doc), replicas);
+		};
+		const fresh = page('', 'https://peer.test');
+		expect(page('', 'https://peer2.test')).toBe(fresh);
+		expect(
+			page(`<link data-ogygia-region-css rel="stylesheet" href="https://peer2.test${css}">`, '')
+		).toBe(page('', ''));
+		// (the same file lifted at the first origin is ogygia's to keep once: it stays a finding)
+		expect(
+			page(`<link data-ogygia-region-css rel="stylesheet" href="https://peer.test${css}">`, '')
+		).not.toBe(page('', ''));
+		// (no replica: as it was)
+		const w = new Window({ url: 'https://app.test/' });
+		w.document.write('<html><body><p src="https://peer2.test/x">x</p></body></html>');
+		const doc = w.document as unknown as Document;
+		expect(replicas_as_one(doc, normalize(doc), new Map())).toBe(normalize(doc));
+	});
+
 	it("drops a third party's head element, which a client navigation keeps (gen 262, seed 6)", async () => {
 		const { Window } = await import('happy-dom');
 		const page = (extra: string) => {
@@ -191,6 +221,16 @@ describe('normalize', () => {
 			return normalize(w.document as unknown as Document);
 		};
 		expect(page('<meta name="ogygia-first-load">')).toBe(page(''));
+	});
+
+	it("drops a reshape pass's stand-ins sheet: a page the pass failed on goes out as ogygia rendered it, with none (gen 24, seed 5)", async () => {
+		const { Window } = await import('happy-dom');
+		const page = (head: string) => {
+			const w = new Window();
+			w.document.write(`<html><head><title>t</title>${head}</head><body><p>hi</p></body></html>`);
+			return normalize(w.document as unknown as Document);
+		};
+		expect(page('<style data-og-stand-ins>:where(og-as){display:inline}</style>')).toBe(page(''));
 	});
 
 	it("compares an app web component by its host alone: a server-owned one is the render's on a fresh load and restored in the router's answer (gen 262, seed 3)", async () => {
@@ -1005,6 +1045,118 @@ describe('page errors', () => {
 		expect(document_faulted(world, t)).toBe(true);
 		expect(faulted(world, t)).toBe(true);
 	});
+
+	it("a mounted peer page that failed only because the peer's first origin was down is no fault: the app owes the next origin's answer (a mutant that never asked it survived)", () => {
+		const world = (hop: Record<string, unknown>) =>
+			({
+				fired_in: new Map(),
+				network: {
+					exchanges: [
+						{ id: 1, from: 'tab-0#2', url: 'https://app.test/peer/q0', status: 502 },
+						{
+							id: 2,
+							from: 'server-1',
+							for: 'tab-0#2',
+							url: 'https://peer.test/og/fragment/page?path=%2Fq0',
+							...hop
+						}
+					].map((e) => ({ method: 'GET', cut: false, tampered: false, redirected: false, ...e }))
+				}
+			}) as unknown as World;
+		const t = {
+			realm: 'tab-0#2',
+			name: 'tab-0',
+			documents: 2,
+			page: { mainFrame: { url: 'https://app.test/peer/q0' } }
+		} as unknown as Parameters<typeof faulted>[1];
+		expect(faulted(world({ status: 503, down: true }), t)).toBe(false);
+		expect(faulted(world({ status: 'dropped' }), t)).toBe(true);
+		expect(faulted(world({ status: 503, down: true, method: 'POST' }), t)).toBe(true);
+		// (the next origin's answer held past the peer's timeout: the app's 504 is its own, gen 23, seed 80)
+		const held = world({ status: 503, down: true });
+		(held.network.exchanges as unknown as Array<Record<string, unknown>>).push({
+			id: 3,
+			from: 'server-1',
+			for: 'tab-0#2',
+			method: 'GET',
+			url: 'https://peer2.test/og/fragment/page?path=%2Fq0',
+			status: 200,
+			stalled: true,
+			cut: false,
+			tampered: false,
+			redirected: false
+		});
+		expect(faulted(held, t)).toBe(true);
+		// (a hole's answer of the document's that failed is judged by its own story, not the page's)
+		const hole = world({ status: 503, down: true });
+		(hole.network.exchanges as unknown as Array<Record<string, unknown>>).unshift({
+			id: 0,
+			from: 'tab-0#2',
+			method: 'GET',
+			url: 'https://app.test/peer/q0',
+			status: 200,
+			cut: false,
+			tampered: false,
+			redirected: false
+		});
+		expect(faulted(hole, t)).toBe(true);
+	});
+});
+
+describe('a peer fails over, and only then', () => {
+	const hop = (id: number, origin: string, at: number, more: Record<string, unknown> = {}) => ({
+		id,
+		from: 'server-0',
+		for: 'tab-0#1',
+		method: 'GET',
+		url: `${origin}/og/fragment/w0?label=r0`,
+		at,
+		status: 200,
+		cut: false,
+		tampered: false,
+		redirected: false,
+		...more
+	});
+	const judged = (...exchanges: Array<Record<string, unknown>>) =>
+		peer_fails_over(
+			{
+				replicas: new Map([['https://peer2.test', 'https://peer.test']]),
+				network: {
+					exchanges: [
+						{
+							id: 0,
+							from: 'tab-0#1',
+							method: 'GET',
+							url: 'https://app.test/p0',
+							at: 0,
+							status: 200,
+							cut: false
+						},
+						...exchanges
+					]
+				}
+			} as unknown as World,
+			0
+		);
+	const first = 'https://peer.test';
+	const replica = 'https://peer2.test';
+
+	it('finds a down first origin whose replica was not asked (a mutant that kept the 500 survived)', () => {
+		expect(judged(hop(1, first, 10, { status: 500, down: true }))?.oracle).toBe('peer-failover');
+		expect(judged(hop(1, first, 10, { status: 503, down: true }), hop(2, replica, 12))).toBeNull();
+	});
+
+	it('finds the replica asked after the first origin answered (a mutant that asked every origin survived)', () => {
+		expect(judged(hop(1, first, 10), hop(2, replica, 12))?.oracle).toBe('peer-failover');
+		expect(judged(hop(1, first, 10))).toBeNull();
+	});
+
+	it('passes the replica asked once the first origin gave nothing: past its timeout, or for another read of the address (gen 121, seeds 6 and 103)', () => {
+		expect(judged(hop(1, first, 10), hop(2, replica, 5010))).toBeNull();
+		expect(judged(hop(1, first, 10), hop(2, first, 4000), hop(3, replica, 5010))).toBeNull();
+		expect(judged(hop(1, first, 10, { stalled: true }), hop(2, replica, 12))).toBeNull();
+		expect(judged(hop(1, first, 10, { status: 'dropped' }), hop(2, replica, 12))).toBeNull();
+	});
 });
 
 describe('leaks', () => {
@@ -1306,6 +1458,27 @@ describe("a mounted peer's page answers as the peer did", () => {
 		expect((await judged('', [['/peer/bad', 200]], '/peer/bad'))?.oracle).toBe('peer-answers');
 		expect((await judged('', [['/peer/bad', 303]], '/peer/bad'))?.oracle).toBe('peer-answers');
 		expect(await judged('', [['/peer/bad', 400]], '/peer/bad')).toBeNull();
+	});
+
+	it("finds one of the peer's own pages answered 200 showing none of it (a mutant that made every exposed page an empty redirect survived), and passes the app's own 504 (gen 23, seed 38)", async () => {
+		const page = '<main data-gen="peer-page"><h1>peer /q0</h1></main>';
+		expect((await judged('<p>moved</p>', [['/peer/q0', 200]], '/peer/q0'))?.oracle).toBe(
+			'peer-answers'
+		);
+		expect(await judged(page, [['/peer/q0', 200]], '/peer/q0')).toBeNull();
+		// (reached by a client navigation: it may be mid-way, and is not judged)
+		expect(await judged('<p>moved</p>', [['/p0', 200]], '/peer/q0')).toBeNull();
+		// (the peer's body came past its timeout: the app's 504 says its own words)
+		expect(
+			await judged(
+				'{"error":"This section is temporarily unavailable.","status":504}',
+				[
+					['/peer/q0', 504],
+					['/og/fragment/page?path=/q0', 200, 'tab-1#1']
+				],
+				'/peer/q0'
+			)
+		).toBeNull();
 	});
 
 	it('finds, on a Kit mount, a page the peer lacks saying nothing (a mutant that lost the message survived)', async () => {

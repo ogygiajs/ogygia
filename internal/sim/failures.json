@@ -26,6 +26,17 @@
 	},
 	"fired": [
 		{
+			"site": "packages/machine/src/outbox.ts > Box > _deliver > throw:0",
+			"point": "outbox.reply-lost",
+			"how": "the point's own throw: the receiver applied the send and its reply was lost, so the outbox's policy sends it again and the receiver sees the same work twice"
+		},
+		{
+			"site": "packages/reshape/src/pass.ts > transformed > catch:0",
+			"point": "gen.reshape-throws",
+			"how": "the random app's pass throws (a point in its own code): the answer goes out as ogygia rendered it, a document still with the restorer",
+			"killed_by": "reshape-fallback-off"
+		},
+		{
 			"site": "packages/core/src/runtime/core.ts > OgygiaRegion > fetch_html > catch:0",
 			"point": "hole.fetch-lost",
 			"how": "the point throws a failed fetch inside the try, as a dropped request's answer: the catch hands it to fetch_failed (a retry, or the fallback stands)",
@@ -178,6 +189,48 @@
 		}
 	],
 	"covered": [
+		{
+			"site": "packages/compiler/src/vite/paths.ts > runtime_inputs > catch:0",
+			"reason": "an unbuilt runtime directory cannot be read: it adds no input",
+			"test": "packages/compiler/test/runtime-hash.test.ts",
+			"name": "an unbuilt runtime directory adds nothing"
+		},
+		{
+			"site": "packages/compiler/src/vite/paths.ts > content_hash > catch:0",
+			"reason": "an input that cannot be read adds nothing to the hash",
+			"test": "packages/compiler/test/runtime-hash.test.ts",
+			"name": "moves when any input changes; a missing input changes nothing"
+		},
+		{
+			"site": "packages/compiler/src/vite/plugin-api.ts > check_plugins > throw:4",
+			"reason": "a config error, at config time: a plugin listed without a plugin it needs (postrender() without pageKeys())",
+			"test": "packages/compiler/test/plugins.test.ts",
+			"name": "a plugin that needs another fails the build while the app does not list it, naming the line to add"
+		},
+		{
+			"site": "packages/core/src/runtime/seeds.ts > watch_unshipped > parse:0",
+			"reason": "rules builds only: a left-out list that does not parse (the server writes it, so only a mangled document)",
+			"test": "packages/core/test/browser/seed-unshipped.test.ts",
+			"name": "a left-out list that does not parse names nothing: the seed still reads, and nothing is told"
+		},
+		{
+			"site": "packages/core/src/runtime/seeds.ts > watch_unshipped > catch:0",
+			"reason": "rules builds only: a left-out list that does not parse (the server writes it, so only a mangled document)",
+			"test": "packages/core/test/browser/seed-unshipped.test.ts",
+			"name": "a left-out list that does not parse names nothing: the seed still reads, and nothing is told"
+		},
+		{
+			"site": "packages/compiler/src/compiler/parse/roots.ts > parse_roots > catch:0",
+			"reason": "a component Svelte cannot parse: the analysis that asked gives up safely (seed shaping ships all)",
+			"test": "packages/page-keys/test/page-keys-summaries.test.ts",
+			"name": "a component that does not parse gives up"
+		},
+		{
+			"site": "packages/compiler/src/vite/plugin-api.ts > resolve_plugins > pageReads > throw:0",
+			"reason": "a config error, at config time: two plugins listed that both claim seed shaping",
+			"test": "packages/compiler/test/plugins.test.ts",
+			"name": "seed shaping is off without a plugin, one plugin answers it, and a second claim fails loudly"
+		},
 		{
 			"site": "packages/core/src/server/page-stream.ts > stream_page_deferred > start > stream_one > not-ok:0",
 			"reason": "a streamed load promise that rejects: proved: the failure streamed as a value (ok true) turns the test red",
@@ -369,12 +422,6 @@
 			"reason": "a Kit-hydrated page (csr=true): the random app is csr=false",
 			"test": "packages/reshape/test/browser/restore.test.ts",
 			"name": "a Kit-hydrated page: a watched host that leaves the document leaves the watch, a moved one stays, and the observer goes with the last one"
-		},
-		{
-			"site": "packages/reshape/src/pass.ts > transformed > catch:0",
-			"reason": "the random app's transform fails only on its fault points, which wait on dst/reshape-faults",
-			"test": "packages/reshape/test/pass-failed.test.ts",
-			"name": "a transform that throws: the page goes out as ogygia rendered it, said once with reshape_pass_failed (gen 10, seed 10)"
 		},
 		{
 			"site": "packages/reshape/src/pass.ts > transformed > throw:0",
@@ -861,6 +908,828 @@
 			"reason": "a page's data answer that breaks before its first line (#1626): proved: the break thrown (the old code) turns the test red",
 			"test": "packages/core/test/page-facts-broken.test.ts",
 			"name": "a data answer that breaks before its first line is a miss that says why, never a throw"
+		},
+		{
+			"site": "packages/machine/src/cache.ts > cache > throw:0",
+			"reason": "`throw bad_option('max', o, 'a number more than 0');`: proved: the throw removed turns the test red, twice",
+			"test": "packages/machine/test/cache.test.ts",
+			"name": "no options at all is refused with a code, never a TypeError reading them"
+		},
+		{
+			"site": "packages/machine/src/cache.ts > Store > constructor > throw:0",
+			"reason": "`throw machine_error('machine_bad_option', args);`: proved: the throw removed turns the test red, twice",
+			"test": "packages/machine/test/cache.test.ts",
+			"name": "max is required: there is no unbounded default"
+		},
+		{
+			"site": "packages/machine/src/cache.ts > Store > constructor > throw:1",
+			"reason": "`throw bad_option('keep', keep, 'a time in ms of 0 or more, or a funct…`: proved: the throw removed turns the test red, twice",
+			"test": "packages/machine/test/cache.test.ts",
+			"name": "a keep that is no time is refused: a negative one, or one that is not a number or function"
+		},
+		{
+			"site": "packages/machine/src/cache.ts > Store > _tell > catch:0",
+			"reason": "`catch (error) { report('machine_evict_failed', { name: this._name, wh…`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/machine/test/cache.test.ts",
+			"name": "a notice that throws is reported with its code; the cache goes on"
+		},
+		{
+			"site": "packages/machine/src/cache.ts > Store > set > throw:0",
+			"reason": "`throw bad_option('keep', ms, 'a time in ms of 0 or more');`: proved: the throw removed turns the test red, twice",
+			"test": "packages/machine/test/cache.test.ts",
+			"name": "a set may say its own keep, in place of the cache’s, which is then not asked"
+		},
+		{
+			"site": "packages/machine/src/cache.ts > Store > set > throw:1",
+			"reason": "`throw bad_option('stamp', options.stamp, 'given only to a cache made …`: proved: the throw removed turns the test red, twice",
+			"test": "packages/machine/test/cache.test.ts",
+			"name": "a stamp with no world is refused as a bad option"
+		},
+		{
+			"site": "packages/machine/src/capability.ts > bad > throw:0",
+			"reason": "`throw machine_error('machine_bad_option', { option, value: String(val…`: proved: the throw removed turns the test red, twice",
+			"test": "packages/machine/test/capability.test.ts",
+			"name": "a NaN clock mints nothing and checks nothing; a NaN ttl mints nothing"
+		},
+		{
+			"site": "packages/machine/src/capability.ts > capability > clock > throw:0",
+			"reason": "`throw machine_error('machine_bad_time', { where, ms: String(t) });`: proved: the throw removed turns the test red, twice",
+			"test": "packages/machine/test/capability.test.ts",
+			"name": "a NaN clock mints nothing and checks nothing; a NaN ttl mints nothing"
+		},
+		{
+			"site": "packages/machine/src/capability.ts > capability > check > result:0",
+			"reason": "`false`: proved: { ok: false } made ok: true turns the test red, twice",
+			"test": "packages/machine/test/capability.test.ts",
+			"name": "any changed character of a token is refused"
+		},
+		{
+			"site": "packages/machine/src/capability.ts > capability > check > result:1",
+			"reason": "`false`: proved: { ok: false } made ok: true turns the test red, twice",
+			"test": "packages/machine/test/capability.test.ts",
+			"name": "another audience, field, name, version or key is refused"
+		},
+		{
+			"site": "packages/machine/src/capability.ts > capability > check > result:2",
+			"reason": "`false`: proved: { ok: false } made ok: true turns the test red, twice",
+			"test": "packages/machine/test/capability.test.ts",
+			"name": "a token checks for its audience and fields, until it expires"
+		},
+		{
+			"site": "packages/machine/src/capability.ts > capability > check > result:3",
+			"reason": "`false`: proved: { ok: false } made ok: true turns the test red, twice",
+			"test": "packages/machine/test/capability.test.ts",
+			"name": "any changed character of a token is refused"
+		},
+		{
+			"site": "packages/machine/src/capability.ts > capability > check > result:4",
+			"reason": "`false`: proved: { ok: false } made ok: true turns the test red, twice",
+			"test": "packages/machine/test/capability.test.ts",
+			"name": "another audience, field, name, version or key is refused"
+		},
+		{
+			"site": "packages/machine/src/capability.ts > capability > check > result:5",
+			"reason": "`false`: proved: { ok: false } made ok: true turns the test red, twice",
+			"test": "packages/machine/test/capability.test.ts",
+			"name": "with replay, a nonce checks once; without, as often as presented"
+		},
+		{
+			"site": "packages/machine/src/capability.ts > capability > check > result:6",
+			"reason": "`false`: proved: { ok: false } made ok: true turns the test red, twice",
+			"test": "packages/machine/test/capability.test.ts",
+			"name": "a full memory refuses a new token, never forgets a live one; an expired one makes room"
+		},
+		{
+			"site": "packages/machine/src/flights.ts > Flight > onRaise > throw:0",
+			"reason": "`throw bad_option('onRaise', typeof raised, 'a function');`: proved: the throw removed turns the test red, twice",
+			"test": "packages/machine/test/flights.test.ts",
+			"name": "a raise listener that is not a function is refused with a code, when it is added"
+		},
+		{
+			"site": "packages/machine/src/flights.ts > Flight > _raise > catch:0",
+			"reason": "`catch (error) { // (the joining caller is not the one to fail: the li…`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/machine/test/flights.test.ts",
+			"name": "a raise listener that throws is said, and the join and the other listeners go on"
+		},
+		{
+			"site": "packages/machine/src/flights.ts > Flown > constructor > throw:0",
+			"reason": "`throw bad_option('run', typeof o?.run, 'a function');`: proved: the throw removed turns the test red, twice",
+			"test": "packages/machine/test/flights.test.ts",
+			"name": "refuses options it cannot take"
+		},
+		{
+			"site": "packages/machine/src/flights.ts > Flown > constructor > throw:1",
+			"reason": "`throw bad_option('key', String(fields), 'a list of the input fields t…`: proved: the throw removed turns the test red, twice",
+			"test": "packages/machine/test/flights.test.ts",
+			"name": "a keyed flights refuses a key it cannot use, where it is written"
+		},
+		{
+			"site": "packages/machine/src/flights.ts > Flown > constructor > throw:2",
+			"reason": "`throw bad_option('ignore', field, 'a field the key leaves out, not on…`: proved: the throw removed turns the test red, twice",
+			"test": "packages/machine/test/flights.test.ts",
+			"name": "a keyed flights refuses a key it cannot use, where it is written"
+		},
+		{
+			"site": "packages/machine/src/flights.ts > Flown > constructor > throw:3",
+			"reason": "`throw bad_option('ignore', field, 'the reason the key leaves it out');`: proved: the throw removed turns the test red, twice",
+			"test": "packages/machine/test/flights.test.ts",
+			"name": "a keyed flights refuses a key it cannot use, where it is written"
+		},
+		{
+			"site": "packages/machine/src/flights.ts > Flown > constructor > throw:4",
+			"reason": "`throw bad_option('ignore', 'without key', 'beside a key');`: proved: the throw removed turns the test red, twice",
+			"test": "packages/machine/test/flights.test.ts",
+			"name": "a keyed flights refuses a key it cannot use, where it is written"
+		},
+		{
+			"site": "packages/machine/src/flights.ts > Flown > constructor > throw:5",
+			"reason": "`throw bad_option('retry', typeof retry, 'a policy from policy()');`: proved: the throw removed turns the test red, twice",
+			"test": "packages/machine/test/flights.test.ts",
+			"name": "refuses options it cannot take"
+		},
+		{
+			"site": "packages/machine/src/flights.ts > Flown > constructor > throw:6",
+			"reason": "`throw bad_option('keep', keep, 'a time in ms of 0 or more, or a funct…`: proved: the throw removed turns the test red, twice",
+			"test": "packages/machine/test/flights.test.ts",
+			"name": "refuses options it cannot take"
+		},
+		{
+			"site": "packages/machine/src/flights.ts > Flown > constructor > throw:7",
+			"reason": "`throw bad_option('max', 'missing', 'given with weigh, in its unit');`: proved: the throw removed turns the test red, twice",
+			"test": "packages/machine/test/flights.test.ts",
+			"name": "a weigh with no max is refused: the default max counts answers, not the weigh’s unit"
+		},
+		{
+			"site": "packages/machine/src/flights.ts > Flown > constructor > throw:9",
+			"reason": "`throw bad_option('world', typeof o.world, 'a world from world()');`: proved: the throw removed turns the test red, twice",
+			"test": "packages/machine/test/flights.test.ts",
+			"name": "a keyed flights refuses a key it cannot use, where it is written"
+		},
+		{
+			"site": "packages/machine/src/flights.ts > Flown > get > abort:0",
+			"reason": "`signal?.aborted`: proved: .aborted made always false turns the test red, twice",
+			"test": "packages/machine/test/flights.test.ts",
+			"name": "a caller whose signal already aborted gets STALE and starts nothing"
+		},
+		{
+			"site": "packages/machine/src/flights.ts > Flown > get > throw:0",
+			"reason": "`throw bad_option('priority', priority, 'a number (higher is sooner)');`: proved: the throw removed turns the test red, twice",
+			"test": "packages/machine/test/flights.test.ts",
+			"name": "a priority that is not a number is refused"
+		},
+		{
+			"site": "packages/machine/src/flights.ts > Flown > _fly > failed > throw:0",
+			"reason": "`throw error;`: proved: the throw removed turns the test red, twice",
+			"test": "packages/machine/test/flights.test.ts",
+			"name": "never keeps a failure: the next get runs again"
+		},
+		{
+			"site": "packages/machine/src/flights.ts > Flown > _fly > reject:0",
+			"reason": "`, noop`: proved: the rejection handler removed turns the test red, twice",
+			"test": "packages/machine/test/flights.test.ts",
+			"name": "its own handling of a failure adds no unhandled rejection"
+		},
+		{
+			"site": "packages/machine/src/flights.ts > Flown > _fly > reject:1",
+			"reason": "`, (error: unknown) => { try { resolve(failed(error)); } catch (thrown…`: proved: the rejection handler removed turns the test red, twice",
+			"test": "packages/machine/test/flights.test.ts",
+			"name": "never keeps a failure: the next get runs again"
+		},
+		{
+			"site": "packages/machine/src/flights.ts > Flown > _fly > catch:0",
+			"reason": "`catch (error) { reject(error); }`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/machine/test/flights.test.ts",
+			"name": "a keep or weigh that throws fails the flight and keeps nothing"
+		},
+		{
+			"site": "packages/machine/src/flights.ts > Flown > _fly > catch:1",
+			"reason": "`catch (thrown) { reject(thrown); }`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/machine/test/flights.test.ts",
+			"name": "never keeps a failure: the next get runs again"
+		},
+		{
+			"site": "packages/machine/src/flights.ts > Flown > _land > catch:0",
+			"reason": "`catch (error) { this._back(key, m, prior); throw error; }`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/machine/test/flights.test.ts",
+			"name": "a keep or weigh that throws fails the flight and keeps nothing"
+		},
+		{
+			"site": "packages/machine/src/flights.ts > Flown > _land > throw:0",
+			"reason": "`throw error;`: proved: the throw removed turns the test red, twice",
+			"test": "packages/machine/test/flights.test.ts",
+			"name": "a keep or weigh that throws fails the flight and keeps nothing"
+		},
+		{
+			"site": "packages/machine/src/flights.ts > Flown > _join > reject:0",
+			"reason": "`, (error: unknown) => { signal.removeEventListener('abort', leave); r…`: proved: the rejection handler removed turns the test red, twice",
+			"test": "packages/machine/test/flights.test.ts",
+			"name": "every caller of a failed run gets the failure, then the next get starts fresh"
+		},
+		{
+			"site": "packages/machine/src/flights.ts > keyed > throw:0",
+			"reason": "`throw bad_option('key', 'none', 'the input fields that make the key');`: proved: the throw removed turns the test red, twice",
+			"test": "packages/machine/test/flights.test.ts",
+			"name": "a keyed flights refuses a key it cannot use, where it is written"
+		},
+		{
+			"site": "packages/machine/src/lock.ts > Owned > acquire > abort:0",
+			"reason": "`signal?.aborted`: proved: .aborted made always false turns the test red, twice",
+			"test": "packages/machine/test/lock.test.ts",
+			"name": "acquire: an already aborted signal rejects at once and never takes it"
+		},
+		{
+			"site": "packages/machine/src/machine.ts > notify > catch:0",
+			"reason": "`catch (error) { report('machine_observer_failed', { name }, error); }`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/machine/test/machine.test.ts",
+			"name": "an observer that throws does not break the move or the other observers"
+		},
+		{
+			"site": "packages/machine/src/machine.ts > state_of > throw:0",
+			"reason": "`throw machine_error('machine_kind_in_data', { name: def.name, state: …`: proved: the throw removed turns the test red, twice",
+			"test": "packages/machine/test/machine.test.ts",
+			"name": "refuses data with its own kind"
+		},
+		{
+			"site": "packages/machine/src/machine.ts > illegal > throw:0",
+			"reason": "`throw machine_error('machine_illegal_move', args);`: proved: the throw removed turns the test red, twice",
+			"test": "packages/machine/test/machine.test.ts",
+			"name": "treats state names like Object.prototype keys as plain names"
+		},
+		{
+			"site": "packages/machine/src/machine.ts > Running > wait > throw:0",
+			"reason": "`throw machine_error('machine_unknown_state', { name: this._def.name, …`: proved: the throw removed turns the test red, twice",
+			"test": "packages/machine/test/machine.test.ts",
+			"name": "throws in dev for a state that does not exist"
+		},
+		{
+			"site": "packages/machine/src/machine.ts > check > throw:0",
+			"reason": "`throw machine_error('machine_unknown_state', { name, state: to, where…`: proved: the throw removed turns the test red, twice",
+			"test": "packages/machine/test/machine.test.ts",
+			"name": "refuses a step to a state that is not a state"
+		},
+		{
+			"site": "packages/machine/src/machine.ts > check > throw:1",
+			"reason": "`throw machine_error('machine_duplicate_step', { name, from, to });`: proved: the throw removed turns the test red, twice",
+			"test": "packages/machine/test/machine.test.ts",
+			"name": "refuses a step listed twice"
+		},
+		{
+			"site": "packages/machine/src/machine.ts > check > throw:2",
+			"reason": "`throw machine_error('machine_unreachable_state', { name, state: kind,…`: proved: the throw removed turns the test red, twice",
+			"test": "packages/machine/test/machine.test.ts",
+			"name": "refuses a state that can never be reached"
+		},
+		{
+			"site": "packages/machine/src/machine.ts > define > throw:0",
+			"reason": "`throw machine_error('machine_unknown_state', { name, state: config.in…`: proved: the throw removed turns the test red, twice",
+			"test": "packages/machine/test/machine.test.ts",
+			"name": "refuses an initial state that is not a state"
+		},
+		{
+			"site": "packages/machine/src/mailbox.ts > Box > ask > reject:0",
+			"reason": "`, reject`: proved: the rejection handler removed turns the test red, twice",
+			"test": "packages/machine/test/mailbox-turns.test.ts",
+			"name": "an asker hears a handler that rejects after its turn began, and the box goes on"
+		},
+		{
+			"site": "packages/machine/src/mailbox.ts > Box > _wait > reject:0",
+			"reason": "`, (error: unknown) => back(() => reject(error))`: proved: the rejection handler removed turns the test red, twice",
+			"test": "packages/machine/test/mailbox.test.ts",
+			"name": "throws a handler’s failure to its asker, and a wait’s rejection back in the turn"
+		},
+		{
+			"site": "packages/machine/src/mailbox.ts > Box > _start > catch:0",
+			"reason": "`catch (error) { this._ended(held); throw error; }`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/machine/test/mailbox.test.ts",
+			"name": "reports a queued handler that throws, and goes on with the next"
+		},
+		{
+			"site": "packages/machine/src/mailbox.ts > Box > _start > throw:0",
+			"reason": "`throw error;`: proved: the throw removed turns the test red, twice",
+			"test": "packages/machine/test/mailbox.test.ts",
+			"name": "reports a queued handler that throws, and goes on with the next"
+		},
+		{
+			"site": "packages/machine/src/mailbox.ts > Box > _start > throw:1",
+			"reason": "`throw error;`: proved: the throw removed turns the test red, twice",
+			"test": "packages/machine/test/mailbox.node.test.ts",
+			"name": "a posted handler that rejects later is an unhandled rejection, as a direct call’s would be"
+		},
+		{
+			"site": "packages/machine/src/mailbox.ts > Box > _end_turn > catch:0",
+			"reason": "`catch (error) { report_thrown('machine_mailbox_handler_failed', {}, e…`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/machine/test/mailbox.test.ts",
+			"name": "reports a queued handler that throws, and goes on with the next"
+		},
+		{
+			"site": "packages/machine/src/outbox.ts > id_of > throw:0",
+			"reason": "`throw machine_error('machine_bad_option', { option: 'outbox id', valu…`: proved: the throw removed turns the test red, twice",
+			"test": "packages/machine/test/outbox.test.ts",
+			"name": "an id that is not a string or a finite number names nothing: not sent, said, false (#350)"
+		},
+		{
+			"site": "packages/machine/src/outbox.ts > Box > constructor > throw:0",
+			"reason": "`throw machine_error('machine_bad_option', { option: 'send', value: ty…`: proved: the throw removed turns the test red, twice",
+			"test": "packages/machine/test/outbox.test.ts",
+			"name": "the outbox refuses a send that is not a function"
+		},
+		{
+			"site": "packages/machine/src/outbox.ts > Box > put > catch:0",
+			"reason": "`catch (error) { this._gave_up(item, error); return Promise.resolve(fa…`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/machine/test/outbox.test.ts",
+			"name": "an id that throws: not sent, said, and put still never throws"
+		},
+		{
+			"site": "packages/machine/src/outbox.ts > Box > put > catch:1",
+			"reason": "`catch { // ok: a platform that refuses it: the send runs on in the pr…`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/machine/test/outbox.test.ts",
+			"name": "a platform that refuses it does not stop the send, and put does not throw"
+		},
+		{
+			"site": "packages/machine/src/outbox.ts > Box > _deliver > catch:0",
+			"reason": "`catch (error) { this._gave_up(item, error); return false; }`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/machine/test/outbox.test.ts",
+			"name": "out of tries: giveUp hears the last error once, and the put resolves false"
+		},
+		{
+			"site": "packages/machine/src/outbox.ts > Box > _gave_up > catch:0",
+			"reason": "`catch (thrown) { report('machine_outbox_gave_up', { name: this._name …`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/machine/test/outbox.test.ts",
+			"name": "a giveUp that throws is printed with the code"
+		},
+		{
+			"site": "packages/machine/src/policy.ts > make_policy > throw:0",
+			"reason": "`throw bad('attempts', attempts, 'a whole number of 1 or more');`: proved: the throw removed turns the test red, twice",
+			"test": "packages/machine/test/outbox.test.ts",
+			"name": "refuses numbers it cannot use, where they are written"
+		},
+		{
+			"site": "packages/machine/src/policy.ts > make_policy > throw:1",
+			"reason": "`throw bad('backoff', backoff, 'a wait of 0 to 2147483647 ms, or a lis…`: proved: the throw removed turns the test red, twice",
+			"test": "packages/machine/test/outbox.test.ts",
+			"name": "refuses numbers it cannot use, where they are written"
+		},
+		{
+			"site": "packages/machine/src/policy.ts > make_policy > throw:2",
+			"reason": "`throw bad('jitter', jitter, 'a share of 0 to 1');`: proved: the throw removed turns the test red, twice",
+			"test": "packages/machine/test/outbox.test.ts",
+			"name": "refuses numbers it cannot use, where they are written"
+		},
+		{
+			"site": "packages/machine/src/policy.ts > make_policy > throw:3",
+			"reason": "`throw bad('deadline', deadline, 'a time of more than 0 ms, or Infinit…`: proved: the throw removed turns the test red, twice",
+			"test": "packages/machine/test/outbox.test.ts",
+			"name": "refuses numbers it cannot use, where they are written"
+		},
+		{
+			"site": "packages/machine/src/policy.ts > under_policy > throw:0",
+			"reason": "`throw out_of_time(p.deadline, error);`: proved: the throw removed turns the test red, twice",
+			"test": "packages/machine/test/outbox.test.ts",
+			"name": "the caller leaving and the deadline in the same turn: whichever came first says how it ended"
+		},
+		{
+			"site": "packages/machine/src/policy.ts > under_policy > throw:1",
+			"reason": "`throw error;`: proved: the throw removed turns the test red, twice",
+			"test": "packages/machine/test/flights.test.ts",
+			"name": "gives the last failure when its tries run out"
+		},
+		{
+			"site": "packages/machine/src/policy.ts > under_policy > throw:2",
+			"reason": "`throw out_of_time(p.deadline, error);`: proved: the throw removed turns the test red, twice",
+			"test": "packages/machine/test/clock.test.ts",
+			"name": "a wait that would end exactly at the deadline is out of time at once"
+		},
+		{
+			"site": "packages/machine/src/queue.ts > QueueImpl > drain > catch:0",
+			"reason": "`catch (error) { report_thrown('machine_queue_start_failed', { name: t…`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/machine/test/queue.test.ts",
+			"name": "a start that throws is reported, and the jobs after it still start"
+		},
+		{
+			"site": "packages/machine/src/queue.ts > QueueImpl > stale_job > catch:0",
+			"reason": "`catch (error) { report_thrown('machine_queue_stale_failed', { name: t…`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/machine/test/queue.test.ts",
+			"name": "a stale hook that throws is reported, and the other waiting jobs still go stale and none hangs"
+		},
+		{
+			"site": "packages/machine/src/queue.ts > queue > throw:0",
+			"reason": "`throw machine_error('machine_bad_option', { option: 'max', value: Str…`: proved: the throw removed turns the test red, twice",
+			"test": "packages/machine/test/queue.test.ts",
+			"name": "a bad max is refused with machine_bad_option"
+		},
+		{
+			"site": "packages/machine/src/say.ts > say > throw:0",
+			"reason": "`throw machine_error('machine_bad_option', { option: 'max', value: Str…`: proved: the throw removed turns the test red, twice",
+			"test": "packages/machine/test/say.test.ts",
+			"name": "a bound that is not a whole number above 0 is refused"
+		},
+		{
+			"site": "packages/machine/src/scope.ts > Scoped > timeout > throw:0",
+			"reason": "`throw machine_error('machine_bad_time', { where: 'timeout()', ms: Str…`: proved: the throw removed turns the test red, twice",
+			"test": "packages/machine/test/scope.test.ts",
+			"name": "refuses a time a timer cannot hold"
+		},
+		{
+			"site": "packages/machine/src/scope.ts > Scoped > every > throw:0",
+			"reason": "`throw machine_error('machine_bad_time', { where: 'every()', ms: Strin…`: proved: the throw removed turns the test red, twice",
+			"test": "packages/machine/test/scope.test.ts",
+			"name": "refuses a time a timer cannot hold"
+		},
+		{
+			"site": "packages/machine/src/scope.ts > Scoped > task > catch:0",
+			"reason": "`catch (error) { out = Promise.reject(error); }`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/machine/test/scope.test.ts",
+			"name": "a failure while open rejects; a throw at once too"
+		},
+		{
+			"site": "packages/machine/src/scope.ts > Scoped > task > reject:1",
+			"reason": "`, (error: unknown) => { signal.removeEventListener('abort', on_close)…`: proved: the rejection handler removed turns the test red, twice",
+			"test": "packages/machine/test/scope.test.ts",
+			"name": "a failure while open rejects; a throw at once too"
+		},
+		{
+			"site": "packages/machine/src/scope.ts > Scoped > adopt > throw:0",
+			"reason": "`throw machine_error('machine_not_disposable', { value: typeof disposa…`: proved: the throw removed turns the test red, twice",
+			"test": "packages/machine/test/scope.test.ts",
+			"name": "refuses what cannot dispose itself"
+		},
+		{
+			"site": "packages/machine/src/scope.ts > Scoped > _said > reject:0",
+			"reason": "`, (error: unknown) => report('machine_dispose_failed', { owner: this.…`: proved: the rejection handler removed turns the test red, twice",
+			"test": "packages/machine/test/scope.test.ts",
+			"name": "`await using` gets the errors of an async disposal; a plain close reports them"
+		},
+		{
+			"site": "packages/machine/src/scope.ts > Scoped > close > catch:0",
+			"reason": "`catch (error) { (errors ??= []).push(error); }`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/machine/test/scope.test.ts",
+			"name": "what a child throws is thrown by the parent’s close, after its own cleanups ran"
+		},
+		{
+			"site": "packages/machine/src/scope.ts > Scoped > close > catch:1",
+			"reason": "`catch (error) { (errors ??= []).push(error); }`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/machine/test/scope.test.ts",
+			"name": "a release that throws does not stop the other releases or the cleanups (#346)"
+		},
+		{
+			"site": "packages/machine/src/scope.ts > Scoped > close > catch:2",
+			"reason": "`catch (error) { (errors ??= []).push(error); }`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/machine/test/scope.test.ts",
+			"name": "a cleanup that throws does not stop the others; close throws it after all have run"
+		},
+		{
+			"site": "packages/machine/src/scope.ts > Scoped > close > throw:0",
+			"reason": "`throw errors.length === 1 ? errors[0] : new AggregateError(errors, `[…`: proved: the throw removed turns the test red, twice",
+			"test": "packages/machine/test/scope.test.ts",
+			"name": "a cleanup that throws does not stop the others; close throws it after all have run"
+		},
+		{
+			"site": "packages/machine/src/scope.ts > Scoped > ASYNC_DISPOSE > throw:0",
+			"reason": "`throw errors[0];`: proved: the throw removed turns the test red, twice",
+			"test": "packages/machine/test/scope.test.ts",
+			"name": "`await using` gets the errors of an async disposal; a plain close reports them"
+		},
+		{
+			"site": "packages/machine/src/slot.ts > slot > throw:0",
+			"reason": "`throw machine_error('machine_bad_option', { option: 'slot name', valu…`: proved: the throw removed turns the test red, twice",
+			"test": "packages/machine/test/slot.test.ts",
+			"name": "a name outside ogygia., one with a version suffix, or a bad version is refused"
+		},
+		{
+			"site": "packages/machine/src/slot.ts > slot > throw:1",
+			"reason": "`throw machine_error('machine_bad_option', { option: 'slot name', valu…`: proved: the throw removed turns the test red, twice",
+			"test": "packages/machine/test/slot.test.ts",
+			"name": "a name outside ogygia., one with a version suffix, or a bad version is refused"
+		},
+		{
+			"site": "packages/machine/src/slot.ts > slot > throw:2",
+			"reason": "`throw machine_error('machine_bad_option', { option: 'slot version', v…`: proved: the throw removed turns the test red, twice",
+			"test": "packages/machine/test/slot.test.ts",
+			"name": "a name outside ogygia., one with a version suffix, or a bad version is refused"
+		},
+		{
+			"site": "packages/machine/src/slot.ts > slot > throw:3",
+			"reason": "`throw machine_error('machine_slot_version', a);`: proved: the throw removed turns the test red, twice",
+			"test": "packages/machine/test/slot.test.ts",
+			"name": "a copy at another version is refused in dev: both versions named"
+		},
+		{
+			"site": "packages/machine/src/stage.ts > Staged > constructor > throw:0",
+			"reason": "`throw machine_error('machine_bad_option', { option, value: typeof o[o…`: proved: the throw removed turns the test red, twice",
+			"test": "packages/machine/test/stage.test.ts",
+			"name": "refuses a build or commit that is not a function"
+		},
+		{
+			"site": "packages/machine/src/stage.ts > Staged > constructor > reject:0",
+			"reason": "`, (error: unknown) => { this._discard(); throw error; }`: proved: the rejection handler removed turns the test red, twice",
+			"test": "packages/machine/test/stage.test.ts",
+			"name": "a build that throws gives back what it made, and ready rejects"
+		},
+		{
+			"site": "packages/machine/src/stage.ts > Staged > constructor > throw:1",
+			"reason": "`throw error;`: proved: the throw removed turns the test red, twice",
+			"test": "packages/machine/test/stage.test.ts",
+			"name": "a build that throws gives back what it made, and ready rejects"
+		},
+		{
+			"site": "packages/machine/src/stage.ts > Staged > commit > catch:0",
+			"reason": "`catch (error) { run(undo, this._name); this._discard(); throw error; }`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/machine/test/stage.test.ts",
+			"name": "a commit that throws puts back what it changed, gives back the build, and throws"
+		},
+		{
+			"site": "packages/machine/src/stage.ts > Staged > commit > throw:0",
+			"reason": "`throw error;`: proved: the throw removed turns the test red, twice",
+			"test": "packages/machine/test/stage.test.ts",
+			"name": "a commit that throws puts back what it changed, gives back the build, and throws"
+		},
+		{
+			"site": "packages/machine/src/stage.ts > run > catch:0",
+			"reason": "`catch (error) { report('machine_stage_step_failed', { name }, error);…`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/machine/test/stage.test.ts",
+			"name": "a step that throws is said once, and the others still run"
+		},
+		{
+			"site": "packages/machine/src/stale.ts > whole > stale:0",
+			"reason": "`value[i] === STALE`: proved: the STALE check made never true turns the test red, twice",
+			"test": "packages/machine/test/stale-waits.test.ts",
+			"name": "scope.task"
+		},
+		{
+			"site": "packages/machine/src/flights.ts > Flown > constructor > throw:8",
+			"reason": "`throw bad_option('max', max, 'a finite number more than 0');`: proved: the throw removed turns the test red, twice",
+			"test": "packages/machine/test/production.test.ts",
+			"name": "a flights with no bound is thrown where it is written, even in production"
+		},
+		{
+			"site": "packages/machine/src/flights.ts > Flown > _moved > catch:0",
+			"reason": "`catch { return true; // (what it read cannot be told: made again, nev…`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/machine/test/world.test.ts",
+			"name": "a touches that throws: the kept answer goes on a move, a landing fails its callers"
+		},
+		{
+			"site": "packages/machine/src/flights.ts > Flown > _fly > landed > stale:0",
+			"reason": "`answer === STALE`: proved: the STALE check made never true turns the test red, twice",
+			"test": "packages/machine/test/stale-waits.test.ts",
+			"name": "a flights run: its callers get STALE, and nothing is kept (#377)"
+		},
+		{
+			"site": "packages/machine/src/flights.ts > Flown > _fly > landed > catch:0",
+			"reason": "`catch (error) { this._back(key, entry, prior); throw error; }`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/machine/test/world.test.ts",
+			"name": "a touches that throws: the kept answer goes on a move, a landing fails its callers"
+		},
+		{
+			"site": "packages/machine/src/flights.ts > Flown > _fly > landed > throw:0",
+			"reason": "`throw error;`: proved: the throw removed turns the test red, twice",
+			"test": "packages/machine/test/world.test.ts",
+			"name": "a touches that throws: the kept answer goes on a move, a landing fails its callers"
+		},
+		{
+			"site": "packages/machine/src/machine.ts > Running > _arm > catch:1",
+			"reason": "`catch (error) { report( 'machine_timed_step_failed', { name: this._de…`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/machine/test/after.test.ts",
+			"name": "a timed step that fails (its data throws) is reported; the machine stays where it is"
+		},
+		{
+			"site": "packages/machine/src/machine.ts > define > throw:1",
+			"reason": "`throw machine_error('machine_unknown_state', { name, state: kind, whe…`: proved: the throw removed turns the test red, twice",
+			"test": "packages/machine/test/after.test.ts",
+			"name": "a state that is not a state"
+		},
+		{
+			"site": "packages/machine/src/machine.ts > define > throw:2",
+			"reason": "`throw machine_error('machine_bad_timeout', { name, state: kind, probl…`: proved: the throw removed turns the test red, twice",
+			"test": "packages/machine/test/after.test.ts",
+			"name": "a target that is not one of the state’s steps"
+		},
+		{
+			"site": "packages/machine/src/machine.ts > define > throw:3",
+			"reason": "`throw machine_error('machine_bad_timeout', { name, state: kind, probl…`: proved: the throw removed turns the test red, twice",
+			"test": "packages/machine/test/after.test.ts",
+			"name": "a time that is not a time, or longer than a timer can hold (2^31 - 1 ms, ~24.8 days)"
+		},
+		{
+			"site": "packages/machine/src/stage.ts > Staged > constructor > stale:0",
+			"reason": "`built !== STALE`: proved: the STALE check made never true turns the test red, twice",
+			"test": "packages/machine/test/stale-waits.test.ts",
+			"name": "stage().ready"
+		},
+		{
+			"site": "packages/core/src/plugin/css.ts > componentCssHead > catch:0",
+			"reason": "`catch { read = false; // ok: no registry in this realm (bare node, `o…`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/core/test/component-css-head-once.test.ts",
+			"name": "a second call in one request links nothing its first call linked"
+		},
+		{
+			"site": "packages/core/src/plugin/request-scope.ts > entry_of > abort:0",
+			"reason": "`signal.aborted`: proved: .aborted made always false turns the test red, twice",
+			"test": "packages/core/test/request-scope.test.ts",
+			"name": "of a request whose visitor already left is ended"
+		},
+		{
+			"site": "packages/core/src/plugin/request-scope.ts > end_request_scope > catch:0",
+			"reason": "`catch (error) { cleanup_failed(error); }`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/core/test/request-scope-failures.test.ts",
+			"name": "a cleanup that throws as the request ends is said, never thrown"
+		},
+		{
+			"site": "packages/core/src/plugin/request-scope.ts > own_response > .catch:0",
+			"reason": "`body.cancel().catch(noop)`: proved: the .catch removed turns the test red, twice",
+			"test": "packages/core/test/request-scope-failures.test.ts",
+			"name": "a HEAD answer whose body cannot be cancelled is dropped unread, with nothing unhandled"
+		},
+		{
+			"site": "packages/core/src/plugin/request-scope.ts > own_response > .catch:1",
+			"reason": "`reader.cancel().catch(noop)`: proved: the .catch removed turns the test red, twice",
+			"test": "packages/core/test/request-scope-failures.test.ts",
+			"name": "the visitor leaving lets go of a source that cannot be cancelled, with nothing unhandled"
+		},
+		{
+			"site": "packages/core/src/plugin/request-scope.ts > own_response > pull > catch:0",
+			"reason": "`catch (error) { end_request_scope(owner); if (RULES) note_response_en…`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/core/test/request-scope-failures.test.ts",
+			"name": "a body that breaks mid-stream ends the owner, and the visitor’s read fails with its error"
+		},
+		{
+			"site": "packages/core/src/server/capped-body.ts > read_capped > body:0",
+			"reason": "`request.body === null`: proved: the null-body check made never true turns the test red, twice",
+			"test": "packages/core/test/capped-body-failures.test.ts",
+			"name": "a request with no body is no bytes"
+		},
+		{
+			"site": "packages/core/src/server/capped-body.ts > read_capped > .catch:0",
+			"reason": "`reader.cancel().catch(() => {})`: proved: the .catch removed turns the test red, twice",
+			"test": "packages/core/test/capped-body-failures.test.ts",
+			"name": "a body past the cap is too large, even when its source cannot be cancelled"
+		},
+		{
+			"site": "packages/core/src/server/capped-body.ts > read_capped > catch:0",
+			"reason": "`catch { return 'unreadable'; // ok: the caller answers it (a 400) }`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/core/test/capped-body-failures.test.ts",
+			"name": "a body whose stream breaks is unreadable, never a throw"
+		},
+		{
+			"site": "packages/core/src/server/document-tail.ts > props_preview > catch:0",
+			"reason": "`catch { return ''; // ok: a preview only; props that do not stringify…`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/core/test/document-tail.test.ts",
+			"name": "hole() records endpoint + sidecar per identity (first wins), rendered last as ONE escaped JSON script"
+		},
+		{
+			"site": "packages/core/src/server/endpoint.ts > configure_islands_endpoint > throw:0",
+			"reason": "`throw error;`: proved: the throw removed turns the test red, twice",
+			"test": "packages/core/test/islands-endpoint.test.ts",
+			"name": "a second handle naming another endpoint throws in dev, and the first stands"
+		},
+		{
+			"site": "packages/core/src/server/page-seed.ts > keep_serializable > carries > catch:0",
+			"reason": "`catch { return false; // ok: that is the answer: this value does not …`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/core/test/page-seed-lane.test.ts",
+			"name": "one non-serializable leaf is left out, never its field or the whole seed (devalue lane)"
+		},
+		{
+			"site": "packages/core/src/server/page-seed.ts > keep_serializable > keep > catch:0",
+			"reason": "`catch { continue; // ok: a getter that throws: devalue could not read…`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/core/test/page-seed-leaves.test.ts",
+			"name": "a getter that throws: only that key goes"
+		},
+		{
+			"site": "packages/core/src/server/page-seed.ts > PageSeed > serialize > catch:0",
+			"reason": "`catch { // ok: the analysis was wrong about a leaf; devalue below is …`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/core/test/page-seed-lane.test.ts",
+			"name": "asked for JSON on a slice JSON cannot carry (a bigint): falls back to devalue, never throws"
+		},
+		{
+			"site": "packages/core/src/server/page-seed.ts > PageSeed > serialize > catch:1",
+			"reason": "`catch { // A value devalue cannot carry must not take its neighbours …`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/core/test/page-seed-lane.test.ts",
+			"name": "one non-serializable leaf is left out, never its field or the whole seed (devalue lane)"
+		},
+		{
+			"site": "packages/core/src/server/page-seed.ts > PageSeed > serialize > catch:2",
+			"reason": "`catch { // ok: kept stays the source }`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/core/test/page-seed-leaves.test.ts",
+			"name": "when the copy itself fails, each field that serializes alone still ships with the url"
+		},
+		{
+			"site": "packages/core/src/server/page-seed.ts > PageSeed > serialize > catch:3",
+			"reason": "`catch { // (a reducer that throws on the copy, or no copy: each field…`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/core/test/page-seed-leaves.test.ts",
+			"name": "when the copy itself fails, each field that serializes alone still ships with the url"
+		},
+		{
+			"site": "packages/core/src/server/page-seed.ts > PageSeed > serialize > catch:4",
+			"reason": "`catch { // ok: this field cannot cross, so just it is dropped }`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/core/test/page-seed-leaves.test.ts",
+			"name": "when the copy itself fails, each field that serializes alone still ships with the url"
+		},
+		{
+			"site": "packages/core/src/server/page-seed.ts > PageSeed > serialize > catch:5",
+			"reason": "`catch { return null; // ok: a reducer threw on the plain base itself;…`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/core/test/page-seed-lane.test.ts",
+			"name": "a reducer that throws on the plain base itself: no seed, never a throw (the page still ships)"
+		},
+		{
+			"site": "packages/core/src/server/personal-response.ts > mark_personal > catch:0",
+			"reason": "`catch (error) { warn('personal_response_unmarked', { status: response…`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/core/test/personal-response.test.ts",
+			"name": "an immutable response is left as it is"
+		},
+		{
+			"site": "packages/core/src/server/props-wire.ts > stringify_props > catch:0",
+			"reason": "`catch (e) { const detail = e instanceof Error ? e.message : String(e)…`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/core/test/props-wire.test.ts",
+			"name": "a non-serializable prop (a class instance with no codec) throws the teaching error"
+		},
+		{
+			"site": "packages/core/src/server/props-wire.ts > stringify_props > throw:0",
+			"reason": "`throw new OgygiaError('prop_not_serializable', { entry, detail });`: proved: the throw removed turns the test red, twice",
+			"test": "packages/core/test/props-wire.test.ts",
+			"name": "a non-serializable prop (a class instance with no codec) throws the teaching error"
+		},
+		{
+			"site": "packages/core/src/server/region-endpoint.ts > current_request > catch:0",
+			"reason": "`catch { return null; // ok: off-request (prerender, a test), as said …`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/core/test/batch-hole-slot-prefix.test.ts",
+			"name": "a hole fetched on its own: its ids carry its region id"
+		},
+		{
+			"site": "packages/core/src/server/region-endpoint.ts > reuse_known_region > catch:0",
+			"reason": "`catch { return false; // ok: no request scope (prerender / off-reques…`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/core/test/property-known-copies.test.ts",
+			"name": "skips nothing off a request (prerender)"
+		},
+		{
+			"site": "packages/core/src/server/remote-seed-gate.ts > collect_remote_seed > reject:0",
+			"reason": "`, () => {}`: proved: the rejection handler removed turns the test red, twice",
+			"test": "packages/core/test/remote-seed-gate.test.ts",
+			"name": "an ERRORED result is omitted, never throws the seed build"
+		},
+		{
+			"site": "packages/core/src/server/render-cache.ts > cached_render > catch:0",
+			"reason": "`catch (error) { report?.('none'); throw error; }`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/core/test/render-cache-claims.test.ts",
+			"name": "a cached hole whose render fails, as null or by throwing, reports none"
+		},
+		{
+			"site": "packages/core/src/server/render-cache.ts > cached_render > throw:0",
+			"reason": "`throw error;`: proved: the throw removed turns the test red, twice",
+			"test": "packages/core/test/render-cache-claims.test.ts",
+			"name": "a cached hole whose render fails, as null or by throwing, reports none"
+		},
+		{
+			"site": "packages/core/src/server/render-cache.ts > cached_render > stale:0",
+			"reason": "`r !== STALE`: proved: the STALE check made never true turns the test red, twice",
+			"test": "packages/core/test/render-cache.test.ts",
+			"name": "a flight from before a clear stores nothing: its caller renders again, joined by the next"
+		},
+		{
+			"site": "packages/core/src/server/signing-key.ts > configure_signing_secret > throw:0",
+			"reason": "`throw error;`: proved: the throw removed turns the test red, twice",
+			"test": "packages/core/test/signing-key.test.ts",
+			"name": "another secret after the key is decided throws in dev, naming fingerprints only"
+		},
+		{
+			"site": "packages/core/src/server/stream-regions.ts > batch_stream > start > .catch:0",
+			"reason": "`render(endpoint, signal).catch(() => null)`: proved: the .catch removed turns the test red, twice",
+			"test": "packages/core/test/stream-regions-claims.test.ts",
+			"name": "a call left out or a failed render writes no parcel, and the batch still ends"
+		},
+		{
+			"site": "packages/core/src/plugin/capability.ts > plugin_signer > plain_message > throw:0",
+			"reason": "`throw new OgygiaError('plugin_capability_message', { name });`: proved: the throw removed turns the test red, twice",
+			"test": "packages/core/test/plugin-hole-budgets.test.ts",
+			"name": "a plugin's plain sign and verify refuse a capability message"
+		},
+		{
+			"site": "packages/core/src/plugin/capability.ts > plugin_capabilities > refuse > result:0",
+			"reason": "`false`: proved: { ok: false } made ok: true turns the test red, twice",
+			"test": "packages/core/test/plugin-capability-key.test.ts",
+			"name": "minted by another deployment is refused as foreign-key, not as a bad signature"
+		},
+		{
+			"site": "packages/core/src/plugin/server.ts > end_request > reject:0",
+			"reason": "`, done_failed`: proved: the rejection handler removed turns the test red, twice",
+			"test": "packages/core/test/plugin-request-end.test.ts",
+			"name": "a done that throws, or work that fails, is said (plugin_hook_failed), with the error"
+		},
+		{
+			"site": "packages/core/src/plugin/server.ts > end_request > catch:0",
+			"reason": "`catch (error) { done_failed(error); }`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/core/test/plugin-request-end.test.ts",
+			"name": "work that fails never fails the response, and a throwing done does not stop the next"
+		},
+		{
+			"site": "packages/core/src/plugin/server.ts > keep_alive > catch:0",
+			"reason": "`catch { // ok: a platform that refuses it: the work runs on by itself…`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/core/test/plugin-request-end.test.ts",
+			"name": "outside a request, on a platform without one, or one that refuses it: nothing, and no throw"
+		},
+		{
+			"site": "packages/core/src/server/head-presence.ts > with_code_origins > catch:0",
+			"reason": "`catch { // ok: not a URL: no origin to allow }`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/core/test/code-origins.test.ts",
+			"name": "as origins, http(s) only, each once"
 		}
 	],
 	"impossible": [
@@ -1023,35 +1892,6 @@
 		"packages/compiler/src/compiler/link/build-output.ts > emit_island_deps_handoff > catch:1",
 		"packages/compiler/src/compiler/link/emit-gate.ts > parse_server_handoff > parse:0",
 		"packages/compiler/src/compiler/link/emit-gate.ts > read_server_handoff > catch:0",
-		"packages/compiler/src/compiler/link/page-keys.ts > page_data_keys_answer > catch:0",
-		"packages/compiler/src/compiler/link/page-keys.ts > page_data_keys_answer > throw:0",
-		"packages/compiler/src/compiler/link/page-keys.ts > summarize_export > catch:0",
-		"packages/compiler/src/compiler/link/page-keys.ts > summarize_export > throw:0",
-		"packages/compiler/src/compiler/link/page-keys.ts > parse_roots > catch:0",
-		"packages/compiler/src/compiler/link/page-keys.ts > Scan > collect_bindings > throw:0",
-		"packages/compiler/src/compiler/link/page-keys.ts > Scan > collect_bindings > throw:1",
-		"packages/compiler/src/compiler/link/page-keys.ts > Scan > collect_bindings > throw:2",
-		"packages/compiler/src/compiler/link/page-keys.ts > Scan > collect_bindings > throw:3",
-		"packages/compiler/src/compiler/link/page-keys.ts > Scan > grow > throw:0",
-		"packages/compiler/src/compiler/link/page-keys.ts > Scan > grow > throw:1",
-		"packages/compiler/src/compiler/link/page-keys.ts > Scan > grow > throw:2",
-		"packages/compiler/src/compiler/link/page-keys.ts > Scan > walk > throw:0",
-		"packages/compiler/src/compiler/link/page-keys.ts > Scan > judge > throw:0",
-		"packages/compiler/src/compiler/link/page-keys.ts > Scan > judge > throw:1",
-		"packages/compiler/src/compiler/link/page-keys.ts > Scan > judge > throw:2",
-		"packages/compiler/src/compiler/link/page-keys.ts > Scan > judge > throw:3",
-		"packages/compiler/src/compiler/link/page-keys.ts > Scan > judge > throw:4",
-		"packages/compiler/src/compiler/link/page-keys.ts > Scan > judge > throw:5",
-		"packages/compiler/src/compiler/link/page-keys.ts > Scan > judge > throw:6",
-		"packages/compiler/src/compiler/link/page-keys.ts > Scan > judge > throw:7",
-		"packages/compiler/src/compiler/link/page-keys.ts > Scan > judge_data > throw:0",
-		"packages/compiler/src/compiler/link/page-keys.ts > Scan > judge_data > throw:1",
-		"packages/compiler/src/compiler/link/page-keys.ts > Scan > judge_data > throw:2",
-		"packages/compiler/src/compiler/link/page-keys.ts > Scan > judge_data > throw:3",
-		"packages/compiler/src/compiler/link/page-keys.ts > Scan > judge_data > throw:4",
-		"packages/compiler/src/compiler/link/page-keys.ts > Scan > judge_data > throw:5",
-		"packages/compiler/src/compiler/link/page-keys.ts > summarize_call > catch:0",
-		"packages/compiler/src/compiler/link/page-keys.ts > read_file_sync > catch:0",
 		"packages/compiler/src/compiler/link/registry-stub.ts > static_script_specs > not-ok:0",
 		"packages/compiler/src/compiler/link/registry-stub.ts > registry_client_source > not-ok:0",
 		"packages/compiler/src/compiler/macros/dollar.ts > misuse > throw:0",
@@ -1144,7 +1984,6 @@
 		"packages/compiler/src/compiler/virtual/resolver.ts > VirtualTable > resolve > throw:0",
 		"packages/compiler/src/compiler/virtual/resolver.ts > VirtualTable > load > throw:0",
 		"packages/compiler/src/compiler/virtual/table.ts > value_names > throw:0",
-		"packages/compiler/src/vite/dev-maps.ts > install_dev_page_keys > read > catch:0",
 		"packages/compiler/src/vite/dev-maps.ts > install_dev_page_keys > DEV_PAGE_KEYS > .catch:0",
 		"packages/compiler/src/vite/index.ts > bundler_resolve > catch:0",
 		"packages/compiler/src/vite/index.ts > ogygia > readFile > catch:0",
@@ -1176,8 +2015,6 @@
 		"packages/compiler/src/vite/package-files.ts > discover_package_files > throw:1",
 		"packages/compiler/src/vite/package-files.ts > discover_package_files > catch:2",
 		"packages/compiler/src/vite/package-files.ts > discover_package_files > throw:2",
-		"packages/compiler/src/vite/paths.ts > runtime_content_hash > catch:0",
-		"packages/compiler/src/vite/paths.ts > runtime_content_hash > catch:1",
 		"packages/compiler/src/vite/plugin-api.ts > definePlugin > configResolved > throw:0",
 		"packages/compiler/src/vite/plugin-api.ts > find_plugins > walk > throw:0",
 		"packages/compiler/src/vite/plugin-api.ts > find_plugins > walk > throw:1",
@@ -1401,27 +2238,16 @@
 		"packages/core/src/live-transport.ts > class_for > throw:0",
 		"packages/core/src/live-transport.ts > register_wire_kind > encode > throw:0",
 		"packages/core/src/nested.ts > island_region > catch:0",
-		"packages/core/src/plugin/capability.ts > plugin_signer > plain_message > throw:0",
-		"packages/core/src/plugin/capability.ts > plugin_capabilities > refuse > result:0",
 		"packages/core/src/plugin/css.ts > run > import:0",
-		"packages/core/src/plugin/css.ts > componentCssHead > catch:0",
 		"packages/core/src/plugin/facts.ts > current_request > catch:0",
 		"packages/core/src/plugin/reads.ts > observe_reads > fetch:0",
 		"packages/core/src/plugin/reads.ts > carries_cookies > catch:0",
-		"packages/core/src/plugin/request-scope.ts > entry_of > abort:0",
 		"packages/core/src/plugin/request-scope.ts > entry_of > error-event:0",
-		"packages/core/src/plugin/request-scope.ts > end_request_scope > catch:0",
-		"packages/core/src/plugin/request-scope.ts > own_response > .catch:0",
 		"packages/core/src/plugin/request-scope.ts > own_response > stream:0",
-		"packages/core/src/plugin/request-scope.ts > own_response > .catch:1",
-		"packages/core/src/plugin/request-scope.ts > own_response > pull > catch:0",
 		"packages/core/src/plugin/request-scope.ts > own_response > pull > stream:0",
 		"packages/core/src/plugin/request-scope.ts > own_response > pull > stream:1",
 		"packages/core/src/plugin/request-scope.ts > own_response > pull > stream:2",
-		"packages/core/src/plugin/server.ts > end_request > reject:0",
-		"packages/core/src/plugin/server.ts > end_request > catch:0",
 		"packages/core/src/plugin/server.ts > end_request > catch:1",
-		"packages/core/src/plugin/server.ts > keep_alive > catch:0",
 		"packages/core/src/plugin/testing.ts > verify > crypto:0",
 		"packages/core/src/policies.ts > (module) > policy:0",
 		"packages/core/src/policies.ts > (module) > policy:1",
@@ -1630,50 +2456,25 @@
 		"packages/core/src/script.ts > script > throw:4",
 		"packages/core/src/script.ts > script > throw:5",
 		"packages/core/src/script.ts > script > throw:6",
-		"packages/core/src/server/capped-body.ts > read_capped > body:0",
 		"packages/core/src/server/capped-body.ts > read_capped > stream:0",
-		"packages/core/src/server/capped-body.ts > read_capped > .catch:0",
-		"packages/core/src/server/capped-body.ts > read_capped > catch:0",
 		"packages/core/src/server/dead-kit-resolves.ts > drop_dead_kit_resolves > transform > stream:0",
-		"packages/core/src/server/document-tail.ts > props_preview > catch:0",
-		"packages/core/src/server/endpoint.ts > configure_islands_endpoint > throw:0",
-		"packages/core/src/server/head-presence.ts > with_code_origins > catch:0",
 		"packages/core/src/server/hmac.ts > Hmac > verify > crypto:0",
 		"packages/core/src/server/hmac.ts > Hmac > verify > catch:0",
 		"packages/core/src/server/hmac.ts > hex_equal > crypto:0",
 		"packages/core/src/server/hole-graph.ts > root_absolute > catch:0",
 		"packages/core/src/server/hole-urls.ts > resolve_attr > catch:0",
-		"packages/core/src/server/page-seed.ts > keep_serializable > carries > catch:0",
-		"packages/core/src/server/page-seed.ts > keep_serializable > keep > catch:0",
-		"packages/core/src/server/page-seed.ts > PageSeed > serialize > catch:0",
-		"packages/core/src/server/page-seed.ts > PageSeed > serialize > catch:1",
-		"packages/core/src/server/page-seed.ts > PageSeed > serialize > catch:2",
-		"packages/core/src/server/page-seed.ts > PageSeed > serialize > catch:3",
-		"packages/core/src/server/page-seed.ts > PageSeed > serialize > catch:4",
-		"packages/core/src/server/page-seed.ts > PageSeed > serialize > catch:5",
 		"packages/core/src/server/page-stream.ts > stream_page_deferred > start > stream_one > stale:0",
-		"packages/core/src/server/personal-response.ts > mark_personal > catch:0",
-		"packages/core/src/server/props-wire.ts > stringify_props > catch:0",
-		"packages/core/src/server/props-wire.ts > stringify_props > throw:0",
-		"packages/core/src/server/region-endpoint.ts > current_request > catch:0",
 		"packages/core/src/server/region-endpoint.ts > region_session > catch:0",
-		"packages/core/src/server/region-endpoint.ts > reuse_known_region > catch:0",
 		"packages/core/src/server/region-endpoint.ts > reuse_known_region > catch:1",
 		"packages/core/src/server/region-endpoint.ts > mint_server_region > throw:0",
 		"packages/core/src/server/region-props.ts > encode_region_props > catch:0",
-		"packages/core/src/server/remote-seed-gate.ts > collect_remote_seed > reject:0",
-		"packages/core/src/server/render-cache.ts > cached_render > catch:0",
-		"packages/core/src/server/render-cache.ts > cached_render > throw:0",
-		"packages/core/src/server/render-cache.ts > cached_render > stale:0",
 		"packages/core/src/server/render-cache.ts > cached_render > abort:0",
 		"packages/core/src/server/render-cache.ts > cached_render > throw:1",
 		"packages/core/src/server/render-page.ts > page_url_of > catch:0",
 		"packages/core/src/server/render-page.ts > prepare_render_page > stale:0",
 		"packages/core/src/server/render-page.ts > render_page_version > catch:0",
 		"packages/core/src/server/render-page.ts > render_page_facts_script > catch:0",
-		"packages/core/src/server/signing-key.ts > configure_signing_secret > throw:0",
 		"packages/core/src/server/stream-regions.ts > batch_stream > refused:0",
-		"packages/core/src/server/stream-regions.ts > batch_stream > start > .catch:0",
 		"packages/core/src/server/stream-regions.ts > batch_stream > start > stream:0",
 		"packages/core/src/server/stream-regions.ts > batch_stream > start > refused:0",
 		"packages/core/src/server/stream-regions.ts > batch_stream > start > stream:1",
@@ -2253,132 +3054,29 @@
 		"packages/insights/src/session-insights.ts > path_of > catch:0",
 		"packages/insights/src/session-insights.ts > same_origin_get > catch:0",
 		"packages/insights/src/third-party.ts > host_of > catch:0",
-		"packages/machine/src/cache.ts > cache > throw:0",
-		"packages/machine/src/cache.ts > Store > constructor > throw:0",
-		"packages/machine/src/cache.ts > Store > constructor > throw:1",
 		"packages/machine/src/cache.ts > Store > _set_timer > timer:0",
-		"packages/machine/src/cache.ts > Store > _tell > catch:0",
-		"packages/machine/src/cache.ts > Store > set > throw:0",
-		"packages/machine/src/cache.ts > Store > set > throw:1",
-		"packages/machine/src/capability.ts > bad > throw:0",
-		"packages/machine/src/capability.ts > capability > clock > throw:0",
-		"packages/machine/src/capability.ts > capability > check > result:0",
-		"packages/machine/src/capability.ts > capability > check > result:1",
-		"packages/machine/src/capability.ts > capability > check > result:2",
-		"packages/machine/src/capability.ts > capability > check > result:3",
-		"packages/machine/src/capability.ts > capability > check > result:4",
-		"packages/machine/src/capability.ts > capability > check > result:5",
-		"packages/machine/src/capability.ts > capability > check > result:6",
-		"packages/machine/src/flights.ts > Flight > onRaise > throw:0",
-		"packages/machine/src/flights.ts > Flight > _raise > catch:0",
 		"packages/machine/src/flights.ts > id_of > catch:0",
-		"packages/machine/src/flights.ts > Flown > constructor > throw:0",
-		"packages/machine/src/flights.ts > Flown > constructor > throw:1",
-		"packages/machine/src/flights.ts > Flown > constructor > throw:2",
-		"packages/machine/src/flights.ts > Flown > constructor > throw:3",
-		"packages/machine/src/flights.ts > Flown > constructor > throw:4",
-		"packages/machine/src/flights.ts > Flown > constructor > throw:5",
-		"packages/machine/src/flights.ts > Flown > constructor > throw:6",
-		"packages/machine/src/flights.ts > Flown > constructor > throw:7",
-		"packages/machine/src/flights.ts > Flown > constructor > throw:8",
-		"packages/machine/src/flights.ts > Flown > constructor > throw:9",
-		"packages/machine/src/flights.ts > Flown > _moved > catch:0",
-		"packages/machine/src/flights.ts > Flown > get > abort:0",
-		"packages/machine/src/flights.ts > Flown > get > throw:0",
-		"packages/machine/src/flights.ts > Flown > _fly > landed > stale:0",
-		"packages/machine/src/flights.ts > Flown > _fly > landed > catch:0",
-		"packages/machine/src/flights.ts > Flown > _fly > landed > throw:0",
-		"packages/machine/src/flights.ts > Flown > _fly > failed > throw:0",
-		"packages/machine/src/flights.ts > Flown > _fly > reject:0",
-		"packages/machine/src/flights.ts > Flown > _fly > reject:1",
-		"packages/machine/src/flights.ts > Flown > _fly > catch:0",
-		"packages/machine/src/flights.ts > Flown > _fly > catch:1",
-		"packages/machine/src/flights.ts > Flown > _land > catch:0",
-		"packages/machine/src/flights.ts > Flown > _land > throw:0",
 		"packages/machine/src/flights.ts > Flown > _join > error-event:0",
-		"packages/machine/src/flights.ts > Flown > _join > reject:0",
-		"packages/machine/src/flights.ts > keyed > throw:0",
-		"packages/machine/src/lock.ts > Owned > acquire > abort:0",
 		"packages/machine/src/lock.ts > Owned > acquire > error-event:0",
-		"packages/machine/src/machine.ts > notify > catch:0",
-		"packages/machine/src/machine.ts > state_of > throw:0",
-		"packages/machine/src/machine.ts > illegal > throw:0",
-		"packages/machine/src/machine.ts > Running > wait > throw:0",
 		"packages/machine/src/machine.ts > Running > _arm > catch:0",
 		"packages/machine/src/machine.ts > Running > _arm > timer:0",
-		"packages/machine/src/machine.ts > Running > _arm > catch:1",
-		"packages/machine/src/machine.ts > check > throw:0",
-		"packages/machine/src/machine.ts > check > throw:1",
-		"packages/machine/src/machine.ts > check > throw:2",
-		"packages/machine/src/machine.ts > define > throw:0",
-		"packages/machine/src/machine.ts > define > throw:1",
-		"packages/machine/src/machine.ts > define > throw:2",
-		"packages/machine/src/machine.ts > define > throw:3",
 		"packages/machine/src/mailbox.ts > Box > ask > catch:0",
-		"packages/machine/src/mailbox.ts > Box > ask > reject:0",
-		"packages/machine/src/mailbox.ts > Box > _wait > reject:0",
-		"packages/machine/src/mailbox.ts > Box > _start > catch:0",
-		"packages/machine/src/mailbox.ts > Box > _start > throw:0",
 		"packages/machine/src/mailbox.ts > Box > _start > reject:0",
-		"packages/machine/src/mailbox.ts > Box > _start > throw:1",
-		"packages/machine/src/mailbox.ts > Box > _end_turn > catch:0",
-		"packages/machine/src/outbox.ts > id_of > throw:0",
-		"packages/machine/src/outbox.ts > Box > constructor > throw:0",
-		"packages/machine/src/outbox.ts > Box > put > catch:0",
-		"packages/machine/src/outbox.ts > Box > put > catch:1",
-		"packages/machine/src/outbox.ts > Box > _deliver > throw:0",
-		"packages/machine/src/outbox.ts > Box > _deliver > catch:0",
-		"packages/machine/src/outbox.ts > Box > _gave_up > catch:0",
-		"packages/machine/src/policy.ts > make_policy > throw:0",
-		"packages/machine/src/policy.ts > make_policy > throw:1",
-		"packages/machine/src/policy.ts > make_policy > throw:2",
-		"packages/machine/src/policy.ts > make_policy > throw:3",
 		"packages/machine/src/policy.ts > under_policy > abort:0",
 		"packages/machine/src/policy.ts > under_policy > error-event:0",
-		"packages/machine/src/policy.ts > under_policy > throw:0",
-		"packages/machine/src/policy.ts > under_policy > throw:1",
-		"packages/machine/src/policy.ts > under_policy > throw:2",
 		"packages/machine/src/policy.ts > under_policy > throw:3",
 		"packages/machine/src/ports/net.ts > fetch > fetch:0",
 		"packages/machine/src/ports/storage.ts > read > catch:0",
 		"packages/machine/src/ports/timers.ts > after > timer:0",
 		"packages/machine/src/ports/timers.ts > keep > timer:0",
 		"packages/machine/src/ports/timers.ts > timeout > abort:0",
-		"packages/machine/src/queue.ts > QueueImpl > drain > catch:0",
-		"packages/machine/src/queue.ts > QueueImpl > stale_job > catch:0",
 		"packages/machine/src/queue.ts > QueueImpl > arm > timer:0",
-		"packages/machine/src/queue.ts > queue > throw:0",
-		"packages/machine/src/say.ts > say > throw:0",
 		"packages/machine/src/scope.ts > Scoped > signal > abort:0",
-		"packages/machine/src/scope.ts > Scoped > timeout > throw:0",
-		"packages/machine/src/scope.ts > Scoped > every > throw:0",
-		"packages/machine/src/scope.ts > Scoped > task > catch:0",
 		"packages/machine/src/scope.ts > Scoped > task > reject:0",
 		"packages/machine/src/scope.ts > Scoped > task > error-event:0",
-		"packages/machine/src/scope.ts > Scoped > task > reject:1",
-		"packages/machine/src/scope.ts > Scoped > adopt > throw:0",
-		"packages/machine/src/scope.ts > Scoped > _said > reject:0",
-		"packages/machine/src/scope.ts > Scoped > close > catch:0",
-		"packages/machine/src/scope.ts > Scoped > close > catch:1",
-		"packages/machine/src/scope.ts > Scoped > close > catch:2",
-		"packages/machine/src/scope.ts > Scoped > close > throw:0",
 		"packages/machine/src/scope.ts > Scoped > ASYNC_DISPOSE > catch:0",
-		"packages/machine/src/scope.ts > Scoped > ASYNC_DISPOSE > throw:0",
 		"packages/machine/src/scope.ts > Scoped > ASYNC_DISPOSE > throw:1",
-		"packages/machine/src/slot.ts > slot > throw:0",
-		"packages/machine/src/slot.ts > slot > throw:1",
-		"packages/machine/src/slot.ts > slot > throw:2",
-		"packages/machine/src/slot.ts > slot > throw:3",
-		"packages/machine/src/stage.ts > Staged > constructor > throw:0",
-		"packages/machine/src/stage.ts > Staged > constructor > reject:0",
-		"packages/machine/src/stage.ts > Staged > constructor > stale:0",
 		"packages/machine/src/stage.ts > Staged > constructor > refused:0",
-		"packages/machine/src/stage.ts > Staged > constructor > throw:1",
-		"packages/machine/src/stage.ts > Staged > commit > catch:0",
-		"packages/machine/src/stage.ts > Staged > commit > throw:0",
-		"packages/machine/src/stage.ts > run > catch:0",
-		"packages/machine/src/stale.ts > whole > stale:0",
-		"packages/machine/src/stale.ts > whole > stale:1",
 		"packages/ogygia/src/cli.ts > installed > catch:0",
 		"packages/postrender/src/adapters/akamai.ts > AkamaiEdge > signed_post > fetch:0",
 		"packages/postrender/src/adapters/akamai.ts > AkamaiEdge > signed_post > not-ok:0",

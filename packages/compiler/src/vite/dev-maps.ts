@@ -1,18 +1,5 @@
-/**
- * THE DEV SERVER'S SOURCE MAPS, FOR THE PROFILER: Vite's module runner evaluates each server module's
- * transformed code inside an `AsyncFunction` (`"use strict";\n` first), with `//# sourceURL=<id>`, so a
- * CPU profile names the module by its id and its lines are the transformed code's, shifted by the
- * function's own header. The map from that code back to the source is in the SSR module graph. This
- * puts a lookup on a global the profiler (loaded by the same process) reads: module id → the map,
- * shifted to the lines V8 reports.
- */
-import fs from 'node:fs';
 import type { ViteDevServer } from 'vite';
-import {
-	page_data_keys_answer,
-	summarize_export,
-	type PageKeys
-} from '../compiler/link/page-keys.ts';
+import type { PageReads } from './plugin-api.ts';
 
 export const DEV_MAPS: unique symbol = Symbol.for('ogygia.profiler.dev-maps');
 export const DEV_PAGE_KEYS: unique symbol = Symbol.for('ogygia.profiler.dev-page-keys');
@@ -32,35 +19,27 @@ type SsrGraph = { getModulesByFile(file: string): Set<SsrNode> | undefined };
  * code reads (seed shaping); the dev server does not — every island reads "everything" there, so
  * the profiler could not tell a late island's data or point at the line that ships it all. This
  * puts the same analysis behind a global the profiler (same process) asks: the island id's
- * component and the app modules it imports (the SSR graph, eight deep), each read by the build's
- * own `page_data_keys_answer`, a helper handed the page followed one level like the build does.
+ * component and the app modules it imports (the SSR graph, eight deep), read together by the
+ * seed-shaping plugin (`PageReads.dev`), a helper handed the page followed like the build does.
  * Only what the report says changes: the dev seed itself still ships whole.
  */
 export function install_dev_page_keys(
 	server: ViteDevServer,
 	component_of: (iid: string) => string | null | undefined,
-	root: string
+	root: string,
+	reads: PageReads
 ): void {
 	const ssr = () =>
 		(server as unknown as { environments?: Record<string, { moduleGraph?: SsrGraph }> })
 			.environments?.ssr?.moduleGraph;
 	const app_file = (f: string | null | undefined): f is string =>
 		!!f && f.startsWith(root) && !f.includes('/node_modules/');
-	const kind = (f: string) => (f.endsWith('.svelte') ? 'svelte' : 'script') as 'svelte' | 'script';
-	const read = (f: string) => {
-		try {
-			return fs.readFileSync(f, 'utf8');
-		} catch {
-			return undefined; // ok: a profiler report only (the dev seed ships whole); a file gone mid-edit is skipped
-		}
-	};
 	(globalThis as Record<symbol, unknown>)[DEV_PAGE_KEYS] = async (
 		iid: string
 	): Promise<DevPageKeys | undefined> => {
 		const component = component_of(iid)?.split('?')[0];
 		const graph = ssr();
 		if (!component || !graph) return undefined;
-		// the component and the app modules below it
 		const files: string[] = [];
 		const seen = new Set<string>();
 		let level: string[] = [component];
@@ -78,48 +57,17 @@ export function install_dev_page_keys(
 			}
 			level = next;
 		}
-		const read_keys = new Set<string>();
-		let all = false;
-		let any = false;
-		const why: DevPageKeys['why'] = [];
-		const add = (k: PageKeys | null) => {
-			if (k === null) return;
-			any = true;
-			if (k === 'all') all = true;
-			else for (const x of k) read_keys.add(x);
-		};
-		for (const f of files) {
-			const code = read(f);
-			if (!code) continue;
-			const a = page_data_keys_answer(code, f, kind(f));
-			if (a.keys === 'all' && a.reason)
-				why.push({ file: f, line: a.reason.line, why: a.reason.why });
-			add(a.keys);
-			// `helper(page)`: what the imported helper reads of it (one level, as the build follows)
-			for (const p of a.pending) {
-				const resolved = await server.pluginContainer
-					.resolveId(p.specifier, f, { ssr: true })
-					.catch(() => null); // ok: dev only: a helper that does not resolve is not followed (one level only, as the build)
-				const target = resolved?.id?.split('?')[0];
-				const tcode = target && app_file(target) ? read(target) : undefined;
-				const s = tcode
-					? summarize_export(tcode, target!, kind(target!), p.imported, p.arg)
-					: 'all';
-				if (s === 'all' || !(s instanceof Set)) {
-					why.push({
-						file: f,
-						line: p.line,
-						why: `the page is handed to ${p.imported}(), which the analysis cannot follow`
-					});
-					add('all');
-				} else add(s);
-			}
-		}
-		return { keys: !any ? null : all ? 'all' : [...read_keys], why };
+		const a = await reads.dev(files, async (specifier, importer) => {
+			const resolved = await server.pluginContainer
+				.resolveId(specifier, importer, { ssr: true })
+				.catch(() => null); // ok: dev only: a helper that does not resolve is not followed (the plugin says why)
+			const id = resolved?.id?.split('?')[0];
+			return id && app_file(id) ? { id } : null;
+		});
+		return { keys: a.keys === 'unknown' ? 'all' : a.keys, why: a.why };
 	};
 }
 
-/** lines V8 counts before a module's first line: the `AsyncFunction` header, and `"use strict";` */
 function runner_offset(): number {
 	const AsyncFunction = async function () {}.constructor as new (...a: string[]) => () => unknown;
 	const src = new AsyncFunction('a', 'b', '/*code*/').toString();
@@ -182,7 +130,6 @@ export function install_dev_maps(server: ViteDevServer): void {
 	(globalThis as Record<symbol, unknown>)[DEV_MAPS] = (id: string): string | undefined => {
 		const map = graph()?.getModuleById(id)?.transformResult?.map;
 		if (!map || typeof map.mappings !== 'string') return undefined;
-		// shifted by the lines in front of the module's own first line
 		return JSON.stringify({ ...map, mappings: ';'.repeat(offset) + map.mappings });
 	};
 }

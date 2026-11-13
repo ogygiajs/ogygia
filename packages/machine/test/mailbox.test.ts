@@ -234,6 +234,17 @@ describe('mailbox', () => {
 		expect((box as unknown as { _waiting: Set<unknown> | null })._waiting?.size ?? 0).toBe(0);
 	});
 
+	it('an asker whose handler throws after waiting its turn hears the failure, never waits for good', async () => {
+		const box = mailbox(scope());
+		let free!: () => void;
+		box.post(() => new Promise<void>((r) => (free = r)));
+		const asked = box.ask(() => {
+			throw new Error('sync, queued');
+		});
+		free();
+		await expect(asked).rejects.toThrow('sync, queued');
+	});
+
 	it('throws a handler’s failure to its asker, and a wait’s rejection back in the turn', async () => {
 		const box = mailbox(scope());
 		await expect(

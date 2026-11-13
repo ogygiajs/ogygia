@@ -100,3 +100,27 @@ describe('lazy_files', () => {
 		expect(merged.file).toBe(null);
 	});
 });
+
+describe('lazy_files on the dev server', () => {
+	const dev_transform = async (code: string, resolved: string) => {
+		const plugin = lazy_files();
+		(plugin.configResolved as (c: unknown) => void)({ command: 'serve' });
+		const out = await (
+			plugin.transform as (this: unknown, code: string, id: string) => Promise<unknown>
+		).call({ resolve: async () => ({ id: resolved, external: false }) }, code, '/app/src/a.ts');
+		return (out as { code?: string } | null)?.code ?? null;
+	};
+
+	it("a package loader is handed its file's dev URL; a virtual module has none", async () => {
+		const call = `import_again(() => import('pkg'));`;
+		expect(await dev_transform(call, '/app/node_modules/pkg/x.js')).toContain(
+			`"/@fs/app/node_modules/pkg/x.js", import.meta.url`
+		);
+		expect(await dev_transform(call, '\0virtual:pkg')).toContain(', null, import.meta.url');
+	});
+
+	it('a call that already names its file (three arguments) is left as written', async () => {
+		const call = `import_again(() => import('pkg'), (u) => import(u), '/x.js');`;
+		expect((await dev_transform(call, '/app/x.js')) ?? call).toBe(call);
+	});
+});

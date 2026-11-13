@@ -1,5 +1,6 @@
 export * from './region/transform.ts';
 export { parse_module, type AstNode } from './parse/oxc.ts';
+export { parse_roots } from './parse/roots.ts';
 export * from './fouc-css.ts';
 export * from './free-vars.ts';
 export { Compiler, type Profiler } from './driver.ts';

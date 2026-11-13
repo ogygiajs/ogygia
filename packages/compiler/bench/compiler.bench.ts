@@ -1,6 +1,5 @@
 // The compiler's per-file passes, the work a build does for every module: the island transform of a
-// route component (its `with { wake }` imports, props and snippets), the page-data key analysis,
-// the ownership stamps, the store macros, the de-barrel import / export analysis, and the free
+// route component (its `with { wake }` imports, props and snippets), the ownership stamps, the store macros, the de-barrel import / export analysis, and the free
 // variables of an island's children; and the dev transform's marking of definer calls.
 import path from 'node:path';
 import { parse } from 'svelte/compiler';
@@ -13,7 +12,6 @@ import { barrel_left_table } from '../src/compiler/exports/left.ts';
 import { BARREL_LEFT_REASONS } from '@ogygia/core/contract';
 import { collectFreeIdentifiers } from '../src/compiler/free-vars.ts';
 import { own_reach, reaches_context, reaches_wire } from '../src/compiler/link/own-reach.ts';
-import { page_data_keys_answer } from '../src/compiler/link/page-keys.ts';
 import { rewrite_dollar } from '../src/compiler/macros/dollar.ts';
 import { auto_brand_stores, rewrite_store } from '../src/compiler/macros/store.ts';
 import { find_og_calls } from '../src/compiler/parse/scan.ts';
@@ -189,55 +187,6 @@ bench(
 	{
 		setup: () => ({ source: named_regions_page(3) }),
 		scale: (_ctx, k) => ({ source: named_regions_page(3 * k) })
-	}
-);
-
-bench(
-	'page data keys: which page.data keys a component reads',
-	({ source }) => page_data_keys_answer(source, '/app/src/lib/Catalog.svelte', 'svelte').keys,
-	{
-		setup: () => {
-			let body = '';
-			for (let i = 0; i < 60; i++) {
-				body = `${body}\tconst v${i} = page.data.section${i % 15}?.items?.[${i}]?.title ?? page.data.fallback;\n`;
-			}
-			return {
-				source: `${dedent`
-					<script lang="ts">
-						import { page } from '$app/state';
-					${body}</script>
-					{#each page.data.list as item}<p>{item.name} {page.data.user?.name}</p>{/each}
-				`}\n`
-			};
-		}
-	}
-);
-
-/** A script module that reads the page through its own helpers and the store helpers, `k` times
- *  over, with names shadowed by params, patterns, loops, catch clauses and blocks. */
-function page_helpers_module(k: number): string {
-	const parts = [
-		`import { get, derived } from 'svelte/store';`,
-		`import { page } from '$app/stores';`,
-		`function lang(p) { return p.data.lang; }`,
-		`const title = (p) => p.data.title;`
-	];
-	for (let i = 0; i < k; i++)
-		parts.push(
-			`export const l${i} = lang(get(page));`,
-			`export const t${i} = derived(page, ($page) => title($page) + $page.data.s${i});`,
-			`export function f${i}({ get, b: [lang], ...rest }, title = 1) { return get(page) + lang(page) + title; }`,
-			`export function g${i}(xs) { for (const [get] of xs) get(page); for (let derived = 0; derived < 1; derived++) {} try { lang(get(page)); } catch (title) { title(page); } { const lang = 1; } return 0; }`
-		);
-	return parts.join('\n');
-}
-
-bench(
-	"page data keys: a module's own page helpers and the store helpers, shadowed and not",
-	({ source }) => page_data_keys_answer(source, '/app/src/lib/page-helpers.ts', 'script').keys,
-	{
-		setup: () => ({ source: page_helpers_module(5) }),
-		scale: (_ctx, k) => ({ source: page_helpers_module(5 * k) })
 	}
 );
 

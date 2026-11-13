@@ -37,7 +37,10 @@ import { current_facts } from './plugin/facts.ts';
 import { try_get_request_store } from '@sveltejs/kit/internal/server';
 import { kit_render_context, type KitPage } from './server/kit-context.ts';
 import { open_ask_scope, read_seed_ask, record_page } from './page-seed-registry.ts';
-import { shape_page_data } from './server/seed-shape.ts';
+import { shape_page_data, unshipped_attr } from './server/seed-shape.ts';
+
+const RULES =
+	import.meta.env?.DEV || (typeof __OGYGIA_RULES__ !== 'undefined' ? __OGYGIA_RULES__ : false);
 
 import { escape_text } from './escape.ts';
 import { mark_attr, response_mark } from './server/response-mark.ts';
@@ -199,7 +202,7 @@ export async function document(
 		if (payload) {
 			const format = payload.json ? ` ${OG_FORMAT}="${WIRE_FORMAT_JSON}"` : '';
 			head.push(
-				`<script type="application/ogygia-page" ${OGYGIA_PAGE}${format}${mark_attr(mark_key)}>${payload.text}</script>`
+				`<script type="application/ogygia-page" ${OGYGIA_PAGE}${format}${mark_attr(mark_key)}${RULES && ask ? unshipped_attr(s.data, ask.keys) : ''}>${payload.text}</script>`
 			);
 		}
 	}

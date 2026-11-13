@@ -35,7 +35,8 @@ function cx(hoists: Record<string, string> = {}): RelocateCx {
 		file_name: (ref) => `chunks/regions/${ref}.js`,
 		facade_file: (id) => (id === '/app/src/lazy.ts' ? 'chunks/lazy-x1.js' : undefined),
 		graph: () => null,
-		module_ids: () => []
+		module_ids: () => [],
+		page_reads: null
 	};
 }
 
@@ -58,7 +59,8 @@ describe('relocate', () => {
 		const counts = new Map<string, number>();
 		expect(relocate(`"${PAGE_DATA_READS_TOKEN}"`, false, counts, cx())).toBeNull();
 		expect(counts.size).toBe(0);
-		expect(relocate(`"${PAGE_DATA_READS_TOKEN}"`, true, counts, cx())).toBe('"{}"');
+		const shaped = { ...cx(), page_reads: { keys: () => null } };
+		expect(relocate(`"${PAGE_DATA_READS_TOKEN}"`, true, counts, shaped)).toBe('"{}"');
 		expect(counts.get('page data reads')).toBe(1);
 	});
 

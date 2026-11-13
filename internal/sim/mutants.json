@@ -259,6 +259,89 @@
 		"to": "return null;"
 	},
 	{
+		"id": "peer-widget-failover-500-kept",
+		"file": "packages/federation/src/peer.ts",
+		"in": "PeerHandle > widgetDoc",
+		"code": "if (res.status < 500 || i === origins.length - 1) break;",
+		"operator": "relational",
+		"from": "< 500",
+		"to": "<= 500"
+	},
+	{
+		"id": "peer-widget-failover-every-origin",
+		"file": "packages/federation/src/peer.ts",
+		"in": "PeerHandle > widgetDoc",
+		"code": "if (res.status < 500 || i === origins.length - 1) break;",
+		"operator": "logical",
+		"from": "||",
+		"to": "&&"
+	},
+	{
+		"id": "peer-widget-failover-first-only",
+		"file": "packages/federation/src/peer.ts",
+		"in": "PeerHandle > widgetDoc",
+		"code": "if (res.status < 500 || i === origins.length - 1) break;",
+		"operator": "equality",
+		"from": "===",
+		"to": "!=="
+	},
+	{
+		"id": "peer-widget-failover-past-last",
+		"file": "packages/federation/src/peer.ts",
+		"in": "PeerHandle > widgetDoc",
+		"code": "if (res.status < 500 || i === origins.length - 1) break;",
+		"operator": "arithmetic",
+		"from": " - 1",
+		"to": " + 1",
+		"equivalent": "the loop ends after its last origin anyway: breaking at the last one or running out leaves the same answer in res"
+	},
+	{
+		"id": "peer-page-failover-500-kept",
+		"file": "packages/federation/src/peer.ts",
+		"in": "PeerHandle > raw_doc",
+		"code": "if (res.status < 500 || i === pool.length - 1) break;",
+		"operator": "relational",
+		"from": "< 500",
+		"to": "<= 500"
+	},
+	{
+		"id": "peer-page-failover-every-origin",
+		"file": "packages/federation/src/peer.ts",
+		"in": "PeerHandle > raw_doc",
+		"code": "if (res.status < 500 || i === pool.length - 1) break;",
+		"operator": "logical",
+		"from": "||",
+		"to": "&&"
+	},
+	{
+		"id": "peer-page-failover-first-only",
+		"file": "packages/federation/src/peer.ts",
+		"in": "PeerHandle > raw_doc",
+		"code": "if (res.status < 500 || i === pool.length - 1) break;",
+		"operator": "equality",
+		"from": "===",
+		"to": "!=="
+	},
+	{
+		"id": "peer-page-failover-past-last",
+		"file": "packages/federation/src/peer.ts",
+		"in": "PeerHandle > raw_doc",
+		"code": "if (res.status < 500 || i === pool.length - 1) break;",
+		"operator": "arithmetic",
+		"from": " - 1",
+		"to": " + 1",
+		"equivalent": "the loop ends after its last origin anyway: breaking at the last one or running out leaves the same answer in res"
+	},
+	{
+		"id": "peer-endpoint-500-not-skipped",
+		"file": "packages/federation/src/peer.ts",
+		"in": "PeerHandle > endpoint",
+		"code": "if (res.status >= 500) continue;",
+		"operator": "relational",
+		"from": ">= 500",
+		"to": "> 500"
+	},
+	{
 		"id": "hole-answered-left-armed",
 		"file": "packages/core/src/runtime/core.ts",
 		"in": "OgygiaRegion > answered",
@@ -399,7 +482,7 @@
 		"id": "router-build-throw-not-handed-off",
 		"file": "packages/core/src/runtime/router-nav.ts",
 		"in": "navigate",
-		"code": "return hand_off(error); // (its devalue did not load, or another step of it threw)",
+		"code": "return hand_off(error);",
 		"operator": "statement",
 		"from": "return hand_off(error);",
 		"to": "return;",
@@ -444,5 +527,23 @@
 		"from": "(s === STALE ? STALE : s.html)",
 		"to": "(s === STALE ? ('' as VerifiedHtml) : s.html)",
 		"aim": "batch.part-lost"
+	},
+	{
+		"id": "reshape-fallback-without-restorer",
+		"file": "packages/reshape/src/pass.ts",
+		"in": "reshape_pass > document",
+		"code": "if (out === null) return { html, head: '', body: RESTORER_SCRIPT };",
+		"operator": "statement",
+		"from": "body: RESTORER_SCRIPT };",
+		"to": "body: '' };"
+	},
+	{
+		"id": "reshape-fallback-off",
+		"file": "packages/reshape/src/pass.ts",
+		"in": "reshape_pass > document",
+		"code": "if (out === null) return { html, head: '', body: RESTORER_SCRIPT };",
+		"operator": "statement",
+		"from": "if (out === null) return { html, head: '', body: RESTORER_SCRIPT };",
+		"to": "if (out === null) throw new Error('the pass failed');"
 	}
 ]

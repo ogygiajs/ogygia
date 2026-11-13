@@ -11,3 +11,6 @@ box.post(async () => {
 	await new Promise((r) => setTimeout(r, 1));
 	throw new Error('late');
 });
+box.post(() => {
+	setTimeout(() => console.log('next: ran'), 5);
+});
