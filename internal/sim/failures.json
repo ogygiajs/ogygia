@@ -4160,6 +4160,78 @@
 			"reason": "a test reaches its recovery path; proved by the autopilot: the catch made to rethrow turns the test red",
 			"test": "packages/compiler/test/style-preprocess-sass-missing.test.ts",
 			"name": "no sass compiler from the app root: the style is left as is, and sass_missing is said once"
+		},
+		{
+			"site": "packages/machine/src/cache.ts > Store > _set_timer > timer:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the timer's callback made to do nothing turns the test red",
+			"test": "packages/machine/test/cache.test.ts",
+			"name": "keep is how long a value stays; one past its age is gone, noticed as age"
+		},
+		{
+			"site": "packages/machine/src/flights.ts > Flown > _join > error-event:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the error handler made to do nothing turns the test red",
+			"test": "packages/machine/test/flights.test.ts",
+			"name": "its own handling of a failure adds no unhandled rejection"
+		},
+		{
+			"site": "packages/machine/src/lock.ts > Owned > acquire > error-event:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the error handler made to do nothing turns the test red",
+			"test": "packages/machine/test/lock.test.ts",
+			"name": "acquire: an abort before its turn leaves the queue and rejects with the reason"
+		},
+		{
+			"site": "packages/machine/src/machine.ts > Running > _arm > timer:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the timer's callback made to do nothing turns the test red",
+			"test": "packages/machine/test/after.test.ts",
+			"name": "still in the state when its time is up: the machine takes the step, with its data"
+		},
+		{
+			"site": "packages/machine/src/mailbox.ts > Box > ask > catch:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the catch body emptied turns the test red",
+			"test": "packages/machine/test/mailbox.test.ts",
+			"name": "an asker whose handler throws after waiting its turn hears the failure, never waits for good"
+		},
+		{
+			"site": "packages/machine/src/policy.ts > under_policy > abort:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the abort check never true turns the test red",
+			"test": "packages/machine/test/policy-run.test.ts",
+			"name": "a caller whose signal already aborted gets STALE, and the work never runs"
+		},
+		{
+			"site": "packages/machine/src/policy.ts > under_policy > error-event:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the error handler made to do nothing turns the test red",
+			"test": "packages/machine/test/flights.test.ts",
+			"name": "a drop during the wait between tries ends them: STALE, no next try"
+		},
+		{
+			"site": "packages/machine/src/ports/storage.ts > read > catch:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the catch body emptied turns the test red",
+			"test": "packages/machine/test/storage-port.test.ts",
+			"name": "storage that throws as it is read is no storage"
+		},
+		{
+			"site": "packages/machine/src/queue.ts > QueueImpl > arm > timer:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the timer's callback made to do nothing turns the test red",
+			"test": "packages/machine/test/queue.test.ts",
+			"name": "mid-expiry: every expired job is stale once, none skipped, after the list is compacted under it"
+		},
+		{
+			"site": "packages/machine/src/scope.ts > Scoped > task > error-event:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the error handler made to do nothing turns the test red",
+			"test": "packages/machine/test/world.test.ts",
+			"name": "a move drops the kept answers and ends the flights out: their callers get STALE"
+		},
+		{
+			"site": "packages/machine/src/scope.ts > Scoped > ASYNC_DISPOSE > catch:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the catch body emptied turns the test red",
+			"test": "packages/machine/test/scope.test.ts",
+			"name": "`await using` whose cleanup throws still waits for the async disposals, then throws both together"
+		},
+		{
+			"site": "packages/machine/src/scope.ts > Scoped > ASYNC_DISPOSE > throw:1",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
+			"test": "packages/machine/test/scope.test.ts",
+			"name": "`await using` whose cleanup throws still waits for the async disposals, then throws both together"
 		}
 	],
 	"impossible": [
@@ -5121,28 +5193,16 @@
 		"packages/insights/src/session-insights.ts > path_of > catch:0",
 		"packages/insights/src/session-insights.ts > same_origin_get > catch:0",
 		"packages/insights/src/third-party.ts > host_of > catch:0",
-		"packages/machine/src/cache.ts > Store > _set_timer > timer:0",
 		"packages/machine/src/flights.ts > id_of > catch:0",
-		"packages/machine/src/flights.ts > Flown > _join > error-event:0",
-		"packages/machine/src/lock.ts > Owned > acquire > error-event:0",
 		"packages/machine/src/machine.ts > Running > _arm > catch:0",
-		"packages/machine/src/machine.ts > Running > _arm > timer:0",
-		"packages/machine/src/mailbox.ts > Box > ask > catch:0",
 		"packages/machine/src/mailbox.ts > Box > _start > reject:0",
-		"packages/machine/src/policy.ts > under_policy > abort:0",
-		"packages/machine/src/policy.ts > under_policy > error-event:0",
 		"packages/machine/src/policy.ts > under_policy > throw:3",
 		"packages/machine/src/ports/net.ts > fetch > fetch:0",
-		"packages/machine/src/ports/storage.ts > read > catch:0",
 		"packages/machine/src/ports/timers.ts > after > timer:0",
 		"packages/machine/src/ports/timers.ts > keep > timer:0",
 		"packages/machine/src/ports/timers.ts > timeout > abort:0",
-		"packages/machine/src/queue.ts > QueueImpl > arm > timer:0",
 		"packages/machine/src/scope.ts > Scoped > signal > abort:0",
 		"packages/machine/src/scope.ts > Scoped > task > reject:0",
-		"packages/machine/src/scope.ts > Scoped > task > error-event:0",
-		"packages/machine/src/scope.ts > Scoped > ASYNC_DISPOSE > catch:0",
-		"packages/machine/src/scope.ts > Scoped > ASYNC_DISPOSE > throw:1",
 		"packages/machine/src/stage.ts > Staged > constructor > refused:0",
 		"packages/ogygia/src/cli.ts > installed > catch:0",
 		"packages/postrender/src/adapters/akamai.ts > AkamaiEdge > signed_post > fetch:0",
