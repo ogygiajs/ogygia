@@ -26,6 +26,8 @@
  *   `restore` pairs them by position: a count that differs drops a lake's content).
  * - `rule_head_adopted`: the head never gains a `<base>` or a refresh / CSP / cookie meta after the
  *   first document (SPA-HEAD, ./head-deny.ts).
+ * - `rule_turns_counted`: the hydration scheduler's count of pending turns is the turns it holds,
+ *   each in the heap its snapshot names (./schedule.ts `turns_counted`: the drain's pick rests on it).
  *
  * Each area tells this module what it holds (`note_mount`, `note_visit`, `watch_router`) only when
  * rules are on (`RULES`): every call site folds out of a build without them.
@@ -46,7 +48,8 @@ type RuntimeRule =
 	| 'rule_region_answer_behind'
 	| 'rule_region_left_busy'
 	| 'rule_head_adopted'
-	| 'rule_lake_restored';
+	| 'rule_lake_restored'
+	| 'rule_turns_counted';
 
 /** The runtime's rules. */
 export const runtime_rules: Rules<RuntimeRule> = /* @__PURE__ */ new Rules<RuntimeRule>();
@@ -247,6 +250,18 @@ export function watch_frames(peek: (address: string) => { v: number } | null): v
 	held_at = peek;
 }
 
+// ── the scheduler counts the turns it holds ──
+
+/** The hydration scheduler's own check (./schedule.ts hands it over as it loads). */
+let turns_check: (() => string | null) | null = null;
+
+/** The scheduler is on the page: the rule asks it whether its count holds. */
+export function watch_turns(check: () => string | null): void {
+	turns_check = check;
+}
+
+const turns_counted = (): string | null => (turns_check === null ? null : turns_check());
+
 /** The store handed `region` the answer with ticket `v` at `address` (`painting`: one of its
  *  answers is being painted now). */
 export function note_handed(
@@ -400,6 +415,7 @@ export function install_rules(dev: boolean): void {
 	runtime_rules.add('rule_markup_known', markup_known);
 	runtime_rules.add('rule_region_answer_behind', regions_show_their_answers);
 	runtime_rules.add('rule_region_left_busy', regions_left_at_rest);
+	runtime_rules.add('rule_turns_counted', turns_counted);
 	watch_head();
 	(globalThis as PageGlobals).__og_parsed = note_parse;
 	(globalThis as { __ogygia_rules?: () => BrokenRule[] }).__ogygia_rules = () =>
