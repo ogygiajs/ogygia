@@ -215,6 +215,7 @@ function own_live_head(page: URL): void {
 		if (!owned.has(el) || WRITTEN_FOR.has(el)) continue;
 		WRITTEN_FOR.set(el, page.href);
 		// @why a disabled stylesheet link is fetched only once turned on, against the document's address at that moment (test: test/browser/nav-head-key-depth.test.ts › a kept parked sheet still names its file under the deeper address it was kept for (#1071))
+		// @why Chromium fetches a loaded stylesheet link again when its href is set, even to the URL it already names, so a loaded one keeps its href (test: test/browser/nav-head-key-depth.test.ts › a kept, loaded sheet is not fetched again across depths, and still names its own file (#1741))
 		if (el.localName !== 'link' || !(el as HTMLLinkElement).disabled) continue;
 		if (!/(?:^|\s)stylesheet(?:\s|$)/i.test(el.getAttribute('rel') ?? '')) continue;
 		const value = el.getAttribute('href');

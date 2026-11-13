@@ -54,12 +54,8 @@ type EncodedRegion = {
 
 /** The region ENCODE law (ticket pass-through / dual signs at crossing / awaited-inline bakes /
  *  inline-unawaited throws), byte-for-byte the pre-hub behavior. */
-function encode_region(value: unknown): false | EncodedRegion {
+function encode_region(f: Record<PropertyKey, unknown>): EncodedRegion {
 	{
-		if (typeof value !== 'object' || value === null) return false;
-		const f = value as Record<PropertyKey, unknown>;
-		if (f[REGION_BRAND] !== true) return false;
-
 		// Already a ticket (a re-serialized deferred region) — pass its fields through.
 		if (f.kind === 'deferred') {
 			return pack(
@@ -165,9 +161,9 @@ function decode_region(raw: EncodedRegion) {
  * throws, exactly as the crossing would.
  */
 export function wire_form<T>(value: T): T {
-	if (typeof document !== 'undefined') return value;
-	const encoded = encode_region(value);
-	return encoded === false ? value : (decode_region(encoded) as T);
+	if (typeof document !== 'undefined' || typeof value !== 'object' || value === null) return value;
+	const f = value as Record<PropertyKey, unknown>;
+	return f[REGION_BRAND] === true ? (decode_region(encode_region(f)) as T) : value;
 }
 
 /** The hub kind: a held/dual/awaited region — the RENDERABLE Ref. `d` is the EncodedRegion.
@@ -181,12 +177,7 @@ export function register_region_kind(): void {
 			return (value as Record<PropertyKey, unknown>)[REGION_BRAND] === true;
 		},
 		encode(value) {
-			const packed = encode_region(value);
-			if (packed === false) {
-				// unreachable through mint (match gates), kept as a hard guard
-				throw new OgygiaError('region_kind_mismatch');
-			}
-			return { d: packed };
+			return { d: encode_region(value as Record<PropertyKey, unknown>) };
 		},
 		decode(ref: Ref) {
 			return decode_region(ref.d as EncodedRegion);

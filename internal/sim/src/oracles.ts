@@ -7,6 +7,7 @@ import { gate_open_early, own_text, type Tab, type Visitor } from './browser.ts'
 import { boxes, on_screen, type Box } from './layout.ts';
 import { answer_key, FOREIGN_MARK, is_page_path, LOSSY_POINTS, type World } from './world.ts';
 import { EDGE_BAD, EDGE_GONE, EDGE_MOVED, MOUNT } from './gen.ts';
+import { written_page } from './happy.ts';
 
 /** `SIM_DUMP=<dir>`: an MPA difference writes both sides whole there (`<tab>-<path>-shown.txt`,
  *  `-fresh.txt`), to read past its first hunk. */
@@ -115,12 +116,15 @@ export function normalize(root: {
 					)
 			)
 			.map((a) => {
+				// (a kept head node's URL means the file of the page that wrote it, as the router reads
+				// it: #1741, palaestra seed 20004)
+				const from = written_page(el) ?? base;
 				// (one no URL can be made of, a tampered byte in its host, stays as it is: gen 45, seed 32)
 				const address =
 					((tag === 'link' && a.name === 'href') || /^\.\.?\//.test(a.value)) &&
-					URL.canParse(a.value, base);
+					URL.canParse(a.value, from);
 				return address
-					? `${a.name}="${new URL(a.value, base).pathname}"`
+					? `${a.name}="${new URL(a.value, from).pathname}"`
 					: `${a.name}="${a.value}"`;
 			})
 			.sort()
@@ -1545,6 +1549,34 @@ export function text_restored(tab: Tab, world: World): Broken | null {
 	return wrong.length === 0
 		? null
 		: { oracle: 'text-restored', detail: `${tab.page.mainFrame.url}: ${wrong.join('\n')}` };
+}
+
+/** The points that leave a rewrite's element unrendered on purpose: the packages' and the random
+ *  app's own. */
+const UNRENDERED_BY: readonly string[] = ['rewrite.', 'gen.reshape-'];
+
+/**
+ * A REWRITE RENDERS EVERY ELEMENT IT MATCHES, AND ONLY THE OUTERMOST: the page's HTML as it came
+ * (`Exchange.rewrite_misses`) holds no outermost matched element the render never reached, unless
+ * a rewrite point fired while the server answered it (a render that threw, a cancel, a split
+ * chunk), and never an element rendered inside one left unrendered, whatever fired. An unrendered
+ * element is still a correct page, so no other oracle tells a rewrite that rendered nothing from
+ * one that worked. A document the network changed is not judged.
+ */
+export function rewrite_rendered(tab: Tab, world: World): Broken | null {
+	const own = world.network.exchanges.find((e) => e.from === tab.realm);
+	const misses = own?.rewrite_misses;
+	if (misses === undefined || document_faulted(world, tab)) return null;
+	if (new URL(own!.url).pathname !== new URL(tab.page.mainFrame.url).pathname) return null;
+	const explained =
+		misses.stored || (own!.fired ?? []).some((p) => UNRENDERED_BY.some((u) => p.startsWith(u)));
+	const wrong = [
+		...(explained ? [] : misses.unrendered.map((n) => `<${n}> went out unrendered`)),
+		...misses.inner.map((n) => `<${n}> was rendered inside a matched element left unrendered`)
+	];
+	return wrong.length === 0
+		? null
+		: { oracle: 'rewrite-rendered', detail: `${own!.url}: ${wrong.join('\n')}` };
 }
 
 /** A peer hop's deadline (federation's `timeout` default, which the generated apps keep): an answer

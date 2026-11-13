@@ -129,6 +129,8 @@ export interface Build {
 	/** Its server's environment beside the host's (`$env/dynamic/private`): a federated app's keys
 	 *  and its peers' origins. */
 	readonly env?: Readonly<Record<string, string>>;
+	/** The ogygia release it was built on, when not this tree (an app upgraded from it: src/builds.ts). */
+	readonly released?: string;
 }
 
 export interface ServerInstance {
