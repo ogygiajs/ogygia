@@ -195,7 +195,7 @@ jobs:
         working-directory: internal/sim
         run: |
           for aim in $(node -e 'console.log([...new Set(require("./mutants.json").flatMap((m) => m.aim ? [m.aim] : []))].join(" "))'); do
-            node --no-warnings src/mutate.ts --mutants mutants.json --gens 191 --seeds 12 \
+            node --no-warnings src/mutate.ts --mutants mutants.json --gens 191,24,262 --seeds 12 \
               --jobs 4 --budget-min 10 --sandbox "$RUNNER_TEMP/mutbox-aim" \
               --buggify-aim "$aim" --out "$RUNNER_TEMP/dst-mutation-aimed.jsonl"
             tail -1 "$RUNNER_TEMP/dst-mutation-aimed.jsonl" | AIM="$aim" node -e '

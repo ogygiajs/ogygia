@@ -225,6 +225,21 @@ test('a text mark whose original does not parse carries none: the text stays as 
 	expect(document.querySelector('demo-card')!.textContent).toContain('Sign in');
 });
 
+test('every dev check under the root is read and consumed: a restore of a streamed page checks the hosts of every chunk, and a second restore finds nothing (found by the rewrite sim)', () => {
+	(window as { __og_restore_log?: unknown[] }).__og_restore_log = [];
+	const one = '<demo-card og-h="0" og-shadow="k"><slot><i og-c="0.0">a</i></slot></demo-card>';
+	const two =
+		'<demo-card og-h="1" og-shadow="k"><slot><i og-c="1.0">changed</i></slot></demo-card>';
+	document.body.innerHTML = `${one}${check_script({ 0: '<i>a</i>' })}${two}${check_script({ 1: '<i>b</i>' })}`;
+	expect(restore(document)).toBe(2);
+	const log = (window as { __og_restore_log?: { kind: string }[] }).__og_restore_log!;
+	expect(log.filter((e) => e.kind === 'mismatch')).toHaveLength(1);
+	expect(document.body.querySelectorAll('script').length).toBe(0);
+	const before = document.body.innerHTML;
+	expect(restore(document)).toBe(0);
+	expect(document.body.innerHTML).toBe(before);
+});
+
 test('a dev check that does not parse checks nothing: the restore goes on, and the script is consumed', async () => {
 	const s = await served('<demo-card class="own"> hi </demo-card>');
 	expect(s.planned).toBe(1);
