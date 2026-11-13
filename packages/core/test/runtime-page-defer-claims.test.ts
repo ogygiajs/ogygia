@@ -120,6 +120,39 @@ it('a streamed promise whose resolve never came is rejected once the document ha
 	}
 });
 
+it('a marker read again after its value arrived early is the same settled promise (#1435)', async () => {
+	vi.stubGlobal('document', { readyState: 'complete' });
+	try {
+		install_page_defer();
+		// (the resolve script ran before any island read the marker)
+		resolve(11, true, 'early');
+		// (devalue is loaded: its value lands within the task)
+		await new Promise((done) => setTimeout(done, 0));
+		const first = create_deferred(11);
+		const again = create_deferred(11);
+		expect(again).toBe(first);
+		await expect(again).resolves.toBe('early');
+	} finally {
+		vi.unstubAllGlobals();
+	}
+});
+
+it('a marker read again after its value arrived while waited on is the same settled promise (#1435)', async () => {
+	const doc = loading_document();
+	try {
+		install_page_defer();
+		const first = create_deferred(12);
+		resolve(12, true, 'waited');
+		await expect(first).resolves.toBe('waited');
+		doc.load();
+		const again = create_deferred(12);
+		expect(again).toBe(first);
+		await expect(again).resolves.toBe('waited');
+	} finally {
+		vi.unstubAllGlobals();
+	}
+});
+
 it('a streamed promise read after the document loaded, with no resolve, is rejected at once', async () => {
 	vi.stubGlobal('document', { readyState: 'complete' });
 	try {

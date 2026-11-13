@@ -2792,7 +2792,7 @@ export function chunk_component_renamer(
 		try {
 			path = new URL(url, 'http://x').pathname;
 		} catch {
-			return undefined;
+			return undefined; // ok: not a URL: the minified name stays as it is
 		}
 		if (!cache.has(path)) {
 			const comps = (contents(path) ?? [])

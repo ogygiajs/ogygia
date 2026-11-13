@@ -4,6 +4,7 @@
  * drawn as boxes. Pure: `html_diff` is a token diff (tags and text runs) with a size cap so a huge
  * island never freezes the report; `shift_boxes` normalizes shift rectangles to the viewport.
  */
+import { markup_tokens } from '@ogygia/core/internal/instruments';
 
 export interface DiffOp {
 	kind: 'same' | 'add' | 'del';
@@ -20,19 +21,18 @@ export interface HtmlDiff {
 	same_ratio: number;
 }
 
-const TOKEN_RE = /<!--[\s\S]*?-->|<[^>]+>|[^<]+/g;
+const SPACE_RUN = /(\s+)/;
 
-/** Tags, comments and text runs; a text run over 40 characters splits on whitespace, so a one-word
- *  change is one token. */
+/** Tags, comments and text runs, cut by core's tag walk as the browser reads them (a `<` or `>` in
+ *  a value, a comment or a script is not a tag edge); a text run over 40 characters splits on
+ *  whitespace, so a one-word change is one token. */
 export function tokenize_html(s: string): string[] {
 	const out: string[] = [];
-	let m: RegExpExecArray | null;
-	TOKEN_RE.lastIndex = 0;
-	while ((m = TOKEN_RE.exec(s))) {
-		const t = m[0];
-		if (t[0] !== '<' && t.length > 40) out.push(...t.split(/(\s+)/).filter(Boolean));
+	markup_tokens(s, (kind, start, end) => {
+		const t = s.slice(start, end);
+		if (kind === 0 && t.length > 40) out.push(...t.split(SPACE_RUN).filter(Boolean));
 		else out.push(t);
-	}
+	});
 	return out;
 }
 
