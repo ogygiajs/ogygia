@@ -163,6 +163,23 @@ test('every parse is checked: an answer with a built custom element breaks rule_
 	expect(runtime_rules.broken().map((r) => r.code)).toContain('rule_parse_upgraded');
 });
 
+test('a shadow sheet a host names but the page lacks is said once per key, with its code', async () => {
+	const said = vi.spyOn(console, 'warn').mockImplementation(() => {});
+	const w = window as { __og_restore_log?: { kind: string; host: string; key?: string }[] };
+	w.__og_restore_log = [
+		{ kind: 'sheet', host: 'demo-card', key: 'demo-missing.shadow' },
+		{ kind: 'sheet', host: 'demo-link', key: 'demo-missing.shadow' },
+		{ kind: 'sheet', host: 'demo-card', key: 'demo-other.shadow' }
+	];
+	report_restores();
+	await vi.waitFor(() => expect(said).toHaveBeenCalled());
+	const lines = said.mock.calls.map((c) => String(c[0]));
+	expect(lines.filter((l) => l.includes('restore_sheet_missing'))).toHaveLength(2);
+	expect(lines.some((l) => l.includes('demo-missing.shadow'))).toBe(true);
+	expect(lines.some((l) => l.includes('demo-other.shadow'))).toBe(true);
+	said.mockRestore();
+});
+
 test('production: a late restore is said once per page and host tag, with its code', async () => {
 	const said = vi.spyOn(console, 'warn').mockImplementation(() => {});
 	const w = window as { __og_restore_log?: { kind: string; host: string }[] };
