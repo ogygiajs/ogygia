@@ -291,7 +291,6 @@ function drain(): void {
 	});
 }
 
-/** @heisenbench linear */
 async function drain_queue(): Promise<void> {
 	let until = now() + START_BUDGET_MS;
 	for (;;) {
