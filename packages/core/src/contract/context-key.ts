@@ -2,7 +2,8 @@ const TAG = '\0';
 const SHARED = `${TAG}s`;
 const ESCAPED = `${TAG}k`;
 
-/** The name `key` crosses under, or null when no browser can rebuild it. */
+/** The name a context key crosses into regions under (a string as itself, a `Symbol.for` key
+ *  tagged), or null when no browser can rebuild it (a one-off `Symbol()`). */
 export function key_name(key: unknown): string | null {
 	if (typeof key === 'string') return key.startsWith(TAG) ? ESCAPED + key : key;
 	if (typeof key !== 'symbol') return null;
@@ -26,14 +27,4 @@ export function key_label(key: unknown): string {
 		return shared === undefined ? String(key) : `Symbol.for('${shared}')`;
 	}
 	return String(key);
-}
-
-/** A provider's values keyed by the names they cross under; a key that cannot cross is left out. */
-export function crossing_values(values: object): Record<string, unknown> {
-	const out: Record<string, unknown> = {};
-	for (const key of Reflect.ownKeys(values)) {
-		const name = key_name(key);
-		if (name !== null) out[name] = (values as Record<PropertyKey, unknown>)[key];
-	}
-	return out;
 }

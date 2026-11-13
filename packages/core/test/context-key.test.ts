@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { parse } from 'devalue';
-import { crossing_values, key_label, key_name, key_of } from '../src/context-key.ts';
-import { serialize_context, serialize_provided_context } from '../src/context-bridge.ts';
+import { key_label, key_name, key_of } from '../src/contract/context-key.ts';
+import {
+	crossing_values,
+	serialize_context,
+	serialize_provided_context
+} from '../src/context-bridge.ts';
 
 const STRINGS = ['', 'theme', 's', '\0', '\0s', '\0srt', '\0k', '\0kx', '\0\0', 'Symbol.for(rt)'];
 
