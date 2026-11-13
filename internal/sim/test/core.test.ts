@@ -1,4 +1,9 @@
 // The simulator's own pieces keep their promise: one seed, one run.
+import { execFileSync } from 'node:child_process';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { open } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { rng } from '../src/rng.ts';
 import { Loop } from '../src/loop.ts';
@@ -16,6 +21,31 @@ describe('rng', () => {
 		const net = c.fork('net');
 		c.fork('loop').float();
 		expect(net.float()).toBe(rng(7).fork('net').float());
+	});
+});
+
+describe('a settle', () => {
+	it('that gives up says when and what it waited on, after real time, never a count of turns (run 43426260639: a page load went on without its file read, silently)', async () => {
+		const dir = mkdtempSync(join(tmpdir(), 'settle-'));
+		const fifo = join(dir, 'fifo');
+		execFileSync('mkfifo', [fifo]);
+		const loop = new Loop(rng(1), { settle_ms: 100 });
+		// (a FIFO's open waits until a writer comes: a file request that stays in flight)
+		const reading = open(fifo, 'r');
+		try {
+			const t0 = performance.now();
+			await loop.settle();
+			expect(performance.now() - t0).toBeGreaterThanOrEqual(100);
+			expect(loop.stalls).toBe(1);
+			expect(loop.stalled).toEqual([{ at: 0, waiting: ['FSReqPromise'] }]);
+		} finally {
+			const writer = await open(fifo, 'w');
+			await (await reading).close();
+			await writer.close();
+			rmSync(dir, { recursive: true, force: true });
+		}
+		await loop.settle();
+		expect(loop.stalls).toBe(1);
 	});
 });
 
