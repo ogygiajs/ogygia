@@ -640,6 +640,9 @@ importers:
 
   apps/sim-gen:
     dependencies:
+      '@ogygia/data-shake':
+        specifier: workspace:*
+        version: link:../../packages/data-shake
       '@ogygia/federation':
         specifier: workspace:*
         version: link:../../packages/federation
@@ -649,9 +652,6 @@ importers:
       '@ogygia/machine':
         specifier: workspace:*
         version: link:../../packages/machine
-      '@ogygia/page-keys':
-        specifier: workspace:*
-        version: link:../../packages/page-keys
       '@ogygia/postrender':
         specifier: workspace:*
         version: link:../../packages/postrender
