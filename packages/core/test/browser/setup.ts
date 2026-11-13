@@ -16,6 +16,7 @@ import { TEST_MARK_ATTR } from './_response-mark.ts';
 import Counter from './fixtures/Counter.svelte';
 import Heavy from './fixtures/Heavy.svelte';
 import Label from './fixtures/Label.svelte';
+import HeadStyle from './fixtures/HeadStyle.svelte';
 import NestedProbe from './fixtures/NestedProbe.svelte';
 import LakeKitHost from './fixtures/LakeKitHost.svelte';
 import HoleKitHost from './fixtures/HoleKitHost.svelte';
@@ -32,6 +33,7 @@ import { hole_answer_context } from '../../src/server/answer-context.ts';
 const COUNTER = '/test/browser/fixtures/Counter.svelte';
 const HEAVY = '/test/browser/fixtures/Heavy.svelte';
 const HELD_HOLE_CARD = '/test/browser/fixtures/HeldHoleCard.svelte';
+const HEAD_STYLE = '/test/browser/fixtures/HeadStyle.svelte';
 
 /** The island shell a page carries: the runtime reads `wake` + `entry`, then the props sidecar. */
 function island(entry: string, body: string, props: Record<string, unknown>, wake = 'load') {
@@ -116,6 +118,10 @@ declare module 'vitest' {
 		 *  (a deferred answer's and a live region's shape) — base64. */
 		counter_render_b64: string;
 		label_render_b64: string;
+		/** Two `HeadStyle` islands (`a`, then `b`): their `<svelte:head>` blocks as the page head
+		 *  holds them, and their regions with props. */
+		head_style_head_b64: string;
+		head_style_body_b64: string;
 		/** `render(NestedProbe)`: records `isNested()` as it hydrates — base64. */
 		probe_render_b64: string;
 		/** The same Counter with its props sidecar KEYED (id + attribute) at the end of the body. */
@@ -179,6 +185,16 @@ export default async function setup(project: TestProject) {
 	project.provide('counter_ssr_b64', b64(island(COUNTER, body, props)));
 	project.provide('counter_render_b64', b64(render(Counter, { props: { start: 5 } }).body));
 	project.provide('label_render_b64', b64(render(Label, { props: { text: 'one' } }).body));
+	// two islands with a <svelte:head> style each: the page head holds their blocks in this order
+	const head_a = render(HeadStyle, { props: { name: 'a' } });
+	const head_b = render(HeadStyle, { props: { name: 'b' } });
+	project.provide('head_style_head_b64', b64(`${head_a.head}${head_b.head}`));
+	project.provide(
+		'head_style_body_b64',
+		b64(
+			`${island(HEAD_STYLE, head_a.body, { name: 'a' })}${island(HEAD_STYLE, head_b.body, { name: 'b' })}`
+		)
+	);
 	project.provide('probe_render_b64', b64(render(NestedProbe).body));
 	project.provide(
 		'counter_seedref_ssr_b64',
