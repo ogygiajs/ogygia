@@ -36,7 +36,7 @@ import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, relative, resolve } from 'node:path';
 import { parseSync } from 'rolldown/utils';
 
-type Node = Record<string, unknown> & { type: string; start: number; end: number };
+export type Node = Record<string, unknown> & { type: string; start: number; end: number };
 
 /** What kind of failure a site is. */
 export type SiteKind =
@@ -237,8 +237,20 @@ function kind_of(node: Node, parent: Node | null): SiteKind | null {
 	}
 }
 
+/** A site with the AST node that makes it and the node around that one (src/autopilot.ts places its
+ *  probes and mutants by them). */
+export interface SiteNode extends Site {
+	readonly node: Node;
+	readonly parent: Node | null;
+}
+
 /** Every failure site of one source file (`file`, from the repo root). */
 export function sites_of(file: string, source: string): Site[] {
+	return site_nodes(file, source).map(({ id, line, kind }) => ({ id, file, line, kind }));
+}
+
+/** {@link sites_of}, with each site's node. */
+export function site_nodes(file: string, source: string): SiteNode[] {
 	const { program } = parseSync(file, source);
 	const lines: number[] = [0];
 	for (let i = 0; i < source.length; i++) if (source[i] === '\n') lines.push(i + 1);
@@ -252,7 +264,7 @@ export function sites_of(file: string, source: string): Site[] {
 		}
 		return lo + 1;
 	};
-	const out: Site[] = [];
+	const out: SiteNode[] = [];
 	const counts = new Map<string, number>();
 	const walk = (node: Node, parent: Node | null, path: readonly string[]): void => {
 		let here = path;
@@ -269,7 +281,7 @@ export function sites_of(file: string, source: string): Site[] {
 			const at = `${file} > ${where} > ${kind}`;
 			const n = counts.get(at) ?? 0;
 			counts.set(at, n + 1);
-			out.push({ id: `${at}:${n}`, file, line: line_of(node.start), kind });
+			out.push({ id: `${at}:${n}`, file, line: line_of(node.start), kind, node, parent });
 		}
 		for (const key in node) {
 			if (key === 'type' || key === 'start' || key === 'end') continue;
@@ -321,7 +333,11 @@ export function functions_of(
 
 /** The path of the innermost named function around offset `at` (`(module)` when none is). */
 export function function_at(
-	functions: readonly { readonly path: string; readonly start: number; readonly end: number }[],
+	functions: readonly {
+		readonly path: string;
+		readonly start: number;
+		readonly end: number;
+	}[],
 	at: number
 ): string {
 	let best: { path: string; start: number; end: number } | null = null;
@@ -530,7 +546,13 @@ export function account_failures(
 	const proved = ledger.fired.filter(
 		(f) => f.killed_by !== undefined && o.mutants.has(f.killed_by)
 	).length;
-	return { accounted, total: sites.size, baseline: baseline.size, proved, failures };
+	return {
+		accounted,
+		total: sites.size,
+		baseline: baseline.size,
+		proved,
+		failures
+	};
 }
 
 /** The buggify points `source` asks: each `fires('<point>')`. */
@@ -578,7 +600,10 @@ function main(): void {
 		const listed =
 			named === undefined
 				? all
-				: inventory(ROOT, { packages: named.split(','), exclude: ledger.scope.exclude });
+				: inventory(ROOT, {
+						packages: named.split(','),
+						exclude: ledger.scope.exclude
+					});
 		for (const s of listed) console.log(`${s.file}:${s.line}  ${s.id}`);
 		return;
 	}
@@ -640,9 +665,10 @@ export function check_failures(
 	o: { base?: ReadonlySet<string>; fired?: ReadonlySet<string> } = {}
 ): FailureAccounting {
 	const points = new Set(
-		scope_files(ROOT, { packages: readdirSync(join(ROOT, 'packages')), exclude: [] }).flatMap((f) =>
-			points_in(readFileSync(join(ROOT, f), 'utf8'))
-		)
+		scope_files(ROOT, {
+			packages: readdirSync(join(ROOT, 'packages')),
+			exclude: []
+		}).flatMap((f) => points_in(readFileSync(join(ROOT, f), 'utf8')))
 	);
 	const mutants = (
 		JSON.parse(readFileSync(join(ROOT, 'internal/sim/mutants.json'), 'utf8')) as {
