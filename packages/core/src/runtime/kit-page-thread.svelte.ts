@@ -1,55 +1,9 @@
-/**
- * KIT-WORLD PAGE THREAD (wait side). On a Kit-hydrated (csr=true) document the handle ships no
- * `application/ogygia-page` seed — Kit's own data blob is the truth, and the `$app/state` shim reads
- * it through the bridge Kit's generated client entry publishes on `Symbol.for('ogygia.kit-page')`
- * (KIT_PAGE_THREAD in vite/index.ts; read side in shims/page-store.svelte.ts).
- *
- * That entry arrives by Kit's boot `import()` — a network fetch — while an island of OURS on that
- * document (inside a lake, inside a hole's answer) is already in the SSR tree and wakes on its own
- * schedule. `wake:'idle'` fires while the browser waits for Kit's chunks: hydrated against an empty
- * `page.data`, a `{#if page.data.x}` takes the other branch and Svelte discards the island's server
- * DOM. So an island of ours on a Kit document waits before its hydrate turn.
- * Its server HTML stays on screen meanwhile — waiting costs nothing visible, a discard costs the island.
- *
- * WHAT IS WAITED FOR — two moments, both exact, neither a guess:
- *
- *  1. The bridge is PUBLISHED. An accessor latch on the symbol: Kit's entry's plain assignment
- *     resolves it, whatever order the two worlds load in.
- *  2. Kit has APPLIED its page. The bridge holds a LIVE reference to Kit's `$app/state` page, assigned
- *     when the entry EVALUATES — but that page is still Kit's pre-start default until `start()`'s
- *     `initialize()` runs `update(result.props.page)`, ~150–350 ms later. Kit's page object carries the marker
- *     itself: it is constructed with `status = -1` (and a placeholder URL) and `update()` assigns the
- *     real status. `status !== -1` is "Kit applied its page" — for an EMPTY-data page too, which is
- *     why this is not "data has keys" (that cannot tell empty-applied from not-yet-applied, and only
- *     a timeout could paper over it). Every field of that page is a `$state.raw`, so the assignment
- *     is a reactive write and an effect reading `status` re-runs on it: the exact moment, no polling.
- *
- * Nothing here touches the `$page` store (removed in Kit 3): the `$app/state` page object is what
- * both Kit 2 and Kit 3 publish. No timeout either: a Kit document whose `start()` is late has no
- * page truth for such an island to hydrate against yet, and the island stays as its visible server
- * HTML meanwhile, which is the honest state.
- *
- * WHEN IT CAN NO LONGER HAPPEN (#820): one of the files Kit's boot script imports failed to
- * download. Kit's boot never runs then, and a wait for it would hang. The browser keeps a failed
- * module failed for the life of the page (import-again.ts), so the wait asks for the same files
- * itself: an import that fails says Kit's did, in every engine (WebKit leaves a dropped download no
- * timing entry to read), at no boot cost, past or future. The wait fails with `kit_boot_failed`,
- * and the island's wake ends `failed`. (e2e kit-boot-failed.spec.ts)
- *
- * Kit's boot script is an inline script that runs (no type, or a JavaScript one) and assigns its
- * `__sveltekit_<hash>` global; its files are its `import("<JSON string>")`s, and only those on the
- * page's code origins: a script that came in as markup and never ran looks the same. A global that
- * refuses accessors (a sealed sandbox) is watched on a timer for as long as the wait lasts. In dev, a
- * wait that runs long says so once. Tests: test/browser/kit-page-thread.test.ts,
- * kit-page-thread-owner.test.ts.
- *
- * @packageDocumentation
- */
 import { OgygiaError, warn } from '../messages/lazy.ts';
 import { flights, say, scope, tasks, type Scope } from '@ogygia/machine';
 import { code_url, import_code, type CodeUrl } from './code-origins.ts';
 
 const KIT_PAGE_KEY = Symbol.for('ogygia.kit-page');
+// @why Kit builds its `$app/state` page with status -1, and start()'s update() assigns the real status into a `$state.raw` field (test: test/browser/kit-page-thread.test.ts › the bridge is published but Kit has not applied its page (status -1): the island keeps waiting, and hydrates once initialize() lands it)
 const KIT_PRE_START_STATUS = -1;
 
 type Global = Record<symbol, unknown>;

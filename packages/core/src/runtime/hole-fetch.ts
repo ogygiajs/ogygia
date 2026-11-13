@@ -1,20 +1,3 @@
-/**
- * THE ONE NETWORK FETCH OF A HOLE'S HTML. The element's own wake, its `prefetch` warm and `preload()`
- * all fetch a hole through here, so whatever lands in the frame store at its address was read one
- * way: the endpoint's text, the keep-fallback marker on a 204 (`keepFallback()` on the server), or a
- * refusal when the answer is not the region's. An expired capability renews once, and the fresh one
- * is handed to `renewed` (the frame store keeps it for the address). No DOM, no store, no scheduler:
- * the caller decides when it may go out.
- *
- * The answer must be the region's: ogygia's handle answers a region request in place (a fragment, a
- * 204, an error status) and never redirects, so a redirected response (#1482) or a body that is a
- * whole document is a handle in front of `ogygia.handle()` (an auth wall, a locale bounce, a 404
- * handler) that the browser followed, and is refused: the fallback stands. A refused capability is
- * asked once; a rate-limited one again after its window (#959). Tests: test/browser/deferred-endpoint,
- * hole-cross-origin-redirect, hole-renewal, hole-rate-limited and preload-hole.
- *
- * @packageDocumentation
- */
 import { net } from '@ogygia/machine';
 import { KEEP_FALLBACK_HTML } from '../keep-fallback-marker.ts';
 import { warn } from '../messages/lazy.ts';

@@ -1,15 +1,3 @@
-/**
- * A region endpoint's address and answer (capability expiry with five minutes of clock slack,
- * renewal, refusals, `Retry-After`), and THE ONE ISLAND-MODULE WARMER: the router's next-page
- * prefetch warm, core's visible-island idle warm and the interaction feature's pointerenter warm all
- * come here. One warm per module, keyed by its absolute URL (an identity warms its location), timed
- * by the load scheduler at its class, its graph's links raised with it. A failed warm is not kept,
- * so the real wake retries; warming is never fatal. An identity with no known location, and code on
- * an origin the page loads none from, are not warmed. Tests: test/shared-cache.test.ts,
- * test/browser/entry-locations, preload-priority and code-origins.
- *
- * @packageDocumentation
- */
 import { clock } from '@ogygia/machine';
 import type { HoleRefusal } from '../contract/runtime-hooks.ts';
 import { preload_island_graph } from './island-graph-preload.ts';
@@ -56,14 +44,8 @@ export function renewal_url(endpoint: string): string {
 
 const DOCUMENT_START_RE = /^\s*(?:<!doctype\b|<html\b)/i;
 
-/**
- * Is this hole answer a WHOLE DOCUMENT rather than the region's fragment? ogygia's handle answers a
- * region request in place — a fragment, a 204, an error status — never with a page. A page here
- * means a handle in front of `ogygia.handle()` took the request instead (an auth wall, a locale
- * bounce, a 404 handler) and the browser followed it: a customer's signed-in visitors had every
- * hole of the header filled with the account area's page — its scripts, its skeletons, a second
- * header. Refused, the fallback stands; the redirect twin is {@link is_redirected_answer}.
- */
+/** Is this hole answer a whole document rather than the region's fragment? Something in front of
+ *  ogygia's handle answered (an auth wall, a locale bounce, a 404 handler). */
 export function is_document_answer(text: string): boolean {
 	return DOCUMENT_START_RE.test(text.slice(0, 256));
 }

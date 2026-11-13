@@ -1,21 +1,3 @@
-/**
- * CONTINUITY — ambient island form-field survival across SPA navigation.
- *
- * Leaving a page, every island input whose value differs from its SSR default is snapshotted into a
- * tab-session store, keyed by the page's path + the island's name (its component and endpoint, and
- * which copy of that island it is: never its place among the page's regions, which shifts when an
- * island comes or goes, #1337) + the field's child-index path (the same addressing `interaction`
- * uses, because hydration can replace nodes). Returning to that
- * page, each field is restored when its island (re)hydrates, with `input`/`change` fired so `bind:`
- * syncs. Session-scoped: survives navigation and back/forward, dies with the tab, never persisted.
- *
- * Only DIFFS are stored (default → nothing), bounded page count, so this stays cheap. A field marked
- * `data-ogygia-no-keep` (or inside one) is never kept: a fresh-message box, a one-time code. A page's
- * restore window is one at a time and ends when the page is left, so a page's values never reach the
- * next page's islands. test/browser/form-restore-region-identity.test.ts.
- *
- * @packageDocumentation
- */
 import { cache, machine } from '@ogygia/machine';
 import { element_address, resolve_address } from './interaction.ts';
 import { slots } from './slots.ts';
@@ -136,8 +118,7 @@ function apply_region(region: Element, name: string, recs: FieldRec[]): void {
 
 /**
  * Arm restoration for `pathKey` on the freshly-connected page. Restores already-hydrated islands
- * immediately and hooks `ogygia:hydrated` for those still waking, for this page's restore window
- * (see `restore_window`).
+ * immediately and hooks `ogygia:hydrated` for those still waking, until the page is left or its restore window closes.
  */
 export function arm_form_restore(pathKey: string): void {
 	close_restore();

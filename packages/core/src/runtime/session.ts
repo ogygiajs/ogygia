@@ -1,38 +1,3 @@
-/**
- * Document-scoped runtime session: the head's owners, the settled lakes, and the page visit. What
- * belongs to one page (its lake caches, seed flags, kit-page probe) lives on its visit, and the next
- * page's swap (`reset()`) ends it, so connecting regions never see the previous page.
- *
- * A lake's content, as the regions authored in it see it: `open` (not in yet, no region waits),
- * `waited` (not in, regions wait), `settling` (in, the swap that brought it about to land: the ones
- * that waited are not woken yet, as woken before the swap they would run with no content), `settled`.
- *
- * WHO OWNS EACH NODE IN `<head>`, the rule every head write and removal follows:
- *
- *   - The PAGE owns the head the server sent and everything the router or the runtime puts there for
- *     the page (merged heads, hoisted region sheets, preload links, hints). A navigation replaces
- *     page-owned nodes, and only those.
- *   - An ISLAND owns what its `<svelte:head>` renders live (csr=false: the island hydrates alone, so
- *     its head block renders fresh, hydrate-core.ts `neutralize_head_hydration_markers`). Only the
- *     island's own teardown removes those: Svelte deletes a head block by walking from its first node
- *     to its last, and if anyone else removes the last one first, the walk runs to the end of <head>
- *     and deletes the next page's tags with it.
- *   - Anything else (a third-party or dev-tooling inject) is not ours and is never removed, the rule
- *     SvelteKit's own router follows.
- *
- * And ONE copy: while an island's head content is live, the page's identical server copy of it is
- * retired. Only page-owned copies are ever retired, never an island's live node, and never a
- * stylesheet link (removing either copy could unstyle the page for a frame; a doubled sheet is
- * harmless). Two copies are the same by tag, attributes in order, and content, where an element with
- * no element children is read by its text with the ends trimmed (the client's compiled template
- * trims what the server wrote as the source has it). An island's fresh head block moves, as one run,
- * to where the page's copy stood, so islands' head content keeps the server's order, not the order
- * they woke; a run another node stands inside stays where Svelte put it.
- *
- * Tests: test/browser/head-ownership.test.ts, test/browser/island-head-order.test.ts.
- *
- * @packageDocumentation
- */
 import { cache, machine, scope, type Cache, type Scope } from '@ogygia/machine';
 import { FROZEN_SELECTOR } from './region-attrs.ts';
 import { note_visit } from './rules.ts';
@@ -66,6 +31,7 @@ type LakeMachine = ReturnType<typeof LAKE.create>;
 
 const STYLESHEET_REL_RE = /(?:^|\s)stylesheet(?:\s|$)/i;
 
+// @why Svelte's compiled client template trims the text the server wrote as the source has it (test: test/browser/island-head-order.test.ts › a style written over several lines in an island's head is one copy once the island wakes (#1122))
 function head_copy_key(el: Element): string {
 	const key = `${el.localName}${Array.from(el.attributes, (a) => `\0${a.name}\0${a.value}`).join('')}`;
 	return el.childElementCount === 0
@@ -146,6 +112,7 @@ function take_page_slot(nodes: Node[], own: Element[], page_head: WeakSet<Node>)
 	const first = nodes[0];
 	const last = nodes[nodes.length - 1];
 	const run = new Set(nodes);
+	// @why Svelte removes a head block by walking from its first node to its last (test: test/browser/island-head-order.test.ts › a run another node stands inside stays where it is (Svelte removes a head block from its first node to its last))
 	for (let n: Node | null = first; n !== last; n = n.nextSibling)
 		if (n === null || !run.has(n)) return;
 	const keys = new Set<string>();
@@ -158,7 +125,7 @@ function take_page_slot(nodes: Node[], own: Element[], page_head: WeakSet<Node>)
 }
 
 export class RuntimeSession {
-	/** Page-owned head nodes (see above). Survives `reset()`: it is the document's, not a page's. */
+	/** Page-owned head nodes: a navigation replaces these, and only these. Survives `reset()`: it is the document's, not a page's. */
 	readonly page_head: WeakSet<Node> = new WeakSet<Node>();
 	/** Island-owned head ELEMENTS still to watch (pruned when they leave the document). */
 	readonly island_head: Set<Element> = new Set<Element>();
