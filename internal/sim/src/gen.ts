@@ -116,7 +116,42 @@ export interface GenNode {
 	/** A block this many px tall right before it (`data-gen-lead`): it starts below the fold, within
 	 *  its margin or past it. */
 	readonly lead?: number;
+	/** RESHAPED (a seed's reshape pass, stream `gen reshape boxes`): the region's label sits in a
+	 *  custom element, `<x-gen-box>`, whose server render (the app's pass) moves its children into a
+	 *  `<slot>` of its own tree; and, with the pass's `link`, an `<x-gen-link>` in a page's `<a>`,
+	 *  whose render is an `<a>` the HTML parser would close the outer one for (a stand-in). ogygia
+	 *  restores Svelte's markup before the region hydrates. The outer `<a>` is `data-gen-messy`: an
+	 *  `<a>` in an `<a>` is the render's own markup, which the stand-in keeps as the render wrote it
+	 *  (gen 24, seed 17: the good-HTML oracle took it for ogygia's). */
+	readonly boxed?: 'box' | 'link';
 	readonly children: readonly GenNode[];
+}
+
+/** A seed's reshape pass (stream `gen reshape`), or null: most apps have none. `trim`: its render
+ *  trims and drops whitespace-only text, as a serializer does; `link`: boxed regions also hold a
+ *  link host whose render is an `<a>`. */
+export interface GenReshape {
+	readonly trim: boolean;
+	readonly link: boolean;
+}
+
+/** Whether a seed's app runs a reshape pass, and its kind (stream `gen reshape`). */
+export function reshape_plan(seed: number): GenReshape | null {
+	const r = rng(seed).fork('gen reshape');
+	if (!r.chance(0.35)) return null;
+	return { trim: r.chance(0.5), link: r.chance(0.5) };
+}
+
+/** Which regions of a reshaped app sit in a custom element (stream `gen reshape boxes`): an empty
+ *  region renders nothing to hold. */
+export function boxing(seed: number, pass: GenReshape): (page: GenPage) => GenPage {
+	const r = rng(seed).fork('gen reshape boxes');
+	const box = (n: GenNode): GenNode => {
+		const children = n.children.map(box);
+		if (n.empty || !r.chance(0.5)) return { ...n, children };
+		return { ...n, children, boxed: pass.link && r.chance(0.5) ? 'link' : 'box' };
+	};
+	return (page) => ({ ...page, roots: page.roots.map(box) });
 }
 
 export interface GenPage {
@@ -879,7 +914,17 @@ function component(n: GenNode): string {
 		...(n.changes
 			? ["\t{#if import.meta.env.VITE_SIM_BUILD === 'v2'}<em data-gen-new>new in v2</em>{/if}"]
 			: []),
-		'\t<span>{label}</span>',
+		...(n.boxed
+			? [
+					`\t<x-gen-box data-n="${n.id}">`,
+					'\t\t<span>{label}</span>',
+					`\t\t<i>box n${n.id}</i>`,
+					'\t</x-gen-box>',
+					...(n.boxed === 'link'
+						? [`\t<a data-gen-link data-gen-messy><x-gen-link> go {label} </x-gen-link></a>`]
+						: [])
+				]
+			: ['\t<span>{label}</span>']),
 		...(n.dated ? ['\t<time>{since?.toISOString()}</time>'] : []),
 		...(n.reads ? ['\t<i data-gen-page>{page.data.who}</i>'] : []),
 		...(n.odd ? ['\t<b title={note} data-note={note}>{note}</b>'] : []),
@@ -987,6 +1032,80 @@ export const handle: Handle = ({ event, resolve }) => mounted.handle({ event, re
 `;
 }
 
+/** The app's reshape pass (`src/lib/gen/reshape.server.ts`): a handle in front of ogygia's. Without
+ *  one, a handle that passes every request on. With one, a web-component server render reduced to
+ *  its moves: each `<x-gen-box>` renders a tree of its own into its light DOM and moves its children
+ *  into a `<slot>` in it (trimming whitespace as a serializer does, with `trim`), each
+ *  `<x-gen-link>` renders an `<a>`; on a host ogygia will restore (`og-h`) it writes the plan
+ *  (`og-shadow`). Innermost hosts first, matched by depth: a box may hold a box. */
+export function app_reshape(pass: GenReshape | null): string {
+	if (pass === null)
+		return `import type { Handle } from '@sveltejs/kit';
+
+export const handle: Handle = ({ event, resolve }) => resolve(event);
+`;
+	return `import type { Handle } from '@sveltejs/kit';
+import * as reshape from '@ogygia/reshape';
+
+const TRIM = ${pass.trim};
+
+const trim = (s: string): string =>
+\tTRIM
+\t\t? s
+\t\t\t\t.replace(/>\\s+</g, '><')
+\t\t\t\t.replace(/>\\s+([^<\\s])/g, '> $1')
+\t\t\t\t.replace(/([^>\\s])\\s+</g, '$1 <')
+\t\t: s;
+
+/** Each \`<tag …>inner</tag>\` rendered by \`tree\`, innermost first. */
+function render(html: string, tag: string, tree: (inner: string) => string): string {
+\tconst open_of = \`<\${tag}\`;
+\tconst close_of = \`</\${tag}>\`;
+\tlet out = html;
+\tlet before = out.length;
+\tfor (;;) {
+\t\tconst open = before < 0 ? -1 : out.lastIndexOf(open_of, before);
+\t\tif (open === -1) return out;
+\t\tbefore = open - 1;
+\t\tconst gt = out.indexOf('>', open);
+\t\tlet depth = 1;
+\t\tlet at = gt + 1;
+\t\tlet close = -1;
+\t\twhile (depth > 0) {
+\t\t\tconst o = out.indexOf(open_of, at);
+\t\t\tconst c = out.indexOf(close_of, at);
+\t\t\tif (c === -1) return out;
+\t\t\tif (o !== -1 && o < c) {
+\t\t\t\tdepth++;
+\t\t\t\tat = o + open_of.length;
+\t\t\t} else {
+\t\t\t\tdepth--;
+\t\t\t\tclose = c;
+\t\t\t\tat = c + close_of.length;
+\t\t\t}
+\t\t}
+\t\tconst attrs = out.slice(open + open_of.length, gt);
+\t\tconst inner = out.slice(gt + 1, close);
+\t\tconst planned = attrs.includes(' og-h="');
+\t\tconst host = \`\${attrs}\${planned ? \` og-shadow="\${tag}.shadow"\` : ''} data-rendered="\${tag}"\`;
+\t\tout = \`\${out.slice(0, open)}<\${tag}\${host}>\${tree(inner)}</\${tag}>\${out.slice(close + close_of.length)}\`;
+\t}
+}
+
+export const transform: reshape.ReshapeTransform = (html) => {
+\tlet out = render(
+\t\thtml,
+\t\t'x-gen-box',
+\t\t(inner) => \`<div class="gen-box"><b>box</b><slot>\${trim(inner)}</slot></div><!--gen-box-->\`
+\t);
+\tout = render(out, 'x-gen-link', (inner) => \`<a class="gen-link" tabindex="-1"><slot>\${trim(inner)}</slot></a>\`);
+\treturn out;
+};
+
+export const handle: Handle = reshape.handle(transform);
+`;
+}
+
 /** Writes the region components of `roots`, shown on `page`, into `lib`. */
 function components(lib: string, roots: readonly GenNode[], page: string): void {
 	const walk = (n: GenNode): void => {
@@ -1012,7 +1131,8 @@ export function write(
 	seed: number,
 	peer: GenPeer | null = null,
 	layout: GenNode | null = null,
-	router = true
+	router = true,
+	reshape: GenReshape | null = null
 ): void {
 	const routes = join(app, 'src', 'routes');
 	const lib = join(app, 'src', 'lib', 'gen');
@@ -1057,6 +1177,7 @@ export const prerender = false;
 	writeFileSync(join(routes, 'late.js', '+server.ts'), LATE_ROUTE);
 	writeFileSync(join(lib, 'mount.server.ts'), app_mount(peer));
 	writeFileSync(join(lib, 'flags.server.ts'), app_flags(pages));
+	writeFileSync(join(lib, 'reshape.server.ts'), app_reshape(reshape));
 	if (peer) {
 		writeFileSync(join(lib, 'federation.server.ts'), app_federation(peer));
 		if (peer.mount === 'kit') {
@@ -1149,7 +1270,7 @@ export const actions = m.actions;
 	}
 	writeFileSync(
 		join(lib, 'plan.json'),
-		`${JSON.stringify({ seed, pages, peer, layout, router, presets: screen_presets(pages) }, null, '\t')}\n`
+		`${JSON.stringify({ seed, pages, peer, layout, router, reshape, presets: screen_presets(pages) }, null, '\t')}\n`
 	);
 }
 
@@ -1282,15 +1403,17 @@ function main(): void {
 	const app = resolve(
 		arg('--app') ?? fileURLToPath(new URL('../../../apps/sim-gen', import.meta.url))
 	);
-	const pages = plan(seed);
+	const reshape = reshape_plan(seed);
+	const drawn = plan(seed);
+	const pages = reshape ? drawn.map(boxing(seed, reshape)) : drawn;
 	const peer = peer_plan(seed, pages);
 	const layout = layout_plan(seed);
 	const router = router_plan(seed);
-	write(app, pages, seed, peer, layout, router);
+	write(app, pages, seed, peer, layout, router, reshape);
 	const count = (ns: readonly GenNode[]): number =>
 		ns.reduce((s, n) => s + 1 + count(n.children), 0);
 	console.log(
-		`[sim] generated ${pages.length} pages, ${count(pages.flatMap((p) => p.roots))} regions (seed ${seed})${layout ? `, ${count([layout])} in the layout` : ''}${router ? '' : ', no router'} in ${app}`
+		`[sim] generated ${pages.length} pages, ${count(pages.flatMap((p) => p.roots))} regions (seed ${seed})${layout ? `, ${count([layout])} in the layout` : ''}${router ? '' : ', no router'}${reshape ? `, a reshape pass (${reshape.trim ? 'trims' : 'keeps whitespace'}${reshape.link ? ', links' : ''})` : ''} in ${app}`
 	);
 	if (peer) {
 		write_peer(`${app}-peer`, peer, seed);

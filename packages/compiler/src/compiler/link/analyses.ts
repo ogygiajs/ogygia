@@ -1,25 +1,17 @@
-/**
- * The analyses that predict what a page does at run time, as data. Each one leans one way when it
- * is unsure, and this table says which:
- *
- * - `over`: the answer must hold every run-time behavior (a miss breaks a page; an extra costs bytes);
- * - `under`: the answer must hold only safe cases (a wrong yes breaks a page);
- * - `exact`: both directions break a page.
- *
- * `fallback` is what it answers when it cannot decide: always the safe end. `oracle` is the issue
- * that will bring a check judging the answer against what really ran, until one exists; an oracle
- * names the analysis with a `// oracle: <name>` line at its top. test/analyses.test.ts holds this
- * table true (files, functions, oracles, gaps).
- */
-
 /** The open issue that tracks every analysis with no oracle yet. */
 export const ORACLE_GAPS = 1489;
 
+/** An analysis that predicts what a page does at run time, as data (test/analyses.test.ts holds the table true). */
 export interface Analysis {
 	/** snake_case; an oracle names it with `// oracle: <name>`. */
 	readonly name: string;
 	/** What it predicts, in plain words. */
 	readonly predicts: string;
+	/**
+	 * Which way it leans when unsure. `over`: the answer must hold every run-time behavior (a miss
+	 * breaks a page; an extra costs bytes). `under`: it must hold only safe cases (a wrong yes breaks
+	 * a page). `exact`: both directions break a page.
+	 */
 	readonly direction: 'over' | 'under' | 'exact';
 	/** The safe answer it gives when it cannot decide. */
 	readonly fallback: string;

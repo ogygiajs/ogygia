@@ -308,12 +308,64 @@ export async function html_sent(world: World): Promise<Broken | null> {
 	return detail === null ? null : { oracle: 'html-sent', detail };
 }
 
+/** The reshape pass's marks (@ogygia/reshape: what ogygia puts on the HTML around the app's
+ *  transform), every one of which the restore takes out before anything hydrates. */
+const RESHAPE_ATTRS: ReadonlySet<string> = new Set([
+	'og-h',
+	'og-u',
+	'og-c',
+	'og-r',
+	'og-shadow',
+	'og-keep'
+]);
+
+/** A reshape mark a document holds at rest: a stand-in (`<og-as>`), a mark attribute, or a child's
+ *  or text's comment mark (`og-c`, `og-t`). Each is ogygia's: the restore should have taken it
+ *  out (restore.ts kept a stand-in: `reshape-stand-in-kept`). */
+export function reshape_marks_left(root: Element): Lint[] {
+	const out: Lint[] = [];
+	const at = (el: Element) => {
+		const parts: string[] = [];
+		for (let e: Element | null = el, n = 0; e !== null && n < 4; e = e.parentElement, n++) {
+			const gen = e.getAttribute('data-gen');
+			parts.unshift(e.localName + (gen ? `[data-gen=${gen}]` : ''));
+		}
+		return parts.join(' > ');
+	};
+	const walk = (node: Node): void => {
+		if (node.nodeType === 8) {
+			const data = (node as Comment).data;
+			if (data.startsWith('og-c ') || data.startsWith('og-t '))
+				out.push({
+					rule: `a reshape mark left (<!--${data.slice(0, 4)}-->)`,
+					where: node.parentElement ? at(node.parentElement) : '(top)',
+					app: false
+				});
+			return;
+		}
+		if (node.nodeType !== 1) return;
+		const el = node as Element;
+		if (el.localName === 'og-as')
+			out.push({ rule: 'a reshape stand-in left (<og-as>)', where: at(el), app: false });
+		for (const a of el.getAttributeNames())
+			if (RESHAPE_ATTRS.has(a))
+				out.push({ rule: `a reshape mark left (${a})`, where: at(el), app: false });
+		for (const c of el.childNodes) walk(c);
+	};
+	walk(root);
+	return out;
+}
+
 /** GOOD HTML KEPT: the document a tab shows at rest, whatever built it (navigations, morphs, answers
- *  swapped in). A document whose own HTML the network changed is set aside (`faulted`). */
+ *  swapped in), with none of the reshape pass's marks left. A document whose own HTML the network
+ *  changed is set aside (`faulted`). */
 export function html_kept(tab: Tab): Broken | null {
 	const doc = tab.page.mainFrame.document as unknown as Document;
 	if (!tab.page.mainFrame.url.startsWith('http') || doc.documentElement === null) return null;
-	const lints = content_model(from_dom(doc.documentElement)).map((l) => ({
+	const lints = [
+		...content_model(from_dom(doc.documentElement)),
+		...reshape_marks_left(doc.documentElement)
+	].map((l) => ({
 		...l,
 		from: new URL(tab.page.mainFrame.url).pathname
 	}));
