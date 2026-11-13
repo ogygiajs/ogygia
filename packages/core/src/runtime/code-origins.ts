@@ -35,7 +35,7 @@ function origin_of(url: string, base?: string): string | null {
 		const u = new URL(url, base ?? location.href);
 		return u.protocol === 'https:' || u.protocol === 'http:' ? u.origin : null;
 	} catch {
-		return null;
+		return null; // ok: not a URL: no origin
 	}
 }
 
@@ -100,7 +100,7 @@ export function is_location_of(identity: string, location: string): boolean {
 		id = new URL(identity);
 		loc = new URL(location);
 	} catch {
-		return false;
+		return false; // ok: not URLs: neither is the other's location
 	}
 	if (id.origin !== loc.origin || code_url(loc.href) === null) return false;
 	const iid = IDENTITY_FILE.exec(id.pathname)?.[1];

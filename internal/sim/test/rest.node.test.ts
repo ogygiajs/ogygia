@@ -2,7 +2,7 @@
 // its first piece (10 to 40 s) is work in flight: one that outlasted a quiesce's 30 s budget left
 // the runtime chunk still coming, and the oracles judged a page whose runtime had not run yet (gen
 // 196, seed 16: a layout hole's fallback "stood"). Needs the palaestra build.
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { World } from '../src/world.ts';
@@ -61,4 +61,43 @@ describe.skipIf(!built)('rest', () => {
 		}
 		for (const ms of took) expect(ms).toBeLessThanOrEqual(31_000);
 	}, 120_000);
+});
+
+// (the generated app of seed 8: /p3's live regions tick for good, and their ticks put islands in)
+const GEN_APP = fileURLToPath(new URL('../../../apps/sim-gen', import.meta.url));
+const GEN_OUTPUT = `${GEN_APP}/.svelte-kit/sim-builds/v1`;
+const gen_8 =
+	existsSync(`${GEN_OUTPUT}/server/index.js`) &&
+	existsSync(`${GEN_APP}/src/lib/gen/plan.json`) &&
+	JSON.parse(readFileSync(`${GEN_APP}/src/lib/gen/plan.json`, 'utf8')).seed === 8;
+
+describe.skipIf(!gen_8)('rest, between live ticks', () => {
+	it('judges a page whose live regions tick between their ticks, not while one is still taken in', async () => {
+		// (a quiesce a live answer keeps busy ends at its budget, wherever that falls: once a few ms
+		// after a tick put an island in, still waiting for its hydrate turn, and the stuck oracle
+		// saw it `waking`; gen 8, seed 72 with a crowd. Each rest here starts 37 ms later in the
+		// ticks' cycle than the one before.)
+		const world = await World.make({
+			seed: 1,
+			builds: [{ id: 'v1', output: GEN_OUTPUT }],
+			secret: 'sim-secret',
+			horizon: 10_000_000
+		});
+		const busy: string[] = [];
+		try {
+			const tab = world.tab(world.visitor('v'));
+			await world.go(tab, 'goto', '/p3');
+			for (let i = 0; i < 40; i++) {
+				await world.loop.run(37);
+				await world.rest();
+				const soon = world.loop
+					.queued()
+					.filter((t) => t.realm === tab.realm && t.at <= world.loop.now + 200);
+				if (soon.length) busy.push(`rest ${i}: ${soon.map((t) => t.label).join(', ')}`);
+			}
+		} finally {
+			await world.end();
+		}
+		expect(busy).toEqual([]);
+	}, 300_000);
 });

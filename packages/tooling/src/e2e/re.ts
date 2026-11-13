@@ -14,11 +14,15 @@ export const REGION_TAG_G_RE = /<ogygia-region\b/g;
 export const REGION_OPEN_G_RE = /<ogygia-region/g;
 /** A request URL that hits the region endpoint (the `/__ogygia__` path). */
 export const ENDPOINT_PATH_RE = /\/(?:__ogygia__|__ogygia__)/;
+// (the `markup-ok` regexes below assert on ogygia's own output in e2e specs: they ship nowhere)
 /** Every server-island / held hole (`render="defer"`). */
+// markup-ok: an e2e assertion over ogygia's own output
 export const REGION_DEFER_G_RE = /<ogygia-region\b[^>]*\brender="defer"/g;
 /** Every region that carries a signed `endpoint` — capture group 1 is the endpoint. */
+// markup-ok: an e2e assertion over ogygia's own output
 export const REGION_ENDPOINT_G_RE = /<ogygia-region\b[^>]*\bendpoint="([^"]+)"/g;
 /** The `endpoint` attribute of one region tag — group 1. */
+// markup-ok: an e2e assertion over ogygia's own output
 export const ENDPOINT_ATTR_RE = /endpoint="([^"]*)"/;
 /** A signed region endpoint URL with its expiry — group 1 is `exp`. */
 export const REGION_ENDPOINT_URL_RE = /__ogygia__\?id=[^"&]+(?:&r=[^"&]+)?&props=[^"&]+&exp=(\d+)/;
@@ -32,6 +36,7 @@ export const WRAPPER_VIRTUAL_RE = /ogygia:region\/wrapper\//;
 /** The runtime bootstrap `<script data-ogygia-runtime>`. */
 export const RUNTIME_SCRIPT_RE = /data-ogygia-runtime/;
 /** Every runtime bootstrap SCRIPT (not its `data-ogygia-runtime-dep` preload links) — count them. */
+// markup-ok: an e2e assertion over ogygia's own output
 export const RUNTIME_SCRIPT_TAG_G_RE = /<script\b[^>]*\bdata-ogygia-runtime(?![-\w])/g;
 /** An island graph script (src/island-graph.ts): group 1 is its `<`-escaped JSON text. */
 export const ISLAND_GRAPH_SCRIPT_G_RE =
@@ -39,6 +44,7 @@ export const ISLAND_GRAPH_SCRIPT_G_RE =
 /** An ISLAND code hint: a modulepreload link that is not one of the runtime's own deps (those sit
  *  beside the runtime script in the head by design — server/document-tail.ts). */
 export const ISLAND_HINT_G_RE =
+	// markup-ok: an e2e assertion over ogygia's own output
 	/<link\b(?![^>]*data-ogygia-runtime-dep)[^>]*rel="modulepreload"[^>]*>/g;
 /** Kit's client bootstrap assignment (`__sveltekit_<hash> = …`): a csr=true document. */
 export const KIT_BOOT_RE = /__sveltekit_\w+\s*=/;
@@ -48,6 +54,7 @@ export const KIT_MARKER_RE = /__sveltekit/;
 export const EARLY_HOLES_RE =
 	/<script type="application\/json" id="ogygia-early-holes">([^<]*)<\/script>/;
 /** The stamp a page store (postrender) puts on a copy it serves. */
+// markup-ok: an e2e assertion over ogygia's own output
 export const STORED_META_RE = /<meta name="ogygia-stored"[^>]*>/;
 
 /** A Vite dev URL through `/@id/`. */
@@ -76,6 +83,7 @@ export const FOREIGN_WARN_RE = /was read inside a mounted MFE island/;
 /** The fixture app's chrome header. */
 export const CHROME_HEADER_RE = /data-chrome-header/;
 /** The fixture app's bumper counter showing 5. */
+// markup-ok: an e2e assertion over a fixture app's output
 export const BUMPER_5_RE = /data-bumper-n[^>]*>5</;
 /** The fixture app's portable bar, through its closing footer. */
 export const PORTABLE_BAR_RE = /data-portable-bar[\s\S]*?<\/footer>/;
