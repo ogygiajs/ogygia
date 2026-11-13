@@ -96,6 +96,17 @@ describe('portable snippet — every name its body reads reaches the synth', () 
 		expect(synth).toMatch(/let \{[^}]*\blabel\b[^}]*\} = \$props\(\)/);
 	});
 
+	it('captures a host name read after a class whose static block declares the same name (#1634)', () => {
+		const [synth] = synths(`<script>
+	import Widget from './Widget.svelte' with { wake: 'load' };
+	let d = 1;
+</script>
+
+<Widget>{#snippet blocks()}<p>{(() => { class K { static { const d = 2; } } return d; })()}</p>{/snippet}</Widget>
+`);
+		expect(synth).toMatch(/let \{[^}]*\bd\b[^}]*\} = \$props\(\)/);
+	});
+
 	it('captures a legacy `$:` declaration', () => {
 		const [synth] = synths(`<script>
 	import Widget from './Widget.svelte' with { wake: 'load' };
