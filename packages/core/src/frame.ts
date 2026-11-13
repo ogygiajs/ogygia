@@ -33,6 +33,15 @@ export type FrameOrder = { v: number; d?: number | undefined };
 /** Why an answer is not newer than another: an older request's (by ticket), or older data (by version). */
 export type DropWhy = 'older request' | 'older data';
 
+/** The name of the error a joined reservation rejects with when its batch ended without its frame
+ *  (runtime/frame-store.ts `release`): the binder's own fetch runs at once (nothing failed — the
+ *  batch just did not carry it). */
+export const BATCH_MISS = 'OgygiaBatchMiss';
+
+/** Whether a frame wait failed only because its batch did not carry the frame. */
+export const is_batch_miss = (err: unknown): boolean =>
+	err instanceof Error && err.name === BATCH_MISS;
+
 /**
  * Why `f` is not newer than `than`, or `null` when it is: by data version when both carry one and
  * they differ (the server knows which data is newer, whatever order the answers arrived in), else by

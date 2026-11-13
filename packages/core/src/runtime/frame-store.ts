@@ -38,7 +38,7 @@ import {
 	type Stale,
 	type World
 } from '@ogygia/machine';
-import { older_by, stands_at, type DropWhy, type Frame } from '../frame.ts';
+import { BATCH_MISS, older_by, stands_at, type DropWhy, type Frame } from '../frame.ts';
 import type { VerifiedHtml } from './html-sink.ts';
 import { watch, notify, watcher_count } from '../ref-watch.ts';
 
@@ -351,10 +351,6 @@ export function release(a: string): void {
 	miss.name = BATCH_MISS;
 	held.fail(miss);
 }
-
-/** The error a joined reservation rejects with when its batch ended without its frame: the binder's
- *  own fetch runs at once (nothing failed — the batch just did not carry it). */
-export const BATCH_MISS = 'OgygiaBatchMiss';
 
 /**
  * Subscribe to writes at an address. If content is ALREADY applied, the callback fires immediately

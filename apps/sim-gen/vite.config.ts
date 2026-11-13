@@ -14,12 +14,12 @@ import { fileURLToPath } from 'node:url';
 // (apps/sim-gen-peer): its widgets on the app's pages, its pages mounted under /peer. Postrender is there for a command that publishes
 // (`postrender.invalidate`, which a federated app announces to its peers), opt-in: no page is
 // stored unless it says so. The presets are for a hole whose render the server keeps (`maxAge` is a
-// preset's option, never an inline one): `hole-<age>[-<wake>]`.
+// preset's option, never an inline one): `hole-<age>[-<fetch>]`.
 const presets = Object.fromEntries(
 	['2s', '30s'].flatMap((maxAge) =>
-		[undefined, 'load', 'idle', 'visible', 'interaction'].map((wake) => [
-			`hole-${maxAge}${wake ? `-${wake}` : ''}`,
-			{ render: 'deferred' as const, maxAge, ...(wake ? { wake } : {}) }
+		[undefined, 'load', 'idle', 'visible', 'interaction'].map((fetch) => [
+			`hole-${maxAge}${fetch ? `-${fetch}` : ''}`,
+			{ render: 'deferred' as const, maxAge, ...(fetch ? { fetch } : {}) }
 		])
 	)
 );
