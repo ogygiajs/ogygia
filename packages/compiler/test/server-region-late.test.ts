@@ -1,102 +1,89 @@
-// A BUILD'S SERVER MANIFEST IS SEALED WHEN IT IS EMITTED. `ogygia:server/server-manifest` (and the
-// loaders behind it) list every server region the build knows when the bundler loads it, which is
-// early: the handle imports it. A deferred region whose host the start-up scan never saw (a library
-// component outside `src/`, outside any declared `ogygia.files`) registers only when the bundler
-// reaches that host, after the manifest was emitted. Its hole then answered 403 in production with
-// no word at build time. Now the build stops, naming the host and the fix.
-import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import path from 'node:path';
+// A SERVER REGION THE BUILD FINDS LATE IS SERVED. `ogygia:server/server-manifest` (the server
+// regions' URLs, names, render ids, and the loaders behind `load_server_regions`) is loaded early: the
+// handle imports it. A deferred region whose host the start-up scan never saw (a library component
+// outside `src/`, outside any declared `ogygia.files`) registers only when the bundler reaches that
+// host, after the manifest was loaded. It was missing from the manifest and its loaders, so its hole
+// answered 403 in production (#1420). The manifest's values are now filled in from the final
+// registry when each chunk is finished (link/relocations.ts), and a late region's loader is its own
+// emitted chunk.
 import { afterEach, expect, test } from 'vitest';
-import { Compiler, type Profiler } from '../src/compiler/driver.ts';
-import { Program } from '../src/compiler/program.ts';
-import { CompileCtx } from '../src/compiler/ctx.ts';
-import { normalize_import_keys } from '../src/compiler/region/transform.ts';
-import { partial_ctx_init } from './_compile-ctx.ts';
+import fs from 'node:fs';
+import { createRequire } from 'node:module';
+import os from 'node:os';
+import path from 'node:path';
+import { pathToFileURL } from 'node:url';
+import { build } from 'vite';
+import { svelte } from '@sveltejs/vite-plugin-svelte';
 import { dedent } from '@ogygia/core/contract';
+import { ogygia } from '../dist/vite/index.js';
 
 let root = '';
-afterEach(() => rmSync(root, { recursive: true, force: true }));
-const write = (file: string, text: string) => {
-	mkdirSync(path.dirname(file), { recursive: true });
-	writeFileSync(file, text);
-};
-const MANIFEST = '\0ogygia:server/server-manifest';
-
-/** A build's server leg on a small app, with a library beside it (outside `src/`). */
-function build_compiler() {
-	root = realpathSync(mkdtempSync(path.join(tmpdir(), 'og-late-')));
-	write(`${root}/src/routes/+page.svelte`, '<h1>page</h1>\n');
-	write(`${root}/src/routes/+layout.ts`, 'export const csr = false;\n');
-	write(`${root}/lib/Slow.svelte`, '<p>slow</p>\n');
-	const compiler = new Compiler(new Program({ forms: true, router: true }), {
-		// (P is off: no timing is read; the macro timings' names are the macro stage's own)
-		prof: {
-			transformMs: 0,
-			transformN: 0,
-			transformHit: 0,
-			prescanMs: 0,
-			resolveMs: 0,
-			loadMs: 0
-		} as Profiler['prof'],
-		P: false,
-		outHash: new Map<string, number>()
-	});
-	compiler.configure(
-		new CompileCtx(
-			partial_ctx_init({
-				root,
-				base: '/',
-				app_dir: '_app',
-				libDir: `${root}/src/lib`,
-				is_dev: false,
-				is_build: true,
-				id_salt: '',
-				visibleMargin: '0px',
-				presets: {},
-				import_keys: normalize_import_keys(undefined),
-				resolve_alias: [],
-				pkg_root: '/nowhere/ogygia',
-				runtime_dir: '/nowhere/ogygia/runtime',
-				app_shims: {}
-			})
-		)
-	);
-	compiler.prescan();
-	return compiler;
-}
-
-const LIBRARY_HOST = dedent`
-	<script>
-	import Slow from './Slow.svelte' with { render: 'deferred' };
-	</script>
-	<Slow />
-`;
-
-const transform_library_host = (compiler: Compiler) =>
-	compiler.transform_module(LIBRARY_HOST, `${root}/lib/Card.svelte`, {
-		ssr: true,
-		emitFile: () => ''
-	});
-
-const manifest = (compiler: Compiler): string => {
-	const out = compiler.emit(MANIFEST, { ssr: true, universalHooks: null }) as
-		| string
-		| { code: string };
-	return typeof out === 'string' ? out : out.code;
-};
-
-test('a server region first registered after the server manifest was emitted stops the build', async () => {
-	const compiler = build_compiler();
-	manifest(compiler);
-	await expect(transform_library_host(compiler)).rejects.toThrow(/server_region_late/);
+afterEach(() => {
+	if (root) fs.rmSync(root, { recursive: true, force: true });
+	root = '';
 });
 
-test('a server region registered before the manifest is emitted is in it', async () => {
-	const compiler = build_compiler();
-	await transform_library_host(compiler);
-	const [id] = [...compiler.program.by_id.keys()];
-	expect(manifest(compiler)).toContain(JSON.stringify(id));
-	// and the same host again, after the seal, is no late addition
-	await expect(transform_library_host(compiler)).resolves.not.toBeNull();
+function write(rel: string, text: string): void {
+	const abs = path.join(root, rel);
+	fs.mkdirSync(path.dirname(abs), { recursive: true });
+	fs.writeFileSync(abs, text);
+}
+
+type Manifest = {
+	region_name: Record<string, string>;
+	region_url: Record<string, string>;
+	load_server_regions(): Promise<{ regions: Record<string, () => Promise<unknown>> }>;
+};
+
+test('a deferred region in a library host the scan never saw is in the built server manifest, with its loader', async () => {
+	root = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'og-late-region-')));
+	write('package.json', JSON.stringify({ name: 'app', type: 'module' }));
+	write('src/routes/+layout.ts', 'export const csr = false;\n');
+	write('src/routes/+page.svelte', '<h1>page</h1>\n');
+	// the handle's import of the manifest comes first; the library host is reached later
+	write(
+		'src/entry.ts',
+		dedent`
+			export * as manifest from 'ogygia:server/server-manifest';
+			export { default as Card } from '../lib/Card.svelte';
+		`
+	);
+	write(
+		'lib/Card.svelte',
+		dedent`
+			<script>
+				import Slow from './Slow.svelte' with { render: 'deferred' };
+			</script>
+			<Slow />
+		`
+	);
+	write('lib/Slow.svelte', '<p>slow</p>\n');
+	const svelte_dir = path.dirname(createRequire(import.meta.url).resolve('svelte/package.json'));
+	fs.mkdirSync(path.join(root, 'node_modules'), { recursive: true });
+	fs.symlinkSync(svelte_dir, path.join(root, 'node_modules', 'svelte'), 'dir');
+
+	const out_dir = path.join(root, 'out');
+	await build({
+		root,
+		logLevel: 'silent',
+		configFile: false,
+		plugins: [ogygia(), svelte({ configFile: false })],
+		build: {
+			ssr: path.join(root, 'src', 'entry.ts'),
+			outDir: out_dir,
+			minify: false,
+			rollupOptions: { output: { entryFileNames: 'entry.js' } }
+		}
+	});
+
+	const { manifest } = (await import(pathToFileURL(path.join(out_dir, 'entry.js')).href)) as {
+		manifest: Manifest;
+	};
+	const ids = Object.keys(manifest.region_name).filter((id) => manifest.region_name[id] === 'Slow');
+	expect(ids, 'the late region is named in the manifest').toHaveLength(1);
+	const [id] = ids;
+	expect(manifest.region_url[id], 'and has its URL').toBeTypeOf('string');
+	const { regions } = await manifest.load_server_regions();
+	expect(regions[id], 'and its loader').toBeTypeOf('function');
+	await expect(regions[id]()).resolves.toBeTypeOf('object');
 });
