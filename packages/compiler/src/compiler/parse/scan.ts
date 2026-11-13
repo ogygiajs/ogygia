@@ -19,8 +19,10 @@ import { OgygiaError } from '../messages.ts';
 // ── regexes
 const WS_RE = /\s/;
 const TEMPLATE_INTERPOLATION_RE = /\$\{/;
-const WORD_START_RE = /[A-Za-z_$]/;
-const WORD_RE = /[A-Za-z0-9_$]/;
+// (outside strings, a non-ASCII code unit that is not a space can only be part of a name; a
+// surrogate half included, so `𝒳` is one)
+const WORD_START_RE = /[A-Za-z_$]|[^\s\p{ASCII}]/u;
+const WORD_RE = /[A-Za-z0-9_$]|[^\s\p{ASCII}]/u;
 const NUMBER_RE = /[0-9A-Za-z_.]/;
 const DIGIT_RE = /[0-9]/;
 
