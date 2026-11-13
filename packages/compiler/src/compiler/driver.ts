@@ -31,6 +31,7 @@ import {
 	kit_dirs
 } from './kit.ts';
 import { run_module_macros } from './macros/pipeline.ts';
+import { fn_manifest_entries } from './macros/dollar.ts';
 import { is_script_request } from './script-request.ts';
 import { resolveFeatures } from './link/runtime-entry.ts';
 import {
@@ -1778,6 +1779,11 @@ export class Compiler implements CoreApp {
 		}
 
 		return touched ? { code: out, map } : null;
+	}
+
+	/** The fn-manifest for the build handoff (tag → factory source), sorted by tag. */
+	fn_manifest(): Record<string, string> {
+		return Object.fromEntries(fn_manifest_entries(this.dollar_hoists));
 	}
 
 	/**

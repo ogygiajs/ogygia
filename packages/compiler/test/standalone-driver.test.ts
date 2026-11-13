@@ -120,6 +120,20 @@ describe('standalone driver (no Vite)', () => {
 		expect(compiler.dollar_hoists.size).toBeGreaterThan(0); // the factory was captured for the fn-manifest
 	});
 
+	test('the fn-manifest is the same bytes whatever order the modules transformed in', async () => {
+		const mod = (n: number) => `export const f${n} = import.meta.og.$(() => ${n});\n`;
+		const manifest = async (order: number[]) => {
+			const { compiler } = make_compiler();
+			for (const n of order) await compiler.macros(mod(n), `${ROOT}/src/lib/m${n}.ts`);
+			const leg = { server: false, relocated: new Map<string, number>() };
+			const bundle = { graph: () => null, module_ids: () => [] };
+			return compiler.relocate('/*__OGYGIA_FN_MANIFEST__*/', leg, bundle)?.code;
+		};
+		const forward = await manifest([1, 2, 3]);
+		expect(forward).toContain('__og_reg_fn');
+		expect(await manifest([3, 1, 2])).toBe(forward);
+	});
+
 	test('Compiler.macros is inert on a module with no markers', async () => {
 		const { compiler } = make_compiler();
 		const src = `export const answer = 42;\n`;
