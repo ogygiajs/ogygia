@@ -5,10 +5,7 @@
  * context inside islands at runtime), so this pins BOTH the include and — critically — the exclude.
  */
 import { describe, expect, it } from 'vitest';
-import {
-	context_string_keys,
-	source_uses_ogygia_context
-} from '../src/compiler/link/context-detect.ts';
+import { context_keys, source_uses_ogygia_context } from '../src/compiler/link/context-detect.ts';
 import { resolveFeatures } from '../src/compiler/link/runtime-entry.ts';
 import { dedent } from '@ogygia/core/contract';
 
@@ -58,10 +55,10 @@ describe('source_uses_ogygia_context — no provider, no bridge', () => {
 	});
 });
 
-describe('context_string_keys — follows the getContext/setContext import binding, no text matching', () => {
-	const reads = (src: string) => context_string_keys(src, 'script').reads;
-	const sets = (src: string) => context_string_keys(src, 'script').sets;
-	const svelteReads = (src: string) => context_string_keys(src, 'svelte').reads;
+describe('context_keys — follows the getContext/setContext import binding, no text matching', () => {
+	const reads = (src: string) => context_keys(src, 'script').reads;
+	const sets = (src: string) => context_keys(src, 'script').sets;
+	const svelteReads = (src: string) => context_keys(src, 'svelte').reads;
 
 	it('counts a getContext read imported from svelte', () => {
 		expect(
@@ -83,7 +80,7 @@ describe('context_string_keys — follows the getContext/setContext import bindi
 			svelte.getContext('k');
 			svelte.setContext('s', 1);
 		`;
-		expect(context_string_keys(src, 'script')).toEqual({ reads: ['k'], sets: ['s'] });
+		expect(context_keys(src, 'script')).toEqual({ reads: ['k'], sets: ['s'], one_off: [] });
 	});
 
 	it('reads inside a Svelte component <script>', () => {
@@ -103,7 +100,7 @@ describe('context_string_keys — follows the getContext/setContext import bindi
 			setContext('a', 1);
 			getContext('b');
 		`;
-		expect(context_string_keys(src, 'script')).toEqual({ reads: ['b'], sets: ['a'] });
+		expect(context_keys(src, 'script')).toEqual({ reads: ['b'], sets: ['a'], one_off: [] });
 	});
 
 	it('does NOT count a getContext that is not imported from svelte/ogygia', () => {
@@ -151,11 +148,8 @@ describe('context_string_keys — follows the getContext/setContext import bindi
 
 	it('unparseable source is a clean empty (no throw, no false warning)', () => {
 		expect(
-			context_string_keys(
-				`import { getContext } from 'svelte';\nthis is not valid js (((`,
-				'script'
-			)
-		).toEqual({ reads: [], sets: [] });
+			context_keys(`import { getContext } from 'svelte';\nthis is not valid js (((`, 'script')
+		).toEqual({ reads: [], sets: [], one_off: [] });
 	});
 });
 

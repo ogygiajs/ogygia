@@ -269,7 +269,7 @@ export type Slots = {
 	 * build detected no ogygia context provider — a plain app never bundles the ~4.7 kB bridge, and
 	 * core's call optional-chains to `undefined` (exactly "no provider above", the existing empty case).
 	 */
-	context: ((start: Element | null) => Map<string, unknown> | undefined) | null;
+	context: ((start: Element | null) => Map<string | symbol, unknown> | undefined) | null;
 	/** Boot helpers + session for the lazy chunks (see {@link BootLink}). */
 	boot: BootLink | null;
 	/** The router's history/scroll helpers for its navigation chunk (see {@link RouterLink}). */

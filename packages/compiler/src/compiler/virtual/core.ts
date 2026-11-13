@@ -29,6 +29,7 @@ import {
 } from '../link/server-manifest.ts';
 import { registry_stub_names, registry_stub_source } from '../link/registry-stub.ts';
 import { dev_hmr_client_source } from '../dev/dev-hmr.ts';
+import { fn_manifest_registrations } from '../macros/dollar.ts';
 import { PROFILER_MAPS_PLACEHOLDER, REGION_FAMILY } from '../ids.ts';
 import type { CompileCtx } from '../ctx.ts';
 import type { ClientRealmFile, ServerRealm } from '../link/caps.ts';
@@ -83,8 +84,6 @@ export interface CoreApp {
 	runtime_chunk_url(): string;
 	region_names(): Record<string, string>;
 	router_css_roots(): string[];
-	/** dev: the server-region ids a server manifest was just emitted with */
-	note_server_ids(ids: Set<string>): void;
 	/** the app's Kit routes directory */
 	routes_dir(): string;
 	/** the plugins listed beside `ogygia()` */
@@ -108,8 +107,6 @@ export const CORE_PARTS: Parts<CoreApp> = {
 	runtime_chunk_url: 'regions',
 	region_names: 'regions',
 	router_css_roots: 'styles',
-	// (a report the load makes, not a read)
-	note_server_ids: null,
 	routes_dir: 'routes',
 	plugins: 'plugins'
 };
@@ -202,10 +199,7 @@ export const fn_manifest: Family = virtual.family({
 			globalThis.__og_reg_fn = __register_fn;
 		`}\n`;
 		if (!app.ctx.is_dev) return `${bridge}/*__OGYGIA_FN_MANIFEST__*/`;
-		const hoists = [...app.dollar_hoists.entries()]
-			.map(([tag, src]) => `globalThis.__og_reg_fn(${JSON.stringify(tag)}, (${src}));`)
-			.join('\n');
-		return `${bridge}${hoists}`;
+		return `${bridge}${fn_manifest_registrations(app.dollar_hoists)}`;
 	}
 });
 
@@ -217,7 +211,7 @@ export const runtime_entry: Family = virtual.family({
 		app.prescan();
 		const { ctx } = app;
 		const { code } = generateRuntimeEntrySource(
-			app.program.runtime_marks,
+			app.program.ship_runtime(),
 			ctx.runtime_dir,
 			app.plugins().client
 		);
@@ -229,12 +223,13 @@ export const runtime_entry: Family = virtual.family({
 export const runtime_flags: Family<RuntimeFlagsModule> = virtual.family({
 	realm: 'boot',
 	id: 'runtime-flags',
-	exports: { FRAMES: 'FRAMES' },
+	exports: { FRAMES: 'FRAMES', load_wire_codec: 'load_wire_codec' },
 	load(app: CoreApp) {
+		const { ctx } = app;
 		// Dev runs the kitchen-sink boot: every flag on, like every feature.
-		if (!app.ctx.is_build) return generateRuntimeFlagsSource({}, true);
+		if (!ctx.is_build) return generateRuntimeFlagsSource({}, ctx.runtime_dir, true);
 		app.prescan();
-		return generateRuntimeFlagsSource(app.program.runtime_marks);
+		return generateRuntimeFlagsSource(app.program.runtime_marks, ctx.runtime_dir);
 	}
 });
 
@@ -383,7 +378,8 @@ export const region_deps: Family<RegionDepsModule> = virtual.family({
 		region_remotes: 'region_remotes',
 		fn_manifest: 'fn_manifest',
 		entry_location: 'entry_location',
-		location_map: 'location_map'
+		location_map: 'location_map',
+		handoff_problem: 'handoff_problem'
 	},
 	load: ({ ctx }: CoreApp, { ssr }) =>
 		island_deps_module(ssr, ctx.is_dev, path.relative(ctx.root, kit_dirs(ctx.root).out_dir))
@@ -553,14 +549,7 @@ export const server_manifest: Family<ServerManifestModule> = virtual.family({
 	load(app: CoreApp, { ssr }) {
 		const { ctx, program } = app;
 		if (ssr) app.prescan();
-		if (ssr && ctx.is_dev) app.note_server_ids(new Set(server_island_ids(program)));
-		return server_manifest_module(
-			ssr,
-			program,
-			ctx.is_dev,
-			(vp: string) => ctx.dev_url_for(vp),
-			(rid: string) => ctx.island_public_url(rid)
-		);
+		return server_manifest_module(ssr, program, ctx.is_dev, (vp: string) => ctx.dev_url_for(vp));
 	}
 });
 
@@ -569,7 +558,10 @@ export const server_regions: Family<ServerRegionsModule> = virtual.family({
 	id: 'server-regions',
 	load(app: CoreApp, { ssr }) {
 		if (ssr) app.prescan();
-		return server_regions_module(ssr, app.program);
+		const late = ssr && app.ctx.is_build;
+		// a region registered after this is a late one: its loader is its own chunk
+		if (late) app.program.server_regions_written = new Set(server_island_ids(app.program));
+		return server_regions_module(ssr, app.program, late);
 	}
 });
 

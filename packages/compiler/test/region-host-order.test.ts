@@ -43,21 +43,22 @@ function registry_after(order: readonly string[], drop?: string) {
 
 function compiler_on(files: MemoryFs, { dev = false }: { dev?: boolean } = {}) {
 	const program = new Program({ forms: true, router: true });
-	const compiler = new Compiler(program, {
-		prof: {
-			transformMs: 0,
-			transformN: 0,
-			transformHit: 0,
-			prescanMs: 0,
-			bakeMs: 0,
-			bakeN: 0,
-			resolveMs: 0,
-			loadMs: 0
+	const compiler = new Compiler(
+		program,
+		{
+			prof: {
+				transformMs: 0,
+				transformN: 0,
+				transformHit: 0,
+				prescanMs: 0,
+				macroMs: 0,
+				macroN: 0,
+				resolveMs: 0,
+				loadMs: 0
+			},
+			P: false,
+			outHash: new Map<string, number>()
 		},
-		P: false,
-		outHash: new Map<string, number>()
-	});
-	compiler.configure(
 		new CompileCtx(
 			partial_ctx_init({
 				root: ROOT,
@@ -112,11 +113,14 @@ test('a deleted component leaves no claim on its region: the next host to mark i
 		else if (compiler.is_registered_host(file))
 			compiler.invalidate_for_file(file, { invalidate: () => {} });
 		if (text !== null)
-			await compiler.transform_module(text, file, { ssr: true, emitFile: () => '' });
+			await compiler.transform_module(text, file, {
+				leg: compiler.leg({ name: 'ssr', server: true }),
+				emitFile: () => ''
+			});
 	};
 	compiler.prescan();
 	await compiler.transform_module(files.read(LIB_HOST)!, LIB_HOST, {
-		ssr: true,
+		leg: compiler.leg({ name: 'ssr', server: true }),
 		emitFile: () => ''
 	});
 	await save(C2, null);

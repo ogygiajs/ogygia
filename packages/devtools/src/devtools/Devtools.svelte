@@ -32,6 +32,7 @@ shadow boundary keeps it from the dock — a built dock opened unstyled. -->
 	import { onDestroy, onMount } from 'svelte';
 	import { scope, STALE } from '@ogygia/machine';
 	import BoundaryOverlay from './BoundaryOverlay.svelte';
+	import { bottom_chrome } from './bottom-chrome.ts';
 	import IslandDetail from './IslandDetail.svelte';
 	import { to_trace } from '@ogygia/core/events';
 	import { Draggable } from '@neodrag/svelte';
@@ -66,7 +67,7 @@ shadow boundary keeps it from the dock — a built dock opened unstyled. -->
 		try {
 			return JSON.parse(localStorage.getItem(LS_KEY) || '{}') || {};
 		} catch {
-			return {};
+			return {}; // ok: storage blocked or the saved layout is unreadable: the default layout
 		}
 	}
 	const saved = load_layout();
@@ -159,6 +160,14 @@ shadow boundary keeps it from the dock — a built dock opened unstyled. -->
 	/** The dock's own work in the page (its keys, its timers, its fetch): let go when it unmounts. */
 	const owner = scope();
 	onDestroy(() => owner.close());
+	let launchWrap = /** @type {HTMLElement | null} */ (null);
+	let launchLift = $state(0);
+	function clear_page_chrome() {
+		const host = launchWrap?.getRootNode();
+		if (!launchWrap || !(host instanceof ShadowRoot)) return;
+		const rect = launchWrap.getBoundingClientRect();
+		launchLift = bottom_chrome(rect.left + rect.width / 2, host.host);
+	}
 	/** The live refresh while the window is open: a child of the dock's scope. */
 	let refresh = /** @type {import('@ogygia/machine').Scope | null} */ (null);
 	function refresh_on() {
@@ -239,6 +248,9 @@ shadow boundary keeps it from the dock — a built dock opened unstyled. -->
 			}
 		};
 		owner.on(window, 'keydown', onkey);
+		clear_page_chrome();
+		owner.on(window, 'resize', clear_page_chrome);
+		owner.on(document, 'og:page-load', clear_page_chrome);
 
 		// `names` (island id → component name) and `bytes` (island id → transitive dev-graph size) label
 		// the tabs with real names/costs. Best-effort — the endpoint only exists on the dev server (a
@@ -378,6 +390,9 @@ shadow boundary keeps it from the dock — a built dock opened unstyled. -->
 
 	<div
 		class="launch-wrap"
+		class:lifted={launchLift > 0}
+		style:bottom="{launchLift}px"
+		bind:this={launchWrap}
 		{...launchDrag.attach}
 		onpointerenter={() => (launchHover = true)}
 		onpointerleave={() => (launchHover = false)}
@@ -653,6 +668,9 @@ shadow boundary keeps it from the dock — a built dock opened unstyled. -->
 	.launch.up {
 		transform: translateY(-8px);
 		opacity: 1;
+	}
+	.lifted .launch:not(.up) {
+		transform: translateY(-4px);
 	}
 	.launch.on {
 		background: #14b8a6;

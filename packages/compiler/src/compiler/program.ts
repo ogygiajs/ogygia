@@ -14,8 +14,10 @@
  */
 import path from 'node:path';
 import { renderId } from './region/identity.ts';
+import { resolveFeatures, type FeatureId, type RuntimeMarks } from './link/runtime-entry.ts';
+import { warn } from './messages.ts';
 import { same_module_path } from './dev/hmr.ts';
-import type { RuntimeMarks } from './link/runtime-entry.ts';
+import { scan_facts, type ScanFacts } from './scan-facts.ts';
 
 /** Strip a `?query` off a module id (host vs component vs Vite watch paths). */
 export const strip_id = (id: string): string => (id ? id.split('?')[0] : id);
@@ -28,6 +30,8 @@ export const host_key = (hostPath: string): string => path.resolve(strip_id(host
 export interface RegistryEntry {
 	source?: string;
 	ssrSource?: string;
+	/** A leg-split source: a wake island's wrapper reaches its component through the lazy module on
+	 *  the client leg (served by leg at load(), like a region binding). */
 	clientSource?: string;
 	hostPath?: string | null;
 	id: string;
@@ -35,6 +39,8 @@ export interface RegistryEntry {
 	lakes?: string[];
 	componentPath?: string | null;
 	role?: 'entry' | 'wrapper' | 'region' | 'lazy';
+	/** A portable-snippet synth entry: AUTHORED markup (a slice of user source) the transform hook
+	 *  re-processes (nested island marks, nested snippets), unlike glue. */
 	portable?: boolean;
 	/** a server entry's render identity (identity.ts `renderId`): what its endpoint renders */
 	renderId?: string;
@@ -103,10 +109,6 @@ export class Program {
 	readonly host_index: Map<string, HostIndexEntry> = new Map();
 	/** region id → hosts still claiming it (cross-host dedupe: don't drop shared wrappers) */
 	readonly id_hosts: Map<string, Set<string>> = new Map();
-	/** Client-leg: hydrate island ids whose deterministic chunk has been emitFile'd (dedup across the
-	 *  buildStart prescan emit AND the transform-time emit that catches islands prescan can't see —
-	 *  those declared inside LIBRARY components, where the host lives outside the app's `src`). */
-	readonly emitted_island_chunks: Set<string> = new Set();
 	/** BUILD, server leg: every module id Vite actually transformed (`host_key`-normalised) — the
 	 *  server bundle's real graph. Handed to the client leg, which emits island chunks only for
 	 *  islands whose HOST is in it: the prescan registers every marked import under `src/`, but a
@@ -114,18 +116,23 @@ export class Program {
 	 *  chunk — or drag its imports into a client build whose server pass never saw them (a
 	 *  `.remote.ts` there fails Kit's "expected to find metadata" check). */
 	readonly ssr_transformed: Set<string> = new Set();
-	/** Absolute paths of app modules that define a transportable class (built during prescan). */
-	readonly transportable_modules: Set<string> = new Set();
+	/** Every scanned file's facts, and the app-wide answers folded from them (./scan-facts.ts). */
+	readonly scan: ScanFacts = scan_facts();
+	/** Absolute paths of app modules that define a transportable class, in scan order. */
+	get transportable_modules(): ReadonlySet<string> {
+		return this.scan.db.get(this.scan.transportable_modules, 'all');
+	}
 
 	/** PAGE MODULES (`b.pageModules()`: importers of a page specifier such as `'@ogygia/router'`, plus
 	 *  files named directly — server-router definition sites) + every walked
 	 *  module's import specifiers — the build data `ogygia:server/router-css` computes its
-	 *  component closure from (see link/router-css.ts). Filled during the prescan walk. */
-	readonly router_modules: Set<string> = new Set();
-	readonly module_specs: Map<string, string[]> = new Map();
-	/** flag()/experiment() call sites the prescan OBSERVED (modules importing 'ogygia' only) —
-	 *  written to node_modules/.ogygia/flags-manifest.json at build for CI flag-debt diffs. */
-	readonly flag_sites: import('./flags.ts').FlagSite[] = [];
+	 *  component closure from (see link/router-css.ts). */
+	get router_modules(): ReadonlySet<string> {
+		return this.scan.db.get(this.scan.router_modules, 'all');
+	}
+	get module_specs(): ReadonlyMap<string, readonly string[]> {
+		return this.scan.db.get(this.scan.module_specs, 'all');
+	}
 	/** SEED SHAPING: per module (query-less id, forward slashes), the top-level `page.data` keys its
 	 *  code reads — `'all'` when a read could not be pinned to a literal key. Recorded by the driver's
 	 *  transform for every module that imports Kit's page store (link/page-keys.ts); the client
@@ -141,9 +148,15 @@ export class Program {
 
 	/** App crosses a held region / transportable value through Kit's `transport` hook — a `.remote.*`
 	 *  file, or a `region`/`site`/content import (loads & remotes that carry regions or wired values).
-	 *  Set during the prescan walk; with `runtime_marks.wire` it decides whether `ogygia.transport`
-	 *  (the generated `ogygia:region/kit-transport`) carries the codec cluster or is an empty map. */
-	crosses_wire = false;
+	 *  With `runtime_marks.wire` it decides whether `ogygia.transport` (the generated
+	 *  `ogygia:region/kit-transport`) carries the codec cluster or is an empty map. */
+	get crosses_wire(): boolean {
+		return this.wire_crossers.size > 0;
+	}
+	/** The files that make {@link crosses_wire} true. */
+	get wire_crossers(): ReadonlySet<string> {
+		return this.scan.db.get(this.scan.wire_crossers, 'all');
+	}
 
 	/** Island code can reach Kit's page world (`$app/state` and kin, or something the island-closure
 	 *  walk could not follow — driver.ts `mark_island_closure`). Folded into `runtime_marks.page` at
@@ -153,13 +166,20 @@ export class Program {
 	/** Build-time capability marks for the sticky runtime entry. Incomplete → kitchen-sink. */
 	readonly runtime_marks: RuntimeMarks;
 
-	/** The resolved feature set folded into the runtime chunk name (busts the immutable URL when the
-	 *  app's feature set changes, not only when ogygia's source does). Filled by the driver's prescan;
-	 *  empty until then (dev serves the package entry). Both build legs prescan the same source → same
-	 *  hash → the server↔client filename handoff holds. */
-	runtime_feature_hash = '';
+	/** The features the build's runtime entry was made with (`ship_runtime`), once it loaded: a later
+	 *  registration that needs one more is reported (`runtime_marks_late`), once per feature. */
+	#runtime_shipped: ReadonlySet<FeatureId> | null = null;
+	readonly #late_said = new Set<FeatureId>();
+
+	readonly #init: { forms: boolean; router: boolean };
+
+	/** An empty program with the same options: the next build's (`Compiler.start_leg`). */
+	fresh(): Program {
+		return new Program(this.#init);
+	}
 
 	constructor(init: { forms: boolean; router: boolean }) {
+		this.#init = init;
 		this.runtime_marks = {
 			complete: false,
 			forms: init.forms,
@@ -180,6 +200,25 @@ export class Program {
 			live: false,
 			lakes: false
 		};
+	}
+
+	/** The marks the build's runtime entry is made from, now: what it ships is fixed from here on
+	 *  (test/runtime-marks-late.test.ts). */
+	ship_runtime(): RuntimeMarks {
+		this.#runtime_shipped = new Set(resolveFeatures(this.runtime_marks));
+		return this.runtime_marks;
+	}
+
+	/** A registration of `host` after the runtime entry was made needs a feature it lacks: say so. */
+	#check_late(host: string): void {
+		const shipped = this.#runtime_shipped;
+		if (!shipped) return;
+		const late = resolveFeatures(this.runtime_marks).filter(
+			(f) => !shipped.has(f) && !this.#late_said.has(f)
+		);
+		if (!late.length) return;
+		for (const f of late) this.#late_said.add(f);
+		warn('runtime_marks_late', { file: host, features: late.join(', ') });
 	}
 
 	note_runtime_mark(patch: Partial<RuntimeMarks>): void {
@@ -239,7 +278,6 @@ export class Program {
 					island_graph.delete(vpath);
 				}
 			}
-			// a region another host still holds shows that host's rows now
 			for (const id of prev.ids) this.#settle(id);
 			host_index.delete(key);
 		}
@@ -249,6 +287,11 @@ export class Program {
 		// (`hit.code === source`), so a changed source misses and recomputes on its own; a deleted
 		// file's stale entry is harmless (never queried again). HMR correctness is preserved.
 	}
+
+	/** BUILD, server leg: the server regions `ogygia:server/server-regions` was written with, each
+	 *  `() => import(<its entry>)`. A region found later gets its loader as its own emitted chunk
+	 *  (driver `emit_late_server_regions`, test/server-region-late.test.ts). Null: not written yet. */
+	server_regions_written: ReadonlySet<string> | null = null;
 
 	/** Replace this host's claims; shared ids keep one registry entry (path+strategy dedupe). */
 	register(result: RegisterResult, hostId: string): void {
@@ -284,7 +327,6 @@ export class Program {
 				id_hosts.set(isl.id, holders);
 			}
 			holders.add(key);
-			// this host's rows for the region; the registry shows the first holder's (#settle)
 			const rows: Array<[string, RegistryEntry]> = [];
 
 			if (isl.wrapperPath && isl.wrapperSource) {
@@ -292,8 +334,6 @@ export class Program {
 					isl.wrapperPath,
 					{
 						source: isl.wrapperSource,
-						// A wake island's wrapper is leg-split: the client leg reaches its component
-						// through the lazy module (served by leg at load(), like a region binding).
 						clientSource: isl.wrapperClientSource,
 						hostPath: isl.hostPath,
 						id: isl.id,
@@ -352,8 +392,6 @@ export class Program {
 						lakes: [],
 						componentPath: isl.componentPath ?? null,
 						role: 'entry',
-						// A portable-snippet synth entry is AUTHORED markup (a slice of user source) — the
-						// transform hook re-processes it (nested island marks, nested snippets), unlike glue.
 						portable: isl.portable === true,
 						...(isl.server && isl.identity ? { renderId: renderId(isl.identity) } : {})
 					}
@@ -371,6 +409,7 @@ export class Program {
 			if (isl.componentPath) island_graph.add(isl.componentPath);
 		}
 		host_index.set(key, idx);
+		this.#check_late(hostId);
 	}
 
 	/** A deleted component: every region of it goes, with every host's claim on it (a claim kept

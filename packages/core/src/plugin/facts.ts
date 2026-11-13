@@ -79,7 +79,7 @@ export function current_request(): Request | undefined {
 	try {
 		return slot.current?.();
 	} catch {
-		return undefined;
+		return undefined; // ok: outside a request, as said above
 	}
 }
 
