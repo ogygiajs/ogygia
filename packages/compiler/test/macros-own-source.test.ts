@@ -47,7 +47,7 @@ describe('module macros: the app’s own source only', () => {
 	it('a marker named only in a string or a comment of an installed file is left alone', async () => {
 		const src = `// import.meta.og.bake(() => 1)\nexport const t = 'use import.meta.og.wire(…) or import.meta.og.bake(fn)';`;
 		const out = await run_module_macros(src, DEP, ctx(), NO_PROFILE);
-		expect(out).toEqual({ code: src, touched: false });
+		expect(out).toEqual({ code: src, touched: false, maps: [] });
 	});
 
 	it('a plugin macro in an installed file fails the build, and its handler never runs', async () => {
@@ -63,7 +63,8 @@ describe('module macros: the app’s own source only', () => {
 		const named = `export const t = 'import.meta.og.code(…)';`;
 		expect(await run_module_macros(named, DEP, with_macro, NO_PROFILE)).toEqual({
 			code: named,
-			touched: false
+			touched: false,
+			maps: []
 		});
 		expect(ran).toEqual([]);
 	});

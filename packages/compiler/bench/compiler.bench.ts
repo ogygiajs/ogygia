@@ -18,6 +18,8 @@ import { run_module_macros } from '../src/compiler/macros/pipeline.ts';
 import { stamp_opaque } from '../src/compiler/ownership-stamps.ts';
 import { transformHost } from '../src/compiler/region/transform.ts';
 import { mark_definer_calls } from '../src/vite/definers.ts';
+import { MapChain } from '../src/compiler/map-chain.ts';
+import { splice_map, splice_text, type Edit } from '../src/compiler/splice.ts';
 import { HOST_CTX_DEFAULTS } from '../test/_host-ctx.ts';
 import { dedent } from '@ogygia/core/contract';
 
@@ -491,5 +493,44 @@ bench(
 	{
 		setup: () => ({ code: definers_module(4) }),
 		scale: (_ctx, k) => ({ code: definers_module(4 * k) })
+	}
+);
+
+/** `k` lines, each with a mark three passes rewrite in turn (a replacement, an insert, a removal). */
+function marked_lines(k: number): string {
+	return Array.from(
+		{ length: k },
+		(_, i) => `export const v${i} = import.meta.og.mark(${i}); // note ${i}`
+	).join('\n');
+}
+
+/** The edits of one pass: at each match of `find`, `text` in its place. */
+function pass_edits(src: string, find: string, text: string): Edit[] {
+	const edits: Edit[] = [];
+	for (let at = src.indexOf(find); at !== -1; at = src.indexOf(find, at + find.length))
+		edits.push({ start: at, end: at + find.length, text });
+	return edits;
+}
+
+bench(
+	"source maps: a module's passes spliced, each mapped, composed into one map",
+	({ src }) => {
+		const chain = new MapChain();
+		let out = src;
+		for (const [find, text] of [
+			['import.meta.og.mark', '__og_mark'],
+			['export const', 'export /* branded */ const'],
+			[' // note', '']
+		] as const) {
+			const before = out;
+			const edits = pass_edits(before, find, text);
+			out = splice_text(before, edits);
+			chain.step(() => splice_map(before, edits, '/app/src/lib/m.ts'));
+		}
+		return chain.result('/app/src/lib/m.ts').mappings.length;
+	},
+	{
+		setup: () => ({ src: marked_lines(20) }),
+		scale: (_ctx, k) => ({ src: marked_lines(20 * k) })
 	}
 );
