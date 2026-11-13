@@ -282,12 +282,13 @@ function drain(): void {
 	if (!waiting) return;
 	drainer.go('draining');
 	const mine = drainer;
+	// oxlint-disable-next-line ogygia/no-silent-failures -- a drain only hands out slots and yields; it never rejects
 	void drain_queue().finally(() => {
 		if (drainer !== mine) return;
 		const again = drainer.now.kind === 'again';
 		drainer.go('idle');
 		if (again) drain();
-	}); // ok: a drain only hands out slots and yields; it never rejects
+	});
 }
 
 /** @heisenbench linear */
