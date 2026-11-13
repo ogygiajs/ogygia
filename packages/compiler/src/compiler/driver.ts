@@ -125,8 +125,6 @@ interface Build {
 	 *  prescan is never re-walked when a later island shares it. The build's, like the island graph
 	 *  it fills (test/watch-island-closure.test.ts). */
 	readonly island_closure_seen: Set<string>;
-	/** Every virtual module the build serves (./virtual/table.ts), each load a reader of its
-	 *  program's queries. */
 	readonly virtuals: VirtualTable<CoreApp>;
 }
 const new_build = (program: Program): Build => ({

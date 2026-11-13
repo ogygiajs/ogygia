@@ -182,7 +182,6 @@ export function queries(name: string, max: number = QUERIES_MAX): Queries {
 		return true;
 	}
 
-	/** Read `query(arg)` for this revision, recording it in `into` (the reader's deps). */
 	function read<A, V>(typed: Query<A, V>, arg: A, into: Dep[] | undefined): V {
 		const query = erase(typed);
 		const id = id_of(query, arg);
