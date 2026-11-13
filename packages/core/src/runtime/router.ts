@@ -234,9 +234,14 @@ export class RouterHistory {
 	readonly #entries = new Map<string, HistoryEntry>();
 	#current: HistoryEntry | null = null;
 
-	/** The entry of the page on screen. */
+	/** The entry of the page on screen, at the address bar's address while the browser is on it
+	 *  (test/browser/router-history-address.test.ts). */
 	get current(): HistoryEntry {
-		return (this.#current ??= this.#add(new URL(location.href)));
+		const id = (history.state as { ogygia?: unknown } | null)?.ogygia;
+		if (typeof id !== 'string') return (this.#current = this.adopt(new URL(location.href)));
+		const entry = (this.#current ??= this.#add(new URL(location.href)));
+		if (id === entry.id && entry.url.href !== location.href) entry.url = new URL(location.href);
+		return entry;
 	}
 
 	/** Takes over the entry the browser is on as the router starts: its state names it now. */
@@ -606,10 +611,10 @@ export class SpaRouter {
 				location.reload();
 				return;
 			}
+			const entry = found ?? this.history.adopt(url);
 			// The page on screen is left: keep where it is, before anything scrolls it (the browser
 			// restores the next entry's scroll after this event, onto the page still on screen).
 			this.history.leave();
-			const entry = found ?? this.history.adopt(url);
 			// Same document (a fragment step): nothing to fetch or swap, and no jump: the browser
 			// restores the entry's scroll itself, and a jump to a fragment no element has went to the
 			// top (#282). (Back to the page on screen while the next one loads: that load must not land.)
