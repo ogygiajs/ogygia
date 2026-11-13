@@ -190,6 +190,12 @@
 	],
 	"covered": [
 		{
+			"site": "packages/compiler/src/compiler/region/transform.ts > refuse_unknown_attributes > throw:0",
+			"reason": "an attribute ogygia does not know on a component import fails the build instead of leaving a plain import",
+			"test": "packages/compiler/test/partial-transform.test.ts",
+			"name": "a misspelt key, alone on a .svelte import, is named with the keys there are"
+		},
+		{
 			"site": "packages/compiler/src/vite/options.ts > assert_known_options > throw:0",
 			"reason": "the barrels option points at its plugin until 0.15",
 			"test": "packages/compiler/test/config-surface.test.ts",

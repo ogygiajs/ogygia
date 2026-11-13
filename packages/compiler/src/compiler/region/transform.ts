@@ -267,15 +267,12 @@ const COMPONENT_ATTRS_RE = /\.svelte['"]\s*(?:with|assert)\s*\{([^}]*)\}/g;
 const COMPONENT_SPEC_RE = /\.svelte$/;
 const ATTR_KEY_RE = /(?:^|,)\s*(?:(['"])(.*?)\1|([\w$-]+))\s*:/g;
 
-/** An attribute on a component import that is not ogygia's: the standard `type`, and a default key
- *  name the app gave up to another tool by renaming it (`ogygia({ importKeys })`). */
 function foreign_attribute(key: string, import_keys: ImportKeys): boolean {
 	if (key === 'type') return true;
 	const role = (DEFAULT_IMPORT_KEYS as Record<string, string>)[key];
 	return role !== undefined && (import_keys as Record<string, string>)[key] !== key;
 }
 
-/** The keys a component import takes, by this app's names. */
 function component_attribute_keys(import_keys: ImportKeys): string[] {
 	return [
 		import_keys.wake,
@@ -289,8 +286,6 @@ function component_attribute_keys(import_keys: ImportKeys): string[] {
 	];
 }
 
-/** Cheap source scan: does a `.svelte` import's `with { … }` name a key that is neither ogygia's
- *  nor foreign? Only then is a host with no region key parsed, to fail it. */
 function has_unknown_component_attribute(source: string, import_keys: ImportKeys): boolean {
 	if (!source.includes('.svelte')) return false;
 	const known = component_attribute_keys(import_keys);
@@ -302,12 +297,6 @@ function has_unknown_component_attribute(source: string, import_keys: ImportKeys
 	return false;
 }
 
-/**
- * A component import (`.svelte`) with no region key carries only attributes that are not ogygia's
- * (`type`, a default name the app renamed away): any other (a misspelling, a retired key) fails the
- * build, never leaving a plain import. An import with a region key has its own checks; an import
- * of anything else (`type: 'json'`) is not ogygia's.
- */
 function refuse_unknown_attributes(
 	spec: string,
 	keys: Iterable<string>,

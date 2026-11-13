@@ -98,7 +98,7 @@ describe('transformHost — held region in .svelte (region: raw)', () => {
 
 describe('an import attribute ogygia does not know, on a component import, fails the build', () => {
 	const host = '/app/src/routes/+page.svelte';
-	const page = (imports: string) => `<script>\n${imports}\n</script>`;
+	const page = (imports: string) => ['<script>', imports, '</script>'].join('\n');
 
 	test('a misspelt key, alone on a .svelte import, is named with the keys there are', () => {
 		const src = page(`import Card from '$lib/Card.svelte' with { wkae: 'load' };`);
