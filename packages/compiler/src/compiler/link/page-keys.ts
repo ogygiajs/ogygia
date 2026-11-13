@@ -219,6 +219,7 @@ export function summarize_export(
 	const param = (fn as Node).params?.[arg];
 	if (!param || param.type !== 'Identifier') return 'all';
 	const scan = new Scan(code);
+	for (const [local, imp] of imports) scan.import_binding(local, imp.specifier, imp.imported);
 	try {
 		scan.seed_param(param.name, fn as Node);
 		// the same alias pass the module's own analysis runs, then the defaults and the body
@@ -325,6 +326,9 @@ class Scan {
 	readonly pending: PendingCall[] = [];
 	/** Import bindings of this module: local name → what and from where. */
 	readonly #imports = new Map<string, { specifier: string; imported: string }>();
+	/** Svelte's store helpers by local name: a `get` or `derived` from anywhere else is a plain call
+	 *  (test: page-keys-soundness `not svelte/store`). */
+	readonly #store = new Map<string, 'get' | 'derived'>();
 	/** Module-level function declarations by name (`function f(p) {}` / `const f = (p) => …`). */
 	readonly #local_fns = new Map<string, Node>();
 	/** Functions whose parameter is the page (a followed helper): `arguments` in one reaches it too. */
@@ -355,6 +359,13 @@ class Scan {
 		scopes.add(scope);
 		this.refs.add(name);
 		return true;
+	}
+
+	/** An import binding of the module: `local` is `imported` from `specifier`. */
+	import_binding(local: string, specifier: string, imported: string): void {
+		this.#imports.set(local, { specifier, imported });
+		if (specifier === 'svelte/store' && (imported === 'get' || imported === 'derived'))
+			this.#store.set(local, imported);
 	}
 
 	/** Is `node` inside a function whose parameter is the page? */
@@ -405,12 +416,9 @@ class Scan {
 			const specifier = String(node.source?.value ?? '');
 			for (const s of node.specifiers ?? []) {
 				if (s.type === 'ImportSpecifier')
-					this.#imports.set(s.local.name, {
-						specifier,
-						imported: spec_name(s.imported) ?? s.local.name
-					});
+					this.import_binding(s.local.name, specifier, spec_name(s.imported) ?? s.local.name);
 				else if (s.type === 'ImportDefaultSpecifier')
-					this.#imports.set(s.local.name, { specifier, imported: 'default' });
+					this.import_binding(s.local.name, specifier, 'default');
 			}
 			if (!PAGE_SPECIFIER_RE.test(specifier)) return;
 			for (const s of node.specifiers ?? []) {
@@ -478,7 +486,11 @@ class Scan {
 						}
 					}
 					// derived(page, ($p) => …) / derived([a, page], ([$a, $p]) => …)
-					if (callee?.type === 'Identifier' && callee.name === 'derived' && args.length >= 2) {
+					if (
+						callee?.type === 'Identifier' &&
+						this.#store.get(callee.name) === 'derived' &&
+						args.length >= 2
+					) {
 						const fn = args[1];
 						const param = fn?.params?.[0];
 						if (args[0]?.type === 'Identifier' && this.is_page_value(args[0])) {
@@ -517,7 +529,11 @@ class Scan {
 			const bare = n.name.startsWith('$') ? n.name.slice(1) : n.name;
 			return this.#in_scope(n.name, n) || (bare !== n.name && this.#in_scope(bare, n));
 		}
-		if (n.type === 'CallExpression' && n.callee?.type === 'Identifier' && n.callee.name === 'get') {
+		if (
+			n.type === 'CallExpression' &&
+			n.callee?.type === 'Identifier' &&
+			this.#store.get(n.callee.name) === 'get'
+		) {
 			const a = n.arguments?.[0];
 			return !!a && a.type === 'Identifier' && this.#in_scope(a.name, a);
 		}
@@ -618,7 +634,18 @@ class Scan {
 			parent.callee?.type === 'Identifier'
 		) {
 			const name = parent.callee.name;
-			if (name === 'derived' || name === 'get') return;
+			const helper = this.#store.get(name);
+			if (helper === 'get') return;
+			if (helper === 'derived') {
+				const cb = parent.arguments[1];
+				if (
+					parent.arguments[0] === v &&
+					(cb?.type === 'ArrowFunctionExpression' || cb?.type === 'FunctionExpression') &&
+					cb.params?.[0]?.type === 'Identifier'
+				)
+					return;
+				throw new All('`derived(page, …)` hands the page to a callback it does not read here', at);
+			}
 			const fn = this.#local_fns.get(name);
 			if (fn) {
 				// followed at collect time: the parameter is the page inside the helper
@@ -649,7 +676,7 @@ class Scan {
 			if (
 				call?.type === 'CallExpression' &&
 				call.callee?.type === 'Identifier' &&
-				call.callee.name === 'derived' &&
+				this.#store.get(call.callee.name) === 'derived' &&
 				call.arguments?.[0] === parent &&
 				call.arguments.length >= 2
 			)
