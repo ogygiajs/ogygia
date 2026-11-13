@@ -136,7 +136,12 @@ describe('try_region_emit', () => {
 			'<script context=module>'
 		]) {
 			const out = try_region_emit(
-				`${open}\nexport const metadata = {"title":"X"};\n</script>\n<p>hi</p>`,
+				dedent`
+					${open}
+					export const metadata = {"title":"X"};
+					</script>
+					<p>hi</p>
+				`,
 				[]
 			);
 			expect(out!.html).toBe('<p>hi</p>');
