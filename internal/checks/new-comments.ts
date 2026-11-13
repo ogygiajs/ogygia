@@ -17,6 +17,10 @@ const OXLINT = path.join(ROOT, 'node_modules/.bin/oxlint');
 const SOURCE_RE = /^packages\/[^/]+\/src\/.*\.(ts|js|svelte)$/;
 const HUNK_RE = /^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@/;
 
+/** What the gate says at each comment it fails: move the why, never just delete. */
+export const NEW_COMMENT =
+	"turn this comment's why into a test, rule or type, then remove it; an outside fact stays as // @why <fact> (test: file › name)";
+
 /** One comment the change adds that is not one of the structured shapes. */
 export interface Finding {
 	file: string;
@@ -92,10 +96,10 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
 	const at = process.argv.indexOf('--base');
 	const base = at === -1 ? default_base(ROOT) : process.argv[at + 1];
 	const found = new_comment_findings(ROOT, base);
-	for (const f of found) console.error(`${f.file}:${f.line}: ${f.message}`);
+	for (const f of found) console.error(`${f.file}:${f.line}: ${NEW_COMMENT}`);
 	if (found.length > 0) {
 		console.error(
-			`\n${found.length} new comment(s) that are not JSDoc on an export, a reasoned directive, an \`// ok: <reason>\` note or a tested \`// @why <fact> (test: <file> › <name>)\` line (internal/lint/plugin.ts, structured-comments). Say it in code, a test name or a rule instead.`
+			`\n${found.length} new comment(s) (ogygia/structured-comments; COMMENTS-ARE-TESTS in internal/notes/INVARIANTS.md)`
 		);
 		process.exit(1);
 	}
