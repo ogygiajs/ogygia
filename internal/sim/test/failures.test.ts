@@ -245,9 +245,7 @@ describe('failure sites accounted', () => {
 		const a = account_failures(
 			SITES,
 			ledger({
-				step_points: [
-					{ point: 'p.lost', steps: ['m: kept -> gone'], how: '', killed_by: 'm.gone' }
-				]
+				step_points: [{ point: 'p.lost', steps: ['m: kept -> gone'], how: '', killed_by: 'm.gone' }]
 			}),
 			o
 		);
