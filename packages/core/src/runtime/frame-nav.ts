@@ -211,6 +211,7 @@ export async function streamFrames(
 	try {
 		let res: Response | typeof STALE;
 		try {
+			if (RULES && buggify.fires('batch.fetch-fails')) throw new TypeError('Failed to fetch');
 			res = await stream.scope.task(() =>
 				net.fetch(path, {
 					method: 'POST',
@@ -226,6 +227,7 @@ export async function streamFrames(
 			return; // ok: network error; release() in finally lets bound regions fall back to their own fetch
 		}
 		if (res === STALE) return; // no answer at all for STALL_MS
+		if (RULES && buggify.fires('batch.refused')) res = new Response('busy', { status: 503 });
 		stream.go('reading');
 		status = res.status;
 		if ((DEVTOOLS || HOOK_HOLE_BATCH_MISSED) && res.redirected) {
@@ -246,11 +248,12 @@ export async function streamFrames(
 			// (STALE: quiet for STALL_MS; the holes it still owes fetch on their own)
 			let read: ReadableStreamReadResult<Uint8Array> | typeof STALE;
 			try {
+				if (RULES && buggify.fires('batch.body-breaks')) throw new TypeError('network error');
 				read = await stream.scope.task(() => reader.read());
 			} catch {
 				return; // ok: the body broke off, as a request can fail: the holes it still owes fetch on their own
 			}
-			if (read === STALE) return;
+			if (read === STALE || (RULES && buggify.fires('batch.body-stalls'))) return;
 			const { done, value } = read;
 			// (done once the page left: its owner cancelled the body)
 			if (batch_scope.closed) return;

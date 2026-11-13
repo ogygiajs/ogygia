@@ -266,5 +266,45 @@
 		"from": "for (const a of reserved) release(a);",
 		"to": "void reserved;",
 		"aim": "batch.part-lost"
+	},
+	{
+		"id": "batch-unreleased-fetch-fails",
+		"file": "packages/core/src/runtime/frame-nav.ts",
+		"line": 304,
+		"code": "for (const a of reserved) release(a);",
+		"operator": "statement",
+		"from": "for (const a of reserved) release(a);",
+		"to": "void reserved;",
+		"aim": "batch.fetch-fails"
+	},
+	{
+		"id": "batch-unreleased-refused",
+		"file": "packages/core/src/runtime/frame-nav.ts",
+		"line": 304,
+		"code": "for (const a of reserved) release(a);",
+		"operator": "statement",
+		"from": "for (const a of reserved) release(a);",
+		"to": "void reserved;",
+		"aim": "batch.refused"
+	},
+	{
+		"id": "batch-unreleased-body-breaks",
+		"file": "packages/core/src/runtime/frame-nav.ts",
+		"line": 304,
+		"code": "for (const a of reserved) release(a);",
+		"operator": "statement",
+		"from": "for (const a of reserved) release(a);",
+		"to": "void reserved;",
+		"aim": "batch.body-breaks"
+	},
+	{
+		"id": "batch-unreleased-body-stalls",
+		"file": "packages/core/src/runtime/frame-nav.ts",
+		"line": 304,
+		"code": "for (const a of reserved) release(a);",
+		"operator": "statement",
+		"from": "for (const a of reserved) release(a);",
+		"to": "void reserved;",
+		"aim": "batch.body-stalls"
 	}
 ]

@@ -100,7 +100,11 @@ const RUNTIME_POINTS = [
 	'flights.evicted-early',
 	'import-again.entry-missed',
 	'hole.fetch-lost',
-	'batch.part-lost'
+	'batch.part-lost',
+	'batch.fetch-fails',
+	'batch.refused',
+	'batch.body-breaks',
+	'batch.body-stalls'
 ];
 // (the router's batch reader is a chunk the boot loads on use: named here so the build holds it)
 const RUNTIME_POINTS_ENTRY = `${RUNTIME_ENTRY}${dedent`
