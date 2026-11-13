@@ -3,7 +3,8 @@
 // with an empty `page.data` while its server HTML shows the real one, and nothing would say why.
 import { afterEach, expect, test, vi } from 'vitest';
 import { link_boot } from '../../src/runtime/boot-link.ts';
-import { page_seed_of } from '../../src/runtime/seeds.ts';
+import { page_seed_of, prepare_spa_document, seed_page_once } from '../../src/runtime/seeds.ts';
+import { runtime_session } from '../../src/runtime/session.ts';
 
 link_boot();
 afterEach(() => vi.restoreAllMocks());
@@ -41,5 +42,13 @@ test('a page seed cut off mid-text is no seed, and is said as page_seed_unreadab
 	const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
 	const text = JSON.stringify({ data: { title: 'hi' } });
 	expect(page_seed_of(document_with_seed(text.slice(0, text.length - 3)))).toBeNull();
+	expect(said(warn)).toEqual([expect.stringContaining('ogygiajs.dev/e/page_seed_unreadable')]);
+});
+
+test("an answer's page facts that cannot be read are skipped, and said as page_seed_unreadable", () => {
+	const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+	prepare_spa_document();
+	runtime_session.visit.facts.push(JSON.stringify({ locale: 'fr' }).slice(0, -2));
+	seed_page_once();
 	expect(said(warn)).toEqual([expect.stringContaining('ogygiajs.dev/e/page_seed_unreadable')]);
 });
