@@ -7,7 +7,7 @@ const C = (() => {}) as unknown as Component<never>;
 const ctx_for = (request: Request) => ({ request }) as unknown as Ctx;
 
 describe('load() inside one request', () => {
-	it('runs a failed load again on the next call, as a failure is never kept', async () => {
+	it('a failed load is the request’s failure: the next call in it gets the same, without a run', async () => {
 		let runs = 0;
 		const flaky = load(async () => {
 			runs++;
@@ -16,8 +16,10 @@ describe('load() inside one request', () => {
 		});
 		const c = ctx_for(new Request('http://x/'));
 		await expect(flaky(c)).rejects.toThrow('first try fails');
-		expect(await flaky(c)).toBe(2);
-		expect(await flaky(c)).toBe(2);
+		await expect(flaky(c)).rejects.toThrow('first try fails');
+		expect(runs).toBe(1);
+		// (a new request runs it again)
+		expect(await flaky(ctx_for(new Request('http://x/')))).toBe(2);
 	});
 
 	it('refuses a load asked for after its request ended, with the reason the request ended', async () => {
