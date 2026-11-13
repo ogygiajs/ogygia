@@ -224,6 +224,18 @@ describe('failure sites accounted', () => {
 		]);
 	});
 
+	it('fails a point the source asks that no ledger entry names (no orphan points), and a step point the source lost', () => {
+		const a = account_failures(
+			SITES,
+			ledger({ step_points: [{ point: 'p.keep', steps: ['m: kept -> gone'], how: '' }] }),
+			{ ...o, points: new Set(['p.lost', 'p.orphan']) }
+		);
+		expect(a.failures).toEqual([
+			'an orphan point (no ledger entry names it): p.orphan',
+			"no buggify point 'p.keep' in the packages' source (step_points)"
+		]);
+	});
+
 	it('fails a fired site whose point did not fire in the sweep', () => {
 		const a = account_failures(SITES, ledger(), { ...o, fired: new Set<string>() });
 		expect(a.failures).toEqual(["f > catch:0: its point 'p.lost' did not fire in the sweep"]);

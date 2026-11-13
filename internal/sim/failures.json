@@ -44,6 +44,16 @@
 			"site": "packages/machine/src/policy.ts > under_policy > catch:0",
 			"point": "outbox.reply-lost",
 			"how": "an outbox send's reply is lost after the receiver applied it: under_policy catches it and the policy tries again"
+		},
+		{
+			"site": "packages/core/src/runtime/import-again.ts > response_landed > timer:0",
+			"point": "import-again.entry-missed",
+			"how": "the timing entry of a download never comes (WebKit gives a dropped one none): the wait for it runs out on this timer and the import reads as one with no response"
+		},
+		{
+			"site": "packages/federation/src/peer.ts > PeerHandle > doc > reject:0",
+			"point": "federation.doc-stale",
+			"how": "a kept peer document reads as stale: it is served while one fresh flight refreshes it, and this handler keeps that refresh quiet when it fails (with a drop or down fault on the same run)"
 		}
 	],
 	"covered": [],
@@ -777,7 +787,6 @@
 		"packages/core/src/runtime/hydrate-core.ts > hydrate_island > catch:0",
 		"packages/core/src/runtime/import-again.ts > hear_responses > observer:0",
 		"packages/core/src/runtime/import-again.ts > hear_responses > catch:0",
-		"packages/core/src/runtime/import-again.ts > response_landed > timer:0",
 		"packages/core/src/runtime/import-again.ts > file_url > catch:0",
 		"packages/core/src/runtime/import-again.ts > import_again > next > .catch:0",
 		"packages/core/src/runtime/import-again.ts > import_again > next > refused:0",
@@ -1467,7 +1476,6 @@
 		"packages/federation/src/mount.ts > mount_fn > stream_slot > import:0",
 		"packages/federation/src/mount.ts > mount_fn > stream_slot > catch:0",
 		"packages/federation/src/mount.ts > kit_mount > kit > import:0",
-		"packages/federation/src/peer.ts > PeerHandle > doc > reject:0",
 		"packages/federation/src/peer.ts > PeerHandle > doc > catch:0",
 		"packages/federation/src/peer.ts > PeerHandle > doc > throw:0",
 		"packages/federation/src/peer.ts > PeerHandle > doc > stale:0",
@@ -1865,5 +1873,17 @@
 		"packages/tsdown-plugin-svelte/src/index.ts > default_preprocess > catch:0",
 		"packages/tsdown-plugin-svelte/src/index.ts > default_preprocess > throw:0",
 		"packages/tsdown-plugin-svelte/src/index.ts > svelte > writeBundle > import:0"
+	],
+	"step_points": [
+		{
+			"point": "flights.evicted-early",
+			"steps": ["render cache: kept -> gone", "router pages: kept -> gone"],
+			"how": "a kept answer's keep runs out at its next read: the entry goes and the caller runs the work again (any flights)"
+		},
+		{
+			"point": "flights.not-kept",
+			"steps": ["render cache: flying -> gone", "router pages: flying -> gone"],
+			"how": "an answer is not kept, as one too heavy for max: the next caller runs the work again (any flights)"
+		}
 	]
 }

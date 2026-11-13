@@ -26,6 +26,7 @@
  *   node src/failures.ts --base <rev>          and the baseline may not grow against <rev>
  *   node src/failures.ts --sweep <results>...  and each `fired` point fired in the sweep's results
  *   node src/failures.ts --list                print every site, with its line
+ *   node src/failures.ts --list --packages a,b the sites of other packages (outside the scope)
  *   node src/failures.ts --write-baseline      set the baseline to every site in no bucket
  *
  * test/failures.test.ts.
@@ -356,6 +357,17 @@ export interface FailureLedger {
 	readonly impossible: readonly Impossible[];
 	/** Sites nobody has bucketed yet. It may only shrink. */
 	readonly baseline: readonly string[];
+	/** Points that fire no failure site but a machine's recovery steps (a keep running out early:
+	 *  `kept -> gone`), which the steps ledger accounts for. Every point the source asks is named by a
+	 *  `fired` entry or here: no orphan points. */
+	readonly step_points?: readonly StepPoint[];
+}
+
+export interface StepPoint {
+	readonly point: string;
+	/** The machine steps it leads to, as the steps ledger spells them. */
+	readonly steps: readonly string[];
+	readonly how: string;
 }
 
 export interface FailureAccounting {
@@ -438,6 +450,17 @@ export function account_failures(
 		if (text === null) failures.push(`${i.site}: its rule's file is not there: ${i.by}`);
 		else if (!text.includes(i.name)) failures.push(`${i.site}: ${i.by} has no '${i.name}'`);
 	}
+	const named = new Set([
+		...ledger.fired.flatMap((f) => (f.point === undefined ? [] : [f.point])),
+		...(ledger.step_points ?? []).map((p) => p.point)
+	]);
+	for (const p of [...o.points].sort())
+		if (!named.has(p)) failures.push(`an orphan point (no ledger entry names it): ${p}`);
+	for (const p of ledger.step_points ?? []) {
+		if (!o.points.has(p.point))
+			failures.push(`no buggify point '${p.point}' in the packages' source (step_points)`);
+		if (p.steps.length === 0) failures.push(`${p.point}: a step point names its steps`);
+	}
 	if (o.base !== undefined)
 		for (const b of ledger.baseline)
 			if (!o.base.has(b)) failures.push(`the baseline grew (put it in a bucket instead): ${b}`);
@@ -485,7 +508,12 @@ function main(): void {
 	const ledger = read_failure_ledger();
 	const all = inventory(ROOT, ledger.scope);
 	if (process.argv.includes('--list')) {
-		for (const s of all) console.log(`${s.file}:${s.line}  ${s.id}`);
+		const named = arg('--packages');
+		const listed =
+			named === undefined
+				? all
+				: inventory(ROOT, { packages: named.split(','), exclude: ledger.scope.exclude });
+		for (const s of listed) console.log(`${s.file}:${s.line}  ${s.id}`);
 		return;
 	}
 	const sites = new Set(all.map((s) => s.id));
