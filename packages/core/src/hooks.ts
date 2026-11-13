@@ -1314,7 +1314,7 @@ class OgygiaHandle {
 			const ordered =
 				head === null
 					? null
-					: with_early_csp(runtime_first(head, null, code_origins(), mark_of(bag)));
+					: with_early_csp(runtime_first(head, null, code_origins(event?.request), mark_of(bag)));
 			return assemble(
 				gate ? gate.html : html,
 				gate ? { head_end: spans.head_end, body_end: spans.body_end + gate.delta } : spans,
@@ -1370,12 +1370,14 @@ class OgygiaHandle {
 			// sole base/assets authority, and every ogygia URL (prod `/${appDir}/…`, dev `/@id/…`) is
 			// baked base-LESS — so an island-LESS page under a non-root `base` loads the runtime too.
 			const runtime_tag =
-				router_enabled && runtime_url && !page_declares_runtime_script(probe)
+				(router_enabled || (!!event && !!facts_of(event.request).codeOrigins?.length)) &&
+				runtime_url &&
+				!page_declares_runtime_script(probe)
 					? runtime_bootstrap(kit_asset)
 					: null;
 			// (with the code origins the plugins and this render named: runtime/code-origins.ts)
 			const ordered = with_early_csp(
-				runtime_first(probe, runtime_tag, code_origins(), mark_of(bag))
+				runtime_first(probe, runtime_tag, code_origins(event?.request), mark_of(bag))
 			);
 			if (ordered !== probe) head_out = ordered;
 			// The DEV bridge is NOT gated on the router — it carries `@vite/client`, and Vite's own

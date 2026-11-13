@@ -589,8 +589,7 @@
 		"code": "return { error: message_of(thrown) };",
 		"operator": "statement",
 		"from": "return { error: message_of(thrown) };",
-		"to": "throw thrown;",
-		"aim": "gen.reshape-throws"
+		"to": "throw thrown;"
 	},
 	{
 		"id": "rewrite-batch-throws",
@@ -599,8 +598,7 @@
 		"code": "results = null;",
 		"operator": "statement",
 		"from": "results = null;",
-		"to": "throw new Error('the batch failed');",
-		"aim": "gen.reshape-throws"
+		"to": "throw new Error('the batch failed');"
 	},
 	{
 		"id": "rewrite-marks-lost-kept",

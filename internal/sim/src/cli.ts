@@ -372,7 +372,15 @@ export async function run(
 	try {
 		const v = world.visitor('visitor');
 		/** Every tab the run judges: the visitor's, and a crowd's (workload.ts `crowd`). */
-		const judged = (): Tab[] => [...v.tabs, ...world.crowd.flatMap((c) => c.tabs)];
+		const tabs = (): Tab[] => [...v.tabs, ...world.crowd.flatMap((c) => c.tabs)];
+		const judged = (): Tab[] => tabs().filter((t) => !world.on_release(t.realm));
+		const unheard = (): void => {
+			for (const t of tabs().filter((t) => world.on_release(t.realm))) {
+				t.errors.length = 0;
+				t.console.length = 0;
+				t.said_by.clear();
+			}
+		};
 		// (the network's exchanges since the last check: a fault among them explains what was said)
 		let since = 0;
 		/** Each document's machine moves read so far (by realm): its log keeps only its last lines,
@@ -398,6 +406,7 @@ export async function run(
 		/** Each tab looked at, after `what`: its DOM and what it holds in the trace, and the oracles. */
 		const look = (what: string): void => {
 			hear_moves();
+			unheard();
 			if (OBSERVE !== undefined)
 				seen.push(
 					observe(
@@ -585,7 +594,7 @@ export async function run(
 			for (const t of judged())
 				for (const b of owed_at_rest(t))
 					if (b) broken.push({ ...b, detail: `at rest: ${b.detail}` });
-			for (const t of v.tabs) {
+			for (const t of v.tabs.filter((t) => !world.on_release(t.realm))) {
 				// (a document a deploy failed a download of is degraded as a faulted one is: by the host.
 				// One only an outage touched is back on the network, and owes what a fresh load shows:
 				// THE OUTAGE OVER, the page recovers)
@@ -607,7 +616,9 @@ export async function run(
 			// (NO WASTE in any document of the run, a left one's too, each up to what disturbed it)
 			const asked = asked_twice_each(
 				world,
-				new Map(v.tabs.flatMap((t) => [...t.swaps_by])),
+				new Map(
+					v.tabs.flatMap((t) => [...t.swaps_by]).filter(([realm]) => !world.on_release(realm))
+				),
 				disturbed
 			);
 			if (asked) broken.push(asked);
