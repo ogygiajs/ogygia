@@ -350,8 +350,8 @@ Fix (two parts, verified: prod island hydrates + all 33 e2e still green):
   carries an ogygia hint (`has_island_hint`: cheap regex for `with { wake|render|region|preset }`),
   so libs opt in without taxing every lib file.
 - **Part B — late emit:** during the client build, the transform emits the deterministic island
-  chunk for any hydrate island discovered there that prescan missed (deduped via
-  `emitted_island_chunks`). This is what makes a lib host's SSR `entry` and client chunk agree.
+  chunk for any hydrate island discovered there that prescan missed (deduped by the build's
+  `island_entry_refs`). This is what makes a lib host's SSR `entry` and client chunk agree.
 - KNOWN minor follow-up: an orphaned content-hashed duplicate chunk is still emitted next to the
   deterministic one (dead code, harmless). Server-islands (defer) inside libs not yet verified.
 

@@ -157,6 +157,25 @@ export const ERRORS = {
 			'a devalue-lane payload was read before devalue loaded (load_devalue() first)',
 		details: (): string => BUG
 	},
+	page_promise_unresolved: {
+		text: (a: { why: 'stream' | 'devalue' | 'answer' }): string =>
+			a.why === 'stream'
+				? 'a streamed page.data promise never got its value: the page loaded without it.'
+				: a.why === 'answer'
+					? "a streamed page.data promise never got its value: the page's data answer ended without it."
+					: "a streamed page.data promise's value came, but the code to read it never loaded.",
+		details: (): string => prose`
+			A promise in \`page.data\` streams into islands: the page carries it pending, and a script
+			later in the same response settles it. Here that can no longer happen, so the promise is
+			rejected with this error and \`{#await}\` shows its catch branch instead of waiting
+			forever. \`why=stream\`: the page finished loading with no value for it (the response was
+			cut short, or something between the server and the browser dropped its end).
+			\`why=devalue\`: the value came, but the browser could not download the code that reads it.
+			\`why=answer\`: on the server, a region rendered outside its page (a hole, a remote call)
+			reads the page's data from Kit's data answer, and that answer ended (it broke, or the
+			request was over) before the promise's value came.
+		`
+	},
 	slot_not_linked: {
 		text: (a: { name: string }): string =>
 			`runtime chunk used \`slots.${a.name}\` before the boot linked it`,
@@ -435,6 +454,21 @@ export const WARNINGS = {
 			when the data does is easy to spot.
 
 			Equal versions, and answers without a version, keep the one that arrived last.
+		`
+	},
+	region_wake_unknown: {
+		text: (a: { region: string; value: string }): string => prose`
+			region ${a.region}: its wake "${a.value}" is not a trigger, so it wakes on load. Use
+			load, idle, visible, interaction or a media query.
+		`,
+		details: (): string => prose`
+			A region's \`wake\` (or a hole's \`when\`) names when it runs: \`load\`, \`idle\`,
+			\`visible\`, \`interaction\`, or a media query (a \`(\` with a \`)\` after it). This one
+			names none of them: a typo, or a value an app computed at runtime (\`region()\`'s
+			options). The build refuses an unknown value it can see on an import; this one reached
+			the page. The region wakes on load, the one fallback for a value no trigger holds.
+
+			Fix the value where it is made.
 		`
 	},
 	hole_without_address: {
@@ -784,6 +818,18 @@ export const WARNINGS = {
 			so the island reads \`undefined\` there.
 		`
 	},
+	page_payload_unreadable: {
+		text: (a: { what: string }): string => prose`
+			the page's ${a.what} could not be read back, so islands go on without it. The error follows.
+		`,
+		details: (): string => prose`
+			Dev only. The server wrote data into the page for its islands (the page seed, the page
+			facts, the holes record, the context marker, remote functions' data), and the browser could not decode it. The
+			usual cause is a custom type the server's \`transport\` encodes and the browser has no
+			decoder for. Islands then read nothing there. Give the type a decoder in \`transport\`
+			(hooks.ts), or pass plain data.
+		`
+	},
 	store_not_extensible: {
 		text: (a: { tag: string }): string => prose`
 			store "${a.tag}": the store object is not extensible (frozen/sealed), so it cannot carry
@@ -951,6 +997,28 @@ export const WARNINGS = {
 			puts the answer in the shape its components expect. An element of an answer was built
 			during the parse anyway: the engine built custom elements in a document that has no
 			registry. ${BUG}
+		`
+	},
+	rule_lake_restored: {
+		text: (a: { detail: string }): string =>
+			`rule broken, a hydrate gives back every lake it lifted: ${a.detail}`,
+		details: (): string => prose`
+			Dev and e2e only (a rule ogygia checks on itself). Before an island hydrates, the server
+			HTML of each region inside it that never wakes (a lake) is lifted out, and after the
+			hydrate it goes back into the lakes the island rendered, the first into the first. The
+			island rendered a different number of lakes than it had, so one lake's content was lost or
+			one lake was left empty. A lake that renders on the server only, or only in the browser
+			(an \`{#if browser}\`), does this; else ${BUG}
+		`
+	},
+	rule_turns_counted: {
+		text: (a: { detail: string }): string =>
+			`rule broken, the hydration scheduler holds every turn it counts: ${a.detail}`,
+		details: (): string => prose`
+			Dev and e2e only (a rule ogygia checks on itself). Islands that are ready to hydrate wait
+			for a turn, one per task, the ones on screen first. The scheduler keeps a count of the
+			turns waiting and picks the next one from two lists, on screen and not. The count and the
+			lists disagree, so the next pick could find nothing and islands could wait forever. ${BUG}
 		`
 	},
 	rule_head_adopted: {

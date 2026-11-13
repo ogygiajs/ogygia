@@ -455,6 +455,32 @@ describe('the random app', () => {
 		}
 	});
 
+	it("draws a module of the page's own after ogygia's runtime on some pages, from its own stream: DOMContentLoaded waits for its download", () => {
+		const seeds = Array.from({ length: 20 }, (_, i) => i + 1);
+		const pages = seeds.flatMap((s) => plan(s));
+		expect(pages.some((p) => p.late)).toBe(true);
+		expect(pages.some((p) => !p.late)).toBe(true);
+		const seed = seeds.find((s) => plan(s).some((p) => p.late))!;
+		const app = mkdtempSync(join(tmpdir(), 'sim-gen-'));
+		try {
+			const drawn = plan(seed);
+			write(app, drawn, seed);
+			for (const p of drawn) {
+				const src = readFileSync(
+					join(app, 'src', 'routes', p.path.slice(1), '+page.svelte'),
+					'utf8'
+				);
+				// (parsed with the page, so the browser runs it; spelled so the component's own parser
+				// never meets a closing script tag)
+				expect(src.includes(`type="module" src="/late.js"`)).toBe(p.late === true);
+			}
+			const module = readFileSync(join(app, 'src', 'routes', 'late.js', '+server.ts'), 'utf8');
+			expect(module).toContain("'content-type': 'text/javascript'");
+		} finally {
+			rmSync(app, { recursive: true, force: true });
+		}
+	});
+
 	it("draws islands a third party's script changes while they sleep, from their own stream: one that wakes on its own, in the page's own HTML", () => {
 		const seeds = Array.from({ length: 40 }, (_, i) => i + 1);
 		const touched: GenNode[] = [];

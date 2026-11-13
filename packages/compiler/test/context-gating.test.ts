@@ -118,6 +118,16 @@ describe('context_string_keys — follows the getContext/setContext import bindi
 		expect(reads(`import { getContext } from 'svelte';\ngetContext(keyVar);`)).toEqual([]);
 	});
 
+	it('does NOT count a key that is not a string (a number, a template)', () => {
+		expect(reads(`import { getContext } from 'svelte';\ngetContext(1);`)).toEqual([]);
+		expect(reads("import { getContext } from 'svelte';\ngetContext(`k`);")).toEqual([]);
+	});
+
+	it("follows an import named by a string ('getContext' as gc)", () => {
+		expect(reads(`import { 'getContext' as gc } from 'svelte';\ngc('cart');`)).toEqual(['cart']);
+		expect(sets(`import { 'setContext' as sc } from 'svelte';\nsc('cart', 1);`)).toEqual(['cart']);
+	});
+
 	it('ignores the word in a comment or string (no import → no parse-time binding)', () => {
 		expect(reads(`// getContext('faux') in a comment\nconst s = "getContext('also')";`)).toEqual(
 			[]
