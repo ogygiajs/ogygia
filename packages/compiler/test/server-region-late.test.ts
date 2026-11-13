@@ -8,7 +8,7 @@ import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'nod
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, expect, test } from 'vitest';
-import { Compiler } from '../src/compiler/driver.ts';
+import { Compiler, type Profiler } from '../src/compiler/driver.ts';
 import { Program } from '../src/compiler/program.ts';
 import { CompileCtx } from '../src/compiler/ctx.ts';
 import { normalize_import_keys } from '../src/compiler/region/transform.ts';
@@ -30,16 +30,15 @@ function build_compiler() {
 	write(`${root}/src/routes/+layout.ts`, 'export const csr = false;\n');
 	write(`${root}/lib/Slow.svelte`, '<p>slow</p>\n');
 	const compiler = new Compiler(new Program({ forms: true, router: true }), {
+		// (P is off: no timing is read; the macro timings' names are the macro stage's own)
 		prof: {
 			transformMs: 0,
 			transformN: 0,
 			transformHit: 0,
 			prescanMs: 0,
-			bakeMs: 0,
-			bakeN: 0,
 			resolveMs: 0,
 			loadMs: 0
-		},
+		} as Profiler['prof'],
 		P: false,
 		outHash: new Map<string, number>()
 	});
