@@ -99,6 +99,18 @@
 			"killed_by": "hole-answer-later-treated-as-refused"
 		},
 		{
+			"site": "packages/core/src/runtime/frame-store.ts > reserve > stale:0",
+			"point": "batch.part-lost",
+			"how": "a batch part the batch did not carry is missed: its wait answers STALE, never an empty answer, so a joined binder asks again. Proved aimed (--buggify-aim batch.part-lost, gens 191 and 10: an empty answer in its place leaves the hole on its fallback, gen191:8 fallback-stands)",
+			"killed_by": "missed-part-lands-empty"
+		},
+		{
+			"site": "packages/core/src/runtime/frame-store.ts > ensure > stale:0",
+			"point": "batch.part-lost",
+			"how": "a binder that joined a missed part gets STALE and asks again: its own fetch runs. Proved aimed (--buggify-aim batch.part-lost, gens 191 and 10: one that returns the STALE leaves the hole waiting, gen191:9 stuck)",
+			"killed_by": "missed-part-joiner-not-asking-again"
+		},
+		{
 			"site": "packages/core/src/runtime/frame-nav.ts > streamFrames > throw:0",
 			"point": "batch.fetch-fails",
 			"how": "the point itself: a navigation batch's request fails before it goes out, as a dropped one's does",
@@ -930,11 +942,9 @@
 		"packages/core/src/runtime/frame-nav.ts > streamFrames > .catch:1",
 		"packages/core/src/runtime/frame-store.ts > fetch_frame > abort:0",
 		"packages/core/src/runtime/frame-store.ts > write > refused:0",
-		"packages/core/src/runtime/frame-store.ts > reserve > stale:0",
 		"packages/core/src/runtime/frame-store.ts > reserve > reject:0",
 		"packages/core/src/runtime/frame-store.ts > release > refused:0",
 		"packages/core/src/runtime/frame-store.ts > ensure > throw:0",
-		"packages/core/src/runtime/frame-store.ts > ensure > stale:0",
 		"packages/core/src/runtime/frame-store.ts > ensure > abort:0",
 		"packages/core/src/runtime/hole-facts.ts > parse_record > parse:0",
 		"packages/core/src/runtime/hole-facts.ts > parse_record > catch:0",
