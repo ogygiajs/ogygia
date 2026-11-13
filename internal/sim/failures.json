@@ -46,7 +46,42 @@
 			"site": "packages/rewrite/src/pass.ts > call_render > throw:0",
 			"point": "rewrite.render-throws",
 			"how": "the point throws in place of the app's render, on a batch or on one element: the batch is retried one element at a time, and what still fails goes out as ogygia rendered it",
-			"killed_by": "rewrite-fallback-off"
+			"killed_by": "rewrite-fallback-off-aimed"
+		},
+		{
+			"site": "packages/rewrite/src/pass.ts > render_one > result:0",
+			"point": "rewrite.render-throws",
+			"how": "the point throws on one element's own call: its failure comes back as a result, and the element goes out as ogygia rendered it",
+			"killed_by": "rewrite-fallback-off-aimed"
+		},
+		{
+			"site": "packages/rewrite/src/pass.ts > render_targets > result:0",
+			"point": "rewrite.render-throws",
+			"how": "the point throws on the batch and again on an element alone: that element goes out as ogygia rendered it, said with rewrite_element_failed"
+		},
+		{
+			"site": "packages/rewrite/src/pass.ts > counted > result:0",
+			"point": "rewrite.render-count",
+			"how": "the point drops the first result of a call: a short batch is retried one element at a time, and an element whose own answer is short goes out as ogygia rendered it (a result never lands on another element)",
+			"killed_by": "rewrite-count-unchecked"
+		},
+		{
+			"site": "packages/rewrite/src/pass.ts > judge > result:2",
+			"point": "rewrite.render-malformed",
+			"how": "the point leaves an unclosed <div> at the end of a result: that element goes out as ogygia rendered it, and the page around it keeps its shape",
+			"killed_by": "rewrite-unclosed-kept"
+		},
+		{
+			"site": "packages/rewrite/src/pass.ts > judge > result:3",
+			"point": "rewrite.render-strips-marks",
+			"how": "the point takes og-h off a result: a host ogygia restores goes out as ogygia rendered it, never as a render with nothing to restore by",
+			"killed_by": "rewrite-marks-lost-kept-aimed"
+		},
+		{
+			"site": "packages/rewrite/src/pass.ts > rewrite_chunk > result:0",
+			"point": "rewrite.chunk-split",
+			"how": "the point reads a chunk as two, cut in its middle: an element the cut falls in goes out unrendered, said in dev, and the page after it is read as before",
+			"killed_by": "rewrite-split-element-rendered"
 		},
 		{
 			"site": "packages/rewrite/src/pass.ts > cancelled > abort:0",
@@ -433,6 +468,24 @@
 			"reason": "a wiring error, the same on every request: the sim's app lists its rewrite before ogygia.handle()",
 			"test": "packages/rewrite/test/plugin.test.ts",
 			"name": "listed after ogygia.handle() is refused with rewrite_after_ogygia"
+		},
+		{
+			"site": "packages/rewrite/src/pass.ts > judge > result:0",
+			"reason": "a result that is not a string or { html }: a type error in the app's render, which the sim's app never makes; the test's table names the case",
+			"test": "packages/rewrite/test/rewrite.test.ts",
+			"name": "returns no html"
+		},
+		{
+			"site": "packages/rewrite/src/pass.ts > judge > result:1",
+			"reason": "a sheet with no key, css or scope: a type error in the app's render, which the sim's app never makes; the test's table names the case",
+			"test": "packages/rewrite/test/rewrite.test.ts",
+			"name": "returns a bad sheet"
+		},
+		{
+			"site": "packages/rewrite/src/pass.ts > render_targets > not-ok:0",
+			"reason": "each refused result is said with its code: no sim oracle can tell a warning that should have been said, a test can",
+			"test": "packages/rewrite/test/rewrite.test.ts",
+			"name": "production says each failure with its code, once per response and element name"
 		},
 		{
 			"site": "packages/rewrite/src/pass.ts > run_page > catch:0",

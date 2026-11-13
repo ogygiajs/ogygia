@@ -586,11 +586,61 @@
 		"id": "rewrite-fallback-off",
 		"file": "packages/rewrite/src/pass.ts",
 		"in": "render_one",
-		"code": "return { error: message_of(thrown) };",
+		"code": "return { ok: false, error: message_of(thrown) };",
 		"operator": "statement",
-		"from": "return { error: message_of(thrown) };",
+		"from": "return { ok: false, error: message_of(thrown) };",
 		"to": "throw thrown;",
 		"aim": "gen.reshape-throws"
+	},
+	{
+		"id": "rewrite-fallback-off-aimed",
+		"file": "packages/rewrite/src/pass.ts",
+		"in": "render_one",
+		"code": "return { ok: false, error: message_of(thrown) };",
+		"operator": "statement",
+		"from": "return { ok: false, error: message_of(thrown) };",
+		"to": "throw thrown;",
+		"aim": "rewrite.render-throws"
+	},
+	{
+		"id": "rewrite-count-unchecked",
+		"file": "packages/rewrite/src/pass.ts",
+		"in": "counted",
+		"code": "if (Array.isArray(out) && out.length === n) return { ok: true, results: out };",
+		"operator": "statement",
+		"from": "out.length === n",
+		"to": "out.length > 0",
+		"aim": "rewrite.render-count"
+	},
+	{
+		"id": "rewrite-unclosed-kept",
+		"file": "packages/rewrite/src/pass.ts",
+		"in": "judge",
+		"code": "if (!closes_all(html))",
+		"operator": "statement",
+		"from": "if (!closes_all(html))",
+		"to": "if (html.length < 0)",
+		"aim": "rewrite.render-malformed"
+	},
+	{
+		"id": "rewrite-marks-lost-kept-aimed",
+		"file": "packages/rewrite/src/pass.ts",
+		"in": "judge",
+		"code": "if (!kept.has(id))",
+		"operator": "statement",
+		"from": "if (!kept.has(id))",
+		"to": "if (kept.size < 0)",
+		"aim": "rewrite.render-strips-marks"
+	},
+	{
+		"id": "rewrite-split-element-rendered",
+		"file": "packages/rewrite/src/scan.ts",
+		"in": "read",
+		"code": "if (start !== -1) spans.push({ start, end: at.end, name, owned });",
+		"operator": "statement",
+		"from": "if (start !== -1)",
+		"to": "if (start !== -2)",
+		"aim": "rewrite.chunk-split"
 	},
 	{
 		"id": "rewrite-batch-throws",
@@ -606,9 +656,9 @@
 		"id": "rewrite-marks-lost-kept",
 		"file": "packages/rewrite/src/pass.ts",
 		"in": "judge",
-		"code": "if (!kept.has(id)) return { code: 'rewrite_marks_lost', name, error: 'og-h dropped' };",
+		"code": "if (!kept.has(id))",
 		"operator": "statement",
-		"from": "if (!kept.has(id)) return",
-		"to": "if (kept.size < 0) return"
+		"from": "if (!kept.has(id))",
+		"to": "if (kept.size < 0)"
 	}
 ]

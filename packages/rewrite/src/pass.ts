@@ -43,6 +43,7 @@ export function step_of(def: ElementRewrite | PageRewrite): Step {
 
 /** A failure the pass recovered from: the code it is said with, the element, the reason. */
 export interface Failure {
+	ok: false;
 	code: 'rewrite_element_failed' | 'rewrite_marks_lost' | 'rewrite_element_split';
 	name: string;
 	error: string;
@@ -88,6 +89,7 @@ interface Target {
 }
 
 interface Rendered {
+	ok: true;
 	html: string;
 	sheets: readonly RewriteSheet[] | null;
 }
@@ -131,8 +133,14 @@ function message_of(thrown: unknown): string {
 	return thrown instanceof Error ? thrown.message : String(thrown);
 }
 
-function count_error(out: unknown, n: number): string {
-	return `render returned ${Array.isArray(out) ? out.length : typeof out} result(s) for ${n} element(s)`;
+type Counted = { ok: true; results: readonly unknown[] } | { ok: false; error: string };
+
+function counted(out: unknown, n: number): Counted {
+	if (Array.isArray(out) && out.length === n) return { ok: true, results: out };
+	return {
+		ok: false,
+		error: `render returned ${Array.isArray(out) ? out.length : typeof out} result(s) for ${n} element(s)`
+	};
 }
 
 class Response {
@@ -184,12 +192,11 @@ async function render_one(
 	render: ElementRewrite['render'],
 	el: RewriteElement,
 	ctx: RewriteContext
-): Promise<{ ok: unknown } | { error: string }> {
+): Promise<Counted> {
 	try {
-		const out = await call_render(render, [el], ctx);
-		return Array.isArray(out) && out.length === 1 ? { ok: out[0] } : { error: count_error(out, 1) };
+		return counted(await call_render(render, [el], ctx), 1);
 	} catch (thrown) {
-		return { error: message_of(thrown) };
+		return { ok: false, error: message_of(thrown) };
 	}
 }
 
@@ -200,7 +207,18 @@ async function call_render(
 ): Promise<unknown> {
 	if (RULES && buggify.fires('rewrite.render-throws'))
 		throw new Error('the render threw (buggify)');
-	return render(els, ctx);
+	const out: unknown = await render(els, ctx);
+	if (!RULES || !Array.isArray(out)) return out;
+	if (buggify.fires('rewrite.render-count')) return out.slice(1);
+	return out.map((r: unknown) => {
+		const html = typeof r === 'string' ? r : (r as { html?: unknown } | null)?.html;
+		if (typeof html !== 'string') return r;
+		let bad = html;
+		if (buggify.fires('rewrite.render-malformed')) bad = `${bad}<div>`;
+		if (buggify.fires('rewrite.render-strips-marks')) bad = bad.replaceAll(' og-h=', ' data-gone=');
+		if (bad === html) return r;
+		return typeof r === 'string' ? bad : { ...(r as object), html: bad };
+	});
 }
 
 function cancelled(ctx: RewriteContext): boolean {
@@ -224,10 +242,10 @@ async function render_targets(
 		}
 		slot.push(i);
 	}
-	let results: unknown[] | null = null;
+	let results: readonly unknown[] | null = null;
 	try {
-		const out = await call_render(render, unique, ctx);
-		if (Array.isArray(out) && out.length === unique.length) results = out;
+		const c = counted(await call_render(render, unique, ctx), unique.length);
+		if (c.ok) results = c.results;
 		// oxlint-disable-next-line ogygia/no-silent-failures -- a failed batch is retried one element at a time below, and each element that still fails is said with its code
 	} catch {
 		results = null;
@@ -239,16 +257,15 @@ async function render_targets(
 		if (cancelled(ctx)) return targets.map(() => null);
 		for (let i = 0; i < unique.length; i++) {
 			const e = each[i];
-			outcome[i] =
-				'ok' in e
-					? judge(unique[i], e.ok)
-					: { code: 'rewrite_element_failed', name: unique[i].name, error: e.error };
+			outcome[i] = e.ok
+				? judge(unique[i], e.results[0])
+				: { ok: false, code: 'rewrite_element_failed', name: unique[i].name, error: e.error };
 		}
 	} else for (let i = 0; i < unique.length; i++) outcome[i] = judge(unique[i], results[i]);
-	for (const o of outcome) if ('code' in o) res.failed(o);
+	for (const o of outcome) if (!o.ok) res.failed(o);
 	return slot.map((i) => {
 		const o = outcome[i];
-		return 'code' in o ? null : o;
+		return o.ok ? o : null;
 	});
 }
 
@@ -261,15 +278,22 @@ function judge(el: RewriteElement, out: unknown): Rendered | Failure {
 	}
 	const name = el.name;
 	if (typeof html !== 'string')
-		return { code: 'rewrite_element_failed', name, error: 'its result has no html string' };
+		return {
+			ok: false,
+			code: 'rewrite_element_failed',
+			name,
+			error: 'its result has no html string'
+		};
 	if (sheets === false)
 		return {
+			ok: false,
 			code: 'rewrite_element_failed',
 			name,
 			error: 'a sheet needs a key, its css, and a scope of page or shadow'
 		};
 	if (!closes_all(html))
 		return {
+			ok: false,
 			code: 'rewrite_element_failed',
 			name,
 			error: 'its html does not close everything it opens'
@@ -277,9 +301,10 @@ function judge(el: RewriteElement, out: unknown): Rendered | Failure {
 	if (el.restored) {
 		const kept = restored_ids(html);
 		for (const id of restored_ids(el.html))
-			if (!kept.has(id)) return { code: 'rewrite_marks_lost', name, error: 'og-h dropped' };
+			if (!kept.has(id))
+				return { ok: false, code: 'rewrite_marks_lost', name, error: 'og-h dropped' };
 	}
-	return { html, sheets };
+	return { ok: true, html, sheets };
 }
 
 function outer_mark(html: string): { html: string; attr: string } | null {
@@ -433,6 +458,7 @@ async function rewrite_chunk(
 	const scanned = scan(html, res.any!, res.scan, page.csr, res.waiting !== '');
 	if (scanned.split)
 		res.failed({
+			ok: false,
 			code: 'rewrite_element_split',
 			name: scanned.split,
 			error: 'it did not close before its chunk ended'
@@ -576,6 +602,27 @@ export function rewrite_pass(
 				const doc = res.buffer.join('');
 				res.buffer = null;
 				return rewrite_whole(doc, res, 'document', page.csr, page.answer);
+			}
+			if (RULES && html.length > 1 && res.any && buggify.fires('rewrite.chunk-split')) {
+				const mid = html.length >> 1;
+				const a = html.slice(0, mid);
+				const first = (await rewrite_chunk(a, res, { ...page, body: false })) ?? {
+					html: a,
+					head: '',
+					body: ''
+				};
+				const b = html.slice(mid);
+				const second = (await rewrite_chunk(b, res, page)) ?? { html: b, head: '', body: '' };
+				if (page.head) res.head_open = false;
+				if (page.done && res.waiting) {
+					second.html = `${second.html}${res.waiting}`;
+					res.waiting = '';
+				}
+				return {
+					html: `${first.html}${second.html}`,
+					head: `${first.head}${second.head}`,
+					body: second.body
+				};
 			}
 			const out = (res.any ? await rewrite_chunk(html, res, page) : null) ?? {
 				html,

@@ -209,7 +209,7 @@ describe('element rewrites: the restore', () => {
 		expect(two.html).toContain('whole</slot>');
 		expect(render).toHaveBeenCalledTimes(1);
 		expect(failed).toEqual([
-			{ code: 'rewrite_element_split', name: 'demo-card', error: expect.any(String) }
+			{ ok: false, code: 'rewrite_element_split', name: 'demo-card', error: expect.any(String) }
 		]);
 	});
 });
