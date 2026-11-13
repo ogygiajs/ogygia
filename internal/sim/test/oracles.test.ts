@@ -25,6 +25,7 @@ import {
 	live_regions_out,
 	page_errors,
 	peer_answers,
+	peer_fails_over,
 	reshaped_live,
 	page_rules,
 	regions_show,
@@ -1089,6 +1090,62 @@ describe('page errors', () => {
 			redirected: false
 		});
 		expect(faulted(hole, t)).toBe(true);
+	});
+});
+
+describe('a peer fails over, and only then', () => {
+	const hop = (id: number, origin: string, at: number, more: Record<string, unknown> = {}) => ({
+		id,
+		from: 'server-0',
+		for: 'tab-0#1',
+		method: 'GET',
+		url: `${origin}/og/fragment/w0?label=r0`,
+		at,
+		status: 200,
+		cut: false,
+		tampered: false,
+		redirected: false,
+		...more
+	});
+	const judged = (...exchanges: Array<Record<string, unknown>>) =>
+		peer_fails_over(
+			{
+				replicas: new Map([['https://peer2.test', 'https://peer.test']]),
+				network: {
+					exchanges: [
+						{
+							id: 0,
+							from: 'tab-0#1',
+							method: 'GET',
+							url: 'https://app.test/p0',
+							at: 0,
+							status: 200,
+							cut: false
+						},
+						...exchanges
+					]
+				}
+			} as unknown as World,
+			0
+		);
+	const first = 'https://peer.test';
+	const replica = 'https://peer2.test';
+
+	it('finds a down first origin whose replica was not asked (a mutant that kept the 500 survived)', () => {
+		expect(judged(hop(1, first, 10, { status: 500, down: true }))?.oracle).toBe('peer-failover');
+		expect(judged(hop(1, first, 10, { status: 503, down: true }), hop(2, replica, 12))).toBeNull();
+	});
+
+	it('finds the replica asked after the first origin answered (a mutant that asked every origin survived)', () => {
+		expect(judged(hop(1, first, 10), hop(2, replica, 12))?.oracle).toBe('peer-failover');
+		expect(judged(hop(1, first, 10))).toBeNull();
+	});
+
+	it('passes the replica asked once the first origin gave nothing: past its timeout, or for another read of the address (gen 121, seeds 6 and 103)', () => {
+		expect(judged(hop(1, first, 10), hop(2, replica, 5010))).toBeNull();
+		expect(judged(hop(1, first, 10), hop(2, first, 4000), hop(3, replica, 5010))).toBeNull();
+		expect(judged(hop(1, first, 10, { stalled: true }), hop(2, replica, 12))).toBeNull();
+		expect(judged(hop(1, first, 10, { status: 'dropped' }), hop(2, replica, 12))).toBeNull();
 	});
 });
 

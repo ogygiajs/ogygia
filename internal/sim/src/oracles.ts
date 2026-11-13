@@ -1457,6 +1457,62 @@ export function server_rules(world: World): Broken | null {
 	return { oracle: 'server-rules', detail: said.join('\n') };
 }
 
+/** A peer hop's deadline (federation's `timeout` default, which the generated apps keep): an answer
+ *  the delay fault brought later is no answer, and the replica is asked (gen 121, seed 6). */
+const PEER_TIMEOUT_MS = 5000;
+
+/**
+ * A PEER FAILS OVER, AND ONLY THEN: a server's GET to a peer's first origin that the `down` fault
+ * answered is asked again of its replica (federation's failover: a 500 kept as the answer
+ * survived), and the replica is asked only after the first origin gave nothing (asking every
+ * origin survived): down, failed on the wire, stalled, or past the peer's timeout. Read from the
+ * hops (`for` a document) `since` an exchange. A hop whose document's own request ended is not
+ * judged: an ended request asks nothing more.
+ */
+export function peer_fails_over(world: World, since: number): Broken | null {
+	const replicas = world.replicas;
+	if (replicas.size === 0) return null;
+	const first_of = new Map([...replicas].map(([r, o]) => [o, r]));
+	const all = world.network.exchanges;
+	const hops = all.slice(since).filter((e) => e.for !== undefined && e.method === 'GET');
+	const ended = (realm: string): boolean =>
+		all.some(
+			(e) =>
+				e.from === realm &&
+				(e.cut || e.lost === true || e.status === 'aborted' || e.status === 'dropped')
+		);
+	// (a first origin's answer that gave the app nothing it could use: the replica is owed)
+	const gave_nothing = (p: (typeof all)[number], asked_at: number): boolean =>
+		p.down === true ||
+		failed_on_wire(p) ||
+		p.stalled === true ||
+		typeof p.status !== 'number' ||
+		asked_at - p.at >= PEER_TIMEOUT_MS;
+	const wrong: string[] = [];
+	for (const h of hops) {
+		const u = new URL(h.url);
+		if (ended(h.for!)) continue;
+		const replica = first_of.get(u.origin);
+		if (replica !== undefined) {
+			const there = `${replica}${u.pathname}${u.search}`;
+			if (h.down === true && !hops.some((n) => n.for === h.for && n.url === there && n.at >= h.at))
+				wrong.push(`${h.url}: its first origin was down, and its replica was not asked`);
+			continue;
+		}
+		const first = replicas.get(u.origin);
+		if (first === undefined) continue;
+		// (each ask of the replica follows an ask of the first origin that gave nothing; with two
+		// reads of one address at once, any of them: gen 121, seed 103)
+		const here = `${first}${u.pathname}${u.search}`;
+		const before = all.filter((p) => p.for === h.for && p.url === here && p.at <= h.at);
+		if (before.length > 0 && !before.some((p) => gave_nothing(p, h.at)))
+			wrong.push(
+				`${h.url}: asked though its first origin answered (${before.map((p) => `#${p.id} ${p.status} at ${p.at}`).join(', ')}; this at ${h.at})`
+			);
+	}
+	return wrong.length === 0 ? null : { oracle: 'peer-failover', detail: wrong.join('\n') };
+}
+
 /** A shared cache never hands one visitor's personal bytes to another (cdn.ts records each hit
  *  served across cookies; any is a finding until the oracle can compare against the origin). */
 export function no_cross_visitor_cache(world: World): Broken | null {
