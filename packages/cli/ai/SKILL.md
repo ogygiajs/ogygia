@@ -242,7 +242,7 @@ export const { cms, dash } = federate({
 - **Decision order**: `?og-exp=name:variant` override (dev-only unless `decide({ overrides })`) → carried signed claims (federation) → source → layer gate → native rule (targeting/weights/rollout) → control. Anonymous (no visitor sub) → control.
 - **Layers (mutual exclusion)**: members sharing `{ layer: 'group' }` split visitors into equal LANES — one sticky hash of (group, visitor) over the SORTED member names picks each visitor's OWNER; non-owners answer control before their own rule runs (two experiments on one surface never share a visitor, so measurements stay attributable). Real exposure = split ÷ member count (50% in a 2-member layer = 25% of traffic). Override/carried/source sit ABOVE the gate.
 - **Federation auto-carry**: every flag DECIDED this request self-registers its bucket into the signed claims — mounted teams render the same world, no hand-list. A shell that only routes (never reads the flag) pre-decides it: `routes(table, { flags: [csrMode] })`.
-- **Manifest**: every literal-named `flag()` call site (AST-resolved `@ogygia/flags` imports, renames + namespaces) lands in `node_modules/.ogygia/flags-manifest.json` on the client build — `ogygia_flags` reads it; diff in CI to catch dead flags.
+- **Manifest**: every literal-named `flag()` call site (AST-resolved `@ogygia/flags` imports, renames + namespaces) lands in `node_modules/.ogygia/flags-manifest.json` on the client build, only with `flags()` listed (without it the build warns `plugin_not_listed` once) — `ogygia_flags` reads it; diff in CI to catch dead flags.
 - **Plain Kit** (no ogygia router): `import` your flags module in hooks.server.ts so the source primes them before the first request (router apps register all at startup).
 
 ## Content
@@ -262,7 +262,7 @@ Package `@ogygia/content`, plugin `content({ markdown, presets })` from `'@ogygi
 
 Compile constructs — rewritten by the Vite plugin, no runtime object exists. Family: `loader.*`, `code`, `md`, `regions`, `wire`, `bake`, `$`, `source`. Shared laws: **literal arguments** (a `${…}` interpolation is a build error), AST-detected, loud `[ogygia]` build errors, zero runtime cost.
 
-- `bake(fn)` runs `fn` at build (self-contained: may use module imports, not other locals; no `$app/*`; result devalue-serializable) and inlines the answer — imports that only fed it are dropped from the output.
+- `bake(fn)` needs `bake()` from `@ogygia/bake` beside `ogygia()` (types: `@ogygia/bake/types`; without it the build fails with `macro_needs_plugin`). It runs `fn` at build (self-contained: may use module imports, not other locals; no `$app/*`; result devalue-serializable) and inlines the answer — imports that only fed it are dropped from the output.
 - `$(fn)` brands a function so a REF can cross context into an island and rebind on the far side (bound captures).
 
 ## Packaging — islands from npm dependencies

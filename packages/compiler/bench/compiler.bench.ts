@@ -9,7 +9,6 @@ import { EVERY_BARREL, ExportIndex, Shapes, type Policy } from '../src/compiler/
 import { analyze_exports, analyze_imports } from '../src/compiler/exports/parse.ts';
 import { barrel_left_table } from '../src/compiler/exports/left.ts';
 import { BARREL_LEFT_REASONS } from '@ogygia/core/contract';
-import { collect_flag_sites } from '../src/compiler/flags.ts';
 import { collectFreeIdentifiers } from '../src/compiler/free-vars.ts';
 import { page_data_keys_answer } from '../src/compiler/link/page-keys.ts';
 import { auto_brand_stores, rewrite_store } from '../src/compiler/macros/store.ts';
@@ -104,7 +103,7 @@ bench(
 	async ({ app, foreign, missing }) => {
 		const ctx = (own: boolean) => ({
 			root: '/app',
-			resolveAlias: [],
+			alias: [],
 			pkgRoot: '/og',
 			dollarHoists: new Map<string, string>(),
 			macros: [{ name: 'code', handler: (code: string) => code.split('og.code').join('og_code') }],
@@ -256,31 +255,6 @@ bench(
 			}
 			return { source: src };
 		}
-	}
-);
-
-/** A module declaring `flags` flags, each among a few lines of other code. */
-function flags_module(flags: number): string {
-	let src = `${dedent`
-		import { flag } from '@ogygia/flags';
-		import { format } from '$lib/format';
-	`}\n\n`;
-	for (let i = 0; i < flags; i++)
-		src = `${dedent`
-			${src}export const flag${i} = flag('flag-${i}', { a: 50, b: 50 });
-			export const label${i} = format('label ${i}');
-		`}\n\n`;
-	return src;
-}
-
-// Growth: the inventory is linear in the module's size. It was quadratic while each flag's line
-// was counted from the top of the file.
-bench(
-	'flag inventory: the flag calls of a module as it grows',
-	({ source }) => collect_flag_sites(source, '/app/src/lib/flags.ts', 'src/lib/flags.ts').length,
-	{
-		setup: () => ({ source: flags_module(20) }),
-		scale: (_ctx, k) => ({ source: flags_module(20 * k) })
 	}
 );
 
