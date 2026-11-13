@@ -15,7 +15,7 @@ import { pathToFileURL } from 'node:url';
 import { build } from 'vite';
 import { svelte } from '@sveltejs/vite-plugin-svelte';
 import { dedent } from '@ogygia/core/contract';
-import { ogygia } from '../dist/vite/index.js';
+import { ogygia } from '../src/vite/index.ts';
 
 let root = '';
 afterEach(() => {
