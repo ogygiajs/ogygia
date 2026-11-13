@@ -24,14 +24,17 @@ const presets = Object.fromEntries(
 	)
 );
 
-// (a seed may draw an app without the router: `router` in the plan gen.ts wrote)
-const plan: { router?: boolean } = existsSync('src/lib/gen/plan.json')
+// (a seed may draw an app without the router: `router` in the plan gen.ts wrote; and the presets its
+// regions with a margin name, `presets`: a margin is never an inline attribute)
+const plan: { router?: boolean; presets?: Record<string, Record<string, string>> } = existsSync(
+	'src/lib/gen/plan.json'
+)
 	? JSON.parse(readFileSync('src/lib/gen/plan.json', 'utf8'))
 	: {};
 
 export default defineConfig({
 	plugins: [
-		ogygia({ router: plan.router !== false, presets }),
+		ogygia({ router: plan.router !== false, presets: { ...presets, ...plan.presets } }),
 		// (the simulator's ear: a repair's ownership conflict said on the console, src/sim-client.ts)
 		definePlugin({
 			name: 'sim-gen',

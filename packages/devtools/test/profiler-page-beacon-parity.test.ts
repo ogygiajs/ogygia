@@ -7,6 +7,7 @@ import {
 	without_comments,
 	without_runtime_marks
 } from '@ogygia/core/internal/instruments';
+import { fuzz, html_arb, inner_html } from '@ogygia/config/html-fuzz';
 import { _restart_page_beacon, type PageBeacon } from '../src/profiler/beacon-standalone.ts';
 
 let page: PageBeacon;
@@ -33,6 +34,10 @@ const MARKUP = [
 	'<p data-nested="" data-og-kept="">a<!-- note -->b</p>',
 	'<a href=x tabindex="0">y</a>',
 	'<b>unclosed <!-- comment',
+	'<!-- a --!><p>x</p>',
+	'<!--><p>x</p><!---><i>y</i>',
+	'<script>s="<!--"</script><p>y</p><!--z-->',
+	'<a title="<!--">y</a><!--z-->',
 	''
 ];
 
@@ -49,6 +54,31 @@ test("attr_changes() is core's", () => {
 		['<i id="1" hidden>z</i>', '<i id="1">z</i>']
 	];
 	for (const [a, b] of pairs) expect(page.attr_changes(a, b)).toEqual(attr_changes(a, b));
+});
+
+// (the beacon reads what `innerHTML` writes, comments out; core reads it with its tag walk: the two
+// answer alike over generated pages holding `>`, `<`, quotes and entities in values, #1370)
+const SERIALIZED = html_arb({
+	tags: ['div', 'a', 'img', 'script', 'style', 'textarea', 'title', 'noscript', 'p', 'x-widget'],
+	attrs: ['class', 'href', 'data-x', 'aria-label', 'hidden'],
+	values: ['one', 'two'],
+	texts: ['if(a<b)go()', '</p>', 'x > y']
+});
+
+test("attr_changes() is core's over serialized markup", () => {
+	fuzz(
+		SERIALIZED,
+		(html) => {
+			const a = without_comments(inner_html(html));
+			for (const b of [
+				a,
+				without_comments(inner_html(html.replaceAll('one', 'two'))),
+				without_comments(inner_html(html.replaceAll('if(a<b)', 'if(b<a)')))
+			])
+				expect(page.attr_changes(a, b), `${a}\n${b}`).toEqual(attr_changes(a, b));
+		},
+		{ runs: 500 }
+	);
 });
 
 test("copy_of() is core's hole_copy_of", () => {

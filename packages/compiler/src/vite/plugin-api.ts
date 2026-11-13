@@ -184,8 +184,10 @@ export interface BuildContext {
 	 *  regions, so its runtime ships every feature a region in the HTML can need. */
 	foreignHydrate(): void;
 	/** An `import.meta.og.<name>(…)` construct this plugin compiles (`'code'`, `'loader'`). Plugin
-	 *  macros run after core's own (`wire`, `$`, `source`, `store`) and before `bake`, in plugin order. */
-	macro(name: string, handler: MacroHandler): void;
+	 *  macros run after core's own (`wire`, `$`, `source`, `store`) and before `bake`, in plugin order;
+	 *  `last`: after every other plugin's (a macro that runs code the others may still rewrite). They
+	 *  run on the app's own source only: elsewhere a call fails the build (`macro_outside_app`). */
+	macro(name: string, handler: MacroHandler, options?: { last?: boolean }): void;
 	/** A source format that becomes Svelte through a preprocessor (markdown): register it, get the
 	 *  island transform to call from that preprocessor. */
 	markup(source: MarkupSource): MarkupRegions;
@@ -544,6 +546,7 @@ export function resolve_plugins(
 	let page_reads_owner: string | null = null;
 	const config_owner = new Map<string, string>();
 	const macro_owner = new Map<string, string>();
+	const last_macros: ResolvedPlugins['macros'] = [];
 	for (const plugin of ordered) {
 		if (!package_resolves(req, plugin.name))
 			throw new OgygiaError('plugin_package_unresolved', { plugin: plugin.name, root });
@@ -579,14 +582,14 @@ export function resolve_plugins(
 			foreignHydrate() {
 				out.foreign_hydrate = true;
 			},
-			macro(name, handler) {
+			macro(name, handler, options) {
 				if (!MACRO_NAME_RE.test(name) || CORE_MACROS.has(name))
 					throw new OgygiaError('plugin_macro_name_invalid', { plugin: plugin.name, name });
 				const owner = macro_owner.get(name);
 				if (owner)
 					throw new OgygiaError('plugin_macro_claimed', { name, owner, plugin: plugin.name });
 				macro_owner.set(name, plugin.name);
-				out.macros.push({ name, handler });
+				(options?.last ? last_macros : out.macros).push({ name, handler });
 			},
 			markup(source) {
 				out.markup.push(source);
@@ -631,5 +634,7 @@ export function resolve_plugins(
 			}
 		});
 	}
+	// the `last` macros after every other one, each in plugin order
+	out.macros.push(...last_macros);
 	return out;
 }

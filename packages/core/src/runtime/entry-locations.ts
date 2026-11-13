@@ -41,7 +41,7 @@ function absolute(url: string, base?: string): string {
 	try {
 		out = new URL(url, b).href;
 	} catch {
-		out = url;
+		out = url; // ok: not a URL: kept as written
 	}
 	resolved_urls.set(key, out);
 	return out;
@@ -141,7 +141,7 @@ export function pin_region_urls(el: Element, base?: string): void {
 		try {
 			url = new URL(absolute(value, base));
 		} catch {
-			continue;
+			continue; // ok: not a URL: the attribute stays as written
 		}
 		if (url.origin === location.origin) el.setAttribute(name, url.pathname + url.search + url.hash);
 	}
@@ -206,7 +206,7 @@ function is_gone(url: string): Promise<boolean> {
 	return net.fetch(url, { method: 'HEAD', cache: 'no-store' }).then(
 		(res) => res.status === 404 || res.status === 410,
 		() => false
-	);
+	); // ok: no answer is not "gone"; the import's own failure stands
 }
 
 /**

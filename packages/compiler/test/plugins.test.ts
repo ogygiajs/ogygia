@@ -196,6 +196,29 @@ describe('realms, named by the plugin', () => {
 			/plugin_client_hooks_unread|cannot read/
 		);
 	});
+	it('macros run in plugin order, a `last` one after every other, whatever its place', () => {
+		const h = (code: string) => code;
+		const out = resolve_plugins(
+			[
+				def({
+					name: '@ogygia/flags',
+					build(b) {
+						b.macro('late', h, { last: true });
+						b.macro('one', h);
+					}
+				}),
+				def({
+					name: '@ogygia/barrels',
+					build(b) {
+						b.macro('two', h);
+					}
+				})
+			],
+			APP,
+			true
+		);
+		expect(out.macros.map((m) => m.name)).toEqual(['one', 'two', 'late']);
+	});
 	it('no realm named, none wired: a package export called `./server` means nothing', () => {
 		const out = resolve_plugins([def({ name: '@ogygia/flags' })], APP, true);
 		expect(out.servers).toEqual([]);

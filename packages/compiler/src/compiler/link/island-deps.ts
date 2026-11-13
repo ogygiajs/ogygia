@@ -754,6 +754,7 @@ export function island_deps_module(
 			export function fn_manifest() { return null; }
 			export function entry_location(_identity) { return null; }
 			export function location_map() { return null; }
+			export function handoff_problem() { return null; }
 		`;
 	// DEV: there is no built CSS asset to link (Vite serves component CSS only as importable
 	// modules). The `entry` a region carries IS its dev module URL (moduleUrl / dev island_url),
@@ -783,6 +784,7 @@ export function island_deps_module(
 			export function fn_manifest() { return null; }
 			export function entry_location(identity) { return identity || null; }
 			export function location_map() { return null; }
+			export function handoff_problem() { return null; }
 		`;
 	// SERVER: read the handoff at render time (the comments below ride along into the module).
 	const out_dir = JSON.stringify(out_dir_rel);
@@ -799,7 +801,19 @@ export function island_deps_module(
 		// the walk runs. A bad patch degrades to the walk, never crashes the server at import.
 		const __OG_INLINE = '__OGYGIA_ISLAND_DEPS_INLINE__';
 		let cache = null;
-		try { if (__OG_INLINE.charCodeAt(0) === 123) cache = JSON.parse(__OG_INLINE); } catch {}
+		// Why the last read found no handoff (null: it has one). The server says it once, with a
+		// code (island_deps_handoff_missing). A read that failed is never kept: the next one tries
+		// again. Every path absent is the deployment's fact, kept with its problem.
+		let problem = null;
+		let absent = false;
+		let inline_error = null;
+		if (__OG_INLINE.charCodeAt(0) === 123) {
+			try {
+				cache = JSON.parse(__OG_INLINE);
+			} catch (e) {
+				inline_error = '(inlined in the server bundle): ' + String(e);
+			}
+		}
 
 		function candidates() {
 			const out = [];
@@ -820,13 +834,40 @@ export function island_deps_module(
 			return out;
 		}
 
+		const NONE = {};
 		function load() {
 			if (cache) return cache;
+			if (absent) return NONE;
+			const tried = [];
+			let error = inline_error;
 			for (const p of candidates()) {
-				try { cache = JSON.parse(fs.readFileSync(p, 'utf8')); return cache; } catch {}
+				tried.push(p);
+				let text;
+				try {
+					text = fs.readFileSync(p, 'utf8');
+				} catch (e) {
+					// (absent here: the next candidate)
+					if (!e || (e.code !== 'ENOENT' && e.code !== 'ENOTDIR')) error = error || p + ': ' + String(e);
+					continue;
+				}
+				try {
+					cache = JSON.parse(text);
+					problem = null;
+					return cache;
+				} catch (e) {
+					error = error || p + ': ' + String(e);
+				}
 			}
-			cache = {};
-			return cache;
+			problem = error ? { kind: 'unreadable', tried, error } : { kind: 'missing', tried };
+			absent = !error;
+			return NONE;
+		}
+
+		/** Why the server has no handoff (\`missing\`: no path held one; \`unreadable\`: one failed to
+		 *  read or parse), or null when it has one. */
+		export function handoff_problem() {
+			load();
+			return problem;
 		}
 
 		// Handoff shape: { js: { entryUrl: [...] }, css: { entryUrl: [...] } }. A stale flat
