@@ -102,6 +102,14 @@ describe('byte strip', () => {
 		expect(s.unsized_images).toEqual(['/real.png']);
 	});
 
+	it('counts the elements as the browser makes them: none from a quoted `<`, a comment ends at `<!-->`, a nested template is one (#1370)', () => {
+		expect(byte_strip('<p title="<b>">y</p><!--><i>z</i><em>w</em>').elements?.total).toBe(3);
+		expect(
+			byte_strip('<template><template><b>x</b></template><u>y</u></template><s>z</s>').elements
+				?.total
+		).toBe(2);
+	});
+
 	it('reads the page seed’s text the way the byte strip finds the seed script', () => {
 		expect(page_seed(doc)).toBe('{"data":{"a":1}}');
 		expect(
