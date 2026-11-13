@@ -40,6 +40,18 @@ test('a stub in any spelling the browser reads: quotes, no quotes, spaces, a > i
 	).toBeNull();
 });
 
+test('a `>` in the URL is part of it; a refresh in a script or a comment is no tag', () => {
+	expect(refresh_target('<meta http-equiv="refresh" content="0;url=/d?x=>1">', origin)).toBe(
+		'/d?x=%3E1'
+	);
+	expect(
+		refresh_target('<script>s=\'<meta http-equiv="refresh" content="0;url=/e">\'</script>', origin)
+	).toBeNull();
+	expect(
+		refresh_target('<!-- <meta http-equiv="refresh" content="0;url=/f"> -->', origin)
+	).toBeNull();
+});
+
 test('not a stub: no refresh, another origin, no url, a real page', () => {
 	expect(refresh_target('<p>hi</p>', origin)).toBeNull();
 	expect(
