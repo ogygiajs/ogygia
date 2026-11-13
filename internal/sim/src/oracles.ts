@@ -5,7 +5,7 @@
 import { writeFileSync } from 'node:fs';
 import { gate_open_early, own_text, type Tab, type Visitor } from './browser.ts';
 import { boxes, on_screen, type Box } from './layout.ts';
-import { answer_key, FOREIGN_MARK, is_page_path, type World } from './world.ts';
+import { answer_key, FOREIGN_MARK, is_page_path, LOSSY_POINTS, type World } from './world.ts';
 import { EDGE_GONE, EDGE_MOVED } from './gen.ts';
 
 /** `SIM_DUMP=<dir>`: an MPA difference writes both sides whole there (`<tab>-<path>-shown.txt`,
@@ -957,9 +957,6 @@ export function error_page(tab: Tab): boolean {
 		(doc.body?.childNodes.length ?? 0) === 0
 	);
 }
-
-/** The buggify points that lose an answer on the way, as a dropped request does. */
-const LOSSY_POINTS = ['hole.fetch-lost'];
 
 /** Did buggify lose an answer of `realm`'s on the way? */
 function lost_answers(world: World, realm: string): boolean {

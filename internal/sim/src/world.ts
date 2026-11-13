@@ -39,6 +39,9 @@ export const ORIGIN = 'https://app.test';
 /** The attribute on every element of HTML another origin answers (`no_foreign_html` looks for it). */
 export const FOREIGN_MARK = 'data-sim-foreign';
 
+/** The buggify points that lose an answer on the way, as a dropped request does. */
+export const LOSSY_POINTS: readonly string[] = ['hole.fetch-lost'];
+
 /** At rest after ticks: how far off a page's next task must be (a frame is 16 ms, a hydrate turn's
  *  snapshot wait 48; a page's own timers that come back every second or so are not a tick being
  *  taken in), and how long rest looks for that between ticks before it judges the pages anyway. */
@@ -214,6 +217,8 @@ export class World {
 		}
 		seen.asked++;
 		if (!seen.on) return false;
+		// (a reference load is spared what loses an answer, as the network spares it every fault)
+		if (LOSSY_POINTS.includes(point) && this.network.is_calm(realm)) return false;
 		// (a realm's draws by its name without the document: a reload of a tab is the same stream)
 		const key = realm.replace(/#\d+$/, '');
 		let r = this.#buggify_rng.get(key);
