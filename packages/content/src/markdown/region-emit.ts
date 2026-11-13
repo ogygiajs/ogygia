@@ -1,4 +1,10 @@
 import { dedent } from '@ogygia/core/plugin/utils';
+import {
+	next_open_or_close,
+	next_tag,
+	tags,
+	type FoundTag
+} from '@ogygia/core/internal/instruments';
 
 /** Exact inverse of `escape_svelte` (shiki.ts). In escaped text every backslash was produced by one
  *  of its three rules (`\\` ← `\`, `` \` `` ← `` ` ``, `\$` ← `${`'s `$`), so dropping each backslash
@@ -9,8 +15,13 @@ export function unescape_svelte(escaped: string): string {
 
 const FENCE_EMBED_RE = /\{@html `((?:[^`\\]|\\[\s\S])*)`\}/g;
 
-const MODULE_SCRIPT_RE =
-	/<script\b[^>]*\b(?:context\s*=\s*(["'])module\1|module)\b[^>]*>([\s\S]*?)<\/script>/;
+/** Svelte's module script in `code` (`<script module>`, or `context="module"` in any quoting), as
+ *  core's tag walk reads it, or null. A `type="module"` script is a browser's, not this. */
+export function module_script(code: string): FoundTag | null {
+	for (const tag of tags(code, 'script'))
+		if (tag.attr('module') !== undefined || tag.attr('context') === 'module') return tag;
+	return null;
+}
 
 export type RegionEmit = {
 	code: string;
@@ -19,10 +30,14 @@ export type RegionEmit = {
 };
 
 function split_module(code: string): { module_body: string; template: string } {
-	const mod = MODULE_SCRIPT_RE.exec(code);
+	const mod = module_script(code);
+	// (its text runs to its end tag, which `next` is at)
+	const close = mod === null ? null : next_open_or_close(code, 'script', mod.next);
+	if (mod === null || close === null || !('close' in close))
+		return { module_body: '', template: code };
 	return {
-		module_body: mod ? mod[2]! : '',
-		template: mod ? `${code.slice(0, mod.index)}${code.slice(mod.index + mod[0]!.length)}` : code
+		module_body: code.slice(mod.end, close.close),
+		template: `${code.slice(0, mod.start)}${code.slice(close.end)}`
 	};
 }
 
@@ -56,7 +71,7 @@ export function component_tag_in(code: string): string | null {
 export function try_region_emit(code: string, module_lines: string[]): RegionEmit | null {
 	const { module_body, template } = split_module(code);
 
-	if (/<script\b/.test(template)) return null;
+	if (next_tag(template, 'script', 0) !== null) return null;
 
 	const fences: string[] = [];
 	let skeleton = template.replace(FENCE_EMBED_RE, (_, inner: string) => {
