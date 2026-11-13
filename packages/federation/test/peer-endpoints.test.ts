@@ -154,9 +154,11 @@ describe("a region of the peer's own inside its fragment", () => {
 
 	it('a region tag is read as the browser reads it: any quoting, a `>` in a value (#1370)', async () => {
 		upstream(
-			`<ogygia-region render='defer' when='load' endpoint='/__ogygia__?id=a'></ogygia-region>` +
-				'<ogygia-region title="a>b" render="defer" when="load" endpoint="/__ogygia__?id=b"></ogygia-region>' +
+			[
+				`<ogygia-region render='defer' when='load' endpoint='/__ogygia__?id=a'></ogygia-region>`,
+				'<ogygia-region title="a>b" render="defer" when="load" endpoint="/__ogygia__?id=b"></ogygia-region>',
 				'<ogygia-region render=defer when=load endpoint=/__ogygia__?id=c></ogygia-region>'
+			].join('')
 		);
 		const { dash } = shell();
 		const html = ((await dash.widget('holder')) as { html: string }).html;
