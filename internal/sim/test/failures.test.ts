@@ -94,7 +94,7 @@ describe('failure sites', () => {
 				ctl.enqueue(chunk);
 				controller.error(e);
 				navigator.sendBeacon(url, data);
-				if (!m.move('done')) return { ok: false };
+				if (!m.move('busy', 'done')) return { ok: false };
 				crypto.subtle.verify(alg, key, sig, data);
 				if (res.body === null) throw new Error('no body');
 				setTimeout(go, 5);
@@ -117,6 +117,12 @@ describe('failure sites', () => {
 			'throw:0',
 			'timer:0'
 		]);
+	});
+
+	it('a move is a machine move only from a named state: a text edit or a dependency mark is no refusal', () => {
+		expect(
+			ids("function f(s, v, m, part) { s.move(0, 4, 9); v.move('regions'); v.move(part); }")
+		).toEqual([]);
 	});
 
 	it('does not count a successful call as a failure, nor a function of its own named verify', () => {
