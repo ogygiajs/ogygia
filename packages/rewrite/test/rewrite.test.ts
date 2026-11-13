@@ -156,6 +156,26 @@ describe('element rewrites: the restore', () => {
 		expect(first.html.endsWith(RESTORER_SCRIPT)).toBe(true);
 	});
 
+	it('a chunk that ends inside a region or a tag carries no script: the restore waits for a chunk that ends where one may go', async () => {
+		const { chunk } = chunked([scoped()]);
+		await chunk(doc('<p>x</p>').replace('</body></html>', ''), { done: false });
+		const open = '<ogygia-region entry="./a.js"><demo-card>a</demo-card>';
+		const inside = await chunk(open, { done: false });
+		expect(inside.html).not.toContain('<script');
+		const mid = await chunk('</ogygia-region><p title="x', { done: false });
+		expect(mid.html).not.toContain('<script');
+		const after = await chunk('">y</p>', { done: false });
+		expect(after.html).toBe(`">y</p>${RESTORER_SCRIPT}`);
+	});
+
+	it('the last chunk carries a restore still waiting, wherever it ends', async () => {
+		const { chunk } = chunked([scoped()]);
+		await chunk(doc('<p>x</p>').replace('</body></html>', ''), { done: false });
+		await chunk('<ogygia-region entry="./a.js"><demo-card>a</demo-card>', { done: false });
+		const last = await chunk('</ogygia-region><p title="x');
+		expect(last.html.endsWith(RESTORER_SCRIPT)).toBe(true);
+	});
+
 	it('an element split across chunks goes out unrendered, said once, and the rest is read after it', async () => {
 		const render = vi.fn((els: readonly RewriteElement[]) => els.map((e) => fake_scoped(e.html)));
 		const { chunk, failed } = chunked([{ match: 'demo-', render }]);
