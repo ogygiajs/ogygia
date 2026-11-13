@@ -179,6 +179,48 @@
 	],
 	"covered": [
 		{
+			"site": "packages/core/src/runtime/entry-locations.ts > run > fetch:0",
+			"reason": "the build map's read failing on the network: only an identity-only load reads it, and the sim's faults touch that document; proved: a failed read kept (keep: () => Infinity) turns the test red",
+			"test": "packages/core/test/browser/entry-location-map-unread.test.ts",
+			"name": "a map read the network failed is not kept: the load goes on as written, and the next identity-only load reads it again"
+		},
+		{
+			"site": "packages/core/src/runtime/entry-locations.ts > run > .catch:0",
+			"reason": "as above; proved: the read's rejection let through (the .catch removed) turns the test red",
+			"test": "packages/core/test/browser/entry-location-map-unread.test.ts",
+			"name": "a map read the network failed is not kept: the load goes on as written, and the next identity-only load reads it again"
+		},
+		{
+			"site": "packages/core/src/runtime/frame-store.ts > ensure > throw:0",
+			"reason": "a refused early hole answer the hole asks for later: the sim's apps do not refuse an early hole; proved: the held refusal not thrown turns the test red",
+			"test": "packages/core/test/browser/early-holes.test.ts",
+			"name": "a refused answer stays at its address: the hole that wakes later is refused too, and asks nothing"
+		},
+		{
+			"site": "packages/core/src/runtime/early-holes.ts > adopt_early_holes > .catch:0",
+			"reason": "as above; proved: the refusal dropped (catch -> nothing) turns the test red",
+			"test": "packages/core/test/browser/early-holes.test.ts",
+			"name": "a refused answer stays at its address: the hole that wakes later is refused too, and asks nothing"
+		},
+		{
+			"site": "packages/core/src/runtime/early-holes.ts > adopt_early_holes > error-event:0",
+			"reason": "an early hole nobody joins whose visit ends before it answers: no sim oracle sees a request left in the network; proved: the abort not passed on turns the test red",
+			"test": "packages/core/test/browser/early-holes.test.ts",
+			"name": "that nobody joins, left before its answer lands: cancelled in the network, nothing written, nothing unhandled"
+		},
+		{
+			"site": "packages/core/src/runtime/hole-fetch.ts > read_hole > throw:1",
+			"reason": "a capability the server refuses (403): the sim's holes are all signed by their own server; proved: the refusal skipped (a 403 retried as an error) turns the test red",
+			"test": "packages/core/test/browser/hole-refused.test.ts",
+			"name": "a hole whose endpoint answers 403 asks once, keeps its fallback, and says the server’s reason"
+		},
+		{
+			"site": "packages/core/src/runtime/hole-fetch.ts > read_hole > throw:4",
+			"reason": "a whole document answered in place of the region (a handle in front of ogygia's) the sim's apps do not have; proved: the refusal skipped turns the test red",
+			"test": "packages/core/test/browser/hole-refused.test.ts",
+			"name": "a hole whose endpoint answers a whole document asks once, keeps its fallback, and says what answered"
+		},
+		{
 			"site": "packages/core/src/runtime/entry-locations.ts > run > fetch:1",
 			"reason": "the current build's map read failing needs a deploy's rollover the random app does not draw; proved: a failed read kept (keep: () => Infinity) turns the test red",
 			"test": "packages/core/test/browser/entry-location-retry.test.ts",
@@ -963,11 +1005,7 @@
 		"packages/core/src/runtime/devalue-lane.ts > with_devalue > reject:0",
 		"packages/core/src/runtime/devalue-lane.ts > with_devalue > stale:0",
 		"packages/core/src/runtime/drift-watch.ts > watch_region > observer:0",
-		"packages/core/src/runtime/early-holes.ts > adopt_early_holes > .catch:0",
-		"packages/core/src/runtime/early-holes.ts > adopt_early_holes > error-event:0",
 		"packages/core/src/runtime/entry-locations.ts > absolute > catch:0",
-		"packages/core/src/runtime/entry-locations.ts > run > .catch:0",
-		"packages/core/src/runtime/entry-locations.ts > run > fetch:0",
 		"packages/core/src/runtime/entry-locations.ts > pin_region_urls > catch:0",
 		"packages/core/src/runtime/entry-locations.ts > run > .catch:1",
 		"packages/core/src/runtime/entry-locations.ts > current_location > stale:0",
@@ -988,13 +1026,10 @@
 		"packages/core/src/runtime/frame-store.ts > write > refused:0",
 		"packages/core/src/runtime/frame-store.ts > reserve > reject:0",
 		"packages/core/src/runtime/frame-store.ts > release > refused:0",
-		"packages/core/src/runtime/frame-store.ts > ensure > throw:0",
 		"packages/core/src/runtime/frame-store.ts > ensure > abort:0",
 		"packages/core/src/runtime/hole-facts.ts > parse_record > parse:0",
 		"packages/core/src/runtime/hole-facts.ts > parse_record > catch:0",
 		"packages/core/src/runtime/hole-fetch.ts > start_hole > fetch:0",
-		"packages/core/src/runtime/hole-fetch.ts > read_hole > throw:1",
-		"packages/core/src/runtime/hole-fetch.ts > read_hole > throw:4",
 		"packages/core/src/runtime/hole-fetch.ts > read_hole > throw:5",
 		"packages/core/src/runtime/html-sink.ts > is_allowed_region_endpoint > catch:0",
 		"packages/core/src/runtime/html-sink.ts > is_same_origin_response > catch:0",
