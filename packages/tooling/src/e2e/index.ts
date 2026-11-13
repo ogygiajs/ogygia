@@ -16,15 +16,17 @@ export { REPO } from './paths.ts';
 /** A rule ogygia found broken on itself (core src/rules.ts): its code, and what it found. */
 export type BrokenRule = { code: string; detail: string };
 
-/** The rules broken on the page now; `'no rules'` where ogygia booted on it from a build made
- *  without them; null where there is nothing to check (a page that is not ogygia's, a page already
- *  closed). */
+/** The rules broken on the page now; `'no rules'` where ogygia's runtime booted on it from a build
+ *  made without them; null where there is nothing to check (a page that is not ogygia's, a csr=true
+ *  page Kit runs, a page already closed). The runtime's boot publishes its messages
+ *  (`Symbol.for('ogygia.messages')`, core runtime/core.ts `boot`); `window.__ogygia` alone is the
+ *  version a Kit-run page discloses too. */
 export async function rules(page: Page): Promise<BrokenRule[] | 'no rules' | null> {
 	try {
 		return await page.evaluate(() => {
-			const g = globalThis as { __ogygia?: unknown; __ogygia_rules?: () => BrokenRule[] };
+			const g = globalThis as { __ogygia_rules?: () => BrokenRule[] } & Record<symbol, unknown>;
 			if (g.__ogygia_rules) return g.__ogygia_rules();
-			return g.__ogygia ? 'no rules' : null;
+			return g[Symbol.for('ogygia.messages')] ? 'no rules' : null;
 		});
 	} catch {
 		return null; // ok: closed, or navigating away: nothing to read
