@@ -14,6 +14,7 @@
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { dedent } from '../../../packages/core/src/contract/dedent.ts';
 import { rng, type Rng } from './rng.ts';
 
 /** A schedule: one of ogygia's, or a media query (an island wakes while it matches; the sim's and the
@@ -1165,18 +1166,17 @@ export function write_peer(dir: string, peer: GenPeer, seed: number): void {
 	if (peer.edges.who)
 		writeFileSync(
 			join(lib, 'Who.svelte'),
-			[
-				'<script lang="ts">',
-				'\tlet { data }: { data: { sub: string } } = $props();',
-				'</script>',
-				'',
-				`<nav>${nav}</nav>`,
-				'<main data-gen="peer-page">',
-				'\t<h1>peer /who</h1>',
-				'\t<p data-gen-who>{data.sub}</p>',
-				'</main>',
-				''
-			].join('\n')
+			`${dedent`
+				<script lang="ts">
+					let { data }: { data: { sub: string } } = $props();
+				</script>
+
+				<nav>${nav}</nav>
+				<main data-gen="peer-page">
+					<h1>peer /who</h1>
+					<p data-gen-who>{data.sub}</p>
+				</main>
+			`}\n`
 		);
 	for (const w of peer.widgets) {
 		writeFileSync(
