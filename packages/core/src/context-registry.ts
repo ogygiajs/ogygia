@@ -8,15 +8,16 @@
  *
  * Universal-safe by design: the recorder is a slot the SERVER installs (backed by an
  * `AsyncLocalStorage` in `hooks.ts`), so `node:async_hooks` never enters the client bundle — on the
- * client `record_ctx` is a no-op.
+ * client `record_ctx` is a no-op. The ports live in ./server-ports.ts.
  */
-type Recorder = (key: string, value: unknown) => void;
+import { server_ports } from './server-ports.ts';
 
-let recorder: Recorder | null = null;
+type Recorder = (key: string, value: unknown) => void;
 
 /** Server (`hooks.ts`) installs a request-scoped recorder. */
 export function set_ctx_recorder(fn: Recorder | null): void {
-	recorder = fn;
+	const ports = server_ports();
+	if (ports) ports.ctx_recorder = fn;
 }
 
 /**
@@ -43,5 +44,5 @@ export interface SetContextOptions {
  *  `opts.islands === false` skips recording: the key stays native-only (never serialized). */
 export function record_ctx(key: string, value: unknown, opts?: SetContextOptions): void {
 	if (opts?.islands === false) return;
-	recorder?.(key, value);
+	server_ports()?.ctx_recorder?.(key, value);
 }

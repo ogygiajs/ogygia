@@ -953,6 +953,18 @@ export const WARNINGS = {
 			registry. ${BUG}
 		`
 	},
+	rule_lake_restored: {
+		text: (a: { detail: string }): string =>
+			`rule broken, a hydrate gives back every lake it lifted: ${a.detail}`,
+		details: (): string => prose`
+			Dev and e2e only (a rule ogygia checks on itself). Before an island hydrates, the server
+			HTML of each region inside it that never wakes (a lake) is lifted out, and after the
+			hydrate it goes back into the lakes the island rendered, the first into the first. The
+			island rendered a different number of lakes than it had, so one lake's content was lost or
+			one lake was left empty. A lake that renders on the server only, or only in the browser
+			(an \`{#if browser}\`), does this; else ${BUG}
+		`
+	},
 	rule_head_adopted: {
 		text: (a: { detail: string }): string =>
 			`rule broken, the head gains no <base> or refresh, CSP or cookie meta: ${a.detail}`,

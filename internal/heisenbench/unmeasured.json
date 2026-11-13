@@ -577,10 +577,6 @@
 			"reason": "browser only: a settled lake wakes the regions that waited on it (one DOM walk); proven in packages/core/test/browser/lake-swr-remount.test.ts"
 		},
 		{
-			"id": "packages/core/src/runtime/core.ts > OgygiaRegion > #arm > arm_on_demand:1",
-			"reason": "browser only: an on-demand hole's intent fires its fetch, constant work; proven in packages/core/test/browser/deferred-endpoint.test.ts"
-		},
-		{
 			"id": "packages/core/src/runtime/core.ts > OgygiaRegion > #on_idle > first",
 			"reason": "browser only: an idle schedule fires once, at idle time or the 2 s cap, whichever is first (two cancels and the fire), constant work; proven in packages/core/test/browser/hole-lifecycle.test.ts"
 		},
@@ -2997,10 +2993,6 @@
 			"reason": "browser only: builds one hook's subscriber list once at boot, linear in the client plugins (a handful)"
 		},
 		{
-			"id": "packages/core/src/runtime/client-plugins.ts > joined > report",
-			"reason": "browser only: reports one plugin's failed hook once (a Set has and add, one console.error); proven in packages/core/test/runtime-hooks-compose.test.ts"
-		},
-		{
 			"id": "packages/compiler/src/vite/plugin-api.ts > client_hook_names > unread",
 			"reason": "builds one OgygiaError for an unreadable realm, constant work"
 		},
@@ -4039,10 +4031,6 @@
 		{
 			"id": "packages/devtools/src/devtools/session.ts > resume_session",
 			"reason": "browser only: starts the recorder on the saved parts (module state, the document's body), once per document; proven by packages/testing/e2e/ogygia-testing.spec.ts (record() across a full page load)"
-		},
-		{
-			"id": "packages/devtools/src/devtools/testing-script.ts > on:2~955b4d",
-			"reason": "browser only: the injected engine's DOMContentLoaded listener, once per document, constant work of its own; proven by packages/testing/e2e/ogygia-testing.spec.ts"
 		},
 		{
 			"id": "packages/devtools/src/client-beacon.ts > BEACON_HOOKS > holeAnswered",
