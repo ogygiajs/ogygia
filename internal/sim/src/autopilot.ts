@@ -40,7 +40,8 @@ import {
 import { join, relative, resolve } from 'node:path';
 import { parseSync } from 'rolldown/utils';
 import { dedent } from '../../../packages/core/src/contract/dedent.ts';
-import type { RanTest, RunFile } from './autopilot-reporter.ts';
+import { createHash } from 'node:crypto';
+import { read_run, type RanTest, type RunFile } from './autopilot-reporter.ts';
 import {
 	FAILURE_LEDGER,
 	read_failure_ledger,
@@ -321,7 +322,8 @@ export interface AutopilotOptions {
 	readonly skip?: ReadonlySet<string>;
 	readonly only?: string;
 	readonly limit?: number;
-	/** The time limit of a mutant's run (a run past it is stopped and counts as failing). */
+	/** The time limit of a mutant's run. A run past it is stopped and each of its tests runs alone
+ *  under the same limit: one that fails or is stopped alone is a failing test. */
 	readonly timeout_ms: number;
 	/** The time limit of a map run (default: ten mutant limits). */
 	readonly map_timeout_ms?: number;
@@ -401,7 +403,7 @@ async function run_vitest(
 	limit_ms: number
 ): Promise<Ran> {
 	const pkgdir = join(o.root, 'packages', o.pkg);
-	const result = join(o.out, 'run.json');
+	const result = join(o.out, 'run.jsonl');
 	rmSync(result, { force: true });
 	const log = openSync(join(o.out, 'run.log'), 'w');
 	const env: NodeJS.ProcessEnv = {};
@@ -441,10 +443,7 @@ async function run_vitest(
 		if (timed_out) return { run: { tests: [], hits: [] }, timed_out };
 		throw new Error(`${label}: vitest wrote no results (its output: ${join(o.out, 'run.log')})`);
 	}
-	return {
-		run: JSON.parse(readFileSync(result, 'utf8')) as RunFile,
-		timed_out
-	};
+	return { run: read_run(readFileSync(result, 'utf8')), timed_out };
 }
 
 interface Judged {
@@ -456,6 +455,29 @@ interface Judged {
 
 const has_name = (text: string, name: string): boolean =>
 	text.includes(`'${name}'`) || text.includes(`"${name}"`) || text.includes(`\`${name}\``);
+
+/** The `-t` pattern that picks one test alone, by its full name (vitest joins a test's suites and
+ *  its name with spaces). */
+export function alone_pattern(full: string): string {
+	return `^${full
+		.split(' > ')
+		.join(' ')
+		.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`;
+}
+
+/** What a map and its verdicts were made from: the sites asked about, the projects run, and every
+ *  source file's text. A map or a verdict made from anything else is made again. */
+function map_key(
+	ids: ReadonlySet<string>,
+	projects: readonly (string | null)[],
+	sources: ReadonlyMap<string, string>
+): string {
+	const h = createHash('sha256');
+	h.update(JSON.stringify([[...ids].sort(), projects]));
+	for (const [f, text] of [...sources].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)))
+		h.update(`\0${f}\0${text}`);
+	return h.digest('hex');
+}
 
 /** Runs the autopilot over one package. */
 export async function autopilot(o: AutopilotOptions): Promise<AutopilotReport> {
@@ -499,11 +521,14 @@ export async function autopilot(o: AutopilotOptions): Promise<AutopilotReport> {
 	try {
 		// map
 		const map_file = join(o.out, 'map.json');
+		const ids = new Set(wanted.map((s) => s.id));
+		const key = map_key(ids, o.projects, sources);
 		let reach: Record<string, Reach[]>;
-		if (!o.remap && existsSync(map_file)) reach = JSON.parse(readFileSync(map_file, 'utf8'));
+		const kept: { key?: string; reach?: Record<string, Reach[]> } | null =
+			!o.remap && existsSync(map_file) ? JSON.parse(readFileSync(map_file, 'utf8')) : null;
+		if (kept !== null && kept.key === key && kept.reach !== undefined) reach = kept.reach;
 		else {
 			reach = {};
-			const ids = new Set(wanted.map((s) => s.id));
 			for (const project of o.projects) {
 				for (const f of new Set(wanted.map((s) => s.file)))
 					change(join(root, f), probed(f, sources.get(f)!, ids));
@@ -520,6 +545,10 @@ export async function autopilot(o: AutopilotOptions): Promise<AutopilotReport> {
 				} finally {
 					restore();
 				}
+				if (ran.timed_out)
+					throw new Error(
+						`map ${project ?? o.pkg}: the tests ran past the map's time limit (raise --timeout-s)`
+					);
 				const by_id = new Map(ran.run.tests.map((t) => [t.id, t]));
 				for (const h of ran.run.hits) {
 					const t = by_id.get(h.test);
@@ -535,7 +564,7 @@ export async function autopilot(o: AutopilotOptions): Promise<AutopilotReport> {
 					}
 				}
 			}
-			writeFileSync(map_file, `${JSON.stringify(reach, null, '\t')}\n`);
+			writeFileSync(map_file, `${JSON.stringify({ key, reach }, null, '\t')}\n`);
 		}
 
 		// prove
@@ -544,8 +573,8 @@ export async function autopilot(o: AutopilotOptions): Promise<AutopilotReport> {
 		if (existsSync(results_file))
 			for (const line of readFileSync(results_file, 'utf8').split('\n'))
 				if (line.trim()) {
-					const j = JSON.parse(line) as Judged;
-					judged.set(j.site, j);
+					const j = JSON.parse(line) as Judged & { key?: string };
+					if (j.key === key) judged.set(j.site, j);
 				}
 		let budget = o.limit ?? Number.POSITIVE_INFINITY;
 		for (const s of wanted) {
@@ -557,7 +586,7 @@ export async function autopilot(o: AutopilotOptions): Promise<AutopilotReport> {
 			}
 			const j = await judge(opts, config, s, sources.get(s.file)!, tests);
 			judged.set(s.id, j);
-			appendFileSync(results_file, `${JSON.stringify(j)}\n`);
+			appendFileSync(results_file, `${JSON.stringify({ ...j, key })}\n`);
 			if (!o.quiet) console.log(`${j.verdict}: ${s.id}`);
 		}
 
@@ -628,13 +657,32 @@ async function judge(
 				} finally {
 					restore();
 				}
-				const state = new Map(
-					ran.run.tests.map((t: RanTest) => [`${relative(o.root, t.file)}\0${t.full}`, t.state])
-				);
+				if (!ran.timed_out) {
+					const state = new Map(
+						ran.run.tests.map((t: RanTest) => [`${relative(o.root, t.file)}\0${t.full}`, t.state])
+					);
+					for (const t of mine)
+						if (state.get(`${t.test}\0${t.full}`) === 'failed') out.push({ ...t, hung: false });
+					continue;
+				}
 				for (const t of mine) {
-					const st = state.get(`${t.test}\0${t.full}`);
-					if (st === 'failed') out.push({ ...t, hung: false });
-					else if (ran.timed_out && st === undefined) out.push({ ...t, hung: true });
+					change(abs, text);
+					let alone: Ran;
+					try {
+						alone = await run_vitest(
+							o,
+							config,
+							project || null,
+							[join(o.root, t.test), '-t', alone_pattern(t.full)],
+							`${m.operator} ${s.id} (alone: ${t.name})`,
+							o.timeout_ms
+						);
+					} finally {
+						restore();
+					}
+					if (alone.timed_out) out.push({ ...t, hung: true });
+					else if (alone.run.tests.some((r) => r.full === t.full && r.state === 'failed'))
+						out.push({ ...t, hung: false });
 				}
 			}
 			return out;
