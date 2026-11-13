@@ -8,6 +8,8 @@
  * else in package source (`ogygia/html-sink`).
  */
 
+import type { PageGlobals } from '../page-globals.ts';
+
 declare const VERIFIED: unique symbol;
 
 /** HTML a voucher of this module vouched for: the only input the sink takes. */
@@ -31,7 +33,7 @@ export function is_allowed_region_endpoint(
 		// Reject if the final response could redirect cross-origin — checked by caller via res.url.
 		return true;
 	} catch {
-		return false;
+		return false; // ok: not a URL: refused (fail closed)
 	}
 }
 
@@ -44,7 +46,7 @@ export function is_same_origin_response(
 	try {
 		return new URL(res.url).origin === page_origin;
 	} catch {
-		return false;
+		return false; // ok: not a URL: refused (fail closed)
 	}
 }
 
@@ -127,7 +129,7 @@ export function parse_region_html(html: VerifiedHtml): DocumentFragment {
 		tpl.innerHTML = html;
 		attach_declarative_shadows(tpl.content);
 	}
-	(globalThis as { __og_parsed?: (f: DocumentFragment) => void }).__og_parsed?.(tpl.content);
+	(globalThis as PageGlobals).__og_parsed?.(tpl.content);
 	return tpl.content;
 }
 

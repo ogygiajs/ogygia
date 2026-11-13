@@ -290,6 +290,6 @@ function was_open(): boolean {
 	try {
 		return !!JSON.parse(localStorage.getItem(LAYOUT_KEY) || '{}')?.open;
 	} catch {
-		return false;
+		return false; // ok: storage blocked or unreadable: the dock starts closed
 	}
 }

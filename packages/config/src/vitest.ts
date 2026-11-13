@@ -122,7 +122,7 @@ function firefox_version(binary: string): string {
 	try {
 		return execFileSync(binary, ['--version'], { encoding: 'utf8', timeout: 20_000 }).trim();
 	} catch {
-		return 'unknown';
+		return 'unknown'; // ok: only a label in the run's header
 	}
 }
 
@@ -131,7 +131,7 @@ function on_path(name: string): string | null {
 	try {
 		return execFileSync('which', [name], { encoding: 'utf8' }).trim() || null;
 	} catch {
-		return null;
+		return null; // ok: `which` fails for a name not on PATH: that is the answer
 	}
 }
 
