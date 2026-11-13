@@ -28,7 +28,8 @@
 		{
 			"site": "packages/core/src/runtime/core.ts > OgygiaRegion > fetch_html > catch:0",
 			"point": "hole.fetch-lost",
-			"how": "the point throws a failed fetch inside the try, as a dropped request's answer: the catch hands it to fetch_failed (a retry, or the fallback stands)"
+			"how": "the point throws a failed fetch inside the try, as a dropped request's answer: the catch hands it to fetch_failed (a retry, or the fallback stands)",
+			"killed_by": "hole-retry-never-fetches"
 		},
 		{
 			"site": "packages/postrender/src/registry.ts > store_call > catch:0",
@@ -54,9 +55,51 @@
 			"site": "packages/federation/src/peer.ts > PeerHandle > doc > reject:0",
 			"point": "federation.doc-stale",
 			"how": "a kept peer document reads as stale: it is served while one fresh flight refreshes it, and this handler keeps that refresh quiet when it fails (with a drop or down fault on the same run)"
+		},
+		{
+			"site": "packages/core/src/runtime/core.ts > OgygiaRegion > fetch_html > throw:0",
+			"point": "hole.fetch-lost",
+			"how": "the point itself: a failed fetch thrown in the try, as a dropped request's answer",
+			"killed_by": "hole-retry-never-fetches"
+		},
+		{
+			"site": "packages/core/src/runtime/core.ts > OgygiaRegion > fetch_failed > timer:0",
+			"point": "hole.fetch-lost",
+			"how": "a lost answer that is not the last try waits its backoff on this timer, then fetches again (a retry the mutant cuts off: the hole never answers, the stuck oracle)",
+			"killed_by": "hole-retry-never-fetches"
+		},
+		{
+			"site": "packages/core/src/runtime/router-nav.ts > run_page_fetch > go > fetch:0",
+			"fault": "drop",
+			"how": "a navigation's page fetch the network drops (or cuts): it rejects",
+			"killed_by": "router-page-lost-not-handed-off"
+		},
+		{
+			"site": "packages/core/src/runtime/router-nav.ts > run_page_fetch > catch:0",
+			"fault": "drop",
+			"how": "the failed page fetch answers no page: the navigation hands off to the browser (the mutant that keeps it leaves the tab stuck at the old page, the stuck oracle)",
+			"killed_by": "router-page-lost-not-handed-off"
+		},
+		{
+			"site": "packages/core/src/runtime/hole-fetch.ts > read_hole > not-ok:0",
+			"shape": "gen messy",
+			"how": "a hole whose server render throws answers a 500: the read refuses it, and the hole keeps its fallback",
+			"killed_by": "hole-error-answer-swapped-in"
+		},
+		{
+			"site": "packages/core/src/runtime/hole-fetch.ts > read_hole > throw:3",
+			"shape": "gen messy",
+			"how": "the refusal of that 500 (status N): fetch_failed retries, then the fallback stands",
+			"killed_by": "hole-error-answer-swapped-in"
 		}
 	],
 	"covered": [
+		{
+			"site": "packages/core/src/server/props-wire.ts > lake_identity > catch:0",
+			"reason": "a lake prop no wire carries makes the fingerprint throw: the lake gets no identity and is known by its entry and place",
+			"test": "packages/core/test/lake-identity.test.ts",
+			"name": "props no wire carries give no identity, so the lake is known by its entry and place"
+		},
 		{
 			"site": "packages/reshape/src/index.ts > handle > throw:0",
 			"reason": "a config error, at the first request: no app the sim generates leaves reshape() out of vite.config",
@@ -92,6 +135,12 @@
 			"reason": "the random app's transform fails only on its fault points, which wait on dst/reshape-faults",
 			"test": "packages/reshape/test/pass-failed.test.ts",
 			"name": "a transform that drops ogygia's marks is thrown with reshape_marks_lost"
+		},
+		{
+			"site": "packages/core/src/server/page-facts.ts > read_first_line > catch:0",
+			"reason": "a page's data answer that breaks before its first line (#1626): proved: the break thrown (the old code) turns the test red",
+			"test": "packages/core/test/page-facts-broken.test.ts",
+			"name": "a data answer that breaks before its first line is a miss that says why, never a throw"
 		}
 	],
 	"impossible": [],
@@ -732,12 +781,10 @@
 		"packages/core/src/runtime/core.ts > OgygiaRegion > by_visitor > throw:0",
 		"packages/core/src/runtime/core.ts > OgygiaRegion > apply > stale:0",
 		"packages/core/src/runtime/core.ts > OgygiaRegion > morph_live > stale:0",
-		"packages/core/src/runtime/core.ts > OgygiaRegion > fetch_html > throw:0",
 		"packages/core/src/runtime/core.ts > OgygiaRegion > fetch_html > stale:0",
 		"packages/core/src/runtime/core.ts > OgygiaRegion > fetch_failed > catch:0",
 		"packages/core/src/runtime/core.ts > OgygiaRegion > fetch_failed > refused:0",
 		"packages/core/src/runtime/core.ts > OgygiaRegion > fetch_failed > stale:0",
-		"packages/core/src/runtime/core.ts > OgygiaRegion > fetch_failed > timer:0",
 		"packages/core/src/runtime/core.ts > OgygiaRegion > fetch_failed > stale:1",
 		"packages/core/src/runtime/core.ts > OgygiaRegion > on_idle > timer:0",
 		"packages/core/src/runtime/core.ts > OgygiaRegion > on_idle > timer:1",
@@ -805,8 +852,6 @@
 		"packages/core/src/runtime/hole-fetch.ts > read_hole > throw:0",
 		"packages/core/src/runtime/hole-fetch.ts > read_hole > throw:1",
 		"packages/core/src/runtime/hole-fetch.ts > read_hole > throw:2",
-		"packages/core/src/runtime/hole-fetch.ts > read_hole > not-ok:0",
-		"packages/core/src/runtime/hole-fetch.ts > read_hole > throw:3",
 		"packages/core/src/runtime/hole-fetch.ts > read_hole > throw:4",
 		"packages/core/src/runtime/hole-fetch.ts > read_hole > throw:5",
 		"packages/core/src/runtime/html-sink.ts > is_allowed_region_endpoint > catch:0",
@@ -870,9 +915,7 @@
 		"packages/core/src/runtime/router-nav.ts > page_relative_resolved > catch:0",
 		"packages/core/src/runtime/router-nav.ts > install_remote_mutation_cache_bust > fetch > catch:0",
 		"packages/core/src/runtime/router-nav.ts > fetch_page > abort:0",
-		"packages/core/src/runtime/router-nav.ts > run_page_fetch > go > fetch:0",
 		"packages/core/src/runtime/router-nav.ts > run_page_fetch > abort:0",
-		"packages/core/src/runtime/router-nav.ts > run_page_fetch > catch:0",
 		"packages/core/src/runtime/router-nav.ts > run_page_fetch > abort:1",
 		"packages/core/src/runtime/router-nav.ts > run_page_fetch > throw:0",
 		"packages/core/src/runtime/router-nav.ts > navigate > build > abort:0",

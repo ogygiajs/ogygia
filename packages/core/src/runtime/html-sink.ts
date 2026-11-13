@@ -1,15 +1,3 @@
-/**
- * THE HTML SINK (HOLE-TRUST, internal/notes/INVARIANTS.md): the one module where a string becomes
- * DOM. A leaf (no imports). Everything else hands it a {@link VerifiedHtml}, and the only way to have
- * one is a voucher below, each named by what it checked: a region answer from a same-origin endpoint
- * that stayed same-origin, a page fetch that landed on this origin, HTML the page itself holds, or an
- * answer of the app's own remote transport. The string-to-DOM APIs (`setHTMLUnsafe`, `innerHTML =`,
- * `DOMParser`, `createContextualFragment`, …) and a cast to `VerifiedHtml` are a lint error anywhere
- * else in package source (`ogygia/html-sink`).
- *
- * @packageDocumentation
- */
-
 import type { PageGlobals } from '../page-globals.ts';
 
 declare const VERIFIED: unique symbol;

@@ -1,19 +1,10 @@
-/**
- * The element a URL fragment points at, read as the browser reads it (HTML "find a potential
- * indicated element"): the fragment as written first, then its percent-decoding. The decoding never
- * throws: a bad escape (`#%E0`) stays as written and a byte that is not UTF-8 becomes U+FFFD, so a
- * link with any hash is still a link (test/browser/nav-bad-hash-escape.test.ts). `#top` and an empty
- * fragment point at the top of the page, which is no element: the caller handles them.
- *
- * @packageDocumentation
- */
-
 /** Is the fragment one that means "the top of the page"? */
 export function fragment_is_top(hash: string): boolean {
 	const raw = hash.startsWith('#') ? hash.slice(1) : hash;
 	return !raw || decode_fragment(raw).toLowerCase() === 'top';
 }
 
+// @why HTML's "find a potential indicated element" tries the fragment as written, then its percent-decoding (test: test/browser/fragment.test.ts › the fragment as written wins over its decoding)
 /** The element `hash` (with or without its `#`) points at in `doc`, or null. */
 export function fragment_target(hash: string, doc: Document = document): Element | null {
 	const raw = hash.startsWith('#') ? hash.slice(1) : hash;

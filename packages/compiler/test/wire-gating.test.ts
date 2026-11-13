@@ -125,6 +125,13 @@ describe('wire gating — the four detection legs', () => {
 		expect(resolveFeatures(marks)).not.toContain('wire');
 	});
 
+	it('EXCLUDE: whitespace between an island’s tags is no children (no wire)', () => {
+		const marks = marks_for(
+			wrap(`import C from './C.svelte' with { wake: 'load' };`, '<C>\n\t \n</C>')
+		);
+		expect(marks.wire).not.toBe(true);
+	});
+
 	it('EXCLUDE: an unplaced lake/server mark does not force wire', () => {
 		const marks = marks_for(
 			wrap(

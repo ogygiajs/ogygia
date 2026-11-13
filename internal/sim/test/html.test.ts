@@ -4,6 +4,7 @@
 import { describe, expect, it } from 'vitest';
 import {
 	content_model,
+	error_answer_shown,
 	from_dom,
 	html_sent,
 	lint_html,
@@ -140,6 +141,20 @@ describe('html kept', () => {
 		doc.getElementById('p')!.appendChild(doc.createElement('section'));
 		expect(content_model(from_dom(doc.documentElement)).map((l) => l.rule)).toEqual([
 			'<section> inside <p>'
+		]);
+	});
+
+	it("finds a region error answer's body in the page, and passes a hole on its fallback (hole-fetch.ts's hole-error-answer-swapped-in)", async () => {
+		const { Window } = await import('happy-dom');
+		const w = new Window({ url: 'https://app.test/' });
+		w.document.write(
+			page('<ogygia-region render="defer"><p data-gen-fallback>loading n3…</p></ogygia-region>')
+		);
+		const doc = w.document as unknown as Document;
+		expect(error_answer_shown(doc.documentElement)).toEqual([]);
+		doc.querySelector('ogygia-region')!.textContent = 'Region render failed';
+		expect(error_answer_shown(doc.documentElement).map((l) => `${l.rule} at ${l.where}`)).toEqual([
+			'an error answer shown at html > body > ogygia-region'
 		]);
 	});
 
