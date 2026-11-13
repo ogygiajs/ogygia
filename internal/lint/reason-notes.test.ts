@@ -100,6 +100,6 @@ export function k() { try { return p(); } catch { use(1); return null; } }
 
 test('ogygia/no-silent-failures: a catch that only falls back (a value, a continue) says why (#1286)', () => {
 	assert.deepEqual(reported('no-silent-failures', FALLBACKS, 'router'), [3, 4, 5, 6, 7, 8, 9]);
-	// (a package not swept yet refuses only the empty ones, as before)
-	assert.deepEqual(reported('no-silent-failures', FALLBACKS, 'compiler'), []);
+	// (every package is swept: the compiler, the last, is held to it too)
+	assert.deepEqual(reported('no-silent-failures', FALLBACKS, 'compiler'), [3, 4, 5, 6, 7, 8, 9]);
 });

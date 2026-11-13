@@ -40,7 +40,7 @@ function parse_body(code: string, id_n: string): AstNode[] | null {
 		if (!result.ok || !result.program) return null;
 		return (result.program as { body?: AstNode[] }).body ?? [];
 	} catch {
-		return null;
+		return null; // ok: null is "did not parse"; the registration adds nothing to a module the bundler refuses
 	}
 }
 

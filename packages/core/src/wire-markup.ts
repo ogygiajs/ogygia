@@ -80,6 +80,7 @@ export type MarkKey =
 	| 'pageHoles'
 	| 'pageKept'
 	| 'pageNav'
+	| 'pageReadFailed'
 	| 'pageServer'
 	| 'pageSince'
 	| 'pageSinceNote'
