@@ -50,6 +50,12 @@
 		},
 		{
 			"site": "packages/rewrite/src/pass.ts > render_one > result:0",
+			"point": "rewrite.signal-fires",
+			"how": "the point cancels the response while a failed batch's elements are retried: no element's own render starts after it, and the batch goes out as ogygia rendered it, nothing said",
+			"killed_by": "rewrite-cancel-unread"
+		},
+		{
+			"site": "packages/rewrite/src/pass.ts > render_one > result:1",
 			"point": "rewrite.render-throws",
 			"how": "the point throws on one element's own call: its failure comes back as a result, and the element goes out as ogygia rendered it",
 			"killed_by": "rewrite-fallback-off-aimed"

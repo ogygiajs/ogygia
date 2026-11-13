@@ -208,8 +208,10 @@ function after_cancel(signal: AbortSignal, what: string): void {
 async function render_one(
 	render: ElementRewrite['render'],
 	el: RewriteElement,
-	ctx: RewriteContext
+	ctx: RewriteContext,
+	res: Response
 ): Promise<Counted> {
+	if (cancelled(res)) return { ok: false, error: 'the request was cancelled' };
 	try {
 		return counted(await call_render(render, [el], ctx), 1);
 	} catch (thrown) {
@@ -272,7 +274,7 @@ async function render_targets(
 	if (cancelled(res)) return targets.map(() => null);
 	const outcome: (Rendered | Failure)[] = [];
 	if (results === null) {
-		const each = await Promise.all(unique.map((el) => render_one(render, el, ctx)));
+		const each = await Promise.all(unique.map((el) => render_one(render, el, ctx, res)));
 		if (cancelled(res)) return targets.map(() => null);
 		for (let i = 0; i < unique.length; i++) {
 			const e = each[i];
