@@ -18,15 +18,6 @@
 		"to": "6_000"
 	},
 	{
-		"id": "repair-lakes-not-lifted",
-		"file": "packages/core/src/runtime/hydrate-core.ts",
-		"in": "repair_if_drifted",
-		"code": "slots.lakes.lift(want);",
-		"operator": "statement",
-		"from": "slots.lakes.lift(want);",
-		"to": ""
-	},
-	{
 		"id": "repair-tag-change-lines-up",
 		"file": "packages/core/src/runtime/hydrate-core.ts",
 		"in": "align_to",
@@ -909,6 +900,15 @@
 		"code": "slots.lakes.settle_in(frag);",
 		"operator": "statement",
 		"from": "slots.lakes.settle_in(frag);",
+		"to": ""
+	},
+	{
+		"id": "repair-walks-into-lakes",
+		"file": "packages/core/src/runtime/ownership.ts",
+		"in": "owner_of",
+		"code": "if (el.localName === REGION && el.matches(OPAQUE_SELECTOR)) return 'static';",
+		"operator": "statement",
+		"from": "if (el.localName === REGION && el.matches(OPAQUE_SELECTOR)) return 'static';",
 		"to": ""
 	}
 ]
