@@ -1594,12 +1594,11 @@ export class Compiler implements CoreApp {
 		code: string,
 		id: string,
 		{
-			ssr,
 			leg,
 			emitFile,
 			watch
 		}: {
-			ssr: boolean;
+			/** The leg it runs in: its `server` is the one answer to "which side is this" (#1439). */
 			leg: BuildLeg;
 			emitFile: EmitChunk;
 			/** The bundler's watch for this module: a macro names the files it read. */
@@ -1607,6 +1606,7 @@ export class Compiler implements CoreApp {
 		}
 	): Promise<{ code: string; map: unknown } | null> {
 		const ctx = this.#ctx;
+		const ssr = leg.server;
 		const program = this.program;
 		const { registry, island_graph } = program;
 		const root = ctx.root;
