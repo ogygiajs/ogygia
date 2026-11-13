@@ -43,7 +43,7 @@ export const ANALYSES: readonly Analysis[] = [
 		predicts: "whether a server hole's tree reads page.data",
 		direction: 'over',
 		fallback: 'true (the hole looks page.data up)',
-		where: { file: 'driver.ts', symbol: 'patch_page_data_reads' },
+		where: { file: 'link/relocations.ts', symbol: 'PAGE_DATA_READS' },
 		gap: ORACLE_GAPS
 	},
 	{
@@ -155,7 +155,7 @@ export const ANALYSES: readonly Analysis[] = [
 		predicts: 'which regions Kit owns on a csr=true page',
 		direction: 'exact',
 		fallback: 'none',
-		where: { file: 'region/transform.ts', symbol: 'transform_csr_true_host' },
+		where: { file: 'region/transform.ts', symbol: '#kit_owns' },
 		gap: ORACLE_GAPS
 	},
 	{
