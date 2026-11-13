@@ -319,6 +319,28 @@ test('an on-demand hole with prefetch="idle" warms at idle, keeps its fallback, 
 	}
 });
 
+// A `visible` prefetch watches the screen grown by the region's `margin`, as its `when` does. (Read
+// off the observer it asks for: a test page is an iframe, whose content below its fold crosses no
+// root margin of the top window's.)
+test("a hole whose prefetch is visible watches the screen grown by the region's margin", async () => {
+	const margins: string[] = [];
+	const Real = window.IntersectionObserver;
+	window.IntersectionObserver = class extends Real {
+		constructor(cb: IntersectionObserverCallback, options?: IntersectionObserverInit) {
+			super(cb, options);
+			margins.push(options?.rootMargin ?? '');
+		}
+	};
+	document.body.innerHTML = `<ogygia-region render="defer" when="interaction" prefetch="visible" margin="137px" endpoint="/__ogygia__?id=cafebabe0006&props=W3t9XQ&exp=9999999999&sig=stub"><p>menu</p></ogygia-region>`;
+	try {
+		bootDev();
+		await expect.poll(() => margins).toContain('137px');
+	} finally {
+		window.IntersectionObserver = Real;
+		document.body.innerHTML = '';
+	}
+});
+
 // THE ANSWER MUST BE THE REGION'S. A handle in front of ogygia.handle() (an auth wall, a locale
 // bounce, a 404 handler) can take a region request and the browser follows the redirect: what comes
 // back is that handler's PAGE, not the fragment. Swapped in, it put a site's account page — its
