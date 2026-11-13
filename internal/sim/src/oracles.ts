@@ -3,8 +3,10 @@
  * found broken, or null. Each is precise about what it normalizes away, and why.
  */
 import { writeFileSync } from 'node:fs';
-import { own_text, type Tab, type Visitor } from './browser.ts';
-import { answer_key, FOREIGN_MARK, is_page_path, type World } from './world.ts';
+import { gate_open_early, own_text, type Tab, type Visitor } from './browser.ts';
+import { boxes, on_screen, type Box } from './layout.ts';
+import { answer_key, FOREIGN_MARK, is_page_path, LOSSY_POINTS, type World } from './world.ts';
+import { EDGE_GONE, EDGE_MOVED } from './gen.ts';
 
 /** `SIM_DUMP=<dir>`: an MPA difference writes both sides whole there (`<tab>-<path>-shown.txt`,
  *  `-fresh.txt`), to read past its first hunk. */
@@ -57,6 +59,9 @@ export function normalize(root: {
 	title: string;
 	baseURI?: string;
 }): string {
+	// (read once: happy-dom's `baseURI` looks for a `<base>` through the whole document, and a miss
+	// grows every element's cache list; per attribute it ran palaestra seed 216 out of memory)
+	const base = root.baseURI ?? 'https://app.test/';
 	const walk = (node: Node, depth: number, out: string[]): void => {
 		if (node.nodeType === 8) return;
 		if (node.nodeType === 3) {
@@ -76,6 +81,10 @@ export function normalize(root: {
 		if (tag === 'link' && /\b(modulepreload|preload|prefetch)\b/.test(el.getAttribute('rel') ?? ''))
 			return;
 		if (el.hasAttribute('data-ogygia-announcer')) return;
+		// (a third party's own head element, which a client navigation keeps, as it keeps what any
+		// script put in the head, and a fresh load of a page without that script never has: gen 262,
+		// seed 6, the `gen head` drift)
+		if (tag === 'meta' && el.hasAttribute('data-gen-third-party')) return;
 		if (el.matches(STORE_MARK)) return;
 		const attrs = [...el.attributes]
 			.filter(
@@ -86,11 +95,15 @@ export function normalize(root: {
 						(a.name === 'data-key' || a.name === 'data-revalidated' || a.name === 'data-og-healed')
 					)
 			)
-			.map((a) =>
-				(tag === 'link' && a.name === 'href') || /^\.\.?\//.test(a.value)
-					? `${a.name}="${new URL(a.value, root.baseURI ?? 'https://app.test/').pathname}"`
-					: `${a.name}="${a.value}"`
-			)
+			.map((a) => {
+				// (one no URL can be made of, a tampered byte in its host, stays as it is: gen 45, seed 32)
+				const address =
+					((tag === 'link' && a.name === 'href') || /^\.\.?\//.test(a.value)) &&
+					URL.canParse(a.value, base);
+				return address
+					? `${a.name}="${new URL(a.value, base).pathname}"`
+					: `${a.name}="${a.value}"`;
+			})
 			.sort()
 			.join(' ');
 		out.push(`${'  '.repeat(depth)}<${tag}${attrs ? ` ${attrs}` : ''}>`);
@@ -137,18 +150,31 @@ export const KNOWN: ReadonlyArray<{
 	seen?(world: World, tab: Tab): boolean;
 }> = [
 	{
-		issue: 1071,
-		what: 'a kept head link with a relative URL names another file after a client navigation',
-		// (a link whose file resolves under the page's own path, `/lab/_app/…`, where the other side
-		// names `/_app/…`: palaestra /lab/a -> /lab/deep/x)
-		applies: (shown, fresh) => DEEP_ASSET.test(shown) && !DEEP_ASSET.test(fresh),
-		forgive: (s) => s.replace(DEEP_ASSET_ALL, ' href="/_app/')
+		issue: 1107,
+		what: "islands' <svelte:head> styles stand in <head> in the order the islands woke",
+		// (the same island head styles on both sides, in another order: gen 262, seed 25; each set
+		// aside, with its text line)
+		applies: (shown, fresh) => {
+			const a = island_head_styles(shown);
+			const b = island_head_styles(fresh);
+			return a.join() !== b.join() && [...a].sort().join() === [...b].sort().join();
+		},
+		forgive: (s) => {
+			const out = s.split('\n');
+			for (let i = out.length - 1; i >= 0; i--)
+				if (ISLAND_HEAD_STYLE.test(out[i])) out.splice(i, 2);
+			return out.join('\n');
+		}
 	}
 ];
 
-/** A head link to a build's file under a page's own path (`href="/lab/_app/…"`). */
-const DEEP_ASSET = /^ *<link\b[^>]* href="\/(?:[^"/]+\/)+_app\//m;
-const DEEP_ASSET_ALL = / href="\/(?:[^"/]+\/)+_app\//g;
+/** A generated island's own `<svelte:head>` style, as a normalized line (src/gen.ts `head`). */
+const ISLAND_HEAD_STYLE = /^ *<style data-gen-head="(n\d+)">$/;
+
+/** The island head styles a normalized DOM holds, in its order. */
+function island_head_styles(s: string): string[] {
+	return s.split('\n').flatMap((l) => ISLAND_HEAD_STYLE.exec(l)?.[1] ?? []);
+}
 
 /**
  * Islands of the test app that keep their own client state across a navigation by design, as a
@@ -541,13 +567,45 @@ export function regions_show(tab: Tab, world: World): Broken | null {
 	return { oracle: 'empty-region', detail: `${url}: ${left.map(open).join('\n')}` };
 }
 
+/** Whether a region's schedule is owed by now: see {@link schedules}. */
+type Due = (el: Element, when: string | null, margin: string | null) => boolean;
+
 /**
- * A HOLE'S FALLBACK DOES NOT STAND: at rest, no deferred region that wakes on its own (`load`,
- * `idle`) still shows the generated app's fallback (`data-gen-fallback`) in a document no fault or
- * deploy touched: its answer was owed. The MPA check cannot see it (the fresh load runs the same code
- * and stands there too: a mutant whose holes never fetched survived it). Set aside: a fallback the
- * app keeps on purpose (`keepFallback()`, marked `data-gen-kept`), and holes that wait for the
- * visitor or the screen.
+ * WHAT A SCHEDULE OWES AT REST, in `tab`'s document as it stands: whether a region's schedule (core's
+ * trigger vocabulary: `load`, `idle`, `visible`, `interaction` or a media query) has fired once the
+ * world is at rest. `load` and `idle` always, and so does none named or a value core does not hold
+ * (it runs on load). `visible` when the region is on screen in the simulator's layout, the viewport
+ * grown by its `margin` (src/layout.ts, the layout its observer reported), in a shown document: a
+ * browser renders no frame for a tab behind another, so its observer reports nothing there. A media
+ * query when it matches. `interaction` never: only the visitor fires it. A mutant that dropped a
+ * region's margin survived every other oracle (core.ts `#on_visible`, the hole's `prefetch`).
+ */
+function schedules(tab: Tab, doc: Document): Due {
+	let at: Map<Element, Box> | null = null;
+	const view = doc.defaultView as unknown as {
+		matchMedia?(q: string): { matches: boolean };
+	} | null;
+	return (el, when, margin) => {
+		if (when === 'interaction') return false;
+		if (when === 'visible')
+			return !tab.hidden && on_screen((at ??= boxes(doc)), el, margin || undefined);
+		// (a media query: a `(` with a `)` after it, as core reads one)
+		const open = when?.indexOf('(') ?? -1;
+		if (when && open !== -1 && when.indexOf(')', open) !== -1)
+			return view?.matchMedia?.(when).matches === true;
+		return true;
+	};
+}
+
+/**
+ * A HOLE'S FALLBACK DOES NOT STAND: at rest, no deferred region whose `when` is owed by now (see
+ * {@link schedules}: `load`, `idle`, `visible` on screen with its margin, a matching media query)
+ * still shows the generated app's fallback (`data-gen-fallback`) in a document no fault or deploy
+ * touched: its answer was owed. The MPA check cannot see it (the fresh load runs the same code and
+ * stands there too: a mutant whose holes never fetched survived it). Its `prefetch` is owed the
+ * same way: a hole whose warm schedule is owed and that never answered asked its endpoint. Set
+ * aside: a fallback the app keeps on purpose (`keepFallback()`, marked `data-gen-kept`), and holes
+ * that wait for the visitor or the screen.
  */
 export function fallback_stands(tab: Tab, world: World): Broken | null {
 	const url = tab.page.mainFrame.url;
@@ -558,18 +616,43 @@ export function fallback_stands(tab: Tab, world: World): Broken | null {
 	const touched = faulted(world, tab);
 	const mine = world.network.exchanges.filter((e) => e.from === tab.realm);
 	if (touched && mine.some((e) => e.method === 'POST')) return null;
+	// (nor one whose runtime, or another script, failed to load: the runtime may never have run, and
+	// the page stays its server HTML, as runtime_load_failed says; gen 12, seed 22)
+	if (touched && world.browsers.lacks_a_file(tab.realm)) return null;
+	// (nor one whose answers buggify lost: a lost answer goes before its request, so a hole it took
+	// every try of looks never asked; gen 208, seed 120)
+	if (touched && lost_answers(world, tab.realm)) return null;
 	const asked = new Set(
 		mine.filter((e) => e.method === 'GET').map((e) => answer_key(new URL(e.url)))
 	);
 	const doc = tab.page.mainFrame.document as unknown as Document;
-	const standing = [...doc.querySelectorAll('ogygia-region[render="defer"]')].filter((r) => {
-		if (!/^(load|idle|)$/.test(r.getAttribute('when') ?? '')) return false;
-		const fallback = r.querySelector(':scope > [data-gen-fallback]');
-		if (fallback === null || fallback.hasAttribute('data-gen-kept')) return false;
-		if (!touched) return true;
+	const due = schedules(tab, doc);
+	const never_asked = (r: Element) => {
 		const endpoint = r.getAttribute('endpoint');
 		return endpoint !== null && !asked.has(answer_key(new URL(endpoint, url)));
+	};
+	const holes = [...doc.querySelectorAll('ogygia-region[render="defer"]')];
+	const standing = holes.filter((r) => {
+		if (!due(r, r.getAttribute('when'), r.getAttribute('margin'))) return false;
+		const fallback = r.querySelector(':scope > [data-gen-fallback]');
+		if (fallback === null || fallback.hasAttribute('data-gen-kept')) return false;
+		return !touched || never_asked(r);
 	});
+	// (a warm owed and never sent: its hole still waits for its own schedule, on its fallback, and
+	// nothing asked its endpoint; a batch's body is not seen, so a document that sent one is let be)
+	const cold = mine.some((e) => e.method === 'POST')
+		? []
+		: holes.filter((r) => {
+				const prefetch = r.getAttribute('prefetch');
+				if (!prefetch || !due(r, prefetch, r.getAttribute('margin'))) return false;
+				const fallback = r.querySelector(':scope > [data-gen-fallback]');
+				return fallback !== null && !standing.includes(r) && never_asked(r);
+			});
+	if (cold.length > 0)
+		return {
+			oracle: 'fallback-stands',
+			detail: `${url}: never warmed: ${cold.map((r) => `${r.querySelector('[data-gen-fallback]')!.textContent} (prefetch "${r.getAttribute('prefetch')}"${r.hasAttribute('margin') ? `, margin "${r.getAttribute('margin')}"` : ''})`).join(', ')}`
+		};
 	if (standing.length === 0) return null;
 	// (a region a filed bug leaves empty stands on its fallback for the same reason: #910's hole asks
 	// the app's endpoint, which refuses it)
@@ -585,6 +668,81 @@ export function fallback_stands(tab: Tab, world: World): Broken | null {
 	return {
 		oracle: 'fallback-stands',
 		detail: `${url}: ${left.map((r) => r.querySelector('[data-gen-fallback]')!.textContent).join(', ')}`
+	};
+}
+
+/**
+ * AN ISLAND THAT WAKES ON ITS OWN IS AWAKE: at rest, no island region (it names its `entry`) whose
+ * `wake` is owed by now is still asleep (no `data-hydrated`): `load`, `idle`, `visible` on screen
+ * with its margin, a matching media query ({@link schedules}; a hole's once its `when` is owed too).
+ * Its twin for
+ * holes is {@link fallback_stands}; the MPA check cannot see it (the fresh load runs the same code
+ * and sleeps there too). Set aside: a document a fault touched (its code may have failed to
+ * download) unless only an outage did (the network came back, and it wakes again), and one a
+ * deploy failed a download of.
+ */
+export function islands_wake(tab: Tab, world: World): Broken | null {
+	const url = tab.page.mainFrame.url;
+	if (!url.startsWith('http') || world.skewed_for(tab.realm)) return null;
+	if (faulted(world, tab) && !outage_only(world, tab)) return null;
+	// (its document's files still coming is work in flight, not an island asleep: a stalled runtime
+	// chunk outlasted the action's quiesce; seed 97, test/hidden-tab.node.test.ts)
+	if (world.network.busy_for(tab.realm)) return null;
+	const doc = tab.page.mainFrame.document as unknown as Document;
+	const due = schedules(tab, doc);
+	// (a hole's island is owed its wake once its own answer was: its `when`, then its `wake`, with
+	// the hydrate margin core reads first)
+	const owed = (r: Element): boolean => {
+		const wake = r.getAttribute('wake');
+		if (wake === null || wake === 'none') return false;
+		if (r.getAttribute('render') !== 'defer') return due(r, wake, r.getAttribute('margin'));
+		const margin = r.getAttribute('hydrate-margin') || r.getAttribute('margin');
+		return due(r, r.getAttribute('when'), r.getAttribute('margin')) && due(r, wake, margin);
+	};
+	// (an island inside one still waiting for the visitor or the screen waits with it, and one in a
+	// lake waits for the island around the lake, which a held region's baked markup never is: gen
+	// 262, an island in a lake in a page-hosted held region, e2e/hole-in-lake.spec.ts)
+	const waits = (r: Element): boolean => {
+		let in_lake = false;
+		for (
+			let a = r.parentElement?.closest('ogygia-region');
+			a;
+			a = a.parentElement?.closest('ogygia-region')
+		) {
+			if (a.hasAttribute('data-hydrated')) {
+				in_lake = false;
+				continue;
+			}
+			const wake = a.getAttribute('wake');
+			if (wake === 'none') in_lake = true;
+			else if (wake !== null && !owed(a)) return true;
+		}
+		return in_lake;
+	};
+	const asleep = [...doc.querySelectorAll('ogygia-region[entry]')].filter(
+		(r) => owed(r) && !r.hasAttribute('data-hydrated') && !waits(r)
+	);
+	if (asleep.length === 0) return null;
+	const open = (r: Element) =>
+		`<${r.localName}${[...r.attributes]
+			.filter((a) => a.name !== 'endpoint' && a.name !== 'data-ogygia-props')
+			.map((a) => ` ${a.name}="${a.value}"`)
+			.join('')}>`;
+	// (each with the regions around it, innermost first, and what it shows)
+	const around = (r: Element): string => {
+		const out: string[] = [];
+		for (
+			let a = r.parentElement?.closest('ogygia-region');
+			a;
+			a = a.parentElement?.closest('ogygia-region')
+		)
+			out.push(open(a));
+		return out.length ? `\n  in ${out.join('\n  in ')}` : '';
+	};
+	const shows = (r: Element) => ` showing "${(r.textContent ?? '').trim().slice(0, 60)}"`;
+	return {
+		oracle: 'islands-wake',
+		detail: `${url}: ${asleep.map((r) => `${open(r)}${shows(r)}${around(r)}`).join('\n')}`
 	};
 }
 
@@ -728,6 +886,44 @@ export function stuck(tab: Tab): Broken | null {
 	return { oracle: 'stuck', detail };
 }
 
+/**
+ * A HIDDEN DOCUMENT WAKES WITHOUT A VIEWPORT: one nobody has looked at (its tab hidden since it
+ * came) has no viewport to prefer, so its hydration drain never waits for the viewport snapshot or
+ * holds a turn for an on-screen island (schedule.ts `drain`: the drain machine never goes
+ * `waiting`). Read from the page's machine moves, as {@link stuck} is.
+ */
+export function no_viewport_wait(tab: Tab): Broken | null {
+	if (!tab.hidden || tab.seen.has(tab.realm)) return null;
+	const w = tab.page.mainFrame.window as unknown as { __ogygia_moves?: () => string };
+	const waited = (w.__ogygia_moves?.() ?? '')
+		.split('\n')
+		.some((l) => /^hydrate-drain\S* \S+ -> waiting$/.test(l));
+	return waited
+		? {
+				oracle: 'viewport-wait',
+				detail: `${tab.page.mainFrame.url}: never shown, its islands waited for a viewport`
+			}
+		: null;
+}
+
+export { gate_open_early };
+
+/**
+ * ISLAND CODE WAITS FOR THE PARSE: the island load gate opens only after DOMContentLoaded and a
+ * painted frame (schedule.ts `after_document_painted`): the page's other deferred scripts and its
+ * first paint go first. Read when the document fires DOMContentLoaded (browser.ts: `early_gate`
+ * names a document whose gate had already opened then). Reading it takes what it read.
+ */
+export function parsed_first(tab: Tab): Broken | null {
+	const url = tab.early_gate;
+	if (url === null) return null;
+	tab.early_gate = null;
+	return {
+		oracle: 'paint-gate',
+		detail: `${url}: the island load gate opened before DOMContentLoaded`
+	};
+}
+
 /** ogygia's own rules, in the page (`__ogygia_rules()`, built in with OGYGIA_RULES=1). */
 export function page_rules(tab: Tab, world?: World): Broken | null {
 	const w = tab.page.mainFrame.window as unknown as {
@@ -764,9 +960,6 @@ export function error_page(tab: Tab): boolean {
 		(doc.body?.childNodes.length ?? 0) === 0
 	);
 }
-
-/** The buggify points that lose an answer on the way, as a dropped request does. */
-const LOSSY_POINTS = ['hole.fetch-lost'];
 
 /** Did buggify lose an answer of `realm`'s on the way? */
 function lost_answers(world: World, realm: string): boolean {
@@ -960,6 +1153,45 @@ export function page_errors(tab: Tab, world?: World, since?: number): Broken | n
 	return { oracle: 'page-errors', detail: errors.join('\n') };
 }
 
+/** What the app owes each of a peer's edge pages (gen.ts `edges`): the peer's own answer. */
+const EDGE_OWED: ReadonlyArray<[string, string, (status: number) => boolean]> = [
+	[EDGE_GONE, 'its not-found page, a 404', (s) => s === 404],
+	[EDGE_MOVED, 'its redirect', (s) => s >= 300 && s < 400]
+];
+
+/**
+ * A MOUNTED PEER'S PAGE ANSWERS AS THE PEER DID: a page the peer lacks is a 404 in the app, one it
+ * moved is a redirect there, and a page that shows the visitor shows the one the app vouched for
+ * (`sub: 'visitor'`, both mounts' `user`). Read from the tab's requests `since` an exchange and its
+ * document. An answer the network failed, or one whose hop to the peer failed or changed on the
+ * way, is the app's own (a 502 or 504) and is not judged.
+ */
+export function peer_answers(tab: Tab, world: World, since: number): Broken | null {
+	const exchanges = world.network.exchanges;
+	const hop_failed = (realm: string): boolean =>
+		exchanges.some((e) => e.for === realm && (failed_on_wire(e) || e.tampered));
+	const origin = new URL(tab.page.mainFrame.url).origin;
+	const wrong: string[] = [];
+	for (const e of exchanges.slice(since)) {
+		if (e.for !== undefined || !e.from.startsWith(`${tab.name}#`) || e.method !== 'GET') continue;
+		if (typeof e.status !== 'number' || e.status >= 500 || e.cut || e.tampered || e.redirected)
+			continue;
+		const url = new URL(e.url);
+		if (url.origin !== origin) continue;
+		const owed = EDGE_OWED.find(([path]) => path === url.pathname);
+		if (owed && !owed[2](e.status) && !hop_failed(e.from))
+			wrong.push(`${url.pathname} answered ${e.status}, the peer answered ${owed[1]}`);
+	}
+	const doc = tab.page.mainFrame.document as unknown as Document;
+	if (!document_faulted(world, tab))
+		for (const el of doc.querySelectorAll('[data-gen-who]'))
+			if (el.textContent !== 'visitor')
+				wrong.push(`the peer's page shows the visitor "${el.textContent}", the app's is "visitor"`);
+	return wrong.length === 0
+		? null
+		: { oracle: 'peer-answers', detail: `${tab.page.mainFrame.url}: ${wrong.join('\n')}` };
+}
+
 /**
  * NO FOREIGN HTML: a page never paints HTML another origin answered. Region HTML is trusted
  * because the app's own server made it (INVARIANTS.md HOLE-TRUST); a `redirect` fault sends a
@@ -986,6 +1218,16 @@ const UNHYDRATED_BY_DESIGN: ReadonlyArray<{ path: RegExp; why: string }> = [
 		why: "its hooks strip one region's hydration anchors, for the foreign-mutation detector's e2e"
 	}
 ];
+
+/** Whether `line`, said by the page at `url`, is a region not hydrating as sent on a page that
+ *  serves such HTML on purpose (`UNHYDRATED_BY_DESIGN`). */
+export function unhydrated_by_design(url: string, line: string): boolean {
+	return (
+		UNHYDRATED.test(line) &&
+		URL.canParse(url) &&
+		UNHYDRATED_BY_DESIGN.some((d) => d.path.test(new URL(url).pathname))
+	);
+}
 
 /**
  * THE SERVER'S HTML IS THE LIVE PAGE: a region hydrates the HTML the server sent as it is. Svelte
@@ -1031,6 +1273,12 @@ export const KNOWN_SAID: ReadonlyArray<{ issue: number; what: string; said: RegE
 		// (a plain Kit app warns it too; the stale read it warns of gave palaestra's PendingGreeting
 		// `undefined`, seeds 20257 and a plain Kit app's 124)
 		said: /svelte\.dev\/e\/derived_inert|^unhandled: TypeError: Cannot read properties of undefined \(reading 'greeting'\)/
+	},
+	{
+		issue: 1158,
+		what: 'a hole batch called off while its body comes rejects with nobody listening',
+		// (the reason the network gives a request its page called off: browser.ts `call_off`)
+		said: /^unhandled: AbortError: The operation was aborted\.$/
 	}
 ];
 

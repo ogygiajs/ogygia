@@ -10,6 +10,7 @@ import {
 	peer_plan,
 	plan,
 	router_plan,
+	shape_plan,
 	write,
 	write_peer,
 	type GenNode,
@@ -183,6 +184,78 @@ describe('the random app', () => {
 			expect(lib(app, 'mount.server.ts')).toContain(
 				peer.mount === 'router' ? 'mount(peer)' : 'resolve(event)'
 			);
+		} finally {
+			rmSync(root, { recursive: true, force: true });
+		}
+	});
+
+	it('draws a peer at two origins from its own stream, and the app names both, the first first', () => {
+		const seeds = Array.from({ length: 60 }, (_, i) => i + 1);
+		const peers = seeds.map((s) => peer_plan(s, plan(s))).filter((p) => p !== null);
+		expect(peers.some((p) => p.origins === 2)).toBe(true);
+		expect(peers.some((p) => p.origins === 1)).toBe(true);
+		const root = mkdtempSync(join(tmpdir(), 'sim-gen-'));
+		try {
+			for (const n of [1, 2] as const) {
+				const seed = seeds.find((s) => peer_plan(s, plan(s))?.origins === n)!;
+				const app = join(root, `o${n}`);
+				write(app, plan(seed), seed, peer_plan(seed, plan(seed)));
+				const fed = readFileSync(join(app, 'src', 'lib', 'gen', 'federation.server.ts'), 'utf8');
+				if (n === 2)
+					expect(fed).toContain(
+						"origin: [env.PEER_ORIGIN ?? 'https://peer.test', env.PEER2_ORIGIN ?? 'https://peer2.test']"
+					);
+				else expect(fed).toContain("origin: env.PEER_ORIGIN ?? 'https://peer.test',");
+			}
+		} finally {
+			rmSync(root, { recursive: true, force: true });
+		}
+	});
+
+	it("draws a peer's edge pages from their own stream: one it lacks, one that moved, one that shows the visitor, each linked from its pages", () => {
+		const seeds = Array.from({ length: 60 }, (_, i) => i + 1);
+		const peers = seeds.map((s) => peer_plan(s, plan(s))).filter((p) => p !== null);
+		for (const edge of ['gone', 'moved', 'who'] as const) {
+			expect(peers.some((p) => p.edges[edge])).toBe(true);
+			expect(peers.some((p) => !p.edges[edge])).toBe(true);
+		}
+		const root = mkdtempSync(join(tmpdir(), 'sim-gen-'));
+		try {
+			for (const edge of ['gone', 'moved', 'who'] as const) {
+				const seed = seeds.find((s) => peer_plan(s, plan(s))?.edges[edge])!;
+				const peer = peer_plan(seed, plan(seed))!;
+				const dir = join(root, `${edge}-peer`);
+				write_peer(dir, peer, seed);
+				const lib = (f: string) => readFileSync(join(dir, 'src', 'lib', 'gen', f), 'utf8');
+				expect(lib('Q0.svelte')).toContain(`<a href="/peer/${edge}">`);
+				const router = lib('router.ts');
+				if (edge === 'gone') expect(router).not.toContain(`'/gone'`);
+				if (edge === 'moved')
+					expect(router).toContain(`'/moved': page(Q0, { load: () => redirect(307, '/peer/q0') })`);
+				if (edge === 'who') {
+					expect(router).toContain(
+						`'/who': page(Who, { load: (c) => ({ sub: user(c)?.sub ?? '' }) })`
+					);
+					expect(lib('Who.svelte')).toContain('<p data-gen-who>{data.sub}</p>');
+				}
+			}
+		} finally {
+			rmSync(root, { recursive: true, force: true });
+		}
+	});
+
+	it('a federated app registers its federation from its hook, so a server that never served the mount still answers its holes (gen 220 seed 19)', () => {
+		const root = mkdtempSync(join(tmpdir(), 'sim-gen-'));
+		try {
+			const seeds = Array.from({ length: 60 }, (_, i) => i + 1);
+			for (const mount of ['router', 'kit'] as const) {
+				const seed = seeds.find((s) => peer_plan(s, plan(s))?.mount === mount)!;
+				const app = join(root, mount);
+				write(app, plan(seed), seed, peer_plan(seed, plan(seed)));
+				expect(readFileSync(join(app, 'src', 'lib', 'gen', 'mount.server.ts'), 'utf8')).toMatch(
+					/^import .*'\.\/federation\.server\.ts';$/m
+				);
+			}
 		} finally {
 			rmSync(root, { recursive: true, force: true });
 		}
@@ -454,6 +527,32 @@ describe('the random app', () => {
 		}
 	});
 
+	it("draws a module of the page's own after ogygia's runtime on some pages, from its own stream: DOMContentLoaded waits for its download", () => {
+		const seeds = Array.from({ length: 20 }, (_, i) => i + 1);
+		const pages = seeds.flatMap((s) => plan(s));
+		expect(pages.some((p) => p.late)).toBe(true);
+		expect(pages.some((p) => !p.late)).toBe(true);
+		const seed = seeds.find((s) => plan(s).some((p) => p.late))!;
+		const app = mkdtempSync(join(tmpdir(), 'sim-gen-'));
+		try {
+			const drawn = plan(seed);
+			write(app, drawn, seed);
+			for (const p of drawn) {
+				const src = readFileSync(
+					join(app, 'src', 'routes', p.path.slice(1), '+page.svelte'),
+					'utf8'
+				);
+				// (parsed with the page, so the browser runs it; spelled so the component's own parser
+				// never meets a closing script tag)
+				expect(src.includes(`type="module" src="/late.js"`)).toBe(p.late === true);
+			}
+			const module = readFileSync(join(app, 'src', 'routes', 'late.js', '+server.ts'), 'utf8');
+			expect(module).toContain("'content-type': 'text/javascript'");
+		} finally {
+			rmSync(app, { recursive: true, force: true });
+		}
+	});
+
 	it("draws islands a third party's script changes while they sleep, from their own stream: one that wakes on its own, in the page's own HTML", () => {
 		const seeds = Array.from({ length: 40 }, (_, i) => i + 1);
 		const touched: GenNode[] = [];
@@ -570,6 +669,42 @@ describe('the random app', () => {
 		}
 	});
 
+	// (head mutants: the head markers left in place, or the page's head copy never retired, need an
+	// island with a <svelte:head> of its own, and a third party in its head block)
+	it('draws islands with a <svelte:head> of their own, from their own stream, and a third party in some of those head blocks', () => {
+		const seeds = Array.from({ length: 60 }, (_, i) => i + 1);
+		const heads = seeds.flatMap((s) => all(plan(s).flatMap((p) => p.roots)).filter((n) => n.head));
+		expect(new Set(heads.map((n) => n.head))).toEqual(new Set(['own', 'drift']));
+		for (const n of heads) {
+			expect(n.kind).toBe('island');
+			expect(['load', 'idle']).toContain(n.wake);
+		}
+		const seed = seeds.find((s) =>
+			all(plan(s).flatMap((p) => p.roots)).some((n) => n.head === 'drift')
+		)!;
+		const app = mkdtempSync(join(tmpdir(), 'sim-gen-'));
+		try {
+			write(app, plan(seed), seed);
+			const pages = readdirSync(join(app, 'src', 'routes'), { recursive: true })
+				.filter((f) => String(f).endsWith('.svelte'))
+				.map((f) => readFileSync(join(app, 'src', 'routes', String(f)), 'utf8'))
+				.concat(
+					readdirSync(join(app, 'src', 'lib', 'gen'))
+						.filter((f) => f.endsWith('.svelte'))
+						.map((f) => readFileSync(join(app, 'src', 'lib', 'gen', f), 'utf8'))
+				);
+			for (const n of all(plan(seed).flatMap((p) => p.roots)).filter((n) => n.head)) {
+				const own = readFileSync(join(app, 'src', 'lib', 'gen', `N${n.id}.svelte`), 'utf8');
+				expect(own).toContain('<svelte:head>');
+				expect(own).toContain(`<style data-gen-head="n${n.id}">`);
+				const drift = pages.some((f) => f.includes(`style[data-gen-head=n${n.id}]`));
+				expect(drift).toBe(n.head === 'drift');
+			}
+		} finally {
+			rmSync(app, { recursive: true, force: true });
+		}
+	});
+
 	it('draws empty regions, from their own stream: leaves that render nothing, each used inside a marked element', () => {
 		const seeds = Array.from({ length: 40 }, (_, i) => i + 1);
 		const nodes = seeds.flatMap((s) => all(plan(s).flatMap((p) => p.roots)));
@@ -600,5 +735,61 @@ describe('the random app', () => {
 		} finally {
 			rmSync(app, { recursive: true, force: true });
 		}
+	});
+
+	// real apps (apps/palaestra, examples/mfe, apps/docs) time a hole with `fetch`; `wake` on a hole
+	// is deprecated (a build warning on every generated hole), and a hole ships no JS: the generated
+	// hole's button and count, written as if it woke once it landed, never worked
+	it('times a hole with fetch, never wake, and gives it no state or button of its own', () => {
+		const seeds = Array.from({ length: 10 }, (_, i) => i + 1);
+		const seed = seeds.find((s) =>
+			all(plan(s).flatMap((p) => p.roots)).some((n) => n.kind === 'hole' && n.wake && !n.maxAge)
+		)!;
+		const app = mkdtempSync(join(tmpdir(), 'sim-gen-'));
+		try {
+			const drawn = plan(seed);
+			write(app, drawn, seed);
+			const lib = join(app, 'src', 'lib', 'gen');
+			const sources = readdirSync(lib)
+				.filter((f) => f.endsWith('.svelte'))
+				.map((f) => readFileSync(join(lib, f), 'utf8'));
+			const routes = drawn.map((p) =>
+				readFileSync(join(app, 'src', 'routes', p.path.slice(1), '+page.svelte'), 'utf8')
+			);
+			for (const src of [...sources, ...routes])
+				expect(src).not.toMatch(/render: 'deferred', wake:/);
+			expect([...sources, ...routes].some((s) => /render: 'deferred', fetch: '/.test(s))).toBe(
+				true
+			);
+			for (const n of all(drawn.flatMap((p) => p.roots)).filter((n) => n.kind === 'hole'))
+				expect(readFileSync(join(lib, `N${n.id}.svelte`), 'utf8')).not.toContain('$state(');
+			// (and a kept render's preset: the app's config is checked in)
+			const config = readFileSync(
+				new URL('../../../apps/sim-gen/vite.config.ts', import.meta.url),
+				'utf8'
+			);
+			expect(config).not.toContain('{ wake }');
+			expect(config).toContain('{ fetch }');
+		} finally {
+			rmSync(app, { recursive: true, force: true });
+		}
+	});
+
+	it("draws some apps' island wakes as real apps have them, from their own stream: mostly load, then visible, a media query on some", () => {
+		const islands = (s: number) =>
+			all(plan(s).flatMap((p) => p.roots)).filter((n) => n.kind === 'island');
+		const seeds = Array.from({ length: 200 }, (_, i) => i + 1);
+		const shaped = seeds.filter((s) => shape_plan(s) === 'real');
+		expect(shaped.length).toBeGreaterThan(50);
+		expect(shaped.length).toBeLessThan(150);
+		const wakes = shaped.flatMap((s) => islands(s).map((n) => n.wake!));
+		const share = (w: string) => wakes.filter((x) => x === w).length / wakes.length;
+		expect(share('load')).toBeGreaterThan(0.55);
+		expect(share('visible')).toBeGreaterThan(0.12);
+		expect(wakes.some((w) => w.startsWith('('))).toBe(true);
+		// (an app drawn the other way keeps its trees as they were: the shape is drawn apart)
+		const drawn = seeds.filter((s) => shape_plan(s) === 'drawn');
+		const all_wakes = drawn.flatMap((s) => islands(s).map((n) => n.wake!));
+		expect(all_wakes.some((w) => w.startsWith('('))).toBe(false);
 	});
 });

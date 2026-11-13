@@ -8,6 +8,7 @@ import { STALE } from '@ogygia/machine';
 import { bootDev } from '../../src/runtime/full.ts';
 import {
 	note_handed,
+	note_left,
 	note_mount,
 	note_shown,
 	note_turn,
@@ -16,6 +17,7 @@ import {
 	watch_frames,
 	watch_router
 } from '../../src/runtime/rules.ts';
+import { busy_machines, type RegionMachinesNow } from '../../src/runtime/region-machines.ts';
 import { _reset, peek, ticket, write } from '../_frames.ts';
 import { runtime_session } from '../../src/runtime/session.ts';
 
@@ -118,6 +120,34 @@ test("a region shows its address's answer: handed the newest, and painted it onc
 	_reset();
 });
 
+test('a region that left the page is at rest: one of its machines still mid-visit is reported (#1132)', () => {
+	const busy = () => rules().filter((b) => b.code === 'rule_region_left_busy');
+	const el = document.createElement('ogygia-region');
+	el.setAttribute('entry', 'left.svelte');
+	const now: RegionMachinesNow = {
+		hole: 'idle',
+		wake: 'cold',
+		'live-region': 'idle',
+		'region-paint': 'painting'
+	};
+	note_left(el, () => busy_machines(now));
+	expect(busy()).toEqual([
+		{
+			code: 'rule_region_left_busy',
+			detail: 'left.svelte left the page with region-paint painting'
+		}
+	]);
+	// back at rest: no finding, and the region is let go
+	now['region-paint'] = 'idle';
+	expect(busy()).toEqual([]);
+	// put back on the page: its machines are the page's again
+	now['region-paint'] = 'painting';
+	note_left(el, () => busy_machines(now));
+	document.body.append(el);
+	expect(busy()).toEqual([]);
+	el.remove();
+});
+
 test('nothing of an old page open: a visit before the one on screen still open', () => {
 	// the page goes, the next one takes over: the old visit is closed with it
 	runtime_session.reset(runtime_session.next_visit());
@@ -137,18 +167,15 @@ test('nothing of an old page open: a visit before the one on screen still open',
 
 test('the address bar and the history model: checked once no navigation is out', () => {
 	const nav = { now: { kind: 'idle' } };
-	const entry = { id: 'doc.1', url: new URL(location.href) };
+	const entry = { id: 'doc.1' };
 	watch_router({ nav, history: { current: entry } });
 	history.replaceState({ ogygia: 'doc.1' }, '');
 	expect(rules()).toEqual([]);
-	entry.url = new URL('/elsewhere', location.href);
+	history.replaceState({ ogygia: 'doc.2' }, '');
 	expect(codes()).toEqual(['rule_address_bar_drift']);
 	nav.now = { kind: 'loading' }; // a navigation out: the bar moves at its commit
 	expect(rules()).toEqual([]);
 	nav.now = { kind: 'idle' };
-	entry.url = new URL(`${location.href}#a-fragment`); // a fragment is the same page
-	expect(rules()).toEqual([]);
-	history.replaceState({ ogygia: 'doc.2' }, '');
 	expect(rules()[0]?.detail).toBe('the address bar is on entry doc.2, the history model on doc.1');
 	history.replaceState(null, ''); // an entry the router has not met: not its yet
 	expect(rules()).toEqual([]);

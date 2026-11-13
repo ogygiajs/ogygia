@@ -420,21 +420,22 @@ describe('the driver: entries emitted by name, mapped, and shimmed', () => {
 
 	const make = () => {
 		const program = new Program({ forms: true, router: true });
-		const compiler = new Compiler(program, {
-			prof: {
-				transformMs: 0,
-				transformN: 0,
-				transformHit: 0,
-				prescanMs: 0,
-				bakeMs: 0,
-				bakeN: 0,
-				resolveMs: 0,
-				loadMs: 0
+		const compiler = new Compiler(
+			program,
+			{
+				prof: {
+					transformMs: 0,
+					transformN: 0,
+					transformHit: 0,
+					prescanMs: 0,
+					macroMs: 0,
+					macroN: 0,
+					resolveMs: 0,
+					loadMs: 0
+				},
+				P: false,
+				outHash: new Map()
 			},
-			P: false,
-			outHash: new Map()
-		});
-		compiler.configure(
 			new CompileCtx(
 				partial_ctx_init({
 					root,
@@ -448,6 +449,7 @@ describe('the driver: entries emitted by name, mapped, and shimmed', () => {
 					presets: {},
 					import_keys: normalize_import_keys(undefined),
 					resolve_alias: [],
+					is_build: true,
 					pkg_root: '/nowhere/ogygia',
 					app_shims: {
 						'$app/state': '/x/a.js',
@@ -457,9 +459,12 @@ describe('the driver: entries emitted by name, mapped, and shimmed', () => {
 				})
 			)
 		);
+		compiler.start_leg('client', false);
 		compiler.prescan();
 		return compiler;
 	};
+	/** The client leg `make` started. */
+	const client = (compiler: Compiler) => compiler.leg({ name: 'client', server: false });
 	const fake_emit = () => {
 		const emitted: { id: string; name?: string; fileName?: string }[] = [];
 		return {
@@ -474,7 +479,7 @@ describe('the driver: entries emitted by name, mapped, and shimmed', () => {
 	it('every island and the runtime are emitted by NAME (hashed by the bundler), never a fixed file name', () => {
 		const compiler = make();
 		const { emitted, emit } = fake_emit();
-		compiler.emit_build_chunks(emit, { emitRuntime: true });
+		compiler.emit_build_chunks(client(compiler), emit, { emitRuntime: true });
 		expect(emitted.length).toBe(3);
 		expect(emitted.every((c) => c.name && !c.fileName)).toBe(true);
 		expect(emitted.filter((c) => c.name!.startsWith('og-region.')).length).toBe(2);
@@ -497,7 +502,7 @@ describe('the driver: entries emitted by name, mapped, and shimmed', () => {
 	it('the runtime’s file names its features, like its stable name does', () => {
 		const compiler = make();
 		const { emitted, emit } = fake_emit();
-		compiler.emit_build_chunks(emit, { emitRuntime: true });
+		compiler.emit_build_chunks(client(compiler), emit, { emitRuntime: true });
 		const runtime = emitted.find((c) => c.name!.startsWith('og-runtime'))!;
 		const stable = compiler.runtime_chunk_filename();
 		// the stable name: `…/og-runtime.<hash>[-<features>].js`
@@ -511,13 +516,13 @@ describe('the driver: entries emitted by name, mapped, and shimmed', () => {
 	it('identity → location for each, from the bundler’s final names', () => {
 		const compiler = make();
 		const { emit } = fake_emit();
-		compiler.emit_build_chunks(emit, { emitRuntime: true });
+		compiler.emit_build_chunks(client(compiler), emit, { emitRuntime: true });
 		const names: Record<string, string> = {
 			ref1: '_app/immutable/chunks/Rt.js',
 			ref2: '_app/immutable/chunks/W.js',
 			ref3: '_app/immutable/chunks/C.js'
 		};
-		const e = compiler.entry_locations((ref: string) => names[ref]);
+		const e = compiler.entry_locations(client(compiler), (ref: string) => names[ref]);
 		expect(Object.keys(e.locations).length).toBe(3);
 		for (const [identity, location] of Object.entries(e.locations)) {
 			expect(identity).toMatch(/^\/_app\/ogygia\/og-(region\.[0-9a-f]{12}|runtime\.[\w-]+)\.js$/);
@@ -533,33 +538,35 @@ describe('the driver: entries emitted by name, mapped, and shimmed', () => {
 	it('two builds that emit the islands in another order write the same maps and handoff entries (#490)', () => {
 		const built = (reverse: boolean) => {
 			const compiler = make();
+			const leg = client(compiler);
 			const { emit } = fake_emit();
-			compiler.emit_build_chunks(emit, { emitRuntime: true });
+			compiler.emit_build_chunks(leg, emit, { emitRuntime: true });
 			// the bundler's transform order is not stable from build to build
 			if (reverse) {
-				const refs = [...compiler.island_entry_refs].reverse();
-				compiler.island_entry_refs.clear();
-				for (const [rid, ref] of refs) compiler.island_entry_refs.set(rid, ref);
+				const refs = [...leg.island_entry_refs].reverse();
+				leg.island_entry_refs.clear();
+				for (const [rid, ref] of refs) leg.island_entry_refs.set(rid, ref);
 			}
 			const name = (ref: string) => `_app/immutable/chunks/${ref}.js`;
 			return {
-				maps: compiler.location_maps(name),
-				entries: JSON.stringify(compiler.entry_locations(name).locations)
+				maps: compiler.location_maps(leg, name),
+				entries: JSON.stringify(compiler.entry_locations(leg, name).locations)
 			};
 		};
 		expect(built(true)).toEqual(built(false));
 	});
 	it('the location maps name every island entry; the handoff learns the hashed one’s path; no other file', () => {
 		const compiler = make();
+		const leg = client(compiler);
 		const { emit } = fake_emit();
-		compiler.emit_build_chunks(emit, { emitRuntime: true });
-		const files = compiler.location_maps((ref: string) => `_app/immutable/chunks/${ref}.js`);
+		compiler.emit_build_chunks(leg, emit, { emitRuntime: true });
+		const files = compiler.location_maps(leg, (ref: string) => `_app/immutable/chunks/${ref}.js`);
 		// the two maps, and only them: an identity is a name, never a file of its own
 		expect(files.map((f) => f.fileName.replace(/[0-9a-f]{12}/, 'H'))).toEqual([
 			'_app/immutable/og-locations.H.json',
 			'_app/ogygia.json'
 		]);
-		expect(compiler.location_map_url).toBe(`/${files[0].fileName}`);
+		expect(leg.location_map_url).toBe(`/${files[0].fileName}`);
 		const pairs = Object.entries(JSON.parse(files[0].source) as Record<string, string>);
 		expect(pairs).toHaveLength(2); // the two islands (the runtime loads by its script's own src)
 		for (const [identity, hashed] of pairs) {
@@ -567,15 +574,30 @@ describe('the driver: entries emitted by name, mapped, and shimmed', () => {
 			expect(hashed).toMatch(/^\.\/chunks\/ref\d\.js$/);
 		}
 	});
+	it('a second build in one process (watch) emits every island again and maps them all', () => {
+		const compiler = make();
+		const first = client(compiler);
+		compiler.emit_build_chunks(first, fake_emit().emit, { emitRuntime: true });
+		compiler.location_maps(first, (ref: string) => `_app/immutable/chunks/${ref}.js`);
+		compiler.start_leg('client', false);
+		compiler.prescan();
+		const leg = client(compiler);
+		expect(leg).not.toBe(first);
+		const again = fake_emit();
+		compiler.emit_build_chunks(leg, again.emit, { emitRuntime: true });
+		expect(again.emitted.filter((c) => c.name!.startsWith('og-region.')).length).toBe(2);
+		const files = compiler.location_maps(leg, (ref: string) => `_app/immutable/chunks/${ref}.js`);
+		expect(Object.keys(JSON.parse(files[0].source) as object)).toHaveLength(2);
+	});
 	it('no runtime emitted → no runtime location; a second emit starts clean', () => {
 		const compiler = make();
 		const first = fake_emit();
-		compiler.emit_build_chunks(first.emit, { emitRuntime: true });
+		compiler.emit_build_chunks(client(compiler), first.emit, { emitRuntime: true });
 		const program_reset = make();
 		const { emitted, emit } = fake_emit();
-		program_reset.emit_build_chunks(emit, { emitRuntime: false });
+		program_reset.emit_build_chunks(client(program_reset), emit, { emitRuntime: false });
 		expect(emitted.length).toBe(2);
-		const e = program_reset.entry_locations((ref: string) => `x/${ref}.js`);
+		const e = program_reset.entry_locations(client(program_reset), (ref: string) => `x/${ref}.js`);
 		expect(e.runtime).toBeNull();
 		expect(Object.keys(e.locations).some((k) => k.includes('og-runtime'))).toBe(false);
 	});

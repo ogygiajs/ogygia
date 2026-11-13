@@ -132,6 +132,41 @@ describe('audit fixes — transform contract', () => {
 		);
 	});
 
+	it('a preset speaks the standard keys when the app renames the import keys (#1177)', () => {
+		const r = run(
+			wrap(`import C from './C.svelte' with { look: 'hole' };`, '<C />'),
+			makeCtx({
+				importKeys: { render: 'mode', wake: 'when', preset: 'look' },
+				presets: { hole: { render: 'deferred', fetch: 'idle' } }
+			})
+		);
+		expect(r!.islands.map((i) => i.kind)).toEqual(['defer']);
+	});
+
+	it("a preset's unknown key names every key a preset takes, keep among them (#1177)", () => {
+		const msg = expectThrows(
+			() =>
+				run(
+					wrap(`import C from './C.svelte' with { preset: 'odd' };`, '<C />'),
+					makeCtx({ presets: { odd: { wake: 'load', wakee: 'x' } } })
+				),
+			/unknown key `wakee`/
+		);
+		for (const key of [
+			'render',
+			'wake',
+			'fetch',
+			'margin',
+			'maxAge',
+			'onExpire',
+			'revalidate',
+			'keep',
+			'stitch',
+			'prefetch'
+		])
+			expect(msg).toContain(`\`${key}\``);
+	});
+
 	it('rejects hydrate values with lone "(" as unknown (not media)', () => {
 		expectThrows(
 			() => run(wrap(`import C from './C.svelte' with { wake: 'weird(thing' };`, '<C />')),
@@ -422,25 +457,5 @@ describe('audit fixes — region id charset + default TTL constant', () => {
 		expect(REGION_ID_RE.test('abcdef012345')).toBe(true);
 		expect(REGION_ID_RE.test('__proto__')).toBe(false);
 		expect(REGION_ID_RE.test('short')).toBe(false);
-	});
-});
-
-describe('audit fixes — lake cache soft cap', () => {
-	it('evicts oldest entries past LAKE_CACHE_MAX', async () => {
-		const { RuntimeSession } = await import('../../core/dist/runtime/session.js');
-		const s = new RuntimeSession();
-		for (let i = 0; i < 70; i++) {
-			s.set_lake_cache(String(i), {
-				frag: {} as Node,
-				endpoint: '',
-				when: 'load',
-				cachedAt: i,
-				maxAgeMs: 0
-			});
-		}
-		expect(s.lake_cache.size).toBe(64);
-		expect(s.lake_cache.has('0')).toBe(false);
-		expect(s.lake_cache.has('6')).toBe(true);
-		expect(s.lake_cache.has('69')).toBe(true);
 	});
 });

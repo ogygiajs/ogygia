@@ -68,7 +68,7 @@ export function hold_refusal(a: string, err: unknown): void {
 /** What a flight at an address runs: the store's own fetch, or a batch's part arriving through an
  *  external stream (the batch's promise, settled by the frame written there or failed by the
  *  batch's end). The input of the call that started the flight is the one that runs. */
-type FrameAsk = { a: string; work: FrameFetcher | Promise<VerifiedHtml> };
+type FrameAsk = { a: string; work: FrameFetcher | Promise<VerifiedHtml | Stale> };
 
 /** An applied answer: its stamp `v`, its data version `d` (`Frame.d`, when it had one), and its
  *  HTML, vouched for (./html-sink.ts): the stored answer holds verified HTML only. */
@@ -94,13 +94,31 @@ const answer_definition = () =>
 
 type StoredAnswer = ReturnType<ReturnType<typeof answer_definition>['create']>;
 
+type PartStates = {
+	/** A batch's part is out for the address. */
+	promised: {};
+	/** A frame was written there (the batch's part, or a forced fetch that landed first). */
+	landed: { html: VerifiedHtml };
+	/** The batch ended with no frame there. */
+	missed: {};
+};
+
+/** A batch's part promised at an address: its flight waits on `landed`, and a miss (or the store's
+ *  end) makes that wait `STALE`, so a joined caller asks again and fetches on its own (`ensure`). */
+const part_definition = () =>
+	machine<PartStates>()({
+		name: 'frame-part',
+		initial: 'promised',
+		steps: { promised: ['landed', 'missed'], landed: [], missed: [] }
+	});
+
+type Part = ReturnType<ReturnType<typeof part_definition>['create']>;
+
 type Entry = {
 	/** What is applied at the address, as a machine. */
 	answer: StoredAnswer;
-	/** A batch's part promised here: ANY frame written at the address (the batch's part, or a forced
-	 *  fetch that landed first) settles it, and `release()` fails it when the batch ends with no
-	 *  frame there. */
-	batch: { settle: (html: VerifiedHtml) => void; fail: (err: unknown) => void } | null;
+	/** The last batch's part promised here, if any (only a `promised` one is waited on). */
+	part: Part | null;
 	/** The fresh capability a renewal at this address answered (an expired one is re-signed once):
 	 *  the address's, so every element bound here moves onto it, not only the one that fetched. */
 	renewed: string | null;
@@ -108,8 +126,6 @@ type Entry = {
 	 *  woke: ./early-holes.ts): handed, once, to the first caller that asks here, which is refused as
 	 *  if it had asked itself. A frame written here, or a forced fetch, ends it. */
 	refused: Error | null;
-	/** The store let it go (another entry took the address, or it lingered out): never held again. */
-	gone: boolean;
 };
 
 /** Entries with no subscribers linger this long (ms) so quick remounts / SPA swaps reuse content. */
@@ -143,11 +159,14 @@ type Store = {
 // is the document's too, so every entry's moves reach the same copy's observers.
 const STORE_KEY = '__ogygia_frame_store__';
 const ANSWER_KEY = '__ogygia_frame_answer__';
+const PART_KEY = '__ogygia_frame_part__';
 const store_host = (typeof globalThis !== 'undefined' ? globalThis : {}) as {
 	[STORE_KEY]?: Store;
 	[ANSWER_KEY]?: ReturnType<typeof answer_definition>;
+	[PART_KEY]?: ReturnType<typeof part_definition>;
 };
 const answers = (store_host[ANSWER_KEY] ??= answer_definition());
+const parts = (store_host[PART_KEY] ??= part_definition());
 
 function store(): Store {
 	return (store_host[STORE_KEY] ??= make_store());
@@ -166,10 +185,8 @@ function make_store(): Store {
 		onEvict: (a, e, why) => {
 			// its linger ran out while something bound it again or fetches it: it stays
 			if (why === 'age' && live(a) && entries.set(a, e, HELD)) return;
-			// (a set of the entry it holds is not a leave: a notice is of an entry the store let go)
-			e.gone = true;
-			// the store ends: a binder joined to a reservation must not hang
-			if (why === 'end') e.batch?.fail(new Error('reset'));
+			// (a binder joined to its reservation gets STALE: it never hangs)
+			e.part?.stop();
 			e.answer.stop();
 		}
 	});
@@ -183,7 +200,7 @@ function make_store(): Store {
 				key: ['a'],
 				ignore: { work: 'one flight per address: a fetch or a batch part out there is joined' },
 				keep: 0,
-				run: ({ a, work }, signal, flight): Promise<VerifiedHtml> =>
+				run: ({ a, work }, signal, flight): Promise<VerifiedHtml | Stale> =>
 					typeof work === 'function' ? fetch_frame(a, work, signal, flight) : work
 			})
 		)
@@ -238,7 +255,7 @@ function entry(a: string): Entry {
 	const entries = store().entries;
 	let e = entries.peek(a);
 	if (!e) {
-		e = { answer: answers.create(), batch: null, renewed: null, refused: null, gone: false };
+		e = { answer: answers.create(), part: null, renewed: null, refused: null };
 		entries.set(a, e);
 	}
 	return e;
@@ -252,7 +269,8 @@ function entry(a: string): Entry {
  * region, or a live tick whose address keeps changing).
  */
 function schedule_evict(a: string, e: Entry): void {
-	if (live(a) || e.gone) return;
+	// (an entry the store let go, for another at the address or its linger, is never held again)
+	if (live(a) || store_host[STORE_KEY]?.entries.peek(a) !== e) return;
 	store().entries.set(a, e, LINGER); // (set again: its linger starts now)
 }
 
@@ -307,12 +325,8 @@ export function write(f: StoredFrame): boolean {
 	e.refused = null;
 	// Fulfil a batch's part, whoever wrote the frame (the batch, or a forced fetch that landed
 	// first): a binder that joined via ensure() unblocks, and no per-region fetch ever starts. The
-	// subscription (set in the binder) is what actually paints — settle just unblocks.
-	const held = e.batch;
-	if (held) {
-		e.batch = null;
-		held.settle(f.html);
-	}
+	// subscription (set in the binder) is what actually paints — landing just unblocks.
+	e.part?.move('promised', 'landed', { html: f.html });
 	notify(frame_id(f.a), f); // region binders subscribe through the hub (watch), not a local set
 	schedule_evict(f.a, e); // no-op while subscribed; starts the linger when the write lands unbound
 	return true;
@@ -322,39 +336,27 @@ export function write(f: StoredFrame): boolean {
  * Reserve an address whose content is arriving via an EXTERNAL batch stream (single-flight navigation). A region
  * binder that mounts before its frame lands calls `ensure()`, finds the batch's flight there, and JOINS it
  * instead of starting its own fetch — so a navigation that pulls N regions makes ONE batch request,
- * not N. `write()` fulfils it when the frame arrives; `release()` fails it if the batch ends without
- * one (the binder then falls back to its own fetch). The flight is the batch's: a binder leaving never
- * ends it. No-op if content or a fetch is already present.
+ * not N. `write()` lands it when the frame arrives; `release()` misses it if the batch ends without
+ * one (a joined binder then asks again, and its own fetch runs). The flight is the batch's: a binder
+ * leaving never ends it. No-op if content or a fetch is already present.
  */
 export function reserve(a: string): void {
 	const e = entry(a);
 	if (shown_of(e) !== null || flying(a)) return;
-	const batch = new Promise<VerifiedHtml>((settle, fail) => {
-		e.batch = { settle, fail };
-	});
-	batch.catch(() => {}); // ok: a part no flight waits on (a forced fetch took its place) is not unhandled
+	const part = (e.part = parts.create());
+	const landed = part.wait('landed').then((s) => (s === STALE ? STALE : s.html));
 	const settled = () => schedule_evict(a, e);
-	store().flights.get({ a, work: batch }).then(settled, settled);
+	store().flights.get({ a, work: landed }).then(settled, settled);
 }
 
 /**
- * Fail an unfulfilled batch part (the batch ended and no frame was written at this address, by it or
- * by anyone). Joined binders reject out of `ensure()` and retry with their own fetch. No-op once a
- * frame has landed (it settled the part).
+ * Miss an unfulfilled batch part (the batch ended and no frame was written at this address, by it or
+ * by anyone): joined binders ask again in `ensure()`, and their own fetch runs (nothing failed, the
+ * batch just did not carry it). No-op once a frame has landed.
  */
 export function release(a: string): void {
-	const e = store().entries.peek(a);
-	const held = e?.batch;
-	if (!e || !held) return;
-	e.batch = null;
-	const miss = new Error(`ogygia batch: no frame for ${a}`);
-	miss.name = BATCH_MISS;
-	held.fail(miss);
+	store().entries.peek(a)?.part?.move('promised', 'missed');
 }
-
-/** The error a joined reservation rejects with when its batch ended without its frame: the binder's
- *  own fetch runs at once (nothing failed — the batch just did not carry it). */
-export const BATCH_MISS = 'OgygiaBatchMiss';
 
 /**
  * Subscribe to writes at an address. If content is ALREADY applied, the callback fires immediately
@@ -412,8 +414,9 @@ export async function ensure(
 			e.refused = null;
 			if (!fresh && refused !== null) throw refused;
 			const html = await st.flights.get({ a, work: fetcher }, { signal, fresh, priority });
-			// STALE: this caller left, the store ended, or a forced fetch took the place of the one it
-			// waited on: then it asks again (and joins that one)
+			// STALE: this caller left, the store ended, a forced fetch took the place of the one it
+			// waited on, or the batch part it joined was missed: then it asks again (joins the forced
+			// one, or starts its own)
 			if (html !== STALE || signal?.aborted || st.life.closed) return html;
 			fresh = false;
 		}

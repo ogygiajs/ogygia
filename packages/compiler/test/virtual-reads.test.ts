@@ -1,12 +1,20 @@
 /**
- * A dev change invalidates exactly the virtual modules whose last load read the part that changed:
- * the table records what each `from`/`load` read off the session (a tracked view of it), each part
- * carries a stamp, and a bump of one part names the modules that read it, and no other.
+ * A dev change invalidates exactly the virtual modules whose last load read what changed: each
+ * `from`/`load` is a reader of the session's queries (`watch`), a part of the session read through
+ * a tracked view of it is one input, and a query it reads is recorded too. A move of one part, or a
+ * query whose answer changed, names the modules that read it, and no other.
  */
 import { describe, expect, it } from 'vitest';
 import { VirtualTable } from '../src/compiler/virtual/resolver.ts';
 import { virtual, type Part } from '../src/compiler/virtual/table.ts';
 import { CORE_PARTS, type CoreApp } from '../src/compiler/virtual/core.ts';
+import { derived, input, queries, type Queries } from '../src/compiler/queries.ts';
+
+/** A dev change to `part`: the modules it moved. */
+function bump<A>(t: VirtualTable<A>, part: Part): string[] {
+	t.move(part);
+	return t.moved();
+}
 
 /** A session with one field per part, and one that is no part (read freely, never tracked). */
 interface App {
@@ -77,7 +85,8 @@ function table(): VirtualTable<App> {
 		],
 		() => '',
 		{ 'ogygia:server/opts': ['ttl'] },
-		PARTS
+		PARTS,
+		queries('session')
 	);
 }
 
@@ -90,41 +99,41 @@ function loaded(): VirtualTable<App> {
 
 describe('a dev change reloads exactly the modules that read it', () => {
 	it('options: the modules that read the options', () => {
-		expect(loaded().bump('options')).toEqual([R('opts')]);
+		expect(bump(loaded(), 'options')).toEqual([R('opts')]);
 	});
 
 	it('regions: the modules that read the regions', () => {
-		expect(loaded().bump('regions')).toEqual([R('regs')]);
+		expect(bump(loaded(), 'regions')).toEqual([R('regs')]);
 	});
 
 	it('routes: the modules that read the routes', () => {
-		expect(loaded().bump('routes').sort()).toEqual([R('routes'), R('routes-and-plugins')]);
+		expect(bump(loaded(), 'routes').sort()).toEqual([R('routes'), R('routes-and-plugins')]);
 	});
 
 	it('plugins: the modules that read the plugin list', () => {
-		expect(loaded().bump('plugins').sort()).toEqual([R('plugins'), R('routes-and-plugins')]);
+		expect(bump(loaded(), 'plugins').sort()).toEqual([R('plugins'), R('routes-and-plugins')]);
 	});
 
 	it('styles: the modules that read the style inputs', () => {
-		expect(loaded().bump('styles')).toEqual([R('styles')]);
+		expect(bump(loaded(), 'styles')).toEqual([R('styles')]);
 	});
 
 	it('leaves a module that reads no part untouched, whatever changes', () => {
 		const t = loaded();
 		for (const part of ['options', 'regions', 'routes', 'plugins', 'styles'] as const)
-			expect(t.bump(part)).not.toContain(R('nothing'));
+			expect(bump(t, part)).not.toContain(R('nothing'));
 	});
 
 	it('names a module once per load: reloaded, it is fresh until the part moves again', () => {
 		const t = loaded();
-		expect(t.bump('routes').length).toBe(2);
-		expect(t.bump('routes')).toEqual([]);
+		expect(bump(t, 'routes').length).toBe(2);
+		expect(bump(t, 'routes')).toEqual([]);
 		t.load(R('routes'), app, leg);
-		expect(t.bump('routes')).toEqual([R('routes')]);
+		expect(bump(t, 'routes')).toEqual([R('routes')]);
 	});
 
 	it('names no module that was never loaded', () => {
-		expect(table().bump('routes')).toEqual([]);
+		expect(bump(table(), 'routes')).toEqual([]);
 	});
 
 	it('a module whose server load read a part is named, though its browser load read nothing after', () => {
@@ -139,11 +148,87 @@ describe('a dev change reloads exactly the modules that read it', () => {
 			],
 			() => '',
 			{},
-			PARTS
+			PARTS,
+			queries('session')
 		);
 		t.load(R('route-csr'), app, { ssr: true, universalHooks: null });
 		t.load(R('route-csr'), app, { ssr: false, universalHooks: null });
-		expect(t.bump('routes')).toEqual([R('route-csr')]);
+		expect(bump(t, 'routes')).toEqual([R('route-csr')]);
+	});
+});
+
+describe('a load is a reader of the session’s queries', () => {
+	/** Two files' sizes, and a fold over them with a cutoff (only whether any is big). */
+	function session(db: Queries) {
+		const size = input<string, number>(
+			'size',
+			(f) => f,
+			() => 0
+		);
+		const total = derived<string, number>(
+			'total',
+			() => 'all',
+			(cx) => cx.get(size, 'a') + cx.get(size, 'b')
+		);
+		const big = derived<string, boolean>(
+			'big',
+			() => 'all',
+			(cx) => cx.get(total, 'all') > 10
+		);
+		const t = new VirtualTable<App>(
+			[
+				virtual.family<App>({
+					realm: 'server',
+					id: 'total',
+					load: () => `export const t = ${db.get(total, 'all')};`
+				}),
+				virtual.family<App>({
+					realm: 'server',
+					id: 'big',
+					load: () => `export const b = ${db.get(big, 'all')};`
+				}),
+				virtual.family<App>({
+					realm: 'server',
+					id: 'regs',
+					load: (a) => `export const r = ${JSON.stringify(a.regions())};`
+				})
+			],
+			() => '',
+			{},
+			PARTS,
+			db
+		);
+		for (const id of ['total', 'big', 'regs']) t.load(R(id), app, leg);
+		return { t, size };
+	}
+
+	it('a query it read that changed names it, and only it', () => {
+		const db = queries('session');
+		const { t, size } = session(db);
+		db.set(size, 'a', 3);
+		expect(t.moved()).toEqual([R('total')]);
+	});
+
+	it('an answer that comes out the same names nobody (early cutoff)', () => {
+		const db = queries('session');
+		const { t, size } = session(db);
+		db.set(size, 'a', 3);
+		t.moved();
+		t.load(R('total'), app, leg);
+		db.set(size, 'b', 20);
+		expect(t.moved().sort()).toEqual([R('big'), R('total')]);
+		t.load(R('total'), app, leg);
+		t.load(R('big'), app, leg);
+		db.set(size, 'b', 30);
+		expect(t.moved()).toEqual([R('total')]);
+	});
+
+	it('a part moved names the modules that read it, beside any query that changed', () => {
+		const db = queries('session');
+		const { t, size } = session(db);
+		db.set(size, 'a', 3);
+		t.move('regions');
+		expect(t.moved().sort()).toEqual([R('regs'), R('total')]);
 	});
 });
 
@@ -157,7 +242,6 @@ describe('core’s session parts', () => {
 			'runtime_chunk_url',
 			'region_names',
 			'router_css_roots',
-			'note_server_ids',
 			'routes_dir',
 			'plugins'
 		];

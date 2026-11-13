@@ -1,7 +1,7 @@
 // The `when` / `wake` / `prefetch` / `revalidate` vocabulary (src/contract/trigger.ts, #482): one
 // parse into a tagged union, read by the compiler's checks and the runtime's schedules alike.
 import { describe, expect, it, vi } from 'vitest';
-import { on_schedule, parse_trigger, SCHEDULE, WAKE } from '../src/contract/trigger.ts';
+import { on_schedule, on_trigger, parse_trigger, SCHEDULE, WAKE } from '../src/contract/trigger.ts';
 
 describe('parse_trigger', () => {
 	it('reads a keyword its set allows, and a media query, into one shape', () => {
@@ -17,6 +17,43 @@ describe('parse_trigger', () => {
 		expect(parse_trigger('interaction', SCHEDULE)).toBeNull();
 		expect(parse_trigger('soon', WAKE)).toBeNull();
 		expect(parse_trigger('', WAKE)).toBeNull();
+	});
+
+	it('a media query is media conditions and media words, never a call or unbalanced parentheses', () => {
+		for (const q of [
+			'(min-width: 600px)',
+			'screen and (min-width: 600px)',
+			'(min-width: 600px) and (max-width: 900px), print and (color)',
+			'not all and (monochrome)',
+			'(width >= calc(300px + 2em))',
+			'(prefers-reduced-motion)'
+		])
+			expect(parse_trigger(q, WAKE), q).toEqual({ on: 'media', query: q });
+		for (const q of [
+			'visible(200px)',
+			'idle()',
+			'screen and(min-width: 1px)',
+			'(min-width: 1px',
+			')(',
+			'soon (x)'
+		])
+			expect(parse_trigger(q, WAKE), q).toBeNull();
+	});
+
+	it('every media type CSS accepts is a media word, the deprecated ones too', () => {
+		for (const type of [
+			'speech',
+			'tty',
+			'tv',
+			'projection',
+			'handheld',
+			'braille',
+			'embossed',
+			'aural'
+		]) {
+			const q = `${type} and (min-width: 600px)`;
+			expect(parse_trigger(q, WAKE), q).toEqual({ on: 'media', query: q });
+		}
 	});
 });
 
@@ -42,5 +79,33 @@ describe('on_schedule', () => {
 		on_schedule('interaction', a, fire);
 		expect(a.media).not.toHaveBeenCalled();
 		expect(fire).toHaveBeenCalledOnce();
+	});
+});
+
+describe('on_trigger', () => {
+	const arms = () => ({
+		idle: vi.fn(),
+		visible: vi.fn(),
+		media: vi.fn(),
+		interaction: vi.fn(),
+		load: vi.fn()
+	});
+
+	it('a wake arms its gesture, and its load through its own start', () => {
+		const a = arms();
+		const fire = vi.fn();
+		expect(on_trigger('interaction', WAKE, a, fire)).toEqual({ on: 'interaction' });
+		expect(a.interaction).toHaveBeenCalledWith(fire);
+		on_trigger('load', WAKE, a, fire);
+		expect(a.load).toHaveBeenCalledWith(fire);
+		expect(fire).not.toHaveBeenCalled();
+	});
+
+	it('a value that is not a trigger (a typo) runs on load and says so, never waits on matchMedia', () => {
+		const a = arms();
+		const fire = vi.fn();
+		expect(on_trigger('visable', WAKE, a, fire)).toBeNull();
+		expect(a.media).not.toHaveBeenCalled();
+		expect(a.load).toHaveBeenCalledWith(fire);
 	});
 });

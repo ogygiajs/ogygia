@@ -266,20 +266,95 @@ function reason_notes(context: Context, note: RegExp): (node: Node) => boolean {
 	return (node) => lines.has((node as Located).loc.start.line);
 }
 
-/** A handler that does nothing with the failure: `() => {}`, `() => undefined`, `() => null`,
- *  `() => void 0`, or a function named `noop`. */
+/** A value handed back in place of what failed: a literal (`null`, `''`, `0`, `false`), a template
+ *  with nothing in it, `[]`, `{}`, `void 0`, `-1`, or a plain name (`undefined`, a fallback
+ *  constant). */
+function is_fallback(e: Node | undefined | null): boolean {
+	if (!e) return true;
+	switch (e.type) {
+		case 'Literal':
+		case 'Identifier':
+			return true;
+		case 'TemplateLiteral':
+			return (e.expressions as unknown[]).length === 0;
+		case 'ArrayExpression':
+			return (e.elements as unknown[]).length === 0;
+		case 'ObjectExpression':
+			return (e.properties as unknown[]).length === 0;
+		case 'UnaryExpression':
+			return (e.argument as Node).type === 'Literal';
+		default:
+			return false;
+	}
+}
+
+/** A body that does nothing with the failure but fall back: empty, or one `return <fallback>`,
+ *  `continue`, `break`, or `<name> = <fallback>`. */
+function falls_back(statements: unknown[]): boolean {
+	if (statements.length === 0) return true;
+	if (statements.length > 1) return false;
+	const s = statements[0] as Node;
+	if (s.type === 'ReturnStatement') return is_fallback(s.argument as Node | null);
+	if (s.type === 'ContinueStatement' || s.type === 'BreakStatement') return true;
+	if (s.type !== 'ExpressionStatement') return false;
+	const e = s.expression as Node;
+	return (
+		e.type === 'AssignmentExpression' &&
+		(e.left as Node).type === 'Identifier' &&
+		is_fallback(e.right as Node)
+	);
+}
+
+/** Does `node` read the name `name` anywhere under it? */
+function reads(node: unknown, name: string): boolean {
+	if (!node || typeof node !== 'object') return false;
+	if (Array.isArray(node)) return node.some((n) => reads(n, name));
+	const n = node as Node;
+	if (n.type === 'Identifier' && (n as { name?: string }).name === name) return true;
+	for (const key in n) {
+		if (key === 'parent' || key === 'loc' || key === 'range') continue;
+		if (reads((n as Record<string, unknown>)[key], name)) return true;
+	}
+	return false;
+}
+
+/** A handler that does nothing with the failure but fall back: `() => {}`, `() => null`,
+ *  `() => ''`, `() => []`, `() => { return false; }`, or a function named `noop`. One that reads
+ *  its error does something with it. */
 function swallows(handler: unknown): boolean {
 	const h = handler as Node | undefined;
 	if (!h) return false;
 	if (h.type === 'Identifier') return (h as { name?: string }).name === 'noop';
 	if (h.type !== 'ArrowFunctionExpression' && h.type !== 'FunctionExpression') return false;
+	const param = (h.params as Node[])[0];
+	if (param?.type === 'Identifier' && reads(h.body, (param as { name: string }).name)) return false;
 	const body = h.body as Node;
+	if (body.type === 'BlockStatement') return falls_back(body.body as unknown[]);
+	return is_fallback(body);
+}
+
+/** The packages whose fallback catches are not swept yet (#1286): there, only an empty catch or
+ *  handler (`() => {}`, `=> null`, `=> undefined`, `=> void 0`, `noop`) is refused, as before.
+ *  Each sweep takes its package out; the list and `empty_handler` go with the last. */
+const FALLBACKS_UNSWEPT_RE = /\/packages\/(compiler)\//;
+
+/** The handlers refused before #1286: they do nothing at all. */
+function empty_handler(handler: unknown): boolean {
+	const h = handler as Node | undefined;
+	if (h?.type === 'Identifier') return true;
+	const body = (h as Node).body as Node;
 	if (body.type === 'BlockStatement') return (body.body as unknown[]).length === 0;
 	if (body.type === 'Identifier') return (body as { name?: string }).name === 'undefined';
 	if (body.type === 'Literal') return (body as { value?: unknown }).value === null;
-	if (body.type === 'UnaryExpression')
-		return body.operator === 'void' && (body.argument as Node).type === 'Literal';
-	return false;
+	return body.type === 'UnaryExpression' && body.operator === 'void';
+}
+
+/** A `catch` that does nothing with the failure but fall back (it never reads its error). */
+function catch_falls_back(clause: Node): boolean {
+	const statements = (clause.body as Node).body as unknown[];
+	if (!falls_back(statements)) return false;
+	const param = clause.param as Node | null;
+	return !(param?.type === 'Identifier' && reads(statements, (param as { name: string }).name));
 }
 
 /** `p.catch(handler)` / `p.then(ok, handler)`: the failure has a handler that does something. */
@@ -298,11 +373,14 @@ const MESSAGE_SILENT =
 
 /**
  * `ogygia/no-silent-failures`: every caught failure reports a message code, re-throws, or moves a
- * machine; nothing is swallowed without a written reason. Refused: an empty `catch` (a comment is
- * not a body), `.catch(() => {})` (or `=> undefined`, `=> null`, `noop`), and a bare `void <call>()`,
+ * machine; nothing is swallowed without a written reason. Refused: a `catch` that only falls back
+ * (empty, or one `return <fallback>`, `continue`, `break` or `x = <fallback>`, never reading its
+ * error; a comment is not a body), a handler that only falls back (`.catch(() => {})`, `=> null`,
+ * `=> ''`, `=> []`, `noop`; #1286), and a bare `void <call>()`,
  * whose rejection goes unhandled unless the callee catches it (`void p.catch(report)` is handled).
  * A site that is truly fine carries `// ok: <reason>` on its first or last line (for a catch, also
- * inside its body).
+ * inside its body; for a `void` call, also alone on the line above). A `void` call is one through
+ * an optional chain or a cast too (`void s?.send?.()`); an awaited one (`void (await p())`) is not.
  */
 const no_silent_failures = {
 	meta: {
@@ -314,6 +392,7 @@ const no_silent_failures = {
 	create(context: Context) {
 		if (!in_source(context)) return {};
 		let ok: Set<number> | null = null;
+		let noted: ((node: Node) => boolean) | null = null;
 		const marked = (node: Node): boolean => {
 			const n = node as Located;
 			ok ??= ok_lines(context);
@@ -328,23 +407,41 @@ const no_silent_failures = {
 		const refuse = (node: Node) => {
 			if (!marked(node)) context.report({ node, message: MESSAGE_SILENT });
 		};
+		const unswept = FALLBACKS_UNSWEPT_RE.test(
+			(context.filename ?? context.getFilename?.() ?? '').replaceAll('\\', '/')
+		);
+		const swallowed = (handler: unknown): boolean =>
+			swallows(handler) && (!unswept || empty_handler(handler));
 		return {
 			CatchClause(node: Node) {
-				if (((node.body as Node).body as unknown[]).length === 0) refuse(node);
+				if (!catch_falls_back(node)) return;
+				if (!unswept || ((node.body as Node).body as unknown[]).length === 0) refuse(node);
 			},
 			CallExpression(node: Node) {
 				const callee = node.callee as Node;
 				if (callee?.type !== 'MemberExpression') return;
 				const name = (callee.property as { name?: string }).name;
 				const args = node.arguments as unknown[];
-				if (name === 'catch' && swallows(args[0])) refuse(node);
-				else if (name === 'then' && args.length > 1 && swallows(args[1])) refuse(node);
+				if (name === 'catch' && swallowed(args[0])) refuse(node);
+				else if (name === 'then' && args.length > 1 && swallowed(args[1])) refuse(node);
 			},
 			UnaryExpression(node: Node) {
 				if (node.operator !== 'void') return;
-				const arg = node.argument as Node;
+				// (an optional call `s?.send?.()` and a cast `(p() as T)` are calls too; an awaited one,
+				// `void (await p())`, is handled by its await)
+				let arg = node.argument as Node | undefined;
+				while (
+					arg?.type === 'ParenthesizedExpression' ||
+					arg?.type === 'TSAsExpression' ||
+					arg?.type === 'TSNonNullExpression' ||
+					arg?.type === 'ChainExpression'
+				)
+					arg = arg.expression as Node;
 				// (`void p.catch(() => {})` is the `.catch` site's, said once there)
-				if (arg.type === 'CallExpression' && !handled(arg) && !swallowing_chain(arg)) refuse(node);
+				if (arg?.type !== 'CallExpression' || handled(arg) || swallowing_chain(arg)) return;
+				// (a note on the call's own line, or alone on the line above: reason-notes.test.ts)
+				noted ??= reason_notes(context, OK_NOTE);
+				if (!noted(node) && !marked(node)) context.report({ node, message: MESSAGE_SILENT });
 			}
 		};
 	}
@@ -1520,6 +1617,47 @@ const one_hash = {
 	}
 };
 
+// ── ogygia/dispose-by-close ───────────────────────────────────────────────
+// Package source never calls `x[Symbol.dispose]()` / `x[Symbol.asyncDispose]()`: WebKit has neither
+// symbol, so the call is `x[undefined]()` and throws (#1144). A scope closes with `close()`.
+// Defining the method is fine (machine keys it with a fallback symbol): only calls are refused.
+
+const MESSAGE_DISPOSE =
+	'WebKit has no Symbol.dispose / Symbol.asyncDispose, so this call throws there: call `close()` (a scope, a flights) instead.';
+
+const dispose_by_close = {
+	meta: {
+		type: 'problem',
+		docs: { description: 'Owners are closed with close(), never through Symbol.dispose.' }
+	},
+	create(context: Context) {
+		if (!in_source(context)) return {};
+		const is_dispose_symbol = (n: Node | undefined): boolean => {
+			if (n?.type !== 'MemberExpression') return false;
+			const obj = n.object as Node;
+			const prop = n.property as Node;
+			return (
+				obj.type === 'Identifier' &&
+				obj.name === 'Symbol' &&
+				prop.type === 'Identifier' &&
+				(prop.name === 'dispose' || prop.name === 'asyncDispose')
+			);
+		};
+		return {
+			CallExpression(node: Node) {
+				let callee = node.callee as Node;
+				if (callee.type === 'ChainExpression') callee = callee.expression as Node;
+				if (
+					callee.type === 'MemberExpression' &&
+					callee.computed &&
+					is_dispose_symbol(callee.property as Node)
+				)
+					context.report({ node, message: MESSAGE_DISPOSE });
+			}
+		};
+	}
+};
+
 // ── ogygia/compiler-boundary ──────────────────────────────────────────────
 // `@ogygia/compiler` uses core only through `@ogygia/core/contract` (what both share, and core's
 // own files by path); core never uses the compiler. Package source only: tests may reach across.
@@ -1582,10 +1720,81 @@ const compiler_boundary = {
 	}
 };
 
+// ── ogygia/one-markup-walk ────────────────────────────────────────────────
+// #1370: package source reads HTML through core's tag walk (markup-walk.ts), which reads quotes,
+// comments and raw text as a browser does. A regex or an indexOf over tags or attributes is a
+// second reader that gets one of those wrong. A site that must stay its own says why with
+// `// markup-ok: <why>` on its line, or alone on the line before.
+
+/** The walk itself: the one place that may read tags by hand. */
+const MARKUP_WALK = /(^|\/)packages\/core\/src\/markup-walk\.ts$/;
+/** Carved out until the compiler's own sweep (#1370) moves its readers onto the walk. */
+const MARKUP_CARVED_OUT = /(^|\/)packages\/compiler\/src\//;
+/** A regex pattern that reads a tag or an attribute: to a tag's end (`[^>]`), an attribute's
+ *  quoted value (`="[^"]`), or a tag's name (`<[a-z`, `<\/?(\w`). */
+const READS_MARKUP = [
+	/\[\^[^\]]*>[^\]]*\]/,
+	/=\\?(["'])\(?(\?:)?\[\^\\?\1/,
+	/<(\\?\/\??)?\(?(\?:)?\[(a-z|A-Z|\\w)/
+];
+/** An indexOf needle shaped like a tag: `<name`, `</name`, `</`, `<!--`. (A bare `<` or `>` is
+ *  as often an escaper's prefilter as a reader, so the linter, with no types, leaves it.) */
+const MARKUP_NEEDLE = /^(<\/?[A-Za-z!?]|<\/$)/;
+const MESSAGE_MARKUP =
+	"Reads HTML by hand (a regex or indexOf over tags or attributes): use core's tag walk (markup-walk.ts: tags, next_tag, read_tag, visit_attrs, markup_tokens, markup_text), or say why not with `// markup-ok: <why>`.";
+
+const reads_markup = (pattern: string): boolean => READS_MARKUP.some((re) => re.test(pattern));
+
+const one_markup_walk = {
+	meta: {
+		type: 'problem',
+		docs: { description: "Package source reads HTML through core's tag walk." }
+	},
+	create(context: Context) {
+		const file = (context.filename ?? context.getFilename?.() ?? '').replaceAll('\\', '/');
+		if (!in_source(context) || MARKUP_WALK.test(file) || MARKUP_CARVED_OUT.test(file)) return {};
+		const found: Node[] = [];
+		/** A string or template literal's text (a template's holes read as nothing). */
+		const text_of = (n: Node | undefined): string | undefined => {
+			if (n?.type === 'Literal' && typeof n.value === 'string') return n.value;
+			if (n?.type === 'TemplateLiteral')
+				return (n.quasis as Array<{ value: { raw: string } }>).map((q) => q.value.raw).join('');
+			return undefined;
+		};
+		return {
+			Literal(node: Node) {
+				const regex = (node as { regex?: { pattern: string } }).regex;
+				if (regex && reads_markup(regex.pattern)) found.push(node);
+			},
+			NewExpression(node: Node) {
+				const callee = node.callee as Node;
+				if (callee.type !== 'Identifier' || (callee as { name?: string }).name !== 'RegExp') return;
+				const pattern = text_of((node.arguments as Node[])[0]);
+				if (pattern !== undefined && reads_markup(pattern)) found.push(node);
+			},
+			CallExpression(node: Node) {
+				const callee = node.callee as Node;
+				if (callee.type !== 'MemberExpression' || callee.computed) return;
+				const name = (callee.property as { name?: string }).name;
+				if (name !== 'indexOf' && name !== 'lastIndexOf') return;
+				const needle = text_of((node.arguments as Node[])[0]);
+				if (needle !== undefined && MARKUP_NEEDLE.test(needle)) found.push(node);
+			},
+			'Program:exit'() {
+				if (!found.length) return;
+				const excused = reason_notes(context, /^\s*markup-ok:\s*\S/);
+				for (const n of found)
+					if (!excused(n)) context.report({ node: n, message: MESSAGE_MARKUP });
+			}
+		};
+	}
+};
+
 export default {
 	meta: { name: 'ogygia' },
 	rules: {
 		'html-sink': html_sink,
+		'one-markup-walk': one_markup_walk,
 		'markup-from-vocabulary': markup_from_vocabulary,
 		'one-hash': one_hash,
 		'no-promise-cache': no_promise_cache,
@@ -1596,6 +1805,7 @@ export default {
 		'prefer-dedent': prefer_dedent,
 		'structured-comments': structured_comments,
 		'compiler-boundary': compiler_boundary,
+		'dispose-by-close': dispose_by_close,
 		ports
 	}
 };

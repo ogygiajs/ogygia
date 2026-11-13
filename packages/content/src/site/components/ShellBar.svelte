@@ -148,7 +148,22 @@ both skipped under reduced motion.
 <!-- ONE sheet, two views. Switching views crossfades the content while the wrapper's height glides
      (see set_view) — never a close/reopen, never a height jump. -->
 <Sheet bind:open label={view === 'search' ? 'Search' : 'Navigation'}>
-	<div class="og-sheet-swap" bind:this={swap_el}>
+	<!-- The bar is kept across navigations, so a link picked here closes the sheet itself (test:
+	     apps/docs/e2e/shellbar-keep.spec.ts). -->
+	<!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
+	<div
+		class="og-sheet-swap"
+		bind:this={swap_el}
+		onclick={(e) => {
+			// (only a click that navigates this tab: one that opens elsewhere, or that a handler
+			// prevented, leaves the visitor here with the menu still open)
+			if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey)
+				return;
+			const a = e.target instanceof Element ? e.target.closest('a[href]') : null;
+			if (a && !a.hasAttribute('download') && (a.getAttribute('target') ?? '_self') === '_self')
+				open = false;
+		}}
+	>
 		{#key view}
 			<div
 				class="og-sheet-view"
