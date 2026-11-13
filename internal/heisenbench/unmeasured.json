@@ -1,6 +1,10 @@
 {
 	"exempt": [
 		{
+			"id": "packages/core/src/runtime/ownership.ts > in_render_block",
+			"reason": "browser only (DOM comments): runs only for a child of an element stamped data-og-html, a scan of its earlier siblings; nested-island-drift.test.ts runs it"
+		},
+		{
 			"id": "packages/devtools/src/devtools/highlight.ts > highlight > defer:0~248bad",
 			"reason": "browser only: the highlight layer's scope takes its layer out as it closes, constant work"
 		},
