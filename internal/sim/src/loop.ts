@@ -28,6 +28,8 @@ export interface LoopOptions {
 	horizon?: number;
 	/** Called after each task: the oracles that are checked at every step. */
 	after?: (task: Task) => void;
+	/** Real ms a settle waits for the host's work before it gives up (default 10 s). */
+	settle_ms?: number;
 }
 
 const real_set_immediate: (fn: () => void) => unknown =
@@ -55,8 +57,12 @@ const AT_REST = new Set([
 	'Timeout'
 ]);
 
-/** Most host turns one settle waits (a page spinning on `setImmediate` would wait forever). */
-const MAX_TURNS = 10_000;
+/** The real ms one settle waits for the host's work by default (a page spinning on `setImmediate`
+ *  would wait forever; a file read on a loaded runner takes longer than 10,000 quick turns, #1612). */
+const SETTLE_MS = 10_000;
+
+/** The host's real clock, read before any realm's platform replaces `performance.now`. */
+const real_now: () => number = performance.now.bind(performance);
 
 export class Loop {
 	readonly rng: Rng;
@@ -75,7 +81,10 @@ export class Loop {
 		this.rng = rng.fork('loop');
 		this.horizon = options.horizon ?? 10 * 60_000;
 		this.#after = options.after;
+		this.#settle_ms = options.settle_ms ?? SETTLE_MS;
 	}
+
+	readonly #settle_ms: number;
 
 	/** Virtual ms since the run began. */
 	get now(): number {
@@ -161,18 +170,20 @@ export class Loop {
 	 * each turn's immediate; another immediate, or a file or crypto request, is work in flight).
 	 */
 	async settle(): Promise<void> {
-		for (let turn = 0; ; turn++) {
+		const until = real_now() + this.#settle_ms;
+		for (;;) {
 			await new Promise<void>((r) => real_set_immediate(r));
-			let busy = false;
+			const waiting: string[] = [];
 			let timers = 0;
 			for (const kind of process.getActiveResourcesInfo()) {
 				if (kind === 'Timeout') timers++;
-				else if (!AT_REST.has(kind)) busy = true;
+				else if (!AT_REST.has(kind)) waiting.push(kind);
 			}
 			this.real_timers = timers;
-			if (!busy) return;
-			if (turn >= MAX_TURNS) {
+			if (waiting.length === 0) return;
+			if (real_now() >= until) {
 				this.stalls++;
+				this.stalled.push({ at: this.#now, waiting: [...new Set(waiting)].sort() });
 				return;
 			}
 		}
@@ -180,8 +191,11 @@ export class Loop {
 
 	/** Real (host) timers pending at the last settle: none should be the run's. */
 	real_timers = 0;
-	/** Settles that gave up after MAX_TURNS (a page spinning on real immediates). */
+	/** Settles that gave up (real work still in flight after `settle_ms`). */
 	stalls = 0;
+	/** Each settle that gave up: when (virtual ms) and what it waited on (the host's resource kinds).
+	 *  The run reports each as a finding: the run is not determined by its seed from there. */
+	readonly stalled: { at: number; waiting: string[] }[] = [];
 
 	/** Runs one task (and lets what it started settle). False when nothing is left before the horizon. */
 	async step(): Promise<boolean> {
