@@ -6,7 +6,7 @@ its pull request says why it is safe (or which INVARIANTS.md section covers it).
 
 ## Request inputs: headers, query, cookies and bodies read from a request
 
-125 entries.
+122 entries.
 
 | file | in | what | n |
 | --- | --- | --- | --- |
@@ -64,7 +64,6 @@ its pull request says why it is safe (or which INVARIANTS.md section covers it).
 | `packages/devtools/src/profiler/index.ts` | `(module)` | `headers.get('content-length')` | 1 |
 | `packages/devtools/src/profiler/index.ts` | `#auth_guard` | `searchParams(AFTER_LOGIN_PARAM)` | 1 |
 | `packages/devtools/src/profiler/index.ts` | `#authed` | `headers.get('x-profiler-key')` | 1 |
-| `packages/devtools/src/profiler/index.ts` | `#beacon` | `request.text()` | 1 |
 | `packages/devtools/src/profiler/index.ts` | `#beacon_tag` | `headers.get('x-og-profiler-internal')` | 2 |
 | `packages/devtools/src/profiler/index.ts` | `#beacon_tag` | `headers.get('x-profile')` | 1 |
 | `packages/devtools/src/profiler/index.ts` | `#beacon_tag` | `headers.get('x-profiler-key')` | 1 |
@@ -75,22 +74,20 @@ its pull request says why it is safe (or which INVARIANTS.md section covers it).
 | `packages/devtools/src/profiler/index.ts` | `#cookie_diagnosis` | `headers.get('cookie')` | 1 |
 | `packages/devtools/src/profiler/index.ts` | `#flag_cookie` | `cookies.get('og_profiler_beacon')` | 1 |
 | `packages/devtools/src/profiler/index.ts` | `#flag_session` | `cookies.get('og_profiler_beacon')` | 1 |
-| `packages/devtools/src/profiler/index.ts` | `#login` | `request.json()` | 1 |
 | `packages/devtools/src/profiler/index.ts` | `#report_posted` | `headers.get('content-type')` | 1 |
 | `packages/devtools/src/profiler/index.ts` | `#report_posted` | `headers.get('x-og-encoding')` | 1 |
-| `packages/devtools/src/profiler/index.ts` | `#report_posted` | `request.arrayBuffer()` | 1 |
 | `packages/devtools/src/profiler/index.ts` | `#reset` | `headers.get('accept')` | 1 |
 | `packages/devtools/src/profiler/index.ts` | `#reset` | `headers.get('cache-control')` | 1 |
 | `packages/devtools/src/profiler/index.ts` | `#reset` | `headers.get('location')` | 1 |
 | `packages/devtools/src/profiler/index.ts` | `#router` | `searchParams('by')` | 1 |
 | `packages/devtools/src/profiler/index.ts` | `#router` | `searchParams('next')` | 1 |
 | `packages/devtools/src/profiler/index.ts` | `#router` | `searchParams(LOGIN_FAILED_PARAM)` | 1 |
+| `packages/devtools/src/profiler/index.ts` | `#run_page` | `headers.get('sec-fetch-site')` | 1 |
 | `packages/devtools/src/profiler/index.ts` | `#site` | `searchParams('from')` | 1 |
 | `packages/devtools/src/profiler/index.ts` | `#source` | `searchParams('l')` | 1 |
 | `packages/devtools/src/profiler/index.ts` | `#source` | `searchParams('p')` | 1 |
 | `packages/devtools/src/profiler/index.ts` | `#source` | `searchParams('to')` | 1 |
 | `packages/devtools/src/profiler/index.ts` | `#upload` | `headers.get('x-ogp-key')` | 1 |
-| `packages/devtools/src/profiler/index.ts` | `#upload` | `request.arrayBuffer()` | 1 |
 | `packages/devtools/src/profiler/index.ts` | `#window_id_of` | `headers.get(WINDOW_HEADER)` | 1 |
 | `packages/devtools/src/profiler/net.ts` | `wrap_fetch` | `headers.get('content-encoding')` | 1 |
 | `packages/devtools/src/profiler/net.ts` | `wrap_fetch` | `headers.get('content-length')` | 1 |
@@ -138,7 +135,7 @@ its pull request says why it is safe (or which INVARIANTS.md section covers it).
 
 ## Decoders: text turned into values (JSON, devalue, base64, URI escapes)
 
-101 entries.
+99 entries.
 
 | file | in | what | n |
 | --- | --- | --- | --- |
@@ -167,9 +164,6 @@ its pull request says why it is safe (or which INVARIANTS.md section covers it).
 | `packages/core/src/runtime/hole-facts.ts` | `parse_record` | `JSON.parse` | 1 |
 | `packages/core/src/runtime/kit-page-thread.svelte.ts` | `kit_boot_imports` | `JSON.parse` | 1 |
 | `packages/core/src/runtime/page-defer.ts` | `(module)` | `devalue parse` | 1 |
-| `packages/core/src/runtime/router-nav.ts` | `reset_focus` | `decodeURIComponent` | 1 |
-| `packages/core/src/runtime/router.ts` | `hash_target_exists` | `decodeURIComponent` | 1 |
-| `packages/core/src/runtime/router.ts` | `jump_to_hash` | `decodeURIComponent` | 1 |
 | `packages/core/src/runtime/wire-format.ts` | `(module)` | `devalue parse` | 1 |
 | `packages/core/src/runtime/wire-format.ts` | `(module)` | `JSON.parse` | 1 |
 | `packages/core/src/server/page-facts.ts` | `(module)` | `decodeURIComponent` | 1 |
@@ -196,6 +190,7 @@ its pull request says why it is safe (or which INVARIANTS.md section covers it).
 | `packages/devtools/src/profiler/embedded-maps.ts` | `loaded` | `JSON.parse` | 1 |
 | `packages/devtools/src/profiler/embedded-maps.ts` | `source_index` | `JSON.parse` | 1 |
 | `packages/devtools/src/profiler/index.ts` | `#beacon` | `JSON.parse` | 1 |
+| `packages/devtools/src/profiler/index.ts` | `#login` | `JSON.parse` | 1 |
 | `packages/devtools/src/profiler/index.ts` | `#release_als` | `decodeURIComponent` | 1 |
 | `packages/devtools/src/profiler/index.ts` | `#report_load` | `JSON.parse` | 1 |
 | `packages/devtools/src/profiler/index.ts` | `#report_posted` | `JSON.parse` | 2 |
