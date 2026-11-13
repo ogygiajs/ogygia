@@ -569,7 +569,14 @@
 			"name": "a promise that rejects streams as a failure, with its error, never as a value"
 		}
 	],
-	"impossible": [],
+	"impossible": [
+		{
+			"site": "packages/core/src/runtime/import-again.ts > import_file > stale:0",
+			"why": "a flights' get is STALE only when its world moves, a drop or dispose ends its flight, a fresh flight supersedes it, or the caller's signal aborts. The island files' flights has no world, and its type, FileLoads, is a get by URL alone: no drop, no dispose, no fresh, no signal compiles. So no island file's load is ever STALE.",
+			"by": "packages/core/src/runtime/import-again.ts",
+			"name": "FileLoads"
+		}
+	],
 	"baseline": [
 		"packages/bake/src/bake.ts > scan > throw:0",
 		"packages/bake/src/bake.ts > scan > throw:1",
@@ -1264,7 +1271,6 @@
 		"packages/core/src/runtime/import-again.ts > import_again > next > refused:1",
 		"packages/core/src/runtime/import-again.ts > import_again > next > throw:1",
 		"packages/core/src/runtime/import-again.ts > import_again > next > reject:0",
-		"packages/core/src/runtime/import-again.ts > import_file > stale:0",
 		"packages/core/src/runtime/interaction-replay.ts > restore_fields > catch:0",
 		"packages/core/src/runtime/interaction-replay.ts > replay_clicks > timer:0",
 		"packages/core/src/runtime/interaction.ts > disarm > refused:0",
