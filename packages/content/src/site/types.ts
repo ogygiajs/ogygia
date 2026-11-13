@@ -4,7 +4,7 @@
  * renders; `PageView` is what a page renders. Both are devalue-safe (no bodies in `NavTree`; the one
  * `body` in `PageView` is the entry's inline `<Region>`, rendered in the page's own SSR pass).
  */
-import type { ContentEntry, Entry, Heading } from '../index.ts';
+import type { Entry, Heading } from '../index.ts';
 
 /** A shallow reference to one entry, ready to link: its address + display fields. */
 export type NavRef = {
@@ -99,4 +99,4 @@ export type Resolved = {
 	filePath?: string;
 };
 
-export type { ContentEntry, Entry, Heading };
+export type { Entry, Heading };

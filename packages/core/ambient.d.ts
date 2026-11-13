@@ -49,12 +49,6 @@ interface ImportMetaOg {
 	 */
 	$<T>(value: T): T;
 	/**
-	 * @deprecated Gone: a build error that prints the import to write instead. Mark the import
-	 * itself, named or default, with the same options:
-	 * `import { Header as H } from '@design/system' with { wake: 'load' };`
-	 */
-	asRegion(component: unknown, options?: unknown): never;
-	/**
 	 * Declare a data source: `export const loadContent = import.meta.og.source(async (…) => …)`.
 	 * Each call during a server render files a receipt (the source's `file#export` id plus a
 	 * fingerprint of its arguments), so an invalidation names the function and its arguments
