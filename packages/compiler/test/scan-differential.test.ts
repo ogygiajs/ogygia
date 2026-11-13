@@ -114,6 +114,35 @@ describe('find_og_calls keeps its place (#1441)', () => {
 		expect(scanned(code)).toHaveLength(1);
 	});
 
+	it.each([
+		['return', `function f() { return /'/; }`],
+		['typeof', `typeof /'/;`],
+		['instanceof', `a instanceof /'/;`],
+		['in', `a in /'/;`],
+		['of', `for (const x of /'/);`],
+		['new', `new /'/;`],
+		['delete', `delete /'/;`],
+		['void', `void /'/;`],
+		['throw', `function f() { throw /'/; }`],
+		['case', `switch (a) { case /'/: }`],
+		['do', `do /'/; while (a);`],
+		['else', `if (a); else /'/;`],
+		['yield', `function* g() { yield /'/; }`],
+		['await', `async function h() { await /'/; }`],
+		['if', `if (a) /'/;`],
+		['while', `while (a) /'/;`],
+		['for', `for (;;) /'/;`],
+		['for await', `async function h() { for await (const x of y) /'/; }`]
+	])('a regex after %s, on the same line as a call', (_, code) => {
+		const line = `${code} ${CALL}`;
+		expect(scanned(line)).toEqual(oxc_calls(line));
+		expect(scanned(line)).toHaveLength(1);
+	});
+
+	it("a regex after a with statement's condition", () => {
+		expect(scanned(`with (a) /'/; ${CALL}`)).toHaveLength(1);
+	});
+
 	it("a call inside a template's interpolation is found", () => {
 		const code = `const t = \`a \${import.meta.og.code('t')} c\`;`;
 		expect(scanned(code)).toEqual(['15-39 code']);

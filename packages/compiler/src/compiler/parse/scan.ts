@@ -30,25 +30,34 @@ const DIGIT_RE = /[0-9]/;
 // LEXER — one hand-rolled walk shared by every compile construct.
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** Words after which a value is expected, so a `/` opens a regular expression. */
-const VALUE_AFTER_WORD = new Set([
-	'return',
-	'typeof',
-	'instanceof',
-	'in',
-	'of',
-	'new',
-	'delete',
-	'void',
-	'throw',
-	'case',
-	'do',
-	'else',
-	'yield',
-	'await'
-]);
-/** Statement heads: after their `( … )` a statement starts, so a `/` there opens a regex. */
-const STATEMENT_HEADS = new Set(['if', 'while', 'for', 'with']);
+type Leaves = 'value' | 'operand' | 'head';
+
+function word_leaves(word: string): Leaves {
+	switch (word) {
+		case 'if':
+		case 'while':
+		case 'for':
+		case 'with':
+			return 'head';
+		case 'return':
+		case 'typeof':
+		case 'instanceof':
+		case 'in':
+		case 'of':
+		case 'new':
+		case 'delete':
+		case 'void':
+		case 'throw':
+		case 'case':
+		case 'do':
+		case 'else':
+		case 'yield':
+		case 'await':
+			return 'operand';
+		default:
+			return 'value';
+	}
+}
 
 /** What the walk met in code: a word (`end` is past it), or a bracket. */
 type Met = { at: number; kind: 'word'; end: number } | { at: number; kind: 'open' | 'close' };
@@ -152,8 +161,9 @@ function walk(src: string, from: number, visit: Visit): void {
 			}
 			i = j;
 			// (`for await (…)` keeps its head)
-			if (!(head && word === 'await')) head = !property && STATEMENT_HEADS.has(word);
-			value_before = property || number || !VALUE_AFTER_WORD.has(word);
+			const leaves = property || number ? 'value' : word_leaves(word);
+			if (!(head && word === 'await')) head = leaves === 'head';
+			value_before = leaves !== 'operand';
 			dot_before = false;
 			continue;
 		}
