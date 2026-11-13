@@ -84,7 +84,8 @@
 		slot_pointer,
 		slot_marker_open,
 		SLOT_MARKER_CLOSE,
-		next_slot_id
+		next_slot_id,
+		HOLE_SLOT_SEQUENCE
 	} from './region-snippet.ts';
 	import { isRegion } from './region.ts';
 	import { written_order } from './frame.ts';
@@ -444,7 +445,8 @@
 	// The marker id fencing THIS island's children to its payload pointer. Server-assigned; the client
 	// reads it back from the serialized descriptor, never regenerates it.
 	// (counted per island entry: another island's async timing never shifts this one's id)
-	const slot_id = next_slot_id(untrack(() => island_entry) ?? '');
+	// (in a hole's answer, the hole's own sequence: server/answer-context.ts)
+	const slot_id = next_slot_id(untrack(() => island_entry) ?? '', getContext(HOLE_SLOT_SEQUENCE));
 	const has_slot_children = $derived(!nested && island_children != null);
 	// The BODY-side children: a server-convention snippet (`(renderer) => …`) that emits EXACTLY ONE
 	// element — `<ogygia-slot>` wrapping the natural children — with no extra snippet-layer anchors.
