@@ -150,6 +150,7 @@ export async function measure(opts: MeasureOptions): Promise<PerfSnapshot> {
 		let res: Response;
 		try {
 			res = await f(url, {
+				method: 'POST',
 				headers: {
 					accept: 'application/json',
 					...(opts.key ? { 'x-profiler-key': opts.key } : {})

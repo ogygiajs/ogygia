@@ -20,8 +20,19 @@
 		path,
 		runs,
 		format,
+		start = true,
 		against = ''
-	}: { base: string; path: string; runs: number; format: string; against?: string } = $props();
+	}: {
+		base: string;
+		path: string;
+		runs: number;
+		format: string;
+		/** false: opened from another site, so the run waits for the visitor's click */
+		start?: boolean;
+		against?: string;
+	} = $props();
+	let clicked = $state(false);
+	const waiting = $derived(!start && !clicked);
 
 	const p = new FakeProgress();
 	/** The view's own work (its request, the queue's waits): let go when it unmounts. */
@@ -39,7 +50,7 @@
 		const res = await fetch_when_free(
 			owner,
 			url,
-			{},
+			{ method: 'POST' },
 			{
 				asking: () => {
 					queued = false;
@@ -114,35 +125,50 @@
 	}
 
 	onMount(() => {
-		void run(); // ok: run shows its own failure (error)
+		if (!waiting) void run(); // ok: run shows its own failure (error)
 		// unmounted (mid-run or in the queue): its request, its queue's waits and its bar's timers go
 		return () => {
 			owner.close();
-			p[Symbol.dispose]();
+			p.close();
 		};
 	});
 </script>
 
 <div class="run">
-	<p class="phase">{queued ? '⏳ ' : ''}{phase}</p>
-	{#if queued}
-		<p class="hint">
-			Waited {waited_s}s. Recordings run one at a time per worker (the V8 profiler is process-wide)
-			— this keeps polling until one is free, then measures automatically.
+	{#if waiting}
+		<p class="phase">This page was opened from another site.</p>
+		<p>
+			<button
+				type="button"
+				class="btn primary"
+				data-run-start
+				onclick={() => {
+					clicked = true;
+					void run(); // ok: run shows its own failure (error)
+				}}>Start profiling {path}</button
+			>
 		</p>
 	{:else}
-		<div class="track"><div class="fill" style="width:{p.value}%"></div></div>
-		<p class="pct">{Math.round(p.value)}%</p>
-	{/if}
+		<p class="phase">{queued ? '⏳ ' : ''}{phase}</p>
+		{#if queued}
+			<p class="hint">
+				Waited {waited_s}s. Recordings run one at a time per worker (the V8 profiler is
+				process-wide) — this keeps polling until one is free, then measures automatically.
+			</p>
+		{:else}
+			<div class="track"><div class="fill" style="width:{p.value}%"></div></div>
+			<p class="pct">{Math.round(p.value)}%</p>
+		{/if}
 
-	{#if error}
-		<p class="verdict">{error}</p>
-		<p class="hint"><a href={base}>← back to the dashboard</a></p>
-	{:else if done_ogp}
-		<p class="hint">
-			Your download didn't start? <a href="{base}/view">Open the Import page</a> and pick the file.
-		</p>
-		<p class="hint"><a href={base}>← back to the dashboard</a></p>
+		{#if error}
+			<p class="verdict">{error}</p>
+			<p class="hint"><a href={base}>← back to the dashboard</a></p>
+		{:else if done_ogp}
+			<p class="hint">
+				Your download didn't start? <a href="{base}/view">Open the Import page</a> and pick the file.
+			</p>
+			<p class="hint"><a href={base}>← back to the dashboard</a></p>
+		{/if}
 	{/if}
 </div>
 

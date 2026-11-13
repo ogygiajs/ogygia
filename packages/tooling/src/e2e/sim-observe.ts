@@ -43,8 +43,8 @@ export interface Observed {
 
 /** Action kinds a calm run leaves out on both sides: what the two worlds cannot do alike (a
  *  deploy: the player has one server; offline: the simulator's is one tab's, a browser's every
- *  tab's). */
-export const NOT_CALM: readonly string[] = ['deploy', 'offline', 'online', 'outage'];
+ *  tab's; a crowd: the player has one visitor). */
+export const NOT_CALM: readonly string[] = ['deploy', 'offline', 'online', 'outage', 'crowd'];
 
 /** The plan's actions a calm run plays. */
 export function calm_actions<A extends { kind: string }>(actions: readonly A[]): A[] {
