@@ -1,6 +1,6 @@
 // Transform suite — portable binding rewrite (0.4.0). Asserts host import rewrites, wrapper/entry
 // virtual modules, path+strategy dedupe, props/fallback/children rules, defer+hydrate, lakes,
-// presets, and csr-independent emit metadata. Runs against built `../dist/compiler/region/transform.js`.
+// presets, and csr-independent emit metadata.
 
 import { describe, test, expect, vi } from 'vitest';
 import {
@@ -15,7 +15,7 @@ import {
 	regionBindingVirtualId,
 	CLIENT_BINDING_STUB,
 	foucCssVirtualId
-} from '../dist/compiler/region/transform.js';
+} from '../src/compiler/region/transform.ts';
 import { HOST_CTX_DEFAULTS } from './_host-ctx.ts';
 import { dedent } from '@ogygia/core/contract';
 

@@ -23,11 +23,12 @@ import LakeKitInner from './_fixtures/LakeKitInner.svelte';
 const host = LakeKitHost as unknown as Component;
 const inner = LakeKitInner as unknown as Component;
 
-const LAKE_OPEN_RE = /<ogygia-region entry="lake-1" wake="none" remount="cache">/;
+const LAKE_OPEN_RE =
+	/<ogygia-region entry="lake-1" wake="none" remount="cache" data-og-lake="[0-9a-f]{16}">/;
 // The lake element, then straight into the `{#if is_csr}` block's close marker: the render tag adds
 // no anchor of its own, so the element is the whole branch — exactly the one node the client adopts.
 const LAKE_RE =
-	/<ogygia-region entry="lake-1" wake="none" remount="cache">([\s\S]*?)<\/ogygia-region><!--\]-->/;
+	/<ogygia-region entry="lake-1" wake="none" remount="cache" data-og-lake="[0-9a-f]{16}">([\s\S]*?)<\/ogygia-region><!--\]-->/;
 const ISLAND_RE = /<ogygia-region entry="\/islands\/tiny\.js" wake="load"/;
 const RUNTIME_RE = /data-ogygia-runtime/;
 const REGION_G_RE = /<ogygia-region\b/g;

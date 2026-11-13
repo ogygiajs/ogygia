@@ -11,7 +11,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { compile } from 'svelte/compiler';
-import { Compiler, Program, CompileCtx, normalize_import_keys } from '../dist/compiler/index.js';
+import { Compiler, Program, CompileCtx, normalize_import_keys } from '../src/compiler/index.ts';
 import { partial_ctx_init } from './_compile-ctx.ts';
 import { stamp_opaque } from '../src/compiler/ownership-stamps.ts';
 import { strip_bom } from '../src/compiler/bom.ts';
