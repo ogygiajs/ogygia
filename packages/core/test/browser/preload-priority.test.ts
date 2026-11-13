@@ -15,7 +15,7 @@ import {
 } from '../../src/runtime/load-scheduler.ts';
 import { reset_document_painted } from '../../src/runtime/schedule.ts';
 import { PRIORITY } from '../../src/runtime/load-class.ts';
-import { flights } from '@ogygia/machine';
+import { flights, observe } from '@ogygia/machine';
 import { island_graph_script } from '../../src/server/document-tail.ts';
 
 const priorities = () =>
@@ -67,6 +67,29 @@ test('a download lifted to a class is never lowered by a later, lesser join', ()
 	void downloads.get('a', { priority: PRIORITY.user });
 	void downloads.get('a', { priority: PRIORITY.ahead });
 	expect(slot.cls()).toBe('user');
+});
+
+test('a warm whose keep ran out warms the module again on the next ask', async () => {
+	const moves: string[] = [];
+	const off = observe((name, from, to) => {
+		if (name === 'island warm' && to) moves.push(`${from.kind} -> ${to.kind}`);
+	});
+	const platform = globalThis as { buggify?: (point: string) => boolean };
+	try {
+		const entry = '/test/browser/fixtures/entry-current.ts?t=warm-kept';
+		warm_island_module(entry, undefined, 'user');
+		await expect.poll(() => moves, { timeout: 3000 }).toContain('flying -> kept');
+		// (its keep runs out at this ask, as a short keep's would: the simulator's buggify point)
+		platform.buggify = (point) => point === 'flights.evicted-early';
+		warm_island_module(entry, undefined, 'user');
+		delete platform.buggify;
+		await expect
+			.poll(() => moves, { timeout: 3000 })
+			.toEqual(['flying -> kept', 'kept -> gone', 'flying -> kept']);
+	} finally {
+		delete platform.buggify;
+		off();
+	}
 });
 
 test('a hover joins a prefetch warm still queued: the warm starts now, at the visitor priority', async () => {
