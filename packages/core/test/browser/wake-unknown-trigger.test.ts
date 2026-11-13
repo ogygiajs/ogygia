@@ -16,3 +16,16 @@ test('an island whose wake is not a trigger wakes on load, not never', async () 
 	bootDev();
 	await expect.poll(() => region.hasAttribute('data-hydrated'), { timeout: 10_000 }).toBe(true);
 });
+
+test('an island whose wake is not a trigger says so, with its value', () => {
+	const warns: string[] = [];
+	const real = console.warn;
+	console.warn = (...a: unknown[]) => void warns.push(a.map(String).join(' '));
+	try {
+		document.body.innerHTML = decode('counter_ssr_b64').replace('wake="load"', 'wake="visable"');
+		bootDev();
+	} finally {
+		console.warn = real;
+	}
+	expect(warns.some((w) => w.includes('region_wake_unknown') && w.includes('visable'))).toBe(true);
+});

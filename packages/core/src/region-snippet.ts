@@ -35,7 +35,7 @@ import { BROWSER, DEV } from 'esm-env';
 import { register_kind, mint } from './ref.ts';
 import { kit_render_context, kit_request_event } from './server/kit-context.ts';
 import { document_counts } from './server/document-counts.ts';
-import { islands_endpoint } from './server/endpoint.ts';
+import { is_islands_endpoint } from './server/endpoint.ts';
 import { PORTABLE_FORM, with_portable_forms } from './portable-form.ts';
 import { analyze } from './seed-refs.ts';
 import { fnv1a, fnv1a32 } from './contract/hash.ts';
@@ -400,9 +400,10 @@ export function next_slot_id(key = ''): string {
 		let seq = counts.slots;
 		if (!seq) {
 			const url = event!.url;
-			const hole = url?.pathname.endsWith(islands_endpoint())
-				? (url.searchParams.get('id') ?? '').slice(0, 6)
-				: '';
+			const hole =
+				url && is_islands_endpoint(url.pathname)
+					? (url.searchParams.get('id') ?? '').slice(0, 6)
+					: '';
 			counts.slots = seq = { prefix: hole ? `${hole}-` : '', n: new Map() };
 		}
 		// (each entry's tag hashed once per request: the next copies only count)
