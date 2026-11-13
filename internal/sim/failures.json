@@ -3434,6 +3434,18 @@
 			"reason": "`catch { return null; // ok: null is \"no such file\" (the CSS walk trie…`: proved: the catch made to rethrow turns the test red, twice",
 			"test": "packages/compiler/test/vite-hooks.test.ts",
 			"name": "a markup format's scan reads a file that is not there as null"
+		},
+		{
+			"site": "packages/core/src/runtime/core.ts > OgygiaRegion > absorbKeptProps > stale:0",
+			"reason": "`if (loaded !== STALE) this.#absorb(sidecar);`: proved: the STALE check made never true turns the test red, twice",
+			"test": "packages/core/test/browser/kept-props-codec-lands.test.ts",
+			"name": "a kept island’s newer props that arrive as the wire codec installs win over the older ones that waited for it"
+		},
+		{
+			"site": "packages/core/src/runtime/core.ts > OgygiaRegion > fetch_failed > stale:0",
+			"reason": "`if (back === STALE) return;`: proved: the STALE check made never true turns the test red, twice",
+			"test": "packages/core/test/browser/hole-offline.test.ts",
+			"name": "a hole waiting for the network that leaves the page stays at rest: it arms for nothing, and the network coming back asks nothing"
 		}
 	],
 	"impossible": [
@@ -3855,17 +3867,13 @@
 		"packages/core/src/runtime/core.ts > region_fragment > timer:0",
 		"packages/core/src/runtime/core.ts > OgygiaRegion > fire_hydrate > reject:0",
 		"packages/core/src/runtime/core.ts > OgygiaRegion > absorbKeptProps > reject:0",
-		"packages/core/src/runtime/core.ts > OgygiaRegion > absorbKeptProps > stale:0",
 		"packages/core/src/runtime/core.ts > OgygiaRegion > connect > refused:0",
 		"packages/core/src/runtime/core.ts > OgygiaRegion > prefetch_html > .catch:0",
-		"packages/core/src/runtime/core.ts > OgygiaRegion > fetch_html > stale:0",
 		"packages/core/src/runtime/core.ts > OgygiaRegion > fetch_failed > catch:0",
 		"packages/core/src/runtime/core.ts > OgygiaRegion > fetch_failed > refused:0",
-		"packages/core/src/runtime/core.ts > OgygiaRegion > fetch_failed > stale:0",
 		"packages/core/src/runtime/core.ts > OgygiaRegion > on_idle > timer:0",
 		"packages/core/src/runtime/core.ts > OgygiaRegion > on_idle > timer:1",
 		"packages/core/src/runtime/core.ts > OgygiaRegion > on_idle > timer:2",
-		"packages/core/src/runtime/core.ts > OgygiaRegion > hydrate > gone > stale:0",
 		"packages/core/src/runtime/core.ts > OgygiaRegion > hydrate > stale:0",
 		"packages/core/src/runtime/core.ts > OgygiaRegion > hydrate > stale:1",
 		"packages/core/src/runtime/core.ts > OgygiaRegion > hydrate > .catch:0",
@@ -3928,8 +3936,6 @@
 		"packages/core/src/runtime/region-sheets.ts > note_code_sheets > catch:0",
 		"packages/core/src/runtime/router-nav.ts > fetch_page > abort:0",
 		"packages/core/src/runtime/router-nav.ts > run_page_fetch > abort:0",
-		"packages/core/src/runtime/router-nav.ts > run_page_fetch > abort:1",
-		"packages/core/src/runtime/router-nav.ts > run_page_fetch > throw:0",
 		"packages/core/src/runtime/router-nav.ts > navigate > build > abort:0",
 		"packages/core/src/runtime/router-nav.ts > navigate > build > catch:0",
 		"packages/core/src/runtime/router-nav.ts > navigate > build > abort:1",

@@ -1118,10 +1118,9 @@ class OgygiaRegion extends HTMLElement {
 		const attempts = s.kind === 'armed' || s.kind === 'retrying' ? s.attempts : 0;
 		this.#hole.go('fetching', { attempts, revalidate });
 		const mine = this.#hole.now;
-		let html: string | typeof STALE;
 		try {
 			if (RULES && buggify.fires('hole.fetch-lost')) throw new TypeError('Failed to fetch');
-			html = await turn.wait(
+			await turn.wait(
 				this.#hole.scope.task((signal) =>
 					this.#ensure_frame(frames, endpoint, address, revalidate, signal)
 				)
@@ -1130,7 +1129,7 @@ class OgygiaRegion extends HTMLElement {
 			if (this.#hole.now !== mine) return;
 			return this.#fetch_failed(turn, err, endpoint, revalidate, attempts + 1);
 		}
-		if (html !== STALE && this.#hole.now === mine) this.#hole.go('idle');
+		if (this.#hole.now === mine) this.#hole.go('idle');
 	}
 
 	async #ensure_frame(
@@ -1300,10 +1299,9 @@ class OgygiaRegion extends HTMLElement {
 		this.#wake.go('waking');
 		const mine = this.#wake.now;
 		const visit = this.#wake.scope;
-		/** After each wait, back in its turn: the region left the page (`STALE`: its mailbox closed, the
-		 *  one it came back with wakes it), or is on its way out (its teardown a microtask away), or the
-		 *  visit is over. Checked after every wait before the turn. */
-		const gone = (back?: unknown) => back === STALE || !this.isConnected || this.#wake.now !== mine;
+		/** After each wait, back in its turn: the region is on its way out (its teardown a microtask
+		 *  away), or the visit is over. Checked after every wait before the turn. */
+		const gone = () => !this.isConnected || this.#wake.now !== mine;
 		let failure: { error: unknown } | null = null;
 		let offline: { error: unknown } | null = null;
 		const t0 = now_ms();
@@ -1317,7 +1315,7 @@ class OgygiaRegion extends HTMLElement {
 			// SPA swap (and any post-load hydrate) the document is already parsed, so skip the await
 			// entirely — no need to burn a microtask turn before every island wakes.
 			if (typeof document !== 'undefined' && document.readyState === 'loading')
-				if (gone(await turn.wait(dom_ready()))) return;
+				await turn.wait(dom_ready());
 			if (gone()) return;
 			const entry = island_entry_of(this);
 			if (!entry) return;
@@ -1349,7 +1347,8 @@ class OgygiaRegion extends HTMLElement {
 			t_loaded = now_ms();
 			if (gone()) return;
 			use_code_sheets(this, mod);
-			if (gone(await turn.wait(this.#kit_page_ready(core, visit)))) return;
+			await turn.wait(this.#kit_page_ready(core, visit));
+			if (gone()) return;
 			// The page's seeds parse now, BEFORE the turn: data arriving is not the hydrate step. The
 			// first island parses the seed once (700 KB on a large CMS page), and inside its turn that
 			// parse plus the hydrate made one long task. (The step calls these again: a no-op by then.)
@@ -1363,9 +1362,10 @@ class OgygiaRegion extends HTMLElement {
 			do {
 				visitor = this.#visitor;
 				// (a replay that failed says so itself)
-				if (visitor && gone(await turn.wait(visitor.catch(nothing)))) return;
+				if (visitor) await turn.wait(visitor.catch(nothing));
 				if (gone()) return;
-				if (gone(await turn.wait(hydrate_turn(this))) || this.#app) return;
+				await turn.wait(hydrate_turn(this));
+				if (gone() || this.#app) return;
 			} while (this.#visitor !== visitor);
 			t_turn = now_ms();
 			const ssr_html = this.#ssr_html;
@@ -1384,7 +1384,8 @@ class OgygiaRegion extends HTMLElement {
 			// awaited now runs after it — mounted means they ran)
 			await Promise.resolve();
 			const t_mounted = now_ms();
-			if (gone(await turn.wait(snippets_settled(this, visit))) || !this.#app) return;
+			await turn.wait(snippets_settled(this, visit));
+			if (gone() || !this.#app) return;
 			this.setAttribute('data-hydrated', '');
 			if (HOOK_REGION_HYDRATED)
 				slots.hooks?.regionHydrated?.({
