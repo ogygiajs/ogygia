@@ -46,6 +46,32 @@ describe('the runtime script names the code origins', () => {
 		expect(html).not.toContain('stale.example');
 	});
 
+	// a browser reads the first of a repeated attribute, so any copy the tag carried, written in any
+	// form, must go (#1367)
+	for (const carried of [
+		"data-og-origins='https://stale.example'",
+		'data-og-origins=https://stale.example',
+		'DATA-OG-ORIGINS = "https://stale.example"',
+		'data-og-origins="https://stale.example" data-og-origins=\'https://stale.example\''
+	]) {
+		it(`a runtime script the page emitted with ${carried} first gets them in its place`, () => {
+			const emitted = tag.replace('<script ', `<script ${carried} `);
+			const html = runtime_first(HEAD + emitted, null, ['https://peer.example']);
+			expect(html).toContain(' data-og-origins="https://peer.example"');
+			expect(html).not.toContain('stale.example');
+			expect(html.match(/data-og-origins/gi)).toHaveLength(1);
+			const none = runtime_first(HEAD + emitted, null, []);
+			expect(none).not.toMatch(/data-og-origins/i);
+		});
+	}
+
+	it('a runtime script whose other attribute value names the runtime keeps that value', () => {
+		const emitted = tag.replace('<script ', '<script data-x="data-ogygia-runtime" ');
+		const html = runtime_first(HEAD + emitted, null, ['https://peer.example']);
+		expect(html).toContain(' data-x="data-ogygia-runtime" ');
+		expect(html).toContain(' data-ogygia-runtime data-og-origins="https://peer.example" ');
+	});
+
 	it('every plugin’s `codeOrigins`, then the request’s own', () => {
 		leaves.push(register_hooks({ codeOrigins: () => ['https://peer.example'] }));
 		leaves.push(register_hooks({ codeOrigins: () => ['https://other.example:8443/x'] }));
