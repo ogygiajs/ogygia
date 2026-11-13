@@ -46,6 +46,7 @@ const URL_ATTRS: ReadonlySet<string> = new Set([
 const UNSAFE_URL = /^[\s\u0000-\u001f]*(?:javascript|vbscript|data)\s*:/i;
 const URL_DROPPED = /[\t\n\r]/g;
 const ATTR_NAME = /^[a-zA-Z_:][a-zA-Z0-9_:.-]*$/;
+// markup-ok: the html`` template's own source as its author wrote it, read to place a hole
 const NAME_BEFORE_QUOTE = /([^\s"'<>/=]+)\s*=\s*$/;
 const TAG_START = /[a-zA-Z/!?]/;
 

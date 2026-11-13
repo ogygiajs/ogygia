@@ -78,7 +78,7 @@ describe('measure', () => {
 		const calls: string[] = [];
 		const fake = (async (url: string | URL | Request, init?: RequestInit) => {
 			const u = String(url);
-			calls.push(`${u} ${new Headers(init?.headers).get('x-profiler-key')}`);
+			calls.push(`${init?.method} ${u} ${new Headers(init?.headers).get('x-profiler-key')}`);
 			if (u.includes('p=%2Fbusy')) return new Response('{}', { status: 409 });
 			if (u.includes('p=%2Flocked')) return new Response('', { status: 401 });
 			if (u.includes('p=%2Fhtml')) return new Response('<html>', { status: 200 });
@@ -98,8 +98,9 @@ describe('measure', () => {
 			label: 'sha1'
 		});
 		expect(calls).toEqual([
-			'http://h/__profiler/page?p=%2Fa&runs=3&format=json k',
-			'http://h/__profiler/page?p=%2Fb&runs=3&format=json k'
+			// (a POST: a profile run changes the profiler's state, #1168)
+			'POST http://h/__profiler/page?p=%2Fa&runs=3&format=json k',
+			'POST http://h/__profiler/page?p=%2Fb&runs=3&format=json k'
 		]);
 		expect(snap.pages.map((p) => p.page)).toEqual(['/a', '/b']);
 		expect(snap.label).toBe('sha1');
