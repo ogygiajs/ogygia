@@ -70,6 +70,19 @@ describe('element rewrites: what goes to render', () => {
 		expect(out.html).toContain('og-h="1"');
 	});
 
+	it('text that spells a mark is text: moving ids never touches it, and render sees it as written (found by the fuzz)', async () => {
+		const seen: RewriteElement[][] = [];
+		const { chunk } = chunked([scoped(seen)]);
+		const text = 'see og-h="0" and og-c="0.1"';
+		const out = await chunk(
+			doc(`<demo-card>a</demo-card><demo-card title='og-h="0"'>${text}</demo-card>`)
+		);
+		expect(seen[0][1].html).toContain(text);
+		expect(seen[0][1].html).toContain(`title='og-h="0"'`);
+		expect(out.html).toContain(text);
+		expect(out.html).toContain(`title='og-h="0"'`);
+	});
+
 	it('a page with no match goes out byte for byte, render is never called, and no restorer ships', async () => {
 		const render = vi.fn(() => []);
 		const { chunk } = chunked([{ match: 'demo-', render }]);
