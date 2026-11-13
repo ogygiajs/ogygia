@@ -4,10 +4,10 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { arm_form_restore, snapshot_forms } from '../../src/runtime/form-continuity.ts';
 
 /** A hydrated region of `entry` holding one text input. */
-function region(entry: string): HTMLInputElement {
+function region(entry: string, endpoint = '/islands'): HTMLInputElement {
 	const el = document.createElement('ogygia-region');
 	el.setAttribute('entry', entry);
-	el.setAttribute('endpoint', '/islands');
+	el.setAttribute('endpoint', endpoint);
 	el.setAttribute('data-hydrated', '');
 	const input = document.createElement('input');
 	el.append(input);
@@ -51,5 +51,30 @@ describe('form continuity', () => {
 
 		expect(one.value).toBe('');
 		expect(two.value).toBe('two');
+	});
+
+	it('restores into a hole whose props changed between the visits (its name is never its props)', () => {
+		const typed = region('/h.js', '/__ogygia__?id=card&props=AAAA&exp=1&sig=x');
+		typed.value = 'kept';
+		snapshot_forms(document.body, '/props');
+		for (const el of document.querySelectorAll('ogygia-region')) el.remove();
+
+		const again = region('/h.js', '/__ogygia__?id=card&props=BBBB&exp=2&sig=y');
+		arm_form_restore('/props');
+
+		expect(again.value).toBe('kept');
+	});
+
+	it('names a region the same before and after the runtime pins its relative URLs', () => {
+		const typed = region('./h.js', './__ogygia__?id=card&props=AAAA');
+		typed.value = 'pinned';
+		snapshot_forms(document.body, '/pin');
+		for (const el of document.querySelectorAll('ogygia-region')) el.remove();
+
+		const base = new URL('.', location.href).pathname;
+		const again = region(`${base}h.js`, `${base}__ogygia__?id=card&props=AAAA`);
+		arm_form_restore('/pin');
+
+		expect(again.value).toBe('pinned');
 	});
 });
