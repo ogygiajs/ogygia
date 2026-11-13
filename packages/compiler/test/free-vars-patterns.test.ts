@@ -80,12 +80,15 @@ describe('a portable snippet entry declares the names its patterns read', () => 
 	});
 
 	it("a pattern default in the snippet's own parameters, from the host, is captured", () => {
-		expect(synth_of(`let d = 1;`, '{a}', 'row({ a = d })')).toMatch(/let \{ d \} = \$props\(\)/);
+		// (a snippet with parameters takes them as `__ogArgs`, beside its captures)
+		expect(synth_of(`let d = 1;`, '{a}', 'row({ a = d })')).toMatch(
+			/let \{ __ogArgs = \[\], d \} = \$props\(\)/
+		);
 	});
 
 	it("a computed key in the snippet's own parameters, from the host, is captured", () => {
 		expect(synth_of(`let key = 'a';`, '{v}', 'row({ [key]: v })')).toMatch(
-			/let \{ key \} = \$props\(\)/
+			/let \{ __ogArgs = \[\], key \} = \$props\(\)/
 		);
 	});
 });

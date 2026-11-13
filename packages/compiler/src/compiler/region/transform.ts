@@ -2233,19 +2233,11 @@ class FileCompilation {
 			const params_src = snip_params.length
 				? source.slice(snip_params[0].start, snip_params[snip_params.length - 1].end)
 				: '';
+			// the names the parameters bind; what their defaults and computed keys read is free, read
+			// with the body (test/free-vars-patterns.test.ts)
 			const param_names = new Set<string>();
-			const collect_param_names = (n: SvelteNode) => {
-				if (!n || typeof n !== 'object') return;
-				if (Array.isArray(n)) return n.forEach(collect_param_names);
-				if (n.type === 'Identifier' && n.name) param_names.add(n.name);
-				for (const k in n) {
-					if (k === 'type' || k === 'start' || k === 'end') continue;
-					const v = n[k];
-					if (v && typeof v === 'object') collect_param_names(v);
-				}
-			};
-			collect_param_names(snip_params);
-			const { free, mutated, stores } = collectCaptureInfo(body);
+			for (const p of snip_params) pattern_names(p, param_names);
+			const { free, mutated, stores } = collectCaptureInfo([snip]);
 			// A body bound to an enclosing block's names stays a plain snippet (see block_bound).
 			if ([...free].some((nm) => block_bound.has(nm) && !param_names.has(nm))) continue;
 			// Only a HOST-state write disqualifies branding (a captured snapshot can't write back). A snippet
