@@ -4361,8 +4361,16 @@
 			"reason": "browser only: a kept region takes the next page's props on a navigation, through its live island and the page's context store (not cloneable), linear in its props; proven in apps/palaestra/e2e (#804)"
 		},
 		{
-			"id": "packages/core/src/runtime/hydrate-core.ts > absorb_region_props > capture_region_ids:1~a50e0d",
-			"reason": "browser only: the context read absorb_region_props wraps to record the ids the region owns (not cloneable), constant work around it (#804)"
+			"id": "packages/core/src/runtime/core.ts > OgygiaRegion > #absorb",
+			"reason": "browser only: a kept region takes the next page's props once the wire codec is in, through absorb_region_props (not cloneable), linear in its props; wire-on-use-kept.test.ts runs it"
+		},
+		{
+			"id": "packages/core/src/runtime/core.ts > OgygiaRegion > absorbKeptProps > task:0~479598",
+			"reason": "browser only: the region's scope task that waits for the on-use codec load before the kept props are taken, constant work; wire-on-use-kept.test.ts runs it"
+		},
+		{
+			"id": "packages/core/src/runtime/core.ts > OgygiaRegion > absorbKeptProps > then:0~0667a1",
+			"reason": "browser only: hands the loaded codec on to #absorb unless the task went stale, constant work; wire-on-use-kept.test.ts runs it"
 		},
 		{
 			"id": "packages/core/src/runtime/kit-page-thread.svelte.ts > kit_boot_failed",
