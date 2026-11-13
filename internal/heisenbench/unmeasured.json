@@ -5951,6 +5951,22 @@
 		{
 			"id": "packages/compiler/src/compiler/region/transform.ts > TsRegionCompilation > run > map:0~74ff48",
 			"reason": "one specifier's local name per attributed import in a .ts module, for region_attribute_unknown's message: constant work"
+		},
+		{
+			"id": "packages/core/src/runtime/seeds.ts > absorb_page_facts > with_devalue:0~d7d878",
+			"reason": "browser only: hands the queued facts to merge_page_facts once devalue is in, constant work; proven in packages/core/test/browser/page-facts-before-devalue.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/seeds.ts > absorb_page_facts > with_devalue:1~411c45",
+			"reason": "browser only: devalue's download failed for good, one warning, constant work"
+		},
+		{
+			"id": "packages/core/src/runtime/seeds.ts > merge_page_facts",
+			"reason": "browser only: one devalue parse per hole answer that carried page facts (a few keys), then one page-store set; proven in packages/core/test/browser/page-facts-before-devalue.test.ts and page-facts-visit.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/seeds.ts > merge_page_facts > filter:0~deb9e1",
+			"reason": "dev builds only: compares the facts' few keys with the page's, for a warning; proven in packages/core/test/browser/page-facts-visit.test.ts"
 		}
 	]
 }
