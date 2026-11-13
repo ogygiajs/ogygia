@@ -1,20 +1,8 @@
 {
 	"exempt": [
 		{
-			"id": "packages/core/src/messages/core.ts > ERRORS > page_promise_unresolved > details",
-			"reason": "a message's wording, read once when the error is shown: constant work"
-		},
-		{
-			"id": "packages/core/src/messages/core.ts > ERRORS > page_promise_unresolved > text",
-			"reason": "a message's wording, read once when the error is shown: constant work"
-		},
-		{
-			"id": "packages/core/src/runtime/page-defer.ts > install_page_defer > live > with_devalue:1~0fffae",
-			"reason": "a streamed resolve whose devalue download failed every try: one settle, once per promise; devalue-lane-gone.test.ts runs the give-up"
-		},
-		{
-			"id": "packages/core/src/runtime/page-defer.ts > unresolved",
-			"reason": "one coded error made for a promise that can no longer settle, once per promise: constant work"
+			"id": "packages/core/src/runtime/ownership.ts > in_render_block",
+			"reason": "browser only (DOM comments): runs only for a child of an element stamped data-og-html, a scan of its earlier siblings; nested-island-drift.test.ts runs it"
 		},
 		{
 			"id": "packages/devtools/src/devtools/highlight.ts > highlight > defer:0~248bad",
@@ -91,18 +79,6 @@
 		{
 			"id": "packages/content/src/markdown/shiki.ts > render_code_region > replace:1~ca1204",
 			"reason": "the replacement for the pre's attributes: one concatenation, constant work; proven in packages/content/test/fence-escaping.test.ts"
-		},
-		{
-			"id": "packages/core/src/messages/server.ts > SERVER_WARNINGS > page_promise_pending > details",
-			"reason": "a message's wording, read once when the warning is shown: constant work"
-		},
-		{
-			"id": "packages/core/src/messages/server.ts > SERVER_WARNINGS > page_promise_pending > text",
-			"reason": "a message's wording, read once when the warning is shown: constant work"
-		},
-		{
-			"id": "packages/core/src/server/page-stream.ts > say_if_pending > timeout:0~8e3e3b",
-			"reason": "dev only: one warning after 10 s, at most once per response: constant work; proven in packages/core/test/page-stream-request-owned.test.ts"
 		},
 		{
 			"id": "packages/devtools/src/devtools/page.ts > asked",
@@ -1175,6 +1151,10 @@
 		{
 			"id": "packages/devtools/src/profiler/ui/fake-progress.svelte.ts > FakeProgress > #stop",
 			"reason": "closes the run's scope (a timer), constant work; proven in packages/devtools/test/profiler-fake-progress.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/ui/fake-progress.svelte.ts > FakeProgress > close",
+			"reason": "closes the bar's scope (its timers), constant work; proven in packages/devtools/test/profiler-fake-progress.test.ts"
 		},
 		{
 			"id": "packages/devtools/src/profiler/ui/fake-progress.svelte.ts > FakeProgress > finish > task:0",
@@ -4753,6 +4733,22 @@
 			"reason": "browser only: drops the page's read code origins (one write), constant work; proven in packages/core/test/browser/nav-code-origins.test.ts (#1045)"
 		},
 		{
+			"id": "packages/core/src/messages/core.ts > ERRORS > page_promise_unresolved > details",
+			"reason": "a message's wording, read once when the error is shown: constant work"
+		},
+		{
+			"id": "packages/core/src/messages/core.ts > ERRORS > page_promise_unresolved > text",
+			"reason": "a message's wording, read once when the error is shown: constant work"
+		},
+		{
+			"id": "packages/core/src/runtime/page-defer.ts > install_page_defer > live > with_devalue:1~0fffae",
+			"reason": "a streamed resolve whose devalue download failed every try: one settle, once per promise; devalue-lane-gone.test.ts runs the give-up"
+		},
+		{
+			"id": "packages/core/src/runtime/page-defer.ts > unresolved",
+			"reason": "one coded error made for a promise that can no longer settle, once per promise: constant work"
+		},
+		{
 			"id": "packages/core/src/runtime/viewport.ts > Tracker > #hear_swaps > MutationObserver:0~c14ef5",
 			"reason": "browser only: a box-less region's content was swapped; it hands the records to #swapped, constant work"
 		},
@@ -4781,10 +4777,6 @@
 			"reason": "network bound: reads a request body's pieces until the cap, one copy of the bytes; proven in packages/core/test/batch-body-cap.test.ts and packages/federation/test/body-cap.test.ts (#754, #1091)"
 		},
 		{
-			"id": "packages/devtools/src/profiler/ui/fake-progress.svelte.ts > FakeProgress > close",
-			"reason": "closes the bar's scope (its timers), constant work; proven in packages/devtools/test/profiler-fake-progress.test.ts"
-		},
-		{
 			"id": "packages/core/src/runtime/core.ts > OgygiaRegion > #teardown > note_left:1~6e248e",
 			"reason": "browser only, dev and e2e builds: the rule's reader of the element's busy machines, handed over at its teardown, constant work; proven in packages/core/test/browser/rules.test.ts"
 		},
@@ -4811,6 +4803,18 @@
 		{
 			"id": "packages/core/src/messages/core.ts > WARNINGS > rule_region_left_busy > text",
 			"reason": "a message's one line for the dev warning: a template over the rule's detail, printed once when the rule breaks"
+		},
+		{
+			"id": "packages/core/src/messages/server.ts > SERVER_WARNINGS > page_promise_pending > details",
+			"reason": "a message's wording, read once when the warning is shown: constant work"
+		},
+		{
+			"id": "packages/core/src/messages/server.ts > SERVER_WARNINGS > page_promise_pending > text",
+			"reason": "a message's wording, read once when the warning is shown: constant work"
+		},
+		{
+			"id": "packages/core/src/server/page-stream.ts > say_if_pending > timeout:0~8e3e3b",
+			"reason": "dev only: one warning after 10 s, at most once per response: constant work; proven in packages/core/test/page-stream-request-owned.test.ts"
 		},
 		{
 			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > tag_name_end",
