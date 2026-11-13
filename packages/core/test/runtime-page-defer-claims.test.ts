@@ -162,3 +162,16 @@ it('a streamed promise read after the document loaded, with no resolve, is rejec
 		vi.unstubAllGlobals();
 	}
 });
+
+it('a streamed promise that never got its value rejects with the coded error, not a copy of its message (#1504)', async () => {
+	vi.stubGlobal('document', { readyState: 'complete' });
+	try {
+		install_page_defer();
+		await expect(create_deferred(11)).rejects.toMatchObject({
+			name: 'OgygiaError',
+			code: 'page_promise_unresolved'
+		});
+	} finally {
+		vi.unstubAllGlobals();
+	}
+});

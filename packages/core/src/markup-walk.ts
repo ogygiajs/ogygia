@@ -607,6 +607,62 @@ export function text_of(html: string, tag: FoundTag, name: string): string | nul
 	return null;
 }
 
+/** `</name` in any case, followed by what ends a tag name, starting at `at`? */
+function end_tag_at(html: string, at: number, name: string): boolean {
+	if (html.charCodeAt(at) !== 60 /* < */ || html.charCodeAt(at + 1) !== 47 /* / */) return false;
+	const after = at + 2 + name.length;
+	if (!name_is(html, at + 2, after, name)) return false;
+	const c = html.charCodeAt(after);
+	return is_space(c) || c === 47 /* / */ || c === 62; /* > */
+}
+
+/** The next `</name` (any case) at or after `from`, or -1: a cheap search for candidates. */
+function next_end_candidate(html: string, from: number, name: string): number {
+	for (let at = html.indexOf('</', from); at !== -1; at = html.indexOf('</', at + 2))
+		if (end_tag_at(html, at, name)) return at;
+	return -1;
+}
+
+/** Where a document's head ends: the `<` of its `</head` end tag as the walk reads it (any case;
+ *  never a `</head>` in a head script's text, a comment or an attribute value), or -1 when it has
+ *  none. The walk stops there: it never reads the body, and a chunk with no `</head` at all is not
+ *  walked (test/document-assembly.test.ts). */
+export function head_end(html: string): number {
+	let candidate = next_end_candidate(html, 0, 'head');
+	for (let i = 0; candidate !== -1 && step(html, i, null);) {
+		if (TOKEN.lt > candidate) {
+			// (the candidate was inside a script, a comment or a value: the next one, if any)
+			candidate = next_end_candidate(html, TOKEN.lt, 'head');
+			if (candidate === -1) return -1;
+		}
+		if (TOKEN.kind === 2) {
+			if (TOKEN.lt === candidate) return candidate;
+			i = TOKEN.end;
+			continue;
+		}
+		i = after_start(html);
+		if (i === -1) return -1;
+	}
+	return -1;
+}
+
+/** Where a document's body ends: the `<` of its LAST `</body` (any case), found from the back.
+ *  Not walked: a page's body is megabytes, and its end is its last bytes. So a `</body>` in a
+ *  script or comment AFTER the real end tag would be taken for it, which Kit never writes
+ *  (test/document-assembly.test.ts names that case). */
+export function body_end(html: string): number {
+	// (the usual spelling from the back first; any case from there on, or from the start when it is
+	// not there: a chunk with no body end, or one written in another case)
+	let at = html.lastIndexOf('</body');
+	if (at !== -1 && !end_tag_at(html, at, 'body')) at = -1;
+	BODY_END_RE.lastIndex = at === -1 ? 0 : at;
+	for (let m = BODY_END_RE.exec(html); m !== null; m = BODY_END_RE.exec(html)) at = m.index;
+	return at;
+}
+
+// static: one search for `body_end`, reset before each use
+const BODY_END_RE = /<\/body[\t\n\f\r />]/gi;
+
 /** What a piece of `markup_tokens` is: text (a raw-text element's whole text too), a start tag, an
  *  end tag, or a comment (a bogus comment and a doctype too). */
 export type MarkupKind = 0 | 1 | 2 | 3;
