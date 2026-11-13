@@ -147,18 +147,17 @@ describe('the server-region wrapper', () => {
 });
 
 describe('the lake wrapper', () => {
-	it('only an swr lake carries an endpoint schedule and its margin', () => {
+	it('only an swr lake carries an endpoint schedule and its margin; every lake hands Region its props', () => {
 		const swr = lake_wrapper_source(
 			'abc123',
 			COMPONENT,
 			{ remount: 'swr', margin: '10px' },
 			undefined
 		);
-		expect(swr).toContain('__when={"load"} __props={__props} __margin={"10px"}');
+		expect(swr).toContain('__props={__props} __when={"load"} __margin={"10px"}');
 		const cache = lake_wrapper_source('abc123', COMPONENT, { margin: '10px' }, undefined);
-		expect(cache).toContain('__remount={"cache"}');
-		for (const banned of ['__when', '__margin', '__props={__props}'])
-			expect(cache).not.toContain(banned);
+		expect(cache).toContain('__remount={"cache"} __props={__props}');
+		for (const banned of ['__when', '__margin']) expect(cache).not.toContain(banned);
 	});
 
 	it('the placeholder rewrite matches a named import by its local name, not its exported one', () => {
