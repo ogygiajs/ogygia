@@ -142,7 +142,12 @@ import { code_origins } from './plugin/hooks.ts';
 import { locate, assemble } from './server/document-assembly.ts';
 import { error_route_is_csr_true, route_is_csr_true, take_early_holes } from './context.ts';
 import { early_holes_head } from './early-holes-head.ts';
-import { add_early_holes_csp, with_early_holes_meta_csp } from './server/early-holes-csp.ts';
+import {
+	add_early_holes_csp,
+	EARLY_HOLES_SOURCE,
+	with_early_holes_meta_csp
+} from './server/early-holes-csp.ts';
+import { kit_gate } from './server/kit-gate.ts';
 import {
 	merge_seed_ask,
 	shape_page_data,
@@ -295,9 +300,7 @@ type RequestBag = {
 	request: Request;
 	ctx: Map<string, unknown>;
 	page: PageSnapshot | null;
-	/** The `load` hole endpoints this page's head started early (early-holes.ts): its response's
-	 *  policy then needs the early start's hash. */
-	early_holes?: string[];
+	csp_sources?: string[];
 	/** SEED SHAPING: the union of the regions' asks — the `page.data` keys to ship, or `'all'`
 	 *  (some region's reads could not be pinned). `null` until a region reads `$page` on the client
 	 *  (Region.svelte × `islandReadsPage`): not null, the `application/ogygia-page` seed must ship.
@@ -1077,10 +1080,9 @@ class OgygiaHandle {
 					)
 			});
 			if (devtools_personal) mark_personal(response);
-			// the early start's script under the response's policy (server/early-holes-csp.ts)
-			if (bag.early_holes?.length)
+			if (bag.csp_sources?.length)
 				try {
-					add_early_holes_csp(response.headers);
+					add_early_holes_csp(response.headers, bag.csp_sources);
 				} catch {
 					// ok: immutable headers: the platform's policy is the app's to allow the script in
 				}
@@ -1254,9 +1256,10 @@ class OgygiaHandle {
 		// parse, from one data block and one constant script in the chunk that carries `</head>`. A
 		// policy that would block the script gets its hash: a <meta> one here, a header after `resolve`.
 		const early = head === null || !event ? [] : take_early_holes(event.request);
-		if (early.length && bag) bag.early_holes = early;
+		const csp_sources: string[] = early.length ? [EARLY_HOLES_SOURCE] : [];
+		if (bag && head !== null) bag.csp_sources = csp_sources;
 		const early_head = early_holes_head(early);
-		const with_early_csp = (h: string): string => (early.length ? with_early_holes_meta_csp(h) : h);
+		const with_early_csp = (h: string): string => with_early_holes_meta_csp(h, csp_sources);
 
 		// csr=true page — Kit serializes its own remotes and hydrates the whole tree; skip seeds. A
 		// build-time ROUTE FACT (context.ts, the PAGE-CSR invariant), never a scan of the document;
@@ -1305,11 +1308,22 @@ class OgygiaHandle {
 			if (head === null && !tail) return html;
 			// The runtime an island inside a lake emitted goes before the head's JavaScript here too
 			// (see the csr=false path below): its regions keep their server markup from the first connect.
+			const gate =
+				head !== null && spans.body_end !== -1 && bag?.kit_with_runtime
+					? kit_gate(html, spans.body_end)
+					: null;
+			if (gate) csp_sources.push(gate.source);
 			const ordered =
 				head === null
 					? null
-					: with_early_csp(runtime_first(head, null, code_origins(), mark_of(bag)));
-			return assemble(html, spans, ordered === head ? null : ordered, head_inject, tail);
+					: with_early_csp(runtime_first(head, null, code_origins(event?.request), mark_of(bag)));
+			return assemble(
+				gate ? gate.html : html,
+				gate ? { head_end: spans.head_end, body_end: spans.body_end + gate.delta } : spans,
+				ordered === head ? null : ordered,
+				head_inject,
+				tail
+			);
 		}
 
 		// ── HEAD (the chunk carrying `</head>`) ──
@@ -1365,7 +1379,7 @@ class OgygiaHandle {
 					: null;
 			// (with the code origins the plugins and this render named: runtime/code-origins.ts)
 			const ordered = with_early_csp(
-				runtime_first(probe, runtime_tag, code_origins(), mark_of(bag))
+				runtime_first(probe, runtime_tag, code_origins(event?.request), mark_of(bag))
 			);
 			if (ordered !== probe) head_out = ordered;
 			// The DEV bridge is NOT gated on the router — it carries `@vite/client`, and Vite's own
