@@ -828,8 +828,6 @@ export function hydrate_island(
 		// that attempt by design, so without this the recovery warning below could never say WHY the
 		// walk failed — only that the pre-hydrate check saw drift, which repair may well have fixed.
 		let strict_error: unknown = null;
-		// (the plugins around Svelte's hydrate: @ogygia/rewrite puts a web component's own class
-		// tokens back on its host, since Svelte's hydration writes `class` whole)
 		const after_hydrate = boot_link().region_hydrate(region);
 		try {
 			out = quietly(() => attempt(false));

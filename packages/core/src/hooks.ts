@@ -866,7 +866,6 @@ class OgygiaHandle {
 	}
 
 	constructor(options: OgygiaHandleOptions = {}) {
-		// (the app's own pass is @ogygia/rewrite's now; a JS caller still passing it is told where)
 		if ('transform' in options) throw new OgygiaError('handle_transform_moved');
 		// Stored WITHOUT a base prefix. Getting the app's absolute base path inside a hook has no
 		// public, forward-compatible API — `base` from `$app/paths` is deprecated (removed in Kit 3)
