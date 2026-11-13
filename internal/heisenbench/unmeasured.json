@@ -4827,6 +4827,10 @@
 		{
 			"id": "packages/core/src/server/page-stream.ts > say_if_pending > timeout:0~8e3e3b",
 			"reason": "dev only: one warning after 10 s, at most once per response: constant work; proven in packages/core/test/page-stream-request-owned.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/ownership.ts > in_render_block",
+			"reason": "browser only (DOM comments): runs only for a child of an element stamped data-og-html, a scan of its earlier siblings; nested-island-drift.test.ts runs it"
 		}
 	]
 }
