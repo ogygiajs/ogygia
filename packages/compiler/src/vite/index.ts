@@ -137,6 +137,7 @@ import {
 } from '../compiler/link/island-deps.ts';
 import { report_seed_shaping } from '../compiler/link/build-output.ts';
 import { follow_pending_page_calls } from '../compiler/link/page-keys.ts';
+import { unpatched } from '../compiler/link/relocations.ts';
 import { emit_island_deps_handoff, refuse_client_secrets } from '../compiler/link/build-output.ts';
 import {
 	server_handoff_path,
@@ -1329,17 +1330,11 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 			},
 
 			renderChunk(code) {
-				const compiler = compiler_of(session, 'renderChunk');
-				// Patch the fn-manifest placeholder (og.$ factory registrations) once every transform has run.
-				const fn = compiler.patch_fn_manifest(code);
-				// ...and the server manifest's per-hole `page.data` answer, from the finished graph.
-				if (!leg_of(this).server) return fn;
-				const page = compiler.patch_page_data_reads(
-					fn?.code ?? code,
-					(id) => this.getModuleInfo(id),
-					() => this.getModuleIds()
-				);
-				return page ?? fn;
+				// the values known only once every transform has run (link/relocations.ts)
+				return compiler_of(session, 'renderChunk').relocate(code, leg_of(this), {
+					graph: (id) => this.getModuleInfo(id),
+					module_ids: () => this.getModuleIds()
+				});
 			},
 
 			// THE LOCATION MAPS (client build, generateBundle below): each island entry is content-hashed;
@@ -1365,10 +1360,13 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 				} as typeof output;
 			},
 
-			async generateBundle() {
+			async generateBundle(_options, bundle) {
 				const compiler = compiler_of(session, 'generateBundle');
 				if (!is_build) return;
 				const leg = leg_of(this);
+				const chunks = Object.values(bundle).filter((item) => item.type === 'chunk');
+				for (const r of unpatched(leg.server, leg.relocated, chunks))
+					warn('relocation_unpatched', { name: r.name, leg: leg.name });
 				if (leg.server) return;
 				for (const file of compiler.location_maps(leg, (ref) => this.getFileName(ref)))
 					this.emitFile({ type: 'asset', fileName: file.fileName, source: file.source });

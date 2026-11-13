@@ -1,4 +1,4 @@
-// A HOLE PAYS THE PAGE LOOKUP ONLY WHEN ITS TREE READS `page.data` (driver `patch_page_data_reads`,
+// A HOLE PAYS THE PAGE LOOKUP ONLY WHEN ITS TREE READS `page.data` (link/relocations.ts,
 // server/render-page.ts): the server manifest's placeholder is patched, once the graph is complete,
 // with each server island's answer over its component's static AND dynamic imports.
 import { describe, test, expect } from 'vitest';
@@ -45,7 +45,7 @@ function compiler_with(holes: Record<string, string>, reads: Record<string, Set<
 	return new Compiler(program, profiler, ctx);
 }
 
-describe('patch_page_data_reads', () => {
+describe('the page-data reads relocation', () => {
 	const graph: Record<string, { importedIds: string[]; dynamicallyImportedIds: string[] }> = {
 		'/app/Header.svelte': {
 			importedIds: ['/app/Nav.svelte'],
@@ -62,6 +62,8 @@ describe('patch_page_data_reads', () => {
 	};
 	const info = (id: string) => graph[id] ?? null;
 	const ids = () => Object.keys(graph);
+	const bundle = { graph: info, module_ids: ids };
+	const server_leg = () => ({ server: true, relocated: new Map<string, number>() });
 
 	test('a reader anywhere in the tree (a dynamic import too) → true; none (a cycle too) → false', () => {
 		const c = compiler_with(
@@ -69,7 +71,7 @@ describe('patch_page_data_reads', () => {
 			// Promo reads a key; Url reads the page but only its url (an empty key set)
 			{ '/app/blocks/Promo.svelte': new Set(['_locale']), '/app/Url.svelte': new Set() }
 		);
-		const out = c.patch_page_data_reads(PLACEHOLDER, info, ids);
+		const out = c.relocate(PLACEHOLDER, server_leg(), bundle);
 		expect(value_of(out!.code)).toEqual({ aaaaaaaaaaaa: true, bbbbbbbbbbbb: false });
 	});
 
@@ -79,7 +81,7 @@ describe('patch_page_data_reads', () => {
 			{ '/app/util.ts': 'all' }
 		);
 		// (a bundler that re-quoted the literal with single quotes)
-		const out = c.patch_page_data_reads(PLACEHOLDER.split('"').join("'"), info, ids);
+		const out = c.relocate(PLACEHOLDER.split('"').join("'"), server_leg(), bundle);
 		expect(value_of(out!.code)).toEqual({ cccccccccccc: true, dddddddddddd: true });
 	});
 
@@ -88,14 +90,14 @@ describe('patch_page_data_reads', () => {
 	});
 
 	test('a chunk without the placeholder is left alone', () => {
-		expect(compiler_with({}, {}).patch_page_data_reads('export {}', info, ids)).toBeNull();
+		expect(compiler_with({}, {}).relocate('export {}', server_leg(), bundle)).toBeNull();
 	});
 });
 
 // A module that imports Kit's page and recorded no keys is a reader seed shaping could not read:
 // a `$lib` barrel that re-exports `page`, a `getStores()` call, an `import('$app/state')`. The
 // hole looks up, as an island ships all of `page.data` for a reader it saw no keys for.
-describe('patch_page_data_reads: a page reader seed shaping could not read', () => {
+describe('the page-data relocation: a page reader seed shaping could not read', () => {
 	const KIT_STATE = '/app/node_modules/@sveltejs/kit/src/runtime/app/state/index.js';
 	const KIT_STORES = '/app/node_modules/@sveltejs/kit/src/runtime/app/stores.js';
 	const graph: Record<string, { importedIds: string[]; dynamicallyImportedIds: string[] }> = {
@@ -107,12 +109,12 @@ describe('patch_page_data_reads: a page reader seed shaping could not read', () 
 		[KIT_STATE]: { importedIds: [], dynamicallyImportedIds: [] },
 		[KIT_STORES]: { importedIds: [], dynamicallyImportedIds: [] }
 	};
-	const info = (id: string) => graph[id] ?? null;
-	const ids = () => Object.keys(graph);
+	const bundle = { graph: (id: string) => graph[id] ?? null, module_ids: () => Object.keys(graph) };
+	const server_leg = () => ({ server: true, relocated: new Map<string, number>() });
 
 	test('a hole reading the page through a $lib re-export looks up page.data', () => {
 		const c = compiler_with({ aaaaaaaaaaaa: '/app/Hole.svelte' }, {});
-		expect(value_of(c.patch_page_data_reads(PLACEHOLDER, info, ids)!.code)).toEqual({
+		expect(value_of(c.relocate(PLACEHOLDER, server_leg(), bundle)!.code)).toEqual({
 			aaaaaaaaaaaa: true
 		});
 	});
@@ -122,7 +124,7 @@ describe('patch_page_data_reads: a page reader seed shaping could not read', () 
 			{ bbbbbbbbbbbb: '/app/Stores.svelte', cccccccccccc: '/app/Lazy.svelte' },
 			{}
 		);
-		expect(value_of(c.patch_page_data_reads(PLACEHOLDER, info, ids)!.code)).toEqual({
+		expect(value_of(c.relocate(PLACEHOLDER, server_leg(), bundle)!.code)).toEqual({
 			bbbbbbbbbbbb: true,
 			cccccccccccc: true
 		});
@@ -139,11 +141,10 @@ describe('patch_page_data_reads: a page reader seed shaping could not read', () 
 			{ eeeeeeeeeeee: '/app/UrlOnly.svelte' },
 			{ '/app/UrlOnly.svelte': new Set() }
 		);
-		const out = c.patch_page_data_reads(
-			PLACEHOLDER,
-			(id) => kit_graph[id] ?? null,
-			() => Object.keys(kit_graph)
-		);
+		const out = c.relocate(PLACEHOLDER, server_leg(), {
+			graph: (id) => kit_graph[id] ?? null,
+			module_ids: () => Object.keys(kit_graph)
+		});
 		expect(value_of(out!.code)).toEqual({ eeeeeeeeeeee: false });
 	});
 
@@ -154,7 +155,7 @@ describe('patch_page_data_reads: a page reader seed shaping could not read', () 
 				'/app/UrlOnly.svelte': new Set()
 			}
 		);
-		expect(value_of(c.patch_page_data_reads(PLACEHOLDER, info, ids)!.code)).toEqual({
+		expect(value_of(c.relocate(PLACEHOLDER, server_leg(), bundle)!.code)).toEqual({
 			dddddddddddd: false
 		});
 	});
