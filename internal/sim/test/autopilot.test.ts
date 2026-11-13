@@ -15,6 +15,7 @@ import {
 	mutants_of,
 	probed,
 	merge_patch,
+	test_name_in,
 	type Proof
 } from '../src/autopilot.ts';
 import { site_nodes, type FailureLedger } from '../src/failures.ts';
@@ -183,6 +184,20 @@ describe('mutants', () => {
 	});
 });
 
+describe('a test named in its file', () => {
+	it('is its own name, or the each template that made it', () => {
+		const text = dedent`
+			it('plain', () => {});
+			it.each([['x', 1]])('%j gives %d', () => {});
+			it.each([{ a: 'q' }])("$a stays 100%%", () => {});
+		`;
+		expect(test_name_in(text, 'plain')).toBe('plain');
+		expect(test_name_in(text, '"x" gives 1')).toBe('%j gives %d');
+		expect(test_name_in(text, 'q stays 100%')).toBe('$a stays 100%%');
+		expect(test_name_in(text, 'nothing here')).toBe(null);
+	});
+});
+
 describe('the ledger patch', () => {
 	it('moves proved sites from the baseline to covered and leaves the rest', () => {
 		const ledger = {
@@ -240,12 +255,21 @@ export function guard(n: number): number {
 	return n;
 }
 
+export function digits(text: string): string {
+	if (!/^\\d+$/.test(text)) throw new Error('not digits');
+	return text;
+}
+
 export function late(): Promise<string> {
 	return new Promise((answer) => setTimeout(() => answer('late'), 1));
 }
 `;
 
-const SPEC = `import { parse_or_null, status, guard, late } from '../src/a.ts';
+const SPEC = `import { parse_or_null, status, guard, digits, late } from '../src/a.ts';
+
+test.each(['x', 'y'])('%j is refused as digits', (text) => {
+	expect(() => digits(text)).toThrow('not digits');
+});
 
 test('a bad text parses to null', () => {
 	expect(parse_or_null('{')).toBe(null);
@@ -297,6 +321,7 @@ describe('a run over a package', () => {
 		expect(report.proved.map((p) => [p.site, p.name])).toEqual([
 			[`${FILE} > parse_or_null > catch:0`, 'a bad text parses to null'],
 			[`${FILE} > guard > throw:0`, 'a negative number is refused'],
+			[`${FILE} > digits > throw:0`, '%j is refused as digits'],
 			[`${FILE} > late > timer:0`, 'a deadline gives up late']
 		]);
 		expect(report.proved[0].test).toBe('packages/fx/test/a.spec.ts');
