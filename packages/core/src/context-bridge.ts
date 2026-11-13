@@ -20,7 +20,7 @@ import { REF_WIRE_KEY, ref_reducer, ref_reviver, batch } from './ref.ts';
 import { register_wire_kind } from './live-transport.ts';
 import { register_store_kind, register_derived_kind } from './store-transport.ts';
 import { register_snippet_kind } from './region-snippet.ts';
-import { register_fn_kind, is_branded_fn } from './fn-transport.ts';
+import { register_fn_kind } from './fn-transport.ts';
 
 function ensure_ctx_kinds(): void {
 	register_wire_kind();
@@ -31,7 +31,7 @@ function ensure_ctx_kinds(): void {
 }
 import { boundary_problems } from './boundary.ts';
 import { record_ctx, type SetContextOptions } from './context-registry.ts';
-import { crossing_values, key_label, key_name, key_of } from './context-key.ts';
+import { key_label, key_name, key_of } from './contract/context-key.ts';
 import { boot_link } from './runtime/slots.ts';
 import { OGYGIA_PROVIDE, OGYGIA_PROVIDE_PAGE } from './wire-markup.ts';
 import { escape_script_text } from './escape.ts';
@@ -44,6 +44,18 @@ const PROVIDE_FAMILIES = new Set(['wire', 'store', 'snippet', 'fn', 'derived']);
  *  THROW (and be dropped with a dev explanation) rather than be silently frozen as one. */
 // static: the value families the bridge carries
 const BRIDGE_FAMILIES = new Set(['wire', 'store', 'fn', 'derived']);
+
+/** A provider's values keyed by the names they cross under; a key that cannot cross is left out
+ *  (and said in dev). */
+export function crossing_values(values: object): Record<string, unknown> {
+	const out: Record<string, unknown> = {};
+	for (const key of Reflect.ownKeys(values)) {
+		const name = key_name(key);
+		if (name !== null) out[name] = (values as Record<PropertyKey, unknown>)[key];
+		else if (DEV) warn('context_key_one_off', { key: key_label(key) });
+	}
+	return out;
+}
 
 /** Serialize a `<Provide>`'s values for the DOM — same codec as island props (one hub key). */
 export function serialize_context(values: object): string {
@@ -260,10 +272,7 @@ export function createContext<T>(key: string, defaultValue?: T): Context<T> {
  * `<Provide>`, which wraps its subtree and beats the root on the same key.
  */
 export function setContext<T>(key: unknown, value: T, opts?: SetContextOptions): T {
-	// a BARE function can never serialize — but an og.$-branded one is a transportable fn ref
-	const name = key_name(key);
-	if (name !== null && (typeof value !== 'function' || is_branded_fn(value)))
-		record_ctx(name, value, opts);
+	record_ctx(key, value, opts);
 	return svelte_set_context(key, value);
 }
 

@@ -12,7 +12,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { cache, say } from '@ogygia/machine';
-import { fnv1a32 } from '@ogygia/core/contract';
+import { fnv1a32, key_label, key_of } from '@ogygia/core/contract';
 import {
 	transformHost,
 	transformTsRegions,
@@ -47,7 +47,7 @@ import {
 	FOREIGN_HYDRATE_MARK
 } from './region/emit.ts';
 import { by_key, location_map_files } from './link/location-map.ts';
-import { context_string_keys, source_uses_ogygia_context } from './link/context-detect.ts';
+import { context_keys, source_uses_ogygia_context } from './link/context-detect.ts';
 import { router_css_roots } from './link/router-css.ts';
 import { source_crosses_wire } from './link/transport.ts';
 import { server_island_ids } from './link/server-manifest.ts';
@@ -663,11 +663,17 @@ export class Compiler implements CoreApp {
 				if (Object.hasOwn(PLUGIN_PACKAGES, s) && !ctx.plugins.includes(s) && !unlisted.has(s))
 					unlisted.set(s, prescan_rel(ctx, full));
 		};
+		const say_one_off_keys = (full: string, src: string, kind: 'svelte' | 'script') => {
+			if (!src.includes('Symbol(') || !source_uses_ogygia_context(src)) return;
+			for (const key of context_keys(src, kind).one_off)
+				warn('region_context_key_one_off', { file: path.relative(root, full), key });
+		};
 		const scan_file = (full: string, name: string) => {
 			if (name.endsWith('.svelte')) {
 				const src = ctx.read_file(full);
 				if (src == null) return;
 				if (!runtime_marks.context && source_uses_ogygia_context(src)) runtime_marks.context = true;
+				say_one_off_keys(full, src, 'svelte');
 				if (!program.crosses_wire && source_crosses_wire(src)) program.crosses_wire = true;
 				{
 					// Router-css closure data: this module's import specs + whether it is a page module.
@@ -691,6 +697,7 @@ export class Compiler implements CoreApp {
 				const src = ctx.read_file(full);
 				if (src == null) return;
 				if (!runtime_marks.context && source_uses_ogygia_context(src)) runtime_marks.context = true;
+				say_one_off_keys(full, src, 'script');
 				const remote = name.endsWith('.remote.ts') || name.endsWith('.remote.js');
 				// A remote query's SSR result can only be seeded where the app HAS a remote function.
 				if (remote) runtime_marks.remoteSeeds = true;
@@ -800,7 +807,7 @@ export class Compiler implements CoreApp {
 				if (!file.endsWith('.svelte') && !SCRIPT_MODULE_RE.test(file)) continue;
 				const src = ctx.read_file(file);
 				if (src == null) continue;
-				const { reads: r, sets } = context_string_keys(
+				const { reads: r, sets } = context_keys(
 					src,
 					file.endsWith('.svelte') ? 'svelte' : 'script'
 				);
@@ -810,7 +817,10 @@ export class Compiler implements CoreApp {
 			for (const { file, keys } of reads) {
 				for (const key of keys) {
 					if (island_set.has(key)) continue; // the island provides it itself, within one root
-					warn('island_context_unprovided', { file: path.relative(root, file), key });
+					warn('island_context_unprovided', {
+						file: path.relative(root, file),
+						key: key_label(key_of(key))
+					});
 				}
 			}
 		}
