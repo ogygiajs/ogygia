@@ -191,6 +191,29 @@ describe('asked twice in every document, up to what first disturbed it', () => {
 			'waste'
 		);
 	});
+
+	it("counts the ask that recovers a stalled visit's batch as that batch's (palaestra seed 24 with crowds)", () => {
+		// (a visit's batch stalled; its stream gave up 10 s later and the page asked each hole on its
+		// own: the recovery is the visit's ask, not a second one)
+		const w = run([['tab-1#1', hole, 200]]);
+		const at = (id: number, method: string, path: string, t: number, more: object = {}) =>
+			w.network.exchanges.push({
+				...w.network.exchanges[0],
+				id,
+				method,
+				url: `https://app.test${path}`,
+				at: t,
+				...more
+			});
+		at(2, 'GET', '/p2', 4000);
+		at(3, 'POST', '/__ogygia__', 4003, { holes: [hole], stalled: true });
+		at(4, 'GET', `${hole}&exp=9&sig=s`, 14_003);
+		expect(asked_twice_each(w, new Map([['tab-1#1', [4006]]]), new Map())?.oracle).toBe('known');
+		// (a recovery of a batch no visit sent is as wasteful as that batch)
+		expect(asked_twice_each(w, new Map([['tab-1#1', [4001, 4006]]]), new Map())?.oracle).toBe(
+			'waste'
+		);
+	});
 });
 
 describe('refused', () => {

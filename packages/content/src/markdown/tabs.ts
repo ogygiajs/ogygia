@@ -44,8 +44,9 @@ const OPEN_CODE = /^\s*:::\s*code-group\b[ \t]*(.*?)\s*$/;
 const OPEN_TABS = /^\s*:::\s*tabs\b[ \t]*(.*?)\s*$/;
 const CLOSE = /^\s*:::\s*$/;
 const TAB_MARK = /^\s*==[ \t]+(.+?)[ \t]*$/;
-// A fence opener: optional indent, 3+ of ` or ~, then an info string (may be empty).
-const FENCE = /^(\s*)(`{3,}|~{3,})(.*)$/;
+// A fence line: optional indent, 3+ of ` or ~, then an info string (may be empty). A backtick
+// fence's info holds no backtick (CommonMark: such a line is a paragraph, not a fence).
+const FENCE = /^(\s*)(?:(`{3,})([^`]*)|(~{3,})(.*))$/;
 const TAB_OPENER_RE = /(^|\n)\s*:::\s*(code-group|tabs)\b/;
 const LINE_BREAK_RE = /\r\n|\r|\n/;
 const BRACKET_LABEL_RE = /\[([^\]]*)\]/;
@@ -57,14 +58,16 @@ type Fence = { char: string; len: number };
 function fence_open(line: string): { fence: Fence; indent: string; info: string } | null {
 	const m = FENCE.exec(line);
 	if (!m) return null;
-	return { fence: { char: m[2][0], len: m[2].length }, indent: m[1], info: m[3] };
+	const run = m[2] ?? m[4];
+	return { fence: { char: run[0], len: run.length }, indent: m[1], info: m[3] ?? m[5] };
 }
 
 /** True if `line` closes `open`: same char, run length ≥ opener, nothing but whitespace after. */
 function fence_close(line: string, open: Fence): boolean {
-	const m = FENCE.exec(line);
-	if (!m) return false;
-	return m[2][0] === open.char && m[2].length >= open.len && m[3].trim() === '';
+	const o = fence_open(line);
+	return (
+		o !== null && o.fence.char === open.char && o.fence.len >= open.len && o.info.trim() === ''
+	);
 }
 
 export type TabsResult = { code: string; used: boolean };
@@ -191,10 +194,11 @@ function parse_code_group(body: string[]): ParsedTab[] {
 		if (opener) {
 			fence = opener.fence;
 			const { label, lang } = split_label(opener.info);
-			cur = {
-				label: label ?? `Tab ${n + 1}`,
-				body: [`${opener.indent}${opener.fence.char.repeat(opener.fence.len)}${lang}`]
-			};
+			const run = opener.fence.char.repeat(opener.fence.len);
+			// (an info that starts with the fence's own character keeps its space, or it would
+			// lengthen the run and its closer could no longer close it: #1146)
+			const sep = lang.startsWith(opener.fence.char) ? ' ' : '';
+			cur = { label: label ?? `Tab ${n + 1}`, body: [`${opener.indent}${run}${sep}${lang}`] };
 			tabs.push(cur);
 			n += 1;
 			continue;
