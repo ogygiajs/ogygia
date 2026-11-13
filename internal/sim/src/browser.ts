@@ -65,6 +65,9 @@ export interface Tab {
 	/** The realms of its documents that were ever shown (a document loaded behind and never looked
 	 *  at is not among them). */
 	readonly seen: Set<string>;
+	/** The address of its document whose island load gate had opened when DOMContentLoaded fired
+	 *  (oracles.ts `parsed_first`), or null. */
+	early_gate: string | null;
 	/** What the shown document holds now (the leak oracle's sample). */
 	held(): Held;
 	/** The listeners it holds, each as `window|document <type> <its code's hash>` (with
@@ -104,6 +107,13 @@ export interface Heard {
 	/** {@link own_text}, read once the event's own microtasks ran (a kept-alive island's new props
 	 *  render in one). */
 	readonly shown: string;
+}
+
+/** Has the island load gate (load-scheduler.ts `critical-gate`) gone past the paint, in `moves`
+ *  (a page's `__ogygia_moves()`)? A click only marks it `touched`; `waiting` and `settled` come
+ *  after the document is parsed and painted. */
+export function gate_open_early(moves: string): boolean {
+	return /^critical-gate\S* \S+ -> (waiting|settled)$/m.test(moves);
 }
 
 /** What a region shows of its own, as text: less a region inside it (its own answer comes on its
@@ -445,6 +455,16 @@ export class Browsers {
 		});
 		const loop = this.#o.loop;
 		window.addEventListener('og:before-swap', () => swaps.push(loop.now), { capture: true });
+		// (the island load gate, as the document is parsed: still shut. Before ogygia's own listener,
+		// which only asks for a frame)
+		window.addEventListener(
+			'DOMContentLoaded',
+			() => {
+				if (gate_open_early(page_window.__ogygia_moves?.() ?? ''))
+					tab.early_gate = window.location.href;
+			},
+			{ capture: true }
+		);
 		// (a region's announcements, as the app hears them: bubbling up to the window, so one sent
 		// without `bubbles` is heard by no one, as in a browser)
 		const heard: Map<Element, Heard[]> = (tab.heard = new Map());
@@ -754,6 +774,7 @@ export class Browsers {
 			platform: null,
 			hidden: false,
 			seen: new Set(),
+			early_gate: null,
 			held: () => ({ listeners: 0, intervals: 0, observers: 0, head: 0, elements: 0 }),
 			listening: () => [],
 			watching: () => [],

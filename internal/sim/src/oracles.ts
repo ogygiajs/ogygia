@@ -3,7 +3,7 @@
  * found broken, or null. Each is precise about what it normalizes away, and why.
  */
 import { writeFileSync } from 'node:fs';
-import { own_text, type Tab, type Visitor } from './browser.ts';
+import { gate_open_early, own_text, type Tab, type Visitor } from './browser.ts';
 import { boxes, on_screen, type Box } from './layout.ts';
 import { answer_key, FOREIGN_MARK, is_page_path, type World } from './world.ts';
 
@@ -905,6 +905,24 @@ export function no_viewport_wait(tab: Tab): Broken | null {
 				detail: `${tab.page.mainFrame.url}: never shown, its islands waited for a viewport`
 			}
 		: null;
+}
+
+export { gate_open_early };
+
+/**
+ * ISLAND CODE WAITS FOR THE PARSE: the island load gate opens only after DOMContentLoaded and a
+ * painted frame (schedule.ts `after_document_painted`): the page's other deferred scripts and its
+ * first paint go first. Read when the document fires DOMContentLoaded (browser.ts: `early_gate`
+ * names a document whose gate had already opened then). Reading it takes what it read.
+ */
+export function parsed_first(tab: Tab): Broken | null {
+	const url = tab.early_gate;
+	if (url === null) return null;
+	tab.early_gate = null;
+	return {
+		oracle: 'paint-gate',
+		detail: `${url}: the island load gate opened before DOMContentLoaded`
+	};
 }
 
 /** ogygia's own rules, in the page (`__ogygia_rules()`, built in with OGYGIA_RULES=1). */
