@@ -7,7 +7,11 @@
  * start" is a real oracle: a module served stale in dev differs from a fresh session's.
  */
 import path from 'node:path';
-import { memory_fs, type MemoryFs } from '../../../packages/compiler/src/compiler/index.ts';
+import {
+	memory_fs,
+	type Fs,
+	type MemoryFs
+} from '../../../packages/compiler/src/compiler/index.ts';
 import { code_of, session, transform_module, type Leg, type Session } from './session.ts';
 import { LIB, ROOT } from './app.ts';
 import { permute } from './order.ts';
@@ -43,9 +47,11 @@ export const VIRTUALS = [
  * - #1376: a transform that changed the registry or the marks reloads what read them.
  * - #1399: the server manifest's lines are compared sorted (`as_judged`).
  * - #1317: seed shaping misses a page passed as a parameter default (reads.ts `KNOWN_READS`).
+ * - #1706: after a lost watcher event and a later save, a lake's wrapper is served `null` (here: the
+ *   fault property's watcher loses no event, faults.test.ts).
  */
 export const KNOWN: ReadonlySet<number> = new Set(
-	(process.env.DST_KNOWN ?? '1317,1375,1376,1399').split(',').filter(Boolean).map(Number)
+	(process.env.DST_KNOWN ?? '1317,1375,1376,1399,1706').split(',').filter(Boolean).map(Number)
 );
 
 /** A served module as the oracles compare it. #1399 (the server manifest in registration order):
@@ -222,10 +228,14 @@ export class Server {
 	}
 }
 
-/** A dev server on `files`: started (Vite's `buildStart` prescans), nothing served yet. */
-export function dev_server(files: Record<string, string>): Server {
+/** A dev server on `files`: started (Vite's `buildStart` prescans), nothing served yet. `disk`: what
+ *  the compiler reads the files through (faults.ts `faulty_fs`); Vite's own reads see them as they are. */
+export function dev_server(
+	files: Record<string, string>,
+	disk: (fs: MemoryFs) => Fs = (fs) => fs
+): Server {
 	const fs = memory_fs(files);
-	const s = session(fs, { dev: true });
+	const s = session(disk(fs), { dev: true });
 	s.compiler.prescan();
 	return new Server(s, fs);
 }
