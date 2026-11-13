@@ -1,6 +1,10 @@
 {
 	"exempt": [
 		{
+			"id": "packages/core/src/runtime/ownership.ts > in_render_block",
+			"reason": "browser only (DOM comments): runs only for a child of an element stamped data-og-html, a scan of its earlier siblings; nested-island-drift.test.ts runs it"
+		},
+		{
 			"id": "packages/devtools/src/devtools/highlight.ts > highlight > defer:0~248bad",
 			"reason": "browser only: the highlight layer's scope takes its layer out as it closes, constant work"
 		},
@@ -75,14 +79,6 @@
 		{
 			"id": "packages/content/src/markdown/shiki.ts > render_code_region > replace:1~ca1204",
 			"reason": "the replacement for the pre's attributes: one concatenation, constant work; proven in packages/content/test/fence-escaping.test.ts"
-		},
-		{
-			"id": "packages/core/src/server/page-stream.ts > stream_page_deferred > ReadableStream:0~352846 > cancel",
-			"reason": "the stream's cancel closes its owner: constant work"
-		},
-		{
-			"id": "packages/core/src/server/page-stream.ts > stream_page_deferred > ReadableStream:0~352846 > start > stream_one > then:1~0cd750",
-			"reason": "a rejected promise settled as a failure: constant work"
 		},
 		{
 			"id": "packages/devtools/src/devtools/page.ts > asked",
@@ -4819,6 +4815,46 @@
 		{
 			"id": "packages/core/src/messages/core.ts > WARNINGS > rule_region_left_busy > text",
 			"reason": "a message's one line for the dev warning: a template over the rule's detail, printed once when the rule breaks"
+		},
+		{
+			"id": "packages/core/src/messages/server.ts > SERVER_WARNINGS > page_promise_pending > details",
+			"reason": "a message's wording, read once when the warning is shown: constant work"
+		},
+		{
+			"id": "packages/core/src/messages/server.ts > SERVER_WARNINGS > page_promise_pending > text",
+			"reason": "a message's wording, read once when the warning is shown: constant work"
+		},
+		{
+			"id": "packages/core/src/server/page-stream.ts > say_if_pending > timeout:0~8e3e3b",
+			"reason": "dev only: one warning after 10 s, at most once per response: constant work; proven in packages/core/test/page-stream-request-owned.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > tag_name_end",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: not replayable); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > tag_end",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: not replayable); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > pieces",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: not replayable); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/form-continuity.ts > url_of",
+			"reason": "browser only (document.baseURI): one URL parse per region attribute; proven in packages/core/test/browser/form-restore-region-identity.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/form-continuity.ts > region_kind",
+			"reason": "browser only: two attribute reads per region (Elements, not cloneable); proven in packages/core/test/browser/form-restore-region-identity.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/form-continuity.ts > region_names",
+			"reason": "browser only: one attribute read per region (Elements, not cloneable), linear in the page's regions, once per page left or restored; proven in packages/core/test/browser/form-restore-region-identity.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/form-continuity.ts > arm_form_restore > read_names",
+			"reason": "browser only: one query of the page's regions, then region_names; proven in packages/core/test/browser/form-restore-region-identity.test.ts"
 		}
 	]
 }

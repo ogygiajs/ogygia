@@ -14,8 +14,11 @@
 import { clock, scope } from '@ogygia/machine';
 import {
 	find_unscoped,
+	next_any_tag,
+	next_tag,
 	OGYGIA_RUNTIME,
-	read_tag,
+	tag_name,
+	tags,
 	text_of,
 	type FoundTag,
 	type UnscopedStyles
@@ -254,32 +257,16 @@ export function scan_assets(html: string): {
 	};
 	const inline = { script: 0, style: 0 };
 	let kit_nodes: number[] = [];
-	const head_end = html.indexOf('</head>');
-	let i = html.indexOf('<');
-	while (i !== -1) {
-		const c = html.charCodeAt(i + 1);
-		// comments: skip whole
-		if (html.startsWith('<!--', i)) {
-			const end = html.indexOf('-->', i + 4);
-			i = end === -1 ? -1 : html.indexOf('<', end + 3);
-			continue;
-		}
-		if (!((c >= 97 && c <= 122) || (c >= 65 && c <= 90))) {
-			i = html.indexOf('<', i + 1);
-			continue;
-		}
-		let e = i + 1;
-		while (e < html.length && !is_space(html.charCodeAt(e)) && html[e] !== '>' && html[e] !== '/')
-			e++;
-		const name = html.slice(i + 1, e).toLowerCase();
-		const tag = read_tag(html, i, e);
-		if (tag === null) break;
-		const in_head = head_end !== -1 && i < head_end;
+	const head = next_tag(html, 'head', 0);
+	const head_text = head === null ? null : text_of(html, head, 'head');
+	const head_end = head_text === null ? -1 : head!.end + head_text.length;
+	// (core's tag walk: comments, end tags and a raw-text element's text hold no tag)
+	for (let tag = next_any_tag(html, 0); tag !== null; tag = next_any_tag(html, tag.next)) {
+		const name = tag_name(html, tag);
+		const in_head = head_end !== -1 && tag.start < head_end;
 		if (name === 'script') {
 			const a = tag_attrs(tag);
-			const text = text_of(html, tag, 'script');
-			const end = text === null ? -1 : tag.end + text.length;
-			const body = text ?? '';
+			const body = text_of(html, tag, 'script') ?? '';
 			const type = (a.get('type') ?? '').toLowerCase();
 			const is_js =
 				type === '' ||
@@ -304,16 +291,10 @@ export function scan_assets(html: string): {
 				if (type === 'module')
 					for (const spec of static_imports(body)) add(spec, 'script', 'inline-import', false);
 			}
-			i = end === -1 ? -1 : html.indexOf('<', end + 8);
-			continue;
-		}
-		if (name === 'style') {
+		} else if (name === 'style') {
 			const text = text_of(html, tag, 'style');
 			if (text !== null) inline.style += text.length;
-			i = text === null ? -1 : html.indexOf('<', tag.end + text.length + 7);
-			continue;
-		}
-		if (name === 'link') {
+		} else if (name === 'link') {
 			const a = tag_attrs(tag);
 			const rel = words((a.get('rel') ?? '').toLowerCase());
 			const href = a.get('href');
@@ -332,7 +313,6 @@ export function scan_assets(html: string): {
 			if ((a.get('loading') ?? '').toLowerCase() !== 'lazy')
 				add(a.get('src'), 'image', 'img', false);
 		}
-		i = html.indexOf('<', tag.end);
 	}
 	return { refs, inline, kit_nodes };
 }
@@ -373,7 +353,7 @@ export function resolve_ref(ref: string, base: string): string | null {
 		if (u.protocol !== 'http:' && u.protocol !== 'https:') return null;
 		return u.href;
 	} catch {
-		return null;
+		return null; // ok: not a URL: no asset to weigh
 	}
 }
 
@@ -555,13 +535,10 @@ export async function weigh_assets(opts: WeighOptions): Promise<PageAssets> {
  *  that quotes one in its content is not a fallback). */
 function inline_style_text(html: string): string {
 	let out = '';
-	let at = html.indexOf('<style');
-	while (at !== -1) {
-		const open = html.indexOf('>', at);
-		const close = open === -1 ? -1 : html.indexOf('</style', open);
-		if (close === -1) break;
-		out = `${out}${html.slice(open + 1, close)}\n`;
-		at = html.indexOf('<style', close);
+	for (const tag of tags(html, 'style')) {
+		const text = text_of(html, tag, 'style');
+		if (text === null) break;
+		out = `${out}${text}\n`;
 	}
 	return out;
 }
@@ -740,7 +717,7 @@ function serves(url: string, origin: string): string {
 	try {
 		u = new URL(url);
 	} catch {
-		return 'unknown';
+		return 'unknown'; // ok: not a URL: who serves it is unknown, and said so
 	}
 	if (u.origin === origin) return 'this app';
 	const at = u.pathname.indexOf('/npm/');
