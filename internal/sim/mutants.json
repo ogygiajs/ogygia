@@ -426,16 +426,6 @@
 		"equivalent": "the listener belongs to the armed state's scope, which the first fire's wake leaves, dropping it; a second change before that starts a background task that sees the armed scope closed and fires nothing"
 	},
 	{
-		"id": "hydrate-stale-while-connected",
-		"file": "packages/core/src/runtime/core.ts",
-		"in": "OgygiaRegion > hydrate",
-		"code": "const gone = (back?: unknown) => back === STALE || !this.isConnected || this.#wake.now !== mine;",
-		"operator": "logical",
-		"from": "E || !",
-		"to": "E && !",
-		"equivalent": "a wait gives STALE only once the region's mailbox or its wake visit closed, and both happen only in teardown, which moves the wake to cold: `this.#wake.now !== mine` already says gone"
-	},
-	{
 		"id": "live-held-equal-ticket",
 		"file": "packages/core/src/runtime/core.ts",
 		"in": "OgygiaRegion > apply_live",
@@ -586,9 +576,9 @@
 		"id": "rewrite-fallback-off",
 		"file": "packages/rewrite/src/pass.ts",
 		"in": "render_one",
-		"code": "return { error: message_of(thrown) };",
+		"code": "return { ok: false, error: message_of(thrown) };",
 		"operator": "statement",
-		"from": "return { error: message_of(thrown) };",
+		"from": "return { ok: false, error: message_of(thrown) };",
 		"to": "throw thrown;",
 		"aim": "gen.reshape-throws"
 	},
@@ -678,10 +668,10 @@
 		"id": "rewrite-marks-lost-kept",
 		"file": "packages/rewrite/src/pass.ts",
 		"in": "judge",
-		"code": "if (!kept.has(id)) return { code: 'rewrite_marks_lost', name, error: 'og-h dropped' };",
+		"code": "if (!kept.has(id))",
 		"operator": "statement",
-		"from": "if (!kept.has(id)) return",
-		"to": "if (kept.size < 0) return"
+		"from": "if (!kept.has(id))",
+		"to": "if (kept.size < 0)"
 	},
 	{
 		"id": "rewrite-ids-not-moved",
