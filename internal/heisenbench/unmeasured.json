@@ -5129,6 +5129,10 @@
 			"reason": "build only: one bake call's evaluation in the build's Node, once per call site per build; its cost is the app's own function"
 		},
 		{
+			"id": "packages/bake/src/bake.ts > evaluate > build:0~602b6c > build > rolldownOptions > external",
+			"reason": "build only: the bake build's external test, one startsWith per import it resolves"
+		},
+		{
 			"id": "packages/bake/src/index.ts > bake",
 			"reason": "the plugin's factory, once per config load: builds one plugin record, constant work"
 		},
