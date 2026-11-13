@@ -1814,28 +1814,18 @@ class FileCompilation {
 		// Names declared at the top of the host `<script>` — used to tell a captured host VALUE (serialize
 		// it) apart from a host IMPORT (re-import it into the synth) and a global (leave it alone).
 		const host_declared = new Set<string>();
-		const collect_pattern_names = (pat: SvelteNode) => {
-			if (!pat) return;
-			if (pat.type === 'Identifier') host_declared.add(pat.name);
-			else if (pat.type === 'ObjectPattern')
-				for (const p of pat.properties ?? []) collect_pattern_names(p.value ?? p.argument);
-			else if (pat.type === 'ArrayPattern')
-				for (const e of pat.elements ?? []) collect_pattern_names(e);
-			else if (pat.type === 'RestElement') collect_pattern_names(pat.argument);
-			else if (pat.type === 'AssignmentPattern') collect_pattern_names(pat.left);
-		};
 		// Both scripts: a `<script module>` value is as much the host's as an instance one, and a name
 		// left out here was taken for a global — the synth then threw `ReferenceError` at render.
 		const declare = (node: SvelteNode) => {
 			if (node?.type === 'VariableDeclaration')
-				for (const d of node.declarations) collect_pattern_names(d.id);
+				for (const d of node.declarations) pattern_names(d.id, host_declared);
 			else if (node?.type === 'FunctionDeclaration' || node?.type === 'ClassDeclaration') {
 				if (node.id?.name) host_declared.add(node.id.name);
 			} else if (node?.type === 'ExportNamedDeclaration') declare(node.declaration);
 			// legacy `$: name = …` declares `name`
 			else if (node?.type === 'LabeledStatement' && node.label?.name === '$') {
 				const e = node.body?.type === 'ExpressionStatement' ? node.body.expression : null;
-				if (e?.type === 'AssignmentExpression') collect_pattern_names(e.left);
+				if (e?.type === 'AssignmentExpression') pattern_names(e.left, host_declared);
 			}
 		};
 		for (const node of instance_body) declare(node);
