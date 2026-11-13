@@ -85,10 +85,17 @@ step throws knowledge away. If breaking the behavior turns nothing red, the test
 
 The only comment that stays is an outside fact no test can hold (a browser quirk, a spec line), as
 one line that names its test: `// @why <fact> (test: file › name)`. Bug history belongs in the
-test's name. Public JSDoc stays, because it feeds the API reference and editor hovers. Tool
-directives (`oxlint-disable` with a reason, `@ts-expect-error`, `svelte-ignore`) stay. New code adds
+test's name. Public JSDoc stays, because it feeds the API reference and editor hovers. New code adds
 no other comments (`ogygia/structured-comments`; COMMENTS-ARE-TESTS in
 `internal/notes/INVARIANTS.md`).
+
+A line that lets a check through is a waiver, and a waiver names the rule it waives:
+`// oxlint-disable-next-line ogygia/<rule> -- <reason>` (`@ts-expect-error` and `svelte-ignore`
+likewise). A quiet catch waives `ogygia/no-silent-failures` this way. No custom tags: the older
+`// ok:`, `// wall:` and `// hash:` marks are being moved to directives. Where a type can say it,
+the type is the mark and no comment is needed: a module-level table that never grows is declared
+`ReadonlySet`, `ReadonlyMap` or `readonly T[]`, which TypeScript enforces from every module (this
+replaces `// static:`). `@why` is the only tag, because it records a fact, not a waiver.
 
 ### No silent failures
 

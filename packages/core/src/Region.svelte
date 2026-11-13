@@ -67,6 +67,7 @@
 	import {
 		isNested,
 		setNested,
+		nested_wake,
 		isInLake,
 		isInLiveSnippet,
 		setInLiveSnippet,
@@ -336,7 +337,8 @@
 	const is_csr = documentIsCsrTrue(page_error_render()) && !isInLake() && render_root !== 'ogygia';
 	// The island branch renders inline when nested OR on a csr=true page.
 	const island_inline = nested || is_csr;
-	if ((is_island || is_server) && !nested) setNested();
+	if (is_island && !nested) setNested(true, () => hydrate_attr);
+	else if (is_server && !nested) setNested();
 	// A server island nested in an island renders its component INLINE (deferred ignored): mark the
 	// subtree so a `keepFallback()` inside it fails with the reason instead of Kit's 500 page.
 	if (is_server && nested) setHoleInline();
@@ -424,14 +426,6 @@
 		});
 	}
 
-	// DEV diagnostic (declared HERE, after `island_entry`, so it never reads it in its temporal dead
-	// zone): a nested island can't wake independently — warn that its strategy is ignored. Dead-code
-	// eliminated in builds via the `import.meta.env.DEV` guard.
-	if (nested && (is_island || is_server) && import.meta.env && import.meta.env.DEV) {
-		const entry = untrack(() => (is_server ? __entry : island_entry));
-		if (is_server) warn('nested_server_island_inline', { entry: entry || '' });
-		else warn('nested_island_with_parent', { entry: entry || '' });
-	}
 	// Freeze bare snippet PROPS (named-snippet props) to static region snippets (server) so the island
 	// BODY and the serialized PAYLOAD render byte-for-byte identically — hydration then adopts the frozen
 	// HTML with no mismatch. A live (branded) snippet passes through; an INLINE island (nested, or on a
@@ -496,6 +490,14 @@
 	const root_margin = $derived(
 		as_dual ? as_dual.hydrateMargin || undefined : typeof visible === 'string' ? visible : undefined
 	);
+
+	if (nested && (is_island || is_server) && import.meta.env && import.meta.env.DEV) {
+		untrack(() => {
+			if (is_server) warn('nested_server_island_inline', { entry: __entry || '' });
+			else if (hydrate_attr !== nested_wake())
+				warn('nested_island_with_parent', { entry: island_entry || '' });
+		});
+	}
 
 	// `asset()` is the sole base/assets authority — every ogygia URL is baked base-LESS (prod
 	// `/${appDir}/immutable/…`, dev `/@id/…`) and resolved here once. (Kit dev serves `/@id/…` under

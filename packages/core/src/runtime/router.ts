@@ -448,14 +448,6 @@ export class SpaRouter {
 		loaded_nav?.bust_page_cache(); // no navigation loaded yet ⇒ nothing cached
 	}
 
-	/** The page on screen's address, rewritten in place by ogygia's own code: the history model's
-	 *  entry moves with the address bar. Before the router starts, the bar alone (the router reads
-	 *  it when it takes the entry over). */
-	replace_address(url: URL): void {
-		if (this.#started) this.history.commit(url, 'replace');
-		else replace_state(history.state, url.href);
-	}
-
 	/** The page at `href`, or `null` when there is none to have: the fetch failed (./router-nav.ts
 	 *  `fetch_page`), or the navigation code itself did not load. The prefetches (a hover, a
 	 *  viewport link, `preloadData`) start it and never wait on it: a rejection here was uncaught. */
@@ -869,11 +861,6 @@ export function bust_page_cache(): void {
 	spa.bust_page_cache();
 }
 
-/** The page on screen's address, rewritten in place by ogygia's own code. @internal */
-export function replace_address(url: URL): void {
-	spa.replace_address(url);
-}
-
 /**
  * Programmatic same-origin navigation. Mirrors Kit's `goto()` subset.
  * @param url - Absolute or relative URL (http(s) only).
@@ -970,8 +957,7 @@ export function install(): void {
 		replaceState,
 		beforeNavigate,
 		afterNavigate,
-		bust_page_cache,
-		replace_address
+		bust_page_cache
 	});
 	const start = () => {
 		if (!document.querySelector('meta[name="ogygia-router"]')) return;
