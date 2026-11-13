@@ -5877,6 +5877,22 @@
 			"reason": "browser, dev and rules builds only: one read noted into a list capped at 10 (hidden state), constant work"
 		},
 		{
+			"id": "packages/core/src/runtime/seeds.ts > absorb_page_facts > with_devalue:0~d7d878",
+			"reason": "browser only: hands the queued facts to merge_page_facts once devalue is in, constant work; proven in packages/core/test/browser/page-facts-before-devalue.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/seeds.ts > absorb_page_facts > with_devalue:1~411c45",
+			"reason": "browser only: devalue's download failed for good, one warning, constant work"
+		},
+		{
+			"id": "packages/core/src/runtime/seeds.ts > merge_page_facts",
+			"reason": "browser only: one devalue parse per hole answer that carried page facts (a few keys), then one page-store set; proven in packages/core/test/browser/page-facts-before-devalue.test.ts and page-facts-visit.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/seeds.ts > merge_page_facts > filter:0~deb9e1",
+			"reason": "dev builds only: compares the facts' few keys with the page's, for a warning; proven in packages/core/test/browser/page-facts-visit.test.ts"
+		},
+		{
 			"id": "packages/core/src/runtime/seeds.ts > watch_unshipped",
 			"reason": "browser, dev and rules builds only: one JSON.parse of the seed's left-out key list and one Proxy, once per page seed; proven in packages/core/test/browser/seed-unshipped.test.ts"
 		},
