@@ -5277,6 +5277,14 @@
 			"reason": "a message table entry: wording only"
 		},
 		{
+			"id": "packages/compiler/src/compiler/messages.ts > BUILD_ERRORS > hole_wake_removed > details",
+			"reason": "a message table entry: wording only"
+		},
+		{
+			"id": "packages/compiler/src/compiler/messages.ts > BUILD_ERRORS > hole_wake_removed > text",
+			"reason": "a message table entry: wording only"
+		},
+		{
 			"id": "packages/compiler/src/compiler/messages.ts > BUILD_ERRORS > as_region_removed > text",
 			"reason": "a message table entry: wording only"
 		},

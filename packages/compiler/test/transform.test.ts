@@ -2,7 +2,7 @@
 // virtual modules, path+strategy dedupe, props/fallback/children rules, defer+hydrate, lakes,
 // presets, and csr-independent emit metadata.
 
-import { describe, test, expect, vi } from 'vitest';
+import { describe, test, expect } from 'vitest';
 import {
 	transformHost,
 	normalize_import_keys,

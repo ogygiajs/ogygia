@@ -7,7 +7,7 @@
 //     keeps the `held:*` identity — distinct from a `.svelte` PLACED island (`hydrate:*`, no endpoint).
 // Both rewrite the host import to the leg-split binding module.
 
-import { describe, test, expect, vi } from 'vitest';
+import { describe, test, expect } from 'vitest';
 import {
 	transformHost,
 	transformTsRegions,
