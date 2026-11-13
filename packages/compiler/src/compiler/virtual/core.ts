@@ -215,7 +215,7 @@ export const runtime_entry: Family = virtual.family({
 		app.prescan();
 		const { ctx } = app;
 		const { code } = generateRuntimeEntrySource(
-			app.program.runtime_marks,
+			app.program.ship_runtime(),
 			ctx.runtime_dir,
 			app.plugins().client
 		);
