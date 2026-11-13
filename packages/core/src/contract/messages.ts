@@ -26,7 +26,13 @@
 /** One message: its wording from its arguments, and its page (plain sentences, `code` in backticks,
  *  one paragraph a line). `details` is a function so a table makes no call as it loads — the bundler
  *  can then drop it whole from a production build. */
-export type MessageEntry<A> = { text: (a: A) => string; details: () => string };
+export type MessageEntry<A> = {
+	text: (a: A) => string;
+	details: () => string;
+	/** A tombstone's release (`'0.15'`): the code only tells a user a removed spelling's new one, and
+	 *  it is deleted in this release. The compiler's messages test fails once the version reaches it. */
+	until?: string;
+};
 
 /** What a table satisfies. Each `text` declares its own arguments (`(a: { entry: string }): string`),
  *  the one place they are written; {@link MessagesOf} reads them back. */

@@ -433,7 +433,7 @@ describe('the random app', () => {
 			write(app, plan(seed), seed, null, layout);
 			const src = readFileSync(join(app, 'src', 'routes', '+layout.svelte'), 'utf8');
 			expect(src).toContain(
-				`import N${layout.id} from '$lib/gen/N${layout.id}.svelte'${layout.wake ? ` with { render: 'deferred', wake: '${layout.wake}' }` : ` with { render: 'deferred' }`};`
+				`import N${layout.id} from '$lib/gen/N${layout.id}.svelte'${layout.wake ? ` with { render: 'deferred', fetch: '${layout.wake}' }` : ` with { render: 'deferred' }`};`
 			);
 			// (after the nav, before the page: the same element on every page)
 			expect(src.indexOf(`<N${layout.id} `)).toBeGreaterThan(src.indexOf('</nav>'));
