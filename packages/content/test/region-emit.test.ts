@@ -150,4 +150,13 @@ describe('the module script, in any spelling', () => {
 		const code = `<script data-note="module">const tag = '<Widget>';</script><p>prose</p>`;
 		expect(component_tag_in(code)).toBe('Widget');
 	});
+
+	it('a browser script is not the module: `type="module"` and `data-module` keep the component path', () => {
+		for (const open of ['<script type="module" src="/x.js">', '<script data-module>'])
+			expect(try_region_emit(`<p>hi</p>\n${open}</script>`, [])).toBeNull();
+	});
+
+	it('a `<script>` written in a comment is no instance script: the page is still a region', () => {
+		expect(try_region_emit('<p>hi</p><!-- <script>x()</script> -->', [])).not.toBeNull();
+	});
 });
