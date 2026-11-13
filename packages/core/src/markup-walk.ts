@@ -620,20 +620,75 @@ export function markup_tokens(
 	html: string,
 	visit: (kind: MarkupKind, start: number, end: number, ne: number) => void
 ): void {
-	const n = html.length;
-	let i = 0;
-	while (i < n && step(html, i, null, true)) {
-		const kind = TOKEN.kind as MarkupKind;
-		const lt = TOKEN.lt;
-		const ne = TOKEN.ne;
-		const end = TOKEN.end;
-		// (read before `visit`, which may walk again and so overwrite TOKEN)
-		let next = kind === 1 ? after_start(html) : end;
-		if (next === -1) next = n;
-		if (lt > i) visit(0, i, lt, i);
-		visit(kind, lt, end, ne);
-		if (next > end) visit(0, end, next, end);
-		i = next;
+	const at = new MarkupCursor(html);
+	while (at.next()) visit(at.kind, at.start, at.end, at.ne);
+}
+
+/**
+ * `markup_tokens` pulled one piece at a time, for a reader that keeps its own state between pieces
+ * (reshape's lexer): ONE cursor whose fields each `next()` rewrites (a document is tens of thousands
+ * of pieces; an object per piece is garbage paid on every request). Read the fields before the next
+ * `next()`. `raw`: a text piece that is a raw-text element's text (a script's, a style's…).
+ */
+export class MarkupCursor {
+	kind: MarkupKind = 0;
+	start = 0;
+	end = 0;
+	ne = 0;
+	raw = false;
+	readonly #html: string;
+	#i = 0;
+	/** the pieces one step read, not yet handed out: kind, start, end, ne, raw (up to three) */
+	readonly #queue: number[] = [];
+	#at = 0;
+	constructor(html: string) {
+		this.#html = html;
 	}
-	if (i < n) visit(0, i, n, i);
+
+	next(): boolean {
+		const q = this.#queue;
+		if (this.#at === q.length) {
+			q.length = 0;
+			this.#at = 0;
+			const html = this.#html;
+			const n = html.length;
+			const i = this.#i;
+			if (i >= n) return false;
+			if (!step(html, i, null, true)) {
+				// (past where the HTML ends inside a tag or comment: the rest is one text piece)
+				q.push(0, i, n, i, 0);
+				this.#i = n;
+			} else {
+				const kind = TOKEN.kind;
+				const lt = TOKEN.lt;
+				const end = TOKEN.end;
+				let next = kind === 1 ? after_start(html) : end;
+				if (next === -1) next = n;
+				if (lt > i) q.push(0, i, lt, i, 0);
+				q.push(kind, lt, end, TOKEN.ne, 0);
+				if (next > end) q.push(0, end, next, end, 1);
+				this.#i = next;
+			}
+		}
+		const k = this.#at;
+		this.kind = q[k] as MarkupKind;
+		this.start = q[k + 1];
+		this.end = q[k + 2];
+		this.ne = q[k + 3];
+		this.raw = q[k + 4] === 1;
+		this.#at = k + 5;
+		return true;
+	}
+}
+
+/** Hand each attribute of the tag whose name ends at `from` to `visit`, in source order, as the
+ *  browser reads them (`markup_tokens`' `ne`): its name `html[ns, ne)` as written (any case,
+ *  repeats included) and its value `html[vs, ve)`, `vq` the quote's char code (0 unquoted, -1 bare).
+ *  Where the tag ends (past its `>`), or -1 when the HTML ends inside it. */
+export function visit_attrs(
+	html: string,
+	from: number,
+	visit: (ns: number, ne: number, vs: number, ve: number, vq: number) => void
+): number {
+	return read_attrs(html, from, visit);
 }
