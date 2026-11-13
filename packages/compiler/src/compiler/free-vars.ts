@@ -178,8 +178,12 @@ function is_reference(
 			return key !== 'label';
 		case 'CatchClause':
 			return key !== 'param';
+		// `import.meta`: no names, a meta property
+		case 'MetaProperty':
+			return false;
 		default:
-			return true;
+			// a TS type position (`x: T`, `<T>`) names no value; `x as T` / `x!` still read `x`
+			return !parent.type.startsWith('TS') || key === 'expression';
 	}
 }
 
@@ -203,29 +207,16 @@ function add_expression_refs(expr: SvelteNode, svelte_bound: Set<string>, sink: 
 	};
 	walk(expr as WalkNode, {
 		enter(node, parent, key) {
-			if (FUNCTION_TYPES.has(node.type)) {
-				const s = new Set<string>();
-				const fn = node as EsFunction;
-				if (fn.id && node.type !== 'ArrowFunctionExpression') s.add(fn.id.name);
-				for (const p of fn.params) collect_pattern_names(p, s);
-				scopes.push(s);
-			} else if (
-				(node.type === 'BlockStatement' && !FUNCTION_TYPES.has(parent?.type ?? '')) ||
-				LOOP_TYPES.has(node.type)
-			) {
-				// a block, or a loop head's `let`/`const`: names bound only inside it
-				scopes.push(new Set());
+			if (opens_scope(node, parent)) {
+				// every name the scope binds, before any is read (a function declared below its call,
+				// a `var` in a nested block)
+				scopes.push(scope_bindings(node));
 			} else if (node.type === 'ClassDeclaration') {
 				// binds its name where it stands (a class EXPRESSION's name is bound only inside it)
 				const id = (node as { id?: { name: string } | null }).id;
 				if (id) scopes[scopes.length - 1].add(id.name);
 			} else if (node.type === 'VariableDeclarator') {
 				collect_pattern_names(node.id, scopes[scopes.length - 1]);
-			} else if (node.type === 'CatchClause') {
-				// its parameter is bound inside the clause only
-				const s = new Set<string>();
-				if (node.param) collect_pattern_names(node.param, s);
-				scopes.push(s);
 			} else if (node.type === 'AssignmentExpression') {
 				record_writes(node.left);
 			} else if (node.type === 'UpdateExpression') {
@@ -244,14 +235,126 @@ function add_expression_refs(expr: SvelteNode, svelte_bound: Set<string>, sink: 
 			}
 		},
 		leave(node, parent) {
-			if (FUNCTION_TYPES.has(node.type) || node.type === 'CatchClause') scopes.pop();
-			else if (
-				(node.type === 'BlockStatement' && !FUNCTION_TYPES.has(parent?.type ?? '')) ||
-				LOOP_TYPES.has(node.type)
-			)
-				scopes.pop();
+			if (opens_scope(node, parent)) scopes.pop();
 		}
 	});
+}
+
+/** The names `stmts` declare for their own block: `let` / `const`, classes, functions, imports. */
+function lexical_names(stmts: SvelteNode[] | undefined, out: Set<string>) {
+	for (const stmt of stmts ?? []) {
+		const s =
+			stmt.type === 'ExportNamedDeclaration' || stmt.type === 'ExportDefaultDeclaration'
+				? (stmt.declaration ?? stmt)
+				: stmt;
+		if (s.type === 'VariableDeclaration' && s.kind !== 'var')
+			for (const d of s.declarations) collect_pattern_names(d.id, out);
+		else if ((s.type === 'FunctionDeclaration' || s.type === 'ClassDeclaration') && s.id)
+			out.add(s.id.name);
+		else if (s.type === 'ImportDeclaration')
+			for (const sp of s.specifiers ?? []) if (sp.local?.name) out.add(sp.local.name);
+	}
+}
+
+/** Every `var` under `node`, through blocks but never into a nested function: they bind to it. */
+function var_names(node: SvelteNode | null | undefined, out: Set<string>) {
+	if (!node) return;
+	// a `var` stands only where a statement does, so only statements are entered
+	switch (node.type) {
+		case 'VariableDeclaration':
+			if (node.kind === 'var') for (const d of node.declarations) collect_pattern_names(d.id, out);
+			break;
+		case 'Program':
+		case 'BlockStatement':
+		case 'StaticBlock':
+			for (const s of node.body) var_names(s, out);
+			break;
+		case 'ExportNamedDeclaration':
+			var_names(node.declaration, out);
+			break;
+		case 'IfStatement':
+			var_names(node.consequent, out);
+			var_names(node.alternate, out);
+			break;
+		case 'ForStatement':
+			var_names(node.init, out);
+			var_names(node.body, out);
+			break;
+		case 'ForInStatement':
+		case 'ForOfStatement':
+			var_names(node.left, out);
+			var_names(node.body, out);
+			break;
+		case 'WhileStatement':
+		case 'DoWhileStatement':
+		case 'LabeledStatement':
+		case 'WithStatement':
+			var_names(node.body, out);
+			break;
+		case 'TryStatement':
+			var_names(node.block, out);
+			var_names(node.handler?.body, out);
+			var_names(node.finalizer, out);
+			break;
+		case 'SwitchStatement':
+			for (const c of node.cases) for (const s of c.consequent) var_names(s, out);
+			break;
+	}
+}
+
+/** Does `node` open a scope of its own (a function's body block shares the function's)? */
+function opens_scope(node: { type: string }, parent: { type: string } | null): boolean {
+	if (!SCOPE_TYPES.has(node.type)) return false;
+	return node.type !== 'BlockStatement' || !FUNCTION_TYPES.has(parent?.type ?? '');
+}
+
+// static: the AST node types that may open a scope (a block only when it is no function's body)
+const SCOPE_TYPES = new Set([
+	...FUNCTION_TYPES,
+	...LOOP_TYPES,
+	'CatchClause',
+	'SwitchStatement',
+	'Program',
+	'BlockStatement'
+]);
+
+/**
+ * The names a scope binds for its whole extent, hoisting included: a function its parameters, its
+ * own name and every `var`, `let`, `const`, class and function its body declares; a block, a
+ * `switch` or a program what it declares (a program also its imports and `var`s); a loop its head's
+ * declarations; a catch clause its parameter (test/og-dollar.test.ts, test/free-vars-patterns.test.ts).
+ */
+export function scope_bindings(node: SvelteNode): Set<string> {
+	const out = new Set<string>();
+	if (FUNCTION_TYPES.has(node.type)) {
+		const fn = node as EsFunction & { body?: SvelteNode };
+		if (fn.id) out.add(fn.id.name);
+		for (const p of fn.params) collect_pattern_names(p, out);
+		if (fn.body?.type === 'BlockStatement') {
+			lexical_names(fn.body.body, out);
+			var_names(fn.body, out);
+		}
+	} else if (node.type === 'BlockStatement') lexical_names(node.body, out);
+	else if (node.type === 'Program') {
+		lexical_names(node.body, out);
+		var_names(node, out);
+	} else if (node.type === 'SwitchStatement')
+		for (const c of node.cases ?? []) lexical_names(c.consequent, out);
+	else if (node.type === 'CatchClause') collect_pattern_names(node.param, out);
+	else if (LOOP_TYPES.has(node.type)) {
+		const head = node.type === 'ForStatement' ? node.init : node.left;
+		if (head?.type === 'VariableDeclaration')
+			for (const d of head.declarations) collect_pattern_names(d.id, out);
+	}
+	return out;
+}
+
+/** The names `expr` reads from outside itself, in source order: what a hoisted closure must be
+ *  handed (`import.meta.og.$`'s captures). */
+export function free_references(expr: SvelteNode): string[] {
+	const sink: Sink = { refs: new Set(), mutated: new Set(), stores: new Map() };
+	add_expression_refs(expr, new Set(), sink);
+	return [...sink.refs];
 }
 
 /** A template binder's pattern (`{#each … as p}`, a snippet parameter, `{@const p = …}`): its names
