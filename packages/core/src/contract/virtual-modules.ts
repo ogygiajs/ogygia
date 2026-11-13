@@ -118,6 +118,9 @@ export interface HydrateFeaturesModule {
 export interface RuntimeFlagsModule {
 	/** the `frames` feature is in the build: some region streams HTML */
 	FRAMES: boolean;
+	/** `null` where the `wire` feature (the codec) is in the build up front; else its load, which a
+	 *  wake runs on use */
+	load_wire_codec: (() => Promise<{ install(): void }>) | null;
 }
 
 export interface TransportablesModule {

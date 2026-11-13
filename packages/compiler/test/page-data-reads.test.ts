@@ -97,3 +97,80 @@ describe('the page-data reads relocation', () => {
 		expect(compiler_with({}, {}).relocate('export {}', server_leg(), bundle)).toBeNull();
 	});
 });
+
+// A module that imports Kit's page and recorded no keys is a reader seed shaping could not read:
+// a `$lib` barrel that re-exports `page`, a `getStores()` call, an `import('$app/state')`. The
+// hole looks up, as an island ships all of `page.data` for a reader it saw no keys for.
+describe('the page-data relocation: a page reader seed shaping could not read', () => {
+	const KIT_STATE = '/app/node_modules/@sveltejs/kit/src/runtime/app/state/index.js';
+	const KIT_STORES = '/app/node_modules/@sveltejs/kit/src/runtime/app/stores.js';
+	const graph: Record<string, { importedIds: string[]; dynamicallyImportedIds: string[] }> = {
+		'/app/Hole.svelte': { importedIds: ['/app/lib/stores.ts'], dynamicallyImportedIds: [] },
+		'/app/lib/stores.ts': { importedIds: [KIT_STATE], dynamicallyImportedIds: [] },
+		'/app/Stores.svelte': { importedIds: [KIT_STORES], dynamicallyImportedIds: [] },
+		'/app/Lazy.svelte': { importedIds: [], dynamicallyImportedIds: [KIT_STATE] },
+		'/app/UrlOnly.svelte': { importedIds: [KIT_STATE], dynamicallyImportedIds: [] },
+		[KIT_STATE]: { importedIds: [], dynamicallyImportedIds: [] },
+		[KIT_STORES]: { importedIds: [], dynamicallyImportedIds: [] }
+	};
+	const bundle = {
+		graph: (id: string) => graph[id] ?? null,
+		module_ids: () => Object.keys(graph),
+		chunk_file: 'manifest.js',
+		file_name: String
+	};
+	const server_leg = () => ({
+		server: true,
+		relocated: new Map<string, number>(),
+		late_server_regions: new Map<string, string>()
+	});
+
+	test('a hole reading the page through a $lib re-export looks up page.data', () => {
+		const c = compiler_with({ aaaaaaaaaaaa: '/app/Hole.svelte' }, {});
+		expect(value_of(c.relocate(PLACEHOLDER, server_leg(), bundle)!.code)).toEqual({
+			aaaaaaaaaaaa: true
+		});
+	});
+
+	test('a hole reading $app/stores, or importing $app/state on demand, looks up page.data', () => {
+		const c = compiler_with(
+			{ bbbbbbbbbbbb: '/app/Stores.svelte', cccccccccccc: '/app/Lazy.svelte' },
+			{}
+		);
+		expect(value_of(c.relocate(PLACEHOLDER, server_leg(), bundle)!.code)).toEqual({
+			bbbbbbbbbbbb: true,
+			cccccccccccc: true
+		});
+	});
+
+	test("Kit's page module importing its own halves is not a reader of the page", () => {
+		const KIT_STATE_SERVER = '/app/node_modules/@sveltejs/kit/src/runtime/app/state/server.js';
+		const kit_graph: Record<string, { importedIds: string[]; dynamicallyImportedIds: string[] }> = {
+			...graph,
+			[KIT_STATE]: { importedIds: [KIT_STATE_SERVER], dynamicallyImportedIds: [] },
+			[KIT_STATE_SERVER]: { importedIds: [], dynamicallyImportedIds: [] }
+		};
+		const c = compiler_with(
+			{ eeeeeeeeeeee: '/app/UrlOnly.svelte' },
+			{ '/app/UrlOnly.svelte': new Set() }
+		);
+		const out = c.relocate(PLACEHOLDER, server_leg(), {
+			...bundle,
+			graph: (id) => kit_graph[id] ?? null,
+			module_ids: () => Object.keys(kit_graph)
+		});
+		expect(value_of(out!.code)).toEqual({ eeeeeeeeeeee: false });
+	});
+
+	test('a page reader whose keys were read (none of page.data) does not', () => {
+		const c = compiler_with(
+			{ dddddddddddd: '/app/UrlOnly.svelte' },
+			{
+				'/app/UrlOnly.svelte': new Set()
+			}
+		);
+		expect(value_of(c.relocate(PLACEHOLDER, server_leg(), bundle)!.code)).toEqual({
+			dddddddddddd: false
+		});
+	});
+});
