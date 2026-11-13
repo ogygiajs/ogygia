@@ -31,17 +31,17 @@ import { merge_seed_ask, shape_page_data, type SeedAsk, type SeedKeys } from './
 import { PAGE_FACTS_SCRIPT_TYPE } from '../page-facts-script.ts';
 import { line } from '../messages/server.ts';
 import { bucket32 } from '../contract/hash.ts';
+import { server_ports } from '../server-ports.ts';
 
 type Transport = Record<
 	string,
 	{ decode: (v: unknown) => unknown; encode: (v: unknown) => unknown }
 >;
 
-let warn: ((message: string) => void) | null = null;
-
 /** Where a dev warning goes (the handle's setting). */
 export function configure_render_page(o: { warn: ((message: string) => void) | null }): void {
-	warn = o.warn;
+	const ports = server_ports();
+	if (ports) ports.render_page_warn = o.warn;
 }
 
 export { renders_for_a_page };
@@ -86,7 +86,9 @@ const looked_up = request_local((owner: Scope) =>
 		run: ({ page, fetch, decoders }): Promise<PageFacts | null> =>
 			look_up_page(page, fetch, decoders, owner).then((facts) => {
 				if (!('miss' in facts)) return facts;
-				warn?.(line('outside_page_data_unavailable', { path: page.pathname, miss: facts.miss }));
+				server_ports()?.render_page_warn?.(
+					line('outside_page_data_unavailable', { path: page.pathname, miss: facts.miss })
+				);
 				return null;
 			})
 	})
@@ -141,6 +143,7 @@ export function render_page(
 	if (event && renders_for_a_page(event)) {
 		// FOR A PAGE: the Referer's page — its looked-up facts, else its url alone
 		const facts = facts_of(event.request);
+		const warn = server_ports()?.render_page_warn;
 		const data = facts && warn ? watched_data(facts, warn) : (facts?.data ?? {});
 		const url = facts?.url ?? page_url_of(event);
 		return {
