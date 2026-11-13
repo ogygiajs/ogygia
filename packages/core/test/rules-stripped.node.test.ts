@@ -100,6 +100,7 @@ const RUNTIME_POINTS = [
 	'flights.evicted-early',
 	'import-again.entry-missed',
 	'hole.fetch-lost',
+	'hole.answer-later',
 	'batch.part-lost',
 	'batch.fetch-fails',
 	'batch.refused',
