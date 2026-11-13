@@ -65,7 +65,6 @@ export async function probe_cache(doc: Document = document, limit = 40): Promise
 			} catch {
 				return null; // ok: no answer, nothing known about the file's caching: it is left out
 			}
-			// (a refused HEAD, a 405 or a 404, carries the error page's headers, not the file's)
 			if (!res.ok) return null;
 			return {
 				url,
