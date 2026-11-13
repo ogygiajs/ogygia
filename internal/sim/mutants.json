@@ -344,5 +344,15 @@
 		"from": "pending_open = null;",
 		"to": "",
 		"equivalent": "a confirmed head-block open left pending only goes into the removal list again at the next top-level empty comment, or is replaced by the next open: removing a comment already removed does nothing"
+	},
+	{
+		"id": "batch-undelivered-never-released",
+		"file": "packages/core/src/runtime/frame-nav.ts",
+		"in": "streamFrames",
+		"code": "for (const a of reserved) release(a);",
+		"operator": "statement",
+		"from": "for (const a of reserved) release(a);",
+		"to": "void reserved;",
+		"aim": "batch.part-lost"
 	}
 ]
