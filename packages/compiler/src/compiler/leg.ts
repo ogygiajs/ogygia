@@ -1,14 +1,6 @@
-/**
- * ONE BUNDLER ENVIRONMENT'S RUN IN A BUILD: a leg. Kit 2 builds `ssr` and `client` in two plugin
- * instances, Kit 3 builds both in one, watch builds them again for each rebuild, and dev serves both
- * for the session. What a leg emits or caches is its own record, made when the leg starts and dropped
- * with its build: nothing is cleared by hand, and one leg never reads what the other one emitted
- * (test/build-legs.test.ts).
- */
 import { machine, type Machine } from '@ogygia/machine';
 import { barrel_left_table, type BarrelLeftTable } from './exports/left.ts';
 
-/** A leg is open from its start (`buildStart`) to its end (`closeBundle`). */
 type LegStates = { open: {}; closed: {} };
 const LEG_STEPS = { open: ['closed'], closed: [] } as const;
 const LEG = machine<LegStates>()({ name: 'build leg', initial: 'open', steps: LEG_STEPS });
