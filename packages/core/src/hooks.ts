@@ -372,8 +372,7 @@ set_ref_names_reader(() => {
 });
 set_ask_scope_opener(() => {
 	const request = request_of();
-	if (request && !bags.has(request) && !doc_asks.has(request))
-		doc_asks.set(request, null);
+	if (request && !bags.has(request) && !doc_asks.has(request)) doc_asks.set(request, null);
 });
 // the regions' asks so far, for the server router's document (it builds its own seed)
 set_seed_ask_reader(() => {
