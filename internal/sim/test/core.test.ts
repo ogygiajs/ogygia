@@ -245,8 +245,16 @@ describe('the network', () => {
 				downable: () => true
 			});
 			void n
-				.send('tab-1#1', new Request('https://peer.test/x'), async () => new Response('x'))
-				.then((r) => seen.add(r.status));
+				.send('tab-1#1', new Request('https://app.test/p'), async () => {
+					const r = await n.send(
+						'server',
+						new Request('https://peer.test/x'),
+						async () => new Response('x')
+					);
+					seen.add(r.status);
+					return new Response('page');
+				})
+				.then((r) => r.text());
 			await l.run();
 		}
 		expect([...seen].sort()).toEqual([500, 503]);

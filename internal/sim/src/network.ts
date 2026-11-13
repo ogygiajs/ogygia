@@ -383,7 +383,7 @@ export class Network {
 				);
 				return;
 			}
-			if (!calm && this.#downable(target) && this.#on('down', fate)) {
+			if (!calm && asked !== undefined && this.#downable(target) && this.#on('down', fate)) {
 				const status = fate.chance(0.5) ? 500 : 503;
 				ex.status = status;
 				loop.add('net', `down ${ex.id}`, this.#latency(fate), () =>
