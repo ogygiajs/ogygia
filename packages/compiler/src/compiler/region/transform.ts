@@ -107,14 +107,6 @@ const JS_EXT = /\.js$/;
 /** A generated module id (`ogygia:region/…` or another plugin's `virtual:…`, optionally
  *  `\0`-resolved) — it has no directory. */
 const VIRTUAL_HOST_RE = /^\0?(?:virtual|ogygia):/;
-const WRAP_QUOTES = /^['"]|['"]$/g;
-/** One `key: 'value'` pair of an import-attributes clause (shared `g` regex — reset `lastIndex`
- *  before each scan). */
-const IMPORT_ATTR_PAIR_G = /([A-Za-z_$][\w$]*|'[^']*'|"[^"]*")\s*:\s*('[^']*'|"[^"]*")/g;
-/** `import X from '…' with { … }` — the one held-region import form in a `.ts`/`.js` module
- *  (shared `g` regex — reset `lastIndex` before each scan). */
-const HELD_IMPORT_G =
-	/import\s+([A-Za-z_$][\w$]*)\s+from\s+(['"])([^'"]+)\2\s+with\s*\{([^}]*)\}\s*;?/g;
 
 export { foucCssVirtualId } from '../fouc-css.ts';
 
@@ -2462,34 +2454,26 @@ ${host_style}`;
 	}
 }
 
-/** Parse a flat import-attributes clause body (`a: 'x', b: "y"`) into a key→value map. */
-/**
- * Parse the flat body of an import-attributes clause (`with { a: 'x', b: "y" }`) into a map.
- * Values must be string literals (the only form ogygia marks use).
- * @param raw the text between the `with {` and `}`
- * @returns
- */
 /** Span order for the portable-snippet nesting sweep: by start, the longer span first on a tie. */
 function outer_spans_first(a: { snip: SvelteNode }, b: { snip: SvelteNode }): number {
 	return a.snip.start - b.snip.start || b.snip.end - a.snip.end;
 }
 
-function parse_import_attrs(raw: string) {
-	const attrs = new Map();
-	IMPORT_ATTR_PAIR_G.lastIndex = 0; // shared `g` regex — start each scan at 0
-	let m;
-	while ((m = IMPORT_ATTR_PAIR_G.exec(raw))) {
-		const key = m[1].replace(WRAP_QUOTES, '');
-		const val = m[2].slice(1, -1);
-		attrs.set(key, val);
+/** An import / re-export declaration's attributes (`with { a: 'x', "b": 'y' }`) as a key→value map. */
+function import_attrs_of(node: SvelteNode): Map<string, string> {
+	const attrs = new Map<string, string>();
+	for (const a of node.attributes ?? []) {
+		const key = a.key?.type === 'Identifier' ? a.key.name : a.key?.value;
+		if (typeof key === 'string' && typeof a.value?.value === 'string')
+			attrs.set(key, a.value.value);
 	}
 	return attrs;
 }
 
 /**
  * Rewrite held-region imports in a `.ts` / `.js` module (a load or remote function, where held
- * regions are minted and handed to `region()`). Svelte's `parse()` can't read these files, so this is
- * a targeted regex pass over the (only supported) default-import form. A `.ts` module has no template,
+ * regions are minted and handed to `region()`). Svelte's `parse()` can't read these files, so this
+ * reads the module's oxc AST; only the default-import form is a region import. A `.ts` module has no template,
  * so every marked import here is HELD → a descriptor. Two markers:
  *   - `region: 'raw'` → bakes no schedule (set at the `region()` call).
  *   - `wake: 'x'`     → bakes that schedule (the `region()` call can still override).
@@ -2502,56 +2486,6 @@ function parse_import_attrs(raw: string) {
  *   virtualPathFor, importKeys, idSalt)
  * @returns
  */
-/** Byte ranges of every template/string literal AND comment in a `.ts`/`.js` source, or `null` if it
- *  doesn't parse. Used to tell a REAL held-region import from one that is only TEXT inside a code
- *  sample — whether that sample sits in a template/string literal or a JSDoc `@example` comment. */
-function ts_literal_ranges(
-	parsed: ReturnType<typeof parse_module>
-): Array<[number, number]> | null {
-	const { program, ok, comments } = parsed;
-	if (!ok || !program) return null;
-	const ranges: Array<[number, number]> = [];
-	const walk = (n: unknown): void => {
-		if (!n || typeof n !== 'object') return;
-		if (Array.isArray(n)) {
-			n.forEach(walk);
-			return;
-		}
-		const node = n as Record<string, unknown>;
-		const t = node.type;
-		const is_str = (t === 'Literal' || t === 'StringLiteral') && typeof node.value === 'string';
-		if (
-			(t === 'TemplateLiteral' || is_str) &&
-			typeof node.start === 'number' &&
-			typeof node.end === 'number'
-		) {
-			ranges.push([node.start, node.end]);
-		}
-		for (const k in node) {
-			if (k === 'type' || k === 'start' || k === 'end') continue;
-			const v = node[k];
-			if (v && typeof v === 'object') walk(v);
-		}
-	};
-	walk(program);
-	// Comments are trivia (not in the AST body) — a held-region import inside a JSDoc `@example` must be
-	// skipped too, so add their ranges.
-	for (const c of comments) {
-		if (typeof c.start === 'number' && typeof c.end === 'number') ranges.push([c.start, c.end]);
-	}
-	return ranges;
-}
-
-/** Fallback for {@link ts_literal_ranges} when the file doesn't parse: is `pos` preceded by an odd
- *  number of unescaped backticks (i.e. inside an unterminated template literal)? */
-function odd_unescaped_backticks_before(source: string, pos: number): boolean {
-	let backticks = 0;
-	for (let i = 0; i < pos; i++) {
-		if (source[i] === '`' && source[i - 1] !== '\\') backticks++;
-	}
-	return backticks % 2 === 1;
-}
-
 export function transformTsRegions(
 	source: string,
 	id: string,
@@ -2832,36 +2766,41 @@ class TsRegionCompilation {
 		const s = new MagicString(source);
 		const islands_by_id = new Map();
 		let matched = false;
-		// The regex below scans RAW source, so it also matches held-region import EXAMPLES that are only
-		// TEXT — a `snippets.ts` template-literal sample, or a JSDoc `@example` in a comment (ogygia's own
-		// `src/index.ts` has one). A real import is a top-level statement, never inside a literal or comment,
-		// so skip any match whose position falls in one. AST-accurate (byte-exact offsets); if the file
-		// doesn't parse (half-typed mid-edit), fall back to the unescaped-backtick-parity heuristic.
-		const parsed = parse_module(source, id);
-		// the one AST of this module: a dynamic import() with a region key is refused, as in a host
-		if (parsed.ok && parsed.program)
-			reject_dynamic_region_imports(
-				(parsed.program as { body?: SvelteNode[] }).body ?? [],
-				import_keys,
-				rel_host
-			);
-		const literal_ranges = ts_literal_ranges(parsed);
-		const inside_literal = (pos: number): boolean =>
-			literal_ranges
-				? literal_ranges.some(([a, b]) => pos >= a && pos < b)
-				: odd_unescaped_backticks_before(source, pos);
-		// Default import + import-attributes clause: `import X from '…' with { … }` (the only form).
-		HELD_IMPORT_G.lastIndex = 0; // shared `g` regex — a throw mid-loop would leave it mid-string
-		let m;
-		while ((m = HELD_IMPORT_G.exec(source))) {
-			const [full, local, , spec, attrsRaw] = m;
-			const attrs = parse_import_attrs(attrsRaw);
+		// The one AST of this module. A module that does not parse is left to the bundler, which names
+		// the syntax error; an import that is only text (a string, a template, a comment) is never a
+		// statement here (test: ts-region-imports.test.ts).
+		const { program, ok } = parse_module(source, id);
+		if (!ok || !program) return null;
+		const body = (program.body ?? []) as SvelteNode[];
+		// a dynamic import() with a region key is refused, as in a host
+		reject_dynamic_region_imports(body, import_keys, rel_host);
+		for (const node of body) {
+			if (
+				node.type !== 'ImportDeclaration' &&
+				node.type !== 'ExportNamedDeclaration' &&
+				node.type !== 'ExportAllDeclaration'
+			)
+				continue;
+			const attrs = import_attrs_of(node);
 			const has_render = attrs.has(renderKey);
 			const has_region = attrs.has(regionKey);
 			const has_wake = attrs.has(wakeKey);
 			const has_fetch = attrs.has(fetchKey);
 			if (!has_render && !has_region && !has_wake && !has_fetch) continue;
-			if (inside_literal(m.index)) continue;
+			// `import X from '…' with { … }` is the one region import form, as in a host
+			const specs = node.type === 'ImportDeclaration' ? (node.specifiers ?? []) : [];
+			if (specs.length !== 1 || specs[0].type !== 'ImportDefaultSpecifier')
+				throw new OgygiaError('region_import_invalid', {
+					host: rel_host,
+					names:
+						(node.specifiers ?? [])
+							.map((sp: SvelteNode) => (sp.exported ?? sp.local)?.name)
+							.filter(Boolean)
+							.join(', ') || String(node.source?.value ?? '?'),
+					problem: `region imports must be a default import (\`import X from '…' with { … }\`).`
+				});
+			const local: string = specs[0].local.name;
+			const spec = String(node.source.value);
 			// `region` and a bare `wake` are exclusive; `render: 'deferred'` pairs with `fetch` (its timing).
 			// A lone `fetch` and the retired `render` + `wake` reach #emit_ts_region, which names the
 			// spelling to write; anything else is a mismatched marker set.
@@ -2897,11 +2836,7 @@ class TsRegionCompilation {
 						: { wake: attrs.get(wakeKey) };
 			const { iid, record, importFrom } = this.#emit_ts_region(componentPath, marker);
 			if (!islands_by_id.has(iid)) islands_by_id.set(iid, record);
-			s.overwrite(
-				m.index,
-				m.index + full.length,
-				`import ${local} from ${JSON.stringify(importFrom)};`
-			);
+			s.overwrite(node.start, node.end, `import ${local} from ${JSON.stringify(importFrom)};`);
 			matched = true;
 		}
 
@@ -2911,116 +2846,112 @@ class TsRegionCompilation {
 		// EXPORT NAME (barrel-friendly). `const Local = import.meta.og.asRegion(Comp, { wake: 'visible' })`
 		// rewrites to a hoisted `import Local from '<binding>'`. Top-level only, one const per statement.
 		if (has_as_region) {
-			const { program: as_program } = parse_module(source, id);
-			if (as_program) {
-				const body = (as_program.body ?? []) as SvelteNode[];
-				// Resolve a local name → its import declaration (for source + export name).
-				const import_of = new Map<string, SvelteNode>();
-				for (const node of body) {
-					if (node.type !== 'ImportDeclaration') continue;
-					for (const spec of node.specifiers ?? [])
-						if (spec.local?.name) import_of.set(spec.local.name, node);
-				}
-				// TOP-LEVEL ONLY: reject any asRegion() not in a top-level `const X = asRegion(…)`.
-				const legal_nodes = new Set<unknown>();
-				for (const node of body) {
-					if (node.type !== 'VariableDeclaration') continue;
-					if (
-						node.declarations.some(
-							(d: SvelteNode) =>
-								d.init?.type === 'CallExpression' && is_import_meta_og(d.init.callee, 'asRegion')
-						)
+			// Resolve a local name → its import declaration (for source + export name).
+			const import_of = new Map<string, SvelteNode>();
+			for (const node of body) {
+				if (node.type !== 'ImportDeclaration') continue;
+				for (const spec of node.specifiers ?? [])
+					if (spec.local?.name) import_of.set(spec.local.name, node);
+			}
+			// TOP-LEVEL ONLY: reject any asRegion() not in a top-level `const X = asRegion(…)`.
+			const legal_nodes = new Set<unknown>();
+			for (const node of body) {
+				if (node.type !== 'VariableDeclaration') continue;
+				if (
+					node.declarations.some(
+						(d: SvelteNode) =>
+							d.init?.type === 'CallExpression' && is_import_meta_og(d.init.callee, 'asRegion')
 					)
-						legal_nodes.add(node);
-				}
-				const find_stray = (n: SvelteNode | null): SvelteNode | null => {
-					if (!n || typeof n !== 'object') return null;
-					if (Array.isArray(n)) {
-						for (const x of n) {
-							const hit = find_stray(x);
-							if (hit) return hit;
-						}
-						return null;
-					}
-					if (n.type === 'CallExpression' && is_import_meta_og(n.callee, 'asRegion')) return n;
-					for (const k in n) {
-						if (k === 'type' || k === 'start' || k === 'end' || k === 'loc' || k === 'parent')
-							continue;
-						const v = n[k];
-						if (v && typeof v === 'object') {
-							const hit = find_stray(v);
-							if (hit) return hit;
-						}
+				)
+					legal_nodes.add(node);
+			}
+			const find_stray = (n: SvelteNode | null): SvelteNode | null => {
+				if (!n || typeof n !== 'object') return null;
+				if (Array.isArray(n)) {
+					for (const x of n) {
+						const hit = find_stray(x);
+						if (hit) return hit;
 					}
 					return null;
-				};
-				for (const node of body) {
-					if (legal_nodes.has(node)) continue;
-					const stray = find_stray(node);
-					if (stray) {
-						const a = stray.arguments?.[0];
-						throw this.#as_err(
-							a?.type === 'Identifier' ? a.name : '?',
-							`must be a top-level \`const Name = import.meta.og.asRegion(Comp, options)\` — it compiles to a hoisted import, so it can never sit in a loop, function, block, or larger expression.`
-						);
+				}
+				if (n.type === 'CallExpression' && is_import_meta_og(n.callee, 'asRegion')) return n;
+				for (const k in n) {
+					if (k === 'type' || k === 'start' || k === 'end' || k === 'loc' || k === 'parent')
+						continue;
+					const v = n[k];
+					if (v && typeof v === 'object') {
+						const hit = find_stray(v);
+						if (hit) return hit;
 					}
 				}
-
-				for (const node of body) {
-					if (!legal_nodes.has(node)) continue;
-					if (node.kind !== 'const')
-						throw this.#as_err(
-							node.declarations[0]?.id?.name ?? '?',
-							`must be bound with \`const\` (not \`${node.kind}\`).`
-						);
-					if (node.declarations.length !== 1)
-						throw this.#as_err(
-							node.declarations[0]?.id?.name ?? '?',
-							'declare one asRegion per `const` statement.'
-						);
-					const decl = node.declarations[0];
-					if (decl.id?.type !== 'Identifier')
-						throw this.#as_err('?', 'must bind to a plain `const Name = …`.');
-					const local = decl.id.name;
-					const call_args = decl.init.arguments ?? [];
-					const comp_arg = call_args[0];
-					if (!comp_arg || comp_arg.type !== 'Identifier')
-						throw this.#as_err(
-							local,
-							'the first argument must be a component you imported (a bare identifier).'
-						);
-					const imp = import_of.get(comp_arg.name);
-					if (!imp)
-						throw this.#as_err(
-							local,
-							`'${comp_arg.name}' is not an imported component — import it first (e.g. \`import { ${comp_arg.name} } from './…'\`).`
-						);
-					const binding = import_binding_of(imp, comp_arg.name);
-					if (!binding)
-						throw this.#as_err(
-							local,
-							`'${comp_arg.name}' must be a default or named import, not a namespace import.`
-						);
-					const componentPath = this.#resolve_spec(binding.source);
-					if (!componentPath) throw this.#as_err(local, `could not resolve '${binding.source}'.`);
-					// Options object: `{ wake: '…' }` or `{ region: 'raw' }` — the same `.ts` surface as `with { … }`.
-					const marker = parse_ts_as_region_options(
-						call_args[1],
-						(msg) => this.#as_err(local, msg),
-						regionKey,
-						wakeKey,
-						renderKey,
-						fetchKey
+				return null;
+			};
+			for (const node of body) {
+				if (legal_nodes.has(node)) continue;
+				const stray = find_stray(node);
+				if (stray) {
+					const a = stray.arguments?.[0];
+					throw this.#as_err(
+						a?.type === 'Identifier' ? a.name : '?',
+						`must be a top-level \`const Name = import.meta.og.asRegion(Comp, options)\` — it compiles to a hoisted import, so it can never sit in a loop, function, block, or larger expression.`
 					);
-					const { iid, record, importFrom } = this.#emit_ts_region(
-						componentPath,
-						marker,
-						binding.exportName
-					);
-					if (!islands_by_id.has(iid)) islands_by_id.set(iid, record);
-					s.overwrite(node.start, node.end, `import ${local} from ${JSON.stringify(importFrom)};`);
-					matched = true;
 				}
+			}
+
+			for (const node of body) {
+				if (!legal_nodes.has(node)) continue;
+				if (node.kind !== 'const')
+					throw this.#as_err(
+						node.declarations[0]?.id?.name ?? '?',
+						`must be bound with \`const\` (not \`${node.kind}\`).`
+					);
+				if (node.declarations.length !== 1)
+					throw this.#as_err(
+						node.declarations[0]?.id?.name ?? '?',
+						'declare one asRegion per `const` statement.'
+					);
+				const decl = node.declarations[0];
+				if (decl.id?.type !== 'Identifier')
+					throw this.#as_err('?', 'must bind to a plain `const Name = …`.');
+				const local = decl.id.name;
+				const call_args = decl.init.arguments ?? [];
+				const comp_arg = call_args[0];
+				if (!comp_arg || comp_arg.type !== 'Identifier')
+					throw this.#as_err(
+						local,
+						'the first argument must be a component you imported (a bare identifier).'
+					);
+				const imp = import_of.get(comp_arg.name);
+				if (!imp)
+					throw this.#as_err(
+						local,
+						`'${comp_arg.name}' is not an imported component — import it first (e.g. \`import { ${comp_arg.name} } from './…'\`).`
+					);
+				const binding = import_binding_of(imp, comp_arg.name);
+				if (!binding)
+					throw this.#as_err(
+						local,
+						`'${comp_arg.name}' must be a default or named import, not a namespace import.`
+					);
+				const componentPath = this.#resolve_spec(binding.source);
+				if (!componentPath) throw this.#as_err(local, `could not resolve '${binding.source}'.`);
+				// Options object: `{ wake: '…' }` or `{ region: 'raw' }` — the same `.ts` surface as `with { … }`.
+				const marker = parse_ts_as_region_options(
+					call_args[1],
+					(msg) => this.#as_err(local, msg),
+					regionKey,
+					wakeKey,
+					renderKey,
+					fetchKey
+				);
+				const { iid, record, importFrom } = this.#emit_ts_region(
+					componentPath,
+					marker,
+					binding.exportName
+				);
+				if (!islands_by_id.has(iid)) islands_by_id.set(iid, record);
+				s.overwrite(node.start, node.end, `import ${local} from ${JSON.stringify(importFrom)};`);
+				matched = true;
 			}
 		}
 
