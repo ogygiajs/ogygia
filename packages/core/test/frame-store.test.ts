@@ -171,6 +171,18 @@ describe('frame-store: lifecycle', () => {
 		expect(d.aborted).toBe(true); // last one out
 	});
 
+	it('a fetch every caller left writes nothing, even when its fetcher answers anyway', async () => {
+		const d = deferred('LATE');
+		const leave = new AbortController();
+		const left = frames.ensure('/r?sig=late', d.fetcher, { signal: leave.signal });
+		leave.abort();
+		expect(await left).toBe(STALE);
+		expect(d.aborted).toBe(true);
+		d.resolve('LATE'); // (a fetcher that does not stop on its signal)
+		await new Promise((r) => setTimeout(r, 0));
+		expect(frames.peek('/r?sig=late')).toBeNull();
+	});
+
 	it('a caller that leaves gets STALE at once; the others still get the answer', async () => {
 		const d = deferred('X');
 		const leave = new AbortController();

@@ -4,9 +4,9 @@
 // it back for as long as such a region has not settled (woken and laid out), however long that
 // takes on a slow runner, not for a fixed time. (The anchoring is the browser's own: WebKit has none,
 // and there the page never moves.)
-import { afterEach, expect, it } from 'vitest';
+import { afterEach, expect, it, vi } from 'vitest';
 import { scope } from '@ogygia/machine';
-import { hold_scroll } from '../../src/runtime/router-nav.ts';
+import { hold_scroll, SCROLL_HOLD_MS } from '../../src/runtime/router-nav.ts';
 
 const frame = () => new Promise((r) => requestAnimationFrame(() => setTimeout(r, 0)));
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -58,5 +58,49 @@ it('once the regions above have settled, the page is the visitor’s and the app
 	await frame();
 	await frame();
 	expect(scrollY).toBeCloseTo(500, 0);
+	visit.close();
+});
+
+it('with no region above to wait for, the hold ends a frame after the put-back and the browser anchors again', async () => {
+	root = document.createElement('div');
+	root.innerHTML = `<div style="height: 6000px"></div>`;
+	document.body.prepend(root);
+	const visit = scope();
+	hold_scroll({ x: 0, y: 1200 }, visit);
+	expect(document.documentElement.style.overflowAnchor).toBe('none');
+	await frame();
+	await frame();
+	expect(document.documentElement.style.overflowAnchor).toBe('');
+	visit.close();
+});
+
+it('a region above that never wakes (its code failed) holds the page for SCROLL_HOLD_MS at most', async () => {
+	page();
+	vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+	const visit = scope();
+	try {
+		hold_scroll({ x: 0, y: 1200 }, visit);
+		vi.advanceTimersByTime(SCROLL_HOLD_MS - 1);
+		expect(document.documentElement.style.overflowAnchor).toBe('none');
+		vi.advanceTimersByTime(1);
+		expect(document.documentElement.style.overflowAnchor).toBe('');
+	} finally {
+		vi.useRealTimers();
+		visit.close();
+	}
+});
+
+it('a page still too short to reach the saved position is put there once it grows', async () => {
+	const region = page();
+	const filler = root!.lastElementChild as HTMLElement;
+	filler.style.height = '100px';
+	const visit = scope();
+	hold_scroll({ x: 0, y: 1200 }, visit);
+	expect(scrollY).toBeLessThan(1200);
+	filler.style.height = '6000px'; // the rest of the page lays out
+	await frame();
+	await frame();
+	expect(scrollY).toBeCloseTo(1200, 0);
+	wake(region);
 	visit.close();
 });
