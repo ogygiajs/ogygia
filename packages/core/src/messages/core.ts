@@ -69,9 +69,10 @@ export const ERRORS = {
 		text: (a: { plugin: string; hook: string }): string =>
 			`plugin \`${a.plugin}\`: its \`${a.hook}\` hook threw (or its promise rejected); the page and the other plugins carry on`,
 		details: (): string => prose`
-			A plugin's browser half subscribes to a runtime hook, and its function failed. The runtime
-			calls every subscriber of a hook in plugin order and wraps each call, so one plugin's
-			failure never stops another's hook or the page. Said once per plugin and hook; the error
+			A plugin's browser half subscribes to a runtime hook (or has a \`boot\`), and its function
+			failed. The runtime calls every subscriber of a hook, and every \`boot\`, in plugin order and
+			wraps each call, so one plugin's failure never stops another's hook, the boot or the page
+			(its regions still wake). Said once per plugin and hook; the error
 			follows the message. In dev the hook's payload is frozen: a hook that writes to it fails
 			here too.
 		`

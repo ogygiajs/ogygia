@@ -16,13 +16,15 @@ import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { rng, type Rng } from './rng.ts';
 
-/** A region's wake: a keyword, or a media query (stream `gen screen`). */
-type Wake = 'load' | 'idle' | 'visible' | 'interaction' | `(${string})`;
+/** A schedule: one of ogygia's, or a media query (an island wakes while it matches; the sim's and the
+ *  player's viewport is 1280 wide, so one of the two never does). */
+type Wake = 'load' | 'idle' | 'visible' | 'interaction' | MediaWake;
+type MediaWake = '(max-width: 600px)' | '(min-width: 601px)';
 
 /** One region (or plain markup) of a generated page. */
 export interface GenNode {
 	readonly id: number;
-	/** island: a woken region; hole: a deferred one (`wake`: woken once it lands); lake: frozen
+	/** island: a woken region; hole: a deferred one (`wake`: when its HTML is fetched); lake: frozen
 	 *  server HTML (`wake: 'none'`); plain: a component with no region of its own; held: a region
 	 *  a remote query returns (`region(N, props)`), rendered by a host with `<Region of>` (`wake`:
 	 *  its baked schedule, none for `region: 'raw'`); live: one a `query.live` yields anew on each
@@ -104,11 +106,10 @@ export interface GenNode {
 	 *  where Svelte's head hydration would walk into it (the runtime takes every island's head off
 	 *  that walk first). Only one that wakes on its own, in the page's own HTML. */
 	readonly head?: 'own' | 'drift';
-	/** SCREEN (stream `gen screen`): a page's own hole fetched on a schedule of its own (`fetch`,
-	 *  else on load), one fetched on the visitor's gesture warming ahead on another (`prefetch`), and
-	 *  the margin (`margin`, a `rootMargin`) by which a `visible` island, fetch or prefetch looks
-	 *  past the viewport. What schedules owe at rest is the oracles' (src/oracles.ts `schedules`). */
-	readonly fetch?: 'visible' | 'interaction';
+	/** SCREEN (stream `gen screen`): a page's own hole fetched on the visitor's gesture warming ahead
+	 *  on another schedule (`prefetch`), and the margin (`margin`, a `rootMargin`) by which a
+	 *  `visible` island, fetch or prefetch looks past the viewport. What schedules owe at rest is the
+	 *  oracles' (src/oracles.ts `schedules`). */
 	readonly prefetch?: 'load' | 'idle' | 'visible';
 	readonly margin?: string;
 	readonly children: readonly GenNode[];
@@ -135,12 +136,34 @@ export interface GenPage {
 
 const WAKES: readonly Wake[] = ['load', 'idle', 'visible', 'interaction'];
 
+/**
+ * Island wakes as real apps have them (apps/palaestra, examples/mfe, apps/docs: 351 island
+ * imports, 2026-11): load 71%, visible 22%, interaction and idle 3% each, a media query 1%. The
+ * media query is drawn more often here (5%), so a seed sees one.
+ */
+const REAL_WAKES: ReadonlyArray<readonly [Wake, number]> = [
+	['load', 70],
+	['visible', 20],
+	['interaction', 3],
+	['idle', 3],
+	['(max-width: 600px)', 2.5],
+	['(min-width: 601px)', 2.5]
+];
+
+/** How an app's island wakes are drawn, from its own stream (`gen shape`): `real`, as real apps
+ *  have them (`REAL_WAKES`), or `drawn`, evenly from ogygia's four (every schedule as often). */
+export function shape_plan(seed: number): 'real' | 'drawn' {
+	return rng(seed).fork('gen shape').chance(0.5) ? 'real' : 'drawn';
+}
+
 /** A region tree drawn from `r`, depth first (a child's id before its parent's, ids from `first`);
- *  `wrap` may turn a drawn region into another kind (held, live). */
+ *  `wrap` may turn a drawn region into another kind (held, live); `wake` draws an island's
+ *  schedule (one draw of `r`, either way). */
 function trees(
 	r: Rng,
 	wrap: (n: GenNode) => GenNode = (n) => n,
-	first = 0
+	first = 0,
+	wake: (r: Rng) => Wake = (r) => r.pick(WAKES)
 ): (depth: number) => GenNode {
 	let ids = first;
 	const node = (depth: number): GenNode => {
@@ -160,7 +183,7 @@ function trees(
 					]);
 		const children = Array.from({ length: n }, () => node(depth + 1));
 		const id = ids++;
-		if (kind === 'island') return wrap({ id, kind, wake: r.pick(WAKES), children });
+		if (kind === 'island') return wrap({ id, kind, wake: wake(r), children });
 		if (kind === 'hole')
 			return {
 				id,
@@ -279,7 +302,12 @@ export function plan(seed: number): GenPage[] {
 	// (and whether a page opens with a hero image, from its own)
 	const hr = rng(seed).fork('gen hero');
 	const switching = switcher(seed);
-	const node = trees(r, held);
+	const node = trees(
+		r,
+		held,
+		0,
+		shape_plan(seed) === 'real' ? (r) => r.weighted(REAL_WAKES) : undefined
+	);
 	const pages = r.between(3, 6);
 	return Array.from({ length: pages }, (_, i) => ({
 		path: `/p${i}`,
@@ -301,39 +329,29 @@ export function plan(seed: number): GenPage[] {
 
 /** Margins a `visible` schedule may look past the viewport by: px, % of the viewport, one side. */
 const MARGINS = ['200px', '600px', '50%', '0px 0px 300px 0px'] as const;
-/** Media queries a wake may wait for: one the 1280 px viewport matches, one it never does. */
-const MEDIA = ['(min-width: 800px)', '(max-width: 600px)'] as const;
-
 /** Where the screen decides (its own stream, `gen screen`): some pages put their later regions
- *  below the fold, some `visible` islands look past it by a margin, some islands wake on a media
- *  query, and some of a page's own holes fetch when seen or on the visitor's gesture, warming ahead
- *  on another schedule. Drawn after every other stream: their draws stay as they were. */
+ *  below the fold, some `visible` islands look past it by a margin, and some of a page's own holes
+ *  fetch on the visitor's gesture, warming ahead on another schedule (a hole's `wake` is its fetch).
+ *  Drawn after every other stream: their draws stay as they were. */
 function screen(seed: number): (page: GenPage) => GenPage {
 	const s = rng(seed).fork('gen screen');
 	const walk = (n: GenNode, root: boolean): GenNode => {
 		const children = n.children.map((c) => walk(c, false));
-		if (n.kind === 'island' && !n.head && !n.thirdParty) {
-			if (s.chance(0.1)) return { ...n, children, wake: s.pick(MEDIA) };
-			if (n.wake === 'visible' && s.chance(0.5)) return { ...n, children, margin: s.pick(MARGINS) };
-		}
+		if (n.kind === 'island' && n.wake === 'visible' && s.chance(0.5))
+			return { ...n, children, margin: s.pick(MARGINS) };
 		// (a page's own hole: nested in an island, a hole renders inline; a kept render is a preset's)
 		if (n.kind === 'hole' && root && !n.maxAge && !n.keep && n.fallback) {
-			const fetch = s.weighted<GenNode['fetch'] | 'load'>([
-				['load', 6],
-				['visible', 2.5],
-				['interaction', 1.5]
-			]);
-			if (fetch === 'load') return { ...n, children };
+			const wake = s.chance(0.25) ? 'interaction' : n.wake;
 			const prefetch =
-				fetch === 'interaction' && s.chance(0.7)
+				wake === 'interaction' && s.chance(0.7)
 					? s.pick(['load', 'idle', 'visible'] as const)
 					: undefined;
-			const looks = fetch === 'visible' || prefetch === 'visible';
+			const looks = wake === 'visible' || prefetch === 'visible';
 			const margin = looks && s.chance(0.6) ? s.pick(MARGINS) : undefined;
 			return {
 				...n,
 				children,
-				fetch,
+				...(wake ? { wake } : {}),
 				...(prefetch ? { prefetch } : {}),
 				...(margin ? { margin } : {})
 			};
@@ -603,10 +621,9 @@ function attributes(n: GenNode): string {
 			// (a kept render is a preset's: apps/sim-gen/vite.config.ts)
 			if (n.maxAge) return ` with { preset: 'hole-${n.maxAge}${n.wake ? `-${n.wake}` : ''}' }`;
 			const own = [
-				...(n.fetch ? [`fetch: '${n.fetch}'`] : []),
+				...(n.wake ? [`fetch: '${n.wake}'`] : []),
 				...(n.prefetch ? [`prefetch: '${n.prefetch}'`] : []),
-				...(n.margin ? [`margin: '${n.margin}'`] : []),
-				...(n.wake ? [`wake: '${n.wake}'`] : [])
+				...(n.margin ? [`margin: '${n.margin}'`] : [])
 			];
 			return ` with { ${["render: 'deferred'", ...own].join(', ')} }`;
 		}
@@ -752,9 +769,9 @@ function component(n: GenNode): string {
 \tlet { label = '' }: { label?: string; ogygiaFallback?: Snippet } = $props();
 \x3C/script>
 `;
+	// (a hole ships no JS, whatever its `fetch`: its own islands are what wake in it)
 	const interactive =
-		n.kind === 'island' ||
-		((n.kind === 'hole' || n.kind === 'held' || n.kind === 'live') && n.wake !== undefined);
+		n.kind === 'island' || ((n.kind === 'held' || n.kind === 'live') && n.wake !== undefined);
 	const lines = [
 		'<script lang="ts">',
 		"\timport type { Snippet } from 'svelte';",
