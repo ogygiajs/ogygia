@@ -112,6 +112,9 @@ export interface GenNode {
 	 *  oracles' (src/oracles.ts `schedules`). */
 	readonly prefetch?: 'load' | 'idle' | 'visible';
 	readonly margin?: string;
+	/** A block this many px tall right before it (`data-gen-lead`): it starts below the fold, within
+	 *  its margin or past it. */
+	readonly lead?: number;
 	readonly children: readonly GenNode[];
 }
 
@@ -329,6 +332,8 @@ export function plan(seed: number): GenPage[] {
 
 /** Margins a `visible` schedule may look past the viewport by: px, % of the viewport, one side. */
 const MARGINS = ['200px', '600px', '50%', '0px 0px 300px 0px'] as const;
+/** Heights of the block before a region that looks past the viewport (the fold is at 720 px). */
+const LEADS = [760, 900, 1100] as const;
 
 /** A region with a margin is imported by a preset (a margin is never an inline attribute): its name
  *  and options. The app's config takes every preset its pages name from plan.json's `presets`. */
@@ -366,10 +371,14 @@ function screen_presets(pages: readonly GenPage[]): Record<string, Record<string
  *  Drawn after every other stream: their draws stay as they were. */
 function screen(seed: number): (page: GenPage) => GenPage {
 	const s = rng(seed).fork('gen screen');
+	// (a tall block right before a region that looks past the viewport, from its own stream: what
+	// follows the fold by less than its margin is owed, what follows it by more is not)
+	const l = rng(seed).fork('gen screen lead');
+	const lead = (n: GenNode): GenNode => (l.chance(0.7) ? { ...n, lead: l.pick(LEADS) } : n);
 	const walk = (n: GenNode, root: boolean): GenNode => {
 		const children = n.children.map((c) => walk(c, false));
 		if (n.kind === 'island' && n.wake === 'visible' && s.chance(0.5))
-			return { ...n, children, margin: s.pick(MARGINS) };
+			return lead({ ...n, children, margin: s.pick(MARGINS) });
 		// (a page's own hole: nested in an island, a hole renders inline; a kept render is a preset's)
 		if (n.kind === 'hole' && root && !n.maxAge && !n.keep && n.fallback) {
 			const wake = s.chance(0.25) ? 'interaction' : n.wake;
@@ -379,13 +388,14 @@ function screen(seed: number): (page: GenPage) => GenPage {
 					: undefined;
 			const looks = wake === 'visible' || prefetch === 'visible';
 			const margin = looks && s.chance(0.6) ? s.pick(MARGINS) : undefined;
-			return {
+			const hole = {
 				...n,
 				children,
 				...(wake ? { wake } : {}),
 				...(prefetch ? { prefetch } : {}),
 				...(margin ? { margin } : {})
 			};
+			return looks ? lead(hole) : hole;
 		}
 		return { ...n, children };
 	};
@@ -677,6 +687,8 @@ function name(n: GenNode): string {
 
 /** Where `n` is used: its tag, with a fallback for a hole that has one. */
 function usage(n: GenNode, indent: string): string {
+	if (n.lead)
+		return `${indent}<div data-gen-lead style="height: ${n.lead}px"></div>\n${usage({ ...n, lead: undefined }, indent)}`;
 	if (n.empty)
 		return [
 			`${indent}<div data-gen-empty>`,
