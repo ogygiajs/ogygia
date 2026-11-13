@@ -1320,8 +1320,6 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 					emitFile: (chunk) => this.emitFile(chunk),
 					watch: (file) => this.addWatchFile(file)
 				});
-				// DEV: this transform changed the registry, the marks or a file's scan facts: reload what
-				// read them (the server manifest, the runtime entry, the wire loaders: driver `moved`)
 				if (is_dev && vite_server)
 					for (const mid of compiler.moved()) invalidate_module_id(vite_server, mid);
 				// DEV: an island this transform registered (a file added while the server runs) pulled

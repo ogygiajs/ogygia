@@ -390,15 +390,10 @@ export class Compiler implements CoreApp {
 			const page_importers = ctx.page_importers;
 			const facts: FileFacts = {
 				crosses_wire: remote || source_crosses_wire(src),
-				// Transportable classes go into the eager-registration manifest so an island receiving
-				// one as a prop never has to import the class itself. A `<script module>` one is keyed
-				// by the .svelte path (side-effect-importing the component runs its module registration).
 				transportable:
 					kind === 'svelte'
 						? svelteModuleHasTransportable(src, full)
 						: moduleHasTransportable(src, full),
-				// Router-css closure data: this module's import specs + whether it is a page module
-				// (`b.pageModules()`: it imports a page specifier, or is named by path).
 				specs,
 				router:
 					(page_importers.length > 0 && specs.some((s) => page_importers.includes(s))) ||
@@ -406,10 +401,7 @@ export class Compiler implements CoreApp {
 			};
 			scan.set(full, facts);
 			if (!runtime_marks.context && source_uses_ogygia_context(src)) runtime_marks.context = true;
-			// A remote query's SSR result can only be seeded where the app HAS a remote function.
 			if (remote) runtime_marks.remoteSeeds = true;
-			// A transportable class means island props can carry a live wired object, revived through
-			// the wire codec: this app needs the wire runtime.
 			if (facts.transportable) runtime_marks.wire = true;
 		}
 
@@ -1708,11 +1700,8 @@ export class Compiler implements CoreApp {
 		// server leg of a build: this module is in the server bundle's real graph (see
 		// Program.ssr_transformed / link/emit-gate.ts)
 		if (ssr && ctx.is_build) program.ssr_transformed.add(host_key(id_n));
-		// DEV: a file the prescan scans is read again here (added or edited while dev runs); a build's
-		// prescan already read every one of them
 		if (ctx.is_dev && is_script_request(id)) {
 			const kind = this.#scans(id_n);
-			// (keyed as the walk keys it: `path.join`'s separators)
 			if (kind) this.#scan_facts(path.normalize(id_n), code, kind);
 		}
 
@@ -1978,7 +1967,6 @@ export class Compiler implements CoreApp {
 		}
 
 		if (deleted) {
-			// a deleted file has no scan facts: reload what read its old ones
 			const kind = this.#scans(file);
 			if (kind) this.#scan_facts(path.normalize(file), null, kind);
 			for (const id of this.moved()) invalidate(id);

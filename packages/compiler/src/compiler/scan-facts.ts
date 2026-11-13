@@ -42,16 +42,11 @@ export interface ScanFacts {
  */
 export function scan_facts(): ScanFacts {
 	const db = queries('scan facts');
-	/** Every file the scan ever read, in the order it first read them. It only grows, so its first
-	 *  `files` entries are a value: the `files` input stands for them (a deleted file's facts are
-	 *  null). One more file is one more revision, not a copy of the list. */
 	const order: string[] = [];
 	const at = new Set<string>();
-	// (set, never read from outside: the scan hands each file's facts in)
 	const files = input<string, number>('scanned files', all, () => 0);
 	const facts = input<string, FileFacts | null>('file facts', own, () => null);
 
-	/** A fold over one fact of every file, in scan order. */
 	const fold = <V>(name: string, make: (each: Array<[string, FileFacts]>) => V): Query<string, V> =>
 		derived(name, all, (cx) => {
 			const each: Array<[string, FileFacts]> = [];
