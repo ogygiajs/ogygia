@@ -16,7 +16,7 @@
  */
 import { boot_link, router_link, slots } from './slots.ts';
 import { clock, net } from '@ogygia/machine';
-import { dispose_scope } from '../ref.ts';
+import type { PageGlobals } from '../page-globals.ts';
 import {
 	NO_RECONCILE_SELECTOR,
 	reconcile_body,
@@ -56,9 +56,7 @@ import { KNOWN_HEADER_CAP } from '../contract/known-copies.ts';
 // chunk). The router's helpers exist only with the router feature; the MPA `invalidateAll` path (no
 // router) touches none of them.
 // (rules on: `rule_head_adopted` checks the head with this chunk's own deny, ./rules.ts)
-(globalThis as { __og_head_deny?: (deny: typeof is_dangerous_head_node) => void }).__og_head_deny?.(
-	is_dangerous_head_node
-);
+(globalThis as PageGlobals).__og_head_deny?.(is_dangerous_head_node);
 
 const KitBoot = { document_has: (doc: ParentNode) => boot_link().KitBoot.document_has(doc) };
 const regions_in_shadow = () => boot_link().regions_in_shadow();
@@ -443,7 +441,7 @@ export function apply_late_templates(root: ParentNode): void {
  * (#278). The loan is the element's, not the page's: an element kept across a navigation (inside a
  * kept island) still gives its `tabindex` back when focus leaves it on the next page.
  */
-function focus_reset(el: HTMLElement) {
+function focus_reset(el: HTMLElement | SVGElement) {
 	const is_body = el === document.body || el === document.documentElement;
 	if (lent.has(el)) {
 		el.focus({ preventScroll: true }); // (still focusable: its loan waits for the blur)
@@ -467,7 +465,7 @@ function focus_reset(el: HTMLElement) {
 }
 
 /** The elements whose `tabindex` a navigation's focus lent until they blur, with their own value. */
-const lent = new WeakMap<HTMLElement, string | null>();
+const lent = new WeakMap<HTMLElement | SVGElement, string | null>();
 
 // ── navigation state (one per document lifetime, module-level: this chunk loads once) ──────────
 /** A page as a fetch got it: its HTML and the address it belongs to (where the fetch landed, after
@@ -870,7 +868,7 @@ export async function navigate(
 		if (doc.querySelector('meta[name="ogygia-first-load"]')) return null;
 		// The app's transform reshaped the incoming page: restore it before anything reads it (the
 		// reconcile, the islands' copies). The restorer is the page's own global, when the app has one.
-		(globalThis as { __og_restore?: (root: ParentNode) => number }).__og_restore?.(doc);
+		(globalThis as PageGlobals).__og_restore?.(doc);
 
 		// Same-document hash jumps already returned above (no VT). Cross-route swaps keep VT
 		// even when the target has a hash (A → B#C); scroll snaps after the transition.
@@ -951,8 +949,8 @@ export async function navigate(
 		if (reconcile) {
 			// THE nav path: diff the live body toward the parsed one IN PLACE. Matched regions
 			// (same fingerprint) keep their live hydrated node and island state; changed regions
-			// re-mount; shell + keep-chrome (data-ogygia-keep) morph in place. Selective dispose of
-			// only REMOVED regions' hub ids happens inside reconcile_body.
+			// re-mount; shell + keep-chrome (data-ogygia-keep) morph in place. Both paths release
+			// the hub ids nothing on the next page owns, inside the swap.
 			reconcile_body(document.body, doc.body, slots.morph!);
 			built.reconciled = true;
 			adopt_title(doc);
@@ -971,10 +969,9 @@ export async function navigate(
 			swap_body(document.body, doc.body);
 			adopt_title(doc);
 			session().settle_lakes_in(document.body);
-			dispose_scope('page');
 		}
 		// (roots restored in the incoming page adopt their keyed sheets now that they are in this one)
-		(globalThis as { __og_restore_adopt?: () => void }).__og_restore_adopt?.();
+		(globalThis as PageGlobals).__og_restore_adopt?.();
 		// ONE COPY of island head content: an island KEPT across the swap still renders its head live,
 		// and the merge above put the next page's server copy of the same content in beside it — retire
 		// that copy now that the reconcile has settled which islands stayed (runtime/session.ts).
@@ -1295,11 +1292,9 @@ function reset_focus(hash: string, kept: string | null = null) {
 	// back or forward to a page whose entry kept the element that had focus when it was left
 	const was = kept ? document.getElementById(kept) : null;
 	if (was) return focus_reset(was);
-	if (hash) {
-		const id = decodeURIComponent(hash.slice(1));
-		const target = id ? document.getElementById(id) : null;
-		if (target) return focus_reset(target);
-	}
+	// (the boot's reading of a fragment, through the router's link: ./fragment.ts is a boot module)
+	const target = router_link().fragment_target(hash);
+	if (target instanceof HTMLElement || target instanceof SVGElement) return focus_reset(target);
 	const autofocus = document.querySelector<HTMLElement>('[autofocus]');
 	if (autofocus) {
 		autofocus.focus();
@@ -1498,5 +1493,5 @@ function batch_regions(doc: Document, visit: Scope, dest: URL) {
 	// Through the seam, never a static `frame-nav` import: an app with `router` but no
 	// deferred/live/lake region has no `frames` feature (and no `render="defer"` holes — so
 	// `endpoints` is empty above and we already returned). Optional-chain keeps that honest.
-	void slots.frames?.stream?.(endpoints, visit, dest.href);
+	void slots.frames?.stream?.(endpoints, visit, dest.href); // ok: a batch settles on every end, called off or broken off (frame-nav.ts streamFrames)
 }
