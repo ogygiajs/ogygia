@@ -20,8 +20,6 @@ import { restore, restore_adopt } from './restore.ts';
 import type { ReshapeTransform } from './requests.ts';
 import { OgygiaError } from './messages.ts';
 
-/** How many hosts ogygia marked for restoring (`og-h`) the transform's `out` no longer carries:
- *  nothing is left to restore them by. */
 function marks_lost(out: string, record: MarkRecord): number {
 	const kept = new Set<number>();
 	for (const m of out.matchAll(/\sog-h=["']?(\d+)/g)) kept.add(Number(m[1]));
@@ -30,12 +28,6 @@ function marks_lost(out: string, record: MarkRecord): number {
 	return lost;
 }
 
-/**
- * The app's transform on one answer: its output, or null when it failed, so the answer goes out as
- * ogygia rendered it. A failure is a transform that threw (`reshape_pass_failed`) or that dropped
- * the marks of a host ogygia restores (`reshape_marks_lost`): thrown in dev, said once in
- * production.
- */
 async function transformed(
 	transform: ReshapeTransform,
 	html: string,
