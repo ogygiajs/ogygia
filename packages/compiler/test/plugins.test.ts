@@ -97,6 +97,15 @@ describe('a plugin is a Vite plugin, found beside ogygia()', () => {
 		cyclic.self = cyclic;
 		expect(() => check_plugins([def({ name: 'a', options: cyclic })])).toThrow(/plain JSON/);
 	});
+	it('a plugin that needs another fails the build while the app does not list it, naming the line to add', async () => {
+		const needs = [{ name: 'b', call: 'bee()', from: 'b-pkg' }];
+		const a = definePlugin({ name: 'a', needs } as PluginDefinition);
+		const b = definePlugin({ name: 'b' });
+		await expect(find_plugins([a])).rejects.toMatchObject({ code: 'plugin_needs_plugin' });
+		await expect(find_plugins([a])).rejects.toThrow(/`a` needs `bee\(\)`.*`b-pkg`/);
+		expect((await find_plugins([a, b])).map((p) => p.name)).toEqual(['a', 'b']);
+		expect((await find_plugins([b, a])).map((p) => p.name)).toEqual(['b', 'a']);
+	});
 	it('listed without ogygia(), it fails the build saying what to add', () => {
 		const plugin = definePlugin({ name: '@ogygia/flags' });
 		const resolved = (names: string[]) => ({ plugins: names.map((name) => ({ name })) }) as never;
@@ -227,6 +236,27 @@ describe('realms, named by the plugin', () => {
 		const out = resolve_plugins([def({ name: '@ogygia/flags' })], APP, true);
 		expect(out.servers).toEqual([]);
 		expect(out.clients).toEqual([]);
+	});
+	it('seed shaping is off without a plugin, one plugin answers it, and a second claim fails loudly', () => {
+		expect(resolve_plugins([def({ name: '@ogygia/flags' })], APP, true).page_reads).toBeNull();
+		const reads = {
+			module() {},
+			settle: async () => {},
+			keys: () => null,
+			why: () => null,
+			dev: async () => ({ keys: null, why: [] })
+		};
+		const claim = (name: string) =>
+			def({
+				name,
+				build(b) {
+					b.pageReads(reads);
+				}
+			});
+		expect(resolve_plugins([claim('@ogygia/flags')], APP, true).page_reads).toBe(reads);
+		expect(() =>
+			resolve_plugins([claim('@ogygia/flags'), claim('@ogygia/barrels')], APP, true)
+		).toThrow(/claimed by both `@ogygia\/flags` and `@ogygia\/barrels`/);
 	});
 	it('a realm that is not a file, or not a location, fails loudly', () => {
 		expect(() =>

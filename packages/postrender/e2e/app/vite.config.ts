@@ -3,6 +3,7 @@ import { ogygia } from 'ogygia/vite';
 import { postrender } from '@ogygia/postrender/vite';
 import { flags } from '@ogygia/flags/vite';
 import { router } from '@ogygia/router/vite';
+import { pageKeys } from '@ogygia/page-keys';
 import { defineConfig } from 'vite';
 import { later_answer } from 'postrender-e2e-later-answer/vite';
 
@@ -11,6 +12,7 @@ export default defineConfig({
 	// with edge adapters at the emulators when ../postrender.spec.ts boots them). `flags()`: the
 	// /flagged page reads one, and that read must refuse the store. `router()`: the /r/* pages are a
 	// server-router table in hooks.server.ts. `later_answer()`: a plugin after postrender that answers
-	// some page requests itself (../later-answer).
-	plugins: [ogygia(), postrender(), flags(), router(), later_answer(), sveltekit()]
+	// some page requests itself (../later-answer). `pageKeys()`: a hole whose tree reads no page.data
+	// skips the page look-up, so a stored shell renders once (S6, S13).
+	plugins: [ogygia(), postrender(), flags(), router(), pageKeys(), later_answer(), sveltekit()]
 });

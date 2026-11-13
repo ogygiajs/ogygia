@@ -94,6 +94,21 @@ jobs:
             fi
           done
 
+      # for the robustness count: the latest daily mutation run (dst.yml) and the latest
+      # measurement-source gate (heisenbench.yml); without one, its numbers are null on the page
+      - name: The latest mutation run and measurement gate
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for id in $(gh run list -R "$REPO" -w dst.yml -s completed -L 30 --json databaseId -q '.[].databaseId'); do
+            if gh run download "$id" -R "$REPO" -n dst-mutation -D .robustness/mutation 2> /dev/null; then break; fi
+          done
+          for id in $(gh run list -R "$REPO" -w heisenbench.yml -s success -L 60 --json databaseId -q '.[].databaseId'); do
+            if gh run download "$id" -R "$REPO" -n heisenbench-unmeasured -D .robustness/gate 2> /dev/null; then break; fi
+          done
+          ls -R .robustness || echo "::warning::no mutation run or gate to read"
+
       - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
       # (no shared dependency cache: the release's report installs fresh)
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
@@ -110,9 +125,12 @@ jobs:
           VERSION: ${{ steps.v.outputs.version }}
           SHA: ${{ steps.v.outputs.sha }}
         run: |
+          robust=()
+          [ -d .robustness/mutation ] && robust+=(--mutation .robustness/mutation)
+          [ -f .robustness/gate/gate.json ] && robust+=(--unmeasured .robustness/gate/gate.json)
           node .github/scripts/test-report.ts --out "$RUNNER_TEMP/tests/$VERSION" \
             --raw "$RUNNER_TEMP/raw" --engines chromium,firefox,webkit --e2e .e2e \
-            --version "$VERSION" --commit "$SHA"
+            --version "$VERSION" --commit "$SHA" "${robust[@]}"
 
       # (the per-file coverage and lcov stay here, never in the repo)
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
