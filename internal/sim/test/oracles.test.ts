@@ -640,6 +640,18 @@ describe('a live region announces what it shows', () => {
 		).toBeNull();
 	});
 
+	it("leaves out a nested remote query's own waiting or failed line: its answer comes later, no tick of this region's (gen 650)", async () => {
+		for (const line of [
+			'<span data-gen-pending>connecting n13…</span>',
+			'<span data-gen-error>n13 failed</span>'
+		])
+			expect(
+				await at_rest({ entry: 's4', tick: 5, extra: `<div data-gen="live-host">${line}</div>` }, [
+					['ogygia:live', 's4', 5]
+				])
+			).toBeNull();
+	});
+
 	it("sets aside an island in a document a fault touched (its file may have failed: it shows the tick's HTML, #942), never a static tick", async () => {
 		const failed: Array<[string, 'dropped']> = [['/_app/immutable/m4.js', 'dropped']];
 		expect(await at_rest({ entry: 'm4', tick: 3, wake: true }, [], failed)).toBeNull();
