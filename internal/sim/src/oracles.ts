@@ -58,6 +58,9 @@ export function normalize(root: {
 	title: string;
 	baseURI?: string;
 }): string {
+	// (read once: happy-dom's `baseURI` looks for a `<base>` through the whole document, and a miss
+	// grows every element's cache list; per attribute it ran palaestra seed 216 out of memory)
+	const base = root.baseURI ?? 'https://app.test/';
 	const walk = (node: Node, depth: number, out: string[]): void => {
 		if (node.nodeType === 8) return;
 		if (node.nodeType === 3) {
@@ -91,11 +94,15 @@ export function normalize(root: {
 						(a.name === 'data-key' || a.name === 'data-revalidated' || a.name === 'data-og-healed')
 					)
 			)
-			.map((a) =>
-				(tag === 'link' && a.name === 'href') || /^\.\.?\//.test(a.value)
-					? `${a.name}="${new URL(a.value, root.baseURI ?? 'https://app.test/').pathname}"`
-					: `${a.name}="${a.value}"`
-			)
+			.map((a) => {
+				// (one no URL can be made of, a tampered byte in its host, stays as it is: gen 45, seed 32)
+				const address =
+					((tag === 'link' && a.name === 'href') || /^\.\.?\//.test(a.value)) &&
+					URL.canParse(a.value, base);
+				return address
+					? `${a.name}="${new URL(a.value, base).pathname}"`
+					: `${a.name}="${a.value}"`;
+			})
 			.sort()
 			.join(' ');
 		out.push(`${'  '.repeat(depth)}<${tag}${attrs ? ` ${attrs}` : ''}>`);
@@ -1171,6 +1178,16 @@ const UNHYDRATED_BY_DESIGN: ReadonlyArray<{ path: RegExp; why: string }> = [
 		why: "its hooks strip one region's hydration anchors, for the foreign-mutation detector's e2e"
 	}
 ];
+
+/** Whether `line`, said by the page at `url`, is a region not hydrating as sent on a page that
+ *  serves such HTML on purpose (`UNHYDRATED_BY_DESIGN`). */
+export function unhydrated_by_design(url: string, line: string): boolean {
+	return (
+		UNHYDRATED.test(line) &&
+		URL.canParse(url) &&
+		UNHYDRATED_BY_DESIGN.some((d) => d.path.test(new URL(url).pathname))
+	);
+}
 
 /**
  * THE SERVER'S HTML IS THE LIVE PAGE: a region hydrates the HTML the server sent as it is. Svelte
