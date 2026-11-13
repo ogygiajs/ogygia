@@ -46,12 +46,6 @@ export type ContentRef<Data = Record<string, unknown>, Meta = Record<string, nev
 	backlinks?: RefEntry[];
 };
 
-/** @deprecated Old name for {@link ContentRef}. A ref never carries a body; use `Entry` (from `get()`) for that. */
-export type ContentEntry<Data = Record<string, unknown>, Meta = Record<string, never>> = ContentRef<
-	Data,
-	Meta
->;
-
 /**
  * A resolved entry from `get()` — `data`, `meta`, `body`, and the graph fields fully populated. `rel`
  * is `{}` and `backlinks` `[]` when the collection has no graph. `body` is an inline `<Region>`,
