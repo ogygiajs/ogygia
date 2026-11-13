@@ -5429,6 +5429,10 @@
 			"reason": "one binding's local name per marked import in a .ts module, constant work"
 		},
 		{
+			"id": "packages/compiler/src/compiler/region/transform.ts > TsRegionCompilation > run > map:0~74ff48",
+			"reason": "one specifier's local name per attributed import in a .ts module, for region_attribute_unknown's message: constant work"
+		},
+		{
 			"id": "packages/compiler/src/vite/index.ts > ogygia > buildStart > emit_build_chunks:1~04e2a4",
 			"reason": "once per build: the emitFile callback handed to the compiler, constant work per emitted chunk"
 		},
