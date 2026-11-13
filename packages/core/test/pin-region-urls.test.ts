@@ -62,4 +62,11 @@ describe('pin_region_urls', () => {
 		pin_region_urls(cross, 'https://cdn.other.test/a/b/');
 		expect(cross.attrs.get('src')).toBe('../x.js');
 	});
+
+	it('a relative value against a base that is no URL stays as written, and the pin goes on', () => {
+		const el = region({ entry: './a.js', src: '../b.js' });
+		expect(() => pin_region_urls(el, 'not a url')).not.toThrow();
+		expect(el.attrs.get('entry')).toBe('./a.js');
+		expect(el.attrs.get('src')).toBe('../b.js');
+	});
 });

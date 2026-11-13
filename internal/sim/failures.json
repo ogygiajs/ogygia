@@ -533,13 +533,104 @@
 			"name": "a restore report whose wording chunk does not load says nothing, throws nothing, and keeps the log"
 		},
 		{
+			"site": "packages/core/src/server/page-stream.ts > swap_thenables > throw:0",
+			"reason": "a load value whose getter throws as it is walked: proved: walking it again with the tracked walk instead of failing turns the test red",
+			"test": "packages/core/test/page-stream-out.test.ts",
+			"name": "a value is walked once: a getter that throws is read once, and its promise fails"
+		},
+		{
+			"site": "packages/core/src/server/page-stream.ts > clone_untracked > throw:0",
+			"reason": "a load value with a list that holds itself: proved: no depth cap on lists turns the test red",
+			"test": "packages/core/test/page-stream-claims.test.ts",
+			"name": "a list that holds itself, and nothing else cyclic, ends the staging walk too"
+		},
+		{
+			"site": "packages/core/src/server/page-stream.ts > clone_untracked > throw:1",
+			"reason": "a load value with an object that holds itself: proved: no depth cap on objects turns the test red",
+			"test": "packages/core/test/page-stream-claims.test.ts",
+			"name": "a cyclic plain value ends both walks instead of overflowing the stack"
+		},
+		{
+			"site": "packages/core/src/server/page-stream.ts > stream_page_deferred > stream:0",
+			"reason": "every streamed page reads Kit's body: proved: reading an empty source instead turns the test red",
+			"test": "packages/core/test/page-stream-out.test.ts",
+			"name": "cancelling the body settles: the stream it ends is already closed, and that is no failure"
+		},
+		{
+			"site": "packages/core/src/server/page-stream.ts > stream_page_deferred > .catch:0",
+			"reason": "a Kit source whose cancel throws, when the request ends: proved: the cancel's rejection left uncaught turns the test red (unhandled)",
+			"test": "packages/core/test/page-stream-out.test.ts",
+			"name": "a Kit source whose cancel fails still lets the request end, with nothing left unhandled"
+		},
+		{
+			"site": "packages/core/src/server/page-stream.ts > stream_page_deferred > start > stream:0",
+			"reason": "every streamed page forwards Kit's document: proved: not forwarding it turns the test red",
+			"test": "packages/core/test/page-stream-out.test.ts",
+			"name": "a Kit source whose cancel fails still lets the request end, with nothing left unhandled"
+		},
+		{
+			"site": "packages/core/src/server/page-stream.ts > stream_page_deferred > start > close > stream:0",
+			"reason": "every streamed page closes once its promises settled: proved: never closing turns the test red",
+			"test": "packages/core/test/page-stream-out.test.ts",
+			"name": "a promise that rejects streams as a failure, with its error, never as a value"
+		},
+		{
+			"site": "packages/core/src/server/page-stream.ts > stream_page_deferred > start > close > catch:0",
+			"reason": "the visitor cancels the body: its cancel closes the request's owner, whose close finds the stream already closed: proved: that close made to throw turns the test red",
+			"test": "packages/core/test/page-stream-out.test.ts",
+			"name": "cancelling the body settles: the stream it ends is already closed, and that is no failure"
+		},
+		{
+			"site": "packages/core/src/server/page-stream.ts > stream_page_deferred > start > push > stream:0",
+			"reason": "every settled promise writes its resolve script: proved: not writing it turns the test red",
+			"test": "packages/core/test/page-stream-out.test.ts",
+			"name": "a nested promise streams with its parent, and the stream closes only once it settled"
+		},
+		{
+			"site": "packages/core/src/server/page-stream.ts > stream_page_deferred > start > stream_one > reject:0",
+			"reason": "a streamed load promise that rejects: proved: dropping the rejection's handler turns the test red",
+			"test": "packages/core/test/page-stream-out.test.ts",
+			"name": "a promise that rejects streams as a failure, with its error, never as a value"
+		},
+		{
+			"site": "packages/core/src/runtime/entry-locations.ts > pin_region_urls > catch:0",
+			"reason": "a relative region URL against a base that is no URL: the sim's pages always have one: proved: that failure thrown instead of kept as written turns the test red",
+			"test": "packages/core/test/pin-region-urls.test.ts",
+			"name": "a relative value against a base that is no URL stays as written, and the pin goes on"
+		},
+		{
+			"site": "packages/core/src/runtime/entry-locations.ts > current_location > stale:0",
+			"reason": "two islands' recoveries in a rollover, one dropping the map while the other's read of it is out: a timing no sweep seed is known to hit: proved: that STALE read as a map turns the test red",
+			"test": "packages/core/test/browser/entry-location-map-race.test.ts",
+			"name": "a read of the map that another recovery drops while it is out is read again, and both islands wake"
+		},
+		{
+			"site": "packages/core/src/runtime/entry-locations.ts > load_entry > catch:0",
+			"reason": "a location on an origin the page loads no code from, handed in for a known identity: no app the sim generates writes one: proved: the refusal thrown instead of rejected turns the test red",
+			"test": "packages/core/test/browser/code-origins.test.ts",
+			"name": "handed in as the location of a known identity: refused as a rejection, never thrown"
+		},
+		{
+			"site": "packages/core/src/runtime/entry-locations.ts > load_entry > reject:0",
+			"reason": "a recovery whose current file fails too: proved: dropping the failure's report turns the test red",
+			"test": "packages/core/test/browser/entry-locations.test.ts",
+			"name": "recovered, and not: each once, with the identity and the location that failed"
+		},
+		{
 			"site": "packages/core/src/server/page-facts.ts > read_first_line > catch:0",
 			"reason": "a page's data answer that breaks before its first line (#1626): proved: the break thrown (the old code) turns the test red",
 			"test": "packages/core/test/page-facts-broken.test.ts",
 			"name": "a data answer that breaks before its first line is a miss that says why, never a throw"
 		}
 	],
-	"impossible": [],
+	"impossible": [
+		{
+			"site": "packages/core/src/runtime/import-again.ts > import_file > stale:0",
+			"why": "a flights' get is STALE only when its world moves, a drop or dispose ends its flight, a fresh flight supersedes it, or the caller's signal aborts. The island files' flights has no world, and its type, FileLoads, is a get by URL alone: no drop, no dispose, no fresh, no signal compiles. So no island file's load is ever STALE.",
+			"by": "packages/core/src/runtime/import-again.ts",
+			"name": "FileLoads"
+		}
+	],
 	"baseline": [
 		"packages/bake/src/bake.ts > scan > throw:0",
 		"packages/bake/src/bake.ts > scan > throw:1",
@@ -1202,10 +1293,6 @@
 		"packages/core/src/runtime/devalue-lane.ts > with_devalue > reject:0",
 		"packages/core/src/runtime/devalue-lane.ts > with_devalue > stale:0",
 		"packages/core/src/runtime/drift-watch.ts > watch_region > observer:0",
-		"packages/core/src/runtime/entry-locations.ts > pin_region_urls > catch:0",
-		"packages/core/src/runtime/entry-locations.ts > current_location > stale:0",
-		"packages/core/src/runtime/entry-locations.ts > load_entry > catch:0",
-		"packages/core/src/runtime/entry-locations.ts > load_entry > reject:0",
 		"packages/core/src/runtime/foreign-props.ts > foreign_region_prop_revivers > OgygiaRef > throw:0",
 		"packages/core/src/runtime/form-continuity.ts > url_of > catch:0",
 		"packages/core/src/runtime/frame-nav.ts > streamFrames > stale:0",
@@ -1234,7 +1321,6 @@
 		"packages/core/src/runtime/import-again.ts > import_again > next > refused:1",
 		"packages/core/src/runtime/import-again.ts > import_again > next > throw:1",
 		"packages/core/src/runtime/import-again.ts > import_again > next > reject:0",
-		"packages/core/src/runtime/import-again.ts > import_file > stale:0",
 		"packages/core/src/runtime/interaction-replay.ts > restore_fields > catch:0",
 		"packages/core/src/runtime/interaction-replay.ts > replay_clicks > timer:0",
 		"packages/core/src/runtime/interaction.ts > disarm > refused:0",
@@ -1367,17 +1453,6 @@
 		"packages/core/src/server/page-seed.ts > PageSeed > serialize > catch:3",
 		"packages/core/src/server/page-seed.ts > PageSeed > serialize > catch:4",
 		"packages/core/src/server/page-seed.ts > PageSeed > serialize > catch:5",
-		"packages/core/src/server/page-stream.ts > swap_thenables > throw:0",
-		"packages/core/src/server/page-stream.ts > clone_untracked > throw:0",
-		"packages/core/src/server/page-stream.ts > clone_untracked > throw:1",
-		"packages/core/src/server/page-stream.ts > stream_page_deferred > stream:0",
-		"packages/core/src/server/page-stream.ts > stream_page_deferred > .catch:0",
-		"packages/core/src/server/page-stream.ts > stream_page_deferred > start > stream:0",
-		"packages/core/src/server/page-stream.ts > stream_page_deferred > start > close > stream:0",
-		"packages/core/src/server/page-stream.ts > stream_page_deferred > start > close > catch:0",
-		"packages/core/src/server/page-stream.ts > stream_page_deferred > start > push > stream:0",
-		"packages/core/src/server/page-stream.ts > stream_page_deferred > start > push > catch:0",
-		"packages/core/src/server/page-stream.ts > stream_page_deferred > start > stream_one > reject:0",
 		"packages/core/src/server/page-stream.ts > stream_page_deferred > start > stream_one > stale:0",
 		"packages/core/src/server/personal-response.ts > mark_personal > catch:0",
 		"packages/core/src/server/props-wire.ts > stringify_props > catch:0",
