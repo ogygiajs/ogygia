@@ -174,7 +174,9 @@ function absorb_page_facts(): void {
 		let facts: Record<string, unknown>;
 		try {
 			facts = parse_wire_text(text, false, transport_decoders) as Record<string, unknown>;
-		} catch {
+		} catch (e) {
+			// (the other answers' facts still join, and this one says why it did not, #1480)
+			warn('page_seed_unreadable', { error: e instanceof Error ? e.message : String(e) });
 			continue;
 		}
 		if (!facts || typeof facts !== 'object') continue;

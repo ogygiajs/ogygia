@@ -468,15 +468,16 @@ export const WARNINGS = {
 	},
 	page_seed_unreadable: {
 		text: (a: { error: string }): string => prose`
-			the page seed could not be read (${a.error}), so islands on this page see an empty
-			page.data.
+			page data from the server could not be read (${a.error}), so islands on this page do not
+			see it.
 		`,
 		details: (): string => prose`
 			The server writes the page's \`page.data\` (and its url, params and route) into a script
-			the islands read when they hydrate. This one did not parse: its text was cut off (a proxy
-			or a stream that ended early), something rewrote it, or a value's transport decoder threw.
-			The page keeps working, but every island hydrates as if the page had no data, while its
-			server HTML was made from the real data.
+			the islands read when they hydrate, and an answer rendered outside its page (a hole, a
+			refreshed region) carries the \`page.data\` keys its islands read. One of these did not
+			parse: its text was cut off (a proxy or a stream that ended early), something rewrote it,
+			or a value's transport decoder threw. The page keeps working, but islands hydrate without
+			that data, while their server HTML was made from it.
 
 			Check that the page reaches the browser whole, and that every \`transport\` decoder in
 			\`hooks.ts\` takes the values its encoder made. Else ${BUG}
