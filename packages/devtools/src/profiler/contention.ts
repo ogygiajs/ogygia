@@ -1,5 +1,5 @@
 import type { RequestEntry } from './report.ts';
-import { islands_endpoint } from '@ogygia/core/internal/server';
+import { is_islands_endpoint } from '@ogygia/core/internal/server';
 
 export interface ContendingRequest {
 	method: string;
@@ -106,7 +106,7 @@ export function contention(input: ContentionInput): Contention | undefined {
 			overlap_ms: round2(overlap),
 			cpu_max_ms: round2(cpu_max),
 			kind:
-				e.hole || e.path.endsWith(islands_endpoint())
+				e.hole || is_islands_endpoint(e.path)
 					? 'hole'
 					: input.self_paths?.has(e.path)
 						? 'self'

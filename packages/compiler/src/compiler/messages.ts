@@ -84,6 +84,18 @@ export const BUILD_ERRORS = {
 			\`problem\` names what was written instead. Move the call into that member.
 		`
 	},
+	wire_class_anonymous: {
+		text: (a: { file: string; line: number }): string => prose`
+			${a.file}:${a.line} — an anonymous \`export default class\` has a wire codec. Give the
+			class a name (\`export default class Cart\`) so the build can register it.
+		`,
+		details: (): string => prose`
+			A class with a wire codec is registered while its module compiles: the build appends a
+			call that hands the class to ogygia, tagged by its module and export name. An anonymous
+			\`export default class { … }\` has no binding that call can name, so its instances could
+			not cross into an island. Name the class; the export stays the default one.
+		`
+	},
 	macro_source_misuse: {
 		text: (a: { file: string; line: number; problem: string }): string => prose`
 			${a.file}:${a.line} — ${a.problem}. import.meta.og.source is legal in exactly one

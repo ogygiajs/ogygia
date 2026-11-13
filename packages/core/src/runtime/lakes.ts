@@ -15,6 +15,11 @@ import { runtime_session } from './session.ts';
 import { slots, type LakeArm, type LiftedLake } from './slots.ts';
 import { warn } from '../messages/core.ts';
 import { OG_STATIC } from '../wire-markup.ts';
+import { note_lake_restore } from './rules.ts';
+
+// the runtime's rules (./rules.ts): dev, and a build made with OGYGIA_RULES=1; folds out elsewhere
+const RULES =
+	import.meta.env?.DEV || (typeof __OGYGIA_RULES__ !== 'undefined' ? __OGYGIA_RULES__ : false);
 
 /** Feature entry: fill the `lakes` slot so core lifts/restores frozen regions. */
 export function install(): void {
@@ -72,8 +77,10 @@ export function restore(parent: Element, lifted: LiftedLake[]): void {
 	// ride per-instance, but the id is component+schedule), so `querySelector([entry])` returns the
 	// FIRST for both — both frags land in lake #1, leaving lake #2 empty. `lift()` collected `lifted`
 	// in DOM order under this exact direct-child filter, and hydrate-in-place doesn't reorder the frozen
-	// children, so the i-th surviving lake here owns the i-th lifted frag.
+	// children, so the i-th surviving lake here owns the i-th lifted frag (rule_lake_restored: the
+	// counts agree).
 	const lakes = lifted_lakes_of(parent);
+	if (RULES) note_lake_restore(parent, lifted.length, lakes.length);
 	// a live snippet's lakes stayed in place: settled and remembered here all the same, as the host is awake
 	for (const lake of parent.querySelectorAll(FROZEN_SELECTOR)) {
 		if (lake.parentElement?.closest('ogygia-region') !== parent || !in_live_snippet(lake, parent))
@@ -127,7 +134,7 @@ function remember(
 	for (const child of Array.from(lake.childNodes)) {
 		cached.appendChild(child.cloneNode(true));
 	}
-	runtime_session.set_lake_cache(id, {
+	runtime_session.lake_cache.set(id, {
 		frag: cached,
 		endpoint: meta.endpoint,
 		when: meta.when,
@@ -164,7 +171,7 @@ export function on_frozen_connect(el: HTMLElement, arm: LakeArm): boolean {
 		// and a lake inside an inline (Kit-hydrated) island. A lake inside a real island keeps
 		// waiting: that island's hydrate lifts, restores and settles it.
 		if (unhosted(el)) {
-			runtime_session.settled_lakes.add(el);
+			runtime_session.settle_lake(el);
 			// Such a lake is also the one nobody else can bring back. Under Kit hydration the wrapper
 			// adopts the SSR element — until Kit gives up on the document (a component threw or the
 			// markup mismatched: Svelte discards the server DOM and mounts fresh), and then the wrapper
@@ -187,19 +194,19 @@ export function on_frozen_connect(el: HTMLElement, arm: LakeArm): boolean {
 		// A known lake id connecting WITH content: a second instance of the same lake on the page
 		// (two same-component lakes share one entry id), or the SSR element connecting again. An
 		// unhosted one is settled as it stands, exactly like its first mount — nothing else will.
-		if (unhosted(el)) runtime_session.settled_lakes.add(el);
+		if (unhosted(el)) runtime_session.settle_lake(el);
 		return true;
 	}
 	const policy = region_remount(el);
 	switch (policy) {
 		case 'empty':
-			runtime_session.settled_lakes.add(el);
+			runtime_session.settle_lake(el);
 			return true;
 		case 'cache':
 		case 'swr': {
-			const cached = runtime_session.lake_cache.get(id);
+			const cached = runtime_session.lake_cache.peek(id);
 			if (!cached) {
-				runtime_session.settled_lakes.add(el);
+				runtime_session.settle_lake(el);
 				return true;
 			}
 			const max_age = region_max_age_ms(el) || cached.maxAgeMs || 0;
@@ -207,13 +214,13 @@ export function on_frozen_connect(el: HTMLElement, arm: LakeArm): boolean {
 			const on_expire = region_on_expire(el);
 
 			if (expired && on_expire === 'empty') {
-				runtime_session.settled_lakes.add(el);
+				runtime_session.settle_lake(el);
 				return true;
 			}
 
 			if (expired && on_expire === 'fetch') {
 				if (!cached.endpoint) {
-					runtime_session.settled_lakes.add(el);
+					runtime_session.settle_lake(el);
 					return true;
 				}
 				el.setAttribute('endpoint', cached.endpoint);
@@ -223,13 +230,13 @@ export function on_frozen_connect(el: HTMLElement, arm: LakeArm): boolean {
 			}
 
 			if (policy === 'cache') {
-				runtime_session.settled_lakes.add(el);
+				runtime_session.settle_lake(el);
 				el.appendChild(cached.frag.cloneNode(true));
 				return true;
 			}
 			el.appendChild(cached.frag.cloneNode(true));
 			if (!cached.endpoint) {
-				runtime_session.settled_lakes.add(el);
+				runtime_session.settle_lake(el);
 				arm.wake_children();
 				if (import.meta.env.DEV) {
 					warn('live_region_no_endpoint', { id });
@@ -249,22 +256,17 @@ export function on_frozen_connect(el: HTMLElement, arm: LakeArm): boolean {
 }
 
 /**
- * The unsettled lakes regions authored inside them are waiting on (they connected, found the lake
- * unsettled, and stopped: `wait_for_boundary`). A lake's settling wakes them, on every path it
- * settles by: a refresh that MORPHS its children in place reconnects none of them (a vacant swr
- * remount's cached copy, refreshed), so nothing else would.
+ * A region authored in an unsettled lake waits on it (session.ts `LAKE`: `waited`). The lake's
+ * settling wakes the ones that waited, on every path it settles by: a refresh that MORPHS its
+ * children in place reconnects none of them (a vacant swr remount's cached copy, refreshed), so
+ * nothing else would.
  */
-const waited_on = new WeakSet<Element>();
-
 export function wait_for_boundary(_el: HTMLElement, boundary: Element | null): boolean {
-	if (!(boundary && is_frozen(boundary) && !runtime_session.settled_lakes.has(boundary)))
-		return false;
-	waited_on.add(boundary);
-	return true;
+	return !!boundary && is_frozen(boundary) && runtime_session.wait_on_lake(boundary);
 }
 
 export function mark_frozen_settled(region: HTMLElement): void {
-	if (is_frozen(region)) runtime_session.settled_lakes.add(region);
+	if (is_frozen(region)) runtime_session.settle_lake_before_swap(region);
 }
 
 export function after_html_swap(
@@ -275,7 +277,7 @@ export function after_html_swap(
 	if (!is_frozen(region)) return;
 	// (settled before the swap — mark_frozen_settled: what the swap brought in connected self-running;
 	// what it morphed in place is woken here)
-	if (waited_on.delete(region)) wake_children();
+	if (runtime_session.wake_lake(region)) wake_children();
 	if (!opts.revalidate) return;
 	const id = region.getAttribute('entry') || '';
 	if (!id) return;
@@ -283,8 +285,8 @@ export function after_html_swap(
 	for (const child of Array.from(region.childNodes)) {
 		cached.appendChild(child.cloneNode(true));
 	}
-	const prev = runtime_session.lake_cache.get(id);
-	runtime_session.set_lake_cache(id, {
+	const prev = runtime_session.lake_cache.peek(id);
+	runtime_session.lake_cache.set(id, {
 		frag: cached,
 		endpoint: region.getAttribute('endpoint') || prev?.endpoint || '',
 		when: region.getAttribute('when') || prev?.when || 'load',
@@ -299,8 +301,7 @@ export function after_fetch_exhausted(
 	wake_children: () => void
 ): void {
 	if (opts.revalidate && is_frozen(region) && region.isConnected) {
-		runtime_session.settled_lakes.add(region);
-		waited_on.delete(region);
+		runtime_session.settle_lake(region);
 		wake_children();
 	}
 }

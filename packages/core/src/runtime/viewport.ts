@@ -81,6 +81,9 @@ class Tracker {
 	 *  reports a target only when its own intersection changes, never what replaced it. Made when a
 	 *  target with no area is first followed. */
 	#swaps: MutationObserver | null = null;
+	/** What `#swaps` observes: each target with no area followed into, and the watched elements
+	 *  that follow into it. A target leaves with its last one, and the observer with it (#1255). */
+	readonly #swap_targets = new Map<Element, Set<Element>>();
 
 	constructor(root_margin: string, owner: Scope) {
 		this.owner = owner;
@@ -155,11 +158,8 @@ class Tracker {
 	#follow(target: Element, watched: Element, depth: number, keep: boolean): void {
 		const s = this.seen.get(target);
 		const deeper = keep && depth > 0 && s !== undefined && !(s.w > 0 && s.h > 0);
-		// (observing a target again is a no-op; one no longer followed is heard and ignored)
-		if (deeper)
-			(this.#swaps ??= this.owner.watch(
-				new MutationObserver((records) => this.#swapped(records))
-			)).observe(target, { childList: true });
+		if (deeper) this.#hear_swaps(target, watched);
+		else this.#stop_swaps(target, watched);
 		let by = this.followed.get(target);
 		const had = by?.get(watched) ?? NONE;
 		const now = deeper ? stand_ins(target) : NONE;
@@ -171,6 +171,33 @@ class Tracker {
 			by.set(watched, now);
 		} else if (by?.delete(watched) && by.size === 0) this.followed.delete(target);
 		if (!keep) this.#unobserve(target, watched);
+	}
+
+	/** Hear `target`'s children change, for `watched`'s decision. */
+	#hear_swaps(target: Element, watched: Element): void {
+		let by = this.#swap_targets.get(target);
+		if (!by) {
+			this.#swap_targets.set(target, (by = new Set()));
+			(this.#swaps ??= this.owner.watch(
+				new MutationObserver((records) => this.#swapped(records))
+			)).observe(target, { childList: true });
+		}
+		by.add(watched);
+	}
+
+	/** `watched` no longer follows into `target`: with its last follower gone, the observer lets it
+	 *  go. (An observer has no unobserve: it disconnects and observes again the targets left, and
+	 *  hands on the records of theirs it had not delivered yet.) */
+	#stop_swaps(target: Element, watched: Element): void {
+		const by = this.#swap_targets.get(target);
+		if (!by?.delete(watched) || by.size) return;
+		this.#swap_targets.delete(target);
+		const swaps = this.#swaps!;
+		const pending = swaps.takeRecords();
+		swaps.disconnect();
+		for (const t of this.#swap_targets.keys()) swaps.observe(t, { childList: true });
+		// (later, as the observer would have: this runs inside a #follow)
+		if (pending.length) tasks.micro(() => this.#swapped(pending));
 	}
 
 	#report(entries: IntersectionObserverEntry[]): void {

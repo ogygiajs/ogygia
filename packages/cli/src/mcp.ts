@@ -14,6 +14,8 @@
  */
 import { createInterface } from 'node:readline';
 import { dedent } from '@ogygia/core/plugin/utils';
+// (an error page's words, cut where the browser cuts its tags)
+import { markup_text } from '@ogygia/core/internal/instruments';
 import { createRequire } from 'node:module';
 import { flights, scope, STALE } from '@ogygia/machine';
 import { readdirSync, readFileSync, type Dirent } from 'node:fs';
@@ -95,7 +97,6 @@ export async function load_profiler_reading(): Promise<ProfilerReading | null> {
 // ── regexes
 const TRAILING_SLASH_RE = /\/$/;
 const HTTP_URL_RE = /^https?:\/\//i;
-const HTML_TAG_G = /<[^>]+>/g;
 const WS_G = /\s+/g;
 const BACKSLASH_G = /\\/g;
 const UNKNOWN_PRESET_RE = /unknown preset/i;
@@ -153,7 +154,7 @@ function parse_marks(source: string): Mark[] {
 	try {
 		ast = parse(source, { modern: true });
 	} catch {
-		return [];
+		return []; // ok: a file Svelte cannot parse has no marks to list (its build says why)
 	}
 	const bodies: Array<Record<string, unknown>> = [];
 	const inst = (ast as { instance?: { content?: { body?: unknown[] } } }).instance;
@@ -1532,7 +1533,7 @@ async function find_local_profiler(base: string, key: string): Promise<string[]>
 			// 404 = no profiler here (bare Kit 404s that path). 200/401/30x = profiler answering.
 			return r.status !== 404 ? origin : null;
 		} catch {
-			return null; // nothing listening / not http — skip
+			return null; // ok: nothing listening, or not http: no profiler on this origin
 		}
 	});
 	return (await Promise.all(probes)).filter((o): o is string => !!o);
@@ -1653,7 +1654,7 @@ async function tool_profile(args: Attrs): Promise<ToolResult> {
 		const headers: Record<string, string> = { accept: 'application/json' };
 		if (key) headers['x-profiler-key'] = key;
 		// N heavy renders can be slow — give it room, but never hang forever.
-		return fetch_timeout(rec, { headers }, 90_000);
+		return fetch_timeout(rec, { method: 'POST', headers }, 90_000);
 	};
 
 	let res: Response;
@@ -1679,7 +1680,7 @@ async function tool_profile(args: Attrs): Promise<ToolResult> {
 		try {
 			const reset = new URL(`${origin + profiler_base}/reset`);
 			const reset_h: Record<string, string> = key ? { 'x-profiler-key': key } : {};
-			await fetch_timeout(reset, { redirect: 'manual', headers: reset_h }, 5000);
+			await fetch_timeout(reset, { method: 'POST', redirect: 'manual', headers: reset_h }, 5000);
 			res = await record_once();
 		} catch {
 			// ok: falls through to the 409 message below, which says what to do
@@ -1691,7 +1692,10 @@ async function tool_profile(args: Attrs): Promise<ToolResult> {
 		await load_profiler_reading(); // (an older report's plain fix sum, when the app has the plugin)
 		return text(render_profile(origin, (await res.json()) as ProfileReport));
 	}
-	const body = (await res.text()).replace(HTML_TAG_G, ' ').replace(WS_G, ' ').trim().slice(0, 300);
+	const body = markup_text(await res.text())
+		.replace(WS_G, ' ')
+		.trim()
+		.slice(0, 300);
 	if (res.status === 401 || res.status === 403)
 		return fail(
 			`The profiler on ${origin} is locked. Pass its secret as \`key\` (ask the user for it).`
@@ -1771,7 +1775,7 @@ function walk_svelte(dir: string, out: string[] = [], depth = 0): string[] {
 	try {
 		entries = readdirSync(dir, { withFileTypes: true }) as Dirent[];
 	} catch {
-		return out;
+		return out; // ok: a folder that cannot be read adds no files to the scan
 	}
 	for (const e of entries) {
 		if (e.name.startsWith('.') && e.name !== '.') continue;
@@ -1817,7 +1821,7 @@ function tool_scan(args: Attrs): ToolResult {
 		try {
 			source = readFileSync(f, 'utf8');
 		} catch {
-			continue;
+			continue; // ok: a file gone or unreadable since the walk is left out of the scan
 		}
 		const marks = parse_marks(source);
 		if (!marks.length) continue;
@@ -1922,7 +1926,7 @@ function walk_flag_files(dir: string, out: string[] = [], depth = 0): string[] {
 	try {
 		entries = readdirSync(dir, { withFileTypes: true }) as Dirent[];
 	} catch {
-		return out;
+		return out; // ok: a folder that cannot be read adds no files to the scan
 	}
 	for (const e of entries) {
 		if (e.name.startsWith('.')) continue;
@@ -1959,7 +1963,7 @@ async function tool_flags(args: Attrs): Promise<ToolResult> {
 			readFileSync(path.join(root, 'node_modules', '.ogygia', 'flags-manifest.json'), 'utf8')
 		) as { flags: FlagSite[]; names: string[] };
 	} catch {
-		manifest = null;
+		manifest = null; // ok: no build's flags manifest yet: the scan reads the source alone
 	}
 
 	// Live scan — same collector the build runs (AST-resolved 'ogygia' imports, literal names).
@@ -1970,7 +1974,7 @@ async function tool_flags(args: Attrs): Promise<ToolResult> {
 		try {
 			source = readFileSync(f, 'utf8');
 		} catch {
-			continue;
+			continue; // ok: a file gone or unreadable since the walk is left out of the scan
 		}
 		const rel = path.relative(root, f).replace(BACKSLASH_G, '/');
 		sites.push(...collect_flag_sites(source, rel, rel));
@@ -2030,7 +2034,7 @@ async function tool_fragment(args: Attrs): Promise<ToolResult> {
 				headers: { accept: 'application/json' }
 			});
 		} catch {
-			return null;
+			return null; // ok: shown as "unreachable" in the report below
 		}
 	};
 
@@ -2068,6 +2072,7 @@ async function tool_fragment(args: Attrs): Promise<ToolResult> {
 				`
 				: 'Catalog mounted, zero widgets declared.';
 		} catch {
+			// ok: said in the report: not a widget catalog
 			widgets_block = '__catalog returned non-JSON — not an ogygia widget catalog.';
 		}
 	}
