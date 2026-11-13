@@ -44,21 +44,22 @@ function start_files() {
 /** A compiler on ROOT's files as they are now, started (the plugin's `buildStart` prescans). */
 function compiler_on_disk() {
 	const program = new Program({ forms: true, router: true });
-	const compiler = new Compiler(program, {
-		prof: {
-			transformMs: 0,
-			transformN: 0,
-			transformHit: 0,
-			prescanMs: 0,
-			bakeMs: 0,
-			bakeN: 0,
-			resolveMs: 0,
-			loadMs: 0
+	const compiler = new Compiler(
+		program,
+		{
+			prof: {
+				transformMs: 0,
+				transformN: 0,
+				transformHit: 0,
+				prescanMs: 0,
+				macroMs: 0,
+				macroN: 0,
+				resolveMs: 0,
+				loadMs: 0
+			},
+			P: false,
+			outHash: new Map<string, number>()
 		},
-		P: false,
-		outHash: new Map<string, number>()
-	});
-	compiler.configure(
 		new CompileCtx(
 			partial_ctx_init({
 				root: ROOT,
@@ -86,7 +87,10 @@ function compiler_on_disk() {
  *  transform, then the ids it invalidates. */
 async function add(compiler: Compiler, file: string, text: string): Promise<string[]> {
 	write(file, text);
-	await compiler.transform_module(text, file, { ssr: true, emitFile: () => '' });
+	await compiler.transform_module(text, file, {
+		leg: compiler.leg({ name: 'ssr', server: true }),
+		emitFile: () => ''
+	});
 	return [...compiler.moved(), ...compiler.drain_closure_marks()];
 }
 
