@@ -1,7 +1,5 @@
-import { parse, type AST } from 'svelte/compiler';
 import fs from 'node:fs';
-import { parse_module, type AstNode } from '../parse/oxc.ts';
-import { blank_styles } from '../blank-styles.ts';
+import { parse_roots, type AstNode } from '@ogygia/compiler';
 
 type Node = AstNode;
 
@@ -247,24 +245,6 @@ export function merge_page_keys(a: PageKeys | null, b: PageKeys | null): PageKey
 /** Does this module even mention a page-store specifier? (the transform's pre-filter) */
 export function mentions_page_store(code: string): boolean {
 	return PAGE_SPECIFIER_HINT_RE.test(code);
-}
-
-export function parse_roots(code: string, id: string, kind: 'svelte' | 'script'): Node[] | null {
-	if (kind === 'script') {
-		const r = parse_module(code, id);
-		return r.ok && r.program ? [r.program] : null;
-	}
-	let ast: AST.Root;
-	try {
-		ast = parse(blank_styles(code), { modern: true, filename: id });
-	} catch {
-		return null; // ok: null is "did not parse"; seed shaping answers 'all' for it, the context hint says nothing
-	}
-	const roots: Node[] = [];
-	if (ast.module?.content) roots.push(ast.module.content);
-	if (ast.instance?.content) roots.push(ast.instance.content);
-	if (ast.fragment) roots.push(ast.fragment);
-	return roots;
 }
 
 const SCOPE_TYPES: ReadonlySet<string> = new Set([
@@ -1014,7 +994,7 @@ function is_reexport(s: ExportSummary): s is { follow: string[]; imported: strin
 	return typeof s === 'object' && s !== null && 'follow' in s;
 }
 
-function read_file_sync(file: string): string | null {
+export function read_file_sync(file: string): string | null {
 	try {
 		return fs.readFileSync(file, 'utf8');
 	} catch {

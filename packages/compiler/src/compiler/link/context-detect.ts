@@ -1,4 +1,4 @@
-import { parse_roots } from './page-keys.ts';
+import { parse_roots } from '../parse/roots.ts';
 import { OWN_PACKAGE_NAMES, key_name } from '@ogygia/core/contract';
 import type { AstNode } from '../parse/oxc.ts';
 
