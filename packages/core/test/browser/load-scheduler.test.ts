@@ -18,11 +18,18 @@ import {
 	reset_load_scheduler,
 	viewport_class
 } from '../../src/runtime/load-scheduler.ts';
-import { reset_document_painted } from '../../src/runtime/schedule.ts';
+import { after_document_painted, reset_document_painted } from '../../src/runtime/schedule.ts';
 import { PRIORITY } from '../../src/runtime/load-class.ts';
 import { flights } from '@ogygia/machine';
 
 const tick = (ms = 0) => new Promise((r) => setTimeout(r, ms));
+
+/** Past the painted frame the critical wait starts from, and a task more (the wait has armed its
+ *  listeners by then): never a fixed time, which a loaded machine outran (#1430). */
+const past_paint = async () => {
+	await after_document_painted();
+	await tick();
+};
 
 /** A critical image that has not arrived: `complete` false until the test fires its load. */
 function pending_hero(): HTMLImageElement {
@@ -119,7 +126,7 @@ test('island code waits for the critical image; a gesture and visible content do
 	void ask('ahead code', 'code', 'ahead');
 	void ask('user code', 'code', 'user');
 	void ask('visible html', 'content', 'visible');
-	await tick(50); // past the painted frame
+	await past_paint();
 	expect(started.sort()).toEqual(['user code', 'visible html']);
 	hero.dispatchEvent(new Event('load'));
 	await tick();
@@ -131,7 +138,7 @@ test('the visitor’s first input releases the wait (the browser stops measuring
 	pending_hero();
 	let started = false;
 	void new LoadSlot({ kind: 'code', cls: 'visible' }).ready.then(() => (started = true));
-	await tick(50);
+	await past_paint();
 	expect(started).toBe(false);
 	document.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
 	await tick();
@@ -332,7 +339,7 @@ test('the gate opening starts each class in the order asked, whatever order the 
 	ask('a2', 'ahead');
 	ask('v2', () => 'visible');
 	ask('a3', 'ahead');
-	await tick(50);
+	await past_paint();
 	expect(started).toEqual([]);
 	hero.dispatchEvent(new Event('load'));
 	await tick();
@@ -404,7 +411,7 @@ test('a slot asked for while a drain starts others goes in that drain, after the
 		ask('a', 'ahead');
 		ask('v2', 'visible');
 	});
-	await tick(50);
+	await past_paint();
 	expect(started).toEqual([]);
 	hero.dispatchEvent(new Event('load'));
 	await tick();

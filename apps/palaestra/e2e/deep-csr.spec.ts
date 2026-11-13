@@ -30,7 +30,10 @@ test.describe('PAGE-CSR invariant: csr=false ONLY in a deep catch-all — root-l
 	test.beforeAll(async () => {
 		test.setTimeout(15 * 60_000);
 		// ── 1. build the fixture (its vite build consumes the live workspace ogygia) ────────────────
-		const built = spawnSync('pnpm', ['--dir', dir, 'build'], { stdio: 'inherit' });
+		const built = spawnSync('pnpm', ['--dir', dir, 'build'], {
+			stdio: 'inherit',
+			env: { ...process.env, OGYGIA_RULES: '1' }
+		});
 		expect(built.status, 'repro-deep-csr build').toBe(0);
 
 		// ── 2. boot the adapter-node output ─────────────────────────────────────────────────────────
