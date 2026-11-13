@@ -4883,6 +4883,14 @@
 		{
 			"id": "packages/postrender/src/server.ts > refusal",
 			"reason": "the store verdict before the body is read: a few field and header reads on a Response (not cloneable), constant work; proven in packages/postrender/test/dev-note.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/devtools/session.ts > start_session > counting",
+			"reason": "browser only: the recording's console.error wrapper, one line counted (200 at most) and passed on, constant work per call; proven in packages/devtools/test/devtools-session-console.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/devtools/session.ts > start_session > counting > push:0~64a57a > map:0~529f9c",
+			"reason": "browser only: one console.error argument as text, constant work per argument; proven in packages/devtools/test/devtools-session-console.test.ts"
 		}
 	]
 }
