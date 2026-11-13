@@ -158,6 +158,13 @@ export class Program {
 		return new Program(this.#init);
 	}
 
+	readonly #init: { forms: boolean; router: boolean };
+
+	/** An empty program with the same options: the next build's (`Compiler.start_leg`). */
+	fresh(): Program {
+		return new Program(this.#init);
+	}
+
 	constructor(init: { forms: boolean; router: boolean }) {
 		this.#init = init;
 		this.runtime_marks = {
