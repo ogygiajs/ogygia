@@ -271,23 +271,6 @@ export const BUILD_ERRORS = {
 		`,
 		details: (): string => BUG
 	},
-	server_region_late: {
-		text: (a: { host: string }): string => prose`
-			${a.host} has a server region (\`render: 'deferred'\` or held) that the build found too
-			late to serve: its request would be refused. Add the file's package to
-			\`"ogygia": { "files": [...] }\` (or move it under \`src/\`) so the build sees it from the start.
-		`,
-		details: (): string => prose`
-			The build lists every server region when it first needs the list, early, from the
-			files it scans at the start: the app's \`src/\` and the declared \`ogygia.files\` of its
-			packages. A region whose file is outside both is found only when the bundler reaches
-			it, after the list is written, and nothing can add it then: its hole would answer 403
-			in production. So the build stops here instead.
-
-			Declare the package that holds the file (its \`package.json\` \`ogygia.files\`), or move
-			the component into the app's \`src/\`.
-		`
-	},
 	region_import_invalid: {
 		text: (a: { host: string; names: string; problem: string }): string =>
 			`${a.host}: import { ${a.names} } — ${a.problem}`,

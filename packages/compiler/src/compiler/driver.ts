@@ -93,6 +93,7 @@ type TransformResult = RegisterResult & { code: string; map: unknown };
 /** The chunk names our content-hashed entries are emitted under (`entry_file_pattern` keys on them). */
 const ISLAND_ENTRY_NAME_PREFIX = 'og-region.';
 const RUNTIME_ENTRY_NAME = 'og-runtime';
+const LATE_SERVER_REGION_NAME = 'og-server-region';
 
 /** The bundler's `emitFile` for an entry chunk, by `name` (the output pattern content-hashes it).
  *  Returns the reference id. */
@@ -1107,6 +1108,24 @@ export class Compiler implements CoreApp {
 
 	/** One hydrate island's entry, content-hashed by the bundler (the location maps that name it are
 	 *  written at the bundle's end: `location_maps`). */
+	/**
+	 * A server region this registration added after the leg wrote `server-regions` (its host was
+	 * reached late: outside the start-up scan, #1420): its loader is its own chunk, emitted now and
+	 * named in that module at renderChunk (link/relocations.ts). Once per region per leg.
+	 */
+	#emit_late_server_regions(leg: BuildLeg, emitFile: EmitChunk, result: TransformResult): void {
+		const written = this.program.server_regions_written;
+		if (written === null) return;
+		for (const isl of result.islands ?? []) {
+			if (!isl.server || !isl.virtualPath || written.has(isl.id)) continue;
+			if (leg.late_server_regions.has(isl.id)) continue;
+			leg.late_server_regions.set(
+				isl.id,
+				emitFile({ type: 'chunk', id: isl.virtualPath, name: LATE_SERVER_REGION_NAME })
+			);
+		}
+	}
+
 	emit_island_entry(leg: BuildLeg, emitFile: EmitChunk, rid: string, virtualPath: string): void {
 		leg.island_entry_refs.set(
 			rid,
@@ -1676,6 +1695,7 @@ export class Compiler implements CoreApp {
 						this.emit_island_entry(leg, emitFile, isl.id, isl.virtualPath);
 					}
 				}
+				if (ctx.is_build && ssr) this.#emit_late_server_regions(leg, emitFile, result);
 			}
 
 			// A transportable class can live in this component's `<script module>` — register it
@@ -1718,6 +1738,7 @@ export class Compiler implements CoreApp {
 			if (result) {
 				program.register(result, id_n);
 				this.#mark_registered_closures(result);
+				if (ctx.is_build && ssr) this.#emit_late_server_regions(leg, emitFile, result);
 				out = result.code;
 				map = result.map;
 				touched = true;
@@ -1787,12 +1808,17 @@ export class Compiler implements CoreApp {
 	 */
 	relocate(
 		code: string,
-		leg: Pick<BuildLeg, 'server' | 'relocated'>,
-		bundle: Pick<RelocateCx, 'graph' | 'module_ids'>
+		leg: Pick<BuildLeg, 'server' | 'relocated' | 'late_server_regions'>,
+		bundle: Pick<RelocateCx, 'graph' | 'module_ids' | 'chunk_file' | 'file_name'>
 	): { code: string; map: null } | null {
+		const ctx = this.#ctx;
 		const out = relocate(code, leg.server, leg.relocated, {
 			program: this.program,
 			dollar_hoists: this.dollar_hoists,
+			public_url: (iid) => ctx.island_public_url(iid),
+			late_server_regions: leg.late_server_regions,
+			chunk_file: bundle.chunk_file,
+			file_name: bundle.file_name,
 			graph: bundle.graph,
 			module_ids: bundle.module_ids
 		});

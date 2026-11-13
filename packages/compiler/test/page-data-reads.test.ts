@@ -62,8 +62,12 @@ describe('the page-data reads relocation', () => {
 	};
 	const info = (id: string) => graph[id] ?? null;
 	const ids = () => Object.keys(graph);
-	const bundle = { graph: info, module_ids: ids };
-	const server_leg = () => ({ server: true, relocated: new Map<string, number>() });
+	const bundle = { graph: info, module_ids: ids, chunk_file: 'manifest.js', file_name: String };
+	const server_leg = () => ({
+		server: true,
+		relocated: new Map<string, number>(),
+		late_server_regions: new Map<string, string>()
+	});
 
 	test('a reader anywhere in the tree (a dynamic import too) → true; none (a cycle too) → false', () => {
 		const c = compiler_with(
