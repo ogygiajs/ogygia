@@ -258,3 +258,39 @@ describe('undeclared-marks warning', () => {
 		warn.mockRestore();
 	});
 });
+
+describe('discover_package_files: what counts as a declaration', () => {
+	const fresh = (files: Record<string, string>) => {
+		const root = realpathSync(mkdtempSync(path.join(tmpdir(), 'og-pkg-decl-')));
+		for (const [rel, content] of Object.entries(files)) {
+			mkdirSync(path.dirname(path.join(root, rel)), { recursive: true });
+			writeFileSync(path.join(root, rel), content);
+		}
+		return root;
+	};
+
+	it("ogygia's own packages are never read through the field", () => {
+		const root = fresh({
+			'package.json': JSON.stringify({ dependencies: { '@ogygia/core': '1' } }),
+			'node_modules/@ogygia/core/package.json': JSON.stringify({ ogygia: { files: ['./ui'] } }),
+			'node_modules/@ogygia/core/ui/P.svelte': ''
+		});
+		expect(discover_package_files(root)).toEqual([]);
+		rmSync(root, { recursive: true, force: true });
+	});
+
+	it('every glob form expands: braces and classes as well as stars', () => {
+		const root = fresh({
+			'package.json': JSON.stringify({ dependencies: { kit: '1' } }),
+			'node_modules/kit/package.json': JSON.stringify({
+				ogygia: { files: ['./src/{one,two}.ts', './src/[x]y.ts'] }
+			}),
+			'node_modules/kit/src/one.ts': '',
+			'node_modules/kit/src/two.ts': '',
+			'node_modules/kit/src/xy.ts': ''
+		});
+		const [kit] = discover_package_files(root);
+		expect(kit.files.map((f) => path.basename(f)).sort()).toEqual(['one.ts', 'two.ts', 'xy.ts']);
+		rmSync(root, { recursive: true, force: true });
+	});
+});

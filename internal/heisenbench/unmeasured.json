@@ -2913,10 +2913,6 @@
 			"reason": "build only: Vite's closeBundle hook, once per build leg, constant work of its own"
 		},
 		{
-			"id": "packages/compiler/src/vite/paths.ts > runtime_content_hash",
-			"reason": "build only: hashes the runtime's files on disk (file reads, not recorded), once per build leg"
-		},
-		{
 			"id": "packages/compiler/src/vite/paths.ts > scan_entry_pattern",
 			"reason": "dev only: one island file to an optimizeDeps pattern (a realpath and one replace), constant work per file"
 		},
@@ -5791,6 +5787,14 @@
 		{
 			"id": "packages/page-keys/src/index.ts > pageKeys > definePlugin:0~0ce4a1 > build",
 			"reason": "build only: makes the plugin's page_reads (measured in the page-keys bench) and hands it to the build, once per build"
+		},
+		{
+			"id": "packages/compiler/src/vite/paths.ts > content_hash",
+			"reason": "build only: hashes the runtime's files on disk (file reads, not recorded), once per build leg"
+		},
+		{
+			"id": "packages/compiler/src/vite/paths.ts > runtime_inputs",
+			"reason": "build only: lists the runtime's files on disk (a directory read, not recorded), once per build leg"
 		}
 	]
 }
