@@ -6003,6 +6003,10 @@
 		{
 			"id": "packages/core/src/runtime/slots.ts > slots > lakes > release",
 			"reason": "the empty default before the lakes feature installs: does nothing, constant work"
+		},
+		{
+			"id": "packages/bake/src/bake.ts > evaluate > build:0~602b6c > build > rolldownOptions > external",
+			"reason": "build only: the bake build's external test, one startsWith per import it resolves"
 		}
 	]
 }

@@ -3,6 +3,7 @@
 // sidecar or the seed → `JSON.parse`, nothing else), the csr fact read off `<meta name="ogygia-csr">`
 // before any inline-script probe, and the shared IntersectionObserver.
 import { afterEach, beforeEach, expect, inject, test } from 'vitest';
+import { from_b64 } from './b64.ts';
 import { mark_live_head } from './_response-mark.ts';
 import { page } from 'vitest/browser';
 import { bootDev } from '../../src/runtime/full.ts';
@@ -21,7 +22,7 @@ link_boot();
 const HYDRATED = 'ogygia-region[data-hydrated]';
 const decode = (
 	key: 'counter_tail_ssr_b64' | 'counter_tail_legacy_ssr_b64' | 'counter_json_lane_ssr_b64'
-) => decodeURIComponent(escape(atob(inject(key))));
+) => from_b64(inject(key));
 
 const unmark: Array<() => void> = [];
 beforeEach(() => {

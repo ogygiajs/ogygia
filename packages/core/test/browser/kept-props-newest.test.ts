@@ -1,5 +1,6 @@
 // Its own file: the wire slot is module state shared by a file's tests.
 import { expect, inject, test, vi } from 'vitest';
+import { from_b64 } from './b64.ts';
 import { page } from 'vitest/browser';
 import { writable } from 'svelte/store';
 
@@ -40,7 +41,7 @@ test('a kept island’s newer props win over older ones still waiting for the wi
 	const meta = document.createElement('meta');
 	meta.name = 'ogygia-router';
 	document.head.append(meta);
-	const body = decodeURIComponent(escape(atob(inject('label_render_b64'))));
+	const body = from_b64(inject('label_render_b64'));
 	document.body.innerHTML = kept(body, { text: 'one' });
 	bootDev();
 	await expect
@@ -57,7 +58,7 @@ test('a kept island’s newer props win over older ones still waiting for the wi
 });
 
 test('a kept island whose next props cannot be read keeps the props it has', async () => {
-	const body = decodeURIComponent(escape(atob(inject('label_render_b64'))));
+	const body = from_b64(inject('label_render_b64'));
 	const live = document.querySelector('ogygia-region') as Kept;
 	const twin = twin_of(
 		`<ogygia-region wake="load" entry="${LABEL}" data-ogygia-keep="label">${body}</ogygia-region><script type="application/ogygia-props" data-ogygia-props>{not props\x3C/script>`

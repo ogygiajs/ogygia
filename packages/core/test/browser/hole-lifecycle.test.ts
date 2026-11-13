@@ -4,6 +4,7 @@
 // not mark the next answer a refresh; every schedule a region arms is disarmed when it leaves; and a
 // visitor's wake that failed is told so.
 import { afterEach, beforeEach, expect, inject, test, vi } from 'vitest';
+import { from_b64 } from './b64.ts';
 import { observe } from '@ogygia/machine';
 import { bootDev } from '../../src/runtime/full.ts';
 import { _reset, stamp, write } from '../_frames.ts';
@@ -11,7 +12,7 @@ import { frameAddress } from '../../src/frame.ts';
 import { KEEP_FALLBACK_HTML } from '../../src/keep-fallback-marker.ts';
 
 const COUNTER = '/test/browser/fixtures/Counter.svelte';
-const counter = () => decodeURIComponent(escape(atob(inject('counter_render_b64'))));
+const counter = () => from_b64(inject('counter_render_b64'));
 const ep = (id: string, props = 'W3t9XQ') =>
 	`/__ogygia__?id=${id}&props=${props}&exp=9999999999&sig=stub`;
 

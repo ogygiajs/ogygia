@@ -5,6 +5,7 @@
 // marker layer met `render()`'s single pair one layer short: a live region and a woken deferred
 // answer were thrown away and re-rendered on every wake.)
 import { beforeAll, beforeEach, expect, inject, test } from 'vitest';
+import { from_b64 } from './b64.ts';
 import type { Component } from 'svelte';
 import { link_boot } from '../../src/runtime/boot-link.ts';
 import { load_devalue } from '../../src/runtime/devalue-lane.ts';
@@ -15,7 +16,7 @@ import Label from './fixtures/Label.svelte';
 import NestedProbe from './fixtures/NestedProbe.svelte';
 
 type Key = 'counter_ssr_b64' | 'counter_render_b64' | 'label_render_b64' | 'probe_render_b64';
-const decode = (key: Key) => decodeURIComponent(escape(atob(inject(key))));
+const decode = (key: Key) => from_b64(inject(key));
 const as_module = (c: unknown) => ({ default: c as Component<Record<string, unknown>> });
 
 beforeAll(async () => {

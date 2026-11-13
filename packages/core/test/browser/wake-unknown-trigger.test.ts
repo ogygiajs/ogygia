@@ -2,9 +2,10 @@
 // read by the one trigger parser (src/contract/trigger.ts) as every schedule reads one: the region
 // wakes on load. It is never taken for a media query that can never match.
 import { beforeEach, expect, inject, test } from 'vitest';
+import { from_b64 } from './b64.ts';
 import { bootDev } from '../../src/runtime/full.ts';
 
-const decode = (key: 'counter_ssr_b64') => decodeURIComponent(escape(atob(inject(key))));
+const decode = (key: 'counter_ssr_b64') => from_b64(inject(key));
 
 beforeEach(() => {
 	document.body.innerHTML = '';
