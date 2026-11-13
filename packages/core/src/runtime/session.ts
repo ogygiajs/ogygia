@@ -60,9 +60,25 @@ type LakeMachine = ReturnType<typeof LAKE.create>;
  * And ONE copy: while an island's head content is live, the page's identical server copy of it is
  * retired (field: two identical JSON-LD blocks, duplicated inline CSS and preloads). Only page-owned
  * copies are ever retired — never an island's live node — and never a stylesheet link (removing either
- * copy could unstyle the page for a frame; a doubled sheet is harmless).
+ * copy could unstyle the page for a frame; a doubled sheet is harmless). Two copies are the same when
+ * {@link head_copy_key} says so.
  */
 const STYLESHEET_REL_RE = /(?:^|\s)stylesheet(?:\s|$)/i;
+
+/**
+ * What a head element is, for the one-copy rule: its tag, its attributes in order, and its content,
+ * where an element with no element children (a `<style>`, a `<script>`, a `<meta>`) is read by its
+ * text with the ends trimmed. The server writes such text as the source has it and the client's
+ * compiled template trims it, so a style written over several lines would otherwise never match its
+ * own server copy (#1122: island-head-order.test.ts). Text that differs past its ends is a different
+ * element (the same test file: a page style with other rules stays).
+ */
+function head_copy_key(el: Element): string {
+	const key = `${el.localName}${Array.from(el.attributes, (a) => `\0${a.name}\0${a.value}`).join('')}`;
+	return el.childElementCount === 0
+		? `${key}\0\0t${(el.textContent ?? '').trim()}`
+		: `${key}\0\0h${el.innerHTML}`;
+}
 
 /**
  * THE PAGE VISIT: one per page the visitor is on, the document load, then each page a navigation
@@ -115,6 +131,8 @@ function page_visit(): PageVisit {
 export interface HeadMark {
 	/** The head's elements now that were not its children when the mark was made, in head order. */
 	added(): Element[];
+	/** The same, every node (an island's head block is its elements and Svelte's text anchor). */
+	nodes(): Node[];
 	/** Stop noting (a step that ended without a record). */
 	stop(): void;
 }
@@ -124,18 +142,42 @@ export interface HeadMark {
  * record says whether it was a child before the step (removed first: it was; added first: it was
  * not), and it counts only if it is still a child at the end.
  */
-function added_children(head: Element, records: MutationRecord[]): Element[] {
+function added_children(head: Element, records: MutationRecord[]): Node[] {
 	const was_child = new Map<Node, boolean>();
 	for (const r of records) {
 		for (const n of r.removedNodes) if (!was_child.has(n)) was_child.set(n, true);
 		for (const n of r.addedNodes) if (!was_child.has(n)) was_child.set(n, false);
 	}
-	const out: Element[] = [];
-	for (const [n, was] of was_child)
-		if (!was && n.nodeType === 1 && n.parentNode === head) out.push(n as Element);
+	const out: Node[] = [];
+	for (const [n, was] of was_child) if (!was && n.parentNode === head) out.push(n);
 	// (head order: what a scan of the head would have found)
 	if (out.length > 1) out.sort((a, b) => (a.compareDocumentPosition(b) & 4 ? -1 : 1));
 	return out;
+}
+
+/**
+ * Put an island's fresh head block where the server wrote it: `nodes` (what its hydrate step added
+ * to `<head>`, in head order: its elements `own` and Svelte's anchors) move, as one run, to before
+ * the page's copy of the first of them that has one, the copy `retire_page_head_copies` retires
+ * next. So islands' head content stands in the server's order, not in the order they woke (#1107).
+ * The run moves whole or not at all: Svelte removes a head block by walking from its first node to
+ * its last, so a run another node stands inside is left where it is.
+ */
+function take_page_slot(nodes: Node[], own: Element[], page_head: WeakSet<Node>): void {
+	const head = document.head;
+	const first = nodes[0];
+	const last = nodes[nodes.length - 1];
+	// (one run: every node from the first to the last is the step's)
+	const run = new Set(nodes);
+	for (let n: Node | null = first; n !== last; n = n.nextSibling)
+		if (n === null || !run.has(n)) return;
+	const keys = new Set<string>();
+	for (const el of own) keys.add(head_copy_key(el));
+	for (const el of head.children) {
+		if (run.has(el) || !page_head.has(el) || !keys.has(head_copy_key(el))) continue;
+		for (const n of nodes) head.insertBefore(n, el);
+		return;
+	}
 }
 
 export class RuntimeSession {
@@ -163,46 +205,55 @@ export class RuntimeSession {
 	 */
 	mark_head(): HeadMark {
 		const head = document.head;
+		let taken: Node[] | null = null;
+		let take: () => Node[];
+		let stop = (): void => {};
 		if (typeof MutationObserver === 'undefined') {
-			const before = new Set<Node>(head.children);
-			return {
-				added: () => Array.from(head.children).filter((n) => !before.has(n)),
-				stop: () => {}
-			};
-		}
-		// (records the browser hands the callback before the step reads them are kept: the step is
-		// synchronous, so none should be, but a lost record would be a node of the island's missed)
-		const delivered: MutationRecord[] = [];
-		// oxlint-disable-next-line ogygia/owned-effects -- the hydrate step's own: the mark it hands back disconnects it (`added`, `stop`)
-		const watch = new MutationObserver((records) => delivered.push(...records));
-		watch.observe(head, { childList: true });
-		return {
-			added: () => {
+			const before = new Set<Node>(head.childNodes);
+			take = () => Array.from(head.childNodes).filter((n) => !before.has(n));
+		} else {
+			// (records the browser hands the callback before the step reads them are kept: the step is
+			// synchronous, so none should be, but a lost record would be a node of the island's missed)
+			const delivered: MutationRecord[] = [];
+			// oxlint-disable-next-line ogygia/owned-effects -- the hydrate step's own: the mark it hands back disconnects it (`added`, `nodes`, `stop`)
+			const watch = new MutationObserver((records) => delivered.push(...records));
+			watch.observe(head, { childList: true });
+			stop = () => watch.disconnect();
+			take = () => {
 				const records = delivered.concat(watch.takeRecords());
 				watch.disconnect();
 				return added_children(head, records);
-			},
-			stop: () => watch.disconnect()
+			};
+		}
+		// (read once: the records are taken when the step ends)
+		const nodes = (): Node[] => (taken ??= take());
+		return {
+			added: () => nodes().filter((n): n is Element => n.nodeType === 1),
+			nodes,
+			stop
 		};
 	}
 
 	/** After an island's hydrate: the head elements it added (not there before the step, not
-	 *  page-owned) are that island's; then retire the page's copies of them. */
+	 *  page-owned) are that island's; they take the place of the page's copy of them, which is
+	 *  retired. */
 	record_island_head(mark: HeadMark): void {
-		let added = false;
+		const own: Element[] = [];
 		for (const n of mark.added()) {
 			if (!this.page_head.has(n)) {
 				this.island_head.add(n);
-				added = true;
+				own.push(n);
 			}
 		}
 		// (an island that added nothing to the head has no page copy to retire: no serializing every
 		// page head element on each of the page's hydrates)
-		if (added) this.retire_page_head_copies();
+		if (own.length === 0) return;
+		take_page_slot(mark.nodes(), own, this.page_head);
+		this.retire_page_head_copies();
 	}
 
 	/**
-	 * Remove every PAGE-owned head element that duplicates a live island-owned one (same markup), and
+	 * Remove every PAGE-owned head element that duplicates a live island-owned one ({@link head_copy_key}), and
 	 * the page's `<title>` once an island renders its own (the browser honours the first title, and
 	 * the island's is the reactive one). Runs after an island hydrates and after a navigation merge.
 	 */
@@ -214,14 +265,14 @@ export class RuntimeSession {
 				this.island_head.delete(el);
 				continue;
 			}
-			live.add(el.outerHTML);
+			live.add(head_copy_key(el));
 			if (el.localName === 'title') island_title = true;
 		}
 		if (live.size === 0) return;
 		for (const el of Array.from(document.head.children)) {
 			if (!this.page_head.has(el)) continue;
 			if (el.localName === 'link' && STYLESHEET_REL_RE.test(el.getAttribute('rel') ?? '')) continue;
-			if ((island_title && el.localName === 'title') || live.has(el.outerHTML)) el.remove();
+			if ((island_title && el.localName === 'title') || live.has(head_copy_key(el))) el.remove();
 		}
 	}
 
