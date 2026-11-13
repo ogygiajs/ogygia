@@ -121,10 +121,6 @@
 			"reason": "names an unnamed theme object for Shiki: a spread of a theme object, constant work; proven in packages/content/test/shiki-highlighters.test.ts"
 		},
 		{
-			"id": "packages/content/src/markdown/shiki.ts > render_code_region > replace:1~7326ff",
-			"reason": "the replacement for the multi-variant id attribute: one concatenation, constant work; proven in packages/content/test/fence-escaping.test.ts"
-		},
-		{
 			"id": "packages/content/src/markdown/shiki.ts > render_code_region > replace:1~ca1204",
 			"reason": "the replacement for the pre's attributes: one concatenation, constant work; proven in packages/content/test/fence-escaping.test.ts"
 		},
@@ -3593,22 +3589,6 @@
 			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: never ran); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
 		},
 		{
-			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > store_visit > onsuccess > rec > visit > union:2~3b3bc2",
-			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: never ran); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
-		},
-		{
-			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > store_visit > onsuccess > rec > visit > union:2~8ba958",
-			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: never ran); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
-		},
-		{
-			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > store_visit > onsuccess > rec > visit > union:2~9ce3d0",
-			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: never ran); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
-		},
-		{
-			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > store_visit > onsuccess > rec > visit > union:2~bd1f02",
-			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: never ran); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
-		},
-		{
 			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > store_visit > onsuccess > union",
 			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: never ran); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
 		},
@@ -6007,6 +5987,26 @@
 		{
 			"id": "packages/bake/src/bake.ts > evaluate > build:0~602b6c > build > rolldownOptions > external",
 			"reason": "build only: the bake build's external test, one startsWith per import it resolves"
+		},
+		{
+			"id": "packages/content/src/markdown/shiki.ts > render_code_region > replace:1~370216",
+			"reason": "the replacement for the multi-variant id attribute: one concatenation, constant work; proven in packages/content/test/fence-escaping.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > store_visit > onsuccess > rec > visit > union:2~0a5830",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: never ran); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > store_visit > onsuccess > rec > visit > union:2~2f9524",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: never ran); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > store_visit > onsuccess > rec > visit > union:2~6624ce",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: never ran); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > store_visit > onsuccess > rec > visit > union:2~7e6e9f",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: never ran); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
 		}
 	]
 }

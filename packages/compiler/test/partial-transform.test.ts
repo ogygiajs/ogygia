@@ -15,6 +15,7 @@ import {
 	regionId,
 	regionBindingVirtualId
 } from '../src/compiler/region/transform.ts';
+import type { MarkOptions } from '../src/compiler/region/ir.ts';
 import { HOST_CTX_DEFAULTS } from './_host-ctx.ts';
 
 const ROOT = '/app';
@@ -41,7 +42,7 @@ function makeCtx(overrides: Partial<HostCtx> = {}): HostCtx {
 // `region:visible`. A `.ts` `wake:` mark bakes the schedule but stays a HELD (crossable) island, so it
 // keeps the `held:*` identity — distinct from a `.svelte` PLACED island (`hydrate:*`, no endpoint).
 function heldId(compRel: string, hydrate?: string) {
-	const options: Record<string, unknown> = {};
+	const options: MarkOptions = {};
 	if (hydrate) {
 		options.hydrate = hydrate;
 		if (hydrate === 'visible') options.hydrateMargin = '0px';

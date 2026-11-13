@@ -94,6 +94,6 @@ export async function render_fence(
 		)
 		.join('');
 	const open = html`<div class="og-code" data-pref="${pref.name}"${attr('data-file', file || null)}>`;
-	const out = `${open}<div class="og-code-controls" role="tablist">${controls}</div>${panels}</div>`;
+	const out = `${String(open)}<div class="og-code-controls" role="tablist">${controls}</div>${panels}</div>`;
 	return { html: out, count: rendered.length, source: fence.source, ...(file ? { file } : {}) };
 }

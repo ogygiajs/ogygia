@@ -225,7 +225,7 @@ async function run_page(page, fresh = async () => {}) {
 	const answers = [];
 	const nows = [];
 	let partial = false;
-	const elsewhere = new Set();
+	const elsewhere = new Set<string>();
 	for (let r = 0; r < repeat; r++) {
 		const res = await check(page, k);
 		if (res.forecast !== undefined) forecasts.push(res.forecast);

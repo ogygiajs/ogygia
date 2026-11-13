@@ -14,6 +14,7 @@ import {
 	regionBindingVirtualId,
 	wrapperVirtualId
 } from '../src/compiler/region/transform.ts';
+import type { MarkOptions } from '../src/compiler/region/ir.ts';
 import { HOST_CTX_DEFAULTS } from './_host-ctx.ts';
 
 type HostCtx = Parameters<typeof transformHost>[2];
@@ -70,7 +71,7 @@ function thrown(fn: () => unknown): { code: string; message: string } | null {
 }
 
 const load = { strategy: 'load', options: {} };
-const id_of = (base: string, mark: { strategy: string; options?: Record<string, unknown> }) =>
+const id_of = (base: string, mark: { strategy: string; options?: MarkOptions }) =>
 	regionId(regionIdentity(base, mark));
 
 describe('a marked named import in a .svelte host is a region', () => {
