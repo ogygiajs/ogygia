@@ -98,11 +98,12 @@ describe('join_batch', () => {
 		expect(posts).toEqual([[ep('n1'), ep('n2')]]);
 	});
 
-	it('a frame the batch did not carry: the joined fetch rejects as a batch miss', async () => {
+	it('a frame the batch did not carry: the joined fetch runs its own', async () => {
 		stub_batch(() => done_parcel());
 		await Promise.all([join_batch(ep('m1')), join_batch(ep('m2'))]);
-		const err = await ensure(frameAddress(ep('m1')), async () => 'own').catch((e) => e);
-		expect(err?.name).toBe('OgygiaBatchMiss');
-		expect(peek(frameAddress(ep('m1')))).toBeNull();
+		const own = vi.fn(async () => 'own');
+		expect(await ensure(frameAddress(ep('m1')), own)).toBe('own');
+		expect(own).toHaveBeenCalledTimes(1);
+		expect(peek(frameAddress(ep('m1')))?.html).toBe('own');
 	});
 });

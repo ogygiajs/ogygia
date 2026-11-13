@@ -4,15 +4,14 @@ import { is_dimensioned } from './dimensions.ts';
 import { OgygiaError } from '../messages/runtime.ts';
 import { flights, STALE } from '@ogygia/machine';
 import { escapeText as esc_html } from '@ogygia/core/plugin/utils';
+import { markup_text } from '@ogygia/core/internal/instruments';
 
 const FRONTMATTER_BLOCK_RE = /^﻿?---\r?\n[\s\S]*?\r?\n---\r?\n?/;
-const SCRIPT_BLOCK_G = /<script[\s\S]*?<\/script>/gi;
-const STYLE_BLOCK_G = /<style[\s\S]*?<\/style>/gi;
 const CODE_FENCE_G = /```[\s\S]*?```/g;
 const INLINE_CODE_G = /`([^`]*)`/g;
+const LT_G = /</g;
 const MD_IMAGE_G = /!\[[^\]]*\]\([^)]*\)/g;
 const MD_LINK_G = /\[([^\]]*)\]\([^)]*\)/g;
-const HTML_TAG_G = /<[^>]+>/g;
 const HEADING_HASHES_G = /^#{1,6}\s+/gm;
 const MD_MARKS_G = /[*_~>]/g;
 const WS_G = /\s+/g;
@@ -71,15 +70,15 @@ export type SearchOptions = {
 /** Light markdown/svx strip for index text: fences, tags, inline markers. Not a parser — good
  *  enough for tokenization. */
 export function strip_prose(src: string): string {
-	return src
+	const literal = src
 		.replace(FRONTMATTER_BLOCK_RE, '')
-		.replace(SCRIPT_BLOCK_G, '')
-		.replace(STYLE_BLOCK_G, '')
 		.replace(CODE_FENCE_G, ' ')
-		.replace(INLINE_CODE_G, '$1')
+		// (code is literal text: its `<` opens no tag)
+		.replace(INLINE_CODE_G, (_, code: string) => code.replace(LT_G, ' '));
+	// tags, comments and a script's or style's text out, cut where the browser cuts them
+	return markup_text(literal)
 		.replace(MD_IMAGE_G, ' ')
 		.replace(MD_LINK_G, '$1')
-		.replace(HTML_TAG_G, ' ')
 		.replace(HEADING_HASHES_G, '')
 		.replace(MD_MARKS_G, ' ')
 		.replace(WS_G, ' ')
