@@ -1,9 +1,3 @@
-/**
- * Module analysis on the compiler's parser ({@link parse_module} — oxc through Vite, TS understood,
- * byte offsets exact): the import declarations an importer has, and the export SHAPE of a candidate
- * barrel. The id's extension picks the dialect, like everywhere else in the compiler; a Svelte
- * script block is parsed under a synthetic `<file>.svelte.ts` / `.svelte.js` id.
- */
 import { parse_module } from '../parse/oxc.ts';
 
 export interface ImportSpec {
@@ -48,7 +42,6 @@ export interface ModuleShape {
 	own: Set<string>;
 }
 
-// A minimal view of the ESTree nodes we read (oxc's estree output).
 interface Node {
 	type: string;
 	start: number;
@@ -67,25 +60,20 @@ const name_of = (n: Ident | undefined): string => {
 	return typeof n.value === 'string' ? n.value : String(n.value);
 };
 
-/** The clause runs from ` with` (or the legacy ` assert`) after the source literal to the end. */
 const ATTRIBUTES_CLAUSE_RE = /\s+(?:with|assert)\s*\{[\s\S]*\}/;
-const TRAILING_SEMI_RE = /;\s*$/;
 
-/** The parsed program body, or null on a syntax error (the real compiler reports those). */
 function program_body(code: string, id: string): Node[] | null {
 	const { program, ok } = parse_module(code, id);
 	if (!ok || !program) return null;
 	return program.body as Node[];
 }
 
-/** The verbatim ` with { … }` text of a declaration, from the source (oxc keeps `attributes`). */
 function attributes_text(code: string, node: Node): string {
 	const attrs = node.attributes as Node[] | undefined;
 	if (!attrs || attrs.length === 0) return '';
 	const source = node.source as Node;
 	const tail = code.slice(source.end, node.end);
-	const m = ATTRIBUTES_CLAUSE_RE.exec(tail);
-	return m ? m[0].replace(TRAILING_SEMI_RE, '') : '';
+	return ATTRIBUTES_CLAUSE_RE.exec(tail)?.[0] ?? '';
 }
 
 function attribute_keys(node: Node): string[] {
@@ -137,9 +125,7 @@ export function analyze_imports(code: string, id: string): ImportDecl[] | null {
 	return body ? imports_of(code, body) : null;
 }
 
-/** Declarations erased at runtime — they never make a module impure. (Enums have runtime shape.) */
-// static: the AST node types that declare only a type
-const TYPE_ONLY_DECLS = new Set([
+const TYPE_ONLY_DECLS: ReadonlySet<string> = new Set([
 	'TSTypeAliasDeclaration',
 	'TSInterfaceDeclaration',
 	'TSDeclareFunction',
@@ -157,7 +143,6 @@ export function analyze_exports(code: string, id: string): ModuleShape | null {
 	const body = program_body(code, id);
 	if (!body) return null;
 	const imports = imports_of(code, body);
-	// local binding → what it came from, for `import { a } from './x'; export { a as b }`
 	const bound = new Map<string, { source: string; imported: string; kind: ImportSpec['kind'] }>();
 	for (const d of imports)
 		for (const s of d.specs)
@@ -182,10 +167,9 @@ export function analyze_exports(code: string, id: string): ModuleShape | null {
 			case 'ExportNamedDeclaration': {
 				const decl = node.declaration as Node | null;
 				if (decl) {
-					// `export const a = …` / `export function f` / `export class C` / `export type T` …
 					if (TYPE_ONLY_DECLS.has(decl.type)) {
 						for (const n of declared_names(decl)) exports.push({ kind: 'own', exported: n });
-						continue; // erased at runtime: does not make the module impure
+						continue;
 					}
 					pure = false;
 					for (const n of declared_names(decl)) {
@@ -205,8 +189,6 @@ export function analyze_exports(code: string, id: string): ModuleShape | null {
 						exports.push({ kind: 'reexport', exported, imported: local, source, type_only });
 						continue;
 					}
-					// `export { a as b }` of a binding: imported → a re-export through the binding;
-					// declared here → own.
 					const b = bound.get(local);
 					if (b) {
 						if (b.kind === 'namespace') {
@@ -230,7 +212,6 @@ export function analyze_exports(code: string, id: string): ModuleShape | null {
 			}
 			case 'ExportDefaultDeclaration': {
 				const decl = node.declaration as Node;
-				// `export default imported` (an identifier bound by an import) is a re-export.
 				if (decl.type === 'Identifier') {
 					const b = bound.get(name_of(decl as unknown as Ident));
 					if (b && b.kind !== 'namespace') {
@@ -250,14 +231,11 @@ export function analyze_exports(code: string, id: string): ModuleShape | null {
 				continue;
 			}
 			default:
-				// type-only declarations are erased; anything else is code the module runs
 				if (TYPE_ONLY_DECLS.has(node.type)) continue;
 				if (node.type === 'EmptyStatement') continue;
 				pure = false;
 		}
 	}
-	// an import kept for what loading it does (a bare `import './theme.css'`, a namespace nothing
-	// exports) runs through the barrel alone: dropping the barrel would drop it
 	for (const d of imports) {
 		if (d.type_only) continue;
 		if (d.side_effect) pure = false;
@@ -267,7 +245,6 @@ export function analyze_exports(code: string, id: string): ModuleShape | null {
 	return { imports, exports, pure, own };
 }
 
-/** Names a declaration binds (`const { a, b } = …`, `function f`, `class C`, `enum E`, `type T`). */
 function declared_names(decl: Node): string[] {
 	const out: string[] = [];
 	const id = decl.id as Ident | undefined;
