@@ -179,3 +179,21 @@ test('DEV: a fetched answer’s region-css link off the page’s code origins is
 	await new Promise((r) => setTimeout(r, 50));
 	expect(document.documentElement.hasAttribute('data-og-off-origin-answer')).toBe(false);
 });
+
+test('DEV: a region-css link to a real .css asset stays a link', async () => {
+	document.head.querySelectorAll('link[data-ogygia-region-css]').forEach((n) => n.remove());
+	document.documentElement.removeAttribute('data-og-dev-css-marker');
+	css_link('/test/browser/fixtures/region-sheet.css?v=asset');
+	const asset = document.head.querySelector('link[data-ogygia-region-css]')!;
+	css_link(marker_module('beside-asset'));
+
+	bootDev();
+
+	await expect
+		.poll(() => document.documentElement.getAttribute('data-og-dev-css-marker'), {
+			timeout: 10_000
+		})
+		.toBe('1');
+	expect(asset.isConnected).toBe(true);
+	asset.remove();
+});
