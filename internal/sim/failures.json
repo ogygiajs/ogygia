@@ -179,6 +179,30 @@
 	],
 	"covered": [
 		{
+			"site": "packages/core/src/runtime/import-again.ts > run > throw:0",
+			"reason": "an island file whose module threw (not a download): no app the sim draws ships one; proved: the throw removed (the file waited on and loaded again) turns the test red",
+			"test": "packages/core/test/import-file.test.ts",
+			"name": "a module that threw is not asked for again, and its caller hears at once"
+		},
+		{
+			"site": "packages/core/src/runtime/import-again.ts > run > throw:1",
+			"reason": "an island file the server answered for with an error: the sim's server serves every built file; proved: the file asked for again instead turns the test red",
+			"test": "packages/core/test/import-file.test.ts",
+			"name": "a failed download the server answered for (a 404) is the caller’s: never asked for again"
+		},
+		{
+			"site": "packages/core/src/runtime/import-again.ts > file_url > catch:0",
+			"reason": "a loader's file that is not a URL: every file the runtime names is one; proved: the catch made to throw turns the test red",
+			"test": "packages/core/test/import-file.test.ts",
+			"name": "a failed download of a file that names no URL fails with the import’s own error, and is loaded the plain way next time"
+		},
+		{
+			"site": "packages/core/src/runtime/import-again.ts > import_again > next > refused:0",
+			"reason": "a retry whose own file came and still failed (a dependency's failure): needs a dependency dropped after its importer came, which the sim's faults rarely give; proved: the stuck move never taken turns the test red",
+			"test": "packages/core/test/import-again.test.ts",
+			"name": "the page says it needs a reload exactly once, however many retries fail with their own file loaded"
+		},
+		{
 			"site": "packages/core/src/runtime/router-nav.ts > hold_scroll > timer:0",
 			"reason": "a Back's hold for a region above whose code never loads: the sim's layout never scrolls and has no scroll anchoring, so a hold that never ends changes nothing it reads; proved: the cap removed turns the test red",
 			"test": "packages/core/test/browser/scroll-hold.test.ts",
@@ -1092,15 +1116,11 @@
 		"packages/core/src/runtime/hydrate-core.ts > hydrate_island > catch:0",
 		"packages/core/src/runtime/import-again.ts > hear_responses > observer:0",
 		"packages/core/src/runtime/import-again.ts > hear_responses > catch:0",
-		"packages/core/src/runtime/import-again.ts > file_url > catch:0",
 		"packages/core/src/runtime/import-again.ts > import_again > next > .catch:0",
-		"packages/core/src/runtime/import-again.ts > import_again > next > refused:0",
 		"packages/core/src/runtime/import-again.ts > import_again > next > throw:0",
 		"packages/core/src/runtime/import-again.ts > import_again > next > refused:1",
 		"packages/core/src/runtime/import-again.ts > import_again > next > throw:1",
 		"packages/core/src/runtime/import-again.ts > import_again > next > reject:0",
-		"packages/core/src/runtime/import-again.ts > run > throw:0",
-		"packages/core/src/runtime/import-again.ts > run > throw:1",
 		"packages/core/src/runtime/import-again.ts > import_file > stale:0",
 		"packages/core/src/runtime/interaction-replay.ts > restore_fields > catch:0",
 		"packages/core/src/runtime/interaction-replay.ts > replay_clicks > timer:0",
