@@ -1,6 +1,7 @@
 /**
  * MUTATION TESTING THROUGH THE SIMULATOR. A mutant is one change at one line of a package's source
- * (`{ file, line, operator, from?, to? }`, the file from the repo root). Each is applied, ONE at a
+ * (`{ file, in, code, nth?, operator, from?, to? }`, the file from the repo root; its line is found
+ * by its function and its code, never a stored line number). Each is applied, ONE at a
  * time, to a sandbox: a copy-on-write clone of the repo outside it (never the real tree), where its
  * package and the ones that depend on it are built (`turbo run build`), then each target app (a
  * generated app's seed, or the palaestra) is built and a fixed seed set runs (4 workers, `nice`).
@@ -28,17 +29,22 @@ import {
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { signature } from './ci.ts';
+import { function_at, functions_of } from './failures.ts';
 
 export interface Mutant {
-	/** A name for it (the list's own, or `<file>:<line>:<operator>`). */
+	/** A name for it (the list's own, or `<file> > <in>:<operator>`). */
 	readonly id?: string;
 	/** From the repo root: `packages/<pkg>/src/...`. */
 	readonly file: string;
-	/** 1-based. With `code`, where to start looking. */
-	readonly line: number;
-	/** The line's own code (trimmed): the mutant goes on the line that holds it, the nearest to
-	 *  `line` of several, so a list outlives its file's lines moving. */
-	readonly code?: string;
+	/** The innermost named function around its line, as a failure site's id names it
+	 *  (`Class > method`, `fn > inner`; `(module)` for top-level code). No line number is stored: a
+	 *  list outlives its files' lines moving. */
+	readonly in: string;
+	/** The line's own code (trimmed): the mutant goes on the line in {@link Mutant.in} that holds it. */
+	readonly code: string;
+	/** Which of the lines in its function that hold `code` (0-based), when more than one does: a
+	 *  mutant whose code is on two lines and names no `nth` throws. */
+	readonly nth?: number;
 	readonly operator: string;
 	/** The text it changes on its line (the first match), and what to; else the operator's own. */
 	readonly from?: string;
@@ -84,23 +90,37 @@ const OPERATORS: Record<string, ReadonlyArray<readonly [string | RegExp, string]
 	]
 };
 
-/** The index of the line holding `m.code`, the nearest to `m.line` of several. Throws when none does. */
-function line_of(lines: readonly string[], m: Mutant): number {
-	let best = -1;
-	for (const [i, l] of lines.entries())
-		if (l.trim() === m.code && (best < 0 || Math.abs(i + 1 - m.line) < Math.abs(best + 1 - m.line)))
-			best = i;
-	if (best < 0) throw new Error(`${name(m)}: no line holds ${m.code}`);
-	return best;
+/** The index of the line in `m.in` holding `m.code` (its `nth` of several). Throws when none does,
+ *  or when several do and it names no `nth`. */
+function line_of(text: string, lines: readonly string[], m: Mutant): number {
+	const functions = functions_of(m.file, text);
+	const found: number[] = [];
+	let offset = 0;
+	for (const [i, l] of lines.entries()) {
+		const indent = l.length - l.trimStart().length;
+		if (l.trim() === m.code && function_at(functions, offset + indent) === m.in) found.push(i);
+		offset += l.length + 1;
+	}
+	if (found.length === 0) throw new Error(`${name(m)}: no line in ${m.in} holds ${m.code}`);
+	if (m.nth === undefined) {
+		if (found.length > 1)
+			throw new Error(`${name(m)}: ${found.length} lines in ${m.in} hold ${m.code}: name its nth`);
+		return found[0];
+	}
+	const at = found[m.nth];
+	if (at === undefined)
+		throw new Error(
+			`${name(m)}: nth ${m.nth}, but ${found.length} lines in ${m.in} hold ${m.code}`
+		);
+	return at;
 }
 
 /** `text` with `m` applied: its line's first match of its text changed. Throws when it does not
  *  apply, so a mutant that changes nothing is never judged. */
 export function apply_mutant(text: string, m: Mutant): string {
 	const lines = text.split('\n');
-	const at = m.code === undefined ? m.line - 1 : line_of(lines, m);
+	const at = line_of(text, lines, m);
 	const line = lines[at];
-	if (line === undefined) throw new Error(`${name(m)}: no line ${m.line}`);
 	const pairs: ReadonlyArray<readonly [string | RegExp, string]> =
 		m.from !== undefined ? [[m.from, m.to ?? '']] : (OPERATORS[m.operator] ?? []);
 	for (const [from, to] of pairs) {
@@ -109,7 +129,7 @@ export function apply_mutant(text: string, m: Mutant): string {
 		lines[at] = typeof from === 'string' ? line.replace(from, () => to) : line.replace(from, to);
 		return lines.join('\n');
 	}
-	throw new Error(`${name(m)}: nothing to change on line ${m.line}: ${line.trim()}`);
+	throw new Error(`${name(m)}: nothing to change on its line in ${m.in}: ${line.trim()}`);
 }
 
 /** The package `file` is in (`packages/<name>`): what is built again with it. */
@@ -180,7 +200,7 @@ export function tally(
 }
 
 function name(m: Mutant): string {
-	return m.id ?? `${m.file}:${m.line}:${m.operator}`;
+	return m.id ?? `${m.file} > ${m.in}:${m.operator}`;
 }
 
 // ── the runner ──────────────────────────────────────────────────────────────────────────────────
@@ -294,7 +314,9 @@ function build_packages(box: string, pkg: string, log: string): boolean {
 function main(): void {
 	const list = arg('--mutants');
 	if (list === undefined)
-		throw new Error('--mutants <file.json>: a list of { file, line, operator, from?, to? }');
+		throw new Error(
+			'--mutants <file.json>: a list of { file, in, code, nth?, operator, from?, to? }'
+		);
 	const mutants = JSON.parse(readFileSync(list, 'utf8')) as Mutant[];
 	const run_on = targets(arg('--gens') ?? '191,192,193', process.argv.includes('--palaestra'));
 	const seeds = Number(arg('--seeds') ?? 20);
