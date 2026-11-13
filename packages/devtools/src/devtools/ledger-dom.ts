@@ -21,7 +21,7 @@ const abs = (href: string | null | undefined): string | null => {
 	try {
 		return new URL(href, location.href).href;
 	} catch {
-		return null;
+		return null; // ok: not a URL: no file to name
 	}
 };
 
@@ -72,7 +72,7 @@ async function read_parts(src: string): Promise<RuntimeParts> {
 		texts.get(u).then(
 			(t) => (t === STALE ? '' : t),
 			() => ''
-		);
+		); // ok: a file that will not load has no imports to follow; flights asks again next time
 	const self = import.meta.url;
 	const roots = new Map<string, Set<string>>();
 	const dock: string[] = [];
@@ -106,7 +106,7 @@ const abs_from = (spec: string, base: string): string | null => {
 	try {
 		return new URL(spec, base).href;
 	} catch {
-		return null;
+		return null; // ok: not a URL: an import we cannot follow
 	}
 };
 

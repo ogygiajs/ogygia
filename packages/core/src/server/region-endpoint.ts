@@ -50,7 +50,7 @@ function current_request(): Request | null {
 	try {
 		return get_request_event().request;
 	} catch {
-		return null;
+		return null; // ok: off-request (prerender, a test), as said above
 	}
 }
 
@@ -69,7 +69,7 @@ function region_session(): string {
 	try {
 		return get_request_event().cookies.get(session_cookie) ?? '';
 	} catch {
-		return '';
+		return ''; // ok: off-request (prerender): no session to seal, as said above
 	}
 }
 
@@ -103,7 +103,7 @@ export function reuse_known_region(fp: string): boolean {
 	try {
 		event = get_request_event();
 	} catch {
-		return false; // no request scope (prerender / off-request) → render all
+		return false; // ok: no request scope (prerender / off-request) → render all
 	}
 	const counts = document_counts(event);
 	if (counts === null) return false; // an event with no request: no claim, render all
