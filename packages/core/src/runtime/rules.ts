@@ -4,8 +4,8 @@
  *
  * - `rule_region_mounted_twice`: one mount per region. A region element holds one island at a time,
  *   and an island whose element left the page is let go with it.
- * - `rule_address_bar_drift`: the address bar and the router's history model (whose current entry
- *   is the page on screen's) agree once no navigation is out.
+ * - `rule_address_bar_drift`: the entry the address bar is on is the router's history model's page
+ *   on screen once no navigation is out (its address is the bar's: ./router.ts `RouterHistory`).
  * - `rule_old_page_open`: nothing of a page that was left is still open (its visit's scope closed:
  *   its listeners, timers, streams).
  * - `rule_failure_uncoded`: no failure leaves ogygia without a code: an uncaught ogygia error names
@@ -168,10 +168,8 @@ function no_old_page_open(): string | null {
 /** What the rule reads of the router: its navigation, and its history model's page on screen. */
 interface RouterView {
 	readonly nav: { readonly now: { readonly kind: string } };
-	readonly history: { readonly current: { readonly id: string; readonly url: URL } };
+	readonly history: { readonly current: { readonly id: string } };
 }
-
-const no_hash = (href: string): string => href.split('#')[0];
 
 /** The router started: its history model is checked against the address bar. */
 export function watch_router(router: RouterView): void {
@@ -181,10 +179,9 @@ export function watch_router(router: RouterView): void {
 		// (an entry the router has not met yet: the browser's own fragment jump, the app's pushState)
 		if (typeof id !== 'string') return null;
 		const page = router.history.current;
-		if (id !== page.id) return `the address bar is on entry ${id}, the history model on ${page.id}`;
-		const bar = no_hash(location.href);
-		const model = no_hash(page.url.href);
-		return bar === model ? null : `the address bar is ${bar}, the history model's page ${model}`;
+		return id === page.id
+			? null
+			: `the address bar is on entry ${id}, the history model on ${page.id}`;
 	});
 }
 

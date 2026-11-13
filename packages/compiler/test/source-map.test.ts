@@ -44,8 +44,9 @@ function make_compiler(macros: PluginMacro[] = []) {
 		P: false,
 		outHash: new Map<string, number>()
 	};
-	const compiler = new Compiler(program, profiler);
-	compiler.configure(
+	const compiler = new Compiler(
+		program,
+		profiler,
 		new CompileCtx(
 			partial_ctx_init({
 				root,
@@ -95,8 +96,11 @@ describe('a host a macro, an island and the stamps rewrite', () => {
 	for (const ssr of [true, false]) {
 		test(`maps each generated position back to the source (${ssr ? 'server' : 'client'} leg)`, async () => {
 			const id = path.join(root, 'src/routes/+page.svelte');
-			const res = await make_compiler().transform_module(HOST, id, {
-				ssr,
+			const compiler = make_compiler();
+			const env = { name: ssr ? 'ssr' : 'client', server: ssr };
+			compiler.start_leg(env.name, env.server);
+			const res = await compiler.transform_module(HOST, id, {
+				leg: compiler.leg(env),
 				emitFile: () => 'ref'
 			});
 			expect(res).not.toBeNull();
@@ -124,8 +128,10 @@ test('a text-only plugin macro leaves a map that maps nothing, never a wrong pla
 			const a = import.meta.og.grow(); const marker = 'find-me';
 		</script>
 	`}\n`;
-	const res = await make_compiler([grow]).transform_module(src, id, {
-		ssr: true,
+	const compiler = make_compiler([grow]);
+	compiler.start_leg('ssr', true);
+	const res = await compiler.transform_module(src, id, {
+		leg: compiler.leg({ name: 'ssr', server: true }),
 		emitFile: () => 'ref'
 	});
 	expect(res!.code).toContain('x'.repeat(40));

@@ -11,7 +11,7 @@ Astro-style islands on stock SvelteKit (no Kit patches). Pages ship as server HT
 
 ## The two dials (import attributes)
 
-Marked on a component import: `import X from './X.svelte' with { … }`.
+Marked on a component import: `import X from './X.svelte' with { … }`. A NAMED import takes it too (barrels, packages): `import { Search } from '@ogygia/content' with { wake: 'idle' }`, aliased with `as`; the entry imports the named export, identity keys on `spec#Export`. One `with` covers EVERY name in its braces: different schedules and non-components (helpers, stores, constants) go on separate lines. A marked name used as a non-component (called, `.x`, spread, `typeof`, text, `{@render}`, action), and a mark on `import * as` / `import type` / a bare import, are build errors. `import.meta.og.asRegion` is gone: a build error that prints the import to write.
 
 | Key      | Question                                                                                  | Values                                                                                                                                                                                                                           |
 | -------- | ----------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -260,10 +260,9 @@ Package `@ogygia/content`, plugin `content({ markdown, presets })` from `'@ogygi
 
 ## Macros (`import.meta.og.*`)
 
-Compile constructs — rewritten by the Vite plugin, no runtime object exists. Family: `loader.*`, `code`, `md`, `regions`, `wire`, `bake`, `asRegion`, `$`, `source`. Shared laws: **literal arguments** (a `${…}` interpolation is a build error), AST-detected, loud `[ogygia]` build errors, zero runtime cost.
+Compile constructs — rewritten by the Vite plugin, no runtime object exists. Family: `loader.*`, `code`, `md`, `regions`, `wire`, `bake`, `$`, `source`. Shared laws: **literal arguments** (a `${…}` interpolation is a build error), AST-detected, loud `[ogygia]` build errors, zero runtime cost.
 
 - `bake(fn)` needs `bake()` from `@ogygia/bake` beside `ogygia()` (types: `@ogygia/bake/types`; without it the build fails with `macro_needs_plugin`). It runs `fn` at build (self-contained: may use module imports, not other locals; no `$app/*`; result devalue-serializable) and inlines the answer — imports that only fed it are dropped from the output.
-- `asRegion(Comp, 'load')` marks a barrel/named import as a region where import attributes can't reach (re-exports, named exports).
 - `$(fn)` brands a function so a REF can cross context into an island and rebind on the far side (bound captures).
 
 ## Packaging — islands from npm dependencies
@@ -294,7 +293,7 @@ A dependency ships islands, marked components, or whole route tables by declarin
   - `content({ markdown?, presets? })`
   - `devtools({ dock = true, profiler? })` — `profiler: true | { secret?, path = '/__profiler', sampleInterval, maxReports, network, heap, trap, sample, sink, … }` is the ONLY profiler wiring (the handle auto-mounts it; nothing in hooks). A `secret` passed here is baked into the server bundle (for hosts with no runtime env, like Amplify); leave it out to read `OGYGIA_PROFILER_SECRET` at runtime. The dock: on in the dev server; in a build a small launcher (warned once at build) that stays off for every visitor until a browser turns it on (`?og-devtools=on`, `ogygia.devtools.on()`, the `og_devtools=on` cookie). A switched-on page is sent `private, no-store` and never stored. Keep it out of production: `plugins: [...(mode !== 'production' ? [devtools()] : [])]`. Profiler code: `@ogygia/devtools/profiler` (`span`, `instrument`), `/profiler/client` (`mark`), `/profiler/storage/sqlite|redis|postgres`
   - `postrender({ ttl, default })`, `flags()`, `federation()`, `router()` — see their sections
-  - `barrels(true | { packages?, force?, keep?, importers?, followPackages?, report?, debug? })` from `'@ogygia/barrels'` — barrel imports → leaf imports at transform time (dev graph + build chunk graph hold only used leaves). `true`/`{}` = every PURE project barrel (only imports/re-exports/types); dependencies opt-in via `packages` (dev pre-bundling would double a bypassed dep leaf); `force` rewrites an impure barrel and keeps `import 'barrel'`; imports carrying a region (a `with { wake }` mark, or a binding `asRegion` reads) are NEVER rewritten. Build prints a report: 8 biggest barrels + count (`report: 'all'` = every barrel, `false` = silent). The old `ogygia({ barrels })` option is a build error naming it; `debarrel()` is gone
+  - `barrels(true | { packages?, force?, keep?, importers?, followPackages?, report?, debug? })` from `'@ogygia/barrels'` — barrel imports → leaf imports at transform time (dev graph + build chunk graph hold only used leaves). `true`/`{}` = every PURE project barrel (only imports/re-exports/types); dependencies opt-in via `packages` (dev pre-bundling would double a bypassed dep leaf); `force` rewrites an impure barrel and keeps `import 'barrel'`; imports carrying a region (a `with { wake }` mark, default or named) are NEVER rewritten. Build prints a report: 8 biggest barrels + count (`report: 'all'` = every barrel, `false` = silent). The old `ogygia({ barrels })` option is a build error naming it; `debarrel()` is gone
 - `rateLimit: false | { max = 60, windowMs = 60_000 }` — per-IP budget on the signed island endpoint
 - `sessionCookie: false | '<name>'` — seals capability URLs to a cookie (not compatible with PPR holes)
 - `importKeys` — rename the `with { }` attribute keys the transform claims

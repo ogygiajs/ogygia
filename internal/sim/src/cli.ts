@@ -46,6 +46,7 @@ import {
 	no_foreign_html,
 	normalize,
 	page_errors,
+	peer_answers,
 	page_rules,
 	regions_show,
 	fallback_stands,
@@ -155,13 +156,22 @@ function federation(seed: number): { env: Record<string, string>; peers: WorldOp
 		ORIGIN: a.origin,
 		[`${a.name.toUpperCase()}_SIGNING_KEY`]: a.keys.priv
 	});
-	return {
-		env: env_of(apps[0]),
-		peers: apps.slice(1).map((a, i) => ({
-			origin: a.origin,
-			build: { id: a.name, output: PEERS[i].output, env: env_of(a) }
-		}))
-	};
+	const second = GEN_PEER?.origins === 2 ? `https://${PEERS[0].name}2.test` : null;
+	if (second) common[`${PEERS[0].name.toUpperCase()}2_ORIGIN`] = second;
+	const peers = apps.slice(1).map((a, i) => ({
+		origin: a.origin,
+		build: { id: a.name, output: PEERS[i].output, env: env_of(a) }
+	}));
+	if (second)
+		peers.push({
+			origin: second,
+			build: {
+				...peers[0].build,
+				id: `${peers[0].build.id}2`,
+				env: { ...env_of(apps[1]), ORIGIN: second }
+			}
+		});
+	return { env: env_of(apps[0]), peers };
 }
 /** `--plan <file>`: one run of a seed with its workload spelled out (a search's or a shrink's run,
  *  as it wrote it: `{ seed, steps, plan }`). */
@@ -406,6 +416,7 @@ export async function run(
 					page_rules(t, world),
 					leaks.check(t, pressed.get(t.name) === t.documents),
 					live_events(t, world),
+					GEN_PEER ? peer_answers(t, world, since) : null,
 					// (a document loaded behind another tab and never looked at is at rest once the world
 					// is: its islands wake all the same, with no frame to wait for. One that was shown may
 					// have asked for a frame just before it went behind, which waits until it is shown

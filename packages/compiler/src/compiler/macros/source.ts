@@ -14,7 +14,7 @@
  *   • a top-level `export const <name> = import.meta.og.source(fn)` (or `(fn, { key })`);
  *   • 1 or 2 arguments; the first is the function.
  * Anything else — un-exported, nested, bare access, argument-less — is a BUILD ERROR naming the
- * file and line (the wire/asRegion macro laws).
+ * file and line (the wire macro's laws).
  */
 import { og_js_regions, find_og_calls, type JsRegion } from '../parse/scan.ts';
 import { parse_module, type AstNode } from '../parse/oxc.ts';

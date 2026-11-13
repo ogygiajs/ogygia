@@ -110,6 +110,8 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          # the PR's merge commit and its first parent (the base branch's tip), for the comments gate
+          fetch-depth: 2
 
       - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
 
@@ -131,6 +133,12 @@ jobs:
 
       - name: Lint rules' own tests
         run: pnpm run lint:test
+
+      # a comment the PR adds in packages/*/src is one of structured-comments' shapes; old ones are
+      # the #512 sweep's (internal/checks/new-comments.ts). A batch PR is judged against its base too.
+      - name: No new unstructured comments
+        if: github.event_name == 'pull_request'
+        run: node internal/checks/new-comments.ts --base HEAD^1
 
       # a raw NUL byte hides a source file from grep and rg (internal/checks/nul-bytes.ts, #1239)
       - name: No NUL byte in source

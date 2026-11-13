@@ -234,9 +234,14 @@ export class RouterHistory {
 	readonly #entries = new Map<string, HistoryEntry>();
 	#current: HistoryEntry | null = null;
 
-	/** The entry of the page on screen. */
+	/** The entry of the page on screen, at the address bar's address while the browser is on it
+	 *  (test/browser/router-history-address.test.ts). */
 	get current(): HistoryEntry {
-		return (this.#current ??= this.#add(new URL(location.href)));
+		const id = (history.state as { ogygia?: unknown } | null)?.ogygia;
+		if (typeof id !== 'string') return (this.#current = this.adopt(new URL(location.href)));
+		const entry = (this.#current ??= this.#add(new URL(location.href)));
+		if (id === entry.id && entry.url.href !== location.href) entry.url = new URL(location.href);
+		return entry;
 	}
 
 	/** Takes over the entry the browser is on as the router starts: its state names it now. */
@@ -443,6 +448,14 @@ export class SpaRouter {
 		loaded_nav?.bust_page_cache(); // no navigation loaded yet ⇒ nothing cached
 	}
 
+	/** The page on screen's address, rewritten in place by ogygia's own code: the history model's
+	 *  entry moves with the address bar. Before the router starts, the bar alone (the router reads
+	 *  it when it takes the entry over). */
+	replace_address(url: URL): void {
+		if (this.#started) this.history.commit(url, 'replace');
+		else replace_state(history.state, url.href);
+	}
+
 	/** The page at `href`, or `null` when there is none to have: the fetch failed (./router-nav.ts
 	 *  `fetch_page`), or the navigation code itself did not load. The prefetches (a hover, a
 	 *  viewport link, `preloadData`) start it and never wait on it: a rejection here was uncaught. */
@@ -598,10 +611,10 @@ export class SpaRouter {
 				location.reload();
 				return;
 			}
+			const entry = found ?? this.history.adopt(url);
 			// The page on screen is left: keep where it is, before anything scrolls it (the browser
 			// restores the next entry's scroll after this event, onto the page still on screen).
 			this.history.leave();
-			const entry = found ?? this.history.adopt(url);
 			// Same document (a fragment step): nothing to fetch or swap, and no jump: the browser
 			// restores the entry's scroll itself, and a jump to a fragment no element has went to the
 			// top (#282). (Back to the page on screen while the next one loads: that load must not land.)
@@ -856,6 +869,11 @@ export function bust_page_cache(): void {
 	spa.bust_page_cache();
 }
 
+/** The page on screen's address, rewritten in place by ogygia's own code. @internal */
+export function replace_address(url: URL): void {
+	spa.replace_address(url);
+}
+
 /**
  * Programmatic same-origin navigation. Mirrors Kit's `goto()` subset.
  * @param url - Absolute or relative URL (http(s) only).
@@ -952,7 +970,8 @@ export function install(): void {
 		replaceState,
 		beforeNavigate,
 		afterNavigate,
-		bust_page_cache
+		bust_page_cache,
+		replace_address
 	});
 	const start = () => {
 		if (!document.querySelector('meta[name="ogygia-router"]')) return;
