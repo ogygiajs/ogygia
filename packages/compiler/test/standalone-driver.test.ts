@@ -125,7 +125,9 @@ describe('standalone driver (no Vite)', () => {
 		const manifest = async (order: number[]) => {
 			const { compiler } = make_compiler();
 			for (const n of order) await compiler.macros(mod(n), `${ROOT}/src/lib/m${n}.ts`);
-			return compiler.patch_fn_manifest('/*__OGYGIA_FN_MANIFEST__*/')?.code;
+			const leg = { server: false, relocated: new Map<string, number>() };
+			const bundle = { graph: () => null, module_ids: () => [] };
+			return compiler.relocate('/*__OGYGIA_FN_MANIFEST__*/', leg, bundle)?.code;
 		};
 		const forward = await manifest([1, 2, 3]);
 		expect(forward).toContain('__og_reg_fn');
