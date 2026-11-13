@@ -400,6 +400,69 @@ export class Compiler implements CoreApp {
 		return this.#virtuals.bump(part);
 	}
 
+	/**
+	 * DEV: a route file was added, changed or removed (a csr or config export, a route itself). The
+	 * route answers are read again, and the ids to invalidate are the virtual modules that read them
+	 * AND every module compiled for a csr world that is no longer its own: a host compiled for
+	 * csr=true has its marks stripped, so a page that became csr=false kept no regions until a
+	 * restart (test/dev-csr-change.test.ts). Its old rows go now; its next transform registers anew.
+	 */
+	routes_changed(): string[] {
+		this.#ctx.routes.clear();
+		const out = new Set(this.#virtuals.bump('routes'));
+		const invalidate = (id: string) => out.add(id);
+		for (const [k, w] of this.#worlds) {
+			if (this.#csr_world(w.id, w.ssr, w.link).key === w.key) continue;
+			this.#worlds.delete(k);
+			if (this.is_registered_host(w.id)) this.invalidate_for_file(w.id, { invalidate });
+			out.add(w.id);
+		}
+		return [...out];
+	}
+
+	/** DEV: each module's csr world as last compiled, by leg and id (`routes_changed`). */
+	readonly #worlds = new Map<
+		string,
+		{ id: string; ssr: boolean; link: boolean | undefined; key: string }
+	>();
+
+	/**
+	 * The csr world a module is compiled for, on one leg: whether it links the real region modules
+	 * (`link_virtual`), its route's csr (`route_csr`), and both as a cache key.
+	 *
+	 * A csr=false CLIENT host does not link the real wrappers (or the hydrate entries they pull in):
+	 * Kit still emits its page node, and sharing that module with the page graph makes Rolldown emit
+	 * thin `og-region.*` facades. SSR links them for the HTML, and a csr=true client links them so Kit
+	 * hydrates the regions as plain components. A csr=false LAYOUT links them too when the app has a
+	 * csr=true route: Kit hydrates that layout under a csr=true child page.
+	 *
+	 * `route_csr`: true for a csr=true route host (its marks are stripped so Kit compiles the
+	 * components inline), false for a csr=false one, undefined for a module that is not a route host
+	 * (its csr is the page that renders it, read at run time by `documentIsCsrTrue`).
+	 */
+	#csr_world(
+		id: string,
+		ssr: boolean,
+		link_override: boolean | undefined
+	): { link_virtual: boolean; route_csr: boolean | undefined; key: string } {
+		const ctx = this.#ctx;
+		const routesDir = kit_dirs(ctx.root).routes_dir;
+		const is_layout_host = is_route_component(path.basename(id), 'layout');
+		const link_virtual =
+			link_override !== undefined
+				? link_override
+				: ssr ||
+					!routeCsrIsFalse(ctx.routes, id, routesDir) ||
+					(is_layout_host && hasAnyCsrTrueRoute(ctx.routes, routesDir));
+		const route_csr = routeCsrIsTrue(ctx.routes, id, routesDir)
+			? true
+			: routeCsrIsFalse(ctx.routes, id, routesDir)
+				? false
+				: undefined;
+		const key = `${link_virtual ? '1' : '0'}\0${route_csr === true ? 't' : route_csr === false ? 'f' : 'n'}`;
+		return { link_virtual, route_csr, key };
+	}
+
 	/** A compile session, made once the bundler has resolved the build (`ctx`): nothing runs before
 	 *  its context exists. */
 	constructor(program: Program, profiler: Profiler, ctx: CompileCtx) {
@@ -525,42 +588,14 @@ export class Compiler implements CoreApp {
 		const ctx = this.#ctx;
 		const { prof, P, outHash } = this.profiler;
 		const ssr = opts.ssr !== false;
-		// Scale: csr=false CLIENT hosts must not statically import portable wrappers (or the
-		// hydrate entries those wrappers pull in). Kit still emits those page nodes; sharing
-		// the emitFile module with the page graph forces Rolldown thin `og-region.*`
-		// facades. SSR keeps real wrappers for HTML; csr=true client keeps them so Kit can
-		// hydrate islands as normal components. Hydration always uses `import(entry)`.
-		const routesDir = kit_dirs(ctx.root).routes_dir;
-		// A csr=false LAYOUT can wrap a csr=true child page — there Kit hydrates the layout, so its
-		// chrome islands must be REAL wrappers on the client (Region degrades them inline via
-		// `documentIsCsrTrue`), NOT the thin stub. Only when the app actually has a csr=true route,
-		// and only for `+layout.svelte` hosts (bounded chrome, unlike N page islands).
-		const is_layout_host = is_route_component(path.basename(id), 'layout');
-		const link_virtual =
-			opts.linkVirtual !== undefined
-				? opts.linkVirtual
-				: ssr ||
-					!routeCsrIsFalse(ctx.routes, id, routesDir) ||
-					(is_layout_host && hasAnyCsrTrueRoute(ctx.routes, routesDir));
-		// Tri-state route csr, threaded into the transform (see transformHost's routeCsr branch):
-		//   true  → csr=true route host: ogygia steps aside — strip the host's island directives to
-		//           plain so Kit compiles + hydrates them inline.
-		//   false → csr=false route host: keep islands (the normal island transform).
-		//   undefined → not a route host (shared lib component): its csr depends on the page that
-		//           renders it, so it keeps its islands.
-		// The inline-vs-island choice itself is decided at RUNTIME by `documentIsCsrTrue` (context.ts) —
-		// one fact read identically on both legs — which replaced the old per-host CSR_TRUE_KEY marker +
-		// csr=false reset cascade. `route_csr` still drives the compile-time strip/link decisions below.
-		const route_csr = routeCsrIsTrue(ctx.routes, id, routesDir)
-			? true
-			: routeCsrIsFalse(ctx.routes, id, routesDir)
-				? false
-				: undefined;
+		const { link_virtual, route_csr, key } = this.#csr_world(id, ssr, opts.linkVirtual);
+		if (ctx.is_dev)
+			this.#worlds.set(`${ssr ? 's' : 'c'}\0${id}`, { id, ssr, link: opts.linkVirtual, key });
 		// `ssr` joins the key because transformHost output legitimately differs by pass — the client
 		// build side-effect-imports fouc-css for a lake binding (its scoped CSS is on no client chunk),
 		// the SSR build must not. Without `ssr` here a layout+csr=true host (where ssr and client share
 		// `link_virtual`) would reuse the SSR result on the client and drop that CSS link.
-		const cache_key = `${id}\0${ssr ? 's' : 'c'}\0${link_virtual ? '1' : '0'}\0${route_csr === true ? 't' : route_csr === false ? 'f' : 'n'}`;
+		const cache_key = `${id}\0${ssr ? 's' : 'c'}\0${key}`;
 		const hit = this.transform_cache.get(cache_key);
 		if (hit && hit.code === source) {
 			if (P) prof.transformHit++;
@@ -1466,7 +1501,7 @@ export class Compiler implements CoreApp {
 		}
 		if (!resolved?.id || resolved.id.startsWith('\0')) return null;
 		const target = strip_id(resolved.id);
-		if (!TS_REGISTRY_EXT_RE.test(target) || this.#ctx!.fs.stat(target) === null) return null;
+		if (!TS_REGISTRY_EXT_RE.test(target) || this.#ctx.fs.stat(target) === null) return null;
 		// Kit owns these on the client: a `.remote.ts` becomes Kit's fetch stub there (its imports
 		// never reach the client graph, and Kit keys its metadata on the exact file id), and a
 		// server-only module is refused outright. Neither may fork, and neither leads anywhere.
