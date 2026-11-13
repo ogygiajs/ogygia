@@ -104,6 +104,10 @@ describe('find_og_calls keeps its place (#1441)', () => {
 			`let i = 0; const d = i++ / 2; const s = "'";\n${CALL}`
 		],
 		[
+			'a postfix increment before a division, on the same line as the call',
+			`let i = 0; const d = i++ / 2; const s = "'"; ${CALL}`
+		],
+		[
 			'a division after a name that ends in a non-ASCII letter',
 			`const café = 4; const x = café / 2; ${CALL}`
 		],
@@ -132,7 +136,8 @@ describe('find_og_calls keeps its place (#1441)', () => {
 		['if', `if (a) /'/;`],
 		['while', `while (a) /'/;`],
 		['for', `for (;;) /'/;`],
-		['for await', `async function h() { for await (const x of y) /'/; }`]
+		['for await', `async function h() { for await (const x of y) /'/; }`],
+		['a block', `{ } /'/;`]
 	])('a regex after %s, on the same line as a call', (_, code) => {
 		const line = `${code} ${CALL}`;
 		expect(scanned(line)).toEqual(oxc_calls(line));
@@ -157,6 +162,12 @@ describe('find_og_calls keeps its place (#1441)', () => {
 			expect(scanned(code)).toHaveLength(1);
 			expect(scanned(code)).toEqual(oxc_calls(code));
 		}
+	});
+
+	it('a marker inside a block comment after a value is no call', () => {
+		const code = `const a = 1 /* import.meta.og.code('x') */; ${CALL}`;
+		expect(scanned(code)).toEqual(oxc_calls(code));
+		expect(scanned(code)).toHaveLength(1);
 	});
 
 	it('a marker as a property name is no call', () => {

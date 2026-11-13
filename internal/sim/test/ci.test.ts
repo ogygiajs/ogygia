@@ -7,7 +7,8 @@ import {
 	quality_line,
 	redact,
 	signature,
-	unreached_in_every
+	unreached_in_every,
+	waiting_runs
 } from '../src/ci.ts';
 
 const OUT = JSON.stringify({ findings: [], steps_per_second: 10, replay_leaks: [] });
@@ -108,5 +109,19 @@ describe('the quality line', () => {
 		expect(quality_line(null, null)).toBe(
 			'steps accounted: no sweep this run; mutation kill rate: no finished run yet'
 		);
+	});
+});
+
+describe('the good-neighbour count', () => {
+	it('counts only queued runs from the last hours: runs stuck in the queue for days are no CI waiting (#1578)', () => {
+		const now = Date.parse('2026-11-13T12:00:00Z');
+		const runs = [
+			{ created_at: '2026-11-13T11:50:00Z' },
+			{ created_at: '2026-11-13T09:30:00Z' },
+			{ created_at: '2026-11-13T06:00:00Z' },
+			...Array.from({ length: 195 }, () => ({ created_at: '2026-11-11T08:00:00Z' }))
+		];
+		expect(waiting_runs(runs, now)).toBe(2);
+		expect(waiting_runs([], now)).toBe(0);
 	});
 });

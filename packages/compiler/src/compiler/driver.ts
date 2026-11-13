@@ -33,7 +33,8 @@ import { run_module_macros } from './macros/pipeline.ts';
 import { fn_manifest_entries } from './macros/dollar.ts';
 import { is_script_request } from './script-request.ts';
 import { resolveFeatures } from './link/runtime-entry.ts';
-import { resolveFoucImportSpec, FOUC_CSS_PREFIX, FOUC_SCOPED_PREFIX } from './fouc-css.ts';
+import { FOUC_CSS_PREFIX, FOUC_SCOPED_PREFIX } from './fouc-css.ts';
+import { resolve_app_spec } from './app-spec.ts';
 import {
 	moduleHasTransportable,
 	svelteModuleHasTransportable,
@@ -46,9 +47,9 @@ import {
 	FOREIGN_HYDRATE_MARK
 } from './region/emit.ts';
 import { by_key, location_map_files } from './link/location-map.ts';
-import { context_keys, source_uses_ogygia_context } from './link/context-detect.ts';
+import { context_keys } from './link/context-detect.ts';
+import { own_reach, reaches_context, reaches_wire } from './link/own-reach.ts';
 import { router_css_roots } from './link/router-css.ts';
-import { source_crosses_wire } from './link/transport.ts';
 import type { SourceMap } from 'magic-string';
 import { relocate, relocations_of, type RelocateCx } from './link/relocations.ts';
 import { same_module_path, island_vpaths_affected_by_file } from './dev/hmr.ts';
@@ -398,8 +399,9 @@ export class Compiler implements CoreApp {
 			const remote = kind === 'script' && REMOTE_FILE_RE.test(full);
 			specs = extract_module_specs(src);
 			const page_importers = ctx.page_importers;
+			const reach = own_reach(src, full, kind);
 			const facts: FileFacts = {
-				crosses_wire: remote || source_crosses_wire(src),
+				crosses_wire: remote || reaches_wire(reach),
 				transportable:
 					kind === 'svelte'
 						? svelteModuleHasTransportable(src, full)
@@ -410,7 +412,7 @@ export class Compiler implements CoreApp {
 					ctx.page_files.includes(full)
 			};
 			scan.set(full, facts);
-			if (!runtime_marks.context && source_uses_ogygia_context(src)) runtime_marks.context = true;
+			if (!runtime_marks.context && reaches_context(reach)) runtime_marks.context = true;
 			if (remote) runtime_marks.remoteSeeds = true;
 			if (facts.transportable) runtime_marks.wire = true;
 		}
@@ -699,6 +701,8 @@ export class Compiler implements CoreApp {
 			importKeys: ctx.import_keys,
 			idSalt: ctx.id_salt,
 			pkg_identity: (abs: string) => ctx.pkg_identity(abs),
+			alias: ctx.app_spec.alias,
+			stat: ctx.app_spec.stat,
 			linkVirtualIsland: link_virtual,
 			clientBindingStub: CLIENT_BINDING_STUB,
 			routeCsr: route_csr,
@@ -730,7 +734,9 @@ export class Compiler implements CoreApp {
 			appDir: ctx.app_dir,
 			importKeys: ctx.import_keys,
 			idSalt: ctx.id_salt,
-			pkg_identity: (abs: string) => ctx.pkg_identity(abs)
+			pkg_identity: (abs: string) => ctx.pkg_identity(abs),
+			alias: ctx.app_spec.alias,
+			stat: ctx.app_spec.stat
 		});
 	}
 
@@ -766,7 +772,7 @@ export class Compiler implements CoreApp {
 					unlisted.set(s, prescan_rel(ctx, full));
 		};
 		const say_one_off_keys = (full: string, src: string, kind: 'svelte' | 'script') => {
-			if (!src.includes('Symbol(') || !source_uses_ogygia_context(src)) return;
+			if (!src.includes('Symbol(') || !reaches_context(own_reach(src, full, kind))) return;
 			for (const key of context_keys(src, kind).one_off)
 				warn('region_context_key_one_off', { file: path.relative(root, full), key });
 		};
@@ -961,10 +967,10 @@ export class Compiler implements CoreApp {
 	mark_island_closure(componentAbs: string): string[] {
 		const ctx = this.#ctx;
 		const { island_graph } = this.program;
-		const aliases = ctx.resolve_alias;
+		const spec_ctx = ctx.app_spec;
 		const added: string[] = [];
 		const resolve_dep = (spec: string, importerAbs: string): string | null => {
-			const base = resolveFoucImportSpec(spec, importerAbs, ctx.libDir, aliases);
+			const base = resolve_app_spec(spec, importerAbs, spec_ctx);
 			if (!base) return null; // a bare package specifier — the lazy resolveId marking is the backstop
 			for (const ext of ISLAND_DEP_EXTS) if (ctx.fs.stat(base + ext) === 'file') return base + ext;
 			for (const ext of ISLAND_DEP_EXTS.slice(1)) {
@@ -1082,7 +1088,7 @@ export class Compiler implements CoreApp {
 			router_css_roots(
 				this.program.router_modules,
 				this.program.module_specs,
-				ctx.libDir,
+				ctx.app_spec,
 				(p) => ctx.fs.stat(p) === 'file'
 			)
 		);
@@ -1552,7 +1558,7 @@ export class Compiler implements CoreApp {
 		try {
 			resolved = await resolve(source, importer, { skipSelf: true });
 		} catch {
-			return null;
+			return null; // ok: an edge the resolver refuses is not forked: the real module stays (bytes, never a missing style); the bundler reports the import
 		}
 		if (!resolved?.id || resolved.id.startsWith('\0')) return null;
 		const target = strip_id(resolved.id);
