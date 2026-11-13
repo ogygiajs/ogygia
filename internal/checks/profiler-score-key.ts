@@ -15,7 +15,7 @@ const [base = 'http://127.0.0.1:4181', key = 'hell'] = process.argv.slice(2);
 async function profile(page) {
 	const r = await fetch(
 		`${base}/__profiler/page?p=${encodeURIComponent(page)}&runs=3&format=json`,
-		{ headers: { 'x-profiler-key': key } }
+		{ method: 'POST', headers: { 'x-profiler-key': key } }
 	);
 	if (!r.ok) throw new Error(`${page}: the profiler answered ${r.status}`);
 	return r.json();

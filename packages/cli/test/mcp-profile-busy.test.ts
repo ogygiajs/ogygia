@@ -88,6 +88,9 @@ describe('ogygia_profile while another recording holds the profiler', () => {
 		const stale = createServer((req, res) => {
 			const path = new URL(req.url ?? '/', 'http://localhost').pathname;
 			asked.push(path);
+			// (each changes the profiler's state, so each is a POST: #1168)
+			if (path === '/__profiler/page' || path === '/__profiler/reset')
+				expect(req.method, path).toBe('POST');
 			if (path === '/__profiler/page' && !asked.includes('/__profiler/reset')) {
 				res.writeHead(409, { 'content-type': 'application/json' });
 				res.end(

@@ -80,13 +80,20 @@
 				>The whole site</a
 			>
 			<a class="btn" href="{base}/view">Import<span class="sub">.ogp</span></a>
-			<a
-				class="btn danger"
-				class:recording
-				href="{base}/reset"
-				title="Stop any running or stuck recording and clear the profiler's state.">Reset</a
-			>
-			{#if !dev}<a class="btn" href="{base}/logout">Lock</a>{/if}
+			<!-- (state changes are POSTs, never a link: a link on another site makes a GET) -->
+			<form method="POST" action="{base}/reset" style="display:contents">
+				<button
+					type="submit"
+					class="btn danger"
+					class:recording
+					title="Stop any running or stuck recording and clear the profiler's state.">Reset</button
+				>
+			</form>
+			{#if !dev}
+				<form method="POST" action="{base}/logout" style="display:contents">
+					<button type="submit" class="btn">Lock</button>
+				</form>
+			{/if}
 		</div>
 	</div>
 

@@ -77,14 +77,6 @@
 			"reason": "the replacement for the pre's attributes: one concatenation, constant work; proven in packages/content/test/fence-escaping.test.ts"
 		},
 		{
-			"id": "packages/core/src/server/page-stream.ts > stream_page_deferred > ReadableStream:0~352846 > cancel",
-			"reason": "the stream's cancel closes its owner: constant work"
-		},
-		{
-			"id": "packages/core/src/server/page-stream.ts > stream_page_deferred > ReadableStream:0~352846 > start > stream_one > then:1~0cd750",
-			"reason": "a rejected promise settled as a failure: constant work"
-		},
-		{
 			"id": "packages/devtools/src/devtools/page.ts > asked",
 			"reason": "reads a flights' kept answer or starts its ask (a flights, not cloneable), constant work; proven in packages/devtools/test/devtools-page-asks.test.ts"
 		},
@@ -577,10 +569,6 @@
 			"reason": "browser only: a settled lake wakes the regions that waited on it (one DOM walk); proven in packages/core/test/browser/lake-swr-remount.test.ts"
 		},
 		{
-			"id": "packages/core/src/runtime/core.ts > OgygiaRegion > #arm > arm_on_demand:1",
-			"reason": "browser only: an on-demand hole's intent fires its fetch, constant work; proven in packages/core/test/browser/deferred-endpoint.test.ts"
-		},
-		{
 			"id": "packages/core/src/runtime/core.ts > OgygiaRegion > #on_idle > first",
 			"reason": "browser only: an idle schedule fires once, at idle time or the 2 s cap, whichever is first (two cancels and the fire), constant work; proven in packages/core/test/browser/hole-lifecycle.test.ts"
 		},
@@ -611,10 +599,6 @@
 		{
 			"id": "packages/core/src/runtime/core.ts > OgygiaRegion > #apply_live",
 			"reason": "browser only: one live tick in its mailbox turn (the custom element, the frame store, hydration), constant work besides the morph and hydrate it calls; proven in packages/core/test/browser/live-region.test.ts, sim-region.test.ts and region-orderings.test.ts"
-		},
-		{
-			"id": "packages/core/src/runtime/core.ts > OgygiaRegion > #apply_live > defer:0~f0b0cb",
-			"reason": "browser only: drops a static live region's subscription when an interactive tick takes over, constant work; proven in packages/core/test/browser/live-region.test.ts"
 		},
 		{
 			"id": "packages/core/src/runtime/core.ts > OgygiaRegion > #fire_prefetch > post:0~906789",
@@ -1159,10 +1143,6 @@
 		{
 			"id": "packages/devtools/src/profiler/ui/fake-progress.svelte.ts > FakeProgress > #stop",
 			"reason": "closes the run's scope (a timer), constant work; proven in packages/devtools/test/profiler-fake-progress.test.ts"
-		},
-		{
-			"id": "packages/devtools/src/profiler/ui/fake-progress.svelte.ts > FakeProgress > [computed]",
-			"reason": "Symbol.dispose: closes the bar's scope (its timers), constant work; proven in packages/devtools/test/profiler-fake-progress.test.ts"
 		},
 		{
 			"id": "packages/devtools/src/profiler/ui/fake-progress.svelte.ts > FakeProgress > finish > task:0",
@@ -3005,10 +2985,6 @@
 			"reason": "browser only: builds one hook's subscriber list once at boot, linear in the client plugins (a handful)"
 		},
 		{
-			"id": "packages/core/src/runtime/client-plugins.ts > joined > report",
-			"reason": "browser only: reports one plugin's failed hook once (a Set has and add, one console.error); proven in packages/core/test/runtime-hooks-compose.test.ts"
-		},
-		{
 			"id": "packages/compiler/src/vite/plugin-api.ts > client_hook_names > unread",
 			"reason": "builds one OgygiaError for an unreadable realm, constant work"
 		},
@@ -3769,10 +3745,6 @@
 			"reason": "browser only: a viewport-preload link came on screen, one warm of its page (fetch_page, measured by the router benches)"
 		},
 		{
-			"id": "packages/core/src/runtime/viewport.ts > Tracker > #follow > MutationObserver:0~c14ef5",
-			"reason": "browser only: a box-less region's content was swapped; it hands the records to #swapped, constant work"
-		},
-		{
 			"id": "packages/core/src/runtime/viewport.ts > Tracker > #swapped",
 			"reason": "browser only: a box-less region's content swap, linear in its records (a handful per swap); viewport-shared.test.ts runs it in three engines"
 		},
@@ -3811,10 +3783,6 @@
 		{
 			"id": "packages/core/src/frame.ts > frameAddress > sort:0~f5ce9e",
 			"reason": "the sort comparator of a call's parameters (a closure Array.sort calls, not replayable on its own), constant work per pair; frameAddress around it is proven in packages/core/test/frame-address.test.ts (#916)"
-		},
-		{
-			"id": "packages/core/src/kit-paths.ts > app_path",
-			"reason": "reads Kit's build define for paths.base (hidden state: a module constant), one string join, constant work; proven in packages/core/test/capability-relative-paths.test.ts (#925)"
 		},
 		{
 			"id": "packages/core/src/runtime/core.ts > OgygiaRegion > #wake_online",
@@ -4049,10 +4017,6 @@
 			"reason": "browser only: starts the recorder on the saved parts (module state, the document's body), once per document; proven by packages/testing/e2e/ogygia-testing.spec.ts (record() across a full page load)"
 		},
 		{
-			"id": "packages/devtools/src/devtools/testing-script.ts > on:2~955b4d",
-			"reason": "browser only: the injected engine's DOMContentLoaded listener, once per document, constant work of its own; proven by packages/testing/e2e/ogygia-testing.spec.ts"
-		},
-		{
 			"id": "packages/devtools/src/client-beacon.ts > BEACON_HOOKS > holeAnswered",
 			"reason": "browser only: one hook event to its beacon function (a DOM element in the event: not replayable), constant work of its own"
 		},
@@ -4267,10 +4231,6 @@
 		{
 			"id": "packages/core/src/markup-walk.ts > tags",
 			"reason": "a generator (not recorded): one pattern jump per tag, the tag itself read by read_tag (benched in packages/core/bench/markup.bench.ts, a scan of a whole document too); proven in packages/core/test/wire-markup.test.ts"
-		},
-		{
-			"id": "packages/postrender/src/server.ts > defineServer:0~48ac6f > page > then:1~a1b2d0",
-			"reason": "a failed deploy check let go (the store said its failure, the next request checks again): nothing"
 		},
 		{
 			"id": "packages/postrender/src/server.ts > servable",
@@ -4751,6 +4711,178 @@
 		{
 			"id": "packages/core/src/runtime/code-origins.ts > forget_code_origins",
 			"reason": "browser only: drops the page's read code origins (one write), constant work; proven in packages/core/test/browser/nav-code-origins.test.ts (#1045)"
+		},
+		{
+			"id": "packages/core/src/server/capped-body.ts > read_capped",
+			"reason": "network bound: reads a request body's pieces until the cap, one copy of the bytes; proven in packages/core/test/batch-body-cap.test.ts and packages/federation/test/body-cap.test.ts (#754, #1091)"
+		},
+		{
+			"id": "packages/devtools/src/profiler/ui/fake-progress.svelte.ts > FakeProgress > close",
+			"reason": "closes the bar's scope (its timers), constant work; proven in packages/devtools/test/profiler-fake-progress.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/core.ts > OgygiaRegion > #teardown > note_left:1~6e248e",
+			"reason": "browser only, dev and e2e builds: the rule's reader of the element's busy machines, handed over at its teardown, constant work; proven in packages/core/test/browser/rules.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/core.ts > OgygiaRegion > #machines",
+			"reason": "browser only, dev and e2e builds: reads the element's four machines' states for the rule on a region that left, constant work; proven in packages/core/test/browser/rules.test.ts and packages/core/test/browser/paint-left-mid-wait.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/rules.ts > note_left",
+			"reason": "browser only, dev and e2e builds: records a region element that left the page (DOM nodes, not cloneable), constant work; proven in packages/core/test/browser/rules.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/region-machines.ts > busy_machines",
+			"reason": "dev and e2e builds only (the rule on a region that left): four compares over a fixed table, constant work; proven in packages/core/test/browser/rules.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/rules.ts > regions_left_at_rest",
+			"reason": "browser only, dev and e2e builds: the rule over the region elements that left the page, linear in those not yet seen at rest; proven in packages/core/test/browser/rules.test.ts and read at the end of every e2e spec"
+		},
+		{
+			"id": "packages/core/src/messages/core.ts > WARNINGS > rule_region_left_busy > details",
+			"reason": "a message's prose for its docs page and dev warning: constant text, printed once when the rule breaks"
+		},
+		{
+			"id": "packages/core/src/messages/core.ts > WARNINGS > rule_region_left_busy > text",
+			"reason": "a message's one line for the dev warning: a template over the rule's detail, printed once when the rule breaks"
+		},
+		{
+			"id": "packages/core/src/runtime/form-continuity.ts > region_names",
+			"reason": "browser only: one attribute read per region (Elements, not cloneable), linear in the page's regions, once per page left or restored; proven in packages/core/test/browser/form-restore-region-identity.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/form-continuity.ts > arm_form_restore > read_names",
+			"reason": "browser only: one query of the page's regions, then region_names; proven in packages/core/test/browser/form-restore-region-identity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > tag_name_end",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: not replayable); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > tag_end",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: not replayable); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > pieces",
+			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: not replayable); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/core/src/messages/core.ts > ERRORS > page_promise_unresolved > details",
+			"reason": "a message's wording, read once when the error is shown: constant work"
+		},
+		{
+			"id": "packages/core/src/messages/core.ts > ERRORS > page_promise_unresolved > text",
+			"reason": "a message's wording, read once when the error is shown: constant work"
+		},
+		{
+			"id": "packages/core/src/runtime/page-defer.ts > install_page_defer > live > with_devalue:1~0fffae",
+			"reason": "a streamed resolve whose devalue download failed every try: one settle, once per promise; devalue-lane-gone.test.ts runs the give-up"
+		},
+		{
+			"id": "packages/core/src/runtime/page-defer.ts > unresolved",
+			"reason": "one coded error made for a promise that can no longer settle, once per promise: constant work"
+		},
+		{
+			"id": "packages/core/src/runtime/viewport.ts > Tracker > #hear_swaps > MutationObserver:0~c14ef5",
+			"reason": "browser only: a box-less region's content was swapped; it hands the records to #swapped, constant work"
+		},
+		{
+			"id": "packages/core/src/runtime/viewport.ts > Tracker > #hear_swaps",
+			"reason": "browser only: a box-less target followed into is observed for swaps (one map entry, one observe), constant work; viewport-shared.test.ts runs it in three engines"
+		},
+		{
+			"id": "packages/core/src/runtime/viewport.ts > Tracker > #stop_swaps",
+			"reason": "browser only: a box-less target let go leaves the swap observer, which observes again the few targets left (box-less regions followed now); viewport-shared.test.ts runs it in three engines"
+		},
+		{
+			"id": "packages/core/src/runtime/viewport.ts > Tracker > #stop_swaps > micro:0~165f8c",
+			"reason": "browser only: hands the swap records not yet delivered to #swapped, constant work"
+		},
+		{
+			"id": "packages/core/src/server/kit-context.ts > held_root_context",
+			"reason": "returns a Map holding Kit's page and stores contexts (not cloneable): kit_render_context plus two set() calls, constant work, once per held region render; proven in packages/core/test/held-region-runtime.test.ts"
+		},
+		{
+			"id": "packages/core/src/messages/server.ts > SERVER_WARNINGS > page_promise_pending > details",
+			"reason": "a message's wording, read once when the warning is shown: constant work"
+		},
+		{
+			"id": "packages/core/src/messages/server.ts > SERVER_WARNINGS > page_promise_pending > text",
+			"reason": "a message's wording, read once when the warning is shown: constant work"
+		},
+		{
+			"id": "packages/core/src/server/page-stream.ts > say_if_pending > timeout:0~8e3e3b",
+			"reason": "dev only: one warning after 10 s, at most once per response: constant work; proven in packages/core/test/page-stream-request-owned.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/ownership.ts > in_render_block",
+			"reason": "browser only (DOM comments): runs only for a child of an element stamped data-og-html, a scan of its earlier siblings; nested-island-drift.test.ts runs it"
+		},
+		{
+			"id": "packages/core/src/runtime/form-continuity.ts > url_of",
+			"reason": "browser only (document.baseURI): one URL parse per region attribute; proven in packages/core/test/browser/form-restore-region-identity.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/form-continuity.ts > region_kind",
+			"reason": "browser only: two attribute reads per region (Elements, not cloneable); proven in packages/core/test/browser/form-restore-region-identity.test.ts"
+		},
+		{
+			"id": "packages/core/src/messages/core.ts > WARNINGS > page_payload_unreadable > details",
+			"reason": "a message's prose, built once when the warning is said (dev and prerender only), constant work"
+		},
+		{
+			"id": "packages/core/src/messages/core.ts > WARNINGS > page_payload_unreadable > text",
+			"reason": "a message's one line, built once when the warning is said, constant work"
+		},
+		{
+			"id": "packages/core/src/runtime/frame-store.ts > part_definition",
+			"reason": "makes one three-state machine definition (data, not cloneable), constant work per promised part"
+		},
+		{
+			"id": "packages/core/src/runtime/page-defer.ts > settle > catch:0~a1b2d0",
+			"reason": "an empty catch on a promise the page's {#await} reads (a closure, not replayable): nothing"
+		},
+		{
+			"id": "packages/core/src/runtime/region-machines.ts > region_life_graph",
+			"reason": "the region life machine as data for docs and tests (graph() of a constant definition), never on a request or a wake"
+		},
+		{
+			"id": "packages/core/src/runtime/session.ts > RuntimeSession > settle_lake_before_swap",
+			"reason": "browser only: one lake machine move per region of a refresh (Elements, not cloneable), constant work"
+		},
+		{
+			"id": "packages/core/src/server/fn-manifest-script.ts > fn_manifest_script > map:0~9c7d1b",
+			"reason": "the map callback of one manifest entry (a closure fn_manifest_script calls), one JSON.stringify of the tag, constant work per entry"
+		},
+		{
+			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > comment_end",
+			"reason": "profiler only (a page a developer opens): where one comment ends, a few prefix checks and one indexOf, linear in the comment"
+		},
+		{
+			"id": "packages/devtools/src/profiler/dom-diff.ts > tokenize_html > markup_tokens:1~8f6eed",
+			"reason": "profiler only: the callback of one markup token (a closure markup_tokens calls), one slice and a split for long text, linear in the token"
+		},
+		{
+			"id": "packages/devtools/src/profiler/standalone.ts > attrs_without > flatMap:0~219a6b",
+			"reason": "profiler only: the flatMap callback over the attributes to drop (a closure), one attr_spans call each"
+		},
+		{
+			"id": "packages/devtools/src/profiler/standalone.ts > attrs_without > sort:0~fd7745",
+			"reason": "profiler only: a sort comparator of two spans (a closure Array.sort calls), constant work per pair"
+		},
+		{
+			"id": "packages/devtools/src/profiler/standalone.ts > read",
+			"reason": "profiler only: one attribute read off a found tag (hidden state: the tag's document), one decodeText, linear in the value"
+		},
+		{
+			"id": "packages/postrender/src/server.ts > permanent_redirect",
+			"reason": "two status compares on a Response (not cloneable), constant work"
+		},
+		{
+			"id": "packages/postrender/src/server.ts > refusal",
+			"reason": "the store verdict before the body is read: a few field and header reads on a Response (not cloneable), constant work; proven in packages/postrender/test/dev-note.test.ts"
 		}
 	]
 }
