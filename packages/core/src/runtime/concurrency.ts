@@ -15,7 +15,10 @@
  *   more never starts, and never holds a slot.
  *
  * Each call owns its timers and its listener on `signal` (a scope): they are let go the moment the
- * call settles, whichever way.
+ * call settles, whichever way. The promises above are test/concurrency.test.ts and
+ * test/batch-stream-cancel.test.ts.
+ *
+ * @packageDocumentation
  */
 import { clock, queue, scope, type Place, type Queue, type Scope } from '@ogygia/machine';
 
@@ -28,9 +31,7 @@ export interface GateOptions {
 	signal?: AbortSignal;
 }
 
-/** The caller's error when its body ran past the deadline (it was abandoned). */
 const RUN_TIMEOUT = 'region render timeout';
-/** The caller's error when no slot came before the deadline (its body never ran). */
 const WAIT_TIMEOUT = 'region render queue timeout';
 
 export class ConcurrencyGate {
@@ -59,7 +60,6 @@ export class ConcurrencyGate {
 		const call = scope();
 		try {
 			const slot = await this.#enter(deadline, signal, call);
-			// (handed a slot in the same step the signal aborted: the slot goes on, the body never starts)
 			if (signal?.aborted) {
 				slot.release();
 				throw signal.reason;
@@ -70,8 +70,6 @@ export class ConcurrencyGate {
 			} catch (error) {
 				body = Promise.reject(error);
 			}
-			// the slot is this body's until it ends, or until it is abandoned at the deadline; it is given
-			// back exactly once either way
 			let holds = true;
 			const end = () => {
 				if (holds) {
@@ -120,19 +118,14 @@ export class ConcurrencyGate {
 				},
 				gone: () => reject(signal?.aborted ? signal.reason : new Error(WAIT_TIMEOUT))
 			};
-			// (its deadline is the queue's: passed over at a release, settled by the queue's timer)
-			// a free slot is taken whatever the deadline (a due one is the body's run timeout, as before):
-			// the queue's deadline is only for a call that waits
 			const slots = this.#slots;
 			const free = slots.waiting === 0 && slots.holding < this.#limit;
 			slots.push(waiter, free ? undefined : deadline);
-			// still waiting when nobody waits on it any more: it leaves at once (once in, a body runs on)
 			if (signal && !entered) call.on(signal, 'abort', () => this.#slots.cancel(waiter));
 		});
 	}
 }
 
-/** A call waiting for a slot: `enter` once handed one, `gone` once it gave up. */
 type Waiter = { enter: (place: Place) => void; gone: () => void };
 
 /** Whether `error` is a call's run timeout: its body ran past the deadline and was abandoned. */
@@ -140,8 +133,6 @@ export function is_run_timeout(error: unknown): boolean {
 	return error instanceof Error && error.message === RUN_TIMEOUT;
 }
 
-/** `work`, or the run timeout after `ms` (`on_timeout` first). The timer is the call's: it goes
- *  when the call settles. */
 function within<T>(call: Scope, work: Promise<T>, ms: number, on_timeout: () => void): Promise<T> {
 	return new Promise<T>((resolve, reject) => {
 		call.timeout(() => {
@@ -152,8 +143,6 @@ function within<T>(call: Scope, work: Promise<T>, ms: number, on_timeout: () => 
 	});
 }
 
-/** A delay a timer can hold: a deadline already past is now, and one past the longest a timer
- *  holds (2^31 - 1 ms) waits that long. */
 function timer_ms(ms: number): number {
 	return Math.min(2_147_483_647, Math.max(0, ms));
 }
