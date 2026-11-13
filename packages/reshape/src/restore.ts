@@ -400,7 +400,15 @@ export function restore(root: Document | DocumentFragment | Element): number {
 		// oxlint-disable-next-line ogygia/html-sink -- inlined by `restore.toString()` (no imports): only the element's own name and an empty declarative root, in an inert document, never inserted as parsed
 		box.setHTMLUnsafe(`<${name}><template shadowrootmode="open"></template></${name}>`);
 		const made = box.firstElementChild as HTMLElement | null;
-		if (!made || made.localName !== name || !made.shadowRoot) return null;
+		if (
+			!made ||
+			box.childNodes.length !== 1 ||
+			made.localName !== name ||
+			made.childNodes.length !== 0 ||
+			!made.shadowRoot ||
+			made.shadowRoot.childNodes.length !== 0
+		)
+			return null;
 		const fresh = doc.adoptNode(made);
 		for (const a of Array.from(served.attributes)) fresh.setAttribute(a.name, a.value);
 		while (served.firstChild) fresh.appendChild(served.firstChild);

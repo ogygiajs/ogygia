@@ -679,6 +679,22 @@ test('a host its component already upgraded (no root of its own yet) keeps its i
 	expect(before.innerHTML).toBe(' hi ');
 });
 
+test('a host whose tag name holds markup characters is restored with nothing parsed out of its name', () => {
+	document.head.insertAdjacentHTML('beforeend', SHEET);
+	document.body.innerHTML =
+		'<x-a<img og-h="0" og-shadow="demo-card.shadow"><b>server</b><slot><!--og-c 0.0 t--> hi </slot></x-a<img>';
+	expect(document.body.firstElementChild!.localName).toBe('x-a<img');
+	try {
+		restore(document);
+	} catch {
+		expect(document.body.firstElementChild!.shadowRoot).toBeNull();
+	}
+	const restored = document.body.firstElementChild!;
+	expect(restored.localName).toBe('x-a<img');
+	expect(document.querySelectorAll('img').length).toBe(0);
+	expect(restored.shadowRoot?.querySelectorAll('img').length ?? 0).toBe(0);
+});
+
 test('putting attributes back never adds an event handler, a srcdoc or a javascript: URL', () => {
 	const w = window as { __og_ran?: number };
 	w.__og_ran = 0;
