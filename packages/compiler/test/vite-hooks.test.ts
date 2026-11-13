@@ -182,9 +182,9 @@ async function load(p: Hooks, spec: string, leg: Leg): Promise<string | null> {
 	return out === null ? null : typeof out === 'string' ? out : out.code;
 }
 
-it('a svelte config written for 0.8 still loads: the old markdown spellings answer what they answered for an app without markdown', () => {
-	expect(ogygia.extensions()).toEqual(['.svelte']);
-	expect(ogygia.preprocess()).toEqual([]);
+it('the plugin carries no svelte-config helpers: markdown ones come from @ogygia/content/vite', () => {
+	expect('extensions' in ogygia).toBe(false);
+	expect('preprocess' in ogygia).toBe(false);
 });
 
 describe('the config hook', () => {
