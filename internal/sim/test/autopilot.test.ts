@@ -39,7 +39,12 @@ describe('probes', () => {
 				p.catch(() => 0);
 				p.then(ok, bad);
 				if (x) throw new Error("x");
-				return { ok: false };
+				setTimeout(() => res.give_up(), 5);
+				p.addEventListener('error', () => res.said());
+				p.onerror = () => res.said();
+				if (res.aborted) return 4;
+				if (x.name === 'AbortError') return 5;
+				return { ok: false, onerror: () => 0 };
 			}
 		`;
 		const ids = new Set(site_nodes(FILE, source).map((s) => s.id));
@@ -112,7 +117,44 @@ describe('mutants', () => {
 		['stale, negated', 'if (x !== STALE) k();', 'f > stale:0', /if \(true\) k\(\);/],
 		['body', 'if (!res.body) return 3;', 'f > body:0', /if \(false\) return 3;/],
 		['throw', 'if (x) throw new Error("x");', 'f > throw:0', /if \(x\) \{\}/],
-		['result', 'return { ok: false };', 'f > result:0', /return \{ ok: true \};/]
+		['result', 'return { ok: false };', 'f > result:0', /return \{ ok: true \};/],
+		[
+			'timer',
+			'setTimeout(() => res.give_up(), 5);',
+			'f > timer:0',
+			/setTimeout\(\(\) => \{\}, 5\);/
+		],
+		[
+			"scope's timer",
+			'p.timeout(5, () => res.give_up());',
+			'f > timer:0',
+			/p\.timeout\(5, \(\) => \{\}\);/
+		],
+		[
+			'error listener',
+			"p.addEventListener('error', () => res.said());",
+			'f > error-event:0',
+			/p\.addEventListener\('error', \(\) => \{\}\);/
+		],
+		[
+			'error handler',
+			'p.onerror = () => res.said();',
+			'f > error-event:0',
+			/p\.onerror = \(\) => \{\};/
+		],
+		[
+			'error handler property',
+			'return { onerror: () => res.said() };',
+			'f > error-event:0',
+			/return \{ onerror: \(\) => \{\} \};/
+		],
+		['aborted check', 'if (res.aborted) return 4;', 'f > abort:0', /if \(false\) return 4;/],
+		[
+			'AbortError check',
+			"if (x.name === 'AbortError') return 5;",
+			'f > abort:0',
+			/if \(false\) return 5;/
+		]
 	];
 	for (const [what, line, site, want] of cases)
 		it(`break the recovery of a ${what} site`, () => {
@@ -197,9 +239,13 @@ export function guard(n: number): number {
 	if (n < 0) throw new Error('negative');
 	return n;
 }
+
+export function late(): Promise<string> {
+	return new Promise((answer) => setTimeout(() => answer('late'), 1));
+}
 `;
 
-const SPEC = `import { parse_or_null, status, guard } from '../src/a.ts';
+const SPEC = `import { parse_or_null, status, guard, late } from '../src/a.ts';
 
 test('a bad text parses to null', () => {
 	expect(parse_or_null('{')).toBe(null);
@@ -212,6 +258,10 @@ test('a failed answer still says done', () => {
 test('a negative number is refused', () => {
 	expect(() => guard(-1)).toThrow('negative');
 });
+
+test('a deadline gives up late', async () => {
+	expect(await late()).toBe('late');
+}, 1000);
 `;
 
 describe('a run over a package', () => {
@@ -246,7 +296,8 @@ describe('a run over a package', () => {
 		expect(readFileSync(join(root, 'packages/fx/src/a.ts'), 'utf8')).toBe(SOURCE);
 		expect(report.proved.map((p) => [p.site, p.name])).toEqual([
 			[`${FILE} > parse_or_null > catch:0`, 'a bad text parses to null'],
-			[`${FILE} > guard > throw:0`, 'a negative number is refused']
+			[`${FILE} > guard > throw:0`, 'a negative number is refused'],
+			[`${FILE} > late > timer:0`, 'a deadline gives up late']
 		]);
 		expect(report.proved[0].test).toBe('packages/fx/test/a.spec.ts');
 		expect(report.survived.map((s) => s.site)).toEqual([`${FILE} > status > not-ok:0`]);

@@ -85,6 +85,11 @@ const wrap = (n: { start: number; end: number }, open: string, close: string): E
 	];
 };
 
+/** The opening of a wrap that runs probe `p` before a handler, with its `this` and arguments (a
+ *  value that is not a function goes through as it is). */
+const CALL_THROUGH = (p: string): string =>
+	`((h: any) => typeof h === 'function' ? function (this: any, ...a: any[]) { ${p}; return h.apply(this, a); } : h)(`;
+
 const truthy = (id: string) => `((v: any) => (v && ${probe_call(id)}, v))(`;
 const falsy = (id: string) => `((v: any) => (!v && ${probe_call(id)}, v))(`;
 const NEGATED: ReadonlySet<string> = new Set(['!==', '!=']);
@@ -96,11 +101,58 @@ function handler_of(s: SiteNode): Node | null {
 	return h === undefined || h.type === 'SpreadElement' ? null : h;
 }
 
-/** The condition a check site is (`!res.ok`, `x === STALE`, `!x.body`, `x.body === null`), and
- *  whether it holds on the recovery path when true. */
+const FUNCTION_TYPES: ReadonlySet<string> = new Set([
+	'ArrowFunctionExpression',
+	'FunctionExpression'
+]);
+
+/** The callback a timer runs when it fires (its give-up path): `setTimeout`'s first argument, or the
+ *  function a scope's `timeout(ms, fn)` is handed. Null when it has none (`AbortSignal.timeout`). */
+function timer_callback(s: SiteNode): Node | null {
+	const args = (s.node.arguments as Node[] | undefined) ?? [];
+	const callee = s.node.callee as Node;
+	if (callee.type === 'Identifier' && callee.name === 'setTimeout')
+		return args[0] !== undefined && args[0].type !== 'SpreadElement' ? args[0] : null;
+	return args.find((a) => FUNCTION_TYPES.has(a.type)) ?? null;
+}
+
+/** The handler an error event runs: a listener's (the argument after the event's name), an
+ *  `onerror = h`'s or an `{ onerror: h }`'s. */
+function error_handler(s: SiteNode): Node | null {
+	if (s.node.type === 'CallExpression') {
+		const args = s.node.arguments as Node[];
+		const at = args.findIndex((a) => a.type === 'Literal');
+		const h = args[at + 1];
+		return at === -1 || h === undefined || h.type === 'SpreadElement' ? null : h;
+	}
+	if (s.node.type === 'Property') return s.node.value as Node;
+	if (s.node.type === 'MemberExpression' && s.parent?.type === 'AssignmentExpression')
+		return s.parent.right as Node;
+	return null;
+}
+
+/** The condition a check site is (`!res.ok`, `x === STALE`, `!x.body`, `x.body === null`,
+ *  `signal.aborted`, `e.name === 'AbortError'`), and whether it holds on the recovery path when
+ *  true. */
 function check_of(s: SiteNode): { node: Node; when: boolean } | null {
 	if (s.kind === 'not-ok')
 		return s.parent?.type === 'UnaryExpression' ? { node: s.parent, when: true } : null;
+	if (s.kind === 'abort') {
+		if (s.node.type === 'MemberExpression') {
+			const p = s.parent;
+			const written =
+				(p?.type === 'AssignmentExpression' && p.left === s.node) ||
+				p?.type === 'UpdateExpression' ||
+				(p?.type === 'CallExpression' && p.callee === s.node);
+			return written ? null : { node: s.node, when: true };
+		}
+		if (s.node.type === 'Literal' && s.parent?.type === 'BinaryExpression') {
+			const op = String(s.parent.operator);
+			if (!['===', '!==', '==', '!='].includes(op)) return null;
+			return { node: s.parent, when: !NEGATED.has(op) };
+		}
+		return null;
+	}
 	if (s.node.type === 'UnaryExpression') return { node: s.node, when: true };
 	if (s.node.type === 'BinaryExpression')
 		return { node: s.node, when: !NEGATED.has(String(s.node.operator)) };
@@ -120,13 +172,7 @@ export function probe_of(s: SiteNode): Edit[] | null {
 		case '.catch':
 		case 'reject': {
 			const h = handler_of(s);
-			return h === null
-				? null
-				: wrap(
-						h,
-						`((h: any) => typeof h === 'function' ? (...a: any[]) => (${p}, h(...a)) : h)(`,
-						')'
-					);
+			return h === null ? null : wrap(h, CALL_THROUGH(p), ')');
 		}
 		case 'not-ok':
 		case 'stale':
@@ -136,6 +182,15 @@ export function probe_of(s: SiteNode): Edit[] | null {
 		}
 		case 'result':
 			return wrap(s.node.value as Node, `(${p}, `, ')');
+		case 'abort': {
+			const c = check_of(s);
+			return c === null ? null : wrap(c.node, c.when ? truthy(s.id) : falsy(s.id), ')');
+		}
+		case 'timer':
+		case 'error-event': {
+			const h = s.kind === 'timer' ? timer_callback(s) : error_handler(s);
+			return h === null ? null : wrap(h, CALL_THROUGH(p), ')');
+		}
 		default:
 			return null;
 	}
@@ -150,7 +205,10 @@ export const AUTOPILOT_KINDS: ReadonlySet<SiteKind> = new Set([
 	'stale',
 	'body',
 	'throw',
-	'result'
+	'result',
+	'abort',
+	'timer',
+	'error-event'
 ]);
 
 const RETHROW = '(e: unknown) => { throw e; }';
@@ -231,6 +289,39 @@ export function mutants_of(s: SiteNode): SiteMutant[] {
 					edits: [replace(s.node, '{}')]
 				}
 			];
+		case 'abort': {
+			const c = check_of(s);
+			if (c === null) return [];
+			return [
+				{
+					operator: 'never',
+					says: 'the abort check never true',
+					edits: [replace(c.node, c.when ? 'false' : 'true')]
+				}
+			];
+		}
+		case 'timer': {
+			const h = timer_callback(s);
+			if (h === null) return [];
+			return [
+				{
+					operator: 'silent',
+					says: "the timer's callback made to do nothing",
+					edits: [replace(h, '() => {}')]
+				}
+			];
+		}
+		case 'error-event': {
+			const h = error_handler(s);
+			if (h === null) return [];
+			return [
+				{
+					operator: 'silent',
+					says: 'the error handler made to do nothing',
+					edits: [replace(h, '() => {}')]
+				}
+			];
+		}
 		case 'result':
 			return [
 				{
