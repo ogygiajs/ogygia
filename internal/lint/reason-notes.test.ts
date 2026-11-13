@@ -65,3 +65,20 @@ export const c = 0x811c9dc5;
 test('ogygia/one-hash: a trailing note excuses its own line, not the line below', () => {
 	assert.deepEqual(reported('one-hash', HASH), [2]);
 });
+
+const VOIDS = `declare const p: () => Promise<void>;
+declare const s: { send?: () => Promise<void> } | undefined;
+void p();
+void s?.send?.();
+void (p() as Promise<void>);
+void p(); // ok: a trailing note is its own line's
+void p();
+// ok: a note alone on its line names the line below
+void p();
+void p().catch((e: unknown) => console.error(e));
+export const awaited = async () => void (await p());
+`;
+
+test('ogygia/no-silent-failures: every void call needs an ok note, an optional call and a cast too', () => {
+	assert.deepEqual(reported('no-silent-failures', VOIDS), [3, 4, 5, 7]);
+});
