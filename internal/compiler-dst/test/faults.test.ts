@@ -73,6 +73,34 @@ describe('the fault layer', () => {
 	});
 });
 
+describe('a lost watcher event, then the file saved again', () => {
+	test("a lake's wrapper served null while no host held it is served once a later save registers it (#1706)", async () => {
+		const A = '/dst-app/src';
+		const C0 = `${A}/lib/C0.svelte`;
+		const C1 = `${A}/lib/C1.svelte`;
+		const PAGE = `${A}/routes/+page.svelte`;
+		const dev = dev_server({
+			[C0]: "<script>\nimport C1 from './C1.svelte' with { wake: 'none' };\n</script>\n<C1 />\n",
+			[C1]: '<p>C1</p>\n',
+			[PAGE]: '<h1>page</h1>\n'
+		});
+		await dev.serve();
+		dev.fs.set(C0, '<p>C0</p>\n');
+		edit(dev, C1, null);
+		await dev.serve();
+		edit(dev, C1, '<p>C1</p>\n');
+		dev.fs.set(
+			PAGE,
+			"<script>\nimport C1 from '$lib/C1.svelte' with { wake: 'none' };\n</script>\n<C1 />\n"
+		);
+		await dev.serve();
+		for (const f of [C0, PAGE]) edit(dev, f, dev.fs.read(f));
+		await dev.serve();
+		const files = Object.fromEntries([C0, C1, PAGE].map((f) => [f, dev.fs.read(f)!]));
+		expect(seen(dev)).toEqual(seen(await cold_server(files, { dev: true, widen: dev.s })));
+	});
+});
+
 describe('dev matches a cold start through disk and watcher faults', () => {
 	test('after any run of edits, once each file seen wrong is saved again', async () => {
 		await fc.assert(
