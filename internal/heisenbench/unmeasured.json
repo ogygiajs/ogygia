@@ -277,14 +277,6 @@
 			"reason": "browser only, dev and e2e builds: the runtime rules over the live page; proven in packages/core/test/browser/rules.test.ts and read at the end of every palaestra e2e spec"
 		},
 		{
-			"id": "packages/core/src/runtime/rules.ts > own_code_of",
-			"reason": "browser only, dev and e2e builds: one URL read, once as the rules install; proven in packages/core/test/browser/rules-uncoded-own-code.test.ts"
-		},
-		{
-			"id": "packages/core/src/runtime/rules.ts > thrown_at",
-			"reason": "browser only, dev and e2e builds: one regex over an uncaught error's stack, once per failure (10 at most); proven in packages/core/test/browser/rules-uncoded-own-code.test.ts"
-		},
-		{
 			"id": "packages/core/src/runtime/rules.ts > install_rules",
 			"reason": "browser only, dev and e2e builds: the runtime rules over the live page; proven in packages/core/test/browser/rules.test.ts and read at the end of every palaestra e2e spec"
 		},
@@ -3685,6 +3677,18 @@
 			"reason": "browser only, dev and e2e builds: hands the rule the frame store's peek, once; proven in packages/core/test/browser/rules.test.ts"
 		},
 		{
+			"id": "packages/core/src/runtime/rules.ts > watch_turns",
+			"reason": "browser only, dev and e2e builds: hands the rule the scheduler's check, once as it loads; proven in packages/core/test/browser/turns-counted.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/rules.ts > turns_counted",
+			"reason": "browser only, dev and e2e builds: calls the scheduler's check, once per rule check; proven in packages/core/test/browser/turns-counted.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/schedule.ts > turns_counted",
+			"reason": "dev and e2e builds only (folds out of production): one pass over the pending turns per rule check, off the hydrate path; proven in packages/core/test/browser/turns-counted.test.ts"
+		},
+		{
 			"id": "packages/core/src/runtime/rules.ts > note_handed",
 			"reason": "browser only, dev and e2e builds: records a frame handed to a region element (DOM nodes, not cloneable), constant work; proven in packages/core/test/browser/rules.test.ts"
 		},
@@ -4761,6 +4765,14 @@
 			"reason": "browser only, dev and e2e builds: the rule over the region elements that left the page, linear in those not yet seen at rest; proven in packages/core/test/browser/rules.test.ts and read at the end of every e2e spec"
 		},
 		{
+			"id": "packages/core/src/messages/core.ts > WARNINGS > rule_turns_counted > text",
+			"reason": "a message's one line for the dev warning: a template over the rule's detail, printed once when the rule breaks"
+		},
+		{
+			"id": "packages/core/src/messages/core.ts > WARNINGS > rule_turns_counted > details",
+			"reason": "a message's prose for its docs page and dev warning: constant text, printed once when the rule breaks"
+		},
+		{
 			"id": "packages/core/src/messages/core.ts > WARNINGS > rule_region_left_busy > details",
 			"reason": "a message's prose for its docs page and dev warning: constant text, printed once when the rule breaks"
 		},
@@ -4807,6 +4819,14 @@
 		{
 			"id": "packages/core/src/runtime/form-continuity.ts > arm_form_restore > read_names",
 			"reason": "browser only: one query of the page's regions, then region_names; proven in packages/core/test/browser/form-restore-region-identity.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/rules.ts > own_code_of",
+			"reason": "browser only, dev and e2e builds: one URL read, once as the rules install; proven in packages/core/test/browser/rules-uncoded-own-code.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/rules.ts > thrown_at",
+			"reason": "browser only, dev and e2e builds: one regex over an uncaught error's stack, once per failure (10 at most); proven in packages/core/test/browser/rules-uncoded-own-code.test.ts"
 		},
 		{
 			"id": "packages/core/src/hooks.ts > start_app_plugins:1~728add > charge",
