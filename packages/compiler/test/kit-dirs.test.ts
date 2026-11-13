@@ -89,7 +89,7 @@ describe('kit.files.routes / kit.outDir', () => {
 		});
 		const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
 		try {
-			expect(await load_kit_dirs(root)).toEqual({
+			expect((await load_kit_config(root)).dirs).toEqual({
 				routes_dir: join(root, 'src/routes'),
 				out_dir: join(root, '.svelte-kit')
 			});
