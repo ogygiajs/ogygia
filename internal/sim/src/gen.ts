@@ -329,6 +329,37 @@ export function plan(seed: number): GenPage[] {
 
 /** Margins a `visible` schedule may look past the viewport by: px, % of the viewport, one side. */
 const MARGINS = ['200px', '600px', '50%', '0px 0px 300px 0px'] as const;
+
+/** A region with a margin is imported by a preset (a margin is never an inline attribute): its name
+ *  and options. The app's config takes every preset its pages name from plan.json's `presets`. */
+function screen_preset(n: GenNode): [string, Record<string, string>] {
+	const m = `m${MARGINS.indexOf(n.margin as (typeof MARGINS)[number])}`;
+	if (n.kind === 'island') return [`visible-${m}`, { wake: 'visible', margin: n.margin! }];
+	const fetch = n.wake ?? 'load';
+	return [
+		`screen-${fetch}${n.prefetch ? `-${n.prefetch}` : ''}-${m}`,
+		{
+			render: 'deferred',
+			...(n.wake ? { fetch: n.wake } : {}),
+			...(n.prefetch ? { prefetch: n.prefetch } : {}),
+			margin: n.margin!
+		}
+	];
+}
+
+/** Every screen preset `pages` name (see {@link screen_preset}). */
+function screen_presets(pages: readonly GenPage[]): Record<string, Record<string, string>> {
+	const out: Record<string, Record<string, string>> = {};
+	const walk = (n: GenNode): void => {
+		if (n.margin && (n.kind === 'island' || n.kind === 'hole') && !n.maxAge) {
+			const [name, options] = screen_preset(n);
+			out[name] = options;
+		}
+		n.children.forEach(walk);
+	};
+	for (const p of pages) p.roots.forEach(walk);
+	return out;
+}
 /** Where the screen decides (its own stream, `gen screen`): some pages put their later regions
  *  below the fold, some `visible` islands look past it by a margin, and some of a page's own holes
  *  fetch on the visitor's gesture, warming ahead on another schedule (a hole's `wake` is its fetch).
@@ -614,16 +645,18 @@ export function peer_plan(seed: number, pages: readonly GenPage[]): GenPeer | nu
 function attributes(n: GenNode): string {
 	switch (n.kind) {
 		case 'island':
-			return ` with { wake: '${n.wake}'${n.margin ? `, margin: '${n.margin}'` : ''} }`;
+			return n.margin
+				? ` with { preset: '${screen_preset(n)[0]}' }`
+				: ` with { wake: '${n.wake}' }`;
 		case 'lake':
 			return ` with { wake: 'none' }`;
 		case 'hole': {
 			// (a kept render is a preset's: apps/sim-gen/vite.config.ts)
 			if (n.maxAge) return ` with { preset: 'hole-${n.maxAge}${n.wake ? `-${n.wake}` : ''}' }`;
+			if (n.margin) return ` with { preset: '${screen_preset(n)[0]}' }`;
 			const own = [
 				...(n.wake ? [`fetch: '${n.wake}'`] : []),
-				...(n.prefetch ? [`prefetch: '${n.prefetch}'`] : []),
-				...(n.margin ? [`margin: '${n.margin}'`] : [])
+				...(n.prefetch ? [`prefetch: '${n.prefetch}'`] : [])
 			];
 			return ` with { ${["render: 'deferred'", ...own].join(', ')} }`;
 		}
@@ -1064,7 +1097,7 @@ export const actions = m.actions;
 	}
 	writeFileSync(
 		join(lib, 'plan.json'),
-		`${JSON.stringify({ seed, pages, peer, layout, router }, null, '\t')}\n`
+		`${JSON.stringify({ seed, pages, peer, layout, router, presets: screen_presets(pages) }, null, '\t')}\n`
 	);
 }
 
