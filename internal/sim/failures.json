@@ -2014,12 +2014,6 @@
 			"name": "refuses no payload, two payloads, and a bad attribute name"
 		},
 		{
-			"site": "packages/core/src/server/render-cache.ts > cached_render > throw:1",
-			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed hangs the test past the run time limit",
-			"test": "packages/core/test/render-cache.test.ts",
-			"name": "a render whose own request left before it started is not a failure for the calls that joined it (#245)"
-		},
-		{
 			"site": "packages/core/src/shims/page-store.svelte.ts > PageState > set > catch:0",
 			"reason": "a test reaches its recovery path; proved by the autopilot: the catch body emptied turns the test red",
 			"test": "packages/core/test/callbacks-reported.test.ts",
@@ -2870,6 +2864,7 @@
 		"packages/core/src/server/region-endpoint.ts > mint_server_region > throw:0",
 		"packages/core/src/server/region-props.ts > encode_region_props > catch:0",
 		"packages/core/src/server/render-cache.ts > cached_render > abort:0",
+		"packages/core/src/server/render-cache.ts > cached_render > throw:1",
 		"packages/core/src/server/render-page.ts > page_url_of > catch:0",
 		"packages/core/src/server/render-page.ts > prepare_render_page > stale:0",
 		"packages/core/src/server/render-page.ts > render_page_version > catch:0",
