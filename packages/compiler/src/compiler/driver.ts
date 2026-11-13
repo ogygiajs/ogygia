@@ -916,7 +916,7 @@ export class Compiler implements CoreApp {
 	 * sorted, existing source files only.
 	 */
 	island_scan_entries(): string[] {
-		const { registry, region_kinds } = this.program;
+		const { registry } = this.program;
 		const out = new Set<string>();
 		const add = (p: string | null | undefined) => {
 			if (!p) return;
@@ -926,7 +926,6 @@ export class Compiler implements CoreApp {
 		};
 		for (const entry of registry.values()) {
 			if (entry.role !== 'entry' || entry.server) continue;
-			if (region_kinds.get(entry.id) !== 'hydrate') continue;
 			add(entry.componentPath);
 			add(entry.hostPath);
 		}
