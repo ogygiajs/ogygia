@@ -91,6 +91,48 @@
 			"shape": "gen messy",
 			"how": "the refusal of that 500 (status N): fetch_failed retries, then the fallback stands",
 			"killed_by": "hole-error-answer-swapped-in"
+		},
+		{
+			"site": "packages/core/src/runtime/frame-nav.ts > streamFrames > throw:0",
+			"point": "batch.fetch-fails",
+			"how": "the point itself: a navigation batch's request fails before it goes out, as a dropped one's does",
+			"killed_by": "batch-unreleased-fetch-fails"
+		},
+		{
+			"site": "packages/core/src/runtime/frame-nav.ts > streamFrames > fetch:0",
+			"point": "batch.fetch-fails",
+			"how": "the batch's request fails (the point throws where net.fetch would): every hole it reserved is released in the finally and fetches on its own",
+			"killed_by": "batch-unreleased-fetch-fails"
+		},
+		{
+			"site": "packages/core/src/runtime/frame-nav.ts > streamFrames > catch:0",
+			"point": "batch.fetch-fails",
+			"how": "the catch of that failed request returns: the finally releases every reservation, and each hole fetches on its own",
+			"killed_by": "batch-unreleased-fetch-fails"
+		},
+		{
+			"site": "packages/core/src/runtime/frame-nav.ts > streamFrames > not-ok:0",
+			"point": "batch.refused",
+			"how": "the batch is answered 503 (the point swaps the answer, as a busy server would): nothing is read, and the finally releases every reservation",
+			"killed_by": "batch-unreleased-refused"
+		},
+		{
+			"site": "packages/core/src/runtime/frame-nav.ts > streamFrames > throw:1",
+			"point": "batch.body-breaks",
+			"how": "the point itself: a read of the batch's body fails, as a body that broke off does",
+			"killed_by": "batch-unreleased-body-breaks"
+		},
+		{
+			"site": "packages/core/src/runtime/frame-nav.ts > streamFrames > catch:1",
+			"point": "batch.body-breaks",
+			"how": "the body broke off mid-batch: the catch returns, and the parts it still owed are released to fetch on their own",
+			"killed_by": "batch-unreleased-body-breaks"
+		},
+		{
+			"site": "packages/core/src/runtime/frame-nav.ts > streamFrames > stale:2",
+			"point": "batch.body-stalls",
+			"how": "the batch's body goes quiet (the point reads as a stall past STALL_MS): the batch ends, and the parts it still owed are released to fetch on their own",
+			"killed_by": "batch-unreleased-body-stalls"
 		}
 	],
 	"covered": [
@@ -869,16 +911,11 @@
 		"packages/core/src/runtime/foreign-props.ts > foreign_region_prop_revivers > OgygiaRef > throw:0",
 		"packages/core/src/runtime/form-continuity.ts > url_of > catch:0",
 		"packages/core/src/runtime/frame-nav.ts > streamFrames > stale:0",
-		"packages/core/src/runtime/frame-nav.ts > streamFrames > fetch:0",
-		"packages/core/src/runtime/frame-nav.ts > streamFrames > catch:0",
 		"packages/core/src/runtime/frame-nav.ts > streamFrames > stale:1",
-		"packages/core/src/runtime/frame-nav.ts > streamFrames > not-ok:0",
 		"packages/core/src/runtime/frame-nav.ts > streamFrames > body:0",
 		"packages/core/src/runtime/frame-nav.ts > streamFrames > .catch:0",
 		"packages/core/src/runtime/frame-nav.ts > streamFrames > stream:0",
 		"packages/core/src/runtime/frame-nav.ts > streamFrames > .catch:1",
-		"packages/core/src/runtime/frame-nav.ts > streamFrames > catch:1",
-		"packages/core/src/runtime/frame-nav.ts > streamFrames > stale:2",
 		"packages/core/src/runtime/frame-store.ts > fetch_frame > abort:0",
 		"packages/core/src/runtime/frame-store.ts > write > refused:0",
 		"packages/core/src/runtime/frame-store.ts > reserve > stale:0",
