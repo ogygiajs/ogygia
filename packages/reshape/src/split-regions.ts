@@ -47,13 +47,9 @@
  * attributes, never light DOM. All three are exported, Kit-free, from `@ogygia/reshape`, for the
  * non-SvelteKit half of a monorepo where these SSR passes usually live.
  */
-import { next_tag, read_tag, value_at } from '@ogygia/core/internal/server';
-import {
-	// (a value re-emitted into a double-quoted attribute exactly as it was: `<` kept)
-	escapeAttr as escape_attr,
-	// (the regex `\s` the attribute rules were written in — wider than the tag scan's HTML whitespace)
-	isSpace as is_re_space
-} from '@ogygia/core/plugin/utils';
+import { next_open_or_close, next_tag, read_tag, value_at } from '@ogygia/core/internal/server';
+// (a value re-emitted into a double-quoted attribute exactly as it was: `<` kept)
+import { escapeAttr as escape_attr } from '@ogygia/core/plugin/utils';
 
 export type RegionKind = 'island' | 'lake' | 'hole';
 
@@ -80,139 +76,6 @@ export interface RegionSpan {
 }
 
 const REGION_TAG = 'ogygia-region';
-const RAW_TEXT_TAGS = ['script', 'style'] as const;
-
-/** ASCII whitespace that can follow a tag name. */
-function is_space(code: number): boolean {
-	return code === 32 || code === 9 || code === 10 || code === 12 || code === 13;
-}
-
-/** ASCII letter — what a real tag name begins with (`<a…` / `</a…`). A `<` followed by anything
- *  else (space, digit, `=`) is text, not a tag, per the HTML tokenizer. */
-function is_ascii_alpha(code: number): boolean {
-	return (code >= 65 && code <= 90) || (code >= 97 && code <= 122);
-}
-
-/** True when `tag`'s NAME sits at `name` as a real element name (followed by whitespace, `>`, or
- *  `/`), case-insensitive — so `ogygia-region-foo` or `styles` don't match a shorter tag. Callers
- *  pass the index of the tag name: for `<tag` that is `i + 1`, for `</tag` it is `i + 2`. */
-function name_at(html: string, name: number, tag: string): boolean {
-	// Char codes, case-folded by hand: this runs for tags all over a megabyte page, and a
-	// `slice().toLowerCase()` per check was a fresh string each time. `tag` is lower-case ASCII.
-	for (let k = 0; k < tag.length; k++) {
-		const c = html.charCodeAt(name + k);
-		if ((c >= 65 && c <= 90 ? c + 32 : c) !== tag.charCodeAt(k)) return false;
-	}
-	const after = html.charCodeAt(name + tag.length);
-	return Number.isNaN(after) || is_space(after) || after === 62 /* > */ || after === 47; /* / */
-}
-
-/** True when an OPENING tag `<tag…` starts at `i`. */
-function open_tag_at(html: string, i: number, tag: string): boolean {
-	return html.charCodeAt(i) === 60 /* < */ && name_at(html, i + 1, tag);
-}
-
-/** True when a CLOSING tag `</tag…` starts at `i`. */
-function close_tag_at(html: string, i: number, tag: string): boolean {
-	return html.charCodeAt(i) === 60 && html.charCodeAt(i + 1) === 47 && name_at(html, i + 2, tag);
-}
-
-/** Index of the `>` that ends the tag whose `<` is at `open`, respecting `"…"` / `'…'` attribute
- *  values (a `>` inside a value does not end the tag). `html.length` if the tag is unterminated. */
-function tag_end(html: string, open: number): number {
-	let quote = 0;
-	for (let i = open + 1; i < html.length; i++) {
-		const c = html.charCodeAt(i);
-		if (quote) {
-			if (c === quote) quote = 0;
-		} else if (c === 34 || c === 39) {
-			quote = c;
-		} else if (c === 62 /* > */) {
-			return i;
-		}
-	}
-	return html.length;
-}
-
-/** Index of the `<` of the closing `</style>` / `</script>` at or after `from`, or -1. Allocation
- *  free: a native `indexOf('<')` scan (SIMD-fast in V8) plus a bounded tag check — never a substring
- *  copy or a per-call RegExp (this runs once per raw-text element on every SSR response, some of
- *  them megabytes). */
-function raw_text_end(html: string, from: number, tag: 'script' | 'style'): number {
-	let at = from;
-	for (;;) {
-		const lt = html.indexOf('<', at);
-		if (lt === -1) return -1;
-		if (close_tag_at(html, lt, tag)) return lt;
-		at = lt + 1;
-	}
-}
-
-/** A char that ends an attribute NAME: `\s`, `/`, `>`, `=`. */
-function name_stop(c: number): boolean {
-	return c === 47 || c === 62 || c === 61 || is_re_space(c);
-}
-
-/** A char that ends an UNQUOTED value: `\s`, `/`, `>`. */
-function value_stop(c: number): boolean {
-	return c === 47 || c === 62 || is_re_space(c);
-}
-
-/**
- * Parse a tag's attribute run (everything between the tag name and its `>`) into a lower-cased map
- * with quotes stripped. Shared by the region opener and the `<og-lift>` placeholder on restore.
- *
- * Hand-written (measured faster, no match arrays) with the rules the pattern
- * `([^\s/>=]+)(?:\s*=\s*("[^"]*"|'[^']*'|[^\s/>]+))?` had, quirks included: a value is a closed
- * `"…"`, else a closed `'…'`, else an unquoted run (which may start with an unclosed quote — then
- * the first and last characters are stripped, as before); `=` with no value leaves the name valueless.
- * @internal Exported for test/regex-replacements.test.ts.
- */
-export function parse_attr_string(inner: string): Record<string, string> {
-	const attrs: Record<string, string> = {};
-	const n = inner.length;
-	let i = 0;
-	while (i < n) {
-		if (name_stop(inner.charCodeAt(i))) {
-			i++;
-			continue;
-		}
-		const name_start = i;
-		while (i < n && !name_stop(inner.charCodeAt(i))) i++;
-		const name = inner.slice(name_start, i);
-		let value = '';
-		let j = i;
-		while (j < n && is_re_space(inner.charCodeAt(j))) j++;
-		if (inner.charCodeAt(j) === 61 /* = */) {
-			j++;
-			while (j < n && is_re_space(inner.charCodeAt(j))) j++;
-			const q = inner.charCodeAt(j);
-			let end = -1;
-			if (q === 34 || q === 39) {
-				const close = inner.indexOf(q === 34 ? '"' : "'", j + 1);
-				if (close !== -1) end = close + 1;
-			}
-			if (end === -1) {
-				let k = j;
-				while (k < n && !value_stop(inner.charCodeAt(k))) k++;
-				if (k > j) end = k;
-			}
-			if (end !== -1) {
-				value = inner.slice(j, end);
-				i = end;
-				const f = value.charCodeAt(0);
-				if (f === 34 || f === 39) value = value.slice(1, -1);
-			}
-		}
-		attrs[name.toLowerCase()] = value;
-	}
-	return attrs;
-}
-
-/** Parse the attributes out of an opening tag whose `<` is at `open` and `>` at `gt`. */
-function parse_attrs(html: string, open: number, gt: number): Record<string, string> {
-	return parse_attr_string(html.slice(open + 1 + REGION_TAG.length, gt));
-}
 
 /** The classification the whole framework agrees on (runtime region-attrs, the compiled tag): a
  *  region with an `endpoint` is a deferred HOLE; `wake="none"` is a frozen LAKE; anything else that
@@ -241,54 +104,33 @@ interface OpenFrame {
  */
 export function* scanRegions(html: string): Generator<RegionSpan, void, undefined> {
 	const stack: OpenFrame[] = [];
-	const n = html.length;
+	// (core's tag walk: comments, raw-text elements' text and quoted values hold no tag, as the
+	// browser reads them; one linear pass)
 	let i = 0;
-
-	while (i < n) {
-		// Jump straight to the next `<` — `indexOf` is a native scan (SIMD-fast in V8), so the long
-		// text runs between tags on a big CMS page are skipped without a per-char JS loop.
-		const lt = html.indexOf('<', i);
-		if (lt === -1) break;
-		i = lt;
-		// `<!-- … -->`: tag-like text inside a comment is not markup.
-		if (html.startsWith('<!--', i)) {
-			const close = html.indexOf('-->', i + 4);
-			i = close === -1 ? n : close + 3;
-			continue;
-		}
-		// `<script>` / `<style>`: raw-text elements. Skip the whole element — a `<ogygia-region>` in a
-		// CSS comment (the reported bug) or a script string lives here and must not be counted.
-		let raw: (typeof RAW_TEXT_TAGS)[number] | null = null;
-		for (const t of RAW_TEXT_TAGS) if (open_tag_at(html, i, t)) raw = t;
-		if (raw) {
-			const gt = tag_end(html, i);
-			if (html.charCodeAt(gt - 1) === 47 /* /> self-closing */) {
-				i = gt + 1;
-				continue;
-			}
-			const close = raw_text_end(html, gt + 1, raw);
-			i = close === -1 ? n : tag_end(html, close) + 1;
-			continue;
-		}
+	for (
+		let at = next_open_or_close(html, REGION_TAG, 0);
+		at !== null;
+		at = next_open_or_close(html, REGION_TAG, i)
+	) {
 		// Closing `</ogygia-region>`.
-		if (close_tag_at(html, i, REGION_TAG)) {
-			const gt = tag_end(html, i);
+		if ('close' in at) {
 			const frame = stack.pop();
 			if (frame?.emit) {
-				frame.node.innerEnd = i;
-				frame.node.end = gt + 1;
+				frame.node.innerEnd = at.close;
+				frame.node.end = at.end;
 				yield frame.node;
 			}
-			i = gt + 1;
+			i = at.end;
 			continue;
 		}
-		// Opening `<ogygia-region …>`.
-		if (open_tag_at(html, i, REGION_TAG)) {
-			const gt = tag_end(html, i);
+		// Opening `<ogygia-region …>`: its attributes as the browser keeps them (the first of two).
+		{
+			const t = at.tag;
+			i = t.next;
 			const parent_sealed = stack.length > 0 && stack[stack.length - 1].sealed;
-			const attrs = parse_attrs(html, i, gt);
+			const attrs: Record<string, string> = Object.fromEntries(t.attrs);
 			const kind = classify(attrs);
-			const self_closing = html.charCodeAt(gt - 1) === 47;
+			const self_closing = html.charCodeAt(t.end - 2) === 47;
 			// Emit this region unless it is STRICTLY INSIDE an island (a nested login island in a
 			// header lake IS emitted — the caller must protect it). Its own subtree is sealed when it
 			// is an island, or when it already sits inside one.
@@ -296,10 +138,10 @@ export function* scanRegions(html: string): Generator<RegionSpan, void, undefine
 			const sealed = parent_sealed || kind === 'island';
 			const node: RegionSpan = {
 				kind,
-				start: i,
-				end: gt + 1, // filled at the close; a self-closed / unterminated region keeps this
-				innerStart: gt + 1,
-				innerEnd: gt + 1,
+				start: t.start,
+				end: t.end, // filled at the close; a self-closed / unterminated region keeps this
+				innerStart: t.end,
+				innerEnd: t.end,
 				attrs,
 				depth: stack.length
 			};
@@ -308,17 +150,7 @@ export function* scanRegions(html: string): Generator<RegionSpan, void, undefine
 			} else {
 				stack.push({ node, emit, sealed });
 			}
-			i = gt + 1;
-			continue;
 		}
-		// Any OTHER real tag (`<div …>`, `</p>`, a custom-element block): skip past its whole tag with
-		// `tag_end`, which respects quoted attribute values — so a literal `<ogygia-region>` sitting
-		// INSIDE another element's attribute (`<div data-note="<ogygia-region>">`) is never scanned
-		// as content. A `<` that does not begin a tag (a stray `<` in text, e.g. `a < b`) advances one.
-		const c1 = html.charCodeAt(i + 1);
-		const starts_tag =
-			is_ascii_alpha(c1) || (c1 === 47 /* / */ && is_ascii_alpha(html.charCodeAt(i + 2)));
-		i = starts_tag ? tag_end(html, i) + 1 : i + 1;
 	}
 	// Unterminated regions (malformed HTML) drain here without a close — surfaced with their
 	// parse-time `end`/`innerEnd` so a caller never loses a region silently.

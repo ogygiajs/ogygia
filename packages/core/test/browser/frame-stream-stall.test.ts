@@ -48,21 +48,22 @@ describe('a stalled batch stream', () => {
 			// (both reserved at once: their fetches join the stream)
 			const carried = ensure(frameAddress(ep('s1')), own);
 			void ensure(frameAddress(ep('s2')), own).then(
-				() => (outcome = 'answered'),
-				(err: { name?: string }) => (outcome = err?.name ?? 'failed')
+				(html) => (outcome = String(html)),
+				() => (outcome = 'failed')
 			);
 			expect(await carried).toBe('<p>one</p>');
 			// a slow part is not cut short: a few quiet seconds are a server still rendering
 			await vi.advanceTimersByTimeAsync(5_000);
 			expect(outcome).toBe('waiting');
-			// quiet for long: the stream is given up, and the hole it never carried is let go
+			expect(own).not.toHaveBeenCalled();
+			// quiet for long: the stream is given up, and the hole it never carried fetches on its own
 			await vi.advanceTimersByTimeAsync(10_000);
 		} finally {
 			off();
 		}
-		expect(outcome, 'the stalled stream let the waiting hole go').toBe('OgygiaBatchMiss');
+		expect(outcome, 'the stalled stream let the waiting hole go').toBe('own');
+		expect(own).toHaveBeenCalledTimes(1);
 		expect(steps).toContain('reading -> stalled');
-		expect(own).not.toHaveBeenCalled();
 	});
 
 	it('an answer that never starts: the stream is given up while sending, and its holes are let go', async () => {
@@ -94,12 +95,13 @@ describe('a stalled batch stream', () => {
 			await vi.advanceTimersByTimeAsync(5_000);
 			expect(aborted).toBe(false);
 			await vi.advanceTimersByTimeAsync(10_000);
-			expect(await Promise.all(outcomes)).toEqual(['OgygiaBatchMiss', 'OgygiaBatchMiss']);
+			// (the holes it never carried fetch on their own)
+			expect(await Promise.all(outcomes)).toEqual(['answered', 'answered']);
 		} finally {
 			off();
 		}
 		expect(steps).toContain('sending -> stalled');
 		expect(aborted, 'the request is aborted').toBe(true);
-		expect(own).not.toHaveBeenCalled();
+		expect(own).toHaveBeenCalledTimes(2);
 	});
 });

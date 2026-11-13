@@ -111,7 +111,10 @@ export async function run_profile(
 	owner: Scope
 ): Promise<SlimProfile | null> {
 	const url = `${base}/page?p=${encodeURIComponent(path)}&runs=${runs}&format=json`;
-	const r = await fetch_when_free(owner, url, { headers: { accept: 'application/json' } });
+	const r = await fetch_when_free(owner, url, {
+		method: 'POST',
+		headers: { accept: 'application/json' }
+	});
 	if (r === STALE) return null;
 	if (r.status === 409) throw new Error('another profile kept the recorder busy for two minutes');
 	if (!r.ok) {
