@@ -4,7 +4,6 @@ import { walk_enters } from './ownership.ts';
 const REGION = 'ogygia-region';
 const changed = new WeakSet<Element>();
 let observer: MutationObserver | null = null;
-/** The sleeps of the regions sleeping with a copy: each held while its owner is open. */
 const sleepers = registry<Scope>();
 const supported = typeof MutationObserver !== 'undefined';
 
@@ -20,7 +19,6 @@ function mark(records: MutationRecord[]): void {
 	}
 }
 
-/** The last sleep ended: what is pending is taken, then the observer stops. */
 function stop_when_none(): void {
 	if (sleepers.size > 0 || !observer) return;
 	mark(observer.takeRecords());
@@ -39,7 +37,6 @@ export function watch_region(sleep: Scope): void {
 	if (!supported || sleep.closed) return;
 	const first = sleepers.size === 0;
 	sleepers.add(sleep, sleep);
-	// (the registry's entry is a child of `sleep`: it has left by the time this runs)
 	sleep.defer(stop_when_none);
 	if (!first) return;
 	// oxlint-disable-next-line ogygia/owned-effects -- one observer for the document, shared by every sleeping region: each region's sleep owns its place in `sleepers`, and the last one to end disconnects it

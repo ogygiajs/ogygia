@@ -4,6 +4,8 @@
  * throws: a bad escape (`#%E0`) stays as written and a byte that is not UTF-8 becomes U+FFFD, so a
  * link with any hash is still a link (test/browser/nav-bad-hash-escape.test.ts). `#top` and an empty
  * fragment point at the top of the page, which is no element: the caller handles them.
+ *
+ * @packageDocumentation
  */
 
 /** Is the fragment one that means "the top of the page"? */
@@ -26,8 +28,7 @@ function potential_target(name: string, doc: Document): Element | null {
 	return doc.getElementById(name) ?? doc.querySelector(`a[name="${CSS.escape(name)}"]`);
 }
 
-/** Percent-decode to bytes, then UTF-8 with replacement: what the browser does, where
- *  `decodeURIComponent` throws. */
+// @why the browser percent-decodes to bytes, then UTF-8 with replacement, where `decodeURIComponent` throws (test: test/browser/fragment.test.ts › a bad escape never throws: it is read as written, or with U+FFFD)
 function decode_fragment(raw: string): string {
 	if (!raw.includes('%')) return raw;
 	const bytes = new TextEncoder().encode(raw);
