@@ -57,7 +57,13 @@ export interface LoadDef<
 }
 
 type LoadIn = { def: LoadDef; c: Ctx };
-type LoadMemo = Flights<LoadIn, unknown, Pick<LoadIn, 'def'>>;
+/** A load's outcome in one request, a failure too: the memo keeps it, so a load runs once per request
+ *  however often it is awaited (test/router-dispatch.test.ts › an error page does not run the load
+ *  that failed again). */
+type LoadOutcome =
+	| { readonly ok: true; readonly value: unknown }
+	| { readonly ok: false; readonly error: unknown };
+type LoadMemo = Flights<LoadIn, LoadOutcome, Pick<LoadIn, 'def'>>;
 function memo_of(c: Ctx): LoadMemo {
 	const holder = c as { __ogloads?: LoadMemo };
 	if (holder.__ogloads) return holder.__ogloads;
@@ -65,7 +71,13 @@ function memo_of(c: Ctx): LoadMemo {
 		name: 'router load',
 		key: ['def'],
 		ignore: { c: 'the request this memo is made for: one per request' },
-		run: (i) => i.def.run(i.c)
+		run: async (i): Promise<LoadOutcome> => {
+			try {
+				return { ok: true, value: await i.def.run(i.c) };
+			} catch (error) {
+				return { ok: false, error };
+			}
+		}
 	});
 	request_scope(c.request).adopt(memo);
 	return (holder.__ogloads = memo);
@@ -73,7 +85,7 @@ function memo_of(c: Ctx): LoadMemo {
 
 /** `load(fn)` / `load(pattern, fn)`. The returned function memoizes on `c` (run once per request);
  *  the dispatcher's concurrent branch-load pass and any `await other_load(c)` share the same promise.
- *  A failed run is not kept: the next call in the same request runs it again. A call made after
+ *  A failed run is the request's too: every later call in it gets the same failure. A call made after
  *  the request ended rejects with the reason it ended.
  *  In a page's `load` slot, `load(fn)` takes the page's params through its contextual return type
  *  (like a verb wrapper); anywhere else they are loose. */
@@ -94,7 +106,11 @@ export function load(
 		memo_of(c)
 			.get({ def: fn as LoadDef, c })
 			.then((v) =>
-				v === STALE ? Promise.reject(request_scope(c.request).signal.reason) : v
+				v === STALE
+					? Promise.reject(request_scope(c.request).signal.reason)
+					: v.ok
+						? v.value
+						: Promise.reject(v.error)
 			)) as LoadDef<unknown, string>;
 	(fn as { __ogload: boolean }).__ogload = true;
 	(fn as { pattern: string | undefined }).pattern = pattern;
