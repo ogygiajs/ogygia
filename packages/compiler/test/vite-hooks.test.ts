@@ -445,8 +445,14 @@ describe('the build legs', () => {
 		const t = hook_this('ssr');
 		await p.buildStart.call(t);
 		expect(existsSync(handoff())).toBe(false);
+		const host = path.join(root, 'src/routes/+page.svelte');
+		await p.transform.call(t, readFileSync(host, 'utf8'), host, { ssr: true });
 		p.buildEnd.call(t);
-		expect(JSON.parse(readFileSync(handoff(), 'utf8'))).toEqual([]);
+		// (what it names, not its shape: the handoff's format is the compiler's own)
+		const written = readFileSync(handoff(), 'utf8');
+		expect(() => JSON.parse(written)).not.toThrow();
+		expect(written).toContain(JSON.stringify(host).slice(1, -1));
+		expect(written).not.toContain('stale');
 	});
 
 	it('the client leg neither drops nor writes it', async () => {
