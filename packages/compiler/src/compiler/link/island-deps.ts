@@ -1,6 +1,14 @@
 import path from 'node:path';
 import { dedent } from '@ogygia/core/contract';
-import { merge_page_keys, type PageKeys } from './page-keys.ts';
+
+type PageKeys = ReadonlySet<string> | 'unknown';
+
+function merge_page_keys(a: PageKeys | null, b: PageKeys | null): PageKeys | null {
+	if (a === 'unknown' || b === 'unknown') return 'unknown';
+	if (!a) return b;
+	if (!b) return a;
+	return new Set([...a, ...b]);
+}
 import {
 	hydration_hazards,
 	OWN_FILE_RE,
@@ -60,11 +68,11 @@ const TRAILING_SLASH_RE = /\/+$/;
  *   a module that is no remote file. Per entry, `remotes[entryUrl]` lists every remote module in
  *   the island's chunk closure, static AND dynamic imports, which is what lets the handle seed a
  *   remote's SSR result only when some island on the page can call it. Absent → every entry `[]`.
- * @param page_keys_of SEED SHAPING: the top-level `page.data` keys a bundled module reads
- *   (link/page-keys.ts, recorded by the transform), `'all'` when its reads could not be pinned,
- *   `null` for a module that never imports the page. Per entry, `page_keys[entryUrl]` is the union
- *   over its chunk closure, or `null` (ship all) when any module said `'all'`, or when the closure
- *   reads the page through a module the transform never saw. Absent → every reader `null`.
+ * @param page_keys_of SEED SHAPING: the top-level `page.data` keys a bundled module reads (the
+ *   seed-shaping plugin's answer), `'unknown'` when its reads could not be pinned, `null` for a
+ *   module it never saw read the page. Per entry, `page_keys[entryUrl]` is the union over its chunk
+ *   closure, or `null` (ship all) when any module said `'unknown'`, or when the closure reads the
+ *   page through a module the plugin never saw. Absent (no plugin) → every reader `null`.
  * @param read_source WAKE ADVISOR: reads a bundled `.svelte` source by id so the collector can
  *   count what the island's components do. Per entry, `interactivity[entryUrl]` is the union over
  *   its closure's own components (dependencies and ogygia's wrappers skipped). Absent → no facts.
@@ -170,7 +178,7 @@ export function collectIslandDepModulepreloads(
 			if (k === null) continue;
 			any = true;
 			acc = merge_page_keys(acc, k);
-			if (acc === 'all') break;
+			if (acc === 'unknown') break;
 		}
 		return any ? acc : undefined;
 	};
@@ -271,9 +279,10 @@ export function collectIslandDepModulepreloads(
 				if (k === undefined) continue;
 				saw_reader = true;
 				acc = merge_page_keys(acc, k);
-				if (acc === 'all') break;
+				if (acc === 'unknown') break;
 			}
-			page_keys[entryUrl] = !saw_reader || acc === 'all' || acc === null ? null : [...acc].sort();
+			page_keys[entryUrl] =
+				!saw_reader || acc === 'unknown' || acc === null ? null : [...acc].sort();
 		}
 		const found = new Set<string>();
 		for (const s of full) remotes_in(s, found);

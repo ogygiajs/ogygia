@@ -54,7 +54,6 @@ import {
 } from './virtual/core.ts';
 import type { Leg, Part } from './virtual/table.ts';
 import { strip_id, host_key } from './program.ts';
-import { mentions_page_store, page_data_keys_answer } from './link/page-keys.ts';
 import {
 	export_names,
 	registry_client_id,
@@ -1505,21 +1504,8 @@ export class Compiler implements CoreApp {
 			if (kind) this.#scan_facts(path.normalize(id_n), code, kind);
 		}
 
-		if (ctx.is_build && mentions_page_store(code)) {
-			const clean = id.split('?')[0].split('\\').join('/');
-			const kind = clean.endsWith('.svelte')
-				? 'svelte'
-				: SCRIPT_MODULE_RE.test(clean)
-					? 'script'
-					: null;
-			if (kind) {
-				const { keys, reason, pending } = page_data_keys_answer(code, clean, kind);
-				if (keys !== null) program.page_keys.set(clean, keys);
-				if (reason) program.page_key_reasons.set(clean, reason);
-				if (pending.length) program.page_pending.set(clean, pending);
-				else program.page_pending.delete(clean);
-			}
-		}
+		if (ctx.is_build && ctx.page_reads)
+			ctx.page_reads.module(id.split('?')[0].split('\\').join('/'), code);
 
 		let out = code;
 		let touched = false;
@@ -1657,7 +1643,8 @@ export class Compiler implements CoreApp {
 			file_name: bundle.file_name,
 			facade_file: bundle.facade_file,
 			graph: bundle.graph,
-			module_ids: bundle.module_ids
+			module_ids: bundle.module_ids,
+			page_reads: ctx.page_reads
 		});
 		if (out === null) return null;
 		const { s, mapped } = out;

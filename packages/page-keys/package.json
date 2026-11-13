@@ -1,0 +1,61 @@
+{
+	"name": "@ogygia/page-keys",
+	"version": "0.13.0",
+	"description": "Seed shaping for ogygia apps: each island gets only the page.data keys its code reads",
+	"keywords": [
+		"ogygia",
+		"page-data",
+		"sveltekit",
+		"vite"
+	],
+	"homepage": "https://ogygiajs.dev",
+	"license": "MIT",
+	"author": "Puru Vijayvargia <devpuruvj@gmail.com>",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/ogygiajs/ogygia.git",
+		"directory": "packages/page-keys"
+	},
+	"files": [
+		"dist",
+		"README.md"
+	],
+	"type": "module",
+	"sideEffects": false,
+	"exports": {
+		".": {
+			"types": "./dist/index.d.ts",
+			"default": "./src/index.ts"
+		}
+	},
+	"publishConfig": {
+		"exports": {
+			".": {
+				"types": "./dist/index.d.ts",
+				"default": "./dist/index.js"
+			}
+		}
+	},
+	"scripts": {
+		"build": "tsdown",
+		"prepublishOnly": "pnpm run build",
+		"check": "tsc -p . && tsc -p test && vitest run",
+		"test": "vitest run"
+	},
+	"devDependencies": {
+		"@ogygia/compiler": "workspace:*",
+		"@ogygia/config": "workspace:*",
+		"@ogygia/core": "workspace:*",
+		"@typescript/native": "catalog:tsgo",
+		"svelte": "catalog:",
+		"tsdown": "catalog:",
+		"typescript": "catalog:",
+		"vite": "catalog:",
+		"vitest": "catalog:"
+	},
+	"peerDependencies": {
+		"@ogygia/compiler": "workspace:^",
+		"svelte": "catalog:peers",
+		"vite": "catalog:peers"
+	}
+}

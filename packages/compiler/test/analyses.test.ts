@@ -9,7 +9,7 @@ import { fileURLToPath } from 'node:url';
 import { ANALYSES } from '../src/compiler/link/analyses.ts';
 
 const REPO = fileURLToPath(new URL('../../..', import.meta.url));
-const SRC = fileURLToPath(new URL('../src/compiler/', import.meta.url));
+const PACKAGES = fileURLToPath(new URL('../../', import.meta.url));
 const MARKER_G = /^\/\/ oracle: (\S+)$/gm;
 const SOURCE_EXT = /\.(?:ts|js|svelte)$/;
 const SKIP = new Set(['node_modules', 'dist', '.svelte-kit', 'build']);
@@ -56,7 +56,7 @@ describe('the analysis table', () => {
 	it.each(ANALYSES.map((a) => [a.name, a] as const))(
 		'%s: its function is where the table says',
 		(_name, a) => {
-			const file = path.join(SRC, a.where.file);
+			const file = path.join(PACKAGES, a.where.file);
 			expect(existsSync(file), a.where.file).toBe(true);
 			expect(readFileSync(file, 'utf8')).toContain(a.where.symbol);
 		}

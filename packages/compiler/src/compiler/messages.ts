@@ -668,6 +668,14 @@ export const BUILD_ERRORS = {
 			name.
 		`
 	},
+	page_reads_claimed: {
+		text: (a: { owner: string; plugin: string }): string =>
+			`seed shaping (\`pageReads\`) is claimed by both \`${a.owner}\` and \`${a.plugin}\`.`,
+		details: (): string => prose`
+			Two plugins answer which \`page.data\` keys a module reads. Only one can: list one of them
+			(\`pageKeys()\` from \`@ogygia/page-keys\` is the one ogygia ships).
+		`
+	},
 	page_modules_not_absolute: {
 		text: (a: { plugin: string; file: string }): string =>
 			`plugin \`${a.plugin}\`: \`pageModules({ files })\` takes absolute paths (got \`${a.file}\`).`,
