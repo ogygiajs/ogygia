@@ -83,6 +83,7 @@ import { strip_bom } from './bom.ts';
 import { RESOLVED, V_RUNTIME_ENTRY, region_family } from './ids.ts';
 import { is_generated_specifier } from './virtual/table.ts';
 import { OgygiaError, warn } from './messages.ts';
+import { new_leg, type BuildLeg } from './leg.ts';
 import type { Program, RegisterResult } from './program.ts';
 import type { CompileCtx } from './ctx.ts';
 
@@ -100,8 +101,10 @@ export type EmitChunk = (chunk: { type: 'chunk'; id: string; name: string }) => 
  *  (`Compiler.start_leg`) and never carried into the next one (test/second-build.test.ts). Dev is one
  *  build for the whole session. */
 interface Build {
-	/** The legs (bundler environments) that started in this build. */
-	readonly legs: Set<string>;
+	/** The legs (bundler environments) that started in this build, by environment name. */
+	readonly legs: Map<string, BuildLeg>;
+	/** A leg began this build (`start_leg`): its once-per-build work ran. */
+	begun: boolean;
 	readonly program: Program;
 	readonly transform_cache: Map<string, { code: string; result: unknown }>;
 	/** Every `import.meta.og.$` hoist (tag → factory source). */
@@ -114,13 +117,10 @@ interface Build {
 	readonly resolve_memo: Map<string, string | null>;
 	readonly reach_memo: Map<string, boolean>;
 	readonly specs_memo: Map<string, readonly string[]>;
-	/** Each emitted island entry's ref, by island id (one emit per island per build). */
-	readonly island_entry_refs: Map<string, string>;
-	runtime_entry_ref: string | null;
-	location_map_url: string | null;
 }
 const new_build = (program: Program): Build => ({
-	legs: new Set(),
+	legs: new Map(),
+	begun: false,
 	program,
 	transform_cache: new Map(),
 	dollar_hoists: new Map(),
@@ -128,10 +128,7 @@ const new_build = (program: Program): Build => ({
 	router_css_roots: null,
 	resolve_memo: new Map(),
 	reach_memo: new Map(),
-	specs_memo: new Map(),
-	island_entry_refs: new Map(),
-	runtime_entry_ref: null,
-	location_map_url: null
+	specs_memo: new Map()
 });
 
 /** Shared OGYGIA_PROFILE instrument — the adapter owns the maps/counters; the driver writes into
@@ -266,20 +263,53 @@ export class Compiler implements CoreApp {
 	}
 
 	/**
-	 * Open leg `name` (the bundler environment a build hook runs in). A leg that already ran in this
-	 * build begins the next one (watch, a second `build()` in one process): everything the last build
-	 * learned is dropped. Dev is one build for the session. True when this leg begins a build, so the
-	 * caller runs its once-per-build work; Kit's route answers are read afresh from there.
+	 * Open leg `name` (the bundler environment a build hook runs in; `server` when its output runs in
+	 * Node). A leg that already ran in this build begins the next one (watch, a second `build()` in
+	 * one process): everything the last build learned is dropped. Dev is one build for the session.
+	 * True when this leg begins a build, so the caller runs its once-per-build work; Kit's route
+	 * answers are read afresh from there.
 	 */
-	start_leg(name: string): boolean {
+	start_leg(name: string, server: boolean): boolean {
 		if (this.#build.legs.has(name) && this.#ctx!.is_build)
 			this.#build = new_build(this.#build.program.fresh());
-		const legs = this.#build.legs;
-		if (legs.has(name)) return false;
-		legs.add(name);
-		if (legs.size > 1) return false;
+		const build = this.#build;
+		if (!build.legs.has(name)) build.legs.set(name, new_leg(name, server));
+		if (build.begun) return false;
+		build.begun = true;
 		clear_route_csr_cache();
 		return true;
+	}
+
+	/**
+	 * The leg a hook runs in: its environment's, else (a hook the bundler calls without one) the one
+	 * leg open now. Refused when that is not one leg (`build_leg_unclear`): two legs open at once
+	 * cannot be told apart. Dev opens an environment's leg on its first use.
+	 */
+	leg(env: { name: string; server: boolean } | null): BuildLeg {
+		const legs = this.#build.legs;
+		if (env) {
+			const leg = legs.get(env.name);
+			if (leg) return leg;
+			if (!this.#ctx!.is_build) {
+				const opened = new_leg(env.name, env.server);
+				legs.set(env.name, opened);
+				return opened;
+			}
+			throw new OgygiaError('build_leg_unclear', { leg: env.name, open: 0 });
+		}
+		const open = [...legs.values()].filter((l) => l.life.now.kind === 'open');
+		if (open.length === 1) return open[0];
+		throw new OgygiaError('build_leg_unclear', { leg: '', open: open.length });
+	}
+
+	/** Leg `name` of this build, if it started (a reader that may run outside any leg). */
+	find_leg(name: string): BuildLeg | undefined {
+		return this.#build.legs.get(name);
+	}
+
+	/** Leg `name` ends (its bundle is written). */
+	end_leg(name: string): void {
+		this.#build.legs.get(name)?.life.go('closed');
 	}
 
 	/**
@@ -973,17 +1003,17 @@ export class Compiler implements CoreApp {
 	 * client-only build) keeps every prescanned island, as before. Returns how many were skipped.
 	 */
 	emit_build_chunks(
+		leg: BuildLeg,
 		emitFile: EmitChunk,
 		{ emitRuntime, loaded = null }: { emitRuntime: boolean; loaded?: Set<string> | null }
 	): number {
-		const build = this.#build;
 		if (emitRuntime) {
 			// Unresolved virtual id — resolve_id/emit synthesize the feature-selected entry. Named, not
 			// fixed: the bundler hashes its content into the file name (its imports included), and the
 			// server finds that name in the build handoff (its stable name is an identity, not a file).
 			// (named with its features: `og-runtime-<features>.<hash>.js` says which runtime it is)
 			const feat = this.#ctx!.runtime_features(this.program.runtime_feature_hash);
-			build.runtime_entry_ref = emitFile({
+			leg.runtime_entry_ref = emitFile({
 				type: 'chunk',
 				id: V_RUNTIME_ENTRY,
 				name: RUNTIME_ENTRY_NAME + (feat ? `-${feat}` : '')
@@ -995,26 +1025,14 @@ export class Compiler implements CoreApp {
 			if (kind !== 'hydrate') continue;
 			const virtualPath = by_id.get(rid);
 			if (!virtualPath) continue;
-			if (build.island_entry_refs.has(rid)) continue;
+			if (leg.island_entry_refs.has(rid)) continue;
 			if (!island_host_loaded(registry.get(virtualPath)?.hostPath, loaded)) {
 				skipped++;
 				continue;
 			}
-			this.emit_island_entry(emitFile, rid, virtualPath);
+			this.emit_island_entry(leg, emitFile, rid, virtualPath);
 		}
 		return skipped;
-	}
-
-	/** Client-build refs of each emitted island entry (by island id; an island is emitted once per
-	 *  build): the bundle end turns them into the hashed file names the handoff maps the stable names
-	 *  to. */
-	get island_entry_refs(): Map<string, string> {
-		return this.#build.island_entry_refs;
-	}
-	/** The location map's served path (`/<appDir>/immutable/og-locations.<hash>.json`), once
-	 *  `location_map` wrote it in this build: the handoff carries it to the server (`locations`). */
-	get location_map_url(): string | null {
-		return this.#build.location_map_url;
 	}
 
 	/**
@@ -1023,7 +1041,10 @@ export class Compiler implements CoreApp {
 	 * `locations` is what the handoff carries to the server (`entries`): identity → served path.
 	 * `get_file_name` is the bundler's `this.getFileName`.
 	 */
-	entry_locations(get_file_name: (ref: string) => string): {
+	entry_locations(
+		leg: BuildLeg,
+		get_file_name: (ref: string) => string
+	): {
 		islands: Map<string, string>;
 		runtime: string | null;
 		runtime_file: string | null;
@@ -1033,7 +1054,7 @@ export class Compiler implements CoreApp {
 		const locations: Record<string, string> = {};
 		const served = (file: string) => (file.startsWith('/') ? file : `/${file}`);
 		// by island id: the bundler emits entries in no stable order, and the handoff is output (#490)
-		const refs = [...this.island_entry_refs].sort(by_key);
+		const refs = [...leg.island_entry_refs].sort(by_key);
 		for (const [rid, ref] of refs) {
 			const file = get_file_name(ref);
 			const identity = this.island_public_url(rid);
@@ -1042,8 +1063,8 @@ export class Compiler implements CoreApp {
 		}
 		let runtime: string | null = null;
 		let runtime_file: string | null = null;
-		if (this.#build.runtime_entry_ref) {
-			runtime_file = get_file_name(this.#build.runtime_entry_ref);
+		if (leg.runtime_entry_ref) {
+			runtime_file = get_file_name(leg.runtime_entry_ref);
 			runtime = this.runtime_chunk_url();
 			locations[runtime] = served(runtime_file);
 		}
@@ -1052,8 +1073,8 @@ export class Compiler implements CoreApp {
 
 	/** One hydrate island's entry, content-hashed by the bundler (the location maps that name it are
 	 *  written at the bundle's end: `location_maps`). */
-	emit_island_entry(emitFile: EmitChunk, rid: string, virtualPath: string): void {
-		this.#build.island_entry_refs.set(
+	emit_island_entry(leg: BuildLeg, emitFile: EmitChunk, rid: string, virtualPath: string): void {
+		leg.island_entry_refs.set(
 			rid,
 			emitFile({ type: 'chunk', id: virtualPath, name: ISLAND_ENTRY_NAME_PREFIX + rid })
 		);
@@ -1081,15 +1102,18 @@ export class Compiler implements CoreApp {
 	 * every island entry's identity → its hashed file, content-hashed and at the one fixed name.
 	 * `get_file_name` is the bundler's `this.getFileName`. Empty with no island.
 	 */
-	location_maps(get_file_name: (ref: string) => string): { fileName: string; source: string }[] {
+	location_maps(
+		leg: BuildLeg,
+		get_file_name: (ref: string) => string
+	): { fileName: string; source: string }[] {
 		const ctx = this.#ctx!;
 		const pairs: [string, string][] = [];
-		for (const [rid, ref] of this.island_entry_refs)
+		for (const [rid, ref] of leg.island_entry_refs)
 			pairs.push([ctx.island_chunk_filename(rid), get_file_name(ref)]);
 		const files = location_map_files(ctx.app_dir, pairs, (source) =>
 			createHash('sha256').update(source).digest('hex').slice(0, 12)
 		);
-		this.#build.location_map_url = files.length ? `/${files[0].fileName}` : null;
+		leg.location_map_url = files.length ? `/${files[0].fileName}` : null;
 		return files;
 	}
 
@@ -1487,17 +1511,20 @@ export class Compiler implements CoreApp {
 	 * transform (`.svelte`) ▸ ts/js region minting (`.ts/.js`) ▸ the client `$app/*` shim. Registers the
 	 * discovered descriptors into the `Program`, and (client build only) emits the deterministic chunk for
 	 * any hydrate island a library component declares that the prescan couldn't see — via the `emitFile`
-	 * callback (the one Vite primitive threaded in). Returns the Vite transform result, or `null` if the
-	 * module was untouched. `prescan()` runs first so `island_graph` is complete before any module lowers.
+	 * callback (the one Vite primitive threaded in), into `leg` (the leg the transform runs in).
+	 * Returns the Vite transform result, or `null` if the module was untouched. `prescan()` runs first
+	 * so `island_graph` is complete before any module lowers.
 	 */
 	async transform_module(
 		code: string,
 		id: string,
 		{
 			ssr,
+			leg,
 			emitFile
 		}: {
 			ssr: boolean;
+			leg: BuildLeg;
 			emitFile: EmitChunk;
 		}
 	): Promise<{ code: string; map: unknown } | null> {
@@ -1610,9 +1637,9 @@ export class Compiler implements CoreApp {
 				if (ctx.is_build && !ssr) {
 					for (const isl of result.islands ?? []) {
 						const kind = isl.kind ?? (isl.server ? 'defer' : 'hydrate');
-						if (kind !== 'hydrate' || !isl.virtualPath || this.island_entry_refs.has(isl.id))
+						if (kind !== 'hydrate' || !isl.virtualPath || leg.island_entry_refs.has(isl.id))
 							continue;
-						this.emit_island_entry(emitFile, isl.id, isl.virtualPath);
+						this.emit_island_entry(leg, emitFile, isl.id, isl.virtualPath);
 					}
 				}
 			}

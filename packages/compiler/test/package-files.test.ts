@@ -206,6 +206,11 @@ describe('undeclared-marks warning', () => {
 		return compiler;
 	};
 	const noop_emit = () => '';
+	/** A server-leg transform of `c`. */
+	const on_server = (c: Compiler) => {
+		c.start_leg('ssr', true);
+		return { ssr: true, leg: c.leg({ name: 'ssr', server: true }), emitFile: noop_emit };
+	};
 	const marked = `${dedent`
 		import W from './W.svelte' with { wake: 'load' };
 		export const t = W;
@@ -213,10 +218,11 @@ describe('undeclared-marks warning', () => {
 
 	it('a dependency .ts with marks but NO declaration warns loudly (was silent death)', async () => {
 		const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
-		await make('/nowhere/ogygia').transform_module(
+		const c = make('/nowhere/ogygia');
+		await c.transform_module(
 			marked,
 			'/nowhere-app/node_modules/sneaky/dist/routes.js',
-			{ ssr: true, emitFile: noop_emit }
+			on_server(c)
 		);
 		expect(warn.mock.calls.flat().join('\n')).toMatch(/declares no.*ogygia.*files/s);
 		warn.mockRestore();
@@ -224,14 +230,15 @@ describe('undeclared-marks warning', () => {
 
 	it('a dependency that only MENTIONS a mark (comment, string, error text) does not warn', async () => {
 		const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
-		await make('/nowhere/ogygia').transform_module(
+		const c = make('/nowhere/ogygia');
+		await c.transform_module(
 			dedent`
 				/** A \`with { render: 'deferred', stitch: 'serve' }\` hole ships as a normal one. */
 				export const fix = \`import X from './X.svelte' with { wake: 'load' };\`;
 				export function fail() { throw new Error("mark its import (\`with { region: 'raw' }\`)"); }
 			`,
 			'/nowhere-app/node_modules/@ogygia/plugin/dist/stitch.js',
-			{ ssr: true, emitFile: noop_emit }
+			on_server(c)
 		);
 		expect(warn.mock.calls.flat().join('\n')).not.toMatch(/declares no/);
 		warn.mockRestore();
@@ -240,10 +247,11 @@ describe('undeclared-marks warning', () => {
 	it("ogygia's OWN modules are exempt (compiler sources CONTAIN `with { wake` as strings)", async () => {
 		const og_root = '/consumer/node_modules/ogygia';
 		const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
-		await make(og_root).transform_module(
+		const c = make(og_root);
+		await c.transform_module(
 			`const RE = /\\bwith\\s*\\{[^}]*\\bwake\\b/; export const s = "with { wake: 'load' }";\n`,
 			`${og_root}/dist/compiler/region/transform.js`,
-			{ ssr: true, emitFile: noop_emit }
+			on_server(c)
 		);
 		expect(warn.mock.calls.flat().join('\n')).not.toMatch(/declares no/);
 		warn.mockRestore();
