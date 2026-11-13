@@ -507,6 +507,66 @@
 			"reason": "a shadow root that refuses a sheet (an engine's own refusal): happy-dom adopts every sheet",
 			"test": "packages/reshape/test/browser/restore.test.ts",
 			"name": "a root that cannot adopt its sheet leaves the others in the answer theirs"
+		},
+		{
+			"site": "packages/core/src/server/page-stream.ts > swap_thenables > throw:0",
+			"reason": "a load value whose getter throws as it is walked: proved: walking it again with the tracked walk instead of failing turns the test red",
+			"test": "packages/core/test/page-stream-out.test.ts",
+			"name": "a value is walked once: a getter that throws is read once, and its promise fails"
+		},
+		{
+			"site": "packages/core/src/server/page-stream.ts > clone_untracked > throw:0",
+			"reason": "a load value with a list that holds itself: proved: no depth cap on lists turns the test red",
+			"test": "packages/core/test/page-stream-claims.test.ts",
+			"name": "a list that holds itself, and nothing else cyclic, ends the staging walk too"
+		},
+		{
+			"site": "packages/core/src/server/page-stream.ts > clone_untracked > throw:1",
+			"reason": "a load value with an object that holds itself: proved: no depth cap on objects turns the test red",
+			"test": "packages/core/test/page-stream-claims.test.ts",
+			"name": "a cyclic plain value ends both walks instead of overflowing the stack"
+		},
+		{
+			"site": "packages/core/src/server/page-stream.ts > stream_page_deferred > stream:0",
+			"reason": "every streamed page reads Kit's body: proved: reading an empty source instead turns the test red",
+			"test": "packages/core/test/page-stream-out.test.ts",
+			"name": "cancelling the body settles: the stream it ends is already closed, and that is no failure"
+		},
+		{
+			"site": "packages/core/src/server/page-stream.ts > stream_page_deferred > .catch:0",
+			"reason": "a Kit source whose cancel throws, when the request ends: proved: the cancel's rejection left uncaught turns the test red (unhandled)",
+			"test": "packages/core/test/page-stream-out.test.ts",
+			"name": "a Kit source whose cancel fails still lets the request end, with nothing left unhandled"
+		},
+		{
+			"site": "packages/core/src/server/page-stream.ts > stream_page_deferred > start > stream:0",
+			"reason": "every streamed page forwards Kit's document: proved: not forwarding it turns the test red",
+			"test": "packages/core/test/page-stream-out.test.ts",
+			"name": "a Kit source whose cancel fails still lets the request end, with nothing left unhandled"
+		},
+		{
+			"site": "packages/core/src/server/page-stream.ts > stream_page_deferred > start > close > stream:0",
+			"reason": "every streamed page closes once its promises settled: proved: never closing turns the test red",
+			"test": "packages/core/test/page-stream-out.test.ts",
+			"name": "a promise that rejects streams as a failure, with its error, never as a value"
+		},
+		{
+			"site": "packages/core/src/server/page-stream.ts > stream_page_deferred > start > close > catch:0",
+			"reason": "the visitor cancels the body: its cancel closes the request's owner, whose close finds the stream already closed: proved: that close made to throw turns the test red",
+			"test": "packages/core/test/page-stream-out.test.ts",
+			"name": "cancelling the body settles: the stream it ends is already closed, and that is no failure"
+		},
+		{
+			"site": "packages/core/src/server/page-stream.ts > stream_page_deferred > start > push > stream:0",
+			"reason": "every settled promise writes its resolve script: proved: not writing it turns the test red",
+			"test": "packages/core/test/page-stream-out.test.ts",
+			"name": "a nested promise streams with its parent, and the stream closes only once it settled"
+		},
+		{
+			"site": "packages/core/src/server/page-stream.ts > stream_page_deferred > start > stream_one > reject:0",
+			"reason": "a streamed load promise that rejects: proved: dropping the rejection's handler turns the test red",
+			"test": "packages/core/test/page-stream-out.test.ts",
+			"name": "a promise that rejects streams as a failure, with its error, never as a value"
 		}
 	],
 	"impossible": [],
@@ -1337,17 +1397,6 @@
 		"packages/core/src/server/page-seed.ts > PageSeed > serialize > catch:3",
 		"packages/core/src/server/page-seed.ts > PageSeed > serialize > catch:4",
 		"packages/core/src/server/page-seed.ts > PageSeed > serialize > catch:5",
-		"packages/core/src/server/page-stream.ts > swap_thenables > throw:0",
-		"packages/core/src/server/page-stream.ts > clone_untracked > throw:0",
-		"packages/core/src/server/page-stream.ts > clone_untracked > throw:1",
-		"packages/core/src/server/page-stream.ts > stream_page_deferred > stream:0",
-		"packages/core/src/server/page-stream.ts > stream_page_deferred > .catch:0",
-		"packages/core/src/server/page-stream.ts > stream_page_deferred > start > stream:0",
-		"packages/core/src/server/page-stream.ts > stream_page_deferred > start > close > stream:0",
-		"packages/core/src/server/page-stream.ts > stream_page_deferred > start > close > catch:0",
-		"packages/core/src/server/page-stream.ts > stream_page_deferred > start > push > stream:0",
-		"packages/core/src/server/page-stream.ts > stream_page_deferred > start > push > catch:0",
-		"packages/core/src/server/page-stream.ts > stream_page_deferred > start > stream_one > reject:0",
 		"packages/core/src/server/page-stream.ts > stream_page_deferred > start > stream_one > stale:0",
 		"packages/core/src/server/personal-response.ts > mark_personal > catch:0",
 		"packages/core/src/server/props-wire.ts > stringify_props > catch:0",
