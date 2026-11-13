@@ -17,6 +17,7 @@ import {
 	hasAnyCsrFalseRoute,
 	rootLayoutCsrTrue
 } from '../../../packages/compiler/src/compiler/kit.ts';
+import type { PageReadsSink } from '../../../packages/compiler/src/compiler/ctx.ts';
 import { LIB, ROOT, ROUTES } from './app.ts';
 
 export interface Session {
@@ -32,11 +33,16 @@ export interface Session {
 /** How a session runs: a build (the default), or a dev server. */
 export interface SessionOptions {
 	readonly dev?: boolean;
+	/** The seed-shaping plugin's answers (`dataShake()`), when the app lists it. */
+	readonly page_reads?: PageReadsSink | null;
 }
 
 /** A compile session on `files`. The fields a prescan + transform read, and an emit config with
  *  fixed stand-ins (no secret, no Kit paths on disk), so the virtual modules load too. */
-export function session(files: Fs, { dev = false }: SessionOptions = {}): Session {
+export function session(
+	files: Fs,
+	{ dev = false, page_reads = null }: SessionOptions = {}
+): Session {
 	const program = new Program({ forms: true, router: true });
 	const ctx = new CompileCtx({
 		root: ROOT,
@@ -64,7 +70,8 @@ export function session(files: Fs, { dev = false }: SessionOptions = {}): Sessio
 		client_binding_stub_file: '/nowhere/ogygia/client-binding-stub.js',
 		app_shims: {},
 		devtools: false,
-		fs: files
+		fs: files,
+		page_reads
 	});
 	const compiler = new Compiler(
 		program,
@@ -171,6 +178,15 @@ export function snapshot(s: Session, out: ReadonlyMap<string, unknown> = s.out):
 					any_csr_false: hasAnyCsrFalseRoute(r, ROUTES)
 				},
 				emitted: [...s.emitted].sort(),
+				// (as the driver gives them, unsorted: a build reads them in this order, so it must not
+				// follow the order the files were listed or transformed in; a driver that stopped
+				// sorting them survived)
+				lists: {
+					island_scan_entries: s.compiler.island_scan_entries(),
+					router_css_roots: s.compiler.router_css_roots(),
+					server_island_css_roots: s.compiler.server_island_css_roots(),
+					ssr_transformed_hosts: s.compiler.ssr_transformed_hosts()
+				},
 				out: sorted_obj(out)
 			},
 			(_k, v) =>

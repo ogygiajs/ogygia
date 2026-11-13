@@ -2341,6 +2341,14 @@
 			"reason": "a message table entry: wording only (moved from core with reshape, #608)"
 		},
 		{
+			"id": "packages/reshape/src/messages.ts > RESHAPE_WARNINGS > restore_sheet_missing > details",
+			"reason": "a message table entry: wording only (#1673)"
+		},
+		{
+			"id": "packages/reshape/src/messages.ts > RESHAPE_WARNINGS > restore_sheet_missing > text",
+			"reason": "a message table entry: wording only (#1673)"
+		},
+		{
 			"id": "packages/reshape/src/restore-report.ts > report",
 			"reason": "moved from packages/core/src/runtime/restore-report.ts with reshape (#608): never ran here, browser state; the gate on this base does not follow a file across packages, and the moved tests (packages/reshape/test) prove it"
 		},
@@ -2813,6 +2821,10 @@
 			"reason": "a message table entry: wording only"
 		},
 		{
+			"id": "packages/compiler/src/vite/kit-dirs.ts > load_kit_config",
+			"reason": "config time, once per Vite config: imports the app's svelte.config (async, file system: not replayable); proven in packages/compiler/test/kit-dirs.test.ts"
+		},
+		{
 			"id": "packages/compiler/src/vite/index.ts > ogygia > seams > exports > map",
 			"reason": "a plugin's export index for one environment (a Map get or create over ogygia()'s closure: not replayable); the index's work is benched in packages/core/bench/compiler.bench.ts; proven through barrels() against a real Vite dev server in packages/barrels/test/plugin.test.ts"
 		},
@@ -2913,8 +2925,12 @@
 			"reason": "build only: Vite's closeBundle hook, once per build leg, constant work of its own"
 		},
 		{
-			"id": "packages/compiler/src/vite/paths.ts > runtime_content_hash",
+			"id": "packages/compiler/src/vite/paths.ts > content_hash",
 			"reason": "build only: hashes the runtime's files on disk (file reads, not recorded), once per build leg"
+		},
+		{
+			"id": "packages/compiler/src/vite/paths.ts > runtime_inputs",
+			"reason": "build only: lists the runtime's files on disk (a directory read, not recorded), once per build leg"
 		},
 		{
 			"id": "packages/compiler/src/vite/paths.ts > scan_entry_pattern",
@@ -5073,10 +5089,6 @@
 			"reason": "config only, once per Vite config resolve: a map over the listed plugins, a handful"
 		},
 		{
-			"id": "packages/compiler/src/vite/plugin-api.ts > resolve_plugins > build:0~6b3ec1 > prescan",
-			"reason": "build only: a plugin's prescan registration, once per plugin per build, constant work"
-		},
-		{
 			"id": "packages/flags/src/build-messages.ts > FLAGS_BUILD_WARNINGS > flags_manifest_written > details",
 			"reason": "a message's prose for its docs page and build note: constant text, printed once per build"
 		},
@@ -5131,10 +5143,6 @@
 		{
 			"id": "packages/compiler/src/compiler/driver.ts > Compiler > relocate",
 			"reason": "once per finished chunk (renderChunk): builds the relocation context and calls link/relocations.ts relocate, whose own cost is the token scan; a real build runs it"
-		},
-		{
-			"id": "packages/compiler/src/compiler/driver.ts > Compiler > relocate > relocate:3~0b2c47 > public_url",
-			"reason": "one island's public url from the context, constant work, once per island token patched"
 		},
 		{
 			"id": "packages/compiler/src/compiler/driver.ts > Compiler > start_leg",
@@ -5465,14 +5473,6 @@
 			"reason": "a warning's wording, constant text"
 		},
 		{
-			"id": "packages/core/src/context-bridge.ts > createContext > defineProperties:1~034356 > [computed] > value",
-			"reason": "the context tuple's iterator: three getters handed out once per destructure, constant work"
-		},
-		{
-			"id": "packages/core/src/context-bridge.ts > createContext > defineProperties:1~034356 > get > value",
-			"reason": "the deprecated callable form's get: one Svelte getContext read (component-init only, not cloneable), constant work"
-		},
-		{
 			"id": "packages/core/src/context-bridge.ts > createContext > has",
 			"reason": "one Svelte hasContext read (component-init only, not cloneable), constant work"
 		},
@@ -5705,6 +5705,14 @@
 			"reason": "one hole_identity fingerprint of a lake's props per lake render, measured with hole_identity's own bench; lake-identity.test.ts runs it"
 		},
 		{
+			"id": "packages/compiler/src/vite/plugin-api.ts > resolve_plugins > build:0~6b3ec1 > prescan",
+			"reason": "build only: a plugin's prescan registration, once per plugin per build, constant work"
+		},
+		{
+			"id": "packages/compiler/src/compiler/driver.ts > Compiler > relocate > relocate:3~0b2c47 > public_url",
+			"reason": "one island's public url from the context, constant work, once per island token patched"
+		},
+		{
 			"id": "packages/compiler/src/compiler/messages.ts > BUILD_ERRORS > page_reads_claimed > text",
 			"reason": "a build error's text, built once when two plugins claim seed shaping, then the build stops; constant work"
 		},
@@ -5722,7 +5730,7 @@
 		},
 		{
 			"id": "packages/compiler/src/vite/dev-maps.ts > install_dev_page_keys > <anonymous>~d15d6d > dev:1~e12443",
-			"reason": "dev only, a profiler ask: one dev server resolve of a helper the page is handed to, then the plugin's own dev read (page_reads.dev, measured in the page-keys bench)"
+			"reason": "dev only, a profiler ask: one dev server resolve of a helper the page is handed to, then the plugin's own dev read (page_reads.dev, measured in the data-shake bench)"
 		},
 		{
 			"id": "packages/compiler/src/vite/dev-maps.ts > install_dev_page_keys > <anonymous>~d15d6d > dev:1~e12443 > catch:0~ae0427",
@@ -5785,12 +5793,12 @@
 			"reason": "dev and rules builds only: one set lookup per page.data key, constant work per key; proven in packages/core/test/seed-shaping-oracle.test.ts"
 		},
 		{
-			"id": "packages/page-keys/src/index.ts > pageKeys",
+			"id": "packages/data-shake/src/vite.ts > dataShake",
 			"reason": "config time: one plugin definition per vite.config load, constant work"
 		},
 		{
-			"id": "packages/page-keys/src/index.ts > pageKeys > definePlugin:0~0ce4a1 > build",
-			"reason": "build only: makes the plugin's page_reads (measured in the page-keys bench) and hands it to the build, once per build"
+			"id": "packages/data-shake/src/vite.ts > dataShake > definePlugin:0~7b132b > build",
+			"reason": "build only: makes the plugin's page_reads (measured in the data-shake bench) and hands it to the build, once per build"
 		}
 	]
 }

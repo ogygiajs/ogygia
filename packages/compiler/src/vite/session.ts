@@ -1,12 +1,3 @@
-/**
- * ONE `ogygia()` PLUGIN INSTANCE'S LIFE: made (`created`), its `config` hook ran (`configured`; Vite
- * may run it more than once), the bundler resolved the build (`resolved`). The compiler exists only
- * once resolved, built with that build's context: a hook that needs it earlier is refused
- * (`plugin_session_order`) instead of reading a context that is not there. A second build with the
- * same plugin configures and resolves again, and gets a compiler of its own; a resolve again with no
- * `config` (one plugin shared across a builder's environments) keeps the build under way
- * (test/plugin-session.test.ts, test/second-build.test.ts).
- */
 import { machine, type Machine } from '@ogygia/machine';
 import type { Compiler } from '../compiler/driver.ts';
 import { OgygiaError } from '../compiler/messages.ts';
@@ -15,8 +6,6 @@ type SessionStates = { created: {}; configured: {}; resolved: { compiler: Compil
 const SESSION_STEPS = {
 	created: ['configured', 'resolved'],
 	configured: ['configured', 'resolved'],
-	// (a second build with the same plugin: `config` again, then a new resolve and a new compiler; a
-	// plugin Vite's builder shares across environments: resolved again for the next one, no `config`)
 	resolved: ['configured', 'resolved']
 } as const;
 const SESSION = machine<SessionStates>()({
