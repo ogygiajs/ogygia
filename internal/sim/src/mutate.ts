@@ -12,6 +12,11 @@
  *   node src/mutate.ts --mutants <file.json> [--gens 191,192,550+33+36] [--palaestra] [--seeds 20]
  *     [--jobs 4] [--sandbox <dir>] [--out <file.jsonl>] [--budget-min <minutes>]
  *     [--buggify-aim <points>]
+ *   node src/mutate.ts --mutants <file.json> --compiler-dst [--dst-runs 100] [--sandbox <dir>]
+ *
+ * `--compiler-dst` judges the list on the compiler's simulator (`internal/compiler-dst`, which
+ * compiles the package sources, so nothing is built): a mutant is killed by a test that fails on it
+ * twice and not on the baseline.
  *
  * `--buggify-aim` runs every seed, the baseline's too, with only those buggify points on (cli.ts):
  * a point its app asks rarely proves its recovery this way.
@@ -304,7 +309,41 @@ function run_seeds(
 	return out;
 }
 
-/** The packages a change in `pkg` is built again for: it and every package that depends on it. */
+/** The failing tests of a vitest JSON report (`<file> > <full name>`; a file that failed to run, by
+ *  its file alone), or null when there is no report (the run did not finish). */
+export function failing_tests(report: string | null, root: string): string[] | null {
+	if (report === null) return null;
+	const r = JSON.parse(report) as {
+		testResults: Array<{
+			name: string;
+			status: string;
+			assertionResults: Array<{ fullName: string; status: string }>;
+		}>;
+	};
+	const out: string[] = [];
+	for (const f of r.testResults) {
+		const file = f.name.startsWith(root) ? f.name.slice(root.length + 1) : f.name;
+		const failed = f.assertionResults.filter((a) => a.status === 'failed');
+		if (f.status === 'failed' && failed.length === 0) out.push(file);
+		for (const a of failed) out.push(`${file} > ${a.fullName}`);
+	}
+	return out.sort();
+}
+
+/** The compiler's simulator (`internal/compiler-dst`, `--compiler-dst`): it compiles the package
+ *  sources themselves, so a mutant needs no build. Its failing tests, `DST_RUNS` apps each. */
+function run_compiler_dst(box: string, runs: number, log: string): string[] | null {
+	const dir = join(box, 'internal', 'compiler-dst');
+	const report = join(dir, 'mutate-report.json');
+	rmSync(report, { force: true });
+	sh(
+		dir,
+		`DST_RUNS=${runs} nice -n 10 npx vitest run --maxWorkers=2 --reporter=json --outputFile=${report}`,
+		log
+	);
+	return failing_tests(existsSync(report) ? readFileSync(report, 'utf8') : null, dir);
+}
+
 /** The packages a run's mutants build (each with its dependents): the baseline builds them first,
  *  so it runs on the build a mutant's runs on. A clone carries whatever its tree last built: with
  *  a dependent built from older code, every mutant "killed" by the same finding the rebuild brought
@@ -345,6 +384,8 @@ function main(): void {
 	if (!sh(dirname(box), clone_command(process.platform, REPO, box), log))
 		throw new Error(`could not clone the repo (${log})`);
 	console.log(`sandbox ${box}; log ${log}; results ${out}`);
+	if (process.argv.includes('--compiler-dst'))
+		return compiler_dst_main(mutants, box, out, log, Number(arg('--dst-runs') ?? 100), deadline);
 
 	// the baseline: each target on the code as it is, built as a mutant's is
 	for (const pkg of baseline_packages(mutants))
@@ -416,6 +457,62 @@ function main(): void {
 		// (the next mutant starts from the code as it is)
 		copyFileSync(original, file);
 		if (!build_packages(box, pkg, log)) throw new Error(`could not build ${pkg} back (${log})`);
+	}
+	const t = tally(judged, mutants.length, new Date().toISOString(), equivalent.length);
+	console.log(
+		`\n${t.killed}/${t.judged} killed (${t.rate}%), ${t.judged} of ${t.total} mutants judged, ${t.equivalent} equivalent`
+	);
+	appendFileSync(out, `${JSON.stringify(t)}\n`);
+}
+
+/** A run on the compiler's simulator: killed by a test that failed on no baseline run, found again
+ *  by a second run of the same mutant (the re-run rule), or by a run that did not finish. */
+function compiler_dst_main(
+	mutants: readonly Mutant[],
+	box: string,
+	out: string,
+	log: string,
+	runs: number,
+	deadline: number
+): void {
+	const base = run_compiler_dst(box, runs, log);
+	if (base === null) throw new Error(`the compiler simulator's baseline did not finish (${log})`);
+	console.log(`baseline compiler-dst: ${base.length} failing tests`);
+	const { run, equivalent } = runnable(mutants);
+	for (const m of equivalent) console.log(`EQUIV    ${name(m)}: ${m.equivalent}`);
+	const judged: Array<{ killed: boolean }> = [];
+	for (const m of run) {
+		if (Date.now() > deadline) {
+			console.log(`time budget spent: ${judged.length} of ${run.length} mutants judged`);
+			break;
+		}
+		const file = join(box, m.file);
+		const original = join(REPO, m.file);
+		let text: string;
+		try {
+			text = apply_mutant(readFileSync(original, 'utf8'), m);
+		} catch (error) {
+			appendFileSync(out, `${JSON.stringify({ mutant: m, skipped: String(error) })}\n`);
+			console.log(`skip ${name(m)}: ${String(error)}`);
+			continue;
+		}
+		writeFileSync(file, text);
+		const now = run_compiler_dst(box, runs, log);
+		const again = now === null ? null : run_compiler_dst(box, runs, log);
+		const by =
+			now === null || again === null
+				? ['compiler-dst did not finish']
+				: now.filter((t) => !base.includes(t) && again.includes(t));
+		const v = { killed: by.length > 0, by };
+		judged.push(v);
+		appendFileSync(
+			out,
+			`${JSON.stringify({ mutant: m, killed: v.killed, by: v.by.slice(0, 10) })}\n`
+		);
+		console.log(
+			`${v.killed ? 'KILLED  ' : 'SURVIVED'} ${name(m)}${v.killed ? `: ${v.by[0]}` : ''}`
+		);
+		copyFileSync(original, file);
 	}
 	const t = tally(judged, mutants.length, new Date().toISOString(), equivalent.length);
 	console.log(

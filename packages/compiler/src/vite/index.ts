@@ -4,7 +4,6 @@ import crypto from 'node:crypto';
 import { dedent } from '@ogygia/core/contract';
 import { isMainThread } from 'node:worker_threads';
 import { loadEnv, type Plugin, type Rolldown, type ViteDevServer } from 'vite';
-import type { PreprocessorGroup } from 'svelte/compiler';
 import { configure_build_cache } from '../compiler/build-cache.ts';
 import {
 	content_css_key,
@@ -102,11 +101,11 @@ import {
 	inject_keep_client_route,
 	resolve_kit_paths,
 	kit_major,
-	kit_dirs,
-	kit_inline_style_threshold
+	default_kit_dirs,
+	type KitConfig
 } from '../compiler/kit.ts';
 import { node_fs } from '../compiler/fs.ts';
-import { load_kit_dirs } from './kit-dirs.ts';
+import { load_kit_config } from './kit-dirs.ts';
 import {
 	buildFoucCssModuleSource,
 	collectFoucCssReachable,
@@ -283,6 +282,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 	};
 
 	let root: string;
+	let kit: KitConfig;
 	let base = '';
 	let app_dir = '_app';
 	let libDir: string;
@@ -407,12 +407,12 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 
 	const session = new_session();
 
-	const arm_keep_client_cleanup = (r: string) => {
+	const arm_keep_client_cleanup = (routes_dir: string) => {
 		if (keep_client_cleanup_armed) return;
 		keep_client_cleanup_armed = true;
 		process.on('exit', () => {
 			try {
-				fs.rmSync(keep_client_dir(r), { recursive: true, force: true });
+				fs.rmSync(keep_client_dir(routes_dir), { recursive: true, force: true });
 			} catch {
 				// ok: best effort; the folder is gitignored and cleaned on the next run
 			}
@@ -449,7 +449,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 				order: 'pre',
 				async handler(userConfig, env) {
 					configured(session);
-					await load_kit_dirs(path.resolve(userConfig.root ?? '.'), userConfig.plugins);
+					kit = await load_kit_config(path.resolve(userConfig.root ?? '.'), userConfig.plugins);
 
 					app_plugins = standalone ? [] : await find_plugins(userConfig.plugins);
 					const resolved = resolve_plugins(
@@ -491,13 +491,12 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 						}
 
 					if (env.command === 'build' && !standalone && isMainThread) {
-						const r = path.resolve(userConfig.root ?? '.');
-						const routes = kit_dirs(r).routes_dir;
+						const routes = kit.dirs.routes_dir;
 						if (clientBuildWillSkip(route_reader(node_fs), routes)) {
-							inject_keep_client_route(r);
-							arm_keep_client_cleanup(r);
+							inject_keep_client_route(routes);
+							arm_keep_client_cleanup(routes);
 						} else {
-							fs.rmSync(keep_client_dir(r), { recursive: true, force: true });
+							fs.rmSync(keep_client_dir(routes), { recursive: true, force: true });
 						}
 					}
 
@@ -554,6 +553,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 
 			configResolved(config) {
 				root = config.root;
+				kit ??= { dirs: default_kit_dirs(root), inline_style_threshold: 0 };
 				base = config.base || '';
 				svelte_async = svelte_async_enabled(config.plugins);
 				if (config.command === 'serve') {
@@ -590,7 +590,8 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 				is_build = config.command === 'build';
 				is_ssr = !!config.build?.ssr;
 
-				if (is_dev) fs.rmSync(keep_client_dir(root), { recursive: true, force: true });
+				if (is_dev)
+					fs.rmSync(keep_client_dir(kit.dirs.routes_dir), { recursive: true, force: true });
 
 				if (!process.env.OGYGIA_SECRET?.trim()) {
 					const env_dir =
@@ -620,6 +621,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 				const compiler = resolve(session, (prev) => {
 					const ctx = new CompileCtx({
 						root,
+						kit_dirs: kit.dirs,
 						base,
 						app_dir,
 						libDir,
@@ -700,7 +702,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 				const leg = compiler.leg(env);
 				const server_leg = leg.server;
 				if (is_build && server_leg)
-					fs.rmSync(server_handoff_path(kit_dirs(root).out_dir), { force: true });
+					fs.rmSync(server_handoff_path(kit.dirs.out_dir), { force: true });
 				if (begins) {
 					compiler.prescan();
 					for (const source of markup) await source.scan?.({ root, readFile });
@@ -709,9 +711,9 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 				if (is_build && !server_leg) {
 					const emit_runtime =
 						!standalone &&
-						(hasAnyCsrFalseRoute(compiler.ctx.routes, kit_dirs(root).routes_dir) ||
+						(hasAnyCsrFalseRoute(compiler.ctx.routes, kit.dirs.routes_dir) ||
 							compiler.has_hydrate_regions());
-					const handoff = read_server_handoff(kit_dirs(root).out_dir);
+					const handoff = read_server_handoff(kit.dirs.out_dir);
 					const loaded = handoff?.hosts ?? null;
 					const server_regions = handoff?.server_regions ?? null;
 					const skipped = compiler.emit_build_chunks(leg, (chunk) => this.emitFile(chunk), {
@@ -778,7 +780,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 				const server_leg = leg_of(this).server;
 				if (is_build && server_leg && !standalone) {
 					try {
-						const handoff = server_handoff_path(kit_dirs(root).out_dir);
+						const handoff = server_handoff_path(kit.dirs.out_dir);
 						fs.mkdirSync(path.dirname(handoff), { recursive: true });
 						fs.writeFileSync(
 							handoff,
@@ -834,7 +836,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 						const client_graph = envs?.client?.moduleGraph;
 						const joined = client_graph?.getModulesByFile?.(file)?.size ?? 0;
 						if (!joined) {
-							const owners = derive_css_scope_owners(file, root, [
+							const owners = derive_css_scope_owners(file, kit.dirs.routes_dir, [
 								envs?.ssr?.moduleGraph,
 								client_graph
 							]);
@@ -1059,7 +1061,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 				if (!is_build || server_leg) return;
 
 				refuse_client_secrets(bundle as Record<string, unknown>, [
-					read_server_handoff(kit_dirs(root).out_dir)?.build_key ?? build_secret,
+					read_server_handoff(kit.dirs.out_dir)?.build_key ?? build_secret,
 					process.env.OGYGIA_SECRET?.trim() ?? ''
 				]);
 
@@ -1129,7 +1131,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 						{ type: string; fileName?: string; source?: string | Uint8Array }
 					>,
 					[...Object.values(map.css).flat(), ...Object.values(content_css).flat()],
-					kit_inline_style_threshold(root)
+					kit.inline_style_threshold
 				);
 				if (!measure) {
 					map.contents = {};
@@ -1171,7 +1173,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 					entries: entries.locations,
 					locations: leg.location_map_url
 				});
-				emit_island_deps_handoff(root, json, kit_dirs(root).out_dir, leg.relocated);
+				emit_island_deps_handoff(root, json, kit.dirs.out_dir, leg.relocated);
 			}
 		},
 		stage_host('post'),
@@ -1182,20 +1184,3 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 		lazy_files()
 	];
 }
-
-export declare namespace ogygia {
-	/**
-	 * @deprecated Does nothing: returns `['.svelte']`. Markdown extensions come from
-	 * `extensions()` in `@ogygia/content/vite`.
-	 */
-	export const extensions: () => string[];
-	/**
-	 * @deprecated Does nothing: returns `[]`. The markdown preprocessor comes from `preprocess()` in
-	 * `@ogygia/content/vite`.
-	 */
-	export const preprocess: () => PreprocessorGroup[];
-}
-Object.assign(ogygia, {
-	extensions: (): string[] => ['.svelte'],
-	preprocess: (): PreprocessorGroup[] => []
-});

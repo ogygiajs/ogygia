@@ -1518,12 +1518,7 @@ class FileCompilation {
 		let reach = -Infinity;
 		for (let i = 0; i < by_start.length; i++) {
 			const c = by_start[i];
-			const twin = by_start[i + 1];
-			if (
-				c.snip.end <= reach ||
-				(twin && twin.snip.start === c.snip.start && twin.snip.end === c.snip.end)
-			)
-				nested.add(c);
+			if (c.snip.end <= reach) nested.add(c);
 			if (c.snip.end > reach) reach = c.snip.end;
 		}
 		const outer_candidates = portable_candidates.filter((c) => !nested.has(c));
@@ -1578,7 +1573,7 @@ class FileCompilation {
 			for (const p of snip_params) pattern_names(p, param_names);
 			const { free, mutated, stores } = collectCaptureInfo([snip]);
 			if ([...free].some((nm) => block_bound.has(nm) && !param_names.has(nm))) continue;
-			if ([...mutated].some((m) => !param_names.has(m))) continue;
+			if (mutated.size) continue;
 			const carried: SvelteNode[] = [];
 			const pending = [...free].filter((nm) => root_snippets.has(nm) && !param_names.has(nm));
 			const carried_names = new Set<string>();
@@ -1790,7 +1785,7 @@ ${host_style}`;
 }
 
 function outer_spans_first(a: { snip: SvelteNode }, b: { snip: SvelteNode }): number {
-	return a.snip.start - b.snip.start || b.snip.end - a.snip.end;
+	return a.snip.start - b.snip.start;
 }
 
 function import_attrs_of(node: SvelteNode): Map<string, string> {
@@ -2142,7 +2137,7 @@ class TsRegionCompilation {
 			map: s.generateMap({ hires: true, source: id, includeContent: true }),
 			islands,
 			hasWireCrossing: islands.some(
-				(i) => typeof i.strategy === 'string' && i.strategy !== 'server' && i.strategy !== 'none'
+				(i) => typeof i.strategy === 'string' && i.strategy !== 'server'
 			)
 		};
 	}

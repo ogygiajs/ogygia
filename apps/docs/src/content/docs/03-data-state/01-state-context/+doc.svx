@@ -135,8 +135,8 @@ Read it during the island's setup, exactly as with Svelte's `getContext`, and ke
 
 `getContext` is re-exported from `ogygia` only for symmetry; it **is** Svelte's own function, unchanged. ogygia seeds each island's context when it hydrates, so a plain read already sees bridged values: `getContext(Symbol.for('cart'))` reads the same value as `getCart()`.
 
-::: note The old callable form
-Before this shape, `createContext(key, default?)` returned a callable: `cartCtx(cart)` made a `<Provide>` entry and `cartCtx.get()` read it, keyed by the plain string. It still works, and is deprecated. It keys by the string `key` while the new form keys by `Symbol.for(name)`, so move a context's provider and its readers to the new form together.
+::: note Moving from the callable form
+Up to 0.13, `createContext(key, default?)` returned a callable: `cartCtx(cart)` made a `<Provide>` entry and `cartCtx.get()` read it, keyed by the plain string. That form is gone. Destructure instead, call the setter above, and ask `has()` where you used a default: `const [getCart, setCart, hasCart] = createContext<Cart>('cart')`. The new key is `Symbol.for(name)`, not the string, so move a context's provider and its readers together.
 :::
 
 ### Provide it to a subtree
