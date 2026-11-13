@@ -1040,15 +1040,16 @@ export function faulted(world: World, tab: Tab, since?: number): boolean {
 
 /** Whether the network failed exchange `e`: dropped, offline, cut or broken off, or a server error. */
 /**
- * Whether `e`, a mounted peer page's answer of 500 or more, failed only because a peer's first
- * origin was `down`: every hop its document's server made that failed was a GET that fault
- * answered, and nothing else of its own failed. The app owes the next origin's answer (federation's
+ * Whether `e`, a document's own page answered 500 or more (a mounted peer page, a page with a
+ * peer's widget), failed only because a peer's first origin was `down`: every hop its server made
+ * for it that failed was a GET that fault answered. The app owes the next origin's answer (federation's
  * failover), so it is no excuse (a mutant that never asked the next origin survived).
  */
 function failed_over(world: World, e: World['network']['exchanges'][number]): boolean {
 	if (typeof e.status !== 'number' || e.status < 500 || e.cut || e.tampered || e.redirected)
 		return false;
-	if (!new URL(e.url).pathname.startsWith(`${MOUNT}/`)) return false;
+	// (the document's own page: a hole's or a widget's answer of its is judged by its own hops)
+	if (world.network.exchanges.find((x) => x.from === e.from) !== e) return false;
 	const hops = world.network.exchanges.filter((h) => h.for === e.from);
 	const failed = hops.filter((h) => h.down === true || failed_on_wire(h) || h.tampered);
 	return failed.length > 0 && failed.every((h) => h.down === true && h.method === 'GET');
@@ -1237,7 +1238,11 @@ export function peer_answers(
 		const path = new URL(tab.page.mainFrame.url).pathname;
 		// (a document loaded whole at the page: one a client navigation reached may be mid-way)
 		const own = exchanges.find((e) => e.from === tab.realm);
-		const loaded = own !== undefined && own.method === 'GET' && new URL(own.url).pathname === path;
+		const loaded =
+			own !== undefined &&
+			own.method === 'GET' &&
+			new URL(own.url).pathname === path &&
+			doc.readyState === 'complete';
 		if (loaded && !hop_failed(tab.realm) && !error_page(tab)) {
 			if (PEER_PAGE.test(path) && doc.querySelector('[data-gen="peer-page"]') === null)
 				wrong.push(`${path} shows none of the peer's page`);

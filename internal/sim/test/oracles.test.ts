@@ -993,6 +993,19 @@ describe('page errors', () => {
 		expect(faulted(world({ status: 503, down: true }), t)).toBe(false);
 		expect(faulted(world({ status: 'dropped' }), t)).toBe(true);
 		expect(faulted(world({ status: 503, down: true, method: 'POST' }), t)).toBe(true);
+		// (a hole's answer of the document's that failed is judged by its own story, not the page's)
+		const hole = world({ status: 503, down: true });
+		(hole.network.exchanges as unknown as Array<Record<string, unknown>>).unshift({
+			id: 0,
+			from: 'tab-0#2',
+			method: 'GET',
+			url: 'https://app.test/peer/q0',
+			status: 200,
+			cut: false,
+			tampered: false,
+			redirected: false
+		});
+		expect(faulted(hole, t)).toBe(true);
 	});
 });
 
@@ -1251,6 +1264,7 @@ describe("a mounted peer's page answers as the peer did", () => {
 		const { Window } = await import('happy-dom');
 		const w = new Window({ url: `https://app.test${at}` });
 		w.document.write(`<html><body>${body}</body></html>`);
+		await w.happyDOM.waitUntilComplete();
 		const tab = {
 			realm: 'tab-1#1',
 			name: 'tab-1',
