@@ -4,12 +4,13 @@
 import { describe, test, expect } from 'vitest';
 import { CompileCtx, Compiler, Program, normalize_import_keys } from '../src/compiler/index.ts';
 import { partial_ctx_init } from './_compile-ctx.ts';
+import { code_fn } from './_code-fn.ts';
 
 // the manifest's placeholder as the server manifest emits it (a string literal no bundler folds)
 const PLACEHOLDER =
 	'(() => { try { return JSON.parse("__OGYGIA_PAGE_DATA_READS__"); } catch { return null; } })()';
 /** The value the patched placeholder evaluates to. */
-const value_of = (code: string): unknown => new Function(`return ${code};`)();
+const value_of = (code: string): unknown => code_fn(`return ${code};`)();
 
 /** A compiler with these holes, and a seed-shaping plugin answering `reads` (null: no plugin). */
 function compiler_with(
