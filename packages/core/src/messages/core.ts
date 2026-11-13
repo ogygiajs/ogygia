@@ -902,7 +902,8 @@ export const WARNINGS = {
 			`nested island "${a.entry}" is inside another island; it hydrates with its parent (strategy ignored).`,
 		details: (): string => prose`
 			Dev only. An island inside an island hydrates with the outer one, so its own \`wake\` is
-			ignored. Put a lake (\`wake: 'none'\`) between them to give it its own schedule.
+			ignored when it differs from the outer island's. Put a lake (\`wake: 'none'\`) between them
+			to give it its own schedule.
 		`
 	},
 	lake_mounted_without_html: {
