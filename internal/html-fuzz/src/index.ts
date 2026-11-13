@@ -19,6 +19,7 @@ import fc from 'fast-check';
 import {
 	parse,
 	parseFragment,
+	serialize,
 	defaultTreeAdapter,
 	html as parse5_html,
 	Parser,
@@ -420,6 +421,12 @@ export function markup_tokens_of(html: string): MarkupToken[] {
 export function parse_in(html: string, context = 'body'): T.DocumentFragment {
 	const ctx = defaultTreeAdapter.createElement(context, parse5_html.NS.HTML, []);
 	return parseFragment(ctx, html, { sourceCodeLocationInfo: true });
+}
+
+/** `html` set as a `context` element's `innerHTML` and read back: the markup a browser serializes
+ *  (names in lower case, values double-quoted, comments and raw text as the DOM holds them). */
+export function inner_html(html: string, context = 'body'): string {
+	return serialize(parse_in(html, context));
 }
 
 /** Every element in `root`, in document order, template contents included. */
