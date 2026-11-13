@@ -271,7 +271,7 @@
 	{
 		"id": "batch-unreleased-fetch-fails",
 		"file": "packages/core/src/runtime/frame-nav.ts",
-		"line": 304,
+		"in": "streamFrames",
 		"code": "for (const a of reserved) release(a);",
 		"operator": "statement",
 		"from": "for (const a of reserved) release(a);",
@@ -281,7 +281,7 @@
 	{
 		"id": "batch-unreleased-refused",
 		"file": "packages/core/src/runtime/frame-nav.ts",
-		"line": 304,
+		"in": "streamFrames",
 		"code": "for (const a of reserved) release(a);",
 		"operator": "statement",
 		"from": "for (const a of reserved) release(a);",
@@ -291,7 +291,7 @@
 	{
 		"id": "batch-unreleased-body-breaks",
 		"file": "packages/core/src/runtime/frame-nav.ts",
-		"line": 304,
+		"in": "streamFrames",
 		"code": "for (const a of reserved) release(a);",
 		"operator": "statement",
 		"from": "for (const a of reserved) release(a);",
@@ -301,7 +301,7 @@
 	{
 		"id": "batch-unreleased-body-stalls",
 		"file": "packages/core/src/runtime/frame-nav.ts",
-		"line": 304,
+		"in": "streamFrames",
 		"code": "for (const a of reserved) release(a);",
 		"operator": "statement",
 		"from": "for (const a of reserved) release(a);",
