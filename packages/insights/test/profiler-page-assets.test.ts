@@ -60,9 +60,11 @@ describe('scan_assets', () => {
 
 	test('reads the page as core’s tag walk does: comments end where the browser ends them, a textarea or title holds no tag (#1370)', () => {
 		const { refs } = scan_assets(
-			'<head><!--><script src="/a.js"></script><!-- x --!><link rel=stylesheet href=/b.css>' +
-				'<title><link rel=stylesheet href=/no.css></title></head>' +
+			[
+				'<head><!--><script src="/a.js"></script><!-- x --!><link rel=stylesheet href=/b.css>',
+				'<title><link rel=stylesheet href=/no.css></title></head>',
 				'<body><textarea><img src="/no.png"></textarea><img src="/c.png"></body>'
+			].join('')
 		);
 		expect(refs.map((r) => r.url)).toEqual(['/a.js', '/b.css', '/c.png']);
 		expect(refs.find((r) => r.url === '/b.css')?.blocking).toBe(true);
