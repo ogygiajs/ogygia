@@ -754,11 +754,6 @@ class FileCompilation {
 			import_keys.region
 		];
 		const err_shim = (_names: string, msg: string) => fail(msg);
-		if (inline.has('partial') && !REGION_KEYS.includes('partial')) {
-			throw fail(
-				`the \`partial\` import attribute was retired. Mark a held-across-a-boundary component with \`${import_keys.region}: 'raw'\` (schedule set at the \`region()\` call), or bake a schedule with a \`${import_keys.wake}:\` mark.`
-			);
-		}
 		if (!REGION_KEYS.some((k) => inline.has(k))) return null;
 
 		if (inline.has(import_keys.region)) {
@@ -1131,8 +1126,7 @@ class FileCompilation {
 			import_keys.fetch,
 			import_keys.render,
 			import_keys.preset,
-			import_keys.region,
-			'partial'
+			import_keys.region
 		];
 		for (const node of instance_body) {
 			if (node.type !== 'ImportDeclaration') continue;

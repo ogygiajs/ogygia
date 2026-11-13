@@ -2,29 +2,6 @@ import { define_messages, prose, type MessagesOf } from '@ogygia/core/contract';
 
 const BUG = 'An ogygia bug: please report it with the file that shows it.';
 
-/** Retired `ogygia({ … })` keys, each with its new spelling: the config check throws
- *  `option_retired` for any of them (a legacy key that silently did nothing would un-tune real
- *  apps). */
-export const RETIRED_OPTIONS: Record<string, string> = {
-	regions:
-		'`regions` is gone — its keys sit at the root now: write `visible`, `presets`, `ttl` and `maxPageAge` directly in `ogygia({ … })`.',
-	continuity:
-		'`continuity` is gone — form continuity rides the router. Write `router: { forms: false }` to disable it.',
-	regionTtl: '`regionTtl` is `ttl` now — write `ogygia({ ttl: … })`.',
-	preload:
-		'`preload` is gone — there is nothing to choose any more. The page carries each island’s chunk list as data, and the runtime preloads an island’s whole graph when it wakes (after the page has painted), so no island code moves before its wake and none waits on a waterfall after it. Remove the key.',
-	plugins:
-		'`plugins` is gone — ogygia plugins are Vite plugins: list them beside `ogygia()` in vite.config, `plugins: [ogygia(), flags(), sveltekit()]`.',
-	freeze:
-		'`freeze` is a plugin now, named postrender — install `@ogygia/postrender` and list `postrender({ ttl, default })` (from `@ogygia/postrender/vite`) beside `ogygia()` in vite.config `plugins`.',
-	content:
-		'`content` is a plugin now — install `@ogygia/content` and list `content({ markdown, presets })` (from `@ogygia/content/vite`) beside `ogygia()` in vite.config `plugins`; the svelte config takes `preprocess()` / `extensions()` from there too.',
-	devtools:
-		"`devtools` is a plugin now — install `@ogygia/devtools` and list `devtools()` (from `@ogygia/devtools/vite`) beside `ogygia()` in vite.config `plugins`; only where you want it, e.g. `...(mode !== 'production' ? [devtools()] : [])`.",
-	profiler:
-		'`profiler` is part of the devtools plugin now — install `@ogygia/devtools` and list `devtools({ profiler: { … } })` (from `@ogygia/devtools/vite`) beside `ogygia()` in vite.config `plugins`.'
-};
-
 /** The errors: `throw new OgygiaError(code, args)`. */
 export const BUILD_ERRORS = {
 	macro_store_misuse: {
@@ -445,12 +422,17 @@ export const BUILD_ERRORS = {
 		`
 	},
 
-	option_retired: {
-		text: (a: { option: string }): string =>
-			RETIRED_OPTIONS[a.option] ?? `\`${a.option}\` is gone.`,
+	option_unknown: {
+		text: (a: { option: string; known: string }): string =>
+			`\`ogygia({ ${a.option} })\`: ogygia() has no \`${a.option}\` option. Its options are ${a.known}.`,
 		details: (): string => prose`
-			An \`ogygia()\` option from an earlier version was passed. It is refused rather than
-			ignored, so nothing silently stops working. The message says what replaced it.
+			\`ogygia()\` was passed a key it does not have: a misspelling, or an option from an
+			earlier version. It is refused rather than ignored, so nothing silently stops working.
+
+			Features beyond regions are Vite plugins listed beside \`ogygia()\` in vite.config:
+			\`content()\` from \`@ogygia/content/vite\`, \`devtools()\` from \`@ogygia/devtools/vite\`,
+			\`postrender()\` from \`@ogygia/postrender/vite\`. Form continuity is
+			\`router: { forms: false }\`. Check the key against the options the message lists.
 		`
 	},
 	barrels_option_removed: {
