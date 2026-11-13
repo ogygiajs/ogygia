@@ -469,10 +469,11 @@ export function start_session(prior?: SavedPart[]): Recorder {
 		});
 	s.on(globalThis, 'error', on_error);
 	s.on(globalThis, 'unhandledrejection', on_rej);
+	// The stop takes back only this run's part: a wrapper the page put on top stays, and this one,
+	// left under it, only passes lines on (test: devtools-session-console.test.ts)
 	const console_error = console.error;
-	s.defer(() => (console.error = console_error));
-	console.error = (...args: unknown[]) => {
-		if (errors.length < 200)
+	const counting = (...args: unknown[]) => {
+		if (run.now.kind === 'recording' && errors.length < 200)
 			errors.push({
 				t: r1(performance.now()),
 				message: `console.error: ${args
@@ -482,6 +483,10 @@ export function start_session(prior?: SavedPart[]): Recorder {
 			});
 		console_error.apply(console, args);
 	};
+	console.error = counting;
+	s.defer(() => {
+		if (console.error === counting) console.error = console_error;
+	});
 	// the main thread, sampled
 	let prof: { stop(): Promise<unknown> } | null = null;
 	let cpu_off: string | null = null;
