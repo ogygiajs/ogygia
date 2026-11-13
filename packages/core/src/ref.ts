@@ -62,9 +62,9 @@ export interface RefKind {
 	keep_name?(ref: Ref): string | undefined;
 	/** Reconcile a kept live instance with a freshly arrived ref (default: kept wins untouched). */
 	merge?(kept: object, ref: Ref): void;
-	/** Tear down a live instance when its scope is disposed (hub v2, phase D) — close a channel,
-	 *  abort a fetch, drop a subscription. Most kinds have nothing to release (GC handles the
-	 *  object); implement only when the instance owns a resource beyond memory. */
+	/** Tear down a live instance when a navigation releases it (nothing on the next page owns it)
+	 *  — close a channel, abort a fetch, drop a subscription. Most kinds have nothing to release (GC
+	 *  handles the object); implement only when the instance owns a resource beyond memory. */
 	dispose?(live: object): void;
 }
 
@@ -75,17 +75,13 @@ interface HubRegistry {
 	order: RefKind[];
 	/** live instance → minted id (one id per instance, however many carriers). */
 	ids: WeakMap<object, string>;
-	/** THE SCOPED STORE (hub v2, phase S) — scope → (key → live instance). ONE structure that
-	 *  replaces the old `live` (now the 'page' bucket, keyed by ref.i) and `keep` (the 'session'
-	 *  bucket, keyed by continuity name). 'request' is never populated — the server decodes fresh.
-	 *  A whole scope can be disposed as a unit (phase D). Browser tab only. */
+	/** THE SCOPED STORE — scope → (key → live instance): the 'page' bucket keyed by ref.i, the
+	 *  'session' bucket keyed by continuity name. 'request' is never populated — the server decodes
+	 *  fresh. Browser tab only. */
 	instances: Map<Scope, Map<string, object>>;
-	/** live instance → its kind discriminator, so scope disposal can dispatch `kind.dispose`
-	 *  without storing the kind inline in every bucket entry. Weak — never pins an instance. */
+	/** live instance → its kind discriminator, so a release can dispatch `kind.dispose` without
+	 *  storing the kind inline in every bucket entry. Weak — never pins an instance. */
 	instance_kind: WeakMap<object, string>;
-	/** side-effectful cleanups to run when a scope is disposed (hub v2, phase D) — e.g. the remote
-	 *  cache clearing its page-scoped seeds on nav. Keyed by scope. */
-	scope_disposers: Map<Scope, Set<() => void>>;
 	/** continuity name → owning code tag (collision guard: one name, one kind of thing). */
 	keep_owner: Map<string, string>;
 	/** The names of the render minting now (the server's request; `null` on the client and off a
@@ -171,7 +167,6 @@ function registry(): HubRegistry {
 			['session', new Map()]
 		]),
 		instance_kind: new WeakMap(),
-		scope_disposers: new Map(),
 		keep_owner: new Map(),
 		names: null
 	});
@@ -234,9 +229,9 @@ function bucket(reg: HubRegistry, scope: Scope): Map<string, object> {
 	return b;
 }
 
-/** Memoize an instance in a scope's bucket, recording its kind for later disposal. No MAX_LIVE
- *  cap since phase D — the 'page' bucket is emptied by `dispose_scope('page')` on every nav, so
- *  it can't creep across the tab's lifetime the way the old unbounded map could. */
+/** Memoize an instance in a scope's bucket, recording its kind for its release. The 'page'
+ *  bucket is bounded by its owners: a navigation releases every id nothing on the next page owns
+ *  (runtime/reconcile.ts `release_page_ids`). */
 function remember_in(
 	reg: HubRegistry,
 	scope: Scope,
@@ -246,61 +241,19 @@ function remember_in(
 ): void {
 	bucket(reg, scope).set(key, instance);
 	reg.instance_kind.set(instance, kind_k);
-	// R3 ownership: tell the sink (if an island is hydrating) which page id it just resolved, so the
-	// reconciler can dispose exactly the ids of REMOVED regions. Page scope only; `key` is the ref.i.
 	if (scope === 'page' && resolve_sink !== null) resolve_sink(key);
 }
 
-/**
- * DISPOSE a whole scope (hub v2, phase D) — tear down every instance in its bucket via the
- * instance's `kind.dispose`, run any registered scope-disposers (side-effect cleanups like the
- * remote cache), then empty the bucket. `dispose_scope('page')` on nav is what replaces the old
- * MAX_LIVE cap: stale page-scoped aliases go, session/forever instances stay.
- *
- * SAFETY: a page-bucket instance that is ALSO in a longer-lived bucket (a wire class aliased into
- * 'session' for continuity) is NOT torn down — only its page alias is dropped. Its resources
- * belong to the session and outlive the nav.
- */
-export function dispose_scope(scope: Scope): void {
-	const reg = registry();
-	const b = reg.instances.get(scope);
-	if (DEVTOOLS) dt_emit({ domain: 'hub', name: 'hub.dispose', scope, count: b?.size ?? 0 });
-	if (b !== undefined && b.size > 0) {
-		// instances reachable from a longer-lived bucket must survive this disposal
-		const survivors = new Set<object>();
-		if (scope === 'page') for (const inst of bucket(reg, 'session').values()) survivors.add(inst);
-		for (const inst of b.values()) {
-			if (survivors.has(inst)) continue;
-			const kind = reg.kinds.get(reg.instance_kind.get(inst) ?? '');
-			try {
-				kind?.dispose?.(inst);
-			} catch (error) {
-				// (one instance's teardown throwing must not strand the rest, and is not dropped)
-				report_thrown(error);
-			}
-		}
-		b.clear();
-	}
-	const ds = reg.scope_disposers.get(scope);
-	if (ds !== undefined)
-		// (a copy: a disposer may remove itself or another from the set)
-		for (const fn of Array.from(ds)) {
-			try {
-				fn();
-			} catch (error) {
-				// (a disposer throwing must not block the others, and is not dropped)
-				report_thrown(error);
-			}
-		}
+/** The ids the 'page' bucket holds now: what a navigation weighs for release. */
+export function page_ids(): string[] {
+	return Array.from(bucket(registry(), 'page').keys());
 }
 
 /**
- * DISPOSE specific page-scoped ids (reconciler R3) — the SELECTIVE counterpart to dispose_scope.
- * A reconcile nav keeps matched islands mounted, so it can't blanket-dispose the page scope; it
- * disposes only the ids owned by REMOVED regions. Each id's instance is torn down via its
- * kind.dispose and removed from the page bucket, instance_kind, and dep_index — UNLESS it is also
- * session-aliased (continuity), in which case only nothing happens (the session bucket keeps it).
- * ids not present in the page bucket are skipped silently.
+ * Release page-scoped ids (a navigation's, runtime/reconcile.ts `release_page_ids`): each id's
+ * instance is torn down via its kind.dispose and leaves the page bucket — UNLESS it is also
+ * session-aliased (continuity): then only its page alias goes, and the session bucket keeps it.
+ * Ids not in the page bucket are skipped.
  */
 export function dispose_ids(ids: Iterable<string>): void {
 	const reg = registry();
@@ -326,16 +279,6 @@ export function dispose_ids(ids: Iterable<string>): void {
 		dt_emit({ domain: 'hub', name: 'hub.dispose', scope: 'ids', count: dt_disposed });
 }
 
-/** Register a side-effect cleanup to run whenever `scope` is disposed. Returns an unregister fn.
- *  Lets subsystems (the remote cache) fold their nav-time clearing into scope disposal. */
-export function register_scope_disposer(scope: Scope, fn: () => void): () => void {
-	const reg = registry();
-	let set = reg.scope_disposers.get(scope);
-	if (set === undefined) reg.scope_disposers.set(scope, (set = new Set()));
-	set.add(fn);
-	return () => reg.scope_disposers.get(scope)?.delete(fn);
-}
-
 /**
  * Resolve: Ref → live value.
  *
@@ -358,6 +301,8 @@ export function resolve(ref: Ref, scope_or_remember: boolean | Scope): unknown {
 	if (remember) {
 		const existing = bucket(reg, 'page').get(ref.i);
 		if (existing !== undefined) {
+			// (a reunion is a resolve like any other: whoever decodes the id owns it too)
+			if (resolve_sink !== null) resolve_sink(ref.i);
 			// WATCH path (hub v2, phase W): a re-resolve of a WATCHED id carrying fresh data folds
 			// that data into the live instance (via the kind's merge) and notifies watchers — the
 			// reactive graph resumes in place. With no watchers this is byte-for-byte the old
