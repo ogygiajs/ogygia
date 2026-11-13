@@ -25,22 +25,15 @@
  * `restore_late` in every build). Answers are parsed inert (core's runtime/html-sink.ts, #382), so this is the
  * page-load case: a component runtime that upgraded first.
  */
+import type { PageGlobals, PendingShadow, WaitingShadow } from '@ogygia/core/plugin/client';
+
 /* oxlint-disable ogygia/markup-from-vocabulary -- restore() ships as its own source (restore.toString()): it may name nothing outside itself, so it spells its markers */
 export function restore(root: Document | DocumentFragment | Element): number {
 	const doc: Document = (root as Node).ownerDocument ?? (root as Document);
 	const head = document.head;
-	const W = window as unknown as {
+	const W = window as PageGlobals & {
 		__og_sheets?: Map<string, { sheet: CSSStyleSheet | null; css: string }>;
-		__og_adopt?: { shadow: ShadowRoot; sheets: CSSStyleSheet[] }[];
-		__og_init?: ShadowRoot[];
 		__og_class_watch?: { mo: MutationObserver; hosts: Set<Element> };
-		__og_restore_log?: {
-			kind: 'late' | 'mismatch';
-			host: string;
-			t: number;
-			diff?: string;
-			island?: string;
-		}[];
 		__og_rendered?: WeakSet<Node>;
 	};
 	const sheets = (W.__og_sheets ??= new Map());
@@ -434,7 +427,7 @@ export function restore(root: Document | DocumentFragment | Element): number {
 			if (live) shadow.adoptedStyleSheets = [...shadow.adoptedStyleSheets, ...own];
 			else {
 				// (on the root too: a morph that copies the host carries it to the copy's root)
-				(shadow as ShadowRoot & { __og_pending?: CSSStyleSheet[] }).__og_pending = own;
+				(shadow as PendingShadow).__og_pending = own;
 				(W.__og_adopt ??= []).push({ shadow, sheets: own });
 			}
 		}
@@ -497,14 +490,10 @@ export function restore(root: Document | DocumentFragment | Element): number {
  *  sheet into it throws — which stopped every root after it from getting its sheets. A fragment root
  *  still out after 30 s never goes in (a morph took a copy of it, the hole left): dropped. */
 export function restore_adopt(): void {
-	const W = window as unknown as {
-		__og_adopt?: { shadow: ShadowRoot; sheets: CSSStyleSheet[] }[];
-		__og_init?: ShadowRoot[];
-	};
+	const W = window as PageGlobals;
 	// port-ok: inlined as text by restore_adopt.toString() (no imports)
 	const now = performance.now();
-	const waiting = (root: ShadowRoot & { __og_out?: number }) =>
-		now - (root.__og_out ??= now) < 30_000;
+	const waiting = (root: WaitingShadow) => now - (root.__og_out ??= now) < 30_000;
 	const where = (root: ShadowRoot): 'page' | 'later' | 'gone' =>
 		root.host.isConnected
 			? root.host.ownerDocument === document
