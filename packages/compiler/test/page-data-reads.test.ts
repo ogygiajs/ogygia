@@ -80,4 +80,18 @@ describe('patch_page_data_reads', () => {
 	test('a chunk without the placeholder is left alone', () => {
 		expect(compiler_with({}, {}).patch_page_data_reads('export {}', info, ids)).toBeNull();
 	});
+
+	test('the answer is the same bytes whichever region registered first (#1433)', () => {
+		const one = compiler_with(
+			{ bbbbbbbbbbbb: '/app/Footer.svelte', aaaaaaaaaaaa: '/app/Header.svelte' },
+			{ '/app/blocks/Promo.svelte': new Set(['_locale']) }
+		);
+		const two = compiler_with(
+			{ aaaaaaaaaaaa: '/app/Header.svelte', bbbbbbbbbbbb: '/app/Footer.svelte' },
+			{ '/app/blocks/Promo.svelte': new Set(['_locale']) }
+		);
+		expect(one.patch_page_data_reads(PLACEHOLDER, info, ids)!.code).toBe(
+			two.patch_page_data_reads(PLACEHOLDER, info, ids)!.code
+		);
+	});
 });
