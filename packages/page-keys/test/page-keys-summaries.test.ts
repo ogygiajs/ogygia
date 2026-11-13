@@ -13,7 +13,7 @@ import {
 	type ExportSummary,
 	type PageKeys,
 	type PendingCall
-} from '../src/compiler/link/page-keys.ts';
+} from '../src/analysis.ts';
 
 const b = new Set(['b']);
 const none = new Set<string>();

@@ -12,6 +12,7 @@ import MagicString from 'magic-string';
 import { FILE_TOKEN_MARK, FILE_TOKEN_RE, file_token_id } from './file-token.ts';
 import { ISLAND_DEPS_INLINE_TOKEN } from './island-deps.ts';
 import type { Program } from '../program.ts';
+import type { PageReadsSink } from '../ctx.ts';
 import { fn_manifest_registrations } from '../macros/dollar.ts';
 
 const KIT_PAGE_MODULE_RE = /\/@sveltejs\/kit\/src\/runtime\/app\/(?:state|stores)(?:[/.]|$)/;
@@ -64,6 +65,9 @@ export interface RelocateCx {
 	facade_file(id: string): string | undefined;
 	graph(id: string): GraphInfo;
 	module_ids(): Iterable<string>;
+	/** The seed-shaping plugin's answers (`pageKeys()`); null when none is listed, and then every
+	 *  hole looks the page up. */
+	readonly page_reads: Pick<PageReadsSink, 'keys'> | null;
 }
 
 export interface Relocation<Cx = RelocateCx> {
@@ -105,15 +109,15 @@ const PAGE_DATA_READS: Relocation = {
 	server_only: true,
 	carrier: null,
 	value(cx) {
-		const { page_keys, page_pending } = cx.program;
+		const page_reads = cx.page_reads;
+		if (!page_reads) return () => 'null';
 		const clean = (id: string) => id.split('?')[0].split('\\').join('/');
 		const imports_kit_page = (ids: readonly string[]) =>
 			ids.some((d) => KIT_PAGE_MODULE_RE.test(clean(d)));
 		const reads_itself = (id: string, info: GraphInfo) => {
 			const c = clean(id);
-			const k = page_keys.get(c);
-			if (k !== undefined) return k === 'all' || k.size > 0 || page_pending.has(c);
-			if (page_pending.has(c)) return true;
+			const k = page_reads.keys(c);
+			if (k !== null) return k === 'unknown' || k.size > 0;
 			if (KIT_PAGE_MODULE_RE.test(c)) return false;
 			return (
 				!!info &&

@@ -637,7 +637,7 @@ describe('collectIslandDepModulepreloads', () => {
 				moduleIds: dep_ids
 			}
 		});
-		const keys_of = (table: Record<string, Set<string> | 'all'>) => (id: string) =>
+		const keys_of = (table: Record<string, Set<string> | 'unknown'>) => (id: string) =>
 			table[id] ?? null;
 
 		test('keys union across the facade and a dep chunk, sorted', () => {
@@ -658,7 +658,7 @@ describe('collectIslandDepModulepreloads', () => {
 				bundle([SHIM, '/app/src/lib/A.svelte'], ['/app/src/lib/util.ts']),
 				[SHIM],
 				null,
-				keys_of({ '/app/src/lib/A.svelte': new Set(['user']), '/app/src/lib/util.ts': 'all' })
+				keys_of({ '/app/src/lib/A.svelte': new Set(['user']), '/app/src/lib/util.ts': 'unknown' })
 			);
 			expect(r.page_keys[ENTRY]).toBeNull();
 		});
@@ -741,7 +741,7 @@ describe('collectIslandDepModulepreloads', () => {
 				null,
 				keys_of({
 					'/app/src/lib/SearchBar.svelte': new Set(['searchBarMarkup']),
-					'/app/src/lib/GuidedSearch.svelte': 'all'
+					'/app/src/lib/GuidedSearch.svelte': 'unknown'
 				})
 			);
 			expect(r.page[ENTRY]).toBe(true);

@@ -821,6 +821,8 @@ describe('the random app', () => {
 			const transform = readFileSync(join(lib, 'reshape.server.ts'), 'utf8');
 			expect(transform).toContain('reshape.handle(transform)');
 			expect(transform).toContain(`const TRIM = ${pass!.trim};`);
+			for (const point of ['throws', 'slow', 'strips-marks'])
+				expect(transform).toContain(`buggify.fires('gen.reshape-${point}')`);
 		} finally {
 			rmSync(app, { recursive: true, force: true });
 		}
