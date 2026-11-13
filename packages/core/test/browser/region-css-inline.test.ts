@@ -5,6 +5,7 @@
 // linked it, never stack copies.
 import { expect, test } from 'vitest';
 import { bootDev } from '../../src/runtime/full.ts';
+import { region_fragment } from './_html.ts';
 
 const A = '/__ogygia__?id=abcabcabc001&props=W3t9XQ&exp=9999999999&sig=stub';
 const B = '/__ogygia__?id=abcabcabc002&props=W3t9XQ&exp=9999999999&sig=stub';
@@ -43,6 +44,20 @@ test('an inlined sheet in a hole answer is hoisted into <head> once, and styles 
 		expect(getComputedStyle(served).letterSpacing).toBe('4px');
 	} finally {
 		window.fetch = real_fetch;
+	}
+});
+
+test('an inlined sheet goes first in <head>, out of the trailing range an island’s <svelte:head> hydration takes back', () => {
+	document.head.querySelectorAll('[data-ogygia-region-css]').forEach((n) => n.remove());
+	const tail = document.createElement('meta');
+	tail.name = 'og-head-tail';
+	document.head.append(tail);
+	try {
+		region_fragment(STYLE);
+		expect(document.head.firstElementChild?.getAttribute('data-ogygia-region-css')).toBe(SHEET);
+	} finally {
+		tail.remove();
+		document.head.querySelectorAll('[data-ogygia-region-css]').forEach((n) => n.remove());
 	}
 });
 

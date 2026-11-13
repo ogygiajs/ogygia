@@ -60,3 +60,17 @@ test('one file linked page-relative from two depths is one head node', () => {
 	live.setAttribute('href', '/_app/x.css');
 	expect(head_node_key(live)).toBe(`LINK:stylesheet:${location.origin}/_app/x.css:`);
 });
+
+test('a page-relative URL that does not parse is left as written: the browser ignores it the same way on either page', () => {
+	// (a backslash reads as a slash in an http URL: `\\[x` is a host that does not parse)
+	const doc = parse('<link rel="stylesheet" href="\\\\[x/a.css">');
+	resolve_head_urls(doc.head, new URL('https://example.com/a/e/'));
+	expect(doc.head.firstElementChild!.getAttribute('href')).toBe('\\\\[x/a.css');
+});
+
+test('a head node whose URL does not parse is keyed by the URL as written', () => {
+	const live = document.createElement('link');
+	live.rel = 'stylesheet';
+	live.setAttribute('href', 'http://[');
+	expect(head_node_key(live)).toBe('LINK:stylesheet:http://[:');
+});

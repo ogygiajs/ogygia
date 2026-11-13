@@ -301,7 +301,9 @@ const file_loaders = cache<string, () => Promise<unknown>>({
 
 /** One load of each file at a time, kept once it lands: loads of one file that fail together share
  *  one retry, so a failure gets one fresh URL and the module runs once (#271). */
-const file_loads = flights({
+type FileLoads = { readonly get: (url: string) => Promise<unknown> };
+
+const file_loads: FileLoads = flights({
 	name: 'island file',
 	run: (url: string) => {
 		let again = file_loaders.get(url);
