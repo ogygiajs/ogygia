@@ -40,7 +40,7 @@ its pull request says why it is safe (or which INVARIANTS.md section covers it).
 | `packages/core/src/runtime/router-nav.ts` | `(module)` | `headers.get('content-disposition')` | 1 |
 | `packages/core/src/runtime/router-nav.ts` | `(module)` | `headers.get('content-type')` | 1 |
 | `packages/core/src/server/capped-body.ts` | `(module)` | `headers.get('content-length')` | 1 |
-| `packages/core/src/server/early-holes-csp.ts` | `add_early_holes_csp` | `headers.get(name)` | 1 |
+| `packages/core/src/server/early-holes-csp.ts` | `(module)` | `headers.get(name)` | 1 |
 | `packages/core/src/server/page-facts.ts` | `(module)` | `headers.get(PAGE_FACTS_ROUTE_HEADER)` | 1 |
 | `packages/core/src/server/region-endpoint.ts` | `region_session` | `cookies.get(session_cookie)` | 1 |
 | `packages/core/src/server/region-endpoint.ts` | `reuse_known_region` | `headers.get('x-ogygia-known')` | 1 |
