@@ -3308,6 +3308,132 @@
 			"reason": "`catch { return true; // ok: an answer that now throws has changed; it…`: proved: the catch made to rethrow turns the test red, twice",
 			"test": "packages/compiler/test/queries.test.ts",
 			"name": "an answer that now throws has moved, for a watcher and for answers_changed_since"
+		},
+		{
+			"site": "packages/compiler/src/compiler/build-cache.ts > BuildCache > dir > catch:0",
+			"reason": "`catch { return null; // ok: no cache directory is a miss; the caller …`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/compiler/test/build-cache.test.ts",
+			"name": "a namespace whose directory cannot be made is no cache, and nothing throws"
+		},
+		{
+			"site": "packages/compiler/src/compiler/build-cache.ts > BuildCache > set > catch:0",
+			"reason": "`catch { // ok: best effort; a failed write means a recompute next tim…`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/compiler/test/build-cache.test.ts",
+			"name": "a value it cannot write is not kept, and nothing throws"
+		},
+		{
+			"site": "packages/compiler/src/compiler/build-cache.ts > BuildCache > get > parse:0",
+			"reason": "`catch { return null; // ok: an absent or torn entry is a miss; the ca…`: proved: the catch around the parse made to rethrow turns the test red, twice",
+			"test": "packages/compiler/test/build-cache.test.ts",
+			"name": "a torn or absent entry is a miss"
+		},
+		{
+			"site": "packages/compiler/src/compiler/kit.ts > resolve_kit_paths > catch:0",
+			"reason": "`catch { kit_wire_path = null; // ok: no Kit resolves (a standalone co…`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/compiler/test/kit-absent.test.ts",
+			"name": "a Kit that does not resolve (its manifest not exported) has none of Kit's paths"
+		},
+		{
+			"site": "packages/compiler/src/compiler/kit.ts > kit_major > catch:0",
+			"reason": "`catch { return null; // ok: no Kit resolves from the app root: the do…`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/compiler/test/kit-absent.test.ts",
+			"name": "a Kit whose package.json does not parse has no major version"
+		},
+		{
+			"site": "packages/compiler/src/compiler/kit.ts > kit_major > parse:0",
+			"reason": "`catch { return null; // ok: no Kit resolves from the app root: the do…`: proved: the catch around the parse made to rethrow turns the test red, twice",
+			"test": "packages/compiler/test/kit-absent.test.ts",
+			"name": "a Kit whose package.json does not parse has no major version"
+		},
+		{
+			"site": "packages/compiler/src/compiler/link/build-output.ts > emit_island_deps_handoff > catch:0",
+			"reason": "`catch { // ok: the handoff path is enough for prerender }`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/compiler/test/island-deps-handoff-emit.test.ts",
+			"name": "a server output that is a file, not a folder: the handoff is still written, and nothing throws"
+		},
+		{
+			"site": "packages/compiler/src/compiler/link/build-output.ts > emit_island_deps_handoff > patch_server > catch:1",
+			"reason": "`catch { continue; // ok: an unpatched chunk keeps its token, and the …`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/compiler/test/island-deps-handoff-emit.test.ts",
+			"name": "a chunk that cannot be read is skipped, and the next one is still patched"
+		},
+		{
+			"site": "packages/compiler/src/compiler/link/build-output.ts > emit_island_deps_handoff > catch:1",
+			"reason": "`catch { // ok: the fs fallback still serves adapter-node and preview }`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/compiler/test/island-deps-handoff-emit.test.ts",
+			"name": "a slotted chunk that cannot be written is left as it was, and nothing throws"
+		},
+		{
+			"site": "packages/compiler/src/vite/package-files.ts > read_manifest > parse:0",
+			"reason": "`catch { return null; // ok: no manifest, or one that does not parse, …`: proved: the catch around the parse made to rethrow turns the test red, twice",
+			"test": "packages/compiler/test/package-files-edges.test.ts",
+			"name": "a dependency not installed and one whose manifest does not parse declare nothing"
+		},
+		{
+			"site": "packages/compiler/src/vite/package-files.ts > discover_package_files > catch:0",
+			"reason": "`catch { continue; // ok: a dependency not installed under this root d…`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/compiler/test/package-files-edges.test.ts",
+			"name": "a dependency not installed and one whose manifest does not parse declare nothing"
+		},
+		{
+			"site": "packages/compiler/src/vite/style-preprocess.ts > preprocess_component_for_css > catch:0",
+			"reason": "`catch (err) { warn('scss_compile_failed', { file: path.relative(root,…`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/compiler/test/style-preprocess-failures.test.ts",
+			"name": "SCSS that does not compile is left as written, and scss_compile_failed names the file"
+		},
+		{
+			"site": "packages/compiler/src/vite/style-preprocess.ts > preprocess_component_for_css > catch:1",
+			"reason": "`catch (err) { warn('ts_strip_failed', { file: path.relative(root, abs…`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/compiler/test/style-preprocess-failures.test.ts",
+			"name": "TypeScript the stripper refuses is left as written, and ts_strip_failed names the file"
+		},
+		{
+			"site": "packages/compiler/src/vite/kit-dirs.ts > kit_options_from_file > catch:0",
+			"reason": "`catch (e) { warn('kit_config_unreadable', { file: path.relative(root,…`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/compiler/test/kit-dirs.test.ts",
+			"name": "a svelte.config.js that throws as it loads: the defaults, and kit_config_unreadable says why"
+		},
+		{
+			"site": "packages/compiler/src/vite/kit-dirs.ts > kit_options_from_file > import:0",
+			"reason": "`catch (e) { warn('kit_config_unreadable', { file: path.relative(root,…`: proved: the catch around the import made to rethrow turns the test red, twice",
+			"test": "packages/compiler/test/kit-dirs.test.ts",
+			"name": "a svelte.config.js that throws as it loads: the defaults, and kit_config_unreadable says why"
+		},
+		{
+			"site": "packages/compiler/src/vite/index.ts > ogygia > configResolved > parse:0",
+			"reason": "`catch { // ok: a define that is not JSON keeps the `_app` default }`: proved: the catch around the parse made to rethrow turns the test red, twice",
+			"test": "packages/compiler/test/vite-hooks.test.ts",
+			"name": "an app-dir define that is not JSON keeps the `_app` default, and nothing throws"
+		},
+		{
+			"site": "packages/compiler/src/compiler/link/build-output.ts > emit_island_deps_handoff > patch_server > catch:0",
+			"reason": "`catch { return; // ok: no server output here; the server reads the ha…`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/compiler/test/island-deps-handoff-emit.test.ts",
+			"name": "a server folder that cannot be listed is skipped, and the chunks beside it are still patched"
+		},
+		{
+			"site": "packages/compiler/src/vite/package-files.ts > discover_package_files > catch:1",
+			"reason": "`catch { continue; // ok: a dangling symlink is no file to list }`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/compiler/test/package-files-edges.test.ts",
+			"name": "a file a glob listed and that is gone before it is read is no file to list"
+		},
+		{
+			"site": "packages/compiler/src/compiler/link/emit-gate.ts > parse_server_handoff > parse:0",
+			"reason": "`return null; // ok: no server leg ran before this one (or it died mid…`: proved: the catch around its caller's read made to throw turns the test red, twice",
+			"test": "packages/compiler/test/emit-gate.test.ts",
+			"name": "reads as none when the server leg died mid-write (a torn handoff)"
+		},
+		{
+			"site": "packages/compiler/src/compiler/exports/index.ts > ExportIndex > resolve > stale:0",
+			"reason": "`got !== STALE`: proved: the STALE check made never true turns the test red, twice",
+			"test": "packages/compiler/test/exports-index.test.ts",
+			"name": "a file added while a resolution is out: the resolution is asked again, and its answer is a path"
+		},
+		{
+			"site": "packages/compiler/src/vite/index.ts > ogygia > readFile > catch:0",
+			"reason": "`catch { return null; // ok: null is \"no such file\" (the CSS walk trie…`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/compiler/test/vite-hooks.test.ts",
+			"name": "a markup format's scan reads a file that is not there as null"
 		}
 	],
 	"impossible": [
@@ -3420,18 +3546,11 @@
 		"packages/cli/src/perf/measure.ts > measure > throw:1",
 		"packages/cli/src/perf/measure.ts > measure > throw:2",
 		"packages/compiler/src/compiler/build-cache.ts > cache_root > catch:0",
-		"packages/compiler/src/compiler/build-cache.ts > BuildCache > dir > catch:0",
-		"packages/compiler/src/compiler/build-cache.ts > BuildCache > get > parse:0",
 		"packages/compiler/src/compiler/build-cache.ts > BuildCache > get > catch:0",
-		"packages/compiler/src/compiler/build-cache.ts > BuildCache > set > catch:0",
 		"packages/compiler/src/compiler/driver.ts > Compiler > leg > throw:0",
 		"packages/compiler/src/compiler/driver.ts > Compiler > leg > throw:1",
-		"packages/compiler/src/compiler/driver.ts > Compiler > register > refused:0",
-		"packages/compiler/src/compiler/driver.ts > Compiler > scan_facts > refused:0",
-		"packages/compiler/src/compiler/driver.ts > Compiler > changed > refused:0",
 		"packages/compiler/src/compiler/driver.ts > Compiler > resolve_id > throw:0",
 		"packages/compiler/src/compiler/driver.ts > Compiler > resolve_local_script_uncached > catch:0",
-		"packages/compiler/src/compiler/exports/index.ts > ExportIndex > resolve > stale:0",
 		"packages/compiler/src/compiler/exports/index.ts > Walk > map > stale:0",
 		"packages/compiler/src/compiler/exports/index.ts > Walk > through > stale:0",
 		"packages/compiler/src/compiler/fouc-css.ts > compileFoucScopedCss > catch:0",
@@ -3439,18 +3558,10 @@
 		"packages/compiler/src/compiler/fs.ts > read > catch:0",
 		"packages/compiler/src/compiler/fs.ts > list > catch:0",
 		"packages/compiler/src/compiler/fs.ts > stat > catch:0",
-		"packages/compiler/src/compiler/kit.ts > resolve_kit_paths > catch:0",
-		"packages/compiler/src/compiler/kit.ts > kit_major > parse:0",
-		"packages/compiler/src/compiler/kit.ts > kit_major > catch:0",
 		"packages/compiler/src/compiler/kit.ts > route_config_of_text > throw:0",
 		"packages/compiler/src/compiler/kit.ts > clean_stale_ogygia_dirs > catch:0",
 		"packages/compiler/src/compiler/link/build-output.ts > refuse_client_secrets > throw:0",
 		"packages/compiler/src/compiler/link/build-output.ts > refuse_client_secrets > throw:1",
-		"packages/compiler/src/compiler/link/build-output.ts > emit_island_deps_handoff > catch:0",
-		"packages/compiler/src/compiler/link/build-output.ts > emit_island_deps_handoff > patch_server > catch:0",
-		"packages/compiler/src/compiler/link/build-output.ts > emit_island_deps_handoff > patch_server > catch:1",
-		"packages/compiler/src/compiler/link/build-output.ts > emit_island_deps_handoff > catch:1",
-		"packages/compiler/src/compiler/link/emit-gate.ts > parse_server_handoff > parse:0",
 		"packages/compiler/src/compiler/link/emit-gate.ts > read_server_handoff > catch:0",
 		"packages/compiler/src/compiler/macros/dollar.ts > misuse > throw:0",
 		"packages/compiler/src/compiler/macros/pipeline.ts > run_module_macros > refuse > throw:0",
@@ -3502,7 +3613,6 @@
 		"packages/compiler/src/compiler/region/transform.ts > FileCompilation > analyze > catch:0",
 		"packages/compiler/src/compiler/region/transform.ts > FileCompilation > lower > throw:0",
 		"packages/compiler/src/compiler/region/transform.ts > FileCompilation > lower > throw:1",
-		"packages/compiler/src/compiler/region/transform.ts > FileCompilation > lower > refused:0",
 		"packages/compiler/src/compiler/region/transform.ts > TsRegionCompilation > emit_ts_region > throw:0",
 		"packages/compiler/src/compiler/region/transform.ts > TsRegionCompilation > emit_ts_region > throw:1",
 		"packages/compiler/src/compiler/region/transform.ts > TsRegionCompilation > emit_ts_region > throw:2",
@@ -3519,10 +3629,8 @@
 		"packages/compiler/src/compiler/virtual/table.ts > value_names > throw:0",
 		"packages/compiler/src/vite/dev-maps.ts > install_dev_page_keys > DEV_PAGE_KEYS > .catch:0",
 		"packages/compiler/src/vite/index.ts > bundler_resolve > catch:0",
-		"packages/compiler/src/vite/index.ts > ogygia > readFile > catch:0",
 		"packages/compiler/src/vite/index.ts > ogygia > stage_host > transform > resolve > catch:0",
 		"packages/compiler/src/vite/index.ts > ogygia > arm_keep_client_cleanup > catch:0",
-		"packages/compiler/src/vite/index.ts > ogygia > configResolved > parse:0",
 		"packages/compiler/src/vite/index.ts > ogygia > configResolved > catch:0",
 		"packages/compiler/src/vite/index.ts > ogygia > configResolved > throw:0",
 		"packages/compiler/src/vite/index.ts > ogygia > buildEnd > catch:0",
@@ -3533,18 +3641,13 @@
 		"packages/compiler/src/vite/index.ts > ogygia > writeBundle > catch:0",
 		"packages/compiler/src/vite/index.ts > ogygia > writeBundle > catch:1",
 		"packages/compiler/src/vite/index.ts > ogygia > writeBundle > catch:2",
-		"packages/compiler/src/vite/kit-dirs.ts > kit_options_from_file > import:0",
-		"packages/compiler/src/vite/kit-dirs.ts > kit_options_from_file > catch:0",
 		"packages/compiler/src/vite/options.ts > assert_no_legacy_options > throw:0",
 		"packages/compiler/src/vite/options.ts > assert_no_legacy_options > throw:1",
 		"packages/compiler/src/vite/options.ts > validate_region_presets > throw:0",
 		"packages/compiler/src/vite/options.ts > validate_region_presets > throw:1",
 		"packages/compiler/src/vite/options.ts > resolve_options > throw:0",
-		"packages/compiler/src/vite/package-files.ts > read_manifest > parse:0",
 		"packages/compiler/src/vite/package-files.ts > read_manifest > catch:0",
 		"packages/compiler/src/vite/package-files.ts > discover_package_files > throw:0",
-		"packages/compiler/src/vite/package-files.ts > discover_package_files > catch:0",
-		"packages/compiler/src/vite/package-files.ts > discover_package_files > catch:1",
 		"packages/compiler/src/vite/package-files.ts > discover_package_files > throw:1",
 		"packages/compiler/src/vite/package-files.ts > discover_package_files > catch:2",
 		"packages/compiler/src/vite/package-files.ts > discover_package_files > throw:2",
@@ -3571,8 +3674,6 @@
 		"packages/compiler/src/vite/sourcemaps.ts > island_sourcemaps_plugin > transform > catch:0",
 		"packages/compiler/src/vite/style-preprocess.ts > load_sass > catch:0",
 		"packages/compiler/src/vite/style-preprocess.ts > load_ts_transform > import:0",
-		"packages/compiler/src/vite/style-preprocess.ts > preprocess_component_for_css > catch:0",
-		"packages/compiler/src/vite/style-preprocess.ts > preprocess_component_for_css > catch:1",
 		"packages/config/src/sim.ts > macrotask > message:0",
 		"packages/config/src/sim.ts > macrotask > message:1",
 		"packages/config/src/sim.ts > env_number > throw:0",
