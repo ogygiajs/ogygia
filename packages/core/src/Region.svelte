@@ -61,7 +61,12 @@
 	import { page } from '$app/state';
 	import { record_page } from './page-seed-registry.ts';
 	import { document_tail, island_graph_script, modulepreload_tag } from './server/document-tail.ts';
-	import { hole_identity, plan_props_wire, props_sidecar } from './server/props-wire.ts';
+	import {
+		hole_identity,
+		lake_identity,
+		plan_props_wire,
+		props_sidecar
+	} from './server/props-wire.ts';
 	import { escape_amp_quot, escape_attr } from './escape.ts';
 	import { warn } from './messages/island.ts';
 	import {
@@ -776,7 +781,10 @@
 	// hole ships no JS wherever it sits (the client wrapper has no component — emit.ts), and the
 	// islands authored inside it emit real regions (LakeBoundary) and wake on their own.
 	const hole_frozen = adopt_region(
-		() => ` entry="${escape_attr(String(__entry || ''))}" wake="none" remount="cache"`,
+		() => {
+			const identity = lake_identity(__entry || '', __props);
+			return ` entry="${escape_attr(String(__entry || ''))}" wake="none" remount="cache"${identity ? ` data-og-lake="${identity}"` : ''}`;
+		},
 		(renderer) => {
 			const Component = /** @type {(r: unknown, p: unknown) => void} */ (
 				/** @type {unknown} */ (__component)
@@ -868,6 +876,8 @@
 		/** @param {unknown} v */
 		const esc = (v) => escape_attr(String(v));
 		let s = ` entry="${esc(__entry || '')}" wake="none" remount="${esc(__remount)}"`;
+		const identity = lake_identity(__entry || '', __props);
+		if (identity) s = `${s} data-og-lake="${identity}"`;
 		if (lake_swr) s = `${s} when="${esc(__when)}"`;
 		if (__maxAge != null) s = `${s} max-age="${esc(String(__maxAge))}"`;
 		if (__onExpire) s = `${s} on-expire="${esc(__onExpire)}"`;
