@@ -227,12 +227,13 @@ export const runtime_entry: Family = virtual.family({
 export const runtime_flags: Family<RuntimeFlagsModule> = virtual.family({
 	realm: 'boot',
 	id: 'runtime-flags',
-	exports: { FRAMES: 'FRAMES', WIRE: 'WIRE' },
+	exports: { FRAMES: 'FRAMES', load_wire_codec: 'load_wire_codec' },
 	load(app: CoreApp) {
+		const { ctx } = app;
 		// Dev runs the kitchen-sink boot: every flag on, like every feature.
-		if (!app.ctx.is_build) return generateRuntimeFlagsSource({}, true);
+		if (!ctx.is_build) return generateRuntimeFlagsSource({}, ctx.runtime_dir, true);
 		app.prescan();
-		return generateRuntimeFlagsSource(app.program.runtime_marks);
+		return generateRuntimeFlagsSource(app.program.runtime_marks, ctx.runtime_dir);
 	}
 });
 
