@@ -52,10 +52,13 @@ describe('router pattern matching', () => {
 		expect(match_path(t, '/docs/x/y')!.pattern).toBe('/docs/[...r]');
 	});
 
-	it('ranks a required [param] above an [[optional]] one in the same place', () => {
+	it('an [[optional]] that is not last counts for nothing, as in Kit: /[[lang]]/docs ranks as /docs (#1139)', () => {
 		const s = compile_all(['/[[lang]]/docs', '/[section]/docs']);
-		expect(match_path(s, '/en/docs')!.pattern).toBe('/[section]/docs');
+		expect(match_path(s, '/en/docs')!.pattern).toBe('/[[lang]]/docs');
 		expect(match_path(s, '/docs')!.pattern).toBe('/[[lang]]/docs');
+		// a last [[optional]] ranks below the required param in its place
+		const t = compile_all(['/docs/[[page]]', '/docs/[slug]']);
+		expect(match_path(t, '/docs/x')!.pattern).toBe('/docs/[slug]');
 	});
 
 	it('distinguishes dot-suffixed and nested variants (the profiler /report cases)', () => {
@@ -85,6 +88,26 @@ describe('router pattern matching', () => {
 			'/en/docs/a%20b/x'
 		);
 		expect(fill('/docs/[slug]', {})).toBe('/docs/');
+	});
+
+	it('fill() keeps the slashes of a rest value and encodes each of its segments, as Kit does', () => {
+		expect(fill('/files/[...path]', { path: 'a/b/c.txt' })).toBe('/files/a/b/c.txt');
+		expect(fill('/files/[...path]', { path: 'a b/c?d' })).toBe('/files/a%20b/c%3Fd');
+		expect(fill('/u/[name]', { name: 'a/b' })).toBe('/u/a%2Fb');
+		expect(fill('/[[lang]]/x', { lang: 'a/b' })).toBe('/a%2Fb/x');
+		const c = compile('/files/[...path]');
+		expect(match_one(c, fill('/files/[...path]', { path: 'a b/c' }))!.params).toEqual({
+			path: 'a b/c'
+		});
+	});
+
+	it('fill() drops the segment of an empty optional or rest param, as Kit does', () => {
+		expect(fill('/a/[[x]]/b', {})).toBe('/a/b');
+		expect(fill('/a/[[x]]/b', { x: '' })).toBe('/a/b');
+		expect(fill('/[[lang]]/docs', {})).toBe('/docs');
+		expect(fill('/files/[...path]', { path: '' })).toBe('/files');
+		expect(fill('/[...path]', { path: '' })).toBe('/');
+		expect(fill('/a/[...rest]/b', {})).toBe('/a/b');
 	});
 });
 
@@ -135,18 +158,24 @@ describe('router pattern matching takes time in line with the path', () => {
 			level = level.flatMap((p) => [...'a-x/'].map((ch) => p + ch));
 			paths.push(...level);
 		}
+		// 131k cases: one RegExp per pattern and one expect at the end, or this runs 60x slower
+		// and times out on a loaded runner
+		const misses: unknown[] = [];
 		for (const pattern of patterns) {
 			const c = compile(pattern);
+			const reference = kit(pattern);
 			for (const tail of paths) {
 				const path = `/${tail}`;
-				const want = kit(pattern).exec(path);
-				const got = match_one(c, path);
-				const want_params = want
-					? Object.fromEntries(c.params.map((s, i) => [s.name, want[i + 1]]))
-					: null;
-				expect([pattern, path, got?.params ?? null]).toEqual([pattern, path, want_params]);
+				const want = reference.exec(path);
+				const got = match_one(c, path)?.params ?? null;
+				const same =
+					want === null
+						? got === null
+						: got !== null && c.params.every((s, i) => got[s.name] === want[i + 1]);
+				if (!same) misses.push([pattern, path, got, want?.slice(1) ?? null]);
 			}
 		}
+		expect(misses).toEqual([]);
 	});
 
 	it('two params with nothing between them answer a long near miss at once (#833)', () => {

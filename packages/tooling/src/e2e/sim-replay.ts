@@ -12,15 +12,21 @@
 // app's plan when the app on disk was written from another seed (`gen` in the plan, `seed` in the
 // app's `src/lib/gen/plan.json`) or drew a peer (a peer is a second server, not played yet).
 import type { BrowserContext, Page, Route, TestInfo } from '@playwright/test';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { basename, join } from 'node:path';
 import { check, moves, sleep, test } from './index.ts';
+import { calm_actions, ear, snapshot, type Observed, type Seen } from './sim-observe.ts';
+
+/** `SIM_OBSERVE=<dir>`: the differential's run (internal/sim/src/differ.ts). Calm: no wire fault,
+ *  none of `NOT_CALM`'s actions; after each action the world is let come to rest and looked at,
+ *  and what was seen goes to `<dir>/<plan>.<browser>.json`. */
+const OBSERVE = process.env.SIM_OBSERVE;
 
 type Action =
 	| { kind: 'click' | 'press'; tab: number; nth: number }
 	| { kind: 'goto'; tab: number; path: string }
 	| { kind: 'back' | 'forward' | 'reload' | 'offline' | 'online'; tab: number }
-	| { kind: 'open'; path: string }
+	| { kind: 'open' | 'background'; path: string }
 	| { kind: 'wait'; ms: number }
 	| { kind: 'deploy' }
 	| { kind: 'away'; tab: number; nth: number; ms: number }
@@ -56,6 +62,45 @@ export interface BrowserPlan {
 	readonly wire?: readonly WireFault[];
 	/** What the simulator found on the run. */
 	readonly found?: readonly string[];
+	/** What the simulator saw after each action (a calm run's plan, for the differential). */
+	readonly seen?: readonly Seen[];
+}
+
+/**
+ * The moment of its document's load an eager press (action `i`) waits for: `rest` when the
+ * simulator's press came once the load was at rest (its moves for the new document show the
+ * critical wait settled and never touched, and no island woke by the press), else null (press
+ * `after` ms from the commit, as planned). The simulator loads a page in a few virtual ms, with no
+ * CPU time, and a browser takes longer: the same ms would test another moment of the load on each
+ * side.
+ */
+export function eager_waits_for(p: BrowserPlan, i: number): 'rest' | null {
+	const a = p.plan.actions[i];
+	if (a?.kind !== 'eager') return null;
+	const tab = p.seen?.[i + 1]?.tabs[a.tab];
+	const gate = (tab?.moves ?? '').split('\n').filter((m) => m.startsWith('critical-gate#'));
+	const settled =
+		gate.some((m) => m.endsWith(' -> settled')) && !gate.some((m) => m.includes('touched'));
+	return settled && !/data-og-woke="interaction"/.test(tab!.dom) ? 'rest' : null;
+}
+
+/** Until `tab`'s load is at rest (its machines' moves, rules builds): its critical wait settled
+ *  and no island waking; at most `ms` on the page's clock. */
+async function until_rest(context: BrowserContext, tab: Page, ms: number): Promise<void> {
+	for (let left = ms; left > 0; left -= 10) {
+		const moves =
+			(await tab
+				.evaluate(() => (window as unknown as { __ogygia_moves?: () => string }).__ogygia_moves?.())
+				.catch(() => '')) ?? ''; // ok: a document between loads reads as not at rest yet
+		const last = new Map<string, string>();
+		for (const m of moves.split('\n')) {
+			const at = /^(wake#\d+) \S+ -> (\S+)$/.exec(m);
+			if (at) last.set(at[1], at[2]);
+		}
+		const waking = [...last.values()].includes('waking');
+		if (/^critical-gate#\d+ \S+ -> settled$/m.test(moves) && !waking) return;
+		await pass(context, 10);
+	}
 }
 
 /** What a page's performance observers reported (Chromium only): a layout shift that came right
@@ -127,6 +172,7 @@ export function perf_watch(): void {
 		__sim_perf?: (e: Sent) => void;
 		__sim_input?: () => void;
 	};
+	// ok: the replay's own binding: it fails only as its page closes, with nothing left to record
 	const send = (e: Sent) => void w.__sim_perf?.({ ...e, url: location.href });
 	const now = () => new PerformanceMark('sim').startTime;
 	let parsed = false;
@@ -316,29 +362,85 @@ export function sim_replay(app: string): void {
 				type: 'simulator found',
 				description: (p.found ?? []).join('\n') || 'nothing'
 			});
-			await play(p, page, context, info);
+			await play(OBSERVE === undefined ? p : calm(p), page, context, info, file);
 		});
 	}
+}
+
+/** `p` as a calm run plays it: no wire fault, none of `NOT_CALM`'s actions. */
+function calm(p: BrowserPlan): BrowserPlan {
+	return { ...p, wire: [], plan: { ...p.plan, actions: calm_actions(p.plan.actions) } };
 }
 
 async function play(
 	p: BrowserPlan,
 	page: Page,
 	context: BrowserContext,
-	info: TestInfo
+	info: TestInfo,
+	file: string
 ): Promise<void> {
 	const errors: string[] = [];
 	const tabs: Page[] = [page];
 	// each tab's requests, counted by method and path, so a fault meets the request it met
 	const counts = new Map<string, number>();
+	// THE DIFFERENTIAL (SIM_OBSERVE): what each tab heard and said, and the requests made, since the
+	// last look
+	const heard = new Map<Page, string[]>();
+	const said = new Map<Page, string[]>();
+	const requested: string[] = [];
+	const seen: Seen[] = [];
+	const listen = (to: Map<Page, string[]>, tab: Page, line: string) => {
+		const list = to.get(tab) ?? [];
+		list.push(line);
+		to.set(tab, list);
+	};
 	const watch = (tab: Page) => {
-		tab.on('pageerror', (e) => errors.push(`tab ${tabs.indexOf(tab)}: ${e.message}`));
+		tab.on('pageerror', (e) => {
+			errors.push(`tab ${tabs.indexOf(tab)}: ${e.message}`);
+			listen(said, tab, `error: ${e.message.split('\n')[0]}`);
+		});
 		tab.on('console', (m) => {
 			if (m.type() === 'error' && m.text().includes('ogygiajs.dev/e/'))
 				errors.push(`tab ${tabs.indexOf(tab)}: ${m.text()}`);
+			if (m.type() === 'error' || m.type() === 'warning')
+				listen(said, tab, `${m.type() === 'error' ? 'error' : 'warn'}: ${m.text().split('\n')[0]}`);
 		});
 	};
 	watch(page);
+	if (OBSERVE !== undefined) {
+		await context.exposeBinding('__sim_heard', ({ page: from }, line: string) =>
+			listen(heard, from, line)
+		);
+		await context.addInitScript(ear);
+		context.on('request', (req) => {
+			const u = new URL(req.url());
+			if (u.origin === new URL(page.url() === 'about:blank' ? req.url() : page.url()).origin)
+				requested.push(
+					`${tabs.indexOf(req.frame().page())} ${req.method()} ${u.pathname}${u.search}`
+				);
+		});
+	}
+	/** Looks at every tab once the world is at rest (OBSERVE). */
+	const look = async (after: string): Promise<void> => {
+		if (OBSERVE === undefined) return;
+		const until = Date.now() + 5_000;
+		do await pass(context, 500);
+		while (flying > 0 && Date.now() < until);
+		await pass(context, 2000);
+		const each = [];
+		for (const t of tabs)
+			each.push({
+				url: t.url(),
+				dom: await t
+					.evaluate(`(${snapshot.toString()})(document)`)
+					.then(String)
+					.catch(() => ''), // ok: a tab on the browser's error page, or between documents
+				moves: (await moves(t)) ?? '',
+				heard: (heard.get(t) ?? []).splice(0),
+				said: (said.get(t) ?? []).splice(0)
+			});
+		seen.push({ after, tabs: each, requests: requested.splice(0) });
+	};
 	// LAYOUT SHIFT AND LONG TASKS: Chromium's observers, in every document (the others report none)
 	const perf: PerfEntry[] = [];
 	const chromium = context.browser()?.browserType().name() === 'chromium';
@@ -375,6 +477,7 @@ async function play(
 	await context.clock.install({ time: new Date('2026-01-01T00:00:00Z') });
 	await page.goto('/');
 	await pass(context, 2000);
+	await look('first load');
 	for (const [i, a] of p.plan.actions.entries()) {
 		const tab = 'tab' in a ? tabs[a.tab % tabs.length] : page;
 		// (what the visitor does next is input: a shift it causes is the visitor's, not a region's)
@@ -401,7 +504,9 @@ async function play(
 			case 'reload':
 				await navigated(tab.reload());
 				break;
-			case 'open': {
+			// (a tab opened behind: Playwright brings a new page to the front, so it loads shown here)
+			case 'open':
+			case 'background': {
 				const t = await context.newPage();
 				tabs.push(t);
 				watch(t);
@@ -434,7 +539,8 @@ async function play(
 				// (the document is in, still loading: the press comes before its first paint, or during
 				// the wait for its critical resources)
 				await navigated(tab.goto(a.path, { waitUntil: 'commit' }));
-				await pass(context, a.after);
+				if (eager_waits_for(p, i) === 'rest') await until_rest(context, tab, 10_000);
+				else await pass(context, a.after);
 				await nth_of(tab, BUTTONS, a.nth);
 				break;
 			case 'twice':
@@ -456,6 +562,13 @@ async function play(
 				break;
 		}
 		await pass(context, 1000);
+		await look(`${i + 1} ${a.kind}`);
+	}
+	if (OBSERVE !== undefined) {
+		const name = context.browser()?.browserType().name() ?? 'browser';
+		const out: Observed = { app: p.app, seed: p.seed, gen: p.gen, plan: p.plan, by: name, seen };
+		mkdirSync(OBSERVE, { recursive: true });
+		writeFileSync(join(OBSERVE, `${basename(file, '.json')}.${name}.json`), JSON.stringify(out));
 	}
 	await context.setOffline(false);
 	// AT REST, as the simulator's: nothing on the wire (a server's slow render takes real time,

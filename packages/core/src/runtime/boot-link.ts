@@ -15,6 +15,7 @@ import {
 	warm_island_module
 } from './region-endpoint-url.ts';
 import { note_entry_location } from './entry-locations.ts';
+import { runs_entry } from './region-attrs.ts';
 import { register_island_graph } from './island-graph-preload.ts';
 import { props_sidecar_of } from './sidecar.ts';
 import {
@@ -53,6 +54,7 @@ export function link_boot(): void {
 		register_island_graph,
 		is_warmed_module,
 		warm_island_module,
+		runs_entry,
 		note_entry_location,
 		props_sidecar_of,
 		parse_region_html,
