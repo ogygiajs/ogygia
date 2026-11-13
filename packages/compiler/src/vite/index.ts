@@ -369,7 +369,8 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 	/** the app compiles with Svelte's async mode (vite-plugin-svelte's resolved options): Region
 	 *  imports the awaiting LateIsland (late-island.ts) */
 	let svelte_async = false;
-	/** Resolved `resolve.alias` entries — passed to bake()'s rolldown eval so `$lib` etc. resolve. */
+	/** Resolved `resolve.alias` entries — an island's closure walk, and every plugin macro (bake()'s
+	 *  eval bundle resolves `$lib` with them). */
 	let resolve_alias: { find: string | RegExp; replacement: string }[] = [];
 	let is_build = false;
 	let is_ssr = false;
@@ -513,8 +514,8 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 		transformN: 0,
 		transformHit: 0,
 		prescanMs: 0,
-		bakeMs: 0,
-		bakeN: 0,
+		macroMs: 0,
+		macroN: 0,
 		resolveMs: 0,
 		loadMs: 0
 	};
@@ -799,7 +800,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 						// ok: a define that is not JSON keeps the `_app` default
 					}
 				}
-				// Normalize resolve.alias (array or object form) to `{ find, replacement }[]` for bake().
+				// Normalize resolve.alias (array or object form) to `{ find, replacement }[]`.
 				const ra = config.resolve?.alias ?? [];
 				resolve_alias = Array.isArray(ra)
 					? ra.map((a) => ({ find: a.find, replacement: a.replacement }))
