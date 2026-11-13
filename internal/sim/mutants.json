@@ -331,7 +331,7 @@
 	{
 		"id": "hole-answer-later-treated-as-refused",
 		"file": "packages/core/src/runtime/core.ts",
-		"line": 1575,
+		"in": "OgygiaRegion > fetch_failed",
 		"code": "const refused = err instanceof RegionAnswerRefused;",
 		"operator": "statement",
 		"from": "err instanceof RegionAnswerRefused;",
@@ -341,7 +341,7 @@
 	{
 		"id": "missed-part-joiner-not-asking-again",
 		"file": "packages/core/src/runtime/frame-store.ts",
-		"line": 420,
+		"in": "ensure",
 		"code": "if (html !== STALE || signal?.aborted || st.life.closed) return html;",
 		"operator": "statement",
 		"from": "if (html !== STALE || signal?.aborted || st.life.closed) return html;",
@@ -351,7 +351,7 @@
 	{
 		"id": "missed-part-lands-empty",
 		"file": "packages/core/src/runtime/frame-store.ts",
-		"line": 347,
+		"in": "reserve",
 		"code": "const landed = part.wait('landed').then((s) => (s === STALE ? STALE : s.html));",
 		"operator": "statement",
 		"from": "(s === STALE ? STALE : s.html)",
