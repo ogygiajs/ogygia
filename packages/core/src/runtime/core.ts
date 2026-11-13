@@ -11,7 +11,7 @@ import {
 	type Stale,
 	type Turn
 } from '@ogygia/machine';
-import { frameAddress, is_batch_miss, older_by, stands_at, type FrameOrder } from '../frame.ts';
+import { frameAddress, older_by, stands_at, type FrameOrder } from '../frame.ts';
 import { on_trigger, WAKE } from '../contract/trigger.ts';
 import { OG_BAKED, OG_FP, OG_HOLE, OG_KEPT, OG_STATIC, OGYGIA_REGION_CSS } from '../wire-markup.ts';
 import { import_again, is_failed_import, on_file_load, on_reload_needed } from './import-again.ts';
@@ -1523,16 +1523,13 @@ class OgygiaRegion extends HTMLElement {
 			await frames.join(endpoint);
 		const cls = () => (this.#visitor ? 'user' : viewport_class(this));
 		const fetcher = this.#frame_fetcher(endpoint, revalidate, cls);
-		// (joining a warm out for the address: it is raised to this hole's class)
-		const run = () =>
-			frames.ensure(address, fetcher, { force: revalidate, signal, priority: PRIORITY[cls()] });
-		try {
-			return await run();
-		} catch (err) {
-			// the batch it joined did not carry it: its own fetch, now (not a failure, no retry wait)
-			if (!is_batch_miss(err) || signal.aborted) throw err;
-			return await run();
-		}
+		// (joining a warm out for the address: it is raised to this hole's class; a batch that did
+		// not carry it is no failure: the store asks again, and its own fetch runs)
+		return frames.ensure(address, fetcher, {
+			force: revalidate,
+			signal,
+			priority: PRIORITY[cls()]
+		});
 	}
 
 	/**
