@@ -201,6 +201,12 @@
 			"reason": "the random app's transform fails only on its fault points, which wait on dst/reshape-faults",
 			"test": "packages/reshape/test/pass-failed.test.ts",
 			"name": "a transform that drops ogygia's marks is thrown with reshape_marks_lost"
+		},
+		{
+			"site": "packages/core/src/server/page-facts.ts > read_first_line > catch:0",
+			"reason": "a page's data answer that breaks before its first line (#1626): proved: the break thrown (the old code) turns the test red",
+			"test": "packages/core/test/page-facts-broken.test.ts",
+			"name": "a data answer that breaks before its first line is a miss that says why, never a throw"
 		}
 	],
 	"impossible": [],
