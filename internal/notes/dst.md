@@ -466,7 +466,9 @@ missing pages: a 400 taken as no error, and an error that says nothing, die by `
 faults alone kill a navigation that never hands a lost page fetch to the browser, and a hole that
 never fetches again after its retry wait, both by `stuck`), 24 (a reshape pass that trims, with links: it
 kills restore.ts's children not put back and its render left in the light DOM, by `ssr-hydrate`,
-and a stand-in left as `<og-as>`, by `html-kept`: no reshape mark is left at rest), 121 (a peer at
+and a stand-in left as `<og-as>`, by `html-kept`: no reshape mark is left at rest; and trimmed text
+left trimmed, by `text-restored`: a boxed island's `  pad  ` comes back with its whitespace, read
+off the page's `og-t` marks as it passed), 121 (a peer at
 two origins: its first replica down (`down`) and no answer asked of the next dies by
 `mpa-equivalence`, and a widget's, a page's or a hole's failover that keeps a 500, never asks the
 replica, or asks it after an answer, by `peer-failover`), 188 (an empty island that wakes: it kills the
