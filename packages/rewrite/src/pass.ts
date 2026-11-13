@@ -382,7 +382,7 @@ interface UnitOut {
 	first_load: boolean;
 }
 
-function settle_unit(unit: Unit, res: Response, all: boolean): UnitOut {
+function settle_unit(unit: Unit, res: Response, all: boolean, context: readonly string[]): UnitOut {
 	const record = unit.record;
 	if (!unit.changed || record === null)
 		return {
@@ -393,7 +393,7 @@ function settle_unit(unit: Unit, res: Response, all: boolean): UnitOut {
 			check: null,
 			first_load: false
 		};
-	const s = settle(unit.cur, record, { dev: res.dev });
+	const s = settle(unit.cur, record, { dev: res.dev, context });
 	const offset = res.ids;
 	res.ids += record.hosts.size;
 	const html = offset === 0 ? s.html : remap(s.html, (id) => id + offset);
@@ -451,7 +451,7 @@ async function rewrite_chunk(
 	let lead_at = -1;
 	for (let i = 0; i < units.length; i++) {
 		const span = scanned.spans[i];
-		const s = settle_unit(units[i], res, all);
+		const s = settle_unit(units[i], res, all, span.context);
 		out.push(html.slice(pos, span.start));
 		if (lead_at === -1) lead_at = out.push('') - 1;
 		if (units[i].changed) out.push(sheets_for(units[i], res, head));

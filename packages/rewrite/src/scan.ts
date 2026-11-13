@@ -1,5 +1,12 @@
 import { MarkupCursor } from '@ogygia/core/internal/instruments';
-import { custom_name, region_at, tag_name } from './reversible.ts';
+import {
+	custom_name,
+	page_close,
+	page_open,
+	region_at,
+	tag_name,
+	type PageTags
+} from './reversible.ts';
 
 /** Which element names a rewrite takes: a tag prefix, a list of tags, or a test on the name. */
 export type MatchSpec = string | readonly string[] | ((name: string) => boolean);
@@ -46,10 +53,12 @@ export interface ScanState {
 	open: { name: string; depth: number } | null;
 	/** chunks with no match not read yet: read only when a later chunk has one */
 	pending: string[];
+	/** the page's open elements, as the parser keeps them */
+	tags: PageTags;
 }
 
 export function scan_state(region: boolean): ScanState {
-	return { in_body: region, regions: [], foreign: 0, open: null, pending: [] };
+	return { in_body: region, regions: [], foreign: 0, open: null, pending: [], tags: [] };
 }
 
 const NONE: Matcher = { test: () => false, needles: [] };
@@ -61,6 +70,8 @@ export interface Span {
 	end: number;
 	name: string;
 	owned: boolean;
+	/** the page's open elements around it, outermost first */
+	context: readonly string[];
 }
 
 export interface Scanned {
@@ -103,6 +114,7 @@ function read(html: string, m: Matcher, state: ScanState, csr: boolean): Scanned
 	let open = state.open;
 	let start = -1;
 	let owned = false;
+	let context: readonly string[] = [];
 	for (const at = new MarkupCursor(html); at.next();) {
 		if (at.kind === 1) {
 			const name = tag_name(html, at.start + 1, at.ne);
@@ -117,17 +129,18 @@ function read(html: string, m: Matcher, state: ScanState, csr: boolean): Scanned
 			if (state.foreign > 0) continue;
 			if (name === 'body') state.in_body = true;
 			else if (name === 'ogygia-region') state.regions.push(region_at(html, at.ne) === 'island');
-			else if (state.in_body && custom_name(name) && m.test(name)) {
+			if (state.in_body && custom_name(name) && m.test(name)) {
 				open = { name, depth: 1 };
 				start = at.start;
 				const r = state.regions;
 				owned = r.length ? r[r.length - 1] : csr;
-			}
+				context = state.tags.map((t) => t.name);
+			} else page_open(state.tags, name, html.charCodeAt(at.end - 2) === 47);
 		} else if (at.kind === 2) {
 			const name = tag_name(html, at.start + 2, at.ne);
 			if (open !== null) {
 				if (name === open.name && --open.depth === 0) {
-					if (start !== -1) spans.push({ start, end: at.end, name, owned });
+					if (start !== -1) spans.push({ start, end: at.end, name, owned, context });
 					open = null;
 					start = -1;
 				}
@@ -135,7 +148,10 @@ function read(html: string, m: Matcher, state: ScanState, csr: boolean): Scanned
 			}
 			if (state.foreign > 0) {
 				if (name === 'svg' || name === 'math') state.foreign--;
-			} else if (name === 'ogygia-region') state.regions.pop();
+			} else {
+				if (name === 'ogygia-region') state.regions.pop();
+				page_close(state.tags, name);
+			}
 		}
 	}
 	state.open = open;
