@@ -83,7 +83,7 @@ describe('a live region whose tick changes its shape', () => {
 				'      "n10"'
 			].join('\n');
 		const moving = reshaped_live(held(other), held(still));
-		expect([...moving].sort()).toEqual([0, 1]);
+		expect([...moving].sort((a, b) => a - b)).toEqual([0, 1]);
 		const out = live_regions_out(held(other), moving);
 		expect(out).toBe(live_regions_out(held(still), moving));
 		expect(out.split('\n').slice(-3)).toEqual([

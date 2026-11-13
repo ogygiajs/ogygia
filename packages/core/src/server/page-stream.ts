@@ -1,5 +1,5 @@
 import { stringify } from 'devalue';
-import { noop, STALE, type Scope, type Stale } from '@ogygia/machine';
+import { noop, STALE, type Scope } from '@ogygia/machine';
 import { PAGE_DEFER_GLOBAL, PAGE_DEFER_KEY, PAGE_SETTLED_KEY } from '../page-defer.ts';
 import { escape_script_text } from '../escape.ts';
 import { warn } from '../messages/server.ts';
@@ -181,7 +181,7 @@ export function stage_deferred(
  * visitor left), even when a promise never settles. `path` names the page in dev's
  * `page_promise_pending`.
  */
-export function settle_deferred(value: unknown, owner: Scope, path = ''): Promise<unknown | Stale> {
+export function settle_deferred(value: unknown, owner: Scope, path = ''): Promise<unknown> {
 	// (started before the task: a closed owner never runs its work, and every promise still needs
 	// its rejection handled)
 	const settling = settle_all(value);

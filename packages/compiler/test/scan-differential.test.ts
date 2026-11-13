@@ -29,7 +29,10 @@ function oxc_calls(code: string): string[] {
 	if (!r.ok || !r.program) throw new Error(`not a program: ${code}`);
 	const out: string[] = [];
 	const walk = (n: unknown): void => {
-		if (Array.isArray(n)) return void n.forEach(walk);
+		if (Array.isArray(n)) {
+			n.forEach(walk);
+			return;
+		}
 		if (!n || typeof n !== 'object') return;
 		const node = n as AstNode;
 		if (node.type === 'CallExpression') {

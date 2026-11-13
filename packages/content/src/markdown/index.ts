@@ -88,6 +88,7 @@ type UnifiedEntry = NonNullable<MdsvexOptions['remarkPlugins']>[number];
  * `{ enforce: 'pre', plugin }` runs before the built-in passes (`'post'` = the default, explicit).
  */
 export type StagedPlugin =
+	// oxlint-disable-next-line typescript/no-redundant-type-constituents -- mdsvex's entry type is any (unified does not resolve from mdsvex); a real type narrows a public option, owner call
 	| UnifiedEntry
 	| {
 			enforce: 'pre' | 'post';
