@@ -128,4 +128,25 @@ describe('try_region_emit', () => {
 		expect(out!.html).toBe('<p>hi</p>');
 		expect(out!.code).toContain('export const metadata = {"title":"X"};');
 	});
+
+	it('finds the module script as the tag walk reads it: a `>` in a value, unquoted `context=module` (#1370)', () => {
+		for (const open of [
+			'<script module data-note="a>b">',
+			"<script context='module'>",
+			'<script context=module>'
+		]) {
+			const out = try_region_emit(
+				`${open}\nexport const metadata = {"title":"X"};\n</script>\n<p>hi</p>`,
+				[]
+			);
+			expect(out!.html).toBe('<p>hi</p>');
+			expect(out!.code).toContain('\nexport const metadata = {"title":"X"};');
+			expect(out!.code).not.toContain('b">');
+		}
+	});
+
+	it('a script that is not Svelte\'s module script is not taken for one: `type="module"`, `data-module` (#1370)', () => {
+		for (const open of ['<script type="module" src="/x.js">', '<script data-module>'])
+			expect(try_region_emit(`<p>hi</p>\n${open}</script>`, [])).toBeNull();
+	});
 });
