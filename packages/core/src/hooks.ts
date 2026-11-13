@@ -1701,6 +1701,8 @@ class OgygiaHandle {
 	 * batch path ({@link #render_capability}).
 	 */
 	async #render_component(
+		/** the hole's region id: its answer's slot ids carry it */
+		id: string,
 		load: () => Promise<{ default: unknown }>,
 		props: Record<string, unknown>,
 		/** the hole wakes (its capability's signed `w`): rendered inside an island, as it hydrates */
@@ -1728,7 +1730,7 @@ class OgygiaHandle {
 			const mod = await load();
 			const rendered = render(mod.default as Component<Record<string, unknown>>, {
 				props,
-				context: hole_answer_context(wakes)
+				context: hole_answer_context(wakes, id)
 			});
 			// (with what its islands wrote into the head — their graph and their CSS: the endpoint
 			// ships the body only — server/hole-graph.ts)
@@ -1978,6 +1980,7 @@ class OgygiaHandle {
 		let outcome: 'hit' | 'miss' | 'none' = 'none';
 		if (!r.go('rendering')) return null;
 		const body = await this.#render_component(
+			id,
 			load,
 			props,
 			wakes,
@@ -2134,6 +2137,7 @@ class OgygiaHandle {
 		let outcome: 'hit' | 'miss' | 'none' = 'none';
 		if (!r.go('rendering')) return region_response('Region render failed', { status: 500 });
 		const body = await this.#render_component(
+			id,
 			load,
 			props,
 			wakes,
