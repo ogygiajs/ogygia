@@ -61,6 +61,29 @@ export interface ClientRealm {
 type Payload<K extends RuntimeHookName> = Parameters<RuntimeHooks[K]>[0];
 
 /**
+ * How the runtime calls into a plugin, for one hook (or `boot`): a throw or a rejected promise is
+ * reported once per plugin and stops nothing else (test/runtime-hooks-compose.test.ts).
+ */
+function isolated(hook: RuntimeHookName | 'boot'): (plugin: string, run: () => unknown) => unknown {
+	const failed = new Set<string>();
+	const report = (plugin: string, err: unknown) => {
+		if (failed.has(plugin)) return;
+		failed.add(plugin);
+		console.error(new OgygiaError('client_hook_failed', { plugin, hook }), err);
+	};
+	return (plugin, run) => {
+		try {
+			const out = run();
+			if (typeof (out as PromiseLike<unknown> | undefined)?.then === 'function')
+				Promise.resolve(out).catch((err: unknown) => report(plugin, err));
+			return out;
+		} catch (err) {
+			report(plugin, err);
+		}
+	};
+}
+
+/**
  * The hook as the runtime calls it, built once at boot: every subscriber in plugin order, each call
  * wrapped so a throw or a rejected promise is reported once per plugin and stops nothing else.
  * The functions subscribers return (`regionHydrate`'s afters) come back as one, the same way, or
@@ -76,22 +99,7 @@ function joined<K extends RuntimeHookName>(
 		if (f) subscribers.push({ plugin, f });
 	}
 	if (!subscribers.length) return undefined;
-	const failed = new Set<string>();
-	const report = (plugin: string, err: unknown) => {
-		if (failed.has(plugin)) return;
-		failed.add(plugin);
-		console.error(new OgygiaError('client_hook_failed', { plugin, hook: name }), err);
-	};
-	const call = (plugin: string, run: () => unknown): unknown => {
-		try {
-			const out = run();
-			if (typeof (out as PromiseLike<unknown> | undefined)?.then === 'function')
-				Promise.resolve(out).catch((err: unknown) => report(plugin, err));
-			return out;
-		} catch (err) {
-			report(plugin, err);
-		}
-	};
+	const call = isolated(name);
 	return ((e: Payload<K>) => {
 		if (import.meta.env.DEV) Object.freeze(e);
 		let afters: { plugin: string; f: () => unknown }[] | undefined;
@@ -152,7 +160,9 @@ export function boot_client_plugins(list: readonly ClientRealm[], kit_page: bool
 		if (HOOK_WARNING) h.warning = joined(list, 'warning');
 		slots.hooks = h;
 	}
-	for (const { client } of list) client.boot?.({ kitPage: kit_page });
+	const boot = isolated('boot');
+	for (const { name, client } of list)
+		if (client.boot) boot(name, () => client.boot?.({ kitPage: kit_page }));
 }
 
 /** A region's component started in the browser: its entry, and the files it runs from. */
