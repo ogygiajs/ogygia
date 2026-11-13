@@ -685,26 +685,6 @@
 			"reason": "a response's two CSP headers read and set (Headers, not cloneable), linear in the policy; proven in packages/core/test/early-holes-csp.test.ts through with_early_holes_csp"
 		},
 		{
-			"id": "packages/core/src/server/early-holes-csp.ts > with_early_holes_csp",
-			"reason": "reads the module's constant script hash (hidden state by design: computed once at startup), linear in the policy; proven in packages/core/test/early-holes-csp.test.ts"
-		},
-		{
-			"id": "packages/core/src/server/early-holes-csp.ts > with_early_holes_meta_csp",
-			"reason": "one regex replace over the head, linear in it, reading the constant hash; proven in packages/core/test/early-holes-csp.test.ts"
-		},
-		{
-			"id": "packages/core/src/server/early-holes-csp.ts > with_hash",
-			"reason": "one policy's directives split and the hash added, linear in the policy, reading the constant hash; proven in packages/core/test/early-holes-csp.test.ts"
-		},
-		{
-			"id": "packages/core/src/server/early-holes-csp.ts > with_hash > map:0~060e5e",
-			"reason": "one source lower-cased, constant work; proven in packages/core/test/early-holes-csp.test.ts"
-		},
-		{
-			"id": "packages/core/src/server/early-holes-csp.ts > with_hash > map:0~7e326c",
-			"reason": "one directive's name read, constant work; proven in packages/core/test/early-holes-csp.test.ts"
-		},
-		{
 			"id": "packages/core/src/server/early-holes-csp.ts > with_hash > some:0~a1ce32",
 			"reason": "one source tested for a nonce or hash, constant work; proven in packages/core/test/early-holes-csp.test.ts"
 		},
@@ -5807,6 +5787,34 @@
 		{
 			"id": "packages/data-shake/src/vite.ts > dataShake > definePlugin:0~7b132b > build",
 			"reason": "build only: makes the plugin's page_reads (measured in the data-shake bench) and hands it to the build, once per build"
+		},
+		{
+			"id": "packages/core/src/server/html-scan.ts > kit_boot_script > is_kit_boot_script:1~dc8962",
+			"reason": "one attribute lookup on a tag the walk already read, constant work; kit-gate.test.ts runs it"
+		},
+		{
+			"id": "packages/core/src/server/kit-gate.ts > kit_gate",
+			"reason": "once per Kit-hydrated document: rewrites one expression in Kit's start script, linear in that script; kit-gate.test.ts runs it"
+		},
+		{
+			"id": "packages/core/src/server/html-scan.ts > kit_boot_script",
+			"reason": "once per Kit-hydrated document: finds Kit's start script with one backward tag walk from the end, linear in the tail it reads; kit-gate.test.ts runs it"
+		},
+		{
+			"id": "packages/core/src/server/html-scan.ts > kit_boot_script > before",
+			"reason": "the tag walk's stop test, constant work per tag; kit-gate.test.ts runs it"
+		},
+		{
+			"id": "packages/core/src/server/early-holes-csp.ts > inline_source",
+			"reason": "one sha256 of an inline script's text, once per script the gate adds (Kit's start script, the early holes script); early-holes-csp.test.ts runs it"
+		},
+		{
+			"id": "packages/core/src/server/early-holes-csp.ts > with_early_holes_csp > map:0~0495d5",
+			"reason": "one with_hash call per comma-separated policy in a CSP header, a handful at most; early-holes-csp.test.ts runs it"
+		},
+		{
+			"id": "packages/core/src/server/early-holes-csp.ts > with_hash > filter:0~82d7e5",
+			"reason": "the sources to add that a directive lacks, constant work per source (one or two hashes); early-holes-csp.test.ts runs it"
 		}
 	]
 }
