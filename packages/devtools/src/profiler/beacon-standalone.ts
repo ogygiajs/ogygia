@@ -199,8 +199,19 @@ export function standalone_beacon(): void {
 		fetch: 'fetch'
 	};
 
-	const target =
-		document.querySelector('meta[name="ogygia-profiler-beacon"]')?.getAttribute('content') || null;
+	// The target comes only from the head the server wrote, and only on the page's own origin: a
+	// tag elsewhere, or naming another origin, sends nothing (test: beacon-own-origin).
+	const target = ((): string | null => {
+		const raw = document
+			.querySelector('head > meta[name="ogygia-profiler-beacon"]')
+			?.getAttribute('content');
+		if (!raw) return null;
+		try {
+			return new URL(raw, location.href).origin === location.origin ? raw : null;
+		} catch {
+			return null; // ok: an address that does not parse is no target
+		}
+	})();
 	const landing = location.pathname;
 	const r2 = (n: number) => Math.round(n * 100) / 100;
 	const spent = (g[Symbol.for('ogygia.own-cost')] ??= {}) as Record<string, number>;
