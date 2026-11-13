@@ -39,6 +39,22 @@ describe('parse_trigger', () => {
 		])
 			expect(parse_trigger(q, WAKE), q).toBeNull();
 	});
+
+	it('every media type CSS accepts is a media word, the deprecated ones too', () => {
+		for (const type of [
+			'speech',
+			'tty',
+			'tv',
+			'projection',
+			'handheld',
+			'braille',
+			'embossed',
+			'aural'
+		]) {
+			const q = `${type} and (min-width: 600px)`;
+			expect(parse_trigger(q, WAKE), q).toEqual({ on: 'media', query: q });
+		}
+	});
 });
 
 describe('on_schedule', () => {
