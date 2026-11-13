@@ -3897,10 +3897,6 @@
 			"reason": "a live Vite transform hook (its this.resolve is the plugin context, not recorded); returns at once for a module without import_again or a file token; proven in packages/compiler/test/lazy-files.test.ts"
 		},
 		{
-			"id": "packages/compiler/src/vite/lazy-files.ts > lazy_files > renderChunk",
-			"reason": "build only: Vite's renderChunk hook over a rendered chunk and its bundle (not cloneable), linear in the chunk's file tokens; proven in packages/compiler/test/lazy-files.test.ts"
-		},
-		{
 			"id": "packages/core/src/runtime/import-again.ts > import_again > next > catch:0~df975d",
 			"reason": "browser only: a failed retry's import (an Error: not replayable): starts the wait for its verdict, constant work of its own; proven in packages/core/test/import-again.test.ts"
 		},
