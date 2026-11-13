@@ -5,7 +5,7 @@
 // then generated mixes of them (seeded 314; OGYGIA_FUZZ_SEED, OGYGIA_FUZZ_RUNS).
 import { describe, expect, it } from 'vitest';
 import { fc } from '@ogygia/config/sim';
-import { page_data_keys } from '../src/compiler/link/page-keys.ts';
+import { page_data_keys, summarize_export } from '../src/compiler/link/page-keys.ts';
 import { dedent } from '@ogygia/core/contract';
 
 const KEYS = ['a', 'b', 'c'];
@@ -126,6 +126,26 @@ const SHAPES: ((k: string) => string)[] = [
 	(k) => {
 		const d = v();
 		return `class ${d.toUpperCase()} { m() { return page.data.${k}; } } use(new ${d.toUpperCase()}().m());`;
+	},
+	(k) => {
+		const f = v();
+		return `function ${f}(p) { return arguments[0].data.${k}; } use(${f}(page));`;
+	},
+	(k) => {
+		const f = v();
+		return `function ${f}(p, q = p.data.${k}) { return q; } use(${f}(page));`;
+	},
+	(k) => {
+		const f = v();
+		return `function ${f}(p) { const q = p; return q.data.${k}; } use(${f}(page));`;
+	},
+	(k) => {
+		const f = v();
+		return `let ${f} = (p) => p.url; ${f} = (p) => p.data.${k}; use(${f}(page));`;
+	},
+	(k) => {
+		const f = v();
+		return `function ${f}(p) { return p.url; } ${f} = (p) => p.data.${k}; use(${f}(page));`;
 	}
 ];
 
@@ -194,5 +214,47 @@ describe('page.data seed shaping is sound', () => {
 				numRuns: Number(process.env.OGYGIA_FUZZ_RUNS ?? 300)
 			}
 		);
+	});
+});
+
+/** Imported helpers: `summarize_export` must cover what `h(page)` really reads. */
+const HELPERS = [
+	'export function h(p) { return p.data.b; }',
+	'export const h = (p) => p.data?.b;',
+	'export function h(p) { const q = p; return q.data.b; }',
+	'export function h(p) { let q; q = p; return q.data.b; }',
+	'export function h(p) { const d = p.data; return d.b; }',
+	'export function h(p, q = p.data.b) { return q; }',
+	'export const h = (p, { b } = p.data) => b;',
+	'export function h(p) { return arguments[0].data.b; }',
+	'export function h(p) { const r = arguments; return r[0].data.b; }',
+	'export function h(p) { function inner() { return p.data.b; } return inner(); }',
+	'export function h(p) { return [p][0].data.b; }',
+	'export function h(...ps) { return ps[0].data.b; }',
+	'export let h = (p) => p.url; h = (p) => p.data.b;',
+	'export function h(p) { return p.url; } h = (p) => p.data.b;',
+	'function h(p) { return p.url; } export { h }; h = (p) => p.data.b;',
+	'function g(p) { return p.data.b; } export { g as h };'
+];
+
+describe('an imported helper handed the page is summarized soundly', () => {
+	it.each(HELPERS)('%s', (code) => {
+		const summary = summarize_export(code, '/app/src/lib/h.ts', 'script', 'h', 0);
+		const seen = { all: false, keys: new Set<string>() };
+		const data = new Proxy({ a: 1, b: 2, c: 3 } as Record<string, unknown>, {
+			get: (t, k, r) => (typeof k === 'string' && seen.keys.add(k), Reflect.get(t, k, r)),
+			ownKeys: (t) => ((seen.all = true), Reflect.ownKeys(t))
+		});
+		const runnable = code.replace(/\bexport \{[^}]*\};?/g, '').replace(/\bexport /g, '');
+		const exported = /export \{ g as h \}/.test(code) ? 'g' : 'h';
+		new Function('page', `${runnable}\nreturn ${exported}(page);`)({ data, url: '/' });
+		const read = [...seen.keys].filter((k) => KEYS.includes(k));
+		const covered =
+			summary === 'all' ||
+			('follow' in summary ? false : !seen.all && read.every((k) => summary.has(k)));
+		expect(
+			covered,
+			`summarized ${JSON.stringify(summary === 'all' ? 'all' : [...(summary as Set<string>)])}, read ${read}`
+		).toBe(true);
 	});
 });
