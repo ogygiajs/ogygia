@@ -244,6 +244,19 @@ export class Network {
 		);
 	}
 
+	/** Exchanges whose body is a live answer's (it never ends: not work in flight). */
+	readonly #live_bodies = new WeakSet<Exchange>();
+
+	/** Whether work of `realm`'s document is on the wire: a request of its not answered yet, its
+	 *  response on the way, or a body to it still coming that is not a live answer's. */
+	busy_for(realm: string): boolean {
+		const its = (e: Exchange) => e.from === realm || e.for === realm;
+		this.unanswered();
+		for (const e of this.#open) if (its(e)) return true;
+		for (const e of this.#on_wire.keys()) if (its(e) && !this.#live_bodies.has(e)) return true;
+		return false;
+	}
+
 	isOffline(realm: string): boolean {
 		return this.#offline.has(realm);
 	}
@@ -501,7 +514,10 @@ export class Network {
 					// ok: the client cancelled the body; what is still on the way is dropped
 				}
 			});
-			if (live) this.#live.add(task);
+			if (live) {
+				this.#live.add(task);
+				this.#live_bodies.add(ex);
+			}
 		};
 		const stop = (why: string, offline = false): void => {
 			if (offline) ex.lost = true;
