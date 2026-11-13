@@ -2,7 +2,7 @@
 // server/render-page.ts): the server manifest's placeholder is patched, once the graph is complete,
 // with each server island's answer over its component's static AND dynamic imports.
 import { describe, test, expect } from 'vitest';
-import { CompileCtx, Compiler, Program, normalize_import_keys } from '../dist/compiler/index.js';
+import { CompileCtx, Compiler, Program, normalize_import_keys } from '../src/compiler/index.ts';
 import { partial_ctx_init } from './_compile-ctx.ts';
 
 // the manifest's placeholder as the server manifest emits it (a string literal no bundler folds)
@@ -93,6 +93,19 @@ describe('the page-data reads relocation', () => {
 		// (a bundler that re-quoted the literal with single quotes)
 		const out = c.relocate(PLACEHOLDER.split('"').join("'"), server_leg(), bundle);
 		expect(value_of(out!.code)).toEqual({ cccccccccccc: true, dddddddddddd: true });
+	});
+
+	test("a component is found under the graph's id for it, a query or backslashes included", () => {
+		const c = compiler_with({ eeeeeeeeeeee: '/app/Clean.svelte' }, {});
+		const quiet = {
+			...bundle,
+			graph: (id: string) =>
+				id === '\\app\\Clean.svelte?v=1' ? { importedIds: [], dynamicallyImportedIds: [] } : null,
+			module_ids: () => ['\\app\\Clean.svelte?v=1']
+		};
+		expect(value_of(c.relocate(PLACEHOLDER, server_leg(), quiet)!.code)).toEqual({
+			eeeeeeeeeeee: false
+		});
 	});
 
 	test('unpatched (a build that never reached renderChunk), it is unknown: null', () => {
