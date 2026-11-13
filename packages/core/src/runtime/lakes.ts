@@ -14,7 +14,7 @@ import {
 import { runtime_session } from './session.ts';
 import { slots, type LakeArm, type LiftedLake } from './slots.ts';
 import { warn } from '../messages/core.ts';
-import { OG_STATIC } from '../wire-markup.ts';
+import { OG_LAKE, OG_STATIC } from '../wire-markup.ts';
 import { note_lake_restore } from './rules.ts';
 
 // the runtime's rules (./rules.ts): dev, and a build made with OGYGIA_RULES=1; folds out elsewhere
@@ -54,10 +54,30 @@ const lifted_lakes_of = (parent: Element) =>
 		(l) => l.parentElement?.closest('ogygia-region') === parent && !in_live_snippet(l, parent)
 	);
 
+const lake_identity_of = (lake: Element) =>
+	lake.getAttribute(OG_LAKE) || lake.getAttribute('entry') || '';
+
+/**
+ * A lake's key in the session (`initialized_lakes`, `lake_cache`): its identity (`data-og-lake`, the
+ * fingerprint of its entry and props, the same on both legs), and its place among the lakes on the
+ * page that share it. Two lakes of one component with different props never share a key; two with
+ * the same props are told apart by order.
+ */
+function lake_key(lake: Element): string {
+	const identity = lake_identity_of(lake);
+	if (!identity) return '';
+	let rank = 0;
+	for (const other of lake.ownerDocument.querySelectorAll(FROZEN_SELECTOR)) {
+		if (other === lake) break;
+		if (lake_identity_of(other) === identity) rank++;
+	}
+	return rank ? `${identity}#${rank}` : identity;
+}
+
 export function lift(parent: Element): LiftedLake[] {
 	const lifted: LiftedLake[] = [];
 	for (const lake of lifted_lakes_of(parent)) {
-		const id = lake.getAttribute('entry') || '';
+		const id = lake_key(lake);
 		const frag = document.createDocumentFragment();
 		while (lake.firstChild) frag.appendChild(lake.firstChild);
 		relocate_trailing_empty_comments(frag, lake);
@@ -73,19 +93,18 @@ export function lift(parent: Element): LiftedLake[] {
 }
 
 export function restore(parent: Element, lifted: LiftedLake[]): void {
-	// Pair by POSITION, not by shared `entry`: two same-component lakes share ONE entry id (props/DOM
-	// ride per-instance, but the id is component+schedule), so `querySelector([entry])` returns the
-	// FIRST for both — both frags land in lake #1, leaving lake #2 empty. `lift()` collected `lifted`
-	// in DOM order under this exact direct-child filter, and hydrate-in-place doesn't reorder the frozen
-	// children, so the i-th surviving lake here owns the i-th lifted frag (rule_lake_restored: the
-	// counts agree).
-	const lakes = lifted_lakes_of(parent);
-	if (RULES) note_lake_restore(parent, lifted.length, lakes.length);
+	const by_key = new Map(lifted.map((l) => [l.id, l]));
+	const pairs: Array<[Element, LiftedLake]> = [];
+	for (const lake of lifted_lakes_of(parent)) {
+		const own = by_key.get(lake_key(lake));
+		if (own) pairs.push([lake, own]);
+	}
+	if (RULES) note_lake_restore(parent, lifted.length, pairs.length);
 	// a live snippet's lakes stayed in place: settled and remembered here all the same, as the host is awake
 	for (const lake of parent.querySelectorAll(FROZEN_SELECTOR)) {
 		if (lake.parentElement?.closest('ogygia-region') !== parent || !in_live_snippet(lake, parent))
 			continue;
-		const id = lake.getAttribute('entry') || '';
+		const id = lake_key(lake);
 		settle_in(lake);
 		runtime_session.initialized_lakes.add(id);
 		remember(lake, id, {
@@ -97,9 +116,7 @@ export function restore(parent: Element, lifted: LiftedLake[]): void {
 		for (const r of lake.querySelectorAll('ogygia-region'))
 			(r as HTMLElement & { connectedCallback?(): void }).connectedCallback?.();
 	}
-	for (let i = 0; i < lifted.length && i < lakes.length; i++) {
-		const lake = lakes[i];
-		const { id, frag, endpoint, when, maxAgeMs } = lifted[i];
+	for (const [lake, { id, frag, endpoint, when, maxAgeMs }] of pairs) {
 		settle_in(lake);
 		settle_in(frag);
 		runtime_session.initialized_lakes.add(id);
@@ -145,7 +162,7 @@ function remember(
 
 export function on_frozen_connect(el: HTMLElement, arm: LakeArm): boolean {
 	if (!is_frozen(el)) return false;
-	const id = el.getAttribute('entry') || '';
+	const id = lake_key(el);
 	if (!runtime_session.initialized_lakes.has(id)) {
 		// FIRST mount. On a normal document the SSR DOM is fresh — nothing to do. On a document
 		// SERVED FROM A PAGE STORE (postrender) it is a cached render by definition, so an swr lake
@@ -162,7 +179,7 @@ export function on_frozen_connect(el: HTMLElement, arm: LakeArm): boolean {
 			// A live region with NO island host: nothing ever drives its remount revalidation on a
 			// regular page (it works on store-served documents via the doc marker, and inside an
 			// island host via lift/restore + remount). Say so instead of silently baking forever.
-			warn('live_region_no_host', { id });
+			warn('live_region_no_host', { id: el.getAttribute('entry') || id });
 		}
 		// A lake with no AWAKE region host is settled as it stands: nothing will ever lift/restore
 		// it (that is the host island's hydrate), so the regions authored inside must self-run now
@@ -191,9 +208,8 @@ export function on_frozen_connect(el: HTMLElement, arm: LakeArm): boolean {
 		return true;
 	}
 	if (!region_is_vacant(el)) {
-		// A known lake id connecting WITH content: a second instance of the same lake on the page
-		// (two same-component lakes share one entry id), or the SSR element connecting again. An
-		// unhosted one is settled as it stands, exactly like its first mount — nothing else will.
+		// A known lake connecting WITH content: the SSR element connecting again. An unhosted one is
+		// settled as it stands, exactly like its first mount — nothing else will.
 		if (unhosted(el)) runtime_session.settle_lake(el);
 		return true;
 	}
@@ -239,7 +255,7 @@ export function on_frozen_connect(el: HTMLElement, arm: LakeArm): boolean {
 				runtime_session.settle_lake(el);
 				arm.wake_children();
 				if (import.meta.env.DEV) {
-					warn('live_region_no_endpoint', { id });
+					warn('live_region_no_endpoint', { id: el.getAttribute('entry') || id });
 				}
 				return true;
 			}
@@ -279,7 +295,7 @@ export function after_html_swap(
 	// what it morphed in place is woken here)
 	if (runtime_session.wake_lake(region)) wake_children();
 	if (!opts.revalidate) return;
-	const id = region.getAttribute('entry') || '';
+	const id = lake_key(region);
 	if (!id) return;
 	const cached = document.createDocumentFragment();
 	for (const child of Array.from(region.childNodes)) {
