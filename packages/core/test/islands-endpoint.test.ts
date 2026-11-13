@@ -65,7 +65,7 @@ describe('the islands endpoint', () => {
 		expect(renders_for_a_page(at('/sub/api'))).toBe(false);
 	});
 
-	it('a second handle naming another endpoint is said, in production; the same one again is not', () => {
+	it('a second handle naming another endpoint is said, in production, and the first stands; the same one again is not', () => {
 		vi.stubEnv('DEV', false);
 		const errors: unknown[] = [];
 		vi.spyOn(console, 'error').mockImplementation((e: unknown) => void errors.push(e));
@@ -74,7 +74,33 @@ describe('the islands endpoint', () => {
 		expect(errors).toEqual([]);
 		configure_islands_endpoint('/b');
 		expect(String(errors[0])).toContain('islands_endpoint_conflict');
-		expect(islands_endpoint()).toBe('/b');
+		// (pages already minted name /a, and the handle answers on /a: the two never part)
+		expect(islands_endpoint()).toBe('/a');
+		expect(mint_server_region('abc123', {})).toMatch(/^\/a\?id=abc123&/);
+	});
+
+	it('a second handle naming another endpoint throws in dev, and the first stands', () => {
+		configure_islands_endpoint('/a');
+		expect(() => configure_islands_endpoint('/b')).toThrow('islands_endpoint_conflict');
+		expect(islands_endpoint()).toBe('/a');
+	});
+
+	it('an endpoint used before any handle named one is decided: a handle naming another later is a conflict', () => {
+		expect(mint_server_region('abc123', {})).toMatch(/^\/__ogygia__\?/);
+		expect(() => configure_islands_endpoint('/late')).toThrow('islands_endpoint_conflict');
+		expect(islands_endpoint()).toBe(DEFAULT_ISLANDS_ENDPOINT);
+	});
+
+	it('a second copy of the module shares the one endpoint: its handle naming another is a conflict', async () => {
+		const second: unknown = await import(
+			// @ts-expect-error: no types for a query specifier
+			'../src/server/endpoint.ts?copy'
+		);
+		const copy = second as typeof import('../src/server/endpoint.ts');
+		expect(copy.configure_islands_endpoint).not.toBe(configure_islands_endpoint);
+		configure_islands_endpoint('/a');
+		expect(() => copy.configure_islands_endpoint(undefined)).toThrow('islands_endpoint_conflict');
+		expect(copy.islands_endpoint()).toBe('/a');
 	});
 
 	it('a minted capability names its signing key (`&k=`, outside the MAC)', () => {

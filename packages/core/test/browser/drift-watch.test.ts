@@ -17,7 +17,7 @@ describe('drift-watch: which sleeping islands were touched', () => {
 	it('an untouched island is not changed; attribute edits do not count', () => {
 		const r = region('<p>hi</p>');
 		const sleep = scope();
-		watch_region(sleep);
+		watch_region(sleep, r);
 		r.querySelector('p')!.setAttribute('class', 'x');
 		expect(region_changed(r)).toBe(false);
 		sleep.close();
@@ -29,7 +29,7 @@ describe('drift-watch: which sleeping islands were touched', () => {
 		const inner = outer.querySelector('ogygia-region')!;
 		const other = region('<p>b</p>');
 		const sleep = scope();
-		watch_region(sleep);
+		watch_region(sleep, outer);
 		inner.querySelector('p')!.firstChild!.nodeValue = 'changed';
 		expect(region_changed(inner)).toBe(true);
 		expect(region_changed(outer)).toBe(true);
@@ -42,7 +42,7 @@ describe('drift-watch: which sleeping islands were touched', () => {
 	it('records pending when the last sleep ends still count', () => {
 		const r = region('<p>c</p>');
 		const sleep = scope();
-		watch_region(sleep);
+		watch_region(sleep, r);
 		r.append(document.createElement('span'));
 		sleep.close();
 		expect(region_changed(r)).toBe(true);
@@ -53,8 +53,8 @@ describe('drift-watch: which sleeping islands were touched', () => {
 		const r = region('<p>e</p>');
 		const first = scope();
 		const second = scope();
-		watch_region(first);
-		watch_region(second);
+		watch_region(first, r);
+		watch_region(second, r);
 		first.close();
 		first.close(); // (an end runs once: it cannot take the second's place)
 		r.append(document.createElement('span'));
@@ -67,10 +67,10 @@ describe('drift-watch: which sleeping islands were touched', () => {
 		const r = region('<p>f</p>');
 		const ended = scope();
 		ended.close();
-		watch_region(ended);
+		watch_region(ended, r);
 		r.append(document.createElement('span'));
 		const sleep = scope();
-		watch_region(sleep);
+		watch_region(sleep, r);
 		expect(region_changed(r)).toBe(false);
 		sleep.close();
 		r.remove();
