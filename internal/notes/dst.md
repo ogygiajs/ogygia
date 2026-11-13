@@ -411,7 +411,9 @@ MUTATION, DAILY: dst.yml's `mutate` job (cron `43 3 * * *`) runs `src/mutate.ts`
 `internal/sim/mutants.json` on main's code, over gens 188 (an empty island that wakes: it kills the
 repair's `> 0` mutant), 191, 192, 193, 220 (a text-only third party on a page root: it kills
 `align_to`'s last `return true` -> false) and 262 (islands with a `<svelte:head>`, one a third party
-edits: it kills the head mutants), with `--budget-min 60` (no mutant starts after an hour; the last line says
+edits: it kills the head mutants), 550 (an island with a margin; and seeds 33, 36, 65 and 74 past
+the range, `550+33+36+65+74`: only they open a tab behind, which kills a hidden document read as
+shown) and 734 (a federated app), with `--budget-min 60` (no mutant starts after an hour; the last line says
 how many it judged of the list, and when) and uploads it (`dst-mutation`). Each listed mutant names
 its line's `code`, and goes on the line that holds it, so the list outlives main's lines moving
 (`test/mutate.test.ts` checks that every one applies). The always-on job's batch
