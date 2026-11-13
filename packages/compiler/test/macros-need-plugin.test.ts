@@ -44,7 +44,8 @@ describe('a plugin macro without its plugin', () => {
 		const src = `// import.meta.og.code('x')\nexport const t = 'import.meta.og.md(x)';`;
 		expect(await run_module_macros(src, APP, ctx(), NO_PROFILE)).toEqual({
 			code: src,
-			touched: false
+			touched: false,
+			maps: []
 		});
 		const unknown = `export const v = import.meta.og.nothing();`;
 		expect((await run_module_macros(unknown, APP, ctx(), NO_PROFILE)).code).toBe(unknown);

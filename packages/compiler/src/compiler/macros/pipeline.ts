@@ -4,14 +4,16 @@
  * auto-branding, then the plugins' macros. Each pass is a no-op unless its exact marker is present, is
  * extension-aware, and (where it matters) AST-precise. Pulled out of the Vite adapter so the whole
  * macro leg is one call (`Compiler.macros`) the driver owns. Pure over `(source, id, ctx)` apart from the `dollarHoists` map it fills and the profiler
- * timing it records; returns `{ code, touched }` (the caller invalidates its own sourcemap on touch).
+ * timing it records; returns `{ code, touched, maps }`, one map per pass that changed the text.
  */
 import path from 'node:path';
 import { noop } from '@ogygia/machine';
-import { rewrite_wire } from './wire.ts';
-import { rewrite_dollar } from './dollar.ts';
-import { rewrite_source } from './source.ts';
-import { rewrite_store, auto_brand_stores } from './store.ts';
+import { wire_edits } from './wire.ts';
+import { dollar_edits } from './dollar.ts';
+import { source_edits } from './source.ts';
+import { store_edits, auto_brand_edits } from './store.ts';
+import type { StepMap } from '../map-chain.ts';
+import { splice_map, splice_text, type Edit } from '../splice.ts';
 import type { Profiler } from '../driver.ts';
 import type { FoucAlias } from '../fouc-css.ts';
 import { OgygiaError } from '../messages.ts';
@@ -90,9 +92,19 @@ export async function run_module_macros(
 	id: string,
 	ctx: MacroPipelineCtx,
 	profiler: Profiler
-): Promise<{ code: string; touched: boolean }> {
+): Promise<{ code: string; touched: boolean; maps: StepMap[] }> {
 	let out = source;
 	let touched = false;
+	const maps: StepMap[] = [];
+	const apply = (edits: readonly Edit[]): boolean => {
+		const next = splice_text(out, edits);
+		if (next === out) return false;
+		const before = out;
+		maps.push(() => splice_map(before, edits, id));
+		out = next;
+		touched = true;
+		return true;
+	};
 	// (an installed file a package did not declare: a macro that WOULD rewrite it fails the build;
 	// a marker it only names, in a string or a comment, rewrites nothing; test/macros-own-source.test.ts)
 	const own = ctx.ownSource(id.split('?')[0]!);
@@ -105,23 +117,16 @@ export async function run_module_macros(
 	// so the class body's computed key is a real symbol expression by compile time. Extension-aware
 	// and AST-precise (see og-wire.ts); a no-op unless the marker is actually present.
 	if (out.includes('import.meta.og.wire')) {
-		const rewritten = rewrite_wire(out, id, CONSTRUCT_MARKUP_EXTS);
-		if (rewritten !== out) {
-			if (!own) refuse('wire');
-			out = rewritten;
-			touched = true;
-		}
+		if (apply(wire_edits(out, id, CONSTRUCT_MARKUP_EXTS)) && !own) refuse('wire');
 	}
 
 	// `import.meta.og.$(fn)` — hoist a function so its VALUE crosses a boundary as a fn
 	// ref (og-dollar.ts). Exact marker ('.$state' can never match) + AST verification.
 	if (out.includes('import.meta.og.$')) {
 		const rel_dollar = path.relative(ctx.root, id.split('?')[0]).split(path.sep).join('/');
-		const res = rewrite_dollar(out, id, rel_dollar, CONSTRUCT_MARKUP_EXTS);
-		if (res.code !== out) {
+		const res = dollar_edits(out, id, rel_dollar, CONSTRUCT_MARKUP_EXTS);
+		if (apply(res.edits)) {
 			if (!own) refuse('$');
-			out = res.code;
-			touched = true;
 			for (const h of res.hoists) ctx.dollarHoists.set(h.tag, h.factory_src);
 		}
 	}
@@ -131,24 +136,14 @@ export async function run_module_macros(
 	// AST-precise, strict-position (macros/source.ts); a no-op unless the marker is present.
 	if (out.includes('import.meta.og.source')) {
 		const rel_source = path.relative(ctx.root, id.split('?')[0]).split(path.sep).join('/');
-		const rewritten = rewrite_source(out, id, rel_source, CONSTRUCT_MARKUP_EXTS);
-		if (rewritten !== out) {
-			if (!own) refuse('source');
-			out = rewritten;
-			touched = true;
-		}
+		if (apply(source_edits(out, id, rel_source, CONSTRUCT_MARKUP_EXTS)) && !own) refuse('source');
 	}
 
 	// `import.meta.og.store(factory)` — assert a store factory: registered under a build
 	// tag at module load, products branded (og-store.ts).
 	if (out.includes('import.meta.og.store')) {
 		const rel_store = path.relative(ctx.root, id.split('?')[0]).split(path.sep).join('/');
-		const rewritten = rewrite_store(out, id, rel_store, CONSTRUCT_MARKUP_EXTS);
-		if (rewritten !== out) {
-			if (!own) refuse('store');
-			out = rewritten;
-			touched = true;
-		}
+		if (apply(store_edits(out, id, rel_store, CONSTRUCT_MARKUP_EXTS)) && !own) refuse('store');
 	}
 
 	// AUTO-BRAND provable store factories (export const x = (seed) => store-shape) so the
@@ -156,11 +151,7 @@ export async function run_module_macros(
 	// never node_modules (their factories can't self-register on the client anyway).
 	if (!id.includes('node_modules') && !id.startsWith(ctx.pkgRoot) && EXPORT_CONST_RE.test(out)) {
 		const rel_auto = path.relative(ctx.root, id.split('?')[0]).split(path.sep).join('/');
-		const branded = auto_brand_stores(out, id, rel_auto, CONSTRUCT_MARKUP_EXTS);
-		if (branded !== out) {
-			out = branded;
-			touched = true;
-		}
+		apply(auto_brand_edits(out, id, rel_auto, CONSTRUCT_MARKUP_EXTS));
 	}
 
 	// The PLUGINS' macros (`b.macro`: content's `code` / `md` / `loader` / `regions`), in plugin
@@ -193,6 +184,7 @@ export async function run_module_macros(
 			if (rewritten !== out) {
 				out = rewritten;
 				touched = true;
+				maps.push(null);
 			}
 		}
 	}
@@ -214,5 +206,5 @@ export async function run_module_macros(
 		}
 	}
 
-	return { code: out, touched };
+	return { code: out, touched, maps };
 }

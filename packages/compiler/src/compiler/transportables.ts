@@ -22,6 +22,7 @@
 import path from 'node:path';
 import { parse_module } from './parse/oxc.ts';
 import { OgygiaError } from './messages.ts';
+import { splice_text, type Edit } from './splice.ts';
 
 const CLASS_KW = /\bclass\b/;
 const MODULE_KW = /\bmodule\b/;
@@ -308,12 +309,21 @@ export function appendSvelteModuleRegistrations(
 	id_n: string,
 	root: string
 ): string | null {
+	const edit = svelte_module_registration(code, id_n, root);
+	return edit ? splice_text(code, [edit]) : null;
+}
+
+/** The insert `appendSvelteModuleRegistrations` makes to `code`, or `null` when it makes none. */
+export function svelte_module_registration(code: string, id_n: string, root: string): Edit | null {
 	if (code.includes(GENERATED_MARK) || !CLASS_KW.test(code)) return null;
 	const mod = moduleScriptOf(code);
 	if (!mod) return null;
 	const exported = exportedWireClasses(mod.body, id_n.replace(SVELTE_EXT, '.svelte.ts'));
 	if (exported.length === 0) return null;
 	const rel = path.relative(root, id_n).split('\\').join('/');
-	const block = `\n${registrationBlock(rel, exported, [])}\n`;
-	return code.slice(0, mod.injectAt) + block + code.slice(mod.injectAt);
+	return {
+		start: mod.injectAt,
+		end: mod.injectAt,
+		text: `\n${registrationBlock(rel, exported, [])}\n`
+	};
 }
