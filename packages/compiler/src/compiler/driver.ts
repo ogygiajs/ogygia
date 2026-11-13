@@ -117,6 +117,10 @@ interface Build {
 	readonly resolve_memo: Map<string, string | null>;
 	readonly reach_memo: Map<string, boolean>;
 	readonly specs_memo: Map<string, readonly string[]>;
+	/** Files the island-closure walk has already read (`mark_island_closure`): a closure marked at
+	 *  prescan is never re-walked when a later island shares it. The build's, like the island graph
+	 *  it fills (test/watch-island-closure.test.ts). */
+	readonly island_closure_seen: Set<string>;
 }
 const new_build = (program: Program): Build => ({
 	legs: new Map(),
@@ -128,7 +132,8 @@ const new_build = (program: Program): Build => ({
 	router_css_roots: null,
 	resolve_memo: new Map(),
 	reach_memo: new Map(),
-	specs_memo: new Map()
+	specs_memo: new Map(),
+	island_closure_seen: new Set()
 });
 
 /** Shared OGYGIA_PROFILE instrument — the adapter owns the maps/counters; the driver writes into
@@ -775,10 +780,6 @@ export class Compiler implements CoreApp {
 			.slice(0, 8);
 	}
 
-	/** Files the island-closure walk has already read (see `mark_island_closure`). Lives for the
-	 *  program, so a closure marked at prescan is never re-walked when a later island shares it. */
-	#island_closure_seen = new Set<string>();
-
 	/**
 	 * Mark `componentAbs` and EVERYTHING it imports (transitively) as island code, so the `$app/*`
 	 * shim decision for each of those modules is DETERMINISTIC — before the bundler resolves a single
@@ -845,8 +846,9 @@ export class Compiler implements CoreApp {
 		};
 		const walk = (abs: string) => {
 			const norm = strip_id(abs);
-			if (this.#island_closure_seen.has(norm)) return;
-			this.#island_closure_seen.add(norm);
+			const seen = this.#build.island_closure_seen;
+			if (seen.has(norm)) return;
+			seen.add(norm);
 			if (!island_graph.has(norm)) {
 				island_graph.add(norm);
 				added.push(norm);
