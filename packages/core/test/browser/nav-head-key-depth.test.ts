@@ -97,7 +97,7 @@ test('a kept parked sheet still names its file under the deeper address it was k
 	expect(new URL(parked.href).pathname).toBe(`/shop/${PARKED}`);
 });
 
-test('a navigation to a deeper page leaves a kept, loaded sheet as it is: not fetched again', async () => {
+test('a kept, loaded sheet is not fetched again across depths, and still names its own file (#1741)', async () => {
 	// the server's sheet on `/test/browser/nested`, written relative to it, loaded
 	history.replaceState(history.state, '', '/test/browser/nested');
 	const SHEET = 'fixtures/region-sheet.css?og-key-depth';

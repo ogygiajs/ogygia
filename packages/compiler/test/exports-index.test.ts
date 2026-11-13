@@ -399,6 +399,29 @@ describe('a barrel’s map, name by name', () => {
 		expect(again.entries.get('l')).toEqual({ id: '/app/lib/leaf.ts', name: 'l' });
 	});
 
+	it('a file added while a resolution is out: the resolution is asked again, and its answer is a path', async () => {
+		let asked = 0;
+		let reached!: () => void;
+		const first_out = new Promise<void>((r) => (reached = r));
+		let release!: () => void;
+		const gate = new Promise<void>((r) => (release = r));
+		const shapes = new Shapes(() => null);
+		const index = new ExportIndex<void>(async () => {
+			asked++;
+			if (asked === 1) {
+				reached();
+				await gate;
+			}
+			return '/app/lib/a.ts';
+		}, shapes);
+		const pending = index.resolve('./a', '/app/lib/index.ts');
+		await first_out;
+		shapes.invalidate('/app/lib/b.ts', 'create');
+		release();
+		expect(await pending).toBe('/app/lib/a.ts');
+		expect(asked).toBe(2);
+	});
+
 	it('an edit to a module a star reached drops the barrel’s map', async () => {
 		const g = graph({
 			'/app/lib/index.ts': `export * from './a';`,

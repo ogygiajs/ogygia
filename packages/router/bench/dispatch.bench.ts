@@ -67,3 +67,33 @@ bench(
 		teardown: () => clearRouteConfig()
 	}
 );
+
+bench(
+	'routes().fetch: text and json answers with given headers, twenty requests',
+	async ({ app, reqs }) => {
+		let bytes = 0;
+		for (const r of reqs) {
+			const res = await app.fetch(r());
+			if (res) bytes += (await res.text()).length;
+		}
+		return bytes;
+	},
+	{
+		setup: () => {
+			clearRouteConfig();
+			const app = routes({
+				'/text': { GET: (c) => c.text('plain', { headers: { 'x-a': '1' } }) },
+				'/html': {
+					GET: (c) => c.text('<p>', { headers: new Headers({ 'Content-Type': 'text/html' }) })
+				},
+				'/json': { GET: (c) => c.json({ ok: true }, { headers: [['x-a', '1']] }) }
+			});
+			const paths = ['/text', '/html', '/json'];
+			const reqs: Array<() => Request> = [];
+			for (let i = 0; i < 20; i++)
+				reqs.push(() => new Request(`http://example.test${paths[i % paths.length]}`));
+			return { app, reqs };
+		},
+		teardown: () => clearRouteConfig()
+	}
+);

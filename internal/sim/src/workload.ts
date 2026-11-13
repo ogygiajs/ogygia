@@ -285,6 +285,9 @@ export interface Picks {
 	readonly given?: readonly string[];
 	readonly names: string[];
 	readonly missed: string[];
+	/** Whether a region button was clicked: a press on a page with none clicks nothing, and its
+	 *  document is still the server's (#1038). */
+	pressed: boolean;
 }
 
 function picked<T extends Element>(picks: Picks, found: readonly T[], nth: number): T {
@@ -317,6 +320,7 @@ function press(world: World, tab: Tab, nth: number, picks: Picks): boolean {
 		`${tab.name} presses "${(button.textContent ?? '').trim().slice(0, 40)}" in ${region?.getAttribute('entry') ?? '?'}`
 	);
 	user_click(button);
+	picks.pressed = true;
 	return true;
 }
 
@@ -335,7 +339,7 @@ export async function act(
 	 *  tab's document shows from then on is the visitor's doing, as a press's is. */
 	own: (tab: Tab) => void = () => {}
 ): Promise<Picks> {
-	const picks: Picks = { given: a.names, names: [], missed: [] };
+	const picks: Picks = { given: a.names, names: [], missed: [], pressed: false };
 	await act_on(world, visitor, a, origin, pressing, own, picks);
 	return picks;
 }

@@ -7,6 +7,7 @@ import { World } from '../src/world.ts';
 import { user_click } from '../src/workload.ts';
 import type { Heard } from '../src/browser.ts';
 import { waste } from '../src/waste.ts';
+import { owed_text, rewrite_misses } from '../src/network.ts';
 import {
 	document_faulted,
 	fallback_stands,
@@ -22,12 +23,16 @@ import {
 	no_viewport_wait,
 	normalize,
 	parsed_first,
+	rewrite_rendered,
 	live_regions_out,
 	page_errors,
 	peer_answers,
+	peer_fails_over,
 	reshaped_live,
+	text_restored,
 	page_rules,
 	regions_show,
+	replicas_as_one,
 	styled_regions
 } from '../src/oracles.ts';
 
@@ -114,6 +119,34 @@ describe('normalize', () => {
     <p class="a">
       "hi"`
 		);
+	});
+
+	it("reads a peer's replica as its first origin: the replica's files, and its region sheet lifted beside the same file at the first origin (gen 23, seed 22; gen 121, seed 11)", async () => {
+		const { Window } = await import('happy-dom');
+		const replicas = new Map([['https://peer2.test', 'https://peer.test']]);
+		const css = '/_app/immutable/assets/og-region.a.css';
+		const page = (head: string, region: string) => {
+			const w = new Window({ url: 'https://app.test/p3' });
+			w.document.write(
+				`<html><head><title>t</title>${head}</head><body><ogygia-region src="${region}/_app/r.js"><link data-ogygia-region-css rel="stylesheet" href="https://peer.test${css}"><p>w</p></ogygia-region></body></html>`
+			);
+			const doc = w.document as unknown as Document;
+			return replicas_as_one(doc, normalize(doc), replicas);
+		};
+		const fresh = page('', 'https://peer.test');
+		expect(page('', 'https://peer2.test')).toBe(fresh);
+		expect(
+			page(`<link data-ogygia-region-css rel="stylesheet" href="https://peer2.test${css}">`, '')
+		).toBe(page('', ''));
+		// (the same file lifted at the first origin is ogygia's to keep once: it stays a finding)
+		expect(
+			page(`<link data-ogygia-region-css rel="stylesheet" href="https://peer.test${css}">`, '')
+		).not.toBe(page('', ''));
+		// (no replica: as it was)
+		const w = new Window({ url: 'https://app.test/' });
+		w.document.write('<html><body><p src="https://peer2.test/x">x</p></body></html>');
+		const doc = w.document as unknown as Document;
+		expect(replicas_as_one(doc, normalize(doc), new Map())).toBe(normalize(doc));
 	});
 
 	it("drops a third party's head element, which a client navigation keeps (gen 262, seed 6)", async () => {
@@ -1015,6 +1048,234 @@ describe('page errors', () => {
 		expect(document_faulted(world, t)).toBe(true);
 		expect(faulted(world, t)).toBe(true);
 	});
+
+	it("a mounted peer page that failed only because the peer's first origin was down is no fault: the app owes the next origin's answer (a mutant that never asked it survived)", () => {
+		const world = (hop: Record<string, unknown>) =>
+			({
+				fired_in: new Map(),
+				network: {
+					exchanges: [
+						{ id: 1, from: 'tab-0#2', url: 'https://app.test/peer/q0', status: 502 },
+						{
+							id: 2,
+							from: 'server-1',
+							for: 'tab-0#2',
+							url: 'https://peer.test/og/fragment/page?path=%2Fq0',
+							...hop
+						}
+					].map((e) => ({ method: 'GET', cut: false, tampered: false, redirected: false, ...e }))
+				}
+			}) as unknown as World;
+		const t = {
+			realm: 'tab-0#2',
+			name: 'tab-0',
+			documents: 2,
+			page: { mainFrame: { url: 'https://app.test/peer/q0' } }
+		} as unknown as Parameters<typeof faulted>[1];
+		expect(faulted(world({ status: 503, down: true }), t)).toBe(false);
+		expect(faulted(world({ status: 'dropped' }), t)).toBe(true);
+		expect(faulted(world({ status: 503, down: true, method: 'POST' }), t)).toBe(true);
+		// (the next origin's answer held past the peer's timeout: the app's 504 is its own, gen 23, seed 80)
+		const held = world({ status: 503, down: true });
+		(held.network.exchanges as unknown as Array<Record<string, unknown>>).push({
+			id: 3,
+			from: 'server-1',
+			for: 'tab-0#2',
+			method: 'GET',
+			url: 'https://peer2.test/og/fragment/page?path=%2Fq0',
+			status: 200,
+			stalled: true,
+			cut: false,
+			tampered: false,
+			redirected: false
+		});
+		expect(faulted(held, t)).toBe(true);
+		// (a hole's answer of the document's that failed is judged by its own story, not the page's)
+		const hole = world({ status: 503, down: true });
+		(hole.network.exchanges as unknown as Array<Record<string, unknown>>).unshift({
+			id: 0,
+			from: 'tab-0#2',
+			method: 'GET',
+			url: 'https://app.test/peer/q0',
+			status: 200,
+			cut: false,
+			tampered: false,
+			redirected: false
+		});
+		expect(faulted(hole, t)).toBe(true);
+	});
+});
+
+describe("a reshaped page's text comes back as it was", () => {
+	const judged = async (body: string, owes: string[] | undefined) => {
+		const { Window } = await import('happy-dom');
+		const w = new Window({ url: 'https://app.test/p0' });
+		w.document.write(`<html><body>${body}</body></html>`);
+		const tab = {
+			realm: 'tab-0#1',
+			name: 'tab-0',
+			page: { mainFrame: { url: 'https://app.test/p0', document: w.document } }
+		} as unknown as Parameters<typeof text_restored>[0];
+		const world = {
+			network: {
+				exchanges: [
+					{
+						id: 1,
+						from: 'tab-0#1',
+						method: 'GET',
+						url: 'https://app.test/p0',
+						status: 200,
+						cut: false,
+						tampered: false,
+						restore_owes: owes
+					}
+				]
+			}
+		} as unknown as World;
+		return text_restored(tab, world);
+	};
+
+	it('reads the originals off the marks', () => {
+		expect(owed_text('<p><!--og-t 1.0 "\\n  r3\\n"-->r3</p><!--og-t 1.1-->')).toEqual(['\n  r3\n']);
+		expect(owed_text('<p>none</p>')).toBeUndefined();
+	});
+
+	it('finds trimmed text left trimmed (a restore that never put its text back survived), and passes it put back or changed since', async () => {
+		expect((await judged('<x-gen-box><b> pad </b></x-gen-box>', ['  pad  ']))?.oracle).toBe(
+			'text-restored'
+		);
+		expect(await judged('<x-gen-box><b>  pad  </b></x-gen-box>', ['  pad  '])).toBeNull();
+		expect(await judged('<x-gen-box><b>r4</b></x-gen-box>', ['  pad  '])).toBeNull();
+		expect(await judged('<x-gen-box> r3 </x-gen-box>', undefined)).toBeNull();
+	});
+});
+
+describe('a rewrite renders every element it matches, and only the outermost', () => {
+	const judged = (misses: ReturnType<typeof rewrite_misses>, fired: string[] = []) => {
+		const tab = {
+			realm: 'tab-0#1',
+			name: 'tab-0',
+			page: { mainFrame: { url: 'https://app.test/p0' } }
+		} as unknown as Parameters<typeof rewrite_rendered>[0];
+		const world = {
+			network: {
+				exchanges: [
+					{
+						id: 1,
+						from: 'tab-0#1',
+						method: 'GET',
+						url: 'https://app.test/p0',
+						status: 200,
+						cut: false,
+						tampered: false,
+						rewrite_misses: misses,
+						fired
+					}
+				]
+			}
+		} as unknown as World;
+		return rewrite_rendered(tab, world);
+	};
+
+	it('reads the page: an outermost matched element its render never reached, and a rendered one inside one left as it was', () => {
+		expect(
+			rewrite_misses(
+				'<x-gen-box og-h="0" data-rendered="x-gen-box"><x-gen-link data-rendered="x-gen-link">a</x-gen-link></x-gen-box>'
+			)
+		).toBeUndefined();
+		expect(rewrite_misses('<p>x-gen-box</p><x-gen-box og-h="0">a</x-gen-box>')).toEqual({
+			unrendered: ['x-gen-box'],
+			inner: [],
+			stored: false
+		});
+		expect(
+			rewrite_misses(
+				'<x-gen-box>a <x-gen-box data-rendered="x-gen-box">b</x-gen-box></x-gen-box><x-gen-link data-rendered="x-gen-link"></x-gen-link>'
+			)
+		).toEqual({ unrendered: ['x-gen-box'], inner: ['x-gen-box'], stored: false });
+		expect(rewrite_misses('<x-gen-box>a</x-gen-box>', true)).toEqual({
+			unrendered: ['x-gen-box'],
+			inner: [],
+			stored: true
+		});
+	});
+
+	it("a page store's copy was rendered by an earlier request: an element it left unrendered is that request's to explain (gen 262, seed 11), one rendered inside it never is", () => {
+		expect(judged({ unrendered: ['x-gen-box'], inner: [], stored: true })).toBeNull();
+		expect(judged({ unrendered: [], inner: ['x-gen-box'], stored: true })?.oracle).toBe(
+			'rewrite-rendered'
+		);
+	});
+
+	it('finds an element left unrendered with no rewrite point to explain it, and one rendered inside an unrendered one whatever fired', () => {
+		const left = { unrendered: ['x-gen-box'], inner: [], stored: false };
+		expect(judged(left)?.oracle).toBe('rewrite-rendered');
+		expect(judged(left, ['rewrite.render-throws'])).toBeNull();
+		expect(judged(left, ['gen.reshape-throws'])).toBeNull();
+		expect(judged(left, ['hole.fetch-lost'])?.oracle).toBe('rewrite-rendered');
+		expect(
+			judged({ unrendered: ['x-gen-box'], inner: ['x-gen-link'], stored: false }, [
+				'rewrite.chunk-split'
+			])?.oracle
+		).toBe('rewrite-rendered');
+		expect(judged(undefined)).toBeNull();
+	});
+});
+
+describe('a peer fails over, and only then', () => {
+	const hop = (id: number, origin: string, at: number, more: Record<string, unknown> = {}) => ({
+		id,
+		from: 'server-0',
+		for: 'tab-0#1',
+		method: 'GET',
+		url: `${origin}/og/fragment/w0?label=r0`,
+		at,
+		status: 200,
+		cut: false,
+		tampered: false,
+		redirected: false,
+		...more
+	});
+	const judged = (...exchanges: Array<Record<string, unknown>>) =>
+		peer_fails_over(
+			{
+				replicas: new Map([['https://peer2.test', 'https://peer.test']]),
+				network: {
+					exchanges: [
+						{
+							id: 0,
+							from: 'tab-0#1',
+							method: 'GET',
+							url: 'https://app.test/p0',
+							at: 0,
+							status: 200,
+							cut: false
+						},
+						...exchanges
+					]
+				}
+			} as unknown as World,
+			0
+		);
+	const first = 'https://peer.test';
+	const replica = 'https://peer2.test';
+
+	it('finds a down first origin whose replica was not asked (a mutant that kept the 500 survived)', () => {
+		expect(judged(hop(1, first, 10, { status: 500, down: true }))?.oracle).toBe('peer-failover');
+		expect(judged(hop(1, first, 10, { status: 503, down: true }), hop(2, replica, 12))).toBeNull();
+	});
+
+	it('finds the replica asked after the first origin answered (a mutant that asked every origin survived)', () => {
+		expect(judged(hop(1, first, 10), hop(2, replica, 12))?.oracle).toBe('peer-failover');
+		expect(judged(hop(1, first, 10))).toBeNull();
+	});
+
+	it('passes the replica asked once the first origin gave nothing: past its timeout, or for another read of the address (gen 121, seeds 6 and 103)', () => {
+		expect(judged(hop(1, first, 10), hop(2, replica, 5010))).toBeNull();
+		expect(judged(hop(1, first, 10), hop(2, first, 4000), hop(3, replica, 5010))).toBeNull();
+		expect(judged(hop(1, first, 10, { stalled: true }), hop(2, replica, 12))).toBeNull();
+		expect(judged(hop(1, first, 10, { status: 'dropped' }), hop(2, replica, 12))).toBeNull();
+	});
 });
 
 describe('leaks', () => {
@@ -1318,6 +1579,27 @@ describe("a mounted peer's page answers as the peer did", () => {
 		expect(await judged('', [['/peer/bad', 400]], '/peer/bad')).toBeNull();
 	});
 
+	it("finds one of the peer's own pages answered 200 showing none of it (a mutant that made every exposed page an empty redirect survived), and passes the app's own 504 (gen 23, seed 38)", async () => {
+		const page = '<main data-gen="peer-page"><h1>peer /q0</h1></main>';
+		expect((await judged('<p>moved</p>', [['/peer/q0', 200]], '/peer/q0'))?.oracle).toBe(
+			'peer-answers'
+		);
+		expect(await judged(page, [['/peer/q0', 200]], '/peer/q0')).toBeNull();
+		// (reached by a client navigation: it may be mid-way, and is not judged)
+		expect(await judged('<p>moved</p>', [['/p0', 200]], '/peer/q0')).toBeNull();
+		// (the peer's body came past its timeout: the app's 504 says its own words)
+		expect(
+			await judged(
+				'{"error":"This section is temporarily unavailable.","status":504}',
+				[
+					['/peer/q0', 504],
+					['/og/fragment/page?path=/q0', 200, 'tab-1#1']
+				],
+				'/peer/q0'
+			)
+		).toBeNull();
+	});
+
 	it('finds, on a Kit mount, a page the peer lacks saying nothing (a mutant that lost the message survived)', async () => {
 		// (reached by a client navigation: it may be mid-way, and is not judged)
 		expect(await judged('<h1>404</h1><p></p>', [['/p0', 200]], '/peer/gone')).toBeNull();
@@ -1349,6 +1631,42 @@ describe("a mounted peer's page answers as the peer did", () => {
 				'/peer/q0'
 			)
 		).toBeNull();
+	});
+
+	it("finds one of the peer's own pages answered 5xx though the peer gave it whole and in time (a mutant that made every exposed page a redirect survived)", async () => {
+		const { Window } = await import('happy-dom');
+		const w = new Window({ url: 'https://app.test/peer/q0' });
+		w.document.write('<html><body><p>500</p></body></html>');
+		const tab = {
+			realm: 'tab-1#1',
+			name: 'tab-1',
+			documents: 1,
+			page: { mainFrame: { url: 'https://app.test/peer/q0', document: w.document } }
+		} as unknown as Parameters<typeof peer_answers>[0];
+		const world = (hop: Record<string, unknown>) =>
+			({
+				fired_in: new Map(),
+				network: {
+					exchanges: [
+						{ id: 1, from: 'tab-1#1', url: 'https://app.test/peer/q0', at: 0, status: 500 },
+						{
+							id: 2,
+							from: 'server-0',
+							for: 'tab-1#1',
+							url: 'https://peer.test/og/fragment/page?path=%2Fq0',
+							at: 10,
+							status: 200,
+							ended_at: 40,
+							...hop
+						}
+					].map((e) => ({ method: 'GET', cut: false, tampered: false, redirected: false, ...e }))
+				}
+			}) as unknown as Parameters<typeof peer_answers>[1];
+		expect(peer_answers(tab, world({}), 0)?.oracle).toBe('peer-answers');
+		// (past the deadline, or held on the way: the app's 5xx is its own)
+		expect(peer_answers(tab, world({ ended_at: 6000 }), 0)).toBeNull();
+		expect(peer_answers(tab, world({ stalled: true }), 0)).toBeNull();
+		expect(peer_answers(tab, world({ status: 503 }), 0)).toBeNull();
 	});
 
 	it("passes one the network failed, or whose hop to the peer failed: the app's answer for it is its own", async () => {

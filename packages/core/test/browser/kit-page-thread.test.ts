@@ -118,7 +118,7 @@ test('DEV: a wait that runs long warns once (diagnosable), still resolves the mo
 	const warns: string[] = [];
 	const real_warn = console.warn;
 	console.warn = (...args: unknown[]) => warns.push(args.map(String).join(' '));
-	vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+	vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval'] });
 	try {
 		const kit = publish_kit_page_deferred(); // bridge up, status -1: Kit's start() never comes…
 		let resolved = false;

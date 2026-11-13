@@ -144,7 +144,8 @@ jobs:
       github.repository == 'ogygiajs/ogygia' &&
       (github.event.schedule == '43 3 * * *' || inputs.job == 'mutate')
     runs-on: ubuntu-latest
-    timeout-minutes: 120
+    # (the unaimed run's hour, the compiler's 15 minutes, then up to 10 minutes for each aim)
+    timeout-minutes: 240
     permissions:
       contents: read
     steps:
@@ -169,7 +170,7 @@ jobs:
       - name: Mutate
         working-directory: internal/sim
         run: |
-          node --no-warnings src/mutate.ts --mutants mutants.json --gens 10,24,121,188,191,192,193,220,262,550+33+36+65+74,734 --seeds 20 \
+          node --no-warnings src/mutate.ts --mutants mutants.json --gens 1,7,10,24,121,188,191,192,193,220,262,550+33+36+65+74,734,1746 --seeds 20 \
             --jobs 4 --budget-min 60 --sandbox "$RUNNER_TEMP/mutbox" \
             --out "$RUNNER_TEMP/dst-mutation.jsonl"
           tail -1 "$RUNNER_TEMP/dst-mutation.jsonl" | node -e '
@@ -177,13 +178,30 @@ jobs:
             require("fs").appendFileSync(process.env.GITHUB_STEP_SUMMARY,
               `## Mutation testing\n\nKill rate ${t.rate}% (${t.killed}/${t.judged} judged of ${t.total}, ${t.equivalent ?? 0} equivalent), ${t.at.slice(0, 10)}.\n`);'
 
+      # (the compiler's mutants, on the compiler's simulator: it compiles the sources, so no build)
+      - name: Mutate, compiler
+        working-directory: internal/sim
+        run: |
+          node --no-warnings src/mutate.ts --mutants ../compiler-dst/mutants.json --compiler-dst \
+            --dst-runs 100 --budget-min 15 --sandbox "$RUNNER_TEMP/mutbox-compiler" \
+            --out "$RUNNER_TEMP/dst-mutation-compiler.jsonl"
+          tail -1 "$RUNNER_TEMP/dst-mutation-compiler.jsonl" | node -e '
+            const t = JSON.parse(require("fs").readFileSync(0, "utf8"));
+            require("fs").appendFileSync(process.env.GITHUB_STEP_SUMMARY,
+              `Compiler: ${t.killed}/${t.judged} killed.\n`);'
+
       # (a rarely asked buggify point's recovery: its mutants run with only that point on, one aim
       # at a time, every aim the list names)
       - name: Mutate, aimed
         working-directory: internal/sim
         run: |
           for aim in $(node -e 'console.log([...new Set(require("./mutants.json").flatMap((m) => m.aim ? [m.aim] : []))].join(" "))'); do
-            node --no-warnings src/mutate.ts --mutants mutants.json --gens 191 --seeds 12 \
+            # (a rewrite's point is asked only by an app with a rewrite pass: gens 24 and 262 draw one)
+            case "$aim" in
+              rewrite.*|gen.reshape-*) gens=24,262 ;;
+              *) gens=191,24,262 ;;
+            esac
+            node --no-warnings src/mutate.ts --mutants mutants.json --gens "$gens" --seeds 12 \
               --jobs 4 --budget-min 10 --sandbox "$RUNNER_TEMP/mutbox-aim" \
               --buggify-aim "$aim" --out "$RUNNER_TEMP/dst-mutation-aimed.jsonl"
             tail -1 "$RUNNER_TEMP/dst-mutation-aimed.jsonl" | AIM="$aim" node -e '
@@ -200,6 +218,7 @@ jobs:
           path: |
             ${{ runner.temp }}/dst-mutation.jsonl
             ${{ runner.temp }}/dst-mutation-aimed.jsonl
+            ${{ runner.temp }}/dst-mutation-compiler.jsonl
           retention-days: 30
           if-no-files-found: ignore
 

@@ -852,22 +852,15 @@ class FileCompilation {
 		}
 		const said = from_preset ? `preset '${from_preset}'` : 'this import';
 		if (render_mode === 'deferred' && wake_val != null) {
-			if (fetch_val != null) {
-				throw fail(
-					`${said} times a \`${import_keys.render}: 'deferred'\` hole twice, with \`${import_keys.fetch}: '${fetch_val}'\` and \`${import_keys.wake}: '${wake_val}'\`. Keep \`${import_keys.fetch}\`: it says when a hole's HTML arrives.`
-				);
-			}
-			warn_once(`deferred-wake:${rel_host}:${said}:${wake_val}`, () =>
-				warn('hole_wake_deprecated', {
-					host: rel_host,
-					said,
-					render_key: import_keys.render,
-					wake_key: import_keys.wake,
-					fetch_key: import_keys.fetch,
-					value: wake_val
-				})
-			);
-			fetch_val = wake_val;
+			throw new OgygiaError('hole_wake_removed', {
+				host: rel_host,
+				said,
+				render_key: import_keys.render,
+				wake_key: import_keys.wake,
+				fetch_key: import_keys.fetch,
+				wake: wake_val,
+				fetch: fetch_val ?? wake_val
+			});
 		}
 		if (fetch_val != null && render_mode !== 'deferred') {
 			throw fail(
@@ -1457,12 +1450,7 @@ class FileCompilation {
 		let reach = -Infinity;
 		for (let i = 0; i < by_start.length; i++) {
 			const c = by_start[i];
-			const twin = by_start[i + 1];
-			if (
-				c.snip.end <= reach ||
-				(twin && twin.snip.start === c.snip.start && twin.snip.end === c.snip.end)
-			)
-				nested.add(c);
+			if (c.snip.end <= reach) nested.add(c);
 			if (c.snip.end > reach) reach = c.snip.end;
 		}
 		const outer_candidates = portable_candidates.filter((c) => !nested.has(c));
@@ -1517,7 +1505,7 @@ class FileCompilation {
 			for (const p of snip_params) pattern_names(p, param_names);
 			const { free, mutated, stores } = collectCaptureInfo([snip]);
 			if ([...free].some((nm) => block_bound.has(nm) && !param_names.has(nm))) continue;
-			if ([...mutated].some((m) => !param_names.has(m))) continue;
+			if (mutated.size) continue;
 			const carried: SvelteNode[] = [];
 			const pending = [...free].filter((nm) => root_snippets.has(nm) && !param_names.has(nm));
 			const carried_names = new Set<string>();
@@ -1729,7 +1717,7 @@ ${host_style}`;
 }
 
 function outer_spans_first(a: { snip: SvelteNode }, b: { snip: SvelteNode }): number {
-	return a.snip.start - b.snip.start || b.snip.end - a.snip.end;
+	return a.snip.start - b.snip.start;
 }
 
 function import_attrs_of(node: SvelteNode): Map<string, string> {
@@ -1841,28 +1829,16 @@ class TsRegionCompilation {
 						});
 			}
 			if (marker.wake != null) {
-				if (marker.fetch != null) {
-					throw new OgygiaError('held_hole_timed_twice', {
-						host: this.#rel_host,
-						render_key: renderKey,
-						fetch_key: fetchKey,
-						wake_key: this.#wakeKey,
-						fetch: marker.fetch,
-						wake: marker.wake
-					});
-				}
-				const wake = marker.wake;
-				warn_once(`deferred-wake:${this.#rel_host}:ts:${wake}`, () =>
-					warn('hole_wake_deprecated', {
-						host: this.#rel_host,
-						render_key: renderKey,
-						wake_key: this.#wakeKey,
-						fetch_key: fetchKey,
-						value: wake
-					})
-				);
+				throw new OgygiaError('hole_wake_removed', {
+					host: this.#rel_host,
+					render_key: renderKey,
+					wake_key: this.#wakeKey,
+					fetch_key: fetchKey,
+					wake: marker.wake,
+					fetch: marker.fetch ?? marker.wake
+				});
 			}
-			const dval = marker.fetch ?? marker.wake ?? 'load';
+			const dval = marker.fetch ?? 'load';
 			let when: string;
 			if (parse_trigger(dval, WAKE)) when = dval;
 			else
@@ -2072,7 +2048,7 @@ class TsRegionCompilation {
 			map: s.generateMap({ hires: true, source: id, includeContent: true }),
 			islands,
 			hasWireCrossing: islands.some(
-				(i) => typeof i.strategy === 'string' && i.strategy !== 'server' && i.strategy !== 'none'
+				(i) => typeof i.strategy === 'string' && i.strategy !== 'server'
 			)
 		};
 	}

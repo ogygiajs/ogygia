@@ -29,7 +29,7 @@
  * - `rule_turns_counted`: the hydration scheduler's count of pending turns is the turns it holds,
  *   each in the heap its snapshot names (./schedule.ts `turns_counted`: the drain's pick rests on it).
  * - `rule_seed_key_unshipped`: island code reads no `page.data` key the server had and the shaped
- *   page seed left out (seed shaping, `pageKeys()`; the seed names what it left out in rules builds).
+ *   page seed left out (seed shaping, `dataShake()`; the seed names what it left out in rules builds).
  *
  * Each area tells this module what it holds (`note_mount`, `note_visit`, `watch_router`) only when
  * rules are on (`RULES`): every call site folds out of a build without them.

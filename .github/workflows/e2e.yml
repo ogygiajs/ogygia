@@ -163,7 +163,7 @@ jobs:
       - name: Plan
         id: plan
         run: |
-          pnpm exec turbo run check --filter=./packages/* --filter=./packages/*/e2e/* --filter=./apps/* --dry=json > turbo-plan.json
+          pnpm exec turbo run check --filter=./packages/* --filter=./packages/*/e2e/* --filter=./apps/* --filter=./internal/compiler-dst --dry=json > turbo-plan.json
           node -e '
             const plan = JSON.parse(require("fs").readFileSync("turbo-plan.json", "utf8"));
             const checks = (plan.tasks ?? []).filter((t) => t.task === "check" && t.command !== "<NONEXISTENT>");
@@ -221,6 +221,18 @@ jobs:
       # scan, which fails on any finding (#413)
       - name: Module-level maps and sets
         run: pnpm run check:maps
+
+      # each finding the simulator filed stays fixed (internal/sim test/found, #1702): the palaestra
+      # built as dst.yml builds it (rules on), then the found tests against it (a gen-pinned one needs
+      # its generated app and skips here)
+      - name: Build the palaestra (rules on)
+        working-directory: apps/palaestra
+        env:
+          OGYGIA_RULES: '1'
+        run: node node_modules/vite/bin/vite.js build
+      - name: The simulator's found tests
+        working-directory: internal/sim
+        run: node_modules/.bin/vitest run test/found
 
       # remembered: these inputs passed format, lint and every check (the plan leaves the job out next time)
       - name: Remember the pass

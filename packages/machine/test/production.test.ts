@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('esm-env', () => ({ DEV: false, BROWSER: true, NODE: false }));
 
-const { cache, machine, slot } = await import('../src/index.ts');
+const { cache, flights, machine, MachineError, slot } = await import('../src/index.ts');
 
 describe('production: a slot asked for at another version', () => {
 	afterEach(() => vi.restoreAllMocks());
@@ -36,6 +36,11 @@ describe('production: a cache with no bound', () => {
 		expect(c.get('a')).toBeUndefined();
 		expect(error).toHaveBeenCalledOnce();
 		expect(String(error.mock.calls[0]![0])).toContain('machine_bad_option');
+	});
+
+	it('a flights with no bound is thrown where it is written, even in production', () => {
+		vi.spyOn(console, 'error').mockImplementation(() => {});
+		expect(() => flights({ max: Infinity, run: async () => 0 })).toThrow(MachineError);
 	});
 });
 

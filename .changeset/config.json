@@ -11,7 +11,7 @@
 			"@ogygia/compiler",
 			"@ogygia/flags",
 			"@ogygia/postrender",
-			"@ogygia/reshape",
+			"@ogygia/rewrite",
 			"@ogygia/federation",
 			"@ogygia/content",
 			"@ogygia/devtools",
@@ -22,7 +22,7 @@
 			"@ogygia/barrels",
 			"@ogygia/bake",
 			"@ogygia/insights",
-			"@ogygia/page-keys"
+			"@ogygia/data-shake"
 		]
 	],
 	"format": "auto",
