@@ -62,6 +62,13 @@ The rule's own tests: `pnpm lint:test`.
 | ---------------- | --------------------------------------------------------------------------- |
 | `server-cost.ts` | ogygia's per-request server cost on palaestra's `/bench-cms` vs its twin    |
 | `client-boot.ts` | main-thread cost and hydration time of the same page in a throttled browser |
+| `tbt-record.ts`  | records a throttled Chromium trace of one page load, plus call counts       |
+| `tbt-blame.ts`   | blames that trace's long tasks the way Lighthouse does, beside real JS time |
+
+The blame study: serve palaestra's build, then
+`node internal/checks/tbt-record.ts http://localhost:4173/bench-cms/kit/ /tmp/kit` and
+`node internal/checks/tbt-blame.ts /tmp/kit`. Compare `/bench-cms/kit/?xw=static` (no remount),
+`/bench-cms/holes/` and `/bench-cms/no-regions/`.
 
 `results/` keeps the last numbers worth comparing against: `server-cost-latest.md` and the heavy
 profiler report `hell-profile*`. `results/server-cost-prof/` is the CPU profile `server-cost.ts`
