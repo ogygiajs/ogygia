@@ -1196,6 +1196,9 @@ importers:
       '@typescript/native':
         specifier: catalog:tsgo
         version: typescript@7.0.2
+      fast-check:
+        specifier: 'catalog:'
+        version: 4.10.2
       rolldown:
         specifier: 'catalog:'
         version: 1.2.16
