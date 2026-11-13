@@ -119,6 +119,27 @@ describe('build legs', () => {
 		expect(compiler.start_leg(SSR.name, SSR.server)).toBe(false);
 	});
 
+	it('a leg the bundler ends twice ends once, without a refusal', () => {
+		const compiler = make(true);
+		compiler.start_leg(SSR.name, SSR.server);
+		compiler.end_leg(SSR.name);
+		expect(() => compiler.end_leg(SSR.name)).not.toThrow();
+		expect(compiler.find_leg(SSR.name)?.life.now.kind).toBe('closed');
+	});
+
+	it('an end with no environment ends the one open leg; a dev close with two open ends none', () => {
+		const build = make(true);
+		build.start_leg(SSR.name, SSR.server);
+		build.end_leg(null);
+		expect(build.find_leg(SSR.name)?.life.now.kind).toBe('closed');
+		const dev = make(false);
+		dev.leg(SSR);
+		dev.leg(CLIENT);
+		expect(() => dev.end_leg(null)).not.toThrow();
+		expect(dev.find_leg(SSR.name)?.life.now.kind).toBe('open');
+		expect(dev.find_leg(CLIENT.name)?.life.now.kind).toBe('open');
+	});
+
 	it('a second build (watch) starts every leg empty', () => {
 		const compiler = make(true);
 		compiler.start_leg(CLIENT.name, CLIENT.server);
