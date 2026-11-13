@@ -42,7 +42,10 @@ test.describe('two same-component lakes on a csr=true page Kit remounts', () => 
 
 		const header = page.locator('ogygia-region[wake="none"]').nth(0);
 		const footer = page.locator('ogygia-region[wake="none"]').nth(1);
-		check('two lakes on the page', (await page.locator('ogygia-region[wake="none"]').count()) === 2);
+		check(
+			'two lakes on the page',
+			(await page.locator('ogygia-region[wake="none"]').count()) === 2
+		);
 		check(
 			'the header lake holds the header',
 			(await header.locator('[data-twin-lake="header"]').count()) === 1 &&

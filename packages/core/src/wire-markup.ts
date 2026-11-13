@@ -54,6 +54,7 @@ export type MarkKey =
 	| 'hydWindow'
 	| 'hydration'
 	| 'kept'
+	| 'lake'
 	| 'late'
 	| 'lateBoot'
 	| 'lateError'
@@ -185,6 +186,7 @@ export const OG_HTML = 'data-og-html';
 export const OG_HYD_WINDOW = 'data-og-hyd-window';
 export const OG_HYDRATION = 'data-og-hydration';
 export const OG_KEPT = 'data-og-kept';
+export const OG_LAKE = 'data-og-lake';
 export const OG_LATE = 'data-og-late';
 export const OG_LATE_BOOT = 'data-og-late-boot';
 export const OG_LATE_ERROR = 'data-og-late-error';
@@ -312,6 +314,7 @@ export const MARK: { readonly [K in MarkKey]: Mark } = {
 	hydWindow: { attr: OG_HYD_WINDOW, by: 'devtools' },
 	hydration: { attr: OG_HYDRATION, by: 'devtools' },
 	kept: { attr: OG_KEPT, by: 'page' },
+	lake: { attr: OG_LAKE, by: 'page' },
 	late: { attr: OG_LATE, by: 'page' },
 	lateBoot: { attr: OG_LATE_BOOT, by: 'page' },
 	lateError: { attr: OG_LATE_ERROR, by: 'page' },

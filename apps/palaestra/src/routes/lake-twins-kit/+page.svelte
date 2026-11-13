@@ -10,7 +10,7 @@ customElements.define('x-twin', class extends HTMLElement {
 		this.append(box);
 	}
 });
-<\/script>`;
+${'<'}/script>`;
 	let n = $state(0);
 </script>
 
