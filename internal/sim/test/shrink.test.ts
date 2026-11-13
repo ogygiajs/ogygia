@@ -51,4 +51,20 @@ describe('shrinking a failing run', () => {
 		expect(src).toContain("import type { Plan } from '../../src/cli.ts';");
 		expect(src).toContain('const PLAN: Plan = {');
 	});
+
+	it("builds its paths with template literals, so the repo's lint passes with it (gen 8, seed 24)", () => {
+		const src = regression_test({
+			name: 'stuck-abc123',
+			app: 'apps/sim-gen',
+			gen: 8,
+			seed: 24,
+			plan: { actions: [{ kind: 'reload', tab: 0 }] },
+			oracle: 'stuck',
+			signature: 'abc123',
+			detail: 'at rest',
+			actions: ['tab 0: reload']
+		});
+		expect(src).not.toMatch(/APP \+|\+ '\//);
+		expect(src).toContain('existsSync(`${APP}${b}/server/index.js`)');
+	});
 });

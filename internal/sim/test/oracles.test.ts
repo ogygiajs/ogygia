@@ -14,6 +14,7 @@ import {
 	hydrates_as_sent,
 	islands_wake,
 	KNOWN,
+	known_said,
 	Leaks,
 	live_events,
 	mpa_equivalent,
@@ -283,7 +284,12 @@ describe('every region shows something', () => {
 
 describe("a hole's fallback does not stand", () => {
 	/** `wire`: the document's requests, each `[url, status]`. */
-	const at_rest = async (body: string, wire: Array<[string, number | 'dropped']> = []) => {
+	const at_rest = async (
+		body: string,
+		wire: Array<[string, number | 'dropped']> = [],
+		/** A script of the document failed to load (its runtime: none of its holes is ever asked). */
+		lacks_a_file = false
+	) => {
 		const { Window } = await import('happy-dom');
 		const w = new Window({ url: 'https://app.test/p1' });
 		w.document.write(`<html><body>${body}</body></html>`);
@@ -295,6 +301,7 @@ describe("a hole's fallback does not stand", () => {
 		} as unknown as Parameters<typeof fallback_stands>[0];
 		const world = {
 			fired_in: new Map(),
+			browsers: { lacks_a_file: () => lacks_a_file },
 			network: {
 				exchanges: wire.map(([url, status], i) => ({
 					id: i + 1,
@@ -331,6 +338,13 @@ describe("a hole's fallback does not stand", () => {
 				['/__ogygia__?id=a&exp=1&sig=s', 'dropped']
 			])
 		).toBeNull();
+	});
+
+	// generated app 12 (real shapes), seed 22: a dropped chunk of the runtime, and the peer page's
+	// load hole was never asked: the runtime never ran, as runtime_load_failed says
+	it('passes one never asked for in a document whose runtime failed to load', async () => {
+		const chunk: [string, 'dropped'] = ['/_app/immutable/chunks/x.js', 'dropped'];
+		expect(await at_rest(hole('load', 'data-gen-fallback'), [chunk], true)).toBeNull();
 	});
 
 	it('passes one that keeps it by design, one waiting for the visitor, and an answered one', async () => {
@@ -1014,5 +1028,16 @@ describe.skipIf(!built)('a warning a filed bug says', () => {
 		} finally {
 			await world.end();
 		}
+	});
+});
+
+describe('what a filed bug says', () => {
+	it("is #1158's: the AbortError of a batch called off while its body came, nobody listening", () => {
+		const said = known_said([
+			'unhandled: AbortError: The operation was aborted.',
+			'unhandled: TypeError: something else'
+		]);
+		expect(said.known.map((k) => k.issue)).toEqual([1158]);
+		expect(said.left).toEqual(['unhandled: TypeError: something else']);
 	});
 });

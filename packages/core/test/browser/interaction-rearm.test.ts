@@ -5,6 +5,7 @@
 // disarm it (clicks in the new visit would no longer be caught, and an `interaction` island has no
 // other trigger), and it must not replay its own clicks onto the new visit's markup.
 import { expect, inject, test } from 'vitest';
+import { observe } from '@ogygia/machine';
 import { bootDev } from '../../src/runtime/full.ts';
 
 const SLOW = '/test/browser/fixtures/slow-entry.ts';
@@ -33,9 +34,15 @@ test('a capture armed again while the first one’s wake loads catches the next 
 		true
 	);
 	await tick(20);
+	const moves: string[] = [];
+	const off = observe((name, from, to) => {
+		if (name === 'interaction-arming') moves.push(`${from?.kind} -> ${to?.kind}`);
+	});
 	const spot = el.nextSibling; // (its props sidecar: it goes back in front of it)
 	el.remove();
 	await tick(10); // out past its task: that visit is over
+	off();
+	expect(moves, 'the woken arming is over').toEqual(['woken -> over']);
 	document.body.insertBefore(el, spot); // put back: its capture is armed again
 	// the first visit's wake settles (its module came, its visit was over)
 	await tick(700);

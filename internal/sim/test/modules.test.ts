@@ -113,6 +113,15 @@ describe('modules of a simulated tab', () => {
 		expect(asked.filter((p) => p === '/slow.js')).toEqual(['/slow.js']);
 	});
 
+	// the differential (palaestra 4, a client navigation to /nested): the router's modulepreload of
+	// an island module the page had imported at its first load was downloaded again; Chromium's
+	// module map had it. The other way round from the case above: the import came first
+	it('a modulepreload of a module an import already loaded is not downloaded again', async () => {
+		const page = `<script type="module">await import('/slow.js'); const l = document.createElement('link'); l.rel = 'modulepreload'; l.href = '/slow.js'; document.head.append(l); setTimeout(() => (document.body.textContent = 'done'), 50);\x3C/script>`;
+		expect(await run(true, page)).toBe('done');
+		expect(asked.filter((p) => p === '/slow.js')).toEqual(['/slow.js']);
+	});
+
 	// palaestra seed 270: a Kit page left just after its start script's body came still ran the
 	// script's `.then`, with an empty namespace: "kit.start is not a function", in no page
 	it("a left document's import() never settles: its code stops with it", async () => {

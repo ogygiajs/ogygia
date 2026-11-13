@@ -12,9 +12,8 @@ import {
 	resolve,
 	watch,
 	notify,
-	dispose_scope,
 	dispose_ids,
-	register_scope_disposer,
+	page_ids,
 	batch,
 	resolve_batch
 } from '../src/ref.ts';
@@ -124,7 +123,7 @@ describe('scope (hub v2 phase S)', () => {
 	});
 });
 
-describe('dispose_scope + Kind.dispose + scope disposers (hub v2 phase D)', () => {
+describe('releasing every page id + Kind.dispose', () => {
 	let disposed: number[] = [];
 	let disposableRegistered = false;
 	function ensure_disposable_kind() {
@@ -139,12 +138,13 @@ describe('dispose_scope + Kind.dispose + scope disposers (hub v2 phase D)', () =
 		});
 	}
 
-	it('dispose_scope tears down each page instance via kind.dispose and empties the bucket', () => {
+	it('releasing the page ids tears down each page instance via kind.dispose and empties the bucket', () => {
 		ensure_disposable_kind();
 		disposed = [];
 		resolve({ k: 'test-disposable', i: 'd1', d: { n: 1 } }, 'page');
 		resolve({ k: 'test-disposable', i: 'd2', d: { n: 2 } }, 'page');
-		dispose_scope('page');
+		dispose_ids(page_ids());
+		expect(page_ids()).toEqual([]);
 		expect(disposed.sort()).toEqual([1, 2]);
 		// bucket emptied: a re-resolve of the same id decodes FRESH (not the disposed instance)
 		disposed = [];
@@ -152,7 +152,7 @@ describe('dispose_scope + Kind.dispose + scope disposers (hub v2 phase D)', () =
 		expect(again.n).toBe(9);
 	});
 
-	it('a session-aliased instance is NOT disposed by dispose_scope(page)', () => {
+	it('a session-aliased instance is NOT disposed by releasing the page ids', () => {
 		// a kind whose keep_name promotes to session, and that also aliases into page
 		let sessDisposed = 0;
 		register_kind({
@@ -164,18 +164,8 @@ describe('dispose_scope + Kind.dispose + scope disposers (hub v2 phase D)', () =
 			dispose: () => void sessDisposed++
 		});
 		resolve({ k: 'test-sess', i: 'sess-page-alias', d: {} }, 'page'); // lands in BOTH page + session
-		dispose_scope('page');
+		dispose_ids(page_ids());
 		expect(sessDisposed).toBe(0); // survived — it belongs to the session
-	});
-
-	it('registered scope disposers run on dispose (the fold hook)', () => {
-		let ran = 0;
-		const off = register_scope_disposer('page', () => void ran++);
-		dispose_scope('page');
-		expect(ran).toBe(1);
-		off();
-		dispose_scope('page');
-		expect(ran).toBe(1); // unregistered
 	});
 });
 
