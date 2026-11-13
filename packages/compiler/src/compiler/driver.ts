@@ -54,7 +54,11 @@ import { context_string_keys, source_uses_ogygia_context } from './link/context-
 import { collect_flag_sites, FLAGS_SPEC } from './flags.ts';
 import { router_css_roots } from './link/router-css.ts';
 import { source_crosses_wire } from './link/transport.ts';
-import { server_island_ids, PAGE_DATA_READS_TOKEN } from './link/server-manifest.ts';
+import {
+	server_island_ids,
+	server_regions,
+	PAGE_DATA_READS_TOKEN
+} from './link/server-manifest.ts';
 import { same_module_path, island_vpaths_affected_by_file } from './dev/hmr.ts';
 import { VirtualTable } from './virtual/resolver.ts';
 import { CORE_VALUE_NAMES } from './virtual/value-names.ts';
@@ -1687,7 +1691,7 @@ export class Compiler implements CoreApp {
 	): { code: string; map: null } | null {
 		const at = code.indexOf(PAGE_DATA_READS_TOKEN);
 		if (at === -1) return null;
-		const { page_keys, page_pending, by_id, registry } = this.program;
+		const { page_keys, page_pending } = this.program;
 		const clean = (id: string) => id.split('?')[0].split('\\').join('/');
 		const reads_itself = (id: string) => {
 			const c = clean(id);
@@ -1722,9 +1726,7 @@ export class Compiler implements CoreApp {
 			return false;
 		};
 		const out: Record<string, boolean> = {};
-		for (const [iid, virtual_path] of by_id) {
-			const reg = registry.get(virtual_path);
-			if (!reg?.server) continue;
+		for (const [iid, , reg] of server_regions(this.program)) {
 			const root = reg.componentPath ? ids_by_path.get(clean(reg.componentPath)) : undefined;
 			// (a component the graph does not know: unknown, so it looks up — a wrong `false` would
 			// render a hole with an empty page.data)

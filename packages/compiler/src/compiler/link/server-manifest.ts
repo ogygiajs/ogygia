@@ -19,7 +19,7 @@ import { dedent } from '@ogygia/core/contract';
 
 /** The SERVER regions (deferred / server-picked), sorted by id: the manifest is a function of the
  *  set, never of the order hosts registered in (test/server-manifest-order.test.ts). */
-function server_regions(program: Program): Array<[string, string, RegistryEntry]> {
+export function server_regions(program: Program): Array<[string, string, RegistryEntry]> {
 	const out: Array<[string, string, RegistryEntry]> = [];
 	for (const [iid, virtualPath] of program.by_id) {
 		const reg = program.registry.get(virtualPath);
