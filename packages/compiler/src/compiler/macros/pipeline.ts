@@ -16,6 +16,7 @@ import { rewrite_store, auto_brand_stores } from './store.ts';
 import type { AliasEntry } from './bake.ts';
 import type { Profiler } from '../driver.ts';
 import { OgygiaError } from '../messages.ts';
+import { find_og_calls } from '../parse/scan.ts';
 
 /** A plugin's `import.meta.og.<name>` macro (registered with `b.macro`). */
 export interface PluginMacro {
@@ -28,6 +29,22 @@ export interface PluginMacro {
 
 // ── regexes
 const EXPORT_CONST_RE = /export\s+const/;
+
+/** The `import.meta.og.*` macros a first-party plugin compiles: its package, and what to list. */
+// static: the first-party plugins' macros
+const MACRO_PACKAGES: Readonly<Record<string, { package: string; plugin: string }>> = {
+	code: { package: '@ogygia/content', plugin: 'content()' },
+	md: { package: '@ogygia/content', plugin: 'content()' },
+	loader: { package: '@ogygia/content', plugin: 'content()' },
+	regions: { package: '@ogygia/content', plugin: 'content()' }
+};
+
+/** Does `code` really call `import.meta.og.<name>(…)` (a marker in a string or comment is no call)? */
+function calls_macro(code: string, name: string): boolean {
+	return find_og_calls(code, 'import.meta.og.').some(
+		(c) => c.method === name || c.method.startsWith(`${name}.`)
+	);
+}
 
 const CONSTRUCT_MARKUP_EXTS = ['.svelte'] as const;
 
@@ -132,10 +149,16 @@ export async function run_module_macros(
 	// The PLUGINS' macros (`b.macro`: content's `code` / `md` / `loader` / `regions`), in plugin
 	// order — each called only when its marker is present. Before the island transform, so whatever a
 	// macro injects (a region value, region imports) flows through it like hand-written code.
+	// Only on the app's own source: elsewhere a handler never runs (it may read files or run code,
+	// #761), and a real call fails the build (test/macros-own-source.test.ts).
 	if (ctx.macros?.length) {
 		let rel: string | undefined;
 		for (const macro of ctx.macros) {
 			if (!out.includes(`import.meta.og.${macro.name}`)) continue;
+			if (!own) {
+				if (calls_macro(out, macro.name)) refuse(macro.name);
+				continue;
+			}
 			rel ??= path.relative(ctx.root, id.split('?')[0]).split(path.sep).join('/');
 			const rewritten = await macro.handler(out, {
 				id: id.split('?')[0],
@@ -144,10 +167,26 @@ export async function run_module_macros(
 				markupExts: CONSTRUCT_MARKUP_EXTS
 			});
 			if (rewritten !== out) {
-				if (!own) refuse(macro.name);
 				out = rewritten;
 				touched = true;
 			}
+		}
+	}
+
+	// A first-party plugin's macro with its plugin not listed fails the build naming the package,
+	// never a bare TypeError at run time (test/macros-need-plugin.test.ts).
+	if (out.includes('import.meta.og.')) {
+		for (const call of find_og_calls(out, 'import.meta.og.')) {
+			const name = call.method.split('.')[0]!;
+			const pkg = MACRO_PACKAGES[name];
+			if (pkg === undefined || ctx.macros?.some((m) => m.name === name)) continue;
+			if (!own) refuse(name);
+			throw new OgygiaError('macro_needs_plugin', {
+				file: id.split('?')[0]!,
+				macro: name,
+				package: pkg.package,
+				plugin: pkg.plugin
+			});
 		}
 	}
 

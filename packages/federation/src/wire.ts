@@ -20,6 +20,8 @@ import {
 	OGYGIA_RUNTIME,
 	tag_name,
 	text_of,
+	read_capped,
+	type BodyRefused,
 	type FoundTag
 } from '@ogygia/core/internal/server';
 import { cache } from '@ogygia/machine';
@@ -305,7 +307,7 @@ function claims_of(user_b64: string): { user?: Claims } | null {
 			user: JSON.parse(Buffer.from(user_b64, 'base64').toString()) as Claims
 		};
 	} catch {
-		return null; // signed but unparseable claims = reject
+		return null; // ok: signed but unparseable claims: the caller rejects the request
 	}
 }
 
@@ -415,6 +417,56 @@ export interface WidgetDocument {
 	server_ms?: number;
 }
 
+const TRACE_ID_RE = /^[0-9a-f]{32}$/;
+const SPAN_ID_RE = /^[0-9a-f]{16}$/;
+const is_str = (v: unknown): v is string => typeof v === 'string';
+const opt = (v: unknown, is: (v: unknown) => boolean): boolean => v === undefined || is(v);
+const is_strs = (v: unknown): boolean => Array.isArray(v) && v.every(is_str);
+const is_trace = (v: unknown): boolean =>
+	typeof v === 'object' &&
+	v !== null &&
+	TRACE_ID_RE.test((v as { trace_id?: unknown }).trace_id as string) &&
+	SPAN_ID_RE.test((v as { span_id?: unknown }).span_id as string);
+const is_ms = (v: unknown): boolean => typeof v === 'number' && Number.isFinite(v);
+
+/** The fields a page and a widget document share, each its own type or left out. */
+function common_fields(d: Record<string, unknown>): boolean {
+	return (
+		opt(d.sources, is_strs) &&
+		opt(d.build, is_str) &&
+		opt(d.trace, is_trace) &&
+		opt(d.server_ms, is_ms)
+	);
+}
+
+/** A parsed peer answer as the page document it is, or null when any field is another type (a
+ *  proxy's JSON, a broken peer): a failed hop, never a TypeError later (test/property-peer-answer). */
+export function fragment_document(v: unknown): FragmentDocument | null {
+	if (typeof v !== 'object' || v === null || Array.isArray(v)) return null;
+	const d = v as Record<string, unknown>;
+	const ok =
+		Number.isInteger(d.status) &&
+		(d.status as number) >= 100 &&
+		(d.status as number) <= 599 &&
+		is_str(d.body) &&
+		opt(d.location, is_str) &&
+		opt(d.title, is_str) &&
+		opt(d.css, is_strs) &&
+		opt(d.head, is_str) &&
+		opt(d.runtime, is_str) &&
+		opt(d.path, is_str) &&
+		common_fields(d);
+	return ok ? (d as unknown as FragmentDocument) : null;
+}
+
+/** A parsed peer answer as the widget document it is, or null (as {@link fragment_document}). */
+export function widget_document(v: unknown): WidgetDocument | null {
+	if (typeof v !== 'object' || v === null || Array.isArray(v)) return null;
+	const d = v as Record<string, unknown>;
+	const ok = is_str(d.html) && opt(d.origin, is_str) && common_fields(d);
+	return ok ? (d as unknown as WidgetDocument) : null;
+}
+
 // ── W3C trace context ────────────────────────────────────────────────────────────────────────
 const TRACEPARENT_RE = /^00-([0-9a-f]{32})-([0-9a-f]{16})-([0-9a-f]{2})$/;
 const hex = (n: number) => Buffer.from(random.bytes(n)).toString('hex');
@@ -456,7 +508,7 @@ function pin_graph(json: string, origin: string): string {
 	try {
 		wire = JSON.parse(json);
 	} catch {
-		return json;
+		return json; // ok: not a graph: peer HTML passes through as it came
 	}
 	// (peer HTML: anything that is not a graph object passes through as it came)
 	if (!wire || typeof wire !== 'object' || Array.isArray(wire)) return json;
@@ -611,6 +663,7 @@ function element_of(html: string, tag: FoundTag, name: string): string | null {
 
 /** Where the document's last `</body` end tag starts, at or after `from`, or -1. */
 function last_body_close(html: string, from: number): number {
+	// markup-ok: a document's last `</body`, from the back (one walk for it: #1410)
 	for (let i = html.lastIndexOf('</'); i >= from && i !== -1; i = html.lastIndexOf('</', i - 1)) {
 		if (html.slice(i + 2, i + 6).toLowerCase() === 'body') {
 			const c = html.charCodeAt(i + 6);
@@ -701,14 +754,12 @@ export const json_error = (status: number, error: string): Response =>
 	json_response({ error, status }, status);
 
 /** Read a request body under a cap BEFORE any verification work (an unauthenticated caller must
- *  never stream gigabytes into this process). Returns `null` when over the cap. */
+ *  never stream gigabytes into this process): read no further than the cap, chunked or not
+ *  (test/body-cap.test.ts), or why it was not read (never a throw: test/body-unreadable.test.ts). */
 export async function read_capped_body(
 	request: Request,
 	max: number
-): Promise<ArrayBuffer | undefined | null> {
+): Promise<Uint8Array<ArrayBuffer> | undefined | BodyRefused> {
 	if (request.method === 'GET' || request.method === 'HEAD') return undefined;
-	const cl = Number(request.headers.get('content-length'));
-	if (Number.isFinite(cl) && cl > max) return null;
-	const body = await request.arrayBuffer();
-	return body.byteLength > max ? null : body;
+	return read_capped(request, max);
 }

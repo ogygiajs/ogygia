@@ -6,7 +6,6 @@ import type { VerifiedHtml } from '../src/runtime/html-sink.ts';
 
 export {
 	_reset,
-	BATCH_MISS,
 	hold_refusal,
 	is_idle,
 	peek,

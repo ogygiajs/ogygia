@@ -1,3 +1,6 @@
+import { app_path } from '../app-base.ts';
+import { OgygiaError } from '../messages/server.ts';
+
 // Default server-island / region endpoint path. The double-underscore sentinel makes it clash-safe
 // against real application routes (no app ships a `/__ogygia__` route) while staying plain ASCII —
 // readable in the network panel, no percent-encoding on the wire. Overridable via
@@ -19,19 +22,31 @@ export const DEFAULT_ISLANDS_ENDPOINT = '/__ogygia__';
 const ENDPOINT_KEY = Symbol.for('ogygia.islands-endpoint');
 const endpoint_slot = globalThis as unknown as Record<symbol, string | undefined>;
 
-/** The islands endpoint path (without the app's base: matched by suffix, minted through `resolve`). */
+/** The islands endpoint path, without the app's base (minted and matched under it: `app_path`). */
 export function islands_endpoint(): string {
 	return endpoint_slot[ENDPOINT_KEY] ?? DEFAULT_ISLANDS_ENDPOINT;
 }
 
-/** Set by the handle (`handle({ endpoint })`); the default when none is given. */
+/** Set by the handle (`handle({ endpoint })`); the default when none is given. A process has one
+ *  endpoint: a second handle naming another is said (`islands_endpoint_conflict`), and the later one
+ *  stands, as a dev reload of the hooks wants. */
 export function configure_islands_endpoint(path: string | undefined): void {
-	// (the suffix match and the mint both read a leading slash: `api/x` would match `/myapi/x`)
-	endpoint_slot[ENDPOINT_KEY] = !path
-		? DEFAULT_ISLANDS_ENDPOINT
-		: path.startsWith('/')
-			? path
-			: `/${path}`;
+	const next = !path ? DEFAULT_ISLANDS_ENDPOINT : path.startsWith('/') ? path : `/${path}`;
+	const was = endpoint_slot[ENDPOINT_KEY];
+	if (was !== undefined && was !== next && !import.meta.env.DEV)
+		console.error(new OgygiaError('islands_endpoint_conflict', { endpoint: next, was }));
+	endpoint_slot[ENDPOINT_KEY] = next;
+}
+
+/** Tests: forget the endpoint, as a fresh process has none set. */
+export function reset_islands_endpoint(): void {
+	delete endpoint_slot[ENDPOINT_KEY];
+}
+
+/** Is `pathname` the islands endpoint? Its one path under the app's base, the one minted
+ *  (`app_path`): a page whose path only ends the same (`/docs/api` for `/api`) is a page. */
+export function is_islands_endpoint(pathname: string): boolean {
+	return pathname === app_path(islands_endpoint());
 }
 
 /** THE KIND OF A REQUEST: one rendering on behalf of a page it is not (the islands endpoint, or a
@@ -39,7 +54,7 @@ export function configure_islands_endpoint(path: string | undefined): void {
  *  page request. Read by the render (whose page it is) and by plugins (`ctx.forPage`: postrender
  *  stores and serves page requests only, #954). */
 export function renders_for_a_page(event: { url: URL; isRemoteRequest?: boolean }): boolean {
-	return event.url.pathname.endsWith(islands_endpoint()) || event.isRemoteRequest === true;
+	return is_islands_endpoint(event.url.pathname) || event.isRemoteRequest === true;
 }
 
 /** Max b64url props blob accepted by the region handle (and refused at mint time). */
@@ -108,10 +123,10 @@ export const REGION_ID_RE: RegExp = /^[0-9a-f]{12}$/;
 
 /**
  * A hole's optional cache `ttl` (max-age seconds) as it rides in the endpoint URL: empty (no-store,
- * the default) or 1–7 digits (up to ~115 days). Charset-gated before HMAC so a forged value can't
- * reach the response header, though the MAC is the real guard.
+ * the default) or 1–7 digits (up to ~115 days), no leading zero. Charset-gated before HMAC so a
+ * forged value can't reach the response header, though the MAC is the real guard.
  */
-export const REGION_TTL_RE: RegExp = /^(|[0-9]{1,7})$/;
+export const REGION_TTL_RE: RegExp = /^(|0|[1-9][0-9]{0,6})$/;
 
 // The per-request gates, as char loops (measured ~2× the anchored patterns above, which stay the
 // documented shape): every hole request runs both before its HMAC.
@@ -121,15 +136,28 @@ export function is_region_id(s: string): boolean {
 	return is_lower_hex(s, 12);
 }
 
-/** {@link REGION_TTL_RE}: empty, or 1–7 ASCII digits. */
+/** {@link REGION_TTL_RE}: empty, or 1–7 ASCII digits, spelled as {@link is_signed_number}. */
 export function is_region_ttl(s: string): boolean {
-	if (s.length > 7) return false;
+	return s === '' || is_signed_number(s, 7);
+}
+
+/**
+ * A number in a signed region URL (`exp`, `ttl`) in its one spelling: 1 to `max` ASCII digits, no
+ * leading zero ("0" itself aside), as ogygia mints it (`String(n)`). Any other spelling of the same
+ * number (`+n`, `0n`, `n.0`, `1e3`, `0x…`) is another URL for one capability, refused as shape
+ * before the MAC (test/capability-canonical-numbers.test.ts).
+ */
+export function is_signed_number(s: string, max: number): boolean {
+	if (s.length === 0 || s.length > max || (s.length > 1 && s.charCodeAt(0) === 48)) return false;
 	for (let i = 0; i < s.length; i++) {
 		const c = s.charCodeAt(i);
 		if (c < 48 || c > 57) return false;
 	}
 	return true;
 }
+
+/** The most digits a capability's `exp` (unix seconds) has: past the year 33658. */
+export const REGION_EXP_DIGITS = 12;
 
 /** Exactly `n` chars of `[0-9a-f]`. */
 export function is_lower_hex(s: string, n: number): boolean {

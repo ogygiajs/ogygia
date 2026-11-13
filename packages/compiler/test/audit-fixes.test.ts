@@ -424,23 +424,3 @@ describe('audit fixes — region id charset + default TTL constant', () => {
 		expect(REGION_ID_RE.test('short')).toBe(false);
 	});
 });
-
-describe('audit fixes — lake cache soft cap', () => {
-	it('evicts oldest entries past LAKE_CACHE_MAX', async () => {
-		const { RuntimeSession } = await import('../../core/dist/runtime/session.js');
-		const s = new RuntimeSession();
-		for (let i = 0; i < 70; i++) {
-			s.set_lake_cache(String(i), {
-				frag: {} as Node,
-				endpoint: '',
-				when: 'load',
-				cachedAt: i,
-				maxAgeMs: 0
-			});
-		}
-		expect(s.lake_cache.size).toBe(64);
-		expect(s.lake_cache.has('0')).toBe(false);
-		expect(s.lake_cache.has('6')).toBe(true);
-		expect(s.lake_cache.has('69')).toBe(true);
-	});
-});

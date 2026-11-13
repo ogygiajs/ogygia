@@ -12,7 +12,7 @@
  * Elements are kept by WeakRef so the tab can point at them without holding the page alive.
  */
 import { OG_FP, OGYGIA_DEVTOOLS_HOST } from '@ogygia/core/internal/instruments';
-import { flights, machine, STALE } from '@ogygia/machine';
+import { flights, machine, scope, STALE } from '@ogygia/machine';
 import { all_regions, region_name } from './regions.ts';
 import { on_hook } from './hook-entries.ts';
 import type {
@@ -44,7 +44,7 @@ function looks_clickable(el: Element): boolean {
 	try {
 		return getComputedStyle(el).cursor === 'pointer';
 	} catch {
-		return false;
+		return false; // ok: an element with no style (detached) is not clickable
 	}
 }
 
@@ -123,7 +123,7 @@ export function take_saved_session(): SavedPart[] | null {
 		if (raw) parts = JSON.parse(raw) as SavedPart[];
 		sessionStorage.removeItem(SAVED_KEY);
 	} catch {
-		parts = null;
+		parts = null; // ok: storage blocked or unreadable: no earlier page's session to go on with
 	}
 	return parts?.length ? parts : null;
 }
@@ -146,7 +146,7 @@ export function session_waiting(): boolean {
 	try {
 		return !!sessionStorage.getItem(SAVED_KEY);
 	} catch {
-		return false;
+		return false; // ok: storage blocked: nothing could have been saved
 	}
 }
 
@@ -497,7 +497,7 @@ export function start_session(prior?: SavedPart[]): Recorder {
 		try {
 			prof = new Ctor({ sampleInterval: 10, maxBufferSize: 60_000 });
 		} catch {
-			cpu_off = 'no-policy';
+			cpu_off = 'no-policy'; // ok: the Session tab says why there are no CPU samples
 		}
 	const heap0 =
 		(performance as { memory?: { usedJSHeapSize: number } }).memory?.usedJSHeapSize ?? null;
@@ -535,9 +535,19 @@ export function start_session(prior?: SavedPart[]): Recorder {
 		};
 	};
 	// A FULL PAGE LOAD mid-session: save this page's part (no CPU — the sampler cannot be stopped
-	// while the page goes away), the next document's devtools boot picks the session up
+	// while the page goes away), the next document's devtools boot picks the session up. A page the
+	// browser keeps in its back-forward cache (`persisted`) leaves the same way;
+	// restored with the session still unclaimed, it takes it back (test: session-bfcache-hide)
 	const on_hide = (e: PageTransitionEvent) => {
-		if (e.persisted || !run.move('recording', 'saved')) return;
+		if (!run.move('recording', 'saved')) return;
+		if (e.persisted) {
+			// (the page owns the wait: it ends at the restore, or with the page)
+			const back = scope();
+			back.on(globalThis, 'pageshow', () => {
+				back.close();
+				resume_session_if_any();
+			});
+		}
 		const strip = (s: SessionData): SessionData =>
 			JSON.parse(
 				JSON.stringify({ ...s, cpu: null }, (k, v) => (k === 'el' ? null : v))
@@ -571,7 +581,7 @@ export function start_session(prior?: SavedPart[]): Recorder {
 				try {
 					cpu = await prof.stop();
 				} catch {
-					cpu = null;
+					cpu = null; // ok: the profiler would not stop: the session keeps the rest without CPU samples
 				}
 			}
 			const here = collect(cpu);

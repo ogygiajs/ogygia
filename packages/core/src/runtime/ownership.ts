@@ -10,7 +10,7 @@
  * | `foreign` | a subtree the app declared the live DOM's own (`data-ogygia-keep` / `data-persist` on a plain element) |
  * | `region`  | a hydrated region root: Svelte's reactivity owns it now, not a morph  |
  * | `page`    | `<ogygia-slot>`: host-page content an island adopts whole             |
- * | `static`  | an element the compiler stamped `data-og-opaque` — render output Svelte's hydration never walks into (`{@html}`, `bind:innerHTML`, a custom element with static children) — or a child element of one stamped `data-og-html` (it may be `{@html}` content) |
+ * | `static`  | an element the compiler stamped `data-og-opaque` — render output Svelte's hydration never walks into (`{@html}`, `bind:innerHTML`, a custom element with static children) — or a child element of one stamped `data-og-html` outside any render block (it may be `{@html}` content) |
  * | `walk`    | everything else: render output Svelte's walk binds by position        |
  *
  * (Lakes are the sixth owner; the hydrate core lifts them out of both trees before any comparison,
@@ -31,7 +31,7 @@
  * (`order_owner`), and whether a child EXISTS by the render's doing (`render_made`): one element, four
  * facets, one place. The morph's matching, attribute sync and removal all read them.
  */
-import { OG_BAKED, OG_HTML, OG_OPAQUE, OGYGIA_KEEP } from '../wire-markup.ts';
+import { OG_BAKED, OG_HTML, OG_OPAQUE, OGYGIA_KEEP, OGYGIA_REGION_CSS } from '../wire-markup.ts';
 
 /** The owner of an element, for the writers that consult it. */
 export type Owner = 'foreign' | 'region' | 'page' | 'static' | 'walk';
@@ -72,8 +72,28 @@ export function owner_of(el: Element): Owner {
 	if (is_declared_foreign(el)) return 'foreign';
 	if (is_region_owned(el)) return 'region';
 	if (el.localName === SLOT) return 'page';
-	if (el.hasAttribute(OG_OPAQUE) || el.parentElement?.hasAttribute(OG_HTML)) return 'static';
+	if (el.hasAttribute(OG_OPAQUE)) return 'static';
+	if (el.parentElement?.hasAttribute(OG_HTML) && !in_render_block(el)) return 'static';
 	return 'walk';
+}
+
+/**
+ * Is `el` inside a block Svelte's render opened among its siblings (`<!--[…-->` … `<!--]-->`): an
+ * `{#if}`/`{#each}`/component's own output, such as an island nested inline? An `{@html}` beside
+ * siblings is never inside one (it sits between two `<!---->` anchors, read by Svelte's walk as one
+ * run), so an element in a block is the render's, walked by position (test:
+ * test/browser/nested-island-drift.test.ts, #1425).
+ */
+function in_render_block(el: Element): boolean {
+	let depth = 0;
+	for (let n = el.previousSibling; n; n = n.previousSibling) {
+		if (n.nodeType !== 8) continue;
+		const data = (n as Comment).data;
+		if (data === ']') depth--;
+		else if (data.charCodeAt(0) === 91 /* [ */) depth++;
+		if (depth > 0) return true;
+	}
+	return false;
 }
 
 /** True when Svelte's hydration walk binds `el`'s CHILDREN by position — the only subtrees the drift
@@ -160,15 +180,18 @@ export function mark_render_made(node: Node): void {
 
 /**
  * Does `node`, a child of an element-ordered parent, EXIST by the render's doing? Marked by ogygia, or
- * structurally: an `<ogygia-region>` is always render output, and an element whose tag the render
- * produces at this level (`render_tags`) is render output — a runtime does not make the render's
- * elements. Anything else is the element's own: never matched, never removed.
+ * structurally: ogygia's own markup is always render output (an `<ogygia-region>`, and a region's
+ * sheet, `data-ogygia-region-css`, which the server writes inside a held region: #1039), and an
+ * element whose tag the render produces at this level (`render_tags`) is render output — a runtime
+ * does not make the render's elements. Anything else is the element's own: never matched, never
+ * removed.
  */
 export function render_made(node: Node, render_tags: ReadonlySet<string>): boolean {
 	if (rendered().has(node)) return true;
 	if (node.nodeType !== 1) return false;
-	const name = (node as Element).localName;
-	return name === REGION || render_tags.has(name);
+	const el = node as Element;
+	const name = el.localName;
+	return name === REGION || render_tags.has(name) || el.hasAttribute(OGYGIA_REGION_CSS);
 }
 
 // ── `<body>`: two owners (internal/notes/dom-ownership.md) ──────────────────────────────────────

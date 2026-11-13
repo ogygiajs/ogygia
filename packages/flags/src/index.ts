@@ -28,6 +28,7 @@ import {
 	registry,
 	say,
 	scope,
+	STALE,
 	timers
 } from '@ogygia/machine';
 
@@ -296,13 +297,25 @@ export function prime_flags(c: CtxLike): Promise<void> {
 	return claim.done;
 }
 
+/** How long a request waits for its flag source. The source primes above the page, so it gates the
+ *  first byte: one that hangs falls to the native rule past this, and is said as a failure
+ *  (test/source-failed.test.ts). */
+const SOURCE_DEADLINE_MS = 1_000;
+
 async function ask_source(c: CtxLike, source: NonNullable<typeof _source>): Promise<void> {
 	const mark = source_mark();
+	const asking = scope();
+	asking.timeout(() => asking.close(), SOURCE_DEADLINE_MS);
 	try {
 		// the source sees the identity a read hashes on: it primes above the router, where no
 		// `c.visitor` exists yet, so a vendor's per-user targeting would otherwise have no key
 		const queries = [..._registry.values()].map((d) => d.query);
-		const out = await source(queries, { ...c, visitor: visitor_of(c) });
+		const out = await asking.task(() => source(queries, { ...c, visitor: visitor_of(c) }));
+		if (out === STALE)
+			throw new DOMException(
+				`the flag source did not answer within ${SOURCE_DEADLINE_MS} ms`,
+				'TimeoutError'
+			);
 		const map: Record<string, Decision> = {};
 		for (const q of queries) {
 			const raw = out?.[q.name];
@@ -320,6 +333,8 @@ async function ask_source(c: CtxLike, source: NonNullable<typeof _source>): Prom
 	} catch (error) {
 		set_prime(c, { kind: 'resolved', map: {} }); // source down → everything falls through to native
 		source_failed(error);
+	} finally {
+		asking.close();
 	}
 }
 
@@ -562,6 +577,6 @@ function now(): number {
 	try {
 		return clock.wall(); // wall: an exposure's timestamp, sent to the analytics sink
 	} catch {
-		return 0;
+		return 0; // ok: no clock in this sandbox: exposure timestamps are 0 (said above)
 	}
 }

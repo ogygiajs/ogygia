@@ -3,9 +3,17 @@
  * every piece that differs grouped by what it is — an island's props (its region and its props
  * script change together), one attribute on one kind of tag (a random id stamped per render), or
  * the text inside a tag. A page the same but for a few such parts is a page to cache whole once
- * those parts stop changing. Hand-parsed (indexOf), no regex: a document can be megabytes.
+ * those parts stop changing. Cut at its tags by core's tag walk, as the browser reads them (a `<` in
+ * a value, a comment or a script is not a tag), in one linear pass: a document can be megabytes.
  */
-import { OG_FP, OGYGIA_PROPS } from '@ogygia/core/internal/server';
+import {
+	markup_tokens,
+	OG_FP,
+	OGYGIA_PROPS,
+	read_tag,
+	tag_name,
+	type MarkupKind
+} from '@ogygia/core/internal/server';
 
 export interface DocDiffGroup {
 	/** what changes, for a reader: `data-track on <a>`, `the Price island's props`, `text in <p>` */
@@ -76,55 +84,37 @@ export interface DocDiff {
 	groups: DocDiffGroup[];
 }
 
-/** a document at its tags: each piece starts at a `<` */
+/** a document at its tags, read by core's tag walk: each piece is a tag or comment and the text
+ *  after it (a raw-text element's text too), a leading text run its own piece */
 function pieces(doc: string): string[] {
 	const out: string[] = [];
 	let at = 0;
-	while (at < doc.length) {
-		const next = doc.indexOf('<', at + 1);
-		const end = next === -1 ? doc.length : next;
-		out.push(doc.slice(at, end));
-		at = end;
-	}
+	markup_tokens(doc, (kind, start) => {
+		if (kind === 0 || start === 0) return;
+		out.push(doc.slice(at, start));
+		at = start;
+	});
+	if (at < doc.length) out.push(doc.slice(at));
 	return out;
 }
 
-/** `<a href="x" data-track="1">text` → tag `a`, attributes, the text after the tag */
+/** `<a href="x" data-track="1">text` → tag `a`, attributes (as written), the text after the tag */
 function parse(piece: string): { tag: string; attrs: Map<string, string>; text: string } {
-	const attrs = new Map<string, string>();
-	if (piece[0] !== '<') return { tag: 'text', attrs, text: piece };
-	let i = 1;
-	if (piece[i] === '/') i++;
-	let j = i;
-	while (
-		j < piece.length &&
-		piece[j] !== ' ' &&
-		piece[j] !== '>' &&
-		piece[j] !== '/' &&
-		piece[j] !== '\n' &&
-		piece[j] !== '\t'
-	)
-		j++;
-	const tag = piece.slice(i, j).toLowerCase();
-	const close = piece.indexOf('>', j);
-	const head = close === -1 ? piece.slice(j) : piece.slice(j, close);
-	// `name="value"` or `name='value'`
-	let k = 0;
-	while (k < head.length) {
-		let eq = head.indexOf('=', k);
-		while (eq !== -1 && head[eq + 1] !== '"' && head[eq + 1] !== "'")
-			eq = head.indexOf('=', eq + 1);
-		if (eq === -1) break;
-		const q = head[eq + 1];
-		let s = eq - 1;
-		while (s >= 0 && head[s] !== ' ' && head[s] !== '\n' && head[s] !== '\t') s--;
-		const name = head.slice(s + 1, eq);
-		const endq = head.indexOf(q, eq + 2);
-		if (endq === -1) break;
-		attrs.set(name, head.slice(eq + 2, endq));
-		k = endq + 1;
-	}
-	return { tag, attrs, text: close === -1 ? '' : piece.slice(close + 1) };
+	let kind: MarkupKind = 0;
+	let end = 0;
+	let ne = 0;
+	markup_tokens(piece, (k, s, e, n) => {
+		if (s !== 0) return;
+		kind = k;
+		end = e;
+		ne = n;
+	});
+	const text = piece.slice(end);
+	if (kind === 0) return { tag: 'text', attrs: new Map(), text: piece };
+	if (kind === 3) return { tag: 'comment', attrs: new Map(), text };
+	if (kind === 2) return { tag: piece.slice(2, ne).toLowerCase(), attrs: new Map(), text };
+	const t = read_tag(piece, 0, ne)!;
+	return { tag: tag_name(piece, t), attrs: t.attrs, text };
 }
 
 const clip = (s: string) => (s.length > 60 ? `${s.slice(0, 59)}…` : s);
@@ -188,8 +178,10 @@ export function doc_diff(
 		if (pairs.length > 50 && pairs.length > pb.length * 0.25) return undefined;
 	}
 	for (const p of pb) {
-		if (!p.startsWith('<ogygia-region')) continue;
-		const { attrs } = parse(p);
+		// (a cheap look first: a tag name in any case)
+		if (p.slice(0, 14).toLowerCase() !== '<ogygia-region') continue;
+		const { tag, attrs } = parse(p);
+		if (tag !== 'ogygia-region') continue;
 		const fp = attrs.get(OG_FP);
 		const entry = attrs.get('entry');
 		if (fp && entry) entry_of_fp.set(fp, entry);
