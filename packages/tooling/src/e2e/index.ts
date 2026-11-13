@@ -16,13 +16,18 @@ export { REPO } from './paths.ts';
 /** A rule ogygia found broken on itself (core src/rules.ts): its code, and what it found. */
 export type BrokenRule = { code: string; detail: string };
 
-/** The rules broken on the page now, or null where the page has none to check (a build made
- *  without them, a page that is not ogygia's, a page already closed). */
-export async function rules(page: Page): Promise<BrokenRule[] | null> {
+/** The rules broken on the page now; `'no rules'` where ogygia's runtime booted on it from a build
+ *  made without them; null where there is nothing to check (a page that is not ogygia's, a csr=true
+ *  page Kit runs, a page already closed). The runtime's boot publishes its messages
+ *  (`Symbol.for('ogygia.messages')`, core runtime/core.ts `boot`); `window.__ogygia` alone is the
+ *  version a Kit-run page discloses too. */
+export async function rules(page: Page): Promise<BrokenRule[] | 'no rules' | null> {
 	try {
-		return await page.evaluate(
-			() => (globalThis as { __ogygia_rules?: () => BrokenRule[] }).__ogygia_rules?.() ?? null
-		);
+		return await page.evaluate(() => {
+			const g = globalThis as { __ogygia_rules?: () => BrokenRule[] } & Record<symbol, unknown>;
+			if (g.__ogygia_rules) return g.__ogygia_rules();
+			return g[Symbol.for('ogygia.messages')] ? 'no rules' : null;
+		});
 	} catch {
 		return null; // ok: closed, or navigating away: nothing to read
 	}
@@ -73,7 +78,14 @@ export const test = base.extend<{ server_rules: void }>({
 	page: async ({ page }, use, info) => {
 		await use(page);
 		const broken = await rules(page);
-		if (broken !== null) expect.soft(broken, 'ogygia rules broken at the end').toEqual([]);
+		if (broken === 'no rules')
+			expect
+				.soft(
+					broken,
+					"ogygia booted on a page built without its rules (OGYGIA_RULES=1): the rules check would check nothing. Build the suite's app with it, as @ogygia/tooling's build_app does"
+				)
+				.toBe('rules');
+		else if (broken !== null) expect.soft(broken, 'ogygia rules broken at the end').toEqual([]);
 		if (info.status === info.expectedStatus && info.errors.length === 0) return;
 		const log = await moves(page);
 		if (!log) return;

@@ -381,10 +381,6 @@
 			"reason": "the e2e harness's end-of-test rules read: Playwright only, runs at the end of every e2e spec"
 		},
 		{
-			"id": "packages/tooling/src/e2e/index.ts > rules > evaluate:0~336849",
-			"reason": "the e2e harness's end-of-test rules read: Playwright only, runs at the end of every e2e spec"
-		},
-		{
 			"id": "packages/core/src/runtime/core.ts > import_again:0",
 			"reason": "browser only: the dynamic import of the hydrate core chunk; its download, failure and retry are proven in apps/palaestra/e2e/lazy-chunk-retry.spec.ts"
 		},
@@ -3799,10 +3795,6 @@
 		{
 			"id": "packages/core/src/server/region-endpoint.ts > reuse_known_region",
 			"reason": "reads and counts down the request's known copies (hidden state: the request event's map), constant work per region; proven in packages/core/test/property-known-copies.test.ts and packages/core/test/server-delta-opt-in.test.ts (#846)"
-		},
-		{
-			"id": "packages/tooling/src/e2e/index.ts > extend:0~698079 > <anonymous>~24f7e2",
-			"reason": "the e2e harness's per-test server-rules fixture: Playwright only, reads the suite's server log around each test (#928)"
 		},
 		{
 			"id": "packages/tooling/src/e2e/server-log.ts > server_log",
