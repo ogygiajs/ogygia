@@ -136,6 +136,25 @@ function kit_stores_context(page: KitPage) {
 	};
 }
 
+/** context.ts's keys (`isInLake`, `claimRuntimeEmit`), by their global names: context.ts reaches
+ *  virtual modules. */
+const LAKE_SUBTREE_KEY = Symbol.for('ogygia.lake-subtree');
+const HEADLESS_ROOT_KEY = Symbol.for('ogygia.headless-root');
+
+/**
+ * The `context` option for a held region's render root (region.ts, server/render-region-html.ts).
+ * Its HTML only ever reaches a page opaque to Kit (baked into a `{@html}`, or morphed in by the
+ * runtime), so it renders as a lake's inside: its islands emit real regions the runtime wakes. Its
+ * head is dropped but for its region-CSS links, so nothing in it takes the request's runtime claim:
+ * the page's placement of the region does (test/held-region-runtime.test.ts).
+ */
+export function held_root_context(): Map<unknown, unknown> {
+	const context: Map<unknown, unknown> = kit_render_context();
+	context.set(LAKE_SUBTREE_KEY, true);
+	context.set(HEADLESS_ROOT_KEY, true);
+	return context;
+}
+
 /** The `context` option for a `svelte/server` `render()` ogygia starts. An explicit `page` (the
  *  document root, built from the router's seed) wins; else the request reader; else empty. Both
  *  of Kit's contexts ride along: `__request__` for `$app/state`, `__svelte__` for `$app/stores`.

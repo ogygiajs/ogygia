@@ -107,6 +107,9 @@ export function page_data_keys_answer(
 	try {
 		for (const root of roots) scan.collect_bindings(root);
 		if (!scan.refs.size) return { keys: null, reason: null, pending: [] };
+		// an alias in one root may come from an alias in another: grow over all until none grows
+		let grew = true;
+		while (grew) grew = roots.map((root) => scan.grow(root)).some(Boolean);
 		for (const root of roots) scan.walk(root, null, null);
 		return { keys: scan.keys, reason: null, pending: scan.pending };
 	} catch (e) {
@@ -143,6 +146,7 @@ export function summarize_export(
 	let named_follow: string | null = null; // an exact re-export of `name` — wins over every `export *`
 	const stars: string[] = [];
 	let imported = name;
+	let fn_name: string | null = null; // the local binding `fn` was found under
 	const local_fns = new Map<string, Node>();
 	const imports = new Map<string, { specifier: string; imported: string }>();
 	for (const root of roots) {
@@ -173,15 +177,20 @@ export function summarize_export(
 				if (node.source) {
 					named_follow = String(node.source.value);
 					imported = local;
-				} else if (local_fns.has(local)) fn = local_fns.get(local)!;
-				else if (imports.has(local)) {
+				} else if (local_fns.has(local)) {
+					fn = local_fns.get(local)!;
+					fn_name = local;
+				} else if (imports.has(local)) {
 					named_follow = imports.get(local)!.specifier;
 					imported = imports.get(local)!.imported;
 				}
 			}
 			const d = node.declaration;
 			if (!d) return;
-			if (d.type === 'FunctionDeclaration' && d.id?.name === name) fn = d;
+			if (d.type === 'FunctionDeclaration' && d.id?.name === name) {
+				fn = d;
+				fn_name = name;
+			}
 			if (d.type === 'VariableDeclaration') {
 				for (const v of d.declarations ?? []) {
 					if (
@@ -189,12 +198,19 @@ export function summarize_export(
 						v.id.name === name &&
 						v.init &&
 						(v.init.type === 'ArrowFunctionExpression' || v.init.type === 'FunctionExpression')
-					)
+					) {
 						fn = v.init;
+						fn_name = name;
+					}
 				}
 			}
 		});
-		if (fn) break;
+		if (fn) {
+			// the export's binding assigned anew may run another body: not followed
+			const rebound = fn_name;
+			if (rebound !== null && roots.some((r) => assigned_names(r).has(rebound))) return 'all';
+			break;
+		}
 	}
 	if (!fn) {
 		if (named_follow) return { follow: [named_follow], imported };
@@ -203,8 +219,12 @@ export function summarize_export(
 	const param = (fn as Node).params?.[arg];
 	if (!param || param.type !== 'Identifier') return 'all';
 	const scan = new Scan(code);
+	for (const [local, imp] of imports) scan.import_binding(local, imp.specifier, imp.imported);
 	try {
 		scan.seed_param(param.name, fn as Node);
+		// the same alias pass the module's own analysis runs, then the defaults and the body
+		scan.grow(fn as Node);
+		scan.walk((fn as Node).params, fn, 'params');
 		scan.walk((fn as Node).body, fn, 'body');
 		if (scan.pending.length) return 'all'; // depth one: the helper handing the page on is not followed
 		return scan.keys;
@@ -306,8 +326,15 @@ class Scan {
 	readonly pending: PendingCall[] = [];
 	/** Import bindings of this module: local name → what and from where. */
 	readonly #imports = new Map<string, { specifier: string; imported: string }>();
+	/** Svelte's store helpers by local name: a `get` or `derived` from anywhere else is a plain call
+	 *  (test: page-keys-soundness `not svelte/store`). */
+	readonly #store = new Map<string, 'get' | 'derived'>();
 	/** Module-level function declarations by name (`function f(p) {}` / `const f = (p) => …`). */
 	readonly #local_fns = new Map<string, Node>();
+	/** Functions whose parameter is the page (a followed helper): `arguments` in one reaches it too. */
+	readonly #followed = new Set<Node>();
+	/** Names some assignment rebinds, in any root seen so far. */
+	readonly #assigned = new Set<string>();
 
 	private readonly code: string;
 
@@ -321,6 +348,7 @@ class Scan {
 		// the scope of a parameter is the function itself: register under the function node
 		const scopes = this.#scopes.get(name)!;
 		scopes.add(fn);
+		this.#followed.add(fn);
 	}
 
 	#add_ref(name: string, at: Node | null): boolean {
@@ -331,6 +359,20 @@ class Scan {
 		scopes.add(scope);
 		this.refs.add(name);
 		return true;
+	}
+
+	/** An import binding of the module: `local` is `imported` from `specifier`. */
+	import_binding(local: string, specifier: string, imported: string): void {
+		this.#imports.set(local, { specifier, imported });
+		if (specifier === 'svelte/store' && (imported === 'get' || imported === 'derived'))
+			this.#store.set(local, imported);
+	}
+
+	/** Is `node` inside a function whose parameter is the page? */
+	#in_followed(node: Node): boolean {
+		for (let n: Node | null = node; n; n = n.__parent as Node | null)
+			if (this.#followed.has(n)) return true;
+		return false;
 	}
 
 	/** Is `name`, used at `use`, one of the page's names in scope there? */
@@ -356,16 +398,27 @@ class Scan {
 				!enclosing_scope(node)
 			)
 				this.#local_fns.set(node.id.name, node.init);
+			// the page leaving through a barrel, or arriving whole from `import()`: whoever reads it
+			// never names `$app/…` (test: page-keys-soundness `re-exported or imported dynamically`)
+			if (
+				(node.type === 'ExportAllDeclaration' ||
+					(node.type === 'ExportNamedDeclaration' &&
+						node.specifiers?.some((s: Node) => spec_name(s.local) === 'page'))) &&
+				PAGE_SPECIFIER_RE.test(String(node.source?.value ?? ''))
+			)
+				throw new All('the page store is re-exported', node.start ?? null);
+			if (
+				node.type === 'ImportExpression' &&
+				PAGE_SPECIFIER_RE.test(static_string(node.source) ?? '')
+			)
+				throw new All('the page store is imported with `import()`', node.start ?? null);
 			if (node.type !== 'ImportDeclaration') return;
 			const specifier = String(node.source?.value ?? '');
 			for (const s of node.specifiers ?? []) {
 				if (s.type === 'ImportSpecifier')
-					this.#imports.set(s.local.name, {
-						specifier,
-						imported: spec_name(s.imported) ?? s.local.name
-					});
+					this.import_binding(s.local.name, specifier, spec_name(s.imported) ?? s.local.name);
 				else if (s.type === 'ImportDefaultSpecifier')
-					this.#imports.set(s.local.name, { specifier, imported: 'default' });
+					this.import_binding(s.local.name, specifier, 'default');
 			}
 			if (!PAGE_SPECIFIER_RE.test(specifier)) return;
 			for (const s of node.specifiers ?? []) {
@@ -375,7 +428,16 @@ class Scan {
 					this.#add_ref(s.local.name, null);
 			}
 		});
-		if (!this.refs.size) return;
+		// a function binding assigned anew may run another body than the one declared: never followed
+		// (accumulated over every root: the template may assign a function the script declares)
+		for (const name of assigned_names(root)) this.#assigned.add(name);
+		for (const name of this.#assigned) this.#local_fns.delete(name);
+	}
+
+	/** Pass 1b: aliases of the page grown to a fixed point (an alias of an alias), through `root`.
+	 *  True when a name was added. */
+	grow(root: Node): boolean {
+		let any = false;
 		let grew = true;
 		while (grew) {
 			grew = false;
@@ -405,6 +467,7 @@ class Scan {
 							if (p?.type === 'Identifier') {
 								if (this.#add_ref(p.name, fn.body ?? fn)) grew = true;
 								this.#scopes.get(p.name)!.add(fn);
+								this.#followed.add(fn);
 							}
 						});
 					}
@@ -423,7 +486,11 @@ class Scan {
 						}
 					}
 					// derived(page, ($p) => …) / derived([a, page], ([$a, $p]) => …)
-					if (callee?.type === 'Identifier' && callee.name === 'derived' && args.length >= 2) {
+					if (
+						callee?.type === 'Identifier' &&
+						this.#store.get(callee.name) === 'derived' &&
+						args.length >= 2
+					) {
 						const fn = args[1];
 						const param = fn?.params?.[0];
 						if (args[0]?.type === 'Identifier' && this.is_page_value(args[0])) {
@@ -450,7 +517,9 @@ class Scan {
 					}
 				}
 			});
+			if (grew) any = true;
 		}
+		return any;
 	}
 
 	/** Is this expression the page value itself? `page`, `$page`, `get(page)`. */
@@ -460,7 +529,11 @@ class Scan {
 			const bare = n.name.startsWith('$') ? n.name.slice(1) : n.name;
 			return this.#in_scope(n.name, n) || (bare !== n.name && this.#in_scope(bare, n));
 		}
-		if (n.type === 'CallExpression' && n.callee?.type === 'Identifier' && n.callee.name === 'get') {
+		if (
+			n.type === 'CallExpression' &&
+			n.callee?.type === 'Identifier' &&
+			this.#store.get(n.callee.name) === 'get'
+		) {
 			const a = n.arguments?.[0];
 			return !!a && a.type === 'Identifier' && this.#in_scope(a.name, a);
 		}
@@ -474,6 +547,9 @@ class Scan {
 			for (const child of node) this.walk(child, parent, key);
 			return;
 		}
+		// `arguments` in a function handed the page reaches it without naming the parameter
+		if (node.type === 'Identifier' && node.name === 'arguments' && this.#in_followed(node))
+			throw new All('a function handed the page reads `arguments`', node.start ?? null);
 		if (
 			typeof node.type === 'string' &&
 			this.is_page_value(node) &&
@@ -558,7 +634,18 @@ class Scan {
 			parent.callee?.type === 'Identifier'
 		) {
 			const name = parent.callee.name;
-			if (name === 'derived' || name === 'get') return;
+			const helper = this.#store.get(name);
+			if (helper === 'get') return;
+			if (helper === 'derived') {
+				const cb = parent.arguments[1];
+				if (
+					parent.arguments[0] === v &&
+					(cb?.type === 'ArrowFunctionExpression' || cb?.type === 'FunctionExpression') &&
+					cb.params?.[0]?.type === 'Identifier'
+				)
+					return;
+				throw new All('`derived(page, …)` hands the page to a callback it does not read here', at);
+			}
 			const fn = this.#local_fns.get(name);
 			if (fn) {
 				// followed at collect time: the parameter is the page inside the helper
@@ -583,8 +670,18 @@ class Scan {
 			throw new All(`the whole page is passed to \`${name}(…)\``, at);
 		}
 		if (parent.type === 'ArrayExpression') {
-			// only as a `derived([...])` source list
-			return;
+			// `derived([…, page, …], fn)`'s source list: the callback's parameter is tracked in pass 1.
+			// Any other array carries the whole page on (test: page-keys-soundness `[page][0]`).
+			const call = parent.__parent as Node | null;
+			if (
+				call?.type === 'CallExpression' &&
+				call.callee?.type === 'Identifier' &&
+				this.#store.get(call.callee.name) === 'derived' &&
+				call.arguments?.[0] === parent &&
+				call.arguments.length >= 2
+			)
+				return;
+			throw new All('the whole page is put in an array', at);
 		}
 		// `Object.keys(page)` reads names, never values: nothing of `data` can leave through it
 		if (
@@ -618,6 +715,10 @@ class Scan {
 		if (owner.type === 'MemberExpression' && owner_key === 'object') {
 			const k = member_name(owner);
 			if (k === null) throw new All('`page.data[…]` is indexed with an expression', at);
+			// `page.data.k(…)` hands `page.data` to the method as `this` (`hasOwnProperty('x')` reads x)
+			const call = unwrap_up(owner);
+			if (call.parent?.type === 'CallExpression' && call.key === 'callee')
+				throw new All(`\`page.data.${k}(…)\` is called with \`page.data\` as \`this\``, at);
 			this.keys.add(k);
 			return;
 		}
@@ -720,10 +821,14 @@ function call_name(call: Node): string {
 /** `a.b` → 'b'; `a['b']` → 'b'; `a[expr]` → null. */
 function member_name(m: Node): string | null {
 	if (!m.computed) return m.property?.type === 'Identifier' ? m.property.name : null;
-	const p = m.property;
-	if (p?.type === 'Literal' && typeof p.value === 'string') return p.value;
-	if (p?.type === 'TemplateLiteral' && p.expressions?.length === 0)
-		return p.quasis?.[0]?.value?.cooked ?? null;
+	return static_string(m.property);
+}
+
+/** `'x'` / `` `x` `` → 'x'; anything computed → null. */
+function static_string(n: Node | null | undefined): string | null {
+	if (n?.type === 'Literal' && typeof n.value === 'string') return n.value;
+	if (n?.type === 'TemplateLiteral' && n.expressions?.length === 0)
+		return n.quasis?.[0]?.value?.cooked ?? null;
 	return null;
 }
 
@@ -763,6 +868,38 @@ function is_declaration(node: Node, parent: Node | null, key: string | null): bo
 		return true;
 	if (parent.type === 'LabeledStatement' && key === 'label') return true;
 	return false;
+}
+
+/** Every name an assignment or update rebinds anywhere under `root` (`f = …`, `({ f } = …)`,
+ *  `[f] = …`, `f++`, `f ||= …`). */
+function assigned_names(root: Node): Set<string> {
+	const names = new Set<string>();
+	const target = (t: Node | null | undefined): void => {
+		if (!t) return;
+		if (t.type === 'Identifier') names.add(t.name);
+		else if (t.type === 'ObjectPattern')
+			for (const p of t.properties ?? []) target(p.type === 'RestElement' ? p.argument : p.value);
+		else if (t.type === 'ArrayPattern') for (const e of t.elements ?? []) target(e);
+		else if (t.type === 'RestElement') target(t.argument);
+		else if (t.type === 'AssignmentPattern') target(t.left);
+		else if (WRAPPERS.has(t.type)) target(t.expression);
+	};
+	const rec = (node: Node): void => {
+		if (!node || typeof node !== 'object') return;
+		if (Array.isArray(node)) {
+			for (const child of node) rec(child);
+			return;
+		}
+		if (node.type === 'AssignmentExpression') target(node.left);
+		else if (node.type === 'UpdateExpression') target(node.argument);
+		for (const k of Object.keys(node)) {
+			if (SKIP_KEYS.has(k)) continue;
+			const v = node[k];
+			if (v && typeof v === 'object') rec(v);
+		}
+	};
+	rec(root);
+	return names;
 }
 
 /** Generic pre-order visit; annotates each node with its parent and the key it hangs from, which
