@@ -132,6 +132,19 @@ describe('macros/source — strict position law', () => {
 		expect(out.split('\n').length).toBe(src.split('\n').length);
 		expect(out.split('\n')[1]).toContain(`__og_source("x.ts#loadDoc"`);
 	});
+
+	it('mid-edit, a module that does not parse still rewrites the legal spelling, and only it', () => {
+		const src = dedent`
+			export const loadDoc = import.meta.og.source(async (slug) => slug);
+			const loose = import.meta.og.source(async () => 1);
+			const broken = ;
+		`;
+		const out = rewrite_source(src, '/app/x.ts', 'x.ts', MARKUP);
+		expect(out).toContain(
+			`export const loadDoc = __og_source("x.ts#loadDoc", async (slug) => slug)`
+		);
+		expect(out).toContain(`const loose = import.meta.og.source(async () => 1)`);
+	});
 });
 
 // ── the runtime ────────────────────────────────────────────────────────────────────────────────
