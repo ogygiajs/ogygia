@@ -34,7 +34,7 @@ import { plan_props_wire } from '../../core/src/server/props-wire.ts';
 import { set_entry_locations, set_island_deps } from '../../core/test/_stubs/server.region-deps.ts';
 import Region from '../../core/src/Region.svelte';
 import Tiny from '../../core/test/_fixtures/Tiny.svelte';
-import { Compiler, Program, CompileCtx, normalize_import_keys } from '../dist/compiler/index.js';
+import { Compiler, Program, CompileCtx, normalize_import_keys } from '../src/compiler/index.ts';
 import { partial_ctx_init } from './_compile-ctx.ts';
 import { dedent } from '@ogygia/core/contract';
 
