@@ -6,11 +6,7 @@
 // then generated mixes of them (seeded 314; OGYGIA_FUZZ_SEED, OGYGIA_FUZZ_RUNS).
 import { describe, expect, it } from 'vitest';
 import { fc } from '@ogygia/config/sim';
-import {
-	page_data_keys,
-	page_data_keys_answer,
-	summarize_export
-} from '../src/compiler/link/page-keys.ts';
+import { page_data_keys, page_data_keys_answer, summarize_export } from '../src/analysis.ts';
 import { dedent } from '@ogygia/core/contract';
 
 const KEYS = ['a', 'b', 'c'];

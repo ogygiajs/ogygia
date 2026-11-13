@@ -452,6 +452,9 @@ export function account_failures(
 		mutants: ReadonlySet<string>;
 		/** The random app's shapes: the streams gen.ts forks (`gen messy`, …). */
 		shapes: ReadonlySet<string>;
+		/** Points the random app's own code asks (gen.ts: a pass that fails as an app's does). A
+		 *  fired site may name one; no orphan check, as they are not the packages'. */
+		app_points?: ReadonlySet<string>;
 		base?: ReadonlySet<string>;
 		fired?: ReadonlySet<string>;
 	}
@@ -485,7 +488,7 @@ export function account_failures(
 		if (by !== 1) failures.push(`${f.site}: a fired site names one point, fault or shape`);
 		else if (f.shape !== undefined && !o.shapes.has(f.shape))
 			failures.push(`${f.site}: no app shape '${f.shape}' in gen.ts`);
-		else if (f.point !== undefined && !o.points.has(f.point))
+		else if (f.point !== undefined && !o.points.has(f.point) && !o.app_points?.has(f.point))
 			failures.push(`${f.site}: no buggify point '${f.point}' in the packages' source`);
 		else if (f.fault !== undefined && (f.sim ?? 'app') === 'app' && !o.faults.has(f.fault))
 			failures.push(`${f.site}: no sim fault '${f.fault}'`);
@@ -658,6 +661,7 @@ export function check_failures(
 		faults: new Set(faults_in(readFileSync(join(ROOT, 'internal/sim/src/network.ts'), 'utf8'))),
 		mutants: new Set(mutants),
 		shapes: new Set(shapes_in(readFileSync(join(ROOT, 'internal/sim/src/gen.ts'), 'utf8'))),
+		app_points: new Set(points_in(readFileSync(join(ROOT, 'internal/sim/src/gen.ts'), 'utf8'))),
 		...o
 	});
 }

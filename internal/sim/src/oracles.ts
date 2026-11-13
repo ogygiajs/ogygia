@@ -100,6 +100,8 @@ export function normalize(root: {
 		// (a reshape pass's mark on a document loaded as one, which the router's answer of the same
 		// page never carries: delivery, not the page; gen 10, seed 10)
 		if (el.matches('meta[name="ogygia-first-load"]')) return;
+		// (and its stand-ins sheet, which a page the pass failed on goes out without: gen 24, seed 5)
+		if (el.matches('style[data-og-stand-ins]')) return;
 		const attrs = [...el.attributes]
 			.filter(
 				(a) =>
