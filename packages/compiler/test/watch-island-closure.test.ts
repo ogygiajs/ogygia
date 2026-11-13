@@ -5,7 +5,7 @@ import { afterAll, beforeAll, expect, it } from 'vitest';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { Compiler, Program, CompileCtx, normalize_import_keys } from '../dist/compiler/index.js';
+import { Compiler, Program, CompileCtx, normalize_import_keys } from '../src/compiler/index.ts';
 import { partial_ctx_init } from './_compile-ctx.ts';
 import { dedent } from '@ogygia/core/contract';
 

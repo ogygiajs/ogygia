@@ -5,7 +5,7 @@
 //     placeable via `<svelte:component>` (renders the `<ogygia-region>` shell, JS gated on placement +
 //     schedule) yet still crossable over the wire via `region()`. A superset of the old descriptor. It
 //     keeps the `held:*` identity — distinct from a `.svelte` PLACED island (`hydrate:*`, no endpoint).
-// Both rewrite the host import to the leg-split binding module. Runs against built `../dist`.
+// Both rewrite the host import to the leg-split binding module.
 
 import { describe, test, expect, vi } from 'vitest';
 import {
@@ -14,7 +14,7 @@ import {
 	regionIdentity,
 	regionId,
 	regionBindingVirtualId
-} from '../dist/compiler/region/transform.js';
+} from '../src/compiler/region/transform.ts';
 import { HOST_CTX_DEFAULTS } from './_host-ctx.ts';
 
 const ROOT = '/app';
