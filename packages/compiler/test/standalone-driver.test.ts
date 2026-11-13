@@ -28,8 +28,9 @@ function make_compiler() {
 		P: false,
 		outHash: new Map<string, number>()
 	};
-	const compiler = new Compiler(program, profiler);
-	compiler.configure(
+	const compiler = new Compiler(
+		program,
+		profiler,
 		new CompileCtx(
 			partial_ctx_init({
 				root: ROOT,
@@ -124,7 +125,19 @@ describe('standalone driver (no Vite)', () => {
 		const manifest = async (order: number[]) => {
 			const { compiler } = make_compiler();
 			for (const n of order) await compiler.macros(mod(n), `${ROOT}/src/lib/m${n}.ts`);
-			return compiler.patch_fn_manifest('/*__OGYGIA_FN_MANIFEST__*/')?.code;
+			const leg = {
+				server: false,
+				relocated: new Map<string, number>(),
+				late_server_regions: new Map<string, string>()
+			};
+			const bundle = {
+				graph: () => null,
+				module_ids: () => [],
+				chunk_file: 'fn-manifest.js',
+				file_name: String,
+				facade_file: () => undefined
+			};
+			return compiler.relocate('/*__OGYGIA_FN_MANIFEST__*/', leg, bundle)?.code;
 		};
 		const forward = await manifest([1, 2, 3]);
 		expect(forward).toContain('__og_reg_fn');
@@ -142,8 +155,8 @@ describe('standalone driver (no Vite)', () => {
 	test('Compiler.ts_regions mints a `with { wake }` load-region import', () => {
 		const { compiler, program } = make_compiler();
 		const src = `${dedent`
-			import { load } from './data.remote' with { wake: 'load' };
-			export { load };
+			import Feed from './Feed.svelte' with { wake: 'load' };
+			export { Feed };
 		`}\n`;
 		const result = compiler.ts_regions(src, `${ROOT}/src/lib/feed.ts`) as { code: string } | null;
 		// A ts-region mint either rewrites the module (island descriptors) or no-ops if the attribute
