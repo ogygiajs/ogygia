@@ -1,20 +1,3 @@
-/**
- * THE VIRTUAL-MODULE TABLE: every module ogygia serves that is not a file is declared once, beside
- * the code that knows its value, under the realm that may import it. The realm is in the specifier,
- * `ogygia:<realm>/<id>`, and one resolver (./resolver.ts) answers every id from the table.
- *
- *   server  `ogygia:server/…`  Node, per request
- *   boot    `ogygia:boot/…`    the browser runtime
- *   region  `ogygia:region/…`  inside region chunks (rendered on the server too)
- *   dev     `ogygia:dev/…`     the dev server only
- *
- * Four kinds, one constructor each:
- *   value     build-time data, written out as `export const` lines
- *   request   a server module of functions (secrets and per-request things are never baked in)
- *   family    generated code: one module (no `parse`), or every id under a prefix
- *   constant  an on/off switch, a `define` (not a module), so dead code folds out
- */
-
 import { OgygiaError } from '../messages.ts';
 import type { ExportIndex } from '../exports/index.ts';
 import type { WalkResolve } from '../fouc-css.ts';
@@ -55,7 +38,6 @@ type Source = string | Promise<string>;
 
 interface Base {
 	realm: Realm;
-	/** the name under the realm: `secret` is `ogygia:server/secret` */
 	id: string;
 }
 
@@ -79,7 +61,8 @@ export type RequestModule = { core: string } | { package: string };
 /** A module's names in its realm module → its own export names. */
 export type RealmExports<K extends string = string> = Readonly<Record<string, K>>;
 
-// (`_A`: a request reads nothing off the session; the parameter keeps one shape for every kind)
+/** A server module of functions, so secrets and per-request things are never baked in. `_A` keeps
+ *  one shape for every kind: a request reads nothing off the session. */
 export interface RequestEntry<_A> extends Base {
 	kind: 'request';
 	realm: 'server';
@@ -139,8 +122,7 @@ export type ConstOf<E extends { from: (...a: never[]) => unknown }> = ReturnType
 
 /** The `define` map of a set of constants. */
 export function defines<I>(
-	// (`any`: each constant's own value type; the map is strings)
-	// oxlint-disable-next-line typescript/no-explicit-any
+	// oxlint-disable-next-line typescript/no-explicit-any -- each constant's own value type; the map is strings
 	constants: readonly ConstantEntry<I, any>[],
 	input: I
 ): Record<string, string> {
@@ -149,14 +131,14 @@ export function defines<I>(
 	return out;
 }
 
-// (`any`: an entry of any session or shape is one of the table's; the shapes are read per entry)
-// oxlint-disable-next-line typescript/no-explicit-any
+// oxlint-disable-next-line typescript/no-explicit-any -- an entry of any session or shape is one of the table's; the shapes are read per entry
 export type ModuleEntry<A> = ValueEntry<A, any> | RequestEntry<A> | FamilyEntry<A, any>;
-// (a constant is no module: its own list, read at config time; ../virtual/core.ts CORE_CONSTANTS)
-// oxlint-disable-next-line typescript/no-explicit-any
+// oxlint-disable-next-line typescript/no-explicit-any -- a constant of any input and value type is one of the table's
 export type Entry<A> = ModuleEntry<A> | ConstantEntry<any, any>;
 
-/** The constructors. Each returns its argument, kind set, so a declaration reads as data. */
+/** The constructors, one per kind: a value (build-time data), a request (a server module of
+ *  functions), a family (generated code), a constant (a `define`, no module, read at config time).
+ *  Each returns its argument, kind set, so a declaration reads as data. */
 export const virtual = {
 	value: <A, T extends object>(e: Omit<ValueEntry<A, T>, 'kind'>): ValueEntry<A, T> => ({
 		kind: 'value',
