@@ -141,14 +141,6 @@ export const KNOWN: ReadonlyArray<{
 	seen?(world: World, tab: Tab): boolean;
 }> = [
 	{
-		issue: 1071,
-		what: 'a kept head link with a relative URL names another file after a client navigation',
-		// (a link whose file resolves under the page's own path, `/lab/_app/…`, where the other side
-		// names `/_app/…`: palaestra /lab/a -> /lab/deep/x)
-		applies: (shown, fresh) => DEEP_ASSET.test(shown) && !DEEP_ASSET.test(fresh),
-		forgive: (s) => s.replace(DEEP_ASSET_ALL, ' href="/_app/')
-	},
-	{
 		issue: 1107,
 		what: "islands' <svelte:head> styles stand in <head> in the order the islands woke",
 		// (the same island head styles on both sides, in another order: gen 262, seed 25; each set
@@ -174,10 +166,6 @@ const ISLAND_HEAD_STYLE = /^ *<style data-gen-head="(n\d+)">$/;
 function island_head_styles(s: string): string[] {
 	return s.split('\n').flatMap((l) => ISLAND_HEAD_STYLE.exec(l)?.[1] ?? []);
 }
-
-/** A head link to a build's file under a page's own path (`href="/lab/_app/…"`). */
-const DEEP_ASSET = /^ *<link\b[^>]* href="\/(?:[^"/]+\/)+_app\//m;
-const DEEP_ASSET_ALL = / href="\/(?:[^"/]+\/)+_app\//g;
 
 /**
  * Islands of the test app that keep their own client state across a navigation by design, as a
