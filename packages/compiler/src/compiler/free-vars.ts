@@ -52,8 +52,8 @@ interface Sink {
 	stores: Map<string, Array<{ start: number; end: number }>>;
 }
 
-/** Collect bound names from an estree binding pattern. */
-function collect_pattern_names(node: SvelteNode | null | undefined, out: Set<string>) {
+/** Collect bound names from an estree binding pattern (never the names its defaults read). */
+export function collect_pattern_names(node: SvelteNode | null | undefined, out: Set<string>): void {
 	if (!node) return;
 	switch (node.type) {
 		case 'Identifier':
@@ -73,6 +73,23 @@ function collect_pattern_names(node: SvelteNode | null | undefined, out: Set<str
 			break;
 		case 'RestElement':
 			collect_pattern_names(node.argument, out);
+			break;
+		// a legacy `let:x={{ a }}` / `let:x={[a]}`: Svelte's parser gives the directive the
+		// EXPRESSION form of the pattern (portable-snippet-scope.test.ts)
+		case 'ObjectExpression':
+			for (const prop of node.properties) {
+				if (prop.type === 'SpreadElement') collect_pattern_names(prop.argument, out);
+				else collect_pattern_names(prop.value, out);
+			}
+			break;
+		case 'ArrayExpression':
+			for (const el of node.elements) collect_pattern_names(el, out);
+			break;
+		case 'SpreadElement':
+			collect_pattern_names(node.argument, out);
+			break;
+		case 'AssignmentExpression':
+			collect_pattern_names(node.left, out);
 			break;
 	}
 }
@@ -204,8 +221,11 @@ function add_expression_refs(expr: SvelteNode, svelte_bound: Set<string>, sink: 
 				if (id) scopes[scopes.length - 1].add(id.name);
 			} else if (node.type === 'VariableDeclarator') {
 				collect_pattern_names(node.id, scopes[scopes.length - 1]);
-			} else if (node.type === 'CatchClause' && node.param) {
-				collect_pattern_names(node.param, scopes[scopes.length - 1]);
+			} else if (node.type === 'CatchClause') {
+				// its parameter is bound inside the clause only
+				const s = new Set<string>();
+				if (node.param) collect_pattern_names(node.param, s);
+				scopes.push(s);
 			} else if (node.type === 'AssignmentExpression') {
 				record_writes(node.left);
 			} else if (node.type === 'UpdateExpression') {
@@ -224,7 +244,7 @@ function add_expression_refs(expr: SvelteNode, svelte_bound: Set<string>, sink: 
 			}
 		},
 		leave(node, parent) {
-			if (FUNCTION_TYPES.has(node.type)) scopes.pop();
+			if (FUNCTION_TYPES.has(node.type) || node.type === 'CatchClause') scopes.pop();
 			else if (
 				(node.type === 'BlockStatement' && !FUNCTION_TYPES.has(parent?.type ?? '')) ||
 				LOOP_TYPES.has(node.type)
@@ -232,6 +252,33 @@ function add_expression_refs(expr: SvelteNode, svelte_bound: Set<string>, sink: 
 				scopes.pop();
 		}
 	});
+}
+
+/** A template binder's pattern (`{#each … as p}`, a snippet parameter, `{@const p = …}`): its names
+ *  are bound, and its defaults and computed keys are READ, in `bound` (test/free-vars-patterns.test.ts). */
+function add_pattern_refs(pattern: SvelteNode | null | undefined, bound: Set<string>, sink: Sink) {
+	if (!pattern) return;
+	switch (pattern.type) {
+		case 'AssignmentPattern':
+			add_expression_refs(pattern.right, bound, sink);
+			add_pattern_refs(pattern.left, bound, sink);
+			break;
+		case 'ObjectPattern':
+			for (const prop of pattern.properties) {
+				if (prop.type === 'RestElement') add_pattern_refs(prop.argument, bound, sink);
+				else {
+					if (prop.computed) add_expression_refs(prop.key, bound, sink);
+					add_pattern_refs(prop.value, bound, sink);
+				}
+			}
+			break;
+		case 'ArrayPattern':
+			for (const el of pattern.elements) add_pattern_refs(el, bound, sink);
+			break;
+		case 'RestElement':
+			add_pattern_refs(pattern.argument, bound, sink);
+			break;
+	}
 }
 
 /** Names introduced by `let:` directives on an element/component. */
@@ -285,6 +332,7 @@ function add_attribute_refs(node: SvelteNode, bound: Set<string>, sink: Sink) {
 				add_expression_refs(attr.expression, bound, sink);
 				break;
 			case 'LetDirective':
+				add_pattern_refs(attr.expression, bound, sink); // binds; reads only its defaults
 				break;
 			case 'BindDirective':
 				// `bind:value={target}` READS and WRITES `target`. Record the write-root so a
@@ -341,7 +389,13 @@ function walk_template(nodes: SvelteNode[], outer_bound: Set<string>, sink: Sink
 				add_expression_refs(node.expression, bound, sink);
 				break;
 			case 'ConstTag':
-				for (const d of node.declaration.declarations) add_expression_refs(d.init, bound, sink);
+				for (const d of node.declaration.declarations) {
+					add_pattern_refs(d.id, bound, sink);
+					add_expression_refs(d.init, bound, sink);
+				}
+				break;
+			case 'DebugTag':
+				for (const id of node.identifiers ?? []) add_expression_refs(id, bound, sink);
 				break;
 			case 'IfBlock':
 				add_expression_refs(node.test, bound, sink);
@@ -353,6 +407,7 @@ function walk_template(nodes: SvelteNode[], outer_bound: Set<string>, sink: Sink
 				const each_bound = new Set(bound);
 				collect_pattern_names(node.context, each_bound);
 				if (node.index) each_bound.add(node.index);
+				add_pattern_refs(node.context, each_bound, sink);
 				if (node.key) add_expression_refs(node.key, each_bound, sink);
 				walk_template(fragment_nodes(node.body), each_bound, sink);
 				if (node.fallback) walk_template(fragment_nodes(node.fallback), bound, sink);
@@ -364,11 +419,13 @@ function walk_template(nodes: SvelteNode[], outer_bound: Set<string>, sink: Sink
 				if (node.then) {
 					const then_bound = new Set(bound);
 					if (node.value) collect_pattern_names(node.value, then_bound);
+					add_pattern_refs(node.value, then_bound, sink);
 					walk_template(fragment_nodes(node.then), then_bound, sink);
 				}
 				if (node.catch) {
 					const catch_bound = new Set(bound);
 					if (node.error) collect_pattern_names(node.error, catch_bound);
+					add_pattern_refs(node.error, catch_bound, sink);
 					walk_template(fragment_nodes(node.catch), catch_bound, sink);
 				}
 				break;
@@ -380,6 +437,7 @@ function walk_template(nodes: SvelteNode[], outer_bound: Set<string>, sink: Sink
 			case 'SnippetBlock': {
 				const snip_bound = new Set(bound);
 				for (const p of node.parameters ?? []) collect_pattern_names(p, snip_bound);
+				for (const p of node.parameters ?? []) add_pattern_refs(p, snip_bound, sink);
 				walk_template(fragment_nodes(node.body), snip_bound, sink);
 				break;
 			}

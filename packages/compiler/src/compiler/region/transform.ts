@@ -5,7 +5,7 @@ import { dedent } from '@ogygia/core/contract';
 import type { IslandDescriptor } from '../program.ts';
 import { createHash } from 'node:crypto';
 import { foucCssVirtualId } from '../fouc-css.ts';
-import { collectCaptureInfo } from '../free-vars.ts';
+import { collectCaptureInfo, collect_pattern_names as pattern_names } from '../free-vars.ts';
 import { parse_module } from '../parse/oxc.ts';
 import { strategyKey, regionIdentity, regionId } from './identity.ts';
 import { parse_trigger, SCHEDULE, WAKE } from '@ogygia/core/contract';
@@ -2134,15 +2134,10 @@ class FileCompilation {
 		// snippet body that reads one of these lives in that block's scope: it can neither move to the
 		// template root (below) nor cross (its entry would see an undefined name), so it stays native.
 		const block_bound = new Set<string>();
-		const bind_pattern = (n: SvelteNode) => {
-			if (!n || typeof n !== 'object') return;
-			if (Array.isArray(n)) return n.forEach(bind_pattern);
-			if (n.type === 'Identifier' && n.name) block_bound.add(n.name);
-			for (const k in n) {
-				if (k === 'type' || k === 'start' || k === 'end' || k === 'loc') continue;
-				const v = n[k];
-				if (v && typeof v === 'object') bind_pattern(v);
-			}
+		// the names a pattern binds, never what its defaults read (test/free-vars-patterns.test.ts)
+		const bind_pattern = (n: SvelteNode | SvelteNode[] | null | undefined) => {
+			if (Array.isArray(n)) for (const p of n) pattern_names(p, block_bound);
+			else pattern_names(n, block_bound);
 		};
 		const walk_bound = (nodes: SvelteNode[], root: boolean) => {
 			for (const node of nodes ?? []) {
@@ -2200,18 +2195,8 @@ class FileCompilation {
 				? source.slice(snip_params[0].start, snip_params[snip_params.length - 1].end)
 				: '';
 			const param_names = new Set<string>();
-			const collect_param_names = (n: SvelteNode) => {
-				if (!n || typeof n !== 'object') return;
-				if (Array.isArray(n)) return n.forEach(collect_param_names);
-				if (n.type === 'Identifier' && n.name) param_names.add(n.name);
-				for (const k in n) {
-					if (k === 'type' || k === 'start' || k === 'end') continue;
-					const v = n[k];
-					if (v && typeof v === 'object') collect_param_names(v);
-				}
-			};
-			collect_param_names(snip_params);
-			const { free, mutated, stores } = collectCaptureInfo(body);
+			for (const p of snip_params) pattern_names(p, param_names);
+			const { free, mutated, stores } = collectCaptureInfo([snip]);
 			// A body bound to an enclosing block's names stays a plain snippet (see block_bound).
 			if ([...free].some((nm) => block_bound.has(nm) && !param_names.has(nm))) continue;
 			// Only a HOST-state write disqualifies branding (a captured snapshot can't write back). A snippet
