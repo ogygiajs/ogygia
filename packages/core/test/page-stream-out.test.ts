@@ -77,6 +77,21 @@ it('a value whose staging throws fails its own promise; the rest stream and the 
 	request.close();
 });
 
+it('a promise that rejects streams as a failure, with its error, never as a value', async () => {
+	const request = scope();
+	const res = stream_page_deferred(
+		request,
+		kit_document(),
+		[{ id: 0, promise: Promise.reject(new Error('the load failed')) }],
+		1
+	);
+	const body = await read_all(res, 2000);
+	expect(body).toMatch(/__ogygia_page_resolve\(0,false,/);
+	expect(body).toContain('the load failed');
+	expect(unhandled).toEqual([]);
+	request.close();
+});
+
 it('a nested promise streams with its parent, and the stream closes only once it settled', async () => {
 	const request = scope();
 	let inner!: (v: string) => void;
