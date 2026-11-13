@@ -100,6 +100,34 @@ for (const deny of ['sig', 'shape', 'foreign-key']) {
 	});
 }
 
+test('a hole refused with sig after a failed fetch still asks once more: only refusals count toward its retry (#1752)', async () => {
+	const said = vi.spyOn(console, 'warn').mockImplementation(() => {});
+	let asked = 0;
+	window.fetch = async () => {
+		asked++;
+		if (asked === 1) return new Response('', { status: 502 });
+		if (asked === 2) return new Response('', { status: 403, headers: { 'x-ogygia-deny': 'sig' } });
+		return new Response('<p data-answer>hello</p>', {
+			status: 200,
+			headers: { 'content-type': 'text/html' }
+		});
+	};
+	const box = document.createElement('div');
+	box.innerHTML = hole(ep('failthensig01'));
+	const el = box.querySelector<HTMLElement>('ogygia-region')!;
+	document.body.append(el);
+	bootDev();
+	await expect
+		.poll(() => el.querySelector('[data-answer]'), {
+			message: 'the third ask’s answer',
+			timeout: 5_000,
+			interval: 50
+		})
+		.not.toBeNull();
+	expect(asked).toBe(3);
+	expect(said.mock.calls.some((c) => String(c[0]).includes('region_answer_denied'))).toBe(false);
+});
+
 test('a hole refused with sig twice keeps its fallback and says why, after two asks (#1752)', async () => {
 	const said = vi.spyOn(console, 'warn').mockImplementation(() => {});
 	let asked = 0;
