@@ -223,7 +223,7 @@
 	},
 	{
 		"id": "reshape-trimmed-text-not-put-back",
-		"file": "packages/reshape/src/restore.ts",
+		"file": "packages/rewrite/src/restore.ts",
 		"in": "restore > fix_text",
 		"code": "if (next && next.nodeType === 3) (next as Text).data = was;",
 		"operator": "statement",
