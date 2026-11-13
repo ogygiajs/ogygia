@@ -336,7 +336,7 @@ function read_route_config_uncached(
 ): Record<string, unknown> {
 	const out: Record<string, unknown> = {};
 	const src = files.read(file);
-	if (src === null) return out; // no such module on this level
+	if (src === null) return out;
 	if (!src.includes('config') || !keys.some((k) => src.includes(k))) return out;
 	const { program } = parse_module(src, file);
 	const object = program && config_object(program);
