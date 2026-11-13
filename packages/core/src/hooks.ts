@@ -119,6 +119,7 @@ import {
 	capability_query,
 	configure_islands_endpoint,
 	islands_endpoint,
+	is_islands_endpoint,
 	MAX_REGION_PROPS_LEN,
 	REGION_CAPABILITY_VERSION,
 	is_region_id,
@@ -917,11 +918,9 @@ class OgygiaHandle {
 		ctxs: readonly RequestContext<unknown, unknown>[],
 		facts: RequestFacts
 	): Promise<Response> {
-		// Compare against the DECODED request pathname so the percent-encoded UTF-8 the browser
-		// sends matches our raw-emoji literal regardless of how Kit hands us the URL. Suffix match
-		// (not `===`) so it works under any `paths.base` without needing the base at all: the request
-		// arrives at `<base>/__ogygia__`, and the endpoint is a leading-slash, clash-safe path.
-		if (!path.endsWith(this.#endpoint)) {
+		// The endpoint's one path under the app's base, the path minted: a page whose path only ends
+		// the same is a page (test/islands-endpoint.test.ts)
+		if (!is_islands_endpoint(path)) {
 			// PAGE FACTS (server/page-facts.ts): a render outside its page looks the page up through
 			// Kit's own data request. Nothing renders here: no bag, no store. The answer names the
 			// route and params Kit matched, which the data alone does not carry.
