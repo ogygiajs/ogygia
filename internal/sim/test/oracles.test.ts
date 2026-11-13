@@ -304,7 +304,9 @@ describe("a hole's fallback does not stand", () => {
 		body: string,
 		wire: Array<[string, number | 'dropped']> = [],
 		/** A script of the document failed to load (its runtime: none of its holes is ever asked). */
-		lacks_a_file = false
+		lacks_a_file = false,
+		/** Buggify lost an answer of the document's on the way (`hole.fetch-lost`). */
+		lost = false
 	) => {
 		const { Window } = await import('happy-dom');
 		// (the simulator's viewport: src/layout.ts)
@@ -317,7 +319,7 @@ describe("a hole's fallback does not stand", () => {
 			page: { mainFrame: { url: 'https://app.test/p1', document: w.document } }
 		} as unknown as Parameters<typeof fallback_stands>[0];
 		const world = {
-			fired_in: new Map(),
+			fired_in: new Map(lost ? [['tab-1#1', new Set(['hole.fetch-lost'])]] : []),
 			browsers: { lacks_a_file: () => lacks_a_file },
 			network: {
 				exchanges: wire.map(([url, status], i) => ({
@@ -362,6 +364,12 @@ describe("a hole's fallback does not stand", () => {
 	it('passes one never asked for in a document whose runtime failed to load', async () => {
 		const chunk: [string, 'dropped'] = ['/_app/immutable/chunks/x.js', 'dropped'];
 		expect(await at_rest(hole('load', 'data-gen-fallback'), [chunk], true)).toBeNull();
+	});
+
+	// generated app 208, seed 120: a nested hole of a hidden tab's peer page, its three tries each
+	// lost by buggify before a request went out, so the wire never saw it asked
+	it('passes one never seen asked in a document whose answers buggify lost (a lost answer leaves no exchange)', async () => {
+		expect(await at_rest(hole('load', 'data-gen-fallback'), [], false, true)).toBeNull();
 	});
 
 	it('passes one that keeps it by design, one waiting for the visitor, and an answered one', async () => {
