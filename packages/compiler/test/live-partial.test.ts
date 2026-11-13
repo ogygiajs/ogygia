@@ -1,13 +1,13 @@
 // Live partials (Feature A): a dual partial is awaitable — awaiting it renders the component to
 // HTML on the server and bakes it into the ticket, which the transport carries over the wire and the
-// runtime swaps in with no fetch (morph for static, prop-push for interactive). Runs against `../dist`.
+// runtime swaps in with no fetch (morph for static, prop-push for interactive).
 // DOM behaviour (morph / swap / keep-alive) is covered by the browser suite `verify/live-partial.ts`
 // — this repo's unit tests stay node-only (no jsdom); DOM helpers are exercised in a real browser.
 
 import { describe, test, expect } from 'vitest';
-import { region, isRegion } from '../../core/dist/region.js';
-import { ogygiaTransport } from '../../core/dist/transport.js';
-import { transformHost } from '../dist/compiler/region/transform.js';
+import { region, isRegion } from '../../core/src/region.ts';
+import { ogygiaTransport } from '../../core/src/transport.ts';
+import { transformHost } from '../src/compiler/region/transform.ts';
 import { HOST_CTX_DEFAULTS } from './_host-ctx.ts';
 
 /** A fake SSR partial-binding (what `ogygia:region/binding/<iid>.js` exports on the server leg). */
