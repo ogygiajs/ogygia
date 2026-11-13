@@ -179,6 +179,60 @@
 	],
 	"covered": [
 		{
+			"site": "packages/core/src/runtime/router-nav.ts > hold_scroll > timer:0",
+			"reason": "a Back's hold for a region above whose code never loads: the sim's layout never scrolls and has no scroll anchoring, so a hold that never ends changes nothing it reads; proved: the cap removed turns the test red",
+			"test": "packages/core/test/browser/scroll-hold.test.ts",
+			"name": "a region above that never wakes (its code failed) holds the page for SCROLL_HOLD_MS at most"
+		},
+		{
+			"site": "packages/core/src/runtime/router-nav.ts > hold_scroll > settled > timer:0",
+			"reason": "the hold's end once nothing above is left to wake: as above; proved: the frame's end removed turns the test red",
+			"test": "packages/core/test/browser/scroll-hold.test.ts",
+			"name": "with no region above to wait for, the hold ends a frame after the put-back and the browser anchors again"
+		},
+		{
+			"site": "packages/core/src/runtime/router-nav.ts > hold_scroll > settled > timer:1",
+			"reason": "as above, the task after that frame; proved: the hold left open after the frame turns the test red",
+			"test": "packages/core/test/browser/scroll-hold.test.ts",
+			"name": "with no region above to wait for, the hold ends a frame after the put-back and the browser anchors again"
+		},
+		{
+			"site": "packages/core/src/runtime/router-nav.ts > hold_scroll > observer:0",
+			"reason": "the put-back on a page that grows after a Back: the sim's layout never scrolls; proved: the ResizeObserver removed turns the test red",
+			"test": "packages/core/test/browser/scroll-hold.test.ts",
+			"name": "a page still too short to reach the saved position is put there once it grows"
+		},
+		{
+			"site": "packages/core/src/runtime/router-nav.ts > preload_stylesheets > error-event:0",
+			"reason": "a next page's sheet that fails to download: no sim run reached it (it is in the baseline); proved: the error listener removed turns the test red",
+			"test": "packages/core/test/browser/nav-sheet-wait-ends.test.ts",
+			"name": "a sheet of the next page that fails to download does not hold its navigation"
+		},
+		{
+			"site": "packages/core/src/runtime/router-nav.ts > preload_stylesheets > timer:0",
+			"reason": "a next page's sheet that never comes: as above; proved: the cap removed turns the test red",
+			"test": "packages/core/test/browser/nav-sheet-wait-ends.test.ts",
+			"name": "a sheet of the next page that never comes holds its navigation for the cap, then the page goes in"
+		},
+		{
+			"site": "packages/core/src/runtime/router-nav.ts > url_of > catch:0",
+			"reason": "a live head URL that does not parse: no app the sim draws writes one; proved: the catch made to throw turns the test red",
+			"test": "packages/core/test/browser/head-urls.test.ts",
+			"name": "a head node whose URL does not parse is keyed by the URL as written"
+		},
+		{
+			"site": "packages/core/src/runtime/router-nav.ts > page_relative_resolved > catch:0",
+			"reason": "a fetched head's page-relative URL that does not parse: as above; proved: the catch made to throw turns the test red",
+			"test": "packages/core/test/browser/head-urls.test.ts",
+			"name": "a page-relative URL that does not parse is left as written: the browser ignores it the same way on either page"
+		},
+		{
+			"site": "packages/core/src/runtime/router-nav.ts > install_remote_mutation_cache_bust > fetch > catch:0",
+			"reason": "an app fetch whose request the cache bust cannot read: no app the sim draws sends one; proved: the catch made to rethrow turns the test red",
+			"test": "packages/core/test/browser/remote-mutation-bust.test.ts",
+			"name": "a request whose method cannot be read still gets its answer"
+		},
+		{
 			"site": "packages/core/src/runtime/entry-locations.ts > run > fetch:0",
 			"reason": "the build map's read failing on the network: only an identity-only load reads it, and the sim's faults touch that document; proved: a failed read kept (keep: () => Infinity) turns the test red",
 			"test": "packages/core/test/browser/entry-location-map-unread.test.ts",
@@ -1086,9 +1140,6 @@
 		"packages/core/src/runtime/region-endpoint-url.ts > warm_key > catch:0",
 		"packages/core/src/runtime/region-sheets.ts > sheet_of > error-event:0",
 		"packages/core/src/runtime/region-sheets.ts > note_code_sheets > catch:0",
-		"packages/core/src/runtime/router-nav.ts > url_of > catch:0",
-		"packages/core/src/runtime/router-nav.ts > page_relative_resolved > catch:0",
-		"packages/core/src/runtime/router-nav.ts > install_remote_mutation_cache_bust > fetch > catch:0",
 		"packages/core/src/runtime/router-nav.ts > fetch_page > abort:0",
 		"packages/core/src/runtime/router-nav.ts > run_page_fetch > abort:0",
 		"packages/core/src/runtime/router-nav.ts > run_page_fetch > abort:1",
@@ -1101,13 +1152,7 @@
 		"packages/core/src/runtime/router-nav.ts > navigate > reject:0",
 		"packages/core/src/runtime/router-nav.ts > navigate > .catch:1",
 		"packages/core/src/runtime/router-nav.ts > navigate > refused:0",
-		"packages/core/src/runtime/router-nav.ts > hold_scroll > timer:0",
-		"packages/core/src/runtime/router-nav.ts > hold_scroll > settled > timer:0",
-		"packages/core/src/runtime/router-nav.ts > hold_scroll > settled > timer:1",
-		"packages/core/src/runtime/router-nav.ts > hold_scroll > observer:0",
 		"packages/core/src/runtime/router-nav.ts > invalidate_all > build > abort:0",
-		"packages/core/src/runtime/router-nav.ts > preload_stylesheets > error-event:0",
-		"packages/core/src/runtime/router-nav.ts > preload_stylesheets > timer:0",
 		"packages/core/src/runtime/router.ts > on_idle > timer:0",
 		"packages/core/src/runtime/router.ts > on_idle > timer:1",
 		"packages/core/src/runtime/router.ts > (module) > import:0",
