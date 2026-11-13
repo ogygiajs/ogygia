@@ -50,6 +50,9 @@ export interface Mutant {
 	/** Why no run can tell it from the code as it is (it is never run, and stays out of the kill
 	 *  rate): written up once, so a list keeps it without it counting as a survivor. */
 	readonly equivalent?: string;
+	/** The buggify points its recovery is proved under (`--buggify-aim`): it runs only in a run
+	 *  aimed at exactly these, and a run without an aim leaves it out. */
+	readonly aim?: string;
 }
 
 /** The mutants a run builds and runs, and the ones written up as {@link Mutant.equivalent}. */
@@ -275,7 +278,9 @@ function main(): void {
 	const list = arg('--mutants');
 	if (list === undefined)
 		throw new Error('--mutants <file.json>: a list of { file, line, operator, from?, to? }');
-	const mutants = JSON.parse(readFileSync(list, 'utf8')) as Mutant[];
+	const mutants = (JSON.parse(readFileSync(list, 'utf8')) as Mutant[]).filter(
+		(m) => m.aim === AIM
+	);
 	const gens = (arg('--gens') ?? '191,192,193').split(',').filter(Boolean).map(Number);
 	const targets: Target[] = [
 		...gens.map((g) => ({ name: `gen${g}`, gen: g })),

@@ -256,5 +256,15 @@
 		"operator": "statement",
 		"from": "continue;",
 		"to": "return null;"
+	},
+	{
+		"id": "batch-undelivered-never-released",
+		"file": "packages/core/src/runtime/frame-nav.ts",
+		"line": 305,
+		"code": "for (const a of reserved) release(a);",
+		"operator": "statement",
+		"from": "for (const a of reserved) release(a);",
+		"to": "void reserved;",
+		"aim": "batch.part-lost"
 	}
 ]

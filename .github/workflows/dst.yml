@@ -177,12 +177,26 @@ jobs:
             require("fs").appendFileSync(process.env.GITHUB_STEP_SUMMARY,
               `## Mutation testing\n\nKill rate ${t.rate}% (${t.killed}/${t.judged} judged of ${t.total}, ${t.equivalent ?? 0} equivalent), ${t.at.slice(0, 10)}.\n`);'
 
+      # (a rarely asked buggify point's recovery: its mutants run with only that point on)
+      - name: Mutate, aimed at batch.part-lost
+        working-directory: internal/sim
+        run: |
+          node --no-warnings src/mutate.ts --mutants mutants.json --gens 191 --seeds 12 \
+            --jobs 4 --budget-min 20 --sandbox "$RUNNER_TEMP/mutbox-aim" \
+            --buggify-aim batch.part-lost --out "$RUNNER_TEMP/dst-mutation-aimed.jsonl"
+          tail -1 "$RUNNER_TEMP/dst-mutation-aimed.jsonl" | node -e '
+            const t = JSON.parse(require("fs").readFileSync(0, "utf8"));
+            require("fs").appendFileSync(process.env.GITHUB_STEP_SUMMARY,
+              `Aimed at batch.part-lost: ${t.killed}/${t.judged} killed.\n`);'
+
       - name: Upload the result
         if: always()
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: dst-mutation
-          path: ${{ runner.temp }}/dst-mutation.jsonl
+          path: |
+            ${{ runner.temp }}/dst-mutation.jsonl
+            ${{ runner.temp }}/dst-mutation-aimed.jsonl
           retention-days: 30
           if-no-files-found: ignore
 

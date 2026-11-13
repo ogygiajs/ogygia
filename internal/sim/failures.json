@@ -1925,7 +1925,8 @@
 		{
 			"point": "batch.part-lost",
 			"steps": ["frame-part: promised -> missed"],
-			"how": "a navigation batch's parcel for a hole is lost (as a body cut short would): its reservation is missed when the batch ends, and the hole fetches on its own"
+			"how": "a navigation batch's parcel for a hole is lost (as a body cut short would): its reservation is missed when the batch ends, and the hole fetches on its own. Batches are rare in a random run, so its kill is proved aimed (--buggify-aim batch.part-lost, gen 191: unreleased, the hole stands on its fallback and its binder is stuck)",
+			"killed_by": "batch-undelivered-never-released"
 		}
 	]
 }

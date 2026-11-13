@@ -373,6 +373,9 @@ export interface StepPoint {
 	/** The machine steps it leads to, as the steps ledger spells them. */
 	readonly steps: readonly string[];
 	readonly how: string;
+	/** The mutant that breaks the recovery the point leads to and the simulator kills, as
+	 *  {@link Fired.killed_by}. */
+	readonly killed_by?: string;
 }
 
 export interface FailureAccounting {
@@ -469,6 +472,8 @@ export function account_failures(
 		if (!o.points.has(p.point))
 			failures.push(`no buggify point '${p.point}' in the packages' source (step_points)`);
 		if (p.steps.length === 0) failures.push(`${p.point}: a step point names its steps`);
+		if (p.killed_by !== undefined && !o.mutants.has(p.killed_by))
+			failures.push(`${p.point}: no live mutant '${p.killed_by}' in mutants.json (step_points)`);
 	}
 	if (o.base !== undefined)
 		for (const b of ledger.baseline)
