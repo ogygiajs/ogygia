@@ -47,17 +47,9 @@ export async function componentCssHead(components: readonly unknown[]): Promise<
 	const entries = components.flatMap((c) => router_css_of(c));
 	if (!entries.length) return '';
 	const keys = entries.map((e) => e.key);
-	let fresh = new Set(claim_region_css(keys));
-	// Off-request realm (bare `router.fetch`, no Kit event): the per-request claim is inert — dedupe
-	// locally so the document still styles. On-request an empty result means everything was already
-	// linked by an earlier render (correctly emit nothing); the sentinel probe tells the two apart.
-	if (fresh.size === 0 && keys.length) {
-		try {
-			if (claim_region_css(['\0og-rcss-probe']).length === 0) fresh = new Set(keys);
-		} catch {
-			fresh = new Set(keys);
-		}
-	}
+	// Off-request realm (bare `router.fetch`, no Kit event): nothing to claim against — dedupe
+	// locally so the document still styles. On-request, what an earlier render linked is left out.
+	const fresh = new Set(claim_region_css(keys) ?? keys);
 	let head = '';
 	for (const e of entries) {
 		if (!fresh.has(e.key)) continue;
