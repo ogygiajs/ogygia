@@ -535,6 +535,13 @@ export async function run(
 					if (b && !(b.oracle === 'known' && broken.some((k) => k.detail.endsWith(b.detail))))
 						broken.push({ ...b, detail: `after ${describe(a)}: at rest: ${b.detail}` });
 			}
+			// (a settle that gave up let the loop go on while real work was in flight: from there the run
+			// is not its seed's, so it is said, with what it waited on; #1612)
+			for (const s of world.loop.stalled.splice(0))
+				broken.push({
+					oracle: 'settle-stalled',
+					detail: `at ${s.at} ms, action ${i + 1}: real work still in flight after the settle's wait: ${s.waiting.join(', ')}`
+				});
 			// (past its horizon the world stops: nothing after it would be a finding about the app)
 			if (world.loop.now >= world.loop.horizon)
 				broken.push({
