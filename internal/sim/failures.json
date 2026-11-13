@@ -699,6 +699,132 @@
 			"reason": "the end of a streamed read whose source cancel throws: proved: that rejection left uncaught turns the test red (unhandled)",
 			"test": "packages/core/test/page-facts-failures.test.ts",
 			"name": "a stream that breaks rejects what did not arrive, coded, and a failed cancel leaves nothing unhandled"
+		},
+		{
+			"site": "packages/core/src/hooks.ts > decode_pathname > catch:0",
+			"reason": "a path whose percent-encoding does not decode: proved: the failure thrown instead of a 400 turns the test red, twice",
+			"test": "packages/core/test/handle-failures.test.ts",
+			"name": "a path whose percent-encoding does not decode is a 400, and the page is never rendered"
+		},
+		{
+			"site": "packages/core/src/hooks.ts > client_ip > catch:0",
+			"reason": "an adapter that cannot name the client: proved: its failure thrown instead of failing closed (429) turns the test red, twice",
+			"test": "packages/core/test/handle-failures.test.ts",
+			"name": "a batch from a client the adapter cannot name is a 429 (fail closed)"
+		},
+		{
+			"site": "packages/core/src/hooks.ts > owned > catch:0",
+			"reason": "a page whose render throws: proved: the request's owner left open turns the test red, twice",
+			"test": "packages/core/test/handle-failures.test.ts",
+			"name": "the throw goes on to Kit, and the request’s owner ends with it"
+		},
+		{
+			"site": "packages/core/src/hooks.ts > owned > throw:0",
+			"reason": "a page whose render throws: proved: the throw swallowed (an empty response) turns the test red, twice",
+			"test": "packages/core/test/handle-failures.test.ts",
+			"name": "the throw goes on to Kit, and the request’s owner ends with it"
+		},
+		{
+			"site": "packages/core/src/hooks.ts > OgygiaHandle > constructor > throw:0",
+			"reason": "a JS caller still passing `transform`: proved: it allowed turns the test red, twice",
+			"test": "packages/core/test/handle-failures.test.ts",
+			"name": "`transform` is told where it moved"
+		},
+		{
+			"site": "packages/core/src/hooks.ts > OgygiaHandle > constructor > throw:1",
+			"reason": "a production secret too short to sign with: proved: it allowed turns the test red, twice",
+			"test": "packages/core/test/handle-failures.test.ts",
+			"name": "in production, a secret too short to sign with is refused"
+		},
+		{
+			"site": "packages/core/src/hooks.ts > OgygiaHandle > route > catch:0",
+			"reason": "a page-facts data answer whose headers cannot change (a redirect): proved: the failure thrown turns the test red, twice",
+			"test": "packages/core/test/handle-failures.test.ts",
+			"name": "an answer whose headers cannot change goes out as it is, without the route header"
+		},
+		{
+			"site": "packages/core/src/hooks.ts > OgygiaHandle > route > catch:1",
+			"reason": "a page with an early hole under a CSP, whose headers cannot change: proved: the failure thrown turns the test red, twice",
+			"test": "packages/core/test/handle-failures.test.ts",
+			"name": "goes out under the platform’s own policy: the script’s hash is not added, and nothing throws"
+		},
+		{
+			"site": "packages/core/src/hooks.ts > OgygiaHandle > route > catch:2",
+			"reason": "server delta on and a page whose headers cannot change: proved: the failure thrown turns the test red, twice",
+			"test": "packages/core/test/handle-failures.test.ts",
+			"name": "with server delta on, the page goes out as the platform made it, without the vary"
+		},
+		{
+			"site": "packages/core/src/hooks.ts > OgygiaHandle > route > catch:3",
+			"reason": "a devtools build, a page whose headers cannot change: proved: the failure thrown turns the test red, twice",
+			"test": "packages/core/test/devtools-page-headers-immutable.test.ts",
+			"name": "a devtools browser’s page whose headers cannot change goes out without the profiling headers"
+		},
+		{
+			"site": "packages/core/src/hooks.ts > OgygiaHandle > render_batch > parse:0",
+			"reason": "a batch body that is not JSON: proved: its parse failure thrown instead of a 400 turns the test red, twice",
+			"test": "packages/core/test/handle-failures.test.ts",
+			"name": "a batch body that is not JSON is a 400"
+		},
+		{
+			"site": "packages/core/src/hooks.ts > OgygiaHandle > render_batch > catch:0",
+			"reason": "a batch body that is not JSON: proved: the failure thrown instead of a 400 turns the test red, twice",
+			"test": "packages/core/test/handle-failures.test.ts",
+			"name": "a batch body that is not JSON is a 400"
+		},
+		{
+			"site": "packages/core/src/hooks.ts > OgygiaHandle > render_component > catch:0",
+			"reason": "a hole whose render calls keepFallback(): proved: the signal treated as a failure (a 500) turns the test red, twice",
+			"test": "packages/core/test/hole-keep-fallback-answer.test.ts",
+			"name": "a hole whose render keeps its fallback answers 204 with no content, and nothing is said"
+		},
+		{
+			"site": "packages/core/src/hooks.ts > OgygiaHandle > decode_region_props > catch:0",
+			"reason": "a hole whose island module throws as its props decode: proved: the failure thrown turns the test red, twice",
+			"test": "packages/core/test/hole-props-decode-said.test.ts",
+			"name": "in production: the server says it with a code and the error; the visitor gets an opaque 403 (#1506)"
+		},
+		{
+			"site": "packages/core/src/hooks.ts > OgygiaHandle > region_answer > .catch:0",
+			"reason": "a plugin's `measures` hook that throws: proved: its rejection left uncaught turns the test red, twice",
+			"test": "packages/core/test/server-timing-measurer.test.ts",
+			"name": "a plugin that fails to say is no vouching: the answer goes out, untimed"
+		},
+		{
+			"site": "packages/core/src/plugin/hooks.ts > code_origins > catch:0",
+			"reason": "a plugin's codeOrigins that throws: proved: its failure thrown turns the test red, twice",
+			"test": "packages/core/test/plugin-hooks-failures.test.ts",
+			"name": "a codeOrigins that throws adds none, the others’ count, and the failure is said"
+		},
+		{
+			"site": "packages/core/src/plugin/hooks.ts > get > catch:0",
+			"reason": "one notify implementation that fails: proved: the others stopped turns the test red, twice",
+			"test": "packages/core/test/plugin-hooks-failures.test.ts",
+			"name": "a notify runs every implementation past one that fails, then rejects with its error"
+		},
+		{
+			"site": "packages/core/src/plugin/hooks.ts > get > throw:0",
+			"reason": "one notify implementation that fails: proved: the notify resolving as done anyway turns the test red, twice",
+			"test": "packages/core/test/plugin-hooks-failures.test.ts",
+			"name": "a notify runs every implementation past one that fails, then rejects with its error"
+		},
+		{
+			"site": "packages/core/src/plugin/hooks.ts > get > catch:1",
+			"reason": "one ask implementation that fails: proved: the next one never asked turns the test red, twice",
+			"test": "packages/core/test/plugin-hooks-failures.test.ts",
+			"name": "an ask goes past an implementation that fails to the next one’s answer"
+		},
+		{
+			"site": "packages/core/src/plugin/hooks.ts > get > throw:1",
+			"reason": "an ask nobody answered, one having failed: proved: undefined (\"nobody knows\") instead turns the test red, twice",
+			"test": "packages/core/test/plugin-hooks-failures.test.ts",
+			"name": "an ask nobody answered, one having failed, throws that failure: never \"nobody knows\""
+		},
+		{
+			"site": "packages/core/src/runtime/client-hooks.ts > run_app_client_hooks > .catch:0",
+			"reason": "an app's hooks.client init that throws: proved: the failure left uncaught turns the test red, twice",
+			"test": "packages/core/test/browser/client-hooks.test.ts",
+			"name": "a failing init is caught, not thrown — it never blocks the page"
 		}
 	],
 	"impossible": [
@@ -1223,25 +1349,10 @@
 		"packages/core/src/fn-transport.ts > register_fn_kind > decode > throw:0",
 		"packages/core/src/head-owners.ts > adopt_owner_record > parse:0",
 		"packages/core/src/head-owners.ts > adopt_owner_record > catch:0",
-		"packages/core/src/hooks.ts > decode_pathname > catch:0",
-		"packages/core/src/hooks.ts > client_ip > catch:0",
-		"packages/core/src/hooks.ts > owned > catch:0",
-		"packages/core/src/hooks.ts > owned > throw:0",
-		"packages/core/src/hooks.ts > OgygiaHandle > constructor > throw:0",
-		"packages/core/src/hooks.ts > OgygiaHandle > constructor > throw:1",
-		"packages/core/src/hooks.ts > OgygiaHandle > route > catch:0",
-		"packages/core/src/hooks.ts > OgygiaHandle > route > catch:1",
-		"packages/core/src/hooks.ts > OgygiaHandle > route > catch:2",
-		"packages/core/src/hooks.ts > OgygiaHandle > route > catch:3",
-		"packages/core/src/hooks.ts > OgygiaHandle > render_batch > parse:0",
-		"packages/core/src/hooks.ts > OgygiaHandle > render_batch > catch:0",
 		"packages/core/src/hooks.ts > OgygiaHandle > inject_client_seeds > stale:0",
-		"packages/core/src/hooks.ts > OgygiaHandle > render_component > catch:0",
 		"packages/core/src/hooks.ts > OgygiaHandle > render_component > abort:0",
-		"packages/core/src/hooks.ts > OgygiaHandle > decode_region_props > catch:0",
 		"packages/core/src/hooks.ts > OgygiaHandle > capability_parcel > abort:0",
 		"packages/core/src/hooks.ts > OgygiaHandle > capability_parcel > abort:1",
-		"packages/core/src/hooks.ts > OgygiaHandle > region_answer > .catch:0",
 		"packages/core/src/html.ts > Html > constructor > throw:0",
 		"packages/core/src/html.ts > place > throw:0",
 		"packages/core/src/html.ts > attr > throw:0",
@@ -1261,11 +1372,6 @@
 		"packages/core/src/plugin/css.ts > run > import:0",
 		"packages/core/src/plugin/css.ts > componentCssHead > catch:0",
 		"packages/core/src/plugin/facts.ts > current_request > catch:0",
-		"packages/core/src/plugin/hooks.ts > code_origins > catch:0",
-		"packages/core/src/plugin/hooks.ts > get > catch:0",
-		"packages/core/src/plugin/hooks.ts > get > throw:0",
-		"packages/core/src/plugin/hooks.ts > get > catch:1",
-		"packages/core/src/plugin/hooks.ts > get > throw:1",
 		"packages/core/src/plugin/reads.ts > observe_reads > fetch:0",
 		"packages/core/src/plugin/reads.ts > carries_cookies > catch:0",
 		"packages/core/src/plugin/request-scope.ts > entry_of > abort:0",
@@ -1313,7 +1419,6 @@
 		"packages/core/src/request-event.ts > requestEvent > catch:0",
 		"packages/core/src/router-css.ts > router_css_of > catch:0",
 		"packages/core/src/rules.ts > Rules > broken > catch:0",
-		"packages/core/src/runtime/client-hooks.ts > run_app_client_hooks > .catch:0",
 		"packages/core/src/runtime/client-plugins.ts > isolated > .catch:0",
 		"packages/core/src/runtime/client-plugins.ts > isolated > catch:0",
 		"packages/core/src/runtime/client-plugins.ts > region_urls > catch:0",
