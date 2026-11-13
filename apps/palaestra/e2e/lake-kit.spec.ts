@@ -16,7 +16,8 @@ import { REGION_TAG_G_RE, RUNTIME_SCRIPT_RE } from '@ogygia/tooling/e2e/re.ts';
 const JS_FILE_RE = /\.(js|mjs)$/;
 // The distinctive string in the lake component (LakeChrome): server build yes, client chunks never.
 const MARKER = 'LAKE_CHROME_CODE_MARKER_5c1e';
-const LAKE_RE = /<ogygia-region entry="[^"]+" wake="none" remount="cache">/;
+const LAKE_RE =
+	/<ogygia-region entry="[^"]+" wake="none" remount="cache" data-og-lake="[0-9a-f]{16}">/;
 const LAKE_STATIC_RE = /data-lake-static/;
 // The header island inside the lake as a REAL region (its shell precedes its markup), not inline.
 const HEADER_REGION_RE =
