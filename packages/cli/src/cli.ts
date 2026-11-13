@@ -838,7 +838,7 @@ function globHasSvx(dir: string): boolean {
 		try {
 			entries = readdirSync(d, { withFileTypes: true });
 		} catch {
-			continue;
+			continue; // ok: a folder that cannot be read adds nothing to the walk
 		}
 		for (const e of entries) {
 			if (e.isDirectory()) stack.push(path.join(d, e.name));

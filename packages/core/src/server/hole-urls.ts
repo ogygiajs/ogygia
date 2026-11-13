@@ -33,7 +33,7 @@ function resolve_attr(value: string, base: URL): string {
 			base
 		);
 	} catch {
-		return value;
+		return value; // ok: not a URL, so none to make root-relative: kept as written
 	}
 	if (resolved.origin !== base.origin) return value;
 	return escape_amp(resolved.pathname + resolved.search + resolved.hash);
