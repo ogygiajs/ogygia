@@ -14,6 +14,8 @@
  */
 import { createInterface } from 'node:readline';
 import { dedent } from '@ogygia/core/plugin/utils';
+// (an error page's words, cut where the browser cuts its tags)
+import { markup_text } from '@ogygia/core/internal/instruments';
 import { createRequire } from 'node:module';
 import { flights, scope, STALE } from '@ogygia/machine';
 import { readdirSync, readFileSync, type Dirent } from 'node:fs';
@@ -67,7 +69,6 @@ export async function load_profiler_reading(): Promise<ProfilerReading | null> {
 // ── regexes
 const TRAILING_SLASH_RE = /\/$/;
 const HTTP_URL_RE = /^https?:\/\//i;
-const HTML_TAG_G = /<[^>]+>/g;
 const WS_G = /\s+/g;
 const BACKSLASH_G = /\\/g;
 const UNKNOWN_PRESET_RE = /unknown preset/i;
@@ -1663,7 +1664,10 @@ async function tool_profile(args: Attrs): Promise<ToolResult> {
 		await load_profiler_reading(); // (an older report's plain fix sum, when the app has the plugin)
 		return text(render_profile(origin, (await res.json()) as ProfileReport));
 	}
-	const body = (await res.text()).replace(HTML_TAG_G, ' ').replace(WS_G, ' ').trim().slice(0, 300);
+	const body = markup_text(await res.text())
+		.replace(WS_G, ' ')
+		.trim()
+		.slice(0, 300);
 	if (res.status === 401 || res.status === 403)
 		return fail(
 			`The profiler on ${origin} is locked. Pass its secret as \`key\` (ask the user for it).`
