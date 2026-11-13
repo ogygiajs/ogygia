@@ -77,6 +77,63 @@ it('a value whose staging throws fails its own promise; the rest stream and the 
 	request.close();
 });
 
+it('a value is walked once: a getter that throws is read once, and its promise fails', async () => {
+	const request = scope();
+	let reads = 0;
+	const flaky = {
+		get once(): number {
+			reads++;
+			if (reads === 1) throw new Error('a getter that throws once');
+			return 1;
+		}
+	};
+	const res = stream_page_deferred(
+		request,
+		kit_document(),
+		[{ id: 0, promise: Promise.resolve(flaky) }],
+		1
+	);
+	const body = await read_all(res, 2000);
+	expect(body).toMatch(/__ogygia_page_resolve\(0,false,/);
+	expect(body).toContain('a getter that throws once');
+	expect(reads).toBe(1);
+	expect(unhandled).toEqual([]);
+	request.close();
+});
+
+it('a Kit source whose cancel fails still lets the request end, with nothing left unhandled', async () => {
+	const request = scope();
+	const source = new ReadableStream<Uint8Array>({
+		start(c) {
+			c.enqueue(new TextEncoder().encode('<html><body><p>page</p>'));
+		},
+		cancel() {
+			throw new Error('a source that cannot be cancelled');
+		}
+	});
+	const res = stream_page_deferred(request, new Response(source), [], 0);
+	const reader = res.body!.getReader();
+	await reader.read();
+	request.close();
+	await new Promise((r) => setTimeout(r, 20));
+	expect(unhandled).toEqual([]);
+});
+
+it('cancelling the body settles: the stream it ends is already closed, and that is no failure', async () => {
+	const request = scope();
+	const res = stream_page_deferred(
+		request,
+		kit_document(),
+		[{ id: 0, promise: new Promise(() => {}) }],
+		1
+	);
+	const reader = res.body!.getReader();
+	await reader.read();
+	await expect(reader.cancel()).resolves.toBeUndefined();
+	expect(request.closed).toBe(false);
+	request.close();
+});
+
 it('a promise that rejects streams as a failure, with its error, never as a value', async () => {
 	const request = scope();
 	const res = stream_page_deferred(

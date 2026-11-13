@@ -337,13 +337,9 @@ export function stream_page_deferred(
 			owner.defer(close);
 			const push = (id: number, ok: boolean, value: unknown) => {
 				if (owner.closed) return;
-				try {
-					controller.enqueue(
-						encoder.encode(resolve_script(PAGE_DEFER_GLOBAL, id, { ok, value }, reducers))
-					);
-				} catch {
-					// ok: the client is gone and the stream closed; nobody reads this script
-				}
+				controller.enqueue(
+					encoder.encode(resolve_script(PAGE_DEFER_GLOBAL, id, { ok, value }, reducers))
+				);
 			};
 			// One promise, as it settles, then the nested ones its value re-staged: done when its whole
 			// tree is. A task of the stream's owner: the visitor leaving makes it STALE at once. Its
