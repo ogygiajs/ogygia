@@ -4,7 +4,27 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('esm-env', () => ({ DEV: false, BROWSER: true, NODE: false }));
 
-const { cache, machine } = await import('../src/index.ts');
+const { cache, machine, slot } = await import('../src/index.ts');
+
+describe('production: a slot asked for at another version', () => {
+	afterEach(() => vi.restoreAllMocks());
+
+	it('keeps one private value for that version, made once, and says it once', () => {
+		const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+		const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+		const name = 'ogygia.test.production-slot' as const;
+		const held = slot({ name, version: 1, make: () => ({ v: 1 }) });
+		let made = 0;
+		const make = () => ({ v: 2, n: ++made });
+		const a = slot({ name, version: 2, make });
+		const b = slot({ name, version: 2, make });
+		expect(a).not.toBe(held);
+		expect(b).toBe(a); // (one value: state kept in it is not lost on the next ask)
+		expect(made).toBe(1);
+		expect(slot({ name, version: 1, make: () => ({ v: 9 }) })).toBe(held);
+		expect(warn.mock.calls.length + error.mock.calls.length).toBe(1);
+	});
+});
 
 describe('production: a cache with no bound', () => {
 	afterEach(() => vi.restoreAllMocks());

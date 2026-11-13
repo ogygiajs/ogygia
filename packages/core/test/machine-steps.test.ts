@@ -8,6 +8,7 @@ import type { MachineGraph } from '@ogygia/machine';
 import { batch_stream_graph } from '../src/runtime/frame-nav.ts';
 import { hole_graph, wake_graph } from '../src/runtime/region-machines.ts';
 import { drain_graph } from '../src/runtime/schedule.ts';
+import { region_request } from '../src/server/region-request.ts';
 
 /** Each machine: its graph, and each step with where it is taken. */
 const MACHINES: { graph: () => MachineGraph; taken: Record<string, string> }[] = [
@@ -70,6 +71,24 @@ const MACHINES: { graph: () => MachineGraph; taken: Record<string, string> }[] =
 			'idle -> waiting': 'drain_after, from drain (which moved to idle first)',
 			'queued -> idle': 'drain: its task came',
 			'waiting -> queued': "schedule_drain: the wait's timer, or a turn asked for meanwhile"
+		}
+	},
+	{
+		// server/region-request.ts, walked by hooks.ts `#region_answer` (a GET, a renewal) and
+		// `#capability_parcel` (each hole of a batch). Each move is taken before its work, so a
+		// refusal leaves the state whose work refused it: none from `prechecked` or `verified` (#1082)
+		graph: () => region_request.graph(),
+		taken: {
+			'received -> prechecked': 'the precheck (shape, expiry, key) passed',
+			'received -> refused': 'the precheck refused',
+			'prechecked -> probed': 'the probe budget is charged next, before any HMAC',
+			'probed -> verified': 'the MAC checked, or a renewal re-signed',
+			'probed -> refused': 'the probe budget is spent, a bad MAC, a failed renewal',
+			'verified -> charged': 'the render budget is charged next',
+			'charged -> rendering': 'an id this build renders, props that decode',
+			'charged -> refused': 'the render budget is spent, an unknown id, props that do not decode',
+			'rendering -> sent': 'the render answered',
+			'rendering -> refused': 'the render failed'
 		}
 	}
 ];
