@@ -173,7 +173,7 @@ import {
 } from './runtime/concurrency.ts';
 import { stringify } from 'devalue';
 import { serialize_provided_context } from './context-bridge.ts';
-import { escape_script_text } from './escape.ts';
+import { escape_amp_quot, escape_script_text } from './escape.ts';
 import { hole_copy_key } from './contract/hash.ts';
 import { set_ctx_recorder } from './context-registry.ts';
 import {
@@ -730,7 +730,6 @@ function emit_ogygia_script(subtype: string, escaped_payload: string, marker = '
 	return `<script type="application/ogygia-${subtype}"${marker ? ` ${marker}` : ''}>${escaped_payload}</script>`;
 }
 
-const DOUBLE_QUOTE_G = /"/g;
 /** Stamped into the head of a csr=true document: the runtime reads it (`kit_hydrates_page`)
  *  instead of scanning the page's inline scripts for Kit's bootstrap. */
 const CSR_META = '<meta name="ogygia-csr" content="true">';
@@ -1347,7 +1346,7 @@ class OgygiaHandle {
 				// a changed stylesheet joins this page only when the plugin derives the same scope
 				// among its owners — two route-group sub-apps never paint each other in dev.
 				const scope = (event?.route.id ?? '').split('/').filter(Boolean)[0] ?? '';
-				head_inject = `${head_inject}<meta name="ogygia-dev-scope" content="${scope.replace(DOUBLE_QUOTE_G, '')}">`;
+				head_inject = `${head_inject}<meta name="ogygia-dev-scope" content="${escape_amp_quot(scope)}">`;
 			}
 		}
 
