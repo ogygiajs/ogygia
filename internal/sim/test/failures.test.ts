@@ -1,6 +1,8 @@
 // Every failure site accounted for (src/failures.ts): fired by a buggify point or a sim fault in the
 // sweep, covered by a named real test, or impossible by a named rule or type. The baseline (sites
 // nobody has bucketed yet) may only shrink.
+import { readFileSync } from 'node:fs';
+import { join, resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { dedent } from '../../../packages/core/src/contract/dedent.ts';
 import {
@@ -12,6 +14,7 @@ import {
 	type FailureLedger
 } from '../src/failures.ts';
 
+const ROOT = resolve(import.meta.dirname, '..', '..', '..');
 const ids = (source: string): string[] => sites_of('packages/x/src/a.ts', source).map((s) => s.id);
 
 describe('failure sites', () => {
@@ -130,6 +133,20 @@ describe('failure sites', () => {
 		expect(ids('function f() { hmac.verify(sig); }')).toEqual([
 			'packages/x/src/a.ts > f > crypto:0'
 		]);
+	});
+
+	it("names each way the rewrite refuses a render's answer, so a buggify point can fire it: a wrong count, html that does not close, lost marks, an element split across chunks", () => {
+		const file = 'packages/rewrite/src/pass.ts';
+		const found = new Set(
+			sites_of(file, readFileSync(join(ROOT, file), 'utf8')).map((s) => s.id.slice(file.length + 3))
+		);
+		for (const id of [
+			'counted > result:0',
+			'judge > result:2',
+			'judge > result:3',
+			'rewrite_chunk > result:0'
+		])
+			expect(found, id).toContain(id);
 	});
 
 	it('reads the buggify points a source asks, and the sim fault classes', () => {

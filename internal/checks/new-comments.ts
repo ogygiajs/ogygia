@@ -35,15 +35,13 @@ const git = (cwd: string, args: string[]) =>
 export function added_lines(root: string, base: string): Map<string, Set<number>> {
 	// what HEAD adds since it left `base` (as `base...HEAD`), not what `base` gained since
 	const from = git(root, ['merge-base', base, 'HEAD']).trim();
-	const files = git(root, ['diff', '--name-only', '--diff-filter=AMR', from, 'HEAD'])
+	const files = git(root, ['diff', '-M', '--name-only', '--diff-filter=AMR', from, 'HEAD'])
 		.split('\n')
 		.filter((f) => SOURCE_RE.test(f) && !f.endsWith('.d.ts'));
 	const added = new Map<string, Set<number>>();
 	if (files.length === 0) return added;
 	let file = '';
-	for (const row of git(root, ['diff', '-U0', '--no-color', from, 'HEAD', '--', ...files]).split(
-		'\n'
-	)) {
+	for (const row of git(root, ['diff', '-M', '-U0', '--no-color', from, 'HEAD']).split('\n')) {
 		if (row.startsWith('+++ ')) file = row.slice(4).replace(/^b\//, '');
 		const hunk = HUNK_RE.exec(row);
 		if (!hunk || !files.includes(file)) continue;
