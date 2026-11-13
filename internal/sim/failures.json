@@ -15,14 +15,21 @@
 			"machine",
 			"ogygia",
 			"postrender",
-			"reshape",
+			"rewrite",
 			"router",
 			"testing",
 			"tooling",
 			"tsdown-plugin-svelte"
 		],
 		"exclude": [],
-		"build_time": ["bake", "barrels", "cli", "config", "tooling", "tsdown-plugin-svelte"]
+		"build_time": [
+			"bake",
+			"barrels",
+			"cli",
+			"config",
+			"tooling",
+			"tsdown-plugin-svelte"
+		]
 	},
 	"fired": [
 		{
@@ -31,10 +38,74 @@
 			"how": "the point's own throw: the receiver applied the send and its reply was lost, so the outbox's policy sends it again and the receiver sees the same work twice"
 		},
 		{
-			"site": "packages/reshape/src/pass.ts > transformed > catch:0",
+			"site": "packages/rewrite/src/pass.ts > render_one > catch:0",
 			"point": "gen.reshape-throws",
-			"how": "the random app's pass throws (a point in its own code): the answer goes out as ogygia rendered it, a document still with the restorer",
-			"killed_by": "reshape-fallback-off"
+			"how": "the random app's render throws (a point in its own code) on the batch and again on each element alone: every element goes out as ogygia rendered it, said with rewrite_element_failed",
+			"killed_by": "rewrite-fallback-off"
+		},
+		{
+			"site": "packages/rewrite/src/pass.ts > render_targets > catch:0",
+			"point": "gen.reshape-throws",
+			"how": "the random app's render throws on the batch: it is retried one element at a time",
+			"killed_by": "rewrite-batch-throws"
+		},
+		{
+			"site": "packages/rewrite/src/pass.ts > call_render > throw:0",
+			"point": "rewrite.render-throws",
+			"how": "the point throws in place of the app's render, on a batch or on one element: the batch is retried one element at a time, and what still fails goes out as ogygia rendered it",
+			"killed_by": "rewrite-fallback-off-aimed"
+		},
+		{
+			"site": "packages/rewrite/src/pass.ts > render_one > result:0",
+			"point": "rewrite.signal-fires",
+			"how": "the point cancels the response while a failed batch's elements are retried: no element's own render starts after it, and the batch goes out as ogygia rendered it, nothing said",
+			"killed_by": "rewrite-cancel-unread"
+		},
+		{
+			"site": "packages/rewrite/src/pass.ts > render_one > result:1",
+			"point": "rewrite.render-throws",
+			"how": "the point throws on one element's own call: its failure comes back as a result, and the element goes out as ogygia rendered it",
+			"killed_by": "rewrite-fallback-off-aimed"
+		},
+		{
+			"site": "packages/rewrite/src/pass.ts > render_targets > result:0",
+			"point": "rewrite.render-throws",
+			"how": "the point throws on the batch and again on an element alone: that element goes out as ogygia rendered it, said with rewrite_element_failed"
+		},
+		{
+			"site": "packages/rewrite/src/pass.ts > counted > result:0",
+			"point": "rewrite.render-count",
+			"how": "the point drops the first result of a call: a short batch is retried one element at a time, and an element whose own answer is short goes out as ogygia rendered it (a result never lands on another element)",
+			"killed_by": "rewrite-count-unchecked"
+		},
+		{
+			"site": "packages/rewrite/src/pass.ts > judge > result:2",
+			"point": "rewrite.render-malformed",
+			"how": "the point leaves an unclosed <div> at the end of a result: that element goes out as ogygia rendered it, and the page around it keeps its shape",
+			"killed_by": "rewrite-unclosed-kept"
+		},
+		{
+			"site": "packages/rewrite/src/pass.ts > judge > result:3",
+			"point": "rewrite.render-strips-marks",
+			"how": "the point takes og-h off a result: a host ogygia restores goes out as ogygia rendered it, never as a render with nothing to restore by",
+			"killed_by": "rewrite-marks-lost-kept-aimed"
+		},
+		{
+			"site": "packages/rewrite/src/pass.ts > rewrite_chunk > result:0",
+			"point": "rewrite.chunk-split",
+			"how": "the point reads a chunk as two, cut inside the first element a rewrite matches: that element goes out unrendered, said in dev, and the page after it is read as before (rewrite-rendered judges what goes out)"
+		},
+		{
+			"site": "packages/rewrite/src/pass.ts > cancelled > abort:0",
+			"point": "rewrite.signal-fires",
+			"how": "the point cancels the response (its own controller, under the request's signal) at a check: the batch goes out as ogygia rendered it, never retried, nothing said, and no later rewrite or chunk renders; rule_rewrite_after_cancel says any render, write or failure after it",
+			"killed_by": "rewrite-cancel-unread"
+		},
+		{
+			"site": "packages/rewrite/src/pass.ts > Response > constructor > abort:0",
+			"point": "rewrite.signal-fires",
+			"how": "the controller the point aborts, as a cancelled request does: the render's ctx.signal fires with it",
+			"killed_by": "rewrite-cancel-unread"
 		},
 		{
 			"site": "packages/core/src/runtime/core.ts > OgygiaRegion > fetch_html > catch:0",
@@ -206,6 +277,12 @@
 			"reason": "a config error, at config time: a plugin listed without a plugin it needs (postrender() without dataShake())",
 			"test": "packages/compiler/test/plugins.test.ts",
 			"name": "a plugin that needs another fails the build while the app does not list it, naming the line to add"
+		},
+		{
+			"site": "packages/core/src/runtime/seeds.ts > merge_page_facts > catch:0",
+			"reason": "a page-facts script that does not parse (the server writes it, so only a mangled answer): it is skipped, the readable ones still join, and dev says page_payload_unreadable",
+			"test": "packages/core/test/browser/page-facts-before-devalue.test.ts",
+			"name": "facts that do not parse are skipped, the readable ones still join, and dev says why"
 		},
 		{
 			"site": "packages/core/src/runtime/seeds.ts > watch_unshipped > parse:0",
@@ -406,75 +483,111 @@
 			"name": "props no wire carries give no identity, so the lake is known by its entry and place"
 		},
 		{
-			"site": "packages/reshape/src/index.ts > handle > throw:0",
-			"reason": "a config error, at the first request: no app the sim generates leaves reshape() out of vite.config",
-			"test": "packages/reshape/test/plugin.test.ts",
-			"name": "refuses every request while reshape() is not in vite.config, naming the fix"
+			"site": "packages/rewrite/src/index.ts > rewrite > throw:0",
+			"reason": "a config error, at the first request: no app the sim generates leaves rewrite() out of vite.config",
+			"test": "packages/rewrite/test/plugin.test.ts",
+			"name": "refuses every request while rewrite() is not in vite.config, naming the fix"
 		},
 		{
-			"site": "packages/reshape/src/restore.ts > restore > sheet_for > catch:0",
+			"site": "packages/rewrite/src/index.ts > rewrite > throw:1",
+			"reason": "a wiring error, the same on every request: the sim's app lists its rewrite before ogygia.handle()",
+			"test": "packages/rewrite/test/plugin.test.ts",
+			"name": "listed after ogygia.handle() is refused with rewrite_after_ogygia"
+		},
+		{
+			"site": "packages/rewrite/src/pass.ts > after_cancel > abort:0",
+			"reason": "the rule's own check: it breaks only when the pass goes on after a cancel, which no sim run of the code as it is does (the rewrite-cancel-unread mutant does, and the sim kills it)",
+			"test": "packages/rewrite/test/rewrite.test.ts",
+			"name": "rule_rewrite_after_cancel: a render called after the request was cancelled is said with the rule’s code"
+		},
+		{
+			"site": "packages/rewrite/src/pass.ts > judge > result:0",
+			"reason": "a result that is not a string or { html }: a type error in the app's render, which the sim's app never makes; the test's table names the case",
+			"test": "packages/rewrite/test/rewrite.test.ts",
+			"name": "returns no html"
+		},
+		{
+			"site": "packages/rewrite/src/pass.ts > judge > result:1",
+			"reason": "a sheet with no key, css or scope: a type error in the app's render, which the sim's app never makes; the test's table names the case",
+			"test": "packages/rewrite/test/rewrite.test.ts",
+			"name": "returns a bad sheet"
+		},
+		{
+			"site": "packages/rewrite/src/pass.ts > render_targets > not-ok:0",
+			"reason": "each refused result is said with its code: no sim oracle can tell a warning that should have been said, a test can",
+			"test": "packages/rewrite/test/rewrite.test.ts",
+			"name": "production says each failure with its code, once per response and element name"
+		},
+		{
+			"site": "packages/rewrite/src/pass.ts > run_page > catch:0",
+			"reason": "the sim's app has no page rewrite",
+			"test": "packages/rewrite/test/rewrite.test.ts",
+			"name": "a page function that throws: production sends the document as ogygia rendered it, said as rewrite_page_failed"
+		},
+		{
+			"site": "packages/rewrite/src/pass.ts > run_page > abort:0",
+			"reason": "the sim's app has no page rewrite",
+			"test": "packages/rewrite/test/rewrite.test.ts",
+			"name": "a request cancelled while the page function ran: the document goes out as ogygia rendered it"
+		},
+		{
+			"site": "packages/rewrite/src/restore.ts > restore > sheet_for > catch:0",
 			"reason": "an engine without constructable stylesheets: happy-dom has them",
-			"test": "packages/reshape/test/browser/restore.test.ts",
+			"test": "packages/rewrite/test/browser/restore.test.ts",
 			"name": "a DOM without adoptable sheets or CSS.escape (jsdom): a <style> per root"
 		},
 		{
-			"site": "packages/reshape/src/restore.ts > restore > watch > observer:0",
+			"site": "packages/rewrite/src/restore.ts > restore > watch > observer:0",
 			"reason": "a Kit-hydrated page (csr=true): the random app is csr=false",
-			"test": "packages/reshape/test/browser/restore.test.ts",
+			"test": "packages/rewrite/test/browser/restore.test.ts",
 			"name": "a Kit-hydrated page: a watched host that leaves the document leaves the watch, a moved one stays, and the observer goes with the last one"
 		},
 		{
-			"site": "packages/reshape/src/pass.ts > transformed > throw:0",
-			"reason": "the random app's transform fails only on its fault points, which wait on dst/reshape-faults",
-			"test": "packages/reshape/test/pass-failed.test.ts",
-			"name": "a transform that throws is thrown with reshape_pass_failed"
+			"site": "packages/rewrite/src/pass.ts > page_failed > throw:0",
+			"reason": "dev only, and the sim's app has no page rewrite: production says it instead",
+			"test": "packages/rewrite/test/rewrite.test.ts",
+			"name": "dev throws it"
 		},
 		{
-			"site": "packages/reshape/src/pass.ts > transformed > throw:1",
-			"reason": "the random app's transform fails only on its fault points, which wait on dst/reshape-faults",
-			"test": "packages/reshape/test/pass-failed.test.ts",
-			"name": "a transform that drops ogygia's marks is thrown with reshape_marks_lost"
-		},
-		{
-			"site": "packages/reshape/src/restore.ts > restore > reset > parse:0",
+			"site": "packages/rewrite/src/restore.ts > restore > reset > parse:0",
 			"reason": "a host's og-r the server pass wrote and the wire mangled: the sim's server pass always writes it whole, and a tamper changes text, never inside a mark",
-			"test": "packages/reshape/test/browser/restore.test.ts",
+			"test": "packages/rewrite/test/browser/restore.test.ts",
 			"name": "a mangled attribute reset (`og-r`) leaves the host’s attributes as served, and its mark gone"
 		},
 		{
-			"site": "packages/reshape/src/restore.ts > restore > reset > catch:0",
+			"site": "packages/rewrite/src/restore.ts > restore > reset > catch:0",
 			"reason": "a host's og-r the server pass wrote and the wire mangled: the sim's server pass always writes it whole, and a tamper changes text, never inside a mark",
-			"test": "packages/reshape/test/browser/restore.test.ts",
+			"test": "packages/rewrite/test/browser/restore.test.ts",
 			"name": "a mangled attribute reset (`og-r`) leaves the host’s attributes as served, and its mark gone"
 		},
 		{
-			"site": "packages/reshape/src/restore.ts > restore > original > parse:0",
+			"site": "packages/rewrite/src/restore.ts > restore > original > parse:0",
 			"reason": "a text mark whose original is not JSON: the sim's server pass writes each whole, and a comment the app writes is never under a planned host",
-			"test": "packages/reshape/test/browser/restore.test.ts",
+			"test": "packages/rewrite/test/browser/restore.test.ts",
 			"name": "a text mark whose original does not parse carries none: the text stays as served, the mark gone"
 		},
 		{
-			"site": "packages/reshape/src/restore.ts > restore > original > catch:0",
+			"site": "packages/rewrite/src/restore.ts > restore > original > catch:0",
 			"reason": "a text mark whose original is not JSON: the sim's server pass writes each whole, and a comment the app writes is never under a planned host",
-			"test": "packages/reshape/test/browser/restore.test.ts",
+			"test": "packages/rewrite/test/browser/restore.test.ts",
 			"name": "a text mark whose original does not parse carries none: the text stays as served, the mark gone"
 		},
 		{
-			"site": "packages/reshape/src/restore.ts > restore > parse:0",
+			"site": "packages/rewrite/src/restore.ts > restore > parse:0",
 			"reason": "the dev check script is written only by a dev server, and whole: the sim runs production builds",
-			"test": "packages/reshape/test/browser/restore.test.ts",
+			"test": "packages/rewrite/test/browser/restore.test.ts",
 			"name": "a dev check that does not parse checks nothing: the restore goes on, and the script is consumed"
 		},
 		{
-			"site": "packages/reshape/src/restore.ts > restore > catch:0",
+			"site": "packages/rewrite/src/restore.ts > restore > catch:0",
 			"reason": "the dev check script is written only by a dev server, and whole: the sim runs production builds",
-			"test": "packages/reshape/test/browser/restore.test.ts",
+			"test": "packages/rewrite/test/browser/restore.test.ts",
 			"name": "a dev check that does not parse checks nothing: the restore goes on, and the script is consumed"
 		},
 		{
-			"site": "packages/reshape/src/restore.ts > restore_adopt > catch:0",
+			"site": "packages/rewrite/src/restore.ts > restore_adopt > catch:0",
 			"reason": "a shadow root that refuses a sheet (an engine's own refusal): happy-dom adopts every sheet",
-			"test": "packages/reshape/test/browser/restore.test.ts",
+			"test": "packages/rewrite/test/browser/restore.test.ts",
 			"name": "a root that cannot adopt its sheet leaves the others in the answer theirs"
 		},
 		{
@@ -568,15 +681,15 @@
 			"name": "two loads of one file that fail together share one retry, and get one copy of the module"
 		},
 		{
-			"site": "packages/reshape/src/restore-report.ts > report > import:0",
+			"site": "packages/rewrite/src/restore-report.ts > report > import:0",
 			"reason": "the sim never writes a restore mismatch or a late host to the log, so the wording chunk is never asked for; the test's Vite fails that chunk's load, so the real import rejects in 3 engines",
-			"test": "packages/reshape/test/browser-chunk-lost/restore-report.test.ts",
+			"test": "packages/rewrite/test/browser-chunk-lost/restore-report.test.ts",
 			"name": "a restore report whose wording chunk does not load says nothing, throws nothing, and keeps the log"
 		},
 		{
-			"site": "packages/reshape/src/restore-report.ts > report > reject:0",
+			"site": "packages/rewrite/src/restore-report.ts > report > reject:0",
 			"reason": "the import's rejection, as above: with the handler gone the run fails on an unhandled rejection in 3 engines (proved)",
-			"test": "packages/reshape/test/browser-chunk-lost/restore-report.test.ts",
+			"test": "packages/rewrite/test/browser-chunk-lost/restore-report.test.ts",
 			"name": "a restore report whose wording chunk does not load says nothing, throws nothing, and keeps the log"
 		},
 		{
@@ -3436,6 +3549,30 @@
 			"name": "a markup format's scan reads a file that is not there as null"
 		},
 		{
+			"site": "packages/core/src/runtime/core.ts > OgygiaRegion > absorbKeptProps > stale:0",
+			"reason": "`if (loaded !== STALE) this.#absorb(sidecar);`: proved: the STALE check made never true turns the test red, twice",
+			"test": "packages/core/test/browser/kept-props-codec-lands.test.ts",
+			"name": "a kept island’s newer props that arrive as the wire codec installs win over the older ones that waited for it"
+		},
+		{
+			"site": "packages/core/src/runtime/core.ts > OgygiaRegion > fetch_failed > stale:0",
+			"reason": "`if (back === STALE) return;`: proved: the STALE check made never true turns the test red, twice",
+			"test": "packages/core/test/browser/hole-offline.test.ts",
+			"name": "a hole waiting for the network that leaves the page stays at rest: it arms for nothing, and the network coming back asks nothing"
+		},
+		{
+			"site": "packages/compiler/src/compiler/virtual/core.ts > dev_runtime_of > parse:0",
+			"reason": "`catch { out = null; // ok: an unreadable package keeps `runtime_dir` }`: proved: the catch around the parse made to rethrow turns the test red, twice",
+			"test": "packages/compiler/test/virtual-core.test.ts",
+			"name": "installs every hydrate feature in dev from the runtime directory as given when its package.json is not JSON"
+		},
+		{
+			"site": "packages/compiler/src/vite/dev-maps.ts > install_dev_page_keys > DEV_PAGE_KEYS > .catch:0",
+			"reason": "`server.pluginContainer .resolveId(specifier, importer, { ssr: true })…`: proved: the .catch removed turns the test red, twice",
+			"test": "packages/compiler/test/dev-maps.test.ts",
+			"name": "a helper the dev server cannot resolve is not followed, and the island still gets its keys"
+		},
+		{
 			"site": "packages/compiler/src/compiler/build-cache.ts > cache_root > catch:0",
 			"reason": "a test reaches its recovery path; proved by the autopilot: the catch made to rethrow turns the test red",
 			"test": "packages/compiler/test/build-cache.test.ts",
@@ -3498,8 +3635,8 @@
 		{
 			"site": "packages/compiler/src/compiler/fs.ts > read > catch:0",
 			"reason": "a test reaches its recovery path; proved by the autopilot: the catch body emptied turns the test red",
-			"test": "packages/compiler/test/vite-hooks.test.ts",
-			"name": "dev pre-declares the deps every island imports; a build declares none"
+			"test": "packages/compiler/test/route-tree-kit.test.ts",
+			"name": "a csr = true `+page@.svelte` is a csr=true route"
 		},
 		{
 			"site": "packages/compiler/src/compiler/fs.ts > list > catch:0",
@@ -3672,8 +3809,8 @@
 		{
 			"site": "packages/compiler/src/compiler/region/transform.ts > normalize_hydrate_value > throw:0",
 			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
-			"test": "packages/compiler/test/wire-gating.test.ts",
-			"name": "a .ts registry mints no lake: `wake: 'none'` there fails, so every .ts wake region wakes"
+			"test": "packages/compiler/test/partial-transform.test.ts",
+			"name": "rejects an unknown wake value"
 		},
 		{
 			"site": "packages/compiler/src/compiler/region/transform.ts > reject_dynamic_region_imports > walk > throw:0",
@@ -4258,6 +4395,12 @@
 			"why": "timingSafeEqual throws only on buffers of different lengths. verify refuses any signature that is not 64 lowercase hex before the compare, so both buffers are always the 32 bytes of a SHA-256; the test holds that precheck.",
 			"by": "packages/core/test/quiet-failures.test.ts",
 			"name": "a signature that is not 64 lowercase hex is refused before any compare"
+		},
+		{
+			"site": "packages/compiler/src/vite/style-preprocess.ts > load_ts_transform > import:0",
+			"why": "the import of vite runs only inside the ogygia Vite plugin (vite/index.ts hands each component to preprocess_component_for_css), and vite is a required peer of @ogygia/compiler: a process running the plugin has vite to import.",
+			"by": "packages/compiler/package.json",
+			"name": "\"vite\": \"catalog:peers\""
 		}
 	],
 	"baseline": [
@@ -4357,12 +4500,9 @@
 		"packages/cli/src/perf/measure.ts > measure > throw:2",
 		"packages/compiler/src/compiler/region/transform.ts > FileCompilation > resolve_region_mark > throw:16",
 		"packages/compiler/src/compiler/region/transform.ts > FileCompilation > resolve_region_mark > throw:17",
-		"packages/compiler/src/compiler/virtual/core.ts > dev_runtime_of > parse:0",
-		"packages/compiler/src/vite/dev-maps.ts > install_dev_page_keys > DEV_PAGE_KEYS > .catch:0",
 		"packages/compiler/src/vite/index.ts > ogygia > arm_keep_client_cleanup > catch:0",
 		"packages/compiler/src/vite/index.ts > ogygia > resolveId > throw:0",
 		"packages/compiler/src/vite/index.ts > ogygia > generateBundle > import:0",
-		"packages/compiler/src/vite/style-preprocess.ts > load_ts_transform > import:0",
 		"packages/config/src/sim.ts > macrotask > message:0",
 		"packages/config/src/sim.ts > macrotask > message:1",
 		"packages/config/src/sim.ts > env_number > throw:0",
@@ -4544,17 +4684,13 @@
 		"packages/core/src/runtime/core.ts > region_fragment > timer:0",
 		"packages/core/src/runtime/core.ts > OgygiaRegion > fire_hydrate > reject:0",
 		"packages/core/src/runtime/core.ts > OgygiaRegion > absorbKeptProps > reject:0",
-		"packages/core/src/runtime/core.ts > OgygiaRegion > absorbKeptProps > stale:0",
 		"packages/core/src/runtime/core.ts > OgygiaRegion > connect > refused:0",
 		"packages/core/src/runtime/core.ts > OgygiaRegion > prefetch_html > .catch:0",
-		"packages/core/src/runtime/core.ts > OgygiaRegion > fetch_html > stale:0",
 		"packages/core/src/runtime/core.ts > OgygiaRegion > fetch_failed > catch:0",
 		"packages/core/src/runtime/core.ts > OgygiaRegion > fetch_failed > refused:0",
-		"packages/core/src/runtime/core.ts > OgygiaRegion > fetch_failed > stale:0",
 		"packages/core/src/runtime/core.ts > OgygiaRegion > on_idle > timer:0",
 		"packages/core/src/runtime/core.ts > OgygiaRegion > on_idle > timer:1",
 		"packages/core/src/runtime/core.ts > OgygiaRegion > on_idle > timer:2",
-		"packages/core/src/runtime/core.ts > OgygiaRegion > hydrate > gone > stale:0",
 		"packages/core/src/runtime/core.ts > OgygiaRegion > hydrate > stale:0",
 		"packages/core/src/runtime/core.ts > OgygiaRegion > hydrate > stale:1",
 		"packages/core/src/runtime/core.ts > OgygiaRegion > hydrate > .catch:0",
@@ -4617,8 +4753,6 @@
 		"packages/core/src/runtime/region-sheets.ts > note_code_sheets > catch:0",
 		"packages/core/src/runtime/router-nav.ts > fetch_page > abort:0",
 		"packages/core/src/runtime/router-nav.ts > run_page_fetch > abort:0",
-		"packages/core/src/runtime/router-nav.ts > run_page_fetch > abort:1",
-		"packages/core/src/runtime/router-nav.ts > run_page_fetch > throw:0",
 		"packages/core/src/runtime/router-nav.ts > navigate > build > abort:0",
 		"packages/core/src/runtime/router-nav.ts > navigate > build > catch:0",
 		"packages/core/src/runtime/router-nav.ts > navigate > build > abort:1",
@@ -4643,7 +4777,6 @@
 		"packages/core/src/runtime/schedule.ts > drain_after > timer:0",
 		"packages/core/src/runtime/seeds.ts > parse_page_seed > catch:0",
 		"packages/core/src/runtime/seeds.ts > apply_page_seed > catch:0",
-		"packages/core/src/runtime/seeds.ts > absorb_page_facts > catch:0",
 		"packages/core/src/runtime/session.ts > RuntimeSession > mark_head > observer:0",
 		"packages/core/src/runtime/speculate-hint.ts > speculate_url > catch:0",
 		"packages/core/src/runtime/stale-deps.ts > confirm_and_reload > fetch:0",
@@ -5341,17 +5474,25 @@
 	"step_points": [
 		{
 			"point": "flights.evicted-early",
-			"steps": ["render cache: kept -> gone", "router pages: kept -> gone"],
+			"steps": [
+				"render cache: kept -> gone",
+				"router pages: kept -> gone"
+			],
 			"how": "a kept answer's keep runs out at its next read: the entry goes and the caller runs the work again (any flights)"
 		},
 		{
 			"point": "flights.not-kept",
-			"steps": ["render cache: flying -> gone", "router pages: flying -> gone"],
+			"steps": [
+				"render cache: flying -> gone",
+				"router pages: flying -> gone"
+			],
 			"how": "an answer is not kept, as one too heavy for max: the next caller runs the work again (any flights)"
 		},
 		{
 			"point": "batch.part-lost",
-			"steps": ["frame-part: promised -> missed"],
+			"steps": [
+				"frame-part: promised -> missed"
+			],
 			"how": "a navigation batch's parcel for a hole is lost (as a body cut short would): its reservation is missed when the batch ends, and the hole fetches on its own. Batches are rare in a random run, so its kill is proved aimed (--buggify-aim batch.part-lost, gen 191: unreleased, the hole stands on its fallback and its binder is stuck)",
 			"killed_by": "batch-undelivered-never-released"
 		}
