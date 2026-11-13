@@ -41,14 +41,22 @@ describe('a region import in a .ts module', () => {
 	});
 
 	it.each([
-		`import { X } from '$lib/X.svelte' with { wake: 'load' };`,
-		`import X, { y } from '$lib/X.svelte' with { wake: 'load' };`,
-		`import * as X from '$lib/X.svelte' with { wake: 'load' };`,
-		`import '$lib/X.svelte' with { wake: 'load' };`,
-		`export { default as X } from '$lib/X.svelte' with { wake: 'load' };`,
-		`export * from '$lib/X.svelte' with { region: 'raw' };`
-	])('%s is refused', (line) => {
-		expect(() => compile(line)).toThrow(/must be a default import/);
+		[`import { X } from '$lib/X.svelte' with { wake: 'load' };`, 1],
+		[`import X, { y } from '$lib/X.svelte' with { wake: 'load' };`, 2]
+	])('%s is a region per binding', (line, n) => {
+		expect(compile(`${line}\nexport const r = 1;`)?.islands).toHaveLength(n);
+	});
+
+	it.each([
+		[`import * as X from '$lib/X.svelte' with { wake: 'load' };`, 'region_import_namespace'],
+		[`import '$lib/X.svelte' with { wake: 'load' };`, 'region_import_bare'],
+		[
+			`export { default as X } from '$lib/X.svelte' with { wake: 'load' };`,
+			'region_import_invalid'
+		],
+		[`export * from '$lib/X.svelte' with { region: 'raw' };`, 'region_import_invalid']
+	])('%s is refused', (line, code) => {
+		expect(() => compile(line)).toThrow(expect.objectContaining({ code }));
 	});
 
 	it.each([
