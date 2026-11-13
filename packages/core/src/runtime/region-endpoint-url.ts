@@ -34,7 +34,7 @@ export function capability_expired(
 		const exp = Number(new URL(endpoint, page_origin).searchParams.get('exp'));
 		return Number.isFinite(exp) && exp > 0 && exp <= now_ms / 1000 + CLOCK_SKEW_SEC;
 	} catch {
-		return false;
+		return false; // ok: an address that does not parse has no `exp` to be past
 	}
 }
 
@@ -221,7 +221,7 @@ function warm_key(url: string): string {
 	try {
 		return new URL(url, location.href).href;
 	} catch {
-		return url;
+		return url; // ok: not a URL: its own key
 	}
 }
 

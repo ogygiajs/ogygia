@@ -248,6 +248,14 @@ function run_seeds(
 }
 
 /** The packages a change in `pkg` is built again for: it and every package that depends on it. */
+/** The packages a run's mutants build (each with its dependents): the baseline builds them first,
+ *  so it runs on the build a mutant's runs on. A clone carries whatever its tree last built: with
+ *  a dependent built from older code, every mutant "killed" by the same finding the rebuild brought
+ *  (gen 734, seed 11, all 8 of a list). */
+export function baseline_packages(mutants: readonly Mutant[]): string[] {
+	return [...new Set(mutants.map((m) => package_of(m.file)))].sort();
+}
+
 function build_packages(box: string, pkg: string, log: string): boolean {
 	return sh(
 		box,
@@ -283,7 +291,9 @@ function main(): void {
 		throw new Error(`could not clone the repo (${log})`);
 	console.log(`sandbox ${box}; log ${log}; results ${out}`);
 
-	// the baseline: each target on the code as it is
+	// the baseline: each target on the code as it is, built as a mutant's is
+	for (const pkg of baseline_packages(mutants))
+		if (!build_packages(box, pkg, log)) throw new Error(`could not build ${pkg} (${log})`);
 	const base = new Map<string, string[]>();
 	for (const t of targets) {
 		if (!build_app(box, t, log)) throw new Error(`${t.name}: the baseline build failed (${log})`);

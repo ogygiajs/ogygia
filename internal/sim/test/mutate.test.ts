@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import {
 	apply_mutant,
+	baseline_packages,
 	clone_command,
 	confirmed,
 	package_of,
@@ -177,5 +178,16 @@ describe('a mutation run', () => {
 			equivalent: 1,
 			rate: 50
 		});
+	});
+
+	it("builds, before its baseline, every package a mutant's build would (a clone's stale dependents killed every mutant alike)", () => {
+		const m = (file: string): Mutant => ({ file, line: 1, operator: 'statement' });
+		expect(
+			baseline_packages([
+				m('packages/core/src/runtime/core.ts'),
+				m('packages/core/src/runtime/schedule.ts'),
+				m('packages/federation/src/peer.ts')
+			])
+		).toEqual(['packages/core', 'packages/federation']);
 	});
 });

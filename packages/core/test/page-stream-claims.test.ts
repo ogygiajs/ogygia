@@ -82,7 +82,9 @@ describe('the walks', () => {
 	});
 
 	it('settle_deferred checks for a promise before the plain-walk cap, so one 65 levels down is awaited', async () => {
-		let out = (await settle_deferred(nested(Promise.resolve('deep'), 65))) as { nest?: unknown };
+		let out = (await settle_deferred(nested(Promise.resolve('deep'), 65), scope())) as {
+			nest?: unknown;
+		};
 		while (out.nest !== undefined) out = out.nest as { nest?: unknown };
 		expect(out).toBeInstanceOf(SettledRef);
 		expect((out as unknown as SettledRef).value).toBe('deep');
@@ -94,7 +96,7 @@ describe('the walks', () => {
 		const list: unknown[] = [];
 		list.push(list);
 		expect(() => stage_deferred({ cycle, list }, 0)).not.toThrow();
-		await expect(settle_deferred({ cycle, list })).resolves.toBeDefined();
+		await expect(settle_deferred({ cycle, list }, scope())).resolves.toBeDefined();
 	});
 
 	it('the page seed reducers keep id 0 and a settled leaf, nested rich values and all', () => {

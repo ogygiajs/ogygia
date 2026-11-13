@@ -146,7 +146,7 @@ export class RedisStore implements ProfilerStore {
 		try {
 			return (JSON.parse(raw) as { dump: string }).dump;
 		} catch {
-			return null;
+			return null; // ok: a corrupt row reads as missing: the report page says it is not found
 		}
 	}
 

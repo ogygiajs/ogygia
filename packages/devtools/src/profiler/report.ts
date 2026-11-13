@@ -828,7 +828,7 @@ function cpu_by_host(extras: ReportExtras): Map<string, number> | null {
 		try {
 			host = new URL(f.path).host;
 		} catch {
-			continue;
+			continue; // ok: not a URL: no host to count it under
 		}
 		m.set(host, (m.get(host) ?? 0) + f.self_ms);
 	}
@@ -903,7 +903,7 @@ export function page_duplicates(
 		try {
 			return new URL(u).pathname;
 		} catch {
-			return u;
+			return u; // ok: not a URL: kept as written
 		}
 	};
 	const loaded = new Set<string>();
@@ -3129,7 +3129,7 @@ function ogygia_findings(
 			try {
 				return new URL(e, 'http://x/').pathname;
 			} catch {
-				return e;
+				return e; // ok: not a URL: kept as written
 			}
 		};
 		const vh = extras.visit?.viewport?.[1];

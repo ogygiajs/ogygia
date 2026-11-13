@@ -18,7 +18,10 @@ import {
 	Leaks,
 	live_events,
 	mpa_equivalent,
+	gate_open_early,
+	no_viewport_wait,
 	normalize,
+	parsed_first,
 	live_regions_out,
 	page_errors,
 	reshaped_live,
@@ -272,7 +275,8 @@ describe("a hole's fallback does not stand", () => {
 		lacks_a_file = false
 	) => {
 		const { Window } = await import('happy-dom');
-		const w = new Window({ url: 'https://app.test/p1' });
+		// (the simulator's viewport: src/layout.ts)
+		const w = new Window({ url: 'https://app.test/p1', width: 1280, height: 720 });
 		w.document.write(`<html><body>${body}</body></html>`);
 		const tab = {
 			realm: 'tab-1#1',
@@ -351,18 +355,46 @@ describe("a hole's fallback does not stand", () => {
 		);
 		expect(both?.oracle).toBe('fallback-stands');
 	});
+
+	// (a block 1000 px tall puts what follows it below the 720 px viewport)
+	const fold = (px: number) => `<div style="height: ${px}px"></div>`;
+
+	it('finds a visible hole its margin reaches still on its fallback, and passes one beyond it', async () => {
+		const visible = (margin: string) =>
+			`<ogygia-region render="defer" when="visible" margin="${margin}" endpoint="/__ogygia__?id=a"><p data-gen-fallback>loading n1…</p></ogygia-region>`;
+		expect((await at_rest(fold(800) + visible('200px')))?.oracle).toBe('fallback-stands');
+		expect(await at_rest(fold(1000) + visible('200px'))).toBeNull();
+	});
+
+	it("finds a hole whose prefetch is owed never warmed (a mutant that dropped the prefetch's margin survived)", async () => {
+		const warm = (prefetch: string, margin = '') =>
+			`<ogygia-region render="defer" when="interaction" prefetch="${prefetch}"${margin ? ` margin="${margin}"` : ''} endpoint="/__ogygia__?id=a"><p data-gen-fallback>loading n1…</p></ogygia-region>`;
+		const cold = await at_rest(fold(800) + warm('visible', '200px'));
+		expect(cold?.oracle).toBe('fallback-stands');
+		expect(cold?.detail).toContain('never warmed');
+		expect((await at_rest(warm('idle')))?.oracle).toBe('fallback-stands');
+		// (warmed: its endpoint was asked; and one beyond its margin owes nothing yet)
+		expect(await at_rest(warm('idle'), [['/__ogygia__?id=a&exp=1&sig=s', 200]])).toBeNull();
+		expect(await at_rest(fold(1000) + warm('visible', '200px'))).toBeNull();
+	});
 });
 
 describe('an island that wakes on its own is awake', () => {
-	/** `wire`: the document's requests, each `[url, status]`. */
-	const at_rest = async (body: string, wire: Array<[string, number | 'dropped']> = []) => {
+	/** `wire`: the document's requests, each `[url, status]`; `hidden`: the tab is behind another. */
+	const at_rest = async (
+		body: string,
+		wire: Array<[string, number | 'dropped']> = [],
+		hidden = false
+	) => {
 		const { Window } = await import('happy-dom');
-		const w = new Window({ url: 'https://app.test/p1' });
+		// (the simulator's viewport: src/layout.ts)
+		const w = new Window({ url: 'https://app.test/p1', width: 1280, height: 720 });
 		w.document.write(`<html><body>${body}</body></html>`);
 		const tab = {
 			realm: 'tab-1#1',
 			name: 'tab-1',
 			documents: 1,
+			hidden,
 			page: { mainFrame: { url: 'https://app.test/p1', document: w.document } }
 		} as unknown as Parameters<typeof islands_wake>[0];
 		const world = {
@@ -398,11 +430,11 @@ describe('an island that wakes on its own is awake', () => {
 	it('passes an awake one, one waiting for the visitor or the screen, and one in a faulted document', async () => {
 		expect(await at_rest(island('load', true))).toBeNull();
 		expect(await at_rest(island('interaction'))).toBeNull();
-		expect(await at_rest(island('visible'))).toBeNull();
+		expect(await at_rest(fold(1000) + island('visible'))).toBeNull();
 		// (one in a lake inside an island still waiting for the screen waits with it)
 		expect(
 			await at_rest(
-				`<ogygia-region wake="visible" entry="/_app/n3.js"><ogygia-region wake="none">${island('load')}</ogygia-region></ogygia-region>`
+				`${fold(1000)}<ogygia-region wake="visible" entry="/_app/n3.js"><ogygia-region wake="none">${island('load')}</ogygia-region></ogygia-region>`
 			)
 		).toBeNull();
 		expect(await at_rest(island('load'), [['/_app/n1.js', 'dropped']])).toBeNull();
@@ -417,6 +449,46 @@ describe('an island that wakes on its own is awake', () => {
 				)
 			)?.oracle
 		).toBe('islands-wake');
+	});
+
+	// (a block 1000 px tall puts what follows it below the 720 px viewport)
+	const fold = (px: number) => `<div style="height: ${px}px"></div>`;
+	const visible = (margin?: string) =>
+		`<ogygia-region wake="visible" entry="/_app/n2.js"${margin ? ` margin="${margin}"` : ''}><div data-gen="island">n2</div></ogygia-region>`;
+
+	it('finds a visible island on screen still asleep, and one below the fold its margin reaches (a mutant that dropped the margin survived)', async () => {
+		const on = await at_rest(visible());
+		expect(on?.oracle).toBe('islands-wake');
+		expect(on?.detail).toContain('wake="visible"');
+		// (800 px down: 80 px below the fold, inside a 200 px margin)
+		expect((await at_rest(fold(800) + visible('200px')))?.oracle).toBe('islands-wake');
+		// (a margin in % is of the viewport's height: 50% is 360 px)
+		expect((await at_rest(fold(1000) + visible('50%')))?.oracle).toBe('islands-wake');
+	});
+
+	it('passes a visible island below the fold and its margin, and one in a tab behind another', async () => {
+		expect(await at_rest(fold(1000) + visible())).toBeNull();
+		expect(await at_rest(fold(1000) + visible('200px'))).toBeNull();
+		expect(await at_rest(visible(), [], true)).toBeNull();
+		// (an island inside one below the fold waits with it)
+		expect(
+			await at_rest(
+				`${fold(1000)}<ogygia-region wake="visible" entry="/_app/n3.js">${island('load')}</ogygia-region>`
+			)
+		).toBeNull();
+	});
+
+	it('owes a media island its wake only while its query matches (the viewport is 1280 px wide)', async () => {
+		expect((await at_rest(island('(min-width: 800px)')))?.oracle).toBe('islands-wake');
+		expect(await at_rest(island('(max-width: 600px)'))).toBeNull();
+	});
+
+	it("owes a hole's island its wake once the hole's own answer is owed", async () => {
+		const hole = (when: string, wake: string) =>
+			`<ogygia-region entry="/_app/n4.js" render="defer" when="${when}" wake="${wake}" endpoint="/_ogygia/r/n4"><div data-gen="hole">n4</div></ogygia-region>`;
+		expect((await at_rest(hole('load', 'load')))?.oracle).toBe('islands-wake');
+		expect(await at_rest(hole('interaction', 'load'))).toBeNull();
+		expect(await at_rest(fold(1000) + hole('visible', 'load'))).toBeNull();
 	});
 });
 
@@ -550,6 +622,18 @@ describe('a live region announces what it shows', () => {
 				[['ogygia:live', 's4', 5]]
 			)
 		).toBeNull();
+	});
+
+	it("leaves out a nested remote query's own waiting or failed line: its answer comes later, no tick of this region's (gen 650)", async () => {
+		for (const line of [
+			'<span data-gen-pending>connecting n13…</span>',
+			'<span data-gen-error>n13 failed</span>'
+		])
+			expect(
+				await at_rest({ entry: 's4', tick: 5, extra: `<div data-gen="live-host">${line}</div>` }, [
+					['ogygia:live', 's4', 5]
+				])
+			).toBeNull();
 	});
 
 	it("sets aside an island in a document a fault touched (its file may have failed: it shows the tick's HTML, #942), never a static tick", async () => {
@@ -1020,5 +1104,46 @@ describe('what a filed bug says', () => {
 		]);
 		expect(said.known.map((k) => k.issue)).toEqual([1158]);
 		expect(said.left).toEqual(['unhandled: TypeError: something else']);
+	});
+});
+
+describe('a document nobody has looked at', () => {
+	const tab = (moves: string, o: { hidden?: boolean; seen?: boolean } = {}) =>
+		({
+			realm: 'tab-1#2',
+			hidden: o.hidden ?? true,
+			seen: new Set(o.seen ? ['tab-1#2'] : []),
+			page: {
+				mainFrame: { url: 'https://app.test/p1', window: { __ogygia_moves: () => moves } }
+			}
+		}) as unknown as Parameters<typeof no_viewport_wait>[0];
+	const waited = 'hydrate-drain#1 queued -> idle\nhydrate-drain#1 idle -> waiting';
+
+	it('never holds its islands for a viewport it does not have (schedule.ts: a hidden document skips the snapshot and the hold)', () => {
+		expect(no_viewport_wait(tab('hydrate-drain#1 idle -> queued'))?.oracle).toBeUndefined();
+		const found = no_viewport_wait(tab(waited));
+		expect(found?.oracle).toBe('viewport-wait');
+		expect(found?.detail).toContain('https://app.test/p1');
+	});
+
+	it("opens no island's gate before the document is parsed (schedule.ts: the paint gate waits for DOMContentLoaded)", () => {
+		// (a click before it is parsed only marks the gate touched; it opens after the paint all the same)
+		expect(gate_open_early('critical-gate#1 fresh -> touched')).toBe(false);
+		expect(
+			gate_open_early('hydrate-drain#1 idle -> queued\ncritical-gate#1 fresh -> settled')
+		).toBe(true);
+		expect(gate_open_early('critical-gate#1 fresh -> waiting')).toBe(true);
+		const t = (early: string | null) =>
+			({
+				page: { mainFrame: { url: 'https://app.test/p1' } },
+				early_gate: early
+			}) as unknown as Parameters<typeof parsed_first>[0];
+		expect(parsed_first(t(null))).toBeNull();
+		expect(parsed_first(t('https://app.test/p1'))?.oracle).toBe('paint-gate');
+	});
+
+	it('leaves out a document that was shown, or is shown now: it had a viewport to wait for', () => {
+		expect(no_viewport_wait(tab(waited, { seen: true }))).toBeNull();
+		expect(no_viewport_wait(tab(waited, { hidden: false }))).toBeNull();
 	});
 });
