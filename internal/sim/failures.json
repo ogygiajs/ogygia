@@ -179,6 +179,18 @@
 	],
 	"covered": [
 		{
+			"site": "packages/core/src/early-holes.ts > start_early_holes > .catch:0",
+			"reason": "an early hole's request failing before any runtime takes it over: the sim's oracles read the page's errors, but a runtime always adopts the request first in its runs; proved: the park's catch removed turns the test red (an unhandled rejection)",
+			"test": "packages/core/test/browser/early-holes.test.ts",
+			"name": "whose request fails before the runtime takes it over (or with no runtime at all): nothing unhandled"
+		},
+		{
+			"site": "packages/core/src/runtime/frame-store.ts > fetch_frame > abort:0",
+			"reason": "a fetcher that answers after every caller left: the runtime's fetchers stop on their signal, so only one that does not (an app's or a plugin's) reaches it; proved: the write let through turns the test red",
+			"test": "packages/core/test/frame-store.test.ts",
+			"name": "a fetch every caller left writes nothing, even when its fetcher answers anyway"
+		},
+		{
 			"site": "packages/core/src/runtime/entry-locations.ts > absolute > catch:0",
 			"reason": "an entry or location that is not a URL: every one the runtime writes is; proved: the catch made to throw turns the test red",
 			"test": "packages/core/test/browser/entry-locations.test.ts",
@@ -954,7 +966,6 @@
 		"packages/core/src/early-holes.ts > start_early_holes > parse:0",
 		"packages/core/src/early-holes.ts > start_early_holes > abort:0",
 		"packages/core/src/early-holes.ts > start_early_holes > fetch:0",
-		"packages/core/src/early-holes.ts > start_early_holes > .catch:0",
 		"packages/core/src/events/bus.ts > emit > catch:0",
 		"packages/core/src/events/bus.ts > push_stamped > catch:0",
 		"packages/core/src/events/sinks.ts > install_postmessage_sink > sink > message:0",
@@ -1125,7 +1136,6 @@
 		"packages/core/src/runtime/frame-nav.ts > streamFrames > .catch:0",
 		"packages/core/src/runtime/frame-nav.ts > streamFrames > stream:0",
 		"packages/core/src/runtime/frame-nav.ts > streamFrames > .catch:1",
-		"packages/core/src/runtime/frame-store.ts > fetch_frame > abort:0",
 		"packages/core/src/runtime/frame-store.ts > write > refused:0",
 		"packages/core/src/runtime/frame-store.ts > reserve > reject:0",
 		"packages/core/src/runtime/frame-store.ts > release > refused:0",
