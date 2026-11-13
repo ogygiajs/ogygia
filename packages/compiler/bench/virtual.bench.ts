@@ -104,8 +104,7 @@ function compiler(root: string, is_dev: boolean): Compiler {
 		crosses_wire: false,
 		transportable: true,
 		specs: [],
-		router: false,
-		flag_sites: []
+		router: false
 	});
 	return c;
 }

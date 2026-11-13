@@ -10,8 +10,7 @@ const facts_of = (i: number, edit = 0): FileFacts => ({
 	crosses_wire: i % 7 === edit,
 	transportable: i % 11 === 0,
 	specs: i % 3 === 0 ? ['$lib/a', `./m${i + edit}`] : [],
-	router: i % 50 === 0,
-	flag_sites: i % 25 === 0 ? [{ name: `f${i}`, kind: 'flag', file: `m${i}.ts`, line: 1 }] : []
+	router: i % 50 === 0
 });
 
 function read(s: ScanFacts): number {
@@ -19,8 +18,7 @@ function read(s: ScanFacts): number {
 		s.db.get(s.transportable_modules, 'all').size +
 		s.db.get(s.wire_crossers, 'all').size +
 		s.db.get(s.router_modules, 'all').size +
-		s.db.get(s.module_specs, 'all').size +
-		s.db.get(s.flag_sites, 'all').length
+		s.db.get(s.module_specs, 'all').size
 	);
 }
 
