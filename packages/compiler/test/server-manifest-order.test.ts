@@ -32,14 +32,8 @@ function modules(order: readonly string[]): string[] {
 			host
 		);
 	return [
-		server_manifest_module(
-			true,
-			program,
-			false,
-			(v) => v,
-			(iid) => `/_app/${iid}.js`
-		),
-		server_regions_module(true, program)
+		server_manifest_module(true, program, true, (v) => v),
+		server_regions_module(true, program, false)
 	];
 }
 
