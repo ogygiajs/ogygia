@@ -273,13 +273,12 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 	let devtools_effective = false;
 	let devtools_lazy = false;
 
-	// The Program — this plugin instance's cross-file linker / island graph. It owns the descriptor
-	// registry + the feature-mark bag (seeded from the two app-wide config flags), and the behavior
-	// over them (register / unregister_host / note_runtime_mark). Per-instance, never module-global,
-	// so Kit's throwaway plugin instance is a different Program and can't leak into the real build.
-	// The adapter binds local aliases to its Maps (same objects) + methods so the hooks read like before.
-	const program = new Program({ forms: continuity_forms, router: router_enabled });
-	const { registry } = program;
+	// The Program — the first build's cross-file linker / island graph (the compiler makes each later
+	// build its own: `compiler.program`). It owns the descriptor registry + the feature-mark bag
+	// (seeded from the two app-wide config flags), and the behavior over them (register /
+	// unregister_host / note_runtime_mark). Per-instance, never module-global, so Kit's throwaway
+	// plugin instance is a different Program and can't leak into the real build.
+	const first_program = new Program({ forms: continuity_forms, router: router_enabled });
 	// The feature-selected runtime chunk name lives on the driver as `compiler.runtime_chunk_filename()`
 	// (RUNTIME_HASH ⊕ program.runtime_feature_hash — see CompileCtx.runtime_chunk_filename); buildStart's
 	// emitFile and the runtime-url virtual both read it, so both build legs compute the same immutable name.
@@ -385,7 +384,6 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 		if (env) return env.name === 'ssr' || env.config?.consumer === 'server';
 		return last_leg_server ?? is_ssr;
 	};
-	let content_scanned = false;
 	let vite_server: ViteDevServer | null = null;
 	/** absolute path to Kit's internal wire-protocol module (deep import) */
 	let kit_wire_path: string | null = null;
@@ -525,7 +523,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 	// the whole file-local + discovery front-end (transform / ts_regions / macros / prescan / emit /
 	// resolve_id / transform_module / …). Its CompileCtx is bound in configResolved once the build is
 	// resolved (root/dev/id_salt known); the hooks then call it and inject the Vite primitives they own.
-	const compiler = new Compiler(program, { prof: __prof, P: __P, outHash: __outHash });
+	const compiler = new Compiler(first_program, { prof: __prof, P: __P, outHash: __outHash });
 
 	// ── keep-client route injection ──────────────────────────────────────────
 	// All-csr=false apps make Kit skip its ENTIRE client build, so ogygia's runtime is never emitted
@@ -964,9 +962,10 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 				// made content deferred holes flaky in dev (they worked only when the page-SSR registration
 				// happened to win the race). A markup `scan` walks the markdown corpus and registers
 				// every island before the first request, so the manifest is complete when any endpoint is
-				// hit. Idempotent via `content_scanned`; a no-op for apps without a content preprocessor.
-				if (!content_scanned) {
-					content_scanned = true;
+				// hit. Once per build: the leg that begins one (a second build in one process, watch,
+				// scans again); a no-op for apps without a content preprocessor.
+				const leg = (this as { environment?: { name?: string } }).environment?.name;
+				if (compiler.start_leg(leg ?? (server_leg ? 'ssr' : 'client'))) {
 					compiler.prescan();
 					for (const source of markup) await source.scan?.({ root, readFile });
 				}
@@ -1036,7 +1035,10 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 					// ...and which page.data keys each island's code reads (the build's seed answer)
 					install_dev_page_keys(
 						server,
-						(iid) => program.registry.get(program.by_id.get(iid) ?? '')?.componentPath,
+						(iid) => {
+							const { registry, by_id } = compiler.program;
+							return registry.get(by_id.get(iid) ?? '')?.componentPath;
+						},
 						root
 					);
 				}
@@ -1149,7 +1151,8 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 				// id, so Vite's moduleGraph must be cleared or it keeps serving the old import.
 				const deleted = !fs.existsSync(strip_id(file));
 				const host_changed = !deleted && compiler.is_registered_host(file);
-				const entry_changed = !deleted && needs_island_entry_full_reload(file, registry.values());
+				const entry_changed =
+					!deleted && needs_island_entry_full_reload(file, compiler.program.registry.values());
 				if (host_changed || deleted) {
 					invalidate_islands_for_file(file, { deleted, server });
 				}
@@ -1441,6 +1444,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 				// FLAG MANIFEST — the inventory the prescan OBSERVED (AST-resolved flag()/experiment()
 				// call sites in modules importing 'ogygia'). Written once per build for CI flag-debt
 				// diffs; the client leg runs last, so the file reflects the completed build.
+				const program = compiler.program;
 				if (program.flag_sites.length && isMainThread) {
 					try {
 						const dir = path.join(root, 'node_modules', '.ogygia');
@@ -1621,7 +1625,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 		},
 		// the plugins' `post` stage: on what the region transform made of the module
 		stage_host('post'),
-		island_sourcemaps_plugin({ program, is_island_path }),
+		island_sourcemaps_plugin({ program: () => compiler.program, is_island_path }),
 		lazy_files()
 	];
 }

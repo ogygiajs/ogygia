@@ -26,6 +26,7 @@ import {
 	routeCsrIsTrue,
 	hasAnyCsrTrueRoute,
 	clean_stale_ogygia_dirs,
+	clear_route_csr_cache,
 	is_route_component,
 	kit_dirs
 } from './kit.ts';
@@ -96,15 +97,44 @@ const RUNTIME_ENTRY_NAME = 'og-runtime';
  *  Returns the reference id. */
 export type EmitChunk = (chunk: { type: 'chunk'; id: string; name: string }) => string;
 
-/** What one client build emitted and wrote: it begins with the build and is never carried into the
- *  next one. */
-interface ClientBuild {
-	/** each emitted island entry's ref, by island id (one emit per island per build) */
+/** What one build learned, from its scan to what it emitted: made new when a build begins
+ *  (`Compiler.start_leg`) and never carried into the next one (test/second-build.test.ts). Dev is one
+ *  build for the whole session. */
+interface Build {
+	/** The legs (bundler environments) that started in this build. */
+	readonly legs: Set<string>;
+	readonly program: Program;
+	readonly transform_cache: Map<string, { code: string; result: unknown }>;
+	/** Every `import.meta.og.$` hoist (tag → factory source). */
+	readonly dollar_hoists: Map<string, string>;
+	/** The scan of `src/` ran (`prescan`). */
+	scanned: boolean;
+	/** The server-router component roots, once the scan is complete (build only). */
+	router_css_roots: string[] | null;
+	/** The registry-reach walk's answers: one resolution, read and verdict per module. */
+	readonly resolve_memo: Map<string, string | null>;
+	readonly reach_memo: Map<string, boolean>;
+	readonly specs_memo: Map<string, readonly string[]>;
+	/** Files the island-closure walk has already read (`mark_island_closure`): a closure marked at
+	 *  prescan is never re-walked when a later island shares it. The build's, like the island graph
+	 *  it fills (test/watch-island-closure.test.ts). */
+	readonly island_closure_seen: Set<string>;
+	/** Each emitted island entry's ref, by island id (one emit per island per build). */
 	readonly island_entry_refs: Map<string, string>;
 	runtime_entry_ref: string | null;
 	location_map_url: string | null;
 }
-const new_client_build = (): ClientBuild => ({
+const new_build = (program: Program): Build => ({
+	legs: new Set(),
+	program,
+	transform_cache: new Map(),
+	dollar_hoists: new Map(),
+	scanned: false,
+	router_css_roots: null,
+	resolve_memo: new Map(),
+	reach_memo: new Map(),
+	specs_memo: new Map(),
+	island_closure_seen: new Set(),
 	island_entry_refs: new Map(),
 	runtime_entry_ref: null,
 	location_map_url: null
@@ -227,14 +257,38 @@ function warn_undeclared_pkg_marks(id: string): void {
 }
 
 export class Compiler implements CoreApp {
-	readonly program: Program;
-	readonly transform_cache: Map<string, { code: string; result: unknown }> = new Map();
 	readonly profiler: Profiler;
+	/** The build under way (see `Build`). */
+	#build: Build;
+	/** The build's program: registry, graph and the scan's facts. */
+	get program(): Program {
+		return this.#build.program;
+	}
+	get transform_cache(): Map<string, { code: string; result: unknown }> {
+		return this.#build.transform_cache;
+	}
 	/** Every `import.meta.og.$` hoist collected across the build (tag → factory source). Filled by
 	 *  `macros()`; drained by the adapter's fn-manifest emit (dev load leg, renderChunk, writeBundle). */
-	readonly dollar_hoists: Map<string, string> = new Map();
-	/** `prescan()` is once-per-session — guarded so the adapter can call it from any hook. */
-	#scanned = false;
+	get dollar_hoists(): Map<string, string> {
+		return this.#build.dollar_hoists;
+	}
+
+	/**
+	 * Open leg `name` (the bundler environment a build hook runs in). A leg that already ran in this
+	 * build begins the next one (watch, a second `build()` in one process): everything the last build
+	 * learned is dropped. Dev is one build for the session. True when this leg begins a build, so the
+	 * caller runs its once-per-build work; Kit's route answers are read afresh from there.
+	 */
+	start_leg(name: string): boolean {
+		if (this.#build.legs.has(name) && this.#ctx!.is_build)
+			this.#build = new_build(this.#build.program.fresh());
+		const legs = this.#build.legs;
+		if (legs.has(name)) return false;
+		legs.add(name);
+		if (legs.size > 1) return false;
+		clear_route_csr_cache();
+		return true;
+	}
 
 	/**
 	 * DEV: the server-island ids the last emitted `ogygia:server/server-manifest` carried. A HOST edit
@@ -301,7 +355,7 @@ export class Compiler implements CoreApp {
 	}
 
 	constructor(program: Program, profiler: Profiler) {
-		this.program = program;
+		this.#build = new_build(program);
 		this.profiler = profiler;
 	}
 
@@ -509,12 +563,12 @@ export class Compiler implements CoreApp {
 	 * Discover every island up front — walk `src/`, transform each `.svelte` host and mint each
 	 * `.ts`/`.js` region, register the descriptors, then complete `island_graph` TRANSITIVELY and
 	 * finalize the runtime capability marks (so the sticky runtime entry bundles only what the app
-	 * uses, and its immutable chunk name busts on a feature-set change). Once per session, so the
+	 * uses, and its immutable chunk name busts on a feature-set change). Once per build, so the
 	 * adapter can call it from any hook. Populates the `Program`; the fs walk is the only side effect.
 	 */
 	prescan(): void {
-		if (this.#scanned) return;
-		this.#scanned = true;
+		if (this.#build.scanned) return;
+		this.#build.scanned = true;
 		const ctx = this.#ctx!;
 		const { prof, P } = this.profiler;
 		const program = this.program;
@@ -699,10 +753,6 @@ export class Compiler implements CoreApp {
 			.slice(0, 8);
 	}
 
-	/** Files the island-closure walk has already read (see `mark_island_closure`). Lives for the
-	 *  program, so a closure marked at prescan is never re-walked when a later island shares it. */
-	#island_closure_seen = new Set<string>();
-
 	/**
 	 * Mark `componentAbs` and EVERYTHING it imports (transitively) as island code, so the `$app/*`
 	 * shim decision for each of those modules is DETERMINISTIC — before the bundler resolves a single
@@ -769,8 +819,9 @@ export class Compiler implements CoreApp {
 		};
 		const walk = (abs: string) => {
 			const norm = strip_id(abs);
-			if (this.#island_closure_seen.has(norm)) return;
-			this.#island_closure_seen.add(norm);
+			const seen = this.#build.island_closure_seen;
+			if (seen.has(norm)) return;
+			seen.add(norm);
 			if (!island_graph.has(norm)) {
 				island_graph.add(norm);
 				added.push(norm);
@@ -865,12 +916,12 @@ export class Compiler implements CoreApp {
 	 * server (the handoff's `entries`) and to the browser (the location maps).
 	 * csr=false hosts omit wrapper imports so this emit owns the module. Idempotent per id.
 	 */
-	#router_css_roots_cache: string[] | null = null;
 	/** The server-router component roots (link/router-css.ts). Build: prescan is complete before any
-	 *  consumer runs — memoized. Dev: modules appear lazily (HMR), recompute per call. */
+	 *  consumer runs — memoized for the build. Dev: modules appear lazily (HMR), recompute per call. */
 	router_css_roots(): string[] {
 		const ctx = this.#ctx!;
-		if (ctx.is_build && this.#router_css_roots_cache) return this.#router_css_roots_cache;
+		const build = this.#build;
+		if (ctx.is_build && build.router_css_roots) return build.router_css_roots;
 		// One path for ALL page modules (`b.pageModules()`) — app source AND declared surfaces: an
 		// importer of a page specifier is detected by the prescan wherever it lives, a named file joins
 		// directly (the profiler's router). The walk's recursion is bounded by prescanned module_specs,
@@ -879,7 +930,7 @@ export class Compiler implements CoreApp {
 			router_css_roots(this.program.router_modules, this.program.module_specs, ctx.libDir)
 		);
 		const sorted = [...roots].sort();
-		if (ctx.is_build) this.#router_css_roots_cache = sorted;
+		if (ctx.is_build) build.router_css_roots = sorted;
 		return sorted;
 	}
 
@@ -930,7 +981,7 @@ export class Compiler implements CoreApp {
 		emitFile: EmitChunk,
 		{ emitRuntime, loaded = null }: { emitRuntime: boolean; loaded?: Set<string> | null }
 	): number {
-		const build = (this.#build = new_client_build());
+		const build = this.#build;
 		if (emitRuntime) {
 			// Unresolved virtual id — resolve_id/emit synthesize the feature-selected entry. Named, not
 			// fixed: the bundler hashes its content into the file name (its imports included), and the
@@ -959,10 +1010,6 @@ export class Compiler implements CoreApp {
 		return skipped;
 	}
 
-	/** The client build under way: made new by each `emit_build_chunks` (a build's start), so a second
-	 *  build in one process (watch) starts from nothing (test/entry-locations.test.ts › a second build
-	 *  in one process). */
-	#build: ClientBuild = new_client_build();
 	/** Client-build refs of each emitted island entry (by island id; an island is emitted once per
 	 *  build): the bundle end turns them into the hashed file names the handoff maps the stable names
 	 *  to. */
@@ -1316,13 +1363,13 @@ export class Compiler implements CoreApp {
 		// One resolution per (importer, specifier) per build: resolution is deterministic within a
 		// build, and every csr=false host and every walked module asks again otherwise.
 		const memo_key = `${strip_id(importer)}\n${source}`;
-		const memo = this.#resolve_memo.get(memo_key);
+		const memos = this.#build.resolve_memo;
+		const memo = memos.get(memo_key);
 		if (memo !== undefined) return memo;
 		const target = await this.#resolve_local_script_uncached(source, importer, resolve);
-		this.#resolve_memo.set(memo_key, target);
+		memos.set(memo_key, target);
 		return target;
 	}
-	#resolve_memo = new Map<string, string | null>();
 	async #resolve_local_script_uncached(
 		source: string,
 		importer: string,
@@ -1366,8 +1413,6 @@ export class Compiler implements CoreApp {
 	async #reaches_registry(file: string, resolve: RegistryResolve): Promise<boolean> {
 		return (await this.#reach(file, resolve, new Map(), [])).reaches;
 	}
-	#reach_memo = new Map<string, boolean>();
-	#specs_memo = new Map<string, readonly string[]>();
 	async #reach(
 		file: string,
 		resolve: RegistryResolve,
@@ -1375,10 +1420,11 @@ export class Compiler implements CoreApp {
 		component: string[]
 	): Promise<{ reaches: boolean; low: number }> {
 		const key = host_key(file);
-		const memo = this.#reach_memo.get(key);
+		const reach_memo = this.#build.reach_memo;
+		const memo = reach_memo.get(key);
 		if (memo !== undefined) return { reaches: memo, low: Infinity };
 		if (this.program.host_index.has(key)) {
-			this.#reach_memo.set(key, true);
+			reach_memo.set(key, true);
 			return { reaches: true, low: Infinity };
 		}
 		const open_depth = open.get(key);
@@ -1402,14 +1448,14 @@ export class Compiler implements CoreApp {
 		}
 		open.delete(key);
 		if (reaches) {
-			this.#reach_memo.set(key, true);
+			reach_memo.set(key, true);
 			component.length = parked + 1;
 			component.pop();
 			return { reaches: true, low: Infinity };
 		}
 		if (low >= depth) {
 			// A finished component rooted here: every file parked above it shares this negative.
-			for (let i = parked; i < component.length; i++) this.#reach_memo.set(component[i], false);
+			for (let i = parked; i < component.length; i++) reach_memo.set(component[i], false);
 			component.length = parked;
 			return { reaches: false, low: Infinity };
 		}
@@ -1418,11 +1464,12 @@ export class Compiler implements CoreApp {
 	}
 	/** A module's static script specifiers, read and parsed once per build. */
 	#script_specs(key: string, file: string): readonly string[] {
-		let specs = this.#specs_memo.get(key);
+		const memos = this.#build.specs_memo;
+		let specs = memos.get(key);
 		if (specs === undefined) {
 			const src = this.#ctx!.read_file(file);
 			specs = src == null ? [] : (static_script_specs(src, file) ?? []);
-			this.#specs_memo.set(key, specs);
+			memos.set(key, specs);
 		}
 		return specs;
 	}
