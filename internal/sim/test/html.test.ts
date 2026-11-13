@@ -2,7 +2,15 @@
 // says, before a parser repairs it) and bad HTML a document holds at rest (a DOM code built), lets
 // good HTML pass, and leaves what the app wrote badly on purpose (`data-gen-messy`) to the app.
 import { describe, expect, it } from 'vitest';
-import { content_model, from_dom, html_sent, lint_html, source_tree } from '../src/html.ts';
+import {
+	content_model,
+	error_answer_shown,
+	from_dom,
+	html_sent,
+	lint_html,
+	reshape_marks_left,
+	source_tree
+} from '../src/html.ts';
 import type { World } from '../src/world.ts';
 
 const page = (body: string, head = '<title>t</title>') =>
@@ -133,6 +141,39 @@ describe('html kept', () => {
 		doc.getElementById('p')!.appendChild(doc.createElement('section'));
 		expect(content_model(from_dom(doc.documentElement)).map((l) => l.rule)).toEqual([
 			'<section> inside <p>'
+		]);
+	});
+
+	it("finds a region error answer's body in the page, and passes a hole on its fallback (hole-fetch.ts's hole-error-answer-swapped-in)", async () => {
+		const { Window } = await import('happy-dom');
+		const w = new Window({ url: 'https://app.test/' });
+		w.document.write(
+			page('<ogygia-region render="defer"><p data-gen-fallback>loading n3…</p></ogygia-region>')
+		);
+		const doc = w.document as unknown as Document;
+		expect(error_answer_shown(doc.documentElement)).toEqual([]);
+		doc.querySelector('ogygia-region')!.textContent = 'Region render failed';
+		expect(error_answer_shown(doc.documentElement).map((l) => `${l.rule} at ${l.where}`)).toEqual([
+			'an error answer shown at html > body > ogygia-region'
+		]);
+	});
+
+	it("finds a reshape mark the restore left (a stand-in, a mark attribute, a comment mark), and passes a restored document (restore.ts's reshape-stand-in-kept survived without it)", async () => {
+		const { Window } = await import('happy-dom');
+		const w = new Window({ url: 'https://app.test/' });
+		w.document.write(
+			page('<div data-gen="plain"><x-gen-box data-n="1"><span>n1</span></x-gen-box></div>')
+		);
+		const doc = w.document as unknown as Document;
+		expect(reshape_marks_left(doc.documentElement)).toEqual([]);
+		const box = doc.querySelector('x-gen-box')!;
+		box.setAttribute('og-h', '0');
+		box.appendChild(doc.createElement('og-as'));
+		box.appendChild(doc.createComment('og-c 0.1 t'));
+		expect(reshape_marks_left(doc.documentElement).map((l) => `${l.rule} at ${l.where}`)).toEqual([
+			'a reshape mark left (og-h) at html > body > div[data-gen=plain] > x-gen-box',
+			'a reshape stand-in left (<og-as>) at body > div[data-gen=plain] > x-gen-box > og-as',
+			'a reshape mark left (<!--og-c-->) at html > body > div[data-gen=plain] > x-gen-box'
 		]);
 	});
 });

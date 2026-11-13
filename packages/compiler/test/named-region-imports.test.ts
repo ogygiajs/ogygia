@@ -456,6 +456,20 @@ describe('a marked binding used as anything but a component', () => {
 		expect(e?.message).toMatch(/registry\.ts:2:\d+/);
 	});
 
+	test('.ts: the message names the line and column of the misuse', () => {
+		const e = thrown(() =>
+			ts(`import { Card } from '@acme/ui' with { wake: 'load' };\nexport const x = Card();`)
+		);
+		expect(e?.message).toContain('registry.ts:2:18');
+	});
+
+	test('.ts: a string-named import reads its export by that name', () => {
+		const e = thrown(() =>
+			ts(`import { "Card" as C } from '@acme/ui' with { wake: 'load' };\nexport const x = C();`)
+		);
+		expect(e?.message).toContain(`import { Card as C } from '@acme/ui';`);
+	});
+
 	test('.ts: values, exports, region() and type positions stay legal', () => {
 		const r = ts(dedent`
 			import type { ComponentProps } from 'svelte';

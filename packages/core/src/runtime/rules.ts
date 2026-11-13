@@ -23,7 +23,7 @@
  *   hole's fetch, its wake, its live mode, its paint): no visit of it waits on what can no longer
  *   happen (#1132). Read from a task after its teardown.
  * - `rule_lake_restored`: an island's hydrate gives back every lake it lifted (./lakes.ts
- *   `restore` pairs them by position: a count that differs drops a lake's content).
+ *   `restore` pairs them by lake key, its identity and place: a lake left unpaired loses its content).
  * - `rule_head_adopted`: the head never gains a `<base>` or a refresh / CSP / cookie meta after the
  *   first document (SPA-HEAD, ./head-deny.ts).
  * - `rule_turns_counted`: the hydration scheduler's count of pending turns is the turns it holds,
@@ -346,10 +346,10 @@ const no_parse_upgraded = (): string | null =>
 
 /** An island's hydrate lifted `lifted` lakes out of `region` and found `found` to give them back to
  *  (./lakes.ts `restore`, which pairs them by position): a count that differs drops content. */
-export function note_lake_restore(region: Element, lifted: number, found: number): void {
-	if (lifted !== found && R.lakes_unpaired.length < 10)
+export function note_lake_restore(region: Element, lifted: number, paired: number): void {
+	if (lifted !== paired && R.lakes_unpaired.length < 10)
 		R.lakes_unpaired.push(
-			`${entry_of(region)} lifted ${lifted} lake(s) and its hydrate rendered ${found}`
+			`${entry_of(region)} lifted ${lifted} lake(s) and found where ${paired} of them belong`
 		);
 }
 
