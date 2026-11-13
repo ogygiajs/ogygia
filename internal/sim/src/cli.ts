@@ -54,6 +54,7 @@ import {
 	server_rules,
 	styled_regions,
 	stuck,
+	no_viewport_wait,
 	uncaught,
 	type Broken
 } from './oracles.ts';
@@ -497,6 +498,8 @@ export async function run(
 			for (const t of judged())
 				for (const b of [
 					stuck(t),
+					// (and one nobody has looked at never held its islands for a viewport)
+					no_viewport_wait(t),
 					page_rules(t, world),
 					// (and every region shows something, unless a press made the page the visitor's own)
 					pressed.get(t.name) === t.documents ? null : regions_show(t, world),

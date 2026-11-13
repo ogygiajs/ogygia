@@ -887,6 +887,26 @@ export function stuck(tab: Tab): Broken | null {
 	return { oracle: 'stuck', detail };
 }
 
+/**
+ * A HIDDEN DOCUMENT WAKES WITHOUT A VIEWPORT: one nobody has looked at (its tab hidden since it
+ * came) has no viewport to prefer, so its hydration drain never waits for the viewport snapshot or
+ * holds a turn for an on-screen island (schedule.ts `drain`: the drain machine never goes
+ * `waiting`). Read from the page's machine moves, as {@link stuck} is.
+ */
+export function no_viewport_wait(tab: Tab): Broken | null {
+	if (!tab.hidden || tab.seen.has(tab.realm)) return null;
+	const w = tab.page.mainFrame.window as unknown as { __ogygia_moves?: () => string };
+	const waited = (w.__ogygia_moves?.() ?? '')
+		.split('\n')
+		.some((l) => /^hydrate-drain\S* \S+ -> waiting$/.test(l));
+	return waited
+		? {
+				oracle: 'viewport-wait',
+				detail: `${tab.page.mainFrame.url}: never shown, its islands waited for a viewport`
+			}
+		: null;
+}
+
 /** ogygia's own rules, in the page (`__ogygia_rules()`, built in with OGYGIA_RULES=1). */
 export function page_rules(tab: Tab, world?: World): Broken | null {
 	const w = tab.page.mainFrame.window as unknown as {
