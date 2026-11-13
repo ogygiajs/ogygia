@@ -56,7 +56,14 @@
 			"how": "a kept peer document reads as stale: it is served while one fresh flight refreshes it, and this handler keeps that refresh quiet when it fails (with a drop or down fault on the same run)"
 		}
 	],
-	"covered": [],
+	"covered": [
+		{
+			"site": "packages/core/src/server/props-wire.ts > lake_identity > catch:0",
+			"reason": "a lake prop no wire carries makes the fingerprint throw: the lake gets no identity and is known by its entry and place",
+			"test": "packages/core/test/lake-identity.test.ts",
+			"name": "props no wire carries give no identity, so the lake is known by its entry and place"
+		}
+	],
 	"impossible": [],
 	"baseline": [
 		"packages/bake/src/bake.ts > scan > throw:0",
