@@ -6,8 +6,7 @@ import {
 	OWN_PACKAGE_NAMES,
 	is_own_specifier
 } from '../../core/src/contract/own-package.ts';
-import { source_uses_ogygia_context } from '../src/compiler/link/context-detect.ts';
-import { source_crosses_wire } from '../src/compiler/link/transport.ts';
+import { own_reach, reaches_context, reaches_wire } from '../src/compiler/link/own-reach.ts';
 import { summarize_chunk_contents } from '../src/compiler/link/island-deps.ts';
 
 describe('own package identity', () => {
@@ -37,12 +36,11 @@ describe('own package identity', () => {
 	});
 
 	it('reads a context provider and a held region imported under either name', () => {
-		expect(source_uses_ogygia_context(`import { setContext } from '@ogygia/core';`)).toBe(true);
-		expect(source_uses_ogygia_context(`import * as og from '@ogygia/core';\nog.Provide;`)).toBe(
-			true
-		);
-		expect(source_crosses_wire(`import { region } from '@ogygia/core';`)).toBe(true);
-		expect(source_crosses_wire(`import { region } from '@ogygia/corex';`)).toBe(false);
+		const reach = (src: string) => own_reach(src, 'x.ts', 'script');
+		expect(reaches_context(reach(`import { setContext } from '@ogygia/core';`))).toBe(true);
+		expect(reaches_context(reach(`import * as og from '@ogygia/core';\nog.Provide;`))).toBe(true);
+		expect(reaches_wire(reach(`import { region } from '@ogygia/core';`))).toBe(true);
+		expect(reaches_wire(reach(`import { region } from '@ogygia/corex';`))).toBe(false);
 	});
 
 	it("counts an installed @ogygia/core as ogygia's runtime in a chunk summary", () => {
