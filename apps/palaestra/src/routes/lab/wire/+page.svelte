@@ -7,7 +7,6 @@
 	import CtxWriter from '$lib/CtxWriter.svelte' with { wake: 'load' };
 	import CtxReader from '$lib/CtxReader.svelte' with { wake: 'load' };
 	import { SharedCounter } from '$lib/counter-object.svelte.js';
-	import { roomCtx } from '$lib/room-context.svelte.js';
 
 	const counter = new SharedCounter('lab', 7);
 </script>
@@ -20,7 +19,7 @@
 	the boundary as its <code>og.wire</code> encoding and is decoded back to one live instance.
 </p>
 
-<Provide values={[roomCtx(counter)]}>
+<Provide values={{ room: counter }}>
 	<div class="wire-grid">
 		<div>
 			<h3>writer island</h3>
