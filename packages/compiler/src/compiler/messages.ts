@@ -123,50 +123,14 @@ export const BUILD_ERRORS = {
 			that package's \`"ogygia.files"\`; otherwise it should not use the macro.
 		`
 	},
-	macro_bake_arity: {
-		text: (a: { file: string; line: number }): string =>
-			`${a.file}:${a.line} — import.meta.og.bake(fn) takes exactly one argument (a function).`,
+	macro_needs_plugin: {
+		text: (a: { file: string; macro: string; package: string; plugin: string }): string =>
+			`${a.file} — import.meta.og.${a.macro}() needs the \`${a.plugin}\` plugin from \`${a.package}\`, listed beside ogygia().`,
 		details: (): string => prose`
-			\`import.meta.og.bake\` runs one function at build time and inlines its result. It takes
-			that function and nothing else: \`import.meta.og.bake(() => buildNav())\`.
-		`
-	},
-	macro_bake_not_function: {
-		text: (a: { file: string; line: number }): string =>
-			`${a.file}:${a.line} — import.meta.og.bake(fn): the argument must be a function (\`() => …\`).`,
-		details: (): string => prose`
-			\`import.meta.og.bake\` was given something other than an inline function (a variable, a
-			value). The build evaluates the function's own source, so write it inline:
-			\`import.meta.og.bake(() => buildNav())\`.
-		`
-	},
-	macro_bake_eval_failed: {
-		text: (a: { file: string; reason: string }): string => prose`
-			import.meta.og.bake() in ${a.file}: evaluating the function failed — ${a.reason}. A baked
-			function may use this module's IMPORTS and literals only (not its other local variables),
-			and must not touch runtime-only modules ($app/*, the browser).
-		`,
-		details: (): string => prose`
-			The build bundled the baked function with the module's imports and ran it, and it threw.
-			\`reason\` is the error.
-
-			The function runs alone, at build time: it sees the module's imports and literals, not its
-			other local variables, and there is no request, no \`$app/*\` module and no browser. Move
-			what it needs into an import.
-		`
-	},
-	macro_bake_not_serializable: {
-		text: (a: { file: string; line: number; reason: string }): string => prose`
-			${a.file}:${a.line} — import.meta.og.bake(): the result is not serializable (${a.reason}).
-			bake produces DATA — return plain values (JSON + Date/Map/Set/RegExp/BigInt), never a
-			function, Promise, or class instance.
-		`,
-		details: (): string => prose`
-			The baked function ran, but its result cannot be written into the module as a constant.
-			\`reason\` names the value that failed.
-
-			Return plain data: JSON values, \`Date\`, \`Map\`, \`Set\`, \`RegExp\`, \`BigInt\`. A
-			function, a promise or a class instance cannot be baked.
+			This \`import.meta.og.*\` macro is compiled by a plugin, and that plugin is not in the
+			app's Vite plugins. Without it the call would reach the browser or the server as is, and
+			fail there. Install the package and list its plugin beside \`ogygia()\` in vite.config
+			\`plugins\` (before \`sveltekit()\`).
 		`
 	},
 
@@ -706,6 +670,27 @@ export const BUILD_ERRORS = {
 			realm module knows them without running it. This one now returns other names: the
 			generated list is stale. Run \`node packages/core/scripts/virtual-types.ts\`. ${BUG}
 		`
+	},
+	plugin_session_order: {
+		text: (a: { hook: string; state: string }): string =>
+			`The bundler called ogygia's \`${a.hook}\` hook while the plugin was ${a.state}.`,
+		details: (): string => prose`
+			An \`ogygia()\` plugin is made, configured (\`config\`), then resolved
+			(\`configResolved\`) once: its compiler is made from the resolved build. A hook that
+			needs the compiler runs after that, and the build is resolved only once per plugin. A
+			bundler or a tool that calls the hooks in another order meets this. ${BUG}
+		`
+	},
+	build_leg_unclear: {
+		text: (a: { leg: string; open: number }): string =>
+			a.leg
+				? `The bundler called ogygia in environment \`${a.leg}\`, which never started a build.`
+				: `The bundler called ogygia with no environment while ${a.open} environments build.`,
+		details: (): string => prose`
+			Each bundler environment (\`ssr\`, \`client\`) builds its own output, and ogygia keeps what
+			each one emits apart. A call it cannot place in one environment would put one
+			environment's files in the other's output. ${BUG}
+		`
 	}
 };
 
@@ -749,6 +734,37 @@ export const BUILD_WARNINGS = {
 
 			Add \`ogygia.files\` to that package's \`package.json\`: the paths or globs ogygia
 			compiles, like npm's \`files\`.
+		`
+	},
+	runtime_marks_late: {
+		text: (a: { file: string; features: string }): string => prose`
+			${a.file} placed a region that needs the runtime's ${a.features}, but the build had already
+			made its runtime without it: that region will not work in this build. Put the file where
+			the scan reads it: under \`src/\`, or in a package that declares \`"ogygia": { "files":
+			[...] }\`.
+		`,
+		details: (): string => prose`
+			A build picks the runtime's features once, from the regions it knows when the bundler
+			loads the runtime entry. This file was first reached later, while bundling, and one of
+			its regions needs a feature (a lake, a \`keep\`, a held region, a deferred hole, a wake
+			on interaction) the runtime was made without. The region then never wakes or never
+			fills.
+
+			ogygia reads every file under \`src/\` and every declared package file before the
+			bundler starts. Move the file there, or declare it in its package's \`ogygia.files\`.
+		`
+	},
+	relocation_unpatched: {
+		text: (a: { name: string; leg: string }): string => prose`
+			the ${a.name} in the ${a.leg} build was left unpatched: a value the build fills in at the end
+			never reached its chunk, so that part of the output is wrong. Please report it.
+		`,
+		details: (): string => prose`
+			Some values are known only once the bundler has transformed every module: the \`og.$\`
+			functions an app defines, and which server regions read \`page.data\`. The build writes a
+			placeholder for each and fills it in as each chunk is finished. A placeholder was left in
+			the output, or the module that carries it is in the output and none was filled. This is
+			an ogygia bug, or another plugin rewrote the chunk after ogygia filled it.
 		`
 	},
 	island_context_unprovided: {
@@ -908,6 +924,16 @@ export const BUILD_WARNINGS = {
 			folder, fix the config so it loads.
 		`
 	},
+	plugin_not_listed: {
+		text: (a: { package: string; plugin: string; file: string }): string =>
+			`${a.file} imports ${a.package}, but its plugin \`${a.plugin}\` is not listed beside ogygia() in vite.config — its build half does not run.`,
+		details: (): string => prose`
+			This package has a part that runs in the build (for \`@ogygia/flags\`: the flag inventory,
+			\`node_modules/.ogygia/flags-manifest.json\`, and the server half that tells each request
+			which flags it read). That part runs only when the package's plugin is listed. Add it beside
+			\`ogygia()\` in vite.config \`plugins\`, before \`sveltekit()\`. Said once per build.
+		`
+	},
 
 	// ── the build's reports: printed at info level with `line(code, args)`, never warned ──────────
 	island_chunks_not_emitted: {
@@ -917,15 +943,6 @@ export const BUILD_WARNINGS = {
 			The client build found islands whose host components no route of this build renders, so
 			it left their chunks out. Nothing is wrong unless an island is missing from a page that
 			should have it: then check the route that renders its host is part of the build.
-		`
-	},
-	flags_manifest_written: {
-		text: (a: { count: number }): string =>
-			`flags manifest: ${a.count} flag(s) → node_modules/.ogygia/flags-manifest.json`,
-		details: (): string => prose`
-			The build wrote the inventory of every \`flag()\` it found, with where each is read, to
-			\`node_modules/.ogygia/flags-manifest.json\`. Tools (the devtools, a flag dashboard) read it
-			from there.
 		`
 	},
 	page_seed_report: {

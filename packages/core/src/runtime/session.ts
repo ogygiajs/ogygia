@@ -290,9 +290,17 @@ export class RuntimeSession {
 		return kind === 'settled' || kind === 'settling';
 	}
 
-	/** The lake's content is in: the regions that connect in it from now on run. Ones that already
-	 *  waited are woken by {@link wake_lake} after the swap that brings their content. */
+	/** The lake's content is in now (put back by its host, swapped in by a navigation, there as it
+	 *  stands, or kept after a refresh failed for good): every region in it runs. Ones that waited came
+	 *  back with the content (moved, they reconnect) or are woken by the caller. */
 	settle_lake(el: Element): void {
+		const m = this.#lake(el);
+		if (m.now.kind !== 'settled') m.go('settled');
+	}
+
+	/** A refresh's answer is in hand, its swap not done: the regions that connect from now on run (they
+	 *  come with the swap), and the ones that waited are woken by {@link wake_lake} after it. */
+	settle_lake_before_swap(el: Element): void {
 		const m = this.#lake(el);
 		if (m.now.kind === 'open') m.go('settled');
 		else if (m.now.kind === 'waited') m.go('settling');
@@ -311,12 +319,6 @@ export class RuntimeSession {
 		if (m === undefined || (m.now.kind !== 'settling' && m.now.kind !== 'waited')) return false;
 		m.go('settled');
 		return true;
-	}
-
-	/** The lake gives up on new content (its refresh failed for good): settled as it stands. */
-	settle_lake_now(el: Element): void {
-		const m = this.#lake(el);
-		if (m.now.kind !== 'settled') m.go('settled');
 	}
 
 	#visit: PageVisit = page_visit();

@@ -72,7 +72,7 @@ export function testing_lean(): boolean {
 			new URL(location.href).searchParams.get(TESTING_PARAM) === TESTING_LEAN
 		);
 	} catch {
-		return false;
+		return false; // ok: off the browser, or cookies blocked: not lean
 	}
 }
 
@@ -89,7 +89,7 @@ export function devtools_switched_on(): boolean {
 	try {
 		return switch_on_in(document.cookie);
 	} catch {
-		return false;
+		return false; // ok: off the browser, or cookies blocked, as said above
 	}
 }
 

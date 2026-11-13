@@ -35,7 +35,9 @@ const TEST_SIGNER: AppSigner = {
 		renew_window: RENEW_WINDOW_SEC,
 		request: () => null
 	}),
-	deny: (why) => new Response('Forbidden', { status: 403, headers: { 'x-ogygia-deny': why } })
+	deny: (why) => new Response('Forbidden', { status: 403, headers: { 'x-ogygia-deny': why } }),
+	// (a test's requests pay no budget: the handle's are tested through it, plugin-hole-budgets)
+	charge: () => null
 };
 
 /**
