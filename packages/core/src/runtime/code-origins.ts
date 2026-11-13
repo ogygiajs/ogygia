@@ -1,26 +1,3 @@
-/**
- * CODE ORIGINS — where island code may load from: the page's own origin, the runtime's (Kit's
- * `paths.assets`, where every built file lives), and the origins the server wrote on the runtime's
- * script (`data-og-origins`: a federation peer's, server/document-tail.ts). Nowhere else.
- *
- * A region's `entry` and `src` are markup. Markup that came in some other way (a rich-text field, a
- * sanitizer that keeps custom elements and unknown attributes) must not become script from any
- * origin: hole HTML is held to its own origin for the same reason (INVARIANTS HOLE-TRUST), and under
- * a `'strict-dynamic'` CSP the runtime's `import()` is trusted, so the CSP would not stop it.
- *
- * Read once per response, from the first runtime script in the head (the server's, before any
- * markup a page adds later), and never widened by markup: at boot, and again after a navigation
- * brings the next response's onto the kept script (./response-mark.ts `adopt_response`, #1045). A {@link CodeUrl} is made only here, and
- * {@link import_code}, the runtime's one computed `import()`, takes nothing else: an island's load,
- * its warm and its preload links, and the dev region-css rescue all ask here (#981).
- * test/browser/code-origins.test.ts.
- *
- * A leaf: island-side code (./entry-locations.ts) imports it. Only the head's FIRST runtime script
- * is read, attribute or not: with none on the server's, a later one is markup's
- * (test/browser/property-code-origins.test.ts).
- *
- * @packageDocumentation
- */
 // (the boot's own table: this module is boot code, test/runtime-boot-svelte-free.test.ts)
 import { OgygiaError } from '../messages/core.ts';
 import { OG_ORIGINS, OGYGIA_RUNTIME } from '../wire-markup.ts';
@@ -78,6 +55,7 @@ export function code_url_or_refuse(url: string, entry: string = url): CodeUrl {
 	return ok;
 }
 
+// @why under a `'strict-dynamic'` CSP a trusted script's `import()` is trusted too, so the CSP never stops a URL that markup wrote (test: test/browser/code-origins.test.ts › is not imported as written: refused with its code, nothing requested)
 /** The runtime's one `import()` of a computed URL: island code, a retry of its file, a dev region's
  *  styles. Nothing else in the runtime imports a URL it did not write (test/code-origins.test.ts). */
 export function import_code<T>(url: CodeUrl): Promise<T> {

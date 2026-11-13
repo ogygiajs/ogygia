@@ -93,24 +93,6 @@
 			"killed_by": "hole-error-answer-swapped-in"
 		},
 		{
-			"site": "packages/core/src/runtime/hole-fetch.ts > read_hole > throw:2",
-			"point": "hole.answer-later",
-			"how": "the point itself, on the 429's own throw: the answer comes back later, and fetch_failed waits (the Retry-After, else the backoff) and asks again, never gives up as on a refusal. The sim fires it at most twice in a document (CAPPED_POINTS), so a hole on its fallback at rest is a broken retry. Proved aimed (--buggify-aim hole.answer-later, gens 191 and 10: baselines clean; a 429 read as a refusal dies on gen191:1 by fallback-stands)",
-			"killed_by": "hole-answer-later-treated-as-refused"
-		},
-		{
-			"site": "packages/core/src/runtime/frame-store.ts > reserve > stale:0",
-			"point": "batch.part-lost",
-			"how": "a batch part the batch did not carry is missed: its wait answers STALE, never an empty answer, so a joined binder asks again. Proved aimed (--buggify-aim batch.part-lost, gens 191 and 10: an empty answer in its place leaves the hole on its fallback, gen191:8 fallback-stands)",
-			"killed_by": "missed-part-lands-empty"
-		},
-		{
-			"site": "packages/core/src/runtime/frame-store.ts > ensure > stale:0",
-			"point": "batch.part-lost",
-			"how": "a binder that joined a missed part gets STALE and asks again: its own fetch runs. Proved aimed (--buggify-aim batch.part-lost, gens 191 and 10: one that returns the STALE leaves the hole waiting, gen191:9 stuck)",
-			"killed_by": "missed-part-joiner-not-asking-again"
-		},
-		{
 			"site": "packages/core/src/runtime/frame-nav.ts > streamFrames > throw:0",
 			"point": "batch.fetch-fails",
 			"how": "the point itself: a navigation batch's request fails before it goes out, as a dropped one's does",
@@ -175,6 +157,24 @@
 			"point": "router.commit-throws",
 			"how": "a commit that throws is kept as out.failed: what was built is given back, and the navigation hands off to the browser (#276)",
 			"killed_by": "router-commit-failed-not-handed-off"
+		},
+		{
+			"site": "packages/core/src/runtime/hole-fetch.ts > read_hole > throw:2",
+			"point": "hole.answer-later",
+			"how": "the point itself, on the 429's own throw: the answer comes back later, and fetch_failed waits (the Retry-After, else the backoff) and asks again, never gives up as on a refusal. The sim fires it at most twice in a document (CAPPED_POINTS), so a hole on its fallback at rest is a broken retry. Proved aimed (--buggify-aim hole.answer-later, gens 191 and 10: baselines clean; a 429 read as a refusal dies on gen191:1 by fallback-stands)",
+			"killed_by": "hole-answer-later-treated-as-refused"
+		},
+		{
+			"site": "packages/core/src/runtime/frame-store.ts > reserve > stale:0",
+			"point": "batch.part-lost",
+			"how": "a batch part the batch did not carry is missed: its wait answers STALE, never an empty answer, so a joined binder asks again. Proved aimed (--buggify-aim batch.part-lost, gens 191 and 10: an empty answer in its place leaves the hole on its fallback, gen191:8 fallback-stands)",
+			"killed_by": "missed-part-lands-empty"
+		},
+		{
+			"site": "packages/core/src/runtime/frame-store.ts > ensure > stale:0",
+			"point": "batch.part-lost",
+			"how": "a binder that joined a missed part gets STALE and asks again: its own fetch runs. Proved aimed (--buggify-aim batch.part-lost, gens 191 and 10: one that returns the STALE leaves the hole waiting, gen191:9 stuck)",
+			"killed_by": "missed-part-joiner-not-asking-again"
 		}
 	],
 	"covered": [
@@ -347,6 +347,90 @@
 			"name": "a request whose method cannot be read still gets its answer"
 		},
 		{
+			"site": "packages/core/src/server/props-wire.ts > lake_identity > catch:0",
+			"reason": "a lake prop no wire carries makes the fingerprint throw: the lake gets no identity and is known by its entry and place",
+			"test": "packages/core/test/lake-identity.test.ts",
+			"name": "props no wire carries give no identity, so the lake is known by its entry and place"
+		},
+		{
+			"site": "packages/reshape/src/index.ts > handle > throw:0",
+			"reason": "a config error, at the first request: no app the sim generates leaves reshape() out of vite.config",
+			"test": "packages/reshape/test/plugin.test.ts",
+			"name": "refuses every request while reshape() is not in vite.config, naming the fix"
+		},
+		{
+			"site": "packages/reshape/src/restore.ts > restore > sheet_for > catch:0",
+			"reason": "an engine without constructable stylesheets: happy-dom has them",
+			"test": "packages/reshape/test/browser/restore.test.ts",
+			"name": "a DOM without adoptable sheets or CSS.escape (jsdom): a <style> per root"
+		},
+		{
+			"site": "packages/reshape/src/restore.ts > restore > watch > observer:0",
+			"reason": "a Kit-hydrated page (csr=true): the random app is csr=false",
+			"test": "packages/reshape/test/browser/restore.test.ts",
+			"name": "a Kit-hydrated page: a watched host that leaves the document leaves the watch, a moved one stays, and the observer goes with the last one"
+		},
+		{
+			"site": "packages/reshape/src/pass.ts > transformed > catch:0",
+			"reason": "the random app's transform fails only on its fault points, which wait on dst/reshape-faults",
+			"test": "packages/reshape/test/pass-failed.test.ts",
+			"name": "a transform that throws: the page goes out as ogygia rendered it, said once with reshape_pass_failed (gen 10, seed 10)"
+		},
+		{
+			"site": "packages/reshape/src/pass.ts > transformed > throw:0",
+			"reason": "the random app's transform fails only on its fault points, which wait on dst/reshape-faults",
+			"test": "packages/reshape/test/pass-failed.test.ts",
+			"name": "a transform that throws is thrown with reshape_pass_failed"
+		},
+		{
+			"site": "packages/reshape/src/pass.ts > transformed > throw:1",
+			"reason": "the random app's transform fails only on its fault points, which wait on dst/reshape-faults",
+			"test": "packages/reshape/test/pass-failed.test.ts",
+			"name": "a transform that drops ogygia's marks is thrown with reshape_marks_lost"
+		},
+		{
+			"site": "packages/reshape/src/restore.ts > restore > reset > parse:0",
+			"reason": "a host's og-r the server pass wrote and the wire mangled: the sim's server pass always writes it whole, and a tamper changes text, never inside a mark",
+			"test": "packages/reshape/test/browser/restore.test.ts",
+			"name": "a mangled attribute reset (`og-r`) leaves the host’s attributes as served, and its mark gone"
+		},
+		{
+			"site": "packages/reshape/src/restore.ts > restore > reset > catch:0",
+			"reason": "a host's og-r the server pass wrote and the wire mangled: the sim's server pass always writes it whole, and a tamper changes text, never inside a mark",
+			"test": "packages/reshape/test/browser/restore.test.ts",
+			"name": "a mangled attribute reset (`og-r`) leaves the host’s attributes as served, and its mark gone"
+		},
+		{
+			"site": "packages/reshape/src/restore.ts > restore > original > parse:0",
+			"reason": "a text mark whose original is not JSON: the sim's server pass writes each whole, and a comment the app writes is never under a planned host",
+			"test": "packages/reshape/test/browser/restore.test.ts",
+			"name": "a text mark whose original does not parse carries none: the text stays as served, the mark gone"
+		},
+		{
+			"site": "packages/reshape/src/restore.ts > restore > original > catch:0",
+			"reason": "a text mark whose original is not JSON: the sim's server pass writes each whole, and a comment the app writes is never under a planned host",
+			"test": "packages/reshape/test/browser/restore.test.ts",
+			"name": "a text mark whose original does not parse carries none: the text stays as served, the mark gone"
+		},
+		{
+			"site": "packages/reshape/src/restore.ts > restore > parse:0",
+			"reason": "the dev check script is written only by a dev server, and whole: the sim runs production builds",
+			"test": "packages/reshape/test/browser/restore.test.ts",
+			"name": "a dev check that does not parse checks nothing: the restore goes on, and the script is consumed"
+		},
+		{
+			"site": "packages/reshape/src/restore.ts > restore > catch:0",
+			"reason": "the dev check script is written only by a dev server, and whole: the sim runs production builds",
+			"test": "packages/reshape/test/browser/restore.test.ts",
+			"name": "a dev check that does not parse checks nothing: the restore goes on, and the script is consumed"
+		},
+		{
+			"site": "packages/reshape/src/restore.ts > restore_adopt > catch:0",
+			"reason": "a shadow root that refuses a sheet (an engine's own refusal): happy-dom adopts every sheet",
+			"test": "packages/reshape/test/browser/restore.test.ts",
+			"name": "a root that cannot adopt its sheet leaves the others in the answer theirs"
+		},
+		{
 			"site": "packages/core/src/runtime/entry-locations.ts > run > fetch:0",
 			"reason": "the build map's read failing on the network: only an identity-only load reads it, and the sim's faults touch that document; proved: a failed read kept (keep: () => Infinity) turns the test red",
 			"test": "packages/core/test/browser/entry-location-map-unread.test.ts",
@@ -447,66 +531,6 @@
 			"reason": "the import's rejection, as above: with the handler gone the run fails on an unhandled rejection in 3 engines (proved)",
 			"test": "packages/reshape/test/browser-chunk-lost/restore-report.test.ts",
 			"name": "a restore report whose wording chunk does not load says nothing, throws nothing, and keeps the log"
-		},
-		{
-			"site": "packages/reshape/src/index.ts > handle > throw:0",
-			"reason": "a config error, at the first request: no app the sim generates leaves reshape() out of vite.config",
-			"test": "packages/reshape/test/plugin.test.ts",
-			"name": "refuses every request while reshape() is not in vite.config, naming the fix"
-		},
-		{
-			"site": "packages/reshape/src/restore.ts > restore > sheet_for > catch:0",
-			"reason": "an engine without constructable stylesheets: happy-dom has them",
-			"test": "packages/reshape/test/browser/restore.test.ts",
-			"name": "a DOM without adoptable sheets or CSS.escape (jsdom): a <style> per root"
-		},
-		{
-			"site": "packages/reshape/src/restore.ts > restore > watch > observer:0",
-			"reason": "a Kit-hydrated page (csr=true): the random app is csr=false",
-			"test": "packages/reshape/test/browser/restore.test.ts",
-			"name": "a Kit-hydrated page: a watched host that leaves the document leaves the watch, a moved one stays, and the observer goes with the last one"
-		},
-		{
-			"site": "packages/reshape/src/restore.ts > restore > reset > parse:0",
-			"reason": "a host's og-r the server pass wrote and the wire mangled: the sim's server pass always writes it whole, and a tamper changes text, never inside a mark",
-			"test": "packages/reshape/test/browser/restore.test.ts",
-			"name": "a mangled attribute reset (`og-r`) leaves the host’s attributes as served, and its mark gone"
-		},
-		{
-			"site": "packages/reshape/src/restore.ts > restore > reset > catch:0",
-			"reason": "a host's og-r the server pass wrote and the wire mangled: the sim's server pass always writes it whole, and a tamper changes text, never inside a mark",
-			"test": "packages/reshape/test/browser/restore.test.ts",
-			"name": "a mangled attribute reset (`og-r`) leaves the host’s attributes as served, and its mark gone"
-		},
-		{
-			"site": "packages/reshape/src/restore.ts > restore > original > parse:0",
-			"reason": "a text mark whose original is not JSON: the sim's server pass writes each whole, and a comment the app writes is never under a planned host",
-			"test": "packages/reshape/test/browser/restore.test.ts",
-			"name": "a text mark whose original does not parse carries none: the text stays as served, the mark gone"
-		},
-		{
-			"site": "packages/reshape/src/restore.ts > restore > original > catch:0",
-			"reason": "a text mark whose original is not JSON: the sim's server pass writes each whole, and a comment the app writes is never under a planned host",
-			"test": "packages/reshape/test/browser/restore.test.ts",
-			"name": "a text mark whose original does not parse carries none: the text stays as served, the mark gone"
-		},
-		{
-			"site": "packages/reshape/src/restore.ts > restore > parse:0",
-			"reason": "the dev check script is written only by a dev server, and whole: the sim runs production builds",
-			"test": "packages/reshape/test/browser/restore.test.ts",
-			"name": "a dev check that does not parse checks nothing: the restore goes on, and the script is consumed"
-		},
-		{
-			"site": "packages/reshape/src/restore.ts > restore > catch:0",
-			"reason": "the dev check script is written only by a dev server, and whole: the sim runs production builds",
-			"test": "packages/reshape/test/browser/restore.test.ts",
-			"name": "a dev check that does not parse checks nothing: the restore goes on, and the script is consumed"
-		},
-		{
-			"site": "packages/reshape/src/restore.ts > restore_adopt > catch:0",
-			"reason": "a shadow root that refuses a sheet (an engine's own refusal): happy-dom adopts every sheet",
-			"test": "packages/reshape/test/browser/restore.test.ts",
-			"name": "a root that cannot adopt its sheet leaves the others in the answer theirs"
 		},
 		{
 			"site": "packages/core/src/server/page-stream.ts > swap_thenables > throw:0",
@@ -831,6 +855,12 @@
 			"reason": "beforeNavigate/afterNavigate called outside a component: proved: Svelte's refusal thrown on turns the test red, twice",
 			"test": "packages/core/test/browser/nav-hooks.test.ts",
 			"name": "outside a component the registration stands, and its unsubscribe is handed back"
+		},
+		{
+			"site": "packages/core/src/server/page-facts.ts > read_first_line > catch:0",
+			"reason": "a page's data answer that breaks before its first line (#1626): proved: the break thrown (the old code) turns the test red",
+			"test": "packages/core/test/page-facts-broken.test.ts",
+			"name": "a data answer that breaks before its first line is a miss that says why, never a throw"
 		}
 	],
 	"impossible": [
