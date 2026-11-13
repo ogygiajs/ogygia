@@ -43,9 +43,6 @@ export type NavHandle = {
 	beforeNavigate(fn: BeforeNavigateCallback): () => void;
 	afterNavigate(fn: AfterNavigateCallback): () => void;
 	bust_page_cache(): void;
-	/** The page on screen's address, rewritten in place by ogygia's own code (the devtools switch
-	 *  drops its param): through the router's history model when the router runs. */
-	replace_address(url: URL): void;
 };
 
 /** Feature entry (`mpa-nav`, boot phase): the MPA handle, first. The router's install, later in
@@ -102,9 +99,6 @@ export function mpa_nav(): NavHandle {
 		},
 		beforeNavigate: () => NO_UNSUBSCRIBE,
 		afterNavigate: () => NO_UNSUBSCRIBE,
-		bust_page_cache() {},
-		replace_address(url) {
-			history.replaceState(history.state, '', url.href);
-		}
+		bust_page_cache() {}
 	};
 }

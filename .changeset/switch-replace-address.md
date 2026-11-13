@@ -1,6 +1,5 @@
 ---
 '@ogygia/core': patch
-'@ogygia/devtools': patch
 ---
 
-Turning devtools on or off with `?og-devtools=on|off` drops the param through the router, so its history keeps the page's real address (a click back to the same page no longer reads as a navigation to another).
+The router reads the address bar for the page on screen, so a page script's own `history.replaceState` (stripping tracking params, or devtools' `?og-devtools=on|off` switch) no longer leaves it remembering the old address for a refresh, a fragment link or a back step.
