@@ -3,7 +3,7 @@
 // never sent. A failure prints the shrunk reads.
 import { describe, test, expect } from 'vitest';
 import fc from 'fast-check';
-import { page_data_keys_answer } from '../../../packages/page-keys/src/analysis.ts';
+import { page_data_keys_answer } from '../../../packages/data-shake/src/analysis.ts';
 import { component, read, really_read } from '../src/reads.ts';
 
 const RUNS = (ci: number) => Number(process.env.DST_RUNS) || ci;

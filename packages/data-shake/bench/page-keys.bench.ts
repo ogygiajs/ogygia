@@ -74,7 +74,7 @@ function app(n: number) {
 }
 
 bench(
-	'pageKeys: record, settle and answer a build of components that hand the page to a helper',
+	'dataShake: record, settle and answer a build of components that hand the page to a helper',
 	async ({ files }) => {
 		const r = page_reads((f) => files.get(f) ?? null);
 		for (const [id, code] of files) r.module(id, code);

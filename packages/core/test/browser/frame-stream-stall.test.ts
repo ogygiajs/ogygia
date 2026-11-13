@@ -28,6 +28,15 @@ function stall_after(first: string) {
 	);
 }
 
+// (the machine's timers end through clearInterval, one handle space with setTimeout: a fake
+// setTimeout whose clearInterval is real is never ended, and an old state's timer fires later)
+const FAKED: ('setTimeout' | 'clearTimeout' | 'setInterval' | 'clearInterval')[] = [
+	'setTimeout',
+	'clearTimeout',
+	'setInterval',
+	'clearInterval'
+];
+
 afterEach(() => {
 	vi.useRealTimers();
 	vi.restoreAllMocks();
@@ -36,7 +45,7 @@ afterEach(() => {
 
 describe('a stalled batch stream', () => {
 	it('sends one frame and stalls: the hole it carried has it, the others fail and fetch on their own', async () => {
-		vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+		vi.useFakeTimers({ toFake: FAKED });
 		stall_after(build_parcel('s1', '<p>one</p>'));
 		const own = vi.fn(async () => 'own');
 		const steps: string[] = [];
@@ -68,7 +77,7 @@ describe('a stalled batch stream', () => {
 	});
 
 	it('an answer that never starts: the stream is given up while sending, and its holes are let go', async () => {
-		vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+		vi.useFakeTimers({ toFake: FAKED });
 		let aborted = false;
 		vi.spyOn(window, 'fetch').mockImplementation(
 			(_url, init) =>

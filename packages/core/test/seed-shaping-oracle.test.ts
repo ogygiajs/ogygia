@@ -1,5 +1,5 @@
 /**
- * SEED SHAPING'S ORACLE (rules builds and dev): what the build's `pageKeys()` answer said must hold
+ * SEED SHAPING'S ORACLE (rules builds and dev): what the build's `dataShake()` answer said must hold
  * at run time. A render whose page look-up was skipped (its tree "reads no page.data") reads no key
  * of it (`rule_hole_page_read_unpredicted`); a shaped page seed names the keys it left out, so the
  * browser can tell when island code reads one (`rule_seed_key_unshipped`).

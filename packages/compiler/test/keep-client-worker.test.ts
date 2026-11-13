@@ -33,14 +33,15 @@ it("a worker thread's build (Kit's analyse and prerender) neither injects the ke
 		};
 		await p.config.handler({ root, plugins: [] }, { command: 'build', mode: 'production' });
 	};
+	const keep = keep_client_dir(path.join(root, 'src/routes'));
 	const before = process.listeners('exit').length;
 	await call();
-	expect(existsSync(keep_client_dir(root))).toBe(false);
+	expect(existsSync(keep)).toBe(false);
 	expect(process.listeners('exit').length).toBe(before);
 	// (the main thread's route, which the workers' builds still read)
-	mkdirSync(keep_client_dir(root), { recursive: true });
-	writeFileSync(path.join(keep_client_dir(root), '+layout.ts'), 'export const csr = true;\n');
+	mkdirSync(keep, { recursive: true });
+	writeFileSync(path.join(keep, '+layout.ts'), 'export const csr = true;\n');
 	writeFileSync(path.join(root, 'src/routes/+layout.ts'), 'export const csr = true;\n');
 	await call();
-	expect(existsSync(keep_client_dir(root))).toBe(true);
+	expect(existsSync(keep)).toBe(true);
 });

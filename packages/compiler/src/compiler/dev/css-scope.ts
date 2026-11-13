@@ -1,5 +1,4 @@
 import path from 'node:path';
-import { kit_dirs } from '../kit.ts';
 
 /** Structural shape of a Vite dev module-graph node (the two fields the owner walk reads). */
 export type DevGraphModule = { file?: string | null; importers?: Iterable<DevGraphModule> };
@@ -14,12 +13,12 @@ export type DevGraphModule = { file?: string | null; importers?: Iterable<DevGra
  */
 export function derive_css_scope_owners(
 	abs_file: string,
-	root: string,
+	routes_dir_of_app: string,
 	graphs: Array<
 		{ getModulesByFile?: (f: string) => Set<DevGraphModule> | undefined } | undefined | null
 	>
 ): string[] {
-	const routes_dir = kit_dirs(root).routes_dir + path.sep;
+	const routes_dir = routes_dir_of_app + path.sep;
 	const owners = new Set<string>();
 	const seen = new Set<DevGraphModule>();
 	const stack: DevGraphModule[] = [];

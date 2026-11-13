@@ -140,12 +140,6 @@
 			"killed_by": "batch-unreleased-body-breaks"
 		},
 		{
-			"site": "packages/core/src/runtime/frame-nav.ts > streamFrames > stale:1",
-			"point": "batch.body-stalls",
-			"how": "the batch's body goes quiet (the point reads as a stall past STALL_MS): the batch ends, and the parts it still owed are released to fetch on their own",
-			"killed_by": "batch-unreleased-body-stalls"
-		},
-		{
 			"site": "packages/core/src/runtime/router-nav.ts > navigate > build > throw:0",
 			"point": "router.build-throws",
 			"how": "the point itself: a step of the next page's build throws (its devalue did not load, a parse failed)",
@@ -186,6 +180,12 @@
 			"point": "batch.part-lost",
 			"how": "a binder that joined a missed part gets STALE and asks again: its own fetch runs. Proved aimed (--buggify-aim batch.part-lost, gens 191 and 10: one that returns the STALE leaves the hole waiting, gen191:9 stuck)",
 			"killed_by": "missed-part-joiner-not-asking-again"
+		},
+		{
+			"site": "packages/core/src/runtime/frame-nav.ts > streamFrames > stale:2",
+			"point": "batch.body-stalls",
+			"how": "the batch's body goes quiet (the point reads as a stall past STALL_MS): the batch ends, and the parts it still owed are released to fetch on their own",
+			"killed_by": "batch-unreleased-body-stalls"
 		}
 	],
 	"covered": [
@@ -203,7 +203,7 @@
 		},
 		{
 			"site": "packages/compiler/src/vite/plugin-api.ts > check_plugins > throw:4",
-			"reason": "a config error, at config time: a plugin listed without a plugin it needs (postrender() without pageKeys())",
+			"reason": "a config error, at config time: a plugin listed without a plugin it needs (postrender() without dataShake())",
 			"test": "packages/compiler/test/plugins.test.ts",
 			"name": "a plugin that needs another fails the build while the app does not list it, naming the line to add"
 		},
@@ -222,7 +222,7 @@
 		{
 			"site": "packages/compiler/src/compiler/parse/roots.ts > parse_roots > catch:0",
 			"reason": "a component Svelte cannot parse: the analysis that asked gives up safely (seed shaping ships all)",
-			"test": "packages/page-keys/test/page-keys-summaries.test.ts",
+			"test": "packages/data-shake/test/page-keys-summaries.test.ts",
 			"name": "a component that does not parse gives up"
 		},
 		{
@@ -1732,6 +1732,474 @@
 			"name": "as origins, http(s) only, each once"
 		},
 		{
+			"site": "packages/core/src/boundary.ts > __og_boundary > throw:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
+			"test": "packages/core/test/fn-transport.test.ts",
+			"name": "a refusal throws AT THE MARK with the site"
+		},
+		{
+			"site": "packages/core/src/context-bridge.ts > serialize_provided_context > catch:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the catch body emptied turns the test red",
+			"test": "packages/core/test/boundary-corpus.test.ts",
+			"name": "end-to-end: the page marker bridges a realistic mixed bag, dropping only the impossible"
+		},
+		{
+			"site": "packages/core/src/context-bridge.ts > serialize_provided_context > catch:1",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the catch body emptied turns the test red",
+			"test": "packages/core/test/context-loud-drops.test.ts",
+			"name": "a value holding a function inside it is dropped with a code"
+		},
+		{
+			"site": "packages/core/src/context.ts > documentIsCsrTrue > catch:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the catch made to rethrow turns the test red",
+			"test": "packages/core/test/seed-refs.test.ts",
+			"name": "page pass + tail rendered against the seed: a props subtree that is a seed node becomes a reference"
+		},
+		{
+			"site": "packages/core/src/context.ts > claim_kit_island > catch:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the catch made to rethrow turns the test red",
+			"test": "packages/core/test/nested-schedule-warning.test.ts",
+			"name": "a `load` island inside a `load` island wakes when it asked: no warning"
+		},
+		{
+			"site": "packages/core/src/context.ts > claim_region_css > catch:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the catch body emptied turns the test red",
+			"test": "packages/core/test/component-css-head-once.test.ts",
+			"name": "off a request, every call links its sheets"
+		},
+		{
+			"site": "packages/core/src/context.ts > claimRuntimeEmit > catch:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the catch made to rethrow turns the test red",
+			"test": "packages/core/test/seed-refs.test.ts",
+			"name": "page pass + tail rendered against the seed: a props subtree that is a seed node becomes a reference"
+		},
+		{
+			"site": "packages/core/src/context.ts > take_early_holes > catch:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the catch made to rethrow turns the test red",
+			"test": "packages/core/test/document-seed.test.ts",
+			"name": "JSON lane: a plain pageState goes out as JSON and parses back"
+		},
+		{
+			"site": "packages/core/src/events/bus.ts > emit > catch:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the catch body emptied turns the test red",
+			"test": "packages/core/test/callbacks-reported.test.ts",
+			"name": "a devtools sink"
+		},
+		{
+			"site": "packages/core/src/fn-transport.ts > fn_handle > throw:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
+			"test": "packages/core/test/fn-transport.test.ts",
+			"name": "unregistered tag at the call site throws a located error"
+		},
+		{
+			"site": "packages/core/src/fn-transport.ts > register_fn_kind > decode > throw:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
+			"test": "packages/core/test/fn-transport.test.ts",
+			"name": "a handle travels as its tag and captures: no source rides along"
+		},
+		{
+			"site": "packages/core/src/html.ts > place > throw:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
+			"test": "packages/core/test/html.test.ts",
+			"name": "a value outside quotes inside a tag is refused"
+		},
+		{
+			"site": "packages/core/src/html.ts > attr > throw:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
+			"test": "packages/core/test/html.test.ts",
+			"name": "attr() makes one whole attribute, or nothing"
+		},
+		{
+			"site": "packages/core/src/island-graph.ts > decode_island_locations > catch:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the catch made to rethrow turns the test red",
+			"test": "packages/core/test/property-decoders.test.ts",
+			"name": "any text decodes to a graph of strings, without a throw"
+		},
+		{
+			"site": "packages/core/src/island-graph.ts > decode_island_graph > catch:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the catch made to rethrow turns the test red",
+			"test": "packages/core/test/property-decoders.test.ts",
+			"name": "any text decodes to a graph of strings, without a throw"
+		},
+		{
+			"site": "packages/core/src/keep-fallback.ts > keepFallback > throw:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
+			"test": "packages/core/test/keep-fallback-inline.test.ts",
+			"name": "NESTED inside an island (rendered inline): a real error that names the cause, not the signal"
+		},
+		{
+			"site": "packages/core/src/keep-fallback.ts > keepFallback > throw:1",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
+			"test": "packages/core/test/keep-fallback-inline.test.ts",
+			"name": "on the endpoint (the hole is the render root): the branded signal, as before"
+		},
+		{
+			"site": "packages/core/src/kit-paths.ts > kit_asset > catch:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the catch made to rethrow turns the test red",
+			"test": "packages/core/test/seed-refs.test.ts",
+			"name": "page pass + tail rendered against the seed: a props subtree that is a seed node becomes a reference"
+		},
+		{
+			"site": "packages/core/src/nested.ts > island_region > catch:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the catch body emptied turns the test red",
+			"test": "packages/core/test/remote-cache-holders.test.ts",
+			"name": "an entry no island held while hydrating is left to Kit"
+		},
+		{
+			"site": "packages/core/src/preference.ts > preference_impl > throw:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
+			"test": "packages/core/test/preference.test.ts",
+			"name": "rejects a default that is not one of the values"
+		},
+		{
+			"site": "packages/core/src/ref-watch.ts > notify_now > catch:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the catch body emptied turns the test red",
+			"test": "packages/core/test/callbacks-reported.test.ts",
+			"name": "a ref watcher"
+		},
+		{
+			"site": "packages/core/src/ref.ts > dispose_ids > catch:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the catch body emptied turns the test red",
+			"test": "packages/core/test/callbacks-reported.test.ts",
+			"name": "a kind's dispose"
+		},
+		{
+			"site": "packages/core/src/region-server.browser.ts > get_request_event > throw:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
+			"test": "packages/core/test/region-server-browser.test.ts",
+			"name": "refuses getRequestEvent with request_event_server_only"
+		},
+		{
+			"site": "packages/core/src/region-snippet.ts > host_context > catch:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the catch made to rethrow turns the test red",
+			"test": "packages/core/test/region-snippet-dev-css.test.ts",
+			"name": "DEV: a live region snippet’s portable form threads its entry region-css link into <head>"
+		},
+		{
+			"site": "packages/core/src/region-snippet.ts > capture_static > catch:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the catch body emptied turns the test red",
+			"test": "packages/core/test/plain-function-prop.test.ts",
+			"name": "errors as a FUNCTION (not a snippet), naming the prop and the callback case"
+		},
+		{
+			"site": "packages/core/src/region-snippet.ts > capture_static > throw:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
+			"test": "packages/core/test/plain-function-prop.test.ts",
+			"name": "errors as a FUNCTION (not a snippet), naming the prop and the callback case"
+		},
+		{
+			"site": "packages/core/src/region.ts > to_version > throw:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
+			"test": "packages/core/test/transport.test.ts",
+			"name": "a version that is not a number, a Date or a date string throws, naming the code"
+		},
+		{
+			"site": "packages/core/src/region.ts > make_region > throw:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
+			"test": "packages/core/test/partial.test.ts",
+			"name": "throws when a marked binding has no component/signer (client leg)"
+		},
+		{
+			"site": "packages/core/src/runtime/client-plugins.ts > isolated > .catch:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the .catch handler made to rethrow turns the test red",
+			"test": "packages/core/test/runtime-hooks-compose.test.ts",
+			"name": "a subscriber's rejected promise is reported, never awaited"
+		},
+		{
+			"site": "packages/core/src/runtime/client-plugins.ts > isolated > catch:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the catch body emptied turns the test red",
+			"test": "packages/core/test/runtime-hooks-compose.test.ts",
+			"name": "a throwing subscriber is reported once and never stops the ones after it"
+		},
+		{
+			"site": "packages/core/src/runtime/concurrency.ts > ConcurrencyGate > run > throw:1",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
+			"test": "packages/core/test/batch-stream-cancel.test.ts",
+			"name": "a waiter whose signal aborts in the step it is handed a slot never runs, and gives the slot back"
+		},
+		{
+			"site": "packages/core/src/runtime/concurrency.ts > ConcurrencyGate > run > catch:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the catch body emptied turns the test red",
+			"test": "packages/core/test/sim/render-gate.test.ts",
+			"name": "keeps its promise in every order (limit, deadlines, leaving, turn order)"
+		},
+		{
+			"site": "packages/core/src/runtime/concurrency.ts > ConcurrencyGate > run > reject:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the rejection handler made to rethrow turns the test red",
+			"test": "packages/core/test/concurrency.test.ts",
+			"name": "a body that throws frees its slot"
+		},
+		{
+			"site": "packages/core/src/runtime/concurrency.ts > within > reject:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the rejection handler made to rethrow turns the test red",
+			"test": "packages/core/test/concurrency.test.ts",
+			"name": "a late failure of a body nobody waits on any more is not an unhandled rejection"
+		},
+		{
+			"site": "packages/core/src/runtime/foreign-props.ts > foreign_region_prop_revivers > OgygiaRef > throw:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
+			"test": "packages/core/test/foreign-props.test.ts",
+			"name": "a wired ref in a foreign sidecar is rejected loudly, never revived cross-build"
+		},
+		{
+			"site": "packages/core/src/runtime/import-again.ts > import_again > next > .catch:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the .catch handler made to rethrow turns the test red",
+			"test": "packages/core/test/import-again.test.ts",
+			"name": "a failed retry fails its caller at once; a call while its verdict is out waits for it, then asks again (#392)"
+		},
+		{
+			"site": "packages/core/src/runtime/import-again.ts > import_again > next > throw:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
+			"test": "packages/core/test/import-again.test.ts",
+			"name": "after a failed download, asks for its file under a new URL each time"
+		},
+		{
+			"site": "packages/core/src/runtime/import-again.ts > import_again > next > throw:1",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
+			"test": "packages/core/test/import-again.test.ts",
+			"name": "after a failed download, asks for its file under a new URL each time"
+		},
+		{
+			"site": "packages/core/src/runtime/router.ts > SpaRouter > afterNavigate > catch:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the catch body emptied turns the test red",
+			"test": "packages/core/test/callbacks-reported.test.ts",
+			"name": "a navigation hook (before, after, and after at once as it is added)"
+		},
+		{
+			"site": "packages/core/src/runtime/router.ts > SpaRouter > run_before > catch:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the catch body emptied turns the test red",
+			"test": "packages/core/test/callbacks-reported.test.ts",
+			"name": "a navigation hook (before, after, and after at once as it is added)"
+		},
+		{
+			"site": "packages/core/src/runtime/router.ts > SpaRouter > run_after > catch:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the catch body emptied turns the test red",
+			"test": "packages/core/test/callbacks-reported.test.ts",
+			"name": "a navigation hook (before, after, and after at once as it is added)"
+		},
+		{
+			"site": "packages/core/src/runtime/schedule.ts > post_background > catch:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the catch made to rethrow turns the test red",
+			"test": "packages/core/test/schedule-background.test.ts",
+			"name": "falls back to a macrotask when postTask throws (older invalid-priority impl)"
+		},
+		{
+			"site": "packages/core/src/runtime/slots.ts > linked > throw:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
+			"test": "packages/core/test/slots-linked.test.ts",
+			"name": "a lazy chunk that runs before its boot linked it says so loudly, by its code and the link"
+		},
+		{
+			"site": "packages/core/src/script.ts > script > throw:1",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
+			"test": "packages/core/test/script.test.ts",
+			"name": "imports need a module; a bundler-rewritten run is refused with the fix"
+		},
+		{
+			"site": "packages/core/src/script.ts > script > throw:3",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
+			"test": "packages/core/test/script.test.ts",
+			"name": "imports need a module; a bundler-rewritten run is refused with the fix"
+		},
+		{
+			"site": "packages/core/src/script.ts > script > throw:5",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
+			"test": "packages/core/test/script.test.ts",
+			"name": "refuses no payload, two payloads, and a bad attribute name"
+		},
+		{
+			"site": "packages/core/src/script.ts > script > throw:6",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
+			"test": "packages/core/test/script.test.ts",
+			"name": "refuses no payload, two payloads, and a bad attribute name"
+		},
+		{
+			"site": "packages/core/src/shims/page-store.svelte.ts > PageState > set > catch:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the catch body emptied turns the test red",
+			"test": "packages/core/test/callbacks-reported.test.ts",
+			"name": "a page store subscriber"
+		},
+		{
+			"site": "packages/core/src/source.ts > record_source_read > catch:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the catch body emptied turns the test red",
+			"test": "packages/core/test/callbacks-reported.test.ts",
+			"name": "a source receipt seam"
+		},
+		{
+			"site": "packages/core/src/transport.ts > encode_region > throw:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
+			"test": "packages/core/test/transport.test.ts",
+			"name": "an un-awaited inline region still throws, and the error teaches `await`"
+		},
+		{
+			"site": "packages/core/src/runtime/code-origins.ts > code_url_or_refuse > throw:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
+			"test": "packages/core/test/browser/code-origins.test.ts",
+			"name": "is not imported as written: refused with its code, nothing requested"
+		},
+		{
+			"site": "packages/core/src/runtime/code-origins.ts > is_location_of > catch:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the catch body emptied turns the test red",
+			"test": "packages/core/test/browser/entry-locations.test.ts",
+			"name": "a location that is not a URL is kept as written: it names no file, and nothing is noted"
+		},
+		{
+			"site": "packages/core/src/runtime/core.ts > OgygiaRegion > absorb > catch:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the catch made to rethrow turns the test red",
+			"test": "packages/core/test/browser/kept-props-newest.test.ts",
+			"name": "a kept island whose next props cannot be read keeps the props it has"
+		},
+		{
+			"site": "packages/core/src/runtime/core.ts > OgygiaRegion > by_visitor > throw:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
+			"test": "packages/core/test/browser/hole-lifecycle.test.ts",
+			"name": "an interaction island that fails to wake says so, and its click is replayed on the server markup"
+		},
+		{
+			"site": "packages/core/src/runtime/core.ts > OgygiaRegion > apply > stale:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the STALE check never true turns the test red",
+			"test": "packages/core/test/browser/paint-left-mid-wait.test.ts",
+			"name": "a hole that leaves the page while its answer waits on a sheet ends its paint"
+		},
+		{
+			"site": "packages/core/src/runtime/core.ts > OgygiaRegion > morph_live > stale:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the STALE check never true turns the test red",
+			"test": "packages/core/test/browser/paint-left-mid-wait.test.ts",
+			"name": "a static live region that leaves the page while its tick waits on a sheet ends its paint"
+		},
+		{
+			"site": "packages/core/src/runtime/core.ts > OgygiaRegion > fetch_failed > stale:1",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the STALE check never true turns the test red",
+			"test": "packages/core/test/browser/sim-region.test.ts",
+			"name": "a hole and its island: at rest off the page, its answer and its island on it"
+		},
+		{
+			"site": "packages/core/src/runtime/core.ts > OgygiaRegion > hydrate > catch:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the catch body emptied turns the test red",
+			"test": "packages/core/test/browser/hole-lifecycle.test.ts",
+			"name": "an interaction island that fails to wake says so, and its click is replayed on the server markup"
+		},
+		{
+			"site": "packages/core/src/runtime/core.ts > OgygiaRegion > live_hydrate > catch:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the catch body emptied turns the test red",
+			"test": "packages/core/test/browser/live-region-failed-file.test.ts",
+			"name": "a live region whose island file cannot load settles: no start per tick, nothing thrown, said once"
+		},
+		{
+			"site": "packages/core/src/runtime/devalue-lane.ts > devalue > throw:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
+			"test": "packages/core/test/browser/devalue-lane-once.test.ts",
+			"name": "one document query for the page, another only when markup comes in"
+		},
+		{
+			"site": "packages/core/src/runtime/devalue-lane.ts > with_devalue > reject:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the rejection handler made to rethrow turns the test red",
+			"test": "packages/core/test/browser/devalue-lane-retry.test.ts",
+			"name": "a dropped download is tried again at once, its failure is not kept, and a read that runs once asks again later"
+		},
+		{
+			"site": "packages/core/src/runtime/frame-nav.ts > streamFrames > .catch:1",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the .catch handler made to rethrow turns the test red",
+			"test": "packages/core/test/browser/batch-called-off-mid-body.test.ts",
+			"name": "ends quietly: its promise settles, and no rejection goes unheard"
+		},
+		{
+			"site": "packages/core/src/runtime/hole-facts.ts > parse_record > catch:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the catch body emptied turns the test red",
+			"test": "packages/core/test/browser/hole-facts.test.ts",
+			"name": "a record that is not JSON is said in dev: page_payload_unreadable"
+		},
+		{
+			"site": "packages/core/src/runtime/hydrate-core.ts > hydrate_island > catch:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the catch body emptied turns the test red",
+			"test": "packages/core/test/browser/hole-lifecycle.test.ts",
+			"name": "an interaction island that fails to wake says so, and its click is replayed on the server markup"
+		},
+		{
+			"site": "packages/core/src/runtime/import-again.ts > import_again > next > reject:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the rejection handler made to rethrow turns the test red",
+			"test": "packages/core/test/browser/hydrate-visit.test.ts",
+			"name": "an old run’s failure leaves the new visit alone"
+		},
+		{
+			"site": "packages/core/src/runtime/interaction.ts > wake > reject:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the rejection handler made to rethrow turns the test red",
+			"test": "packages/core/test/browser/interaction-delegated.test.ts",
+			"name": "a page's own click listener hears an early click once when the island fails to wake: replayed onto the server markup (#922)"
+		},
+		{
+			"site": "packages/core/src/runtime/kit-page-thread.svelte.ts > run > reject:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the rejection handler made to rethrow turns the test red",
+			"test": "packages/core/test/browser/kit-page-thread.test.ts",
+			"name": "a wait for a Kit whose boot import failed ends: it fails with kit_boot_failed, said once (#820)"
+		},
+		{
+			"site": "packages/core/src/runtime/kit-page-thread.svelte.ts > await_bridge > catch:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the catch body emptied turns the test red",
+			"test": "packages/core/test/browser/kit-page-thread-owner.test.ts",
+			"name": "a sealed global: the wait stops watching for Kit once the island that waited has left the page"
+		},
+		{
+			"site": "packages/core/src/runtime/nav-handle.ts > mpa_nav > goto > throw:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
+			"test": "packages/core/test/browser/goto-rejects.test.ts",
+			"name": "the handle without the router: a refused URL rejects the promise"
+		},
+		{
+			"site": "packages/core/src/runtime/nav-handle.ts > mpa_nav > goto > throw:1",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
+			"test": "packages/core/test/browser/nav-handle.test.ts",
+			"name": "the mpa-nav feature publishes the MPA handle; the router feature replaces it with the SPA API"
+		},
+		{
+			"site": "packages/core/src/runtime/region-endpoint-url.ts > make_warms > run > catch:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the catch body emptied turns the test red",
+			"test": "packages/core/test/browser/entry-locations.test.ts",
+			"name": "a warm that failed is not kept: the module does not count as warmed"
+		},
+		{
+			"site": "packages/core/src/runtime/router.ts > SpaRouter > goto > throw:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
+			"test": "packages/core/test/browser/goto-rejects.test.ts",
+			"name": "the router: a refused URL rejects the promise"
+		},
+		{
+			"site": "packages/core/src/runtime/router.ts > SpaRouter > goto > throw:1",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
+			"test": "packages/core/test/browser/goto-rejects.test.ts",
+			"name": "the router: a refused URL rejects the promise"
+		},
+		{
+			"site": "packages/core/src/runtime/rules.ts > failure > stale:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the STALE check never true turns the test red",
+			"test": "packages/core/test/browser/rules.test.ts",
+			"name": "no failure without a code: a STALE rejection, an ogygia error with no code page"
+		},
+		{
+			"site": "packages/core/src/runtime/stale-deps.ts > confirm_and_reload > not-ok:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the not-ok branch never taken turns the test red",
+			"test": "packages/core/test/browser/stale-deps.test.ts",
+			"name": "an entry the server no longer serves is a real missing module: no reload, the error stays"
+		},
+		{
+			"site": "packages/core/src/runtime/wire-classes.ts > load > .catch:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the .catch handler made to rethrow turns the test red",
+			"test": "packages/core/test/browser/wire-classes.test.ts",
+			"name": "a class module that fails to download lets the wake go on: its decode then says which is missing"
+		},
+		{
+			"site": "packages/core/src/shims/app-navigation.ts > browser_goto > throw:0",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
+			"test": "packages/core/test/browser/goto-rejects.test.ts",
+			"name": "the $app/navigation shim with no runtime: a refused URL rejects the promise"
+		},
+		{
+			"site": "packages/core/src/shims/app-navigation.ts > browser_goto > throw:1",
+			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
+			"test": "packages/core/test/browser/app-navigation-shim.test.ts",
+			"name": "with no runtime at all, the browser fallback keeps goto’s contract: same-origin only"
+		},
+		{
 			"site": "packages/federation/src/federate.ts > post_thaw > not-ok:0",
 			"reason": "`!res.ok`: proved: the !ok check made never true turns the test red, twice",
 			"test": "packages/federation/test/owners.test.ts",
@@ -2608,7 +3076,7 @@
 			"name": "a settled rejection revived where nobody awaits it makes no unhandled-rejection noise"
 		},
 		{
-			"site": "packages/core/src/runtime/frame-nav.ts > streamFrames > stale:0",
+			"site": "packages/core/src/runtime/frame-nav.ts > streamFrames > stale:1",
 			"reason": "`res === STALE`: proved: the STALE check made never true turns the test red, twice",
 			"test": "packages/core/test/browser/frame-stream-stall.test.ts",
 			"name": "a batch given up while sending is reported missed with no answer status (0)"
@@ -3220,43 +3688,24 @@
 		"packages/content/src/vite/index.ts > validate_presets > throw:2",
 		"packages/content/src/vite/index.ts > validate_presets > throw:3",
 		"packages/content/src/vite/leaks.ts > warn_content_leaks > catch:0",
-		"packages/core/src/boundary.ts > __og_boundary > throw:0",
-		"packages/core/src/context-bridge.ts > serialize_provided_context > catch:0",
-		"packages/core/src/context-bridge.ts > serialize_provided_context > catch:1",
 		"packages/core/src/context-bridge.ts > createContext > get > throw:0",
-		"packages/core/src/context.ts > documentIsCsrTrue > catch:0",
-		"packages/core/src/context.ts > claim_kit_island > catch:0",
-		"packages/core/src/context.ts > claim_region_css > catch:0",
-		"packages/core/src/context.ts > claimRuntimeEmit > catch:0",
-		"packages/core/src/context.ts > take_early_holes > catch:0",
 		"packages/core/src/contract/core-files.ts > (module) > parse:0",
 		"packages/core/src/early-holes.ts > start_early_holes > parse:0",
 		"packages/core/src/early-holes.ts > start_early_holes > abort:0",
 		"packages/core/src/early-holes.ts > start_early_holes > fetch:0",
-		"packages/core/src/events/bus.ts > emit > catch:0",
 		"packages/core/src/events/bus.ts > push_stamped > catch:0",
 		"packages/core/src/events/sinks.ts > install_postmessage_sink > sink > message:0",
 		"packages/core/src/events/sinks.ts > ingest_server_events > parse:0",
 		"packages/core/src/events/sinks.ts > ingest_server_events > catch:0",
-		"packages/core/src/fn-transport.ts > fn_handle > throw:0",
-		"packages/core/src/fn-transport.ts > register_fn_kind > decode > throw:0",
 		"packages/core/src/head-owners.ts > adopt_owner_record > parse:0",
 		"packages/core/src/head-owners.ts > adopt_owner_record > catch:0",
 		"packages/core/src/hooks.ts > OgygiaHandle > inject_client_seeds > stale:0",
 		"packages/core/src/hooks.ts > OgygiaHandle > render_component > abort:0",
 		"packages/core/src/hooks.ts > OgygiaHandle > capability_parcel > abort:0",
 		"packages/core/src/hooks.ts > OgygiaHandle > capability_parcel > abort:1",
-		"packages/core/src/html.ts > place > throw:0",
-		"packages/core/src/html.ts > attr > throw:0",
 		"packages/core/src/island-graph.ts > decode_island_locations > parse:0",
-		"packages/core/src/island-graph.ts > decode_island_locations > catch:0",
 		"packages/core/src/island-graph.ts > decode_island_graph > parse:0",
-		"packages/core/src/island-graph.ts > decode_island_graph > catch:0",
 		"packages/core/src/keep-fallback.ts > keepFallback > catch:0",
-		"packages/core/src/keep-fallback.ts > keepFallback > throw:0",
-		"packages/core/src/keep-fallback.ts > keepFallback > throw:1",
-		"packages/core/src/kit-paths.ts > kit_asset > catch:0",
-		"packages/core/src/nested.ts > island_region > catch:0",
 		"packages/core/src/plugin/css.ts > run > import:0",
 		"packages/core/src/plugin/reads.ts > observe_reads > fetch:0",
 		"packages/core/src/plugin/reads.ts > carries_cookies > catch:0",
@@ -3275,40 +3724,23 @@
 		"packages/core/src/policies.ts > (module) > policy:6",
 		"packages/core/src/preference.ts > preference_switch > storage:0",
 		"packages/core/src/preference.ts > preference_switch > catch:0",
-		"packages/core/src/preference.ts > preference_impl > throw:0",
 		"packages/core/src/preference.ts > preference_impl > head > storage:0",
 		"packages/core/src/preference.ts > preference_impl > head > catch:0",
 		"packages/core/src/preference.ts > preference_impl > set > catch:0",
-		"packages/core/src/ref-watch.ts > notify_now > catch:0",
-		"packages/core/src/ref.ts > dispose_ids > catch:0",
-		"packages/core/src/region-server.browser.ts > get_request_event > throw:0",
-		"packages/core/src/region-snippet.ts > host_context > catch:0",
-		"packages/core/src/region-snippet.ts > capture_static > catch:0",
-		"packages/core/src/region-snippet.ts > capture_static > throw:0",
 		"packages/core/src/region-snippet.ts > region_snippet > throw:0",
-		"packages/core/src/region.ts > to_version > throw:0",
-		"packages/core/src/region.ts > make_region > throw:0",
 		"packages/core/src/region.ts > make_inline_awaitable > value > run > import:0",
 		"packages/core/src/region.ts > make_inline_awaitable > value > reject:0",
 		"packages/core/src/region.ts > make_awaitable > value > reject:0",
 		"packages/core/src/request-event.ts > requestEvent > catch:0",
 		"packages/core/src/rules.ts > Rules > broken > catch:0",
-		"packages/core/src/runtime/client-plugins.ts > isolated > .catch:0",
-		"packages/core/src/runtime/client-plugins.ts > isolated > catch:0",
 		"packages/core/src/runtime/client-plugins.ts > region_urls > catch:0",
 		"packages/core/src/runtime/code-origins.ts > origin_of > catch:0",
-		"packages/core/src/runtime/code-origins.ts > code_url_or_refuse > throw:0",
 		"packages/core/src/runtime/code-origins.ts > import_code > import:0",
-		"packages/core/src/runtime/code-origins.ts > is_location_of > catch:0",
 		"packages/core/src/runtime/concurrency.ts > ConcurrencyGate > run > abort:0",
 		"packages/core/src/runtime/concurrency.ts > ConcurrencyGate > run > abort:1",
-		"packages/core/src/runtime/concurrency.ts > ConcurrencyGate > run > throw:1",
-		"packages/core/src/runtime/concurrency.ts > ConcurrencyGate > run > catch:0",
-		"packages/core/src/runtime/concurrency.ts > ConcurrencyGate > run > reject:0",
 		"packages/core/src/runtime/concurrency.ts > ConcurrencyGate > enter > gone > abort:0",
 		"packages/core/src/runtime/concurrency.ts > ConcurrencyGate > enter > error-event:0",
 		"packages/core/src/runtime/concurrency.ts > within > timer:0",
-		"packages/core/src/runtime/concurrency.ts > within > reject:0",
 		"packages/core/src/runtime/core.ts > (module) > import:0",
 		"packages/core/src/runtime/core.ts > absorb_page_facts_now > reject:0",
 		"packages/core/src/runtime/core.ts > snippets_settled > timer:0",
@@ -3317,17 +3749,12 @@
 		"packages/core/src/runtime/core.ts > OgygiaRegion > fire_hydrate > reject:0",
 		"packages/core/src/runtime/core.ts > OgygiaRegion > absorbKeptProps > reject:0",
 		"packages/core/src/runtime/core.ts > OgygiaRegion > absorbKeptProps > stale:0",
-		"packages/core/src/runtime/core.ts > OgygiaRegion > absorb > catch:0",
 		"packages/core/src/runtime/core.ts > OgygiaRegion > connect > refused:0",
 		"packages/core/src/runtime/core.ts > OgygiaRegion > prefetch_html > .catch:0",
-		"packages/core/src/runtime/core.ts > OgygiaRegion > by_visitor > throw:0",
-		"packages/core/src/runtime/core.ts > OgygiaRegion > apply > stale:0",
-		"packages/core/src/runtime/core.ts > OgygiaRegion > morph_live > stale:0",
 		"packages/core/src/runtime/core.ts > OgygiaRegion > fetch_html > stale:0",
 		"packages/core/src/runtime/core.ts > OgygiaRegion > fetch_failed > catch:0",
 		"packages/core/src/runtime/core.ts > OgygiaRegion > fetch_failed > refused:0",
 		"packages/core/src/runtime/core.ts > OgygiaRegion > fetch_failed > stale:0",
-		"packages/core/src/runtime/core.ts > OgygiaRegion > fetch_failed > stale:1",
 		"packages/core/src/runtime/core.ts > OgygiaRegion > on_idle > timer:0",
 		"packages/core/src/runtime/core.ts > OgygiaRegion > on_idle > timer:1",
 		"packages/core/src/runtime/core.ts > OgygiaRegion > on_idle > timer:2",
@@ -3335,53 +3762,41 @@
 		"packages/core/src/runtime/core.ts > OgygiaRegion > hydrate > stale:0",
 		"packages/core/src/runtime/core.ts > OgygiaRegion > hydrate > stale:1",
 		"packages/core/src/runtime/core.ts > OgygiaRegion > hydrate > .catch:0",
-		"packages/core/src/runtime/core.ts > OgygiaRegion > hydrate > catch:0",
 		"packages/core/src/runtime/core.ts > OgygiaRegion > apply_live > stale:0",
 		"packages/core/src/runtime/core.ts > OgygiaRegion > live_hydrate > ours > stale:0",
 		"packages/core/src/runtime/core.ts > OgygiaRegion > live_hydrate > stale:0",
 		"packages/core/src/runtime/core.ts > OgygiaRegion > live_hydrate > stale:1",
 		"packages/core/src/runtime/core.ts > OgygiaRegion > live_hydrate > .catch:0",
 		"packages/core/src/runtime/core.ts > OgygiaRegion > live_hydrate > throw:0",
-		"packages/core/src/runtime/core.ts > OgygiaRegion > live_hydrate > catch:0",
 		"packages/core/src/runtime/core.ts > apply_dev_head_region_css > .catch:0",
 		"packages/core/src/runtime/devalue-lane.ts > (module) > import:0",
-		"packages/core/src/runtime/devalue-lane.ts > devalue > throw:0",
-		"packages/core/src/runtime/devalue-lane.ts > with_devalue > reject:0",
 		"packages/core/src/runtime/devalue-lane.ts > with_devalue > stale:0",
 		"packages/core/src/runtime/drift-watch.ts > watch_region > observer:0",
-		"packages/core/src/runtime/foreign-props.ts > foreign_region_prop_revivers > OgygiaRef > throw:0",
 		"packages/core/src/runtime/form-continuity.ts > url_of > catch:0",
 		"packages/core/src/runtime/frame-nav.ts > streamFrames > body:0",
 		"packages/core/src/runtime/frame-nav.ts > streamFrames > .catch:0",
 		"packages/core/src/runtime/frame-nav.ts > streamFrames > stream:0",
-		"packages/core/src/runtime/frame-nav.ts > streamFrames > .catch:1",
+		"packages/core/src/runtime/frame-nav.ts > streamFrames > stale:0",
 		"packages/core/src/runtime/frame-store.ts > write > refused:0",
 		"packages/core/src/runtime/frame-store.ts > reserve > reject:0",
 		"packages/core/src/runtime/frame-store.ts > release > refused:0",
 		"packages/core/src/runtime/frame-store.ts > ensure > abort:0",
 		"packages/core/src/runtime/hole-facts.ts > parse_record > parse:0",
-		"packages/core/src/runtime/hole-facts.ts > parse_record > catch:0",
 		"packages/core/src/runtime/hole-fetch.ts > start_hole > fetch:0",
 		"packages/core/src/runtime/hole-fetch.ts > read_hole > throw:5",
 		"packages/core/src/runtime/html-sink.ts > is_allowed_region_endpoint > catch:0",
 		"packages/core/src/runtime/html-sink.ts > is_same_origin_response > catch:0",
 		"packages/core/src/runtime/hydrate-core.ts > region_prop_revivers > OgygiaRef > throw:0",
 		"packages/core/src/runtime/hydrate-core.ts > handle > dispose > catch:0",
-		"packages/core/src/runtime/hydrate-core.ts > hydrate_island > catch:0",
 		"packages/core/src/runtime/import-again.ts > hear_responses > observer:0",
 		"packages/core/src/runtime/import-again.ts > hear_responses > catch:0",
-		"packages/core/src/runtime/import-again.ts > import_again > next > .catch:0",
-		"packages/core/src/runtime/import-again.ts > import_again > next > throw:0",
 		"packages/core/src/runtime/import-again.ts > import_again > next > refused:1",
-		"packages/core/src/runtime/import-again.ts > import_again > next > throw:1",
-		"packages/core/src/runtime/import-again.ts > import_again > next > reject:0",
 		"packages/core/src/runtime/interaction-replay.ts > restore_fields > catch:0",
 		"packages/core/src/runtime/interaction-replay.ts > replay_clicks > timer:0",
 		"packages/core/src/runtime/interaction.ts > disarm > refused:0",
 		"packages/core/src/runtime/interaction.ts > (module) > import:0",
 		"packages/core/src/runtime/interaction.ts > on_warm_event > .catch:0",
 		"packages/core/src/runtime/interaction.ts > wake > refused:0",
-		"packages/core/src/runtime/interaction.ts > wake > reject:0",
 		"packages/core/src/runtime/interaction.ts > wake > stale:0",
 		"packages/core/src/runtime/interaction.ts > wake > reject:1",
 		"packages/core/src/runtime/interaction.ts > wake > stale:1",
@@ -3389,23 +3804,18 @@
 		"packages/core/src/runtime/island-graph-preload.ts > absolute > catch:0",
 		"packages/core/src/runtime/kit-page-thread.svelte.ts > page_applied > catch:0",
 		"packages/core/src/runtime/kit-page-thread.svelte.ts > run > error-event:0",
-		"packages/core/src/runtime/kit-page-thread.svelte.ts > run > reject:0",
 		"packages/core/src/runtime/kit-page-thread.svelte.ts > run > timer:0",
 		"packages/core/src/runtime/kit-page-thread.svelte.ts > kit_boot_imports > parse:0",
 		"packages/core/src/runtime/kit-page-thread.svelte.ts > kit_boot_imports > catch:0",
-		"packages/core/src/runtime/kit-page-thread.svelte.ts > await_bridge > catch:0",
 		"packages/core/src/runtime/load-scheduler.ts > preload_urls > catch:0",
 		"packages/core/src/runtime/load-scheduler.ts > until_critical > timer:0",
 		"packages/core/src/runtime/load-scheduler.ts > until_critical > error-event:0",
 		"packages/core/src/runtime/morph.ts > carry_shadows > catch:0",
 		"packages/core/src/runtime/nav-handle.ts > (module) > import:0",
 		"packages/core/src/runtime/nav-handle.ts > invalidate_all > stale:0",
-		"packages/core/src/runtime/nav-handle.ts > mpa_nav > goto > throw:0",
-		"packages/core/src/runtime/nav-handle.ts > mpa_nav > goto > throw:1",
 		"packages/core/src/runtime/page-defer.ts > install_page_defer > live > catch:0",
 		"packages/core/src/runtime/region-endpoint-url.ts > capability_expired > catch:0",
 		"packages/core/src/runtime/region-endpoint-url.ts > deny_of > catch:0",
-		"packages/core/src/runtime/region-endpoint-url.ts > make_warms > run > catch:0",
 		"packages/core/src/runtime/region-endpoint-url.ts > warm_key > catch:0",
 		"packages/core/src/runtime/region-sheets.ts > sheet_of > error-event:0",
 		"packages/core/src/runtime/region-sheets.ts > note_code_sheets > catch:0",
@@ -3425,41 +3835,27 @@
 		"packages/core/src/runtime/router.ts > on_idle > timer:1",
 		"packages/core/src/runtime/router.ts > (module) > import:0",
 		"packages/core/src/runtime/router.ts > nav > stale:0",
-		"packages/core/src/runtime/router.ts > SpaRouter > afterNavigate > catch:0",
 		"packages/core/src/runtime/router.ts > SpaRouter > fetch_page > reject:0",
 		"packages/core/src/runtime/router.ts > SpaRouter > fetch_page > stale:0",
 		"packages/core/src/runtime/router.ts > SpaRouter > navigate > catch:0",
 		"packages/core/src/runtime/router.ts > SpaRouter > navigate > stale:0",
-		"packages/core/src/runtime/router.ts > SpaRouter > goto > throw:0",
-		"packages/core/src/runtime/router.ts > SpaRouter > goto > throw:1",
 		"packages/core/src/runtime/router.ts > SpaRouter > invalidateAll > stale:0",
-		"packages/core/src/runtime/router.ts > SpaRouter > run_before > catch:0",
-		"packages/core/src/runtime/router.ts > SpaRouter > run_after > catch:0",
-		"packages/core/src/runtime/rules.ts > failure > stale:0",
 		"packages/core/src/runtime/rules.ts > install_rules > error-event:0",
 		"packages/core/src/runtime/rules.ts > install_rules > error-event:1",
 		"packages/core/src/runtime/schedule.ts > TaskHops > message:0",
 		"packages/core/src/runtime/schedule.ts > TaskHops > hop > message:0",
-		"packages/core/src/runtime/schedule.ts > post_background > catch:0",
 		"packages/core/src/runtime/schedule.ts > drain_after > timer:0",
 		"packages/core/src/runtime/seeds.ts > parse_page_seed > catch:0",
 		"packages/core/src/runtime/seeds.ts > apply_page_seed > catch:0",
 		"packages/core/src/runtime/seeds.ts > absorb_page_facts > catch:0",
 		"packages/core/src/runtime/session.ts > RuntimeSession > mark_head > observer:0",
-		"packages/core/src/runtime/slots.ts > linked > throw:0",
 		"packages/core/src/runtime/speculate-hint.ts > speculate_url > catch:0",
 		"packages/core/src/runtime/stale-deps.ts > confirm_and_reload > fetch:0",
-		"packages/core/src/runtime/stale-deps.ts > confirm_and_reload > not-ok:0",
 		"packages/core/src/runtime/stale-deps.ts > confirm_and_reload > catch:0",
 		"packages/core/src/runtime/svelte-warnings.ts > set_hydrating > timer:0",
 		"packages/core/src/runtime/svelte-warnings.ts > tap_svelte_warnings > warn > catch:0",
 		"packages/core/src/runtime/viewport.ts > Tracker > hear_swaps > observer:0",
-		"packages/core/src/runtime/wire-classes.ts > load > .catch:0",
 		"packages/core/src/runtime/wire-format.ts > parse_wire_text > parse:0",
-		"packages/core/src/script.ts > script > throw:1",
-		"packages/core/src/script.ts > script > throw:3",
-		"packages/core/src/script.ts > script > throw:5",
-		"packages/core/src/script.ts > script > throw:6",
 		"packages/core/src/server/capped-body.ts > read_capped > stream:0",
 		"packages/core/src/server/dead-kit-resolves.ts > drop_dead_kit_resolves > transform > stream:0",
 		"packages/core/src/server/hmac.ts > Hmac > verify > crypto:0",
@@ -3480,14 +3876,9 @@
 		"packages/core/src/server/stream-regions.ts > batch_stream > start > stream:1",
 		"packages/core/src/server/stream-regions.ts > batch_stream > start > stream:2",
 		"packages/core/src/server/stream-regions.ts > batch_stream > cancel > refused:0",
-		"packages/core/src/shims/app-navigation.ts > browser_goto > throw:0",
-		"packages/core/src/shims/app-navigation.ts > browser_goto > throw:1",
 		"packages/core/src/shims/kit-remote/client-stub.ts > seed_query_responses > catch:0",
 		"packages/core/src/shims/kit-remote/remote-cache.ts > release_departed > catch:0",
-		"packages/core/src/shims/page-store.svelte.ts > PageState > set > catch:0",
-		"packages/core/src/source.ts > record_source_read > catch:0",
 		"packages/core/src/tool-fetches.ts > tool_fetch > fetch:0",
-		"packages/core/src/transport.ts > encode_region > throw:0",
 		"packages/devtools/src/build/dev-meta.ts > dev_meta_plugin > configureServer > read > catch:0",
 		"packages/devtools/src/build/maps-plugin.ts > profiler_maps_plugins > writeBundle > catch:0",
 		"packages/devtools/src/build/maps-plugin.ts > profiler_maps_plugins > handler > catch:0",

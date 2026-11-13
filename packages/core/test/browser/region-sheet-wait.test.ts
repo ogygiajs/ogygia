@@ -23,7 +23,7 @@ const settled = (p: Promise<unknown>) => {
 
 beforeEach(() => {
 	vi.stubEnv('DEV', false);
-	vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+	vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval'] });
 	link_boot();
 });
 afterEach(async () => {
