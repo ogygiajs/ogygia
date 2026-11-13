@@ -6,7 +6,7 @@
  * is handed to `renewed` (the frame store keeps it for the address). No DOM, no store, no scheduler:
  * the caller decides when it may go out.
  */
-import { net } from '@ogygia/machine';
+import { buggify, net } from '@ogygia/machine';
 import { KEEP_FALLBACK_HTML } from '../keep-fallback-marker.ts';
 import { warn } from '../messages/lazy.ts';
 import {
@@ -22,6 +22,9 @@ import {
 	retry_after_ms
 } from './region-endpoint-url.ts';
 import { vouch_region_answer, type VerifiedHtml } from './html-sink.ts';
+
+const RULES =
+	import.meta.env?.DEV || (typeof __OGYGIA_RULES__ !== 'undefined' ? __OGYGIA_RULES__ : false);
 
 export type HoleFetch = {
 	/** Past the browser cache: the endpoint may answer `private, max-age`, and stale is the whole
@@ -84,7 +87,8 @@ export async function read_hole(
 	if (res.status === 403)
 		throw new RegionAnswerRefused('forbidden', res.url || endpoint, deny_of(res, endpoint));
 	// the visitor's budget is spent: ask again when it says, not inside its window (#959)
-	if (res.status === 429) throw new RegionAnswerLater(retry_after_ms(res), res.url || endpoint);
+	if (res.status === 429 || (RULES && buggify.fires('hole.answer-later')))
+		throw new RegionAnswerLater(retry_after_ms(res), res.url || endpoint);
 	if (!res.ok) throw new Error(`status ${res.status}`);
 	// 204: the hole said keepFallback() — the page's fallback stands, nothing to swap.
 	const text = res.status === 204 ? KEEP_FALLBACK_HTML : await res.text();
