@@ -182,7 +182,11 @@ describe('analyze_exports — shape + purity', () => {
 		['sideEffect();', []],
 		['if (x) {}', []],
 		['export * from "./x"; globalThis.__registered = true;', []],
-		['export { x } from "./x"; import.meta.glob("./*.svelte");', []]
+		['export { x } from "./x"; import.meta.glob("./*.svelte");', []],
+		// imported for what loading them does: the barrel's import is what runs them
+		['import "./theme.css"; export { default as Button } from "./Button.svelte";', []],
+		['import "./polyfill"; export * from "./x";', []],
+		['import * as setup from "./setup"; export { x } from "./x";', []]
 	])('%s → impure, own names %j', (code, own) => {
 		const s = analyze_exports(code, TS)!;
 		expect(s.pure).toBe(false);
