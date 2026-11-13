@@ -18,6 +18,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
+	APP_SHIMS,
 	CORE_ROOT,
 	OGYGIA_INJECTED_FILES,
 	OGYGIA_INJECTED_IMPORTS,
@@ -30,7 +31,7 @@ import {
 import { dedent } from '@ogygia/core/contract';
 import { ogygia } from '../src/vite/index.ts';
 import { definePlugin } from '../src/vite/plugin-api.ts';
-import { keep_client_dir, kit_dirs } from '../src/compiler/kit.ts';
+import { keep_client_dir, kit_dirs, set_kit_inline_style_threshold } from '../src/compiler/kit.ts';
 import { server_handoff_json, server_handoff_path } from '../src/compiler/link/emit-gate.ts';
 import {
 	foucCssVirtualId,
@@ -38,11 +39,13 @@ import {
 	FOUC_CSS_PREFIX
 } from '../src/compiler/fouc-css.ts';
 import { EVERY_BARREL } from '../src/compiler/exports/index.ts';
+import { remote_hash_of } from '../src/compiler/link/island-deps.ts';
 import { BuildCache, __set_build_cache_root } from '../src/compiler/build-cache.ts';
 import { scan_entry_pattern } from '../src/vite/paths.ts';
 import { DEV_CLIENT_MAPS, DEV_MAPS, DEV_PAGE_KEYS } from '../src/vite/dev-maps.ts';
 import type { OgygiaOptions } from '../src/vite/options.ts';
 
+const APP_STATE = APP_SHIMS['$app/state'];
 type Command = 'build' | 'serve';
 type Leg = 'ssr' | 'client';
 // (the hooks and configs are typed as Vite's; a test calls and reads them as plain data)
@@ -178,6 +181,11 @@ async function load(p: Hooks, spec: string, leg: Leg): Promise<string | null> {
 	const out = await p.load.call(hook_this(leg), id, { ssr: leg === 'ssr' });
 	return out === null ? null : typeof out === 'string' ? out : out.code;
 }
+
+it('a svelte config written for 0.8 still loads: the old markdown spellings answer what they answered for an app without markdown', () => {
+	expect(ogygia.extensions()).toEqual(['.svelte']);
+	expect(ogygia.preprocess()).toEqual([]);
+});
 
 describe('the config hook', () => {
 	it('dev pre-declares the deps every island imports; a build declares none', async () => {
@@ -1339,6 +1347,299 @@ describe('the build legs', () => {
 		expect(Object.keys(barrels).sort()).toEqual(['/a.js', '/b.js']);
 		expect(fanouts('/a.js')).toEqual([9, 8, 7]);
 		expect(fanouts('/b.js')).toEqual([6]);
+	});
+
+	/** One client leg of `app()` with a plugin that answers seed shaping (and, `measured`, a
+	 *  profiler), over a bundle of the island's entry and the runtime, each with one chunk behind it;
+	 *  what it handed the server. */
+	async function handed({
+		measured = false,
+		keys = (id: string): ReadonlySet<string> | 'unknown' | null =>
+			id.endsWith('Counter.svelte') ? new Set(['title']) : null
+	} = {}) {
+		app();
+		write(
+			'src/lib/Counter.svelte',
+			`${dedent`
+				<button>+</button>
+				<p>{Math.random()}</p>
+			`}\n`
+		);
+		write('node_modules/x-tool/package.json', JSON.stringify({ name: 'x-tool' }));
+		const settled: unknown[] = [];
+		const reads = {
+			module() {},
+			settle: async (resolve: unknown) => void settled.push(resolve),
+			keys,
+			why: (id: string) => (id.endsWith('Counter.svelte') ? { why: 'a spread', line: 2 } : null),
+			dev: async () => ({ keys: null, why: [] })
+		};
+		const tool = definePlugin({
+			name: 'x-tool',
+			build: (b) => {
+				if (measured) b.measure();
+				b.pageReads(reads);
+			}
+		});
+		const { p } = await setup('build', { plugins: [tool] });
+		const t = hook_this('client');
+		await p.buildStart.call(t);
+		const file = (name: RegExp) =>
+			`_app/immutable/ref${t.emitted.findIndex((c) => c.type === 'chunk' && name.test(String(c.name))) + 1}.js`;
+		const island = file(/^(?!og-runtime)/);
+		const runtime = file(/^og-runtime/);
+		const counter = path.join(root, 'src/lib/Counter.svelte');
+		const remote = path.join(root, 'src/lib/data.remote.ts');
+		const lib = (n: string) => path.join(root, `node_modules/x-lib/${n}`);
+		await p.generateBundle.call(t, {}, {});
+		await p.writeBundle.call(
+			t,
+			{},
+			{
+				[island]: {
+					type: 'chunk',
+					fileName: island,
+					imports: ['_app/immutable/dep.js'],
+					moduleIds: [counter, APP_STATE, remote, lib('dist/a.js')],
+					modules: {
+						[counter]: { renderedLength: 900 },
+						[lib('dist/a.js')]: { renderedLength: 600 }
+					}
+				},
+				'_app/immutable/dep.js': {
+					type: 'chunk',
+					fileName: '_app/immutable/dep.js',
+					moduleIds: [lib('src/a.ts')],
+					modules: { [lib('src/a.ts')]: { renderedLength: 600 } }
+				},
+				[runtime]: {
+					type: 'chunk',
+					fileName: runtime,
+					imports: ['_app/immutable/rt.js'],
+					moduleIds: ['\0og-runtime']
+				},
+				'_app/immutable/rt.js': { type: 'chunk', fileName: '_app/immutable/rt.js', moduleIds: [] }
+			}
+		);
+		const json = JSON.parse(readFileSync(region_deps(), 'utf8'));
+		const identity = (f: string) =>
+			Object.keys(json.entries).find((k) => json.entries[k] === `/${f}`)!;
+		return { json, settled, at: identity(island), rt: identity(runtime), remote };
+	}
+
+	it("the browser leg's handoff: each entry's chunks and page reads by its identity, its location beside it", async () => {
+		const { json, settled, at, rt, remote } = await handed();
+		expect(at).toBeTruthy();
+		expect(json.js[at]).toEqual(['/_app/immutable/dep.js']);
+		expect(json.js[rt]).toEqual(['/_app/immutable/rt.js']);
+		expect(json.page[at]).toBe(true);
+		expect(json.page_keys[at]).toEqual(['title']);
+		expect(settled).toHaveLength(1);
+		expect(typeof settled[0]).toBe('function');
+		expect(json.remotes[at]).toEqual([remote_hash_of(remote, process.cwd())]);
+		expect(json.interactivity[at]).toBeTruthy();
+		expect(json.locations).toMatch(/^\/_app\/immutable\//);
+	});
+
+	it("the browser leg's handoff links each sheet it emitted by URL: a router page's, a hole's, a content body's; and inlines those under Kit's threshold", async () => {
+		write('src/lib/Hole.svelte', '<p class="h">h</p><style>.h { color: maroon; }</style>\n');
+		write('src/lib/pages/About.svelte', '<p class="a">a</p><style>.a { color: coral; }</style>\n');
+		write(
+			'src/routes/+page.svelte',
+			dedent`
+				<script>
+					import Hole from '$lib/Hole.svelte' with { render: 'deferred' };
+				</script>
+				<Hole />
+			`
+		);
+		write('src/routes/+layout.ts', 'export const csr = false;\n');
+		const routes = write(
+			'src/lib/routes.ts',
+			`${dedent`
+				import { route } from 'x-router/page';
+				import About from './pages/About.svelte';
+				export default route(About);
+			`}\n`
+		);
+		const doc = write(
+			'src/routes/doc.svx',
+			'<h1 class="d">t</h1><style>.d { color: tan; }</style>\n'
+		);
+		for (const name of ['x-router', 'x-tool'])
+			write(`node_modules/${name}/package.json`, JSON.stringify({ name }));
+		const plugins = [
+			definePlugin({
+				name: 'x-router',
+				build: (b) => b.pageModules({ importers: ['x-router/page'] })
+			}),
+			definePlugin({
+				name: 'x-tool',
+				build: (b) =>
+					void b.markup({ extensions: ['.svx'], modules: [[doc, readFileSync(doc, 'utf8')]] })
+			})
+		];
+		const { p } = await setup('build', { plugins });
+		await begin(p, 'ssr');
+		await p.transform.call(hook_this('ssr'), readFileSync(routes, 'utf8'), routes, { ssr: true });
+		set_kit_inline_style_threshold(root, 1000);
+		const t = hook_this('client');
+		await p.buildStart.call(t);
+		await p.generateBundle.call(t, {}, {});
+		const file = (name: string) =>
+			`_app/immutable/ref${t.emitted.findIndex((c) => c.name === name) + 1}.js`;
+		const sheets = ['og-rcss.css', 'og-hole.css', 'og-content.css'].map(file);
+		const bundle = Object.fromEntries(
+			sheets.map((f) => [f, { type: 'asset', fileName: f, source: `/* ${f} */` }])
+		);
+		await p.writeBundle.call(t, {}, bundle);
+		const json = JSON.parse(readFileSync(region_deps(), 'utf8'));
+		const [router, hole, content] = sheets.map((f) => `/${f}`);
+		const key_of = (url: string) =>
+			Object.keys(json.css).find((k) => (json.css[k] as string[]).includes(url));
+		expect(key_of(router)).toMatch(/^rcss:/);
+		expect(json.css[key_of(router)!]).toEqual([router]);
+		expect(key_of(hole)).toMatch(/^\//);
+		expect(Object.values(json.content_css)).toEqual([[content]]);
+		expect(Object.keys(json.css_inline).sort()).toEqual([router, hole, content].sort());
+		expect(json.css_inline[hole]).toBe(`/* ${sheets[1]} */`);
+	});
+
+	it('a sheet the bundle dropped is left unlinked, never a failed build', async () => {
+		write('src/lib/Hole.svelte', '<p class="h">h</p><style>.h { color: maroon; }</style>\n');
+		write(
+			'src/routes/+page.svelte',
+			dedent`
+				<script>
+					import Hole from '$lib/Hole.svelte' with { render: 'deferred' };
+				</script>
+				<Hole />
+			`
+		);
+		write('src/routes/+layout.ts', 'export const csr = false;\n');
+		const routes = write(
+			'src/lib/routes.ts',
+			`${dedent`
+				import { route } from 'x-router/page';
+				import About from './pages/About.svelte';
+				export default route(About);
+			`}\n`
+		);
+		write('src/lib/pages/About.svelte', '<p class="a">a</p><style>.a { color: coral; }</style>\n');
+		const doc = write(
+			'src/routes/doc.svx',
+			'<h1 class="d">t</h1><style>.d { color: tan; }</style>\n'
+		);
+		for (const name of ['x-router', 'x-tool'])
+			write(`node_modules/${name}/package.json`, JSON.stringify({ name }));
+		const plugins = [
+			definePlugin({
+				name: 'x-router',
+				build: (b) => b.pageModules({ importers: ['x-router/page'] })
+			}),
+			definePlugin({
+				name: 'x-tool',
+				build: (b) =>
+					void b.markup({ extensions: ['.svx'], modules: [[doc, readFileSync(doc, 'utf8')]] })
+			})
+		];
+		const { p } = await setup('build', { plugins });
+		await begin(p, 'ssr');
+		await p.transform.call(hook_this('ssr'), readFileSync(routes, 'utf8'), routes, { ssr: true });
+		const t = hook_this('client');
+		await p.buildStart.call(t);
+		await p.generateBundle.call(t, {}, {});
+		const sheets = new Set(
+			t.emitted.flatMap((c, i) => (String(c.name).endsWith('.css') ? [`ref${i + 1}`] : []))
+		);
+		expect(sheets.size).toBe(3);
+		const dropped = {
+			...t,
+			getFileName: (ref: string) => {
+				if (sheets.has(ref)) throw new Error(`no file for ${ref}`);
+				return t.getFileName(ref);
+			}
+		};
+		await p.writeBundle.call(dropped, {}, {});
+		const json = JSON.parse(readFileSync(region_deps(), 'utf8'));
+		for (const ref of sheets) expect(JSON.stringify(json)).not.toContain(ref);
+		expect(json.content_css).toEqual({});
+	});
+
+	it("a plugin's prescan reader hears that the build is written once, when the browser leg writes, after the server's", async () => {
+		app();
+		write('node_modules/x-tool/package.json', JSON.stringify({ name: 'x-tool' }));
+		const heard: string[] = [];
+		const plugin = definePlugin({
+			name: 'x-tool',
+			build: (b) =>
+				b.prescan({ imports: ['x-tool'], module() {}, written: () => void heard.push('written') })
+		});
+		const p = await begin((await setup('build', { plugins: [plugin] })).p, 'ssr');
+		await p.writeBundle.call(hook_this('ssr'), {}, {});
+		expect(heard).toEqual([]);
+		const client = hook_this('client');
+		await p.buildStart.call(client);
+		await p.writeBundle.call(client, {}, {});
+		expect(heard).toEqual(['written']);
+	});
+
+	it('a leg the bundler closed is no longer the open leg a hook without an environment runs in', async () => {
+		app();
+		const p = await begin((await setup('build')).p, 'ssr');
+		p.closeBundle.call(hook_this('ssr'));
+		await p.buildStart.call(hook_this('client'));
+		const { environment: _, ...bare } = hook_this('client');
+		await expect(p.generateBundle.call(bare, {}, {})).resolves.toBeUndefined();
+	});
+
+	it("a content module's own style compiles with an await in its markup; one that does not compile goes unstyled, never a failed build", async () => {
+		app();
+		write('node_modules/x-tool/package.json', JSON.stringify({ name: 'x-tool' }));
+		const source = dedent`
+			<script>const n = Promise.resolve(1);</script>
+			<p class="w">{await n}</p>
+			<style>.w { color: wheat; }</style>
+		`;
+		const doc = write('src/routes/doc.svx', source);
+		const broken = dedent`
+			<p>{</p>
+			<style>.b { color: brown; }</style>
+		`;
+		const bad = write('src/routes/bad.svx', broken);
+		const plugin = definePlugin({
+			name: 'x-tool',
+			build: (b) =>
+				void b.markup({
+					extensions: ['.svx'],
+					modules: [
+						[bad, broken],
+						[doc, source]
+					]
+				})
+		});
+		const { p } = await setup('build', { plugins: [plugin] });
+		const t = hook_this('client');
+		await p.buildStart.call(t);
+		await p.generateBundle.call(t, {}, {});
+		const css = t.emitted.filter((c) => c.name === 'og-content.css').map((c) => String(c.source));
+		expect(css).toHaveLength(1);
+		expect(css[0]).toContain('wheat');
+	});
+
+	it("what only a profiler reads leaves the handoff without one: each chunk's contents, its heaviest modules, the island's hazards, the doubled modules, why it ships all of the page", async () => {
+		const unknown = () => 'unknown' as const;
+		const bare = (await handed({ keys: unknown })).json;
+		for (const k of ['contents', 'heavy', 'hazards']) expect(bare[k], k).toEqual({});
+		expect(bare.dupes).toEqual([]);
+		expect(bare).not.toHaveProperty('page_why');
+		const { json, at } = await handed({ measured: true, keys: unknown });
+		for (const k of ['contents', 'heavy', 'hazards'])
+			expect(Object.keys(json[k]).length, k).toBeGreaterThan(0);
+		expect(json.dupes.length).toBeGreaterThan(0);
+		expect(json.page_why[at]).toEqual([
+			expect.objectContaining({ file: 'src/lib/Counter.svelte', line: 2, why: 'a spread' })
+		]);
 	});
 
 	it("a content module's asset: its own style from its source, then what no client chunk ships, as the bundler resolves it", async () => {

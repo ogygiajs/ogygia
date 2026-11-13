@@ -775,9 +775,6 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 
 			buildEnd() {
 				const compiler = compiler_of(session, 'buildEnd');
-				// SERVER leg of a build: hand the real module graph to the client leg (emit gate). The
-				// leg is read off the ENVIRONMENT (Vite's environment API builds `ssr` then `client` in one
-				// app build; `config.build.ssr` is false for both there).
 				const server_leg = leg_of(this).server;
 				if (is_build && server_leg && !standalone) {
 					try {
@@ -792,7 +789,6 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 							)
 						);
 					} catch (e) {
-						// best effort — without it the client leg emits every prescanned island
 						if (isMainThread) warn('island_handoff_write_failed', e);
 					}
 				}
@@ -1006,17 +1002,6 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 				if (leg.server) return;
 				for (const file of compiler.location_maps(leg, (ref) => this.getFileName(ref)))
 					this.emitFile({ type: 'asset', fileName: file.fileName, source: file.source });
-				// CONTENT MODULES (the third root of `tree_css_walk`): Region.svelte links each one's asset
-				// via the handoff (writeBundle maps content_css_key → the emitted `.css` by referenceId).
-				// Unlike a router page or a hole, a content module imports components the client graph
-				// may carry too (a layout's, an island's, a registry's): their CSS already ships with that
-				// chunk, and a second copy, hoisted after the page's stylesheets on a client-side
-				// navigation, would outrank the app's own overrides. So the walk skips every file the
-				// client graph holds, and the asset carries only what no client chunk does. The module's
-				// own `<style>` comes first, compiled with `svelte.compile` on the post-mdsvex source the
-				// scanner captured, so Svelte resolves `:global` (a raw `:global` would crash the CSS
-				// minifier) and mints the SAME scoped hash the SSR'd HTML carries (default `cssHash` =
-				// hash of the CSS; `.svx` bodies use plain `<style>`, so vitePreprocess is a no-op).
 				const modules = markup.flatMap((m) => (m.modules ? [...m.modules] : []));
 				if (!modules.length) return;
 				const client = new Set<string>();
@@ -1043,13 +1028,11 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 								content_css_key(abs),
 								this.emitFile({ type: 'asset', name: 'og-content.css', source: css })
 							);
-					} catch {
-						// ok: a content file whose CSS cannot be extracted goes unstyled; the fix never breaks a build
-					}
+						// oxlint-disable-next-line ogygia/no-silent-failures -- a content file whose CSS cannot be extracted goes unstyled; it never breaks a build
+					} catch {}
 				}
 			},
 
-			// (each build leg's end, and the dev server closing)
 			closeBundle() {
 				compiler_of(session, 'closeBundle').end_leg(env_of(this)?.name ?? null);
 			},
@@ -1058,8 +1041,6 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 				const compiler = compiler_of(session, 'writeBundle');
 				const leg = leg_of(this);
 				const server_leg = leg.server;
-				// THE BUNDLE CHECK: no table module of a realm this leg may not hold, however it got in
-				// (a re-export past the resolve check included)
 				if (is_build) {
 					const ids: string[] = [];
 					for (const item of Object.values(bundle))
@@ -1074,36 +1055,19 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 							})
 						);
 				}
-				// Client only — Kit builds SSR first, so Region.svelte reads this JSON at render
-				// (prerender / live SSR), not at SSR-bundle `load()` time.
-				//
-				// `writeBundle` (not `generateBundle`): rolldown merges/eliminates shared chunks AFTER
-				// `generateBundle`, so a chunk's `imports` there can name a phantom that's gone by write.
-				// By `writeBundle` the bundle reflects the files actually on disk.
+				// @why rolldown merges shared chunks after generateBundle, so only writeBundle's chunks are the files on disk (test: test/vite-hooks.test.ts › the browser leg hands the server its region deps; the server leg does not)
 				if (!is_build || server_leg) return;
 
-				// SECRET-SPLIT on the finished client bundle: no signing secret, no signing module. The key
-				// is the one the SERVER leg baked, from its handoff: under Kit 2 that leg ran its own
-				// plugin instance, whose per-build random this one never saw.
 				refuse_client_secrets(bundle as Record<string, unknown>, [
 					read_server_handoff(kit_dirs(root).out_dir)?.build_key ?? build_secret,
 					process.env.OGYGIA_SECRET?.trim() ?? ''
 				]);
 
-				// The plugins' prescan readers: the client leg runs last, so what they saw is the
-				// completed build (`flags()` writes its flag inventory here).
 				if (isMainThread) for (const hook of prescans) hook.written?.();
 
-				// `page`: per island entry, whether its chunk closure bundles the `$app/state` /
-				// `$app/stores` shim — the handle seeds `page.data` only for islands that read it.
-				// `remotes`: per island entry, the Kit remote modules in that closure (by the id-hash Kit
-				// mints them with — relative to `process.cwd()`, as Kit's own transform hashes them) —
-				// the handle seeds an SSR-resolved remote only for a page with an island that can call it.
 				await page_reads?.settle((s, importer) => this.resolve(s, importer));
 
 				const remote_hash = (id: string) => remote_hash_of(id, process.cwd());
-				// IDENTITY → LOCATION: the entries' final (content-hashed) names. Every map the collector
-				// builds is keyed by identity; the server resolves a location through `entries`.
 				const entries = compiler.entry_locations(leg, (ref) => this.getFileName(ref));
 				const map = collectIslandDepModulepreloads(
 					bundle as Record<
@@ -1120,10 +1084,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 					[APP_SHIMS['$app/state'], APP_SHIMS['$app/stores']],
 					remote_hash,
 					page_reads && ((module_id) => page_reads!.keys(module_id)),
-					// WAKE ADVISOR: the collector counts what each island's own components do
 					readFile,
-					// The runtime entry, by the file the bundler named: its static imports become the
-					// preload hints beside the runtime script, keyed by the runtime's identity.
 					entries.runtime_file,
 					{ islands: entries.islands, runtime: entries.runtime }
 				);
@@ -1136,52 +1097,32 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 							(identity) => entries.locations[identity] ?? identity
 						)
 					: {};
-				// SERVER-ROUTER CSS handoff: each root's whole component-tree CSS was compiled + emitted as
-				// ONE dedicated asset in buildStart (router_css_refs). Resolve each referenceId to its
-				// hashed URL under `rcss:<rel>`, the key `ogygia:server/router-css` reads via `islandCss()`
-				// at SSR. A dedicated asset (not a chunk's importedCss) is immune to rolldown's shared-chunk
-				// CSS hoisting — every profiler page shares Shell, which otherwise scatters onto whichever
-				// chunk rolldown parks it on (an island's, off the router's static graph entirely).
 				for (const [key, ref] of leg.router_css_refs) {
 					try {
 						const file = this.getFileName(ref);
 						map.css[key] = [file.startsWith('/') ? file : `/${file}`];
-					} catch {
-						// ok: an asset the bundle dropped: the page goes unstyled rather than link a 404
-					}
+						// oxlint-disable-next-line ogygia/no-silent-failures -- an asset the bundle dropped: the page goes unstyled rather than link a 404
+					} catch {}
 				}
 
-				// Server-island CSS handoff: island id → its tree-CSS asset, keyed by the island's public
-				// URL (`island_url[id]` in the server manifest) so `region_css_links(id)` finds it through
-				// the same `islandCss()` lookup a hydrating island's chunk CSS uses.
 				for (const [iid, ref] of leg.hole_css_refs) {
 					try {
 						const file = this.getFileName(ref);
 						const key = compiler.island_public_url(iid);
 						(map.css[key] ??= []).push(file.startsWith('/') ? file : `/${file}`);
-					} catch {
-						// ok: an asset the bundle dropped: the hole goes unstyled rather than link a 404
-					}
+						// oxlint-disable-next-line ogygia/no-silent-failures -- an asset the bundle dropped: the hole goes unstyled rather than link a 404
+					} catch {}
 				}
 
-				// Content-body CSS handoff: content_css_key → the emitted CSS asset URL, so Region.svelte can
-				// link a content body's own scoped CSS (which lives on no page stylesheet — the corpus is
-				// server-only). The client leg emitted each as an asset and stashed its referenceId; resolve
-				// to the hashed filename now that the bundle is finalized. Same key the preprocessor baked
-				// as `__ogygia_css`, so the body region resolves it at SSR.
 				const content_css: Record<string, string[]> = {};
 				for (const [key, ref] of leg.content_css_refs) {
 					try {
 						const file = this.getFileName(ref);
 						content_css[key] = [file.startsWith('/') ? file : `/${file}`];
-					} catch {
-						// ok: an asset the bundle dropped: the body goes unstyled rather than link a 404
-					}
+						// oxlint-disable-next-line ogygia/no-silent-failures -- an asset the bundle dropped: the body goes unstyled rather than link a 404
+					} catch {}
 				}
 
-				// INLINE REGION CSS: the text of every region sheet under Kit's `inlineStyleThreshold`
-				// (the app's svelte.config.js, read next to `kit_dirs`), keyed by href — the render emits
-				// those as `<style data-ogygia-region-css>` instead of blocking `<link>`s.
 				const css_inline = collect_inline_css(
 					bundle as Record<
 						string,
@@ -1190,19 +1131,12 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 					[...Object.values(map.css).flat(), ...Object.values(content_css).flat()],
 					kit_inline_style_threshold(root)
 				);
-				// The per-chunk contents (what is inside each hashed chunk) serve the profiler's Islands
-				// table only: without a profiler in the config they never leave the build. Nothing here
-				// reaches the browser either way; the server parses the handoff once per process.
 				if (!measure) {
 					map.contents = {};
 					map.heavy = {};
 					map.hazards = {};
 					map.dupes = [];
 				}
-				// BARRELS a chunk still holds (the profiler's island-barrel note): a module with little
-				// code of its own and many modules behind it — a re-export index the barrel pass left
-				// (it has side effects, or the pass is off), so everything it re-exports ships with the
-				// island. The bundler's own module info decides; only with a profiler, like `contents`.
 				const barrels: Record<string, ChunkBarrel[]> = {};
 				if (measure) {
 					for (const [key, chunk] of Object.entries(bundle)) {
@@ -1210,8 +1144,6 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 						const found: ChunkBarrel[] = [];
 						for (const id of chunk.moduleIds ?? []) {
 							if (id.startsWith('\0')) continue;
-							// (a component uses what it imports — a small one composing seven children is no
-							// re-export index; only a script module can be a barrel)
 							const q = id.indexOf('?');
 							if ((q === -1 ? id : id.slice(0, q)).endsWith('.svelte')) continue;
 							const info = this.getModuleInfo(id);
@@ -1232,21 +1164,16 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 				}
 				const json = JSON.stringify({
 					...map,
-					// why an island ships all of page.data (the build's reasons, per entry): the profiler's
-					// seed finding points at that line; like `contents`, only with a profiler
 					...(measure ? { page_why, barrels } : {}),
 					content_css,
 					css_inline,
 					fn_manifest: compiler.fn_manifest(),
-					// identity (the stable URL SSR bakes) → location (the content-hashed file to load)
 					entries: entries.locations,
-					// the same, as one file the browser reads (the runtime's script tag names it)
 					locations: leg.location_map_url
 				});
 				emit_island_deps_handoff(root, json, kit_dirs(root).out_dir, leg.relocated);
 			}
 		},
-		// the plugins' `post` stage: on what the region transform made of the module
 		stage_host('post'),
 		island_sourcemaps_plugin({
 			program: () => compiler_of(session, 'sourcemaps').program,
@@ -1255,10 +1182,6 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 		lazy_files()
 	];
 }
-
-// The svelte config's markdown preprocessor and extensions belong to the content plugin
-// (`@ogygia/content/vite`). The old spellings stay callable and do nothing: they answer what they
-// answered for an app without markdown, so a svelte config written for 0.8 still loads.
 
 export declare namespace ogygia {
 	/**
@@ -1276,8 +1199,3 @@ Object.assign(ogygia, {
 	extensions: (): string[] => ['.svelte'],
 	preprocess: (): PreprocessorGroup[] => []
 });
-
-// NOTE(deferred-types, 2026-09-01): a preprocessor that rewrote `render:'deferred'` imports to
-// type the reserved `ogygiaFallback` snippet was built and REVERTED — svelte-check/language-tools
-// type the ORIGINAL source and ignore script preprocessors' output for diagnostics (probe-proven),
-// so no preprocessor can augment call-site types. Server islands hand-declare the prop instead.
