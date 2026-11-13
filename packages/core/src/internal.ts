@@ -27,7 +27,6 @@ export { __og_store, __register_store_factory, mark_store } from './store-transp
 export { __og_boundary, configure_boundary } from './boundary.ts';
 // `import.meta.og.source(fn)` compiles to `__og_source('<file#export>', fn)`.
 export { __og_source } from './source.ts';
-export { __tag_context } from './context-bridge.ts';
 
 // Compiler-emitted currency — never hand-authored, so they live on the INTERNAL barrel (the public
 // surface carries no snake_case): `og_portable` is the rewrite target for a `{#snippet}` handed to
