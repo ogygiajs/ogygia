@@ -24,6 +24,7 @@ import {
 	parsed_first,
 	live_regions_out,
 	page_errors,
+	peer_answers,
 	reshaped_live,
 	page_rules,
 	regions_show,
@@ -1176,5 +1177,64 @@ describe('a document nobody has looked at', () => {
 	it('leaves out a document that was shown, or is shown now: it had a viewport to wait for', () => {
 		expect(no_viewport_wait(tab(waited, { seen: true }))).toBeNull();
 		expect(no_viewport_wait(tab(waited, { hidden: false }))).toBeNull();
+	});
+});
+
+describe("a mounted peer's page answers as the peer did", () => {
+	/** `wire`: the tab's requests and the server's hops for its document, each `[url, status, for?]`. */
+	const judged = async (
+		body: string,
+		wire: Array<[string, number | 'dropped', string?]> = [],
+		at = '/peer/q0'
+	) => {
+		const { Window } = await import('happy-dom');
+		const w = new Window({ url: `https://app.test${at}` });
+		w.document.write(`<html><body>${body}</body></html>`);
+		const tab = {
+			realm: 'tab-1#1',
+			name: 'tab-1',
+			documents: 1,
+			page: { mainFrame: { url: `https://app.test${at}`, document: w.document } }
+		} as unknown as Parameters<typeof peer_answers>[0];
+		const world = {
+			fired_in: new Map(),
+			network: {
+				exchanges: wire.map(([url, status, hop], i) => ({
+					id: i + 1,
+					from: hop === undefined ? 'tab-1#1' : 'server-0',
+					...(hop === undefined ? {} : { for: hop }),
+					method: 'GET',
+					url: hop === undefined ? `https://app.test${url}` : `https://peer.test${url}`,
+					status,
+					cut: false,
+					tampered: false,
+					redirected: false
+				}))
+			}
+		} as unknown as Parameters<typeof peer_answers>[1];
+		return peer_answers(tab, world, 0);
+	};
+
+	it("finds a page the peer lacks answered as found, and one that moved answered where it was (a mutant that lost the peer's status survived)", async () => {
+		expect((await judged('', [['/peer/gone', 200]]))?.oracle).toBe('peer-answers');
+		expect((await judged('', [['/peer/moved', 200]]))?.oracle).toBe('peer-answers');
+		expect(await judged('', [['/peer/gone', 404]])).toBeNull();
+		expect(await judged('', [['/peer/moved', 307]])).toBeNull();
+	});
+
+	it("passes one the network failed, or whose hop to the peer failed: the app's answer for it is its own", async () => {
+		expect(await judged('', [['/peer/gone', 'dropped']])).toBeNull();
+		expect(await judged('', [['/peer/gone', 502]])).toBeNull();
+		expect(
+			await judged('', [
+				['/og/fragment/page?path=/gone', 'dropped', 'tab-1#1'],
+				['/peer/gone', 200]
+			])
+		).toBeNull();
+	});
+
+	it("finds a peer's page that shows another visitor than the app's (a mutant that dropped the claims survived), and passes the app's", async () => {
+		expect((await judged('<p data-gen-who></p>', [], '/peer/who'))?.oracle).toBe('peer-answers');
+		expect(await judged('<p data-gen-who>visitor</p>', [], '/peer/who')).toBeNull();
 	});
 });
