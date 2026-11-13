@@ -457,6 +457,26 @@ describe('dom diff + shift boxes', () => {
 		expect(big.ops.map((o) => o.kind)).toEqual(['same', 'del', 'add', 'same']);
 	});
 
+	// a tag is a token whole, as the browser reads it (#1370): a `<` or `>` in a value, a comment or
+	// a script's text does not cut it
+	it('tokenizes a tag whole whatever its values hold, in any quoting', () => {
+		for (const v of ['x>y', 'a<b', "say 'hi'", 'say "hi"', '&quot;&gt;'])
+			for (const q of ['"', "'", ''])
+				if (!(q && v.includes(q)) && !(q === '' && /[\s"'<>=`]/.test(v))) {
+					const tag = `<a title=${q}${v}${q} data-x>`;
+					expect(tokenize_html(`${tag}go</a>`), tag).toEqual([tag, 'go', '</a>']);
+				}
+		expect(tokenize_html('<script>if(a<b)go()</script><p>1 < 2</p>')).toEqual([
+			'<script>',
+			'if(a<b)go()',
+			'</script>',
+			'<p>',
+			'1 < 2',
+			'</p>'
+		]);
+		expect(tokenize_html('<!-- <b>x</b> --><i>')).toEqual(['<!-- <b>x</b> -->', '<i>']);
+	});
+
 	it('shift boxes normalize to the viewport, biggest first, skipping shifts with no rect', () => {
 		const boxes = shift_boxes(
 			[
