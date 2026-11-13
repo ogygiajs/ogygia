@@ -143,6 +143,44 @@ describe('a page whose headers cannot change', () => {
 	});
 });
 
+describe('a page with an early hole whose headers cannot change', () => {
+	it('goes out under the platform’s own policy: the script’s hash is not added, and nothing throws', async () => {
+		const { set_request_event_stub } = await import('./_stubs/server.request-event.ts');
+		const { note_early_hole } = await import('../src/context.ts');
+		const e = event('/a');
+		set_request_event_stub(() => e);
+		try {
+			const csp = "script-src 'self'";
+			const answer = new Response('page', {
+				headers: { 'content-type': 'text/html', 'content-security-policy': csp }
+			});
+			Object.defineProperty(answer.headers, 'set', {
+				value: () => {
+					throw new TypeError('immutable');
+				}
+			});
+			const res = await handle()({
+				event: e,
+				resolve: async (
+					_: unknown,
+					o: { transformPageChunk: (c: { html: string; done: boolean }) => unknown }
+				) => {
+					note_early_hole('/__ogygia__?id=abcdef012345&sig=s');
+					await o.transformPageChunk({
+						html: '<html><head></head><body></body></html>',
+						done: true
+					});
+					return answer;
+				}
+			} as never);
+			expect(res.status).toBe(200);
+			expect(res.headers.get('content-security-policy')).toBe(csp);
+		} finally {
+			set_request_event_stub(null);
+		}
+	});
+});
+
 describe('options the handle refuses', () => {
 	it('`transform` is told where it moved', () => {
 		expect(() => handle({ transform: () => '' } as never)).toThrow(
