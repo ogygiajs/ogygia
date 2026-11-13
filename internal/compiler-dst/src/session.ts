@@ -38,20 +38,6 @@ export interface SessionOptions {
  *  fixed stand-ins (no secret, no Kit paths on disk), so the virtual modules load too. */
 export function session(files: Fs, { dev = false }: SessionOptions = {}): Session {
 	const program = new Program({ forms: true, router: true });
-	const compiler = new Compiler(program, {
-		prof: {
-			transformMs: 0,
-			transformN: 0,
-			transformHit: 0,
-			prescanMs: 0,
-			bakeMs: 0,
-			bakeN: 0,
-			resolveMs: 0,
-			loadMs: 0
-		},
-		P: false,
-		outHash: new Map<string, number>()
-	});
 	const ctx = new CompileCtx({
 		root: ROOT,
 		base: '/',
@@ -80,7 +66,24 @@ export function session(files: Fs, { dev = false }: SessionOptions = {}): Sessio
 		devtools: false,
 		fs: files
 	});
-	compiler.configure(ctx);
+	const compiler = new Compiler(
+		program,
+		{
+			prof: {
+				transformMs: 0,
+				transformN: 0,
+				transformHit: 0,
+				prescanMs: 0,
+				macroMs: 0,
+				macroN: 0,
+				resolveMs: 0,
+				loadMs: 0
+			},
+			P: false,
+			outHash: new Map<string, number>()
+		},
+		ctx
+	);
 	return { compiler, program, ctx, out: new Map(), emitted: [] };
 }
 
@@ -98,7 +101,9 @@ export async function transform_module(
 	if (src === null) return null;
 	try {
 		const r = await s.compiler.transform_module(src, file, {
-			ssr: leg === 'ssr',
+			leg: s.compiler.leg(
+				leg === 'ssr' ? { name: 'ssr', server: true } : { name: 'client', server: false }
+			),
 			emitFile: (chunk) => {
 				s.emitted.push(`${chunk.name} ${chunk.id}`);
 				return chunk.id;

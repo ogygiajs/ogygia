@@ -11,6 +11,7 @@ import {
 	verify as ed_verify
 } from 'node:crypto';
 import {
+	body_end,
 	Needle,
 	next_any_tag,
 	next_tag,
@@ -21,6 +22,7 @@ import {
 	tag_name,
 	text_of,
 	read_capped,
+	type BodyRefused,
 	type FoundTag
 } from '@ogygia/core/internal/server';
 import { cache } from '@ogygia/machine';
@@ -306,7 +308,7 @@ function claims_of(user_b64: string): { user?: Claims } | null {
 			user: JSON.parse(Buffer.from(user_b64, 'base64').toString()) as Claims
 		};
 	} catch {
-		return null; // signed but unparseable claims = reject
+		return null; // ok: signed but unparseable claims: the caller rejects the request
 	}
 }
 
@@ -507,7 +509,7 @@ function pin_graph(json: string, origin: string): string {
 	try {
 		wire = JSON.parse(json);
 	} catch {
-		return json;
+		return json; // ok: not a graph: peer HTML passes through as it came
 	}
 	// (peer HTML: anything that is not a graph object passes through as it came)
 	if (!wire || typeof wire !== 'object' || Array.isArray(wire)) return json;
@@ -660,19 +662,6 @@ function element_of(html: string, tag: FoundTag, name: string): string | null {
 	return gt === -1 ? null : html.slice(tag.start, gt + 1);
 }
 
-/** Where the document's last `</body` end tag starts, at or after `from`, or -1. */
-function last_body_close(html: string, from: number): number {
-	for (let i = html.lastIndexOf('</'); i >= from && i !== -1; i = html.lastIndexOf('</', i - 1)) {
-		if (html.slice(i + 2, i + 6).toLowerCase() === 'body') {
-			const c = html.charCodeAt(i + 6);
-			// (the name ends there: whitespace, `/`, `>`)
-			if (c === 62 || c === 47 || c === 32 || (c >= 9 && c <= 13)) return i;
-		}
-		if (i === 0) break;
-	}
-	return -1;
-}
-
 /** A head meta the fragment carries: SEO/social; charset/viewport/http-equiv stay the shell's
  *  (it owns the document). */
 function carried_meta(t: FoundTag): boolean {
@@ -727,12 +716,13 @@ export function lift_document(html: string, origin: string): Omit<FragmentDocume
 	}
 	const title_tag = next_tag(head, 'title', 0);
 	const body_tag = next_tag(html, 'body', 0);
-	const body_end = body_tag === null ? -1 : last_body_close(html, body_tag.end);
+	const close = body_tag === null ? -1 : body_end(html);
+	const body_close = close < (body_tag?.end ?? 0) ? -1 : close;
 	return {
 		title: decodeText((title_tag && text_of(head, title_tag, 'title')) ?? ''),
 		css,
 		...(head_meta ? { head: head_meta } : {}),
-		body: absolutize(body_end === -1 ? html : html.slice(body_tag!.end, body_end), origin),
+		body: absolutize(body_close === -1 ? html : html.slice(body_tag!.end, body_close), origin),
 		...(runtime_src ? { runtime: new URL(runtime_src, `${origin}/`).href } : {})
 	};
 }
@@ -753,11 +743,11 @@ export const json_error = (status: number, error: string): Response =>
 
 /** Read a request body under a cap BEFORE any verification work (an unauthenticated caller must
  *  never stream gigabytes into this process): read no further than the cap, chunked or not
- *  (test/body-cap.test.ts). Returns `null` when over the cap. */
+ *  (test/body-cap.test.ts), or why it was not read (never a throw: test/body-unreadable.test.ts). */
 export async function read_capped_body(
 	request: Request,
 	max: number
-): Promise<Uint8Array<ArrayBuffer> | undefined | null> {
+): Promise<Uint8Array<ArrayBuffer> | undefined | BodyRefused> {
 	if (request.method === 'GET' || request.method === 'HEAD') return undefined;
 	return read_capped(request, max);
 }

@@ -22,7 +22,7 @@
  * node would shift the positional walk), and the client template is untouched.
  */
 import { parse } from 'svelte/compiler';
-import MagicString from 'magic-string';
+import { splice_text, type Edit } from './splice.ts';
 import { blank_styles } from './blank-styles.ts';
 import { strip_bom } from './bom.ts';
 // the runtime's reader and this writer share the constants
@@ -31,6 +31,7 @@ import type { AstNode } from './parse/oxc.ts';
 
 /** A cheap presence test before parsing: one of the three shapes could be in this file. */
 const MAY_STAMP_RE =
+	// oxlint-disable-next-line ogygia/one-markup-walk -- a prefilter before Svelte's own parse; a false yes only costs that parse
 	/\{@html|bind:(?:innerHTML|textContent|innerText)|<[a-z][\w.]*-[\w-]*[\s/>]|\sis=/;
 // static: the DOM properties that replace an element's whole content
 const WHOLESALE_BINDS = new Set(['innerHTML', 'textContent', 'innerText']);
@@ -126,12 +127,18 @@ const CHILD_KEYS = [
 export function stamp_opaque(raw: string, filename: string): string | null {
 	// Svelte's parser drops a leading byte-order mark: edit the text it actually measured (./bom.ts)
 	const source = strip_bom(raw);
-	if (!MAY_STAMP_RE.test(source)) return null;
+	const edits = opaque_stamp_edits(source, filename);
+	return edits.length ? splice_text(source, edits) : null;
+}
+
+/** The inserts `stamp_opaque` makes to `source` (no byte-order mark): none when there is nothing to stamp. */
+export function opaque_stamp_edits(source: string, filename: string): Edit[] {
+	if (!MAY_STAMP_RE.test(source)) return [];
 	let ast: Node;
 	try {
 		ast = parse(blank_styles(source), { modern: true, filename }) as unknown as Node;
 	} catch {
-		return null;
+		return []; // ok: no stamps is the safe answer (under); Svelte's own compile reports the syntax
 	}
 	const at: { pos: number; attr: string }[] = [];
 	const visit = (nodes: Node[] | undefined) => {
@@ -157,8 +164,5 @@ export function stamp_opaque(raw: string, filename: string): string | null {
 		}
 	};
 	visit(ast.fragment?.nodes);
-	if (!at.length) return null;
-	const s = new MagicString(source);
-	for (const { pos, attr } of at) s.appendLeft(pos, ` ${attr}`);
-	return s.toString();
+	return at.map(({ pos, attr }) => ({ start: pos, end: pos, text: ` ${attr}` }));
 }

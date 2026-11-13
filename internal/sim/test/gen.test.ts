@@ -5,6 +5,9 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
+	app_reshape,
+	boxing,
+	reshape_plan,
 	LAYOUT_FIRST,
 	layout_plan,
 	peer_plan,
@@ -184,6 +187,78 @@ describe('the random app', () => {
 			expect(lib(app, 'mount.server.ts')).toContain(
 				peer.mount === 'router' ? 'mount(peer)' : 'resolve(event)'
 			);
+		} finally {
+			rmSync(root, { recursive: true, force: true });
+		}
+	});
+
+	it('draws a peer at two origins from its own stream, and the app names both, the first first', () => {
+		const seeds = Array.from({ length: 60 }, (_, i) => i + 1);
+		const peers = seeds.map((s) => peer_plan(s, plan(s))).filter((p) => p !== null);
+		expect(peers.some((p) => p.origins === 2)).toBe(true);
+		expect(peers.some((p) => p.origins === 1)).toBe(true);
+		const root = mkdtempSync(join(tmpdir(), 'sim-gen-'));
+		try {
+			for (const n of [1, 2] as const) {
+				const seed = seeds.find((s) => peer_plan(s, plan(s))?.origins === n)!;
+				const app = join(root, `o${n}`);
+				write(app, plan(seed), seed, peer_plan(seed, plan(seed)));
+				const fed = readFileSync(join(app, 'src', 'lib', 'gen', 'federation.server.ts'), 'utf8');
+				if (n === 2)
+					expect(fed).toContain(
+						"origin: [env.PEER_ORIGIN ?? 'https://peer.test', env.PEER2_ORIGIN ?? 'https://peer2.test']"
+					);
+				else expect(fed).toContain("origin: env.PEER_ORIGIN ?? 'https://peer.test',");
+			}
+		} finally {
+			rmSync(root, { recursive: true, force: true });
+		}
+	});
+
+	it("draws a peer's edge pages from their own stream: one it lacks, one that moved, one that shows the visitor, each linked from its pages", () => {
+		const seeds = Array.from({ length: 60 }, (_, i) => i + 1);
+		const peers = seeds.map((s) => peer_plan(s, plan(s))).filter((p) => p !== null);
+		for (const edge of ['gone', 'moved', 'who'] as const) {
+			expect(peers.some((p) => p.edges[edge])).toBe(true);
+			expect(peers.some((p) => !p.edges[edge])).toBe(true);
+		}
+		const root = mkdtempSync(join(tmpdir(), 'sim-gen-'));
+		try {
+			for (const edge of ['gone', 'moved', 'who'] as const) {
+				const seed = seeds.find((s) => peer_plan(s, plan(s))?.edges[edge])!;
+				const peer = peer_plan(seed, plan(seed))!;
+				const dir = join(root, `${edge}-peer`);
+				write_peer(dir, peer, seed);
+				const lib = (f: string) => readFileSync(join(dir, 'src', 'lib', 'gen', f), 'utf8');
+				expect(lib('Q0.svelte')).toContain(`<a href="/peer/${edge}">`);
+				const router = lib('router.ts');
+				if (edge === 'gone') expect(router).not.toContain(`'/gone'`);
+				if (edge === 'moved')
+					expect(router).toContain(`'/moved': page(Q0, { load: () => redirect(307, '/peer/q0') })`);
+				if (edge === 'who') {
+					expect(router).toContain(
+						`'/who': page(Who, { load: (c) => ({ sub: user(c)?.sub ?? '' }) })`
+					);
+					expect(lib('Who.svelte')).toContain('<p data-gen-who>{data.sub}</p>');
+				}
+			}
+		} finally {
+			rmSync(root, { recursive: true, force: true });
+		}
+	});
+
+	it('a federated app registers its federation from its hook, so a server that never served the mount still answers its holes (gen 220 seed 19)', () => {
+		const root = mkdtempSync(join(tmpdir(), 'sim-gen-'));
+		try {
+			const seeds = Array.from({ length: 60 }, (_, i) => i + 1);
+			for (const mount of ['router', 'kit'] as const) {
+				const seed = seeds.find((s) => peer_plan(s, plan(s))?.mount === mount)!;
+				const app = join(root, mount);
+				write(app, plan(seed), seed, peer_plan(seed, plan(seed)));
+				expect(readFileSync(join(app, 'src', 'lib', 'gen', 'mount.server.ts'), 'utf8')).toMatch(
+					/^import .*'\.\/federation\.server\.ts';$/m
+				);
+			}
 		} finally {
 			rmSync(root, { recursive: true, force: true });
 		}
@@ -455,6 +530,32 @@ describe('the random app', () => {
 		}
 	});
 
+	it("draws a module of the page's own after ogygia's runtime on some pages, from its own stream: DOMContentLoaded waits for its download", () => {
+		const seeds = Array.from({ length: 20 }, (_, i) => i + 1);
+		const pages = seeds.flatMap((s) => plan(s));
+		expect(pages.some((p) => p.late)).toBe(true);
+		expect(pages.some((p) => !p.late)).toBe(true);
+		const seed = seeds.find((s) => plan(s).some((p) => p.late))!;
+		const app = mkdtempSync(join(tmpdir(), 'sim-gen-'));
+		try {
+			const drawn = plan(seed);
+			write(app, drawn, seed);
+			for (const p of drawn) {
+				const src = readFileSync(
+					join(app, 'src', 'routes', p.path.slice(1), '+page.svelte'),
+					'utf8'
+				);
+				// (parsed with the page, so the browser runs it; spelled so the component's own parser
+				// never meets a closing script tag)
+				expect(src.includes(`type="module" src="/late.js"`)).toBe(p.late === true);
+			}
+			const module = readFileSync(join(app, 'src', 'routes', 'late.js', '+server.ts'), 'utf8');
+			expect(module).toContain("'content-type': 'text/javascript'");
+		} finally {
+			rmSync(app, { recursive: true, force: true });
+		}
+	});
+
 	it("draws islands a third party's script changes while they sleep, from their own stream: one that wakes on its own, in the page's own HTML", () => {
 		const seeds = Array.from({ length: 40 }, (_, i) => i + 1);
 		const touched: GenNode[] = [];
@@ -693,5 +794,44 @@ describe('the random app', () => {
 		const drawn = seeds.filter((s) => shape_plan(s) === 'drawn');
 		const all_wakes = drawn.flatMap((s) => islands(s).map((n) => n.wake!));
 		expect(all_wakes.some((w) => w.startsWith('('))).toBe(false);
+	});
+
+	it("draws a reshape pass for some apps, from its own stream: regions in custom elements its server render moves, a handle in front of ogygia's", () => {
+		const seeds = Array.from({ length: 40 }, (_, i) => i + 1);
+		const passes = seeds.map((s) => [s, reshape_plan(s)] as const);
+		expect(passes.some(([, p]) => p === null)).toBe(true);
+		const [seed, pass] = passes.find(([, p]) => p !== null && p.link)!;
+		const pages = plan(seed).map(boxing(seed, pass!));
+		const boxed = all(pages.flatMap((p) => p.roots)).filter((n) => n.boxed);
+		expect(boxed.length).toBeGreaterThan(0);
+		expect(boxed.some((n) => n.boxed === 'link')).toBe(true);
+		expect(boxed.some((n) => n.empty)).toBe(false);
+		const app = mkdtempSync(join(tmpdir(), 'sim-gen-'));
+		try {
+			write(app, pages, seed, null, null, true, pass);
+			const lib = join(app, 'src', 'lib', 'gen');
+			const written = JSON.parse(readFileSync(join(lib, 'plan.json'), 'utf8'));
+			expect(written.reshape).toEqual(pass);
+			const n = boxed.find((b) => b.boxed === 'link' && b.kind !== 'held' && b.kind !== 'live')!;
+			const component = readFileSync(join(lib, `N${n.id}.svelte`), 'utf8');
+			expect(component).toContain(`<x-gen-box data-n="${n.id}">`);
+			expect(component).toContain('<a data-gen-link data-gen-messy><x-gen-link>');
+			const transform = readFileSync(join(lib, 'reshape.server.ts'), 'utf8');
+			expect(transform).toContain('reshape.handle(transform)');
+			expect(transform).toContain(`const TRIM = ${pass!.trim};`);
+		} finally {
+			rmSync(app, { recursive: true, force: true });
+		}
+		expect(app_reshape(null)).toContain('resolve(event)');
+		const config = readFileSync(
+			join(import.meta.dirname, '../../../apps/sim-gen/vite.config.ts'),
+			'utf8'
+		);
+		expect(config).toContain('...(plan.reshape ? [reshape()] : [])');
+		const hooks = readFileSync(
+			join(import.meta.dirname, '../../../apps/sim-gen/src/hooks.server.ts'),
+			'utf8'
+		);
+		expect(hooks).toContain("import { handle as reshaped } from '$lib/gen/reshape.server';");
 	});
 });

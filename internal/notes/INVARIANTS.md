@@ -241,9 +241,9 @@ a kept island’s live query then freezes and its next read throws (#817,
 
 - Read `export const csr` ad hoc anywhere else — go through `page_worlds()` / the exported kit.ts helpers (one walk, one truth).
 - Strip a layout when ANY page below it is csr=false.
-- Skip `ctx.routes.clear()` on dev route-topology changes — the watcher covers `+page/+layout(.server).(svelte|js|ts)`.
+- Read a route file around `ctx.routes` (its `text`, `listing` and `at` inputs): an answer that reads the disk itself is not told of the dev watcher's file events (`Routes.touch`), so it goes stale.
 
-**Enforced by:** `packages/compiler/test/route-csr.test.ts` (declaration forms × chain shapes × layout folds × cache, plus the transform strip/keep seam), `apps/palaestra/e2e/deep-csr.spec.ts` (real build of internal/repro-deep-csr, browser truth in both worlds).
+**Enforced by:** `packages/compiler/test/route-csr.test.ts` (declaration forms × chain shapes × layout folds × file events, plus the transform strip/keep seam), `packages/compiler/test/queries.test.ts` (dev answers after random edits equal a cold reader's), `packages/compiler/test/fs-seam.test.ts` (no direct disk read left), `apps/palaestra/e2e/deep-csr.spec.ts` (real build of internal/repro-deep-csr, browser truth in both worlds).
 
 ---
 
@@ -272,6 +272,18 @@ a kept island’s live query then freezes and its next read throws (#817,
 **Do not:** Keep the cursor in a module variable or behind an import the other bundle does not share. Move it into a module with heavy imports (it lives alone so the boot stays small).
 
 **Enforced by:** `packages/core/test/current-region-slot.test.ts > two copies of the module share the region being hydrated, and the foreign island`
+
+---
+
+## COMMENTS-ARE-TESTS — a comment's why lives in a test, not in prose
+
+**What:** Package source holds no free comments. What a comment knows (a rule, a reason, a past bug) is moved into something that fails when it stops being true: a test named after the behavior, a DST seed, a rule, a lint rule or a type. Only then is the comment deleted. What stays: JSDoc on exports (it feeds the API reference and hovers), tool directives with a reason, and `// @why <outside fact> (test: file › name)`, one line, for a fact no test can hold, naming the test that pins it.
+
+**Why:** A comment goes stale without anyone noticing; a test fails out loud. Deleting a comment without moving its why throws the knowledge away, so deletion is never the aim, only the last step.
+
+**Do not:** Delete a comment whose why has no test yet (flip the code; if nothing turns red, write the test first). Reword an old comment instead of moving it. Add a free comment to new code. Write a `@why` that names no test, or a test that does not exist.
+
+**Enforced by:** `internal/lint/structured-comments.test.ts > free comments and block comments are reported; tool directives pass`, `internal/lint/structured-comments.test.ts > a @why passes only above its statement and when its test exists`
 
 ---
 

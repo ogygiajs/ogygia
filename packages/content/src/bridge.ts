@@ -25,6 +25,10 @@ export type ContentBridge = {
 	/** The `content({ markdown })` config. The preprocessor reads it when called with no args, so all
 	 *  config lives in the vite config and the svelte config references a value-free `preprocess()`. */
 	markdownConfig: Record<string, unknown> | null;
+	/** Who came first: nothing yet (`unset`), the svelte config read the markdown settings before any
+	 *  `content()` call (`read_unset`), or `content()` set them (`set`). `content({ markdown })` after a
+	 *  `read_unset` refuses: that svelte config compiles no markdown (content_config_read_first). */
+	markdownOrder: 'unset' | 'read_unset' | 'set';
 	/**
 	 * Named content presets from `content({ presets })` — each a partial content config
 	 * (`{ markdown: {…} }`) referenced by a LITERAL `preset: 'name'` on a loader macro. The macro
@@ -44,14 +48,15 @@ export type ContentBridge = {
 	contentScan: Scope | null;
 };
 
-// (version 2: the modules are a registry, the shape a copy from before could not read)
+// (version 3: the markdown order; 2: the modules are a registry. Shapes a copy from before could not read)
 export const bridge: ContentBridge = slot<ContentBridge>({
 	name: 'ogygia.content-bridge',
-	version: 2,
+	version: 3,
 	make: () => ({
 		transform: null,
 		scan: null,
 		markdownConfig: null,
+		markdownOrder: 'unset',
 		contentPresets: null,
 		contentModules: registry(),
 		contentScan: null

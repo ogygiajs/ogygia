@@ -15,7 +15,11 @@
  * its warm and its preload links, and the dev region-css rescue all ask here (#981).
  * test/browser/code-origins.test.ts.
  *
- * A leaf: island-side code (./entry-locations.ts) imports it.
+ * A leaf: island-side code (./entry-locations.ts) imports it. Only the head's FIRST runtime script
+ * is read, attribute or not: with none on the server's, a later one is markup's
+ * (test/browser/property-code-origins.test.ts).
+ *
+ * @packageDocumentation
  */
 // (the boot's own table: this module is boot code, test/runtime-boot-svelte-free.test.ts)
 import { OgygiaError } from '../messages/core.ts';
@@ -35,7 +39,7 @@ function origin_of(url: string, base?: string): string | null {
 		const u = new URL(url, base ?? location.href);
 		return u.protocol === 'https:' || u.protocol === 'http:' ? u.origin : null;
 	} catch {
-		return null;
+		return null; // ok: not a URL: no origin
 	}
 }
 
@@ -45,8 +49,6 @@ export function code_origins(): ReadonlySet<string> {
 	const set = new Set<string>([location.origin]);
 	const own = origin_of(import.meta.url);
 	if (own) set.add(own);
-	// the FIRST runtime script, attribute or not: with none on the server's, a later one is markup's
-	// (test/browser/property-code-origins.test.ts)
 	const script =
 		typeof document === 'undefined'
 			? null
@@ -82,9 +84,6 @@ export function import_code<T>(url: CodeUrl): Promise<T> {
 	return import(/* @vite-ignore */ url);
 }
 
-// ── a location is the same island's built file ──────────────────────────────────────────────
-/** A build's island identity's file (`…/og-region.<iid>.js`) and its location's
- *  (`…/og-region.<iid>.<hash>.js`, compiler/driver.ts `entry_file_pattern`). */
 const IDENTITY_FILE = /\/og-region\.([\w-]+)\.js$/;
 const LOCATION_FILE = /\/og-region\.([\w-]+)\.[\w-]+\.js$/;
 
@@ -100,7 +99,7 @@ export function is_location_of(identity: string, location: string): boolean {
 		id = new URL(identity);
 		loc = new URL(location);
 	} catch {
-		return false;
+		return false; // ok: not URLs: neither is the other's location
 	}
 	if (id.origin !== loc.origin || code_url(loc.href) === null) return false;
 	const iid = IDENTITY_FILE.exec(id.pathname)?.[1];

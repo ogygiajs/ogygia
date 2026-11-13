@@ -40,7 +40,8 @@ export function rewrite_island_sourcemap_sources(
 
 /** The `ogygia:island-sourcemaps` post plugin (Vite flattens it into the adapter's array). */
 export function island_sourcemaps_plugin(deps: {
-	program: Program;
+	/** The build under way's program. */
+	program: () => Program;
 	is_island_path: (id: string) => boolean;
 }): Plugin {
 	const { program, is_island_path } = deps;
@@ -71,12 +72,12 @@ export function island_sourcemaps_plugin(deps: {
 			try {
 				map = this.getCombinedSourcemap();
 			} catch {
-				return null;
+				return null; // ok: no combined map to touch up: the module keeps the map it has (a dev polish pass)
 			}
 			if (!map?.mappings || !map.sources?.length) return null;
 			const rewritten = rewrite_island_sourcemap_sources(bare, map.sources);
 			const sources = rewritten ?? map.sources;
-			const entry = program.registry.get(bare);
+			const entry = program().registry.get(bare);
 			const base_name = bare.slice(bare.lastIndexOf('/') + 1);
 			let injected = false;
 			const sourcesContent = sources.map((s, i) => {
