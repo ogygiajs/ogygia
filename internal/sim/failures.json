@@ -1753,8 +1753,6 @@
 		"packages/compiler/src/compiler/region/transform.ts > TsRegionCompilation > run > throw:0",
 		"packages/compiler/src/compiler/region/transform.ts > TsRegionCompilation > run > throw:1",
 		"packages/compiler/src/compiler/region/transform.ts > TsRegionCompilation > run > throw:2",
-		"packages/compiler/src/compiler/transportables.ts > parse_body > not-ok:0",
-		"packages/compiler/src/compiler/transportables.ts > parse_body > catch:0",
 		"packages/compiler/src/compiler/transportables.ts > exportedWireClassesFromBody > throw:0",
 		"packages/compiler/src/compiler/virtual/core.ts > dev_runtime_of > parse:0",
 		"packages/compiler/src/compiler/virtual/core.ts > dev_runtime_of > catch:0",

@@ -368,6 +368,16 @@ describe('portable binding rewrite', () => {
 		);
 	});
 
+	test('one marked declaration of two names becomes one binding import per name, in order', () => {
+		const r = run(
+			wrap(`import { A, B } from './ab.ts' with { wake: 'load' };`, '<A /><B />'),
+			makeCtx({ linkVirtualIsland: false })
+		)!;
+		const [a, b] = ['A', 'B'].map((n) => r.code.indexOf(`import ${n} from`));
+		expect(a).toBeGreaterThan(-1);
+		expect(b).toBeGreaterThan(a);
+	});
+
 	test('a lake placed only as a dotted tag is used, so its import stays a lake', () => {
 		const r = run(wrap(`import L from './L.svelte' with { wake: 'none' };`, '<L.Part />'))!;
 		expect(r.islands.map((i) => i.kind)).toEqual(['lake']);
@@ -439,6 +449,14 @@ describe('defer / server islands', () => {
 		expect(r.islands[0].wrapperSource).toMatch(/__defer=\{"idle"\}/);
 		// content-only: no client hydrate module is emitted
 		expect(r.islands[0].wrapperSource).not.toMatch(/__hydrate=/);
+	});
+
+	test("a hole's client wrapper never imports its component or entry (a hole ships no JS)", () => {
+		const r = run(wrap(`import C from './C.svelte' with { render: 'deferred' };`, '<C />'))!;
+		const hole = r.islands[0] as { wrapperSource: string; wrapperClientSource: string };
+		expect(hole.wrapperSource).toContain('__OgygiaEntry');
+		expect(hole.wrapperClientSource).not.toContain('__OgygiaEntry');
+		expect(hole.wrapperClientSource).not.toContain('C.svelte');
 	});
 
 	test('a bare render: deferred is fetched on load, the same as fetch: load', () => {
@@ -696,6 +714,14 @@ describe('lakes', () => {
 			makeCtx({ linkVirtualIsland: true, ssr: true })
 		)!;
 		expect(r.code).not.toContain('ogygia:region/fouc-css/');
+	});
+
+	test('a cached lake is its wrapper alone; a live (swr) lake also gets a server entry', () => {
+		const cached = run(wrap(`import L from './L.svelte' with { wake: 'none' };`, '<L />'))!;
+		expect(cached.islands[0]).toMatchObject({ virtualPath: undefined, source: undefined });
+		const live = run(wrap(`import L from './L.svelte' with { render: 'live' };`, '<L />'))!;
+		expect(live.islands[0].virtualPath).toMatch(/^ogygia:region\/entry\//);
+		expect(live.islands[0].source).toMatch(/L\.svelte/);
 	});
 
 	test('render: live gets a server entry module (baked + revalidate)', () => {
@@ -1115,6 +1141,78 @@ describe('portable snippets — a named snippet handed to a non-island component
 		)!;
 		expect(r.code).not.toMatch(/<svelte:head><link rel="modulepreload"/);
 		expect(r.code).toMatch(/__og_portable\([^)]*"\/_app\/ogygia\/og-region\.[a-f0-9]+\.js"\)/);
+	});
+
+	test('a snippet nested in another crossing snippet ships inside the outer entry, not as its own', () => {
+		const r = run(
+			wrap(
+				`import Shell from './Shell.svelte';`,
+				`<Shell>{#snippet outer()}<Shell>{#snippet inner()}<b>x</b>{/snippet}</Shell>{/snippet}</Shell>`
+			)
+		)!;
+		expect(portableIslands(r)).toHaveLength(1);
+		expect(portableIslands(r)[0].source).toContain('{#snippet inner()}');
+	});
+
+	test('a snippet that reassigns only its own parameter still crosses', () => {
+		const r = run(
+			wrap(
+				`import Box from './Box.svelte' with { wake: 'load' };`,
+				`<Box>{#snippet row(n)}<button onclick={() => (n = n + 1)}>{n}</button>{/snippet}</Box>`
+			)
+		)!;
+		expect(portableIslands(r)).toHaveLength(1);
+	});
+
+	test('two names from one <script module> import are imported once in the synth', () => {
+		const r = run(
+			dedent`
+				<script module>
+					import { a, b } from './ab.ts';
+				</script>
+				<script>
+					import Shell from './Shell.svelte';
+				</script>
+				<Shell>{#snippet actions()}<a>{a}{b}</a>{/snippet}</Shell>
+			`
+		)!;
+		const synth = portableIslands(r)[0].source!;
+		expect(synth.split(`import { a, b } from './ab.ts';`)).toHaveLength(2);
+	});
+
+	test("a declared package's host keys its snippet entries by package, not by install path", () => {
+		const src = wrap(
+			`import Shell from './Shell.svelte';`,
+			`<Shell>{#snippet actions()}<a>x</a>{/snippet}</Shell>`
+		);
+		const at = (dir: string) =>
+			transformHost(
+				src,
+				`${dir}/src/Page.svelte`,
+				makeCtx({
+					pkg_identity: (p: string) => (p.startsWith(dir) ? `pkg${p.slice(dir.length)}` : null)
+				})
+			)!;
+		const one = portableIslands(at('/store/pkg@1/pkg'));
+		const two = portableIslands(at('/store/pkg@2/pkg'));
+		expect(one[0].id).toBe(two[0].id);
+	});
+
+	test('a host with only a <script module> gains one instance <script> for the helper', () => {
+		const r = run(
+			dedent`
+				<script module>
+					import Shell from './Shell.svelte';
+				</script>
+				<Shell>{#snippet actions()}<a>x</a>{/snippet}</Shell>
+			`
+		)!;
+		expect(r.code.match(/<script>/g)).toHaveLength(1);
+		expect(r.code).toMatch(/<script>\s*import \{ og_portable as __og_portable \}/);
+	});
+
+	test('a root snippet handed to nothing leaves the file untouched (null)', () => {
+		expect(run(`{#snippet a()}<b>x</b>{/snippet}<Shell />`)).toBeNull();
 	});
 
 	test('a snippet-only file with no islands still transforms (relaxed bailout)', () => {

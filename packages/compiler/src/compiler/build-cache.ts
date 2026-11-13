@@ -1,21 +1,6 @@
-/**
- * ogygia's BUILD CACHE — one shared, namespaced store for everything derived at build time. Node-only.
- *
- * Each consumer initialises its own corner: `new BuildCache<T>('fences')` — its namespace is its
- * directory inside the shared root, and it speaks `get`/`set` (JSON values) or `dir()` (an artifact
- * tree it manages itself, like git checkouts) — never filesystem paths. Where things persist is this
- * MODULE's concern: `node_modules/.ogygia/<namespace>/…` — inside `node_modules` deliberately,
- * because build platforms cache that whole tree, so a warm CI build re-derives nothing (no clone,
- * no shiki, no twoslash).
- *
- * Everything is best-effort: any FS error disables the cache for the session rather than failing a
- * build — a cache must never be the reason a build breaks.
- */
 import fs from 'node:fs';
 import path from 'node:path';
 
-// The shared root — module state, not part of any store's surface. Resolved lazily; before any
-// configure it falls back to `process.cwd()`.
 let root: string | null | undefined;
 let configured: string | undefined;
 
@@ -23,7 +8,7 @@ let configured: string | undefined;
 export function configure_build_cache(project_root: string): void {
 	if (configured === project_root) return;
 	configured = project_root;
-	root = undefined; // re-probe under the new project
+	root = undefined;
 }
 
 /** Test hook: force the cache root (or `null` to disable, `undefined` to re-probe). */
@@ -79,7 +64,6 @@ export class BuildCache<T> {
 		const d = this.dir();
 		if (!d) return;
 		try {
-			// Write-then-rename so a crashed write can't leave a torn entry at the final address.
 			const tmp = path.join(d, `${key}.${process.pid}.tmp`);
 			fs.writeFileSync(tmp, JSON.stringify(value));
 			fs.renameSync(tmp, path.join(d, `${key}.json`));

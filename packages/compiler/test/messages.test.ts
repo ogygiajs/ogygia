@@ -8,7 +8,7 @@ import { define_messages } from '../../core/src/contract/messages.ts';
 import { ERRORS, WARNINGS, OgygiaError, warn } from '../../core/src/messages/core.ts';
 import { prose } from '../../core/src/contract/prose.ts';
 import { SERVER_ERRORS, SERVER_WARNINGS } from '../../core/src/messages/server.ts';
-import { BUILD_ERRORS, BUILD_WARNINGS } from '../src/compiler/messages.ts';
+import { BUILD_ERRORS, BUILD_REPORTS, BUILD_WARNINGS } from '../src/compiler/messages.ts';
 import type { MessageEntry } from '../../core/src/contract/messages.ts';
 
 const TABLES: Record<string, MessageEntry<never>> = {
@@ -150,6 +150,21 @@ describe('the tables', () => {
 		])
 			for (const code of Object.keys(t)) seen.set(code, (seen.get(code) ?? 0) + 1);
 		expect([...seen].filter(([, n]) => n > 1).map(([c]) => c)).toEqual([]);
+	});
+
+	it('a build report prints through line(), never warn()', () => {
+		const reports = Object.keys(BUILD_REPORTS);
+		const warned: string[] = [];
+		const lined = new Set<string>();
+		for (const f of files(SRC)) {
+			const text = fs.readFileSync(f, 'utf8');
+			for (const code of reports) {
+				if (text.includes(`warn('${code}'`)) warned.push(`${path.relative(SRC, f)}: ${code}`);
+				if (text.includes(`line('${code}'`)) lined.add(code);
+			}
+		}
+		expect(warned).toEqual([]);
+		expect([...lined].sort()).toEqual([...reports].sort());
 	});
 });
 
