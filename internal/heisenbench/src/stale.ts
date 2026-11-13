@@ -44,7 +44,6 @@ export function unexempted_new_functions(
 	const excused = new Set(exempt.map((e) => e.id));
 	return inventory.functions.filter(
 		(f) =>
-			!before.has(context_path(f.id)) &&
-			!names_of(f.id, context_path).some((n) => excused.has(n))
+			!before.has(context_path(f.id)) && !names_of(f.id, context_path).some((n) => excused.has(n))
 	);
 }
