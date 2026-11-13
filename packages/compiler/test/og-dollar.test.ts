@@ -223,8 +223,12 @@ describe('og.$ in TEMPLATE expressions (props in markup)', () => {
 });
 
 describe('og.$ in a typed module hoists plain JS (#1556)', () => {
-	const svelte_ts = (body: string) =>
-		`<script lang="ts">\n\tconst rate: number = 2;\n\tconst f = import.meta.og.$(${body});\n</script>`;
+	const svelte_ts = (body: string) => dedent`
+		<script lang="ts">
+			const rate: number = 2;
+			const f = import.meta.og.$(${body});
+		</script>
+	`;
 	const hoist = (src: string, id = 'src/routes/p.svelte') => {
 		const { hoists } = rewrite_dollar(src, id, id, SVELTE);
 		expect(hoists).toHaveLength(1);
@@ -273,7 +277,7 @@ describe('og.$ in a typed module hoists plain JS (#1556)', () => {
 		],
 		[
 			'class modifiers, abstract members and implements',
-			'(n: number) => { interface I { v: number } abstract class A { abstract w(): void; } class C extends A implements I { private readonly p?: number; declare q: number; public v: number = n; [k: string]: unknown; override w() {} protected m!: number; } return new C().v; }',
+			'(n: number) => { interface I { v: number } abstract class A { abstract w(): void; abstract x: number; abstract accessor y: number; } class C extends A implements I { private readonly p?: number; declare q: number; public v: number = n; [k: string]: unknown; override w() {} protected m!: number; } return new C().v; }',
 			[3],
 			3
 		],
@@ -288,12 +292,21 @@ describe('og.$ in a typed module hoists plain JS (#1556)', () => {
 	});
 
 	it('a typed markup mark hoists plain JS', () => {
-		const src = `<script lang="ts">\n\tconst rate = 2;\n</script>\n<Island fmt={import.meta.og.$((n?: number): number => (n ?? 1) * rate)} />`;
+		const src = dedent`
+			<script lang="ts">
+				const rate = 2;
+			</script>
+			<Island fmt={import.meta.og.$((n?: number): number => (n ?? 1) * rate)} />
+		`;
 		expect(call(hoist(src), 3)).toBe(6);
 	});
 
 	it('a typed value mark asserts the plain expression', () => {
-		const src = `type S = { v: number };\nconst s = { v: 1 };\nexport const x = import.meta.og.$(<S>s);`;
+		const src = dedent`
+			type S = { v: number };
+			const s = { v: 1 };
+			export const x = import.meta.og.$(<S>s);
+		`;
 		expect(run(src).code).toMatch(/__og_boundary\(\(\s+s\), "src\/routes\/x\.ts:3"\)/);
 	});
 
