@@ -1397,7 +1397,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 
 			// (each build leg's end, and the dev server closing)
 			closeBundle() {
-				compiler.end_leg(leg_of(this).name);
+				compiler.end_leg(env_of(this)?.name ?? null);
 			},
 
 			async writeBundle(_options, bundle) {

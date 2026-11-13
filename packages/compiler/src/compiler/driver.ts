@@ -312,9 +312,17 @@ export class Compiler implements CoreApp {
 		return this.#build.legs.get(name);
 	}
 
-	/** Leg `name` ends (its bundle is written). */
-	end_leg(name: string): void {
-		this.#build.legs.get(name)?.life.go('closed');
+	/**
+	 * A leg ends (its bundle is written): `env`'s, else (a hook the bundler calls without one) the one
+	 * leg open now. With two open (a dev server closing: its legs live for the session) there is no
+	 * one leg to end, and none ends. Ending a leg that already ended does nothing (closeBundle may run
+	 * again).
+	 */
+	end_leg(env: string | null): void {
+		const legs = this.#build.legs;
+		const open = [...legs.values()].filter((l) => l.life.now.kind === 'open');
+		const leg = env !== null ? legs.get(env) : open.length === 1 ? open[0] : undefined;
+		if (leg?.life.now.kind === 'open') leg.life.go('closed');
 	}
 
 	/**
