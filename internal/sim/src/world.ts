@@ -16,7 +16,8 @@ import {
 	navigation_starts,
 	scripts_start_once,
 	whole_text_runs,
-	window_load_events
+	window_load_events,
+	disabled_stylesheets
 } from './happy.ts';
 import { Cdn } from './cdn.ts';
 import { Loop } from './loop.ts';
@@ -139,6 +140,8 @@ export class World {
 	readonly network: Network;
 	readonly cdn: Cdn;
 	readonly browsers: Browsers;
+	/** Other visitors a crowd brought (workload.ts `crowd`), each with its tab, in order. */
+	readonly crowd: Visitor[] = [];
 	/** Whether the tabs' engine has idle callbacks (`WorldOptions.idle`, or the seed's draw). */
 	readonly idle: boolean;
 	/** Live instances by build id. */
@@ -228,6 +231,7 @@ export class World {
 		history_by_document();
 		navigation_starts();
 		window_load_events();
+		disabled_stylesheets();
 		const w = new World(o);
 		completion_on_the_loop(w.loop);
 		const host = platform({

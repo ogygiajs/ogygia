@@ -710,7 +710,8 @@ describe('Ogygia', () => {
 	it('profile() keeps its own kind over the profiler JSON', async () => {
 		const o = new Ogygia({
 			evaluate: async () => true as never,
-			get: async () => ({
+			// (a POST: a profile run changes the profiler's state, #1168)
+			post: async () => ({
 				status: 200,
 				body: JSON.stringify({ kind: 'page', id: 'z', target: { page: '/', runs: [1] } })
 			})

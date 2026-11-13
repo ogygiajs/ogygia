@@ -21,6 +21,8 @@
  * - `rule_region_left_busy`: a region element that left the page has every machine at rest (its
  *   hole's fetch, its wake, its live mode, its paint): no visit of it waits on what can no longer
  *   happen (#1132). Read from a task after its teardown.
+ * - `rule_lake_restored`: an island's hydrate gives back every lake it lifted (./lakes.ts
+ *   `restore` pairs them by position: a count that differs drops a lake's content).
  * - `rule_head_adopted`: the head never gains a `<base>` or a refresh / CSP / cookie meta after the
  *   first document (SPA-HEAD, ./head-deny.ts).
  *
@@ -30,6 +32,7 @@
 import { observe, STALE, timers, trace } from '@ogygia/machine';
 import { Rules, type BrokenRule } from '../rules.ts';
 import { warn } from '../messages/core.ts';
+import type { PageGlobals } from '../page-globals.ts';
 import { OG_PREFIX, OGYGIA_PREFIX, unknown_markers } from '../wire-markup.ts';
 
 type RuntimeRule =
@@ -41,7 +44,8 @@ type RuntimeRule =
 	| 'rule_markup_known'
 	| 'rule_region_answer_behind'
 	| 'rule_region_left_busy'
-	| 'rule_head_adopted';
+	| 'rule_head_adopted'
+	| 'rule_lake_restored';
 
 /** The runtime's rules. */
 export const runtime_rules: Rules<RuntimeRule> = /* @__PURE__ */ new Rules<RuntimeRule>();
@@ -60,6 +64,7 @@ class RuleRows {
 	readonly visits: Array<{ visit: Visit; n: number }> = [];
 	readonly uncoded: string[] = [];
 	readonly parsed_built: string[] = [];
+	readonly lakes_unpaired: string[] = [];
 }
 const R = new RuleRows();
 
@@ -292,9 +297,23 @@ function note_parse(fragment: DocumentFragment): void {
 const no_parse_upgraded = (): string | null =>
 	R.parsed_built.length === 0 ? null : R.parsed_built.join('; ');
 
+// ── a hydrate gives back every lake it lifted ──
+
+/** An island's hydrate lifted `lifted` lakes out of `region` and found `found` to give them back to
+ *  (./lakes.ts `restore`, which pairs them by position): a count that differs drops content. */
+export function note_lake_restore(region: Element, lifted: number, found: number): void {
+	if (lifted !== found && R.lakes_unpaired.length < 10)
+		R.lakes_unpaired.push(
+			`${entry_of(region)} lifted ${lifted} lake(s) and its hydrate rendered ${found}`
+		);
+}
+
+const lakes_paired = (): string | null =>
+	R.lakes_unpaired.length === 0 ? null : R.lakes_unpaired.join('; ');
+
 // ── the head gains no <base>, refresh, CSP or cookie meta (SPA-HEAD) ──
 
-type HeadDeny = (node: Element) => boolean;
+type HeadDeny = Parameters<NonNullable<PageGlobals['__og_head_deny']>>[0];
 
 /** The first document's own candidates (its server sent them, as `outerHTML`): never counted.
  *  Null: not watched yet. */
@@ -322,8 +341,7 @@ function head_not_adopted(): string | null {
 export function watch_head(): void {
 	if (first_head === null) runtime_rules.add('rule_head_adopted', head_not_adopted);
 	first_head = new Set(head_candidates().map((n) => n.outerHTML));
-	(globalThis as { __og_head_deny?: (deny: HeadDeny) => void }).__og_head_deny = (deny) =>
-		(head_deny = deny);
+	(globalThis as PageGlobals).__og_head_deny = (deny) => (head_deny = deny);
 }
 
 // ── the runner ──
@@ -353,11 +371,12 @@ export function install_rules(dev: boolean): void {
 	runtime_rules.add('rule_old_page_open', no_old_page_open);
 	runtime_rules.add('rule_failure_uncoded', no_failure_uncoded);
 	runtime_rules.add('rule_parse_upgraded', no_parse_upgraded);
+	runtime_rules.add('rule_lake_restored', lakes_paired);
 	runtime_rules.add('rule_markup_known', markup_known);
 	runtime_rules.add('rule_region_answer_behind', regions_show_their_answers);
 	runtime_rules.add('rule_region_left_busy', regions_left_at_rest);
 	watch_head();
-	(globalThis as { __og_parsed?: (f: DocumentFragment) => void }).__og_parsed = note_parse;
+	(globalThis as PageGlobals).__og_parsed = note_parse;
 	(globalThis as { __ogygia_rules?: () => BrokenRule[] }).__ogygia_rules = () =>
 		runtime_rules.broken();
 	const moves = trace();

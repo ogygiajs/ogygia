@@ -61,7 +61,7 @@ import { rng, type Rng } from './rng.ts';
 import { signature } from './ci.ts';
 import { ddmin, regression_test, slug } from './shrink.ts';
 import type { FaultClass } from './network.ts';
-import type { Visitor } from './browser.ts';
+import type { Tab, Visitor } from './browser.ts';
 import { ORIGIN, World, type Rollover, type WorldOptions } from './world.ts';
 import { builds_of } from './builds.ts';
 import { key_pair } from './keys.ts';
@@ -87,6 +87,9 @@ const REPLAY = !process.argv.includes('--no-replay');
 /** `--calm`: the differential's world (src/differ.ts), one a real browser can play alike: no fault,
  *  no buggify point, one server with a stable secret, one build, and none of `NOT_CALM`'s actions. */
 const CALM = process.argv.includes('--calm');
+/** `--crowd`: the workload may draw a crowd of other visitors (workload.ts `crowd`): server-side
+ *  chaos, their requests among the visitor's. Off, every seed draws as it did before crowds. */
+const CROWD = process.argv.includes('--crowd') && !CALM;
 /** `--observe <dir>`: each run's plan and what the visitor saw after each action
  *  (@ogygia/tooling/e2e/sim-observe.ts) go to `<dir>/<app>-<seed>.sim.json`, for the differential. */
 const OBSERVE = arg('--observe');
@@ -230,6 +233,9 @@ export interface RunResult {
 	readonly idle: boolean;
 	/** What the visitor saw after each action (`--observe`), else empty. */
 	readonly seen: readonly Seen[];
+	/** Each thing a planned action named that its page no longer had, `action <n>: ...`: a plan
+	 *  that misses its step says why (src/sweep.ts). */
+	readonly missed: readonly string[];
 }
 
 /** A request of tab `tab` (0 is the first) the network dropped or cut: the `nth` (from 0) of the
@@ -332,6 +338,7 @@ export async function run(
 		`servers: ${instances}, clocks up to ${skew} ms apart, ${secret ? 'a stable secret' : 'no secret'}`
 	);
 	const actions: Action[] = [];
+	const missed: string[] = [];
 	const broken: Broken[] = [];
 	/** The document each tab had when it was last pressed in (by tab name). */
 	const pressed = new Map<string, number>();
@@ -345,6 +352,8 @@ export async function run(
 	const seen: Seen[] = [];
 	try {
 		const v = world.visitor('visitor');
+		/** Every tab the run judges: the visitor's, and a crowd's (workload.ts `crowd`). */
+		const judged = (): Tab[] => [...v.tabs, ...world.crowd.flatMap((c) => c.tabs)];
 		// (the network's exchanges since the last check: a fault among them explains what was said)
 		let since = 0;
 		/** Each document's machine moves read so far (by realm): its log keeps only its last lines,
@@ -352,7 +361,7 @@ export async function run(
 		const moves_read = new Map<string, number>();
 		const hear_moves = (): void => {
 			// (every document's, a left one's too: one replaced inside an action took steps too)
-			const logs: Array<[string, string]> = v.tabs.flatMap((t) =>
+			const logs: Array<[string, string]> = judged().flatMap((t) =>
 				[...t.moves_by].map(([realm, read]): [string, string] => [realm, read()])
 			);
 			// (and each server's, the app's and its peers')
@@ -379,7 +388,7 @@ export async function run(
 						since
 					)
 				);
-			for (const t of v.tabs) {
+			for (const t of judged()) {
 				const doc = t.page.mainFrame.document as unknown as Document;
 				log.note(`${t.name} ${t.page.mainFrame.url} dom ${fingerprint(normalize(doc))}`);
 				for (const line of [...t.errors, ...t.console])
@@ -431,7 +440,8 @@ export async function run(
 							v.tabs.length,
 							PATHS,
 							world.deployed.length < BUILDS.length - 1,
-							plan?.mix
+							plan?.mix,
+							CROWD
 						);
 			// (a calm run leaves out what a real browser cannot play alike: the player does too)
 			if (CALM && NOT_CALM.includes(a.kind)) continue;
@@ -442,12 +452,15 @@ export async function run(
 				for (const t of v.tabs)
 					if (!disturbed.has(t.realm)) disturbed.set(t.realm, world.network.exchanges.length);
 			// (an eager press comes once the next document is in: the marks are that document's)
-			await act(world, v, a, ORIGIN, () => {
+			const picks = await act(world, v, a, ORIGIN, () => {
 				for (const t of v.tabs) {
 					if (!disturbed.has(t.realm)) disturbed.set(t.realm, world.network.exchanges.length);
 					pressed.set(t.name, t.documents);
 				}
 			});
+			// (what it picked, by name: its plan picks the same on a page whose elements moved)
+			if (picks.names.length > 0) actions[actions.length - 1] = { ...a, names: picks.names };
+			for (const m of picks.missed) missed.push(`action ${i + 1} (${describe(a)}): ${m}`);
 			// (a press changes an island's state: the document shows the visitor's own state from then
 			// on, kept across client navigations, which no fresh load has; its next document is clean.
 			// And it may change the server's (a cart, a counter a command bumps), which every other
@@ -473,15 +486,15 @@ export async function run(
 			while (
 				world.loop.now < until &&
 				world.loop.next_at <= until &&
-				v.tabs.some((t) => t.platform?.pending().includes('timeout'))
+				judged().some((t) => t.platform?.pending().includes('timeout'))
 			)
 				await world.loop.step();
 			await world.rest();
 			hear_moves();
 			await at_rest?.(world, v);
 			// AT REST, every tab (a faulted one too: a failure must end a wait as surely as an
-			// answer): no machine left mid-work, and ogygia's rules hold
-			for (const t of v.tabs)
+			// answer): no machine left mid-work, and ogygia's rules hold (a crowd's tabs too)
+			for (const t of judged())
 				for (const b of [
 					stuck(t),
 					page_rules(t, world),
@@ -532,7 +545,7 @@ export async function run(
 			// changed set aside)
 			const sent = await html_sent(world);
 			if (sent) broken.push(sent);
-			for (const t of v.tabs) {
+			for (const t of judged()) {
 				if (document_faulted(world, t)) continue;
 				const kept = html_kept(t);
 				if (kept) broken.push({ ...kept, detail: `${t.page.mainFrame.url}: ${kept.detail}` });
@@ -555,7 +568,8 @@ export async function run(
 			coverage: { steps: steps_taken, points: Object.fromEntries(world.buggified) },
 			wire: wire_faults(world),
 			idle: world.idle,
-			seen
+			seen,
+			missed
 		};
 	} finally {
 		await world.end();
@@ -788,7 +802,8 @@ const KNOWN_TOO = process.argv.includes('--known');
  * Shrinks a failing run to the fewest actions that fail the same way (src/shrink.ts), replays the
  * shrunk run twice (its traces must be equal), prints its actions, its finding and its trace's
  * tail, and writes its plan (`plans/<name>.min.json`, for `--plan`) and its regression test
- * (`test/found/<name>.test.ts`, which fails while the bug stands).
+ * (`.scratch/found/<name>.test.ts`, which fails while the bug stands; filed, it moves to test/found
+ * on a sim/found-* branch).
  */
 async function shrink(file: string): Promise<void> {
 	const given = JSON.parse(readFileSync(file, 'utf8')) as {
@@ -851,7 +866,9 @@ async function shrink(file: string): Promise<void> {
 	const plan_file = join(PLANS, `${name}.min.json`);
 	writeFileSync(plan_file, plan_json(seed, min, a.result));
 	const gen = GEN?.seed ?? null;
-	const test_file = join(import.meta.dirname, '..', 'test', 'found', `${name}.test.ts`);
+	// (in the gitignored scratch: test/found holds only tests put there on purpose, on a sim/found-*
+	// branch, src/ci.ts)
+	const test_file = join(import.meta.dirname, '..', '.scratch', 'found', `${name}.test.ts`);
 	mkdirSync(join(test_file, '..'), { recursive: true });
 	if (!existsSync(test_file))
 		writeFileSync(
@@ -973,6 +990,8 @@ async function main(): Promise<void> {
 		steps_per_second: Math.round((steps / elapsed) * 1000),
 		actions_per_second: Math.round((actions / elapsed) * 10000) / 10,
 		coverage,
+		/** Each thing a planned action named that its page no longer had (a `--plan` run's). */
+		missed: results.filter((_, i) => !REPLAY || i % 2 === 0).flatMap((r) => r.missed),
 		seeds_failed: results
 			.filter((r, i) => r.broken.length && (!REPLAY || i % 2 === 0))
 			.map((r) => ({ seed: r.seed, oracles: r.broken.map((b) => b.oracle) })),
@@ -1031,6 +1050,13 @@ interface Worker {
 	said: string;
 }
 
+/** A worker's arguments: the batch's own, every one (a worker reads its options as the batch
+ *  does: a list of the ones it needs left out `--paths`, `--name` and `--peers`), the batch's
+ *  working directory its own. test/pool.test.ts. */
+export function worker_args(batch: readonly string[]): string[] {
+	return ['--worker', ...batch];
+}
+
 /** Worker processes, each running one world at a time. */
 class Pool {
 	readonly #queue: Job[] = [];
@@ -1057,14 +1083,7 @@ class Pool {
 	}
 
 	#spawn(): Worker {
-		const passed = [
-			...(arg('--app') !== undefined ? ['--app', APP] : []),
-			...(arg('--hang-ms') !== undefined ? ['--hang-ms', arg('--hang-ms')!] : []),
-			...(BUGGIFY ? [] : ['--no-buggify']),
-			...(CALM ? ['--calm'] : []),
-			...(OBSERVE !== undefined ? ['--observe', OBSERVE] : [])
-		];
-		const child = fork(import.meta.filename, ['--worker', ...passed], {
+		const child = fork(import.meta.filename, worker_args(process.argv.slice(2)), {
 			execArgv: ['--experimental-vm-modules', '--no-warnings'],
 			stdio: ['ignore', 'ignore', 'pipe', 'ipc']
 		});
@@ -1110,7 +1129,8 @@ class Pool {
 				coverage: { steps: {}, points: {} },
 				wire: [],
 				idle: job.plan?.idle ?? true,
-				seen: []
+				seen: [],
+				missed: []
 			}
 		});
 		const done = (message: { result?: RunResult; error?: string; hung?: string }) => {

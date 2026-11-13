@@ -35,17 +35,22 @@ export function devalue(): Devalue {
 
 /** Run `fn` with devalue now when it is loaded, else once it is. Nothing else asks again for its
  *  caller (a streamed value's resolver runs once), so a failed download is asked for again later,
- *  as `devalue_download` says (`tried`: the loads that failed so far). */
-export function with_devalue(fn: (d: Devalue) => void, tried = 0): void {
+ *  as `devalue_download` says (`tried`: the loads that failed so far). When the last try failed,
+ *  `gone` is told why, so what the read serves settles instead of waiting forever. */
+export function with_devalue(
+	fn: (d: Devalue) => void,
+	gone: (error: unknown) => void,
+	tried = 0
+): void {
 	if (lib) fn(lib);
 	else
 		void load_devalue().then(
 			(d) => d !== STALE && fn(d),
-			() => {
+			(error: unknown) => {
 				const failed = tried + 1;
-				if (failed >= devalue_download.attempts) return;
+				if (failed >= devalue_download.attempts) return gone(error);
 				// oxlint-disable-next-line ogygia/owned-effects -- the document's download retry, doubling and capped (it ends itself): the read it serves runs once and outlives any page, so no visit owns it
-				timers.keep(() => with_devalue(fn, failed), backoffAfter(devalue_download, failed));
+				timers.keep(() => with_devalue(fn, gone, failed), backoffAfter(devalue_download, failed));
 			}
 		);
 }

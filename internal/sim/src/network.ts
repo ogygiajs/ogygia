@@ -50,6 +50,9 @@ export interface NetworkOptions {
 
 export type Handler = (request: Request) => Promise<Response>;
 
+/** Hears a response's body end: all of it came (`whole`), or it broke off on the way. */
+export type Ended = (whole: boolean, status: number) => void;
+
 /** What the network saw, for the oracles and the trace. */
 export interface Exchange {
 	readonly id: number;
@@ -70,6 +73,8 @@ export interface Exchange {
 	lost?: boolean;
 	/** Its answer was held 10 to 40 s on the way (a `stall`): its page may have given up on it. */
 	stalled?: boolean;
+	/** The client address the server saw it from (a server's hop: the document's it was for). */
+	address?: string;
 	/** The build whose server gave the answer the client got (its {@link ANSWERED_BY} header). */
 	build?: string;
 	/** A batch of holes (`POST /__ogygia__`): the holes it asks for, by `answer_key` (world.ts). */
@@ -120,9 +125,25 @@ const RATES: Record<FaultClass, number> = {
 	stall: 0.02
 };
 
+/** A region request's query values that change with every build or signing key, not with what is
+ *  asked: left out of the request's name, so its fate stays the same when only they move. */
+const VOLATILE_QUERY = ['sig', 'k', 'r', 'v', 'pv', 'exp'];
+
+/** The name a request's fate is drawn under: its document, its method and its address (the volatile
+ *  query values out). */
+export function fate_name(realm: string, method: string, url: string): string {
+	const u = new URL(url);
+	for (const q of VOLATILE_QUERY) u.searchParams.delete(q);
+	return `${realm} ${method} ${u.origin}${u.pathname}${u.search}`;
+}
+
 export class Network {
 	readonly #loop: Loop;
+	/** Each request's fate is drawn from a stream of its own, forked by its name and how many times
+	 *  its document asked it before: a request sent before it never moves its draws (test/core.test.ts
+	 *  "a request's fate is its own"). */
 	readonly #rng: Rng;
+	readonly #asked = new Map<string, number>();
 	readonly #faults: ReadonlySet<FaultClass>;
 	readonly #rates: Record<FaultClass, number>;
 	readonly #offline = new Set<string>();
@@ -142,6 +163,14 @@ export class Network {
 	/** Each exchange still on the wire (its request out, or its body still coming): how it ends
 	 *  when its tab loses the network (`offline`), or its document is left (`left`). */
 	readonly #on_wire = new Map<Exchange, (why: 'offline' | 'left') => void>();
+
+	/** Each tab's client address, when it is not the visitor's (a crowd's visitor: `address`). */
+	readonly #addresses = new Map<string, string>();
+
+	/** Tab `tab`'s requests come from client address `address`: a visitor of its own. */
+	address(tab: string, address: string): void {
+		this.#addresses.set(tab, address);
+	}
 
 	/** Documents their tab has left: nothing reaches them any more. */
 	readonly #left = new Set<string>();
@@ -215,6 +244,19 @@ export class Network {
 		);
 	}
 
+	/** Exchanges whose body is a live answer's (it never ends: not work in flight). */
+	readonly #live_bodies = new WeakSet<Exchange>();
+
+	/** Whether work of `realm`'s document is on the wire: a request of its not answered yet, its
+	 *  response on the way, or a body to it still coming that is not a live answer's. */
+	busy_for(realm: string): boolean {
+		const its = (e: Exchange) => e.from === realm || e.for === realm;
+		this.unanswered();
+		for (const e of this.#open) if (its(e)) return true;
+		for (const e of this.#on_wire.keys()) if (its(e) && !this.#live_bodies.has(e)) return true;
+		return false;
+	}
+
 	isOffline(realm: string): boolean {
 		return this.#offline.has(realm);
 	}
@@ -235,24 +277,34 @@ export class Network {
 		return this.#calm.get(realm.split('#')[0]) ?? this.#calm.get(behalf.split('#')[0]) ?? null;
 	}
 
-	#on(f: FaultClass): boolean {
-		return this.#faults.has(f) && this.#rng.chance(this.#rates[f]);
+	#on(f: FaultClass, r: Rng): boolean {
+		return this.#faults.has(f) && r.chance(this.#rates[f]);
+	}
+
+	/** The stream `request` from `realm` draws its fate from. */
+	#fate(realm: string, request: Request): Rng {
+		const name = fate_name(realm, request.method, request.url);
+		const n = this.#asked.get(name) ?? 0;
+		this.#asked.set(name, n + 1);
+		return this.#rng.fork(`${name} #${n}`);
 	}
 
 	/** One leg's latency: 1 ms with no delay faults; with them, mostly short and sometimes long. A
 	 *  calm leg (`pace` not null) is never long, and is `pace` ms slower. */
-	#latency(pace: number | null = null): number {
+	#latency(r: Rng, pace: number | null = null): number {
 		if (!this.#faults.has('delay')) return 1 + (pace ?? 0);
-		const long = this.#faults.has('reorder') && this.#rng.chance(this.#rates.reorder);
-		const ms = long ? this.#rng.between(200, 3000) : this.#rng.between(5, 120);
+		const long = this.#faults.has('reorder') && r.chance(this.#rates.reorder);
+		const ms = long ? r.between(200, 3000) : r.between(5, 120);
 		// (a calm leg is never a long one: two long legs on a reference load's peer hop passed the
 		// peer's 5 s timeout, and the app rightly answered 504; gen 23, seed 23023. The same draws
 		// either way, so every other leg of a run replays as it did)
 		return (pace !== null && long ? 5 + (ms % 116) : ms) + (pace ?? 0);
 	}
 
-	/** Sends `request` from `realm` to `handler`; the answer comes when the loop says. */
-	send(realm: string, request: Request, handler: Handler): Promise<Response> {
+	/** Sends `request` from `realm` to `handler`; the answer comes when the loop says. `ended` hears
+	 *  when its body has all come (`true`) or broke off on the way (`false`): a browser's resource
+	 *  timing entry lands then. */
+	send(realm: string, request: Request, handler: Handler, ended?: Ended): Promise<Response> {
 		// (the document this request is for: its own, or, for a server's hop, the document whose
 		// request the server was answering)
 		const asked = asked_by.getStore();
@@ -273,6 +325,7 @@ export class Network {
 		this.exchanges.push(ex);
 		this.#open.add(ex);
 		const loop = this.#loop;
+		const fate = this.#fate(realm, request);
 		return new Promise<Response>((answered, failed) => {
 			// (a document left hears nothing: a drop, a redirect or an error due after it never lands)
 			const heard = () => !this.#left.has(realm);
@@ -286,6 +339,12 @@ export class Network {
 				return;
 			}
 			const signal = request.signal;
+			// The server's end of the connection: its request is called off once the connection
+			// closes (the client calls it off, its document is left or goes offline, the body is
+			// cut or cancelled), as a Node server's request signal is (test/core.test.ts).
+			const line = new AbortController();
+			const hang_up = () => line.abort(new DOMException('The connection closed', 'AbortError'));
+			signal?.addEventListener('abort', hang_up, { once: true });
 			const aborted = () => {
 				// (its page called it off before an answer came: nothing is on its way for it now)
 				if (ex.status === 'pending') ex.status = 'aborted';
@@ -297,36 +356,36 @@ export class Network {
 			// hop was dropped, and its page was the peer's 500; gen 12, seed 60)
 			const pace = this.#pace(realm, behalf);
 			const calm = pace !== null;
-			if (!calm && this.#on('drop')) {
+			if (!calm && this.#on('drop', fate)) {
 				ex.status = 'dropped';
-				loop.add('net', `drop ${ex.id}`, this.#latency(), () => fail('connection lost'));
+				loop.add('net', `drop ${ex.id}`, this.#latency(fate), () => fail('connection lost'));
 				return;
 			}
 			// an edge or proxy that sends a region's request to another origin (an open redirect, a
 			// misrouted CDN): the page must never paint what comes back (INVARIANTS.md HOLE-TRUST)
 			const target = new URL(request.url);
-			if (!calm && this.#redirectable(target) && this.#on('redirect')) {
+			if (!calm && this.#redirectable(target) && this.#on('redirect', fate)) {
 				ex.status = 302;
 				ex.redirected = true;
 				const location = ELSEWHERE + target.pathname + target.search;
-				loop.add('net', `redirect ${ex.id}`, this.#latency(), () =>
+				loop.add('net', `redirect ${ex.id}`, this.#latency(fate), () =>
 					resolve(new Response(null, { status: 302, headers: { location } }))
 				);
 				return;
 			}
-			const dup = !calm && this.#on('duplicate');
+			const dup = !calm && this.#on('duplicate', fate);
 			ex.duplicated = dup;
-			const cut = !calm && this.#on('cut');
-			const tamper = !calm && this.#on('tamper');
-			// (drawn only in a run with stalls: every other run's draws stay as they were)
-			const stall = !calm && this.#on('stall') ? this.#rng.between(10_000, 40_000) : 0;
+			const cut = !calm && this.#on('cut', fate);
+			const tamper = !calm && this.#on('tamper', fate);
+			const stall = !calm && this.#on('stall', fate) ? fate.between(10_000, 40_000) : 0;
 			if (stall > 0) ex.stalled = true;
 			// (half of them midway: the head on time, then the body quiet after its first piece)
-			const midway = stall > 0 && this.#rng.chance(0.5) ? stall : 0;
+			const midway = stall > 0 && fate.chance(0.5) ? stall : 0;
 			// (until its answer comes, its tab going offline fails it: `offline`)
 			let lost = false;
 			this.#on_wire.set(ex, (why) => {
 				lost = true;
+				hang_up();
 				if (why === 'left') {
 					ex.status = 'aborted';
 					return;
@@ -338,39 +397,63 @@ export class Network {
 			loop.add(
 				'net',
 				`request ${ex.id} ${request.method} ${new URL(request.url).pathname}`,
-				this.#latency(pace),
+				this.#latency(fate, pace),
 				() => {
-					const copy = dup ? request.clone() : null;
-					const address = calm ? REFERENCE_ADDRESS : VISITOR_ADDRESS;
+					// (the duplicate is a connection of its own, closed once its answer is thrown away)
+					const copy_line = dup ? new AbortController() : null;
+					const copy =
+						copy_line !== null ? new Request(request.clone(), { signal: copy_line.signal }) : null;
+					const address = calm
+						? REFERENCE_ADDRESS
+						: (this.#addresses.get(behalf.split('#')[0]) ?? VISITOR_ADDRESS);
+					ex.address = address;
 					const answer = (r: Request) =>
 						answering.run(ex, () =>
 							asked_by.run(behalf, () => client.run(address, () => handler(r)))
 						);
-					void answer(request)
+					void answer(new Request(request, { signal: line.signal }))
 						.then(async (response) => {
 							// the duplicate is answered too, and its answer thrown away (as a proxy's retry)
 							if (copy !== null)
 								await answer(copy).then(
-									(r) => r.body?.cancel(),
+									(r) => {
+										copy_line?.abort(new DOMException('The connection closed', 'AbortError'));
+										return r.body?.cancel();
+									},
 									() => {}
 								);
-							if (!lost) ex.status = response.status;
+							// (called off before it came, it stays `aborted`: the client never got it)
+							if (!lost && !signal?.aborted) ex.status = response.status;
 							ex.build = response.headers.get(ANSWERED_BY) ?? undefined;
-							const leg = this.#latency(pace) + stall - midway;
+							const leg = this.#latency(fate, pace) + stall - midway;
 							loop.add('net', `response ${ex.id} ${response.status}`, leg, () => {
 								if (signal?.aborted || lost) {
+									hang_up();
 									void response.body?.cancel();
 									return;
 								}
 								this.#on_wire.delete(ex);
-								resolve(this.#deliver(ex, response, cut, tamper, signal, pace, midway));
+								resolve(
+									this.#deliver(
+										ex,
+										response,
+										fate,
+										cut,
+										tamper,
+										signal,
+										pace,
+										midway,
+										ended,
+										hang_up
+									)
+								);
 							});
 						})
 						.catch((error: unknown) => {
 							if (lost) return;
 							this.#on_wire.delete(ex);
 							ex.status = 500;
-							loop.add('net', `error ${ex.id}`, this.#latency(pace), () =>
+							loop.add('net', `error ${ex.id}`, this.#latency(fate, pace), () =>
 								fail(error instanceof Error ? error.message : String(error))
 							);
 						});
@@ -387,18 +470,24 @@ export class Network {
 	#deliver(
 		ex: Exchange,
 		response: Response,
+		fate: Rng,
 		cut: boolean,
 		tamper: boolean,
 		signal: AbortSignal | undefined,
 		pace: number | null,
-		midway = 0
+		midway = 0,
+		heard?: Ended,
+		hang_up: () => void = () => {}
 	): Response {
 		const headers = new Headers(response.headers);
 		headers.delete('content-length');
 		const init = { status: response.status, statusText: response.statusText, headers };
+		const done = (whole: boolean) => heard?.(whole, response.status);
 		const source = response.body?.getReader();
-		if (source === undefined || response.status === 204 || response.status === 304)
+		if (source === undefined || response.status === 204 || response.status === 304) {
+			done(true);
 			return new Response(null, init);
+		}
 		// (only an answer made for this request is changed: a build's static files travel over TLS
 		// from immutable URLs, and a broken byte in one is a broken script, which no app can defend;
 		// a page or a region's answer is what the app must refuse when it does not verify)
@@ -411,7 +500,7 @@ export class Network {
 		let piece = 0;
 		const send = (label: string, deliver: () => void): void => {
 			const quiet = piece === 1 ? midway : 0;
-			const at = Math.max(last, loop.now + (piece === 0 ? 0 : this.#latency(pace)) + quiet);
+			const at = Math.max(last, loop.now + (piece === 0 ? 0 : this.#latency(fate, pace)) + quiet);
 			// (a body still coming LIVE_AFTER_MS after its head, each piece soon after the one before,
 			// is a live answer: it never ends, and rest does not wait on it. A stalled body's quiet
 			// piece is written with its head, so it is never one)
@@ -425,7 +514,10 @@ export class Network {
 					// ok: the client cancelled the body; what is still on the way is dropped
 				}
 			});
-			if (live) this.#live.add(task);
+			if (live) {
+				this.#live.add(task);
+				this.#live_bodies.add(ex);
+			}
 		};
 		const stop = (why: string, offline = false): void => {
 			if (offline) ex.lost = true;
@@ -433,7 +525,9 @@ export class Network {
 			send('cut', () => {
 				to.error(new TypeError(`network error: ${why}`));
 				ended = true;
+				done(false);
 			});
+			hang_up();
 			void source.cancel().catch(() => {});
 		};
 		const pump = async (): Promise<void> => {
@@ -450,21 +544,22 @@ export class Network {
 					return send('end', () => {
 						to.close();
 						ended = true;
+						done(true);
 					});
 				}
 				let bytes = read.value;
 				if (bytes.length === 0) continue;
-				if (cut && this.#rng.chance(0.5)) return stop('the stream was cut');
+				if (cut && fate.chance(0.5)) return stop('the stream was cut');
 				if (tamper && !asset && !ex.tampered) {
 					ex.tampered = true;
 					bytes = bytes.slice();
-					const at = this.#rng.int(bytes.length);
-					bytes[at] = bytes[at] ^ (1 + this.#rng.int(255));
+					const at = fate.int(bytes.length);
+					bytes[at] = bytes[at] ^ (1 + fate.int(255));
 				}
 				// (a piece of the server's write may arrive in two: a reader must not assume whole writes)
 				const halves =
-					bytes.length > 1 && this.#rng.chance(0.3)
-						? [bytes.subarray(0, this.#rng.between(1, bytes.length - 1)), null]
+					bytes.length > 1 && fate.chance(0.3)
+						? [bytes.subarray(0, fate.between(1, bytes.length - 1)), null]
 						: [bytes];
 				if (halves[1] === null) halves[1] = bytes.subarray(halves[0]!.length);
 				for (const h of halves) send('chunk', () => to.enqueue(h!));
@@ -476,6 +571,7 @@ export class Network {
 			},
 			cancel: () => {
 				ended = true;
+				hang_up();
 				void source.cancel().catch(() => {});
 			}
 		});
@@ -499,6 +595,7 @@ export class Network {
 			if (ended) return;
 			if (why === 'offline') return stop(why, true);
 			ended = true;
+			hang_up();
 			void source.cancel().catch(() => {});
 		});
 		void pump();

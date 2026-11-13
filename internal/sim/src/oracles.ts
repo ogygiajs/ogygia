@@ -141,14 +141,6 @@ export const KNOWN: ReadonlyArray<{
 	seen?(world: World, tab: Tab): boolean;
 }> = [
 	{
-		issue: 1071,
-		what: 'a kept head link with a relative URL names another file after a client navigation',
-		// (a link whose file resolves under the page's own path, `/lab/_app/…`, where the other side
-		// names `/_app/…`: palaestra /lab/a -> /lab/deep/x)
-		applies: (shown, fresh) => DEEP_ASSET.test(shown) && !DEEP_ASSET.test(fresh),
-		forgive: (s) => s.replace(DEEP_ASSET_ALL, ' href="/_app/')
-	},
-	{
 		issue: 1107,
 		what: "islands' <svelte:head> styles stand in <head> in the order the islands woke",
 		// (the same island head styles on both sides, in another order: gen 262, seed 25; each set
@@ -174,10 +166,6 @@ const ISLAND_HEAD_STYLE = /^ *<style data-gen-head="(n\d+)">$/;
 function island_head_styles(s: string): string[] {
 	return s.split('\n').flatMap((l) => ISLAND_HEAD_STYLE.exec(l)?.[1] ?? []);
 }
-
-/** A head link to a build's file under a page's own path (`href="/lab/_app/…"`). */
-const DEEP_ASSET = /^ *<link\b[^>]* href="\/(?:[^"/]+\/)+_app\//m;
-const DEEP_ASSET_ALL = / href="\/(?:[^"/]+\/)+_app\//g;
 
 /**
  * Islands of the test app that keep their own client state across a navigation by design, as a
@@ -587,6 +575,9 @@ export function fallback_stands(tab: Tab, world: World): Broken | null {
 	const touched = faulted(world, tab);
 	const mine = world.network.exchanges.filter((e) => e.from === tab.realm);
 	if (touched && mine.some((e) => e.method === 'POST')) return null;
+	// (nor one whose runtime, or another script, failed to load: the runtime may never have run, and
+	// the page stays its server HTML, as runtime_load_failed says; gen 12, seed 22)
+	if (touched && world.browsers.lacks_a_file(tab.realm)) return null;
 	const asked = new Set(
 		mine.filter((e) => e.method === 'GET').map((e) => answer_key(new URL(e.url)))
 	);
@@ -629,6 +620,9 @@ export function islands_wake(tab: Tab, world: World): Broken | null {
 	const url = tab.page.mainFrame.url;
 	if (!url.startsWith('http') || world.skewed_for(tab.realm)) return null;
 	if (faulted(world, tab) && !outage_only(world, tab)) return null;
+	// (its document's files still coming is work in flight, not an island asleep: a stalled runtime
+	// chunk outlasted the action's quiesce; seed 97, test/hidden-tab.node.test.ts)
+	if (world.network.busy_for(tab.realm)) return null;
 	const doc = tab.page.mainFrame.document as unknown as Document;
 	// (an island inside one still waiting for the visitor or the screen waits with it, and one in a
 	// lake waits for the island around the lake, which a held region's baked markup never is: gen
@@ -1123,6 +1117,12 @@ export const KNOWN_SAID: ReadonlyArray<{ issue: number; what: string; said: RegE
 		// (a plain Kit app warns it too; the stale read it warns of gave palaestra's PendingGreeting
 		// `undefined`, seeds 20257 and a plain Kit app's 124)
 		said: /svelte\.dev\/e\/derived_inert|^unhandled: TypeError: Cannot read properties of undefined \(reading 'greeting'\)/
+	},
+	{
+		issue: 1158,
+		what: 'a hole batch called off while its body comes rejects with nobody listening',
+		// (the reason the network gives a request its page called off: browser.ts `call_off`)
+		said: /^unhandled: AbortError: The operation was aborted\.$/
 	}
 ];
 
