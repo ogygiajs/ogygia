@@ -3,11 +3,12 @@
  * belongs to one page (its lake caches, seed flags, kit-page probe) lives on its visit, and the next
  * page's swap (`reset()`) ends it, so connecting regions never see the previous page.
  */
-import { scope, type Scope } from '@ogygia/machine';
+import { cache, scope, type Cache, type Scope } from '@ogygia/machine';
 import { FROZEN_SELECTOR } from './region-attrs.ts';
 import { note_visit } from './rules.ts';
 
-/** Soft cap on lake cache entries (unique lake ids). Evict oldest insertion on overflow. */
+/** Cap on lake cache entries (unique lake ids): past it, the one cached or refreshed longest ago
+ *  goes (a read is a `peek`, never a use). */
 const LAKE_CACHE_MAX = 64;
 
 /** Cached SSR DOM (+ optional SWR endpoint) for `{#if}` remount of hydrate:none regions.
@@ -85,7 +86,7 @@ export type PageVisit = {
 	/** Kit hydrates this page (kit-boot.ts): asked once, on first need. */
 	kit_page: boolean | undefined;
 	/** Its lakes' cached server DOM, for an `{#if}` remount (./lakes.ts). */
-	readonly lake_cache: Map<string, LakeCacheEntry>;
+	readonly lake_cache: Cache<string, LakeCacheEntry>;
 	/** The lake ids whose first connect on this page ran (./lakes.ts). */
 	readonly initialized_lakes: Set<string>;
 };
@@ -95,12 +96,13 @@ const RULES =
 	import.meta.env?.DEV || (typeof __OGYGIA_RULES__ !== 'undefined' ? __OGYGIA_RULES__ : false);
 
 function page_visit(): PageVisit {
+	const owner = scope();
 	const visit: PageVisit = {
-		scope: scope(),
+		scope: owner,
 		facts: [],
 		seeded: { page: false, remote: false },
 		kit_page: undefined,
-		lake_cache: new Map(),
+		lake_cache: cache<string, LakeCacheEntry>({ name: 'lake cache', max: LAKE_CACHE_MAX, owner }),
 		initialized_lakes: new Set()
 	};
 	if (RULES) note_visit(visit, false);
@@ -272,7 +274,7 @@ export class RuntimeSession {
 
 	// (what follows is the page's on screen: its visit's, gone with it)
 
-	get lake_cache(): Map<string, LakeCacheEntry> {
+	get lake_cache(): Cache<string, LakeCacheEntry> {
 		return this.#visit.lake_cache;
 	}
 	get initialized_lakes(): Set<string> {
@@ -298,17 +300,6 @@ export class RuntimeSession {
 	}
 	set kit_page(v: boolean | undefined) {
 		this.#visit.kit_page = v;
-	}
-
-	/** Insert/replace a lake cache entry; evict oldest if over LAKE_CACHE_MAX. */
-	set_lake_cache(id: string, entry: LakeCacheEntry): void {
-		if (this.lake_cache.has(id)) this.lake_cache.delete(id);
-		this.lake_cache.set(id, entry);
-		while (this.lake_cache.size > LAKE_CACHE_MAX) {
-			const oldest = this.lake_cache.keys().next().value;
-			if (oldest == null) break;
-			this.lake_cache.delete(oldest);
-		}
 	}
 
 	settle_lakes_in(root: ParentNode): void {
