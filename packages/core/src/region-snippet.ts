@@ -34,13 +34,15 @@ import { render as ssr_render } from 'svelte/server';
 import { BROWSER, DEV } from 'esm-env';
 import { register_kind, mint } from './ref.ts';
 import { kit_render_context, kit_request_event } from './server/kit-context.ts';
-import { islands_endpoint } from './server/endpoint.ts';
+import { document_counts } from './server/document-counts.ts';
+import { is_islands_endpoint } from './server/endpoint.ts';
 import { PORTABLE_FORM, with_portable_forms } from './portable-form.ts';
 import { analyze } from './seed-refs.ts';
 import { fnv1a, fnv1a32 } from './contract/hash.ts';
 import { import_entry } from './runtime/entry-locations.ts';
 import { OgygiaError } from './messages/island.ts';
 import { OG_SLOT, OG_STATIC, OGYGIA_REGION_CSS } from './wire-markup.ts';
+import { escape_attr } from './escape.ts';
 
 /**
  * A hand-written SERVER component that renders a bare snippet: svelte has no public API to
@@ -117,7 +119,16 @@ function make(desc: RegionSnippetDescriptor, live_entry: Component | null = null
 	// capture the marked element's HTML NOW, while it is still in the pre-hydration DOM, so re-creates
 	// re-inject the same markup (a nested `<ogygia-region>` inside re-wakes itself on reconnect).
 	if (desc.m === 'slot') {
-		const el = BROWSER ? document.querySelector(`ogygia-slot[${OG_SLOT}="${desc.id}"]`) : null;
+		// (found by the id's exact text, no selector built from wire data: test slot-id-any-text)
+		let el: Element | null = null;
+		if (BROWSER) {
+			for (const slot of document.getElementsByTagName('ogygia-slot')) {
+				if (slot.getAttribute(OG_SLOT) === desc.id) {
+					el = slot;
+					break;
+				}
+			}
+		}
 		const h = el ? (el as HTMLElement).outerHTML : slot_marker_open(desc.id) + SLOT_MARKER_CLOSE;
 		const slot_snip = createRawSnippet(() => ({
 			render: () => h,
@@ -361,7 +372,7 @@ export function prepare_region_props(input: Record<string, unknown>): Record<str
 /** The SSR marker that fences an island's in-place children so the client can adopt exactly that range.
  *  `display:contents` keeps it layout-neutral. */
 export function slot_marker_open(id: string): string {
-	return `<ogygia-slot ${OG_SLOT}="${id}" style="display:contents">`;
+	return `<ogygia-slot ${OG_SLOT}="${escape_attr(id)}" style="display:contents">`;
 }
 export const SLOT_MARKER_CLOSE = '</ogygia-slot>';
 
@@ -380,21 +391,20 @@ export const SLOT_MARKER_CLOSE = '</ogygia-slot>';
  * request (and every island after it). Per entry, an island's id moves only against another copy of
  * the SAME island that started in a different order — rare, and still page-unique.
  */
-const slot_seq_by_request = new WeakMap<
-	object,
-	{ prefix: string; n: Map<string, { n: number; tag: string }> }
->();
 let _slot_seq = 0;
 export function next_slot_id(key = ''): string {
 	const event = kit_request_event() as { url?: URL } | null;
-	if (event && typeof event === 'object') {
-		let seq = slot_seq_by_request.get(event);
+	// (the document's count, whatever event object of the request this runs under: #1209)
+	const counts = document_counts(event);
+	if (counts) {
+		let seq = counts.slots;
 		if (!seq) {
-			const url = event.url;
-			const hole = url?.pathname.endsWith(islands_endpoint())
-				? (url.searchParams.get('id') ?? '').slice(0, 6)
-				: '';
-			slot_seq_by_request.set(event, (seq = { prefix: hole ? `${hole}-` : '', n: new Map() }));
+			const url = event!.url;
+			const hole =
+				url && is_islands_endpoint(url.pathname)
+					? (url.searchParams.get('id') ?? '').slice(0, 6)
+					: '';
+			counts.slots = seq = { prefix: hole ? `${hole}-` : '', n: new Map() };
 		}
 		// (each entry's tag hashed once per request: the next copies only count)
 		let c = seq.n.get(key);
