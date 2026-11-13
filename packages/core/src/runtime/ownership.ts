@@ -10,7 +10,7 @@
  * | `foreign` | a subtree the app declared the live DOM's own (`data-ogygia-keep` / `data-persist` on a plain element) |
  * | `region`  | a hydrated region root: Svelte's reactivity owns it now, not a morph  |
  * | `page`    | `<ogygia-slot>`: host-page content an island adopts whole             |
- * | `static`  | an element the compiler stamped `data-og-opaque` — render output Svelte's hydration never walks into (`{@html}`, `bind:innerHTML`, a custom element with static children) — or a child element of one stamped `data-og-html` (it may be `{@html}` content) |
+ * | `static`  | an element the compiler stamped `data-og-opaque` — render output Svelte's hydration never walks into (`{@html}`, `bind:innerHTML`, a custom element with static children) — or a child element of one stamped `data-og-html` outside any render block (it may be `{@html}` content) |
  * | `walk`    | everything else: render output Svelte's walk binds by position        |
  *
  * (Lakes are the sixth owner; the hydrate core lifts them out of both trees before any comparison,
@@ -72,8 +72,28 @@ export function owner_of(el: Element): Owner {
 	if (is_declared_foreign(el)) return 'foreign';
 	if (is_region_owned(el)) return 'region';
 	if (el.localName === SLOT) return 'page';
-	if (el.hasAttribute(OG_OPAQUE) || el.parentElement?.hasAttribute(OG_HTML)) return 'static';
+	if (el.hasAttribute(OG_OPAQUE)) return 'static';
+	if (el.parentElement?.hasAttribute(OG_HTML) && !in_render_block(el)) return 'static';
 	return 'walk';
+}
+
+/**
+ * Is `el` inside a block Svelte's render opened among its siblings (`<!--[…-->` … `<!--]-->`): an
+ * `{#if}`/`{#each}`/component's own output, such as an island nested inline? An `{@html}` beside
+ * siblings is never inside one (it sits between two `<!---->` anchors, read by Svelte's walk as one
+ * run), so an element in a block is the render's, walked by position (test:
+ * test/browser/nested-island-drift.test.ts, #1425).
+ */
+function in_render_block(el: Element): boolean {
+	let depth = 0;
+	for (let n = el.previousSibling; n; n = n.previousSibling) {
+		if (n.nodeType !== 8) continue;
+		const data = (n as Comment).data;
+		if (data === ']') depth--;
+		else if (data.charCodeAt(0) === 91 /* [ */) depth++;
+		if (depth > 0) return true;
+	}
+	return false;
 }
 
 /** True when Svelte's hydration walk binds `el`'s CHILDREN by position — the only subtrees the drift

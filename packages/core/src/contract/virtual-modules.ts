@@ -69,6 +69,14 @@ export interface RegionDepsModule {
 	entry_location(identity: string): string | null;
 	/** The build's location map file (base-less served path), or `null`: none built. */
 	location_map(): string | null;
+	/** Why the production server has no client-build handoff (`missing`: no path held one;
+	 *  `unreadable`: one failed to read or parse, with the error), or `null` when it has one (and
+	 *  always in dev, which reads none). */
+	handoff_problem(): {
+		kind: 'missing' | 'unreadable';
+		tried: string[];
+		error?: string;
+	} | null;
 }
 
 /** The server islands this build has, and how to reach each one. */
@@ -110,6 +118,9 @@ export interface HydrateFeaturesModule {
 export interface RuntimeFlagsModule {
 	/** the `frames` feature is in the build: some region streams HTML */
 	FRAMES: boolean;
+	/** `null` where the `wire` feature (the codec) is in the build up front; else its load, which a
+	 *  wake runs on use */
+	load_wire_codec: (() => Promise<{ install(): void }>) | null;
 }
 
 export interface TransportablesModule {
