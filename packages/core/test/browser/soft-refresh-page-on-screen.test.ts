@@ -7,7 +7,7 @@
 import { afterEach, beforeEach, expect } from 'vitest';
 import { commands } from 'vitest/browser';
 import { it_with_network_routes } from './_browsers.ts';
-import { download_ended, end_time_hold, hold_time, in_head, release_time } from './_in-head.ts';
+import { end_time_hold, hold_time, in_head, release_download, release_time } from './_in-head.ts';
 import { link_boot } from '../../src/runtime/boot-link.ts';
 import { install as install_morph } from '../../src/runtime/morph.ts';
 import { SpaRouter } from '../../src/runtime/router.ts';
@@ -84,8 +84,7 @@ it_with_network_routes(
 		expect((page_state.data as { who?: string }).who).toBe('a');
 		expect(document.querySelector('p')?.textContent).toBe('a');
 		// the navigation still goes in, afterwards, on its sheet
-		await commands.keep_downloads(HELD);
-		await download_ended(sheet);
+		await release_download(sheet, () => commands.keep_downloads(HELD));
 		release_time();
 		await went;
 		expect(document.title).toBe('page B');
@@ -108,8 +107,7 @@ it_with_network_routes(
 		expect(document.head.querySelectorAll(`link[href="${HELD}"]`)).toHaveLength(1);
 		// it arrives, and the navigation goes in on it (time moves again only once it has loaded, so
 		// the cap never runs first)
-		await commands.keep_downloads(HELD);
-		await download_ended(sheet);
+		await release_download(sheet, () => commands.keep_downloads(HELD));
 		release_time();
 		await went;
 		expect(document.title).toBe('page B');

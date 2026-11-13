@@ -43,12 +43,17 @@ export function sheet_loaded(link: HTMLLinkElement): Promise<CSSStyleSheet> {
 	});
 }
 
-/** Once `link`'s download has ended, loaded or failed (a held test sheet is no real file: a 404),
- *  as the router's own wait on it ends. */
-export function download_ended(link: HTMLLinkElement): Promise<void> {
-	if (link.sheet) return Promise.resolve();
-	return new Promise((resolve) => {
-		const done = new AbortController();
+/** Lets `link`'s held download go (`release`), then waits until it has ended, loaded or failed (a
+ *  held test sheet is no real file: a 404), as the router's own wait on it ends. The listeners go
+ *  on before the release: a one-shot `error` that fired during the release's round trip was
+ *  missed, and the wait hung. */
+export async function release_download(
+	link: HTMLLinkElement,
+	release: () => Promise<unknown>
+): Promise<void> {
+	if (link.sheet) return void (await release());
+	const done = new AbortController();
+	const ended = new Promise<void>((resolve) => {
 		const end = () => {
 			done.abort();
 			resolve();
@@ -56,6 +61,8 @@ export function download_ended(link: HTMLLinkElement): Promise<void> {
 		link.addEventListener('load', end, { signal: done.signal });
 		link.addEventListener('error', end, { signal: done.signal });
 	});
+	await release();
+	await ended;
 }
 
 const real = {

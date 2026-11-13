@@ -11,10 +11,10 @@ import { afterEach, beforeEach, expect } from 'vitest';
 import { commands } from 'vitest/browser';
 import { it_with_network_routes } from './_browsers.ts';
 import {
-	download_ended,
 	end_time_hold,
 	hold_time,
 	in_head,
+	release_download,
 	release_time,
 	sheet_loaded
 } from './_in-head.ts';
@@ -69,8 +69,9 @@ it_with_network_routes(
 		expect(document.querySelector('p')?.textContent).not.toBe('next');
 		expect(next_page().trim()).toBe('');
 		// the held sheet arrives: the page goes in, and its sheets style it
-		await commands.keep_downloads(HELD);
-		await download_ended((await in_head(`link[href="${HELD}"]`)) as HTMLLinkElement);
+		await release_download((await in_head(`link[href="${HELD}"]`)) as HTMLLinkElement, () =>
+			commands.keep_downloads(HELD)
+		);
 		release_time();
 		await went;
 		expect(document.querySelector('p')?.textContent).toBe('next');
