@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import type { MarkOptions } from './ir.ts';
 
 const PATH_SEP = /[/\\]/;
 
@@ -9,10 +10,7 @@ const PATH_SEP = /[/\\]/;
  * held region's key starts `region:`, apart from a placed wrapper of the same schedule.
  * @param mark
  */
-export function strategyKey(mark: {
-	strategy: string;
-	options?: Record<string, unknown> | null;
-}): string {
+export function strategyKey(mark: { strategy: string; options?: MarkOptions | null }): string {
 	const o = mark.options || {};
 	if (mark.strategy === 'server') {
 		let k = `defer:${o.when ?? 'load'}`;
@@ -51,7 +49,7 @@ export function strategyKey(mark: {
  */
 export function regionIdentity(
 	componentRelPath: string,
-	mark: { strategy: string; options?: Record<string, unknown> | null }
+	mark: { strategy: string; options?: MarkOptions | null }
 ) {
 	return `${String(componentRelPath).split(PATH_SEP).join('/')}\0${strategyKey(mark)}`;
 }

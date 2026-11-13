@@ -110,7 +110,8 @@ const SERVER_NAME = 'ogygia';
 // static: the import-attribute keys that mark a region, a fixed list
 const MARK_KEYS = new Set(['wake', 'fetch', 'render', 'region', 'keep', 'preset', 'margin']);
 
-type Attrs = Record<string, unknown>;
+type Attrs = Record<string, string | undefined>;
+type Args = Record<string, unknown>;
 
 /** A `render: 'deferred'` hole's timing (its `fetch`, default load); null for anything else. */
 const hole_fetch = (attrs: Attrs): string | null =>
@@ -169,7 +170,7 @@ function parse_marks(source: string): Mark[] {
 		for (const a of (node.attributes as Array<Record<string, never>>) || []) {
 			const key =
 				(a.key as { name?: string; value?: string })?.name ?? (a.key as { value?: string })?.value;
-			if (key) attrs[key] = (a.value as { value?: unknown })?.value;
+			if (key) attrs[key] = (a.value as { value?: string })?.value;
 		}
 		if (!Object.keys(attrs).some((k) => MARK_KEYS.has(k))) continue;
 		const local =
@@ -191,7 +192,7 @@ function strategy_label(attrs: Attrs): string {
 	if (fetch != null) return `server island (deferred, fetched on ${fetch})`;
 	if (attrs.render === 'live') return 'live region (baked, revalidates in background)';
 	if (attrs.wake === 'none') return 'lake (frozen server HTML, ships no JS)';
-	const wake = (attrs.wake as string) ?? 'load';
+	const wake = attrs.wake ?? 'load';
 	return `island (interactive, wakes on ${wake})${attrs.keep ? `, kept across nav as "${attrs.keep}"` : ''}`;
 }
 
@@ -406,7 +407,7 @@ const TOOLS = [
 	}
 ];
 
-function tool_compile(args: Attrs): ToolResult {
+function tool_compile(args: Args): ToolResult {
 	const source = String(args.source ?? '');
 	const filename = String(args.filename ?? 'App.svelte');
 	const csr = args.csr === true;
@@ -458,7 +459,7 @@ function tool_compile(args: Attrs): ToolResult {
 	`);
 }
 
-function tool_islands(args: Attrs): ToolResult {
+function tool_islands(args: Args): ToolResult {
 	const source = String(args.source ?? '');
 	if (!source.trim()) return fail('`source` is required.');
 	let out: { code: string; islands: Island[] };
@@ -487,7 +488,7 @@ function tool_islands(args: Attrs): ToolResult {
 	);
 }
 
-function tool_check(args: Attrs): ToolResult {
+function tool_check(args: Args): ToolResult {
 	const source = String(args.source ?? '');
 	if (!source.trim()) return fail('`source` is required.');
 	try {
@@ -514,7 +515,7 @@ function tool_check(args: Attrs): ToolResult {
 	return text('✅ passes ogygia rules — the transform accepts this component.');
 }
 
-function tool_explain(args: Attrs): ToolResult {
+function tool_explain(args: Args): ToolResult {
 	const source = String(args.source ?? '');
 	if (!source.trim()) return fail('`source` is required.');
 	let out: { code: string; islands: Island[] };
@@ -626,7 +627,9 @@ function render_story(url: string, events: DtEvent[]): string {
 		const lines: string[] = [];
 		if (ssr) lines.push(`  · SSR'd on the server${when(ssr)}`);
 		if (props)
-			lines.push(`  · props crossed the wire${props.bytes != null ? ` (${props.bytes} B)` : ''}`);
+			lines.push(
+				`  · props crossed the wire${props.bytes != null ? ` (${String(props.bytes)} B)` : ''}`
+			);
 		if (connected)
 			lines.push(
 				`  · region connected — wake: ${strategy}${connected.nested ? ', nested (rides an awake ancestor)' : ''}${connected.deferred ? ', deferred hole' : ''}${when(connected)}`
@@ -634,21 +637,25 @@ function render_story(url: string, events: DtEvent[]): string {
 		if (woke) lines.push(`  · wake fired${when(woke)}`);
 		if (applied)
 			lines.push(
-				`  · deferred HTML applied${applied.bytes != null ? ` (${applied.bytes} B)` : ''}${when(applied)}`
+				`  · deferred HTML applied${applied.bytes != null ? ` (${String(applied.bytes)} B)` : ''}${when(applied)}`
 			);
 		if (done)
 			lines.push(
 				`  · hydrated${done.ms != null ? ` in ${Math.round(Number(done.ms) * 10) / 10}ms` : ''} — interactive${when(done)}`
 			);
-		if (replay) lines.push(`  · replayed ${replay.clicks ?? '?'} queued click(s) after wake`);
-		if (failed) lines.push(`  · HYDRATION FAILED${failed.error ? `: ${failed.error}` : ''}`);
+		if (replay)
+			lines.push(`  · replayed ${String(replay.clicks ?? '?')} queued click(s) after wake`);
+		if (failed)
+			lines.push(`  · HYDRATION FAILED${failed.error ? `: ${String(failed.error)}` : ''}`);
 
 		blocks.push(
 			`### ${status}  ${label}${strategy !== '(unknown)' ? ` — wake:${strategy}` : ''}${entry ? `  (#${short(fp)})` : ''}\n${lines.join('\n')}`
 		);
 
 		if (failed)
-			warnings.push(`#${short(fp)}: hydration failed${failed.error ? ` — ${failed.error}` : ''}.`);
+			warnings.push(
+				`#${short(fp)}: hydration failed${failed.error ? ` — ${String(failed.error)}` : ''}.`
+			);
 		else if (ssr && !connected)
 			warnings.push(
 				`#${short(fp)}: SSR'd but the region never connected — its custom element never ran (island JS not shipped/loaded, or a csr=true/false mismatch).`
@@ -702,7 +709,7 @@ function restore_section(
 }
 
 /** Load a REAL page in a headless browser, let its islands hydrate, and read the devtools stream. */
-async function tool_debug(args: Attrs): Promise<ToolResult> {
+async function tool_debug(args: Args): Promise<ToolResult> {
 	const url = String(args.url ?? '');
 	if (!url)
 		return fail(
@@ -1577,7 +1584,7 @@ function busy_message(origin: string, holder: BusyHolder | null): string {
 	return `The profiler on ${origin} is busy: ${who} holds it, and it may be someone else's, so ogygia_profile leaves it alone. Wait for it to end and retry (the dashboard's Reset takes it over, if it is yours and stuck).`;
 }
 
-async function tool_profile(args: Attrs): Promise<ToolResult> {
+async function tool_profile(args: Args): Promise<ToolResult> {
 	const raw = String(args.url ?? '').trim();
 	if (!raw)
 		return fail(
@@ -1705,7 +1712,7 @@ async function tool_profile(args: Attrs): Promise<ToolResult> {
 	);
 }
 
-async function tool_profile_open(args: Attrs): Promise<ToolResult> {
+async function tool_profile_open(args: Args): Promise<ToolResult> {
 	const file = String(args.file ?? '');
 	if (!file) return fail('`file` is required — the path to a downloaded .ogp profile.');
 	const key = typeof args.key === 'string' && args.key ? args.key : undefined;
@@ -1798,7 +1805,7 @@ type ScanIsland = {
 };
 type Violation = { file: string; severity: 'error' | 'warn'; msg: string };
 
-function tool_scan(args: Attrs): ToolResult {
+function tool_scan(args: Args): ToolResult {
 	const dir = String(args.dir ?? 'src');
 	const root = path.isAbsolute(dir) ? dir : path.resolve(process.cwd(), dir);
 	const files = walk_svelte(root);
@@ -1942,7 +1949,7 @@ function walk_flag_files(dir: string, out: string[] = [], depth = 0): string[] {
 	return out;
 }
 
-async function tool_flags(args: Attrs): Promise<ToolResult> {
+async function tool_flags(args: Args): Promise<ToolResult> {
 	const dir = String(args.dir ?? '.');
 	const root = path.isAbsolute(dir) ? dir : path.resolve(process.cwd(), dir);
 	const inventory = await load_flag_inventory();
@@ -2018,7 +2025,7 @@ async function tool_flags(args: Attrs): Promise<ToolResult> {
 
 // ── fragment: probe a federation MFE origin ──────────────────────────────────────────────────
 
-async function tool_fragment(args: Attrs): Promise<ToolResult> {
+async function tool_fragment(args: Args): Promise<ToolResult> {
 	const raw = String(args.origin ?? '');
 	if (!raw) return fail('Pass `origin` — the MFE origin to probe (e.g. https://cms.internal).');
 	let origin: string;
@@ -2100,7 +2107,7 @@ function wrong_args(name: string, args: unknown): ToolResult | null {
 		| Record<string, { type: string }>
 		| undefined;
 	for (const [k, p] of Object.entries(props ?? {})) {
-		const v = (args as Attrs)[k];
+		const v = (args as Args)[k];
 		if (v != null && json_type(v) !== p.type)
 			return fail(`\`${k}\` must be a ${p.type}, not ${json_type(v)}.`);
 	}
@@ -2108,7 +2115,7 @@ function wrong_args(name: string, args: unknown): ToolResult | null {
 }
 
 /** Run one tool, as the server does for a `tools/call`. @internal Exported for tests. */
-export async function dispatch_tool(name: string, args: Attrs): Promise<ToolResult> {
+export async function dispatch_tool(name: string, args: Args): Promise<ToolResult> {
 	const wrong = wrong_args(name, args);
 	if (wrong) return wrong;
 	switch (name) {
@@ -2179,7 +2186,7 @@ function handle(msg: Rpc): void {
 	}
 	if (method === 'tools/call') {
 		const name = typeof params?.name === 'string' ? params.name : '';
-		const args = (params?.arguments as Attrs) ?? {};
+		const args = (params?.arguments as Args) ?? {};
 		dispatch_tool(name, args)
 			.then((result) => send({ jsonrpc: '2.0', id, result }))
 			.catch((e) =>
