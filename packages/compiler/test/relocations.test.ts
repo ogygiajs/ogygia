@@ -9,9 +9,21 @@ import {
 	PAGE_DATA_READS_TOKEN,
 	SERVER_MAP_TOKENS
 } from '../src/compiler/link/server-manifest.ts';
-import { relocate, unpatched, type RelocateCx } from '../src/compiler/link/relocations.ts';
+import {
+	WRITTEN_RELOCATIONS,
+	relocate as relocate_table,
+	relocations_of,
+	unpatched,
+	type RelocateCx
+} from '../src/compiler/link/relocations.ts';
+import { file_token } from '../src/compiler/link/file-token.ts';
+import { ISLAND_DEPS_INLINE_TOKEN } from '../src/compiler/link/island-deps.ts';
 
 const FN = '/*__OGYGIA_FN_MANIFEST__*/';
+
+/** A leg's relocations over a chunk: its patched text, or null. */
+const relocate = (code: string, server: boolean, counts: Map<string, number>, c: RelocateCx) =>
+	relocate_table(code, relocations_of(server), counts, c)?.s.toString() ?? null;
 
 function cx(hoists: Record<string, string> = {}): RelocateCx {
 	return {
@@ -21,6 +33,7 @@ function cx(hoists: Record<string, string> = {}): RelocateCx {
 		late_server_regions: new Map([['aaaaaaaaaaaa', 'ref1']]),
 		chunk_file: 'chunks/manifest.js',
 		file_name: (ref) => `chunks/regions/${ref}.js`,
+		facade_file: (id) => (id === '/app/src/lazy.ts' ? 'chunks/lazy-x1.js' : undefined),
 		graph: () => null,
 		module_ids: () => []
 	};
@@ -67,6 +80,50 @@ describe('relocate', () => {
 
 	test('a chunk without a token is left alone', () => {
 		expect(relocate('export {}', true, new Map(), cx())).toBeNull();
+	});
+
+	test("a lazy loader's file token is its module's own chunk from the chunk being finished, or null", () => {
+		const counts = new Map<string, number>();
+		const code = `f(${file_token('/app/src/lazy.ts')}, ${file_token('/app/src/shared.ts')})`;
+		for (const server of [false, true])
+			expect(relocate(code, server, counts, cx())).toBe('f("./lazy-x1.js", null)');
+		expect(counts.get('lazy loader file')).toBe(4);
+	});
+
+	test('a minifier that re-quoted a file token still has it replaced whole', () => {
+		const token = file_token('/app/src/lazy.ts').split('"').join("'");
+		expect(relocate(`f(${token})`, false, new Map(), cx())).toBe('f("./lazy-x1.js")');
+	});
+
+	test("only a mapped relocation's patch hands on a map (the others keep the chunk's as given)", () => {
+		const table = relocations_of(false);
+		const fn = relocate_table(`a;${FN}b;`, table, new Map(), cx({ t: 'x' }));
+		expect(fn!.mapped).toBe(false);
+		const file = relocate_table(`f(${file_token('/app/src/lazy.ts')})`, table, new Map(), cx());
+		expect(file!.mapped).toBe(true);
+	});
+});
+
+describe('written relocations', () => {
+	test("the client leg's island deps go into the server file's slot, escaped for either quote", () => {
+		const counts = new Map<string, number>();
+		const deps = `{"a":"it's \\\\ ${String.fromCharCode(0x2028)}"}`;
+		for (const q of ['"', "'"]) {
+			const out = relocate_table(
+				`export const d = ${q}${ISLAND_DEPS_INLINE_TOKEN}${q};`,
+				WRITTEN_RELOCATIONS,
+				counts,
+				{ island_deps: deps }
+			)!.s.toString();
+			expect(new Function(`${out.replace('export const d =', 'return')}`)()).toBe(deps);
+		}
+		expect(counts.get('island deps')).toBe(2);
+	});
+
+	test('a leg does not patch the written ones at its own end', () => {
+		const code = `"${ISLAND_DEPS_INLINE_TOKEN}"`;
+		expect(relocate(code, true, new Map(), cx())).toBeNull();
+		expect(unpatched(true, new Map(), [{ code, moduleIds: [] }])).toEqual([]);
 	});
 });
 
