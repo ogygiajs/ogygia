@@ -899,6 +899,19 @@ describe('page errors', () => {
 		expect(page_errors(tab(said), world('https://app.test/_app/x.js'))?.oracle).toBe('page-errors');
 	});
 
+	// (router.build-throws, aimed on gen 191: the navigation hands off and reports the build's throw,
+	// as report_thrown does any app error; every seed failed on its own point's words)
+	it("a buggify point's own throw, reported by the document it fired in, is the point's", () => {
+		const thrown = ['Error: router.build-throws'];
+		const w = world('none') as unknown as { fired_in: Map<string, Set<string>> };
+		w.fired_in.set('tab-1#6', new Set(['router.build-throws']));
+		const fired = w as unknown as Parameters<typeof page_errors>[1];
+		expect(page_errors(tab(thrown), fired)).toBeNull();
+		// (another point's words, or the same words where it did not fire, are still errors)
+		expect(page_errors(tab(['Error: router.commit-throws']), fired)?.oracle).toBe('page-errors');
+		expect(page_errors(tab(thrown), world('none'))?.oracle).toBe('page-errors');
+	});
+
 	it("a changed byte in a JSON answer may be said as the parser's bare message (palaestra seed 204)", () => {
 		// (a live query's stream: the remote function's client logs the error's message alone, with
 		// no `SyntaxError` before it)
