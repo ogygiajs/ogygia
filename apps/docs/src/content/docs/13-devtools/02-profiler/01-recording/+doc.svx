@@ -40,10 +40,10 @@ Every report is also available as curated JSON. This is the analyzed result rath
 GET /__profiler/report/<id>.json
 
 # profile a page and get the JSON back in one request (no redirect, no HTML)
-GET /__profiler/page?p=/slow/page&runs=6&format=json&key=<secret>
+POST /__profiler/page?p=/slow/page&runs=6&format=json&key=<secret>
 ```
 
-Sending `Accept: application/json` to `/record` or `/page` does the same. The payload describes itself with `schema`, `version` and units, so an agent can read it without any other context:
+Profiling a page is a `POST`, because it changes the profiler's state (it holds the recorder while it runs). The same goes for `/reset`, `/replay/<id>` and `/logout`. A `GET` to any of them answers `405`. Sending `Accept: application/json` to `/page` does the same as `format=json`. The payload describes itself with `schema`, `version` and units, so an agent can read it without any other context:
 
 ```jsonc
 {
@@ -65,7 +65,7 @@ On a serverless host you take the report with you. Each report downloads as a **
 
 ```bash
 # a one-shot page profile, straight to a dump
-GET /__profiler/page?p=/slow/page&runs=6&format=dump&key=<secret>
+POST /__profiler/page?p=/slow/page&runs=6&format=dump&key=<secret>
 
 # or an existing report
 GET /__profiler/report/<id>/dump

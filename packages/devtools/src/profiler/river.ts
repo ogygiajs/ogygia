@@ -336,7 +336,7 @@ export function seed_key_bytes(seed_json: string): Record<string, number> {
 		for (const [k, v] of Object.entries(inner)) out[k] = JSON.stringify(v)?.length ?? 0;
 		return out;
 	} catch {
-		return {};
+		return {}; // ok: a seed that does not parse has no key sizes to show
 	}
 }
 

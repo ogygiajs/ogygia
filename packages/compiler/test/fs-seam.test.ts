@@ -143,6 +143,7 @@ const DIRECT_FS: Record<string, { calls: number; why: string }> = {
 	},
 	'virtual/core.ts': { calls: 2, why: "ogygia's own package.json (the dev runtime's location)" },
 	'link/build-output.ts': { calls: 7, why: 'the build output it writes and patches' },
+	'link/emit-gate.ts': { calls: 1, why: "the server leg's handoff file in the build output" },
 	'link/island-deps.ts': {
 		calls: 1,
 		why: 'generated server code, reading its handoff at run time'

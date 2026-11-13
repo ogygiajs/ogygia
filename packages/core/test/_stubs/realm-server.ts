@@ -21,7 +21,8 @@ export {
 	region_remotes,
 	fn_manifest,
 	entry_location,
-	location_map
+	location_map,
+	handoff_problem
 } from 'ogygia:server/region-deps';
 export { build_key, build_had_secret } from 'ogygia:server/secret';
 export { sign, region_sign } from 'ogygia:server/sign';
