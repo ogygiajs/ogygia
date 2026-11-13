@@ -14,7 +14,10 @@ export type AstNode = Record<
 type Node = AstNode;
 
 export type Comment = { start: number; end: number };
-export type ParseResult = { program: Node | null; ok: boolean; comments: Comment[] };
+/** A parse: `ok` exactly when there is a program. */
+export type ParseResult =
+	| { program: Node; ok: true; comments: Comment[] }
+	| { program: null; ok: false; comments: Comment[] };
 
 /** The raw oxc parse signature (`(id, code) → { program, errors, comments }`). */
 export type RawParse = (
@@ -46,13 +49,9 @@ export function parse_module(code: string, id: string): ParseResult {
 			errors?: unknown[];
 			comments?: Comment[];
 		};
-		if (result.errors && result.errors.length > 0)
+		if (!result.program || (result.errors && result.errors.length > 0))
 			return { program: null, ok: false, comments: [] };
-		return {
-			program: result.program ?? null,
-			ok: !!result.program,
-			comments: result.comments ?? []
-		};
+		return { program: result.program, ok: true, comments: result.comments ?? [] };
 	} catch {
 		return { program: null, ok: false, comments: [] };
 	}
