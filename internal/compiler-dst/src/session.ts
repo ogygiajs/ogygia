@@ -84,6 +84,10 @@ export function session(files: Fs, { dev = false }: SessionOptions = {}): Sessio
 		},
 		ctx
 	);
+	if (!dev) {
+		compiler.start_leg('ssr', true);
+		compiler.start_leg('client', false);
+	}
 	return { compiler, program, ctx, out: new Map(), emitted: [] };
 }
 
