@@ -1,15 +1,3 @@
-/**
- * What a module can reach of ogygia: the names of ogygia's own exports it imports, re-exports or
- * reads off the module object, and whether it reaches `@ogygia/content`. Read from the parsed code,
- * so every form counts: a named or namespace import, a re-export from a local barrel, a star export,
- * a namespace handed on, a dynamic `import()`.
- *
- * Two runtime marks read the answer: the `context` mark (a provider ships the context bridge) and
- * `crosses_wire` (a region or content value on Kit's wire ships the codec cluster). Both must be
- * OVER: a miss drops context in islands or leaves Kit without a decoder, an extra is bytes. So every
- * form the walk cannot narrow (a star export, a namespace that escapes, a dynamic import kept whole,
- * a file that will not parse) answers `all`. Tests: test/own-reach.test.ts.
- */
 import { walk } from 'estree-walker';
 import { OWN_PACKAGE_NAMES } from '@ogygia/core/contract';
 import { parse_roots } from './page-keys.ts';
@@ -43,7 +31,6 @@ function is_content(spec: unknown): boolean {
 	);
 }
 
-/** A static specifier: a string literal or a template literal with no expressions. */
 function static_spec(n: AstNode | undefined): string | null {
 	if (!n) return null;
 	if (n.type === 'Literal' && typeof n.value === 'string') return n.value;
@@ -52,7 +39,6 @@ function static_spec(n: AstNode | undefined): string | null {
 	return null;
 }
 
-/** An import/export name node: an identifier or a string literal (`export { "a-b" as c }`). */
 function name_of(n: AstNode | undefined): string | null {
 	if (!n) return null;
 	if (n.type === 'Identifier') return n.name ?? null;
@@ -60,12 +46,10 @@ function name_of(n: AstNode | undefined): string | null {
 	return null;
 }
 
-/** A member read's static name: `o.x` or `o['x']`; null when computed from a value. */
 function member_name(m: AstNode): string | null {
 	return m.computed ? static_spec(m.property) : name_of(m.property);
 }
 
-/** The keys an object pattern takes, or null when it has a rest element or a computed key. */
 function pattern_keys(p: AstNode): string[] | null {
 	const keys: string[] = [];
 	for (const prop of p.properties ?? []) {
@@ -79,8 +63,6 @@ function pattern_keys(p: AstNode): string[] | null {
 
 type Path = { node: AstNode; parent: AstNode | null; key: string | null }[];
 
-/** What the module object a dynamic `import()` yields is used for: the names it reads, or null
- *  when it is kept whole. `path` ends at the `import()` node. */
 function dynamic_reads(path: Path): string[] | null {
 	let i = path.length - 1;
 	let value = path[i];
@@ -88,7 +70,6 @@ function dynamic_reads(path: Path): string[] | null {
 		while (value.parent?.type === 'ParenthesizedExpression') value = path[--i];
 	};
 	unwrap();
-	// Without an `await` the value is a promise: `.then(…)` hands the module on, so it is kept whole.
 	if (value.parent?.type !== 'AwaitExpression') return null;
 	value = path[--i];
 	unwrap();
@@ -114,13 +95,11 @@ function dynamic_reads(path: Path): string[] | null {
 export function own_reach(src: string, id: string, kind: 'svelte' | 'script'): OwnReach {
 	if (!NAMES_A_PACKAGE.test(src)) return { names: new Set(), all: false, content: false };
 	const roots = parse_roots(src, id, kind);
-	// A file that names ogygia but will not parse here: count it whole (the safe end).
 	if (!roots) return { names: new Set(), all: true, content: false };
 
 	const names = new Set<string>();
 	let all = false;
 	let content = false;
-	// local names bound to ogygia's module object (`import * as og from 'ogygia'`)
 	const namespaces = new Set<string>();
 	const declarations = new Set<AstNode>();
 	const references: Path = [];
@@ -140,7 +119,7 @@ export function own_reach(src: string, id: string, kind: 'svelte' | 'script'): O
 				namespaces.add(s.local.name);
 				declarations.add(s.local);
 			} else {
-				all = true; // a default import: not a named export of ogygia's, so count every one
+				all = true;
 			}
 		}
 	};
@@ -190,7 +169,6 @@ export function own_reach(src: string, id: string, kind: 'svelte' | 'script'): O
 						references.push(path[path.length - 1]);
 						break;
 					case 'Component': {
-						// Svelte's `<og.Provide>`: a component named through a namespace
 						const [head, member] = String(node.name ?? '').split('.');
 						if (member && namespaces.has(head)) names.add(member);
 						break;
@@ -202,20 +180,17 @@ export function own_reach(src: string, id: string, kind: 'svelte' | 'script'): O
 			}
 		});
 
-	// A namespace read as `og.x` reaches `x`; used any other way (handed on, spread, called with), it
-	// reaches every export.
 	if (namespaces.size > 0 && !all)
 		for (const { node, parent, key } of references) {
 			if (!namespaces.has(node.name) || declarations.has(node)) continue;
 			if (parent?.type === 'MemberExpression') {
-				if (key === 'property' && !parent.computed) continue; // `x.og`: a property, not the binding
+				if (key === 'property' && !parent.computed) continue;
 				const n = key === 'object' ? member_name(parent) : null;
 				if (n != null) {
 					names.add(n);
 					continue;
 				}
 			}
-			// a property key or an import/export's own name is not a read of the binding
 			if (parent?.type === 'Property' && key === 'key' && !parent.shorthand && !parent.computed)
 				continue;
 			if (

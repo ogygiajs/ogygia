@@ -9,6 +9,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { Compiler, Program, CompileCtx, normalize_import_keys } from '../dist/compiler/index.js';
 import { partial_ctx_init } from './_compile-ctx.ts';
+import { own_reach } from '../src/compiler/link/own-reach.ts';
 import { dedent } from '@ogygia/core/contract';
 
 const roots: string[] = [];
@@ -35,16 +36,17 @@ function prescan(files: Record<string, string>) {
 			transformN: 0,
 			transformHit: 0,
 			prescanMs: 0,
-			bakeMs: 0,
-			bakeN: 0,
+			macroMs: 0,
+			macroN: 0,
 			resolveMs: 0,
 			loadMs: 0
 		},
 		P: false,
 		outHash: new Map<string, number>()
 	};
-	const compiler = new Compiler(program, profiler);
-	compiler.configure(
+	const compiler = new Compiler(
+		program,
+		profiler,
 		new CompileCtx(
 			partial_ctx_init({
 				root,
@@ -246,5 +248,31 @@ describe("a region or content value on Kit's wire is found in every form", () =>
 		expect(prescan({ 'src/lib/og.ts': `export { preload } from 'ogygia';\n` }).crosses_wire).toBe(
 			false
 		);
+	});
+});
+
+describe('a form the walk cannot narrow reaches every export', () => {
+	test('a default import of ogygia reaches every export', () => {
+		expect(own_reach(`import og from 'ogygia'; og;`, 'a.ts', 'script').all).toBe(true);
+	});
+
+	test('a file that names ogygia but will not parse reaches every export', () => {
+		expect(own_reach(`import { region } from 'ogygia'; let = ;`, 'a.ts', 'script').all).toBe(true);
+	});
+
+	test('a property named like the namespace is not a read of it', () => {
+		const src = dedent`
+			import * as og from 'ogygia';
+			const x = { og: 1 };
+			x.og;
+			og.preload();
+		`;
+		const r = own_reach(src, 'a.ts', 'script');
+		expect(r.all).toBe(false);
+		expect([...r.names]).toEqual(['preload']);
+	});
+
+	test('a namespace handed on reaches every export', () => {
+		expect(own_reach(`import * as og from 'ogygia'; use(og);`, 'a.ts', 'script').all).toBe(true);
 	});
 });
