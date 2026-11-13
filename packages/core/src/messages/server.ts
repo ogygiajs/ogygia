@@ -50,6 +50,7 @@ export const SERVER_ERRORS = {
 		`
 	},
 	handle_transform_moved: {
+		until: '0.15',
 		text: (): string => prose`
 			handle({ transform }) moved to @ogygia/rewrite: list rewrite() beside ogygia() in
 			vite.config, and put rewrite({ page: transform }) before ogygia.handle() in sequence().
