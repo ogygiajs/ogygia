@@ -96,6 +96,9 @@ export function normalize(root: {
 		// script put in the head, and a fresh load of a page without that script never has: gen 262,
 		// seed 6, the `gen head` drift)
 		if (tag === 'meta' && el.hasAttribute('data-gen-third-party')) return;
+		// (a third party's mark in a lake, which the island's wake rightly leaves there, and a client
+		// navigation to the page never runs the script that makes it: `lakeEdit`)
+		if (el.hasAttribute('data-gen-lake-mark')) return;
 		if (el.matches(STORE_MARK)) return;
 		// (a reshape pass's mark on a document loaded as one, which the router's answer of the same
 		// page never carries: delivery, not the page; gen 10, seed 10)
@@ -1339,6 +1342,26 @@ export function no_foreign_html(tab: Tab): Broken | null {
 	return {
 		oracle: 'foreign-html',
 		detail: `${tab.page.mainFrame.url}: ${painted.map((e) => e.outerHTML.slice(0, 200)).join('\n')}`
+	};
+}
+
+/**
+ * AN OPAQUE REGION IS NEVER REPAIRED: a third party's edit inside a lake (gen `lakeEdit`), made while
+ * the island holding it slept, is still there once the island hydrated. The island's wake puts the
+ * island's own markup back to the server's, and never walks into a region Svelte's walk never enters.
+ */
+export function opaque_untouched(tab: Tab): Broken | null {
+	const w = tab.page.mainFrame.window as unknown as { __sim_gen_lake_edits?: Element[] };
+	const lost = (w.__sim_gen_lake_edits ?? []).filter(
+		(r) =>
+			r.isConnected &&
+			r.hasAttribute('data-hydrated') &&
+			r.querySelector('[data-gen-lake-mark]') === null
+	);
+	if (lost.length === 0) return null;
+	return {
+		oracle: 'opaque-untouched',
+		detail: `${tab.page.mainFrame.url}: the edit in a lake of ${lost.map((r) => r.querySelector('[data-gen]')?.className ?? r.localName).join(', ')} was undone`
 	};
 }
 
