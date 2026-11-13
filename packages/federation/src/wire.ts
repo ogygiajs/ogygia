@@ -662,6 +662,7 @@ function element_of(html: string, tag: FoundTag, name: string): string | null {
 
 /** Where the document's last `</body` end tag starts, at or after `from`, or -1. */
 function last_body_close(html: string, from: number): number {
+	// markup-ok: a document's last `</body`, from the back (one walk for it: #1410)
 	for (let i = html.lastIndexOf('</'); i >= from && i !== -1; i = html.lastIndexOf('</', i - 1)) {
 		if (html.slice(i + 2, i + 6).toLowerCase() === 'body') {
 			const c = html.charCodeAt(i + 6);

@@ -545,7 +545,7 @@ function plan_hosts(html: string, kind: TransformKind, csr: boolean, answer: boo
 /** Is there any custom element (in a document: after `<body`) — a hop from `<` to `<` reading only
  *  tag names, no tokenization. Most pages of most apps have none, and then there is nothing to mark. */
 function has_custom_element(html: string, document: boolean): boolean {
-	let at = document ? html.indexOf('<body') : 0;
+	let at = document ? html.indexOf('<body') : 0; // markup-ok: a prefilter, a false yes only
 	if (at === -1) return false;
 	for (at = html.indexOf('<', at); at !== -1; at = html.indexOf('<', at + 1)) {
 		if (!is_alpha(html.charCodeAt(at + 1))) continue;
