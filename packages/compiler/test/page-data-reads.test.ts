@@ -118,6 +118,25 @@ describe('patch_page_data_reads: a page reader seed shaping could not read', () 
 		});
 	});
 
+	test("Kit's page module importing its own halves is not a reader of the page", () => {
+		const KIT_STATE_SERVER = '/app/node_modules/@sveltejs/kit/src/runtime/app/state/server.js';
+		const kit_graph = {
+			...graph,
+			[KIT_STATE]: { importedIds: [KIT_STATE_SERVER], dynamicallyImportedIds: [] },
+			[KIT_STATE_SERVER]: { importedIds: [], dynamicallyImportedIds: [] }
+		};
+		const c = compiler_with(
+			{ eeeeeeeeeeee: '/app/UrlOnly.svelte' },
+			{ '/app/UrlOnly.svelte': new Set() }
+		);
+		const out = c.patch_page_data_reads(
+			PLACEHOLDER,
+			(id) => kit_graph[id] ?? null,
+			() => Object.keys(kit_graph)
+		);
+		expect(value_of(out!.code)).toEqual({ eeeeeeeeeeee: false });
+	});
+
 	test('a page reader whose keys were read (none of page.data) does not', () => {
 		const c = compiler_with(
 			{ dddddddddddd: '/app/UrlOnly.svelte' },
