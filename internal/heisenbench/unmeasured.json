@@ -4261,10 +4261,6 @@
 			"reason": "a stored entry's build label against the build's own `$app/env` version and the wall clock (hidden state), two comparisons; run by packages/postrender/test/deploy.test.ts and handle.test.ts"
 		},
 		{
-			"id": "packages/core/src/frame.ts > is_batch_miss",
-			"reason": "an instanceof check and one name compare on an Error (its prototype is hidden state the recorder does not keep), constant work; proven in packages/core/test/frame-store.test.ts"
-		},
-		{
 			"id": "packages/core/src/frame.ts > mark_written",
 			"reason": "one WeakMap set beside a decoded region value (hidden state), constant work; run by packages/core/test/browser/region-orderings.test.ts and sim-region.test.ts"
 		},
@@ -4693,6 +4689,10 @@
 			"reason": "a slot's maker: builds the slot's empty starting value, once per process, constant work"
 		},
 		{
+			"id": "packages/core/src/server/kit-context.ts > held_root_context",
+			"reason": "returns a Map holding Kit's page and stores contexts (not cloneable): kit_render_context plus two set() calls, constant work, once per held region render; proven in packages/core/test/held-region-runtime.test.ts"
+		},
+		{
 			"id": "packages/core/src/server/shared-cache.ts > shared:0~2c10ac > make",
 			"reason": "a slot's maker: builds the slot's empty starting value, once per process, constant work"
 		},
@@ -4739,6 +4739,10 @@
 		{
 			"id": "packages/core/src/runtime/code-origins.ts > forget_code_origins",
 			"reason": "browser only: drops the page's read code origins (one write), constant work; proven in packages/core/test/browser/nav-code-origins.test.ts (#1045)"
+		},
+		{
+			"id": "packages/core/src/frame.ts > is_batch_miss",
+			"reason": "an instanceof check and one name compare on an Error (its prototype is hidden state the recorder does not keep), constant work; proven in packages/core/test/frame-store.test.ts"
 		},
 		{
 			"id": "packages/core/src/server/capped-body.ts > read_capped",
