@@ -1,4 +1,5 @@
-import { next_tag } from '@ogygia/core/internal/server';
+// (not ./internal/server: that entry reaches Kit's `$app/*`, and this runs in a plain Node config)
+import { next_tag } from '@ogygia/core/internal/instruments';
 import { dedent } from '@ogygia/core/plugin/utils';
 
 /** Exact inverse of `escape_svelte` (shiki.ts). In escaped text every backslash was produced by one
