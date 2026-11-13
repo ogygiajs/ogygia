@@ -75,6 +75,24 @@ describe('an absolute entry on another origin', () => {
 		expect(requested('evil.example')).toHaveLength(0);
 	});
 
+	test('handed in as the location of a known identity: refused as a rejection, never thrown', async () => {
+		const entry = '/a/_app/ogygia/og-region.444444444444.js';
+		note_entry_location(entry, '/a/_app/immutable/og-region.444444444444.Ab12Cd34.js');
+		let loading: Promise<unknown> | undefined;
+		expect(() => {
+			loading = import_entry(
+				entry,
+				'https://evil.example/a/_app/immutable/og-region.444444444444.Ab12Cd34.js'
+			);
+		}).not.toThrow();
+		const error = await loading!.then(
+			() => null,
+			(e: unknown) => e as { code?: string }
+		);
+		expect(error?.code).toBe('island_code_refused');
+		expect(requested('evil.example')).toHaveLength(0);
+	});
+
 	test('is not warmed either', async () => {
 		warm_island_module('https://evil.example/src/lib/Island.svelte');
 		await new Promise((r) => setTimeout(r, 50));

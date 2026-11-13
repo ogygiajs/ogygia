@@ -33,6 +33,16 @@ describe('cache: bounded', () => {
 		expect(() => cache({ max: Infinity })).toThrow(MachineError);
 	});
 
+	it('no options at all is refused with a code, never a TypeError reading them', () => {
+		expect(() => cache(undefined as never)).toThrow(MachineError);
+		expect(() => cache(null as never)).toThrow(MachineError);
+	});
+
+	it('a keep that is no time is refused: a negative one, or one that is not a number or function', () => {
+		expect(() => cache({ max: 1, keep: -1 })).toThrow(MachineError);
+		expect(() => cache({ max: 1, keep: '1s' as never })).toThrow(MachineError);
+	});
+
 	it('flights keeps at most 1000 answers by default, the least recently used out first', async () => {
 		const pages = flights({ run: async (k: number) => k });
 		for (let k = 0; k <= 1000; k++) await pages.get(k);

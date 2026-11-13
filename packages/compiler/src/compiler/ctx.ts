@@ -1,10 +1,3 @@
-/**
- * `CompileCtx` — the resolved compile context: the config the transform phase reads, plus its
- * derived naming accessors. A plain data holder constructed once the bundler has resolved the build
- * (root / dev / …) and the options are normalized (importKeys / presets / …). It is the config half
- * of the driver's session; the `Compiler` carries it into `transform()` so that phase never reaches
- * back into the Vite adapter — which is what keeps the driver bundler-agnostic.
- */
 import { strip_bom } from './bom.ts';
 import { node_fs, type Fs } from './fs.ts';
 import { route_reader, type Routes } from './kit.ts';
@@ -57,9 +50,7 @@ export interface PackageScan {
 	files: string[];
 }
 
-/** Windows separators → posix, for id matching against the (posix) declared-path index. */
 const BACKSLASH_SEP = /\\/;
-/** Matches nothing — the island-hint probe when no import keys are configured. */
 const NEVER_MATCH_RE = /$^/;
 
 export interface CompileCtxInit {
@@ -120,8 +111,6 @@ export interface CompileCtxInit {
 	plugins?: readonly string[];
 	/** ogygia's own package root — the `auto_brand` macro skips ogygia source (it can't self-register). */
 	pkg_root: string;
-
-	// ── virtual-module emit config (read by `Compiler.emit`) ───────────────────────────────────────
 	/** Per-build HMAC material baked into the SSR-only `ogygia:server/secret`. */
 	build_secret: string;
 	/** Region-endpoint rate limit (SSR-only), `{ max: 0 }` when disabled. */

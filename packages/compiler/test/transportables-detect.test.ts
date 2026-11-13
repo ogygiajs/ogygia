@@ -59,6 +59,14 @@ describe('which classes register', () => {
 		expect(calls_of(src)).toEqual(['__OGT("src/lib/m.ts#A", A);', '__OGT("src/lib/m.ts#B", B);']);
 	});
 
+	it('a re-export from elsewhere registers nothing, even when a local wire class has its name', () => {
+		const src = dedent`
+			class Other { ${WIRED} }
+			export { Other } from './other.ts';
+		`;
+		expect(calls_of(src)).toEqual([]);
+	});
+
 	it('a module that does not parse registers nothing (the compiler reports it)', () => {
 		expect(reg(`export class A { ${WIRED} }\nconst = ;`)).toBe(null);
 	});
@@ -168,6 +176,22 @@ describe('a .svelte <script module> exporting a wire class', () => {
 		// the instance script and markup are untouched
 		expect(out.slice(end)).toBe(src.slice(src.indexOf('</script>')));
 		expect(appendSvelteModuleRegistrations(out, '/app/src/lib/Cart.svelte', '/app')).toBe(null);
+	});
+
+	it('a module script is read as TypeScript, whatever its lang', () => {
+		const typed = (member: string) => dedent`
+			<script module>
+				export class Cart { ${member} private count: number = 0; }
+			</script>
+			<p></p>
+		`;
+		expect(svelteModuleHasTransportable(typed('static n = 1;'), '/app/src/lib/T.svelte')).toBe(
+			false
+		);
+		expect(svelteModuleHasTransportable(typed(WIRED), '/app/src/lib/T.svelte')).toBe(true);
+		expect(
+			appendSvelteModuleRegistrations(typed(WIRED), '/app/src/lib/T.svelte', '/app')
+		).toContain('__OGT("src/lib/T.svelte#Cart", Cart);');
 	});
 
 	it('the word module outside a module script is not one', () => {

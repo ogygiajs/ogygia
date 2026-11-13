@@ -3785,6 +3785,10 @@
 			"reason": "browser only: walks the live document's regions once per SPA navigation (a live document, not cloneable), linear in the regions; its list is proven in packages/core/test/property-known-copies.test.ts and apps/palaestra/e2e/delta-copy-count.spec.ts (#846)"
 		},
 		{
+			"id": "packages/core/src/runtime/router-nav.ts > known_header",
+			"reason": "browser only: joins known_copies of the live document (not cloneable) once per page fetch, linear in the regions; proven in packages/core/test/browser/page-kept-by-known.test.ts (#1615)"
+		},
+		{
 			"id": "packages/core/src/server/region-endpoint.ts > reuse_known_region",
 			"reason": "reads and counts down the request's known copies (hidden state: the request event's map), constant work per region; proven in packages/core/test/property-known-copies.test.ts and packages/core/test/server-delta-opt-in.test.ts (#846)"
 		},

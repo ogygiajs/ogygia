@@ -151,6 +151,72 @@ test('an answer’s fragment: restored before insertion, its sheets adopted once
 	expect(document.querySelector('demo-card')!.shadowRoot!.adoptedStyleSheets.length).toBe(1);
 });
 
+test('a root that cannot adopt its sheet leaves the others in the answer theirs', async () => {
+	const s = await transformMarkup(
+		'<demo-card class="x"> a </demo-card><demo-card class="y"> b </demo-card>',
+		(h) => SHEET + fake_scoped(h),
+		{ kind: 'region' }
+	);
+	const tpl = document.createElement('template');
+	tpl.innerHTML = s.html;
+	restore(tpl.content);
+	const [first, second] = Array.from(tpl.content.querySelectorAll('demo-card'));
+	Object.defineProperty(first.shadowRoot!, 'adoptedStyleSheets', {
+		configurable: true,
+		get: () => [],
+		set: () => {
+			throw new DOMException('not this one', 'NotAllowedError');
+		}
+	});
+	document.body.appendChild(tpl.content);
+	expect(() => restore_adopt()).not.toThrow();
+	expect(second.shadowRoot!.adoptedStyleSheets.length).toBe(1);
+});
+
+test('a mangled attribute reset (`og-r`) leaves the host’s attributes as served, and its mark gone', async () => {
+	await served('<demo-card class="own" title="served"> hi </demo-card>');
+	const host = document.querySelector('demo-card')!;
+	host.setAttribute('og-r', '{"title": "svelte"');
+	expect(restore(document)).toBe(1);
+	expect(host.getAttribute('title')).toBe('served');
+	expect(host.hasAttribute('og-r')).toBe(false);
+	expect(host.shadowRoot!.querySelector('b')!.textContent).toBe('Card title');
+});
+
+test('a text mark whose original does not parse carries none: the text stays as served, the mark gone', async () => {
+	await served('<demo-card class="own">   Sign in  </demo-card>');
+	const marks: Comment[] = [];
+	const walk = document.createTreeWalker(document.body, NodeFilter.SHOW_COMMENT);
+	for (let n = walk.nextNode(); n; n = walk.nextNode())
+		if (/^og-[ct] /.test((n as Comment).data)) marks.push(n as Comment);
+	expect(marks.length).toBeGreaterThan(0);
+	for (const m of marks) m.data = `${m.data.slice(0, m.data.indexOf(' "'))} "\\x`;
+	expect(restore(document)).toBe(1);
+	expect(document.body.innerHTML.includes('og-c')).toBe(false);
+	expect(document.body.innerHTML.includes('og-t')).toBe(false);
+	expect(document.querySelector('demo-card')!.textContent).toContain('Sign in');
+});
+
+test('a dev check that does not parse checks nothing: the restore goes on, and the script is consumed', async () => {
+	const s = await served('<demo-card class="own"> hi </demo-card>');
+	expect(s.planned).toBe(1);
+	document.body.insertAdjacentHTML(
+		'afterbegin',
+		'<script type="application/ogygia-restore-check">{not json</script>'
+	);
+	let mismatch = false;
+	const on = () => (mismatch = true);
+	document.addEventListener('ogygia:restore-mismatch', on);
+	try {
+		expect(restore(document)).toBe(1);
+	} finally {
+		document.removeEventListener('ogygia:restore-mismatch', on);
+	}
+	expect(mismatch).toBe(false);
+	expect(document.querySelector('script[type="application/ogygia-restore-check"]')).toBeNull();
+	expect(document.querySelector('demo-card')!.innerHTML).toBe(' hi ');
+});
+
 test('a router swap: a root the swap left in the parsed page is skipped, and every root in this one gets its sheets', async () => {
 	// REGRESSION (field report on 4e800c75): after a router navigation every restored header host
 	// lost its sheets — the incoming page's parsed document holds roots the swap did not take (a morph

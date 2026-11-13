@@ -60,6 +60,48 @@ test('a second interactive tick while the first one hydrates mounts no second is
 	expect(live.querySelectorAll('[data-testid="label"]')).toHaveLength(1);
 });
 
+test('a live region moved in the page keeps its island: it hydrates once', async () => {
+	const live = live_region();
+	let hydrated = 0;
+	live.addEventListener('ogygia:hydrated', () => hydrated++);
+	await live.applyLive({
+		id: 'live-moved',
+		module: LABEL,
+		props: { text: 'one' },
+		html: label_html(),
+		hydrate: 'load'
+	});
+	await expect.poll(() => hydrated, { timeout: 5_000 }).toBe(1);
+	const label = live.querySelector('[data-testid="label"]');
+	const elsewhere = document.createElement('section');
+	document.body.append(elsewhere);
+	elsewhere.append(live);
+	await new Promise((r) => setTimeout(r, 300));
+	expect(hydrated, 'a move is no new tick').toBe(1);
+	expect(live.querySelector('[data-testid="label"]')).toBe(label);
+});
+
+test('a static live region moved in the page is not painted again: what the page did to it stays', async () => {
+	const live = live_region();
+	await live.applyLive({
+		id: 'static-moved',
+		module: '',
+		props: {},
+		html: '<p data-testid="static">static</p>',
+		url: LIVE_URL('livestatic03')
+	});
+	await expect
+		.poll(() => live.querySelector('[data-testid="static"]') !== null, { timeout: 5_000 })
+		.toBe(true);
+	const p = live.querySelector('[data-testid="static"]')!;
+	p.textContent = 'changed by the page';
+	const elsewhere = document.createElement('section');
+	document.body.append(elsewhere);
+	elsewhere.append(live);
+	await new Promise((r) => setTimeout(r, 300));
+	expect(live.querySelector('[data-testid="static"]')?.textContent).toBe('changed by the page');
+});
+
 test('an interactive region that turns static disposes its island', async () => {
 	const live = live_region();
 	await live.applyLive({
