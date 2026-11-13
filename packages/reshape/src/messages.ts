@@ -31,6 +31,31 @@ export const RESHAPE_ERRORS = {
 			vite.config.
 		`
 	},
+	reshape_pass_failed: {
+		text: (a: { kind: string; error: string }): string =>
+			`the reshape transform threw on a ${a.kind}: ${a.error}`,
+		details: (): string => prose`
+			The function given to \`reshape.handle()\` threw while it rendered a document or a region
+			answer. In production that answer goes out as ogygia rendered it, before the transform,
+			and this is said once for it; in dev it is thrown, so a broken transform shows at once.
+
+			Make the transform catch what its renderer throws and answer the HTML it was given.
+		`
+	},
+	reshape_marks_lost: {
+		text: (a: { kind: string; lost: number }): string =>
+			`the reshape transform dropped ogygia's marks from ${a.lost} host(s) it restores, in a ${a.kind}.`,
+		details: (): string => prose`
+			ogygia marks each custom element it will restore (\`og-h\`) before the transform, and puts
+			Svelte's markup back in the browser before anything hydrates. A transform that drops those
+			attributes (a serializer that keeps only known attributes, a sanitizer) leaves nothing to
+			restore by: Svelte would hydrate the transform's markup, mismatch and mount the region
+			again. In production that answer goes out as ogygia rendered it, before the transform, and
+			this is said once for it; in dev it is thrown.
+
+			Carry every \`og-*\` attribute and comment along wherever the transform moves a node.
+		`
+	},
 	restore_markup_broken: {
 		text: (a: { diff: string }): string => `the transform broke hydration markup: ${a.diff}`,
 		details: (): string => prose`
@@ -43,30 +68,6 @@ export const RESHAPE_ERRORS = {
 
 /** The warnings: `warn(code, args, ...rest)`. */
 export const RESHAPE_WARNINGS = {
-	reshape_pass_failed: {
-		text: (a: { kind: string }): string => `the reshape transform threw on a ${a.kind}.`,
-		details: (): string => prose`
-			The function given to \`reshape.handle()\` threw while it rendered a document or a region
-			answer. The error is passed on as before (Kit answers its error page for a document; a
-			region answer fails and the runtime retries it or keeps its fallback). The error itself is
-			logged after this line.
-
-			Make the transform catch what its renderer throws and answer the HTML it was given.
-		`
-	},
-	reshape_marks_lost: {
-		text: (a: { kind: string; lost: number }): string =>
-			`the reshape transform dropped ogygia's marks from ${a.lost} host(s) it restores, in a ${a.kind}: their markup is left as the transform wrote it, so hydration meets it.`,
-		details: (): string => prose`
-			ogygia marks each custom element it will restore (\`og-h\`) before the transform, and puts
-			Svelte's markup back in the browser before anything hydrates. A transform that drops those
-			attributes (a serializer that keeps only known attributes, a sanitizer) leaves nothing to
-			restore by: Svelte then hydrates the transform's markup, mismatches and mounts the region
-			again.
-
-			Carry every \`og-*\` attribute and comment along wherever the transform moves a node.
-		`
-	},
 	restore_late: {
 		text: (a: { host: string }): string =>
 			`<${a.host}> was upgraded before the restore reached it; its own root is kept and the server's copy of its render dropped.`,

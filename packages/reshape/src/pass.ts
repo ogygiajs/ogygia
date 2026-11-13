@@ -18,30 +18,48 @@ import {
 } from './reversible.ts';
 import { restore, restore_adopt } from './restore.ts';
 import type { ReshapeTransform } from './requests.ts';
-import { warn } from './messages.ts';
+import { OgygiaError } from './messages.ts';
 
-/** The app's transform, run: a throw is said (`reshape_pass_failed`) and passed on as before. */
-async function run_transform(
-	transform: ReshapeTransform,
-	html: string,
-	ctx: Parameters<ReshapeTransform>[1]
-): Promise<string> {
-	try {
-		return await transform(html, ctx);
-	} catch (error) {
-		warn('reshape_pass_failed', { kind: ctx.kind }, error);
-		throw error;
-	}
-}
-
-/** Says (`reshape_marks_lost`) when the transform's `out` carries no `og-h` of a host ogygia marked
- *  for restoring: nothing is left to restore it by. */
-function say_marks_lost(out: string, record: MarkRecord, kind: TransformKind): void {
+/** How many hosts ogygia marked for restoring (`og-h`) the transform's `out` no longer carries:
+ *  nothing is left to restore them by. */
+function marks_lost(out: string, record: MarkRecord): number {
 	const kept = new Set<number>();
 	for (const m of out.matchAll(/\sog-h=["']?(\d+)/g)) kept.add(Number(m[1]));
 	let lost = 0;
 	for (const [k, h] of record.hosts) if (h.planned && !kept.has(k)) lost++;
-	if (lost > 0) warn('reshape_marks_lost', { kind, lost });
+	return lost;
+}
+
+/**
+ * The app's transform on one answer: its output, or null when it failed, so the answer goes out as
+ * ogygia rendered it. A failure is a transform that threw (`reshape_pass_failed`) or that dropped
+ * the marks of a host ogygia restores (`reshape_marks_lost`): thrown in dev, said once in
+ * production.
+ */
+async function transformed(
+	transform: ReshapeTransform,
+	html: string,
+	ctx: Parameters<ReshapeTransform>[1],
+	record: MarkRecord | null,
+	in_dev: boolean
+): Promise<string | null> {
+	const kind: TransformKind = ctx.kind;
+	let out: string;
+	try {
+		out = await transform(html, ctx);
+	} catch (thrown) {
+		const message = thrown instanceof Error ? thrown.message : String(thrown);
+		const error = new OgygiaError('reshape_pass_failed', { kind, error: message });
+		if (in_dev) throw error;
+		console.error(error, thrown);
+		return null;
+	}
+	const lost = record ? marks_lost(out, record) : 0;
+	if (lost === 0) return out;
+	const error = new OgygiaError('reshape_marks_lost', { kind, lost });
+	if (in_dev) throw error;
+	console.error(error);
+	return null;
 }
 
 /** @internal The restorer, inline (./restore.ts — self-contained, so its source runs as is): restores
@@ -49,7 +67,12 @@ function say_marks_lost(out: string, record: MarkRecord, kind: TransformKind): v
  *  swaps. Its text closed-safe like every inline code ogygia writes (test/restorer-inline-safe.test.ts). */
 export const RESTORER_SCRIPT: string = `<script ${OG_RESTORE}>${closeSafe(`(function(){var r=${restore.toString()};window.__og_restore=r;window.__og_restore_adopt=${restore_adopt.toString()};r(document)})()`)}</script>`;
 
-export function reshape_pass(transform: ReshapeTransform, event: RequestEvent): HtmlPass {
+export function reshape_pass(
+	transform: ReshapeTransform,
+	event: RequestEvent,
+	opts: { dev?: boolean } = {}
+): HtmlPass {
+	const in_dev = opts.dev ?? dev;
 	return {
 		/**
 		 * A DOCUMENT: marked, handed to the transform, settled. The head gets the transform's
@@ -62,13 +85,15 @@ export function reshape_pass(transform: ReshapeTransform, event: RequestEvent): 
 			// rendered: it is an ANSWER, every host planned (./reversible.ts `plan_hosts`) — the router
 			// restores it before the swap, so live and incoming hosts meet in one form.
 			const marked = mark(html, 'document', csr, answer);
-			const out = await run_transform(transform, marked ? marked.html : html, {
-				kind: 'document',
-				csr,
-				event
-			});
-			if (marked) say_marks_lost(out, marked.record, 'document');
-			const s = marked ? settle(out, marked.record, { dev }) : null;
+			const out = await transformed(
+				transform,
+				marked ? marked.html : html,
+				{ kind: 'document', csr, event },
+				marked ? marked.record : null,
+				in_dev
+			);
+			if (out === null) return { html, head: '', body: '' };
+			const s = marked ? settle(out, marked.record, { dev: in_dev }) : null;
 			// A page loaded as one keeps hosts in the transform's first-load form: if this copy ever
 			// reaches the router (a store, a prerender, a cache), it loads it instead of swapping it in
 			let first_load = false;
@@ -87,14 +112,16 @@ export function reshape_pass(transform: ReshapeTransform, event: RequestEvent): 
 		 *  hoists its `data-og-head` assets), so no stand-in sheet is needed. */
 		async region(html) {
 			const marked = mark(html, 'region', false);
-			const out = await run_transform(transform, marked ? marked.html : html, {
-				kind: 'region',
-				csr: false,
-				event
-			});
+			const out = await transformed(
+				transform,
+				marked ? marked.html : html,
+				{ kind: 'region', csr: false, event },
+				marked ? marked.record : null,
+				in_dev
+			);
+			if (out === null) return html;
 			if (!marked) return out;
-			say_marks_lost(out, marked.record, 'region');
-			const s = settle(out, marked.record, { dev });
+			const s = settle(out, marked.record, { dev: in_dev });
 			return s.check ? s.html + check_script(s.check) : s.html;
 		}
 	};
