@@ -187,6 +187,31 @@ test('a boot-shaped script naming a file on another origin is never imported: ma
 	await expect(wait).resolves.toBeUndefined();
 });
 
+test('only a script that runs and assigns Kit’s global is read as Kit’s boot: a data script or another script is not', async () => {
+	document.body.innerHTML = [
+		'<script type="application/json">__sveltekit_lab = {};\nimport("/__og_missing__/data/start.js")</script>',
+		'<script>window.other = 1;\nimport("/__og_missing__/other/start.js").then(() => {});</script>'
+	].join('');
+	const wait = kit_page_thread();
+	expect(wait, 'Kit has not started → a real wait').not.toBeNull();
+	let failed: unknown = null;
+	void wait!.then(undefined, (e: unknown) => (failed = e));
+	await new Promise((r) => setTimeout(r, 500));
+	expect(failed, 'neither file was imported, so nothing failed').toBeNull();
+	publish_kit_page({ searchBarMarkup: '' });
+	await expect(wait).resolves.toBeUndefined();
+});
+
+test('once Kit publishes its page, the global is a plain value again: Kit can assign it anew', async () => {
+	const wait = kit_page_thread();
+	expect(wait).not.toBeNull();
+	publish_kit_page({ searchBarMarkup: '' });
+	await expect(wait).resolves.toBeUndefined();
+	const d = Object.getOwnPropertyDescriptor(globalThis, Symbol.for('ogygia.kit-page'));
+	expect(d && 'value' in d).toBe(true);
+	expect(d?.get).toBeUndefined();
+});
+
 test('with the thread already published at wake there is no hold: the island hydrates straight away', async () => {
 	publish_kit_page({ searchBarMarkup: '<i data-testid="search">search</i>' });
 	document.body.innerHTML = `<script>__sveltekit_lab = {};\x3C/script><div data-mount>${inject_html('lake_page_reader_ssr_b64')}</div>`;
