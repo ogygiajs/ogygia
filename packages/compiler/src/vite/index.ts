@@ -436,31 +436,18 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 	};
 
 	return [
-		// the plugins' `source` stage: on the module as written, before the region transform below
 		stage_host('source'),
-		// dev: the plugins' definer calls marked with their module's run (./definers.ts); a
-		// normal-order transform, so its place here among the pre-enforced ones does not matter
 		definers_plugin(() => definers),
 		{
 			name: 'ogygia',
 			enforce: 'pre',
 
-			// `order: 'pre'` so it runs before `sveltekit()`'s config hook, which discovers routes
-			// (and computes `skip_client_build`). The injected keep-client route must be on disk first.
 			config: {
 				order: 'pre',
 				async handler(userConfig, env) {
 					configured(session);
-					// Kit's `files.routes` / `outDir` from the app's Kit config — resolved BEFORE anything
-					// below walks the routes tree or picks an output path (compiler/kit.ts `kit_dirs`). An
-					// app building a second route tree from one source configures both. Read off Kit's own
-					// plugin (Kit 3 takes its config in vite.config only), else the svelte.config.js file.
 					await load_kit_dirs(path.resolve(userConfig.root ?? '.'), userConfig.plugins);
 
-					// PLUGINS: the realms they name, and their `build` hooks — here, where the root and
-					// the mode exist and before the defines below, which read what they asked for. (`b.markup()`
-					// hands back the island transform of the instance Vite configures: Kit evaluates the Vite
-					// config more than once.)
 					app_plugins = standalone ? [] : await find_plugins(userConfig.plugins);
 					const resolved = resolve_plugins(
 						app_plugins,
@@ -499,13 +486,9 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 							});
 						}
 
-					// Keep Kit's client build alive on all-csr=false apps: inject a URL-less keepalive
-					// route BEFORE Kit reads the routes. Main build thread only; removed at process exit.
 					if (env.command === 'build' && !standalone && isMainThread) {
 						const r = path.resolve(userConfig.root ?? '.');
 						const routes = kit_dirs(r).routes_dir;
-						// `clientBuildWillSkip` ignores our own keepalive dir, so it reflects the user's
-						// real routes: inject only when Kit really would skip, else sweep any stale dir.
 						if (clientBuildWillSkip(route_reader(node_fs), routes)) {
 							inject_keep_client_route(r);
 							arm_keep_client_cleanup(r);
@@ -514,93 +497,31 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 						}
 					}
 
-					// Dependencies that DECLARED an ogygia compile surface (`"ogygia": { "files": […] }`
-					// in their own package.json) — only declared packages, only their declared paths,
-					// never a blind node_modules walk. Discovered here (root known), consumed by the
-					// prescan + transform gates via CompileCtx.pkg_scan. Guarded against double-push:
-					// Kit invokes plugin config more than once per process in some flows.
 					if (!standalone && !declared_scanned) {
 						declared_scanned = true;
 						for (const p of discover_package_files(path.resolve(userConfig.root ?? '.')))
 							if (!pkg_scan.some((s) => s.name === p.name)) pkg_scan.push(p);
 					}
-					// Plugin packages are ogygia's own code to the app: SSR-inlined (they ship `.svelte`, and
-					// read core's per-request state) and never pre-bundled (one core in the dev browser).
 					const declared_pkg_names = [
 						...new Set([...pkg_scan.map((p) => p.name), ...app_plugins.map((p) => p.name)])
 					];
 
-					// Match Kit: SSR-inline `esm-env` so its development/production export conditions
-					// resolve per mode (used if anything in our server graph imports it). Do NOT
-					// optimizeDeps.exclude it — that breaks Svelte client prebundles that import DEV.
-					//
-					// SSR-inline OGYGIA ITSELF too. ogygia ships real `.svelte` components (Region,
-					// OgygiaBoundary, …) that the app's server build MUST compile — if ogygia is left
-					// EXTERNAL, Node loads a raw `.svelte` at server runtime and crashes with
-					// `ERR_UNKNOWN_FILE_EXTENSION`. vite-plugin-svelte normally auto-noExternals a svelte
-					// library (ogygia carries the `svelte` export condition), but that detection is fragile
-					// under some installs (adapter-node output, a pkg.pr.new URL dependency, an app that
-					// pins/overrides noExternal), so we force it here — the plugin is always present, so this
-					// can't be missed. `server.fs.allow`: kit-remote stubs / runtime resolve to absolute
-					// paths under this package; without it Vite 403s them when the app root is docs/ or playground/.
-					//
-					// Declared `ogygia.files` packages join both lists: SSR-external code never enters
-					// our compiler, and the dev prebundle would choke on `with { }` attributes (esbuild)
-					// before the transform ever saw them.
-					// DEV churn guard. Under `csr = false` Kit ships no client entry, so Vite's dep
-					// scanner finds nothing to crawl: island client deps are discovered LAZILY, one page
-					// render at a time, and each discovery re-optimizes and rotates the optimizer's
-					// browserHash. A tab loaded under the old hash then dynamic-imports island deps at a
-					// `?v=` that 404s and every island fails on wake (a "works for everyone but me"
-					// report after a `.vite` nuke). Pre-declaring the deps EVERY hydrated island imports
-					// forces one up-front optimize pass and removes the first-minutes cliff. Dev server
-					// only; a build has a real client graph. The app's own `include` is preserved by Vite
-					// (it merges plugin `include` arrays).
-					// …and what ogygia's own client code imports in dev: `svelte/server` (a region snippet's
-					// static capture — a build drops it, the dev server serves it) and, with devtools on, the
-					// dock's drag and resize. Found late, each one re-optimized and RELOADED the page — a
-					// dock opened in that moment closed again (the devtools suite's cold-start timeouts).
-					// (ogygia's own dependencies — devalue, the dock's — are named through it, `ogygia > …`, the
-					// way Vite includes a dependency of an excluded package: under a strict install the app
-					// cannot resolve them by bare name, and Vite skipped devalue with a warning)
 					const dev_island_deps =
 						env.command === 'serve'
 							? [
 									'svelte',
 									'svelte/internal/client',
 									'svelte/server',
-									// (core's dependency, not the app's: under pnpm the app root can't resolve it bare;
-									// the app installs `ogygia`, which depends on `@ogygia/core`)
 									'ogygia > @ogygia/core > devalue'
-									// (a plugin's own client dependencies, named through it — `@ogygia/devtools >
-									// @neodrag/svelte` — come from its `vite` plugins' `optimizeDeps.include`)
 								]
 							: [];
-					// ONE OGYGIA IN THE DEV BROWSER: ogygia itself is never pre-bundled. An installed
-					// ogygia (not a workspace link) would be: the boot's `ogygia/runtime` went into
-					// `.vite/deps` while everything the compiler writes — the island modules and their
-					// `ogygia/internal`, `ogygia:boot/hydrate-features` — imports ogygia's files by
-					// path, so the page ran two copies of its stateful modules (slots, the devtools bus,
-					// the island graph). The wire installed into one `slots` and the hydrate core read the
-					// other: every island with a snippet prop failed ("wired prop but no wire feature").
-					// A linked ogygia (this repo, every test) is never pre-bundled; excluding it makes an
-					// installed one the same single graph. Its own dependencies (svelte, devalue) are
-					// still pre-bundled, once, shared with the app.
 					return {
-						// ONE KIT: ogygia reads Kit's request store (`@sveltejs/kit/internal/server`) — the
-						// request a render belongs to (its devtools events, the postrender verdict's reads, the
-						// page seed). A second Kit resolved from ogygia's own location has its own, empty store:
-						// a workspace-linked ogygia whose peer resolved another Kit than the app's lost every
-						// one of those, silently. Kit always resolves from the app.
 						resolve: { dedupe: ['@sveltejs/kit'] },
 						ssr: { noExternal: ['esm-env', ...OWN_PACKAGE_NAMES, ...declared_pkg_names] },
 						optimizeDeps: {
 							exclude: [...OWN_PACKAGE_NAMES, ...declared_pkg_names],
 							include: dev_island_deps
 						},
-						// CONTINUITY config → compile-time constants the client runtime reads (typeof-guarded,
-						// so a plain node import of dist/ without these defined falls back to defaults).
-						// the switches (compiler/virtual/core.ts: the table's constants)
 						define: core_defines({
 							continuity_forms,
 							server_delta,
@@ -618,8 +539,6 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 								allow: [CORE_ROOT]
 							}
 						},
-						// Island emitFile entries re-export shared components; keep facade exports
-						// under Vite 8 / Rolldown (build.rolldownOptions — not deprecated rollupOptions).
 						build: {
 							rolldownOptions: {
 								preserveEntrySignatures: 'exports-only'
@@ -633,9 +552,6 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 				root = config.root;
 				base = config.base || '';
 				svelte_async = svelte_async_enabled(config.plugins);
-				// ogygia keeps itself out of the dep optimizer (one copy in the dev browser, see the
-				// `config` hook); an app that lists part of it in its own `include` brings the second
-				// copy back — say so, once, instead of a hydration error far from the cause
 				if (config.command === 'serve') {
 					const own = (config.optimizeDeps?.include ?? []).filter((d) => is_own_specifier(d));
 					if (own.length)
@@ -646,12 +562,6 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 							})
 						);
 				}
-				// SvelteKit exposes appDir via a build-time `define` (its `config` hook runs before any
-				// `configResolved`, so it's present whatever the plugin order). We read it so our runtime +
-				// island chunks are emitted AND referenced under the user's real appDir — a hardcoded `_app`
-				// 404s under a custom appDir. `base` / `paths.assets` are NOT read here: `Region.svelte`
-				// runs every baked URL through Kit's `asset()`, the sole base/assets/relative authority.
-				// Missing (no sveltekit()) → the standalone `_app` default.
 				const app_dir_define = (config.define as Record<string, unknown> | undefined)?.[
 					'__SVELTEKIT_APP_DIR__'
 				];
@@ -663,7 +573,6 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 						// ok: a define that is not JSON keeps the `_app` default
 					}
 				}
-				// Normalize resolve.alias (array or object form) to `{ find, replacement }[]`.
 				const ra = config.resolve?.alias ?? [];
 				resolve_alias = Array.isArray(ra)
 					? ra.map((a) => ({ find: a.find, replacement: a.replacement }))
@@ -671,20 +580,14 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 							find,
 							replacement: replacement as string
 						}));
-				// The shared build cache (fences, git checkouts, shas) persists under THIS app's
-				// node_modules/.ogygia — point it before anything derives.
 				configure_build_cache(root);
 				libDir = path.join(root, 'src', 'lib');
 				is_dev = config.command === 'serve';
 				is_build = config.command === 'build';
 				is_ssr = !!config.build?.ssr;
 
-				// Self-heal a keep-client route left behind by a crashed build (harmless — no URL — but
-				// noisy in the routes tree). Dev never injects, so anything here is a stale leftover.
 				if (is_dev) fs.rmSync(keep_client_dir(root), { recursive: true, force: true });
 
-				// Optional stable override. Vite only puts `VITE_*` from `.env` onto import.meta.env —
-				// load plain `OGYGIA_SECRET` ourselves so `.env` / `.env.local` work without a shell export.
 				if (!process.env.OGYGIA_SECRET?.trim()) {
 					const env_dir =
 						config.envDir === false
@@ -699,7 +602,6 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 				}
 				const env_secret = process.env.OGYGIA_SECRET?.trim() || '';
 				if (env_secret) {
-					// Production builds: reject weak user secrets (L-HMAC). Dev may use short keys.
 					if (is_build && !secret_has_min_entropy(env_secret)) {
 						throw new OgygiaError('secret_too_short', { min_bytes: MIN_SECRET_BYTES });
 					}
@@ -708,14 +610,9 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 					id_salt = '';
 				}
 
-				// Kit's internal wire-protocol + client remote-functions modules (deep-imported) and the
-				// app's universal hooks — resolved off the app root (see resolve_kit_paths).
 				({ kit_wire_path, kit_remote_index, universal_hooks, client_hooks, kit_transport_init } =
 					resolve_kit_paths(root));
 
-				// The driver, made with its resolved compile context — now that root/base/libDir/dev +
-				// id_salt are known. Every hook that calls it runs after this (session.ts refuses one that
-				// does not).
 				const compiler = resolve(session, (prev) => {
 					const ctx = new CompileCtx({
 						root,
@@ -740,7 +637,6 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 						macros,
 						prescans,
 						plugins: listed_plugins,
-						// (the id prefix, not the native path: every consumer `startsWith`s a module id)
 						pkg_root: CORE_ROOT_ID,
 						build_secret,
 						rate_limit,
@@ -758,8 +654,6 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 						is_build,
 						devtools: devtools_effective
 					});
-					// (a plugin shared across a builder's environments: this environment's context, the
-					// build the last one began)
 					return prev
 						? prev.with_ctx(ctx)
 						: new Compiler(
@@ -769,24 +663,8 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 							);
 				});
 
-				// DEV: hand Vite's dep scanner every island as a crawl ROOT. Under `csr = false` Kit ships
-				// no client entry and registers only `routes/**/+*` as scan entries, so an island reached
-				// through a block registry / a regions() glob / a `.remote.ts` mint is never crawled — its
-				// client deps are discovered LAZILY on first wake, each discovery re-optimizing, rotating
-				// the browserHash and full-reloading (a reload storm on a large app). Appending the island
-				// component + host FILES to `optimizeDeps.entries` lets Vite's OWN scanner crawl them at
-				// startup through the full plugin pipeline (every plugin's resolveId, linked packages
-				// followed as source, the app's `exclude` honoured) — see Compiler.island_scan_entries for
-				// why this is entries and never a self-computed `include`. Vite globs `entries` with
-				// `absolute: true`, so an absolute path outside the app root (a monorepo package) works —
-				// but as a glob PATTERN, so a route group like `(catalog)` or a `[slug]` dir must be escaped.
-				// Vite reads `entries` only when the optimizer starts (after every configResolved), so
-				// pushing into the resolved config here is honoured. `prescan()` is once-per-session, so
-				// running it now just moves buildStart's call earlier. Dev server only.
 				if (is_dev) {
 					compiler.prescan();
-					// Vite's resolved config always carries `optimizeDeps`; a hand-built config (the resolve
-					// unit tests) may not.
 					const opt = ((config as { optimizeDeps?: object }).optimizeDeps ??= {}) as {
 						entries?: string | string[];
 					};
@@ -798,8 +676,6 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 					opt.entries = entries;
 					const have = new Set(entries);
 					for (const abs of compiler.island_scan_entries()) {
-						// a plugin's own pages (`b.files()`: the profiler UI) render from its handle only — never
-						// crawled as app entries
 						const posix = real_posix(abs);
 						const pattern = plugin_file_roots.some((r) => posix.startsWith(r))
 							? null
@@ -814,10 +690,6 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 
 			async buildStart() {
 				const compiler = compiler_of(session, 'buildStart');
-				// SERVER leg of a build: a stale handoff from an earlier build must never gate THIS
-				// build's client leg — remove it here, where the leg is certain (the environment), not in
-				// configResolved, which the client environment runs again AFTER the server leg wrote it.
-				// (no environment: the build's own flag, one build per leg)
 				const env = env_of(this) ?? { name: is_ssr ? 'ssr' : 'client', server: is_ssr };
 				const begins = compiler.start_leg(env.name, env.server);
 				const leg = compiler.leg(env);
@@ -831,43 +703,16 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 				// server (baking the `<script src>`) and the client (emitting this chunk) compute the
 				// SAME name independently and agree. (Standalone mode further overrides with the real
 				// output-chunk hash below.)
-				// Discover islands up front — in BOTH the SSR and client legs. The client build needs them
-				// to emit chunks; the SSR build needs them for the server manifest. Kit builds SSR FIRST,
-				// so if we only scanned in the client leg the SSR manifest would miss `.svx`/`.md` SERVER
-				// islands (defer / deferred regions) and their signed endpoint would 403. `prescan` reads
-				// `.svelte`/`.ts`; each markup source's `scan` (`b.markup()`: content's markdown)
-				// contributes islands from markdown, which becomes Svelte only after that preprocessor.
-				// Discover content (`.svx`/`.md`) islands up front in DEV too, not only build. A server
-				// (`render: deferred`) island in a content file is registered lazily when its page SSRs —
-				// but its signed endpoint is a SEPARATE request that imports the server manifest, and if
-				// the island hasn't registered yet the manifest lacks its id → 403 (NOT_IN_MANIFEST). That
-				// made content deferred holes flaky in dev (they worked only when the page-SSR registration
-				// happened to win the race). A markup `scan` walks the markdown corpus and registers
-				// every island before the first request, so the manifest is complete when any endpoint is
-				// hit. Once per build: the leg that begins one (a second build in one process, watch,
-				// scans again); a no-op for apps without a content preprocessor.
 				if (begins) {
 					compiler.prescan();
 					for (const source of markup) await source.scan?.({ root, readFile });
 				}
 
 				if (is_build && !server_leg) {
-					// Pure csr=true app (no csr=false route anywhere) → Kit hydrates everything itself, ogygia
-					// ships nothing. Skip the runtime chunk entirely; every host's islands were stripped to
-					// plain by the csrTrue transform branch, so nothing references it anyway.
-					// `hasAnyCsrFalseRoute` only sees Kit PAGE leaves, so a PURE-ROUTER app (all pages
-					// router-rendered, zero `+page` files — the fragment-only MFE service shape) reads as
-					// "no csr=false route" while its documents reference the runtime; the compiler's own
-					// island registry is the second, page-independent signal (found by the MFE POC: the
-					// cms app shipped documents pointing at a runtime chunk that was never emitted).
 					const emit_runtime =
 						!standalone &&
 						(hasAnyCsrFalseRoute(compiler.ctx.routes, kit_dirs(root).routes_dir) ||
 							compiler.has_hydrate_regions());
-					// The runtime entry (feature-selected) + one deterministic chunk per deduped hydrate
-					// region — the driver owns the naming + dedup; `this.emitFile` is the injected primitive.
-					// Gated on the SERVER leg's real module graph (link/emit-gate.ts): an island whose host
-					// the server bundle never loaded gets no chunk. No handoff → every prescanned island.
 					const handoff = read_server_handoff(kit_dirs(root).out_dir);
 					const loaded = handoff?.hosts ?? null;
 					// The holes whose styles this leg builds: the server leg's final list when it handed
@@ -992,17 +837,9 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 				if (!is_dev) return;
 				vite_server = server;
 
-				// Server-router CSS: the dev `ogygia:server/router-css` INLINES compiled css at emit
-				// time, so any style-bearing source change must invalidate it — the next SSR re-emits
-				// with fresh css. Cheap (module-graph lookup), so no root-membership check.
 				if (STYLE_BEARING_FILE_RE.test(file))
 					for (const mid of compiler.changed('styles')) invalidate_module_id(server, mid);
 
-				// SCOPED soft CSS HMR. App css joins the browser graph LAZILY (see dev_hmr_client_source):
-				//  - already joined on a client → fall through to Vite's normal CSS update (soft);
-				//  - not joined anywhere → suppress Vite's no-boundary full reload and broadcast a scoped
-				//    join event instead; each open page joins ONLY css its own route scope imports, so the
-				//    `(docs)` and `playground` sub-apps can never paint each other in dev.
 				if (DEV_CSS_FILE_RE.test(file) && !file.includes('/node_modules/')) {
 					const src_prefix = `${path.join(root, 'src')}${path.sep}`;
 					if (path.normalize(file).startsWith(src_prefix)) {
@@ -1033,7 +870,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 							});
 							return [];
 						}
-						return; // client owns the module — Vite's own soft update handles it
+						return;
 					}
 				}
 
@@ -1057,16 +894,8 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 			},
 
 			async resolveId(source, importer) {
-				// ogygia's OWN injected imports (`ogygia/internal` / `…/server`, written by the transform into
-				// a host or a generated island module) resolve to ogygia's own files DIRECTLY (see
-				// OGYGIA_INJECTED_FILES) — never via `this.resolve` (unreliable off a synthetic importer, can
-				// throw in rolldown-vite) or `config.root` (can be undefined on a throwaway plugin instance).
-				// Deterministic, can't throw, can't be left unresolved, works from any sub-package with no
-				// ogygia dependency of its own.
 				if (OGYGIA_INJECTED_IMPORTS.has(source)) return OGYGIA_INJECTED_FILES[source];
 
-				// Region's twin imports are the awaiting ones where the app runs Svelte's async mode
-				// (late-island.ts): a late island in one swap, a promise `of` awaited in the render
 				if (svelte_async) {
 					const awaiting = async_twin_redirect(source, importer, OGYGIA_REGION_MODULES);
 					if (awaiting) return awaiting;
