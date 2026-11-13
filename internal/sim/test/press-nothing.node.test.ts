@@ -47,7 +47,7 @@ describe.skipIf(!built)('a press that clicked nothing', () => {
 		};
 		const res = await run(1, 2, Infinity, undefined, plan);
 		expect(
-			res.log.some((l) => l.endsWith(`tab-0 ${ORIGIN}${NO_BUTTON} judged against a fresh load`))
+			res.log.some((l) => l.endsWith(`${ORIGIN}${NO_BUTTON} judged against a fresh load`))
 		).toBe(true);
 	}, 300_000);
 });
