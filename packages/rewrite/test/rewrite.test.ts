@@ -168,6 +168,26 @@ describe('element rewrites: the restore', () => {
 		expect(after.html).toBe(`">y</p>${RESTORER_SCRIPT}`);
 	});
 
+	for (const at of ['<ogygia-region entry', '<ogygia-region', '<'])
+		it(`a region whose start tag is cut by a chunk boundary (after "${at}") still owns its elements (found by the rewrite sim)`, async () => {
+			const seen: RewriteElement[][] = [];
+			const { chunk } = chunked([scoped(seen)]);
+			const shell = doc('').replace('</body></html>', '');
+			const page = `${shell}${island('<demo-card>a</demo-card>')}</body></html>`;
+			const cut = shell.length + at.length;
+			await chunk(page.slice(0, cut), { done: false });
+			await chunk(page.slice(cut));
+			expect(seen.flat().map((e) => e.restored)).toEqual([true]);
+		});
+
+	it('a chunk-1 meta or sheet never lands inside an island: the first-load mark goes before the element it is for (found by the rewrite sim)', async () => {
+		const { chunk } = chunked([scoped()]);
+		await chunk(doc('').replace('</body></html>', ''), { done: false });
+		const out = await chunk(`${island('<demo-card>a</demo-card>')}<div><demo-card>b</demo-card></div>`);
+		const meta = out.html.indexOf('ogygia-first-load');
+		expect(meta).toBeGreaterThan(out.html.indexOf('</ogygia-region>'));
+	});
+
 	it('the last chunk carries a restore still waiting, wherever it ends', async () => {
 		const { chunk } = chunked([scoped()]);
 		await chunk(doc('<p>x</p>').replace('</body></html>', ''), { done: false });
