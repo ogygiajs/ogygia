@@ -426,6 +426,20 @@ describe('lift_document — an app’s full HTML → the wire shape', () => {
 		expect(d.body).toContain('entry="http://cms.test/_app/immutable/i.js"');
 	});
 
+	it("carries none of ogygia's own per-document metas: the peer's router, CSR and dev scope stay the peer's (#1749)", () => {
+		const d = lift_document(
+			`<html><head>
+			<meta name="description" content="hi">
+			<meta name="ogygia-router" content="vt">
+			<meta name="OGYGIA-CSR" content="false">
+			<meta name="ogygia-dev-scope" content="(cms)">
+		</head><body></body></html>`,
+			'http://cms.test'
+		);
+		expect(d.head).toContain('name="description"');
+		expect(d.head?.toLowerCase()).not.toContain('ogygia-');
+	});
+
 	it('any title and redirect target round-trip: lifted plain, escaped once, never markup', () => {
 		const nasty = fc.string({
 			unit: fc.constantFrom('"', "'", '<', '>', '&', '=', ' ', '/', 'a', ';', '#'),

@@ -965,6 +965,14 @@
 			"reason": "the same timer task's promise, constant work"
 		},
 		{
+			"id": "packages/config/src/sim.ts > sim_params",
+			"reason": "the simulation harness: reads two knobs once per property, constant work; proven in packages/core/test/property-seeded.test.ts"
+		},
+		{
+			"id": "packages/config/src/vitest.ts > sim_define",
+			"reason": "test config: picks four knobs from the environment when a vitest config loads, constant work; proven in packages/core/test/property-seeded.test.ts"
+		},
+		{
 			"id": "packages/config/src/vitest.ts > browser_runs",
 			"reason": "test config: picks the browser projects' provider when a vitest config loads (before any test or bench), constant work; every browser job runs it"
 		},
