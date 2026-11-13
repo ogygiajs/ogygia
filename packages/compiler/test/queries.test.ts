@@ -258,15 +258,17 @@ describe('queries', () => {
 		expect(db.answers_changed_since(0)).toBe(false);
 	});
 
-	test('past the bound, the answer used longest ago goes first: a set and a read in a later revision are uses', () => {
+	test('past the bound, the answer used longest ago goes first: a read in a later revision is a use; inputs stay', () => {
 		const w = world();
 		const db = queries('test', 3);
-		for (const k of ['a', 'b', 'c']) db.get(w.cell, k);
-		db.set(w.cell, 'a', 1);
-		db.get(w.cell, 'd');
-		db.get(w.cell, 'c');
-		db.get(w.cell, 'e');
-		expect(['a', 'b', 'c', 'd', 'e'].map((k) => db.holds(w.cell, k))).toEqual([
+		for (const k of ['a', 'b', 'c']) db.get(w.parity, k);
+		db.set(w.cell, 'z', 1);
+		db.get(w.parity, 'a');
+		db.get(w.parity, 'd');
+		db.get(w.parity, 'c');
+		db.get(w.parity, 'e');
+		expect(['a', 'b', 'c', 'd', 'e', 'z'].every((k) => db.holds(w.cell, k))).toBe(true);
+		expect(['a', 'b', 'c', 'd', 'e'].map((k) => db.holds(w.parity, k))).toEqual([
 			false,
 			false,
 			true,
@@ -312,14 +314,16 @@ describe('queries', () => {
 	test('a reader of an answer the bound let go runs again, and answers right', () => {
 		const w = world();
 		const db = queries('test', 3);
-		db.get(w.cell, 'a');
+		db.get(w.parity, 'a');
 		expect(db.get(w.label, 'a')).toBe('even');
-		db.get(w.cell, 'x');
-		expect(db.holds(w.cell, 'a')).toBe(false);
+		db.get(w.parity, 'x');
+		db.get(w.parity, 'y');
+		expect(db.holds(w.parity, 'a')).toBe(false);
+		expect(db.holds(w.label, 'a')).toBe(true);
 		db.set(w.cell, 'x', 1);
 		expect(db.get(w.label, 'a')).toBe('even');
 		expect(w.runs.get('parity a')).toBe(2);
-		expect(w.runs.get('label a')).toBe(1);
+		expect(w.runs.get('label a')).toBe(2);
 	});
 
 	test('same: structure, Maps and Sets in order', () => {
