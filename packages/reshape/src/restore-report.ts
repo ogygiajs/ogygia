@@ -10,6 +10,8 @@ import type { PageGlobals } from '@ogygia/core/plugin/client';
 let reported = 0;
 /** The element names a late restore was said for on this page (once each, the latest 1024). */
 const late_said = say();
+/** The `og-shadow` keys a missing sheet was said for on this page (once each, the latest 1024). */
+const sheet_said = say();
 
 function report(): void {
 	const log = (window as PageGlobals).__og_restore_log;
@@ -18,7 +20,14 @@ function report(): void {
 	if (reported > log.length) reported = 0;
 	const fresh = log.slice(reported);
 	reported = log.length;
-	if (!fresh.some((e) => (e.kind === 'mismatch' && e.diff) || (e.kind === 'late' && e.host)))
+	if (
+		!fresh.some(
+			(e) =>
+				(e.kind === 'mismatch' && e.diff) ||
+				(e.kind === 'late' && e.host) ||
+				(e.kind === 'sheet' && e.key)
+		)
+	)
 		return;
 	const say_them = ({ OgygiaError, warn }: typeof import('./messages.ts')) => {
 		for (const entry of fresh) {
@@ -28,6 +37,9 @@ function report(): void {
 			else if (entry.kind === 'late' && entry.host) {
 				const host = entry.host;
 				late_said.once(host, () => warn('restore_late', { host }));
+			} else if (entry.kind === 'sheet' && entry.key) {
+				const { host, key } = entry;
+				sheet_said.once(key, () => warn('restore_sheet_missing', { host, key }));
 			}
 		}
 	};

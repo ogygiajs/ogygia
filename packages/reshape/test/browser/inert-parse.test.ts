@@ -178,6 +178,8 @@ test('a shadow sheet a host names but the page lacks is said once per key, with 
 	expect(lines.some((l) => l.includes('demo-missing.shadow'))).toBe(true);
 	expect(lines.some((l) => l.includes('demo-other.shadow'))).toBe(true);
 	said.mockRestore();
+	w.__og_restore_log = [];
+	report_restores();
 });
 
 test('production: a late restore is said once per page and host tag, with its code', async () => {
