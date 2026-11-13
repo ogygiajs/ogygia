@@ -639,6 +639,9 @@ export function islands_wake(tab: Tab, world: World): Broken | null {
 	const url = tab.page.mainFrame.url;
 	if (!url.startsWith('http') || world.skewed_for(tab.realm)) return null;
 	if (faulted(world, tab) && !outage_only(world, tab)) return null;
+	// (its document's files still coming is work in flight, not an island asleep: a stalled runtime
+	// chunk outlasted the action's quiesce; seed 97, test/hidden-tab.node.test.ts)
+	if (world.network.busy_for(tab.realm)) return null;
 	const doc = tab.page.mainFrame.document as unknown as Document;
 	// (an island inside one still waiting for the visitor or the screen waits with it, and one in a
 	// lake waits for the island around the lake, which a held region's baked markup never is: gen

@@ -84,7 +84,9 @@ describe('page_data_keys — scripts', () => {
 	});
 	it('an aliased import name', () => {
 		expect(
-			ts(`import { page as pg } from '$app/stores';\nexport const l = get(pg).data._locale;`)
+			ts(
+				`import { get } from 'svelte/store'; import { page as pg } from '$app/stores';\nexport const l = get(pg).data._locale;`
+			)
 		).toEqual(['_locale']);
 	});
 });
