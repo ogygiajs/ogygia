@@ -98,6 +98,7 @@ import { assert_no_legacy_options, validate_region_presets, resolve_options } fr
 import {
 	clientBuildWillSkip,
 	hasAnyCsrFalseRoute,
+	is_route_file,
 	clear_route_csr_cache,
 	keep_client_dir,
 	inject_keep_client_route,
@@ -139,10 +140,9 @@ import { follow_pending_page_calls } from '../compiler/link/page-keys.ts';
 import { unpatched } from '../compiler/link/relocations.ts';
 import { emit_island_deps_handoff, refuse_client_secrets } from '../compiler/link/build-output.ts';
 import {
-	ssr_hosts_handoff_path,
-	parse_server_handoff,
-	type ServerHandoff,
-	type ServerRegionRoot
+	server_handoff_path,
+	server_handoff_json,
+	read_server_handoff
 } from '../compiler/link/emit-gate.ts';
 import { router_css_key } from '../compiler/link/router-css.ts';
 import { Program, strip_id } from '../compiler/program.ts';
@@ -160,9 +160,6 @@ import { flags_manifest } from '../compiler/flags.ts';
 // when Kit's client boots and NEVER on a csr=false page — the append target for the kit-world page
 // thread (see the transform hook).
 const KIT_CLIENT_APP_RE = /\/generated\/(?:build\/|dev\/)?client(-optimized)?\/app\.js$/;
-// A route host (`+page`/`+layout.svelte`) or option file (`.js`/`.ts`, `.server` too): a dev change
-// to any of these can shift the csr topology OR a plugin's key inside `export const config`.
-const ROUTE_HOST_OR_OPTION_RE = /[\\/]\+(page|layout)(\.server)?\.(svelte|js|ts)$/;
 // Appended INLINE (no extra module): publishes Kit's REAL reactive `page`/`navigating` on the
 // well-known slot the island `$app/*` shims read through (`kit_bridge()` in shims/kit-bridge; the
 // `$page` shim builds its live store from this `page`). Importer is Kit's own entry — never
@@ -949,7 +946,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 				const leg = compiler.leg(env);
 				const server_leg = leg.server;
 				if (is_build && server_leg)
-					fs.rmSync(ssr_hosts_handoff_path(kit_dirs(root).out_dir), { force: true });
+					fs.rmSync(server_handoff_path(kit_dirs(root).out_dir), { force: true });
 				// CLIENT build (Kit-driven): emit the runtime chunk. Kit builds the SERVER bundle FIRST,
 				// then the client, so the server can't learn a hash the LATER client build produces — a
 				// forward handoff is impossible. Instead the filename is a deterministic SOURCE-content
@@ -993,17 +990,11 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 					// region — the driver owns the naming + dedup; `this.emitFile` is the injected primitive.
 					// Gated on the SERVER leg's real module graph (link/emit-gate.ts): an island whose host
 					// the server bundle never loaded gets no chunk. No handoff → every prescanned island.
-					let loaded: Set<string> | null = null;
+					const handoff = read_server_handoff(kit_dirs(root).out_dir);
+					const loaded = handoff?.hosts ?? null;
 					// The holes whose styles this leg builds: the server leg's final list when it handed
 					// one off (a host only it reached late included), else this program's own.
-					let server_regions: ServerRegionRoot[] | null = null;
-					try {
-						({ loaded, server_regions } = parse_server_handoff(
-							fs.readFileSync(ssr_hosts_handoff_path(kit_dirs(root).out_dir), 'utf8')
-						));
-					} catch {
-						// ok: no server-leg handoff (a standalone or client-only build)
-					}
+					const server_regions = handoff?.server_regions ?? null;
 					const skipped = compiler.emit_build_chunks(leg, (chunk) => this.emitFile(chunk), {
 						emitRuntime: emit_runtime,
 						loaded
@@ -1070,7 +1061,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 				// graph, so without invalidation the SERVER leg keeps deciding island-vs-inline from a
 				// STALE set while Kit flips immediately — `<ogygia-region>` shells on a Kit-booted page
 				// with the runtime withheld = dead chrome (hit at a consumer after toggling `csr`).
-				if (is_dev && ROUTE_HOST_OR_OPTION_RE.test(id)) {
+				if (is_dev && is_route_file(path.basename(id))) {
 					clear_route_csr_cache();
 					// (a plugin's key inside `export const config` add/flip changes the baked values too)
 					if (vite_server)
@@ -1090,13 +1081,16 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 				const server_leg = leg_of(this).server;
 				if (is_build && server_leg && !standalone) {
 					try {
-						const handoff = ssr_hosts_handoff_path(kit_dirs(root).out_dir);
+						const handoff = server_handoff_path(kit_dirs(root).out_dir);
 						fs.mkdirSync(path.dirname(handoff), { recursive: true });
-						const out: ServerHandoff = {
-							hosts: compiler.ssr_transformed_hosts(),
-							server_regions: compiler.server_island_css_roots()
-						};
-						fs.writeFileSync(handoff, JSON.stringify(out));
+						fs.writeFileSync(
+							handoff,
+							server_handoff_json(
+								compiler.ssr_transformed_hosts(),
+								build_secret,
+								compiler.server_island_css_roots()
+							)
+						);
 					} catch (e) {
 						// best effort — without it the client leg emits every prescanned island
 						if (isMainThread) warn('island_handoff_write_failed', e);
@@ -1471,9 +1465,11 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 				// By `writeBundle` the bundle reflects the files actually on disk.
 				if (!is_build || server_leg) return;
 
-				// SECRET-SPLIT on the finished client bundle: no signing secret, no signing module
+				// SECRET-SPLIT on the finished client bundle: no signing secret, no signing module. The key
+				// is the one the SERVER leg baked, from its handoff: under Kit 2 that leg ran its own
+				// plugin instance, whose per-build random this one never saw.
 				refuse_client_secrets(bundle as Record<string, unknown>, [
-					build_secret,
+					read_server_handoff(kit_dirs(root).out_dir)?.build_key ?? build_secret,
 					process.env.OGYGIA_SECRET?.trim() ?? ''
 				]);
 
@@ -1650,7 +1646,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 					...(measure ? { page_why, barrels } : {}),
 					content_css,
 					css_inline,
-					fn_manifest: Object.fromEntries(compiler.dollar_hoists),
+					fn_manifest: compiler.fn_manifest(),
 					// identity (the stable URL SSR bakes) → location (the content-hashed file to load)
 					entries: entries.locations,
 					// the same, as one file the browser reads (the runtime's script tag names it)

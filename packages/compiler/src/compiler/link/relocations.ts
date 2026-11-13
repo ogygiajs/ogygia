@@ -23,6 +23,10 @@ import MagicString from 'magic-string';
 import { FILE_TOKEN_MARK, FILE_TOKEN_RE, file_token_id } from './file-token.ts';
 import { ISLAND_DEPS_INLINE_TOKEN } from './island-deps.ts';
 import type { Program } from '../program.ts';
+import { fn_manifest_registrations } from '../macros/dollar.ts';
+
+/** Kit's page modules, where the alias sends `$app/state` and `$app/stores`. */
+const KIT_PAGE_MODULE_RE = /\/@sveltejs\/kit\/src\/runtime\/app\/(?:state|stores)(?:[/.]|$)/;
 
 // (by code point: in source, either one ends a line inside a regex literal)
 const LINE_SEPARATOR = String.fromCharCode(0x2028);
@@ -109,9 +113,7 @@ const FN_MANIFEST: Relocation = {
 	server_only: false,
 	carrier: `\0${V_FN_MANIFEST}`,
 	value(cx) {
-		const regs = [...cx.dollar_hoists.entries()]
-			.map(([tag, src]) => `globalThis.__og_reg_fn(${JSON.stringify(tag)}, (${src}));`)
-			.join('\n');
+		const regs = fn_manifest_registrations(cx.dollar_hoists);
 		return () => regs;
 	}
 };
@@ -131,10 +133,20 @@ const PAGE_DATA_READS: Relocation = {
 	value(cx) {
 		const { page_keys, page_pending } = cx.program;
 		const clean = (id: string) => id.split('?')[0].split('\\').join('/');
-		const reads_itself = (id: string) => {
+		const imports_kit_page = (ids: readonly string[]) =>
+			ids.some((d) => KIT_PAGE_MODULE_RE.test(clean(d)));
+		const reads_itself = (id: string, info: GraphInfo) => {
 			const c = clean(id);
 			const k = page_keys.get(c);
-			return (k !== undefined && (k === 'all' || k.size > 0)) || page_pending.has(c);
+			if (k !== undefined) return k === 'all' || k.size > 0 || page_pending.has(c);
+			if (page_pending.has(c)) return true;
+			// Kit's page module is what is read: its own halves (`state/server.js`) are not a reader
+			if (KIT_PAGE_MODULE_RE.test(c)) return false;
+			// a page reader seed shaping could not read (a barrel, `getStores()`, an `import()`): unknown
+			return (
+				!!info &&
+				(imports_kit_page(info.importedIds) || imports_kit_page(info.dynamicallyImportedIds))
+			);
 		};
 		// a component path → the graph's id for it (a graph id may carry a query or another separator)
 		const ids_by_path = new Map<string, string>();
@@ -146,8 +158,8 @@ const PAGE_DATA_READS: Relocation = {
 			for (let i = 0; i < queue.length; i++) {
 				const id = queue[i];
 				if (proven_clean.has(id)) continue;
-				if (reads_itself(id)) return true;
 				const info = cx.graph(id);
+				if (reads_itself(id, info)) return true;
 				if (!info) continue;
 				for (const next of info.importedIds)
 					if (!seen.has(next)) {
