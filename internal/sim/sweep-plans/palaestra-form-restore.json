@@ -4,7 +4,7 @@
 	"plan": {
 		"actions": [
 			{ "kind": "goto", "tab": 0, "path": "/bench-cms" },
-			{ "kind": "click", "tab": 1, "nth": 489 },
+			{ "kind": "click", "tab": 0, "nth": 489, "names": ["link /link/1/1"] },
 			{ "kind": "back", "tab": 0 }
 		],
 		"mix": {

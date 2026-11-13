@@ -2,8 +2,10 @@ import { describe, it, expect } from 'vitest';
 import { join } from 'node:path';
 import {
 	island_host_loaded,
-	parse_ssr_hosts,
-	ssr_hosts_handoff_path
+	parse_server_handoff,
+	read_server_handoff,
+	server_handoff_json,
+	server_handoff_path
 } from '../src/compiler/link/emit-gate.ts';
 import { host_key } from '../src/compiler/program.ts';
 
@@ -47,16 +49,38 @@ describe('island_host_loaded', () => {
 });
 
 describe('the handoff file', () => {
-	it('lives under Kit outDir and round-trips the server leg set', () => {
-		expect(ssr_hosts_handoff_path('/app/.svelte-kit-v2')).toBe(
-			'/app/.svelte-kit-v2/og-ssr-hosts.json'
+	it("lives under Kit outDir and round-trips the server leg's set and key", () => {
+		expect(server_handoff_path('/app/.svelte-kit-v2')).toBe(
+			'/app/.svelte-kit-v2/og-server-handoff.json'
 		);
-		const set = parse_ssr_hosts(JSON.stringify([...loaded].sort()));
-		expect(set).toEqual(loaded);
+		const server_regions = [{ iid: 'r1', abs: join(root, 'lib/Slow.svelte') }];
+		const handoff = parse_server_handoff(
+			server_handoff_json([...loaded].sort(), 'k'.repeat(64), server_regions)
+		);
+		expect(handoff.hosts).toEqual(loaded);
+		expect(handoff.build_key).toBe('k'.repeat(64));
+		expect(handoff.server_regions).toEqual(server_regions);
 	});
 
 	it('tolerates a malformed handoff (nothing gated, never a throw on shape)', () => {
-		expect(parse_ssr_hosts('{"not":"an array"}').size).toBe(0);
-		expect(parse_ssr_hosts('[1, null, "/a/b.svelte"]')).toEqual(new Set(['/a/b.svelte']));
+		const empty = { hosts: new Set(), build_key: '', server_regions: [] };
+		expect(parse_server_handoff('{"not":"an array"}')).toEqual(empty);
+		expect(parse_server_handoff('null')).toEqual(empty);
+		const mixed = parse_server_handoff(
+			JSON.stringify({
+				hosts: [1, null, '/a/b.svelte'],
+				build_key: 7,
+				server_regions: [null, { iid: 'r1' }, { iid: 'r2', abs: '/a/c.svelte' }]
+			})
+		);
+		expect(mixed).toEqual({
+			hosts: new Set(['/a/b.svelte']),
+			build_key: '',
+			server_regions: [{ iid: 'r2', abs: '/a/c.svelte' }]
+		});
+	});
+
+	it('reads as none when the server leg wrote nothing', () => {
+		expect(read_server_handoff('/nonexistent-ogygia-out')).toBeNull();
 	});
 });

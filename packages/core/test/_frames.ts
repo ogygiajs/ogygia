@@ -4,7 +4,6 @@ import type { Frame } from '../src/frame.ts';
 import * as store from '../src/runtime/frame-store.ts';
 import type { VerifiedHtml } from '../src/runtime/html-sink.ts';
 
-export { BATCH_MISS, is_batch_miss } from '../src/frame.ts';
 export {
 	_reset,
 	hold_refusal,

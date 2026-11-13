@@ -63,7 +63,7 @@ function page_applied(bridge: Bridge): boolean {
 	try {
 		return bridge.page?.status !== KIT_PRE_START_STATUS;
 	} catch {
-		return false;
+		return false; // ok: Kit's page cannot be read yet: not applied
 	}
 }
 

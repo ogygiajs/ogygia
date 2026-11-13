@@ -1,10 +1,9 @@
 /**
- * Flag/experiment INVENTORY — pure OBSERVATION during the prescan. Nothing is rewritten, so per
- * the macro law this is deliberately NOT an `import.meta.og.*` construct: the compiler only
- * REPORTS what it saw. The build writes the collected sites to
- * `node_modules/.ogygia/flags-manifest.json` — diff it in CI to catch flags that never die
- * (flag debt: the reason Uber built a whole refactoring bot; an inventory is the law-abiding
- * subset our file-local compiler can give for free).
+ * Flag/experiment INVENTORY — pure OBSERVATION during the prescan (`flags()`'s `b.prescan` hook).
+ * Nothing is rewritten, so per the macro law this is deliberately NOT an `import.meta.og.*`
+ * construct: the build only REPORTS what it saw. A `vite build` with `flags()` listed writes the
+ * collected sites to `node_modules/.ogygia/flags-manifest.json` — diff it in CI to catch flags
+ * that never die (flag debt; an inventory is the subset a file-local compiler can give for free).
  *
  * AST-walked, not text-matched (user ruling): `flag` is an ordinary function — a text sweep
  * would miss `import { flag as f }` and false-positive on any local function that happens to be
@@ -14,10 +13,11 @@
  * scope-analyzed.
  */
 import { walk } from 'estree-walker';
-import { parse_module } from './parse/oxc.ts';
+import { parse_module } from '@ogygia/compiler';
+// (Kit-free: a vite.config loads this in plain Node)
+import { next_tag, text_of } from '@ogygia/core/internal/instruments';
 
-/** The import a flag site comes through. (Moves into the flags plugin's compile facet once the
- *  compile port lands: internal/notes/packages.md.) */
+/** The import a flag site comes through. */
 export const FLAGS_SPEC = '@ogygia/flags';
 
 export interface FlagSite {
@@ -39,8 +39,6 @@ type AstNode = {
 const KINDS = new Set(['flag']);
 /** Cheap pre-parse gate — most modules import ogygia for other reasons. */
 const MAYBE_RE = /\bflag\b/;
-/** All `<script …>` blocks of a `.svelte` file (instance AND module — flags can sit in either). */
-const SCRIPT_BLOCK_RE = /<script\b[^>]*>([\s\S]*?)<\/script>/g;
 /** Where every newline of `src` is, in order: one pass, then each line is a binary search. */
 function newlines_of(src: string): number[] {
 	const at: number[] = [];
@@ -128,12 +126,13 @@ export function collect_flag_sites(code: string, id: string, file: string): Flag
 	if (!code.includes('ogygia') || !MAYBE_RE.test(code)) return [];
 	const out: FlagSite[] = [];
 	if (id.endsWith('.svelte')) {
-		SCRIPT_BLOCK_RE.lastIndex = 0;
+		// every `<script>` block, instance and module (core's tag walk: a script tag in a comment or
+		// an attribute value is none; test: inventory.test.ts)
 		const newlines = newlines_of(code);
-		let m: RegExpExecArray | null;
-		while ((m = SCRIPT_BLOCK_RE.exec(code))) {
-			const body_start = m.index + m[0].indexOf('>') + 1;
-			collect_from_source(m[1], `${id}.ts`, file, line_at(newlines, body_start, 1), out);
+		for (let t = next_tag(code, 'script', 0); t !== null; t = next_tag(code, 'script', t.next)) {
+			const body = text_of(code, t, 'script');
+			if (body === null) break; // an unclosed script: Svelte refuses the file
+			collect_from_source(body, `${id}.ts`, file, line_at(newlines, t.end, 1), out);
 		}
 	} else {
 		collect_from_source(code, id, file, 1, out);

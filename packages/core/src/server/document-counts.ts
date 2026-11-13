@@ -20,6 +20,8 @@ export type SlotSeq = { prefix: string; n: Map<string, { n: number; tag: string 
 /** One request's document counts. `null` fields: not asked for yet in this request. */
 export type DocumentCounts = {
 	slots: SlotSeq | null;
+	/** each hole answer's sequence in this request, by its prefix (a batch renders many) */
+	holes: Map<string, SlotSeq> | null;
 	/** fingerprint → live copies the browser holds that no region of this response took yet */
 	known: Map<string, number> | null;
 };
@@ -35,6 +37,7 @@ export function document_counts(event: unknown): DocumentCounts | null {
 	const request = (event as { request?: Request } | null | undefined)?.request;
 	if (typeof request !== 'object' || request === null) return null;
 	let c = counts.by_request.get(request);
-	if (c === undefined) counts.by_request.set(request, (c = { slots: null, known: null }));
+	if (c === undefined)
+		counts.by_request.set(request, (c = { slots: null, holes: null, known: null }));
 	return c;
 }

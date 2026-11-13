@@ -99,7 +99,7 @@
 			const x = new URL(u, location.href);
 			return (x.host === location.host ? '' : x.host) + x.pathname;
 		} catch {
-			return u;
+			return u; // ok: not a URL: kept as written
 		}
 	}
 	const grade_class = (/** @type {number} */ s) => (s >= 80 ? 'good' : s >= 50 ? 'fair' : 'poor');
@@ -110,7 +110,7 @@
 		try {
 			return page_anchors(prof);
 		} catch {
-			return [];
+			return []; // ok: no costs pinned on the page; the profile's own list still shows them
 		}
 	});
 	let pinned = $state(/** @type {string | null} */ (null));
