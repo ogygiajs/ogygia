@@ -353,7 +353,7 @@ export function resolve_ref(ref: string, base: string): string | null {
 		if (u.protocol !== 'http:' && u.protocol !== 'https:') return null;
 		return u.href;
 	} catch {
-		return null;
+		return null; // ok: not a URL: no asset to weigh
 	}
 }
 
@@ -717,7 +717,7 @@ function serves(url: string, origin: string): string {
 	try {
 		u = new URL(url);
 	} catch {
-		return 'unknown';
+		return 'unknown'; // ok: not a URL: who serves it is unknown, and said so
 	}
 	if (u.origin === origin) return 'this app';
 	const at = u.pathname.indexOf('/npm/');

@@ -574,7 +574,7 @@ export class Ogygia {
 			out.r && typeof out.r === 'object' ? (out.r as { engine?: OgygiaEngine }).engine : undefined;
 		this.#engine = own ?? { version: out.v };
 		if (out.v < TESTING_ENGINE_VERSION) {
-			const at = await this.#in_page(() => location.origin, null).catch(() => '');
+			const at = await this.#in_page(() => location.origin, null).catch(() => ''); // ok: the origin only keys the one-time warning
 			const key = `${at}|${out.v}`;
 			if (warned_engines.get(key)) return out.r;
 			warned_engines.set(key, true);

@@ -126,7 +126,7 @@ function parse_marks(source: string): Mark[] {
 	try {
 		ast = parse(source, { modern: true });
 	} catch {
-		return [];
+		return []; // ok: a file Svelte cannot parse has no marks to list (its build says why)
 	}
 	const bodies: Array<Record<string, unknown>> = [];
 	const inst = (ast as { instance?: { content?: { body?: unknown[] } } }).instance;
@@ -1505,7 +1505,7 @@ async function find_local_profiler(base: string, key: string): Promise<string[]>
 			// 404 = no profiler here (bare Kit 404s that path). 200/401/30x = profiler answering.
 			return r.status !== 404 ? origin : null;
 		} catch {
-			return null; // nothing listening / not http — skip
+			return null; // ok: nothing listening, or not http: no profiler on this origin
 		}
 	});
 	return (await Promise.all(probes)).filter((o): o is string => !!o);
@@ -1747,7 +1747,7 @@ function walk_svelte(dir: string, out: string[] = [], depth = 0): string[] {
 	try {
 		entries = readdirSync(dir, { withFileTypes: true }) as Dirent[];
 	} catch {
-		return out;
+		return out; // ok: a folder that cannot be read adds no files to the scan
 	}
 	for (const e of entries) {
 		if (e.name.startsWith('.') && e.name !== '.') continue;
@@ -1793,7 +1793,7 @@ function tool_scan(args: Attrs): ToolResult {
 		try {
 			source = readFileSync(f, 'utf8');
 		} catch {
-			continue;
+			continue; // ok: a file gone or unreadable since the walk is left out of the scan
 		}
 		const marks = parse_marks(source);
 		if (!marks.length) continue;
@@ -1898,7 +1898,7 @@ function walk_flag_files(dir: string, out: string[] = [], depth = 0): string[] {
 	try {
 		entries = readdirSync(dir, { withFileTypes: true }) as Dirent[];
 	} catch {
-		return out;
+		return out; // ok: a folder that cannot be read adds no files to the scan
 	}
 	for (const e of entries) {
 		if (e.name.startsWith('.')) continue;
@@ -1925,7 +1925,7 @@ function tool_flags(args: Attrs): ToolResult {
 			readFileSync(path.join(root, 'node_modules', '.ogygia', 'flags-manifest.json'), 'utf8')
 		) as { flags: FlagSite[]; names: string[] };
 	} catch {
-		manifest = null;
+		manifest = null; // ok: no build's flags manifest yet: the scan reads the source alone
 	}
 
 	// Live scan — same collector the build runs (AST-resolved 'ogygia' imports, literal names).
@@ -1936,7 +1936,7 @@ function tool_flags(args: Attrs): ToolResult {
 		try {
 			source = readFileSync(f, 'utf8');
 		} catch {
-			continue;
+			continue; // ok: a file gone or unreadable since the walk is left out of the scan
 		}
 		const rel = path.relative(root, f).replace(BACKSLASH_G, '/');
 		sites.push(...collect_flag_sites(source, rel, rel));
@@ -1996,7 +1996,7 @@ async function tool_fragment(args: Attrs): Promise<ToolResult> {
 				headers: { accept: 'application/json' }
 			});
 		} catch {
-			return null;
+			return null; // ok: shown as "unreachable" in the report below
 		}
 	};
 
@@ -2034,6 +2034,7 @@ async function tool_fragment(args: Attrs): Promise<ToolResult> {
 				`
 				: 'Catalog mounted, zero widgets declared.';
 		} catch {
+			// ok: said in the report: not a widget catalog
 			widgets_block = '__catalog returned non-JSON — not an ogygia widget catalog.';
 		}
 	}
