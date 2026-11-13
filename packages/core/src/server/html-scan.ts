@@ -3,7 +3,7 @@
  * reader (wire-markup.ts `tags()`); the character tests below serve hand-written scans elsewhere.
  */
 import { is_kit_boot_script } from '../runtime/kit-boot.ts';
-import { Needle, next_tag, OGYGIA_REGION_CSS, tags, text_of } from '../wire-markup.ts';
+import { Needle, next_tag, OGYGIA_REGION_CSS, text_of } from '../wire-markup.ts';
 
 /** The regex `\s`: ASCII whitespace and the Unicode spaces (NaN, past the end, is not). */
 export function is_space(c: number): boolean {
@@ -22,25 +22,47 @@ export function is_space(c: number): boolean {
 	);
 }
 
-/** How far before `end` the Kit-boot check looks. Kit appends its boot script at the END of the
- *  body (render.js), right before `</body>`, so this window holds it whenever it exists. */
+// @why Kit appends its boot script, the page's data inside it, at the end of the body (test: test/kit-gate.test.ts › finds Kit script whole however much data it carries (a large page, 200 KB of it))
 const KIT_BOOT_WINDOW = 65_536;
 
 /**
  * Whether a page's HTML carries Kit's boot (a csr=true page): the DOM probe's question
- * (runtime/kit-boot.ts `is_kit_boot_script`) over a string, bounded to the last 64 KB before `end`
- * (pass the index of `</body>`). A 2.6 MB document is never scanned whole: Kit's boot sits at the end
- * of the body, so the window is exact, not a heuristic.
+ * (runtime/kit-boot.ts `is_kit_boot_script`) over a string (pass the index of `</body>` as `end`).
+ * A 2.6 MB document is never scanned whole: see {@link kit_boot_script}.
  */
 export function html_has_kit_bootstrap(html: string, end: number = html.length): boolean {
-	const window = html.slice(Math.max(0, end - KIT_BOOT_WINDOW), end);
-	for (const t of tags(window, 'script')) {
-		if (t.attrs.has('src')) continue;
-		const text = text_of(window, t, 'script');
-		if (text !== null && is_kit_boot_script(t.attrs.get('type') ?? '', (a) => t.attrs.has(a), text))
-			return true;
+	return kit_boot_script(html, end) !== null;
+}
+
+/**
+ * Kit's boot script: its text and where that text starts in `html`, or `null` when the page has none.
+ * The scripts are read from the last one before `end` backwards, each from its own `<script`, and
+ * only those that end in the last 64 KB: however much data Kit's script carries, it is found whole.
+ */
+export function kit_boot_script(
+	html: string,
+	end: number = html.length
+): { text: string; at: number } | null {
+	const floor = end - KIT_BOOT_WINDOW;
+	const before = (from: number) =>
+		// oxlint-disable-next-line ogygia/one-markup-walk -- the walk reads forward only and Kit's script can start megabytes back: each candidate is read by the walk from its own `<`
+		from < 0 ? -1 : html.lastIndexOf('<script', from);
+	for (let at = before(end - 1); at !== -1;) {
+		const t = next_tag(html, 'script', at);
+		const text = t !== null && t.start === at ? text_of(html, t, 'script') : null;
+		if (t !== null && text !== null) {
+			const close = t.end + text.length;
+			if (close < floor) return null;
+			if (
+				close <= end &&
+				!t.attrs.has('src') &&
+				is_kit_boot_script(t.attrs.get('type') ?? '', (a) => t.attrs.has(a), text)
+			)
+				return { text, at: t.end };
+		}
+		at = before(at - 1);
 	}
-	return false;
+	return null;
 }
 
 /** The region-CSS name's text in any case: the needle a tag's span must hold (wire-markup.ts `Needle`). */
