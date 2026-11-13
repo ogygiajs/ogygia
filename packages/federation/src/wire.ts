@@ -21,6 +21,7 @@ import {
 	tag_name,
 	text_of,
 	read_capped,
+	type BodyRefused,
 	type FoundTag
 } from '@ogygia/core/internal/server';
 import { cache } from '@ogygia/machine';
@@ -754,11 +755,11 @@ export const json_error = (status: number, error: string): Response =>
 
 /** Read a request body under a cap BEFORE any verification work (an unauthenticated caller must
  *  never stream gigabytes into this process): read no further than the cap, chunked or not
- *  (test/body-cap.test.ts). Returns `null` when over the cap. */
+ *  (test/body-cap.test.ts), or why it was not read (never a throw: test/body-unreadable.test.ts). */
 export async function read_capped_body(
 	request: Request,
 	max: number
-): Promise<Uint8Array<ArrayBuffer> | undefined | null> {
+): Promise<Uint8Array<ArrayBuffer> | undefined | BodyRefused> {
 	if (request.method === 'GET' || request.method === 'HEAD') return undefined;
 	return read_capped(request, max);
 }
