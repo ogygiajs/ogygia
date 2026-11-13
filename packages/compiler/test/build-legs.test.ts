@@ -119,6 +119,14 @@ describe('build legs', () => {
 		expect(compiler.start_leg(SSR.name, SSR.server)).toBe(false);
 	});
 
+	it('a leg the bundler ends twice ends once, without a refusal', () => {
+		const compiler = make(true);
+		compiler.start_leg(SSR.name, SSR.server);
+		compiler.end_leg(SSR.name);
+		expect(() => compiler.end_leg(SSR.name)).not.toThrow();
+		expect(compiler.find_leg(SSR.name)?.life.now.kind).toBe('closed');
+	});
+
 	it('a second build (watch) starts every leg empty', () => {
 		const compiler = make(true);
 		compiler.start_leg(CLIENT.name, CLIENT.server);
