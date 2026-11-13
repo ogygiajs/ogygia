@@ -224,6 +224,18 @@
 			"name": "a scheduled region removed for good is detached once"
 		},
 		{
+			"step": "frame-part: promised -> landed",
+			"reason": "a navigation's hole batch reserves the next page's addresses; whether the sweep's navigations land a part before its hole binds is timing the ledger does not pin",
+			"test": "packages/core/test/frame-store.test.ts",
+			"name": "ensure() JOINS a reservation instead of fetching; write() fulfils it"
+		},
+		{
+			"step": "frame-part: promised -> missed",
+			"reason": "a batch that ends without a part it reserved: the simulated server always carries every part it is asked for",
+			"test": "packages/core/test/frame-store.test.ts",
+			"name": "release() misses an undelivered reservation, so the binder that joined it fetches on its own"
+		},
+		{
 			"step": "lake: open -> waited",
 			"reason": "new with the lake machine (it replaced two WeakSets): the next sweep's --write moves it to reached if the fake browser takes it",
 			"test": "packages/core/test/lake-settle.test.ts",
