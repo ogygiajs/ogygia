@@ -42,8 +42,6 @@ type Transport = Record<
 const RULES =
 	import.meta.env?.DEV || (typeof __OGYGIA_RULES__ !== 'undefined' ? __OGYGIA_RULES__ : false);
 
-/** What a request's renders said of its page look-up: `skipped` while every one the build answered
- *  reads no `page.data`, `asked` once any did not (a batch is one request: test/batch-page-look-up.test.ts). */
 const look_up_said = new WeakMap<Request, 'skipped' | 'asked'>();
 
 /** Where a dev warning goes (the handle's setting). */
