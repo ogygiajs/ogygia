@@ -2698,7 +2698,7 @@
 			"name": "Html is made only by its own module"
 		},
 		{
-			"site": "packages/core/src/transport.ts > pack_region > throw:0",
+			"site": "packages/core/src/transport.ts > encode_region > throw:0",
 			"reason": "`throw new OgygiaError('held_region_plain_import');`: proved: the throw removed turns the test red, twice",
 			"test": "packages/core/test/refusals.test.ts",
 			"name": "a plain inline region nothing awaited, made to cross"
