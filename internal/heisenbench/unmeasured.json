@@ -4883,6 +4883,10 @@
 		{
 			"id": "packages/postrender/src/server.ts > refusal",
 			"reason": "the store verdict before the body is read: a few field and header reads on a Response (not cloneable), constant work; proven in packages/postrender/test/dev-note.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/rules.ts > thrown_at",
+			"reason": "browser only, dev and e2e builds: one regex over an uncaught error's stack, once per failure (10 at most); proven in packages/core/test/browser/rules-uncoded-own-code.test.ts"
 		}
 	]
 }
