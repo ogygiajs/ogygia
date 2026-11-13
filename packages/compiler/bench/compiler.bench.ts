@@ -11,6 +11,7 @@ import { barrel_left_table } from '../src/compiler/exports/left.ts';
 import { BARREL_LEFT_REASONS } from '@ogygia/core/contract';
 import { collect_flag_sites } from '../src/compiler/flags.ts';
 import { collectFreeIdentifiers } from '../src/compiler/free-vars.ts';
+import { own_reach, reaches_context, reaches_wire } from '../src/compiler/link/own-reach.ts';
 import { page_data_keys_answer } from '../src/compiler/link/page-keys.ts';
 import { auto_brand_stores, rewrite_store } from '../src/compiler/macros/store.ts';
 import { stamp_opaque } from '../src/compiler/ownership-stamps.ts';
@@ -120,6 +121,33 @@ bench(
 						import { page } from '$app/state';
 					${body}</script>
 					{#each page.data.list as item}<p>{item.name} {page.data.user?.name}</p>{/each}
+				`}\n`
+			};
+		}
+	}
+);
+
+bench(
+	'own reach: what a component reaches of ogygia (named, namespace, dynamic)',
+	({ source }) => {
+		const reach = own_reach(source, '/app/src/lib/Shell.svelte', 'svelte');
+		return [reaches_context(reach), reaches_wire(reach), reach.names.size];
+	},
+	{
+		setup: () => {
+			let body = '';
+			for (let i = 0; i < 40; i++) {
+				body = `${body}\tconst v${i} = og.isRegion(items[${i}]) ? og.preload : items[${i}];\n`;
+			}
+			return {
+				source: `${dedent`
+					<script lang="ts">
+						import { getContext, preload } from 'ogygia';
+						import * as og from 'ogygia';
+						let { items } = $props();
+					${body}	const later = async () => (await import('ogygia')).getContext('k');
+					</script>
+					{#each items as item}<og.Region value={item} />{/each}
 				`}\n`
 			};
 		}

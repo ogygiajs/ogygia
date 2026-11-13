@@ -1,49 +1,14 @@
 /**
- * Detect whether a source file uses an ogygia **context provider** — `Provide`, the drop-in
- * `setContext`, or `createContext` imported from `'ogygia'`. Drives the `context` runtime mark, which
- * gates the ~4.7 kB cross-island context bridge OUT of apps that never provide context.
- *
- * WHY IMPORT-CLAUSE SCANNING IS SOUND: every entry point to the bridge is an
- * `import { … } from 'ogygia'` (or a namespace import used as `og.setContext(…)`) naming one of the
- * three. A read-only `getContext` needs no bridge, so it's deliberately NOT a trigger. Over-inclusion
- * is the safe direction — a MISSED provider silently drops context inside islands, an extra include is
- * just bytes — so the scan biases to include: any one matching file in `src/` sets the whole-app mark.
- *
- * Regexes are module-level (compiled once); `source_uses_ogygia_context` runs per file in the prescan
- * walk. The `g` regexes are stateful, so each use resets `lastIndex`. (The READER side — `getContext`
- * — instead follows the import binding through the AST, see `get_context_string_keys` below; a text
- * scan there would count an unrelated `getContext`.)
+ * The string-literal context keys a file reads and sets, following the import binding through the
+ * AST (a text scan would count an unrelated `getContext`). Whether a file PROVIDES ogygia context
+ * (the `context` mark) is a question of what it reaches of ogygia: link/own-reach.ts.
  */
 import { parse_roots } from './page-keys.ts';
-import { OWN_PACKAGE_NAMES, OWN_SPECIFIER_SOURCE } from '@ogygia/core/contract';
+import { OWN_PACKAGE_NAMES } from '@ogygia/core/contract';
 import type { AstNode } from '../parse/oxc.ts';
 
 /** Loose AST node — the parser hands ESTree-ish objects; positions/back-refs are skipped by the walk. */
 type SvelteNode = AstNode;
-
-// (`ogygia` in an app; `@ogygia/core` in a plugin package's own components)
-const OGYGIA_NAMED_IMPORT = new RegExp(
-	`import\\s+(?:type\\s+)?\\{([\\s\\S]*?)\\}\\s*from\\s*['"]${OWN_SPECIFIER_SOURCE}['"]`,
-	'g'
-);
-const OGYGIA_NS_IMPORT = new RegExp(
-	`import\\s*\\*\\s*as\\s+(\\w+)\\s*from\\s*['"]${OWN_SPECIFIER_SOURCE}['"]`
-);
-const CTX_PROVIDER = /\b(?:Provide|setContext|createContext)\b/;
-const NS_CTX_USAGE = /\b(\w+)\.(?:Provide|setContext|createContext)\b/g;
-
-export function source_uses_ogygia_context(src: string): boolean {
-	OGYGIA_NAMED_IMPORT.lastIndex = 0;
-	let m: RegExpExecArray | null;
-	while ((m = OGYGIA_NAMED_IMPORT.exec(src))) if (CTX_PROVIDER.test(m[1])) return true;
-	// Namespace form (`import * as og from 'ogygia'; og.setContext(…)`) — rare, still covered.
-	const ns = OGYGIA_NS_IMPORT.exec(src);
-	if (!ns) return false;
-	NS_CTX_USAGE.lastIndex = 0;
-	let u: RegExpExecArray | null;
-	while ((u = NS_CTX_USAGE.exec(src))) if (u[1] === ns[1]) return true;
-	return false;
-}
 
 /** Modules whose `getContext` reads the Svelte/ogygia context map (both resolve the same map — ogygia
  *  re-exports Svelte's, and the drop-in is read with the unchanged `getContext`). */

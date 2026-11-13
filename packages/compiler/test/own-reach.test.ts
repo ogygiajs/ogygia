@@ -117,7 +117,10 @@ describe('a context provider is found in every form that reaches it', () => {
 		[
 			'a namespace import is handed on',
 			{
-				'src/lib/og.ts': `import * as og from 'ogygia';\nexport { og };\n`,
+				'src/lib/og.ts': dedent`
+					import * as og from 'ogygia';
+					export { og };
+				`,
 				'src/routes/+layout.svelte': page(
 					`\timport { og } from '$lib/og';\n\tog.setContext('theme', 'dark');`,
 					'<slot />'
@@ -145,6 +148,15 @@ describe('a context provider is found in every form that reaches it', () => {
 			'a dynamic import is kept whole',
 			{
 				'src/lib/theme.ts': `export const lib = () => import('ogygia');\n`
+			}
+		],
+		[
+			'a namespace names Provide in markup',
+			{
+				'src/routes/+layout.svelte': page(
+					`\timport * as og from 'ogygia';`,
+					'<og.Provide values={{ a: 1 }}><slot /></og.Provide>'
+				)
 			}
 		],
 		[
@@ -176,7 +188,10 @@ describe('a form that reaches no provider ships no bridge', () => {
 		[
 			'a namespace import reads only getContext',
 			{
-				'src/lib/theme.ts': `import * as og from 'ogygia';\nexport const read = () => og.getContext('theme');\n`
+				'src/lib/theme.ts': dedent`
+					import * as og from 'ogygia';
+					export const read = () => og.getContext('theme');
+				`
 			}
 		],
 		['the word alone', { 'src/lib/theme.ts': `export const setContext = 1; // ogygia\n` }]
@@ -191,13 +206,21 @@ describe("a region or content value on Kit's wire is found in every form", () =>
 			'a local barrel re-exports region',
 			{
 				'src/lib/og.ts': `export { region } from 'ogygia';\n`,
-				'src/routes/+page.server.ts': `import { region } from '$lib/og';\nexport const load = () => ({ r: region });\n`
+				'src/routes/+page.server.ts': dedent`
+					import { region } from '$lib/og';
+					export const load = () => ({ r: region });
+				`
 			}
 		],
 		['a local barrel star-exports ogygia', { 'src/lib/og.ts': `export * from 'ogygia';\n` }],
 		[
 			'a namespace import is handed on',
-			{ 'src/lib/og.ts': `import * as og from 'ogygia';\nexport default og;\n` }
+			{
+				'src/lib/og.ts': dedent`
+					import * as og from 'ogygia';
+					export default og;
+				`
+			}
 		],
 		[
 			'a dynamic import reads site',

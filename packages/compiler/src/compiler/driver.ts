@@ -50,10 +50,10 @@ import {
 	FOREIGN_HYDRATE_MARK
 } from './region/emit.ts';
 import { by_key, location_map_files } from './link/location-map.ts';
-import { context_string_keys, source_uses_ogygia_context } from './link/context-detect.ts';
+import { context_string_keys } from './link/context-detect.ts';
+import { own_reach, reaches_context, reaches_wire } from './link/own-reach.ts';
 import { collect_flag_sites, FLAGS_SPEC } from './flags.ts';
 import { router_css_roots } from './link/router-css.ts';
-import { source_crosses_wire } from './link/transport.ts';
 import { server_island_ids, PAGE_DATA_READS_TOKEN } from './link/server-manifest.ts';
 import { same_module_path, island_vpaths_affected_by_file } from './dev/hmr.ts';
 import { VirtualTable } from './virtual/resolver.ts';
@@ -511,12 +511,18 @@ export class Compiler implements CoreApp {
 		const page_importers = ctx.page_importers;
 		const imports_page_spec = (specs: string[]): boolean =>
 			page_importers.length > 0 && specs.some((s) => page_importers.includes(s));
+		// The `context` mark and `crosses_wire` from what the file reaches of ogygia (link/own-reach.ts).
+		const own_marks = (src: string, full: string, kind: 'svelte' | 'script') => {
+			if (runtime_marks.context && program.crosses_wire) return;
+			const reach = own_reach(src, full, kind);
+			if (reaches_context(reach)) runtime_marks.context = true;
+			if (reaches_wire(reach)) program.crosses_wire = true;
+		};
 		const scan_file = (full: string, name: string) => {
 			if (name.endsWith('.svelte')) {
 				const src = ctx.read_file(full);
 				if (src == null) return;
-				if (!runtime_marks.context && source_uses_ogygia_context(src)) runtime_marks.context = true;
-				if (!program.crosses_wire && source_crosses_wire(src)) program.crosses_wire = true;
+				own_marks(src, full, 'svelte');
 				{
 					// Router-css closure data: this module's import specs + whether it is a page module.
 					const specs = extract_module_specs(src);
@@ -539,12 +545,11 @@ export class Compiler implements CoreApp {
 				// lazy transform order would otherwise leave the id missing (403 on first fetch).
 				const src = ctx.read_file(full);
 				if (src == null) return;
-				if (!runtime_marks.context && source_uses_ogygia_context(src)) runtime_marks.context = true;
 				const remote = name.endsWith('.remote.ts') || name.endsWith('.remote.js');
 				// A remote query's SSR result can only be seeded where the app HAS a remote function.
 				if (remote) runtime_marks.remoteSeeds = true;
-				if (!program.crosses_wire && (remote || source_crosses_wire(src)))
-					program.crosses_wire = true;
+				if (remote) program.crosses_wire = true;
+				own_marks(src, full, 'script');
 				{
 					// Router-css closure data: this module's import specs + whether it is a page module.
 					const specs = extract_module_specs(src);
