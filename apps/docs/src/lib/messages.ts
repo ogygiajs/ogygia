@@ -11,6 +11,7 @@ import {
 	type MessageEntry
 } from '@ogygia/core/internal/messages';
 import { BUILD_ERRORS, BUILD_WARNINGS } from '@ogygia/compiler';
+import * as bake from '@ogygia/bake/internal/messages';
 import * as barrels from '@ogygia/barrels/internal/messages';
 import * as content from '@ogygia/content/internal/messages';
 import * as devtools from '@ogygia/devtools/internal/messages';
@@ -35,6 +36,8 @@ const TABLES: Array<[Kind, Table]> = [
 	['error', BUILD_ERRORS],
 	['warning', BUILD_WARNINGS],
 	// the first-party plugins', each its package's own
+	['error', bake.BAKE_ERRORS],
+	['warning', bake.BAKE_WARNINGS],
 	['error', barrels.BARRELS_ERRORS],
 	['warning', barrels.BARRELS_WARNINGS],
 	['error', content.CONTENT_BUILD_ERRORS],

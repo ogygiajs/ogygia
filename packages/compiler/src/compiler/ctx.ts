@@ -10,7 +10,7 @@ import { strip_bom } from './bom.ts';
 import { islandVirtualId } from './ids.ts';
 import { parse_module, type AstNode } from './parse/oxc.ts';
 import type { ClientRealmFile, ServerRealm } from './link/caps.ts';
-import type { PluginMacro } from './macros/pipeline.ts';
+import type { AliasEntry, PluginMacro } from './macros/pipeline.ts';
 import {
 	islandChunkFileName,
 	islandPublicUrl,
@@ -82,8 +82,8 @@ export interface CompileCtxInit {
 	visibleMargin: string | undefined;
 	presets: Record<string, unknown>;
 	import_keys: ImportKeys;
-	/** Resolved Vite aliases (used by the `bake` macro to bundle the imports a baked fn touches). */
-	resolve_alias: unknown[];
+	/** Resolved Vite aliases (an island's closure walk; every plugin macro gets them). */
+	resolve_alias: readonly AliasEntry[];
 	/** The plugins' `import.meta.og.*` macros (`b.macro`), in plugin order. Optional (default none). */
 	macros?: readonly PluginMacro[];
 	/** ogygia's own package root — the `auto_brand` macro skips ogygia source (it can't self-register). */
@@ -140,7 +140,7 @@ export class CompileCtx {
 	readonly visibleMargin: string | undefined;
 	readonly presets: Record<string, unknown>;
 	readonly import_keys: ImportKeys;
-	readonly resolve_alias: unknown[];
+	readonly resolve_alias: readonly AliasEntry[];
 	readonly macros: readonly PluginMacro[];
 	readonly pkg_root: string;
 	readonly build_secret: string;

@@ -23,7 +23,7 @@
  * Exposed to consumers as `ogygia/internal/compiler` (internal, not a stable public API).
  */
 export * from './region/transform.ts';
-export { parse_module } from './parse/oxc.ts';
+export { parse_module, type AstNode } from './parse/oxc.ts';
 export * from './fouc-css.ts';
 export * from './free-vars.ts';
 export { Compiler, type Profiler } from './driver.ts';
@@ -50,7 +50,8 @@ export { OWN_FILE_RE } from '@ogygia/core/contract';
 // the build's message tables, for the docs' `ogygiajs.dev/e` pages
 export { BUILD_ERRORS, BUILD_WARNINGS } from './messages.ts';
 // The building blocks of an `import.meta.og.*` macro, for first-party plugins' macros (content's
-// `code` / `md` / `loader` / `regions` / `git`): the call scanner, the member matcher, the build cache.
+// `code` / `md` / `loader` / `regions` / `git`, `@ogygia/bake`'s `bake`): the call scanner, the member
+// matcher, the build cache.
 export {
 	find_og_calls,
 	split_first_string,
