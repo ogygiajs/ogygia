@@ -36,7 +36,7 @@ const DOCUMENTED_PACKAGES = [
 	'@ogygia/flags',
 	'@ogygia/federation',
 	'@ogygia/postrender',
-	'@ogygia/reshape',
+	'@ogygia/rewrite',
 	'@ogygia/devtools',
 	'@ogygia/insights',
 	'@ogygia/testing',
