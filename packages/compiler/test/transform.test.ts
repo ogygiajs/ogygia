@@ -6,6 +6,7 @@ import { describe, test, expect, vi } from 'vitest';
 import {
 	transformHost,
 	normalize_import_keys,
+	import_keys_hint,
 	islandPublicUrl,
 	islandChunkFileName,
 	regionIdentity,
@@ -93,6 +94,13 @@ describe('normalize_import_keys', () => {
 	});
 	test('rejects collisions', () => {
 		expect(() => normalize_import_keys({ wake: 'x', render: 'x' })).toThrow(/distinct/);
+	});
+	test('one config object resolves to one key map, and one key map to one hint', () => {
+		const overrides = { wake: 'hydrate' };
+		const keys = normalize_import_keys(overrides);
+		expect(normalize_import_keys(overrides)).toBe(keys);
+		expect(normalize_import_keys()).toBe(normalize_import_keys(null));
+		expect(import_keys_hint(keys)).toBe(import_keys_hint(keys));
 	});
 });
 
@@ -281,6 +289,14 @@ describe('portable binding rewrite', () => {
 		expect(r.islands[0].virtualPath).toMatch(/^ogygia:region\/entry\//);
 	});
 
+	test('an empty client stub, or no wrapper path function, falls back to the built-in names', () => {
+		const ctx = makeCtx({ linkVirtualIsland: false, clientBindingStub: '' });
+		delete (ctx as { wrapperPathFor?: unknown }).wrapperPathFor;
+		const r = run(wrap(`import C from './A.svelte' with { wake: 'load' };`, '<C />'), ctx)!;
+		expect(r.code).toContain(CLIENT_BINDING_STUB);
+		expect(r.islands[0].wrapperPath).toBe(wrapperVirtualId(idFor('src/routes/A.svelte', loadMark)));
+	});
+
 	test('csr=false client omit (DEV): CSS-only fouc-css virtual for FOUC (not component JS)', () => {
 		const r = run(
 			wrap(`import Nav from '$lib/SideNav.svelte' with { wake: 'load' };`, '<Nav />'),
@@ -351,6 +367,42 @@ describe('portable binding rewrite', () => {
 			/dotted tag/
 		);
 	});
+
+	test('one marked declaration of two names becomes one binding import per name, in order', () => {
+		const r = run(
+			wrap(`import { A, B } from './ab.ts' with { wake: 'load' };`, '<A /><B />'),
+			makeCtx({ linkVirtualIsland: false })
+		)!;
+		const [a, b] = ['A', 'B'].map((n) => r.code.indexOf(`import ${n} from`));
+		expect(a).toBeGreaterThan(-1);
+		expect(b).toBeGreaterThan(a);
+	});
+
+	test('a lake placed only as a dotted tag is used, so its import stays a lake', () => {
+		const r = run(wrap(`import L from './L.svelte' with { wake: 'none' };`, '<L.Part />'))!;
+		expect(r.islands.map((i) => i.kind)).toEqual(['lake']);
+	});
+
+	test('a plain import attribute beside a region import is left as written', () => {
+		const json = `import data from './d.json' with { type: 'json' };`;
+		const r = run(wrap(`${LOAD}\n${json}`, '<C n={data} />'))!;
+		expect(r.islands).toHaveLength(1);
+		expect(r.code).toContain(json);
+	});
+
+	test('a host whose <style> is SCSS still has its regions compiled', () => {
+		const r = run(`${wrap(LOAD, '<C />')}\n<style lang="scss">$c: red; .a { color: $c; }</style>`)!;
+		expect(r?.islands).toHaveLength(1);
+	});
+
+	test('island tags nested 26 deep are walked once, not once more per level', () => {
+		const depth = 26;
+		const markup = `${'<B>'.repeat(depth)}<C />${'</B>'.repeat(depth)}`;
+		const t0 = performance.now();
+		const r = run(wrap(`${LOAD}\nimport B from './B.svelte';`, markup))!;
+		expect(r.islands).toHaveLength(1);
+		expect(performance.now() - t0).toBeLessThan(2000);
+	});
 });
 
 describe('defer / server islands', () => {
@@ -397,6 +449,14 @@ describe('defer / server islands', () => {
 		expect(r.islands[0].wrapperSource).toMatch(/__defer=\{"idle"\}/);
 		// content-only: no client hydrate module is emitted
 		expect(r.islands[0].wrapperSource).not.toMatch(/__hydrate=/);
+	});
+
+	test("a hole's client wrapper never imports its component or entry (a hole ships no JS)", () => {
+		const r = run(wrap(`import C from './C.svelte' with { render: 'deferred' };`, '<C />'))!;
+		const hole = r.islands[0] as { wrapperSource: string; wrapperClientSource: string };
+		expect(hole.wrapperSource).toContain('__OgygiaEntry');
+		expect(hole.wrapperClientSource).not.toContain('__OgygiaEntry');
+		expect(hole.wrapperClientSource).not.toContain('C.svelte');
 	});
 
 	test('a bare render: deferred is fetched on load, the same as fetch: load', () => {
@@ -656,6 +716,14 @@ describe('lakes', () => {
 		expect(r.code).not.toContain('ogygia:region/fouc-css/');
 	});
 
+	test('a cached lake is its wrapper alone; a live (swr) lake also gets a server entry', () => {
+		const cached = run(wrap(`import L from './L.svelte' with { wake: 'none' };`, '<L />'))!;
+		expect(cached.islands[0]).toMatchObject({ virtualPath: undefined, source: undefined });
+		const live = run(wrap(`import L from './L.svelte' with { render: 'live' };`, '<L />'))!;
+		expect(live.islands[0].virtualPath).toMatch(/^ogygia:region\/entry\//);
+		expect(live.islands[0].source).toMatch(/L\.svelte/);
+	});
+
 	test('render: live gets a server entry module (baked + revalidate)', () => {
 		const r = run(
 			wrap(`import L from './L.svelte' with { preset: 'liveBox' };`, '<L />'),
@@ -715,6 +783,24 @@ describe('errors', () => {
 				() => run(wrap(`import C from './C.svelte' with { ${mark} };`, '<C />')),
 				/`keep`.*waking island/
 			);
+	});
+	test("inline stitch takes the strings 'serve' or 'edge' only", () => {
+		expectThrows(
+			() =>
+				run(
+					wrap(`import C from './C.svelte' with { render: 'deferred', stitch: 'true' };`, '<C />')
+				),
+			/stitch: 'true'.*stitch: 'serve'.*stitch: 'edge'/
+		);
+	});
+	test('a file that names asRegion is read even with no region key in it, and refused', () => {
+		expectThrows(
+			() =>
+				run(
+					wrap(`import H from './H.svelte';\nconst X = import.meta.og.asRegion(H, {});`, '<X />')
+				),
+			/asRegion/
+		);
 	});
 	test("a wake that looks like a call ('visible(200px)') is no media query: refused", () => {
 		expectThrows(
@@ -1055,6 +1141,78 @@ describe('portable snippets — a named snippet handed to a non-island component
 		)!;
 		expect(r.code).not.toMatch(/<svelte:head><link rel="modulepreload"/);
 		expect(r.code).toMatch(/__og_portable\([^)]*"\/_app\/ogygia\/og-region\.[a-f0-9]+\.js"\)/);
+	});
+
+	test('a snippet nested in another crossing snippet ships inside the outer entry, not as its own', () => {
+		const r = run(
+			wrap(
+				`import Shell from './Shell.svelte';`,
+				`<Shell>{#snippet outer()}<Shell>{#snippet inner()}<b>x</b>{/snippet}</Shell>{/snippet}</Shell>`
+			)
+		)!;
+		expect(portableIslands(r)).toHaveLength(1);
+		expect(portableIslands(r)[0].source).toContain('{#snippet inner()}');
+	});
+
+	test('a snippet that reassigns only its own parameter still crosses', () => {
+		const r = run(
+			wrap(
+				`import Box from './Box.svelte' with { wake: 'load' };`,
+				`<Box>{#snippet row(n)}<button onclick={() => (n = n + 1)}>{n}</button>{/snippet}</Box>`
+			)
+		)!;
+		expect(portableIslands(r)).toHaveLength(1);
+	});
+
+	test('two names from one <script module> import are imported once in the synth', () => {
+		const r = run(
+			dedent`
+				<script module>
+					import { a, b } from './ab.ts';
+				</script>
+				<script>
+					import Shell from './Shell.svelte';
+				</script>
+				<Shell>{#snippet actions()}<a>{a}{b}</a>{/snippet}</Shell>
+			`
+		)!;
+		const synth = portableIslands(r)[0].source!;
+		expect(synth.split(`import { a, b } from './ab.ts';`)).toHaveLength(2);
+	});
+
+	test("a declared package's host keys its snippet entries by package, not by install path", () => {
+		const src = wrap(
+			`import Shell from './Shell.svelte';`,
+			`<Shell>{#snippet actions()}<a>x</a>{/snippet}</Shell>`
+		);
+		const at = (dir: string) =>
+			transformHost(
+				src,
+				`${dir}/src/Page.svelte`,
+				makeCtx({
+					pkg_identity: (p: string) => (p.startsWith(dir) ? `pkg${p.slice(dir.length)}` : null)
+				})
+			)!;
+		const one = portableIslands(at('/store/pkg@1/pkg'));
+		const two = portableIslands(at('/store/pkg@2/pkg'));
+		expect(one[0].id).toBe(two[0].id);
+	});
+
+	test('a host with only a <script module> gains one instance <script> for the helper', () => {
+		const r = run(
+			dedent`
+				<script module>
+					import Shell from './Shell.svelte';
+				</script>
+				<Shell>{#snippet actions()}<a>x</a>{/snippet}</Shell>
+			`
+		)!;
+		expect(r.code.match(/<script>/g)).toHaveLength(1);
+		expect(r.code).toMatch(/<script>\s*import \{ og_portable as __og_portable \}/);
+	});
+
+	test('a root snippet handed to nothing leaves the file untouched (null)', () => {
+		expect(run(`{#snippet a()}<b>x</b>{/snippet}<Shell />`)).toBeNull();
 	});
 
 	test('a snippet-only file with no islands still transforms (relaxed bailout)', () => {
