@@ -52,6 +52,8 @@ const TABLES: Array<[Kind, Table]> = [
 	['warning', federation.FEDERATION_WARNINGS],
 	['error', flags.FLAGS_ERRORS],
 	['warning', flags.FLAGS_WARNINGS],
+	['error', flags.FLAGS_BUILD_ERRORS],
+	['warning', flags.FLAGS_BUILD_WARNINGS],
 	['error', machine.MACHINE_ERRORS],
 	['warning', machine.MACHINE_WARNINGS],
 	['error', postrender.POSTRENDER_ERRORS],

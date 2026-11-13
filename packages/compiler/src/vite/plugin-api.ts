@@ -36,6 +36,7 @@ import { OgygiaError } from '../compiler/messages.ts';
 import type { Definers } from './definers.ts';
 import { parse_module, type AstNode } from '../compiler/parse/oxc.ts';
 import type { MacroContext } from '../compiler/macros/pipeline.ts';
+import type { PrescanHook } from '../compiler/ctx.ts';
 
 /** Where `definePlugin` puts the definition on the Vite plugin it returns. A registered symbol, so a
  *  second copy of ogygia in one app still recognizes the first's plugins. */
@@ -70,7 +71,7 @@ export interface PluginDefinition<Options = unknown> {
  *  string when nothing changed). */
 export type MacroHandler = (code: string, m: MacroContext) => string | Promise<string>;
 
-export type { MacroContext };
+export type { MacroContext, PrescanHook };
 
 /** A source format that becomes Svelte only through a preprocessor (markdown → Svelte): how its
  *  islands and its modules' CSS reach the build. */
@@ -180,6 +181,10 @@ export interface BuildContext {
 	 *  every other plugin's (`bake`: it runs code the others may still rewrite). They
 	 *  run on the app's own source only: elsewhere a call fails the build (`macro_outside_app`). */
 	macro(name: string, handler: MacroHandler, options?: { last?: boolean }): void;
+	/** Read the modules the build's prescan reads (the app's source and the files packages declare,
+	 *  every one, used or not) that import one of `hook.imports`; `hook.written()` after a
+	 *  `vite build` wrote its client output. An inventory (`flags()`'s flag sites) is built here. */
+	prescan(hook: PrescanHook): void;
 	/** A source format that becomes Svelte through a preprocessor (markdown): register it, get the
 	 *  island transform to call from that preprocessor. */
 	markup(source: MarkupSource): MarkupRegions;
@@ -269,6 +274,8 @@ export interface ResolvedPlugins {
 	foreign_hydrate: boolean;
 	/** plugin macros, in plugin order */
 	macros: { name: string; handler: MacroHandler }[];
+	/** prescan readers (`b.prescan()`), in plugin order */
+	prescans: PrescanHook[];
 	/** markup sources (a preprocessor format with islands) */
 	markup: MarkupSource[];
 	/** the definer calls plugins named (`b.definers()`): marked in dev with their module's run */
@@ -482,6 +489,7 @@ export function resolve_plugins(
 		route_config: [],
 		foreign_hydrate: false,
 		macros: [],
+		prescans: [],
 		markup: [],
 		definers: [],
 		events: false,
@@ -536,6 +544,9 @@ export function resolve_plugins(
 					throw new OgygiaError('plugin_macro_claimed', { name, owner, plugin: plugin.name });
 				macro_owner.set(name, plugin.name);
 				(options?.last ? last_macros : out.macros).push({ name, handler });
+			},
+			prescan(hook) {
+				out.prescans.push(hook);
 			},
 			markup(source) {
 				out.markup.push(source);
