@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { transform_tabs, has_tabs } from '../src/markdown/tabs.ts';
 import { dedent } from '@ogygia/core/plugin/utils';
+import { fc } from '@ogygia/config/sim';
 
 /** Backtick fence helper — keeps the test source readable (no escaping a wall of backticks). */
 const F = '```';
@@ -631,5 +632,70 @@ describe('mixed real-world document', () => {
 	});
 	it('never throws on the whole document', () => {
 		expect(() => transform_tabs(src)).not.toThrow();
+	});
+});
+
+/** The tab wrapper lines in `code` that a CommonMark fence scan finds INSIDE a code fence. */
+function wrappers_in_fences(code: string): string[] {
+	const FENCE_LINE = /^\s*(?:(`{3,})([^`]*)|(~{3,})(.*))$/;
+	const inside: string[] = [];
+	let open: { char: string; len: number } | null = null;
+	for (const line of code.split('\n')) {
+		const m = FENCE_LINE.exec(line);
+		const run = m ? (m[1] ?? m[3]) : '';
+		if (open) {
+			if (m && run[0] === open.char && run.length >= open.len && (m[2] ?? m[4]).trim() === '')
+				open = null;
+			else if (/^(<TabGroup|<\/TabGroup>|<Tab |<\/Tab>)/.test(line)) inside.push(line);
+			continue;
+		}
+		if (m) open = { char: run[0], len: run.length };
+	}
+	return inside;
+}
+
+describe('a fence keeps its identity through the rewrite (#1146)', () => {
+	it('an info string that starts with the fence character is not merged into the fence run', () => {
+		const src = ['::: code-group', `${TILDE} ~x [t]`, 'echo hi', TILDE, ':::'].join('\n');
+		const code = run(src);
+		expect(code).toContain(`${TILDE} ~x`);
+		expect(wrappers_in_fences(code)).toEqual([]);
+	});
+
+	it('a ``` line whose info holds a backtick is no fence (CommonMark), so it hides no marker', () => {
+		const src = dedent`
+			::: tabs
+			== a
+			${F} \`x\`
+			== b
+			after
+			:::
+		`;
+		expect(labels(src)).toEqual(['a', 'b']);
+	});
+
+	it('no tab wrapper is ever written inside a code fence', () => {
+		const LINES = [
+			':::',
+			'::: tabs',
+			'::: code-group',
+			'== a',
+			'== b',
+			F,
+			F4,
+			TILDE,
+			`${F}js [x]`,
+			`${TILDE}~ [t]`,
+			`${TILDE} ~x [t]`,
+			`${F} \`x\``,
+			'  ```',
+			'text'
+		];
+		fc.assert(
+			fc.property(fc.array(fc.constantFrom(...LINES), { minLength: 1, maxLength: 9 }), (lines) => {
+				expect(wrappers_in_fences(run(lines.join('\n')))).toEqual([]);
+			}),
+			{ numRuns: 3000 }
+		);
 	});
 });
