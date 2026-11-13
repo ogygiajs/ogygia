@@ -178,6 +178,15 @@ export function snapshot(s: Session, out: ReadonlyMap<string, unknown> = s.out):
 					any_csr_false: hasAnyCsrFalseRoute(r, ROUTES)
 				},
 				emitted: [...s.emitted].sort(),
+				// (as the driver gives them, unsorted: a build reads them in this order, so it must not
+				// follow the order the files were listed or transformed in; a driver that stopped
+				// sorting them survived)
+				lists: {
+					island_scan_entries: s.compiler.island_scan_entries(),
+					router_css_roots: s.compiler.router_css_roots(),
+					server_island_css_roots: s.compiler.server_island_css_roots(),
+					ssr_transformed_hosts: s.compiler.ssr_transformed_hosts()
+				},
 				out: sorted_obj(out)
 			},
 			(_k, v) =>

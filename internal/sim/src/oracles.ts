@@ -1459,6 +1459,33 @@ export function server_rules(world: World): Broken | null {
 	return { oracle: 'server-rules', detail: said.join('\n') };
 }
 
+/**
+ * A RESHAPED PAGE'S TEXT COMES BACK AS IT WAS: each text a reshape pass's render trimmed (its HTML's
+ * `og-t` marks, `Exchange.restore_owes`) stands in the document at rest with its whitespace, where
+ * the same words stand at all. The MPA check cannot see it: it reads text with its whitespace
+ * collapsed, and its fresh load is reshaped and restored alike (a restore that left the trimmed
+ * text survived). A document the network changed is not judged.
+ */
+export function text_restored(tab: Tab, world: World): Broken | null {
+	const own = world.network.exchanges.find((e) => e.from === tab.realm);
+	if (own?.restore_owes === undefined || document_faulted(world, tab)) return null;
+	if (new URL(own.url).pathname !== new URL(tab.page.mainFrame.url).pathname) return null;
+	const doc = tab.page.mainFrame.document as unknown as Document;
+	const texts: string[] = [];
+	const walk = doc.createTreeWalker(doc.documentElement, 4 /* SHOW_TEXT */);
+	for (let n = walk.nextNode(); n; n = walk.nextNode()) texts.push((n as Text).data);
+	const wrong: string[] = [];
+	for (const was of new Set(own.restore_owes)) {
+		if (was.trim() === '') continue;
+		const same_words = texts.filter((t) => t.trim() === was.trim());
+		if (same_words.length > 0 && !same_words.includes(was))
+			wrong.push(`${JSON.stringify(was)} stands as ${JSON.stringify(same_words[0])}`);
+	}
+	return wrong.length === 0
+		? null
+		: { oracle: 'text-restored', detail: `${tab.page.mainFrame.url}: ${wrong.join('\n')}` };
+}
+
 /** A peer hop's deadline (federation's `timeout` default, which the generated apps keep): an answer
  *  the delay fault brought later is no answer, and the replica is asked (gen 121, seed 6). */
 const PEER_TIMEOUT_MS = 5000;
