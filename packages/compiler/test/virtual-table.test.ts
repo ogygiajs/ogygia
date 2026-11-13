@@ -157,6 +157,12 @@ describe('the virtual-module table', () => {
 		);
 	});
 
+	it('takes a constant among its entries as a define, never a module it resolves', () => {
+		const c = virtual.constant({ id: '__X__', from: () => true });
+		const t = new VirtualTable([c, c], core_path, {}, CORE_PARTS, queries('t'));
+		expect(t.claims('ogygia:server/__X__')).toBe(false);
+	});
+
 	it('refuses two declarations of one module with virtual_duplicate', () => {
 		const a = virtual.value({ realm: 'server', id: 'x', from: () => ({}) });
 		const names = { 'ogygia:server/x': [] };
