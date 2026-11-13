@@ -101,6 +101,19 @@ describe('the CSS preprocess keeps the script it strips', () => {
 	});
 });
 
+describe('which files hold JS regions', () => {
+	test('a JS or TS module is one region from its start, a query after its name included', () => {
+		const src = `export const a = 1;`;
+		for (const id of ['/a/b.ts', '/a/b.js?raw', '/a/b.svelte.ts', '/a/b.mts?v=1'])
+			expect(og_js_regions(src, id, MARKUP)).toEqual([{ code: src, offset: 0 }]);
+	});
+
+	test('a content file is not a host: the markdown preprocessor owns it', () => {
+		for (const id of ['/a/b.md', '/a/b.svx', '/a/b.css'])
+			expect(og_js_regions(`<script>let a = 1;</script>`, id, MARKUP)).toBeNull();
+	});
+});
+
 describe('a block is closed by its end tag', () => {
 	test('a script whose end tag never comes is no block', () => {
 		expect(og_js_regions(`<p>x</p>\n<script>let a = 1;`, '/app/src/lib/A.svelte', MARKUP)).toEqual(

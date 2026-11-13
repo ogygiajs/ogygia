@@ -9,8 +9,6 @@ import {
 } from '@ogygia/machine';
 import type { IslandHandle } from './hydrate-core.ts';
 
-/** What a region element holds for one lifetime in the page: the scope everything it holds across
- *  its machines' visits is given to, and the mailbox its events take turns in (open while it is). */
 type Lifetime = { life: Scope; box: Mailbox };
 
 type RegionStates = {
@@ -33,8 +31,6 @@ const region_definition = machine<RegionStates>()({
 
 const NOT_CONNECTED = scope();
 NOT_CONNECTED.close();
-/** A region out of the page holds nothing: anything given to its lifetime is let go at once, every
- *  post to its mailbox is dropped and every wait in it is `STALE`. */
 const DETACHED: Lifetime = { life: NOT_CONNECTED, box: mailbox(NOT_CONNECTED) };
 
 /**
@@ -192,12 +188,8 @@ export function create_wake(): Wake {
 	return wake_definition.create();
 }
 
-/** A static visit's binding to its frame-store address: set once its subscription is made (the
- *  visit's scope holds it, so leaving `static` drops it). */
 type LiveBinding = { address: string | null };
 
-/** The props of the latest same-module tick that came while its island hydrated: pushed once it
- *  is live. */
 type LivePending = { props: Record<string, unknown> | null };
 
 type LiveStates = {
