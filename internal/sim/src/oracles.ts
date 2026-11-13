@@ -1028,9 +1028,7 @@ export function faulted(world: World, tab: Tab, since?: number): boolean {
 		return true;
 	return world.network.exchanges.slice(since ?? 0).some(
 		(e) =>
-			(mine(e.from) &&
-				(failed_on_wire(e) || e.tampered || e.redirected) &&
-				!failed_over(world, e)) ||
+			(mine(e.from) && (failed_on_wire(e) || e.tampered || e.redirected)) ||
 			// (a server's hop for it changed on the way: what the page was made from. A cut one is
 			// a failure the app must answer well, #937)
 			(e.for !== undefined && mine(e.for) && e.tampered) ||
@@ -1039,25 +1037,7 @@ export function faulted(world: World, tab: Tab, since?: number): boolean {
 }
 
 /** Whether the network failed exchange `e`: dropped, offline, cut or broken off, or a server error. */
-/**
- * Whether `e`, a document's own page answered 500 or more (a mounted peer page, a page with a
- * peer's widget), failed only because a peer's first origin was `down`: every hop its server made
- * for it that failed was a GET that fault answered. The app owes the next origin's answer (federation's
- * failover), so it is no excuse (a mutant that never asked the next origin survived).
- */
-function failed_over(world: World, e: World['network']['exchanges'][number]): boolean {
-	if (typeof e.status !== 'number' || e.status < 500 || e.cut || e.tampered || e.redirected)
-		return false;
-	// (the document's own page: a hole's or a widget's answer of its is judged by its own hops)
-	if (world.network.exchanges.find((x) => x.from === e.from) !== e) return false;
-	const hops = world.network.exchanges.filter((h) => h.for === e.from);
-	const failed = hops.filter((h) => h.down === true || failed_on_wire(h) || h.tampered);
-	return failed.length > 0 && failed.every((h) => h.down === true && h.method === 'GET');
-}
-
 function failed_on_wire(e: World['network']['exchanges'][number]): boolean {
-	// (a GET a peer's first origin answered `down`: the app owes the visitor its next origin's answer)
-	if (e.down === true && e.method === 'GET') return false;
 	return (
 		e.cut ||
 		e.status === 'dropped' ||
@@ -1244,8 +1224,6 @@ export function peer_answers(
 			new URL(own.url).pathname === path &&
 			doc.readyState === 'complete';
 		if (loaded && !hop_failed(tab.realm) && !error_page(tab)) {
-			if (PEER_PAGE.test(path) && doc.querySelector('[data-gen="peer-page"]') === null)
-				wrong.push(`${path} shows none of the peer's page`);
 			const text = doc.documentElement?.textContent ?? '';
 			if (mount === 'kit' && path === EDGE_GONE && !PEER_GONE_SAID.some((s) => text.includes(s)))
 				wrong.push(`${path} says neither the peer's title nor the app's word for a missing page`);

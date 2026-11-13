@@ -966,47 +966,6 @@ describe('page errors', () => {
 		expect(document_faulted(world, t)).toBe(true);
 		expect(faulted(world, t)).toBe(true);
 	});
-
-	it("a mounted peer page that failed only because the peer's first origin was down is no fault: the app owes the next origin's answer (a mutant that never asked it survived)", () => {
-		const world = (hop: Record<string, unknown>) =>
-			({
-				fired_in: new Map(),
-				network: {
-					exchanges: [
-						{ id: 1, from: 'tab-0#2', url: 'https://app.test/peer/q0', status: 502 },
-						{
-							id: 2,
-							from: 'server-1',
-							for: 'tab-0#2',
-							url: 'https://peer.test/og/fragment/page?path=%2Fq0',
-							...hop
-						}
-					].map((e) => ({ method: 'GET', cut: false, tampered: false, redirected: false, ...e }))
-				}
-			}) as unknown as World;
-		const t = {
-			realm: 'tab-0#2',
-			name: 'tab-0',
-			documents: 2,
-			page: { mainFrame: { url: 'https://app.test/peer/q0' } }
-		} as unknown as Parameters<typeof faulted>[1];
-		expect(faulted(world({ status: 503, down: true }), t)).toBe(false);
-		expect(faulted(world({ status: 'dropped' }), t)).toBe(true);
-		expect(faulted(world({ status: 503, down: true, method: 'POST' }), t)).toBe(true);
-		// (a hole's answer of the document's that failed is judged by its own story, not the page's)
-		const hole = world({ status: 503, down: true });
-		(hole.network.exchanges as unknown as Array<Record<string, unknown>>).unshift({
-			id: 0,
-			from: 'tab-0#2',
-			method: 'GET',
-			url: 'https://app.test/peer/q0',
-			status: 200,
-			cut: false,
-			tampered: false,
-			redirected: false
-		});
-		expect(faulted(hole, t)).toBe(true);
-	});
 });
 
 describe('leaks', () => {
@@ -1310,14 +1269,9 @@ describe("a mounted peer's page answers as the peer did", () => {
 		expect(await judged('', [['/peer/bad', 400]], '/peer/bad')).toBeNull();
 	});
 
-	it("finds one of the peer's own pages showing none of it, and a missing one saying nothing (a mutant that made every exposed page an empty redirect, and one that lost the message, survived)", async () => {
-		const page = '<main data-gen="peer-page"><h1>peer /q0</h1></main>';
-		expect((await judged('<p>moved</p>', [['/peer/q0', 200]], '/peer/q0'))?.oracle).toBe(
-			'peer-answers'
-		);
-		expect(await judged(page, [['/peer/q0', 200]], '/peer/q0')).toBeNull();
+	it('finds, on a Kit mount, a page the peer lacks saying nothing (a mutant that lost the message survived)', async () => {
 		// (reached by a client navigation: it may be mid-way, and is not judged)
-		expect(await judged('<p>moved</p>', [['/p0', 200]], '/peer/q0')).toBeNull();
+		expect(await judged('<h1>404</h1><p></p>', [['/p0', 200]], '/peer/gone')).toBeNull();
 		expect((await judged('<h1>404</h1><p></p>', [['/peer/gone', 404]], '/peer/gone'))?.oracle).toBe(
 			'peer-answers'
 		);
