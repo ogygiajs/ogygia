@@ -327,65 +327,141 @@ export function standalone_beacon(): void {
 	};
 	const unquote = (s: string) => s.trim().split('"').join('').split("'").join('');
 
-	function tag_attrs(tag: string): Map<string, string> {
-		const out = new Map<string, string>();
-		let i = 1;
-		while (i < tag.length && tag[i] !== ' ' && tag[i] !== '>' && tag[i] !== '/') i++;
-		while (i < tag.length) {
-			while (
-				i < tag.length &&
-				(tag[i] === ' ' || tag[i] === '\n' || tag[i] === '\t' || tag[i] === '/')
-			)
-				i++;
-			if (i >= tag.length || tag[i] === '>') break;
-			const start = i;
-			while (i < tag.length && tag[i] !== '=' && tag[i] !== ' ' && tag[i] !== '>') i++;
-			const name = tag.slice(start, i);
-			let value = '';
-			if (tag[i] === '=') {
-				i++;
-				const q = tag[i];
-				if (q === '"' || q === "'") {
-					const end = tag.indexOf(q, i + 1);
-					value = tag.slice(i + 1, end === -1 ? tag.length : end);
-					i = end === -1 ? tag.length : end + 1;
-				} else {
-					const s = i;
-					while (i < tag.length && tag[i] !== ' ' && tag[i] !== '>') i++;
-					value = tag.slice(s, i);
-				}
-			}
-			if (name) out.set(name, value);
+	// The tag reading below is core's tag walk (markup-walk.ts) cut down to what `innerHTML` writes
+	// (no comments: `bare` took them out): a `>` inside a quoted value does not end a tag, a raw-text
+	// element's text holds no tag, the first of two same-name attributes wins. Pinned to core's
+	// `attr_changes` over serialized pages by profiler-page-beacon-parity.test.ts.
+	const SPACE = ' \t\n\f\r';
+	const RAW_TEXT = ['script', 'style', 'xmp', 'iframe', 'noembed', 'noframes', 'noscript'];
+	/** Where the start or end tag at `lt` ends: past its first `>` outside a quoted value; -1 when
+	 *  the markup ends inside it. */
+	function tag_end(s: string, lt: number): number {
+		const n = s.length;
+		let k = lt + 1;
+		while (k < n) {
+			const c = s[k];
+			if (c === '>') return k + 1;
+			k++;
+			if (c !== '=') continue;
+			while (k < n && SPACE.includes(s[k])) k++;
+			const q = s[k];
+			if (q === '"' || q === "'") {
+				const e = s.indexOf(q, k + 1);
+				if (e === -1) return -1;
+				k = e + 1;
+			} else while (k < n && s[k] !== '>' && !SPACE.includes(s[k])) k++;
+		}
+		return -1;
+	}
+	/** Where the name of the tag at `at` (just past its `<` or `</`) ends. */
+	function tag_name_end(s: string, at: number): number {
+		while (at < s.length && s[at] !== '>' && s[at] !== '/' && !SPACE.includes(s[at])) at++;
+		return at;
+	}
+	/** `s[from, to)`, a tag or attribute name, as the browser keeps it: ASCII in lower case. */
+	function tag_name(s: string, from: number, to: number): string {
+		let out = '';
+		for (let k = from; k < to; k++) {
+			const c = s.charCodeAt(k);
+			out += c >= 65 && c <= 90 ? String.fromCharCode(c + 32) : s[k];
 		}
 		return out;
 	}
-	function tag_name(tag: string): string {
-		let i = 1;
-		while (i < tag.length && tag[i] !== ' ' && tag[i] !== '>' && tag[i] !== '/' && tag[i] !== '\n')
-			i++;
-		return tag.slice(1, i).toLowerCase();
+	/** The attributes of the start tag `s[lt, end)` whose name ends at `ne`, values as written. */
+	function tag_attrs(s: string, ne: number, end: number): Map<string, string> {
+		const out = new Map<string, string>();
+		let i = ne;
+		for (;;) {
+			while (i < end && (SPACE.includes(s[i]) || s[i] === '/')) i++;
+			if (i >= end || s[i] === '>') break;
+			const start = i++;
+			while (i < end && s[i] !== '=' && s[i] !== '>' && s[i] !== '/' && !SPACE.includes(s[i])) i++;
+			const name = tag_name(s, start, i);
+			let j = i;
+			while (j < end && SPACE.includes(s[j])) j++;
+			let value = '';
+			if (s[j] === '=') {
+				j++;
+				while (j < end && SPACE.includes(s[j])) j++;
+				const q = s[j];
+				if (q === '"' || q === "'") {
+					const e = s.indexOf(q, j + 1);
+					value = s.slice(j + 1, e === -1 ? end : e);
+					i = e === -1 ? end : e + 1;
+				} else {
+					const v = j;
+					while (j < end && s[j] !== '>' && !SPACE.includes(s[j])) j++;
+					value = s.slice(v, j);
+					i = j;
+				}
+			}
+			if (!out.has(name)) out.set(name, value);
+		}
+		return out;
+	}
+	/** `s` cut at its tags, as core's `markup_tokens` cuts it: kind (0 text, 1 start tag, 2 end tag,
+	 *  3 a bogus comment), start, end, where a tag's name ends; four numbers per piece. */
+	function pieces(s: string): number[] {
+		const out: number[] = [];
+		const n = s.length;
+		const letter = (x: number) => (x >= 97 && x <= 122) || (x >= 65 && x <= 90);
+		let i = 0;
+		let lt = s.indexOf('<');
+		while (lt !== -1) {
+			const c = s.charCodeAt(lt + 1);
+			let kind = 0;
+			if (letter(c)) kind = 1;
+			else if (c === 47 /* / */ && letter(s.charCodeAt(lt + 2))) kind = 2;
+			else if (c === 33 /* ! */ || c === 63 /* ? */ || (c === 47 && s[lt + 2] !== '>')) kind = 3;
+			// (a `<` that opens nothing is text, and so is `</>`, which the browser drops)
+			if (kind === 0) {
+				lt = s.indexOf('<', lt + 1);
+				continue;
+			}
+			const ne = kind === 3 ? lt : tag_name_end(s, lt + kind);
+			const end = kind === 3 ? s.indexOf('>', lt) + 1 || -1 : tag_end(s, lt);
+			// (the markup ends inside the tag: the rest is text, as core's walk leaves it)
+			if (end === -1) break;
+			if (lt > i) out.push(0, i, lt, i);
+			out.push(kind, lt, end, ne);
+			i = end;
+			const raw = kind === 1 ? tag_name(s, lt + 1, ne) : '';
+			if (raw === 'plaintext') i = n;
+			else if (RAW_TEXT.includes(raw)) {
+				// (its text runs to `</name` followed by a space, `/` or `>`)
+				let close = s.indexOf('</', end);
+				while (close !== -1) {
+					const after = close + 2 + raw.length;
+					const t = s[after];
+					if (
+						tag_name(s, close + 2, after) === raw &&
+						(t === undefined || t === '>' || t === '/' || SPACE.includes(t))
+					)
+						break;
+					close = s.indexOf('</', close + 2);
+				}
+				i = close === -1 ? n : close;
+			}
+			if (i > end) out.push(0, end, i, end);
+			lt = s.indexOf('<', i);
+		}
+		if (i < n) out.push(0, i, n, i);
+		return out;
 	}
 	function attr_changes(a: string, b: string): AttrChange[] | null {
+		const pa = pieces(a);
+		const pb = pieces(b);
+		if (pa.length !== pb.length) return null;
 		const out: AttrChange[] = [];
-		let i = 0;
-		let j = 0;
-		while (i < a.length || j < b.length) {
-			const ti = a.indexOf('<', i);
-			const tj = b.indexOf('<', j);
-			if (a.slice(i, ti === -1 ? a.length : ti) !== b.slice(j, tj === -1 ? b.length : tj))
-				return null;
-			if (ti === -1 || tj === -1) return ti === tj ? out : null;
-			const ei = a.indexOf('>', ti);
-			const ej = b.indexOf('>', tj);
-			const x = a.slice(ti, ei === -1 ? a.length : ei + 1);
-			const y = b.slice(tj, ej === -1 ? b.length : ej + 1);
-			i = ti + x.length;
-			j = tj + y.length;
-			if (x === y) continue;
-			const tag = tag_name(x);
-			if (tag !== tag_name(y) || x[1] === '/' || y[1] === '/') return null;
-			const xa = tag_attrs(x);
-			const ya = tag_attrs(y);
+		for (let k = 0; k < pa.length; k += 4) {
+			const kind = pa[k];
+			if (kind !== pb[k]) return null;
+			if (a.slice(pa[k + 1], pa[k + 2]) === b.slice(pb[k + 1], pb[k + 2])) continue;
+			if (kind !== 1) return null;
+			const tag = tag_name(a, pa[k + 1] + 1, pa[k + 3]);
+			if (tag !== tag_name(b, pb[k + 1] + 1, pb[k + 3])) return null;
+			const xa = tag_attrs(a, pa[k + 3], pa[k + 2]);
+			const ya = tag_attrs(b, pb[k + 3], pb[k + 2]);
 			for (const [name, v] of xa)
 				if (ya.get(name) !== v && out.length < 20)
 					out.push({ tag, name, from: v, to: ya.has(name) ? ya.get(name)! : null });

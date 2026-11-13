@@ -1,3 +1,4 @@
+import { markup_tokens, read_tag, tag_name } from '../markup-walk.ts';
 import { OG_KEPT } from '../wire-markup.ts';
 
 /** One attribute that differs between the server's markup and the island's after hydrate. */
@@ -8,74 +9,41 @@ export interface AttrChange {
 	to: string | null;
 }
 
-/** `name="value"` pairs of one start tag (`<a href="x" hidden>`), as the browser serializes them. */
-function tag_attrs(tag: string): Map<string, string> {
-	const out = new Map<string, string>();
-	let i = 1;
-	while (i < tag.length && tag[i] !== ' ' && tag[i] !== '>' && tag[i] !== '/') i++;
-	while (i < tag.length) {
-		while (
-			i < tag.length &&
-			(tag[i] === ' ' || tag[i] === '\n' || tag[i] === '\t' || tag[i] === '/')
-		)
-			i++;
-		if (i >= tag.length || tag[i] === '>') break;
-		const start = i;
-		while (i < tag.length && tag[i] !== '=' && tag[i] !== ' ' && tag[i] !== '>') i++;
-		const name = tag.slice(start, i);
-		let value = '';
-		if (tag[i] === '=') {
-			i++;
-			const q = tag[i];
-			if (q === '"' || q === "'") {
-				const end = tag.indexOf(q, i + 1);
-				value = tag.slice(i + 1, end === -1 ? tag.length : end);
-				i = end === -1 ? tag.length : end + 1;
-			} else {
-				const s = i;
-				while (i < tag.length && tag[i] !== ' ' && tag[i] !== '>') i++;
-				value = tag.slice(s, i);
-			}
-		}
-		if (name) out.set(name, value);
-	}
+/** The pieces of `html` as core's tag walk cuts them: kind, start, end, where a tag's name ends. */
+function pieces_of(html: string): number[] {
+	const out: number[] = [];
+	markup_tokens(html, (kind, start, end, ne) => {
+		out.push(kind, start, end, ne);
+	});
 	return out;
-}
-
-/** The tag's name, lowercase (`<ds-button …>` → `ds-button`). */
-function tag_name(tag: string): string {
-	let i = 1;
-	while (i < tag.length && tag[i] !== ' ' && tag[i] !== '>' && tag[i] !== '/' && tag[i] !== '\n')
-		i++;
-	return tag.slice(1, i).toLowerCase();
 }
 
 /**
  * When two markups (comments out) differ ONLY in attributes — the same elements in the same order, the
- * same text — each attribute that differs (at most 20); `null` when text or elements differ. A walk of
- * both strings tag by tag, no regex: it runs once per changed island.
+ * same text — each attribute that differs (at most 20); `null` when text or elements differ. Both are
+ * read by core's tag walk, as the browser reads them (a `>` in a quoted value, any quoting, the first
+ * of two same-name attributes): it runs once per changed island. The page beacon's own copy
+ * (devtools beacon-standalone.ts) answers the same (profiler-page-beacon-parity.test.ts).
  */
 export function attr_changes(a: string, b: string): AttrChange[] | null {
+	const pa = pieces_of(a);
+	const pb = pieces_of(b);
+	if (pa.length !== pb.length) return null;
 	const out: AttrChange[] = [];
-	let i = 0;
-	let j = 0;
-	while (i < a.length || j < b.length) {
-		const ti = a.indexOf('<', i);
-		const tj = b.indexOf('<', j);
-		if (a.slice(i, ti === -1 ? a.length : ti) !== b.slice(j, tj === -1 ? b.length : tj))
-			return null;
-		if (ti === -1 || tj === -1) return ti === tj ? out : null;
-		const ei = a.indexOf('>', ti);
-		const ej = b.indexOf('>', tj);
-		const x = a.slice(ti, ei === -1 ? a.length : ei + 1);
-		const y = b.slice(tj, ej === -1 ? b.length : ej + 1);
-		i = ti + x.length;
-		j = tj + y.length;
+	for (let k = 0; k < pa.length; k += 4) {
+		const kind = pa[k];
+		if (kind !== pb[k]) return null;
+		const x = a.slice(pa[k + 1], pa[k + 2]);
+		const y = b.slice(pb[k + 1], pb[k + 2]);
 		if (x === y) continue;
-		const tag = tag_name(x);
-		if (tag !== tag_name(y) || x[1] === '/' || y[1] === '/') return null;
-		const xa = tag_attrs(x);
-		const ya = tag_attrs(y);
+		// (text, an end tag or a comment that differs: not attributes only)
+		if (kind !== 1) return null;
+		const tx = read_tag(a, pa[k + 1], pa[k + 3])!;
+		const ty = read_tag(b, pb[k + 1], pb[k + 3])!;
+		const tag = tag_name(a, tx);
+		if (tag !== tag_name(b, ty)) return null;
+		const xa = tx.attrs;
+		const ya = ty.attrs;
 		for (const [name, v] of xa)
 			if (ya.get(name) !== v && out.length < 20)
 				out.push({ tag, name, from: v, to: ya.has(name) ? ya.get(name)! : null });
