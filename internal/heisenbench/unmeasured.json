@@ -37,10 +37,6 @@
 			"reason": "the sources to add that a directive lacks, constant work per source (one or two hashes); early-holes-csp.test.ts runs it"
 		},
 		{
-			"id": "packages/rewrite/src/pass.ts > count_error",
-			"reason": "the wrong-count message of a failed render, built only when a render returns the wrong number of results; rewrite.test.ts 'a batch with the wrong count is retried one at a time' runs it"
-		},
-		{
 			"id": "packages/rewrite/src/pass.ts > render_targets > map:0~ae0427",
 			"reason": "one null per target of a batch cancelled while it rendered, constant work per target; rewrite.test.ts's cancelled-request tests run it (the request's signal: not replayable)"
 		},
@@ -2455,6 +2451,18 @@
 		{
 			"id": "packages/rewrite/src/messages.ts > REWRITE_WARNINGS > restore_sheet_missing > text",
 			"reason": "a message table entry: wording only (#1673)"
+		},
+		{
+			"id": "packages/rewrite/src/messages.ts > REWRITE_WARNINGS > rule_rewrite_after_cancel > details",
+			"reason": "a message table entry: wording only (a rule's explanation)"
+		},
+		{
+			"id": "packages/rewrite/src/messages.ts > REWRITE_WARNINGS > rule_rewrite_after_cancel > text",
+			"reason": "a message table entry: wording only (a rule broken; rewrite.test.ts 'rule_rewrite_after_cancel: …' says it)"
+		},
+		{
+			"id": "packages/rewrite/src/pass.ts > call_render > map:0~ba4374",
+			"reason": "rules builds only (buggify): each result of a render checked once for the malformed and strips-marks points, constant work per result (the render's own output: not replayable); folds out of production"
 		},
 		{
 			"id": "packages/core/src/server/page-stream.ts > swap_tracked",
