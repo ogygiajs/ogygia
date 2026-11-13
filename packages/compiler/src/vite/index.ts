@@ -4,7 +4,6 @@ import crypto from 'node:crypto';
 import { dedent } from '@ogygia/core/contract';
 import { isMainThread } from 'node:worker_threads';
 import { loadEnv, type Plugin, type Rolldown, type ViteDevServer } from 'vite';
-import type { PreprocessorGroup } from 'svelte/compiler';
 import { configure_build_cache } from '../compiler/build-cache.ts';
 import {
 	content_css_key,
@@ -1634,27 +1633,6 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 		lazy_files()
 	];
 }
-
-// The svelte config's markdown preprocessor and extensions belong to the content plugin
-// (`@ogygia/content/vite`). The old spellings stay callable and do nothing: they answer what they
-// answered for an app without markdown, so a svelte config written for 0.8 still loads.
-
-export declare namespace ogygia {
-	/**
-	 * @deprecated Does nothing: returns `['.svelte']`. Markdown extensions come from
-	 * `extensions()` in `@ogygia/content/vite`.
-	 */
-	export const extensions: () => string[];
-	/**
-	 * @deprecated Does nothing: returns `[]`. The markdown preprocessor comes from `preprocess()` in
-	 * `@ogygia/content/vite`.
-	 */
-	export const preprocess: () => PreprocessorGroup[];
-}
-Object.assign(ogygia, {
-	extensions: (): string[] => ['.svelte'],
-	preprocess: (): PreprocessorGroup[] => []
-});
 
 // NOTE(deferred-types, 2026-09-01): a preprocessor that rewrote `render:'deferred'` imports to
 // type the reserved `ogygiaFallback` snippet was built and REVERTED — svelte-check/language-tools
