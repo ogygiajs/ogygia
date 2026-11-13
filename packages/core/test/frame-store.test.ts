@@ -323,6 +323,9 @@ describe('frame-store: reservation (single-flight navigation)', () => {
 		const joined = frames.ensure('/r?sig=1', vi.fn());
 		frames.release('/r?sig=1'); // batch ended, no frame for this address
 		await expect(joined).rejects.toThrow(/no frame/);
+		// the hole that joined it tells the miss from a failure by this one test (runtime/core.ts)
+		expect(frames.is_batch_miss(await joined.catch((e: unknown) => e))).toBe(true);
+		expect(frames.is_batch_miss(new Error('no frame'))).toBe(false);
 		// A fresh ensure now starts a real fetch (reservation cleared).
 		const spy = vi.fn(deferred('LATE').fetcher);
 		frames.ensure('/r?sig=1', spy);

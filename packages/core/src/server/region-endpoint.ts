@@ -21,6 +21,7 @@ import { encode_region_props } from './region-props.ts';
 import { stringify } from 'devalue';
 import { record_server_event } from '../events/server-registry.ts';
 import { KNOWN_COPIES_CAP, KNOWN_HEADER_CAP } from '../contract/known-copies.ts';
+import { document_counts } from './document-counts.ts';
 
 // DEVTOOLS gate — server realm; off → folds out.
 const DEVTOOLS = typeof __OGYGIA_DEVTOOLS__ !== 'undefined' ? __OGYGIA_DEVTOOLS__ : false;
@@ -76,10 +77,10 @@ function region_session(): string {
  * SERVER-DELTA NAV (D3) — the region copies the CLIENT already has live, sent on an SPA nav via
  * `x-ogygia-known`: one fingerprint per live copy it can reuse (a fingerprint repeats for twins).
  * Honored ONLY on an SPA nav (`x-ogygia-spa`); a full page load has no header → nothing is reused →
- * everything renders. Parsed once per request-event. A missing/oversized header is always the SAFE
- * full render — this is a pure optimization signal.
+ * everything renders. Parsed once per request (server/document-counts.ts: a held region rendered in
+ * a load takes from the same copies as the page, #1209). A missing/oversized header is always the
+ * SAFE full render — this is a pure optimization signal.
  */
-const KNOWN_COPIES = new WeakMap<object, Map<string, number>>();
 
 /** Did the app opt into server-delta navigation (`router: { serverDelta: true }`)? A build constant
  *  (Vite `define`, the SSR build's too); typeof-guarded, so a plain node import is off. Off, the
@@ -104,9 +105,11 @@ export function reuse_known_region(fp: string): boolean {
 	} catch {
 		return false; // ok: no request scope (prerender / off-request) → render all
 	}
-	let copies = KNOWN_COPIES.get(event);
-	if (copies === undefined) {
-		copies = new Map();
+	const counts = document_counts(event);
+	if (counts === null) return false; // an event with no request: no claim, render all
+	let copies = counts.known;
+	if (copies === null) {
+		counts.known = copies = new Map();
 		try {
 			const spa = event.request.headers.get('x-ogygia-spa');
 			const known = spa ? event.request.headers.get('x-ogygia-known') : null;
@@ -117,7 +120,6 @@ export function reuse_known_region(fp: string): boolean {
 		} catch {
 			// ok: an unreadable header is no claim: everything renders
 		}
-		KNOWN_COPIES.set(event, copies);
 	}
 	const left = copies.get(fp) ?? 0;
 	if (left === 0) return false;

@@ -48,6 +48,35 @@ describe('background_start', () => {
 		postTask.mock.calls[1][0]();
 	});
 
+	it('a start queued while the drain runs is run by that drain, with no second task', () => {
+		const postTask = vi.fn();
+		g.scheduler = { postTask };
+		const late = vi.fn();
+		background_start(() => background_start(late));
+		postTask.mock.calls[0][0]();
+		expect(late).toHaveBeenCalledTimes(1);
+		expect(postTask).toHaveBeenCalledTimes(1);
+	});
+
+	it('a start that throws: the ones after it still run, in a task of their own', () => {
+		const postTask = vi.fn();
+		g.scheduler = { postTask };
+		const after = vi.fn();
+		background_start(() => {
+			throw new Error('a start failed');
+		});
+		background_start(after);
+		expect(() => postTask.mock.calls[0][0]()).toThrow('a start failed');
+		expect(after).not.toHaveBeenCalled();
+		expect(postTask).toHaveBeenCalledTimes(2);
+		postTask.mock.calls[1][0]();
+		expect(after).toHaveBeenCalledTimes(1);
+		// drained: the next start posts a new task
+		background_start(after);
+		expect(postTask).toHaveBeenCalledTimes(3);
+		postTask.mock.calls[2][0]();
+	});
+
 	it('falls back to a macrotask when scheduler.postTask is absent — async, not sync', () => {
 		g.scheduler = undefined;
 		vi.useFakeTimers();
