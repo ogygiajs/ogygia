@@ -10,9 +10,9 @@
 	},
 	"dependencies": {
 		"@corp/contracts": "workspace:*",
+		"@ogygia/data-shake": "workspace:*",
 		"@ogygia/federation": "workspace:*",
 		"@ogygia/flags": "workspace:*",
-		"@ogygia/page-keys": "workspace:*",
 		"@ogygia/postrender": "workspace:*",
 		"@ogygia/router": "workspace:*",
 		"ogygia": "workspace:*"

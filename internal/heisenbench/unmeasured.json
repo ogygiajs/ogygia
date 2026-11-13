@@ -5277,6 +5277,14 @@
 			"reason": "a message table entry: wording only"
 		},
 		{
+			"id": "packages/compiler/src/compiler/messages.ts > BUILD_ERRORS > hole_wake_removed > details",
+			"reason": "a message table entry: wording only"
+		},
+		{
+			"id": "packages/compiler/src/compiler/messages.ts > BUILD_ERRORS > hole_wake_removed > text",
+			"reason": "a message table entry: wording only"
+		},
+		{
 			"id": "packages/compiler/src/compiler/messages.ts > BUILD_ERRORS > as_region_removed > text",
 			"reason": "a message table entry: wording only"
 		},
@@ -5718,7 +5726,7 @@
 		},
 		{
 			"id": "packages/compiler/src/vite/dev-maps.ts > install_dev_page_keys > <anonymous>~d15d6d > dev:1~e12443",
-			"reason": "dev only, a profiler ask: one dev server resolve of a helper the page is handed to, then the plugin's own dev read (page_reads.dev, measured in the page-keys bench)"
+			"reason": "dev only, a profiler ask: one dev server resolve of a helper the page is handed to, then the plugin's own dev read (page_reads.dev, measured in the data-shake bench)"
 		},
 		{
 			"id": "packages/compiler/src/vite/dev-maps.ts > install_dev_page_keys > <anonymous>~d15d6d > dev:1~e12443 > catch:0~ae0427",
@@ -5781,12 +5789,24 @@
 			"reason": "dev and rules builds only: one set lookup per page.data key, constant work per key; proven in packages/core/test/seed-shaping-oracle.test.ts"
 		},
 		{
-			"id": "packages/page-keys/src/index.ts > pageKeys",
+			"id": "packages/reshape/src/messages.ts > RESHAPE_WARNINGS > restore_sheet_missing > details",
+			"reason": "a message table entry: wording only (#1673)"
+		},
+		{
+			"id": "packages/reshape/src/messages.ts > RESHAPE_WARNINGS > restore_sheet_missing > text",
+			"reason": "a message table entry: wording only (#1673)"
+		},
+		{
+			"id": "packages/compiler/src/vite/kit-dirs.ts > load_kit_config",
+			"reason": "config time, once per Vite config: imports the app's svelte.config (async, file system: not replayable); proven in packages/compiler/test/kit-dirs.test.ts"
+		},
+		{
+			"id": "packages/data-shake/src/vite.ts > dataShake",
 			"reason": "config time: one plugin definition per vite.config load, constant work"
 		},
 		{
-			"id": "packages/page-keys/src/index.ts > pageKeys > definePlugin:0~0ce4a1 > build",
-			"reason": "build only: makes the plugin's page_reads (measured in the page-keys bench) and hands it to the build, once per build"
+			"id": "packages/data-shake/src/vite.ts > dataShake > definePlugin:0~7b132b > build",
+			"reason": "build only: makes the plugin's page_reads (measured in the data-shake bench) and hands it to the build, once per build"
 		}
 	]
 }

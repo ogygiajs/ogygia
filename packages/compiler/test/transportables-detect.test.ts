@@ -1,4 +1,4 @@
-// What counts as a transportable (a class with a wire codec, or an exported createContext), as read by
+// What counts as a transportable (a class with a wire codec), as read by
 // the eager manifest (`moduleHasTransportable`, `svelteModuleHasTransportable`) and the appended
 // registration (`appendTransportRegistrations`, `appendSvelteModuleRegistrations`). Near misses of
 // each shape must not register: the registration drags an `ogygia/internal/register` import into
@@ -14,7 +14,7 @@ import {
 
 const CODEC = `{ encode: (c) => c.v, decode: (v) => new C(v) }`;
 const reg = (src: string) => appendTransportRegistrations(src, '/app/src/lib/m.ts', '/app');
-/** The `__OGT` / `__OGC` lines a module gets, in order. */
+/** The `__OGT` lines a module gets, in order. */
 const calls_of = (src: string) => (reg(src) ?? '').split('\n').filter((l) => l.startsWith('__OG'));
 
 describe('the wire member: only the symbol key or the raw macro call', () => {
@@ -85,35 +85,26 @@ describe('which classes register', () => {
 	});
 });
 
-describe('createContext exports are tagged', () => {
+describe('a createContext export registers nothing: its key is Symbol.for(name)', () => {
 	it.each([
-		[`export const cart = createContext();`, ['__OGC("src/lib/m.ts#cart", cart);']],
-		[`export const cart = og.createContext();`, ['__OGC("src/lib/m.ts#cart", cart);']],
-		[
-			`export const a = createContext(), b = createContext();`,
-			['__OGC("src/lib/m.ts#a", a);', '__OGC("src/lib/m.ts#b", b);']
-		],
-		[`export const cart = makeContext(); // createContext`, []],
-		[`export const cart = createContext;`, []],
-		[`export const cart = og['createContext']();`, []],
-		[`export const [a] = createContext();`, []],
-		[`const cart = createContext();\nexport { cart };`, []],
-		[`export function createContext() {}`, []]
-	])('`%s` → %j', (src, want) => {
-		expect(calls_of(src)).toEqual(want);
+		`export const cart = createContext('cart');`,
+		`export const cart = og.createContext('cart');`,
+		`export const a = createContext('a'), b = createContext('b');`,
+		`export const [getCart, setCart] = createContext('cart');`
+	])('`%s` is left as written', (src) => {
+		expect(reg(src)).toBe(null);
 	});
 
-	it('a wire class and a context in one module: one import, both registrations', () => {
+	it('a wire class beside a context: only the class registers', () => {
 		const out = reg(dedent`
 			export class C { static [Symbol.for('ogygia.wire')] = ${CODEC}; }
-			export const cart = createContext();
+			export const cart = createContext('cart');
 		`)!;
 		expect(out).toContain(
-			`import { __register_transportable as __OGT, __tag_context as __OGC } from 'ogygia/internal/register';`
+			`import { __register_transportable as __OGT } from 'ogygia/internal/register';`
 		);
 		expect(out.split('\n').filter((l) => l.startsWith('__OG'))).toEqual([
-			'__OGT("src/lib/m.ts#C", C);',
-			'__OGC("src/lib/m.ts#cart", cart);'
+			'__OGT("src/lib/m.ts#C", C);'
 		]);
 	});
 });

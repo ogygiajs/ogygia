@@ -47,9 +47,11 @@ export const VIRTUALS = [
  * - #1376: a transform that changed the registry or the marks reloads what read them.
  * - #1399: the server manifest's lines are compared sorted (`as_judged`).
  * - #1317: seed shaping misses a page passed as a parameter default (reads.ts `KNOWN_READS`).
+ * - #1706: after a lost watcher event and a later save, a lake's wrapper is served `null` (here: the
+ *   fault property's watcher loses no event, faults.test.ts).
  */
 export const KNOWN: ReadonlySet<number> = new Set(
-	(process.env.DST_KNOWN ?? '1317,1375,1376,1399').split(',').filter(Boolean).map(Number)
+	(process.env.DST_KNOWN ?? '1317,1375,1376,1399,1706').split(',').filter(Boolean).map(Number)
 );
 
 /** A served module as the oracles compare it. #1399 (the server manifest in registration order):
