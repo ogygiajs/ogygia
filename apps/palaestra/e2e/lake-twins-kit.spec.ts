@@ -74,4 +74,21 @@ test.describe('two same-component lakes on a csr=true page Kit remounts', () => 
 		);
 		check('the footer’s visible island woke and answers', true);
 	});
+
+	test('Kit still starts when the runtime fails to load: its wait settles', async ({ page }) => {
+		await page.route(/\/og-runtime[^/]*\.js$/, (route) => route.abort());
+		await page.goto('/lake-twins-kit/', { waitUntil: 'networkidle' });
+		check(
+			'the runtime never booted',
+			!(await page.evaluate(() => !!customElements.get('ogygia-region')))
+		);
+		const kbtn = page.locator('[data-kit-btn]');
+		await kbtn.click();
+		await page.waitForFunction(
+			() => document.querySelector('[data-kit-btn]')?.textContent?.includes('kit:1'),
+			undefined,
+			{ timeout: 5000 }
+		);
+		check('Kit’s client is alive', true);
+	});
 });
