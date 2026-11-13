@@ -6,7 +6,7 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { RequestEvent } from '@sveltejs/kit';
-import { reshape_pass } from '../src/pass.ts';
+import { RESTORER_SCRIPT, reshape_pass } from '../src/pass.ts';
 import type { ReshapeTransform } from '../src/index.ts';
 
 const event = { request: new Request('http://x/'), url: new URL('http://x/') } as RequestEvent;
@@ -45,7 +45,7 @@ describe("production: the app's pass failing", () => {
 	it('a transform that throws: the page goes out as ogygia rendered it, said once with reshape_pass_failed (gen 10, seed 10)', async () => {
 		const pass = reshape_pass(throws, event, { dev: false });
 		const out = await pass.document(page, { csr: false, answer: false });
-		expect(out).toEqual({ html: page, head: '', body: '' });
+		expect(out).toEqual({ html: page, head: '', body: RESTORER_SCRIPT });
 		expect(await pass.region(answer)).toBe(answer);
 		expect(told('reshape_pass_failed')).toHaveLength(2);
 	});
@@ -53,9 +53,18 @@ describe("production: the app's pass failing", () => {
 	it("a transform that drops ogygia's marks: the answer goes out as ogygia rendered it, said once with reshape_marks_lost (gen 10, seed 5)", async () => {
 		const pass = reshape_pass(strips, event, { dev: false });
 		const out = await pass.document(page, { csr: false, answer: false });
-		expect(out).toEqual({ html: page, head: '', body: '' });
+		expect(out).toEqual({ html: page, head: '', body: RESTORER_SCRIPT });
 		expect(await pass.region(answer)).toBe(answer);
 		expect(told('reshape_marks_lost')).toHaveLength(2);
+	});
+
+	it("a document the pass failed on still carries the restorer: the router's next page and the holes it answers are restored (gen 10, seed 36: a hydration mismatch after a router visit)", async () => {
+		const pass = reshape_pass(throws, event, { dev: false });
+		const out = await pass.document(page, { csr: false, answer: false });
+		expect(out.body).toContain('data-og-restore');
+		const later = reshape_pass(renders, event, { dev: false });
+		const next = await later.document(page, { csr: false, answer: true });
+		expect(next.html).toContain('og-shadow="demo-card.shadow"');
 	});
 
 	it('a transform that keeps the marks, or has no host to keep them on, is used and says nothing', async () => {
