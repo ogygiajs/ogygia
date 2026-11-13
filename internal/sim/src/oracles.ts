@@ -625,11 +625,10 @@ export function fallback_stands(tab: Tab, world: World): Broken | null {
 	const url = tab.page.mainFrame.url;
 	if (!url.startsWith('http') || world.skewed_for(tab.realm)) return null;
 	// (in a document a fault touched, only a hole never asked for at all: its own request may have
-	// failed, but none to fail is no fault's; a batch's body is not seen, so a document that sent one
-	// is judged only untouched)
+	// failed, but none to fail is no fault's. A batch that came whole asked for the holes it names; one
+	// the network failed asked for none: each hole it did not deliver is released to ask on its own)
 	const touched = faulted(world, tab);
 	const mine = world.network.exchanges.filter((e) => e.from === tab.realm);
-	if (touched && mine.some((e) => e.method === 'POST')) return null;
 	// (nor one whose runtime, or another script, failed to load: the runtime may never have run, and
 	// the page stays its server HTML, as runtime_load_failed says; gen 12, seed 22)
 	if (touched && world.browsers.lacks_a_file(tab.realm)) return null;
@@ -639,6 +638,8 @@ export function fallback_stands(tab: Tab, world: World): Broken | null {
 	const asked = new Set(
 		mine.filter((e) => e.method === 'GET').map((e) => answer_key(new URL(e.url)))
 	);
+	for (const e of mine)
+		if (e.holes && batch_came_whole(e)) for (const key of e.holes) asked.add(key);
 	const doc = tab.page.mainFrame.document as unknown as Document;
 	const due = schedules(tab, doc);
 	const never_asked = (r: Element) => {
@@ -1034,6 +1035,13 @@ export function faulted(world: World, tab: Tab, since?: number): boolean {
 			(e.for !== undefined && mine(e.for) && e.tampered) ||
 			kept_changed(e, tab)
 	);
+}
+
+/** Whether batch `e` reached its page whole: answered 200, and nothing on the way failed, held,
+ *  changed or redirected it. Its page then had every part the server gave, and owes none of its
+ *  holes a fetch of their own. */
+function batch_came_whole(e: World['network']['exchanges'][number]): boolean {
+	return e.status === 200 && !failed_on_wire(e) && !e.stalled && !e.tampered && !e.redirected;
 }
 
 /** Whether the network failed exchange `e`: dropped, offline, cut or broken off, or a server error. */
