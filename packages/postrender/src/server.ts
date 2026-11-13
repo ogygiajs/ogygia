@@ -282,20 +282,38 @@ function stamp_no_store(response: Response): void {
 	}
 }
 
+/** A permanent redirect: stored as its status and location, never its body. */
+const permanent_redirect = (response: Response): 301 | 308 | null =>
+	response.status === 301 || response.status === 308 ? response.status : null;
+
+/**
+ * THE VERDICT before the body is read: why this response stays per-request, or null when it may be
+ * stored. `capture` stores by it and the dev note teaches by it, so the two never disagree
+ * (test/dev-note.test.ts). The checks that need the body stay in `capture`.
+ */
+function refusal(response: Response, facts: Ctx['facts'], obs: Observation): string | null {
+	// personalization observed (a cookie, header, locals or flag read, or a cookie write)
+	if (obs.disqualified_by) return obs.disqualified_by;
+	if (obs.wrote_cookie) return 'a cookie write';
+	if (permanent_redirect(response) !== null)
+		return response.headers.get('location') ? null : 'a redirect with no location';
+	if (response.status !== 200) return `status ${response.status}`;
+	if (response.headers.has('set-cookie')) return 'a set-cookie response header';
+	if (!(response.headers.get('content-type') ?? '').includes('text/html'))
+		return 'a non-html response';
+	const app_cc = response.headers.get('cache-control') ?? '';
+	if (app_cc.includes('private') || app_cc.includes('no-store'))
+		return `the app's cache-control (${app_cc})`;
+	if (facts.streamed) return 'streamed load promises'; // always per-request
+	return null;
+}
+
 /** DEV teaching leg: the verdict runs but never stores/serves. Eligible → a `would-store`
  *  header to read in the network panel; refused → ONE console note per path naming the read. */
 const dev_noted_paths = say({ max: 500 });
 function dev_postrender_note(response: Response, ctx: Ctx, obs: Observation): void {
-	const refusal =
-		obs.disqualified_by ??
-		(obs.wrote_cookie ? 'a cookie write' : null) ??
-		(response.status !== 200 ? `status ${response.status}` : null) ??
-		(response.headers.has('set-cookie') ? 'a set-cookie response header' : null) ??
-		(!(response.headers.get('content-type') ?? '').includes('text/html')
-			? 'a non-html response'
-			: null) ??
-		(ctx.facts.streamed ? 'streamed load promises' : null);
-	if (!refusal) {
+	const why = refusal(response, ctx.facts, obs);
+	if (why === null) {
 		try {
 			response.headers.set(VIA_HEADER, 'would-store');
 		} catch {
@@ -305,7 +323,7 @@ function dev_postrender_note(response: Response, ctx: Ctx, obs: Observation): vo
 	}
 	// (once per path, for the latest 500 paths: a dev session's pages)
 	dev_noted_paths.once(ctx.path, () =>
-		warn('postrender_stays_per_request', { path: ctx.path, refusal })
+		warn('postrender_stays_per_request', { path: ctx.path, refusal: why })
 	);
 }
 
@@ -339,28 +357,21 @@ async function capture(
 	 *  build: it is served to this build only ({@link servable}). */
 	const put = (entry: PostrenderEntry): Promise<boolean> =>
 		store_render(runtime, path, { ...entry, build: version }, { ttl, tags }, flight);
-	// Personalization observed (cookie/header/locals/flag read, or a cookie write) → per-request.
-	if (obs.disqualified_by || obs.wrote_cookie) return REFUSED;
+	if (refusal(response, facts, obs) !== null) return REFUSED;
 	// Permanent redirects are the hottest cheap wins (canonical 301s) — store status + location.
-	if (response.status === 301 || response.status === 308) {
-		const location = response.headers.get('location');
-		if (!location) return REFUSED;
+	const redirect = permanent_redirect(response);
+	const location = response.headers.get('location');
+	if (redirect !== null && location) {
 		const entry: PostrenderEntry = {
 			kind: 'redirect',
-			status: response.status,
+			status: redirect,
 			location,
 			created: clock.wall() // wall: stored, read by every instance
 		};
 		if (!(await put(entry))) return REFUSED;
 		return { stored: true, entry, response };
 	}
-	if (response.status !== 200) return REFUSED;
-	if (response.headers.has('set-cookie')) return REFUSED;
 	const content_type = response.headers.get('content-type') ?? '';
-	if (!content_type.includes('text/html')) return REFUSED;
-	const app_cc = response.headers.get('cache-control') ?? '';
-	if (app_cc.includes('private') || app_cc.includes('no-store')) return REFUSED;
-	if (facts.streamed) return REFUSED; // streamed page — always per-request
 	const html = await response.text();
 	/** The page as Kit answered it, again (its body was read above). */
 	const answered = (): Response =>
