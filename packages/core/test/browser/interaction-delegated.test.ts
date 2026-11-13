@@ -294,3 +294,54 @@ test('a click that opens a link elsewhere is never canceled (an untrusted replay
 	expect(canceled_by_ogygia, 'the queued click is kept from the link').toBe(null);
 	disarm();
 });
+
+test('a key or a focus inside an armed region wakes it: a keyboard visitor never presses a pointer', () => {
+	document.body.innerHTML = region('by-key') + region('by-focus');
+	const fired = { key: 0, focus: 0 };
+	const disarms = [
+		arm_interaction(
+			document.getElementById('by-key')!,
+			() => {},
+			() => {
+				fired.key++;
+				return new Promise<void>(() => {});
+			},
+			page
+		),
+		arm_interaction(
+			document.getElementById('by-focus')!,
+			() => {},
+			() => {
+				fired.focus++;
+				return new Promise<void>(() => {});
+			},
+			page
+		)
+	];
+	document
+		.querySelector('#by-key button')!
+		.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', bubbles: true }));
+	document
+		.querySelector('#by-focus button')!
+		.dispatchEvent(new FocusEvent('focusin', { bubbles: true }));
+	expect(fired).toEqual({ key: 1, focus: 1 });
+	for (const disarm of disarms) disarm();
+});
+
+test('the element focused at the wake has focus again once hydration replaced it', async () => {
+	document.body.innerHTML = region('focused', '<input><button>go</button>');
+	const el = document.getElementById('focused')!;
+	const live = defer();
+	arm_interaction(
+		el,
+		() => {},
+		() => {
+			el.innerHTML = '<input><button>go</button>';
+			return live.promise;
+		},
+		page
+	);
+	el.querySelector('button')!.focus();
+	live.resolve();
+	await expect.poll(() => document.activeElement).toBe(el.querySelector('button'));
+});
