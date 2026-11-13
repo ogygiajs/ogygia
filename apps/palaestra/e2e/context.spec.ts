@@ -267,6 +267,34 @@ test.describe('Provide + drop-in setContext + createContext: DOM-bridged, live a
 		check('setContext: no page errors', serrs.length === 0, serrs.join(' | '));
 	});
 
+	test('a Symbol.for key set in a csr=false layout or a Provide reaches a woken region', async ({
+		page
+	}) => {
+		const errs: string[] = [];
+		page.on('pageerror', (e) => errs.push(e.message));
+		await page.goto('/ctx-symbol', { waitUntil: 'networkidle' });
+		for (const label of ['marker', 'provide']) {
+			const reader = page.locator(`[data-symctx-reader="${label}"]`);
+			await page.waitForFunction(
+				(l) =>
+					document.querySelector(`[data-symctx-reader="${l}"]`)?.closest('[data-hydrated]') !==
+					null,
+				label,
+				{ timeout: 5000 }
+			);
+			check(
+				`${label}: the layout's Symbol.for('rt') crossed`,
+				(await reader.getAttribute('data-symctx-a')) === '1',
+				`a=${await reader.getAttribute('data-symctx-a')}`
+			);
+		}
+		const scoped = await page
+			.locator('[data-symctx-reader="provide"]')
+			.getAttribute('data-symctx-b');
+		check("provide: the Provide's Symbol.for('rt-scoped') crossed", scoped === '2', `b=${scoped}`);
+		check('no page errors', errs.length === 0, errs.join(' | '));
+	});
+
 	// ---------- Drop-in setContext on a csr=true page ----------
 	// Kit hydrates the page, but an island inside a lake is ogygia's: a separate hydration root whose
 	// only way to the page's context is the page marker. A host-only key stays out of it.
