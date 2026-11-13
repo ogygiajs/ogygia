@@ -53,7 +53,7 @@ function boot(version: string, store: MemoryStore) {
 			);
 			return null;
 		} finally {
-			server.done?.(c);
+			await server.done?.(c);
 		}
 	};
 }

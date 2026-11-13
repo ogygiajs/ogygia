@@ -468,6 +468,7 @@ export class SpaRouter {
 		const target = new URL(url, location.href);
 		if (target.origin !== location.origin)
 			return Promise.resolve({ type: 'loaded', status: 200, data: {} });
+		// oxlint-disable-next-line typescript/no-floating-promises -- a prefetch is never waited on, and fetch_page never rejects (a failure is null)
 		this.fetch_page(target.href, undefined, 'prefetch');
 		return Promise.resolve({ type: 'loaded', status: 200, data: {} });
 	}
@@ -522,6 +523,7 @@ export class SpaRouter {
 				this.history.commit(url, 'pop', entry);
 				return;
 			}
+			// oxlint-disable-next-line typescript/no-floating-promises -- an event starts the navigation and never waits; it settles on its own (a failed one hands off to the browser)
 			this.navigate(url, { push: false, pop: entry, type: 'popstate' });
 		});
 	}
@@ -553,11 +555,13 @@ export class SpaRouter {
 			}
 			event.preventDefault();
 			this.#take(anchor, url);
+			// oxlint-disable-next-line typescript/no-floating-promises -- a click starts the navigation and never waits; it settles on its own (a failed one hands off to the browser)
 			if (kind === 'refresh') this.navigate(url, { push: false, replace: true });
 			return;
 		}
 		event.preventDefault();
 		this.#take(anchor, url);
+		// oxlint-disable-next-line typescript/no-floating-promises -- a click starts the navigation and never waits; it settles on its own (a failed one hands off to the browser)
 		this.navigate(url, { push: true });
 	}
 
@@ -701,6 +705,7 @@ export class SpaRouter {
 		);
 		if (!url) return;
 		if (same_document(url, new URL(location.href))) return;
+		// oxlint-disable-next-line typescript/no-floating-promises -- a warm is never waited on, and fetch_page never rejects (a failure is null)
 		if (url.href !== location.href) this.fetch_page(url.href, undefined, 'prefetch');
 	}
 

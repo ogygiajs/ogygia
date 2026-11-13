@@ -108,7 +108,7 @@ describe('the server realm, started', () => {
 			post,
 			new Response(null, { status: 303, headers: { location: '/cart/' } })
 		);
-		server.done?.(post);
+		await server.done?.(post);
 
 		// the browser follows the 303 at once
 		const jar = {
@@ -120,7 +120,7 @@ describe('the server realm, started', () => {
 		const get = ctx(new Request('http://x.test/cart/'), { cookies: jar as never });
 		mark_handled(get.event, runtime);
 		const answered = await server.page?.(get);
-		server.done?.(get);
+		await server.done?.(get);
 		expect(answered).toBeUndefined(); // a miss: the page renders fresh, with the post applied
 	});
 
@@ -181,11 +181,11 @@ describe('the server realm, started', () => {
 		// a GET in between: the copy in the store is the page from before the publish
 		const second = get();
 		const answered = await server.page?.(second);
-		server.done?.(second);
+		await server.done?.(second);
 		expect(answered).toBeUndefined(); // a miss: it renders the page as it is now
 		held.shift()!();
 		await responded;
-		server.done?.(first);
+		await server.done?.(first);
 	});
 
 	it('a capture that fails after reading the page sends the page as rendered, and says why it was not stored', async () => {
@@ -208,7 +208,7 @@ describe('the server realm, started', () => {
 		});
 		try {
 			const sent = (await server.response?.(c, res)) ?? res;
-			server.done?.(c);
+			await server.done?.(c);
 			expect(await sent.text()).toContain('<p>the shop</p>');
 			expect(said.some((s) => s.includes('postrender_capture_failed'))).toBe(true);
 		} finally {
@@ -240,7 +240,7 @@ describe('the server realm, started', () => {
 		});
 		try {
 			const sent = (await server.response?.(c, res)) ?? res;
-			server.done?.(c);
+			await server.done?.(c);
 			expect(await sent.text()).toContain('<p>the shop</p>');
 			expect(said.some((s) => s.includes('postrender_capture_failed'))).toBe(true);
 		} finally {
@@ -317,12 +317,12 @@ describe('a page rendered for one visitor is never served to another', () => {
 		mark_handled(c.event, runtime);
 		const answered = await server.page?.(c);
 		if (answered) {
-			server.done?.(c);
+			await server.done?.(c);
 			return answered;
 		}
 		const html = `<html><head></head><body>${await render(c.event as never)}</body></html>`;
 		await server.response?.(c, new Response(html, { headers: { 'content-type': 'text/html' } }));
-		server.done?.(c);
+		await server.done?.(c);
 		return undefined;
 	}
 	const greeting = async (event: { locals: Record<string, unknown> }) => {

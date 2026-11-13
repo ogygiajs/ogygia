@@ -293,7 +293,7 @@ describe('the virtual-module table', () => {
 				queries('session')
 			);
 			for (const id of ['route-csr', 'route-config', 'server-plugins', 'rate-limit'])
-				t.load(RESOLVED(`ogygia:server/${id}`), core_app, leg(true));
+				expect(t.load(RESOLVED(`ogygia:server/${id}`), core_app, leg(true))).toBeTypeOf('string');
 			return t;
 		};
 		const moved_by = (part: Part): string[] => {
