@@ -12,7 +12,10 @@
  * once. Chunks are content-hashed URLs and entries are identities (their files, content-hashed too,
  * resolve through runtime/entry-locations.ts), so a list read on one page is never wrong on the
  * next: nothing to invalidate. A router warm reads the NEXT page's graph out of its fetched HTML
- * (`register_island_graph`) before that page is in the DOM.
+ * (`register_island_graph`) before that page is in the DOM. Tests: test/browser/island-graph-preload,
+ * preload-priority and code-origins.
+ *
+ * @packageDocumentation
  */
 import { decode_island_graph, decode_island_locations } from '../island-graph.ts';
 import { OGYGIA_GRAPH, OGYGIA_GRAPH_PRELOAD } from '../wire-markup.ts';
@@ -24,14 +27,12 @@ import { runtime_session } from './session.ts';
 const GRAPH_SELECTOR = `script[${OGYGIA_GRAPH}]`;
 const MODULEPRELOAD_SELECTOR = 'link[rel="modulepreload"]';
 
-/** entry URL (absolute) → its chunk URLs (absolute). */
 const graph = cache<string, string[]>({ name: 'island graph', max: 5000 });
 let read_scripts = new WeakSet<Element>();
 
 type Priority = 'high' | 'auto' | 'low';
 const RANK: Readonly<Record<Priority, number>> = { high: 0, auto: 1, low: 2 };
 
-/** A link's priority as it stands (none written: `auto`). */
 function priority_of(link: HTMLLinkElement): Priority {
 	const p = link.getAttribute('fetchpriority');
 	return p === 'high' || p === 'low' ? p : 'auto';
@@ -61,7 +62,6 @@ export function register_island_graph(text: string, base: string = location.href
 	}
 }
 
-/** Reads the graph scripts not read yet: whether there was one. */
 function read_document_graphs(): boolean {
 	let read = false;
 	for (const s of document.querySelectorAll(GRAPH_SELECTOR)) {
@@ -73,10 +73,6 @@ function read_document_graphs(): boolean {
 	return read;
 }
 
-/** Chunk URLs (absolute) linked in the document now: ours with our link, or a modulepreload someone
- *  else put in (`null`: the HTML's, or a loader's like Vite's preload helper, left as written). Read
- *  at each preload, never cached: another loader links chunks later, and a navigation drops links
- *  (test/browser/island-graph-preload.test.ts, #984). */
 function linked_now(): Map<string, HTMLLinkElement | null> {
 	const linked = new Map<string, HTMLLinkElement | null>();
 	for (const l of document.querySelectorAll<HTMLLinkElement>(MODULEPRELOAD_SELECTOR)) {
@@ -108,7 +104,6 @@ export function preload_island_graph(
 	if (!hrefs || hrefs.length === 0) return;
 	const seen = linked_now();
 	for (const href of hrefs) {
-		// (a chunk on an origin the page loads no code from is never asked for: ./code-origins.ts)
 		if (code_url(href) === null) continue;
 		const ours = seen.get(href);
 		if (ours !== undefined) {
@@ -118,13 +113,11 @@ export function preload_island_graph(
 		}
 		const link = document.createElement('link');
 		link.rel = 'modulepreload';
-		// the load class's priority (load-scheduler.ts); the island's `import()` reuses this in-flight fetch
 		if (priority !== 'auto') link.setAttribute('fetchpriority', priority);
 		link.href = href;
-		// (marks a link this module inserted: tests and devtools tell them from the HTML's own)
 		link.setAttribute(OGYGIA_GRAPH_PRELOAD, '');
 		seen.set(href, link);
-		runtime_session.claim_page_head(link); // the page's (session.ts); a navigation may drop it
+		runtime_session.claim_page_head(link);
 		document.head.appendChild(link);
 	}
 }
