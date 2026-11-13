@@ -8,7 +8,6 @@
  * The transform cache is content-keyed (`hit.code === source`), so a changed source misses and
  * recomputes on its own; the linker's `unregister_host` deliberately does NOT clear it.
  */
-import fs from 'node:fs';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { cache, say } from '@ogygia/machine';
@@ -26,7 +25,6 @@ import {
 	routeCsrIsTrue,
 	hasAnyCsrTrueRoute,
 	clean_stale_ogygia_dirs,
-	clear_route_csr_cache,
 	is_route_component,
 	kit_dirs
 } from './kit.ts';
@@ -294,7 +292,7 @@ export class Compiler implements CoreApp {
 		if (!build.legs.has(name)) build.legs.set(name, new_leg(name, server));
 		if (build.begun) return false;
 		build.begun = true;
-		clear_route_csr_cache();
+		this.#ctx.routes.clear();
 		return true;
 	}
 
@@ -542,8 +540,8 @@ export class Compiler implements CoreApp {
 			opts.linkVirtual !== undefined
 				? opts.linkVirtual
 				: ssr ||
-					!routeCsrIsFalse(id, routesDir) ||
-					(is_layout_host && hasAnyCsrTrueRoute(routesDir));
+					!routeCsrIsFalse(ctx.routes, id, routesDir) ||
+					(is_layout_host && hasAnyCsrTrueRoute(ctx.routes, routesDir));
 		// Tri-state route csr, threaded into the transform (see transformHost's routeCsr branch):
 		//   true  → csr=true route host: ogygia steps aside — strip the host's island directives to
 		//           plain so Kit compiles + hydrates them inline.
@@ -553,9 +551,9 @@ export class Compiler implements CoreApp {
 		// The inline-vs-island choice itself is decided at RUNTIME by `documentIsCsrTrue` (context.ts) —
 		// one fact read identically on both legs — which replaced the old per-host CSR_TRUE_KEY marker +
 		// csr=false reset cascade. `route_csr` still drives the compile-time strip/link decisions below.
-		const route_csr = routeCsrIsTrue(id, routesDir)
+		const route_csr = routeCsrIsTrue(ctx.routes, id, routesDir)
 			? true
-			: routeCsrIsFalse(id, routesDir)
+			: routeCsrIsFalse(ctx.routes, id, routesDir)
 				? false
 				: undefined;
 		// `ssr` joins the key because transformHost output legitimately differs by pass — the client
@@ -703,15 +701,11 @@ export class Compiler implements CoreApp {
 			}
 		};
 		const walk = (dir: string) => {
-			let entries;
-			try {
-				entries = fs.readdirSync(dir, { withFileTypes: true });
-			} catch {
-				return;
-			}
+			const entries = ctx.fs.list(dir);
+			if (entries === null) return;
 			for (const entry of entries) {
 				const full = path.join(dir, entry.name);
-				if (entry.isDirectory()) {
+				if (entry.kind === 'dir') {
 					if (entry.name === 'node_modules' || entry.name === ISLAND_DIR) continue;
 					walk(full);
 				} else {
@@ -882,20 +876,10 @@ export class Compiler implements CoreApp {
 		const resolve_dep = (spec: string, importerAbs: string): string | null => {
 			const base = resolveFoucImportSpec(spec, importerAbs, ctx.libDir, aliases);
 			if (!base) return null; // a bare package specifier — the lazy resolveId marking is the backstop
-			for (const ext of ISLAND_DEP_EXTS) {
-				try {
-					if (fs.statSync(base + ext).isFile()) return base + ext;
-				} catch {
-					// ok: not this extension; the next is tried
-				}
-			}
+			for (const ext of ISLAND_DEP_EXTS) if (ctx.fs.stat(base + ext) === 'file') return base + ext;
 			for (const ext of ISLAND_DEP_EXTS.slice(1)) {
 				const idx = path.join(base, `index${ext}`);
-				try {
-					if (fs.statSync(idx).isFile()) return idx;
-				} catch {
-					// ok: not an index; the next is tried
-				}
+				if (ctx.fs.stat(idx) === 'file') return idx;
 			}
 			return null;
 		};
@@ -964,11 +948,7 @@ export class Compiler implements CoreApp {
 			if (!p) return;
 			const abs = strip_id(p);
 			if (!SOURCE_EXT_RE.test(abs)) return; // only what the scanner can parse
-			try {
-				if (fs.statSync(abs).isFile()) out.add(abs);
-			} catch {
-				// ok: a virtual id or a vanished file is not a crawl root
-			}
+			if (this.#ctx.fs.stat(abs) === 'file') out.add(abs);
 		};
 		for (const entry of registry.values()) {
 			if (entry.role !== 'entry' || entry.server) continue;
@@ -1009,7 +989,12 @@ export class Compiler implements CoreApp {
 		// directly (the profiler's router). The walk's recursion is bounded by prescanned module_specs,
 		// so profiler-router's type-import of `./index.js` dead-ends instead of dragging the host graph in.
 		const roots = new Set(
-			router_css_roots(this.program.router_modules, this.program.module_specs, ctx.libDir)
+			router_css_roots(
+				this.program.router_modules,
+				this.program.module_specs,
+				ctx.libDir,
+				(p) => ctx.fs.stat(p) === 'file'
+			)
 		);
 		const sorted = [...roots].sort();
 		if (ctx.is_build) build.router_css_roots = sorted;
@@ -1425,25 +1410,29 @@ export class Compiler implements CoreApp {
 	 *  csr=true route (Kit can hydrate that layout: a csr=true child page, or an error render). */
 	#links_client_stub(importer: string): boolean {
 		const importer_abs = strip_id(importer);
-		const routes_dir = kit_dirs(this.#ctx.root).routes_dir;
+		const { root, routes } = this.#ctx;
+		const routes_dir = kit_dirs(root).routes_dir;
 		if (!importer_abs.startsWith(routes_dir + path.sep)) return false;
 		const base = path.basename(importer_abs);
 		if (is_route_component(base, 'layout'))
-			return routeCsrIsFalse(importer_abs, routes_dir) && !hasAnyCsrTrueRoute(routes_dir);
-		return is_route_component(base, 'page') && routeCsrIsFalse(importer_abs, routes_dir);
+			return (
+				routeCsrIsFalse(routes, importer_abs, routes_dir) && !hasAnyCsrTrueRoute(routes, routes_dir)
+			);
+		return is_route_component(base, 'page') && routeCsrIsFalse(routes, importer_abs, routes_dir);
 	}
 
 	#is_csr_false_route_host(importer: string): boolean {
 		const importer_abs = strip_id(importer);
-		const routes_dir = kit_dirs(this.#ctx.root).routes_dir;
+		const { root, routes } = this.#ctx;
+		const routes_dir = kit_dirs(root).routes_dir;
 		if (!importer_abs.startsWith(routes_dir + path.sep)) return false;
 		const base = path.basename(importer_abs);
 		// a route component (`+page.svelte`, `+page.md`, …) is its own host
 		if (is_route_component(base, 'page') || is_route_component(base, 'layout'))
-			return routeCsrIsFalse(importer_abs, routes_dir);
+			return routeCsrIsFalse(routes, importer_abs, routes_dir);
 		const m = ROUTE_HOST_FILE_RE.exec(base);
 		if (!m) return false;
-		return routeCsrIsFalse(path.join(importer_abs, '..', `+${m[1]}.svelte`), routes_dir);
+		return routeCsrIsFalse(routes, path.join(importer_abs, '..', `+${m[1]}.svelte`), routes_dir);
 	}
 
 	/** `source` resolved from `importer` to a local `.ts`/`.js` file on disk, or `null` (virtuals,
@@ -1477,7 +1466,7 @@ export class Compiler implements CoreApp {
 		}
 		if (!resolved?.id || resolved.id.startsWith('\0')) return null;
 		const target = strip_id(resolved.id);
-		if (!TS_REGISTRY_EXT_RE.test(target) || !fs.existsSync(target)) return null;
+		if (!TS_REGISTRY_EXT_RE.test(target) || this.#ctx!.fs.stat(target) === null) return null;
 		// Kit owns these on the client: a `.remote.ts` becomes Kit's fetch stub there (its imports
 		// never reach the client graph, and Kit keys its metadata on the exact file id), and a
 		// server-only module is refused outright. Neither may fork, and neither leads anywhere.

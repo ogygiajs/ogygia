@@ -20,10 +20,13 @@ import {
 	rootLayoutCsrTrue,
 	hasAnyCsrTrueRoute,
 	read_csr,
-	clear_route_csr_cache
+	route_reader
 } from '../src/compiler/kit.ts';
+import { node_fs } from '../src/compiler/fs.ts';
 import { transformHost } from '../src/compiler/region/transform.ts';
 import { dedent } from '@ogygia/core/contract';
+
+const R = route_reader(node_fs);
 
 /** Write a route tree: { 'content/[...slug]/+page.ts': 'export const csr = false;' }. */
 function tree(files: Record<string, string>): string {
@@ -39,21 +42,21 @@ const at = (routes: string, rel: string) => path.join(routes, rel);
 /** world(host) → 'strip' | 'island' | 'shared' — the tri-state the driver derives. */
 function world(routes: string, rel: string): 'strip' | 'island' | 'shared' {
 	const host = at(routes, rel);
-	return routeCsrIsTrue(host, routes)
+	return routeCsrIsTrue(R, host, routes)
 		? 'strip'
-		: routeCsrIsFalse(host, routes)
+		: routeCsrIsFalse(R, host, routes)
 			? 'island'
 			: 'shared';
 }
 
-beforeEach(() => clear_route_csr_cache());
+beforeEach(() => R.clear());
 
 // ── read_csr — the single declaration reader ─────────────────────────────────────────────────
 
 describe('read_csr — declaration forms', () => {
 	const one = (src: string) => {
 		const routes = tree({ '+page.ts': src });
-		return read_csr(at(routes, '+page.ts'));
+		return read_csr(R, at(routes, '+page.ts'));
 	};
 	it('plain false / true / absent', () => {
 		expect(one('export const csr = false;\n')).toBe(false);
@@ -99,7 +102,7 @@ describe('page world — option-file chain, deepest wins', () => {
 			[file]: 'export const csr = false;\n',
 			'+page.svelte': '<h1>p</h1>'
 		});
-		expect(routeCsrIsFalse(at(routes, '+page.svelte'), routes)).toBe(true);
+		expect(routeCsrIsFalse(R, at(routes, '+page.svelte'), routes)).toBe(true);
 	});
 
 	it('deepest declaration wins across a false → true → false chain', () => {
@@ -111,9 +114,9 @@ describe('page world — option-file chain, deepest wins', () => {
 			'a/+page.svelte': '<h1>a</h1>',
 			'+page.svelte': '<h1>root</h1>'
 		});
-		expect(routeCsrIsFalse(at(routes, 'a/b/+page.svelte'), routes)).toBe(true);
-		expect(routeCsrIsFalse(at(routes, 'a/+page.svelte'), routes)).toBe(false);
-		expect(routeCsrIsFalse(at(routes, '+page.svelte'), routes)).toBe(true);
+		expect(routeCsrIsFalse(R, at(routes, 'a/b/+page.svelte'), routes)).toBe(true);
+		expect(routeCsrIsFalse(R, at(routes, 'a/+page.svelte'), routes)).toBe(false);
+		expect(routeCsrIsFalse(R, at(routes, '+page.svelte'), routes)).toBe(true);
 	});
 
 	it("the page's own option file beats every layout above it", () => {
@@ -122,7 +125,7 @@ describe('page world — option-file chain, deepest wins', () => {
 			'admin/+page.ts': 'export const csr = true;\n',
 			'admin/+page.svelte': '<h1>admin</h1>'
 		});
-		expect(routeCsrIsTrue(at(routes, 'admin/+page.svelte'), routes)).toBe(true);
+		expect(routeCsrIsTrue(R, at(routes, 'admin/+page.svelte'), routes)).toBe(true);
 	});
 
 	it.each([
@@ -136,9 +139,9 @@ describe('page world — option-file chain, deepest wins', () => {
 				[universal]: 'export const csr = true;\n',
 				'+page.svelte': '<h1>home</h1>'
 			});
-			expect(routeCsrIsFalse(at(routes, '+page.svelte'), routes)).toBe(false);
-			expect(routeCsrIsTrue(at(routes, '+page.svelte'), routes)).toBe(true);
-			expect(csrTrueRouteIds(routes)).toEqual(['/']);
+			expect(routeCsrIsFalse(R, at(routes, '+page.svelte'), routes)).toBe(false);
+			expect(routeCsrIsTrue(R, at(routes, '+page.svelte'), routes)).toBe(true);
+			expect(csrTrueRouteIds(R, routes)).toEqual(['/']);
 		}
 	);
 
@@ -148,8 +151,8 @@ describe('page world — option-file chain, deepest wins', () => {
 			'+layout.ts': 'export const csr = false;\n',
 			'+page.svelte': '<h1>home</h1>'
 		});
-		expect(routeCsrIsFalse(at(routes, '+page.svelte'), routes)).toBe(true);
-		expect(rootLayoutCsrTrue(routes)).toBe(false);
+		expect(routeCsrIsFalse(R, at(routes, '+page.svelte'), routes)).toBe(true);
+		expect(rootLayoutCsrTrue(R, routes)).toBe(false);
 	});
 
 	it('group-segment option files participate in the chain', () => {
@@ -157,7 +160,7 @@ describe('page world — option-file chain, deepest wins', () => {
 			'(app)/+layout.ts': 'export const csr = false;\n',
 			'(app)/dash/+page.svelte': '<h1>d</h1>'
 		});
-		expect(routeCsrIsFalse(at(routes, '(app)/dash/+page.svelte'), routes)).toBe(true);
+		expect(routeCsrIsFalse(R, at(routes, '(app)/dash/+page.svelte'), routes)).toBe(true);
 	});
 
 	it('rest/optional param dirs are ordinary chain segments', () => {
@@ -165,14 +168,16 @@ describe('page world — option-file chain, deepest wins', () => {
 			'docs/[[lang]]/[...slug]/+page.ts': 'export const csr = false;\n',
 			'docs/[[lang]]/[...slug]/+page.svelte': '<h1>doc</h1>'
 		});
-		expect(routeCsrIsFalse(at(routes, 'docs/[[lang]]/[...slug]/+page.svelte'), routes)).toBe(true);
+		expect(routeCsrIsFalse(R, at(routes, 'docs/[[lang]]/[...slug]/+page.svelte'), routes)).toBe(
+			true
+		);
 	});
 
 	it('non-route files and files outside routesDir are never route hosts', () => {
 		const routes = tree({ '+page.svelte': '<h1>p</h1>' });
-		expect(routeCsrIsFalse(at(routes, 'Widget.svelte'), routes)).toBe(false);
-		expect(routeCsrIsTrue(at(routes, 'Widget.svelte'), routes)).toBe(false);
-		expect(routeCsrIsFalse('/elsewhere/+page.svelte', routes)).toBe(false);
+		expect(routeCsrIsFalse(R, at(routes, 'Widget.svelte'), routes)).toBe(false);
+		expect(routeCsrIsTrue(R, at(routes, 'Widget.svelte'), routes)).toBe(false);
+		expect(routeCsrIsFalse(R, '/elsewhere/+page.svelte', routes)).toBe(false);
 	});
 });
 
@@ -186,8 +191,8 @@ describe('layout world — derived from pages, never its own chain', () => {
 			'content/[...slug]/+page.svelte': '<h1>c</h1>'
 		});
 		expect(world(routes, '+layout.svelte')).toBe('island');
-		expect(csrTrueRouteIds(routes)).toEqual([]);
-		expect(hasAnyCsrTrueRoute(routes)).toBe(false);
+		expect(csrTrueRouteIds(R, routes)).toEqual([]);
+		expect(hasAnyCsrTrueRoute(R, routes)).toBe(false);
 	});
 
 	it('mixed subtree → shared world; runtime set carries exactly the true pages', () => {
@@ -198,8 +203,8 @@ describe('layout world — derived from pages, never its own chain', () => {
 			'spa/+page.svelte': '<h1>spa</h1>' // no options → Kit default true
 		});
 		expect(world(routes, '+layout.svelte')).toBe('shared');
-		expect(csrTrueRouteIds(routes)).toEqual(['/spa']);
-		expect(hasAnyCsrTrueRoute(routes)).toBe(true);
+		expect(csrTrueRouteIds(R, routes)).toEqual(['/spa']);
+		expect(hasAnyCsrTrueRoute(R, routes)).toBe(true);
 	});
 
 	it('root csr=false with a deeper csr=true override — layout goes shared', () => {
@@ -211,7 +216,7 @@ describe('layout world — derived from pages, never its own chain', () => {
 			'admin/+page.svelte': '<h1>admin</h1>'
 		});
 		expect(world(routes, '+layout.svelte')).toBe('shared');
-		expect(csrTrueRouteIds(routes)).toEqual(['/admin']);
+		expect(csrTrueRouteIds(R, routes)).toEqual(['/admin']);
 	});
 
 	it('all pages Kit-hydrated → the layout strips', () => {
@@ -296,7 +301,7 @@ describe('csrTrueRouteIds + cache', () => {
 			'blog/+page.ts': 'export const csr = false;\n',
 			'blog/+page.svelte': '<h1>b</h1>'
 		});
-		expect(csrTrueRouteIds(routes).sort()).toEqual(['/', '/dash']);
+		expect(csrTrueRouteIds(R, routes).sort()).toEqual(['/', '/dash']);
 	});
 
 	it('clear_route_csr_cache picks up new declarations AND new pages', () => {
@@ -307,14 +312,14 @@ describe('csrTrueRouteIds + cache', () => {
 		expect(world(routes, '+layout.svelte')).toBe('strip');
 		// a csr=false declaration appears
 		writeFileSync(at(routes, 'spa/+page.ts'), 'export const csr = false;\n');
-		clear_route_csr_cache();
+		R.clear();
 		expect(world(routes, '+layout.svelte')).toBe('island');
 		// a brand-new csr=true page appears
 		mkdirSync(at(routes, 'landing'), { recursive: true });
 		writeFileSync(at(routes, 'landing/+page.svelte'), '<h1>l</h1>');
-		clear_route_csr_cache();
+		R.clear();
 		expect(world(routes, '+layout.svelte')).toBe('shared');
-		expect(csrTrueRouteIds(routes)).toEqual(['/landing']);
+		expect(csrTrueRouteIds(R, routes)).toEqual(['/landing']);
 	});
 });
 
@@ -334,9 +339,9 @@ describe('errorCsrTrueRouteIds / rootLayoutCsrTrue — the layout branch decides
 			'products/+page.ts': 'export const csr = false;\n',
 			'products/+page.svelte': '<h1>p</h1>'
 		});
-		expect(csrTrueRouteIds(routes)).toEqual([]); // the pages themselves: client-off
-		expect(errorCsrTrueRouteIds(routes).sort()).toEqual(['/', '/products']); // their 404s: Kit's
-		expect(rootLayoutCsrTrue(routes)).toBe(true); // no route matched → root layout default
+		expect(csrTrueRouteIds(R, routes)).toEqual([]); // the pages themselves: client-off
+		expect(errorCsrTrueRouteIds(R, routes).sort()).toEqual(['/', '/products']); // their 404s: Kit's
+		expect(rootLayoutCsrTrue(R, routes)).toBe(true); // no route matched → root layout default
 	});
 
 	it('csr=false declared on the layout chain turns the error pages off too', () => {
@@ -347,9 +352,9 @@ describe('errorCsrTrueRouteIds / rootLayoutCsrTrue — the layout branch decides
 			'admin/+page.ts': 'export const csr = true;\n',
 			'admin/+page.svelte': '<h1>admin</h1>'
 		});
-		expect(csrTrueRouteIds(routes)).toEqual(['/admin']); // the page's own override holds for the page
-		expect(errorCsrTrueRouteIds(routes)).toEqual([]); // but its error page is the layouts' (false)
-		expect(rootLayoutCsrTrue(routes)).toBe(false);
+		expect(csrTrueRouteIds(R, routes)).toEqual(['/admin']); // the page's own override holds for the page
+		expect(errorCsrTrueRouteIds(R, routes)).toEqual([]); // but its error page is the layouts' (false)
+		expect(rootLayoutCsrTrue(R, routes)).toBe(false);
 	});
 
 	it('deepest LAYOUT declaration wins, page files ignored, groups stripped', () => {
@@ -363,8 +368,8 @@ describe('errorCsrTrueRouteIds / rootLayoutCsrTrue — the layout branch decides
 			'(app)/shop/cart/+page.svelte': '<h1>cart</h1>',
 			'docs/+page.svelte': '<h1>docs</h1>'
 		});
-		expect(errorCsrTrueRouteIds(routes).sort()).toEqual(['/shop', '/shop/cart']);
-		expect(csrTrueRouteIds(routes).sort()).toEqual(['/shop/cart']);
+		expect(errorCsrTrueRouteIds(R, routes).sort()).toEqual(['/shop', '/shop/cart']);
+		expect(csrTrueRouteIds(R, routes).sort()).toEqual(['/shop/cart']);
 	});
 
 	it('cache: a new layout declaration is picked up after clear_route_csr_cache', () => {
@@ -373,11 +378,11 @@ describe('errorCsrTrueRouteIds / rootLayoutCsrTrue — the layout branch decides
 			'spa/+page.ts': 'export const csr = false;\n',
 			'spa/+page.svelte': '<h1>spa</h1>'
 		});
-		expect(errorCsrTrueRouteIds(routes)).toEqual(['/spa']);
+		expect(errorCsrTrueRouteIds(R, routes)).toEqual(['/spa']);
 		writeFileSync(at(routes, '+layout.ts'), 'export const csr = false;\n');
-		clear_route_csr_cache();
-		expect(errorCsrTrueRouteIds(routes)).toEqual([]);
-		expect(rootLayoutCsrTrue(routes)).toBe(false);
+		R.clear();
+		expect(errorCsrTrueRouteIds(R, routes)).toEqual([]);
+		expect(rootLayoutCsrTrue(R, routes)).toBe(false);
 	});
 });
 
@@ -395,13 +400,13 @@ describe('route components in any extension', () => {
 		expect(world(routes, 'posts/a/+page.md')).toBe('island');
 		expect(world(routes, 'posts/b/+page.svx')).toBe('strip');
 		expect(world(routes, '+layout.svelte')).toBe('shared');
-		expect(csrTrueRouteIds(routes)).toEqual(['/posts/b']);
-		expect(hasAnyCsrTrueRoute(routes)).toBe(true);
+		expect(csrTrueRouteIds(R, routes)).toEqual(['/posts/b']);
+		expect(hasAnyCsrTrueRoute(R, routes)).toBe(true);
 	});
 	it('option scripts are not components', () => {
 		const routes = tree({ '+layout.ts': 'export const csr = false;\n', '+page.ts': '' });
-		expect(routeCsrIsFalse(at(routes, '+page.ts'), routes)).toBe(false);
-		expect(routeCsrIsFalse(at(routes, '+page.server.ts'), routes)).toBe(false);
+		expect(routeCsrIsFalse(R, at(routes, '+page.ts'), routes)).toBe(false);
+		expect(routeCsrIsFalse(R, at(routes, '+page.server.ts'), routes)).toBe(false);
 	});
 });
 

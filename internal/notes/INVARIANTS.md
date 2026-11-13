@@ -241,7 +241,7 @@ a kept island’s live query then freezes and its next read throws (#817,
 
 - Read `export const csr` ad hoc anywhere else — go through `page_worlds()` / the exported kit.ts helpers (one walk, one truth).
 - Strip a layout when ANY page below it is csr=false.
-- Skip `clear_route_csr_cache()` on dev route-topology changes — the watcher covers `+page/+layout(.server).(svelte|js|ts)`.
+- Skip `ctx.routes.clear()` on dev route-topology changes — the watcher covers `+page/+layout(.server).(svelte|js|ts)`.
 
 **Enforced by:** `packages/compiler/test/route-csr.test.ts` (declaration forms × chain shapes × layout folds × cache, plus the transform strip/keep seam), `apps/palaestra/e2e/deep-csr.spec.ts` (real build of internal/repro-deep-csr, browser truth in both worlds).
 

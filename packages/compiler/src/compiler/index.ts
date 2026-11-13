@@ -29,6 +29,7 @@ export * from './free-vars.ts';
 export { Compiler, type Profiler } from './driver.ts';
 export { Program, strip_id, host_key } from './program.ts';
 export { CompileCtx, type CompileCtxInit } from './ctx.ts';
+export { node_fs, memory_fs, type Fs, type FsEntry, type MemoryFs } from './fs.ts';
 export * from './ids.ts';
 // What an import-rewriting plugin reads modules with (@ogygia/barrels).
 export {
