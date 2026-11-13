@@ -161,6 +161,35 @@ test('a hole waiting for the network takes an answer that came another way, and 
 	}
 });
 
+test('a hole waiting for the network that leaves the page stays at rest: it arms for nothing, and the network coming back asks nothing', async () => {
+	let calls = 0;
+	window.fetch = async () => {
+		calls++;
+		throw new TypeError('Failed to fetch');
+	};
+	const moves: string[] = [];
+	const stop = observe((name, from, to) => {
+		if (name === 'hole' && to) moves.push(`${from.kind} -> ${to.kind}`);
+	});
+	try {
+		online = false;
+		const el = insert(hole(ep('offline0004')));
+		bootDev();
+		await expect.poll(() => moves.includes('fetching -> offline'), { timeout: 5_000 }).toBe(true);
+		el.remove();
+		await expect.poll(() => moves.includes('offline -> idle'), { timeout: 5_000 }).toBe(true);
+		await new Promise((r) => setTimeout(r, 100));
+		expect(moves.at(-1), 'gone from the page, it is not armed again').toBe('offline -> idle');
+		const asked = calls;
+		online = true;
+		window.dispatchEvent(new Event('online'));
+		await new Promise((r) => setTimeout(r, 300));
+		expect(calls).toBe(asked);
+	} finally {
+		stop();
+	}
+});
+
 test('a hole the server failed still gives up, and the network coming back asks nothing', async () => {
 	let calls = 0;
 	window.fetch = async () => {
