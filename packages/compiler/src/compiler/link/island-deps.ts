@@ -630,7 +630,7 @@ const AWAIT_RE = /\{\s*(?:#\s*)?await\s/g;
 // shared state another island can change: a context read, or an import of a rune module
 // (`*.svelte.js` / `*.svelte.ts` — where shared `$state` lives). Conservative on purpose: "make it a
 // lake" on an island showing another island's live counter would freeze it
-// markup-ok: `<[^>]*>` is a TypeScript type argument (`getContext<T>(`), not a tag
+// oxlint-disable-next-line ogygia/one-markup-walk -- `<[^>]*>` is a TypeScript type argument (`getContext<T>(`), not a tag
 const SHARED_RE = /\bgetContext\s*(?:<[^>]*>\s*)?\(|\bfrom\s*['"][^'"]+\.svelte\.(?:js|ts)['"]/g;
 const count = (src: string, re: RegExp) => (src.match(re) ?? []).length;
 

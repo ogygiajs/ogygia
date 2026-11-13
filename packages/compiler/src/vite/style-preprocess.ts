@@ -108,10 +108,6 @@ export async function preprocess_component_for_css(
 		} else if (b.kind === 'script' && ts && b.lang === 'ts') {
 			try {
 				const { code } = await ts(body, `${abs}.ts`);
-				// `lang="ts"` stays: the stripped script is plain JS (fine as TS), and the markup
-				// may still carry type annotations (`(c: Row) => …`), which Svelte's parser takes
-				// only under a TS script. Without it the compile threw and the CSS fell back to
-				// UNSCOPED bodies, leaking the component's rules across the page.
 				splice(b.start, b.end, code);
 			} catch (err) {
 				warn('ts_strip_failed', {
