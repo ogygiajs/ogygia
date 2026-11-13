@@ -263,6 +263,19 @@ export interface DollarResult {
 	hoists: DollarHoist[];
 }
 
+/** The fn-manifest's entries (tag → factory source), sorted by tag: the manifest is a function of
+ *  the hoists, not of the order modules transformed in (test/standalone-driver.test.ts). */
+export function fn_manifest_entries(hoists: ReadonlyMap<string, string>): Array<[string, string]> {
+	return [...hoists].sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0));
+}
+
+/** The fn-manifest as registrations through the bridge the manifest module installs. */
+export function fn_manifest_registrations(hoists: ReadonlyMap<string, string>): string {
+	return fn_manifest_entries(hoists)
+		.map(([tag, src]) => `globalThis.__og_reg_fn(${JSON.stringify(tag)}, (${src}));`)
+		.join('\n');
+}
+
 /**
  * Rewrite every `import.meta.og.$` mark in `src`. Returns the input (same reference, empty
  * hoists) when there is nothing to do. Throws build-error voice on misuse. `rel_id` is the
