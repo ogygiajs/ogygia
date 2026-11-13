@@ -20,8 +20,8 @@ import { STUB_PATHS, STUB_STATE } from '@ogygia/core/contract';
 import { dedent } from '@ogygia/core/contract';
 import { ogygia } from '../src/vite/index.ts';
 import { definePlugin } from '../src/vite/plugin-api.ts';
-import { keep_client_dir } from '../src/compiler/kit.ts';
-import { ssr_hosts_handoff_path } from '../src/compiler/link/emit-gate.ts';
+import { keep_client_dir, kit_dirs } from '../src/compiler/kit.ts';
+import { server_handoff_path } from '../src/compiler/link/emit-gate.ts';
 import {
 	foucCssVirtualId,
 	foucScopedVirtualId,
@@ -139,6 +139,11 @@ async function setup(
 	};
 	p.configResolved.call(t, config);
 	return { p, given, resolved: config };
+}
+
+async function begin(p: Hooks, ...legs: Leg[]): Promise<Hooks> {
+	for (const leg of legs) await p.buildStart.call(hook_this(leg));
+	return p;
 }
 
 async function resolve(p: Hooks, spec: string, leg: Leg, importer?: string): Promise<unknown> {
@@ -269,7 +274,11 @@ describe('configResolved', () => {
 	it("the runtime is named under Kit's appDir; a define that is not a name keeps _app", async () => {
 		app();
 		const url = async (define: Record<string, unknown>) =>
-			load((await setup('build', { resolved: { define } })).p, 'ogygia:server/runtime-url', 'ssr');
+			load(
+				await begin((await setup('build', { resolved: { define } })).p, 'ssr'),
+				'ogygia:server/runtime-url',
+				'ssr'
+			);
 		expect(await url({ __SVELTEKIT_APP_DIR__: JSON.stringify('custom') })).toMatch(/"\/?custom\//);
 		for (const define of [
 			{},
@@ -285,7 +294,9 @@ describe('configResolved', () => {
 describe('the signing secret', () => {
 	const STRONG = 'a-secret-of-thirty-two-bytes-ok!';
 	const had_secret = async (p: Hooks) =>
-		/build_had_secret\W+true/.test((await load(p, 'ogygia:server/secret', 'ssr')) ?? '');
+		/build_had_secret\W+true/.test(
+			(await load(await begin(p, 'ssr'), 'ogygia:server/secret', 'ssr')) ?? ''
+		);
 
 	it('a build refuses a short OGYGIA_SECRET; the dev server takes it', async () => {
 		app();
@@ -398,7 +409,7 @@ describe('transform', () => {
 
 	it("Kit's client app entry publishes Kit's page and the version, in the browser only", async () => {
 		app();
-		const { p } = await setup('build');
+		const p = await begin((await setup('build')).p, 'ssr', 'client');
 		const client = await p.transform.call(hook_this('client'), 'export {};\n', KIT_APP, {
 			ssr: false
 		});
@@ -420,13 +431,21 @@ describe('transform', () => {
 		expect(ssr.code).not.toBe(client.code);
 	});
 
-	it("a build's browser leg emits the island's entry as it compiles the host; the server leg does not", async () => {
+	it("a build's browser leg emits the entry of an island the prescan missed as it compiles the host; the server leg does not", async () => {
 		app();
-		const { p } = await setup('build');
-		const host = path.join(root, 'src/routes/+page.svelte');
+		const p = await begin((await setup('build')).p, 'ssr', 'client');
+		write('src/lib/Late.svelte', '<p>late</p>\n');
+		const host = write(
+			'src/routes/late/+page.svelte',
+			dedent`
+				<script>
+					import Late from '$lib/Late.svelte' with { wake: 'visible' };
+				</script>
+				<Late />
+			`
+		);
 		const src = readFileSync(host, 'utf8');
 		const ssr = hook_this('ssr');
-		await p.buildStart.call(ssr);
 		await p.transform.call(ssr, src, host, { ssr: true });
 		expect(ssr.emitted).toEqual([]);
 		const client = hook_this('client');
@@ -436,7 +455,7 @@ describe('transform', () => {
 });
 
 describe('the build legs', () => {
-	const handoff = () => ssr_hosts_handoff_path(path.join(root, '.svelte-kit'));
+	const handoff = () => server_handoff_path(kit_dirs(root).out_dir);
 
 	it("the server leg drops an earlier build's handoff, then writes its own", async () => {
 		app();
@@ -500,7 +519,7 @@ describe('the build legs', () => {
 
 	it('the browser leg hands the server its region deps; the server leg does not', async () => {
 		app();
-		const { p } = await setup('build');
+		const p = await begin((await setup('build')).p, 'ssr');
 		await p.writeBundle.call(hook_this('ssr'), {}, {});
 		expect(existsSync(region_deps())).toBe(false);
 		const client = hook_this('client');
@@ -562,7 +581,7 @@ describe('the build legs', () => {
 
 	it('a server module in the browser bundle fails the build', async () => {
 		app();
-		const { p } = await setup('build');
+		const p = await begin((await setup('build')).p, 'ssr', 'client');
 		const id = (await resolve(p, 'ogygia:server/secret', 'ssr')) as string | { id: string };
 		const bundle = {
 			'a.js': { type: 'chunk', fileName: 'a.js', moduleIds: [typeof id === 'string' ? id : id.id] },
