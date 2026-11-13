@@ -70,7 +70,7 @@ export function component_tag_in(code: string): string | null {
 export function try_region_emit(code: string, module_lines: string[]): RegionEmit | null {
 	const { module_body, template } = split_module(code);
 
-	if (/<script\b/.test(template)) return null;
+	if (next_tag(template, 'script', 0) !== null) return null;
 
 	const fences: string[] = [];
 	let skeleton = template.replace(FENCE_EMBED_RE, (_, inner: string) => {
