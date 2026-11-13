@@ -11,8 +11,8 @@
 		"check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --fail-on-warnings"
 	},
 	"dependencies": {
-		"@ogygia/flags": "workspace:*",
 		"@ogygia/data-shake": "workspace:*",
+		"@ogygia/flags": "workspace:*",
 		"@ogygia/postrender": "workspace:*",
 		"@ogygia/router": "workspace:*",
 		"ogygia": "workspace:*",
