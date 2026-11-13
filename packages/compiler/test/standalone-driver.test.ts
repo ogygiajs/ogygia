@@ -134,7 +134,8 @@ describe('standalone driver (no Vite)', () => {
 				graph: () => null,
 				module_ids: () => [],
 				chunk_file: 'fn-manifest.js',
-				file_name: String
+				file_name: String,
+				facade_file: () => undefined
 			};
 			return compiler.relocate('/*__OGYGIA_FN_MANIFEST__*/', leg, bundle)?.code;
 		};
