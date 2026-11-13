@@ -1,14 +1,7 @@
-/**
- * Document-scoped runtime session: the head's owners, the settled lakes, and the page visit. What
- * belongs to one page (its lake caches, seed flags, kit-page probe) lives on its visit, and the next
- * page's swap (`reset()`) ends it, so connecting regions never see the previous page.
- */
 import { cache, machine, scope, type Cache, type Scope } from '@ogygia/machine';
 import { FROZEN_SELECTOR } from './region-attrs.ts';
 import { note_visit } from './rules.ts';
 
-/** Cap on lake cache entries (unique lake ids): past it, the one cached or refreshed longest ago
- *  goes (a read is a `peek`, never a use). */
 const LAKE_CACHE_MAX = 64;
 
 /** Cached SSR DOM (+ optional SWR endpoint) for `{#if}` remount of hydrate:none regions.
@@ -24,12 +17,6 @@ export type LakeCacheEntry = {
 	maxAgeMs: number;
 };
 
-/**
- * A LAKE'S CONTENT, as the regions authored in it see it. `open`: its content is not in yet, and no
- * region waits. `waited`: not in, and regions connected in it wait. `settling`: in (the swap that
- * brought it is about to land), the ones that waited are not woken yet: woken before the swap, they
- * would run with no content. `settled`: in, and nobody waits.
- */
 const LAKE = machine<{ open: {}; waited: {}; settling: {}; settled: {} }>()({
 	name: 'lake',
 	initial: 'open',
@@ -42,37 +29,9 @@ const LAKE = machine<{ open: {}; waited: {}; settling: {}; settled: {} }>()({
 });
 type LakeMachine = ReturnType<typeof LAKE.create>;
 
-/**
- * WHO OWNS EACH NODE IN `<head>` — the rule every head write and removal follows.
- *
- *   - The PAGE owns the head the server sent and everything the router or the runtime puts there for
- *     the page (merged heads, hoisted region sheets, preload links, hints). A navigation replaces
- *     page-owned nodes, and only those.
- *   - An ISLAND owns what its `<svelte:head>` renders live (csr=false: the island hydrates alone, so
- *     its head block renders fresh — hydrate-core.ts `neutralize_head_hydration_markers`). Only the
- *     island's own teardown removes those: Svelte deletes a head block by walking from its first node
- *     to its last, and if anyone else removes the last one first, the walk runs to the end of <head>
- *     and deletes the next page's tags with it (field: description / canonical / og:* gone after a
- *     client navigation).
- *   - Anything else (a third-party or dev-tooling inject) is not ours and is never removed — the rule
- *     SvelteKit's own router follows.
- *
- * And ONE copy: while an island's head content is live, the page's identical server copy of it is
- * retired (field: two identical JSON-LD blocks, duplicated inline CSS and preloads). Only page-owned
- * copies are ever retired — never an island's live node — and never a stylesheet link (removing either
- * copy could unstyle the page for a frame; a doubled sheet is harmless). Two copies are the same when
- * {@link head_copy_key} says so.
- */
 const STYLESHEET_REL_RE = /(?:^|\s)stylesheet(?:\s|$)/i;
 
-/**
- * What a head element is, for the one-copy rule: its tag, its attributes in order, and its content,
- * where an element with no element children (a `<style>`, a `<script>`, a `<meta>`) is read by its
- * text with the ends trimmed. The server writes such text as the source has it and the client's
- * compiled template trims it, so a style written over several lines would otherwise never match its
- * own server copy (#1122: island-head-order.test.ts). Text that differs past its ends is a different
- * element (the same test file: a page style with other rules stays).
- */
+// @why Svelte's compiled client template trims the text the server wrote as the source has it (test: test/browser/island-head-order.test.ts › a style written over several lines in an island's head is one copy once the island wakes (#1122))
 function head_copy_key(el: Element): string {
 	const key = `${el.localName}${Array.from(el.attributes, (a) => `\0${a.name}\0${a.value}`).join('')}`;
 	return el.childElementCount === 0
@@ -109,7 +68,6 @@ export type PageVisit = {
 	readonly initialized_lakes: Set<string>;
 };
 
-// the runtime's rules (./rules.ts): dev, and a build made with OGYGIA_RULES=1; folds out elsewhere
 const RULES =
 	import.meta.env?.DEV || (typeof __OGYGIA_RULES__ !== 'undefined' ? __OGYGIA_RULES__ : false);
 
@@ -137,11 +95,6 @@ export interface HeadMark {
 	stop(): void;
 }
 
-/**
- * The head's element children that a step added, from its child-list records: a node's first
- * record says whether it was a child before the step (removed first: it was; added first: it was
- * not), and it counts only if it is still a child at the end.
- */
 function added_children(head: Element, records: MutationRecord[]): Node[] {
 	const was_child = new Map<Node, boolean>();
 	for (const r of records) {
@@ -150,25 +103,16 @@ function added_children(head: Element, records: MutationRecord[]): Node[] {
 	}
 	const out: Node[] = [];
 	for (const [n, was] of was_child) if (!was && n.parentNode === head) out.push(n);
-	// (head order: what a scan of the head would have found)
 	if (out.length > 1) out.sort((a, b) => (a.compareDocumentPosition(b) & 4 ? -1 : 1));
 	return out;
 }
 
-/**
- * Put an island's fresh head block where the server wrote it: `nodes` (what its hydrate step added
- * to `<head>`, in head order: its elements `own` and Svelte's anchors) move, as one run, to before
- * the page's copy of the first of them that has one, the copy `retire_page_head_copies` retires
- * next. So islands' head content stands in the server's order, not in the order they woke (#1107).
- * The run moves whole or not at all: Svelte removes a head block by walking from its first node to
- * its last, so a run another node stands inside is left where it is.
- */
 function take_page_slot(nodes: Node[], own: Element[], page_head: WeakSet<Node>): void {
 	const head = document.head;
 	const first = nodes[0];
 	const last = nodes[nodes.length - 1];
-	// (one run: every node from the first to the last is the step's)
 	const run = new Set(nodes);
+	// @why Svelte removes a head block by walking from its first node to its last (test: test/browser/island-head-order.test.ts › a run another node stands inside stays where it is (Svelte removes a head block from its first node to its last))
 	for (let n: Node | null = first; n !== last; n = n.nextSibling)
 		if (n === null || !run.has(n)) return;
 	const keys = new Set<string>();
@@ -181,7 +125,7 @@ function take_page_slot(nodes: Node[], own: Element[], page_head: WeakSet<Node>)
 }
 
 export class RuntimeSession {
-	/** Page-owned head nodes (see above). Survives `reset()`: it is the document's, not a page's. */
+	/** Page-owned head nodes: a navigation replaces these, and only these. Survives `reset()`: it is the document's, not a page's. */
 	readonly page_head: WeakSet<Node> = new WeakSet<Node>();
 	/** Island-owned head ELEMENTS still to watch (pruned when they leave the document). */
 	readonly island_head: Set<Element> = new Set<Element>();
@@ -212,8 +156,6 @@ export class RuntimeSession {
 			const before = new Set<Node>(head.childNodes);
 			take = () => Array.from(head.childNodes).filter((n) => !before.has(n));
 		} else {
-			// (records the browser hands the callback before the step reads them are kept: the step is
-			// synchronous, so none should be, but a lost record would be a node of the island's missed)
 			const delivered: MutationRecord[] = [];
 			// oxlint-disable-next-line ogygia/owned-effects -- the hydrate step's own: the mark it hands back disconnects it (`added`, `nodes`, `stop`)
 			const watch = new MutationObserver((records) => delivered.push(...records));
@@ -225,7 +167,6 @@ export class RuntimeSession {
 				return added_children(head, records);
 			};
 		}
-		// (read once: the records are taken when the step ends)
 		const nodes = (): Node[] => (taken ??= take());
 		return {
 			added: () => nodes().filter((n): n is Element => n.nodeType === 1),
@@ -245,8 +186,6 @@ export class RuntimeSession {
 				own.push(n);
 			}
 		}
-		// (an island that added nothing to the head has no page copy to retire: no serializing every
-		// page head element on each of the page's hydrates)
 		if (own.length === 0) return;
 		take_page_slot(mark.nodes(), own, this.page_head);
 		this.retire_page_head_copies();
@@ -332,8 +271,6 @@ export class RuntimeSession {
 	next_visit(): PageVisit {
 		return page_visit();
 	}
-
-	// (what follows is the page's on screen: its visit's, gone with it)
 
 	get lake_cache(): Cache<string, LakeCacheEntry> {
 		return this.#visit.lake_cache;

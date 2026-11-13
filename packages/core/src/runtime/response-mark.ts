@@ -1,12 +1,3 @@
-/**
- * THE RESPONSE MARK, client side (contract/response-mark.ts, INVARIANTS RESPONSE-MARK): a side channel
- * of a document is the server's only when it bears the mark the document's head runtime script
- * bears. A document with no mark there has no side channel of the server's. Every reader of a
- * document-level channel finds it here (lazy chunks through the boot registry, runtime/slots.ts
- * `BootLink`). The mark is the head's first runtime script's. test/browser/side-channel-seeds.test.ts.
- *
- * @packageDocumentation
- */
 import { RESPONSE_MARK } from '../contract/response-mark.ts';
 import { OGYGIA_RUNTIME } from '../wire-markup.ts';
 import { CODE_ORIGINS_ATTR, forget_code_origins } from './code-origins.ts';

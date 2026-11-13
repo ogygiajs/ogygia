@@ -225,6 +225,46 @@ test("a page's own click listener hears an early click once when the island fail
 	expect(heard).toEqual([false]);
 });
 
+test('what a visitor typed before the wake survives hydration replacing the nodes', async () => {
+	document.body.innerHTML = region('typed', '<input value="">');
+	const el = document.getElementById('typed')!;
+	el.querySelector('input')!.value = 'hello';
+	const live = defer();
+	arm_interaction(
+		el,
+		() => {},
+		() => {
+			el.innerHTML = '<input value="">';
+			return live.promise;
+		},
+		page
+	);
+	el.querySelector('input')!.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
+	live.resolve();
+	await expect.poll(() => el.querySelector('input')!.value).toBe('hello');
+});
+
+test('a click inside an open shadow root replays on the node it hit, not on the shadow host', async () => {
+	document.body.innerHTML = region('shadow', '<x-shadow-host></x-shadow-host>');
+	const el = document.getElementById('shadow')!;
+	const host = el.querySelector('x-shadow-host')!;
+	const inner = host.attachShadow({ mode: 'open' });
+	inner.innerHTML = '<button>deep</button>';
+	const deep = inner.querySelector('button')!;
+	let heard = 0;
+	const live = defer();
+	arm_interaction(
+		el,
+		() => {},
+		() => live.promise,
+		page
+	);
+	deep.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, composed: true }));
+	deep.addEventListener('click', () => heard++);
+	live.resolve();
+	await expect.poll(() => heard).toBe(1);
+});
+
 test('a click that opens a link elsewhere is never canceled (an untrusted replay could not open it)', () => {
 	document.body.innerHTML = region('links', '<a href="/next">next</a>');
 	const el = document.getElementById('links')!;
@@ -253,4 +293,55 @@ test('a click that opens a link elsewhere is never canceled (an untrusted replay
 	expect(plain.defaultPrevented).toBe(true);
 	expect(canceled_by_ogygia, 'the queued click is kept from the link').toBe(null);
 	disarm();
+});
+
+test('a key or a focus inside an armed region wakes it: a keyboard visitor never presses a pointer', () => {
+	document.body.innerHTML = region('by-key') + region('by-focus');
+	const fired = { key: 0, focus: 0 };
+	const disarms = [
+		arm_interaction(
+			document.getElementById('by-key')!,
+			() => {},
+			() => {
+				fired.key++;
+				return new Promise<void>(() => {});
+			},
+			page
+		),
+		arm_interaction(
+			document.getElementById('by-focus')!,
+			() => {},
+			() => {
+				fired.focus++;
+				return new Promise<void>(() => {});
+			},
+			page
+		)
+	];
+	document
+		.querySelector('#by-key button')!
+		.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', bubbles: true }));
+	document
+		.querySelector('#by-focus button')!
+		.dispatchEvent(new FocusEvent('focusin', { bubbles: true }));
+	expect(fired).toEqual({ key: 1, focus: 1 });
+	for (const disarm of disarms) disarm();
+});
+
+test('the element focused at the wake has focus again once hydration replaced it', async () => {
+	document.body.innerHTML = region('focused', '<input><button>go</button>');
+	const el = document.getElementById('focused')!;
+	const live = defer();
+	arm_interaction(
+		el,
+		() => {},
+		() => {
+			el.innerHTML = '<input><button>go</button>';
+			return live.promise;
+		},
+		page
+	);
+	el.querySelector('button')!.focus();
+	live.resolve();
+	await expect.poll(() => document.activeElement).toBe(el.querySelector('button'));
 });
