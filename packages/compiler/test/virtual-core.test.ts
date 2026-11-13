@@ -234,9 +234,7 @@ describe('core’s server modules', () => {
 			load('ogygia:server/secret', app({ ctx }), ssr);
 		expect(s({ build_secret: 'k', id_salt: 'salt' }, true)).toContain('build_had_secret = true');
 		expect(s({ build_secret: 'k', id_salt: '' }, true)).toContain('build_had_secret = false');
-		expect(s({ build_secret: 'k', id_salt: 'salt' }, false)).toBe(
-			'export const build_key = "";\nexport const build_had_secret = false;'
-		);
+		expect(() => s({ build_secret: 'k', id_salt: 'salt' }, false)).toThrow(/virtual_wrong_realm/);
 	});
 
 	it('re-exports Kit’s own wire codec from its absolute path, and leaves the id to the bundler without one', () => {
@@ -253,13 +251,14 @@ describe('core’s server modules', () => {
 			rate_limit: { max: 5, windowMs: 1000 },
 			session_cookie: 'sid'
 		};
-		expect(load('ogygia:server/rate-limit', app({ ctx }), false)).toContain('"max": 0');
-		expect(load('ogygia:server/session-cookie', app({ ctx }), false)).toBe(
-			'export const session_cookie = "";'
-		);
-		expect(load('ogygia:server/profiler-maps', app({ ctx }), false)).toBe(
-			'export const profiler_maps = null;'
-		);
+		for (const id of [
+			'ogygia:server/rate-limit',
+			'ogygia:server/session-cookie',
+			'ogygia:server/profiler-maps'
+		])
+			expect(() => load(id, app({ ctx }), false), id).toThrow(/virtual_wrong_realm/);
+		expect(load('ogygia:server/rate-limit', app({ ctx }), true)).toContain('"max": 5');
+		expect(load('ogygia:server/session-cookie', app({ ctx }), true)).toContain('"sid"');
 		expect(load('ogygia:server/profiler-maps', app({ ctx }), true)).not.toContain('null');
 		expect(load('ogygia:server/profiler-maps', app({ ctx: { ...ctx, ...DEV } }), true)).toContain(
 			'null'

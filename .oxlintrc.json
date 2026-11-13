@@ -17,7 +17,8 @@
 		"ogygia/compiler-boundary": "error",
 		"ogygia/dispose-by-close": "error",
 		"ogygia/ports": "error",
-		"ogygia/tests-read-source": "error"
+		"ogygia/tests-read-source": "error",
+		"ogygia/fake-timers-whole": "error"
 	},
 	"overrides": [
 		{
@@ -57,6 +58,10 @@
 				"packages/*/src/compiler/**"
 			],
 			"rules": { "ogygia/dispose-by-close": "off" }
+		},
+		{
+			"files": ["packages/compiler/src/**"],
+			"rules": { "ogygia/structured-comments": "error" }
 		},
 		{
 			"files": ["packages/core/test/wire-markup.test.ts"],

@@ -243,7 +243,7 @@ const browser_tasks = dry([
 	'--filter=@ogygia/machine'
 ]).filter((t) => t.task === 'check');`;
 	assert.deepEqual(
-		browsers_of(plan, { browser: ['core', 'reshape'], e2e: ['apps/palaestra', 'packages/router'] }),
+		browsers_of(plan, { browser: ['core', 'rewrite'], e2e: ['apps/palaestra', 'packages/router'] }),
 		[
 			{ suite: 'unit tests', kind: 'unit', engines: ['node'] },
 			{
@@ -251,7 +251,7 @@ const browser_tasks = dry([
 				kind: 'browser',
 				engines: ['chromium', 'firefox', 'webkit', 'firefox-stable']
 			},
-			{ suite: 'packages/reshape browser tests', kind: 'browser', engines: ['chromium'] },
+			{ suite: 'packages/rewrite browser tests', kind: 'browser', engines: ['chromium'] },
 			{ suite: 'apps/palaestra e2e', kind: 'e2e', engines: ['chromium', 'firefox', 'webkit'] },
 			{ suite: 'packages/router e2e', kind: 'e2e', engines: ['chromium', 'firefox', 'webkit'] }
 		]

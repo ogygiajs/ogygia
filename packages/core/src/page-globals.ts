@@ -7,10 +7,12 @@
 
 /** What the restorer recorded about one host. */
 export interface RestoreLogEntry {
-	kind: 'late' | 'mismatch' | 'invalid';
+	kind: 'late' | 'mismatch' | 'sheet' | 'invalid';
 	host: string;
 	t: number;
 	diff?: string;
+	/** `sheet`: the `og-shadow` key the page carries no sheet for. */
+	key?: string;
 	island?: string;
 }
 
@@ -22,8 +24,9 @@ export type WaitingShadow = ShadowRoot & { __og_out?: number };
 
 /** The page-wide hooks, each optional: the bundle that sets it may not be on the page. */
 export interface PageGlobals {
-	/** The reshape restorer: restores a document, fragment or element; the count it restored. */
-	__og_restore?: (root: ParentNode) => number;
+	/** The rewrite restorer: restores a document, fragment or element; the count it restored. `lite`:
+	 *  skip the walk into declarative shadow roots already in the page. */
+	__og_restore?: (root: ParentNode, lite?: number) => number;
 	/** The reshape restorer's second half: adopts sheets into roots now in the document. */
 	__og_restore_adopt?: () => void;
 	/** What the restorer recorded (the devtools and the beacon read it too). */

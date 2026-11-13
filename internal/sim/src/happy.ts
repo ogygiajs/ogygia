@@ -148,7 +148,8 @@ export function documents_by_namespace(): void {
  * stylesheet Kit inlines it also lists as `<link rel="stylesheet" disabled>` (for its router), so
  * the simulator asked for each on every page and no browser did (the differential). A disabled
  * link connects, or has its `rel` or `href` set, with its evaluation off (happy-dom's stylesheet
- * load reads that before its first await). Idempotent. test/stylesheets.test.ts.
+ * load reads that before its first await). Its `disabled` property reflects the attribute, as a
+ * browser's does (happy-dom has none). Idempotent. test/stylesheets.test.ts.
  */
 export function disabled_stylesheets(): void {
 	const proto = HTMLLinkElement.prototype as unknown as Record<symbol | string, unknown>;
@@ -157,7 +158,17 @@ export function disabled_stylesheets(): void {
 	type Link = Record<symbol, unknown> & {
 		hasAttribute(name: string): boolean;
 		getAttributeNode(name: string): unknown;
+		toggleAttribute(name: string, force: boolean): boolean;
 	};
+	Object.defineProperty(proto, 'disabled', {
+		configurable: true,
+		get(this: Link): boolean {
+			return this.hasAttribute('disabled');
+		},
+		set(this: Link, value: unknown) {
+			this.toggleAttribute('disabled', Boolean(value));
+		}
+	});
 	const off = (link: Link): boolean =>
 		link.hasAttribute('disabled') && link[PropertySymbol.disableEvaluation] !== true;
 	const set = proto[PropertySymbol.onSetAttribute] as (this: Link, ...a: unknown[]) => unknown;
@@ -717,5 +728,35 @@ export function completion_on_the_loop(loop: Loop | null): void {
 			this.destroyed = false;
 		});
 		this.waitUntilCompleteTimer = handle;
+	};
+}
+
+const WRITTEN = new WeakMap<object, string>();
+
+/**
+ * The address a head node was written for: the page on screen when the address first moved with
+ * the node in the head (`written_pages`). A kept node's page-relative URL means the file its own
+ * page meant, as the router's `url_of` reads it (#1741); a node added later was written absolute.
+ */
+export function written_page(el: object): string | undefined {
+	return WRITTEN.get(el);
+}
+
+/**
+ * Before a document's address moves (`pushState`, `replaceState`, a same-document traversal), each
+ * head node not yet noted is noted as written for the address it leaves (`written_page`).
+ * Idempotent. test/found/relative-head-links.test.ts.
+ */
+export function written_pages(): void {
+	const location = Location.prototype as unknown as Record<symbol | string, unknown>;
+	if (location.__written) return;
+	location.__written = true;
+	type Frame = { window?: { document?: { head?: { children: Iterable<object> } | null } } };
+	type Moved = (this: { href: string }, frame: Frame, url: string) => void;
+	const set = location[PropertySymbol.setURL] as Moved;
+	location[PropertySymbol.setURL] = function (this: { href: string }, frame: Frame, url: string) {
+		const head = frame?.window?.document?.head;
+		if (head) for (const el of head.children) if (!WRITTEN.has(el)) WRITTEN.set(el, this.href);
+		set.call(this, frame, url);
 	};
 }

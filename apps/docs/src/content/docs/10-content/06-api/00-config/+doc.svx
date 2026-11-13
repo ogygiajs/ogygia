@@ -23,7 +23,7 @@ import { content, markdown, json, blocks, glob, mapRaw } from '@ogygia/content';
 | `glob` · `mapRaw` · `defineSource`       | Source primitives to build custom loaders (a CMS, an API). See [Content collections](/docs/content/collections).                                                                                                                             |
 | `parseSchema`                            | Lower-level helper. `parseFrontmatter` lives on `@ogygia/content/markdown`.                                                                                                                                                                  |
 
-An entry is `{ id, data, meta, body, rel, backlinks }`, where `data` is the schema output, `meta` is derived from the source (for example `{ headings }`), and `body` is a [held region](/docs/regions/held-regions) that you render with `ogygia`'s `<Region>`. Types: `Entry`, `ContentEntry`, `ContentHandle`, `Source`, `Heading`, `SchemaLike`.
+An entry is `{ id, data, meta, body, rel, backlinks }`, where `data` is the schema output, `meta` is derived from the source (for example `{ headings }`), and `body` is a [held region](/docs/regions/held-regions) that you render with `ogygia`'s `<Region>`. Types: `Entry`, `ContentRef`, `ContentHandle`, `Source`, `Heading`, `SchemaLike`.
 
 The package's other entry points:
 

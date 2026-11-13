@@ -485,9 +485,9 @@ importers:
       '@ogygia/postrender':
         specifier: workspace:*
         version: link:../../packages/postrender
-      '@ogygia/reshape':
+      '@ogygia/rewrite':
         specifier: workspace:*
-        version: link:../../packages/reshape
+        version: link:../../packages/rewrite
       '@ogygia/router':
         specifier: workspace:*
         version: link:../../packages/router
@@ -548,9 +548,9 @@ importers:
       '@ogygia/barrels':
         specifier: workspace:*
         version: link:../../packages/barrels
-      '@ogygia/page-keys':
+      '@ogygia/data-shake':
         specifier: workspace:*
-        version: link:../../packages/page-keys
+        version: link:../../packages/data-shake
       devalue:
         specifier: 'catalog:'
         version: 5.9.4
@@ -640,6 +640,9 @@ importers:
 
   apps/sim-gen:
     dependencies:
+      '@ogygia/data-shake':
+        specifier: workspace:*
+        version: link:../../packages/data-shake
       '@ogygia/federation':
         specifier: workspace:*
         version: link:../../packages/federation
@@ -652,9 +655,9 @@ importers:
       '@ogygia/postrender':
         specifier: workspace:*
         version: link:../../packages/postrender
-      '@ogygia/reshape':
+      '@ogygia/rewrite':
         specifier: workspace:*
-        version: link:../../packages/reshape
+        version: link:../../packages/rewrite
       '@ogygia/router':
         specifier: workspace:*
         version: link:../../packages/router
@@ -891,15 +894,15 @@ importers:
       '@corp/contracts':
         specifier: workspace:*
         version: link:../contracts
+      '@ogygia/data-shake':
+        specifier: workspace:*
+        version: link:../../../packages/data-shake
       '@ogygia/federation':
         specifier: workspace:*
         version: link:../../../packages/federation
       '@ogygia/flags':
         specifier: workspace:*
         version: link:../../../packages/flags
-      '@ogygia/page-keys':
-        specifier: workspace:*
-        version: link:../../../packages/page-keys
       '@ogygia/postrender':
         specifier: workspace:*
         version: link:../../../packages/postrender
@@ -949,6 +952,9 @@ importers:
       '@ogygia/compiler':
         specifier: workspace:*
         version: link:../../packages/compiler
+      '@ogygia/data-shake':
+        specifier: workspace:*
+        version: link:../../packages/data-shake
     devDependencies:
       '@types/node':
         specifier: 'catalog:'
@@ -1487,6 +1493,36 @@ importers:
         specifier: 'catalog:'
         version: 4.1.12(@opentelemetry/api@1.9.1)(@types/node@26.1.2)(@vitest/browser-playwright@4.1.12)(@vitest/browser-webdriverio@4.1.12)(@vitest/coverage-v8@4.1.12)(happy-dom@21.0.4)(vite@8.3.5(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0))
 
+  packages/data-shake:
+    devDependencies:
+      '@ogygia/compiler':
+        specifier: workspace:*
+        version: link:../compiler
+      '@ogygia/config':
+        specifier: workspace:*
+        version: link:../config
+      '@ogygia/core':
+        specifier: workspace:*
+        version: link:../core
+      '@typescript/native':
+        specifier: catalog:tsgo
+        version: typescript@7.0.2
+      svelte:
+        specifier: 'catalog:'
+        version: 5.57.3
+      tsdown:
+        specifier: 'catalog:'
+        version: 0.23.4(@vue/language-core@3.3.9)(typescript@6.0.3)
+      typescript:
+        specifier: 'catalog:'
+        version: 6.0.3
+      vite:
+        specifier: 'catalog:'
+        version: 8.3.5(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0)
+      vitest:
+        specifier: 'catalog:'
+        version: 4.1.12(@opentelemetry/api@1.9.1)(@types/node@26.1.2)(@vitest/browser-playwright@4.1.12)(@vitest/browser-webdriverio@4.1.12)(@vitest/coverage-v8@4.1.12)(happy-dom@21.0.4)(vite@8.3.5(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0))
+
   packages/devtools:
     dependencies:
       '@neodrag/svelte':
@@ -1498,9 +1534,6 @@ importers:
       '@ogygia/machine':
         specifier: workspace:^
         version: link:../machine
-      '@ogygia/reshape':
-        specifier: workspace:^
-        version: link:../reshape
       '@ogygia/router':
         specifier: workspace:^
         version: link:../router
@@ -1583,9 +1616,9 @@ importers:
       '@ogygia/devtools':
         specifier: workspace:*
         version: link:../..
-      '@ogygia/reshape':
+      '@ogygia/rewrite':
         specifier: workspace:*
-        version: link:../../../reshape
+        version: link:../../../rewrite
       '@ogygia/router':
         specifier: workspace:*
         version: link:../../../router
@@ -1839,36 +1872,6 @@ importers:
         specifier: 'catalog:'
         version: 6.0.3
 
-  packages/page-keys:
-    devDependencies:
-      '@ogygia/compiler':
-        specifier: workspace:*
-        version: link:../compiler
-      '@ogygia/config':
-        specifier: workspace:*
-        version: link:../config
-      '@ogygia/core':
-        specifier: workspace:*
-        version: link:../core
-      '@typescript/native':
-        specifier: catalog:tsgo
-        version: typescript@7.0.2
-      svelte:
-        specifier: 'catalog:'
-        version: 5.57.3
-      tsdown:
-        specifier: 'catalog:'
-        version: 0.23.4(@vue/language-core@3.3.9)(typescript@6.0.3)
-      typescript:
-        specifier: 'catalog:'
-        version: 6.0.3
-      vite:
-        specifier: 'catalog:'
-        version: 8.3.5(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0)
-      vitest:
-        specifier: 'catalog:'
-        version: 4.1.12(@opentelemetry/api@1.9.1)(@types/node@26.1.2)(@vitest/browser-playwright@4.1.12)(@vitest/browser-webdriverio@4.1.12)(@vitest/coverage-v8@4.1.12)(happy-dom@21.0.4)(vite@8.3.5(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0))
-
   packages/postrender:
     dependencies:
       '@ogygia/machine':
@@ -1884,12 +1887,12 @@ importers:
       '@ogygia/core':
         specifier: workspace:*
         version: link:../core
+      '@ogygia/data-shake':
+        specifier: workspace:*
+        version: link:../data-shake
       '@ogygia/flags':
         specifier: workspace:*
         version: link:../flags
-      '@ogygia/page-keys':
-        specifier: workspace:*
-        version: link:../page-keys
       '@ogygia/router':
         specifier: workspace:*
         version: link:../router
@@ -1920,12 +1923,12 @@ importers:
 
   packages/postrender/e2e/app:
     dependencies:
+      '@ogygia/data-shake':
+        specifier: workspace:*
+        version: link:../../../data-shake
       '@ogygia/flags':
         specifier: workspace:*
         version: link:../../../flags
-      '@ogygia/page-keys':
-        specifier: workspace:*
-        version: link:../../../page-keys
       '@ogygia/postrender':
         specifier: workspace:*
         version: link:../..
@@ -1967,7 +1970,7 @@ importers:
         specifier: workspace:*
         version: link:../../../ogygia
 
-  packages/reshape:
+  packages/rewrite:
     dependencies:
       '@ogygia/machine':
         specifier: workspace:^
@@ -2003,6 +2006,12 @@ importers:
       '@vitest/browser-playwright':
         specifier: 'catalog:'
         version: 4.1.12(playwright@1.62.1)(vite@8.3.5(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0))(vitest@4.1.12)
+      happy-dom:
+        specifier: catalog:sim
+        version: 21.0.4
+      rolldown:
+        specifier: 'catalog:'
+        version: 1.2.16
       svelte:
         specifier: 'catalog:'
         version: 5.57.3
@@ -2016,9 +2025,9 @@ importers:
         specifier: 'catalog:'
         version: 4.1.12(@opentelemetry/api@1.9.1)(@types/node@26.1.2)(@vitest/browser-playwright@4.1.12)(@vitest/browser-webdriverio@4.1.12)(@vitest/coverage-v8@4.1.12)(happy-dom@21.0.4)(vite@8.3.5(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(sass-embedded@1.104.1)(sass@1.104.1)(yaml@2.9.0))
 
-  packages/reshape/e2e/app:
+  packages/rewrite/e2e/app:
     dependencies:
-      '@ogygia/reshape':
+      '@ogygia/rewrite':
         specifier: workspace:*
         version: link:../..
       ogygia:
@@ -2101,9 +2110,9 @@ importers:
 
   packages/router/e2e/app:
     dependencies:
-      '@ogygia/page-keys':
+      '@ogygia/data-shake':
         specifier: workspace:*
-        version: link:../../../page-keys
+        version: link:../../../data-shake
       '@ogygia/router':
         specifier: workspace:*
         version: link:../..

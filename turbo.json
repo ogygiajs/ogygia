@@ -11,12 +11,13 @@
 		"check": {
 			"dependsOn": ["^build"],
 			"inputs": ["$TURBO_DEFAULT$", "!e2e/app/**"],
-			"env": ["OGYGIA_BROWSERS"],
+			"env": ["OGYGIA_BROWSERS", "OGYGIA_SIM_*", "OGYGIA_FUZZ_SEED"],
 			"outputs": []
 		},
 		"test": {
 			"dependsOn": ["^build"],
 			"inputs": ["$TURBO_DEFAULT$", "!e2e/**", "!playwright.config.ts"],
+			"env": ["OGYGIA_BROWSERS", "OGYGIA_SIM_*", "OGYGIA_FUZZ_SEED"],
 			"outputs": []
 		},
 		"e2e": {

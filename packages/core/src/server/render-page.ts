@@ -42,7 +42,7 @@ type Transport = Record<
 const RULES =
 	import.meta.env?.DEV || (typeof __OGYGIA_RULES__ !== 'undefined' ? __OGYGIA_RULES__ : false);
 
-const skipped_look_up = new WeakSet<Request>();
+const look_up_said = new WeakMap<Request, 'skipped' | 'asked'>();
 
 /** Where a dev warning goes (the handle's setting). */
 export function configure_render_page(o: { warn: ((message: string) => void) | null }): void {
@@ -122,7 +122,8 @@ export function prepare_render_page(
 	reads_data: boolean | null
 ): Promise<void> | void {
 	if (!event || !renders_for_a_page(event)) return;
-	if (RULES && reads_data === false) skipped_look_up.add(event.request);
+	if (RULES && look_up_said.get(event.request) !== 'asked')
+		look_up_said.set(event.request, reads_data === false ? 'skipped' : 'asked');
 	if (!(reads_data ?? (event as { isRemoteRequest?: boolean }).isRemoteRequest === true)) return;
 	const page = page_url_of(event);
 	if (page === event.url) return;
@@ -156,7 +157,9 @@ export function render_page(
 			facts && warn
 				? watched_data(facts, warn)
 				: (facts?.data ??
-					(RULES && skipped_look_up.has(event.request) ? unpredicted_data(url.pathname) : {}));
+					(RULES && look_up_said.get(event.request) === 'skipped'
+						? unpredicted_data(url.pathname)
+						: {}));
 		return {
 			// (its page's url: a read of it is in the render's read set too)
 			get url() {

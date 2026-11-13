@@ -176,4 +176,22 @@ describe('portable snippet — every name its body reads reaches the synth', () 
 `);
 		expect(out).toEqual([]);
 	});
+
+	it('a snippet that writes only its own parameter crosses; one that writes host state stays native', () => {
+		const own = synths(`<script>
+	import Widget from './Widget.svelte' with { wake: 'load' };
+</script>
+
+<Widget>{#snippet row(item)}<button onclick={() => { item = { n: 1 }; item.n++; }}>x</button>{/snippet}</Widget>
+`);
+		expect(own).toHaveLength(1);
+		const host = synths(`<script>
+	import Widget from './Widget.svelte' with { wake: 'load' };
+	let n = $state(0);
+</script>
+
+<Widget>{#snippet row(item)}<button onclick={() => n++}>{item}{n}</button>{/snippet}</Widget>
+`);
+		expect(host).toEqual([]);
+	});
 });

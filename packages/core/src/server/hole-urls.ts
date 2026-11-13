@@ -26,15 +26,10 @@ const REGION_URL_ATTRS = ['entry', 'src', 'endpoint'] as const;
 
 function resolve_attr(value: string, base: URL): string {
 	if (!value || !(value.startsWith('./') || value.startsWith('../'))) return value;
-	let resolved: URL;
-	try {
-		resolved = new URL(
-			value.indexOf('&amp;') === -1 ? value : value.replaceAll('&amp;', '&'),
-			base
-		);
-	} catch {
-		return value; // ok: not a URL, so none to make root-relative: kept as written
-	}
+	const resolved = new URL(
+		value.indexOf('&amp;') === -1 ? value : value.replaceAll('&amp;', '&'),
+		base
+	);
 	if (resolved.origin !== base.origin) return value;
 	return escape_amp(resolved.pathname + resolved.search + resolved.hash);
 }

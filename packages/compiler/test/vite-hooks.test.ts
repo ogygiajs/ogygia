@@ -8,6 +8,7 @@ import {
 	existsSync,
 	mkdirSync,
 	mkdtempSync,
+	readdirSync,
 	readFileSync,
 	realpathSync,
 	rmSync,
@@ -15,20 +16,37 @@ import {
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { STUB_PATHS, STUB_STATE } from '@ogygia/core/contract';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import {
+	APP_SHIMS,
+	CORE_ROOT,
+	OGYGIA_INJECTED_FILES,
+	OGYGIA_INJECTED_IMPORTS,
+	OGYGIA_REGION_MODULES,
+	OGYGIA_VERSION,
+	OWN_PACKAGE_NAMES,
+	STUB_PATHS,
+	STUB_STATE
+} from '@ogygia/core/contract';
 import { dedent } from '@ogygia/core/contract';
 import { ogygia } from '../src/vite/index.ts';
 import { definePlugin } from '../src/vite/plugin-api.ts';
-import { keep_client_dir, kit_dirs } from '../src/compiler/kit.ts';
-import { server_handoff_path } from '../src/compiler/link/emit-gate.ts';
+import { keep_client_dir } from '../src/compiler/kit.ts';
+import { server_handoff_json, server_handoff_path } from '../src/compiler/link/emit-gate.ts';
 import {
 	foucCssVirtualId,
 	foucScopedVirtualId,
 	FOUC_CSS_PREFIX
 } from '../src/compiler/fouc-css.ts';
+import { EVERY_BARREL } from '../src/compiler/exports/index.ts';
+import { remote_hash_of } from '../src/compiler/link/island-deps.ts';
+import { BuildCache, __set_build_cache_root } from '../src/compiler/build-cache.ts';
+import { scan_entry_pattern } from '../src/vite/paths.ts';
+import { load_kit_config } from '../src/vite/kit-dirs.ts';
+import { DEV_CLIENT_MAPS, DEV_MAPS, DEV_PAGE_KEYS } from '../src/vite/dev-maps.ts';
 import type { OgygiaOptions } from '../src/vite/options.ts';
 
+const APP_STATE = APP_SHIMS['$app/state'];
 type Command = 'build' | 'serve';
 type Leg = 'ssr' | 'client';
 // (the hooks and configs are typed as Vite's; a test calls and reads them as plain data)
@@ -48,11 +66,15 @@ beforeEach(() => {
 });
 afterEach(() => {
 	rmSync(root, { recursive: true, force: true });
+	__set_build_cache_root(undefined);
 	if (saved_secret === undefined) delete process.env.OGYGIA_SECRET;
 	else process.env.OGYGIA_SECRET = saved_secret;
 	if (saved_rules === undefined) delete process.env.OGYGIA_RULES;
 	else process.env.OGYGIA_RULES = saved_rules;
 });
+
+/** Where the keep-client route goes in the app's routes dir. */
+const keep = (routes = 'src/routes') => keep_client_dir(path.join(root, routes));
 
 const write = (rel: string, text: string) => {
 	const abs = path.join(root, rel);
@@ -108,6 +130,8 @@ interface Setup {
 	given: Loose;
 	/** the resolved config `configResolved` saw (and may have written into) */
 	resolved: Loose;
+	/** a plugin's stage host (`ogygia:source`, `ogygia:post`), from the same `ogygia()` */
+	stage: (name: 'source' | 'post') => Hooks;
 }
 
 /** The plugin, through `config` and `configResolved`, as Vite runs them for `command`. */
@@ -119,7 +143,8 @@ async function setup(
 		resolved = {}
 	}: { options?: OgygiaOptions; plugins?: unknown[]; resolved?: Record<string, unknown> } = {}
 ): Promise<Setup> {
-	const p = ogygia(options).find((x) => x.name === 'ogygia') as Hooks;
+	const list = ogygia(options);
+	const p = list.find((x) => x.name === 'ogygia') as Hooks;
 	const mode = command === 'serve' ? 'development' : 'production';
 	const t = hook_this('ssr');
 	const given = await p.config.handler.call(t, { root, plugins }, { command, mode });
@@ -138,7 +163,8 @@ async function setup(
 		...resolved
 	};
 	p.configResolved.call(t, config);
-	return { p, given, resolved: config };
+	const stage = (name: 'source' | 'post') => list.find((x) => x.name === `ogygia:${name}`) as Hooks;
+	return { p, given, resolved: config, stage };
 }
 
 async function begin(p: Hooks, ...legs: Leg[]): Promise<Hooks> {
@@ -160,6 +186,11 @@ async function load(p: Hooks, spec: string, leg: Leg): Promise<string | null> {
 	return out === null ? null : typeof out === 'string' ? out : out.code;
 }
 
+it('the plugin carries no svelte-config helpers: markdown ones come from @ogygia/content/vite', () => {
+	expect('extensions' in ogygia).toBe(false);
+	expect('preprocess' in ogygia).toBe(false);
+});
+
 describe('the config hook', () => {
 	it('dev pre-declares the deps every island imports; a build declares none', async () => {
 		app();
@@ -173,6 +204,59 @@ describe('the config hook', () => {
 		expect((await setup('build')).given.optimizeDeps.include).toEqual([]);
 	});
 
+	it("what ogygia hands Vite, before Kit's config: one Kit, itself SSR-inlined and never pre-bundled, its files served, entry exports kept", async () => {
+		app();
+		const { p, given } = await setup('build');
+		expect(p.config.order).toBe('pre');
+		expect(given.resolve.dedupe).toEqual(['@sveltejs/kit']);
+		expect(given.ssr.noExternal).toEqual(['esm-env', ...OWN_PACKAGE_NAMES]);
+		expect(given.optimizeDeps.exclude).toEqual([...OWN_PACKAGE_NAMES]);
+		expect(given.server.fs.allow).toEqual([CORE_ROOT]);
+		expect(given.build.rolldownOptions.preserveEntrySignatures).toBe('exports-only');
+	});
+
+	it("an ogygia plugin's package is SSR-inlined and kept out of the optimizer, like ogygia", async () => {
+		app();
+		write('node_modules/x-tool/package.json', JSON.stringify({ name: 'x-tool' }));
+		const listed = definePlugin({ name: 'x-tool' });
+		const { given } = await setup('serve', { plugins: [listed] });
+		expect(given.ssr.noExternal).toContain('x-tool');
+		expect(given.optimizeDeps.exclude).toContain('x-tool');
+	});
+
+	it("the router options, the version and the dev server's HMR bridge compile in as constants", async () => {
+		app();
+		const dev = (await setup('serve')).given.define;
+		const off = (await setup('build', { options: { router: { forms: false, serverDelta: true } } }))
+			.given.define;
+		expect(dev.__OGYGIA_VERSION__).toBe(JSON.stringify(OGYGIA_VERSION));
+		expect(off.__OGYGIA_VERSION__).toBe(JSON.stringify(OGYGIA_VERSION));
+		expect([dev.__OGYGIA_CONTINUITY_FORMS__, dev.__OGYGIA_SERVER_DELTA__]).toEqual([
+			'true',
+			'false'
+		]);
+		expect([off.__OGYGIA_CONTINUITY_FORMS__, off.__OGYGIA_SERVER_DELTA__]).toEqual([
+			'false',
+			'true'
+		]);
+		expect(JSON.parse(dev.__OGYGIA_DEV_HMR_URL__)).not.toBe('');
+		expect(JSON.parse(off.__OGYGIA_DEV_HMR_URL__)).toBe('');
+	});
+
+	it("the app's own Kit major compiles in", async () => {
+		app();
+		write(
+			'node_modules/@sveltejs/kit/package.json',
+			JSON.stringify({ name: '@sveltejs/kit', version: '3.1.0' })
+		);
+		expect((await setup('serve')).given.define.__OGYGIA_KIT_MAJOR__).toBe('3');
+		write(
+			'node_modules/@sveltejs/kit/package.json',
+			JSON.stringify({ name: '@sveltejs/kit', version: '2.9.0' })
+		);
+		expect((await setup('serve')).given.define.__OGYGIA_KIT_MAJOR__).toBe('2');
+	});
+
 	it('the rules fold in only under OGYGIA_RULES=1', async () => {
 		app();
 		expect((await setup('serve')).given.define.__OGYGIA_RULES__).toBe('false');
@@ -183,6 +267,17 @@ describe('the config hook', () => {
 	it('no client plugin, no client plugin code', async () => {
 		app();
 		expect((await setup('serve')).given.define.__OGYGIA_CLIENT_PLUGINS__).toBe('false');
+	});
+
+	it('a standalone build runs none of the ogygia plugins listed beside it', async () => {
+		app();
+		write('node_modules/x-tool/package.json', JSON.stringify({ name: 'x-tool' }));
+		let built = 0;
+		const listed = definePlugin({ name: 'x-tool', build: () => void built++ });
+		await setup('build', { plugins: [listed] });
+		expect(built).toBe(1);
+		await setup('build', { plugins: [listed], options: { standalone: true } });
+		expect(built).toBe(1);
 	});
 
 	it("core's events compile in when a plugin asks, lazily when it asks for lazy", async () => {
@@ -222,31 +317,75 @@ describe('the config hook', () => {
 	it("a build of an all-csr=false app injects Kit's keep-client route", async () => {
 		app();
 		await setup('build');
-		expect(existsSync(path.join(keep_client_dir(root), '+layout.ts'))).toBe(true);
+		expect(existsSync(path.join(keep(), '+layout.ts'))).toBe(true);
+		// (a layout with no page under it: Kit builds its client, and no URL serves it)
+		expect(readdirSync(keep(), { recursive: true })).toEqual(['+layout.ts']);
+		expect(readFileSync(path.join(keep(), '+layout.ts'), 'utf8')).toMatch(
+			/^export const csr = true;$/m
+		);
+	});
+
+	it('the keep-client route goes at process exit, armed once however often Vite configures', async () => {
+		app();
+		const before = new Set(process.listeners('exit'));
+		const { p } = await setup('build');
+		await p.config.handler.call(
+			hook_this('ssr'),
+			{ root },
+			{ command: 'build', mode: 'production' }
+		);
+		const armed = process.listeners('exit').filter((l) => !before.has(l));
+		expect(armed).toHaveLength(1);
+		process.off('exit', armed[0]);
+		(armed[0] as () => void)();
+		expect(existsSync(keep())).toBe(false);
+	});
+
+	it('a keep-client route left on disk is not one of the routes that decide it', async () => {
+		app();
+		write(path.relative(root, path.join(keep(), '+layout.ts')), 'export const csr = true;\n');
+		await setup('build');
+		expect(existsSync(path.join(keep(), '+layout.ts'))).toBe(true);
+	});
+
+	it("the keep-client route goes in the routes dir the app's Kit config names", async () => {
+		write('svelte.config.js', "export default { kit: { files: { routes: 'src/pages' } } };\n");
+		write('src/pages/+page.svelte', '<p>page</p>\n');
+		write('src/pages/+layout.ts', 'export const csr = false;\n');
+		await setup('build');
+		expect(existsSync(path.join(keep('src/pages'), '+layout.ts'))).toBe(true);
+		expect(existsSync(keep())).toBe(false);
 	});
 
 	it('a build of an app Kit hydrates sweeps a stale keep-client route', async () => {
 		app({ csr: true });
-		write(path.relative(root, path.join(keep_client_dir(root), '+layout.ts')), '// stale\n');
+		write(path.relative(root, path.join(keep(), '+layout.ts')), '// stale\n');
 		await setup('build');
-		expect(existsSync(keep_client_dir(root))).toBe(false);
+		expect(existsSync(keep())).toBe(false);
 	});
 
 	it('the dev server and a standalone build never inject it', async () => {
 		app();
 		await setup('serve');
-		expect(existsSync(keep_client_dir(root))).toBe(false);
+		expect(existsSync(keep())).toBe(false);
 		await setup('build', { options: { standalone: true } });
-		expect(existsSync(keep_client_dir(root))).toBe(false);
+		expect(existsSync(keep())).toBe(false);
 	});
 });
 
 describe('configResolved', () => {
+	it('an app-dir define that is not JSON keeps the `_app` default, and nothing throws', async () => {
+		app();
+		await expect(
+			setup('build', { resolved: { define: { __SVELTEKIT_APP_DIR__: 'not json' } } })
+		).resolves.toBeTruthy();
+	});
+
 	it('the dev server sweeps a keep-client route a crashed build left', async () => {
 		app();
-		write(path.relative(root, path.join(keep_client_dir(root), '+layout.ts')), '// stale\n');
+		write(path.relative(root, path.join(keep(), '+layout.ts')), '// stale\n');
 		await setup('serve');
-		expect(existsSync(keep_client_dir(root))).toBe(false);
+		expect(existsSync(keep())).toBe(false);
 	});
 
 	it("dev hands Vite's scanner each island file as an entry, after the app's own, once", async () => {
@@ -261,6 +400,101 @@ describe('configResolved', () => {
 		expect(resolved.optimizeDeps.entries).toContain(page);
 		const listed = await setup('serve', { resolved: { optimizeDeps: { entries: [page] } } });
 		expect(listed.resolved.optimizeDeps.entries.filter((e: string) => e === page)).toHaveLength(1);
+	});
+
+	it('a scan entry is a glob: a route group or a [param] dir in its path is escaped', async () => {
+		app();
+		write('src/lib/Card.svelte', '<p>card</p>\n');
+		write(
+			'src/routes/(shop)/[id]/+page.svelte',
+			dedent`
+				<script>
+					import Card from '$lib/Card.svelte' with { wake: 'visible' };
+				</script>
+				<Card />
+			`
+		);
+		const { resolved } = await setup('serve');
+		const host = resolved.optimizeDeps.entries.find((e: string) => e.includes('shop'));
+		expect(host).toBe(scan_entry_pattern(path.join(root, 'src/routes/(shop)/[id]/+page.svelte')));
+		expect(host).not.toContain('(shop)/[id]');
+	});
+
+	it('a hand-built config with no optimizeDeps gets one, holding the islands', async () => {
+		app();
+		const { resolved } = await setup('serve', { resolved: { optimizeDeps: undefined } });
+		expect(resolved.optimizeDeps.entries).toContain(path.join(root, 'src/lib/Counter.svelte'));
+	});
+
+	it("dev warns once when the app's own optimizer include names ogygia; a build does not", async () => {
+		app();
+		const warned = async (command: Command) => {
+			const said: string[] = [];
+			await setup(command, {
+				resolved: {
+					optimizeDeps: { include: ['ogygia/runtime', 'svelte', 'ogygia'] },
+					logger: { warn: (m: string) => void said.push(m) }
+				}
+			});
+			return said;
+		};
+		const dev = await warned('serve');
+		expect(dev).toHaveLength(1);
+		expect(dev[0]).toContain('ogygia/runtime, ogygia');
+		expect(await warned('build')).toEqual([]);
+	});
+
+	it("a second configResolved (a builder's next environment) keeps the program the first one built", async () => {
+		app();
+		const { p, resolved } = await setup('serve');
+		// (a host outside src: no prescan finds it, only its transform)
+		const island = write('elsewhere/Late.svelte', '<p>late</p>\n');
+		const host = write(
+			'elsewhere/Host.svelte',
+			dedent`
+				<script>
+					import Late from './Late.svelte' with { wake: 'visible' };
+				</script>
+				<Late />
+			`
+		);
+		const hears = () => {
+			const s = { ws: { send() {} }, moduleGraph: { getModuleById: () => null } };
+			return p.handleHotUpdate({ file: island, server: s });
+		};
+		await p.transform.call(hook_this('ssr'), readFileSync(host, 'utf8'), host, { ssr: true });
+		expect(hears()).toEqual([]);
+		p.configResolved.call(hook_this('client'), { ...resolved, optimizeDeps: {} });
+		expect(hears()).toEqual([]);
+	});
+
+	it("the build cache lives under the configured app's node_modules", async () => {
+		app();
+		await setup('build');
+		expect(new BuildCache('x').dir()).toBe(path.join(root, 'node_modules', '.ogygia', 'x'));
+	});
+
+	it("a plugin's own pages are compiled, but never handed to the scanner as the app's entries", async () => {
+		app();
+		write('node_modules/x-tool/package.json', JSON.stringify({ name: 'x-tool' }));
+		const ui = path.join(root, 'node_modules/x-tool/ui');
+		write('node_modules/x-tool/ui/Pane.svelte', '<p>pane</p>\n');
+		write(
+			'node_modules/x-tool/ui/Page.svelte',
+			dedent`
+				<script>
+					import Pane from './Pane.svelte' with { wake: 'visible' };
+				</script>
+				<Pane />
+			`
+		);
+		const plugin = definePlugin({
+			name: 'x-tool',
+			build: (b) => b.files({ root: path.join(root, 'node_modules/x-tool'), dirs: [ui] })
+		});
+		const { resolved } = await setup('serve', { plugins: [plugin] });
+		expect(resolved.optimizeDeps.entries).toContain(path.join(root, 'src/lib/Counter.svelte'));
+		expect(resolved.optimizeDeps.entries.filter((e: string) => e.includes('x-tool'))).toEqual([]);
 	});
 
 	it('a build leaves the scan entries alone', async () => {
@@ -324,6 +558,34 @@ describe('the signing secret', () => {
 		expect(process.env.OGYGIA_SECRET).toBe(STRONG);
 	});
 
+	it('region ids are salted from the secret alone, so every build of one secret mints the same ids', async () => {
+		app();
+		const host = path.join(root, 'src/routes/+page.svelte');
+		const compiled = async () =>
+			(
+				await (
+					await begin((await setup('build')).p, 'ssr')
+				).transform.call(hook_this('ssr'), readFileSync(host, 'utf8'), host, { ssr: true })
+			).code as string;
+		const unsalted = await compiled();
+		process.env.OGYGIA_SECRET = STRONG;
+		const salted = await compiled();
+		expect(await compiled()).toBe(salted);
+		expect(salted).not.toBe(unsalted);
+	});
+
+	it('each build bakes a fresh key of its own into the server', async () => {
+		app();
+		const key = async () =>
+			/build_key = "([0-9a-f]{64})"/.exec(
+				(await load(await begin((await setup('build')).p, 'ssr'), 'ogygia:server/secret', 'ssr')) ??
+					''
+			)?.[1];
+		const [a, b] = [await key(), await key()];
+		expect(a).toBeDefined();
+		expect(a).not.toBe(b);
+	});
+
 	it('a secret already in the environment wins over the .env file', async () => {
 		app();
 		write('.env', 'OGYGIA_SECRET=short\n');
@@ -351,6 +613,65 @@ describe('resolveId', () => {
 		expect(await resolve(p, '#app/paths', 'ssr', kit)).not.toBe(STUB_PATHS);
 		expect(await resolve(p, '#app/paths', 'client', '/n/app/src/x.ts')).not.toBe(STUB_PATHS);
 		expect(await resolve(p, '#app/state/client', 'client', undefined)).not.toBe(STUB_STATE);
+	});
+
+	it("ogygia's injected imports resolve to its own files, even on an instance Vite never configured", async () => {
+		const p = ogygia().find((x) => x.name === 'ogygia') as Hooks;
+		for (const spec of OGYGIA_INJECTED_IMPORTS)
+			expect(await p.resolveId.call({}, spec, '\0ogygia:region/x.js', {}), spec).toBe(
+				OGYGIA_INJECTED_FILES[spec]
+			);
+	});
+
+	it("an island's closure follows the app's aliases, in Vite's object form as in its array form", async () => {
+		write('src/routes/+layout.ts', 'export const csr = false;\n');
+		write(
+			'src/routes/+page.svelte',
+			dedent`
+				<script>
+					import Reader from '$lib/Reader.svelte' with { wake: 'load' };
+				</script>
+				<Reader />
+			`
+		);
+		write(
+			'src/lib/Reader.svelte',
+			"<script>import { name } from '$boot/read';</script><p>{name()}</p>\n"
+		);
+		const helper = write(
+			'src/lib/boot/read.ts',
+			"import { page } from '$app/state'; export const name = () => String(page.data.name);\n"
+		);
+		const lib = path.join(root, 'src/lib');
+		const boot = path.join(root, 'src/lib/boot');
+		const shimmed = async (alias: unknown) => {
+			const { p } = await setup('serve', { resolved: { resolve: { alias } } });
+			return resolve(p, '$app/state', 'client', helper);
+		};
+		const by_array = await shimmed([
+			{ find: '$lib', replacement: lib },
+			{ find: '$boot', replacement: boot }
+		]);
+		expect(by_array).toBeTruthy();
+		expect(await shimmed({ $lib: lib, $boot: boot })).toEqual(by_array);
+		expect(await shimmed({ $lib: lib })).not.toEqual(by_array);
+	});
+
+	it("Region's twin imports are the awaiting ones only when the app compiles in Svelte's async mode", async () => {
+		app();
+		const region = [...OGYGIA_REGION_MODULES][0];
+		const svelte = (async: boolean) => ({
+			name: 'vite-plugin-svelte:config',
+			api: { options: { compilerOptions: { experimental: { async } } } }
+		});
+		const twin = async (async: boolean) => {
+			const { p } = await setup('serve', { resolved: { plugins: [svelte(async)] } });
+			return p.resolveId.call(hook_this('client'), './LateIsland.svelte', region, {});
+		};
+		expect(await twin(true)).toBe(
+			`${region.slice(0, region.lastIndexOf('/') + 1)}LateIslandAwait.svelte`
+		);
+		expect(JSON.stringify(await twin(false))).not.toContain('Await.svelte');
 	});
 
 	it("Kit's client paths module is stubbed in the browser only", async () => {
@@ -421,6 +742,65 @@ describe('transform', () => {
 		);
 	});
 
+	it("the page Kit's entry publishes carries Kit's own navigating and navigation, never $app/stores", async () => {
+		app();
+		const p = await begin((await setup('build')).p, 'ssr', 'client');
+		const { code } = await p.transform.call(hook_this('client'), 'export {};\n', KIT_APP, {
+			ssr: false
+		});
+		const published = code.slice(code.indexOf("Symbol.for('ogygia.kit-page')"));
+		expect(code).toMatch(/import \{[^}]*\bnavigating as (\w+)[^}]*\} from '\$app\/state'/);
+		expect(code).toMatch(/import \* as \w+ from '\$app\/navigation'/);
+		expect(published).toMatch(/navigating: \w+/);
+		expect(published).toMatch(/navigation: \w+/);
+		expect(code).not.toContain('$app/stores');
+	});
+
+	it("Kit's client app entry is found under Kit 2's and Kit 3's generated dirs, dev and build", async () => {
+		app();
+		const p = await begin((await setup('build')).p, 'ssr', 'client');
+		const threaded = async (id: string) =>
+			(
+				(await p.transform.call(hook_this('client'), 'export {};\n', id, { ssr: false })) as {
+					code: string;
+				} | null
+			)?.code.includes("Symbol.for('ogygia.kit-page')") ?? false;
+		for (const dir of ['client', 'client-optimized', 'dev/client', 'build/client'])
+			expect(await threaded(`/x/out/generated/${dir}/app.js`), dir).toBe(true);
+		for (const id of ['/x/out/generated/server/app.js', '/x/out/generated/client/other.js'])
+			expect(await threaded(id), id).toBe(false);
+	});
+
+	it("a hook's leg is its environment: a server consumer is the server whatever its name, and ssr is", async () => {
+		app();
+		const { p } = await setup('serve');
+		const in_env = (name: string, consumer?: string) => ({
+			...hook_this('client'),
+			environment: { name, config: consumer ? { consumer } : {} }
+		});
+		const threaded = async (t: unknown) =>
+			(
+				(await p.transform.call(t, 'export {};\n', KIT_APP, { ssr: false })) as {
+					code: string;
+				} | null
+			)?.code.includes("Symbol.for('ogygia.kit-page')") ?? false;
+		expect(await threaded(in_env('edge', 'server'))).toBe(false);
+		expect(await threaded(in_env('ssr'))).toBe(false);
+		expect(await threaded(in_env('client', 'client'))).toBe(true);
+	});
+
+	it("a module's names from a realm module are imported from the entries that have them", async () => {
+		app();
+		const { p } = await setup('serve');
+		const out = await p.transform.call(
+			hook_this('ssr'),
+			"import { sign } from 'ogygia:server'; export const s = sign;\n",
+			path.join(root, 'src/lib/s.ts'),
+			{ ssr: true }
+		);
+		expect(out.code).toContain("from 'ogygia:server/sign'");
+	});
+
 	it('a host is compiled for the leg asked', async () => {
 		app();
 		const { p } = await setup('serve');
@@ -454,8 +834,233 @@ describe('transform', () => {
 	});
 });
 
+describe("a plugin's stage transforms and seams", () => {
+	type Ctx = import('../src/vite/plugin-api.ts').TransformContext;
+	type Seams = import('../src/vite/plugin-api.ts').BuildContext;
+
+	/** A plugin whose `source` and `post` transforms are `on`'s, and the build it was handed. */
+	function tool(on: { source?: (t: Ctx) => void; post?: (t: Ctx) => void }) {
+		write('node_modules/x-tool/package.json', JSON.stringify({ name: 'x-tool' }));
+		const seen: { b?: Seams } = {};
+		const plugin = definePlugin({
+			name: 'x-tool',
+			build: (b) => {
+				seen.b = b;
+				for (const stage of ['source', 'post'] as const) {
+					const run = on[stage];
+					if (run) b.transform({ stage, transform: run });
+				}
+			}
+		});
+		return { plugin, seen };
+	}
+
+	it('a region mark pins an import, whatever names it takes; any other attribute does not', async () => {
+		app();
+		const { plugin, seen } = tool({});
+		await setup('build', { plugins: [plugin], options: { importKeys: { wake: 'awake' } } });
+		const pinned = seen.b!.pinnedImports('');
+		expect(pinned({ attribute_keys: ['awake'], specs: [{ local: 'A' }] })).toBe(true);
+		expect(pinned({ attribute_keys: ['type'], specs: [] })).toBe(false);
+		expect(pinned({ attribute_keys: ['wake'], specs: [] })).toBe(false);
+	});
+
+	it("a stage sees the module with no byte-order mark, and its edits land at the code's offsets", async () => {
+		app();
+		let seen_code = '';
+		const { plugin } = tool({
+			source: (t) => {
+				seen_code = t.code;
+				t.edit.overwrite(0, 3, 'let');
+			}
+		});
+		const { stage } = await setup('serve', { plugins: [plugin] });
+		const out = await stage('source').transform.call(
+			hook_this('client'),
+			'\uFEFFvar x = 1;\n',
+			'/r/a.ts'
+		);
+		expect(seen_code).toBe('var x = 1;\n');
+		expect(out.code).toBe('let x = 1;\n');
+	});
+
+	it('every transform of a stage edits the code the stage received, and the stage gives one result and one map', async () => {
+		app();
+		write('node_modules/x-two/package.json', JSON.stringify({ name: 'x-two' }));
+		const { plugin } = tool({ source: (t) => void t.edit.overwrite(0, 3, 'let') });
+		const second = definePlugin({
+			name: 'x-two',
+			build: (b) =>
+				b.transform({ stage: 'source', transform: (t) => void t.edit.overwrite(4, 5, 'y') })
+		});
+		const { stage } = await setup('serve', { plugins: [plugin, second] });
+		const out = await stage('source').transform.call(
+			hook_this('client'),
+			'var x = 1;\n',
+			'/r/a.ts'
+		);
+		expect(out.code).toBe('let y = 1;\n');
+		expect(out.map.mappings).not.toBe('');
+	});
+
+	it("a barrel's export map is the environment's: each resolves its names as its own modules do", async () => {
+		app();
+		write('src/lib/index.ts', "﻿export { x } from './a';\n");
+		write('src/lib/a.client.ts', 'export const x = 1;\n');
+		write('src/lib/a.server.ts', 'export const x = 2;\n');
+		const barrel = path.join(root, 'src/lib/index.ts');
+		const maps: Record<string, unknown> = {};
+		const { plugin, seen } = tool({
+			source: async (t) => {
+				const map = await seen.b!.exports.map(barrel, '$lib', EVERY_BARREL, t);
+				maps[t.environment] = map?.entries.get('x');
+			}
+		});
+		const { stage } = await setup('serve', { plugins: [plugin] });
+		for (const leg of ['client', 'ssr'] as const)
+			await stage('source').transform.call(
+				{
+					...hook_this(leg),
+					addWatchFile: () => {},
+					resolve: async (spec: string) =>
+						spec === './a'
+							? { id: path.join(root, `src/lib/a.${leg === 'ssr' ? 'server' : 'client'}.ts`) }
+							: null
+				},
+				'x;\n',
+				'/r/a.ts'
+			);
+		expect(maps.client).toMatchObject({ id: path.join(root, 'src/lib/a.client.ts'), name: 'x' });
+		expect(maps.ssr).toMatchObject({ id: path.join(root, 'src/lib/a.server.ts'), name: 'x' });
+	});
+
+	it("a barrel's edit is seen by the next export map once the watcher reports it", async () => {
+		app();
+		const barrel = write('src/lib/index.ts', "export { x } from './a';\n");
+		write('src/lib/a.ts', 'export const x = 1;\n');
+		write('src/lib/b.ts', 'export const x = 2;\n');
+		let got: unknown;
+		const { plugin, seen } = tool({
+			source: async (t) => {
+				got = (await seen.b!.exports.map(barrel, '$lib', EVERY_BARREL, t))?.entries.get('x');
+			}
+		});
+		const { p, stage } = await setup('serve', { plugins: [plugin] });
+		const run = () =>
+			stage('source').transform.call(
+				{
+					...hook_this('client'),
+					addWatchFile: () => {},
+					resolve: async (spec: string) => ({
+						id: path.join(root, 'src/lib', `${spec.slice(2)}.ts`)
+					})
+				},
+				'x;\n',
+				'/r/a.ts'
+			);
+		await run();
+		expect(got).toMatchObject({ id: path.join(root, 'src/lib/a.ts') });
+		write('src/lib/index.ts', "export { x } from './b';\n");
+		p.watchChange(barrel, { event: 'update' });
+		await run();
+		expect(got).toMatchObject({ id: path.join(root, 'src/lib/b.ts') });
+	});
+
+	it('a stage resolves past this plugin, as a forward-slash id; an external or a throw is null', async () => {
+		app();
+		const got: Array<string | null> = [];
+		const { plugin } = tool({
+			source: async (t) => {
+				for (const spec of ['win', 'ext', 'boom']) got.push(await t.resolve(spec, '/r/a.ts'));
+			}
+		});
+		const { stage } = await setup('serve', { plugins: [plugin] });
+		const asked: unknown[] = [];
+		const t = {
+			...hook_this('client'),
+			addWatchFile: () => {},
+			resolve: async (spec: string, _importer: string, o?: { skipSelf?: boolean }) => {
+				asked.push(o?.skipSelf);
+				if (spec === 'boom') throw new Error('unresolvable');
+				return spec === 'win' ? { id: 'C:\\r\\win.ts' } : { id: '/r/ext.ts', external: true };
+			}
+		};
+		await stage('source').transform.call(t, 'x;\n', '/r/a.ts');
+		expect(got).toEqual(['C:/r/win.ts', null, null]);
+		expect(asked).toEqual([true, true, true]);
+	});
+
+	it("why a barrel stayed, by both stages, in the findings' order; a stage's rerun forgets its own word", async () => {
+		app();
+		let say_source = true;
+		const left = (reason: 'pinned' | 'impure'): Parameters<Ctx['emit']>[0] => ({
+			domain: 'compile',
+			name: 'compile.barrel.left',
+			barrel: '/r/b.ts',
+			names: ['x'],
+			reason
+		});
+		const { plugin, seen } = tool({
+			source: (t) => {
+				if (say_source) t.emit(left('pinned'));
+			},
+			post: (t) => t.emit(left('impure'))
+		});
+		const { p, stage } = await setup('build', { plugins: [plugin] });
+		await begin(p, 'client', 'ssr');
+		const run = async (name: 'source' | 'post', leg: Leg = 'client') =>
+			stage(name).transform.call({ ...hook_this(leg), addWatchFile: () => {} }, 'x;\n', '/r/a.ts');
+		await run('source');
+		await run('post');
+		expect(seen.b!.regions.barrelWhy('/r/b.ts', ['/r/a.ts'])).toEqual(['impure', 'pinned']);
+		say_source = false;
+		await run('source');
+		expect(seen.b!.regions.barrelWhy('/r/b.ts', ['/r/a.ts'])).toEqual(['impure']);
+		// (the browser's word only: the server's bundle is not what a page downloads)
+		say_source = true;
+		await run('source', 'ssr');
+		expect(seen.b!.regions.barrelWhy('/r/b.ts', ['/r/a.ts'])).toEqual(['impure']);
+	});
+
+	it('a stage transform runs only on the modules its filter takes', async () => {
+		app();
+		const { plugin, seen } = tool({});
+		const { stage } = await setup('serve', { plugins: [plugin] });
+		seen.b!.transform({
+			stage: 'source',
+			filter: (id) => id.endsWith('.ts'),
+			transform: (t) => void t.edit.prepend('// x\n')
+		});
+		const run = (id: string) =>
+			stage('source').transform.call(
+				{ ...hook_this('client'), addWatchFile: () => {} },
+				'x;\n',
+				id
+			);
+		expect((await run('/r/a.ts'))?.code).toBe(
+			`${dedent`
+			// x
+			x;
+		`}\n`
+		);
+		expect(await run('/r/a.js')).toBe(null);
+	});
+});
+
 describe('the build legs', () => {
-	const handoff = () => server_handoff_path(kit_dirs(root).out_dir);
+	const handoff = () => server_handoff_path(path.join(root, '.svelte-kit'));
+
+	it("the plugin keeps its app's Kit config however many other apps were configured since (#633)", async () => {
+		app();
+		write('svelte.config.mjs', "export default { kit: { outDir: 'kit-out' } };\n");
+		const custom = server_handoff_path(path.join(root, 'kit-out'));
+		write(path.relative(root, custom), '["stale"]');
+		const { p } = await setup('build');
+		const others = path.join(root, 'others');
+		for (let i = 0; i <= 10_000; i++) await load_kit_config(path.join(others, String(i)));
+		await p.buildStart.call(hook_this('ssr'));
+		expect(existsSync(custom)).toBe(false);
+	}, 60_000);
 
 	it("the server leg drops an earlier build's handoff, then writes its own", async () => {
 		app();
@@ -472,6 +1077,60 @@ describe('the build legs', () => {
 		expect(() => JSON.parse(written)).not.toThrow();
 		expect(written).toContain(JSON.stringify(host).slice(1, -1));
 		expect(written).not.toContain('stale');
+	});
+
+	it("the client environment's own configResolved, after the server leg wrote the handoff, keeps it", async () => {
+		app();
+		const { p, resolved } = await setup('build');
+		const t = hook_this('ssr');
+		await p.buildStart.call(t);
+		p.buildEnd.call(t);
+		p.configResolved.call(hook_this('client'), resolved);
+		expect(existsSync(handoff())).toBe(true);
+	});
+
+	it('a handoff the server leg cannot write is a coded warning, never a failed build', async () => {
+		app();
+		const said: unknown[] = [];
+		const spy = vi.spyOn(console, 'warn').mockImplementation((...a) => void said.push(a.join(' ')));
+		try {
+			const { p } = await setup('build');
+			const t = hook_this('ssr');
+			await p.buildStart.call(t);
+			rmSync(path.join(root, '.svelte-kit'), { recursive: true, force: true });
+			write('.svelte-kit', 'not a directory\n');
+			expect(() => p.buildEnd.call(t)).not.toThrow();
+		} finally {
+			spy.mockRestore();
+		}
+		expect(String(said)).toContain('island_handoff_write_failed');
+	});
+
+	it('under OGYGIA_PROFILE the build ends with a digest of what it transformed: same output, same digest', async () => {
+		app();
+		const host = path.join(root, 'src/routes/+page.svelte');
+		const digest = async () => {
+			process.env.OGYGIA_PROFILE = '1';
+			const said: string[] = [];
+			const spy = vi.spyOn(console, 'error').mockImplementation((m) => void said.push(String(m)));
+			try {
+				const { p } = await setup('build');
+				const t = hook_this('ssr');
+				await p.buildStart.call(t);
+				await p.transform.call(t, readFileSync(host, 'utf8'), host, { ssr: true });
+				p.buildEnd.call(t);
+			} finally {
+				spy.mockRestore();
+				delete process.env.OGYGIA_PROFILE;
+			}
+			const line = said.find((s) => s.includes('[ogygia-prof]'))!;
+			return JSON.parse(line.slice(line.indexOf('{'))) as { transformDigest: string };
+		};
+		const first = await digest();
+		expect(first).toMatchObject({ transformDigest: expect.stringMatching(/^[0-9a-f]+$/) });
+		expect((await digest()).transformDigest).toBe(first.transformDigest);
+		write('src/routes/+page.svelte', `${readFileSync(host, 'utf8')}<p>more</p>\n`);
+		expect((await digest()).transformDigest).not.toBe(first.transformDigest);
 	});
 
 	it('the client leg neither drops nor writes it', async () => {
@@ -501,6 +1160,150 @@ describe('the build legs', () => {
 		expect(t.emitted.map((c) => c.type)).toContain('chunk');
 	});
 
+	const chunks = (t: { emitted: Array<Record<string, unknown>> }) =>
+		t.emitted.filter((c) => c.type === 'chunk').length;
+
+	it('the client leg emits no runtime and no island for an app Kit hydrates whole, or a standalone build', async () => {
+		app();
+		const kit = hook_this('client');
+		await (await setup('build')).p.buildStart.call(kit);
+		expect(chunks(kit)).toBe(2);
+		app({ csr: true });
+		const hydrated = hook_this('client');
+		await (await setup('build')).p.buildStart.call(hydrated);
+		expect(chunks(hydrated)).toBe(0);
+		app();
+		const standalone = hook_this('client');
+		await (await setup('build', { options: { standalone: true } })).p.buildStart.call(standalone);
+		expect(chunks(standalone)).toBe(1);
+	});
+
+	it("a server-only region's whole-tree CSS ships as one asset per component, from the server leg's list when it handed one off", async () => {
+		write('src/lib/Hole.svelte', '<p class="h">h</p><style>.h { color: maroon; }</style>\n');
+		write('src/lib/Late.svelte', '<p class="l">l</p><style>.l { color: plum; }</style>\n');
+		write(
+			'src/routes/+page.svelte',
+			dedent`
+				<script>
+					import Hole from '$lib/Hole.svelte' with { render: 'deferred' };
+					import Again from '$lib/Hole.svelte' with { render: 'deferred', fetch: 'idle' };
+				</script>
+				<Hole /><Again />
+			`
+		);
+		write('src/routes/+layout.ts', 'export const csr = false;\n');
+		const holes = async () => {
+			const t = hook_this('client');
+			await (await setup('build')).p.buildStart.call(t);
+			return t.emitted.filter((c) => c.name === 'og-hole.css').map((c) => String(c.source));
+		};
+		const own = await holes();
+		expect(own).toHaveLength(1);
+		expect(own[0]).toContain('maroon');
+		write(
+			path.relative(root, handoff()),
+			server_handoff_json([], 'k', [{ iid: 'late', abs: path.join(root, 'src/lib/Late.svelte') }])
+		);
+		const handed = await holes();
+		expect(handed).toHaveLength(1);
+		expect(handed[0]).toContain('plum');
+	});
+
+	it("a page module's whole-tree CSS ships as one asset (a programmatic router's page)", async () => {
+		app();
+		write('node_modules/x-router/package.json', JSON.stringify({ name: 'x-router' }));
+		const page = write(
+			'src/lib/pages/About.svelte',
+			"<script>import A from '$lib/A.svelte';</script><A />\n"
+		);
+		write('src/lib/A.svelte', '<p class="a">a</p><style>.a { color: coral; }</style>\n');
+		const routes = write(
+			'src/lib/routes.ts',
+			`${dedent`
+				import { route } from 'x-router/page';
+				import About from './pages/About.svelte';
+				export default route(About);
+			`}\n`
+		);
+		const plugin = definePlugin({
+			name: 'x-router',
+			build: (b) => b.pageModules({ importers: ['x-router/page'] })
+		});
+		const { p } = await setup('build', { plugins: [plugin] });
+		await begin(p, 'ssr');
+		await p.transform.call(hook_this('ssr'), readFileSync(routes, 'utf8'), routes, { ssr: true });
+		expect(page).toBeTruthy();
+		const t = hook_this('client');
+		await p.buildStart.call(t);
+		const sheets = t.emitted.filter((c) => c.name === 'og-rcss.css').map((c) => String(c.source));
+		expect(sheets).toHaveLength(1);
+		expect(sheets[0]).toContain('coral');
+	});
+
+	it('an app with no Kit page but a region to hydrate (a programmatic router) still gets the runtime', async () => {
+		write('src/lib/Counter.svelte', '<button>+</button>\n');
+		write(
+			'src/lib/View.svelte',
+			dedent`
+				<script>
+					import Counter from '$lib/Counter.svelte' with { wake: 'visible' };
+				</script>
+				<Counter />
+			`
+		);
+		const t = hook_this('client');
+		await (await setup('build')).p.buildStart.call(t);
+		expect(t.emitted.filter((c) => String(c.name).startsWith('og-runtime'))).toHaveLength(1);
+	});
+
+	it('an island whose host the server leg never loaded gets no chunk; with no handoff, every island does', async () => {
+		app();
+		write(path.relative(root, handoff()), server_handoff_json([], 'k', []));
+		const { p } = await setup('build');
+		const gated = hook_this('client');
+		await p.buildStart.call(gated);
+		expect(chunks(gated)).toBe(1);
+	});
+
+	it("a hook with no environment runs in the build's own leg", async () => {
+		app();
+		write(path.relative(root, handoff()), '["stale"]');
+		const { p } = await setup('build', { resolved: { build: { ssr: true } } });
+		const { environment: _, ...bare } = hook_this('ssr');
+		await p.buildStart.call(bare);
+		expect(existsSync(handoff())).toBe(false);
+	});
+
+	it("a markup format's scan reads a file that is not there as null", async () => {
+		app();
+		write('node_modules/x-tool/package.json', JSON.stringify({ name: 'x-tool' }));
+		const read: (string | null)[] = [];
+		const plugin = definePlugin({
+			name: 'x-tool',
+			build: (b) =>
+				void b.markup({
+					extensions: ['.svx'],
+					scan: ({ readFile }) => void read.push(readFile(path.join(root, 'src/nope.svx')))
+				})
+		});
+		await begin((await setup('build', { plugins: [plugin] })).p, 'ssr');
+		expect(read).toEqual([null]);
+	});
+
+	it("a markup format's islands are scanned once per build, and in dev before any request", async () => {
+		app();
+		write('node_modules/x-tool/package.json', JSON.stringify({ name: 'x-tool' }));
+		let scans = 0;
+		const plugin = definePlugin({
+			name: 'x-tool',
+			build: (b) => void b.markup({ extensions: ['.svx'], scan: () => void scans++ })
+		});
+		await begin((await setup('build', { plugins: [plugin] })).p, 'ssr', 'client');
+		expect(scans).toBe(1);
+		await begin((await setup('serve', { plugins: [plugin] })).p, 'ssr', 'client');
+		expect(scans).toBe(2);
+	});
+
 	it("the client leg names our entries and keeps the app's own naming for the rest", async () => {
 		app();
 		const { p } = await setup('build');
@@ -510,6 +1313,9 @@ describe('the build legs', () => {
 			chunkFileNames: (i: { name?: string }) => `c/${i.name}`
 		});
 		expect(out.chunkFileNames({ name: 'mine' })).toBe('c/mine');
+		// (the bundler reads its output options before the leg starts)
+		const early = (await setup('build')).p.outputOptions.call(hook_this('client'), {});
+		expect(early.entryFileNames({ name: 'mine' })).toBe('[name].js');
 		expect(out.entryFileNames({ name: 'mine' })).toBe('[name].js');
 		expect(p.outputOptions.call(hook_this('ssr'), {})).toBe(null);
 		expect((await setup('serve')).p.outputOptions.call(client, {})).toBe(null);
@@ -579,6 +1385,374 @@ describe('the build legs', () => {
 		expect(fanouts('/b.js')).toEqual([6]);
 	});
 
+	/** One client leg of `app()` with a plugin that answers seed shaping (and, `measured`, a
+	 *  profiler), over a bundle of the island's entry and the runtime, each with one chunk behind it;
+	 *  what it handed the server. */
+	async function handed({
+		measured = false,
+		keys = (id: string): ReadonlySet<string> | 'unknown' | null =>
+			id.endsWith('Counter.svelte') ? new Set(['title']) : null
+	} = {}) {
+		app();
+		write(
+			'src/lib/Counter.svelte',
+			`${dedent`
+				<button>+</button>
+				<p>{Math.random()}</p>
+			`}\n`
+		);
+		write('node_modules/x-tool/package.json', JSON.stringify({ name: 'x-tool' }));
+		const settled: unknown[] = [];
+		const reads = {
+			module() {},
+			settle: async (resolve: unknown) => void settled.push(resolve),
+			keys,
+			why: (id: string) => (id.endsWith('Counter.svelte') ? { why: 'a spread', line: 2 } : null),
+			dev: async () => ({ keys: null, why: [] })
+		};
+		const tool = definePlugin({
+			name: 'x-tool',
+			build: (b) => {
+				if (measured) b.measure();
+				b.pageReads(reads);
+			}
+		});
+		const { p } = await setup('build', { plugins: [tool] });
+		const t = hook_this('client');
+		await p.buildStart.call(t);
+		const file = (name: RegExp) =>
+			`_app/immutable/ref${t.emitted.findIndex((c) => c.type === 'chunk' && name.test(String(c.name))) + 1}.js`;
+		const island = file(/^(?!og-runtime)/);
+		const runtime = file(/^og-runtime/);
+		const counter = path.join(root, 'src/lib/Counter.svelte');
+		const remote = path.join(root, 'src/lib/data.remote.ts');
+		const lib = (n: string) => path.join(root, `node_modules/x-lib/${n}`);
+		await p.generateBundle.call(t, {}, {});
+		await p.writeBundle.call(
+			t,
+			{},
+			{
+				[island]: {
+					type: 'chunk',
+					fileName: island,
+					imports: ['_app/immutable/dep.js'],
+					moduleIds: [counter, APP_STATE, remote, lib('dist/a.js')],
+					modules: {
+						[counter]: { renderedLength: 900 },
+						[lib('dist/a.js')]: { renderedLength: 600 }
+					}
+				},
+				'_app/immutable/dep.js': {
+					type: 'chunk',
+					fileName: '_app/immutable/dep.js',
+					moduleIds: [lib('src/a.ts')],
+					modules: { [lib('src/a.ts')]: { renderedLength: 600 } }
+				},
+				[runtime]: {
+					type: 'chunk',
+					fileName: runtime,
+					imports: ['_app/immutable/rt.js'],
+					moduleIds: ['\0og-runtime']
+				},
+				'_app/immutable/rt.js': { type: 'chunk', fileName: '_app/immutable/rt.js', moduleIds: [] }
+			}
+		);
+		const json = JSON.parse(readFileSync(region_deps(), 'utf8'));
+		const identity = (f: string) =>
+			Object.keys(json.entries).find((k) => json.entries[k] === `/${f}`)!;
+		return { json, settled, at: identity(island), rt: identity(runtime), remote };
+	}
+
+	it("the browser leg's handoff: each entry's chunks and page reads by its identity, its location beside it", async () => {
+		const { json, settled, at, rt, remote } = await handed();
+		expect(at).toBeTruthy();
+		expect(json.js[at]).toEqual(['/_app/immutable/dep.js']);
+		expect(json.js[rt]).toEqual(['/_app/immutable/rt.js']);
+		expect(json.page[at]).toBe(true);
+		expect(json.page_keys[at]).toEqual(['title']);
+		expect(settled).toHaveLength(1);
+		expect(typeof settled[0]).toBe('function');
+		expect(json.remotes[at]).toEqual([remote_hash_of(remote, process.cwd())]);
+		expect(json.interactivity[at]).toBeTruthy();
+		expect(json.locations).toMatch(/^\/_app\/immutable\//);
+	});
+
+	it("the browser leg's handoff links each sheet it emitted by URL: a router page's, a hole's, a content body's; and inlines those under Kit's threshold", async () => {
+		write('src/lib/Hole.svelte', '<p class="h">h</p><style>.h { color: maroon; }</style>\n');
+		write('src/lib/pages/About.svelte', '<p class="a">a</p><style>.a { color: coral; }</style>\n');
+		write(
+			'src/routes/+page.svelte',
+			dedent`
+				<script>
+					import Hole from '$lib/Hole.svelte' with { render: 'deferred' };
+				</script>
+				<Hole />
+			`
+		);
+		write('src/routes/+layout.ts', 'export const csr = false;\n');
+		const routes = write(
+			'src/lib/routes.ts',
+			`${dedent`
+				import { route } from 'x-router/page';
+				import About from './pages/About.svelte';
+				export default route(About);
+			`}\n`
+		);
+		const doc = write(
+			'src/routes/doc.svx',
+			'<h1 class="d">t</h1><style>.d { color: tan; }</style>\n'
+		);
+		for (const name of ['x-router', 'x-tool'])
+			write(`node_modules/${name}/package.json`, JSON.stringify({ name }));
+		const plugins = [
+			definePlugin({
+				name: 'x-router',
+				build: (b) => b.pageModules({ importers: ['x-router/page'] })
+			}),
+			definePlugin({
+				name: 'x-tool',
+				build: (b) =>
+					void b.markup({ extensions: ['.svx'], modules: [[doc, readFileSync(doc, 'utf8')]] })
+			})
+		];
+		write('svelte.config.mjs', 'export default { kit: { inlineStyleThreshold: 1000 } };\n');
+		const { p } = await setup('build', { plugins });
+		await begin(p, 'ssr');
+		await p.transform.call(hook_this('ssr'), readFileSync(routes, 'utf8'), routes, { ssr: true });
+		const t = hook_this('client');
+		await p.buildStart.call(t);
+		await p.generateBundle.call(t, {}, {});
+		const file = (name: string) =>
+			`_app/immutable/ref${t.emitted.findIndex((c) => c.name === name) + 1}.js`;
+		const sheets = ['og-rcss.css', 'og-hole.css', 'og-content.css'].map(file);
+		const bundle = Object.fromEntries(
+			sheets.map((f) => [f, { type: 'asset', fileName: f, source: `/* ${f} */` }])
+		);
+		await p.writeBundle.call(t, {}, bundle);
+		const json = JSON.parse(readFileSync(region_deps(), 'utf8'));
+		const [router, hole, content] = sheets.map((f) => `/${f}`);
+		const key_of = (url: string) =>
+			Object.keys(json.css).find((k) => (json.css[k] as string[]).includes(url));
+		expect(key_of(router)).toMatch(/^rcss:/);
+		expect(json.css[key_of(router)!]).toEqual([router]);
+		expect(key_of(hole)).toMatch(/^\//);
+		expect(Object.values(json.content_css)).toEqual([[content]]);
+		expect(Object.keys(json.css_inline).sort()).toEqual([router, hole, content].sort());
+		expect(json.css_inline[hole]).toBe(`/* ${sheets[1]} */`);
+	});
+
+	it('a sheet the bundle dropped is left unlinked, never a failed build', async () => {
+		write('src/lib/Hole.svelte', '<p class="h">h</p><style>.h { color: maroon; }</style>\n');
+		write(
+			'src/routes/+page.svelte',
+			dedent`
+				<script>
+					import Hole from '$lib/Hole.svelte' with { render: 'deferred' };
+				</script>
+				<Hole />
+			`
+		);
+		write('src/routes/+layout.ts', 'export const csr = false;\n');
+		const routes = write(
+			'src/lib/routes.ts',
+			`${dedent`
+				import { route } from 'x-router/page';
+				import About from './pages/About.svelte';
+				export default route(About);
+			`}\n`
+		);
+		write('src/lib/pages/About.svelte', '<p class="a">a</p><style>.a { color: coral; }</style>\n');
+		const doc = write(
+			'src/routes/doc.svx',
+			'<h1 class="d">t</h1><style>.d { color: tan; }</style>\n'
+		);
+		for (const name of ['x-router', 'x-tool'])
+			write(`node_modules/${name}/package.json`, JSON.stringify({ name }));
+		const plugins = [
+			definePlugin({
+				name: 'x-router',
+				build: (b) => b.pageModules({ importers: ['x-router/page'] })
+			}),
+			definePlugin({
+				name: 'x-tool',
+				build: (b) =>
+					void b.markup({ extensions: ['.svx'], modules: [[doc, readFileSync(doc, 'utf8')]] })
+			})
+		];
+		const { p } = await setup('build', { plugins });
+		await begin(p, 'ssr');
+		await p.transform.call(hook_this('ssr'), readFileSync(routes, 'utf8'), routes, { ssr: true });
+		const t = hook_this('client');
+		await p.buildStart.call(t);
+		await p.generateBundle.call(t, {}, {});
+		const sheets = new Set(
+			t.emitted.flatMap((c, i) => (String(c.name).endsWith('.css') ? [`ref${i + 1}`] : []))
+		);
+		expect(sheets.size).toBe(3);
+		const dropped = {
+			...t,
+			getFileName: (ref: string) => {
+				if (sheets.has(ref)) throw new Error(`no file for ${ref}`);
+				return t.getFileName(ref);
+			}
+		};
+		await p.writeBundle.call(dropped, {}, {});
+		const json = JSON.parse(readFileSync(region_deps(), 'utf8'));
+		for (const ref of sheets) expect(JSON.stringify(json)).not.toContain(ref);
+		expect(json.content_css).toEqual({});
+	});
+
+	it("a plugin's prescan reader hears that the build is written once, when the browser leg writes, after the server's", async () => {
+		app();
+		write('node_modules/x-tool/package.json', JSON.stringify({ name: 'x-tool' }));
+		const heard: string[] = [];
+		const plugin = definePlugin({
+			name: 'x-tool',
+			build: (b) =>
+				b.prescan({ imports: ['x-tool'], module() {}, written: () => void heard.push('written') })
+		});
+		const p = await begin((await setup('build', { plugins: [plugin] })).p, 'ssr');
+		await p.writeBundle.call(hook_this('ssr'), {}, {});
+		expect(heard).toEqual([]);
+		const client = hook_this('client');
+		await p.buildStart.call(client);
+		await p.writeBundle.call(client, {}, {});
+		expect(heard).toEqual(['written']);
+	});
+
+	it('a leg the bundler closed is no longer the open leg a hook without an environment runs in', async () => {
+		app();
+		const p = await begin((await setup('build')).p, 'ssr');
+		p.closeBundle.call(hook_this('ssr'));
+		await p.buildStart.call(hook_this('client'));
+		const { environment: _, ...bare } = hook_this('client');
+		await expect(p.generateBundle.call(bare, {}, {})).resolves.toBeUndefined();
+	});
+
+	it("a content module's own style compiles with an await in its markup; one that does not compile goes unstyled, never a failed build", async () => {
+		app();
+		write('node_modules/x-tool/package.json', JSON.stringify({ name: 'x-tool' }));
+		const source = dedent`
+			<script>const n = Promise.resolve(1);</script>
+			<p class="w">{await n}</p>
+			<style>.w { color: wheat; }</style>
+		`;
+		const doc = write('src/routes/doc.svx', source);
+		const broken = dedent`
+			<p>{</p>
+			<style>.b { color: brown; }</style>
+		`;
+		const bad = write('src/routes/bad.svx', broken);
+		const plugin = definePlugin({
+			name: 'x-tool',
+			build: (b) =>
+				void b.markup({
+					extensions: ['.svx'],
+					modules: [
+						[bad, broken],
+						[doc, source]
+					]
+				})
+		});
+		const { p } = await setup('build', { plugins: [plugin] });
+		const t = hook_this('client');
+		await p.buildStart.call(t);
+		await p.generateBundle.call(t, {}, {});
+		const css = t.emitted.filter((c) => c.name === 'og-content.css').map((c) => String(c.source));
+		expect(css).toHaveLength(1);
+		expect(css[0]).toContain('wheat');
+	});
+
+	it("what only a profiler reads leaves the handoff without one: each chunk's contents, its heaviest modules, the island's hazards, the doubled modules, why it ships all of the page", async () => {
+		const unknown = () => 'unknown' as const;
+		const bare = (await handed({ keys: unknown })).json;
+		for (const k of ['contents', 'heavy', 'hazards']) expect(bare[k], k).toEqual({});
+		expect(bare.dupes).toEqual([]);
+		expect(bare).not.toHaveProperty('page_why');
+		const { json, at } = await handed({ measured: true, keys: unknown });
+		for (const k of ['contents', 'heavy', 'hazards'])
+			expect(Object.keys(json[k]).length, k).toBeGreaterThan(0);
+		expect(json.dupes.length).toBeGreaterThan(0);
+		expect(json.page_why[at]).toEqual([
+			expect.objectContaining({ file: 'src/lib/Counter.svelte', line: 2, why: 'a spread' })
+		]);
+	});
+
+	it("a content module's asset: its own style from its source, then what no client chunk ships, as the bundler resolves it", async () => {
+		app();
+		write('node_modules/x-tool/package.json', JSON.stringify({ name: 'x-tool' }));
+		write(
+			'src/lib/A.svelte',
+			dedent`
+				<script lang="ts">
+					import { writable } from 'svelte/store';
+					const n = writable<number>(1);
+				</script>
+				<p class="a">{$n}</p>
+				<style lang="scss">$b: blue; .a { color: $b; }</style>
+			`
+		);
+		write('src/lib/Shipped.svelte', '<p class="s">s</p><style>.s { color: teal; }</style>\n');
+		write('src/lib/plain.css', '.plain { color: navy; }\n');
+		write('src/lib/dialect.scss', '$c: red; .dialect { color: $c; }\n');
+		write('src/lib/ext.css', '.ext { color: gray; }\n');
+		write('src/lib/pkg.css', '.pkg { color: olive; }\n');
+		const source = dedent`
+			<script>
+				import A from '$lib/A.svelte';
+				import Shipped from '$lib/Shipped.svelte';
+				import '$lib/plain.css';
+				import '$lib/dialect.scss';
+				import 'x-ext/ext.css';
+				import 'x-pkg/pkg.css';
+				import 'x-boom/boom.css';
+			</script>
+			<h1 class="own">t</h1>
+			<style>.own { color: red; }</style>
+			<A /><Shipped />
+		`;
+		const doc = write(
+			'src/routes/doc.svx',
+			source.replace('.own { color: red; }', '.disk { color: green; }')
+		);
+		const plugin = definePlugin({
+			name: 'x-tool',
+			build: (b) => void b.markup({ extensions: ['.svx'], modules: [[doc, source]] })
+		});
+		const { p } = await setup('build', { plugins: [plugin] });
+		const client = hook_this('client');
+		await p.buildStart.call(client);
+		const asked: unknown[] = [];
+		const t = {
+			...client,
+			getModuleIds: () => [path.join(root, 'src/lib/Shipped.svelte')][Symbol.iterator](),
+			resolve: async (spec: string, importer?: string, o?: { skipSelf?: boolean }) => {
+				asked.push(o?.skipSelf);
+				if (spec === 'x-boom/boom.css') throw new Error('unresolvable');
+				if (spec === 'x-ext/ext.css')
+					return { id: path.join(root, 'src/lib/ext.css'), external: true };
+				// (past this plugin, a package's file; through it, the name this plugin would answer)
+				if (spec === 'x-pkg/pkg.css')
+					return { id: o?.skipSelf ? path.join(root, 'src/lib/pkg.css') : '\0x-pkg' };
+				return client.resolve(spec, importer);
+			}
+		};
+		client.emitted.length = 0;
+		await p.generateBundle.call(t, {}, {});
+		const assets = client.emitted.filter((c) => c.name === 'og-content.css');
+		expect(assets).toHaveLength(1);
+		const css = String(assets[0].source);
+		const at = (s: string) => css.indexOf(s);
+		expect(at('.own')).toBeGreaterThan(-1);
+		expect(css.split('.own').length - 1).toBe(1);
+		expect(at('.a')).toBeGreaterThan(at('.own'));
+		expect(css).toMatch(/\.a\.svelte-\w+ \{\s*color: blue;/);
+		expect(at('.plain')).toBeGreaterThan(at('.a'));
+		expect(at('.pkg')).toBeGreaterThan(at('.plain'));
+		for (const gone of ['green', 'teal', 'dialect', 'gray']) expect(css, gone).not.toContain(gone);
+		expect(new Set(asked)).toEqual(new Set([true]));
+	});
+
 	it('a server module in the browser bundle fails the build', async () => {
 		app();
 		const p = await begin((await setup('build')).p, 'ssr', 'client');
@@ -645,6 +1819,49 @@ describe('the dev server', () => {
 		expect(s2.sent.filter((m) => (m as { type?: string }).type === 'custom')).toEqual([]);
 	});
 
+	it("a stylesheet a page already joined is Vite's own soft update; one outside src is Vite's too", async () => {
+		app();
+		const css = write('src/lib/a.css', '.a {}\n');
+		const outside = write('styles/b.css', '.b {}\n');
+		const { p } = await setup('serve');
+		const joined = {
+			...server(),
+			environments: { client: { moduleGraph: { getModulesByFile: () => new Set([{}]) } } }
+		};
+		expect(p.handleHotUpdate({ file: css, server: joined })).toBe(undefined);
+		expect(joined.sent).toEqual([]);
+		const s = server();
+		expect(p.handleHotUpdate({ file: outside, server: s })).toBe(undefined);
+		expect(s.sent).toEqual([]);
+	});
+
+	it("an edit to a style-bearing file drops the router's inlined CSS module; a script edit does not", async () => {
+		app();
+		const { p } = await setup('serve');
+		await load(p, 'ogygia:server/router-css', 'ssr');
+		const touched = (file: string) => {
+			const s = server();
+			p.handleHotUpdate({ file: write(file, '\n'), server: s });
+			return s.invalidated.some((id) => id.includes('router-css'));
+		};
+		expect(touched('src/lib/x.ts')).toBe(false);
+		expect(touched('src/lib/X.svelte')).toBe(true);
+	});
+
+	it("every stylesheet kind the browser's bridge can join goes out as a scoped join, and only those", async () => {
+		const { dev_hmr_client_source } = await import('../src/compiler/dev/dev-hmr.ts');
+		const glob = /import\.meta\.glob\("\/src\/\*\*\/\*\.\{([^}]+)\}"/.exec(dev_hmr_client_source());
+		const kinds = glob![1].split(',');
+		app();
+		const { p } = await setup('serve');
+		for (const ext of [...kinds, 'pcss', 'svelte']) {
+			const s = server();
+			p.handleHotUpdate({ file: write(`src/lib/k.${ext}`, '\n'), server: s });
+			const joins = s.sent.filter((m) => (m as { event?: string }).event === 'ogygia:css');
+			expect(joins.length, ext).toBe(kinds.includes(ext) ? 1 : 0);
+		}
+	});
+
 	it("a host's edit drops its islands' modules; the server it came from then hears of a deleted entry", async () => {
 		app();
 		const { p } = await setup('serve');
@@ -660,6 +1877,27 @@ describe('the dev server', () => {
 		expect(s.sent).toEqual([{ type: 'full-reload', path: '*' }]);
 	});
 
+	it("two ogygia() instances share no program: what one served, the other never heard of (Kit's throwaway config)", async () => {
+		app();
+		const served = (await setup('serve')).p;
+		const throwaway = (await setup('serve')).p;
+		const island = write('src/lib/Late.svelte', '<p>late</p>\n');
+		const host = write(
+			'src/routes/late/+page.svelte',
+			dedent`
+				<script>
+					import Late from '$lib/Late.svelte' with { wake: 'visible' };
+				</script>
+				<Late />
+			`
+		);
+		await served.transform.call(hook_this('ssr'), readFileSync(host, 'utf8'), host, { ssr: true });
+		const s = server();
+		expect(throwaway.handleHotUpdate({ file: island, server: s })).toBe(undefined);
+		expect(s.sent).toEqual([]);
+		expect(served.handleHotUpdate({ file: island, server: server() })).toEqual([]);
+	});
+
 	it('a build never answers a hot update', async () => {
 		app();
 		const { p } = await setup('build');
@@ -668,6 +1906,63 @@ describe('the dev server', () => {
 			undefined
 		);
 		expect(s.sent).toEqual([]);
+	});
+
+	it('a module an island added while the server runs pulls into its world is dropped, to load again as island code', async () => {
+		app();
+		const helper = write(
+			'src/lib/boot.ts',
+			"import { page } from '$app/state'; export const p = page;\n"
+		);
+		const { p } = await setup('serve');
+		const s = server();
+		p.configureServer(s);
+		write('src/lib/Late.svelte', "<script>import { p } from './boot';</script><p>{p}</p>\n");
+		const host = write(
+			'src/routes/late/+page.svelte',
+			dedent`
+				<script>
+					import Late from '$lib/Late.svelte' with { wake: 'visible' };
+				</script>
+				<Late />
+			`
+		);
+		await p.transform.call(hook_this('ssr'), readFileSync(host, 'utf8'), host, { ssr: true });
+		expect(s.invalidated).toContain(helper);
+	});
+
+	it("with a profiler, the dev server answers its source maps, server and browser, and with seed shaping each island's page keys", async () => {
+		const slots = [DEV_MAPS, DEV_CLIENT_MAPS, DEV_PAGE_KEYS];
+		const g = globalThis as Record<symbol, unknown>;
+		const saved = slots.map((s) => g[s]);
+		try {
+			for (const s of slots) delete g[s];
+			app();
+			(await setup('serve')).p.configureServer(server());
+			expect(slots.map((s) => typeof g[s])).toEqual(['undefined', 'undefined', 'undefined']);
+			write('node_modules/x-tool/package.json', JSON.stringify({ name: 'x-tool' }));
+			const measuring = definePlugin({ name: 'x-tool', build: (b) => b.measure() });
+			(await setup('serve', { plugins: [measuring] })).p.configureServer(server());
+			expect(slots.map((s) => typeof g[s])).toEqual(['function', 'function', 'undefined']);
+			const reads = {
+				module() {},
+				settle: async () => {},
+				keys: () => null,
+				why: () => null,
+				dev: async () => ({ keys: null, why: [] })
+			};
+			const shaping = definePlugin({
+				name: 'x-tool',
+				build: (b) => {
+					b.measure();
+					b.pageReads(reads);
+				}
+			});
+			(await setup('serve', { plugins: [shaping] })).p.configureServer(server());
+			expect(slots.map((s) => typeof g[s])).toEqual(['function', 'function', 'function']);
+		} finally {
+			slots.forEach((s, i) => (g[s] = saved[i]));
+		}
 	});
 
 	it('a deleted island entry reloads the page; an edit or a build does not', async () => {
@@ -690,9 +1985,13 @@ describe('the dev server', () => {
 	it('a csr flip in dev is seen by the next route-csr load', async () => {
 		app();
 		const { p } = await setup('serve');
+		const s = server();
+		p.configureServer(s);
 		const before = await load(p, 'ogygia:server/route-csr', 'ssr');
 		const option = write('src/routes/+layout.ts', 'export const csr = true;\n');
 		p.watchChange(option, { event: 'update' });
 		expect(await load(p, 'ogygia:server/route-csr', 'ssr')).not.toBe(before);
+		// (the server graph's copy too: the SSR leg reads the csr set through it)
+		expect(s.invalidated.some((id) => id.includes('route-csr'))).toBe(true);
 	});
 });

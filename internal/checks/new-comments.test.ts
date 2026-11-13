@@ -135,3 +135,30 @@ test('an added comment in a .svelte script is read too; files outside packages/*
 		r.done();
 	}
 });
+
+test('a moved file adds only the lines it changed on the way, not every line it carries', () => {
+	const old = dedent`
+		// an old narrating comment
+		export const a = 1;
+		export const b = 2;
+	`;
+	const r = repo({ [A]: old }, { 'notes.md': 'unrelated' });
+	try {
+		const B = 'packages/moved/src/a.ts';
+		mkdirSync(dirname(join(r.dir, B)), { recursive: true });
+		git(r.dir, 'mv', A, B);
+		writeFileSync(
+			join(r.dir, B),
+			`${dedent`
+				${old}
+				export const c = 3;
+			`}\n`
+		);
+		git(r.dir, 'add', '-A');
+		git(r.dir, 'commit', '-qm', 'move');
+		assert.deepEqual([...(added_lines(r.dir, r.base).get(B) ?? [])], [4]);
+		assert.deepEqual(new_comment_findings(r.dir, r.base), []);
+	} finally {
+		r.done();
+	}
+});

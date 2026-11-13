@@ -1,11 +1,13 @@
-import * as ogygia from 'ogygia';
-import { SharedCounter } from './counter-object.svelte.ts';
+import { getContext } from 'svelte';
+import type { SharedCounter } from './counter-object.svelte.ts';
 
 /**
- * Cross-island context matrix. `roomCtx` carries a live transportable (`SharedCounter`) shared
- * across islands; `themeCtx` carries a plain string (snapshot) and has a default; `orphanCtx` is
- * never provided anywhere, so every consumer must fall back to its default.
+ * Cross-island context matrix, string-keyed so a plain `getContext('room')` reads the same value.
+ * `room` carries a live transportable (`SharedCounter`) shared across islands; `theme` carries a
+ * plain string (snapshot) and reads as 'light' when nothing provides it; `orphan` is never provided
+ * anywhere, so every reader falls back to its default.
  */
-export const roomCtx = ogygia.createContext<SharedCounter>('room');
-export const themeCtx = ogygia.createContext<string>('theme', 'light');
-export const orphanCtx = ogygia.createContext<string>('orphan', 'orphan-default');
+export const readRoom = (): SharedCounter | undefined => getContext<SharedCounter>('room');
+export const readTheme = (): string => getContext<string | undefined>('theme') ?? 'light';
+export const readOrphan = (): string =>
+	getContext<string | undefined>('orphan') ?? 'orphan-default';

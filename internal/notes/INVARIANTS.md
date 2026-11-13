@@ -38,7 +38,7 @@ with no line, or a line naming something that does not exist (`internal/checks/i
 - Re-read `data-og-origins` after boot, or from a script outside the head (a later one would widen the list).
 - Accept a location that is not the same island's file, even on the page's own origin (an uploaded `.js` is on it too).
 
-**Enforced by:** `packages/core/test/browser/code-origins.test.ts`, `packages/core/test/code-origins.test.ts`, `packages/federation/test/code-origins.test.ts`, `packages/reshape/test/browser/restore.test.ts` (the og-r case)
+**Enforced by:** `packages/core/test/browser/code-origins.test.ts`, `packages/core/test/code-origins.test.ts`, `packages/federation/test/code-origins.test.ts`, `packages/rewrite/test/browser/restore.test.ts` (the og-r case)
 
 ---
 
@@ -283,7 +283,7 @@ a kept island’s live query then freezes and its next read throws (#817,
 
 **Do not:** Delete a comment whose why has no test yet (flip the code; if nothing turns red, write the test first). Reword an old comment instead of moving it. Add a free comment to new code. Write a `@why` that names no test, or a test that does not exist.
 
-**Enforced by:** `internal/lint/structured-comments.test.ts > free comments and block comments are reported; tool directives pass`, `internal/lint/structured-comments.test.ts > a @why passes only above its statement and when its test exists`
+**Enforced by:** `internal/lint/structured-comments.test.ts > free comments and block comments are reported; tool directives pass`, `internal/lint/structured-comments.test.ts > a @why passes only above its statement and when its test exists`. The rule is an error in `.oxlintrc.json` for each package that has reached zero (the compiler first); elsewhere `internal/checks/new-comments.ts` refuses new ones while the sweep goes on.
 
 ---
 

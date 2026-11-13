@@ -1,17 +1,9 @@
-/**
- * Path resolution for the Vite adapter. Core's own files come from core (`CORE_ROOT` and the files
- * `@ogygia/core/contract` names); this module adds what the compiler knows: the scan patterns and the
- * runtime chunk's content hash, whose inputs include the compiler's own runtime entry.
- */
 import path from 'node:path';
 import fs from 'node:fs';
 import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { CORE_ROOT_ID, RUNTIME_DIR, RUNTIME_INPUTS, real_posix } from '@ogygia/core/contract';
 
-// Glob metacharacters in a file path handed to `optimizeDeps.entries` (Vite globs entries as
-// PATTERNS): a route group `(catalog)`, a param dir `[slug]`, `{a,b}`, `*`, `?`, `!`. Escaped, or the
-// scanner would read the directory name as glob syntax and never match the file.
 const GLOB_META_RE = /[()[\]{}*?!]/g;
 
 /** An island file as an `optimizeDeps.entries` pattern, or null for one of ogygia's OWN islands (the
@@ -26,26 +18,27 @@ export function scan_entry_pattern(file: string, own_root: string = CORE_ROOT_ID
 export const KIT_REMOTE_CLIENT: RegExp = /(^|\/)client\.js$/;
 export const KIT_REMOTE_STATE: RegExp = /state\.svelte\.js$/;
 
-// Content-hash the runtime's real inputs (the prebuilt dist files the runtime chunk bundles).
-// Kit builds the SERVER bundle BEFORE the client, so a forward handoff of the client chunk's hash
-// is impossible — but a SOURCE-content hash is deterministic, so both builds compute the SAME
-// filename independently and agree. (Standalone mode still overrides this with the real output
-// chunk hash; this is its fallback + the Kit-driven answer.)
-function runtime_content_hash(): string {
+/** What the runtime chunk is made from: the compiler's runtime entry, core's named inputs, and every
+ *  `.js` file in `runtime_dir` (none when it is not built yet). */
+export function runtime_inputs(runtime_dir: string = RUNTIME_DIR): string[] {
 	const inputs = [
 		fileURLToPath(new URL('../compiler/link/runtime-entry.js', import.meta.url)),
 		...RUNTIME_INPUTS
 	];
-	// Every runtime module (core + feature impls + slots) — any change must bust the sticky filename.
 	try {
-		for (const name of fs.readdirSync(RUNTIME_DIR)) {
-			if (name.endsWith('.js')) inputs.push(path.join(RUNTIME_DIR, name));
+		for (const name of fs.readdirSync(runtime_dir)) {
+			if (name.endsWith('.js')) inputs.push(path.join(runtime_dir, name));
 		}
 	} catch {
 		// ok: dist may lack the runtime until its first build
 	}
+	return inputs;
+}
+
+/** The first 12 hex of a sha256 over `files`' bytes in order; a file that cannot be read adds nothing. */
+export function content_hash(files: readonly string[]): string {
 	const h = crypto.createHash('sha256');
-	for (const f of inputs) {
+	for (const f of files) {
 		try {
 			h.update(fs.readFileSync(f));
 		} catch {
@@ -56,4 +49,4 @@ function runtime_content_hash(): string {
 }
 
 /** The runtime chunk's source-content hash (the immutable-filename base; feature hash rides on top). */
-export const RUNTIME_HASH: string = runtime_content_hash();
+export const RUNTIME_HASH: string = content_hash(runtime_inputs());

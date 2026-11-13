@@ -50,19 +50,20 @@ export const SERVER_ERRORS = {
 		`
 	},
 	handle_transform_moved: {
+		until: '0.15',
 		text: (): string => prose`
-			handle({ transform }) moved to @ogygia/reshape: list reshape() beside ogygia() in
-			vite.config, and pass the transform to reshape.handle(transform), before ogygia.handle()
-			in sequence().
+			handle({ transform }) moved to @ogygia/rewrite: list rewrite() beside ogygia() in
+			vite.config, and put rewrite({ page: transform }) before ogygia.handle() in sequence().
 		`,
 		details: (): string => prose`
 			An app's own pass over the HTML ogygia sends (a web-component server render, say) is the
-			\`@ogygia/reshape\` package now, so apps without one ship none of its support.
+			\`@ogygia/rewrite\` package now, so apps without one ship none of its support.
 
-			In vite.config, list \`reshape()\` (from \`@ogygia/reshape/vite\`) beside \`ogygia()\`. In
-			hooks.server.ts, \`import * as reshape from '@ogygia/reshape'\` and export
-			\`sequence(reshape.handle(transform), ogygia.handle())\`. The transform itself is
-			unchanged: \`(html, { kind, csr, event })\` in, HTML out.
+			In vite.config, list \`rewrite()\` (from \`@ogygia/rewrite/vite\`) beside \`ogygia()\`. In
+			hooks.server.ts, \`import { rewrite } from '@ogygia/rewrite'\` and export
+			\`sequence(rewrite({ page: transform }), ogygia.handle())\`. A render of custom elements
+			does better as \`rewrite({ match, render })\`: only the matched elements go to it, chunk by
+			chunk as the page streams.
 		`
 	},
 	secret_conflict: {
@@ -355,11 +356,11 @@ export const SERVER_WARNINGS = {
 		text: (a: { detail: string }): string =>
 			`rule broken, a server island the build said reads no page.data read it: ${a.detail}`,
 		details: (): string => prose`
-			Dev and e2e builds only (a rule ogygia checks on itself). With \`pageKeys()\` listed, the
+			Dev and e2e builds only (a rule ogygia checks on itself). With \`dataShake()\` listed, the
 			build reads each server island's code for the \`page.data\` keys it reaches, and an island
 			that reads none skips the page look-up. This one read a key anyway, so it rendered with
 			\`undefined\` there. A read the analysis missed: please report it with the island's code.
-			Removing \`pageKeys()\` makes every server island look the page up.
+			Removing \`dataShake()\` makes every server island look the page up.
 		`
 	},
 	rule_kept_unkeyed_read: {

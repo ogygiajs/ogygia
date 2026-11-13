@@ -1,0 +1,62 @@
+{
+	"name": "@ogygia/data-shake",
+	"version": "0.13.0",
+	"description": "Data shaking for ogygia apps: a page ships only the data its regions' code reads, starting with page.data",
+	"keywords": [
+		"data-shaking",
+		"ogygia",
+		"page-data",
+		"sveltekit",
+		"vite"
+	],
+	"homepage": "https://ogygiajs.dev",
+	"license": "MIT",
+	"author": "Puru Vijayvargia <devpuruvj@gmail.com>",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/ogygiajs/ogygia.git",
+		"directory": "packages/data-shake"
+	},
+	"files": [
+		"dist",
+		"README.md"
+	],
+	"type": "module",
+	"sideEffects": false,
+	"exports": {
+		"./vite": {
+			"types": "./dist/vite.d.ts",
+			"default": "./src/vite.ts"
+		}
+	},
+	"publishConfig": {
+		"exports": {
+			"./vite": {
+				"types": "./dist/vite.d.ts",
+				"default": "./dist/vite.js"
+			}
+		}
+	},
+	"scripts": {
+		"build": "tsdown",
+		"prepublishOnly": "pnpm run build",
+		"check": "tsc -p . && tsc -p test && vitest run",
+		"test": "vitest run"
+	},
+	"devDependencies": {
+		"@ogygia/compiler": "workspace:*",
+		"@ogygia/config": "workspace:*",
+		"@ogygia/core": "workspace:*",
+		"@typescript/native": "catalog:tsgo",
+		"svelte": "catalog:",
+		"tsdown": "catalog:",
+		"typescript": "catalog:",
+		"vite": "catalog:",
+		"vitest": "catalog:"
+	},
+	"peerDependencies": {
+		"@ogygia/compiler": "workspace:^",
+		"svelte": "catalog:peers",
+		"vite": "catalog:peers"
+	}
+}
