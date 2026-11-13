@@ -7,6 +7,7 @@ import {
 	apply_mutant,
 	clone_command,
 	package_of,
+	runnable,
 	tally,
 	verdict,
 	type Mutant
@@ -144,5 +145,23 @@ describe('a mutation run', () => {
 			at: '2026-11-12T10:00:00.000Z'
 		});
 		expect(tally([], 5, 'x').rate).toBe(0);
+	});
+
+	it('sets apart a mutant written up as equivalent: never run, said with its reason, out of the rate', () => {
+		const m = (equivalent?: string): Mutant => ({
+			file: 'packages/core/src/runtime/schedule.ts',
+			line: 1,
+			operator: 'boolean',
+			...(equivalent ? { equivalent } : {})
+		});
+		const { run, equivalent } = runnable([m(), m('no run can tell'), m()]);
+		expect(run).toHaveLength(2);
+		expect(equivalent.map((e) => e.equivalent)).toEqual(['no run can tell']);
+		expect(tally([{ killed: true }, { killed: false }], 3, 'x', 1)).toMatchObject({
+			killed: 1,
+			judged: 2,
+			equivalent: 1,
+			rate: 50
+		});
 	});
 });
