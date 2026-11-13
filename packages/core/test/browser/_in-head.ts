@@ -67,10 +67,12 @@ const real = {
 /** A timer set while time was held: armed on the real clock, with its whole delay, at release. */
 class HeldTimer {
 	real: ReturnType<typeof setTimeout> | null = null;
-	constructor(
-		readonly run: () => void,
-		readonly ms: number
-	) {}
+	readonly run: () => void;
+	readonly ms: number;
+	constructor(run: () => void, ms: number) {
+		this.run = run;
+		this.ms = ms;
+	}
 }
 
 /** The timers set since `hold_time`, or null while time moves. */
