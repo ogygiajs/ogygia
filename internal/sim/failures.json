@@ -2156,6 +2156,150 @@
 			"reason": "`throw new OgygiaError('content_schema_failed', { label, issues: msgs …`: proved: the throw removed turns the test red, twice",
 			"test": "packages/content/test/lifecycle.test.ts",
 			"name": "a schema error on the first read: fixed at the source, the next read loads"
+		},
+		{
+			"site": "packages/tooling/src/e2e/browsers.ts > console_text > .catch:0",
+			"reason": "`a .evaluate((v) => (v instanceof Error ? `${v.name}: ${v.message}` : …`: proved: the .catch removed turns the test red, twice",
+			"test": "packages/tooling/test/e2e-browsers.test.ts",
+			"name": "reads an argument of a page that left as empty text, without throwing"
+		},
+		{
+			"site": "packages/tooling/src/e2e/build.ts > build_app > throw:0",
+			"reason": "`throw new Error(`e2e build failed: ${dir}`);`: proved: the throw removed turns the test red, twice",
+			"test": "packages/tooling/test/e2e-build.test.ts",
+			"name": "a build that fails throws, naming the app"
+		},
+		{
+			"site": "packages/tooling/src/e2e/config.ts > e2e_browsers > throw:0",
+			"reason": "`throw new Error(`[e2e] OGYGIA_BROWSERS: \"${b}\" is not chromium, firef…`: proved: the throw removed turns the test red, twice",
+			"test": "packages/tooling/test/e2e-config.test.ts",
+			"name": "every spec runs in each engine: one project per browser"
+		},
+		{
+			"site": "packages/tooling/src/e2e/config.ts > shard_from > throw:0",
+			"reason": "`throw new Error(`[e2e] E2E_SHARD must look like 2/3, got \"${value}\"`);`: proved: the throw removed turns the test red, twice",
+			"test": "packages/tooling/test/e2e-config.test.ts",
+			"name": "E2E_SHARD picks a share of the spec files (an env var, not a CLI flag); a bad one throws"
+		},
+		{
+			"site": "packages/tooling/src/e2e/index.ts > moves > catch:0",
+			"reason": "`catch { return null; // ok: closed, or navigating away: nothing to re…`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/tooling/test/trace.test.ts",
+			"name": "is null for a page that keeps none, or one that closed"
+		},
+		{
+			"site": "packages/tooling/src/e2e/server-log.ts > server_log_size > catch:0",
+			"reason": "`catch { return 0; // ok: nothing written yet }`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/tooling/test/server-log.test.ts",
+			"name": "a test reads what was appended after it started"
+		},
+		{
+			"site": "packages/tooling/src/e2e/servers.ts > group_alive > catch:0",
+			"reason": "`catch (error) { return (error as NodeJS.ErrnoException).code === 'EPE…`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/tooling/test/servers.test.ts",
+			"name": "kill() resolves once the server is gone: the port is free right after"
+		},
+		{
+			"site": "packages/tooling/src/e2e/servers.ts > spawn_server > throw:0",
+			"reason": "`throw new Error( `port ${port_number} (${opts.url}) is still held by …`: proved: the throw removed turns the test red, twice",
+			"test": "packages/tooling/test/servers.test.ts",
+			"name": "a port someone else keeps holding fails the spawn, naming the port"
+		},
+		{
+			"site": "packages/tooling/src/e2e/servers.ts > spawn_server > catch:0",
+			"reason": "`catch { // ok: not up yet; the loop asks again until the timeout says…`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/tooling/test/servers.test.ts",
+			"name": "kill() resolves once the server is gone: the port is free right after"
+		},
+		{
+			"site": "packages/cli/src/cli.ts > globHasSvx > catch:0",
+			"reason": "`catch { continue; // ok: a folder that cannot be read adds nothing to…`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/cli/test/site-cli.test.ts",
+			"name": "scaffolds the full site and wires configs correctly"
+		},
+		{
+			"site": "packages/cli/src/mcp.ts > load_profiler_reading > .catch:0",
+			"reason": "`reading_load.get().catch(() => null)`: proved: the .catch removed turns the test red, twice",
+			"test": "packages/cli/test/mcp-report-load.test.ts",
+			"name": "a failed load of the report reading is tried again once the plugin is installed"
+		},
+		{
+			"site": "packages/cli/src/mcp.ts > walk_flag_files > catch:0",
+			"reason": "`catch { return out; // ok: a folder that cannot be read adds no files…`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/cli/test/mcp-flags-trust.test.ts",
+			"name": "the flags tool pointed at another directory runs none of that directory's code"
+		},
+		{
+			"site": "packages/cli/src/mcp.ts > tool_flags > catch:0",
+			"reason": "`catch { manifest = null; // ok: no build's flags manifest yet: the sc…`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/cli/test/mcp-flags-trust.test.ts",
+			"name": "the flags tool pointed at another directory runs none of that directory's code"
+		},
+		{
+			"site": "packages/cli/src/perf/bisect.ts > bisect > catch:0",
+			"reason": "`catch { value = null; // ok: a sha that cannot be measured is skipped…`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/cli/test/perf.test.ts",
+			"name": "a range with no regression names no culprit; a measure that throws counts as a skip"
+		},
+		{
+			"site": "packages/cli/src/perf/cli.ts > group_alive > catch:0",
+			"reason": "`catch (error) { return (error as NodeJS.ErrnoException).code === 'EPE…`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/cli/test/serve.test.ts",
+			"name": "stop then serve again on the same port: the answer is the new server, never the old one"
+		},
+		{
+			"site": "packages/cli/src/perf/cli.ts > serve > throw:0",
+			"reason": "`throw new OgygiaError('cli_server_port_busy', { url, port, ms: ready_…`: proved: the throw removed turns the test red, twice",
+			"test": "packages/cli/test/serve.test.ts",
+			"name": "a port someone else holds is refused, naming the port"
+		},
+		{
+			"site": "packages/cli/src/perf/cli.ts > serve > signal_group > catch:0",
+			"reason": "`catch { // ok: the group already exited (ESRCH), which is what the si…`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/cli/test/serve.test.ts",
+			"name": "a server that exits at once fails at once, with its output"
+		},
+		{
+			"site": "packages/cli/src/perf/cli.ts > serve > catch:0",
+			"reason": "`catch { // ok: not up yet; the loop asks again until the timeout says…`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/cli/test/serve.test.ts",
+			"name": "stop then serve again on the same port: the answer is the new server, never the old one"
+		},
+		{
+			"site": "packages/cli/src/perf/measure.ts > measure > throw:0",
+			"reason": "`throw new Error(`page must be a path on the site: ${page}`);`: proved: the throw removed turns the test red, twice",
+			"test": "packages/cli/test/perf.test.ts",
+			"name": "drives the profiler over HTTP with the key, one page at a time, and explains failures"
+		},
+		{
+			"site": "packages/cli/src/perf/measure.ts > measure > not-ok:0",
+			"reason": "`!res.ok`: proved: the !ok check made never true turns the test red, twice",
+			"test": "packages/cli/test/perf.test.ts",
+			"name": "drives the profiler over HTTP with the key, one page at a time, and explains failures"
+		},
+		{
+			"site": "packages/cli/src/perf/measure.ts > measure > throw:3",
+			"reason": "`throw new Error( `${page}: the profiler answered ${res.status}${res.s…`: proved: the throw removed turns the test red, twice",
+			"test": "packages/cli/test/perf.test.ts",
+			"name": "drives the profiler over HTTP with the key, one page at a time, and explains failures"
+		},
+		{
+			"site": "packages/cli/src/perf/measure.ts > measure > catch:1",
+			"reason": "`catch { throw new Error( `${page}: the profiler's answer was not JSON…`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/cli/test/perf.test.ts",
+			"name": "drives the profiler over HTTP with the key, one page at a time, and explains failures"
+		},
+		{
+			"site": "packages/cli/src/perf/measure.ts > measure > throw:4",
+			"reason": "`throw new Error( `${page}: the profiler's answer was not JSON — is ${…`: proved: the throw removed turns the test red, twice",
+			"test": "packages/cli/test/perf.test.ts",
+			"name": "drives the profiler over HTTP with the key, one page at a time, and explains failures"
+		},
+		{
+			"site": "packages/cli/src/perf/report.ts > markdown > not-ok:0",
+			"reason": "`!v.ok`: proved: the !ok check made never true turns the test red, twice",
+			"test": "packages/cli/test/perf.test.ts",
+			"name": "the markdown comment and the terminal summary carry the verdict"
 		}
 	],
 	"impossible": [
@@ -2187,7 +2331,6 @@
 		"packages/cli/src/cli.ts > ai_install > catch:0",
 		"packages/cli/src/cli.ts > ai_install > parse:0",
 		"packages/cli/src/cli.ts > ai_install > catch:1",
-		"packages/cli/src/cli.ts > globHasSvx > catch:0",
 		"packages/cli/src/cli.ts > fragments_stub > fetch:0",
 		"packages/cli/src/cli.ts > fragments_stub > timer:0",
 		"packages/cli/src/cli.ts > fragments_stub > not-ok:0",
@@ -2204,7 +2347,6 @@
 		"packages/cli/src/mcp.ts > load_flag_inventory > stale:0",
 		"packages/cli/src/mcp.ts > load_flag_inventory > catch:0",
 		"packages/cli/src/mcp.ts > run > import:1",
-		"packages/cli/src/mcp.ts > load_profiler_reading > .catch:0",
 		"packages/cli/src/mcp.ts > load_profiler_reading > stale:0",
 		"packages/cli/src/mcp.ts > parse_marks > catch:0",
 		"packages/cli/src/mcp.ts > tool_compile > catch:0",
@@ -2233,9 +2375,7 @@
 		"packages/cli/src/mcp.ts > walk_svelte > catch:0",
 		"packages/cli/src/mcp.ts > tool_scan > catch:0",
 		"packages/cli/src/mcp.ts > tool_scan > catch:1",
-		"packages/cli/src/mcp.ts > walk_flag_files > catch:0",
 		"packages/cli/src/mcp.ts > tool_flags > parse:0",
-		"packages/cli/src/mcp.ts > tool_flags > catch:0",
 		"packages/cli/src/mcp.ts > tool_flags > catch:1",
 		"packages/cli/src/mcp.ts > tool_fragment > catch:0",
 		"packages/cli/src/mcp.ts > tool_fragment > get > fetch:0",
@@ -2246,16 +2386,12 @@
 		"packages/cli/src/mcp.ts > runMcp > parse:0",
 		"packages/cli/src/mcp.ts > runMcp > catch:0",
 		"packages/cli/src/mcp.ts > runMcp > catch:1",
-		"packages/cli/src/perf/bisect.ts > bisect > catch:0",
 		"packages/cli/src/perf/cli.ts > read_json > parse:0",
 		"packages/cli/src/perf/cli.ts > runPerf > catch:0",
 		"packages/cli/src/perf/cli.ts > sleep > .catch:0",
 		"packages/cli/src/perf/cli.ts > sleep > abort:0",
 		"packages/cli/src/perf/cli.ts > sleep > throw:0",
 		"packages/cli/src/perf/cli.ts > port_held > timer:0",
-		"packages/cli/src/perf/cli.ts > group_alive > catch:0",
-		"packages/cli/src/perf/cli.ts > serve > throw:0",
-		"packages/cli/src/perf/cli.ts > serve > signal_group > catch:0",
 		"packages/cli/src/perf/cli.ts > serve > on_exit > refused:0",
 		"packages/cli/src/perf/cli.ts > serve > on_exit > refused:1",
 		"packages/cli/src/perf/cli.ts > serve > on_exit > refused:2",
@@ -2266,24 +2402,17 @@
 		"packages/cli/src/perf/cli.ts > serve > abort:0",
 		"packages/cli/src/perf/cli.ts > serve > fetch:0",
 		"packages/cli/src/perf/cli.ts > serve > timer:0",
-		"packages/cli/src/perf/cli.ts > serve > catch:0",
 		"packages/cli/src/perf/cli.ts > serve > refused:0",
 		"packages/cli/src/perf/cli.ts > serve > throw:1",
 		"packages/cli/src/perf/cli.ts > serve > throw:2",
 		"packages/cli/src/perf/cli.ts > runBisect > measure_sha > catch:0",
 		"packages/cli/src/perf/cli.ts > runBisect > measure_sha > catch:1",
 		"packages/cli/src/perf/cli.ts > runBisect > measure_sha > catch:2",
-		"packages/cli/src/perf/measure.ts > measure > throw:0",
 		"packages/cli/src/perf/measure.ts > measure > abort:0",
 		"packages/cli/src/perf/measure.ts > measure > timer:0",
 		"packages/cli/src/perf/measure.ts > measure > catch:0",
 		"packages/cli/src/perf/measure.ts > measure > throw:1",
 		"packages/cli/src/perf/measure.ts > measure > throw:2",
-		"packages/cli/src/perf/measure.ts > measure > not-ok:0",
-		"packages/cli/src/perf/measure.ts > measure > throw:3",
-		"packages/cli/src/perf/measure.ts > measure > catch:1",
-		"packages/cli/src/perf/measure.ts > measure > throw:4",
-		"packages/cli/src/perf/report.ts > markdown > not-ok:0",
 		"packages/compiler/src/compiler/build-cache.ts > cache_root > catch:0",
 		"packages/compiler/src/compiler/build-cache.ts > BuildCache > dir > catch:0",
 		"packages/compiler/src/compiler/build-cache.ts > BuildCache > get > parse:0",
@@ -3535,14 +3664,9 @@
 		"packages/testing/src/index.ts > Ogygia > call > .catch:0",
 		"packages/testing/src/index.ts > Ogygia > post > fetch:0",
 		"packages/testing/src/index.ts > playwrightDriver > blockNavigation > .catch:0",
-		"packages/tooling/src/e2e/browsers.ts > console_text > .catch:0",
-		"packages/tooling/src/e2e/build.ts > build_app > throw:0",
 		"packages/tooling/src/e2e/build.ts > global_build > throw:0",
 		"packages/tooling/src/e2e/build.ts > (module) > catch:0",
-		"packages/tooling/src/e2e/config.ts > e2e_browsers > throw:0",
-		"packages/tooling/src/e2e/config.ts > shard_from > throw:0",
 		"packages/tooling/src/e2e/index.ts > rules > catch:0",
-		"packages/tooling/src/e2e/index.ts > moves > catch:0",
 		"packages/tooling/src/e2e/index.ts > sleep > timer:0",
 		"packages/tooling/src/e2e/index.ts > replayed_once > reject:0",
 		"packages/tooling/src/e2e/index.ts > island_graph > parse:0",
@@ -3557,15 +3681,12 @@
 		"packages/tooling/src/e2e/run.ts > main > throw:0",
 		"packages/tooling/src/e2e/run.ts > (module) > .catch:0",
 		"packages/tooling/src/e2e/server-log.ts > append_server_log > catch:0",
-		"packages/tooling/src/e2e/server-log.ts > server_log_size > catch:0",
 		"packages/tooling/src/e2e/server-log.ts > server_log_since > catch:0",
 		"packages/tooling/src/e2e/server-log.ts > said_rules > catch:0",
 		"packages/tooling/src/e2e/servers.ts > sleep > .catch:0",
 		"packages/tooling/src/e2e/servers.ts > sleep > abort:0",
 		"packages/tooling/src/e2e/servers.ts > sleep > throw:0",
 		"packages/tooling/src/e2e/servers.ts > port_held > timer:0",
-		"packages/tooling/src/e2e/servers.ts > group_alive > catch:0",
-		"packages/tooling/src/e2e/servers.ts > spawn_server > throw:0",
 		"packages/tooling/src/e2e/servers.ts > spawn_server > signal_group > catch:0",
 		"packages/tooling/src/e2e/servers.ts > spawn_server > on_exit > refused:0",
 		"packages/tooling/src/e2e/servers.ts > spawn_server > on_exit > refused:1",
@@ -3576,7 +3697,6 @@
 		"packages/tooling/src/e2e/servers.ts > spawn_server > kill > timer:0",
 		"packages/tooling/src/e2e/servers.ts > spawn_server > abort:0",
 		"packages/tooling/src/e2e/servers.ts > spawn_server > fetch:0",
-		"packages/tooling/src/e2e/servers.ts > spawn_server > catch:0",
 		"packages/tooling/src/e2e/servers.ts > spawn_server > refused:0",
 		"packages/tooling/src/e2e/servers.ts > spawn_server > throw:1",
 		"packages/tooling/src/e2e/servers.ts > spawn_server > throw:2",
