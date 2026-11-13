@@ -1,0 +1,20 @@
+[
+	{
+		"id": "compiler-affected-not-invalidated",
+		"file": "packages/compiler/src/compiler/driver.ts",
+		"in": "Compiler > invalidate_for_file",
+		"code": "for (const vpath of affected) invalidate(vpath);",
+		"operator": "statement",
+		"from": "invalidate(vpath);",
+		"to": "void vpath;"
+	},
+	{
+		"id": "compiler-regions-changed-not-invalidated",
+		"file": "packages/compiler/src/compiler/driver.ts",
+		"in": "Compiler > invalidate_for_file",
+		"code": "for (const id of this.changed('regions')) invalidate(id);",
+		"operator": "statement",
+		"from": "invalidate(id);",
+		"to": "void id;"
+	}
+]

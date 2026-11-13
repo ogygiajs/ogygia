@@ -460,7 +460,9 @@ mutant goes in mutants.json and its id in `killed_by`. A site that fires but who
 nobody notices wants an oracle or a test first.
 
 MUTATION, DAILY: dst.yml's `mutate` job (cron `43 3 * * *`) runs `src/mutate.ts` over
-`internal/sim/mutants.json` on main's code, over gens 10 (the router with a reshape pass: the network
+`internal/sim/mutants.json` on main's code, over gens 1 (a Kit mount of a peer with its refused and
+missing pages: a 400 taken as no error, and an error that says nothing, die by `peer-answers`), 10
+(the router with a reshape pass: the network
 faults alone kill a navigation that never hands a lost page fetch to the browser, and a hole that
 never fetches again after its retry wait, both by `stuck`), 24 (a reshape pass that trims, with links: it
 kills restore.ts's children not put back and its render left in the light DOM, by `ssr-hydrate`,
@@ -600,6 +602,14 @@ region kinds, runtime marks, route worlds, each transform's output.
 Oracles: two cold compiles agree; directory listing order and transform order change nothing
 (`src/order.ts`). `DST_RUNS=3000 pnpm test` for a long search. Each finding becomes an issue and a
 failing test in the compiler (the first: #1358).
+
+Mutation: `internal/compiler-dst/mutants.json`, judged by `src/mutate.ts --compiler-dst` (the
+simulator compiles the package sources, so nothing is built; a test that fails twice on the mutant
+and never on the baseline kills it), daily beside the sim's list. Its first kills are dev's
+invalidation (`invalidate_for_file`'s affected files and changed regions). Survived (gaps): dropping
+the `sort()` of the driver's lists (`island_scan_entries`, `router_css_roots`,
+`server_island_css_roots`, `ssr_transformed_hosts`, `entry_locations`, `regions_print`): the order
+oracle shuffles only the listing and transform order; and `routes_changed` keeping a route world.
 
 Dev matches a cold start (`src/dev.ts`, `test/dev-cold.test.ts`): a dev server held in memory runs
 the plugin's hooks for each file event in Vite's order (`watchChange`, `handleHotUpdate`, the

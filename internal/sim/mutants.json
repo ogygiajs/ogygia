@@ -342,6 +342,24 @@
 		"to": "> 500"
 	},
 	{
+		"id": "kit-mount-400-no-error",
+		"file": "packages/federation/src/mount.ts",
+		"in": "kit_mount > load",
+		"code": "if (doc.status >= 400) kit_error(doc.status, doc.title || 'This section is unavailable.');",
+		"operator": "relational",
+		"from": ">= 400",
+		"to": "> 400"
+	},
+	{
+		"id": "kit-mount-error-says-nothing",
+		"file": "packages/federation/src/mount.ts",
+		"in": "kit_mount > load",
+		"code": "if (doc.status >= 400) kit_error(doc.status, doc.title || 'This section is unavailable.');",
+		"operator": "logical",
+		"from": "doc.title || 'This section is unavailable.'",
+		"to": "''"
+	},
+	{
 		"id": "hole-answered-left-armed",
 		"file": "packages/core/src/runtime/core.ts",
 		"in": "OgygiaRegion > answered",
