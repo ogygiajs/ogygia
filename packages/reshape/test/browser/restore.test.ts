@@ -584,6 +584,83 @@ test('a declarative shadow root parsed in an inert fragment gets the page’s re
 	expect(constructed).toBe(1);
 });
 
+/** A component in the most common shape: its constructor attaches its own root, unconditionally. */
+function define_attaching(tag: string): void {
+	customElements.define(
+		tag,
+		class extends HTMLElement {
+			constructor() {
+				super();
+				this.attachShadow({ mode: 'open' }).innerHTML = '<i class="own">own</i><slot></slot>';
+			}
+		}
+	);
+}
+
+/** A planned host's render: the server tree before Svelte's children, wrapped in a slot. */
+const attaching_render = (tag: string) => (h: string) =>
+	h.replace(
+		new RegExp(`(<${tag}[^>]*)>([\\s\\S]*?)</${tag}>`),
+		`$1 og-shadow="demo-card.shadow"><b>server</b><slot>$2</slot></${tag}>`
+	);
+
+/** Errors a component's upgrade reports (an upgrade never throws to its caller). */
+function upgrade_errors(): { list: unknown[]; stop: () => void } {
+	const list: unknown[] = [];
+	const heard = (e: ErrorEvent) => {
+		list.push(e.error ?? e.message);
+		e.preventDefault();
+	};
+	window.addEventListener('error', heard);
+	return { list, stop: () => window.removeEventListener('error', heard) };
+}
+
+test('a component that attaches its own root in its constructor upgrades over a restored host: the root comes back emptied, the light DOM stays Svelte’s', async () => {
+	const s = await transformMarkup(
+		doc(island('<demo-attach class="own"> hi <i>ok</i></demo-attach>')),
+		attaching_render('demo-attach'),
+		{ kind: 'document' }
+	);
+	expect(s.planned).toBe(1);
+	document.head.insertAdjacentHTML('beforeend', SHEET);
+	document.body.innerHTML = s.html.slice(
+		s.html.indexOf('<body>') + 6,
+		s.html.lastIndexOf('</body>')
+	);
+	expect(restore(document)).toBe(1);
+	expect(document.querySelector('demo-attach')!.shadowRoot!.querySelector('b')!.textContent).toBe(
+		'server'
+	);
+	const errors = upgrade_errors();
+	define_attaching('demo-attach');
+	errors.stop();
+	expect(errors.list).toEqual([]);
+	const host = document.querySelector('demo-attach')!;
+	expect(host.shadowRoot!.innerHTML).toBe('<i class="own">own</i><slot></slot>');
+	expect(host.innerHTML).toBe(' hi <i>ok</i>');
+});
+
+test('an answer restored in its inert fragment: a component that attaches its own root upgrades at insertion over the emptied root', async () => {
+	define_attaching('demo-attach-answer');
+	const s = await transformMarkup(
+		'<demo-attach-answer> hi </demo-attach-answer>',
+		(h) => SHEET + attaching_render('demo-attach-answer')(h),
+		{ kind: 'region' }
+	);
+	const tpl = document.createElement('template');
+	tpl.innerHTML = s.html;
+	restore(tpl.content);
+	expect(tpl.content.querySelector('demo-attach-answer')!.shadowRoot).not.toBeNull();
+	const errors = upgrade_errors();
+	document.body.appendChild(tpl.content);
+	restore_adopt();
+	errors.stop();
+	expect(errors.list).toEqual([]);
+	const host = document.querySelector('demo-attach-answer')!;
+	expect(host.shadowRoot!.innerHTML).toBe('<i class="own">own</i><slot></slot>');
+	expect(host.innerHTML).toBe(' hi ');
+});
+
 test('putting attributes back never adds an event handler, a srcdoc or a javascript: URL', () => {
 	const w = window as { __og_ran?: number };
 	w.__og_ran = 0;
