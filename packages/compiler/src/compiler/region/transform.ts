@@ -395,12 +395,13 @@ function is_import_meta_og(node: SvelteNode, prop: string): boolean {
  * Resolve a local name back to its import binding — the module specifier plus the EXPORT NAME it
  * imports (`'default'` for `import X`, the imported name for `import { X }` / `import { A as X }`).
  * Feeds asRegion: the island entry re-imports the component by this export name (barrel-friendly), and
- * region identity keys on `source#exportName`. Namespace imports (`import * as X`) return `{ namespace }`.
+ * region identity keys on `source#exportName`. A namespace import (`import * as X`) names no export:
+ * null, as for a name no import binds.
  */
 function import_binding_of(
 	node: SvelteNode,
 	localName: string
-): { source: string; exportName: string } | { namespace: true } | null {
+): { source: string; exportName: string } | null {
 	for (const spec of node.specifiers ?? []) {
 		if (spec.local?.name !== localName) continue;
 		if (spec.type === 'ImportDefaultSpecifier')
@@ -410,7 +411,6 @@ function import_binding_of(
 			const name = imported?.type === 'Literal' ? String(imported.value) : imported?.name;
 			return { source: node.source.value, exportName: name };
 		}
-		if (spec.type === 'ImportNamespaceSpecifier') return { namespace: true };
 	}
 	return null;
 }
@@ -498,7 +498,7 @@ function clean_import_text(source: string, node: SvelteNode) {
 }
 
 /**
- * Region keys (`hydrate` / `defer` / `preset` under configured names) on a dynamic
+ * Region keys (`wake` / `fetch` / `render` / `preset` / `region` under configured names) on a dynamic
  * `import(spec, { with: { … } })` / `{ assert: { … } }` options object.
  * Returns `[]` when the call has no options or no claimed region keys.
  *
@@ -513,7 +513,8 @@ function region_keys_on_dynamic_import(node: SvelteNode, import_keys: ImportKeys
 		import_keys.wake,
 		import_keys.fetch,
 		import_keys.render,
-		import_keys.preset
+		import_keys.preset,
+		import_keys.region
 	]);
 	const found: string[] = [];
 	for (const prop of opts.properties) {
@@ -542,23 +543,30 @@ function region_keys_on_dynamic_import(node: SvelteNode, import_keys: ImportKeys
 }
 
 /**
- * Walk a script Program body for `ImportExpression` nodes carrying ogygia region keys.
+ * Walk a script Program body (a `.svelte` host's scripts, or a `.ts`/`.js` module) for
+ * `ImportExpression` nodes carrying ogygia region keys, and refuse the first one.
  * Dynamic `import()` cannot author islands — SSR shells need a static marked import binding.
+ * JS/Vite accept the options shape for std attributes (e.g. `type: 'json'`), but Vite strips import
+ * attributes from emitted dynamic imports and runtimes reject unknown keys, so a region key there
+ * would silently do nothing (test: dynamic-region-import.test.ts).
  *
  * @param body
  * @param import_keys
- * @param fail
+ * @param host root-relative path of the file, for the message
  */
-function reject_dynamic_region_imports(
-	body: SvelteNode[],
-	import_keys: ImportKeys,
-	fail: (keys: string[]) => void
-) {
+function reject_dynamic_region_imports(body: SvelteNode[], import_keys: ImportKeys, host: string) {
 	const walk = (node: SvelteNode) => {
 		if (!node || typeof node !== 'object') return;
 		if (node.type === 'ImportExpression') {
 			const keys = region_keys_on_dynamic_import(node, import_keys);
-			if (keys.length) fail(keys);
+			if (keys.length)
+				throw new OgygiaError('dynamic_region_import', {
+					host,
+					keys: keys.join(', '),
+					wake_key: import_keys.wake,
+					render_key: import_keys.render,
+					preset_key: import_keys.preset
+				});
 		}
 		for (const k of Object.keys(node)) {
 			if (k === 'start' || k === 'end' || k === 'loc') continue;
@@ -580,8 +588,6 @@ function script_lang_attr(scriptNode: SvelteNode) {
 	return '';
 }
 
-// static: the `remount` shorthands
-const REMOUNT_SHORTHANDS = new Set(['cache', 'empty', 'swr']);
 // static: what `remount.onExpire` takes
 const REMOUNT_ON_EXPIRE = new Set(['empty', 'fetch']);
 
@@ -644,59 +650,27 @@ function parse_cache_ttl_sec(raw: unknown, err: OptErr, names: string) {
 }
 
 /**
- * Normalize preset `remount`.
- *
- * Shorthands: `'cache'` | `'empty'` | `'swr'` (`swr` ≡ `{ revalidate: 'load' }`).
- * Object: `{ revalidate?: false | schedule, maxAge?, onExpire?: 'empty' | 'fetch' }`.
+ * A live hole's remount, from its preset's `revalidate` (false | schedule; the import's `wake`, else
+ * `'load'`), `maxAge` and `onExpire: 'empty' | 'fetch'`. Tests: preset-options.test.ts.
  *
  * @returns
  */
-function parse_remount(raw: unknown, err: OptErr, names: string) {
-	if (raw == null) return undefined;
-	if (typeof raw === 'string') {
-		if (!REMOUNT_SHORTHANDS.has(raw)) {
-			throw err(names, `unknown remount '${raw}'. Use 'cache' | 'empty' | 'swr'.`);
-		}
-		if (raw === 'swr') return { policy: 'swr', when: 'load' };
-		return { policy: raw };
-	}
-	if (typeof raw !== 'object' || raw === null) {
-		throw err(
-			names,
-			`\`remount\` must be 'cache' | 'empty' | 'swr' or \`{ revalidate?, maxAge?, onExpire? }\`.`
-		);
-	}
-	if ('strategy' in raw || 'when' in raw) {
-		throw err(
-			names,
-			`\`remount\` object uses \`revalidate\` (false | 'load' | 'idle' | 'visible' | media), not \`strategy\`/\`when\`. Examples: { revalidate: false, maxAge: '5m' } or { revalidate: 'idle' }. Shorthands: 'cache' | 'empty' | 'swr'.`
-		);
-	}
-	for (const k of Object.keys(raw)) {
-		if (k !== 'revalidate' && k !== 'maxAge' && k !== 'onExpire') {
-			throw err(names, `unknown remount key '${k}'. Use revalidate, maxAge, onExpire.`);
-		}
-	}
-	const ro = raw as { revalidate?: unknown; maxAge?: unknown; onExpire?: unknown };
-	if (ro.revalidate == null && ro.maxAge == null && ro.onExpire == null) {
-		throw err(
-			names,
-			`\`remount\` object needs revalidate, maxAge, and/or onExpire — or use the 'cache' | 'empty' | 'swr' shorthand.`
-		);
-	}
-
+function parse_remount(
+	ro: { revalidate: unknown; maxAge?: unknown; onExpire?: unknown },
+	err: OptErr,
+	names: string
+) {
 	const out: { policy: string; when?: string; maxAgeMs?: number; onExpire?: string } = {
 		policy: 'cache'
 	};
 
-	if (ro.revalidate === false || ro.revalidate == null) {
-		out.policy = 'cache';
-	} else if (ro.revalidate === true) {
+	if (ro.revalidate === true) {
 		throw err(
 			names,
 			`\`remount.revalidate: true\` is invalid — use 'load' (or 'idle' | 'visible' | a media query).`
 		);
-	} else {
+	}
+	if (ro.revalidate !== false && ro.revalidate != null) {
 		const rev = String(ro.revalidate);
 		if (!parse_trigger(rev, SCHEDULE)) {
 			throw err(
@@ -1559,23 +1533,9 @@ class FileCompilation {
 		// the compilation early so #resolve_region_mark (a method) can read it during this same phase.
 		const rel_host = (this.#rel_host = path.relative(ctx.root, id).split(PATH_SEP).join('/'));
 
-		// Dynamic `import(mod, { with: { hydrate|defer|preset } })` is NOT an authoring path.
-		// JS/Vite accept the options shape for std attributes (e.g. `type: 'json'`), but:
-		//   - Vite strips import attributes from emitted dynamic imports (browser compat),
-		//   - runtimes reject unknown keys like `hydrate` if left in place,
-		//   - ogygia islands need a static import + a static `<Tag />` so SSR can emit the shell.
-		// Fail at transform time with the working alternatives rather than silently no-op.
-		const reject_dynamic = (keys: string[]): never => {
-			throw new OgygiaError('dynamic_region_import', {
-				host: rel_host,
-				keys: keys.join(', '),
-				wake_key: import_keys.wake,
-				render_key: import_keys.render,
-				preset_key: import_keys.preset
-			});
-		};
-		reject_dynamic_region_imports(instance_body, import_keys, reject_dynamic);
-		reject_dynamic_region_imports(module_body, import_keys, reject_dynamic);
+		// a dynamic `import(mod, { with: { wake: … } })` is not an authoring path: refused, not ignored
+		reject_dynamic_region_imports(instance_body, import_keys, rel_host);
+		reject_dynamic_region_imports(module_body, import_keys, rel_host);
 
 		// --- collect host imports & region marks (the two-key region model) --------
 		// The authoring syntax is the import attribute, one concern per key (`wake` = the schedule,
@@ -1668,7 +1628,7 @@ class FileCompilation {
 					`'${comp_arg.name}' is not an imported component — import it first (e.g. \`import { ${comp_arg.name} } from './…'\`).`
 				);
 			const binding = import_binding_of(info.node, comp_arg.name);
-			if (!binding || 'namespace' in binding)
+			if (!binding)
 				throw this.#as_err(
 					local,
 					`'${comp_arg.name}' must be a default or named import, not a namespace import.`
@@ -2607,8 +2567,10 @@ function parse_import_attrs(raw: string) {
 /** Byte ranges of every template/string literal AND comment in a `.ts`/`.js` source, or `null` if it
  *  doesn't parse. Used to tell a REAL held-region import from one that is only TEXT inside a code
  *  sample — whether that sample sits in a template/string literal or a JSDoc `@example` comment. */
-function ts_literal_ranges(source: string, id: string): Array<[number, number]> | null {
-	const { program, ok, comments } = parse_module(source, id);
+function ts_literal_ranges(
+	parsed: ReturnType<typeof parse_module>
+): Array<[number, number]> | null {
+	const { program, ok, comments } = parsed;
 	if (!ok || !program) return null;
 	const ranges: Array<[number, number]> = [];
 	const walk = (n: unknown): void => {
@@ -2917,15 +2879,13 @@ class TsRegionCompilation {
 		const wakeKey = this.#wakeKey;
 		const renderKey = import_keys.render;
 		const fetchKey = import_keys.fetch;
-		// cheap bail — a held import (`with { region|wake|fetch|render }`) OR the `import.meta.og.asRegion(…)` macro.
+		// cheap bail — a region key in an attribute bag (`with`, or a dynamic import's legacy `assert`,
+		// which is refused below) OR the `import.meta.og.asRegion(…)` macro.
 		const has_as_region = source.includes('asRegion');
 		if (
 			!has_as_region &&
-			((!source.includes(regionKey) &&
-				!source.includes(wakeKey) &&
-				!source.includes(fetchKey) &&
-				!source.includes(renderKey)) ||
-				!source.includes('with'))
+			(!import_keys_hint(import_keys).test(source) ||
+				(!source.includes('with') && !source.includes('assert')))
 		)
 			return null;
 
@@ -2939,7 +2899,15 @@ class TsRegionCompilation {
 		// `src/index.ts` has one). A real import is a top-level statement, never inside a literal or comment,
 		// so skip any match whose position falls in one. AST-accurate (byte-exact offsets); if the file
 		// doesn't parse (half-typed mid-edit), fall back to the unescaped-backtick-parity heuristic.
-		const literal_ranges = ts_literal_ranges(source, id);
+		const parsed = parse_module(source, id);
+		// the one AST of this module: a dynamic import() with a region key is refused, as in a host
+		if (parsed.ok && parsed.program)
+			reject_dynamic_region_imports(
+				(parsed.program as { body?: SvelteNode[] }).body ?? [],
+				import_keys,
+				rel_host
+			);
+		const literal_ranges = ts_literal_ranges(parsed);
 		const inside_literal = (pos: number): boolean =>
 			literal_ranges
 				? literal_ranges.some(([a, b]) => pos >= a && pos < b)
@@ -3090,7 +3058,7 @@ class TsRegionCompilation {
 							`'${comp_arg.name}' is not an imported component — import it first (e.g. \`import { ${comp_arg.name} } from './…'\`).`
 						);
 					const binding = import_binding_of(imp, comp_arg.name);
-					if (!binding || 'namespace' in binding)
+					if (!binding)
 						throw this.#as_err(
 							local,
 							`'${comp_arg.name}' must be a default or named import, not a namespace import.`
