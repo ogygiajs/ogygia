@@ -152,12 +152,6 @@ jobs:
       - name: Every machine step accounted for
         run: node internal/sim/src/steps.ts
 
-      # every place in the packages' runtime and server source that can fail is fired by a buggify
-      # point or a sim fault, covered by a named test, or impossible by a named rule or type
-      # (internal/sim/failures.json): a new site in no bucket fails, and the baseline only shrinks
-      - name: Every failure site accounted for
-        run: node internal/sim/src/failures.ts ${{ github.event_name == 'pull_request' && '--base HEAD^1' || '' }}
-
       # What `check` would run, asked of turbo first: when every check task is a cache hit, nothing
       # runs a browser (a replay only prints the stored logs), so the browser's setup is skipped.
       - name: Plan

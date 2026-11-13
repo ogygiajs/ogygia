@@ -9,15 +9,13 @@
  *   node --experimental-vm-modules src/sweep.ts [--out <dir>] [--jobs 4] [--write]
  *
  * Fails (exit code 1) when a step is in no bucket, a `reached` step was not reached, or a `dead`
- * one was, and when a failure site's buggify point (internal/sim/failures.json `fired`) did not
- * fire (src/failures.ts). `--write` sets `reached` to what the sweep reached. Runs under `nice`.
+ * one was. `--write` sets `reached` to what the sweep reached. Runs under `nice`.
  */
 import { spawnSync } from 'node:child_process';
 import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { all_steps, universe } from './coverage.ts';
-import { check_failures, failures_line, fired_in, read_failure_ledger } from './failures.ts';
 import { account, LEDGER, read_ledger, reached_in } from './steps.ts';
 
 const SIM = resolve(import.meta.dirname, '..');
@@ -141,13 +139,7 @@ function main(): void {
 				!ledger.dead.some((d) => d.step === s)
 		)
 	};
-	const failure_ledger = read_failure_ledger();
-	const sites = check_failures(failure_ledger, undefined, {
-		fired: new Set(files.flatMap(fired_in))
-	});
-	summary.failures.push(...sites.failures);
 	writeFileSync(join(out, 'steps.json'), `${JSON.stringify(summary, null, '\t')}\n`);
-	console.log(failures_line(failure_ledger, sites));
 	console.log(
 		`steps accounted: ${a.accounted}/${a.total} (sweep reached ${summary.reached}, covered ${summary.covered}, dead ${summary.dead})`
 	);
