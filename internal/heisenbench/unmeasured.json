@@ -5077,7 +5077,7 @@
 			"reason": "config only, once per Vite config resolve: a map over the listed plugins, a handful"
 		},
 		{
-			"id": "packages/compiler/src/vite/plugin-api.ts > resolve_plugins > build:0~f1ee24 > prescan",
+			"id": "packages/compiler/src/vite/plugin-api.ts > resolve_plugins > build:0~6b3ec1 > prescan",
 			"reason": "build only: a plugin's prescan registration, once per plugin per build, constant work"
 		},
 		{
@@ -5137,7 +5137,7 @@
 			"reason": "once per finished chunk (renderChunk): builds the relocation context and calls link/relocations.ts relocate, whose own cost is the token scan; a real build runs it"
 		},
 		{
-			"id": "packages/compiler/src/compiler/driver.ts > Compiler > relocate > relocate:3~e4b34b > public_url",
+			"id": "packages/compiler/src/compiler/driver.ts > Compiler > relocate > relocate:3~0b2c47 > public_url",
 			"reason": "one island's public url from the context, constant work, once per island token patched"
 		},
 		{
@@ -5707,6 +5707,94 @@
 		{
 			"id": "packages/core/src/server/props-wire.ts > lake_identity",
 			"reason": "one hole_identity fingerprint of a lake's props per lake render, measured with hole_identity's own bench; lake-identity.test.ts runs it"
+		},
+		{
+			"id": "packages/compiler/src/compiler/messages.ts > BUILD_ERRORS > page_reads_claimed > text",
+			"reason": "a build error's text, built once when two plugins claim seed shaping, then the build stops; constant work"
+		},
+		{
+			"id": "packages/compiler/src/compiler/messages.ts > BUILD_ERRORS > page_reads_claimed > details",
+			"reason": "a build error's details, built once when two plugins claim seed shaping, then the build stops; constant work"
+		},
+		{
+			"id": "packages/compiler/src/compiler/messages.ts > BUILD_ERRORS > plugin_needs_plugin > text",
+			"reason": "a build error's text, built once when a plugin is listed without one it needs, then the build stops; constant work"
+		},
+		{
+			"id": "packages/compiler/src/compiler/messages.ts > BUILD_ERRORS > plugin_needs_plugin > details",
+			"reason": "a build error's details, built once when a plugin is listed without one it needs, then the build stops; constant work"
+		},
+		{
+			"id": "packages/compiler/src/vite/dev-maps.ts > install_dev_page_keys > <anonymous>~d15d6d > dev:1~e12443",
+			"reason": "dev only, a profiler ask: one dev server resolve of a helper the page is handed to, then the plugin's own dev read (page_reads.dev, measured in the page-keys bench)"
+		},
+		{
+			"id": "packages/compiler/src/vite/dev-maps.ts > install_dev_page_keys > <anonymous>~d15d6d > dev:1~e12443 > catch:0~ae0427",
+			"reason": "dev only, a profiler ask: a helper that does not resolve answers null, constant work"
+		},
+		{
+			"id": "packages/compiler/src/vite/index.ts > ogygia > writeBundle > report_seed_shaping:2~405632",
+			"reason": "build only, once per client build: hands one module id to the seed-shaping plugin's why (a map read), constant work per blamed module"
+		},
+		{
+			"id": "packages/compiler/src/vite/index.ts > ogygia > writeBundle > settle:0~e8e319",
+			"reason": "build only, once per client build: one bundler resolve per helper the page is handed to, Vite's own work"
+		},
+		{
+			"id": "packages/compiler/src/vite/plugin-api.ts > resolve_plugins > build:0~6b3ec1 > pageReads",
+			"reason": "build only: a plugin's seed-shaping claim, once per plugin per build, constant work"
+		},
+		{
+			"id": "packages/core/src/messages/core.ts > WARNINGS > rule_seed_key_unshipped > text",
+			"reason": "dev and rules builds only: a broken rule's text, built once per break; constant work"
+		},
+		{
+			"id": "packages/core/src/messages/core.ts > WARNINGS > rule_seed_key_unshipped > details",
+			"reason": "dev and rules builds only: a broken rule's details, built once per break; constant work"
+		},
+		{
+			"id": "packages/core/src/messages/server.ts > SERVER_WARNINGS > rule_hole_page_read_unpredicted > text",
+			"reason": "dev and rules builds only: a broken rule's text, built once per break; constant work"
+		},
+		{
+			"id": "packages/core/src/messages/server.ts > SERVER_WARNINGS > rule_hole_page_read_unpredicted > details",
+			"reason": "dev and rules builds only: a broken rule's details, built once per break; constant work"
+		},
+		{
+			"id": "packages/core/src/runtime/rules.ts > no_unshipped_read",
+			"reason": "browser, dev and rules builds only: the rule's check, a join of at most 10 noted reads; proven in packages/core/test/browser/seed-unshipped.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/rules.ts > note_unshipped_read",
+			"reason": "browser, dev and rules builds only: one read noted into a list capped at 10 (hidden state), constant work"
+		},
+		{
+			"id": "packages/core/src/runtime/seeds.ts > watch_unshipped",
+			"reason": "browser, dev and rules builds only: one JSON.parse of the seed's left-out key list and one Proxy, once per page seed; proven in packages/core/test/browser/seed-unshipped.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/seeds.ts > watch_unshipped > Proxy:1~2cf71b > get",
+			"reason": "browser, dev and rules builds only: one set lookup per page.data read, constant work; proven in packages/core/test/browser/seed-unshipped.test.ts"
+		},
+		{
+			"id": "packages/core/src/server/render-page.ts > unpredicted_data > Proxy:1~925868 > get",
+			"reason": "dev and rules builds only: one set lookup per page.data read of a hole whose look-up was skipped, constant work; proven in packages/core/test/seed-shaping-oracle.test.ts"
+		},
+		{
+			"id": "packages/core/src/server/rules.ts > install_server_rules > add:1~f5ba46",
+			"reason": "dev and e2e builds only: the unpredicted hole page-read rule joins its module list (hidden state), linear in the reads seen (at most 10); proven in packages/core/test/seed-shaping-oracle.test.ts"
+		},
+		{
+			"id": "packages/core/src/server/seed-shape.ts > unshipped_keys > filter:0~f1a081",
+			"reason": "dev and rules builds only: one set lookup per page.data key, constant work per key; proven in packages/core/test/seed-shaping-oracle.test.ts"
+		},
+		{
+			"id": "packages/page-keys/src/index.ts > pageKeys",
+			"reason": "config time: one plugin definition per vite.config load, constant work"
+		},
+		{
+			"id": "packages/page-keys/src/index.ts > pageKeys > definePlugin:0~0ce4a1 > build",
+			"reason": "build only: makes the plugin's page_reads (measured in the page-keys bench) and hands it to the build, once per build"
 		}
 	]
 }
