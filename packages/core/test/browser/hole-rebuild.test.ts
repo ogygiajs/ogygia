@@ -76,13 +76,21 @@ test('a hole with no address and no record keeps its fallback (nothing to fetch,
 		calls.push(String(input));
 		return html_response('<p>never</p>');
 	};
+	const said: string[] = [];
+	const real_warn = console.warn;
+	console.warn = (...args: unknown[]) => void said.push(args.map(String).join(' '));
 	document.body.innerHTML = `<script>__sveltekit_lab = {};\x3C/script><div data-kit-root><ogygia-region render="defer" when="load" endpoint="" data-og-hole="0000000000000000"><p data-testid="fallback">fallback</p></ogygia-region></div>`;
 	try {
 		bootDev();
 		await new Promise((r) => setTimeout(r, 300));
 		expect(calls).toHaveLength(0);
 		expect(document.querySelector('[data-testid="fallback"]')).not.toBeNull();
+		expect(
+			said.some((s) => s.includes('hole_without_address')),
+			'dev says why'
+		).toBe(true);
 	} finally {
 		window.fetch = real_fetch;
+		console.warn = real_warn;
 	}
 });
