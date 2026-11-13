@@ -1,7 +1,3 @@
-/**
- * Client bridge source for `ogygia:dev/hmr` (vite serve only). Pure codegen: it returns the
- * JS text the adapter serves for the dev soft-CSS-HMR bridge. No build state.
- */
 import { dedent } from '@ogygia/core/contract';
 
 /**
