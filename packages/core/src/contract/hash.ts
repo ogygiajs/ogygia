@@ -1,5 +1,5 @@
 /**
- * Region fingerprint — the PURE core (no DOM, no imports but ./signature.ts) shared by the client reconciler AND the
+ * Region fingerprint — the PURE core (no DOM, no imports) shared by the client reconciler AND the
  * server (Region.svelte, server-delta nav). Kept dependency-free so it is safe in BOTH bundles and
  * so client↔server fingerprints are IDENTICAL BY CONSTRUCTION: the server emits `data-og-fp =
  * fingerprint_of(entry, '', props_payload)` on each island, and the client's `region_props_fp`
@@ -68,9 +68,22 @@ export const id64: (s: string) => string = fnv1a;
 /** SPREADING (#484): 32 bits, where a collision only shares a bucket or a short display key. */
 export const bucket32: (s: string) => number = fnv1a32;
 
-// (the match key lives apart so the boot can name a region without the hashing: ./signature.ts)
-import { endpoint_key, signature_of } from './signature.ts';
-export { endpoint_key, signature_of };
+/**
+ * The stable part of a signed endpoint URL: everything up to the volatile `&exp=…&sig=…` tail.
+ * A deferred region's endpoint encodes `?id=…&props=…&exp=…&sig=…`; exp/sig rotate per render, so
+ * they must NOT enter identity or two renders of the same region would never match. Returns the
+ * `id`+`props` portion; empty string when there is no endpoint.
+ */
+export function endpoint_key(endpoint: string): string {
+	if (!endpoint) return '';
+	const exp = endpoint.indexOf('&exp=');
+	return exp === -1 ? endpoint : endpoint.slice(0, exp);
+}
+
+/** Match key: WHICH region slot this is (testable without a DOM). */
+export function signature_of(entry: string, endpoint: string): string {
+	return `${entry} ${endpoint_key(endpoint)}`;
+}
 
 /** Change key: DID this region's inputs change (testable without a DOM). */
 export function fingerprint_of(entry: string, endpoint: string, props_text: string): string {

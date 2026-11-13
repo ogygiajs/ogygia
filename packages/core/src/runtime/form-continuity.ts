@@ -13,8 +13,6 @@
  */
 import { cache, machine } from '@ogygia/machine';
 import { element_address, resolve_address } from './interaction.ts';
-// (not reconcile.ts's `region_signature` nor ./hash.ts: both stay out of the boot)
-import { signature_of } from '../contract/signature.ts';
 import { slots } from './slots.ts';
 import { OGYGIA_NO_KEEP } from '../wire-markup.ts';
 
@@ -65,16 +63,32 @@ function close_restore(): void {
 
 const is_checkable = (f: HTMLInputElement) => f.type === 'checkbox' || f.type === 'radio';
 
-/** Each region's name on its page: its signature (component and endpoint) and which copy of that
- *  island it is, in document order. */
+/** A URL attribute as the page means it: a relative one (`./x`) resolved the way the runtime pins it
+ *  later (entry-locations.ts `pin_region_urls`), so a region's name is the same before and after. */
+function url_of(value: string | null): URL | null {
+	if (!value) return null;
+	try {
+		return new URL(value, document.baseURI);
+	} catch {
+		return null; // ok: not a URL; the name goes without it
+	}
+}
+
+/** What a region IS: its component (entry) and, for a hole, which one (its endpoint's path and
+ *  `id`). Never its props or its signature's expiry: a hole's props may change between visits. */
+function region_kind(region: Element): string {
+	const entry = url_of(region.getAttribute('entry'));
+	const endpoint = url_of(region.getAttribute('endpoint'));
+	return `${entry ? entry.pathname : ''} ${endpoint ? `${endpoint.pathname}?${endpoint.searchParams.get('id') ?? ''}` : ''}`;
+}
+
+/** Each region's name on its page: what it is (`region_kind`) and which copy of that island it is,
+ *  in document order. */
 function region_names(regions: Iterable<Element>): Map<Element, string> {
 	const copies = new Map<string, number>();
 	const names = new Map<Element, string>();
 	for (const region of regions) {
-		const signature = signature_of(
-			region.getAttribute('entry') ?? '',
-			region.getAttribute('endpoint') ?? ''
-		);
+		const signature = region_kind(region);
 		const n = copies.get(signature) ?? 0;
 		copies.set(signature, n + 1);
 		names.set(region, `${n} ${signature}`);

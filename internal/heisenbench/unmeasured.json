@@ -4831,6 +4831,14 @@
 		{
 			"id": "packages/core/src/runtime/ownership.ts > in_render_block",
 			"reason": "browser only (DOM comments): runs only for a child of an element stamped data-og-html, a scan of its earlier siblings; nested-island-drift.test.ts runs it"
+		},
+		{
+			"id": "packages/core/src/runtime/form-continuity.ts > url_of",
+			"reason": "browser only (document.baseURI): one URL parse per region attribute; proven in packages/core/test/browser/form-restore-region-identity.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/form-continuity.ts > region_kind",
+			"reason": "browser only: two attribute reads per region (Elements, not cloneable); proven in packages/core/test/browser/form-restore-region-identity.test.ts"
 		}
 	]
 }
