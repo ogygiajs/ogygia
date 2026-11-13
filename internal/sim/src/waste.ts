@@ -12,7 +12,8 @@
  *   store keeps a left page's answers (later, it was let go by design);
  * - no POST the app refused (4xx): a batch to a path that answers none (#987);
  * - nothing alive after its owner: an observer still observing once every element it watches has
- *   left the document (`tab.orphans()`; test/orphans.node.test.ts);
+ *   left the document (`tab.orphans()`; test/orphans.node.test.ts), and no woken island still
+ *   watched for where it is ({@link watched_awake});
  * - nothing sent twice in the document: one stylesheet linked twice, one `<style>` text twice, one
  *   island's props (`data-ogygia-props`) or a page seed twice, one module preloaded twice;
  * - nothing said: a console warning in such a document is something ogygia (or the app) found wrong.
@@ -21,7 +22,7 @@
  * them (`@ogygia/tooling/e2e/sim-replay.ts`).
  */
 import type { Tab } from './browser.ts';
-import { known_said, type Broken } from './oracles.ts';
+import { known_said, unhydrated_by_design, type Broken } from './oracles.ts';
 import { answer_key, is_page_path, type World } from './world.ts';
 
 /** An image's path: the document's image cache keeps one it loaded. */
@@ -231,7 +232,13 @@ const KNOWN_WASTE: ReadonlyArray<{
 	issue: number;
 	what: string;
 	is: (held: string, doc: Document) => boolean;
-}> = [];
+}> = [
+	{
+		issue: 1255,
+		what: "the viewport tracker's swap observer keeps observing a region it let go",
+		is: (held) => held === 'MutationObserver watching <ogygia-region>'
+	}
+];
 
 /** What is held twice, less what a filed bug explains (and which bugs did). */
 export function known_waste(doc: Document, held: string[]): { left: string[]; known: number[] } {
@@ -244,11 +251,40 @@ export function known_waste(doc: Document, held: string[]): { left: string[]; kn
 	return { left, known: [...known] };
 }
 
-/** The warnings the document itself said. */
+/** The warnings the document itself said (less a hydration mismatch its page makes on purpose,
+ *  which `hydrates_as_sent` sets aside too: palaestra seed 92, /detector). */
 export function warned(tab: Tab): string[] {
+	const url = tab.page?.mainFrame.url ?? '';
 	return tab.console.filter(
-		(l) => l.startsWith('warn:') && (tab.said_by.get(l) ?? tab.realm) === tab.realm
+		(l) =>
+			l.startsWith('warn:') &&
+			(tab.said_by.get(l) ?? tab.realm) === tab.realm &&
+			!unhydrated_by_design(url, l)
 	);
+}
+
+/**
+ * The woken islands an IntersectionObserver still watches at rest: nothing asks where one is once it
+ * woke (its `visible` wake fired once, the scheduler's viewport snapshot stops at its turn, a load's
+ * class at its end), so a watch kept is a watch nobody stopped, held until the island leaves. A
+ * mutant that dropped the snapshot's stop survived every other oracle (schedule.ts `drain`). Each
+ * as its open tag, less its props.
+ */
+export function watched_awake(tab: Tab): string[] {
+	return tab
+		.observed('IntersectionObserver')
+		.filter(
+			(t) =>
+				t.isConnected &&
+				t.localName === 'ogygia-region' &&
+				t.hasAttribute('entry') &&
+				!t.hasAttribute('render') &&
+				t.hasAttribute('data-hydrated')
+		)
+		.map(
+			(t) => `<ogygia-region entry="${t.getAttribute('entry')}" wake="${t.getAttribute('wake')}">`
+		)
+		.sort();
 }
 
 /** NO WASTE, for one tab's document at rest (the caller sets aside the documents the top names). */
@@ -257,17 +293,23 @@ export function waste(world: World, tab: Tab): Broken | null {
 	if (!tab.page.mainFrame.url.startsWith('http')) return null;
 	const held = known_waste(doc, held_twice(doc));
 	const asked = known_waste(doc, refused(world, tab.realm));
+	const orphans = known_waste(doc, tab.orphans());
 	const said = known_said(warned(tab));
 	const found = [
 		...asked.left.map((k) => `refused: ${k}`),
 		...held.left.map((k) => `held twice: ${k}`),
-		...tab.orphans().map((o) => `alive after its owner: ${o}`),
+		...orphans.left.map((o) => `alive after its owner: ${o}`),
+		...watched_awake(tab).map((r) => `watched after its wake: ${r}`),
 		...said.left.map((l) => `said: ${l.split('\n')[0].slice(0, 200)}`)
 	];
 	if (found.length > 0)
 		return { oracle: 'waste', detail: `${tab.page.mainFrame.url}: ${found.join('\n')}` };
 	const known = [
-		...new Set([...held.known, ...asked.known].map((i) => KNOWN_WASTE.find((k) => k.issue === i)!)),
+		...new Set(
+			[...held.known, ...asked.known, ...orphans.known].map((i) =>
+				KNOWN_WASTE.find((k) => k.issue === i)!
+			)
+		),
 		...said.known
 	];
 	return known.length === 0

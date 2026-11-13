@@ -19,8 +19,8 @@
 
 import {
 	attr_spans,
+	head_end,
 	next_tag,
-	text_of,
 	value_at,
 	type FoundTag
 } from '@ogygia/core/internal/server';
@@ -81,13 +81,6 @@ function attrs_without(html: string, t: FoundTag, name: string, drop: string[]):
 		pos = end;
 	}
 	return out + html.slice(pos, t.end - 1); // (`t.end - 1`: its `>`)
-}
-
-/** Where the document's head ends (its `</head` end tag), or -1. */
-function head_end(html: string): number {
-	const head = next_tag(html, 'head', 0);
-	const text = head === null ? null : text_of(html, head, 'head');
-	return text === null ? -1 : head!.end + text.length;
 }
 
 /** `html` with `text` put where its head ends (unchanged when it has no head end). */
