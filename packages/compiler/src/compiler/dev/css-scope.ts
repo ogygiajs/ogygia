@@ -1,8 +1,3 @@
-/**
- * Dev-only CSS scope ownership — walks UP the Vite dev module graph to find which top-level route
- * scopes can reach a changed stylesheet, so the soft-CSS-HMR bridge joins a file only on the pages
- * whose sub-app actually owns it. Pure over the graph nodes it is handed; reads, never mutates.
- */
 import path from 'node:path';
 import { kit_dirs } from '../kit.ts';
 
@@ -39,8 +34,8 @@ export function derive_css_scope_owners(
 		const f = mod.file ? path.normalize(mod.file) : null;
 		if (f && f.startsWith(routes_dir)) {
 			const seg = f.slice(routes_dir.length).split(path.sep)[0] ?? '';
-			owners.add(seg.includes('.') ? '' : seg); // a route FILE at routes root → the '' scope
-			continue; // a route file is an owner — no need to climb past it
+			owners.add(seg.includes('.') ? '' : seg);
+			continue;
 		}
 		for (const imp of mod.importers ?? []) stack.push(imp);
 	}
