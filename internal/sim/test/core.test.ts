@@ -104,6 +104,41 @@ describe('the network', () => {
 		return { out, log: loop.log.join('\n') };
 	};
 
+	it("a request's fate is its own: other requests sent before it do not move its delays or faults", async () => {
+		// (one shared stream once drew every request's fate in order, so a page that made one more
+		// request moved every later one, and a saved plan stopped reaching its step on main)
+		const fate = async (seed: number, before: string[]) => {
+			const loop = new Loop(rng(seed));
+			const net = new Network({
+				loop,
+				rng: rng(seed),
+				faults: new Set(['delay', 'reorder', 'drop', 'cut', 'tamper', 'stall', 'duplicate']),
+				rates: { drop: 0.2, cut: 0.2, tamper: 0.2, stall: 0.2, duplicate: 0.2 }
+			});
+			for (const p of before)
+				void net
+					.send('tab-1#1', new Request(`https://app.test${p}`), async () => new Response('other'))
+					.then((r) => r.text())
+					.catch(() => {});
+			let got = '';
+			void net
+				.send(
+					'tab-1#1',
+					new Request('https://app.test/x'),
+					async () => new Response('x'.repeat(64))
+				)
+				.then((r) => r.text())
+				.then(
+					(t) => (got = `${t.length} at ${loop.now}`),
+					(e: Error) => (got = `failed ${e.message} at ${loop.now}`)
+				);
+			await loop.run();
+			return got;
+		};
+		for (let seed = 1; seed <= 30; seed++)
+			expect(await fate(seed, ['/a', '/b', '/c']), `seed ${seed}`).toBe(await fate(seed, []));
+	});
+
 	it('answers every request on the loop, the same way for the same seed', async () => {
 		const a = await run(11, ['delay', 'reorder', 'drop', 'cut']);
 		const b = await run(11, ['delay', 'reorder', 'drop', 'cut']);
