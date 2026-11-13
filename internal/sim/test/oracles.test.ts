@@ -7,7 +7,7 @@ import { World } from '../src/world.ts';
 import { user_click } from '../src/workload.ts';
 import type { Heard } from '../src/browser.ts';
 import { waste } from '../src/waste.ts';
-import { owed_text } from '../src/network.ts';
+import { owed_text, rewrite_misses } from '../src/network.ts';
 import {
 	document_faulted,
 	fallback_stands,
@@ -23,7 +23,6 @@ import {
 	no_viewport_wait,
 	normalize,
 	parsed_first,
-	rewrite_misses,
 	rewrite_rendered,
 	live_regions_out,
 	page_errors,
@@ -1186,23 +1185,38 @@ describe('a rewrite renders every element it matches, and only the outermost', (
 		).toBeUndefined();
 		expect(rewrite_misses('<p>x-gen-box</p><x-gen-box og-h="0">a</x-gen-box>')).toEqual({
 			unrendered: ['x-gen-box'],
-			inner: []
+			inner: [],
+			stored: false
 		});
 		expect(
 			rewrite_misses(
 				'<x-gen-box>a <x-gen-box data-rendered="x-gen-box">b</x-gen-box></x-gen-box><x-gen-link data-rendered="x-gen-link"></x-gen-link>'
 			)
-		).toEqual({ unrendered: ['x-gen-box'], inner: ['x-gen-box'] });
+		).toEqual({ unrendered: ['x-gen-box'], inner: ['x-gen-box'], stored: false });
+		expect(rewrite_misses('<x-gen-box>a</x-gen-box>', true)).toEqual({
+			unrendered: ['x-gen-box'],
+			inner: [],
+			stored: true
+		});
+	});
+
+	it("a page store's copy was rendered by an earlier request: an element it left unrendered is that request's to explain (gen 262, seed 11), one rendered inside it never is", () => {
+		expect(judged({ unrendered: ['x-gen-box'], inner: [], stored: true })).toBeNull();
+		expect(judged({ unrendered: [], inner: ['x-gen-box'], stored: true })?.oracle).toBe(
+			'rewrite-rendered'
+		);
 	});
 
 	it('finds an element left unrendered with no rewrite point to explain it, and one rendered inside an unrendered one whatever fired', () => {
-		const left = { unrendered: ['x-gen-box'], inner: [] };
+		const left = { unrendered: ['x-gen-box'], inner: [], stored: false };
 		expect(judged(left)?.oracle).toBe('rewrite-rendered');
 		expect(judged(left, ['rewrite.render-throws'])).toBeNull();
 		expect(judged(left, ['gen.reshape-throws'])).toBeNull();
 		expect(judged(left, ['hole.fetch-lost'])?.oracle).toBe('rewrite-rendered');
 		expect(
-			judged({ unrendered: ['x-gen-box'], inner: ['x-gen-link'] }, ['rewrite.chunk-split'])?.oracle
+			judged({ unrendered: ['x-gen-box'], inner: ['x-gen-link'], stored: false }, [
+				'rewrite.chunk-split'
+			])?.oracle
 		).toBe('rewrite-rendered');
 		expect(judged(undefined)).toBeNull();
 	});

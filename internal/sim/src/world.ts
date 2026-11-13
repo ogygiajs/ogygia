@@ -278,7 +278,13 @@ export class World {
 			skew: () => current_server.getStore()?.skew ?? 0,
 			node: true,
 			// (each server instance draws as its own realm)
-			buggify: (_, point) => w.#buggify(current_server.getStore()?.name ?? 'server', point)
+			buggify: (_, point) => {
+				const fired = w.#buggify(current_server.getStore()?.name ?? 'server', point);
+				// (and the exchange it answered then: what it sent is the point's to explain)
+				const ex = fired ? answering_now() : undefined;
+				if (ex !== undefined) (ex.fired ??= []).push(point);
+				return fired;
+			}
 		});
 		const restore_platform = install(globalThis, host);
 		const restore_symbols = own_symbols();

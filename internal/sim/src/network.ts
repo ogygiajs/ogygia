@@ -86,6 +86,16 @@ export interface Exchange {
 	/** A page's HTML: each text a reshape pass's render trimmed, as it was (its `og-t` marks'
 	 *  originals), which the restore owes the document; none when the page has no such mark. */
 	restore_owes?: readonly string[];
+	/** A page's HTML: the matched elements a rewrite left unrendered, and those it rendered inside
+	 *  one it left, and whether it is a page store's copy (`rewrite_misses`); none when it rendered
+	 *  each outermost one. */
+	rewrite_misses?: {
+		readonly unrendered: readonly string[];
+		readonly inner: readonly string[];
+		readonly stored: boolean;
+	};
+	/** The buggify points that fired while a server answered it. */
+	fired?: string[];
 	/** When its body was over, whole or not (virtual ms): a hop that ended past its asker's
 	 *  deadline was no answer to it. */
 	ended_at?: number;
@@ -113,6 +123,37 @@ export function owed_text(html: string): string[] | undefined {
 		}
 	}
 	return out.length === 0 ? undefined : out;
+}
+
+/** The elements the random app's rewrite matches (gen.ts `app_reshape`). Its render stamps each one
+ *  it rendered `data-rendered`. */
+const REWRITTEN = /<(\/?)(x-gen-box|x-gen-link)(?=[\s/>])([^>]*)>/g;
+
+/** What a page's HTML says of its rewrite: each outermost matched element left unrendered, and
+ *  each one rendered inside a matched element left unrendered (only the outermost goes to the
+ *  render, and the inner ones with it). None when the rewrite rendered every outermost one. */
+export function rewrite_misses(
+	html: string,
+	stored = false
+): { unrendered: string[]; inner: string[]; stored: boolean } | undefined {
+	const unrendered: string[] = [];
+	const inner: string[] = [];
+	const open: { name: string; rendered: boolean }[] = [];
+	for (const m of html.matchAll(REWRITTEN)) {
+		const name = m[2]!;
+		if (m[1] === '/') {
+			const at = open.findLastIndex((o) => o.name === name);
+			if (at !== -1) open.length = at;
+			continue;
+		}
+		const rendered = /\sdata-rendered=/.test(m[3]!);
+		if (open.length === 0) {
+			if (!rendered) unrendered.push(name);
+		} else if (rendered && open.some((o) => !o.rendered)) inner.push(name);
+		if (!m[3]!.trimEnd().endsWith('/')) open.push({ name, rendered });
+	}
+	if (unrendered.length === 0 && inner.length === 0) return undefined;
+	return { unrendered, inner, stored };
 }
 
 /** The document a server is answering, through all its async work: its own hops are on that
@@ -546,6 +587,8 @@ export class Network {
 			ex.method === 'GET' &&
 			/text\/html/.test(response.headers.get('content-type') ?? '');
 		const text = page ? new TextDecoder() : null;
+		// (a page store's copy, rendered by another request: what it left out is that request's)
+		const copy = /^(hit|join|stored)$/.test(response.headers.get('x-ogygia-postrender') ?? '');
 		let html = '';
 		const loop = this.#loop;
 		let to!: ReadableStreamDefaultController<Uint8Array>;
@@ -596,14 +639,19 @@ export class Network {
 			for (;;) {
 				let read: ReadableStreamReadResult<Uint8Array>;
 				try {
-					read = await source.read();
+					// (a streamed body's chunks are made as they are read: still this exchange's answer)
+					read = await answering.run(ex, () => source.read());
 				} catch {
 					return stop('the server failed midway');
 				}
 				if (ended) return;
 				if (read.done) {
 					if (cut) return stop('the stream was cut');
-					if (text !== null) ex.restore_owes = owed_text(html + text.decode());
+					if (text !== null) {
+						html += text.decode();
+						ex.restore_owes = owed_text(html);
+						ex.rewrite_misses = rewrite_misses(html, copy);
+					}
 					return send('end', () => {
 						to.close();
 						end();
