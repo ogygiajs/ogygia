@@ -57,23 +57,24 @@ test("a router page's scss component: dev's router CSS is what the build compile
 			export const pages = [page('/about', About)];
 		`
 	);
-	const compiler = new Compiler(new Program({ forms: true, router: true }), {
-		prof: {
-			transformMs: 0,
-			transformN: 0,
-			transformHit: 0,
-			prescanMs: 0,
-			bakeMs: 0,
-			bakeN: 0,
-			resolveMs: 0,
-			loadMs: 0
-		},
-		P: false,
-		outHash: new Map<string, number>()
-	});
 	const preprocess_css = (source: string, abs: string) =>
 		preprocess_component_for_css(source, abs, root);
-	compiler.configure(
+	const compiler = new Compiler(
+		new Program({ forms: true, router: true }),
+		{
+			prof: {
+				transformMs: 0,
+				transformN: 0,
+				transformHit: 0,
+				prescanMs: 0,
+				macroMs: 0,
+				macroN: 0,
+				resolveMs: 0,
+				loadMs: 0
+			},
+			P: false,
+			outHash: new Map<string, number>()
+		},
 		new CompileCtx(
 			partial_ctx_init({
 				root,

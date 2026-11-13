@@ -307,7 +307,6 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 	// `own`: the root's source when it is not the file on disk (a content module's post-mdsvex Svelte);
 	// the root's own CSS is then the caller's. `skip`: files whose CSS ships some other way. Each
 	// file's CSS compiles once per leg (`BuildLeg.compiled_css`).
-	/** The app's CSS preprocessor, for every leg's component CSS (fouc-css.ts `scoped_component_css`). */
 	const preprocess_css: PreprocessCss = (source, abs) =>
 		preprocess_component_for_css(source, abs, root);
 	const tree_css_walk = (
