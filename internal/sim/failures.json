@@ -161,6 +161,18 @@
 	],
 	"covered": [
 		{
+			"site": "packages/reshape/src/restore-report.ts > report > import:0",
+			"reason": "the sim never writes a restore mismatch or a late host to the log, so the wording chunk is never asked for; the test's Vite fails that chunk's load, so the real import rejects in 3 engines",
+			"test": "packages/reshape/test/browser-chunk-lost/restore-report.test.ts",
+			"name": "a restore report whose wording chunk does not load says nothing, throws nothing, and keeps the log"
+		},
+		{
+			"site": "packages/reshape/src/restore-report.ts > report > reject:0",
+			"reason": "the import's rejection, as above: with the handler gone the run fails on an unhandled rejection in 3 engines (proved)",
+			"test": "packages/reshape/test/browser-chunk-lost/restore-report.test.ts",
+			"name": "a restore report whose wording chunk does not load says nothing, throws nothing, and keeps the log"
+		},
+		{
 			"site": "packages/reshape/src/index.ts > handle > throw:0",
 			"reason": "a config error, at the first request: no app the sim generates leaves reshape() out of vite.config",
 			"test": "packages/reshape/test/plugin.test.ts",
@@ -1882,8 +1894,6 @@
 		"packages/postrender/src/server.ts > invalidate > throw:1",
 		"packages/postrender/src/server.ts > lastBuild > stale:0",
 		"packages/postrender/src/stitch.ts > stitch_html > .catch:0",
-		"packages/reshape/src/restore-report.ts > report > reject:0",
-		"packages/reshape/src/restore-report.ts > report > import:0",
 		"packages/router/src/client-api.ts > api > call > not-ok:0",
 		"packages/router/src/client-api.ts > api > call > .catch:0",
 		"packages/router/src/client-api.ts > api > call > throw:0",
