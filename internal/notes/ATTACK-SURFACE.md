@@ -6,7 +6,7 @@ its pull request says why it is safe (or which INVARIANTS.md section covers it).
 
 ## Request inputs: headers, query, cookies and bodies read from a request
 
-119 entries.
+122 entries.
 
 | file | in | what | n |
 | --- | --- | --- | --- |
@@ -29,6 +29,7 @@ its pull request says why it is safe (or which INVARIANTS.md section covers it).
 | `packages/core/src/plugin/request-scope.ts` | `body_unread` | `headers.get('etag')` | 1 |
 | `packages/core/src/plugin/request-scope.ts` | `body_unread` | `headers.get('if-none-match')` | 1 |
 | `packages/core/src/runtime/core.ts` | `#fetch_html` | `searchParams('id')` | 1 |
+| `packages/core/src/runtime/form-continuity.ts` | `region_kind` | `searchParams('id')` | 1 |
 | `packages/core/src/runtime/hole-fetch.ts` | `(module)` | `headers.get('x-ogygia-capability')` | 1 |
 | `packages/core/src/runtime/region-endpoint-url.ts` | `(module)` | `searchParams('exp')` | 1 |
 | `packages/core/src/runtime/region-endpoint-url.ts` | `deny_of` | `headers.get('x-ogygia-deny')` | 1 |
@@ -81,6 +82,7 @@ its pull request says why it is safe (or which INVARIANTS.md section covers it).
 | `packages/devtools/src/profiler/index.ts` | `#router` | `searchParams('by')` | 1 |
 | `packages/devtools/src/profiler/index.ts` | `#router` | `searchParams('next')` | 1 |
 | `packages/devtools/src/profiler/index.ts` | `#router` | `searchParams(LOGIN_FAILED_PARAM)` | 1 |
+| `packages/devtools/src/profiler/index.ts` | `#run_page` | `headers.get('sec-fetch-site')` | 1 |
 | `packages/devtools/src/profiler/index.ts` | `#site` | `searchParams('from')` | 1 |
 | `packages/devtools/src/profiler/index.ts` | `#source` | `searchParams('l')` | 1 |
 | `packages/devtools/src/profiler/index.ts` | `#source` | `searchParams('p')` | 1 |
@@ -117,12 +119,13 @@ its pull request says why it is safe (or which INVARIANTS.md section covers it).
 | `packages/insights/src/page-assets.ts` | `weigh_one` | `headers.get('content-encoding')` | 1 |
 | `packages/insights/src/page-assets.ts` | `weigh_one` | `headers.get('content-length')` | 1 |
 | `packages/insights/src/page-assets.ts` | `weigh_one` | `headers.get('vary')` | 1 |
-| `packages/postrender/src/server.ts` | `(module)` | `headers.get('cache-control')` | 1 |
 | `packages/postrender/src/server.ts` | `(module)` | `headers.get('content-type')` | 1 |
 | `packages/postrender/src/server.ts` | `(module)` | `headers.get('if-modified-since')` | 1 |
 | `packages/postrender/src/server.ts` | `(module)` | `headers.get('if-none-match')` | 1 |
 | `packages/postrender/src/server.ts` | `(module)` | `headers.get('location')` | 1 |
-| `packages/postrender/src/server.ts` | `dev_postrender_note` | `headers.get('content-type')` | 1 |
+| `packages/postrender/src/server.ts` | `refusal` | `headers.get('cache-control')` | 1 |
+| `packages/postrender/src/server.ts` | `refusal` | `headers.get('content-type')` | 1 |
+| `packages/postrender/src/server.ts` | `refusal` | `headers.get('location')` | 1 |
 | `packages/postrender/src/server.ts` | `stamp_no_store` | `headers.get('cache-control')` | 1 |
 | `packages/postrender/src/server.ts` | `stamp_no_store` | `headers.get('content-type')` | 1 |
 | `packages/router/src/client-api.ts` | `api` | `headers.get('content-type')` | 1 |

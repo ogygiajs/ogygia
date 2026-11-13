@@ -3018,7 +3018,13 @@ class Profiler {
 				});
 			const target = new URL(ctx.url);
 			target.searchParams.delete(AFTER_LOGIN_PARAM);
-			const next = encodeURIComponent(target.pathname + target.search);
+			// (the browser goes to `next` with a GET: a state change is a POST only, so its `next` is
+			// the dashboard; test: profiler-login-guard › where it goes after)
+			const next = encodeURIComponent(
+				ctx.request.method === 'GET' || ctx.request.method === 'HEAD'
+					? target.pathname + target.search
+					: this.base
+			);
 			// Right after a successful login: not the login page again (a loop), the login page WITH the
 			// diagnosis.
 			return ctx.redirect(
@@ -4726,11 +4732,18 @@ class Profiler {
 			}
 			against += ch;
 		}
+		// The page starts its run on its own only when the visitor came from the profiler's own pages,
+		// or typed the address: a link from another site opens it waiting for a click, since the run
+		// changes the profiler's state (#1168; test: profiler-session › opened from another site, the
+		// run waits for a click)
+		const site = ctx.request.headers.get('sec-fetch-site');
+		const start = site === null || site === 'same-origin' || site === 'none';
 		return {
 			base: this.base,
 			path,
 			runs,
 			format,
+			start,
 			...(against && against.length <= 32 ? { against } : {})
 		};
 	}
@@ -7074,8 +7087,9 @@ class Profiler {
 				? resolve(event, {
 						transformPageChunk: ({ html }) => {
 							// no regex per chunk: the head's close by search (lowercase first, the rare uppercase after)
+							// markup-ok: Kit's document, located as core's document-assembly.ts does (#1410)
 							let at = html.indexOf('</head>');
-							if (at === -1) at = html.indexOf('</HEAD>');
+							if (at === -1) at = html.indexOf('</HEAD>'); // markup-ok: as above (#1410)
 							return at === -1 ? html : html.slice(0, at) + beacon_tag + html.slice(at);
 						}
 					})
