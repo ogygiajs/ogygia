@@ -894,6 +894,9 @@ importers:
       '@ogygia/flags':
         specifier: workspace:*
         version: link:../../../packages/flags
+      '@ogygia/page-keys':
+        specifier: workspace:*
+        version: link:../../../packages/page-keys
       '@ogygia/postrender':
         specifier: workspace:*
         version: link:../../../packages/postrender
@@ -1881,6 +1884,9 @@ importers:
       '@ogygia/flags':
         specifier: workspace:*
         version: link:../flags
+      '@ogygia/page-keys':
+        specifier: workspace:*
+        version: link:../page-keys
       '@ogygia/router':
         specifier: workspace:*
         version: link:../router
