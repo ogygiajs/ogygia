@@ -16,7 +16,6 @@ import {
 	hasAnyCsrTrueRoute,
 	clean_stale_ogygia_dirs,
 	is_route_component,
-	kit_dirs,
 	type FileEvent
 } from './kit.ts';
 import { run_module_macros } from './macros/pipeline.ts';
@@ -316,10 +315,17 @@ export class Compiler implements CoreApp {
 	 * dropped for its edit (every hole answered 403 until a restart), the runtime entry chosen before
 	 * a page's first `idle` region (it never woke: test/dev-regions-reload.test.ts), and the wire
 	 * loaders, Kit's codecs and the router CSS roots read before a file's facts changed
-	 * (test/dev-scan-facts.test.ts).
+	 * (test/dev-scan-facts.test.ts). A registry module a load answered null while no host held it is
+	 * named once a host registers it.
 	 */
 	moved(): string[] {
-		return this.#virtuals.moved();
+		const out = this.#virtuals.moved();
+		for (const id of this.#unanswered)
+			if (this.program.registry.has(id)) {
+				this.#unanswered.delete(id);
+				out.push(id);
+			}
+		return out;
 	}
 
 	/** Register a transform's regions; in dev, note whether that moved what `regions` readers read. */
@@ -406,7 +412,7 @@ export class Compiler implements CoreApp {
 	}
 	/** The app's Kit routes directory (a virtual module that reads it reloads on a route change). */
 	routes_dir(): string {
-		return kit_dirs(this.#ctx.root).routes_dir;
+		return this.#ctx.kit_dirs.routes_dir;
 	}
 	/** The plugins listed beside `ogygia()`. */
 	plugins(): CorePlugins {
@@ -479,7 +485,7 @@ export class Compiler implements CoreApp {
 		link_override: boolean | undefined
 	): { link_virtual: boolean; route_csr: boolean | undefined; key: string } {
 		const ctx = this.#ctx;
-		const routesDir = kit_dirs(ctx.root).routes_dir;
+		const routesDir = ctx.kit_dirs.routes_dir;
 		const is_layout_host = is_route_component(path.basename(id), 'layout');
 		const link_virtual =
 			link_override !== undefined
@@ -916,7 +922,7 @@ export class Compiler implements CoreApp {
 	 * sorted, existing source files only.
 	 */
 	island_scan_entries(): string[] {
-		const { registry, region_kinds } = this.program;
+		const { registry } = this.program;
 		const out = new Set<string>();
 		const add = (p: string | null | undefined) => {
 			if (!p) return;
@@ -926,7 +932,6 @@ export class Compiler implements CoreApp {
 		};
 		for (const entry of registry.values()) {
 			if (entry.role !== 'entry' || entry.server) continue;
-			if (region_kinds.get(entry.id) !== 'hydrate') continue;
 			add(entry.componentPath);
 			add(entry.hostPath);
 		}
@@ -1174,8 +1179,12 @@ export class Compiler implements CoreApp {
 			}
 			return src;
 		}
+		if (ctx.is_dev && this.#virtuals.claims(id)) this.#unanswered.add(id);
 		return null;
 	}
+
+	/** DEV: the registry's modules a load answered null for while no host held them (`moved`). */
+	readonly #unanswered = new Set<string>();
 
 	/**
 	 * Resolve an ogygia-owned import id: the virtual-module vocabulary (config/manifest virtuals + FOUC
@@ -1313,8 +1322,8 @@ export class Compiler implements CoreApp {
 	 *  csr=true route (Kit can hydrate that layout: a csr=true child page, or an error render). */
 	#links_client_stub(importer: string): boolean {
 		const importer_abs = strip_id(importer);
-		const { root, routes } = this.#ctx;
-		const routes_dir = kit_dirs(root).routes_dir;
+		const { routes } = this.#ctx;
+		const routes_dir = this.#ctx.kit_dirs.routes_dir;
 		if (!importer_abs.startsWith(routes_dir + path.sep)) return false;
 		const base = path.basename(importer_abs);
 		if (is_route_component(base, 'layout'))
@@ -1327,8 +1336,8 @@ export class Compiler implements CoreApp {
 	/** A csr=false route host file: a page or layout component, or its option module. */
 	#is_csr_false_route_host(importer: string): boolean {
 		const importer_abs = strip_id(importer);
-		const { root, routes } = this.#ctx;
-		const routes_dir = kit_dirs(root).routes_dir;
+		const { routes } = this.#ctx;
+		const routes_dir = this.#ctx.kit_dirs.routes_dir;
 		if (!importer_abs.startsWith(routes_dir + path.sep)) return false;
 		const base = path.basename(importer_abs);
 		if (is_route_component(base, 'page') || is_route_component(base, 'layout'))

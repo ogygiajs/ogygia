@@ -13,18 +13,10 @@
 import { test, check, sleep } from '@ogygia/tooling/e2e';
 import type { Page } from '@playwright/test';
 
-// Kit's entry, held back so the runtime boots first, as it does on a slow device: on a fast one
-// Kit's start can win the race and remount before the runtime sees the lakes at all (#1561).
-const KIT_ENTRY_RE = /\/_app\/immutable\/entry\/(start|app)\.[^/]+\.js$/;
-
 type Xw = { connect: number; disconnect: number; construct: number };
 const xw = (page: Page) => page.evaluate(() => (window as unknown as { __xw: Xw }).__xw);
 
 async function open_kit(page: Page, query = '') {
-	await page.route(KIT_ENTRY_RE, async (route) => {
-		await sleep(400);
-		await route.continue();
-	});
 	await page.goto(`/bench-cms/kit/${query}`, { waitUntil: 'networkidle' });
 	await sleep(300);
 }

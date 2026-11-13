@@ -1,15 +1,3 @@
-/**
- * THE HYDRATE CORE — everything an island needs only at the moment it hydrates: Svelte's
- * `hydrate`/`unmount`, the "inside an island" context, the devalue props parse, the page seed, the
- * DEV props guard. Loaded LAZILY by the region element on its first `#hydrate` (one dynamic
- * import, shared by every island), so a page whose islands all wake on `visible` or `interaction`
- * boots the runtime WITHOUT fetching Svelte's client runtime — that arrives with the first island
- * that actually wakes, together with the island's own chunk. The always-on core (`core.ts`) keeps
- * only what every region needs at connect: the schedule, the observers, the hole fetch.
- *
- * Stateless towards the element: the element owns its handle (`IslandHandle`) and its flags; this
- * module owns the how.
- */
 import { hydrate, unmount, type Component } from 'svelte';
 import { set_current_region, set_foreign_hydrate } from '../current-region.ts';
 import { capture_region_ids } from './region-ids.ts';
@@ -28,42 +16,28 @@ import { warn } from '../messages/lazy.ts';
 import { OG_FP, OG_HEALED, OG_RECOVERED, OGYGIA_KEEP } from '../wire-markup.ts';
 import { say } from '@ogygia/machine';
 
-// The page's seeds, through their features' slots (`page`, `remote-seeds`: hydrate phase, installed
-// below). Exported for core: an answer's page facts join the page store at once once islands are
-// awake, and every wake seeds before its turn. A no-op in an app whose islands never read their page.
 export const seed_page_once = (): void => slots.page?.seed_page_once();
 export const seed_remote_once = (): void => slots.remoteSeeds?.seed_once();
-// For core's wake paths: observing Kit's reactive page needs Svelte, so the wait lives in this lazy
-// chunk's phase, never in the boot's static graph (see core.ts `hydrate_core`).
 export const kit_page_thread = (signal: AbortSignal): Promise<unknown> | null =>
 	slots.page?.kit_page_thread(signal) ?? null;
 
-// The HYDRATE-phase features (context, live, wire, remote-seeds — as the app's marks select them;
-// link/runtime-entry.ts) install as this chunk evaluates: before any island below can hydrate, and
-// without ever joining the boot. They ride this chunk's one `import()`, sized by the same marks.
 install_hydrate_features();
 
-// The boot helpers this chunk uses, handed over through the registry — it never imports a boot
-// module (./slots.ts `BootLink`: a module both import is split out of the runtime chunk).
 const kit_hydrates_page = () => boot_link().kit_hydrates_page();
 const props_sidecar_of = (region: Element) => boot_link().props_sidecar_of(region);
-// (the region's own server copy: the page's HTML, ./html-sink.ts `vouch_page_html`)
 const parse_own_html = (html: string) =>
 	boot_link().parse_region_html(boot_link().vouch_page_html(html));
 const set_own_inner_html = (el: Element, html: string) =>
 	boot_link().set_inner_html(el, boot_link().vouch_page_html(html));
-// DOM ownership (./ownership.ts), through the registry like every boot helper
 const walk_enters = (el: Element) => boot_link().walk_enters(el);
 const is_self_owned = (el: Element) => boot_link().is_self_owned(el);
 
-// DEVTOOLS gate — module-local const from the Vite `define` (proven DCE pattern); off → folds out.
 const DEVTOOLS = typeof __OGYGIA_DEVTOOLS__ !== 'undefined' ? __OGYGIA_DEVTOOLS__ : false;
 const HOOK_REGION_MISMATCHED =
 	typeof __OGYGIA_HOOK_REGION_MISMATCHED__ !== 'undefined'
 		? __OGYGIA_HOOK_REGION_MISMATCHED__
 		: true;
 
-/** The morph target for hydration repair: the server sequence Svelte's walk binds — see `repair_markup`. */
 const REPAIR_MORPH = { target: 'walk' } as const;
 
 /** A hydrated island as the element holds it: how to tear it down, and (keep / live hosts) how to
@@ -86,15 +60,6 @@ export type IslandModule = {
 	__og_unmount?: (app: unknown) => void;
 };
 
-/** The hydration ENVELOPE: `hydrate()` anchors on a top-level `<!--[-->` comment, then walks the
- *  component's own nodes. Every server shape carries it — a placed island's dynamic-component pair
- *  (Region.svelte), `render()`'s root pair (a hole's answer, a live region) — so this only adds one
- *  to markup that has none. Idempotent: the second attempt after a failed first one finds it.
- *
- *  A placed island an EARLIER build rendered (a hole's answer from a server still on it, mid rolling
- *  deploy) carries one pair more: its host's `{#if}` branch (`<!--[0-->`) around the component's
- *  pair. That outer pair goes, so the component's own is the envelope and the island is adopted
- *  instead of re-rendered. */
 function ensure_envelope(region: Element): void {
 	if (has_envelope(region)) return;
 	const first = region.firstChild;
@@ -122,7 +87,6 @@ function has_envelope(region: Element): boolean {
 	return !!first && first.nodeType === 8 && (first as Comment).data === '[';
 }
 
-/** Set the first time {@link neutralize_head_hydration_markers} runs on this document (once per page). */
 let head_markers_neutralized = false;
 
 /**
@@ -166,55 +130,29 @@ export function neutralize_head_hydration_markers(): void {
 	let pending_open: Comment | null = null;
 	const to_remove: Comment[] = [];
 	for (let n = head.firstChild; n; n = n.nextSibling) {
-		if (n.nodeType !== 8) continue; // COMMENT_NODE
+		if (n.nodeType !== 8) continue;
 		const data = (n as Comment).data;
 		if (data[0] === '[') {
-			depth++; // block open: `[`, `[!`, `[?`
+			depth++;
 			continue;
 		}
 		if (data === ']') {
-			if (depth > 0) depth--; // block close
+			if (depth > 0) depth--;
 			continue;
 		}
-		if (depth !== 0) continue; // an anchor inside a block — head-block CONTENT, never a marker
+		if (depth !== 0) continue;
 		if (data === '') {
-			// A top-level empty comment closes the current head block, confirming its HASH open.
 			if (pending_open) {
 				to_remove.push(pending_open);
 				pending_open = null;
 			}
 		} else {
-			// A top-level non-bracket, non-empty comment is a head-block HASH open (svelte/internal/server
-			// head() emits `<!--HASH-->`). Held until its block's empty close confirms it.
 			pending_open = n as Comment;
 		}
 	}
 	for (const m of to_remove) m.remove();
 }
 
-/**
- * REPAIR the island's light DOM toward its server markup, keeping every element it still has.
- *
- * Svelte's walk cares about the node SEQUENCE (elements, text, comments), never about attributes.
- * The edits sleeping islands actually receive keep the element skeleton and touch what is between
- * the elements: a design-system runtime strips the whitespace text nodes, an A/B tool leaves a
- * comment. So: match the live elements to the server markup's elements one to one (same count,
- * same tags, recursively), and rebuild only the text and comment nodes around them from the server
- * copy. No element is created, so no upgraded custom element reacts — the design-system element
- * that re-strips the island on every connect (measured on a customer deploy) is left exactly where
- * it is, and the walk that follows sees the server's sequence.
- *
- * Only when the element skeleton itself differs (an element removed or added) does the repair fall
- * to the morph (existing nodes still keep their identity where the morph can match them), or to a
- * plain `innerHTML` swap where the runtime has no morph. Those paths may re-create an element, and
- * a re-created element may react once more; the second attempt tells.
- *
- * The morph runs in its STRICT contract here ({@link REPAIR_MORPH}): the target is the server's node
- * sequence, exactly. The live morph's "a self-owned element keeps the children it gave itself" rule is
- * right for a hole re-answer, but in a repair it is the residue that breaks the walk — a node a
- * web-component runtime added inside a nested custom element is exactly what Svelte's cursor then
- * lands on (`getAttribute is not a function`), and the island discards.
- */
 function repair_markup(region: HTMLElement, want: Element): void {
 	if (align_to(region, want)) return;
 	const nodes = Array.from(want.childNodes);
@@ -245,15 +183,12 @@ export function sequence_differs(live: Node, want: Node): boolean {
 		if (x.nodeType !== y.nodeType) return true;
 		if (x.nodeType === 1) {
 			if ((x as Element).tagName !== (y as Element).tagName) return true;
-			// Svelte's walk counts an element it does not enter as ONE sibling (ownership.ts): an
-			// `{@html}` / static / kept / slot subtree, or a hydrated region, may hold anything.
 			if (walk_enters(x as Element) && sequence_differs(x, y)) return true;
 		} else if (x.nodeValue !== y.nodeValue) return true;
 	}
 	return false;
 }
 
-/** Any non-whitespace char? A char-code scan, not `/\S/` — this walks on every drift check. */
 function has_non_ws(s: string | null): boolean {
 	if (!s) return false;
 	for (let i = 0; i < s.length; i++) {
@@ -263,7 +198,6 @@ function has_non_ws(s: string | null): boolean {
 	return false;
 }
 
-/** A short label for a node in a divergence message: the tag for an element, else its kind. */
 function node_label(n: Node): string {
 	if (n.nodeType === 1) return `<${(n as Element).tagName.toLowerCase()}>`;
 	if (n.nodeType === 3) return has_non_ws(n.nodeValue) ? 'a text node' : 'whitespace';
@@ -271,11 +205,6 @@ function node_label(n: Node): string {
 	return 'a node';
 }
 
-/** A guess at WHAT left a foreign node in the region's light DOM, read off the node's shape — the
- *  tell-tales of the passes that reshape a region between SSR and wake: a scoped-CSS or web-component
- *  runtime, a declarative-shadow-DOM injector, a whitespace normalizer. Names the observable evidence
- *  (a tag, an attribute pattern), never a specific tool. The "why" a recovery is otherwise silent
- *  about; empty when nothing recognizable. */
 function culprit_hint(n: Node): string {
 	if (n.nodeType !== 1) return '';
 	const el = n as Element;
@@ -291,16 +220,10 @@ function culprit_hint(n: Node): string {
 	return '';
 }
 
-/** Describe the FIRST place the live light DOM diverges from `want` (the server copy) — the specific
- *  reason an island drifted, for the DEV console + devtools (never a bare "it was recovered"). Mirrors
- *  {@link sequence_differs}' walk exactly, so it names the divergence that trips the repair. `null`
- *  when the sequences match. DEV / devtools only — prod DCEs the call site, so this never runs there. */
 function describe_divergence(live: Node, want: Node, where = 'the island'): string | null {
 	const a = live.childNodes;
 	const b = want.childNodes;
 	if (a.length !== b.length) {
-		// Find the FIRST position the two sequences diverge (an insertion/removal can be anywhere, not
-		// just the tail): the node there in the longer list is what was added / dropped.
 		const longer = a.length > b.length ? a : b;
 		const shorter = a.length > b.length ? b : a;
 		let i = 0;
@@ -326,7 +249,7 @@ function describe_divergence(live: Node, want: Node, where = 'the island'): stri
 		)
 			return `${where}: the server sent ${node_label(y)} but the browser had ${node_label(x)}${culprit_hint(x)}`;
 		if (x.nodeType === 1) {
-			if (!walk_enters(x as Element)) continue; // never entered: see sequence_differs
+			if (!walk_enters(x as Element)) continue;
 			const deeper = describe_divergence(x, y, node_label(x));
 			if (deeper) return deeper;
 		} else if (x.nodeValue !== y.nodeValue) {
@@ -336,8 +259,6 @@ function describe_divergence(live: Node, want: Node, where = 'the island'): stri
 	return null;
 }
 
-/** The element of the first ownership conflict the current repair met (DEV / devtools read it:
- *  `ownership_conflict`), or `null`. */
 let conflict: string | null = null;
 function note_conflict(el: Element): void {
 	conflict ??= node_label(el);
@@ -354,23 +275,11 @@ export function repair_if_drifted(
 	region: HTMLElement,
 	ssr_html: string
 ): { repaired: boolean; reason: string | null; conflict: string | null } {
-	// Parse through the ONE DSD-aware parser (html-sink.ts): the content stays inert (a template's
-	// content never upgrades — attaching a declarative shadow root is a parse step, not an upgrade), but
-	// a `<template shadowrootmode>` in the copy is consumed into a shadow root instead of lingering as an
-	// inert light-DOM child. That keeps `want`'s light-DOM sequence consistent with a live region whose
-	// hosts already carry shadow roots, so a server copy that happens to carry DSD can't trip
-	// sequence_differs. Today ssr_html is the region's own live innerHTML (never serialises a shadow), so
-	// this is belt-and-braces — but it means there is no second, DSD-unaware parse to drift.
 	const content = parse_own_html(ssr_html);
-	// The copy under a region of its own — in the parse fragment's inert document, so the element never
-	// upgrades — lifted by the very routine that lifted the live island (what it leaves in a lake, it
-	// leaves in both).
 	const want = content.ownerDocument.createElement('ogygia-region');
 	want.appendChild(content);
 	slots.lakes.lift(want);
 	if (!sequence_differs(region, want)) return { repaired: false, reason: null, conflict: null };
-	// Name the drift BEFORE repairing (repair rewrites the live sequence). The string is read only by
-	// the DEV console + devtools, so a prod-without-devtools build skips building it (the walk DCEs).
 	const reason =
 		import.meta.env.DEV || DEVTOOLS || (HOOK_REGION_MISMATCHED && slots.hooks?.regionMismatched)
 			? describe_divergence(region, want)
@@ -382,8 +291,6 @@ export function repair_if_drifted(
 	return { repaired: true, reason, conflict: met };
 }
 
-/** Make `live`'s child sequence the server's (`want`), keeping `live`'s elements. `false` when the
- *  element skeleton differs (no changes made at that level). */
 function align_to(live: Element, want: Element | DocumentFragment): boolean {
 	const live_elements = element_children(live);
 	const want_elements = element_children(want);
@@ -391,25 +298,16 @@ function align_to(live: Element, want: Element | DocumentFragment): boolean {
 	for (let i = 0; i < live_elements.length; i++) {
 		if (live_elements[i].tagName !== want_elements[i].tagName) return false;
 	}
-	// Children first: a subtree the server sent differently in its elements is the morph's, and the
-	// morph must see that subtree untouched by this level's rebuild. A child Svelte's walk never
-	// enters (ownership.ts — `{@html}`, static, kept, a slot, a hydrated region) is left exactly as it
-	// is: nothing reads its inside, and it may be a widget's own light DOM.
 	for (let i = 0; i < live_elements.length; i++) {
 		const child = live_elements[i];
 		if (!walk_enters(child)) continue;
 		if (!align_to(child, want_elements[i])) {
-			// A self-owned element (an upgraded web component) whose children no longer match what the
-			// server sent, in a position Svelte's walk reads: its own nodes have to go, or the walk lands
-			// on them. That is a real conflict between two owners — name it, don't hide it.
 			if (is_self_owned(child)) note_conflict(child);
 			const morph = slots.morph;
 			if (morph) morph(child, Array.from(want_elements[i].childNodes), REPAIR_MORPH);
 			else set_own_inner_html(child, (want_elements[i] as Element).innerHTML);
 		}
 	}
-	// This level: drop every live text / comment node, then put the server's back around the
-	// (untouched) elements, in the server's order.
 	for (const node of Array.from(live.childNodes)) if (node.nodeType !== 1) node.remove();
 	let next = 0;
 	for (const node of Array.from(want.childNodes)) {
@@ -429,10 +327,6 @@ function element_children(node: Node): Element[] {
 	return out;
 }
 
-/** Svelte's own line from inside its hydrate catch, printed BEFORE it throws `hydration_failed`
- *  to us. A speculative attempt (recovery off) is ours to report — healed, or handed to Svelte's
- *  recovery, which prints its own line then. Swallow exactly this message for the synchronous
- *  duration of such an attempt, nothing else. */
 const SVELTE_FAILED_TO_HYDRATE = 'Failed to hydrate';
 function quietly<T>(fn: () => T): T {
 	const warn = console.warn;
@@ -452,9 +346,6 @@ export function is_foreign_entry(entry: string): boolean {
 	return boot_link().ABSOLUTE_URL_SCHEME.test(entry) && new URL(entry).origin !== location.origin;
 }
 
-// The devalue revivers only depend on `slots.wire`, which is set once at boot and never changes.
-// Building this object (plus its two closures) fresh for every island was pure per-hydrate GC churn;
-// memoize it against the wire identity so N islands share ONE revivers object.
 let cached_wire: (typeof slots)['wire'] | undefined;
 let cached_revivers: Record<string, (d: never) => unknown> | undefined;
 function region_prop_revivers(): Record<string, (d: never) => unknown> | undefined {
@@ -464,10 +355,6 @@ function region_prop_revivers(): Record<string, (d: never) => unknown> | undefin
 	cached_revivers = wire
 		? { [wire.REF_WIRE_KEY]: (d: never) => wire.resolve(d, true) }
 		: {
-				// Insurance against a feature-detection miss: the server encoded a wired value but this
-				// build's runtime omitted the wire feature. Say so instead of devalue's bare "Unknown
-				// type OgygiaRef" — the opaque form cost a real debugging session (the factory-registry
-				// placement the detector used to miss). Short on purpose: this string ships in core.
 				OgygiaRef: () => {
 					throw new Error(
 						'wired prop but no wire feature in this build — ogygia detection bug, please report'
@@ -499,11 +386,6 @@ export function read_region_props(
 ): Record<string, unknown> {
 	if (!sidecar) return {};
 	const base = foreign ? foreign_region_prop_revivers() : region_prop_revivers();
-	// A foreign fragment never carries seed references (its props are self-contained by
-	// construction); a local island's may point into the seed of the document the sidecar came
-	// from — the live page store, or a navigation's incoming document (runtime/seeds.ts). The seed
-	// element is resolved once per read, lazily, by the reviver. References only exist where a seed
-	// ships, i.e. where an island reads its page — the `page` feature's build.
 	const doc = sidecar.ownerDocument;
 	const page = slots.page;
 	const revivers =
@@ -513,12 +395,6 @@ export function read_region_props(
 	return parse_sidecar_text(sidecar, revivers) as Record<string, unknown>;
 }
 
-/**
- * DEV-ONLY props mutation guard. Island props cross the boundary as a serialized devalue snapshot
- * of the host — or, for a seed REFERENCE, as the page seed's own node, shared by reference with
- * `page.data` and every other island that references it. Writing to either inside the island is a
- * bug: the snapshot updates nothing, the reference leaks into page.data.
- */
 class PropMutationGuard {
 	readonly #warned = say();
 
@@ -567,14 +443,6 @@ class PropMutationGuard {
 		if (value instanceof Map)
 			return this.#guard_map(value as Map<unknown, unknown>, entry, prop_path);
 		if (value instanceof Set) return this.#guard_set(value as Set<unknown>, entry, prop_path);
-		if (value instanceof Date || value instanceof RegExp || value instanceof URL) return value;
-		// A class INSTANCE must never be wrapped. A wired live object (e.g. a `Cart` whose `$state`
-		// fields Svelte compiles to private `#fields`) breaks under a Proxy: private-field access and
-		// `this`-dependent getters/methods run against the proxy, not the real instance, and throw
-		// ("cannot read private member … from an object whose class did not declare it"). The guard
-		// only needs to catch mutation of captured SNAPSHOT props, which are always plain data —
-		// devalue serializes exactly plain objects, arrays, Map/Set/Date. So guard those; pass class
-		// instances (the intentionally-live wired objects) straight through.
 		const proto = Object.getPrototypeOf(value);
 		if (!Array.isArray(value) && proto !== Object.prototype && proto !== null) return value;
 		return new Proxy(value as Record<string | symbol, unknown>, {
@@ -613,17 +481,15 @@ class PropMutationGuard {
 	}
 }
 
-// Made only in dev: a production build never references the class, so the bundler drops it.
 const dev_guard = import.meta.env?.DEV ? new PropMutationGuard() : null;
 const prop_guard = {
 	wrap: (props: Record<string, unknown>, entry: string): Record<string, unknown> =>
 		dev_guard ? dev_guard.wrap(props, entry) : props
 };
 
-/** Svelte's `unmount`, typed for the opaque app this module hands around. */
-const unmount_app = (app: unknown) => void unmount(app as Record<string, unknown>); // ok: unmount's promise is its outros ending; it never rejects
+// oxlint-disable-next-line ogygia/no-silent-failures -- unmount's promise is its outros ending; it never rejects
+const unmount_app = (app: unknown) => void unmount(app as Record<string, unknown>);
 
-/** A handle over a mounted Svelte app: dispose unmounts, `set_props` pushes into its pushable props. */
 function handle(
 	app: unknown,
 	dispose_with: (app: unknown) => void,
@@ -635,7 +501,6 @@ function handle(
 			try {
 				dispose_with(app);
 			} catch (error) {
-				// (the island goes either way; an onDestroy of its that threw is the app's, and said)
 				report_thrown(error);
 			}
 		}
@@ -654,33 +519,17 @@ export function hydrate_island(
 	region: HTMLElement,
 	entry: string,
 	mod: IslandModule,
-	/** The island's server markup as it connected (core.ts) — the HYDRATION SOURCE OF TRUTH. When
-	 *  the live DOM drifted from it while the island slept, hydration is retried against it before
-	 *  any client render. `null` = no copy (a huge island, an older path): Svelte's own recovery. */
 	ssr_html: string | null = null,
-	/** Was the island's markup touched since that copy (runtime/drift-watch.ts, read by the element
-	 *  before this step edits it)? `false` skips the comparison: nothing could have drifted. */
 	touched = true
 ): IslandHandle | null {
-	// Seed SSR-resolved remote queries + document page snapshot once before hydrate.
 	seed_remote_once();
 	seed_page_once();
 	const Component = mod.default;
 
-	// FOREIGN origin (fragment federation)? Decided from the ENTRY alone — a foreign island's props
-	// must parse plain (membrane) whether or not its module carries the hydrate contract.
 	const foreign = is_foreign_entry(entry);
 
-	// R3 ownership: capture which page hub ids this island resolves from its props, so a reconcile
-	// nav can dispose exactly this region's ids if it is later removed.
 	const props = capture_region_ids(region, () => read_region_props(region, foreign));
 
-	// Mixed mode: on a csr=true page Kit already hydrates this component — skip. EXCEPT what Kit
-	// never sees (`ours_on_kit_document`): a deferred region (its HTML was FETCHED after load and
-	// swapped in, never part of Kit's SSR tree — connectedCallback carries the same exception for
-	// the fetch phase), a region INSIDE A LAKE (the lake wrapper adopts its SSR element under Kit
-	// as opaque DOM), and a region INSIDE A HOLE'S FETCHED ANSWER (an island a server island
-	// carries — a personal, interactive menu — that Kit could never hydrate). Those are ours.
 	if (kit_hydrates_page() && !ours_on_kit_document(region)) {
 		region.setAttribute('data-kit-hydrated', '');
 		if (import.meta.env.DEV) {
@@ -689,53 +538,15 @@ export function hydrate_island(
 		return null;
 	}
 
-	// csr=false document: this island (and every one after it) hydrates in isolation against the ONE
-	// shared document.head, so make its `<svelte:head>` hydration safe before any head effect runs.
-	// Guarded to a non-Kit document — a csr=true page's head is Kit's to hydrate, untouched. See
-	// neutralize_head_hydration_markers. (`ours_on_kit_document` islands on a csr=true page reach here
-	// too, but Kit has long finished its head pass by the time a fetched hole/lake wakes; still, we
-	// only run this where Kit does NOT own the page.)
 	if (!kit_hydrates_page() && !head_markers_neutralized) {
 		head_markers_neutralized = true;
 		neutralize_head_hydration_markers();
 	}
 
-	// INVALID-NESTING GUARD: the browser parser hoists a BLOCK island rendered inline inside a
-	// `<p>` out of its region before any JS runs (see region_ssr_truncated). The region is now
-	// empty, so the hydrate below fresh-mounts a SECOND copy while the server copy lingers as an
-	// orphan sibling of the paragraph. This is invalid HTML the framework cannot un-parse — warn
-	// loudly (dev) instead of silently duplicating; the real fix lives in authoring (render an
-	// inline element, or place the island in block context).
 	if (import.meta.env.DEV && !is_deferred(region) && region_ssr_truncated(region)) {
 		warn('island_block_in_inline', { entry });
 	}
 
-	// BOX-STABILITY THROUGH WAKE needs NOTHING here, and ogygia must not touch the region's box. This
-	// whole step — lake lift, repair, Svelte's claim (or its recovery re-render), lake restore — is ONE
-	// synchronous task: the browser cannot paint between the detach and the re-attach, so no frame ever
-	// shows the region empty (test/browser/region-hydrate-no-shift.test.ts samples every frame). A
-	// former "hold" set the region to `display:block` + a `min-height` for one painted frame to guard
-	// against that non-existent frame; the style flip itself re-laid-out the region under the page's
-	// CSS (an inline region is block-in-inline; block changes its children's containing block and
-	// anonymous boxes) and cost a customer hero a 0.69 layout shift, plus a forced layout per island.
-
-	// THE HYDRATION SOURCE OF TRUTH is the island's server markup, not whatever the live DOM is
-	// now. An island can sleep for a long time (`visible`, `interaction`), and other scripts edit
-	// the page meanwhile — a design-system runtime stripping whitespace text nodes while it
-	// "hydrates" the header around it, an A/B tool, a translator. Svelte's walk then meets a
-	// different node sequence and, left to itself, throws the server DOM away and re-renders the
-	// island client-side: a flash, DSD/foreign content destroyed, and the tap that woke the
-	// island replayed onto a discarded node (a login dropdown needed two clicks). So, BEFORE the
-	// walk runs (see sequence_differs for why before), the live sequence is compared with the
-	// server's and put back when it drifted; the walk then sees the server's sequence. Measured
-	// on what the walk sees: the lakes lifted (repair_if_drifted empties the copy's the same way).
-	// The head as it stands before this island renders into it: whatever the hydrate adds is the
-	// island's own (runtime/session.ts — who owns each node in <head>). The step is synchronous, so
-	// nothing else writes the head in between.
-	// (noted as it happens, not by copying the head: a copy per island grew as islands × head; only
-	// where the record is made, a non-Kit document — a csr=true page's head is Kit's)
-	// (made inside the try, so its observer always stops: the lift and the repair below touch only
-	// the region, never the head)
 	let head_mark: HeadMark | null = null;
 	let lifted: LiftedLake[] | null = slots.lakes.lift(region);
 	const drift =
@@ -746,64 +557,27 @@ export function hydrate_island(
 	try {
 		head_mark = kit_hydrates_page() ? null : boot_link().runtime_session.mark_head();
 		if (!region.isConnected) return null;
-		// FOREIGN-MUTATION DETECTOR (arm): a successful hydration CLAIMS the server-rendered nodes —
-		// they stay in the region. Svelte 5's mismatch recovery instead silently discards them and
-		// re-renders fresh, which reads as success here while the SSR content (and anything a
-		// post-SSR transform injected into it — declarative shadow DOM, A/B edits) is destroyed.
-		// Remember the SSR element children (post-lake-lift) so the check below can tell a claim
-		// from a recovery. See internal/notes/foreign-dom.md.
 		const ssr_children = Array.from(region.children);
 
-		// FOREIGN delegation (fragment federation): the entry came from another build/origin and
-		// exports its own `__og_hydrate` — envelope preparation belongs to the svelte that compiled
-		// the entry, so the consumer must not shape it.
 		const foreign_delegate = foreign && typeof mod.__og_hydrate === 'function';
 
-		// Foreign islands take RAW props: the dev mutation-guard proxy is THIS build's code running
-		// inside another build's render — harmless, but it's a wire, and we don't cross wires.
-		// (Plain data either way; the parse membrane already enforced that.)
 		const wrapped = foreign ? props : prop_guard.wrap(props, entry);
-		// Keep needs SPA navigation — a full-page load throws the DOM away, so there is nothing
-		// to relocate. Warn (dev) when the router is off on this page.
 		const keep = region.hasAttribute(OGYGIA_KEEP) && !!slots.Pushable;
 		if (keep && import.meta.env.DEV && !document.querySelector('meta[name="ogygia-router"]')) {
 			warn('keep_without_router', { entry, key: region.getAttribute(OGYGIA_KEEP) || '' });
 		}
 
-		/**
-		 * ONE hydrate attempt. `recover: false` makes Svelte THROW on a mismatch (`hydration_failed`)
-		 * instead of silently discarding the server DOM and re-rendering — that silent path is what
-		 * the self-heal below replaces; `recover: true` is that path, the last resort.
-		 *
-		 * The component itself is hydrated, no host around it: every server shape is the component's
-		 * nodes in one anchor pair (see ensure_envelope; a deferred answer carries `render()`'s own, so
-		 * it is never wrapped again). Its context marks it "inside a hydrated island", so any nested
-		 * island wrapper degrades to a plain inline component (one hydration, with this parent).
-		 */
 		const attempt = (recover: boolean): IslandHandle => {
 			if (!is_deferred(region) && !foreign_delegate) ensure_envelope(region);
 			set_current_region(region);
 			try {
 				if (foreign_delegate) {
-					// FOREIGN island: its module-level svelte state is not ours, so delegate the whole
-					// hydrate to the entry's own `__og_hydrate` (and remember its unmounter). No
-					// context capture — context deliberately does not cross a team
-					// boundary. FOREIGN PAGE READS: the `$app/state` shim inside this island reads the
-					// SHELL's page store (one singleton per document — the MFE's own seed never crosses
-					// the fragment boundary). Mark the hydrate so that shim can warn (dev) when the island
-					// reads page.data/params/route/form/error: its SSR HTML was rendered with the MFE's
-					// own load.
 					set_foreign_hydrate({ origin: new URL(entry).origin, entry });
 					const app = mod.__og_hydrate!(region, wrapped, recover ? undefined : { recover: false });
 					return handle(app, mod.__og_unmount ?? (() => {}), entry, null);
 				}
-				// Seed this island's context from any `<Provide>` above it in the DOM, so a child's plain
-				// `getContext('key')` reads a (csr=false) layout's context across the island-root split.
-				// Undefined when there is no provider above — the common case pays only a short DOM walk.
 				const provided_ctx = capture_region_ids(region, () => slots.context?.(region));
 				const recovery = recover ? {} : { recover: false as const };
-				// A KEPT island hydrates with pushable props, so that when it relocates onto the next
-				// page its props are pushed in reactively.
 				const pushed = keep ? new slots.Pushable!(wrapped) : null;
 				const app = hydrate(Component, {
 					target: region,
@@ -818,18 +592,9 @@ export function hydrate_island(
 			}
 		};
 
-		// The sequence is the server's now (repaired above when it had drifted, see there). So:
-		//   1. hydrate with recovery OFF — it matches by construction, a repaired island is healed;
-		//   2. only if that fails (the component itself threw, or the server copy was not enough),
-		//      let Svelte recover the way it always did, and the detector below reports the discard.
 		let out: IslandHandle;
 		let healed = false;
-		// What Svelte threw on the STRICT attempt. `quietly` hides Svelte's own "Failed to hydrate" log for
-		// that attempt by design, so without this the recovery warning below could never say WHY the
-		// walk failed — only that the pre-hydrate check saw drift, which repair may well have fixed.
 		let strict_error: unknown = null;
-		// (the plugins around Svelte's hydrate: @ogygia/reshape puts a web component's own class
-		// tokens back on its host, since Svelte's hydration writes `class` whole)
 		const after_hydrate = boot_link().region_hydrate(region);
 		try {
 			out = quietly(() => attempt(false));
@@ -840,8 +605,6 @@ export function hydrate_island(
 		}
 		after_hydrate?.();
 		if (healed) {
-			// The reason is the "why" — recorded on the element so DOM inspection shows it, carried on
-			// the devtools event, and appended to the console line. Empty string when unknown.
 			region.setAttribute(OG_HEALED, drift.reason || '');
 			if (DEVTOOLS)
 				dt_emit({
@@ -860,8 +623,6 @@ export function hydrate_island(
 			if (import.meta.env.DEV) warn('island_healed', { entry, drift: drift.reason });
 		}
 		if (drift.conflict) {
-			// Two owners wanted the same nodes (runtime/ownership.ts): the repair kept Svelte's walk
-			// working and removed what a web component added. Said out loud, with the way out.
 			if (DEVTOOLS)
 				dt_emit({
 					domain: 'runtime',
@@ -875,30 +636,15 @@ export function hydrate_island(
 			if (import.meta.env.DEV) warn('ownership_conflict', { element: drift.conflict }, entry);
 		}
 
-		// Restore each frozen region's SSR DOM AFTER hydrate. An inner waking region whose
-		// `<ogygia-region wake="…">` (re)connects then self-runs — the freeze made its subtree dead
-		// again, so the nearest-boundary rule wakes that inner region.
 		slots.lakes.restore(region, lifted);
-		lifted = null; // ownership transferred
+		lifted = null;
 
-		// Region was torn out during hydrate (SWR replaceChildren on an ancestor lake) — drop the
-		// orphan app.
 		if (!region.isConnected) {
 			out.dispose();
 			return null;
 		}
 
-		// FOREIGN-MUTATION DETECTOR (check): if EVERY SSR element child was discarded during hydrate,
-		// Svelte's silent mismatch recovery threw the server DOM away and re-rendered this island
-		// client-side. The usual cause is something mutating the region's HTML between SSR and wake —
-		// a post-SSR transform (`transformPageChunk`, a DSD-injecting middleware), an A/B tool, an
-		// edge rewriter. A legitimate claim keeps the nodes (a browser-only `{#if}` may drop SOME, so
-		// only zero survivors trips this).
 		if (ssr_children.length > 0 && !ssr_children.some((el) => region.contains(el))) {
-			// `drift.reason` is the specific first divergence captured at the pre-hydrate check (the DOM
-			// there was still the mutated one). Null when the sequences matched yet Svelte recovered
-			// anyway — a mismatch our walk does not see (an attribute, a Svelte-internal anchor) — then
-			// the general guidance below stands on its own.
 			region.setAttribute(OG_RECOVERED, drift.reason || '');
 			if (DEVTOOLS)
 				dt_emit({
@@ -926,17 +672,10 @@ export function hydrate_island(
 			});
 		}
 
-		// This island's `<svelte:head>` re-rendered fresh (neutralize_head_hydration_markers) next to
-		// the server's copy of the same content. Record what it added as ISLAND-owned — so no page-level
-		// head write ever removes it out from under Svelte — and retire the page's duplicate copies (the
-		// server's JSON-LD / meta / inline style / preload, and the page title once the island renders
-		// its own, reactive one). Only where that re-render path ran: a non-Kit document; a csr=true
-		// page's head is Kit's.
 		if (head_mark) boot_link().runtime_session.record_island_head(head_mark);
 		return out;
 	} finally {
 		head_mark?.stop();
-		// If hydrate threw after lift, put lake DOM back so the page isn't permanently blank.
 		if (lifted) slots.lakes.restore(region, lifted);
 	}
 }
@@ -963,8 +702,6 @@ export function hydrate_live(
 	const provided_ctx = capture_region_ids(region, () => slots.context?.(region));
 	const after_hydrate = boot_link().region_hydrate(region);
 	const pushed = new slots.Pushable(prop_guard.wrap(props, entry));
-	// (the region hydrating now: what its island reads while it hydrates is its own, e.g. the Kit
-	// queries it holds, shims/kit-remote/remote-cache.ts)
 	set_current_region(region);
 	let app: unknown;
 	try {

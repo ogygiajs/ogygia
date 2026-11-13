@@ -27,8 +27,8 @@ export const ANALYSES: readonly Analysis[] = [
 		name: 'seed_keys',
 		predicts: "the page.data keys an island's client code reads",
 		direction: 'over',
-		fallback: "'unknown' (the whole page.data ships; all of it without pageKeys())",
-		where: { file: 'page-keys/src/analysis.ts', symbol: 'page_data_keys_answer' },
+		fallback: "'unknown' (the whole page.data ships; all of it without dataShake())",
+		where: { file: 'data-shake/src/analysis.ts', symbol: 'page_data_keys_answer' },
 		gap: null
 	},
 	{

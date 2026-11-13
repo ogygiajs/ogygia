@@ -203,7 +203,7 @@
 		},
 		{
 			"site": "packages/compiler/src/vite/plugin-api.ts > check_plugins > throw:4",
-			"reason": "a config error, at config time: a plugin listed without a plugin it needs (postrender() without pageKeys())",
+			"reason": "a config error, at config time: a plugin listed without a plugin it needs (postrender() without dataShake())",
 			"test": "packages/compiler/test/plugins.test.ts",
 			"name": "a plugin that needs another fails the build while the app does not list it, naming the line to add"
 		},
@@ -222,7 +222,7 @@
 		{
 			"site": "packages/compiler/src/compiler/parse/roots.ts > parse_roots > catch:0",
 			"reason": "a component Svelte cannot parse: the analysis that asked gives up safely (seed shaping ships all)",
-			"test": "packages/page-keys/test/page-keys-summaries.test.ts",
+			"test": "packages/data-shake/test/page-keys-summaries.test.ts",
 			"name": "a component that does not parse gives up"
 		},
 		{
@@ -2274,8 +2274,8 @@
 		{
 			"site": "packages/compiler/src/compiler/fs.ts > stat > catch:0",
 			"reason": "a test reaches its recovery path; proved by the autopilot: the catch made to rethrow turns the test red",
-			"test": "packages/compiler/test/page-mark.test.ts",
-			"name": "an island importing only Svelte, local helpers and assets reads no page"
+			"test": "packages/compiler/test/vite-hooks.test.ts",
+			"name": "an island's closure follows the app's aliases, in Vite's object form as in its array form"
 		},
 		{
 			"site": "packages/compiler/src/compiler/kit.ts > route_config_of_text > throw:0",
@@ -2286,8 +2286,8 @@
 		{
 			"site": "packages/compiler/src/compiler/kit.ts > clean_stale_ogygia_dirs > catch:0",
 			"reason": "a test reaches its recovery path; proved by the autopilot: the catch body emptied turns the test red",
-			"test": "packages/compiler/test/fs-seam.test.ts",
-			"name": "a prescan of an app that exists only in memory registers its region and its closure"
+			"test": "packages/compiler/test/region-host-order.test.ts",
+			"name": "a region whose first host lets go names the host that still holds it"
 		},
 		{
 			"site": "packages/compiler/src/compiler/link/build-output.ts > refuse_client_secrets > throw:0",
@@ -2340,8 +2340,8 @@
 		{
 			"site": "packages/compiler/src/compiler/macros/wire.ts > misuse > throw:0",
 			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
-			"test": "packages/compiler/test/og-wire.test.ts",
-			"name": "rejects a bare value use"
+			"test": "packages/compiler/test/og-constructs-stress.test.ts",
+			"name": "wire as a bare value → [ogygia] + line + names the legal position"
 		},
 		{
 			"site": "packages/compiler/src/compiler/ownership-stamps.ts > opaque_stamp_edits > catch:0",
@@ -2400,8 +2400,8 @@
 		{
 			"site": "packages/compiler/src/compiler/region/marked-imports.ts > marked_import_bindings > throw:1",
 			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
-			"test": "packages/compiler/test/as-region-namespace.test.ts",
-			"name": "in a .svelte host"
+			"test": "packages/compiler/test/named-region-imports.fuzz.test.ts",
+			"name": "every generated case"
 		},
 		{
 			"site": "packages/compiler/src/compiler/region/marked-imports.ts > marked_import_bindings > throw:2",
@@ -2418,8 +2418,8 @@
 		{
 			"site": "packages/compiler/src/compiler/region/marked-imports.ts > check_marked_uses > fail > throw:0",
 			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
-			"test": "packages/compiler/test/named-region-imports.test.ts",
-			"name": "the default form is held to the same rule"
+			"test": "packages/compiler/test/named-region-imports.fuzz.test.ts",
+			"name": "every generated case"
 		},
 		{
 			"site": "packages/compiler/src/compiler/region/transform.ts > normalize_import_keys_uncached > throw:1",
@@ -2442,8 +2442,8 @@
 		{
 			"site": "packages/compiler/src/compiler/region/transform.ts > reject_dynamic_region_imports > walk > throw:0",
 			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
-			"test": "packages/compiler/test/dynamic-region-import.test.ts",
-			"name": "names each key once, in the order written"
+			"test": "packages/compiler/test/transform.test.ts",
+			"name": "dynamic import with region keys"
 		},
 		{
 			"site": "packages/compiler/src/compiler/region/transform.ts > assert_swr_lake_crossable > throw:0",
@@ -2497,7 +2497,7 @@
 			"site": "packages/compiler/src/compiler/region/transform.ts > FileCompilation > resolve_region_mark > throw:9",
 			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
 			"test": "packages/compiler/test/transform.test.ts",
-			"name": "a hole timed with both fetch and wake fails, keeping fetch"
+			"name": "wake on a render: deferred import fails the build, naming the fetch to write"
 		},
 		{
 			"site": "packages/compiler/src/compiler/region/transform.ts > FileCompilation > resolve_region_mark > throw:10",
@@ -2611,7 +2611,7 @@
 			"site": "packages/compiler/src/compiler/region/transform.ts > TsRegionCompilation > emit_ts_region > throw:2",
 			"reason": "a test reaches its recovery path; proved by the autopilot: the throw removed turns the test red",
 			"test": "packages/compiler/test/partial-transform.test.ts",
-			"name": "a hole timed with both fetch and wake fails, keeping fetch"
+			"name": "wake on a render: deferred import fails the build, naming the fetch to write"
 		},
 		{
 			"site": "packages/compiler/src/compiler/region/transform.ts > TsRegionCompilation > emit_ts_region > throw:3",

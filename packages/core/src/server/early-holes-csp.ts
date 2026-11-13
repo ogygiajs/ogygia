@@ -30,8 +30,13 @@ const SCRIPT_DIRECTIVES = ['script-src-elem', 'script-src', 'default-src'] as co
 const NONCE_OR_HASH_RE = /^'(?:nonce|sha256|sha384|sha512)-/i;
 const WHITESPACE_RE = /\s+/;
 
+/** The `'sha256-…'` source of an inline script's text, as a policy lists it. */
+export function inline_source(text: string): string {
+	return `'sha256-${createHash('sha256').update(text, 'utf8').digest('base64')}'`;
+}
+
 /** One serialized policy (`directive sources; …`) with the hash where an inline script needs it. */
-function with_hash(policy: string): string {
+function with_hash(policy: string, add: readonly string[]): string {
 	const parts = policy.split(';');
 	const names = parts.map((p) => p.trim().split(WHITESPACE_RE)[0]?.toLowerCase() ?? '');
 	for (const directive of SCRIPT_DIRECTIVES) {
@@ -39,23 +44,31 @@ function with_hash(policy: string): string {
 		if (at === -1) continue;
 		const sources = parts[at]!.trim().split(WHITESPACE_RE).slice(1);
 		const lower = sources.map((s) => s.toLowerCase());
-		if (sources.includes(EARLY_HOLES_SOURCE)) return policy;
+		const missing = add.filter((s) => !sources.includes(s));
+		if (missing.length === 0) return policy;
 		if (lower.length === 1 && lower[0] === "'none'") return policy;
 		if (lower.includes("'unsafe-inline'") && !sources.some((s) => NONCE_OR_HASH_RE.test(s)))
 			return policy;
-		parts[at] = `${parts[at]!.replace(/\s*$/, '')} ${EARLY_HOLES_SOURCE}`;
+		parts[at] = `${parts[at]!.replace(/\s*$/, '')} ${missing.join(' ')}`;
 		return parts.join(';');
 	}
 	return policy;
 }
 
 /**
- * A `Content-Security-Policy` (or `-Report-Only`) header value with the early start's hash where its
- * script would be blocked. A header can carry several policies, comma-separated: each is checked.
+ * A `Content-Security-Policy` (or `-Report-Only`) header value with the early start's hash (or the
+ * given inline scripts' `sources`) where its script would be blocked. A header can carry several
+ * policies, comma-separated: each is checked.
  */
-export function with_early_holes_csp(header: string): string {
-	if (!header) return header;
-	return header.split(',').map(with_hash).join(',');
+export function with_early_holes_csp(
+	header: string,
+	sources: readonly string[] = [EARLY_HOLES_SOURCE]
+): string {
+	if (!header || sources.length === 0) return header;
+	return header
+		.split(',')
+		.map((p) => with_hash(p, sources))
+		.join(',');
 }
 
 const HTTP_EQUIV_RE = /http-equiv/i;
@@ -63,9 +76,12 @@ const HTTP_EQUIV_RE = /http-equiv/i;
 /** A head's `<meta http-equiv="content-security-policy">` policies, each with the hash where its
  *  script would be blocked. A head with none comes back as itself. A rewritten value is written
  *  double-quoted: the hash source's own quotes would end a single-quoted or unquoted one. */
-export function with_early_holes_meta_csp(head: string): string {
+export function with_early_holes_meta_csp(
+	head: string,
+	sources: readonly string[] = [EARLY_HOLES_SOURCE]
+): string {
 	// (most heads carry no http-equiv at all: one search answers them)
-	if (!HTTP_EQUIV_RE.test(head)) return head;
+	if (sources.length === 0 || !HTTP_EQUIV_RE.test(head)) return head;
 	let out = '';
 	let kept = 0;
 	for (let t = next_tag(head, 'meta', 0); t !== null; t = next_tag(head, 'meta', t.next)) {
@@ -73,7 +89,7 @@ export function with_early_holes_meta_csp(head: string): string {
 		const at = value_at(head, t, 'meta', 'content');
 		if (at === -1) continue;
 		const policy = t.attr('content')!;
-		const next = with_early_holes_csp(policy);
+		const next = with_early_holes_csp(policy, sources);
 		if (next === policy) continue;
 		const quoted = head[at - 1] === '"' || head[at - 1] === "'";
 		const from = quoted ? at - 1 : at;
@@ -86,11 +102,15 @@ export function with_early_holes_meta_csp(head: string): string {
 const CSP_HEADERS = ['content-security-policy', 'content-security-policy-report-only'] as const;
 
 /** A response's CSP headers (enforced and report-only), each with the hash where it is needed. */
-export function add_early_holes_csp(headers: Headers): void {
+export function add_early_holes_csp(
+	headers: Headers,
+	sources: readonly string[] = [EARLY_HOLES_SOURCE]
+): void {
+	if (sources.length === 0) return;
 	for (const name of CSP_HEADERS) {
 		const value = headers.get(name);
 		if (!value) continue;
-		const next = with_early_holes_csp(value);
+		const next = with_early_holes_csp(value, sources);
 		if (next !== value) headers.set(name, next);
 	}
 }
