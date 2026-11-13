@@ -24,7 +24,7 @@
  *
  * The tail exists only for a Kit page render: `hooks.ts` creates one per request and installs the
  * reader; Region.svelte writes to it only when it also knows it renders inside Kit's page pass
- * (its `kit_page_pass` context mark). Every other render root — a hole endpoint, a baked ticket, a
+ * (its `render_root` is 'kit'). Every other render root — a hole endpoint, a baked ticket, a
  * streamed late region, a router document, a foreign fragment — gets `null` and keeps hints in its
  * head and sidecars adjacent, so its HTML stays self-contained wherever it is spliced.
  *
