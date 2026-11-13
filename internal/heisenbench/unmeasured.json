@@ -5807,6 +5807,54 @@
 		{
 			"id": "packages/compiler/src/compiler/messages.ts > BUILD_ERRORS > hole_wake_removed > text",
 			"reason": "a message table entry: wording only"
+		},
+		{
+			"id": "packages/compiler/src/compiler/messages.ts > BUILD_ERRORS > option_unknown > details",
+			"reason": "a message table entry: wording only"
+		},
+		{
+			"id": "packages/compiler/src/compiler/messages.ts > BUILD_ERRORS > option_unknown > text",
+			"reason": "a message table entry: wording only"
+		},
+		{
+			"id": "packages/compiler/src/vite/options.ts > assert_known_options",
+			"reason": "config-time only: once per ogygia() call, over the handful of keys the app passed"
+		},
+		{
+			"id": "packages/compiler/src/vite/options.ts > assert_known_options > OgygiaError:1~cd3adc > filter:0~bd445f",
+			"reason": "builds the unknown-option message, once, as the build fails"
+		},
+		{
+			"id": "packages/compiler/src/compiler/messages.ts > BUILD_ERRORS > region_attribute_unknown > details",
+			"reason": "a message table entry: wording only"
+		},
+		{
+			"id": "packages/compiler/src/compiler/messages.ts > BUILD_ERRORS > region_attribute_unknown > text",
+			"reason": "a message table entry: wording only"
+		},
+		{
+			"id": "packages/compiler/src/compiler/region/transform.ts > component_attribute_keys",
+			"reason": "builds an eight-name list, constant work"
+		},
+		{
+			"id": "packages/compiler/src/compiler/region/transform.ts > foreign_attribute",
+			"reason": "two lookups per attribute key, constant work"
+		},
+		{
+			"id": "packages/compiler/src/compiler/region/transform.ts > has_unknown_component_attribute",
+			"reason": "only for a host with no region key: one includes() and one linear regex pass over its .svelte import clauses; a bench would count the regex engine, not ours"
+		},
+		{
+			"id": "packages/compiler/src/compiler/region/transform.ts > refuse_unknown_attributes",
+			"reason": "once per attributed import a host already parses, over its few attribute keys"
+		},
+		{
+			"id": "packages/compiler/src/compiler/region/transform.ts > refuse_unknown_attributes > some:0~cd37e9",
+			"reason": "over an import's few attribute keys"
+		},
+		{
+			"id": "packages/compiler/src/compiler/region/transform.ts > refuse_unknown_attributes > OgygiaError:1~5816b6 > map:0~86ff3f",
+			"reason": "builds the message once, as the build fails"
 		}
 	]
 }
