@@ -1414,6 +1414,66 @@
 			"reason": "`value[i] === STALE`: proved: the STALE check made never true turns the test red, twice",
 			"test": "packages/machine/test/stale-waits.test.ts",
 			"name": "scope.task"
+		},
+		{
+			"site": "packages/machine/src/flights.ts > Flown > constructor > throw:8",
+			"reason": "`throw bad_option('max', max, 'a finite number more than 0');`: proved: the throw removed turns the test red, twice",
+			"test": "packages/machine/test/production.test.ts",
+			"name": "a flights with no bound is thrown where it is written, even in production"
+		},
+		{
+			"site": "packages/machine/src/flights.ts > Flown > _moved > catch:0",
+			"reason": "`catch { return true; // (what it read cannot be told: made again, nev…`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/machine/test/world.test.ts",
+			"name": "a touches that throws: the kept answer goes on a move, a landing fails its callers"
+		},
+		{
+			"site": "packages/machine/src/flights.ts > Flown > _fly > landed > stale:0",
+			"reason": "`answer === STALE`: proved: the STALE check made never true turns the test red, twice",
+			"test": "packages/machine/test/stale-waits.test.ts",
+			"name": "a flights run: its callers get STALE, and nothing is kept (#377)"
+		},
+		{
+			"site": "packages/machine/src/flights.ts > Flown > _fly > landed > catch:0",
+			"reason": "`catch (error) { this._back(key, entry, prior); throw error; }`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/machine/test/world.test.ts",
+			"name": "a touches that throws: the kept answer goes on a move, a landing fails its callers"
+		},
+		{
+			"site": "packages/machine/src/flights.ts > Flown > _fly > landed > throw:0",
+			"reason": "`throw error;`: proved: the throw removed turns the test red, twice",
+			"test": "packages/machine/test/world.test.ts",
+			"name": "a touches that throws: the kept answer goes on a move, a landing fails its callers"
+		},
+		{
+			"site": "packages/machine/src/machine.ts > Running > _arm > catch:1",
+			"reason": "`catch (error) { report( 'machine_timed_step_failed', { name: this._de…`: proved: the catch made to rethrow turns the test red, twice",
+			"test": "packages/machine/test/after.test.ts",
+			"name": "a timed step that fails (its data throws) is reported; the machine stays where it is"
+		},
+		{
+			"site": "packages/machine/src/machine.ts > define > throw:1",
+			"reason": "`throw machine_error('machine_unknown_state', { name, state: kind, whe…`: proved: the throw removed turns the test red, twice",
+			"test": "packages/machine/test/after.test.ts",
+			"name": "a state that is not a state"
+		},
+		{
+			"site": "packages/machine/src/machine.ts > define > throw:2",
+			"reason": "`throw machine_error('machine_bad_timeout', { name, state: kind, probl…`: proved: the throw removed turns the test red, twice",
+			"test": "packages/machine/test/after.test.ts",
+			"name": "a target that is not one of the state’s steps"
+		},
+		{
+			"site": "packages/machine/src/machine.ts > define > throw:3",
+			"reason": "`throw machine_error('machine_bad_timeout', { name, state: kind, probl…`: proved: the throw removed turns the test red, twice",
+			"test": "packages/machine/test/after.test.ts",
+			"name": "a time that is not a time, or longer than a timer can hold (2^31 - 1 ms, ~24.8 days)"
+		},
+		{
+			"site": "packages/machine/src/stage.ts > Staged > constructor > stale:0",
+			"reason": "`built !== STALE`: proved: the STALE check made never true turns the test red, twice",
+			"test": "packages/machine/test/stale-waits.test.ts",
+			"name": "stage().ready"
 		}
 	],
 	"impossible": [
@@ -2810,19 +2870,10 @@
 		"packages/insights/src/third-party.ts > host_of > catch:0",
 		"packages/machine/src/cache.ts > Store > _set_timer > timer:0",
 		"packages/machine/src/flights.ts > id_of > catch:0",
-		"packages/machine/src/flights.ts > Flown > constructor > throw:8",
-		"packages/machine/src/flights.ts > Flown > _moved > catch:0",
-		"packages/machine/src/flights.ts > Flown > _fly > landed > stale:0",
-		"packages/machine/src/flights.ts > Flown > _fly > landed > catch:0",
-		"packages/machine/src/flights.ts > Flown > _fly > landed > throw:0",
 		"packages/machine/src/flights.ts > Flown > _join > error-event:0",
 		"packages/machine/src/lock.ts > Owned > acquire > error-event:0",
 		"packages/machine/src/machine.ts > Running > _arm > catch:0",
 		"packages/machine/src/machine.ts > Running > _arm > timer:0",
-		"packages/machine/src/machine.ts > Running > _arm > catch:1",
-		"packages/machine/src/machine.ts > define > throw:1",
-		"packages/machine/src/machine.ts > define > throw:2",
-		"packages/machine/src/machine.ts > define > throw:3",
 		"packages/machine/src/mailbox.ts > Box > ask > catch:0",
 		"packages/machine/src/mailbox.ts > Box > _start > reject:0",
 		"packages/machine/src/outbox.ts > Box > _deliver > throw:0",
@@ -2840,7 +2891,6 @@
 		"packages/machine/src/scope.ts > Scoped > task > error-event:0",
 		"packages/machine/src/scope.ts > Scoped > ASYNC_DISPOSE > catch:0",
 		"packages/machine/src/scope.ts > Scoped > ASYNC_DISPOSE > throw:1",
-		"packages/machine/src/stage.ts > Staged > constructor > stale:0",
 		"packages/machine/src/stage.ts > Staged > constructor > refused:0",
 		"packages/machine/src/stale.ts > whole > stale:0",
 		"packages/ogygia/src/cli.ts > installed > catch:0",
