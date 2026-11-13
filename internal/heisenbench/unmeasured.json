@@ -3701,6 +3701,18 @@
 			"reason": "browser only, dev and e2e builds: hands the rule the frame store's peek, once; proven in packages/core/test/browser/rules.test.ts"
 		},
 		{
+			"id": "packages/core/src/runtime/rules.ts > watch_turns",
+			"reason": "browser only, dev and e2e builds: hands the rule the scheduler's check, once as it loads; proven in packages/core/test/browser/turns-counted.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/rules.ts > turns_counted",
+			"reason": "browser only, dev and e2e builds: calls the scheduler's check, once per rule check; proven in packages/core/test/browser/turns-counted.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/schedule.ts > turns_counted",
+			"reason": "dev and e2e builds only (folds out of production): one pass over the pending turns per rule check, off the hydrate path; proven in packages/core/test/browser/turns-counted.test.ts"
+		},
+		{
 			"id": "packages/core/src/runtime/rules.ts > note_handed",
 			"reason": "browser only, dev and e2e builds: records a frame handed to a region element (DOM nodes, not cloneable), constant work; proven in packages/core/test/browser/rules.test.ts"
 		},
