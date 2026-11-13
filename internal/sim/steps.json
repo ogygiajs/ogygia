@@ -20,13 +20,18 @@
 			},
 			{
 				"app": "palaestra",
-				"plan": "internal/sim/sweep-plans/palaestra-batch-stalled.json",
-				"reaches": ["batch-stream: sending -> stalled"]
+				"plan": "internal/sim/sweep-plans/palaestra-form-restore.json",
+				"reaches": ["form-restore: idle -> open", "form-restore: open -> idle"]
 			},
 			{
 				"app": "palaestra",
 				"plan": "internal/sim/sweep-plans/palaestra-render-kept-gone.json",
 				"reaches": ["render cache: kept -> gone"]
+			},
+			{
+				"app": 192,
+				"plan": "internal/sim/sweep-plans/gen192-hole-failed-armed.json",
+				"reaches": ["hole: failed -> armed"]
 			}
 		]
 	},
@@ -34,9 +39,7 @@
 		"batch stream: streaming -> cancelled",
 		"batch stream: streaming -> ended",
 		"batch-stream: reading -> reading",
-		"batch-stream: reading -> stalled",
 		"batch-stream: sending -> reading",
-		"batch-stream: sending -> stalled",
 		"build location map: flying -> gone",
 		"build location map: flying -> kept",
 		"critical resources: flying -> gone",
@@ -60,7 +63,6 @@
 		"federation peer documents: flying -> kept",
 		"federation peer documents: kept -> flying",
 		"federation peer documents: kept -> gone",
-		"federation thaws applied: flying -> gone",
 		"federation thaws applied: flying -> kept",
 		"flags exposures: buffering -> idle",
 		"flags exposures: idle -> buffering",
@@ -104,7 +106,6 @@
 		"island warm: flying -> gone",
 		"island warm: flying -> kept",
 		"kit page thread: flying -> gone",
-		"live-region: failed -> hydrating",
 		"live-region: failed -> idle",
 		"live-region: failed -> static",
 		"live-region: hydrating -> failed",
@@ -193,6 +194,48 @@
 	],
 	"covered": [
 		{
+			"step": "lake: open -> waited",
+			"reason": "new with the lake machine (it replaced two WeakSets): the next sweep's --write moves it to reached if the fake browser takes it",
+			"test": "packages/core/test/lake-settle.test.ts",
+			"name": "a region in an unsettled lake waits; in a settled one it runs"
+		},
+		{
+			"step": "lake: open -> settled",
+			"reason": "new with the lake machine (it replaced two WeakSets): the next sweep's --write moves it to reached if the fake browser takes it",
+			"test": "packages/core/test/lake-settle.test.ts",
+			"name": "a lake nobody waited on wakes nobody after its swap"
+		},
+		{
+			"step": "lake: waited -> settling",
+			"reason": "new with the lake machine (it replaced two WeakSets): the next sweep's --write moves it to reached if the fake browser takes it",
+			"test": "packages/core/test/lake-settle.test.ts",
+			"name": "settled before its swap, a lake wakes the regions that waited only after it"
+		},
+		{
+			"step": "lake: settling -> settled",
+			"reason": "new with the lake machine (it replaced two WeakSets): the next sweep's --write moves it to reached if the fake browser takes it",
+			"test": "packages/core/test/lake-settle.test.ts",
+			"name": "settled before its swap, a lake wakes the regions that waited only after it"
+		},
+		{
+			"step": "lake: waited -> settled",
+			"reason": "new with the lake machine (it replaced two WeakSets): the next sweep's --write moves it to reached if the fake browser takes it",
+			"test": "packages/core/test/lake-settle.test.ts",
+			"name": "a lake whose refresh failed for good is settled as it stands"
+		},
+		{
+			"step": "interaction-arming: armed -> woken",
+			"reason": "new with the interaction arming machine (it replaced a hand-switched state field): the next sweep's --write moves it to reached if the fake browser takes it",
+			"test": "packages/core/test/browser/interaction-delegated.test.ts",
+			"name": "an event inside an armed region wakes THAT region only, once; the pointer warms once"
+		},
+		{
+			"step": "interaction-arming: woken -> over",
+			"reason": "new with the interaction arming machine (it replaced a hand-switched state field): the next sweep's --write moves it to reached if the fake browser takes it",
+			"test": "packages/core/test/browser/interaction-rearm.test.ts",
+			"name": "a capture armed again while the first one’s wake loads catches the next click, and the first leaves it alone"
+		},
+		{
 			"step": "critical resources: kept -> gone",
 			"reason": "a page asks only before the gate settles, and the answer is kept only after it: no later get, no expiry, no max; only reset_load_scheduler() drops it, which a test's reset calls",
 			"test": "packages/core/test/browser/load-scheduler.test.ts",
@@ -227,18 +270,157 @@
 			"reason": "a visitor past the render budget (100 renders a minute by default): no run asks that many of one server",
 			"test": "packages/core/test/region-request-order.test.ts",
 			"name": "a GET past the render budget is refused after its charge, before any render"
-		}
-	],
-	"dead": [
-		{
-			"step": "region request: prechecked -> refused",
-			"issue": 1082,
-			"why": "the probe charge is probed's work: the move to probed follows prechecked unconditionally"
 		},
 		{
-			"step": "region request: verified -> refused",
-			"issue": 1082,
-			"why": "the render charge is charged's work: the move to charged follows verified unconditionally"
+			"step": "stored-answer: shown -> kept",
+			"reason": "an older answer landing after a newer one at one address: no sweep seed races two writers at one address",
+			"test": "packages/core/test/frame-store.test.ts",
+			"name": "an applied answer, a newer one, and each dropped one are moves of the address’s stored answer"
+		},
+		{
+			"step": "stored-answer: kept -> shown",
+			"reason": "a newer answer after a dropped one at one address: no sweep seed drops one first",
+			"test": "packages/core/test/frame-store.test.ts",
+			"name": "an applied answer, a newer one, and each dropped one are moves of the address’s stored answer"
+		},
+		{
+			"step": "stored-answer: kept -> kept",
+			"reason": "two older answers dropped in a row at one address: no sweep seed drops one first",
+			"test": "packages/core/test/frame-store.test.ts",
+			"name": "a dropped answer’s move names what was dropped and why, and keeps what is shown"
+		},
+		{
+			"step": "import-again: stuck -> loaded",
+			"reason": "two retries of one file out at once, the first failing with its own file loaded: the simulator's module loader has no dependency that fails apart from its file",
+			"test": "packages/core/test/import-again.test.ts",
+			"name": "a retry already out when another got stuck still lands: the file loaded after all, and every later call is that load"
+		},
+		{
+			"step": "navigation: settling -> claimed",
+			"reason": "settling is synchronous: only an after hook or an og:page-load listener that navigates takes it, and no app the simulator runs has one",
+			"test": "packages/core/test/browser/nav-after-hook-navigates.test.ts",
+			"name": "an after hook that navigates: its navigation takes over while the first settles, and lands"
+		},
+		{
+			"step": "hole: retrying -> fetching",
+			"reason": "a re-minted hole with no answer whose refetch failed for the server: no sweep seed faults a refetch of a hole that never answered",
+			"test": "packages/core/test/browser/hole-lifecycle.test.ts",
+			"name": "a re-minted hole with no answer refetches after a refusal, after a server error, and after the network came back"
+		},
+		{
+			"step": "hole: offline -> fetching",
+			"reason": "a re-minted hole with no answer whose refetch failed offline: no sweep seed takes a tab offline during such a refetch",
+			"test": "packages/core/test/browser/hole-lifecycle.test.ts",
+			"name": "a re-minted hole with no answer refetches after a refusal, after a server error, and after the network came back"
+		},
+		{
+			"step": "hole: failed -> fetching",
+			"reason": "a hole that gave up, re-minted by a refresh: no sweep seed refreshes a page whose hole gave up",
+			"test": "packages/core/test/browser/hole-lifecycle.test.ts",
+			"name": "a re-minted hole with no answer refetches after a refusal, after a server error, and after the network came back"
+		},
+		{
+			"step": "hole: offline -> idle",
+			"reason": "an answer written at a hole's address while it waits for the network: offline, no other writer reaches the tab",
+			"test": "packages/core/test/browser/hole-offline.test.ts",
+			"name": "a hole waiting for the network takes an answer that came another way, and asks nothing once back online"
+		},
+		{
+			"step": "hole-answer: answered -> kept",
+			"reason": "an answered hole told to keep its fallback by a later answer: no app the simulator runs answers a hole both ways",
+			"test": "packages/core/test/browser/hole-lifecycle.test.ts",
+			"name": "a hole answered, then told to keep its fallback twice, then answered again: each answer is a move of its own"
+		},
+		{
+			"step": "hole-answer: kept -> answered",
+			"reason": "a kept fallback answered for real later: no app the simulator runs answers a hole both ways",
+			"test": "packages/core/test/browser/hole-lifecycle.test.ts",
+			"name": "a kept fallback that later gets a real answer is not kept any more, and its island wakes"
+		},
+		{
+			"step": "hole-answer: kept -> kept",
+			"reason": "a kept fallback told to keep again by a later answer: no sweep seed answers a kept hole twice",
+			"test": "packages/core/test/browser/hole-lifecycle.test.ts",
+			"name": "a hole answered, then told to keep its fallback twice, then answered again: each answer is a move of its own"
+		},
+		{
+			"step": "wake: offline -> cold",
+			"reason": "an island waiting for the network that leaves the page: offline, a router visit cannot swap the page out",
+			"test": "packages/core/test/browser/hole-offline.test.ts",
+			"name": "an island waiting for the network that leaves the page goes back to sleep, and the network coming back wakes nothing"
+		},
+		{
+			"step": "soft refresh: flying -> kept",
+			"reason": "the routerless handle's refresh code: every app the simulator runs has the router, whose refresh is its own",
+			"test": "packages/core/test/browser/nav-handle-routerless.test.ts",
+			"name": "without the router, invalidateAll and invalidate refresh (they never need the router)"
+		},
+		{
+			"step": "soft refresh: flying -> gone",
+			"reason": "the routerless handle's refresh code: every app the simulator runs has the router, whose refresh is its own",
+			"test": "packages/core/test/browser/nav-handle-routerless-retry.test.ts",
+			"name": "without the router, a refresh whose code failed to download loads it on the next refresh"
+		},
+		{
+			"step": "soft refresh: kept -> gone",
+			"reason": "the routerless handle's refresh code: every app the simulator runs has the router, whose refresh is its own",
+			"test": "packages/core/test/browser/nav-handle-routerless.test.ts",
+			"name": "without the router, a refresh whose loaded code the keep let go loads it again and refreshes"
+		},
+		{
+			"step": "deploy thaw: checking -> unchecked",
+			"reason": "the store down at the first federation request after a deploy: the simulator's store blips are on page calls, not the build marker",
+			"test": "packages/federation/test/owners.test.ts",
+			"name": "the store is down for the first check: a later request checks again and thaws"
+		},
+		{
+			"step": "build location map: kept -> gone",
+			"reason": "kept forever once read; only its keep running out early (buggify) on a second identity-only load, which no sweep seed makes",
+			"test": "packages/core/test/browser/entry-location-map.test.ts",
+			"name": "a map whose keep ran out is read again by the next identity-only load"
+		},
+		{
+			"step": "frames: flying -> flying",
+			"reason": "a forced refetch (a lake's revalidate, a re-minted hole) while a fetch is out at the same address: no sweep seed overlaps them",
+			"test": "packages/core/test/frame-store.test.ts",
+			"name": "a forced fetch takes the place of the one out: its callers join the forced one"
+		},
+		{
+			"step": "island warm: kept -> gone",
+			"reason": "kept forever once warmed; only its keep running out early (buggify) on a second warm of one module, which no sweep seed asks",
+			"test": "packages/core/test/browser/preload-priority.test.ts",
+			"name": "a warm whose keep ran out warms the module again on the next ask"
+		},
+		{
+			"step": "federation thaws applied: kept -> gone",
+			"reason": "a notice id is kept 10 minutes: no run sends the same notice again that long after",
+			"test": "packages/federation/test/thaw-receive.test.ts",
+			"name": "is forgotten after 10 minutes: the same notice again is applied again"
+		},
+		{
+			"step": "batch-stream: sending -> stalled",
+			"reason": "a batch POST whose answer never starts for the stall deadline: one network stall aimed at one request, which the sweep's runs met by luck only, and lost when timings moved",
+			"test": "packages/core/test/browser/frame-stream-stall.test.ts",
+			"name": "an answer that never starts: the stream is given up while sending, and its holes are let go"
+		},
+		{
+			"step": "batch-stream: reading -> stalled",
+			"reason": "a batch answer that goes quiet after its first part for the stall deadline: a midway network stall aimed at one batch POST, which one palaestra seed in 300 met by luck, and none of 800 more once the load timings moved",
+			"test": "packages/core/test/browser/frame-stream-stall.test.ts",
+			"name": "sends one frame and stalls: the hole it carried has it, the others fail and fetch on their own"
+		},
+		{
+			"step": "live-region: failed -> hydrating",
+			"reason": "a live region's island file must fail to load, then a tick of another module come: the sweep's runs met it by luck only, and lost it when timings moved",
+			"test": "packages/core/test/browser/live-region-failed-file.test.ts",
+			"name": "after its island file could not load, a tick of another module starts afresh and goes live"
+		},
+		{
+			"step": "federation thaws applied: flying -> gone",
+			"reason": "a thaw notice whose evict fails in the app's store: the sweep's runs met it by luck only, and lost it when timings moved",
+			"test": "packages/federation/test/thaw-receive.test.ts",
+			"name": "answers an error and keeps no id; the retry with the same id is applied"
 		}
-	]
+	],
+	"dead": []
 }

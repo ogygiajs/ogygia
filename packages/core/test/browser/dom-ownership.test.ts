@@ -12,7 +12,8 @@ import { parse_region_html } from './_html.ts';
 import { install as install_morph, morph_children } from '../../src/runtime/morph.ts';
 import { link_boot } from '../../src/runtime/boot-link.ts';
 import { owner_of } from '../../src/runtime/ownership.ts';
-import { watch_region, unwatch_region, region_changed } from '../../src/runtime/drift-watch.ts';
+import { watch_region, region_changed } from '../../src/runtime/drift-watch.ts';
+import { scope } from '@ogygia/machine';
 
 link_boot();
 install_morph();
@@ -179,13 +180,14 @@ test('drift-watch: a widget editing inside an opaque subtree does not mark its i
 	const region = document.createElement('ogygia-region');
 	region.innerHTML = '<p>t</p><div data-og-opaque><b>w</b></div>';
 	document.body.appendChild(region);
-	watch_region();
+	const sleep = scope();
+	watch_region(sleep);
 	try {
 		region.querySelector('[data-og-opaque]')!.append(document.createElement('i'));
 		expect(region_changed(region)).toBe(false);
 		region.querySelector('p')!.append(document.createTextNode('!'));
 		expect(region_changed(region)).toBe(true);
 	} finally {
-		unwatch_region();
+		sleep.close();
 	}
 });
