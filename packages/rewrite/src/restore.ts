@@ -35,6 +35,7 @@ export function restore(root: Document | DocumentFragment | Element, lite?: numb
 		__og_sheets?: Map<string, { sheet: CSSStyleSheet | null; css: string }>;
 		__og_class_watch?: { mo: MutationObserver; hosts: Set<Element> };
 		__og_rendered?: WeakSet<Node>;
+		__og_inert?: Document;
 	};
 	const sheets = (W.__og_sheets ??= new Map());
 	// (a DOM without `CSS.escape` — jsdom — gets a quote-safe escape for the attribute selectors)
@@ -391,16 +392,51 @@ export function restore(root: Document | DocumentFragment | Element, lite?: numb
 	// 2. the planned hosts, innermost first (a deeper shadow root's hosts before its host's)
 	const hosts: Element[] = [];
 	for (const scope of scopes) hosts.push(...Array.from(scope.querySelectorAll('[og-h]')));
+	const declarative = (served: HTMLElement): HTMLElement | null => {
+		if (served.matches(':defined')) return null;
+		const inert = (W.__og_inert ??= document.implementation.createHTMLDocument(''));
+		const box = inert.createElement('div') as HTMLElement & {
+			setHTMLUnsafe?: (html: string) => void;
+		};
+		// oxlint-disable-next-line ogygia/html-sink -- inlined by `restore.toString()` (no imports): a feature test, nothing parsed
+		if (typeof box.setHTMLUnsafe !== 'function') return null;
+		const name = served.localName;
+		// oxlint-disable-next-line ogygia/html-sink -- inlined by `restore.toString()` (no imports): only the element's own name and an empty declarative root, in an inert document, never inserted as parsed
+		box.setHTMLUnsafe(`<${name}><template shadowrootmode="open"></template></${name}>`);
+		const made = box.firstElementChild as HTMLElement | null;
+		if (
+			!made ||
+			box.childNodes.length !== 1 ||
+			made.localName !== name ||
+			made.childNodes.length !== 0 ||
+			!made.shadowRoot ||
+			made.shadowRoot.childNodes.length !== 0
+		)
+			return null;
+		const fresh = doc.adoptNode(made);
+		for (const a of Array.from(served.attributes)) fresh.setAttributeNode(a.cloneNode() as Attr);
+		while (served.firstChild) fresh.appendChild(served.firstChild);
+		served.replaceWith(fresh);
+		return fresh;
+	};
 	for (let x = hosts.length - 1; x >= 0; x--) {
-		const host = hosts[x] as HTMLElement;
-		const k = host.getAttribute('og-h')!;
-		const keys = (host.getAttribute('og-shadow') ?? '').split(' ').filter(Boolean);
+		const served = hosts[x] as HTMLElement;
 		// Upgraded before the restore reached it (a component runtime ran first): the root its
 		// constructor made is the component's, and it renders there. The light DOM still goes back to
 		// Svelte's form below, and the server's rendered copy is dropped instead of moved into a root:
 		// slotted beside the component's own render, it would show twice. Said, never silent.
-		const late = host.shadowRoot !== null;
-		const shadow: ShadowRoot | null = late ? null : host.attachShadow({ mode: 'open' });
+		const late = served.shadowRoot !== null;
+		const host = late ? served : (declarative(served) ?? served);
+		const k = host.getAttribute('og-h')!;
+		const keys = (host.getAttribute('og-shadow') ?? '').split(' ').filter(Boolean);
+		const shadow: ShadowRoot | null = late
+			? null
+			: (host.shadowRoot ?? host.attachShadow({ mode: 'open' }));
+		const registry = shadow as (ShadowRoot & { customElementRegistry?: unknown }) | null;
+		if (live && registry?.customElementRegistry === null)
+			(
+				customElements as CustomElementRegistry & { initialize?: (root: Node) => void }
+			).initialize?.(registry);
 		if (late) {
 			host.dispatchEvent(
 				new CustomEvent('ogygia:restore-late', { bubbles: true, detail: { host: k } })
