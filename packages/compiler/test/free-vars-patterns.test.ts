@@ -32,14 +32,14 @@ describe('collectFreeIdentifiers: names read by patterns, tags and clauses', () 
 });
 
 describe('a portable snippet entry declares the names its patterns read', () => {
-	const synth_of = (decl: string, body: string) => {
+	const synth_of = (decl: string, body: string, head = 'children()') => {
 		const src = dedent`
 			<script>
 			import Widget from './Widget.svelte' with { wake: 'load' };
 			${decl}
 			</script>
 			<Widget>
-				{#snippet children()}
+				{#snippet ${head}}
 					${body}
 				{/snippet}
 			</Widget>
@@ -71,5 +71,23 @@ describe('a portable snippet entry declares the names its patterns read', () => 
 
 	it('a {@debug} name from the host is captured', () => {
 		expect(synth_of(`let x = 1;`, '{@debug x}')).toMatch(/let \{ x \} = \$props\(\)/);
+	});
+
+	it("a default in the snippet's own parameters, from an import, is imported", () => {
+		expect(synth_of(`import { fmt } from './f.ts';`, '{f(item)}', 'row(item, f = fmt)')).toMatch(
+			/import \{ fmt \} from '\.\/f\.ts'/
+		);
+	});
+
+	it("a pattern default in the snippet's own parameters, from the host, is captured", () => {
+		expect(synth_of(`let d = 1;`, '{a}', 'row({ a = d })')).toMatch(
+			/let \{ __ogArgs = \[\], d \} = \$props\(\)/
+		);
+	});
+
+	it("a computed key in the snippet's own parameters, from the host, is captured", () => {
+		expect(synth_of(`let key = 'a';`, '{v}', 'row({ [key]: v })')).toMatch(
+			/let \{ __ogArgs = \[\], key \} = \$props\(\)/
+		);
 	});
 });

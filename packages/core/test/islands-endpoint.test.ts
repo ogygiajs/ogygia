@@ -22,14 +22,22 @@ vi.mock('ogygia:server/sign', () => ({
 		`sig${[audience, c.id, exp, c.payload, c.session, c.ttl, c.render, c.wakes].join('|').length}`
 }));
 
-const { configure_islands_endpoint, islands_endpoint, DEFAULT_ISLANDS_ENDPOINT } =
-	await import('../src/server/endpoint.ts');
+const {
+	configure_islands_endpoint,
+	islands_endpoint,
+	reset_islands_endpoint,
+	DEFAULT_ISLANDS_ENDPOINT
+} = await import('../src/server/endpoint.ts');
 const { mint_server_region, make_region_endpoint } =
 	await import('../src/server/region-endpoint.ts');
 const { renders_for_a_page } = await import('../src/server/render-page.ts');
 const { mpaSpeculationRules } = await import('../src/server/speculation.ts');
 
-afterEach(() => configure_islands_endpoint(undefined));
+afterEach(() => {
+	reset_islands_endpoint();
+	vi.unstubAllEnvs();
+	vi.restoreAllMocks();
+});
 
 const at = (path: string) => ({ url: new URL(`https://a.test${path}`) }) as never;
 
@@ -48,8 +56,25 @@ describe('the islands endpoint', () => {
 		// a render on the new path is a hole render (it renders for a page); the old path is a page now
 		expect(renders_for_a_page(at('/_server/api/__ogygia__'))).toBe(true);
 		expect(renders_for_a_page(at('/__ogygia__'))).toBe(false);
-		// (under the app's base: matched by suffix, as the handler matches it)
-		expect(renders_for_a_page(at('/sub/_server/api/__ogygia__'))).toBe(true);
+	});
+
+	it('the endpoint is one path, the one minted: a page whose path ends the same is a page', () => {
+		configure_islands_endpoint('/api');
+		expect(renders_for_a_page(at('/api'))).toBe(true);
+		expect(renders_for_a_page(at('/docs/api'))).toBe(false);
+		expect(renders_for_a_page(at('/sub/api'))).toBe(false);
+	});
+
+	it('a second handle naming another endpoint is said, in production; the same one again is not', () => {
+		vi.stubEnv('DEV', false);
+		const errors: unknown[] = [];
+		vi.spyOn(console, 'error').mockImplementation((e: unknown) => void errors.push(e));
+		configure_islands_endpoint('/a');
+		configure_islands_endpoint('/a');
+		expect(errors).toEqual([]);
+		configure_islands_endpoint('/b');
+		expect(String(errors[0])).toContain('islands_endpoint_conflict');
+		expect(islands_endpoint()).toBe('/b');
 	});
 
 	it('a minted capability names its signing key (`&k=`, outside the MAC)', () => {

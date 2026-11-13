@@ -1,10 +1,9 @@
 import { describe, expect, it, beforeAll, afterAll } from 'vitest';
-import { dedent } from '@ogygia/core/contract';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { rewrite_bake } from '../src/compiler/macros/bake.ts';
-import { __set_build_cache_root } from '../src/compiler/build-cache.ts';
+import { __set_build_cache_root, dedent } from '@ogygia/compiler';
+import { rewrite_bake } from '../src/bake.ts';
 
 __set_build_cache_root(fs.mkdtempSync(path.join(os.tmpdir(), 'og-bake-cache-')));
 const NO_ALIAS = { alias: [], root: '/app' };
@@ -96,5 +95,59 @@ describe('rewrite_bake — real build-time evaluation', () => {
 		await expect(rewrite_bake(src, path.join(dir, 'mod.ts'), opts())).rejects.toThrow(
 			/not serializable/
 		);
+	});
+});
+
+describe('rewrite_bake — dev: an edited input bakes fresh', () => {
+	let dir: string;
+	beforeAll(() => {
+		dir = fs.mkdtempSync(path.join(os.tmpdir(), 'og-bake-dev-'));
+	});
+	afterAll(() => fs.rmSync(dir, { recursive: true, force: true }));
+	const SRC = dedent`
+		import { value } from './data';
+		export const V = import.meta.og.bake(() => value());
+	`;
+
+	it('an edited data module bakes its new value, with the same entry text', async () => {
+		const data = path.join(dir, 'data.ts');
+		fs.writeFileSync(data, `export const value = () => 'first';`);
+		const first = await rewrite_bake(SRC, path.join(dir, 'mod.ts'), {
+			alias: [],
+			root: dir
+		});
+		expect(first).toContain(`"first"`);
+		fs.writeFileSync(data, `export const value = () => 'second';`);
+		const second = await rewrite_bake(SRC, path.join(dir, 'mod.ts'), {
+			alias: [],
+			root: dir
+		});
+		expect(second).toContain(`"second"`);
+	});
+
+	it('names every module the bake bundled as a file to watch', async () => {
+		const data = path.join(dir, 'data.ts');
+		fs.writeFileSync(data, `export const value = () => 'watched';`);
+		const watched: string[] = [];
+		await rewrite_bake(SRC, path.join(dir, 'mod.ts'), {
+			alias: [],
+			root: dir,
+			watch: (file) => watched.push(file)
+		});
+		expect(watched.map((f) => fs.realpathSync(f))).toContain(fs.realpathSync(data));
+	});
+
+	it('many bakes of one module at once all land, none breaks another', async () => {
+		fs.writeFileSync(path.join(dir, 'shared.ts'), `export const shared = () => 'shared';`);
+		const src = dedent`
+			import { shared } from './shared';
+			export const V = import.meta.og.bake(() => shared());
+		`;
+		const outs = await Promise.all(
+			Array.from({ length: 8 }, () =>
+				rewrite_bake(src, path.join(dir, 'race.ts'), { alias: [], root: dir })
+			)
+		);
+		for (const out of outs) expect(out).toContain(`"shared"`);
 	});
 });

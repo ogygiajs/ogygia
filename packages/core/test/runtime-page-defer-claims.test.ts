@@ -89,3 +89,89 @@ it('ogygia’s markers win over an app decoder of the same name', () => {
 it('a marker read twice is one promise', () => {
 	expect(create_deferred(6)).toBe(create_deferred(6));
 });
+
+/** A document still loading: its `load` fires when the test says. */
+function loading_document(): { load(): void } {
+	let on_load: (() => void) | undefined;
+	vi.stubGlobal('document', { readyState: 'loading' });
+	vi.stubGlobal('addEventListener', (type: string, fn: () => void) => {
+		if (type === 'load') on_load = fn;
+	});
+	return {
+		load() {
+			vi.stubGlobal('document', { readyState: 'complete' });
+			on_load?.();
+		}
+	};
+}
+
+it('a streamed promise whose resolve never came is rejected once the document has loaded', async () => {
+	const doc = loading_document();
+	try {
+		install_page_defer();
+		const cut = create_deferred(8);
+		const came = create_deferred(9);
+		resolve(9, true, 'here');
+		doc.load();
+		await expect(came).resolves.toBe('here');
+		await expect(cut).rejects.toThrow('page_promise_unresolved');
+	} finally {
+		vi.unstubAllGlobals();
+	}
+});
+
+it('a marker read again after its value arrived early is the same settled promise (#1435)', async () => {
+	vi.stubGlobal('document', { readyState: 'complete' });
+	try {
+		install_page_defer();
+		// (the resolve script ran before any island read the marker)
+		resolve(11, true, 'early');
+		// (devalue is loaded: its value lands within the task)
+		await new Promise((done) => setTimeout(done, 0));
+		const first = create_deferred(11);
+		const again = create_deferred(11);
+		expect(again).toBe(first);
+		await expect(again).resolves.toBe('early');
+	} finally {
+		vi.unstubAllGlobals();
+	}
+});
+
+it('a marker read again after its value arrived while waited on is the same settled promise (#1435)', async () => {
+	const doc = loading_document();
+	try {
+		install_page_defer();
+		const first = create_deferred(12);
+		resolve(12, true, 'waited');
+		await expect(first).resolves.toBe('waited');
+		doc.load();
+		const again = create_deferred(12);
+		expect(again).toBe(first);
+		await expect(again).resolves.toBe('waited');
+	} finally {
+		vi.unstubAllGlobals();
+	}
+});
+
+it('a streamed promise read after the document loaded, with no resolve, is rejected at once', async () => {
+	vi.stubGlobal('document', { readyState: 'complete' });
+	try {
+		install_page_defer();
+		await expect(create_deferred(10)).rejects.toThrow('page_promise_unresolved');
+	} finally {
+		vi.unstubAllGlobals();
+	}
+});
+
+it('a streamed promise that never got its value rejects with the coded error, not a copy of its message (#1504)', async () => {
+	vi.stubGlobal('document', { readyState: 'complete' });
+	try {
+		install_page_defer();
+		await expect(create_deferred(11)).rejects.toMatchObject({
+			name: 'OgygiaError',
+			code: 'page_promise_unresolved'
+		});
+	} finally {
+		vi.unstubAllGlobals();
+	}
+});

@@ -2363,21 +2363,22 @@
 					tables are rougher than a page profile's.
 				</p>
 			{/if}
-			<p>
-				<a
+			<!-- (a replay starts a profile run: a POST, never a link a GET could follow) -->
+			<form class="replay" method="POST" action="{base}/replay/{meta.id}">
+				<button
+					type="submit"
 					class="btn"
-					href="{base}/replay/{meta.id}"
 					title="Render this request again, five times, under the full profiler — same path and query{extras.replay &&
 					Object.keys(extras.replay.headers).length
 						? `, with ${Object.keys(extras.replay.headers).join(', ')}`
-						: ''}">Profile this request in full</a
+						: ''}">Profile this request in full</button
 				>
 				<span class="hint">
 					renders <code>{extras.replay?.path ?? meta.request.path}</code> again as a page profile{#if extras.replay && Object.keys(extras.replay.headers).length}
 						with the kept headers ({Object.keys(extras.replay.headers).join(', ')}){:else}
 						(no headers kept: name them in <code>trap.replay</code> to carry a tenant or a locale along){/if}
 				</span>
-			</p>
+			</form>
 		</section>
 	{/if}
 
@@ -2438,6 +2439,10 @@
 </Shell>
 
 <style>
+	/* (the replay button's row: a form, spaced as the paragraph it replaced) */
+	.replay {
+		margin: 1em 0;
+	}
 	.barrow {
 		display: grid;
 		grid-template-columns: minmax(160px, 240px) 1fr 90px;
