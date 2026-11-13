@@ -103,7 +103,7 @@ describe('the compiler reads an app through its fs seam', () => {
 		const b = memory_fs({ ...app_files(), [`${ROUTES}/+layout.ts`]: `export const csr = true;\n` });
 		const ra = route_reader(a);
 		const rb = route_reader(b);
-		expect(route_reader(a)).toBe(ra); // one cache set per file system
+		expect(route_reader(a)).toBe(ra); // one set of answers per file system
 		expect(routeCsrIsFalse(ra, `${ROUTES}/+page.svelte`, ROUTES)).toBe(true);
 		expect(routeCsrIsFalse(rb, `${ROUTES}/+page.svelte`, ROUTES)).toBe(false);
 		expect(csrTrueRouteIds(ra, ROUTES)).toEqual(['/live']);
@@ -111,12 +111,12 @@ describe('the compiler reads an app through its fs seam', () => {
 		expect(page_route_config(ra, ROUTES, ['tier'])).toEqual({ '/': {}, '/live': { tier: 'gold' } });
 	});
 
-	test('an edit to a file in memory is seen once the route caches are cleared', () => {
+	test('an edit to a file in memory is seen once the watcher tells the route reader', () => {
 		const files = memory_fs(app_files());
 		const { ctx } = make_compiler(files);
 		expect(routeCsrIsFalse(ctx.routes, `${ROUTES}/+page.svelte`, ROUTES)).toBe(true);
 		files.set(`${ROUTES}/+layout.ts`, null);
-		ctx.routes.clear();
+		expect(ctx.routes.touch(`${ROUTES}/+layout.ts`, 'delete')).toBe(true);
 		expect(routeCsrIsFalse(ctx.routes, `${ROUTES}/+page.svelte`, ROUTES)).toBe(false);
 	});
 

@@ -13,7 +13,6 @@ import {
 	errorCsrTrueRouteIds,
 	hasAnyCsrFalseRoute,
 	is_route_component,
-	is_route_file,
 	page_route_config,
 	route_reader,
 	routeCsrIsFalse,
@@ -21,7 +20,7 @@ import {
 } from '../src/compiler/kit.ts';
 import { node_fs } from '../src/compiler/fs.ts';
 
-const R = route_reader(node_fs);
+let R = route_reader(node_fs);
 
 const made: string[] = [];
 afterAll(() => {
@@ -40,7 +39,7 @@ function tree(files: Record<string, string>): string {
 		mkdirSync(path.dirname(abs), { recursive: true });
 		writeFileSync(abs, src);
 	}
-	R.clear();
+	R = route_reader({ ...node_fs });
 	return routes;
 }
 const OFF = 'export const csr = false;\n';
@@ -64,21 +63,15 @@ describe('a route file with a layout reset is a route component', () => {
 	);
 });
 
-describe('a dev edit to a route file clears the route answers', () => {
-	it.each([
-		'+page.svelte',
-		'+page@.svelte',
-		'+page.md',
-		'+layout@(app).svelte',
-		'+error.svelte',
-		'+page.ts',
-		'+page.server.js',
-		'+layout.server.ts'
-	])('%s is a route file', (name) => {
-		expect(is_route_file(name)).toBe(true);
-	});
-	it.each(['+server.ts', 'Page.svelte', 'page.ts', '+page.d.ts'])('%s is not', (name) => {
-		expect(is_route_file(name)).toBe(false);
+describe('a dev edit to a route file changes the route answers', () => {
+	it.each(['+page.svelte', '+page@.svelte', '+page.md'])('a new %s is a new route', (name) => {
+		const routes = tree({ 'a/+page.svelte': '<h1>a</h1>' });
+		expect(csrTrueRouteIds(R, routes)).toEqual(['/a']);
+		const abs = path.join(routes, 'b', name);
+		mkdirSync(path.dirname(abs), { recursive: true });
+		writeFileSync(abs, '<h1>b</h1>');
+		expect(R.touch(abs, 'create')).toBe(true);
+		expect(csrTrueRouteIds(R, routes).sort()).toEqual(['/a', '/b']);
 	});
 });
 

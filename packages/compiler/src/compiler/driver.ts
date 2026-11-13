@@ -26,7 +26,8 @@ import {
 	hasAnyCsrTrueRoute,
 	clean_stale_ogygia_dirs,
 	is_route_component,
-	kit_dirs
+	kit_dirs,
+	type FileEvent
 } from './kit.ts';
 import { run_module_macros } from './macros/pipeline.ts';
 import { fn_manifest_entries } from './macros/dollar.ts';
@@ -292,7 +293,7 @@ export class Compiler implements CoreApp {
 		if (!build.legs.has(name)) build.legs.set(name, new_leg(name, server));
 		if (build.begun) return false;
 		build.begun = true;
-		this.#ctx.routes.clear();
+		this.#ctx.routes.db.reread();
 		return true;
 	}
 
@@ -401,14 +402,15 @@ export class Compiler implements CoreApp {
 	}
 
 	/**
-	 * DEV: a route file was added, changed or removed (a csr or config export, a route itself). The
-	 * route answers are read again, and the ids to invalidate are the virtual modules that read them
-	 * AND every module compiled for a csr world that is no longer its own: a host compiled for
-	 * csr=true has its marks stripped, so a page that became csr=false kept no regions until a
-	 * restart (test/dev-csr-change.test.ts). Its old rows go now; its next transform registers anew.
+	 * DEV: a file was added, changed or removed. What the route answers read of it is read again
+	 * (`Routes.touch`); when none of that changed, nothing is invalidated. Else the ids to invalidate
+	 * are the virtual modules that read the routes AND every module compiled for a csr world that is
+	 * no longer its own: a host compiled for csr=true has its marks stripped, so a page that became
+	 * csr=false kept no regions until a restart (test/dev-csr-change.test.ts). Its old rows go now;
+	 * its next transform registers anew.
 	 */
-	routes_changed(): string[] {
-		this.#ctx.routes.clear();
+	routes_changed(file: string, event: FileEvent): string[] {
+		if (!this.#ctx.routes.touch(file, event)) return [];
 		const out = new Set(this.#virtuals.bump('routes'));
 		const invalidate = (id: string) => out.add(id);
 		for (const [k, w] of this.#worlds) {

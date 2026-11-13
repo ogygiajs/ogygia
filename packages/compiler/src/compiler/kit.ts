@@ -5,71 +5,121 @@ import { createRequire } from 'node:module';
 import { ISLAND_DIR } from './region/transform.ts';
 import { parse_module, type AstNode } from './parse/oxc.ts';
 import { OgygiaError } from './messages.ts';
-import { cache, type Cache } from '@ogygia/machine';
-import type { Fs } from './fs.ts';
+import { cache } from '@ogygia/machine';
+import type { Fs, FsEntry } from './fs.ts';
+import { derived, input, queries, type Queries, type Query } from './queries.ts';
 
-/** Project roots a process remembers Kit's settings for (one per Vite instance it runs). */
-const ROOTS_MAX = 64;
-/** Route files a process remembers a read of (a large app's route tree, with room). */
-const ROUTE_FILES_MAX = 20_000;
+/** A file event, as the bundler's watcher names it. */
+export type FileEvent = 'create' | 'update' | 'delete';
 
-/** Kit's route trees and route config as one file system holds them: the file system and the
- *  answers read from it, kept until a route file changes (`clear()`: the plugin's route watcher). */
+/** Route config is asked for by route file and by the keys the plugins claim. */
+export type Keyed = readonly [file: string, keys: readonly string[]];
+const keyed = ([file, keys]: Keyed) => `${file}\0${keys.join(',')}`;
+const own = (k: string) => k;
+
+/**
+ * Kit's route trees and route config as one file system holds them: each answer is a query
+ * (./queries.ts) over the files and directory listings it read, so a file event reads again only
+ * what was read of that file, and computes again only the answers that read it (`touch`).
+ */
 export interface Routes {
 	readonly fs: Fs;
-	/** Each option file's `csr`: every transform asks for its route's chain of option files, cache
-	 *  hits included, and each read was a file read (or a miss) per directory level. */
-	readonly csr_of_file: Cache<string, boolean | undefined>;
+	readonly db: Queries;
+	/** A file's text (null: none). */
+	readonly text: Query<string, string | null>;
+	/** A directory's entries as it lists them (null: not a directory). */
+	readonly listing: Query<string, readonly FsEntry[] | null>;
+	/** What is at a path, links followed. */
+	readonly at: Query<string, 'file' | 'dir' | null>;
+	/** Each option file's `csr`. */
+	readonly csr_of_file: Query<string, boolean | undefined>;
 	/** Each module's claimed `config` keys. */
-	readonly config_of_file: Cache<string, Record<string, unknown>>;
-	/** routesDir → Kit's route tree of it, made at once. */
-	readonly route_trees: Cache<string, RouteTree>;
+	readonly config_of_file: Query<Keyed, Record<string, unknown>>;
+	/** routesDir → Kit's route tree of it (its shape: which nodes, which layouts each page uses). */
+	readonly route_tree: Query<string, RouteTree>;
+	/** routesDir → each node's csr as Kit's static analysis computes it, by `RouteNode.index`. */
+	readonly node_csr: Query<string, readonly (boolean | undefined)[]>;
 	/** routesDir + keys → every page's merged config. */
-	readonly page_config: Cache<string, Record<string, Record<string, unknown>>>;
+	readonly page_config: Query<Keyed, Record<string, Record<string, unknown>>>;
 	/** routesDir → does any page have csr=true. */
-	readonly has_csr_true: Cache<string, boolean>;
-	/** Drop every answer (a route/`csr`-export add/remove invalidates them). */
-	clear(): void;
+	readonly has_csr_true: Query<string, boolean>;
+	/**
+	 * A file event at `abs`: read again what anything read of it (its text, what is at it, and on an
+	 * add or a delete every listing above it). Whether a route answer changed: an edit that leaves
+	 * every route's options as they were changes none.
+	 */
+	touch(abs: string, event: FileEvent): boolean;
 }
 
 const routes_by_fs = new WeakMap<Fs, Routes>();
 
 /** The route reader for one file system: the same one each time it is asked for, so the disk has
- *  one cache set however many compile contexts read it. */
+ *  one set of answers however many compile contexts read it. */
 export function route_reader(files: Fs): Routes {
 	let r = routes_by_fs.get(files);
 	if (r) return r;
-	const csr_of_file = cache<string, boolean | undefined>({
-		name: 'route csr',
-		max: ROUTE_FILES_MAX
-	});
-	const config_of_file = cache<string, Record<string, unknown>>({
-		name: 'route config',
-		max: ROUTE_FILES_MAX
-	});
-	const route_trees = cache<string, RouteTree>({ name: 'route trees', max: ROOTS_MAX });
-	const page_config = cache<string, Record<string, Record<string, unknown>>>({
-		name: 'page config',
-		max: ROOTS_MAX
-	});
-	const has_csr_true = cache<string, boolean>({ name: 'routes csr true', max: ROOTS_MAX });
-	r = {
+	const db = queries('routes');
+	const text = input('route text', own, (abs: string) => files.read(abs));
+	const listing = input('route listing', own, (dir: string) => files.list(dir));
+	const at = input('route stat', own, (abs: string) => files.stat(abs));
+	const route_tree = derived(
+		'route tree',
+		own,
+		(_cx, routesDir: string) => build_route_tree(routes, routesDir),
+		Object.is
+	);
+	const routes: Routes = {
 		fs: files,
-		csr_of_file,
-		config_of_file,
-		route_trees,
-		page_config,
-		has_csr_true,
-		clear() {
-			csr_of_file.clear();
-			has_csr_true.clear();
-			route_trees.clear();
-			page_config.clear();
-			config_of_file.clear();
+		db,
+		text,
+		listing,
+		at,
+		csr_of_file: derived('route csr', own, (cx, file: string) =>
+			csr_of_text(cx.get(text, file), file)
+		),
+		config_of_file: derived('route config', keyed, (cx, [file, keys]: Keyed) =>
+			route_config_of_text(cx.get(text, file), file, keys)
+		),
+		route_tree,
+		node_csr: derived('route node csr', own, (cx, routesDir: string) => {
+			const tree = cx.get(route_tree, routesDir);
+			const out: (boolean | undefined)[] = [];
+			const of = (node: RouteNode): boolean | undefined => {
+				if (node.index in out) return out[node.index];
+				const csr = node_own_csr(routes, node) ?? (node.parent ? of(node.parent) : undefined);
+				out[node.index] = csr;
+				return csr;
+			};
+			for (const node of tree.nodes) of(node);
+			return out;
+		}),
+		page_config: derived('page config', keyed, (cx, [routesDir, keys]: Keyed) => {
+			const m: Record<string, Record<string, unknown>> = {};
+			for (const leaf of cx.get(route_tree, routesDir).nodes)
+				if (leaf.kind === 'leaf')
+					m[route_id_of(leaf.route, routesDir)] = page_config(routes, leaf, keys);
+			return m;
+		}),
+		has_csr_true: derived(
+			'routes csr true',
+			own,
+			(_cx, routesDir: string) => csrTrueRouteIds(routes, routesDir).length > 0
+		),
+		touch(abs, event) {
+			const before = db.revision;
+			db.refresh(text, abs);
+			db.refresh(at, abs);
+			if (event !== 'update')
+				for (let dir = path.dirname(abs); ; dir = path.dirname(dir)) {
+					db.refresh(listing, dir);
+					db.refresh(at, dir);
+					if (path.dirname(dir) === dir) break;
+				}
+			return db.revision !== before && db.answers_changed_since(before);
 		}
 	};
-	routes_by_fs.set(files, r);
-	return r;
+	routes_by_fs.set(files, routes);
+	return routes;
 }
 
 /** The Kit-internal + app paths ogygia deep-imports (resolved off the APP root, not this package). */
@@ -227,14 +277,10 @@ export function kit_inline_style_threshold(root: string): number {
 
 /** Read `export const csr = true|false` from a route options file; `undefined` if unset/absent. */
 export function read_csr(r: Routes, file: string): boolean | undefined {
-	if (r.csr_of_file.has(file)) return r.csr_of_file.get(file);
-	const v = read_csr_uncached(r.fs, file);
-	r.csr_of_file.set(file, v);
-	return v;
+	return r.db.get(r.csr_of_file, file);
 }
 
-function read_csr_uncached(files: Fs, file: string): boolean | undefined {
-	const src = files.read(file);
+function csr_of_text(src: string | null, file: string): boolean | undefined {
 	if (src === null) return undefined; // ok: no such option file on this level
 	if (!src.includes('csr')) return undefined;
 	// parsed, like Kit: text in a comment or a string is no export (test: read-csr-kit.test.ts)
@@ -323,19 +369,15 @@ export function read_route_config(
 	file: string,
 	keys: readonly string[]
 ): Record<string, unknown> {
-	const memo = `${file}\0${keys.join(',')}`;
-	let out = r.config_of_file.get(memo);
-	if (!out) r.config_of_file.set(memo, (out = read_route_config_uncached(r.fs, file, keys)));
-	return out;
+	return r.db.get(r.config_of_file, [file, keys]);
 }
 
-function read_route_config_uncached(
-	files: Fs,
+function route_config_of_text(
+	src: string | null,
 	file: string,
 	keys: readonly string[]
 ): Record<string, unknown> {
 	const out: Record<string, unknown> = {};
-	const src = files.read(file);
 	if (src === null) return out;
 	if (!src.includes('config') || !keys.some((k) => src.includes(k))) return out;
 	const { program } = parse_module(src, file);
@@ -390,11 +432,6 @@ export function is_route_component(name: string, kind: 'page' | 'layout'): boole
 	return route_component(name)?.kind === kind;
 }
 
-/** A file whose change can move a route's csr or config: a route component or an option module. */
-export function is_route_file(name: string): boolean {
-	return route_component(name) !== null || ROUTE_MODULE_RE.test(name);
-}
-
 type RouteNodeKind = 'layout' | 'error' | 'leaf';
 // One of Kit's `PageNode`s: a directory's layout, error page or page.
 interface RouteNode {
@@ -408,6 +445,7 @@ interface RouteNode {
 	layouts: RouteNode[];
 	// a layout: the leaves that render in it
 	pages: RouteNode[];
+	index: number;
 }
 interface Route {
 	readonly dir: string;
@@ -420,13 +458,10 @@ interface Route {
 interface RouteTree {
 	readonly routes: Route[];
 	readonly nodes: RouteNode[];
-	readonly csr: Map<RouteNode, boolean | undefined>;
 }
 
 function route_tree(r: Routes, routesDir: string): RouteTree {
-	let tree = r.route_trees.get(routesDir);
-	if (!tree) r.route_trees.set(routesDir, (tree = build_route_tree(r.fs, routesDir)));
-	return tree;
+	return r.db.get(r.route_tree, routesDir);
 }
 
 /** The layouts a node starting at `route` renders in, deepest first, as create_manifest_data walks
@@ -443,7 +478,7 @@ function layouts_up(route: Route | null, reset: string | undefined): RouteNode[]
 	return out;
 }
 
-function build_route_tree(files: Fs, routesDir: string): RouteTree {
+function build_route_tree(r: Routes, routesDir: string): RouteTree {
 	const routes: Route[] = [];
 	const node = (kind: RouteNodeKind, route: Route): RouteNode => ({
 		kind,
@@ -452,12 +487,13 @@ function build_route_tree(files: Fs, routesDir: string): RouteTree {
 		reset: undefined,
 		parent: null,
 		layouts: [],
-		pages: []
+		pages: [],
+		index: -1
 	});
 	const walk = (dir: string, segment: string, parent: Route | null) => {
 		const route: Route = { dir, segment, parent, layout: null, error: null, leaf: null };
 		routes.push(route);
-		const entries = files.stat(dir) !== null ? route_entries(files, dir) : [];
+		const entries = route_entries(r, dir);
 		for (const e of entries) {
 			if (!e.is_file) continue;
 			const component = route_component(e.name);
@@ -497,16 +533,14 @@ function build_route_tree(files: Fs, routesDir: string): RouteTree {
 				break;
 			}
 	}
-	const nodes = routes.flatMap((r) => [r.layout, r.error, r.leaf].filter((n) => n !== null));
-	return { routes, nodes, csr: new Map() };
+	const nodes = routes.flatMap((x) => [x.layout, x.error, x.leaf].filter((n) => n !== null));
+	nodes.forEach((n, i) => (n.index = i));
+	return { routes, nodes };
 }
 
 /** A node's csr as Kit's static analysis computes it: its own option, else its parent's. */
 function node_csr(r: Routes, tree: RouteTree, node: RouteNode): boolean | undefined {
-	if (tree.csr.has(node)) return tree.csr.get(node);
-	const csr = node_own_csr(r, node) ?? (node.parent ? node_csr(r, tree, node.parent) : undefined);
-	tree.csr.set(node, csr);
-	return csr;
+	return r.db.get(r.node_csr, tree.routes[0].dir)[node.index];
 }
 
 function node_own_csr(r: Routes, node: RouteNode): boolean | undefined {
@@ -638,17 +672,15 @@ export function routeCsrIsTrue(r: Routes, hostFile: string, routesDir: string): 
  * skipped it → the runtime 404'd. (An app sharing routes between two trees links them.)
  */
 function route_entries(
-	files: Fs,
+	r: Routes,
 	dir: string
 ): Array<{ name: string; is_dir: boolean; is_file: boolean }> {
 	const out: Array<{ name: string; is_dir: boolean; is_file: boolean }> = [];
-	const entries = files.list(dir);
-	if (entries === null) throw new Error(`ENOENT: no such directory, scandir '${dir}'`);
-	for (const e of entries) {
+	for (const e of r.db.get(r.listing, dir) ?? []) {
 		let is_dir = e.kind === 'dir';
 		let is_file = e.kind === 'file';
 		if (!is_dir && !is_file) {
-			const st = files.stat(path.join(dir, e.name));
+			const st = r.db.get(r.at, path.join(dir, e.name));
 			if (st === null) continue;
 			is_dir = st === 'dir';
 			is_file = st === 'file';
@@ -714,15 +746,7 @@ export function page_route_config(
 	routesDir: string,
 	keys: readonly string[]
 ): Record<string, Record<string, unknown>> {
-	const memo = `${routesDir}\0${keys.join(',')}`;
-	let m = r.page_config.get(memo);
-	if (!m) {
-		m = {};
-		for (const leaf of route_tree(r, routesDir).nodes)
-			if (leaf.kind === 'leaf') m[route_id_of(leaf.route, routesDir)] = page_config(r, leaf, keys);
-		r.page_config.set(memo, m);
-	}
-	return m;
+	return r.db.get(r.page_config, [routesDir, keys]);
 }
 
 /**
@@ -733,12 +757,7 @@ export function page_route_config(
  * graph); only mixed apps pay for the layout wrappers.
  */
 export function hasAnyCsrTrueRoute(r: Routes, routesDir: string): boolean {
-	let v = r.has_csr_true.get(routesDir);
-	if (v === undefined) {
-		v = csrTrueRouteIds(r, routesDir).length > 0;
-		r.has_csr_true.set(routesDir, v);
-	}
-	return v;
+	return r.db.get(r.has_csr_true, routesDir);
 }
 
 // The build-time keepalive route ogygia injects to defeat Kit's skip (see index.ts). It must be
@@ -756,7 +775,6 @@ export const KEEP_CLIENT_DIR = '.ogygia-keep-client';
  * keepalive Kit did not need: a harmless extra client build, never a 404.
  */
 export function clientBuildWillSkip(r: Routes, routesDir: string): boolean {
-	if (r.fs.stat(routesDir) === null) return false;
 	const tree = route_tree(r, routesDir);
 	return tree.nodes.every((node) => node_csr(r, tree, node) === false);
 }
@@ -766,7 +784,6 @@ export function clientBuildWillSkip(r: Routes, routesDir: string): boolean {
  * ogygia runtime at all — Kit hydrates everything itself — so the runtime chunk is skipped entirely.
  */
 export function hasAnyCsrFalseRoute(r: Routes, routesDir: string): boolean {
-	if (r.fs.stat(routesDir) === null) return false;
 	const tree = route_tree(r, routesDir);
 	return page_leaves(tree).some((leaf) => node_csr(r, tree, leaf) === false);
 }

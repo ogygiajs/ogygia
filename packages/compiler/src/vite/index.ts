@@ -96,7 +96,6 @@ import {
 	clientBuildWillSkip,
 	hasAnyCsrFalseRoute,
 	route_reader,
-	is_route_file,
 	keep_client_dir,
 	inject_keep_client_route,
 	resolve_kit_paths,
@@ -1065,8 +1064,8 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 				// graph, so without invalidation the SERVER leg keeps deciding island-vs-inline from a
 				// STALE set while Kit flips immediately — `<ogygia-region>` shells on a Kit-booted page
 				// with the runtime withheld = dead chrome (hit at a consumer after toggling `csr`).
-				if (is_dev && is_route_file(path.basename(id))) {
-					const ids = compiler.routes_changed();
+				if (is_dev) {
+					const ids = compiler.routes_changed(id, change.event);
 					if (vite_server) for (const mid of ids) invalidate_module_id(vite_server, mid);
 				}
 				// Unlink often skips handleHotUpdate; drop islands that still import the deleted file.
