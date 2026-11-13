@@ -72,11 +72,11 @@ it('a watch rebuild marks the island’s whole closure again (#1448)', () => {
 		)
 	);
 	const who = path.join(root, 'src/lib/who.ts');
-	compiler.start_leg('client');
+	compiler.start_leg('client', false);
 	compiler.prescan();
 	expect(compiler.program.island_graph.has(who)).toBe(true);
 	// the rebuild: the same leg starts again
-	compiler.start_leg('client');
+	compiler.start_leg('client', false);
 	compiler.prescan();
 	expect(compiler.program.island_graph.has(who)).toBe(true);
 });
