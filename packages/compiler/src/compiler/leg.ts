@@ -30,6 +30,9 @@ export interface BuildLeg {
 	readonly router_css_refs: Map<string, string>;
 	readonly hole_css_refs: Map<string, string>;
 	readonly content_css_refs: Map<string, string>;
+	/** A server leg's regions found after it wrote `server-regions`: each one's emitted chunk ref, by
+	 *  island id (link/server-manifest.ts). */
+	readonly late_server_regions: Map<string, string>;
 	/** Each relocation's patches in this leg's chunks, by name (link/relocations.ts). */
 	readonly relocated: Map<string, number>;
 	/** Why a barrel stayed, by transform stage (exports/left.ts). */
@@ -51,6 +54,7 @@ export function new_leg(name: string, server: boolean): BuildLeg {
 		router_css_refs: new Map(),
 		hole_css_refs: new Map(),
 		content_css_refs: new Map(),
+		late_server_regions: new Map(),
 		relocated: new Map(),
 		barrels_left(stage) {
 			let table = barrels.get(stage);

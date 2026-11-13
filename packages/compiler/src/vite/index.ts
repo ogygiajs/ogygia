@@ -1329,9 +1329,11 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 				return source === code ? null : { code: source, map: null };
 			},
 
-			renderChunk(code) {
+			renderChunk(code, chunk) {
 				// the values known only once every transform has run (link/relocations.ts)
 				return compiler_of(session, 'renderChunk').relocate(code, leg_of(this), {
+					chunk_file: chunk.fileName,
+					file_name: (ref) => this.getFileName(ref),
 					graph: (id) => this.getModuleInfo(id),
 					module_ids: () => this.getModuleIds()
 				});
