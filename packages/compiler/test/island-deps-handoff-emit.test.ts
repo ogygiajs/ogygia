@@ -7,6 +7,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { emit_island_deps_handoff } from '../src/compiler/link/build-output.ts';
+import { code_fn } from './_code-fn.ts';
 
 const TOKEN = '__OGYGIA_ISLAND_DEPS_INLINE__';
 const JSON_TEXT = JSON.stringify({
@@ -30,7 +31,7 @@ const write = (rel: string, text: string) => {
 };
 /** The value a chunk's `export const deps = <literal>;` holds once patched. */
 const literal_of = (file: string) =>
-	new Function(`${fs.readFileSync(file, 'utf8').replace('export const deps =', 'return')}`)();
+	code_fn(`${fs.readFileSync(file, 'utf8').replace('export const deps =', 'return')}`)() as string;
 
 describe('emit_island_deps_handoff', () => {
 	it('writes the handoff and the server copy', () => {

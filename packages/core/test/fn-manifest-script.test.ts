@@ -10,6 +10,7 @@ function registered(html: string): Record<string, (...a: unknown[]) => unknown> 
 	expect(html.startsWith(OPEN) && html.endsWith(CLOSE)).toBe(true);
 	const code = html.slice(OPEN.length, -CLOSE.length);
 	const g: { __OG_FNM?: Record<string, (...a: unknown[]) => unknown> } = {};
+	// oxlint-disable-next-line typescript/no-implied-eval -- runs the manifest script the server prints
 	new Function('globalThis', code)(g);
 	return g.__OG_FNM ?? {};
 }

@@ -184,6 +184,7 @@ function trace(body: string): { all: boolean; keys: Set<string> } {
 	const use = (...xs: unknown[]) => {
 		for (const x of xs) if (x && typeof x === 'object') JSON.stringify(x);
 	};
+	// oxlint-disable-next-line typescript/no-implied-eval -- runs the shaken code to see which page keys it reads
 	new Function('page', 'use', body)(page, use);
 	return seen;
 }
@@ -266,6 +267,7 @@ describe('an imported helper handed the page is summarized soundly', () => {
 		});
 		const runnable = code.replace(/\bexport \{[^}]*\};?/g, '').replace(/\bexport /g, '');
 		const exported = /export \{ g as h \}/.test(code) ? 'g' : 'h';
+		// oxlint-disable-next-line typescript/no-implied-eval -- runs the shaken code to see which page keys it reads
 		new Function('page', `${runnable}\nreturn ${exported}(page);`)({ data, url: '/' });
 		const read = [...seen.keys].filter((k) => KEYS.includes(k));
 		const covered =

@@ -33,7 +33,7 @@
 			}
 		],
 		"typescript/no-for-in-array": "error",
-		"typescript/no-implied-eval": "off",
+		"typescript/no-implied-eval": "error",
 		"typescript/no-meaningless-void-operator": "error",
 		"typescript/no-misused-spread": "off",
 		"typescript/no-redundant-type-constituents": "error",
