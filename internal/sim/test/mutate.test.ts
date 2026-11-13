@@ -11,7 +11,9 @@ import {
 	confirmed,
 	package_of,
 	runnable,
+	seed_list,
 	tally,
+	targets,
 	verdict,
 	type Mutant
 } from '../src/mutate.ts';
@@ -206,6 +208,19 @@ describe('a mutation run', () => {
 			equivalent: 1,
 			rate: 50
 		});
+	});
+
+	it("runs a target's own seeds past the run's range (gen 550 kills schedule.ts:415 only on seeds 33, 36, 65 and 74)", () => {
+		expect(targets('188,550+33+36+65+74', false)).toEqual([
+			{ name: 'gen188', gen: 188, extra: [] },
+			{ name: 'gen550', gen: 550, extra: [33, 36, 65, 74] }
+		]);
+		expect(targets('', true)).toEqual([{ name: 'palaestra', gen: null, extra: [] }]);
+		expect(seed_list(20, [33, 5, 36])).toEqual([
+			...Array.from({ length: 20 }, (_, i) => i + 1),
+			33,
+			36
+		]);
 	});
 
 	it("builds, before its baseline, every package a mutant's build would (a clone's stale dependents killed every mutant alike)", () => {
