@@ -408,11 +408,14 @@ longer does. dst.yml runs
 the sweep before its seeds and fails the job after them when it failed.
 
 EVERY FAILURE SITE ACCOUNTED FOR (`src/failures.ts`, test/failures.test.ts), the same model for
-what can fail. The inventory parses (oxc) the runtime and server packages' `src` (the ledger's
-`scope`: core, federation, flags, insights, machine, postrender, router) and finds each failure
-site: a `catch`, a `.catch(` or a two-handler `.then`, a `fetch`, a `!res.ok`, a STALE check, an
-`import()`, a storage call, a `JSON.parse`, an `AbortSignal.timeout`, a `new …Observer`, a retry
-`policy(`. Each has a stable id, `file > enclosing function > kind:n` (n counts that kind in that
+what can fail. The inventory parses (oxc) every package's `src` (the ledger's `scope`) and finds
+each failure site: a `catch`, a `.catch(` or a two-handler `.then`, a `fetch`, a `!res.ok`, a STALE
+check, an `import()`, a storage call, a `JSON.parse`, a timer, a `new …Observer`, a retry `policy(`,
+an abort, an error event, a stream call, a message, a `throw`, a machine `.move(` (refused when the
+state moved on), an `{ ok: false }` result, a crypto call, a body that may be null (the file's header
+lists what each matches). The scope's `build_time` packages (cli, bake, barrels, config, tooling,
+tsdown-plugin-svelte) no simulator runs: their sites are `covered`, never `fired`. The compiler's
+are fired by the compiler's own simulator (`sim: "compiler"`). Each has a stable id, `file > enclosing function > kind:n` (n counts that kind in that
 function), so lines moving above it do not move it; `node src/failures.ts --list` prints them with
 their lines. The ledger `internal/sim/failures.json` puts each in exactly one bucket: `fired` (a
 buggify point, or a sim fault, reaches it; the sweep fails when the point did not fire; `killed_by`
@@ -421,7 +424,7 @@ broken recovery is noticed), `covered` (a named real test, which the check finds
 rule or type, by its file and name, which the check finds). Sites nobody has bucketed yet are the
 `baseline`: allowed, but it only shrinks (an id no site has fails, and the PR check, `--base
 HEAD^1`, fails a baseline id its base did not list: a new site goes in a bucket). The PR check job
-runs it ("Every failure site accounted for"); 4/459 at the start (2026-11-13): hole.fetch-lost,
+runs it ("Every failure site accounted for"); 4/1820 at the start (2026-11-13): hole.fetch-lost,
 postrender.store-down (twice) and outbox.reply-lost's sites. To take a site out of the baseline: add
 a buggify point that reaches it (behind the file's RULES constant), run the sweep and see it fire,
 then break the recovery and see a seed fail, twice on the same build (the re-run rule above); the

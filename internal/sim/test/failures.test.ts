@@ -47,7 +47,7 @@ describe('failure sites', () => {
 			'packages/x/src/a.ts > go > stale:0',
 			'packages/x/src/a.ts > go > storage:0',
 			'packages/x/src/a.ts > go > observer:0',
-			'packages/x/src/a.ts > go > timeout:0',
+			'packages/x/src/a.ts > go > timer:0',
 			'packages/x/src/a.ts > go > policy:0'
 		]);
 	});
@@ -79,6 +79,43 @@ describe('failure sites', () => {
 				try { a(); } catch {} }
 		`);
 		expect(two).toEqual(one);
+	});
+
+	it('finds aborts, error events, streams, messages, throws, refused moves, failed results, crypto and null bodies', () => {
+		const got = ids(dedent`
+			function h(res, el, ctl, m) {
+				const ac = new AbortController();
+				if (ac.signal.aborted) return;
+				if (e.name === 'AbortError') return;
+				el.addEventListener('error', on_error);
+				el.onerror = on_error;
+				res.body.getReader();
+				ctl.enqueue(chunk);
+				controller.error(e);
+				navigator.sendBeacon(url, data);
+				if (!m.move('done')) return { ok: false };
+				crypto.subtle.verify(alg, key, sig, data);
+				if (res.body === null) throw new Error('no body');
+				setTimeout(go, 5);
+			}
+		`);
+		expect(got.map((id) => id.split(' > ').at(-1))).toEqual([
+			'abort:0',
+			'abort:1',
+			'abort:2',
+			'error-event:0',
+			'error-event:1',
+			'stream:0',
+			'stream:1',
+			'stream:2',
+			'message:0',
+			'refused:0',
+			'result:0',
+			'crypto:0',
+			'body:0',
+			'throw:0',
+			'timer:0'
+		]);
 	});
 
 	it('does not count a successful call as a failure', () => {
@@ -168,6 +205,22 @@ describe('failure sites accounted', () => {
 			"h > parse:0: no live mutant 'm.gone' in mutants.json",
 			'f > fetch:0: its test file is not there: t/a.test.ts',
 			"g > stale:0: its rule's file is not there: src/rules.ts"
+		]);
+	});
+
+	it('fails a fired site in a package no simulator runs (its sites are covered by tests)', () => {
+		const pkg = 'packages/cli/src/a.ts > f > catch:0';
+		const a = account_failures(
+			new Set([...SITES, pkg]),
+			ledger({
+				scope: { packages: ['x', 'cli'], exclude: [], build_time: ['cli'] },
+				fired: [{ site: pkg, point: 'p.lost', how: '' }],
+				baseline: ['h > parse:0', 'k > catch:0', 'f > catch:0']
+			}),
+			o
+		);
+		expect(a.failures).toEqual([
+			`${pkg}: a build-time package's site is covered by a test, never fired`
 		]);
 	});
 

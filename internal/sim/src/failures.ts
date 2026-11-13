@@ -1,8 +1,13 @@
 /**
- * EVERY FAILURE SITE ACCOUNTED FOR. Each place in the packages' runtime and server source that can
- * fail in real life (a catch, a `.catch(`, a fetch, a `!res.ok` branch, a STALE branch, an
- * `import()`, a storage call, a JSON parse, a timeout, an observer, a retry policy) is a site, with a
- * stable id: `file > enclosing function > kind:n` (n counts that kind in that function, in source
+ * EVERY FAILURE SITE ACCOUNTED FOR. Each place in the packages' source that can fail in real life
+ * is a site: a catch, a `.catch(` or two-handler `.then`, a fetch, a `!res.ok`, a STALE check, an
+ * `import()`, a storage call, a JSON parse, a timer (`setTimeout`, a scope's or AbortSignal's
+ * `timeout`), an observer, a retry policy, an abort (`AbortController`, `.aborted`, `'AbortError'`),
+ * an error event (`'error'`/`'abort'` listeners, `onerror`), a stream (`getReader`, `enqueue`, a
+ * controller's `error`/`close`), a message (`postMessage`, `sendBeacon`, a channel), a `throw` (a
+ * failure some caller must handle), a machine `.move(` (refused when the state moved on), an
+ * `{ ok: false }` result, a crypto call (`crypto.subtle`, `verify`, `timingSafeEqual`) and a body
+ * that may be null (`!x.body`, `x.body === null`). Each has a stable id: `file > enclosing function > kind:n` (n counts that kind in that function, in source
  * order). The ledger, `internal/sim/failures.json`, puts each site in exactly one bucket:
  *
  * - `fired`: a buggify point (`point`, which a `buggify.fires('<point>')` in the packages' source
@@ -43,9 +48,18 @@ export type SiteKind =
 	| 'import'
 	| 'storage'
 	| 'parse'
-	| 'timeout'
+	| 'timer'
 	| 'observer'
-	| 'policy';
+	| 'policy'
+	| 'abort'
+	| 'error-event'
+	| 'stream'
+	| 'message'
+	| 'throw'
+	| 'refused'
+	| 'result'
+	| 'crypto'
+	| 'body';
 
 export interface Site {
 	readonly id: string;
@@ -105,6 +119,27 @@ function callee_name(call: Node): { name: string | null; object: string | null }
 	return { name: null, object: null };
 }
 
+/** The events a failure is told by. */
+const ERROR_EVENTS: ReadonlySet<string> = new Set([
+	'error',
+	'abort',
+	'messageerror',
+	'unhandledrejection'
+]);
+
+/** The handler properties those events are told to. */
+const ERROR_HANDLERS: ReadonlySet<string> = new Set([
+	'onerror',
+	'onabort',
+	'onmessageerror',
+	'onunhandledrejection'
+]);
+
+/** `x.body`: a response's body, null when it has none. */
+function is_body(n: Node): boolean {
+	return n.type === 'MemberExpression' && !n.computed && (n.property as Node).name === 'body';
+}
+
 /** The kind of failure site `node` is, or null. `parent` is the node around it. */
 function kind_of(node: Node, parent: Node | null): SiteKind | null {
 	switch (node.type) {
@@ -112,15 +147,39 @@ function kind_of(node: Node, parent: Node | null): SiteKind | null {
 			return 'catch';
 		case 'ImportExpression':
 			return 'import';
+		case 'ThrowStatement':
+			return 'throw';
 		case 'NewExpression': {
 			const c = node.callee as Node;
-			return c.type === 'Identifier' && String(c.name).endsWith('Observer') ? 'observer' : null;
+			if (c.type !== 'Identifier') return null;
+			const name = String(c.name);
+			if (name.endsWith('Observer')) return 'observer';
+			if (name === 'AbortController') return 'abort';
+			if (name === 'BroadcastChannel' || name === 'MessageChannel') return 'message';
+			return null;
+		}
+		case 'Literal':
+			return node.value === 'AbortError' ? 'abort' : null;
+		case 'Property': {
+			const key = node.key as Node;
+			const value = node.value as Node;
+			if (node.computed || key.type !== 'Identifier') return null;
+			if (key.name === 'ok' && value.type === 'Literal' && value.value === false) return 'result';
+			if (ERROR_HANDLERS.has(String(key.name))) return 'error-event';
+			return null;
 		}
 		case 'BinaryExpression': {
 			if (!['===', '!==', '==', '!='].includes(String(node.operator))) return null;
+			const left = node.left as Node;
+			const right = node.right as Node;
 			const is_stale = (n: Node) => n.type === 'Identifier' && n.name === 'STALE';
-			return is_stale(node.left as Node) || is_stale(node.right as Node) ? 'stale' : null;
+			if (is_stale(left) || is_stale(right)) return 'stale';
+			const is_null = (n: Node) => n.type === 'Literal' && n.value === null;
+			if ((is_body(left) && is_null(right)) || (is_body(right) && is_null(left))) return 'body';
+			return null;
 		}
+		case 'UnaryExpression':
+			return node.operator === '!' && is_body(node.argument as Node) ? 'body' : null;
 		case 'MemberExpression': {
 			if (node.computed) return null;
 			const o = node.object as Node;
@@ -131,18 +190,43 @@ function kind_of(node: Node, parent: Node | null): SiteKind | null {
 			const p = node.property as Node;
 			if (p.name === 'ok' && parent?.type === 'UnaryExpression' && parent.operator === '!')
 				return 'not-ok';
+			if (p.name === 'aborted') return 'abort';
+			if (
+				ERROR_HANDLERS.has(String(p.name)) &&
+				parent?.type === 'AssignmentExpression' &&
+				parent.left === node
+			)
+				return 'error-event';
 			return null;
 		}
 		case 'CallExpression': {
 			const { name, object } = callee_name(node);
 			if (name === null) return null;
 			const args = node.arguments as Node[];
-			if (name === 'catch' && (node.callee as Node).type === 'MemberExpression') return '.catch';
+			const callee = node.callee as Node;
+			const member = callee.type === 'MemberExpression';
+			if (name === 'catch' && member) return '.catch';
 			if (name === 'then' && args.length >= 2) return 'reject';
 			if (name === 'fetch') return 'fetch';
 			if (name === 'parse' && object === 'JSON') return 'parse';
-			if (name === 'timeout' && object === 'AbortSignal') return 'timeout';
 			if (name === 'policy' && object === null) return 'policy';
+			if (name === 'setTimeout' || name === 'timeout') return 'timer';
+			if (
+				(name === 'addEventListener' || (name === 'on' && member)) &&
+				args.slice(0, 2).some((a) => a.type === 'Literal' && ERROR_EVENTS.has(String(a.value)))
+			)
+				return 'error-event';
+			if (name === 'getReader' || name === 'enqueue') return 'stream';
+			if ((name === 'error' || name === 'close') && object !== null && /controller/i.test(object))
+				return 'stream';
+			if (name === 'postMessage' || name === 'sendBeacon') return 'message';
+			if (name === 'move' && member) return 'refused';
+			if (name === 'verify' || name === 'timingSafeEqual') return 'crypto';
+			if (member) {
+				const o = callee.object as Node;
+				if (o.type === 'MemberExpression' && (o.property as Node).name === 'subtle')
+					return 'crypto';
+			}
 			return null;
 		}
 		default:
@@ -203,6 +287,10 @@ export interface Scope {
 	readonly packages: readonly string[];
 	/** Paths from the repo root (a directory ends in `/`) that are not runtime or server code. */
 	readonly exclude: readonly { readonly path: string; readonly why: string }[];
+	/** Packages no simulator runs (the cli, build config, the e2e harness): their sites are
+	 *  `covered` by real tests, never `fired`. The compiler is not one: the compiler's own
+	 *  simulator (a dev session against a cold build) fires its sites. */
+	readonly build_time?: readonly string[];
 }
 
 /** The `.ts` files of `scope`, from the repo root, in a stable order. */
@@ -234,6 +322,9 @@ export interface Fired {
 	readonly point?: string;
 	/** Or the sim fault that does. */
 	readonly fault?: string;
+	/** Which simulator fires it: the app simulator (internal/sim, the default) or the compiler's
+	 *  (a dev session's edits, fs and watcher faults, against a cold build). */
+	readonly sim?: 'app' | 'compiler';
 	/** How it reaches the site. */
 	readonly how: string;
 	/** The proof its recovery is checked: a mutant of `internal/sim/mutants.json` that breaks the
@@ -316,14 +407,23 @@ export function account_failures(
 	}
 	const has_name = (text: string, name: string): boolean =>
 		text.includes(`'${name}'`) || text.includes(`"${name}"`) || text.includes(`\`${name}\``);
+	const build_time = new Set(ledger.scope.build_time ?? []);
 	for (const f of ledger.fired) {
+		const pkg = /^packages\/([^/]+)\//.exec(f.site)?.[1];
+		if (pkg !== undefined && build_time.has(pkg))
+			failures.push(`${f.site}: a build-time package's site is covered by a test, never fired`);
 		if ((f.point === undefined) === (f.fault === undefined))
 			failures.push(`${f.site}: a fired site names one point or one fault`);
 		else if (f.point !== undefined && !o.points.has(f.point))
 			failures.push(`${f.site}: no buggify point '${f.point}' in the packages' source`);
-		else if (f.fault !== undefined && !o.faults.has(f.fault))
+		else if (f.fault !== undefined && (f.sim ?? 'app') === 'app' && !o.faults.has(f.fault))
 			failures.push(`${f.site}: no sim fault '${f.fault}'`);
-		else if (f.point !== undefined && o.fired !== undefined && !o.fired.has(f.point))
+		else if (
+			f.point !== undefined &&
+			(f.sim ?? 'app') === 'app' &&
+			o.fired !== undefined &&
+			!o.fired.has(f.point)
+		)
 			failures.push(`${f.site}: its point '${f.point}' did not fire in the sweep`);
 		if (f.killed_by !== undefined && !o.mutants.has(f.killed_by))
 			failures.push(`${f.site}: no live mutant '${f.killed_by}' in mutants.json`);
