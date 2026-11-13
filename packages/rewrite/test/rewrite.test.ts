@@ -109,9 +109,10 @@ describe('element rewrites: what goes to render', () => {
 		expect(out.head).toContain('ogygia-first-load');
 	});
 
-	it('the context carries kind, csr, url, event and the request signal', async () => {
+	it('the context carries kind, csr, url, event and a signal that fires when the request is cancelled', async () => {
 		let got: RewriteContext | null = null;
-		const event = event_of();
+		const ac = new AbortController();
+		const event = event_of(ac.signal);
 		const { chunk } = chunked(
 			[
 				{
@@ -130,8 +131,11 @@ describe('element rewrites: what goes to render', () => {
 			csr: true,
 			url: event.url,
 			event,
-			signal: event.request.signal
+			signal: expect.any(AbortSignal)
 		});
+		expect(got!.signal.aborted).toBe(false);
+		ac.abort();
+		expect(got!.signal.aborted).toBe(true);
 	});
 });
 

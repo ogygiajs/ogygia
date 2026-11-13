@@ -603,6 +603,16 @@
 		"aim": "rewrite.render-throws"
 	},
 	{
+		"id": "rewrite-cancel-unread",
+		"file": "packages/rewrite/src/pass.ts",
+		"in": "cancelled",
+		"code": "return res.signal.aborted;",
+		"operator": "statement",
+		"from": "return res.signal.aborted;",
+		"to": "return false;",
+		"aim": "rewrite.signal-fires"
+	},
+	{
 		"id": "rewrite-count-unchecked",
 		"file": "packages/rewrite/src/pass.ts",
 		"in": "counted",

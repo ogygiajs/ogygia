@@ -86,7 +86,14 @@
 		{
 			"site": "packages/rewrite/src/pass.ts > cancelled > abort:0",
 			"point": "rewrite.signal-fires",
-			"how": "the point reads as the request cancelled mid-batch: the batch goes out as ogygia rendered it, never retried, nothing said"
+			"how": "the point cancels the response (its own controller, under the request's signal) at a check: the batch goes out as ogygia rendered it, never retried, nothing said, and no later rewrite or chunk renders; rule_rewrite_after_cancel says any render, write or failure after it",
+			"killed_by": "rewrite-cancel-unread"
+		},
+		{
+			"site": "packages/rewrite/src/pass.ts > Response > constructor > abort:0",
+			"point": "rewrite.signal-fires",
+			"how": "the controller the point aborts, as a cancelled request does: the render's ctx.signal fires with it",
+			"killed_by": "rewrite-cancel-unread"
 		},
 		{
 			"site": "packages/core/src/runtime/core.ts > OgygiaRegion > fetch_html > catch:0",
@@ -468,6 +475,12 @@
 			"reason": "a wiring error, the same on every request: the sim's app lists its rewrite before ogygia.handle()",
 			"test": "packages/rewrite/test/plugin.test.ts",
 			"name": "listed after ogygia.handle() is refused with rewrite_after_ogygia"
+		},
+		{
+			"site": "packages/rewrite/src/pass.ts > after_cancel > abort:0",
+			"reason": "the rule's own check: it breaks only when the pass goes on after a cancel, which no sim run of the code as it is does (the rewrite-cancel-unread mutant does, and the sim kills it)",
+			"test": "packages/rewrite/test/rewrite.test.ts",
+			"name": "rule_rewrite_after_cancel: a render called after the request was cancelled is said with the rule’s code"
 		},
 		{
 			"site": "packages/rewrite/src/pass.ts > judge > result:0",

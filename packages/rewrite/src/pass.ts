@@ -153,6 +153,8 @@ class Response {
 	readonly said = new Set<string>();
 	readonly sent = new Set<string>();
 	readonly scan: ScanState = scan_state(false);
+	readonly cancel: AbortController | null;
+	readonly signal: AbortSignal;
 	ids = 0;
 	restorer = false;
 	head_open = true;
@@ -169,7 +171,17 @@ class Response {
 		this.paged = steps.some((s) => s.page !== null);
 		this.event = event;
 		this.dev = opts.dev ?? DEV;
-		this.failed = opts.failed ?? ((f) => this.say(f));
+		this.cancel = RULES ? new AbortController() : null;
+		this.signal = this.cancel
+			? AbortSignal.any([event.request.signal, this.cancel.signal])
+			: event.request.signal;
+		const failed = opts.failed ?? ((f: Failure) => this.say(f));
+		this.failed = RULES
+			? (f) => {
+					after_cancel(this.signal, `<${f.name}> said ${f.code}`);
+					failed(f);
+				}
+			: failed;
 	}
 
 	say(f: Failure): void {
@@ -184,8 +196,13 @@ class Response {
 
 	ctx(kind: RewriteKind, csr: boolean): RewriteContext {
 		const event = this.event;
-		return { kind, csr, url: event.url, event, signal: event.request.signal };
+		return { kind, csr, url: event.url, event, signal: this.signal };
 	}
+}
+
+function after_cancel(signal: AbortSignal, what: string): void {
+	if (signal.aborted)
+		warn('rule_rewrite_after_cancel', { detail: `${what} after the request was cancelled` });
 }
 
 async function render_one(
@@ -200,11 +217,12 @@ async function render_one(
 	}
 }
 
-async function call_render(
+export async function call_render(
 	render: ElementRewrite['render'],
 	els: readonly RewriteElement[],
 	ctx: RewriteContext
 ): Promise<unknown> {
+	if (RULES) after_cancel(ctx.signal, `a render of ${els.length} element(s) was called`);
 	if (RULES && buggify.fires('rewrite.render-throws'))
 		throw new Error('the render threw (buggify)');
 	const out: unknown = await render(els, ctx);
@@ -221,8 +239,9 @@ async function call_render(
 	});
 }
 
-function cancelled(ctx: RewriteContext): boolean {
-	return ctx.signal.aborted || (RULES && buggify.fires('rewrite.signal-fires'));
+function cancelled(res: Response): boolean {
+	if (RULES && buggify.fires('rewrite.signal-fires')) res.cancel?.abort();
+	return res.signal.aborted;
 }
 
 async function render_targets(
@@ -250,11 +269,11 @@ async function render_targets(
 	} catch {
 		results = null;
 	}
-	if (cancelled(ctx)) return targets.map(() => null);
+	if (cancelled(res)) return targets.map(() => null);
 	const outcome: (Rendered | Failure)[] = [];
 	if (results === null) {
 		const each = await Promise.all(unique.map((el) => render_one(render, el, ctx)));
-		if (cancelled(ctx)) return targets.map(() => null);
+		if (cancelled(res)) return targets.map(() => null);
 		for (let i = 0; i < unique.length; i++) {
 			const e = each[i];
 			outcome[i] = e.ok
@@ -335,6 +354,7 @@ async function run_steps(
 	whole: { kind: RewriteKind; csr: boolean } | null
 ): Promise<void> {
 	for (const step of res.steps) {
+		if (cancelled(res)) return;
 		if (step.page) {
 			for (const u of units) await run_page(step.page, u, ctx, res);
 			continue;
@@ -361,6 +381,7 @@ async function run_steps(
 			const r = out[t];
 			if (!r || (r.html === targets[t].element.html && !r.sheets?.length)) continue;
 			const { unit, start, end, back } = targets[t];
+			if (RULES) after_cancel(ctx.signal, `<${targets[t].element.name}>'s render was written`);
 			unit.cur = unit.cur.slice(0, start) + back(r.html) + unit.cur.slice(end);
 			unit.changed = true;
 			if (r.sheets?.length) (unit.sheets ??= []).unshift(...r.sheets);
@@ -455,6 +476,7 @@ async function rewrite_chunk(
 	res: Response,
 	page: { csr: boolean; answer: boolean; body: boolean }
 ): Promise<Out | null> {
+	if (cancelled(res)) return null;
 	const scanned = scan(html, res.any!, res.scan, page.csr, res.waiting !== '');
 	if (scanned.split)
 		res.failed({
