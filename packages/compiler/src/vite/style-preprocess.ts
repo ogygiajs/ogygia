@@ -81,7 +81,6 @@ export async function preprocess_component_for_css(
 		? await load_ts_transform()
 		: null;
 
-	// each block's new text, spliced in source order (the source's own spans: no string search)
 	let out = '';
 	let at = 0;
 	const splice = (start: number, end: number, text: string) => {
@@ -98,7 +97,6 @@ export async function preprocess_component_for_css(
 					quietDeps: true,
 					silenceDeprecations: ['import']
 				});
-				// the opening tag loses its `lang`: what follows is CSS
 				for (const [s, e] of attr_spans(source, b.tag, 'style', 'lang')) splice(s, e, '');
 				splice(b.start, b.end, css);
 			} catch (err) {

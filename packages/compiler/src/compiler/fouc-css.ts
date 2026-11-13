@@ -426,7 +426,6 @@ function extractRawStyleBodies(source: string) {
 	);
 }
 
-/** `source` with each `<script>` block cut out whole, tags and all. */
 function without_scripts(source: string): string {
 	let out = '';
 	let at = 0;

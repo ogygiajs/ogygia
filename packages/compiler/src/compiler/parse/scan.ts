@@ -274,7 +274,6 @@ export function component_blocks(src: string): ComponentBlock[] {
 	for (let tag = next_any_tag(src, 0); tag !== null; tag = next_any_tag(src, tag.next)) {
 		const kind = tag_name(src, tag);
 		if (kind !== 'script' && kind !== 'style') continue;
-		// (`next`: the `</` of its end tag; the source's length when it never closes)
 		if (tag.next >= src.length) break;
 		const gt = src.indexOf('>', tag.next);
 		const lang = tag.attr('lang');

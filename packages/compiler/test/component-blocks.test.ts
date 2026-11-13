@@ -3,6 +3,7 @@
 // hold `>` or the other quote, an attribute may be unquoted or in any case, a comment holds no block,
 // a block's text holds no tag, and `<scripts>` is not `<script>`.
 import { describe, expect, test } from 'vitest';
+import { fileURLToPath } from 'node:url';
 import { og_js_regions } from '../src/compiler/parse/scan.ts';
 import { collect_flag_sites } from '../src/compiler/flags.ts';
 import { svelteModuleHasTransportable } from '../src/compiler/transportables.ts';
@@ -99,5 +100,25 @@ describe('the CSS preprocess keeps the script it strips', () => {
 		`;
 		const out = await preprocess_component_for_css(src, '/app/src/lib/A.svelte', '/app');
 		expect(out).toContain('$$props');
+	});
+
+	test('a scss style comes out as CSS with its lang dropped', async () => {
+		const root = fileURLToPath(new URL('../', import.meta.url));
+		const src = dedent`
+			<p class="a">x</p>
+			<style lang="scss" data-note="a>b">$c: red; .a { color: $c }</style>
+		`;
+		const out = await preprocess_component_for_css(src, `${root}src/lib/A.svelte`, root);
+		expect(out).toContain('<style data-note="a>b">');
+		expect(out).not.toContain('lang=');
+		expect(out).not.toContain('$c');
+	});
+});
+
+describe('a block is closed by its end tag', () => {
+	test('a script whose end tag never comes is no block', () => {
+		expect(og_js_regions(`<p>x</p>\n<script>let a = 1;`, '/app/src/lib/A.svelte', MARKUP)).toEqual(
+			[]
+		);
 	});
 });

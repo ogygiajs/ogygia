@@ -97,12 +97,15 @@ bench(
 	},
 	{
 		setup: () => ({
-			source: `${dedent`
+			source: dedent`
 				<script module lang="ts">
 					export const prerender = true;
 				</script>
 				<!-- <script>an old script</script> -->
-			`}\n${route_page(20)}<style lang="scss" data-note="a>b">\n\tmain { color: red }\n</style>\n`
+				${route_page(20)}<style lang="scss" data-note="a>b">
+					main { color: red }
+				</style>
+			`
 		})
 	}
 );

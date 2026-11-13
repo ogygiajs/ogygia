@@ -14,7 +14,6 @@
  */
 import { component_blocks } from './parse/scan.ts';
 
-/** A cheap test before the walk: it runs over every component. */
 const MAY_STYLE = /<style/i;
 
 export function blank_styles(code: string): string {
