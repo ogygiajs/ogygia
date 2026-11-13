@@ -147,27 +147,34 @@ function known_copies(doc: Document): string[] {
 }
 
 /**
- * SERVER-DELTA NAV (D2): headers for a nav/prefetch fetch. Always `x-ogygia-spa`. When `purpose` is
- * not a plain nav, `x-ogygia-purpose` names it (see {@link NavPurpose}). Plus, when the current
- * document has HYDRATED islands carrying a `data-og-fp`, `x-ogygia-known` lists their fingerprints, one
- * per live copy ({@link known_copies}), so the server can SKIP re-rendering as many copies as this page
- * already has live. Only data-hydrated regions
- * are claimed (never assert a region we don't actually have), and the header is omitted past a size
- * cap → the server renders everything (progressive enhancement: every header here is an optimization
- * the server may ignore, and its absence is always correct).
+ * SERVER-DELTA NAV (D2): the `x-ogygia-known` a page fetch from this document sends. When the
+ * document has HYDRATED islands carrying a `data-og-fp`, it lists their fingerprints, one per live
+ * copy ({@link known_copies}), so the server can SKIP re-rendering as many copies as this page already
+ * has live. Only data-hydrated regions are claimed (never assert a region we don't actually have).
+ * Empty (no header) when server delta is off, when the page has none, or past a size cap: the server
+ * renders everything (progressive enhancement: the header is an optimization the server may ignore,
+ * and its absence is always correct). The answer varies by it (the server says so in `vary`), so it
+ * is part of what a page fetch asks (#1615).
  */
-function nav_headers(purpose: NavPurpose = 'nav'): Record<string, string> {
+function known_header(): string {
+	if (!SERVER_DELTA || typeof document === 'undefined') return '';
+	const joined = known_copies(document).join(',');
+	return joined.length <= KNOWN_HEADER_CAP ? joined : '';
+}
+
+/**
+ * Headers for a nav/prefetch fetch. Always `x-ogygia-spa`. When `purpose` is not a plain nav,
+ * `x-ogygia-purpose` names it (see {@link NavPurpose}), and `known` ({@link known_header}) when there
+ * is one.
+ */
+function nav_headers(purpose: NavPurpose, known: string): Record<string, string> {
 	// The page is fetched the way the browser fetches a DOCUMENT: `fetch` alone sends `Accept: */*`,
 	// and servers answer that differently from a navigation (an app on the field answered `*/*` with
 	// a 302 home and `text/html` with its 404 page) — error pages, page-vs-API routing, auth and CDN
 	// rules all key on it. The router must land where a real navigation would.
 	const headers: Record<string, string> = { accept: DOCUMENT_ACCEPT, 'x-ogygia-spa': '1' };
 	if (purpose !== 'nav') headers['x-ogygia-purpose'] = purpose;
-	if (!SERVER_DELTA || typeof document === 'undefined') return headers;
-	const live = known_copies(document);
-	if (live.length === 0) return headers;
-	const joined = live.join(',');
-	if (joined.length <= KNOWN_HEADER_CAP) headers['x-ogygia-known'] = joined;
+	if (known !== '') headers['x-ogygia-known'] = known;
 	return headers;
 }
 
@@ -497,25 +504,26 @@ const lent = new WeakMap<HTMLElement | SVGElement, string | null>();
 /** A page as a fetch got it: its HTML and the address it belongs to (where the fetch landed, after
  *  the server's redirects; the requested href when there were none). */
 export type FetchedPage = { html: string; url: string };
-/** A page fetch's ask: the address, and why (the purpose of the call that starts the flight is the
- *  one its request carries). */
-type PageAsk = { href: string; purpose: NavPurpose };
+/** A page fetch's ask: the address, the live region copies the asking document names
+ *  ({@link known_header}: the server leaves them out of its answer), and why (the purpose of the
+ *  call that starts the flight is the one its request carries). */
+type PageAsk = { href: string; known: string; purpose: NavPurpose };
 /** A page fetch's answer: the page (`null`: not HTML, or the fetch failed), and whether the
  *  response lets us keep it. */
 type Fetched = { page: FetchedPage | null; cacheable: boolean };
-type Pages = import('@ogygia/machine').Flights<PageAsk, Fetched, Pick<PageAsk, 'href'>>;
+type Pages = import('@ogygia/machine').Flights<PageAsk, Fetched, Pick<PageAsk, 'href' | 'known'>>;
 let page_flights: Pages | undefined;
 /** The world the cached pages are made in: a mutation moves it (`bust_page_cache`). */
 let page_world: import('@ogygia/machine').World | undefined;
-/** The page fetches: one flight per address, shared by every navigation and prefetch of it. A
- *  cacheable answer is kept for PREFETCH_TTL_MS, within PAGE_CACHE_MAX_BYTES (each entry weighs at
- *  least its share of it, so no more than PAGE_CACHE_MAX_ENTRIES small pages are kept). They are made
- *  in `page_world`: a move of it drops them all, a fetch in flight is aborted, and a navigation that
- *  waited on it fetches again. */
+/** The page fetches: one flight per address and named copies, shared by every navigation and
+ *  prefetch of it. A cacheable answer is kept for PREFETCH_TTL_MS, within PAGE_CACHE_MAX_BYTES (each
+ *  entry weighs at least its share of it, so no more than PAGE_CACHE_MAX_ENTRIES small pages are
+ *  kept). They are made in `page_world`: a move of it drops them all, a fetch in flight is aborted,
+ *  and a navigation that waited on it fetches again. */
 const pages = (): Pages =>
 	(page_flights ??= boot_link().flights.keyed<PageAsk>()({
 		name: 'router pages',
-		key: ['href'],
+		key: ['href', 'known'],
 		ignore: { purpose: 'a navigation joins the prefetch out for its address: how, not what' },
 		run: (ask, signal, flight): Promise<Fetched> => run_page_fetch(ask, signal, flight),
 		world: (page_world = boot_link().world()),
@@ -592,12 +600,12 @@ export async function fetch_page(
 	signal?: AbortSignal,
 	purpose: NavPurpose = 'nav'
 ): Promise<FetchedPage | null> {
-	// One flight per address: a kept page (a prefetched one) is served at once, and a fetch out for
+	// One flight per address and named copies: a kept page (a prefetched one) is served at once, and a fetch out for
 	// it (a prefetch, or a navigation) is joined. Without this, a click after a hover-prefetch would
 	// re-fetch (the whole point of prefetch is to skip that second request). Real navigations drop
 	// the kept page after use (one-shot — see navigate()), so the next visit is still fresh.
 	// PREFETCH-HIT.
-	const ask: PageAsk = { href, purpose };
+	const ask: PageAsk = { href, known: known_header(), purpose };
 	// a guess, or the visitor's: a click joining a prefetch out for the page raises it to theirs
 	const { PRIORITY } = boot_link();
 	const priority = purpose === 'prefetch' ? PRIORITY.speculative : PRIORITY.user;
@@ -621,14 +629,14 @@ export async function fetch_page(
 /** One page fetch (a flight's work): a prefetch waits for its turn in the load scheduler first, at
  *  its flight's priority (a click joining it raises it: it goes at once, at the visitor's). */
 async function run_page_fetch(
-	{ href, purpose }: PageAsk,
+	{ href, known, purpose }: PageAsk,
 	signal: AbortSignal,
 	flight: import('@ogygia/machine').InFlight
 ): Promise<Fetched> {
 	const go = (priority?: 'high' | 'auto' | 'low') =>
 		net.fetch(href, {
 			signal,
-			headers: nav_headers(purpose),
+			headers: nav_headers(purpose, known),
 			...(priority ? { priority } : {})
 		} as RequestInit);
 	// A prefetch is a guess: it waits for the page's critical resources and shares the background
