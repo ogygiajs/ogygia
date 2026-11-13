@@ -10,6 +10,7 @@
 // - no ogygia mark is left anywhere, and no stand-in;
 // - every failure is said with its code (a fault that turned into an unrendered element was
 //   reported), and a run without a fault reports none;
+// - once the request is cancelled, no render is called and no failure is said;
 // - the restore is idempotent: a second one restores nothing and changes nothing.
 import { afterEach, expect, test } from 'vitest';
 import type { RequestEvent } from '@sveltejs/kit';
@@ -86,12 +87,14 @@ interface Run {
 	injected: number;
 	abort: AbortController;
 	scheduler: fc.Scheduler;
+	late: string[];
 }
 
 function faulty(tag: string, run: Run): ElementRewrite {
 	return {
 		match: [tag],
 		async render(els: readonly RewriteElement[]) {
+			if (run.abort.signal.aborted) run.late.push(`${tag} rendered`);
 			const fault = run.faults[run.at++ % run.faults.length];
 			if (fault !== 'ok' && fault !== 'slow' && fault !== 'abort') run.injected++;
 			if (fault === 'abort') run.abort.abort();
@@ -184,13 +187,26 @@ test('a seeded swarm of streamed pages through two failing rewrites restores wha
 			async (inner, at, faults, csr, scheduler) => {
 				const head = '<!doctype html><html><head></head><body>';
 				const page = `${head}${inner}</body></html>`;
-				const run: Run = { faults, at: 0, injected: 0, abort: new AbortController(), scheduler };
+				const run: Run = {
+					faults,
+					at: 0,
+					injected: 0,
+					abort: new AbortController(),
+					scheduler,
+					late: []
+				};
 				const request = new Request('http://x/', { signal: run.abort.signal });
 				const failed: Failure[] = [];
 				const pass = rewrite_pass(
 					[step_of(faulty('x-card', run)), step_of(faulty('x-icon', run))],
 					{ request, url: new URL(request.url) } as RequestEvent,
-					{ dev: true, failed: (f) => failed.push(f) }
+					{
+						dev: true,
+						failed: (f) => {
+							if (run.abort.signal.aborted) run.late.push(`${f.code} said`);
+							failed.push(f);
+						}
+					}
 				);
 				const chunks = cut(page, at);
 				let html = '';
@@ -230,8 +246,8 @@ test('a seeded swarm of streamed pages through two failing rewrites restores wha
 				expect(marks_left(doc.body), served).toEqual([]);
 				expect(islands(doc.body), served).toEqual(islands(original.body));
 				const coded = failed.filter((f) => f.code !== 'rewrite_element_split');
-				if (run.abort.signal.aborted) expect(coded.length).toBeGreaterThanOrEqual(0);
-				else if (run.injected === 0) expect(coded, served).toEqual([]);
+				expect(run.late, served).toEqual([]);
+				if (!run.abort.signal.aborted && run.injected === 0) expect(coded, served).toEqual([]);
 				for (const f of coded)
 					expect(['rewrite_element_failed', 'rewrite_marks_lost']).toContain(f.code);
 				const before = doc.body.innerHTML;
@@ -255,7 +271,8 @@ test('region answers: every host restored in the fragment, nothing left, idempot
 					at: 0,
 					injected: 0,
 					abort: new AbortController(),
-					scheduler
+					scheduler,
+					late: []
 				};
 				const request = new Request('http://x/');
 				const pass = rewrite_pass(
