@@ -4,7 +4,6 @@ import crypto from 'node:crypto';
 import { dedent } from '@ogygia/core/contract';
 import { isMainThread } from 'node:worker_threads';
 import { loadEnv, type Plugin, type Rolldown, type ViteDevServer } from 'vite';
-import type { PreprocessorGroup } from 'svelte/compiler';
 import { configure_build_cache } from '../compiler/build-cache.ts';
 import {
 	content_css_key,
@@ -1182,20 +1181,3 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 		lazy_files()
 	];
 }
-
-export declare namespace ogygia {
-	/**
-	 * @deprecated Does nothing: returns `['.svelte']`. Markdown extensions come from
-	 * `extensions()` in `@ogygia/content/vite`.
-	 */
-	export const extensions: () => string[];
-	/**
-	 * @deprecated Does nothing: returns `[]`. The markdown preprocessor comes from `preprocess()` in
-	 * `@ogygia/content/vite`.
-	 */
-	export const preprocess: () => PreprocessorGroup[];
-}
-Object.assign(ogygia, {
-	extensions: (): string[] => ['.svelte'],
-	preprocess: (): PreprocessorGroup[] => []
-});
