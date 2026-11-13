@@ -20,16 +20,17 @@ function make_compiler() {
 			transformN: 0,
 			transformHit: 0,
 			prescanMs: 0,
-			bakeMs: 0,
-			bakeN: 0,
+			macroMs: 0,
+			macroN: 0,
 			resolveMs: 0,
 			loadMs: 0
 		},
 		P: false,
 		outHash: new Map<string, number>()
 	};
-	const compiler = new Compiler(program, profiler);
-	compiler.configure(
+	const compiler = new Compiler(
+		program,
+		profiler,
 		new CompileCtx(
 			partial_ctx_init({
 				root: ROOT,
@@ -124,7 +125,19 @@ describe('standalone driver (no Vite)', () => {
 		const manifest = async (order: number[]) => {
 			const { compiler } = make_compiler();
 			for (const n of order) await compiler.macros(mod(n), `${ROOT}/src/lib/m${n}.ts`);
-			return compiler.patch_fn_manifest('/*__OGYGIA_FN_MANIFEST__*/')?.code;
+			const leg = {
+				server: false,
+				relocated: new Map<string, number>(),
+				late_server_regions: new Map<string, string>()
+			};
+			const bundle = {
+				graph: () => null,
+				module_ids: () => [],
+				chunk_file: 'fn-manifest.js',
+				file_name: String,
+				facade_file: () => undefined
+			};
+			return compiler.relocate('/*__OGYGIA_FN_MANIFEST__*/', leg, bundle)?.code;
 		};
 		const forward = await manifest([1, 2, 3]);
 		expect(forward).toContain('__og_reg_fn');

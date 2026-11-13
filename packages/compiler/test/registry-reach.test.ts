@@ -46,15 +46,14 @@ function make_compiler() {
 			transformN: 0,
 			transformHit: 0,
 			prescanMs: 0,
-			bakeMs: 0,
-			bakeN: 0,
+			macroMs: 0,
+			macroN: 0,
 			resolveMs: 0,
 			loadMs: 0
 		},
 		P: false,
 		outHash: new Map<string, number>()
 	};
-	const compiler = new Compiler(program, profiler);
 	const ctx = new CompileCtx(
 		partial_ctx_init({
 			root,
@@ -77,7 +76,7 @@ function make_compiler() {
 		reads.set(abs, (reads.get(abs) ?? 0) + 1);
 		return read_file(abs);
 	};
-	compiler.configure(ctx);
+	const compiler = new Compiler(program, profiler, ctx);
 	return { compiler, reads };
 }
 

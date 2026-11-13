@@ -1,30 +1,44 @@
 /**
  * The module-macro pipeline — the ordered `import.meta.og.*` passes that run BEFORE either branch
  * (island transform / svelte compile / ts-region minting) sees a module: `wire`, `$`, `store`,
- * auto-branding, `code`/`md`, and `bake`. Each pass is a no-op unless its exact marker is present, is
+ * auto-branding, then the plugins' macros. Each pass is a no-op unless its exact marker is present, is
  * extension-aware, and (where it matters) AST-precise. Pulled out of the Vite adapter so the whole
  * macro leg is one call (`Compiler.macros`) the driver owns. Pure over `(source, id, ctx)` apart from the `dollarHoists` map it fills and the profiler
  * timing it records; returns `{ code, touched }` (the caller invalidates its own sourcemap on touch).
  */
 import path from 'node:path';
+import { noop } from '@ogygia/machine';
 import { rewrite_wire } from './wire.ts';
 import { rewrite_dollar } from './dollar.ts';
 import { rewrite_source } from './source.ts';
 import { rewrite_store, auto_brand_stores } from './store.ts';
-// `bake` is imported LAZILY (only inside the marker guard below): a build that uses no
-// `import.meta.og.bake` never loads bake.js (or Vite's build for it) at all.
-import type { AliasEntry } from './bake.ts';
 import type { Profiler } from '../driver.ts';
+import type { FoucAlias } from '../fouc-css.ts';
 import { OgygiaError } from '../messages.ts';
 import { find_og_calls } from '../parse/scan.ts';
+
+/** A resolved Vite alias (`resolve.alias`, normalized to its array form). */
+export type AliasEntry = FoucAlias;
+
+/** What a macro knows about the module it rewrites. */
+export interface MacroContext {
+	/** The module id, query stripped. */
+	readonly id: string;
+	/** The id relative to the app root, POSIX (a stable identity for stamps). */
+	readonly rel: string;
+	readonly root: string;
+	/** The app's resolved aliases (`$lib`, …), for a macro that resolves or bundles imports. */
+	readonly alias: readonly AliasEntry[];
+	/** Markup extensions whose `<script>` blocks hold the macro calls (`.svelte`). */
+	readonly markupExts: readonly string[];
+	/** Name a file the rewrite read: an edit to it transforms this module again (dev). */
+	watch(file: string): void;
+}
 
 /** A plugin's `import.meta.og.<name>` macro (registered with `b.macro`). */
 export interface PluginMacro {
 	name: string;
-	handler: (
-		code: string,
-		m: { id: string; rel: string; root: string; markupExts: readonly string[] }
-	) => string | Promise<string>;
+	handler: (code: string, m: MacroContext) => string | Promise<string>;
 }
 
 // ── regexes
@@ -36,7 +50,8 @@ const MACRO_PACKAGES: Readonly<Record<string, { package: string; plugin: string 
 	code: { package: '@ogygia/content', plugin: 'content()' },
 	md: { package: '@ogygia/content', plugin: 'content()' },
 	loader: { package: '@ogygia/content', plugin: 'content()' },
-	regions: { package: '@ogygia/content', plugin: 'content()' }
+	regions: { package: '@ogygia/content', plugin: 'content()' },
+	bake: { package: '@ogygia/bake', plugin: 'bake()' }
 };
 
 /** Does `code` really call `import.meta.og.<name>(…)` (a marker in a string or comment is no call)? */
@@ -50,17 +65,19 @@ const CONSTRUCT_MARKUP_EXTS = ['.svelte'] as const;
 
 export interface MacroPipelineCtx {
 	root: string;
-	/** Resolved Vite aliases the `bake` pass hands to its mini-bundler. */
-	resolveAlias: unknown[];
+	/** The app's resolved aliases, handed to every plugin macro (`bake` bundles with them). */
+	alias: readonly AliasEntry[];
 	/** ogygia's own package root — auto-brand skips ogygia source. */
 	pkgRoot: string;
 	/** Filled with every `import.meta.og.$` hoist (tag → factory source) for the fn-manifest emit. */
 	dollarHoists: Map<string, string>;
-	/** The plugins' macros, in plugin order (after core's, before `bake`). */
+	/** The plugins' macros, in plugin order (after core's; a `last` one after the others). */
 	macros?: readonly PluginMacro[];
 	/** Is `id` the app's own source, or a file a package declares in `ogygia.files`? Only those may
-	 *  use a macro: anywhere else one fails the build (`macro_outside_app`), and a `bake` never runs. */
+	 *  use a macro: anywhere else one fails the build (`macro_outside_app`), and no handler runs. */
 	ownSource: (id: string) => boolean;
+	/** The bundler's watch for the module being rewritten (Vite's `addWatchFile`); none outside one. */
+	watch?: (file: string) => void;
 }
 
 /**
@@ -160,12 +177,19 @@ export async function run_module_macros(
 				continue;
 			}
 			rel ??= path.relative(ctx.root, id.split('?')[0]).split(path.sep).join('/');
+			const started = profiler.P ? performance.now() : 0;
 			const rewritten = await macro.handler(out, {
 				id: id.split('?')[0],
 				rel,
 				root: ctx.root,
-				markupExts: CONSTRUCT_MARKUP_EXTS
+				alias: ctx.alias,
+				markupExts: CONSTRUCT_MARKUP_EXTS,
+				watch: ctx.watch ?? noop
 			});
+			if (profiler.P) {
+				profiler.prof.macroMs += performance.now() - started;
+				profiler.prof.macroN++;
+			}
 			if (rewritten !== out) {
 				out = rewritten;
 				touched = true;
@@ -187,30 +211,6 @@ export async function run_module_macros(
 				package: pkg.package,
 				plugin: pkg.plugin
 			});
-		}
-	}
-
-	// `import.meta.og.bake(fn)` — run fn at build (rolldown-bundle the imports it uses +
-	// execute), devalue-serialize the result, inline it as a literal, and drop imports that only
-	// fed a baked fn. Extension-aware (whole file for .ts/.js, `<script>` blocks for .svelte).
-	// Runs before the island transform so downstream sees plain data, not a call.
-	if (out.includes('import.meta.og.bake')) {
-		const __bk = profiler.P ? performance.now() : 0;
-		const { rewrite_bake, has_bake_call } = await import('./bake.ts'); // lazy — keeps bake's node-only graph out of the worker
-		// (found, never run: a bake outside the app's own source executes nothing)
-		if (!own && has_bake_call(out, id, CONSTRUCT_MARKUP_EXTS)) refuse('bake');
-		const rewritten = await rewrite_bake(out, id, {
-			alias: ctx.resolveAlias as AliasEntry[],
-			root: ctx.root,
-			markupExts: CONSTRUCT_MARKUP_EXTS
-		});
-		if (rewritten !== out) {
-			out = rewritten;
-			touched = true;
-		}
-		if (profiler.P) {
-			profiler.prof.bakeMs += performance.now() - __bk;
-			profiler.prof.bakeN++;
 		}
 	}
 
