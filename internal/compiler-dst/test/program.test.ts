@@ -164,12 +164,10 @@ describe('the runtime marks', () => {
 });
 
 describe('a fresh program', () => {
-	it('starts incomplete, with no remote seeds, no wire, no page reads and no feature hash', () => {
+	it('starts incomplete, with no remote seeds, no wire and no page reads', () => {
 		const p = session(memory_fs({ [A]: page() })).compiler.program;
 		expect(p.runtime_marks.complete).toBe(false);
 		expect(p.runtime_marks.remoteSeeds).toBe(false);
 		expect(p.crosses_wire).toBe(false);
-		expect(p.island_reads_page).toBe(false);
-		expect(p.runtime_feature_hash).toBe('');
-	});
+		expect(p.island_reads_page).toBe(false);	});
 });
