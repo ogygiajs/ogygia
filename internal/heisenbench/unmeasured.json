@@ -5783,6 +5783,14 @@
 		{
 			"id": "packages/data-shake/src/vite.ts > dataShake > definePlugin:0~7b132b > build",
 			"reason": "build only: makes the plugin's page_reads (measured in the data-shake bench) and hands it to the build, once per build"
+		},
+		{
+			"id": "packages/core/src/server/kit-gate.ts > kit_gate",
+			"reason": "once per Kit-hydrated document: rewrites one expression in Kit's start script, linear in that script; kit-gate.test.ts runs it"
+		},
+		{
+			"id": "packages/core/src/server/html-scan.ts > kit_boot_script > before",
+			"reason": "the tag walk's stop test, constant work per tag; kit-gate.test.ts runs it"
 		}
 	]
 }
