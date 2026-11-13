@@ -78,6 +78,21 @@ describe('element rewrites: what goes to render', () => {
 		expect(render).not.toHaveBeenCalled();
 	});
 
+	it('a render the page around its element would restructure goes out as a stand-in: a <div> in the page’s <p>, an <a> in the page’s <a> (the restore lab e2e)', async () => {
+		const { chunk } = chunked([scoped()]);
+		const out = await chunk(
+			doc(
+				island(
+					'<p>Buy <demo-card>now</demo-card></p> <a href="#x"><demo-link>Go</demo-link></a><div><demo-card>block</demo-card></div>'
+				)
+			)
+		);
+		expect(out.html).toContain('<og-as class="card sc-demo-card" tag="div"');
+		expect(out.html).toContain('tag="a"');
+		expect(out.html.match(/<og-as /g)).toHaveLength(2);
+		expect(out.head).toContain('og-stand-ins');
+	});
+
 	it('a custom element outside Svelte-owned markup is rendered, not restored', async () => {
 		const seen: RewriteElement[][] = [];
 		const { chunk } = chunked([scoped(seen)]);
