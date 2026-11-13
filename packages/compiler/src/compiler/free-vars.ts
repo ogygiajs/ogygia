@@ -74,6 +74,23 @@ export function collect_pattern_names(node: SvelteNode | null | undefined, out: 
 		case 'RestElement':
 			collect_pattern_names(node.argument, out);
 			break;
+		// a legacy `let:x={{ a }}` / `let:x={[a]}`: Svelte's parser gives the directive the
+		// EXPRESSION form of the pattern (portable-snippet-scope.test.ts)
+		case 'ObjectExpression':
+			for (const prop of node.properties) {
+				if (prop.type === 'SpreadElement') collect_pattern_names(prop.argument, out);
+				else collect_pattern_names(prop.value, out);
+			}
+			break;
+		case 'ArrayExpression':
+			for (const el of node.elements) collect_pattern_names(el, out);
+			break;
+		case 'SpreadElement':
+			collect_pattern_names(node.argument, out);
+			break;
+		case 'AssignmentExpression':
+			collect_pattern_names(node.left, out);
+			break;
 	}
 }
 
