@@ -1010,10 +1010,6 @@ export class Compiler implements CoreApp {
 		{ emitRuntime, loaded = null }: { emitRuntime: boolean; loaded?: Set<string> | null }
 	): number {
 		if (emitRuntime) {
-			// Unresolved virtual id — resolve_id/emit synthesize the feature-selected entry. Named, not
-			// fixed: the bundler hashes its content into the file name (its imports included), and the
-			// server finds that name in the build handoff (its stable name is an identity, not a file).
-			// (named with its features: `og-runtime-<features>.<hash>.js` says which runtime it is)
 			const feat = this.#ctx.runtime_features(this.#feature_hash);
 			leg.runtime_entry_ref = emitFile({
 				type: 'chunk',
@@ -1055,7 +1051,6 @@ export class Compiler implements CoreApp {
 		const islands = new Map<string, string>();
 		const locations: Record<string, string> = {};
 		const served = (file: string) => (file.startsWith('/') ? file : `/${file}`);
-		// by island id: the bundler emits entries in no stable order, and the handoff is output (#490)
 		const refs = [...leg.island_entry_refs].sort(by_key);
 		for (const [rid, ref] of refs) {
 			const file = get_file_name(ref);
@@ -1073,8 +1068,6 @@ export class Compiler implements CoreApp {
 		return { islands, runtime, runtime_file, locations };
 	}
 
-	/** One hydrate island's entry, content-hashed by the bundler (the location maps that name it are
-	 *  written at the bundle's end: `location_maps`). */
 	/**
 	 * A server region this registration added after the leg wrote `server-regions` (its host was
 	 * reached late: outside the start-up scan, #1420): its loader is its own chunk, emitted now and
@@ -1093,6 +1086,7 @@ export class Compiler implements CoreApp {
 		}
 	}
 
+	/** Emit one hydrate region's entry chunk into `leg`, by name: the bundler content-hashes it. */
 	emit_island_entry(leg: BuildLeg, emitFile: EmitChunk, rid: string, virtualPath: string): void {
 		leg.island_entry_refs.set(
 			rid,
@@ -1158,7 +1152,6 @@ export class Compiler implements CoreApp {
 
 		const declared = this.#virtuals.load(id, this, leg);
 		if (declared !== null) {
-			// (a module of definitions only: unused, the bundler drops it and what it imports)
 			if (typeof declared === 'string' && this.#virtuals.side_effect_free(id))
 				return { code: declared, moduleSideEffects: false };
 			return declared;
@@ -1166,29 +1159,16 @@ export class Compiler implements CoreApp {
 
 		const srcEntry = program.registry.get(id);
 		if (srcEntry && srcEntry.role === 'region') {
-			// Leg-split: SSR gets the signer-carrying descriptor, client gets metadata only.
 			return ssr ? srcEntry.ssrSource! : srcEntry.clientSource!;
 		}
 		if (srcEntry) {
-			// A wake island's WRAPPER is leg-split too: the client leg imports its component through
-			// the lazy module (emit.ts `island_wrapper_client_source`), the SSR leg the real entry.
 			let src = !ssr && srcEntry.clientSource ? srcEntry.clientSource : srcEntry.source!;
-			// An island entry's FOREIGN-HYDRATE exports exist for another app's runtime: never on the
-			// server, and only when a plugin asks for them (`b.foreignHydrate()`: federation). Every
-			// island of every other app carried them otherwise, and their imports: ~185 B gz and a
-			// preload each.
 			const foreign = src.indexOf(FOREIGN_HYDRATE_MARK);
 			if (foreign !== -1 && (ssr || !ctx.foreign_hydrate)) src = src.slice(0, foreign);
-			// CLIENT build: rewrite `$app/*` in the GENERATED virtual source to absolute
-			// shim paths (defense in depth alongside resolveId island-graph shimming).
-			// SSR keeps the real Kit modules (correct server-rendered page.data).
 			if (!ssr) {
 				src = src.replace(APP_SHIM_IMPORT, (_m: string, _q: string, name: string) =>
 					JSON.stringify(ctx.app_shims[`$app/${name}`])
 				);
-				// LAKES: swap each lake import for the render-nothing placeholder so the lake
-				// component's JS is excluded from this island's client chunk. Handles default
-				// (`import Lake from '…'`) and named (`import { Lake } from '…'`) forms.
 				for (const local of srcEntry.lakes ?? []) {
 					src = rewrite_lake_import_to_placeholder(src, local, ctx.client_binding_stub_file);
 				}
@@ -1225,19 +1205,9 @@ export class Compiler implements CoreApp {
 		const ctx = this.#ctx;
 		const { registry, island_graph } = this.program;
 
-		// the declared modules (./virtual/core.ts); an undeclared id in the namespace fails here, and
-		// so does a module of a realm this leg may not import
 		const declared = this.#virtuals.resolve(source, { ssr, dev: ctx.is_dev });
 		if (declared) return declared;
-		// csr=false client hosts rewrite marked bindings here — not a hydrate entry.
 		if (source === CLIENT_BINDING_STUB) return ctx.client_binding_stub_file;
-		// …and so does a csr=false route host that could not pick its leg itself: a markup source
-		// (content's markdown) runs the region transform in the preprocessor, before the compile knows
-		// which leg it is on, so it always links the real binding. On the CLIENT leg of a build that
-		// binding pulled Region and every island wrapper into Kit's client graph of a page Kit never
-		// boots, and the modules that graph shares with the islands (Svelte's above all) shipped to
-		// every island page with all of Region's uses in them. It resolves to the stub a `.svelte` host
-		// links there.
 		if (
 			!ssr &&
 			ctx.is_build &&
@@ -1246,24 +1216,13 @@ export class Compiler implements CoreApp {
 			this.#links_client_stub(importer)
 		)
 			return ctx.client_binding_stub_file;
-		// CSS-only FOUC graph (no component JS) for csr=false client stubs.
 		if (source.startsWith(FOUC_CSS_PREFIX) || source.startsWith(FOUC_SCOPED_PREFIX)) {
 			return RESOLVED(source);
 		}
 
-		// csr=false CLIENT leg of a BUILD: a route host's import of a `.ts`/`.js` REGION REGISTRY
-		// resolves to the registry with its MARKS blanked (link/registry-stub.ts). The marked wrappers
-		// would otherwise drag every component + its CSS into the page node's client graph, and Kit
-		// links `node.stylesheets` for all of it, rendered or not — the render pass already links what
-		// renders. Its PLAIN imports keep their edges: nothing else links their CSS. The registry
-		// module itself stays real for csr=true hosts and the island world.
 		const registry_stub = await this.#registry_stub_for(source, importer, { ssr, resolve });
 		if (registry_stub) return registry_stub;
 
-		// Island CLIENT graph: shim `$app/*` for the virtual module AND every module it
-		// pulls in (e.g. `$lib/PageUrlProbe.svelte` importing `$app/state`). Kit's alias
-		// would otherwise give islands the uninitialized Kit page (`new URL('a:')` → empty
-		// pathname). enforce:'pre' wins over Kit's resolveId. SSR keeps real Kit modules.
 		const importer_id = importer ? strip_id(importer) : undefined;
 		const from_island = importer_id && (registry.has(importer_id) || island_graph.has(importer_id));
 		if (!ssr && from_island) {
@@ -1271,9 +1230,6 @@ export class Compiler implements CoreApp {
 			if (shim) return shim;
 		}
 
-		// Portable wrappers import `ogygia:region/entry/<id>` (and hosts import wrappers).
-		// Resolve those BEFORE the "relative to hostPath" branch — that branch uses skipSelf
-		// and would bypass this handler, failing to resolve virtual entry ids.
 		if (is_island_path(source)) {
 			let candidate = source.split('?')[0];
 			if (candidate.startsWith('/@id/')) candidate = candidate.slice('/@id/'.length);
@@ -1291,18 +1247,10 @@ export class Compiler implements CoreApp {
 			}
 		}
 
-		// Virtual island/wrapper module: resolve relative imports to the host file, and mark
-		// the resolved id so its own `$app/*` imports hit the shim branch above.
-		// Skip ogygia virtual ids (handled above).
 		if (importer_id && registry.has(importer_id) && !is_island_path(source)) {
 			const host = registry.get(importer_id)!.hostPath ?? '';
 			const resolved = await resolve(source, host, { skipSelf: true });
 			if (resolved?.id) island_graph.add(strip_id(resolved.id));
-			// A BARE specifier a generated island module re-emits (a marked package import like
-			// `import TabGroup from 'ogygia/content/tab-group' with { wake: 'load' }`, or a specifier
-			// its child synth re-imports) that Vite cannot resolve must fail HERE, loudly — falling
-			// through surfaces later as an opaque "Failed to resolve import" with the virtual module
-			// as the only context. Relative/absolute/virtual sources keep Vite's own error path.
 			if (
 				!resolved &&
 				!source.startsWith('.') &&
@@ -1317,8 +1265,6 @@ export class Compiler implements CoreApp {
 			}
 			return resolved;
 		}
-		// Transitive island-graph module (not a virtual entry): mark deps so nested
-		// `$app/*` imports stay shimmed. Do NOT resolve island virtual paths via skipSelf.
 		if (!ssr && importer_id && island_graph.has(importer_id) && !is_island_path(source)) {
 			const resolved = await resolve(source, importer!, { skipSelf: true });
 			if (resolved?.id) island_graph.add(strip_id(resolved.id));
@@ -1363,8 +1309,6 @@ export class Compiler implements CoreApp {
 		return registry_client_id(target);
 	}
 
-	/** True for a csr=false route host file (`+page`/`+layout` `.svelte`/`.ts`/`.js`). A `+page.ts`
-	 *  shares its route's world with the sibling `.svelte` host. */
 	/** A route COMPONENT whose client leg links the binding stub — `transform`'s `link_virtual` rule,
 	 *  for a host that could not apply it itself: csr=false, and not a layout of an app with a
 	 *  csr=true route (Kit can hydrate that layout: a csr=true child page, or an error render). */
@@ -1381,13 +1325,13 @@ export class Compiler implements CoreApp {
 		return is_route_component(base, 'page') && routeCsrIsFalse(routes, importer_abs, routes_dir);
 	}
 
+	/** A csr=false route host file: a page or layout component, or its option module. */
 	#is_csr_false_route_host(importer: string): boolean {
 		const importer_abs = strip_id(importer);
 		const { root, routes } = this.#ctx;
 		const routes_dir = kit_dirs(root).routes_dir;
 		if (!importer_abs.startsWith(routes_dir + path.sep)) return false;
 		const base = path.basename(importer_abs);
-		// a route component (`+page.svelte`, `+page.md`, …) is its own host
 		if (is_route_component(base, 'page') || is_route_component(base, 'layout'))
 			return routeCsrIsFalse(routes, importer_abs, routes_dir);
 		const m = ROUTE_HOST_FILE_RE.exec(base);
@@ -1403,8 +1347,6 @@ export class Compiler implements CoreApp {
 		importer: string,
 		resolve: RegistryResolve
 	): Promise<string | null> {
-		// One resolution per (importer, specifier) per build: resolution is deterministic within a
-		// build, and every csr=false host and every walked module asks again otherwise.
 		const memo_key = `${strip_id(importer)}\n${source}`;
 		const memos = this.#build.resolve_memo;
 		const memo = memos.get(memo_key);
@@ -1427,11 +1369,6 @@ export class Compiler implements CoreApp {
 		if (!resolved?.id || resolved.id.startsWith('\0')) return null;
 		const target = strip_id(resolved.id);
 		if (!TS_REGISTRY_EXT_RE.test(target) || this.#ctx.fs.stat(target) === null) return null;
-		// Kit owns these on the client: a `.remote.ts` becomes Kit's fetch stub there (its imports
-		// never reach the client graph, and Kit keys its metadata on the exact file id), and a
-		// server-only module is refused outright. Neither may fork, and neither leads anywhere.
-		// A `.svelte.ts` rune module is compiled by vite-plugin-svelte, keyed on its file name: it
-		// never forks either (a registry behind one stays real — a head cost, never a missing style).
 		const posix = target.split(path.sep).join('/');
 		if (SERVER_MODULE_EXT_RE.test(posix) || SERVER_DIR_RE.test(posix)) return null;
 		if (SVELTE_RUNE_MODULE_RE.test(posix)) return null;
@@ -1497,12 +1434,10 @@ export class Compiler implements CoreApp {
 			return { reaches: true, low: Infinity };
 		}
 		if (low >= depth) {
-			// A finished component rooted here: every file parked above it shares this negative.
 			for (let i = parked; i < component.length; i++) reach_memo.set(component[i], false);
 			component.length = parked;
 			return { reaches: false, low: Infinity };
 		}
-		// Still depends on a file open above: stay parked until that root finishes.
 		return { reaches: false, low };
 	}
 	/** A module's static script specifiers, read and parsed once per build. */
@@ -1559,34 +1494,17 @@ export class Compiler implements CoreApp {
 		const program = this.program;
 		const { registry, island_graph } = program;
 		const root = ctx.root;
-		// Every pass below edits by its parser's offsets, and Svelte's parser drops a leading byte-order
-		// mark: take it off here so the offsets and the text agree (./bom.ts). A file no pass touches
-		// returns `null` and keeps its bytes.
 		code = strip_bom(code);
-
-		// Discover islands before any module is transformed so island_graph is populated
-		// even when an island entry component is processed before its host page.
 		this.prescan();
-
-		// A csr=false client-leg registry variant (link/registry-stub.ts) exists only for its import
-		// EDGES (Kit links its plain imports' CSS); its JS never runs. Its id strips to the real
-		// registry's path, so the region pipeline below would re-register that host from the
-		// blanked source — leave it exactly as emitted.
 		if (registry_client_path(id) != null) return null;
 
 		const id_n = strip_id(id);
-		// server leg of a build: this module is in the server bundle's real graph (see
-		// Program.ssr_transformed / link/emit-gate.ts)
 		if (ssr && ctx.is_build) program.ssr_transformed.add(host_key(id_n));
 		if (ctx.is_dev && is_script_request(id)) {
 			const kind = this.#scans(id_n);
 			if (kind) this.#scan_facts(path.normalize(id_n), code, kind);
 		}
 
-		// SEED SHAPING: a module that imports Kit's page store is read ONCE here, on the compiler's
-		// parsers, for the top-level `page.data` keys it can reach (link/page-keys.ts). Recorded by
-		// the query-less id so the client `writeBundle` can find it from a chunk's `moduleIds`; the
-		// source form is what this pre-transform sees, before the `$app/*` shim rewrite below.
 		if (ctx.is_build && mentions_page_store(code)) {
 			const clean = id.split('?')[0].split('\\').join('/');
 			const kind = clean.endsWith('.svelte')
@@ -1603,12 +1521,6 @@ export class Compiler implements CoreApp {
 			}
 		}
 
-		// (There is deliberately NO csr=false route-client stripping here. Kit collects a route's
-		// CSS manifest from the CLIENT graph — stubbing those modules silently drops every component
-		// stylesheet from the prerendered pages. Keeping the corpus out of client bundles is the
-		// `.server.ts` placement rule's job — see the content-placement warning — and Kit enforces
-		// it mechanically; a csr=false page never fetches its route JS anyway, so the dead client
-		// nodes cost disk, not wire.)
 		let out = code;
 		let touched = false;
 		const chain = new MapChain();
@@ -1619,12 +1531,6 @@ export class Compiler implements CoreApp {
 			touched = true;
 		};
 
-		// The `import.meta.og.*` module macros — `wire`/`$`/`source`/`store`/auto-brand, then the
-		// plugins' macros (`bake` last) — all landing BEFORE either branch (island transform / svelte
-		// compile / ts region minting) sees the code, so a computed codec key is a real symbol, a
-		// hoisted fn is a ref, a baked call is plain data, and an inlined snippet flows through as a
-		// region. Each pass is a no-op unless its exact marker is present. Fills `dollar_hoists` +
-		// records plugin macro timing.
 		const macroed = await this.macros(out, id_n, watch);
 		if (macroed.touched) {
 			out = macroed.code;
@@ -1632,14 +1538,6 @@ export class Compiler implements CoreApp {
 			touched = true;
 		}
 
-		// App `.svelte` always; a node_modules `.svelte` ONLY if it carries an ogygia hint (so a
-		// library can declare its own islands — Shell → ShellBar). `is_island_path` still
-		// excludes GENERATED island glue (wrappers, region bindings, plain re-export entries) —
-		// but a PORTABLE SNIPPET entry is authored markup (a slice of user source) and MUST be
-		// re-processed: its `with { wake }` imports become nested islands, and nested snippets
-		// re-portable-ize. Normalize the dev `/@id/` prefix so dev and build take the SAME gate
-		// (dev previously transformed these only because the prefix slipped past the exclusion —
-		// which is why islands inside snippets worked in dev and died in prod).
 		const in_node_modules = id_n.includes('/node_modules/');
 		const bare_v = id_n.startsWith('/@id/') ? id_n.slice(5) : id_n;
 
@@ -1647,19 +1545,10 @@ export class Compiler implements CoreApp {
 			id_n.endsWith('.svelte') && is_island_path(bare_v) && registry.get(bare_v)?.portable === true;
 		if (
 			id_n.endsWith('.svelte') &&
-			// the component's script only: `Foo.svelte?svelte&type=style&lang.css` is its CSS (the
-			// query is gone from `id_n`, so decide on the full id)
 			is_script_request(id) &&
 			(!is_island_path(bare_v) || portable_entry) &&
-			// declared `ogygia.files` surfaces transform unconditionally (full app-source citizenship);
-			// undeclared node_modules `.svelte` keeps the legacy hint sniff
 			(!in_node_modules || ctx.in_declared_pkg(bare_v) || ctx.has_island_hint(code))
 		) {
-			// Pass Vite's ssr flag through — client csr=false hosts omit wrapper links.
-			// `out`, NOT `code`: the wire/code/md/bake rewrites above already landed in `out`, and
-			// the island transform's result REPLACES it — feeding it `code` would silently discard
-			// them for any component the host transform touches (import.meta.og.code in a .svelte
-			// stayed un-rewritten and exploded at runtime as `undefined.code`).
 			const result = this.transform(out, id_n, { ssr }) as TransformResult | null;
 			if (result) {
 				this.#register(result, id_n);
@@ -1668,10 +1557,6 @@ export class Compiler implements CoreApp {
 				chain.step(result_map(result));
 				touched = true;
 
-				// Emit the island entry for any hydrate island discovered HERE
-				// that the buildStart prescan couldn't see — i.e. declared inside a library component
-				// (host outside the app's `src`). Without this no entry carries its identity: the handoff
-				// would have no location for the stable name SSR bakes into `<ogygia-region entry>`.
 				if (ctx.is_build && !ssr) {
 					for (const isl of result.islands ?? []) {
 						const kind = isl.kind ?? (isl.server ? 'defer' : 'hydrate');
@@ -1683,17 +1568,12 @@ export class Compiler implements CoreApp {
 				if (ctx.is_build && ssr) this.#emit_late_server_regions(leg, emitFile, result);
 			}
 
-			// A transportable class can live in this component's `<script module>` — register it
-			// (same tag scheme, keyed by the `.svelte` path) so it travels like a `.svelte.ts` one.
 			if (!id_n.startsWith(ctx.pkg_root)) {
 				const registration = svelte_module_registration(out, id_n, root);
 				if (registration !== null) edit([registration]);
 			}
 		}
 
-		// `.ts` / `.js` region minting (load / remote functions): rewrite `with { wake: … }`
-		// imports. Runs before rolldown's core transform (enforce:'pre') so the attribute is
-		// stripped before it would trip the parser.
 		const nm_ts =
 			id_n.endsWith('.ts') || id_n.endsWith('.js') || id_n.endsWith('.mjs')
 				? id_n.includes('/node_modules/')
@@ -1718,7 +1598,6 @@ export class Compiler implements CoreApp {
 				touched = true;
 			}
 
-			// Transportable classes: append tag registration for `[ogygia.TRANSPORT]` codecs.
 			if (!id_n.startsWith(ctx.pkg_root)) {
 				const registered = appendTransportRegistrations(out, id_n, root);
 				if (registered !== null)
@@ -1726,14 +1605,6 @@ export class Compiler implements CoreApp {
 			}
 		}
 
-		// CLIENT: rewrite `$app/(state|stores|navigation)` inside island entry components — and
-		// every other module in the island graph, `.svelte` or script — to absolute shim paths.
-		// Absolute paths bypass Kit's `$app/*` alias entirely: Vite's alias plugin resolves `$app/*`
-		// BEFORE this plugin's resolveId can, so the specifier must already be the shim's when the
-		// module leaves the transform. Script modules used to be skipped here: a `.ts` helper in an
-		// island's closure kept Kit's real client page (never booted under csr=false), and a
-		// customer's shared boot helper read `page.data.user` as empty inside every public-page
-		// island. (csr=true hosts still pass virtual islands as `__component`.)
 		if (
 			!ssr &&
 			island_graph.has(id_n) &&
@@ -1747,10 +1618,6 @@ export class Compiler implements CoreApp {
 			if (shims.length) edit(shims);
 		}
 
-		// SERVER: stamp the elements Svelte's hydration never walks into (compiler/ownership-stamps.ts),
-		// so the runtime's repair, drift watch and morph leave a web component's own light DOM there
-		// alone. App components, plus those of packages that declared their compile surface; never the
-		// generated glue, and never a `?svelte&type=…` sub-request (not markup).
 		if (
 			ssr &&
 			!id.includes('?') &&
@@ -1825,7 +1692,6 @@ export class Compiler implements CoreApp {
 			}
 			const prev = host_index.get(host_key(file));
 			if (prev) for (const vpath of prev.vpaths) affected.add(vpath);
-			// Host re-registers on next transform; clear so emit() can't serve orphans.
 			this.program.unregister_host(file);
 		}
 
