@@ -6,7 +6,7 @@ import { writeFileSync } from 'node:fs';
 import { gate_open_early, own_text, type Tab, type Visitor } from './browser.ts';
 import { boxes, on_screen, type Box } from './layout.ts';
 import { answer_key, FOREIGN_MARK, is_page_path, LOSSY_POINTS, type World } from './world.ts';
-import { EDGE_GONE, EDGE_MOVED } from './gen.ts';
+import { EDGE_BAD, EDGE_GONE, EDGE_MOVED, MOUNT } from './gen.ts';
 
 /** `SIM_DUMP=<dir>`: an MPA difference writes both sides whole there (`<tab>-<path>-shown.txt`,
  *  `-fresh.txt`), to read past its first hunk. */
@@ -1184,19 +1184,32 @@ export function page_errors(tab: Tab, world?: World, since?: number): Broken | n
 }
 
 /** What the app owes each of a peer's edge pages (gen.ts `edges`): the peer's own answer. */
-const EDGE_OWED: ReadonlyArray<[string, string, (status: number) => boolean]> = [
-	[EDGE_GONE, 'its not-found page, a 404', (s) => s === 404],
-	[EDGE_MOVED, 'its redirect', (s) => s >= 300 && s < 400]
+const EDGE_OWED: ReadonlyArray<[(path: string) => boolean, string, (status: number) => boolean]> = [
+	[(p) => p === EDGE_GONE, 'its not-found page, a 404', (s) => s === 404],
+	[(p) => p === EDGE_MOVED, 'its redirect', (s) => s >= 300 && s < 400],
+	[(p) => p === EDGE_BAD, 'its refusal, a 400', (s) => s === 400],
+	[(p) => PEER_PAGE.test(p), 'its page, a 200', (s) => s === 200]
 ];
+/** One of the peer's own pages, as the app mounts it (gen.ts `GenPeer.pages`: `/q<i>`). */
+const PEER_PAGE = new RegExp(`^${MOUNT}/q\\d+$`);
+/** What a Kit mount's error page says for a page the peer lacks: the peer's title for it, or, with
+ *  none, federation's own word (`mount.kit`). Never nothing. */
+const PEER_GONE_SAID: readonly string[] = ['not found', 'This section is unavailable.'];
 
 /**
- * A MOUNTED PEER'S PAGE ANSWERS AS THE PEER DID: a page the peer lacks is a 404 in the app, one it
- * moved is a redirect there, and a page that shows the visitor shows the one the app vouched for
- * (`sub: 'visitor'`, both mounts' `user`). Read from the tab's requests `since` an exchange and its
- * document. An answer the network failed, or one whose hop to the peer failed or changed on the
+ * A MOUNTED PEER'S PAGE ANSWERS AS THE PEER DID: a page the peer lacks is a 404 in the app that
+ * says so (a Kit mount's error message), one it moved is a redirect there, one it refuses is a 400, one
+ * of its own pages is a 200 that shows that page, and a page that shows the visitor shows the one
+ * the app vouched for (`sub: 'visitor'`, both mounts' `user`). Read from the tab's requests `since`
+ * an exchange and its document. An answer the network failed, or one whose hop to the peer failed or changed on the
  * way, is the app's own (a 502 or 504) and is not judged.
  */
-export function peer_answers(tab: Tab, world: World, since: number): Broken | null {
+export function peer_answers(
+	tab: Tab,
+	world: World,
+	since: number,
+	mount: 'router' | 'kit' = 'router'
+): Broken | null {
 	const exchanges = world.network.exchanges;
 	const hop_failed = (realm: string): boolean =>
 		exchanges.some((e) => e.for === realm && (failed_on_wire(e) || e.tampered));
@@ -1208,15 +1221,30 @@ export function peer_answers(tab: Tab, world: World, since: number): Broken | nu
 			continue;
 		const url = new URL(e.url);
 		if (url.origin !== origin) continue;
-		const owed = EDGE_OWED.find(([path]) => path === url.pathname);
+		const owed = EDGE_OWED.find(([is]) => is(url.pathname));
 		if (owed && !owed[2](e.status) && !hop_failed(e.from))
 			wrong.push(`${url.pathname} answered ${e.status}, the peer answered ${owed[1]}`);
 	}
 	const doc = tab.page.mainFrame.document as unknown as Document;
-	if (!document_faulted(world, tab))
+	if (!document_faulted(world, tab)) {
 		for (const el of doc.querySelectorAll('[data-gen-who]'))
 			if (el.textContent !== 'visitor')
 				wrong.push(`the peer's page shows the visitor "${el.textContent}", the app's is "visitor"`);
+		// (what the document shows: a page whose hop to the peer failed shows the app's own words)
+		const path = new URL(tab.page.mainFrame.url).pathname;
+		// (a document loaded whole at the page: one a client navigation reached may be mid-way)
+		const own = exchanges.find((e) => e.from === tab.realm);
+		const loaded =
+			own !== undefined &&
+			own.method === 'GET' &&
+			new URL(own.url).pathname === path &&
+			doc.readyState === 'complete';
+		if (loaded && !hop_failed(tab.realm) && !error_page(tab)) {
+			const text = doc.documentElement?.textContent ?? '';
+			if (mount === 'kit' && path === EDGE_GONE && !PEER_GONE_SAID.some((s) => text.includes(s)))
+				wrong.push(`${path} says neither the peer's title nor the app's word for a missing page`);
+		}
+	}
 	return wrong.length === 0
 		? null
 		: { oracle: 'peer-answers', detail: `${tab.page.mainFrame.url}: ${wrong.join('\n')}` };
