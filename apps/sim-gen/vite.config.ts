@@ -4,6 +4,7 @@ import { federation } from '@ogygia/federation/vite';
 import { router } from '@ogygia/router/vite';
 import { flags } from '@ogygia/flags/vite';
 import { postrender } from '@ogygia/postrender/vite';
+import { reshape } from '@ogygia/reshape/vite';
 import { defineConfig } from 'vite';
 import { existsSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -26,9 +27,11 @@ const presets = Object.fromEntries(
 
 // (a seed may draw an app without the router: `router` in the plan gen.ts wrote; and the presets its
 // regions with a margin name, `presets`: a margin is never an inline attribute)
-const plan: { router?: boolean; presets?: Record<string, Record<string, string>> } = existsSync(
-	'src/lib/gen/plan.json'
-)
+const plan: {
+	router?: boolean;
+	reshape?: unknown;
+	presets?: Record<string, Record<string, string>>;
+} = existsSync('src/lib/gen/plan.json')
 	? JSON.parse(readFileSync('src/lib/gen/plan.json', 'utf8'))
 	: {};
 
@@ -45,6 +48,8 @@ export default defineConfig({
 		// (a seed's flag: its reads reported, its exposures flushed at each request's end)
 		flags(),
 		postrender({ default: false }),
+		// (a seed's reshape pass: src/lib/gen/reshape.server.ts)
+		...(plan.reshape ? [reshape()] : []),
 		sveltekit()
 	]
 });

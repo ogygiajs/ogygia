@@ -243,4 +243,32 @@ describe('the warmer goes to the location', () => {
 		await new Promise((r) => setTimeout(r, 100));
 		expect(requested('Loc.js?t=6')).toHaveLength(1);
 	});
+
+	test("a build's identity with no known location is not warmed: it names no file", async () => {
+		const identity = '/test/browser/fixtures/ogygia/og-region.0000000000c2.js?t=nowarm';
+		warm_island_module(identity);
+		await new Promise((r) => setTimeout(r, 100));
+		expect(requested('og-region.0000000000c2.js')).toHaveLength(0);
+		expect(is_warmed_module(identity)).toBe(false);
+	});
+
+	test('a warm that failed is not kept: the module does not count as warmed', async () => {
+		const missing = '/test/browser/fixtures/no-such-island.ts?t=warm-failed';
+		warm_island_module(missing, undefined, 'user');
+		await expect.poll(() => requested('t=warm-failed').length, { timeout: 5000 }).toBe(1);
+		await expect.poll(() => is_warmed_module(missing), { timeout: 5000 }).toBe(false);
+	});
+
+	test("a started warm raised later lifts its graph's links to the new priority", async () => {
+		const entry = '/test/browser/fixtures/entry-current.ts?t=graph-raise';
+		register_island_graph(
+			encode_island_graph(new Map([[entry, ['/test/browser/fixtures/graph-raise-dep.js']]]))
+		);
+		warm_island_module(entry);
+		const link = () =>
+			document.head.querySelector<HTMLLinkElement>('link[href$="graph-raise-dep.js"]');
+		await expect.poll(() => link()?.getAttribute('fetchpriority'), { timeout: 3000 }).toBe('low');
+		warm_island_module(entry, undefined, 'user');
+		await expect.poll(() => link()?.getAttribute('fetchpriority'), { timeout: 3000 }).toBe('high');
+	});
 });

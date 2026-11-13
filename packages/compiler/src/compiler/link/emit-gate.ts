@@ -1,19 +1,3 @@
-/**
- * Island-chunk emit gate — which prescanned islands the CLIENT leg should actually build.
- *
- * The prescan registers every marked import under the app's `src/` (both build legs, so ids agree),
- * and the client leg used to emit a chunk for each of them. But a registered island is not an island
- * the app SERVES: a host module nothing imports — a second route tree's pages built from the same
- * source, a retired component — is dead weight, and worse than weight: its imports enter a client
- * build whose server pass never analysed them (an island importing a `.remote.ts` there fails Kit's
- * "Expected to find metadata for remote file" check and the build stops).
- *
- * Kit builds the SERVER bundle first. Its transform pass is the ground truth for reachability — the
- * driver records every module id it transforms there (`Program.ssr_transformed`), the plugin writes
- * the set under Kit's `outDir` at the end of that leg, and the client leg reads it back and emits
- * only islands whose host is in it. No handoff (standalone builds, a client-only build) → emit all,
- * the previous behaviour.
- */
 import fs from 'node:fs';
 import path from 'node:path';
 import { host_key } from '../program.ts';
@@ -93,6 +77,12 @@ export function read_server_handoff(out_dir: string): ServerHandoff | null {
  * Should an island whose host module is `host_path` get a client chunk? `loaded` is the server
  * leg's transformed-module set (`host_key`-normalised), or `null` when there is no handoff.
  * An island with no recorded host (a library island registered through a bridge) is always emitted.
+ *
+ * The prescan registers every marked import under `src/`, but a host nothing imports (a second
+ * route tree, a retired component) is no island the app serves, and its imports would enter a
+ * client build whose server pass never analysed them (a `.remote.ts` there fails Kit's remote
+ * metadata check). Kit builds the server bundle first; its transform pass is the ground truth for
+ * reachability.
  */
 export function island_host_loaded(
 	host_path: string | null | undefined,

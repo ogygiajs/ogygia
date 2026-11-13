@@ -6,11 +6,8 @@ import { describe, test, expect, afterEach } from 'vitest';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { Compiler, Program, CompileCtx, normalize_import_keys } from '../dist/compiler/index.js';
-import {
-	generateRuntimeFlagsSource,
-	resolveFeatures
-} from '../dist/compiler/link/runtime-entry.js';
+import { Compiler, Program, CompileCtx, normalize_import_keys } from '../src/compiler/index.ts';
+import { generateRuntimeFlagsSource, resolveFeatures } from '../src/compiler/link/runtime-entry.ts';
 import { partial_ctx_init } from './_compile-ctx.ts';
 import { dedent } from '@ogygia/core/contract';
 
@@ -123,6 +120,22 @@ describe('page mark', () => {
 
 	test('an import the walk cannot resolve fails open', () => {
 		expect(marks_for(script(`\timport { thing } from './missing';`)).page).toBe(true);
+	});
+
+	test('`$env` and generated modules read no page, and the walk follows them no further', () => {
+		const marks = marks_for(
+			script(`\timport { PUBLIC_X } from '$env/static/public';
+	import gen from 'virtual:thing';
+	import ogy from 'ogygia:thing';`)
+		);
+		expect(marks.page).toBe(false);
+	});
+
+	test('a directory import is followed into its index file, so it is not an unresolved one', () => {
+		const marks = marks_for(script(`\timport { n } from './helpers';`), {
+			'src/lib/helpers/index.ts': `export const n = 1;\n`
+		});
+		expect(marks.page).toBe(false);
 	});
 
 	test('a module the walk does not read (markdown) fails open', () => {

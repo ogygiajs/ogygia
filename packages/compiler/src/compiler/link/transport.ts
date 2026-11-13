@@ -17,8 +17,6 @@ export function transport_module(
 			export const decoders = {};
 		`;
 	}
-	// THE app codec, built once: every ogygia reader (page seed, remote seed, Kit's remote functions
-	// through the client stub) takes `encoders`/`decoders` from here.
 	const src = dedent`
 		import * as hooks from ${JSON.stringify(universal_hooks)};
 
@@ -87,12 +85,16 @@ export function transportables_server_module(modules: Iterable<string>): string 
 	`;
 }
 
-/** The CLIENT leg of {@link transportables_server_module}'s module; `rel` makes a tag path. */
+/**
+ * The CLIENT leg of {@link transportables_server_module}'s module; `rel` makes a tag path.
+ *
+ * @param crosses_wire the app sends wired values through Kit's `transport` (remote functions,
+ *   loads): those decode synchronously, whenever they arrive, so every class must be in before any
+ *   island wakes (`wire_all`)
+ */
 export function transportables_client_module(
 	modules: Iterable<string>,
 	rel: (abs: string) => string,
-	/** the app sends wired values through Kit's `transport` (remote functions, loads): those decode
-	 *  synchronously, whenever they arrive — every class must be in before any island wakes */
 	crosses_wire = false
 ): string {
 	const entries: string[] = [];
