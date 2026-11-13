@@ -241,10 +241,13 @@ bench(
 	({ source }) => find_og_calls(source, 'import.meta.og.').length,
 	{
 		setup: () => {
-			let source = '';
+			const lines: string[] = [];
 			for (let i = 0; i < 40; i++)
-				source = `${source}const t${i} = \`a \${b${i}} \${\`'\`}\`; function r${i}(s) { if (s) return /'/.test(s); return typeof /"/; } // import.meta.og.no(${i})\nexport const c${i} = import.meta.og.code('./x${i}.ts');\n`;
-			return { source };
+				lines.push(
+					`const t${i} = \`a \${b${i}} \${\`'\`}\`; function r${i}(s) { if (s) return /'/.test(s); return typeof /"/; } // import.meta.og.no(${i})`,
+					`export const c${i} = import.meta.og.code('./x${i}.ts');`
+				);
+			return { source: `${lines.join('\n')}\n` };
 		}
 	}
 );
