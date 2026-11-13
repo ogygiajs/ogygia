@@ -66,8 +66,7 @@ export function route_reader(files: Fs): Routes {
 		'route tree',
 		own,
 		(_cx, routesDir: string) => build_route_tree(routes, routesDir),
-		// (a tree links its nodes both ways: a new one is a new answer, not compared deeply)
-		(a, b) => a === b
+		Object.is
 	);
 	const routes: Routes = {
 		fs: files,
@@ -447,7 +446,6 @@ interface RouteNode {
 	layouts: RouteNode[];
 	// a layout: the leaves that render in it
 	pages: RouteNode[];
-	// its place in `RouteTree.nodes` (`Routes.node_csr` answers by it)
 	index: number;
 }
 interface Route {
@@ -463,7 +461,6 @@ interface RouteTree {
 	readonly nodes: RouteNode[];
 }
 
-/** Kit's route tree of a routes directory (a query: read again when a listing under it changes). */
 function route_tree(r: Routes, routesDir: string): RouteTree {
 	return r.db.get(r.route_tree, routesDir);
 }
@@ -542,8 +539,7 @@ function build_route_tree(r: Routes, routesDir: string): RouteTree {
 	return { routes, nodes };
 }
 
-/** A node's csr as Kit's static analysis computes it: its own option, else its parent's
- *  (`Routes.node_csr`, over the tree the node is from). */
+/** A node's csr as Kit's static analysis computes it: its own option, else its parent's. */
 function node_csr(r: Routes, tree: RouteTree, node: RouteNode): boolean | undefined {
 	return r.db.get(r.node_csr, tree.routes[0].dir)[node.index];
 }
