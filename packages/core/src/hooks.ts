@@ -49,6 +49,7 @@ import { dev_hmr_url } from './dev-hmr-url.ts';
 import { REGION_BRAND } from './region-brand.ts';
 import { signing_key, configure_signing_secret } from './server/signing-key.ts';
 import { mpaSpeculationRules } from './server/speculation.ts';
+import { fn_manifest_script } from './server/fn-manifest-script.ts';
 import { set_page_route_config } from './plugin/routes.ts';
 import {
 	set_kit_page_reader,
@@ -151,7 +152,6 @@ import {
 	OG_FORMAT,
 	OGYGIA_DEV_HMR,
 	OGYGIA_DEVTOOLS_BOOT,
-	OGYGIA_FNM,
 	OGYGIA_PAGE,
 	OGYGIA_PROVIDE_PAGE,
 	OGYGIA_SPECULATE
@@ -1504,10 +1504,7 @@ class OgygiaHandle {
 			// (the manifest is the build's: its script is written once, not per request)
 			let fnm_script = fnm_script_cache.get(fnm);
 			if (fnm_script === undefined) {
-				const entries = Object.entries(fnm)
-					.map(([tag, src]) => `${JSON.stringify(tag)}:(${src})`)
-					.join(',');
-				fnm_script = `<script ${OGYGIA_FNM}>globalThis.__OG_FNM=Object.assign(globalThis.__OG_FNM||{},{${entries}});</script>`;
+				fnm_script = fn_manifest_script(fnm);
 				fnm_script_cache.set(fnm, fnm_script);
 			}
 			scripts.push(fnm_script);
