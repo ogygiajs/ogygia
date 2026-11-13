@@ -47,9 +47,9 @@ import {
 	FOREIGN_HYDRATE_MARK
 } from './region/emit.ts';
 import { by_key, location_map_files } from './link/location-map.ts';
-import { context_keys, source_uses_ogygia_context } from './link/context-detect.ts';
+import { context_keys } from './link/context-detect.ts';
+import { own_reach, reaches_context, reaches_wire } from './link/own-reach.ts';
 import { router_css_roots } from './link/router-css.ts';
-import { source_crosses_wire } from './link/transport.ts';
 import type { SourceMap } from 'magic-string';
 import { relocate, relocations_of, type RelocateCx } from './link/relocations.ts';
 import { same_module_path, island_vpaths_affected_by_file } from './dev/hmr.ts';
@@ -399,8 +399,9 @@ export class Compiler implements CoreApp {
 			const remote = kind === 'script' && REMOTE_FILE_RE.test(full);
 			specs = extract_module_specs(src);
 			const page_importers = ctx.page_importers;
+			const reach = own_reach(src, full, kind);
 			const facts: FileFacts = {
-				crosses_wire: remote || source_crosses_wire(src),
+				crosses_wire: remote || reaches_wire(reach),
 				transportable:
 					kind === 'svelte'
 						? svelteModuleHasTransportable(src, full)
@@ -411,7 +412,7 @@ export class Compiler implements CoreApp {
 					ctx.page_files.includes(full)
 			};
 			scan.set(full, facts);
-			if (!runtime_marks.context && source_uses_ogygia_context(src)) runtime_marks.context = true;
+			if (!runtime_marks.context && reaches_context(reach)) runtime_marks.context = true;
 			if (remote) runtime_marks.remoteSeeds = true;
 			if (facts.transportable) runtime_marks.wire = true;
 		}
@@ -771,7 +772,7 @@ export class Compiler implements CoreApp {
 					unlisted.set(s, prescan_rel(ctx, full));
 		};
 		const say_one_off_keys = (full: string, src: string, kind: 'svelte' | 'script') => {
-			if (!src.includes('Symbol(') || !source_uses_ogygia_context(src)) return;
+			if (!src.includes('Symbol(') || !reaches_context(own_reach(src, full, kind))) return;
 			for (const key of context_keys(src, kind).one_off)
 				warn('region_context_key_one_off', { file: path.relative(root, full), key });
 		};
@@ -1557,7 +1558,7 @@ export class Compiler implements CoreApp {
 		try {
 			resolved = await resolve(source, importer, { skipSelf: true });
 		} catch {
-			return null;
+			return null; // ok: an edge the resolver refuses is not forked: the real module stays (bytes, never a missing style); the bundler reports the import
 		}
 		if (!resolved?.id || resolved.id.startsWith('\0')) return null;
 		const target = strip_id(resolved.id);
