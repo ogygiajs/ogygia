@@ -28,7 +28,7 @@ import { transform_containers } from './containers.ts';
 import { transform_tabs } from './tabs.ts';
 import { rehypeHeadingAnchors } from './rehype-heading-anchors.ts';
 import { parse_yaml } from './frontmatter.ts';
-import { try_region_emit } from './region-emit.ts';
+import { module_script, try_region_emit } from './region-emit.ts';
 import { DEFAULT_OVERRIDE_TAGS, rehypeOverrides, SLOT_TAG } from './rehype-overrides.ts';
 import {
 	configure_shiki,
@@ -51,7 +51,6 @@ export type { Fence, MetaParser, VariantGenerator, Variant } from './code.ts';
 
 // ── regexes
 const BACKSLASH_G = /\\/g;
-const MODULE_SCRIPT_OPEN_RE = /<script\b[^>]*\b(?:context\s*=\s*(["'])module\1|module)\b[^>]*>/;
 const TAB_IMPORT_RE = /^\s*import\b[^\n]*\bTab(?:Group)?\b[^\n]*\bfrom\b/m;
 
 /**
@@ -248,11 +247,8 @@ function inject_module(code: string, lines: string[]): string {
 	const block = lines.join('\n');
 	// Inject into the existing module script (Svelte 5 `<script module>` or legacy `context="module"`),
 	// else prepend a fresh one. Never two module scripts (illegal).
-	const open = MODULE_SCRIPT_OPEN_RE.exec(code);
-	if (open) {
-		const at = open.index + open[0].length;
-		return `${code.slice(0, at)}\n${block}${code.slice(at)}`;
-	}
+	const open = module_script(code);
+	if (open) return `${code.slice(0, open.text)}\n${block}${code.slice(open.text)}`;
 	return dedent`
 		<script context="module">
 		${block}
@@ -287,7 +283,7 @@ function register_island_scanner(
 			try {
 				entries = readdirSync(dir, { withFileTypes: true });
 			} catch {
-				return;
+				return; // ok: a folder that cannot be read holds no pages to watch
 			}
 			for (const e of entries) {
 				if (e.isDirectory()) {

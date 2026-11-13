@@ -9,6 +9,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { VirtualTable } from '../src/compiler/virtual/resolver.ts';
+import { queries } from '../src/compiler/queries.ts';
 import { route_reader } from '../src/compiler/kit.ts';
 import { node_fs } from '../src/compiler/fs.ts';
 import {
@@ -17,7 +18,7 @@ import {
 	core_path,
 	type CoreApp
 } from '../src/compiler/virtual/core.ts';
-import { virtual, write_value, type Leg } from '../src/compiler/virtual/table.ts';
+import { virtual, write_value, type Leg, type Part } from '../src/compiler/virtual/table.ts';
 import {
 	RESOLVED,
 	V_FN_MANIFEST,
@@ -36,7 +37,13 @@ import { BUILD_ERRORS } from '../src/compiler/messages.ts';
 import { CORE_VALUE_NAMES } from '../src/compiler/virtual/value-names.ts';
 import { dedent } from '@ogygia/core/plugin/utils';
 
-const table = new VirtualTable<CoreApp>(CORE_VIRTUALS, core_path, CORE_VALUE_NAMES, CORE_PARTS);
+const table = new VirtualTable<CoreApp>(
+	CORE_VIRTUALS,
+	core_path,
+	CORE_VALUE_NAMES,
+	CORE_PARTS,
+	queries('session')
+);
 const app = (ctx: Partial<CoreApp['ctx']>): CoreApp => ({ ctx }) as unknown as CoreApp;
 const leg = (ssr: boolean): Leg => ({ ssr, universalHooks: null });
 
@@ -150,10 +157,21 @@ describe('the virtual-module table', () => {
 		);
 	});
 
+	it('leaves a declared id with a query to the bundler, and fails an undeclared one', () => {
+		expect(table.resolve('ogygia:server/secret?raw')).toBeUndefined();
+		expect(() => table.resolve('ogygia:server/nope?raw')).toThrow(/virtual_unknown/);
+	});
+
+	it('takes a constant among its entries as a define, never a module it resolves', () => {
+		const c = virtual.constant({ id: '__X__', from: () => true });
+		const t = new VirtualTable([c, c], core_path, {}, CORE_PARTS, queries('t'));
+		expect(t.claims('ogygia:server/__X__')).toBe(false);
+	});
+
 	it('refuses two declarations of one module with virtual_duplicate', () => {
 		const a = virtual.value({ realm: 'server', id: 'x', from: () => ({}) });
 		const names = { 'ogygia:server/x': [] };
-		expect(() => new VirtualTable([a, a], core_path, names, CORE_PARTS)).toThrow(
+		expect(() => new VirtualTable([a, a], core_path, names, CORE_PARTS, queries('t'))).toThrow(
 			/virtual_duplicate/
 		);
 	});
@@ -225,7 +243,7 @@ describe('the virtual-module table', () => {
 		const a = virtual.value({ realm: 'server', id: 'a', from: () => ({ x: 1 }) });
 		const b = virtual.value({ realm: 'server', id: 'b', from: () => ({ x: 2 }) });
 		const names = { 'ogygia:server/a': ['x'], 'ogygia:server/b': ['x'] };
-		expect(() => new VirtualTable([a, b], core_path, names, CORE_PARTS)).toThrow(
+		expect(() => new VirtualTable([a, b], core_path, names, CORE_PARTS, queries('t'))).toThrow(
 			/virtual_duplicate/
 		);
 	});
@@ -252,20 +270,31 @@ describe('the virtual-module table', () => {
 			plugins: () => ({ server: [], client: [], route_config: [] })
 		} as unknown as CoreApp;
 		const fresh = () => {
-			const t = new VirtualTable<CoreApp>(CORE_VIRTUALS, core_path, CORE_VALUE_NAMES, CORE_PARTS);
+			const t = new VirtualTable<CoreApp>(
+				CORE_VIRTUALS,
+				core_path,
+				CORE_VALUE_NAMES,
+				CORE_PARTS,
+				queries('session')
+			);
 			for (const id of ['route-csr', 'route-config', 'server-plugins', 'rate-limit'])
 				t.load(RESOLVED(`ogygia:server/${id}`), core_app, leg(true));
 			return t;
 		};
-		expect(fresh().bump('routes').sort()).toEqual([
+		const moved_by = (part: Part): string[] => {
+			const t = fresh();
+			t.move(part);
+			return t.moved().sort();
+		};
+		expect(moved_by('routes')).toEqual([
 			RESOLVED('ogygia:server/route-config'),
 			RESOLVED('ogygia:server/route-csr')
 		]);
-		expect(fresh().bump('plugins').sort()).toEqual([
+		expect(moved_by('plugins')).toEqual([
 			RESOLVED('ogygia:server/route-config'),
 			RESOLVED('ogygia:server/server-plugins')
 		]);
-		expect(fresh().bump('regions')).toEqual([]);
+		expect(moved_by('regions')).toEqual([]);
 		fs.rmSync(root, { recursive: true, force: true });
 	});
 });

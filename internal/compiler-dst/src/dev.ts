@@ -15,7 +15,6 @@ import { permute } from './order.ts';
 const LEGS: readonly Leg[] = ['ssr', 'client'];
 
 /** The plugin's own patterns (vite/index.ts). */
-const ROUTE_HOST_OR_OPTION_RE = /[\\/]\+(page|layout)(\.server)?\.(svelte|js|ts)$/;
 const STYLE_BEARING_FILE_RE = /\.(svelte|css|scss|sass|less|styl)$/;
 
 /** The table's single modules a page can import (virtual/core.ts), by specifier. Families (island
@@ -164,8 +163,7 @@ export class Server {
 		if (KNOWN.has(1376) && regions_print(this.s) !== before)
 			for (const mid of compiler.changed('regions')) this.invalidate(mid);
 		if (this.s.ctx.is_dev) {
-			if (compiler.server_manifest_stale())
-				for (const mid of compiler.changed('regions')) this.invalidate(mid);
+			for (const mid of compiler.moved()) this.invalidate(mid);
 			for (const marked of compiler.drain_closure_marks()) this.invalidate(marked);
 		}
 		// import analysis: each import resolved through the plugin's resolveId, then Vite's own
@@ -296,16 +294,7 @@ export function edit(server: Server, file: string, text: string | null): void {
 	const invalidate = (id: string) => server.invalidate(id);
 
 	// watchChange
-	if (ROUTE_HOST_OR_OPTION_RE.test(file)) {
-		compiler.ctx.routes.clear();
-		for (const mid of compiler.changed('routes')) invalidate(mid);
-		if (KNOWN.has(1375))
-			for (const host of server.fs.files())
-				if (host !== file && ROUTE_HOST_OR_OPTION_RE.test(host) && host.endsWith('.svelte')) {
-					if (compiler.is_registered_host(host)) compiler.invalidate_for_file(host, { invalidate });
-					invalidate(host);
-				}
-	}
+	for (const mid of compiler.routes_changed(file, event)) invalidate(mid);
 	if (event === 'delete') compiler.invalidate_for_file(file, { deleted: true, invalidate });
 
 	// handleHotUpdate

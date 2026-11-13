@@ -67,6 +67,7 @@
 	import {
 		isNested,
 		setNested,
+		nested_wake,
 		isInLake,
 		isInLiveSnippet,
 		setInLiveSnippet,
@@ -84,7 +85,8 @@
 		slot_pointer,
 		slot_marker_open,
 		SLOT_MARKER_CLOSE,
-		next_slot_id
+		next_slot_id,
+		HOLE_SLOT_SEQUENCE
 	} from './region-snippet.ts';
 	import { isRegion } from './region.ts';
 	import { written_order } from './frame.ts';
@@ -326,7 +328,7 @@
 		try {
 			return page.error != null;
 		} catch {
-			return false; // isolated render without a live page (a hole endpoint, a remote's region)
+			return false; // ok: isolated render without a live page (a hole endpoint, a remote's region)
 		}
 	}
 	// ONLY KIT'S OWN PASS IS KIT'S TO HYDRATE: a render root ogygia starts (a held region baked by a
@@ -335,7 +337,8 @@
 	const is_csr = documentIsCsrTrue(page_error_render()) && !isInLake() && render_root !== 'ogygia';
 	// The island branch renders inline when nested OR on a csr=true page.
 	const island_inline = nested || is_csr;
-	if ((is_island || is_server) && !nested) setNested();
+	if (is_island && !nested) setNested(true, () => hydrate_attr);
+	else if (is_server && !nested) setNested();
 	// A server island nested in an island renders its component INLINE (deferred ignored): mark the
 	// subtree so a `keepFallback()` inside it fails with the reason instead of Kit's 500 page.
 	if (is_server && nested) setHoleInline();
@@ -423,14 +426,6 @@
 		});
 	}
 
-	// DEV diagnostic (declared HERE, after `island_entry`, so it never reads it in its temporal dead
-	// zone): a nested island can't wake independently — warn that its strategy is ignored. Dead-code
-	// eliminated in builds via the `import.meta.env.DEV` guard.
-	if (nested && (is_island || is_server) && import.meta.env && import.meta.env.DEV) {
-		const entry = untrack(() => (is_server ? __entry : island_entry));
-		if (is_server) warn('nested_server_island_inline', { entry: entry || '' });
-		else warn('nested_island_with_parent', { entry: entry || '' });
-	}
 	// Freeze bare snippet PROPS (named-snippet props) to static region snippets (server) so the island
 	// BODY and the serialized PAYLOAD render byte-for-byte identically — hydration then adopts the frozen
 	// HTML with no mismatch. A live (branded) snippet passes through; an INLINE island (nested, or on a
@@ -444,7 +439,8 @@
 	// The marker id fencing THIS island's children to its payload pointer. Server-assigned; the client
 	// reads it back from the serialized descriptor, never regenerates it.
 	// (counted per island entry: another island's async timing never shifts this one's id)
-	const slot_id = next_slot_id(untrack(() => island_entry) ?? '');
+	// (in a hole's answer, the hole's own sequence: server/answer-context.ts)
+	const slot_id = next_slot_id(untrack(() => island_entry) ?? '', getContext(HOLE_SLOT_SEQUENCE));
 	const has_slot_children = $derived(!nested && island_children != null);
 	// The BODY-side children: a server-convention snippet (`(renderer) => …`) that emits EXACTLY ONE
 	// element — `<ogygia-slot>` wrapping the natural children — with no extra snippet-layer anchors.
@@ -495,6 +491,14 @@
 		as_dual ? as_dual.hydrateMargin || undefined : typeof visible === 'string' ? visible : undefined
 	);
 
+	if (nested && (is_island || is_server) && import.meta.env && import.meta.env.DEV) {
+		untrack(() => {
+			if (is_server) warn('nested_server_island_inline', { entry: __entry || '' });
+			else if (hydrate_attr !== nested_wake())
+				warn('nested_island_with_parent', { entry: island_entry || '' });
+		});
+	}
+
 	// `asset()` is the sole base/assets authority — every ogygia URL is baked base-LESS (prod
 	// `/${appDir}/immutable/…`, dev `/@id/…`) and resolved here once. (Kit dev serves `/@id/…` under
 	// base, and `asset()` supplies that prefix — so we never special-case dev URLs.)
@@ -539,7 +543,7 @@
 	/**
 	 * This region's sheets as head tags: each one this request has not linked yet, named for its
 	 * owner. A sheet another outer island linked first gets this owner listed in the tail (#854,
-	 * test/shared-sheet-owners.test.ts). Server-only: `claim_region_css` is [] on the client.
+	 * test/shared-sheet-owners.test.ts). Server-only: `claim_region_css` is null on the client (no tags).
 	 * @param {string[]} hrefs
 	 */
 	const sheet_tags = (hrefs) => {
@@ -547,7 +551,7 @@
 			? (/** @type {string} */ href) => tail.sheet_owner(kit_asset(href), tag_owner)
 			: undefined;
 		let html = '';
-		for (const href of claim_region_css(hrefs, tag_owner, shared))
+		for (const href of claim_region_css(hrefs, tag_owner, shared) ?? [])
 			html += region_css_tag(href, kit_asset(href), tag_owner);
 		return html;
 	};
@@ -555,7 +559,8 @@
 	// fp the SPA nav's x-ogygia-known lists, not taken by an earlier twin). Emit the region's identifying
 	// attrs + props script but NO component content — the reconciler keeps the live node (same
 	// data-key). Safe: nothing is reused on a full load / non-SPA request, or without serverDelta. (A
-	// derived made in the server render runs once, so each region takes at most one copy.)
+	// derived made in the server render runs once, so each region takes at most one copy:
+	// test/server-delta-once.test.ts.)
 	const island_skip = $derived(
 		is_island &&
 			!island_inline &&
@@ -905,7 +910,7 @@
 	// Kit links CSS from the route's STATIC import graph, never from what actually rendered. This
 	// render pass knows, so link it here: real `<link>`s into <head> via svelte:head, claimed
 	// per-request so a page rendering five of the same block links its sheet once. Server-only —
-	// `claim_region_css` returns [] on the client (SSR already emitted them).
+	// `claim_region_css` returns null on the client: no tags (SSR already emitted them).
 	const region_css_html = $derived.by(() => {
 		if (!resolved || resolved.kind !== 'dual' || !resolved.module) return '';
 		return sheet_tags(region_css(resolved.module));
@@ -1021,7 +1026,7 @@
 	/** @param {import('./region.ts').DeferredRegion} f */
 	function identity(f) {
 		try {
-			return `${f.id} ${stringify_devalue(f.props)}`;
+			return `${f.id}\0${stringify_devalue(f.props)}`;
 		} catch {
 			return f.id;
 		}

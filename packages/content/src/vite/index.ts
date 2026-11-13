@@ -66,7 +66,11 @@ export function content(options: ContentOptions = {}): [OgygiaPlugin, ...VitePlu
 	const { markdown, presets, ...hmr } = options;
 	if (presets) validate_presets(presets, !!markdown);
 	// The svelte config's `preprocess()` / `extensions()` read this; vite.config evaluates the plugin
-	// list before `sveltekit()` loads the svelte config, so it is set by then.
+	// list before `sveltekit()` loads the svelte config, so it is set by then. A svelte config loaded
+	// earlier read none: refuse (test: content-config-order.test.ts).
+	if (markdown && bridge.markdownOrder === 'read_unset')
+		throw new OgygiaError('content_config_read_first');
+	bridge.markdownOrder = 'set';
 	bridge.markdownConfig = (markdown as Record<string, unknown> | undefined) ?? null;
 	bridge.contentPresets = (presets as ContentBridgePresets | undefined) ?? null;
 	const exts = markdown_extensions();
@@ -194,11 +198,17 @@ function markdown_extensions(): string[] {
 // type the ORIGINAL source and ignore script preprocessors' output for diagnostics (probe-proven),
 // so no preprocessor can augment call-site types. Server islands hand-declare the prop instead.
 export function preprocess(): PreprocessorGroup[] {
-	return bridge.markdownConfig ? [ogygiaPresetPreprocess()] : [];
+	return markdown_read() ? [ogygiaPresetPreprocess()] : [];
+}
+
+/** The markdown settings as the svelte config reads them; a read before any `content()` is noted. */
+function markdown_read(): Record<string, unknown> | null {
+	if (bridge.markdownOrder === 'unset') bridge.markdownOrder = 'read_unset';
+	return bridge.markdownConfig;
 }
 
 /** The svelte config's full `extensions` list: `.svelte`, plus markdown's when `content({ markdown })`
  *  is set. Pass it straight through: `extensions: extensions()`. */
 export function extensions(): string[] {
-	return bridge.markdownConfig ? ['.svelte', ...markdown_extensions()] : ['.svelte'];
+	return markdown_read() ? ['.svelte', ...markdown_extensions()] : ['.svelte'];
 }

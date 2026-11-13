@@ -27,7 +27,8 @@
 		: values;
 
 	// svelte-ignore state_referenced_locally
-	for (const k in resolved) setContext(k, resolved[k]);
+	for (const k of Reflect.ownKeys(resolved))
+		setContext(k, (resolved as Record<PropertyKey, unknown>)[k]);
 
 	// Angle brackets built without literals so Svelte's raw-text lexer never sees a stray tag.
 	const LT = String.fromCharCode(60);

@@ -1,9 +1,9 @@
 <script lang="ts">
 	import '$lib/styles/widget.css';
-	import { cartCtx } from './cart-store.svelte.ts';
+	import { getCart } from './cart-store.svelte.ts';
 
-	// No prop — the cart comes from the nearest <Provide> above, across the island boundary.
-	const cart = cartCtx.get();
+	// No prop — the cart comes from the setCart() above, across the island boundary.
+	const cart = getCart();
 </script>
 
 <div class="widget" data-ctx-count>

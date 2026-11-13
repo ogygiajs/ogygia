@@ -26,7 +26,7 @@ function render_html_source(moduleUrl: string): string {
 
 /**
  * The component-import line for a generated module — a NAMED export (`import { Header as X } from
- * '@barrel'`, the asRegion/barrel escape hatch) or a plain default (`import X from './X.svelte'`, a
+ * '@barrel'`, a marked named import) or a plain default (`import X from './X.svelte'`, a
  * `.svelte` file or a package default). `exportName` is undefined/`'default'` for the default case.
  */
 export function component_import_line(local: string, spec: string, exportName?: string): string {
@@ -77,7 +77,8 @@ export const FOREIGN_HYDRATE_MARK = '// og:foreign-hydrate\n';
  * schedule. Placing it (`<C/>`, `<svelte:component this={C}/>`) emits the shell; the island's JS is
  * fetched only when the shell wakes (e.g. `wake: 'visible'` → on scroll-into-view). Shared by the
  * `.svelte` host and the `.ts` registry. `entry_url` is the resolved client/dev module URL the caller
- * computes (ctx-dependent); `lang` is the `<script>` lang attribute (`''` for plain JS).
+ * computes (ctx-dependent). Plain JavaScript, whatever the host's lang: every host that marks the
+ * component this way shares this one module (test/region-identity-canonical.test.ts).
  */
 export function island_wrapper_source(
 	iid: string,
@@ -86,15 +87,14 @@ export function island_wrapper_source(
 	strategy: string,
 	options: Record<string, unknown> | undefined,
 	exportName: string | undefined,
-	entry_url: string,
-	lang: string
+	entry_url: string
 ): string {
 	const strategy_attrs = strategy_to_attr(strategy, options);
 	const persist_attr = options?.keep ? ` __keep={${JSON.stringify(options.keep)}}` : '';
 	// `children` rides as an EXPLICIT prop, never as template children: wrapping `{@render
 	// children?.()}` in the tags would hand Region a fragment snippet even for a CHILDLESS call
 	// site — Region's `island_children != null` gate would then serialize a pointless empty slot.
-	return `<script${lang}>
+	return `<script>
 \timport { Region as OgygiaRegion__Wrapper } from 'ogygia/internal';
 \timport __OgygiaEntry from ${JSON.stringify(entryPath)};
 \t${component_import_line('__OgygiaCss', componentPath, exportName)}
@@ -122,14 +122,13 @@ export function island_wrapper_client_source(
 	lazyPath: string,
 	strategy: string,
 	options: Record<string, unknown> | undefined,
-	entry_url: string,
-	lang: string
+	entry_url: string
 ): string {
 	const strategy_attrs = strategy_to_attr(strategy, options);
 	const persist_attr = options?.keep ? ` __keep={${JSON.stringify(options.keep)}}` : '';
 	// `__component` is the entry when the document rendered this island (Kit hydrates it in
 	// place), else undefined — then `__load` is how Region fetches it for a client render.
-	return `<script${lang}>
+	return `<script>
 \timport { Region as OgygiaRegion__Wrapper } from 'ogygia/internal';
 \timport __OgygiaEntry, { load as __OgygiaLoad } from ${JSON.stringify(lazyPath)};
 \tlet { children, ...__props } = $props();
@@ -183,7 +182,7 @@ export function make_region_binding(opts: {
 	hydrate?: string;
 	/** rootMargin baked when `hydrate` is `'visible'` */
 	hydrateMargin?: string;
-	/** named export to pull (asRegion/barrel); undefined → default import */
+	/** named export to pull (a marked named import); undefined → default import */
 	exportName?: string;
 	identity: string;
 }): {
@@ -255,7 +254,7 @@ function wrapper_attach_binding(opts: {
 	moduleUrl: string;
 	hydrate: string;
 	hydrateMargin?: string;
-	/** named export to pull (asRegion/barrel); undefined → default import */
+	/** named export to pull (a marked named import); undefined → default import */
 	exportName?: string;
 }) {
 	let meta = `__ogRegion: ${JSON.stringify(opts.iid)}, __module: ${JSON.stringify(opts.moduleUrl)}`;
@@ -284,7 +283,7 @@ export default __OgygiaWrap;
  * fields ride on the wrapper, so `region(C)` still works). Threading both paths through here is what
  * keeps `.svelte` and `.ts` `wake:` byte-identical — a `.ts` `wake: 'visible'` is exactly a `.svelte`
  * `wake: 'visible'`. Callers own the host-specific import rewrite; this owns the record.
- * `moduleUrl` is the resolved client/dev module URL; `lang` is the wrapper `<script>` lang (`''` = JS).
+ * `moduleUrl` is the resolved client/dev module URL.
  */
 export function make_wake_island(opts: {
 	iid: string;
@@ -297,7 +296,6 @@ export function make_wake_island(opts: {
 	exportName?: string;
 	hostPath: string;
 	identity: string;
-	lang: string;
 	/**
 	 * A `.ts` registry / remote binding, which may be handed to `region()` and CROSS the wire (a live
 	 * or remote region): it needs a server-manifest entry (`server`) so its endpoint can render it, and
@@ -351,8 +349,7 @@ export function make_wake_island(opts: {
 			opts.strategy,
 			opts.options,
 			opts.exportName,
-			opts.moduleUrl,
-			opts.lang
+			opts.moduleUrl
 		),
 		// The CLIENT leg of the wrapper takes its component through the lazy module (see
 		// `island_wrapper_client_source`): a csr=true host's page graph stops at the wrapper.
@@ -361,8 +358,7 @@ export function make_wake_island(opts: {
 			lazyPath,
 			opts.strategy,
 			opts.options,
-			opts.moduleUrl,
-			opts.lang
+			opts.moduleUrl
 		),
 		lazyPath,
 		lazySource: lazy_entry_source(opts.entryPath, opts.moduleUrl),
@@ -389,8 +385,7 @@ export function make_wake_island(opts: {
  * The SERVER-island wrapper (`.svelte`) — `render: 'deferred'`: a hole whose HTML is fetched on the
  * `wake` schedule. `__defer` carries the fetch schedule; `__cacheTtl` (when signed) sets the hole's
  * response cache; a deferred island that ALSO hydrates carries `__hydrate` + `__module` (its client
- * entry URL). `module_url` is the resolved client/dev entry URL (used only when it hydrates); `lang`
- * is the wrapper `<script>` lang.
+ * entry URL). `module_url` is the resolved client/dev entry URL (used only when it hydrates).
  */
 export function server_wrapper_source(
 	iid: string,
@@ -399,7 +394,6 @@ export function server_wrapper_source(
 	options: Record<string, unknown> | undefined,
 	exportName: string | undefined,
 	module_url: string,
-	lang: string,
 	// false: the CLIENT leg. A hole ships no JS — the browser adopts its server HTML wherever it sits
 	// (deferred, or frozen inline in an island: Region.svelte), so it never needs the component
 	component = true
@@ -434,7 +428,7 @@ export function server_wrapper_source(
 `
 		: '';
 	const component_attrs = component ? `__component={__OgygiaEntry} __css={__OgygiaCss} ` : '';
-	return `<script${lang}>
+	return `<script>
 \timport { Region as OgygiaRegion__Wrapper } from 'ogygia/internal';
 ${component_imports}\tlet { ogygiaFallback, ...__props } = $props();
 </script>
@@ -446,14 +440,13 @@ ${component_imports}\tlet { ogygiaFallback, ...__props } = $props();
  * The LAKE wrapper (`.svelte`) — `render: page, wake: none`: a frozen region inside a hydrated island.
  * A `swr` lake carries an endpoint (`__when` + `__props`) to remount on its schedule; `cache`/`empty`
  * are wrapper-only. Static `<OgygiaLakeInner>` (not dynamic) preserves the LAKE-ENVELOPE; the client
- * build swaps that import for the render-nothing stub. `lang` is the wrapper `<script>` lang.
+ * build swaps that import for the render-nothing stub.
  */
 export function lake_wrapper_source(
 	iid: string,
 	componentPath: string,
 	options: Record<string, unknown> | undefined,
-	exportName: string | undefined,
-	lang: string
+	exportName: string | undefined
 ): string {
 	const remount = options?.remount || 'cache';
 	const needs_endpoint = remount === 'swr';
@@ -465,7 +458,7 @@ export function lake_wrapper_source(
 		attrs = `${attrs} __when={${JSON.stringify(when || 'load')}} __props={__props}`;
 		if (options?.margin != null) attrs = `${attrs} __margin={${JSON.stringify(options.margin)}}`;
 	}
-	return `<script${lang}>
+	return `<script>
 \timport { Region as OgygiaRegion__Wrapper } from 'ogygia/internal';
 \t${component_import_line('OgygiaLakeInner', componentPath, exportName)}
 \tlet __props = $props();

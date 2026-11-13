@@ -26,7 +26,7 @@
 			if (d.url) location.href = d.url;
 			else error = d.error || 'Could not open that file.';
 		} catch {
-			error = 'Could not read that file.';
+			error = 'Could not read that file.'; // ok: shown on the form
 		} finally {
 			busy = false;
 			if (fileInput) fileInput.value = '';
