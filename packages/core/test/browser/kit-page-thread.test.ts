@@ -212,6 +212,11 @@ test('once Kit publishes its page, the global is a plain value again: Kit can as
 	expect(d?.get).toBeUndefined();
 });
 
+test('a Kit page applied with no data is no wait: empty data is still an applied page', () => {
+	publish_kit_page({});
+	expect(kit_page_thread()).toBeNull();
+});
+
 test('with the thread already published at wake there is no hold: the island hydrates straight away', async () => {
 	publish_kit_page({ searchBarMarkup: '<i data-testid="search">search</i>' });
 	document.body.innerHTML = `<script>__sveltekit_lab = {};\x3C/script><div data-mount>${inject_html('lake_page_reader_ssr_b64')}</div>`;

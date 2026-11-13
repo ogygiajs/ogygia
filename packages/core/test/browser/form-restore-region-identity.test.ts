@@ -167,4 +167,36 @@ describe('form continuity', () => {
 
 		expect(next.value).toBe('');
 	});
+
+	it("a field left at its server default takes the page's new default on the return", () => {
+		const untouched = region('/d.js');
+		untouched.defaultValue = 'old default';
+		snapshot_forms(document.body, '/defaults');
+		for (const el of document.querySelectorAll('ogygia-region')) el.remove();
+
+		const back = region('/d.js');
+		back.defaultValue = 'new default';
+		arm_form_restore('/defaults');
+
+		expect(back.value).toBe('new default');
+	});
+
+	it('a field typed in and then set back to its default leaves nothing to restore', () => {
+		const typed = region('/e.js');
+		typed.value = 'typed';
+		snapshot_forms(document.body, '/reset');
+		for (const el of document.querySelectorAll('ogygia-region')) el.remove();
+
+		const back = region('/e.js');
+		arm_form_restore('/reset');
+		back.value = '';
+		snapshot_forms(document.body, '/reset');
+		for (const el of document.querySelectorAll('ogygia-region')) el.remove();
+
+		const again = region('/e.js');
+		again.defaultValue = 'new default';
+		arm_form_restore('/reset');
+
+		expect(again.value).toBe('new default');
+	});
 });
