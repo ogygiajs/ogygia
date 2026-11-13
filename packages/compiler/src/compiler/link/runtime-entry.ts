@@ -1,3 +1,4 @@
+import { dedent } from '@ogygia/core/contract';
 import { client_realms_source, type ClientRealmFile } from './caps.ts';
 
 const HYPHEN = /-/g;
@@ -81,8 +82,6 @@ export const FEATURES: Record<FeatureId, FeatureDef> = {
 	interaction: {
 		module: 'interaction.js',
 		deps: [],
-		// every island that hydrates on the client: a scheduled one is armed too until it is live
-		// (a lake — `none` — never hydrates)
 		detect: (m) => m.foreign === true || (m.hydrate || []).some((w) => w !== 'none')
 	},
 	forms: {
@@ -93,8 +92,6 @@ export const FEATURES: Record<FeatureId, FeatureDef> = {
 	'mpa-nav': {
 		module: 'nav-handle.js',
 		deps: [],
-		// The MPA navigation handle island code navigates through (`$app/navigation`, `ogygia/app`);
-		// the router's install, later in the order, replaces it with the SPA one.
 		detect: (m) => m.page !== false
 	},
 	router: {
@@ -110,10 +107,6 @@ export const FEATURES: Record<FeatureId, FeatureDef> = {
 	morph: {
 		module: 'morph.js',
 		deps: [],
-		// Also any DEFERRED hole: its answer swaps over a fallback that may have become interactive
-		// before it landed — a foreign web component upgraded it, or the fallback itself hydrated — and
-		// #apply must MORPH that live node, not replace it (a plain swap re-creates a menu open right
-		// now; core.ts #apply). The frames feature already tracks `defer` for the same streamed HTML.
 		detect: (m) =>
 			m.foreign === true ||
 			m.live === true ||
@@ -124,51 +117,35 @@ export const FEATURES: Record<FeatureId, FeatureDef> = {
 	live: {
 		module: 'live.js',
 		deps: [],
-		// Hydrate phase: its pushable props are Svelte state, read only by the hydrate core.
 		phase: 'hydrate',
 		detect: (m) => m.live === true || m.persist === true || (m.persistKeys || []).length > 0
 	},
 	wire: {
 		module: '../live-transport.js',
 		deps: [],
-		// Hydrate phase: the codec (and its store / snippet kinds, which reach Svelte) is read only
-		// while an island's props are revived, inside the hydrate core.
 		phase: 'hydrate',
-		// Opt-IN: only when the app actually ships a transportable class or a portable snippet (the
-		// build sets `wire: true` on detecting either). A plain-props app never bundles the ~8kB codec.
 		detect: (m) => m.wire === true
 	},
 	'wire-classes': {
 		module: 'wire-classes.js',
 		deps: [],
-		// Boot phase: an island's transportable classes load in parallel with its module and the
-		// hydrate core, not after them. A transportable class sets the `wire` mark (driver prescan),
-		// so an app without one has no class to load and drops the loader.
 		detect: (m) => m.wire === true
 	},
 	'remote-seeds': {
 		module: 'remote-seeds.js',
 		deps: [],
-		// Hydrate phase: the seed is read only by the hydrate core, and its decoder imports the APP's
-		// transport codecs (its own `src/hooks.ts`), which reach Svelte.
 		phase: 'hydrate',
 		detect: (m) => m.remoteSeeds !== false
 	},
 	page: {
 		module: 'seeds.js',
 		deps: [],
-		// Hydrate phase: the page store is a Svelte `$state`, and only the hydrate core reads the seed
-		// (the navigation imports seeds.ts on its own). Without it no seed ships: the server sends one
-		// only for islands that read their page, and seed references only where a seed ships.
 		phase: 'hydrate',
 		detect: (m) => m.page !== false
 	},
 	frames: {
 		module: 'frames.js',
 		deps: [],
-		// The client frame store, needed by any region that streams HTML: a deferred region (server
-		// island / held region), a live/morphing region, or a lake. A plain load-hydrated app has
-		// none of these and tree-shakes the store away. (The router's single-flight nav imports the store separately.)
 		detect: (m) =>
 			m.foreign === true ||
 			(m.defer || []).length > 0 ||
@@ -179,11 +156,7 @@ export const FEATURES: Record<FeatureId, FeatureDef> = {
 	context: {
 		module: 'context.js',
 		deps: [],
-		// Hydrate phase: the bridge seeds an island's context at hydrate, and reaches Svelte.
 		phase: 'hydrate',
-		// The cross-island context bridge. Opt-IN: only when the app imports an ogygia context provider
-		// (`Provide` / `setContext` / `createContext` from 'ogygia'). A read-only or context-free app
-		// tree-shakes the ~4.7 kB DOM-walk + devalue reviver away.
 		detect: (m) => m.context === true
 	}
 };
@@ -206,7 +179,6 @@ export const FEATURE_ORDER: FeatureId[] = [
 
 /** Resolve the closed feature set for a marks manifest. */
 export function resolveFeatures(marks: RuntimeMarks): FeatureId[] {
-	// Incomplete marks → kitchen sink (behavioral parity with today's monolith).
 	if (!marks.complete) return [...FEATURE_ORDER];
 
 	const selected = new Set<FeatureId>();
@@ -217,7 +189,6 @@ export function resolveFeatures(marks: RuntimeMarks): FeatureId[] {
 	let changed = true;
 	while (changed) {
 		changed = false;
-		// (a copy: the pass adds to `selected`; what it adds is walked on the next pass)
 		for (const id of Array.from(selected)) {
 			for (const d of FEATURES[id].deps) {
 				if (!selected.has(d)) {
@@ -232,7 +203,6 @@ export function resolveFeatures(marks: RuntimeMarks): FeatureId[] {
 }
 
 const to_alias = (id: string) => id.replace(HYPHEN, '_');
-// Absolute filesystem paths — Vite/Rolldown resolve these; `file://` URLs do not.
 const runtime_path = (runtimeDir: string, mod: string) =>
 	`${runtimeDir}/${mod}`.replace(BACKSLASH, '/');
 
@@ -242,13 +212,14 @@ export function phaseFeatures(marks: RuntimeMarks, phase: FeaturePhase): Feature
 }
 
 /**
- * Emit the BOOT entry: core + the selected boot-phase features (see {@link FeaturePhase}).
+ * Emit the BOOT entry: core + the selected boot-phase features (see {@link FeaturePhase}). The
+ * entry boots and exports nothing.
  * @param runtimeDir Absolute directory containing `core.js` + the feature modules.
+ * @param clientPlugins the plugins' browser halves, in plugin order
  */
 export function generateRuntimeEntrySource(
 	marks: RuntimeMarks,
 	runtimeDir: string,
-	/** the plugins' browser halves, in plugin order */
 	clientPlugins: readonly ClientRealmFile[] = []
 ): { code: string; features: FeatureId[] } {
 	const cp = client_realms_source(clientPlugins);
@@ -266,7 +237,6 @@ export function generateRuntimeEntrySource(
 	lines.push('boot([');
 	for (const id of features) lines.push(`  ${to_alias(id)}.install,`);
 	lines.push(cp.list ? `], ${cp.list});` : ']);');
-	// Side effects only: the entry boots and exports nothing (no consumer ever read an export).
 	return { code: `${lines.join('\n')}\n`, features };
 }
 
@@ -307,8 +277,24 @@ export function generateHydrateFeaturesSource(
  * - `FRAMES`: the `frames` feature is in the build — some region streams HTML (a deferred hole, a
  *   live region, a lake). Without the frame store a region's fetch has nowhere to land, so the
  *   element's fetch / apply / morph / renew path is dead code then.
+ * - `load_wire_codec`: `null` where the `wire` feature (the codec) is in the build up front, else
+ *   the codec's `import()`, for a wake whose props carry a live value the marks did not predict
+ *   (core runtime/wire-on-use.ts). Generated here, not written in core, so a build with the codec
+ *   has no `import()` of it in the boot's graph: that edge alone splits the boot's shared chunk in
+ *   two (apps/palaestra/e2e/lazy-chunks.spec.ts, the boot-file budget).
+ * @param runtimeDir Absolute directory containing `core.js` + the feature modules.
  */
-export function generateRuntimeFlagsSource(marks: RuntimeMarks, all = false): string {
-	const frames = all || resolveFeatures(marks).includes('frames');
-	return `export const FRAMES = ${frames};\n`;
+export function generateRuntimeFlagsSource(
+	marks: RuntimeMarks,
+	runtimeDir: string,
+	all = false
+): string {
+	const features = resolveFeatures(marks);
+	const frames = all || features.includes('frames');
+	const codec = JSON.stringify(runtime_path(runtimeDir, FEATURES.wire.module));
+	const load_wire_codec = all || features.includes('wire') ? 'null' : `() => import(${codec})`;
+	return `${dedent`
+		export const FRAMES = ${frames};
+		export const load_wire_codec = ${load_wire_codec};
+	`}\n`;
 }

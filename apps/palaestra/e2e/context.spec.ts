@@ -267,6 +267,72 @@ test.describe('Provide + drop-in setContext + createContext: DOM-bridged, live a
 		check('setContext: no page errors', serrs.length === 0, serrs.join(' | '));
 	});
 
+	test('a Symbol.for key set in a csr=false layout or a Provide reaches a woken region', async ({
+		page
+	}) => {
+		const errs: string[] = [];
+		page.on('pageerror', (e) => errs.push(e.message));
+		await page.goto('/ctx-symbol', { waitUntil: 'networkidle' });
+		for (const label of ['marker', 'provide']) {
+			const reader = page.locator(`[data-symctx-reader="${label}"]`);
+			await page.waitForFunction(
+				(l) =>
+					document.querySelector(`[data-symctx-reader="${l}"]`)?.closest('[data-hydrated]') !==
+					null,
+				label,
+				{ timeout: 5000 }
+			);
+			check(
+				`${label}: the layout's Symbol.for('rt') crossed`,
+				(await reader.getAttribute('data-symctx-a')) === '1',
+				`a=${await reader.getAttribute('data-symctx-a')}`
+			);
+		}
+		const scoped = await page
+			.locator('[data-symctx-reader="provide"]')
+			.getAttribute('data-symctx-b');
+		check("provide: the Provide's Symbol.for('rt-scoped') crossed", scoped === '2', `b=${scoped}`);
+		check('no page errors', errs.length === 0, errs.join(' | '));
+	});
+
+	for (const [path, start] of [
+		['/ctx-create-context', 4],
+		['/ctx-create-context-kit', 6]
+	] as const) {
+		test(`createContext: a wired class set through context is one live instance in every region (${path})`, async ({
+			page
+		}) => {
+			const errs: string[] = [];
+			page.on('pageerror', (e) => errs.push(e.message));
+			await page.goto(path, { waitUntil: 'networkidle' });
+			await page.waitForFunction(
+				() =>
+					[...document.querySelectorAll('[data-room-region]')].filter(
+						(el) => el.closest('[data-hydrated]') !== null
+					).length === 2,
+				null,
+				{ timeout: 5000 }
+			);
+			const a = page.locator('[data-room-region="a"]');
+			const b = page.locator('[data-room-region="b"]');
+			check(`${path}: a reads the room`, (await a.textContent()) === `a:${start}`);
+			check(`${path}: b reads the room`, (await b.textContent()) === `b:${start}`);
+			const one = await page.evaluate(() => {
+				const rooms = (window as unknown as { __og_rooms?: unknown[] }).__og_rooms ?? [];
+				return rooms.length === 2 && rooms[0] === rooms[1];
+			});
+			check(`${path}: both regions hold the one instance`, one);
+			await a.click();
+			await page.waitForTimeout(80);
+			check(
+				`${path}: a bump in a repaints b`,
+				(await b.textContent()) === `b:${start + 1}`,
+				`${await b.textContent()}`
+			);
+			check(`${path}: no page errors`, errs.length === 0, errs.join(' | '));
+		});
+	}
+
 	// ---------- Drop-in setContext on a csr=true page ----------
 	// Kit hydrates the page, but an island inside a lake is ogygia's: a separate hydration root whose
 	// only way to the page's context is the page marker. A host-only key stays out of it.

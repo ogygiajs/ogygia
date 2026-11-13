@@ -1,4 +1,4 @@
-import { describe, it, expect, afterEach } from 'vitest';
+import { describe, it, expect, afterEach, beforeEach } from 'vitest';
 import { dedent } from '@ogygia/core/contract';
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -16,16 +16,19 @@ import {
 // (`export const config = { postrender: false }`; postrender's key is the example used here).
 //
 // Merged exactly the way Kit merges `config` at run time (layouts root → leaf, then the page; at each
-// level the server module, then the universal one; later wins, top level only). A route that sets
+// level the universal module, then the server one; later wins, top level only). A route that sets
 // nothing carries no value (the plugin's own default applies at run time). Nothing is stripped: Kit
 // accepts any key inside `config`. This suite pins the read, the merge, and the run-time answer.
 // ─────────────────────────────────────────────────────────────────────────────
 
-const R = route_reader(node_fs);
+/** The disk, read through a reader of its own per test (a fresh set of answers). */
+let R = route_reader(node_fs);
 const dirs: string[] = [];
+beforeEach(() => {
+	R = route_reader({ ...node_fs });
+});
 afterEach(() => {
 	for (const d of dirs.splice(0)) rmSync(d, { recursive: true, force: true });
-	R.clear();
 	clear_route_config();
 });
 
@@ -137,7 +140,7 @@ describe('page_route_config — Kit’s merge', () => {
 		expect(effective(config, '/account/orders', true)).toBe(false);
 	});
 
-	it('at one level the universal module beats the server module, as in Kit', () => {
+	it('at one level the server module beats the universal module, as in Kit', () => {
 		const dir = routes({
 			'a/+page.svelte': '<h1>a</h1>',
 			'a/+page.server.ts': 'export const config = { postrender: true };',
@@ -147,8 +150,8 @@ describe('page_route_config — Kit’s merge', () => {
 			'b/+page.svelte': '<h1>b</h1>'
 		});
 		const config = page_route_config(R, dir, KEYS);
-		expect(config['/a']).toEqual({ postrender: false });
-		expect(config['/b']).toEqual({ postrender: true });
+		expect(config['/a']).toEqual({ postrender: true });
+		expect(config['/b']).toEqual({ postrender: false });
 	});
 
 	it('the merge is per key: a deeper config without the key keeps the outer value', () => {
@@ -191,14 +194,14 @@ describe('page_route_config — Kit’s merge', () => {
 		expect(route_config('postrender', null, '/dash')).toBe(undefined); // no route: never '/'
 	});
 
-	it('a route-file change is seen after the topology cache clears (the dev watcher)', () => {
+	it('a route-file change is seen after its file event (the dev watcher)', () => {
 		const dir = routes({
 			'a/+page.svelte': '<h1>a</h1>',
 			'a/+page.ts': 'export const config = { postrender: true };'
 		});
 		expect(page_route_config(R, dir, KEYS)['/a']).toEqual({ postrender: true });
 		writeFileSync(join(dir, 'a/+page.ts'), 'export const config = { postrender: false };');
-		R.clear();
+		expect(R.touch(join(dir, 'a/+page.ts'), 'update')).toBe(true);
 		expect(page_route_config(R, dir, KEYS)['/a']).toEqual({ postrender: false });
 	});
 });

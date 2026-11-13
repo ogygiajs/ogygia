@@ -44,11 +44,14 @@ test('build output: each hole’s page.data answer is patched in (a hole that re
 	const code = files.map((f) => fs.readFileSync(f, 'utf8')).join('\n');
 	expect(code.includes('__OGYGIA_PAGE_DATA_READS__')).toBe(false);
 	// some holes read page.data (the page-context lab's), others do not (the restore lab's)
-	const map_at = code.indexOf('JSON.parse("{');
-	expect(map_at).toBeGreaterThan(-1);
-	const map = JSON.parse(
-		JSON.parse(code.slice(map_at + 'JSON.parse('.length, code.indexOf('")', map_at) + 1))
-	) as Record<string, boolean>;
+	const maps = [...code.matchAll(/JSON\.parse\(("\{(?:[^"\\]|\\.)*\}")\)/g)]
+		.map((m) => JSON.parse(JSON.parse(m[1]) as string) as Record<string, unknown>)
+		.filter((m) => {
+			const values = Object.values(m);
+			return values.length > 0 && values.every((v) => typeof v === 'boolean');
+		});
+	expect(maps).toHaveLength(1);
+	const [map] = maps;
 	expect(Object.values(map)).toContain(true);
 	expect(Object.values(map)).toContain(false);
 });

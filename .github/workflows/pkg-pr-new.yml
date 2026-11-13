@@ -21,6 +21,7 @@ on:
       - 'packages/core/**'
       - 'packages/flags/**'
       - 'packages/barrels/**'
+      - 'packages/bake/**'
       - 'packages/postrender/**'
       - 'packages/federation/**'
       - 'packages/content/**'
@@ -139,7 +140,7 @@ jobs:
           './packages/ogygia' './packages/core' './packages/flags' './packages/postrender'
           './packages/federation' './packages/content' './packages/devtools' './packages/router'
           './packages/testing' './packages/cli' './packages/machine' './packages/barrels'
-          './packages/insights'
+          './packages/insights' './packages/bake'
 
       # Ask ogygiajs/bench to measure what was just published (it installs this commit's build
       # from pkg.pr.new). A PR commit is requested by the pull_request run only (the push run of the

@@ -35,7 +35,7 @@ export function follow_hash(
 		try {
 			key = decodeURIComponent(m[2]);
 		} catch {
-			return;
+			return; // ok: a hand-mangled hash names no row: nothing to open
 		}
 		if (!keys().includes(key)) return;
 		open(key);

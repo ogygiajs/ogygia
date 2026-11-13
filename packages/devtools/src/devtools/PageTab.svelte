@@ -31,7 +31,7 @@
 			s.unscoped = await scan_unscoped(document);
 			styles = s;
 		} catch {
-			styles = null;
+			styles = null; // ok: the styles check failed: its section stays hidden, the tab works without it
 		}
 		styles_busy = false;
 	}
@@ -41,7 +41,7 @@
 		try {
 			cache = await probe_cache(document);
 		} catch {
-			cache = null;
+			cache = null; // ok: the cache probe failed: no cache findings, the tab works without them
 		}
 	}
 	// again after an in-app navigation (a new page, new sheets): keyed on the navigation's time — a
@@ -77,14 +77,15 @@
 	const LABEL_W = 132;
 	const trackW = $derived(Math.max(160, wrapW - LABEL_W - 70));
 
-	const view = $derived.by(() => {
+	const read = $derived.by(() => {
 		void tick;
 		try {
-			return read_page();
-		} catch {
-			return null;
+			return { view: read_page(), failed: /** @type {string | null} */ (null) };
+		} catch (error) {
+			return { view: null, failed: error instanceof Error ? error.message : String(error) };
 		}
 	});
+	const view = $derived(read.view);
 
 	const axis = $derived.by(() => {
 		if (!view) return null;
@@ -156,7 +157,7 @@
 				ups: ups.map((u) => ({ desc: u.description, ms: u.duration }))
 			};
 		} catch {
-			return null;
+			return null; // ok: no navigation timing in this browser: the server's line is left out
 		}
 	})();
 	// the document's vitals (after a navigation the report drops them; they still show, labelled)
@@ -208,7 +209,12 @@
 </script>
 
 <div class="pg" bind:clientWidth={wrapW}>
-	{#if !view}
+	{#if read.failed !== null}
+		<p class="muted" data-og-page-read-failed>
+			Devtools could not read this page load's measurements: <code>{read.failed}</code>. A devtools
+			bug: please report it with this message.
+		</p>
+	{:else if !view}
 		<p class="muted" data-og-page-unmeasured>
 			This page load was not measured: in a build, devtools measures only for a browser that opened
 			it before the page loaded (so other visitors pay nothing). <b>Reload</b> and it is measured from

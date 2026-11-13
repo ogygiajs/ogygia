@@ -1,0 +1,82 @@
+{
+	"name": "@ogygia/bake",
+	"version": "0.13.0",
+	"description": "import.meta.og.bake(fn) for ogygia apps: run a function at build and inline its result",
+	"keywords": [
+		"bake",
+		"build-time",
+		"ogygia",
+		"sveltekit",
+		"vite"
+	],
+	"homepage": "https://ogygiajs.dev",
+	"license": "MIT",
+	"author": "Puru Vijayvargia <devpuruvj@gmail.com>",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/ogygiajs/ogygia.git",
+		"directory": "packages/bake"
+	},
+	"files": [
+		"dist",
+		"ambient.d.ts",
+		"README.md"
+	],
+	"type": "module",
+	"sideEffects": false,
+	"exports": {
+		".": {
+			"types": "./dist/index.d.ts",
+			"default": "./src/index.ts"
+		},
+		"./types": {
+			"types": "./ambient.d.ts"
+		},
+		"./internal/messages": {
+			"types": "./dist/messages.d.ts",
+			"default": "./src/messages.ts"
+		}
+	},
+	"publishConfig": {
+		"exports": {
+			".": {
+				"types": "./dist/index.d.ts",
+				"default": "./dist/index.js"
+			},
+			"./types": {
+				"types": "./ambient.d.ts"
+			},
+			"./internal/messages": {
+				"types": "./dist/messages.d.ts",
+				"default": "./dist/messages.js"
+			}
+		}
+	},
+	"scripts": {
+		"build": "tsdown",
+		"prepublishOnly": "pnpm run build",
+		"check": "tsc -p . && tsc -p test && vitest run",
+		"test": "vitest run"
+	},
+	"dependencies": {
+		"@ogygia/machine": "workspace:^",
+		"devalue": "catalog:"
+	},
+	"devDependencies": {
+		"@ogygia/compiler": "workspace:*",
+		"@ogygia/config": "workspace:*",
+		"@ogygia/core": "workspace:*",
+		"@sveltejs/vite-plugin-svelte": "catalog:",
+		"@typescript/native": "catalog:tsgo",
+		"svelte": "catalog:",
+		"tsdown": "catalog:",
+		"typescript": "catalog:",
+		"vite": "catalog:",
+		"vitest": "catalog:"
+	},
+	"peerDependencies": {
+		"@ogygia/compiler": "workspace:^",
+		"@ogygia/core": "workspace:^",
+		"vite": "catalog:peers"
+	}
+}
