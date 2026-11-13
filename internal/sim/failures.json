@@ -140,7 +140,7 @@
 			"killed_by": "batch-unreleased-body-breaks"
 		},
 		{
-			"site": "packages/core/src/runtime/frame-nav.ts > streamFrames > stale:2",
+			"site": "packages/core/src/runtime/frame-nav.ts > streamFrames > stale:1",
 			"point": "batch.body-stalls",
 			"how": "the batch's body goes quiet (the point reads as a stall past STALL_MS): the batch ends, and the parts it still owed are released to fetch on their own",
 			"killed_by": "batch-unreleased-body-stalls"
@@ -2588,6 +2588,48 @@
 			"reason": "`false`: proved: { ok: false } made ok: true turns the test red, twice",
 			"test": "packages/compiler/test/oxc-parse.test.ts",
 			"name": "a source the parser refuses outright (a read that came back null) is a failed parse, never a throw"
+		},
+		{
+			"site": "packages/core/src/runtime/concurrency.ts > ConcurrencyGate > run > throw:0",
+			"reason": "`throw signal.reason;`: proved: the throw removed turns the test red, twice",
+			"test": "packages/core/test/batch-stream-cancel.test.ts",
+			"name": "a call made with an aborted signal on a full gate rejects at once and never joins the queue"
+		},
+		{
+			"site": "packages/core/src/runtime/page-defer.ts > create_deferred > .catch:0",
+			"reason": "`promise.catch(() => {})`: proved: the .catch removed turns the test red, twice",
+			"test": "packages/core/test/page-defer.test.ts",
+			"name": "a deferred leaf rejected while nobody awaits it makes no unhandled-rejection noise"
+		},
+		{
+			"site": "packages/core/src/runtime/page-defer.ts > settle > .catch:0",
+			"reason": "`promise.catch(() => {})`: proved: the .catch removed turns the test red, twice",
+			"test": "packages/core/test/page-defer.test.ts",
+			"name": "a REJECTION that races ahead of the seed rejects cleanly (no unhandled-rejection noise)"
+		},
+		{
+			"site": "packages/core/src/runtime/page-defer.ts > page_defer_revivers > PAGE_SETTLED_KEY > .catch:0",
+			"reason": "`p.catch(() => {})`: proved: the .catch removed turns the test red, twice",
+			"test": "packages/core/test/page-defer.test.ts",
+			"name": "a settled rejection revived where nobody awaits it makes no unhandled-rejection noise"
+		},
+		{
+			"site": "packages/core/src/runtime/frame-nav.ts > streamFrames > stale:0",
+			"reason": "`res === STALE`: proved: the STALE check made never true turns the test red, twice",
+			"test": "packages/core/test/browser/frame-stream-stall.test.ts",
+			"name": "a batch given up while sending is reported missed with no answer status (0)"
+		},
+		{
+			"site": "packages/core/src/preload.ts > preload > .catch:0",
+			"reason": "`ensure( address, (signal) => fetch_hole(url, { signal, renewed: (fres…`: proved: the .catch removed turns the test red, twice",
+			"test": "packages/core/test/browser/preload-hole.test.ts",
+			"name": "a preload whose fetch fails is quiet: no unhandled rejection reaches the page"
+		},
+		{
+			"site": "packages/core/src/runtime/router-nav.ts > navigate > .catch:0",
+			"reason": "`t.ready?.catch(() => {})`: proved: the .catch removed turns the test red, twice",
+			"test": "packages/core/test/browser/router-nav-claims.test.ts",
+			"name": "a skipped transition leaves no unhandled rejection on the page"
 		}
 	],
 	"impossible": [
@@ -3051,7 +3093,6 @@
 		"packages/core/src/preference.ts > preference_impl > head > storage:0",
 		"packages/core/src/preference.ts > preference_impl > head > catch:0",
 		"packages/core/src/preference.ts > preference_impl > set > catch:0",
-		"packages/core/src/preload.ts > preload > .catch:0",
 		"packages/core/src/ref-watch.ts > notify_now > catch:0",
 		"packages/core/src/ref.ts > dispose_ids > catch:0",
 		"packages/core/src/ref.ts > resolve > throw:0",
@@ -3076,7 +3117,6 @@
 		"packages/core/src/runtime/code-origins.ts > import_code > import:0",
 		"packages/core/src/runtime/code-origins.ts > is_location_of > catch:0",
 		"packages/core/src/runtime/concurrency.ts > ConcurrencyGate > run > abort:0",
-		"packages/core/src/runtime/concurrency.ts > ConcurrencyGate > run > throw:0",
 		"packages/core/src/runtime/concurrency.ts > ConcurrencyGate > run > abort:1",
 		"packages/core/src/runtime/concurrency.ts > ConcurrencyGate > run > throw:1",
 		"packages/core/src/runtime/concurrency.ts > ConcurrencyGate > run > catch:0",
@@ -3127,8 +3167,6 @@
 		"packages/core/src/runtime/drift-watch.ts > watch_region > observer:0",
 		"packages/core/src/runtime/foreign-props.ts > foreign_region_prop_revivers > OgygiaRef > throw:0",
 		"packages/core/src/runtime/form-continuity.ts > url_of > catch:0",
-		"packages/core/src/runtime/frame-nav.ts > streamFrames > stale:0",
-		"packages/core/src/runtime/frame-nav.ts > streamFrames > stale:1",
 		"packages/core/src/runtime/frame-nav.ts > streamFrames > body:0",
 		"packages/core/src/runtime/frame-nav.ts > streamFrames > .catch:0",
 		"packages/core/src/runtime/frame-nav.ts > streamFrames > stream:0",
@@ -3180,10 +3218,7 @@
 		"packages/core/src/runtime/nav-handle.ts > invalidate_all > stale:0",
 		"packages/core/src/runtime/nav-handle.ts > mpa_nav > goto > throw:0",
 		"packages/core/src/runtime/nav-handle.ts > mpa_nav > goto > throw:1",
-		"packages/core/src/runtime/page-defer.ts > create_deferred > .catch:0",
-		"packages/core/src/runtime/page-defer.ts > settle > .catch:0",
 		"packages/core/src/runtime/page-defer.ts > install_page_defer > live > catch:0",
-		"packages/core/src/runtime/page-defer.ts > page_defer_revivers > PAGE_SETTLED_KEY > .catch:0",
 		"packages/core/src/runtime/region-endpoint-url.ts > capability_expired > catch:0",
 		"packages/core/src/runtime/region-endpoint-url.ts > deny_of > catch:0",
 		"packages/core/src/runtime/region-endpoint-url.ts > make_warms > run > catch:0",
@@ -3198,7 +3233,6 @@
 		"packages/core/src/runtime/router-nav.ts > navigate > build > catch:0",
 		"packages/core/src/runtime/router-nav.ts > navigate > build > abort:1",
 		"packages/core/src/runtime/router-nav.ts > navigate > build > abort:2",
-		"packages/core/src/runtime/router-nav.ts > navigate > .catch:0",
 		"packages/core/src/runtime/router-nav.ts > navigate > reject:0",
 		"packages/core/src/runtime/router-nav.ts > navigate > .catch:1",
 		"packages/core/src/runtime/router-nav.ts > navigate > refused:0",
