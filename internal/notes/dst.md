@@ -460,11 +460,17 @@ mutant goes in mutants.json and its id in `killed_by`. A site that fires but who
 nobody notices wants an oracle or a test first.
 
 MUTATION, DAILY: dst.yml's `mutate` job (cron `43 3 * * *`) runs `src/mutate.ts` over
-`internal/sim/mutants.json` on main's code, over gens 10 (the router with a reshape pass: the network
+`internal/sim/mutants.json` on main's code, over gens 1 (a Kit mount of a peer with its refused and
+missing pages: a 400 taken as no error, an error that says nothing, and an exposed page answered as
+a redirect, which the mount then fails on with a 5xx though the peer gave its page whole and in
+time (`Exchange.ended_at`), die by `peer-answers`), 10
+(the router with a reshape pass: the network
 faults alone kill a navigation that never hands a lost page fetch to the browser, and a hole that
 never fetches again after its retry wait, both by `stuck`), 24 (a reshape pass that trims, with links: it
 kills restore.ts's children not put back and its render left in the light DOM, by `ssr-hydrate`,
-and a stand-in left as `<og-as>`, by `html-kept`: no reshape mark is left at rest), 121 (a peer at
+and a stand-in left as `<og-as>`, by `html-kept`: no reshape mark is left at rest; and trimmed text
+left trimmed, by `text-restored`: a boxed island's `  pad  ` comes back with its whitespace, read
+off the page's `og-t` marks as it passed), 121 (a peer at
 two origins: its first replica down (`down`) and no answer asked of the next dies by
 `mpa-equivalence`, and a widget's, a page's or a hole's failover that keeps a 500, never asks the
 replica, or asks it after an answer, by `peer-failover`), 188 (an empty island that wakes: it kills the
@@ -600,6 +606,16 @@ region kinds, runtime marks, route worlds, each transform's output.
 Oracles: two cold compiles agree; directory listing order and transform order change nothing
 (`src/order.ts`). `DST_RUNS=3000 pnpm test` for a long search. Each finding becomes an issue and a
 failing test in the compiler (the first: #1358).
+
+Mutation: `internal/compiler-dst/mutants.json`, judged by `src/mutate.ts --compiler-dst` (the
+simulator compiles the package sources, so nothing is built; a test that fails twice on the mutant
+and never on the baseline kills it), daily beside the sim's list. Its first kills are dev's
+invalidation (`invalidate_for_file`'s affected files and changed regions), and the driver's lists a
+build reads in order (`island_scan_entries`, `server_island_css_roots`, `ssr_transformed_hosts`):
+the snapshot holds them unsorted (`lists`), so the order oracle sees a list that follows the
+listing or transform order. Survived (gaps): `router_css_roots` unsorted (the drawn apps have no
+router pages), `entry_locations` (needs a bundle's end), `regions_print` (dev's change check),
+`routes_changed` keeping a route world, and `moved()` not invalidated.
 
 Dev matches a cold start (`src/dev.ts`, `test/dev-cold.test.ts`): a dev server held in memory runs
 the plugin's hooks for each file event in Vite's order (`watchChange`, `handleHotUpdate`, the

@@ -83,6 +83,12 @@ export interface Exchange {
 	/** Answered 500 or 503 at the edge of a peer's first origin (a `down` fault): the app asks the
 	 *  next origin, which is up, so a GET's failure here is no excuse for what its page shows. */
 	down?: boolean;
+	/** A page's HTML: each text a reshape pass's render trimmed, as it was (its `og-t` marks'
+	 *  originals), which the restore owes the document; none when the page has no such mark. */
+	restore_owes?: readonly string[];
+	/** When its body was over, whole or not (virtual ms): a hop that ended past its asker's
+	 *  deadline was no answer to it. */
+	ended_at?: number;
 	/** The client address the server saw it from (a server's hop: the document's it was for). */
 	address?: string;
 	/** The build whose server gave the answer the client got (its {@link ANSWERED_BY} header). */
@@ -94,6 +100,20 @@ export interface Exchange {
 /** The header the front door puts on each answer: the build that answered it (a cached copy says
  *  it too). Read off the answer the client gets, not a duplicate's thrown away (seed 53). */
 export const ANSWERED_BY = 'x-sim-build';
+
+/** Each `<!--og-t K.n "<original>"-->` mark's original text in `html` (reshape's reversible.ts
+ *  writes it as JSON, `-` and `>` escaped), or undefined when it has none. */
+export function owed_text(html: string): string[] | undefined {
+	const out: string[] = [];
+	for (const m of html.matchAll(/<!--og-t \S+ ("(?:[^"\\]|\\.)*")-->/g)) {
+		try {
+			out.push(JSON.parse(m[1]!) as string);
+		} catch {
+			continue; // ok: a comment that only looks like a mark owes nothing
+		}
+	}
+	return out.length === 0 ? undefined : out;
+}
 
 /** The document a server is answering, through all its async work: its own hops are on that
  *  document's behalf (a calm tab's reference load is calm all the way to a peer). */
@@ -519,6 +539,14 @@ export class Network {
 		// from immutable URLs, and a broken byte in one is a broken script, which no app can defend;
 		// a page or a region's answer is what the app must refuse when it does not verify)
 		const asset = /javascript|css|font|image/.test(response.headers.get('content-type') ?? '');
+		// (a page's own HTML is read as it passes: the text a reshape pass's render changed, which
+		// the restore owes back, oracles.ts `text_restored`)
+		const page =
+			ex.for === undefined &&
+			ex.method === 'GET' &&
+			/text\/html/.test(response.headers.get('content-type') ?? '');
+		const text = page ? new TextDecoder() : null;
+		let html = '';
 		const loop = this.#loop;
 		let to!: ReadableStreamDefaultController<Uint8Array>;
 		let ended = false;
@@ -526,6 +554,7 @@ export class Network {
 		 *  busy with it (test/core.test.ts, "off the wire"). */
 		const end = (): void => {
 			ended = true;
+			ex.ended_at ??= loop.now;
 			this.#on_wire.delete(ex);
 		};
 		const opened = loop.now;
@@ -574,6 +603,7 @@ export class Network {
 				if (ended) return;
 				if (read.done) {
 					if (cut) return stop('the stream was cut');
+					if (text !== null) ex.restore_owes = owed_text(html + text.decode());
 					return send('end', () => {
 						to.close();
 						end();
@@ -582,6 +612,7 @@ export class Network {
 				}
 				let bytes = read.value;
 				if (bytes.length === 0) continue;
+				if (text !== null) html += text.decode(bytes, { stream: true });
 				if (cut && fate.chance(0.5)) return stop('the stream was cut');
 				if (tamper && !asset && !ex.tampered) {
 					ex.tampered = true;

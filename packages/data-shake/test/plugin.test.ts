@@ -4,7 +4,8 @@
 import { describe, expect, it } from 'vitest';
 import { dedent } from '@ogygia/core/contract';
 import type { BuildContext, PageReads, PluginDefinition } from '@ogygia/compiler/vite';
-import { pageKeys, page_reads } from '../src/index.ts';
+import { page_reads } from '../src/index.ts';
+import { dataShake } from '../src/vite.ts';
 
 const files: Record<string, string> = {
 	'/app/src/lib/A.svelte': dedent`
@@ -66,10 +67,10 @@ describe('page_reads', () => {
 	});
 });
 
-describe('pageKeys()', () => {
+describe('dataShake()', () => {
 	it('registers one seed-shaping answer with the build', () => {
-		const plugin = pageKeys();
-		expect(plugin.name).toBe('@ogygia/page-keys');
+		const plugin = dataShake();
+		expect(plugin.name).toBe('@ogygia/data-shake');
 		const definition = (plugin as unknown as Record<symbol, PluginDefinition>)[
 			Symbol.for('ogygia.plugin')
 		];

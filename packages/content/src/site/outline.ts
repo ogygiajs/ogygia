@@ -1,4 +1,4 @@
-import type { ContentEntry, ContentHandle, Entry } from '../index.ts';
+import type { ContentHandle, ContentRef, Entry } from '../index.ts';
 import type { Crumb, NavItem, NavLeaf, NavRef, NavTree, Resolved } from './types.ts';
 import { title_case } from '../convention.ts';
 import type { GroupMeta } from '../index.ts';
@@ -16,7 +16,7 @@ export const OUTLINE_TOKEN: unique symbol = Symbol.for('ogygia.content.outline-t
 /** A content collection, as the outline consumes it (the browser-safe `content()` handle). */
 export type Collection = ContentHandle<Record<string, unknown>, unknown>;
 
-type Ent = ContentEntry<Record<string, unknown>, unknown>;
+type Ent = ContentRef<Record<string, unknown>, unknown>;
 
 const SELECTION: unique symbol = Symbol.for('ogygia.pharos.selection');
 

@@ -4,7 +4,7 @@ import { federation } from '@ogygia/federation/vite';
 import { router } from '@ogygia/router/vite';
 import { flags } from '@ogygia/flags/vite';
 import { postrender } from '@ogygia/postrender/vite';
-import { pageKeys } from '@ogygia/page-keys';
+import { dataShake } from '@ogygia/data-shake/vite';
 import { rewrite } from '@ogygia/rewrite/vite';
 import { defineConfig } from 'vite';
 import { existsSync, readFileSync } from 'node:fs';
@@ -49,7 +49,7 @@ export default defineConfig({
 		// (a seed's flag: its reads reported, its exposures flushed at each request's end)
 		flags(),
 		postrender({ default: false }),
-		pageKeys(),
+		dataShake(),
 		// (a seed's reshape pass: src/lib/gen/reshape.server.ts)
 		...(plan.reshape ? [rewrite()] : []),
 		sveltekit()
