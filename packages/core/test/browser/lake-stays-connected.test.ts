@@ -4,9 +4,9 @@
 import { beforeAll, beforeEach, expect, inject, test } from 'vitest';
 import { userEvent } from 'vitest/browser';
 import { bootDev } from '../../src/runtime/full.ts';
-import { from_b64 } from './b64.ts';
 
-const decode = (key: 'lake_island_page_ssr_b64') => from_b64(inject(key));
+const decode = (key: 'lake_island_page_ssr_b64') =>
+	new TextDecoder().decode(Uint8Array.from(atob(inject(key)), (c) => c.charCodeAt(0)));
 
 const seen = { connects: 0, disconnects: 0 };
 
