@@ -169,7 +169,7 @@ jobs:
       - name: Mutate
         working-directory: internal/sim
         run: |
-          node --no-warnings src/mutate.ts --mutants mutants.json --gens 188,191,192,193,220,262,550,734 --seeds 20 \
+          node --no-warnings src/mutate.ts --mutants mutants.json --gens 24,188,191,192,193,220,262,550,734 --seeds 20 \
             --jobs 4 --budget-min 60 --sandbox "$RUNNER_TEMP/mutbox" \
             --out "$RUNNER_TEMP/dst-mutation.jsonl"
           tail -1 "$RUNNER_TEMP/dst-mutation.jsonl" | node -e '

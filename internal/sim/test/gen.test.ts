@@ -5,6 +5,9 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
+	app_reshape,
+	boxing,
+	reshape_plan,
 	LAYOUT_FIRST,
 	layout_plan,
 	peer_plan,
@@ -791,5 +794,44 @@ describe('the random app', () => {
 		const drawn = seeds.filter((s) => shape_plan(s) === 'drawn');
 		const all_wakes = drawn.flatMap((s) => islands(s).map((n) => n.wake!));
 		expect(all_wakes.some((w) => w.startsWith('('))).toBe(false);
+	});
+
+	it("draws a reshape pass for some apps, from its own stream: regions in custom elements its server render moves, a handle in front of ogygia's", () => {
+		const seeds = Array.from({ length: 40 }, (_, i) => i + 1);
+		const passes = seeds.map((s) => [s, reshape_plan(s)] as const);
+		expect(passes.some(([, p]) => p === null)).toBe(true);
+		const [seed, pass] = passes.find(([, p]) => p !== null && p.link)!;
+		const pages = plan(seed).map(boxing(seed, pass!));
+		const boxed = all(pages.flatMap((p) => p.roots)).filter((n) => n.boxed);
+		expect(boxed.length).toBeGreaterThan(0);
+		expect(boxed.some((n) => n.boxed === 'link')).toBe(true);
+		expect(boxed.some((n) => n.empty)).toBe(false);
+		const app = mkdtempSync(join(tmpdir(), 'sim-gen-'));
+		try {
+			write(app, pages, seed, null, null, true, pass);
+			const lib = join(app, 'src', 'lib', 'gen');
+			const written = JSON.parse(readFileSync(join(lib, 'plan.json'), 'utf8'));
+			expect(written.reshape).toEqual(pass);
+			const n = boxed.find((b) => b.boxed === 'link' && b.kind !== 'held' && b.kind !== 'live')!;
+			const component = readFileSync(join(lib, `N${n.id}.svelte`), 'utf8');
+			expect(component).toContain(`<x-gen-box data-n="${n.id}">`);
+			expect(component).toContain('<a data-gen-link data-gen-messy><x-gen-link>');
+			const transform = readFileSync(join(lib, 'reshape.server.ts'), 'utf8');
+			expect(transform).toContain('reshape.handle(transform)');
+			expect(transform).toContain(`const TRIM = ${pass!.trim};`);
+		} finally {
+			rmSync(app, { recursive: true, force: true });
+		}
+		expect(app_reshape(null)).toContain('resolve(event)');
+		const config = readFileSync(
+			join(import.meta.dirname, '../../../apps/sim-gen/vite.config.ts'),
+			'utf8'
+		);
+		expect(config).toContain('...(plan.reshape ? [reshape()] : [])');
+		const hooks = readFileSync(
+			join(import.meta.dirname, '../../../apps/sim-gen/src/hooks.server.ts'),
+			'utf8'
+		);
+		expect(hooks).toContain("import { handle as reshaped } from '$lib/gen/reshape.server';");
 	});
 });
