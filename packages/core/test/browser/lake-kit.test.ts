@@ -77,6 +77,7 @@ test('a lake re-created empty after a Kit hydration failure is repainted from it
 	document.body.innerHTML = `<script>__sveltekit_lab = {};\x3C/script><div data-mount>${inject_html('lake_kit_ssr_b64')}</div>`;
 	const mount = document.querySelector('[data-mount]') as HTMLElement;
 	const lake_id = document.querySelector(LAKE)!.getAttribute('entry')!;
+	const lake_identity = document.querySelector(LAKE)!.getAttribute('data-og-lake')!;
 	const app = hydrate(LakeKitHost, { target: mount });
 	bootDev();
 	await expect
@@ -84,7 +85,7 @@ test('a lake re-created empty after a Kit hydration failure is repainted from it
 		.toBe(true);
 	// what Svelte's fallback does: the old tree goes, a fresh client render lands — the lake empty
 	unmount(app);
-	mount.innerHTML = `<ogygia-region entry="${lake_id}" wake="none" remount="cache"></ogygia-region>`;
+	mount.innerHTML = `<ogygia-region entry="${lake_id}" wake="none" remount="cache" data-og-lake="${lake_identity}"></ogygia-region>`;
 	const fresh = document.querySelector(LAKE) as HTMLElement;
 	// the repaint is synchronous at connect (the copy is already in the session cache)
 	await expect
