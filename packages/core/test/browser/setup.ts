@@ -274,7 +274,11 @@ export default async function setup(project: TestProject) {
 	// its capability's signed `w=1` asks for)
 	project.provide(
 		'woken_hole_answer_b64',
-		b64(render(WokenHoleCard as unknown as Component, { context: hole_answer_context(true) }).body)
+		b64(
+			render(WokenHoleCard as unknown as Component, {
+				context: hole_answer_context(true, 'abcdef012345')
+			}).body
+		)
 	);
 	project.provide('nest_page_ssr_b64', b64(render(NestPage as unknown as Component).body));
 }

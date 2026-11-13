@@ -1954,7 +1954,7 @@ class Profiler {
 						gc_slices.push({ t0: 0, t1: round2(perf_end - perf_start), bytes });
 					}
 				} catch {
-					heap_head = null;
+					heap_head = null; // ok: no heap samples this window: the report goes without allocations
 				}
 			}
 			const t1 = Date.now(); // wall: matched against the request ring's epoch `ts` (t0, above)
@@ -2078,7 +2078,7 @@ class Profiler {
 						try {
 							profile = ((await session.post('Profiler.stop')) as { profile: CpuProfile }).profile;
 						} catch {
-							profile = undefined;
+							profile = undefined; // ok: the profiler would not stop: this pass goes without a CPU profile
 						}
 					}
 				}
@@ -2133,7 +2133,7 @@ class Profiler {
 			const dirs = client_dir_candidates(entry, process.cwd(), path.join);
 			return client_file_finder(origin, dirs, (p) => fs.existsSync(p), path.join);
 		} catch {
-			return undefined;
+			return undefined; // ok: off Node there are no local files: browser frames keep their URLs
 		}
 	}
 
@@ -2154,7 +2154,7 @@ class Profiler {
 			try {
 				path = decodeURIComponent(new URL(path).pathname);
 			} catch {
-				return undefined;
+				return undefined; // ok: not a file URL: no chunk line to name
 			}
 		// (a relative name too: the map lookup resolves it — `./chunks/x.js` on Lambda)
 		if (!may_be_chunk(path)) return undefined;
@@ -2241,7 +2241,7 @@ class Profiler {
 				{ any_ext: !!dev_map }
 			);
 		} catch {
-			return undefined;
+			return undefined; // ok: no resolver (off Node, or its setup failed): frames keep their built positions
 		}
 	}
 
@@ -2279,7 +2279,7 @@ class Profiler {
 			try {
 				return new URL(u).pathname;
 			} catch {
-				return u;
+				return u; // ok: not a URL: kept as written
 			}
 		};
 		cap.net = cap.net.filter((c) => !path_of(c.url).startsWith(own));
@@ -2667,7 +2667,7 @@ class Profiler {
 						: {})
 				});
 			} catch {
-				alloc = undefined;
+				alloc = undefined; // ok: the heap timeline is left out; the rest of the report stands
 			}
 		}
 		// THE INSTANCE WAS NOT ALONE: the other requests that overlapped the profiled window(s)
@@ -2697,7 +2697,7 @@ class Profiler {
 						self_paths
 					});
 				} catch {
-					contended = undefined;
+					contended = undefined; // ok: the overlap section is left out; the rest of the report stands
 				}
 			}
 		}
@@ -2898,7 +2898,8 @@ class Profiler {
 	 */
 	async #login(ctx: RouteCtx): Promise<Response> {
 		const raw = await read_capped(ctx.request, MAX_LOGIN_BODY);
-		if (raw === null) return ctx.json({ ok: false }, { status: 413 });
+		if (raw === 'too large') return ctx.json({ ok: false }, { status: 413 });
+		if (raw === 'unreadable') return ctx.json({ ok: false }, { status: 400 });
 		let sent: unknown = null;
 		try {
 			sent = JSON.parse(new TextDecoder().decode(raw));
@@ -3255,7 +3256,9 @@ class Profiler {
 		let dump: unknown;
 		try {
 			const raw = await read_capped(ctx.request, MAX_POSTED_REPORT);
-			if (raw === null) return new Response('That report is too large.', { status: 413 });
+			if (raw === 'too large') return new Response('That report is too large.', { status: 413 });
+			if (raw === 'unreadable')
+				return new Response('The report did not arrive whole.', { status: 400 });
 			if ((ctx.request.headers.get('content-type') ?? '').startsWith('application/octet-stream')) {
 				const bytes = recover_ogp_bytes(raw);
 				if (!is_ogp(bytes))
@@ -3343,7 +3346,7 @@ class Profiler {
 				try {
 					keys = region_page_keys(r.entry);
 				} catch {
-					keys = null;
+					keys = null; // ok: an entry we cannot read counts as reading every key (the safe side)
 				}
 			by_entry.set(r.entry, { name: island_name(r), keys });
 		}
@@ -3382,7 +3385,7 @@ class Profiler {
 					this.#module_hint
 				).functions;
 			} catch {
-				uninlined = undefined;
+				uninlined = undefined; // ok: merged lines go without their split; the ledger still shows them
 			}
 		}
 		// every analysed frame once: a component row can carry hot lines its function row did not
@@ -4118,7 +4121,7 @@ class Profiler {
 		try {
 			return await ask(dot === -1 ? rest : rest.slice(0, dot));
 		} catch {
-			return undefined;
+			return undefined; // ok: the plugin could not say: the keys are read from the built entry instead
 		}
 	}
 
@@ -4129,7 +4132,7 @@ class Profiler {
 			fs = await import('node:fs');
 			path = await import('node:path');
 		} catch {
-			fs = undefined;
+			fs = undefined; // ok: off Node there is no file system: the reader reads nothing
 		}
 		const cache = new Map<string, string | undefined>();
 		return (file: string): string | undefined => {
@@ -4289,7 +4292,7 @@ class Profiler {
 				try {
 					keys = region_page_keys(r.entry);
 				} catch {
-					keys = undefined;
+					keys = undefined; // ok: the entry's source is read for its keys just below
 				}
 				if (keys === undefined) {
 					const src = read(r.entry);
@@ -4689,7 +4692,7 @@ class Profiler {
 					try {
 						return page_score_of(s.meta, this.#report_extras(s)).score;
 					} catch {
-						return undefined;
+						return undefined; // ok: that point shows on the trend without a score
 					}
 				}
 			),
@@ -4832,7 +4835,7 @@ class Profiler {
 			const rows = await store.listVisits(WINDOW_PAGE_PREFIX + id, MAX_VISITS_PER_KEY);
 			return rows.map((r) => JSON.parse(r.visit)).sort((a, b) => a.at - b.at);
 		} catch {
-			return [];
+			return []; // ok: the store could not list them: the report shows no stored visits
 		}
 	}
 
@@ -5078,7 +5081,7 @@ class Profiler {
 			try {
 				heap_now = (await import('node:v8')).getHeapStatistics();
 			} catch {
-				heap_now = null;
+				heap_now = null; // ok: off Node there is no node:v8: no heap check before starting
 			}
 			if (
 				heap_now &&
@@ -5177,7 +5180,7 @@ class Profiler {
 						warmup_ms = round2(performance.now() - t);
 					}
 				} catch {
-					break; // warm-up failure surfaces on the real runs below
+					break; // ok: a warm-up failure surfaces on the real runs below
 				}
 				if (!res) break;
 				warm_status = res.status;
@@ -5236,7 +5239,7 @@ class Profiler {
 			try {
 				v8_stats = (await import('node:v8')).getHeapStatistics;
 			} catch {
-				v8_stats = null;
+				v8_stats = null; // ok: off Node there is no node:v8: the renders run without the heap stop
 			}
 			const heap_fill = () => {
 				const s = v8_stats?.();
@@ -5431,7 +5434,7 @@ class Profiler {
 					}
 					if (ms.length) answers = { runs_ms: ms, calls: stable.size };
 				} catch {
-					answers = undefined;
+					answers = undefined; // ok: an extra render failed: the report goes without the cached-answers estimate
 				} finally {
 					if (this.#answers === state) this.#answers = null;
 					this.#kept.drop(kept_owner);
@@ -5507,7 +5510,7 @@ class Profiler {
 						calls: cold_cap.net.length
 					};
 				} catch {
-					cold = undefined;
+					cold = undefined; // ok: the cold-against-warm split is left out; the rest of the report stands
 				}
 			}
 			// call counts come from ONE extra render under precise coverage — a
@@ -5540,7 +5543,7 @@ class Profiler {
 					});
 					retain_ms = clock.mono() - t;
 				} catch {
-					retained = undefined;
+					retained = undefined; // ok: the retention render failed: the report goes without what a render keeps
 				}
 			}
 			// DOES IT KEEP GROWING? When one more render left memory behind, a few more renders with a
@@ -5574,7 +5577,7 @@ class Profiler {
 							clock.mono() + room
 						);
 					} catch {
-						growth = undefined;
+						growth = undefined; // ok: the growth check failed: the report goes without it
 					}
 				}
 			}
@@ -5740,7 +5743,7 @@ class Profiler {
 									const rel = app_asset_rel(path);
 									return chunk_contents(rel ? `/${rel}` : path);
 								} catch {
-									return null;
+									return null; // ok: not a URL: no contents list for that chunk
 								}
 							}
 						});
@@ -5841,7 +5844,9 @@ class Profiler {
 			// Tolerate a `.ogp` mangled by a text-y transfer between machines (a prepended BOM, or the whole
 			// file base64-encoded) — recover the raw bytes before checking the magic.
 			const raw = await read_capped(ctx.request, MAX_POSTED_REPORT);
-			if (raw === null)
+			if (raw === 'unreadable')
+				return ctx.json({ error: 'The file did not arrive whole.' }, { status: 400 });
+			if (raw === 'too large')
 				return ctx.json(
 					{
 						error: `That file is over ${MAX_POSTED_REPORT / 1_048_576} MB, past any real profile.`
@@ -5972,7 +5977,7 @@ class Profiler {
 			const bytes = await ogp_encode(report_dump(a, meta, extras), this.secret);
 			ogpB64 = Buffer.from(bytes).toString('base64');
 		} catch {
-			ogpB64 = undefined;
+			ogpB64 = undefined; // ok: the page goes without its .ogp copy; keep and share ask the server by id
 		}
 		// this page's other page-mode reports (oldest first) and the one just before this one — the
 		// history line + the "compare with previous" link
@@ -6038,7 +6043,7 @@ class Profiler {
 					.slice(0, 3);
 				score = { a: sa.score, b: sb.score, a_grade: sa.grade, b_grade: sb.grade, moved };
 			} catch {
-				score = undefined;
+				score = undefined; // ok: the comparison goes without the score line; the rest stands
 			}
 			// the files behind a JS move (both builds weighed)
 			let assets: Since['assets'];
@@ -6056,7 +6061,7 @@ class Profiler {
 						assets = d;
 				}
 			} catch {
-				assets = undefined;
+				assets = undefined; // ok: the comparison goes without the files behind a JS move
 			}
 			// the browser's findings then and now (each report with its own visit): fixed and new, by
 			// finding and island — "clicked before it woke" gone after a wake change is the answer to
@@ -6082,7 +6087,7 @@ class Profiler {
 					if (fixed.length || added.length) browser = { fixed, added };
 				}
 			} catch {
-				browser = undefined;
+				browser = undefined; // ok: the comparison goes without the browser's fixed and new findings
 			}
 			// THE VITALS THAT MOVED (each report's own visit), and the part of each that moved most
 			let vitals: Since['vitals'];
@@ -6110,7 +6115,7 @@ class Profiler {
 					if (moved.length) vitals = moved;
 				}
 			} catch {
-				vitals = undefined;
+				vitals = undefined; // ok: the comparison goes without the vitals that moved
 			}
 			// which islands changed file between the two builds: what a returning visitor downloads again
 			let islands: Since['islands'];
@@ -6122,7 +6127,7 @@ class Profiler {
 						(u) => stored.weights?.[u]
 					) ?? undefined;
 			} catch {
-				islands = undefined;
+				islands = undefined; // ok: the comparison goes without the changed files list
 			}
 			return {
 				prev: P.meta.id,
@@ -6138,7 +6143,7 @@ class Profiler {
 				...(cmp.fix_check ? { fix_check: cmp.fix_check } : {})
 			};
 		} catch {
-			return null;
+			return null; // ok: two reports that will not compare: the report shows without the "since" block
 		}
 	}
 
@@ -6306,7 +6311,7 @@ class Profiler {
 				created: r.created
 			}));
 		} catch {
-			return [];
+			return []; // ok: the store could not list them: the sidebar shows only this instance's reports
 		}
 	}
 
@@ -6637,7 +6642,7 @@ class Profiler {
 				if (origin && u.host !== 'x' && u.origin !== origin)
 					return { category: 'dependency', pkg: CDN_PKG_RE.exec(path)?.[1] ?? u.host };
 			} catch {
-				return undefined;
+				return undefined; // ok: not a URL: the frame is placed by its name alone
 			}
 			// the handoff keys chunks by their served path; a rewritten local file still carries it
 			const rel = app_asset_rel(path);
@@ -6729,7 +6734,8 @@ class Profiler {
 		try {
 			// (read no further than the largest kind; each kind's own cap is checked below)
 			const raw = await read_capped(ctx.request, MAX_BEACON_CPU_BODY);
-			if (raw === null) return new Response(null, { status: 413 });
+			if (raw === 'too large') return new Response(null, { status: 413 });
+			if (raw === 'unreadable') return new Response(null, { status: 400 });
 			const text = new TextDecoder().decode(raw);
 			// a CPU trace is the one big body (samples + stacks); a visit is a few hundred resources;
 			// everything else stays small
@@ -6992,7 +6998,7 @@ class Profiler {
 			try {
 				remote_url = new URL(event.request.url);
 			} catch {
-				remote_url = null;
+				remote_url = null; // ok: not a URL: the entry keeps Kit's url
 			}
 		const entry: RequestEntry = {
 			ts: Date.now(), // wall: a request's time, shown and stored
@@ -7087,8 +7093,9 @@ class Profiler {
 				? resolve(event, {
 						transformPageChunk: ({ html }) => {
 							// no regex per chunk: the head's close by search (lowercase first, the rare uppercase after)
+							// markup-ok: Kit's document, located as core's document-assembly.ts does (#1410)
 							let at = html.indexOf('</head>');
-							if (at === -1) at = html.indexOf('</HEAD>');
+							if (at === -1) at = html.indexOf('</HEAD>'); // markup-ok: as above (#1410)
 							return at === -1 ? html : html.slice(0, at) + beacon_tag + html.slice(at);
 						}
 					})
@@ -7552,7 +7559,7 @@ function entry_path(entry: string): string {
 	try {
 		return new URL(entry, 'http://x/').pathname;
 	} catch {
-		return entry;
+		return entry; // ok: not a URL: kept as written
 	}
 }
 

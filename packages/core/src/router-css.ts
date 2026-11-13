@@ -90,7 +90,7 @@ export function router_css_of(component: unknown): RouterCssEntry[] {
 		try {
 			return thunk() ?? [];
 		} catch {
-			return []; // a broken handoff read must degrade to unstyled, never crash the render
+			return []; // ok: a broken handoff read must degrade to unstyled, never crash the render
 		}
 	}
 	if (paths.by_path.size) {
