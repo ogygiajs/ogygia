@@ -1,56 +1,3 @@
-/**
- * WHAT A VISITOR DOES BEFORE AN ISLAND IS LIVE IS NOT LOST. `wake: 'interaction'` — the island sleeps
- * until someone uses it; and every scheduled island (`load` / `idle` / `visible` / media) is armed the
- * same way until it is live, since its server markup has no handlers either: a press on it wakes it at
- * once (a gesture), and the click is replayed when it is live.
- *
- * WAKE (capture-phase): `pointerdown` | `keydown` | `focusin` | `click`. The first of these starts
- * hydration. WARM (not a wake): the pointer moving over the region prefetches the island module, so
- * by the time the press lands the chunk is usually cached and the wake is one microtask.
- *
- * DELEGATED: the listeners live on the DOCUMENT, once. An event resolves to the nearest ARMED region
- * above its target (`closest`, walking up past nested regions that are not armed, never past a live
- * one: a click inside an awake island is that island's) and that region's state handles it exactly
- * as its own capture listener did. Each arming is its own: a region put back after it left arms a
- * new one, and only the arming that holds the region's entry may delete it; a region that left while
- * woken replays nothing.
- *
- * HYDRATION REPLACES NODES. Svelte's hydrate pass may recreate the region's DOM, so nothing
- * captured before the wake can be replayed/restored by node reference — the original elements are
- * disconnected afterwards. Everything below is therefore re-resolved POSITIONALLY: an element is
- * recorded as its child-index path from the region ("address"), and after hydration the element
- * now sitting at that address receives the replay/restore. The hydrated markup mirrors the SSR
- * markup (same component, same props), so addresses stay valid; a tag-name check guards drift.
- *
- * WHAT SURVIVES THE WAKE:
- * - **Clicks are queued + replayed.** While waking, `click` events are `preventDefault()`ed, kept
- *   from the page's handlers (`stopPropagation()`), and recorded (address + coordinates); after
- *   hydration each re-dispatches at its address. Cancel-then-replay means a checkbox / link /
- *   summary activates exactly ONCE — on the replay, where the island's handlers exist, even when
- *   they were live before the wake ended. Enter/Space activation arrives as a derived click → same path.
- * - **Typing lands natively and is restored.** Characters are in the DOM before hydration starts;
- *   hydration resets `.value` from SSR state, so field values (+ checkedness + selection) are
- *   snapshotted at wake and re-applied at the field's address, with `input`/`change` events so
- *   `bind:` syncs. Keydowns are never synthetically replayed (untrusted keys produce no text).
- * - **Focus is restored** at the focused element's address.
- *
- * Replayed events are NOT trusted user gestures (`event.isTrusted === false`): `window.open`,
- * clipboard, fullscreen from the first interaction will be blocked by the browser, and a component
- * that ignores untrusted clicks ignores the replay. Components can detect the situation via
- * `hydratedBy() === 'interaction'`. A click that opens a link elsewhere (a modifier or the middle
- * button) is never canceled: the browser does it on the server markup, and an untrusted replay could not.
- *
- * The capture (this module) is what must run synchronously inside the first event. The RESTORE +
- * REPLAY half (./interaction-replay.ts) is only needed once an island has woken, so it is off the
- * boot path: asked for as background work once an island arms (`replay_ahead`), and at once when a
- * pointer reaches an armed island or input lands. If the hydration fails, the region is disarmed (its
- * dead-but-real HTML keeps native behavior) and the queued clicks replay onto the server markup. A
- * click inside an open shadow root replays on the node it hit. Tests:
- * test/browser/interaction-delegated, interaction-rearm, interaction-replay-claims, hydrated-by.
- *
- * @packageDocumentation
- */
-
 import {
 	flights,
 	machine,
@@ -203,6 +150,7 @@ function armed_region_of(target: EventTarget | null): Armed | null {
 	return null;
 }
 
+// @why a synthetic (untrusted) click cannot open a new tab or window (test: test/browser/interaction-delegated.test.ts › a click that opens a link elsewhere is never canceled (an untrusted replay could not open it))
 function opens_elsewhere(e: MouseEvent, target: Element): boolean {
 	return (e.button !== 0 || e.ctrlKey || e.metaKey || e.shiftKey) && !!target.closest('a[href]');
 }
@@ -330,14 +278,6 @@ export function arm_interaction(
 
 let replay_queued = false;
 
-/**
- * THE REPLAY HALF, ASKED FOR AHEAD OF THE VISITOR (#451). A click before wake waits for it (the
- * island goes live with it, #260); asked for only at that click, on a slow phone it queued behind the
- * page's other downloads and the wake waited it out. It is background work, timed by the load
- * scheduler (load-scheduler.ts: after the page's critical resources, in the background window), so
- * it never delays the hero. When its turn comes with no island left armed (they all woke on their
- * own, nobody touched one), it is not needed and nothing is fetched.
- */
 function replay_ahead(): void {
 	if (replay_queued) return;
 	replay_queued = true;
