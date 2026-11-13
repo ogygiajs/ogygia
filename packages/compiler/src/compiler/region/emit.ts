@@ -1,26 +1,6 @@
-/**
- * Region EMIT — codegen from a lowered descriptor to per-island virtual-module SOURCE. Pure leaves:
- * `descriptor → source string`, no state, no AST. The one shared set of emitters the `.svelte` host
- * and the `.ts` registry both call, so a `wake:` mark lowers to byte-identical artifacts from either
- * entry point:
- *   - the ENTRY  (`island_entry_source` / `region_entry_source`) — a JS re-export of the real component;
- *   - the WRAPPER (`island_wrapper_source`) — the mountable `.svelte` that renders `<ogygia-region>`;
- *   - the BINDING legs (`make_region_binding` / `wrapper_attach_binding` / `make_wake_island`) — the
- *     leg-split descriptor (SSR carries the signer + server render; client is metadata-only).
- */
 import { regionBindingVirtualId, lazyEntryVirtualId } from '../ids.ts';
 
-/**
- * Source of the generated `__renderHtml(props)` for a binding's SSR leg. The returned HTML must be
- * self-sufficient when it crosses a wire, so it carries stylesheets THREE ways:
- * - the component's OWN `<link>`s (its island entry's CSS assets — the page never imported it);
- * - links NESTED regions emitted into `render().head` (a region rendered inside this render pass —
- *   props-composition, a recomposer's leaves — emits its `<link>`s via `svelte:head`, and keeping
- *   only `.body` would silently drop them: the leaf arrives unstyled);
- * - the body itself (which may contain nested self-describing `<ogygia-region>` island markup).
- */
 function render_html_source(moduleUrl: string): string {
-	// (the render itself is ogygia's one shared helper — never a copy per binding in the server bundle)
 	return `(props, wakes) => __ogRegionHtml(__ogRegionComp, ${JSON.stringify(moduleUrl)}, props, wakes)`;
 }
 
@@ -35,7 +15,6 @@ export function component_import_line(local: string, spec: string, exportName?: 
 		: `import ${local} from ${JSON.stringify(spec)};`;
 }
 
-/** JS re-export of the real component — the held region's entry (SSR render + client hydrate). */
 function region_entry_source(componentPath: string, iid: string, exportName?: string) {
 	return `${component_import_line(`__OgygiaComp_${iid}`, componentPath, exportName)}
 export default __OgygiaComp_${iid};
@@ -54,10 +33,6 @@ export function island_entry_source(
 	iid: string,
 	exportName?: string
 ): string {
-	// The FOREIGN-HYDRATE CONTRACT (fragment federation, src/entry-hydrate.ts): another app's
-	// runtime wakes this entry through the exports after the mark, against THIS build's svelte. They
-	// are cut when the entry is served for an app that does not federate, and from every server leg
-	// (compiler/driver.ts): same-origin wakes never call them.
 	return `import 'ogygia:region/transportables-eager';
 ${component_import_line(`__OgygiaComp_${iid}`, componentPath, exportName)}
 export default __OgygiaComp_${iid};
@@ -91,9 +66,6 @@ export function island_wrapper_source(
 ): string {
 	const strategy_attrs = strategy_to_attr(strategy, options);
 	const persist_attr = options?.keep ? ` __keep={${JSON.stringify(options.keep)}}` : '';
-	// `children` rides as an EXPLICIT prop, never as template children: wrapping `{@render
-	// children?.()}` in the tags would hand Region a fragment snippet even for a CHILDLESS call
-	// site — Region's `island_children != null` gate would then serialize a pointless empty slot.
 	return `<script>
 \timport { Region as OgygiaRegion__Wrapper } from 'ogygia/internal';
 \timport __OgygiaEntry from ${JSON.stringify(entryPath)};
@@ -126,8 +98,6 @@ export function island_wrapper_client_source(
 ): string {
 	const strategy_attrs = strategy_to_attr(strategy, options);
 	const persist_attr = options?.keep ? ` __keep={${JSON.stringify(options.keep)}}` : '';
-	// `__component` is the entry when the document rendered this island (Kit hydrates it in
-	// place), else undefined — then `__load` is how Region fetches it for a client render.
 	return `<script>
 \timport { Region as OgygiaRegion__Wrapper } from 'ogygia/internal';
 \timport __OgygiaEntry, { load as __OgygiaLoad } from ${JSON.stringify(lazyPath)};
@@ -200,17 +170,10 @@ export function make_region_binding(opts: {
 	lakes: never[];
 	identity: string;
 } {
-	// Descriptor metadata `region()` reads. `__hydrate` is baked only for a `wake:` mark; a
-	// `region: 'raw'` binding bakes none and the schedule comes from the `region()` call's `{ wake }`.
-	// The runtime `<ogygia-region>` fetches on mount (`when: 'load'`) and wakes on the resolved schedule.
-	// Fetch timing is the consumer's own `{#if}` — a held region has no render axis.
 	let meta = `__ogRegion: ${JSON.stringify(opts.iid)}, __module: ${JSON.stringify(opts.moduleUrl)}`;
 	if (opts.hydrate) meta = `${meta}, __hydrate: ${JSON.stringify(opts.hydrate)}`;
 	if (opts.hydrate && opts.hydrateMargin != null)
 		meta = `${meta}, __hydrateMargin: ${JSON.stringify(opts.hydrateMargin)}`;
-	// The page never imported this server-picked component, so its scoped CSS is on no page
-	// stylesheet: the render is prefixed with the island's `<link>`s (the client hoists them to
-	// <head>). SSR leg only — the client binding stays metadata-only.
 	const ssr_source = `${component_import_line('__ogRegionComp', opts.componentPath, opts.exportName)}
 import { make_region_endpoint as __ogRegionSign, render_region_html as __ogRegionHtml } from 'ogygia/internal/server';
 export default { ${meta}, __component: __ogRegionComp, __sign: __ogRegionSign, __renderHtml: ${render_html_source(opts.moduleUrl)} };
@@ -220,12 +183,6 @@ export default { ${meta}, __component: __ogRegionComp, __sign: __ogRegionSign, _
 		virtualPath: opts.entryPath,
 		source: region_entry_source(opts.componentPath, opts.iid, opts.exportName),
 		bindingPath: regionBindingVirtualId(opts.iid),
-		// SSR leg is DUAL-FACE: it carries the real component (so `region()` can render inline in
-		// the same server pass) AND the signer (so the transport can mint a capability when the
-		// held region crosses the wire). `__renderHtml` renders the component to HTML on the server when
-		// the held region is awaited (live regions), so the ticket travels with its markup — no fetch.
-		// `svelte/server` is imported only on this SSR leg; the client leg is metadata-only, so the
-		// component and server render never ship to the browser bundle.
 		bindingSsrSource: ssr_source,
 		bindingClientSource: `export default { ${meta} };\n`,
 		hostPath: opts.hostPath,
@@ -238,15 +195,6 @@ export default { ${meta}, __component: __ogRegionComp, __sign: __ogRegionSign, _
 	};
 }
 
-/**
- * A `wake`-marked import is rewritten to a binding that is BOTH placeable and holdable: `<C/>` (or a
- * dynamic `<C/>` portable binding) renders the island wrapper, while `region(C)` reads a descriptor.
- * We get both from ONE binding by attaching the descriptor fields onto the wrapper component as own
- * properties — Svelte ignores them when rendering `<C/>`, and `region()` sees `__ogRegion` and reads
- * `__component`/`__sign`/`__hydrate`. The baked `__hydrate` is the mark's schedule; a `region()` call
- * can still override it. Leg-split like a held descriptor: the SSR leg carries the signer + server
- * render (server-only), the client leg is metadata. Returns `{ ssr, client }` module sources.
- */
 function wrapper_attach_binding(opts: {
 	iid: string;
 	wrapperPath: string;
@@ -254,7 +202,6 @@ function wrapper_attach_binding(opts: {
 	moduleUrl: string;
 	hydrate: string;
 	hydrateMargin?: string;
-	/** named export to pull (a marked named import); undefined → default import */
 	exportName?: string;
 }) {
 	let meta = `__ogRegion: ${JSON.stringify(opts.iid)}, __module: ${JSON.stringify(opts.moduleUrl)}`;
@@ -351,8 +298,6 @@ export function make_wake_island(opts: {
 			opts.exportName,
 			opts.moduleUrl
 		),
-		// The CLIENT leg of the wrapper takes its component through the lazy module (see
-		// `island_wrapper_client_source`): a csr=true host's page graph stops at the wrapper.
 		wrapperClientSource: island_wrapper_client_source(
 			opts.iid,
 			lazyPath,
@@ -362,15 +307,12 @@ export function make_wake_island(opts: {
 		),
 		lazyPath,
 		lazySource: lazy_entry_source(opts.entryPath, opts.moduleUrl),
-		// The host imports THIS attach binding (placeable + holdable), not the bare wrapper.
 		bindingPath: regionBindingVirtualId(opts.iid),
 		bindingSsrSource: attach.ssr,
 		bindingClientSource: attach.client,
 		source: island_entry_source(opts.componentPath, opts.iid, opts.exportName),
 		hostPath: opts.hostPath,
 		componentPath: opts.componentPath,
-		// A `.ts` held binding may cross the wire → it needs a server-manifest entry + the live/morph
-		// mark. A `.svelte` placed island never crosses, so `server:false`, no `held`.
 		server: !!opts.held,
 		...(opts.held ? { held: true } : {}),
 		kind: 'hydrate',
@@ -386,6 +328,7 @@ export function make_wake_island(opts: {
  * `wake` schedule. `__defer` carries the fetch schedule; `__cacheTtl` (when signed) sets the hole's
  * response cache; a deferred island that ALSO hydrates carries `__hydrate` + `__module` (its client
  * entry URL). `module_url` is the resolved client/dev entry URL (used only when it hydrates).
+ * @param component false for the client leg, which imports no component: a hole ships no JS.
  */
 export function server_wrapper_source(
 	iid: string,
@@ -394,25 +337,17 @@ export function server_wrapper_source(
 	options: Record<string, unknown> | undefined,
 	exportName: string | undefined,
 	module_url: string,
-	// false: the CLIENT leg. A hole ships no JS — the browser adopts its server HTML wherever it sits
-	// (deferred, or frozen inline in an island: Region.svelte), so it never needs the component
 	component = true
 ): string {
 	const deferred_hydrate = !!options?.hydrate;
 	const fetch_when = options?.when || 'load';
 	let server_attrs = `__defer={${JSON.stringify(fetch_when)}}`;
-	// Stitching mark — the emitted hole carries `stitch="serve"` (postrender's serve path fills it at
-	// origin on every serve) or `stitch="edge"` (postrender's capture rewrites it into an ESI include
-	// the CDN fills; the shell stays edge-cached). See packages/postrender/src/stitch.ts.
 	if (options?.stitch)
 		server_attrs = `${server_attrs} __stitch={${JSON.stringify(options.stitch)}}`;
-	// The warm schedule — the emitted hole carries `prefetch="idle"` etc.; the runtime arms it next
-	// to `when` and fills the frame store early, the swap still waits for `when`.
 	if (options?.prefetch)
 		server_attrs = `${server_attrs} __prefetch={${JSON.stringify(options.prefetch)}}`;
 	if (options?.margin != null)
 		server_attrs = `${server_attrs} __margin={${JSON.stringify(options.margin)}}`;
-	// Signed at mint into the hole's endpoint → the handle answers `private, max-age=cacheTtlSec`.
 	if (options?.cacheTtlSec != null)
 		server_attrs = `${server_attrs} __cacheTtl={${JSON.stringify(options.cacheTtlSec)}}`;
 	if (deferred_hydrate) {
@@ -473,12 +408,10 @@ export function strategy_to_attr(strategy: string, options?: Record<string, unkn
 	if (strategy === 'idle') return 'idle';
 	if (strategy === 'interaction') return 'interaction';
 	if (strategy === 'visible') {
-		// `margin` (IntersectionObserver rootMargin) rides as the string form of `visible`.
 		return options && options.margin != null
 			? `visible=${JSON.stringify(options.margin)}`
 			: 'visible';
 	}
-	// media query (the strategy IS the query string)
 	return `media=${JSON.stringify(strategy)}`;
 }
 
@@ -502,12 +435,10 @@ export function rewrite_lake_import_to_placeholder(
 ): string {
 	const esc = local.replace(REGEXP_META, '\\$&');
 	const ph = JSON.stringify(placeholder);
-	// default: import Lake from '…'
 	src = src.replace(
 		new RegExp(`import\\s+${esc}\\s+from\\s+(['"])[^'"]+\\1`, 'g'),
 		`import ${local} from ${ph}`
 	);
-	// named: import { Lake } / { Lake as X } / { Foo as Lake } from '…'
 	src = src.replace(
 		new RegExp(`import\\s*\\{([^}]*)\\}\\s*from\\s*(['"])([^'"]+)\\2`, 'g'),
 		(full, specs, _q, from) => {
