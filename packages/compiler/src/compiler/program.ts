@@ -14,7 +14,8 @@
  */
 import path from 'node:path';
 import { renderId } from './region/identity.ts';
-import type { RuntimeMarks } from './link/runtime-entry.ts';
+import { resolveFeatures, type FeatureId, type RuntimeMarks } from './link/runtime-entry.ts';
+import { warn } from './messages.ts';
 
 /** Strip a `?query` off a module id (host vs component vs Vite watch paths). */
 export const strip_id = (id: string): string => (id ? id.split('?')[0] : id);
@@ -148,11 +149,10 @@ export class Program {
 	/** Build-time capability marks for the sticky runtime entry. Incomplete → kitchen-sink. */
 	readonly runtime_marks: RuntimeMarks;
 
-	/** The resolved feature set folded into the runtime chunk name (busts the immutable URL when the
-	 *  app's feature set changes, not only when ogygia's source does). Filled by the driver's prescan;
-	 *  empty until then (dev serves the package entry). Both build legs prescan the same source → same
-	 *  hash → the server↔client filename handoff holds. */
-	runtime_feature_hash = '';
+	/** The features the build's runtime entry was made with (`ship_runtime`), once it loaded: a later
+	 *  registration that needs one more is reported (`runtime_marks_late`), once per feature. */
+	#runtime_shipped: ReadonlySet<FeatureId> | null = null;
+	readonly #late_said = new Set<FeatureId>();
 
 	readonly #init: { forms: boolean; router: boolean };
 
@@ -183,6 +183,25 @@ export class Program {
 			live: false,
 			lakes: false
 		};
+	}
+
+	/** The marks the build's runtime entry is made from, now: what it ships is fixed from here on
+	 *  (test/runtime-marks-late.test.ts). */
+	ship_runtime(): RuntimeMarks {
+		this.#runtime_shipped = new Set(resolveFeatures(this.runtime_marks));
+		return this.runtime_marks;
+	}
+
+	/** A registration of `host` after the runtime entry was made needs a feature it lacks: say so. */
+	#check_late(host: string): void {
+		const shipped = this.#runtime_shipped;
+		if (!shipped) return;
+		const late = resolveFeatures(this.runtime_marks).filter(
+			(f) => !shipped.has(f) && !this.#late_said.has(f)
+		);
+		if (!late.length) return;
+		for (const f of late) this.#late_said.add(f);
+		warn('runtime_marks_late', { file: host, features: late.join(', ') });
 	}
 
 	note_runtime_mark(patch: Partial<RuntimeMarks>): void {
@@ -351,5 +370,6 @@ export class Program {
 			if (isl.componentPath) island_graph.add(isl.componentPath);
 		}
 		host_index.set(key, idx);
+		this.#check_late(hostId);
 	}
 }

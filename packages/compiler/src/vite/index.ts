@@ -280,7 +280,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 	// them (register / unregister_host / note_runtime_mark). Never module-global, so Kit's throwaway
 	// plugin instance has a different Program and can't leak into the real build.
 	// The feature-selected runtime chunk name lives on the driver as `compiler.runtime_chunk_filename()`
-	// (RUNTIME_HASH ⊕ program.runtime_feature_hash — see CompileCtx.runtime_chunk_filename); buildStart's
+	// (RUNTIME_HASH ⊕ the scan's feature_hash — see CompileCtx.runtime_chunk_filename); buildStart's
 	// emitFile and the runtime-url virtual both read it, so both build legs compute the same immutable name.
 
 	// HMAC key for signing region capability URLs (defer / remount:swr). Default: a fresh
