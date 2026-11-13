@@ -22,12 +22,8 @@ import { region_css_tags } from './html-scan.ts';
 
 function root_absolute(value: string, base: URL): string {
 	if (!value.startsWith('./') && !value.startsWith('../')) return value;
-	try {
-		const u = new URL(value, base);
-		return u.origin === base.origin ? u.pathname + u.search + u.hash : value;
-	} catch {
-		return value; // ok: not a URL: kept as written
-	}
+	const u = new URL(value, base);
+	return u.origin === base.origin ? u.pathname + u.search + u.hash : value;
 }
 
 /** What the answer carries of the render's head: its islands' graph and their CSS (html-scan.ts

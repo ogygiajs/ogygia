@@ -314,27 +314,23 @@ export const handle = ogygia.handle();
 | `endpoint` | The region endpoint's path. Default `/__ogygia__`.                                                                              |
 | `secret`   | The secret that signs capability URLs. Takes precedence over `OGYGIA_SECRET`; see [`OGYGIA_SECRET`](#ogygiavite-ogygia-secret). |
 
-An app's own pass over the HTML (a web-component server render) is not an option here: it is `reshape.handle(transform)` from the `@ogygia/reshape` package. See [Server transforms](/docs/app/server-transforms).
+An app's own pass over the HTML (a web-component server render) is not an option here: it is `rewrite()` from the `@ogygia/rewrite` package, listed before `ogygia.handle()`. See [Server transforms](/docs/app/server-transforms).
 
-## `@ogygia/reshape`
+## `@ogygia/rewrite`
 
 ```ts
-import { handle, scanRegions, liftRegions, restoreRegions, transformMarkup, restore } from '@ogygia/reshape';
-import type { ReshapeTransform } from '@ogygia/reshape';
+import { rewrite } from '@ogygia/rewrite';
+import { rewrite as rewritePlugin } from '@ogygia/rewrite/vite';
 ```
 
-A package of its own (`pnpm add @ogygia/reshape`); it replaces `ogygia/markup`, which is gone. Its `reshape()` Vite plugin comes from `@ogygia/reshape/vite`. The markup helpers need no Kit, so they run in the non-SvelteKit half of a monorepo or in a test.
+A package of its own (`pnpm add @ogygia/rewrite`). Its Vite plugin, `rewrite()` from `@ogygia/rewrite/vite`, takes no options.
 
-| Export                                                 | What it is                                                                                                               |
-| ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------ |
-| `handle(transform)`                                    | The app's own pass, as a Kit handle before `ogygia.handle()`. See [Server transforms](/docs/app/server-transforms).      |
-| `ReshapeTransform`                                     | The type of the function `handle()` takes, for a transform written in a module of its own.                               |
-| `scanRegions(html)`                                    | Yields every region in a document (island, lake or hole), with its span and attributes.                                  |
-| `liftRegions(html)` · `restoreRegions(shell, regions)` | Lift the regions out around a foreign SSR pass, and splice them back with the marks the pass stamped.                    |
-| `transformMarkup(html, transform, { kind, csr, dev })` | The server round trip of `handle(transform)`: mark, your transform, settle.                                              |
-| `checkScript(check)`                                   | The dev check's payload (`settled.check` with `dev: true`), to put in front of the markup so `restore` checks each host. |
-| `localizeMarks(block)`                                 | Renumbers a block's marks from 0 for a render cache key; `.back(rendered)` puts the document's ids back.                 |
-| `restore(root)`                                        | The browser half, on a parsed document or fragment (jsdom included).                                                     |
+| Export                        | What it is                                                                                                                                                                          |
+| ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `rewrite({ match, render })`  | A Kit handle that renders the elements `match` picks, one batch per chunk. See [Server transforms](/docs/app/server-transforms).                                                    |
+| `rewrite({ page })`           | A Kit handle that rewrites the whole document or region answer; also has `.html(str)`.                                                                                              |
+| `.check(html, { kind, csr })` | On both: the whole round trip on one piece of markup, for a test (`html`, `head`, `restored`, `failed`, `dom`, `mismatches`).                                                       |
+| Types                         | `ElementRewrite`, `PageRewrite`, `Rewrite`, `WholePageRewrite`, `RewriteContext`, `RewriteElement`, `RewriteResult`, `RewriteSheet`, `RewriteKind`, `RewriteCheck`, `CheckOptions`. |
 
 ## `ogygia/app`
 

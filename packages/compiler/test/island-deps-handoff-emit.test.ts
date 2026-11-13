@@ -61,6 +61,42 @@ describe('emit_island_deps_handoff', () => {
 		expect(fs.readFileSync(map, 'utf8')).toBe(`{"x":"${TOKEN}"}`);
 	});
 
+	it('a server output that is a file, not a folder: the handoff is still written, and nothing throws', () => {
+		write('output/server', 'not a folder');
+		expect(() => emit_island_deps_handoff('/app', JSON_TEXT, out, new Map())).not.toThrow();
+		expect(fs.readFileSync(path.join(out, 'og-region-deps.json'), 'utf8')).toBe(JSON_TEXT);
+	});
+
+	it('a chunk that cannot be read is skipped, and the next one is still patched', () => {
+		fs.mkdirSync(path.join(out, 'output', 'server'), { recursive: true });
+		fs.symlinkSync(path.join(out, 'gone.js'), path.join(out, 'output', 'server', 'a-dangling.js'));
+		const slotted = write('output/server/b.js', `export const deps = "${TOKEN}";`);
+		expect(() => emit_island_deps_handoff('/app', JSON_TEXT, out, new Map())).not.toThrow();
+		expect(literal_of(slotted)).toBe(JSON_TEXT);
+	});
+
+	it('a server folder that cannot be listed is skipped, and the chunks beside it are still patched', () => {
+		const slotted = ['a', 'm', 'z'].map((n) =>
+			write(`output/server/${n}.js`, `export const deps = "${TOKEN}";`)
+		);
+		const locked = path.join(out, 'output', 'server', 'f-locked');
+		fs.mkdirSync(locked);
+		fs.chmodSync(locked, 0o000);
+		try {
+			emit_island_deps_handoff('/app', JSON_TEXT, out, new Map());
+		} finally {
+			fs.chmodSync(locked, 0o755);
+		}
+		for (const file of slotted) expect(literal_of(file)).toBe(JSON_TEXT);
+	});
+
+	it('a slotted chunk that cannot be written is left as it was, and nothing throws', () => {
+		const locked = write('output/server/index.js', `export const deps = "${TOKEN}";`);
+		fs.chmodSync(locked, 0o444);
+		expect(() => emit_island_deps_handoff('/app', JSON_TEXT, out, new Map())).not.toThrow();
+		expect(fs.readFileSync(locked, 'utf8')).toBe(`export const deps = "${TOKEN}";`);
+	});
+
 	it('with no server output yet, still writes the handoff', () => {
 		const bare = path.join(out, 'nested', 'kit');
 		emit_island_deps_handoff('/app', JSON_TEXT, bare, new Map());

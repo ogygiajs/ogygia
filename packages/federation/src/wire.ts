@@ -663,12 +663,15 @@ function element_of(html: string, tag: FoundTag, name: string): string | null {
 }
 
 /** A head meta the fragment carries: SEO/social; charset/viewport/http-equiv stay the shell's
- *  (it owns the document). */
+ *  (it owns the document), and so do ogygia's own `ogygia-*` metas (the peer's router, CSR and dev
+ *  scope describe the peer's document). */
 function carried_meta(t: FoundTag): boolean {
+	const name = (t.attr('name') ?? '').toLowerCase();
 	return (
 		t.attr('charset') === undefined &&
 		t.attr('http-equiv') === undefined &&
-		(t.attr('name') ?? '').toLowerCase() !== 'viewport'
+		name !== 'viewport' &&
+		!name.startsWith('ogygia-')
 	);
 }
 

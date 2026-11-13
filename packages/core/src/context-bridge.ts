@@ -114,13 +114,7 @@ export function serialize_provided_context(map: Map<string, unknown>): string | 
  *  { islands: false }, or slim the value). Sizes are per-key serialized lengths. */
 function warn_ctx_size(map: Map<string, unknown>, total: number): void {
 	const sizes: Array<[string, number]> = [];
-	for (const [k, v] of map) {
-		try {
-			sizes.push([k, stringify_bridgeable({ [k]: v }).length]);
-		} catch {
-			// ok: an unbridgeable key is dropped (and said) where the bridge is written
-		}
-	}
+	for (const [k, v] of map) sizes.push([k, stringify_bridgeable({ [k]: v }).length]);
 	sizes.sort((a, b) => b[1] - a[1]);
 	const top = sizes
 		.slice(0, 3)
