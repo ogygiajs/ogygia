@@ -711,6 +711,24 @@ describe('priority', () => {
 		expect(await high).toBe('page');
 	});
 
+	it('a raise listener that is not a function is refused with a code, when it is added', () => {
+		let refused: unknown = null;
+		const pages = flights({
+			name: NAME,
+			run: (_href: string, _signal, f) => {
+				try {
+					f.onRaise('not a function' as never);
+				} catch (error) {
+					refused = error;
+				}
+				return new Promise<string>(() => {});
+			}
+		});
+		void pages.get('/a');
+		expect(refused).toBeInstanceOf(MachineError);
+		pages.drop(() => true);
+	});
+
 	it('a join with a lower or equal priority never lowers it, and is not heard', () => {
 		const heard: number[] = [];
 		let flight!: { readonly priority: number };
