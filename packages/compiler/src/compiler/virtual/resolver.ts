@@ -182,6 +182,8 @@ export class VirtualTable<A> {
 	/** A resolved id → its module source; `null`: not a module this table loads. Records what the
 	 *  load read (the session's parts, and every query it read), for {@link moved}. */
 	load(id: string, app: A, leg: Leg): string | Promise<string> | null {
+		if (!leg.ssr && this.#realm_at(id) === 'server')
+			check_realm(id, 'server', { ssr: false, dev: false });
 		const key = `${leg.ssr ? 'ssr' : 'client'} ${id}`;
 		const { value, reads } = this.#db.watch((cx) =>
 			this.#load(id, tracked(app, this.#parts, cx), leg)
@@ -285,11 +287,14 @@ export class VirtualTable<A> {
 	misplaced(module_ids: Iterable<string>, env: Env): [string, Realm][] {
 		const out: [string, Realm][] = [];
 		for (const id of module_ids) {
-			const realm =
-				this.#realm_of(id) ?? this.#by_resolved.get(id)?.realm ?? this.#prefix_realm(id);
+			const realm = this.#realm_at(id);
 			if (realm && !realm_allowed(realm, env)) out.push([id, realm]);
 		}
 		return out;
+	}
+
+	#realm_at(id: string): Realm | undefined {
+		return this.#realm_of(id) ?? this.#by_resolved.get(id)?.realm ?? this.#prefix_realm(id);
 	}
 
 	#prefix_realm(id: string): Realm | undefined {
