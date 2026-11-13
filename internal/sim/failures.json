@@ -33,6 +33,11 @@
 	},
 	"fired": [
 		{
+			"site": "packages/machine/src/outbox.ts > Box > _deliver > throw:0",
+			"point": "outbox.reply-lost",
+			"how": "the point's own throw: the receiver applied the send and its reply was lost, so the outbox's policy sends it again and the receiver sees the same work twice"
+		},
+		{
 			"site": "packages/core/src/runtime/core.ts > OgygiaRegion > fetch_html > catch:0",
 			"point": "hole.fetch-lost",
 			"how": "the point throws a failed fetch inside the try, as a dropped request's answer: the catch hands it to fetch_failed (a retry, or the fallback stands)",
@@ -2876,7 +2881,6 @@
 		"packages/machine/src/machine.ts > Running > _arm > timer:0",
 		"packages/machine/src/mailbox.ts > Box > ask > catch:0",
 		"packages/machine/src/mailbox.ts > Box > _start > reject:0",
-		"packages/machine/src/outbox.ts > Box > _deliver > throw:0",
 		"packages/machine/src/policy.ts > under_policy > abort:0",
 		"packages/machine/src/policy.ts > under_policy > error-event:0",
 		"packages/machine/src/policy.ts > under_policy > throw:3",
@@ -2892,7 +2896,6 @@
 		"packages/machine/src/scope.ts > Scoped > ASYNC_DISPOSE > catch:0",
 		"packages/machine/src/scope.ts > Scoped > ASYNC_DISPOSE > throw:1",
 		"packages/machine/src/stage.ts > Staged > constructor > refused:0",
-		"packages/machine/src/stale.ts > whole > stale:0",
 		"packages/ogygia/src/cli.ts > installed > catch:0",
 		"packages/postrender/src/adapters/akamai.ts > AkamaiEdge > signed_post > fetch:0",
 		"packages/postrender/src/adapters/akamai.ts > AkamaiEdge > signed_post > not-ok:0",
