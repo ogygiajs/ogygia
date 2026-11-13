@@ -89,7 +89,7 @@ export type { TransportCodec } from './live-transport.ts';
 // `setContext` is the drop-in for existing layouts: swap `from 'svelte'` → `from 'ogygia'` and a
 // plain `setContext('key', value)` bridges to child islands too (one flat page root). `<Provide>` is
 // the scoped/shadowed form; both are read with the same unchanged `getContext('key')`.
-export { createContext, setContext, __tag_context } from './context-bridge.ts';
+export { createContext, setContext } from './context-bridge.ts';
 export { default as Provide } from './Provide.svelte';
 // `getContext` is re-exported verbatim from Svelte, purely for import symmetry — `import { setContext,
 // getContext } from 'ogygia'` reads better than mixing sources. It is Svelte's own: ogygia seeds each

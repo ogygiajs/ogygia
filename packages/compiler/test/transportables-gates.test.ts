@@ -1,5 +1,5 @@
 // Every module the build transforms passes through the transportable checks, so a module that cannot
-// hold a wire class or a createContext export is answered from its text, never parsed or scanned.
+// hold a wire class is answered from its text, never parsed or scanned.
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const calls = vi.hoisted(() => ({ parse: 0, scan: 0 }));

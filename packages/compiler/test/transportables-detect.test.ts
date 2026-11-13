@@ -1,4 +1,4 @@
-// What counts as a transportable (a class with a wire codec, or an exported createContext), as read by
+// What counts as a transportable (a class with a wire codec), as read by
 // the eager manifest (`moduleHasTransportable`, `svelteModuleHasTransportable`) and the appended
 // registration (`appendTransportRegistrations`, `appendSvelteModuleRegistrations`). Near misses of
 // each shape must not register: the registration drags an `ogygia/internal/register` import into
@@ -14,7 +14,7 @@ import {
 
 const CODEC = `{ encode: (c) => c.v, decode: (v) => new C(v) }`;
 const reg = (src: string) => appendTransportRegistrations(src, '/app/src/lib/m.ts', '/app');
-/** The `__OGT` / `__OGC` lines a module gets, in order. */
+/** The `__OGT` lines a module gets, in order. */
 const calls_of = (src: string) => (reg(src) ?? '').split('\n').filter((l) => l.startsWith('__OG'));
 
 describe('the wire member: only the symbol key or the raw macro call', () => {
@@ -103,7 +103,9 @@ describe('a createContext export registers nothing: its key is Symbol.for(name)'
 		expect(out).toContain(
 			`import { __register_transportable as __OGT } from 'ogygia/internal/register';`
 		);
-		expect(calls_of(out)).toEqual(['__OGT("src/lib/m.ts#C", C);']);
+		expect(out.split('\n').filter((l) => l.startsWith('__OG'))).toEqual([
+			'__OGT("src/lib/m.ts#C", C);'
+		]);
 	});
 });
 
