@@ -15,7 +15,7 @@
  * way.
  */
 import { boot_link, router_link, slots } from './slots.ts';
-import { clock, net } from '@ogygia/machine';
+import { buggify, clock, net } from '@ogygia/machine';
 import type { PageGlobals } from '../page-globals.ts';
 import {
 	opts_out_of_reconcile,
@@ -92,6 +92,8 @@ const jump_to_hash = (hash: string) => router_link().jump_to_hash(hash);
 
 // DEVTOOLS gate — module-local const from the Vite `define` (proven DCE pattern); off → folds out.
 const DEVTOOLS = typeof __OGYGIA_DEVTOOLS__ !== 'undefined' ? __OGYGIA_DEVTOOLS__ : false;
+const RULES =
+	import.meta.env?.DEV || (typeof __OGYGIA_RULES__ !== 'undefined' ? __OGYGIA_RULES__ : false);
 const HOOK_NAVIGATED =
 	typeof __OGYGIA_HOOK_NAVIGATED__ !== 'undefined' ? __OGYGIA_HOOK_NAVIGATED__ : true;
 const HOOK_NAV_STARTED =
@@ -842,6 +844,7 @@ export async function navigate(
 	// ── THE BUILD: fetch, parse, facts, preflight, sheets — off to the side, no live change ──
 	// Null: nothing came, or the router will not render what came: the browser's, then.
 	const build = async ({ signal, discard }: Staging): Promise<Built | null> => {
+		if (RULES && buggify.fires('router.build-throws')) throw new Error('router.build-throws');
 		const page = await fetch_page(url.href, signal, purpose);
 		if (page === null || signal.aborted) return null;
 		const { html } = page;
@@ -1046,6 +1049,7 @@ export async function navigate(
 	const out: { failed?: { error: unknown } } = {};
 	const swap = () => {
 		try {
+			if (RULES && buggify.fires('router.commit-throws')) throw new Error('router.commit-throws');
 			staged.commit();
 		} catch (error) {
 			out.failed = { error };

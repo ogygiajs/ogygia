@@ -306,5 +306,25 @@
 		"from": "for (const a of reserved) release(a);",
 		"to": "void reserved;",
 		"aim": "batch.body-stalls"
+	},
+	{
+		"id": "router-build-throw-not-handed-off",
+		"file": "packages/core/src/runtime/router-nav.ts",
+		"line": 1040,
+		"code": "return hand_off(error); // (its devalue did not load, or another step of it threw)",
+		"operator": "statement",
+		"from": "return hand_off(error);",
+		"to": "return;",
+		"aim": "router.build-throws"
+	},
+	{
+		"id": "router-commit-failed-not-handed-off",
+		"file": "packages/core/src/runtime/router-nav.ts",
+		"line": 1077,
+		"code": "if (out.failed) return hand_off(out.failed.error, built.written);",
+		"operator": "statement",
+		"from": "return hand_off(out.failed.error, built.written);",
+		"to": "return;",
+		"aim": "router.commit-throws"
 	}
 ]
