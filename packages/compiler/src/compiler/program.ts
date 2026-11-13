@@ -29,6 +29,8 @@ export const host_key = (hostPath: string): string => path.resolve(strip_id(host
 export interface RegistryEntry {
 	source?: string;
 	ssrSource?: string;
+	/** A leg-split source: a wake island's wrapper reaches its component through the lazy module on
+	 *  the client leg (served by leg at load(), like a region binding). */
 	clientSource?: string;
 	hostPath?: string | null;
 	id: string;
@@ -36,6 +38,8 @@ export interface RegistryEntry {
 	lakes?: string[];
 	componentPath?: string | null;
 	role?: 'entry' | 'wrapper' | 'region' | 'lazy';
+	/** A portable-snippet synth entry: AUTHORED markup (a slice of user source) the transform hook
+	 *  re-processes (nested island marks, nested snippets), unlike glue. */
 	portable?: boolean;
 	/** a server entry's render identity (identity.ts `renderId`): what its endpoint renders */
 	renderId?: string;
@@ -273,7 +277,6 @@ export class Program {
 					island_graph.delete(vpath);
 				}
 			}
-			// a region another host still holds shows that host's rows now
 			for (const id of prev.ids) this.#settle(id);
 			host_index.delete(key);
 		}
@@ -323,7 +326,6 @@ export class Program {
 				id_hosts.set(isl.id, holders);
 			}
 			holders.add(key);
-			// this host's rows for the region; the registry shows the first holder's (#settle)
 			const rows: Array<[string, RegistryEntry]> = [];
 
 			if (isl.wrapperPath && isl.wrapperSource) {
@@ -331,8 +333,6 @@ export class Program {
 					isl.wrapperPath,
 					{
 						source: isl.wrapperSource,
-						// A wake island's wrapper is leg-split: the client leg reaches its component
-						// through the lazy module (served by leg at load(), like a region binding).
 						clientSource: isl.wrapperClientSource,
 						hostPath: isl.hostPath,
 						id: isl.id,
@@ -391,8 +391,6 @@ export class Program {
 						lakes: [],
 						componentPath: isl.componentPath ?? null,
 						role: 'entry',
-						// A portable-snippet synth entry is AUTHORED markup (a slice of user source) — the
-						// transform hook re-processes it (nested island marks, nested snippets), unlike glue.
 						portable: isl.portable === true,
 						...(isl.server && isl.identity ? { renderId: renderId(isl.identity) } : {})
 					}
