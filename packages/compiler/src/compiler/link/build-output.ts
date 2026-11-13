@@ -8,13 +8,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { islandDepsHandoffPath } from './island-deps.ts';
+import { WRITTEN_RELOCATIONS, relocate } from './relocations.ts';
 import { OgygiaError, line } from '../messages.ts';
-
-const BACKSLASH_G = /\\/g;
-const SINGLE_QUOTE_G = /'/g;
-const DOUBLE_QUOTE_G = /"/g;
-const LINE_SEPARATOR_G = /\u2028/g;
-const PARAGRAPH_SEPARATOR_G = /\u2029/g;
 
 /** The modules that hold or use the signing key: server-only, never in a client chunk. */
 /** (the `virtual:ogygia/secret` and `sign` modules' CLIENT legs are an empty string and no-op stubs:
@@ -97,7 +92,12 @@ export function refuse_client_secrets(
  * regions that cross the wire rendered unstyled on Vercel/Netlify). Unpatched builds keep the fs
  * fallback (adapter-node, dev-preview).
  */
-export function emit_island_deps_handoff(root: string, json: string, out_dir: string): void {
+export function emit_island_deps_handoff(
+	root: string,
+	json: string,
+	out_dir: string,
+	counts: Map<string, number>
+): void {
 	const handoff = islandDepsHandoffPath(out_dir);
 	fs.mkdirSync(path.dirname(handoff), { recursive: true });
 	fs.writeFileSync(handoff, json);
@@ -112,15 +112,7 @@ export function emit_island_deps_handoff(root: string, json: string, out_dir: st
 
 	try {
 		const server_dir = path.join(out_dir, 'output', 'server');
-		const token = '__OGYGIA_ISLAND_DEPS_INLINE__';
-		// Escape for BOTH quote styles: the SSR bundler may emit the slot in single OR double
-		// quotes, and an escaped quote is valid in either literal — so this is safe regardless.
-		const inline = json
-			.replace(BACKSLASH_G, '\\\\')
-			.replace(SINGLE_QUOTE_G, "\\'")
-			.replace(DOUBLE_QUOTE_G, '\\"')
-			.replace(LINE_SEPARATOR_G, '\\u2028')
-			.replace(PARAGRAPH_SEPARATOR_G, '\\u2029');
+		const cx = { island_deps: json };
 		const patch_server = (dir: string) => {
 			let entries;
 			try {
@@ -141,8 +133,8 @@ export function emit_island_deps_handoff(root: string, json: string, out_dir: st
 				} catch {
 					continue;
 				}
-				if (!code.includes(token)) continue;
-				fs.writeFileSync(full, code.split(token).join(inline));
+				const patched = relocate(code, WRITTEN_RELOCATIONS, counts, cx);
+				if (patched) fs.writeFileSync(full, patched.s.toString());
 			}
 		};
 		patch_server(server_dir);
