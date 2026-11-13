@@ -10,7 +10,7 @@ import { Program } from '../src/compiler/program.ts';
 import { CompileCtx } from '../src/compiler/ctx.ts';
 import { normalize_import_keys } from '../src/compiler/region/transform.ts';
 import { memory_fs, type MemoryFs } from '../src/compiler/fs.ts';
-import type { FileEvent } from '../src/compiler/kit.ts';
+import { csrTrueRouteIds, type FileEvent } from '../src/compiler/kit.ts';
 import { partial_ctx_init } from './_compile-ctx.ts';
 import { dedent } from '@ogygia/core/contract';
 
@@ -153,4 +153,20 @@ test('an edit that leaves every route option as it was invalidates nothing', asy
 		`
 	);
 	expect(dev_route_change(compiler, LAYOUT_OPTIONS, 'update')).toEqual([]);
+});
+
+test('deleting the last route file while dev runs leaves no routes, and throws nothing', async () => {
+	const layout = `${ROOT}/src/routes/+layout.svelte`;
+	const files = memory_fs({
+		[layout]: IDLE_PAGE,
+		[LAYOUT_OPTIONS]: `export const csr = false;\n`,
+		[`${ROOT}/src/lib/C0.svelte`]: `<p>C0</p>\n`
+	});
+	const { compiler } = dev_compiler(files);
+	await compiler.transform_module(files.read(layout)!, layout, { ssr: true, emitFile: () => '' });
+	files.set(LAYOUT_OPTIONS, null);
+	dev_route_change(compiler, LAYOUT_OPTIONS, 'delete');
+	files.set(layout, null);
+	expect(() => dev_route_change(compiler, layout, 'delete')).not.toThrow();
+	expect(csrTrueRouteIds(compiler.ctx.routes, `${ROOT}/src/routes`)).toEqual([]);
 });
