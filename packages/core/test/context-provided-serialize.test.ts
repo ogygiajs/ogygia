@@ -4,8 +4,8 @@
 // the hub's store kind (value crosses, islands reunite to one live instance) — the transportable seam.
 import { describe, expect, it } from 'vitest';
 import { parse } from 'devalue';
-import { serialize_provided_context } from '../dist/context-bridge.js';
-import { REF_WIRE_KEY, ref_reviver } from '../dist/ref.js';
+import { serialize_provided_context } from '../src/context-bridge.ts';
+import { REF_WIRE_KEY, ref_reviver } from '../src/ref.ts';
 
 const parse_marker = (payload: string) =>
 	parse(payload, { [REF_WIRE_KEY]: ref_reviver(true) }) as Record<string, unknown>;
