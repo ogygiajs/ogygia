@@ -131,9 +131,9 @@ describe('a hole the page started early', () => {
 	});
 
 	it('whose request fails before the runtime takes it over (or with no runtime at all): nothing unhandled', async () => {
-		vi.spyOn(window, 'fetch').mockImplementation(() =>
-			Promise.reject(new TypeError('Failed to fetch'))
-		);
+		// (a plain stand-in, not a spy: a spy follows each promise it returns, which handles it)
+		const real_fetch = window.fetch;
+		window.fetch = () => Promise.reject(new TypeError('Failed to fetch'));
 		const unhandled: unknown[] = [];
 		const on_unhandled = (e: PromiseRejectionEvent) => {
 			unhandled.push(e.reason);
@@ -145,6 +145,7 @@ describe('a hole the page started early', () => {
 			await new Promise((r) => setTimeout(r, 50));
 			expect(unhandled).toEqual([]);
 		} finally {
+			window.fetch = real_fetch;
 			window.removeEventListener('unhandledrejection', on_unhandled);
 		}
 	});
