@@ -135,7 +135,7 @@ export function context_keys(src: string, kind: 'svelte' | 'script'): ContextKey
 	const none: ContextKeys = { reads: [], sets: [], one_off: [] };
 	const wants_get = src.includes('getContext');
 	const wants_set = src.includes('setContext');
-	if (!wants_get && !wants_set) return none; // cheap pre-filter before the parse
+	if (!wants_get && !wants_set) return none;
 	const roots = parse_roots(src, 'ogygia:context-detect', kind);
 	if (!roots) return none;
 
