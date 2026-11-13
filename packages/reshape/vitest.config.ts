@@ -44,7 +44,12 @@ export default defineConfig({
 				test: {
 					name: 'browser-chunk-lost',
 					include: ['test/browser-chunk-lost/**/*.test.ts'],
-					browser: { enabled: true, headless: true, ...browsers }
+					browser: {
+						enabled: true,
+						headless: true,
+						...browsers,
+						instances: browsers.instances.map((i) => ({ ...i }))
+					}
 				}
 			}
 		]
