@@ -12,6 +12,7 @@ import { islandVirtualId } from './ids.ts';
 import { parse_module, type AstNode } from './parse/oxc.ts';
 import type { ClientRealmFile, ServerRealm } from './link/caps.ts';
 import type { AliasEntry, PluginMacro } from './macros/pipeline.ts';
+import type { PreprocessCss } from './fouc-css.ts';
 
 /** A plugin's reader of the prescan (`b.prescan`): the modules it asked for, as the prescan reads
  *  them, and the end of a build. */
@@ -97,6 +98,9 @@ export interface CompileCtxInit {
 	import_keys: ImportKeys;
 	/** Resolved Vite aliases (an island's closure walk; every plugin macro gets them). */
 	resolve_alias: readonly AliasEntry[];
+	/** The plugin's preprocessor for a component's CSS (fouc-css.ts `scoped_component_css`). Absent:
+	 *  a host with no bundler, which compiles the source as it is. */
+	preprocess_css?: PreprocessCss;
 	/** The plugins' `import.meta.og.*` macros (`b.macro`), in plugin order. Optional (default none). */
 	macros?: readonly PluginMacro[];
 	/** The plugins' prescan readers (`b.prescan`), in plugin order. Optional (default none). */
@@ -164,6 +168,7 @@ export class CompileCtx {
 	readonly presets: Record<string, unknown>;
 	readonly import_keys: ImportKeys;
 	readonly resolve_alias: readonly AliasEntry[];
+	readonly preprocess_css: PreprocessCss | undefined;
 	readonly macros: readonly PluginMacro[];
 	readonly prescans: readonly PrescanHook[];
 	readonly plugins: readonly string[];
@@ -215,6 +220,7 @@ export class CompileCtx {
 		this.presets = init.presets;
 		this.import_keys = init.import_keys;
 		this.resolve_alias = init.resolve_alias;
+		this.preprocess_css = init.preprocess_css;
 		this.macros = init.macros ?? [];
 		this.prescans = init.prescans ?? [];
 		this.plugins = init.plugins ?? [];
