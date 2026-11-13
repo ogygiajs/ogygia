@@ -5377,10 +5377,6 @@
 			"reason": "once per build: the emitFile callback handed to the compiler, constant work per emitted chunk"
 		},
 		{
-			"id": "packages/compiler/src/vite/index.ts > ogygia > configResolved > resolve:1~9d84f4",
-			"reason": "once per configResolved: makes the session's compiler (or carries the last one's build), constant work"
-		},
-		{
 			"id": "packages/compiler/src/vite/index.ts > ogygia > env_of",
 			"reason": "once per build hook: reads the hook's environment name and consumer, constant work"
 		},
@@ -5587,6 +5583,74 @@
 		{
 			"id": "packages/compiler/src/compiler/scan-facts.ts > scan_facts > input:2~ea66dc",
 			"reason": "the scan db input for a file's facts, read by every query over the scan (not replayable), constant work"
+		},
+		{
+			"id": "packages/compiler/src/compiler/fouc-css.ts > extractRawStyleBodies > filter:0~e6fdc6",
+			"reason": "a filter over one component's blocks (a handful), constant work per block; component-blocks.test.ts runs it"
+		},
+		{
+			"id": "packages/compiler/src/compiler/fouc-css.ts > scoped_component_css",
+			"reason": "one preprocess then one Svelte compile per component, the compile's own cost; router-css-dev-preprocess.test.ts runs it through the compiler"
+		},
+		{
+			"id": "packages/compiler/src/compiler/link/own-reach.ts > pattern_keys",
+			"reason": "the keys of one destructuring pattern on a dynamic import, a handful, constant work per key; own-reach.test.ts runs it through the prescan"
+		},
+		{
+			"id": "packages/compiler/src/compiler/macros/dollar.ts > dollar_edits > refuse_at",
+			"reason": "builds one refusal error at one site, cold path; og-dollar.test.ts runs it"
+		},
+		{
+			"id": "packages/compiler/src/compiler/macros/dollar.ts > dollar_edits > strip_ts_types:2~2a7829",
+			"reason": "a callback over one og.$ body's type nodes, constant work per node; og-dollar.test.ts covers the TS erasure"
+		},
+		{
+			"id": "packages/compiler/src/compiler/macros/dollar.ts > strip_ts_types > blank_mark",
+			"reason": "blanks one type mark in place, constant work per mark; og-dollar.test.ts runs it"
+		},
+		{
+			"id": "packages/compiler/src/compiler/macros/dollar.ts > strip_ts_types > blank_words",
+			"reason": "blanks one span of type words, linear in the span; og-dollar.test.ts runs it"
+		},
+		{
+			"id": "packages/compiler/src/compiler/macros/dollar.ts > type_only_namespace > every:0~7b9c9b",
+			"reason": "a test over one namespace's statements, a handful; og-dollar.test.ts runs it"
+		},
+		{
+			"id": "packages/compiler/src/compiler/parse/scan.ts > og_js_regions > filter:0~c0fc36",
+			"reason": "a filter over one component's blocks (a handful), constant work per block; component-blocks.test.ts runs it"
+		},
+		{
+			"id": "packages/compiler/src/compiler/parse/scan.ts > og_js_regions > map:0~69761c",
+			"reason": "maps one component's script blocks to regions, constant work per block; component-blocks.test.ts runs it"
+		},
+		{
+			"id": "packages/compiler/src/compiler/transportables.ts > moduleScriptOf > find:0~9b8e10",
+			"reason": "finds the module script among one component's blocks (a handful); component-blocks.test.ts runs it"
+		},
+		{
+			"id": "packages/compiler/src/vite/index.ts > ogygia > preprocess_css",
+			"reason": "a forwarder to preprocess_component_for_css with the app root, no work of its own"
+		},
+		{
+			"id": "packages/compiler/src/vite/style-preprocess.ts > preprocess_component_for_css > sassy",
+			"reason": "a two-value compare on one lang attribute, constant work"
+		},
+		{
+			"id": "packages/compiler/src/vite/style-preprocess.ts > preprocess_component_for_css > some:0~999da0",
+			"reason": "a test over one component's blocks (a handful), constant work per block"
+		},
+		{
+			"id": "packages/compiler/src/vite/style-preprocess.ts > preprocess_component_for_css > some:0~a9211c",
+			"reason": "a test over one component's blocks (a handful), constant work per block"
+		},
+		{
+			"id": "packages/compiler/src/vite/style-preprocess.ts > preprocess_component_for_css > splice",
+			"reason": "appends one slice of the source, linear in the slice; component-blocks.test.ts runs it"
+		},
+		{
+			"id": "packages/devtools/src/devtools/cache-headers.ts > probe_cache > filter:0~6e173d",
+			"reason": "drops the failed probes from at most `limit` probes, constant work per probe; devtools-cache-headers.test.ts runs it"
 		}
 	]
 }
