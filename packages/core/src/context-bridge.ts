@@ -218,7 +218,7 @@ function page_ctx(): Record<string, unknown> | undefined {
 }
 
 /** The old callable form of a context, keyed by the plain string name. */
-interface CallableContext<T> {
+export interface CallableContext<T> {
 	/**
 	 * `theme('dark')` → `{ theme: 'dark' }` — an entry for `<Provide values={[ … ]}>`.
 	 *
