@@ -1,11 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { context_string_keys } from '../src/compiler/link/context-detect.ts';
+import { context_keys } from '../src/compiler/link/context-detect.ts';
 import { dedent } from '@ogygia/core/contract';
 
-const keys = (src: string) =>
-	context_string_keys(src, 'script') as ReturnType<typeof context_string_keys> & {
-		one_off?: string[];
-	};
+const keys = (src: string) => context_keys(src, 'script');
 
 describe('a symbol context key is seen at build', () => {
 	it('a getContext(Symbol.for(name)) read counts under the name the key crosses as', () => {
@@ -41,6 +38,14 @@ describe('a symbol context key is seen at build', () => {
 		const src = dedent`
 			import { setContext } from 'svelte';
 			setContext(Symbol('rt'), 1);
+		`;
+		expect(keys(src).one_off).toEqual([]);
+	});
+
+	it("a one-off Symbol() key ogygia's setContext keeps off the page with options is not flagged", () => {
+		const src = dedent`
+			import { setContext } from 'ogygia';
+			setContext(Symbol('rt'), 1, { islands: false });
 		`;
 		expect(keys(src).one_off).toEqual([]);
 	});

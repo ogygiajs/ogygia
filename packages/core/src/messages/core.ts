@@ -793,19 +793,53 @@ export const WARNINGS = {
 		`
 	},
 	context_dropped: {
-		text: (a: { key: string }): string =>
-			`context ${a.key} could not be serialized for islands and was dropped.`,
+		text: (a: { key: string }): string => prose`
+			context ${a.key} could not be serialized for regions and was dropped: regions read
+			undefined. Pass plain data, or a wired class for a value with methods; or set it with {
+			islands: false } if no region reads it.
+		`,
 		details: (): string => prose`
-			Dev only. A context value set above islands could not be serialized, so islands do not see
-			it. Pass plain data, or a wired value.
+			A context value set above regions could not be serialized, so regions in the browser do
+			not see it. Pass plain data. For a value with methods, make it a wired class (\`static
+			wire = import.meta.og.wire(…)\`): every region gets the one live instance. If no region
+			reads the key, set it with \`setContext(key, value, { islands: false })\`.
 		`
 	},
 	context_unserializable: {
 		text: (a: { key: string; path?: string; detail: string }): string =>
 			`context ${a.key}${a.path ? ` @ ${a.path}` : ''}: ${a.detail}`,
 		details: (): string => prose`
-			Dev only. Part of a context value set above islands does not cross into them: \`path\`
-			names where, \`detail\` what. Pass plain data there.
+			Part of a context value set above regions does not cross into them: \`path\` names where,
+			\`detail\` what. Pass plain data there, or a wired class (\`static wire =
+			import.meta.og.wire(…)\`) for a value with methods.
+		`
+	},
+	context_key_one_off: {
+		text: (a: { key: string }): string => prose`
+			context key ${a.key} is a one-off Symbol(), so it cannot cross into regions: they read
+			undefined in the browser. Key it with a string or Symbol.for('name'); or set it with {
+			islands: false } if no region reads it.
+		`,
+		details: (): string => prose`
+			Each region wakes as its own root in the browser, so it reads context the page carries
+			across. A one-off \`Symbol()\` key has no twin there: nothing in the browser can name it.
+			Use a string key, or \`Symbol.for('name')\`, which the browser rebuilds from its name (or
+			\`createContext\` from \`ogygia\`). If no region reads the key, set it with
+			\`setContext(key, value, { islands: false })\`.
+		`
+	},
+	context_value_function: {
+		text: (a: { key: string }): string => prose`
+			context ${a.key} is a function, so it cannot cross into regions: they read undefined in
+			the browser. Put the methods on a wired class; or set it with { islands: false } if no
+			region reads it.
+		`,
+		details: (): string => prose`
+			A function cannot be serialized into the page, so a region in the browser never sees it.
+			For a value with methods, make it a wired class (\`static wire =
+			import.meta.og.wire(…)\`) and set an instance: every region gets the one live instance.
+			A single server function can be marked with \`import.meta.og.$\`. If no region reads the
+			key, set it with \`setContext(key, value, { islands: false })\`.
 		`
 	},
 	page_seed_ref_missing: {

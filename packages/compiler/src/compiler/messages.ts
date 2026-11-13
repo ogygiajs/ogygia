@@ -717,13 +717,13 @@ export const BUILD_WARNINGS = {
 	},
 	island_context_unprovided: {
 		text: (a: { file: string; key: string }): string => prose`
-			island code ${a.file} reads getContext('${a.key}'), but this app registers no ogygia
-			context provider and no island code sets '${a.key}'. On a csr=false page a value set with
+			island code ${a.file} reads getContext(${a.key}), but this app registers no ogygia
+			context provider and no island code sets ${a.key}. On a csr=false page a value set with
 			Svelte's setContext in a page/layout does NOT cross the island boundary — the island reads
 			undefined on the client, re-renders a different tree, and Svelte discards its
-			server-rendered DOM on hydration (a silent full re-render). Fix: provide '${a.key}' with
+			server-rendered DOM on hydration (a silent full re-render). Fix: provide ${a.key} with
 			setContext / <Provide> / createContext imported from 'ogygia' (in a csr=false layout); the
-			read stays getContext('${a.key}').
+			read stays getContext(${a.key}).
 		`,
 		details: (): string => prose`
 			An island reads a context nothing in the browser provides. On a csr=false page a layout
@@ -732,7 +732,22 @@ export const BUILD_WARNINGS = {
 			server HTML away.
 
 			Provide the value with \`setContext\`, \`<Provide>\` or \`createContext\` imported from
-			\`ogygia\`. The island keeps reading it with \`getContext\`.
+			\`ogygia\`. The island keeps reading it with \`getContext\`. The key is a string or a
+			\`Symbol.for('name')\`: both cross.
+		`
+	},
+	region_context_key_one_off: {
+		text: (a: { file: string; key: string }): string => prose`
+			${a.file} sets context with ogygia's setContext under the one-off symbol ${a.key}, which
+			cannot cross into regions: they read undefined in the browser. Key it with a string or
+			Symbol.for('name'); or pass { islands: false } if no region reads it.
+		`,
+		details: (): string => prose`
+			Each region wakes as its own root in the browser, so it reads context the page carries
+			across. A one-off \`Symbol()\` key has no twin there: nothing in the browser can name it.
+			Use a string key, or \`Symbol.for('name')\`, which the browser rebuilds from its name (or
+			\`createContext\` from \`ogygia\`). If no region reads the key, set it with
+			\`setContext(key, value, { islands: false })\`.
 		`
 	},
 	region_host_skipped: {
