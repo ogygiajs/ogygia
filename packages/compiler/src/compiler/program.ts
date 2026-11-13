@@ -16,6 +16,7 @@ import path from 'node:path';
 import { renderId } from './region/identity.ts';
 import { resolveFeatures, type FeatureId, type RuntimeMarks } from './link/runtime-entry.ts';
 import { warn } from './messages.ts';
+import { same_module_path } from './dev/hmr.ts';
 import { scan_facts, type ScanFacts } from './scan-facts.ts';
 
 /** Strip a `?query` off a module id (host vs component vs Vite watch paths). */
@@ -29,6 +30,8 @@ export const host_key = (hostPath: string): string => path.resolve(strip_id(host
 export interface RegistryEntry {
 	source?: string;
 	ssrSource?: string;
+	/** A leg-split source: a wake island's wrapper reaches its component through the lazy module on
+	 *  the client leg (served by leg at load(), like a region binding). */
 	clientSource?: string;
 	hostPath?: string | null;
 	id: string;
@@ -36,6 +39,8 @@ export interface RegistryEntry {
 	lakes?: string[];
 	componentPath?: string | null;
 	role?: 'entry' | 'wrapper' | 'region' | 'lazy';
+	/** A portable-snippet synth entry: AUTHORED markup (a slice of user source) the transform hook
+	 *  re-processes (nested island marks, nested snippets), unlike glue. */
 	portable?: boolean;
 	/** a server entry's render identity (identity.ts `renderId`): what its endpoint renders */
 	renderId?: string;
@@ -231,6 +236,9 @@ export class Program {
 		const prev = host_index.get(key);
 		if (prev) {
 			for (const id of prev.ids) {
+				const claims = this.#rows.get(id);
+				claims?.delete(key);
+				if (claims?.size === 0) this.#rows.delete(id);
 				const holders = id_hosts.get(id);
 				if (holders) {
 					holders.delete(key);
@@ -257,6 +265,7 @@ export class Program {
 					island_graph.delete(vpath);
 				}
 			}
+			for (const id of prev.ids) this.#settle(id);
 			host_index.delete(key);
 		}
 		// NB: do NOT clear the driver's transform_cache here. `register()` calls this on every leg AFTER
@@ -273,7 +282,7 @@ export class Program {
 
 	/** Replace this host's claims; shared ids keep one registry entry (path+strategy dedupe). */
 	register(result: RegisterResult, hostId: string): void {
-		const { registry, island_graph, by_id, region_kinds, host_index, id_hosts } = this;
+		const { island_graph, by_id, region_kinds, host_index, id_hosts } = this;
 		this.unregister_host(hostId);
 		const key = host_key(hostId);
 		// The ONE wire rule: the transform said this file can cross live content into an island
@@ -305,75 +314,129 @@ export class Program {
 				id_hosts.set(isl.id, holders);
 			}
 			holders.add(key);
+			const rows: Array<[string, RegistryEntry]> = [];
 
 			if (isl.wrapperPath && isl.wrapperSource) {
-				registry.set(isl.wrapperPath, {
-					source: isl.wrapperSource,
-					// A wake island's wrapper is leg-split: the client leg reaches its component
-					// through the lazy module (served by leg at load(), like a region binding).
-					clientSource: isl.wrapperClientSource,
-					hostPath: isl.hostPath,
-					id: isl.id,
-					server: false,
-					lakes: isl.lakes ?? [],
-					componentPath: isl.componentPath ?? null,
-					role: 'wrapper'
-				});
+				rows.push([
+					isl.wrapperPath,
+					{
+						source: isl.wrapperSource,
+						clientSource: isl.wrapperClientSource,
+						hostPath: isl.hostPath,
+						id: isl.id,
+						server: false,
+						lakes: isl.lakes ?? [],
+						componentPath: isl.componentPath ?? null,
+						role: 'wrapper'
+					}
+				]);
 				idx.vpaths.add(isl.wrapperPath);
 				island_graph.add(isl.wrapperPath);
 			}
 			if (isl.lazyPath && isl.lazySource) {
-				registry.set(isl.lazyPath, {
-					source: isl.lazySource,
-					hostPath: isl.hostPath,
-					id: isl.id,
-					server: false,
-					lakes: [],
-					componentPath: isl.componentPath ?? null,
-					role: 'lazy'
-				});
+				rows.push([
+					isl.lazyPath,
+					{
+						source: isl.lazySource,
+						hostPath: isl.hostPath,
+						id: isl.id,
+						server: false,
+						lakes: [],
+						componentPath: isl.componentPath ?? null,
+						role: 'lazy'
+					}
+				]);
 				idx.vpaths.add(isl.lazyPath);
 				island_graph.add(isl.lazyPath);
 			}
 			// Region binding: the host imports this JS module; its source is leg-split at load()
 			// (SSR carries the signer, client is metadata-only). Not a svelte wrapper.
 			if (isl.bindingPath && isl.bindingSsrSource) {
-				registry.set(isl.bindingPath, {
-					ssrSource: isl.bindingSsrSource,
-					clientSource: isl.bindingClientSource ?? isl.bindingSsrSource,
-					hostPath: isl.hostPath,
-					id: isl.id,
-					server: false,
-					lakes: [],
-					componentPath: isl.componentPath ?? null,
-					role: 'region'
-				});
+				rows.push([
+					isl.bindingPath,
+					{
+						ssrSource: isl.bindingSsrSource,
+						clientSource: isl.bindingClientSource ?? isl.bindingSsrSource,
+						hostPath: isl.hostPath,
+						id: isl.id,
+						server: false,
+						lakes: [],
+						componentPath: isl.componentPath ?? null,
+						role: 'region'
+					}
+				]);
 				idx.vpaths.add(isl.bindingPath);
 				island_graph.add(isl.bindingPath);
 			}
 			if (isl.virtualPath && isl.source) {
-				registry.set(isl.virtualPath, {
-					source: isl.source,
-					hostPath: isl.hostPath,
-					id: isl.id,
-					server: !!isl.server,
-					lakes: [],
-					componentPath: isl.componentPath ?? null,
-					role: 'entry',
-					// A portable-snippet synth entry is AUTHORED markup (a slice of user source) — the
-					// transform hook re-processes it (nested island marks, nested snippets), unlike glue.
-					portable: isl.portable === true,
-					...(isl.server && isl.identity ? { renderId: renderId(isl.identity) } : {})
-				});
+				rows.push([
+					isl.virtualPath,
+					{
+						source: isl.source,
+						hostPath: isl.hostPath,
+						id: isl.id,
+						server: !!isl.server,
+						lakes: [],
+						componentPath: isl.componentPath ?? null,
+						role: 'entry',
+						portable: isl.portable === true,
+						...(isl.server && isl.identity ? { renderId: renderId(isl.identity) } : {})
+					}
+				]);
 				by_id.set(isl.id, isl.virtualPath);
 				idx.vpaths.add(isl.virtualPath);
 				island_graph.add(isl.virtualPath);
 			} else if (isl.virtualPath) {
 				by_id.set(isl.id, isl.virtualPath);
 			}
+			let claims = this.#rows.get(isl.id);
+			if (!claims) this.#rows.set(isl.id, (claims = new Map()));
+			claims.set(key, rows);
+			this.#settle(isl.id);
 			if (isl.componentPath) island_graph.add(isl.componentPath);
 		}
 		host_index.set(key, idx);
 		this.#check_late(hostId);
+	}
+
+	/** A deleted component: every region of it goes, with every host's claim on it (a claim kept
+	 *  would outrank the next host to mark it: test/region-host-order.test.ts). Returns the virtual
+	 *  paths that went. */
+	drop_component(componentPath: string): Set<string> {
+		const gone = new Set<string>();
+		const ids = new Set<string>();
+		for (const entry of this.registry.values())
+			if (same_module_path(entry.componentPath, componentPath)) ids.add(entry.id);
+		for (const id of ids) {
+			for (const rows of this.#rows.get(id)?.values() ?? [])
+				for (const [vpath] of rows) gone.add(vpath);
+			for (const [vpath, entry] of this.registry) if (entry.id === id) gone.add(vpath);
+			this.#rows.delete(id);
+			this.id_hosts.delete(id);
+			this.by_id.delete(id);
+			this.region_kinds.delete(id);
+		}
+		for (const vpath of gone) {
+			this.registry.delete(vpath);
+			this.island_graph.delete(vpath);
+		}
+		for (const idx of this.host_index.values()) {
+			for (const id of ids) idx.ids.delete(id);
+			for (const vpath of gone) idx.vpaths.delete(vpath);
+		}
+		return gone;
+	}
+
+	/** Each region id's rows, by the host that claimed them (test/region-host-order.test.ts). */
+	readonly #rows = new Map<string, Map<string, Array<[string, RegistryEntry]>>>();
+
+	/** The registry shows a shared region's rows from its FIRST holder in host order, whatever
+	 *  order the hosts were transformed (and unregistered) in. */
+	#settle(id: string): void {
+		const claims = this.#rows.get(id);
+		if (!claims || claims.size === 0) return;
+		let first: string | null = null;
+		for (const k of claims.keys()) if (first === null || k < first) first = k;
+		for (const [vpath, entry] of claims.get(first!)!) this.registry.set(vpath, entry);
 	}
 }
