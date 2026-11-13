@@ -1,6 +1,22 @@
 {
 	"exempt": [
 		{
+			"id": "packages/core/src/messages/core.ts > ERRORS > page_promise_unresolved > details",
+			"reason": "a message's wording, read once when the error is shown: constant work"
+		},
+		{
+			"id": "packages/core/src/messages/core.ts > ERRORS > page_promise_unresolved > text",
+			"reason": "a message's wording, read once when the error is shown: constant work"
+		},
+		{
+			"id": "packages/core/src/runtime/page-defer.ts > install_page_defer > live > with_devalue:1~0fffae",
+			"reason": "a streamed resolve whose devalue download failed every try: one settle, once per promise; devalue-lane-gone.test.ts runs the give-up"
+		},
+		{
+			"id": "packages/core/src/runtime/page-defer.ts > unresolved",
+			"reason": "one coded error made for a promise that can no longer settle, once per promise: constant work"
+		},
+		{
 			"id": "packages/devtools/src/devtools/highlight.ts > highlight > defer:0~248bad",
 			"reason": "browser only: the highlight layer's scope takes its layer out as it closes, constant work"
 		},
@@ -3757,10 +3773,6 @@
 			"reason": "browser only: a viewport-preload link came on screen, one warm of its page (fetch_page, measured by the router benches)"
 		},
 		{
-			"id": "packages/core/src/runtime/viewport.ts > Tracker > #follow > MutationObserver:0~c14ef5",
-			"reason": "browser only: a box-less region's content was swapped; it hands the records to #swapped, constant work"
-		},
-		{
 			"id": "packages/core/src/runtime/viewport.ts > Tracker > #swapped",
 			"reason": "browser only: a box-less region's content swap, linear in its records (a handful per swap); viewport-shared.test.ts runs it in three engines"
 		},
@@ -4261,10 +4273,6 @@
 			"reason": "a stored entry's build label against the build's own `$app/env` version and the wall clock (hidden state), two comparisons; run by packages/postrender/test/deploy.test.ts and handle.test.ts"
 		},
 		{
-			"id": "packages/core/src/frame.ts > is_batch_miss",
-			"reason": "an instanceof check and one name compare on an Error (its prototype is hidden state the recorder does not keep), constant work; proven in packages/core/test/frame-store.test.ts"
-		},
-		{
 			"id": "packages/core/src/frame.ts > mark_written",
 			"reason": "one WeakMap set beside a decoded region value (hidden state), constant work; run by packages/core/test/browser/region-orderings.test.ts and sim-region.test.ts"
 		},
@@ -4739,6 +4747,30 @@
 		{
 			"id": "packages/core/src/runtime/code-origins.ts > forget_code_origins",
 			"reason": "browser only: drops the page's read code origins (one write), constant work; proven in packages/core/test/browser/nav-code-origins.test.ts (#1045)"
+		},
+		{
+			"id": "packages/core/src/runtime/viewport.ts > Tracker > #hear_swaps > MutationObserver:0~c14ef5",
+			"reason": "browser only: a box-less region's content was swapped; it hands the records to #swapped, constant work"
+		},
+		{
+			"id": "packages/core/src/runtime/viewport.ts > Tracker > #hear_swaps",
+			"reason": "browser only: a box-less target followed into is observed for swaps (one map entry, one observe), constant work; viewport-shared.test.ts runs it in three engines"
+		},
+		{
+			"id": "packages/core/src/runtime/viewport.ts > Tracker > #stop_swaps",
+			"reason": "browser only: a box-less target let go leaves the swap observer, which observes again the few targets left (box-less regions followed now); viewport-shared.test.ts runs it in three engines"
+		},
+		{
+			"id": "packages/core/src/runtime/viewport.ts > Tracker > #stop_swaps > micro:0~165f8c",
+			"reason": "browser only: hands the swap records not yet delivered to #swapped, constant work"
+		},
+		{
+			"id": "packages/core/src/server/kit-context.ts > held_root_context",
+			"reason": "returns a Map holding Kit's page and stores contexts (not cloneable): kit_render_context plus two set() calls, constant work, once per held region render; proven in packages/core/test/held-region-runtime.test.ts"
+		},
+		{
+			"id": "packages/core/src/frame.ts > is_batch_miss",
+			"reason": "an instanceof check and one name compare on an Error (its prototype is hidden state the recorder does not keep), constant work; proven in packages/core/test/frame-store.test.ts"
 		},
 		{
 			"id": "packages/core/src/server/capped-body.ts > read_capped",
