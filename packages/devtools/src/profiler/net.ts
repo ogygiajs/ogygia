@@ -422,7 +422,7 @@ function host_of(url: string): string {
 	try {
 		return new URL(url).host;
 	} catch {
-		return '';
+		return ''; // ok: not a URL: no host
 	}
 }
 
@@ -508,7 +508,7 @@ export function decode_trace(h: string | null | undefined): UpstreamTrace | unde
 		if (typeof t.profiler === 'string') out.profiler = t.profiler.slice(0, 200);
 		return out;
 	} catch {
-		return undefined;
+		return undefined; // ok: an upstream's header that does not decode is not a trace (it is outside input)
 	}
 }
 
@@ -573,7 +573,7 @@ function wrap_fetch(orig: typeof globalThis.fetch): typeof globalThis.fetch {
 					h.set(TRACE_HEADER, '1');
 					init2 = { ...init, headers: h };
 				} catch {
-					init2 = init;
+					init2 = init; // ok: headers we cannot copy: the call goes as the app wrote it, untraced
 				}
 			}
 			const res = await orig(input as RequestInfo, init2);
@@ -697,7 +697,7 @@ function count_decoded(res: Response, call: NetCall, owner: Scope | undefined): 
 	try {
 		clone = res.clone();
 	} catch {
-		return; // already consumed, or not cloneable
+		return; // ok: already consumed, or not cloneable: the call is kept without its decoded size
 	}
 	const stream = clone.body;
 	if (!stream) return;
@@ -769,7 +769,7 @@ async function patch_http(): Promise<void> {
 		try {
 			mod = (await import(/* @vite-ignore */ `node:${proto}`)).default as Record<string, unknown>;
 		} catch {
-			continue;
+			continue; // ok: off Node there is no node:http to watch; fetch is still recorded
 		}
 		const orig_request = mod.request as (...args: unknown[]) => unknown;
 		const orig_get = mod.get as (...args: unknown[]) => unknown;

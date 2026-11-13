@@ -67,10 +67,11 @@ Every report is also curated JSON (not the raw V8 profile — the analyzed resul
 
 ```
 GET <path>/report/<id>.json
-GET <path>/page?p=/slow/page&runs=6&format=json&key=<secret>   # profile + JSON in one shot
+POST <path>/page?p=/slow/page&runs=6&format=json&key=<secret>  # profile + JSON in one shot
 ```
 
-`Accept: application/json` on `/record` or `/page` does the same. The payload is
+`/page`, `/reset`, `/replay/<id>` and `/logout` change state, so they take a POST only (a GET
+answers 405). `Accept: application/json` on `/page` does the same as `format=json`. The payload is
 self-describing (`schema`, `version`, units) and carries the summary + `verdict`,
 structured `findings` (each with a stable `code`), the `budget`, per-component
 `self`/`total`, `hot_functions`, `network`, and `memory`.

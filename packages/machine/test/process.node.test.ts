@@ -7,15 +7,18 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { Worker } from 'node:worker_threads';
 import { describe, expect, it } from 'vitest';
 
+// a cold Node start with type stripping, on a busy CI runner (#1473)
+const PROCESS_BUDGET = 20_000;
+
 function run(fixture: string, flags: string[] = []): string {
 	const file = fileURLToPath(new URL(`./fixtures/${fixture}`, import.meta.url));
 	return execFileSync(process.execPath, [...flags, file], {
 		encoding: 'utf8',
-		timeout: 20_000
+		timeout: PROCESS_BUDGET
 	}).trim();
 }
 
-describe('a Node process', () => {
+describe('a Node process', { timeout: PROCESS_BUDGET }, () => {
 	it('stays alive through the wait between two tries of a send (#351)', () => {
 		expect(run('exit-during-backoff.ts')).toBe('done true after 2 tries');
 	});

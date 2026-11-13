@@ -40,6 +40,21 @@ describe('defer_keys', () => {
 			new Map()
 		);
 	});
+
+	it('reads the seed script itself: not the page facts beside it, not its type written in text (#1370)', () => {
+		const want = new Map([
+			[0, 'reviews'],
+			[1, 'more.stock']
+		]);
+		const facts = '<script type="application/ogygia-page-facts">{"route":"/lab"}</script>';
+		const seed_tag = `<script type='application/ogygia-page' data-ogygia-page>${seed}</script>`;
+		expect(
+			defer_keys(`<html><head>${facts}</head><body>${seed_tag}</body></html>`, PAGE_DEFER_KEY)
+		).toEqual(want);
+		expect(
+			defer_keys(`<p title="application/ogygia-page>">x</p>${seed_tag}`, PAGE_DEFER_KEY)
+		).toEqual(want);
+	});
 });
 
 describe('stream_tail', () => {
