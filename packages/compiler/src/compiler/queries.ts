@@ -79,6 +79,18 @@ export interface Queries extends QueryCtx {
 	/** Read every input anything read again from the outside world (a new session starts from what
 	 *  is there now, not from what an earlier one saw): whether any changed. */
 	reread(): boolean;
+	/** Run a reader that is not a query (its answer is not kept: a generated module's load, say):
+	 *  what it reads through `cx`, and through any query it reads while it runs, is recorded in
+	 *  `reads`. `cx` records even after the reader's first await; a query read then is not. */
+	watch<V>(read: (cx: QueryCtx) => V): { value: V; reads: Reads };
+	/** Whether anything a watched reader read is different now (each is checked, and computed again
+	 *  if what it read changed: an answer that comes out the same has not moved). */
+	moved(reads: Reads): boolean;
+}
+
+/** What a watched reader read (`watch`), each as it was when read. */
+export interface Reads {
+	readonly deps: readonly Dep[];
 }
 
 const QUERIES_MAX = 100_000;
@@ -130,8 +142,8 @@ export function queries(name: string, max: number = QUERIES_MAX): Queries {
 		return compute(query, arg, id, held);
 	}
 
-	function deps_unchanged(slot: Slot): boolean {
-		for (const d of slot.deps) {
+	function deps_unchanged(reader: { readonly deps: readonly Dep[] }): boolean {
+		for (const d of reader.deps) {
 			if (!slots.has(d.id)) return false;
 			if (fresh(d.query, d.arg, d.id).changed !== d.seen) return false;
 		}
@@ -170,16 +182,34 @@ export function queries(name: string, max: number = QUERIES_MAX): Queries {
 		return true;
 	}
 
+	function read<A, V>(typed: Query<A, V>, arg: A, into: Dep[] | undefined): V {
+		const query = erase(typed);
+		const id = id_of(query, arg);
+		const slot = fresh(query, arg, id);
+		into?.push({ id, query, arg, seen: slot.changed });
+		return slot.value as V;
+	}
+
 	const db: Queries = {
 		get revision() {
 			return revision;
 		},
-		get<A, V>(typed: Query<A, V>, arg: A): V {
-			const query = erase(typed);
-			const id = id_of(query, arg);
-			const slot = fresh(query, arg, id);
-			frames.at(-1)?.push({ id, query, arg, seen: slot.changed });
-			return slot.value as V;
+		get: (query, arg) => read(query, arg, frames.at(-1)),
+		watch(reader) {
+			const deps: Dep[] = [];
+			frames.push(deps);
+			try {
+				return { value: reader({ get: (query, arg) => read(query, arg, deps) }), reads: { deps } };
+			} finally {
+				frames.pop();
+			}
+		},
+		moved(reads) {
+			try {
+				return !deps_unchanged(reads);
+			} catch {
+				return true; // ok: an answer that now throws has changed; its reader reports the error
+			}
 		},
 		set: (query, arg, value) => set_input(erase(query), arg, value),
 		refresh(typed, arg) {

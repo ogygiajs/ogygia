@@ -25,6 +25,7 @@ import {
 } from '../src/compiler/virtual/types.ts';
 import { CORE_VALUE_NAMES } from '../src/compiler/virtual/value-names.ts';
 import { VirtualTable } from '../src/compiler/virtual/resolver.ts';
+import { derived, input, queries } from '../src/compiler/queries.ts';
 import { BUILD_ERRORS } from '../src/compiler/messages.ts';
 import { specifier, virtual, type Realm } from '../src/compiler/virtual/table.ts';
 
@@ -173,7 +174,8 @@ bench(
 
 bench('virtual modules: a table built, an undeclared id and a duplicate refused', () => {
 	let refused = 0;
-	const table = new VirtualTable(CORE_VIRTUALS, core_path, CORE_VALUE_NAMES, CORE_PARTS);
+	const db = queries('session');
+	const table = new VirtualTable(CORE_VIRTUALS, core_path, CORE_VALUE_NAMES, CORE_PARTS, db);
 	for (const id of ['ogygia:region/nope/x.js', 'ogygia:server/nope']) {
 		try {
 			table.resolve(id);
@@ -184,19 +186,54 @@ bench('virtual modules: a table built, an undeclared id and a duplicate refused'
 	const a = virtual.value({ realm: 'server', id: 'x', from: () => ({}) });
 	const b = virtual.constant({ id: '__X__', from: () => true });
 	try {
-		new VirtualTable([a, a, b], core_path, { 'ogygia:server/x': [] }, CORE_PARTS);
+		new VirtualTable([a, a, b], core_path, { 'ogygia:server/x': [] }, CORE_PARTS, db);
 	} catch {
 		refused++;
 	}
 	// a value module without generated names, and its message as the docs page words it
 	try {
-		new VirtualTable([a], core_path, {}, CORE_PARTS);
+		new VirtualTable([a], core_path, {}, CORE_PARTS, db);
 	} catch (e) {
 		refused += String(e).length > 0 ? 1 : 0;
 	}
 	refused += BUILD_ERRORS.virtual_names_stale.details().length;
 	refused += BUILD_ERRORS.virtual_names_stale.text({ id: 'ogygia:server/x' }).length;
 	return refused + (table.claims('ogygia:region/entry/a.js') ? 1 : 0);
+});
+
+bench('virtual modules: dev moves, each followed by the modules that moved', () => {
+	// fifty modules, each reading a part and one of ten folds; edits move a fold or a part
+	const db = queries('session');
+	const size = input<string, number>(
+		'size',
+		(f) => f,
+		() => 0
+	);
+	const folds = Array.from({ length: 10 }, (_, i) =>
+		derived<string, number>(
+			`fold ${i}`,
+			() => 'all',
+			(cx) => cx.get(size, `f${i}`) % 3
+		)
+	);
+	const entries = Array.from({ length: 50 }, (_, i) =>
+		virtual.family<{ program: number }>({
+			realm: 'server',
+			id: `m${i}`,
+			load: (app) => `export const v = ${app.program + db.get(folds[i % 10], 'all')};`
+		})
+	);
+	const table = new VirtualTable(entries, () => '', {}, { program: 'regions' }, db);
+	const app = { program: 1 };
+	const leg = { ssr: true, universalHooks: null };
+	let named = 0;
+	for (let edit = 0; edit < 40; edit++) {
+		for (let i = 0; i < 50; i++) table.load(`\0ogygia:server/m${i}`, app, leg);
+		if (edit % 4 === 0) table.move('regions');
+		else db.set(size, `f${edit % 10}`, edit);
+		named += table.moved().length;
+	}
+	return named;
 });
 
 bench('virtual constants: the define map of two option sets, and their generated globals', () => {
