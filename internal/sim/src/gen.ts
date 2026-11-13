@@ -600,6 +600,9 @@ export interface GenPeer {
 	/** The app keeps the peer's page documents this many ms (`cache: { ttl }`, served stale while
 	 *  one fetch refreshes them); 0: no cache. */
 	readonly ttl: number;
+	/** The edge pages its pages link to: `/gone`, one it lacks (its not-found page, a 404);
+	 *  `/moved`, one that redirects to `/q0`; `/who`, one that shows the visitor the app vouched for. */
+	readonly edges: { readonly gone: boolean; readonly moved: boolean; readonly who: boolean };
 }
 
 /** The peer a seed draws for its app of `pages`, or null (most seeds: one app alone). Its own
@@ -656,6 +659,9 @@ export function peer_plan(seed: number, pages: readonly GenPage[]): GenPeer | nu
 		return ps.chance(0.25) ? { ...n, children, style: true } : { ...n, children };
 	};
 	const pd = rng(seed).fork('gen peer data');
+	// (and its edge pages, from their own stream)
+	const pe = rng(seed).fork('gen peer edges');
+	const edges = { gone: pe.chance(0.5), moved: pe.chance(0.5), who: pe.chance(0.5) };
 	return {
 		mount,
 		widgets: widgets.map((w) => ({ ...w, children: w.children.map(styled) })),
@@ -663,7 +669,8 @@ export function peer_plan(seed: number, pages: readonly GenPage[]): GenPeer | nu
 			.map((p) => ({ ...p, roots: p.roots.map(styled) }))
 			.map((p) => (pd.chance(0.5) ? { ...p, data: true } : p)),
 		slots,
-		ttl
+		ttl,
+		edges
 	};
 }
 
@@ -920,6 +927,9 @@ function switched(n: GenNode, interactive: boolean): string {
 
 /** Where a federated app mounts its peer's pages. */
 export const MOUNT = '/peer';
+/** A peer's edge pages, as the app mounts them (oracles.ts `peer_answers`). */
+export const EDGE_GONE = `${MOUNT}/gone`;
+export const EDGE_MOVED = `${MOUNT}/moved`;
 
 /** A slot's tag on its page: the widget's region, with a placeholder for a deferred one that has
  *  one. */
@@ -1141,9 +1151,26 @@ export function write_peer(dir: string, peer: GenPeer, seed: number): void {
 	const lib = join(dir, 'src', 'lib', 'gen');
 	rmSync(lib, { recursive: true, force: true });
 	mkdirSync(lib, { recursive: true });
-	const nav = ['/', ...peer.pages.map((p) => MOUNT + p.path)]
+	const edges = (['gone', 'moved', 'who'] as const).filter((e) => peer.edges[e]);
+	const nav = ['/', ...peer.pages.map((p) => MOUNT + p.path), ...edges.map((e) => `${MOUNT}/${e}`)]
 		.map((p) => `<a href="${p}">${p}</a>`)
 		.join(' ');
+	if (peer.edges.who)
+		writeFileSync(
+			join(lib, 'Who.svelte'),
+			[
+				'<script lang="ts">',
+				'\tlet { data }: { data: { sub: string } } = $props();',
+				'</script>',
+				'',
+				`<nav>${nav}</nav>`,
+				'<main data-gen="peer-page">',
+				'\t<h1>peer /who</h1>',
+				'\t<p data-gen-who>{data.sub}</p>',
+				'</main>',
+				''
+			].join('\n')
+		);
 	for (const w of peer.widgets) {
 		writeFileSync(
 			join(lib, `W${w.name}.svelte`),
@@ -1186,8 +1213,10 @@ export function write_peer(dir: string, peer: GenPeer, seed: number): void {
 	writeFileSync(
 		join(lib, 'router.ts'),
 		[
-			`import { routes, page } from '@ogygia/router';`,
+			`import { routes, page${peer.edges.moved ? ', redirect' : ''} } from '@ogygia/router';`,
+			...(peer.edges.who ? [`import { user } from '@ogygia/federation';`] : []),
 			...peer.pages.map((_, i) => `import Q${i} from './Q${i}.svelte';`),
+			...(peer.edges.who ? [`import Who from './Who.svelte';`] : []),
 			'',
 			`export const router = routes(`,
 			`\t{`,
@@ -1196,6 +1225,13 @@ export function write_peer(dir: string, peer: GenPeer, seed: number): void {
 					? `\t\t'${p.path}': page(Q${i}, { load: () => ({ who: '${p.path.slice(1)} data' }) }),`
 					: `\t\t'${p.path}': page(Q${i}),`
 			),
+			// (`/gone` has no route: the peer answers its not-found page)
+			...(peer.edges.moved
+				? [`\t\t'/moved': page(Q0, { load: () => redirect(307, '${MOUNT}/q0') }),`]
+				: []),
+			...(peer.edges.who
+				? [`\t\t'/who': page(Who, { load: (c) => ({ sub: user(c)?.sub ?? '' }) }),`]
+				: []),
 			`\t},`,
 			`\t{ base: '${MOUNT}' }`,
 			`);`,

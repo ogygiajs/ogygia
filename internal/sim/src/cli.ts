@@ -46,6 +46,7 @@ import {
 	no_foreign_html,
 	normalize,
 	page_errors,
+	peer_answers,
 	page_rules,
 	regions_show,
 	fallback_stands,
@@ -406,6 +407,7 @@ export async function run(
 					page_rules(t, world),
 					leaks.check(t, pressed.get(t.name) === t.documents),
 					live_events(t, world),
+					GEN_PEER ? peer_answers(t, world, since) : null,
 					// (a document loaded behind another tab and never looked at is at rest once the world
 					// is: its islands wake all the same, with no frame to wait for. One that was shown may
 					// have asked for a frame just before it went behind, which waits until it is shown
