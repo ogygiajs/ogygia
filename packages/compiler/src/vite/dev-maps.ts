@@ -51,7 +51,7 @@ export function install_dev_page_keys(
 		try {
 			return fs.readFileSync(f, 'utf8');
 		} catch {
-			return undefined;
+			return undefined; // ok: a profiler report only (the dev seed ships whole); a file gone mid-edit is skipped
 		}
 	};
 	(globalThis as Record<symbol, unknown>)[DEV_PAGE_KEYS] = async (

@@ -107,4 +107,23 @@ describe('ConcurrencyGate: a call whose signal aborts (#245)', () => {
 		expect(ran).toBe(false);
 		expect(gate.active).toBe(0);
 	});
+
+	it('a waiter whose signal aborts in the step it is handed a slot never runs, and gives the slot back', async () => {
+		const gate = new ConcurrencyGate(1);
+		let done!: () => void;
+		const first = new Promise<void>((resolve) => (done = resolve));
+		const held = gate.run(() => first);
+		const leave = new AbortController();
+		let ran = false;
+		const waiting = gate.run(async () => void (ran = true), { signal: leave.signal });
+		const caught = waiting.catch((e: unknown) => e);
+		await new Promise((r) => setTimeout(r, 0));
+		void first.then(() => leave.abort());
+		done();
+		await held;
+		expect(await caught).toBe(leave.signal.reason);
+		expect(ran).toBe(false);
+		expect(gate.active).toBe(0);
+		await expect(gate.run(async () => 'next')).resolves.toBe('next');
+	});
 });

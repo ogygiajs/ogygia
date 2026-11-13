@@ -31,6 +31,7 @@ import type { AstNode } from './parse/oxc.ts';
 
 /** A cheap presence test before parsing: one of the three shapes could be in this file. */
 const MAY_STAMP_RE =
+	// oxlint-disable-next-line ogygia/one-markup-walk -- a prefilter before Svelte's own parse; a false yes only costs that parse
 	/\{@html|bind:(?:innerHTML|textContent|innerText)|<[a-z][\w.]*-[\w-]*[\s/>]|\sis=/;
 // static: the DOM properties that replace an element's whole content
 const WHOLESALE_BINDS = new Set(['innerHTML', 'textContent', 'innerText']);
@@ -137,7 +138,7 @@ export function opaque_stamp_edits(source: string, filename: string): Edit[] {
 	try {
 		ast = parse(blank_styles(source), { modern: true, filename }) as unknown as Node;
 	} catch {
-		return [];
+		return []; // ok: no stamps is the safe answer (under); Svelte's own compile reports the syntax
 	}
 	const at: { pos: number; attr: string }[] = [];
 	const visit = (nodes: Node[] | undefined) => {

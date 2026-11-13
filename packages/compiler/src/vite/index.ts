@@ -108,7 +108,8 @@ import { load_kit_dirs } from './kit-dirs.ts';
 import {
 	buildFoucCssModuleSource,
 	collectFoucCssReachable,
-	compileFoucScopedCss,
+	scoped_component_css,
+	type PreprocessCss,
 	foucRelFromId,
 	isFoucCssId,
 	isFoucScopedId,
@@ -203,7 +204,7 @@ function bundler_resolve(ctx: {
 			const r = await ctx.resolve(spec, importer, { skipSelf: true });
 			return r && !r.external ? r.id : null;
 		} catch {
-			return null; // (Vite throws for a specifier this importer cannot resolve)
+			return null; // ok: Vite throws for a specifier this importer cannot resolve: unresolved, as a null answer is
 		}
 	};
 }
@@ -306,6 +307,8 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 	// `own`: the root's source when it is not the file on disk (a content module's post-mdsvex Svelte);
 	// the root's own CSS is then the caller's. `skip`: files whose CSS ships some other way. Each
 	// file's CSS compiles once per leg (`BuildLeg.compiled_css`).
+	const preprocess_css: PreprocessCss = (source, abs) =>
+		preprocess_component_for_css(source, abs, root);
 	const tree_css_walk = (
 		ctx: Parameters<typeof bundler_resolve>[0] & { environment: { name: string } }
 	) => {
@@ -334,11 +337,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 						src == null
 							? null
 							: e.kind === 'scoped'
-								? compileFoucScopedCss(
-										e.abs,
-										await preprocess_component_for_css(src, e.abs, root),
-										{ keepScript: true }
-									)
+								? await scoped_component_css(e.abs, src, preprocess_css)
 								: CSS_EXT_RE.test(e.abs)
 									? src
 									: null;
@@ -398,7 +397,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 		try {
 			return fs.readFileSync(abs, 'utf-8');
 		} catch {
-			return null;
+			return null; // ok: null is "no such file" (the CSS walk tries candidates; a markup scan skips it)
 		}
 	};
 
@@ -862,6 +861,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 						presets,
 						import_keys,
 						resolve_alias,
+						preprocess_css,
 						macros,
 						prescans,
 						plugins: listed_plugins,
@@ -1244,13 +1244,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 					const code = await buildFoucCssModuleSource(abs, {
 						root,
 						libDir,
-						readFile: (p) => {
-							try {
-								return fs.readFileSync(p, 'utf8');
-							} catch {
-								return null;
-							}
-						}
+						readFile
 						// (no bundler resolver: this module names each sheet by its root-relative path, so it
 						// carries the app's own files — an island's exact chunk CSS reaches the page through its
 						// region-CSS link: Region.svelte `island_css_html`)
@@ -1275,11 +1269,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 					// island's) scoped CSS, so an unscoped fallback ships the component's rules global —
 					// `.x { … }` instead of `.x.svelte-<hash>` — and they then match any element anywhere on
 					// the page that reuses the class name (a header lake restyling an unrelated breadcrumb).
-					const code = compileFoucScopedCss(
-						abs,
-						await preprocess_component_for_css(source, abs, root),
-						{ keepScript: true }
-					);
+					const code = await scoped_component_css(abs, source, preprocess_css);
 					return { code, moduleType: 'css' };
 				}
 
@@ -1510,13 +1500,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 					// (Program.page_keys); the collector unions them over each island's closure.
 					(module_id) => program.page_keys.get(module_id) ?? null,
 					// WAKE ADVISOR: the collector counts what each island's own components do
-					(id) => {
-						try {
-							return fs.readFileSync(id, 'utf8');
-						} catch {
-							return null;
-						}
-					},
+					readFile,
 					// The runtime entry, by the file the bundler named: its static imports become the
 					// preload hints beside the runtime script, keyed by the runtime's identity.
 					entries.runtime_file,

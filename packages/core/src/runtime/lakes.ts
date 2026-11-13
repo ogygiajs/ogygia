@@ -57,12 +57,6 @@ const lifted_lakes_of = (parent: Element) =>
 const lake_identity_of = (lake: Element) =>
 	lake.getAttribute(OG_LAKE) || lake.getAttribute('entry') || '';
 
-/**
- * A lake's key in the session (`initialized_lakes`, `lake_cache`): its identity (`data-og-lake`, the
- * fingerprint of its entry and props, the same on both legs), and its place among the lakes on the
- * page that share it. Two lakes of one component with different props never share a key; two with
- * the same props are told apart by order.
- */
 function lake_key(lake: Element): string {
 	const identity = lake_identity_of(lake);
 	if (!identity) return '';
@@ -208,8 +202,6 @@ export function on_frozen_connect(el: HTMLElement, arm: LakeArm): boolean {
 		return true;
 	}
 	if (!region_is_vacant(el)) {
-		// A known lake connecting WITH content: the SSR element connecting again. An unhosted one is
-		// settled as it stands, exactly like its first mount — nothing else will.
 		if (unhosted(el)) runtime_session.settle_lake(el);
 		return true;
 	}
