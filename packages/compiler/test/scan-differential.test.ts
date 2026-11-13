@@ -67,7 +67,10 @@ const piece: fc.Arbitrary<string> = fc.oneof(
 		`const t2 = \`a \${import.meta.og.code('t')} c\`;`,
 		`const t3 = \`a \${\`'\`} c\`;`,
 		`const t4 = \`a \${ { k: '}' }.k } c\`;`,
-		`const o = { a: 1, 'b)': 2 };`
+		`const o = { a: 1, 'b)': 2 };`,
+		`const sp = [...import.meta.og.code('s'), ...xs];`,
+		`const ch = a?.b / 2;`,
+		`const fl = .5 / 2;`
 	),
 	fc.constant(`const z = 'x';`)
 );
@@ -92,6 +95,16 @@ describe('find_og_calls keeps its place (#1441)', () => {
 		const code = `const t = \`a \${import.meta.og.code('t')} c\`;`;
 		expect(scanned(code)).toEqual(['15-39 code']);
 		expect(scanned(code)).toEqual(oxc_calls(code));
+	});
+
+	it('a call spread into an array or a call is found', () => {
+		for (const code of [
+			`const all = [...import.meta.og.regions('./*.svelte')];`,
+			`f(...import.meta.og.code('x'));`
+		]) {
+			expect(scanned(code)).toHaveLength(1);
+			expect(scanned(code)).toEqual(oxc_calls(code));
+		}
 	});
 
 	it('a marker as a property name is no call', () => {
