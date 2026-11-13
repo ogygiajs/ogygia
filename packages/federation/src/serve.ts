@@ -14,6 +14,7 @@ import {
 	machine,
 	policy,
 	random,
+	say,
 	type Policy
 } from '@ogygia/machine';
 import type { RequestEvent } from '@sveltejs/kit';
@@ -176,12 +177,25 @@ async function check_deploy(fed: Federation, owed: Owed | null): Promise<Checked
 	}
 }
 
+/** A path the dispatch below would serve: a deferred hole, a thaw, a table page or a widget. */
+const is_federation_path = (path: string): boolean =>
+	path.endsWith(HOLE_PATH) || path.endsWith(THAW_PATH) || path.includes(FRAGMENT_BASE);
+
+/** Says once that a federation path came in before any `federate()` ran, until one does (#1501). */
+const unregistered = say({ max: 1 });
+
 /** Dispatch a federation request, or null if the path is none of ours. */
 export async function serve_federation(event: RequestEvent): Promise<Response | null> {
 	const fed = current_federation();
-	if (!fed) return null;
 	const { url } = event;
 	const path = url.pathname;
+	if (!fed) {
+		// (it falls through, as it always has, but no longer as a bare 404 nobody explains)
+		if (is_federation_path(path))
+			unregistered.once('unregistered', () => warn('federation_unregistered', { path }));
+		return null;
+	}
+	unregistered.ok('unregistered');
 
 	if (path.endsWith(FRAGMENT_ROUTES_PATH)) {
 		void deploy_thaw_check(fed); // ok: a check never rejects (a failed one is tried again later)
