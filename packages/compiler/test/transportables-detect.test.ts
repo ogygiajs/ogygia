@@ -112,8 +112,11 @@ describe('createContext exports are tagged', () => {
 
 describe('moduleHasTransportable: the eager manifest signal', () => {
 	it.each([
-		[`export class C { static [k] = 1; }`, true],
-		[`class C { static [k] = 1; }`, true],
+		// the registration's question (#1312): a computed static that is not the wire codec, or a class
+		// not exported, registers nothing
+		[`export class C { static [k] = 1; }`, false],
+		[`class C { static [k] = 1; }`, false],
+		[`export class C { static [Symbol.for('ogygia.wire')] = ${CODEC}; }`, true],
 		[`export class C { static wire = import.meta.og.wire(${CODEC}); }`, true],
 		[`export class C { [k] = 1; static x = 1; }`, false],
 		[`export class C { static k = 1; }`, false],
