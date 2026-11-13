@@ -13,7 +13,7 @@ import path from 'node:path';
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import type { Plugin } from 'vite';
-import { ogygia } from '../dist/vite/index.js';
+import { ogygia } from '../src/vite/index.ts';
 
 // Core's package root: the SAME dir the plugin gets as CORE_ROOT. This test file is
 // `packages/compiler/test/…`, so `../../core` is core's root.
