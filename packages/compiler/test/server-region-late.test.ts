@@ -45,7 +45,7 @@ test('a deferred region in a library host the scan never saw is in the built ser
 		'src/entry.ts',
 		dedent`
 			export * as manifest from 'ogygia:server/server-manifest';
-			export { default as Card } from '../lib/Card.svelte';
+			export const card = () => import('../lib/Card.svelte');
 		`
 	);
 	write(
@@ -67,12 +67,26 @@ test('a deferred region in a library host the scan never saw is in the built ser
 		root,
 		logLevel: 'silent',
 		configFile: false,
-		plugins: [ogygia(), svelte({ configFile: false })],
+		plugins: [
+			// the bundler reaches the library host after it wrote the server regions' loaders
+			{
+				name: 'late-host',
+				enforce: 'pre',
+				async load(id) {
+					if (id.endsWith('/lib/Card.svelte'))
+						await new Promise((resolve) => setTimeout(resolve, 300));
+					return null;
+				}
+			},
+			ogygia(),
+			svelte({ configFile: false })
+		],
 		build: {
 			ssr: path.join(root, 'src', 'entry.ts'),
 			outDir: out_dir,
 			minify: false,
-			rollupOptions: { output: { entryFileNames: 'entry.js' } }
+			// (Kit's modules: no Kit here, and nothing below runs a region)
+			rollupOptions: { external: [/^\$app\//], output: { entryFileNames: 'entry.js' } }
 		}
 	});
 
@@ -85,5 +99,12 @@ test('a deferred region in a library host the scan never saw is in the built ser
 	expect(manifest.region_url[id], 'and has its URL').toBeTypeOf('string');
 	const { regions } = await manifest.load_server_regions();
 	expect(regions[id], 'and its loader').toBeTypeOf('function');
-	await expect(regions[id]()).resolves.toBeTypeOf('object');
+	// (its file is in the output: the loader imports it by its path from the regions' chunk)
+	// (vitest's module runner names its own dynamic import in the loader's source)
+	const spec = /import(?:__)?\(["']([^"']+)["']\)/.exec(String(regions[id]))?.[1];
+	expect(spec, 'the loader imports a file').toBeTypeOf('string');
+	const chunks = fs.readdirSync(out_dir, { recursive: true }).map(String);
+	expect(chunks.some((f) => f.endsWith(path.basename(spec!)))).toBe(true);
+	// (the late path: its own emitted chunk, not the loaders written with the module)
+	expect(path.basename(spec!)).toMatch(/^og-server-region/);
 });
