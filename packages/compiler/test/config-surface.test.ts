@@ -2,7 +2,7 @@
  * The config surface: the root is the region system (`visible`, `presets`, `ttl`, `maxPageAge`)
  * beside the router and the plugins.
  *
- * Covers: the legacy rename map (errors, never aliasing), the region options' config-time
+ * Covers: unknown options (errors, never ignored), the region options' config-time
  * validation, and the router. Content presets and the loader macro's `preset` door live with the
  * content plugin (packages/content/test/config-surface.test.ts).
  */
@@ -10,35 +10,36 @@ import { describe, it, expect } from 'vitest';
 import { ogygia } from '../src/vite/index.ts';
 import { resolve_options } from '../src/vite/options.ts';
 
-describe('legacy option renames — errors with the new spelling, never silent aliasing', () => {
-	it('rejects regions (its keys moved to the root)', () => {
-		expect(() => ogygia({ regions: { visible: { margin: '200px' } } } as never)).toThrow(
-			/write `visible`, `presets`, `ttl` and `maxPageAge` directly/
+describe('an option ogygia() does not have fails the build, never silently does nothing', () => {
+	it.each([
+		'regions',
+		'continuity',
+		'regionTtl',
+		'preload',
+		'plugins',
+		'freeze',
+		'content',
+		'devtools',
+		'profiler',
+		'ttll'
+	])('`%s` is an unknown option, named with the keys there are', (key) => {
+		expect(() => ogygia({ [key]: true } as never)).toThrow(
+			new RegExp(`\`${key}\`[\\s\\S]*maxPageAge[\\s\\S]*e/option_unknown`)
 		);
 	});
-	it('rejects continuity', () => {
-		expect(() => ogygia({ continuity: { forms: false } } as never)).toThrow(
-			/router: \{ forms: false \}/
-		);
-	});
-	it('rejects regionTtl (now ttl)', () => {
-		expect(() => ogygia({ regionTtl: 600 } as never)).toThrow(/ogygia\(\{ ttl/);
-	});
-	it('rejects content (now the @ogygia/content plugin)', () => {
-		expect(() => ogygia({ content: { markdown: {} } } as never)).toThrow(
-			/list `content\(\{ markdown, presets \}\)`.*beside `ogygia\(\)`/
-		);
-	});
-	it('rejects devtools and profiler (now the @ogygia/devtools plugin)', () => {
-		expect(() => ogygia({ devtools: true } as never)).toThrow(
-			/list `devtools\(\)`.*beside `ogygia\(\)`/
-		);
-		expect(() => ogygia({ profiler: true } as never)).toThrow(/devtools\(\{ profiler/);
-	});
-	it('rejects plugins (they are Vite plugins listed beside ogygia())', () => {
-		expect(() => ogygia({ plugins: [] } as never)).toThrow(
-			/plugins: \[ogygia\(\), flags\(\), sveltekit\(\)\]/
-		);
+	it('every option it has is accepted', () => {
+		expect(() =>
+			ogygia({
+				visible: { margin: '200px' },
+				presets: {},
+				ttl: 600,
+				maxPageAge: 0,
+				router: true,
+				importKeys: {},
+				rateLimit: false,
+				sessionCookie: false
+			})
+		).not.toThrow();
 	});
 	it('rejects barrels (now the @ogygia/barrels plugin), any value', () => {
 		for (const barrels of [true, false, { keep: ['x'] }])
