@@ -1065,8 +1065,6 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 				// graph, so without invalidation the SERVER leg keeps deciding island-vs-inline from a
 				// STALE set while Kit flips immediately — `<ogygia-region>` shells on a Kit-booted page
 				// with the runtime withheld = dead chrome (hit at a consumer after toggling `csr`).
-				// (a plugin's key inside `export const config` add/flip changes the baked values too, and a
-				// host compiled for its old csr is compiled again: driver `routes_changed`)
 				if (is_dev && is_route_file(path.basename(id))) {
 					const ids = compiler.routes_changed();
 					if (vite_server) for (const mid of ids) invalidate_module_id(vite_server, mid);

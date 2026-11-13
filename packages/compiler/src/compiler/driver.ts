@@ -429,6 +429,16 @@ export class Compiler implements CoreApp {
 	/**
 	 * The csr world a module is compiled for, on one leg: whether it links the real region modules
 	 * (`link_virtual`), its route's csr (`route_csr`), and both as a cache key.
+	 *
+	 * A csr=false CLIENT host does not link the real wrappers (or the hydrate entries they pull in):
+	 * Kit still emits its page node, and sharing that module with the page graph makes Rolldown emit
+	 * thin `og-region.*` facades. SSR links them for the HTML, and a csr=true client links them so Kit
+	 * hydrates the regions as plain components. A csr=false LAYOUT links them too when the app has a
+	 * csr=true route: Kit hydrates that layout under a csr=true child page.
+	 *
+	 * `route_csr`: true for a csr=true route host (its marks are stripped so Kit compiles the
+	 * components inline), false for a csr=false one, undefined for a module that is not a route host
+	 * (its csr is the page that renders it, read at run time by `documentIsCsrTrue`).
 	 */
 	#csr_world(
 		id: string,
@@ -436,16 +446,7 @@ export class Compiler implements CoreApp {
 		link_override: boolean | undefined
 	): { link_virtual: boolean; route_csr: boolean | undefined; key: string } {
 		const ctx = this.#ctx;
-		// Scale: csr=false CLIENT hosts must not statically import portable wrappers (or the
-		// hydrate entries those wrappers pull in). Kit still emits those page nodes; sharing
-		// the emitFile module with the page graph forces Rolldown thin `og-region.*`
-		// facades. SSR keeps real wrappers for HTML; csr=true client keeps them so Kit can
-		// hydrate islands as normal components. Hydration always uses `import(entry)`.
 		const routesDir = kit_dirs(ctx.root).routes_dir;
-		// A csr=false LAYOUT can wrap a csr=true child page — there Kit hydrates the layout, so its
-		// chrome islands must be REAL wrappers on the client (Region degrades them inline via
-		// `documentIsCsrTrue`), NOT the thin stub. Only when the app actually has a csr=true route,
-		// and only for `+layout.svelte` hosts (bounded chrome, unlike N page islands).
 		const is_layout_host = is_route_component(path.basename(id), 'layout');
 		const link_virtual =
 			link_override !== undefined
@@ -453,15 +454,6 @@ export class Compiler implements CoreApp {
 				: ssr ||
 					!routeCsrIsFalse(ctx.routes, id, routesDir) ||
 					(is_layout_host && hasAnyCsrTrueRoute(ctx.routes, routesDir));
-		// Tri-state route csr, threaded into the transform (see transformHost's routeCsr branch):
-		//   true  → csr=true route host: ogygia steps aside — strip the host's island directives to
-		//           plain so Kit compiles + hydrates them inline.
-		//   false → csr=false route host: keep islands (the normal island transform).
-		//   undefined → not a route host (shared lib component): its csr depends on the page that
-		//           renders it, so it keeps its islands.
-		// The inline-vs-island choice itself is decided at RUNTIME by `documentIsCsrTrue` (context.ts) —
-		// one fact read identically on both legs — which replaced the old per-host CSR_TRUE_KEY marker +
-		// csr=false reset cascade. `route_csr` still drives the compile-time strip/link decisions below.
 		const route_csr = routeCsrIsTrue(ctx.routes, id, routesDir)
 			? true
 			: routeCsrIsFalse(ctx.routes, id, routesDir)
