@@ -4809,6 +4809,14 @@
 			"reason": "browser only, dev and e2e builds: the rule over the region elements that left the page, linear in those not yet seen at rest; proven in packages/core/test/browser/rules.test.ts and read at the end of every e2e spec"
 		},
 		{
+			"id": "packages/core/src/messages/core.ts > WARNINGS > rule_turns_counted > text",
+			"reason": "a message's one line for the dev warning: a template over the rule's detail, printed once when the rule breaks"
+		},
+		{
+			"id": "packages/core/src/messages/core.ts > WARNINGS > rule_turns_counted > details",
+			"reason": "a message's prose for its docs page and dev warning: constant text, printed once when the rule breaks"
+		},
+		{
 			"id": "packages/core/src/messages/core.ts > WARNINGS > rule_region_left_busy > details",
 			"reason": "a message's prose for its docs page and dev warning: constant text, printed once when the rule breaks"
 		},
