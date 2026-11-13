@@ -86,6 +86,9 @@ export interface Exchange {
 	/** A page's HTML: each text a reshape pass's render trimmed, as it was (its `og-t` marks'
 	 *  originals), which the restore owes the document; none when the page has no such mark. */
 	restore_owes?: readonly string[];
+	/** When its body was over, whole or not (virtual ms): a hop that ended past its asker's
+	 *  deadline was no answer to it. */
+	ended_at?: number;
 	/** The client address the server saw it from (a server's hop: the document's it was for). */
 	address?: string;
 	/** The build whose server gave the answer the client got (its {@link ANSWERED_BY} header). */
@@ -551,6 +554,7 @@ export class Network {
 		 *  busy with it (test/core.test.ts, "off the wire"). */
 		const end = (): void => {
 			ended = true;
+			ex.ended_at ??= loop.now;
 			this.#on_wire.delete(ex);
 		};
 		const opened = loop.now;
