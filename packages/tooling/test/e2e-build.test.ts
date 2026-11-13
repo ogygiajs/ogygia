@@ -1,7 +1,7 @@
 // The e2e harness's build step (src/e2e/build.ts): a fixture app is built once before its suite,
 // from its own directory (a webServer command) or from `metadata.build` (a Playwright globalSetup).
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, readFileSync, realpathSync, rmSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -36,6 +36,21 @@ describe('e2e build', () => {
 		vi.spyOn(console, 'log').mockImplementation(() => {});
 		const dir = temp();
 		expect(() => build_app(dir)).toThrow(`e2e build failed: ${dir}`);
+	});
+
+	it("the build carries ogygia's rules (OGYGIA_RULES=1), so every test's rules check checks (#1272)", () => {
+		vi.stubEnv('E2E_NO_BUILD', '');
+		vi.stubEnv('OGYGIA_RULES', '');
+		vi.spyOn(console, 'log').mockImplementation(() => {});
+		const dir = temp();
+		// a stand-in vite that writes down what its build saw
+		mkdirSync(join(dir, 'node_modules/vite/bin'), { recursive: true });
+		writeFileSync(
+			join(dir, 'node_modules/vite/bin/vite.js'),
+			"require('node:fs').writeFileSync('seen.txt', String(process.env.OGYGIA_RULES));"
+		);
+		build_app(dir);
+		expect(readFileSync(join(dir, 'seen.txt'), 'utf8')).toBe('1');
 	});
 
 	it('as a globalSetup it builds the app in metadata.build', () => {

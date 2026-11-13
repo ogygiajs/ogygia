@@ -7,9 +7,11 @@
 //     number: a literal `max: Infinity` is refused anywhere in the module;
 //   - a `registry()` or `registry.keyed()` (@ogygia/machine): live entries, each owned by a scope
 //     and gone with it, never evicted (watchers, modules, definitions);
-//   - a fixed table, filled by its initializer and never grown, marked `// static: <why>` (on its
-//     line or the line before). The check proves the "never grown": a `.set` / `.add` / `.push` /
-//     `.unshift` / `.splice` on it, or a write to an index of it, anywhere in the module, is an error.
+//   - a fixed table, filled by its initializer and never grown, marked by its TYPE: `ReadonlySet<…>`,
+//     `ReadonlyMap<…>`, `ReadonlyArray<…>` / `readonly T[]`, or `as const`. tsc then refuses a mutation
+//     from any module; this check also refuses a `.set` / `.add` / `.push` / `.unshift` / `.splice`
+//     on it, or a write to an index of it, in its own module. (The older mark, `// static: <why>` on
+//     its line or the line before, still counts until every one moves to the type.)
 //
 // All are `const`: a module-level `let` holding a collection is growth (it is reassigned:
 // `x = [...x, o]`, `x = new Map(x)`, `x ||= …`), marked or not.
@@ -45,11 +47,11 @@ export type Finding = {
 	fix: string;
 };
 
-const FIX = `make it a cache() (bounded, owned: @ogygia/machine), move it into its owner (made inside the scope, function or class that owns it), or, for a fixed table never grown, mark it '// static: <why>'`;
+const FIX = `make it a cache() (bounded, owned: @ogygia/machine), move it into its owner (made inside the scope, function or class that owns it), or, for a fixed table never grown, type it readonly (ReadonlySet, ReadonlyMap, readonly T[], as const)`;
 
-const FIX_GROWN = `a '// static:' table is never grown after its initializer: make it a cache(), or move it into its owner`;
+const FIX_GROWN = `a fixed (readonly or '// static:') table is never grown after its initializer: make it a cache(), or move it into its owner`;
 
-const FIX_LET = `a module-level let holding a collection grows by reassignment (x = [...x, o], new Map(x), x.concat(...)): make it a const cache(), move it into its owner, or, for a fixed table, a const '// static: <why>'`;
+const FIX_LET = `a module-level let holding a collection grows by reassignment (x = [...x, o], new Map(x), x.concat(...)): make it a const cache(), move it into its owner, or, for a fixed table, a const typed readonly (ReadonlySet, ReadonlyMap, readonly T[], as const)`;
 
 /** A module-level initializer that holds a collection: an array literal, or a new Map / Set. */
 function is_collection(init: Node | null | undefined): boolean {
@@ -58,8 +60,38 @@ function is_collection(init: Node | null | undefined): boolean {
 	return grows(init) !== null;
 }
 
-/** A `// static: <reason>` mark with a reason. */
+/** A `// static: <reason>` mark with a reason (the older mark: the readonly type replaces it). */
 const MARK_RE = /^\s*static:\s*\S/;
+
+const READONLY_NAMES: ReadonlySet<string> = new Set([
+	'ReadonlySet',
+	'ReadonlyMap',
+	'ReadonlyArray'
+]);
+
+/** A type that refuses every mutation in tsc: `ReadonlySet<…>`, `ReadonlyMap<…>`,
+ *  `ReadonlyArray<…>`, `readonly T[]`, or `const` (`as const`). */
+function is_readonly_type(t: Node | null | undefined): boolean {
+	if (!t) return false;
+	if (t.type === 'TSTypeAnnotation') return is_readonly_type(t.typeAnnotation as Node);
+	if (t.type === 'TSTypeOperator') return t.operator === 'readonly';
+	if (t.type !== 'TSTypeReference') return false;
+	const name = t.typeName as Node;
+	return (
+		name.type === 'Identifier' && (READONLY_NAMES.has(String(name.name)) || name.name === 'const')
+	);
+}
+
+/** A declaration whose type is a readonly one: its annotation, or its initializer's `as` / `satisfies`. */
+function typed_readonly(d: Node): boolean {
+	if (is_readonly_type((d.id as Node).typeAnnotation as Node | null)) return true;
+	const init = d.init as Node | null;
+	return (
+		!!init &&
+		(init.type === 'TSAsExpression' || init.type === 'TSSatisfiesExpression') &&
+		is_readonly_type(init.typeAnnotation as Node)
+	);
+}
 
 /** The calls that grow a Map, Set or array. */
 const GROWING_CALLS = new Set(['set', 'add', 'push', 'unshift', 'splice']); // static: five method names
@@ -172,7 +204,12 @@ export function find_unowned(file: string, source: string): Finding[] {
 			}
 			const kind = grows(d.init as Node | null);
 			if (kind === null) continue;
-			if (marked.has(line) || alone.has(line - 1) || alone.has(line_of(s.start) - 1)) {
+			if (
+				typed_readonly(d) ||
+				marked.has(line) ||
+				alone.has(line - 1) ||
+				alone.has(line_of(s.start) - 1)
+			) {
 				statics.add(name);
 				continue;
 			}

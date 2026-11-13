@@ -121,6 +121,26 @@ describe('portable snippet — every name its body reads reaches the synth', () 
 		expect(out).toEqual([]);
 	});
 
+	it('leaves a body reading a destructured legacy `let:` slot prop a plain snippet (no synth)', () => {
+		for (const directive of [
+			'let:item={{ id }}',
+			'let:item={{ x: id }}',
+			'let:item={[id]}',
+			'let:item={{ ...id }}'
+		]) {
+			const out = synths(`<script>
+	import Widget from './Widget.svelte' with { wake: 'load' };
+	import List from './List.svelte';
+</script>
+
+<List ${directive}>
+	<Widget>{#snippet blocks()}<p>{id}</p>{/snippet}</Widget>
+</List>
+`);
+			expect(out, directive).toEqual([]);
+		}
+	});
+
 	it('a root snippet that writes host state keeps the body native', () => {
 		const out = synths(`<script>
 	import Widget from './Widget.svelte' with { wake: 'load' };
