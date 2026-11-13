@@ -243,7 +243,7 @@ const browser_tasks = dry([
 	'--filter=@ogygia/machine'
 ]).filter((t) => t.task === 'check');`;
 	assert.deepEqual(
-		browsers_of(plan, { browser: ['core', 'reshape'], e2e: ['apps/palaestra', 'packages/router'] }),
+		browsers_of(plan, { browser: ['core', 'rewrite'], e2e: ['apps/palaestra', 'packages/router'] }),
 		[
 			{ suite: 'unit tests', kind: 'unit', engines: ['node'] },
 			{
