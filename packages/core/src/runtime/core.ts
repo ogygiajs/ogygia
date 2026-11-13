@@ -32,6 +32,7 @@ import {
 	capability_expired,
 	is_allowed_region_endpoint,
 	island_module_url,
+	OTHER_BUILD_DENIALS,
 	RegionAnswerLater,
 	RegionAnswerRefused
 } from './region-endpoint-url.ts';
@@ -76,7 +77,7 @@ import {
 	type Wake
 } from './region-machines.ts';
 import { KEEP_FALLBACK_HTML } from '../keep-fallback-marker.ts';
-import { download, region_fetch, region_rate_limited } from '../policies.ts';
+import { download, region_fetch, region_other_build, region_rate_limited } from '../policies.ts';
 import {
 	install_rules,
 	note_handed,
@@ -657,7 +658,9 @@ class OgygiaRegion extends HTMLElement {
 		const s = this.#hole.now;
 		if (s.kind === 'armed') return true;
 		if (s.kind === 'fetching') return false;
-		return this.#hole.go('armed', { attempts: s.kind === 'retrying' ? s.attempts : 0 });
+		return s.kind === 'retrying'
+			? this.#hole.go('armed', { attempts: s.attempts, denied: s.denied })
+			: this.#hole.go('armed', { attempts: 0, denied: 0 });
 	}
 
 	/**
@@ -1115,8 +1118,9 @@ class OgygiaRegion extends HTMLElement {
 		this.#bind(endpoint);
 		const address = frameAddress(endpoint);
 		const s = this.#hole.now;
-		const attempts = s.kind === 'armed' || s.kind === 'retrying' ? s.attempts : 0;
-		this.#hole.go('fetching', { attempts, revalidate });
+		const before = s.kind === 'armed' || s.kind === 'retrying' ? s : { attempts: 0, denied: 0 };
+		const { attempts, denied } = before;
+		this.#hole.go('fetching', { attempts, denied, revalidate });
 		const mine = this.#hole.now;
 		try {
 			if (RULES && buggify.fires('hole.fetch-lost')) throw new TypeError('Failed to fetch');
@@ -1127,7 +1131,7 @@ class OgygiaRegion extends HTMLElement {
 			);
 		} catch (err) {
 			if (this.#hole.now !== mine) return;
-			return this.#fetch_failed(turn, err, endpoint, revalidate, attempts + 1);
+			return this.#fetch_failed(turn, err, endpoint, revalidate, attempts + 1, denied);
 		}
 		if (this.#hole.now === mine) this.#hole.go('idle');
 	}
@@ -1155,13 +1159,19 @@ class OgygiaRegion extends HTMLElement {
 		err: unknown,
 		endpoint: string,
 		revalidate: boolean,
-		attempts: number
+		attempts: number,
+		denied_before: number
 	): Promise<void> {
 		const refused = err instanceof RegionAnswerRefused;
 		const deny = refused && err.reason === 'forbidden' ? err.deny || 'no reason given' : undefined;
+		const other_build = deny !== undefined && OTHER_BUILD_DENIALS.has(deny.split(':', 1)[0]);
+		const denied = other_build ? denied_before + 1 : denied_before;
+		const out_of_tries = other_build
+			? denied >= region_other_build.attempts
+			: attempts >= region_fetch.attempts;
 		const offline = !refused && this.isConnected && no_response(err) && browser_offline();
-		const final = !offline && (refused || !this.isConnected || attempts >= region_fetch.attempts);
-		if (import.meta.env.DEV || final) {
+		const final = !offline && ((refused && !other_build) || !this.isConnected || out_of_tries);
+		if (final || (import.meta.env.DEV && !other_build)) {
 			if (deny !== undefined) {
 				warn('region_answer_denied', { endpoint, deny });
 			} else if (refused) {
@@ -1236,12 +1246,14 @@ class OgygiaRegion extends HTMLElement {
 				if (revalidate) return this.#fetch_html(turn, true);
 				return this.#connect(turn);
 			}
-			this.#hole.go('retrying', { attempts, revalidate });
+			this.#hole.go('retrying', { attempts, denied, revalidate });
 			const retrying = this.#hole.scope;
 			const later = err instanceof RegionAnswerLater ? err.wait_ms : null;
 			const wait =
 				later === null
-					? backoffAfter(region_fetch, attempts)
+					? other_build
+						? backoffAfter(region_other_build, denied)
+						: backoffAfter(region_fetch, attempts)
 					: Math.min(later, backoffAfter(region_rate_limited, attempts));
 			const waited = await turn.wait(
 				retrying.task(() => new Promise<void>((resolve) => retrying.timeout(resolve, wait)))

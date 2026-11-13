@@ -107,6 +107,10 @@ export function retry_after_ms(res: Response): number | null {
 export const NOT_OGYGIA_403 =
 	'not ogygia: a proxy, CDN or firewall in front answered (a 403 without x-ogygia-deny)';
 
+/** The `x-ogygia-deny` reasons that are about the answering server, not the request: a server of
+ *  another build or key gives them to a capability its own build would take (#1752). */
+export const OTHER_BUILD_DENIALS: ReadonlySet<string> = new Set(['sig', 'shape', 'foreign-key']);
+
 /**
  * A 403 from the islands endpoint, as one line: its `x-ogygia-deny` reason, and for `foreign-key`
  * the two keys (the capability's `&k=`, the answering server's `x-ogygia-key`). A 403 with no reason

@@ -75,3 +75,13 @@ export const rollover: Policy = /* @__PURE__ */ policy({
 	jitter: 0,
 	deadline: Infinity
 });
+
+/** A hole refused for its server, not its request (`sig`, `shape`, `foreign-key`: the answering
+ *  server checks capabilities of another build or key, #1752): asked once more after 0.5 s, since a
+ *  rolling deploy's load balancer may route the second ask to a server of the page's own build. */
+export const region_other_build: Policy = /* @__PURE__ */ policy({
+	attempts: 2,
+	backoff: [500],
+	jitter: 0,
+	deadline: Infinity
+});

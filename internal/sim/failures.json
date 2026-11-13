@@ -932,6 +932,12 @@
 			"name": "an answer whose headers cannot change goes out as it is, without the route header"
 		},
 		{
+			"site": "packages/core/src/policies.ts > (module) > policy:7",
+			"reason": "a hole refused for its server (region_other_build) is asked twice: proved: one try turns the test red in every browser",
+			"test": "packages/core/test/browser/hole-refused.test.ts",
+			"name": "a hole refused with sig twice keeps its fallback and says why, after two asks (#1752)"
+		},
+		{
 			"site": "packages/core/src/hooks.ts > OgygiaHandle > route > catch:1",
 			"reason": "a page with an early hole under a CSP, whose headers cannot change: proved: the failure thrown turns the test red, twice",
 			"test": "packages/core/test/handle-failures.test.ts",

@@ -70,9 +70,9 @@ export function lifetime_of(now: Lifetime): Lifetime {
 
 type HoleStates = {
 	idle: {};
-	armed: { attempts: number };
-	fetching: { attempts: number; revalidate: boolean };
-	retrying: { attempts: number; revalidate: boolean };
+	armed: { attempts: number; denied: number };
+	fetching: { attempts: number; denied: number; revalidate: boolean };
+	retrying: { attempts: number; denied: number; revalidate: boolean };
 	offline: { revalidate: boolean };
 	failed: {};
 };
@@ -100,7 +100,8 @@ const hole_definition = machine<HoleStates>()({
  * waits to try again. `offline`: a fetch failed for the network while the browser is offline; it
  * asks again, with fresh tries, once the browser is back online (#891). `failed`: refused, or out of
  * tries; the fallback (or the answer before) stands. `attempts` counts the fetches that failed
- * before.
+ * before; `denied` counts those refused for the answering server (`sig`, `shape`, `foreign-key`),
+ * which have tries of their own.
  */
 export type Hole = Machine<HoleStates, typeof hole_steps>;
 
