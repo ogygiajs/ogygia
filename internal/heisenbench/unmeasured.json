@@ -4953,10 +4953,6 @@
 			"reason": "was rewrite_dollar's (renamed, same work): one prefix test per edit"
 		},
 		{
-			"id": "packages/compiler/src/compiler/macros/dollar.ts > dollar_edits > walk:1~047999",
-			"reason": "was rewrite_dollar's (renamed, same work): the AST visit per node; dollar_edits itself runs in the dollar macros bench"
-		},
-		{
 			"id": "packages/compiler/src/compiler/macros/pipeline.ts > run_module_macros > apply > push:0~63cdc9",
 			"reason": "one splice_map call, measured in the source maps bench"
 		},
@@ -5091,10 +5087,6 @@
 		{
 			"id": "packages/compiler/src/compiler/driver.ts > Compiler > #emit_late_server_regions",
 			"reason": "once per registration in a build: a loop over the result's islands that emits a server region reached after the leg wrote server-regions (#1420), constant work per island; a real build runs it (test/late-server-regions.test.ts)"
-		},
-		{
-			"id": "packages/compiler/src/compiler/driver.ts > Compiler > #scan > imports_page_spec > some:0~b5645b",
-			"reason": "start-up scan only, once per module, and only when the app names page modules: one includes() per specifier against a short list"
 		},
 		{
 			"id": "packages/compiler/src/compiler/driver.ts > Compiler > end_leg",
@@ -5447,6 +5439,154 @@
 		{
 			"id": "packages/compiler/src/compiler/link/page-keys.ts > statement_declares > some:0~af91fc",
 			"reason": "one import specifier's local name against the name looked up, constant work; reached only when a module-level lookup (a typeof window guard) walks to the Program; page-keys.test.ts runs it"
+		},
+		{
+			"id": "packages/compiler/src/compiler/link/context-detect.ts > context_keys > walk",
+			"reason": "the AST walk that finds context calls and their keys in one module: recursive over the parsed tree (not replayable), linear in its nodes; context-detect tests run it"
+		},
+		{
+			"id": "packages/compiler/src/compiler/messages.ts > BUILD_WARNINGS > region_context_key_one_off > details",
+			"reason": "a warning's longer wording for its error page, constant text"
+		},
+		{
+			"id": "packages/compiler/src/compiler/messages.ts > BUILD_WARNINGS > region_context_key_one_off > text",
+			"reason": "a warning's wording, constant text"
+		},
+		{
+			"id": "packages/core/src/context-bridge.ts > createContext > defineProperties:1~034356 > [computed] > value",
+			"reason": "the context tuple's iterator: three getters handed out once per destructure, constant work"
+		},
+		{
+			"id": "packages/core/src/context-bridge.ts > createContext > defineProperties:1~034356 > get > value",
+			"reason": "the deprecated callable form's get: one Svelte getContext read (component-init only, not cloneable), constant work"
+		},
+		{
+			"id": "packages/core/src/context-bridge.ts > createContext > has",
+			"reason": "one Svelte hasContext read (component-init only, not cloneable), constant work"
+		},
+		{
+			"id": "packages/core/src/context-bridge.ts > createContext > set",
+			"reason": "one Svelte setContext write (component-init only, not cloneable), constant work"
+		},
+		{
+			"id": "packages/core/src/context-bridge.ts > crossing_values",
+			"reason": "a provider's values keyed by the names they cross under: reads Reflect.ownKeys of the values (hidden state), linear in its keys"
+		},
+		{
+			"id": "packages/core/src/messages/core.ts > ERRORS > context_missing > details",
+			"reason": "an error's longer wording for its error page, constant text"
+		},
+		{
+			"id": "packages/core/src/messages/core.ts > ERRORS > context_missing > text",
+			"reason": "an error's wording, constant text"
+		},
+		{
+			"id": "packages/core/src/messages/core.ts > WARNINGS > context_key_one_off > details",
+			"reason": "a warning's longer wording for its error page, constant text"
+		},
+		{
+			"id": "packages/core/src/messages/core.ts > WARNINGS > context_key_one_off > text",
+			"reason": "a warning's wording, constant text"
+		},
+		{
+			"id": "packages/core/src/messages/core.ts > WARNINGS > context_value_function > details",
+			"reason": "a warning's longer wording for its error page, constant text"
+		},
+		{
+			"id": "packages/core/src/messages/core.ts > WARNINGS > context_value_function > text",
+			"reason": "a warning's wording, constant text"
+		},
+		{
+			"id": "packages/core/src/nested.ts > nested_wake",
+			"reason": "the schedule of the island around a subtree: one Svelte getContext read or one attribute read (component-init only, hidden state), constant work"
+		},
+		{
+			"id": "packages/devtools/src/devtools/bottom-chrome.ts > bottom_chrome",
+			"reason": "browser only: reads the page's fixed bottom chrome under the launcher through elementsFromPoint and getComputedStyle, linear in the hit elements' ancestors; docs e2e shellbar-keep.spec.ts proves it"
+		},
+		{
+			"id": "packages/compiler/src/compiler/region/transform.ts > FileCompilation > #resolve_region_mark > map:0~3a7f2a",
+			"reason": "maps a preset's keys to their standard names once per marked import (not replayable inside the file compilation), linear in its keys"
+		},
+		{
+			"id": "packages/compiler/src/compiler/driver.ts > Compiler > #regions_print",
+			"reason": "dev only: one host's registry rows and the runtime marks as text, to see whether a transform moved what regions readers read (reads the session's program: not replayable), linear in the host's regions; dev-regions-reload.test.ts runs it"
+		},
+		{
+			"id": "packages/compiler/src/compiler/driver.ts > Compiler > #regions_print > map:0~cca2d8",
+			"reason": "one registry row as a tuple for #regions_print, constant work"
+		},
+		{
+			"id": "packages/compiler/src/compiler/driver.ts > Compiler > #register",
+			"reason": "registers a transform's regions on the session's program; in dev, compares two #regions_print texts (not replayable), linear in the host's regions"
+		},
+		{
+			"id": "packages/compiler/src/compiler/driver.ts > Compiler > #scan_facts > facts > some:0~b5645b",
+			"reason": "does one module spec name a page importer, constant work per spec"
+		},
+		{
+			"id": "packages/compiler/src/compiler/driver.ts > Compiler > #scans",
+			"reason": "how the prescan reads one id: path tests against the app root and the declared package dirs (reads the session ctx: not replayable), linear in the declared dirs"
+		},
+		{
+			"id": "packages/compiler/src/compiler/driver.ts > Compiler > #scans > find:0~145c92",
+			"reason": "the declared package dir an id sits under, constant work per dir"
+		},
+		{
+			"id": "packages/compiler/src/compiler/driver.ts > Compiler > #scans > flatMap:0~910586",
+			"reason": "the declared packages' scan dirs, linear in them"
+		},
+		{
+			"id": "packages/compiler/src/compiler/driver.ts > Compiler > moved",
+			"reason": "the virtual modules a dev change moved, read off the build's virtual table (not replayable), linear in them; dev-scan-facts.test.ts runs it"
+		},
+		{
+			"id": "packages/compiler/src/compiler/driver.ts > Compiler > router_css_roots > router_css_roots:3~858a4d",
+			"reason": "the query that reads the router CSS roots from the session's queries db (not replayable), linear in the roots"
+		},
+		{
+			"id": "packages/compiler/src/compiler/driver.ts > Compiler > routes_changed",
+			"reason": "dev only: a route file event through the routes db, invalidating the hosts whose csr world moved (reads the session's worlds: not replayable), linear in the worlds"
+		},
+		{
+			"id": "packages/compiler/src/compiler/driver.ts > Compiler > routes_changed > invalidate",
+			"reason": "adds one module id to the set routes_changed returns, constant work"
+		},
+		{
+			"id": "packages/compiler/src/compiler/fs.ts > memory_fs > stat",
+			"reason": "the in-memory fs seam's stat: one map read (the seam's own state: not replayable), constant work"
+		},
+		{
+			"id": "packages/compiler/src/compiler/fs.ts > node_fs > stat",
+			"reason": "the node fs seam's stat: one fs.statSync call (the disk: not replayable), constant work"
+		},
+		{
+			"id": "packages/compiler/src/compiler/kit.ts > route_reader > input:2~e5742d",
+			"reason": "the routes db input that reads one route file through the fs seam (not replayable), linear in its text"
+		},
+		{
+			"id": "packages/compiler/src/compiler/queries.ts > queries > db > changed_since",
+			"reason": "compares one slot's changed stamp to a revision (the db's slots: not cloneable), constant work"
+		},
+		{
+			"id": "packages/compiler/src/compiler/queries.ts > queries > db > holds",
+			"reason": "is an answer held for this query and arg: one slot lookup (the db's state: not replayable), constant work"
+		},
+		{
+			"id": "packages/compiler/src/compiler/queries.ts > queries > db > reread",
+			"reason": "reruns every held input once (a new build of the same session), linear in the held inputs; queries tests and the queries bench run it"
+		},
+		{
+			"id": "packages/compiler/src/compiler/scan-facts.ts > scan_facts > has",
+			"reason": "does the scan hold facts for a file: one db read (the scan db's state: not replayable), constant work"
+		},
+		{
+			"id": "packages/compiler/src/compiler/scan-facts.ts > scan_facts > input:2~ae0427",
+			"reason": "the scan db input for a file's facts, set by the prescan and the dev transform (not replayable), constant work"
+		},
+		{
+			"id": "packages/compiler/src/compiler/scan-facts.ts > scan_facts > input:2~ea66dc",
+			"reason": "the scan db input for a file's facts, read by every query over the scan (not replayable), constant work"
 		}
 	]
 }
