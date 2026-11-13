@@ -143,10 +143,32 @@ export const playwright_run = (): boolean => test_browsers()[0] !== 'firefox-sta
  * source reaches `.svelte` files), and core's stubs for Kit's `$app/*` and ogygia's virtual modules,
  * so a plugin's tests run against core's real source without a Kit app or the Vite plugin.
  */
+/** The knobs a seeded run is started with (@ogygia/config/sim reads them). */
+export const SIM_KNOBS: readonly string[] = [
+	'OGYGIA_SIM_RUNS',
+	'OGYGIA_SIM_SEED',
+	'OGYGIA_SIM_ONLY',
+	'OGYGIA_FUZZ_SEED'
+];
+
+/** The sim knobs set in `env`, as the `define` that hands them to a browser test (which has no
+ *  `process.env`): a browser sim then runs as many runs, on the seed, the run was started with. */
+export function sim_define(env: Readonly<Record<string, string | undefined>>): {
+	__OGYGIA_SIM_ENV__: string;
+} {
+	const knobs: Record<string, string> = {};
+	for (const k of SIM_KNOBS) {
+		const v = env[k];
+		if (v !== undefined && v !== '') knobs[k] = v;
+	}
+	return { __OGYGIA_SIM_ENV__: JSON.stringify(knobs) };
+}
+
 export function pluginTests(): ViteUserConfig {
 	return {
 		// heisenbench_record(): nothing, unless the measurement-source gate records the tests' inputs
 		plugins: [svelte(), ...heisenbench_record()],
+		define: sim_define(process.env),
 		resolve: { alias: stub_aliases() },
 		test: { include: ['test/**/*.test.ts'], environment: 'node' }
 	};

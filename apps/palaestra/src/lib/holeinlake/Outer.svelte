@@ -1,6 +1,6 @@
 <script lang="ts">
 	// an island, woken only by a press, that renders a server island
-	import Middle from './Middle.svelte' with { render: 'deferred', wake: 'idle' };
+	import Middle from './Middle.svelte' with { render: 'deferred', fetch: 'idle' };
 	let count = $state(0);
 </script>
 

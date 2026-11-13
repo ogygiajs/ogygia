@@ -232,8 +232,6 @@ function wake(a: Armed, e: Event): void {
 		(err) => {
 			if (a.arming.now.kind === 'over') return;
 			disarm(a, false);
-			// (the replay half itself may be what failed: asked for again; if it fails again the
-			// clicks are lost, and said so, never left as an unhandled rejection)
 			replay().then(
 				(r) => r !== STALE && r.replay_clicks(region, queued, a.owner),
 				(again: unknown) => console.error(new OgygiaError('interaction_hydrate_failed'), again)

@@ -1,4 +1,3 @@
-// (the boot's own table: this module is boot code, test/runtime-boot-svelte-free.test.ts)
 import { OgygiaError } from '../messages/core.ts';
 import { OG_ORIGINS, OGYGIA_RUNTIME } from '../wire-markup.ts';
 

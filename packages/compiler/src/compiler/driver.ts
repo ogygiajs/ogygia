@@ -315,10 +315,17 @@ export class Compiler implements CoreApp {
 	 * dropped for its edit (every hole answered 403 until a restart), the runtime entry chosen before
 	 * a page's first `idle` region (it never woke: test/dev-regions-reload.test.ts), and the wire
 	 * loaders, Kit's codecs and the router CSS roots read before a file's facts changed
-	 * (test/dev-scan-facts.test.ts).
+	 * (test/dev-scan-facts.test.ts). A registry module a load answered null while no host held it is
+	 * named once a host registers it.
 	 */
 	moved(): string[] {
-		return this.#virtuals.moved();
+		const out = this.#virtuals.moved();
+		for (const id of this.#unanswered)
+			if (this.program.registry.has(id)) {
+				this.#unanswered.delete(id);
+				out.push(id);
+			}
+		return out;
 	}
 
 	/** Register a transform's regions; in dev, note whether that moved what `regions` readers read. */
@@ -1172,8 +1179,12 @@ export class Compiler implements CoreApp {
 			}
 			return src;
 		}
+		if (ctx.is_dev && this.#virtuals.claims(id)) this.#unanswered.add(id);
 		return null;
 	}
+
+	/** DEV: the registry's modules a load answered null for while no host held them (`moved`). */
+	readonly #unanswered = new Set<string>();
 
 	/**
 	 * Resolve an ogygia-owned import id: the virtual-module vocabulary (config/manifest virtuals + FOUC
