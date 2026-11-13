@@ -266,7 +266,7 @@ export function wait_for_boundary(_el: HTMLElement, boundary: Element | null): b
 }
 
 export function mark_frozen_settled(region: HTMLElement): void {
-	if (is_frozen(region)) runtime_session.settle_lake(region);
+	if (is_frozen(region)) runtime_session.settle_lake_before_swap(region);
 }
 
 export function after_html_swap(
@@ -301,7 +301,7 @@ export function after_fetch_exhausted(
 	wake_children: () => void
 ): void {
 	if (opts.revalidate && is_frozen(region) && region.isConnected) {
-		runtime_session.settle_lake_now(region);
+		runtime_session.settle_lake(region);
 		wake_children();
 	}
 }
