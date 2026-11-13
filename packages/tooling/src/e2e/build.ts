@@ -19,9 +19,11 @@ export function build_app(dir: string): void {
 		return;
 	}
 	console.log(`▸ Building ${dir}`);
+	// (with ogygia's rules on itself: every test ends by reading them, ./index.ts `test`)
 	const res = spawnSync('node', ['node_modules/vite/bin/vite.js', 'build'], {
 		cwd: dir,
-		stdio: 'inherit'
+		stdio: 'inherit',
+		env: { ...process.env, OGYGIA_RULES: '1' }
 	});
 	if (res.status !== 0) throw new Error(`e2e build failed: ${dir}`);
 }

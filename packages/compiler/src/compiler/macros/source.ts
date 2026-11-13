@@ -14,22 +14,21 @@
  *   • a top-level `export const <name> = import.meta.og.source(fn)` (or `(fn, { key })`);
  *   • 1 or 2 arguments; the first is the function.
  * Anything else — un-exported, nested, bare access, argument-less — is a BUILD ERROR naming the
- * file and line (the wire/asRegion macro laws).
+ * file and line (the wire macro's laws).
  */
 import { og_js_regions, find_og_calls, type JsRegion } from '../parse/scan.ts';
 import { parse_module, type AstNode } from '../parse/oxc.ts';
 import { og_member } from './wire.ts';
 import { OgygiaError } from '../messages.ts';
+import { splice_text, type Edit } from '../splice.ts';
 
 // ── regexes
 const EXPORT_CONST_TAIL_RE = /\bexport\s+const\s+([A-Za-z_$][\w$]*)\s*=\s*$/;
 
 const MARKER = 'import.meta.og.source';
-const IMPORT_LINE = `import { __og_source } from 'ogygia/internal';\n`;
+const IMPORT = `import { __og_source } from 'ogygia/internal';`;
 
 type Node = AstNode;
-
-type Edit = { start: number; end: number; text: string };
 
 function line_of(src: string, offset: number): number {
 	let line = 1;
@@ -158,22 +157,28 @@ export function rewrite_source(
 	rel: string,
 	markup_exts: readonly string[]
 ): string {
-	if (!src.includes(MARKER)) return src;
+	return splice_text(src, source_edits(src, id, rel, markup_exts));
+}
+
+/** The edits `rewrite_source` makes to `src`: none when there is nothing to do. */
+export function source_edits(
+	src: string,
+	id: string,
+	rel: string,
+	markup_exts: readonly string[]
+): Edit[] {
+	if (!src.includes(MARKER)) return [];
 	const regions = og_js_regions(src, id, markup_exts);
-	if (!regions) return src;
+	if (!regions) return [];
 
 	const edits: Edit[] = [];
-	for (const region of regions)
-		edits.push(...(ast_edits(src, region, id, rel) ?? scan_edits(src, region, rel)));
-	if (!edits.length) return src;
-
-	edits.sort((a, b) => a.start - b.start);
-	let out = '';
-	let last = 0;
-	for (const e of edits) {
-		out += src.slice(last, e.start) + e.text;
-		last = e.end;
+	for (const region of regions) {
+		const own = ast_edits(src, region, id, rel) ?? scan_edits(src, region, rel);
+		// the import opens the first region it serves (a `.svelte` script's body, not the file), on
+		// that region's first line, so no line moves (test/source.test.ts)
+		if (own.length && !edits.length)
+			edits.push({ start: region.offset, end: region.offset, text: IMPORT });
+		edits.push(...own);
 	}
-	out += src.slice(last);
-	return IMPORT_LINE + out;
+	return edits;
 }

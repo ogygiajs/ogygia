@@ -29,22 +29,25 @@ function signer(key: string, fp: string): CapabilitySigner {
 			renew_window: RENEW_WINDOW_SEC,
 			request: () => null
 		}),
-		deny: (why) => new Response('Forbidden', { status: 403, headers: { 'x-ogygia-deny': why } })
+		deny: (why) => new Response('Forbidden', { status: 403, headers: { 'x-ogygia-deny': why } }),
+		charge: () => null
 	};
 }
 
 const message = (exp: string) => `frag/2:${JSON.stringify(['peer', 'widget', 'kpis', '', exp])}`;
 
 /** The address a plugin builds from what `mint` hands back (federation's hole: every field a param). */
-const address = (minted: Record<string, string>) =>
-	new URL(`http://app.test/og/frag?peer=peer&${new URLSearchParams(minted)}`);
+const address = (minted: Record<string, string>) => {
+	const url = new URL(`http://app.test/og/frag?peer=peer&${new URLSearchParams(minted)}`);
+	return { url, request: new Request(url) } as never;
+};
 
 describe('a plugin capability', () => {
 	const v1 = plugin_capabilities(
-		plugin_signer('@ogygia/federation', signer('key-of-v1', 'aaaaaaaa'))
+		plugin_signer('@ogygia/federation', signer('key-of-v1', 'aaaaaaaa')).capabilities
 	);
 	const v2 = plugin_capabilities(
-		plugin_signer('@ogygia/federation', signer('key-of-v2', 'bbbbbbbb'))
+		plugin_signer('@ogygia/federation', signer('key-of-v2', 'bbbbbbbb')).capabilities
 	);
 
 	it('opens on the deployment that minted it', () => {

@@ -48,10 +48,11 @@ and checks that the devtools or the profiler name exactly those, and nothing on 
 
 ## Comments sweep (#512)
 
-| script        | does                                                                              |
-| ------------- | --------------------------------------------------------------------------------- |
-| `comments.ts` | lists what `ogygia/structured-comments` reports under a path (`--table`: PR rows) |
-| `flip.ts`     | breaks one line on purpose, runs a test command, wants red, puts the line back    |
+| script            | does                                                                              |
+| ----------------- | --------------------------------------------------------------------------------- |
+| `comments.ts`     | lists what `ogygia/structured-comments` reports under a path (`--table`: PR rows) |
+| `flip.ts`         | breaks one line on purpose, runs a test command, wants red, puts the line back    |
+| `new-comments.ts` | fails on a comment the change adds that the rule reports (CI `check`, PRs)        |
 
 The rule's own tests: `pnpm lint:test`.
 
