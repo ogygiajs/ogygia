@@ -44,7 +44,7 @@ These are written on a component import rather than called:
 | `with { keep }`   | keep the live island across SPA navigation                                   | a name                                                                       |
 | `with { preset }` | a named preset from plugin config                                            | any preset name                                                              |
 
-`render` sets the mode and `wake` the schedule. A `render: 'deferred'` hole takes `fetch` for its schedule instead of `wake`, and the old pairing of `render: 'deferred'` with `wake` is deprecated (it still works, with a build warning). [Regions](/docs/regions/regions) explains the concept.
+`render` sets the mode and `wake` the schedule. A `render: 'deferred'` hole takes `fetch` for its schedule instead of `wake`, and pairing `render: 'deferred'` with `wake` is a build error. [Regions](/docs/regions/regions) explains the concept.
 
 ### Pre-hydration scripts
 

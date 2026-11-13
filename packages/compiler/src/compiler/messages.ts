@@ -398,22 +398,27 @@ export const BUILD_ERRORS = {
 			HTML is fetched from the server.
 		`
 	},
-	held_hole_timed_twice: {
+	hole_wake_removed: {
+		until: '0.15',
 		text: (a: {
 			host: string;
+			said?: string;
 			render_key: string;
-			fetch_key: string;
 			wake_key: string;
-			fetch: string;
+			fetch_key: string;
 			wake: string;
+			fetch: string;
 		}): string => prose`
-			${a.host}: a \`${a.render_key}: 'deferred'\` hole timed twice, with \`${a.fetch_key}:
-			'${a.fetch}'\` and \`${a.wake_key}: '${a.wake}'\`. Keep \`${a.fetch_key}\`: it says when a
-			hole's HTML arrives.
+			${a.host}: ${a.said ?? 'this import'} sets \`${a.wake_key}: '${a.wake}'\` on a
+			\`${a.render_key}: 'deferred'\` region. A deferred region ships no JS, so \`${a.wake_key}\`
+			never applies: remove it. Its timing is \`${a.fetch_key}\`, when its HTML arrives:
+			\`${a.render_key}: 'deferred', ${a.fetch_key}: '${a.fetch}'\`.
 		`,
 		details: (): string => prose`
-			A hole has one timing, \`fetch\`. The old spelling, \`wake\` on a hole, is still read,
-			but with both the build cannot tell which one is meant. Remove \`wake\`.
+			A deferred region (a hole) was timed with \`wake\`. \`wake\` is when an island's
+			JavaScript runs, and a hole ships none: its timing is \`fetch\`, when its HTML arrives.
+			Up to 0.13 \`wake\` on a hole was read as its \`fetch\`; it is a build error now. Write
+			\`render: 'deferred', fetch: 'visible'\`.
 		`
 	},
 	held_fetch_not_timing: {
@@ -866,29 +871,6 @@ const WARNED = {
 			ogygia could not parse the component, so its marked imports were left as plain imports:
 			no island, no hole. The Svelte compiler reports the parse error itself. Fix it and the
 			regions come back.
-		`
-	},
-	hole_wake_deprecated: {
-		text: (a: {
-			host: string;
-			said?: string;
-			render_key: string;
-			wake_key: string;
-			fetch_key: string;
-			value: string;
-		}): string => prose`
-			${a.host}: ${
-				a.said
-					? `${a.said} times a \`${a.render_key}: 'deferred'\` hole with`
-					: `a \`${a.render_key}: 'deferred'\` hole timed with`
-			} \`${a.wake_key}: '${a.value}'\`, which is deprecated. Write \`${a.render_key}:
-			'deferred', ${a.fetch_key}: '${a.value}'\` instead: \`${a.fetch_key}\` says when a hole's
-			HTML arrives. (\`${a.wake_key}\` is when an island's JS runs; a hole ships no JS.)
-		`,
-		details: (): string => prose`
-			A deferred region (a hole) is timed with \`wake\`. \`wake\` is when an island's
-			JavaScript runs, and a hole ships none: its timing is \`fetch\`, when its HTML arrives.
-			The old spelling still works for now. Write \`render: 'deferred', fetch: 'visible'\`.
 		`
 	},
 	snippet_store_snapshot: {
