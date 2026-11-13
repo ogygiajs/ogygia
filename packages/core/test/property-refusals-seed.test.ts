@@ -64,7 +64,7 @@ describe('properties: refusals', () => {
 			fc.asyncProperty(
 				fc.constantFrom(...SIGNED),
 				fc.nat(),
-				fc.constantFrom(...ALPHABET),
+				fc.constantFrom(...ALPHABET.split('')),
 				async (field, at, ch) => {
 					const u = new URL(cap, 'https://app.test');
 					const was = u.searchParams.get(field)!;
