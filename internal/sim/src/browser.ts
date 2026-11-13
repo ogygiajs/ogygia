@@ -19,7 +19,13 @@ import type { Loop } from './loop.ts';
 import type { Network } from './network.ts';
 import { install, message_channel, platform, site, SITES, type RealmOptions } from './platform.ts';
 import { hash, type Rng } from './rng.ts';
-import { install_timeline, record_download, type Engine } from './timeline.ts';
+import {
+	install_timeline,
+	record_download,
+	stamp,
+	type Engine,
+	type NavigationType
+} from './timeline.ts';
 import { install_layout, VIEWPORT } from './layout.ts';
 
 /** `SIM_STACKS=1`: a page's uncaught error carries its stack (to triage a seed). */
@@ -43,6 +49,9 @@ export interface Tab {
 	/** The tab's history as it was before that navigation started (`awaiting`): what calling it
 	 *  off puts back. */
 	before: SavedHistory | null;
+	/** The latest navigation: when it started (virtual ms) and how its document is reached. Its
+	 *  document's clock and navigation timing start there (./timeline.ts). */
+	started: { at: number; type: NavigationType } | null;
 	/** What the page reported: uncaught errors, failed scripts, console errors. */
 	readonly errors: string[];
 	readonly console: string[];
@@ -198,6 +207,7 @@ export class Browsers {
 								Response: typeof Response;
 								Headers: typeof Headers;
 								TypeError: typeof TypeError;
+								DOMException: typeof DOMException;
 							};
 							let url = new URL(request.url);
 							let method = request.method;
@@ -215,6 +225,18 @@ export class Browsers {
 								if (timed)
 									record_download(timed, o.timeline ?? 'status', request.url, status, started);
 							};
+							// the page's signal, on the wire: a fetch the page calls off is called off there, as
+							// a browser's is (happy-dom's signal never reached the network: a hole its region let
+							// go downloaded its answer anyway; test/page-abort.node.test.ts)
+							const page_signal = request.signal ?? null;
+							const line = new AbortController();
+							// (the page's realm's AbortError, which a body read passes on as it is)
+							const call_off = () => {
+								o.loop.note(`${from} calls off ${url.pathname}${url.search.slice(0, 24)}`);
+								line.abort(new W.DOMException('The operation was aborted.', 'AbortError'));
+							};
+							if (page_signal?.aborted) call_off();
+							else page_signal?.addEventListener('abort', call_off, { once: true });
 							// a browser follows a redirect itself (happy-dom hands an intercepted answer back as
 							// it is): each leg is a request on the network, with its cookies, and the answer
 							// carries the URL it came from (a document's address is that URL)
@@ -239,12 +261,22 @@ export class Browsers {
 										new URL((window as unknown as { location: { href: string } }).location.href)
 											.origin
 									);
-								const sent = new Request(url, { method, headers, body });
+								const sent = new Request(url, { method, headers, body, signal: line.signal });
+								// (the entry lands once the last leg's body has come, or broke off: a
+								// redirect's leg is no download of its own)
+								let last = false;
+								let came: number | null = null;
+								const ended = (_whole: boolean, status: number) => {
+									came = status;
+									if (last) timing(status);
+								};
 								let answer: Response;
 								try {
-									answer = await o.network.send(from, sent, (r) => o.route(r, from));
+									answer = await o.network.send(from, sent, (r) => o.route(r, from), ended);
 								} catch (error) {
 									timing(null);
+									if (line.signal.aborted)
+										throw new W.DOMException('The operation was aborted.', 'AbortError');
 									throw new W.TypeError(error instanceof Error ? error.message : String(error));
 								}
 								for (const c of answer.headers.getSetCookie()) {
@@ -278,7 +310,8 @@ export class Browsers {
 									headers: out
 								}) as Response & { url: string; redirected: boolean };
 								Object.assign(response, { url: url.href, redirected: hops > 0 });
-								timing(answer.status);
+								last = true;
+								if (came !== null) timing(came);
 								return response as never;
 							}
 						}
@@ -326,14 +359,28 @@ export class Browsers {
 		tab.awaiting = false;
 		tab.before = null;
 		tab.realm = `${tab.name}#${tab.documents}`;
+		const started = tab.started ?? { at: this.#o.loop.now, type: 'navigate' as const };
+		tab.started = null;
 		const options: RealmOptions = {
 			name: tab.realm,
 			loop: this.#o.loop,
 			rng: this.#o.rng,
 			buggify: this.#o.buggify,
+			born: started.at,
 			hidden: () => tab.hidden
 		};
 		const p = platform(options);
+		// (the document's own performance, its clock the realm's; before `install`, which sets the
+		// `now` of the window's performance: its own, no longer the host's one object)
+		install_timeline(window, {
+			now: p.performance!.now,
+			origin: p.Date.now() - p.performance!.now(),
+			url: window.location.href,
+			type: started.type
+		});
+		// (its response came: the document's parse starts now)
+		stamp(window, 'responseStart');
+		stamp(window, 'responseEnd');
 		install(window, p);
 		if (!tab.hidden) tab.seen.add(tab.realm);
 		// (a tab behind another says so, as a browser's does: `Browsers.focus`)
@@ -369,7 +416,6 @@ export class Browsers {
 				configurable: true
 			});
 		}
-		install_timeline(window);
 		// (a layout, and the IntersectionObserver that reads it: happy-dom's never reports)
 		install_layout(window, this.#o.loop, tab.realm);
 		// (the tab's network, as a browser's `navigator.onLine` reads its own: test/online.node.test.ts)
@@ -689,6 +735,7 @@ export class Browsers {
 			navigations: 0,
 			awaiting: false,
 			before: null,
+			started: null,
 			errors: [],
 			console: [],
 			platform: null,
@@ -716,7 +763,7 @@ export class Browsers {
 		}
 		v.tabs.push(tab);
 		this.#windows.set(page.mainFrame.window, tab);
-		on_navigation_start(page, (frame, go) => this.#start(tab, frame, go));
+		on_navigation_start(page, (frame, go, type) => this.#start(tab, frame, go, type));
 		// (happy-dom reports a failed script or stylesheet here, then fires `error` on its element:
 		// the element's listener, in #arrive, says it with this text)
 		const pc = page.console as unknown as Record<string, (...a: unknown[]) => void>;
@@ -763,7 +810,13 @@ export class Browsers {
 	 * put back as it was before it, and a back goes back from the page on screen (palaestra seed
 	 * 20958: the router handed a click to the browser, and the visitor went back meanwhile).
 	 */
-	#start(tab: Tab, frame: object, go: () => Promise<unknown>): Promise<unknown> {
+	#start(
+		tab: Tab,
+		frame: object,
+		go: () => Promise<unknown>,
+		type: NavigationType
+	): Promise<unknown> {
+		tab.started = { at: this.#o.loop.now, type };
 		if (tab.awaiting && tab.before !== null) {
 			tab.documents++;
 			this.#o.network.leave(`${tab.name}#${tab.documents}`);

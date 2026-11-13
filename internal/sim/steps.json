@@ -190,6 +190,48 @@
 	],
 	"covered": [
 		{
+			"step": "lake: open -> waited",
+			"reason": "new with the lake machine (it replaced two WeakSets): the next sweep's --write moves it to reached if the fake browser takes it",
+			"test": "packages/core/test/lake-settle.test.ts",
+			"name": "a region in an unsettled lake waits; in a settled one it runs"
+		},
+		{
+			"step": "lake: open -> settled",
+			"reason": "new with the lake machine (it replaced two WeakSets): the next sweep's --write moves it to reached if the fake browser takes it",
+			"test": "packages/core/test/lake-settle.test.ts",
+			"name": "a lake nobody waited on wakes nobody after its swap"
+		},
+		{
+			"step": "lake: waited -> settling",
+			"reason": "new with the lake machine (it replaced two WeakSets): the next sweep's --write moves it to reached if the fake browser takes it",
+			"test": "packages/core/test/lake-settle.test.ts",
+			"name": "settled before its swap, a lake wakes the regions that waited only after it"
+		},
+		{
+			"step": "lake: settling -> settled",
+			"reason": "new with the lake machine (it replaced two WeakSets): the next sweep's --write moves it to reached if the fake browser takes it",
+			"test": "packages/core/test/lake-settle.test.ts",
+			"name": "settled before its swap, a lake wakes the regions that waited only after it"
+		},
+		{
+			"step": "lake: waited -> settled",
+			"reason": "new with the lake machine (it replaced two WeakSets): the next sweep's --write moves it to reached if the fake browser takes it",
+			"test": "packages/core/test/lake-settle.test.ts",
+			"name": "a lake whose refresh failed for good is settled as it stands"
+		},
+		{
+			"step": "interaction-arming: armed -> woken",
+			"reason": "new with the interaction arming machine (it replaced a hand-switched state field): the next sweep's --write moves it to reached if the fake browser takes it",
+			"test": "packages/core/test/browser/interaction-delegated.test.ts",
+			"name": "an event inside an armed region wakes THAT region only, once; the pointer warms once"
+		},
+		{
+			"step": "interaction-arming: woken -> over",
+			"reason": "new with the interaction arming machine (it replaced a hand-switched state field): the next sweep's --write moves it to reached if the fake browser takes it",
+			"test": "packages/core/test/browser/interaction-rearm.test.ts",
+			"name": "a capture armed again while the first one’s wake loads catches the next click, and the first leaves it alone"
+		},
+		{
 			"step": "critical resources: kept -> gone",
 			"reason": "a page asks only before the gate settles, and the answer is kept only after it: no later get, no expiry, no max; only reset_load_scheduler() drops it, which a test's reset calls",
 			"test": "packages/core/test/browser/load-scheduler.test.ts",

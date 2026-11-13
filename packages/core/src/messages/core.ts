@@ -69,9 +69,10 @@ export const ERRORS = {
 		text: (a: { plugin: string; hook: string }): string =>
 			`plugin \`${a.plugin}\`: its \`${a.hook}\` hook threw (or its promise rejected); the page and the other plugins carry on`,
 		details: (): string => prose`
-			A plugin's browser half subscribes to a runtime hook, and its function failed. The runtime
-			calls every subscriber of a hook in plugin order and wraps each call, so one plugin's
-			failure never stops another's hook or the page. Said once per plugin and hook; the error
+			A plugin's browser half subscribes to a runtime hook (or has a \`boot\`), and its function
+			failed. The runtime calls every subscriber of a hook, and every \`boot\`, in plugin order and
+			wraps each call, so one plugin's failure never stops another's hook, the boot or the page
+			(its regions still wake). Said once per plugin and hook; the error
 			follows the message. In dev the hook's payload is frozen: a hook that writes to it fails
 			here too.
 		`
@@ -950,6 +951,18 @@ export const WARNINGS = {
 			puts the answer in the shape its components expect. An element of an answer was built
 			during the parse anyway: the engine built custom elements in a document that has no
 			registry. ${BUG}
+		`
+	},
+	rule_lake_restored: {
+		text: (a: { detail: string }): string =>
+			`rule broken, a hydrate gives back every lake it lifted: ${a.detail}`,
+		details: (): string => prose`
+			Dev and e2e only (a rule ogygia checks on itself). Before an island hydrates, the server
+			HTML of each region inside it that never wakes (a lake) is lifted out, and after the
+			hydrate it goes back into the lakes the island rendered, the first into the first. The
+			island rendered a different number of lakes than it had, so one lake's content was lost or
+			one lake was left empty. A lake that renders on the server only, or only in the browser
+			(an \`{#if browser}\`), does this; else ${BUG}
 		`
 	},
 	rule_head_adopted: {
