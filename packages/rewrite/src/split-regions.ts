@@ -25,7 +25,7 @@
  * everything else.
  *
  * ```ts
- * import { scanRegions } from '@ogygia/reshape';
+ * import { scanRegions } from '@ogygia/rewrite';
  * const protect = [];
  * for (const r of scanRegions(html)) {
  *   if (r.kind === 'island') protect.push([r.start, r.end]); // its bytes stay verbatim
@@ -44,7 +44,7 @@
  * For the FULL round-trip — lift the regions out, run the foreign renderer over what is left, splice
  * them back — use {@link liftRegions} / {@link restoreRegions} (below). Restore transplants the marks
  * a scoped renderer stamps on the placeholder onto the region, unions `class`, and touches only
- * attributes, never light DOM. All three are exported, Kit-free, from `@ogygia/reshape`, for the
+ * attributes, never light DOM. All three are exported, Kit-free, from `@ogygia/rewrite`, for the
  * non-SvelteKit half of a monorepo where these SSR passes usually live.
  */
 import { next_open_or_close, next_tag, read_tag, value_at } from '@ogygia/core/internal/server';

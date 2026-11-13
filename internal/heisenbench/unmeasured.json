@@ -2125,175 +2125,175 @@
 			"reason": "a message table entry: wording only"
 		},
 		{
-			"id": "packages/reshape/src/index.ts > handle",
-			"reason": "builds one SvelteKit handle (closure state: not cloneable), once per app; its pass is benched in packages/reshape/bench/markup.bench.ts"
+			"id": "packages/rewrite/src/index.ts > handle",
+			"reason": "builds one SvelteKit handle (closure state: not cloneable), once per app; its pass is benched in packages/rewrite/bench/markup.bench.ts"
 		},
 		{
-			"id": "packages/reshape/src/index.ts > handle > <anonymous>~eafc25",
-			"reason": "the handle per request (a RequestEvent and resolve: not recorded): hands the document to the pass, constant work of its own; the pass is benched in packages/reshape/bench/markup.bench.ts"
+			"id": "packages/rewrite/src/index.ts > handle > <anonymous>~eafc25",
+			"reason": "the handle per request (a RequestEvent and resolve: not recorded): hands the document to the pass, constant work of its own; the pass is benched in packages/rewrite/bench/markup.bench.ts"
 		},
 		{
-			"id": "packages/reshape/src/messages.ts > RESHAPE_ERRORS > reshape_plugin_missing > details",
+			"id": "packages/rewrite/src/messages.ts > RESHAPE_ERRORS > reshape_plugin_missing > details",
 			"reason": "a message table entry: wording only"
 		},
 		{
-			"id": "packages/reshape/src/messages.ts > RESHAPE_ERRORS > reshape_plugin_missing > text",
+			"id": "packages/rewrite/src/messages.ts > RESHAPE_ERRORS > reshape_plugin_missing > text",
 			"reason": "a message table entry: wording only"
 		},
 		{
-			"id": "packages/reshape/src/pass.ts > reshape_pass > region",
-			"reason": "one region's pass inside reshape_pass (its closure over the document: not recorded), benched with the document pass in packages/reshape/bench/markup.bench.ts"
+			"id": "packages/rewrite/src/pass.ts > reshape_pass > region",
+			"reason": "one region's pass inside reshape_pass (its closure over the document: not recorded), benched with the document pass in packages/rewrite/bench/markup.bench.ts"
 		},
 		{
-			"id": "packages/reshape/src/restore.ts > restore",
-			"reason": "moved from packages/core/src/runtime/restore.ts with reshape (#607): never ran here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/reshape/test) prove it"
+			"id": "packages/rewrite/src/restore.ts > restore",
+			"reason": "moved from packages/core/src/runtime/restore.ts with reshape (#607): never ran here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/rewrite/test) prove it"
 		},
 		{
-			"id": "packages/reshape/src/restore.ts > restore > comments",
-			"reason": "moved from packages/core/src/runtime/restore.ts with reshape (#607): never ran here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/reshape/test) prove it"
+			"id": "packages/rewrite/src/restore.ts > restore > comments",
+			"reason": "moved from packages/core/src/runtime/restore.ts with reshape (#607): never ran here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/rewrite/test) prove it"
 		},
 		{
-			"id": "packages/reshape/src/restore.ts > restore > describe",
-			"reason": "moved from packages/core/src/runtime/restore.ts with reshape (#607): never ran here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/reshape/test) prove it"
+			"id": "packages/rewrite/src/restore.ts > restore > describe",
+			"reason": "moved from packages/core/src/runtime/restore.ts with reshape (#607): never ran here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/rewrite/test) prove it"
 		},
 		{
-			"id": "packages/reshape/src/restore.ts > restore > differ",
-			"reason": "moved from packages/core/src/runtime/restore.ts with reshape (#607): never ran here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/reshape/test) prove it"
+			"id": "packages/rewrite/src/restore.ts > restore > differ",
+			"reason": "moved from packages/core/src/runtime/restore.ts with reshape (#607): never ran here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/rewrite/test) prove it"
 		},
 		{
-			"id": "packages/reshape/src/restore.ts > restore > esc",
-			"reason": "moved from packages/core/src/runtime/restore.ts with reshape (#607): never ran here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/reshape/test) prove it"
+			"id": "packages/rewrite/src/restore.ts > restore > esc",
+			"reason": "moved from packages/core/src/runtime/restore.ts with reshape (#607): never ran here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/rewrite/test) prove it"
 		},
 		{
-			"id": "packages/reshape/src/restore.ts > restore > fix_text",
-			"reason": "moved from packages/core/src/runtime/restore.ts with reshape (#607): never ran here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/reshape/test) prove it"
+			"id": "packages/rewrite/src/restore.ts > restore > fix_text",
+			"reason": "moved from packages/core/src/runtime/restore.ts with reshape (#607): never ran here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/rewrite/test) prove it"
 		},
 		{
-			"id": "packages/reshape/src/restore.ts > restore > log",
-			"reason": "moved from packages/core/src/runtime/restore.ts with reshape (#607): never ran here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/reshape/test) prove it"
+			"id": "packages/rewrite/src/restore.ts > restore > log",
+			"reason": "moved from packages/core/src/runtime/restore.ts with reshape (#607): never ran here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/rewrite/test) prove it"
 		},
 		{
-			"id": "packages/reshape/src/restore.ts > restore > map:0~54a21c",
-			"reason": "moved from packages/core/src/runtime/restore.ts with reshape (#607): never ran here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/reshape/test) prove it"
+			"id": "packages/rewrite/src/restore.ts > restore > map:0~54a21c",
+			"reason": "moved from packages/core/src/runtime/restore.ts with reshape (#607): never ran here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/rewrite/test) prove it"
 		},
 		{
-			"id": "packages/reshape/src/restore.ts > restore > norm",
-			"reason": "moved from packages/core/src/runtime/restore.ts with reshape (#607): never ran here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/reshape/test) prove it"
+			"id": "packages/rewrite/src/restore.ts > restore > norm",
+			"reason": "moved from packages/core/src/runtime/restore.ts with reshape (#607): never ran here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/rewrite/test) prove it"
 		},
 		{
-			"id": "packages/reshape/src/restore.ts > restore > norm > map:0~543c6f",
-			"reason": "moved from packages/core/src/runtime/restore.ts with reshape (#607): never ran here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/reshape/test) prove it"
+			"id": "packages/rewrite/src/restore.ts > restore > norm > map:0~543c6f",
+			"reason": "moved from packages/core/src/runtime/restore.ts with reshape (#607): never ran here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/rewrite/test) prove it"
 		},
 		{
-			"id": "packages/reshape/src/restore.ts > restore > original",
-			"reason": "moved from packages/core/src/runtime/restore.ts with reshape (#607): never ran here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/reshape/test) prove it"
+			"id": "packages/rewrite/src/restore.ts > restore > original",
+			"reason": "moved from packages/core/src/runtime/restore.ts with reshape (#607): never ran here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/rewrite/test) prove it"
 		},
 		{
-			"id": "packages/reshape/src/restore.ts > restore > reset",
-			"reason": "moved from packages/core/src/runtime/restore.ts with reshape (#607): never ran here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/reshape/test) prove it"
+			"id": "packages/rewrite/src/restore.ts > restore > reset",
+			"reason": "moved from packages/core/src/runtime/restore.ts with reshape (#607): never ran here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/rewrite/test) prove it"
 		},
 		{
-			"id": "packages/reshape/src/restore.ts > restore > sheet_for",
-			"reason": "moved from packages/core/src/runtime/restore.ts with reshape (#607): never ran here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/reshape/test) prove it"
+			"id": "packages/rewrite/src/restore.ts > restore > sheet_for",
+			"reason": "moved from packages/core/src/runtime/restore.ts with reshape (#607): never ran here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/rewrite/test) prove it"
 		},
 		{
-			"id": "packages/reshape/src/restore.ts > restore > sort:0~178687",
-			"reason": "moved from packages/core/src/runtime/restore.ts with reshape (#607): never ran here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/reshape/test) prove it"
+			"id": "packages/rewrite/src/restore.ts > restore > sort:0~178687",
+			"reason": "moved from packages/core/src/runtime/restore.ts with reshape (#607): never ran here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/rewrite/test) prove it"
 		},
 		{
-			"id": "packages/reshape/src/restore.ts > restore > swap_stand_ins",
-			"reason": "moved from packages/core/src/runtime/restore.ts with reshape (#607): never ran here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/reshape/test) prove it"
+			"id": "packages/rewrite/src/restore.ts > restore > swap_stand_ins",
+			"reason": "moved from packages/core/src/runtime/restore.ts with reshape (#607): never ran here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/rewrite/test) prove it"
 		},
 		{
-			"id": "packages/reshape/src/restore.ts > restore > verify",
-			"reason": "moved from packages/core/src/runtime/restore.ts with reshape (#607): never ran here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/reshape/test) prove it"
+			"id": "packages/rewrite/src/restore.ts > restore > verify",
+			"reason": "moved from packages/core/src/runtime/restore.ts with reshape (#607): never ran here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/rewrite/test) prove it"
 		},
 		{
-			"id": "packages/reshape/src/restore.ts > restore > watch",
-			"reason": "moved from packages/core/src/runtime/restore.ts with reshape (#607): never ran here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/reshape/test) prove it"
+			"id": "packages/rewrite/src/restore.ts > restore > watch",
+			"reason": "moved from packages/core/src/runtime/restore.ts with reshape (#607): never ran here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/rewrite/test) prove it"
 		},
 		{
-			"id": "packages/reshape/src/restore.ts > restore > watch > MutationObserver:0~19a5fb",
-			"reason": "moved from packages/core/src/runtime/restore.ts with reshape (#607): not recorded here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/reshape/test) prove it"
+			"id": "packages/rewrite/src/restore.ts > restore > watch > MutationObserver:0~19a5fb",
+			"reason": "moved from packages/core/src/runtime/restore.ts with reshape (#607): not recorded here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/rewrite/test) prove it"
 		},
 		{
-			"id": "packages/reshape/src/restore.ts > restore > within",
-			"reason": "moved from packages/core/src/runtime/restore.ts with reshape (#607): never ran here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/reshape/test) prove it"
+			"id": "packages/rewrite/src/restore.ts > restore > within",
+			"reason": "moved from packages/core/src/runtime/restore.ts with reshape (#607): never ran here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/rewrite/test) prove it"
 		},
 		{
-			"id": "packages/reshape/src/restore.ts > restore_adopt",
-			"reason": "moved from packages/core/src/runtime/restore.ts with reshape (#607): never ran here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/reshape/test) prove it"
+			"id": "packages/rewrite/src/restore.ts > restore_adopt",
+			"reason": "moved from packages/core/src/runtime/restore.ts with reshape (#607): never ran here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/rewrite/test) prove it"
 		},
 		{
-			"id": "packages/reshape/src/restore.ts > restore_adopt > waiting",
-			"reason": "moved from packages/core/src/runtime/restore.ts with reshape (#607): never ran here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/reshape/test) prove it"
+			"id": "packages/rewrite/src/restore.ts > restore_adopt > waiting",
+			"reason": "moved from packages/core/src/runtime/restore.ts with reshape (#607): never ran here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/rewrite/test) prove it"
 		},
 		{
-			"id": "packages/reshape/src/restore.ts > restore_adopt > where",
-			"reason": "moved from packages/core/src/runtime/restore.ts with reshape (#607): never ran here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/reshape/test) prove it"
+			"id": "packages/rewrite/src/restore.ts > restore_adopt > where",
+			"reason": "moved from packages/core/src/runtime/restore.ts with reshape (#607): never ran here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/rewrite/test) prove it"
 		},
 		{
-			"id": "packages/reshape/src/reversible.ts > check_script",
-			"reason": "moved from packages/core/src/server/reversible.ts with reshape (#607): never ran here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/reshape/test) prove it"
+			"id": "packages/rewrite/src/reversible.ts > check_script",
+			"reason": "moved from packages/core/src/server/reversible.ts with reshape (#607): never ran here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/rewrite/test) prove it"
 		},
 		{
-			"id": "packages/reshape/src/reversible.ts > localizeMarks",
-			"reason": "moved from packages/core/src/server/reversible.ts with reshape (#607): not cloneable here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/reshape/test) prove it"
+			"id": "packages/rewrite/src/reversible.ts > localizeMarks",
+			"reason": "moved from packages/core/src/server/reversible.ts with reshape (#607): not cloneable here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/rewrite/test) prove it"
 		},
 		{
-			"id": "packages/reshape/src/reversible.ts > localizeMarks > back",
-			"reason": "moved from packages/core/src/server/reversible.ts with reshape (#607): not replayable here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/reshape/test) prove it"
+			"id": "packages/rewrite/src/reversible.ts > localizeMarks > back",
+			"reason": "moved from packages/core/src/server/reversible.ts with reshape (#607): not replayable here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/rewrite/test) prove it"
 		},
 		{
-			"id": "packages/reshape/src/reversible.ts > localizeMarks > back > remap:1~78687b",
-			"reason": "moved from packages/core/src/server/reversible.ts with reshape (#607): not replayable here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/reshape/test) prove it"
+			"id": "packages/rewrite/src/reversible.ts > localizeMarks > back > remap:1~78687b",
+			"reason": "moved from packages/core/src/server/reversible.ts with reshape (#607): not replayable here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/rewrite/test) prove it"
 		},
 		{
-			"id": "packages/reshape/src/reversible.ts > localizeMarks > map:0~5a97cd",
-			"reason": "moved from packages/core/src/server/reversible.ts with reshape (#607): not recorded here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/reshape/test) prove it"
+			"id": "packages/rewrite/src/reversible.ts > localizeMarks > map:0~5a97cd",
+			"reason": "moved from packages/core/src/server/reversible.ts with reshape (#607): not recorded here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/rewrite/test) prove it"
 		},
 		{
-			"id": "packages/reshape/src/reversible.ts > localizeMarks > remap:1~c2f583",
-			"reason": "moved from packages/core/src/server/reversible.ts with reshape (#607): not replayable here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/reshape/test) prove it"
+			"id": "packages/rewrite/src/reversible.ts > localizeMarks > remap:1~c2f583",
+			"reason": "moved from packages/core/src/server/reversible.ts with reshape (#607): not replayable here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/rewrite/test) prove it"
 		},
 		{
-			"id": "packages/reshape/src/reversible.ts > map:0~1d7705",
-			"reason": "moved from packages/core/src/server/reversible.ts with reshape (#607): not replayable here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/reshape/test) prove it"
+			"id": "packages/rewrite/src/reversible.ts > map:0~1d7705",
+			"reason": "moved from packages/core/src/server/reversible.ts with reshape (#607): not replayable here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/rewrite/test) prove it"
 		},
 		{
-			"id": "packages/reshape/src/reversible.ts > mark > some:0~5343d7",
-			"reason": "moved from packages/core/src/server/reversible.ts with reshape (#607): never ran here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/reshape/test) prove it"
+			"id": "packages/rewrite/src/reversible.ts > mark > some:0~5343d7",
+			"reason": "moved from packages/core/src/server/reversible.ts with reshape (#607): never ran here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/rewrite/test) prove it"
 		},
 		{
-			"id": "packages/reshape/src/reversible.ts > remap",
-			"reason": "moved from packages/core/src/server/reversible.ts with reshape (#607): not cloneable here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/reshape/test) prove it"
+			"id": "packages/rewrite/src/reversible.ts > remap",
+			"reason": "moved from packages/core/src/server/reversible.ts with reshape (#607): not cloneable here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/rewrite/test) prove it"
 		},
 		{
-			"id": "packages/reshape/src/reversible.ts > script_json",
-			"reason": "moved from packages/core/src/server/reversible.ts with reshape (#607): never ran here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/reshape/test) prove it"
+			"id": "packages/rewrite/src/reversible.ts > script_json",
+			"reason": "moved from packages/core/src/server/reversible.ts with reshape (#607): never ran here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/rewrite/test) prove it"
 		},
 		{
-			"id": "packages/reshape/src/reversible.ts > settle > find:0~49cf38",
-			"reason": "moved from packages/core/src/server/reversible.ts with reshape (#607): not replayable here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/reshape/test) prove it"
+			"id": "packages/rewrite/src/reversible.ts > settle > find:0~49cf38",
+			"reason": "moved from packages/core/src/server/reversible.ts with reshape (#607): not replayable here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/rewrite/test) prove it"
 		},
 		{
-			"id": "packages/reshape/src/reversible.ts > transformMarkup",
-			"reason": "moved from packages/core/src/server/reversible.ts with reshape (#607): not recorded here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/reshape/test) prove it"
+			"id": "packages/rewrite/src/reversible.ts > transformMarkup",
+			"reason": "moved from packages/core/src/server/reversible.ts with reshape (#607): not recorded here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/rewrite/test) prove it"
 		},
 		{
-			"id": "packages/reshape/src/server.ts > defineServer:0~5ced6a > pass",
-			"reason": "the plugin's document pass (the page's context: not cloneable), hands it to reshape_pass, constant work of its own; benched in packages/reshape/bench/markup.bench.ts"
+			"id": "packages/rewrite/src/server.ts > defineServer:0~5ced6a > pass",
+			"reason": "the plugin's document pass (the page's context: not cloneable), hands it to reshape_pass, constant work of its own; benched in packages/rewrite/bench/markup.bench.ts"
 		},
 		{
-			"id": "packages/reshape/src/server.ts > defineServer:0~5ced6a > setup",
+			"id": "packages/rewrite/src/server.ts > defineServer:0~5ced6a > setup",
 			"reason": "the plugin's server setup, once per app (the ServerApp: not cloneable), constant work"
 		},
 		{
-			"id": "packages/reshape/src/split-regions.ts > make_region > withInner",
-			"reason": "moved from packages/core/src/server/split-regions.ts with reshape (#607): not cloneable here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/reshape/test) prove it"
+			"id": "packages/rewrite/src/split-regions.ts > make_region > withInner",
+			"reason": "moved from packages/core/src/server/split-regions.ts with reshape (#607): not cloneable here, browser or closure state; the gate on this base does not follow a file across packages, and the moved tests (packages/rewrite/test) prove it"
 		},
 		{
-			"id": "packages/reshape/src/vite.ts > reshape",
+			"id": "packages/rewrite/src/vite.ts > reshape",
 			"reason": "the plugin factory: one definePlugin, once per config"
 		},
 		{
@@ -2301,56 +2301,56 @@
 			"reason": "browser only: asks the client plugins that hook a region's hydrate (a DOM element: not replayable), linear in them (a handful), once per hydrate; nothing at all without one"
 		},
 		{
-			"id": "packages/reshape/src/host-classes.ts > keep_host_classes",
-			"reason": "moved from packages/core/src/runtime/host-classes.ts with reshape (#608): never ran here, browser state; the gate on this base does not follow a file across packages, and the moved tests (packages/reshape/test) prove it"
+			"id": "packages/rewrite/src/host-classes.ts > keep_host_classes",
+			"reason": "moved from packages/core/src/runtime/host-classes.ts with reshape (#608): never ran here, browser state; the gate on this base does not follow a file across packages, and the moved tests (packages/rewrite/test) prove it"
 		},
 		{
-			"id": "packages/reshape/src/host-classes.ts > note_host_classes",
-			"reason": "moved from packages/core/src/runtime/host-classes.ts with reshape (#608): never ran here, browser state; the gate on this base does not follow a file across packages, and the moved tests (packages/reshape/test) prove it"
+			"id": "packages/rewrite/src/host-classes.ts > note_host_classes",
+			"reason": "moved from packages/core/src/runtime/host-classes.ts with reshape (#608): never ran here, browser state; the gate on this base does not follow a file across packages, and the moved tests (packages/rewrite/test) prove it"
 		},
 		{
-			"id": "packages/reshape/src/messages.ts > RESHAPE_ERRORS > restore_markup_broken > details",
+			"id": "packages/rewrite/src/messages.ts > RESHAPE_ERRORS > restore_markup_broken > details",
 			"reason": "a message table entry: wording only (moved from core with reshape, #608)"
 		},
 		{
-			"id": "packages/reshape/src/messages.ts > RESHAPE_ERRORS > restore_markup_broken > text",
+			"id": "packages/rewrite/src/messages.ts > RESHAPE_ERRORS > restore_markup_broken > text",
 			"reason": "a message table entry: wording only (moved from core with reshape, #608)"
 		},
 		{
-			"id": "packages/reshape/src/messages.ts > RESHAPE_ERRORS > reshape_pass_failed > details",
+			"id": "packages/rewrite/src/messages.ts > RESHAPE_ERRORS > reshape_pass_failed > details",
 			"reason": "a message table entry: wording only (#1569)"
 		},
 		{
-			"id": "packages/reshape/src/messages.ts > RESHAPE_ERRORS > reshape_pass_failed > text",
+			"id": "packages/rewrite/src/messages.ts > RESHAPE_ERRORS > reshape_pass_failed > text",
 			"reason": "a message table entry: wording only (#1569)"
 		},
 		{
-			"id": "packages/reshape/src/messages.ts > RESHAPE_ERRORS > reshape_marks_lost > details",
+			"id": "packages/rewrite/src/messages.ts > RESHAPE_ERRORS > reshape_marks_lost > details",
 			"reason": "a message table entry: wording only (#1569)"
 		},
 		{
-			"id": "packages/reshape/src/messages.ts > RESHAPE_ERRORS > reshape_marks_lost > text",
+			"id": "packages/rewrite/src/messages.ts > RESHAPE_ERRORS > reshape_marks_lost > text",
 			"reason": "a message table entry: wording only (#1569)"
 		},
 		{
-			"id": "packages/reshape/src/messages.ts > RESHAPE_WARNINGS > restore_late > details",
+			"id": "packages/rewrite/src/messages.ts > RESHAPE_WARNINGS > restore_late > details",
 			"reason": "a message table entry: wording only (moved from core with reshape, #608)"
 		},
 		{
-			"id": "packages/reshape/src/messages.ts > RESHAPE_WARNINGS > restore_late > text",
+			"id": "packages/rewrite/src/messages.ts > RESHAPE_WARNINGS > restore_late > text",
 			"reason": "a message table entry: wording only (moved from core with reshape, #608)"
 		},
 		{
-			"id": "packages/reshape/src/restore-report.ts > report",
-			"reason": "moved from packages/core/src/runtime/restore-report.ts with reshape (#608): never ran here, browser state; the gate on this base does not follow a file across packages, and the moved tests (packages/reshape/test) prove it"
+			"id": "packages/rewrite/src/restore-report.ts > report",
+			"reason": "moved from packages/core/src/runtime/restore-report.ts with reshape (#608): never ran here, browser state; the gate on this base does not follow a file across packages, and the moved tests (packages/rewrite/test) prove it"
 		},
 		{
-			"id": "packages/reshape/src/restore-report.ts > report_restores",
-			"reason": "moved from packages/core/src/runtime/restore-report.ts with reshape (#608): never ran here, browser state; the gate on this base does not follow a file across packages, and the moved tests (packages/reshape/test) prove it"
+			"id": "packages/rewrite/src/restore-report.ts > report_restores",
+			"reason": "moved from packages/core/src/runtime/restore-report.ts with reshape (#608): never ran here, browser state; the gate on this base does not follow a file across packages, and the moved tests (packages/rewrite/test) prove it"
 		},
 		{
-			"id": "packages/reshape/src/restore-report.ts > report_restores > __og_restore",
-			"reason": "moved from packages/core/src/runtime/restore-report.ts with reshape (#608): never ran here, browser state; the gate on this base does not follow a file across packages, and the moved tests (packages/reshape/test) prove it"
+			"id": "packages/rewrite/src/restore-report.ts > report_restores > __og_restore",
+			"reason": "moved from packages/core/src/runtime/restore-report.ts with reshape (#608): never ran here, browser state; the gate on this base does not follow a file across packages, and the moved tests (packages/rewrite/test) prove it"
 		},
 		{
 			"id": "packages/core/src/server/page-stream.ts > swap_tracked",

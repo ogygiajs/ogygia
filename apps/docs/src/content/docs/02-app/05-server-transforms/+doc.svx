@@ -1,6 +1,6 @@
 ---
 title: Server transforms
-summary: Post-process the HTML ogygia sends, even inside islands. `reshape.handle(transform)` from `@ogygia/reshape` runs your transform over every document and every hole answer, and before anything hydrates, ogygia puts back whatever the transform moved in Svelte's markup.
+summary: Post-process the HTML ogygia sends, even inside islands. `reshape.handle(transform)` from `@ogygia/rewrite` runs your transform over every document and every hole answer, and before anything hydrates, ogygia puts back whatever the transform moved in Svelte's markup.
 related:
   - regions/server-islands
   - regions/lakes
@@ -9,16 +9,16 @@ related:
 
 Some apps run one more pass over the HTML after rendering, such as a server render for web components, a translation proxy or a tool that edits markup. Islands make this difficult, because an island hydrates against the exact markup Svelte rendered. A pass that moves a node, trims a space or wraps a child breaks the hydration walk, and the island throws its server DOM away.
 
-The `@ogygia/reshape` plugin lets that pass run anyway. You hand your transform to it, and ogygia marks the HTML before your transform runs, reads what the transform did afterwards, and in the browser restores exactly what hydration needs before anything hydrates. Apps without such a pass don't install it and ship none of this.
+The `@ogygia/rewrite` plugin lets that pass run anyway. You hand your transform to it, and ogygia marks the HTML before your transform runs, reads what the transform did afterwards, and in the browser restores exactly what hydration needs before anything hydrates. Apps without such a pass don't install it and ship none of this.
 
 ```bash
-pnpm add @ogygia/reshape
+pnpm add @ogygia/rewrite
 ```
 
 ```ts
 // vite.config.ts
 import { ogygia } from 'ogygia/vite';
-import { reshape } from '@ogygia/reshape/vite';
+import { reshape } from '@ogygia/rewrite/vite';
 
 export default defineConfig({
   plugins: [ogygia(), reshape(), sveltekit()]
@@ -29,7 +29,7 @@ export default defineConfig({
 // src/hooks.server.ts
 import { sequence } from '@sveltejs/kit/hooks';
 import * as ogygia from 'ogygia/server';
-import * as reshape from '@ogygia/reshape';
+import * as reshape from '@ogygia/rewrite';
 import { renderComponents } from '$lib/server/components';
 
 export const handle = sequence(
@@ -46,7 +46,7 @@ To write the transform in a module of its own, type it with `ReshapeTransform`:
 
 ```ts
 // src/lib/server/transform.ts
-import type { ReshapeTransform } from '@ogygia/reshape';
+import type { ReshapeTransform } from '@ogygia/rewrite';
 import { renderComponents } from '$lib/server/components';
 
 export const transform: ReshapeTransform = (html, { kind }) =>
@@ -97,7 +97,7 @@ A mark comment sits immediately before its node. If your renderer marks each nod
 ogygia numbers hosts across the whole document, so the same block carries different ids on another page, and a render cache keyed on the block's markup would never hit. `localizeMarks` renumbers a block's marks from 0 for the cache key, and maps the document's ids back onto the render:
 
 ```ts
-import { localizeMarks } from '@ogygia/reshape';
+import { localizeMarks } from '@ogygia/rewrite';
 
 const local = localizeMarks(block);
 const rendered = cache.get(local.html) ?? cache.set(local.html, await render(local.html)).get(local.html);
@@ -144,10 +144,10 @@ In dev, ogygia sends each planned host's original children along with the page, 
 
 ## Testing a transform
 
-`@ogygia/reshape` runs the same round trip outside the app, so a test can harvest markup and run your transform over it:
+`@ogygia/rewrite` runs the same round trip outside the app, so a test can harvest markup and run your transform over it:
 
 ```ts
-import { transformMarkup, checkScript, restore } from '@ogygia/reshape';
+import { transformMarkup, checkScript, restore } from '@ogygia/rewrite';
 
 const settled = await transformMarkup(islandHtml, renderComponents, { kind: 'region', dev: true });
 const tpl = document.createElement('template');
@@ -159,4 +159,4 @@ restore(tpl.content);
 
 `restore` runs in jsdom as is; without adoptable stylesheets, it gives each shadow root a `<style>` element instead.
 
-`@ogygia/reshape` also provides `scanRegions`, `liftRegions` and `restoreRegions` for a pass that needs to know where the regions are. It does not need Kit, so it runs anywhere.
+`@ogygia/rewrite` also provides `scanRegions`, `liftRegions` and `restoreRegions` for a pass that needs to know where the regions are. It does not need Kit, so it runs anywhere.

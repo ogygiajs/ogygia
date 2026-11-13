@@ -27,7 +27,7 @@ export const RESHAPE_ERRORS = {
 			runs it (it marks the HTML before the transform and records what it moved after). Without
 			the plugin the transform would never run, so every request fails instead.
 
-			List \`reshape()\` (from \`@ogygia/reshape/vite\`) beside \`ogygia()\` in the \`plugins\` of
+			List \`reshape()\` (from \`@ogygia/rewrite/vite\`) beside \`ogygia()\` in the \`plugins\` of
 			vite.config.
 		`
 	},

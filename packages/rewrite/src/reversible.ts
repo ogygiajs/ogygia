@@ -1100,7 +1100,7 @@ export function localizeMarks(html: string): { html: string; back: (rendered: st
 
 /**
  * The whole server round trip for one piece of markup: mark → the app's transform → settle. Kit-free
- * (exported from `@ogygia/reshape` for tests that harvest markup and run a transform over it).
+ * (exported from `@ogygia/rewrite` for tests that harvest markup and run a transform over it).
  */
 export async function transformMarkup(
 	html: string,

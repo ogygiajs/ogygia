@@ -19,7 +19,7 @@ import * as federation from '@ogygia/federation/internal/messages';
 import * as flags from '@ogygia/flags/internal/messages';
 import * as machine from '@ogygia/machine';
 import * as postrender from '@ogygia/postrender/internal/messages';
-import * as reshape from '@ogygia/reshape/internal/messages';
+import * as reshape from '@ogygia/rewrite/internal/messages';
 import * as testing from '@ogygia/testing/internal/messages';
 import * as cli from '@ogygia/cli/internal/messages';
 

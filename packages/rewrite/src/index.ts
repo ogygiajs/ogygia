@@ -1,5 +1,5 @@
 /**
- * `@ogygia/reshape` — an app's own pass over the HTML ogygia sends (a web-component server render, a
+ * `@ogygia/rewrite` — an app's own pass over the HTML ogygia sends (a web-component server render, a
  * translation proxy), and the markup helpers around it. Kit-free at runtime, so the helpers run
  * anywhere: the non-SvelteKit half of a monorepo, a vitest corpus in jsdom.
  *
@@ -22,13 +22,13 @@ export type { ReshapeTransform };
 
 /**
  * The app's own pass over the HTML ogygia sends, as a Kit handle. Put it before ogygia's, and list
- * `reshape()` (from `@ogygia/reshape/vite`) beside `ogygia()` in vite.config:
+ * `reshape()` (from `@ogygia/rewrite/vite`) beside `ogygia()` in vite.config:
  *
  * ```ts
  * // src/hooks.server.ts
  * import { sequence } from '@sveltejs/kit/hooks';
  * import * as ogygia from 'ogygia/server';
- * import * as reshape from '@ogygia/reshape';
+ * import * as reshape from '@ogygia/rewrite';
  * export const handle = sequence(reshape.handle(render), ogygia.handle());
  * ```
  *

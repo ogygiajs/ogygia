@@ -3,7 +3,7 @@
 	"extends": ["//"],
 	"tasks": {
 		"e2e": {
-			"dependsOn": ["^build", "build", "reshape-e2e-app#fixture"]
+			"dependsOn": ["^build", "build", "rewrite-e2e-app#fixture"]
 		}
 	}
 }

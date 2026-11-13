@@ -7,7 +7,7 @@ import { definePlugin, type OgygiaPlugin } from '@ogygia/compiler/vite';
 
 export function reshape(): OgygiaPlugin {
 	return definePlugin({
-		name: '@ogygia/reshape',
+		name: '@ogygia/rewrite',
 		server: import.meta.resolve('./server.ts'),
 		client: import.meta.resolve('./client.ts')
 	});

@@ -22,7 +22,7 @@ import type { TransformKind } from './reversible.ts';
  * - `event`: the request being answered.
  *
  * ```ts
- * import type { ReshapeTransform } from '@ogygia/reshape';
+ * import type { ReshapeTransform } from '@ogygia/rewrite';
  * export const render: ReshapeTransform = (html, { kind }) =>
  * 	renderComponents(html, { fragment: kind === 'region' });
  * ```

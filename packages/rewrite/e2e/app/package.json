@@ -1,8 +1,8 @@
 {
-	"name": "reshape-e2e-app",
+	"name": "rewrite-e2e-app",
 	"version": "0.0.1",
 	"private": true,
-	"description": "@ogygia/reshape's e2e fixture app: the restore lab (a scoped web-component render as the app's own pass).",
+	"description": "@ogygia/rewrite's e2e fixture app: the restore lab (a scoped web-component render as the app's own pass).",
 	"type": "module",
 	"scripts": {
 		"dev": "vite dev --port 3095",
@@ -11,7 +11,7 @@
 		"check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --fail-on-warnings"
 	},
 	"dependencies": {
-		"@ogygia/reshape": "workspace:*",
+		"@ogygia/rewrite": "workspace:*",
 		"ogygia": "workspace:*"
 	},
 	"devDependencies": {

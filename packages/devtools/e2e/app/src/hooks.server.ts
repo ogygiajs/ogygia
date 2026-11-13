@@ -1,7 +1,7 @@
 import { sequence } from '@sveltejs/kit/hooks';
 import type { Handle } from '@sveltejs/kit';
 import { handle as ogygiaHandle } from 'ogygia/server';
-import * as reshape from '@ogygia/reshape';
+import * as reshape from '@ogygia/rewrite';
 import { setProfilerStore } from '@ogygia/devtools/profiler/storage';
 import { SqliteStore } from '@ogygia/devtools/profiler/storage/sqlite';
 import { ds_ssr } from '$lib/hell/ds-ssr';

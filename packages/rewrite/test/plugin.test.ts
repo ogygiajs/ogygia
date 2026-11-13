@@ -17,9 +17,9 @@ const ok = async () => new Response('ok');
 describe('reshape()', () => {
 	it('is named by its package and names its server realm, the module beside it', () => {
 		const plugin = reshape();
-		expect(plugin.name).toBe('@ogygia/reshape');
+		expect(plugin.name).toBe('@ogygia/rewrite');
 		expect((plugin as unknown as Record<symbol, unknown>)[Symbol.for('ogygia.plugin')]).toEqual({
-			name: '@ogygia/reshape',
+			name: '@ogygia/rewrite',
 			server: new URL('../src/server.ts', import.meta.url).href,
 			client: new URL('../src/client.ts', import.meta.url).href
 		});
@@ -34,7 +34,7 @@ describe('handle(transform)', () => {
 	});
 
 	it('gives a pass to the requests it wrapped, and to no other', async () => {
-		startPlugin(server, { name: '@ogygia/reshape' });
+		startPlugin(server, { name: '@ogygia/rewrite' });
 		const wrapped = event_of(new Request('http://x/a'));
 		const res = await handle((html) => html.replace('a', 'b'))({ event: wrapped, resolve: ok });
 		expect(await res.text()).toBe('ok');
@@ -43,7 +43,7 @@ describe('handle(transform)', () => {
 	});
 
 	it('runs the transform on a region answer, and inlines the restorer on a document', async () => {
-		startPlugin(server, { name: '@ogygia/reshape' });
+		startPlugin(server, { name: '@ogygia/rewrite' });
 		const event = event_of(new Request('http://x/'));
 		const seen: string[] = [];
 		await handle((html, { kind }) => {
@@ -63,7 +63,7 @@ describe('handle(transform)', () => {
 });
 
 describe("core's handle", () => {
-	it('refuses `transform`, pointing at @ogygia/reshape', () => {
+	it('refuses `transform`, pointing at @ogygia/rewrite', () => {
 		const old = { transform: (html: string) => html } as Parameters<typeof ogygia_handle>[0];
 		expect(() => ogygia_handle(old)).toThrow(/handle_transform_moved/);
 	});

@@ -314,16 +314,16 @@ export const handle = ogygia.handle();
 | `endpoint` | The region endpoint's path. Default `/__ogygia__`.                                                                              |
 | `secret`   | The secret that signs capability URLs. Takes precedence over `OGYGIA_SECRET`; see [`OGYGIA_SECRET`](#ogygiavite-ogygia-secret). |
 
-An app's own pass over the HTML (a web-component server render) is not an option here: it is `reshape.handle(transform)` from the `@ogygia/reshape` package. See [Server transforms](/docs/app/server-transforms).
+An app's own pass over the HTML (a web-component server render) is not an option here: it is `reshape.handle(transform)` from the `@ogygia/rewrite` package. See [Server transforms](/docs/app/server-transforms).
 
-## `@ogygia/reshape`
+## `@ogygia/rewrite`
 
 ```ts
-import { handle, scanRegions, liftRegions, restoreRegions, transformMarkup, restore } from '@ogygia/reshape';
-import type { ReshapeTransform } from '@ogygia/reshape';
+import { handle, scanRegions, liftRegions, restoreRegions, transformMarkup, restore } from '@ogygia/rewrite';
+import type { ReshapeTransform } from '@ogygia/rewrite';
 ```
 
-A package of its own (`pnpm add @ogygia/reshape`); it replaces `ogygia/markup`, which is gone. Its `reshape()` Vite plugin comes from `@ogygia/reshape/vite`. The markup helpers need no Kit, so they run in the non-SvelteKit half of a monorepo or in a test.
+A package of its own (`pnpm add @ogygia/rewrite`); it replaces `ogygia/markup`, which is gone. Its `reshape()` Vite plugin comes from `@ogygia/rewrite/vite`. The markup helpers need no Kit, so they run in the non-SvelteKit half of a monorepo or in a test.
 
 | Export                                                 | What it is                                                                                                               |
 | ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------ |

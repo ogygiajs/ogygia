@@ -17,7 +17,7 @@ import {
 	text_of,
 	type FoundTag
 } from '@ogygia/core/internal/server';
-import { scanRegions } from '@ogygia/reshape';
+import { scanRegions } from '@ogygia/rewrite';
 
 export type StripKind =
 	| 'head'

@@ -866,7 +866,7 @@ class OgygiaHandle {
 	}
 
 	constructor(options: OgygiaHandleOptions = {}) {
-		// (the app's own pass is @ogygia/reshape's now; a JS caller still passing it is told where)
+		// (the app's own pass is @ogygia/rewrite's now; a JS caller still passing it is told where)
 		if ('transform' in options) throw new OgygiaError('handle_transform_moved');
 		// Stored WITHOUT a base prefix. Getting the app's absolute base path inside a hook has no
 		// public, forward-compatible API — `base` from `$app/paths` is deprecated (removed in Kit 3)
@@ -1212,7 +1212,7 @@ class OgygiaHandle {
 	}
 
 	/**
-	 * THE APP'S OWN PASS ON A DOCUMENT (`HtmlPass`, @ogygia/reshape): the chunk carrying `</head>` (a
+	 * THE APP'S OWN PASS ON A DOCUMENT (`HtmlPass`, @ogygia/rewrite): the chunk carrying `</head>` (a
 	 * streamed tail chunk passes untouched), with what only ogygia knows about the page. What the pass
 	 * puts in the head and first before `</body>` rides the seed injection's ONE assembly of the
 	 * document (no splice here, which was another full copy the assembly then re-located).

@@ -1,5 +1,5 @@
-// @ogygia/reshape's e2e suite (e2e/*.spec.ts) against the restore lab (e2e/app), built and served
-// once for the specs. `pnpm turbo run e2e --filter=@ogygia/reshape`.
+// @ogygia/rewrite's e2e suite (e2e/*.spec.ts) against the restore lab (e2e/app), built and served
+// once for the specs. `pnpm turbo run e2e --filter=@ogygia/rewrite`.
 import { fileURLToPath } from 'node:url';
 import { suite } from '@ogygia/tooling/e2e/config.ts';
 

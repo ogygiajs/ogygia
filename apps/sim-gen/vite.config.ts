@@ -5,7 +5,7 @@ import { router } from '@ogygia/router/vite';
 import { flags } from '@ogygia/flags/vite';
 import { postrender } from '@ogygia/postrender/vite';
 import { pageKeys } from '@ogygia/page-keys';
-import { reshape } from '@ogygia/reshape/vite';
+import { reshape } from '@ogygia/rewrite/vite';
 import { defineConfig } from 'vite';
 import { existsSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';

@@ -1063,7 +1063,7 @@ export function app_reshape(pass: GenReshape | null): string {
 export const handle: Handle = ({ event, resolve }) => resolve(event);
 `;
 	return `import type { Handle } from '@sveltejs/kit';
-import * as reshape from '@ogygia/reshape';
+import * as reshape from '@ogygia/rewrite';
 import { buggify } from '@ogygia/machine';
 
 const TRIM = ${pass.trim};

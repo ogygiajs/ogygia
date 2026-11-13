@@ -14,7 +14,7 @@
 		"@ogygia/machine": "workspace:*",
 		"@ogygia/page-keys": "workspace:*",
 		"@ogygia/postrender": "workspace:*",
-		"@ogygia/reshape": "workspace:*",
+		"@ogygia/rewrite": "workspace:*",
 		"@ogygia/router": "workspace:*",
 		"ogygia": "workspace:*"
 	},

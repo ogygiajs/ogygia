@@ -38,7 +38,7 @@ with no line, or a line naming something that does not exist (`internal/checks/i
 - Re-read `data-og-origins` after boot, or from a script outside the head (a later one would widen the list).
 - Accept a location that is not the same island's file, even on the page's own origin (an uploaded `.js` is on it too).
 
-**Enforced by:** `packages/core/test/browser/code-origins.test.ts`, `packages/core/test/code-origins.test.ts`, `packages/federation/test/code-origins.test.ts`, `packages/reshape/test/browser/restore.test.ts` (the og-r case)
+**Enforced by:** `packages/core/test/browser/code-origins.test.ts`, `packages/core/test/code-origins.test.ts`, `packages/federation/test/code-origins.test.ts`, `packages/rewrite/test/browser/restore.test.ts` (the og-r case)
 
 ---
 

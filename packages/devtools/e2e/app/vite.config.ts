@@ -1,7 +1,7 @@
 import { sveltekit } from '@sveltejs/kit/vite';
 import { ogygia } from 'ogygia/vite';
 import { devtools } from '@ogygia/devtools/vite';
-import { reshape } from '@ogygia/reshape/vite';
+import { reshape } from '@ogygia/rewrite/vite';
 import { barrels } from '@ogygia/barrels';
 import { testing } from '@ogygia/testing/vite';
 import { defineConfig } from 'vite';

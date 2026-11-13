@@ -11,7 +11,7 @@
 			"@ogygia/compiler",
 			"@ogygia/flags",
 			"@ogygia/postrender",
-			"@ogygia/reshape",
+			"@ogygia/rewrite",
 			"@ogygia/federation",
 			"@ogygia/content",
 			"@ogygia/devtools",

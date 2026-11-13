@@ -1,8 +1,8 @@
 ---
-title: '@ogygia/reshape'
+title: '@ogygia/rewrite'
 summary: The app's own pass over the HTML ogygia sends, and the markup helpers around it.
 ---
 
 This page is generated from the package's own `.d.ts` files on every build, so the signatures, descriptions and examples below always match the source.
 
-> MODULE: @ogygia/reshape
+> MODULE: @ogygia/rewrite
