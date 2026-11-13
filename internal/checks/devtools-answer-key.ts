@@ -79,9 +79,10 @@ async function start_server() {
  *  report's browser findings must say what the Page tab says (null: the profiler is off here) */
 async function record_profile() {
 	for (let i = 0; i < 10; i++) {
-		const r = await fetch(`${base}/__profiler/page?p=/dt-lab&runs=1`, { redirect: 'manual' }).catch(
-			() => null
-		);
+		const r = await fetch(`${base}/__profiler/page?p=/dt-lab&runs=1`, {
+			method: 'POST',
+			redirect: 'manual'
+		}).catch(() => null);
 		if (!r || r.status === 404) return null;
 		const id = r.headers.get('location')?.split('/').pop();
 		if (id) return id;
@@ -186,6 +187,7 @@ async function third_run(browser) {
 	let report_id = null;
 	for (let i = 0; i < 10 && !report_id; i++) {
 		const r = await fetch(`${base}/__profiler/page?p=/dt-third&runs=1`, {
+			method: 'POST',
 			redirect: 'manual'
 		}).catch(() => null);
 		if (!r || r.status === 404) break;
@@ -386,6 +388,7 @@ async function nav_run(browser) {
  *  navigation and in the profiler's report of the same document; the navigation back never. */
 async function nav_slow_run(browser) {
 	const rec = await fetch(`${base}/__profiler/page?p=/dt-nav-fast&runs=1`, {
+		method: 'POST',
 		redirect: 'manual'
 	}).catch(() => null);
 	const report_id = rec?.headers.get('location')?.split('/').pop() ?? null;
@@ -497,6 +500,7 @@ async function nav_slow_run(browser) {
 	// rest of the visit under the page the address bar showed when it sent, where it was never read
 	{
 		const rec2 = await fetch(`${base}/__profiler/page?p=/dt-nav-fast&runs=1`, {
+			method: 'POST',
 			redirect: 'manual'
 		}).catch(() => null);
 		const id2 = rec2?.headers.get('location')?.split('/').pop() ?? null;
@@ -538,6 +542,7 @@ async function nav_slow_run(browser) {
 async function lcp_run(browser) {
 	const read = async (q) => {
 		const rec = await fetch(`${base}/__profiler/page?p=${encodeURIComponent('/dt-lcp')}&runs=1`, {
+			method: 'POST',
 			redirect: 'manual'
 		}).catch(() => null);
 		const report_id = rec?.headers.get('location')?.split('/').pop() ?? null;
@@ -584,6 +589,7 @@ async function lcp_run(browser) {
 	{
 		const visit_after = async (q) => {
 			const r = await fetch(`${base}/__profiler/page?p=${encodeURIComponent('/dt-lcp')}&runs=1`, {
+				method: 'POST',
 				redirect: 'manual'
 			}).catch(() => null);
 			const id = r?.headers.get('location')?.split('/').pop() ?? null;
@@ -681,6 +687,7 @@ async function lcp_run(browser) {
 async function cls_run(browser) {
 	const read = async (q) => {
 		const rec = await fetch(`${base}/__profiler/page?p=${encodeURIComponent('/dt-cls')}&runs=1`, {
+			method: 'POST',
 			redirect: 'manual'
 		}).catch(() => null);
 		const report_id = rec?.headers.get('location')?.split('/').pop() ?? null;
@@ -742,6 +749,7 @@ async function cls_run(browser) {
  *  pause). `?quick` settles in 10 ms: nothing said. */
 async function stream_run(browser) {
 	const rec = await fetch(`${base}/__profiler/page?p=${encodeURIComponent('/dt-stream')}&runs=1`, {
+		method: 'POST',
 		redirect: 'manual'
 	}).catch(() => null);
 	const report_id = rec?.headers.get('location')?.split('/').pop() ?? null;
@@ -807,6 +815,7 @@ async function stream_run(browser) {
 async function ttfb_run(browser) {
 	const read = async (path) => {
 		const rec = await fetch(`${base}/__profiler/page?p=${encodeURIComponent('/dt-ttfb')}&runs=1`, {
+			method: 'POST',
 			redirect: 'manual'
 		}).catch(() => null);
 		const report_id = rec?.headers.get('location')?.split('/').pop() ?? null;
@@ -905,6 +914,7 @@ async function ttfb_run(browser) {
  *  the costliest part, with the non-blocking fix, in the Page tab and the profiler's report. */
 async function fcp_run(browser) {
 	const rec = await fetch(`${base}/__profiler/page?p=${encodeURIComponent('/dt-fcp')}&runs=1`, {
+		method: 'POST',
 		redirect: 'manual'
 	}).catch(() => null);
 	const report_id = rec?.headers.get('location')?.split('/').pop() ?? null;
@@ -951,6 +961,7 @@ async function gap_run(browser) {
 	const read = async (mode) => {
 		await fetch(`${base}/dt-gap`); // (warm: the gap is the hook's, not a first compile)
 		const rec = await fetch(`${base}/__profiler/page?p=${encodeURIComponent('/dt-gap')}&runs=1`, {
+			method: 'POST',
 			redirect: 'manual'
 		}).catch(() => null);
 		const report_id = rec?.headers.get('location')?.split('/').pop() ?? null;
@@ -1051,6 +1062,7 @@ async function batch_run(browser) {
 	// the profiler's report of each visit: the same two findings, from the beacon (no devtools)
 	const recorded = async (wall) => {
 		const rec = await fetch(`${base}/__profiler/page?p=/dt-batch&runs=1`, {
+			method: 'POST',
 			redirect: 'manual'
 		}).catch(() => null);
 		const id = rec?.headers.get('location')?.split('/').pop() ?? null;
@@ -1161,6 +1173,7 @@ async function holes_run(browser) {
 	};
 	// the profiler's report of the same broken visit names the hole too (the beacon carries it)
 	const rec = await fetch(`${base}/__profiler/page?p=/dt-holes&runs=1`, {
+		method: 'POST',
 		redirect: 'manual'
 	}).catch(() => null);
 	const report_id = rec?.headers.get('location')?.split('/').pop() ?? null;
@@ -1170,6 +1183,7 @@ async function holes_run(browser) {
 	// five holes of 0.9 s: the server renders four at a time, the fifth waits for a slot (and the
 	// profiler records this visit: its One clock draws a lane per hole)
 	const qrec = await fetch(`${base}/__profiler/page?p=/dt-hole-queue&runs=1`, {
+		method: 'POST',
 		redirect: 'manual'
 	}).catch(() => null);
 	const queue_report = qrec?.headers.get('location')?.split('/').pop() ?? null;
@@ -1365,6 +1379,7 @@ async function fallback_run(browser) {
 		return out;
 	};
 	const rec = await fetch(`${base}/__profiler/page?p=/dt-cache&runs=1`, {
+		method: 'POST',
 		redirect: 'manual'
 	}).catch(() => null);
 	const report_id = rec?.headers.get('location')?.split('/').pop() ?? null;
@@ -1424,6 +1439,7 @@ async function preload_run(browser) {
 	// the report takes the browser visit that follows it
 	const record = async (path) => {
 		const rec = await fetch(`${base}/__profiler/page?p=${path}&runs=1`, {
+			method: 'POST',
 			redirect: 'manual'
 		}).catch(() => null);
 		return rec?.headers.get('location')?.split('/').pop() ?? null;
@@ -1526,9 +1542,10 @@ async function inp_run(browser) {
 		await page.close();
 		return out;
 	};
-	const rec = await fetch(`${base}/__profiler/page?p=/dt-inp&runs=1`, { redirect: 'manual' }).catch(
-		() => null
-	);
+	const rec = await fetch(`${base}/__profiler/page?p=/dt-inp&runs=1`, {
+		method: 'POST',
+		redirect: 'manual'
+	}).catch(() => null);
 	const report_id = rec?.headers.get('location')?.split('/').pop() ?? null;
 	const save = await read('save');
 	const busy = await read('busy');
@@ -1653,9 +1670,10 @@ async function inp_cpu_run(browser) {
 	};
 	const record = async () =>
 		(
-			await fetch(`${base}/__profiler/page?p=/dt-inp&runs=1`, { redirect: 'manual' }).catch(
-				() => null
-			)
+			await fetch(`${base}/__profiler/page?p=/dt-inp&runs=1`, {
+				method: 'POST',
+				redirect: 'manual'
+			}).catch(() => null)
 		)?.headers
 			.get('location')
 			?.split('/')
@@ -1700,6 +1718,7 @@ async function inp_cpu_run(browser) {
  *  what it was held for — in the Page tab and in the profiler's report of the same visit. */
 async function held_fail_run(browser) {
 	const rec = await fetch(`${base}/__profiler/page?p=/dt-held&runs=1`, {
+		method: 'POST',
 		redirect: 'manual'
 	}).catch(() => null);
 	const report_id = rec?.headers.get('location')?.split('/').pop() ?? null;
@@ -2067,6 +2086,7 @@ try {
 		await ctx.close();
 		// the profiler sees it across its own renders of the page (no browser needed)
 		const rec = await fetch(`${base}/__profiler/page?p=/dt-fp&runs=3`, {
+			method: 'POST',
 			redirect: 'manual'
 		}).catch(() => null);
 		const id = rec?.headers.get('location')?.split('/').pop();
@@ -2275,6 +2295,7 @@ try {
 	{
 		const read = async (q) => {
 			const rec = await fetch(`${base}/__profiler/page?p=/dt-lcp&runs=1`, {
+				method: 'POST',
 				redirect: 'manual'
 			}).catch(() => null);
 			const id = rec?.headers.get('location')?.split('/').pop();
@@ -2978,6 +2999,7 @@ try {
 	// carries it, so the profiler's report still names the slow largest paint
 	{
 		const rec = await fetch(`${base}/__profiler/page?p=/dt-lcp&runs=1`, {
+			method: 'POST',
 			redirect: 'manual'
 		}).catch(() => null);
 		const id = rec?.headers.get('location')?.split('/').pop();
@@ -3007,6 +3029,7 @@ try {
 	{
 		const leftovers_of = async (path) => {
 			const rec = await fetch(`${base}/__profiler/page?p=${path}&runs=3`, {
+				method: 'POST',
 				redirect: 'manual'
 			}).catch(() => null);
 			const id = rec?.headers.get('location')?.split('/').pop();
@@ -3063,6 +3086,7 @@ try {
 	{
 		// (the profiler records this visit too: its report must say the same, from the beacon)
 		const rec = await fetch(`${base}/__profiler/page?p=/dt-restore&runs=1`, {
+			method: 'POST',
 			redirect: 'manual'
 		}).catch(() => null);
 		const report_id = rec?.headers.get('location')?.split('/').pop() ?? null;
@@ -3107,6 +3131,7 @@ try {
 	// on every request and drops it — named so, apart from ogygia's own serialization (never twice)
 	{
 		const rec = await fetch(`${base}/__profiler/page?p=/bench-cms&runs=3`, {
+			method: 'POST',
 			redirect: 'manual'
 		}).catch(() => null);
 		const id = rec?.headers.get('location')?.split('/').pop();

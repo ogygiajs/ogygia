@@ -16,6 +16,7 @@
  * timeline, correlated by fingerprint.
  */
 import type { DevtoolsEventInput } from '../contract/events.ts';
+import { server_ports } from '../server-ports.ts';
 
 // DEVTOOLS gate (the SSR bundle has the `__OGYGIA_DEVTOOLS__` define; the client has it too but the
 // recorder is never installed there, so `record_server_event` no-ops). Off → this whole file DCEs.
@@ -24,15 +25,14 @@ const DEVTOOLS = typeof __OGYGIA_DEVTOOLS__ !== 'undefined' ? __OGYGIA_DEVTOOLS_
 /** A recorder receives the un-stamped event input; hooks.ts stamps + buffers it per request. */
 export type ServerDevtoolsRecorder = (input: DevtoolsEventInput) => void;
 
-let recorder: ServerDevtoolsRecorder | null = null;
-
 /** Server (`hooks.ts`) installs a request-scoped, ALS-backed recorder. Passing `null` clears it. */
 export function set_server_devtools_recorder(fn: ServerDevtoolsRecorder | null): void {
-	recorder = fn;
+	const ports = server_ports();
+	if (ports) ports.devtools_recorder = fn;
 }
 
 /** SSR render seams call this; the client (recorder unset) is a no-op, and the whole call DCEs off. */
 export function record_server_event(input: DevtoolsEventInput): void {
 	if (!DEVTOOLS) return;
-	recorder?.(input);
+	server_ports()?.devtools_recorder?.(input);
 }

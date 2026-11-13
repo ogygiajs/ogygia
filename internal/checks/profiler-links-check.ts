@@ -17,6 +17,7 @@ const PAGES = ['/hell', '/hell-fixed', '/inferno', '/heavy', '/mixed', '/context
 async function profile(path) {
 	for (let i = 0; i < 20; i++) {
 		const r = await fetch(`${base}/__profiler/page?p=${encodeURIComponent(path)}&runs=1`, {
+			method: 'POST',
 			headers: H,
 			redirect: 'manual'
 		});
