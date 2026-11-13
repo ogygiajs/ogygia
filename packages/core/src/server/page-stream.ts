@@ -320,10 +320,9 @@ export function stream_page_deferred(
 					// ok: Kit's dead tail is discarded; a read that fails has nothing left to discard
 				}
 			})(); // ok: never rejects, its body is caught
-			let pending = deferred.length;
 			let next_id = initial_next_id;
 			let closed = false;
-			const quiet = pending ? say_if_pending(owner, path) : noop;
+			const quiet = deferred.length ? say_if_pending(owner, path) : noop;
 			const close = () => {
 				if (closed) return;
 				closed = true;
@@ -336,9 +335,6 @@ export function stream_page_deferred(
 			};
 			// (the request's end closes the stream: a promise still pending is let go)
 			owner.defer(close);
-			const maybe_close = () => {
-				if (pending === 0) close();
-			};
 			const push = (id: number, ok: boolean, value: unknown) => {
 				if (owner.closed) return;
 				try {
@@ -349,37 +345,31 @@ export function stream_page_deferred(
 					// ok: the client is gone and the stream closed; nobody reads this script
 				}
 			};
-			const settled = (id: number, ok: boolean, value: unknown) => {
-				push(id, ok, value);
-				pending -= 1;
-				maybe_close();
-			};
-			const stream_one = (id: number, promise: PromiseLike<unknown>) => {
-				// (its outcome is read before the task: a closed owner never runs its work, and the
-				// promise's rejection still needs handling)
-				const outcome = Promise.resolve(promise).then(
+			// One promise, as it settles, then the nested ones its value re-staged: done when its whole
+			// tree is. A task of the stream's owner: the visitor leaving makes it STALE at once. Its
+			// outcome is read before the task, so a closed owner (whose task never runs its work)
+			// still leaves no rejection unhandled.
+			const stream_one = async (id: number, promise: PromiseLike<unknown>): Promise<void> => {
+				const settled = Promise.resolve(promise).then(
 					(value) => ({ ok: true as const, value }),
 					(error: unknown) => ({ ok: false as const, error })
 				);
-				void owner
-					.task(() => outcome)
-					.then((out) => {
-						if (out === STALE) return; // the request ended: the stream closed with it
-						if (!out.ok) return settled(id, false, out.error);
-						let staged: ReturnType<typeof stage_deferred>;
-						try {
-							staged = stage_deferred(out.value, next_id);
-						} catch (error) {
-							return settled(id, false, error);
-						}
-						next_id = staged.next_id;
-						pending += staged.deferred.length;
-						for (const n of staged.deferred) stream_one(n.id, n.promise);
-						settled(id, true, staged.staged);
-					}); // ok: the outcome never rejects, and the body settles its own failures
+				const out = await owner.task(() => settled);
+				if (out === STALE) return; // the request ended: the stream closed with it
+				if (!out.ok) return push(id, false, out.error);
+				let staged: ReturnType<typeof stage_deferred>;
+				try {
+					staged = stage_deferred(out.value, next_id);
+				} catch (error) {
+					return push(id, false, error);
+				}
+				next_id = staged.next_id;
+				const nested = staged.deferred.map((n) => stream_one(n.id, n.promise));
+				push(id, true, staged.staged);
+				await Promise.all(nested);
 			};
-			for (const { id, promise } of deferred) stream_one(id, promise);
-			maybe_close();
+			await Promise.all(deferred.map(({ id, promise }) => stream_one(id, promise)));
+			close();
 		},
 		cancel() {
 			owner.close();
