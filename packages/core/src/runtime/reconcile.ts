@@ -19,7 +19,7 @@
  * Pure and DOM-light: the hashing core takes strings so it unit-tests without a document.
  */
 
-import { dispose_ids } from '../ref.ts';
+import { dispose_ids, page_ids } from '../ref.ts';
 import { boot_link, morph_sync_attributes, slots } from './slots.ts';
 import { ids_released } from './region-ids.ts';
 import { emit as dt_emit } from '../events/bus.ts';
@@ -283,10 +283,17 @@ export function reconcile_body(
 	// The page's own children stay where they are; the server's reconcile toward the next page.
 	morph(live, next.childNodes, own.size > 0 ? { stays: (n) => own.has(n) } : undefined);
 	renew_server_body(live, next, own);
-	// REMOVED regions are gone from the DOM now — tear down their page-scoped hub instances
-	// (session-aliased continuity instances are skipped inside dispose_ids).
-	// An id a kept region also owns (one object shared by two regions) stays with it (#815).
-	const released = ids_released(departed, live);
+	release_page_ids(departed, live, next);
+}
+
+/**
+ * The page going out lets go of its hub ids: every page id nothing on the next page owns — no
+ * region still in `live` (but the `departed`), and not `next`'s document, whose seed revived its
+ * own — is released (session-aliased continuity instances are kept inside dispose_ids). Both
+ * navigation paths end with it, after the next body is in.
+ */
+function release_page_ids(departed: readonly Element[], live: Element, next: Element): void {
+	const released = ids_released(page_ids(), departed, live, next.ownerDocument);
 	if (released.length > 0) dispose_ids(released);
 }
 
@@ -302,6 +309,7 @@ export function reconcile_body(
  */
 export function swap_body(live: HTMLElement, next: HTMLElement): void {
 	const own = page_own_children(live);
+	const before = Array.from(live.querySelectorAll('ogygia-region'));
 	sync_body_attributes(live, next);
 	if (own.size === 0) {
 		live.replaceChildren(); // drop the old subtree
@@ -314,13 +322,21 @@ export function swap_body(live: HTMLElement, next: HTMLElement): void {
 	}
 	while (next.firstChild) live.appendChild(next.firstChild); // adopt the incoming children in order
 	renew_server_body(live, next, own);
+	// (a region inside one of the page's own children stays, and keeps what it owns)
+	release_page_ids(
+		before.filter((el) => !live.contains(el)),
+		live,
+		next
+	);
 }
 
 /** Reflect for a Region custom element that can pull fresh props from an incoming twin. */
 type Absorbable = Element & { absorbKeptProps?: (incoming: Element) => void };
 
 /** For each live region whose reconcile key also appears in `next`, push the incoming region's
- *  props into the live island (kept regions only — a re-mounting region gets its props on mount). */
+ *  props into the live island (kept regions only — a re-mounting region gets its props on mount),
+ *  and its fingerprint, the name of those props: the sidecar is found by it and the router lists a
+ *  page's islands by it (#1067). The morph never enters a kept region, so it syncs neither. */
 function absorb_kept_props(live: Element, next: Element): void {
 	const incoming = new Map<string, Element>();
 	for (const el of next.querySelectorAll('ogygia-region')) {
@@ -331,7 +347,11 @@ function absorb_kept_props(live: Element, next: Element): void {
 		const k = el.getAttribute('data-key');
 		if (k === null) continue;
 		const twin = incoming.get(k);
+		if (twin === undefined || twin === el) continue;
 		const absorb = (el as Absorbable).absorbKeptProps;
-		if (twin !== undefined && twin !== el && typeof absorb === 'function') absorb.call(el, twin);
+		if (typeof absorb === 'function') absorb.call(el, twin);
+		const fp = twin.getAttribute(OG_FP);
+		if (fp === null) el.removeAttribute(OG_FP);
+		else if (el.getAttribute(OG_FP) !== fp) el.setAttribute(OG_FP, fp);
 	}
 }
