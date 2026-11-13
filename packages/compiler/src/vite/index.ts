@@ -1608,7 +1608,7 @@ export function ogygia(options: OgygiaOptions = {}): Plugin[] {
 					...(measure ? { page_why, barrels } : {}),
 					content_css,
 					css_inline,
-					fn_manifest: Object.fromEntries(compiler.dollar_hoists),
+					fn_manifest: compiler.fn_manifest(),
 					// identity (the stable URL SSR bakes) → location (the content-hashed file to load)
 					entries: entries.locations,
 					// the same, as one file the browser reads (the runtime's script tag names it)

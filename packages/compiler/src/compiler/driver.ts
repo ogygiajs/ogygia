@@ -30,6 +30,7 @@ import {
 	kit_dirs
 } from './kit.ts';
 import { run_module_macros } from './macros/pipeline.ts';
+import { fn_manifest_entries, fn_manifest_registrations } from './macros/dollar.ts';
 import { is_script_request } from './script-request.ts';
 import { resolveFeatures } from './link/runtime-entry.ts';
 import {
@@ -1676,6 +1677,11 @@ export class Compiler implements CoreApp {
 		return touched ? { code: out, map } : null;
 	}
 
+	/** The fn-manifest for the build handoff (tag → factory source), sorted by tag. */
+	fn_manifest(): Record<string, string> {
+		return Object.fromEntries(fn_manifest_entries(this.dollar_hoists));
+	}
+
 	/**
 	 * Patch the fn-manifest placeholder in a finished chunk with the collected `og.$` factory
 	 * registrations — every transform has run by renderChunk, so `dollar_hoists` is complete. Registrations
@@ -1684,9 +1690,7 @@ export class Compiler implements CoreApp {
 	 */
 	patch_fn_manifest(code: string): { code: string; map: null } | null {
 		if (!code.includes('/*__OGYGIA_FN_MANIFEST__*/')) return null;
-		const regs = [...this.dollar_hoists.entries()]
-			.map(([tag, src]) => `globalThis.__og_reg_fn(${JSON.stringify(tag)}, (${src}));`)
-			.join('\n');
+		const regs = fn_manifest_registrations(this.dollar_hoists);
 		// FUNCTION-form replacement: factory sources legitimately contain `$$` (a literal `$`
 		// before a template hole), which String.replace would collapse in a string replacement.
 		return { code: code.replace('/*__OGYGIA_FN_MANIFEST__*/', () => regs), map: null };
