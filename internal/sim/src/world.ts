@@ -113,8 +113,13 @@ export interface WorldOptions {
 	/** Other apps at their own origins (federation's peers): each one build, one instance, behind
 	 *  no CDN. The app's servers and the tabs reach them over the network; their content-hashed
 	 *  files answer any origin (`access-control-allow-origin: *`), as a peer's CDN does for the
-	 *  islands another origin's page imports. */
-	peers?: ReadonlyArray<{ readonly origin: string; readonly build: Build }>;
+	 *  islands another origin's page imports. A peer with a `replica` (another origin of its app)
+	 *  may be down: a `down` fault answers it 503 at the edge, and the app fails over. */
+	peers?: ReadonlyArray<{
+		readonly origin: string;
+		readonly build: Build;
+		readonly replica?: string;
+	}>;
 	/** Whether the tabs' engine has `requestIdleCallback`. Default: the seed's draw (stream `idle
 	 *  engine`: 30% of seeds are Safari's, which has none). */
 	idle?: boolean;
@@ -183,7 +188,8 @@ export class World {
 			loop: this.loop,
 			rng: this.rng,
 			faults: o.faults ?? new Set(),
-			rates: o.rates
+			rates: o.rates,
+			downable: (url) => (o.peers ?? []).some((p) => p.replica && p.origin === url.origin)
 		});
 		this.cdn = new Cdn(this.loop);
 		// (whether the engine has idle callbacks: some seeds' engine is Safari's, which has none)

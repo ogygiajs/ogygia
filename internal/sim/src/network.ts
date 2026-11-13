@@ -14,6 +14,9 @@
  * - `stall`: an answer is held 10 to 40 s before it starts coming, or, half the time, its body goes
  *   quiet that long after its first piece (a stuck connection, an overloaded origin): longer than a
  *   client's own deadline for it;
+ * - `down`: a host that has a replica (`downable`: a federation peer served at two origins, the
+ *   first) answers 500 or 503 at its edge, its server never asked: the app must fail over to the
+ *   other;
  * - `offline`: a tab's requests fail at once.
  *
  * A fault is on for a run when its class is in the run's swarm (search.ts picks a random subset per
@@ -31,7 +34,8 @@ export type FaultClass =
 	| 'tamper'
 	| 'reorder'
 	| 'redirect'
-	| 'stall';
+	| 'stall'
+	| 'down';
 
 /** The rest of the web, where a `redirect` fault sends a request (world.ts answers it). */
 export const ELSEWHERE = 'https://elsewhere.test';
@@ -46,6 +50,9 @@ export interface NetworkOptions {
 	/** The requests a `redirect` fault may send to another origin (default: ogygia's region
 	 *  endpoint, whose HTML a page paints). */
 	redirectable?: (url: URL) => boolean;
+	/** The requests a `down` fault may answer 500 or 503 at the edge: a host with a replica (default:
+	 *  none). */
+	downable?: (url: URL) => boolean;
 }
 
 export type Handler = (request: Request) => Promise<Response>;
@@ -122,7 +129,8 @@ const RATES: Record<FaultClass, number> = {
 	cut: 0.03,
 	tamper: 0.01,
 	redirect: 0.3,
-	stall: 0.02
+	stall: 0.02,
+	down: 0.3
 };
 
 /** A region request's query values that change with every build or signing key, not with what is
@@ -156,9 +164,11 @@ export class Network {
 		this.#faults = options.faults;
 		this.#rates = { ...RATES, ...options.rates };
 		this.#redirectable = options.redirectable ?? ((url) => url.pathname.startsWith('/__ogygia__'));
+		this.#downable = options.downable ?? (() => false);
 	}
 
 	readonly #redirectable: (url: URL) => boolean;
+	readonly #downable: (url: URL) => boolean;
 
 	/** Each exchange still on the wire (its request out, or its body still coming): how it ends
 	 *  when its tab loses the network (`offline`), or its document is left (`left`). */
@@ -375,6 +385,14 @@ export class Network {
 				const location = ELSEWHERE + target.pathname + target.search;
 				loop.add('net', `redirect ${ex.id}`, this.#latency(fate), () =>
 					resolve(new Response(null, { status: 302, headers: { location } }))
+				);
+				return;
+			}
+			if (!calm && asked !== undefined && this.#downable(target) && this.#on('down', fate)) {
+				const status = fate.chance(0.5) ? 500 : 503;
+				ex.status = status;
+				loop.add('net', `down ${ex.id}`, this.#latency(fate), () =>
+					resolve(new Response('unavailable', { status }))
 				);
 				return;
 			}
