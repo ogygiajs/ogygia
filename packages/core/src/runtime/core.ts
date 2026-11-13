@@ -3,9 +3,7 @@ import {
 	buggify,
 	clock,
 	flights,
-	mailbox,
 	registry,
-	scope,
 	STALE,
 	tasks,
 	type Mailbox,
@@ -66,11 +64,16 @@ import {
 	busy_machines,
 	create_live,
 	create_paint,
+	create_region_life,
 	create_wake,
+	detached,
+	lifetime_of,
+	new_lifetime,
 	type Answer,
 	type Hole,
 	type Live,
 	type Paint,
+	type RegionLife,
 	type RegionMachinesNow,
 	type Wake
 } from './region-machines.ts';
@@ -338,13 +341,6 @@ function dom_ready() {
 /** A machine's state, as the schedules armed in it see it: what to run when it is left. */
 type Leaves = { readonly scope: Scope };
 
-/** What a region element holds before its first connect and after it left the page: nothing.
- *  Anything given to it is let go at once. */
-const NOT_CONNECTED = scope();
-NOT_CONNECTED.close();
-/** Its mailbox then: closed (every post dropped, every wait `STALE`). */
-const CLOSED_BOX: Mailbox = mailbox(NOT_CONNECTED);
-
 /** A live region's tick, as Region.svelte hands it to `applyLive`. */
 type LiveTick = {
 	id: string;
@@ -588,7 +584,9 @@ export function pristine_ssr_of(el: Element): string | undefined {
 }
 
 class OgygiaRegion extends HTMLElement {
-	#scheduled = false;
+	/** Its lifetime in the page: detached, connected, scheduled (./region-machines.ts). Each
+	 *  lifetime holds its scope and its mailbox (below). */
+	#region: RegionLife = create_region_life();
 	/** The server-minted `endpoint` of a deferred hole, captured at connect. On a Kit-hydrated
 	 *  (csr=true) document the wrapper's client leg cannot mint (the virtual is stubbed to ''), so
 	 *  Kit's hydration pass reconciles the attribute to '' — after the runtime saw it at parse time.
@@ -609,9 +607,9 @@ class OgygiaRegion extends HTMLElement {
 	 * visit holds stays on that visit (`m.scope`). Closed before the first connect and after the
 	 * teardown: anything given to it then is let go at once.
 	 */
-	#life: Scope = NOT_CONNECTED;
-	/** Its entry in the connected regions (connected.ts) for this lifetime: its removal. */
-	#counted: (() => void) | null = null;
+	get #life(): Scope {
+		return this.#region.now.life;
+	}
 	/**
 	 * ITS EVENTS, ONE AT A TIME (@ogygia/machine's `mailbox()`, #322): a connect, a schedule firing, a
 	 * frame landing, a live tick, its fetch's end and its retry, its wake's steps — each a turn, in the
@@ -620,7 +618,9 @@ class OgygiaRegion extends HTMLElement {
 	 * the element leaving drops what is queued, and a step waiting gets `STALE` at once. Every callback
 	 * that comes back to the element later posts here (the box of the lifetime it started in).
 	 */
-	#box: Mailbox = CLOSED_BOX;
+	get #box(): Mailbox {
+		return this.#region.now.box;
+	}
 	/** The answer it painted last: what a hole put back on the page shows again when the frame store
 	 *  let it go meanwhile (#336). */
 	#shown: VerifiedHtml | null = null;
@@ -661,8 +661,6 @@ class OgygiaRegion extends HTMLElement {
 	#visitor: Promise<unknown> | null = null;
 	/** The hydrated island (hydrate core handle): dispose, and for a kept island, props push. */
 	#app: IslandHandle | null = null;
-	/** Disconnected, teardown waiting a microtask: a reconnect before it is a move. */
-	#leaving = false;
 	/** Live region (`<ogygia-region live>`): driven imperatively by Region.svelte's applyLive. */
 	#live_ready = false;
 	/** Its mode, tick by tick: static (subscribed to the store), hydrating, live (./region-machines.ts). */
@@ -723,13 +721,11 @@ class OgygiaRegion extends HTMLElement {
 	connectedCallback() {
 		// its lifetime in the page starts, and its mailbox with it (a move, or a connect called again,
 		// keeps the ones it has; a connect called on an element out of the page starts none)
-		if (this.#life.closed && this.isConnected) {
-			this.#life = scope();
-			this.#box = mailbox(this.#life);
+		if (this.isConnected && this.#region.now.kind === 'detached') {
+			this.#region.go('connected', new_lifetime());
+			// the navigation's shadow-root check counts these (connected.ts): once per lifetime, held by it
+			connected_regions.add(this, this.#life);
 		}
-		// the navigation's shadow-root check counts these (connected.ts): once per lifetime, held by it
-		if (!this.#counted && !this.#life.closed)
-			this.#counted = connected_regions.add(this, this.#life);
 		devalue_lane_stale(); // (its sidecar may have come in with it)
 		// its relative URLs, against the address it entered at — they are read again after any
 		// navigation, when `location` is another page (entry-locations.ts)
@@ -773,7 +769,7 @@ class OgygiaRegion extends HTMLElement {
 		// A frozen region (lake) settles through the lakes feature; the arm hooks it needs are built
 		// only for one (five closures per region at upgrade was the cost of building them for all).
 		if (is_frozen(this) && slots.lakes.on_frozen_connect(this, this.#lake_arm())) return;
-		if (this.#scheduled) return;
+		if (this.#region.now.kind === 'scheduled') return;
 		// Region rule (DESIGN.md): a nested region rides its awake ancestor's hydration — its SSR DOM
 		// is already inside that parent, so self-running would double-hydrate. Two exceptions self-run:
 		// a DEFERRED region (its HTML is remote, never in the parent's DOM), and a region inside an
@@ -842,7 +838,7 @@ class OgygiaRegion extends HTMLElement {
 		// schedule, as under the nested rule above: a host woken by a press may never wake
 		// (e2e/hole-in-lake.spec.ts, #948)
 		if (!deferred && slots.lakes.wait_for_boundary(this, boundary)) return;
-		this.#scheduled = true;
+		this.#region.move('connected', 'scheduled', lifetime_of(this.#region.now));
 		// A hole that had its answer, put back on the page: its schedule is spent (#336)
 		if (deferred && this.#answer.now.kind !== 'none') {
 			this.#put_back();
@@ -1629,8 +1625,8 @@ class OgygiaRegion extends HTMLElement {
 				attempt: attempts,
 				final
 			});
-		// Allow connectedCallback / a delayed retry to schedule again.
-		this.#scheduled = false;
+		// a connect again (its retry, or a reconnect) schedules afresh
+		this.#region.move('scheduled', 'connected', lifetime_of(this.#region.now));
 		if (!final) {
 			// (an answer already stands: a refresh that failed is not tried again)
 			if (this.#answer.now.kind !== 'none') {
@@ -2131,22 +2127,18 @@ class OgygiaRegion extends HTMLElement {
 	 * disconnects and reconnects it in one task. Tearing down there aborted a hole's in-flight
 	 * fetch, re-armed its wake and fetched it again; disposed a woken island and woke it again. The
 	 * teardown waits a microtask and runs only if the element is still out of the document. The
-	 * reconnect itself runs as any connect: a region already scheduled stops at `#scheduled`, and one
-	 * that was not (a nested island a lake lifted out and put back, now under a frozen boundary)
-	 * decides afresh where it stands.
+	 * reconnect itself runs as any connect: a region already `scheduled` stops there, and one that
+	 * was not (a nested island a lake lifted out and put back, now under a frozen boundary) decides
+	 * afresh where it stands. (Several leaves in one task end one lifetime: the first teardown
+	 * detaches it, and the others find it detached.)
 	 */
 	disconnectedCallback() {
-		if (this.#leaving) return;
-		this.#leaving = true;
 		tasks.micro(() => {
-			this.#leaving = false;
-			if (!this.isConnected) this.#teardown();
+			if (!this.isConnected && this.#region.now.kind !== 'detached') this.#teardown();
 		});
 	}
 
 	#teardown() {
-		this.#counted?.();
-		this.#counted = null;
 		unregister_region(this);
 		// out of the document nothing watches it: a copy it keeps is compared if it wakes again (its
 		// sleep ends with its lifetime, below)
@@ -2168,18 +2160,17 @@ class OgygiaRegion extends HTMLElement {
 		if (this.#paint.now.kind !== 'idle') this.#paint.go('idle');
 		// (every region machine is at rest now: the rule holds it there, ./rules.ts `note_left`)
 		if (RULES) note_left(this, () => busy_machines(this.#machines()));
-		// Its lifetime in the page ends: its sleep, its viewport snapshot, its binding to the store,
-		// a replay still waiting for its frame, and its mailbox (what is queued is dropped; a step
-		// that waits gets STALE).
+		// Its lifetime in the page ends: its count among the connected regions, its sleep, its
+		// viewport snapshot, its binding to the store, a replay still waiting for its frame, and its
+		// mailbox (what is queued is dropped; a step that waits gets STALE). A connect again starts
+		// afresh.
 		this.#life.close();
-		this.#life = NOT_CONNECTED;
-		this.#box = CLOSED_BOX;
+		this.#region.go('detached', detached());
 		if (this.#app) {
 			this.#app.dispose();
 			this.#app = null;
 			if (RULES) note_unmount(this);
 		}
-		this.#scheduled = false;
 	}
 }
 
