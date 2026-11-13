@@ -5795,6 +5795,14 @@
 		{
 			"id": "packages/data-shake/src/vite.ts > dataShake > definePlugin:0~7b132b > build",
 			"reason": "build only: makes the plugin's page_reads (measured in the data-shake bench) and hands it to the build, once per build"
+		},
+		{
+			"id": "packages/reshape/src/messages.ts > RESHAPE_WARNINGS > restore_sheet_missing > details",
+			"reason": "a message table entry: wording only (#1673)"
+		},
+		{
+			"id": "packages/reshape/src/messages.ts > RESHAPE_WARNINGS > restore_sheet_missing > text",
+			"reason": "a message table entry: wording only (#1673)"
 		}
 	]
 }

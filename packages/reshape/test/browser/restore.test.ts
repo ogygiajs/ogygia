@@ -59,6 +59,20 @@ test('the document: a shadow root with the tree, Svelte’s children back exactl
 	expect(document.body.innerHTML.includes('og-c')).toBe(false);
 });
 
+test('a host that names a shadow sheet the page does not carry is recorded, and its other sheets still adopted', async () => {
+	(window as { __og_restore_log?: unknown[] }).__og_restore_log = [];
+	await served('<demo-card class="own"> hi </demo-card>');
+	const host = document.querySelector('demo-card')!;
+	host.setAttribute('og-shadow', 'demo-card.shadow demo-missing.shadow');
+	expect(restore(document)).toBe(1);
+	expect(host.shadowRoot!.adoptedStyleSheets.length).toBe(1);
+	const log = (window as { __og_restore_log?: { kind: string; host: string; key?: string }[] })
+		.__og_restore_log!;
+	expect(log.map(({ kind, host, key }) => ({ kind, host, key }))).toEqual([
+		{ kind: 'sheet', host: 'demo-card', key: 'demo-missing.shadow' }
+	]);
+});
+
 test('Svelte’s children put back into a host are known render output (a later morph may remove one)', async () => {
 	await served('<demo-card><i>ok</i> text</demo-card>');
 	restore(document);
