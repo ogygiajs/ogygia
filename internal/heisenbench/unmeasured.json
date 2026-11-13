@@ -5903,10 +5903,6 @@
 		{
 			"id": "packages/data-shake/src/vite.ts > dataShake > definePlugin:0~7b132b > build",
 			"reason": "build only: makes the plugin's page_reads (measured in the data-shake bench) and hands it to the build, once per build"
-		},
-		{
-			"id": "packages/rewrite/src/pass.ts > count_error",
-			"reason": "the wrong-count message of a failed render, built only when a render returns the wrong number of results; rewrite.test.ts 'a batch with the wrong count is retried one at a time' runs it"
 		}
 	]
 }
