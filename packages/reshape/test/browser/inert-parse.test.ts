@@ -179,3 +179,21 @@ test('production: a late restore is said once per page and host tag, with its co
 	expect(lines.some((l) => l.includes('demo-card'))).toBe(true);
 	expect(lines.some((l) => l.includes('demo-link'))).toBe(true);
 });
+
+test('a host that cannot have a shadow root is said once per page and host tag, with its code', async () => {
+	const said = vi.spyOn(console, 'warn').mockImplementation(() => {});
+	const w = window as { __og_restore_log?: { kind: string; host: string }[] };
+	w.__og_restore_log = [];
+	report_restores();
+	w.__og_restore_log.push(
+		{ kind: 'invalid', host: 'a' },
+		{ kind: 'invalid', host: 'a' },
+		{ kind: 'invalid', host: 'x-b' }
+	);
+	report_restores();
+	await vi.waitFor(() => expect(said).toHaveBeenCalled());
+	const lines = said.mock.calls.map((c) => String(c[0]));
+	expect(lines.filter((l) => l.includes('restore_host_invalid'))).toHaveLength(2);
+	expect(lines.some((l) => l.includes('<a>'))).toBe(true);
+	expect(lines.some((l) => l.includes('<x-b>'))).toBe(true);
+});
