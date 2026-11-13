@@ -19,8 +19,11 @@ import { browser_offline, no_response } from './network.ts';
 // Build-time constants (compiler/link/runtime-entry.ts `generateRuntimeFlagsSource`): `FRAMES` is
 // off in a build where no region streams HTML, and the bundler drops the element's fetch / apply /
 // morph / renew path with it — that path works on the element's own state, so it cannot be a
-// feature module of its own, and without the frame store it has nowhere to land anyway.
+// feature module of its own, and without the frame store it has nowhere to land anyway. Where the
+// wire codec is not in the build up front, a wake loads it on use (./wire-on-use.ts).
 import { FRAMES } from 'ogygia:boot';
+import { wire_for_wake } from './wire-on-use.ts';
+import { report_thrown } from '../report-thrown.ts';
 import { kit_hydrates_page } from './kit-boot.ts';
 import {
 	init_shadow_registries,
@@ -113,7 +116,7 @@ import { fetch_priority_of, LoadSlot, viewport_class, type LoadClass } from './l
 import { PRIORITY } from './load-class.ts';
 import type { FrameFetcher } from './frame-store.ts';
 import { connected_regions } from './connected.ts';
-import { restore_props_sidecar } from './sidecar.ts';
+import { props_sidecar_of, restore_props_sidecar } from './sidecar.ts';
 import { hole_facts_of } from './hole-facts.ts';
 import { set_hydrating, tap_svelte_warnings, on_svelte_warning } from './svelte-warnings.ts';
 import type { IslandHandle, IslandModule } from './hydrate-core.ts';
@@ -702,13 +705,31 @@ class OgygiaRegion extends HTMLElement {
 	 * CONTINUITY: this persisted island is relocating onto `next` (the incoming page's SSR region).
 	 * Push the new page's props into the live app so a `persist`ed component reflects the new route
 	 * (e.g. a player's `track` changes) instead of freezing at first-mount props. Called by the
-	 * router just before `next` is discarded. Synchronous by contract — a kept island has hydrated,
-	 * so the hydrate core is loaded.
+	 * router just before `next` is discarded, so its sidecar is found now. A kept island has
+	 * hydrated, so the hydrate core is loaded; props that carry a live value in a build without the
+	 * codec wait for its load, as a wake does (test/browser/wire-on-use-kept.test.ts). A newer page's
+	 * props win over a load still out for older ones.
 	 */
 	absorbKeptProps(next: Element): void {
 		if (!this.#app?.set_props || !loaded_core) return;
+		const sidecar = props_sidecar_of(next);
+		const codec = wire_for_wake(next);
+		this.#absorbing?.close();
+		this.#absorbing = null;
+		if (codec === undefined) return this.#absorb(sidecar);
+		const waiting = (this.#absorbing = this.#life.child());
+		waiting
+			.task(() => codec)
+			.then((loaded) => {
+				if (loaded !== STALE) this.#absorb(sidecar);
+			}, report_thrown);
+	}
+	/** The newest load of the codec a kept island's next props wait for (absorbKeptProps). */
+	#absorbing: Scope | null = null;
+	#absorb(sidecar: HTMLScriptElement | null): void {
+		if (!this.#app?.set_props || !loaded_core) return;
 		try {
-			this.#app.set_props(loaded_core.absorb_region_props(this, next));
+			this.#app.set_props(loaded_core.absorb_region_props(this, sidecar));
 		} catch {
 			// ok: malformed incoming props: the live props it has are kept
 		}
@@ -1766,6 +1787,7 @@ class OgygiaRegion extends HTMLElement {
 						load_island(entry, cls()),
 						hydrate_core.get(),
 						slots.wire_classes?.(this),
+						wire_for_wake(this),
 						devalue_for_wake()
 					])
 				);
