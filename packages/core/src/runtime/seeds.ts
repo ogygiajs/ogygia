@@ -71,7 +71,8 @@ export function seed_parse_count(): number {
 	return parses;
 }
 
-/** Parse one page-seed script; `null` when malformed. Blanks the text once parsed (see above). */
+/** Parse one page-seed script; `null` when malformed (said as `page_seed_unreadable`). Blanks the
+ *  text once parsed (see above). */
 function parse_page_seed(el: Element): PageSeed | null {
 	parses++;
 	try {
@@ -87,7 +88,9 @@ function parse_page_seed(el: Element): PageSeed | null {
 		);
 		if (slots.nav && !DEVTOOLS) el.textContent = '';
 		return raw;
-	} catch {
+	} catch (e) {
+		// (the page goes on with no seed, and says why, #1480)
+		warn('page_seed_unreadable', { error: e instanceof Error ? e.message : String(e) });
 		return null;
 	}
 }
