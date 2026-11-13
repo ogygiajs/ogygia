@@ -3757,10 +3757,6 @@
 			"reason": "browser only: a viewport-preload link came on screen, one warm of its page (fetch_page, measured by the router benches)"
 		},
 		{
-			"id": "packages/core/src/runtime/viewport.ts > Tracker > #follow > MutationObserver:0~c14ef5",
-			"reason": "browser only: a box-less region's content was swapped; it hands the records to #swapped, constant work"
-		},
-		{
 			"id": "packages/core/src/runtime/viewport.ts > Tracker > #swapped",
 			"reason": "browser only: a box-less region's content swap, linear in its records (a handful per swap); viewport-shared.test.ts runs it in three engines"
 		},
@@ -4795,6 +4791,42 @@
 		{
 			"id": "packages/devtools/src/profiler/beacon-standalone.ts > standalone_beacon > pieces",
 			"reason": "browser only: inside the inlined page beacon script (standalone_beacon, sent as its own source text, so every helper lives in its one closure over the page's state: not replayable); proven in packages/devtools/e2e/profiler-beacon-standalone.spec.ts and packages/devtools/test/profiler-page-beacon-parity.test.ts"
+		},
+		{
+			"id": "packages/core/src/messages/core.ts > ERRORS > page_promise_unresolved > details",
+			"reason": "a message's wording, read once when the error is shown: constant work"
+		},
+		{
+			"id": "packages/core/src/messages/core.ts > ERRORS > page_promise_unresolved > text",
+			"reason": "a message's wording, read once when the error is shown: constant work"
+		},
+		{
+			"id": "packages/core/src/runtime/page-defer.ts > install_page_defer > live > with_devalue:1~0fffae",
+			"reason": "a streamed resolve whose devalue download failed every try: one settle, once per promise; devalue-lane-gone.test.ts runs the give-up"
+		},
+		{
+			"id": "packages/core/src/runtime/page-defer.ts > unresolved",
+			"reason": "one coded error made for a promise that can no longer settle, once per promise: constant work"
+		},
+		{
+			"id": "packages/core/src/runtime/viewport.ts > Tracker > #hear_swaps > MutationObserver:0~c14ef5",
+			"reason": "browser only: a box-less region's content was swapped; it hands the records to #swapped, constant work"
+		},
+		{
+			"id": "packages/core/src/runtime/viewport.ts > Tracker > #hear_swaps",
+			"reason": "browser only: a box-less target followed into is observed for swaps (one map entry, one observe), constant work; viewport-shared.test.ts runs it in three engines"
+		},
+		{
+			"id": "packages/core/src/runtime/viewport.ts > Tracker > #stop_swaps",
+			"reason": "browser only: a box-less target let go leaves the swap observer, which observes again the few targets left (box-less regions followed now); viewport-shared.test.ts runs it in three engines"
+		},
+		{
+			"id": "packages/core/src/runtime/viewport.ts > Tracker > #stop_swaps > micro:0~165f8c",
+			"reason": "browser only: hands the swap records not yet delivered to #swapped, constant work"
+		},
+		{
+			"id": "packages/core/src/server/kit-context.ts > held_root_context",
+			"reason": "returns a Map holding Kit's page and stores contexts (not cloneable): kit_render_context plus two set() calls, constant work, once per held region render; proven in packages/core/test/held-region-runtime.test.ts"
 		}
 	]
 }
