@@ -54,7 +54,8 @@ function cx(program: Program, order: readonly string[]): RelocateCx {
 		file_name: (ref) => `chunks/regions/${ref}.js`,
 		facade_file: () => undefined,
 		graph: () => null,
-		module_ids: () => []
+		module_ids: () => [],
+		page_reads: null
 	};
 }
 

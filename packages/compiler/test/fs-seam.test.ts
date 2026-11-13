@@ -150,8 +150,7 @@ const DIRECT_FS: Record<string, { calls: number; why: string }> = {
 	'link/island-deps.ts': {
 		calls: 1,
 		why: 'generated server code, reading its handoff at run time'
-	},
-	'link/page-keys.ts': { calls: 1, why: 'moving to its own package (#1335)' }
+	}
 };
 
 test('the compiler reads app files only through its fs seam', () => {

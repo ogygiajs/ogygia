@@ -11,17 +11,18 @@ Many pages could be prerendered except that their content changes after the buil
 
 The cost of a page therefore moves from one render per request to one render per change, and prerendering becomes the special case where the only change is a deploy.
 
-Postrender is its own package. Install it, list its plugin beside `ogygia()`, and put its handle before ogygia's:
+Postrender is its own package. Install it with `@ogygia/page-keys`, list both plugins beside `ogygia()`, and put its handle before ogygia's. `postrender()` requires `pageKeys()`: a deferred region whose code reads no `page.data` then skips the page look-up, which would otherwise render the stored page again on every fetch. Without `pageKeys()` the build fails with [`plugin_needs_plugin`](https://ogygiajs.dev/e/plugin_needs_plugin), naming the line to add.
 
 ```bash
-pnpm add @ogygia/postrender
+pnpm add @ogygia/postrender @ogygia/page-keys
 ```
 
 ```ts title=vite.config.ts
 import { ogygia } from 'ogygia/vite';
 import { postrender } from '@ogygia/postrender/vite';
+import { pageKeys } from '@ogygia/page-keys';
 
-plugins: [ogygia(), postrender(), sveltekit()]
+plugins: [ogygia(), postrender(), pageKeys(), sveltekit()]
 ```
 
 ```ts title=src/hooks.server.ts

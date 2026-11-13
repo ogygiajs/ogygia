@@ -8,12 +8,15 @@ import { kit_page_thread } from './kit-page-thread.svelte.ts';
 import { boot_link, slots } from './slots.ts';
 import { warn } from '../messages/lazy.ts';
 import { PAGE_SEED_SELECTOR } from '../page-seed-selector.ts';
+import { OGYGIA_PAGE_UNSHIPPED } from '../wire-markup.ts';
 
 const session = () => boot_link().runtime_session;
 const server_channel = (doc: Document, selector: string) =>
 	boot_link().server_channel(doc, selector);
 
 const DEVTOOLS = typeof __OGYGIA_DEVTOOLS__ !== 'undefined' ? __OGYGIA_DEVTOOLS__ : false;
+const RULES =
+	import.meta.env?.DEV || (typeof __OGYGIA_RULES__ !== 'undefined' ? __OGYGIA_RULES__ : false);
 
 export { PAGE_SEED_SELECTOR };
 const REMOTE_SEED_SELECTOR = 'script[type="application/ogygia-remote"]';
@@ -47,11 +50,29 @@ function parse_page_seed(el: Element): PageSeed | null {
 			() => parse_sidecar_text(el, page_defer_revivers(transport_decoders)) as PageSeed
 		);
 		if (slots.nav && !DEVTOOLS) el.textContent = '';
+		if (RULES) watch_unshipped(raw, el.getAttribute(OGYGIA_PAGE_UNSHIPPED));
 		return raw;
 	} catch (e) {
 		if (import.meta.env.DEV) warn('page_payload_unreadable', { what: 'seed' }, e);
 		return null;
 	}
+}
+
+function watch_unshipped(raw: PageSeed | null, attr: string | null): void {
+	if (!raw || !attr || raw.data === null || typeof raw.data !== 'object') return;
+	let left: Set<string>;
+	try {
+		left = new Set(JSON.parse(attr) as string[]);
+	} catch {
+		return; // ok: the attribute is ours; one that does not parse names nothing to watch
+	}
+	raw.data = new Proxy(raw.data as Record<string, unknown>, {
+		get(target, key, receiver) {
+			if (typeof key === 'string' && left.has(key) && !(key in target))
+				(globalThis as { __og_unshipped_read?: (key: string) => void }).__og_unshipped_read?.(key);
+			return Reflect.get(target, key, receiver);
+		}
+	});
 }
 
 function apply_page_seed(raw: PageSeed | null): void {

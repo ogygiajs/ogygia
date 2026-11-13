@@ -1,6 +1,6 @@
 import { walk } from 'estree-walker';
 import { OWN_PACKAGE_NAMES } from '@ogygia/core/contract';
-import { parse_roots } from './page-keys.ts';
+import { parse_roots } from '../parse/roots.ts';
 import type { AstNode } from '../parse/oxc.ts';
 
 /** `all`: the module can reach any of ogygia's exports. */

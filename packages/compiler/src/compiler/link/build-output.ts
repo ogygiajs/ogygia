@@ -131,13 +131,15 @@ export function emit_island_deps_handoff(
  * pinned, each with its line and why, since one such module makes every page carrying that island
  * ship its whole `page.data`. Same shape as the barrels report: a few lines, a count for the rest.
  *
+ * @param reason_of a module (query-less id) → why its reads could not be pinned (the seed-shaping
+ *   plugin's `why`)
  * @param file_of an entry's identity (the maps' key) → its emitted file; absent → the key is the
  *   file (a bundle from before content hashing)
  */
 export function report_seed_shaping(
 	map: { page: Record<string, boolean>; page_keys: Record<string, string[] | null> },
 	bundle: Record<string, { type: string; moduleIds?: string[]; imports?: string[] }>,
-	program: { page_key_reasons: Map<string, { why: string; line: number | null }> },
+	reason_of: (module: string) => { why: string; line: number | null } | null,
 	root: string,
 	file_of: (identity: string) => string = (identity) => identity
 ): Record<string, SeedWhy[]> {
@@ -175,7 +177,7 @@ export function report_seed_shaping(
 			for (const chunk of closure(e)) {
 				for (const id of bundle[chunk]?.moduleIds ?? []) {
 					const clean = id.split('?')[0].split('\\').join('/');
-					const r = program.page_key_reasons.get(clean);
+					const r = reason_of(clean);
 					if (!r) continue;
 					if (!blamed.has(clean)) blamed.set(clean, r);
 					if (own.has(clean)) continue;
