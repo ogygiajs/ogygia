@@ -194,7 +194,7 @@ export interface BuildContext {
 	 *  or a `files()` / `ogygia.files` surface). */
 	pageModules(modules: { importers?: string[]; files?: string[] }): void;
 	/** SEED SHAPING: this plugin answers which top-level `page.data` keys a module reads
-	 *  (`@ogygia/page-keys`). One plugin at most. Without one, every region that reads the page gets
+	 *  (`@ogygia/data-shake`). One plugin at most. Without one, every region that reads the page gets
 	 *  all of `page.data`, and every server hole looks it up. */
 	pageReads(reads: PageReads): void;
 }

@@ -18,7 +18,6 @@
 	import ThemeReader from '$lib/ThemeReader.svelte' with { wake: 'load' };
 	import OrphanReader from '$lib/OrphanReader.svelte' with { wake: 'load' };
 	import { SharedCounter } from '$lib/counter-object.svelte.js';
-	import { roomCtx, themeCtx } from '$lib/room-context.svelte.js';
 
 	const counter = new SharedCounter('room', 5);
 	const inner = new SharedCounter('inner', 99);
@@ -28,7 +27,7 @@
 <hr />
 <h1 data-static-shell>Cross-island context matrix</h1>
 
-<Provide values={[roomCtx(counter), { greeting: 'hi-from-provide' }]}>
+<Provide values={[{ room: counter }, { greeting: 'hi-from-provide' }]}>
 	<section data-live-share>
 		<h2 data-static-shell>Live share across strategies</h2>
 		<!-- One writer, readers hydrating on load / idle / visible / defer — all reunite to one live
@@ -55,11 +54,11 @@
 		<CtxReaderVisible label="visible" />
 	</section>
 
-	<!-- Inner provider shadows the outer for roomCtx: this reader must see 99, not 5 -->
+	<!-- Inner provider shadows the outer for room: this reader must see 99, not 5 -->
 	<section data-shadow>
 		<h2 data-static-shell>Nested provider (nearest wins)</h2>
 		<CtxReader label="outer-scope" />
-		<Provide values={[roomCtx(inner)]}>
+		<Provide values={{ room: inner }}>
 			<CtxReader label="inner-scope" />
 		</Provide>
 	</section>
@@ -67,7 +66,7 @@
 	<!-- Plain-value context: provided 'dark' here; a reader OUTSIDE this provider gets the default -->
 	<section data-theme>
 		<h2 data-static-shell>Plain value + default</h2>
-		<Provide values={[themeCtx('dark')]}>
+		<Provide values={{ theme: 'dark' }}>
 			<ThemeReader label="provided" />
 		</Provide>
 		<ThemeReader label="defaulted" />

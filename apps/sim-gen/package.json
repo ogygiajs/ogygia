@@ -9,10 +9,10 @@
 		"sim:browser": "playwright test"
 	},
 	"dependencies": {
+		"@ogygia/data-shake": "workspace:*",
 		"@ogygia/federation": "workspace:*",
 		"@ogygia/flags": "workspace:*",
 		"@ogygia/machine": "workspace:*",
-		"@ogygia/page-keys": "workspace:*",
 		"@ogygia/postrender": "workspace:*",
 		"@ogygia/rewrite": "workspace:*",
 		"@ogygia/router": "workspace:*",

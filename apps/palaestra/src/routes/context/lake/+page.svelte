@@ -5,7 +5,6 @@
 	import { Provide } from 'ogygia';
 	import CtxLakeHost from '$lib/CtxLakeHost.svelte' with { wake: 'load' };
 	import { SharedCounter } from '$lib/counter-object.svelte.js';
-	import { roomCtx } from '$lib/room-context.svelte.js';
 
 	const counter = new SharedCounter('lake', 7);
 </script>
@@ -14,6 +13,6 @@
 <hr />
 <h1 data-static-shell>Context into a lake</h1>
 
-<Provide values={[roomCtx(counter)]}>
+<Provide values={{ room: counter }}>
 	<CtxLakeHost />
 </Provide>

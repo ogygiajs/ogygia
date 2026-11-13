@@ -2405,6 +2405,14 @@
 			"reason": "moved from packages/core/src/runtime/restore-report.ts with reshape (#608): never ran here, browser state; the gate on this base does not follow a file across packages, and the moved tests (packages/rewrite/test) prove it"
 		},
 		{
+			"id": "packages/rewrite/src/messages.ts > REWRITE_WARNINGS > restore_sheet_missing > details",
+			"reason": "a message table entry: wording only (#1673)"
+		},
+		{
+			"id": "packages/rewrite/src/messages.ts > REWRITE_WARNINGS > restore_sheet_missing > text",
+			"reason": "a message table entry: wording only (#1673)"
+		},
+		{
 			"id": "packages/core/src/server/page-stream.ts > swap_tracked",
 			"reason": "the fallback walk for a page value too deep or cyclic for the untracked one, handed a swap function (not cloneable); linear in the value, one Map entry per open object; proven in packages/core/test/page-defer.test.ts (the cyclic cases)"
 		},
@@ -2863,6 +2871,10 @@
 		{
 			"id": "packages/compiler/src/compiler/messages.ts > BUILD_ERRORS > barrels_option_removed > text",
 			"reason": "a message table entry: wording only"
+		},
+		{
+			"id": "packages/compiler/src/vite/kit-dirs.ts > load_kit_config",
+			"reason": "config time, once per Vite config: imports the app's svelte.config (async, file system: not replayable); proven in packages/compiler/test/kit-dirs.test.ts"
 		},
 		{
 			"id": "packages/compiler/src/vite/index.ts > ogygia > seams > exports > map",
@@ -5513,14 +5525,6 @@
 			"reason": "a warning's wording, constant text"
 		},
 		{
-			"id": "packages/core/src/context-bridge.ts > createContext > defineProperties:1~034356 > [computed] > value",
-			"reason": "the context tuple's iterator: three getters handed out once per destructure, constant work"
-		},
-		{
-			"id": "packages/core/src/context-bridge.ts > createContext > defineProperties:1~034356 > get > value",
-			"reason": "the deprecated callable form's get: one Svelte getContext read (component-init only, not cloneable), constant work"
-		},
-		{
 			"id": "packages/core/src/context-bridge.ts > createContext > has",
 			"reason": "one Svelte hasContext read (component-init only, not cloneable), constant work"
 		},
@@ -5778,7 +5782,7 @@
 		},
 		{
 			"id": "packages/compiler/src/vite/dev-maps.ts > install_dev_page_keys > <anonymous>~d15d6d > dev:1~e12443",
-			"reason": "dev only, a profiler ask: one dev server resolve of a helper the page is handed to, then the plugin's own dev read (page_reads.dev, measured in the page-keys bench)"
+			"reason": "dev only, a profiler ask: one dev server resolve of a helper the page is handed to, then the plugin's own dev read (page_reads.dev, measured in the data-shake bench)"
 		},
 		{
 			"id": "packages/compiler/src/vite/dev-maps.ts > install_dev_page_keys > <anonymous>~d15d6d > dev:1~e12443 > catch:0~ae0427",
@@ -5841,12 +5845,12 @@
 			"reason": "dev and rules builds only: one set lookup per page.data key, constant work per key; proven in packages/core/test/seed-shaping-oracle.test.ts"
 		},
 		{
-			"id": "packages/page-keys/src/index.ts > pageKeys",
+			"id": "packages/data-shake/src/vite.ts > dataShake",
 			"reason": "config time: one plugin definition per vite.config load, constant work"
 		},
 		{
-			"id": "packages/page-keys/src/index.ts > pageKeys > definePlugin:0~0ce4a1 > build",
-			"reason": "build only: makes the plugin's page_reads (measured in the page-keys bench) and hands it to the build, once per build"
+			"id": "packages/data-shake/src/vite.ts > dataShake > definePlugin:0~7b132b > build",
+			"reason": "build only: makes the plugin's page_reads (measured in the data-shake bench) and hands it to the build, once per build"
 		}
 	]
 }

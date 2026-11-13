@@ -222,6 +222,15 @@
 		"to": "void real;"
 	},
 	{
+		"id": "reshape-trimmed-text-not-put-back",
+		"file": "packages/rewrite/src/restore.ts",
+		"in": "restore > fix_text",
+		"code": "if (next && next.nodeType === 3) (next as Text).data = was;",
+		"operator": "statement",
+		"from": "(next as Text).data = was;",
+		"to": "void was;"
+	},
+	{
 		"id": "router-page-lost-not-handed-off",
 		"file": "packages/core/src/runtime/router-nav.ts",
 		"in": "navigate",
@@ -340,6 +349,42 @@
 		"operator": "relational",
 		"from": ">= 500",
 		"to": "> 500"
+	},
+	{
+		"id": "serve-every-answer-a-redirect",
+		"file": "packages/federation/src/serve.ts",
+		"in": "serve_expose",
+		"code": "if (res.status >= 300 && res.status < 400)",
+		"operator": "logical",
+		"from": "&&",
+		"to": "||"
+	},
+	{
+		"id": "serve-400-a-redirect",
+		"file": "packages/federation/src/serve.ts",
+		"in": "serve_expose",
+		"code": "if (res.status >= 300 && res.status < 400)",
+		"operator": "relational",
+		"from": "< 400",
+		"to": "<= 400"
+	},
+	{
+		"id": "kit-mount-400-no-error",
+		"file": "packages/federation/src/mount.ts",
+		"in": "kit_mount > load",
+		"code": "if (doc.status >= 400) kit_error(doc.status, doc.title || 'This section is unavailable.');",
+		"operator": "relational",
+		"from": ">= 400",
+		"to": "> 400"
+	},
+	{
+		"id": "kit-mount-error-says-nothing",
+		"file": "packages/federation/src/mount.ts",
+		"in": "kit_mount > load",
+		"code": "if (doc.status >= 400) kit_error(doc.status, doc.title || 'This section is unavailable.');",
+		"operator": "logical",
+		"from": "doc.title || 'This section is unavailable.'",
+		"to": "''"
 	},
 	{
 		"id": "hole-answered-left-armed",
