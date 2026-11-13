@@ -33,6 +33,7 @@ import { og_js_regions, type JsRegion } from '../parse/scan.ts';
 import { find_og_calls } from '../parse/scan.ts';
 import { parse_module, type AstNode } from '../parse/oxc.ts';
 import { OgygiaError } from '../messages.ts';
+import { splice_text, type Edit } from '../splice.ts';
 
 // ── regexes
 const STATIC_WIRE_TAIL_RE = /\bstatic\s+wire\s*=\s*$/;
@@ -74,9 +75,6 @@ function walk(node: Node, visit: (n: Node) => void): void {
 		}
 	}
 }
-
-/** One wire mark: the span to replace and its replacement text. */
-type Edit = { start: number; end: number; text: string };
 
 /** 1-based line of an absolute offset in `src` — for build-error voice. */
 function line_of(src: string, offset: number): number {
@@ -189,22 +187,16 @@ function scan_edits(src: string, region: JsRegion): Edit[] {
  * `markup_exts` is the resolved construct-host set (the plugin passes `['.svelte']`).
  */
 export function rewrite_wire(src: string, id: string, markup_exts: readonly string[]): string {
-	if (!src.includes(MARKER)) return src;
-	const regions = og_js_regions(src, id, markup_exts);
-	if (!regions) return src;
+	return splice_text(src, wire_edits(src, id, markup_exts));
+}
 
+/** The edits `rewrite_wire` makes to `src`: none when there is nothing to do. */
+export function wire_edits(src: string, id: string, markup_exts: readonly string[]): Edit[] {
+	if (!src.includes(MARKER)) return [];
+	const regions = og_js_regions(src, id, markup_exts);
+	if (!regions) return [];
 	const edits: Edit[] = [];
 	for (const region of regions)
 		edits.push(...(ast_edits(src, region, id) ?? scan_edits(src, region)));
-	if (!edits.length) return src;
-
-	edits.sort((a, b) => a.start - b.start);
-	let out = '';
-	let last = 0;
-	for (const e of edits) {
-		out += src.slice(last, e.start) + e.text;
-		last = e.end;
-	}
-	out += src.slice(last);
-	return out;
+	return edits;
 }

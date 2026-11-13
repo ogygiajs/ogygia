@@ -20,14 +20,46 @@ type Frame = Awaited<ReturnType<BrowserCommandContext['frame']>>;
  *   stylesheet still loading, for real.
  * - `keep_downloads(path)` lifts either, and sends the held requests on.
  *
- * Test files run side by side in one browser page, each in its own frame, so a route touches only
- * the requests of the frame that named it, and each file lifts only what it named: one file's drop
+ * Test files run one after another in one browser page, each in its own frame, and a run keeps the
+ * earlier files' frames, all named `vitest-iframe`. So a route touches only the requests of the
+ * calling file's own frame (`test_frame`), and each file lifts only what it named: one file's drop
  * spent on another file's download of the same module let both tests see the wrong network.
  */
 type Routed = { matches: (url: URL) => boolean; held: Array<() => Promise<void>> };
 const routed = new Map<Frame, Map<string, Routed>>();
+/** How long a command waits for Playwright to report the calling file's frame. */
+const FRAME_WAIT_MS = 5000;
+
+/** The calling test file's own frame: the one Vitest opened for it (its `<iframe src>` names it,
+ *  `?iframeId=<its path>`, whatever the test then does to its location). Not `ctx.frame()`, which
+ *  is the FIRST `vitest-iframe` on the page, an earlier file's when one ran before it there: a
+ *  route on that frame let this file's requests through (#1397). None found fails the command,
+ *  never routes a guess. */
+async function test_frame(ctx: BrowserCommandContext): Promise<Frame> {
+	const id = ctx.testPath;
+	// (the command comes over Vitest's socket, which can outrun the browser's own report of a new
+	// file's frame: Playwright's frame tree is waited for, a bounded while, then the command fails)
+	const until = Date.now() + FRAME_WAIT_MS;
+	for (;;) {
+		for (const f of ctx.page.frames()) {
+			if (f === ctx.page.mainFrame() || f.isDetached()) continue;
+			const src = await f
+				.frameElement()
+				.then((el) => el.getAttribute('src'))
+				// ok: a frame taken off the page meanwhile is an earlier file's, never the caller's
+				.catch(() => null);
+			if (src !== null && new URL(src, 'http://x').searchParams.get('iframeId') === id) return f;
+		}
+		if (Date.now() > until)
+			throw new Error(
+				`no frame of the test file ${id} on the page: a network route would touch another file's requests (#1397)`
+			);
+		await new Promise((r) => setTimeout(r, 10));
+	}
+}
+
 async function route_of(ctx: BrowserCommandContext, path: string): Promise<[Routed, Frame]> {
-	const frame = await ctx.frame();
+	const frame = await test_frame(ctx);
 	const r: Routed = { matches: (url) => url.pathname.endsWith(path), held: [] };
 	let mine = routed.get(frame);
 	if (!mine) routed.set(frame, (mine = new Map()));
@@ -52,7 +84,7 @@ const hold_downloads: BrowserCommand<[path: string]> = async (ctx, path) => {
 	);
 };
 const keep_downloads: BrowserCommand<[path: string]> = async (ctx, path) => {
-	const mine = routed.get(await ctx.frame());
+	const mine = routed.get(await test_frame(ctx));
 	const r = mine?.get(path);
 	if (!r) return;
 	mine!.delete(path);

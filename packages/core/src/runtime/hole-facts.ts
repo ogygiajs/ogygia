@@ -10,6 +10,7 @@
 import { HOLES_SCRIPT_TYPE } from '../holes-record.ts';
 import { parse_region_html, vouch_page_html } from './html-sink.ts';
 import { server_channel } from './response-mark.ts';
+import { warn } from '../messages/core.ts';
 
 export type HoleFacts = {
 	/** The signed capability URL the server minted. */
@@ -30,7 +31,9 @@ function parse_record(doc: Document): Map<string, HoleFacts> | null {
 	let raw: RawRecord;
 	try {
 		raw = JSON.parse(el.textContent || '') as RawRecord;
-	} catch {
+	} catch (e) {
+		// (the server writes it with JSON.stringify: only a record mangled on its way here)
+		if (import.meta.env.DEV) warn('page_payload_unreadable', { what: 'holes record' }, e);
 		return null;
 	}
 	const map = new Map<string, HoleFacts>();

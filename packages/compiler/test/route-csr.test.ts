@@ -26,7 +26,8 @@ import { node_fs } from '../src/compiler/fs.ts';
 import { transformHost } from '../src/compiler/region/transform.ts';
 import { dedent } from '@ogygia/core/contract';
 
-const R = route_reader(node_fs);
+/** The disk, read through a reader of its own per test (a fresh set of answers). */
+let R = route_reader(node_fs);
 
 /** Write a route tree: { 'content/[...slug]/+page.ts': 'export const csr = false;' }. */
 function tree(files: Record<string, string>): string {
@@ -49,7 +50,9 @@ function world(routes: string, rel: string): 'strip' | 'island' | 'shared' {
 			: 'shared';
 }
 
-beforeEach(() => R.clear());
+beforeEach(() => {
+	R = route_reader({ ...node_fs });
+});
 
 // ── read_csr — the single declaration reader ─────────────────────────────────────────────────
 
@@ -126,6 +129,33 @@ describe('page world — option-file chain, deepest wins', () => {
 			'admin/+page.svelte': '<h1>admin</h1>'
 		});
 		expect(routeCsrIsTrue(R, at(routes, 'admin/+page.svelte'), routes)).toBe(true);
+	});
+
+	it.each([
+		['+layout.server.ts', '+layout.ts'],
+		['+page.server.ts', '+page.ts']
+	])(
+		'a universal csr = true beats a server csr = false on one node, like Kit (%s, %s)',
+		(server, universal) => {
+			const routes = tree({
+				[server]: 'export const csr = false;\n',
+				[universal]: 'export const csr = true;\n',
+				'+page.svelte': '<h1>home</h1>'
+			});
+			expect(routeCsrIsFalse(R, at(routes, '+page.svelte'), routes)).toBe(false);
+			expect(routeCsrIsTrue(R, at(routes, '+page.svelte'), routes)).toBe(true);
+			expect(csrTrueRouteIds(R, routes)).toEqual(['/']);
+		}
+	);
+
+	it('a universal csr = false beats a server csr = true on one node, like Kit', () => {
+		const routes = tree({
+			'+layout.server.ts': 'export const csr = true;\n',
+			'+layout.ts': 'export const csr = false;\n',
+			'+page.svelte': '<h1>home</h1>'
+		});
+		expect(routeCsrIsFalse(R, at(routes, '+page.svelte'), routes)).toBe(true);
+		expect(rootLayoutCsrTrue(R, routes)).toBe(false);
 	});
 
 	it('group-segment option files participate in the chain', () => {
@@ -277,7 +307,7 @@ describe('csrTrueRouteIds + cache', () => {
 		expect(csrTrueRouteIds(R, routes).sort()).toEqual(['/', '/dash']);
 	});
 
-	it('clear_route_csr_cache picks up new declarations AND new pages', () => {
+	it('a file event picks up new declarations AND new pages', () => {
 		const routes = tree({
 			'+layout.svelte': '<slot />',
 			'spa/+page.svelte': '<h1>spa</h1>'
@@ -285,12 +315,12 @@ describe('csrTrueRouteIds + cache', () => {
 		expect(world(routes, '+layout.svelte')).toBe('strip');
 		// a csr=false declaration appears
 		writeFileSync(at(routes, 'spa/+page.ts'), 'export const csr = false;\n');
-		R.clear();
+		expect(R.touch(at(routes, 'spa/+page.ts'), 'create')).toBe(true);
 		expect(world(routes, '+layout.svelte')).toBe('island');
-		// a brand-new csr=true page appears
+		// a brand-new csr=true page appears, in a new directory
 		mkdirSync(at(routes, 'landing'), { recursive: true });
 		writeFileSync(at(routes, 'landing/+page.svelte'), '<h1>l</h1>');
-		R.clear();
+		expect(R.touch(at(routes, 'landing/+page.svelte'), 'create')).toBe(true);
 		expect(world(routes, '+layout.svelte')).toBe('shared');
 		expect(csrTrueRouteIds(R, routes)).toEqual(['/landing']);
 	});
@@ -345,7 +375,7 @@ describe('errorCsrTrueRouteIds / rootLayoutCsrTrue — the layout branch decides
 		expect(csrTrueRouteIds(R, routes).sort()).toEqual(['/shop/cart']);
 	});
 
-	it('cache: a new layout declaration is picked up after clear_route_csr_cache', () => {
+	it('a new layout declaration is picked up after its file event', () => {
 		const routes = tree({
 			'+layout.svelte': '<slot />',
 			'spa/+page.ts': 'export const csr = false;\n',
@@ -353,7 +383,7 @@ describe('errorCsrTrueRouteIds / rootLayoutCsrTrue — the layout branch decides
 		});
 		expect(errorCsrTrueRouteIds(R, routes)).toEqual(['/spa']);
 		writeFileSync(at(routes, '+layout.ts'), 'export const csr = false;\n');
-		R.clear();
+		expect(R.touch(at(routes, '+layout.ts'), 'create')).toBe(true);
 		expect(errorCsrTrueRouteIds(R, routes)).toEqual([]);
 		expect(rootLayoutCsrTrue(R, routes)).toBe(false);
 	});

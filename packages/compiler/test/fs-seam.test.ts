@@ -49,20 +49,6 @@ function app_files(): Record<string, string> {
 
 function make_compiler(files: ReturnType<typeof memory_fs>) {
 	const program = new Program({ forms: true, router: true });
-	const compiler = new Compiler(program, {
-		prof: {
-			transformMs: 0,
-			transformN: 0,
-			transformHit: 0,
-			prescanMs: 0,
-			bakeMs: 0,
-			bakeN: 0,
-			resolveMs: 0,
-			loadMs: 0
-		},
-		P: false,
-		outHash: new Map<string, number>()
-	});
 	const ctx = new CompileCtx(
 		partial_ctx_init({
 			root: ROOT,
@@ -80,7 +66,24 @@ function make_compiler(files: ReturnType<typeof memory_fs>) {
 			fs: files
 		})
 	);
-	compiler.configure(ctx);
+	const compiler = new Compiler(
+		program,
+		{
+			prof: {
+				transformMs: 0,
+				transformN: 0,
+				transformHit: 0,
+				prescanMs: 0,
+				macroMs: 0,
+				macroN: 0,
+				resolveMs: 0,
+				loadMs: 0
+			},
+			P: false,
+			outHash: new Map<string, number>()
+		},
+		ctx
+	);
 	return { compiler, program, ctx };
 }
 
@@ -100,7 +103,7 @@ describe('the compiler reads an app through its fs seam', () => {
 		const b = memory_fs({ ...app_files(), [`${ROUTES}/+layout.ts`]: `export const csr = true;\n` });
 		const ra = route_reader(a);
 		const rb = route_reader(b);
-		expect(route_reader(a)).toBe(ra); // one cache set per file system
+		expect(route_reader(a)).toBe(ra); // one set of answers per file system
 		expect(routeCsrIsFalse(ra, `${ROUTES}/+page.svelte`, ROUTES)).toBe(true);
 		expect(routeCsrIsFalse(rb, `${ROUTES}/+page.svelte`, ROUTES)).toBe(false);
 		expect(csrTrueRouteIds(ra, ROUTES)).toEqual(['/live']);
@@ -108,12 +111,12 @@ describe('the compiler reads an app through its fs seam', () => {
 		expect(page_route_config(ra, ROUTES, ['tier'])).toEqual({ '/': {}, '/live': { tier: 'gold' } });
 	});
 
-	test('an edit to a file in memory is seen once the route caches are cleared', () => {
+	test('an edit to a file in memory is seen once the watcher tells the route reader', () => {
 		const files = memory_fs(app_files());
 		const { ctx } = make_compiler(files);
 		expect(routeCsrIsFalse(ctx.routes, `${ROUTES}/+page.svelte`, ROUTES)).toBe(true);
 		files.set(`${ROUTES}/+layout.ts`, null);
-		ctx.routes.clear();
+		expect(ctx.routes.touch(`${ROUTES}/+layout.ts`, 'delete')).toBe(true);
 		expect(routeCsrIsFalse(ctx.routes, `${ROUTES}/+page.svelte`, ROUTES)).toBe(false);
 	});
 
@@ -143,12 +146,12 @@ const DIRECT_FS: Record<string, { calls: number; why: string }> = {
 	},
 	'virtual/core.ts': { calls: 2, why: "ogygia's own package.json (the dev runtime's location)" },
 	'link/build-output.ts': { calls: 7, why: 'the build output it writes and patches' },
+	'link/emit-gate.ts': { calls: 1, why: "the server leg's handoff file in the build output" },
 	'link/island-deps.ts': {
 		calls: 1,
 		why: 'generated server code, reading its handoff at run time'
 	},
-	'link/page-keys.ts': { calls: 1, why: 'moving to its own package (#1335)' },
-	'macros/bake.ts': { calls: 4, why: 'moving to its own package' }
+	'link/page-keys.ts': { calls: 1, why: 'moving to its own package (#1335)' }
 };
 
 test('the compiler reads app files only through its fs seam', () => {
