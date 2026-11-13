@@ -326,5 +326,15 @@
 		"from": "return hand_off(out.failed.error, built.written);",
 		"to": "return;",
 		"aim": "router.commit-throws"
+	},
+	{
+		"id": "hole-answer-later-treated-as-refused",
+		"file": "packages/core/src/runtime/core.ts",
+		"line": 1575,
+		"code": "const refused = err instanceof RegionAnswerRefused;",
+		"operator": "statement",
+		"from": "err instanceof RegionAnswerRefused;",
+		"to": "err instanceof RegionAnswerRefused || err instanceof RegionAnswerLater;",
+		"aim": "hole.answer-later"
 	}
 ]
