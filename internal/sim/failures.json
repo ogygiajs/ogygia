@@ -157,9 +157,195 @@
 			"point": "router.commit-throws",
 			"how": "a commit that throws is kept as out.failed: what was built is given back, and the navigation hands off to the browser (#276)",
 			"killed_by": "router-commit-failed-not-handed-off"
+		},
+		{
+			"site": "packages/core/src/runtime/hole-fetch.ts > read_hole > throw:2",
+			"point": "hole.answer-later",
+			"how": "the point itself, on the 429's own throw: the answer comes back later, and fetch_failed waits (the Retry-After, else the backoff) and asks again, never gives up as on a refusal. The sim fires it at most twice in a document (CAPPED_POINTS), so a hole on its fallback at rest is a broken retry. Proved aimed (--buggify-aim hole.answer-later, gens 191 and 10: baselines clean; a 429 read as a refusal dies on gen191:1 by fallback-stands)",
+			"killed_by": "hole-answer-later-treated-as-refused"
+		},
+		{
+			"site": "packages/core/src/runtime/frame-store.ts > reserve > stale:0",
+			"point": "batch.part-lost",
+			"how": "a batch part the batch did not carry is missed: its wait answers STALE, never an empty answer, so a joined binder asks again. Proved aimed (--buggify-aim batch.part-lost, gens 191 and 10: an empty answer in its place leaves the hole on its fallback, gen191:8 fallback-stands)",
+			"killed_by": "missed-part-lands-empty"
+		},
+		{
+			"site": "packages/core/src/runtime/frame-store.ts > ensure > stale:0",
+			"point": "batch.part-lost",
+			"how": "a binder that joined a missed part gets STALE and asks again: its own fetch runs. Proved aimed (--buggify-aim batch.part-lost, gens 191 and 10: one that returns the STALE leaves the hole waiting, gen191:9 stuck)",
+			"killed_by": "missed-part-joiner-not-asking-again"
 		}
 	],
 	"covered": [
+		{
+			"site": "packages/core/src/server/page-stream.ts > stream_page_deferred > start > stream_one > not-ok:0",
+			"reason": "a streamed load promise that rejects: proved: the failure streamed as a value (ok true) turns the test red",
+			"test": "packages/core/test/page-stream-out.test.ts",
+			"name": "a promise that rejects streams as a failure, with its error, never as a value"
+		},
+		{
+			"site": "packages/core/src/server/page-stream.ts > say_if_pending > timer:0",
+			"reason": "dev only: the sim runs production builds; proved: the warning's timer removed turns the test red",
+			"test": "packages/core/test/page-stream-request-owned.test.ts",
+			"name": "navigation stream: one coded warning, none after it settles"
+		},
+		{
+			"site": "packages/core/src/server/page-stream.ts > swap_thenables > catch:0",
+			"reason": "a load value nested past 64 levels: no app the sim draws returns one; proved: the deep walk's fallback removed turns the test red",
+			"test": "packages/core/test/page-defer.test.ts",
+			"name": "a promise nested 66 and 300 levels deep is staged, and the seed serializes (#569)"
+		},
+		{
+			"site": "packages/core/src/server/page-stream.ts > settle_into > catch:0",
+			"reason": "a load's promise that rejects: proved: the rejection let through turns the test red",
+			"test": "packages/core/test/page-defer.test.ts",
+			"name": "a REJECTED promise never crashes the render; it revives as a rejected Promise (`:catch`)"
+		},
+		{
+			"site": "packages/core/src/server/page-stream.ts > resolve_script > catch:0",
+			"reason": "a streamed value devalue cannot write: no app the sim draws resolves one; proved: the catch made to throw turns the test red",
+			"test": "packages/core/test/page-defer.test.ts",
+			"name": "a non-serializable resolution degrades to a typed error, never hangs"
+		},
+		{
+			"site": "packages/core/src/server/page-stream.ts > stream_page_deferred > start > catch:0",
+			"reason": "Kit's own stream breaking before </body>: a server-side break the sim's network does not make; proved: the catch made to throw turns the test red",
+			"test": "packages/core/test/page-stream-claims.test.ts",
+			"name": "a Kit stream that breaks before `</body>` still streams every resolve and closes"
+		},
+		{
+			"site": "packages/core/src/server/page-stream.ts > stream_page_deferred > start > catch:1",
+			"reason": "as above, the dead tail's read; proved: the catch made to throw turns the test red",
+			"test": "packages/core/test/page-stream-claims.test.ts",
+			"name": "a Kit stream that breaks before `</body>` still streams every resolve and closes"
+		},
+		{
+			"site": "packages/core/src/server/page-stream.ts > stream_page_deferred > start > stream_one > catch:0",
+			"reason": "a resolved value whose staging throws: no app the sim draws resolves one; proved: the throw let through turns the test red",
+			"test": "packages/core/test/page-stream-out.test.ts",
+			"name": "a value whose staging throws fails its own promise; the rest stream and the stream closes"
+		},
+		{
+			"site": "packages/core/src/early-holes.ts > start_early_holes > .catch:0",
+			"reason": "an early hole's request failing before any runtime takes it over: the sim's oracles read the page's errors, but a runtime always adopts the request first in its runs; proved: the park's catch removed turns the test red (an unhandled rejection)",
+			"test": "packages/core/test/browser/early-holes.test.ts",
+			"name": "whose request fails before the runtime takes it over (or with no runtime at all): nothing unhandled"
+		},
+		{
+			"site": "packages/core/src/runtime/frame-store.ts > fetch_frame > abort:0",
+			"reason": "a fetcher that answers after every caller left: the runtime's fetchers stop on their signal, so only one that does not (an app's or a plugin's) reaches it; proved: the write let through turns the test red",
+			"test": "packages/core/test/frame-store.test.ts",
+			"name": "a fetch every caller left writes nothing, even when its fetcher answers anyway"
+		},
+		{
+			"site": "packages/core/src/runtime/entry-locations.ts > absolute > catch:0",
+			"reason": "an entry or location that is not a URL: every one the runtime writes is; proved: the catch made to throw turns the test red",
+			"test": "packages/core/test/browser/entry-locations.test.ts",
+			"name": "a location that is not a URL is kept as written: it names no file, and nothing is noted"
+		},
+		{
+			"site": "packages/core/src/runtime/entry-locations.ts > run > .catch:1",
+			"reason": "the current map's read dropped at the network: only a page that outlived its build reads it, rarely under a drop; proved: the .catch removed turns the test red",
+			"test": "packages/core/test/browser/entry-location-map-dropped.test.ts",
+			"name": "a map read dropped at the network twice: the recovery waits, asks again, and wakes"
+		},
+		{
+			"site": "packages/core/src/runtime/entry-locations.ts > recover_location > timer:0",
+			"reason": "the rollover's wait between reads of a map that could not be read: as above; proved: the wait removed, and the retry made a stop, each turns the test red",
+			"test": "packages/core/test/browser/entry-location-map-dropped.test.ts",
+			"name": "a map read dropped at the network twice: the recovery waits, asks again, and wakes"
+		},
+		{
+			"site": "packages/core/src/runtime/entry-locations.ts > is_gone > reject:0",
+			"reason": "the HEAD for a failed file dropped at the network: as above; proved: the rejection let through turns the test red",
+			"test": "packages/core/test/browser/entry-location-head-dropped.test.ts",
+			"name": "the HEAD for the failed file gets no answer: the import’s own failure stands at once"
+		},
+		{
+			"site": "packages/core/src/runtime/entry-locations.ts > load_entry > throw:0",
+			"reason": "a recovery that finds no other file: proved: no recovery at all turns entry-location-fallback.test.ts red, and a retry of the very file that failed turns this test red",
+			"test": "packages/core/test/browser/entry-location-head-dropped.test.ts",
+			"name": "the HEAD for the failed file gets no answer: the import’s own failure stands at once"
+		},
+		{
+			"site": "packages/core/src/runtime/import-again.ts > run > throw:0",
+			"reason": "an island file whose module threw (not a download): no app the sim draws ships one; proved: the throw removed (the file waited on and loaded again) turns the test red",
+			"test": "packages/core/test/import-file.test.ts",
+			"name": "a module that threw is not asked for again, and its caller hears at once"
+		},
+		{
+			"site": "packages/core/src/runtime/import-again.ts > run > throw:1",
+			"reason": "an island file the server answered for with an error: the sim's server serves every built file; proved: the file asked for again instead turns the test red",
+			"test": "packages/core/test/import-file.test.ts",
+			"name": "a failed download the server answered for (a 404) is the caller’s: never asked for again"
+		},
+		{
+			"site": "packages/core/src/runtime/import-again.ts > file_url > catch:0",
+			"reason": "a loader's file that is not a URL: every file the runtime names is one; proved: the catch made to throw turns the test red",
+			"test": "packages/core/test/import-file.test.ts",
+			"name": "a failed download of a file that names no URL fails with the import’s own error, and is loaded the plain way next time"
+		},
+		{
+			"site": "packages/core/src/runtime/import-again.ts > import_again > next > refused:0",
+			"reason": "a retry whose own file came and still failed (a dependency's failure): needs a dependency dropped after its importer came, which the sim's faults rarely give; proved: the stuck move never taken turns the test red",
+			"test": "packages/core/test/import-again.test.ts",
+			"name": "the page says it needs a reload exactly once, however many retries fail with their own file loaded"
+		},
+		{
+			"site": "packages/core/src/runtime/router-nav.ts > hold_scroll > timer:0",
+			"reason": "a Back's hold for a region above whose code never loads: the sim's layout never scrolls and has no scroll anchoring, so a hold that never ends changes nothing it reads; proved: the cap removed turns the test red",
+			"test": "packages/core/test/browser/scroll-hold.test.ts",
+			"name": "a region above that never wakes (its code failed) holds the page for SCROLL_HOLD_MS at most"
+		},
+		{
+			"site": "packages/core/src/runtime/router-nav.ts > hold_scroll > settled > timer:0",
+			"reason": "the hold's end once nothing above is left to wake: as above; proved: the frame's end removed turns the test red",
+			"test": "packages/core/test/browser/scroll-hold.test.ts",
+			"name": "with no region above to wait for, the hold ends a frame after the put-back and the browser anchors again"
+		},
+		{
+			"site": "packages/core/src/runtime/router-nav.ts > hold_scroll > settled > timer:1",
+			"reason": "as above, the task after that frame; proved: the hold left open after the frame turns the test red",
+			"test": "packages/core/test/browser/scroll-hold.test.ts",
+			"name": "with no region above to wait for, the hold ends a frame after the put-back and the browser anchors again"
+		},
+		{
+			"site": "packages/core/src/runtime/router-nav.ts > hold_scroll > observer:0",
+			"reason": "the put-back on a page that grows after a Back: the sim's layout never scrolls; proved: the ResizeObserver removed turns the test red",
+			"test": "packages/core/test/browser/scroll-hold.test.ts",
+			"name": "a page still too short to reach the saved position is put there once it grows"
+		},
+		{
+			"site": "packages/core/src/runtime/router-nav.ts > preload_stylesheets > error-event:0",
+			"reason": "a next page's sheet that fails to download: no sim run reached it (it is in the baseline); proved: the error listener removed turns the test red",
+			"test": "packages/core/test/browser/nav-sheet-wait-ends.test.ts",
+			"name": "a sheet of the next page that fails to download does not hold its navigation"
+		},
+		{
+			"site": "packages/core/src/runtime/router-nav.ts > preload_stylesheets > timer:0",
+			"reason": "a next page's sheet that never comes: as above; proved: the cap removed turns the test red",
+			"test": "packages/core/test/browser/nav-sheet-wait-ends.test.ts",
+			"name": "a sheet of the next page that never comes holds its navigation for the cap, then the page goes in"
+		},
+		{
+			"site": "packages/core/src/runtime/router-nav.ts > url_of > catch:0",
+			"reason": "a live head URL that does not parse: no app the sim draws writes one; proved: the catch made to throw turns the test red",
+			"test": "packages/core/test/browser/head-urls.test.ts",
+			"name": "a head node whose URL does not parse is keyed by the URL as written"
+		},
+		{
+			"site": "packages/core/src/runtime/router-nav.ts > page_relative_resolved > catch:0",
+			"reason": "a fetched head's page-relative URL that does not parse: as above; proved: the catch made to throw turns the test red",
+			"test": "packages/core/test/browser/head-urls.test.ts",
+			"name": "a page-relative URL that does not parse is left as written: the browser ignores it the same way on either page"
+		},
+		{
+			"site": "packages/core/src/runtime/router-nav.ts > install_remote_mutation_cache_bust > fetch > catch:0",
+			"reason": "an app fetch whose request the cache bust cannot read: no app the sim draws sends one; proved: the catch made to rethrow turns the test red",
+			"test": "packages/core/test/browser/remote-mutation-bust.test.ts",
+			"name": "a request whose method cannot be read still gets its answer"
+		},
 		{
 			"site": "packages/core/src/server/props-wire.ts > lake_identity > catch:0",
 			"reason": "a lake prop no wire carries makes the fingerprint throw: the lake gets no identity and is known by its entry and place",
@@ -245,13 +431,446 @@
 			"name": "a root that cannot adopt its sheet leaves the others in the answer theirs"
 		},
 		{
+			"site": "packages/core/src/runtime/entry-locations.ts > run > fetch:0",
+			"reason": "the build map's read failing on the network: only an identity-only load reads it, and the sim's faults touch that document; proved: a failed read kept (keep: () => Infinity) turns the test red",
+			"test": "packages/core/test/browser/entry-location-map-unread.test.ts",
+			"name": "a map read the network failed is not kept: the load goes on as written, and the next identity-only load reads it again"
+		},
+		{
+			"site": "packages/core/src/runtime/entry-locations.ts > run > .catch:0",
+			"reason": "as above; proved: the read's rejection let through (the .catch removed) turns the test red",
+			"test": "packages/core/test/browser/entry-location-map-unread.test.ts",
+			"name": "a map read the network failed is not kept: the load goes on as written, and the next identity-only load reads it again"
+		},
+		{
+			"site": "packages/core/src/runtime/frame-store.ts > ensure > throw:0",
+			"reason": "a refused early hole answer the hole asks for later: the sim's apps do not refuse an early hole; proved: the held refusal not thrown turns the test red",
+			"test": "packages/core/test/browser/early-holes.test.ts",
+			"name": "a refused answer stays at its address: the hole that wakes later is refused too, and asks nothing"
+		},
+		{
+			"site": "packages/core/src/runtime/early-holes.ts > adopt_early_holes > .catch:0",
+			"reason": "as above; proved: the refusal dropped (catch -> nothing) turns the test red",
+			"test": "packages/core/test/browser/early-holes.test.ts",
+			"name": "a refused answer stays at its address: the hole that wakes later is refused too, and asks nothing"
+		},
+		{
+			"site": "packages/core/src/runtime/early-holes.ts > adopt_early_holes > error-event:0",
+			"reason": "an early hole nobody joins whose visit ends before it answers: no sim oracle sees a request left in the network; proved: the abort not passed on turns the test red",
+			"test": "packages/core/test/browser/early-holes.test.ts",
+			"name": "that nobody joins, left before its answer lands: cancelled in the network, nothing written, nothing unhandled"
+		},
+		{
+			"site": "packages/core/src/runtime/hole-fetch.ts > read_hole > throw:1",
+			"reason": "a capability the server refuses (403): the sim's holes are all signed by their own server; proved: the refusal skipped (a 403 retried as an error) turns the test red",
+			"test": "packages/core/test/browser/hole-refused.test.ts",
+			"name": "a hole whose endpoint answers 403 asks once, keeps its fallback, and says the server’s reason"
+		},
+		{
+			"site": "packages/core/src/runtime/hole-fetch.ts > read_hole > throw:4",
+			"reason": "a whole document answered in place of the region (a handle in front of ogygia's) the sim's apps do not have; proved: the refusal skipped turns the test red",
+			"test": "packages/core/test/browser/hole-refused.test.ts",
+			"name": "a hole whose endpoint answers a whole document asks once, keeps its fallback, and says what answered"
+		},
+		{
+			"site": "packages/core/src/runtime/entry-locations.ts > run > fetch:1",
+			"reason": "the current build's map read failing needs a deploy's rollover the random app does not draw; proved: a failed read kept (keep: () => Infinity) turns the test red",
+			"test": "packages/core/test/browser/entry-location-retry.test.ts",
+			"name": "one failed read of the current map: the load asks again, and wakes"
+		},
+		{
+			"site": "packages/core/src/runtime/entry-locations.ts > is_gone > fetch:0",
+			"reason": "an edge still answering the old build's map is a rollover the sim does not draw; proved: a map naming the failed file taken without asking the host turns the test red",
+			"test": "packages/core/test/browser/entry-location-rollover.test.ts",
+			"name": "a map that names the file that just failed is the old one: asked again, and wakes"
+		},
+		{
+			"site": "packages/core/src/runtime/entry-locations.ts > load_entry > .catch:0",
+			"reason": "a location that 404s after a deploy; proved: the failure thrown with no recovery turns the test red",
+			"test": "packages/core/test/browser/entry-location-fallback.test.ts",
+			"name": "the location 404s: the island wakes on the current build’s file"
+		},
+		{
+			"site": "packages/core/src/runtime/entry-locations.ts > import_entry > catch:0",
+			"reason": "an identity on an origin the page loads no code from: no app the sim generates writes one; proved: the refusal skipped turns the test red",
+			"test": "packages/core/test/browser/code-origins.test.ts",
+			"name": "is not imported as written: refused with its code, nothing requested"
+		},
+		{
+			"site": "packages/core/src/runtime/hole-fetch.ts > read_hole > throw:0",
+			"reason": "a same-origin redirect of a hole (a handle in front of ogygia's) the sim's redirect fault does not make; proved: the refusal skipped turns the test red",
+			"test": "packages/core/test/browser/hole-cross-origin-redirect.test.ts",
+			"name": "a hole answer redirected on its own origin is refused the same way"
+		},
+		{
+			"site": "packages/core/src/runtime/hole-fetch.ts > fetch_hole > throw:0",
+			"reason": "a foreign endpoint handed to preload(): no generated app does; proved: the throw skipped turns the test red",
+			"test": "packages/core/test/browser/preload-hole.test.ts",
+			"name": "a region whose address is another origin is not preloaded: no request goes out"
+		},
+		{
+			"site": "packages/core/src/runtime/import-again.ts > import_again > next > .catch:1",
+			"reason": "a dropped island download in a document a fault touched is set aside by the oracles; proved: the failed URL never noted turns the test red",
+			"test": "packages/core/test/browser/import-file-one-retry.test.ts",
+			"name": "two loads of one file that fail together share one retry, and get one copy of the module"
+		},
+		{
+			"site": "packages/core/src/runtime/import-again.ts > run > .catch:0",
+			"reason": "as above; proved: a failure with no timing entry not asked again turns the test red",
+			"test": "packages/core/test/browser/import-file-one-retry.test.ts",
+			"name": "two loads of one file that fail together share one retry, and get one copy of the module"
+		},
+		{
+			"site": "packages/reshape/src/restore-report.ts > report > import:0",
+			"reason": "the sim never writes a restore mismatch or a late host to the log, so the wording chunk is never asked for; the test's Vite fails that chunk's load, so the real import rejects in 3 engines",
+			"test": "packages/reshape/test/browser-chunk-lost/restore-report.test.ts",
+			"name": "a restore report whose wording chunk does not load says nothing, throws nothing, and keeps the log"
+		},
+		{
+			"site": "packages/reshape/src/restore-report.ts > report > reject:0",
+			"reason": "the import's rejection, as above: with the handler gone the run fails on an unhandled rejection in 3 engines (proved)",
+			"test": "packages/reshape/test/browser-chunk-lost/restore-report.test.ts",
+			"name": "a restore report whose wording chunk does not load says nothing, throws nothing, and keeps the log"
+		},
+		{
+			"site": "packages/core/src/server/page-stream.ts > swap_thenables > throw:0",
+			"reason": "a load value whose getter throws as it is walked: proved: walking it again with the tracked walk instead of failing turns the test red",
+			"test": "packages/core/test/page-stream-out.test.ts",
+			"name": "a value is walked once: a getter that throws is read once, and its promise fails"
+		},
+		{
+			"site": "packages/core/src/server/page-stream.ts > clone_untracked > throw:0",
+			"reason": "a load value with a list that holds itself: proved: no depth cap on lists turns the test red",
+			"test": "packages/core/test/page-stream-claims.test.ts",
+			"name": "a list that holds itself, and nothing else cyclic, ends the staging walk too"
+		},
+		{
+			"site": "packages/core/src/server/page-stream.ts > clone_untracked > throw:1",
+			"reason": "a load value with an object that holds itself: proved: no depth cap on objects turns the test red",
+			"test": "packages/core/test/page-stream-claims.test.ts",
+			"name": "a cyclic plain value ends both walks instead of overflowing the stack"
+		},
+		{
+			"site": "packages/core/src/server/page-stream.ts > stream_page_deferred > stream:0",
+			"reason": "every streamed page reads Kit's body: proved: reading an empty source instead turns the test red",
+			"test": "packages/core/test/page-stream-out.test.ts",
+			"name": "cancelling the body settles: the stream it ends is already closed, and that is no failure"
+		},
+		{
+			"site": "packages/core/src/server/page-stream.ts > stream_page_deferred > .catch:0",
+			"reason": "a Kit source whose cancel throws, when the request ends: proved: the cancel's rejection left uncaught turns the test red (unhandled)",
+			"test": "packages/core/test/page-stream-out.test.ts",
+			"name": "a Kit source whose cancel fails still lets the request end, with nothing left unhandled"
+		},
+		{
+			"site": "packages/core/src/server/page-stream.ts > stream_page_deferred > start > stream:0",
+			"reason": "every streamed page forwards Kit's document: proved: not forwarding it turns the test red",
+			"test": "packages/core/test/page-stream-out.test.ts",
+			"name": "a Kit source whose cancel fails still lets the request end, with nothing left unhandled"
+		},
+		{
+			"site": "packages/core/src/server/page-stream.ts > stream_page_deferred > start > close > stream:0",
+			"reason": "every streamed page closes once its promises settled: proved: never closing turns the test red",
+			"test": "packages/core/test/page-stream-out.test.ts",
+			"name": "a promise that rejects streams as a failure, with its error, never as a value"
+		},
+		{
+			"site": "packages/core/src/server/page-stream.ts > stream_page_deferred > start > close > catch:0",
+			"reason": "the visitor cancels the body: its cancel closes the request's owner, whose close finds the stream already closed: proved: that close made to throw turns the test red",
+			"test": "packages/core/test/page-stream-out.test.ts",
+			"name": "cancelling the body settles: the stream it ends is already closed, and that is no failure"
+		},
+		{
+			"site": "packages/core/src/server/page-stream.ts > stream_page_deferred > start > push > stream:0",
+			"reason": "every settled promise writes its resolve script: proved: not writing it turns the test red",
+			"test": "packages/core/test/page-stream-out.test.ts",
+			"name": "a nested promise streams with its parent, and the stream closes only once it settled"
+		},
+		{
+			"site": "packages/core/src/server/page-stream.ts > stream_page_deferred > start > stream_one > reject:0",
+			"reason": "a streamed load promise that rejects: proved: dropping the rejection's handler turns the test red",
+			"test": "packages/core/test/page-stream-out.test.ts",
+			"name": "a promise that rejects streams as a failure, with its error, never as a value"
+		},
+		{
+			"site": "packages/core/src/runtime/entry-locations.ts > pin_region_urls > catch:0",
+			"reason": "a relative region URL against a base that is no URL: the sim's pages always have one: proved: that failure thrown instead of kept as written turns the test red",
+			"test": "packages/core/test/pin-region-urls.test.ts",
+			"name": "a relative value against a base that is no URL stays as written, and the pin goes on"
+		},
+		{
+			"site": "packages/core/src/runtime/entry-locations.ts > current_location > stale:0",
+			"reason": "two islands' recoveries in a rollover, one dropping the map while the other's read of it is out: a timing no sweep seed is known to hit: proved: that STALE read as a map turns the test red",
+			"test": "packages/core/test/browser/entry-location-map-race.test.ts",
+			"name": "a read of the map that another recovery drops while it is out is read again, and both islands wake"
+		},
+		{
+			"site": "packages/core/src/runtime/entry-locations.ts > load_entry > catch:0",
+			"reason": "a location on an origin the page loads no code from, handed in for a known identity: no app the sim generates writes one: proved: the refusal thrown instead of rejected turns the test red",
+			"test": "packages/core/test/browser/code-origins.test.ts",
+			"name": "handed in as the location of a known identity: refused as a rejection, never thrown"
+		},
+		{
+			"site": "packages/core/src/runtime/entry-locations.ts > load_entry > reject:0",
+			"reason": "a recovery whose current file fails too: proved: dropping the failure's report turns the test red",
+			"test": "packages/core/test/browser/entry-locations.test.ts",
+			"name": "recovered, and not: each once, with the identity and the location that failed"
+		},
+		{
+			"site": "packages/core/src/server/page-facts.ts > look_up_page > catch:0",
+			"reason": "a hole's look-up of its page's data whose request throws: proved: the failure thrown instead of a miss turns the test red",
+			"test": "packages/core/test/page-facts-failures.test.ts",
+			"name": "a data request that throws is a miss that says why"
+		},
+		{
+			"site": "packages/core/src/server/page-facts.ts > look_up_page > not-ok:0",
+			"reason": "a page's data answer that is not ok: proved: reading it anyway turns the test red",
+			"test": "packages/core/test/page-facts-failures.test.ts",
+			"name": "an answer that is not ok is not read, and a source that cannot be cancelled leaves nothing unhandled"
+		},
+		{
+			"site": "packages/core/src/server/page-facts.ts > look_up_page > body:0",
+			"reason": "an ok data answer with no body: proved: reading the missing body turns the test red",
+			"test": "packages/core/test/page-facts-failures.test.ts",
+			"name": "an ok answer with no body is a miss, not a read of nothing"
+		},
+		{
+			"site": "packages/core/src/server/page-facts.ts > look_up_page > .catch:0",
+			"reason": "a not-ok answer whose source cancel throws: proved: that cancel's rejection left uncaught turns the test red (unhandled)",
+			"test": "packages/core/test/page-facts-failures.test.ts",
+			"name": "an answer that is not ok is not read, and a source that cannot be cancelled leaves nothing unhandled"
+		},
+		{
+			"site": "packages/core/src/server/page-facts.ts > look_up_page > stream:0",
+			"reason": "every look-up reads the data answer's body: proved: reading an empty source instead turns the test red",
+			"test": "packages/core/test/page-facts-failures.test.ts",
+			"name": "a mangled route header leaves the page with no route, and its data"
+		},
+		{
+			"site": "packages/core/src/server/page-facts.ts > look_up_page > .catch:1",
+			"reason": "the request ends while the answer is read, and the source's cancel throws: proved: that rejection left uncaught turns the test red (unhandled)",
+			"test": "packages/core/test/page-facts-failures.test.ts",
+			"name": "the request ending stops the read, and a failed cancel leaves nothing unhandled"
+		},
+		{
+			"site": "packages/core/src/server/page-facts.ts > look_up_page > stop > .catch:0",
+			"reason": "a stopped read whose source cancel throws: proved: that rejection left uncaught turns the test red (unhandled)",
+			"test": "packages/core/test/page-facts-failures.test.ts",
+			"name": "a first line that is not JSON stops the read, and a failed cancel leaves nothing unhandled"
+		},
+		{
+			"site": "packages/core/src/server/page-facts.ts > look_up_page > parse:0",
+			"reason": "a first line that is not JSON (an HTML page answered for the data): proved: its parse failure thrown turns the test red",
+			"test": "packages/core/test/page-facts-failures.test.ts",
+			"name": "a first line that is not JSON stops the read, and a failed cancel leaves nothing unhandled"
+		},
+		{
+			"site": "packages/core/src/server/page-facts.ts > look_up_page > catch:1",
+			"reason": "a first line that is not JSON: proved: the failure thrown instead of a miss turns the test red",
+			"test": "packages/core/test/page-facts-failures.test.ts",
+			"name": "a first line that is not JSON stops the read, and a failed cancel leaves nothing unhandled"
+		},
+		{
+			"site": "packages/core/src/server/page-facts.ts > look_up_page > revive > Promise > .catch:0",
+			"reason": "a streamed promise nobody awaits, rejected when the answer ends: proved: its handler removed turns the test red (unhandled)",
+			"test": "packages/core/test/page-facts-failures.test.ts",
+			"name": "a streamed promise nobody awaits, rejected at the answer’s end, leaves nothing unhandled"
+		},
+		{
+			"site": "packages/core/src/server/page-facts.ts > look_up_page > catch:2",
+			"reason": "a node an app's transport decoder throws on: proved: the failure thrown instead of a miss turns the test red",
+			"test": "packages/core/test/page-facts-failures.test.ts",
+			"name": "a node that does not decode is a miss that says why"
+		},
+		{
+			"site": "packages/core/src/server/page-facts.ts > look_up_page > .catch:2",
+			"reason": "a whole answer with no promise, whose source cancel throws: proved: that rejection left uncaught turns the test red (unhandled)",
+			"test": "packages/core/test/page-facts-failures.test.ts",
+			"name": "a whole answer with no promise is let go, and a failed cancel leaves nothing unhandled"
+		},
+		{
+			"site": "packages/core/src/server/page-facts.ts > look_up_page > parse:1",
+			"reason": "a route header that is not JSON: proved: its parse failure thrown turns the test red",
+			"test": "packages/core/test/page-facts-failures.test.ts",
+			"name": "a mangled route header leaves the page with no route, and its data"
+		},
+		{
+			"site": "packages/core/src/server/page-facts.ts > look_up_page > catch:3",
+			"reason": "a route header that is not JSON: proved: the failure thrown turns the test red",
+			"test": "packages/core/test/page-facts-failures.test.ts",
+			"name": "a mangled route header leaves the page with no route, and its data"
+		},
+		{
+			"site": "packages/core/src/server/page-facts.ts > settle_streamed > line > parse:0",
+			"reason": "a chunk line that does not decode: proved: its failure thrown turns the test red (the next chunk never resolves)",
+			"test": "packages/core/test/page-facts-failures.test.ts",
+			"name": "a chunk that came still resolves its promise after a line that did not decode"
+		},
+		{
+			"site": "packages/core/src/server/page-facts.ts > settle_streamed > line > catch:0",
+			"reason": "a chunk line that does not decode: proved: its failure thrown turns the test red",
+			"test": "packages/core/test/page-facts-failures.test.ts",
+			"name": "a chunk that came still resolves its promise after a line that did not decode"
+		},
+		{
+			"site": "packages/core/src/server/page-facts.ts > settle_streamed > catch:0",
+			"reason": "a data answer that breaks while its promises stream: proved: the break thrown turns the test red",
+			"test": "packages/core/test/page-facts-failures.test.ts",
+			"name": "a stream that breaks rejects what did not arrive, coded, and a failed cancel leaves nothing unhandled"
+		},
+		{
+			"site": "packages/core/src/server/page-facts.ts > settle_streamed > .catch:0",
+			"reason": "the end of a streamed read whose source cancel throws: proved: that rejection left uncaught turns the test red (unhandled)",
+			"test": "packages/core/test/page-facts-failures.test.ts",
+			"name": "a stream that breaks rejects what did not arrive, coded, and a failed cancel leaves nothing unhandled"
+		},
+		{
+			"site": "packages/core/src/hooks.ts > decode_pathname > catch:0",
+			"reason": "a path whose percent-encoding does not decode: proved: the failure thrown instead of a 400 turns the test red, twice",
+			"test": "packages/core/test/handle-failures.test.ts",
+			"name": "a path whose percent-encoding does not decode is a 400, and the page is never rendered"
+		},
+		{
+			"site": "packages/core/src/hooks.ts > client_ip > catch:0",
+			"reason": "an adapter that cannot name the client: proved: its failure thrown instead of failing closed (429) turns the test red, twice",
+			"test": "packages/core/test/handle-failures.test.ts",
+			"name": "a batch from a client the adapter cannot name is a 429 (fail closed)"
+		},
+		{
+			"site": "packages/core/src/hooks.ts > owned > catch:0",
+			"reason": "a page whose render throws: proved: the request's owner left open turns the test red, twice",
+			"test": "packages/core/test/handle-failures.test.ts",
+			"name": "the throw goes on to Kit, and the request’s owner ends with it"
+		},
+		{
+			"site": "packages/core/src/hooks.ts > owned > throw:0",
+			"reason": "a page whose render throws: proved: the throw swallowed (an empty response) turns the test red, twice",
+			"test": "packages/core/test/handle-failures.test.ts",
+			"name": "the throw goes on to Kit, and the request’s owner ends with it"
+		},
+		{
+			"site": "packages/core/src/hooks.ts > OgygiaHandle > constructor > throw:0",
+			"reason": "a JS caller still passing `transform`: proved: it allowed turns the test red, twice",
+			"test": "packages/core/test/handle-failures.test.ts",
+			"name": "`transform` is told where it moved"
+		},
+		{
+			"site": "packages/core/src/hooks.ts > OgygiaHandle > constructor > throw:1",
+			"reason": "a production secret too short to sign with: proved: it allowed turns the test red, twice",
+			"test": "packages/core/test/handle-failures.test.ts",
+			"name": "in production, a secret too short to sign with is refused"
+		},
+		{
+			"site": "packages/core/src/hooks.ts > OgygiaHandle > route > catch:0",
+			"reason": "a page-facts data answer whose headers cannot change (a redirect): proved: the failure thrown turns the test red, twice",
+			"test": "packages/core/test/handle-failures.test.ts",
+			"name": "an answer whose headers cannot change goes out as it is, without the route header"
+		},
+		{
+			"site": "packages/core/src/hooks.ts > OgygiaHandle > route > catch:1",
+			"reason": "a page with an early hole under a CSP, whose headers cannot change: proved: the failure thrown turns the test red, twice",
+			"test": "packages/core/test/handle-failures.test.ts",
+			"name": "goes out under the platform’s own policy: the script’s hash is not added, and nothing throws"
+		},
+		{
+			"site": "packages/core/src/hooks.ts > OgygiaHandle > route > catch:2",
+			"reason": "server delta on and a page whose headers cannot change: proved: the failure thrown turns the test red, twice",
+			"test": "packages/core/test/handle-failures.test.ts",
+			"name": "with server delta on, the page goes out as the platform made it, without the vary"
+		},
+		{
+			"site": "packages/core/src/hooks.ts > OgygiaHandle > route > catch:3",
+			"reason": "a devtools build, a page whose headers cannot change: proved: the failure thrown turns the test red, twice",
+			"test": "packages/core/test/devtools-page-headers-immutable.test.ts",
+			"name": "a devtools browser’s page whose headers cannot change goes out without the profiling headers"
+		},
+		{
+			"site": "packages/core/src/hooks.ts > OgygiaHandle > render_batch > parse:0",
+			"reason": "a batch body that is not JSON: proved: its parse failure thrown instead of a 400 turns the test red, twice",
+			"test": "packages/core/test/handle-failures.test.ts",
+			"name": "a batch body that is not JSON is a 400"
+		},
+		{
+			"site": "packages/core/src/hooks.ts > OgygiaHandle > render_batch > catch:0",
+			"reason": "a batch body that is not JSON: proved: the failure thrown instead of a 400 turns the test red, twice",
+			"test": "packages/core/test/handle-failures.test.ts",
+			"name": "a batch body that is not JSON is a 400"
+		},
+		{
+			"site": "packages/core/src/hooks.ts > OgygiaHandle > render_component > catch:0",
+			"reason": "a hole whose render calls keepFallback(): proved: the signal treated as a failure (a 500) turns the test red, twice",
+			"test": "packages/core/test/hole-keep-fallback-answer.test.ts",
+			"name": "a hole whose render keeps its fallback answers 204 with no content, and nothing is said"
+		},
+		{
+			"site": "packages/core/src/hooks.ts > OgygiaHandle > decode_region_props > catch:0",
+			"reason": "a hole whose island module throws as its props decode: proved: the failure thrown turns the test red, twice",
+			"test": "packages/core/test/hole-props-decode-said.test.ts",
+			"name": "in production: the server says it with a code and the error; the visitor gets an opaque 403 (#1506)"
+		},
+		{
+			"site": "packages/core/src/hooks.ts > OgygiaHandle > region_answer > .catch:0",
+			"reason": "a plugin's `measures` hook that throws: proved: its rejection left uncaught turns the test red, twice",
+			"test": "packages/core/test/server-timing-measurer.test.ts",
+			"name": "a plugin that fails to say is no vouching: the answer goes out, untimed"
+		},
+		{
+			"site": "packages/core/src/plugin/hooks.ts > code_origins > catch:0",
+			"reason": "a plugin's codeOrigins that throws: proved: its failure thrown turns the test red, twice",
+			"test": "packages/core/test/plugin-hooks-failures.test.ts",
+			"name": "a codeOrigins that throws adds none, the others’ count, and the failure is said"
+		},
+		{
+			"site": "packages/core/src/plugin/hooks.ts > get > catch:0",
+			"reason": "one notify implementation that fails: proved: the others stopped turns the test red, twice",
+			"test": "packages/core/test/plugin-hooks-failures.test.ts",
+			"name": "a notify runs every implementation past one that fails, then rejects with its error"
+		},
+		{
+			"site": "packages/core/src/plugin/hooks.ts > get > throw:0",
+			"reason": "one notify implementation that fails: proved: the notify resolving as done anyway turns the test red, twice",
+			"test": "packages/core/test/plugin-hooks-failures.test.ts",
+			"name": "a notify runs every implementation past one that fails, then rejects with its error"
+		},
+		{
+			"site": "packages/core/src/plugin/hooks.ts > get > catch:1",
+			"reason": "one ask implementation that fails: proved: the next one never asked turns the test red, twice",
+			"test": "packages/core/test/plugin-hooks-failures.test.ts",
+			"name": "an ask goes past an implementation that fails to the next one’s answer"
+		},
+		{
+			"site": "packages/core/src/plugin/hooks.ts > get > throw:1",
+			"reason": "an ask nobody answered, one having failed: proved: undefined (\"nobody knows\") instead turns the test red, twice",
+			"test": "packages/core/test/plugin-hooks-failures.test.ts",
+			"name": "an ask nobody answered, one having failed, throws that failure: never \"nobody knows\""
+		},
+		{
+			"site": "packages/core/src/runtime/client-hooks.ts > run_app_client_hooks > .catch:0",
+			"reason": "an app's hooks.client init that throws: proved: the failure left uncaught turns the test red, twice",
+			"test": "packages/core/test/browser/client-hooks.test.ts",
+			"name": "a failing init is caught, not thrown — it never blocks the page"
+		},
+		{
+			"site": "packages/core/src/runtime/nav-hooks.ts > bind_to_component > catch:0",
+			"reason": "beforeNavigate/afterNavigate called outside a component: proved: Svelte's refusal thrown on turns the test red, twice",
+			"test": "packages/core/test/browser/nav-hooks.test.ts",
+			"name": "outside a component the registration stands, and its unsubscribe is handed back"
+		},
+		{
 			"site": "packages/core/src/server/page-facts.ts > read_first_line > catch:0",
 			"reason": "a page's data answer that breaks before its first line (#1626): proved: the break thrown (the old code) turns the test red",
 			"test": "packages/core/test/page-facts-broken.test.ts",
 			"name": "a data answer that breaks before its first line is a miss that says why, never a throw"
 		}
 	],
-	"impossible": [],
+	"impossible": [
+		{
+			"site": "packages/core/src/runtime/import-again.ts > import_file > stale:0",
+			"why": "a flights' get is STALE only when its world moves, a drop or dispose ends its flight, a fresh flight supersedes it, or the caller's signal aborts. The island files' flights has no world, and its type, FileLoads, is a get by URL alone: no drop, no dispose, no fresh, no signal compiles. So no island file's load is ever STALE.",
+			"by": "packages/core/src/runtime/import-again.ts",
+			"name": "FileLoads"
+		}
+	],
 	"baseline": [
 		"packages/bake/src/bake.ts > scan > throw:0",
 		"packages/bake/src/bake.ts > scan > throw:1",
@@ -754,7 +1373,6 @@
 		"packages/core/src/early-holes.ts > start_early_holes > parse:0",
 		"packages/core/src/early-holes.ts > start_early_holes > abort:0",
 		"packages/core/src/early-holes.ts > start_early_holes > fetch:0",
-		"packages/core/src/early-holes.ts > start_early_holes > .catch:0",
 		"packages/core/src/events/bus.ts > emit > catch:0",
 		"packages/core/src/events/bus.ts > push_stamped > catch:0",
 		"packages/core/src/events/sinks.ts > install_postmessage_sink > sink > message:0",
@@ -765,25 +1383,10 @@
 		"packages/core/src/fn-transport.ts > register_fn_kind > decode > throw:0",
 		"packages/core/src/head-owners.ts > adopt_owner_record > parse:0",
 		"packages/core/src/head-owners.ts > adopt_owner_record > catch:0",
-		"packages/core/src/hooks.ts > decode_pathname > catch:0",
-		"packages/core/src/hooks.ts > client_ip > catch:0",
-		"packages/core/src/hooks.ts > owned > catch:0",
-		"packages/core/src/hooks.ts > owned > throw:0",
-		"packages/core/src/hooks.ts > OgygiaHandle > constructor > throw:0",
-		"packages/core/src/hooks.ts > OgygiaHandle > constructor > throw:1",
-		"packages/core/src/hooks.ts > OgygiaHandle > route > catch:0",
-		"packages/core/src/hooks.ts > OgygiaHandle > route > catch:1",
-		"packages/core/src/hooks.ts > OgygiaHandle > route > catch:2",
-		"packages/core/src/hooks.ts > OgygiaHandle > route > catch:3",
-		"packages/core/src/hooks.ts > OgygiaHandle > render_batch > parse:0",
-		"packages/core/src/hooks.ts > OgygiaHandle > render_batch > catch:0",
 		"packages/core/src/hooks.ts > OgygiaHandle > inject_client_seeds > stale:0",
-		"packages/core/src/hooks.ts > OgygiaHandle > render_component > catch:0",
 		"packages/core/src/hooks.ts > OgygiaHandle > render_component > abort:0",
-		"packages/core/src/hooks.ts > OgygiaHandle > decode_region_props > catch:0",
 		"packages/core/src/hooks.ts > OgygiaHandle > capability_parcel > abort:0",
 		"packages/core/src/hooks.ts > OgygiaHandle > capability_parcel > abort:1",
-		"packages/core/src/hooks.ts > OgygiaHandle > region_answer > .catch:0",
 		"packages/core/src/html.ts > Html > constructor > throw:0",
 		"packages/core/src/html.ts > place > throw:0",
 		"packages/core/src/html.ts > attr > throw:0",
@@ -803,11 +1406,6 @@
 		"packages/core/src/plugin/css.ts > run > import:0",
 		"packages/core/src/plugin/css.ts > componentCssHead > catch:0",
 		"packages/core/src/plugin/facts.ts > current_request > catch:0",
-		"packages/core/src/plugin/hooks.ts > code_origins > catch:0",
-		"packages/core/src/plugin/hooks.ts > get > catch:0",
-		"packages/core/src/plugin/hooks.ts > get > throw:0",
-		"packages/core/src/plugin/hooks.ts > get > catch:1",
-		"packages/core/src/plugin/hooks.ts > get > throw:1",
 		"packages/core/src/plugin/reads.ts > observe_reads > fetch:0",
 		"packages/core/src/plugin/reads.ts > carries_cookies > catch:0",
 		"packages/core/src/plugin/request-scope.ts > entry_of > abort:0",
@@ -855,7 +1453,6 @@
 		"packages/core/src/request-event.ts > requestEvent > catch:0",
 		"packages/core/src/router-css.ts > router_css_of > catch:0",
 		"packages/core/src/rules.ts > Rules > broken > catch:0",
-		"packages/core/src/runtime/client-hooks.ts > run_app_client_hooks > .catch:0",
 		"packages/core/src/runtime/client-plugins.ts > isolated > .catch:0",
 		"packages/core/src/runtime/client-plugins.ts > isolated > catch:0",
 		"packages/core/src/runtime/client-plugins.ts > region_urls > catch:0",
@@ -913,23 +1510,6 @@
 		"packages/core/src/runtime/devalue-lane.ts > with_devalue > reject:0",
 		"packages/core/src/runtime/devalue-lane.ts > with_devalue > stale:0",
 		"packages/core/src/runtime/drift-watch.ts > watch_region > observer:0",
-		"packages/core/src/runtime/early-holes.ts > adopt_early_holes > .catch:0",
-		"packages/core/src/runtime/early-holes.ts > adopt_early_holes > error-event:0",
-		"packages/core/src/runtime/entry-locations.ts > absolute > catch:0",
-		"packages/core/src/runtime/entry-locations.ts > run > .catch:0",
-		"packages/core/src/runtime/entry-locations.ts > run > fetch:0",
-		"packages/core/src/runtime/entry-locations.ts > pin_region_urls > catch:0",
-		"packages/core/src/runtime/entry-locations.ts > run > .catch:1",
-		"packages/core/src/runtime/entry-locations.ts > run > fetch:1",
-		"packages/core/src/runtime/entry-locations.ts > current_location > stale:0",
-		"packages/core/src/runtime/entry-locations.ts > is_gone > reject:0",
-		"packages/core/src/runtime/entry-locations.ts > is_gone > fetch:0",
-		"packages/core/src/runtime/entry-locations.ts > recover_location > timer:0",
-		"packages/core/src/runtime/entry-locations.ts > import_entry > catch:0",
-		"packages/core/src/runtime/entry-locations.ts > load_entry > catch:0",
-		"packages/core/src/runtime/entry-locations.ts > load_entry > .catch:0",
-		"packages/core/src/runtime/entry-locations.ts > load_entry > throw:0",
-		"packages/core/src/runtime/entry-locations.ts > load_entry > reject:0",
 		"packages/core/src/runtime/foreign-props.ts > foreign_region_prop_revivers > OgygiaRef > throw:0",
 		"packages/core/src/runtime/form-continuity.ts > url_of > catch:0",
 		"packages/core/src/runtime/frame-nav.ts > streamFrames > stale:0",
@@ -938,22 +1518,13 @@
 		"packages/core/src/runtime/frame-nav.ts > streamFrames > .catch:0",
 		"packages/core/src/runtime/frame-nav.ts > streamFrames > stream:0",
 		"packages/core/src/runtime/frame-nav.ts > streamFrames > .catch:1",
-		"packages/core/src/runtime/frame-store.ts > fetch_frame > abort:0",
 		"packages/core/src/runtime/frame-store.ts > write > refused:0",
-		"packages/core/src/runtime/frame-store.ts > reserve > stale:0",
 		"packages/core/src/runtime/frame-store.ts > reserve > reject:0",
 		"packages/core/src/runtime/frame-store.ts > release > refused:0",
-		"packages/core/src/runtime/frame-store.ts > ensure > throw:0",
-		"packages/core/src/runtime/frame-store.ts > ensure > stale:0",
 		"packages/core/src/runtime/frame-store.ts > ensure > abort:0",
 		"packages/core/src/runtime/hole-facts.ts > parse_record > parse:0",
 		"packages/core/src/runtime/hole-facts.ts > parse_record > catch:0",
-		"packages/core/src/runtime/hole-fetch.ts > fetch_hole > throw:0",
 		"packages/core/src/runtime/hole-fetch.ts > start_hole > fetch:0",
-		"packages/core/src/runtime/hole-fetch.ts > read_hole > throw:0",
-		"packages/core/src/runtime/hole-fetch.ts > read_hole > throw:1",
-		"packages/core/src/runtime/hole-fetch.ts > read_hole > throw:2",
-		"packages/core/src/runtime/hole-fetch.ts > read_hole > throw:4",
 		"packages/core/src/runtime/hole-fetch.ts > read_hole > throw:5",
 		"packages/core/src/runtime/html-sink.ts > is_allowed_region_endpoint > catch:0",
 		"packages/core/src/runtime/html-sink.ts > is_same_origin_response > catch:0",
@@ -962,18 +1533,11 @@
 		"packages/core/src/runtime/hydrate-core.ts > hydrate_island > catch:0",
 		"packages/core/src/runtime/import-again.ts > hear_responses > observer:0",
 		"packages/core/src/runtime/import-again.ts > hear_responses > catch:0",
-		"packages/core/src/runtime/import-again.ts > file_url > catch:0",
 		"packages/core/src/runtime/import-again.ts > import_again > next > .catch:0",
-		"packages/core/src/runtime/import-again.ts > import_again > next > refused:0",
 		"packages/core/src/runtime/import-again.ts > import_again > next > throw:0",
-		"packages/core/src/runtime/import-again.ts > import_again > next > .catch:1",
 		"packages/core/src/runtime/import-again.ts > import_again > next > refused:1",
 		"packages/core/src/runtime/import-again.ts > import_again > next > throw:1",
 		"packages/core/src/runtime/import-again.ts > import_again > next > reject:0",
-		"packages/core/src/runtime/import-again.ts > run > .catch:0",
-		"packages/core/src/runtime/import-again.ts > run > throw:0",
-		"packages/core/src/runtime/import-again.ts > run > throw:1",
-		"packages/core/src/runtime/import-again.ts > import_file > stale:0",
 		"packages/core/src/runtime/interaction-replay.ts > restore_fields > catch:0",
 		"packages/core/src/runtime/interaction-replay.ts > replay_clicks > timer:0",
 		"packages/core/src/runtime/interaction.ts > disarm > refused:0",
@@ -1001,7 +1565,6 @@
 		"packages/core/src/runtime/nav-handle.ts > invalidate_all > stale:0",
 		"packages/core/src/runtime/nav-handle.ts > mpa_nav > goto > throw:0",
 		"packages/core/src/runtime/nav-handle.ts > mpa_nav > goto > throw:1",
-		"packages/core/src/runtime/nav-hooks.ts > bind_to_component > catch:0",
 		"packages/core/src/runtime/page-defer.ts > create_deferred > .catch:0",
 		"packages/core/src/runtime/page-defer.ts > settle > .catch:0",
 		"packages/core/src/runtime/page-defer.ts > install_page_defer > live > catch:0",
@@ -1012,9 +1575,6 @@
 		"packages/core/src/runtime/region-endpoint-url.ts > warm_key > catch:0",
 		"packages/core/src/runtime/region-sheets.ts > sheet_of > error-event:0",
 		"packages/core/src/runtime/region-sheets.ts > note_code_sheets > catch:0",
-		"packages/core/src/runtime/router-nav.ts > url_of > catch:0",
-		"packages/core/src/runtime/router-nav.ts > page_relative_resolved > catch:0",
-		"packages/core/src/runtime/router-nav.ts > install_remote_mutation_cache_bust > fetch > catch:0",
 		"packages/core/src/runtime/router-nav.ts > fetch_page > abort:0",
 		"packages/core/src/runtime/router-nav.ts > run_page_fetch > abort:0",
 		"packages/core/src/runtime/router-nav.ts > run_page_fetch > abort:1",
@@ -1027,13 +1587,7 @@
 		"packages/core/src/runtime/router-nav.ts > navigate > reject:0",
 		"packages/core/src/runtime/router-nav.ts > navigate > .catch:1",
 		"packages/core/src/runtime/router-nav.ts > navigate > refused:0",
-		"packages/core/src/runtime/router-nav.ts > hold_scroll > timer:0",
-		"packages/core/src/runtime/router-nav.ts > hold_scroll > settled > timer:0",
-		"packages/core/src/runtime/router-nav.ts > hold_scroll > settled > timer:1",
-		"packages/core/src/runtime/router-nav.ts > hold_scroll > observer:0",
 		"packages/core/src/runtime/router-nav.ts > invalidate_all > build > abort:0",
-		"packages/core/src/runtime/router-nav.ts > preload_stylesheets > error-event:0",
-		"packages/core/src/runtime/router-nav.ts > preload_stylesheets > timer:0",
 		"packages/core/src/runtime/router.ts > on_idle > timer:0",
 		"packages/core/src/runtime/router.ts > on_idle > timer:1",
 		"packages/core/src/runtime/router.ts > (module) > import:0",
@@ -1089,24 +1643,6 @@
 		"packages/core/src/server/hmac.ts > hex_equal > crypto:0",
 		"packages/core/src/server/hole-graph.ts > root_absolute > catch:0",
 		"packages/core/src/server/hole-urls.ts > resolve_attr > catch:0",
-		"packages/core/src/server/page-facts.ts > look_up_page > catch:0",
-		"packages/core/src/server/page-facts.ts > look_up_page > not-ok:0",
-		"packages/core/src/server/page-facts.ts > look_up_page > body:0",
-		"packages/core/src/server/page-facts.ts > look_up_page > .catch:0",
-		"packages/core/src/server/page-facts.ts > look_up_page > stream:0",
-		"packages/core/src/server/page-facts.ts > look_up_page > .catch:1",
-		"packages/core/src/server/page-facts.ts > look_up_page > stop > .catch:0",
-		"packages/core/src/server/page-facts.ts > look_up_page > parse:0",
-		"packages/core/src/server/page-facts.ts > look_up_page > catch:1",
-		"packages/core/src/server/page-facts.ts > look_up_page > revive > Promise > .catch:0",
-		"packages/core/src/server/page-facts.ts > look_up_page > catch:2",
-		"packages/core/src/server/page-facts.ts > look_up_page > .catch:2",
-		"packages/core/src/server/page-facts.ts > look_up_page > parse:1",
-		"packages/core/src/server/page-facts.ts > look_up_page > catch:3",
-		"packages/core/src/server/page-facts.ts > settle_streamed > line > parse:0",
-		"packages/core/src/server/page-facts.ts > settle_streamed > line > catch:0",
-		"packages/core/src/server/page-facts.ts > settle_streamed > catch:0",
-		"packages/core/src/server/page-facts.ts > settle_streamed > .catch:0",
 		"packages/core/src/server/page-seed.ts > keep_serializable > carries > catch:0",
 		"packages/core/src/server/page-seed.ts > keep_serializable > keep > catch:0",
 		"packages/core/src/server/page-seed.ts > PageSeed > serialize > catch:0",
@@ -1115,26 +1651,7 @@
 		"packages/core/src/server/page-seed.ts > PageSeed > serialize > catch:3",
 		"packages/core/src/server/page-seed.ts > PageSeed > serialize > catch:4",
 		"packages/core/src/server/page-seed.ts > PageSeed > serialize > catch:5",
-		"packages/core/src/server/page-stream.ts > say_if_pending > timer:0",
-		"packages/core/src/server/page-stream.ts > swap_thenables > catch:0",
-		"packages/core/src/server/page-stream.ts > swap_thenables > throw:0",
-		"packages/core/src/server/page-stream.ts > clone_untracked > throw:0",
-		"packages/core/src/server/page-stream.ts > clone_untracked > throw:1",
-		"packages/core/src/server/page-stream.ts > settle_into > catch:0",
-		"packages/core/src/server/page-stream.ts > resolve_script > catch:0",
-		"packages/core/src/server/page-stream.ts > stream_page_deferred > stream:0",
-		"packages/core/src/server/page-stream.ts > stream_page_deferred > .catch:0",
-		"packages/core/src/server/page-stream.ts > stream_page_deferred > start > stream:0",
-		"packages/core/src/server/page-stream.ts > stream_page_deferred > start > catch:0",
-		"packages/core/src/server/page-stream.ts > stream_page_deferred > start > catch:1",
-		"packages/core/src/server/page-stream.ts > stream_page_deferred > start > close > stream:0",
-		"packages/core/src/server/page-stream.ts > stream_page_deferred > start > close > catch:0",
-		"packages/core/src/server/page-stream.ts > stream_page_deferred > start > push > stream:0",
-		"packages/core/src/server/page-stream.ts > stream_page_deferred > start > push > catch:0",
-		"packages/core/src/server/page-stream.ts > stream_page_deferred > start > stream_one > reject:0",
 		"packages/core/src/server/page-stream.ts > stream_page_deferred > start > stream_one > stale:0",
-		"packages/core/src/server/page-stream.ts > stream_page_deferred > start > stream_one > not-ok:0",
-		"packages/core/src/server/page-stream.ts > stream_page_deferred > start > stream_one > catch:0",
 		"packages/core/src/server/personal-response.ts > mark_personal > catch:0",
 		"packages/core/src/server/props-wire.ts > stringify_props > catch:0",
 		"packages/core/src/server/props-wire.ts > stringify_props > throw:0",
@@ -1158,7 +1675,6 @@
 		"packages/core/src/server/stream-regions.ts > batch_stream > refused:0",
 		"packages/core/src/server/stream-regions.ts > batch_stream > start > .catch:0",
 		"packages/core/src/server/stream-regions.ts > batch_stream > start > stream:0",
-		"packages/core/src/server/stream-regions.ts > batch_stream > start > stale:0",
 		"packages/core/src/server/stream-regions.ts > batch_stream > start > refused:0",
 		"packages/core/src/server/stream-regions.ts > batch_stream > start > stream:1",
 		"packages/core/src/server/stream-regions.ts > batch_stream > start > stream:2",
@@ -1910,8 +2426,6 @@
 		"packages/postrender/src/server.ts > invalidate > throw:1",
 		"packages/postrender/src/server.ts > lastBuild > stale:0",
 		"packages/postrender/src/stitch.ts > stitch_html > .catch:0",
-		"packages/reshape/src/restore-report.ts > report > reject:0",
-		"packages/reshape/src/restore-report.ts > report > import:0",
 		"packages/router/src/client-api.ts > api > call > not-ok:0",
 		"packages/router/src/client-api.ts > api > call > .catch:0",
 		"packages/router/src/client-api.ts > api > call > throw:0",
