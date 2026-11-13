@@ -56,7 +56,20 @@
 			"how": "a kept peer document reads as stale: it is served while one fresh flight refreshes it, and this handler keeps that refresh quiet when it fails (with a drop or down fault on the same run)"
 		}
 	],
-	"covered": [],
+	"covered": [
+		{
+			"site": "packages/reshape/src/pass.ts > run_transform > catch:0",
+			"reason": "the random app's transform never throws in the standard sweep (its fault points wait on #1569's design, dst/reshape-faults)",
+			"test": "packages/reshape/test/pass-failed.test.ts",
+			"name": "a transform that throws is said with reshape_pass_failed, and its error still goes up (gen 10, seed 10)"
+		},
+		{
+			"site": "packages/reshape/src/pass.ts > run_transform > throw:0",
+			"reason": "the random app's transform never throws in the standard sweep (its fault points wait on #1569's design, dst/reshape-faults)",
+			"test": "packages/reshape/test/pass-failed.test.ts",
+			"name": "a transform that throws is said with reshape_pass_failed, and its error still goes up (gen 10, seed 10)"
+		}
+	],
 	"impossible": [],
 	"baseline": [
 		"packages/bake/src/bake.ts > scan > throw:0",
