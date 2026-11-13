@@ -71,13 +71,9 @@ export async function look_up_page(
 	const reader = res.body.getReader();
 	owner?.defer(() => void reader.cancel().catch(() => {})); // ok: the request ended; a failed cancel has nothing left to stop
 	const text = new TextDecoder();
-	let buf = '';
-	let nl = -1;
-	while ((nl = buf.indexOf('\n')) === -1) {
-		const { done, value } = await reader.read();
-		if (done) break;
-		buf += text.decode(value, { stream: true });
-	}
+	const read = await read_first_line(reader, text);
+	if ('miss' in read) return read;
+	const { buf, nl } = read;
 	const first = nl === -1 ? buf : buf.slice(0, nl);
 	const rest = nl === -1 ? '' : buf.slice(nl + 1);
 	const stop = (miss: string) => {
@@ -132,6 +128,25 @@ export async function look_up_page(
 		}
 	}
 	return { url: page, params, route, data };
+}
+
+/** The answer read up to its first line's end (`nl`, -1 when it ended first), or why it broke. */
+async function read_first_line(
+	reader: ReadableStreamDefaultReader<Uint8Array>,
+	text: TextDecoder
+): Promise<{ buf: string; nl: number } | { miss: string }> {
+	let buf = '';
+	let nl = -1;
+	try {
+		while ((nl = buf.indexOf('\n')) === -1) {
+			const { done, value } = await reader.read();
+			if (done) break;
+			buf += text.decode(value, { stream: true });
+		}
+	} catch (e) {
+		return { miss: `the data answer broke (${String((e as Error)?.message ?? e)})` };
+	}
+	return { buf, nl };
 }
 
 /** The streamed promises in the page's data, fulfilled as their lines arrive (Kit's `chunk` lines). */
