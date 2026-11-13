@@ -413,7 +413,8 @@ how many it judged of the list, and when) and uploads it (`dst-mutation`). Each 
 its line's `code`, and goes on the line that holds it, so the list outlives main's lines moving
 (`test/mutate.test.ts` checks that every one applies). The always-on job's batch
 log line and summary say both numbers: steps accounted, and the latest finished mutation run's kill
-rate with its date.
+rate with its date. A mutant no run can tell from the code as it is is written up in the list with
+its reason (`equivalent`): it is never run, the run says it (`EQUIV`), and it stays out of the rate.
 
 `--guided N` searches by coverage: a run that reaches a step or fires a point no run before it had
 is kept (its seed and its actions); most next runs mutate a kept one (its first actions up to a

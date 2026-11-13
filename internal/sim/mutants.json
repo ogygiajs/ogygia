@@ -97,5 +97,25 @@
 		"operator": "statement",
 		"from": "head_mark = kit_hydrates_page() ? null : boot_link().runtime_session.mark_head();",
 		"to": ""
+	},
+	{
+		"id": "paint-gate-loading-passes",
+		"file": "packages/core/src/runtime/schedule.ts",
+		"line": 306,
+		"code": "if (document.readyState === 'loading') return false;",
+		"operator": "boolean",
+		"from": "false",
+		"to": "true",
+		"equivalent": "the gate is never asked while the document is loading: ogygia's runtime is a module script, and a parser-inserted module script runs only once parsing is done (readyState 'interactive')"
+	},
+	{
+		"id": "viewport-hold-at-zero",
+		"file": "packages/core/src/runtime/schedule.ts",
+		"line": 457,
+		"code": "if (left > 0) return drain_after(left);",
+		"operator": "relational",
+		"from": "> ",
+		"to": ">= ",
+		"equivalent": "at exactly 0 left the hold waits 1 ms more (drain_after's floor) and then picks the same turn; a turn that comes in that ms is an on-screen one, which viewport-first lets go first anyway"
 	}
 ]

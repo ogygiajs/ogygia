@@ -43,6 +43,17 @@ export interface Mutant {
 	/** The text it changes on its line (the first match), and what to; else the operator's own. */
 	readonly from?: string;
 	readonly to?: string;
+	/** Why no run can tell it from the code as it is (it is never run, and stays out of the kill
+	 *  rate): written up once, so a list keeps it without it counting as a survivor. */
+	readonly equivalent?: string;
+}
+
+/** The mutants a run builds and runs, and the ones written up as {@link Mutant.equivalent}. */
+export function runnable(mutants: readonly Mutant[]): { run: Mutant[]; equivalent: Mutant[] } {
+	return {
+		run: mutants.filter((m) => m.equivalent === undefined),
+		equivalent: mutants.filter((m) => m.equivalent !== undefined)
+	};
 }
 
 /** An operator's own change, when a mutant names no text: the first of its pairs found on the line. */
@@ -140,11 +151,19 @@ export function clone_command(platform: string, from: string, to: string): strin
 export function tally(
 	judged: ReadonlyArray<{ killed: boolean }>,
 	total: number,
-	at: string
-): { killed: number; judged: number; total: number; rate: number; at: string } {
+	at: string,
+	equivalent = 0
+): {
+	killed: number;
+	judged: number;
+	equivalent: number;
+	total: number;
+	rate: number;
+	at: string;
+} {
 	const killed = judged.filter((j) => j.killed).length;
 	const rate = judged.length === 0 ? 0 : Math.round((killed / judged.length) * 1000) / 10;
-	return { killed, judged: judged.length, total, rate, at };
+	return { killed, judged: judged.length, equivalent, total, rate, at };
 }
 
 function name(m: Mutant): string {
@@ -260,10 +279,12 @@ function main(): void {
 		);
 	}
 
+	const { run, equivalent } = runnable(mutants);
+	for (const m of equivalent) console.log(`EQUIV    ${name(m)}: ${m.equivalent}`);
 	const judged: Array<{ killed: boolean }> = [];
-	for (const m of mutants) {
+	for (const m of run) {
 		if (Date.now() > deadline) {
-			console.log(`time budget spent: ${judged.length} of ${mutants.length} mutants judged`);
+			console.log(`time budget spent: ${judged.length} of ${run.length} mutants judged`);
 			break;
 		}
 		const file = join(box, m.file);
@@ -307,9 +328,9 @@ function main(): void {
 		copyFileSync(original, file);
 		if (!build_packages(box, pkg, log)) throw new Error(`could not build ${pkg} back (${log})`);
 	}
-	const t = tally(judged, mutants.length, new Date().toISOString());
+	const t = tally(judged, mutants.length, new Date().toISOString(), equivalent.length);
 	console.log(
-		`\n${t.killed}/${t.judged} killed (${t.rate}%), ${t.judged} of ${t.total} mutants judged`
+		`\n${t.killed}/${t.judged} killed (${t.rate}%), ${t.judged} of ${t.total} mutants judged, ${t.equivalent} equivalent`
 	);
 	appendFileSync(out, `${JSON.stringify(t)}\n`);
 }

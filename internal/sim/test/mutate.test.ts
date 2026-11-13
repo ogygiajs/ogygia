@@ -140,6 +140,7 @@ describe('a mutation run', () => {
 		expect(tally([{ killed: true }, { killed: false }], 5, '2026-11-12T10:00:00.000Z')).toEqual({
 			killed: 1,
 			judged: 2,
+			equivalent: 0,
 			total: 5,
 			rate: 50,
 			at: '2026-11-12T10:00:00.000Z'
