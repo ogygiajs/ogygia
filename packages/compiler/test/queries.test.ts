@@ -77,6 +77,36 @@ describe('queries', () => {
 		expect(w.runs.get('label a')).toBe(1);
 	});
 
+	test('an answer, not an input, cannot be set', () => {
+		const w = world();
+		const db = queries('test');
+		expect(() => db.set(w.parity as never, 'a', 1)).toThrow(/query parity is not an input/);
+	});
+
+	test('an answer that now throws has moved, for a watcher and for answers_changed_since', () => {
+		const cells = new Map<string, number>();
+		const cell = input(
+			'cell',
+			(k: string) => k,
+			(k: string) => cells.get(k) ?? 0
+		);
+		const strict = derived(
+			'strict',
+			(k: string) => k,
+			(cx, k: string) => {
+				const v = cx.get(cell, k);
+				if (v < 0) throw new Error('negative');
+				return v;
+			}
+		);
+		const db = queries('test');
+		const { reads } = db.watch((cx) => cx.get(strict, 'a'));
+		const since = db.revision;
+		db.set(cell, 'a', -1);
+		expect(db.moved(reads)).toBe(true);
+		expect(db.answers_changed_since(since)).toBe(true);
+	});
+
 	test('setting an input to the value it has is no new revision', () => {
 		const w = world();
 		const db = queries('test');

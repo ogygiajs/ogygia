@@ -52,7 +52,7 @@ function is_og_macro(node: EsNode | undefined, prop: string): boolean {
  */
 export function static_script_specs(source: string, file: string): string[] | null {
 	const parsed = parse_module(source, file);
-	if (!parsed.ok || !parsed.program) return null;
+	if (!parsed.ok) return null;
 	const specs: string[] = [];
 	for (const node of (parsed.program as EsNode).body as EsNode[]) {
 		const is_from =
@@ -83,7 +83,7 @@ export function registry_client_source(
 	region_keys: ReadonlySet<string>
 ): string | null {
 	const parsed = parse_module(source, file);
-	if (!parsed.ok || !parsed.program) return null;
+	if (!parsed.ok) return null;
 	const body = (parsed.program as EsNode).body as EsNode[];
 	const edits: { start: number; end: number; text: string }[] = [];
 
