@@ -2806,7 +2806,7 @@
 		},
 		{
 			"id": "packages/compiler/src/vite/index.ts > ogygia > seams > pinned_imports",
-			"reason": "the app's import keys over ogygia()'s closure (not replayable); proven through barrels() in packages/barrels/test/plugin.test.ts and packages/barrels/test/named-region.test.ts"
+			"reason": "the app's import keys and asRegion locals over ogygia()'s closure (not replayable); asRegionLocals is benched with the region transform; proven through barrels() in packages/barrels/test/plugin.test.ts and packages/barrels/test/as-region.test.ts"
 		},
 		{
 			"id": "packages/compiler/src/vite/index.ts > ogygia > barrel_why",
@@ -4915,6 +4915,78 @@
 		{
 			"id": "packages/devtools/src/devtools/session.ts > start_session > counting > push:0~64a57a > map:0~529f9c",
 			"reason": "browser only: one console.error argument as text, constant work per argument; proven in packages/devtools/test/devtools-session-console.test.ts"
+		},
+		{
+			"id": "packages/compiler/src/compiler/driver.ts > Compiler > transform_module > edit",
+			"reason": "one splice_text per pass that changed the module, plus a deferred map step; splice_text and splice_map are measured in the source maps bench"
+		},
+		{
+			"id": "packages/compiler/src/compiler/driver.ts > Compiler > transform_module > edit > step:0~db8375",
+			"reason": "one splice_map call, measured in the source maps bench"
+		},
+		{
+			"id": "packages/compiler/src/compiler/driver.ts > Compiler > transform_module > map:0~b19893",
+			"reason": "one $app shim import's edit, constant work per import (three specifiers at most); test/source-map.test.ts runs the client leg"
+		},
+		{
+			"id": "packages/compiler/src/compiler/driver.ts > result_map",
+			"reason": "one field read, constant work"
+		},
+		{
+			"id": "packages/compiler/src/compiler/driver.ts > result_map > <anonymous>~967d44",
+			"reason": "returns the transform's own map, constant work"
+		},
+		{
+			"id": "packages/compiler/src/compiler/macros/dollar.ts > dollar_edits > find:0~5a7f30",
+			"reason": "was rewrite_dollar's (renamed, same work): one edit test while merging the import, measured by the dollar macros bench's module"
+		},
+		{
+			"id": "packages/compiler/src/compiler/macros/dollar.ts > dollar_edits > in_region",
+			"reason": "was rewrite_dollar's (renamed, same work): a few offset compares per mark"
+		},
+		{
+			"id": "packages/compiler/src/compiler/macros/dollar.ts > dollar_edits > in_region > some:0~558dc5",
+			"reason": "was rewrite_dollar's (renamed, same work): one offset compare"
+		},
+		{
+			"id": "packages/compiler/src/compiler/macros/dollar.ts > dollar_edits > some:0~9d1a3b",
+			"reason": "was rewrite_dollar's (renamed, same work): one prefix test per edit"
+		},
+		{
+			"id": "packages/compiler/src/compiler/macros/dollar.ts > dollar_edits > walk:1~047999",
+			"reason": "was rewrite_dollar's (renamed, same work): the AST visit per node; dollar_edits itself runs in the dollar macros bench"
+		},
+		{
+			"id": "packages/compiler/src/compiler/macros/pipeline.ts > run_module_macros > apply > push:0~63cdc9",
+			"reason": "one splice_map call, measured in the source maps bench"
+		},
+		{
+			"id": "packages/compiler/src/compiler/macros/store.ts > auto_brand_edits > has_subscribe_prop",
+			"reason": "was auto_brand_stores' (renamed, same work): one property scan of an object literal"
+		},
+		{
+			"id": "packages/compiler/src/compiler/macros/store.ts > auto_brand_edits > has_subscribe_prop > some:0~c025ff",
+			"reason": "was auto_brand_stores' (renamed, same work): one property name test"
+		},
+		{
+			"id": "packages/compiler/src/compiler/macros/store.ts > auto_brand_edits > provable_factory > collect",
+			"reason": "was auto_brand_stores' (renamed, same work): one return statement collected per node of a factory body"
+		},
+		{
+			"id": "packages/compiler/src/compiler/macros/store.ts > auto_brand_edits > provable_factory > every:0~28c69d",
+			"reason": "was auto_brand_stores' (renamed, same work): one proof per return of a factory"
+		},
+		{
+			"id": "packages/compiler/src/compiler/macros/store.ts > auto_brand_edits > provable_value",
+			"reason": "was auto_brand_stores' (renamed, same work): one expression shape test"
+		},
+		{
+			"id": "packages/compiler/src/compiler/macros/store.ts > auto_brand_edits > some:0~9d1a3b",
+			"reason": "was auto_brand_stores' (renamed, same work): one prefix test per edit"
+		},
+		{
+			"id": "packages/compiler/src/compiler/map-chain.ts > MapChain > steps",
+			"reason": "one push per macro pass that changed the module, constant work per pass"
 		},
 		{
 			"id": "packages/bake/src/bake.ts > call:0~16f6c5 > run",

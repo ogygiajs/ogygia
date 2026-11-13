@@ -11,7 +11,7 @@
 import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { cache, say } from '@ogygia/machine';
-import { fnv1a32 } from '@ogygia/core/contract';
+import { fnv1a32, key_label, key_of } from '@ogygia/core/contract';
 import {
 	transformHost,
 	transformTsRegions,
@@ -37,7 +37,7 @@ import { resolveFoucImportSpec, FOUC_CSS_PREFIX, FOUC_SCOPED_PREFIX } from './fo
 import {
 	moduleHasTransportable,
 	svelteModuleHasTransportable,
-	appendSvelteModuleRegistrations,
+	svelte_module_registration,
 	appendTransportRegistrations
 } from './transportables.ts';
 import {
@@ -46,7 +46,7 @@ import {
 	FOREIGN_HYDRATE_MARK
 } from './region/emit.ts';
 import { by_key, location_map_files } from './link/location-map.ts';
-import { context_string_keys, source_uses_ogygia_context } from './link/context-detect.ts';
+import { context_keys, source_uses_ogygia_context } from './link/context-detect.ts';
 import { router_css_roots } from './link/router-css.ts';
 import { source_crosses_wire } from './link/transport.ts';
 import type { SourceMap } from 'magic-string';
@@ -73,7 +73,10 @@ import {
 	static_script_specs
 } from './link/registry-stub.ts';
 import { island_host_loaded } from './link/emit-gate.ts';
-import { stamp_opaque } from './ownership-stamps.ts';
+import { opaque_stamp_edits } from './ownership-stamps.ts';
+import { MapChain, type StepMap } from './map-chain.ts';
+import type { SourceMapInput } from '@jridgewell/remapping';
+import { splice_map, splice_text, type Edit } from './splice.ts';
 import { strip_bom } from './bom.ts';
 import { RESOLVED, V_RUNTIME_ENTRY, region_family } from './ids.ts';
 import { is_generated_specifier } from './virtual/table.ts';
@@ -85,6 +88,11 @@ import type { CompileCtx } from './ctx.ts';
 
 /** A file-local transform result: the Vite `{ code, map }` plus the descriptors the linker registers. */
 type TransformResult = RegisterResult & { code: string; map: unknown };
+
+function result_map(result: TransformResult): StepMap {
+	const map = result.map;
+	return map ? () => map as SourceMapInput : null;
+}
 /** The chunk names our content-hashed entries are emitted under (`entry_file_pattern` keys on them). */
 const ISLAND_ENTRY_NAME_PREFIX = 'og-region.';
 const RUNTIME_ENTRY_NAME = 'og-runtime';
@@ -578,13 +586,13 @@ export class Compiler implements CoreApp {
 	 * Run the module-macro passes (`wire`/`$`/`source`/`store`/auto-brand, then the plugins' macros)
 	 * over one module — the leg that must land before the island transform / svelte compile /
 	 * ts-region minting sees it. `source` is the CURRENT text (a plugin's pre-transform may already have
-	 * edited it). Returns `{ code, touched }`; the caller nulls its own sourcemap when `touched`.
+	 * edited it). Returns `{ code, touched, maps }`, one map per pass that changed the text.
 	 */
 	macros(
 		source: string,
 		id: string,
 		watch?: (file: string) => void
-	): Promise<{ code: string; touched: boolean }> {
+	): Promise<{ code: string; touched: boolean; maps: StepMap[] }> {
 		const ctx = this.#ctx;
 		return run_module_macros(
 			source,
@@ -757,11 +765,17 @@ export class Compiler implements CoreApp {
 				if (Object.hasOwn(PLUGIN_PACKAGES, s) && !ctx.plugins.includes(s) && !unlisted.has(s))
 					unlisted.set(s, prescan_rel(ctx, full));
 		};
+		const say_one_off_keys = (full: string, src: string, kind: 'svelte' | 'script') => {
+			if (!src.includes('Symbol(') || !source_uses_ogygia_context(src)) return;
+			for (const key of context_keys(src, kind).one_off)
+				warn('region_context_key_one_off', { file: path.relative(root, full), key });
+		};
 		const scan_file = (full: string, name: string) => {
 			const kind = scan_kind(name);
 			if (!kind) return;
 			const src = ctx.read_file(full);
 			if (src == null) return;
+			say_one_off_keys(full, src, kind);
 			read_for_plugins(full, src, this.#scan_facts(full, src, kind));
 			if (kind === 'svelte') {
 				const result = this.transform(src, full);
@@ -862,7 +876,7 @@ export class Compiler implements CoreApp {
 				if (!file.endsWith('.svelte') && !SCRIPT_MODULE_RE.test(file)) continue;
 				const src = ctx.read_file(file);
 				if (src == null) continue;
-				const { reads: r, sets } = context_string_keys(
+				const { reads: r, sets } = context_keys(
 					src,
 					file.endsWith('.svelte') ? 'svelte' : 'script'
 				);
@@ -872,7 +886,10 @@ export class Compiler implements CoreApp {
 			for (const { file, keys } of reads) {
 				for (const key of keys) {
 					if (island_set.has(key)) continue; // the island provides it itself, within one root
-					warn('island_context_unprovided', { file: path.relative(root, file), key });
+					warn('island_context_unprovided', {
+						file: path.relative(root, file),
+						key: key_label(key_of(key))
+					});
 				}
 			}
 		}
@@ -1723,8 +1740,14 @@ export class Compiler implements CoreApp {
 		// it mechanically; a csr=false page never fetches its route JS anyway, so the dead client
 		// nodes cost disk, not wire.)
 		let out = code;
-		let map: unknown = null;
 		let touched = false;
+		const chain = new MapChain();
+		const edit = (edits: readonly Edit[]): void => {
+			const before = out;
+			out = splice_text(before, edits);
+			chain.step(() => splice_map(before, edits, id_n));
+			touched = true;
+		};
 
 		// The `import.meta.og.*` module macros — `wire`/`$`/`source`/`store`/auto-brand, then the
 		// plugins' macros (`bake` last) — all landing BEFORE either branch (island transform / svelte
@@ -1735,7 +1758,7 @@ export class Compiler implements CoreApp {
 		const macroed = await this.macros(out, id_n, watch);
 		if (macroed.touched) {
 			out = macroed.code;
-			map = null; // any macro rewrite invalidates a prior sourcemap
+			chain.steps(macroed.maps);
 			touched = true;
 		}
 
@@ -1772,7 +1795,7 @@ export class Compiler implements CoreApp {
 				this.#register(result, id_n);
 				this.#mark_registered_closures(result);
 				out = result.code;
-				map = result.map;
+				chain.step(result_map(result));
 				touched = true;
 
 				// Emit the island entry for any hydrate island discovered HERE
@@ -1793,12 +1816,8 @@ export class Compiler implements CoreApp {
 			// A transportable class can live in this component's `<script module>` — register it
 			// (same tag scheme, keyed by the `.svelte` path) so it travels like a `.svelte.ts` one.
 			if (!id_n.startsWith(ctx.pkg_root)) {
-				const withReg = appendSvelteModuleRegistrations(out, id_n, root);
-				if (withReg !== null) {
-					out = withReg;
-					map = null; // injected into the module script — prior map no longer aligns
-					touched = true;
-				}
+				const registration = svelte_module_registration(out, id_n, root);
+				if (registration !== null) edit([registration]);
 			}
 		}
 
@@ -1832,19 +1851,15 @@ export class Compiler implements CoreApp {
 				this.#mark_registered_closures(result);
 				if (ctx.is_build && ssr) this.#emit_late_server_regions(leg, emitFile, result);
 				out = result.code;
-				map = result.map;
+				chain.step(result_map(result));
 				touched = true;
 			}
 
 			// Transportable classes: append tag registration for `[ogygia.TRANSPORT]` codecs.
-			// Skip ogygia's own source (workspace dev links it outside node_modules; appending
-			// an `import 'ogygia'` there would create an eval cycle). Append-only → map survives.
 			if (!id_n.startsWith(ctx.pkg_root)) {
 				const registered = appendTransportRegistrations(out, id_n, root);
-				if (registered !== null) {
-					out = registered;
-					touched = true;
-				}
+				if (registered !== null)
+					edit([{ start: out.length, end: out.length, text: registered.slice(out.length) }]);
 			}
 		}
 
@@ -1861,14 +1876,12 @@ export class Compiler implements CoreApp {
 			island_graph.has(id_n) &&
 			(id_n.endsWith('.svelte') || SCRIPT_MODULE_RE.test(id_n))
 		) {
-			const rewritten = out.replace(APP_SHIM_IMPORT, (_m: string, _q: string, name: string) =>
-				JSON.stringify(ctx.app_shims[`$app/${name}`])
-			);
-			if (rewritten !== out) {
-				out = rewritten;
-				map = null; // import path rewrite invalidates a prior sourcemap
-				touched = true;
-			}
+			const shims = [...out.matchAll(APP_SHIM_IMPORT)].map((m) => ({
+				start: m.index,
+				end: m.index + m[0].length,
+				text: JSON.stringify(ctx.app_shims[`$app/${m[2]}`])
+			}));
+			if (shims.length) edit(shims);
 		}
 
 		// SERVER: stamp the elements Svelte's hydration never walks into (compiler/ownership-stamps.ts),
@@ -1882,15 +1895,11 @@ export class Compiler implements CoreApp {
 			!is_island_path(bare_v) &&
 			(!in_node_modules || ctx.in_declared_pkg(id_n))
 		) {
-			const stamped = stamp_opaque(out, id_n);
-			if (stamped !== null) {
-				out = stamped;
-				map = null;
-				touched = true;
-			}
+			const stamps = opaque_stamp_edits(out, id_n);
+			if (stamps.length) edit(stamps);
 		}
 
-		return touched ? { code: out, map } : null;
+		return touched ? { code: out, map: chain.result(id_n) } : null;
 	}
 
 	/** The fn-manifest for the build handoff (tag → factory source), sorted by tag. */
