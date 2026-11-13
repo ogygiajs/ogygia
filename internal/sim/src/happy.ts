@@ -148,7 +148,8 @@ export function documents_by_namespace(): void {
  * stylesheet Kit inlines it also lists as `<link rel="stylesheet" disabled>` (for its router), so
  * the simulator asked for each on every page and no browser did (the differential). A disabled
  * link connects, or has its `rel` or `href` set, with its evaluation off (happy-dom's stylesheet
- * load reads that before its first await). Idempotent. test/stylesheets.test.ts.
+ * load reads that before its first await). Its `disabled` property reflects the attribute, as a
+ * browser's does (happy-dom has none). Idempotent. test/stylesheets.test.ts.
  */
 export function disabled_stylesheets(): void {
 	const proto = HTMLLinkElement.prototype as unknown as Record<symbol | string, unknown>;
@@ -157,7 +158,17 @@ export function disabled_stylesheets(): void {
 	type Link = Record<symbol, unknown> & {
 		hasAttribute(name: string): boolean;
 		getAttributeNode(name: string): unknown;
+		toggleAttribute(name: string, force: boolean): boolean;
 	};
+	Object.defineProperty(proto, 'disabled', {
+		configurable: true,
+		get(this: Link): boolean {
+			return this.hasAttribute('disabled');
+		},
+		set(this: Link, value: unknown) {
+			this.toggleAttribute('disabled', Boolean(value));
+		}
+	});
 	const off = (link: Link): boolean =>
 		link.hasAttribute('disabled') && link[PropertySymbol.disableEvaluation] !== true;
 	const set = proto[PropertySymbol.onSetAttribute] as (this: Link, ...a: unknown[]) => unknown;

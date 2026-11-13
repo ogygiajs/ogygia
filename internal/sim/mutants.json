@@ -892,5 +892,15 @@
 		"operator": "statement",
 		"from": "to === undefined ||",
 		"to": "true ||"
+	},
+	{
+		"id": "core-apply-note-shown",
+		"file": "packages/core/src/runtime/core.ts",
+		"in": "OgygiaRegion > apply",
+		"code": "if (RULES && v !== undefined) note_shown(this, v);",
+		"nth": 1,
+		"operator": "statement",
+		"from": "if (RULES && v !== undefined) note_shown(this, v);",
+		"to": ""
 	}
 ]
