@@ -59,6 +59,10 @@
 			"rules": { "ogygia/dispose-by-close": "off" }
 		},
 		{
+			"files": ["packages/compiler/src/**"],
+			"rules": { "ogygia/structured-comments": "error" }
+		},
+		{
 			"files": ["packages/core/test/wire-markup.test.ts"],
 			"rules": { "ogygia/tests-read-source": "off" }
 		}
