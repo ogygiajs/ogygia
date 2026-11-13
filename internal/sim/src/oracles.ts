@@ -1195,13 +1195,13 @@ const EDGE_OWED: ReadonlyArray<[(path: string) => boolean, string, (status: numb
 ];
 /** One of the peer's own pages, as the app mounts it (gen.ts `GenPeer.pages`: `/q<i>`). */
 const PEER_PAGE = new RegExp(`^${MOUNT}/q\\d+$`);
-/** The title the peer's federation gives a path its router does not match (federation's
- *  `serve_expose`): a Kit mount's error page says it as its message. */
-const PEER_NOT_FOUND = 'not found';
+/** What a Kit mount's error page says for a page the peer lacks: the peer's title for it, or, with
+ *  none, federation's own word (`mount.kit`). Never nothing. */
+const PEER_GONE_SAID: readonly string[] = ['not found', 'This section is unavailable.'];
 
 /**
  * A MOUNTED PEER'S PAGE ANSWERS AS THE PEER DID: a page the peer lacks is a 404 in the app that
- * says the peer's own title for it, one it moved is a redirect there, one it refuses is a 400, one
+ * says so (a Kit mount's error message), one it moved is a redirect there, one it refuses is a 400, one
  * of its own pages is a 200 that shows that page, and a page that shows the visitor shows the one
  * the app vouched for (`sub: 'visitor'`, both mounts' `user`). Read from the tab's requests `since`
  * an exchange and its document. An answer the network failed, or one whose hop to the peer failed or changed on the
@@ -1235,15 +1235,15 @@ export function peer_answers(
 				wrong.push(`the peer's page shows the visitor "${el.textContent}", the app's is "visitor"`);
 		// (what the document shows: a page whose hop to the peer failed shows the app's own words)
 		const path = new URL(tab.page.mainFrame.url).pathname;
-		if (!hop_failed(tab.realm) && !error_page(tab)) {
+		// (a document loaded whole at the page: one a client navigation reached may be mid-way)
+		const own = exchanges.find((e) => e.from === tab.realm);
+		const loaded = own !== undefined && own.method === 'GET' && new URL(own.url).pathname === path;
+		if (loaded && !hop_failed(tab.realm) && !error_page(tab)) {
 			if (PEER_PAGE.test(path) && doc.querySelector('[data-gen="peer-page"]') === null)
 				wrong.push(`${path} shows none of the peer's page`);
-			if (
-				mount === 'kit' &&
-				path === EDGE_GONE &&
-				!(doc.documentElement?.textContent ?? '').includes(PEER_NOT_FOUND)
-			)
-				wrong.push(`${path} does not say the peer's "${PEER_NOT_FOUND}"`);
+			const text = doc.documentElement?.textContent ?? '';
+			if (mount === 'kit' && path === EDGE_GONE && !PEER_GONE_SAID.some((s) => text.includes(s)))
+				wrong.push(`${path} says neither the peer's title nor the app's word for a missing page`);
 		}
 	}
 	return wrong.length === 0

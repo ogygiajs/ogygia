@@ -1296,18 +1296,26 @@ describe("a mounted peer's page answers as the peer did", () => {
 		expect(await judged('', [['/peer/bad', 400]], '/peer/bad')).toBeNull();
 	});
 
-	it("finds one of the peer's own pages showing none of it, and a missing one not saying the peer's title (a mutant that made every exposed page an empty redirect, and one that lost the title, survived)", async () => {
+	it("finds one of the peer's own pages showing none of it, and a missing one saying nothing (a mutant that made every exposed page an empty redirect, and one that lost the message, survived)", async () => {
 		const page = '<main data-gen="peer-page"><h1>peer /q0</h1></main>';
 		expect((await judged('<p>moved</p>', [['/peer/q0', 200]], '/peer/q0'))?.oracle).toBe(
 			'peer-answers'
 		);
 		expect(await judged(page, [['/peer/q0', 200]], '/peer/q0')).toBeNull();
-		expect(
-			(await judged('<p>This section is unavailable.</p>', [['/peer/gone', 404]], '/peer/gone'))
-				?.oracle
-		).toBe('peer-answers');
+		// (reached by a client navigation: it may be mid-way, and is not judged)
+		expect(await judged('<p>moved</p>', [['/p0', 200]], '/peer/q0')).toBeNull();
+		expect((await judged('<h1>404</h1><p></p>', [['/peer/gone', 404]], '/peer/gone'))?.oracle).toBe(
+			'peer-answers'
+		);
 		expect(
 			await judged('<h1>404</h1><p>not found</p>', [['/peer/gone', 404]], '/peer/gone')
+		).toBeNull();
+		expect(
+			await judged(
+				'<h1>404</h1><p>This section is unavailable.</p>',
+				[['/peer/gone', 404]],
+				'/peer/gone'
+			)
 		).toBeNull();
 		// (a server router's mount shows the peer's own not-found page, whatever it says)
 		expect(
