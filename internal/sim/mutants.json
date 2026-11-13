@@ -286,5 +286,35 @@
 		"from": "' || !",
 		"to": "' && !",
 		"equivalent": "a warm during the hole's own fetch joins that fetch in the frame store (one flight per address), and a warm for a region that left the page is one the store keeps for its return: no request more, no answer different"
+	},
+	{
+		"id": "media-listener-kept",
+		"file": "packages/core/src/runtime/core.ts",
+		"in": "OgygiaRegion > on_media",
+		"code": "off();",
+		"operator": "statement",
+		"from": "off();",
+		"to": "",
+		"equivalent": "the listener belongs to the armed state's scope, which the first fire's wake leaves, dropping it; a second change before that starts a background task that sees the armed scope closed and fires nothing"
+	},
+	{
+		"id": "hydrate-stale-while-connected",
+		"file": "packages/core/src/runtime/core.ts",
+		"in": "OgygiaRegion > hydrate",
+		"code": "const gone = (back?: unknown) => back === STALE || !this.isConnected || this.#wake.now !== mine;",
+		"operator": "logical",
+		"from": "E || !",
+		"to": "E && !",
+		"equivalent": "a wait gives STALE only once the region's mailbox or its wake visit closed, and both happen only in teardown, which moves the wake to cold: `this.#wake.now !== mine` already says gone"
+	},
+	{
+		"id": "live-held-equal-ticket",
+		"file": "packages/core/src/runtime/core.ts",
+		"in": "OgygiaRegion > apply_live",
+		"code": "held && held.v > (this.#live_painted?.v ?? 0) ? held : this.#live_painted,",
+		"operator": "relational",
+		"from": "> ",
+		"to": ">= ",
+		"equivalent": "stands_at reads only the ticket `v` of what it stands over: at equal tickets the held frame and the painted one give the same order"
 	}
 ]
