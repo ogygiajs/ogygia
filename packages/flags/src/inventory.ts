@@ -14,7 +14,8 @@
  */
 import { walk } from 'estree-walker';
 import { parse_module } from '@ogygia/compiler';
-import { next_tag, text_of } from '@ogygia/core/internal/server';
+// (Kit-free: a vite.config loads this in plain Node)
+import { next_tag, text_of } from '@ogygia/core/internal/instruments';
 
 /** The import a flag site comes through. */
 export const FLAGS_SPEC = '@ogygia/flags';
