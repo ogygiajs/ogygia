@@ -1066,7 +1066,7 @@ export function app_reshape(pass: GenReshape | null): string {
 export const handle: Handle = ({ event, resolve }) => resolve(event);
 `;
 	return `import type { Handle } from '@sveltejs/kit';
-import * as reshape from '@ogygia/reshape';
+import { rewrite } from '@ogygia/rewrite';
 import { buggify } from '@ogygia/machine';
 
 const TRIM = ${pass.trim};
@@ -1114,9 +1114,7 @@ function render(html: string, tag: string, tree: (inner: string) => string): str
 \t}
 }
 
-export const transform: reshape.ReshapeTransform = async (html) => {
-\tif (buggify.fires('gen.reshape-throws')) throw new Error('the reshape pass threw');
-\tif (buggify.fires('gen.reshape-slow')) await new Promise((r) => setTimeout(r, 3000));
+function render_one(html: string): string {
 \tlet out = render(
 \t\thtml,
 \t\t'x-gen-box',
@@ -1125,9 +1123,16 @@ export const transform: reshape.ReshapeTransform = async (html) => {
 \tout = render(out, 'x-gen-link', (inner) => \`<a class="gen-link" tabindex="-1"><slot>\${trim(inner)}</slot></a>\`);
 \tif (buggify.fires('gen.reshape-strips-marks')) out = out.replace(/ og-[a-z]+="[^"]*"/g, '');
 \treturn out;
-};
+}
 
-export const handle: Handle = reshape.handle(transform);
+export const handle: Handle = rewrite({
+\tmatch: ['x-gen-box', 'x-gen-link'],
+\tasync render(elements) {
+\t\tif (buggify.fires('gen.reshape-throws')) throw new Error('the rewrite threw');
+\t\tif (buggify.fires('gen.reshape-slow')) await new Promise((r) => setTimeout(r, 3000));
+\t\treturn elements.map((el) => render_one(el.html));
+\t}
+});
 `;
 }
 
