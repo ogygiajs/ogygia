@@ -38,6 +38,6 @@ export { RateLimiter } from './server/rate-limit.ts';
 /** The production floor for a signing secret (UTF-8 bytes). */
 export { MIN_SECRET_BYTES } from './server/hmac.ts';
 /** A request body read up to a byte cap, whatever its headers say (federation's routes). */
-export { read_capped } from './server/capped-body.ts';
+export { read_capped, type BodyRefused } from './server/capped-body.ts';
 // the page markup's vocabulary and its tag reader
 export * from './wire-markup.ts';

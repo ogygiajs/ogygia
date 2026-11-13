@@ -142,7 +142,7 @@ function safe<T>(fn: () => T): T | null {
 	try {
 		return fn();
 	} catch {
-		return null;
+		return null; // ok: a checkout git cannot read is no checkout: it is cloned again (or frozen throws)
 	}
 }
 

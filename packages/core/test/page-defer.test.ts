@@ -7,6 +7,7 @@
  */
 import { describe, expect, it, beforeAll, beforeEach } from 'vitest';
 import { parse, stringify } from 'devalue';
+import { scope } from '@ogygia/machine';
 import { link_boot } from '../src/runtime/boot-link.ts';
 import { load_devalue } from '../src/runtime/devalue-lane.ts';
 import { analyze } from '../src/seed-refs.ts';
@@ -293,7 +294,10 @@ describe('page-defer codec round-trip', () => {
 describe('page-defer settle path (non-navigate / SPA fallback)', () => {
 	it('settle_deferred awaits each promise into a SettledRef; the client revives a resolved Promise', async () => {
 		install_page_defer();
-		const settled = (await settle_deferred({ locale: 'fr', slow: Promise.resolve('OK') })) as {
+		const settled = (await settle_deferred(
+			{ locale: 'fr', slow: Promise.resolve('OK') },
+			scope()
+		)) as {
 			slow: SettledRef;
 		};
 		expect(settled.slow).toBeInstanceOf(SettledRef);
@@ -307,7 +311,10 @@ describe('page-defer settle path (non-navigate / SPA fallback)', () => {
 	});
 
 	it('a REJECTED promise never crashes the render; it revives as a rejected Promise (`:catch`)', async () => {
-		const settled = (await settle_deferred({ boom: Promise.reject(new Error('DENIED')) })) as {
+		const settled = (await settle_deferred(
+			{ boom: Promise.reject(new Error('DENIED')) },
+			scope()
+		)) as {
 			boom: SettledRef;
 		};
 		expect(settled.boom).toBeInstanceOf(SettledRef);
@@ -320,7 +327,7 @@ describe('page-defer settle path (non-navigate / SPA fallback)', () => {
 
 	it('a promise nested 66 and 300 levels deep is settled, and the seed serializes (#569)', async () => {
 		for (const levels of [66, 300]) {
-			const settled = await settle_deferred(nest(Promise.resolve('DEEP'), levels));
+			const settled = await settle_deferred(nest(Promise.resolve('DEEP'), levels), scope());
 			const leaf = unnest(settled, levels);
 			expect(leaf, `${levels} levels`).toBeInstanceOf(SettledRef);
 			expect((leaf as SettledRef).value).toBe('DEEP');
@@ -333,7 +340,7 @@ describe('page-defer settle path (non-navigate / SPA fallback)', () => {
 		const on_unhandled = (reason: unknown) => void unhandled.push(reason);
 		process.on('unhandledRejection', on_unhandled);
 		try {
-			const settled = await settle_deferred(nest(Promise.reject(new Error('DEEP')), 66));
+			const settled = await settle_deferred(nest(Promise.reject(new Error('DEEP')), 66), scope());
 			const leaf = unnest(settled, 66) as SettledRef;
 			expect(leaf).toBeInstanceOf(SettledRef);
 			expect(leaf.ok).toBe(false);
@@ -351,7 +358,7 @@ describe('page-defer settle path (non-navigate / SPA fallback)', () => {
 		const slow = { then: (ok: (v: string) => void) => (calls++, ok('X')) };
 		const data: Record<string, unknown> = { slow };
 		data.self = data;
-		const s = (await settle_deferred(data)) as Record<string, unknown>;
+		const s = (await settle_deferred(data, scope())) as Record<string, unknown>;
 		expect(calls).toBe(1);
 		expect(s.self).toBe(s);
 		expect(s.slow).toBeInstanceOf(SettledRef);
@@ -360,20 +367,24 @@ describe('page-defer settle path (non-navigate / SPA fallback)', () => {
 
 	it('settle keeps the key order of the data, whichever promise settles first', async () => {
 		let late!: (v: string) => void;
-		const settled = settle_deferred({
-			a: new Promise<string>((r) => (late = r)),
-			b: Promise.resolve('B'),
-			c: 1
-		});
+		const settled = settle_deferred(
+			{
+				a: new Promise<string>((r) => (late = r)),
+				b: Promise.resolve('B'),
+				c: 1
+			},
+			scope()
+		);
 		await new Promise((r) => setTimeout(r, 0));
 		late('A');
 		expect(Object.keys((await settled) as object)).toEqual(['a', 'b', 'c']);
 	});
 
 	it('settle_deferred recurses into a resolved value that holds more promises', async () => {
-		const settled = (await settle_deferred({
-			user: Promise.resolve({ profile: Promise.resolve('P') })
-		})) as {
+		const settled = (await settle_deferred(
+			{ user: Promise.resolve({ profile: Promise.resolve('P') }) },
+			scope()
+		)) as {
 			user: SettledRef;
 		};
 		expect(settled.user).toBeInstanceOf(SettledRef);

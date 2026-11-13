@@ -121,7 +121,7 @@ function host_of(url: string): string {
 	try {
 		return new URL(url).host;
 	} catch {
-		return '';
+		return ''; // ok: not a URL: no host to group by
 	}
 }
 
