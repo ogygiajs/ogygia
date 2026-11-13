@@ -161,6 +161,18 @@ describe('ConcurrencyGate: one deadline per call (the region render timeout, #19
 		expect(g.abandoned).toBe(4);
 	});
 
+	it('a deadline longer than a timer can hold still waits, and does not time out at once', async () => {
+		const g = new ConcurrencyGate(1);
+		let end!: () => void;
+		const long = g.run(() => new Promise<string>((resolve) => (end = () => resolve('done'))), {
+			deadline_ms: 2 ** 31 + 1_000
+		});
+		const caller = long.catch((e: Error) => e.message);
+		await vi.advanceTimersByTimeAsync(10);
+		end();
+		expect(await caller).toBe('done');
+	});
+
 	it('a body that ends in time leaves no timer behind', async () => {
 		const g = new ConcurrencyGate(2);
 		await g.run(async () => 'quick', { deadline_ms: 10_000 });
