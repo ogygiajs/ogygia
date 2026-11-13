@@ -80,8 +80,7 @@
 		{
 			"site": "packages/rewrite/src/pass.ts > rewrite_chunk > result:0",
 			"point": "rewrite.chunk-split",
-			"how": "the point reads a chunk as two, cut in its middle: an element the cut falls in goes out unrendered, said in dev, and the page after it is read as before",
-			"killed_by": "rewrite-split-element-rendered"
+			"how": "the point reads a chunk as two, cut inside the first element a rewrite matches: that element goes out unrendered, said in dev, and the page after it is read as before (rewrite-rendered judges what goes out)"
 		},
 		{
 			"site": "packages/rewrite/src/pass.ts > cancelled > abort:0",
