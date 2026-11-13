@@ -1,5 +1,5 @@
 // Edges of the region transform the mutation pass found unpinned: which ids are ogygia's own glue,
-// the `.ts` asRegion option reader (configured names and their defaults), and what a
+// the `.ts` region import's option reader (only the configured names), and what a
 // `render: 'live'` region may carry (only what the revalidate endpoint can serialize).
 import { describe, expect, it, vi } from 'vitest';
 import path from 'node:path';
@@ -83,6 +83,21 @@ describe('a marked named import in a .ts module: the option reader', () => {
 		'%s is refused',
 		(opts) => {
 			expect(compile(opts)).toMatch(/^refused: /);
+		}
+	);
+
+	it.each([
+		[`{ wake: 'load' }`, { wake: 'hydrate' }],
+		[`{ region: 'raw' }`, { region: 'held' }],
+		[`{ render: 'deferred', fetch: 'idle' }`, { render: 'show', fetch: 'when' }]
+	])(
+		'with a renamed key, %s under the default name stays a plain import (keys %j)',
+		(opts, keys) => {
+			const src = dedent`
+			import { H as X } from '$lib/H.svelte' with ${opts};
+			export { X };
+		`;
+			expect(transformTsRegions(src, '/app/src/lib/r.ts', ctx(keys))).toBeNull();
 		}
 	);
 
