@@ -1,37 +1,3 @@
-/**
- * `import.meta.og.$()` — the boundary mark for FUNCTIONS, as a compile construct.
- *
- * A closure can't serialize; what can is a handle: WHERE the code lives + WHAT it captured.
- * The construct does the split at build time:
- *
- *   setContext('fmt', import.meta.og.$((n) => `€${(n * (1 + tax)).toFixed(2)}`));
- *     ↓
- *   setContext('fmt', __og_$('src/routes/+layout.svelte#$0', [tax],
- *     (tax) => ((n) => `€${(n * (1 + tax)).toFixed(2)}`)));
- *
- * `__og_$` (runtime, fn-transport.ts) registers the factory under the tag and returns the LIVE
- * bound function — the host renders with a real closure; if it crosses a boundary, the fn kind
- * ships `{t: tag, d: bound}` and the far side rebinds. The factory is SELF-CONTAINED by
- * construction (see capture law), so the same factory text is also collected for the
- * `ogygia:boot/fn-manifest` module the client runtime imports — every factory registers
- * before any island hydrates, and calls stay synchronous.
- *
- * CAPTURE LAW (v1): a free identifier inside the marked function becomes a BOUND PARAMETER —
- * its VALUE crosses as data (same law as island props; the boundary classifier judges it at
- * the seam). Recognized globals (console, Math, JSON, fetch, …) pass through untouched.
- * Because every non-global free name is bound, the factory references NOTHING from its module
- * — which is what makes hoisting it into the manifest a pure text move. A capture that is a
- * module IMPORT therefore crosses by VALUE too; if that value can't serialize (a function),
- * the boundary errors at the seam with the path — move that dependency inside the marked fn
- * (import it there via a bound serializable, or use a store/wire capture for live state).
- *
- * STRICT BY CONSTRUCTION (og-wire's playbook): the construct is legal in exactly ONE shape —
- * a direct call `import.meta.og.$(<inline function expression>)`. Bare access, aliasing,
- * zero/multiple arguments, or a non-function argument are BUILD ERRORS naming file:line.
- * Detection is AST-precise over the module's JS regions; no scanner fallback — a mid-edit
- * unparseable file simply doesn't transform (the marker then fails at runtime loudly, since
- * `import.meta.og` is undefined without the transform).
- */
 import { og_js_regions } from '../parse/scan.ts';
 import { match_close } from '../parse/scan.ts';
 import { parse_module, type AstNode } from '../parse/oxc.ts';
@@ -40,18 +6,14 @@ import { OgygiaError } from '../messages.ts';
 import { splice_text, type Edit } from '../splice.ts';
 import { free_references, scope_bindings } from '../free-vars.ts';
 
-// ── regexes
 const SERVER_MODULE_RE = /\.server(\.|$|\/)/;
-const IDENT_CHAR_RE = /[A-Za-z0-9_$.]/;
 const WS_RE = /\s/;
 
 const MARKER = 'import.meta.og.$';
 
 type Node = AstNode;
 
-/** Globals a hoisted factory may reference without binding (never captured). */
-// static: the platform's global names a `$` body may read
-const KNOWN_GLOBALS = new Set([
+const KNOWN_GLOBALS: ReadonlySet<string> = new Set([
 	'undefined',
 	'null',
 	'true',
@@ -116,7 +78,6 @@ const KNOWN_GLOBALS = new Set([
 	'arguments'
 ]);
 
-/** Visit every node with the nodes around it, outermost first. */
 function walk(
 	node: Node,
 	visit: (n: Node, ancestors: readonly Node[]) => void,
@@ -151,18 +112,12 @@ function misuse(id: string, src: string, offset: number, what: string): never {
 	});
 }
 
-/**
- * What `fn` reads from outside it, in source order: the one scope analysis (free-vars.ts). A known
- * global passes through, unless a scope around the mark binds that name (`import { fetch }`): then
- * it is the module's value, captured like any other (test/og-dollar.test.ts).
- */
 function captures_of(fn: Node, around: readonly Node[]): string[] {
 	const bound = new Set<string>();
 	for (const scope of around) for (const name of scope_bindings(scope as never)) bound.add(name);
 	return free_references(fn as never).filter((name) => !KNOWN_GLOBALS.has(name) || bound.has(name));
 }
 
-/** Does `fn` hold another `$()` mark? Its text would be hoisted with the mark unrewritten. */
 function holds_mark(fn: Node): boolean {
 	let found = false;
 	walk(fn, (n) => {
@@ -343,21 +298,13 @@ export function dollar_edits(
 	let seq = 0;
 	let needs_import = false;
 	let needs_boundary_import = false;
-	/** each script region's program: the scope a markup mark sits in */
-	const programs: Node[] = [];
+	const script_scopes: Node[] = [];
 
 	for (const region of regions) {
-		// Parse as TS (a JS superset), so a `lang="ts"` script's og.$ closures — and any TS type
-		// annotations inside them — parse instead of erroring in oxc's JS mode (`.svelte` → JS). The
-		// template-call path below already does this; strip_ts_types then blanks the type spans from the
-		// hoisted factory text (a JS-mode parse yields no TS nodes to strip, so the types would leak).
 		const { program, ok } = parse_module(region.code, id.endsWith('.svelte') ? `${id}.ts` : id);
-		if (!ok || !program) continue; // mid-edit unparseable: no transform (marker fails loudly at runtime)
-		programs.push(program);
+		if (!ok || !program) continue;
+		script_scopes.push(program);
 
-		// SERVER-ONLY imports may never be CAPTURED: on any page that serializes the handle, the
-		// bound value ships into client HTML (a secret leak), and the hoisted factory can't
-		// re-import them client-side anyway. Map local name → source for the rejection message.
 		const server_only = new Map<string, string>();
 		for (const node of (program.body ?? []) as Node[]) {
 			if (node.type !== 'ImportDeclaration') continue;
@@ -385,10 +332,6 @@ export function dollar_edits(
 					misuse(id, src, abs, `$() takes exactly one argument — the function to hoist`);
 				const fn = args[0]!;
 				if (fn.type !== 'ArrowFunctionExpression' && fn.type !== 'FunctionExpression') {
-					// THE UNIVERSAL BOUNDARY MARK: a non-function value isn't hoisted — it's ASSERTED.
-					// Rewrite to a runtime classification at the marked site, so a refusal (DOM node,
-					// bare fn, unwired class, secret) throws with THIS file:line at creation, and a
-					// legal value passes through untouched (mark-don't-wrap; passports already ride it).
 					claimed.add(n);
 					claimed.add(n.callee as Node);
 					const expr_text = strip_ts_types(fn, region.code, refuse_at);
@@ -419,8 +362,6 @@ export function dollar_edits(
 				}
 				const fn_text = strip_ts_types(fn, region.code, refuse_at);
 				const tag = `${rel_id}#$${seq++}`;
-				// factory: captures become params SHADOWING the outer names, so the moved text's
-				// references bind to them — self-contained by construction.
 				const factory = `(${captures.join(', ')}) => (${fn_text})`;
 				hoists.push({ tag, factory_src: factory });
 				needs_import = true;
@@ -435,10 +376,6 @@ export function dollar_edits(
 				misuse(id, src, region.offset + n.start, `bare import.meta.og.$ used as a value`);
 			}
 		});
-		// inject the runtime imports at the top of the FIRST region that produced an edit.
-		// SAME-LINE (no trailing newline) on purpose: every rewrite in this file is a same-line
-		// splice, so keeping the import on line 1 preserves EVERY line number — breakpoints and
-		// stack traces in marked files stay exact even without a composed sourcemap.
 		if (
 			(needs_import || needs_boundary_import) &&
 			!edits.some((e) => e.text.startsWith('import'))
@@ -456,16 +393,6 @@ export function dollar_edits(
 		}
 	}
 
-	// TEMPLATE marks — `<Island fmt={import.meta.og.$(…)} />`. A markup file's expressions live
-	// OUTSIDE the JS regions, so the AST pass above never sees them. Find them with the
-	// string-aware lexer, skip anything inside a processed region, and parse each ARG standalone
-	// as an expression: an inline function hoists exactly like a script-block mark (free names
-	// resolve against the component scope by NAME, which is all capture analysis needs); anything
-	// else becomes the same boundary assertion. Imports are injected into the FIRST script region.
-	// The JS lexer can't scan markup (`</script>` reads as a regex opener), so template hits are
-	// found by literal marker + a context guard: the marker must open a svelte EXPRESSION (the
-	// previous non-space char is `{` or `(`), and its parens are matched by the quote-aware
-	// match_close (the ARGS are JS, so string-awareness matters there).
 	const in_region = (pos: number) =>
 		regions.some((r) => pos >= r.offset && pos < r.offset + r.code.length);
 	type TplCall = { start: number; end: number; args: string };
@@ -475,14 +402,12 @@ export function dollar_edits(
 		let at = -1;
 		while ((at = src.indexOf(M, at + 1)) !== -1) {
 			if (in_region(at)) continue;
-			const after = at + M.length;
-			if (IDENT_CHAR_RE.test(src[after] ?? '')) continue; // .store / other methods
-			let open = after;
+			let open = at + M.length;
 			while (open < src.length && WS_RE.test(src[open]!)) open++;
 			if (src[open] !== '(') continue;
 			let before = at - 1;
 			while (before >= 0 && WS_RE.test(src[before]!)) before--;
-			if (src[before] !== '{' && src[before] !== '(') continue; // must open an expression
+			if (src[before] !== '{' && src[before] !== '(') continue;
 			const close = match_close(src, open);
 			if (close < 0) continue;
 			template_calls.push({ start: at, end: close + 1, args: src.slice(open + 1, close) });
@@ -493,9 +418,6 @@ export function dollar_edits(
 	for (const call of template_calls) {
 		const arg_text = call.args.trim();
 		if (!arg_text) misuse(id, src, call.start, `$() takes exactly one argument`);
-		// Parse as TS (the wrapped expr id ends `.expr.ts`), then strip TS type spans from the moved
-		// text — a markup `fmt={import.meta.og.$((n: number) => …)}` hoists into the plain-JS manifest
-		// just like a script one, so its annotations must be blanked too.
 		const wrapped = `(${arg_text})`;
 		const { program, ok } = parse_module(wrapped, id.endsWith('.svelte') ? `${id}.expr.ts` : id);
 		if (!ok || !program)
@@ -509,7 +431,7 @@ export function dollar_edits(
 		if (expr.type === 'ArrowFunctionExpression' || expr.type === 'FunctionExpression') {
 			if (holds_mark(expr))
 				misuse(id, src, call.start, `a $() inside another $() — mark the outer one only`);
-			const captures = captures_of(expr, programs);
+			const captures = captures_of(expr, script_scopes);
 			const tag = `${rel_id}#$${seq++}`;
 			const factory = `(${captures.join(', ')}) => (${expr_text})`;
 			hoists.push({ tag, factory_src: factory });
@@ -539,7 +461,6 @@ export function dollar_edits(
 		]
 			.filter(Boolean)
 			.join(', ');
-		// merge with a script-pass injection if one already exists; else inject same-line
 		const existing = edits.find((e) => e.start === first.offset && e.text.startsWith('import { '));
 		if (existing) {
 			const have = existing.text.slice('import { '.length, existing.text.indexOf(' }'));
