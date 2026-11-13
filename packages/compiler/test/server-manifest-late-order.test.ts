@@ -9,7 +9,14 @@ import {
 	server_manifest_maps,
 	server_regions_module
 } from '../src/compiler/link/server-manifest.ts';
-import { relocate, type RelocateCx } from '../src/compiler/link/relocations.ts';
+import {
+	relocate as relocate_table,
+	relocations_of,
+	type RelocateCx
+} from '../src/compiler/link/relocations.ts';
+
+const relocate = (code: string, c: RelocateCx) =>
+	relocate_table(code, relocations_of(true), new Map(), c)?.s.toString() ?? '';
 
 const PAGE = '/app/src/routes/+page.svelte';
 const LAYOUT = '/app/src/routes/+layout.svelte';
@@ -45,6 +52,7 @@ function cx(program: Program, order: readonly string[]): RelocateCx {
 		late_server_regions: new Map(order.map((host) => [ID[host], `ref-${ID[host]}`])),
 		chunk_file: 'chunks/manifest.js',
 		file_name: (ref) => `chunks/regions/${ref}.js`,
+		facade_file: () => undefined,
 		graph: () => null,
 		module_ids: () => []
 	};
@@ -57,8 +65,8 @@ function written(order: readonly string[]): string[] {
 	return [
 		JSON.stringify(server_manifest_maps(program, (iid) => `/_app/${iid}.js`)),
 		server_regions_module(true, program, true),
-		relocate(`r = {...${LATE_SERVER_REGIONS_TOKEN}};`, true, new Map(), c) ?? '',
-		relocate(`p = "${PAGE_DATA_READS_TOKEN}";`, true, new Map(), c) ?? ''
+		relocate(`r = {...${LATE_SERVER_REGIONS_TOKEN}};`, c),
+		relocate(`p = "${PAGE_DATA_READS_TOKEN}";`, c)
 	];
 }
 
