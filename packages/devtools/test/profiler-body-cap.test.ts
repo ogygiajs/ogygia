@@ -28,6 +28,18 @@ function endless(): { body: ReadableStream<Uint8Array>; pulled: () => number } {
 	};
 }
 
+/** A body that sends one chunk and then fails, as a client that aborts mid-upload does. */
+function breaks(): ReadableStream<Uint8Array> {
+	let sent = false;
+	return new ReadableStream({
+		pull(c) {
+			if (sent) return c.error(new Error('connection reset'));
+			sent = true;
+			c.enqueue(new Uint8Array(16).fill(0x61));
+		}
+	});
+}
+
 function post(path: string, body: ReadableStream<Uint8Array>, headers: Record<string, string>) {
 	const url = new URL(`http://localhost${path}`);
 	return {
@@ -70,6 +82,17 @@ describe('profiler request bodies are capped (#1150)', () => {
 			});
 			expect(res.status).toBe(413);
 			expect(pulled()).toBeLessThan(CHUNKS * CHUNK);
+		});
+
+		it(`${what}: a body that breaks off mid-upload is a 400, not a thrown error (#1427)`, async () => {
+			dev_switch.dev = false;
+			vi.spyOn(console, 'warn').mockImplementation(() => {});
+			const handle = profiler({ secret: SECRET });
+			const res = await handle({
+				event: post(path, breaks(), headers),
+				resolve: async () => new Response('app')
+			});
+			expect(res.status).toBe(400);
 		});
 	}
 });
