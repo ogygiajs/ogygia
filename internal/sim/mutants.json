@@ -238,5 +238,14 @@
 		"operator": "statement",
 		"from": "return this.#connect(turn);",
 		"to": "return;"
+	},
+	{
+		"id": "hole-error-answer-swapped-in",
+		"file": "packages/core/src/runtime/hole-fetch.ts",
+		"line": 88,
+		"code": "if (!res.ok) throw new Error(`status ${res.status}`);",
+		"operator": "statement",
+		"from": "if (!res.ok)",
+		"to": "if (false)"
 	}
 ]

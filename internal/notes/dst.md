@@ -431,7 +431,8 @@ tsdown-plugin-svelte) no simulator runs: their sites are `covered`, never `fired
 are fired by the compiler's own simulator (`sim: "compiler"`). Each has a stable id, `file > enclosing function > kind:n` (n counts that kind in that
 function), so lines moving above it do not move it; `node src/failures.ts --list` prints them with
 their lines. The ledger `internal/sim/failures.json` puts each in exactly one bucket: `fired` (a
-buggify point, or a sim fault, reaches it; the sweep fails when the point did not fire; `killed_by`
+buggify point, a sim fault, or an app shape (`shape`: a gen stream, as `gen messy` draws a hole whose
+render throws) reaches it; the sweep fails when the point did not fire; `killed_by`
 names the mutant of mutants.json that breaks its recovery and the simulator kills, the proof that a
 broken recovery is noticed), `covered` (a named real test, which the check finds) or `impossible` (a
 rule or type, by its file and name, which the check finds). Sites nobody has bucketed yet are the
@@ -451,7 +452,8 @@ never fetches again after its retry wait, both by `stuck`), 24 (a reshape pass t
 kills restore.ts's children not put back and its render left in the light DOM, by `ssr-hydrate`,
 and a stand-in left as `<og-as>`, by `html-kept`: no reshape mark is left at rest),
 188 (an empty island that wakes: it kills the
-repair's `> 0` mutant), 191, 192, 193, 220 (a text-only third party on a page root: it kills
+repair's `> 0` mutant), 191 (a hole whose render throws: an error answer swapped in for its
+fallback dies by `html-kept`), 192, 193, 220 (a text-only third party on a page root: it kills
 `align_to`'s last `return true` -> false) and 262 (islands with a `<svelte:head>`, one a third party
 edits: it kills the head mutants), with `--budget-min 60` (no mutant starts after an hour; the last line says
 how many it judged of the list, and when) and uploads it (`dst-mutation`). Each listed mutant names

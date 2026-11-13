@@ -79,6 +79,18 @@
 			"fault": "drop",
 			"how": "the failed page fetch answers no page: the navigation hands off to the browser (the mutant that keeps it leaves the tab stuck at the old page, the stuck oracle)",
 			"killed_by": "router-page-lost-not-handed-off"
+		},
+		{
+			"site": "packages/core/src/runtime/hole-fetch.ts > read_hole > not-ok:0",
+			"shape": "gen messy",
+			"how": "a hole whose server render throws answers a 500: the read refuses it, and the hole keeps its fallback",
+			"killed_by": "hole-error-answer-swapped-in"
+		},
+		{
+			"site": "packages/core/src/runtime/hole-fetch.ts > read_hole > throw:3",
+			"shape": "gen messy",
+			"how": "the refusal of that 500 (status N): fetch_failed retries, then the fallback stands",
+			"killed_by": "hole-error-answer-swapped-in"
 		}
 	],
 	"covered": [
@@ -810,8 +822,6 @@
 		"packages/core/src/runtime/hole-fetch.ts > read_hole > throw:0",
 		"packages/core/src/runtime/hole-fetch.ts > read_hole > throw:1",
 		"packages/core/src/runtime/hole-fetch.ts > read_hole > throw:2",
-		"packages/core/src/runtime/hole-fetch.ts > read_hole > not-ok:0",
-		"packages/core/src/runtime/hole-fetch.ts > read_hole > throw:3",
 		"packages/core/src/runtime/hole-fetch.ts > read_hole > throw:4",
 		"packages/core/src/runtime/hole-fetch.ts > read_hole > throw:5",
 		"packages/core/src/runtime/html-sink.ts > is_allowed_region_endpoint > catch:0",
