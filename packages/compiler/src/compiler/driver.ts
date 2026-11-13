@@ -1553,7 +1553,7 @@ export class Compiler implements CoreApp {
 		try {
 			resolved = await resolve(source, importer, { skipSelf: true });
 		} catch {
-			return null;
+			return null; // ok: an edge the resolver refuses is not forked: the real module stays (bytes, never a missing style); the bundler reports the import
 		}
 		if (!resolved?.id || resolved.id.startsWith('\0')) return null;
 		const target = strip_id(resolved.id);
