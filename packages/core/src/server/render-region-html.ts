@@ -12,12 +12,9 @@ import { render } from 'svelte/server';
 import type { Component } from 'svelte';
 import { region_css } from 'ogygia:server';
 import { region_css_tags } from './html-scan.ts';
-import { kit_page_facts_tail, kit_page_ready, kit_render_context } from './kit-context.ts';
+import { held_root_context, kit_page_facts_tail, kit_page_ready } from './kit-context.ts';
 import { OGYGIA_REGION_CSS } from '../wire-markup.ts';
 import { nested_context } from '../nested.ts';
-
-/** context.ts's LAKE key (`isInLake`), by its global name — context.ts reaches virtual modules. */
-const LAKE_SUBTREE_KEY = Symbol.for('ogygia.lake-subtree');
 
 export async function render_region_html(
 	component: Component<Record<string, unknown>>,
@@ -27,10 +24,9 @@ export async function render_region_html(
 	wakes = false
 ): Promise<string> {
 	await kit_page_ready();
-	// (its HTML reaches the page opaque to Kit — fetched, or morphed in — so it renders as a lake's
-	// inside: its islands emit real regions the runtime wakes, as region.ts's inline render does)
-	const base: Map<unknown, unknown> = kit_render_context();
-	base.set(LAKE_SUBTREE_KEY, true);
+	// (its HTML reaches the page opaque to Kit — fetched, or morphed in — and its head is dropped
+	// but for its region-CSS links: a held region's root, as region.ts's inline render is)
+	const base = held_root_context();
 	// A region that wakes renders in the context its hydrate gets (`nested_context`, both legs), so
 	// the regions inside it take the same branch on both: inline, the nested rule
 	// (test/browser/held-region-hole.test.ts)

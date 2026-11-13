@@ -11,15 +11,16 @@
  * a region, and the region resolves over the initial connection — no client refetch, no second
  * round trip, islands inside waking on adoption.
  */
+import { server_ports } from './server-ports.ts';
 
 type LateRecorder = (promise: Promise<unknown>) => string | null;
 
 type ScopeOpener = () => void;
-let opener: ScopeOpener | null = null;
 
-/** Server (`hooks.ts`) installs the request-scoped scope opener. */
+/** Server (`hooks.ts`) installs the request-scoped scope opener (the ports: ./server-ports.ts). */
 export function set_late_scope_opener(fn: ScopeOpener | null): void {
-	opener = fn;
+	const ports = server_ports();
+	if (ports) ports.late_scope_opener = fn;
 }
 
 /**
@@ -29,18 +30,18 @@ export function set_late_scope_opener(fn: ScopeOpener | null): void {
  * sat in an empty slot forever).
  */
 export function open_late_scope(): void {
-	opener?.();
+	server_ports()?.late_scope_opener?.();
 }
-
-let recorder: LateRecorder | null = null;
 
 /** Server (`hooks.ts`) installs the request-scoped recorder. */
 export function set_late_recorder(fn: LateRecorder | null): void {
-	recorder = fn;
+	const ports = server_ports();
+	if (ports) ports.late_recorder = fn;
 }
 
 /** Region.svelte calls this with a promise `of` during SSR. `null` = not armed → no streaming. */
 export function register_late_region(promise: Promise<unknown>): string | null {
+	const recorder = server_ports()?.late_recorder;
 	return recorder ? recorder(promise) : null;
 }
 
@@ -50,16 +51,17 @@ export interface LateRegion {
 }
 
 type LateTaker = () => LateRegion[] | null;
-let taker: LateTaker | null = null;
 
 /** Server (`hooks.ts`) installs the request-scoped drain alongside the recorder. */
 export function set_late_taker(fn: LateTaker | null): void {
-	taker = fn;
+	const ports = server_ports();
+	if (ports) ports.late_taker = fn;
 }
 
 /** The router drains THIS request's registered late regions after the document render (through
  *  this seam, never by importing hooks — its `virtual:` imports don't resolve outside Vite).
  *  `null` when nothing registered / nothing armed. Draining clears the request's list. */
 export function take_late_regions(): LateRegion[] | null {
+	const taker = server_ports()?.late_taker;
 	return taker ? taker() : null;
 }

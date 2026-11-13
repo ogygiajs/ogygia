@@ -597,10 +597,6 @@
 			"reason": "browser only: a settled lake wakes the regions that waited on it (one DOM walk); proven in packages/core/test/browser/lake-swr-remount.test.ts"
 		},
 		{
-			"id": "packages/core/src/runtime/core.ts > OgygiaRegion > #arm > arm_on_demand:1",
-			"reason": "browser only: an on-demand hole's intent fires its fetch, constant work; proven in packages/core/test/browser/deferred-endpoint.test.ts"
-		},
-		{
 			"id": "packages/core/src/runtime/core.ts > OgygiaRegion > #on_idle > first",
 			"reason": "browser only: an idle schedule fires once, at idle time or the 2 s cap, whichever is first (two cancels and the fire), constant work; proven in packages/core/test/browser/hole-lifecycle.test.ts"
 		},
@@ -1179,10 +1175,6 @@
 		{
 			"id": "packages/devtools/src/profiler/ui/fake-progress.svelte.ts > FakeProgress > #stop",
 			"reason": "closes the run's scope (a timer), constant work; proven in packages/devtools/test/profiler-fake-progress.test.ts"
-		},
-		{
-			"id": "packages/devtools/src/profiler/ui/fake-progress.svelte.ts > FakeProgress > [computed]",
-			"reason": "Symbol.dispose: closes the bar's scope (its timers), constant work; proven in packages/devtools/test/profiler-fake-progress.test.ts"
 		},
 		{
 			"id": "packages/devtools/src/profiler/ui/fake-progress.svelte.ts > FakeProgress > finish > task:0",
@@ -3025,10 +3017,6 @@
 			"reason": "browser only: builds one hook's subscriber list once at boot, linear in the client plugins (a handful)"
 		},
 		{
-			"id": "packages/core/src/runtime/client-plugins.ts > joined > report",
-			"reason": "browser only: reports one plugin's failed hook once (a Set has and add, one console.error); proven in packages/core/test/runtime-hooks-compose.test.ts"
-		},
-		{
 			"id": "packages/compiler/src/vite/plugin-api.ts > client_hook_names > unread",
 			"reason": "builds one OgygiaError for an unreadable realm, constant work"
 		},
@@ -3789,10 +3777,6 @@
 			"reason": "browser only: a viewport-preload link came on screen, one warm of its page (fetch_page, measured by the router benches)"
 		},
 		{
-			"id": "packages/core/src/runtime/viewport.ts > Tracker > #follow > MutationObserver:0~c14ef5",
-			"reason": "browser only: a box-less region's content was swapped; it hands the records to #swapped, constant work"
-		},
-		{
 			"id": "packages/core/src/runtime/viewport.ts > Tracker > #swapped",
 			"reason": "browser only: a box-less region's content swap, linear in its records (a handful per swap); viewport-shared.test.ts runs it in three engines"
 		},
@@ -4067,10 +4051,6 @@
 		{
 			"id": "packages/devtools/src/devtools/session.ts > resume_session",
 			"reason": "browser only: starts the recorder on the saved parts (module state, the document's body), once per document; proven by packages/testing/e2e/ogygia-testing.spec.ts (record() across a full page load)"
-		},
-		{
-			"id": "packages/devtools/src/devtools/testing-script.ts > on:2~955b4d",
-			"reason": "browser only: the injected engine's DOMContentLoaded listener, once per document, constant work of its own; proven by packages/testing/e2e/ogygia-testing.spec.ts"
 		},
 		{
 			"id": "packages/devtools/src/client-beacon.ts > BEACON_HOOKS > holeAnswered",
@@ -4771,6 +4751,66 @@
 		{
 			"id": "packages/core/src/runtime/code-origins.ts > forget_code_origins",
 			"reason": "browser only: drops the page's read code origins (one write), constant work; proven in packages/core/test/browser/nav-code-origins.test.ts (#1045)"
+		},
+		{
+			"id": "packages/core/src/runtime/viewport.ts > Tracker > #hear_swaps > MutationObserver:0~c14ef5",
+			"reason": "browser only: a box-less region's content was swapped; it hands the records to #swapped, constant work"
+		},
+		{
+			"id": "packages/core/src/runtime/viewport.ts > Tracker > #hear_swaps",
+			"reason": "browser only: a box-less target followed into is observed for swaps (one map entry, one observe), constant work; viewport-shared.test.ts runs it in three engines"
+		},
+		{
+			"id": "packages/core/src/runtime/viewport.ts > Tracker > #stop_swaps",
+			"reason": "browser only: a box-less target let go leaves the swap observer, which observes again the few targets left (box-less regions followed now); viewport-shared.test.ts runs it in three engines"
+		},
+		{
+			"id": "packages/core/src/runtime/viewport.ts > Tracker > #stop_swaps > micro:0~165f8c",
+			"reason": "browser only: hands the swap records not yet delivered to #swapped, constant work"
+		},
+		{
+			"id": "packages/core/src/server/kit-context.ts > held_root_context",
+			"reason": "returns a Map holding Kit's page and stores contexts (not cloneable): kit_render_context plus two set() calls, constant work, once per held region render; proven in packages/core/test/held-region-runtime.test.ts"
+		},
+		{
+			"id": "packages/core/src/frame.ts > is_batch_miss",
+			"reason": "an instanceof check and one name compare on an Error (its prototype is hidden state the recorder does not keep), constant work; proven in packages/core/test/frame-store.test.ts"
+		},
+		{
+			"id": "packages/core/src/server/capped-body.ts > read_capped",
+			"reason": "network bound: reads a request body's pieces until the cap, one copy of the bytes; proven in packages/core/test/batch-body-cap.test.ts and packages/federation/test/body-cap.test.ts (#754, #1091)"
+		},
+		{
+			"id": "packages/devtools/src/profiler/ui/fake-progress.svelte.ts > FakeProgress > close",
+			"reason": "closes the bar's scope (its timers), constant work; proven in packages/devtools/test/profiler-fake-progress.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/core.ts > OgygiaRegion > #teardown > note_left:1~6e248e",
+			"reason": "browser only, dev and e2e builds: the rule's reader of the element's busy machines, handed over at its teardown, constant work; proven in packages/core/test/browser/rules.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/core.ts > OgygiaRegion > #machines",
+			"reason": "browser only, dev and e2e builds: reads the element's four machines' states for the rule on a region that left, constant work; proven in packages/core/test/browser/rules.test.ts and packages/core/test/browser/paint-left-mid-wait.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/rules.ts > note_left",
+			"reason": "browser only, dev and e2e builds: records a region element that left the page (DOM nodes, not cloneable), constant work; proven in packages/core/test/browser/rules.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/region-machines.ts > busy_machines",
+			"reason": "dev and e2e builds only (the rule on a region that left): four compares over a fixed table, constant work; proven in packages/core/test/browser/rules.test.ts"
+		},
+		{
+			"id": "packages/core/src/runtime/rules.ts > regions_left_at_rest",
+			"reason": "browser only, dev and e2e builds: the rule over the region elements that left the page, linear in those not yet seen at rest; proven in packages/core/test/browser/rules.test.ts and read at the end of every e2e spec"
+		},
+		{
+			"id": "packages/core/src/messages/core.ts > WARNINGS > rule_region_left_busy > details",
+			"reason": "a message's prose for its docs page and dev warning: constant text, printed once when the rule breaks"
+		},
+		{
+			"id": "packages/core/src/messages/core.ts > WARNINGS > rule_region_left_busy > text",
+			"reason": "a message's one line for the dev warning: a template over the rule's detail, printed once when the rule breaks"
 		}
 	]
 }

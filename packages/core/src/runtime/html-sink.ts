@@ -8,6 +8,8 @@
  * else in package source (`ogygia/html-sink`).
  */
 
+import type { PageGlobals } from '../page-globals.ts';
+
 declare const VERIFIED: unique symbol;
 
 /** HTML a voucher of this module vouched for: the only input the sink takes. */
@@ -127,7 +129,7 @@ export function parse_region_html(html: VerifiedHtml): DocumentFragment {
 		tpl.innerHTML = html;
 		attach_declarative_shadows(tpl.content);
 	}
-	(globalThis as { __og_parsed?: (f: DocumentFragment) => void }).__og_parsed?.(tpl.content);
+	(globalThis as PageGlobals).__og_parsed?.(tpl.content);
 	return tpl.content;
 }
 
