@@ -3785,6 +3785,10 @@
 			"reason": "browser only: walks the live document's regions once per SPA navigation (a live document, not cloneable), linear in the regions; its list is proven in packages/core/test/property-known-copies.test.ts and apps/palaestra/e2e/delta-copy-count.spec.ts (#846)"
 		},
 		{
+			"id": "packages/core/src/runtime/router-nav.ts > known_header",
+			"reason": "browser only: joins known_copies of the live document (not cloneable) once per page fetch, linear in the regions; proven in packages/core/test/browser/page-kept-by-known.test.ts (#1615)"
+		},
+		{
 			"id": "packages/core/src/server/region-endpoint.ts > reuse_known_region",
 			"reason": "reads and counts down the request's known copies (hidden state: the request event's map), constant work per region; proven in packages/core/test/property-known-copies.test.ts and packages/core/test/server-delta-opt-in.test.ts (#846)"
 		},
@@ -5667,6 +5671,42 @@
 		{
 			"id": "packages/devtools/src/devtools/cache-headers.ts > probe_cache > filter:0~6e173d",
 			"reason": "drops the failed probes from at most `limit` probes, constant work per probe; devtools-cache-headers.test.ts runs it"
+		},
+		{
+			"id": "packages/compiler/src/compiler/ctx.ts > CompileCtx > get app_spec > stat",
+			"reason": "a forwarder to the compiler's fs seam (`fs.stat`), no work of its own; region-identity-canonical.test.ts runs the root-absolute case"
+		},
+		{
+			"id": "packages/compiler/src/compiler/macros/source.ts > ast_edits_or_null_unparsed > sort:0~c12a84",
+			"reason": "a sort comparator over one module's macro edits (a handful), constant work per compare"
+		},
+		{
+			"id": "packages/compiler/src/compiler/macros/source.ts > ast_edits_or_null_unparsed > walk:1~30be9a",
+			"reason": "the AST walk's per-node visitor, constant work per node; the macro tests run it on every module they rewrite"
+		},
+		{
+			"id": "packages/compiler/src/compiler/macros/wire.ts > ast_edits_or_null_unparsed > sort:0~c12a84",
+			"reason": "a sort comparator over one module's wire edits (a handful), constant work per compare"
+		},
+		{
+			"id": "packages/compiler/src/compiler/macros/wire.ts > ast_edits_or_null_unparsed > walk:1~8d2430",
+			"reason": "the AST walk's per-node visitor, constant work per node; og-wire tests run it on every module they rewrite"
+		},
+		{
+			"id": "packages/core/src/runtime/lakes.ts > lake_identity_of",
+			"reason": "browser only: two attribute reads per lake, constant work; lake-restore-count.test.ts runs it"
+		},
+		{
+			"id": "packages/core/src/runtime/lakes.ts > lake_key",
+			"reason": "browser only: one pass over the page's frozen regions to rank a lake among those sharing its identity, linear in frozen regions (a handful per page); lake-restore-count.test.ts runs it"
+		},
+		{
+			"id": "packages/core/src/runtime/lakes.ts > restore > map:0~58cb32",
+			"reason": "browser only: one map entry per lifted lake, constant work per lake; lake-restore-count.test.ts runs it"
+		},
+		{
+			"id": "packages/core/src/server/props-wire.ts > lake_identity",
+			"reason": "one hole_identity fingerprint of a lake's props per lake render, measured with hole_identity's own bench; lake-identity.test.ts runs it"
 		}
 	]
 }

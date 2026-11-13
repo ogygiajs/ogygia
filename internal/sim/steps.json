@@ -15,18 +15,13 @@
 			},
 			{
 				"app": "palaestra",
-				"plan": "internal/sim/sweep-plans/palaestra-render-kept.json",
-				"reaches": ["render cache: flying -> kept"]
-			},
-			{
-				"app": "palaestra",
 				"plan": "internal/sim/sweep-plans/palaestra-form-restore.json",
 				"reaches": ["form-restore: idle -> open", "form-restore: open -> idle"]
 			},
 			{
 				"app": "palaestra",
 				"plan": "internal/sim/sweep-plans/palaestra-render-kept-gone.json",
-				"reaches": ["render cache: kept -> gone"]
+				"reaches": ["render cache: flying -> kept", "render cache: kept -> gone"]
 			},
 			{
 				"app": 192,
@@ -40,8 +35,10 @@
 		"batch stream: streaming -> ended",
 		"batch-stream: reading -> reading",
 		"batch-stream: sending -> reading",
+		"batch-stream: sending -> stalled",
 		"build location map: flying -> gone",
 		"build location map: flying -> kept",
+		"build location map: kept -> gone",
 		"critical resources: flying -> gone",
 		"critical resources: flying -> kept",
 		"critical-gate: fresh -> settled",
@@ -63,11 +60,14 @@
 		"federation peer documents: flying -> kept",
 		"federation peer documents: kept -> flying",
 		"federation peer documents: kept -> gone",
+		"federation thaws applied: flying -> gone",
 		"federation thaws applied: flying -> kept",
 		"flags exposures: buffering -> idle",
 		"flags exposures: idle -> buffering",
 		"form-restore: idle -> open",
 		"form-restore: open -> idle",
+		"frame-part: promised -> landed",
+		"frame-part: promised -> missed",
 		"frames: flying -> gone",
 		"hole-answer: answered -> answered",
 		"hole-answer: none -> answered",
@@ -100,13 +100,18 @@
 		"interaction replay: flying -> gone",
 		"interaction replay: flying -> kept",
 		"interaction replay: kept -> gone",
+		"interaction-arming: armed -> woken",
+		"interaction-arming: woken -> over",
 		"island file: flying -> gone",
 		"island file: flying -> kept",
 		"island file: kept -> gone",
 		"island warm: flying -> gone",
 		"island warm: flying -> kept",
 		"kit page thread: flying -> gone",
-		"live-region: failed -> idle",
+		"lake: open -> settled",
+		"lake: open -> waited",
+		"lake: waited -> settled",
+		"live-region: failed -> hydrating",
 		"live-region: failed -> static",
 		"live-region: hydrating -> failed",
 		"live-region: hydrating -> hydrating",
@@ -145,12 +150,18 @@
 		"postrender store: ok -> failing",
 		"region request: charged -> rendering",
 		"region request: prechecked -> probed",
+		"region request: probed -> refused",
 		"region request: probed -> verified",
 		"region request: received -> prechecked",
 		"region request: received -> refused",
 		"region request: rendering -> refused",
 		"region request: rendering -> sent",
 		"region request: verified -> charged",
+		"region-life: connected -> detached",
+		"region-life: connected -> scheduled",
+		"region-life: detached -> connected",
+		"region-life: scheduled -> connected",
+		"region-life: scheduled -> detached",
 		"region-paint: idle -> painting",
 		"region-paint: painting -> idle",
 		"region-paint: painting -> painting",
@@ -194,60 +205,6 @@
 	],
 	"covered": [
 		{
-			"step": "region-life: detached -> connected",
-			"reason": "new with the region life machine (it replaced the element's lifetime fields): the next sweep's --write moves it to reached if the fake browser takes it",
-			"test": "packages/core/test/browser/region-life.test.ts",
-			"name": "a region connects, schedules, and a move keeps its lifetime"
-		},
-		{
-			"step": "region-life: connected -> scheduled",
-			"reason": "new with the region life machine (it replaced the element's lifetime fields): the next sweep's --write moves it to reached if the fake browser takes it",
-			"test": "packages/core/test/browser/region-life.test.ts",
-			"name": "a region connects, schedules, and a move keeps its lifetime"
-		},
-		{
-			"step": "region-life: connected -> detached",
-			"reason": "new with the region life machine (it replaced the element's lifetime fields): the next sweep's --write moves it to reached if the fake browser takes it",
-			"test": "packages/core/test/browser/region-life.test.ts",
-			"name": "a live region that never scheduled leaves from connected"
-		},
-		{
-			"step": "region-life: scheduled -> connected",
-			"reason": "new with the region life machine (it replaced the element's lifetime fields): the next sweep's --write moves it to reached if the fake browser takes it",
-			"test": "packages/core/test/browser/region-life.test.ts",
-			"name": "a hole whose fetch failed connects afresh for its retry"
-		},
-		{
-			"step": "region-life: scheduled -> detached",
-			"reason": "new with the region life machine (it replaced the element's lifetime fields): the next sweep's --write moves it to reached if the fake browser takes it",
-			"test": "packages/core/test/browser/region-life.test.ts",
-			"name": "a scheduled region removed for good is detached once"
-		},
-		{
-			"step": "frame-part: promised -> landed",
-			"reason": "a navigation's hole batch reserves the next page's addresses; whether the sweep's navigations land a part before its hole binds is timing the ledger does not pin",
-			"test": "packages/core/test/frame-store.test.ts",
-			"name": "ensure() JOINS a reservation instead of fetching; write() fulfils it"
-		},
-		{
-			"step": "frame-part: promised -> missed",
-			"reason": "a batch that ends without a part it reserved: the simulated server always carries every part it is asked for",
-			"test": "packages/core/test/frame-store.test.ts",
-			"name": "release() misses an undelivered reservation, so the binder that joined it fetches on its own"
-		},
-		{
-			"step": "lake: open -> waited",
-			"reason": "new with the lake machine (it replaced two WeakSets): the next sweep's --write moves it to reached if the fake browser takes it",
-			"test": "packages/core/test/lake-settle.test.ts",
-			"name": "a region in an unsettled lake waits; in a settled one it runs"
-		},
-		{
-			"step": "lake: open -> settled",
-			"reason": "new with the lake machine (it replaced two WeakSets): the next sweep's --write moves it to reached if the fake browser takes it",
-			"test": "packages/core/test/lake-settle.test.ts",
-			"name": "a lake nobody waited on wakes nobody after its swap"
-		},
-		{
 			"step": "lake: waited -> settling",
 			"reason": "new with the lake machine (it replaced two WeakSets): the next sweep's --write moves it to reached if the fake browser takes it",
 			"test": "packages/core/test/lake-settle.test.ts",
@@ -258,24 +215,6 @@
 			"reason": "new with the lake machine (it replaced two WeakSets): the next sweep's --write moves it to reached if the fake browser takes it",
 			"test": "packages/core/test/lake-settle.test.ts",
 			"name": "settled before its swap, a lake wakes the regions that waited only after it"
-		},
-		{
-			"step": "lake: waited -> settled",
-			"reason": "new with the lake machine (it replaced two WeakSets): the next sweep's --write moves it to reached if the fake browser takes it",
-			"test": "packages/core/test/lake-settle.test.ts",
-			"name": "a lake whose refresh failed for good is settled as it stands"
-		},
-		{
-			"step": "interaction-arming: armed -> woken",
-			"reason": "new with the interaction arming machine (it replaced a hand-switched state field): the next sweep's --write moves it to reached if the fake browser takes it",
-			"test": "packages/core/test/browser/interaction-delegated.test.ts",
-			"name": "an event inside an armed region wakes THAT region only, once; the pointer warms once"
-		},
-		{
-			"step": "interaction-arming: woken -> over",
-			"reason": "new with the interaction arming machine (it replaced a hand-switched state field): the next sweep's --write moves it to reached if the fake browser takes it",
-			"test": "packages/core/test/browser/interaction-rearm.test.ts",
-			"name": "a capture armed again while the first one’s wake loads catches the next click, and the first leaves it alone"
 		},
 		{
 			"step": "wire codec: flying -> gone",
@@ -306,12 +245,6 @@
 			"reason": "the dev server's stranded-tab watch: import.meta.env.DEV only, and the simulator runs built apps",
 			"test": "packages/core/test/browser/stale-deps.test.ts",
 			"name": "two islands that fail to import together reload the tab once"
-		},
-		{
-			"step": "region request: probed -> refused",
-			"reason": "a forged capability: the simulator's visitors send only what their pages ask, and its faults tamper with answers, never requests",
-			"test": "packages/core/test/region-request-order.test.ts",
-			"name": "a forged GET is refused after its probe, before any render charge"
 		},
 		{
 			"step": "region request: charged -> refused",
@@ -422,12 +355,6 @@
 			"name": "the store is down for the first check: a later request checks again and thaws"
 		},
 		{
-			"step": "build location map: kept -> gone",
-			"reason": "kept forever once read; only its keep running out early (buggify) on a second identity-only load, which no sweep seed makes",
-			"test": "packages/core/test/browser/entry-location-map.test.ts",
-			"name": "a map whose keep ran out is read again by the next identity-only load"
-		},
-		{
 			"step": "frames: flying -> flying",
 			"reason": "a forced refetch (a lake's revalidate, a re-minted hole) while a fetch is out at the same address: no sweep seed overlaps them",
 			"test": "packages/core/test/frame-store.test.ts",
@@ -446,28 +373,16 @@
 			"name": "is forgotten after 10 minutes: the same notice again is applied again"
 		},
 		{
-			"step": "batch-stream: sending -> stalled",
-			"reason": "a batch POST whose answer never starts for the stall deadline: one network stall aimed at one request, which the sweep's runs met by luck only, and lost when timings moved",
-			"test": "packages/core/test/browser/frame-stream-stall.test.ts",
-			"name": "an answer that never starts: the stream is given up while sending, and its holes are let go"
-		},
-		{
 			"step": "batch-stream: reading -> stalled",
 			"reason": "a batch answer that goes quiet after its first part for the stall deadline: a midway network stall aimed at one batch POST, which one palaestra seed in 300 met by luck, and none of 800 more once the load timings moved",
 			"test": "packages/core/test/browser/frame-stream-stall.test.ts",
 			"name": "sends one frame and stalls: the hole it carried has it, the others fail and fetch on their own"
 		},
 		{
-			"step": "live-region: failed -> hydrating",
-			"reason": "a live region's island file must fail to load, then a tick of another module come: the sweep's runs met it by luck only, and lost it when timings moved",
+			"step": "live-region: failed -> idle",
+			"reason": "a live region whose island file failed to load, then taken off the page: the standard sweep reached it only by luck (gone since the builds became one world, #1548)",
 			"test": "packages/core/test/browser/live-region-failed-file.test.ts",
-			"name": "after its island file could not load, a tick of another module starts afresh and goes live"
-		},
-		{
-			"step": "federation thaws applied: flying -> gone",
-			"reason": "a thaw notice whose evict fails in the app's store: the sweep's runs met it by luck only, and lost it when timings moved",
-			"test": "packages/federation/test/thaw-receive.test.ts",
-			"name": "answers an error and keeps no id; the retry with the same id is applied"
+			"name": "a live region whose island file could not load, taken off the page, goes back to rest"
 		}
 	],
 	"dead": []

@@ -1,22 +1,11 @@
-/**
- * Whole-program build-output side effects — the work the adapter's `writeBundle` does AFTER the
- * client bundle is on disk: writing / inlining the island-deps handoff so SSR can `modulepreload` a
- * hydrate island's chunks and style a server-picked hole. Pure over the finished bundle + the app
- * root (fs is the only side effect); the adapter owns only the Vite `this.getFileName` resolution
- * and the trigger.
- */
 import fs from 'node:fs';
 import path from 'node:path';
 import { islandDepsHandoffPath } from './island-deps.ts';
 import { WRITTEN_RELOCATIONS, relocate } from './relocations.ts';
 import { OgygiaError, line } from '../messages.ts';
 
-/** The modules that hold or use the signing key: server-only, never in a client chunk. */
-/** (the `virtual:ogygia/secret` and `sign` modules' CLIENT legs are an empty string and no-op stubs:
- *  the secret check below covers what they would hold) */
 const SECRET_MODULE_RE = /[\\/](?:src|dist)[\\/]server[\\/](?:hmac|signing-key)\.[jt]s$/;
 
-/** A string-literal escape as JS and JSON write it: `\xHH`, `\u{H…}`, `\uHHHH`, or `\` + one character. */
 const ESCAPE_G = /\\(?:x([0-9a-fA-F]{2})|u\{([0-9a-fA-F]{1,6})\}|u([0-9a-fA-F]{4})|([\s\S]))/g;
 const SINGLE_ESCAPES: Record<string, string> = {
 	n: '\n',
@@ -29,12 +18,6 @@ const SINGLE_ESCAPES: Record<string, string> = {
 	'\n': ''
 };
 
-/**
- * `text` with every string-literal escape read as the literal reads it, so a secret a bundler
- * inlined as an escaped literal (`"pa\"ss"`, `'it\'s'`, `"café"`, `"a\/b"`) is found as
- * itself (#1044). Text outside literals only gains matches by it, never loses one: the scan
- * looks in both.
- */
 function unescaped(text: string): string {
 	if (!text.includes('\\')) return text;
 	return text.replace(ESCAPE_G, (_m, x?: string, cp?: string, u?: string, c?: string) => {
@@ -101,7 +84,6 @@ export function emit_island_deps_handoff(
 	const handoff = islandDepsHandoffPath(out_dir);
 	fs.mkdirSync(path.dirname(handoff), { recursive: true });
 	fs.writeFileSync(handoff, json);
-	// Adapter-friendly copy next to the server bundle (Kit SSR out already exists).
 	const server_copy = path.join(out_dir, 'output', 'server', 'og-region-deps.json');
 	try {
 		fs.mkdirSync(path.dirname(server_copy), { recursive: true });
@@ -148,17 +130,17 @@ export function emit_island_deps_handoff(
  * many keys they were pinned to, and — the actionable part — the modules whose reads could not be
  * pinned, each with its line and why, since one such module makes every page carrying that island
  * ship its whole `page.data`. Same shape as the barrels report: a few lines, a count for the rest.
+ *
+ * @param file_of an entry's identity (the maps' key) → its emitted file; absent → the key is the
+ *   file (a bundle from before content hashing)
  */
 export function report_seed_shaping(
 	map: { page: Record<string, boolean>; page_keys: Record<string, string[] | null> },
 	bundle: Record<string, { type: string; moduleIds?: string[]; imports?: string[] }>,
 	program: { page_key_reasons: Map<string, { why: string; line: number | null }> },
 	root: string,
-	/** an entry's IDENTITY (the maps' key) → its emitted file (its location); absent → the key is
-	 *  the file (a bundle from before content hashing) */
 	file_of: (identity: string) => string = (identity) => identity
 ): Record<string, SeedWhy[]> {
-	/** per island entry that ships all: the modules in its closure whose reads could not be pinned */
 	const why_of: Record<string, SeedWhy[]> = {};
 	const readers = Object.keys(map.page).filter((e) => map.page[e]);
 	if (!readers.length) return why_of;
@@ -176,7 +158,6 @@ export function report_seed_shaping(
 		})
 	);
 	if (unpinned.length) {
-		// The modules to blame: every recorded reason reachable from an unpinned island's closure.
 		const closure = (entry: string): Set<string> => {
 			const seen = new Set<string>();
 			const queue = [file_of(entry).replace(/^\//, '')];

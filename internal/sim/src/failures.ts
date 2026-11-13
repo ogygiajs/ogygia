@@ -284,6 +284,53 @@ export function sites_of(file: string, source: string): Site[] {
 	return out;
 }
 
+/** Where `source` is, by function: each named function or class (`Class > method`, `fn > inner`, the
+ *  path a site's id names), with its span. An anonymous function is its named parent's, as a site
+ *  in it is. */
+export function functions_of(
+	file: string,
+	source: string
+): { readonly path: string; readonly start: number; readonly end: number }[] {
+	const { program } = parseSync(file, source);
+	const out: { path: string; start: number; end: number }[] = [];
+	const walk = (node: Node, parent: Node | null, path: readonly string[]): void => {
+		let here = path;
+		if (
+			FUNCTIONS.has(node.type) ||
+			node.type === 'ClassDeclaration' ||
+			node.type === 'ClassExpression'
+		) {
+			const name = fn_name(node, parent);
+			if (name !== null) {
+				here = [...path, name];
+				out.push({ path: here.join(' > '), start: node.start, end: node.end });
+			}
+		}
+		for (const key in node) {
+			if (key === 'type' || key === 'start' || key === 'end') continue;
+			const v = node[key];
+			if (Array.isArray(v)) {
+				for (const c of v)
+					if (c && typeof c === 'object' && 'type' in c) walk(c as Node, node, here);
+			} else if (v && typeof v === 'object' && 'type' in v) walk(v as Node, node, here);
+		}
+	};
+	walk(program as unknown as Node, null, []);
+	return out;
+}
+
+/** The path of the innermost named function around offset `at` (`(module)` when none is). */
+export function function_at(
+	functions: readonly { readonly path: string; readonly start: number; readonly end: number }[],
+	at: number
+): string {
+	let best: { path: string; start: number; end: number } | null = null;
+	for (const f of functions)
+		if (f.start <= at && at < f.end && (best === null || f.end - f.start < best.end - best.start))
+			best = f;
+	return best?.path ?? '(module)';
+}
+
 /** Which source the inventory reads: the packages, and the files in them it leaves out. */
 export interface Scope {
 	/** Package directories under packages/: their src/ is read. */
@@ -373,6 +420,9 @@ export interface StepPoint {
 	/** The machine steps it leads to, as the steps ledger spells them. */
 	readonly steps: readonly string[];
 	readonly how: string;
+	/** The mutant that breaks the recovery the point leads to and the simulator kills, as
+	 *  {@link Fired.killed_by}. */
+	readonly killed_by?: string;
 }
 
 export interface FailureAccounting {
@@ -472,6 +522,8 @@ export function account_failures(
 		if (!o.points.has(p.point))
 			failures.push(`no buggify point '${p.point}' in the packages' source (step_points)`);
 		if (p.steps.length === 0) failures.push(`${p.point}: a step point names its steps`);
+		if (p.killed_by !== undefined && !o.mutants.has(p.killed_by))
+			failures.push(`${p.point}: no live mutant '${p.killed_by}' in mutants.json (step_points)`);
 	}
 	if (o.base !== undefined)
 		for (const b of ledger.baseline)

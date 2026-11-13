@@ -12,7 +12,7 @@ import { describe, test, expect, beforeAll, afterAll } from 'vitest';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { Compiler, Program, CompileCtx, normalize_import_keys } from '../dist/compiler/index.js';
+import { Compiler, Program, CompileCtx, normalize_import_keys } from '../src/compiler/index.ts';
 import { partial_ctx_init } from './_compile-ctx.ts';
 import { dedent } from '@ogygia/core/contract';
 
@@ -184,6 +184,14 @@ beforeAll(() => {
 		`}\n`
 	);
 	write('src/routes/cyc/+page.svelte', '<p>cyc</p>\n');
+
+	// (4) registries Kit or vite-plugin-svelte own, and one reached only through a package
+	const registry_src = fs.readFileSync(lib('registry.ts'), 'utf8');
+	write('src/lib/edge/r.remote.ts', registry_src.replace('./Block', '../Block'));
+	write('src/lib/server/r.ts', registry_src.replace('./Block', '../Block'));
+	write('src/lib/edge/r.svelte.ts', registry_src.replace('./Block', '../Block'));
+	write('node_modules/pkg/index.ts', `export { blocks } from '../../src/lib/registry';\n`);
+	write('src/lib/edge/via-pkg.ts', `export { blocks } from '../../../node_modules/pkg/index';\n`);
 });
 
 afterAll(() => {
@@ -232,5 +240,52 @@ describe('registry reach walk', () => {
 		);
 		expect(await client_resolve(compiler, './../../lib/cyc/x', page('cyc'))).toBeNull();
 		expect(await client_resolve(compiler, './../../lib/cyc/y', page('cyc'))).toBeNull();
+	});
+
+	test("a csr=false page's option module shares its page's world", async () => {
+		const { compiler } = make_compiler();
+		const page_ts = path.join(root, 'src/routes/helper/+page.ts');
+		expect(await client_resolve(compiler, './../../lib/registry', page_ts)).toBe(
+			lib('registry.ts') + QUERY
+		);
+	});
+
+	test('a remote, server-only or rune module never forks, registry or not', async () => {
+		const { compiler } = make_compiler();
+		for (const spec of [
+			'./../../lib/edge/r.remote',
+			'./../../lib/server/r',
+			'./../../lib/edge/r.svelte'
+		])
+			expect(await client_resolve(compiler, spec, page('helper')), spec).toBeNull();
+	});
+
+	test("a package's internals are not walked, even toward a registry", async () => {
+		const { compiler } = make_compiler();
+		expect(await client_resolve(compiler, './../../lib/edge/via-pkg', page('helper'))).toBeNull();
+	});
+
+	test('each edge is resolved once a build, and a resolver that refuses one forks nothing', async () => {
+		const { compiler } = make_compiler();
+		let calls = 0;
+		const counted = async (s: string, i: string) => {
+			calls++;
+			return resolve(s, i);
+		};
+		const ask = () =>
+			compiler.resolve_id('./../../lib/factory', page('helper'), { ssr: false, resolve: counted });
+		expect(await ask()).toBe(lib('factory.ts') + QUERY);
+		const after_first = calls;
+		expect(await ask()).toBe(lib('factory.ts') + QUERY);
+		expect(calls).toBe(after_first);
+		const refusing = async () => {
+			throw new Error('refused');
+		};
+		expect(
+			await make_compiler().compiler.resolve_id('./../../lib/factory', page('helper'), {
+				ssr: false,
+				resolve: refusing
+			})
+		).toBeNull();
 	});
 });

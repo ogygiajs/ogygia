@@ -7,15 +7,26 @@ import {
 	quality_line,
 	redact,
 	signature,
-	unreached_in_every
+	unreached_in_every,
+	waiting_runs
 } from '../src/ci.ts';
 
 const OUT = JSON.stringify({ findings: [], steps_per_second: 10, replay_leaks: [] });
 
 describe('a batch', () => {
 	it('that found nothing or something is read', () => {
-		expect(batch_result(0, null, () => OUT)).toEqual(JSON.parse(OUT));
-		expect(batch_result(1, null, () => OUT)).toEqual(JSON.parse(OUT));
+		expect(batch_result(0, null, () => OUT)).toEqual({ ran: JSON.parse(OUT) });
+		expect(batch_result(1, null, () => OUT)).toEqual({ ran: JSON.parse(OUT) });
+	});
+
+	it('that found something is read, its count of failed seeds no failure of the batch (run 43426260639: `failed: 5` read as a batch that did not run, and nothing was filed)', () => {
+		const found = JSON.stringify({
+			failed: 5,
+			findings: [{ seed: 17, oracle: 'ssr-hydrate', detail: 'x' }],
+			steps_per_second: 10,
+			replay_leaks: [123]
+		});
+		expect(batch_result(1, null, () => found)).toEqual({ ran: JSON.parse(found) });
 	});
 
 	it('that crashed, hung or had no build fails, whatever file is there', () => {
@@ -108,5 +119,19 @@ describe('the quality line', () => {
 		expect(quality_line(null, null)).toBe(
 			'steps accounted: no sweep this run; mutation kill rate: no finished run yet'
 		);
+	});
+});
+
+describe('the good-neighbour count', () => {
+	it('counts only queued runs from the last hours: runs stuck in the queue for days are no CI waiting (#1578)', () => {
+		const now = Date.parse('2026-11-13T12:00:00Z');
+		const runs = [
+			{ created_at: '2026-11-13T11:50:00Z' },
+			{ created_at: '2026-11-13T09:30:00Z' },
+			{ created_at: '2026-11-13T06:00:00Z' },
+			...Array.from({ length: 195 }, () => ({ created_at: '2026-11-11T08:00:00Z' }))
+		];
+		expect(waiting_runs(runs, now)).toBe(2);
+		expect(waiting_runs([], now)).toBe(0);
 	});
 });

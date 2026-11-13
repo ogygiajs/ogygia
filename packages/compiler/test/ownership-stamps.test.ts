@@ -59,7 +59,10 @@ describe('stamp_opaque', () => {
 			'<x-card><Inner /></x-card>',
 			'<x-card><a href={url}>go</a></x-card>',
 			'<x-card><button onclick={go}>go</button></x-card>',
-			'<x-card>{@render children()}</x-card>'
+			'<x-card>{@render children()}</x-card>',
+			'<x-card><span use:act>a</span></x-card>',
+			'<x-card><svelte:element this="p">a</svelte:element></x-card>',
+			'<x-card><svelte:head><title>a</title></svelte:head></x-card>'
 		])
 			expect(S(src), src).toBeNull();
 	});
@@ -74,6 +77,16 @@ describe('stamp_opaque', () => {
 		// a stamped custom element's static descendants are not stamped again
 		expect(S('<x-outer><x-inner><b>x</b></x-inner></x-outer>')).toBe(
 			'<x-outer data-og-opaque><x-inner><b>x</b></x-inner></x-outer>'
+		);
+	});
+
+	test("an each block's fallback is searched too", () => {
+		expect(S('{#each xs as x}{x}{:else}<p>{@html h}</p>{/each}')).toContain('<p data-og-opaque>');
+	});
+
+	test('a style Svelte cannot parse does not stop the stamps', () => {
+		expect(S('<p>{@html h}</p><style lang="scss">$c: red; p { color: $c; }</style>')).toContain(
+			'<p data-og-opaque>'
 		);
 	});
 

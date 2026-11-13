@@ -638,7 +638,13 @@ export interface GenPeer {
 	readonly ttl: number;
 	/** Edge pages its pages link to: `/gone` (no route), `/moved` (to `/q0`), `/who` (the visitor).
 	 *  test/gen.test.ts, test/oracles.test.ts `peer_answers`. */
-	readonly edges: { readonly gone: boolean; readonly moved: boolean; readonly who: boolean };
+	readonly edges: {
+		readonly gone: boolean;
+		readonly moved: boolean;
+		readonly who: boolean;
+		/** `/bad`: a page the peer refuses, a 400 (its load throws the router's `error`). */
+		readonly bad: boolean;
+	};
 	/** Origins the peer answers at: 2 is one build at `peer.test` and `peer2.test`. test/gen.test.ts. */
 	readonly origins: 1 | 2;
 }
@@ -698,7 +704,13 @@ export function peer_plan(seed: number, pages: readonly GenPage[]): GenPeer | nu
 	};
 	const pd = rng(seed).fork('gen peer data');
 	const pe = rng(seed).fork('gen peer edges');
-	const edges = { gone: pe.chance(0.5), moved: pe.chance(0.5), who: pe.chance(0.5) };
+	const edges = {
+		gone: pe.chance(0.5),
+		moved: pe.chance(0.5),
+		who: pe.chance(0.5),
+		// (its own stream: a seed's other edges stay what they were)
+		bad: rng(seed).fork('gen peer bad').chance(0.5)
+	};
 	const origins = rng(seed).fork('gen peer origins').chance(0.4) ? 2 : 1;
 	return {
 		mount,
@@ -979,6 +991,7 @@ export const MOUNT = '/peer';
 /** A peer's edge pages, as the app mounts them (oracles.ts `peer_answers`). */
 export const EDGE_GONE = `${MOUNT}/gone`;
 export const EDGE_MOVED = `${MOUNT}/moved`;
+export const EDGE_BAD = `${MOUNT}/bad`;
 
 /** A slot's tag on its page: the widget's region, with a placeholder for a deferred one that has
  *  one. */
@@ -1289,7 +1302,7 @@ export function write_peer(dir: string, peer: GenPeer, seed: number): void {
 	const lib = join(dir, 'src', 'lib', 'gen');
 	rmSync(lib, { recursive: true, force: true });
 	mkdirSync(lib, { recursive: true });
-	const edges = (['gone', 'moved', 'who'] as const).filter((e) => peer.edges[e]);
+	const edges = (['gone', 'moved', 'who', 'bad'] as const).filter((e) => peer.edges[e]);
 	const nav = ['/', ...peer.pages.map((p) => MOUNT + p.path), ...edges.map((e) => `${MOUNT}/${e}`)]
 		.map((p) => `<a href="${p}">${p}</a>`)
 		.join(' ');
@@ -1350,7 +1363,7 @@ export function write_peer(dir: string, peer: GenPeer, seed: number): void {
 	writeFileSync(
 		join(lib, 'router.ts'),
 		[
-			`import { routes, page${peer.edges.moved ? ', redirect' : ''} } from '@ogygia/router';`,
+			`import { routes, page${peer.edges.moved ? ', redirect' : ''}${peer.edges.bad ? ', error' : ''} } from '@ogygia/router';`,
 			...(peer.edges.who ? [`import { user } from '@ogygia/federation';`] : []),
 			...peer.pages.map((_, i) => `import Q${i} from './Q${i}.svelte';`),
 			...(peer.edges.who ? [`import Who from './Who.svelte';`] : []),
@@ -1364,6 +1377,9 @@ export function write_peer(dir: string, peer: GenPeer, seed: number): void {
 			),
 			...(peer.edges.moved
 				? [`\t\t'/moved': page(Q0, { load: () => redirect(307, '${MOUNT}/q0') }),`]
+				: []),
+			...(peer.edges.bad
+				? [`\t\t'/bad': page(Q0, { load: () => error(400, 'a bad request') }),`]
 				: []),
 			...(peer.edges.who
 				? [`\t\t'/who': page(Who, { load: (c) => ({ sub: user(c)?.sub ?? '' }) }),`]

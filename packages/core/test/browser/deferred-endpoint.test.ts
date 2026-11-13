@@ -150,6 +150,38 @@ test('an on-demand hole fetches on pointer intent and morphs its HTML in (fallba
 	}
 });
 
+const OUTER_ENDPOINT = '/__ogygia__?id=cafebabe0010&props=W3t9XQ&exp=9999999999&sig=stub';
+
+test('intent inside an on-demand hole that already fired reaches the armed on-demand hole around it', async () => {
+	const calls: string[] = [];
+	const real_fetch = window.fetch;
+	window.fetch = async (input) => {
+		calls.push(String(input));
+		const res = new Response('<p data-outer-answer>answer</p>', {
+			status: 200,
+			headers: { 'content-type': 'text/html' }
+		});
+		Object.defineProperty(res, 'url', { value: location.origin + OUTER_ENDPOINT });
+		return res;
+	};
+	document.body.innerHTML = `<ogygia-region render="defer" when="interaction" endpoint="${OUTER_ENDPOINT}"><ogygia-region render="defer" when="interaction"><span data-inner>inner</span></ogygia-region></ogygia-region>`;
+	const inner = document.querySelector('[data-inner]')!;
+	try {
+		bootDev();
+		await new Promise((r) => setTimeout(r, 100));
+		inner.dispatchEvent(new PointerEvent('pointerover', { bubbles: true }));
+		await new Promise((r) => setTimeout(r, 100));
+		expect(calls, 'the inner hole took the first intent').toHaveLength(0);
+		inner.dispatchEvent(new PointerEvent('pointerover', { bubbles: true }));
+		await expect
+			.poll(() => document.querySelector('[data-outer-answer]') !== null, { timeout: 10_000 })
+			.toBe(true);
+		expect(calls).toHaveLength(1);
+	} finally {
+		window.fetch = real_fetch;
+	}
+});
+
 // HOVER via a DESCENDANT: `pointerover` bubbles, so hovering a child of the boxless
 // (`display: contents`) wrapper triggers the fetch — before any click. This is the nav-menu case:
 // the wrapper has no box of its own, the nav items inside do.
@@ -375,6 +407,27 @@ test('a hole answer that was REDIRECTED is refused: the fallback stands, no retr
 		expect(document.querySelector('[data-testid="fallback"]')).not.toBeNull();
 		expect(document.querySelector('[data-testid="served"]')).toBeNull();
 		expect(region.hasAttribute('data-hydrated')).toBe(false);
+	} finally {
+		window.fetch = real_fetch;
+	}
+});
+
+test('a hole whose capability is refused (403, not expired) is asked once: no retry would differ', async () => {
+	const endpoint = '/__ogygia__?id=cafebabe0103&props=W3t9XQ&exp=9999999999&sig=stub';
+	document.body.innerHTML = `<ogygia-region render="defer" when="load" endpoint="${endpoint}"><p data-testid="fallback">fallback</p></ogygia-region>`;
+	const calls: string[] = [];
+	const real_fetch = window.fetch;
+	window.fetch = async (input) => {
+		calls.push(String(input));
+		const res = new Response('forbidden', { status: 403 });
+		Object.defineProperty(res, 'url', { value: location.origin + endpoint });
+		return res;
+	};
+	try {
+		bootDev();
+		await new Promise((r) => setTimeout(r, 1500));
+		expect(calls, 'no retry for a refused capability').toHaveLength(1);
+		expect(document.querySelector('[data-testid="fallback"]')).not.toBeNull();
 	} finally {
 		window.fetch = real_fetch;
 	}

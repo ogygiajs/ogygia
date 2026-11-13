@@ -74,6 +74,7 @@ test('a kept fallback that later gets a real answer is not kept any more, and it
 	write({ a, v: stamp(), html: counter() });
 	await expect.poll(() => el.querySelector('button') !== null, { timeout: 5_000 }).toBe(true);
 	expect(el.hasAttribute('data-og-kept'), 'no longer the kept fallback').toBe(false);
+	expect(el.hasAttribute('data-revalidated'), 'its first answer, not a refresh').toBe(false);
 	await expect
 		.poll(() => el.hasAttribute('data-hydrated'), { timeout: 5_000, message: 'its island woke' })
 		.toBe(true);

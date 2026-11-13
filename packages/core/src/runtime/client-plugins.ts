@@ -1,12 +1,3 @@
-/**
- * The plugins' browser halves, as the runtime calls them (`ogygia/plugin/client`). The boot entry
- * hands them over; every call site sits behind its gate (`__OGYGIA_CLIENT_PLUGINS__` for `boot`, one
- * `__OGYGIA_HOOK_*__` per runtime hook), so a build where no plugin subscribes folds them away
- * (test/runtime-hooks-fold.test.ts). Every subscriber runs in plugin order, and a throw or a rejected
- * promise is reported once per plugin and stops nothing else (test/runtime-hooks-compose.test.ts).
- *
- * @packageDocumentation
- */
 import type { ClientPlugin } from '../plugin/client.ts';
 import type { RuntimeHookName, RuntimeHooks } from '../contract/runtime-hooks.ts';
 import { slots } from './slots.ts';
