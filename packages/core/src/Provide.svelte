@@ -18,8 +18,7 @@
 	} = $props();
 
 	// clsx-like: an object is used as-is; an array is flattened + merged left→right (falsy entries
-	// skipped, later keys win). A typed `createContext('k')('v')` returns `{ k: 'v' }`, so typed and
-	// raw entries mix freely: `values={[ { locale }, theme('dark'), cond && { x: 1 } ]}`.
+	// skipped, later keys win).
 	// A provider's values are fixed for its lifetime — resolved once (server pass).
 	// svelte-ignore state_referenced_locally
 	const resolved = Array.isArray(values)
