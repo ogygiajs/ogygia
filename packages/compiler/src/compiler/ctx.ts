@@ -1,6 +1,6 @@
 import { strip_bom } from './bom.ts';
 import { node_fs, type Fs } from './fs.ts';
-import { route_reader, type Routes } from './kit.ts';
+import { default_kit_dirs, route_reader, type KitDirs, type Routes } from './kit.ts';
 import { islandVirtualId } from './ids.ts';
 import { parse_module, type AstNode } from './parse/oxc.ts';
 import type { ClientRealmFile, ServerRealm } from './link/caps.ts';
@@ -55,6 +55,8 @@ const NEVER_MATCH_RE = /$^/;
 
 export interface CompileCtxInit {
 	root: string;
+	/** the app's Kit dirs, as the plugin read them (default: `default_kit_dirs(root)`) */
+	kit_dirs?: KitDirs;
 	base: string;
 	/** SvelteKit `config.kit.appDir` (default `_app`) — the dir Kit emits AND serves its immutable
 	 *  assets under. ogygia's runtime + island chunks MUST land here too: a custom appDir otherwise
@@ -151,6 +153,8 @@ export class CompileCtx {
 	/** Kit's route worlds and route config, read through `fs` (one cache set per file system). */
 	readonly routes: Routes;
 	readonly root: string;
+	/** The app's Kit dirs (`kit.files.routes`, `kit.outDir`). */
+	readonly kit_dirs: KitDirs;
 	readonly base: string;
 	readonly app_dir: string;
 	readonly libDir: string;
@@ -213,6 +217,7 @@ export class CompileCtx {
 		this.fs = init.fs ?? node_fs;
 		this.routes = route_reader(this.fs);
 		this.root = init.root;
+		this.kit_dirs = init.kit_dirs ?? default_kit_dirs(init.root);
 		this.base = init.base;
 		this.app_dir = init.app_dir;
 		this.libDir = init.libDir;
