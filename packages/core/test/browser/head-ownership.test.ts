@@ -80,6 +80,12 @@ test('the mark finds what a scan of the head finds, in head order', () => {
 			document.head.append(gone);
 			gone.remove();
 		},
+		// added, then moved in the same step: its first record says it is new, so it is added
+		() => {
+			const moved = make('<meta name="moved">');
+			document.head.append(moved);
+			document.head.prepend(moved);
+		},
 		// text and comments are not elements
 		() => document.head.append(document.createTextNode('x'), document.createComment('c'))
 	];

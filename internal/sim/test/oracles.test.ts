@@ -183,6 +183,30 @@ describe('normalize', () => {
 		expect(page('<meta name="ogygia-stored" content="hit">')).toBe(page(''));
 	});
 
+	it("drops a reshape pass's first-load mark: a document loaded as one has it, the router's answer of the same page never does (gen 10, seed 10)", async () => {
+		const { Window } = await import('happy-dom');
+		const page = (head: string) => {
+			const w = new Window();
+			w.document.write(`<html><head><title>t</title>${head}</head><body><p>hi</p></body></html>`);
+			return normalize(w.document as unknown as Document);
+		};
+		expect(page('<meta name="ogygia-first-load">')).toBe(page(''));
+	});
+
+	it("compares an app web component by its host alone: a server-owned one is the render's on a fresh load and restored in the router's answer (gen 262, seed 3)", async () => {
+		const { Window } = await import('happy-dom');
+		const page = (body: string) => {
+			const w = new Window();
+			w.document.write(`<html><head><title>t</title></head><body>${body}</body></html>`);
+			return normalize(w.document as unknown as Document);
+		};
+		const restored = '<x-gen-box data-n="16"><span>n16</span><i>box n16</i></x-gen-box>';
+		const rendered =
+			'<x-gen-box data-n="16" data-rendered="x-gen-box"><div class="gen-box"><b>box</b><slot><span>n16</span></slot></div></x-gen-box>';
+		expect(page(rendered)).toBe(page(restored));
+		expect(page('<x-gen-box data-n="1"></x-gen-box>')).not.toBe(page(restored));
+	});
+
 	it("takes the region sheets answers lifted into the head in any order, and the page's own in theirs (gen 143, seed 143019)", async () => {
 		const { Window } = await import('happy-dom');
 		const page = (...hrefs: string[]) => {

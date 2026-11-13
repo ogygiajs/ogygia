@@ -1,14 +1,3 @@
-/**
- * SVELTE'S HYDRATION WARNINGS, KEPT — in dev, Svelte says in the console when the server and the
- * browser disagreed while an island hydrated (`hydration_html_changed`, `hydration_attribute_changed`,
- * `hydration_mismatch`…). Svelte keeps the server's value, so nothing on screen shows it: the console
- * line is the only trace. This keeps each one (with the island hydrating at the time) for the devtools
- * and the profiler's browser half. Dev only (production Svelte has no such warnings); the console line
- * itself goes out unchanged. No regex: warnings are rare, read by string search. The page keeps its
- * first 100 (test/svelte-warnings.test.ts).
- *
- * @packageDocumentation
- */
 import { clock, type Scope } from '@ogygia/machine';
 import { OG_FP } from '../wire-markup.ts';
 

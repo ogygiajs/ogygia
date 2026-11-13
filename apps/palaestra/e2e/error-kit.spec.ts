@@ -13,7 +13,8 @@ import { test, check, sleep } from '@ogygia/tooling/e2e';
 import { KIT_BOOT_RE, RUNTIME_SCRIPT_RE } from '@ogygia/tooling/e2e/re.ts';
 
 const CSR_META_RE = /<meta name="ogygia-csr" content="true">/;
-const LAKE_RE = /<ogygia-region entry="[^"]+" wake="none" remount="cache">/;
+const LAKE_RE =
+	/<ogygia-region entry="[^"]+" wake="none" remount="cache" data-og-lake="[0-9a-f]{16}">/;
 const LAKE_STATIC_RE = /data-lake-static/;
 // The header island inside the lake as a REAL region (its shell precedes its markup), not inline.
 const HEADER_REGION_RE =

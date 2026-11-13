@@ -373,7 +373,8 @@ ${component_imports}\tlet { ogygiaFallback, ...__props } = $props();
 
 /**
  * The LAKE wrapper (`.svelte`) — `render: page, wake: none`: a frozen region inside a hydrated island.
- * A `swr` lake carries an endpoint (`__when` + `__props`) to remount on its schedule; `cache`/`empty`
+ * Every lake hands Region its props (`__props`): its identity (`data-og-lake`) is a fingerprint of
+ * them. A `swr` lake also carries an endpoint (`__when`) to remount on its schedule; `cache`/`empty`
  * are wrapper-only. Static `<OgygiaLakeInner>` (not dynamic) preserves the LAKE-ENVELOPE; the client
  * build swaps that import for the render-nothing stub.
  */
@@ -386,11 +387,11 @@ export function lake_wrapper_source(
 	const remount = options?.remount || 'cache';
 	const needs_endpoint = remount === 'swr';
 	const when = options?.when || (needs_endpoint ? 'load' : undefined);
-	let attrs = `__entry={${JSON.stringify(iid)}} __remount={${JSON.stringify(remount)}}`;
+	let attrs = `__entry={${JSON.stringify(iid)}} __remount={${JSON.stringify(remount)}} __props={__props}`;
 	if (options?.maxAgeMs != null) attrs = `${attrs} __maxAge={${JSON.stringify(options.maxAgeMs)}}`;
 	if (options?.onExpire) attrs = `${attrs} __onExpire={${JSON.stringify(options.onExpire)}}`;
 	if (needs_endpoint) {
-		attrs = `${attrs} __when={${JSON.stringify(when || 'load')}} __props={__props}`;
+		attrs = `${attrs} __when={${JSON.stringify(when || 'load')}}`;
 		if (options?.margin != null) attrs = `${attrs} __margin={${JSON.stringify(options.margin)}}`;
 	}
 	return `<script>
