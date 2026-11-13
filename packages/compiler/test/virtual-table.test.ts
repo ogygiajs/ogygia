@@ -205,9 +205,7 @@ describe('the virtual-module table', () => {
 		expect(table.load(id, app(ctx), leg(true))).toBe(
 			'export const region_ttl = 3600;\nexport const renew_window = 2592000;'
 		);
-		expect(table.load(id, app(ctx), leg(false))).toBe(
-			'export const region_ttl = 3600;\nexport const renew_window = 0;'
-		);
+		expect(() => table.load(id, app(ctx), leg(false))).toThrow(/virtual_wrong_realm/);
 	});
 
 	it('writes a request module as a re-export of the built core module', () => {
