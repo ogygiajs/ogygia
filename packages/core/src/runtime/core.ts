@@ -1299,8 +1299,6 @@ class OgygiaRegion extends HTMLElement {
 		this.#wake.go('waking');
 		const mine = this.#wake.now;
 		const visit = this.#wake.scope;
-		/** After each wait, back in its turn: the region is on its way out (its teardown a microtask
-		 *  away), or the visit is over. Checked after every wait before the turn. */
 		const gone = () => !this.isConnected || this.#wake.now !== mine;
 		let failure: { error: unknown } | null = null;
 		let offline: { error: unknown } | null = null;
