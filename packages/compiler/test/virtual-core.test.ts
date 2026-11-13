@@ -220,7 +220,7 @@ describe('core’s server modules', () => {
 	});
 
 	it('hands csr=true pages the devtools boot URL only in dev with a plugin browser half', () => {
-		const url = (ctx: object, client: (typeof PLUGIN)[]) =>
+		const url = (ctx: Record<string, unknown>, client: (typeof PLUGIN)[]) =>
 			load('ogygia:server/devtools-boot-url', app({ ctx, client }), true);
 		expect(url(DEV, [PLUGIN])).toBe(
 			'export const devtools_boot_url = "/@id/__x00__ogygia:dev/devtools-boot";'
@@ -230,7 +230,8 @@ describe('core’s server modules', () => {
 	});
 
 	it('gives the build’s key only to the server leg, and says whether an OGYGIA_SECRET salted its ids', () => {
-		const s = (ctx: object, ssr: boolean) => load('ogygia:server/secret', app({ ctx }), ssr);
+		const s = (ctx: Record<string, unknown>, ssr: boolean) =>
+			load('ogygia:server/secret', app({ ctx }), ssr);
 		expect(s({ build_secret: 'k', id_salt: 'salt' }, true)).toContain('build_had_secret = true');
 		expect(s({ build_secret: 'k', id_salt: '' }, true)).toContain('build_had_secret = false');
 		expect(s({ build_secret: 'k', id_salt: 'salt' }, false)).toBe(
