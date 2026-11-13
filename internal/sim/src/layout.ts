@@ -262,14 +262,58 @@ function margins(root_margin: string | undefined): [number, number, number, numb
 	return [px(t, VIEWPORT.h), px(r, VIEWPORT.w), px(b, VIEWPORT.h), px(l, VIEWPORT.w)];
 }
 
+/** The viewport grown by `root_margin`. */
+function root_of(root_margin: string | undefined): Box {
+	const [t, r, b, l] = margins(root_margin);
+	return { x: -l, y: -t, w: VIEWPORT.w + l + r, h: VIEWPORT.h + t + b };
+}
+
+/** Whether `box` crosses `root` (an edge touching counts, as a browser's threshold 0 does). */
+function crosses(box: Box, root: Box): boolean {
+	return (
+		box.x <= root.x + root.w &&
+		box.x + box.w >= root.x &&
+		box.y <= root.y + root.h &&
+		box.y + box.h >= root.y
+	);
+}
+
+/**
+ * Whether `el` is on screen in the layout `at` (the viewport grown by `root_margin`), by the one rule
+ * ogygia's `visible` keeps (packages/core/src/runtime/viewport.ts): an element with an area is on
+ * screen when its box crosses the root; one with none, when one of what it renders is (its first 16
+ * children, 3 levels down), or, with nothing of its own on screen, when a line of its own crosses.
+ * What an oracle owes a `visible` schedule at rest: the observer reported the same layout.
+ */
+export function on_screen(at: Map<Element, Box>, el: Element, root_margin?: string): boolean {
+	const root = root_of(root_margin);
+	const decide = (e: Element, depth: number): boolean => {
+		const box = e.isConnected ? at.get(e) : undefined;
+		if (box === undefined) return false;
+		const on = crosses(box, root);
+		if (box.w > 0 && box.h > 0) return on;
+		if (depth > 0)
+			for (let c = e.firstElementChild, n = 0; c && n < 16; c = c.nextElementSibling, n++)
+				if (decide(c, depth - 1)) return true;
+		return on && (box.w > 0 || box.h > 0);
+	};
+	return decide(el, 3);
+}
+
 type Target = Element & { readonly isConnected: boolean };
 type Callback = (entries: object[], observer: object) => void;
 
 /**
  * Gives `window` (a document of realm `realm`) its layout's IntersectionObserver. Its frames are
- * tasks of `realm` on `loop`; a closed window's frame does nothing.
+ * tasks of `realm` on `loop`; a closed window's frame does nothing, and a hidden tab's (`hidden`)
+ * waits until the returned `shown()`.
  */
-export function install_layout(window: object, loop: Loop, realm: string): void {
+export function install_layout(
+	window: object,
+	loop: Loop,
+	realm: string,
+	hidden: () => boolean = () => false
+): { shown(): void } {
 	const w = window as {
 		document: Document;
 		closed: boolean;
@@ -284,13 +328,24 @@ export function install_layout(window: object, loop: Loop, realm: string): void 
 	let dirty = true;
 	/** The layout the last frame made (or a look made, before any frame). */
 	let last_boxes: Map<Element, Box> | null = null;
+	/** A frame owed while the tab was hidden: a browser runs no rendering there, so its observers
+	 *  report nothing until it is shown (test/layout.test.ts). */
+	let parked = false;
 	/** The next frame, once: every observer looks then, from one layout. */
 	const ask_frame = () => {
 		if (frame !== null && !frame.cancelled) return;
+		if (hidden()) {
+			parked = true;
+			return;
+		}
 		const wait = 16 - (loop.now % 16) || 16;
 		frame = loop.add(realm, 'intersection', wait, () => {
 			frame = null;
 			if (w.closed) return;
+			if (hidden()) {
+				parked = true;
+				return;
+			}
 			// (the frame keeps the layout it made, observers or not: test/layout.test.ts)
 			if (dirty) last_boxes = boxes(w.document);
 			dirty = false;
@@ -315,7 +370,7 @@ export function install_layout(window: object, loop: Loop, realm: string): void 
 	};
 	class Observer {
 		readonly #callback: Callback;
-		readonly #margin: [number, number, number, number];
+		readonly #root: Box;
 		/** Each target and whether it crossed when last reported (undefined: not reported yet). */
 		readonly #targets = new Map<Target, boolean | undefined>();
 		readonly rootMargin: string;
@@ -324,7 +379,7 @@ export function install_layout(window: object, loop: Loop, realm: string): void 
 		constructor(callback: Callback, options?: { rootMargin?: string }) {
 			this.#callback = callback;
 			this.rootMargin = options?.rootMargin ?? '0px';
-			this.#margin = margins(options?.rootMargin);
+			this.#root = root_of(options?.rootMargin);
 		}
 		observe(target: Target): void {
 			if (this.#targets.has(target)) return;
@@ -347,19 +402,13 @@ export function install_layout(window: object, loop: Loop, realm: string): void 
 		/** At a frame: each target new or changed, reported. */
 		look(): void {
 			const at = last_boxes ?? (last_boxes = boxes(w.document));
-			const [t, r, b, l] = this.#margin;
-			const root = { x: -l, y: -t, w: VIEWPORT.w + l + r, h: VIEWPORT.h + t + b };
+			const root = this.#root;
 			const entries: object[] = [];
 			for (const [target, was] of this.#targets) {
 				const box = (target.isConnected ? at.get(target) : undefined) ?? { x: 0, y: 0, w: 0, h: 0 };
-				const crosses =
-					target.isConnected &&
-					box.x <= root.x + root.w &&
-					box.x + box.w >= root.x &&
-					box.y <= root.y + root.h &&
-					box.y + box.h >= root.y;
-				if (was === crosses) continue;
-				this.#targets.set(target, crosses);
+				const on = target.isConnected && crosses(box, root);
+				if (was === on) continue;
+				this.#targets.set(target, on);
 				const rect = {
 					x: box.x,
 					y: box.y,
@@ -372,10 +421,10 @@ export function install_layout(window: object, loop: Loop, realm: string): void 
 				};
 				entries.push({
 					target,
-					isIntersecting: crosses,
-					intersectionRatio: crosses && box.w * box.h > 0 ? 1 : 0,
+					isIntersecting: on,
+					intersectionRatio: on && box.w * box.h > 0 ? 1 : 0,
 					boundingClientRect: rect,
-					intersectionRect: crosses ? rect : { ...rect, width: 0, height: 0 },
+					intersectionRect: on ? rect : { ...rect, width: 0, height: 0 },
 					rootBounds: { x: 0, y: 0, width: VIEWPORT.w, height: VIEWPORT.h },
 					time: w.performance.now()
 				});
@@ -388,4 +437,12 @@ export function install_layout(window: object, loop: Loop, realm: string): void 
 		writable: true,
 		configurable: true
 	});
+	return {
+		/** The tab is shown again: the frame it owes comes now. */
+		shown() {
+			if (!parked) return;
+			parked = false;
+			ask_frame();
+		}
+	};
 }
