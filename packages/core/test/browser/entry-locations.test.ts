@@ -170,6 +170,31 @@ describe('import_entry: the location, then the current build’s, once', () => {
 		expect(requested('og-region.000000000aa3.GoneToo9.js')).toHaveLength(1);
 	});
 
+	test('the current build’s map is asked past the browser cache: a fresh deploy’s map, never a stale copy', async () => {
+		const file = abs('/test/browser/fixtures/nocache/ogygia.json');
+		const asked: (RequestCache | undefined)[] = [];
+		const real_fetch = window.fetch;
+		window.fetch = (input, init) => {
+			const url = input instanceof Request ? input.url : String(input);
+			if (url !== file) return real_fetch(input, init);
+			asked.push(init?.cache);
+			return Promise.resolve(
+				Response.json({
+					'ogygia/og-region.0000000000c1.js': '../immutable/og-region.0000000000c1.Loc.js?t=nc'
+				})
+			);
+		};
+		try {
+			const m = await import_entry<{ default: string }>(
+				'/test/browser/fixtures/nocache/ogygia/og-region.0000000000c1.js'
+			);
+			expect(m.default).toBe('located');
+		} finally {
+			window.fetch = real_fetch;
+		}
+		expect(asked).toEqual(['no-cache']);
+	});
+
 	test('an explicit url wins over the map (the caller already resolved it)', async () => {
 		const identity = `${IDENTITY}?t=5`;
 		note_entry_location(identity, '/test/browser/fixtures/gone-Ii99Jj00.js');

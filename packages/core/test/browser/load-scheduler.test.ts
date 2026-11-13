@@ -22,6 +22,7 @@ import {
 import { after_document_painted, reset_document_painted } from '../../src/runtime/schedule.ts';
 import { PRIORITY } from '../../src/runtime/load-class.ts';
 import { flights } from '@ogygia/machine';
+import { runtime_session } from '../../src/runtime/session.ts';
 
 const tick = (ms = 0) => new Promise((r) => setTimeout(r, ms));
 
@@ -132,7 +133,24 @@ test('island code waits for the critical image; a gesture and visible content do
 	hero.dispatchEvent(new Event('load'));
 	await tick();
 	expect(started.sort()).toEqual(['ahead code', 'user code', 'visible code', 'visible html']);
-	expect(critical_outcome()?.outcome).toBe('arrived');
+	expect(critical_outcome()).toEqual({
+		outcome: 'arrived',
+		resources: 1,
+		waited_ms: expect.any(Number)
+	});
+});
+
+test('on a Kit-hydrated page island code does not wait for the critical image (Kit sets the pace)', async () => {
+	pending_hero();
+	runtime_session.kit_page = true;
+	try {
+		let started = false;
+		void new LoadSlot({ kind: 'code', cls: 'visible' }).ready.then(() => (started = true));
+		await past_paint();
+		expect(started).toBe(true);
+	} finally {
+		runtime_session.kit_page = undefined;
+	}
 });
 
 test('the visitor’s first input releases the wait (the browser stops measuring LCP there)', async () => {
