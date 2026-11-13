@@ -1914,6 +1914,9 @@ importers:
       '@ogygia/flags':
         specifier: workspace:*
         version: link:../../../flags
+      '@ogygia/page-keys':
+        specifier: workspace:*
+        version: link:../../../page-keys
       '@ogygia/postrender':
         specifier: workspace:*
         version: link:../..
