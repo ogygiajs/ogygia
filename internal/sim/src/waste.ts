@@ -232,7 +232,13 @@ const KNOWN_WASTE: ReadonlyArray<{
 	issue: number;
 	what: string;
 	is: (held: string, doc: Document) => boolean;
-}> = [];
+}> = [
+	{
+		issue: 1255,
+		what: "the viewport tracker's swap observer keeps observing a region it let go",
+		is: (held) => held === 'MutationObserver watching <ogygia-region>'
+	}
+];
 
 /** What is held twice, less what a filed bug explains (and which bugs did). */
 export function known_waste(doc: Document, held: string[]): { left: string[]; known: number[] } {
@@ -282,18 +288,23 @@ export function waste(world: World, tab: Tab): Broken | null {
 	if (!tab.page.mainFrame.url.startsWith('http')) return null;
 	const held = known_waste(doc, held_twice(doc));
 	const asked = known_waste(doc, refused(world, tab.realm));
+	const orphans = known_waste(doc, tab.orphans());
 	const said = known_said(warned(tab));
 	const found = [
 		...asked.left.map((k) => `refused: ${k}`),
 		...held.left.map((k) => `held twice: ${k}`),
-		...tab.orphans().map((o) => `alive after its owner: ${o}`),
+		...orphans.left.map((o) => `alive after its owner: ${o}`),
 		...watched_awake(tab).map((r) => `watched after its wake: ${r}`),
 		...said.left.map((l) => `said: ${l.split('\n')[0].slice(0, 200)}`)
 	];
 	if (found.length > 0)
 		return { oracle: 'waste', detail: `${tab.page.mainFrame.url}: ${found.join('\n')}` };
 	const known = [
-		...new Set([...held.known, ...asked.known].map((i) => KNOWN_WASTE.find((k) => k.issue === i)!)),
+		...new Set(
+			[...held.known, ...asked.known, ...orphans.known].map((i) =>
+				KNOWN_WASTE.find((k) => k.issue === i)!
+			)
+		),
 		...said.known
 	];
 	return known.length === 0
