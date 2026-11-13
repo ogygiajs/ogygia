@@ -14,6 +14,8 @@
  */
 import { createInterface } from 'node:readline';
 import { dedent } from '@ogygia/core/plugin/utils';
+// (an error page's words, cut where the browser cuts its tags)
+import { markup_text } from '@ogygia/core/internal/instruments';
 import { createRequire } from 'node:module';
 import { flights, scope, STALE } from '@ogygia/machine';
 import { readdirSync, readFileSync, type Dirent } from 'node:fs';
@@ -67,7 +69,6 @@ export async function load_profiler_reading(): Promise<ProfilerReading | null> {
 // ── regexes
 const TRAILING_SLASH_RE = /\/$/;
 const HTTP_URL_RE = /^https?:\/\//i;
-const HTML_TAG_G = /<[^>]+>/g;
 const WS_G = /\s+/g;
 const BACKSLASH_G = /\\/g;
 const UNKNOWN_PRESET_RE = /unknown preset/i;
@@ -1625,7 +1626,7 @@ async function tool_profile(args: Attrs): Promise<ToolResult> {
 		const headers: Record<string, string> = { accept: 'application/json' };
 		if (key) headers['x-profiler-key'] = key;
 		// N heavy renders can be slow — give it room, but never hang forever.
-		return fetch_timeout(rec, { headers }, 90_000);
+		return fetch_timeout(rec, { method: 'POST', headers }, 90_000);
 	};
 
 	let res: Response;
@@ -1651,7 +1652,7 @@ async function tool_profile(args: Attrs): Promise<ToolResult> {
 		try {
 			const reset = new URL(`${origin + profiler_base}/reset`);
 			const reset_h: Record<string, string> = key ? { 'x-profiler-key': key } : {};
-			await fetch_timeout(reset, { redirect: 'manual', headers: reset_h }, 5000);
+			await fetch_timeout(reset, { method: 'POST', redirect: 'manual', headers: reset_h }, 5000);
 			res = await record_once();
 		} catch {
 			// ok: falls through to the 409 message below, which says what to do
@@ -1663,7 +1664,10 @@ async function tool_profile(args: Attrs): Promise<ToolResult> {
 		await load_profiler_reading(); // (an older report's plain fix sum, when the app has the plugin)
 		return text(render_profile(origin, (await res.json()) as ProfileReport));
 	}
-	const body = (await res.text()).replace(HTML_TAG_G, ' ').replace(WS_G, ' ').trim().slice(0, 300);
+	const body = markup_text(await res.text())
+		.replace(WS_G, ' ')
+		.trim()
+		.slice(0, 300);
 	if (res.status === 401 || res.status === 403)
 		return fail(
 			`The profiler on ${origin} is locked. Pass its secret as \`key\` (ask the user for it).`

@@ -4,8 +4,15 @@
 // text looks like tags, `>` and quotes inside values, any case, valueless and duplicate attributes)
 // are read by parse5, and its answer is the truth.
 import { expect, it } from 'vitest';
-import { elements, fuzz, html_arb, parse_document, start_tags } from '@ogygia/config/html-fuzz';
-import { next_tag, read_tag, tags, text_of, value_at } from '../src/wire-markup.ts';
+import {
+	elements,
+	fuzz,
+	html_arb,
+	markup_tokens_of,
+	parse_document,
+	start_tags
+} from '@ogygia/config/html-fuzz';
+import { markup_tokens, next_tag, read_tag, tags, text_of, value_at } from '../src/wire-markup.ts';
 
 const NAMES = ['meta', 'link', 'script', 'ogygia-region', 'style', 'title', 'textarea'];
 
@@ -86,4 +93,30 @@ it('text_of reads a raw-text element’s text as the browser does', () => {
 			else expect(text, html).toBe(e.text);
 		}
 	});
+});
+
+it('markup_tokens cuts the document at exactly the tags and comments the browser reads', () => {
+	const KIND = { 1: 'start', 2: 'end', 3: 'comment' } as const;
+	fuzz(
+		PAGE,
+		(html) => {
+			const mine: { kind: string; start: number; end: number }[] = [];
+			let at = 0;
+			markup_tokens(html, (kind, start, end) => {
+				// (pieces in order, covering the HTML whole)
+				expect(start, html).toBe(at);
+				at = end;
+				if (kind !== 0) mine.push({ kind: KIND[kind], start, end });
+			});
+			expect(at, html).toBe(html.length);
+			const truth = markup_tokens_of(html);
+			// (where the HTML ends inside a comment or doctype the browser still makes one; the walk
+			// leaves that tail as text)
+			const last = truth.at(-1);
+			if (last && last.end === html.length && last.kind === 'comment' && mine.length < truth.length)
+				truth.pop();
+			expect(mine, html).toEqual(truth);
+		},
+		{ runs: 500 }
+	);
 });

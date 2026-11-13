@@ -84,7 +84,8 @@
 		slot_pointer,
 		slot_marker_open,
 		SLOT_MARKER_CLOSE,
-		next_slot_id
+		next_slot_id,
+		HOLE_SLOT_SEQUENCE
 	} from './region-snippet.ts';
 	import { isRegion } from './region.ts';
 	import { written_order } from './frame.ts';
@@ -444,7 +445,8 @@
 	// The marker id fencing THIS island's children to its payload pointer. Server-assigned; the client
 	// reads it back from the serialized descriptor, never regenerates it.
 	// (counted per island entry: another island's async timing never shifts this one's id)
-	const slot_id = next_slot_id(untrack(() => island_entry) ?? '');
+	// (in a hole's answer, the hole's own sequence: server/answer-context.ts)
+	const slot_id = next_slot_id(untrack(() => island_entry) ?? '', getContext(HOLE_SLOT_SEQUENCE));
 	const has_slot_children = $derived(!nested && island_children != null);
 	// The BODY-side children: a server-convention snippet (`(renderer) => …`) that emits EXACTLY ONE
 	// element — `<ogygia-slot>` wrapping the natural children — with no extra snippet-layer anchors.
@@ -539,7 +541,7 @@
 	/**
 	 * This region's sheets as head tags: each one this request has not linked yet, named for its
 	 * owner. A sheet another outer island linked first gets this owner listed in the tail (#854,
-	 * test/shared-sheet-owners.test.ts). Server-only: `claim_region_css` is [] on the client.
+	 * test/shared-sheet-owners.test.ts). Server-only: `claim_region_css` is null on the client (no tags).
 	 * @param {string[]} hrefs
 	 */
 	const sheet_tags = (hrefs) => {
@@ -547,7 +549,7 @@
 			? (/** @type {string} */ href) => tail.sheet_owner(kit_asset(href), tag_owner)
 			: undefined;
 		let html = '';
-		for (const href of claim_region_css(hrefs, tag_owner, shared))
+		for (const href of claim_region_css(hrefs, tag_owner, shared) ?? [])
 			html += region_css_tag(href, kit_asset(href), tag_owner);
 		return html;
 	};
@@ -905,7 +907,7 @@
 	// Kit links CSS from the route's STATIC import graph, never from what actually rendered. This
 	// render pass knows, so link it here: real `<link>`s into <head> via svelte:head, claimed
 	// per-request so a page rendering five of the same block links its sheet once. Server-only —
-	// `claim_region_css` returns [] on the client (SSR already emitted them).
+	// `claim_region_css` returns null on the client: no tags (SSR already emitted them).
 	const region_css_html = $derived.by(() => {
 		if (!resolved || resolved.kind !== 'dual' || !resolved.module) return '';
 		return sheet_tags(region_css(resolved.module));
@@ -1021,7 +1023,7 @@
 	/** @param {import('./region.ts').DeferredRegion} f */
 	function identity(f) {
 		try {
-			return `${f.id} ${stringify_devalue(f.props)}`;
+			return `${f.id}\0${stringify_devalue(f.props)}`;
 		} catch {
 			return f.id;
 		}
