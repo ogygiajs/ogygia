@@ -206,7 +206,7 @@ export async function streamFrames(
 	// (the stream is the batch's: called off, its waits settle STALE, and a body read the browser then
 	// fails is no error: test/browser/batch-called-off-mid-body.test.ts)
 	batch_scope.defer(() => stream.stop());
-	void stream.wait('stalled').then((s) => s !== STALE && batch_scope.close()); // ok: a machine's wait never rejects
+	void stream.wait('stalled').then(() => batch_scope.close()); // ok: a machine's wait never rejects
 
 	try {
 		let res: Response | typeof STALE;
