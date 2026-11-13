@@ -49,6 +49,33 @@ test('a navigation waiting on a prefetch that a mutation made stale gets the pag
 	expect((await page)?.html).toContain('after');
 });
 
+test('a navigation waiting on a prefetch whose request a mutation aborted gets the page fetched again', async () => {
+	const nav = await import('../../src/runtime/router-nav.ts');
+	const answering = window.fetch;
+	let aborted = 0;
+	window.fetch = (input, init) => {
+		const signal = init?.signal;
+		if (asked.length > 0 || !signal) return answering(input, init);
+		return new Promise<Response>((_, reject) => {
+			asked.push({ href: String(input), answer: () => {} });
+			signal.addEventListener('abort', () => {
+				aborted++;
+				reject(new DOMException('The user aborted a request.', 'AbortError'));
+			});
+		});
+	};
+	const href = new URL('/page-flights-aborted', location.href).href;
+	void nav.fetch_page(href, undefined, 'prefetch');
+	await expect.poll(() => asked.length, { timeout: 2_000 }).toBe(1);
+	const ctrl = new AbortController();
+	const page = nav.fetch_page(href, ctrl.signal, 'nav');
+	nav.bust_page_cache();
+	await expect.poll(() => asked.length, { timeout: 2_000 }).toBe(2);
+	asked[1].answer('after');
+	expect(aborted).toBe(1);
+	expect((await page)?.html).toContain('after');
+});
+
 test('a prefetch of a page a navigation is fetching joins it: one request', async () => {
 	const nav = await import('../../src/runtime/router-nav.ts');
 	const href = new URL('/page-flights-join', location.href).href;
