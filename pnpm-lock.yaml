@@ -179,6 +179,12 @@ catalogs:
     '@codemirror/view':
       specifier: ^6.43.9
       version: 6.43.9
+    '@jridgewell/remapping':
+      specifier: ^2.3.5
+      version: 2.3.5
+    '@jridgewell/trace-mapping':
+      specifier: ^0.3.31
+      version: 0.3.31
     '@neodrag/svelte':
       specifier: 3.0.0-next.12
       version: 3.0.0-next.12
@@ -1162,6 +1168,9 @@ importers:
 
   packages/compiler:
     dependencies:
+      '@jridgewell/remapping':
+        specifier: 'catalog:'
+        version: 2.3.5
       '@ogygia/machine':
         specifier: workspace:^
         version: link:../machine
@@ -1178,6 +1187,9 @@ importers:
         specifier: ^0.2.17
         version: 0.2.17
     devDependencies:
+      '@jridgewell/trace-mapping':
+        specifier: 'catalog:'
+        version: 0.3.31
       '@ogygia/config':
         specifier: workspace:*
         version: link:../config

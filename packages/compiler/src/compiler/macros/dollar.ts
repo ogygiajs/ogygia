@@ -37,6 +37,7 @@ import { match_close } from '../parse/scan.ts';
 import { parse_module, type AstNode } from '../parse/oxc.ts';
 import { og_member } from './wire.ts';
 import { OgygiaError } from '../messages.ts';
+import { splice_text, type Edit } from '../splice.ts';
 import { free_references, scope_bindings } from '../free-vars.ts';
 
 // ── regexes
@@ -243,11 +244,21 @@ export function rewrite_dollar(
 	rel_id: string,
 	markup_exts: readonly string[]
 ): DollarResult {
-	if (!src.includes(MARKER)) return { code: src, hoists: [] };
-	const regions = og_js_regions(src, id, markup_exts);
-	if (!regions) return { code: src, hoists: [] };
+	const { edits, hoists } = dollar_edits(src, id, rel_id, markup_exts);
+	return { code: splice_text(src, edits), hoists };
+}
 
-	type Edit = { start: number; end: number; text: string };
+/** The edits `rewrite_dollar` makes to `src`, and its hoists: none when there is nothing to do. */
+export function dollar_edits(
+	src: string,
+	id: string,
+	rel_id: string,
+	markup_exts: readonly string[]
+): { edits: Edit[]; hoists: DollarHoist[] } {
+	if (!src.includes(MARKER)) return { edits: [], hoists: [] };
+	const regions = og_js_regions(src, id, markup_exts);
+	if (!regions) return { edits: [], hoists: [] };
+
 	const edits: Edit[] = [];
 	const hoists: DollarHoist[] = [];
 	let seq = 0;
@@ -462,14 +473,6 @@ export function rewrite_dollar(
 		}
 	}
 
-	if (!edits.length) return { code: src, hoists: [] };
-	edits.sort((a, b) => a.start - b.start);
-	let out = '';
-	let last = 0;
-	for (const e of edits) {
-		out += src.slice(last, e.start) + e.text;
-		last = e.end;
-	}
-	out += src.slice(last);
-	return { code: out, hoists };
+	if (!edits.length) return { edits: [], hoists: [] };
+	return { edits, hoists };
 }
