@@ -6,6 +6,7 @@ import { describe, test, expect, vi } from 'vitest';
 import {
 	transformHost,
 	normalize_import_keys,
+	import_keys_hint,
 	islandPublicUrl,
 	islandChunkFileName,
 	regionIdentity,
@@ -93,6 +94,13 @@ describe('normalize_import_keys', () => {
 	});
 	test('rejects collisions', () => {
 		expect(() => normalize_import_keys({ wake: 'x', render: 'x' })).toThrow(/distinct/);
+	});
+	test('one config object resolves to one key map, and one key map to one hint', () => {
+		const overrides = { wake: 'hydrate' };
+		const keys = normalize_import_keys(overrides);
+		expect(normalize_import_keys(overrides)).toBe(keys);
+		expect(normalize_import_keys()).toBe(normalize_import_keys(null));
+		expect(import_keys_hint(keys)).toBe(import_keys_hint(keys));
 	});
 });
 
@@ -279,6 +287,14 @@ describe('portable binding rewrite', () => {
 		expect(r.code).not.toMatch(/from ["']\.\/A\.svelte["']/);
 		expect(r.islands[0].wrapperPath).toBe(wrapperVirtualId(idFor('src/routes/A.svelte', loadMark)));
 		expect(r.islands[0].virtualPath).toMatch(/^ogygia:region\/entry\//);
+	});
+
+	test('an empty client stub, or no wrapper path function, falls back to the built-in names', () => {
+		const ctx = makeCtx({ linkVirtualIsland: false, clientBindingStub: '' });
+		delete (ctx as { wrapperPathFor?: unknown }).wrapperPathFor;
+		const r = run(wrap(`import C from './A.svelte' with { wake: 'load' };`, '<C />'), ctx)!;
+		expect(r.code).toContain(CLIENT_BINDING_STUB);
+		expect(r.islands[0].wrapperPath).toBe(wrapperVirtualId(idFor('src/routes/A.svelte', loadMark)));
 	});
 
 	test('csr=false client omit (DEV): CSS-only fouc-css virtual for FOUC (not component JS)', () => {

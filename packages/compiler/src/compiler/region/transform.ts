@@ -26,8 +26,6 @@ import { blank_styles } from '../blank-styles.ts';
 import { OgygiaError, warn } from '../messages.ts';
 import { say } from '@ogygia/machine';
 
-/** A host the parser still cannot read keeps its region imports as plain imports (no island):
- *  said once per file, never skipped in silence. The Svelte compiler reports the error itself. */
 const unparsed = say();
 function warn_unparsed(id: string, err: unknown): void {
 	unparsed.once(id, () => say_unparsed(id, err));
@@ -41,77 +39,51 @@ function say_unparsed(id: string, err: unknown): void {
 	});
 }
 
-/** The resolved context the adapter/driver threads into a host transform. */
 interface HostCtx {
 	root: string;
 	libDir: string;
 	readFile: (abs: string) => string | null;
 	dev: boolean;
 	virtualPathFor: (hostId: string, iid: string) => string;
-	/** Absent: the island's wrapper virtual id (`wrapperVirtualId`). */
 	wrapperPathFor?: (hostId: string, iid: string) => string;
 	devUrlFor: (virtualPath: string) => string;
-	/**
-	 * The REAL source file a module derives from — the resolution base for its relative specifiers.
-	 * A generated entry (a portable-snippet synth is authored markup re-processed under a
-	 * `ogygia:region/…` id) has no directory of its own: every `./x` / `../x` inside it must resolve
-	 * against the file the slice was cut from, exactly as the driver's `resolve_id` already rebases
-	 * that entry's plain imports. Identity for a real file. Optional for legacy callers (= identity).
-	 */
 	originOf?: (id: string) => string;
-	/** Install-independent identity (`<pkg-name>/<rel>`) for files under a declared `ogygia.files`
-	 *  package — `null`/absent falls back to root-relative (see CompileCtx.pkg_identity). */
 	pkg_identity?: (abs: string) => string | null;
 	alias?: readonly AppAlias[];
 	stat?: AppSpecCtx['stat'];
-	/** SvelteKit `appDir` (default `_app`) — where island chunks are emitted + served (base-less; Kit's
-	 *  `asset()` adds `base`/assets at render). */
 	appDir?: string;
 	visibleMargin: string | undefined;
 	presets: Record<string, unknown>;
 	importKeys: Partial<ImportKeys> | undefined;
-	/** Absent or empty: no salt. */
 	idSalt?: string;
-	/** Absent: true (a binding links its real wrapper; `false` links the client stub). */
 	linkVirtualIsland?: boolean;
-	/** Absent or empty: the built-in `CLIENT_BINDING_STUB`. */
 	clientBindingStub?: string;
 	routeCsr: boolean | undefined;
 	ssr: boolean;
 }
 
-/** The resolved context threaded into a `.ts`/`.js` region mint (`transformTsRegions`). */
 interface TsRegionCtx {
 	root: string;
 	libDir: string;
 	dev: boolean;
 	virtualPathFor: (hostId: string, iid: string) => string;
 	devUrlFor: (virtualPath: string) => string;
-	/** SvelteKit `appDir` (default `_app`) — where island chunks are emitted + served (base-less; Kit's
-	 *  `asset()` adds `base`/assets at render). */
 	appDir?: string;
 	importKeys: Partial<ImportKeys> | undefined;
-	/** Absent or empty: no salt. */
 	idSalt?: string;
-	/** Guarded (typeof) — the ts-region leg falls back to `wrapperVirtualId` when absent. */
 	wrapperPathFor?: (hostId: string, iid: string) => string;
-	/** Guarded (`!= null`) — only a `visible` strategy reads it. */
 	visibleMargin?: string;
-	/** Guarded (typeof) — install-independent identity for declared `ogygia.files` package files. */
 	pkg_identity?: (abs: string) => string | null;
 	alias?: readonly AppAlias[];
 	stat?: AppSpecCtx['stat'];
 }
 
-/** An error-raising callback the region-option parsers use (thrown by the caller). */
 type OptErr = (names: string, msg: string) => Error;
 
 const REGEXP_META = /[.*+?^${}()|[\]\\]/g;
 const PATH_SEP = /[/\\]/;
 const DURATION = /^(\d+(?:\.\d+)?)\s*(ms|s|m|h)?$/i;
 const JS_EXT = /\.js$/;
-/** A generated module id (`ogygia:region/…` or another plugin's `virtual:…`, optionally
- *  `\0`-resolved) — it has no directory. */
 const VIRTUAL_HOST_RE = /^\0?(?:virtual|ogygia):/;
 
 export { foucCssVirtualId } from '../fouc-css.ts';
@@ -132,7 +104,6 @@ export function is_island_path(id: string): boolean {
 		(bare.startsWith(WRAPPER_PREFIX) && bare.endsWith('.svelte')) ||
 		(bare.startsWith(BINDING_PREFIX) && bare.endsWith('.js')) ||
 		(bare.startsWith(LAZY_PREFIX) && bare.endsWith('.js')) ||
-		// legacy on-disk path shape (pre-virtual ids); still recognize for resolve/HMR edge cases
 		(bare.includes(`/${ISLAND_DIR}/`) && bare.endsWith('.svelte'))
 	);
 }
@@ -191,21 +162,27 @@ export const PRESET_KEYS: ReadonlySet<string> = new Set([
 	'prefetch'
 ]);
 
-/** The three delivery modes the `render` attribute accepts. */
-// static: the region `render` modes
-const RENDER_MODES = new Set(['static', 'deferred', 'live']);
+const RENDER_MODES: ReadonlySet<string> = new Set(['static', 'deferred', 'live']);
 
 const JS_IDENT = /^[A-Za-z_$][\w$]*$/;
 
-// ── store-crossing detection (portable snippets) ────────────────────────────────────────────
-/** Store constructor callees marking a host declaration as store-like (best-effort signal). */
-// static: svelte/store's constructors
-const STORE_CTORS = new Set(['writable', 'readable', 'derived', 'toStore', 'fromStore']);
-/** `$name` subscription reads anywhere in a file (heuristic store signal; runes filtered out). */
+const STORE_CTORS: ReadonlySet<string> = new Set([
+	'writable',
+	'readable',
+	'derived',
+	'toStore',
+	'fromStore'
+]);
 const STORE_SUB_RE = /\$([A-Za-z_][\w$]*)/g;
-// static: Svelte's runes
-const RUNE_NAMES = new Set(['state', 'derived', 'effect', 'props', 'bindable', 'inspect', 'host']);
-/** 1-based `line:col` for an offset — trace addresses in store-crossing warnings (cold path). */
+const RUNE_NAMES: ReadonlySet<string> = new Set([
+	'state',
+	'derived',
+	'effect',
+	'props',
+	'bindable',
+	'inspect',
+	'host'
+]);
 function line_col(src: string, offset: number): string {
 	let line = 1;
 	let last = -1;
@@ -217,22 +194,20 @@ function line_col(src: string, offset: number): string {
 	}
 	return `${line}:${offset - last}`;
 }
-/** Once per key for the process — the ssr AND client passes both transform the same host. */
 const store_warned = say();
 function warn_once(key: string, speak: () => void): void {
 	store_warned.once(key, speak);
 }
 
-// Invariant per-build — hoisted to module scope so they aren't reallocated on every transformHost.
-// The wake, swap, prefetch and revalidate vocabulary is core's contract/trigger.ts: `WAKE` (with
-// `interaction`: on an island, the first pointer/key/focus wakes it with click replay; on a deferred
-// region, an ON-DEMAND hole) and `SCHEDULE` (a prefetch, a revalidation: never `interaction`, which
-// is the swap, and never `none`, which is no schedule).
-/** Inline attribute keys accepted after normalization (canonical internal names). */
-// static: the import attribute keys a region takes
-const ATTR_SCHEMA = new Set(['hydrate', 'defer', 'margin', 'keep', 'stitch', 'prefetch']);
-/** AST fragment child-key names walked when descending the template. */
-const CHILD_KEYS = [
+const ATTR_SCHEMA: ReadonlySet<string> = new Set([
+	'hydrate',
+	'defer',
+	'margin',
+	'keep',
+	'stitch',
+	'prefetch'
+]);
+const CHILD_KEYS: readonly string[] = [
 	'consequent',
 	'alternate',
 	'body',
@@ -243,6 +218,8 @@ const CHILD_KEYS = [
 	'fragment'
 ];
 
+const NORMALIZED_CACHE = new WeakMap<object, ImportKeys>();
+let DEFAULT_NORMALIZED: ImportKeys | null = null;
 /**
  * Merge partial `importKeys` with {@link DEFAULT_IMPORT_KEYS}.
  * Rejects empty strings, non-identifiers, and colliding role names.
@@ -251,10 +228,6 @@ const CHILD_KEYS = [
  * @returns Fully resolved key map used by the transform.
  * @throws If a value is not a JS identifier or two roles share the same name.
  */
-// Memoize by the overrides object so repeated calls with the same config (every module, every leg)
-// return ONE stable ImportKeys — which lets `import_keys_hint`'s WeakMap actually hit.
-const NORMALIZED_CACHE = new WeakMap<object, ImportKeys>();
-let DEFAULT_NORMALIZED: ImportKeys | null = null;
 export function normalize_import_keys(overrides?: Partial<ImportKeys> | null): ImportKeys {
 	if (overrides == null) return (DEFAULT_NORMALIZED ??= normalize_import_keys_uncached(null));
 	const hit = NORMALIZED_CACHE.get(overrides);
@@ -290,15 +263,13 @@ function normalize_import_keys_uncached(overrides?: Partial<ImportKeys> | null):
 	return { wake, fetch, render, preset, region };
 }
 
+const HINT_CACHE = new WeakMap<ImportKeys, RegExp>();
 /**
  * Cheap source-scan regex matching any of the configured import-attribute key names.
  * Used to skip AST work on hosts that cannot contain region imports.
  *
  * @param import_keys - Resolved key map from {@link normalize_import_keys}.
  */
-/** Memoized hint regex per resolved key map — `import_keys` is build-invariant, so the RegExp is
- * compiled once instead of on every `transformHost` call (per module, per leg). */
-const HINT_CACHE = new WeakMap<ImportKeys, RegExp>();
 export function import_keys_hint(import_keys: ImportKeys): RegExp {
 	let re = HINT_CACHE.get(import_keys);
 	if (re) return re;
@@ -346,9 +317,6 @@ export function islandPublicUrl(iid: string, appDir = '_app'): string {
 	return `/${islandChunkFileName(iid, appDir)}`;
 }
 
-// `regionBindingVirtualId` now lives in ../ids.js (the naming vocabulary) — imported for the lowering
-// below and re-exported (with the join key) so the public `ogygia/internal/compiler` surface holds.
-
 /**
  * csr=false CLIENT host binding target. Kit still emits those page nodes; pointing marked
  * imports here (instead of wrappers) keeps N island wrappers/entries out of the page graph so
@@ -362,9 +330,6 @@ export function islandPublicUrl(iid: string, appDir = '_app'): string {
  */
 export const CLIENT_BINDING_STUB: string = region_family('client_binding_stub');
 
-// The join key — region identity (strategyKey / regionIdentity / regionId) now lives in ./identity.ts.
-// Imported for the lowering below and re-exported so the public `ogygia/internal/compiler` surface
-// (export * from transform) is unchanged.
 export { strategyKey, regionIdentity, regionId };
 export { regionBindingVirtualId, wrapperVirtualId };
 
@@ -395,21 +360,10 @@ export function normalize_hydrate_value(raw: string, where: string, wakeKey = 'w
 	throw new OgygiaError('wake_strategy_unknown', { host: where, key: wakeKey, value: v });
 }
 
-/** Reconstruct an import declaration without its `with { ... }` attributes clause. */
 function clean_import_text(source: string, node: SvelteNode) {
-	// slice up to the end of the module-specifier string literal, then terminate.
 	return `${source.slice(node.start, node.source.end)};`;
 }
 
-/**
- * Region keys (`wake` / `fetch` / `render` / `preset` / `region` under configured names) on a dynamic
- * `import(spec, { with: { … } })` / `{ assert: { … } }` options object.
- * Returns `[]` when the call has no options or no claimed region keys.
- *
- * @param node
- * @param import_keys
- * @returns
- */
 function region_keys_on_dynamic_import(node: SvelteNode, import_keys: ImportKeys) {
 	const opts = node.options;
 	if (!opts || opts.type !== 'ObjectExpression') return [];
@@ -429,7 +383,6 @@ function region_keys_on_dynamic_import(node: SvelteNode, import_keys: ImportKeys
 				: prop.key.type === 'Literal'
 					? String(prop.key.value)
 					: null;
-		// Spec uses `with`; older tooling may still emit `assert`.
 		if (bag_key !== 'with' && bag_key !== 'assert') continue;
 		if (prop.value.type !== 'ObjectExpression') continue;
 		for (const atr of prop.value.properties) {
@@ -446,18 +399,6 @@ function region_keys_on_dynamic_import(node: SvelteNode, import_keys: ImportKeys
 	return found;
 }
 
-/**
- * Walk a script Program body (a `.svelte` host's scripts, or a `.ts`/`.js` module) for
- * `ImportExpression` nodes carrying ogygia region keys, and refuse the first one.
- * Dynamic `import()` cannot author islands — SSR shells need a static marked import binding.
- * JS/Vite accept the options shape for std attributes (e.g. `type: 'json'`), but Vite strips import
- * attributes from emitted dynamic imports and runtimes reject unknown keys, so a region key there
- * would silently do nothing (test: dynamic-region-import.test.ts).
- *
- * @param body
- * @param import_keys
- * @param host root-relative path of the file, for the message
- */
 function reject_dynamic_region_imports(body: SvelteNode[], import_keys: ImportKeys, host: string) {
 	const walk = (node: SvelteNode) => {
 		if (!node || typeof node !== 'object') return;
@@ -492,13 +433,8 @@ function script_lang_attr(scriptNode: SvelteNode) {
 	return '';
 }
 
-// static: what `remount.onExpire` takes
-const REMOUNT_ON_EXPIRE = new Set(['empty', 'fetch']);
+const REMOUNT_ON_EXPIRE: ReadonlySet<string> = new Set(['empty', 'fetch']);
 
-/**
- * Parse `remount.maxAge` — number (ms) or duration string (`30s` / `5m` / `1h` / `500ms`).
- * @returns milliseconds
- */
 function parse_max_age(raw: unknown, err: OptErr, names: string) {
 	if (raw == null) return undefined;
 	if (typeof raw === 'number') {
@@ -523,12 +459,6 @@ function parse_max_age(raw: unknown, err: OptErr, names: string) {
 	throw err(names, `\`remount.maxAge\` must be a number (ms) or duration string.`);
 }
 
-/**
- * Parse a deferred hole's `maxAge` → response cache max-age in **seconds**. Unlike `remount.maxAge`
- * (client staleness, ms), this is an HTTP header value, so a bare number is SECONDS; duration units
- * (`'30s'` / `'5m'` / `'1h'`, or `'500ms'` rounded down) are converted to seconds. `0` = no-store.
- * @returns seconds
- */
 function parse_cache_ttl_sec(raw: unknown, err: OptErr, names: string) {
 	if (raw == null) return undefined;
 	if (typeof raw === 'number') {
@@ -546,19 +476,13 @@ function parse_cache_ttl_sec(raw: unknown, err: OptErr, names: string) {
 			);
 		}
 		const n = Number(m[1]);
-		const unit = (m[2] || 's').toLowerCase(); // bare number = seconds for an HTTP cache
+		const unit = (m[2] || 's').toLowerCase();
 		const secs = unit === 'ms' ? n / 1000 : unit === 's' ? n : unit === 'm' ? n * 60 : n * 3600;
 		return Math.floor(secs);
 	}
 	throw err(names, `\`maxAge\` must be a number of seconds or a duration string.`);
 }
 
-/**
- * A live hole's remount, from its preset's `revalidate` (false | schedule; the import's `wake`, else
- * `'load'`), `maxAge` and `onExpire: 'empty' | 'fetch'`. Tests: preset-options.test.ts.
- *
- * @returns
- */
 function parse_remount(
 	ro: { revalidate: unknown; maxAge?: unknown; onExpire?: unknown },
 	err: OptErr,
@@ -607,12 +531,7 @@ function parse_remount(
 	return out;
 }
 
-/**
- * Svelte 5 event attributes (`onclick`, …) that cannot cross devalue for remount:swr.
- * Deliberately NOT `/^on[a-z]+$/` — that falsely rejects data props like `online={x}`.
- */
-// static: Svelte's event attributes
-const SWR_EVENT_ATTR = new Set([
+const SWR_EVENT_ATTR: ReadonlySet<string> = new Set([
 	'onclick',
 	'ondblclick',
 	'oncontextmenu',
@@ -675,18 +594,12 @@ const SWR_EVENT_ATTR = new Set([
 	'onformdata'
 ]);
 
-/** A template `<Component>` node, which the parser gives its name and offsets. */
 function is_component_node(
 	n: SvelteNode
 ): n is SvelteNode & { type: 'Component'; name: string; start: number; end: number } {
 	return n.type === 'Component';
 }
 
-/**
- * Everything a `render: 'live'` region needs must survive the wire: the endpoint re-renders the
- * component from devalue'd PROPS alone. Children (snippets) and `bind:` targets cannot cross, and
- * silently losing them on revalidate would be worse than refusing the build.
- */
 function assert_swr_lake_crossable(node: SvelteNode, err: (name: string, msg: string) => void) {
 	const kids = (node.fragment?.nodes ?? []).filter(
 		(n: SvelteNode) => !(n.type === 'Text' && !String(n.data ?? '').trim())
@@ -706,17 +619,12 @@ function assert_swr_lake_crossable(node: SvelteNode, err: (name: string, msg: st
 			);
 		}
 		const name = attr.name;
-		// Svelte 5 event attributes are lowercase `onclick` / `onpointerdown` / … (distinct from
-		// `on:click` OnDirective, already rejected above). Callback props with that shape cannot
-		// cross devalue — rejecting at build avoids a silent remount:'cache' degrade at mint.
-		// Match known DOM events only — `/^on[a-z]+$/` falsely rejects data props like `online={x}`.
 		if (typeof name === 'string' && SWR_EVENT_ATTR.has(name)) {
 			throw err(
 				node.name,
 				`\`render: 'live'\` region <${node.name}> cannot use \`${name}\` — event/callback attributes cannot be serialized for the revalidate endpoint. Pass serializable data props instead.`
 			);
 		}
-		// Inline function values on any attr (`render={() => …}`) likewise cannot cross.
 		const val = attr.value;
 		const chunk_list = Array.isArray(val) ? val : val != null && val !== true ? [val] : [];
 		for (const chunk of chunk_list) {
@@ -731,48 +639,14 @@ function assert_swr_lake_crossable(node: SvelteNode, err: (name: string, msg: st
 	}
 }
 
-/**
- * Resolve a marked import specifier to the component path baked into generated modules.
- *
- * `$lib` + relative specifiers resolve to ABSOLUTE file paths (build machinery — emitFile prescan,
- * HMR invalidation, fouc-css — keys on them). Anything else (a PACKAGE specifier like
- * `'ogygia/content/tab-group'`, or a Vite alias) is kept VERBATIM: every generated virtual module
- * (island entry, wrapper, child synth, region binding) re-emits the original specifier and Vite's
- * resolver handles it — exports map, workspace link, or alias — so both a node_modules install and
- * a monorepo workspace link work without this transform ever touching the filesystem. A marked
- * specifier Vite cannot resolve fails loudly at resolve time (see the plugin's resolveId hook).
- */
 function resolve_component_path(spec: string, host_id: string, ctx: HostCtx) {
 	if (typeof spec !== 'string' || !spec.trim()) return null;
-	// A relative specifier needs a real directory. An `ogygia:region/…` host has none — resolving
-	// against it used to yield a cwd-relative phantom (`<root>/ogygia:region/X.svelte`) that only
-	// surfaced later as an opaque UNRESOLVED_IMPORT out of a region module. The origin host is
-	// threaded via `ctx.originOf`; reaching here with a virtual host means that thread is missing.
 	if (spec.startsWith('.') && VIRTUAL_HOST_RE.test(host_id)) {
 		throw new OgygiaError('generated_module_relative_import', { host: host_id, specifier: spec });
 	}
 	return resolve_app_spec(spec, host_id, ctx) ?? spec;
 }
 
-/**
- * @typedef {Object} TransformResult
- * @property code rewritten host source
- * @property map source map
- * @property islands
- */
-
-/**
- * @param source
- * @param id absolute host path
- * @param ctx
- * @param ctx.root project root (abs)
- * @param ctx.libDir abs path for `$lib`
- * @param ctx.readFile sync file reader for filename-strategy lookup
- * @param ctx.virtualPathFor virtual module id for an island
- * @returns
- */
-
-/** A region Kit would hydrate itself on a csr=true document: an island with a wake schedule. */
 function is_wake_island(mark: RegionMark): boolean {
 	return mark.strategy !== 'server' && mark.strategy !== 'held' && mark.strategy !== 'lake';
 }
