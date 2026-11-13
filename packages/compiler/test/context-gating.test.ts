@@ -1,15 +1,20 @@
 /**
  * The cross-island context bridge (~4.7 kB) is gated OUT of apps that never provide context. Two
- * halves guard that: the driver's import-clause scan sets the `context` mark, and `resolveFeatures`
+ * halves guard that: the driver's reach of each file sets the `context` mark, and `resolveFeatures`
  * turns the mark into the bundled feature. The failure mode is silent (a missed provider drops
  * context inside islands at runtime), so this pins BOTH the include and — critically — the exclude.
+ * The barrel and dynamic import forms: own-reach.test.ts.
  */
 import { describe, expect, it } from 'vitest';
-import { context_keys, source_uses_ogygia_context } from '../src/compiler/link/context-detect.ts';
+import { context_keys } from '../src/compiler/link/context-detect.ts';
+import { own_reach, reaches_context } from '../src/compiler/link/own-reach.ts';
 import { resolveFeatures } from '../src/compiler/link/runtime-entry.ts';
 import { dedent } from '@ogygia/core/contract';
 
-describe('source_uses_ogygia_context — a provider is detected', () => {
+const source_uses_ogygia_context = (src: string) =>
+	reaches_context(own_reach(src, 'x.ts', 'script'));
+
+describe('a provider is detected', () => {
 	it.each([
 		[`import { setContext } from 'ogygia';`, 'drop-in setContext'],
 		[`import { Provide } from 'ogygia';`, 'Provide'],
@@ -35,23 +40,17 @@ describe('source_uses_ogygia_context — a provider is detected', () => {
 	});
 });
 
-describe('source_uses_ogygia_context — no provider, no bridge', () => {
+describe('no provider, no bridge', () => {
 	it.each([
 		[`import { getContext } from 'ogygia';`, 'read-only getContext needs no bridge'],
 		[`import { setContext } from 'svelte';`, "svelte's setContext is same-root, not a bridge"],
 		[`import { Region } from 'ogygia';`, 'a non-context ogygia import'],
 		[`const setContext = 1; // just a name`, 'the bare word without an ogygia import'],
 		[`import * as og from 'ogygia';\nog.preload(x);`, 'namespace import, non-context member'],
+		[`import type { setContext } from 'ogygia';`, 'a type-only import runs nothing'],
 		['', 'empty file']
 	])('ignores %s (%s)', (src) => {
 		expect(source_uses_ogygia_context(src)).toBe(false);
-	});
-
-	it('is stateless across calls (g-flag lastIndex reset)', () => {
-		const provider = `import { Provide } from 'ogygia';`;
-		// Run twice in a row: a leaked lastIndex would make the second call miss.
-		expect(source_uses_ogygia_context(provider)).toBe(true);
-		expect(source_uses_ogygia_context(provider)).toBe(true);
 	});
 });
 
