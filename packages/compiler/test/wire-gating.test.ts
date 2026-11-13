@@ -142,6 +142,26 @@ describe('wire gating — the four detection legs', () => {
 		expect(marks.wire).not.toBe(true);
 	});
 
+	it('EXCLUDE: a hole mark never placed, only handed on as a value, does not force wire', () => {
+		const marks = marks_for(
+			wrap(
+				`import S from './S.svelte' with { render: 'deferred' };\nexport const blocks = { s: S };`,
+				'<p>no tag</p>'
+			)
+		);
+		expect(marks.wire).not.toBe(true);
+	});
+
+	it('a crossing {#snippet} needs wire on its own', () => {
+		const marks = marks_for(
+			wrap(
+				`import Shell from './Shell.svelte';`,
+				'<Shell>{#snippet actions()}<a>x</a>{/snippet}</Shell>'
+			)
+		);
+		expect(marks.wire).toBe(true);
+	});
+
 	it('EXCLUDE: a .ts registry of raw (held) regions stays lean — the blocks pattern', () => {
 		const marks = marks_for(
 			`${dedent`

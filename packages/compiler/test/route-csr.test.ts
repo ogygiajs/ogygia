@@ -282,6 +282,28 @@ describe('layout world — derived from pages, never its own chain', () => {
 		expect(world(routes2, 'api/+layout.svelte')).toBe('island'); // own chain: root false
 	});
 
+	it('a csr=false layout whose every page turns csr back on strips: the pages decide, not its chain', () => {
+		const routes = tree({
+			'shop/+layout.ts': 'export const csr = false;\n',
+			'shop/+layout.svelte': '<slot />',
+			'shop/+page.ts': 'export const csr = true;\n',
+			'shop/+page.svelte': '<h1>shop</h1>'
+		});
+		expect(world(routes, 'shop/+layout.svelte')).toBe('strip');
+	});
+
+	it('a redirect-only route (no page component) renders nothing, so it counts in no world', () => {
+		const routes = tree({
+			'+layout.ts': 'export const csr = false;\n',
+			'+layout.svelte': '<slot />',
+			'+page.svelte': '<h1>home</h1>',
+			'old/+page.server.ts': 'export const load = () => { throw new Error("moved"); };\n',
+			'old/+page.ts': 'export const csr = true;\n'
+		});
+		expect(world(routes, '+layout.svelte')).toBe('island');
+		expect(csrTrueRouteIds(R, routes)).toEqual([]);
+	});
+
 	it('sibling-prefix dirs do not leak into a layout fold (docs vs docs-old)', () => {
 		const routes = tree({
 			'docs/+layout.svelte': '<slot />',

@@ -150,6 +150,38 @@ test('an on-demand hole fetches on pointer intent and morphs its HTML in (fallba
 	}
 });
 
+const OUTER_ENDPOINT = '/__ogygia__?id=cafebabe0010&props=W3t9XQ&exp=9999999999&sig=stub';
+
+test('intent inside an on-demand hole that already fired reaches the armed on-demand hole around it', async () => {
+	const calls: string[] = [];
+	const real_fetch = window.fetch;
+	window.fetch = async (input) => {
+		calls.push(String(input));
+		const res = new Response('<p data-outer-answer>answer</p>', {
+			status: 200,
+			headers: { 'content-type': 'text/html' }
+		});
+		Object.defineProperty(res, 'url', { value: location.origin + OUTER_ENDPOINT });
+		return res;
+	};
+	document.body.innerHTML = `<ogygia-region render="defer" when="interaction" endpoint="${OUTER_ENDPOINT}"><ogygia-region render="defer" when="interaction"><span data-inner>inner</span></ogygia-region></ogygia-region>`;
+	const inner = document.querySelector('[data-inner]')!;
+	try {
+		bootDev();
+		await new Promise((r) => setTimeout(r, 100));
+		inner.dispatchEvent(new PointerEvent('pointerover', { bubbles: true }));
+		await new Promise((r) => setTimeout(r, 100));
+		expect(calls, 'the inner hole took the first intent').toHaveLength(0);
+		inner.dispatchEvent(new PointerEvent('pointerover', { bubbles: true }));
+		await expect
+			.poll(() => document.querySelector('[data-outer-answer]') !== null, { timeout: 10_000 })
+			.toBe(true);
+		expect(calls).toHaveLength(1);
+	} finally {
+		window.fetch = real_fetch;
+	}
+});
+
 // HOVER via a DESCENDANT: `pointerover` bubbles, so hovering a child of the boxless
 // (`display: contents`) wrapper triggers the fetch — before any click. This is the nav-menu case:
 // the wrapper has no box of its own, the nav items inside do.
