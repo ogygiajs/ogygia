@@ -591,6 +591,114 @@
 			"reason": "a recovery whose current file fails too: proved: dropping the failure's report turns the test red",
 			"test": "packages/core/test/browser/entry-locations.test.ts",
 			"name": "recovered, and not: each once, with the identity and the location that failed"
+		},
+		{
+			"site": "packages/core/src/server/page-facts.ts > look_up_page > catch:0",
+			"reason": "a hole's look-up of its page's data whose request throws: proved: the failure thrown instead of a miss turns the test red",
+			"test": "packages/core/test/page-facts-failures.test.ts",
+			"name": "a data request that throws is a miss that says why"
+		},
+		{
+			"site": "packages/core/src/server/page-facts.ts > look_up_page > not-ok:0",
+			"reason": "a page's data answer that is not ok: proved: reading it anyway turns the test red",
+			"test": "packages/core/test/page-facts-failures.test.ts",
+			"name": "an answer that is not ok is not read, and a source that cannot be cancelled leaves nothing unhandled"
+		},
+		{
+			"site": "packages/core/src/server/page-facts.ts > look_up_page > body:0",
+			"reason": "an ok data answer with no body: proved: reading the missing body turns the test red",
+			"test": "packages/core/test/page-facts-failures.test.ts",
+			"name": "an ok answer with no body is a miss, not a read of nothing"
+		},
+		{
+			"site": "packages/core/src/server/page-facts.ts > look_up_page > .catch:0",
+			"reason": "a not-ok answer whose source cancel throws: proved: that cancel's rejection left uncaught turns the test red (unhandled)",
+			"test": "packages/core/test/page-facts-failures.test.ts",
+			"name": "an answer that is not ok is not read, and a source that cannot be cancelled leaves nothing unhandled"
+		},
+		{
+			"site": "packages/core/src/server/page-facts.ts > look_up_page > stream:0",
+			"reason": "every look-up reads the data answer's body: proved: reading an empty source instead turns the test red",
+			"test": "packages/core/test/page-facts-failures.test.ts",
+			"name": "a mangled route header leaves the page with no route, and its data"
+		},
+		{
+			"site": "packages/core/src/server/page-facts.ts > look_up_page > .catch:1",
+			"reason": "the request ends while the answer is read, and the source's cancel throws: proved: that rejection left uncaught turns the test red (unhandled)",
+			"test": "packages/core/test/page-facts-failures.test.ts",
+			"name": "the request ending stops the read, and a failed cancel leaves nothing unhandled"
+		},
+		{
+			"site": "packages/core/src/server/page-facts.ts > look_up_page > stop > .catch:0",
+			"reason": "a stopped read whose source cancel throws: proved: that rejection left uncaught turns the test red (unhandled)",
+			"test": "packages/core/test/page-facts-failures.test.ts",
+			"name": "a first line that is not JSON stops the read, and a failed cancel leaves nothing unhandled"
+		},
+		{
+			"site": "packages/core/src/server/page-facts.ts > look_up_page > parse:0",
+			"reason": "a first line that is not JSON (an HTML page answered for the data): proved: its parse failure thrown turns the test red",
+			"test": "packages/core/test/page-facts-failures.test.ts",
+			"name": "a first line that is not JSON stops the read, and a failed cancel leaves nothing unhandled"
+		},
+		{
+			"site": "packages/core/src/server/page-facts.ts > look_up_page > catch:1",
+			"reason": "a first line that is not JSON: proved: the failure thrown instead of a miss turns the test red",
+			"test": "packages/core/test/page-facts-failures.test.ts",
+			"name": "a first line that is not JSON stops the read, and a failed cancel leaves nothing unhandled"
+		},
+		{
+			"site": "packages/core/src/server/page-facts.ts > look_up_page > revive > Promise > .catch:0",
+			"reason": "a streamed promise nobody awaits, rejected when the answer ends: proved: its handler removed turns the test red (unhandled)",
+			"test": "packages/core/test/page-facts-failures.test.ts",
+			"name": "a streamed promise nobody awaits, rejected at the answer’s end, leaves nothing unhandled"
+		},
+		{
+			"site": "packages/core/src/server/page-facts.ts > look_up_page > catch:2",
+			"reason": "a node an app's transport decoder throws on: proved: the failure thrown instead of a miss turns the test red",
+			"test": "packages/core/test/page-facts-failures.test.ts",
+			"name": "a node that does not decode is a miss that says why"
+		},
+		{
+			"site": "packages/core/src/server/page-facts.ts > look_up_page > .catch:2",
+			"reason": "a whole answer with no promise, whose source cancel throws: proved: that rejection left uncaught turns the test red (unhandled)",
+			"test": "packages/core/test/page-facts-failures.test.ts",
+			"name": "a whole answer with no promise is let go, and a failed cancel leaves nothing unhandled"
+		},
+		{
+			"site": "packages/core/src/server/page-facts.ts > look_up_page > parse:1",
+			"reason": "a route header that is not JSON: proved: its parse failure thrown turns the test red",
+			"test": "packages/core/test/page-facts-failures.test.ts",
+			"name": "a mangled route header leaves the page with no route, and its data"
+		},
+		{
+			"site": "packages/core/src/server/page-facts.ts > look_up_page > catch:3",
+			"reason": "a route header that is not JSON: proved: the failure thrown turns the test red",
+			"test": "packages/core/test/page-facts-failures.test.ts",
+			"name": "a mangled route header leaves the page with no route, and its data"
+		},
+		{
+			"site": "packages/core/src/server/page-facts.ts > settle_streamed > line > parse:0",
+			"reason": "a chunk line that does not decode: proved: its failure thrown turns the test red (the next chunk never resolves)",
+			"test": "packages/core/test/page-facts-failures.test.ts",
+			"name": "a chunk that came still resolves its promise after a line that did not decode"
+		},
+		{
+			"site": "packages/core/src/server/page-facts.ts > settle_streamed > line > catch:0",
+			"reason": "a chunk line that does not decode: proved: its failure thrown turns the test red",
+			"test": "packages/core/test/page-facts-failures.test.ts",
+			"name": "a chunk that came still resolves its promise after a line that did not decode"
+		},
+		{
+			"site": "packages/core/src/server/page-facts.ts > settle_streamed > catch:0",
+			"reason": "a data answer that breaks while its promises stream: proved: the break thrown turns the test red",
+			"test": "packages/core/test/page-facts-failures.test.ts",
+			"name": "a stream that breaks rejects what did not arrive, coded, and a failed cancel leaves nothing unhandled"
+		},
+		{
+			"site": "packages/core/src/server/page-facts.ts > settle_streamed > .catch:0",
+			"reason": "the end of a streamed read whose source cancel throws: proved: that rejection left uncaught turns the test red (unhandled)",
+			"test": "packages/core/test/page-facts-failures.test.ts",
+			"name": "a stream that breaks rejects what did not arrive, coded, and a failed cancel leaves nothing unhandled"
 		}
 	],
 	"impossible": [
@@ -1397,24 +1505,6 @@
 		"packages/core/src/server/hmac.ts > hex_equal > crypto:0",
 		"packages/core/src/server/hole-graph.ts > root_absolute > catch:0",
 		"packages/core/src/server/hole-urls.ts > resolve_attr > catch:0",
-		"packages/core/src/server/page-facts.ts > look_up_page > catch:0",
-		"packages/core/src/server/page-facts.ts > look_up_page > not-ok:0",
-		"packages/core/src/server/page-facts.ts > look_up_page > body:0",
-		"packages/core/src/server/page-facts.ts > look_up_page > .catch:0",
-		"packages/core/src/server/page-facts.ts > look_up_page > stream:0",
-		"packages/core/src/server/page-facts.ts > look_up_page > .catch:1",
-		"packages/core/src/server/page-facts.ts > look_up_page > stop > .catch:0",
-		"packages/core/src/server/page-facts.ts > look_up_page > parse:0",
-		"packages/core/src/server/page-facts.ts > look_up_page > catch:1",
-		"packages/core/src/server/page-facts.ts > look_up_page > revive > Promise > .catch:0",
-		"packages/core/src/server/page-facts.ts > look_up_page > catch:2",
-		"packages/core/src/server/page-facts.ts > look_up_page > .catch:2",
-		"packages/core/src/server/page-facts.ts > look_up_page > parse:1",
-		"packages/core/src/server/page-facts.ts > look_up_page > catch:3",
-		"packages/core/src/server/page-facts.ts > settle_streamed > line > parse:0",
-		"packages/core/src/server/page-facts.ts > settle_streamed > line > catch:0",
-		"packages/core/src/server/page-facts.ts > settle_streamed > catch:0",
-		"packages/core/src/server/page-facts.ts > settle_streamed > .catch:0",
 		"packages/core/src/server/page-seed.ts > keep_serializable > carries > catch:0",
 		"packages/core/src/server/page-seed.ts > keep_serializable > keep > catch:0",
 		"packages/core/src/server/page-seed.ts > PageSeed > serialize > catch:0",
